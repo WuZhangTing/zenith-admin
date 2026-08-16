@@ -95,7 +95,7 @@ export default function ApproverAdvancedSections({
   availableRejectNodes = [],
   emptyStrategy,
   emptyAssignToIds,
-  sameInitiatorStrategy = 'selfApprove',
+  sameInitiatorStrategy = 'autoSkip',
   deduplicateStrategy = 'autoSkip',
   returnMode = 'reexecute',
   catchAction,

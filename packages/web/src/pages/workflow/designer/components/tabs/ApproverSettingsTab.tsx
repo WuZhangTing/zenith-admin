@@ -116,7 +116,7 @@ export default function ApproverSettingsTab({
   availableRejectNodes = [],
   emptyStrategy = 'autoApprove',
   emptyAssignToIds,
-  sameInitiatorStrategy = 'selfApprove',
+  sameInitiatorStrategy = 'autoSkip',
   deduplicateStrategy = 'autoSkip',
   returnMode = 'reexecute',
   catchAction,

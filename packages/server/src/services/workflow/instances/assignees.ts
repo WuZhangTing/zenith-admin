@@ -49,8 +49,9 @@ export async function applyAssigneeRuntimeStrategies(
 ): Promise<number[]> {
   let ids = [...new Set(userIds)];
   const dedupMode = resolveApproverDedupMode(ctx.settings);
-  const sameInitiatorStrategy = task.nodeConfig.sameInitiatorStrategy
-    ?? (dedupMode !== 'none' ? 'autoSkip' : 'selfApprove');
+  // 默认「自动跳过」：审批人解析为发起人本人时不生成自审任务（自批有合规风险），
+  // 需要自审的流程在节点上显式配置 selfApprove
+  const sameInitiatorStrategy = task.nodeConfig.sameInitiatorStrategy ?? 'autoSkip';
 
   if (ids.includes(ctx.initiatorId) && sameInitiatorStrategy !== 'selfApprove') {
     ids = ids.filter((id) => id !== ctx.initiatorId);

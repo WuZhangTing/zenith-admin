@@ -225,9 +225,6 @@ export const WORKFLOW_NODE_FAILURE_ACTION_OPTIONS: Array<{
 ];
 
 export const OPERATION_PERMISSION_OPTIONS: Array<{ value: OperationPermission; label: string }> = [
-  { value: 'approve',          label: '通过' },
-  { value: 'reject',           label: '拒绝' },
-  { value: 'comment',          label: '评论' },
   { value: 'signature',        label: '手写签名' },
   { value: 'opinionRequired',  label: '审批意见必填' },
 ];
@@ -238,8 +235,8 @@ export const FIELD_PERMISSION_OPTIONS: Array<{ value: FieldPermission; label: st
   { value: 'hidden', label: '隐藏' },
 ];
 
-/** 默认审批人操作权限 */
-export const DEFAULT_APPROVER_OPERATIONS: OperationPermission[] = ['approve', 'reject', 'comment'];
+/** 默认审批要求（无附加要求；按钮启停的唯一事实源是 actionButtons） */
+export const DEFAULT_APPROVER_OPERATIONS: OperationPermission[] = [];
 
 /** 延迟时间单位选项 */
 export const DELAY_UNIT_OPTIONS = [
@@ -267,10 +264,10 @@ export const APPROVAL_TYPE_OPTIONS: Array<{ value: ApprovalType; label: string; 
 // ─── 审批人与发起人同一人策略 ──────────────────────────────
 
 export const SAME_INITIATOR_OPTIONS: Array<{ value: SameInitiatorStrategy; label: string }> = [
-  { value: 'selfApprove',     label: '由发起人自己审批' },
-  { value: 'autoSkip',        label: '自动跳过' },
+  { value: 'autoSkip',        label: '自动跳过（推荐）' },
   { value: 'toDirectManager', label: '转交给直接上级审批' },
   { value: 'toDeptHead',      label: '转交给部门负责人审批' },
+  { value: 'selfApprove',     label: '由发起人自己审批' },
 ];
 
 // ─── 审批人去重策略 ──────────────────────────────────────────

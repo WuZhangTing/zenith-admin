@@ -424,8 +424,37 @@ describe('normalizeFlowData (schema 版本兼容迁移)', () => {
     expect(normalizeFlowData(flow)).toBe(flow);
   });
 
-  it('returns current-schema flowData for older versions (v1 恒等)', () => {
+  it('returns current-schema flowData for older versions', () => {
     expect(normalizeFlowData(flow, 0)).toEqual(flow);
+  });
+
+  it('v1→v2 清洗 operations 中的按钮值，仅保留审批要求（nodes + process 树）', () => {
+    const v1 = {
+      nodes: [
+        { id: 'n1', position: { x: 0, y: 0 }, data: { key: 'a', type: 'approve', label: '审批', operations: ['approve', 'reject', 'comment', 'signature'] } },
+        { id: 'n2', position: { x: 0, y: 0 }, data: { key: 'b', type: 'approve', label: '审批2', operations: ['approve', 'reject'] } },
+      ],
+      edges: [],
+      process: {
+        initiator: {
+          id: 'initiator', type: 'initiator',
+          children: {
+            id: 'a', key: 'a', type: 'approver',
+            props: { operations: ['approve', 'opinionRequired'] },
+            branches: [{ children: { id: 'c', key: 'c', type: 'approver', props: { operations: ['comment'] } } }],
+          },
+        },
+      },
+    } as unknown as WorkflowFlowData;
+    const v2 = normalizeFlowData(v1, 1);
+    expect(v2).not.toBe(v1);
+    expect((v2.nodes[0].data as Record<string, unknown>).operations).toEqual(['signature']);
+    expect('operations' in (v2.nodes[1].data as Record<string, unknown>)).toBe(false);
+    const proc = (v2 as unknown as { process: { initiator: { children: { props: Record<string, unknown>; branches: Array<{ children: { props: Record<string, unknown> } }> } } } }).process;
+    expect(proc.initiator.children.props.operations).toEqual(['opinionRequired']);
+    expect('operations' in proc.initiator.children.branches[0].children.props).toBe(false);
+    // 源对象不被修改
+    expect((v1.nodes[0].data as Record<string, unknown>).operations).toEqual(['approve', 'reject', 'comment', 'signature']);
   });
 });
 

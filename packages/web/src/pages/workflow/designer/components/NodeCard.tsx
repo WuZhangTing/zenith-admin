@@ -5,7 +5,7 @@
  */
 import { ChevronRight, Copy, X } from 'lucide-react';
 import { Popconfirm, Tooltip } from '@douyinfe/semi-ui';
-import type { FlowNode, AssigneeType, ApproveMethod, ApprovalType, OperationPermission, FieldPermission, NodeRuntimeInfo, NodeHealthInfo } from '../types';
+import type { FlowNode, AssigneeType, ApproveMethod, ApprovalType, FieldPermission, NodeRuntimeInfo, NodeHealthInfo } from '../types';
 import { NODE_COLOR_MAP, ADDABLE_NODE_TYPES, ASSIGNEE_TYPE_OPTIONS, APPROVE_METHOD_OPTIONS, APPROVAL_TYPE_OPTIONS } from '../constants';
 import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime } from '@/utils/date';
@@ -172,8 +172,8 @@ function getNodeTags(node: FlowNode): string[] {
       tags.push(approvalType === 'autoApprove' ? '自动通过' : '自动拒绝');
     }
 
-    const ops = p.operations as OperationPermission[] | undefined;
-    if (ops && !ops.includes('reject')) tags.push('不可拒绝');
+    const ops = p.actionButtons as Partial<Record<string, { enabled?: boolean }>> | undefined;
+    if (ops?.reject?.enabled === false) tags.push('不可拒绝');
 
     const fp = p.fieldPermissions as Record<string, FieldPermission> | undefined;
     if (fp) {

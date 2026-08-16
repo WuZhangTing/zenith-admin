@@ -73,11 +73,8 @@ export type RejectStrategy =
   | 'returnStart'    // 退回发起人（流程从头开始）
   | 'returnToNode';  // 退回到指定节点
 
-/** 操作权限 */
+/** 审批要求开关（签名/意见必填）；按钮启停的唯一事实源是 actionButtons */
 export type OperationPermission =
-  | 'approve'           // 通过
-  | 'reject'            // 拒绝
-  | 'comment'           // 评论
   | 'signature'         // 手写签名
   | 'opinionRequired';  // 审批意见必填
 

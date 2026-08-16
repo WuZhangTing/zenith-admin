@@ -109,7 +109,6 @@ const APPROVER_DEFAULT_PROPS: Record<string, unknown> = {
   approveMethod: 'or',
   rejectStrategy: 'terminate',
   emptyStrategy: 'autoApprove',
-  operations: ['approve', 'reject', 'comment'],
   fieldPermissions: {},
 };
 

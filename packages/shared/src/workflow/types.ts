@@ -131,10 +131,11 @@ export type WorkflowApproverDedupMode =
   | 'all'          // 仅审批一次，后续重复的审批节点均自动通过
   | 'consecutive';
  // 仅针对连续审批的节点自动通过
+/**
+ * 审批要求开关（节点行为约束，非操作按钮）。
+ * 按钮启停/展示名/意见与附件要求的唯一事实源是 actionButtons（WorkflowActionButtonKey → WorkflowActionButtonConfig）。
+ */
 export type WorkflowOperationPermission =
-  | 'approve'
-  | 'reject'
-  | 'comment'
   | 'signature'
   | 'opinionRequired';
 

@@ -381,7 +381,7 @@ export default function NodeConfigDrawer({
                   availableRejectNodes={rejectableAncestorNodes}
                   emptyStrategy={(props.emptyStrategy as EmptyAssigneeStrategy) ?? 'autoApprove'}
                   emptyAssignToIds={props.emptyAssignToIds as number[] | undefined}
-                  sameInitiatorStrategy={(props.sameInitiatorStrategy as SameInitiatorStrategy) ?? 'selfApprove'}
+                  sameInitiatorStrategy={(props.sameInitiatorStrategy as SameInitiatorStrategy) ?? 'autoSkip'}
                   deduplicateStrategy={(props.deduplicateStrategy as DeduplicateStrategy) ?? 'autoSkip'}
                   returnMode={(props.returnMode as 'reexecute' | 'backToOrigin') ?? 'reexecute'}
                   catchAction={props.catchAction as 'toAdmin' | 'notify' | 'terminate' | undefined}
@@ -1023,7 +1023,7 @@ function getDefaultProps(type: FlowNodeType): Record<string, unknown> {
         approveMethod: 'or',
         rejectStrategy: 'terminate',
         emptyStrategy: 'autoApprove',
-        sameInitiatorStrategy: 'selfApprove',
+        sameInitiatorStrategy: 'autoSkip',
         deduplicateStrategy: 'autoSkip',
         operations: DEFAULT_APPROVER_OPERATIONS,
         fieldPermissions: {},

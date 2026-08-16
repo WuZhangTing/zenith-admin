@@ -30,18 +30,54 @@ import dayjs from 'dayjs';
 /**
  * 将不同 schema 版本的 flowData 迁移到当前引擎 schema（运行时兼容迁移）。
  * 在写入边界（发布 / 导入）调用，确保落库/运行的 flowData 始终是当前 schema。
- * 当前 {@link WORKFLOW_SCHEMA_VERSION} = 1，为恒等；未来 schema 升级时在此按版本逐级 upcast，
- * 例如重命名节点字段、合并枚举、补默认值，保证旧定义/导入件在新引擎下稳定运行。
+ * 当前 {@link WORKFLOW_SCHEMA_VERSION} = 2；旧版本在此按版本逐级 upcast。
  * @param fromVersion 源 flowData 的 schema 版本（默认按当前版本，即视为已是最新）
  */
 export function normalizeFlowData(
   flowData: WorkflowFlowData,
   fromVersion: number = WORKFLOW_SCHEMA_VERSION,
 ): WorkflowFlowData {
-  if (fromVersion >= WORKFLOW_SCHEMA_VERSION) return flowData; // 已是当前 schema（含 v1 恒等）
-  // 逐级 upcast，未来升级在此追加，例如：
-  // if (fromVersion < 2) flowData = upgradeV1ToV2(flowData);
+  if (fromVersion >= WORKFLOW_SCHEMA_VERSION) return flowData; // 已是当前 schema
+  if (fromVersion < 2) flowData = upgradeFlowDataV1ToV2(flowData);
   return flowData;
+}
+
+/** v2 起 operations 只承载审批要求；按钮启停的唯一事实源是 actionButtons */
+const V2_ALLOWED_OPERATIONS = new Set(['signature', 'opinionRequired']);
+
+function sanitizeOperationsV2(target: Record<string, unknown>): void {
+  if (!('operations' in target)) return;
+  const raw = target.operations;
+  const kept = Array.isArray(raw)
+    ? raw.filter((v): v is string => typeof v === 'string' && V2_ALLOWED_OPERATIONS.has(v))
+    : [];
+  if (kept.length > 0) target.operations = kept;
+  else delete target.operations;
+}
+
+/**
+ * v1 → v2：清洗 operations 中的按钮值（approve/reject/comment 等），仅保留审批要求
+ * （signature/opinionRequired）。按钮启停自 v2 起由 actionButtons 唯一承载。
+ */
+function upgradeFlowDataV1ToV2(flowData: WorkflowFlowData): WorkflowFlowData {
+  const next = structuredClone(flowData);
+  for (const n of next.nodes ?? []) {
+    if (n.data) sanitizeOperationsV2(n.data as unknown as Record<string, unknown>);
+  }
+  const visitProcessNode = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const rec = node as Record<string, unknown>;
+    const props = rec.props;
+    if (props && typeof props === 'object') sanitizeOperationsV2(props as Record<string, unknown>);
+    if (Array.isArray(rec.branches)) {
+      for (const b of rec.branches) {
+        if (b && typeof b === 'object') visitProcessNode((b as Record<string, unknown>).children);
+      }
+    }
+    visitProcessNode(rec.children);
+  };
+  visitProcessNode((next.process as Record<string, unknown> | undefined)?.initiator);
+  return next;
 }
 
 /**
