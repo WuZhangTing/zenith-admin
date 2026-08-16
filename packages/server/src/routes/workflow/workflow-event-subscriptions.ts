@@ -28,7 +28,7 @@ import {
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const WORKFLOW_EVENT_TYPES = [
-  'instance.created', 'instance.approved', 'instance.rejected', 'instance.withdrawn',
+  'instance.created', 'instance.approved', 'instance.rejected', 'instance.withdrawn', 'instance.returned',
   'node.entered', 'node.left',
   'task.created', 'task.assigned', 'task.approved', 'task.rejected', 'task.skipped', 'task.transferred', 'task.addSigned', 'task.reduceSigned', 'task.urged',
 ] as const;

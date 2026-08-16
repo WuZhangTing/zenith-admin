@@ -648,8 +648,8 @@ export default function MyApplicationsPage() {
       actions: (record) => [
         {
           key: 'edit-draft',
-          label: '编辑',
-          hidden: record.status !== 'draft',
+          label: record.status === 'returned' ? '修改重提' : '编辑',
+          hidden: record.status !== 'draft' && record.status !== 'returned',
           onClick: () => void openEditDraft(record),
         },
         {
@@ -691,7 +691,9 @@ export default function MyApplicationsPage() {
     }),
   ];
 
-  const applySheetTitle = editingDraft ? '编辑草稿' : '发起申请';
+  const applySheetTitle = editingDraft
+    ? (editingDraft.status === 'returned' ? '修改并重新提交' : '编辑草稿')
+    : '发起申请';
 
   const applySheetFooter = editingDraft ? (
     <Space style={{ width: '100%', justifyContent: 'flex-end' }}>

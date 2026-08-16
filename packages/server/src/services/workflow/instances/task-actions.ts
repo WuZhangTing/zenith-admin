@@ -469,8 +469,8 @@ async function keepRatioNodeAliveAfterReject(
 ): Promise<boolean> {
   const allRows = await tx.select().from(workflowTasks)
     .where(and(eq(workflowTasks.instanceId, instanceId), eq(workflowTasks.nodeKey, nodeKey)));
-  // 只统计当前激活轮，历史轮任务不参与阈值分母
-  const ratioSiblings = filterCurrentActivation(allRows);
+  // 只统计当前激活轮，历史轮任务不参与阈值分母；前加签任务是前置关卡，同样不参与（与 checkNodeCompletion 口径一致）
+  const ratioSiblings = filterCurrentActivation(allRows).filter((t) => t.signType !== 'before');
   const ratioPct = ratioSiblings.find((t) => t.approveRatio)?.approveRatio ?? 51;
   const required = Math.ceil(ratioSiblings.length * ratioPct / 100);
   const maxPossibleApproved = ratioSiblings
@@ -537,18 +537,24 @@ export async function rejectTaskCore(
       return { row: settled.row, terminated: true, rejectedTask, skippedTasks: skipped, newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge: settled.fillBridge };
     }
 
-    // 回退：实例保持 running，在目标节点重新生成任务
+    // 回退：在目标节点重新生成任务；returnStart 例外——实例交还发起人（returned），由发起人修改后重新提交
+    if (strategy === 'returnStart') {
+      // 退回发起人：清场所有 token 与剩余任务，实例进入 returned 状态等待发起人修改重提，
+      // 不再从头重新物化任务（那会立即生成新一轮审批任务，发起人没有任何修改入口）
+      await killInstanceTokens(tx, inst.id);
+      const [row] = await tx.update(workflowInstances)
+        .set({ status: 'returned', currentNodeKey: null })
+        .where(eq(workflowInstances.id, inst.id))
+        .returning();
+      return { row, terminated: false, finished: false, returned: true, rejectedTask, skippedTasks: skipped, newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge: null };
+    }
+
     const formData = (inst.formData ?? {}) as Record<string, unknown>;
     const starter = await buildStarterContext(inst.initiatorId, tx);
     let returnTrigger: MaterializeTrigger | null = null;
-
-    if (strategy === 'returnStart') {
-      returnTrigger = { kind: 'seed' };
-    } else {
-      const targetCfg = flowData.nodes.find((n) => n.data.key === targetNodeKey)?.data;
-      if (targetCfg && (targetCfg.type === 'approve' || targetCfg.type === 'handler')) {
-        returnTrigger = { kind: 'enterNode', nodeKey: targetCfg.key };
-      }
+    const targetCfg = flowData.nodes.find((n) => n.data.key === targetNodeKey)?.data;
+    if (targetCfg && (targetCfg.type === 'approve' || targetCfg.type === 'handler')) {
+      returnTrigger = { kind: 'enterNode', nodeKey: targetCfg.key };
     }
 
     if (!returnTrigger) {
@@ -613,6 +619,8 @@ export async function rejectTaskCore(
       await emitNodeEvent('node.left', { instanceId: res.row.id, ...meta, nodeKey: task.nodeKey, nodeName: task.nodeName, nodeType: task.nodeType }, tx);
       if (res.terminated) {
         await emitInstanceEvent('instance.rejected', mapInstance(res.row), actor, tx);
+      } else if ((res as { returned?: boolean }).returned) {
+        await emitInstanceEvent('instance.returned', mapInstance(res.row), actor, tx);
       } else {
         await emitTasksMaterializedEvents(res.row.id, res.newTasks, meta, tx);
         if (res.finished) await emitInstanceEvent('instance.approved', mapInstance(res.row), actor, tx);
@@ -627,6 +635,9 @@ export async function rejectTaskCore(
   }
   if (updated.terminated || updated.finished) {
     notifySubprocessParent(updated.row);
+  }
+  if ((updated as { returned?: boolean }).returned) {
+    return { instance: mapInstance(updated.row), message: '已驳回，申请已退回发起人修改' };
   }
 
   return { instance: mapInstance(updated.row), message: '已驳回' };
@@ -694,6 +705,8 @@ async function processDelegatedReceipt(
       approveMethod: task.approveMethod,
       approveRatio: task.approveRatio,
       activationId: task.activationId,
+      // 回执任务继承加签类型：before 加签任务被委派后，其回执确认仍参与「前加签全部完成」判定
+      signType: task.signType,
       originalAssigneeId: delegatorId,
       delegatedFromId: null,
       comment: receiptComment,

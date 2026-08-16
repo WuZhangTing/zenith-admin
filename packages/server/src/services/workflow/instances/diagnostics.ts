@@ -58,6 +58,25 @@ function buildRuntimeIssues(input: {
       description: '实例状态仍为 running，但没有 pending/waiting 任务，可能存在推进中断或状态未回写。',
     });
   }
+  // 死锁检测：running 实例只剩 waiting 任务且全部不具备任何唤醒来源（外部回调 / 触发器 / 子流程汇聚 /
+  // 同节点仍有可推进的 pending 任务），说明没有任何路径能再推进该实例
+  if (input.inst.status === 'running' && activeTasks.length > 0 && !activeTasks.some((t) => t.status === 'pending')) {
+    const pendingNodeKeys = new Set(input.tasks.filter((t) => t.status === 'pending').map((t) => t.nodeKey));
+    const stuckWaiting = activeTasks.filter((t) =>
+      !t.externalCallbackId
+      && t.nodeType !== 'trigger'
+      && t.nodeType !== 'subProcess'
+      && t.nodeType !== 'delay'
+      && !pendingNodeKeys.has(t.nodeKey));
+    if (stuckWaiting.length === activeTasks.length) {
+      issues.push({
+        severity: 'critical',
+        source: 'instance',
+        title: '等待任务无法被唤醒（疑似死锁）',
+        description: `实例仅剩 ${stuckWaiting.length} 个 waiting 任务（${stuckWaiting.map((t) => `「${t.nodeName}」`).join('、')}），且不存在外部回调、触发器、子流程或同节点 pending 任务等任何唤醒来源。可使用「强制跳转」解卡，并排查加签/委派组合路径。`,
+      });
+    }
+  }
   // 外部审批 / 触发器作业失败（workflow_jobs）
   for (const job of input.jobs) {
     if (job.status !== 'failed' && job.status !== 'dead') continue;

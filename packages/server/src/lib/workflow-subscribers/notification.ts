@@ -164,7 +164,7 @@ export function registerNotificationWorkflowSubscriber(): void {
     });
   });
 
-  const notifyInitiator = (status: 'approved' | 'rejected' | 'withdrawn') => async (
+  const notifyInitiator = (status: 'approved' | 'rejected' | 'withdrawn' | 'returned') => async (
     event: { instanceId: number; tenantId: number | null; instance: { initiatorId: number; title: string; serialNo?: string | null } },
   ) => {
     const inst = event.instance;
@@ -173,6 +173,7 @@ export function registerNotificationWorkflowSubscriber(): void {
       approved: { title: '审批通过', content: `你发起的流程「${label}」已审批通过`, type: 'success' as const },
       rejected: { title: '审批被驳回', content: `你发起的流程「${label}」已被驳回`, type: 'warning' as const },
       withdrawn: { title: '流程已撤回', content: `你发起的流程「${label}」已撤回`, type: 'info' as const },
+      returned: { title: '申请被退回', content: `你发起的流程「${label}」已被退回，请修改后重新提交`, type: 'warning' as const },
     };
     const m = map[status];
     const { channels, notifyInitiator: shouldNotify } = await loadNotifyContext(event.instanceId);
@@ -184,4 +185,5 @@ export function registerNotificationWorkflowSubscriber(): void {
   workflowEventBus.on('instance.approved', notifyInitiator('approved'));
   workflowEventBus.on('instance.rejected', notifyInitiator('rejected'));
   workflowEventBus.on('instance.withdrawn', notifyInitiator('withdrawn'));
+  workflowEventBus.on('instance.returned', notifyInitiator('returned'));
 }

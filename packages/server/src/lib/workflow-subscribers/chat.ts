@@ -69,7 +69,7 @@ export function registerChatWorkflowSubscriber(): void {
   workflowEventBus.on('task.transferred', resolveCard('已转交'));
 
   // 流程结束 → 通知发起人
-  const notifyInitiator = (kind: 'approved' | 'rejected' | 'withdrawn') => async (
+  const notifyInitiator = (kind: 'approved' | 'rejected' | 'withdrawn' | 'returned') => async (
     event: { instanceId: number; instance: { initiatorId: number; title: string; serialNo?: string | null } },
   ) => {
     const inst = event.instance;
@@ -82,6 +82,7 @@ export function registerChatWorkflowSubscriber(): void {
       approved: { title: '审批通过', text: `你发起的流程「${label}」已审批通过`, statusText: '已通过' },
       rejected: { title: '审批被驳回', text: `你发起的流程「${label}」已被驳回`, statusText: '已驳回' },
       withdrawn: { title: '流程已撤回', text: `你发起的流程「${label}」已撤回`, statusText: '已撤回' },
+      returned: { title: '申请被退回', text: `你发起的流程「${label}」已被退回，请修改后重新提交`, statusText: '已退回' },
     };
     const m = map[kind];
     try {
@@ -103,4 +104,5 @@ export function registerChatWorkflowSubscriber(): void {
   workflowEventBus.on('instance.approved', notifyInitiator('approved'));
   workflowEventBus.on('instance.rejected', notifyInitiator('rejected'));
   workflowEventBus.on('instance.withdrawn', notifyInitiator('withdrawn'));
+  workflowEventBus.on('instance.returned', notifyInitiator('returned'));
 }

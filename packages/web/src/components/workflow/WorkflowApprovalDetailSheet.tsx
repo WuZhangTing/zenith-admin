@@ -204,7 +204,7 @@ export default function WorkflowApprovalDetailSheet({
       t.id !== currentTask.id
       && t.nodeKey === currentTask.nodeKey
       && (t.status === 'pending' || t.status === 'waiting')
-      && (t.comment?.startsWith('[加签') ?? false),
+      && Boolean(t.signType),
     );
   }, [detail, currentTask]);
 

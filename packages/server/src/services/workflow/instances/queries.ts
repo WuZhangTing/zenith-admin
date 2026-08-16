@@ -363,7 +363,7 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
       page, pageSize,
     ),
   ]);
-  const stats: Record<string, number> = { total: 0, running: 0, approved: 0, rejected: 0, withdrawn: 0 };
+  const stats: Record<string, number> = { total: 0, running: 0, returned: 0, approved: 0, rejected: 0, withdrawn: 0 };
   for (const r of statRows) {
     stats[r.status] = r.cnt;
     stats.total += r.cnt;

@@ -44,6 +44,7 @@ export function mapTask(
     originalAssigneeId: row.originalAssigneeId ?? null,
     transfers: transfers ?? null,
     delegatedFromId: row.delegatedFromId ?? null,
+    signType: row.signType ?? null,
     actionButtons: actionButtons ?? null,
     externalCallbackId: row.externalCallbackId ?? null,
     createdAt: formatDateTime(row.createdAt),

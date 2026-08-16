@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { filterCurrentActivation } from './materialize';
+import { describe, expect, it, vi } from 'vitest';
+import { checkNodeCompletion, filterCurrentActivation } from './materialize';
+import type { DbExecutor } from '../../../db/types';
 
 type Row = { id: number; activationId: string | null; status?: string };
 
@@ -43,5 +44,60 @@ describe('filterCurrentActivation 节点重入轮次过滤', () => {
     ];
     const filtered = filterCurrentActivation(rows);
     expect(filtered.map((r) => r.id).sort()).toEqual([1, 5]);
+  });
+});
+
+/** 构造只支持 checkNodeCompletion 所需链式调用的 fake 事务执行器 */
+function fakeTx(rows: Array<Record<string, unknown>>, onUpdate?: (patch: Record<string, unknown>) => void): DbExecutor {
+  return {
+    select: () => ({ from: () => ({ where: () => Promise.resolve(rows) }) }),
+    update: () => ({
+      set: (patch: Record<string, unknown>) => {
+        onUpdate?.(patch);
+        return { where: () => Promise.resolve([]) };
+      },
+    }),
+  } as unknown as DbExecutor;
+}
+
+describe('checkNodeCompletion before-加签恢复（signType 判定，回归 comment 被覆盖导致的死锁）', () => {
+  const base = { instanceId: 1, nodeKey: 'n1', activationId: 'round-1', taskOrder: null as number | null };
+
+  it('前加签任务经委派回执后 comment 被覆盖，仍按 signType 恢复挂起原任务', async () => {
+    const restored: Array<Record<string, unknown>> = [];
+    // 场景：原任务 waiting；前加签任务被委派 → 原加签任务 approved（comment 已被回执覆盖）+ 回执确认任务 approved（signType 继承）
+    const rows = [
+      { ...base, id: 1, status: 'waiting', signType: null, comment: null, approveMethod: 'or' },
+      { ...base, id: 2, status: 'approved', signType: 'before', comment: '[委派回执] 某人 建议同意', approveMethod: 'or' },
+      { ...base, id: 3, status: 'approved', signType: 'before', comment: '[委派回执] 某人 建议同意', approveMethod: 'or' },
+    ];
+    const tx = fakeTx(rows, (patch) => restored.push(patch));
+    const { completed } = await checkNodeCompletion(tx, 1, 'n1');
+    // 原任务被升回 pending（写库一次），节点因原任务恢复 pending 而尚未完成
+    expect(restored.some((p) => p.status === 'pending')).toBe(true);
+    expect(completed).toBe(false);
+  });
+
+  it('前加签任务未全部处理时不恢复原任务，节点不可能完成', async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    const rows = [
+      { ...base, id: 1, status: 'waiting', signType: null, comment: null, approveMethod: 'or' },
+      { ...base, id: 2, status: 'pending', signType: 'before', comment: '[加签-前] 由 张三 发起', approveMethod: 'or' },
+    ];
+    const tx = fakeTx(rows, (patch) => updates.push(patch));
+    const { completed } = await checkNodeCompletion(tx, 1, 'n1');
+    expect(updates).toHaveLength(0);
+    expect(completed).toBe(false);
+  });
+
+  it('减签（skipped）视同已处理，同样恢复挂起原任务', async () => {
+    const restored = vi.fn();
+    const rows = [
+      { ...base, id: 1, status: 'waiting', signType: null, comment: null, approveMethod: 'or' },
+      { ...base, id: 2, status: 'skipped', signType: 'before', comment: '[减签] 由 张三 发起', approveMethod: 'or' },
+    ];
+    const tx = fakeTx(rows, restored);
+    await checkNodeCompletion(tx, 1, 'n1');
+    expect(restored).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
   });
 });

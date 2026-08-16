@@ -23,6 +23,7 @@ export const INSTANCE_STATUS_MAP: Record<string, { text: string; color: Instance
   draft: { text: WORKFLOW_INSTANCE_STATUS_LABELS.draft, color: 'grey' },
   running: { text: WORKFLOW_INSTANCE_STATUS_LABELS.running, color: 'blue' },
   suspended: { text: WORKFLOW_INSTANCE_STATUS_LABELS.suspended, color: 'amber' },
+  returned: { text: WORKFLOW_INSTANCE_STATUS_LABELS.returned, color: 'amber' },
   approved: { text: WORKFLOW_INSTANCE_STATUS_LABELS.approved, color: 'green' },
   rejected: { text: WORKFLOW_INSTANCE_STATUS_LABELS.rejected, color: 'red' },
   withdrawn: { text: WORKFLOW_INSTANCE_STATUS_LABELS.withdrawn, color: 'orange' },

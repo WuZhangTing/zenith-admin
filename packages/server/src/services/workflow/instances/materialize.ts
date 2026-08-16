@@ -562,10 +562,11 @@ export async function checkNodeCompletion(
   const siblings = filterCurrentActivation(allRows);
   const method = siblings.find((t) => t.approveMethod)?.approveMethod ?? null;
 
-  // before-加签恢复：如果同节点存在挂起原任务（status=waiting且非顺序会签）且所有 [加签-前] 任务都已处理，则将原任务升回 pending，让节点能够继续流转。
+  // before-加签恢复：如果同节点存在挂起原任务（status=waiting且非顺序会签）且所有前加签任务都已处理，则将原任务升回 pending，让节点能够继续流转。
   const beforeSuspended = siblings.filter((t) => t.status === 'waiting' && t.taskOrder == null);
   if (beforeSuspended.length > 0) {
-    const beforeSignTasks = siblings.filter((t) => t.comment?.startsWith('[加签-前]'));
+    // 判定依据是 signType 专用列——comment 会被审批意见 / 委派回执覆盖，不能作为控制流依据
+    const beforeSignTasks = siblings.filter((t) => t.signType === 'before');
     const allBeforeResolved = beforeSignTasks.length > 0
       && beforeSignTasks.every((t) => t.status === 'approved' || t.status === 'skipped');
     if (allBeforeResolved) {
@@ -581,12 +582,16 @@ export async function checkNodeCompletion(
     }
   }
 
+  // 前加签任务是「先于原审批人」的前置关卡：全部处理完后即失去话语权，不参与本节点的
+  // and/or/sequential/ratio 完成判定——or 模式下若不排除，加签人通过会立即完成节点并跳过刚恢复的原审批人
+  const judged = siblings.filter((t) => t.signType !== 'before');
+
   if (!method || method === 'and') {
-    const allDone = siblings.every((t) => t.status === 'approved' || t.status === 'skipped');
+    const allDone = judged.every((t) => t.status === 'approved' || t.status === 'skipped');
     return { completed: allDone, method };
   }
   if (method === 'or') {
-    const anyApproved = siblings.some((t) => t.status === 'approved');
+    const anyApproved = judged.some((t) => t.status === 'approved');
     if (anyApproved) {
       // 其余 pending 任务跳过
       await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
@@ -600,10 +605,10 @@ export async function checkNodeCompletion(
     return { completed: false, method };
   }
   if (method === 'sequential') {
-    const allApproved = siblings.every((t) => t.status === 'approved');
+    const allApproved = judged.every((t) => t.status === 'approved');
     if (allApproved) return { completed: true, method };
     // 将下一个 waiting 按 taskOrder 提升为 pending
-    const nextWaiting = siblings
+    const nextWaiting = judged
       .filter((t) => t.status === 'waiting')
       .sort((a, b) => (a.taskOrder ?? 0) - (b.taskOrder ?? 0))[0];
     if (nextWaiting) {
@@ -618,10 +623,10 @@ export async function checkNodeCompletion(
     return { completed: false, method };
   }
   if (method === 'ratio') {
-    const total = siblings.length;
-    const ratioPct = siblings.find((t) => t.approveRatio)?.approveRatio ?? 51;
+    const total = judged.length;
+    const ratioPct = judged.find((t) => t.approveRatio)?.approveRatio ?? 51;
     const required = Math.ceil(total * ratioPct / 100);
-    const approvedCount = siblings.filter((t) => t.status === 'approved').length;
+    const approvedCount = judged.filter((t) => t.status === 'approved').length;
     if (approvedCount >= required) {
       // 剩余 pending/waiting 任务跳过
       await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })

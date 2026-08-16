@@ -4,7 +4,7 @@ import type { WorkflowFormType } from './constants';
 // ─── 工作流引擎 ───────────────────────────────────────────────────────────────
 export type WorkflowDefinitionStatus = 'draft' | 'published' | 'disabled';
 
-export type WorkflowInstanceStatus = 'draft' | 'running' | 'suspended' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
+export type WorkflowInstanceStatus = 'draft' | 'running' | 'suspended' | 'returned' | 'approved' | 'rejected' | 'withdrawn' | 'cancelled';
 
 export type WorkflowTaskStatus = 'pending' | 'approved' | 'rejected' | 'skipped' | 'waiting';
 
@@ -1329,6 +1329,8 @@ export interface WorkflowTask {
   transfers?: WorkflowTaskTransfer[] | null;
   /** 委派来源（仅委派期间设置；回执任务为 null） */
   delegatedFromId?: number | null;
+  /** 加签类型（before/after/parallel，非加签任务为 null）；before 挂起原任务的恢复判定依赖此列 */
+  signType?: 'before' | 'after' | 'parallel' | null;
   /** 外部审批回调 ID（task.status='waiting' + externalApproval 启用时生效；派发/恢复由 workflow_jobs 接管） */
   externalCallbackId?: string | null;
   /** 当前节点配置中的操作按钮设置（仅审批节点） */
@@ -1638,6 +1640,7 @@ export type WorkflowEventType =
   | 'instance.approved'
   | 'instance.rejected'
   | 'instance.withdrawn'
+  | 'instance.returned'
   | 'node.entered'
   | 'node.left'
   | 'task.created'
@@ -1668,7 +1671,7 @@ export interface WorkflowEventBase {
 }
 
 export interface WorkflowInstanceEventPayload extends WorkflowEventBase {
-  type: 'instance.created' | 'instance.approved' | 'instance.rejected' | 'instance.withdrawn';
+  type: 'instance.created' | 'instance.approved' | 'instance.rejected' | 'instance.withdrawn' | 'instance.returned';
   instance: WorkflowInstance;
 }
 

@@ -2,7 +2,7 @@
  * 工作流相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { workflowFormFieldSchema, workflowFieldVisibilityRuleGroupSchema, workflowFormCascaderNodeSchema } from '@zenith/shared/workflow';
+import { workflowFormFieldSchema, workflowFieldVisibilityRuleGroupSchema, workflowFormCascaderNodeSchema, WORKFLOW_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { auditFields } from './_audit';
 
 /**
@@ -314,7 +314,7 @@ export const WorkflowInstanceDTO = z
     formData: z.unknown().nullable(),
     formSnapshot: z.unknown().nullable().optional(),
     definitionSnapshot: z.unknown().nullable().optional(),
-    status: z.enum(['draft', 'running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled']),
+    status: z.enum(WORKFLOW_INSTANCE_STATUSES),
     currentNodeKey: z.string().nullable(),
     currentNodeKeys: z.array(z.string()).optional(),
     currentNodeName: z.string().nullable().optional(),
@@ -334,7 +334,7 @@ export const WorkflowInstanceDTO = z
     childInstances: z.array(z.object({
       id: z.number().int(),
       title: z.string(),
-      status: z.enum(['draft', 'running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled']),
+      status: z.enum(WORKFLOW_INSTANCE_STATUSES),
       parentTaskNodeKey: z.string().nullable().optional(),
       createdAt: z.string(),
     })).nullable().optional(),
@@ -662,7 +662,7 @@ export const WorkflowRelationOptionDTO = z
     title: z.string(),
     serialNo: z.string().nullable(),
     definitionName: z.string().nullable(),
-    status: z.enum(['draft', 'running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled']),
+    status: z.enum(WORKFLOW_INSTANCE_STATUSES),
     createdAt: z.string(),
   })
   .openapi('WorkflowRelationOption');
@@ -670,7 +670,7 @@ export const WorkflowRelationOptionDTO = z
 export const WorkflowAnalyticsDTO = z
   .object({
     statusCounts: z.array(z.object({
-      status: z.enum(['draft', 'running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled']),
+      status: z.enum(WORKFLOW_INSTANCE_STATUSES),
       count: z.number().int(),
     })),
     total: z.number().int(),

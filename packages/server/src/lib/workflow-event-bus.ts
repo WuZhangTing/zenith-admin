@@ -21,7 +21,7 @@ import type { DbExecutor } from '../db/types';
 type EventHandler<E extends WorkflowEvent = WorkflowEvent> = (event: E) => void | Promise<void>;
 
 type EventByType<T extends WorkflowEventType> =
-  T extends 'instance.created' | 'instance.approved' | 'instance.rejected' | 'instance.withdrawn'
+  T extends 'instance.created' | 'instance.approved' | 'instance.rejected' | 'instance.withdrawn' | 'instance.returned'
     ? WorkflowInstanceEventPayload
     : T extends 'node.entered' | 'node.left'
     ? WorkflowNodeEventPayload

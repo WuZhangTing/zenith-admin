@@ -59,7 +59,7 @@ export async function buildSerialNoContext(
 
 /** 发射实例生命周期事件的辅助函数（传 executor 时在事务内入队 outbox，需 await） */
 export function emitInstanceEvent(
-  type: 'instance.created' | 'instance.approved' | 'instance.rejected' | 'instance.withdrawn',
+  type: 'instance.created' | 'instance.approved' | 'instance.rejected' | 'instance.withdrawn' | 'instance.returned',
   instance: ReturnType<typeof mapInstance>,
   actor: { userId: number; name?: string | null },
   executor?: DbExecutor,

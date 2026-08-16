@@ -18,6 +18,7 @@ export interface WorkflowMonitorListParams {
 export interface WorkflowMonitorStats {
   total: number;
   running: number;
+  returned: number;
   approved: number;
   rejected: number;
   withdrawn: number;

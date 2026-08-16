@@ -567,7 +567,7 @@ export default function WorkflowMonitorPage() {
     });
   };
 
-  const stats = data?.stats ?? { total: 0, running: 0, approved: 0, rejected: 0, withdrawn: 0, cancelled: 0 };
+  const stats = data?.stats ?? { total: 0, running: 0, returned: 0, approved: 0, rejected: 0, withdrawn: 0, cancelled: 0 };
 
   const openJump = async (record: WorkflowInstance) => {
     setJumpRecord(record);
@@ -1131,7 +1131,7 @@ export default function WorkflowMonitorPage() {
       value={draftParams.status || undefined}
       onChange={v => setDraftParams(prev => ({ ...prev, status: (v as string) ?? '' }))}
       style={{ width: 140 }}
-      optionList={['running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled'].map((s) => ({ value: s, label: INSTANCE_STATUS_MAP[s].text }))}
+      optionList={['running', 'suspended', 'returned', 'approved', 'rejected', 'withdrawn', 'cancelled'].map((s) => ({ value: s, label: INSTANCE_STATUS_MAP[s].text }))}
     />
   );
 
@@ -1184,6 +1184,7 @@ export default function WorkflowMonitorPage() {
       <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>
         <StatCard title="全部" value={stats.total} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')} active={draftParams.status === ''} />
         <StatCard title="审批中" value={stats.running} accent="var(--semi-color-primary)" onClick={() => handleStatCardClick('running')} active={draftParams.status === 'running'} />
+        <StatCard title="已退回" value={stats.returned ?? 0} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('returned')} active={draftParams.status === 'returned'} />
         <StatCard title="已通过" value={stats.approved} accent="#0dc87c" onClick={() => handleStatCardClick('approved')} active={draftParams.status === 'approved'} />
         <StatCard title="已驳回" value={stats.rejected} accent="#ff4d4f" onClick={() => handleStatCardClick('rejected')} active={draftParams.status === 'rejected'} />
         <StatCard title="已撤回" value={stats.withdrawn ?? 0} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('withdrawn')} active={draftParams.status === 'withdrawn'} />

@@ -3,10 +3,10 @@ import type { WorkflowApproveMethod, WorkflowApproverDedupMode } from './types';
 
 export const WORKFLOW_DEFINITION_STATUSES = ['draft', 'published', 'disabled'] as const;
 
-export const WORKFLOW_INSTANCE_STATUSES = ['draft', 'running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled'] as const;
+export const WORKFLOW_INSTANCE_STATUSES = ['draft', 'running', 'suspended', 'returned', 'approved', 'rejected', 'withdrawn', 'cancelled'] as const;
 
 /** 活跃（非终态）实例状态：业务键（bizType+bizId）唯一约束仅作用于这些状态，终态后允许同一业务记录重新发起 */
-export const WORKFLOW_ACTIVE_INSTANCE_STATUSES = ['draft', 'running', 'suspended'] as const;
+export const WORKFLOW_ACTIVE_INSTANCE_STATUSES = ['draft', 'running', 'suspended', 'returned'] as const;
 
 export const WORKFLOW_TASK_STATUSES = ['pending', 'approved', 'rejected', 'skipped'] as const;
 
@@ -69,6 +69,7 @@ export const WORKFLOW_INSTANCE_STATUS_LABELS = {
   draft: '草稿',
   running: '审批中',
   suspended: '已挂起',
+  returned: '已退回',
   approved: '已通过',
   rejected: '已驳回',
   withdrawn: '已撤回',

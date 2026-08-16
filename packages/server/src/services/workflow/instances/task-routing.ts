@@ -213,6 +213,8 @@ export async function addSignTask(
         comment: addSignComment,
         attachments: attachments ?? null,
         approveMethod,
+        // 加签类型专用列：before 挂起原任务的恢复判定依赖它（comment 会被审批/委派回执覆盖，不能作为判定依据）
+        signType: position,
         // 加签任务加入目标任务所在激活轮，参与同轮完成判定
         activationId: task.activationId,
       })),
@@ -246,7 +248,7 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
     if (t.status !== 'pending' && t.status !== 'waiting') {
       throw new HTTPException(400, { message: '仅可减签未处理的任务' });
     }
-    if (!t.comment?.startsWith('[加签-')) {
+    if (!t.signType) {
       throw new HTTPException(400, { message: '仅可减去加签产生的任务，原始审批人不可移除' });
     }
   }

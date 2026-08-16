@@ -51,7 +51,7 @@ export function registerWsWorkflowSubscriber(): void {
     }
   });
 
-  const pushInstanceFinished = (event: { instanceId: number; instance: { status: WorkflowInstanceStatus; title: string; initiatorId: number } }, status: 'approved' | 'rejected' | 'withdrawn') => {
+  const pushInstanceFinished = (event: { instanceId: number; instance: { status: WorkflowInstanceStatus; title: string; initiatorId: number } }, status: 'approved' | 'rejected' | 'withdrawn' | 'returned') => {
     sendToUser(event.instance.initiatorId, {
       type: 'workflow:instanceFinished',
       payload: {
@@ -65,4 +65,5 @@ export function registerWsWorkflowSubscriber(): void {
   workflowEventBus.on('instance.approved', (event) => pushInstanceFinished(event, 'approved'));
   workflowEventBus.on('instance.rejected', (event) => pushInstanceFinished(event, 'rejected'));
   workflowEventBus.on('instance.withdrawn', (event) => pushInstanceFinished(event, 'withdrawn'));
+  workflowEventBus.on('instance.returned', (event) => pushInstanceFinished(event, 'returned'));
 }

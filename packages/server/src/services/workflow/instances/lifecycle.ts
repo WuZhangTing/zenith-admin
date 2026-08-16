@@ -361,7 +361,7 @@ async function loadOwnDraft(id: number) {
 
 export async function updateInstanceDraft(id: number, input: { title?: string; formData?: Record<string, unknown> | null; priority?: import('@zenith/shared').WorkflowInstancePriority }) {
   const inst = await loadOwnDraft(id);
-  if (inst.status !== 'draft') throw new HTTPException(400, { message: '仅草稿可编辑' });
+  if (inst.status !== 'draft' && inst.status !== 'returned') throw new HTTPException(400, { message: '仅草稿或已退回的申请可编辑' });
   const patch: Partial<typeof workflowInstances.$inferInsert> = {};
   if (input.title !== undefined) patch.title = input.title;
   if (input.formData !== undefined) patch.formData = input.formData ?? {};
@@ -373,7 +373,9 @@ export async function updateInstanceDraft(id: number, input: { title?: string; f
 export async function submitDraftInstance(id: number, input: { selectedInitiatorApprovers?: SelectedApproverMap } = {}) {
   const user = currentUser();
   const inst = await loadOwnDraft(id);
-  if (inst.status !== 'draft') throw new HTTPException(400, { message: '仅草稿可提交' });
+  // returned（退回发起人）与 draft 共用提交链路：修改后重新从头走流程，保留同一实例与审计历史
+  const isResubmitAfterReturn = inst.status === 'returned';
+  if (inst.status !== 'draft' && !isResubmitAfterReturn) throw new HTTPException(400, { message: '仅草稿或已退回的申请可提交' });
   const [def] = await db.select().from(workflowDefinitions)
     .where(and(eq(workflowDefinitions.id, inst.definitionId), eq(workflowDefinitions.status, 'published'))).limit(1);
   if (!def) throw new HTTPException(400, { message: '流程定义不存在或已停用，无法提交' });
@@ -395,7 +397,8 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
   const serialConfig = flowData.settings?.serialNo;
   const serialCtx = await buildSerialNoContext(serialConfig, formData);
   const instance = await db.transaction(async (tx) => {
-    const serialNo = await generateSerialNo(tx, def.id, serialConfig, serialCtx);
+    // returned 重提保留首次提交生成的业务编号，避免同一申请出现两个流水号
+    const serialNo = inst.serialNo ?? await generateSerialNo(tx, def.id, serialConfig, serialCtx);
     await tx.update(workflowInstances).set({
       definitionSnapshot,
       formSnapshot,
@@ -417,7 +420,13 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
       status: materialized.rejected ? 'rejected' : (materialized.finished ? 'approved' : 'running'),
       currentNodeKey: materialized.rejected || materialized.finished ? null : materialized.currentNodeKeys[0] ?? null,
     }).where(eq(workflowInstances.id, id)).returning();
-    await emitInstanceStartEvents(mapInstance(updatedInstance), updatedInstance, materialized.createdTasks, { userId: user.userId, name: user.username }, tx);
+    const actor = { userId: user.userId, name: user.username };
+    if (isResubmitAfterReturn) {
+      // 重提不是新实例：不重复发 instance.created（避免误触发订阅 created 的自动化与业务桥接）
+      await emitMaterializedAdvanceEvents(mapInstance(updatedInstance), updatedInstance, materialized.createdTasks, actor, tx);
+    } else {
+      await emitInstanceStartEvents(mapInstance(updatedInstance), updatedInstance, materialized.createdTasks, actor, tx);
+    }
     return updatedInstance;
   });
   return mapInstance(instance);
