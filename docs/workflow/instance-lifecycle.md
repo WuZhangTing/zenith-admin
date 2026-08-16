@@ -14,6 +14,8 @@ stateDiagram-v2
   suspended --> cancelled: 管理员取消
   running --> approved: 所有路径通过
   running --> rejected: 驳回并终止
+  running --> returned: 驳回退回发起人
+  returned --> running: 发起人修改后重新提交
   running --> withdrawn: 发起人撤回
   running --> cancelled: 管理员取消
   rejected --> draft: 重新提交为新草稿
@@ -25,6 +27,7 @@ stateDiagram-v2
 | `draft` | 已保存但未进入流转 |
 | `running` | 正在执行 |
 | `suspended` | 管理员挂起：待办不可处理，SLA 超时与延迟计时冻结，恢复后按剩余时长续跑 |
+| `returned` | 已退回：驳回策略为「退回发起人」时进入，发起人修改表单后在同一实例上重新提交，保留审计历史与业务编号 |
 | `approved` | 已通过 |
 | `rejected` | 已驳回 |
 | `withdrawn` | 已撤回 |
