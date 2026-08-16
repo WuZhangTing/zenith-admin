@@ -237,6 +237,8 @@ export default function WorkflowDesignerPage({
           approverDedupMode: resolveApproverDedupMode(loaded),
         });
       }
+      pendingBaselineRef.current = true;
+      hydrationSkipRef.current = true;
     }
     // history.reset 是稳定的 useCallback，不需要追踪；
     // 不能将 history 对象本身加入依赖，否则每次添加节点（pastLen 变化）都会重新触发数据加载
@@ -267,6 +269,8 @@ export default function WorkflowDesignerPage({
         approverDedupMode: resolveApproverDedupMode(loaded),
       });
     }
+    pendingBaselineRef.current = true;
+    hydrationSkipRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetDefinition]);
 
@@ -472,6 +476,43 @@ export default function WorkflowDesignerPage({
     return { ...flat, process, settings: advancedSettings } as unknown as WorkflowFlowData;
   }, [advancedSettings, process]);
 
+  // ─── 未保存更改守卫（返回列表前快照比对）────────────────────────────
+  const serializeDesignerState = () => JSON.stringify({
+    ...buildCurrentMeta(),
+    flowData: buildCurrentFlowData(),
+    formId: formType === 'designer' ? formId : null,
+    formType,
+    customForm: formType === 'custom' || formType === 'external' ? customForm : null,
+  });
+  const baselineRef = useRef<string | null>(null);
+  const pendingBaselineRef = useRef(true);
+  const hydrationSkipRef = useRef(false);
+  // 挂载与数据回填后各捕获一次基线；回填 effect 同周期先置标记（此时闭包仍是旧状态），跳过一拍等提交后的渲染再序列化
+  useEffect(() => {
+    if (hydrationSkipRef.current) {
+      hydrationSkipRef.current = false;
+      return;
+    }
+    if (!pendingBaselineRef.current || pageLoading) return;
+    pendingBaselineRef.current = false;
+    baselineRef.current = serializeDesignerState();
+  });
+
+  const handleBack = () => {
+    if (baselineRef.current !== null && serializeDesignerState() !== baselineRef.current) {
+      Modal.confirm({
+        title: '有未保存的更改',
+        content: '离开后当前流程设计的改动将丢失，确定返回列表吗？',
+        okText: '放弃更改并离开',
+        okButtonProps: { type: 'danger' },
+        cancelText: '留在此页',
+        onOk: () => navigate('/workflow/definitions'),
+      });
+      return;
+    }
+    navigate('/workflow/definitions');
+  };
+
   // 3A 实时画布体检：仅在流程设计步骤启用，debounce 调用 /health-check，按 nodeKey 聚合问题
   const { nodeHealth } = useFlowHealth({
     enabled: currentStep === 3,
@@ -562,6 +603,8 @@ export default function WorkflowDesignerPage({
       navigate(`/workflow/designer/${saved.id}`, { replace: true });
     }
     setDefinition(saved);
+    // 保存成功后当前状态即已持久化，刷新未保存守卫基线
+    baselineRef.current = serializeDesignerState();
     return saved;
   };
 
@@ -710,7 +753,7 @@ export default function WorkflowDesignerPage({
             type="tertiary"
             theme="borderless"
             title="返回列表"
-            onClick={() => navigate('/workflow/definitions')}
+            onClick={handleBack}
           />
         )}
 

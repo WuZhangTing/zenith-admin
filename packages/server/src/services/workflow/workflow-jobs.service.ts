@@ -411,6 +411,8 @@ export async function getJobFailureClusters(dimension: JobClusterDimension = 're
 
 /** 心跳新鲜阈值（与 system-scheduler.service.ts mapNode 的 90s 一致） */
 const HEARTBEAT_FRESH_MS = 90_000;
+/** 运行状态栏节点可见窗口：只统计近 24h 内有心跳的节点（nodeId 含进程号，历史重启行由保留策略清理） */
+const WORKER_VISIBLE_WINDOW_MS = 24 * 60 * 60_000;
 
 export interface WorkflowJobRuntimeStatus {
   activeWorkers: number;
@@ -428,7 +430,8 @@ export interface WorkflowJobRuntimeStatus {
 
 /**
  * 作业平台运行状态：复用 system_scheduler_nodes 心跳 + workflow_jobs/executions 派生指标。
- * 单 Worker + drain 模型下 activeWorkers 实为"心跳新鲜的调度节点数"。
+ * 单 Worker + drain 模型下 activeWorkers 实为"心跳新鲜的调度节点数"；
+ * totalWorkers 只统计近 24h 有心跳的节点（nodeId=hostname:pid，历史重启行不再计入分母）。
  */
 export async function getWorkflowJobRuntimeStatus(): Promise<WorkflowJobRuntimeStatus> {
   const now = Date.now();
@@ -447,7 +450,9 @@ export async function getWorkflowJobRuntimeStatus(): Promise<WorkflowJobRuntimeS
     durationRow,
   ] = await Promise.all([
     db.select({ nodeId: systemSchedulerNodes.nodeId, hostname: systemSchedulerNodes.hostname, runningJobCount: systemSchedulerNodes.runningJobCount, lastHeartbeatAt: systemSchedulerNodes.lastHeartbeatAt, active: systemSchedulerNodes.active })
-      .from(systemSchedulerNodes).orderBy(desc(systemSchedulerNodes.lastHeartbeatAt)),
+      .from(systemSchedulerNodes)
+      .where(gte(systemSchedulerNodes.lastHeartbeatAt, new Date(now - WORKER_VISIBLE_WINDOW_MS)))
+      .orderBy(desc(systemSchedulerNodes.lastHeartbeatAt)),
     db.$count(workflowJobs, eq(workflowJobs.status, 'running')),
     db.$count(workflowJobs, and(eq(workflowJobs.status, 'running'), lte(workflowJobs.lockedAt, stuckCutoff))),
     db.$count(workflowJobs, and(eq(workflowJobs.status, 'pending'), lte(workflowJobs.runAt, new Date(now)))),

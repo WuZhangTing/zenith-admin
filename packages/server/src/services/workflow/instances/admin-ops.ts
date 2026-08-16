@@ -329,7 +329,7 @@ export async function skipStuckToken(tokenId: number, reason?: string) {
     let status: 'running' | 'approved' | 'rejected' = 'running';
     if (materialized.rejected) {
       status = 'rejected';
-      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: '[自动拒绝] 流程被自动拒绝终止，本待办作废' })
         .where(and(eq(workflowTasks.instanceId, inst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
     } else if (materialized.finished) {
       status = 'approved';

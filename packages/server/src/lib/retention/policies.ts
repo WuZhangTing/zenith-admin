@@ -118,6 +118,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     capLimit: 500,
     description: '用户自建定时任务的执行记录。',
   },
+  {
+    key: 'system_scheduler_nodes',
+    title: '调度节点注册记录',
+    module: '系统调度',
+    tableName: 'system_scheduler_nodes',
+    timeColumn: 'last_heartbeat_at',
+    defaultDays: 7,
+    description: '调度/作业 Worker 节点心跳注册表；节点 ID 含进程号，每次重启新增一行，清理心跳停止超过保留期的历史节点。',
+  },
 
   // ── 监控告警 ───────────────────────────────────────────────────────────────
   {

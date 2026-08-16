@@ -284,7 +284,7 @@ export async function withdrawInstance(id: number) {
     if (!locked || locked.status !== 'running') {
       throw new HTTPException(409, { message: '流程实例状态已变化，请刷新后重试' });
     }
-    const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+    const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: '[发起人撤回] 流程已撤回，本待办作废' })
       .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])))
       .returning();
     await killInstanceTokens(tx, id);
@@ -320,7 +320,7 @@ export async function cancelInstance(id: number) {
     if (!locked || (locked.status !== 'running' && locked.status !== 'suspended')) {
       throw new HTTPException(400, { message: '只能取消进行中或已挂起的流程' });
     }
-    const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+    const cancelled = await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: '[管理员取消] 流程已取消，本待办作废' })
       .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])))
       .returning();
     await killInstanceTokens(tx, id);

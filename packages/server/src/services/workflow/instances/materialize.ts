@@ -524,7 +524,7 @@ export async function advanceAndMaterialize(
       .map((t) => t.id);
     if (orphanIds.length > 0) {
       await exec.update(workflowTasks)
-        .set({ status: 'skipped', actionAt: new Date() })
+        .set({ status: 'skipped', actionAt: new Date(), comment: '[自动拒绝] 流程被自动拒绝终止，本待办作废' })
         .where(inArray(workflowTasks.id, orphanIds));
     }
     await killInstanceTokens(exec, ctx.instanceId);
@@ -596,7 +596,7 @@ export async function checkNodeCompletion(
     const anyApproved = judged.some((t) => t.status === 'approved');
     if (anyApproved) {
       // 其余 pending 任务跳过
-      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: '[或签联动] 本节点已有审批人通过，其余待办作废' })
         .where(and(
           eq(workflowTasks.instanceId, instanceId),
           eq(workflowTasks.nodeKey, nodeKey),
@@ -631,7 +631,7 @@ export async function checkNodeCompletion(
     const approvedCount = judged.filter((t) => t.status === 'approved').length;
     if (approvedCount >= required) {
       // 剩余 pending/waiting 任务跳过
-      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: '[比例会签联动] 已达通过比例，其余待办作废' })
         .where(and(
           eq(workflowTasks.instanceId, instanceId),
           eq(workflowTasks.nodeKey, nodeKey),

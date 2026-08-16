@@ -188,7 +188,8 @@ async function settleInstanceInTx(
   },
 ): Promise<{ row: InstanceRow; fillBridge: FillBridgeResult }> {
   if (opts.skipRemaining) {
-    await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+    await tx.update(workflowTasks)
+      .set({ status: 'skipped', actionAt: new Date(), comment: opts.outcome === 'rejected' ? '[流程驳回] 流程已被驳回终止，本待办作废' : '[流程结束] 流程已结束，本待办作废' })
       .where(and(eq(workflowTasks.instanceId, instanceId), inArray(workflowTasks.status, ['pending', 'waiting'])));
   }
   if (opts.killTokens) await killInstanceTokens(tx, instanceId);
@@ -524,7 +525,7 @@ export async function rejectTaskCore(
 
     // 同节点其他 pending / waiting 任务跳过
     const skipped = await tx.update(workflowTasks)
-      .set({ status: 'skipped', actionAt: new Date() })
+      .set({ status: 'skipped', actionAt: new Date(), comment: '[同节点联动] 本节点已有审批人拒绝，其余待办作废' })
       .where(and(
         eq(workflowTasks.instanceId, inst.id),
         eq(workflowTasks.nodeKey, task.nodeKey),

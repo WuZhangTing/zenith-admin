@@ -19,7 +19,6 @@ const APPEND_ONLY_SUFFIX = /_(logs|records|events|runs|history|snapshots|deliver
  * 新增豁免需要 reviewer 明确确认。
  */
 const EXEMPT: Record<string, string> = {
-  system_scheduler_nodes: '节点心跳表，行数等于进程数，不随时间增长',
   cms_content_tombstones: '内容删除墓碑，供站群增量同步比对，删除会导致下游漏同步',
   workflow_jobs: '待执行作业队列，终态行由工作流引擎自身回收',
   payment_settlement_records: '资金结算凭证，属于财务档案而非日志',

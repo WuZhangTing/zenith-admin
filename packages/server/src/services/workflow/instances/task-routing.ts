@@ -313,7 +313,7 @@ export async function reduceSignTask(taskId: number, targetTaskIds: number[], co
     });
     if (materialized.rejected) {
       // 下游自动拒绝终止流程：清理实例其余未结束任务，保证 rejected 实例无残留待办
-      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date() })
+      await tx.update(workflowTasks).set({ status: 'skipped', actionAt: new Date(), comment: '[自动拒绝] 流程被自动拒绝终止，本待办作废' })
         .where(and(eq(workflowTasks.instanceId, inst.id), inArray(workflowTasks.status, ['pending', 'waiting'])));
       const [row] = await tx.update(workflowInstances).set({ status: 'rejected', currentNodeKey: null }).where(eq(workflowInstances.id, inst.id)).returning();
       const fillBridge = await bridgeReportFillWorkflowOutcome(tx, {
