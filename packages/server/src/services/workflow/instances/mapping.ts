@@ -70,6 +70,7 @@ export function mapInstance(
     myActionAt?: Date | string | null;
     ccTaskId?: number | null;
     ccReadAt?: Date | string | null;
+    ccDeliveredAt?: Date | string | null;
     includeDefinitionSnapshot?: boolean;
   } = {},
 ) {
@@ -122,6 +123,7 @@ export function mapInstance(
     myActionAt: extras.myActionAt != null ? formatNullableDateTime(extras.myActionAt as Date) : null,
     ccTaskId: extras.ccTaskId ?? null,
     ccReadAt: extras.ccReadAt != null ? formatNullableDateTime(extras.ccReadAt as Date) : null,
+    ccDeliveredAt: extras.ccDeliveredAt != null ? formatNullableDateTime(extras.ccDeliveredAt as Date) : null,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
     createdAt: formatDateTime(row.createdAt),

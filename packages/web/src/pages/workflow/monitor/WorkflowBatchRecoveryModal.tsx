@@ -52,11 +52,15 @@ export default function WorkflowBatchRecoveryModal({ visible, onClose }: Readonl
       Toast.warning('请选择流程定义与卡死节点');
       return;
     }
+    if (reason.trim().length < 2) {
+      Toast.warning('请填写恢复原因');
+      return;
+    }
     const result = await recoveryMutation.mutateAsync({
       definitionId,
       nodeKey,
       ...(olderThanMinutes ? { olderThanMinutes } : {}),
-      ...(reason.trim() ? { reason: reason.trim() } : {}),
+      reason: reason.trim(),
     });
     Toast.success(`已推进 ${result.success}/${result.total} 个实例`);
     onClose();
@@ -110,14 +114,14 @@ export default function WorkflowBatchRecoveryModal({ visible, onClose }: Readonl
           />
         </div>
         <div style={{ width: '100%' }}>
-          <Typography.Text strong>原因（可选）</Typography.Text>
+          <Typography.Text strong>原因（必填）</Typography.Text>
           <Input
             style={{ marginTop: 4 }}
             value={reason}
             onChange={setReason}
             maxLength={256}
             showClear
-            placeholder="记录到审计与任务备注"
+            placeholder="批量强制干预须留痕，记录到审计与任务备注"
           />
         </div>
       </Space>

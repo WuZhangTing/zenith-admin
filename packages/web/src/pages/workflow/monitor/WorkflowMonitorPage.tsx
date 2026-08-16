@@ -41,7 +41,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
-import { NODE_RT_STATUS_COLOR, NODE_RT_STATUS_LABEL, INSTANCE_STATUS_MAP } from '@/components/workflow/workflow-runtime';
+import { NODE_RT_STATUS_COLOR, NODE_RT_STATUS_LABEL, INSTANCE_STATUS_MAP, nodeStatusDisplay } from '@/components/workflow/workflow-runtime';
 import { resolveWorkflowFlowData } from '@/utils/workflow-snapshot';
 import WorkflowAnalyticsView from './WorkflowAnalyticsView';
 import WorkflowHandoverModal from './WorkflowHandoverModal';
@@ -439,6 +439,7 @@ export default function WorkflowMonitorPage() {
   // 管理员：强制跳转
   const [jumpRecord, setJumpRecord] = useState<WorkflowInstance | null>(null);
   const [jumpNodes, setJumpNodes] = useState<Array<{ label: string; value: string }>>([]);
+  const [jumpActiveTasks, setJumpActiveTasks] = useState<WorkflowTask[]>([]);
   const jumpFormApi = useRef<FormApi | null>(null);
   // 管理员：改派处理人
   const [reassignRecord, setReassignRecord] = useState<WorkflowInstance | null>(null);
@@ -572,20 +573,28 @@ export default function WorkflowMonitorPage() {
   const openJump = async (record: WorkflowInstance) => {
     setJumpRecord(record);
     setJumpNodes([]);
-    const definition = await queryClient.fetchQuery({
-      queryKey: workflowMonitorKeys.definitionDetail(record.definitionId),
-      queryFn: () => request.get<WorkflowDefinition>(`/api/workflows/definitions/${record.definitionId}`).then(unwrap),
-    });
+    setJumpActiveTasks([]);
+    const [definition, instance] = await Promise.all([
+      queryClient.fetchQuery({
+        queryKey: workflowMonitorKeys.definitionDetail(record.definitionId),
+        queryFn: () => request.get<WorkflowDefinition>(`/api/workflows/definitions/${record.definitionId}`).then(unwrap),
+      }),
+      queryClient.fetchQuery({
+        queryKey: workflowMonitorKeys.monitorDetail(record.id),
+        queryFn: () => request.get<WorkflowInstance>(`/api/workflows/instances/${record.id}`).then(unwrap),
+      }),
+    ]);
     const nodes = (definition.flowData?.nodes ?? [])
       .filter((n) => n.data.type === 'approve' || n.data.type === 'handler')
       .map((n) => ({ label: n.data.label ?? n.data.key, value: n.data.key }));
     setJumpNodes(nodes);
+    setJumpActiveTasks((instance.tasks ?? []).filter((t) => t.status === 'pending' || t.status === 'waiting'));
   };
 
   const submitJump = async () => {
     if (!jumpRecord) return;
     try {
-      const values = await jumpFormApi.current?.validate() as { targetNodeKey: string; comment?: string };
+      const values = await jumpFormApi.current?.validate() as { targetNodeKey: string; comment: string };
       await stateMutation.mutateAsync({ url: `/api/workflows/instances/${jumpRecord.id}/jump`, body: values });
       Toast.success('已强制跳转');
       setJumpRecord(null);
@@ -724,10 +733,12 @@ export default function WorkflowMonitorPage() {
       );
     };
 
-    const renderNodeTaskRow = (task: WorkflowTask) => (
+    const renderNodeTaskRow = (task: WorkflowTask) => {
+      const display = nodeStatusDisplay(task.status, task.nodeType === 'ccNode');
+      return (
       <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', borderTop: '1px solid var(--semi-color-fill-1)', flexWrap: 'wrap' }}>
         <Typography.Text type="tertiary" size="small" style={{ width: 40 }}>#{task.id}</Typography.Text>
-        <Tag size="small" color={NODE_RT_STATUS_COLOR[task.status]}>{NODE_RT_STATUS_LABEL[task.status]}</Tag>
+        <Tag size="small" color={display.color}>{display.label}</Tag>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 110 }}>
           <UserAvatar name={task.assigneeName || '未指定'} avatar={task.assigneeAvatar} size={20} />
           <Typography.Text size="small">{task.assigneeName || '未指定'}</Typography.Text>
@@ -739,7 +750,8 @@ export default function WorkflowMonitorPage() {
           </Typography.Text>
         )}
       </div>
-    );
+      );
+    };
 
     const renderNodes = () => {
       if (diagNodes.length === 0) {
@@ -1326,9 +1338,21 @@ export default function WorkflowMonitorPage() {
         <Typography.Text type="tertiary" style={{ display: 'block', marginBottom: 12 }}>
           将终止「{jumpRecord?.title}」当前所有待办任务，直接推进到所选审批节点。此操作不可恢复。
         </Typography.Text>
+        {jumpActiveTasks.length > 0 && (
+          <div style={{ marginBottom: 12, padding: '8px 10px', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
+            <Typography.Text size="small" strong style={{ display: 'block', marginBottom: 4 }}>
+              将终止 {jumpActiveTasks.length} 个活动任务：
+            </Typography.Text>
+            {jumpActiveTasks.map((t) => (
+              <Typography.Text key={t.id} size="small" type="tertiary" style={{ display: 'block' }}>
+                #{t.id} {t.nodeName || t.nodeKey} · {t.assigneeName ?? '未指定'}（{t.status === 'pending' ? '待处理' : '等待中'}）
+              </Typography.Text>
+            ))}
+          </div>
+        )}
         <Form getFormApi={(api) => { jumpFormApi.current = api; }} labelPosition="left" labelWidth={90}>
           <Form.Select field="targetNodeKey" label="目标节点" placeholder="请选择要跳转到的审批节点" optionList={jumpNodes} rules={[{ required: true, message: '请选择目标节点' }]} style={{ width: '100%' }} />
-          <Form.TextArea field="comment" label="说明" placeholder="可选，记录跳转原因" rows={2} />
+          <Form.TextArea field="comment" label="跳转原因" placeholder="必填，记录到审计与任务备注" rows={2} rules={[{ required: true, message: '请填写跳转原因' }, { validator: (_, v: string) => (v ?? '').trim().length >= 2, message: '原因至少 2 个字符' }]} />
         </Form>
       </AppModal>
 

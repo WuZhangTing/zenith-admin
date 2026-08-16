@@ -92,7 +92,7 @@ export default function CcToMePage() {
     { title: '业务编号', dataIndex: 'serialNo', width: 130, render: (v: string | null) => v ?? '—' },
     { title: '流程名称', dataIndex: 'definitionName', width: 160, render: renderEllipsis },
     { title: '发起人', dataIndex: 'initiatorName', width: 120, render: (v: string | null) => v ?? '—' },
-    dateTimeColumn('抄送时间', 'createdAt'),
+    dateTimeColumn('抄送时间', 'ccDeliveredAt'),
     {
       title: '阅读',
       dataIndex: 'ccReadAt',

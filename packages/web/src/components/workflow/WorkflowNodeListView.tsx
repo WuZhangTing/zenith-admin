@@ -7,7 +7,7 @@ import type { FlowNode, FlowProcess } from '@/pages/workflow/designer/types';
 import { ADDABLE_NODE_TYPES } from '@/pages/workflow/designer/constants';
 import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTime } from '@/utils/date';
-import { buildNodeRuntimeMap, NODE_RT_STATUS_LABEL, NODE_RT_STATUS_COLOR, approverActionLabel } from './workflow-runtime';
+import { buildNodeRuntimeMap, NODE_RT_STATUS_COLOR, approverActionLabel, nodeStatusDisplay } from './workflow-runtime';
 
 interface Props {
   flowData: { process?: unknown } | null | undefined;
@@ -63,6 +63,7 @@ export default function WorkflowNodeListView({ flowData, tasks = [], initiator }
         const Icon = meta?.icon;
         const rt = runtime.get(item.node.key ?? item.node.id);
         const isCc = item.node.type === 'cc';
+        const rtDisplay = rt ? nodeStatusDisplay(rt.status, isCc) : null;
         const isInitiator = item.node.type === 'initiator';
         const typeLabel = isInitiator ? '发起人' : (meta?.label ?? item.node.type);
         return (
@@ -74,9 +75,9 @@ export default function WorkflowNodeListView({ flowData, tasks = [], initiator }
                   <Typography.Text strong>{item.node.name || typeLabel}</Typography.Text>
                   {!isInitiator ? <Tag size="small" color="grey">{typeLabel}</Tag> : null}
                   {item.branchName ? <Tag size="small" color="blue">{item.branchName}</Tag> : null}
-                  {rt ? (
-                    <Tag size="small" color={NODE_RT_STATUS_COLOR[rt.status]} style={{ marginLeft: 'auto', flexShrink: 0 }}>
-                      {NODE_RT_STATUS_LABEL[rt.status]}
+                  {rtDisplay ? (
+                    <Tag size="small" color={rtDisplay.color} style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                      {rtDisplay.label}
                     </Tag>
                   ) : null}
                 </div>
@@ -103,7 +104,7 @@ export default function WorkflowNodeListView({ flowData, tasks = [], initiator }
                         />
                         <Typography.Text size="small" type="tertiary">{a.name || '未指定'}</Typography.Text>
                         {(rt.approvers.length > 1 || isCc) && (
-                          <Tag size="small" color={NODE_RT_STATUS_COLOR[a.status]}>
+                          <Tag size="small" color={isCc ? 'green' : NODE_RT_STATUS_COLOR[a.status]}>
                             {approverActionLabel(a.status, isCc)}
                           </Tag>
                         )}

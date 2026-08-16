@@ -1416,6 +1416,8 @@ export interface WorkflowInstance {
   ccTaskId?: number | null;
   /** 抄送视图：已读时间（null=未读） */
   ccReadAt?: string | null;
+  /** 抄送视图：抄送送达时间（CC 任务创建时间，区别于实例发起时间） */
+  ccDeliveredAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

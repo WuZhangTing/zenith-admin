@@ -344,6 +344,8 @@ export const WorkflowInstanceDTO = z
     myTaskStatus: z.enum(['pending', 'approved', 'rejected', 'skipped', 'waiting']).nullable().optional(),
     myActionAt: z.string().nullable().optional(),
     ccTaskId: z.number().int().nullable().optional(),
+    ccReadAt: z.string().nullable().optional(),
+    ccDeliveredAt: z.string().nullable().optional(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),

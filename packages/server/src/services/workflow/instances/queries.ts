@@ -212,6 +212,8 @@ export async function listMyCc(query: { page?: number; pageSize?: number; keywor
       currentNodeKeys: activeNodeKeys.get(r.inst.id),
       ccTaskId: r.task.id,
       ccReadAt: r.task.ccReadAt,
+      // 抄送送达时间 = CC 任务创建时间（此前前端误用实例发起时间，运行中补抄送会显示错误时间）
+      ccDeliveredAt: r.task.createdAt,
     })),
     total,
     page,

@@ -115,8 +115,14 @@ const APPROVER_ACTION_LABEL: Record<NodeRuntimeInfo['status'], string> = {
   skipped: '已跳过',
 };
 
-/** 单处理人动作文案（抄送语义不同） */
+/** 单处理人动作文案（抄送语义不同：CC 任务送达即完成，存在即「已抄送」） */
 export function approverActionLabel(status: NodeRuntimeInfo['status'], isCc = false): string {
-  if (isCc) return status === 'approved' ? '已抄送' : '待抄送';
+  if (isCc) return '已抄送';
   return APPROVER_ACTION_LABEL[status] ?? '';
+}
+
+/** 节点/任务状态展示（抄送节点送达即完成：skipped 显示「已抄送」而非「已跳过」） */
+export function nodeStatusDisplay(status: NodeRuntimeInfo['status'], isCc = false): { label: string; color: 'green' | 'red' | 'blue' | 'grey' } {
+  if (isCc && status === 'skipped') return { label: '已抄送', color: 'green' };
+  return { label: NODE_RT_STATUS_LABEL[status], color: NODE_RT_STATUS_COLOR[status] };
 }

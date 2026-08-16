@@ -788,7 +788,8 @@ export const updateWorkflowDelegationSchema = partialForUpdate(createWorkflowDel
 export const jumpWorkflowInstanceSchema = z.object({
   /** 强制跳转到的目标节点 key */
   targetNodeKey: z.string().min(1, '请选择目标节点'),
-  comment: z.string().max(500).optional(),
+  /** 跳转原因：强制干预必须留痕（审计与任务备注） */
+  comment: z.string().trim().min(2, '请填写跳转原因').max(500),
 });
 
 export const reassignWorkflowTaskSchema = z.object({
@@ -847,7 +848,8 @@ export const batchSkipStuckTokensSchema = z.object({
   definitionId: z.number().int().positive(),
   nodeKey: z.string().min(1, '请指定节点').max(64),
   olderThanMinutes: z.number().int().nonnegative().max(100000).optional(),
-  reason: z.string().max(256).optional(),
+  /** 恢复原因：批量强制干预必须留痕（审计与任务备注） */
+  reason: z.string().trim().min(2, '请填写恢复原因').max(256),
 });
 
 export type BatchSkipStuckTokensInput = z.infer<typeof batchSkipStuckTokensSchema>;

@@ -51,9 +51,9 @@ const RT_HEADER_COLOR: Record<NodeRuntimeInfo['status'], string> = {
   skipped: 'var(--semi-color-tertiary)',
 };
 
-/** 单处理人状态文案（抄送节点语义不同） */
+/** 单处理人状态文案（抄送节点语义不同：CC 任务送达即完成） */
 function approverStatusLabel(nodeType: FlowNode['type'], status: NodeRuntimeInfo['status']): string {
-  if (nodeType === 'cc') return status === 'approved' ? '已抄送' : '待抄送';
+  if (nodeType === 'cc') return '已抄送';
   switch (status) {
     case 'approved': return '已同意';
     case 'rejected': return '已拒绝';
@@ -204,8 +204,10 @@ export default function NodeCard({
 }: Readonly<NodeCardProps>) {
   const info = getNodeInfo(node.type);
   const color = NODE_COLOR_MAP[node.type] ?? '#999';
+  // 抄送节点送达即完成：skipped 视作成功送达
+  const isDeliveredCc = node.type === 'cc' && runtime?.status === 'skipped';
   const headerBg = runtime
-    ? (runtime.active ? 'var(--semi-color-primary)' : RT_HEADER_COLOR[runtime.status] ?? color)
+    ? (runtime.active ? 'var(--semi-color-primary)' : (isDeliveredCc ? 'var(--semi-color-success)' : RT_HEADER_COLOR[runtime.status] ?? color))
     : color;
   const Icon = info?.icon;
 
@@ -261,8 +263,8 @@ export default function NodeCard({
           </span>
         )}
         {runtime && (
-          <span className={`fd-node-card__rt-badge fd-node-card__rt-badge--${runtime.status}`}>
-            {RT_NODE_STATUS[runtime.status]?.label}
+          <span className={`fd-node-card__rt-badge fd-node-card__rt-badge--${isDeliveredCc ? 'approved' : runtime.status}`}>
+            {isDeliveredCc ? '已抄送' : RT_NODE_STATUS[runtime.status]?.label}
           </span>
         )}
         {!readOnly && (
