@@ -10,7 +10,7 @@ import { advanceAndMaterialize, checkNodeCompletion } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
 import { assertActionButtonEnabled, assertActionUploadRequirement, getOwnPendingTask, rejectTaskCore } from './task-actions';
 import type { WorkflowTaskAttachment } from './task-actions';
-import { loadTaskHandledUserIds, recordTaskTransfer } from './transfers';
+import { loadTaskHandledUserIds, recordTaskTransfer, assertAssigneesNotActiveOnNode } from './transfers';
 import logger from '../../../lib/logger';
 import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
 import { submitReportFillSyncForWorkflowInstance } from '../../report/report-fill-task.service';
@@ -41,6 +41,11 @@ export async function transferTask(taskId: number, targetUserId: number, comment
     if (!lockedInst || lockedInst.status !== 'running') {
       throw new HTTPException(409, { message: '流程实例状态已变化，无法转办' });
     }
+    // 目标人已在本节点同轮持有活动任务时给出友好 409（否则撞 wf_tasks_active_uniq 唯一索引）
+    await assertAssigneesNotActiveOnNode(tx, {
+      instanceId: inst.id, nodeKey: task.nodeKey, activationId: task.activationId,
+      userIds: [targetUserId], excludeTaskId: task.id,
+    });
     const [row] = await tx.update(workflowTasks)
       .set({
         assigneeId: targetUserId,
@@ -128,6 +133,11 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
     if (!lockedInst || lockedInst.status !== 'running') {
       throw new HTTPException(409, { message: '流程实例状态已变化，无法委派' });
     }
+    // 委派人已在本节点同轮持有活动任务时给出友好 409（否则撞 wf_tasks_active_uniq 唯一索引）
+    await assertAssigneesNotActiveOnNode(tx, {
+      instanceId: inst.id, nodeKey: task.nodeKey, activationId: task.activationId,
+      userIds: [targetUserId], excludeTaskId: task.id,
+    });
     const [row] = await tx.update(workflowTasks)
       .set({
         assigneeId: targetUserId,
@@ -188,6 +198,11 @@ export async function addSignTask(
     if (!freshTask || freshTask.status !== 'pending') {
       throw new HTTPException(409, { message: '任务状态已变化，无法加签' });
     }
+    // 加签人已在本节点同轮持有活动任务时给出友好 409（否则撞 wf_tasks_active_uniq 唯一索引）
+    await assertAssigneesNotActiveOnNode(tx, {
+      instanceId: inst.id, nodeKey: task.nodeKey, activationId: task.activationId,
+      userIds: targetUserIds,
+    });
     // before：原任务先转为 waiting，加签任务为 pending；待加签人审批通过后由完成回调推进
     // after / parallel：原任务保持 pending，加签任务以 pending 与之并行（共享 approveMethod 判定完成）
     if (position === 'before') {

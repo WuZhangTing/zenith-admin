@@ -98,17 +98,14 @@ export default function PendingApprovalsPage() {
 
   const handleBatch = async () => {
     if (batchSubmitting || !batch) return;
-    const taskIds = (data?.list ?? [])
-      .filter((it) => selectedRowKeys.includes(it.id))
-      .map((it) => it.pendingTaskId)
-      .filter((v): v is number => typeof v === 'number');
+    // 行键即待办任务 ID（同一实例可能有多条并行待办，各自独立勾选/审批）
+    const taskIds = selectedRowKeys;
     if (taskIds.length === 0) { Toast.warning('请先选择待审批项'); return; }
     if (batch.mode === 'reject' && !batch.comment.trim()) { Toast.error('请填写驳回原因'); return; }
     try {
       const latest = await fetchPendingWorkflowTasks(listParams);
-      const latestMap = new Map((latest?.list ?? []).map((item) => [item.id, item.pendingTaskId]));
-      const staleKeys = selectedRowKeys.filter((instanceId) => latestMap.get(instanceId) == null
-        || !taskIds.includes(latestMap.get(instanceId) as number));
+      const latestTaskIds = new Set((latest?.list ?? []).map((item) => item.pendingTaskId));
+      const staleKeys = selectedRowKeys.filter((taskId) => !latestTaskIds.has(taskId));
       if (staleKeys.length > 0) {
         Toast.warning('部分任务状态已变化，请刷新后重试');
         setPage(latest.page);
@@ -313,7 +310,7 @@ export default function PendingApprovalsPage() {
         bordered
         columns={columns}
         dataSource={data?.list ?? []}
-        rowKey="id"
+        rowKey="pendingTaskId"
         loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}

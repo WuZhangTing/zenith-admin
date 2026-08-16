@@ -11,7 +11,7 @@ import logger from '../../../lib/logger';
 import { scheduleJobPickup } from '../../../lib/workflow-jobs';
 import { emitMaterializedAdvanceEvents } from './lifecycle';
 import { mapInstance, mapTask } from './mapping';
-import { recordTaskTransfer } from './transfers';
+import { recordTaskTransfer, assertAssigneesNotActiveOnNode } from './transfers';
 import { advanceAndMaterialize, killInstanceTokens } from './materialize';
 import { getInstanceDetail } from './queries';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
@@ -177,6 +177,12 @@ export async function reassignTask(taskId: number, targetUserId: number, comment
   if (tc) instConditions.push(tc);
   const [inst] = await db.select().from(workflowInstances).where(and(...instConditions)).limit(1);
   if (!inst) throw new HTTPException(404, { message: '任务不存在或无权操作' });
+  // 目标人已在本节点同轮持有活动任务时给出友好 409（否则撞 wf_tasks_active_uniq 唯一索引）；
+  // 离职交接逐条改派复用本函数，冲突任务会按「单条失败不阻断」记入结果
+  await assertAssigneesNotActiveOnNode(db, {
+    instanceId: inst.id, nodeKey: task.nodeKey, activationId: task.activationId,
+    userIds: [targetUserId], excludeTaskId: task.id,
+  });
   const note = action === 'handover' ? (comment ?? '[离职交接]') : `[管理员改派]${comment ? ' ' + comment : ''}`;
   const [updated] = await db.update(workflowTasks).set({
     assigneeId: targetUserId,

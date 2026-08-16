@@ -707,6 +707,19 @@ async function processDelegatedReceipt(
       const base = (locked?.formData ?? inst.formData ?? {}) as Record<string, unknown>;
       await tx.update(workflowInstances).set({ formData: { ...base, ...sanitizedUpdates } }).where(eq(workflowInstances.id, inst.id));
     }
+    // 委派人已在本节点同轮持有其它活动任务（如同时被加签/会签同节点）时不再重建回执任务，
+    // 其既有任务即可承接后续确认——重复建行会撞 wf_tasks_active_uniq 唯一索引
+    const [delegatorActive] = await tx.select({ id: workflowTasks.id }).from(workflowTasks)
+      .where(and(
+        eq(workflowTasks.instanceId, task.instanceId),
+        eq(workflowTasks.nodeKey, task.nodeKey),
+        eq(workflowTasks.activationId, task.activationId),
+        eq(workflowTasks.assigneeId, delegatorId),
+        inArray(workflowTasks.status, ['pending', 'waiting']),
+      )).limit(1);
+    if (delegatorActive) {
+      return { closedTask, newTask: null };
+    }
     const [newTask] = await tx.insert(workflowTasks).values({
       instanceId: task.instanceId,
       nodeKey: task.nodeKey,
@@ -733,8 +746,10 @@ async function processDelegatedReceipt(
   } else {
     emitTaskEvent('task.rejected', mapTask(result.closedTask), { ...meta, comment });
   }
-  emitTaskEvent('task.created', mapTask(result.newTask), meta);
-  emitTaskEvent('task.assigned', mapTask(result.newTask), meta);
+  if (result.newTask) {
+    emitTaskEvent('task.created', mapTask(result.newTask), meta);
+    emitTaskEvent('task.assigned', mapTask(result.newTask), meta);
+  }
 
   return {
     instance: mapInstance(inst),

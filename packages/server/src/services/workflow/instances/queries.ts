@@ -157,9 +157,12 @@ export async function listPendingMine(query: { page?: number; pageSize?: number;
   const where = and(...baseConditions);
   const [[{ total }], rows] = await Promise.all([
     db
-      .select({ total: countDistinct(workflowInstances.id) })
+      // 待办总数按任务行计数：同一实例的多条并行待办各占一行（与列表行一致，此前按实例去重会出现「显示 2 条/共 1 条」）。
+      // keyword 条件引用 workflowDefinitions.name，计数查询须同样联表
+      .select({ total: count() })
       .from(workflowTasks)
       .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+      .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
       .where(where),
     withPagination(
       selectTaskJoinedInstanceRows()

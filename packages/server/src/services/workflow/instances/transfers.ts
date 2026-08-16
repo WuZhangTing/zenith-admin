@@ -1,14 +1,44 @@
 // ─── 任务转办明细（谁在何时因何把任务交给了谁）────────────────────────────────
 // 转办/委派/管理员改派/离职交接/超时升级 5 类流转的统一留痕，
 // 同时支撑「禁止折返」校验与详情页转办时间线。
-import { and, eq, inArray, or } from 'drizzle-orm';
+import { and, eq, inArray, ne, or } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { db } from '../../../db';
-import { workflowTaskTransfers, users } from '../../../db/schema';
+import { workflowTaskTransfers, workflowTasks, users } from '../../../db/schema';
 import type { DbExecutor } from '../../../db/types';
 import { formatDateTime } from '../../../lib/datetime';
 import type { WorkflowTaskTransfer } from '@zenith/shared/workflow';
 
 export type WorkflowTaskTransferAction = 'transfer' | 'delegate' | 'reassign' | 'handover' | 'timeout';
+
+/**
+ * 校验目标用户在同节点同激活轮内没有其它活动任务（pending/waiting）。
+ * 转办/委派/加签/管理员改派把人指到已有活动任务的处理人时，
+ * 会撞 wf_tasks_active_uniq 部分唯一索引直接 500——这里前置为友好 409。
+ */
+export async function assertAssigneesNotActiveOnNode(
+  exec: DbExecutor,
+  args: { instanceId: number; nodeKey: string; activationId: string; userIds: number[]; excludeTaskId?: number },
+): Promise<void> {
+  const ids = [...new Set(args.userIds)].filter((v) => Number.isInteger(v) && v > 0);
+  if (ids.length === 0) return;
+  const conds = [
+    eq(workflowTasks.instanceId, args.instanceId),
+    eq(workflowTasks.nodeKey, args.nodeKey),
+    eq(workflowTasks.activationId, args.activationId),
+    inArray(workflowTasks.status, ['pending', 'waiting']),
+    inArray(workflowTasks.assigneeId, ids),
+  ];
+  if (args.excludeTaskId != null) conds.push(ne(workflowTasks.id, args.excludeTaskId));
+  const dupes = await exec.select({ assigneeId: workflowTasks.assigneeId })
+    .from(workflowTasks).where(and(...conds)).limit(ids.length);
+  if (dupes.length === 0) return;
+  const dupeIds = [...new Set(dupes.map((d) => d.assigneeId).filter((v): v is number => v != null))];
+  const nameRows = await exec.select({ id: users.id, nickname: users.nickname, username: users.username })
+    .from(users).where(inArray(users.id, dupeIds));
+  const names = nameRows.map((u) => u.nickname ?? u.username).join('、');
+  throw new HTTPException(409, { message: `${names || '所选人员'} 已是本节点待办处理人，无需重复指派` });
+}
 
 /** 转办明细落库 */
 export async function recordTaskTransfer(
