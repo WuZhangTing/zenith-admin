@@ -1,0 +1,181 @@
+# 主题与模板开发
+
+前台外观由**主题**决定：主题是仓库内置的 React TSX 模板包（服务端 `renderToStaticMarkup` SSR），在 `packages/server/src/cms/themes/registry.ts` 显式注册，无独立模板表、不做目录扫描。模板作者即开发人员——用 TypeScript + JSX 获得类型安全与组件复用，而不是受限的字符串模板语言。
+
+站点在「站点管理 → 编辑 → 基础信息 → 主题」下拉选择；切换时服务端校验主题已注册并原子递增 `themeRevision`（发布任务以此做过期栅栏）。子站可通过站群继承沿用父站主题（`theme` / `themeConfig` / `templates` 三个继承项独立选择来源，见[站群与分发](./site-groups-and-distribution#显式逐项继承)）。
+
+## 内置主题
+
+| 主题 | code | 形态 | 特色能力 |
+|------|------|------|---------|
+| 默认主题 | `default` | 通用企业官网（亮色） | 首页横幅/栏目区块/热门排行，变体模板最全 |
+| 文档站主题 | `docs` | 文档/知识库 | 侧边目录导航 |
+| 政府门户 | `gov-portal` | 政务门户（红色规制） | 大页头+主导航横条、**纯 CSS 多级下拉导航**（三级缩进）、图标办事入口、双栏要闻区块、公文「文件信息」表头、详情页**字号切换/打印工具条**、相关阅读 |
+| 资讯杂志 | `magazine` | 游戏/科技/数码资讯（暗色） | sticky 毛玻璃顶栏、焦点大图区（1 大 + 4 小）、栏目卡片流、**评分徽章体系**（`ratingField` 参数）、内容形态角标（图集·N/视频/外链）、热门排行侧栏 |
+
+四套主题共用同一渲染管线与上下文契约，换主题只改 `cms_sites.theme` 一个值，内容数据零改动。
+
+## CmsTheme 接口
+
+新增主题 = 在 `themes/{code}/` 下实现 `CmsTheme` 并在 registry 登记一行：
+
+```ts
+export const myTheme: CmsTheme = {
+  code: 'my-theme',
+  label: '我的主题',
+  templates: {           // 七类核心模板（必备）
+    index: HomeTemplate,       // 首页（支持 Theme API 定义体，见下）
+    list: ListTemplate,        // 栏目列表页
+    detail: DetailTemplate,    // 内容详情页
+    page: PageTemplate,        // 单页栏目
+    search: SearchTemplate,    // 搜索结果页
+    tag: TagTemplate,          // 标签聚合页
+    notFound: NotFoundTemplate,
+  },
+  customPage,            // 可选：可视化搭建页模板（缺省回退 default 实现）
+  interaction,           // 可选：互动问卷页模板（缺省回退 default 实现）
+  extraListTemplates,    // 可选：列表变体模板（按名引用）
+  extraDetailTemplates,  // 可选：详情变体模板
+  settingsSchema,        // 可选：主题参数声明（后台动态表单）
+  widgetSlots,           // 可选：页面部件插槽声明
+  widgetRenderers,       // 可选：覆盖核心部件 renderer（仅在确需不同 DOM 时）
+};
+```
+
+未注册的主题 code 渲染时回退 `default` 并记一次告警。
+
+## Theme API：首页声明式取数
+
+首页模板可用 `defineHomeTemplate` 定义体替代普通组件，把「取什么数据」与「怎么渲染」分离：
+
+```tsx
+const HomeTemplate = defineHomeTemplate({
+  // load 声明式取数：返回值类型自动推导，注入 Component 的 data
+  load: async ({ cms, site, baseUrl }) => {
+    const codes = String(site.themeConfig.homeChannels ?? '').split(',').filter(Boolean);
+    const blocks = await Promise.all(
+      codes.map((code) => cms.contents.list({ channelCode: code, limit: 8 })),
+    );
+    return { blocks: blocks.filter((b) => b.channel !== null) };
+  },
+  Component: ({ data, ...ctx }) => (
+    <Layout ctx={ctx}>
+      {data.blocks.map((block) => (
+        <Section key={block.channel.code} title={block.channel.name} more={block.channel.url}>
+          {block.list.map((item) => <Card key={item.id} item={item} />)}
+        </Section>
+      ))}
+    </Layout>
+  ),
+});
+```
+
+`CmsThemeDataApi`（`cms` 参数）当前提供：
+
+| 方法 | 说明 |
+|------|------|
+| `cms.contents.list({ channelCode?, limit?, recommend?, hot? })` | 按栏目标识取已发布内容，返回 `{ channel, list }`；`channel` 含名称与列表页 URL |
+
+安全边界：同参数调用**去重复用**（memo）、单次渲染 ≤ 20 次取数、`limit` ≤ 100；栏目 code 不存在返回空集而不是抛错——主题参数配错栏目不会打挂首页。`list` 中的条目为标准 `CmsContentItem`（含 `modelFields`），与栏目列表页同构。
+
+普通组件形式的首页模板继续可用（上下文自带 `latest` / `recommended` / `hot` 三组全站数据），Theme API 适合需要按栏目分区块的门户/资讯首页。
+
+## 主题参数（settingsSchema）
+
+主题声明参数 schema 后，后台站点编辑自动渲染「主题专属参数」动态表单（按 `group` 分组），值存 `cms_sites.settings.themeConfig`：
+
+```ts
+settingsSchema: [
+  { name: 'homeChannels', label: '首页栏目区块', fieldType: 'text', group: '首页',
+    placeholder: '如 reviews,news', description: '逗号分隔栏目标识（最多 6 个）' },
+  { name: 'ratingField', label: '评分字段标识', fieldType: 'text', group: '内容',
+    description: '内容模型中作为评分的字段：详情大徽章、卡片角标；留空默认 score' },
+  { name: 'footerText', label: '页脚附加文案', fieldType: 'textarea', group: '页脚' },
+]
+```
+
+- 字段类型：`text` / `textarea` / `color` / `number` / `switch` / `select` / `image`（image 直接对接素材上传）
+- 渲染时经 `resolveThemeConfig` 解析：schema 默认值 ⊕ 已存值按类型宽容解析（非法值回退默认），模板经 `ctx.site.themeConfig` 消费，无需自行处理缺省
+- 通用外观参数（主题色 `themePrimary`、暗色模式 `themeDark`、最大宽度）独立于 schema，全主题一致，经共享的 `buildThemeOverrides` 生成 CSS 变量覆盖
+- 接口：`GET /api/cms/sites/themes/{code}/settings-schema`
+
+各内置主题的专属参数：default（页头电话/首页横幅/栏目区块/热门开关/页脚）、gov-portal（页头副标题/首页栏目区块/**办事入口**（每行 `名称|链接`）/页脚）、magazine（首页栏目区块/**评分字段**/页脚）。
+
+## 变体模板与解析链
+
+主题除默认模板集外可注册**变体模板**（带展示名），供站点/栏目/内容三级按名引用：
+
+- default 内置：`list-card`（卡片网格）/ `list-compact`（紧凑标题）/ `detail-plain`（简洁正文）
+- gov-portal 内置：`list-compact`（紧凑公文列表）
+
+可选清单：`GET /api/cms/sites/themes/{code}/templates`，后台三级下拉动态取。
+
+**解析链**（按优先级，空值逐级回退）：
+
+| 页面 | 解析顺序 |
+|------|----------|
+| 列表页 | 栏目 `listTemplate` → 站点 `settings.defaultTemplates.list` → 主题默认 |
+| 详情页 | 内容 `detailTemplate` → 栏目 `detailTemplate` → 站点 `defaultTemplates.detailByModel[模型code]` → 站点 `defaultTemplates.detail` → 主题默认 |
+
+站点级默认模板在站点编辑「模板与主题」页签配置，支持**按内容模型细分详情模板**；栏目级在栏目编辑「模板配置」区配置。栏目级不提供按模型细分——内容 `model_id` 恒等于其主栏目的 `model_id`，栏目内模型唯一，细分会退化为重复槽位。
+
+**失效引用自愈**：主题升级移除变体后，站点里的历史引用成为死配置。任意一次站点保存都会自动摘除「本次未改动且已失效」的引用（`pruneStaleTemplateDefaults`，记 warn 日志），而本次新提交的失效模板名仍抛 400 附可用清单——保留对拼写错误的即时反馈。全站存量扫描见站点管理页健康检查 Banner（`getSiteTemplateHealth`）。
+
+## 共享组件（_shared.tsx）
+
+与主题视觉无关的公共件集中在 `themes/_shared.tsx`，新主题直接复用：
+
+| 组件 / 常量 | 职责 |
+|------|------|
+| `SeoHead` | 完整 SEO head：TDK、canonical、Open Graph、Twitter Card、JSON-LD、hreflang、埋点 |
+| `Breadcrumbs` / `Pagination` | 面包屑 / 分页导航（语义结构，样式由主题 CSS 决定） |
+| `ModelFieldTable` + `MODEL_FIELD_TABLE_STYLES` | 模型字段双栏键值表，按 `detailGroup` 分组（公文信息表头样式钩子 `.model-fields*`） |
+| `MediaBlock` + `MEDIA_BLOCK_STYLES` | 内容形态区块：图集九宫格 / 音视频播放器（article/link 返回 null）。**详情模板须在正文前调用**，否则 album/media 形态丢失主图 |
+| `buildThemeOverrides` | 主题色 / 暗色模式 CSS 变量覆盖 |
+| `THEME_TOGGLE_SCRIPT` / `buildAnalyticsBeacon` | 暗色切换脚本 / 访问统计 beacon |
+
+## 消费模型字段
+
+内容模型中勾选「详情展示 / 列表显示」的字段经渲染管线翻译后注入上下文（见[内容模型](./content-models#前台渲染消费)），主题按需消费：
+
+```tsx
+// 详情页：键值表（公文场景）
+{content.modelFields.length > 0 ? <ModelFieldTable fields={content.modelFields} /> : null}
+
+// 详情页：拆出评分字段做大徽章，其余行内展示（资讯场景，magazine 实现）
+const rating = content.modelFields.find((f) => f.name === ratingField && f.displayValue);
+const rest = content.modelFields.filter((f) => f !== rating && f.displayValue);
+
+// 列表卡片：角标 chips
+{item.modelFields.filter((f) => f.displayValue).map((f) => (
+  <span key={f.name} className="chip" title={f.label}>{f.displayValue}</span>
+))}
+```
+
+`CmsModelFieldValue` 提供 `name / label / fieldType / rawValue / displayValue / group / sort`：`displayValue` 已完成字典与选项翻译、日期格式化、多选连接与开关转换，主题直接渲染即可；需要原始值做数值判断（如按评分上色）时读 `rawValue`。
+
+## 页面部件插槽（widgetSlots）
+
+主题可声明部件插槽，把「页面部件」（`/cms/widgets`）绑定到主题固定位置：
+
+```ts
+widgetSlots: [{
+  key: 'home.sidebar',           // 第一期仅支持该插槽
+  label: '首页侧栏',
+  allowedTypes: ['manual-list'],
+  rendererKeys: [...CMS_WIDGET_RENDERER_KEYS],
+}]
+```
+
+后台站点编辑出现「页面部件插槽」配置区；绑定走 `PUT /api/cms/widgets/slots/{slotKey}`（权限 `cms:widget:bind`），仅接受**已发布**部件并校验类型与模板适用性。模板中经 `ctx.homeSidebar` 取绑定结果、`renderCmsWidgetHtml` 输出。部件内容变化时**定向刷新**引用位置，机制见[渲染与静态化](./static-and-render#页面部件与主题插槽)。
+
+## 上下文契约速览
+
+所有模板的 props 均为强类型上下文（`themes/types.ts`）：
+
+- **`CmsBaseContext`**（全模板共有）：`site`（含 `themeConfig` / `extend` / `settings`）、`nav`（导航树，外链栏目已解析 target）、`friendLinkGroups`、`baseUrl`、`searchUrl`、`seo`、`analytics`、`homeSidebar`
+- **`CmsContentItem`**（列表条目）：标题/摘要/封面（`coverThumb` 优先）/形态（`contentType` + `imageCount` / `mediaType`）/属性标记（isTop/isRecommend/isHot）/`modelFields`
+- **`CmsDetailContext`**：`content`（`CmsContentDetail`，含正文、`bodyPagination` 正文分页、`attachments`、`albumImages` / `mediaUrl`、`modelFields`、`tags`、`prev` / `next`）、`related` 相关阅读、`comments`
+- **`CmsListContext` / `CmsTagPageContext` / `CmsSearchContext`**：`items` / `results` + `pagination` + `breadcrumbs`
+
+链接一律使用上下文给出的 URL（`item.url` / `channel.url` 等），由 `contentUrl()` 统一计算——静态化写文件与模板生成链接共用同一函数，归档目录与自定义 `staticPath` 不会算出两套路径。

@@ -1,6 +1,6 @@
 # CMS 内容管理
 
-Zenith Admin 内置企业级 CMS 内容管理模块，支持**多站点（站群）、内容模型自定义字段、审核工作流、SSR 静态化发布、SEO 工具链、PostgreSQL 中文全文检索**，功能对标主流内容管理系统。
+Zenith Admin 内置企业级 CMS 内容管理模块，支持**多站点（站群）、内容模型自定义字段、审核工作流、多主题 React SSR 静态化发布、SEO 工具链、PostgreSQL 中文全文检索**，功能对标主流内容管理系统。
 
 ## 功能地图
 
@@ -9,7 +9,7 @@ graph LR
     subgraph 内容生产
         A[站点管理] --> B[栏目管理]
         B --> C[内容管理]
-        C --> C1[内容模型]
+        C --> C1[内容模型/扩展字段]
         C --> C2[版本快照/对比/回滚]
         C --> C3[标签/副栏目/相关文章]
     end
@@ -19,6 +19,10 @@ graph LR
         D -->|工作流模式| D2[审批流程]
         D1 & D2 --> E[增量静态化]
         E --> F[搜索引擎推送 + Webhook]
+    end
+    subgraph 前台呈现
+        T[主题（default/docs/gov-portal/magazine）] --> T1[Theme API 首页取数]
+        T --> T2[变体模板/主题参数/部件插槽]
     end
     subgraph 流量运营
         G[SEO 管理] & H[广告事件] & I[评论] & J[互动问卷] & K[页面搭建/页面部件]
@@ -33,11 +37,11 @@ graph LR
 | 菜单 | 路径 | 说明 | 文档 |
 |------|------|------|------|
 | 数据看板 | `/cms/dashboard` | 状态分布、发布趋势、热文 TOP、栏目分布 | 本页 |
-| 站点管理 | `/cms/sites` | 父子站群、显式继承、域名路由、主题、审核模式、Webhook | [站群与分发](./site-groups-and-distribution) |
-| 栏目管理 | `/cms/channels` | 左侧栏目树 + 右侧编辑区，树形栏目（列表/单页/外链），栏目标识 code + 级联 path | [内容管线](./content-pipeline) |
-| 内容管理 | `/cms/contents` | 5 态状态机、多形态内容（图文/图集/音视频/外链）、批量操作、导入导出、回收站 | [内容管线](./content-pipeline) |
-| 内容模型 | `/cms/models` | 12 种自定义字段类型（EAV via JSONB），选项可绑系统字典，支持站点/栏目/内容三级绑定 | [内容管线](./content-pipeline) |
-| 标签管理 | `/cms/tags` | 站点级标签 + 前台聚合页 | [内容管线](./content-pipeline) |
+| 站点管理 | `/cms/sites` | 父子站群、显式继承、域名路由、主题选择与主题参数、审核模式、Webhook | [站群与分发](./site-groups-and-distribution) · [主题](./themes) |
+| 栏目管理 | `/cms/channels` | 左树右编辑，树形栏目（列表/单页/外链），栏目标识 code + 级联 path，批量建栏目 | [内容管线](./content-pipeline) |
+| 内容管理 | `/cms/contents` | 5 态状态机、多形态内容（图文/图集/音视频/外链）、批量状态流转、导入导出、回收站 | [内容管线](./content-pipeline) |
+| 内容模型 | `/cms/models` | 12 种自定义字段、选项绑字典、默认值、发布必填、列表/详情展示配置、站群归属治理 | [内容模型](./content-models) |
+| 标签管理 | `/cms/tags` | 站点级标签（名称自动生成拼音 slug）+ 前台聚合页 | [内容管线](./content-pipeline) |
 | 友情链接 | `/cms/friend-links` | 前台页脚友链，支持分组管理与按组渲染 | [互动与运营](./interaction) |
 | 素材中心 | `/cms/resources` | 文件夹树、句柄化引用索引、素材替换/裁剪、孤立素材治理与报告导出 | [内容管线](./content-pipeline) |
 | 检索管理 | `/cms/search` | 分词测试、自定义词典、搜索热词 | [全文检索](./search) |
@@ -51,14 +55,16 @@ graph LR
 | 访问统计 | `/cms/stats` | PV/UV 趋势、内容 TOP、来源/设备分布、搜索分析 | [全文检索](./search) |
 | 采集中心 | `/cms/collect` | CSS 选择器采集 + 图片本地化 | [互动与运营](./interaction) |
 | 页面部件 | `/cms/widgets` | 手工榜单/实时来源内容块，草稿-发布-下线、主题插槽绑定、引用定向刷新 | [渲染与静态化](./static-and-render) |
-| 页面搭建 | `/cms/pages` | 区块拖拽（含 widget-ref 部件引用）、用户/角色 ACL、公开展示条件与实时预览 | [互动与运营](./interaction) |
+| 页面搭建 | `/cms/pages` | 区块拖拽（内容列表支持栏目/标签聚合取数、widget-ref 部件引用）、用户/角色 ACL、展示条件与实时预览 | [互动与运营](./interaction) |
 | 会员订阅 | `/cms/subscriptions` | 站点/栏目/作者订阅聚合、脱敏明细与导出 | [互动与运营](./interaction) |
 | 发布中心 | `/cms/publishing` | 通用任务队列投影、产物、失败恢复与导出 | [渲染与静态化](./static-and-render) |
 | 内容分发 | `/cms/distribution` | 跨站 copy/mapping/定时同步、冲突治理、行级结果与导出 | [站群与分发](./site-groups-and-distribution) |
 
-> **后台交互约定**：栏目管理 / 内容管理 / 素材中心三个页面统一为左右两栏（`MasterDetailLayout`）——
-> 左栏顶部是**站点切换器**，下方是栏目树/文件夹树（可拖宽、宽度持久化、窄屏折叠为单栏）；
-> 右栏是该站点下的编辑区或数据列表。切换站点、树的增删改都在左栏完成。
+> **后台交互约定**：CMS 各管理页共用**站点切换器**（树形下拉，展示站群父子层级，支持搜索过滤）。
+> 「当前站点」为全 CMS 模块共享上下文——任一页面切换站点即写入 localStorage，其余页面与 F5 刷新后
+> 自动恢复同一站点（恢复优先级：已存站点 → 默认站点 → 首个可见站点）。
+> 栏目管理 / 内容管理 / 素材中心三页统一为左右两栏（`MasterDetailLayout`）：左栏站点切换器 + 栏目树/文件夹树
+> （可拖宽、宽度持久化、窄屏折叠单栏），右栏为编辑区或数据列表。
 
 ## 架构总览
 
@@ -70,7 +76,7 @@ CMS 前台路由（Hono 兜底路由）
    ├─ 301/302 重定向 → 草稿预览（签名链接）→ robots/sitemap/RSS
    ├─ 静态文件命中（hybrid/static 模式）
    ├─ Redis 页面缓存（dynamic 模式，按页面类型分级 TTL）
-   └─ React SSR 渲染 → ETag/Cache-Control 协商缓存
+   └─ React SSR 渲染（主题注册表 default/docs/gov-portal/magazine）→ ETag 协商缓存
 后台管理（React SPA /cms/*）
    └─ /api/cms/* REST 接口（权限 cms:*，站点数据权限 cms_site_users）
 开放平台
@@ -80,7 +86,7 @@ CMS 前台路由（Hono 兜底路由）
 
 ## 数据表
 
-核心表：`cms_sites` / `cms_site_inheritances` / `cms_distribution_rules` / `cms_models` / `cms_model_fields` / `cms_channels` / `cms_contents` / `cms_tags` / `cms_content_tags` / `cms_content_channels`（副栏目）/ `cms_content_relations`（相关文章）/ `cms_content_versions` / `cms_content_op_logs`（操作日志时间线）
+核心表：`cms_sites` / `cms_site_inheritances` / `cms_distribution_rules` / `cms_models`（含 `owner_site_id` 站群归属）/ `cms_model_fields`（含列表/详情展示配置与默认值）/ `cms_channels` / `cms_contents` / `cms_tags` / `cms_content_tags` / `cms_content_channels`（副栏目）/ `cms_content_relations`（相关文章）/ `cms_content_versions` / `cms_content_op_logs`（操作日志时间线）
 
 素材表：`cms_resource_folders` / `cms_resources` / `cms_resource_refs`（素材反向引用索引，owner 写事务内维护，供孤立治理与删除保护）
 
@@ -88,7 +94,7 @@ CMS 前台路由（Hono 兜底路由）
 
 运营表：`cms_comments` / `cms_ad_slots` / `cms_ads` / `cms_ad_events` / `cms_forms` / `cms_form_submissions` / `cms_sensitive_words` / `cms_error_prone_words`（易错词）/ `cms_friend_link_groups` / `cms_friend_links` / `cms_pages` / `cms_page_block_acls` / `cms_widgets` / `cms_widget_refs`（部件被页面/主题插槽引用的索引）/ `cms_widget_source_refs`（实时来源→部件反向索引，供内容/栏目变更触发定向刷新）
 
-模板与发布：主题为仓库内置 React TSX 主题（`default` / `docs`），无独立模板表；发布产物记录于 `cms_publish_artifacts`，发布任务与逐路径日志复用 `async_tasks` / `async_task_items`。
+主题与发布：主题为仓库内置 React TSX 主题（`default` / `docs` / `gov-portal` / `magazine`，见[主题与模板开发](./themes)），无独立模板表；主题参数存 `cms_sites.settings.themeConfig`；发布产物记录于 `cms_publish_artifacts`，发布任务与逐路径日志复用 `async_tasks` / `async_task_items`。
 
 会员互动表：`cms_content_likes` / `cms_content_favorites` / `cms_member_view_history` / `cms_member_subscriptions` / `cms_interactions` / `cms_interaction_questions` / `cms_interaction_responses` / `cms_interaction_answers`
 
@@ -122,6 +128,7 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 
 - **栏目级数据权限**：非平台超管必须在「栏目管理 → 授权用户」中显式绑定后，才可管理对应栏目内容（列表、详情、状态流转与批量操作均按主栏目校验）；未绑定默认拒绝，平台超管不受限。表 `cms_channel_users`。
 - **部门数据权限**：内容创建时快照创建人 `created_by` 与其部门 `dept_id`；内容列表接入系统数据权限（`getDataScopeCondition`），角色数据范围为 本部门/本部门及以下/指定部门/仅本人 时自动过滤。
+- **模型站群归属**：内容模型分「平台共享 / 站点专属」，专属模型仅归属站点可见可绑定，跨站绑定服务端拦截；详见[内容模型](./content-models#站群归属治理)。
 - **站点导入导出**：站点操作菜单「导出」下载整站 JSON 包（站点配置、栏目树、标签、**素材库（文件夹 + 素材登记）**、内容及关联、友链、重定向、内链词、广告位/广告、表单定义、搭建页面；不含运行数据与用户绑定）；工具栏「导入」上传导出包创建为新站点，内部 id 全部重映射（素材先建、再把包内 `cms-res://` 句柄改写为新站素材 id，避免跨站引用来源站素材），站点 code 冲突自动加序号，域名/默认站标记不迁移。为避免导入绕过发布权限，包内内容无论原状态或计划时间均统一导入为草稿，并清除发布时间、计划发布时间与归档状态，需由有 `cms:content:publish` 权限的用户重新发布或排期。接口 `GET /api/cms/sites/{id}/export`、`POST /api/cms/sites/import`。
-- **CDN 刷新**：站点设置「CDN 刷新」配置 purge webhook 地址与令牌后，增量静态化/整站重建完成自动 POST 变更路径（`{ siteCode, origin, purgeAll, paths, urls }`，Bearer 鉴权），由接收端转译具体云厂商刷新 API；失败仅记日志不影响静态化。
+- **CDN 刷新**：站点设置「CDN 刷新」配置 purge webhook 地址与令牌后，增量静态化/整站重建完成自动 POST 变更路径（请求体 `{ siteCode, origin, purgeAll, paths, urls }`，配置令牌时以 Bearer 方式鉴权）；失败仅记日志不影响静态化。
 - **多语言站点关联**：站点设置「多语言站点关联」配置本站语言与关联站点（`语言代码=站点标识` 每行一条）后，前台所有页面输出 `<link rel="alternate" hreflang>` 且页头显示语言切换；关联站点 URL 取绑定域名（无域名回退预览路径）。

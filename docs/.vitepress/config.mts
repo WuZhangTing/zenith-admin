@@ -147,6 +147,8 @@ export default withMermaid(defineConfig({
         items: [
           { text: '总览', link: '/cms/' },
           { text: '内容管线', link: '/cms/content-pipeline' },
+          { text: '内容模型', link: '/cms/content-models' },
+          { text: '主题与模板开发', link: '/cms/themes' },
           { text: '渲染与静态化', link: '/cms/static-and-render' },
           { text: '站群与内容分发', link: '/cms/site-groups-and-distribution' },
           { text: 'SEO 与流量', link: '/cms/seo' },

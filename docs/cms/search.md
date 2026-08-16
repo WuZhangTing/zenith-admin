@@ -2,13 +2,17 @@
 
 基于 **PostgreSQL tsvector + 应用层 jieba 分词**，无需引入 Elasticsearch 即可获得中文全文检索能力。
 
-## 索引流程
+## 索引与三级召回
 
-1. 内容创建/更新时，对标题（权重 A）、SEO 关键词 + 摘要（权重 B）、正文 + searchable 扩展字段（权重 C）做 jieba 细粒度分词（`cutForSearch`），写入 `cms_contents.search_vector`（GIN 索引）
-2. 查询时对关键词粗粒度分词 → `plainto_tsquery` 匹配 → `ts_rank_cd` 相关度排序 + 发布时间倒序
-3. 无命中且关键词 ≤ 4 字时回退 ILIKE 标题模糊匹配（`pg_trgm` GIN 索引加速，索引建于手写迁移 `drizzle/0001_extensions.sql`）
+**索引**：内容创建/更新时，对标题（权重 A）、SEO 关键词 + 摘要（权重 B）、正文 + searchable 扩展字段（权重 C）做 jieba 细粒度分词（`cutForSearch`），写入 `cms_contents.search_vector`（GIN 索引）。
 
-tsvector 解析器配置可用环境变量 `CMS_TSVECTOR_CONFIG` 切换（默认 `simple` = 应用层 jieba 预分词；设为 `zhparser` 等 PG 扩展配置时由 PostgreSQL 直接解析原文，跳过应用层分词）。
+**查询**按三级召回逐级放宽，直到有结果：
+
+1. **精确 AND**：关键词粗粒度分词 → `plainto_tsquery` 全 token 命中 → `ts_rank_cd` 相关度排序 + 发布时间倒序
+2. **前缀 OR 近似**：截断词/两侧切词不齐时（如搜「不动产权证书遗」查询侧切出单字「遗」而索引侧只有「遗失」），AND 全命中会整体落空——改用 `token:*` 前缀匹配按 OR 召回，`ts_rank_cd` 保证命中越多越靠前（仅应用层分词配置启用）
+3. **标题 ILIKE 兜底**：关键词 ≤ 32 字时整串模糊匹配标题（`pg_trgm` GIN 索引加速），兜住词典完全切不准的关键词
+
+tsvector 解析器配置可用环境变量 `CMS_TSVECTOR_CONFIG` 切换（默认 `simple` = 应用层 jieba 预分词；设为 `zhparser` 等 PG 扩展配置时由 PostgreSQL 直接解析原文，跳过应用层分词与第 2 级召回）。
 
 ## 站点级词典与热词治理
 

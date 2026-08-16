@@ -121,35 +121,12 @@ SSR 响应按页面类型分级缓存：
 
 ## 主题与模板解析
 
-内置可信主题注册于 `packages/server/src/cms/themes/registry.ts`（`default` 企业门户 / `docs` 文档站），全部为仓库内 React TSX 组件，由服务端 SSR（`renderToStaticMarkup`）渲染。站点在「站点管理」编辑中选择主题，切换时服务端校验主题已注册并原子递增 `themeRevision`（发布任务以此做过期栅栏）。模板上下文含导航、广告位、友链、SEO、评论、相关文章等。
+前台外观由**主题**决定（内置 `default` / `docs` / `gov-portal` / `magazine` 四套，全部为仓库内 React TSX 组件，服务端 SSR 渲染）。主题体系——主题注册、Theme API 首页取数、主题参数（settingsSchema）、变体模板与解析链、共享组件、模型字段消费、部件插槽——完整说明见 **[主题与模板开发](./themes)**。
 
-主题除默认模板集外可注册**变体模板**（`extraListTemplates` / `extraDetailTemplates`，带展示名），default 主题内置 `list-card`（卡片网格）、`list-compact`（紧凑标题）、`detail-plain`（简洁正文）。可选清单通过 `GET /api/cms/sites/themes/{code}/templates` 返回，后台站点/栏目/内容三级下拉动态取。
+与渲染管线相关的两个事实：
 
-**模板解析链**（按优先级，空值逐级回退）：
-
-| 页面 | 解析顺序 |
-|------|----------|
-| 列表页 | 栏目 `listTemplate` → 站点 `settings.defaultTemplates.list` → 主题默认 |
-| 详情页 | 内容 `detailTemplate` → 栏目 `detailTemplate` → 站点 `defaultTemplates.detailByModel[模型code]` → 站点 `defaultTemplates.detail` → 主题默认 |
-
-站点级默认模板在站点编辑 →「模板与主题」页签配置，**支持按内容模型细分详情模板**；栏目级在栏目编辑「模板配置」区配置列表/详情两项。
-
-栏目级不提供「按模型细分」：详情页只在内容主栏目路径下可达（`getPublishedContent` 锁 `channel_id`），而内容 `model_id` 恒等于其主栏目的 `model_id` —— 栏目内模型唯一，按模型细分会退化成 `detailTemplate` 的重复槽位，还会在栏目编辑页列出该栏目永远命中不了的其他模型。站点默认跨栏目生效、模型有区分度，故只在站点级保留。
-
-### 失效模板引用的自愈
-
-模板配置存的是模板名字符串，与代码中的主题注册表之间没有引用完整性约束：**主题升级移除某个变体后，站点里的历史引用就变成了死配置**。
-
-由于站点保存是按**合并后的完整 settings** 做校验（保证不会持久化非法状态），这类存量脏数据会连带卡住该站点所有与模板无关的 settings 写入（如内容策略开关），报错形如「站点默认模板[pc]列表模板「xxx」在主题「default」中不存在」。
-
-处理策略分两种情形：
-
-| 情形 | 行为 |
-| --- | --- |
-| 本次请求**未改动**、但已在当前主题下失效的引用 | 保存前自动摘除（`pruneStaleTemplateDefaults`），并记 `warn` 日志列出被清除项 |
-| 本次请求**新提交/改动**的失效模板名 | 仍抛 400 并附可用模板清单，保留对拼写错误的即时反馈 |
-
-因此任意一次站点保存（含只改无关字段的 API 局部更新）都会顺带修复该站点的存量脏引用，无需手工清库。后台站点编辑页同样会提示「已清除 N 项在主题「x」下失效的默认模板配置（保存后生效）」。全站存量扫描见 `getSiteTemplateHealth`（站点管理页健康检查 Banner）。
+- 站点切换主题时服务端校验主题已注册并原子递增 `themeRevision`，发布任务以此做**过期栅栏**——执行中发现站点主题/模板已变更即失效退出
+- 模板解析链为 内容/栏目级覆盖 → 站点有效 `defaultTemplates`（经站群继承 resolver）→ 主题默认；主题升级导致的失效模板引用在站点保存时自动摘除（自愈机制见[主题文档](./themes#变体模板与解析链)）
 
 ## 页面部件与主题插槽
 
@@ -168,7 +145,7 @@ SSR 响应按页面类型分级缓存：
 | 引用方式 | 说明 |
 |---|---|
 | 页面搭建 `widget-ref` 区块 | 搭建页面中插入部件（`ownerType=page`），随页面静态化输出 |
-| 主题插槽绑定 | `PUT /api/cms/widgets/slots/{slotKey}`（权限 `cms:widget:bind`），把**已发布**部件绑到主题声明的插槽上；插槽清单由主题注册表 `widgetSlots` 声明（default 主题当前提供 `home.sidebar` 首页侧栏），并校验部件类型与模板是否适用 |
+| 主题插槽绑定 | `PUT /api/cms/widgets/slots/{slotKey}`（权限 `cms:widget:bind`），把**已发布**部件绑到主题声明的插槽上；插槽清单由主题注册表 `widgetSlots` 声明（四套内置主题均提供 `home.sidebar` 首页侧栏），并校验部件类型与模板是否适用 |
 
 编辑页提供 `GET /{id}/preview`（草稿/发布态渲染预览）与 `GET /{id}/refs`（引用位置清单）；列表以 `referenceCount/impactCount` 展示引用面，达到高扇出阈值（20 个引用位置）标记 `highFanout` 提醒操作影响面。
 
