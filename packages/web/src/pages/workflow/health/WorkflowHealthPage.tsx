@@ -19,6 +19,7 @@ const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   delay_overdue: '延迟未唤醒',
   delay_missing_wake_job: '延迟缺唤醒作业',
   task_timeout_overdue: '任务超时',
+  token_task_mismatch: 'Token 与任务不一致',
   workflow_event_outbox_failed: '事件派发失败',
   workflow_event_outbox_pending: '事件派发待处理',
   waiting_task_stuck: '任务等待过久',

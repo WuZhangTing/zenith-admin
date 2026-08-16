@@ -191,6 +191,7 @@ export const WorkflowHealthIssueDTO = z
       'delay_overdue',
       'delay_missing_wake_job',
       'task_timeout_overdue',
+      'token_task_mismatch',
       'workflow_event_outbox_failed',
       'workflow_event_outbox_pending',
       'waiting_task_stuck',

@@ -43,7 +43,8 @@ const allRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/all', tags: ['WorkflowCategories'], summary: '全部流程分类（不分页）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'workflow:definition:list' })] as const,
+    // 发起工作台分组/待办筛选也要读取分类，放行发起与审批权限，避免非管理角色每次 ['workflow'] 缓存广播后 403 toast
+    middleware: [authMiddleware, guard({ permission: ['workflow:definition:list', 'workflow:instance:create', 'workflow:task:handle'] })] as const,
     responses: { ...commonErrorResponses, ...ok(z.array(WorkflowCategoryDTO), 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listAllWorkflowCategories()), 200),

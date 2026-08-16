@@ -9,7 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Empty, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from '@/components/workflow/WorkflowLaunchForm';
 import { useTabMeta, TabsMetaContext } from '@/hooks/useTabMeta';
-import { useWorkflowDefinitionDetail } from '@/hooks/queries/workflow-definitions';
+import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { useLaunchWorkflowInstance } from '@/hooks/queries/workflow-launch';
 
 export default function WorkflowLaunchPage() {
@@ -20,11 +20,13 @@ export default function WorkflowLaunchPage() {
 
   const launchFormRef = useRef<WorkflowLaunchFormHandle>(null);
   const submitNonceRef = useRef<string>('');
-  const definitionQuery = useWorkflowDefinitionDetail(Number.isFinite(defId) ? defId : null);
+  // 深链发起页从「已发布定义」取数：与发起工作台同源，仅需发起权限
+  //（管理端定义详情接口要求 workflow:definition:list，普通发起人无权限会 403）
+  const definitionsQuery = usePublishedWorkflowDefinitions({ enabled: Number.isFinite(defId) });
   const submitMutation = useLaunchWorkflowInstance();
   const saveDraftMutation = useLaunchWorkflowInstance();
-  const def = definitionQuery.data ?? null;
-  const loading = definitionQuery.isFetching;
+  const def = definitionsQuery.data?.find((d) => d.id === defId) ?? null;
+  const loading = definitionsQuery.isFetching;
   const submitting = submitMutation.isPending;
   const savingDraft = saveDraftMutation.isPending;
 

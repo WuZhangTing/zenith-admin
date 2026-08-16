@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, lte, type SQL } from 'drizzle-orm';
 import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared/workflow';
 import { db } from '../../db';
-import { workflowJobExecutions, workflowJobs, workflowInstances, workflowTasks } from '../../db/schema';
+import { workflowJobExecutions, workflowJobs, workflowInstances, workflowTasks, workflowTokens } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantCondition } from '../../lib/tenant';
@@ -91,6 +91,15 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
   const findJob = (taskId: number, jobType: typeof workflowJobs.$inferSelect['jobType']) =>
     jobsByTask.get(taskId)?.find((job) => job.jobType === jobType) ?? null;
 
+  // 活动任务节点必须有 active token（Task→Token 反向校验），缺失则任务提交必然失败
+  const staleInstanceIds = [...new Set(taskRows.map((row) => row.task.instanceId))];
+  const activeTokenRows = staleInstanceIds.length > 0
+    ? await db.select({ instanceId: workflowTokens.instanceId, nodeKey: workflowTokens.nodeKey })
+      .from(workflowTokens)
+      .where(and(inArray(workflowTokens.instanceId, staleInstanceIds), eq(workflowTokens.status, 'active')))
+    : [];
+  const activeTokenKeys = new Set(activeTokenRows.map((row) => `${row.instanceId}:${row.nodeKey}`));
+
   const issues: WorkflowHealthIssue[] = [];
   for (const row of taskRows) {
     const { task } = row;
@@ -98,6 +107,17 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
     const triggerJob = findJob(task.id, 'trigger_dispatch');
     const delayJob = findJob(task.id, 'delay_wake');
     const timeoutJob = findJob(task.id, 'task_timeout');
+    if (!activeTokenKeys.has(`${task.instanceId}:${task.nodeKey}`)) {
+      issues.push(taskIssue({
+        type: 'token_task_mismatch',
+        severity: 'critical',
+        title: '活动任务缺少执行 Token',
+        description: '任务所在节点没有 active token，提交时将因「节点缺少执行 Token」失败；请在流程监控使用「强制跳转」重置执行位置。',
+        row,
+        now,
+      }));
+      continue;
+    }
     if (externalJob && ['failed', 'dead'].includes(externalJob.status)) {
       issues.push(taskIssue({
         type: 'external_dispatch_failed',
@@ -183,6 +203,18 @@ export async function getWorkflowHealthSummary(thresholdMinutes = 30): Promise<W
         severity: 'warning',
         title: '审批任务已超时未处理',
         description: '审批超时作业 runAt 已到期，等待超时处理器执行。',
+        row,
+        now,
+      }));
+      continue;
+    }
+    // 普通人工待办滞留：无任何失败/超时特征但超过阈值仍未处理（此前静默穿过整条规则链，健康巡检对超龄待办零感知）
+    if (task.status === 'pending') {
+      issues.push(taskIssue({
+        type: 'waiting_task_stuck',
+        severity: 'warning',
+        title: '审批任务滞留过久',
+        description: '待办任务超过阈值仍未处理，可考虑催办、转办或为节点配置超时策略。',
         row,
         now,
       }));

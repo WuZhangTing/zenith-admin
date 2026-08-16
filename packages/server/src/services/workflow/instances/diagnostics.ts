@@ -155,6 +155,21 @@ function buildRuntimeIssues(input: {
       });
     }
   }
+  // 反向校验：活动任务所在节点必须有 active token，否则该任务提交时会因「节点缺少执行 Token」失败
+  const activeTokenNodeKeys = new Set(activeTokens.map((t) => t.nodeKey));
+  const orphanNodeKeys = new Set<string>();
+  for (const task of activeTasks) {
+    if (activeTokenNodeKeys.has(task.nodeKey) || orphanNodeKeys.has(task.nodeKey)) continue;
+    orphanNodeKeys.add(task.nodeKey);
+    issues.push({
+      severity: 'critical',
+      source: 'token',
+      taskId: task.id,
+      nodeKey: task.nodeKey,
+      title: '活动任务缺少执行 Token',
+      description: `节点「${task.nodeName ?? task.nodeKey}」存在待处理任务但没有 active token，任务提交将失败。多因历史清场不完整产生孤儿任务，可使用「强制跳转」重置执行位置。`,
+    });
+  }
   if (issues.length === 0) {
     issues.push({
       severity: 'info',
