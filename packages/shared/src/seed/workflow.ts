@@ -366,7 +366,7 @@ export const SEED_WORKFLOW_TEMPLATES: SeedWorkflowTemplate[] = [
     id: 8,
     name: '付款申请',
     code: 'tpl_payment',
-    description: '对外付款申请，直属主管 + 部门负责人 + 财务审批。',
+    description: '对外付款申请，直属主管 + 部门负责人两级审批。',
     categoryName: '财务报销',
     icon: 'CreditCard',
     color: '#fa8c16',

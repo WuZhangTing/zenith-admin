@@ -1,9 +1,11 @@
 // ─── 实例生命周期：创建/撤回/取消/删除/草稿/重新提交（拆分自 workflow-instances.service.ts）───
+import { randomUUID } from 'node:crypto';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowInstances, workflowTasks, workflowDefinitions, users, userRoles } from '../../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../../lib/tenant';
 import { validateFlowData } from '../../../lib/workflow-engine';
+import { cancelJobs, WORKFLOW_ADVANCING_JOB_TYPES } from '../../../lib/workflow-jobs';
 import type { WorkflowFlowData, WorkflowInstanceFormSnapshot } from '@zenith/shared/workflow';
 import { collectWorkflowFormValidationErrors, WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
@@ -185,6 +187,7 @@ export async function createInstance(data: { definitionId: number; title: string
       const existingSet = new Set(existing.map((r) => r.assigneeId).filter((v): v is number => typeof v === 'number'));
       const toAdd = ccIds.filter((uid) => validSet.has(uid) && !existingSet.has(uid));
       if (toAdd.length > 0) {
+        const initiatorCcActivation = randomUUID();
         await db.insert(workflowTasks).values(toAdd.map((uid) => ({
           instanceId: instance.id,
           nodeKey: '__initiator_cc__',
@@ -194,6 +197,7 @@ export async function createInstance(data: { definitionId: number; title: string
           status: 'skipped' as const,
           comment: `[发起抄送] 由 ${user.username ?? '系统'} 指定`,
           actionAt: null,
+          activationId: initiatorCcActivation,
         })));
       }
     } catch (err) {
@@ -284,6 +288,7 @@ export async function withdrawInstance(id: number) {
       .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])))
       .returning();
     await killInstanceTokens(tx, id);
+    await cancelJobs({ instanceId: id, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
     const [row] = await tx.update(workflowInstances).set({ status: 'withdrawn' }).where(and(...conditions)).returning();
     await bridgeReportFillWorkflowOutcome(tx, {
       workflowInstanceId: id,
@@ -319,6 +324,7 @@ export async function cancelInstance(id: number) {
       .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])))
       .returning();
     await killInstanceTokens(tx, id);
+    await cancelJobs({ instanceId: id, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
     const [row] = await tx.update(workflowInstances).set({ status: 'cancelled', currentNodeKey: null, suspendedAt: null, suspendReason: null }).where(and(...conditions)).returning();
     await bridgeReportFillWorkflowOutcome(tx, {
       workflowInstanceId: id,
@@ -406,6 +412,15 @@ export async function submitDraftInstance(id: number, input: { selectedInitiator
       status: 'running',
       currentNodeKey: null,
     }).where(eq(workflowInstances.id, id));
+    // 防御性清场：退回重提复用同一实例；若上一轮仍残留活动任务 / token / 推进作业（历史缺陷或并发产物），
+    // 先作废再重新物化，保证新一轮任务是唯一活动轮次，杜绝新旧任务并存与 token 缺口
+    if (isResubmitAfterReturn) {
+      await tx.update(workflowTasks)
+        .set({ status: 'skipped', actionAt: new Date(), comment: '[重提清场] 上一轮残留待办作废' })
+        .where(and(eq(workflowTasks.instanceId, id), inArray(workflowTasks.status, ['pending', 'waiting'])));
+      await killInstanceTokens(tx, id);
+      await cancelJobs({ instanceId: id, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
+    }
     const materialized = await advanceAndMaterialize({ kind: 'seed' }, {
       instanceId: id,
       initiatorId: user.userId,

@@ -516,7 +516,7 @@ export const workflowTasks = pgTable('workflow_tasks', {
   /** 退回模式 backToOrigin：被退回任务记录发起退回的来源节点 key，通过后直接跳回该节点 */
   returnOriginNodeKey: varchar('return_origin_node_key', { length: 64 }),
   /** 节点激活轮次 ID（同一次进入节点创建的一批任务共享；重入节点生成新值，完成判定只统计当前轮） */
-  activationId: varchar('activation_id', { length: 36 }),
+  activationId: varchar('activation_id', { length: 36 }).notNull(),
   /** 抄送已读时间（仅 ccNode 任务有意义；null 表示未读） */
   ccReadAt: timestamp('cc_read_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -525,6 +525,12 @@ export const workflowTasks = pgTable('workflow_tasks', {
   index('workflow_tasks_instance_status_idx').on(t.instanceId, t.status),
   // 待我审批 / 我已办按处理人过滤的高频组合条件
   index('workflow_tasks_assignee_status_idx').on(t.assigneeId, t.status),
+  // 运行时不变量：同一激活轮内同一节点、同一处理人至多一个活动任务。
+  // 物理杜绝「驳回重提 / 转办 / 加签 / 委派回执」等路径残留或重复创建活动任务
+  // （抄送等无阻塞语义任务为 skipped，外部审批 / 延时等无处理人任务 assignee 为空，均不在谓词内）
+  uniqueIndex('wf_tasks_active_uniq')
+    .on(t.instanceId, t.nodeKey, t.activationId, t.assigneeId)
+    .where(sql`${t.status} in ('pending', 'waiting') and ${t.assigneeId} is not null`),
 ]);
 
 export type WorkflowTaskRow = typeof workflowTasks.$inferSelect;
@@ -583,6 +589,11 @@ export const workflowTokens = pgTable('workflow_tokens', {
 }, (t) => [index('workflow_tokens_tenant_idx').on(t.tenantId), 
   index('workflow_tokens_instance_status_idx').on(t.instanceId, t.status),
   index('workflow_tokens_parent_idx').on(t.parentTokenId),
+  // 运行时不变量：同一实例、同一节点、同一分支路径至多一个活动 token，
+  // 物理杜绝重复物化 / 清场遗漏导致的重复执行路径
+  uniqueIndex('wf_tokens_active_uniq')
+    .on(t.instanceId, t.nodeKey, t.branchPath)
+    .where(sql`${t.status} = 'active'`),
 ]);
 
 export type WorkflowTokenRow = typeof workflowTokens.$inferSelect;

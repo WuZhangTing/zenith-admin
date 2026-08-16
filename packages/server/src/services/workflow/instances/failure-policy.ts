@@ -1,4 +1,5 @@
 // ─── 节点失败策略、Saga 回滚与补偿恢复（拆分自 workflow-instances.service.ts）───
+import { randomUUID } from 'node:crypto';
 import { eq, and, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowJobs, workflowInstances, workflowTasks, workflowTokens, workflowCompensations } from '../../../db/schema';
@@ -226,6 +227,7 @@ async function applyNodeFailurePolicy(input: {
       assigneeId: adminId,
       status: 'pending',
       comment: errorComment,
+      activationId: randomUUID(),
     }).returning();
     // Token 一致性：消费失败节点 token，在同一节点新建 frontier token（其余分支保留）
     await swapFailedTokenTo(tx, { instanceId: lockedInst.id, failedNodeKey: input.nodeKey, targetNodeKey: input.nodeKey, tenantId: lockedInst.tenantId });
@@ -375,6 +377,7 @@ export async function handleNodeExecutionError(input: {
         status: 'rejected',
         comment: errorComment,
         actionAt: new Date(),
+        activationId: randomUUID(),
       }).returning();
       const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
       return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
@@ -392,6 +395,7 @@ export async function handleNodeExecutionError(input: {
           status: 'rejected',
           comment: `${errorComment}；未找到管理员`,
           actionAt: new Date(),
+          activationId: randomUUID(),
         }).returning();
         const row = await markInstanceRejected(tx, { instanceId: lockedInst.id, comment: errorComment, killTokens: true, actorId: input.actor.userId });
         return { row, affectedTasks, catchTask, newTasks: [] as typeof workflowTasks.$inferSelect[], finished: false, rejected: true };
@@ -404,6 +408,7 @@ export async function handleNodeExecutionError(input: {
         assigneeId: adminId,
         status: 'pending',
         comment: errorComment,
+        activationId: randomUUID(),
       }).returning();
       // Token 一致性：消费失败节点 token，在 catch 节点新建 frontier token（其余分支 token 保留）
       await swapFailedTokenTo(tx, { instanceId: lockedInst.id, failedNodeKey: input.nodeKey, targetNodeKey: catchCfg.key, tenantId: lockedInst.tenantId });
@@ -423,6 +428,7 @@ export async function handleNodeExecutionError(input: {
       status: 'approved',
       comment: errorComment,
       actionAt: new Date(),
+      activationId: randomUUID(),
     }).returning();
     const formData = (lockedInst.formData ?? {}) as Record<string, unknown>;
     const starter = await buildStarterContext(lockedInst.initiatorId, tx);

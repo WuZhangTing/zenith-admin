@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkNodeCompletion, filterCurrentActivation } from './materialize';
 import type { DbExecutor } from '../../../db/types';
 
-type Row = { id: number; activationId: string | null; status?: string };
+type Row = { id: number; activationId: string; status?: string };
 
 describe('filterCurrentActivation 节点重入轮次过滤', () => {
   it('只保留最新 activationId 的任务（历史轮 rejected 不参与判定）', () => {
@@ -14,22 +14,6 @@ describe('filterCurrentActivation 节点重入轮次过滤', () => {
     ];
     const filtered = filterCurrentActivation(rows);
     expect(filtered.map((r) => r.id)).toEqual([3, 4]);
-  });
-
-  it('最新行无 activationId（历史数据）时回退全量，保持旧行为', () => {
-    const rows: Row[] = [
-      { id: 1, activationId: 'round-1' },
-      { id: 2, activationId: null },
-    ];
-    expect(filterCurrentActivation(rows)).toHaveLength(2);
-  });
-
-  it('全部无 activationId 的存量数据回退全量', () => {
-    const rows: Row[] = [
-      { id: 1, activationId: null },
-      { id: 2, activationId: null },
-    ];
-    expect(filterCurrentActivation(rows)).toHaveLength(2);
   });
 
   it('空数组直接返回', () => {

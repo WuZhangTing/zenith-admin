@@ -18,6 +18,7 @@ export {
   previewDrainableJobs,
   registerWorkflowJobWorker,
   scheduleJobPickup,
+  WORKFLOW_ADVANCING_JOB_TYPES,
   type EnqueueJobInput,
   type DrainableFilter,
 } from './engine';

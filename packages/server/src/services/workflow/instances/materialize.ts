@@ -20,9 +20,12 @@ import { findExceptionCatchNode } from './mapping';
  * 将引擎输出的 TaskAction[] 展开为实际需插入的 workflow_tasks 行。
  * - approve / handler：调用 resolver 展开为多人，依据 approveMethod 写入状态／sequence
  * - ccNode / delay / trigger / subProcess：保持原样
+ * activationId 不在展开阶段赋值——插入前由 advanceAndMaterialize 按节点统一分配激活轮次
  */
+type ExpandedTaskRow = Omit<typeof workflowTasks.$inferInsert, 'activationId'>;
+
 interface ExpandedTaskRows {
-  rows: Array<typeof workflowTasks.$inferInsert>;
+  rows: ExpandedTaskRow[];
   autoApprovedNodeKeys: string[];
   autoRejectedNodeKey: string | null;
 }
@@ -31,7 +34,7 @@ async function expandTasksToRows(
   tasks: TaskAction[],
   ctx: { instanceId: number; initiatorId: number; executor: DbExecutor; formData?: Record<string, unknown>; settings?: WorkflowFlowData['settings']; selectedNextApprovers?: Record<string, number[]>; flowData?: WorkflowFlowData },
 ): Promise<ExpandedTaskRows> {
-  const rows: Array<typeof workflowTasks.$inferInsert> = [];
+  const rows: ExpandedTaskRow[] = [];
   const autoApprovedNodeKeys: string[] = [];
   let autoRejectedNodeKey: string | null = null;
 
@@ -535,12 +538,11 @@ export async function advanceAndMaterialize(
  * 过滤出节点"当前激活轮"的任务：以最新任务行的 activationId 为当前轮标识。
  * 重入节点（驳回回退/退回重审后再次到达）会生成新 activationId，历史轮的
  * rejected/skipped 任务不再参与完成判定与 ratio 分母。
- * 兼容历史数据：最新行无 activationId 时回退全量（保持旧行为）。
+ * activation_id 已收紧为 NOT NULL（所有写入路径必须显式赋值），不再兼容空值回退。
  */
-export function filterCurrentActivation<T extends { id: number; activationId: string | null }>(rows: T[]): T[] {
+export function filterCurrentActivation<T extends { id: number; activationId: string }>(rows: T[]): T[] {
   if (rows.length === 0) return rows;
   const latest = rows.reduce((a, b) => (b.id > a.id ? b : a));
-  if (!latest.activationId) return rows;
   return rows.filter((t) => t.activationId === latest.activationId);
 }
 

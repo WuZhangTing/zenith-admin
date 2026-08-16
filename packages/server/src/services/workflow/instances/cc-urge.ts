@@ -1,4 +1,5 @@
 // ─── 催办与抄送（转发/已读）（拆分自 workflow-instances.service.ts）───
+import { randomUUID } from 'node:crypto';
 import { formatDateTime } from '../../../lib/datetime';
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../../../db';
@@ -51,6 +52,7 @@ export async function forwardInstance(instanceId: number, userIds: number[], not
   }
   const noteText = note?.trim() ? `：${note.trim()}` : '';
   const forwardComment = `[转发抄送] 由 ${user.username ?? '系统'} 发起${noteText}`;
+  const forwardActivation = randomUUID();
   const rows = toAdd.map((uid) => ({
     instanceId,
     nodeKey: inst.currentNodeKey ?? '__forward__',
@@ -60,6 +62,7 @@ export async function forwardInstance(instanceId: number, userIds: number[], not
     status: 'skipped' as const,
     comment: forwardComment,
     actionAt: null,
+    activationId: forwardActivation,
   }));
   const inserted = await db.insert(workflowTasks).values(rows).returning();
   const actor = { userId: user.userId, name: user.username };
@@ -235,6 +238,7 @@ export async function addInstanceCc(instanceId: number, nodeKey: string, userIds
     return { list: [] as ReturnType<typeof mapTask>[], message: '所选用户均已抄送，无需重复添加' };
   }
 
+  const addCcActivation = randomUUID();
   const rows = toAdd.map((uid) => ({
     instanceId,
     nodeKey,
@@ -243,6 +247,7 @@ export async function addInstanceCc(instanceId: number, nodeKey: string, userIds
     assigneeId: uid,
     status: 'skipped' as const,
     actionAt: null,
+    activationId: addCcActivation,
   }));
   const inserted = await db.insert(workflowTasks).values(rows).returning();
   const actor = { userId: user.userId, name: user.username };

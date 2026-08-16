@@ -72,17 +72,27 @@ export async function enqueueJob(input: EnqueueJobInput, executor: DbExecutor = 
 }
 
 /**
+ * 会推动实例继续流转的调度类作业。实例清场（退回发起人 / 撤回 / 取消 / 终态落定）时必须一并取消，
+ * 否则延时唤醒、超时处理或外部回调苏醒后会对已终结 / 已退回的实例发起推进。
+ * 事件派发（outbox）与 Webhook 投递属于通知类，不在此列——已发生事实仍需送达订阅方。
+ */
+export const WORKFLOW_ADVANCING_JOB_TYPES = [
+  'delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch', 'subprocess_spawn', 'subprocess_join',
+] as const satisfies readonly WorkflowJobType[];
+
+/**
  * 取消符合条件的待处理 / 运行中作业（如审批已通过 → 取消该任务的 task_timeout 作业）。
  * 必须至少给一个过滤条件，禁止全量取消。
  */
 export async function cancelJobs(
-  filter: { taskId?: number; instanceId?: number; jobType?: WorkflowJobType },
+  filter: { taskId?: number; instanceId?: number; jobType?: WorkflowJobType; jobTypes?: readonly WorkflowJobType[] },
   executor: DbExecutor = db,
 ): Promise<number> {
   const conds = [inArray(workflowJobs.status, ['pending', 'running'] as const)];
   if (filter.taskId != null) conds.push(eq(workflowJobs.taskId, filter.taskId));
   if (filter.instanceId != null) conds.push(eq(workflowJobs.instanceId, filter.instanceId));
   if (filter.jobType != null) conds.push(eq(workflowJobs.jobType, filter.jobType));
+  if (filter.jobTypes != null && filter.jobTypes.length > 0) conds.push(inArray(workflowJobs.jobType, [...filter.jobTypes]));
   if (conds.length === 1) return 0; // 仅状态条件 → 拒绝全量取消
 
   const res = await executor.update(workflowJobs)

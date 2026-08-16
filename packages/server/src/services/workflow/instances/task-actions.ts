@@ -10,6 +10,7 @@ import { currentUser } from '../../../lib/context';
 import { buildStarterContext, listSelectableApprovers } from '../workflow-assignee-resolver.service';
 import type { WorkflowSelectableNextApproverGroup } from '@zenith/shared/workflow';
 import logger from '../../../lib/logger';
+import { cancelJobs, WORKFLOW_ADVANCING_JOB_TYPES } from '../../../lib/workflow-jobs';
 import { enqueueSubprocessJoin } from './async-jobs';
 import { assertSelectedNextApprovers } from './initiator-select';
 import { mapInstance, mapTask } from './mapping';
@@ -191,6 +192,8 @@ async function settleInstanceInTx(
       .where(and(eq(workflowTasks.instanceId, instanceId), inArray(workflowTasks.status, ['pending', 'waiting'])));
   }
   if (opts.killTokens) await killInstanceTokens(tx, instanceId);
+  // 终态清场：取消仍在途的推进类作业（延时唤醒/超时/触发器/外部派发/子流程），避免作业苏醒后推进已终结实例
+  await cancelJobs({ instanceId, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
   const [row] = await tx.update(workflowInstances)
     .set({ status: opts.outcome, currentNodeKey: null })
     .where(eq(workflowInstances.id, instanceId))
@@ -539,14 +542,24 @@ export async function rejectTaskCore(
 
     // 回退：在目标节点重新生成任务；returnStart 例外——实例交还发起人（returned），由发起人修改后重新提交
     if (strategy === 'returnStart') {
-      // 退回发起人：清场所有 token 与剩余任务，实例进入 returned 状态等待发起人修改重提，
-      // 不再从头重新物化任务（那会立即生成新一轮审批任务，发起人没有任何修改入口）
+      // 退回发起人：清场**全实例**活动任务、token 与在途推进作业，实例进入 returned 状态等待发起人修改重提，
+      // 不再从头重新物化任务（那会立即生成新一轮审批任务，发起人没有任何修改入口）。
+      // 上方的同节点跳过覆盖不到并行分支等其它节点的待办——若不在此补齐，重提后新旧两轮任务并存，
+      // 旧任务的 token 已被清理，再处理会抛「缺少执行 Token」且实例永久卡死
+      const crossNodeSkipped = await tx.update(workflowTasks)
+        .set({ status: 'skipped', actionAt: new Date(), comment: '[退回发起人] 流程退回修改，本待办作废' })
+        .where(and(
+          eq(workflowTasks.instanceId, inst.id),
+          inArray(workflowTasks.status, ['pending', 'waiting']),
+        ))
+        .returning();
       await killInstanceTokens(tx, inst.id);
+      await cancelJobs({ instanceId: inst.id, jobTypes: WORKFLOW_ADVANCING_JOB_TYPES }, tx);
       const [row] = await tx.update(workflowInstances)
         .set({ status: 'returned', currentNodeKey: null })
         .where(eq(workflowInstances.id, inst.id))
         .returning();
-      return { row, terminated: false, finished: false, returned: true, rejectedTask, skippedTasks: skipped, newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge: null };
+      return { row, terminated: false, finished: false, returned: true, rejectedTask, skippedTasks: [...skipped, ...crossNodeSkipped], newTasks: [] as typeof workflowTasks.$inferSelect[], fillBridge: null };
     }
 
     const formData = (inst.formData ?? {}) as Record<string, unknown>;
