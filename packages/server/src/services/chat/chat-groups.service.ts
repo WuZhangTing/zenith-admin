@@ -326,10 +326,10 @@ export async function transferGroupOwnership(conversationId: number, newOwnerId:
       ));
   });
 
-  // 通知所有成员
+  // 通知所有成员（角色变更走 member-update：前端会刷新会话列表 myRole 与成员面板）
   const members = await listConversationMemberIds(conversationId);
 
-  scheduleSendToUsers(members, { type: 'chat:group-update', payload: { conversationId } });
+  scheduleSendToUsers(members, { type: 'chat:member-update', payload: { conversationId } });
 
   await appendSystemMessage(
     conversationId,

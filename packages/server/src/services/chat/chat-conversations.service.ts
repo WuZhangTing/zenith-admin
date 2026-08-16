@@ -406,6 +406,17 @@ export async function removeConversation(conversationId: number): Promise<void> 
   });
   if (!member) throw new HTTPException(404, { message: '会话不存在或无权操作' });
 
+  // 群主退群守卫：还有其他成员时必须先转让群主或解散群聊，避免产生无主群
+  if (conv.type === 'group' && member.role === 'owner') {
+    const otherCount = await db.$count(chatConversationMembers, and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      ne(chatConversationMembers.userId, me.userId),
+    ));
+    if (otherCount > 0) {
+      throw new HTTPException(400, { message: '你是群主，请先转让群主或解散群聊' });
+    }
+  }
+
   await db.delete(chatConversationMembers).where(and(
     eq(chatConversationMembers.conversationId, conversationId),
     eq(chatConversationMembers.userId, me.userId),
@@ -419,4 +430,36 @@ export async function removeConversation(conversationId: number): Promise<void> 
   if (remainCount === 0) {
     await db.delete(chatConversations).where(eq(chatConversations.id, conversationId));
   }
+}
+
+// ─── 解散群聊（群主专属） ─────────────────────────────────────────────────────
+
+export async function disbandConversation(conversationId: number): Promise<void> {
+  const me = currentUser();
+
+  const conv = await db.query.chatConversations.findFirst({ where: eq(chatConversations.id, conversationId) });
+  if (!conv) throw new HTTPException(404, { message: '会话不存在或无权操作' });
+  if (conv.type !== 'group') throw new HTTPException(400, { message: '仅群聊支持解散' });
+
+  const member = await db.query.chatConversationMembers.findFirst({
+    where: and(
+      eq(chatConversationMembers.conversationId, conversationId),
+      eq(chatConversationMembers.userId, me.userId),
+    ),
+  });
+  if (member?.role !== 'owner') throw new HTTPException(403, { message: '只有群主才能解散群聊' });
+
+  // 广播目标需在删除前收集；成员/消息/邀请/申请由外键级联删除
+  const members = await db
+    .select({ userId: chatConversationMembers.userId })
+    .from(chatConversationMembers)
+    .where(eq(chatConversationMembers.conversationId, conversationId));
+
+  await db.delete(chatConversations).where(eq(chatConversations.id, conversationId));
+  invalidateConversationMembers(conversationId);
+
+  scheduleSendToUsers(members, {
+    type: 'chat:conversation-removed',
+    payload: { conversationId, reason: 'disbanded' },
+  });
 }

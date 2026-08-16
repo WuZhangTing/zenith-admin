@@ -104,26 +104,50 @@ export function LeftPaneContextMenu({
                       type="danger"
                       onClick={() => {
                         const { conv } = leftPaneContextMenu;
-                        confirmDelete({
-                          title: '确定要删除该会话吗？',
-                          content: '删除后仅移除你当前账号下的会话记录，无法恢复。',
-                          onOk: () => {
-                            void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
-                              if (r.code !== 0) return;
-                              Toast.success('会话已删除');
-                              setConversations(removeConversationById(conv.id));
-                              if (activeConvId === conv.id) {
-                                setActiveConvId(null);
-                                setMessages([]);
-                                setPendingNewMsgCount(0);
-                              }
-                            });
-                          },
-                        });
+                        const isOwnedGroup = conv.type === 'group' && conv.myRole === 'owner';
+                        const isGroup = conv.type === 'group';
+                        const removeLocal = () => {
+                          setConversations(removeConversationById(conv.id));
+                          if (activeConvId === conv.id) {
+                            setActiveConvId(null);
+                            setMessages([]);
+                            setPendingNewMsgCount(0);
+                          }
+                        };
+                        if (isOwnedGroup) {
+                          // 群主不能直接退群（会产生无主群），改为解散：成员与消息一并删除
+                          confirmDelete({
+                            title: '确定要解散该群聊吗？',
+                            content: '解散后所有成员将被移出，聊天记录一并删除且无法恢复。如需保留群聊请先转让群主。',
+                            onOk: () => {
+                              void request.delete(`/api/chat/conversations/${conv.id}/disband`).then((r) => {
+                                if (r.code !== 0) return;
+                                Toast.success('群聊已解散');
+                                removeLocal();
+                              });
+                            },
+                          });
+                        } else {
+                          confirmDelete({
+                            title: isGroup ? '确定要退出该群聊吗？' : '确定要删除该会话吗？',
+                            content: isGroup
+                              ? '退出后将不再接收该群消息，聊天记录从你的列表中移除。'
+                              : '删除后仅移除你当前账号下的会话记录，无法恢复。',
+                            onOk: () => {
+                              void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
+                                if (r.code !== 0) return;
+                                Toast.success(isGroup ? '已退出群聊' : '会话已删除');
+                                removeLocal();
+                              });
+                            },
+                          });
+                        }
                         setLeftPaneContextMenu(null);
                       }}
                     >
-                      删除会话
+                      {leftPaneContextMenu.conv.type === 'group'
+                        ? (leftPaneContextMenu.conv.myRole === 'owner' ? '解散群聊' : '退出群聊')
+                        : '删除会话'}
                     </Dropdown.Item>
                   </Dropdown.Menu>
                 ) : (

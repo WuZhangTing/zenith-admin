@@ -196,6 +196,7 @@ export function GroupMembersPanel({
               <Button
                 size="small" theme="borderless" type={showInfoEdit ? 'primary' : 'tertiary'}
                 icon={<Pencil size={13} />}
+                aria-label={showInfoEdit ? '取消编辑' : '编辑群名/公告'}
                 onClick={() => {
                   setShowInfoEdit((v) => {
                     if (!v) {
@@ -278,6 +279,7 @@ export function GroupMembersPanel({
               <Button
                 size="small" theme="borderless" type="primary"
                 icon={<Link2 size={14} />}
+                aria-label="邀请入群"
                 onClick={() => setShowInvite(true)}
               />
             </Tooltip>
@@ -286,6 +288,7 @@ export function GroupMembersPanel({
             <Button
               size="small" theme="borderless" type="primary"
               icon={<UserPlus size={14} />}
+              aria-label="添加成员"
               loading={addMemberMutation.isPending}
               onClick={() => setShowAdd((v) => !v)}
             />
@@ -395,6 +398,7 @@ export function GroupMembersPanel({
                           theme="borderless"
                           type={m.role === 'admin' ? 'primary' : 'tertiary'}
                           icon={<Shield size={13} />}
+                          aria-label={m.role === 'admin' ? `取消 ${m.nickname} 的管理员` : `将 ${m.nickname} 设为管理员`}
                           onClick={() => { void handleSetRole(m, m.role === 'admin' ? 'member' : 'admin'); }}
                           style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
                         />
@@ -407,6 +411,7 @@ export function GroupMembersPanel({
                           theme="borderless"
                           type="tertiary"
                           icon={<Mic size={13} />}
+                          aria-label={`解除 ${m.nickname} 的禁言`}
                           onClick={() => { void handleUnmute(m); }}
                           style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
                         />
@@ -433,6 +438,7 @@ export function GroupMembersPanel({
                               theme="borderless"
                               type="tertiary"
                               icon={<MicOff size={13} />}
+                              aria-label={`禁言 ${m.nickname}`}
                               style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
                             />
                           </Tooltip>
@@ -446,6 +452,7 @@ export function GroupMembersPanel({
                           theme="borderless"
                           type="tertiary"
                           icon={<Crown size={13} />}
+                          aria-label={`将群主转让给 ${m.nickname}`}
                           onClick={() => handleTransfer(m)}
                           style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
                         />
@@ -457,6 +464,7 @@ export function GroupMembersPanel({
                         theme="borderless"
                         type="danger"
                         icon={<UserMinus size={13} />}
+                        aria-label={`移除成员 ${m.nickname}`}
                         onClick={() => handleRemoveMember(m)}
                         style={{ padding: '2px 4px', height: 'auto', minWidth: 'auto' }}
                       />

@@ -46,6 +46,24 @@ export const SEED_CHANNELS: SeedChannel[] = [
     type: 'system',
     builtin: true,
   },
+  {
+    id: 2,
+    code: 'product-updates',
+    name: '产品动态',
+    avatar: null,
+    description: '新功能发布、版本更新与产品公告',
+    type: 'business',
+    builtin: false,
+  },
+  {
+    id: 3,
+    code: 'ops-notice',
+    name: '运营公告',
+    avatar: null,
+    description: '运营活动、维护窗口与重要通知',
+    type: 'business',
+    builtin: false,
+  },
 ];
 
 // ─── Channel 客服快捷回复（channelId 为 null = 全局，所有运营号通用） ───────────

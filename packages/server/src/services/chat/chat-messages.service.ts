@@ -122,6 +122,7 @@ export async function listMessages(conversationId: number, beforeId: number | nu
 }
 
 export async function listPinnedMessages(conversationId: number): Promise<ChatMessage[]> {
+  const me = currentUser();
   await ensureConversationMember(conversationId);
 
   const rows = await db
@@ -131,6 +132,7 @@ export async function listPinnedMessages(conversationId: number): Promise<ChatMe
     .where(and(
       eq(chatMessages.conversationId, conversationId),
       sql`COALESCE((${chatMessages.extra} ->> 'isPinned')::boolean, false) = true`,
+      notHiddenFor(me.userId),
     ))
     .orderBy(desc(chatMessages.updatedAt), desc(chatMessages.id))
     .limit(5);
@@ -142,11 +144,13 @@ export async function listPinnedMessages(conversationId: number): Promise<ChatMe
 }
 
 export async function listFavoriteMessages(conversationId: number, page: number, pageSize: number) {
+  const me = currentUser();
   await ensureConversationMember(conversationId);
 
   const where = and(
     eq(chatMessages.conversationId, conversationId),
     sql`COALESCE((${chatMessages.extra} ->> 'isFavorited')::boolean, false) = true`,
+    notHiddenFor(me.userId),
   );
 
   const [total, rows] = await Promise.all([
@@ -178,6 +182,7 @@ export async function listGlobalFavoriteMessages(page: number, pageSize: number)
   const where = and(
     eq(chatConversationMembers.userId, me.userId),
     sql`COALESCE((${chatMessages.extra} ->> 'isFavorited')::boolean, false) = true`,
+    notHiddenFor(me.userId),
   );
 
   const [countRows, rows] = await Promise.all([

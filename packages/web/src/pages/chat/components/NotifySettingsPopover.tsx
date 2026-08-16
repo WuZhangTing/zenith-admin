@@ -50,6 +50,7 @@ export function NotifySettingsPopover({
                           theme="borderless"
                           type={notifyDesktop && notifyPermission === 'granted' ? 'primary' : 'tertiary'}
                           icon={notifyDesktop && notifyPermission === 'granted' ? <Bell size={15} /> : <BellOff size={15} />}
+                          aria-label="通知设置"
                         />
                       </Popover>
                     </Tooltip>

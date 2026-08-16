@@ -449,6 +449,7 @@ export const MessageBubble = memo(function MessageBubble({
                       theme="solid"
                       type="primary"
                       icon={<Check size={11} />}
+                      aria-label="保存编辑"
                       onClick={handleConfirmInlineEdit}
                       style={{ padding: '2px 8px', height: 22, borderRadius: 'var(--semi-border-radius-large)' }}
                     />
@@ -457,6 +458,7 @@ export const MessageBubble = memo(function MessageBubble({
                       theme="borderless"
                       type="tertiary"
                       icon={<XIcon size={11} />}
+                      aria-label="取消编辑"
                       onClick={handleCancelInlineEdit}
                       style={{ padding: '2px 6px', height: 22, borderRadius: 'var(--semi-border-radius-large)' }}
                     />

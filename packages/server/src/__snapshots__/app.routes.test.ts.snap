@@ -52,6 +52,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "DELETE /api/chat-bots/:id",
   "DELETE /api/chat/conversations/:id",
   "DELETE /api/chat/conversations/:id/announcement-history/:messageId",
+  "DELETE /api/chat/conversations/:id/disband",
   "DELETE /api/chat/conversations/:id/members/:userId",
   "DELETE /api/chat/custom-emojis/:id",
   "DELETE /api/chat/quick-replies/:id",

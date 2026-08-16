@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { request } from '@/utils/request';
 import { confirmDelete } from '@/utils/confirm';
@@ -33,8 +33,14 @@ export function useConversationExtras({
   setOnlineUserIds: Setter<Set<number>>;
   setLastSeenMap: Setter<Record<number, string | null>>;
 }) {
+  // 响应归属校验：快速切换会话时，先发出的旧会话请求可能后返回，
+  // 若不校验会用旧会话的置顶/已读数据覆盖当前会话状态
+  const activeConvIdRef = useRef(activeConvId);
+  useEffect(() => { activeConvIdRef.current = activeConvId; }, [activeConvId]);
+
   const fetchPinnedMessages = useCallback(async (convId: number) => {
     const res = await request.get<ChatMessage[]>(`/api/chat/conversations/${convId}/pinned-messages`, { silent: true });
+    if (convId !== activeConvIdRef.current) return;
     if (res.code === 0 && res.data) setPinnedMessages(res.data);
   }, []);
 
@@ -97,6 +103,7 @@ export function useConversationExtras({
 
   const fetchReadStates = useCallback(async (convId: number) => {
     const res = await request.get<ChatReadState[]>(`/api/chat/conversations/${convId}/read-states`, { silent: true });
+    if (convId !== activeConvIdRef.current) return;
     if (res.code === 0 && res.data) setReadStates(res.data);
   }, []);
 

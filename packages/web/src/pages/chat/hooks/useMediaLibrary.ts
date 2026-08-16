@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { request } from '@/utils/request';
 import type { ChatMessage } from '@zenith/shared/chat';
 import type { Setter } from '../types';
@@ -16,6 +16,10 @@ export function useMediaLibrary({
   setMediaLoading: Setter<boolean>;
   setMediaPage: Setter<number>;
 }) {
+  // 响应归属校验：切换会话/Tab 后丢弃迟到的旧请求响应
+  const scopeRef = useRef({ convId: activeConvId, type: mediaType });
+  useEffect(() => { scopeRef.current = { convId: activeConvId, type: mediaType }; }, [activeConvId, mediaType]);
+
   const fetchMediaItems = useCallback(async (convId: number, type: 'image' | 'file' | 'link', p = 1) => {
     setMediaLoading(true);
     if (p === 1) setMediaItems([]);  // 切换 tab 时立即清空，避免旧数据短暂闪烁
@@ -26,6 +30,7 @@ export function useMediaLibrary({
       `/api/chat/conversations/${convId}/messages/search?${qs.toString()}`,
       { silent: true },
     );
+    if (convId !== scopeRef.current.convId || type !== scopeRef.current.type) return;
     setMediaLoading(false);
     if (res.code === 0 && res.data) {
       const rawCount = res.data.list.length;

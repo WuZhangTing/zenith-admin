@@ -115,6 +115,9 @@ class CallManager {
   // ── 本地媒体 ──
   private async ensureLocalStream(callType: RtcCallType): Promise<MediaStream> {
     if (this.localStream) return this.localStream;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('当前环境不支持音视频通话（需要 HTTPS 或 localhost）');
+    }
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: callType === 'video',
@@ -300,17 +303,23 @@ class CallManager {
   async startDirectCall(target: RtcPeerInfo, conversationId: number, conversationName: string | null, callType: RtcCallType): Promise<void> {
     if (this.snapshot.phase !== 'idle' || !this.self) return;
     const callId = uuid();
-    await this.getIce();
-    try {
-      await this.ensureLocalStream(callType);
-    } catch {
-      this.cleanup('idle');
-      throw new Error('无法访问麦克风/摄像头');
-    }
+    // 先展示呼叫界面再申请设备：getUserMedia 弹权限框期间用户能看到「正在呼叫」而非毫无反馈
     this.emit({
       phase: 'outgoing', callId, conversationId, conversationName, callType, mode: 'p2p',
       participants: [{ info: target, stream: null, connected: false }], minimized: false,
     });
+    await this.getIce();
+    try {
+      await this.ensureLocalStream(callType);
+    } catch (err) {
+      this.cleanup('idle');
+      // DOMException = 设备/权限问题；自定义 Error（环境不支持）原样透出
+      if (err instanceof Error && !(err instanceof DOMException)) throw err;
+      throw new Error('无法访问麦克风/摄像头，请检查设备与浏览器权限', { cause: err });
+    }
+    // 等待设备期间用户可能已挂断（emit 会替换 snapshot，显式注解避免 TS 沿用早前的收窄）
+    const afterMedia: CallSnapshot = this.snapshot;
+    if (afterMedia.phase !== 'outgoing' || afterMedia.callId !== callId) return;
     this.send({ type: 'rtc:invite', payload: { callId, conversationId, callType, mode: 'p2p', from: this.self, to: target.userId, conversationName } });
     this.ringTimer = setTimeout(() => {
       if (this.snapshot.phase === 'outgoing') {
@@ -324,17 +333,22 @@ class CallManager {
   async startGroupCall(conversationId: number, conversationName: string | null, callType: RtcCallType): Promise<void> {
     if (this.snapshot.phase !== 'idle' || !this.self) return;
     const callId = `g-${conversationId}-${uuid()}`;
+    // 同上：先给出可见的呼叫准备状态
+    this.emit({
+      phase: 'outgoing', callId, conversationId, conversationName, callType, mode: 'group',
+      participants: [], minimized: false,
+    });
     await this.getIce();
     try {
       await this.ensureLocalStream(callType);
-    } catch {
+    } catch (err) {
       this.cleanup('idle');
-      throw new Error('无法访问麦克风/摄像头');
+      if (err instanceof Error && !(err instanceof DOMException)) throw err;
+      throw new Error('无法访问麦克风/摄像头，请检查设备与浏览器权限', { cause: err });
     }
-    this.emit({
-      phase: 'connected', callId, conversationId, conversationName, callType, mode: 'group',
-      participants: [], startedAt: Date.now(), minimized: false,
-    });
+    const afterMedia: CallSnapshot = this.snapshot;
+    if (afterMedia.phase !== 'outgoing' || afterMedia.callId !== callId) return;
+    this.emit({ phase: 'connected', startedAt: Date.now() });
     this.send({ type: 'rtc:invite', payload: { callId, conversationId, callType, mode: 'group', from: this.self, conversationName } });
     this.send({ type: 'rtc:join', payload: { callId, conversationId, from: this.self } });
   }

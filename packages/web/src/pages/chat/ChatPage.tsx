@@ -33,7 +33,7 @@ import { getChatNotifyPrefs, setChatNotifyPrefs } from './notifyPrefs';
 import { usePermission } from '@/hooks/usePermission';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useAddChatCustomEmoji, useChatGroupMembers } from '@/hooks/queries/chat';
+import { useAddChatCustomEmoji, useChatGroupMembers, useChatJoinRequests } from '@/hooks/queries/chat';
 import type { LeftListItem } from './types';
 import {
   VIRTUOSO_FIRST_INDEX_BUFFER, computeLeftListModel, createComposerKeyDownHandler, getReplyPreviewText,
@@ -304,6 +304,12 @@ export default function ChatPage({
     activeConv?.type === 'group',
   );
   const activeGroupMembers = groupMembersQuery.data ?? EMPTY_GROUP_MEMBERS;
+
+  // 待审批入群申请：群主/管理员在群信息按钮上看到角标，无需打开面板才发现
+  const canManageActiveGroup = activeConv?.type === 'group'
+    && (activeConv.myRole === 'owner' || activeConv.myRole === 'admin');
+  const joinRequestsQuery = useChatJoinRequests(activeConvId ?? undefined, canManageActiveGroup);
+  const pendingJoinRequestCount = canManageActiveGroup ? (joinRequestsQuery.data?.length ?? 0) : 0;
 
   const queryClient = useQueryClient();
 
@@ -698,6 +704,7 @@ export default function ChatPage({
                 <Button
                   size="small" theme="borderless" type="primary"
                   icon={<Compass size={16} />}
+                  aria-label="发现频道"
                   onClick={openDiscover}
                 />
               </Tooltip>
@@ -705,6 +712,7 @@ export default function ChatPage({
                 <Button
                   size="small" theme="borderless" type="primary"
                   icon={<MessageSquarePlus size={16} />}
+                  aria-label="新建对话"
                   onClick={() => setShowNewChat((v) => !v)}
                 />
               </Tooltip>
@@ -715,6 +723,7 @@ export default function ChatPage({
                     theme="borderless"
                     type="tertiary"
                     icon={<ExternalLink size={15} />}
+                    aria-label="前往聊天页"
                     onClick={() => onOpenFullPage(activeConvId)}
                   />
                 </Tooltip>
@@ -726,6 +735,7 @@ export default function ChatPage({
                     theme="borderless"
                     type="tertiary"
                     icon={<X size={15} />}
+                    aria-label="关闭"
                     onClick={onClose}
                   />
                 </Tooltip>
@@ -877,6 +887,7 @@ export default function ChatPage({
                           theme="borderless"
                           type={announcementHistoryVisible ? 'primary' : 'tertiary'}
                           icon={<History size={15} />}
+                          aria-label="群公告历史"
                           onClick={() => {
                             if (!activeConvId) return;
                             setAnnouncementHistoryVisible(true);
@@ -890,20 +901,20 @@ export default function ChatPage({
                         theme="borderless"
                         type="tertiary"
                         icon={<Phone size={15} />}
+                        aria-label={activeConv.type === 'group' ? '群语音通话' : '语音通话'}
                         onClick={() => handleStartCall('audio')}
                       />
                     </Tooltip>
-                    {activeConv.type === 'direct' && (
-                      <Tooltip content="视频通话">
-                        <Button
-                          size="small"
-                          theme="borderless"
-                          type="tertiary"
-                          icon={<Video size={15} />}
-                          onClick={() => handleStartCall('video')}
-                        />
-                      </Tooltip>
-                    )}
+                    <Tooltip content={activeConv.type === 'group' ? '群视频通话' : '视频通话'}>
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        type="tertiary"
+                        icon={<Video size={15} />}
+                        aria-label={activeConv.type === 'group' ? '群视频通话' : '视频通话'}
+                        onClick={() => handleStartCall('video')}
+                      />
+                    </Tooltip>
                     <NotifySettingsPopover
                       notifyDesktop={notifyDesktop} notifyPermission={notifyPermission} notifySound={notifySound}
                       handleToggleNotifyDesktop={handleToggleNotifyDesktop} handleToggleNotifySound={handleToggleNotifySound}
@@ -914,6 +925,7 @@ export default function ChatPage({
                         theme="borderless"
                         type={showSearchPanel ? 'primary' : 'tertiary'}
                         icon={<Search size={15} />}
+                        aria-label={showSearchPanel ? '关闭聊天记录' : '聊天记录'}
                         onClick={() => {
                           setShowSearchPanel((v) => {
                             const next = !v;
@@ -929,6 +941,7 @@ export default function ChatPage({
                         theme="borderless"
                         type={showMediaPanel ? 'primary' : 'tertiary'}
                         icon={<Images size={15} />}
+                        aria-label={showMediaPanel ? '关闭媒体库' : '图片与文件'}
                         onClick={() => {
                           setShowMediaPanel((v) => {
                             const next = !v;
@@ -945,6 +958,7 @@ export default function ChatPage({
                           theme="borderless"
                           type="tertiary"
                           icon={<Download size={15} />}
+                          aria-label="导出聊天记录"
                           loading={exportingChat}
                           onClick={() => { if (activeConvId) void handleExportChat(activeConvId); }}
                         />
@@ -952,17 +966,20 @@ export default function ChatPage({
                     )}
                     {activeConv.type === 'group' && (
                       <Tooltip content={showMembers ? '关闭群信息' : '群信息'}>
-                        <Button
-                          size="small" theme="borderless" type={showMembers ? 'primary' : 'tertiary'}
-                          icon={<MoreHorizontal size={15} />}
-                          onClick={() => {
-                            setShowMembers((v) => {
-                              const next = !v;
-                              if (next) { setShowSearchPanel(false); setShowMediaPanel(false); }
-                              return next;
-                            });
-                          }}
-                        />
+                        <Badge count={pendingJoinRequestCount > 0 ? pendingJoinRequestCount : undefined} type="danger">
+                          <Button
+                            size="small" theme="borderless" type={showMembers ? 'primary' : 'tertiary'}
+                            icon={<MoreHorizontal size={15} />}
+                            aria-label={showMembers ? '关闭群信息' : '群信息'}
+                            onClick={() => {
+                              setShowMembers((v) => {
+                                const next = !v;
+                                if (next) { setShowSearchPanel(false); setShowMediaPanel(false); }
+                                return next;
+                              });
+                            }}
+                          />
+                        </Badge>
                       </Tooltip>
                     )}
                   </>
@@ -974,6 +991,7 @@ export default function ChatPage({
                       theme="borderless"
                       type="tertiary"
                       icon={<ExternalLink size={15} />}
+                      aria-label="前往聊天页"
                       onClick={() => onOpenFullPage(activeConvId)}
                     />
                   </Tooltip>
@@ -1201,6 +1219,7 @@ export default function ChatPage({
                   <Button
                     size="small" theme="borderless" type="tertiary"
                     icon={<Smile size={16} />}
+                    aria-label="表情"
                     onClick={() => {
                       if (emojiVisible) { setEmojiVisible(false); return; }
                       const rect = emojiContainerRef.current?.getBoundingClientRect();
@@ -1223,6 +1242,7 @@ export default function ChatPage({
                 <Button
                   size="small" theme="borderless" type="tertiary"
                   icon={<ImagePlus size={16} />}
+                  aria-label="选择图片"
                   onClick={() => fileInputRef.current?.click()}
                 />
               </Tooltip>
@@ -1242,6 +1262,7 @@ export default function ChatPage({
                 <Button
                   size="small" theme="borderless" type="tertiary"
                   icon={<Paperclip size={16} />}
+                  aria-label="发送文件"
                   loading={false}
                   onClick={() => fileAttachRef.current?.click()}
                 />
@@ -1250,6 +1271,7 @@ export default function ChatPage({
                 <Button
                   size="small" theme="borderless" type="tertiary"
                   icon={<BarChart3 size={16} />}
+                  aria-label="发起投票"
                   onClick={() => setShowVoteModal(true)}
                   disabled={!activeConvId}
                 />
@@ -1271,6 +1293,7 @@ export default function ChatPage({
                   <Button
                     size="small" theme="borderless" type={voiceRecorder.isRecording ? 'primary' : 'tertiary'}
                     icon={<Mic size={16} />}
+                    aria-label={voiceRecorder.isRecording ? '结束录音' : '开始录音'}
                     onClick={() => { if (voiceRecorder.isRecording) voiceRecorder.stop(); else void voiceRecorder.start(); }}
                     disabled={!activeConvId}
                   />
@@ -1333,6 +1356,7 @@ export default function ChatPage({
               <Button
                 theme="solid" type="primary"
                 icon={<Send size={14} />}
+                aria-label="发送"
                 loading={sending}
                 disabled={!!muteState || (!input.trim() && pendingImages.length === 0 && pendingFiles.length === 0)}
                 onClick={() => { void handleSend(); }}

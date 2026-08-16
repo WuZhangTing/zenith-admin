@@ -207,14 +207,12 @@ export function useMessageActions({
   }, [applyMessageUpdate]);
 
   const handleRecall = useCallback(async (msg: ChatMessage) => {
+    // 仅暂存草稿供「重新编辑」按钮取回：不直接覆盖输入框，避免吞掉用户正在输入的内容
     if (msg.type === 'text') {
       setRecalledDrafts((prev) => ({
         ...prev,
         [msg.id]: { content: msg.content, mentions: msg.extra?.mentions ?? undefined },
       }));
-      setInput(msg.content);
-      setSelectedMentions(msg.extra?.mentions ?? []);
-      requestAnimationFrame(() => inputRef.current?.focus());
     }
     await request.request<null>(`/api/chat/messages/${msg.id}/recall`, { method: 'PATCH' });
   }, []);

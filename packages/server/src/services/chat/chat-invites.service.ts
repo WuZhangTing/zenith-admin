@@ -214,7 +214,7 @@ export async function joinByInvite(token: string, message?: string): Promise<{ j
 
   const managers = await managerIdsOf(conv.id);
   scheduleSendToUsers(managers.map((id) => ({ userId: id })), {
-    type: 'chat:member-update',
+    type: 'chat:join-request',
     payload: { conversationId: conv.id },
   });
   return { joined: false };
@@ -286,4 +286,10 @@ export async function setJoinApproval(conversationId: number, enabled: boolean):
   await db.update(chatConversations)
     .set({ joinApproval: enabled })
     .where(eq(chatConversations.id, conversationId));
+
+  const members = await memberIdsOf(conversationId);
+  scheduleSendToUsers(members.map((id) => ({ userId: id })), {
+    type: 'chat:group-update',
+    payload: { conversationId, joinApproval: enabled },
+  });
 }

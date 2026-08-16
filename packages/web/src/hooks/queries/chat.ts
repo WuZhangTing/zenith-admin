@@ -60,12 +60,13 @@ export function useDiscoverableChannels(params: DiscoverableChannelParams, enabl
   });
 }
 
-export function useChatUsers(params: ChatUserSearchParams) {
+export function useChatUsers(params: ChatUserSearchParams, enabled = true) {
   return useQuery({
     queryKey: chatKeys.users(params),
     queryFn: () => request.get<ChatUser[]>(`/api/chat/users${toQueryString(params)}`, { silent: true }).then(unwrap),
     staleTime: LOOKUP_STALE_TIME,
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

@@ -71,6 +71,11 @@ export function useChatWebSocket({
     }
     if (wsMsg.type === 'chat:message') {
       const msg = wsMsg.payload;
+      // 列表中不存在的会话（他人新建的群/单聊、转发新建会话）：整体拉取会话列表
+      if (!conversations.some((c) => c.id === msg.conversationId)) {
+        void fetchConversations();
+        return;
+      }
       const isOwnMsg = msg.senderId === currentUserId;
       const mentionedMe = !isOwnMsg && (msg.extra?.mentions ?? []).some((item) => item.userId === currentUserId);
       const shouldAutoRead = msg.conversationId === activeConvId && (isOwnMsg || isAtBottomRef.current);
@@ -153,6 +158,7 @@ export function useChatWebSocket({
       });
     } else if (wsMsg.type === 'chat:member-join') {
       void refreshGroupAvatarMembers(wsMsg.payload.conversationId);
+      void queryClient.invalidateQueries({ queryKey: chatKeys.groupMembers(wsMsg.payload.conversationId) });
       if (wsMsg.payload.conversationId === activeConvId) {
         void fetchConversations();
       }
@@ -167,9 +173,18 @@ export function useChatWebSocket({
         Toast.warning('你已被移出该群聊');
       } else {
         void refreshGroupAvatarMembers(conversationId);
+        void queryClient.invalidateQueries({ queryKey: chatKeys.groupMembers(conversationId) });
       }
+    } else if (wsMsg.type === 'chat:conversation-removed') {
+      const { conversationId } = wsMsg.payload;
+      setConversations(removeConversationById(conversationId));
+      if (activeConvId === conversationId) {
+        setActiveConvId(null);
+        setMessages([]);
+      }
+      Toast.warning('该群聊已被群主解散');
     } else if (wsMsg.type === 'chat:group-update') {
-      const { conversationId, name, announcement, muteAll } = wsMsg.payload;
+      const { conversationId, name, announcement, muteAll, joinApproval } = wsMsg.payload;
       setConversations((prev) =>
         prev.map((c) => c.id === conversationId
           ? {
@@ -177,13 +192,18 @@ export function useChatWebSocket({
             ...(name === undefined ? {} : { name }),
             ...(announcement === undefined ? {} : { announcement }),
             ...(muteAll === undefined ? {} : { muteAll }),
+            ...(joinApproval === undefined ? {} : { joinApproval }),
           }
           : c),
       );
     } else if (wsMsg.type === 'chat:member-update') {
-      // 角色/禁言变更：刷新会话列表（myRole/myMutedUntil）与成员面板
+      // 角色/禁言/审批处理变更：刷新会话列表（myRole/myMutedUntil）、成员面板与入群申请列表
       void fetchConversations();
       void queryClient.invalidateQueries({ queryKey: chatKeys.groupMembers(wsMsg.payload.conversationId) });
+      void queryClient.invalidateQueries({ queryKey: chatKeys.joinRequests(wsMsg.payload.conversationId) });
+    } else if (wsMsg.type === 'chat:join-request') {
+      void queryClient.invalidateQueries({ queryKey: chatKeys.joinRequests(wsMsg.payload.conversationId) });
+      Toast.info('收到新的入群申请，可在群信息面板中审批');
     } else if (wsMsg.type === 'chat:read') {
       const { conversationId, userId, readAt } = wsMsg.payload;
       if (conversationId !== activeConvId || userId === currentUserId) return;

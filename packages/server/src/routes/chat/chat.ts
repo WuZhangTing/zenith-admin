@@ -15,7 +15,7 @@ import {
   sendMessage, recallMessage, editMessage, markConversationRead, listChatUsers,
   createGroupConversation, addGroupMember, listGroupMembers,
   removeGroupMember, updateGroupInfo, transferGroupOwnership,
-  pinConversation, starConversation, muteConversation, removeConversation,
+  pinConversation, starConversation, muteConversation, removeConversation, disbandConversation,
   getLinkPreview, listPinnedMessages, listFavoriteMessages, listGlobalFavoriteMessages,
   toggleMessageFavorite, toggleMessagePin, listAnnouncementHistory, deleteAnnouncementHistory, forwardMessages, deleteMessagesForUser, toggleReaction, submitVote,
   getConversationReadStates, getPresenceForUsers, getRtcConfig, postCallRecord,
@@ -903,6 +903,21 @@ chatRouter.openapi(
 );
 
 // ─── 删除/退出会话 ───────────────────────────────────────────────────────────────
+
+chatRouter.openapi(
+  createRoute({
+    method: 'delete', path: '/conversations/{id}/disband', tags: ['Chat'], summary: '解散群聊（群主专属）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已解散') },
+  }),
+  async (c) => {
+    const { id } = c.req.valid('param');
+    await disbandConversation(id);
+    return c.json(okBody(null, '已解散'), 200);
+  },
+);
 
 chatRouter.openapi(
   createRoute({

@@ -3,7 +3,7 @@
 export { mapChatMessage } from './chat-shared';
 export {
   listConversations, getOrCreateDirectConversation, pinConversation, starConversation,
-  muteConversation, archiveConversation, removeConversation, markConversationRead,
+  muteConversation, archiveConversation, removeConversation, disbandConversation, markConversationRead,
   getConversationReadStates,
 } from './chat-conversations.service';
 export {
