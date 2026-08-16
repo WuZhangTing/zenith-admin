@@ -33,7 +33,7 @@ export default function PaymentReportsPage() {
   const palette = useChartPalette();
   const {
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    applySearch, handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentReportKeys.lists });
   const summaryQuery = usePaymentReportSummary({
     groupBy: submittedParams.groupBy,
@@ -76,7 +76,8 @@ export default function PaymentReportsPage() {
   const renderGroupByFilter = () => (
     <Select
       value={draftParams.groupBy}
-      onChange={(v) => setDraftParams((p) => ({ ...p, groupBy: v as PaymentReportGroupBy }))}
+      // 分组维度是视图切换而非筛选条件：选择后立即提交查询，无需再点「查询」
+      onChange={(v) => applySearch({ ...draftParams, groupBy: v as PaymentReportGroupBy })}
       style={{ width: 140 }}
       optionList={groupByOptions}
       placeholder="选择维度"
