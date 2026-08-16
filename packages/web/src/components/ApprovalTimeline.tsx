@@ -97,24 +97,24 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
         const returnTargetName = returnTargetMap.get(task.id);
         const isMine = task.status === 'pending' && currentUserId != null && task.assigneeId === currentUserId;
 
-        // Semi Design Tokens — 自动适配暗色模式
+        // Semi Design Tokens — 自动适配暗色模式（CC 任务送达即完成：skipped 视作成功抄送）
         let iconColor = 'var(--semi-color-primary)';
-        if (isApproved) iconColor = 'var(--semi-color-success)';
+        if (isApproved || (isCc && isSkipped)) iconColor = 'var(--semi-color-success)';
         else if (isRejected) iconColor = 'var(--semi-color-danger)';
         else if (isSkipped) iconColor = 'var(--semi-color-tertiary)';
         else if (isRegenerated) iconColor = 'var(--semi-color-warning)';
 
         let StatusIcon = Clock;
-        if (isApproved) StatusIcon = CheckCircle2;
+        if (isCc) StatusIcon = Mail;
+        else if (isApproved) StatusIcon = CheckCircle2;
         else if (isRejected) StatusIcon = XCircle;
-        else if (isCc) StatusIcon = Mail;
         else if (isRegenerated) StatusIcon = RotateCcw;
 
         let actionText: string;
-        if (isApproved && !isCc) actionText = '已同意';
+        if (isCc) actionText = isSkipped || isApproved ? '已抄送' : '待抄送';
+        else if (isApproved) actionText = '已同意';
         else if (isRejected) actionText = '已驳回';
         else if (isSkipped) actionText = '已跳过';
-        else if (isCc && isApproved) actionText = '已抄送';
         else actionText = '待处理';
 
         // 节点耗时：从任务生成（节点激活）到处理完成，仅对已同意/已驳回的处理节点展示
@@ -127,7 +127,7 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
             width: 28,
             height: 28,
             borderRadius: '50%',
-            backgroundColor: isSkipped ? 'var(--semi-color-fill-1)' : `color-mix(in srgb, ${iconColor} 10%, transparent)`,
+            backgroundColor: isSkipped && !isCc ? 'var(--semi-color-fill-1)' : `color-mix(in srgb, ${iconColor} 10%, transparent)`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
