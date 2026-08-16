@@ -286,8 +286,13 @@ function edgeHasCondition(edge: WorkflowEdge): boolean {
   return !!edge.condition || !!edge.conditions?.length;
 }
 
-function isDefaultEdge(edge: WorkflowEdge, targetNode?: WorkflowNodeConfig): boolean {
-  return !!edge.isDefault || !!targetNode?.isDefault || !edgeHasCondition(edge);
+/** 网关类节点：其无条件出边才具有「默认兜底分支」语义 */
+const GATEWAY_NODE_TYPES = new Set(['exclusiveGateway', 'inclusiveGateway', 'parallelGateway', 'routeGateway']);
+
+function isDefaultEdge(edge: WorkflowEdge, sourceNode?: WorkflowNodeConfig, targetNode?: WorkflowNodeConfig): boolean {
+  if (edge.isDefault || targetNode?.isDefault) return true;
+  // 无条件出边仅在源为网关时是默认分支；普通顺序连线（发起→审批等）不具备分支语义
+  return !edgeHasCondition(edge) && !!sourceNode && GATEWAY_NODE_TYPES.has(sourceNode.type);
 }
 
 const CONDITION_OPERATOR_LABEL: Record<WorkflowEdgeCondition['operator'], string> = {
@@ -398,7 +403,7 @@ function buildEdgeResults(
           : null;
       const first = firstCondition(edge);
       const actualValue = first ? valueText(actualConditionValue(first, formData, starter)) : null;
-      const defaultEdge = isDefaultEdge(edge, targetNode);
+      const defaultEdge = isDefaultEdge(edge, sourceNode, targetNode);
       const reason = conditionMatched !== null
         ? `${conditionMatched ? '条件命中' : '条件未命中'}${conditionSummary ? `：${conditionSummary}` : ''}`
         : defaultEdge
@@ -574,7 +579,7 @@ function buildHealthIssues(flowData: WorkflowFlowData, validationErrors: string[
     }
     if ((data.type === 'exclusiveGateway' || data.type === 'routeGateway' || data.type === 'inclusiveGateway') && (outCount.get(node.id) ?? 0) > 1) {
       const outs = flowData.edges.filter((edge) => edge.source === node.id);
-      const hasDefault = outs.some((edge) => isDefaultEdge(edge, nodeById.get(edge.target)));
+      const hasDefault = outs.some((edge) => isDefaultEdge(edge, data, nodeById.get(edge.target)));
       if (!hasDefault) {
         appendFlowHealthIssue(issues, {
           level: 'warning',
