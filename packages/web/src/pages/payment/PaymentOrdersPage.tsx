@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, InputNumber, Select, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
+import { Banner, Button, Divider, Form, Input, InputNumber, Select, SideSheet, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -212,12 +212,12 @@ export default function PaymentOrdersPage() {
   }
 
   const columns: ColumnProps<PaymentOrder>[] = [
-    { title: '订单号', dataIndex: 'orderNo', width: 200, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 180 }}>{v}</Typography.Text> },
+    { title: '订单号', dataIndex: 'orderNo', width: 280, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => v || '-' },
     { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
-    { title: '业务类型', dataIndex: 'bizType', width: 120, render: (v: string) => v || '-' },
+    { title: '业务类型', dataIndex: 'bizType', width: 160, render: (v: string) => v || '-' },
     dateTimeColumn('支付时间', 'paidAt'),
     dateTimeColumn('创建时间', 'createdAt'),
     {
@@ -259,7 +259,7 @@ export default function PaymentOrdersPage() {
   ];
 
   const detailRefundColumns: ColumnProps<PaymentRefund>[] = [
-    { title: '退款单号', dataIndex: 'refundNo', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
+    { title: '退款单号', dataIndex: 'refundNo', width: 280, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
     { title: '金额', dataIndex: 'refundAmount', width: 90, render: (v: number) => yuan(v) },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentRefundStatus) => <Tag color={REFUND_STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
     dateTimeColumn('退款时间', 'refundedAt'),
@@ -415,52 +415,103 @@ export default function PaymentOrdersPage() {
         </TabPane>
       </Tabs>
 
-      <AppModal title="订单详情" visible={!!detail} onCancel={() => setDetail(null)} footer={null} width={680} closeOnEsc>
+      <SideSheet title="订单详情" visible={!!detail} onCancel={() => setDetail(null)} width={560} closeOnEsc>
         {detailOrder && (
-          <>
-            <Descriptions
-              align="plain"
-              layout="horizontal"
-              column={2}
-              style={{ width: '100%' }}
-              data={[
-                { key: '订单号', value: <Typography.Text copyable={{ content: detailOrder.orderNo }}>{detailOrder.orderNo}</Typography.Text>, span: 2 },
-                { key: '商户单号', value: <Typography.Text copyable={{ content: detailOrder.outTradeNo }}>{detailOrder.outTradeNo}</Typography.Text>, span: 2 },
-                { key: '渠道交易号', value: detailOrder.channelTradeNo ? <Typography.Text copyable={{ content: detailOrder.channelTradeNo }}>{detailOrder.channelTradeNo}</Typography.Text> : '-', span: 2 },
-                { key: '标题', value: detailOrder.subject, span: 2 },
-                { key: '金额', value: yuan(detailOrder.amount) },
-                { key: '实付', value: detailOrder.paidAmount == null ? '-' : yuan(detailOrder.paidAmount) },
-                { key: '手续费', value: detailOrder.feeAmount == null ? '-' : yuan(detailOrder.feeAmount) },
-                { key: '净额', value: detailOrder.netAmount == null ? '-' : yuan(detailOrder.netAmount) },
-                { key: '渠道', value: PAYMENT_CHANNEL_LABELS[detailOrder.channel] },
-                { key: '方式', value: PAYMENT_METHOD_LABELS[detailOrder.payMethod] },
-                { key: '状态', value: <Tag color={STATUS_COLOR[detailOrder.status]}>{PAYMENT_ORDER_STATUS_LABELS[detailOrder.status]}</Tag> },
-                { key: '业务类型', value: detailOrder.bizType },
-                { key: '业务ID', value: detailOrder.bizId },
-                { key: '支付时间', value: detailOrder.paidAt ? formatDateTime(detailOrder.paidAt) : '-' },
-                { key: '过期时间', value: detailOrder.expiredAt ? formatDateTime(detailOrder.expiredAt) : '-' },
-                { key: '创建时间', value: formatDateTime(detailOrder.createdAt) },
-                { key: '错误信息', value: detailOrder.errorMessage ?? '-', span: 2 },
-              ]}
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 24 }}>
+            {/* 摘要头：金额 + 状态一眼定位，标题弱化随行 */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 28, fontWeight: 600, lineHeight: 1.2, fontVariantNumeric: 'tabular-nums' }}>
+                  {yuan(detailOrder.paidAmount ?? detailOrder.amount)}
+                </span>
+                <Tag color={STATUS_COLOR[detailOrder.status]} size="large">{PAYMENT_ORDER_STATUS_LABELS[detailOrder.status]}</Tag>
+              </div>
+              <Typography.Text type="tertiary" style={{ marginTop: 4, display: 'block' }}>{detailOrder.subject}</Typography.Text>
+            </div>
 
-            <Typography.Title heading={6} style={{ marginTop: 16, marginBottom: 8 }}>交易时间轴</Typography.Title>
-            <Timeline mode="left">
-              <Timeline.Item time={formatDateTime(detailOrder.createdAt)} type="default">创建订单</Timeline.Item>
-              {detailOrder.paidAt && <Timeline.Item time={formatDateTime(detailOrder.paidAt)} type="success">支付成功 {detailOrder.paidAmount != null ? yuan(detailOrder.paidAmount) : ''}</Timeline.Item>}
-              {detailRefunds.map((r) => (
-                <Timeline.Item key={r.id} time={r.refundedAt ? formatDateTime(r.refundedAt) : formatDateTime(r.createdAt)} type={r.status === 'success' ? 'warning' : r.status === 'failed' ? 'error' : 'ongoing'}>
-                  退款 {yuan(r.refundAmount)}（{PAYMENT_REFUND_STATUS_LABELS[r.status]}）
-                </Timeline.Item>
+            {/* 金额构成微指标：仅在产生费用/差异时有信息量，占一行不占块 */}
+            <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+              {[
+                { label: '订单金额', value: yuan(detailOrder.amount) },
+                { label: '手续费', value: detailOrder.feeAmount == null ? '—' : yuan(detailOrder.feeAmount) },
+                { label: '净额', value: detailOrder.netAmount == null ? '—' : yuan(detailOrder.netAmount) },
+              ].map((it) => (
+                <div key={it.label}>
+                  <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>{it.label}</Typography.Text>
+                  <Typography.Text strong style={{ fontVariantNumeric: 'tabular-nums' }}>{it.value}</Typography.Text>
+                </div>
               ))}
-              {(detailOrder.status === 'closed' || detailOrder.status === 'failed') && (
-                <Timeline.Item time={formatDateTime(detailOrder.updatedAt)} type="error">{PAYMENT_ORDER_STATUS_LABELS[detailOrder.status]}</Timeline.Item>
-              )}
-            </Timeline>
+            </div>
+
+            {detailOrder.errorMessage && (
+              <Banner type="danger" closeIcon={null} description={detailOrder.errorMessage} />
+            )}
+
+            <div>
+              <Divider align="left" style={{ margin: '4px 0 10px' }}>单号</Divider>
+              <Descriptions
+                align="plain"
+                layout="horizontal"
+                column={1}
+                size="small"
+                data={[
+                  { key: '订单号', value: <Typography.Text copyable={{ content: detailOrder.orderNo }}>{detailOrder.orderNo}</Typography.Text> },
+                  { key: '商户单号', value: <Typography.Text copyable={{ content: detailOrder.outTradeNo }}>{detailOrder.outTradeNo}</Typography.Text> },
+                  ...(detailOrder.channelTradeNo ? [{ key: '渠道交易号', value: <Typography.Text copyable={{ content: detailOrder.channelTradeNo }}>{detailOrder.channelTradeNo}</Typography.Text> }] : []),
+                ]}
+              />
+            </div>
+
+            <div>
+              <Divider align="left" style={{ margin: '4px 0 10px' }}>业务与渠道</Divider>
+              <Descriptions
+                align="plain"
+                layout="horizontal"
+                column={2}
+                size="small"
+                data={[
+                  { key: '渠道', value: PAYMENT_CHANNEL_LABELS[detailOrder.channel] },
+                  { key: '方式', value: PAYMENT_METHOD_LABELS[detailOrder.payMethod] },
+                  { key: '业务类型', value: detailOrder.bizType },
+                  { key: '业务ID', value: detailOrder.bizId },
+                ]}
+              />
+            </div>
+
+            <div>
+              <Divider align="left" style={{ margin: '4px 0 10px' }}>时间</Divider>
+              <Descriptions
+                align="plain"
+                layout="horizontal"
+                column={2}
+                size="small"
+                data={[
+                  { key: '创建时间', value: formatDateTime(detailOrder.createdAt) },
+                  { key: '过期时间', value: detailOrder.expiredAt ? formatDateTime(detailOrder.expiredAt) : '—' },
+                  ...(detailOrder.paidAt ? [{ key: '支付时间', value: formatDateTime(detailOrder.paidAt) }] : []),
+                ]}
+              />
+            </div>
+
+            <div>
+              <Divider align="left" style={{ margin: '4px 0 10px' }}>交易时间轴</Divider>
+              <Timeline mode="left">
+                <Timeline.Item time={formatDateTime(detailOrder.createdAt)} type="default">创建订单</Timeline.Item>
+                {detailOrder.paidAt && <Timeline.Item time={formatDateTime(detailOrder.paidAt)} type="success">支付成功 {detailOrder.paidAmount != null ? yuan(detailOrder.paidAmount) : ''}</Timeline.Item>}
+                {detailRefunds.map((r) => (
+                  <Timeline.Item key={r.id} time={r.refundedAt ? formatDateTime(r.refundedAt) : formatDateTime(r.createdAt)} type={r.status === 'success' ? 'warning' : r.status === 'failed' ? 'error' : 'ongoing'}>
+                    退款 {yuan(r.refundAmount)}（{PAYMENT_REFUND_STATUS_LABELS[r.status]}）
+                  </Timeline.Item>
+                ))}
+                {(detailOrder.status === 'closed' || detailOrder.status === 'failed') && (
+                  <Timeline.Item time={formatDateTime(detailOrder.updatedAt)} type="error">{PAYMENT_ORDER_STATUS_LABELS[detailOrder.status]}</Timeline.Item>
+                )}
+              </Timeline>
+            </div>
 
             {detailRefunds.length > 0 && (
-              <>
-                <Typography.Title heading={6} style={{ marginTop: 8, marginBottom: 8 }}>关联退款（{detailRefunds.length}）</Typography.Title>
+              <div>
+                <Divider align="left" style={{ margin: '4px 0 10px' }}>关联退款（{detailRefunds.length}）</Divider>
                 <ConfigurableTable
                   bordered
                   columns={detailRefundColumns}
@@ -471,11 +522,11 @@ export default function PaymentOrdersPage() {
                   onRefresh={() => { void detailRefundsQuery.refetch(); }}
                   refreshLoading={detailRefundsQuery.isFetching}
                 />
-              </>
+              </div>
             )}
-          </>
+          </div>
         )}
-      </AppModal>
+      </SideSheet>
 
       <AppModal {...refundModal.modalProps} title="发起退款" okButtonProps={{ ...refundModal.modalProps.okButtonProps, type: 'danger' }} width={480}>
         {refundModal.editing && (

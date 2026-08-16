@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { createPaymentSchema, createRefundSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
@@ -77,24 +78,10 @@ const channelUpdateSchema = channelCreateSchema.partial().extend({
   alipaySignType: z.enum(['RSA2', 'RSA']).optional(),
 });
 
-const paymentCreateSchema = z.object({
-  bizType: z.string().min(1).max(64),
-  bizId: z.string().min(1).max(128),
-  subject: z.string().min(1).max(256),
-  body: z.string().max(512).optional(),
-  amount: z.number().int().positive(),
-  payMethod: payMethodEnum,
-  channelConfigId: z.number().int().positive().optional(),
-  openId: z.string().max(128).optional(),
-  userId: z.number().int().positive().optional(),
-  expireMinutes: z.number().int().positive().max(1440).default(30),
-});
+// 下单/退款入参复用 shared 契约（禁止本地重复定义——本地副本曾漏掉 appKey 导致该字段被 Zod 静默剥离）
+const paymentCreateSchema = createPaymentSchema;
 
-const refundCreateSchema = z.object({
-  orderNo: z.string().min(1).max(64),
-  refundAmount: z.number().int().positive(),
-  reason: z.string().max(256).optional(),
-});
+const refundCreateSchema = createRefundSchema;
 
 const listQuery = PaginationQuery.extend({
   keyword: z.string().optional(),

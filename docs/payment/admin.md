@@ -46,7 +46,7 @@
 ### 退款记录
 
 - 列表含审批状态列；行操作「主动查单」同步渠道退款终态；
-- **退款审批**（`payment:refund:approve`）：达到审批阈值（`PAYMENT_REFUND_APPROVAL_THRESHOLD`）的退款单在此审批——通过立即执行渠道退款，驳回填写意见并置失败；
+- **退款审批**（`payment:refund:approve`）：达到审批阈值（系统配置 `payment_refund_approval_threshold`，环境变量 `PAYMENT_REFUND_APPROVAL_THRESHOLD` 兜底）的退款单在此审批——通过立即执行渠道退款，驳回填写意见并置失败；
 - 详情展示申请人、审批人、审批时间与意见。
 
 ### 支付方式

@@ -62,7 +62,8 @@
 
 ## 退款审批
 
-环境变量 `PAYMENT_REFUND_APPROVAL_THRESHOLD`（单位分，`0` 或未设置 = 不启用）设定大额退款审批阈值：
+大额退款审批阈值（单位分，`0` 或未设置 = 不启用）来源按优先级：
+系统配置 `payment_refund_approval_threshold`（系统设置界面可管理）→ 环境变量 `PAYMENT_REFUND_APPROVAL_THRESHOLD`：
 
 - `refundAmount ≥ 阈值`的退款自动进入审批流（`approvalStatus: pending`），需 `payment:refund:approve` 权限审批；
 - 待审批期间**不占用**订单 `refunding` 状态，不阻塞订单其它操作；
@@ -120,6 +121,7 @@
 
 | 变量 | 说明 |
 | --- | --- |
-| `PAYMENT_REFUND_APPROVAL_THRESHOLD` | 退款审批阈值（分），`0`/未设置 = 不启用审批 |
+| `PAYMENT_REFUND_APPROVAL_THRESHOLD` | 退款审批阈值兜底（分），系统配置 `payment_refund_approval_threshold` 优先；`0`/未设置 = 不启用审批 |
+| `PAYMENT_MOCK_DISPUTES` | `true` 时定时对沙箱渠道成功订单生成模拟投诉（演示用，默认关闭；手动「模拟投诉」不受限） |
 | `FIELD_ENCRYPTION_KEY` | 字段级 AES-256-GCM 加密密钥（32 字节 hex；未配置回退 `JWT_SECRET` 派生） |
 | `PAYMENT_NOTIFY_BASE_URL` / `PUBLIC_BASE_URL` | 回调地址基址（渠道配置未显式填 `notifyUrl` 时拼接使用） |

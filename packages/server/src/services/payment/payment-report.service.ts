@@ -157,15 +157,18 @@ export async function getReportSummary(q: ReportSummaryQuery): Promise<ReportSum
   const end = parseDateRangeEnd(q.endTime);
 
   const agg = await aggregateReport(groupBy, start, end);
-  const reportRows: PaymentReportRow[] = agg.map((r) => ({
-    key: r.key || '未知',
-    label: labelFor(groupBy, r.key),
-    gross: r.gross,
-    fee: r.fee,
-    refund: r.refund,
-    net: r.gross - r.fee - r.refund,
-    count: r.count,
-  }));
+  const reportRows: PaymentReportRow[] = agg
+    // 过滤无意义空分组（key 为空且全零）：历史快照对空维度可能落出全零行，展示层没有价值
+    .filter((r) => r.key !== '' || r.gross !== 0 || r.fee !== 0 || r.refund !== 0 || r.count !== 0)
+    .map((r) => ({
+      key: r.key || '未知',
+      label: labelFor(groupBy, r.key),
+      gross: r.gross,
+      fee: r.fee,
+      refund: r.refund,
+      net: r.gross - r.fee - r.refund,
+      count: r.count,
+    }));
 
   let prev: ReportTotals | null = null;
   if (q.compare && start && end && end > start) {

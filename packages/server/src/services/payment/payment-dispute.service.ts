@@ -248,9 +248,12 @@ async function createMockDispute(order: { orderNo: string; channel: PaymentChann
 /**
  * Cron：同步渠道投诉单。沙箱/演示模式下对近 7 天成功且未被投诉的订单生成模拟投诉
  * （未完结工单达到上限时跳过），真实渠道拉单需商户开通投诉 API 权限后扩展。
+ * 模拟造数默认关闭，需显式设置 PAYMENT_MOCK_DISPUTES=true 开启（演示环境用）；
+ * 手动「模拟投诉」按钮不受此开关限制。
  * 返回新增工单数。
  */
 export async function syncPaymentDisputes(): Promise<number> {
+  if (process.env.PAYMENT_MOCK_DISPUTES !== 'true') return 0;
   const openCount = await db.$count(paymentDisputes, inArray(paymentDisputes.status, OPEN_STATUSES));
   if (openCount >= SYNC_MAX_OPEN) return 0;
   // 仅对沙箱渠道配置的订单生成模拟投诉，避免真实环境误造数据

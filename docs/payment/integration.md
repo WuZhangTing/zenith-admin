@@ -51,7 +51,7 @@ const { refundNo, status } = await refund({ orderNo, refundAmount: 500, reason: 
 ### 退款与审批
 
 - 可退余额在事务内 `SELECT ... FOR UPDATE` 锁单校验（扣除进行中/已成功退款），杜绝并发超退。
-- 环境变量 `PAYMENT_REFUND_APPROVAL_THRESHOLD`（单位分，`0`/未设置 = 不启用）设定审批阈值：`refundAmount ≥ 阈值`的退款单进入 `approvalStatus=pending`，**不占用订单 refunding 状态**，由具备 `payment:refund:approve` 权限的人在后台审批；通过后执行渠道退款，驳回置 failed 并发出 `refund.failed` 事件。
+- 审批阈值（单位分，`0`/未设置 = 不启用；系统配置 `payment_refund_approval_threshold` 优先，环境变量 `PAYMENT_REFUND_APPROVAL_THRESHOLD` 兜底）：`refundAmount ≥ 阈值`的退款单进入 `approvalStatus=pending`，**不占用订单 refunding 状态**，由具备 `payment:refund:approve` 权限的人在后台审批；通过后执行渠道退款，驳回置 failed 并发出 `refund.failed` 事件。
 - 免审批（低于阈值）的退款立即执行渠道退款。
 - 全额退完订单置 refunded；部分退款完成后订单回到 success。
 
