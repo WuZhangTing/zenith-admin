@@ -15,12 +15,9 @@ import {
 import { BarChart, chartOptions, makeBarSpec, useChartPalette } from '@/components/charts';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { useAnalyticsAcquisition, useAnalyticsEventMeta } from '@/hooks/queries/analytics';
+import { BEHAVIOR_DAYS_OPTIONS, useBehaviorDays } from './behavior-days-context';
 
-const DAYS_OPTIONS = [
-  { label: '近 7 天', value: 7 },
-  { label: '近 30 天', value: 30 },
-  { label: '近 90 天', value: 90 },
-];
+const DAYS_OPTIONS = BEHAVIOR_DAYS_OPTIONS;
 
 const MODEL_HINT: Record<AnalyticsAttributionModel, string> = {
   first_touch: '首次触点：把转化归功于「把用户带来的那条渠道」，用于评估拉新贡献。',
@@ -28,7 +25,7 @@ const MODEL_HINT: Record<AnalyticsAttributionModel, string> = {
 };
 
 export default function AnalyticsAcquisitionTab() {
-  const [days, setDays] = useState(30);
+  const [days, setDays] = useBehaviorDays();
   const [dimension, setDimension] = useState<AnalyticsAcquisitionDimension>('channel');
   const [model, setModel] = useState<AnalyticsAttributionModel>('last_touch');
   const [conversionEvent, setConversionEvent] = useState<string | undefined>();

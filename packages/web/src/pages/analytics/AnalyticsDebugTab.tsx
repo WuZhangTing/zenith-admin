@@ -12,7 +12,7 @@ import { formatDateTime } from '@/utils/date';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalyticsDebugEvents } from '@/hooks/queries/analytics';
 import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
-import { ANALYTICS_QUALITY_ISSUE_TYPE_LABELS } from '@zenith/shared/analytics';
+import { ANALYTICS_ENVIRONMENT_LABELS, ANALYTICS_EVENT_SOURCE_LABELS, ANALYTICS_QUALITY_ISSUE_TYPE_LABELS, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
@@ -31,6 +31,12 @@ const ISSUE_COLOR: Record<AnalyticsQualityIssueType, TagColor> = {
 
 function nullableText(value: string | number | null | undefined) {
   return value == null || value === '' ? '–' : String(value);
+}
+
+/** 枚举原值 → 中文标签，未收录的自定义值原样展示 */
+function labelOf(labels: Record<string, string>, value: string | null | undefined): string {
+  if (value == null || value === '') return '–';
+  return labels[value] ?? value;
 }
 
 export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean }>) {
@@ -59,10 +65,10 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
   const columns: ColumnProps<AnalyticsDebugEvent>[] = [
     dateTimeColumn('时间', 'createdAt'),
     { title: '事件名', dataIndex: 'eventName', width: 160, render: (value: string | null) => nullableText(value) },
-    { title: '类型', dataIndex: 'eventType', width: 110 },
-    { title: '来源', dataIndex: 'source', width: 110 },
+    { title: '类型', dataIndex: 'eventType', width: 110, render: (value: string) => labelOf(USER_BEHAVIOR_EVENT_TYPE_LABELS, value) },
+    { title: '来源', dataIndex: 'source', width: 110, render: (value: string) => labelOf(ANALYTICS_EVENT_SOURCE_LABELS, value) },
     { title: '应用', dataIndex: 'appId', width: 90 },
-    { title: '环境', dataIndex: 'environment', width: 130 },
+    { title: '环境', dataIndex: 'environment', width: 130, render: (value: string) => labelOf(ANALYTICS_ENVIRONMENT_LABELS, value) },
     { title: 'Distinct ID', dataIndex: 'distinctId', width: 150, render: (value: string | null) => nullableText(value) },
     { title: '会员 ID', dataIndex: 'memberId', width: 90, render: (value: number | null) => nullableText(value) },
     {
@@ -119,8 +125,8 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div><Typography.Text strong>事件 ID：</Typography.Text>{nullableText(detailRecord.eventId)}</div>
             <div><Typography.Text strong>事件名：</Typography.Text>{nullableText(detailRecord.eventName)}</div>
-            <div><Typography.Text strong>类型：</Typography.Text>{detailRecord.eventType}</div>
-            <div><Typography.Text strong>来源：</Typography.Text>{detailRecord.source} / {detailRecord.appId} / {detailRecord.environment}</div>
+            <div><Typography.Text strong>类型：</Typography.Text>{labelOf(USER_BEHAVIOR_EVENT_TYPE_LABELS, detailRecord.eventType)}</div>
+            <div><Typography.Text strong>来源：</Typography.Text>{labelOf(ANALYTICS_EVENT_SOURCE_LABELS, detailRecord.source)} / {detailRecord.appId} / {labelOf(ANALYTICS_ENVIRONMENT_LABELS, detailRecord.environment)}</div>
             <div><Typography.Text strong>Distinct ID：</Typography.Text>{nullableText(detailRecord.distinctId)}</div>
             <div><Typography.Text strong>用户 / 会员：</Typography.Text>{nullableText(detailRecord.userId)} / {nullableText(detailRecord.memberId)}</div>
             <div><Typography.Text strong>页面：</Typography.Text>{detailRecord.pagePath}</div>

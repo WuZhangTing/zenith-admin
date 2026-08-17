@@ -1016,6 +1016,59 @@ export default function FrontendErrorsPage() {
   return (
     <div className="page-container page-tabs-page zx-flat-panels">
       <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => setActiveTab(key as TabKey)} lazyRender>
+        <TabPane tab="错误 Issue" itemKey="issues">
+          <SearchToolbar
+            primary={(
+              <>
+                {renderIssueStatusFilter()}
+                {renderIssueTypeFilter()}
+                {renderIssueLevelFilter()}
+                {renderIssueEnvironmentFilter()}
+                {renderIssueKeywordSearch()}
+                {renderIssueSearchButton()}
+                {renderIssueResetButton()}
+                {renderIssueBatchActions()}
+              </>
+            )}
+            mobilePrimary={(
+              <>
+                {renderIssueKeywordSearch()}
+                {renderIssueSearchButton()}
+              </>
+            )}
+            mobileFilters={(
+              <>
+                {renderIssueStatusFilter()}
+                {renderIssueTypeFilter()}
+                {renderIssueLevelFilter()}
+                {renderIssueEnvironmentFilter()}
+              </>
+            )}
+            mobileActions={renderMobileIssueBatchActions()}
+            filterTitle="错误 Issue 筛选"
+            actionTitle="Issue 操作"
+            onFilterApply={handleIssueSearch}
+            onFilterReset={handleIssueReset}
+          />
+
+          <ConfigurableTable<ErrorGroup>
+            bordered
+            rowKey="id"
+            columns={issueColumns}
+            dataSource={groups?.list ?? []}
+            loading={groupsQuery.isFetching}
+            onRefresh={() => void groupsQuery.refetch()}
+            refreshLoading={groupsQuery.isFetching}
+            pagination={buildGroupPagination(groups?.total ?? 0)}
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys as number[]),
+            }}
+            scroll={{ x: 1700 }}
+            empty="暂无错误 Issue"
+          />
+        </TabPane>
+
         <TabPane tab="概览" itemKey="overview">
           <SearchToolbar
             primary={(
@@ -1099,59 +1152,6 @@ export default function FrontendErrorsPage() {
               </Card>
             </Space>
           ) : <Empty title={overviewQuery.isFetching ? '正在加载概览...' : '暂无概览数据'} />}
-        </TabPane>
-
-        <TabPane tab="错误 Issue" itemKey="issues">
-          <SearchToolbar
-            primary={(
-              <>
-                {renderIssueStatusFilter()}
-                {renderIssueTypeFilter()}
-                {renderIssueLevelFilter()}
-                {renderIssueEnvironmentFilter()}
-                {renderIssueKeywordSearch()}
-                {renderIssueSearchButton()}
-                {renderIssueResetButton()}
-                {renderIssueBatchActions()}
-              </>
-            )}
-            mobilePrimary={(
-              <>
-                {renderIssueKeywordSearch()}
-                {renderIssueSearchButton()}
-              </>
-            )}
-            mobileFilters={(
-              <>
-                {renderIssueStatusFilter()}
-                {renderIssueTypeFilter()}
-                {renderIssueLevelFilter()}
-                {renderIssueEnvironmentFilter()}
-              </>
-            )}
-            mobileActions={renderMobileIssueBatchActions()}
-            filterTitle="错误 Issue 筛选"
-            actionTitle="Issue 操作"
-            onFilterApply={handleIssueSearch}
-            onFilterReset={handleIssueReset}
-          />
-
-          <ConfigurableTable<ErrorGroup>
-            bordered
-            rowKey="id"
-            columns={issueColumns}
-            dataSource={groups?.list ?? []}
-            loading={groupsQuery.isFetching}
-            onRefresh={() => void groupsQuery.refetch()}
-            refreshLoading={groupsQuery.isFetching}
-            pagination={buildGroupPagination(groups?.total ?? 0)}
-            rowSelection={{
-              selectedRowKeys,
-              onChange: (keys) => setSelectedRowKeys(keys as number[]),
-            }}
-            scroll={{ x: 1700 }}
-            empty="暂无错误 Issue"
-          />
         </TabPane>
 
         <TabPane tab="错误事件" itemKey="events">

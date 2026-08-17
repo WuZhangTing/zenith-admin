@@ -25,7 +25,8 @@ import {
   useSaveAnalyticsSettings,
 } from '@/hooks/queries/analytics';
 import type { AnalyticsEventMeta, AnalyticsSettings, EventListItem } from '@zenith/shared/analytics';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
+import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import AnalyticsQualityTab from './AnalyticsQualityTab';
@@ -59,16 +60,24 @@ interface AnalyticsRollupItem {
   totalDwellMs: number;
 }
 
-const EVENT_TYPE_LABEL: Record<string, { label: string; color: TagColor }> = {
-  page_view: { label: '页面进入', color: 'blue' },
-  page_leave: { label: '页面离开', color: 'teal' },
-  feature_use: { label: '功能点击', color: 'green' },
-  area_click: { label: '区域点击', color: 'orange' },
-  custom: { label: '自定义', color: 'violet' },
-  perf: { label: '性能', color: 'cyan' },
-  api_request: { label: 'API请求', color: 'amber' },
-  identify: { label: '身份', color: 'grey' },
+const EVENT_TYPE_COLOR: Record<UserBehaviorEventType, TagColor> = {
+  page_view: 'blue',
+  page_leave: 'teal',
+  feature_use: 'green',
+  area_click: 'orange',
+  custom: 'violet',
+  perf: 'cyan',
+  api_request: 'amber',
+  identify: 'grey',
 };
+
+// 中文标签取 shared SSOT，颜色属 UI 表现留在页面侧
+const EVENT_TYPE_LABEL: Record<string, { label: string; color: TagColor }> = Object.fromEntries(
+  (Object.keys(EVENT_TYPE_COLOR) as UserBehaviorEventType[]).map((value) => [
+    value,
+    { label: USER_BEHAVIOR_EVENT_TYPE_LABELS[value], color: EVENT_TYPE_COLOR[value] },
+  ]),
+);
 
 const EVENT_TYPE_OPTIONS = Object.entries(EVENT_TYPE_LABEL).map(([value, meta]) => ({ value, label: meta.label }));
 const DEVICE_OPTIONS = ANALYTICS_DEVICE_TYPE_OPTIONS;
@@ -514,7 +523,7 @@ export default function AnalyticsDataPage() {
       render: (value: string) => <Typography.Text copyable={{ content: value }} ellipsis={{ showTooltip: true }} style={{ maxWidth: 170 }}>{value}</Typography.Text>,
     },
     { title: '显示名', dataIndex: 'displayName', width: 150, render: (value: string | null) => nullableText(value) },
-    { title: '分类', dataIndex: 'category', width: 130, render: (value: string | null) => nullableText(value) },
+    { title: '分类', dataIndex: 'category', width: 130, render: (value: string | null) => (value ? (USER_BEHAVIOR_EVENT_TYPE_LABELS[value as UserBehaviorEventType] ?? value) : '–') },
     { title: '触发次数', dataIndex: 'eventCount', width: 100 },
     dateTimeColumn('首次出现', 'firstSeenAt'),
     dateTimeColumn('最近出现', 'lastSeenAt'),

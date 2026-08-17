@@ -1,5 +1,6 @@
 import { COMMON_STATUS_LABELS, COMMON_STATUS_OPTIONS } from '../core/constants';
 import { createLabelOptions, createLabelOptionsFromMap } from '../core/enum-options';
+import type { UserBehaviorEventType } from '../identity/types';
 import type { AnalyticsCampaignChannel, AnalyticsCampaignStatus, AnalyticsDeviceType, AnalyticsEnvironment, AnalyticsEventOverrideStatus, AnalyticsEventSource, AnalyticsExperimentStatus, AnalyticsIdentityType } from './types';
 
 export const SOURCE_MAP_MAX_BYTES = 20 * 1024 * 1024;
@@ -24,6 +25,21 @@ export const ANALYTICS_RAGE_CLICK_EVENT = '$rage_click';
 export const ANALYTICS_PATH_EXIT_PAGE = '$exit';
 
 // ─── 数据分析与报表 ────────────────────────────────────────────────────
+/** 行为事件类型中文标签（列表/详情/时间轴/字典分类统一使用，SSOT） */
+export const USER_BEHAVIOR_EVENT_TYPE_LABELS: Record<UserBehaviorEventType, string> = {
+  page_view: '页面进入',
+  page_leave: '页面离开',
+  feature_use: '功能点击',
+  area_click: '区域点击',
+  custom: '自定义',
+  perf: '性能采样',
+  api_request: 'API 请求',
+  identify: '身份识别',
+};
+
+export const USER_BEHAVIOR_EVENT_TYPE_OPTIONS: Array<{ value: UserBehaviorEventType; label: string }> =
+  createLabelOptionsFromMap(USER_BEHAVIOR_EVENT_TYPE_LABELS);
+
 export const ANALYTICS_DEVICE_TYPE_LABELS: Record<AnalyticsDeviceType, string> = {
   desktop: '桌面端',
   mobile: '移动端',

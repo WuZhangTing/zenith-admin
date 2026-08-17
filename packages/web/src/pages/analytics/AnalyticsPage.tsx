@@ -58,11 +58,12 @@ import {
 import type { AnalyticsComparison, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSavedReport, AnalyticsSegmentPropertyFilter, FeatureStats, HeatmapData, HeatmapElementItem, HeatmapPageListItem, HeatmapRageClickItem, PageStats, PathLink } from '@zenith/shared/analytics';
 import type { UserStats } from '@zenith/shared/identity';
 import type { SessionListItem } from '@zenith/shared/platform';
-import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS, ANALYTICS_RETENTION_PERIOD_UNIT_LABELS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
+import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_SOURCE_OPTIONS, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_MODE_OPTIONS, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPE_OPTIONS, ANALYTICS_RETENTION_PERIOD_UNIT_LABELS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
 import AnalyticsEventQueryTab from './AnalyticsEventQueryTab';
 import AnalyticsExperimentsTab from './AnalyticsExperimentsTab';
 import AnalyticsAcquisitionTab from './AnalyticsAcquisitionTab';
 import { ComparisonPicker, DrillUsersSheet, isComparisonReady, useDrillSheet } from './AnalyticsComparison';
+import { BEHAVIOR_DAYS_OPTIONS, BehaviorDaysProvider, useBehaviorDays } from './behavior-days-context';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 
@@ -72,7 +73,7 @@ function msToReadable(ms: number | null): string {
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.floor(ms / 60_000)}m ${Math.floor((ms % 60_000) / 1000)}s`;
 }
-const DAYS_OPTIONS = [{ label: '近 7 天', value: 7 }, { label: '近 30 天', value: 30 }, { label: '近 90 天', value: 90 }];
+const DAYS_OPTIONS = BEHAVIOR_DAYS_OPTIONS;
 
 const RETENTION_DAYS_OPTIONS: Record<AnalyticsRetentionPeriodType, Array<{ label: string; value: number }>> = {
   day: [
@@ -171,7 +172,7 @@ function chartColor(index: number, primary: string): string {
 
 function OverviewTab() {
   const palette = useChartPalette();
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useBehaviorDays();
   const [customRange, setCustomRange] = useState<[string, string] | null>(null);
   const [compare, setCompare] = useState(false);
   const range = useMemo(
@@ -407,7 +408,7 @@ function buildDwellTreemap(rows: readonly PageStatsRow[]): TreemapNode {
 
 function DwellTab() {
   const palette = useChartPalette();
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useBehaviorDays();
   const { page, pageSize, resetPage, buildPagination } = usePagination();
   // 图表固定订阅第 1 页：它是 TOP N 概览，不能跟着表格翻页；
   // 表格停在第 1 页且页长相同时，TanStack 会把两个查询去重成一个请求
@@ -547,7 +548,7 @@ function buildFeatureTreemap(rows: readonly FeatureStatsRow[]): TreemapNode {
 
 function FeatureTab() {
   const palette = useChartPalette();
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useBehaviorDays();
   const { page, pageSize, resetPage, buildPagination } = usePagination();
   const chartQuery = useAnalyticsFeatureStats(days, 1, CHART_TOP_N);
   const featureStatsQuery = useAnalyticsFeatureStats(days, page, pageSize);
@@ -631,15 +632,16 @@ function FeatureTab() {
 
 type DeviceFilter = '' | 'desktop' | 'mobile' | 'tablet' | 'bot' | 'unknown';
 
+// 标签取 shared SSOT；颜色是时间轴 UI 表现，留在页面侧
 const TIMELINE_EVENT_META: Record<string, { label: string; color: 'blue' | 'green' | 'orange' | 'grey' | 'red' | 'purple' }> = {
-  page_view: { label: '进入页面', color: 'blue' },
-  page_leave: { label: '离开页面', color: 'grey' },
-  feature_use: { label: '点击', color: 'green' },
-  area_click: { label: '区域点击', color: 'green' },
-  api_request: { label: 'API 请求', color: 'orange' },
-  perf: { label: '性能采样', color: 'purple' },
-  custom: { label: '自定义事件', color: 'purple' },
-  identify: { label: '身份识别', color: 'grey' },
+  page_view: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.page_view, color: 'blue' },
+  page_leave: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.page_leave, color: 'grey' },
+  feature_use: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.feature_use, color: 'green' },
+  area_click: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.area_click, color: 'green' },
+  api_request: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.api_request, color: 'orange' },
+  perf: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.perf, color: 'purple' },
+  custom: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.custom, color: 'purple' },
+  identify: { label: USER_BEHAVIOR_EVENT_TYPE_LABELS.identify, color: 'grey' },
 };
 
 function SessionTimelineSheet({ sessionId, onClose }: { sessionId: string | null; onClose: () => void }) {
@@ -850,7 +852,7 @@ function buildStepProperties(step: FunnelStepDraft): AnalyticsSegmentPropertyFil
 
 function FunnelTab() {
   const palette = useChartPalette();
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useBehaviorDays();
   const [conversionWindowHours, setConversionWindowHours] = useState(72);
   const [comparison, setComparison] = useState<AnalyticsComparison>({ type: 'none' });
   const drill = useDrillSheet();
@@ -1288,7 +1290,7 @@ type PathLinkRow = PathLink & { id: string; sourceLabel: string; targetLabel: st
 
 function PathTab() {
   const palette = useChartPalette();
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useBehaviorDays();
   const [linkLimit, setLinkLimit] = useState(30);
   const [startPageInput, setStartPageInput] = useState('');
   const [startPage, setStartPage] = useState('');
@@ -1436,7 +1438,7 @@ function PathTab() {
 type UserStatsRow = UserStats['list'][number] & { id: string; rank: number };
 
 function UsersTab() {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useBehaviorDays();
   const [timelineVisible, setTimelineVisible] = useState(false);
   const [timelineUserId, setTimelineUserId] = useState<number | null>(null);
   const { page, pageSize, resetPage, buildPagination } = usePagination();
@@ -1624,7 +1626,7 @@ type HeatmapElementRow = HeatmapElementItem & { id: string; rank: number };
 type RageClickRow = HeatmapRageClickItem & { id: string };
 
 function HeatmapTab() {
-  const [days, setDays] = useState(7);
+  const [days, setDays] = useBehaviorDays();
   const [pagePath, setPagePath] = useState('');
   const [componentArea, setComponentArea] = useState('');
   const [deviceType, setDeviceType] = useState<DeviceFilter>('');
@@ -1786,6 +1788,7 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(BEHAVIOR_TABS, 'overview');
   return (
     <div className="page-container page-tabs-page zx-flat-panels">
+      <BehaviorDaysProvider>
       <Tabs collapsible="auto" type="line" lazyRender activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof BEHAVIOR_TABS[number])}>
         <TabPane tab="概览" itemKey="overview"><OverviewTab /></TabPane>
         <TabPane tab="实时" itemKey="realtime"><RealtimeTab /></TabPane>
@@ -1801,6 +1804,7 @@ export default function AnalyticsPage() {
         <TabPane tab="点击分布" itemKey="heatmap"><HeatmapTab /></TabPane>
         <TabPane tab="获客归因" itemKey="acquisition"><AnalyticsAcquisitionTab /></TabPane>
       </Tabs>
+      </BehaviorDaysProvider>
     </div>
   );
 }
