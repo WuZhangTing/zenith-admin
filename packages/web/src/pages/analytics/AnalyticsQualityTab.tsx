@@ -237,41 +237,45 @@ export default function AnalyticsQualityTab() {
         <Typography.Title heading={6} style={{ marginBottom: 12 }}>
           <Space spacing={6}><ShieldAlert size={16} />租户事件启停覆盖</Space>
         </Typography.Title>
-        {!config.multiTenantMode && (
+        {!config.multiTenantMode ? (
+          // 未启用多租户时覆盖规则不生效，只保留说明，不渲染整套无法使用的查询/新增操作面
           <Typography.Text type="tertiary">当前未启用多租户模式，请直接在事件字典中管理全局状态。</Typography.Text>
+        ) : (
+          <>
+            <SearchToolbar>
+              <KeywordInput placeholder="事件名" value={overrideFilter.eventName} onChange={(value) => setOverrideFilter((prev) => ({ ...prev, eventName: value }))} onSearch={handleOverrideSearch} width={160} />
+              <Select
+                placeholder="状态"
+                value={overrideFilter.status || undefined}
+                onChange={(value) => setOverrideFilter((prev) => ({ ...prev, status: (value as AnalyticsEventOverride['status']) ?? '' }))}
+                optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS}
+                showClear
+                style={{ width: 130 }}
+              />
+              <SearchButton onClick={handleOverrideSearch} />
+              <ResetButton onClick={handleOverrideReset} />
+              <CreateButton onClick={overrideModal.openCreate}>新增覆盖</CreateButton>
+            </SearchToolbar>
+            <ConfigurableTable
+              bordered
+              rowKey="id"
+              loading={overrideQuery.isFetching}
+              columns={overrideColumns}
+              dataSource={overrideList}
+              onRefresh={() => void overrideQuery.refetch()}
+              refreshLoading={overrideQuery.isFetching}
+              scroll={{ x: 900 }}
+              pagination={{
+                currentPage: overridePage,
+                pageSize: overridePageSize,
+                total: overrideTotal,
+                onPageChange: (p) => setOverridePage(p),
+                onPageSizeChange: (ps) => { setOverridePage(1); setOverridePageSize(ps); },
+              }}
+              empty="当前租户暂无覆盖规则"
+            />
+          </>
         )}
-        <SearchToolbar>
-          <KeywordInput placeholder="事件名" value={overrideFilter.eventName} onChange={(value) => setOverrideFilter((prev) => ({ ...prev, eventName: value }))} onSearch={handleOverrideSearch} width={160} />
-          <Select
-            placeholder="状态"
-            value={overrideFilter.status || undefined}
-            onChange={(value) => setOverrideFilter((prev) => ({ ...prev, status: (value as AnalyticsEventOverride['status']) ?? '' }))}
-            optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS}
-            showClear
-            style={{ width: 130 }}
-          />
-          <SearchButton onClick={handleOverrideSearch} disabled={!config.multiTenantMode} />
-          <ResetButton onClick={handleOverrideReset} disabled={!config.multiTenantMode} />
-          <CreateButton onClick={overrideModal.openCreate} disabled={!config.multiTenantMode}>新增覆盖</CreateButton>
-        </SearchToolbar>
-        <ConfigurableTable
-          bordered
-          rowKey="id"
-          loading={overrideQuery.isFetching}
-          columns={overrideColumns}
-          dataSource={overrideList}
-          onRefresh={() => void overrideQuery.refetch()}
-          refreshLoading={overrideQuery.isFetching}
-          scroll={{ x: 900 }}
-          pagination={{
-            currentPage: overridePage,
-            pageSize: overridePageSize,
-            total: overrideTotal,
-            onPageChange: (p) => setOverridePage(p),
-            onPageSizeChange: (ps) => { setOverridePage(1); setOverridePageSize(ps); },
-          }}
-          empty="当前租户暂无覆盖规则"
-        />
       </div>
 
       <AppModal

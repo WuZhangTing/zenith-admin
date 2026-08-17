@@ -522,7 +522,7 @@ export default function AnalyticsDataPage() {
       width: 200,
       render: (value: string) => <Typography.Text copyable={{ content: value }} ellipsis={{ showTooltip: true }} style={{ maxWidth: 170 }}>{value}</Typography.Text>,
     },
-    { title: '显示名', dataIndex: 'displayName', width: 150, render: (value: string | null) => nullableText(value) },
+    { title: '显示名', dataIndex: 'displayName', width: 150, render: (value: string | null) => (value || <Typography.Text type="tertiary" size="small">未设置</Typography.Text>) },
     { title: '分类', dataIndex: 'category', width: 130, render: (value: string | null) => (value ? (USER_BEHAVIOR_EVENT_TYPE_LABELS[value as UserBehaviorEventType] ?? value) : '–') },
     { title: '触发次数', dataIndex: 'eventCount', width: 100 },
     dateTimeColumn('首次出现', 'firstSeenAt'),
@@ -572,46 +572,53 @@ export default function AnalyticsDataPage() {
   const renderEventDetail = () => {
     if (detailLoading) return <Typography.Text type="tertiary">加载中...</Typography.Text>;
     if (!eventDetail) return <Typography.Text type="tertiary">暂无详情</Typography.Text>;
-    const detailData = [
-      { key: 'ID', value: eventDetail.id },
-      { key: '用户 ID', value: nullableText(eventDetail.userId) },
-      { key: '用户名', value: nullableText(eventDetail.username) },
-      { key: '事件类型', value: <EventTypeTag value={eventDetail.eventType} /> },
-      { key: '事件名', value: nullableText(eventDetail.eventName) },
-      { key: '页面路径', value: eventDetail.pagePath },
-      { key: '页面标题', value: nullableText(eventDetail.pageTitle) },
-      { key: '元素 Key', value: nullableText(eventDetail.elementKey) },
-      { key: '元素标签', value: nullableText(eventDetail.elementLabel) },
-      { key: '组件区域', value: nullableText(eventDetail.componentArea) },
-      { key: '停留时长', value: msToReadable(eventDetail.durationMs) },
-      { key: '浏览器', value: nullableText(eventDetail.browser) },
-      { key: '浏览器版本', value: nullableText(eventDetail.browserVersion) },
-      { key: '操作系统', value: nullableText(eventDetail.os) },
-      { key: '系统版本', value: nullableText(eventDetail.osVersion) },
-      { key: '设备类型', value: nullableText(eventDetail.deviceType) },
-      { key: '屏幕宽度', value: nullableText(eventDetail.screenW) },
-      { key: '屏幕高度', value: nullableText(eventDetail.screenH) },
-      { key: '语言', value: nullableText(eventDetail.language) },
-      { key: '地区', value: nullableText(eventDetail.region) },
-      { key: '国家', value: nullableText(eventDetail.country) },
-      { key: '城市', value: nullableText(eventDetail.city) },
-      { key: 'IP', value: nullableText(eventDetail.ip) },
-      { key: '会话 ID', value: nullableText(eventDetail.sessionId) },
-      { key: 'Distinct ID', value: nullableText(eventDetail.distinctId) },
-      { key: '匿名 ID', value: nullableText(eventDetail.anonymousId) },
-      { key: '滚动深度', value: nullableText(eventDetail.scrollDepth) },
-      { key: '来源页', value: nullableText(eventDetail.referrer) },
-      { key: 'UTM Source', value: nullableText(eventDetail.utmSource) },
-      { key: 'UTM Medium', value: nullableText(eventDetail.utmMedium) },
-      { key: 'UTM Campaign', value: nullableText(eventDetail.utmCampaign) },
-      { key: '指标名', value: nullableText(eventDetail.metricName) },
-      { key: '指标值', value: nullableText(eventDetail.metricValue) },
-      { key: 'User Agent', value: nullableText(eventDetail.userAgent) },
-      { key: '创建时间', value: formatDateTime(eventDetail.createdAt) },
+    // [标签, 原始值, 定制渲染]：原始值为空的字段不平铺 30+ 个「–」，统一收进底部「未采集」一行
+    const fields: Array<[string, unknown, React.ReactNode?]> = [
+      ['ID', eventDetail.id],
+      ['用户 ID', eventDetail.userId],
+      ['用户名', eventDetail.username],
+      ['事件类型', eventDetail.eventType, <EventTypeTag key="type" value={eventDetail.eventType} />],
+      ['事件名', eventDetail.eventName],
+      ['页面路径', eventDetail.pagePath],
+      ['页面标题', eventDetail.pageTitle],
+      ['元素 Key', eventDetail.elementKey],
+      ['元素标签', eventDetail.elementLabel],
+      ['组件区域', eventDetail.componentArea],
+      ['停留时长', eventDetail.durationMs, msToReadable(eventDetail.durationMs)],
+      ['浏览器', eventDetail.browser],
+      ['浏览器版本', eventDetail.browserVersion],
+      ['操作系统', eventDetail.os],
+      ['系统版本', eventDetail.osVersion],
+      ['设备类型', eventDetail.deviceType],
+      ['屏幕宽度', eventDetail.screenW],
+      ['屏幕高度', eventDetail.screenH],
+      ['语言', eventDetail.language],
+      ['地区', eventDetail.region],
+      ['国家', eventDetail.country],
+      ['城市', eventDetail.city],
+      ['IP', eventDetail.ip],
+      ['会话 ID', eventDetail.sessionId],
+      ['Distinct ID', eventDetail.distinctId],
+      ['匿名 ID', eventDetail.anonymousId],
+      ['滚动深度', eventDetail.scrollDepth],
+      ['来源页', eventDetail.referrer],
+      ['UTM Source', eventDetail.utmSource],
+      ['UTM Medium', eventDetail.utmMedium],
+      ['UTM Campaign', eventDetail.utmCampaign],
+      ['指标名', eventDetail.metricName],
+      ['指标值', eventDetail.metricValue],
+      ['User Agent', eventDetail.userAgent],
+      ['创建时间', eventDetail.createdAt, formatDateTime(eventDetail.createdAt)],
     ];
+    const hasValue = ([, raw]: [string, unknown, React.ReactNode?]) => raw != null && raw !== '';
+    const detailData = fields.filter(hasValue).map(([key, raw, node]) => ({ key, value: node ?? String(raw) }));
+    const emptyKeys = fields.filter((f) => !hasValue(f)).map(([key]) => key);
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Descriptions row data={detailData} />
+        {emptyKeys.length > 0 && (
+          <Typography.Text type="tertiary" size="small">未采集：{emptyKeys.join('、')}</Typography.Text>
+        )}
         <div>
           <Typography.Title heading={6}>事件属性</Typography.Title>
           <JsonBlock value={eventDetail.properties ?? {}} />

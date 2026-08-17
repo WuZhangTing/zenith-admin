@@ -75,6 +75,15 @@ function msToReadable(ms: number | null): string {
 }
 const DAYS_OPTIONS = BEHAVIOR_DAYS_OPTIONS;
 
+/** 无语义元素（elementLabel 缺失或就是裸标签名）的展示兜底：「未命名 button」比裸 "button" 更明确 */
+const GENERIC_ELEMENT_LABELS = new Set(['button', 'a', 'div', 'span', 'input', 'svg', 'img', 'li', 'td', 'p', 'i', 'label']);
+function elementDisplayName(elementLabel: string | null | undefined, elementKey: string): string {
+  const label = elementLabel?.trim();
+  if (label && !GENERIC_ELEMENT_LABELS.has(label.toLowerCase())) return label;
+  const tag = label || elementKey.split(':')[0] || '元素';
+  return `未命名 ${tag}`;
+}
+
 const RETENTION_DAYS_OPTIONS: Record<AnalyticsRetentionPeriodType, Array<{ label: string; value: number }>> = {
   day: [
     { label: '近 7 天', value: 7 },
@@ -521,7 +530,7 @@ function buildFeatureTreemap(rows: readonly FeatureStatsRow[]): TreemapNode {
       const areaChildren = [...areaMap.entries()]
         .reduce<TreemapNode[]>((result, [area, items]) => {
           const children = items.map((item) => ({
-            name: item.elementLabel || item.elementKey,
+            name: elementDisplayName(item.elementLabel, item.elementKey),
             value: item.count,
             pagePath: item.pagePath,
             componentArea: item.componentArea,
@@ -584,12 +593,12 @@ function FeatureTab() {
       width: 260,
       render: (_value, record) => (
         <div>
-          <Typography.Text strong>{record.elementLabel || record.elementKey}</Typography.Text>
+          <Typography.Text strong>{elementDisplayName(record.elementLabel, record.elementKey)}</Typography.Text>
           <div><Typography.Text type="tertiary" size="small">{record.elementKey}</Typography.Text></div>
         </div>
       ),
     },
-    { title: 'UI区域', dataIndex: 'componentArea', width: 140, render: (_value, record) => <Tag color="blue">{record.componentArea || '未标记'}</Tag> },
+    { title: 'UI区域', dataIndex: 'componentArea', width: 140, render: (_value, record) => (record.componentArea ? <Tag color="blue">{record.componentArea}</Tag> : <Tag color="grey">未标记</Tag>) },
     { title: '所在页面', dataIndex: 'pagePath', width: 260, render: (value) => <Typography.Text ellipsis={{ showTooltip: true }}>{String(value)}</Typography.Text> },
     {
       title: '使用次数',
@@ -1681,12 +1690,12 @@ function HeatmapTab() {
       width: 240,
       render: (_value, record) => (
         <div>
-          <Typography.Text strong>{record.elementLabel || record.elementKey}</Typography.Text>
+          <Typography.Text strong>{elementDisplayName(record.elementLabel, record.elementKey)}</Typography.Text>
           <div><Typography.Text type="tertiary" size="small">{record.elementKey}</Typography.Text></div>
         </div>
       ),
     },
-    { title: 'UI区域', dataIndex: 'componentArea', width: 130, render: (_value, record) => <Tag color="blue">{record.componentArea || '未标记'}</Tag> },
+    { title: 'UI区域', dataIndex: 'componentArea', width: 130, render: (_value, record) => (record.componentArea ? <Tag color="blue">{record.componentArea}</Tag> : <Tag color="grey">未标记</Tag>) },
     { title: '平均落点', dataIndex: 'avgX', width: 120, render: (_value, record) => <Typography.Text type="tertiary">{record.avgX == null || record.avgY == null ? '–' : `${record.avgX}% , ${record.avgY}%`}</Typography.Text> },
     { title: '点击人数', dataIndex: 'uniqueUsers', width: 110, render: (value) => numberText(Number(value)) },
     {
