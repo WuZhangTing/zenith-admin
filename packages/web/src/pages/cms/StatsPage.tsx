@@ -10,6 +10,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { DataBar } from '@/components/data-viz/DataBar';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const DEVICE_LABELS: Record<string, string> = { pc: 'PC', mobile: '移动端', bot: '爬虫' };
 
 /** 双指标趋势柱状（PV 主柱 + UV 覆盖柱，纯 CSS 与 Dashboard 同风格） */
@@ -153,6 +154,7 @@ function SearchTab({ siteId, days }: { siteId: number | undefined; days: number 
 }
 
 export default function StatsPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['visits', 'search'] as const, 'visits');
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const [days, setDays] = useState(30);
 
@@ -166,7 +168,7 @@ export default function StatsPage() {
           <Radio value={90}>近 90 天</Radio>
         </RadioGroup>
       </SearchToolbar>
-      <Tabs collapsible="auto" type="line" lazyRender>
+      <Tabs collapsible="auto" type="line" lazyRender activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="访问统计" itemKey="visits"><VisitsTab siteId={siteId} days={days} /></TabPane>
         <TabPane tab="搜索分析" itemKey="search"><SearchTab siteId={siteId} days={days} /></TabPane>
       </Tabs>

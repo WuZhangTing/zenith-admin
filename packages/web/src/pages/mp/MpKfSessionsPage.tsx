@@ -32,6 +32,7 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text } = Typography;
 
 const STATUS_TAG: Record<MpKfSessionStatus, { label: string; color: 'orange' | 'green' | 'grey' }> = {
@@ -61,7 +62,7 @@ export default function MpKfSessionsPage() {
   const { hasPermission: can } = usePermission();
   const queryClient = useQueryClient();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-  const [tab, setTab] = useState<MpKfSessionStatus>('waiting');
+  const [tab, setTab] = useUrlTabState(['waiting', 'active', 'closed'] as const, 'waiting');
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);

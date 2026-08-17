@@ -65,6 +65,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 /** 只读流程设计器（懒加载）：用于在诊断 SideSheet 内查看发起时的流程定义快照 */
 const WorkflowDesignerPage = lazy(() => import('@/pages/workflow/designer/WorkflowDesignerPage'));
 
@@ -387,6 +388,7 @@ function buildFocusDiagnosis(diagnostics: WorkflowRuntimeDiagnostics, diagNodes:
 
 /** 状态统计卡片 */
 export default function WorkflowMonitorPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['list', 'analytics', 'engine', 'jobs', 'compensations'] as const, 'list');
   const queryClient = useQueryClient();
   interface SearchParams { keyword: string; initiator: string; status: string; categoryId: number | ''; definitionId: number | ''; priority: string }
   const defaultSearchParams: SearchParams = { keyword: '', initiator: '', status: '', categoryId: '', definitionId: '', priority: '' };
@@ -1190,7 +1192,7 @@ export default function WorkflowMonitorPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line">
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="实例监控" itemKey="list">
       {/* 统计卡片 */}
       <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>

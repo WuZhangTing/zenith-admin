@@ -21,6 +21,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface SearchState {
   subjectType?: CmsSubscriptionSubjectType;
   subjectKeyword: string;
@@ -30,6 +31,7 @@ interface SearchState {
 const initialSearch: SearchState = { subjectKeyword: '' };
 
 export default function SubscriptionsPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['aggregate', 'detail'] as const, 'aggregate');
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const { page, pageSize, setPage, buildPagination } = usePagination();
@@ -117,7 +119,7 @@ export default function SubscriptionsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false} activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="订阅聚合" itemKey="aggregate">
           <SearchToolbar
             primary={primary}

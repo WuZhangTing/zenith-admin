@@ -50,6 +50,7 @@ import './ProfilePage.css';
 import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Title, Text } = Typography;
 
 type SectionKey = 'profile' | 'security' | 'devices' | 'login' | 'operation' | 'api-tokens';
@@ -112,7 +113,7 @@ function SessionList({
 }
 
 export default function ProfilePage({ user }: ProfilePageProps) {
-  const [activeSection, setActiveSection] = useState<SectionKey>('profile');
+  const [activeSection, setActiveSection] = useUrlTabState(['profile', 'security', 'devices', 'login', 'operation', 'api-tokens'] as const, 'profile');
 
   // ─── 基本信息 ────────────────────────────────────────────────────────────────
   const { items: genderItems } = useDictItems('user_gender');

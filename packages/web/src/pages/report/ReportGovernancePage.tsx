@@ -5,10 +5,12 @@ import GovernanceResourceTab from './governance/GovernanceResourceTab';
 import GovernanceSlaTab from './governance/GovernanceSlaTab';
 import { GovernanceApprovalTab, GovernanceTransferTab } from './governance/GovernanceWorkflowTabs';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 export default function ReportGovernancePage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['resources', 'approvals', 'transfers', 'environments', 'capacity', 'sla'] as const, 'resources');
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line">
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="目录与资源权限" itemKey="resources"><GovernanceResourceTab /></TabPane>
         <TabPane tab="发布审批" itemKey="approvals"><GovernanceApprovalTab /></TabPane>
         <TabPane tab="所有权转移" itemKey="transfers"><GovernanceTransferTab /></TabPane>

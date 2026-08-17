@@ -38,6 +38,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface SearchParams {
   keyword: string;
   status: string;
@@ -87,6 +88,7 @@ const buildRunLogColumns = (outputWidth: number) => [
 ];
 
 export default function CronJobsPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['jobs', 'dashboard'] as const, 'jobs');
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const {
@@ -377,7 +379,7 @@ export default function CronJobsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line" lazyRender>
+      <Tabs collapsible="auto" type="line" lazyRender activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <Tabs.TabPane tab="任务管理" itemKey="jobs">
           <SearchToolbar
             primary={(

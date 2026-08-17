@@ -19,6 +19,7 @@ import {
 import { RefreshButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { TabPane } = Tabs;
 
 const defaultPolicy: IdentitySecurityPolicy = {
@@ -45,6 +46,7 @@ const defaultPolicy: IdentitySecurityPolicy = {
 };
 
 export default function IdentitySecurityPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['policy', 'risk'] as const, 'policy');
   const queryClient = useQueryClient();
   const formApi = useRef<FormApi | null>(null);
   const [policy, setPolicy] = useState<IdentitySecurityPolicy>(defaultPolicy);
@@ -102,7 +104,7 @@ export default function IdentitySecurityPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line" keepDOM={false}>
+      <Tabs collapsible="auto" type="line" keepDOM={false} activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="策略配置" itemKey="policy">
           <SearchToolbar>
             <Button type="primary" icon={<Save size={14} />} loading={savePolicyMutation.isPending} onClick={handleSavePolicy}>保存</Button>

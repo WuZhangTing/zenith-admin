@@ -28,6 +28,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text, Paragraph } = Typography;
 
 interface SetFormValues {
@@ -39,6 +40,7 @@ interface SetFormValues {
 export default function AiEvalPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('ai:eval:manage');
+  const [activeTab, setActiveTab] = useUrlTabState(['sets', 'runs'] as const, 'sets');
 
   const setsQuery = useAiEvalSets();
   const { tasks } = useMyAsyncTasks({ taskTypes: ['ai-eval-run'] });
@@ -204,6 +206,8 @@ export default function AiEvalPage() {
       <Tabs
         collapsible="auto"
         type="line"
+        activeKey={activeTab}
+        onChange={(k) => setActiveTab(k as typeof activeTab)}
         tabBarExtraContent={canManage ? <CreateButton onClick={modal.openCreate}>新建评测集</CreateButton> : undefined}
       >
         <TabPane tab="评测集" itemKey="sets">

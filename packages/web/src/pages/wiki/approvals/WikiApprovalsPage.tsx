@@ -14,7 +14,8 @@ import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
 import { renderEllipsis, updatedAtColumn, dateTimeColumn } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
-import { usePagination } from '@/hooks/usePagination';
+import { usePagination } from '@/hooks/usePagination';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
   useMyProcessedReviews, useReviewWikiDoc, useWikiDocDetail, useWikiDocList,
   useWikiDocReviewRecords, useWithdrawWikiDoc, wikiDocKeys,
@@ -327,9 +328,10 @@ function ProcessedPane() {
 }
 
 export default function WikiApprovalsPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['pending', 'mine', 'processed'] as const, 'pending');
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" collapsible="auto">
+      <Tabs type="line" collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <Tabs.TabPane tab="待审核" itemKey="pending">
           <PendingPane />
         </Tabs.TabPane>

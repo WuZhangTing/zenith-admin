@@ -11,6 +11,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Title, Text } = Typography;
 
 function parseList(raw: string): string {
@@ -122,6 +123,7 @@ function IpAccessLogsTab() {
 // ─── 主页面 ────────────────────────────────────────────────────
 
 export default function IpAccessPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['config', 'logs'] as const, 'config');
   const { hasPermission } = usePermission();
   const canUpdate = hasPermission('system:ip-access:update');
   const canViewLog = hasPermission('system:ip-access:log');
@@ -233,7 +235,7 @@ export default function IpAccessPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line">
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="访问控制配置" itemKey="config">
           {configContent}
         </TabPane>

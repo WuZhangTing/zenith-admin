@@ -31,6 +31,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface RuleSearch {
   keyword: string;
   sourceSiteId?: number;
@@ -54,6 +55,7 @@ function flattenChannels(nodes: CmsChannel[]): CmsChannel[] {
 }
 
 export default function DistributionPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['rules', 'runs'] as const, 'rules');
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const rulePagination = usePagination();
@@ -371,7 +373,7 @@ export default function DistributionPage() {
   const ruleOptions = (ruleQuery.data?.list ?? []).map((rule) => ({ value: rule.id, label: rule.name }));
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line">
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="分发规则" itemKey="rules">
           <Banner
             type="info"

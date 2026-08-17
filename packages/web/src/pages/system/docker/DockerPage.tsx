@@ -55,6 +55,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 // ─── Prune（清理）辅助 ──────────────────────────────────────────────────────────
 function runPrune(url: string, title: string, content: string, prune: (url: string) => Promise<PruneResultData>): void {
   confirmDelete({
@@ -941,6 +942,7 @@ function VolumesTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DockerPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['containers', 'images', 'networks', 'volumes'] as const, 'containers');
   const dockerAvailableQuery = useDockerAvailable();
   const dockerAvailable = dockerAvailableQuery.isError ? false : null;
 
@@ -958,7 +960,7 @@ export default function DockerPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line">
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="容器" itemKey="containers"><ContainersTab /></TabPane>
         <TabPane tab="镜像" itemKey="images"><ImagesTab /></TabPane>
         <TabPane tab="网络" itemKey="networks"><NetworksTab /></TabPane>

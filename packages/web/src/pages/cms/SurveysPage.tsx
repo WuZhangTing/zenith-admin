@@ -30,6 +30,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface ListSearch {
   keyword: string;
   kind?: CmsInteractionKind;
@@ -44,6 +45,7 @@ const STATUS_COLORS: Record<CmsInteractionStatus, 'grey' | 'green' | 'orange'> =
 };
 
 export default function SurveysPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['interactions', 'responses'] as const, 'interactions');
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -244,7 +246,7 @@ export default function SurveysPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false} activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="互动管理" itemKey="interactions">
           <SearchToolbar
             primary={listSearch}

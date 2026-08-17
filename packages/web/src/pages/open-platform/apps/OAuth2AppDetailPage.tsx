@@ -26,6 +26,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text, Title } = Typography;
 
 function AppStatsTab({ clientId }: Readonly<{ clientId: string }>) {
@@ -223,6 +224,7 @@ function WebhooksTab({ clientId }: Readonly<{ clientId: string }>) {
 }
 
 export default function OAuth2AppDetailPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['overview', 'stats', 'grants', 'tokens', 'webhooks'] as const, 'overview');
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const canManage = hasPermission('system:oauth2-apps:manage');
@@ -248,7 +250,7 @@ export default function OAuth2AppDetailPage() {
         <Tag color={app.status === 'enabled' ? 'green' : 'grey'}>{app.status === 'enabled' ? '启用' : '禁用'}</Tag>
         <Text type="tertiary" copyable={{ content: app.clientId }}>{app.clientId}</Text>
       </div>
-      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" type="line" lazyRender keepDOM={false} activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="概览" itemKey="overview">
           <Descriptions
             align="plain"

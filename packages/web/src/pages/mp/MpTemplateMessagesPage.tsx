@@ -27,12 +27,13 @@ import { RefreshButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 export default function MpTemplateMessagesPage() {
   const { hasPermission: can } = usePermission();
   const queryClient = useQueryClient();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
 
-  const [tab, setTab] = useState('templates');
+  const [tab, setTab] = useUrlTabState(['templates', 'logs'] as const, 'templates');
   const tplPg = usePagination();
   const logPg = usePagination();
   const [draftLogStatus, setDraftLogStatus] = useState<string | undefined>(undefined);
@@ -193,7 +194,7 @@ export default function MpTemplateMessagesPage() {
         <Banner type="warning" fullMode={false} description="尚未配置公众号，请先在「公众号账号」中添加公众号。" style={{ marginBottom: 12 }} />
       )}
 
-      <Tabs collapsible="auto" activeKey={tab} onChange={setTab} type="line">
+      <Tabs collapsible="auto" activeKey={tab} onChange={(k) => setTab(k as typeof tab)} type="line">
         <TabPane tab="模板库" itemKey="templates">
           <SearchToolbar
             primary={(

@@ -32,6 +32,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import './FilesPage.css';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text } = Typography;
 
 interface UploadItem { uid: string; name: string; size: number; progress: number; status: 'pending' | 'uploading' | 'success' | 'error'; errorMsg?: string }
@@ -100,6 +101,7 @@ async function loadImageResolution(file: { url: string; directUrl?: string | nul
 }
 
 export default function FilesPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const { preferences, setPreferences } = usePreferences();
@@ -401,7 +403,7 @@ export default function FilesPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" defaultActiveKey="list" type="line">
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="文件列表" itemKey="list">
       <SearchToolbar
         primary={(

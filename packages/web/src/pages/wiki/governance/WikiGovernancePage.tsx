@@ -11,7 +11,8 @@ import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateTimeForApi } from '@/utils/date';
-import { useAllUsers } from '@/hooks/queries/users';
+import { useAllUsers } from '@/hooks/queries/users';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
   useArchiveGovernanceDocs, useRemindGovernanceOwners, useSetGovernanceOwner,
   useSetGovernanceReview, useWikiGovernanceDocs, useWikiNoResultKeywords,
@@ -274,9 +275,10 @@ function NoResultPane() {
 }
 
 export default function WikiGovernancePage() {
+  const [activeTab, setActiveTab] = useUrlTabState([...WIKI_GOVERNANCE_KINDS, 'no-result'] as const, WIKI_GOVERNANCE_KINDS[0]);
   return (
     <div className="page-container page-tabs-page">
-      <Tabs type="line" collapsible="auto">
+      <Tabs type="line" collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         {WIKI_GOVERNANCE_KINDS.map((kind) => (
           <Tabs.TabPane tab={WIKI_GOVERNANCE_KIND_LABELS[kind]} itemKey={kind} key={kind}>
             <GovernancePane kind={kind} />
