@@ -1,4 +1,5 @@
-import { Tag, Toast } from '@douyinfe/semi-ui';
+import { useNavigate } from 'react-router-dom';
+import { Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WikiComment } from '@zenith/shared/wiki';
 import { WIKI_COMMENT_STATUS_LABELS, WIKI_COMMENT_STATUS_OPTIONS } from '@zenith/shared/wiki';
@@ -26,6 +27,7 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: 
 
 export default function WikiCommentsPage() {
   const { hasPermission } = usePermission();
+  const navigate = useNavigate();
 
   const {
     page, pageSize, buildPagination,
@@ -48,7 +50,14 @@ export default function WikiCommentsPage() {
 
   const columns: ColumnProps<WikiComment>[] = [
     { title: '评论内容', dataIndex: 'content', width: 280, render: renderEllipsis },
-    { title: '所属文档', dataIndex: 'docTitle', width: 200, render: renderEllipsis },
+    {
+      title: '所属文档', dataIndex: 'docTitle', width: 200,
+      render: (v: string | null, record: WikiComment) => v ? (
+        <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => navigate(`/wiki/docs?docId=${record.docId}`)}>
+          {v}
+        </Typography.Text>
+      ) : '—',
+    },
     { title: '评论人', dataIndex: 'authorName', width: 120, render: (v: string | null) => v ?? '已注销用户' },
     createdAtColumn,
     {

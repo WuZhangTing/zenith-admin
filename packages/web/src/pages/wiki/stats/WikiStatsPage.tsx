@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Empty, List, Spin, Typography } from '@douyinfe/semi-ui';
 import { Archive, BookOpen, CalendarClock, FileCheck2, FileClock, FileText, Flame, MessageSquare, SearchX, TrendingUp, UserRound, UserX } from 'lucide-react';
 import {
@@ -13,6 +14,7 @@ import {
 const { Text } = Typography;
 
 export default function WikiStatsPage() {
+  const navigate = useNavigate();
   const palette = useChartPalette();
   const overviewQuery = useWikiStatsOverview();
   const hotDocsQuery = useWikiHotDocs(10);
@@ -123,7 +125,12 @@ export default function WikiStatsPage() {
               <List.Item
                 main={(
                   <div style={{ minWidth: 0 }}>
-                    <Text ellipsis={{ showTooltip: true }} style={{ width: '100%' }}>
+                    <Text
+                      link
+                      ellipsis={{ showTooltip: true }}
+                      style={{ width: '100%' }}
+                      onClick={() => navigate(`/wiki/docs?docId=${item.id}`)}
+                    >
                       {idx + 1}. {item.title}
                     </Text>
                     <div><Text type="tertiary" size="small">{item.spaceName}</Text></div>

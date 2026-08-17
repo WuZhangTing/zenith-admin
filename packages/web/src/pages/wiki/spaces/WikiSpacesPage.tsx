@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Col, Form, Modal, Row, Select, SideSheet, Space, Spin, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -34,6 +35,7 @@ const defaultSearchParams: SearchParams = { keyword: '', visibility: '', status:
 
 export default function WikiSpacesPage() {
   const { hasPermission } = usePermission();
+  const navigate = useNavigate();
 
   const {
     page, pageSize, buildPagination,
@@ -123,7 +125,18 @@ export default function WikiSpacesPage() {
   }
 
   const columns: ColumnProps<WikiSpace>[] = [
-    { title: '空间名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    {
+      title: '空间名称', dataIndex: 'name', width: 180,
+      render: (v: string, record: WikiSpace) => (
+        <Text
+          link
+          ellipsis={{ showTooltip: true }}
+          onClick={() => navigate(`/wiki/docs?spaceId=${record.id}`)}
+        >
+          {v}
+        </Text>
+      ),
+    },
     { title: '描述', dataIndex: 'description', width: 220, render: renderEllipsis },
     {
       title: '可见性', dataIndex: 'visibility', width: 100,

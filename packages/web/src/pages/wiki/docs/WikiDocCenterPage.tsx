@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
@@ -113,8 +113,10 @@ export default function WikiDocCenterPage() {
   const { hasPermission } = usePermission();
   const { user } = useAuth();
 
-  const [spaceId, setSpaceId] = useState<number>();
-  const [selectedDocId, setSelectedDocId] = useState<number>();
+  // 空间与文档选中态同步到 URL（?spaceId=&docId=），支持刷新恢复、分享链接与跨页跳转
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [spaceId, setSpaceId] = useState<number | undefined>(() => Number(searchParams.get('spaceId')) || undefined);
+  const [selectedDocId, setSelectedDocId] = useState<number | undefined>(() => Number(searchParams.get('docId')) || undefined);
   const [showDetailOnNarrow, setShowDetailOnNarrow] = useState(false);
   const isNarrowLayoutRef = useRef(false);
   const [masterTab, setMasterTab] = useState('tree');
@@ -213,14 +215,64 @@ export default function WikiDocCenterPage() {
   const canSubmitDoc = canWriteDoc && hasPermission('wiki:doc:publish');
   const canMoveDoc = canWriteDoc && hasPermission('wiki:doc:move');
 
+  // ─── 选中态 ↔ URL 同步 ────────────────────────────────────────────────────
+  const lastWrittenParamsRef = useRef<string | null>(null);
+
+  // 状态 → URL：刷新可恢复、地址栏可直接分享
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (effectiveSpaceId !== undefined) next.set('spaceId', String(effectiveSpaceId));
+    if (selectedDocId !== undefined) next.set('docId', String(selectedDocId));
+    const str = next.toString();
+    if (str !== searchParams.toString()) {
+      lastWrittenParamsRef.current = str;
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在选中态变化时写回 URL
+  }, [effectiveSpaceId, selectedDocId]);
+
+  // URL → 状态：页面已挂载时从其他页面（评论管理/知识空间/统计）跳转进来
+  useEffect(() => {
+    const str = searchParams.toString();
+    if (str === lastWrittenParamsRef.current) return;
+    const paramDocId = Number(searchParams.get('docId')) || undefined;
+    const paramSpaceId = Number(searchParams.get('spaceId')) || undefined;
+    if (paramDocId !== undefined && paramDocId !== selectedDocId) {
+      setSelectedDocId(paramDocId);
+      setShowDetailOnNarrow(true);
+    }
+    if (paramSpaceId !== undefined && paramSpaceId !== spaceId) setSpaceId(paramSpaceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅响应外部 URL 变化
+  }, [searchParams]);
+
+  // 深链只带 docId 时（如从评论管理跳转），文档加载后跟随其所属空间，保证目录树定位正确
+  useEffect(() => {
+    if (doc && doc.spaceId !== effectiveSpaceId) setSpaceId(doc.spaceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在文档变化时同步空间
+  }, [doc?.id, doc?.spaceId]);
+
+  // 正文中指向文档中心的站内链接（/wiki/docs?docId=N）拦截为页内切换，不整页跳转
+  function handleContentClick(event: React.MouseEvent) {
+    const anchor = (event.target as HTMLElement).closest?.('a');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href') ?? '';
+    const match = /^\/wiki\/docs\?(?:.*&)?docId=(\d+)/.exec(href);
+    if (match) {
+      event.preventDefault();
+      selectDoc(Number(match[1]));
+    }
+  }
+
   // ─── 渲染 ─────────────────────────────────────────────────────────────────
   const treeData = useMemo(() => toTreeData(treeQuery.data ?? []), [treeQuery.data]);
   const treeDocIds = useMemo(() => collectTreeDocIds(treeQuery.data ?? []), [treeQuery.data]);
 
   useEffect(() => {
     setSelectedDocId((current) => {
-      if (treeDocIds.length === 0) return undefined;
-      if (current !== undefined && treeDocIds.includes(current)) return current;
+      // 保留已有选中（含跨空间深链，等文档详情加载后自动切换空间）；
+      // 切换空间时由空间选择器显式清空选中，这里只负责空态兜底选中第一篇
+      if (current !== undefined) return current;
+      if (treeDocIds.length === 0) return current;
       return isNarrowLayoutRef.current ? undefined : treeDocIds[0];
     });
   }, [treeDocIds]);
@@ -372,7 +424,9 @@ export default function WikiDocCenterPage() {
 
       {/* 正文与评论 */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-        <MarkdownPreviewPanel content={doc.content ?? ''} style={{ height: 'auto', overflowY: 'visible' }} />
+        <div onClickCapture={handleContentClick}>
+          <MarkdownPreviewPanel content={doc.content ?? ''} style={{ height: 'auto', overflowY: 'visible' }} />
+        </div>
 
         {doc.attachments?.length ? (
           <div style={{ marginTop: 16, maxWidth: 720 }}>

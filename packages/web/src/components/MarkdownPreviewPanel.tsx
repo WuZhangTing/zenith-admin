@@ -42,7 +42,21 @@ export function MarkdownPreviewPanel({ content, rawText, style }: MarkdownPrevie
         </pre>
       ) : (
         <div className="md-preview-content">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+            components={{
+              // 外部链接新窗口打开，避免用户在阅读中被整页带离应用；站内相对链接保持默认行为
+              a: ({ node: _node, href, children, ...rest }) => {
+                const external = /^https?:\/\//i.test(href ?? '');
+                return (
+                  <a href={href} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})} {...rest}>
+                    {children}
+                  </a>
+                );
+              },
+            }}
+          >
             {content}
           </ReactMarkdown>
         </div>
