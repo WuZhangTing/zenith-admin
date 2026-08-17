@@ -30,15 +30,16 @@ export function useUrlTabState<T extends string>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // 状态 → URL：基于最新的 location.search 只改自己的参数，避免覆盖其他参数
+  // 状态 → URL：基于 router 提供的最新 searchParams 只改自己的参数（兼容 BrowserRouter 与
+  // HashRouter——后者的 query 在 hash 段内，window.location.search 读不到），其他参数原样保留
   useEffect(() => {
-    const next = new URLSearchParams(window.location.search);
+    const next = new URLSearchParams(searchParams);
     if (activeTab === defaultTab) next.delete(paramName);
     else next.set(paramName, activeTab);
-    if (next.toString() !== new URLSearchParams(window.location.search).toString()) {
+    if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
-  }, [activeTab, defaultTab, paramName, setSearchParams]);
+  }, [activeTab, defaultTab, paramName, searchParams, setSearchParams]);
 
   return [activeTab, setActiveTab];
 }

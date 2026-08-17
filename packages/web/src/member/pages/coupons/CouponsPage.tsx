@@ -3,6 +3,7 @@ import { Tabs, TabPane, Button, Toast, Spin, Space, Tag, Modal } from '@douyinfe
 import dayjs from 'dayjs';
 import type { Coupon } from '@zenith/shared/member';
 import { MemberPage } from '../../components/MemberPage';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
   useAvailableCoupons,
   useExchangeCoupon,
@@ -215,9 +216,10 @@ function ExchangeCoupons() {
 }
 
 export default function CouponsPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['mine', 'available', 'exchange'] as const, 'mine');
   return (
     <MemberPage title="我的卡券">
-      <Tabs collapsible="auto" type="line">
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)}>
         <TabPane tab="我的卡券" itemKey="mine">
           <MyCoupons />
         </TabPane>

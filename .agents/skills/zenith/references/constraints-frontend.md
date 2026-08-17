@@ -170,6 +170,14 @@
 | 左侧 master 是平铺列表（非树形） | `NavListPanel<T>` + `NavListItem` | 树形数据（需展开 / 折叠）改用 Semi `Tree` |
 | 指标卡（数值 + 标题） | `components/charts/StatCard.tsx` 的 `StatCard` + `StatGrid` | **禁止**再写 `<Card>` + 大字号数值 + tertiary 标签的组合 |
 
+- **页面级 Tabs 的激活态必须走 `hooks/useUrlTabState.ts`**（`?tab=` 深链直达、切换 `replace`
+  写回、默认 Tab 不写参数、非法值回退默认、前进后退跟随）；**禁止**用本地 `useState` 管理页面
+  顶层 activeTab，也**禁止**手写 `searchParams.get('tab')` 等价实现。写法见
+  [ui-patterns.md → 页面级多 Tab 布局](./ui-patterns.md#页面级多-tab-布局)。
+  **不适用**：弹窗 / 抽屉 / 分栏面板内部 Tabs 与页面二级 Tabs；tab 集合来自动态数据的场景
+  （SDK 示例语言、OAuth 提供商列表）；登录方式切换；以及 db-admin 的 `tab`+`table` 联合
+  原子写回（拆入 hook 会造成双 effect 竞写 searchParams，保持其手写实现）。
+  需要「记住上次停留 Tab」的页面（如监控页）把偏好值作为 `defaultTab` 传入即可与 URL 定位共存
 - **Tabs 自动溢出折叠**：所有 `<Tabs>` 必须带 `collapsible="auto"`——窄容器（抽屉、弹窗、
   分栏面板）里标签多时会折行或被裁掉，`auto` 只在真放不下时折叠成带箭头的滚动条，
   宽度充足时渲染与不加时一致，因此**没有「这个页面标签少所以不用加」的例外**。

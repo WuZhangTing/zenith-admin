@@ -17,9 +17,11 @@
 ## 页面级多 Tab 布局
 
 ```tsx
+const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
+
 return (
   <div className="page-container page-tabs-page">
-    <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
+    <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as typeof activeTab)} type="line" lazyRender keepDOM={false}>
       <TabPane tab="列表" itemKey="list">
         <SearchToolbar>{/* 当前 tab 的筛选与操作按钮 */}</SearchToolbar>
         <ConfigurableTable bordered ... />
@@ -32,6 +34,9 @@ return (
 );
 ```
 
+- **激活态统一用 `hooks/useUrlTabState.ts`**（`?tab=` 深链定位），约束与豁免清单见
+  [constraints-frontend.md → 布局与响应式](./constraints-frontend.md#布局与响应式)；
+  切换需附带副作用（清勾选、重置页码）时包一层：`onChange={(k) => { setActiveTab(k as typeof activeTab); setPage(1); }}`
 - 每个 `TabPane` 内承载该 tab 的完整内容：`SearchToolbar`、操作按钮、空状态、表格或统计面板
 - tab 相关操作按钮（「全部标记为已读」「清理日志」）放在对应 `TabPane` 内的 `SearchToolbar`，
   不要放在 TabBar 右侧

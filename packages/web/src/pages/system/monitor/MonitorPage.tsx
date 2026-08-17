@@ -14,6 +14,7 @@ import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricM
 import './MonitorPage.css';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text } = Typography;
 
 interface EventLoopStats {
@@ -241,6 +242,10 @@ const SSE_STATUS_META: Record<'idle' | 'connecting' | 'open' | 'error', { color:
   error: { color: 'red', text: '已断开，自动重连中' },
 };
 
+/** 页面级 Tab 全集（URL ?tab= 定位与偏好记忆共用） */
+const MONITOR_TABS = ['overview', 'history', 'cpu', 'mem', 'disk', 'net', 'node', 'http', 'db', 'redis', 'ws'] as const;
+type MonitorTab = typeof MONITOR_TABS[number];
+
 export default function MonitorPage() {
   const palette = useChartPalette();
   const navigate = useNavigate();
@@ -251,7 +256,9 @@ export default function MonitorPage() {
   const [sseLoading, setSseLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [refreshInterval, setRefreshInterval] = useState<number>(prefsRef.current.refreshInterval ?? 30000);
-  const [activeTab, setActiveTab] = useState<string>(prefsRef.current.activeTab ?? 'overview');
+  // URL ?tab= 优先定位；无参数时回落到用户上次停留的 Tab（偏好记忆），偏好值非法时回总览
+  const savedTab = prefsRef.current.activeTab as MonitorTab | undefined;
+  const [activeTab, setActiveTab] = useUrlTabState(MONITOR_TABS, savedTab && MONITOR_TABS.includes(savedTab) ? savedTab : 'overview');
   const [historyRange, setHistoryRange] = useState<string>(prefsRef.current.historyRange ?? '1h');
   /** 历史趋势统计口径：avg=桶内均值，max=桶内峰值（毛刺可见，用于容量规划） */
   const [historyStat, setHistoryStat] = useState<'avg' | 'max'>(prefsRef.current.historyStat ?? 'avg');
@@ -859,7 +866,7 @@ export default function MonitorPage() {
       : 0;
 
     return (
-      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={setActiveTab}>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(k) => setActiveTab(k as MonitorTab)}>
           {/* ===== 总览 ===== */}
           <TabPane tab={<span className="monitor-tab-label"><Server size={14} />总览</span>} itemKey="overview">
             <div className="monitor-overview-grid">
