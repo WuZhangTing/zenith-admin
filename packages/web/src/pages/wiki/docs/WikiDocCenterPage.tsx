@@ -34,6 +34,9 @@ const STATUS_TAG_COLOR: Record<string, 'grey' | 'orange' | 'green' | 'red'> = {
   rejected: 'red',
 };
 
+/** 与 .md-preview-content 相同的阅读列（860px 居中 + 40px 水平内边距），附件与评论跟随正文对齐 */
+const READING_COLUMN_STYLE = { maxWidth: 860, margin: '0 auto', padding: '0 40px' } as const;
+
 function toTreeData(nodes: WikiDocTreeNode[]): TreeNodeData[] {
   return nodes.map((n) => ({
     key: String(n.id),
@@ -429,15 +432,15 @@ export default function WikiDocCenterPage() {
         </div>
 
         {doc.attachments?.length ? (
-          <div style={{ marginTop: 16, maxWidth: 720 }}>
+          <div style={{ ...READING_COLUMN_STYLE, marginTop: 16 }}>
             <FileAttachment mode="view" value={doc.attachments} title="附件" />
           </div>
         ) : null}
 
         {doc.status === 'published' ? (
-          <div style={{ marginTop: 24 }}>
+          <div style={{ ...READING_COLUMN_STYLE, marginTop: 24, paddingBottom: 32 }}>
             <Divider align="left"><MessageSquare size={14} style={{ verticalAlign: -2, marginRight: 4 }} />评论（{doc.commentCount ?? 0}）</Divider>
-            <div style={{ maxWidth: 720 }}>
+            <div>
               {commentsEnabled ? (
                 <>
                   {replyTo ? (
