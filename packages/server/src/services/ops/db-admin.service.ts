@@ -1101,6 +1101,39 @@ function extractQueryErrorMessage(err: unknown): string {
   return String(err);
 }
 
+/** 自定义类型（枚举/域等）oid → typname 的进程级缓存；内置常见类型见 PG_TYPE_NAMES */
+const resolvedTypeNameCache = new Map<number, string>();
+
+/** 把结果列中的 oid:N 占位解析为 pg_type 里的真实类型名（如自定义枚举名） */
+async function resolveOidTypeNames(columns: QueryResult['columns']): Promise<void> {
+  const pattern = /^oid:(\d+)$/;
+  const oids = [...new Set(
+    columns
+      .map((c) => pattern.exec(c.dataType)?.[1])
+      .filter((v): v is string => !!v)
+      .map(Number),
+  )];
+  const missing = oids.filter((oid) => !resolvedTypeNameCache.has(oid));
+  if (missing.length > 0) {
+    try {
+      // oid 均来自 ^oid:(\d+)$ 提取的安全整数，可直接内联，避免数组参数的类型推断问题
+      const rows = await db.execute(
+        sql.raw(`SELECT oid::int AS oid, typname FROM pg_type WHERE oid IN (${missing.join(',')})`),
+      ) as unknown as Array<{ oid: number; typname: string }>;
+      for (const row of rows) resolvedTypeNameCache.set(Number(row.oid), row.typname);
+    } catch (err) {
+      logger.warn('解析 pg_type 类型名失败', { err: err instanceof Error ? err.message : err });
+      return; // 解析失败保持 oid:N 展示，不影响查询结果
+    }
+  }
+  for (const column of columns) {
+    const match = pattern.exec(column.dataType);
+    if (!match) continue;
+    const name = resolvedTypeNameCache.get(Number(match[1]));
+    if (name) column.dataType = name;
+  }
+}
+
 export interface QueryOptions {
   queryId?: string;
   page?: number;
@@ -1159,6 +1192,7 @@ export async function executeReadonlyQuery(sqlText: string, options: QueryOption
       const rows = await tx.execute(sql.raw(trimmed));
       return buildQueryResult(rows);
     });
+    await resolveOidTypeNames(result.columns);
     success = true;
     return result;
   } catch (err) {

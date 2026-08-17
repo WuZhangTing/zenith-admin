@@ -792,9 +792,23 @@ export default function DbAdminPage() {
   }, [selected, batchMutateRowsMutation, rowsData]);
 
   const handleDiscardPending = useCallback(() => {
-    gridRef.current?.discardPending();
-    setSqlPreview(null);
-  }, []);
+    const doDiscard = () => {
+      gridRef.current?.discardPending();
+      setSqlPreview(null);
+    };
+    // 单处修改直接放弃；多处修改需确认，避免紧邻「保存」的误点造成批量丢失
+    if (pendingCount <= 1) {
+      doDiscard();
+      return;
+    }
+    Modal.confirm({
+      title: '放弃全部暂存修改？',
+      content: `当前有 ${pendingCount} 处暂存修改（含新增/修改/删除标记），放弃后无法恢复。`,
+      okText: '放弃修改',
+      okButtonProps: { type: 'danger', theme: 'solid' },
+      onOk: doDiscard,
+    });
+  }, [pendingCount]);
 
   const handleOpenSqlPreview = useCallback(() => {
     if (!selected) return;
@@ -934,7 +948,7 @@ export default function DbAdminPage() {
                   search={{
                     value: tableFilter,
                     onChange: setTableFilter,
-                    placeholder: '搜索表名 / schema',
+                    placeholder: '搜索表名 / schema（Ctrl+P 快速打开）',
                   }}
                   loading={tablesLoading && tables.length === 0}
                   emptyText="无匹配的表"
