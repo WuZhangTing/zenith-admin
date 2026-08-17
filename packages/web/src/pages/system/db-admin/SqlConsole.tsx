@@ -7,7 +7,7 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   Play, Eye, Download, Plus, X, Bookmark, BookmarkPlus, ArrowRight, Pencil, Trash2,
-  Sparkles, Copy, Code, Ban, BarChart3,
+  Sparkles, Copy, Code, Ban, BarChart3, ChevronDown,
 } from 'lucide-react';
 import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import Editor from '@monaco-editor/react';
@@ -23,7 +23,7 @@ import { formatDateTime } from '@/utils/date';
 import { ExplainView } from './ExplainView';
 import { ResultChart } from './ResultChart';
 import { rowsToJson, rowsToMarkdown } from './result-format';
-import { copyToClipboard } from './sql-format';
+import { copyToClipboard, isReadOnlySql } from './sql-format';
 import {
   useDbAdminCancelQuery,
   useDbAdminExecuteQuery,
@@ -202,8 +202,16 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   const runQuery = useCallback(async () => {
     const text = editorRef.current?.getValue() ?? activeTab.sql;
     if (!text.trim()) { Toast.warning('请输入 SQL'); return; }
+    // 前置拦截非只读语句：即时反馈原因，避免请求往返与无意义的失败历史记录
+    if (!isReadOnlySql(text)) {
+      patchActive({
+        result: null,
+        error: 'SQL 控制台为只读模式，仅允许 SELECT / WITH / EXPLAIN / SHOW 等查询语句。\n如需修改数据，请在「表浏览 → 数据」中双击单元格编辑（支持批量暂存与 SQL 预览）。',
+      });
+      return;
+    }
     await runPage(text, 1, true);
-  }, [activeTab.sql, runPage]);
+  }, [activeTab.sql, runPage, patchActive]);
 
   const loadPage = useCallback(async (page: number) => {
     if (!activeTab.executedSql) return;
@@ -443,7 +451,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
             </Dropdown.Menu>
           )}
         >
-          <Button icon={<Eye size={14} />} disabled={!canQuery}>查询计划</Button>
+          <Button icon={<Eye size={14} />} disabled={!canQuery}>查询计划 <ChevronDown size={12} style={{ verticalAlign: -1, marginLeft: 2 }} /></Button>
         </Dropdown>
         <Tooltip content="格式化 SQL（Ctrl+Shift+F）">
           <Button icon={<Sparkles size={14} />} onClick={formatCurrentSql}>格式化</Button>
@@ -457,7 +465,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
             </Dropdown.Menu>
           )}
         >
-          <Button icon={<Download size={14} />} disabled={!canExport} loading={exportCsvLoading || exportJsonLoading}>导出</Button>
+          <Button icon={<Download size={14} />} disabled={!canExport} loading={exportCsvLoading || exportJsonLoading}>导出 <ChevronDown size={12} style={{ verticalAlign: -1, marginLeft: 2 }} /></Button>
         </Dropdown>
         <Button icon={<BookmarkPlus size={14} />} onClick={saveFavoriteModal.openCreate} disabled={!canQuery}>收藏</Button>
         <Button icon={<Bookmark size={14} />} onClick={openFavorites}>收藏夹{favorites.length > 0 ? ` (${favorites.length})` : ''}</Button>

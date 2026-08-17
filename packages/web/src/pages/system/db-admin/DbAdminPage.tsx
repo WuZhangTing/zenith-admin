@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Badge,
@@ -121,6 +122,8 @@ const SYSTEM_TABLES = new Set([
 ]);
 const EMPTY_TABLES: TableItem[] = [];
 
+const VALID_TABS = new Set(['overview', 'browse', 'objects', 'console', 'ops', 'history', 'er']);
+
 export default function DbAdminPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
@@ -131,7 +134,13 @@ export default function DbAdminPage() {
   const { isDark } = useThemeController();
   const monacoTheme = isDark ? 'vs-dark' : 'light';
 
-  const [activeTab, setActiveTab] = useState<string>('overview');
+  // Tab 与选中表同步到 URL（?tab=&table=schema.name），刷新恢复、可直接分享
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const tab = searchParams.get('tab');
+    return tab && VALID_TABS.has(tab) ? tab : 'overview';
+  });
+  const initialTableParamRef = useRef<string | null>(searchParams.get('table'));
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<string>>(() => new Set(['overview']));
   const sqlConsoleRef = useRef<SqlConsoleHandle | null>(null);
   const pendingConsoleSqlRef = useRef<string | null>(null);
@@ -200,6 +209,32 @@ export default function DbAdminPage() {
   const tablesQuery = useDbAdminTables();
   const tables = tablesQuery.data ?? EMPTY_TABLES;
   const tablesLoading = tablesQuery.isFetching;
+
+  // 深链恢复：?table=schema.name 在表清单加载完成后解析选中
+  useEffect(() => {
+    if (!initialTableParamRef.current || tablesQuery.isPending) return;
+    const key = initialTableParamRef.current;
+    initialTableParamRef.current = null;
+    const dotIndex = key.indexOf('.');
+    if (dotIndex <= 0) return;
+    const schema = key.slice(0, dotIndex);
+    const name = key.slice(dotIndex + 1);
+    const item = tables.find((t) => t.schema === schema && t.name === name);
+    if (item) setSelected(item);
+  }, [tablesQuery.isPending, tables]);
+
+  // 状态 → URL：仅写非默认值，replace 避免污染浏览器历史；
+  // 深链表尚未解析完成时不接管，避免首轮渲染把 table 参数抹掉
+  useEffect(() => {
+    if (initialTableParamRef.current) return;
+    const next = new URLSearchParams();
+    if (activeTab !== 'overview') next.set('tab', activeTab);
+    if (selected) next.set('table', `${selected.schema}.${selected.name}`);
+    const current = new URLSearchParams(window.location.search);
+    current.delete('redirect');
+    if (next.toString() !== current.toString()) setSearchParams(next, { replace: true });
+  }, [activeTab, selected, setSearchParams]);
+
   const structureQuery = useDbAdminTableStructure(selected?.schema, selected?.name, selected !== null);
   const structure = structureQuery.data ?? null;
   const structureLoading = structureQuery.isFetching;

@@ -1055,6 +1055,52 @@ function isPaginatableSelect(trimmed: string): boolean {
   return /^(select|with)\b/i.test(trimmed);
 }
 
+const CONSOLE_READONLY_MESSAGE = 'SQL 控制台为只读模式，仅允许 SELECT / WITH / EXPLAIN / SHOW 等查询语句；如需修改数据，请在表浏览中编辑';
+
+/** 去掉语句开头的行注释与块注释，用于识别首个关键字 */
+function stripLeadingSqlComments(text: string): string {
+  let rest = text;
+  for (;;) {
+    const trimmed = rest.trimStart();
+    if (trimmed.startsWith('--')) {
+      const newline = trimmed.indexOf('\n');
+      if (newline === -1) return '';
+      rest = trimmed.slice(newline + 1);
+      continue;
+    }
+    if (trimmed.startsWith('/*')) {
+      const end = trimmed.indexOf('*/');
+      if (end === -1) return '';
+      rest = trimmed.slice(end + 2);
+      continue;
+    }
+    return trimmed;
+  }
+}
+
+/** 控制台只读白名单：所有语句都必须以查询关键字开头（字符串内的分号先行剔除） */
+function assertConsoleReadOnlySql(text: string): void {
+  const sanitized = text
+    .replace(/'(?:[^']|'')*'/g, "''")
+    .replace(/\$\$[\s\S]*?\$\$/g, '$$$$');
+  for (const statement of sanitized.split(';')) {
+    const effective = stripLeadingSqlComments(statement);
+    if (!effective.trim()) continue;
+    if (!/^(select|with|explain|show|table|values)\b/i.test(effective)) {
+      throw new HTTPException(400, { message: CONSOLE_READONLY_MESSAGE });
+    }
+  }
+}
+
+/** 提取更贴近 PostgreSQL 原始报错的信息（drizzle 外层是 "Failed query: ..."，真实原因在 cause 链上） */
+function extractQueryErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.cause instanceof Error && err.cause.message) return err.cause.message;
+    return err.message;
+  }
+  return String(err);
+}
+
 export interface QueryOptions {
   queryId?: string;
   page?: number;
@@ -1066,6 +1112,7 @@ export async function executeReadonlyQuery(sqlText: string, options: QueryOption
   if (!trimmed) {
     throw new HTTPException(400, { message: 'SQL 不能为空' });
   }
+  assertConsoleReadOnlySql(trimmed);
 
   const { queryId, page, pageSize } = options;
   const wantPagination = page != null && pageSize != null && pageSize > 0 && isPaginatableSelect(trimmed);
@@ -1115,13 +1162,17 @@ export async function executeReadonlyQuery(sqlText: string, options: QueryOption
     success = true;
     return result;
   } catch (err) {
-    errorMessage = err instanceof Error ? err.message : String(err);
-    // 取消导致的错误：PG 原始信息常位于 error.cause 链中
-    const causeMsg = err instanceof Error && err.cause instanceof Error ? err.cause.message : '';
-    if (/canceling statement due to user request/i.test(`${errorMessage} ${causeMsg}`)) {
+    const pgMessage = extractQueryErrorMessage(err);
+    errorMessage = pgMessage;
+    if (/canceling statement due to user request/i.test(pgMessage)) {
       throw new HTTPException(400, { message: '查询已取消' });
     }
-    throw new HTTPException(400, { message: `SQL 执行失败：${errorMessage}` });
+    // 兜底：绕过前置白名单的写操作（如 WITH ... DELETE）会被只读事务拒绝，统一给出原因
+    if (/read-only transaction/i.test(pgMessage)) {
+      errorMessage = CONSOLE_READONLY_MESSAGE;
+      throw new HTTPException(400, { message: CONSOLE_READONLY_MESSAGE });
+    }
+    throw new HTTPException(400, { message: `SQL 执行失败：${pgMessage}` });
   } finally {
     if (queryId) runningQueries.delete(queryId);
     const durationMs = Date.now() - start;

@@ -2,6 +2,47 @@ export function quoteSqlIdent(s: string): string {
   return '"' + s.replaceAll('"', '""') + '"';
 }
 
+/** 去掉 SQL 开头的行注释与块注释，用于识别首个关键字 */
+export function stripLeadingSqlComments(text: string): string {
+  let rest = text;
+  for (;;) {
+    const trimmed = rest.trimStart();
+    if (trimmed.startsWith('--')) {
+      const newline = trimmed.indexOf('\n');
+      if (newline === -1) return '';
+      rest = trimmed.slice(newline + 1);
+      continue;
+    }
+    if (trimmed.startsWith('/*')) {
+      const end = trimmed.indexOf('*/');
+      if (end === -1) return '';
+      rest = trimmed.slice(end + 2);
+      continue;
+    }
+    return trimmed;
+  }
+}
+
+/** 只读语句白名单：SELECT / WITH / EXPLAIN / SHOW / TABLE / VALUES */
+const READONLY_SQL_RE = /^(select|with|explain|show|table|values)\b/i;
+
+/** 判断整段 SQL 是否只含只读查询语句（按分号切分逐条判定，忽略注释、空语句与字符串内的分号） */
+export function isReadOnlySql(text: string): boolean {
+  // 字符串字面量置空，避免 'a;b' 里的分号干扰切分；$$ 块同理
+  const sanitized = text
+    .replace(/'(?:[^']|'')*'/g, "''")
+    .replace(/\$\$[\s\S]*?\$\$/g, '$$$$');
+  const statements = sanitized.split(';');
+  let checkedAny = false;
+  for (const statement of statements) {
+    const effective = stripLeadingSqlComments(statement);
+    if (!effective.trim()) continue;
+    checkedAny = true;
+    if (!READONLY_SQL_RE.test(effective)) return false;
+  }
+  return checkedAny;
+}
+
 function escapeSingleQuote(s: string): string {
   return s.replaceAll("'", "''");
 }
