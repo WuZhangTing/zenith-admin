@@ -8,6 +8,7 @@ import { KeywordSearchToolbar } from '@/components/KeywordSearchToolbar';
 import WorkflowLaunchForm, { type WorkflowLaunchFormHandle } from '@/components/workflow/WorkflowLaunchForm';
 import WorkflowSideSheet from '@/components/workflow/WorkflowSideSheet';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
+import { usePermission } from '@/hooks/usePermission';
 import { useLaunchWorkflowInstance } from '@/hooks/queries/workflow-launch';
 import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
 import { workflowDefinitionKeys } from '@/hooks/queries/workflow-definitions';
@@ -17,6 +18,7 @@ const UNCATEGORIZED = -1;
 export default function WorkflowLaunchpadPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { hasPermission } = usePermission();
   const { categories } = useWorkflowCategories();
   const [keyword, setKeyword] = useState('');
   const [activeKeyword, setActiveKeyword] = useState('');
@@ -144,7 +146,23 @@ export default function WorkflowLaunchpadPage() {
       return <div style={{ textAlign: 'center', padding: 60 }}><Spin /></div>;
     }
     if (grouped.length === 0) {
-      return <Empty title="暂无可发起的流程" description="请联系管理员发布流程定义" style={{ padding: 60 }} />;
+      // 有流程管理权限的用户直接引导去发布，普通成员提示联系管理员
+      const canManage = hasPermission('workflow:definition:create') || hasPermission('workflow:definition:publish');
+      return (
+        <Empty
+          title="暂无可发起的流程"
+          description={canManage ? '发布流程定义后，即可在这里发起' : '请联系管理员发布流程定义'}
+          style={{ padding: 60 }}
+        >
+          {canManage && (
+            <div style={{ textAlign: 'center' }}>
+              <Button theme="solid" type="primary" onClick={() => navigate('/workflow/definitions')}>
+                去流程定义
+              </Button>
+            </div>
+          )}
+        </Empty>
+      );
     }
     return (
       <div style={{ padding: '4px 0 16px' }}>

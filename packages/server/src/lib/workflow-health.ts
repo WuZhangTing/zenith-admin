@@ -134,7 +134,7 @@ export function analyzeWorkflowHealth(
   const structureIssues: WorkflowDefinitionHealthIssue[] = validation.errors.map((e) => issue('critical', e, null));
   const structureScore = validation.valid ? 100 : clamp(100 - structureIssues.length * 15);
   const structureCheck: WorkflowDefinitionHealthCheckItem = {
-    key: 'structure', title: '结构合法性', weight: 0.35, score: structureScore,
+    key: 'structure', title: '结构合法性', weight: 0.30, score: structureScore,
     status: validation.valid ? 'pass' : 'fail',
     summary: validation.valid ? '流程结构合法' : `发现 ${structureIssues.length} 处结构问题`,
     issues: structureIssues,
@@ -169,7 +169,7 @@ export function analyzeWorkflowHealth(
   }
   const approverScore = assigneeNodes.length === 0 ? 100 : clamp((resolvable / assigneeNodes.length) * 100);
   const approverCheck: WorkflowDefinitionHealthCheckItem = {
-    key: 'approver', title: '审批人可解析性', weight: 0.30, score: approverScore,
+    key: 'approver', title: '审批人可解析性', weight: 0.25, score: approverScore,
     status: statusFromIssues(approverIssues),
     summary: assigneeNodes.length === 0 ? '无审批/办理/抄送节点' : `${resolvable}/${assigneeNodes.length} 个审批节点已配齐审批人`,
     issues: approverIssues,
@@ -228,7 +228,7 @@ export function analyzeWorkflowHealth(
   }
   const branchScore = clamp(100 - branchIssues.filter((i) => i.severity === 'critical').length * 30 - branchIssues.filter((i) => i.severity === 'warning').length * 12 - branchIssues.filter((i) => i.severity === 'info').length * 4);
   const branchCheck: WorkflowDefinitionHealthCheckItem = {
-    key: 'branch', title: '分支覆盖', weight: 0.25, score: branchScore,
+    key: 'branch', title: '分支覆盖', weight: 0.20, score: branchScore,
     status: statusFromIssues(branchIssues),
     summary: branchIssues.length === 0 ? '分支覆盖完整，未发现死路/重叠' : `发现 ${branchIssues.length} 处分支问题`,
     issues: branchIssues,

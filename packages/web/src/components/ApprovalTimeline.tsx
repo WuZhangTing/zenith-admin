@@ -5,7 +5,7 @@ import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import { timelineDot } from '@/components/workflow/timeline-dot';
 import { TASK_STATUS_MAP } from '@/components/workflow/workflow-runtime';
 import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
-import { CheckCircle2, Clock, CornerUpLeft, Flag, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
+import { Bot, CheckCircle2, Clock, CornerUpLeft, Flag, Mail, RotateCcw, XCircle, ExternalLink, Copy, Forward, UserCog, Send, type LucideIcon } from 'lucide-react';
 import type { WorkflowTask, WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import type { FlowNodeBrief } from '@/components/workflow/workflow-runtime';
 import { formatDateTime, formatDurationBetween } from '@/utils/date';
@@ -110,10 +110,13 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
         else if (isRejected) StatusIcon = XCircle;
         else if (isRegenerated) StatusIcon = RotateCcw;
 
+        // 系统自动执行的任务（自动通过/拒绝/异常兜底）：无处理人，comment 携带自动原因
+        const isSystemAuto = task.assigneeId == null && !isCc && (isApproved || isRejected || isSkipped);
+
         let actionText: string;
         if (isCc) actionText = isSkipped || isApproved ? '已抄送' : '待抄送';
-        else if (isApproved) actionText = '已同意';
-        else if (isRejected) actionText = '已驳回';
+        else if (isApproved) actionText = isSystemAuto ? '自动通过' : '已同意';
+        else if (isRejected) actionText = isSystemAuto ? '自动拒绝' : '已驳回';
         else if (isSkipped) actionText = '已跳过';
         else actionText = '待处理';
 
@@ -172,6 +175,20 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
 
             {/* 审批人 + 时间 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: task.comment ? 6 : 0 }}>
+              {isSystemAuto ? (
+                <span style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--semi-color-fill-1)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Bot size={12} color="var(--semi-color-text-2)" />
+                </span>
+              ) : (
                 <UserAvatar
                   name={task.assigneeName ?? '?'}
                   avatar={isSkipped ? null : task.assigneeAvatar}
@@ -179,8 +196,9 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
                   size={20}
                   style={isSkipped ? { backgroundColor: 'var(--semi-color-fill-2)', color: 'var(--semi-color-text-2)' } : undefined}
                 />
+              )}
               <Typography.Text size="small" type="tertiary">
-                {task.assigneeName ?? '未指定'}
+                {isSystemAuto ? '系统自动' : (task.assigneeName ?? '未指定')}
               </Typography.Text>
               {task.actionAt && (
                 <Typography.Text size="small" type="quaternary" style={{ marginLeft: 'auto' }}>

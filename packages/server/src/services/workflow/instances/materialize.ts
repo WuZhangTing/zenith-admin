@@ -69,7 +69,7 @@ async function expandTasksToRows(
     return result;
   };
 
-  const pushAutoRow = (task: TaskAction, status: 'approved' | 'rejected') => {
+  const pushAutoRow = (task: TaskAction, status: 'approved' | 'rejected', reason?: string) => {
     rows.push({
       instanceId: ctx.instanceId,
       nodeKey: task.nodeKey,
@@ -77,6 +77,7 @@ async function expandTasksToRows(
       nodeType: task.nodeType,
       assigneeId: null,
       status,
+      comment: reason ?? null,
       actionAt: new Date(),
     });
     if (status === 'approved') autoApprovedNodeKeys.push(task.nodeKey);
@@ -85,7 +86,7 @@ async function expandTasksToRows(
 
   for (const t of tasks) {
     if (t.autoStatus) {
-      pushAutoRow(t, t.autoStatus);
+      pushAutoRow(t, t.autoStatus, t.autoStatus === 'approved' ? '节点配置为自动通过' : '节点配置为自动拒绝');
       continue;
     }
 
@@ -195,12 +196,18 @@ async function expandTasksToRows(
     });
 
     const userIds = await applyAssigneeRuntimeStrategies(t, resolvedUserIds, ctx);
-    if (userIds.length === 0) {
+    if (userIds.ids.length === 0) {
+      // 审批人为空的可解释性留痕：同人跳过 / 去重跳过 / 解析为空，写入自动任务 comment
+      const emptyReason = userIds.emptiedBy === 'sameInitiator'
+        ? '审批人与发起人为同一人，已按规则自动跳过'
+        : userIds.emptiedBy === 'dedup'
+          ? '审批人与前序节点重复，已按去重规则自动跳过'
+          : '审批人解析为空';
       // T3-2 节点级异常处理：审批人解析为空时，优先按本节点 catchAction 兜底
       const nodeCatch = t.nodeConfig.catchAction;
       if (nodeCatch) {
         if (nodeCatch === 'terminate') {
-          pushAutoRow(t, 'rejected');
+          pushAutoRow(t, 'rejected', `${emptyReason}，按异常策略终止流程`);
         } else if (nodeCatch === 'toAdmin') {
           const adminId = await resolveAdminAssigneeId(ctx.executor);
           if (adminId) {
@@ -213,11 +220,11 @@ async function expandTasksToRows(
               status: 'pending' as const,
             });
           } else {
-            pushAutoRow(t, 'rejected');
+            pushAutoRow(t, 'rejected', `${emptyReason}，且无可用管理员接管，自动拒绝`);
           }
         } else {
           // notify：自动通过本节点并继续 + 通知相关人
-          pushAutoRow(t, 'approved');
+          pushAutoRow(t, 'approved', `${emptyReason}，按异常策略自动通过`);
           const adminId = await resolveAdminAssigneeId(ctx.executor);
           const recipients = t.nodeConfig.catchNotifyUserIds && t.nodeConfig.catchNotifyUserIds.length > 0
             ? t.nodeConfig.catchNotifyUserIds
@@ -242,7 +249,7 @@ async function expandTasksToRows(
       if (catchCfg) {
         const action = catchCfg.catchAction ?? 'notify';
         if (action === 'terminate') {
-          pushAutoRow(t, 'rejected');
+          pushAutoRow(t, 'rejected', `${emptyReason}，按异常捕获策略终止流程`);
         } else if (action === 'toAdmin') {
           const adminId = await resolveAdminAssigneeId(ctx.executor);
           if (adminId) {
@@ -255,7 +262,7 @@ async function expandTasksToRows(
               status: 'pending' as const,
             });
           } else {
-            pushAutoRow(t, 'rejected');
+            pushAutoRow(t, 'rejected', `${emptyReason}，且无可用管理员接管，自动拒绝`);
           }
         } else {
           // notify：记录跳过的异常节点 + 继续后续路径 + 通知相关人
@@ -266,6 +273,7 @@ async function expandTasksToRows(
             nodeType: 'catchNode',
             assigneeId: null,
             status: 'skipped' as const,
+            comment: `${emptyReason}，已触发异常捕获（${catchCfg.label}）`,
             actionAt: new Date(),
           });
           autoApprovedNodeKeys.push(catchCfg.key);
@@ -315,22 +323,22 @@ async function expandTasksToRows(
             status: 'pending' as const,
           });
         } else {
-          pushAutoRow(t, 'rejected');
+          pushAutoRow(t, 'rejected', `${emptyReason}，且无可用管理员接管，自动拒绝`);
         }
       } else if (emptyStrategy === 'reject') {
-        pushAutoRow(t, 'rejected');
+        pushAutoRow(t, 'rejected', `${emptyReason}，按空审批人策略自动拒绝`);
       } else {
-        pushAutoRow(t, 'approved');
+        pushAutoRow(t, 'approved', userIds.emptiedBy ? `${emptyReason}，节点自动通过` : `${emptyReason}，按空审批人策略自动通过`);
       }
       continue;
     }
 
-    let effectiveUserIds = userIds;
-    if (rawMethod === 'random' && userIds.length > 1) {
-      effectiveUserIds = [userIds[Math.floor(Math.random() * userIds.length)]];
+    let effectiveUserIds = userIds.ids;
+    if (rawMethod === 'random' && userIds.ids.length > 1) {
+      effectiveUserIds = [userIds.ids[Math.floor(Math.random() * userIds.ids.length)]];
     }
     // 设计态(含 random/auto) → 运行态 4 值的唯一权威转换点
-    const method: WorkflowResolvedApproveMethod = resolveRuntimeApproveMethod(rawMethod, userIds.length);
+    const method: WorkflowResolvedApproveMethod = resolveRuntimeApproveMethod(rawMethod, userIds.ids.length);
     const ratioPct = method === 'ratio'
       ? Math.min(100, Math.max(1, t.nodeConfig.approveRatio ?? 51))
       : null;

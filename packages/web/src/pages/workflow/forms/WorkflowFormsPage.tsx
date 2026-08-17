@@ -82,13 +82,21 @@ export default function WorkflowFormsPage() {
   );
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
-    Toast.success('删除成功');
+    try {
+      await deleteMutation.mutateAsync(id);
+      Toast.success('删除成功');
+    } catch (err) {
+      Toast.error(err instanceof Error ? err.message : '删除失败');
+    }
   };
 
   const handleDuplicate = async (id: number) => {
-    await duplicateMutation.mutateAsync(id);
-    Toast.success('复制成功');
+    try {
+      await duplicateMutation.mutateAsync(id);
+      Toast.success('复制成功');
+    } catch (err) {
+      Toast.error(err instanceof Error ? err.message : '复制失败');
+    }
   };
 
   const columns: ColumnProps<WorkflowForm>[] = [
@@ -161,6 +169,8 @@ export default function WorkflowFormsPage() {
           label: '删除',
           danger: true,
           hidden: !hasPermission('workflow:form:delete'),
+          disabled: (record.usageCount ?? 0) > 0,
+          disabledReason: `该表单正被 ${record.usageCount} 个流程引用，解除引用后才能删除`,
           onClick: () => {
             confirmDelete({
               title: '确定要删除该表单吗？',

@@ -2,7 +2,7 @@
  * 工作流设计器页面 — 钉钉/飞书风格垂直流程设计器
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Button, Divider, Modal, RadioGroup, Radio, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw, Save, Send, Stethoscope, Undo2, Upload } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig, WorkflowDefinitionHealthIssue } from '@zenith/shared/workflow';
@@ -92,6 +92,7 @@ export default function WorkflowDesignerPage({
 }: Readonly<WorkflowDesignerPageProps> = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const isNew = !presetDefinition && id === 'new';
 
   const [definition, setDefinition] = useState<WorkflowDefinition | null>(null);
@@ -111,7 +112,13 @@ export default function WorkflowDesignerPage({
   const [zoom, setZoom] = useState(100);
 
   // 步骤导航：① 基础信息 → ② 表单设计 → ③ 流程设计 → ④ 更多设置
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
+  // 新建首存会 navigate 到 /designer/:id 触发 remount（KeepAlive 按 pathname 分 key），
+  // 通过 location.state.step 恢复保存前所在步骤，避免用户被踢回第 1 步
+  const restoredStep = (() => {
+    const s = (location.state as { step?: number } | null)?.step;
+    return s === 2 || s === 3 || s === 4 ? s : 1;
+  })();
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(restoredStep);
 
   // 表单字段（由所选表单派生，供下游节点配置/条件/权限使用）
   const [localFormFields, setLocalFormFields] = useState<WorkflowFormField[]>([]);
@@ -600,7 +607,7 @@ export default function WorkflowDesignerPage({
     const saved = await saveMutation.mutateAsync({ id: isNew ? null : definitionId, values: payload });
     if (options.showToast !== false) Toast.success('保存成功');
     if (isNew && saved) {
-      navigate(`/workflow/designer/${saved.id}`, { replace: true });
+      navigate(`/workflow/designer/${saved.id}`, { replace: true, state: { step: currentStep } });
     }
     setDefinition(saved);
     // 保存成功后当前状态即已持久化，刷新未保存守卫基线

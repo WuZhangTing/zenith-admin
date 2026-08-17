@@ -73,7 +73,7 @@ export function buildNodeRuntimeMap(tasks: WorkflowTask[]): Map<string, NodeRunt
   for (const [nodeKey, group] of byNode) {
     const sorted = [...group].sort((a, b) => a.id - b.id);
     const approvers = sorted.map(t => ({
-      name: t.assigneeName ?? '未指定',
+      name: t.assigneeName ?? (t.assigneeId == null && (t.status === 'approved' || t.status === 'rejected' || t.status === 'skipped') ? '系统自动' : '未指定'),
       avatar: t.assigneeAvatar,
       status: t.status,
       actionAt: t.actionAt,

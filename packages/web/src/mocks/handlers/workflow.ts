@@ -1169,14 +1169,14 @@ export const workflowHandlers = [
       grade: 'B' as const,
       valid: true,
       checks: [
-        { key: 'structure', title: '结构合法性', status: 'pass', score: 100, weight: 0.35, summary: '流程结构合法', issues: [] },
+        { key: 'structure', title: '结构合法性', status: 'pass', score: 100, weight: 0.30, summary: '流程结构合法', issues: [] },
         {
-          key: 'approver', title: '审批人可解析性', status: 'warn', score: 80, weight: 0.30,
+          key: 'approver', title: '审批人可解析性', status: 'warn', score: 80, weight: 0.25,
           summary: `${approveNodes.length} 个审批节点，1 个为动态来源`,
           issues: [{ severity: 'info', message: '存在审批人为动态来源但未配置空审批人兜底策略的节点', suggestion: '设置 emptyStrategy 避免运行时无人可审', nodeKey: null, nodeName: approveNodes[0]?.data?.label ?? '审批人' }],
         },
         {
-          key: 'branch', title: '分支覆盖', status: gatewayNodes.length > 0 ? 'warn' : 'pass', score: gatewayNodes.length > 0 ? 76 : 100, weight: 0.25,
+          key: 'branch', title: '分支覆盖', status: gatewayNodes.length > 0 ? 'warn' : 'pass', score: gatewayNodes.length > 0 ? 76 : 100, weight: 0.20,
           summary: gatewayNodes.length > 0 ? '发现 1 处分支问题' : '分支覆盖完整，未发现死路/重叠',
           issues: gatewayNodes.length > 0 ? [{ severity: 'warning', message: `网关「${firstGw?.label ?? '条件分支'}」缺少默认分支`, suggestion: '添加一条默认分支兜底，避免所有条件都不满足时流程卡死', nodeKey: firstGw?.key ?? null, nodeName: firstGw?.label ?? '条件分支' }] : [],
         },

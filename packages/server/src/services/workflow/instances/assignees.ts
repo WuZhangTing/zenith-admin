@@ -42,22 +42,34 @@ async function resolveSameInitiatorReplacement(
   return [];
 }
 
+/** 审批人经运行时策略过滤后为空时的原因（用于自动通过任务的可解释性留痕） */
+export type AssigneeEmptiedReason = 'sameInitiator' | 'dedup' | null;
+
+export interface AssigneeRuntimeResult {
+  ids: number[];
+  /** ids 为空时的过滤原因：同发起人跳过 / 审批人去重；解析本身为空时为 null */
+  emptiedBy: AssigneeEmptiedReason;
+}
+
 export async function applyAssigneeRuntimeStrategies(
   task: TaskAction,
   userIds: number[],
   ctx: { instanceId: number; initiatorId: number; executor: DbExecutor; formData?: Record<string, unknown>; settings?: WorkflowFlowData['settings'] },
-): Promise<number[]> {
+): Promise<AssigneeRuntimeResult> {
   let ids = [...new Set(userIds)];
   const dedupMode = resolveApproverDedupMode(ctx.settings);
   // 默认「自动跳过」：审批人解析为发起人本人时不生成自审任务（自批有合规风险），
   // 需要自审的流程在节点上显式配置 selfApprove
   const sameInitiatorStrategy = task.nodeConfig.sameInitiatorStrategy ?? 'autoSkip';
+  let emptiedBy: AssigneeEmptiedReason = null;
 
   if (ids.includes(ctx.initiatorId) && sameInitiatorStrategy !== 'selfApprove') {
     ids = ids.filter((id) => id !== ctx.initiatorId);
+    if (ids.length === 0) emptiedBy = 'sameInitiator';
     if (sameInitiatorStrategy === 'toDirectManager' || sameInitiatorStrategy === 'toDeptHead') {
       const replacements = await resolveSameInitiatorReplacement(task, ctx);
       ids = [...new Set([...ids, ...replacements.filter((id) => id !== ctx.initiatorId)])];
+      if (ids.length > 0) emptiedBy = null;
     }
   }
 
@@ -66,9 +78,10 @@ export async function applyAssigneeRuntimeStrategies(
   if (effectiveDedup !== 'none' && ids.length > 0) {
     const dedupUsers = await collectDedupApprovers(ctx.executor, ctx.instanceId, effectiveDedup);
     ids = ids.filter((id) => !dedupUsers.has(id));
+    if (ids.length === 0) emptiedBy = 'dedup';
   }
 
-  return ids;
+  return { ids, emptiedBy };
 }
 
 /**
