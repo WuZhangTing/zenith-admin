@@ -282,7 +282,8 @@ export async function publishDashboard(
     dashboardId,
     current.tenantId ?? null,
   );
-  await assertDashboardSnapshotEvaluableGlobally(draftSnapshotFromDashboard(current), current.tenantId ?? null);
+  // 发布仅面向登录用户查看（有用户上下文），不要求数据集可全局评估；
+  // 全局评估校验只在真正无用户上下文的场景做：公开分享、嵌入令牌、订阅推送、数据预警
   const snapshot = draftSnapshotFromDashboard(current);
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx.update(reportDashboards).set({

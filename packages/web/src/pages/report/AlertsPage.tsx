@@ -25,7 +25,7 @@ import { useReportDatasetDetail, useEnabledReportDatasets } from '@/hooks/querie
 import { useReportMetricLookup } from '@/hooks/queries/report-metrics';
 import type { CreateReportAlertInput, ReportAlertAggregate, ReportAlertOp, ReportAlertRule, ReportDeliveryRun } from '@zenith/shared/report';
 import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
-import { REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
+import { REPORT_DELIVERY_STATUS_LABELS, REPORT_DELIVERY_TRIGGER_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
 import { switchAlertSource } from './report-platform-utils';
@@ -397,17 +397,24 @@ export default function AlertsPage() {
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Form {...alertModal.formProps}
-            onValueChange={(values) => {
-              const nextDatasetId = values.datasetId ? Number(values.datasetId) : null;
-              if (nextDatasetId !== selectedDatasetId) {
+            onValueChange={(values, changedValues) => {
+              // 只响应本次实际变更的字段；setValue 会同步重入 onValueChange，
+              // 无条件处理会因闭包中的旧 state 造成无限递归（栈溢出崩溃）
+              const changed = (changedValues ?? {}) as Record<string, unknown>;
+              if ('datasetId' in changed) {
+                const nextDatasetId = values.datasetId ? Number(values.datasetId) : null;
                 setSelectedDatasetId(nextDatasetId);
-                alertModal.formApi.current?.setValue('field', undefined);
+                if (values.field !== undefined) alertModal.formApi.current?.setValue('field', undefined);
               }
-              const nextAggregate = (values.aggregate ?? 'sum') as ReportAlertAggregate;
-              setSelectedAggregate(nextAggregate);
-              if (nextAggregate === 'count') alertModal.formApi.current?.setValue('field', undefined);
-              setSelectedChannels(((values.channels ?? []) as Array<'email' | 'inApp' | 'webhook'>));
-              if (typeof values.cron === 'string') setCronExprValue(values.cron);
+              if ('aggregate' in changed) {
+                const nextAggregate = (values.aggregate ?? 'sum') as ReportAlertAggregate;
+                setSelectedAggregate(nextAggregate);
+                if (nextAggregate === 'count' && values.field !== undefined) {
+                  alertModal.formApi.current?.setValue('field', undefined);
+                }
+              }
+              if ('channels' in changed) setSelectedChannels(((values.channels ?? []) as Array<'email' | 'inApp' | 'webhook'>));
+              if ('cron' in changed && typeof values.cron === 'string') setCronExprValue(values.cron);
             }}
           >
             <Row gutter={24}>
@@ -536,7 +543,7 @@ export default function AlertsPage() {
           loading={historyQuery.isFetching}
           dataSource={historyQuery.data?.list ?? []}
           columns={[
-            { title: '类型', dataIndex: 'triggerType', width: 90 },
+            { title: '类型', dataIndex: 'triggerType', width: 90, render: (value: string) => REPORT_DELIVERY_TRIGGER_LABELS[value as keyof typeof REPORT_DELIVERY_TRIGGER_LABELS] ?? value },
             { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={value === 'success' ? 'green' : value === 'failed' ? 'red' : value === 'partial' ? 'orange' : value === 'pending' ? 'blue' : 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
             { title: '值', dataIndex: 'lastValue', width: 80, render: (value: number | null) => value ?? '—' },
             dateTimeColumn('开始时间', 'startedAt'),

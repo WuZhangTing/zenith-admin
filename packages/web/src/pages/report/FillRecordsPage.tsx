@@ -124,7 +124,9 @@ export default function FillRecordsPage() {
     }
     const template = findTemplate(record);
     const entryCode = template?.code ?? `record-${record.templateId}`;
-    navigate(`/report/fill/${encodeURIComponent(entryCode)}?recordId=${record.id}`);
+    navigate(`/report/fill/${encodeURIComponent(entryCode)}?recordId=${record.id}`, {
+      state: { tabTitle: `填报·${template?.name ?? record.templateName ?? entryCode}` },
+    });
   }
 
   async function handleWithdraw(record: ReportFillRecord) {
@@ -554,7 +556,7 @@ export default function FillRecordsPage() {
           const template = templates.find((item) => item.id === Number(values.templateId));
           if (!template) { Toast.error('模板不存在或已下线'); abortSubmit(); }
           setEntryVisible(false);
-          navigate(`/report/fill/${encodeURIComponent(template.code)}`);
+          navigate(`/report/fill/${encodeURIComponent(template.code)}`, { state: { tabTitle: `填报·${template.name}` } });
         }}
       >
         <Form labelPosition="left" labelWidth={90} getFormApi={(api) => { entryFormApi.current = api; }}>

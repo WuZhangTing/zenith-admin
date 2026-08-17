@@ -173,6 +173,15 @@ export function dateFormatHasTime(fmt?: string): boolean {
   return !!fmt && fmt.includes('H');
 }
 
+/**
+ * dateFormat 是否含日部分（d/D）。
+ * 月粒度格式（如 YYYY-MM）应渲染月份面板，否则用户被迫在日历里点具体某天。
+ * 未声明格式时默认按含日处理。
+ */
+export function dateFormatHasDay(fmt?: string): boolean {
+  return !fmt || /d/i.test(fmt);
+}
+
 // 时间格式选项（time 字段）
 export const TIME_FORMAT_OPTIONS = [
   { value: 'HH:mm',    label: '时:分' },

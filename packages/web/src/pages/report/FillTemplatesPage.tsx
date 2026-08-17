@@ -265,7 +265,7 @@ export default function FillTemplatesPage() {
           key: 'entry',
           label: '填报入口',
           hidden: record.status !== 'published' || !hasPermission('report:fill:record:create'),
-          onClick: () => navigate(`/report/fill/${encodeURIComponent(record.code)}`),
+          onClick: () => navigate(`/report/fill/${encodeURIComponent(record.code)}`, { state: { tabTitle: `填报·${record.name}` } }),
         },
         {
           key: 'edit',

@@ -7,7 +7,7 @@ import { Input, TextArea, InputNumber, DatePicker, TimePicker, Select, Cascader,
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import { Paperclip, ImageIcon, PenTool } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
-import { toDateFnsToken, dateFormatHasTime } from '../form-types';
+import { toDateFnsToken, dateFormatHasTime, dateFormatHasDay } from '../form-types';
 
 function optionList(field: WorkflowFormField, max = 4) {
   const items = field.optionItems?.length
@@ -52,7 +52,7 @@ export default function CanvasFieldPreview({ field }: Readonly<{ field: Workflow
         />
       );
     case 'date':
-      return <DatePicker style={w} disabled type={dateFormatHasTime(field.dateFormat) ? 'dateTime' : 'date'} format={toDateFnsToken(field.dateFormat)} placeholder={pickPlaceholder} />;
+      return <DatePicker style={w} disabled type={dateFormatHasTime(field.dateFormat) ? 'dateTime' : dateFormatHasDay(field.dateFormat) ? 'date' : 'month'} format={toDateFnsToken(field.dateFormat)} placeholder={pickPlaceholder} />;
     case 'dateRange':
       return <DatePicker style={w} disabled type={dateFormatHasTime(field.dateFormat) ? 'dateTimeRange' : 'dateRange'} format={toDateFnsToken(field.dateFormat)} />;
     case 'time':

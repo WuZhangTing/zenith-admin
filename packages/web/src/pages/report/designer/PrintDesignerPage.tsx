@@ -147,7 +147,9 @@ export default function PrintDesignerPage() {
   const canSave = hasPermission('report:print:update');
   const { isDark } = useThemeController();
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  // 用 callback ref 存入 state：容器随查询加载状态延迟渲染，普通 ref 不会重跑挂载 effect，
+  // 冷加载（详情/数据集查询未缓存）时 Univer 将永远不初始化
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
   const bundleRef = useRef<UniverBundle | null>(null);
   const univerAPIRef = useRef<UniverBundle['univerAPI'] | null>(null);
   const seededTemplateId = useRef<number | null>(null);
@@ -249,8 +251,7 @@ export default function PrintDesignerPage() {
   }, [datasetId, selectedDatasetDetailQuery.data]);
 
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !workbookSeed) return;
+    if (!containerEl || !workbookSeed) return;
     bundleRef.current?.univer.dispose();
     const bundle = createUniver({
       locale: LocaleType.ZH_CN,
@@ -258,7 +259,7 @@ export default function PrintDesignerPage() {
       locales: { [LocaleType.ZH_CN]: mergeLocales(sheetsCoreZhCN) },
       presets: [
         UniverSheetsCorePreset({
-          container,
+          container: containerEl,
           header: true,
           toolbar: true,
           formulaBar: true,
@@ -279,7 +280,7 @@ export default function PrintDesignerPage() {
         univerAPIRef.current = null;
       }
     };
-  }, [workbookSeed, isDark]);
+  }, [containerEl, workbookSeed, isDark]);
 
   const insertText = useCallback((text: string) => {
     const workbook = univerAPIRef.current?.getActiveWorkbook();
@@ -473,6 +474,11 @@ export default function PrintDesignerPage() {
   async function handlePreview() {
     const saved = await saveTemplate({ toast: false });
     if (!saved) return;
+    // 无参数模板直接生成预览，跳过参数弹窗
+    if ((saved.params ?? []).length === 0) {
+      await handlePreviewSubmit({});
+      return;
+    }
     setPreviewParams(buildReportParamInitialValues(saved.params ?? []));
     setParamDialogVisible(true);
   }
@@ -675,7 +681,7 @@ export default function PrintDesignerPage() {
 
       <div className="report-designer__main">
         <div className="report-designer__canvas" style={{ padding: 0 }}>
-          <div ref={containerRef} style={{ width: '100%', height: '100%', minHeight: 560 }} />
+          <div ref={setContainerEl} style={{ width: '100%', height: '100%', minHeight: 560 }} />
         </div>
 
         {panelVisible && (

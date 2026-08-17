@@ -30,6 +30,11 @@ export function ReportParamDialog({
   const initValues = useMemo(() => buildReportParamInitialValues(params, initialValues), [initialValues, params]);
 
   const handleOk = async () => {
+    // 无参数时不渲染 Form，formApi 为空；直接提交空参数，避免确定按钮点击无响应
+    if (params.length === 0) {
+      await onSubmit({});
+      return;
+    }
     const values = await formApiRef.current?.validate().catch(() => null);
     if (!values) return;
     await onSubmit(normalizeReportParamValues(params, values as Record<string, unknown>));

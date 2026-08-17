@@ -261,7 +261,7 @@ export default function DashboardViewPage() {
       key: 'edit',
       label: '编辑',
       icon: <PencilRuler size={15} />,
-      onClick: () => navigate(`/report/dashboards/${dashboardId}/design`),
+      onClick: () => navigate(`/report/dashboards/${dashboardId}/design`, { state: { tabTitle: `设计·${dashboard?.name ?? dashboardId}` } }),
     }] : []),
   ];
 
@@ -291,7 +291,7 @@ export default function DashboardViewPage() {
             <Button icon={<MessageSquare size={16} />} onClick={openComments}>评论</Button>
           )}
           {hasPermission('report:dashboard:update') && (
-            <Button icon={<PencilRuler size={16} />} onClick={() => navigate(`/report/dashboards/${dashboardId}/design`)}>编辑</Button>
+            <Button icon={<PencilRuler size={16} />} onClick={() => navigate(`/report/dashboards/${dashboardId}/design`, { state: { tabTitle: `设计·${dashboard?.name ?? dashboardId}` } })}>编辑</Button>
           )}
         </div>
       )}

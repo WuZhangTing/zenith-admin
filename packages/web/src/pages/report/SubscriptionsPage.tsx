@@ -25,7 +25,7 @@ import {
 import type { ReportDashboardSubscription, ReportDeliveryRun } from '@zenith/shared/report';
 import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
 import type { NotifyChannel } from '@zenith/shared/messaging';
-import { REPORT_DELIVERY_STATUS_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
+import { REPORT_DELIVERY_STATUS_LABELS, REPORT_DELIVERY_TRIGGER_LABELS, REPORT_MISFIRE_POLICY_OPTIONS } from '@zenith/shared/report';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -108,6 +108,10 @@ export default function SubscriptionsPage() {
   async function handleRun(id: number) {
     await runMutation.mutateAsync(id);
     Toast.success('任务已提交，可在任务中心查看进度');
+    // 推送任务在后台异步执行，稍后刷新列表，让「上次推送 / 最近投递」自动更新
+    window.setTimeout(() => {
+      void queryClient.invalidateQueries({ queryKey: reportSubscriptionKeys.lists });
+    }, 4000);
   }
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync([id]);
@@ -224,7 +228,7 @@ export default function SubscriptionsPage() {
           loading={historyQuery.isFetching}
           dataSource={historyQuery.data?.list ?? []}
           columns={[
-            { title: '触发方式', dataIndex: 'triggerType', width: 90 },
+            { title: '触发方式', dataIndex: 'triggerType', width: 90, render: (value: string) => REPORT_DELIVERY_TRIGGER_LABELS[value as keyof typeof REPORT_DELIVERY_TRIGGER_LABELS] ?? value },
             { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={deliveryStatusColorMap[value] ?? 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
             dateTimeColumn('开始时间', 'startedAt'),
             dateTimeColumn('完成时间', 'completedAt'),

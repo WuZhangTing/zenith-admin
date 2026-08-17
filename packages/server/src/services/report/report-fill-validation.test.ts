@@ -48,6 +48,20 @@ describe('report fill schema validation', () => {
     })).toThrow('未声明字段');
   });
 
+  it('validates month-granularity date fields by their declared dateFormat', () => {
+    const form = schema([
+      { key: 'period', label: '统计月份', type: 'date', dateFormat: 'YYYY-MM', required: true },
+    ]);
+    expect(validateReportFillValues(form, { period: '2026-08' })).toEqual({ period: '2026-08' });
+    expect(() => validateReportFillValues(form, { period: '2026-08-01' })).toThrow('有效月份');
+    expect(() => validateReportFillValues(form, { period: '2026-13' })).toThrow('有效月份');
+    const dayForm = schema([
+      { key: 'day', label: '日期', type: 'date', dateFormat: 'yyyy-MM-dd', required: true },
+    ]);
+    expect(validateReportFillValues(dayForm, { day: '2026-08-01' })).toEqual({ day: '2026-08-01' });
+    expect(() => validateReportFillValues(dayForm, { day: '2026-08' })).toThrow('有效日期');
+  });
+
   it('accepts valid values and returns only the declared shape', () => {
     const form = schema([
       { key: 'name', label: '名称', type: 'text', required: true },

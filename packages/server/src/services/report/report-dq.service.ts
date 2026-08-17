@@ -217,12 +217,14 @@ export function mapReportDqRule(row: DqRuleRow, datasetName?: string | null): Re
   };
 }
 
-export function mapReportDqRun(row: DqRunRow): ReportDqRun {
+export function mapReportDqRun(row: DqRunRow, names?: { ruleName?: string | null; datasetName?: string | null }): ReportDqRun {
   return {
     id: row.id,
     tenantId: row.tenantId ?? null,
     ruleId: row.ruleId,
+    ruleName: names?.ruleName ?? null,
     datasetId: row.datasetId,
+    datasetName: names?.datasetName ?? null,
     status: row.status,
     triggerType: row.triggerType,
     checkedRows: row.checkedRows,
@@ -257,12 +259,14 @@ export function mapReportDqScore(row: DqScoreRow): ReportDqScore {
   };
 }
 
-export function mapReportDqAnomaly(row: DqAnomalyRow): ReportDqAnomaly {
+export function mapReportDqAnomaly(row: DqAnomalyRow, names?: { ruleName?: string | null; datasetName?: string | null }): ReportDqAnomaly {
   return {
     id: row.id,
     tenantId: row.tenantId ?? null,
     datasetId: row.datasetId,
+    datasetName: names?.datasetName ?? null,
     ruleId: row.ruleId ?? null,
+    ruleName: names?.ruleName ?? null,
     runId: row.runId ?? null,
     severity: row.severity,
     title: row.title,
@@ -597,6 +601,24 @@ export async function submitReportDqRuleRun(id: number, input: RunReportDqRuleIn
   }));
 }
 
+/** 批量解析规则/数据集名称，避免列表页只显示裸 ID */
+async function resolveDqNames(rows: Array<{ ruleId?: number | null; datasetId: number }>) {
+  const ruleIds = [...new Set(rows.map((row) => row.ruleId).filter((id): id is number => !!id))];
+  const datasetIds = [...new Set(rows.map((row) => row.datasetId))];
+  const [rules, datasets] = await Promise.all([
+    ruleIds.length
+      ? db.select({ id: reportDqRules.id, name: reportDqRules.name }).from(reportDqRules).where(inArray(reportDqRules.id, ruleIds))
+      : Promise.resolve([]),
+    datasetIds.length
+      ? db.select({ id: reportDatasets.id, name: reportDatasets.name }).from(reportDatasets).where(inArray(reportDatasets.id, datasetIds))
+      : Promise.resolve([]),
+  ]);
+  return {
+    ruleNames: new Map(rules.map((item) => [item.id, item.name])),
+    datasetNames: new Map(datasets.map((item) => [item.id, item.name])),
+  };
+}
+
 export async function listReportDqRuns(query: {
   page?: number;
   pageSize?: number;
@@ -627,7 +649,14 @@ export async function listReportDqRuns(query: {
     db.select().from(reportDqRuns).where(where).orderBy(desc(reportDqRuns.id))
       .limit(pageSize).offset(pageOffset(page, pageSize)),
   ]);
-  return { list: rows.map(mapReportDqRun), total, page, pageSize };
+  const { ruleNames, datasetNames } = await resolveDqNames(rows);
+  return {
+    list: rows.map((row) => mapReportDqRun(row, {
+      ruleName: ruleNames.get(row.ruleId) ?? null,
+      datasetName: datasetNames.get(row.datasetId) ?? null,
+    })),
+    total, page, pageSize,
+  };
 }
 
 export async function listReportDqScores(datasetId: number, page = 1, pageSize = 30) {
@@ -675,7 +704,14 @@ export async function listReportDqAnomalies(query: {
     db.select().from(reportDqAnomalies).where(where).orderBy(desc(reportDqAnomalies.id))
       .limit(pageSize).offset(pageOffset(page, pageSize)),
   ]);
-  return { list: rows.map(mapReportDqAnomaly), total, page, pageSize };
+  const { ruleNames, datasetNames } = await resolveDqNames(rows);
+  return {
+    list: rows.map((row) => mapReportDqAnomaly(row, {
+      ruleName: row.ruleId ? ruleNames.get(row.ruleId) ?? null : null,
+      datasetName: datasetNames.get(row.datasetId) ?? null,
+    })),
+    total, page, pageSize,
+  };
 }
 
 export async function updateReportDqAnomalyStatus(

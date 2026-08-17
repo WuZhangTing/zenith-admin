@@ -173,10 +173,17 @@ function assertNumberValue(field: WorkflowFormField, value: unknown): asserts va
 }
 
 function assertDateValue(field: WorkflowFormField, value: unknown) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}:\d{2})?$/.test(value) || !dayjs(value).isValid()) {
+  // 校验粒度跟随字段声明的 dateFormat：无日 token（如 YYYY-MM / yyyy-MM）的月粒度
+  // 字段接受 YYYY-MM，其余仍要求完整日期（可带时间）
+  const monthOnly = !!field.dateFormat && !/d/i.test(field.dateFormat);
+  if (monthOnly) {
+    if (typeof value !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+      fail(`字段「${field.label}」必须是有效月份（YYYY-MM）`);
+    }
+  } else if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2}(?::\d{2})?)?$/.test(value) || !dayjs(value).isValid()) {
     fail(`字段「${field.label}」必须是有效日期`);
   }
-  const date = dayjs(value);
+  const date = dayjs(value as string);
   if (field.dateLimit === 'noPast' && date.isBefore(dayjs().startOf('day'))) fail(`字段「${field.label}」不能选择过去日期`);
   if (field.dateLimit === 'noFuture' && date.isAfter(dayjs().endOf('day'))) fail(`字段「${field.label}」不能选择未来日期`);
   if (field.dateLimit === 'custom' && field.minDate && date.isBefore(dayjs(field.minDate).startOf('day'))) {

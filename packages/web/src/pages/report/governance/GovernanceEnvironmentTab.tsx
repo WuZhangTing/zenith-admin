@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Banner, Button, Col, Empty, Form, Row, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportEnvironment, ReportEnvironmentPromotion, ReportPromotionStatus, ReportResourceType } from '@zenith/shared/report';
+import { REPORT_PROMOTION_STATUS_LABELS } from '@zenith/shared/report';
 import { Rocket } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -108,7 +109,7 @@ export default function GovernanceEnvironmentTab() {
     { title: '访问地址', dataIndex: 'baseUrl', width: 240, render: (v) => v || '—' },
     { title: '默认环境', dataIndex: 'isDefault', width: 100, render: (v) => v ? <Tag color="blue">默认</Tag> : '—' },
     dateTimeColumn('更新时间', 'updatedAt'),
-    { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportEnvironment>({
       width: 150,
       desktopInlineKeys: ['edit'],
@@ -132,7 +133,7 @@ export default function GovernanceEnvironmentTab() {
     { title: '来源修订', dataIndex: 'sourceRevision', width: 100 },
     dateTimeColumn('开始时间', 'startedAt'),
     { title: '错误', dataIndex: 'errorMessage', width: 220, render: (v) => v || '—' },
-    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportPromotionStatus) => <Tag color={promotionStatusColor[v]}>{v}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportPromotionStatus) => <Tag color={promotionStatusColor[v]}>{REPORT_PROMOTION_STATUS_LABELS[v] ?? v}</Tag> },
     createOperationColumn<ReportEnvironmentPromotion>({
       width: 120,
       desktopInlineKeys: ['deploy'],

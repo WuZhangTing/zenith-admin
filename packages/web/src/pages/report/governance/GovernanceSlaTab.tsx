@@ -57,6 +57,7 @@ export default function GovernanceSlaTab() {
 
   const datasetsQuery = useEnabledReportDatasets();
   const datasetOptions = (datasetsQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }));
+  const datasetNameMap = new Map(datasetOptions.map((item) => [item.value, item.label]));
   const rulesQuery = useReportSlaRuleList({ page, pageSize, datasetId, type });
   const violationsQuery = useReportSlaViolationList({ page, pageSize, datasetId, status: violationStatus });
   const saveMutation = useSaveReportSlaRule();
@@ -104,7 +105,7 @@ export default function GovernanceSlaTab() {
 
   const ruleColumns: ColumnProps<ReportSlaRule>[] = [
     { title: '规则名称', dataIndex: 'name', width: 190 },
-    { title: '数据集 ID', dataIndex: 'datasetId', width: 110 },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number) => datasetNameMap.get(v) ?? `#${v}` },
     { title: '类型', dataIndex: 'type', width: 150, render: (v) => slaTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '目标/预警', width: 130, render: (_v, r) => `${r.targetValue} / ${r.warningValue ?? '—'}` },
     { title: '窗口', dataIndex: 'windowMinutes', width: 100, render: (v) => `${v} 分钟` },
@@ -132,12 +133,12 @@ export default function GovernanceSlaTab() {
   ];
   const violationColumns: ColumnProps<ReportSlaViolation>[] = [
     { title: '规则 ID', dataIndex: 'ruleId', width: 100 },
-    { title: '数据集 ID', dataIndex: 'datasetId', width: 110 },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number) => datasetNameMap.get(v) ?? `#${v}` },
     { title: '观测/目标', width: 130, render: (_v, r) => `${r.observedValue} / ${r.targetValue}` },
     dateTimeColumn('窗口开始', 'windowStartedAt'),
     dateTimeColumn('窗口结束', 'windowEndedAt'),
     { title: '详情', dataIndex: 'detail', width: 230, render: (v) => v || '—' },
-    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v) => <Tag color={v === 'open' ? 'red' : v === 'resolved' ? 'green' : 'orange'}>{v}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportSlaViolationStatus) => <Tag color={v === 'open' ? 'red' : v === 'resolved' ? 'green' : 'orange'}>{v === 'open' ? '未处理' : v === 'resolved' ? '已解决' : '已确认'}</Tag> },
     createOperationColumn<ReportSlaViolation>({
       width: 150,
       actions: (record) => [

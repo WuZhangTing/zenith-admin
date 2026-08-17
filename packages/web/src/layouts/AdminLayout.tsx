@@ -389,8 +389,12 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
       // 优先级：导航 state > 页面 setTabMeta 暂存 > resolveTitle 兜底
       const navState = location.state as { tabTitle?: string; tabIcon?: string } | null;
       addTab(location.pathname, navState?.tabTitle, navState?.tabIcon, resolveTitle(location.pathname));
+      // addTab 对已存在的页签只激活不改标题；带 state 再次进入时刷新标题/图标
+      if (navState?.tabTitle || navState?.tabIcon) {
+        setTabMeta(location.pathname, { title: navState.tabTitle, icon: navState.tabIcon });
+      }
     }
-  }, [location.pathname, location.state, preferences.enableTabs, resolveTitle, addTab]);
+  }, [location.pathname, location.state, preferences.enableTabs, resolveTitle, addTab, setTabMeta]);
 
   const tabsMetaValue = useMemo(
     () => ({ enabled: !!preferences.enableTabs, setTabMeta, closeTab: removeTab }),

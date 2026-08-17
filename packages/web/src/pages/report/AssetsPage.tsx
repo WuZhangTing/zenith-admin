@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Col, Empty, Form, Input, Modal, Row, Select, SideSheet, Space, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportAssetCatalogItem, ReportAssetTemplate, ReportAssetTemplateType, ReportAssetUsageSummary, ReportAssetUsageTrendPoint, ReportDeprecationNotice, ReportResourceType } from '@zenith/shared/report';
+import { REPORT_DASHBOARD_LIFECYCLE_LABELS } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -200,11 +201,13 @@ export default function AssetsPage() {
     { title: '类型', dataIndex: 'resourceType', width: 130, render: (v) => resourceTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '负责人', dataIndex: 'ownerName', width: 130, render: (v) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 150, render: (v) => v || '—' },
-    { title: '生命周期', dataIndex: 'lifecycleStatus', width: 110, render: (v) => v ? <Tag>{v}</Tag> : '—' },
+    { title: '生命周期', dataIndex: 'lifecycleStatus', width: 110, render: (v: string | null) => v ? <Tag>{REPORT_DASHBOARD_LIFECYCLE_LABELS[v as keyof typeof REPORT_DASHBOARD_LIFECYCLE_LABELS] ?? v}</Tag> : '—' },
     dateTimeColumn('更新时间', 'updatedAt'),
     {
       title: '状态', dataIndex: 'status', width: 100, fixed: 'right',
-      render: (v, r) => r.deprecationEffectiveAt ? <Tag color="orange">即将弃用</Tag> : <Tag>{v || '正常'}</Tag>,
+      render: (v: string | null, r) => r.deprecationEffectiveAt
+        ? <Tag color="orange">即将弃用</Tag>
+        : <Tag color={v === 'enabled' ? 'green' : v === 'disabled' ? 'grey' : undefined}>{v === 'enabled' ? '启用' : v === 'disabled' ? '停用' : v || '正常'}</Tag>,
     },
     createOperationColumn<ReportAssetCatalogItem>({
       width: 140,
@@ -311,7 +314,7 @@ export default function AssetsPage() {
               <Select multiple placeholder="资产类型" value={catalogDraft.types} optionList={resourceTypeOptions} style={{ width: 210 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, types: value as ReportResourceType[] }))} />
               <Select filter showClear placeholder="负责人" value={catalogDraft.ownerId} optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} style={{ width: 150 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, ownerId: value as number | undefined }))} />
               <Select filter showClear placeholder="目录" value={catalogDraft.folderId} optionList={folders.map((f) => ({ value: f.id, label: `[${f.resourceType}] ${f.name}` }))} style={{ width: 180 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, folderId: value as number | undefined }))} />
-              <Select showClear placeholder="生命周期" value={catalogDraft.lifecycle || undefined} optionList={['draft', 'published', 'deprecated'].map((value) => ({ value, label: value }))} style={{ width: 140 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, lifecycle: (value as string) ?? '' }))} />
+              <Select showClear placeholder="生命周期" value={catalogDraft.lifecycle || undefined} optionList={['draft', 'published', 'deprecated'].map((value) => ({ value, label: value === 'deprecated' ? '已弃用' : REPORT_DASHBOARD_LIFECYCLE_LABELS[value as keyof typeof REPORT_DASHBOARD_LIFECYCLE_LABELS] ?? value }))} style={{ width: 140 }} onChange={(value) => setCatalogDraft((p) => ({ ...p, lifecycle: (value as string) ?? '' }))} />
               <DateRangeFilter value={catalogDraft.timeRange ?? undefined} onChange={(value) => setCatalogDraft((p) => ({ ...p, timeRange: value ? value as [Date, Date] : null }))} width={340} />
             </>}
             actions={<ExportButton entity="report.assets" query={catalogQueryParams} />}

@@ -46,6 +46,7 @@ import {
 import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
+import { REPORT_DQ_ANOMALY_STATUS_LABELS, REPORT_DQ_ANOMALY_STATUS_OPTIONS, REPORT_DQ_TRIGGER_LABELS } from '@zenith/shared/report';
 import {
   dqRunStatusLabel,
   dqTaskSubmissionMessage,
@@ -217,9 +218,9 @@ export default function QualityPage() {
     }),
   ];
   const runColumns: ColumnProps<ReportDqRun>[] = [
-    { title: '规则 ID', dataIndex: 'ruleId', width: 100 },
-    { title: '数据集 ID', dataIndex: 'datasetId', width: 110 },
-    { title: '触发方式', dataIndex: 'triggerType', width: 110 },
+    { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number, r) => r.ruleName || `#${v}` },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => r.datasetName || `#${v}` },
+    { title: '触发方式', dataIndex: 'triggerType', width: 110, render: (v: ReportDqRun['triggerType']) => REPORT_DQ_TRIGGER_LABELS[v] ?? v },
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
     { title: '通过率', dataIndex: 'passRate', width: 110, render: (v) => formatDqPassRate(v) },
     { title: '耗时', dataIndex: 'durationMs', width: 100, render: (v) => v == null ? '—' : `${v}ms` },
@@ -228,12 +229,12 @@ export default function QualityPage() {
   ];
   const anomalyColumns: ColumnProps<ReportDqAnomaly>[] = [
     { title: '异常', dataIndex: 'title', width: 230, render: renderEllipsis },
-    { title: '数据集 ID', dataIndex: 'datasetId', width: 110 },
-    { title: '规则 ID', dataIndex: 'ruleId', width: 100, render: (v) => v || '—' },
-    { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqAnomaly['severity']) => <Tag color={severityColor[v]}>{v}</Tag> },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => r.datasetName || `#${v}` },
+    { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number | null, r) => (v ? r.ruleName || `#${v}` : '—') },
+    { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqAnomaly['severity']) => <Tag color={severityColor[v]}>{severityOptions.find((item) => item.value === v)?.label ?? v}</Tag> },
     { title: '详情', dataIndex: 'detail', width: 260, render: renderEllipsis },
     dateTimeColumn('发现时间', 'createdAt'),
-    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v) => <Tag>{v}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportDqAnomalyStatus) => <Tag>{REPORT_DQ_ANOMALY_STATUS_LABELS[v] ?? v}</Tag> },
     createOperationColumn<ReportDqAnomaly>({
       width: 150,
       actions: (record) => [
@@ -255,11 +256,33 @@ export default function QualityPage() {
     { title: '规则总数', dataIndex: 'totalRules', width: 100 },
     { title: '通过', dataIndex: 'passedRules', width: 90 },
     { title: '失败', dataIndex: 'failedRules', width: 90 },
-    { title: '维度明细', dataIndex: 'dimensions', width: 260, render: (v) => JSON.stringify(v) },
+    { title: '维度明细', dataIndex: 'dimensions', width: 260, render: (v: Record<string, number> | null) => {
+      if (!v || Object.keys(v).length === 0) return '—';
+      return (
+        <Space spacing={4}>
+          {severityOptions.filter((item) => v[item.value] !== undefined).map((item) => (
+            <Tag key={item.value} size="small" color={severityColor[item.value as keyof typeof severityColor]}>
+              {item.label} {v[item.value]}
+            </Tag>
+          ))}
+        </Space>
+      );
+    } },
     dateTimeColumn('测量时间', 'measuredAt'),
   ];
 
-  const datasetFilter = <Select placeholder="选择数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 190 }} onChange={(v) => setDatasetId(v as number | undefined)} />;
+  const datasetFilter = (
+    <Select placeholder="选择数据集" filter showClear value={datasetId} optionList={datasetOptions} style={{ width: 190 }}
+      onChange={(v) => {
+        const next = v as number | undefined;
+        setDatasetId(next);
+        // 评分 Tab 选中数据集即自动查询，无需再点「查询」
+        if (activeTab === 'scores') {
+          setPage(1);
+          setSubmitted((prev) => ({ ...prev, datasetId: next }));
+        }
+      }} />
+  );
   const searchButtons = <><SearchButton onClick={applySearch} /><ResetButton onClick={resetSearch} /></>;
   const commonToolbar = (extraFilters?: React.ReactNode, actions?: React.ReactNode) => (
     <SearchToolbar
@@ -300,13 +323,13 @@ export default function QualityPage() {
           <ConfigurableTable bordered rowKey="id" columns={scoreColumns} dataSource={scoresQuery.data?.list ?? []} loading={scoresQuery.isFetching} empty={<Empty title="暂无评分历史" />} pagination={buildPagination(scoresQuery.data?.total ?? 0)} onRefresh={() => void scoresQuery.refetch()} refreshLoading={scoresQuery.isFetching} />
         </TabPane>
         <TabPane tab="质量异常" itemKey="anomalies">
-          {commonToolbar(<Select placeholder="异常状态" showClear value={anomalyStatus} optionList={['open', 'acknowledged', 'resolved', 'ignored'].map((v) => ({ value: v, label: v }))} style={{ width: 150 }} onChange={(v) => setAnomalyStatus(v as ReportDqAnomalyStatus | undefined)} />)}
+          {commonToolbar(<Select placeholder="异常状态" showClear value={anomalyStatus} optionList={REPORT_DQ_ANOMALY_STATUS_OPTIONS} style={{ width: 150 }} onChange={(v) => setAnomalyStatus(v as ReportDqAnomalyStatus | undefined)} />)}
           {anomaliesQuery.isError && <Banner type="danger" description="质量异常加载失败" />}
           <ConfigurableTable bordered rowKey="id" columns={anomalyColumns} dataSource={anomaliesQuery.data?.list ?? []} loading={anomaliesQuery.isFetching} empty={<Empty title="暂无质量异常" />} pagination={buildPagination(anomaliesQuery.data?.total ?? 0)} onRefresh={() => void anomaliesQuery.refetch()} refreshLoading={anomaliesQuery.isFetching} />
         </TabPane>
         <TabPane tab="运行历史" itemKey="runs">
           {commonToolbar(
-            <Select placeholder="运行状态" showClear value={runStatus} optionList={['pending', 'running', 'succeeded', 'failed', 'cancelled'].map((v) => ({ value: v, label: v }))} style={{ width: 140 }} onChange={(v) => setRunStatus(v as ReportDqRunStatus | undefined)} />,
+            <Select placeholder="运行状态" showClear value={runStatus} optionList={['pending', 'running', 'succeeded', 'failed', 'cancelled'].map((v) => ({ value: v, label: dqRunStatusLabel(v as ReportDqRunStatus) }))} style={{ width: 140 }} onChange={(v) => setRunStatus(v as ReportDqRunStatus | undefined)} />,
             <ExportButton entity="report.dq-runs" query={{ datasetId: submitted.datasetId, status: submitted.runStatus }} />,
           )}
           {runsQuery.isError && <Banner type="danger" description="运行历史加载失败" />}

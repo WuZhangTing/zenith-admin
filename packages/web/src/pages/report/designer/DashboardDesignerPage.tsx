@@ -356,7 +356,13 @@ export default function DashboardDesignerPage() {
           ? <Button icon={<Settings2 size={16} />} disabled={!canSave} onClick={() => setScreenModal(true)}>大屏设置</Button>
           : <Select value={doc.config.theme ?? 'light'} style={{ width: 100 }} disabled={!canSave} onChange={(v) => mutate((d) => ({ ...d, config: { ...d.config, theme: v as 'light' | 'dark' } }))}
               optionList={[{ value: 'light', label: '浅色' }, { value: 'dark', label: '深色' }]} />}
-        {dirty ? <Typography.Text type="warning">草稿未保存</Typography.Text> : <Typography.Text type="tertiary">r{revision}</Typography.Text>}
+        {dirty
+          ? <Typography.Text type="warning">草稿未保存</Typography.Text>
+          : (
+            <Tooltip content={`草稿修订版本 r${revision}，每次保存自动递增`}>
+              <Typography.Text type="tertiary">已保存 · r{revision}</Typography.Text>
+            </Tooltip>
+          )}
         <div style={{ flex: 1 }} />
         <Button icon={<Eye size={16} />} onClick={() => confirmNavigate(`/report/dashboards/${dashboardId}/view?mode=draft`)}>预览</Button>
         <Button type="primary" icon={<Save size={16} />} loading={saveMutation.isPending} disabled={!canSave} onClick={() => void handleSave()}>保存</Button>

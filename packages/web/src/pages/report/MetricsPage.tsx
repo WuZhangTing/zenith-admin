@@ -21,7 +21,7 @@ import {
   useReportMetricRefs,
   useSaveReportMetric,
 } from '@/hooks/queries/report-metrics';
-import { useEnabledReportDatasets } from '@/hooks/queries/report-datasets';
+import { useEnabledReportDatasets, useReportDatasetDetail } from '@/hooks/queries/report-datasets';
 import { useAllUsers } from '@/hooks/queries/users';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { isRevisionConflict, metricLifecyclePayload, normalizeMetricFormValues } from './report-platform-utils';
@@ -83,6 +83,13 @@ export default function MetricsPage() {
   const folders = flattenReportFolders(foldersQuery.data ?? []);
   const users = usersQuery.data ?? [];
   const datasets = datasetsQuery.data ?? [];
+  // 表单内选中的数据集：用其字段渲染 来源/维度/时间字段 下拉，避免手输字段名拼错
+  const [formDatasetId, setFormDatasetId] = useState<number | undefined>();
+  const formDatasetDetailQuery = useReportDatasetDetail(formDatasetId, !!formDatasetId);
+  const formFieldOptions = (formDatasetDetailQuery.data?.fields ?? []).map((field) => ({
+    value: field.name,
+    label: field.label ? `${field.label}（${field.name}）` : field.name,
+  }));
 
   const handleSearch = () => {
     setPage(1);
@@ -115,11 +122,11 @@ export default function MetricsPage() {
     entityName: '指标',
     save: metricSave,
     useDetail: useReportMetricDetail,
-    defaults: { type: 'simple', aggregate: 'sum', dimensions: '' },
+    defaults: { type: 'simple', aggregate: 'sum', dimensions: [] },
     labelWidth: 92,
     toValues: (record) => ({
       ...record,
-      dimensions: record.dimensions.join(', '),
+      dimensions: record.dimensions,
     }),
     beforeSave: (values, { editing }) => normalizeMetricFormValues(values, editing),
     successMessage: ({ isEdit }) => isEdit ? '指标已更新' : '指标已创建',
@@ -127,10 +134,12 @@ export default function MetricsPage() {
   const detailQuery = useReportMetricDetail(metricModal.editing?.id, metricModal.visible && metricModal.isEdit);
   const openCreate = () => {
     setConflict('');
+    setFormDatasetId(undefined);
     metricModal.openCreate();
   };
   const openEdit = (record: ReportMetric) => {
     setConflict('');
+    setFormDatasetId(record.datasetId ?? undefined);
     metricModal.openEdit(record);
   };
 
@@ -260,16 +269,21 @@ export default function MetricsPage() {
             </Banner>
           )}
           {detailQuery.isError && <Banner type="danger" description="指标详情加载失败，请关闭后重试" />}
-          <Form {...metricModal.formProps}>
+          <Form {...metricModal.formProps}
+            onValueChange={(_values, changedValues) => {
+              const changed = (changedValues ?? {}) as Record<string, unknown>;
+              if ('datasetId' in changed) setFormDatasetId(changed.datasetId ? Number(changed.datasetId) : undefined);
+            }}
+          >
             <Row gutter={16}>
               <Col xs={24} md={12}><Form.Input field="name" label="指标名称" rules={[{ required: true, message: '请输入指标名称' }]} /></Col>
               <Col xs={24} md={12}><Form.Input field="code" label="指标编码" disabled={metricModal.isEdit} rules={[{ required: true, message: '请输入指标编码' }]} /></Col>
               <Col xs={24} md={12}><Form.Select field="type" label="指标类型" style={{ width: '100%' }} optionList={typeOptions} rules={[{ required: true }]} /></Col>
               <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasets.map((item) => ({ value: item.id, label: item.name }))} rules={[{ required: true, message: '请选择数据集' }]} /></Col>
-              <Col xs={24} md={12}><Form.Input field="sourceField" label="来源字段" placeholder="简单指标必填" /></Col>
+              <Col xs={24} md={12}><Form.Select field="sourceField" label="来源字段" placeholder="简单指标必填" filter allowCreate showClear style={{ width: '100%' }} optionList={formFieldOptions} /></Col>
               <Col xs={24} md={12}><Form.Select field="aggregate" label="聚合方式" style={{ width: '100%' }} optionList={['sum', 'avg', 'max', 'min', 'count', 'distinct_count'].map((value) => ({ value, label: value }))} showClear /></Col>
-              <Col xs={24} md={12}><Form.Input field="dimensions" label="维度字段" placeholder="逗号分隔" /></Col>
-              <Col xs={24} md={12}><Form.Input field="timeField" label="时间字段" /></Col>
+              <Col xs={24} md={12}><Form.Select field="dimensions" label="维度字段" multiple filter allowCreate showClear style={{ width: '100%' }} optionList={formFieldOptions} /></Col>
+              <Col xs={24} md={12}><Form.Select field="timeField" label="时间字段" filter allowCreate showClear style={{ width: '100%' }} optionList={formFieldOptions} /></Col>
               <Col xs={24} md={12}><Form.Input field="unit" label="单位" /></Col>
               <Col xs={24} md={12}><Form.Input field="format" label="显示格式" placeholder="如 0,0.00" /></Col>
               <Col xs={24} md={12}><Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }} optionList={users.map((item) => ({ value: item.id, label: item.nickname || item.username }))} /></Col>
@@ -301,7 +315,7 @@ export default function MetricsPage() {
             {evaluateMutation.isError && <Banner type="danger" description={evaluateMutation.error instanceof Error ? evaluateMutation.error.message : '计算失败'} />}
             {evaluateMutation.data && (
               <>
-                <Typography.Title heading={2}>{evaluateMutation.data.formattedValue}{evaluateMutation.data.unit ?? ''}</Typography.Title>
+                <Typography.Title heading={2}>{evaluateMutation.data.formattedValue}</Typography.Title>
                 <Typography.Text type="tertiary">耗时 {evaluateMutation.data.durationMs}ms · {evaluateMutation.data.cacheHit ? '命中缓存' : '实时计算'}</Typography.Text>
               </>
             )}

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Input, Select, Button, Space, Typography, Empty, TextArea } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import AppModal from '@/components/AppModal';
@@ -20,25 +21,36 @@ const TYPES = [
 function genId() { return `f_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`; }
 
 export function FilterConfigModal({ visible, filters, datasets, onChange, onClose }: Readonly<Props>) {
+  // 在本地副本上编辑：点「完成」才提交给设计器，「取消」丢弃全部改动
+  const [draft, setDraft] = useState<ReportFilter[]>(filters);
+  useEffect(() => {
+    if (visible) setDraft(filters);
+  }, [visible, filters]);
+
   function patch(i: number, p: Partial<ReportFilter>) {
-    const list = [...filters];
-    list[i] = { ...list[i], ...p };
-    onChange(list);
+    setDraft((prev) => prev.map((item, j) => (j === i ? { ...item, ...p } : item)));
   }
   function patchSource(i: number, p: Partial<NonNullable<ReportFilter['optionSource']>>) {
-    const cur = filters[i].optionSource ?? { kind: 'static' as const };
-    patch(i, { optionSource: { ...cur, ...p } });
+    setDraft((prev) => prev.map((item, j) => {
+      if (j !== i) return item;
+      const cur = item.optionSource ?? { kind: 'static' as const };
+      return { ...item, optionSource: { ...cur, ...p } };
+    }));
   }
   function add() {
-    onChange([...filters, { id: genId(), label: '新筛选器', type: 'select', optionSource: { kind: 'static', options: [] } }]);
+    setDraft((prev) => [...prev, { id: genId(), label: '新筛选器', type: 'select', optionSource: { kind: 'static', options: [] } }]);
   }
-  function remove(i: number) { onChange(filters.filter((_, j) => j !== i)); }
+  function remove(i: number) { setDraft((prev) => prev.filter((_, j) => j !== i)); }
+  function handleOk() {
+    onChange(draft);
+    onClose();
+  }
 
   return (
-    <AppModal title="全局筛选器" visible={visible} onCancel={onClose} onOk={onClose} okText="完成" width={720} fullscreenable={false}>
+    <AppModal title="全局筛选器" visible={visible} onCancel={onClose} onOk={handleOk} okText="完成" width={720} fullscreenable={false}>
       <Space vertical align="start" style={{ width: '100%' }}>
-        {filters.length === 0 && <Empty description="还没有筛选器，点击下方添加" style={{ padding: '16px 0' }} />}
-        {filters.map((f, i) => {
+        {draft.length === 0 && <Empty description="还没有筛选器，点击下方添加" style={{ padding: '16px 0' }} />}
+        {draft.map((f, i) => {
           const isSelect = f.type === 'select' || f.type === 'multiSelect';
           const src = f.optionSource;
           return (

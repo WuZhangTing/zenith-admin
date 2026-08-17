@@ -103,7 +103,7 @@ function StructuredAnswer({
   return (
     <div className="chatbi-answer">
       <MarkdownPreviewPanel content={message.content} style={{ height: 'auto', overflow: 'visible' }} />
-      {message.errorMessage && (
+      {message.errorMessage && message.errorMessage !== message.content.trim() && (
         <Banner type="danger" closeIcon={null} description={message.errorMessage} />
       )}
       {message.generatedSql && (
@@ -429,7 +429,9 @@ export default function ChatBiPage() {
             <Typography.Text strong>{detail?.session.title}</Typography.Text>
             <div className="chatbi-detail__context">
               {detail?.session.contextSnapshot.datasourceName}
-              {detail?.session.datasetId ? ` · 数据集 #${detail.session.datasetId}` : ''}
+              {detail?.session.datasetId
+                ? ` · 数据集 ${detail.session.contextSnapshot.tables[0]?.name ?? `#${detail.session.datasetId}`}`
+                : ''}
             </div>
           </div>
         </MasterDetailLayout.Header>

@@ -15,6 +15,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { invalidateExternalDatasourcePools, testExternalConnection } from '../../lib/report-external-db';
+import { httpRequest } from '../../lib/http-client';
 import { assertSafeOutboundHost, assertSafeOutboundUrl } from '../../lib/outbound-url';
 import {
   ensureInternalReportDatabaseAccess,
@@ -408,33 +409,72 @@ export async function cloneDatasource(id: number, input?: { name?: string | null
  * - 已存在数据源（id）：用库内密文凭据测试，前端无需重发密码。
  * - 新建表单试连：用入参 config（明文 password 临时加密后测试）。
  */
+const TESTABLE_TYPE_MESSAGE = '仅外部数据库（MySQL / PostgreSQL / SQL Server）与 API 数据源支持连接测试';
+
+function isTestableType(type: ReportDatasourceType | undefined): type is 'mysql' | 'postgresql' | 'sqlserver' | 'api' {
+  return type === 'api' || (!!type && isExternalDbType(type));
+}
+
+/** API 数据源连通性测试：走统一 http-client（防 SSRF），返回状态与耗时 */
+async function testApiConnection(cfg: ReportApiDatasourceConfig): Promise<{ ok: boolean; message: string; latencyMs?: number }> {
+  const started = Date.now();
+  try {
+    const res = await httpRequest(cfg.url, {
+      method: cfg.method === 'POST' ? 'POST' : 'GET',
+      headers: resolveApiHeaders(cfg.headers),
+      timeout: 10_000,
+      ssrfProtection: true,
+      ssrfAllowlist: appConfig.report.outboundPrivateAllowlist,
+      httpLog: { level: 'off' },
+    });
+    const latencyMs = Date.now() - started;
+    if (!res.ok) return { ok: false, message: `目标返回状态 ${res.status}`, latencyMs };
+    return { ok: true, message: '连接成功', latencyMs };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : '请求失败，请检查 URL 与网络',
+      latencyMs: Date.now() - started,
+    };
+  }
+}
+
 export async function testDatasource(input: ReportDatasourceTestInput): Promise<{ ok: boolean; message: string; latencyMs?: number }> {
   let type = input.type;
-  let cfg: ReportExternalDbConfig;
+  let testType: 'mysql' | 'postgresql' | 'sqlserver' | 'api';
+  let cfg: ReportDatasourceConfig;
   let datasourceId: number | null = null;
   if (input.id) {
     await ensureReportResourceAccess('datasource', input.id, 'editor');
     const row = await ensureDatasourceExists(input.id);
     datasourceId = row.id;
     type ??= row.type;
-    if (!type || !isExternalDbType(type)) {
-      return { ok: false, message: '仅外部数据库（MySQL / PostgreSQL / SQL Server）支持连接测试' };
+    if (!isTestableType(type)) {
+      return { ok: false, message: TESTABLE_TYPE_MESSAGE };
     }
-    const stored = row.config as ReportExternalDbConfig;
-    const draft = { ...stored, ...(input.config ?? {}) } as Record<string, unknown>;
-    const newPwd = input.config && typeof input.config.password === 'string' ? input.config.password : '';
-    if (!newPwd) delete draft.password;
-    cfg = normalizeDatasourceConfig(type, draft, stored) as ReportExternalDbConfig;
+    testType = type;
+    const stored = row.config as ReportDatasourceConfig;
+    const draft = { ...(stored as Record<string, unknown>), ...(input.config ?? {}) };
+    if (isExternalDbType(testType)) {
+      const newPwd = input.config && typeof input.config.password === 'string' ? input.config.password : '';
+      if (!newPwd) delete draft.password;
+    }
+    cfg = normalizeDatasourceConfig(testType, draft, stored);
   } else {
-    if (!type || !isExternalDbType(type)) {
-      return { ok: false, message: '仅外部数据库（MySQL / PostgreSQL / SQL Server）支持连接测试' };
+    if (!isTestableType(type)) {
+      return { ok: false, message: TESTABLE_TYPE_MESSAGE };
     }
-    const normalized = normalizeDatasourceConfig(type, input.config ?? {});
-    cfg = normalized as ReportExternalDbConfig;
+    testType = type;
+    cfg = normalizeDatasourceConfig(testType, input.config ?? {});
   }
-  await assertDatasourceTargetSafe(type, cfg);
-  await invalidateExternalDatasourcePools(type, cfg);
-  const result = await testExternalConnection(type, cfg);
+  await assertDatasourceTargetSafe(testType, cfg);
+  let result: { ok: boolean; message: string; latencyMs?: number };
+  if (testType === 'api') {
+    result = await testApiConnection(cfg as ReportApiDatasourceConfig);
+  } else {
+    await invalidateExternalDatasourcePools(testType, cfg as ReportExternalDbConfig);
+    result = await testExternalConnection(testType, cfg as ReportExternalDbConfig);
+  }
   if (datasourceId) {
     await updateDatasourceHealth(datasourceId, {
       ok: result.ok,

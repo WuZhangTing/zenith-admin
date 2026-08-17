@@ -141,19 +141,36 @@ export default function DataSourcesPage() {
   async function handleTestConnection() {
     const values = datasourceModal.formApi.current?.getValues() as Record<string, unknown> | undefined;
     const type = values?.type as ReportDatasourceType | undefined;
-    if (!values || !isExternalDbType(type)) return;
-    const host = String(values.host ?? '').trim();
-    const database = String(values.database ?? '').trim();
-    const user = String(values.user ?? '').trim();
-    const port = Number(values.port);
-    if (!host || !port || !database || !user) { Toast.warning('请先填写连接信息'); return; }
-    const password = String(values.password ?? '').trim();
+    if (!values || (!isExternalDbType(type) && type !== 'api')) return;
     try {
-      const res = await testConnectionMutation.mutateAsync({
-        id: editing?.id,
-        type,
-        config: { host, port, database, user, ssl: !!values.ssl, ...(password ? { password } : {}) },
-      });
+      let res: { ok: boolean; message: string; latencyMs?: number };
+      if (type === 'api') {
+        const url = String(values.url ?? '').trim();
+        if (!url) { Toast.warning('请先填写 URL'); return; }
+        let headers: Record<string, string> | undefined;
+        const headersText = String(values.headersText ?? '').trim();
+        if (headersText) {
+          try { headers = JSON.parse(headersText) as Record<string, string>; }
+          catch { Toast.warning('请求头不是合法 JSON'); return; }
+        }
+        res = await testConnectionMutation.mutateAsync({
+          id: editing?.id,
+          type,
+          config: { url, method: values.method === 'POST' ? 'POST' : 'GET', ...(headers ? { headers } : {}) },
+        });
+      } else {
+        const host = String(values.host ?? '').trim();
+        const database = String(values.database ?? '').trim();
+        const user = String(values.user ?? '').trim();
+        const port = Number(values.port);
+        if (!host || !port || !database || !user) { Toast.warning('请先填写连接信息'); return; }
+        const password = String(values.password ?? '').trim();
+        res = await testConnectionMutation.mutateAsync({
+          id: editing?.id,
+          type,
+          config: { host, port, database, user, ssl: !!values.ssl, ...(password ? { password } : {}) },
+        });
+      }
       if (res.ok) Toast.success(res.latencyMs != null ? `连接成功（${res.latencyMs}ms）` : '连接成功');
       else Toast.error(res.message || '连接失败');
     } catch (error) {
@@ -225,7 +242,8 @@ export default function DataSourcesPage() {
     },
     {
       title: '健康状态', dataIndex: 'lastTestStatus', width: 90,
-      render: (value: ReportDatasource['lastTestStatus']) => healthTag(value),
+      render: (value: ReportDatasource['lastTestStatus'], record: ReportDatasource) =>
+        record.type === 'static' ? EMPTY_PLACEHOLDER : healthTag(value),
     },
     dateTimeColumn('最近测试', 'lastTestAt'),
     {
@@ -258,7 +276,9 @@ export default function DataSourcesPage() {
       width: 200,
       desktopInlineKeys: ['health', 'edit'],
       actions: (record) => [
-        ...(hasPermission('report:datasource:update') ? [{ key: 'health', label: '检测', onClick: () => void handleHealthCheck([record.id], record.name) }] : []),
+        // 静态数据源是纯容器，无连接可测，不提供「检测」
+        ...(hasPermission('report:datasource:update') && record.type !== 'static'
+          ? [{ key: 'health', label: '检测', onClick: () => void handleHealthCheck([record.id], record.name) }] : []),
         ...(hasPermission('report:datasource:update') ? [{ key: 'edit', label: '编辑', onClick: () => datasourceModal.openEdit(record) }] : []),
         { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=datasource&resourceId=${record.id}`) },
         ...(hasPermission('report:datasource:create') ? [{ key: 'clone', label: '复制', onClick: () => void handleClone(record) }] : []),
@@ -371,6 +391,9 @@ export default function DataSourcesPage() {
                     </Col>
                   </Row>
                   <Form.TextArea field="headersText" label="请求头" placeholder={'选填，JSON 键值，如：\n{ "Authorization": "Bearer xxx" }'} autosize={{ minRows: 2, maxRows: 5 }} />
+                  <Form.Slot label=" ">
+                    <Button onClick={handleTestConnection} loading={testConnectionMutation.isPending}>测试连接</Button>
+                  </Form.Slot>
                 </>
               ) : isExternalDbType(values.type) ? (
                 <>

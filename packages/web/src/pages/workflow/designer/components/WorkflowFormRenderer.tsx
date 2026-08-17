@@ -13,7 +13,7 @@ import { Plus, Eraser, Trash2, Copy, ClipboardPaste } from 'lucide-react';
 import dayjs from 'dayjs';
 import type { WorkflowFormField, WorkflowFormFieldColumn, WorkflowFormFieldOptionItem, WorkflowFormFieldCompareRule, WorkflowRelationOption, WorkflowFormCascaderNode } from '@zenith/shared/workflow';
 import { evalWorkflowFieldRuleGroup as evalRuleGroup, isWorkflowFieldVisible as isFieldVisible } from '@zenith/shared/workflow';
-import { CURRENCY_OPTIONS, toDateFnsToken, dateFormatHasTime } from '../form-types';
+import { CURRENCY_OPTIONS, toDateFnsToken, dateFormatHasTime, dateFormatHasDay } from '../form-types';
 import { evalFormula } from '../form-formula';
 import { rmbUpper } from '@/utils/rmb';
 import FileAttachment from '@/components/FileAttachment';
@@ -337,7 +337,7 @@ function DetailCell({ col, cellValue, disabled, onCellChange }: Readonly<{
         <DatePicker
           value={cellValue as string | undefined}
           onChange={(_d, dateString) => onCellChange((dateString as string) || undefined)}
-          type={dateFormatHasTime(col.dateFormat) ? 'dateTime' : 'date'}
+          type={dateFormatHasTime(col.dateFormat) ? 'dateTime' : dateFormatHasDay(col.dateFormat) ? 'date' : 'month'}
           insetInput={dateFormatHasTime(col.dateFormat)}
           format={toDateFnsToken(col.dateFormat)}
           disabled={disabled} style={{ width: '100%' }}
@@ -1339,10 +1339,11 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
         <Form.DatePicker
           field={field.key} label={field.label}
           placeholder={field.placeholder ?? `请选择${field.label}`}
-          type={dateFormatHasTime(field.dateFormat) ? 'dateTime' : 'date'}
+          type={dateFormatHasTime(field.dateFormat) ? 'dateTime' : dateFormatHasDay(field.dateFormat) ? 'date' : 'month'}
           insetInput={dateFormatHasTime(field.dateFormat)}
           style={{ width: '100%' }}
           format={toDateFnsToken(field.dateFormat)}
+          onChangeWithDateFirst={false}
           disabledDate={buildDisabledDate(field)}
           rules={rules} disabled={disabled}
           {...extraProps}
@@ -1357,6 +1358,7 @@ function FieldRenderer({ field, readOnly }: Readonly<{ field: WorkflowFormField;
           insetInput={dateFormatHasTime(field.dateFormat)}
           style={{ width: '100%' }}
           format={toDateFnsToken(field.dateFormat)}
+          onChangeWithDateFirst={false}
           disabledDate={buildDisabledDate(field)}
           rules={rules} disabled={disabled}
           {...extraProps}

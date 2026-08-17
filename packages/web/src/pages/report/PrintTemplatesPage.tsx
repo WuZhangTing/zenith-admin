@@ -99,7 +99,7 @@ export default function PrintTemplatesPage() {
       remark: values.remark ? String(values.remark) : undefined,
     }),
     onSaved: (saved, { isEdit }) => {
-      if (!isEdit) navigate(`/report/print/${saved.id}/design`);
+      if (!isEdit) navigate(`/report/print/${saved.id}/design`, { state: { tabTitle: `设计·${saved.name}` } });
     },
   });
 
@@ -134,13 +134,29 @@ export default function PrintTemplatesPage() {
     else Modal.confirm({ title: '确认停用', content: `停用后「${record.name}」将不可用于打印报表，确认停用？`, onOk: () => void doToggle() });
   }
 
+  async function runPreview(record: ReportPrintTemplate, values: Record<string, unknown>) {
+    setPreviewVisible(true);
+    setPreviewResult(null);
+    setPreviewParams(values);
+    const result = await renderMutation.mutateAsync({ id: record.id, params: values, limit: 300 });
+    setPreviewResult(result);
+  }
+
   async function openPreview(record: ReportPrintTemplate) {
+    // 无参数模板直接生成预览，跳过参数弹窗
+    if ((record.params ?? []).length === 0) {
+      await runPreview(record, {});
+      return;
+    }
     setPreviewParams(buildReportParamInitialValues(record.params ?? []));
     setParamDialogContext({ record, mode: 'preview' });
     setParamDialogVisible(true);
   }
 
   async function resolveExportQuery(record: ReportPrintTemplate, format: ExportJobFormat) {
+    if ((record.params ?? []).length === 0) {
+      return { templateId: record.id, params: {} };
+    }
     return await new Promise<Record<string, unknown> | null>((resolve) => {
       setPreviewParams(buildReportParamInitialValues(record.params ?? []));
       setParamDialogContext({ record, mode: 'export', format });
@@ -166,11 +182,7 @@ export default function PrintTemplatesPage() {
     setParamDialogContext(null);
     if (!context) return;
     if (context.mode === 'preview') {
-      setPreviewVisible(true);
-      setPreviewResult(null);
-      setPreviewParams(values);
-      const result = await renderMutation.mutateAsync({ id: context.record.id, params: values, limit: 300 });
-      setPreviewResult(result);
+      await runPreview(context.record, values);
       return;
     }
     exportResolveRef.current?.({
@@ -212,7 +224,7 @@ export default function PrintTemplatesPage() {
       width: 230,
       desktopInlineKeys: ['design', 'preview', 'edit'],
       actions: (record) => [
-        ...(hasPermission('report:print:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/print/${record.id}/design`) }] : []),
+        ...(hasPermission('report:print:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/print/${record.id}/design`, { state: { tabTitle: `设计·${record.name}` } }) }] : []),
         ...(hasPermission('report:print:list') ? [{ key: 'preview', label: '预览', onClick: () => void openPreview(record) }] : []),
         ...(hasPermission('report:print:update') ? [{ key: 'edit', label: '编辑', onClick: () => printModal.openEdit(record) }] : []),
         { key: 'governance', label: '权限与转移', onClick: () => navigate(`/report/governance?resourceType=print_template&resourceId=${record.id}`) },

@@ -1658,7 +1658,9 @@ export interface ReportDqRun {
   id: number;
   tenantId: number | null;
   ruleId: number;
+  ruleName?: string | null;
   datasetId: number;
+  datasetName?: string | null;
   status: ReportDqRunStatus;
   triggerType: 'manual' | 'scheduled' | 'dataset_refresh';
   checkedRows: number;
@@ -1694,7 +1696,9 @@ export interface ReportDqAnomaly {
   id: number;
   tenantId: number | null;
   datasetId: number;
+  datasetName?: string | null;
   ruleId?: number | null;
+  ruleName?: string | null;
   runId?: number | null;
   severity: ReportDqSeverity;
   title: string;

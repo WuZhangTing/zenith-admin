@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import type { CreateReportFolderInput, MoveReportFolderInput, ReportFolder, ReportFolderTreeNode, ReportResourceType, UpdateReportFolderInput } from '@zenith/shared/report';
 import { db } from '../../db';
 import {
@@ -69,6 +69,37 @@ async function ensureParent(
   return parent;
 }
 
+const FOLDER_RESOURCE_TABLES = {
+  datasource: reportDatasources,
+  dataset: reportDatasets,
+  dashboard: reportDashboards,
+  metric: reportMetrics,
+  print_template: reportPrintTemplates,
+  fill_template: reportFillTemplates,
+  asset_template: reportAssetTemplates,
+} as const;
+
+async function countFolderResourcesByFolder(rows: Array<{ id: number; resourceType: ReportResourceType }>): Promise<Map<number, number>> {
+  const idsByType = new Map<ReportResourceType, number[]>();
+  for (const row of rows) {
+    const ids = idsByType.get(row.resourceType) ?? [];
+    ids.push(row.id);
+    idsByType.set(row.resourceType, ids);
+  }
+  const result = new Map<number, number>();
+  await Promise.all([...idsByType].map(async ([type, ids]) => {
+    const table = FOLDER_RESOURCE_TABLES[type];
+    const grouped = await db.select({ folderId: table.folderId, total: count() })
+      .from(table)
+      .where(inArray(table.folderId, ids))
+      .groupBy(table.folderId);
+    for (const item of grouped) {
+      if (item.folderId != null) result.set(item.folderId, Number(item.total));
+    }
+  }));
+  return result;
+}
+
 export async function listReportFolderTree(resourceType?: ReportResourceType): Promise<ReportFolderTreeNode[]> {
   const rows = await db.query.reportFolders.findMany({
     where: resourceType
@@ -77,8 +108,11 @@ export async function listReportFolderTree(resourceType?: ReportResourceType): P
     with: { owner: { columns: { nickname: true, username: true } } },
     orderBy: [asc(reportFolders.sort), asc(reportFolders.id)],
   });
+  const resourceCounts = await countFolderResourcesByFolder(rows);
   const nodes = new Map<number, ReportFolderTreeNode>();
-  for (const row of rows) nodes.set(row.id, { ...mapReportFolder(row), children: [] });
+  for (const row of rows) {
+    nodes.set(row.id, { ...mapReportFolder(row), resourceCount: resourceCounts.get(row.id) ?? 0, children: [] });
+  }
   const roots: ReportFolderTreeNode[] = [];
   for (const node of nodes.values()) {
     const parent = node.parentId ? nodes.get(node.parentId) : undefined;

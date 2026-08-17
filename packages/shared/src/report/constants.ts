@@ -59,6 +59,31 @@ export const REPORT_MISFIRE_POLICY_LABELS: Record<ReportScheduleMisfirePolicy, s
 export const REPORT_MISFIRE_POLICY_OPTIONS: Array<{ value: ReportScheduleMisfirePolicy; label: string }> =
   createLabelOptionsFromMap(REPORT_MISFIRE_POLICY_LABELS);
 
+export const REPORT_DQ_TRIGGER_LABELS: Record<'manual' | 'scheduled' | 'dataset_refresh', string> = {
+  manual: '手动',
+  scheduled: '定时',
+  dataset_refresh: '数据集刷新',
+};
+
+export const REPORT_DQ_ANOMALY_STATUS_LABELS = {
+  open: '待处理',
+  acknowledged: '已确认',
+  resolved: '已解决',
+  ignored: '已忽略',
+} as const;
+
+export const REPORT_DQ_ANOMALY_STATUS_OPTIONS = createLabelOptionsFromMap(REPORT_DQ_ANOMALY_STATUS_LABELS);
+
+export const REPORT_PROMOTION_STATUS_LABELS = {
+  pending: '待审批',
+  approved: '已批准',
+  deploying: '部署中',
+  succeeded: '成功',
+  failed: '失败',
+  cancelled: '已取消',
+  rolled_back: '已回滚',
+} as const;
+
 export const REPORT_FIELD_TYPE_LABELS: Record<ReportFieldType, string> = {
   string: '字符串',
   number: '数字',

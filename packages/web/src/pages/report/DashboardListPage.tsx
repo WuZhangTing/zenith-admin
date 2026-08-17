@@ -114,7 +114,7 @@ export default function DashboardListPage() {
       return editing ? payload : { ...payload, layout: [], widgets: [] };
     },
     onSaved: (saved, { isEdit }) => {
-      if (!isEdit) navigate(`/report/dashboards/${saved.id}/design`);
+      if (!isEdit) navigate(`/report/dashboards/${saved.id}/design`, { state: { tabTitle: `设计·${saved.name}` } });
     },
   });
   type DashboardCategory = (typeof categories)[number];
@@ -203,8 +203,8 @@ export default function DashboardListPage() {
       width: 170,
       desktopInlineKeys: ['design', 'view'],
       actions: (record) => [
-        ...(hasPermission('report:dashboard:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/dashboards/${record.id}/design`) }] : []),
-        { key: 'view', label: '预览', onClick: () => navigate(`/report/dashboards/${record.id}/view`) },
+        ...(hasPermission('report:dashboard:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/dashboards/${record.id}/design`, { state: { tabTitle: `设计·${record.name}` } }) }] : []),
+        { key: 'view', label: '预览', onClick: () => navigate(`/report/dashboards/${record.id}/view`, { state: { tabTitle: `预览·${record.name}` } }) },
         ...(hasPermission('report:dashboard:update') && record.lifecycleStatus !== 'published' ? [{ key: 'publish', label: '发布', onClick: () => void handlePublish(record) }] : []),
         ...(hasPermission('report:dashboard:update') && record.lifecycleStatus === 'published' ? [{ key: 'offline', label: '下线', onClick: () => void handleOffline(record) }] : []),
         ...(hasPermission('report:dashboard:update') ? [{ key: 'share', label: '分享', onClick: () => setShareTarget(record.id) }] : []),
