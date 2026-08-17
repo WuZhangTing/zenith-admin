@@ -36,6 +36,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface MineFilters {
   keyword: string;
   status?: ReportFillRecordStatus;
@@ -78,7 +79,7 @@ export default function FillRecordsPage() {
   const { hasPermission } = usePermission();
   const canCreate = hasPermission('report:fill:record:create');
   const canReview = shouldShowFillReviewTab(hasPermission('report:fill:record:review'));
-  const [activeTab, setActiveTab] = useState<'mine' | 'admin'>('mine');
+  const [activeTab, setActiveTab] = useUrlTabState(['mine', 'admin'] as const, 'mine');
   const minePagination = usePagination();
   const adminPagination = usePagination();
   const [mineDraft, setMineDraft] = useState<MineFilters>(DEFAULT_MINE);

@@ -34,6 +34,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
 const CONTRACT_STATUS_COLOR = { pending: 'grey', signed: 'green', paused: 'orange', terminated: 'red' } as const satisfies Record<PaymentContractStatus, string>;
 const contractStatusOptions = Object.entries(PAYMENT_CONTRACT_STATUS_LABELS).map(([value, label]) => ({ value, label }));
@@ -60,7 +61,7 @@ export default function PaymentContractsPage() {
   const canManage = hasPermission('payment:contract:manage');
   const canPlan = hasPermission('payment:contract:plan');
   const latestContractResult = useRef<{ firstDeduct?: { deductStatus: 'success' | 'processing' | 'failed'; failReason?: string | null } | null } | null>(null);
-  const [activeTab, setActiveTab] = useState<'contracts' | 'plans'>('contracts');
+  const [activeTab, setActiveTab] = useUrlTabState(['contracts', 'plans'] as const, 'contracts');
 
   // ── 签约协议 ──
   const {

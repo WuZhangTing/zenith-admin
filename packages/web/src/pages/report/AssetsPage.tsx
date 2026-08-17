@@ -41,6 +41,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import { JsonBlock } from '@/components/JsonBlock';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const resourceTypeOptions = REPORT_RESOURCE_TYPE_OPTIONS;
 const templateTypeOptions = [
   { value: 'dashboard', label: '仪表盘模板' },
@@ -53,7 +54,7 @@ export default function AssetsPage() {
   const qc = useQueryClient();
   const { hasPermission } = usePermission();
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [activeTab, setActiveTab] = useState('catalog');
+  const [activeTab, setActiveTab] = useUrlTabState(['catalog', 'templates', 'usage'] as const, 'catalog');
   const [catalogDraft, setCatalogDraft] = useState({
     keyword: '', types: [] as ReportResourceType[], ownerId: undefined as number | undefined,
     folderId: undefined as number | undefined, lifecycle: '', timeRange: null as [Date, Date] | null,
@@ -302,7 +303,7 @@ export default function AssetsPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key); setPage(1); }}>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key as typeof activeTab); setPage(1); }}>
         <TabPane tab="统一资产目录" itemKey="catalog">
           <SearchToolbar
             primary={<>

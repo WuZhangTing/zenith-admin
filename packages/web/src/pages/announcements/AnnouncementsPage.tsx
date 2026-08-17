@@ -20,6 +20,7 @@ import {
 } from '@/hooks/queries/announcements';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 type AnnouncementWithRead = MyAnnouncement;
 type AnnouncementTab = 'all' | 'unread' | 'read';
 
@@ -44,7 +45,7 @@ const PRIORITY_LABEL: Record<string, string> = {
 export default function AnnouncementsPage() {
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [activeTab, setActiveTab] = useState<AnnouncementTab>('all');
+  const [activeTab, setActiveTab] = useUrlTabState(['all', 'unread', 'read'] as const, 'all');
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selected, setSelected] = useState<AnnouncementWithRead | null>(null);

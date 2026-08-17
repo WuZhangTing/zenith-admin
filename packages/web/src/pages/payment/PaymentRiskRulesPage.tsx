@@ -30,6 +30,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
 const scopeOptions = Object.entries(PAYMENT_RISK_SCOPE_LABELS).map(([value, label]) => ({ value, label }));
@@ -61,7 +62,7 @@ export default function PaymentRiskRulesPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canReview = hasPermission('payment:risk:review');
-  const [activeTab, setActiveTab] = useState<'rules' | 'hits' | 'reviews'>('rules');
+  const [activeTab, setActiveTab] = useUrlTabState(['rules', 'hits', 'reviews'] as const, 'rules');
 
   // ── 规则 ──
   const {

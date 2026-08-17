@@ -38,6 +38,7 @@ import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
 } as const satisfies Record<PaymentOrderStatus, string>;
@@ -64,7 +65,7 @@ export default function PaymentOrdersPage() {
   const queryClient = useQueryClient();
   const canViewRefunds = hasPermission('payment:refund:list') || hasPermission('payment:order:refund');
 
-  const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
+  const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,

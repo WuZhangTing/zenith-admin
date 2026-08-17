@@ -26,6 +26,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface KeywordSearch { keyword: string }
 const defaultKeywordSearch: KeywordSearch = { keyword: '' };
 
@@ -345,14 +346,14 @@ function DeadlinkTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 // ════════════════════════════════════════════════════════════════════════════
 export default function SeoPage() {
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState('redirects');
+  const [activeTab, setActiveTab] = useUrlTabState(['redirects', 'link-words', 'push', 'deadlink'] as const, 'redirects');
 
   return (
     <div className="page-container page-tabs-page">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
       </SearchToolbar>
-      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)} type="line" lazyRender keepDOM={false}>
         <TabPane tab="301 重定向" itemKey="redirects">
           <RedirectsTab siteId={siteId} />
         </TabPane>

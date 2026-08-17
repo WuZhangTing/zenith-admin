@@ -56,6 +56,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const ruleTypeOptions = [
   { value: 'not_null', label: '非空' },
   { value: 'uniqueness', label: '唯一性' },
@@ -99,7 +100,7 @@ export default function QualityPage() {
   const qc = useQueryClient();
   const { hasPermission } = usePermission();
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [activeTab, setActiveTab] = useState('rules');
+  const [activeTab, setActiveTab] = useUrlTabState(['rules', 'scores', 'anomalies', 'runs'] as const, 'rules');
   const [datasetId, setDatasetId] = useState<number | undefined>();
   const [ruleType, setRuleType] = useState<ReportDqRuleType | undefined>();
   const [enabled, setEnabled] = useState<boolean | undefined>();
@@ -297,7 +298,7 @@ export default function QualityPage() {
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key); setPage(1); }}>
+      <Tabs collapsible="auto" type="line" activeKey={activeTab} onChange={(key) => { setActiveTab(key as typeof activeTab); setPage(1); }}>
         <TabPane tab="质量规则" itemKey="rules">
           {commonToolbar(
             <>

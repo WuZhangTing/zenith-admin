@@ -23,6 +23,7 @@ import {
 } from '@/hooks/queries/inbox';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const TYPE_COLOR: Record<string, TagColor> = {
   info: 'blue',
   success: 'green',
@@ -42,7 +43,7 @@ const { Text } = Typography;
 export default function InboxPage() {
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
-  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'read'>('all');
+  const [activeTab, setActiveTab] = useUrlTabState(['all', 'unread', 'read'] as const, 'all');
 
   const [selected, setSelected] = useState<InAppMessage | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);

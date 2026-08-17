@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Button,
@@ -37,6 +37,7 @@ import type { AiAgent, CreateAiAgentInput } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text, Paragraph } = Typography;
 
 const STATUS_COLORS: Record<AiAgent['status'], 'grey' | 'amber' | 'green' | 'red'> = {
@@ -96,7 +97,7 @@ export default function AiAgentsPage() {
   const { hasPermission } = usePermission();
   const canReview = hasPermission('ai:agent:review');
 
-  const [activeTab, setActiveTab] = useState('mine');
+  const [activeTab, setActiveTab] = useUrlTabState(['mine', 'market', 'review'] as const, 'mine');
   const mineQuery = useMyAiAgents();
   const marketQuery = useMarketAiAgents();
   const pendingQuery = usePendingAiAgents(canReview);
@@ -259,7 +260,7 @@ export default function AiAgentsPage() {
         collapsible="auto"
         type="line"
         activeKey={activeTab}
-        onChange={setActiveTab}
+        onChange={(key) => setActiveTab(key as typeof activeTab)}
         tabBarExtraContent={
           <CreateButton onClick={modal.openCreate}>新建智能体</CreateButton>
         }

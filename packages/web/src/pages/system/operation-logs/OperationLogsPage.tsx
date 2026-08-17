@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Select, Tabs, TabPane, InputNumber } from '@douyinfe/semi-ui';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -12,6 +11,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface SearchParams {
   username: string;
   module: string;
@@ -28,7 +28,7 @@ interface SearchParams {
 const defaultParams: SearchParams = { username: '', module: '', description: '', method: '', path: '', ip: '', status: '', timeRange: null, minDurationMs: null, maxDurationMs: null };
 
 export default function OperationLogsPage() {
-  const [activeTab, setActiveTab] = useState<'list' | 'stats'>('list');
+  const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
   const {
     page, pageSize, setPage, buildPagination,
     draftParams, setDraftParams, submittedParams,

@@ -30,6 +30,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 type TabKey = 'tasks' | 'runs' | 'nodes';
 
 interface TaskSearchParams {
@@ -136,7 +137,7 @@ function renderNode(hostname: string | null, pid: number | null) {
 export default function SystemSchedulerPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
-  const [activeTab, setActiveTab] = useState<TabKey>('tasks');
+  const [activeTab, setActiveTab] = useUrlTabState(['tasks', 'runs', 'nodes'] as const, 'tasks');
   const [taskSearch, setTaskSearch] = useState<TaskSearchParams>(defaultTaskSearch);
   const [draftRunSearch, setDraftRunSearch] = useState<RunSearchParams>(defaultRunSearch);
   const [submittedRunSearch, setSubmittedRunSearch] = useState<RunSearchParams>(defaultRunSearch);

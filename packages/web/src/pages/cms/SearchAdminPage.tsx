@@ -31,6 +31,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 // ─── 检索测试 Tab ─────────────────────────────────────────────────────────────
 function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined; onSiteChange: (v: number) => void }>) {
   const { hasPermission } = usePermission();
@@ -419,11 +420,11 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
 // ════════════════════════════════════════════════════════════════════════════
 export default function SearchAdminPage() {
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState('test');
+  const [activeTab, setActiveTab] = useUrlTabState(['test', 'dict', 'hot'] as const, 'test');
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)} type="line" lazyRender keepDOM={false}>
         <TabPane tab="检索测试" itemKey="test">
           <SearchTestTab siteId={siteId} onSiteChange={setSiteId} />
         </TabPane>

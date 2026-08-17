@@ -29,6 +29,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
 const receiverTypeOptions = Object.entries(PAYMENT_SHARING_RECEIVER_TYPE_LABELS).map(([value, label]) => ({ value, label }));
 const ORDER_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentSharingOrderStatus, string>;
@@ -42,7 +43,7 @@ export default function PaymentSharingPage() {
   const queryClient = useQueryClient();
   const canManage = hasPermission('payment:sharing:manage');
   const canDispatch = hasPermission('payment:sharing:dispatch');
-  const [activeTab, setActiveTab] = useState<'receivers' | 'orders'>('receivers');
+  const [activeTab, setActiveTab] = useUrlTabState(['receivers', 'orders'] as const, 'receivers');
 
   // ── 接收方 ──
   const { page: rPage, pageSize: rPageSize, setPage: setRPage, buildPagination: buildRPagination } = usePagination();

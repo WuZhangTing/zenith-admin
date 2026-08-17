@@ -31,6 +31,7 @@ import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-c
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 type TabKey = 'queue' | 'history' | 'artifacts' | 'failed';
 
 interface Filters {
@@ -64,7 +65,7 @@ export default function PublishingPage() {
   const sitesQuery = useAllCmsSites();
   const sites = sitesQuery.data ?? [];
   const siteOptions = sites.map((site) => ({ value: site.id, label: site.name }));
-  const [activeTab, setActiveTab] = useState<TabKey>('queue');
+  const [activeTab, setActiveTab] = useUrlTabState(['queue', 'history', 'artifacts', 'failed'] as const, 'queue');
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [submitted, setSubmitted] = useState<Filters>(EMPTY_FILTERS);
   const [selected, setSelected] = useState<number[]>([]);

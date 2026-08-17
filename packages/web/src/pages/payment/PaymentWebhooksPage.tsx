@@ -27,6 +27,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const EVENT_OPTIONS = [
   { value: 'payment.succeeded', label: '支付成功' },
   { value: 'payment.closed', label: '支付关闭' },
@@ -62,7 +63,7 @@ export default function PaymentWebhooksPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'endpoints' | 'deliveries'>('endpoints');
+  const [activeTab, setActiveTab] = useUrlTabState(['endpoints', 'deliveries'] as const, 'endpoints');
 
   const {
     page: endpointPage,

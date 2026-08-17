@@ -13,6 +13,7 @@ import type { CmsComment, CmsCommentStatus } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { dateTimeColumn } from '@/utils/table-columns';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const STATUS_COLORS: Record<CmsCommentStatus, 'orange' | 'green' | 'red'> = {
   pending: 'orange',
   approved: 'green',
@@ -24,7 +25,7 @@ type TabKey = 'pending' | 'approved' | 'rejected' | 'all';
 export default function CommentsPage() {
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<TabKey>('pending');
+  const [activeTab, setActiveTab] = useUrlTabState(['pending', 'approved', 'rejected', 'all'] as const, 'pending');
   const [source, setSource] = useState<'member' | 'guest' | undefined>(undefined);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);

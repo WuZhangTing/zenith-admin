@@ -26,6 +26,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { dateColumn, dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 // ─── 广告位 Tab ───────────────────────────────────────────────────────────────
 function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const { hasPermission } = usePermission();
@@ -460,11 +461,11 @@ function AdsManagementTab({ siteId, setSiteId }: Readonly<{
 // ════════════════════════════════════════════════════════════════════════════
 export default function AdsPage() {
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState('ads');
+  const [activeTab, setActiveTab] = useUrlTabState(['ads', 'events', 'stats'] as const, 'ads');
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" activeKey={activeTab} onChange={setActiveTab} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)} type="line" lazyRender keepDOM={false}>
         <TabPane tab="广告" itemKey="ads">
           <AdsManagementTab siteId={siteId} setSiteId={setSiteId} />
         </TabPane>

@@ -37,6 +37,7 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
 import { JsonBlock } from '@/components/JsonBlock';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 type TabKey = 'tasks' | 'types' | 'stats';
 
 /** 任务类型行：注册表配置 + 执行统计；retired 表示类型已下线但仍有历史记录 */
@@ -194,7 +195,7 @@ export default function TaskCenterPage() {
   const canCleanup = hasPermission('system:async-task:cleanup');
   const canConfig = hasPermission('system:async-task:config');
 
-  const [activeTab, setActiveTab] = useState<TabKey>('tasks');
+  const [activeTab, setActiveTab] = useUrlTabState(['tasks', 'types', 'stats'] as const, 'tasks');
   const [refreshInterval, setRefreshInterval] = useState(0);
   const [manualRefreshing, setManualRefreshing] = useState(false);
   const {

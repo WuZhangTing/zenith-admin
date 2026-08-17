@@ -30,6 +30,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 const STATUS_COLORS: Record<CmsContentStatus, 'grey' | 'orange' | 'green' | 'red' | 'violet'> = {
   draft: 'grey',
   pending: 'orange',
@@ -64,7 +65,7 @@ export default function ContentsPage() {
   const queryClient = useQueryClient();
 
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<TabKey>('all');
+  const [activeTab, setActiveTab] = useUrlTabState(['all', 'pending', 'published', 'archived', 'recycle'] as const, 'all');
   const [channelId, setChannelId] = useState<number | undefined>(undefined);
   const [contentType, setContentType] = useState<CmsContentType | undefined>(undefined);
   const { page, pageSize, setPage, buildPagination } = usePagination();
