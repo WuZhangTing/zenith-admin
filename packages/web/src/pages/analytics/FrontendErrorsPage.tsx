@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Tabs,
@@ -52,6 +53,7 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { formatDateTime } from '@/utils/date';
 import {
   analyticsKeys,
@@ -158,6 +160,8 @@ interface AlertFormState {
 }
 
 type TabKey = 'overview' | 'issues' | 'events' | 'sourcemaps' | 'alerts' | 'alertlogs';
+
+const ERROR_TABS: readonly TabKey[] = ['overview', 'issues', 'events', 'sourcemaps', 'alerts', 'alertlogs'];
 
 const defaultIssueFilters: IssueFilters = { status: '', errorType: '', level: '', keyword: '', environment: '' };
 const EMPTY_ADMIN_USERS: { id: number; nickname?: string | null; username: string }[] = [];
@@ -310,7 +314,7 @@ export default function FrontendErrorsPage() {
   const palette = useChartPalette();
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<TabKey>('issues');
+  const [activeTab, setActiveTab] = useUrlTabState(ERROR_TABS, 'issues');
 
   const [overviewDays, setOverviewDays] = useState(30);
 
@@ -416,6 +420,39 @@ export default function FrontendErrorsPage() {
     setDetailGroupId(groupId);
     setShowSymbolicated(true);
   }, []);
+
+  // ?issue= 深链：进入页面（或外部导航带参）时直达 Issue 详情，关闭详情时清除参数。
+  // lastWrittenIssueRef 区分「自己写回 URL」与「外部变化」，issueSyncReadyRef 保证
+  // 挂载首轮由 URL 主导（深链先落地），state 追平后才开始反向接管。
+  const [issueSearchParams, setIssueSearchParams] = useSearchParams();
+  const lastWrittenIssueRef = useRef<string | null>(null);
+  const issueSyncReadyRef = useRef(false);
+
+  useEffect(() => {
+    const raw = issueSearchParams.get('issue');
+    if (raw === lastWrittenIssueRef.current) return;
+    lastWrittenIssueRef.current = raw;
+    if (raw) {
+      const id = Number(raw);
+      if (Number.isInteger(id) && id > 0) openGroupDetail(id);
+    } else if (issueSyncReadyRef.current) {
+      setDetailVisible(false);
+    }
+  }, [issueSearchParams, openGroupDetail]);
+
+  useEffect(() => {
+    const val = detailVisible && detailGroupId ? String(detailGroupId) : null;
+    if (!issueSyncReadyRef.current) {
+      if (val === lastWrittenIssueRef.current) issueSyncReadyRef.current = true;
+      return;
+    }
+    if (val === lastWrittenIssueRef.current) return;
+    lastWrittenIssueRef.current = val;
+    const next = new URLSearchParams(window.location.search);
+    if (val) next.set('issue', val);
+    else next.delete('issue');
+    setIssueSearchParams(next, { replace: true });
+  }, [detailVisible, detailGroupId, setIssueSearchParams]);
 
   const updateGroupStatus = useCallback(async (id: number, status: ErrorStatus) => {
     await updateGroupMutation.mutateAsync({ id, values: { status } });

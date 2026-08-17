@@ -34,6 +34,7 @@ import { formatDateTime, formatDateForApi } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { usePagination } from '@/hooks/usePagination';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
   analyticsKeys,
   useAnalyzeFunnel,
@@ -1779,10 +1780,13 @@ function HeatmapTab() {
   );
 }
 
+const BEHAVIOR_TABS = ['overview', 'realtime', 'event-query', 'experiments', 'dwell', 'feature', 'sessions', 'funnel', 'retention', 'path', 'users', 'heatmap', 'acquisition'] as const;
+
 export default function AnalyticsPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(BEHAVIOR_TABS, 'overview');
   return (
     <div className="page-container page-tabs-page zx-flat-panels">
-      <Tabs collapsible="auto" type="line" lazyRender>
+      <Tabs collapsible="auto" type="line" lazyRender activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof BEHAVIOR_TABS[number])}>
         <TabPane tab="概览" itemKey="overview"><OverviewTab /></TabPane>
         <TabPane tab="实时" itemKey="realtime"><RealtimeTab /></TabPane>
         <TabPane tab="事件分析" itemKey="event-query"><AnalyticsEventQueryTab /></TabPane>

@@ -27,6 +27,7 @@ import {
 import type { AnalyticsEventMeta, AnalyticsSettings, EventListItem } from '@zenith/shared/analytics';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES } from '@zenith/shared/analytics';
 import { usePermission } from '@/hooks/usePermission';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import AnalyticsQualityTab from './AnalyticsQualityTab';
 import AnalyticsDebugTab from './AnalyticsDebugTab';
 import AnalyticsSegmentsTab from './AnalyticsSegmentsTab';
@@ -203,11 +204,13 @@ function MetaStatusTag({ value }: Readonly<{ value: AnalyticsEventMeta['status']
   return <Tag color={meta.color} size="small">{meta.label}</Tag>;
 }
 
+const DATA_TABS = ['events', 'meta', 'quality', 'debug', 'segments', 'sites', 'rollup', 'settings'] as const;
+
 export default function AnalyticsDataPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
   const canClean = hasPermission('analytics:clean');
-  const [activeTab, setActiveTab] = useState<'events' | 'meta' | 'quality' | 'debug' | 'segments' | 'sites' | 'rollup' | 'settings'>('events');
+  const [activeTab, setActiveTab] = useUrlTabState(DATA_TABS, 'events');
 
   const [eventsPage, setEventsPage] = useState(1);
   const [eventsPageSize, setEventsPageSize] = useState(PAGE_SIZE);

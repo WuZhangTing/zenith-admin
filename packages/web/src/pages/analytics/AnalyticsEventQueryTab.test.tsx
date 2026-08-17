@@ -2,11 +2,11 @@
  * AnalyticsEventQueryTab 单元测试（行为中心阶段 1：通用事件分析工作台）
  *
  * 覆盖点：
- *  1. 未查询时展示空态提示，且不向 useAnalyticsEventQuery 传入查询体（保持 idle）
+ *  1. 进入页签即按默认条件（groupBy=['date']、days=30）自动发起首查，不再停留空态
  *  2. 点击「查询」把筛选参数（默认 groupBy=['date']、days=30）连同分页参数交给 useAnalyticsEventQuery
  *  3. 查询结果渲染明细表格 + 汇总提示（区间/总行数）
  *  4. 查询结果为空数组时展示「暂无匹配数据」空态
- *  5. 重置按钮恢复默认草稿并清空已提交的查询
+ *  5. 重置按钮恢复默认草稿并回到默认查询（而非空态）
  *  6. 属性过滤条件：新增/删除、in 运算符按逗号拆分为数组、空 key/空值不进入请求体、上限 10 条
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -76,14 +76,17 @@ function propertyFilterInputs() {
 }
 
 describe('AnalyticsEventQueryTab', () => {
-  it('shows an empty state before the first query is submitted', () => {
+  it('shows a neutral empty state while the auto first query has no data yet', () => {
     renderWithPreferences(<AnalyticsEventQueryTab />);
-    expect(screen.getByText('请配置筛选条件后点击查询')).toBeInTheDocument();
+    expect(screen.getByText('暂无数据')).toBeInTheDocument();
   });
 
-  it('keeps the query idle until 查询 is clicked, so opening the tab does not hit the API', () => {
+  it('submits the default query on mount so the tab shows data without a manual 查询 click', () => {
     renderWithPreferences(<AnalyticsEventQueryTab />);
-    expect(lastQueryInput()).toBeNull();
+    const body = lastQueryInput();
+    expect(body).not.toBeNull();
+    expect(body!.groupBy).toEqual(['date']);
+    expect(body!.days).toBe(30);
   });
 
   it('submits the default groupBy=[date]/days=30 filters together with pagination when clicking 查询', async () => {
@@ -118,12 +121,20 @@ describe('AnalyticsEventQueryTab', () => {
     expect(screen.getByText('查询失败，请检查筛选条件后重试')).toBeInTheDocument();
   });
 
-  it('clears the submitted query when 重置 is clicked', async () => {
+  it('restores the default submitted query (not an idle state) when 重置 is clicked', async () => {
     renderWithPreferences(<AnalyticsEventQueryTab />);
+    fireEvent.click(screen.getByText('添加属性条件'));
+    fireEvent.change(propertyFilterInputs().keyInputs[0], { target: { value: 'plan' } });
+    fireEvent.change(screen.getByPlaceholderText('属性值'), { target: { value: 'pro' } });
     fireEvent.click(screen.getByText('查询'));
-    await vi.waitFor(() => expect(lastQueryInput()).not.toBeNull());
+    await vi.waitFor(() => expect(lastQueryInput()!.propertyFilters).toBeDefined());
     fireEvent.click(screen.getByText('重置'));
-    await vi.waitFor(() => expect(lastQueryInput()).toBeNull());
+    await vi.waitFor(() => {
+      const body = lastQueryInput();
+      expect(body).not.toBeNull();
+      expect(body!.propertyFilters).toBeUndefined();
+      expect(body!.days).toBe(30);
+    });
   });
 });
 

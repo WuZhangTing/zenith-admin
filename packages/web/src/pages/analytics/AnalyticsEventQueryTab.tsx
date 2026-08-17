@@ -49,6 +49,9 @@ const defaultDraft: EventQueryDraft = {
   metric: 'events',
 };
 
+// 默认条件本身即可执行（全部事件 / 按日期分组 / 近 30 天），进入页签自动首查，避免先见空态
+const defaultSubmitted: AnalyticsEventQueryInput = { groupBy: ['date'], metric: 'events', days: 30 };
+
 /**
  * `in` 接收逗号分隔的多值；其余运算符按单值提交。
  * 数值型运算符（gt/gte/lt/lte）交由后端 `::numeric` 转换，此处不做前端类型推断，
@@ -72,7 +75,7 @@ function rowKey(row?: AnalyticsEventQueryRow, index?: number): string {
 
 export default function AnalyticsEventQueryTab() {
   const [draft, setDraft] = useState<EventQueryDraft>(defaultDraft);
-  const [submitted, setSubmitted] = useState<AnalyticsEventQueryInput | null>(null);
+  const [submitted, setSubmitted] = useState<AnalyticsEventQueryInput | null>(defaultSubmitted);
   const palette = useChartPalette();
   const { page, pageSize, resetPage, buildPagination } = usePagination();
   // 分页参数不进 submitted：翻页只改 page/pageSize，不应算作一次新的查询提交
@@ -121,7 +124,7 @@ export default function AnalyticsEventQueryTab() {
 
   const handleReset = () => {
     setDraft(defaultDraft);
-    setSubmitted(null);
+    setSubmitted(defaultSubmitted);
     resetPage();
   };
 
@@ -332,7 +335,7 @@ export default function AnalyticsEventQueryTab() {
 
       <Card title="分析结果" bodyStyle={{ padding: 16 }}>
         {!result ? (
-          <Empty description={eventQuery.isError ? '查询失败，请检查筛选条件后重试' : '请配置筛选条件后点击查询'} />
+          <Empty description={eventQuery.isError ? '查询失败，请检查筛选条件后重试' : loading ? '查询中…' : '暂无数据'} />
         ) : result.list.length === 0 ? (
           <Empty description="暂无匹配数据" />
         ) : (
