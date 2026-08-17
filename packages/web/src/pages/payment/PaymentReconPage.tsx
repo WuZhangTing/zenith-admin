@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Button, Form, Select, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Select, SideSheet, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CloudDownload } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -212,8 +212,10 @@ export default function PaymentReconPage() {
     copyableNoColumn('渠道交易号', 'channelTradeNo', { width: 300 }),
     { title: '本地金额', dataIndex: 'localAmount', width: 110, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
     { title: '渠道金额', dataIndex: 'channelAmount', width: 110, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
-    { title: '本地状态', dataIndex: 'localStatus', width: 100, render: (v: string | null) => v || '-' },
-    { title: '渠道状态', dataIndex: 'channelStatus', width: 100, render: (v: string | null) => v || '-' },
+    {
+      title: '状态（本地/渠道）', dataIndex: 'localStatus', width: 150,
+      render: (_: unknown, r: PaymentReconItem) => `${r.localStatus || '—'} / ${r.channelStatus || '—'}`,
+    },
     { title: '结果', dataIndex: 'result', width: 120, render: (v: PaymentReconResult) => <Tag color={RESULT_COLOR[v]}>{PAYMENT_RECON_RESULT_LABELS[v]}</Tag> },
     {
       title: '处理状态', dataIndex: 'handleStatus', width: 110,
@@ -313,7 +315,8 @@ export default function PaymentReconPage() {
         </Form>
       </AppModal>
 
-      <AppModal title={`对账明细${detailBatch ? `（${detailBatch.batchNo}）` : ''}`} visible={!!detailBatch} onCancel={() => setDetailBatch(null)} footer={null} width={1000} closeOnEsc>
+      {/* 明细用抽屉而非全宽 Modal：保留批次列表上下文，与订单/投诉详情形态统一 */}
+      <SideSheet title={`对账明细${detailBatch ? `（${detailBatch.batchNo}）` : ''}`} visible={!!detailBatch} onCancel={() => setDetailBatch(null)} width={760} closeOnEsc>
         <Spin spinning={itemsQuery.isFetching}>
           <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
             <Select placeholder="全部结果" value={itemResult || undefined} onChange={(v) => handleItemResultChange((v as string) ?? '')} showClear style={{ width: 180 }}
@@ -326,7 +329,7 @@ export default function PaymentReconPage() {
             onRefresh={() => void itemsQuery.refetch()} refreshLoading={itemsQuery.isFetching} pagination={buildItemPagination(itemsTotal)}
           />
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       <AppModal {...autoModal.modalProps} title="自动拉取渠道账单对账" width={480}>
         <Form {...autoModal.formProps}>

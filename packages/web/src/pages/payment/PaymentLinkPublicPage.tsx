@@ -6,13 +6,12 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { QRCodeSVG } from 'qrcode.react';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import dayjs from 'dayjs';
-import { PAYMENT_LINK_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
-import type { CreatePaymentResult, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
+import { PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
+import type { CreatePaymentResult, PaymentLinkPublic, PaymentMethod } from '@zenith/shared/payment';
 import { usePayPublicPaymentLink, usePublicLinkOrderStatus, usePublicPaymentLink } from '@/hooks/queries/payment-links';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '自定义金额');
 const publicPayMethods: PaymentMethod[] = ['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap', 'unionpay_qr'];
-const LINK_STATUS_COLOR = { active: 'green', disabled: 'grey', expired: 'red' } as const satisfies Record<PaymentLinkStatus, string>;
 
 /** 待支付倒计时（按订单 expiredAt，每秒刷新，到期返回 null） */
 function useCountdown(expiredAt: string | undefined): string | null {
@@ -150,7 +149,6 @@ export default function PaymentLinkPublicPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <div style={{ textAlign: 'center' }}>
                 <Typography.Title heading={4} style={{ marginBottom: 8 }}>{link.subject}</Typography.Title>
-                <Typography.Text type="tertiary">{link.bizType}</Typography.Text>
               </div>
 
               <div style={{ textAlign: 'center', padding: '18px 12px', borderRadius: 'var(--semi-border-radius-large)', background: 'var(--surface-card)', border: '1px solid var(--semi-color-border)' }}>
@@ -158,14 +156,29 @@ export default function PaymentLinkPublicPage() {
                 <div style={{ marginTop: 6, fontSize: 30, fontWeight: 700, color: '#10b981' }}>{yuan(link.amount)}</div>
               </div>
 
-              <Space spacing={8}>
-                <Tag color={LINK_STATUS_COLOR[link.status]}>{PAYMENT_LINK_STATUS_LABELS[link.status]}</Tag>
-                {link.remainingUses != null && <Tag color="blue">剩余 {link.remainingUses} 次</Tag>}
-                {link.expiredAt && <Tag color="grey">有效期至 {link.expiredAt}</Tag>}
-                {unsupportedFixedMethod && <Tag color="red">当前支付方式不支持网页收款</Tag>}
-              </Space>
+              {/* 仅展示对付款者有价值的信息；链接管理状态不外露（不可付时下方给友好提示） */}
+              {link.status === 'active' && (link.remainingUses != null || link.expiredAt) && (
+                <Space spacing={8}>
+                  {link.remainingUses != null && <Tag color="blue">剩余 {link.remainingUses} 次</Tag>}
+                  {link.expiredAt && <Tag color="grey">有效期至 {link.expiredAt}</Tag>}
+                </Space>
+              )}
 
-              {!payResult ? (
+              {link.status !== 'active' ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <XCircle size={56} color="var(--semi-color-text-2)" style={{ marginBottom: 12 }} />
+                  <Typography.Title heading={5} style={{ marginBottom: 6 }}>
+                    {link.status === 'expired' ? '收款链接已过期' : '收款链接已停用'}
+                  </Typography.Title>
+                  <Typography.Text type="tertiary">请联系商户获取新的收款链接。</Typography.Text>
+                </div>
+              ) : unsupportedFixedMethod ? (
+                <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                  <XCircle size={56} color="var(--semi-color-text-2)" style={{ marginBottom: 12 }} />
+                  <Typography.Title heading={5} style={{ marginBottom: 6 }}>暂不支持网页支付</Typography.Title>
+                  <Typography.Text type="tertiary">该收款方式无法在网页发起，请联系商户更换收款方式。</Typography.Text>
+                </div>
+              ) : !payResult ? (
                 <Form getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={86}>
                   {wechatInAppBlocked && (
                     <Banner
