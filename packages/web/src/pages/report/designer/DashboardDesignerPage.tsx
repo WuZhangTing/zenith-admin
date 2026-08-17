@@ -189,8 +189,40 @@ export default function DashboardDesignerPage() {
   }, [nextY, mutate, screenConfig.width, carouselOn, designPage]);
 
   const removeWidget = useCallback((i: string) => {
+    // 删除组件立即生效且会被自动草稿保存，为防误删提供单步「撤销」
+    const current = docRef.current;
+    const removed = {
+      widget: current.widgets.find((w) => w.i === i),
+      layoutItem: current.layout.find((it) => it.i === i),
+      canvasItem: current.canvasLayout.find((it) => it.i === i) ?? null,
+    };
     mutate((d) => ({ ...d, widgets: d.widgets.filter((w) => w.i !== i), layout: d.layout.filter((it) => it.i !== i), canvasLayout: d.canvasLayout.filter((it) => it.i !== i) }));
     setSelectedId((cur) => (cur === i ? null : cur));
+    if (!removed.widget || !removed.layoutItem) return;
+    const toastId = Toast.info({
+      content: (
+        <Space>
+          <span>已删除「{removed.widget.title || '未命名组件'}」</span>
+          <Button
+            size="small"
+            theme="borderless"
+            onClick={() => {
+              Toast.close(toastId);
+              mutate((d) => ({
+                ...d,
+                widgets: [...d.widgets, removed.widget!],
+                layout: [...d.layout, removed.layoutItem!],
+                canvasLayout: removed.canvasItem ? [...d.canvasLayout, removed.canvasItem] : d.canvasLayout,
+              }));
+              setSelectedId(i);
+            }}
+          >
+            撤销
+          </Button>
+        </Space>
+      ),
+      duration: 6,
+    });
   }, [mutate]);
 
   const copyWidget = useCallback((i: string) => {

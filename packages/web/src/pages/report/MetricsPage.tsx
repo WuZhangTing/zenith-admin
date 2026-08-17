@@ -167,7 +167,12 @@ export default function MetricsPage() {
   };
 
   const columns: ColumnProps<ReportMetric>[] = [
-    { title: '指标名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    {
+      title: '指标名称', dataIndex: 'name', width: 180,
+      render: (v: string, record: ReportMetric) => (
+        <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => openPreview(record)}>{v}</Typography.Text>
+      ),
+    },
     { title: '编码', dataIndex: 'code', width: 150, render: renderEllipsis },
     { title: '数据集', dataIndex: 'datasetName', width: 160, render: (value) => value || '—' },
     { title: '来源/公式', width: 240, render: (_v, r) => r.type === 'simple' ? `${r.aggregate ?? 'sum'}(${r.sourceField ?? '—'})` : (r.formula || '—') },

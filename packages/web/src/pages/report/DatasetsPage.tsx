@@ -504,7 +504,12 @@ export default function DatasetsPage() {
   }
 
   const columns: ColumnProps<ReportDataset>[] = [
-    { title: '名称', dataIndex: 'name', width: 180 },
+    {
+      title: '名称', dataIndex: 'name', width: 180,
+      render: (v: string, record: ReportDataset) => hasPermission('report:dataset:update') ? (
+        <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => openEdit(record)}>{v}</Typography.Text>
+      ) : v,
+    },
     { title: '数据源', dataIndex: 'datasourceName', width: 160, render: (v: string) => v || '-' },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
@@ -699,6 +704,14 @@ export default function DatasetsPage() {
                         <Space>
                           <Button icon={<Sparkles size={14} />} onClick={() => { setAiAskVisible((v) => !v); setVisualVisible(false); }}>AI 问数</Button>
                           <Button icon={<Blocks size={14} />} onClick={() => { setVisualVisible((v) => !v); setAiAskVisible(false); }}>可视化建模</Button>
+                          <Button
+                            icon={<Play size={14} />}
+                            loading={previewMutation.isPending}
+                            disabled={!selectedDsId}
+                            onClick={() => { setDatasetTab('preview'); void handlePreview(); }}
+                          >
+                            试跑预览
+                          </Button>
                         </Space>
                         {aiAskVisible && (
                           <Space vertical align="start" style={{ width: '100%', marginTop: 8 }}>

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Modal, Select, Switch, Toast } from '@douyinfe/semi-ui';
+import { Button, Form, Modal, Select, Switch, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -202,7 +202,12 @@ export default function PrintTemplatesPage() {
   }
 
   const columns: ColumnProps<ReportPrintTemplate>[] = [
-    { title: '名称', dataIndex: 'name', width: 200 },
+    {
+      title: '名称', dataIndex: 'name', width: 200,
+      render: (v: string, record: ReportPrintTemplate) => hasPermission('report:print:list') ? (
+        <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => void openPreview(record)}>{v}</Typography.Text>
+      ) : v,
+    },
     { title: '数据集', dataIndex: 'datasetName', width: 160, render: (v: string | null) => v || '-' },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },

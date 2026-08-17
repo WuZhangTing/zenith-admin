@@ -189,7 +189,18 @@ export default function DashboardListPage() {
         <Star size={15} style={{ cursor: 'pointer', color: r.favorited ? 'var(--semi-color-warning)' : 'var(--semi-color-text-3)', fill: r.favorited ? 'var(--semi-color-warning)' : 'none', opacity: favTogglingId === r.id ? 0.4 : 1 }} onClick={() => void toggleFavorite(r)} />
       ),
     },
-    { title: '名称', dataIndex: 'name', width: 200 },
+    {
+      title: '名称', dataIndex: 'name', width: 200,
+      render: (v: string, record: ReportDashboard) => (
+        <Typography.Text
+          link
+          ellipsis={{ showTooltip: true }}
+          onClick={() => navigate(`/report/dashboards/${record.id}/view`, { state: { tabTitle: `预览·${record.name}` } })}
+        >
+          {v}
+        </Typography.Text>
+      ),
+    },
     { title: '分类', dataIndex: 'categoryName', width: 120, render: (v: string) => v ? <Tag size="small" color="light-blue">{v}</Tag> : '-' },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
