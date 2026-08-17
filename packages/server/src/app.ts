@@ -30,6 +30,7 @@ import stripAnsi from 'strip-ansi';
 import { config } from './config';
 import logger from './lib/logger';
 import { errBody } from './lib/openapi-schemas';
+import { OAuth2Error, oauth2ErrorBody } from './lib/oauth2-error';
 import { registerZenithMetrics } from './lib/prometheus-metrics';
 import { httpMetricsMiddleware } from './middleware/http-metrics';
 import { httpLoggerMiddleware } from './middleware/http-logger';
@@ -79,15 +80,25 @@ export function createApp() {
   // allowMethods 使用 hono 官方默认值（含 PATCH/QUERY），避免显式列表遗漏导致跨域预检失败
   app.use('*', cors({ origin: config.corsOrigin, allowHeaders: ['Content-Type', 'Authorization'] }));
   // CSRF 防护：校验 Origin 头，防止跨站请求伪造
-  // ALLOWED_ORIGINS 为空时（开发模式）不限制；非浏览器请求（无 Origin）直接放行
-  const CSRF_EXCLUDE_PATHS = ['/api/auth/enterprise/saml/acs'];
+  // ALLOWED_ORIGINS 为空时（开发模式）不限制
+  //
+  // 注意：hono 的 csrf() 只对「表单类 Content-Type 且非 GET/HEAD」生效，且在缺失 Origin 时
+  // 直接判定为不安全请求——自定义 origin 回调不会被调用。因此机器对机器端点（OAuth2 令牌端点、
+  // 开放 API 网关、SAML ACS 回调）必须显式排除，否则 curl / SDK / 第三方服务端调用一律 403。
+  // 这些端点本身不依赖 Cookie 会话（用 client_secret / HMAC 签名 / Bearer 鉴权），不存在 CSRF 风险面。
+  const CSRF_EXCLUDE_PREFIXES = [
+    '/api/auth/enterprise/saml/acs',
+    '/api/oauth2/token',
+    '/api/oauth2/authorize',
+    '/api/open/',
+  ];
   app.use(
     '*',
     except(
-      (c) => CSRF_EXCLUDE_PATHS.includes(c.req.path),
+      (c) => CSRF_EXCLUDE_PREFIXES.some((p) => c.req.path === p || c.req.path.startsWith(p)),
       csrf({
         origin: (origin) => {
-          if (!origin) return true; // 服务端 / CLI（curl、Postman）直接放行
+          if (!origin) return true;
           if (config.allowedOrigins.length === 0) return true; // 开发模式，不限制
           return config.allowedOrigins.includes(origin);
         },
@@ -197,6 +208,10 @@ export function createApp() {
 
   // 全局未捕获异常处理—统一返回标准错误格式
   app.onError((err, c) => {
+    // OAuth2 协议端点必须返回 RFC 6749 格式，标准客户端库才能正确解析错误语义
+    if (err instanceof OAuth2Error) {
+      return c.json(oauth2ErrorBody(err), err.status);
+    }
     if (err instanceof HTTPException) {
       return c.json(errBody(err.message, err.status), err.status);
     }

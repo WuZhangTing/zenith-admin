@@ -49,6 +49,8 @@ const envSchema = z.object({
   OPEN_WEBHOOK_AUTO_DISABLE_FAILURES: z.coerce.number().int().min(1).max(100).default(5),
   OPEN_SECRET_ROTATION_GRACE_HOURS: z.coerce.number().int().min(1).max(720).default(24),
   OPEN_GATEWAY_REQUIRE_APPROVAL: boolStr('true'),
+  /** Webhook 回调允许的私网/本机主机（逗号分隔，支持 host、*.suffix、CIDR）。开发环境用于本地联调 */
+  OPEN_WEBHOOK_ALLOWED_HOSTS: z.string().default(''),
   OPEN_API_INTERNAL_BASE_URL: z.string().default(''),
   LOG_LEVEL: z.string().default('info'),
   LOG_DIR: z.string().default('logs'),
@@ -190,6 +192,7 @@ export const config = {
     webhookAutoDisableFailures: env.OPEN_WEBHOOK_AUTO_DISABLE_FAILURES,
     secretRotationGraceHours: env.OPEN_SECRET_ROTATION_GRACE_HOURS,
     gatewayRequireApproval: env.OPEN_GATEWAY_REQUIRE_APPROVAL,
+    webhookAllowedHosts: env.OPEN_WEBHOOK_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean),
     internalBaseUrl: env.OPEN_API_INTERNAL_BASE_URL || `http://127.0.0.1:${env.PORT}`,
   },
   log: {

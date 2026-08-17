@@ -263,7 +263,7 @@ export default function OAuth2AppDetailPage() {
               { key: '限流套餐', value: ratePlan?.name ?? '默认套餐' },
               { key: '运行环境', value: OPEN_APP_ENVIRONMENT_LABELS[app.environment] },
               { key: '审核状态', value: OPEN_APP_REVIEW_STATUS_LABELS[app.reviewStatus] },
-              { key: 'HMAC 签名', value: app.signEnabled ? '已启用' : '未启用' },
+              { key: 'AppKey 签名通道', value: app.signEnabled ? '已开启（强制签名）' : '未开启（仅 Bearer）' },
               { key: '旧密钥有效期', value: app.previousSecretExpiresAt || '—' },
               { key: '创建时间', value: app.createdAt },
               { key: '更新时间', value: app.updatedAt },

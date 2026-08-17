@@ -11,7 +11,6 @@ import { Spin, Card, Avatar, Tag, Button, Space, Typography, Divider, Toast } fr
 import { ShieldCheck, X } from 'lucide-react';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { isSafeOAuthRedirectUri } from '@zenith/shared/identity';
-import { OAUTH2_SCOPE_DESCRIPTIONS } from '@zenith/shared/open-platform';
 import type { OAuth2AuthorizeInfo } from '@zenith/shared/open-platform';
 import { request } from '@/utils/request';
 
@@ -58,8 +57,20 @@ export default function OAuth2AuthorizePage() {
       setLoading(false);
       return;
     }
-    if (codeChallengeMethod && codeChallengeMethod !== 'S256') {
-      setError('仅支持 PKCE S256');
+    // PKCE 是授权端点的硬性要求（OAuth 2.1）。参数缺失时必须在进入同意页之前拦下——
+    // 否则用户会看到一个可点击但注定失败的「同意授权」按钮。
+    if (!codeChallenge) {
+      setError('授权请求缺少 code_challenge：本平台要求授权码流程必须使用 PKCE（S256）');
+      setLoading(false);
+      return;
+    }
+    if (codeChallengeMethod !== 'S256') {
+      setError('仅支持 PKCE S256，请携带 code_challenge_method=S256');
+      setLoading(false);
+      return;
+    }
+    if (!/^[A-Za-z0-9_-]{43}$/.test(codeChallenge)) {
+      setError('code_challenge 格式无效：应为 base64url 编码的 SHA-256 摘要（43 个字符）');
       setLoading(false);
       return;
     }
@@ -73,14 +84,13 @@ export default function OAuth2AuthorizePage() {
     request.get<OAuth2AuthorizeInfo>(`/api/oauth2/authorize/info?${qs}`).then((res) => {
       if (res.code === 0 && res.data) {
         setInfo(res.data);
-        // 如果已授权过相同权限，可以自动跳过（可选行为，这里选择仍然展示确认页）
       } else {
         setError(res.message || '获取应用信息失败');
       }
     }).catch((err: Error) => {
       setError(err.message || '应用信息加载失败');
     }).finally(() => setLoading(false));
-  }, [clientId, redirectUri, responseType, scope, codeChallengeMethod, navigate]);
+  }, [clientId, redirectUri, responseType, scope, codeChallenge, codeChallengeMethod, navigate]);
 
   const handleApprove = async () => {
     setSubmitting(true);
@@ -91,8 +101,8 @@ export default function OAuth2AuthorizePage() {
         response_type: 'code',
         scope,
         state: state || undefined,
-        code_challenge: codeChallenge || undefined,
-        code_challenge_method: codeChallengeMethod === 'S256' ? 'S256' : undefined,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
       }, { silent: true });
       if (res.code === 0 && res.data?.redirectUrl) {
         if (!isSafeOAuthRedirectUri(res.data.redirectUrl)) {
@@ -103,8 +113,9 @@ export default function OAuth2AuthorizePage() {
       } else {
         Toast.error(res.message || '授权失败');
       }
-    } catch {
-      // handled by interceptor
+    } catch (err) {
+      // silent:true 关闭了拦截器提示，这里必须自行反馈，否则点击「同意授权」会毫无反应
+      Toast.error(err instanceof Error && err.message ? err.message : '授权失败，请稍后重试');
     } finally {
       setSubmitting(false);
     }
@@ -182,9 +193,9 @@ export default function OAuth2AuthorizePage() {
         <div style={{ margin: '16px 0' }}>
           <Text strong>该应用请求以下权限：</Text>
           <div style={{ marginTop: 12 }}>
-            {info.requestedScopes.map((s) => (
+            {info.scopeDetails.map((item) => (
               <div
-                key={s}
+                key={item.code}
                 style={{
                   display: 'flex',
                   alignItems: 'flex-start',
@@ -193,8 +204,13 @@ export default function OAuth2AuthorizePage() {
                   borderBottom: '1px solid var(--semi-color-border)',
                 }}
               >
-                <Tag color="blue" size="small" style={{ marginTop: 2, flexShrink: 0 }}>{s}</Tag>
-                <Text style={{ fontSize: 13 }}>{OAUTH2_SCOPE_DESCRIPTIONS[s] ?? s}</Text>
+                <Tag color="blue" size="small" style={{ marginTop: 2, flexShrink: 0 }}>{item.code}</Tag>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Text style={{ fontSize: 13 }}>{item.name}</Text>
+                  {item.description && (
+                    <Text type="tertiary" size="small">{item.description}</Text>
+                  )}
+                </div>
               </div>
             ))}
           </div>

@@ -3,12 +3,14 @@ import { isIP } from 'node:net';
 import { and, eq, desc, ilike, inArray } from 'drizzle-orm';
 import { db } from '../../db';
 import {
+  appWebhookDeliveries,
   appWebhookSubscriptions,
   oauth2AuthorizationCodes,
   oauth2Clients,
   oauth2TokenFamilies,
   oauth2Tokens,
   oauth2UserGrants,
+  openQuotaAlerts,
   users,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
@@ -305,6 +307,14 @@ export async function updateOAuth2Client(
   }
 }
 
+/**
+ * 删除应用并级联清理全部从属数据。
+ *
+ * 应用被删除后 client_id 不复存在，任何仍引用它的记录都会变成孤儿：Webhook 订阅会显示
+ * 裸 client_id 且仍可触发投递，令牌记录无法再被任何流程回收。这里在同一事务内物理清理，
+ * 只保留 open_api_call_logs / open_api_call_stats_daily —— 调用日志是审计快照，
+ * 已冗余存储 appName，删除应用不应抹掉历史调用记录。
+ */
 export async function deleteOAuth2Client(
   id: number,
   options: {
@@ -318,19 +328,8 @@ export async function deleteOAuth2Client(
       .where(eq(oauth2Clients.id, id))
       .for('update')
       .limit(1);
-    await tx.update(oauth2Tokens)
-      .set({ revoked: true })
-      .where(eq(oauth2Tokens.clientId, existing.clientId));
-    await tx.update(oauth2TokenFamilies)
-      .set({ revoked: true })
-      .where(eq(oauth2TokenFamilies.clientId, existing.clientId));
-    await tx.delete(oauth2AuthorizationCodes)
-      .where(eq(oauth2AuthorizationCodes.clientId, existing.clientId));
-    await tx.delete(oauth2UserGrants)
-      .where(eq(oauth2UserGrants.clientId, existing.clientId));
-    await tx.update(appWebhookSubscriptions)
-      .set({ status: 'disabled' })
-      .where(eq(appWebhookSubscriptions.clientId, existing.clientId));
+
+    // 先删主行：ownerId / reviewStatus 条件不满足时直接失败，避免误删他人应用的从属数据
     const deleteConditions = [eq(oauth2Clients.id, id)];
     if (options.ownerId !== undefined) deleteConditions.push(eq(oauth2Clients.ownerId, options.ownerId));
     if (options.allowedReviewStatuses?.length) {
@@ -338,6 +337,26 @@ export async function deleteOAuth2Client(
     }
     const result = await tx.delete(oauth2Clients).where(and(...deleteConditions)).returning();
     if (result.length === 0) throw new HTTPException(404, { message: 'OAuth2 应用不存在' });
+
+    // Webhook：先删投递记录再删订阅（投递以订阅为父）
+    const subscriptionIds = await tx.select({ id: appWebhookSubscriptions.id })
+      .from(appWebhookSubscriptions)
+      .where(eq(appWebhookSubscriptions.clientId, existing.clientId));
+    if (subscriptionIds.length > 0) {
+      await tx.delete(appWebhookDeliveries)
+        .where(inArray(appWebhookDeliveries.subscriptionId, subscriptionIds.map((s) => s.id)));
+      await tx.delete(appWebhookSubscriptions)
+        .where(eq(appWebhookSubscriptions.clientId, existing.clientId));
+    }
+
+    // 凭证与授权：令牌 → 令牌族（令牌引用族）→ 授权码 → 用户授权
+    await tx.delete(oauth2Tokens).where(eq(oauth2Tokens.clientId, existing.clientId));
+    await tx.delete(oauth2TokenFamilies).where(eq(oauth2TokenFamilies.clientId, existing.clientId));
+    await tx.delete(oauth2AuthorizationCodes).where(eq(oauth2AuthorizationCodes.clientId, existing.clientId));
+    await tx.delete(oauth2UserGrants).where(eq(oauth2UserGrants.clientId, existing.clientId));
+
+    // 配额告警队列
+    await tx.delete(openQuotaAlerts).where(eq(openQuotaAlerts.clientId, existing.clientId));
   });
 }
 
@@ -393,10 +412,15 @@ export async function reviewOAuth2Client(
   input: { action: 'approve' | 'reject'; comment?: string },
 ) {
   const user = currentUser();
+  const comment = input.comment?.trim() || null;
+  // 驳回必须说明原因：开发者只能看到「已驳回」而不知道改什么，等于把流程卡死
+  if (input.action === 'reject' && !comment) {
+    throw new HTTPException(400, { message: '驳回必须填写审核意见' });
+  }
   return db.transaction(async (tx) => {
     const [row] = await tx.update(oauth2Clients).set({
       reviewStatus: input.action === 'approve' ? 'approved' : 'rejected',
-      reviewComment: input.comment?.trim() || null,
+      reviewComment: comment,
       reviewedAt: new Date(),
       reviewedBy: user.userId,
     }).where(and(
@@ -493,4 +517,81 @@ export async function getOAuth2TokenBeforeAudit(id: number) {
 export async function revokeToken(id: number) {
   const result = await db.update(oauth2Tokens).set({ revoked: true }).where(eq(oauth2Tokens.id, id)).returning();
   if (result.length === 0) throw new HTTPException(404, { message: '令牌不存在' });
+}
+
+// ─── 用户自助授权管理（我的已授权应用）─────────────────────────────────────────
+
+/**
+ * 当前用户已授权的第三方应用列表。
+ *
+ * 对标 GitHub「Authorized OAuth Apps」：用户必须能看见自己把哪些权限交给了谁，
+ * 并能随时收回——否则一旦授权就再也无法自主撤销，只能求助管理员。
+ */
+export async function listMyGrants(userId: number, opts: { page: number; pageSize: number }) {
+  const { page, pageSize } = opts;
+  const where = eq(oauth2UserGrants.userId, userId);
+  const [rows, total] = await Promise.all([
+    db.select({
+      id: oauth2UserGrants.id,
+      clientId: oauth2UserGrants.clientId,
+      appName: oauth2Clients.name,
+      appLogoUrl: oauth2Clients.logoUrl,
+      appDescription: oauth2Clients.description,
+      environment: oauth2Clients.environment,
+      scopes: oauth2UserGrants.scopes,
+      createdAt: oauth2UserGrants.createdAt,
+      updatedAt: oauth2UserGrants.updatedAt,
+    })
+      .from(oauth2UserGrants)
+      .leftJoin(oauth2Clients, eq(oauth2UserGrants.clientId, oauth2Clients.clientId))
+      .where(where)
+      .orderBy(desc(oauth2UserGrants.updatedAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+    db.$count(oauth2UserGrants, where),
+  ]);
+  return {
+    list: rows.map((row) => ({
+      id: row.id,
+      clientId: row.clientId,
+      appName: row.appName ?? row.clientId,
+      appLogoUrl: row.appLogoUrl ?? null,
+      appDescription: row.appDescription ?? null,
+      environment: row.environment ?? 'production',
+      scopes: row.scopes ?? [],
+      createdAt: formatDateTime(row.createdAt),
+      updatedAt: formatDateTime(row.updatedAt),
+    })),
+    total,
+    page,
+    pageSize,
+  };
+}
+
+/**
+ * 撤销当前用户对某个应用的授权：删除授权记录，并连带作废该用户在该应用下的
+ * 全部令牌与未兑换授权码——只删授权记录而留下有效 access_token 等于没撤销。
+ */
+export async function revokeMyGrant(userId: number, grantId: number): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [grant] = await tx.select().from(oauth2UserGrants)
+      .where(and(eq(oauth2UserGrants.id, grantId), eq(oauth2UserGrants.userId, userId)))
+      .for('update')
+      .limit(1);
+    if (!grant) throw new HTTPException(404, { message: '授权记录不存在' });
+
+    await tx.delete(oauth2UserGrants).where(eq(oauth2UserGrants.id, grantId));
+    await tx.delete(oauth2AuthorizationCodes).where(and(
+      eq(oauth2AuthorizationCodes.clientId, grant.clientId),
+      eq(oauth2AuthorizationCodes.userId, userId),
+    ));
+    await tx.update(oauth2Tokens).set({ revoked: true }).where(and(
+      eq(oauth2Tokens.clientId, grant.clientId),
+      eq(oauth2Tokens.userId, userId),
+    ));
+    await tx.update(oauth2TokenFamilies).set({ revoked: true }).where(and(
+      eq(oauth2TokenFamilies.clientId, grant.clientId),
+      eq(oauth2TokenFamilies.userId, userId),
+    ));
+  });
 }

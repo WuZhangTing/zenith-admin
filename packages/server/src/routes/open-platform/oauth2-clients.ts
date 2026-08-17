@@ -19,6 +19,7 @@ import {
   OAuth2TokenListItemDTO,
   OAuth2AppOptionDTO,
   OAuth2UserGrantDTO,
+  OAuth2MyGrantDTO,
 } from '../../lib/openapi-dtos';
 import {
   listOAuth2Clients,
@@ -33,10 +34,13 @@ import {
   getOAuth2TokenBeforeAudit,
   listAppOptions,
   listClientGrants,
+  listMyGrants,
+  revokeMyGrant,
   reviewOAuth2Client,
 } from '../../services/open-platform/oauth2-clients.service';
 import { createOAuth2ClientSchema, updateOAuth2ClientSchema } from '@zenith/shared/open-platform';
 import { notifyAppReviewResult } from '../../services/open-platform/developer-apps.service';
+import { currentUser } from '../../lib/context';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -278,8 +282,49 @@ const options = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await listAppOptions()), 200),
 });
 
+/**
+ * 「我的已授权应用」——用户自助管理入口，只操作当前登录用户自己的授权，
+ * 因此不挂任何 permission guard（登录即可访问自己的数据）。
+ */
+const myGrants = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/my-grants',
+    tags: ['OAuth2Apps'],
+    summary: '获取我已授权的第三方应用',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { query: GrantListQuery },
+    responses: { ...commonErrorResponses, ...okPaginated(OAuth2MyGrantDTO, '我的授权列表') },
+  }),
+  handler: async (c) => {
+    const { page, pageSize } = c.req.valid('query');
+    return c.json(okBody(await listMyGrants(currentUser().userId, { page, pageSize })), 200);
+  },
+});
+
+const revokeMyGrantRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete',
+    path: '/my-grants/{id}',
+    tags: ['OAuth2Apps'],
+    summary: '撤销我对某个应用的授权',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      audit: { description: '撤销第三方应用授权', module: 'OAuth2 应用' },
+    })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('授权已撤销') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await revokeMyGrant(currentUser().userId, id);
+    return c.json(okBody(null, '授权已撤销'), 200);
+  },
+});
+
 router.openapiRoutes([
-  list, options, tokens, revokeTokenRoute,
+  list, options, tokens, revokeTokenRoute, myGrants, revokeMyGrantRoute,
   create, grants, review, detail, update, remove, regenerateSecret,
 ] as const);
 

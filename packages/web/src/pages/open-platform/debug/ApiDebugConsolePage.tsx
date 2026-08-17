@@ -16,18 +16,11 @@ import {
 } from '@douyinfe/semi-ui';
 import { Play } from 'lucide-react';
 import type { OpenApiDebugResult } from '@zenith/shared/open-platform';
-import { useDebugMyApp, useMyAppList } from '@/hooks/queries/developer-apps';
+import { useDebugEndpoints, useDebugMyApp, useMyAppList } from '@/hooks/queries/developer-apps';
 import { ResetButton } from '@/components/toolbar-controls';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const { Paragraph, Text, Title } = Typography;
-type DebugPath = '/api/open/v1/ping' | '/api/open/v1/echo' | '/api/open/v1/userinfo';
-
-const ENDPOINTS: Array<{ path: DebugPath; label: string; methods: Array<'GET' | 'POST'> }> = [
-  { path: '/api/open/v1/ping', label: '连通性测试', methods: ['GET'] },
-  { path: '/api/open/v1/echo', label: '参数回显', methods: ['GET', 'POST'] },
-  { path: '/api/open/v1/userinfo', label: '应用上下文', methods: ['GET'] },
-];
 
 function prettyJson(value: string): string {
   try {
@@ -41,23 +34,33 @@ export default function ApiDebugConsolePage() {
   const [searchParams] = useSearchParams();
   const initialAppId = Number(searchParams.get('appId'));
   const appListQuery = useMyAppList({ page: 1, pageSize: 100 });
+  const endpointsQuery = useDebugEndpoints();
   const debugMutation = useDebugMyApp();
   const apps = useMemo(() => appListQuery.data?.list ?? [], [appListQuery.data]);
+  // 端点目录来自服务端（按实际注册的开放路由派生），新增开放端点后调试台自动可见
+  const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data]);
   const [appId, setAppId] = useState<number | undefined>(Number.isFinite(initialAppId) ? initialAppId : undefined);
-  const [path, setPath] = useState<DebugPath>('/api/open/v1/ping');
-  const [method, setMethod] = useState<'GET' | 'POST'>('GET');
+  const [endpointKey, setEndpointKey] = useState<string>('GET /api/open/v1/ping');
+  const [pathParams, setPathParams] = useState('');
   const [queryText, setQueryText] = useState('{\n  "message": "hello"\n}');
   const [bodyText, setBodyText] = useState('{\n  "message": "hello from debug console"\n}');
   const [result, setResult] = useState<OpenApiDebugResult | null>(null);
-  const endpoint = useMemo(() => ENDPOINTS.find((item) => item.path === path)!, [path]);
+
+  const endpoint = useMemo(
+    () => endpoints.find((item) => `${item.method} ${item.path}` === endpointKey) ?? endpoints[0],
+    [endpoints, endpointKey],
+  );
+  const method = endpoint?.method ?? 'GET';
+  const hasPathParams = /\{[^}]+\}/.test(endpoint?.path ?? '');
+  const supportsBody = method === 'POST' || method === 'PUT';
 
   useEffect(() => {
     if (appId === undefined && apps.length > 0) setAppId(apps[0].id);
   }, [appId, apps]);
 
   const reset = () => {
-    setPath('/api/open/v1/ping');
-    setMethod('GET');
+    setEndpointKey('GET /api/open/v1/ping');
+    setPathParams('');
     setQueryText('{\n  "message": "hello"\n}');
     setBodyText('{\n  "message": "hello from debug console"\n}');
     setResult(null);
@@ -68,6 +71,23 @@ export default function ApiDebugConsolePage() {
       Toast.warning('请先选择应用');
       return;
     }
+    if (!endpoint) {
+      Toast.warning('请选择调试端点');
+      return;
+    }
+    // 路径参数（如 /cms/contents/{id}）由使用者填入实际值后替换
+    let resolvedPath = endpoint.path;
+    if (hasPathParams) {
+      const values = pathParams.split(',').map((s) => s.trim()).filter(Boolean);
+      const placeholders = endpoint.path.match(/\{[^}]+\}/g) ?? [];
+      if (values.length !== placeholders.length) {
+        Toast.error(`该端点需要 ${placeholders.length} 个路径参数：${placeholders.join('、')}`);
+        return;
+      }
+      placeholders.forEach((placeholder, index) => {
+        resolvedPath = resolvedPath.replace(placeholder, encodeURIComponent(values[index]));
+      });
+    }
     let query: Record<string, string> | undefined;
     let body: unknown;
     try {
@@ -76,14 +96,14 @@ export default function ApiDebugConsolePage() {
       query = parsed
         ? Object.fromEntries(Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key, String(value)]))
         : undefined;
-      body = method === 'POST' && bodyText.trim() ? JSON.parse(bodyText) : undefined;
+      body = supportsBody && bodyText.trim() ? JSON.parse(bodyText) : undefined;
     } catch {
       Toast.error('Query 与 Body 必须是合法 JSON');
       return;
     }
     const response = await debugMutation.mutateAsync({
       id: appId,
-      values: { method, path, query, body },
+      values: { method: method as 'GET' | 'POST' | 'PUT' | 'DELETE', path: resolvedPath, query, body },
     });
     setResult(response);
   };
@@ -112,28 +132,36 @@ export default function ApiDebugConsolePage() {
               />
               <Select
                 prefix="端点"
-                value={path}
-                onChange={(value) => {
-                  const nextPath = value as DebugPath;
-                  const next = ENDPOINTS.find((item) => item.path === nextPath)!;
-                  setPath(nextPath);
-                  if (!next.methods.includes(method)) setMethod(next.methods[0]);
-                }}
-                optionList={ENDPOINTS.map((item) => ({ value: item.path, label: `${item.label} · ${item.path}` }))}
+                value={endpointKey}
+                onChange={(value) => setEndpointKey(value as string)}
+                optionList={endpoints.map((item) => ({
+                  value: `${item.method} ${item.path}`,
+                  label: `${item.method} ${item.path}${item.summary ? ` · ${item.summary}` : ''}`,
+                }))}
+                loading={endpointsQuery.isFetching}
+                filter
                 style={{ width: '100%', marginBottom: 16 }}
               />
-              <Select
-                prefix="方法"
-                value={method}
-                onChange={(value) => setMethod(value as 'GET' | 'POST')}
-                optionList={endpoint.methods.map((value) => ({ value, label: value }))}
-                style={{ width: '100%', marginBottom: 16 }}
-              />
+              {endpoint?.scope && (
+                <div style={{ marginBottom: 16 }}>
+                  <Text type="tertiary" size="small">所需 scope：</Text>
+                  <Tag size="small" color="blue" style={{ marginLeft: 6 }}>{endpoint.scope}</Tag>
+                </div>
+              )}
+              {hasPathParams && (
+                <div style={{ marginBottom: 16 }}>
+                  <Text strong>路径参数</Text>
+                  <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 2 }}>
+                    按顺序填写 {endpoint?.path.match(/\{[^}]+\}/g)?.join('、')}，多个用英文逗号分隔
+                  </Text>
+                  <TextArea value={pathParams} onChange={setPathParams} rows={1} style={{ marginTop: 6 }} />
+                </div>
+              )}
               <div style={{ marginBottom: 16 }}>
                 <Text strong>Query JSON</Text>
                 <TextArea value={queryText} onChange={setQueryText} rows={5} style={{ marginTop: 6 }} />
               </div>
-              {method === 'POST' && (
+              {supportsBody && (
                 <div style={{ marginBottom: 16 }}>
                   <Text strong>Body JSON</Text>
                   <TextArea value={bodyText} onChange={setBodyText} rows={7} style={{ marginTop: 6 }} />

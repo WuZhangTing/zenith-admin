@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
 import { ApiTokenListItemDTO, ApiTokenCreatedDTO } from '../../lib/openapi-dtos';
-import { listApiTokens, createApiToken, deleteApiToken } from '../../services/open-platform/api-tokens.service';
+import { listApiTokens, createApiToken, deleteApiToken } from '../../services/identity/api-tokens.service';
 
 const apiTokensRoute = new OpenAPIHono({ defaultHook: validationHook });
 

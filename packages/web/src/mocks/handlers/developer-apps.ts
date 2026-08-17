@@ -116,6 +116,15 @@ export const developerAppsHandlers = [
       monthly: { used: sandbox ? 0 : 56000, limit: sandbox ? 0 : 200000, percentage: sandbox ? 0 : 28 },
     }, 'success');
   }),
+  // 端点目录（必须注册在 `${BASE}/:id` 之前，否则 `debug` 会被当成 id 匹配）
+  http.get(`${BASE}/debug/endpoints`, () => ok([
+    { method: 'GET', path: '/api/open/v1/ping', summary: '连通性测试', scope: null },
+    { method: 'GET', path: '/api/open/v1/echo', summary: '查询参数回显', scope: 'data:read' },
+    { method: 'POST', path: '/api/open/v1/echo', summary: '请求体回显（验证 body 参与签名）', scope: 'data:write' },
+    { method: 'GET', path: '/api/open/v1/userinfo', summary: '当前调用主体信息', scope: 'user:read' },
+    { method: 'GET', path: '/api/open/v1/cms/channels', summary: '站点栏目树（启用中）', scope: null },
+    { method: 'GET', path: '/api/open/v1/cms/contents', summary: '已发布内容查询', scope: null },
+  ], 'success')),
   http.post(`${BASE}/:id/debug`, async ({ params, request }) => {
     const app = apps.find((item) => item.id === Number(params.id));
     if (!app) return notFound('应用不存在', { status: 404 });

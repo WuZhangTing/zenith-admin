@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Tag, Space, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select } from '@douyinfe/semi-ui';
+import { Button, Tag, Space, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select, TextArea } from '@douyinfe/semi-ui';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -170,13 +170,31 @@ export default function OAuth2AppsPage() {
     }
   }
 
-  async function handleReview(record: OAuth2Client, action: 'approve' | 'reject') {
-    await reviewMutation.mutateAsync({
-      id: record.id,
-      action,
-      comment: action === 'reject' ? '请完善应用配置后重新提交' : undefined,
-    });
-    Toast.success(action === 'approve' ? '审核已通过' : '应用已驳回');
+  /**
+   * 审核操作。
+   *
+   * 通过与驳回都是不可逆的流程动作，必须显式确认；驳回还必须写明原因——
+   * 开发者只看到「已驳回」而不知道改什么，等于把审核流程卡死。
+   */
+  const [reviewTarget, setReviewTarget] = useState<OAuth2Client | null>(null);
+  const [reviewComment, setReviewComment] = useState('');
+
+  async function handleApprove(record: OAuth2Client) {
+    await reviewMutation.mutateAsync({ id: record.id, action: 'approve' });
+    Toast.success('审核已通过');
+  }
+
+  async function handleReject() {
+    if (!reviewTarget) return;
+    const comment = reviewComment.trim();
+    if (!comment) {
+      Toast.warning('请填写驳回原因');
+      return;
+    }
+    await reviewMutation.mutateAsync({ id: reviewTarget.id, action: 'reject', comment });
+    Toast.success('应用已驳回，审核意见已通知开发者');
+    setReviewTarget(null);
+    setReviewComment('');
   }
 
   const columns: ColumnProps<OAuth2Client>[] = [
@@ -246,10 +264,10 @@ export default function OAuth2AppsPage() {
       },
     },
     {
-      title: '签名',
+      title: '签名通道',
       dataIndex: 'signEnabled',
-      width: 80,
-      render: (v: boolean) => (v ? <Tag color="orange" size="small">已开启</Tag> : <Text type="tertiary">关闭</Text>),
+      width: 100,
+      render: (v: boolean) => (v ? <Tag color="orange" size="small">已开启</Tag> : <Text type="tertiary">仅 Bearer</Text>),
     },
     createdAtColumn,
     {
@@ -285,14 +303,23 @@ export default function OAuth2AppsPage() {
           key: 'approve',
           label: '通过',
           hidden: !canManage || record.reviewStatus !== 'pending',
-          onClick: () => void handleReview(record, 'approve'),
+          onClick: () => {
+            Modal.confirm({
+              title: '通过应用审核？',
+              content: `「${record.name}」通过后即可调用开放 API。`,
+              onOk: () => handleApprove(record),
+            });
+          },
         },
         {
           key: 'reject',
           label: '驳回',
           danger: true,
           hidden: !canManage || record.reviewStatus !== 'pending',
-          onClick: () => void handleReview(record, 'reject'),
+          onClick: () => {
+            setReviewComment('');
+            setReviewTarget(record);
+          },
         },
         {
           key: 'regenerate',
@@ -523,8 +550,8 @@ export default function OAuth2AppsPage() {
               <Col span={12}>
                 <Form.Switch
                   field="signEnabled"
-                  label="签名验签"
-                  extraText="开放 API 调用强制 HMAC 签名"
+                  label="AppKey 签名通道"
+                  extraText="开启后可用 AppKey + HMAC 签名调用（签名强制）；关闭则仅支持 OAuth2 Bearer 令牌"
                 />
               </Col>
             </Row>
@@ -586,6 +613,34 @@ export default function OAuth2AppsPage() {
         <Paragraph copyable style={{ wordBreak: 'break-all', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 'var(--semi-border-radius-small)' }}>
           {oneTimeSecret}
         </Paragraph>
+      </Modal>
+
+      {/* 驳回审核：必须填写原因，内容会通知到开发者 */}
+      <Modal
+        title="驳回应用审核"
+        visible={!!reviewTarget}
+        onCancel={() => { setReviewTarget(null); setReviewComment(''); }}
+        onOk={() => void handleReject()}
+        okText="确认驳回"
+        okButtonProps={{ type: 'danger', loading: reviewMutation.isPending }}
+      >
+        <Banner
+          type="info"
+          description={`「${reviewTarget?.name ?? ''}」将被驳回，审核意见会通知到应用负责人。`}
+          style={{ marginBottom: 16 }}
+        />
+        <div style={{ marginBottom: 8 }}>
+          <Text strong>驳回原因</Text>
+          <Text type="danger"> *</Text>
+        </div>
+        <TextArea
+          value={reviewComment}
+          onChange={setReviewComment}
+          placeholder="说明需要开发者修改的内容，例如：回调地址必须使用 HTTPS，且申请的 scope 超出实际业务范围"
+          maxCount={500}
+          rows={4}
+          autoFocus
+        />
       </Modal>
     </div>
   );

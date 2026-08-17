@@ -1,4 +1,5 @@
 import { defineRouteDomain } from '../_kit';
+import apiTokensRoutes from './api-tokens';
 import authRoutes from './auth';
 import departmentsRoutes from './departments';
 import enterpriseAuthRoutes from './enterprise-auth';
@@ -35,5 +36,7 @@ export default defineRouteDomain({
     ['/api/auth/oauth', oauthRoutes],
     ['/api/auth/enterprise', enterpriseAuthRoutes],
     ['/api/oauth-config', oauthConfigRoutes],
+    // 个人访问令牌属于账号安全能力（入口在个人中心），归 identity 域
+    ['/api/api-tokens', apiTokensRoutes],
   ],
 });

@@ -335,6 +335,8 @@ export async function listOpenApiCallLogs(opts: OpenApiCallLogQuery) {
       ip: r.ip ?? null,
       userAgent: r.userAgent ?? null,
       scope: r.scope ?? null,
+      authChannel: (r.authChannel ?? null) as 'bearer' | 'signature' | null,
+      userId: r.userId ?? null,
       errorMessage: r.errorMessage ?? null,
       requestId: r.requestId ?? null,
       environment: r.environment as 'production' | 'sandbox',

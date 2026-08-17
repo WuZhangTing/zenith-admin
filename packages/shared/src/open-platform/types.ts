@@ -58,10 +58,14 @@ export interface OAuth2UserGrant {
   updatedAt: string;
 }
 
-export interface OAuth2UserGrant {
+/** 「我的已授权应用」条目（用户视角） */
+export interface OAuth2MyGrant {
   id: number;
-  userId: number;
   clientId: string;
+  appName: string;
+  appLogoUrl: string | null;
+  appDescription: string | null;
+  environment: 'production' | 'sandbox';
   scopes: string[];
   createdAt: string;
   updatedAt: string;
@@ -77,6 +81,8 @@ export interface ApiScope {
   description?: string | null;
   scopeGroup: string;
   status: 'enabled' | 'disabled';
+  /** 引用该 scope 的应用数量，> 0 时不可删除 */
+  usedByAppCount?: number;
   createdBy?: number | null;
   updatedBy?: number | null;
   createdAt: string;
@@ -116,6 +122,10 @@ export interface OpenApiCallLog {
   ip?: string | null;
   userAgent?: string | null;
   scope?: string | null;
+  /** 鉴权通道：bearer = OAuth2 令牌；signature = AppKey + HMAC */
+  authChannel?: 'bearer' | 'signature' | null;
+  /** 用户授权令牌对应的用户；client_credentials 与签名通道为空 */
+  userId?: number | null;
   errorMessage?: string | null;
   requestId?: string | null;
   environment: 'production' | 'sandbox';
@@ -147,6 +157,14 @@ export interface OpenApiDebugResult {
   responseHeaders: Record<string, string>;
   responseBody: string;
   durationMs: number;
+}
+
+/** 可调试的开放 API 端点目录条目 */
+export interface OpenApiDebugEndpoint {
+  method: string;
+  path: string;
+  summary: string;
+  scope: string | null;
 }
 
 /** 调用统计总览 */
@@ -280,5 +298,14 @@ export interface OAuth2AuthorizeInfo {
   logoUrl?: string | null;
   description?: string | null;
   requestedScopes: string[];
+  /** 每个申请 scope 的展示信息（取自 API Scope 表） */
+  scopeDetails: Array<{
+    code: string;
+    name: string;
+    description: string | null;
+    granted: boolean;
+  }>;
   alreadyGranted: boolean;
+  /** 授权端点是否强制 PKCE */
+  requiresPkce: boolean;
 }

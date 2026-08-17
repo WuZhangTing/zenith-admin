@@ -86,6 +86,21 @@ export const OAuth2UserGrantDTO = z
   })
   .openapi('OAuth2UserGrant');
 
+/** 「我的已授权应用」条目（用户视角，含应用展示信息） */
+export const OAuth2MyGrantDTO = z
+  .object({
+    id: z.number().int(),
+    clientId: z.string(),
+    appName: z.string(),
+    appLogoUrl: z.string().nullable(),
+    appDescription: z.string().nullable(),
+    environment: z.enum(['production', 'sandbox']),
+    scopes: z.array(z.string()),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('OAuth2MyGrant');
+
 // ─── OAuth2 授权端点 DTOs ────────────────────────────────────────────────────
 
 /** /api/oauth2/authorize/info 响应 */
@@ -96,7 +111,16 @@ export const OAuth2AuthorizeInfoDTO = z
     logoUrl: z.string().nullable(),
     description: z.string().nullable(),
     requestedScopes: z.array(z.string()),
+    /** 每个申请 scope 的展示信息（取自 API Scope 表） */
+    scopeDetails: z.array(z.object({
+      code: z.string(),
+      name: z.string(),
+      description: z.string().nullable(),
+      granted: z.boolean(),
+    })),
     alreadyGranted: z.boolean(),
+    /** 授权端点是否强制 PKCE */
+    requiresPkce: z.boolean(),
   })
   .openapi('OAuth2AuthorizeInfo');
 

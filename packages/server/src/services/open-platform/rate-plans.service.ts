@@ -139,6 +139,15 @@ export async function updateRatePlan(id: number, input: UpdateRatePlanInput) {
 }
 
 export async function deleteRatePlan(id: number) {
+  const [existing] = await db.select({ isDefault: ratePlans.isDefault, name: ratePlans.name })
+    .from(ratePlans)
+    .where(eq(ratePlans.id, id))
+    .limit(1);
+  if (!existing) throw new HTTPException(404, { message: '限流套餐不存在' });
+  // 默认套餐是所有未显式绑定套餐的应用的回退目标，删掉会让这些应用的限流行为悬空
+  if (existing.isDefault) {
+    throw new HTTPException(400, { message: '默认套餐不可删除，请先将其他套餐设为默认' });
+  }
   const usedBy = await db.$count(oauth2Clients, eq(oauth2Clients.ratePlanId, id));
   if (usedBy > 0) {
     throw new HTTPException(400, { message: `该套餐已被 ${usedBy} 个应用绑定，无法删除` });

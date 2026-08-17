@@ -217,6 +217,10 @@ export const openApiCallLogs = pgTable('open_api_call_logs', {
   userAgent: varchar('user_agent', { length: 256 }),
   /** 命中的 scope（如有） */
   scope: varchar('scope', { length: 128 }),
+  /** 鉴权通道：bearer = OAuth2 令牌；signature = AppKey + HMAC */
+  authChannel: varchar('auth_channel', { length: 16 }),
+  /** 用户授权令牌对应的用户；client_credentials 与签名通道为空 */
+  userId: integer('user_id'),
   errorMessage: varchar('error_message', { length: 512 }),
   requestId: varchar('request_id', { length: 64 }),
   environment: openAppEnvironmentEnum('environment').notNull().default('production'),

@@ -7,12 +7,20 @@ import { httpRequest } from '../../lib/http-client';
 import { signRequest } from '../../lib/open-signature';
 import { getMyOAuth2Client } from './developer-apps.service';
 import { getAppSigningSecret } from './oauth2-clients.service';
+import { OPEN_GATEWAY_ENDPOINTS } from '../../routes/open-platform/open-gateway';
+import { issueDebugAccessToken } from './oauth2-auth.service';
 
-const ALLOWED_ENDPOINTS: Record<string, readonly string[]> = {
-  '/api/open/v1/ping': ['GET'],
-  '/api/open/v1/echo': ['GET', 'POST'],
-  '/api/open/v1/userinfo': ['GET'],
-};
+/** 把目录里的路径模板（/api/open/v1/cms/contents/{id}）与实际路径做匹配 */
+function findEndpoint(path: string, method: string): { path: string; method: string } | null {
+  const normalizedMethod = method.toUpperCase();
+  return OPEN_GATEWAY_ENDPOINTS.find((item) => {
+    if (item.method !== normalizedMethod) return false;
+    if (item.path === path) return true;
+    // 路径参数按单段通配匹配
+    const pattern = new RegExp(`^${item.path.replace(/\{[^}]+\}/g, '[^/]+')}$`);
+    return pattern.test(path);
+  }) ?? null;
+}
 
 export async function executeOpenApiDebugRequest(
   appId: number,
@@ -25,8 +33,7 @@ export async function executeOpenApiDebugRequest(
 ): Promise<OpenApiDebugResult> {
   const app = await getMyOAuth2Client(appId);
   const method = input.method.toUpperCase();
-  const allowedMethods = ALLOWED_ENDPOINTS[input.path];
-  if (!allowedMethods?.includes(method)) {
+  if (!findEndpoint(input.path, method)) {
     throw new HTTPException(400, { message: '不支持的调试端点或请求方法' });
   }
 
@@ -35,16 +42,16 @@ export async function executeOpenApiDebugRequest(
     url.searchParams.append(key, value);
   }
 
-  const rawBody = method === 'GET' ? '' : JSON.stringify(input.body ?? {});
+  const rawBody = method === 'GET' || method === 'DELETE' ? '' : JSON.stringify(input.body ?? {});
   const timestamp = Math.floor(Date.now() / 1000).toString();
   const nonce = randomUUID();
-  const headers: Record<string, string> = {
-    [OPEN_SIGNATURE_HEADERS.appKey]: app.clientId,
-    Accept: 'application/json',
-  };
+  const headers: Record<string, string> = { Accept: 'application/json' };
   let stringToSign: string | undefined;
-  const secret = await getAppSigningSecret(app.clientId);
-  if (secret) {
+
+  // 鉴权通道与网关保持一致：开启签名通道的应用走 AppKey + HMAC，
+  // 其余应用签发一枚短期调试令牌走 Bearer——否则调试台会被网关以「未开启签名通道」拒绝。
+  const secret = app.signEnabled ? await getAppSigningSecret(app.clientId) : null;
+  if (app.signEnabled && secret) {
     const signed = signRequest(secret, {
       method,
       path: url.pathname,
@@ -54,9 +61,13 @@ export async function executeOpenApiDebugRequest(
       body: rawBody,
     });
     stringToSign = signed.stringToSign;
+    headers[OPEN_SIGNATURE_HEADERS.appKey] = app.clientId;
     headers[OPEN_SIGNATURE_HEADERS.timestamp] = timestamp;
     headers[OPEN_SIGNATURE_HEADERS.nonce] = nonce;
     headers[OPEN_SIGNATURE_HEADERS.signature] = signed.signature;
+  } else {
+    const token = await issueDebugAccessToken(app.clientId);
+    headers.Authorization = `Bearer ${token}`;
   }
   if (rawBody) headers['Content-Type'] = 'application/json';
 

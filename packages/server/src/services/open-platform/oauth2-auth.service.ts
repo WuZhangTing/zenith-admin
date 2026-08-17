@@ -3,9 +3,10 @@
  * 令牌使用 opaque token（SHA256 哈希存储于 DB），支持精确撤销
  */
 import { randomBytes, createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { db } from '../../db';
 import {
+  apiScopes,
   oauth2Clients,
   oauth2AuthorizationCodes,
   oauth2TokenFamilies,
@@ -21,6 +22,7 @@ import { isSafeOAuthRedirectUri } from '@zenith/shared/identity';
 import { OAUTH2_TOKEN_EXPIRY } from '@zenith/shared/open-platform';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { config } from '../../config';
+import { OAuth2Error } from '../../lib/oauth2-error';
 
 // ─── 内部工具 ─────────────────────────────────────────────────────────────────
 
@@ -77,6 +79,19 @@ async function ensureClient(clientId: string) {
   return row;
 }
 
+/** 协议端点专用：客户端不可用统一表达为 RFC 6749 的 invalid_client */
+async function ensureClientForToken(clientId: string) {
+  try {
+    return await ensureClient(clientId);
+  } catch (err) {
+    if (err instanceof OAuth2Error) throw err;
+    if (err instanceof HTTPException) {
+      throw new OAuth2Error('invalid_client', err.message === 'invalid_client' ? undefined : err.message);
+    }
+    throw err;
+  }
+}
+
 async function lockUsableClient(tx: DbTransaction, clientId: string) {
   const [row] = await tx.select().from(oauth2Clients)
     .where(eq(oauth2Clients.clientId, clientId))
@@ -87,6 +102,22 @@ async function lockUsableClient(tx: DbTransaction, clientId: string) {
     throw new HTTPException(403, { message: row.status !== 'enabled' ? '应用已禁用' : '应用尚未审核通过' });
   }
   return row;
+}
+
+/**
+ * 令牌端点专用的客户端加载：把客户端不可用统一表达为 RFC 6749 的 invalid_client。
+ * 授权同意页走 `lockUsableClient`，保留业务错误格式供前端直接展示。
+ */
+async function lockUsableClientForToken(tx: DbTransaction, clientId: string) {
+  try {
+    return await lockUsableClient(tx, clientId);
+  } catch (err) {
+    if (err instanceof OAuth2Error) throw err;
+    if (err instanceof HTTPException) {
+      throw new OAuth2Error('invalid_client', err.message === 'invalid_client' ? undefined : err.message);
+    }
+    throw err;
+  }
 }
 
 function isClientUsable(client: typeof oauth2Clients.$inferSelect): boolean {
@@ -202,13 +233,35 @@ export async function getAuthorizeInfo(params: {
   const grantedScopes: string[] = grant?.scopes ?? [];
   const alreadyGranted = requestedScopes.every((item) => grantedScopes.includes(item));
 
+  // scope 说明取自 API Scope 表（管理端可维护），缺失时回退到编码本身
+  const scopeRows = requestedScopes.length > 0
+    ? await db.select({
+      code: apiScopes.code,
+      name: apiScopes.name,
+      description: apiScopes.description,
+    }).from(apiScopes).where(inArray(apiScopes.code, requestedScopes))
+    : [];
+  const scopeMap = new Map(scopeRows.map((row) => [row.code, row]));
+  const scopeDetails = requestedScopes.map((code) => {
+    const row = scopeMap.get(code);
+    return {
+      code,
+      name: row?.name ?? code,
+      description: row?.description ?? null,
+      granted: grantedScopes.includes(code),
+    };
+  });
+
   return {
     clientId: client.clientId,
     name: client.name,
     logoUrl: client.logoUrl,
     description: client.description,
     requestedScopes,
+    scopeDetails,
     alreadyGranted,
+    /** 授权端点强制 PKCE（OAuth 2.1），前端据此在进入同意页前校验参数 */
+    requiresPkce: true,
   };
 }
 
@@ -274,6 +327,34 @@ export async function createAuthorizationCode(params: {
     });
     const stateParam = state ? `&state=${encodeURIComponent(state)}` : '';
     return { redirectUrl: `${redirectUri}?code=${code}${stateParam}` };
+  });
+}
+
+/**
+ * 为 API 调试台签发一枚短期访问令牌。
+ *
+ * 调试台由服务端代为发起调用，应用可能并未开启签名通道，此时必须走 Bearer。
+ * 令牌作用域取应用允许的全部 scope（与签名通道等价），有效期压到 5 分钟，
+ * 用完即弃，不进入用户授权体系。
+ */
+export async function issueDebugAccessToken(clientId: string): Promise<string> {
+  const DEBUG_TOKEN_TTL_SECONDS = 300;
+  return db.transaction(async (tx) => {
+    const client = await lockUsableClient(tx, clientId);
+    const familyId = randomUUID();
+    await tx.insert(oauth2TokenFamilies).values({ id: familyId, clientId, userId: null });
+    const token = generateOpaqueToken('oat');
+    await tx.insert(oauth2Tokens).values({
+      tokenType: 'access',
+      tokenHash: token.hash,
+      tokenPrefix: token.tokenPrefix,
+      familyId,
+      clientId,
+      userId: null,
+      scopes: client.allowedScopes ?? [],
+      expiresAt: new Date(Date.now() + DEBUG_TOKEN_TTL_SECONDS * 1000),
+    });
+    return token.raw;
   });
 }
 
@@ -350,42 +431,42 @@ export async function exchangeCodeForToken(params: {
     throw new HTTPException(400, { message: 'code_verifier 格式无效（PKCE）' });
   }
   return db.transaction(async (tx) => {
-    const client = await lockUsableClient(tx, clientId);
+    const client = await lockUsableClientForToken(tx, clientId);
     if (!client.isPublic) {
       if (!clientSecret || !clientSecretMatches(clientSecret, client)) {
-        throw new HTTPException(400, { message: 'invalid_client' });
+        throw new OAuth2Error('invalid_client');
       }
     }
     if (!client.grantTypes?.includes('authorization_code')) {
-      throw new HTTPException(400, { message: '该应用不支持 authorization_code 授权' });
+      throw new OAuth2Error('unauthorized_client', '该应用不支持 authorization_code 授权');
     }
     const [row] = await tx.select().from(oauth2AuthorizationCodes).where(
       and(eq(oauth2AuthorizationCodes.codeHash, sha256(code)), eq(oauth2AuthorizationCodes.clientId, clientId)),
     ).for('update').limit(1);
-    if (!row) throw new HTTPException(400, { message: 'invalid_grant：授权码不存在' });
-    if (row.used) throw new HTTPException(400, { message: 'invalid_grant：授权码已使用' });
-    if (row.expiresAt < new Date()) throw new HTTPException(400, { message: 'invalid_grant：授权码已过期' });
-    if (row.redirectUri !== redirectUri) throw new HTTPException(400, { message: 'redirect_uri 不匹配' });
+    if (!row) throw new OAuth2Error('invalid_grant', '授权码不存在');
+    if (row.used) throw new OAuth2Error('invalid_grant', '授权码已使用');
+    if (row.expiresAt < new Date()) throw new OAuth2Error('invalid_grant', '授权码已过期');
+    if (row.redirectUri !== redirectUri) throw new OAuth2Error('invalid_grant', 'redirect_uri 不匹配');
     if (
       !row.codeChallenge
       || row.codeChallengeMethod !== 'S256'
       || !verifyPkceS256(codeVerifier, row.codeChallenge)
     ) {
-      throw new HTTPException(400, { message: 'code_verifier 验证失败' });
+      throw new OAuth2Error('invalid_grant', 'code_verifier 验证失败');
     }
     const scopes: string[] = row.scopes ?? [];
     if (scopes.some((scope) => !(client.allowedScopes ?? []).includes(scope))) {
-      throw new HTTPException(400, { message: 'invalid_grant：授权范围已变更，请重新授权' });
+      throw new OAuth2Error('invalid_grant', '授权范围已变更，请重新授权');
     }
     if (!await getUsableOAuthUser(row.userId, tx)) {
-      throw new HTTPException(400, { message: 'invalid_grant：用户或租户已停用' });
+      throw new OAuth2Error('invalid_grant', '用户或租户已停用');
     }
     const consumed = await tx.update(oauth2AuthorizationCodes)
       .set({ used: true })
       .where(and(eq(oauth2AuthorizationCodes.id, row.id), eq(oauth2AuthorizationCodes.used, false)))
       .returning({ id: oauth2AuthorizationCodes.id });
     if (consumed.length === 0) {
-      throw new HTTPException(400, { message: 'invalid_grant：授权码已使用' });
+      throw new OAuth2Error('invalid_grant', '授权码已使用');
     }
     const includeRefresh = scopes.includes('offline_access') && client.grantTypes?.includes('refresh_token') === true;
     return issueTokenPair(tx, { clientId, userId: row.userId, scopes, includeRefresh });
@@ -399,17 +480,17 @@ export async function clientCredentialsToken(params: {
 }) {
   const { clientId, clientSecret, scope } = params;
   return db.transaction(async (tx) => {
-    const client = await lockUsableClient(tx, clientId);
+    const client = await lockUsableClientForToken(tx, clientId);
     if (client.isPublic || !clientSecretMatches(clientSecret, client)) {
-      throw new HTTPException(400, { message: 'invalid_client' });
+      throw new OAuth2Error('invalid_client');
     }
     if (!client.grantTypes?.includes('client_credentials')) {
-      throw new HTTPException(400, { message: '该应用不支持 client_credentials 授权' });
+      throw new OAuth2Error('unauthorized_client', '该应用不支持 client_credentials 授权');
     }
     const requestedScopes = scope.split(' ').filter(Boolean);
     const invalidScopes = requestedScopes.filter((item) => !(client.allowedScopes ?? []).includes(item));
     if (invalidScopes.length > 0) {
-      throw new HTTPException(400, { message: `不支持的 scope：${invalidScopes.join(', ')}` });
+      throw new OAuth2Error('invalid_scope', `不支持的 scope：${invalidScopes.join(', ')}`);
     }
     return issueTokenPair(tx, { clientId, userId: null, scopes: requestedScopes, includeRefresh: false });
   });
@@ -423,12 +504,12 @@ export async function refreshAccessToken(params: {
   const { refreshToken, clientId, clientSecret } = params;
   const tokenHash = sha256(refreshToken);
   const result = await db.transaction(async (tx) => {
-    const client = await lockUsableClient(tx, clientId);
+    const client = await lockUsableClientForToken(tx, clientId);
     if (!client.grantTypes?.includes('refresh_token')) {
-      throw new HTTPException(400, { message: '该应用不支持 refresh_token 授权' });
+      throw new OAuth2Error('unauthorized_client', '该应用不支持 refresh_token 授权');
     }
     if (!client.isPublic && (!clientSecret || !clientSecretMatches(clientSecret, client))) {
-      throw new HTTPException(400, { message: 'invalid_client' });
+      throw new OAuth2Error('invalid_client');
     }
 
     const [row] = await tx.select().from(oauth2Tokens).where(and(
@@ -436,10 +517,10 @@ export async function refreshAccessToken(params: {
       eq(oauth2Tokens.tokenType, 'refresh'),
       eq(oauth2Tokens.clientId, clientId),
     )).for('update').limit(1);
-    if (!row) throw new HTTPException(400, { message: 'invalid_grant：refresh_token 不存在' });
+    if (!row) throw new OAuth2Error('invalid_grant', 'refresh_token 不存在');
     if (!row.familyId) {
       await tx.update(oauth2Tokens).set({ revoked: true }).where(eq(oauth2Tokens.id, row.id));
-      return { error: 'invalid_grant：旧版 refresh_token 已失效，请重新授权' } as const;
+      return { error: '旧版 refresh_token 已失效，请重新授权' } as const;
     }
 
     const [family] = await tx.select().from(oauth2TokenFamilies)
@@ -448,18 +529,18 @@ export async function refreshAccessToken(params: {
       .limit(1);
     if (!family) {
       await tx.update(oauth2Tokens).set({ revoked: true }).where(eq(oauth2Tokens.id, row.id));
-      return { error: 'invalid_grant：令牌族不存在' } as const;
+      return { error: '令牌族不存在' } as const;
     }
     if (row.revoked || family.revoked || family.compromised) {
       await tx.update(oauth2TokenFamilies).set({ revoked: true, compromised: true })
         .where(eq(oauth2TokenFamilies.id, family.id));
       await tx.update(oauth2Tokens).set({ revoked: true })
         .where(eq(oauth2Tokens.familyId, family.id));
-      return { error: 'invalid_grant：检测到 refresh_token 重放，令牌族已撤销' } as const;
+      return { error: '检测到 refresh_token 重放，令牌族已撤销' } as const;
     }
     if (row.expiresAt && row.expiresAt < new Date()) {
       await tx.update(oauth2Tokens).set({ revoked: true }).where(eq(oauth2Tokens.id, row.id));
-      return { error: 'invalid_grant：refresh_token 已过期' } as const;
+      return { error: 'refresh_token 已过期' } as const;
     }
     const scopes: string[] = row.scopes ?? [];
     if (scopes.some((item) => !(client.allowedScopes ?? []).includes(item))) {
@@ -467,14 +548,14 @@ export async function refreshAccessToken(params: {
         .where(eq(oauth2TokenFamilies.id, family.id));
       await tx.update(oauth2Tokens).set({ revoked: true })
         .where(eq(oauth2Tokens.familyId, family.id));
-      return { error: 'invalid_grant：授权范围已变更，请重新授权' } as const;
+      return { error: '授权范围已变更，请重新授权' } as const;
     }
     if (row.userId && !await getUsableOAuthUser(row.userId, tx)) {
       await tx.update(oauth2TokenFamilies).set({ revoked: true })
         .where(eq(oauth2TokenFamilies.id, family.id));
       await tx.update(oauth2Tokens).set({ revoked: true })
         .where(eq(oauth2Tokens.familyId, family.id));
-      return { error: 'invalid_grant：用户或租户已停用' } as const;
+      return { error: '用户或租户已停用' } as const;
     }
 
     await tx.update(oauth2Tokens).set({ revoked: true }).where(eq(oauth2Tokens.id, row.id));
@@ -500,16 +581,16 @@ export async function revokeTokenByValue(
   clientId: string,
   clientSecret?: string,
 ) {
-  if (!clientId) throw new HTTPException(400, { message: 'invalid_client' });
+  if (!clientId) throw new OAuth2Error('invalid_client');
   const tokenHash = sha256(token);
   await db.transaction(async (tx) => {
     const [client] = await tx.select().from(oauth2Clients)
       .where(eq(oauth2Clients.clientId, clientId))
       .for('update')
       .limit(1);
-    if (!client) throw new HTTPException(400, { message: 'invalid_client' });
+    if (!client) throw new OAuth2Error('invalid_client');
     if (!client.isPublic && (!clientSecret || !clientSecretMatches(clientSecret, client))) {
-      throw new HTTPException(400, { message: 'invalid_client' });
+      throw new OAuth2Error('invalid_client');
     }
     const [row] = await tx.select().from(oauth2Tokens)
       .where(and(eq(oauth2Tokens.tokenHash, tokenHash), eq(oauth2Tokens.clientId, clientId)))
@@ -532,10 +613,10 @@ export async function revokeTokenByValue(
 // ─── Token 自省（POST /api/oauth2/token/introspect）──────────────────────────
 
 export async function introspectToken(token: string, clientId: string, clientSecret: string) {
-  if (!clientId || !clientSecret) throw new HTTPException(400, { message: 'invalid_client' });
-  const client = await ensureClient(clientId);
+  if (!clientId || !clientSecret) throw new OAuth2Error('invalid_client');
+  const client = await ensureClientForToken(clientId);
   if (client.isPublic || !clientSecretMatches(clientSecret, client)) {
-    throw new HTTPException(400, { message: 'invalid_client' });
+    throw new OAuth2Error('invalid_client');
   }
   const tokenHash = sha256(token);
   const [row] = await db.select().from(oauth2Tokens).where(and(
@@ -567,6 +648,34 @@ export async function introspectToken(token: string, clientId: string, clientSec
   };
 }
 
+// ─── 开放网关 Bearer 通道：解析 access token ─────────────────────────────────
+
+export interface ResolvedAccessToken {
+  clientId: string;
+  userId: number | null;
+  /** 该令牌实际被授予的 scope（用户授权粒度），网关据此做 scope 校验 */
+  scopes: string[];
+}
+
+/**
+ * 解析开放网关的 Bearer access token。
+ *
+ * 与 `getUserInfoByToken` 的区别：这里只做「令牌是否可用」的判定并返回主体信息，
+ * 不要求令牌一定绑定用户（client_credentials 令牌同样合法），供网关构造 principal。
+ * 返回 null 表示令牌无效，由调用方决定响应形态。
+ */
+export async function resolveAccessToken(accessToken: string): Promise<ResolvedAccessToken | null> {
+  const tokenHash = sha256(accessToken);
+  const [row] = await db.select().from(oauth2Tokens).where(
+    and(eq(oauth2Tokens.tokenHash, tokenHash), eq(oauth2Tokens.tokenType, 'access')),
+  );
+  if (!row || row.revoked || (row.expiresAt && row.expiresAt < new Date())) return null;
+  if (!await isTokenFamilyUsable(row)) return null;
+  // 用户令牌需确认用户与租户仍可用，避免停用账号的令牌继续调用
+  if (row.userId && !await getUsableOAuthUser(row.userId)) return null;
+  return { clientId: row.clientId, userId: row.userId ?? null, scopes: row.scopes ?? [] };
+}
+
 // ─── UserInfo（GET /api/oauth2/userinfo）──────────────────────────────────────
 
 export async function getUserInfoByToken(accessToken: string) {
@@ -575,16 +684,16 @@ export async function getUserInfoByToken(accessToken: string) {
     and(eq(oauth2Tokens.tokenHash, tokenHash), eq(oauth2Tokens.tokenType, 'access')),
   );
   if (!row || row.revoked || (row.expiresAt && row.expiresAt < new Date())) {
-    throw new HTTPException(401, { message: 'invalid_token' });
+    throw new OAuth2Error('invalid_token');
   }
-  if (!await isTokenFamilyUsable(row)) throw new HTTPException(401, { message: 'invalid_token' });
-  await ensureClient(row.clientId);
+  if (!await isTokenFamilyUsable(row)) throw new OAuth2Error('invalid_token');
+  await ensureClientForToken(row.clientId);
   if (!row.userId) {
-    throw new HTTPException(400, { message: 'client_credentials token 无用户信息' });
+    throw new OAuth2Error('invalid_request', 'client_credentials 令牌不含用户信息');
   }
 
   const user = await getUsableOAuthUser(row.userId);
-  if (!user) throw new HTTPException(401, { message: 'invalid_token：用户或租户已停用' });
+  if (!user) throw new OAuth2Error('invalid_token', '用户或租户已停用');
 
   const scopes: string[] = row.scopes ?? [];
   return {

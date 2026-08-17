@@ -1,14 +1,15 @@
 /**
- * 开放 API 网关中间件单测（AppKey 鉴权 + HMAC 验签 + 防重放 + 套餐限流）。
+ * 开放 API 网关中间件单测（双通道鉴权 + HMAC 验签 + 防重放 + 套餐限流）。
  *
  * 覆盖要点：
- *  1. openSignatureAuth：缺 AppKey / AppKey 无效 401、应用禁用 403、
- *     免签应用直接放行、签名头缺失 401、时间戳过期 401（±300s 防重放）、
- *     nonce 重放 401、签名不匹配 401、合法签名放行并注入 openApp
+ *  1. openGatewayAuth：无凭证 401、AppKey 无效 401、应用禁用 403、IP 白名单、审核门禁；
+ *     签名通道未开启时拒绝裸 AppKey（零鉴权路径必须封死）、签名头缺失 401、
+ *     时间戳过期 401（±300s 防重放）、nonce 重放 401、签名不匹配 401、合法签名放行；
+ *     Bearer 通道：令牌无效 401、有效令牌放行且 scope 取「令牌授予 ∩ 应用允许」
  *  2. openRateLimit：QPS / 日 / 月配额超限 429（附事件），未超限放行，Redis 故障策略可配置
  *
- * Mock 策略：open-gateway.service / rate-plans.service / redis / config / logger /
- * open-event-bus mock；签名用真实 lib/open-signature 生成（与网关同源算法）。
+ * Mock 策略：open-gateway.service / oauth2-auth.service / rate-plans.service / redis /
+ * config / logger / open-event-bus mock；签名用真实 lib/open-signature 生成（与网关同源算法）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
@@ -47,20 +48,26 @@ vi.mock('../services/open-platform/open-quota-alerts.service', () => ({
   maybeSendQuotaWarning: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../services/open-platform/oauth2-auth.service', () => ({
+  resolveAccessToken: vi.fn(),
+}));
+
 import redis from '../lib/redis';
 import { config } from '../config';
 import { openEventBus } from '../lib/open-event-bus';
 import { getOpenApiApp } from '../services/open-platform/open-gateway.service';
 import { getRatePlanRowById, getDefaultRatePlanRow } from '../services/open-platform/rate-plans.service';
 import { maybeSendQuotaWarning } from '../services/open-platform/open-quota-alerts.service';
+import { resolveAccessToken } from '../services/open-platform/oauth2-auth.service';
 import { signRequest } from '../lib/open-signature';
-import { openSignatureAuth, openRateLimit } from './open-gateway';
+import { openGatewayAuth, openRateLimit } from './open-gateway';
 
 const redisMock = vi.mocked(redis);
 const getAppMock = vi.mocked(getOpenApiApp);
 const planByIdMock = vi.mocked(getRatePlanRowById);
 const defaultPlanMock = vi.mocked(getDefaultRatePlanRow);
 const quotaWarningMock = vi.mocked(maybeSendQuotaWarning);
+const resolveTokenMock = vi.mocked(resolveAccessToken);
 
 const SECRET = 'app-signing-secret';
 
@@ -70,7 +77,8 @@ function makeApp(overrides: Record<string, unknown> = {}): any {
     clientId: 'ak_test_1',
     name: '测试应用',
     status: 'enabled',
-    signEnabled: false,
+    // 默认开启签名通道：AppKey 通道现在必须签名，裸 AppKey 是被显式封死的零鉴权路径
+    signEnabled: true,
     signingSecrets: [SECRET],
     ratePlanId: null,
     allowedScopes: [],
@@ -83,7 +91,7 @@ function makeApp(overrides: Record<string, unknown> = {}): any {
 
 function buildAuthApp() {
   const app = new Hono();
-  app.post('/open/api/v1/echo', openSignatureAuth, (c) => c.json({ code: 0, message: 'success', data: c.get('openApp').clientId }));
+  app.post('/open/api/v1/echo', openGatewayAuth, (c) => c.json({ code: 0, message: 'success', data: c.get('openPrincipal').app.clientId, channel: c.get('openPrincipal').channel, scopes: c.get('openPrincipal').scopes }));
   return app;
 }
 
@@ -118,8 +126,8 @@ beforeEach(() => {
   config.openPlatform.gatewayRequireApproval = false;
 });
 
-describe('openSignatureAuth - AppKey 鉴权', () => {
-  it('缺少 X-App-Key → 401', async () => {
+describe('openGatewayAuth - AppKey 鉴权', () => {
+  it('未提供任何鉴权信息 → 401', async () => {
     const res = await buildAuthApp().request('/open/api/v1/echo', { method: 'POST' });
     const body = await res.json();
     expect(res.status).toBe(401);
@@ -145,14 +153,14 @@ describe('openSignatureAuth - AppKey 鉴权', () => {
     expect(res.status).toBe(403);
   });
 
-  it('免签应用（signEnabled=false）直接放行并注入 openApp', async () => {
-    getAppMock.mockResolvedValue(makeApp());
+  it('未开启签名通道的应用使用裸 AppKey → 401（零鉴权路径已封死）', async () => {
+    getAppMock.mockResolvedValue(makeApp({ signEnabled: false }));
     const res = await buildAuthApp().request('/open/api/v1/echo', {
       method: 'POST',
       headers: { 'X-App-Key': 'ak_test_1' },
     });
-    expect(res.status).toBe(200);
-    expect((await res.json()).data).toBe('ak_test_1');
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toContain('未开启签名通道');
   });
 
   it('来源 IP 不在应用白名单 → 403', async () => {
@@ -165,11 +173,11 @@ describe('openSignatureAuth - AppKey 鉴权', () => {
     expect((await res.json()).message).toContain('IP');
   });
 
-  it('来源 IP 命中应用白名单 → 放行', async () => {
+  it('来源 IP 命中应用白名单 → 继续走签名校验', async () => {
     getAppMock.mockResolvedValue(makeApp({ ipAllowlist: ['127.0.0.1/32'] }));
     const res = await buildAuthApp().request('/open/api/v1/echo', {
       method: 'POST',
-      headers: { 'X-App-Key': 'ak_test_1' },
+      headers: signedHeaders(''),
     });
     expect(res.status).toBe(200);
   });
@@ -179,7 +187,7 @@ describe('openSignatureAuth - AppKey 鉴权', () => {
     getAppMock.mockResolvedValue(makeApp({ reviewStatus: 'pending' }));
     const res = await buildAuthApp().request('/open/api/v1/echo', {
       method: 'POST',
-      headers: { 'X-App-Key': 'ak_test_1' },
+      headers: signedHeaders(''),
     });
     expect(res.status).toBe(403);
   });
@@ -189,13 +197,59 @@ describe('openSignatureAuth - AppKey 鉴权', () => {
     getAppMock.mockResolvedValue(makeApp({ environment: 'sandbox', reviewStatus: 'draft' }));
     const res = await buildAuthApp().request('/open/api/v1/echo', {
       method: 'POST',
-      headers: { 'X-App-Key': 'ak_test_1' },
+      headers: signedHeaders(''),
     });
     expect(res.status).toBe(200);
   });
 });
 
-describe('openSignatureAuth - HMAC 验签（signEnabled）', () => {
+describe('openGatewayAuth - Bearer 通道（OAuth2 令牌）', () => {
+  it('令牌无效 → 401', async () => {
+    resolveTokenMock.mockResolvedValue(null);
+    const res = await buildAuthApp().request('/open/api/v1/echo', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer oat_bad' },
+    });
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toBe('invalid_token');
+  });
+
+  it('有效令牌 → 放行，channel=bearer', async () => {
+    resolveTokenMock.mockResolvedValue({ clientId: 'ak_test_1', userId: 7, scopes: ['data:read'] });
+    getAppMock.mockResolvedValue(makeApp({ allowedScopes: ['data:read', 'data:write'] }));
+    const res = await buildAuthApp().request('/open/api/v1/echo', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer oat_ok' },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.channel).toBe('bearer');
+    // 签名通道虽已开启，但 Bearer 通道不需要签名头
+    expect(body.data).toBe('ak_test_1');
+  });
+
+  it('有效 scope = 令牌授予 ∩ 应用允许（应用被收窄权限后存量令牌同步降权）', async () => {
+    resolveTokenMock.mockResolvedValue({ clientId: 'ak_test_1', userId: 7, scopes: ['data:read', 'data:write'] });
+    getAppMock.mockResolvedValue(makeApp({ allowedScopes: ['data:read'] }));
+    const res = await buildAuthApp().request('/open/api/v1/echo', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer oat_ok' },
+    });
+    expect((await res.json()).scopes).toEqual(['data:read']);
+  });
+
+  it('令牌所属应用已禁用 → 403', async () => {
+    resolveTokenMock.mockResolvedValue({ clientId: 'ak_test_1', userId: null, scopes: [] });
+    getAppMock.mockResolvedValue(makeApp({ status: 'disabled' }));
+    const res = await buildAuthApp().request('/open/api/v1/echo', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer oat_ok' },
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('openGatewayAuth - HMAC 验签（signEnabled）', () => {
   beforeEach(() => {
     getAppMock.mockResolvedValue(makeApp({ signEnabled: true }));
   });

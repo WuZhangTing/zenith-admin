@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { ApiScope, OAuth2Client, OAuth2ClientCreated, OAuth2Token, OAuth2UserGrant, RatePlan } from '@zenith/shared/open-platform';
+import type { ApiScope, OAuth2Client, OAuth2ClientCreated, OAuth2MyGrant, OAuth2Token, OAuth2UserGrant, RatePlan } from '@zenith/shared/open-platform';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 
@@ -23,6 +23,8 @@ export const oauth2AppKeys = {
   grants: (id: number, page: number, pageSize: number) => ['oauth2-apps', 'grants', id, page, pageSize] as const,
   tokensPrefix: ['oauth2-apps', 'tokens'] as const,
   tokens: (clientId: string, page: number, pageSize: number) => ['oauth2-apps', 'tokens', clientId, page, pageSize] as const,
+  myGrantsPrefix: ['oauth2-apps', 'my-grants'] as const,
+  myGrants: (page: number, pageSize: number) => ['oauth2-apps', 'my-grants', page, pageSize] as const,
 };
 
 export function useOAuth2AppList(params: OAuth2AppListParams) {
@@ -140,6 +142,32 @@ export function useRevokeOAuth2Token() {
     mutationFn: (id: number) => request.delete<null>(`/api/oauth2/clients/tokens/${id}`).then(unwrap),
     // 吊销令牌只影响令牌列表与授权记录，不改变应用本身
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.tokensPrefix });
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.grantsPrefix });
+    },
+  });
+}
+
+// ─── 我的已授权应用（用户自助）──────────────────────────────────────────────
+
+export function useMyOAuth2Grants(page: number, pageSize: number, enabled = true) {
+  return useQuery({
+    queryKey: oauth2AppKeys.myGrants(page, pageSize),
+    queryFn: () => request.get<PaginatedResponse<OAuth2MyGrant>>(
+      `/api/oauth2/clients/my-grants${toQueryString({ page, pageSize })}`,
+    ).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+export function useRevokeMyOAuth2Grant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.delete<null>(`/api/oauth2/clients/my-grants/${id}`).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: oauth2AppKeys.myGrantsPrefix });
+      // 撤销会连带作废该用户在该应用下的令牌，管理端的令牌与授权记录同步过期
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.tokensPrefix });
       void qc.invalidateQueries({ queryKey: oauth2AppKeys.grantsPrefix });
     },

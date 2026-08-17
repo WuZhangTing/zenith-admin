@@ -1,11 +1,11 @@
 import { useState, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
-  Form, Button, Typography, Toast, Tag, Space, Spin,
+  Form, Button, Typography, Toast, Tag, Space, Spin, Avatar,
   Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone } from 'lucide-react';
+import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -46,6 +46,8 @@ import {
   useUpdateProfile,
   useVerifyTotpSetup,
 } from '@/hooks/queries/profile';
+import { useMyOAuth2Grants, useRevokeMyOAuth2Grant } from '@/hooks/queries/oauth2-apps';
+import type { OAuth2MyGrant } from '@zenith/shared/open-platform';
 import './ProfilePage.css';
 import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -53,7 +55,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Title, Text } = Typography;
 
-type SectionKey = 'profile' | 'security' | 'devices' | 'login' | 'operation' | 'api-tokens';
+type SectionKey = 'profile' | 'security' | 'devices' | 'login' | 'operation' | 'api-tokens' | 'authorized-apps';
 
 interface ProfilePageProps {
   readonly user: Omit<UserType, 'password'>;
@@ -113,7 +115,7 @@ function SessionList({
 }
 
 export default function ProfilePage({ user }: ProfilePageProps) {
-  const [activeSection, setActiveSection] = useUrlTabState(['profile', 'security', 'devices', 'login', 'operation', 'api-tokens'] as const, 'profile');
+  const [activeSection, setActiveSection] = useUrlTabState(['profile', 'security', 'devices', 'login', 'operation', 'api-tokens', 'authorized-apps'] as const, 'profile');
 
   // ─── 基本信息 ────────────────────────────────────────────────────────────────
   const { items: genderItems } = useDictItems('user_gender');
@@ -161,6 +163,27 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     activeSection === 'operation',
   );
   const apiTokensQuery = useProfileApiTokens(activeSection === 'api-tokens');
+
+  // ─── 已授权应用 ──────────────────────────────────────────────────────────────
+  const {
+    page: myGrantsPage,
+    pageSize: myGrantsPageSize,
+    buildPagination: buildMyGrantsPagination,
+  } = usePagination();
+  const myGrantsQuery = useMyOAuth2Grants(
+    myGrantsPage,
+    myGrantsPageSize,
+    activeSection === 'authorized-apps',
+  );
+  const revokeGrantMutation = useRevokeMyOAuth2Grant();
+  const myGrants = myGrantsQuery.data?.list ?? [];
+  const myGrantsTotal = myGrantsQuery.data?.total ?? 0;
+  const myGrantsLoading = myGrantsQuery.isFetching;
+
+  async function handleRevokeGrant(id: number) {
+    await revokeGrantMutation.mutateAsync(id);
+    Toast.success('已撤销该应用的授权');
+  }
 
   const passwordPolicy: PasswordPolicy | null = passwordPolicyQuery.data ?? null;
   const oauthAccounts = oauthAccountsQuery.data ?? [];
@@ -738,6 +761,77 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                       ]}
                     />
                   )}
+              </div>
+            </Tabs.TabPane>
+
+            {/* ── 已授权应用 ────────────────────────────────────── */}
+            <Tabs.TabPane
+              itemKey="authorized-apps"
+              tab={<span className="profile-tab-label"><ShieldCheck size={14} /><span>已授权应用</span></span>}
+            >
+              <div className="profile-section">
+                <div className="section-title" style={{ marginTop: 0 }}>已授权的第三方应用</div>
+                <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 16 }}>
+                  这些应用已获得你的授权，可按下列权限范围访问你的账户信息。撤销后，该应用已签发的令牌会立即失效。
+                </Text>
+                <ConfigurableTable
+                  bordered
+                  dataSource={myGrants}
+                  rowKey="id"
+                  loading={myGrantsLoading}
+                  onRefresh={() => void myGrantsQuery.refetch()}
+                  refreshLoading={myGrantsLoading}
+                  columnSettingsKey="profile-authorized-apps"
+                  pagination={buildMyGrantsPagination(myGrantsTotal)}
+                  columns={[
+                    {
+                      title: '应用',
+                      dataIndex: 'appName',
+                      width: 200,
+                      render: (v: string, record: OAuth2MyGrant) => (
+                        <Space spacing={8}>
+                          {record.appLogoUrl
+                            ? <Avatar src={record.appLogoUrl} size="extra-small" shape="square" />
+                            : <Avatar size="extra-small" shape="square" color="blue">{v.slice(0, 1)}</Avatar>}
+                          <Text strong>{v}</Text>
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: '环境',
+                      dataIndex: 'environment',
+                      width: 90,
+                      render: (v: OAuth2MyGrant['environment']) => (
+                        <Tag size="small" color={v === 'production' ? 'green' : 'grey'}>
+                          {v === 'production' ? '生产环境' : '沙箱环境'}
+                        </Tag>
+                      ),
+                    },
+                    {
+                      title: '授权范围',
+                      dataIndex: 'scopes',
+                      render: (v: string[]) => (
+                        <Space wrap spacing={4}>
+                          {v.map((s) => <Tag key={s} size="small" color="blue">{s}</Tag>)}
+                        </Space>
+                      ),
+                    },
+                    dateTimeColumn('首次授权', 'createdAt'),
+                    dateTimeColumn('最近更新', 'updatedAt'),
+                    {
+                      title: '操作', dataIndex: 'id', width: 90, fixed: 'right',
+                      render: (id: number, record: OAuth2MyGrant) => (
+                        <Button theme="borderless" type="danger" size="small" onClick={() => {
+                          confirmDanger({
+                            title: `撤销对「${record.appName}」的授权？`,
+                            content: '撤销后该应用将无法再访问你的账户信息，已签发的访问令牌立即失效。',
+                            onOk: () => handleRevokeGrant(id),
+                          });
+                        }}>撤销授权</Button>
+                      ),
+                    },
+                  ]}
+                />
               </div>
             </Tabs.TabPane>
 

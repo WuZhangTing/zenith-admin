@@ -9,6 +9,7 @@
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
+import { OAuth2Error } from '../../lib/oauth2-error';
 import { authMiddleware } from '../../middleware/auth';
 import {
   jsonContent,
@@ -155,7 +156,7 @@ const token = defineOpenAPIRoute({
       return c.json(result, 200);
     }
 
-    throw new HTTPException(400, { message: 'unsupported_grant_type' });
+    throw new OAuth2Error('unsupported_grant_type', `不支持的 grant_type：${grantType || '(空)'}`);
   },
 });
 

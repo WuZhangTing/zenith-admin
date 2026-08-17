@@ -15,6 +15,7 @@ import { mapWithConcurrency } from '../../lib/concurrency';
 import { OPEN_WEBHOOK_SIGNATURE_HEADER, OPEN_WEBHOOK_RETRY_STAGES_MINUTES, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
 import type { CreateAppWebhookInput, UpdateAppWebhookInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
+import { assertSafeOutboundUrl } from '../../lib/outbound-url';
 import { sendSystemInApp } from '../messaging/in-app-messages.service';
 
 const TIMEOUT_MS = 10_000;
@@ -123,8 +124,21 @@ export async function getSubscriptionBeforeAudit(id: number) {
   return getSubscription(id);
 }
 
+/**
+ * 创建 / 更新订阅时即时校验回调地址。
+ *
+ * 不校验的话，内网地址在保存时一路绿灯，直到第一次投递才被 SSRF 防护拒绝——
+ * 用户要翻投递日志才知道地址根本不可用。这里提前把同一套规则跑一遍，把错误
+ * 反馈到表单上。开发环境可通过 OPEN_WEBHOOK_ALLOWED_HOSTS 放行本地回调地址，
+ * 否则本地根本无法端到端验证投递链路。
+ */
+async function assertWebhookUrlReachable(rawUrl: string): Promise<void> {
+  await assertSafeOutboundUrl(rawUrl, config.openPlatform.webhookAllowedHosts);
+}
+
 export async function createSubscription(input: CreateAppWebhookInput) {
   await ensureAppExists(input.clientId);
+  await assertWebhookUrlReachable(input.url.trim());
   const signMode = input.signMode ?? 'hmacSha256';
   let secretRaw = '';
   let secretEncrypted: string | null = null;
@@ -147,6 +161,7 @@ export async function createSubscription(input: CreateAppWebhookInput) {
 
 export async function updateSubscription(id: number, input: UpdateAppWebhookInput) {
   await getSubscription(id);
+  if (input.url !== undefined) await assertWebhookUrlReachable(input.url.trim());
   const [row] = await db.update(appWebhookSubscriptions).set({
     name: input.name?.trim(),
     url: input.url?.trim(),
@@ -392,6 +407,36 @@ export function computeNextRetryAt(attempt: number): Date | null {
   return new Date(Date.now() + OPEN_WEBHOOK_RETRY_STAGES_MINUTES[attempt - 1] * 60_000);
 }
 
+/**
+ * 判定投递失败是否为「永久性错误」——重试永远不会成功的那一类。
+ *
+ * SSRF 拦截、URL 协议非法、DNS 无法解析、证书不可信都属于配置问题而非瞬时故障：
+ * 继续按阶梯重试只会白白占用投递队列，并把真正需要重试的瞬时故障挤在后面。
+ * 这类失败直接置为 failed，由订阅方修正回调地址后重新触发。
+ */
+const PERMANENT_FAILURE_PATTERNS = [
+  '出站地址不允许访问本机或内网主机',
+  '出站地址解析到本机、私网或保留地址',
+  '出站地址 DNS 解析失败',
+  '出站地址缺少主机名',
+  '出站 URL 格式无效',
+  '出站 URL 仅支持 HTTP/HTTPS',
+  '出站 URL 禁止携带用户名或密码',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'ENOTFOUND',
+];
+
+export function isPermanentDeliveryFailure(message: string): boolean {
+  return PERMANENT_FAILURE_PATTERNS.some((pattern) => message.includes(pattern));
+}
+
+/** HTTP 4xx（除 408 超时与 429 限流）表示对端明确拒绝，重试无意义 */
+function isPermanentResponseStatus(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
 async function claimDelivery(deliveryId: number): Promise<AppWebhookDeliveryRow | null> {
   const now = new Date();
   const staleCutoff = new Date(now.getTime() - PENDING_RECOVERY_AFTER_MS);
@@ -458,6 +503,7 @@ export async function dispatchDelivery(deliveryId: number): Promise<boolean> {
       headers,
       timeout: TIMEOUT_MS,
       ssrfProtection: true,
+      ssrfAllowlist: config.openPlatform.webhookAllowedHosts,
       httpLog: { level: 'off' },
     });
     const durationMs = Date.now() - t0;
@@ -478,13 +524,14 @@ export async function dispatchDelivery(deliveryId: number): Promise<boolean> {
         .where(eq(appWebhookSubscriptions.id, sub.id));
       return true;
     }
-    const nextRetryAt = computeNextRetryAt(attempt);
+    const permanent = isPermanentResponseStatus(resp.status);
+    const nextRetryAt = permanent ? null : computeNextRetryAt(attempt);
     const updated = await updateDeliveryAfterAttempt(deliveryId, {
       status: nextRetryAt ? 'retrying' : 'failed',
       responseStatus: resp.status,
       responseBody: respText.slice(0, 4096),
       durationMs,
-      errorMessage: `HTTP ${resp.status}`,
+      errorMessage: permanent ? `HTTP ${resp.status}（对端拒绝，不再重试）` : `HTTP ${resp.status}`,
       nextRetryAt,
       finishedAt: nextRetryAt ? null : new Date(),
     }, attempt);
@@ -494,16 +541,18 @@ export async function dispatchDelivery(deliveryId: number): Promise<boolean> {
   } catch (err) {
     const durationMs = Date.now() - t0;
     const msg = err instanceof Error ? err.message : String(err);
-    const nextRetryAt = computeNextRetryAt(attempt);
+    const permanent = isPermanentDeliveryFailure(msg);
+    const nextRetryAt = permanent ? null : computeNextRetryAt(attempt);
+    const errorMessage = permanent ? `${msg}（配置错误，不再重试）` : msg;
     const updated = await updateDeliveryAfterAttempt(deliveryId, {
       status: nextRetryAt ? 'retrying' : 'failed',
-      errorMessage: msg.slice(0, 1024),
+      errorMessage: errorMessage.slice(0, 1024),
       durationMs,
       nextRetryAt,
       finishedAt: nextRetryAt ? null : new Date(),
     }, attempt);
     if (!updated) return false;
-    if (!nextRetryAt) await handleTerminalFailure(sub, delivery, msg.slice(0, 1024));
+    if (!nextRetryAt) await handleTerminalFailure(sub, delivery, errorMessage.slice(0, 1024));
   }
   return true;
 }

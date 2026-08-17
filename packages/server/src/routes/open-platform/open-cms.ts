@@ -34,8 +34,7 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 function requireScope(scope: string): MiddlewareHandler {
   return async (c, next) => {
     c.set('openScope', scope);
-    const app = c.get('openApp');
-    if (!app?.allowedScopes?.includes(scope)) {
+    if (!c.get('openPrincipal')?.scopes.includes(scope)) {
       throw new HTTPException(403, { message: `应用未授权 scope：${scope}` });
     }
     await next();
@@ -43,12 +42,12 @@ function requireScope(scope: string): MiddlewareHandler {
 }
 
 function hasScope(c: Context, scope: string): boolean {
-  return c.get('openApp')?.allowedScopes?.includes(scope) ?? false;
+  return c.get('openPrincipal')?.scopes.includes(scope) ?? false;
 }
 
 function clientIdOf(c: Context): string {
-  const clientId = c.get('openApp')?.clientId;
-  if (!clientId) throw new HTTPException(401, { message: 'AppKey 无效' });
+  const clientId = c.get('openPrincipal')?.app.clientId;
+  if (!clientId) throw new HTTPException(401, { message: '缺少有效的调用主体' });
   return clientId;
 }
 
@@ -328,9 +327,22 @@ const deleteContentRoute = defineOpenAPIRoute({
 
 // 路径注册顺序有意义：/contents/sync 与 /contents/cursor 必须先于 /contents/{idOrSlug}，
 // 否则会被通配参数吞掉
-router.openapiRoutes([
+const CMS_ROUTES = [
   channelsRoute, contentsRoute, contentsCursorRoute, syncRoute, contentDetailRoute,
   createContentRoute, updateContentRoute, submitContentRoute, publishContentRoute, deleteContentRoute,
-] as const);
+] as const;
+
+router.openapiRoutes(CMS_ROUTES);
+
+/**
+ * CMS 开放端点目录：直接从上面的路由定义派生，供 API 调试台列出可调端点。
+ * 手工维护一份清单必然与实际路由漂移，这里以路由定义为唯一来源。
+ */
+export const OPEN_CMS_ENDPOINTS = CMS_ROUTES.map((item) => ({
+  method: item.route.method.toUpperCase(),
+  // 子路由挂载在 /api/open/v1 下，这里补全为调试台可直接调用的完整路径
+  path: `/api/open/v1${item.route.path}`,
+  summary: item.route.summary ?? '',
+}));
 
 export default router;

@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { OAuth2Client, OAuth2ClientCreated, OpenApiDebugResult, OpenAppQuotaUsage } from '@zenith/shared/open-platform';
-import { toQueryString, unwrap } from '@/lib/query';
+import type { OAuth2Client, OAuth2ClientCreated, OpenApiDebugEndpoint, OpenApiDebugResult, OpenAppQuotaUsage } from '@zenith/shared/open-platform';
+import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 
 export interface MyAppListParams {
@@ -18,7 +18,17 @@ export const developerAppKeys = {
   list: (params: MyAppListParams) => ['developer-apps', 'list', params] as const,
   detail: (id: number | undefined) => ['developer-apps', 'detail', id] as const,
   quota: (id: number | undefined) => ['developer-apps', 'quota', id] as const,
+  debugEndpoints: ['developer-apps', 'debug-endpoints'] as const,
 };
+
+/** 可调试的开放 API 端点目录（由服务端按实际路由派生，属低频字典型数据） */
+export function useDebugEndpoints() {
+  return useQuery({
+    queryKey: developerAppKeys.debugEndpoints,
+    queryFn: () => request.get<OpenApiDebugEndpoint[]>('/api/developer-apps/debug/endpoints', { silent: true }).then(unwrap),
+    staleTime: LOOKUP_STALE_TIME,
+  });
+}
 
 export function useMyAppList(params: MyAppListParams) {
   return useQuery({
@@ -92,8 +102,9 @@ export function useDebugMyApp() {
     mutationFn: ({ id, values }: {
       id: number;
       values: {
-        method: 'GET' | 'POST';
-        path: '/api/open/v1/ping' | '/api/open/v1/echo' | '/api/open/v1/userinfo';
+        method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+        /** 端点路径由服务端端点目录校验，前端不再枚举 */
+        path: string;
         query?: Record<string, string>;
         body?: unknown;
       };

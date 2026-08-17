@@ -17,13 +17,41 @@ import type { Context } from 'hono';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const validationHook: Hook<any, any, any, any> = (result, c) => {
   if (!result.success) {
-    const first = result.error.issues?.[0];
-    const field = first?.path?.join('.') ?? '';
-    const msg = first?.message ?? '请求参数错误';
-    const message = field ? `${field}: ${msg}` : msg;
-    return c.json({ code: 400, message, data: null }, 400);
+    return c.json({ code: 400, message: formatZodIssue(result.error.issues?.[0]), data: null }, 400);
   }
 };
+
+/** Zod 内置英文错误 → 中文提示 */
+const ZOD_CODE_MESSAGES: Record<string, string> = {
+  invalid_type: '类型不正确',
+  too_small: '长度或数值小于允许范围',
+  too_big: '长度或数值超出允许范围',
+  invalid_format: '格式不正确',
+  invalid_enum_value: '不在允许的取值范围内',
+  invalid_union: '格式不符合任一允许的形态',
+  unrecognized_keys: '包含未知字段',
+};
+
+/**
+ * 把一条 Zod issue 渲染成可直接展示给用户的文案。
+ *
+ * schema 中自定义的中文 message 本身就是完整业务语义（例如「刷新令牌模式必须与授权码模式同时启用」），
+ * 再拼上 `grantTypes: ` 这样的字段名只会让提示更难读。因此只有 Zod 内置英文消息才需要
+ * 补充字段位置并翻译；缺字段时退回通用提示。
+ */
+function formatZodIssue(issue?: { path?: PropertyKey[]; message?: string; code?: string }): string {
+  if (!issue) return '请求参数错误';
+  const message = issue.message ?? '';
+  // 含中文即视为业务自定义文案，直接展示
+  if (/[\u4e00-\u9fa5]/.test(message)) return message;
+
+  const field = (issue.path ?? []).map(String).filter(Boolean).join('.');
+  const readable = ZOD_CODE_MESSAGES[issue.code ?? ''] ?? '参数校验未通过';
+  if (issue.code === 'invalid_type' && /received undefined/i.test(message)) {
+    return field ? `缺少必填参数「${field}」` : '缺少必填参数';
+  }
+  return field ? `参数「${field}」${readable}` : readable;
+}
 
 /** 通用成功响应封装：code=0 + 任意 data */
 export function apiResponse<T extends z.ZodTypeAny>(data: T) {

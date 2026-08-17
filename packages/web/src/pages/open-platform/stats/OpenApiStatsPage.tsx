@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { DatePicker, InputNumber, Select, Typography, Tag, Space, Card } from '@douyinfe/semi-ui';
+import { Banner, DatePicker, InputNumber, Select, Typography, Tag, Space, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
 import type { OpenApiCallLog } from '@zenith/shared/open-platform';
@@ -68,6 +68,13 @@ export default function OpenApiStatsPage() {
     statusCode: submittedParams.statusCode,
   };
   const logsQuery = useOpenApiCallLogs(logParams);
+  // 明细筛选只作用于日志表，KPI/图表走预聚合表，口径差异需向用户显式说明
+  const hasDetailFilters = Boolean(
+    submittedParams.keyword
+    || submittedParams.method
+    || submittedParams.success !== undefined
+    || submittedParams.statusCode !== undefined,
+  );
   const overview = overviewQuery.data ?? null;
   const trend = useMemo(() => trendQuery.data ?? [], [trendQuery.data]);
   const byApp = useMemo(() => byAppQuery.data ?? [], [byAppQuery.data]);
@@ -130,6 +137,16 @@ export default function OpenApiStatsPage() {
       ),
     },
     { title: 'Scope', dataIndex: 'scope', width: 120, render: (v: string | null) => v ? <Tag size="small" color="blue">{v}</Tag> : <Text type="tertiary">—</Text> },
+    {
+      title: '鉴权通道',
+      dataIndex: 'authChannel',
+      width: 110,
+      render: (v: OpenApiCallLog['authChannel']) => (
+        v === 'bearer' ? <Tag size="small" color="green">Bearer</Tag>
+          : v === 'signature' ? <Tag size="small" color="purple">HMAC 签名</Tag>
+            : <Text type="tertiary">—</Text>
+      ),
+    },
     { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number) => `${v} ms` },
     { title: 'IP', dataIndex: 'ip', width: 130, render: (v: string | null) => v || '—' },
     {
@@ -265,6 +282,20 @@ export default function OpenApiStatsPage() {
         mobileActions={<ExportButton entity="open-platform.call-logs" query={logParams} executionMode="auto" variant="flat" />}
         actionTitle="统计操作"
       />
+
+      {/*
+        KPI 与图表基于预聚合的概览维度（时间范围 / 应用 / 环境），日志表额外支持
+        关键字、方法、状态码等明细筛选。两者口径不同，这里显式说明，避免出现
+        「筛选失败后日志剩 8 条、KPI 仍显示全部」这种自相矛盾的读数。
+      */}
+      {hasDetailFilters && (
+        <Banner
+          type="info"
+          closeIcon={null}
+          description="下方统计与图表按「时间范围 / 应用 / 环境」汇总，不受关键字、请求方法、调用结果、状态码等明细筛选影响；这些条件只作用于「调用日志」表。"
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       <StatGrid minItemWidth={150} style={{ marginBottom: 16 }}>
         <StatCard title="调用总数" value={(overview?.totalCalls ?? 0).toLocaleString()} sub={`今日 ${overview?.todayCalls ?? 0}`} />

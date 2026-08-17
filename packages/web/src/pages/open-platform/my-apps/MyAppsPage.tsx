@@ -293,7 +293,7 @@ export default function MyAppsPage() {
           </Form.CheckboxGroup>
           <Row gutter={16}>
             <Col span={12}><Form.Switch field="isPublic" label="公开客户端" extraText="公开客户端必须使用 PKCE S256" /></Col>
-            <Col span={12}><Form.Switch field="signEnabled" label="HMAC 签名" extraText="开放 API 请求验签" /></Col>
+            <Col span={12}><Form.Switch field="signEnabled" label="AppKey 签名通道" extraText="开启后可用 AppKey + HMAC 签名调用；关闭则仅支持 OAuth2 Bearer" /></Col>
           </Row>
           <Form.Input field="logoUrl" label="Logo URL" />
           <Form.TagInput field="ipAllowlist" label="IP 白名单" placeholder="IP 或 CIDR，留空不限制" />

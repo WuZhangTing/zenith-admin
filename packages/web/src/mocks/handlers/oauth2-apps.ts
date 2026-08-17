@@ -1,5 +1,5 @@
 import { http } from 'msw';
-import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
+import { ok, notFound, pageParams, pageResult } from '@/mocks/utils/handlers';
 import type { OAuth2Client, OAuth2ClientCreated } from '@zenith/shared/open-platform';
 import { mockDateTime } from '@/mocks/utils/date';
 
@@ -111,6 +111,28 @@ export const oauth2AppsHandlers = [
   http.get(`${BASE}/options`, () => {
     return ok(mockClients.filter((c) => c.status === 'enabled').map((c) => ({ clientId: c.clientId, name: c.name })), 'success');
   }),
+
+  // 我的已授权应用（用户自助）
+  //
+  // 注意：必须注册在 `${BASE}/:id` 之前，否则 `/my-grants` 会被当成 id 匹配掉。
+  http.get(`${BASE}/my-grants`, ({ request }) => {
+    const url = new URL(request.url);
+    const { page, pageSize } = pageParams(url);
+    const list = mockClients.slice(0, 2).map((client, index) => ({
+      id: index + 1,
+      clientId: client.clientId,
+      appName: client.name,
+      appLogoUrl: client.logoUrl ?? null,
+      appDescription: client.description ?? null,
+      environment: client.environment,
+      scopes: client.allowedScopes.slice(0, 2),
+      createdAt: '2026-06-01 10:00:00',
+      updatedAt: '2026-06-01 10:00:00',
+    }));
+    return ok(pageResult(list, page, pageSize), 'success');
+  }),
+
+  http.delete(`${BASE}/my-grants/:id`, () => ok(null, '授权已撤销')),
 
   http.get(`${BASE}/tokens`, ({ request }) => {
     const url = new URL(request.url);

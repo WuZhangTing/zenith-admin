@@ -18,6 +18,7 @@ import {
   OAuth2ClientListItemDTO,
   OAuth2ClientSecretDTO,
   OpenApiDebugResultDTO,
+  OpenApiDebugEndpointDTO,
   OpenAppQuotaUsageDTO,
 } from '../../lib/openapi-dtos';
 import {
@@ -31,6 +32,7 @@ import {
   updateMyOAuth2Client,
 } from '../../services/open-platform/developer-apps.service';
 import { executeOpenApiDebugRequest } from '../../services/open-platform/open-api-debug.service';
+import { OPEN_GATEWAY_ENDPOINTS } from './open-gateway';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const audit = (description: string) => guard({
@@ -154,6 +156,16 @@ const quotaUsage = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await getMyOAuth2ClientQuotaUsage(c.req.valid('param').id)), 200),
 });
 
+const endpointCatalog = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/debug/endpoints', tags: ['DeveloperApps'], summary: '获取可调试的开放 API 端点目录',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(OpenApiDebugEndpointDTO), '端点目录') },
+  }),
+  handler: (c) => c.json(okBody(OPEN_GATEWAY_ENDPOINTS), 200),
+});
+
 const debugRequest = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/{id}/debug', tags: ['DeveloperApps'], summary: '在线调试开放 API',
@@ -163,8 +175,9 @@ const debugRequest = defineOpenAPIRoute({
       params: IdParam,
       body: {
         content: jsonContent(z.object({
-          method: z.enum(['GET', 'POST']),
-          path: z.enum(['/api/open/v1/ping', '/api/open/v1/echo', '/api/open/v1/userinfo']),
+          method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
+          // 路径不再硬编码枚举：由服务端按端点目录校验，新增开放端点即刻可调试
+          path: z.string().min(1),
           query: z.record(z.string(), z.string()).optional(),
           body: z.unknown().optional(),
         })),
@@ -180,7 +193,7 @@ const debugRequest = defineOpenAPIRoute({
 });
 
 router.openapiRoutes([
-  list, create, submit, regenerate, quotaUsage, debugRequest, detail, update, remove,
+  list, create, submit, regenerate, quotaUsage, endpointCatalog, debugRequest, detail, update, remove,
 ] as const);
 
 export default router;

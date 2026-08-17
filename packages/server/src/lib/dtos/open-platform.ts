@@ -18,6 +18,8 @@ export const ApiScopeDTO = z
     description: z.string().nullable(),
     scopeGroup: z.string(),
     status: z.enum(['enabled', 'disabled']),
+    /** 引用该 scope 的应用数量，> 0 时不可删除 */
+    usedByAppCount: z.number().int(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -58,6 +60,8 @@ export const OpenApiCallLogDTO = z
     ip: z.string().nullable(),
     userAgent: z.string().nullable(),
     scope: z.string().nullable(),
+    authChannel: z.enum(['bearer', 'signature']).nullable(),
+    userId: z.number().int().nullable(),
     errorMessage: z.string().nullable(),
     requestId: z.string().nullable(),
     environment: z.enum(['production', 'sandbox']),
@@ -218,3 +222,13 @@ export const OpenApiDebugResultDTO = z
     durationMs: z.number().int(),
   })
   .openapi('OpenApiDebugResult');
+
+/** 可调试的开放 API 端点目录条目 */
+export const OpenApiDebugEndpointDTO = z
+  .object({
+    method: z.string(),
+    path: z.string(),
+    summary: z.string(),
+    scope: z.string().nullable(),
+  })
+  .openapi('OpenApiDebugEndpoint');

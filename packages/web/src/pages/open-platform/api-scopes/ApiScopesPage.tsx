@@ -104,6 +104,16 @@ export default function ApiScopesPage() {
       render: (v: string) => <Tag size="small" color="blue">{API_SCOPE_GROUP_LABELS[v] ?? v}</Tag>,
     },
     { title: '描述', dataIndex: 'description', width: 240, render: (v: string | null) => v || <Text type="tertiary">—</Text> },
+    {
+      title: '被引用',
+      dataIndex: 'usedByAppCount',
+      width: 100,
+      render: (v: number | undefined) => (
+        (v ?? 0) > 0
+          ? <Tag size="small" color="orange">{v} 个应用</Tag>
+          : <Text type="tertiary">未被引用</Text>
+      ),
+    },
     createdAtColumn,
     {
       title: '状态',
