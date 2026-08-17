@@ -178,7 +178,34 @@ export default function DbAdminPage() {
   const [kindFilter, setKindFilter] = useState<'all' | 'table' | 'view'>('all');
   const [selected, setSelected] = useState<TableItem | null>(null);
 
-  const [innerTab, setInnerTab] = useState<string>('structure');
+  // 记住表详情内层 Tab（结构/数据/索引/外键）：按上次使用习惯打开
+  const [innerTab, setInnerTabState] = useState<string>(() => {
+    const saved = localStorage.getItem('db-admin:inner-tab');
+    return saved && ['structure', 'data', 'indexes', 'foreignKeys'].includes(saved) ? saved : 'structure';
+  });
+  const setInnerTab = useCallback((key: string) => {
+    setInnerTabState(key);
+    localStorage.setItem('db-admin:inner-tab', key);
+  }, []);
+
+  // 最近打开的表（最多 8 张），展示在表清单顶部便于回访
+  const [recentTableKeys, setRecentTableKeys] = useState<string[]>(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('db-admin:recent-tables') ?? '[]') as unknown;
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string').slice(0, 8) : [];
+    } catch {
+      return [];
+    }
+  });
+  const recordRecentTable = useCallback((item: TableItem) => {
+    setRecentTableKeys((prev) => {
+      const key = `${item.schema}.${item.name}`;
+      const next = [key, ...prev.filter((k) => k !== key)].slice(0, 8);
+      localStorage.setItem('db-admin:recent-tables', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const [rowsOrderBy, setRowsOrderBy] = useState<string | undefined>(undefined);
   const [rowsOrderDir, setRowsOrderDir] = useState<'asc' | 'desc' | undefined>(undefined);
   const [rowsFilters, setRowsFilters] = useState<Record<string, string>>({});
@@ -220,8 +247,11 @@ export default function DbAdminPage() {
     const schema = key.slice(0, dotIndex);
     const name = key.slice(dotIndex + 1);
     const item = tables.find((t) => t.schema === schema && t.name === name);
-    if (item) setSelected(item);
-  }, [tablesQuery.isPending, tables]);
+    if (item) {
+      setSelected(item);
+      recordRecentTable(item);
+    }
+  }, [tablesQuery.isPending, tables, recordRecentTable]);
 
   // 状态 → URL：仅写非默认值，replace 避免污染浏览器历史；
   // 深链表尚未解析完成时不接管，避免首轮渲染把 table 参数抹掉
@@ -262,6 +292,14 @@ export default function DbAdminPage() {
         || (t.comment ?? '').toLowerCase().includes(kw);
     });
   }, [tables, tableFilter, kindFilter]);
+
+  // 最近打开的表（按 key 还原为最新的表信息，已删除的表自动消失）
+  const recentTables = useMemo(() => {
+    if (tables.length === 0) return [];
+    return recentTableKeys
+      .map((key) => tables.find((t) => `${t.schema}.${t.name}` === key))
+      .filter((t): t is TableItem => !!t);
+  }, [recentTableKeys, tables]);
 
   const groupedTables = useMemo(() => {
     const map = new Map<string, TableItem[]>();
@@ -314,6 +352,7 @@ export default function DbAdminPage() {
     if (selected && selected.schema === item.schema && selected.name === item.name) return;
     const doSelect = () => {
       setSelected(item);
+      recordRecentTable(item);
       setRowsOrderBy(undefined);
       setRowsOrderDir(undefined);
       setRowsFilters({});
@@ -688,7 +727,7 @@ export default function DbAdminPage() {
     }
     setSelectedRowIndexes(new Set());
     setInnerTab('data');
-  }, [tables]);
+  }, [tables, setInnerTab]);
 
   // ─── 数据网格接线 ────────────────────────────────────────────────────────────
   const canEditRows = canWrite && isWritableTable && hasPrimaryKey;
@@ -955,6 +994,27 @@ export default function DbAdminPage() {
                   bodyNoPadding
                   rawBody
                 >
+                  {recentTables.length > 0 && !tableFilter.trim() && (
+                    <div style={{ padding: '0 8px 4px' }}>
+                      <div style={{ padding: '8px 8px 2px' }}>
+                        <Space>
+                          <History size={13} style={{ color: 'var(--semi-color-text-2)', verticalAlign: -2 }} />
+                          <Text type="tertiary" size="small" strong>最近打开</Text>
+                        </Space>
+                      </div>
+                      <List split={false} className="nav-list-panel__list">
+                        {recentTables.map((t: TableItem) => (
+                          <NavListItem
+                            key={`recent:${t.schema}.${t.name}`}
+                            active={selected?.schema === t.schema && selected?.name === t.name}
+                            onClick={() => handleSelectTable(t)}
+                            primary={t.name}
+                            secondary={`${t.schema} · ${t.sizeText}`}
+                          />
+                        ))}
+                      </List>
+                    </div>
+                  )}
                   {filteredTables.length > 0 && (
                     <Collapse
                       className="db-admin-schema-collapse"
