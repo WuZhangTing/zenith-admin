@@ -34,6 +34,11 @@ const PROVIDERS: ProviderMeta[] = [
     icon: <Icon icon="ant-design:wechat-work-filled" width="16" height="16" />,
     extra: { agentId: true, corpId: true },
   },
+  {
+    key: 'feishu',
+    label: '飞书',
+    icon: <Icon icon="simple-icons:lark" width="16" height="16" />,
+  },
 ];
 
 export default function OAuthConfigPage() {

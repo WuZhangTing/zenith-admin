@@ -38,6 +38,8 @@ export function mapDirectorySyncSource(row: DirectorySyncSourceRow & { identityP
     syncDepartments: row.syncDepartments,
     cronExpression: row.cronExpression ?? null,
     circuitBreakerPercent: row.circuitBreakerPercent,
+    // 密钥不回显，仅暴露是否已配置
+    contactSecretSet: Boolean(row.contactSecret),
     nextRunAt: formatNullableDateTime(row.nextRunAt),
     lastRunAt: formatNullableDateTime(row.lastRunAt),
     lastRunStatus: row.lastRunStatus ?? null,
@@ -195,6 +197,7 @@ export async function createDirectorySyncSource(data: CreateDirectorySyncSourceI
       syncDepartments: data.syncDepartments,
       cronExpression: data.cronExpression ?? null,
       circuitBreakerPercent: data.circuitBreakerPercent,
+      contactSecret: data.contactSecret?.trim() ? data.contactSecret.trim() : null,
       nextRunAt: data.status === 'enabled' ? computeNextRunAt(data.cronExpression) : null,
       remark: data.remark ?? null,
     }).returning();
@@ -225,6 +228,10 @@ export async function updateDirectorySyncSource(id: number, data: UpdateDirector
       ...(data.syncDepartments !== undefined ? { syncDepartments: data.syncDepartments } : {}),
       ...(data.cronExpression !== undefined ? { cronExpression: data.cronExpression } : {}),
       ...(data.circuitBreakerPercent !== undefined ? { circuitBreakerPercent: data.circuitBreakerPercent } : {}),
+      // 缺省保持不变；空串视为不修改，null 显式清除
+      ...(data.contactSecret !== undefined && data.contactSecret !== ''
+        ? { contactSecret: data.contactSecret === null ? null : data.contactSecret.trim() }
+        : {}),
       ...(data.remark !== undefined ? { remark: data.remark } : {}),
       // 启停或表达式变化后重算下次运行时间
       nextRunAt: status === 'enabled' ? computeNextRunAt(cron) : null,

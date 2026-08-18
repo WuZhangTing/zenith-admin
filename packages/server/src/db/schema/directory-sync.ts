@@ -3,7 +3,7 @@ import { statusEnum } from './common';
 import { auditColumns, tenants, users, departments } from './core';
 import { tenantIdentityProviders } from './identity-providers';
 
-export const directorySyncSourceTypeEnum = pgEnum('directory_sync_source_type', ['ldap', 'dingtalk']);
+export const directorySyncSourceTypeEnum = pgEnum('directory_sync_source_type', ['ldap', 'dingtalk', 'wechat_work', 'feishu']);
 
 export const directorySyncRunStatusEnum = pgEnum('directory_sync_run_status', ['running', 'success', 'partial', 'failed', 'aborted']);
 
@@ -38,6 +38,8 @@ export const directorySyncSources = pgTable('directory_sync_sources', {
   identityProviderId: integer('identity_provider_id').references(() => tenantIdentityProviders.id, { onDelete: 'set null' }),
   /** 平台 API 源：绑定 OAuth 配置的 provider（如 'dingtalk'），凭证从 oauth_configs 读取 */
   oauthProvider: varchar('oauth_provider', { length: 32 }),
+  /** 企业微信通讯录 Secret（独立于应用 Secret，仅同步使用） */
+  contactSecret: text('contact_secret'),
   /** 匹配键：未建立绑定的外部用户按此字段匹配本地账号 */
   matchKey: varchar('match_key', { length: 16 }).notNull().default('phone'),
   /** 字段映射覆盖（外部字段 → 本地字段），为空使用连接器默认映射 */

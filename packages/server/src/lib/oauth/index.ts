@@ -4,6 +4,7 @@ import type { OAuthProvider, OAuthProviderConfig } from './types';
 import { GitHubProvider } from './github';
 import { DingTalkProvider } from './dingtalk';
 import { WeChatWorkProvider } from './wechat-work';
+import { FeishuProvider } from './feishu';
 import { db } from '../../db';
 import { oauthConfigs } from '../../db/schema';
 import { config } from '../../config';
@@ -28,6 +29,7 @@ function createProvider(type: OAuthProviderType, cfg: OAuthProviderConfig): OAut
     case 'github': return new GitHubProvider(cfg);
     case 'dingtalk': return new DingTalkProvider(cfg);
     case 'wechat_work': return new WeChatWorkProvider(cfg);
+    case 'feishu': return new FeishuProvider(cfg);
     default: throw new Error(`Unsupported OAuth provider: ${type}`);
   }
 }

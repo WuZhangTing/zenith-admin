@@ -624,6 +624,8 @@ export interface DirectorySyncSource {
   syncDepartments: boolean;
   cronExpression: string | null;
   circuitBreakerPercent: number;
+  /** 企业微信通讯录 Secret 是否已配置（明文不回显） */
+  contactSecretSet?: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastRunStatus: DirectorySyncRunStatus | null;

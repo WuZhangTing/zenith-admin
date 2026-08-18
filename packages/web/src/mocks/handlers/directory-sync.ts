@@ -28,7 +28,7 @@ export const directorySyncHandlers = [
   }),
 
   http.post('/api/directory-sync/sources', async ({ request }) => {
-    const body = (await request.json()) as Partial<DirectorySyncSource>;
+    const body = (await request.json()) as Partial<DirectorySyncSource> & { contactSecret?: string | null };
     if (mockDirectorySyncSources.some((s) => s.name === body.name)) {
       return badRequest('同名同步源已存在', { status: 400 });
     }
@@ -50,6 +50,7 @@ export const directorySyncHandlers = [
       syncDepartments: body.syncDepartments ?? true,
       cronExpression: body.cronExpression ?? null,
       circuitBreakerPercent: body.circuitBreakerPercent ?? 30,
+      contactSecretSet: Boolean(body.contactSecret),
       nextRunAt: null,
       lastRunAt: null,
       lastRunStatus: null,
@@ -70,8 +71,10 @@ export const directorySyncHandlers = [
   http.put('/api/directory-sync/sources/:id', async ({ params, request }) => {
     const source = findSource(params.id as string);
     if (!source) return notFound('同步源不存在', { status: 404 });
-    const body = (await request.json()) as Partial<DirectorySyncSource>;
-    Object.assign(source, { ...body, updatedAt: mockDateTime() });
+    const body = (await request.json()) as Partial<DirectorySyncSource> & { contactSecret?: string | null };
+    const { contactSecret, ...rest } = body;
+    Object.assign(source, { ...rest, updatedAt: mockDateTime() });
+    if (contactSecret) source.contactSecretSet = true;
     return ok(source, '更新成功');
   }),
 

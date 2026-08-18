@@ -34,6 +34,7 @@ export const DirectorySyncSourceDTO = z
     syncDepartments: z.boolean(),
     cronExpression: z.string().nullable(),
     circuitBreakerPercent: z.number().int(),
+    contactSecretSet: z.boolean().optional(),
     nextRunAt: z.string().nullable(),
     lastRunAt: z.string().nullable(),
     lastRunStatus: z.enum(DIRECTORY_SYNC_RUN_STATUSES).nullable(),

@@ -101,12 +101,15 @@ export default function DirectorySyncSourcesPage() {
       remark: r.remark,
     }),
     beforeSave: (values) => {
-      const v = values as Partial<DirectorySyncSource> & { type: string };
+      const v = values as Partial<DirectorySyncSource> & { type: string; contactSecret?: string | null };
+      const isPlatform = v.type !== 'ldap';
       return {
         ...v,
         // 绑定字段按类型收敛，避免残留另一类型的绑定
         identityProviderId: v.type === 'ldap' ? v.identityProviderId : null,
-        oauthProvider: v.type === 'dingtalk' ? 'dingtalk' : null,
+        oauthProvider: isPlatform ? v.type : null,
+        // 空串 = 不修改已保存的通讯录 Secret
+        contactSecret: v.type === 'wechat_work' && v.contactSecret?.trim() ? v.contactSecret.trim() : undefined,
         cronExpression: v.cronExpression?.trim() ? v.cronExpression.trim() : null,
       };
     },
@@ -187,7 +190,7 @@ export default function DirectorySyncSourcesPage() {
       title: '凭证来源', dataIndex: 'identityProviderName', width: 180,
       render: (_: unknown, r: DirectorySyncSource) => {
         if (r.type === 'ldap') return r.identityProviderName ? `身份源：${r.identityProviderName}` : EMPTY_PLACEHOLDER;
-        return 'OAuth 配置：钉钉';
+        return `OAuth 配置：${DIRECTORY_SYNC_SOURCE_TYPE_LABELS[r.type]}`;
       },
     },
     {
@@ -330,18 +333,40 @@ export default function DirectorySyncSourcesPage() {
                         rules={[{ required: true, message: '请选择源类型' }]} />
                     </Col>
                   </Row>
-                  {type === 'ldap' ? (
+                  {type === 'ldap' && (
                     <Form.Select field="identityProviderId" label="企业身份源" style={{ width: '100%' }}
                       placeholder="选择 LDAP/AD 身份源（连接与凭证复用该配置）"
                       optionList={ldapProviders.map((p) => ({ value: p.id, label: p.name }))}
                       loading={providersQuery.isFetching}
                       rules={[{ required: true, message: 'LDAP 源必须绑定企业身份源' }]}
                       helpText="连接地址、Bind 凭证与属性映射在「企业身份源」页维护，此处仅引用" />
-                  ) : (
+                  )}
+                  {type === 'dingtalk' && (
                     <Form.Slot label="凭证来源">
                       <Tag color="blue">OAuth 配置 → 钉钉（appKey / appSecret）</Tag>
                       <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
                         复用「OAuth 配置」页的钉钉凭证；需在钉钉开放平台为该应用开通通讯录只读权限
+                      </div>
+                    </Form.Slot>
+                  )}
+                  {type === 'wechat_work' && (
+                    <>
+                      <Form.Slot label="凭证来源">
+                        <Tag color="green">OAuth 配置 → 企业微信（Corp ID）</Tag>
+                        <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
+                          Corp ID 复用「OAuth 配置」页；通讯录同步使用独立的通讯录 Secret（≠ 应用 Secret），在下方填写
+                        </div>
+                      </Form.Slot>
+                      <Form.Input field="contactSecret" label="通讯录 Secret" type="password"
+                        placeholder={modal.isEdit && modal.editing?.contactSecretSet ? '已配置；留空保持不变' : '企业微信管理后台 → 通讯录同步 → Secret'}
+                        rules={modal.isEdit && modal.editing?.contactSecretSet ? [] : [{ required: true, message: '企业微信源必须填写通讯录 Secret' }]} />
+                    </>
+                  )}
+                  {type === 'feishu' && (
+                    <Form.Slot label="凭证来源">
+                      <Tag color="cyan">OAuth 配置 → 飞书（App ID / App Secret）</Tag>
+                      <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
+                        复用「OAuth 配置」页的飞书凭证；需在飞书开放平台为该应用开通通讯录读取权限
                       </div>
                     </Form.Slot>
                   )}

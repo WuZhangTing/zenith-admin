@@ -251,11 +251,274 @@ function createDingTalkConnector(): DirectoryConnector {
   };
 }
 
+// ─── 企业微信连接器：corpId 复用 OAuth 配置，通讯录 Secret 存于同步源 ─────────────
+const WECOM_API = 'https://qyapi.weixin.qq.com';
+
+const wecomTokenCache = new Map<string, DingTalkTokenCache>();
+
+interface WeComDeptRaw {
+  id: number;
+  name: string;
+  parentid: number;
+}
+
+interface WeComUserRaw {
+  userid: string;
+  name: string;
+  mobile?: string;
+  email?: string;
+  biz_mail?: string;
+  /** 1=已激活 2=已禁用 4=未激活 5=退出企业 */
+  status?: number;
+  enable?: number;
+  department?: number[];
+}
+
+const WECOM_ROOT_DEPT_ID = 1;
+
+async function getWeComToken(source: DirectorySyncSourceRow): Promise<string> {
+  const [row] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, 'wechat_work')).limit(1);
+  if (!row?.corpId) {
+    throw new HTTPException(400, { message: '企业微信 OAuth 配置缺失 Corp ID，请先在「OAuth 配置」中填写' });
+  }
+  const contactSecret = source.contactSecret?.trim();
+  if (!contactSecret) throw new HTTPException(400, { message: '同步源未配置企业微信通讯录 Secret' });
+  const cacheKey = `${row.corpId}:${source.id}`;
+  const cached = wecomTokenCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.token;
+  const resp = await httpGet(`${WECOM_API}/cgi-bin/gettoken?corpid=${encodeURIComponent(row.corpId)}&corpsecret=${encodeURIComponent(contactSecret)}`, {
+    timeout: 10_000,
+    retries: 1,
+  });
+  const data = await resp.json<{ errcode?: number; errmsg?: string; access_token?: string; expires_in?: number }>();
+  if (!resp.ok || data.errcode !== 0 || !data.access_token) {
+    throw new HTTPException(400, { message: `企业微信获取 access_token 失败：${data.errmsg ?? `HTTP ${resp.status}`}` });
+  }
+  wecomTokenCache.set(cacheKey, {
+    token: data.access_token,
+    expiresAt: Date.now() + ((data.expires_in ?? 7200) - 300) * 1000,
+  });
+  return data.access_token;
+}
+
+async function wecomGet<T>(token: string, path: string, params: Record<string, string>): Promise<T> {
+  const search = new URLSearchParams({ access_token: token, ...params });
+  const resp = await httpGet(`${WECOM_API}${path}?${search}`, { timeout: 15_000, retries: 1 });
+  const data = await resp.json<Record<string, unknown> & { errcode?: number; errmsg?: string }>();
+  if (!resp.ok || data.errcode !== 0) {
+    throw new HTTPException(400, { message: `企业微信接口 ${path} 调用失败：${data.errmsg ?? `HTTP ${resp.status}`}` });
+  }
+  return data as T;
+}
+
+function createWeComConnector(source: DirectorySyncSourceRow): DirectoryConnector {
+  async function fetchSnapshot(): Promise<DirectorySnapshot> {
+    const token = await getWeComToken(source);
+    const deptResp = await wecomGet<{ department?: WeComDeptRaw[] }>(token, '/cgi-bin/department/list', {});
+    const departments: DirectoryExtDept[] = (deptResp.department ?? [])
+      .filter((d) => d.id !== WECOM_ROOT_DEPT_ID)
+      .map((d) => ({
+        externalId: String(d.id),
+        name: d.name,
+        parentExternalId: d.parentid === WECOM_ROOT_DEPT_ID ? null : String(d.parentid),
+      }));
+    // fetch_child=1 从根部门一次拉全量成员
+    const userResp = await wecomGet<{ userlist?: WeComUserRaw[] }>(token, '/cgi-bin/user/list', {
+      department_id: String(WECOM_ROOT_DEPT_ID),
+      fetch_child: '1',
+    });
+    const users: DirectoryExtUser[] = (userResp.userlist ?? []).map((raw) => ({
+      externalId: raw.userid,
+      username: raw.mobile?.trim() || raw.userid,
+      nickname: raw.name,
+      email: raw.email?.trim() || raw.biz_mail?.trim() || null,
+      phone: raw.mobile?.trim() || null,
+      active: raw.status !== 5 && raw.enable !== 0,
+      deptExternalIds: (raw.department ?? [])
+        .filter((id) => id !== WECOM_ROOT_DEPT_ID)
+        .map((id) => String(id)),
+    }));
+    return { departments, users };
+  }
+
+  return {
+    fetch: fetchSnapshot,
+    async test() {
+      try {
+        const token = await getWeComToken(source);
+        const deptResp = await wecomGet<{ department?: WeComDeptRaw[] }>(token, '/cgi-bin/department/list', {});
+        return { ok: true, message: `连接成功，共 ${deptResp.department?.length ?? 0} 个部门`, sampleUsers: [] };
+      } catch (err) {
+        return { ok: false, message: `连接失败：${err instanceof Error ? err.message : '未知错误'}`, sampleUsers: [] };
+      }
+    },
+  };
+}
+
+// ─── 飞书连接器：凭证复用 OAuth 配置（App ID / App Secret），走 app_access_token ──
+const FEISHU_API = 'https://open.feishu.cn';
+
+const feishuTokenCache = new Map<string, DingTalkTokenCache>();
+
+const FEISHU_ROOT_DEPT_ID = '0';
+
+interface FeishuDeptRaw {
+  open_department_id: string;
+  name: string;
+  parent_department_id?: string;
+  order?: string;
+}
+
+interface FeishuUserRaw {
+  open_id: string;
+  name: string;
+  mobile?: string;
+  email?: string;
+  enterprise_email?: string;
+  status?: { is_frozen?: boolean; is_resigned?: boolean; is_exited?: boolean };
+  department_ids?: string[];
+}
+
+async function getFeishuToken(): Promise<string> {
+  const [row] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, 'feishu')).limit(1);
+  if (!row?.clientId || !row.clientSecret) {
+    throw new HTTPException(400, { message: '飞书 OAuth 配置缺失，请先在「OAuth 配置」中填写 App ID / App Secret' });
+  }
+  const cached = feishuTokenCache.get(row.clientId);
+  if (cached && cached.expiresAt > Date.now()) return cached.token;
+  const resp = await httpPost(`${FEISHU_API}/open-apis/auth/v3/app_access_token/internal`, JSON.stringify({
+    app_id: row.clientId,
+    app_secret: row.clientSecret,
+  }), {
+    headers: { 'content-type': 'application/json' },
+    timeout: 10_000,
+    retries: 1,
+  });
+  const data = await resp.json<{ code?: number; msg?: string; app_access_token?: string; expire?: number }>();
+  if (!resp.ok || data.code !== 0 || !data.app_access_token) {
+    throw new HTTPException(400, { message: `飞书获取 app_access_token 失败：${data.msg ?? `HTTP ${resp.status}`}` });
+  }
+  feishuTokenCache.set(row.clientId, {
+    token: data.app_access_token,
+    expiresAt: Date.now() + ((data.expire ?? 7200) - 300) * 1000,
+  });
+  return data.app_access_token;
+}
+
+async function feishuGet<T>(token: string, path: string, params: Record<string, string>): Promise<T> {
+  const search = new URLSearchParams(params);
+  const resp = await httpGet(`${FEISHU_API}${path}?${search}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: 15_000,
+    retries: 1,
+  });
+  const data = await resp.json<{ code?: number; msg?: string; data?: T }>();
+  if (!resp.ok || data.code !== 0) {
+    throw new HTTPException(400, { message: `飞书接口 ${path} 调用失败：${data.msg ?? `HTTP ${resp.status}`}` });
+  }
+  return (data.data ?? {}) as T;
+}
+
+async function fetchFeishuDepartments(token: string): Promise<DirectoryExtDept[]> {
+  const depts: DirectoryExtDept[] = [];
+  const queue: string[] = [FEISHU_ROOT_DEPT_ID];
+  const seen = new Set<string>(queue);
+  while (queue.length > 0) {
+    const deptId = queue.shift()!;
+    let pageToken = '';
+    do {
+      const data = await feishuGet<{ items?: FeishuDeptRaw[]; has_more?: boolean; page_token?: string }>(
+        token,
+        `/open-apis/contact/v3/departments/${encodeURIComponent(deptId)}/children`,
+        { department_id_type: 'open_department_id', page_size: '50', ...(pageToken ? { page_token: pageToken } : {}) },
+      );
+      for (const item of data.items ?? []) {
+        if (seen.has(item.open_department_id)) continue;
+        seen.add(item.open_department_id);
+        depts.push({
+          externalId: item.open_department_id,
+          name: item.name,
+          parentExternalId: !item.parent_department_id || item.parent_department_id === FEISHU_ROOT_DEPT_ID
+            ? null
+            : item.parent_department_id,
+        });
+        queue.push(item.open_department_id);
+      }
+      pageToken = data.has_more && data.page_token ? data.page_token : '';
+    } while (pageToken);
+  }
+  return depts;
+}
+
+async function fetchFeishuUsersOfDept(token: string, deptId: string): Promise<FeishuUserRaw[]> {
+  const list: FeishuUserRaw[] = [];
+  let pageToken = '';
+  do {
+    const data = await feishuGet<{ items?: FeishuUserRaw[]; has_more?: boolean; page_token?: string }>(
+      token,
+      '/open-apis/contact/v3/users/find_by_department',
+      {
+        department_id: deptId,
+        department_id_type: 'open_department_id',
+        page_size: '50',
+        ...(pageToken ? { page_token: pageToken } : {}),
+      },
+    );
+    list.push(...(data.items ?? []));
+    pageToken = data.has_more && data.page_token ? data.page_token : '';
+  } while (pageToken);
+  return list;
+}
+
+function createFeishuConnector(): DirectoryConnector {
+  async function fetchSnapshot(): Promise<DirectorySnapshot> {
+    const token = await getFeishuToken();
+    const departments = await fetchFeishuDepartments(token);
+    const deptIds = [FEISHU_ROOT_DEPT_ID, ...departments.map((d) => d.externalId)];
+    const userMap = new Map<string, DirectoryExtUser>();
+    for (const deptId of deptIds) {
+      const rawUsers = await fetchFeishuUsersOfDept(token, deptId);
+      for (const raw of rawUsers) {
+        if (userMap.has(raw.open_id)) continue;
+        userMap.set(raw.open_id, {
+          externalId: raw.open_id,
+          username: raw.mobile?.replace(/^\+86/, '').trim() || raw.open_id,
+          nickname: raw.name,
+          email: raw.email?.trim() || raw.enterprise_email?.trim() || null,
+          phone: raw.mobile?.replace(/^\+86/, '').trim() || null,
+          active: !raw.status?.is_resigned && !raw.status?.is_exited && !raw.status?.is_frozen,
+          deptExternalIds: (raw.department_ids ?? []).filter((id) => id !== FEISHU_ROOT_DEPT_ID),
+        });
+      }
+    }
+    return { departments, users: Array.from(userMap.values()) };
+  }
+
+  return {
+    fetch: fetchSnapshot,
+    async test() {
+      try {
+        const token = await getFeishuToken();
+        const data = await feishuGet<{ items?: FeishuDeptRaw[] }>(
+          token,
+          `/open-apis/contact/v3/departments/${FEISHU_ROOT_DEPT_ID}/children`,
+          { department_id_type: 'open_department_id', page_size: '10' },
+        );
+        return { ok: true, message: `连接成功，根部门下有 ${data.items?.length ?? 0} 个子部门`, sampleUsers: [] };
+      } catch (err) {
+        return { ok: false, message: `连接失败：${err instanceof Error ? err.message : '未知错误'}`, sampleUsers: [] };
+      }
+    },
+  };
+}
+
 /** 按同步源类型构建连接器 */
 export function buildDirectoryConnector(source: DirectorySyncSourceRow): DirectoryConnector {
   switch (source.type) {
     case 'ldap': return createLdapConnector(source);
     case 'dingtalk': return createDingTalkConnector();
+    case 'wechat_work': return createWeComConnector(source);
+    case 'feishu': return createFeishuConnector();
     default: throw new HTTPException(400, { message: `不支持的同步源类型：${source.type}` });
   }
 }

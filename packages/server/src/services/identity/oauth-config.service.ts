@@ -5,7 +5,7 @@ import type { OAuthProviderType } from '@zenith/shared/identity';
 import { HTTPException } from 'hono/http-exception';
 import { formatNullableDateTime } from '../../lib/datetime';
 
-export const VALID_OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work'];
+export const VALID_OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work', 'feishu'];
 
 export function mapOauthConfig(row: typeof oauthConfigs.$inferSelect) {
   return {

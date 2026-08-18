@@ -366,8 +366,9 @@ export default function ProfilePage({ user }: ProfilePageProps) {
     github: { label: 'GitHub', icon: <Icon icon="simple-icons:github" width="16" height="16" /> },
     dingtalk: { label: '钉钉', icon: <Icon icon="ant-design:dingtalk-outlined" width="16" height="16" /> },
     wechat_work: { label: '企业微信', icon: <Icon icon="ant-design:wechat-work-filled" width="16" height="16" /> },
+    feishu: { label: '飞书', icon: <Icon icon="simple-icons:lark" width="16" height="16" /> },
   };
-  const OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work'];
+  const OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work', 'feishu'];
 
   return (
     <div className="page-container">

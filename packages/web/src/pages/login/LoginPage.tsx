@@ -524,6 +524,14 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
               >
                 <Icon icon="ant-design:wechat-work-filled" width="22" height="22" />
               </button>
+              <button
+                type="button"
+                className="oauth-btn"
+                title="飞书登录"
+                onClick={() => handleOAuthLogin('feishu')}
+              >
+                <Icon icon="simple-icons:lark" width="20" height="20" />
+              </button>
             </div>
           </div>}
           {import.meta.env.VITE_DEMO_MODE === 'true' && (

@@ -443,13 +443,18 @@ export const createDirectorySyncSourceSchema = z.object({
   syncDepartments: z.boolean().default(true),
   cronExpression: z.string().max(64).nullable().optional(),
   circuitBreakerPercent: z.number().int().min(0, '熔断阈值最小为 0').max(100, '熔断阈值最大为 100').default(30),
+  /** 企业微信通讯录 Secret（独立于应用 Secret；写入后不回显） */
+  contactSecret: z.string().max(256).nullable().optional(),
   remark: z.string().max(500).nullable().optional(),
 }).superRefine((v, ctx) => {
   if (v.type === 'ldap' && !v.identityProviderId) {
     ctx.addIssue({ code: 'custom', path: ['identityProviderId'], message: 'LDAP/AD 源必须绑定企业身份源' });
   }
-  if (v.type === 'dingtalk' && !v.oauthProvider) {
-    ctx.addIssue({ code: 'custom', path: ['oauthProvider'], message: '钉钉源必须绑定 OAuth 配置' });
+  if ((v.type === 'dingtalk' || v.type === 'wechat_work' || v.type === 'feishu') && !v.oauthProvider) {
+    ctx.addIssue({ code: 'custom', path: ['oauthProvider'], message: '平台 API 源必须绑定 OAuth 配置' });
+  }
+  if (v.type === 'wechat_work' && !v.contactSecret?.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['contactSecret'], message: '企业微信源必须填写通讯录 Secret' });
   }
 });
 
@@ -467,6 +472,8 @@ export const updateDirectorySyncSourceSchema = z.object({
   syncDepartments: z.boolean().optional(),
   cronExpression: z.string().max(64).nullable().optional(),
   circuitBreakerPercent: z.number().int().min(0).max(100).optional(),
+  /** 传非空字符串时更新；传 null 清除；缺省保持不变 */
+  contactSecret: z.string().max(256).nullable().optional(),
   remark: z.string().max(500).nullable().optional(),
 });
 

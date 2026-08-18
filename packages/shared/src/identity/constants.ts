@@ -6,7 +6,7 @@ export const SUPER_ADMIN_CODE = 'super_admin';
 
 export const TENANT_ADMIN_CODE = 'tenant_admin';
 
-export const OAUTH_PROVIDERS = ['github', 'dingtalk', 'wechat_work'] as const;
+export const OAUTH_PROVIDERS = ['github', 'dingtalk', 'wechat_work', 'feishu'] as const;
 
 export type OAuthProviderType = (typeof OAUTH_PROVIDERS)[number];
 
@@ -42,13 +42,15 @@ export function isSafeOAuthRedirectUri(value: string): boolean {
 }
 
 // ─── 通讯录同步 ──────────────────────────────────────────────────────
-export const DIRECTORY_SYNC_SOURCE_TYPES = ['ldap', 'dingtalk'] as const;
+export const DIRECTORY_SYNC_SOURCE_TYPES = ['ldap', 'dingtalk', 'wechat_work', 'feishu'] as const;
 
 export type DirectorySyncSourceType = (typeof DIRECTORY_SYNC_SOURCE_TYPES)[number];
 
 export const DIRECTORY_SYNC_SOURCE_TYPE_LABELS: Record<DirectorySyncSourceType, string> = {
   ldap: 'LDAP / AD',
   dingtalk: '钉钉',
+  wechat_work: '企业微信',
+  feishu: '飞书',
 };
 
 export const DIRECTORY_SYNC_MATCH_KEYS = ['phone', 'email', 'username'] as const;
