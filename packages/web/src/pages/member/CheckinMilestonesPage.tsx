@@ -67,7 +67,7 @@ export default function CheckinMilestonesPage() {
 
   const columns: ColumnProps<CheckinMilestone>[] = [
     { title: '名称', dataIndex: 'title', width: 160, render: renderEllipsis },
-    { title: '累计天数', dataIndex: 'cumulativeDays', width: 100 },
+    { title: '累计天数', dataIndex: 'cumulativeDays', width: 100, align: 'right' },
     {
       title: '奖励类型',
       dataIndex: 'rewardType',

@@ -57,7 +57,7 @@ export default function MemberRechargesPage() {
     { title: '订单号', dataIndex: 'orderNo', width: 200, fixed: 'left', render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
     { title: '会员', dataIndex: 'memberNickname', width: 140, render: (v: string | null, r: MemberRecharge) => v || (r.memberId ? `#${r.memberId}` : '—') },
     { title: '手机号', dataIndex: 'memberPhone', width: 130, render: (v: string | null) => v ?? '—' },
-    { title: '金额(元)', dataIndex: 'amount', width: 110, render: (v: number) => <span style={{ fontWeight: 600 }}>{(v / 100).toFixed(2)}</span> },
+    { title: '金额(元)', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => <span style={{ fontWeight: 600 }}>{(v / 100).toFixed(2)}</span> },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] ?? v },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: string) => PAYMENT_METHOD_LABELS[v as keyof typeof PAYMENT_METHOD_LABELS] ?? v },
     { title: '说明', dataIndex: 'subject', width: 160, render: (v: string) => renderEllipsis(v) },

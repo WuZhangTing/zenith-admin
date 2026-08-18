@@ -123,7 +123,7 @@ export default function MemberDashboardPage() {
     const skeletonPlaceholder = (
       <div className="page-container zx-flat-panels">
         {/* 统计卡片骨架 */}
-        <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
+        <StatGrid minItemWidth={300} style={{ marginBottom: 16 }}>
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i}>
               <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
@@ -149,7 +149,7 @@ export default function MemberDashboardPage() {
   return (
     <div className="page-container zx-flat-panels">
       {/* 概览卡片：点击下钻到对应管理页 */}
-      <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
+      <StatGrid minItemWidth={300} style={{ marginBottom: 16 }}>
         {overview && STAT_ITEMS.map((item) => {
           const raw = overview[item.key];
           const value = item.format ? item.format(raw) : raw;

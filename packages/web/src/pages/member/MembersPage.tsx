@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown, Modal } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { KeyRound, ChevronDown, Tags } from 'lucide-react';
@@ -128,6 +128,20 @@ export default function MembersPage() {
     });
   };
 
+  // 封禁/恢复的单行快速切换：风控高频动作，不必进编辑弹窗改状态下拉
+  const handleQuickStatus = (record: Member, status: 'active' | 'banned') => {
+    const action = status === 'banned' ? '封禁' : '恢复正常';
+    Modal.confirm({
+      title: `确认${action}会员「${record.nickname}」？`,
+      content: status === 'banned' ? '封禁后该会员将无法登录前台。' : '恢复后该会员可正常登录与使用。',
+      okButtonProps: status === 'banned' ? { type: 'danger' } : undefined,
+      onOk: async () => {
+        await batchStatusMutation.mutateAsync({ ids: [record.id], status });
+        Toast.success(`已${action}`);
+      },
+    });
+  };
+
   const openAdjustGrowth = (record: Member) => { setGrowthMember(record); setGrowthVisible(true); };
   const handleAdjustGrowth = async () => {
     let values;
@@ -211,8 +225,8 @@ export default function MembersPage() {
         ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{v.map((t) => <Tag key={t.id} size="small" color={(t.color || TAG_FALLBACK_COLOR) as 'blue'}>{t.name}</Tag>)}</div>
         : '-'),
     },
-    { title: '积分', dataIndex: 'pointBalance', width: 90, render: (v?: number) => v ?? 0 },
-    { title: '余额(元)', dataIndex: 'walletBalance', width: 100, render: (v?: number) => ((v ?? 0) / 100).toFixed(2) },
+    { title: '积分', dataIndex: 'pointBalance', width: 90, align: 'right', render: (v?: number) => v ?? 0 },
+    { title: '余额(元)', dataIndex: 'walletBalance', width: 100, align: 'right', render: (v?: number) => ((v ?? 0) / 100).toFixed(2) },
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
@@ -225,6 +239,7 @@ export default function MembersPage() {
         { key: 'detail', label: '详情', onClick: () => setDetailMemberId(record.id) },
         { key: 'edit', label: '编辑', hidden: !hasPermission('member:member:update'), onClick: () => memberModal.openEdit(record) },
         { key: 'set-tags', label: '设置标签', hidden: !hasPermission('member:member:update'), onClick: () => openSetTags(record) },
+        { key: 'quick-status', label: record.status === 'banned' ? '恢复正常' : '封禁', danger: record.status !== 'banned', hidden: !hasPermission('member:member:update'), onClick: () => handleQuickStatus(record, record.status === 'banned' ? 'active' : 'banned') },
         { key: 'adjust-growth', label: '调整成长值', hidden: !hasPermission('member:member:update'), onClick: () => openAdjustGrowth(record) },
         { key: 'reset-password', label: '重置密码', hidden: !hasPermission('member:member:update'), onClick: () => openResetPwd(record) },
         { key: 'delete', label: '删除', danger: true, hidden: !hasPermission('member:member:delete'), onClick: () => handleDelete(record) },

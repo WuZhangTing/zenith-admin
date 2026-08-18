@@ -24,16 +24,16 @@ const WALLET_TX_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange'> = {
 
 const pointTxCols: ColumnProps<MemberPointTransaction>[] = [
   { title: '类型', dataIndex: 'type', width: 80, render: (v: string) => <Tag size="small" color={POINT_TX_COLORS[v] ?? 'blue'}>{POINT_TX_TYPE_LABELS[v as keyof typeof POINT_TX_TYPE_LABELS]}</Tag> },
-  { title: '变动', dataIndex: 'amount', width: 80, render: (v: number) => <span style={{ color: v > 0 ? '#07c160' : '#fa5151', fontWeight: 600 }}>{v > 0 ? `+${v}` : v}</span> },
-  { title: '余额', dataIndex: 'balanceAfter', width: 80 },
+  { title: '变动', dataIndex: 'amount', width: 80, align: 'right', render: (v: number) => <span style={{ color: v > 0 ? '#07c160' : '#fa5151', fontWeight: 600 }}>{v > 0 ? `+${v}` : v}</span> },
+  { title: '余额', dataIndex: 'balanceAfter', width: 80, align: 'right' },
   { title: '备注', dataIndex: 'remark', render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v ?? '—'}</Text> },
   dateTimeColumn('时间', 'createdAt'),
 ];
 
 const walletTxCols: ColumnProps<MemberWalletTransaction>[] = [
   { title: '类型', dataIndex: 'type', width: 80, render: (v: string) => <Tag size="small" color={WALLET_TX_COLORS[v] ?? 'blue'}>{WALLET_TX_TYPE_LABELS[v as keyof typeof WALLET_TX_TYPE_LABELS]}</Tag> },
-  { title: '变动(元)', dataIndex: 'amount', width: 90, render: (v: number) => <span style={{ color: v > 0 ? '#07c160' : '#fa5151', fontWeight: 600 }}>{v > 0 ? `+${(v / 100).toFixed(2)}` : (v / 100).toFixed(2)}</span> },
-  { title: '余额(元)', dataIndex: 'balanceAfter', width: 90, render: (v: number) => (v / 100).toFixed(2) },
+  { title: '变动(元)', dataIndex: 'amount', width: 90, align: 'right', render: (v: number) => <span style={{ color: v > 0 ? '#07c160' : '#fa5151', fontWeight: 600 }}>{v > 0 ? `+${(v / 100).toFixed(2)}` : (v / 100).toFixed(2)}</span> },
+  { title: '余额(元)', dataIndex: 'balanceAfter', width: 90, align: 'right', render: (v: number) => (v / 100).toFixed(2) },
   { title: '备注', dataIndex: 'remark', render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v ?? '—'}</Text> },
   dateTimeColumn('时间', 'createdAt'),
 ];

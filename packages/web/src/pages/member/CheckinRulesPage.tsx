@@ -69,9 +69,9 @@ export default function CheckinRulesPage() {
   };
 
   const columns: ColumnProps<CheckinRule>[] = [
-    { title: '连续天数', dataIndex: 'dayNumber', width: 100 },
-    { title: '积分奖励', dataIndex: 'points', width: 100 },
-    { title: '经验奖励', dataIndex: 'experience', width: 100 },
+    { title: '连续天数', dataIndex: 'dayNumber', width: 100, align: 'right' },
+    { title: '积分奖励', dataIndex: 'points', width: 100, align: 'right' },
+    { title: '经验奖励', dataIndex: 'experience', width: 100, align: 'right' },
     { title: '备注', dataIndex: 'remark', render: renderEllipsis },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<CheckinRule>({
@@ -170,9 +170,9 @@ export default function CheckinRulesPage() {
           labelPosition="left"
           labelWidth={140}
         >
-          <Form.Switch field="makeupEnabled" label="允许会员自助补签" />
-          <Form.InputNumber field="makeupCostPoints" label="补签消耗积分" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入补签消耗积分' }]} />
-          <Form.InputNumber field="makeupMaxDays" label="可回溯天数" min={1} max={366} style={{ width: '100%' }} rules={[{ required: true, message: '请输入可回溯天数' }]} />
+          <Form.Switch field="makeupEnabled" label="允许会员自助补签" extraText="开启后会员可在前台对漏签日期自助补签；关闭时仅后台可代为补签" />
+          <Form.InputNumber field="makeupCostPoints" label="补签消耗积分" min={0} style={{ width: '100%' }} extraText="会员每自助补签 1 天需消耗的积分，0 表示免费补签" rules={[{ required: true, message: '请输入补签消耗积分' }]} />
+          <Form.InputNumber field="makeupMaxDays" label="可回溯天数" min={1} max={366} style={{ width: '100%' }} extraText="最多允许补签多少天前的漏签日期" rules={[{ required: true, message: '请输入可回溯天数' }]} />
         </Form>
       </AppModal>
     </div>

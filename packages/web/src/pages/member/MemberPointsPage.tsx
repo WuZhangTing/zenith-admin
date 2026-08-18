@@ -66,8 +66,8 @@ export default function MemberPointsPage() {
   const columns: ColumnProps<MemberPointTransaction>[] = [
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberPointTransaction) => v || `#${r?.memberId}` },
     { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => <Tag color={TYPE_COLORS[v] as 'green'}>{POINT_TX_TYPE_LABELS[v as keyof typeof POINT_TX_TYPE_LABELS]}</Tag> },
-    { title: '变动', dataIndex: 'amount', width: 100, render: (v: number) => <span style={{ color: v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>{v >= 0 ? `+${v}` : v}</span> },
-    { title: '变动后', dataIndex: 'balanceAfter', width: 100 },
+    { title: '变动', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => <span style={{ color: v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>{v >= 0 ? `+${v}` : v}</span> },
+    { title: '变动后', dataIndex: 'balanceAfter', width: 100, align: 'right' },
     { title: '业务类型', dataIndex: 'bizType', width: 130, render: (v: string | null) => (v ? (MEMBER_BIZ_TYPE_LABELS[v] ?? v) : '-') },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     createdAtColumn,

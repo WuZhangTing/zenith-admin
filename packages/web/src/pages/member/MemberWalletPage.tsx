@@ -67,8 +67,8 @@ export default function MemberWalletPage() {
   const columns: ColumnProps<MemberWalletTransaction>[] = [
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberWalletTransaction) => v || `#${r?.memberId}` },
     { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => <Tag color={TYPE_COLORS[v] as 'green'}>{WALLET_TX_TYPE_LABELS[v as keyof typeof WALLET_TX_TYPE_LABELS]}</Tag> },
-    { title: '变动(元)', dataIndex: 'amount', width: 110, render: (v: number) => <span style={{ color: v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>{v >= 0 ? `+${yuan(v)}` : yuan(v)}</span> },
-    { title: '变动后(元)', dataIndex: 'balanceAfter', width: 110, render: (v: number) => yuan(v) },
+    { title: '变动(元)', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => <span style={{ color: v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>{v >= 0 ? `+${yuan(v)}` : yuan(v)}</span> },
+    { title: '变动后(元)', dataIndex: 'balanceAfter', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '业务类型', dataIndex: 'bizType', width: 130, render: (v: string | null) => (v ? (MEMBER_BIZ_TYPE_LABELS[v] ?? v) : '-') },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     createdAtColumn,

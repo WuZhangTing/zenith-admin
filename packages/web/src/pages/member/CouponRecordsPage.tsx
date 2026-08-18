@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ScanLine } from 'lucide-react';
 import type { MemberCoupon, MemberCouponStatus } from '@zenith/shared/member';
@@ -85,7 +85,7 @@ export default function CouponRecordsPage() {
   };
 
   const columns: ColumnProps<MemberCoupon>[] = [
-    { title: '券码', dataIndex: 'code', width: 180, fixed: 'left', render: (v: string) => <span style={{ fontFamily: 'monospace' }}>{v}</span> },
+    { title: '券码', dataIndex: 'code', width: 200, fixed: 'left', render: (v: string) => <Typography.Text copyable={{ content: v }} style={{ fontFamily: 'monospace' }}>{v}</Typography.Text> },
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberCoupon) => v || `#${r?.memberId}` },
     { title: '优惠券', dataIndex: 'coupon', width: 160, render: (_: unknown, r: MemberCoupon) => renderEllipsis(r.coupon?.name ?? `#${r.couponId}`) },
     { title: '状态', dataIndex: 'status', width: 100, render: (v: MemberCouponStatus) => <Tag color={STATUS_COLORS[v] as 'blue'}>{MEMBER_COUPON_STATUS_LABELS[v]}</Tag> },

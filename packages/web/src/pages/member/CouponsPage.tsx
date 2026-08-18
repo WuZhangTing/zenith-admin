@@ -153,15 +153,15 @@ export default function CouponsPage() {
   const columns: ColumnProps<Coupon>[] = [
     { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis, fixed: 'left' },
     { title: '类型', dataIndex: 'type', width: 90, render: (v: CouponType) => <Tag color={v === 'amount' ? 'green' : 'blue'}>{COUPON_TYPE_LABELS[v]}</Tag> },
-    { title: '面值', dataIndex: 'faceValue', width: 100, render: (_: number, r: Coupon) => renderFace(r) },
-    { title: '门槛', dataIndex: 'threshold', width: 110, render: renderThreshold },
-    { title: '已发/总量', dataIndex: 'totalQuantity', width: 110, render: (_: number, r: Coupon) => (
+    { title: '面值', dataIndex: 'faceValue', width: 100, align: 'right', render: (_: number, r: Coupon) => renderFace(r) },
+    { title: '门槛', dataIndex: 'threshold', width: 110, align: 'right', render: renderThreshold },
+    { title: '已发/总量', dataIndex: 'totalQuantity', width: 110, align: 'right', render: (_: number, r: Coupon) => (
       r.issuedQuantity > 0
         ? <Typography.Text link onClick={() => navigate(`/member/coupon-records?couponId=${r.id}`)}>{renderQuantity(r)}</Typography.Text>
         : renderQuantity(r)
     ) },
-    { title: '每人限领', dataIndex: 'perLimit', width: 90, render: (v: number) => (v > 0 ? v : '不限') },
-    { title: '兑换积分', dataIndex: 'exchangePoints', width: 90, render: (v?: number) => (v && v > 0 ? v : '-') },
+    { title: '每人限领', dataIndex: 'perLimit', width: 90, align: 'right', render: (v: number) => (v > 0 ? v : '不限') },
+    { title: '兑换积分', dataIndex: 'exchangePoints', width: 90, align: 'right', render: (v?: number) => (v && v > 0 ? v : '-') },
     { title: '有效期', dataIndex: 'validType', width: 200, render: (_: string, r: Coupon) => <span style={{ fontSize: 12 }}>{renderValid(r)}</span> },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: CouponTemplateStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{COUPON_TEMPLATE_STATUS_LABELS[v]}</Tag> },
     createdAtColumn,
