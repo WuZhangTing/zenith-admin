@@ -75,6 +75,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '企业身份源（OIDC / SAML / LDAP）用户同步运行记录。',
   },
   {
+    key: 'directory_sync_runs',
+    title: '通讯录同步记录',
+    module: '通讯录同步',
+    tableName: 'directory_sync_runs',
+    timeColumn: 'started_at',
+    defaultDays: 90,
+    description: '通讯录同步的运行记录；差异明细（directory_sync_run_items）随记录级联删除。',
+  },
+  {
     key: 'maintenance_logs',
     title: '维护记录',
     module: '系统管理',

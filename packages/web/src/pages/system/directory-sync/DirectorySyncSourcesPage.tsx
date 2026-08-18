@@ -1,0 +1,396 @@
+import { useMemo, useState } from 'react';
+import { Form, Modal, Spin, Switch, Tag, Toast, Row, Col } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { SearchToolbar } from '@/components/SearchToolbar';
+import { KeywordInput, StatusSelect } from '@/components/search-filters';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import AppModal from '@/components/AppModal';
+import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { useDictItems } from '@/hooks/useDictItems';
+import { useEditModal } from '@/hooks/useEditModal';
+import { usePermission } from '@/hooks/usePermission';
+import { useListSearch } from '@/hooks/useListSearch';
+import { confirmDelete } from '@/utils/confirm';
+import {
+  directorySyncSourceKeys, useDirectorySyncSourceList, useDirectorySyncSourceDetail,
+  useSaveDirectorySyncSource, useDeleteDirectorySyncSources,
+  useTestDirectorySyncSource, useRunDirectorySyncSource,
+} from '@/hooks/queries/directory-sync';
+import { useIdentityProviderList } from '@/hooks/queries/identity-providers';
+import { useAllRoles } from '@/hooks/queries/roles';
+import type { DirectorySyncSource } from '@zenith/shared/identity';
+import {
+  DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_SOURCE_TYPE_LABELS,
+  DIRECTORY_SYNC_MATCH_KEYS, DIRECTORY_SYNC_MATCH_KEY_LABELS,
+  DIRECTORY_SYNC_CONFLICT_POLICIES, DIRECTORY_SYNC_CONFLICT_POLICY_LABELS,
+  DIRECTORY_SYNC_RUN_STATUS_LABELS,
+} from '@zenith/shared/identity';
+
+interface SearchParams {
+  keyword: string;
+  type: string;
+  status: string;
+}
+
+const defaultSearchParams: SearchParams = { keyword: '', type: '', status: '' };
+
+const RUN_STATUS_TAG_COLOR: Record<string, 'green' | 'red' | 'orange' | 'blue' | 'grey'> = {
+  success: 'green',
+  partial: 'orange',
+  failed: 'red',
+  aborted: 'red',
+  running: 'blue',
+};
+
+export default function DirectorySyncSourcesPage() {
+  const { hasPermission } = usePermission();
+
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: directorySyncSourceKeys.lists });
+
+  const listQuery = useDirectorySyncSourceList({
+    page,
+    pageSize,
+    keyword: submittedParams.keyword || undefined,
+    type: submittedParams.type || undefined,
+    status: submittedParams.status || undefined,
+  });
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  // LDAP 绑定下拉：复用身份源域的列表查询（该域无 /all 端点）
+  const providersQuery = useIdentityProviderList({ page: 1, pageSize: 100 });
+  const ldapProviders = useMemo(
+    () => (providersQuery.data?.list ?? []).filter((p) => p.type === 'ldap' || p.type === 'ad'),
+    [providersQuery.data],
+  );
+  const rolesQuery = useAllRoles();
+  const roleOptions = (rolesQuery.data ?? []).map((r) => ({ value: r.id, label: r.name }));
+
+  const modal = useEditModal<DirectorySyncSource>({
+    entityName: '同步源',
+    save: useSaveDirectorySyncSource(),
+    useDetail: useDirectorySyncSourceDetail,
+    defaults: {
+      type: 'ldap',
+      status: 'disabled',
+      matchKey: 'phone',
+      conflictPolicy: 'suspend',
+      syncDepartments: true,
+      circuitBreakerPercent: 30,
+      lifecycle: { disableOnLeave: true, kickSessions: true, defaultRoleIds: [] },
+    },
+    toValues: (r) => ({
+      name: r.name,
+      type: r.type,
+      status: r.status,
+      identityProviderId: r.identityProviderId,
+      oauthProvider: r.oauthProvider,
+      matchKey: r.matchKey,
+      conflictPolicy: r.conflictPolicy,
+      syncDepartments: r.syncDepartments,
+      cronExpression: r.cronExpression,
+      circuitBreakerPercent: r.circuitBreakerPercent,
+      lifecycle: r.lifecycle,
+      scopeConfig: r.scopeConfig,
+      remark: r.remark,
+    }),
+    beforeSave: (values) => {
+      const v = values as Partial<DirectorySyncSource> & { type: string };
+      return {
+        ...v,
+        // 绑定字段按类型收敛，避免残留另一类型的绑定
+        identityProviderId: v.type === 'ldap' ? v.identityProviderId : null,
+        oauthProvider: v.type === 'dingtalk' ? 'dingtalk' : null,
+        cronExpression: v.cronExpression?.trim() ? v.cronExpression.trim() : null,
+      };
+    },
+    labelWidth: 110,
+  });
+
+  const toggleStatusMutation = useSaveDirectorySyncSource();
+  const deleteMutation = useDeleteDirectorySyncSources();
+  const testMutation = useTestDirectorySyncSource();
+  const runMutation = useRunDirectorySyncSource();
+  const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
+  const [testingId, setTestingId] = useState<number | null>(null);
+
+  const { items: statusItems } = useDictItems('common_status');
+
+  async function handleDelete(id: number) {
+    await deleteMutation.mutateAsync([id]);
+    Toast.success('删除成功');
+  }
+
+  function handleToggleStatus(record: DirectorySyncSource, checked: boolean) {
+    const doToggle = () => {
+      toggleStatusMutation.mutate(
+        { id: record.id, values: { status: checked ? 'enabled' : 'disabled' } },
+        { onSuccess: () => Toast.success(checked ? '已启用，将按 cron 表达式自动同步' : '已停用') },
+      );
+    };
+    if (checked) doToggle();
+    else Modal.confirm({
+      title: '确认停用',
+      content: `停用后「${record.name}」将不再自动同步，确认停用？`,
+      onOk: doToggle,
+    });
+  }
+
+  function handleTest(record: DirectorySyncSource) {
+    setTestingId(record.id);
+    testMutation.mutate(record.id, {
+      onSuccess: (result) => {
+        if (result.ok) {
+          const sample = result.sampleUsers.map((u) => u.nickname || u.username).join('、');
+          Modal.info({
+            title: '连接成功',
+            content: sample ? `${result.message}：${sample}` : result.message,
+            closeOnEsc: true,
+          });
+        } else {
+          Modal.error({ title: '连接失败', content: result.message, closeOnEsc: true });
+        }
+      },
+      onSettled: () => setTestingId(null),
+    });
+  }
+
+  function handleRun(record: DirectorySyncSource, dryRun: boolean) {
+    const doRun = () => {
+      runMutation.mutate({ id: record.id, dryRun }, {
+        onSuccess: () => Toast.success(
+          dryRun ? '预览任务已提交，请稍后在「同步记录」查看差异（预览不落库）' : '同步任务已提交，可在「同步记录」跟踪进度',
+        ),
+      });
+    };
+    if (dryRun) doRun();
+    else Modal.confirm({
+      title: '确认立即同步',
+      content: `将从「${record.name}」拉取组织与人员并应用变更，确认执行？建议先预览差异。`,
+      onOk: doRun,
+    });
+  }
+
+  const columns: ColumnProps<DirectorySyncSource>[] = [
+    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    {
+      title: '类型', dataIndex: 'type', width: 110,
+      render: (_: unknown, r: DirectorySyncSource) => <Tag color={r.type === 'ldap' ? 'purple' : 'blue'}>{DIRECTORY_SYNC_SOURCE_TYPE_LABELS[r.type]}</Tag>,
+    },
+    {
+      title: '凭证来源', dataIndex: 'identityProviderName', width: 180,
+      render: (_: unknown, r: DirectorySyncSource) => {
+        if (r.type === 'ldap') return r.identityProviderName ? `身份源：${r.identityProviderName}` : EMPTY_PLACEHOLDER;
+        return 'OAuth 配置：钉钉';
+      },
+    },
+    {
+      title: '调度', dataIndex: 'cronExpression', width: 130,
+      render: (v: string | null) => v ? <code>{v}</code> : '仅手动',
+    },
+    {
+      title: '上次同步', dataIndex: 'lastRunStatus', width: 110,
+      render: (_: unknown, r: DirectorySyncSource) => r.lastRunStatus
+        ? <Tag color={RUN_STATUS_TAG_COLOR[r.lastRunStatus] ?? 'grey'}>{DIRECTORY_SYNC_RUN_STATUS_LABELS[r.lastRunStatus]}</Tag>
+        : EMPTY_PLACEHOLDER,
+    },
+    dateTimeColumn('上次同步时间', 'lastRunAt'),
+    dateTimeColumn('下次运行', 'nextRunAt'),
+    {
+      title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
+      render: (_: unknown, record: DirectorySyncSource) => (
+        <Switch
+          checked={record.status === 'enabled'}
+          loading={togglingId === record.id}
+          disabled={!hasPermission('system:dirsync-source:edit')}
+          onChange={(checked) => handleToggleStatus(record, checked)}
+          size="small"
+        />
+      ),
+    },
+    createOperationColumn<DirectorySyncSource>({
+      width: 280,
+      desktopInlineKeys: ['run', 'preview', 'edit'],
+      actions: (record) => [
+        ...(hasPermission('system:dirsync-source:run') ? [{
+          key: 'run', label: '立即同步', onClick: () => handleRun(record, false),
+        }] : []),
+        ...(hasPermission('system:dirsync-source:preview') ? [{
+          key: 'preview', label: '预览差异', onClick: () => handleRun(record, true),
+        }] : []),
+        ...(hasPermission('system:dirsync-source:edit') ? [{
+          key: 'edit', label: '编辑', onClick: () => modal.openEdit(record),
+        }] : []),
+        ...(hasPermission('system:dirsync-source:test') ? [{
+          key: 'test', label: testingId === record.id ? '测试中…' : '测试连接', onClick: () => handleTest(record),
+        }] : []),
+        ...(hasPermission('system:dirsync-source:delete') ? [{
+          key: 'delete', label: '删除', danger: true,
+          onClick: () => {
+            confirmDelete({
+              title: `确定要删除同步源「${record.name}」吗？`,
+              content: '删除后其绑定关系与同步记录将一并清除，本地已同步的用户和部门保留',
+              onOk: () => handleDelete(record.id),
+            });
+          },
+        }] : []),
+      ],
+    }),
+  ];
+
+  const renderKeywordSearch = () => (
+    <KeywordInput
+      placeholder="搜索名称..."
+      value={draftParams.keyword}
+      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
+      onSearch={handleSearch}
+    />
+  );
+
+  const renderTypeFilter = () => (
+    <StatusSelect
+      placeholder="全部类型"
+      items={DIRECTORY_SYNC_SOURCE_TYPES.map((t) => ({ value: t, label: DIRECTORY_SYNC_SOURCE_TYPE_LABELS[t] }))}
+      value={draftParams.type}
+      onChange={(v) => setDraftParams((p) => ({ ...p, type: v }))}
+    />
+  );
+
+  const renderStatusFilter = () => (
+    <StatusSelect
+      items={statusItems}
+      value={draftParams.status}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
+    />
+  );
+
+  const renderCreateButton = () => hasPermission('system:dirsync-source:create')
+    ? <CreateButton onClick={modal.openCreate} /> : null;
+
+  return (
+    <div className="page-container">
+      <SearchToolbar
+        primary={<>
+          {renderKeywordSearch()}
+          {renderTypeFilter()}
+          {renderStatusFilter()}
+          <SearchButton onClick={handleSearch} />
+          <ResetButton onClick={handleReset} />
+        </>}
+        actions={renderCreateButton()}
+        mobilePrimary={<>
+          {renderKeywordSearch()}
+          <SearchButton onClick={handleSearch} />
+          {renderCreateButton()}
+        </>}
+        mobileFilters={<>
+          {renderTypeFilter()}
+          {renderStatusFilter()}
+        </>}
+        filterTitle="筛选条件"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
+
+      <ConfigurableTable
+        bordered
+        columns={columns}
+        dataSource={list}
+        loading={listQuery.isFetching}
+        rowKey="id"
+        size="small"
+        empty="暂无同步源，点击「新增」接入 LDAP/AD 或钉钉通讯录"
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
+      />
+
+      <AppModal {...modal.modalProps} width={660}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form {...modal.formProps}>
+            {({ formState }) => {
+              const type = (formState.values as { type?: string }).type ?? 'ldap';
+              return (
+                <>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="name" label="名称" placeholder="如：总部 AD 域"
+                        rules={[{ required: true, message: '名称不能为空' }]} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Select field="type" label="源类型" style={{ width: '100%' }}
+                        disabled={modal.isEdit}
+                        optionList={DIRECTORY_SYNC_SOURCE_TYPES.map((t) => ({ value: t, label: DIRECTORY_SYNC_SOURCE_TYPE_LABELS[t] }))}
+                        rules={[{ required: true, message: '请选择源类型' }]} />
+                    </Col>
+                  </Row>
+                  {type === 'ldap' ? (
+                    <Form.Select field="identityProviderId" label="企业身份源" style={{ width: '100%' }}
+                      placeholder="选择 LDAP/AD 身份源（连接与凭证复用该配置）"
+                      optionList={ldapProviders.map((p) => ({ value: p.id, label: p.name }))}
+                      loading={providersQuery.isFetching}
+                      rules={[{ required: true, message: 'LDAP 源必须绑定企业身份源' }]}
+                      helpText="连接地址、Bind 凭证与属性映射在「企业身份源」页维护，此处仅引用" />
+                  ) : (
+                    <Form.Slot label="凭证来源">
+                      <Tag color="blue">OAuth 配置 → 钉钉（appKey / appSecret）</Tag>
+                      <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: 4 }}>
+                        复用「OAuth 配置」页的钉钉凭证；需在钉钉开放平台为该应用开通通讯录只读权限
+                      </div>
+                    </Form.Slot>
+                  )}
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Select field="matchKey" label="匹配键" style={{ width: '100%' }}
+                        optionList={DIRECTORY_SYNC_MATCH_KEYS.map((k) => ({ value: k, label: DIRECTORY_SYNC_MATCH_KEY_LABELS[k] }))}
+                        helpText="未绑定的外部用户按此字段匹配本地账号" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Select field="conflictPolicy" label="冲突策略" style={{ width: '100%' }}
+                        optionList={DIRECTORY_SYNC_CONFLICT_POLICIES.map((p) => ({ value: p, label: DIRECTORY_SYNC_CONFLICT_POLICY_LABELS[p] }))} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Switch field="syncDepartments" label="同步部门树" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.InputNumber field="circuitBreakerPercent" label="熔断阈值 (%)" style={{ width: '100%' }}
+                        min={0} max={100}
+                        helpText="单次计划禁用人数占已绑定人数比例超过该值时中止同步" />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Switch field="lifecycle.disableOnLeave" label="离职自动禁用" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.Switch field="lifecycle.kickSessions" label="禁用时强制下线" />
+                    </Col>
+                  </Row>
+                  <Form.Select field="lifecycle.defaultRoleIds" label="默认角色" multiple style={{ width: '100%' }}
+                    placeholder="新建账号自动授予的角色（可空）"
+                    optionList={roleOptions} loading={rolesQuery.isFetching} />
+                  <Form.Input field="cronExpression" label="定时表达式"
+                    placeholder="如 0 2 * * *（每天 2 点），留空则仅手动同步"
+                    helpText="标准 5 段 cron；由系统调度每分钟扫描到期源" />
+                  <Form.TagInput field="scopeConfig.deptExternalIds" label="部门范围"
+                    placeholder="外部部门 ID，回车添加；留空同步全部" />
+                  <Form.TagInput field="scopeConfig.excludeUserExternalIds" label="排除人员"
+                    placeholder="外部用户 ID，回车添加" />
+                  <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} />
+                </>
+              );
+            }}
+          </Form>
+        </Spin>
+      </AppModal>
+    </div>
+  );
+}

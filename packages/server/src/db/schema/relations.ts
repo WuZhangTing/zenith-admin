@@ -5,6 +5,7 @@ import { asyncTaskItems, asyncTasks, exportJobDownloads, exportJobs } from './ta
 import { cronJobLogs, cronJobs, systemConfigs, userFeedbacks } from './system';
 import { loginRiskEvents, passwordResetTokens, userApiTokens, userMfaFactors, userOauthAccounts, userTrustedDevices } from './auth';
 import { identityProviderSyncLogs, tenantIdentityProviders, userIdentityAccounts } from './identity-providers';
+import { directorySyncConflicts, directorySyncDeptLinks, directorySyncRunItems, directorySyncRuns, directorySyncSources, directorySyncUserLinks } from './directory-sync';
 import { dictItems, dicts } from './dicts';
 import { analyticsEventMeta, analyticsEventOverrides, analyticsExperiments, analyticsSegmentCampaigns, analyticsSites, analyticsSegmentMembers, analyticsUserProfiles, analyticsUserSegments, errorEvents, errorGroups } from './analytics';
 import { announcementReads, announcementRecipients, announcements } from './announcements';
@@ -1622,4 +1623,38 @@ export const wikiReviewRecordsRelations = relations(wikiReviewRecords, ({ one })
 export const wikiDocReadReceiptsRelations = relations(wikiDocReadReceipts, ({ one }) => ({
   doc: one(wikiDocs, { fields: [wikiDocReadReceipts.docId], references: [wikiDocs.id] }),
   user: one(users, { fields: [wikiDocReadReceipts.userId], references: [users.id] }),
+}));
+
+// ─── 通讯录同步 ───────────────────────────────────────────────────────────────
+export const directorySyncSourcesRelations = relations(directorySyncSources, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [directorySyncSources.tenantId], references: [tenants.id] }),
+  identityProvider: one(tenantIdentityProviders, { fields: [directorySyncSources.identityProviderId], references: [tenantIdentityProviders.id] }),
+  runs: many(directorySyncRuns),
+  conflicts: many(directorySyncConflicts),
+}));
+
+export const directorySyncRunsRelations = relations(directorySyncRuns, ({ one, many }) => ({
+  source: one(directorySyncSources, { fields: [directorySyncRuns.sourceId], references: [directorySyncSources.id] }),
+  triggeredByUser: one(users, { fields: [directorySyncRuns.triggeredBy], references: [users.id] }),
+  items: many(directorySyncRunItems),
+}));
+
+export const directorySyncRunItemsRelations = relations(directorySyncRunItems, ({ one }) => ({
+  run: one(directorySyncRuns, { fields: [directorySyncRunItems.runId], references: [directorySyncRuns.id] }),
+}));
+
+export const directorySyncConflictsRelations = relations(directorySyncConflicts, ({ one }) => ({
+  source: one(directorySyncSources, { fields: [directorySyncConflicts.sourceId], references: [directorySyncSources.id] }),
+  run: one(directorySyncRuns, { fields: [directorySyncConflicts.runId], references: [directorySyncRuns.id] }),
+  resolvedByUser: one(users, { fields: [directorySyncConflicts.resolvedBy], references: [users.id] }),
+}));
+
+export const directorySyncUserLinksRelations = relations(directorySyncUserLinks, ({ one }) => ({
+  source: one(directorySyncSources, { fields: [directorySyncUserLinks.sourceId], references: [directorySyncSources.id] }),
+  user: one(users, { fields: [directorySyncUserLinks.userId], references: [users.id] }),
+}));
+
+export const directorySyncDeptLinksRelations = relations(directorySyncDeptLinks, ({ one }) => ({
+  source: one(directorySyncSources, { fields: [directorySyncDeptLinks.sourceId], references: [directorySyncSources.id] }),
+  department: one(departments, { fields: [directorySyncDeptLinks.departmentId], references: [departments.id] }),
 }));

@@ -35,6 +35,8 @@ export async function registerBackgroundWorkers(): Promise<void> {
     const { registerExportJobWorker } = await import('../services/tasks/export-jobs.service');
     const { registerSystemTasks } = await import('../lib/system-tasks.registry');
     registerTaskDemoHandlers(); // 演示任务类型需在任务中心 Worker 启动前注册
+    const { registerDirectorySyncTaskHandlers } = await import('../services/identity/directory-sync-engine');
+    registerDirectorySyncTaskHandlers(); // 通讯录同步 / 差异预览
     const { registerTerminalFileTaskHandlers } = await import('../services/ops/terminal-file-tasks');
     registerTerminalFileTaskHandlers(); // 文件压缩 / 解压
     registerCmsTaskHandlers(); // CMS 全站静态化 / 检索索引重建 / 死链检测

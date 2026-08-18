@@ -25,6 +25,7 @@ export * from './db-backups';
 export * from './db-admin';
 export * from './monitor';
 export * from './sessions';
+export * from './directory-sync';
 export * from './workflow';
 export * from './workflow-events';
 export * from './workflow-jobs';

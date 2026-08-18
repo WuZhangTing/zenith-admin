@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { MP_OAUTH_SCOPES } from '../mp/constants';
+import {
+  DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_MATCH_KEYS,
+  DIRECTORY_SYNC_CONFLICT_POLICIES, DIRECTORY_SYNC_RESOLUTIONS,
+} from './constants';
 
 export const loginSchema = z.object({
   username: z.string().min(2, '用户名/手机号至少2个字符').max(32),
@@ -411,3 +415,67 @@ export const createUserFeedbackSchema = z.object({
 
 
 export type CreateUserFeedbackInput = z.input<typeof createUserFeedbackSchema>;
+
+// ─── 通讯录同步 Schema ────────────────────────────────────────────────────────
+export const directorySyncLifecycleSchema = z.object({
+  disableOnLeave: z.boolean().default(true),
+  kickSessions: z.boolean().default(true),
+  defaultRoleIds: z.array(z.number().int().positive()).max(20).default([]),
+});
+
+export const directorySyncScopeSchema = z.object({
+  deptExternalIds: z.array(z.string().min(1).max(256)).max(200).optional(),
+  excludeUserExternalIds: z.array(z.string().min(1).max(256)).max(1000).optional(),
+});
+
+export const createDirectorySyncSourceSchema = z.object({
+  name: z.string().min(1, '名称不能为空').max(100),
+  type: z.enum(DIRECTORY_SYNC_SOURCE_TYPES),
+  status: z.enum(['enabled', 'disabled']).default('disabled'),
+  tenantId: z.number().int().positive().nullable().optional(),
+  identityProviderId: z.number().int().positive().nullable().optional(),
+  oauthProvider: z.string().max(32).nullable().optional(),
+  matchKey: z.enum(DIRECTORY_SYNC_MATCH_KEYS).default('phone'),
+  fieldMapping: z.record(z.string(), z.string().max(64)).default({}),
+  scopeConfig: directorySyncScopeSchema.default({}),
+  conflictPolicy: z.enum(DIRECTORY_SYNC_CONFLICT_POLICIES).default('suspend'),
+  lifecycle: directorySyncLifecycleSchema.default({ disableOnLeave: true, kickSessions: true, defaultRoleIds: [] }),
+  syncDepartments: z.boolean().default(true),
+  cronExpression: z.string().max(64).nullable().optional(),
+  circuitBreakerPercent: z.number().int().min(0, '熔断阈值最小为 0').max(100, '熔断阈值最大为 100').default(30),
+  remark: z.string().max(500).nullable().optional(),
+}).superRefine((v, ctx) => {
+  if (v.type === 'ldap' && !v.identityProviderId) {
+    ctx.addIssue({ code: 'custom', path: ['identityProviderId'], message: 'LDAP/AD 源必须绑定企业身份源' });
+  }
+  if (v.type === 'dingtalk' && !v.oauthProvider) {
+    ctx.addIssue({ code: 'custom', path: ['oauthProvider'], message: '钉钉源必须绑定 OAuth 配置' });
+  }
+});
+
+export const updateDirectorySyncSourceSchema = z.object({
+  name: z.string().min(1, '名称不能为空').max(100).optional(),
+  status: z.enum(['enabled', 'disabled']).optional(),
+  tenantId: z.number().int().positive().nullable().optional(),
+  identityProviderId: z.number().int().positive().nullable().optional(),
+  oauthProvider: z.string().max(32).nullable().optional(),
+  matchKey: z.enum(DIRECTORY_SYNC_MATCH_KEYS).optional(),
+  fieldMapping: z.record(z.string(), z.string().max(64)).optional(),
+  scopeConfig: directorySyncScopeSchema.optional(),
+  conflictPolicy: z.enum(DIRECTORY_SYNC_CONFLICT_POLICIES).optional(),
+  lifecycle: directorySyncLifecycleSchema.optional(),
+  syncDepartments: z.boolean().optional(),
+  cronExpression: z.string().max(64).nullable().optional(),
+  circuitBreakerPercent: z.number().int().min(0).max(100).optional(),
+  remark: z.string().max(500).nullable().optional(),
+});
+
+export const resolveDirectorySyncConflictSchema = z.object({
+  resolution: z.enum(DIRECTORY_SYNC_RESOLUTIONS),
+  /** multi_match 裁决为 source 时必须指定绑定的本地用户 */
+  targetUserId: z.number().int().positive().optional(),
+});
+
+export type CreateDirectorySyncSourceInput = z.infer<typeof createDirectorySyncSourceSchema>;
+export type UpdateDirectorySyncSourceInput = z.infer<typeof updateDirectorySyncSourceSchema>;
+export type ResolveDirectorySyncConflictInput = z.infer<typeof resolveDirectorySyncConflictSchema>;

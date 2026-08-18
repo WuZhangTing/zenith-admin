@@ -65,6 +65,18 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
+  const { scanDueDirectorySyncSources } = await import('../services/identity/directory-sync-engine');
+  await registerSystemRecurringJob({
+    name: 'directory-sync-tick',
+    title: '通讯录同步调度扫描',
+    module: '通讯录同步',
+    cronExpression: '* * * * *',
+    description: '每分钟扫描到期且启用的通讯录同步源，按各源的 cron 表达式顺序执行同步。',
+    allowManualRun: true,
+    manualSingleton: true,
+    run: scanDueDirectorySyncSources,
+  });
+
   const { runWikiGovernanceTick } = await import('../services/wiki/governance.service');
   await registerSystemRecurringJob({
     name: 'wiki-governance-tick',

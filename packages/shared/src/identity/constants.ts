@@ -40,3 +40,101 @@ export function isSafeOAuthRedirectUri(value: string): boolean {
     return false;
   }
 }
+
+// ─── 通讯录同步 ──────────────────────────────────────────────────────
+export const DIRECTORY_SYNC_SOURCE_TYPES = ['ldap', 'dingtalk'] as const;
+
+export type DirectorySyncSourceType = (typeof DIRECTORY_SYNC_SOURCE_TYPES)[number];
+
+export const DIRECTORY_SYNC_SOURCE_TYPE_LABELS: Record<DirectorySyncSourceType, string> = {
+  ldap: 'LDAP / AD',
+  dingtalk: '钉钉',
+};
+
+export const DIRECTORY_SYNC_MATCH_KEYS = ['phone', 'email', 'username'] as const;
+
+export type DirectorySyncMatchKey = (typeof DIRECTORY_SYNC_MATCH_KEYS)[number];
+
+export const DIRECTORY_SYNC_MATCH_KEY_LABELS: Record<DirectorySyncMatchKey, string> = {
+  phone: '手机号',
+  email: '邮箱',
+  username: '用户名',
+};
+
+export const DIRECTORY_SYNC_CONFLICT_POLICIES = ['source', 'local', 'suspend'] as const;
+
+export type DirectorySyncConflictPolicy = (typeof DIRECTORY_SYNC_CONFLICT_POLICIES)[number];
+
+export const DIRECTORY_SYNC_CONFLICT_POLICY_LABELS: Record<DirectorySyncConflictPolicy, string> = {
+  source: '源优先（外部覆盖本地）',
+  local: '本地优先（保留本地修改）',
+  suspend: '挂起人工裁决',
+};
+
+export const DIRECTORY_SYNC_RUN_STATUSES = ['running', 'success', 'partial', 'failed', 'aborted'] as const;
+
+export type DirectorySyncRunStatus = (typeof DIRECTORY_SYNC_RUN_STATUSES)[number];
+
+export const DIRECTORY_SYNC_RUN_STATUS_LABELS: Record<DirectorySyncRunStatus, string> = {
+  running: '同步中',
+  success: '成功',
+  partial: '部分失败',
+  failed: '失败',
+  aborted: '已熔断',
+};
+
+export const DIRECTORY_SYNC_TRIGGER_TYPES = ['schedule', 'manual', 'preview'] as const;
+
+export type DirectorySyncTriggerType = (typeof DIRECTORY_SYNC_TRIGGER_TYPES)[number];
+
+export const DIRECTORY_SYNC_TRIGGER_TYPE_LABELS: Record<DirectorySyncTriggerType, string> = {
+  schedule: '定时',
+  manual: '手动',
+  preview: '预览',
+};
+
+export const DIRECTORY_SYNC_ITEM_ACTIONS = ['create', 'update', 'link', 'disable', 'skip', 'conflict', 'fail'] as const;
+
+export type DirectorySyncItemAction = (typeof DIRECTORY_SYNC_ITEM_ACTIONS)[number];
+
+export const DIRECTORY_SYNC_ITEM_ACTION_LABELS: Record<DirectorySyncItemAction, string> = {
+  create: '新增',
+  update: '更新',
+  link: '绑定',
+  disable: '禁用',
+  skip: '跳过',
+  conflict: '冲突',
+  fail: '失败',
+};
+
+export const DIRECTORY_SYNC_ENTITY_TYPES = ['user', 'department'] as const;
+
+export type DirectorySyncEntityType = (typeof DIRECTORY_SYNC_ENTITY_TYPES)[number];
+
+export const DIRECTORY_SYNC_ENTITY_TYPE_LABELS: Record<DirectorySyncEntityType, string> = {
+  user: '用户',
+  department: '部门',
+};
+
+export const DIRECTORY_SYNC_CONFLICT_TYPES = ['multi_match', 'field_conflict'] as const;
+
+export type DirectorySyncConflictType = (typeof DIRECTORY_SYNC_CONFLICT_TYPES)[number];
+
+export const DIRECTORY_SYNC_CONFLICT_TYPE_LABELS: Record<DirectorySyncConflictType, string> = {
+  multi_match: '匹配到多个本地账号',
+  field_conflict: '两侧字段均有修改',
+};
+
+export const DIRECTORY_SYNC_CONFLICT_STATUSES = ['pending', 'resolved', 'ignored'] as const;
+
+export type DirectorySyncConflictStatus = (typeof DIRECTORY_SYNC_CONFLICT_STATUSES)[number];
+
+export const DIRECTORY_SYNC_CONFLICT_STATUS_LABELS: Record<DirectorySyncConflictStatus, string> = {
+  pending: '待裁决',
+  resolved: '已裁决',
+  ignored: '已忽略',
+};
+
+export const DIRECTORY_SYNC_RESOLUTIONS = ['source', 'local', 'manual'] as const;
+
+export type DirectorySyncResolution = (typeof DIRECTORY_SYNC_RESOLUTIONS)[number];

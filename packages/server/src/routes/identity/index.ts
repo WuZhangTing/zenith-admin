@@ -2,6 +2,7 @@ import { defineRouteDomain } from '../_kit';
 import apiTokensRoutes from './api-tokens';
 import authRoutes from './auth';
 import departmentsRoutes from './departments';
+import directorySyncRoutes from './directory-sync';
 import enterpriseAuthRoutes from './enterprise-auth';
 import identityProvidersRoutes from './identity-providers';
 import identitySecurityRoutes from './identity-security';
@@ -30,6 +31,7 @@ export default defineRouteDomain({
     ['/api/login-logs', loginLogsRoutes],
     ['/api/identity-security', identitySecurityRoutes],
     ['/api/identity-providers', identityProvidersRoutes],
+    ['/api/directory-sync', directorySyncRoutes],
     ['/api/sessions', sessionsRoutes],
     ['/api/tenants', tenantsRoutes],
     ['/api/tenant-packages', tenantPackagesRoutes],

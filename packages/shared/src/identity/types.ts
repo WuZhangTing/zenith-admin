@@ -1,6 +1,12 @@
 import type { AiProvider } from '../ai/constants';
 import type { EntityStatus, PaginatedResponse } from '../core/types';
-import type { OAuthProviderType } from './constants';
+import type {
+  OAuthProviderType,
+  DirectorySyncSourceType, DirectorySyncMatchKey, DirectorySyncConflictPolicy,
+  DirectorySyncRunStatus, DirectorySyncTriggerType, DirectorySyncItemAction,
+  DirectorySyncEntityType, DirectorySyncConflictType, DirectorySyncConflictStatus,
+  DirectorySyncResolution,
+} from './constants';
 
 // ─── 租户 ─────────────────────────────────────────────────────────────────────
 export interface Tenant {
@@ -578,4 +584,121 @@ export interface UserFeedback {
   handledAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── 通讯录同步 ───────────────────────────────────────────────────────────────
+
+/** 同步源的生命周期策略 */
+export interface DirectorySyncLifecycle {
+  /** 源侧消失或停用时禁用本地账号 */
+  disableOnLeave: boolean;
+  /** 禁用账号时强制下线其全部会话 */
+  kickSessions: boolean;
+  /** 新建账号授予的默认角色 */
+  defaultRoleIds: number[];
+}
+
+/** 同步范围（为空 = 全量） */
+export interface DirectorySyncScope {
+  deptExternalIds?: string[];
+  excludeUserExternalIds?: string[];
+}
+
+export interface DirectorySyncSource {
+  id: number;
+  name: string;
+  type: DirectorySyncSourceType;
+  status: EntityStatus;
+  tenantId: number | null;
+  /** LDAP/AD 源绑定的企业身份源 */
+  identityProviderId: number | null;
+  /** 绑定身份源名称（JOIN 后附加） */
+  identityProviderName?: string | null;
+  /** 平台 API 源绑定的 OAuth provider（如 dingtalk） */
+  oauthProvider: string | null;
+  matchKey: DirectorySyncMatchKey;
+  fieldMapping: Record<string, string>;
+  scopeConfig: DirectorySyncScope;
+  conflictPolicy: DirectorySyncConflictPolicy;
+  lifecycle: DirectorySyncLifecycle;
+  syncDepartments: boolean;
+  cronExpression: string | null;
+  circuitBreakerPercent: number;
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  lastRunStatus: DirectorySyncRunStatus | null;
+  remark: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DirectorySyncRun {
+  id: number;
+  sourceId: number;
+  /** 源名称（JOIN 后附加） */
+  sourceName?: string | null;
+  triggerType: DirectorySyncTriggerType;
+  dryRun: boolean;
+  status: DirectorySyncRunStatus;
+  totalFetched: number;
+  deptCreated: number;
+  deptUpdated: number;
+  userCreated: number;
+  userLinked: number;
+  userUpdated: number;
+  userDisabled: number;
+  skipped: number;
+  conflictCount: number;
+  failedCount: number;
+  message: string | null;
+  errorMessage: string | null;
+  triggeredBy: number | null;
+  startedAt: string;
+  finishedAt: string | null;
+  createdAt: string;
+}
+
+export interface DirectorySyncRunItem {
+  id: number;
+  runId: number;
+  entityType: DirectorySyncEntityType;
+  externalId: string;
+  name: string | null;
+  action: DirectorySyncItemAction;
+  applied: boolean;
+  diff: Record<string, { from: unknown; to: unknown }> | null;
+  message: string | null;
+  createdAt: string;
+}
+
+export interface DirectorySyncConflict {
+  id: number;
+  sourceId: number;
+  /** 源名称（JOIN 后附加） */
+  sourceName?: string | null;
+  runId: number | null;
+  entityType: DirectorySyncEntityType;
+  externalId: string;
+  name: string | null;
+  conflictType: DirectorySyncConflictType;
+  sourceData: Record<string, unknown> | null;
+  localData: Record<string, unknown> | null;
+  candidateUserIds: number[];
+  status: DirectorySyncConflictStatus;
+  resolution: DirectorySyncResolution | null;
+  resolvedBy: number | null;
+  /** 裁决人昵称（JOIN 后附加） */
+  resolvedByNickname?: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 同步结果摘要（提交手动同步 / 引擎返回） */
+export interface DirectorySyncRunResult {
+  runId: number;
+  status: DirectorySyncRunStatus;
+  message: string;
 }

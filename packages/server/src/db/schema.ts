@@ -10,6 +10,7 @@ export * from './schema/tasks';
 export * from './schema/system';
 export * from './schema/auth';
 export * from './schema/identity-providers';
+export * from './schema/directory-sync';
 export * from './schema/dicts';
 export * from './schema/logs';
 export * from './schema/analytics';

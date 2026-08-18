@@ -10,6 +10,7 @@ import { dictsHandlers } from './dicts';
 import { systemConfigsHandlers } from './system-configs';
 import { identitySecurityHandlers } from './identity-security';
 import { identityProvidersHandlers } from './identity-providers';
+import { directorySyncHandlers } from './directory-sync';
 import { announcementsHandlers } from './announcements';
 import { filesHandlers } from './files';
 import { exportJobsHandlers } from './export-jobs';
@@ -140,6 +141,7 @@ export const handlers = [
   ...systemConfigsHandlers,
   ...identitySecurityHandlers,
   ...identityProvidersHandlers,
+  ...directorySyncHandlers,
   ...announcementsHandlers,
   ...filesHandlers,
   ...exportJobsHandlers,

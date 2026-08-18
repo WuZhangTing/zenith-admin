@@ -1,4 +1,4 @@
-import type { Department, Position, Role, Tenant, TenantPackage } from '../identity/types';
+import type { Department, DirectorySyncSource, Position, Role, Tenant, TenantPackage } from '../identity/types';
 import { CMS_RAW_EXPORT_MENU_IDS, CMS_ROOT_MENU_ID, SEED_MENUS, WIKI_DOC_CENTER_MENU_ID, WIKI_ROOT_MENU_ID, collectMenuSubtreeIds } from './menus';
 import { SEED_DATE } from './_base';
 
@@ -92,4 +92,56 @@ export const SEED_TENANTS: Tenant[] = [
 export const SEED_TENANT_PACKAGES: TenantPackage[] = [
   { id: 1, name: '基础版', status: 'enabled', remark: '基础功能套餐：仪表盘 + 用户/角色/字典', menuIds: withButtonChildIds([1, 1000, 1010, 1060, 1070]), createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2, name: '标准版', status: 'enabled', remark: '标准功能套餐：含部门/岗位/菜单管理', menuIds: withButtonChildIds([1, 1000, 1010, 1020, 1030, 1040, 1060, 1070]), createdAt: SEED_DATE, updatedAt: SEED_DATE },
+];
+
+// ─── 通讯录同步演示源（仅 Demo/Mock 使用，DB seed 不插入——真实同步源由管理员创建）───
+export const SEED_DIRECTORY_SYNC_SOURCES: DirectorySyncSource[] = [
+  {
+    id: 1,
+    name: '总部 AD 域',
+    type: 'ldap',
+    status: 'enabled',
+    tenantId: null,
+    identityProviderId: 1,
+    identityProviderName: '企业 AD',
+    oauthProvider: null,
+    matchKey: 'username',
+    fieldMapping: {},
+    scopeConfig: {},
+    conflictPolicy: 'suspend',
+    lifecycle: { disableOnLeave: true, kickSessions: true, defaultRoleIds: [] },
+    syncDepartments: true,
+    cronExpression: '0 2 * * *',
+    circuitBreakerPercent: 30,
+    nextRunAt: null,
+    lastRunAt: null,
+    lastRunStatus: 'success',
+    remark: '每天凌晨 2 点全量同步',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 2,
+    name: '钉钉通讯录',
+    type: 'dingtalk',
+    status: 'disabled',
+    tenantId: null,
+    identityProviderId: null,
+    identityProviderName: null,
+    oauthProvider: 'dingtalk',
+    matchKey: 'phone',
+    fieldMapping: {},
+    scopeConfig: {},
+    conflictPolicy: 'source',
+    lifecycle: { disableOnLeave: true, kickSessions: false, defaultRoleIds: [] },
+    syncDepartments: true,
+    cronExpression: null,
+    circuitBreakerPercent: 30,
+    nextRunAt: null,
+    lastRunAt: null,
+    lastRunStatus: 'partial',
+    remark: '凭证复用 OAuth 配置的钉钉应用',
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];

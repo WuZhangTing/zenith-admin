@@ -349,6 +349,13 @@ async function getUsableProvider(id: number) {
   return row;
 }
 
+/** 供通讯录同步连接器复用：加载可用的 LDAP/AD 身份源（含启用与租户校验） */
+export async function getUsableDirectoryProvider(id: number) {
+  const provider = await getUsableProvider(id);
+  ensureDirectoryProvider(provider);
+  return provider;
+}
+
 function isDirectoryProviderType(type: IdentityProviderType): type is 'ldap' | 'ad' {
   return type === 'ldap' || type === 'ad';
 }
@@ -459,7 +466,7 @@ function directorySearchAttributes(provider: typeof tenantIdentityProviders.$inf
   ].filter(Boolean)));
 }
 
-function mapDirectoryProfile(provider: typeof tenantIdentityProviders.$inferSelect, entry: Entry): { profile: Record<string, unknown>; user: LdapDirectoryUser } {
+export function mapDirectoryProfile(provider: typeof tenantIdentityProviders.$inferSelect, entry: Entry): { profile: Record<string, unknown>; user: LdapDirectoryUser } {
   const profile = entryToRecord(entry);
   const external = normalizeExternalProfile(provider, profile);
   const mapping = normalizeMapping(provider.attributeMapping, provider.type);
@@ -475,7 +482,7 @@ function mapDirectoryProfile(provider: typeof tenantIdentityProviders.$inferSele
   return { profile, user };
 }
 
-async function searchDirectoryEntries(
+export async function searchDirectoryEntries(
   provider: typeof tenantIdentityProviders.$inferSelect,
   options: { keyword?: string; username?: string; limit: number; mode: 'login' | 'search' | 'sync' },
 ): Promise<Entry[]> {

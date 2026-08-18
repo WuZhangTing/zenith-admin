@@ -11,6 +11,17 @@ import { mockDateOffset, mockDateTime, mockDateTimeOffset } from '@/mocks/utils/
 
 const taskTypes: AsyncTaskTypeMeta[] = [
   {
+    taskType: 'directory-sync-run',
+    title: '通讯录同步',
+    module: '通讯录同步',
+    description: '手动触发的通讯录同步 / 差异预览。',
+    allowConcurrent: false,
+    enabled: true,
+    maxAttempts: 1,
+    retryDelayMs: 5000,
+    retentionDays: 30,
+  },
+  {
     taskType: 'cms-static-build',
     title: 'CMS 全站静态化',
     module: 'CMS内容管理',

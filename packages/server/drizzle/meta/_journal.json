@@ -232,6 +232,13 @@
       "when": 1786980904776,
       "tag": "0032_known_ogun",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787025999911,
+      "tag": "0033_sticky_puff_adder",
+      "breakpoints": true
     }
   ]
 }
