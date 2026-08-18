@@ -1,11 +1,13 @@
 /**
- * 审批人节点 — 高级分区（钉钉/飞书式单面板布局）
+ * 审批人节点 — 高级分区（带摘要的折叠面板）
  *
  * 不自带外层 fd-drawer-tab-content 包裹，直接内联在「审批人」面板里随主配置一起滚动。
- * 分区：审批人拒绝时 / 审批人超时未处理时 / 审批人为空时 / 审批人与提交人为同一人时 / 审批人去重
+ * 分区：审批人拒绝时 / 审批人超时未处理时 / 审批人为空时 / 审批人与提交人为同一人时 / 审批人去重。
+ * 默认全部收起，面板头常驻当前策略摘要（收起 ≠ 隐藏信息）；偏离默认值的面板以「已配置」标签标记；
+ * 配置不完整（如退回目标节点未选）的面板初始自动展开，避免必填项被折叠遮蔽。
  */
-import type { ReactNode } from 'react';
-import { Divider, Form, InputNumber, Select, Switch, Typography, RadioGroup, Radio } from '@douyinfe/semi-ui';
+import { useState, type ReactNode } from 'react';
+import { Collapse, Form, InputNumber, Select, Switch, Tag, Typography, RadioGroup, Radio } from '@douyinfe/semi-ui';
 import { Minus, Plus } from 'lucide-react';
 import type {
   RejectStrategy,
@@ -40,12 +42,14 @@ interface ApproverAdvancedSectionsProps {
   onChange: (updates: Record<string, unknown>) => void;
 }
 
-/** 钉钉式分区标题：短线 + 标题 + 长线 */
-function SectionDivider({ children }: Readonly<{ children: ReactNode }>) {
+/** 折叠面板头：标题 + 当前策略摘要(右侧常驻);偏离默认值时展示「已配置」标签 */
+function PanelHeader({ title, summary, modified }: Readonly<{ title: string; summary: string; modified?: boolean }>) {
   return (
-    <Divider align="left" className="fd-section-divider" style={{ margin: '22px 0 14px' }}>
-      {children}
-    </Divider>
+    <div className="fd-collapse-head">
+      <span className="fd-collapse-head__title">{title}</span>
+      {modified && <Tag size="small" color="blue" className="fd-collapse-head__tag">已配置</Tag>}
+      <span className="fd-collapse-head__summary">{summary}</span>
+    </div>
   );
 }
 
@@ -122,10 +126,50 @@ export default function ApproverAdvancedSections({
   const timeoutEnabled = timeout?.enabled ?? false;
   const timeoutAction = timeout?.action ?? 'remind';
 
+  // ── 各面板摘要与「偏离默认」判定(收起时头部常驻,信息不因折叠而丢失) ──
+  const rejectLabel = REJECT_STRATEGY_OPTIONS.find((o) => o.value === rejectStrategy)?.label ?? rejectStrategy;
+  const rejectTargetName = rejectStrategy === 'returnToNode'
+    ? availableRejectNodes.find((n) => (n.key || n.id) === rejectToNodeKey)?.name
+    : undefined;
+  const rejectSummary = rejectStrategy === 'returnToNode'
+    ? `${rejectLabel}：${rejectTargetName ?? '未选择节点'}`
+    : rejectLabel;
+  const rejectModified = rejectStrategy !== 'terminate' || returnMode !== 'reexecute';
+  const rejectIncomplete = rejectStrategy === 'returnToNode' && !rejectToNodeKey;
+
+  const TIMEOUT_UNIT_LABELS = { minutes: '分钟', hours: '小时', days: '天' } as const;
+  const timeoutActionLabel = timeoutAction === 'remind' ? '自动提醒' : AUTO_DECISION_LABELS[timeoutAction as 'autoApprove' | 'autoReject'];
+  const timeoutSummary = timeoutEnabled
+    ? `超过 ${timeout?.duration ?? 6} ${TIMEOUT_UNIT_LABELS[timeout?.unit ?? 'hours']}后${timeoutActionLabel}`
+    : '未启用';
+
+  const emptyLabel = EMPTY_ASSIGNEE_OPTIONS.find((o) => o.value === emptyStrategy)?.label ?? emptyStrategy;
+  const emptySummary = catchAction ? `${emptyLabel} · 异常兜底已启用` : emptyLabel;
+  const emptyModified = emptyStrategy !== 'autoApprove' || !!catchAction;
+  const emptyIncomplete = emptyStrategy === 'assignTo' && (emptyAssignToIds?.length ?? 0) === 0;
+
+  const sameSummary = SAME_INITIATOR_OPTIONS.find((o) => o.value === sameInitiatorStrategy)?.label ?? sameInitiatorStrategy;
+  const dedupSummary = DEDUPLICATE_OPTIONS.find((o) => o.value === deduplicateStrategy)?.label ?? deduplicateStrategy;
+
+  // 默认全部收起;配置不完整的面板初始展开,避免必填项被折叠遮蔽
+  const [activeKeys, setActiveKeys] = useState<string[]>(() => {
+    const keys: string[] = [];
+    if (rejectIncomplete) keys.push('reject');
+    if (emptyIncomplete) keys.push('empty');
+    return keys;
+  });
+
   return (
     <>
+      <Typography.Title heading={6} style={{ margin: '20px 0 10px' }}>兜底策略</Typography.Title>
+      <Collapse
+        className="fd-advanced-collapse"
+        activeKey={activeKeys}
+        onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys as string[] : [keys as string])}
+        keepDOM
+      >
       {/* ─── 审批人拒绝时 ─────────────────────────────────────── */}
-      <SectionDivider>审批人拒绝时</SectionDivider>
+      <Collapse.Panel itemKey="reject" header={<PanelHeader title="审批人拒绝时" summary={rejectSummary} modified={rejectModified} />}>
       <RadioGroup
         value={rejectStrategy}
         onChange={(e) => onChange({ rejectStrategy: e.target.value })}
@@ -169,9 +213,10 @@ export default function ApproverAdvancedSections({
           </RadioGroup>
         </div>
       )}
+      </Collapse.Panel>
 
       {/* ─── 审批人超时未处理时 ───────────────────────────────── */}
-      <SectionDivider>审批人超时未处理时</SectionDivider>
+      <Collapse.Panel itemKey="timeout" header={<PanelHeader title="超时未处理" summary={timeoutSummary} modified={timeoutEnabled} />}>
       <ReqLabel>启用开关</ReqLabel>
       <div className="fd-switch-row">
         <span className={`fd-switch-row__txt ${!timeoutEnabled ? 'fd-switch-row__txt--active' : ''}`}>关闭</span>
@@ -286,9 +331,10 @@ export default function ApproverAdvancedSections({
           )}
         </div>
       )}
+      </Collapse.Panel>
 
       {/* ─── 审批人为空时 ─────────────────────────────────────── */}
-      <SectionDivider>审批人为空时</SectionDivider>
+      <Collapse.Panel itemKey="empty" header={<PanelHeader title="审批人为空时" summary={emptySummary} modified={emptyModified} />}>
       <RadioGroup
         value={emptyStrategy}
         onChange={(e) => onChange({ emptyStrategy: e.target.value })}
@@ -354,9 +400,10 @@ export default function ApproverAdvancedSections({
           </div>
         )}
       </div>
+      </Collapse.Panel>
 
       {/* ─── 审批人与提交人为同一人时 ─────────────────────────── */}
-      <SectionDivider>审批人与提交人为同一人时</SectionDivider>
+      <Collapse.Panel itemKey="sameInitiator" header={<PanelHeader title="与提交人同一人" summary={sameSummary} modified={sameInitiatorStrategy !== 'autoSkip'} />}>
       <RadioGroup
         value={sameInitiatorStrategy}
         onChange={(e) => onChange({ sameInitiatorStrategy: e.target.value })}
@@ -367,9 +414,10 @@ export default function ApproverAdvancedSections({
           <Radio key={o.value} value={o.value}>{o.label}</Radio>
         ))}
       </RadioGroup>
+      </Collapse.Panel>
 
       {/* ─── 审批人去重 ───────────────────────────────────────── */}
-      <SectionDivider>审批人去重</SectionDivider>
+      <Collapse.Panel itemKey="dedup" header={<PanelHeader title="审批人去重" summary={dedupSummary} modified={deduplicateStrategy !== 'autoSkip'} />}>
       <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
         当同一审批人出现在多个审批节点时的处理方式
       </Typography.Text>
@@ -380,6 +428,8 @@ export default function ApproverAdvancedSections({
         optionList={DEDUPLICATE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
         placeholder="请选择去重策略"
       />
+      </Collapse.Panel>
+      </Collapse>
     </>
   );
 }

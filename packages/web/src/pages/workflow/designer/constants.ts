@@ -168,6 +168,17 @@ export const ASSIGNEE_TYPE_OPTIONS: Array<{ value: AssigneeType; label: string; 
   { value: 'decision',                 label: '决策表',             description: '审批人矩阵：查决策表输出来源类型+ID（金额×部门×类型→谁审）' },
 ];
 
+/**
+ * 审批人来源分组（渐进披露）：「常用」组默认展示，其余组折叠在「更多来源」中。
+ * 已选类型落在折叠组时自动展开，选中态永不隐身。
+ */
+export const ASSIGNEE_TYPE_GROUPS: Array<{ key: string; label: string; types: AssigneeType[] }> = [
+  { key: 'common',  label: '常用',       types: ['user', 'role', 'manager', 'department', 'initiatorSelect', 'initiator'] },
+  { key: 'org',     label: '组织架构',   types: ['post', 'deptMember', 'startUserDeptResponsible', 'multiLevelManager', 'multiLevelDeptHead'] },
+  { key: 'form',    label: '表单驱动',   types: ['formUser', 'formDepartment'] },
+  { key: 'dynamic', label: '动态与联动', types: ['initiatorSelectScope', 'approverSelect', 'nodeApprover', 'userGroup', 'expression', 'decision'] },
+];
+
 export const APPROVE_METHOD_OPTIONS: Array<{ value: ApproveMethod; label: string; description: string }> = [
   { value: 'or',         label: WORKFLOW_APPROVE_METHOD_LABELS.or,         description: '一人通过即可' },
   { value: 'and',        label: WORKFLOW_APPROVE_METHOD_LABELS.and,        description: '需所有人通过' },

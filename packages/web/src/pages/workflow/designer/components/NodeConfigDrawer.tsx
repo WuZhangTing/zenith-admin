@@ -9,7 +9,7 @@
  * - 延迟器/触发器/子流程：基础配置
  */
 import { useEffect, useState } from 'react';
-import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch, RadioGroup, Radio, Button } from '@douyinfe/semi-ui';
+import { SideSheet, Tabs, TabPane, Input, TextArea, Typography, Form, Select, InputNumber, Switch, RadioGroup, Radio, Button, Collapse, Tag } from '@douyinfe/semi-ui';
 import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 import type { FlowNode, FlowNodeType, AssigneeType, ApproveMethod, ApprovalType, RejectStrategy, EmptyAssigneeStrategy, OperationPermission, FieldPermission, TimeoutConfig, SameInitiatorStrategy, DeduplicateStrategy, ActionButtonsConfig, NodeHealthInfo, NodeHealthIssue } from '../types';
 import type { NodeListenerConfig } from '@zenith/shared/workflow';
@@ -412,7 +412,7 @@ export default function NodeConfigDrawer({
                     </Typography.Text>
                   </div>
                 )}
-                {/* 审批人节点特有：外部审批 */}
+                {/* 审批人节点特有：外部审批（默认折叠,头部常驻启用状态） */}
                 {node?.type === 'approver' && (() => {
                   const ext = (props.externalApproval as Record<string, unknown> | undefined) ?? {};
                   const updateExt = (patch: Record<string, unknown>) => {
@@ -420,8 +420,17 @@ export default function NodeConfigDrawer({
                   };
                   const enabled = !!ext.enabled;
                   return (
-                    <div style={{ borderTop: '1px solid var(--semi-color-border)', margin: '16px 0', padding: '12px 0 0' }}>
-                      <Typography.Title heading={6} style={{ marginBottom: 8 }}>外部审批</Typography.Title>
+                    <Collapse className="fd-advanced-collapse" style={{ marginTop: 8 }} keepDOM>
+                      <Collapse.Panel
+                        itemKey="external"
+                        header={(
+                          <div className="fd-collapse-head">
+                            <span className="fd-collapse-head__title">外部审批</span>
+                            {enabled && <Tag size="small" color="blue" className="fd-collapse-head__tag">已配置</Tag>}
+                            <span className="fd-collapse-head__summary">{enabled ? 'HTTP 回调分派外部系统' : '未启用'}</span>
+                          </div>
+                        )}
+                      >
                       <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
                         开启后将通过 HTTP 回调把任务分派给外部系统，由外部系统调用回调接口完成审批。
                       </Typography.Text>
@@ -485,7 +494,8 @@ export default function NodeConfigDrawer({
                           </Form.Slot>
                         </div>
                       )}
-                    </div>
+                      </Collapse.Panel>
+                    </Collapse>
                   );
                 })()}
               </TabPane>

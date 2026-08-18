@@ -2066,6 +2066,89 @@ td.fd-action-button-table__action {
   font-weight: 500;
 }
 
+/* 「更多来源」展开/收起：与来源卡片同宽同圆角的整行虚线按钮，视觉上是网格的一部分 */
+.fd-source-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 6px 8px;
+  margin-bottom: 16px;
+  border: 1px dashed var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  transition: all 0.15s;
+  user-select: none;
+}
+
+.fd-source-more-btn:hover:not(:disabled) {
+  border-color: var(--semi-color-primary);
+  color: var(--semi-color-primary);
+  background: var(--semi-color-primary-light-default);
+}
+
+.fd-source-more-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ─── 兜底策略折叠面板（头部常驻策略摘要） ─────────────────────────── */
+
+.fd-advanced-collapse .semi-collapse-item {
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.fd-advanced-collapse .semi-collapse-header {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 0;
+  background: var(--semi-color-fill-0);
+}
+
+.fd-advanced-collapse .semi-collapse-header:hover {
+  background: var(--semi-color-fill-1);
+}
+
+.fd-advanced-collapse .semi-collapse-content {
+  padding: 4px 12px 12px;
+  border-top: 1px solid var(--semi-color-border);
+}
+
+.fd-collapse-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.fd-collapse-head__title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--semi-color-text-0);
+  flex-shrink: 0;
+}
+
+.fd-collapse-head__tag {
+  flex-shrink: 0;
+}
+
+.fd-collapse-head__summary {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ─── 操作权限分组布局 ─────────────────────────────────────────────── */
 
 .fd-operation-group {

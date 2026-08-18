@@ -4,6 +4,7 @@
  * 连续多级上级、连续多级部门负责人、节点审批人、用户组、表单内部门
  */
 import { Form, Select, InputNumber, Typography, RadioGroup, Radio, Tooltip, Checkbox, TextArea, Divider } from '@douyinfe/semi-ui';
+import { useState } from 'react';
 import type {
   AssigneeType,
   ApproveMethod,
@@ -17,10 +18,11 @@ import type {
 } from '../../types';
 import {
   ASSIGNEE_TYPE_OPTIONS,
+  ASSIGNEE_TYPE_GROUPS,
   APPROVE_METHOD_OPTIONS,
   APPROVAL_TYPE_OPTIONS,
 } from '../../constants';
-import { CircleHelp } from 'lucide-react';
+import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react';
 import ApproverAdvancedSections from './ApproverAdvancedSections';
 import { useWorkflowDesignerDecisionTableOptions } from '@/hooks/queries/workflow-designer';
 
@@ -38,6 +40,68 @@ interface PositionOption { id: number; name: string; }
 interface DepartmentOption { id: number; name: string; parentId?: number | null; }
 
 type SelectScopeType = 'user' | 'role' | 'department' | 'userGroup';
+
+const ASSIGNEE_OPTION_MAP = new Map(ASSIGNEE_TYPE_OPTIONS.map(o => [o.value, o]));
+const COMMON_ASSIGNEE_TYPES = new Set(ASSIGNEE_TYPE_GROUPS[0].types);
+const MORE_GROUPS = ASSIGNEE_TYPE_GROUPS.slice(1);
+const MORE_COUNT = MORE_GROUPS.reduce((n, g) => n + g.types.length, 0);
+
+/** 审批人来源选择器:常用组常驻,其余分组折叠;已选类型在折叠组时强制展开 */
+function AssigneeTypePicker({ assigneeType, onChange }: Readonly<{ assigneeType: AssigneeType; onChange: (v: AssigneeType) => void }>) {
+  const [showMore, setShowMore] = useState(false);
+  const mustExpand = !COMMON_ASSIGNEE_TYPES.has(assigneeType);
+  const expanded = showMore || mustExpand;
+
+  const renderItem = (value: AssigneeType) => {
+    const o = ASSIGNEE_OPTION_MAP.get(value);
+    if (!o) return null;
+    return (
+      <label
+        key={o.value}
+        className={`fd-assignee-type-item ${assigneeType === o.value ? 'fd-assignee-type-item--active' : ''}`}
+      >
+        <Radio
+          value={o.value}
+          checked={assigneeType === o.value}
+          onChange={() => onChange(o.value)}
+          style={{ display: 'none' }}
+        />
+        <span>{o.label}</span>
+        <Tooltip content={o.description}>
+          <CircleHelp size={12} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
+        </Tooltip>
+      </label>
+    );
+  };
+
+  return (
+    <>
+      <div className="fd-assignee-type-grid">
+        {ASSIGNEE_TYPE_GROUPS[0].types.map(renderItem)}
+      </div>
+      {expanded && MORE_GROUPS.map(group => (
+        <div key={group.key} style={{ marginTop: 10 }}>
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>
+            {group.label}
+          </Typography.Text>
+          <div className="fd-assignee-type-grid">
+            {group.types.map(renderItem)}
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="fd-source-more-btn"
+        disabled={mustExpand}
+        title={mustExpand ? '当前所选来源在展开分组中,收起会隐藏选中项' : undefined}
+        onClick={() => setShowMore(v => !v)}
+      >
+        {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        {expanded ? '收起更多来源' : `更多来源（组织架构 / 表单驱动 / 动态 · 共 ${MORE_COUNT} 种）`}
+      </button>
+    </>
+  );
+}
 
 interface ApproverSettingsTabProps {
   nodeType: FlowNodeType;
@@ -189,27 +253,9 @@ export default function ApproverSettingsTab({
         <>
           <Typography.Title heading={6} style={{ marginBottom: 16 }}>{label}设置</Typography.Title>
 
-          {/* 指定策略 — Radio 网格布局 */}
+          {/* 指定策略 — 常用组直接展示,其余组折叠(已选类型在折叠组时强制展开) */}
           <Typography.Text style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>{label}</Typography.Text>
-          <div className="fd-assignee-type-grid">
-            {ASSIGNEE_TYPE_OPTIONS.map(o => (
-              <label
-                key={o.value}
-                className={`fd-assignee-type-item ${assigneeType === o.value ? 'fd-assignee-type-item--active' : ''}`}
-              >
-                <Radio
-                  value={o.value}
-                  checked={assigneeType === o.value}
-                  onChange={() => onChange({ assigneeType: o.value })}
-                  style={{ display: 'none' }}
-                />
-                <span>{o.label}</span>
-                <Tooltip content={o.description}>
-                  <CircleHelp size={12} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
-                </Tooltip>
-              </label>
-            ))}
-          </div>
+          <AssigneeTypePicker assigneeType={assigneeType} onChange={(v) => onChange({ assigneeType: v })} />
 
           {/* 指定成员 */}
           {assigneeType === 'user' && (
