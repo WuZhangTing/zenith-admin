@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown, Modal } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown, Modal, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { KeyRound, ChevronDown, Tags } from 'lucide-react';
@@ -215,7 +215,7 @@ export default function MembersPage() {
         </div>
       ),
     },
-    { title: '用户名', dataIndex: 'username', width: 120, render: (v: string | null) => v || '-' },
+    { title: '用户名', dataIndex: 'username', width: 150, render: (v: string | null) => (v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v}</Typography.Text> : '-') },
     { title: '手机号', dataIndex: 'phone', width: 130, render: (v: string | null) => v || '-' },
     { title: '邮箱', dataIndex: 'email', width: 180, render: renderEllipsis },
     { title: '等级', dataIndex: 'levelName', width: 100, render: (v: string | null) => (v ? <Tag color="amber">{v}</Tag> : '-') },

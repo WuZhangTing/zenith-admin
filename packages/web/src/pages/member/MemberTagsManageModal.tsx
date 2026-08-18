@@ -47,7 +47,7 @@ export function MemberTagsManageModal({ visible, onClose }: Readonly<Props>) {
       render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag>,
     },
     {
-      title: '操作', dataIndex: 'op', width: 120, fixed: 'right',
+      title: '操作', dataIndex: 'op', width: 150, fixed: 'right',
       render: (_: unknown, record: MemberTag) => (
         <Space>
           <Button theme="borderless" size="small" onClick={() => tagModal.openEdit(record)}>编辑</Button>
