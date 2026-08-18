@@ -69,6 +69,32 @@ export const WALLET_TX_TYPE_LABELS: Record<WalletTxType, string> = {
   adjust: '调整',
 };
 
+/**
+ * 积分/钱包流水业务类型（bizType）中文标签。
+ * bizType 是开放取值（各业务写入自己的标识），此处收录内置业务；
+ * 未收录的自定义值由展示侧原样输出。
+ */
+export const MEMBER_BIZ_TYPE_LABELS: Record<string, string> = {
+  register: '注册赠送',
+  admin_adjust: '后台调整',
+  admin_refund: '后台退款',
+  checkin: '每日签到',
+  checkin_makeup: '补签',
+  checkin_milestone: '签到里程碑',
+  birthday: '生日礼',
+  invite: '邀请奖励',
+  mp_scan_reward: '公众号扫码奖励',
+  coupon_exchange: '积分兑换卡券',
+  points_exchange: '积分兑换',
+  points_inactive_expire: '积分过期清理',
+  member_recharge: '会员充值',
+  member_renewal: '会员续费',
+  payment: '支付核销',
+  manual_redeem: '手动核销',
+  order: '订单',
+  cms_interaction: '内容互动奖励',
+};
+
 export const COUPON_TYPE_LABELS: Record<CouponType, string> = {
   amount: '满减券',
   percent: '折扣券',

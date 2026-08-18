@@ -24,7 +24,9 @@ const adjustSchema = z.object({
 const refundSchema = z.object({
   memberId: z.number().int().positive(),
   amount: z.number().int().positive('退款金额必须大于 0'),
-  remark: z.string().max(256).optional(),
+  /** 关联业务单号（如支付/退款单），供审计追溯 */
+  bizId: z.string().max(64).optional(),
+  remark: z.string().min(1, '请填写退款原因').max(256),
 });
 
 const txRoute = defineOpenAPIRoute({
@@ -74,9 +76,9 @@ const refundRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(MemberWalletDTO, '已退款') },
   }),
   handler: async (c) => {
-    const { memberId, amount, remark } = c.req.valid('json');
+    const { memberId, amount, remark, bizId } = c.req.valid('json');
     setAuditBeforeData(c, await getWalletBeforeAudit(memberId));
-    const w = await refundWallet(memberId, amount, { operatorId: currentUser().userId, remark, bizType: 'admin_refund' });
+    const w = await refundWallet(memberId, amount, { operatorId: currentUser().userId, remark, bizId, bizType: 'admin_refund' });
     return c.json(okBody(mapWallet(w), '已退款'), 200);
   },
 });

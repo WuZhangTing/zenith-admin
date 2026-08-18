@@ -3,7 +3,7 @@ import { Button, Select, Form, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Coins } from 'lucide-react';
 import type { MemberPointTransaction } from '@zenith/shared/member';
-import { POINT_TX_TYPE_LABELS } from '@zenith/shared/member';
+import { MEMBER_BIZ_TYPE_LABELS, POINT_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -68,7 +68,7 @@ export default function MemberPointsPage() {
     { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => <Tag color={TYPE_COLORS[v] as 'green'}>{POINT_TX_TYPE_LABELS[v as keyof typeof POINT_TX_TYPE_LABELS]}</Tag> },
     { title: '变动', dataIndex: 'amount', width: 100, render: (v: number) => <span style={{ color: v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>{v >= 0 ? `+${v}` : v}</span> },
     { title: '变动后', dataIndex: 'balanceAfter', width: 100 },
-    { title: '业务类型', dataIndex: 'bizType', width: 130, render: (v: string | null) => v || '-' },
+    { title: '业务类型', dataIndex: 'bizType', width: 130, render: (v: string | null) => (v ? (MEMBER_BIZ_TYPE_LABELS[v] ?? v) : '-') },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     createdAtColumn,
   ];

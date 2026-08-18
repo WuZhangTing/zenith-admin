@@ -304,7 +304,7 @@ export function useAdjustMemberWallet() {
 export function useRefundMemberWallet() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: { memberId: number; amount: number; remark?: string }) =>
+    mutationFn: (values: { memberId: number; amount: number; remark?: string; bizId?: string }) =>
       request.post<null>('/api/member-wallets/refund', values).then(unwrap),
     onSuccess: () => invalidate(qc, [memberAdminKeys.wallets, memberAdminKeys.members, memberAdminKeys.stats]),
   });

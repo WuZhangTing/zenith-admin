@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
-import { Button, Select, Form, Toast, Tag } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Tag, Banner } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { WalletCards, Undo2 } from 'lucide-react';
 import type { MemberWalletTransaction } from '@zenith/shared/member';
-import { WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
+import { MEMBER_BIZ_TYPE_LABELS, WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
@@ -56,9 +56,9 @@ export default function MemberWalletPage() {
   const openModal = (m: 'adjust' | 'refund') => { setMode(m); setModalVisible(true); };
 
   const handleSubmit = async () => {
-    let values: { memberId: number; amount: number; remark?: string };
-    try { values = (await formApi.current!.validate()) as { memberId: number; amount: number; remark?: string }; } catch { abortSubmit('validation'); }
-    const payload = { memberId: values.memberId, amount: Math.round(values.amount * 100), remark: values.remark };
+    let values: { memberId: number; amount: number; remark?: string; bizId?: string };
+    try { values = (await formApi.current!.validate()) as { memberId: number; amount: number; remark?: string; bizId?: string }; } catch { abortSubmit('validation'); }
+    const payload = { memberId: values.memberId, amount: Math.round(values.amount * 100), remark: values.remark, ...(mode === 'refund' && values.bizId ? { bizId: values.bizId } : {}) };
     await (mode === 'adjust' ? adjustMutation : refundMutation).mutateAsync(payload);
     Toast.success(mode === 'adjust' ? '已调整' : '已退款');
     setModalVisible(false);
@@ -69,7 +69,7 @@ export default function MemberWalletPage() {
     { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => <Tag color={TYPE_COLORS[v] as 'green'}>{WALLET_TX_TYPE_LABELS[v as keyof typeof WALLET_TX_TYPE_LABELS]}</Tag> },
     { title: '变动(元)', dataIndex: 'amount', width: 110, render: (v: number) => <span style={{ color: v >= 0 ? 'var(--semi-color-success)' : 'var(--semi-color-danger)' }}>{v >= 0 ? `+${yuan(v)}` : yuan(v)}</span> },
     { title: '变动后(元)', dataIndex: 'balanceAfter', width: 110, render: (v: number) => yuan(v) },
-    { title: '业务类型', dataIndex: 'bizType', width: 130, render: (v: string | null) => v || '-' },
+    { title: '业务类型', dataIndex: 'bizType', width: 130, render: (v: string | null) => (v ? (MEMBER_BIZ_TYPE_LABELS[v] ?? v) : '-') },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     createdAtColumn,
   ];
@@ -140,13 +140,21 @@ export default function MemberWalletPage() {
 
       <AppModal title={mode === 'adjust' ? '调整会员余额' : '会员钱包退款'} visible={modalVisible} width={480}
         onCancel={() => setModalVisible(false)} onOk={handleSubmit}>
+        {mode === 'refund' && (
+          <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }}
+            description="退款为入账操作：金额将增加到会员钱包余额（如订单/充值退款退回钱包），不会从钱包扣款。" />
+        )}
         <Form key={mode} getFormApi={(api) => { formApi.current = api; }} labelPosition="left" labelWidth={90}>
           <MemberSelect field="memberId" required />
           <Form.InputNumber field="amount" label="金额(元)" style={{ width: '100%' }}
             placeholder={mode === 'adjust' ? '正数增加，负数扣减' : '退款金额（元）'}
             min={mode === 'refund' ? 0.01 : undefined} precision={2}
             rules={[{ required: true, message: '请输入金额' }]} />
-          <Form.TextArea field="remark" label="备注" placeholder={mode === 'adjust' ? '调整原因' : '退款原因'} maxCount={256} />
+          {mode === 'refund' && (
+            <Form.Input field="bizId" label="业务单号" placeholder="关联的支付/退款单号（可选，便于审计追溯）" maxLength={64} />
+          )}
+          <Form.TextArea field="remark" label="备注" placeholder={mode === 'adjust' ? '调整原因' : '退款原因（必填）'} maxCount={256}
+            rules={mode === 'refund' ? [{ required: true, message: '请填写退款原因' }] : undefined} />
         </Form>
       </AppModal>
     </div>
