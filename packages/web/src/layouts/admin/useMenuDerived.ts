@@ -158,7 +158,8 @@ export function useAutoTopKey(
 
 export function useMixedNavItems(navLayout: NavLayout, navItems: NavItem[], effectiveTopKey: string | null) {
   const mixedTopNavItems = useMemo(
-    () => navItems.map(({ itemKey, text, icon, isExternal }) => ({ itemKey, text, icon, isExternal })),
+    // 保留 badge 字段：mixed 顶栏由 TopNavWithOverflow 渲染徽标（如聊天未读）
+    () => navItems.map(({ itemKey, text, icon, isExternal, badge }) => ({ itemKey, text, icon, isExternal, badge })),
     [navItems],
   );
 

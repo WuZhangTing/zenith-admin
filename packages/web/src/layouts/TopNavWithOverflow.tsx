@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Nav } from '@douyinfe/semi-ui';
+import { Nav } from '@douyinfe/semi-ui';
+import { decorateBadgeText } from './admin/utils';
 
 export type TopNavItem = {
   itemKey: string;
@@ -40,22 +41,12 @@ type Props = Readonly<{
 const MORE_KEY = '__topnav_more__';
 const MORE_TEXT = '更多';
 
-function decorateText(text: React.ReactNode, badge?: TopNavItem['badge']): React.ReactNode {
-  if (!badge || badge.count <= 0) return text;
-  return (
-    <span className="topnav-badge-text">
-      <span>{text}</span>
-      <Badge count={badge.count} overflowCount={badge.overflowCount ?? 99} type="danger" />
-    </span>
-  );
-}
-
 /** TopNavItem 树 → Semi Nav items，把徽标注入 text 节点 */
 function toSemiItems(items: TopNavItem[]): SemiNavItem[] {
   return items.map((item) => {
     const node: SemiNavItem = {
       itemKey: item.itemKey,
-      text: decorateText(item.text, item.badge),
+      text: decorateBadgeText(item.text, item.badge),
     };
     if (item.icon != null) node.icon = item.icon;
     if (item.items?.length) node.items = toSemiItems(item.items);

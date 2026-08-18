@@ -131,8 +131,8 @@
   display: none;
 }
 
-/* 徽标文案（如聊天未读）：与文字并排 */
-.topnav-badge-text {
+/* 徽标文案（如聊天未读）：与导航文字并排，顶栏与侧边栏共用 */
+.admin-nav-badge-text {
   display: inline-flex;
   align-items: center;
   gap: 8px;

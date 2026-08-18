@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { ConfigProvider, Nav } from '@douyinfe/semi-ui';
 import AppLogo from '@/components/AppLogo';
 import { config } from '@/config';
-import type { NavItem } from './utils';
+import { decorateNavItemsWithBadges, type NavItem } from './utils';
 
 // 垂直 / mixed 布局的侧边栏（double 布局见 DoubleSidebar）
 export function SidebarNav({
@@ -36,6 +37,11 @@ export function SidebarNav({
   /** 分区深色时把折叠飞出菜单与折叠项 Tooltip 挂进带 .semi-always-dark 的节点 */
   getPopupContainer?: () => HTMLElement;
 }>) {
+  // 未读徽标：展开态拼在文字后，收起态显示图标红点
+  const decoratedItems = useMemo(
+    () => decorateNavItemsWithBadges(items, effectiveCollapsed),
+    [items, effectiveCollapsed],
+  );
   return (
     <aside
       className={sidebarClassName}
@@ -46,7 +52,7 @@ export function SidebarNav({
         <Nav
           className="admin-sidebar__nav"
           mode="vertical"
-          items={items}
+          items={decoratedItems}
           style={{ height: '100%' }}
           bodyStyle={{ paddingTop: 8 }}
           isCollapsed={effectiveCollapsed}

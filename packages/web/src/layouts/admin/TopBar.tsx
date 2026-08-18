@@ -25,7 +25,7 @@ export function TopBar({
   navigateHome: () => void;
   handleNavigateHomeKey: (e: React.KeyboardEvent) => void;
   navLayout: NavLayout;
-  mixedTopNavItems: Pick<NavItem, 'itemKey' | 'text' | 'icon' | 'isExternal'>[];
+  mixedTopNavItems: Pick<NavItem, 'itemKey' | 'text' | 'icon' | 'isExternal' | 'badge'>[];
   navItems: NavItem[];
   topNavSelectedKeys: string[];
   renderWrapper: (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => React.ReactNode;

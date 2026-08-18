@@ -1,3 +1,4 @@
+import { Badge } from '@douyinfe/semi-ui';
 import type { Menu } from '@zenith/shared/identity';
 import type { InAppMessage, Announcement } from '@zenith/shared/messaging';
 import { renderLucideIcon } from '@/utils/icons';
@@ -65,6 +66,49 @@ export type NavItem = {
   /** 菜单配置的默认路由参数（querystring，不含 `?`），跳转时拼接到 path */
   query?: string | null;
 };
+
+/** 未读数徽标拼到导航文字后（Badge 独立使用形态，Semi 官方推荐无 children 时单独渲染） */
+export function decorateBadgeText(text: React.ReactNode, badge?: NavItem['badge']): React.ReactNode {
+  if (!badge || badge.count <= 0) return text;
+  return (
+    <span className="admin-nav-badge-text">
+      <span>{text}</span>
+      <Badge count={badge.count} overflowCount={badge.overflowCount ?? 99} type="danger" />
+    </span>
+  );
+}
+
+function hasAnyBadge(items: NavItem[]): boolean {
+  return items.some(
+    (item) => (item.badge != null && item.badge.count > 0) || (item.items ? hasAnyBadge(item.items) : false),
+  );
+}
+
+/**
+ * 把 NavItem 的自定义 badge 字段装饰进 Semi Nav 可识别的 text / icon：
+ * 展开态在文字旁显示数字徽标；收起态（仅图标可见）改为图标右上角红点，
+ * text 保持原样以免收起 Tooltip 内出现徽标。无徽标时原样返回，保持引用稳定（Nav FAQ：items 引用变化会重建导航）。
+ */
+export function decorateNavItemsWithBadges(items: NavItem[], collapsed = false): NavItem[] {
+  if (!hasAnyBadge(items)) return items;
+  return items.map((item) => {
+    const next: NavItem = { ...item };
+    // 收起态仅作用于顶层；子项在收起态经飞出菜单展示文字，仍走文字徽标
+    if (item.items?.length) next.items = decorateNavItemsWithBadges(item.items, false);
+    if (item.badge && item.badge.count > 0) {
+      if (collapsed && item.icon) {
+        next.icon = (
+          <Badge dot type="danger">
+            {item.icon}
+          </Badge>
+        );
+      } else {
+        next.text = decorateBadgeText(item.text, item.badge);
+      }
+    }
+    return next;
+  });
+}
 
 export function menuToNavItem(menu: Menu): NavItem | null {
   if (!menu.visible || menu.type === 'button') return null;

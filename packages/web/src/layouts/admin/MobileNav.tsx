@@ -1,9 +1,10 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
+import { useMemo } from 'react';
 import { Nav, SideSheet } from '@douyinfe/semi-ui';
 import { Menu as MenuIcon, Search } from 'lucide-react';
 import AppLogo from '@/components/AppLogo';
 import { config } from '@/config';
-import type { NavItem } from './utils';
+import { decorateNavItemsWithBadges, type NavItem } from './utils';
 
 // 移动端顶栏（汉堡菜单 + 品牌 + 头部操作区）
 export function MobileHeader({
@@ -67,6 +68,8 @@ export function MobileNavSheet({
   renderMobileWrapper: (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => React.ReactNode;
   showMenuSearch?: boolean;
 }>) {
+  // 未读徽标拼进文字（抽屉恒为展开态）
+  const decoratedItems = useMemo(() => decorateNavItemsWithBadges(navItems), [navItems]);
   return (
     <SideSheet
       className="admin-mobile-nav-sheet"
@@ -108,7 +111,7 @@ export function MobileNavSheet({
       <Nav
         className="admin-mobile-nav"
         mode="vertical"
-        items={navItems}
+        items={decoratedItems}
         selectedKeys={currentSelectedKeys}
         openKeys={openKeys}
         onOpenChange={handleSidebarOpenChange}

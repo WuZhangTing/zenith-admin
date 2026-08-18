@@ -1,6 +1,7 @@
+import { useMemo } from 'react';
 import { Badge, ConfigProvider, Nav, Tooltip } from '@douyinfe/semi-ui';
 import AppLogo from '@/components/AppLogo';
-import type { NavItem } from './utils';
+import { decorateNavItemsWithBadges, type NavItem } from './utils';
 
 // 双列侧边栏（double 布局）：左侧图标栏 + 右侧子导航
 export function DoubleSidebar({
@@ -36,6 +37,8 @@ export function DoubleSidebar({
   /** 分区深色时把 rail Tooltip 与子导航弹层挂进带 .semi-always-dark 的节点 */
   getPopupContainer?: () => HTMLElement;
 }>) {
+  // 子导航未读徽标拼进文字（与垂直侧边栏一致）
+  const decoratedSubItems = useMemo(() => decorateNavItemsWithBadges(doubleSubItems), [doubleSubItems]);
   return (
     <aside className={`admin-sidebar admin-sidebar--double${doubleSubItems.length === 0 ? ' admin-sidebar--double-no-sub' : ''}${stickyNavClass}${darkClassName}`}>
       <ConfigProvider getPopupContainer={getPopupContainer}>
@@ -64,7 +67,7 @@ export function DoubleSidebar({
                   >
                     <span className="double-sidebar__rail-icon">
                       {item.badge && item.badge.count > 0 ? (
-                        <Badge count={item.badge.count} overflowCount={item.badge.overflowCount ?? 99}>
+                        <Badge count={item.badge.count} overflowCount={item.badge.overflowCount ?? 99} type="danger">
                           {item.icon}
                         </Badge>
                       ) : item.icon}
@@ -86,7 +89,7 @@ export function DoubleSidebar({
               <Nav
                 className="admin-sidebar__nav double-sidebar__sub-nav"
                 mode="vertical"
-                items={doubleSubItems}
+                items={decoratedSubItems}
                 style={{ height: 'calc(100% - 48px)', overflow: 'hidden' }}
                 bodyStyle={{ paddingTop: 8 }}
                 isCollapsed={false}
