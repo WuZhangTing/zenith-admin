@@ -14,6 +14,7 @@ import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useAdjustMemberPoints, useMemberPointTransactions } from '@/hooks/queries/member-admin';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
@@ -37,8 +38,10 @@ export default function MemberPointsPage() {
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    handleSearch, handleReset, applySearch,
   } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.pointLists });
+  // 会员详情等入口的深链筛选（?memberKeyword=，消费后即从 URL 移除）
+  useListDeepLink(['memberKeyword'], (p) => applySearch({ memberKeyword: p.memberKeyword }));
   const listQuery = useMemberPointTransactions({
     page,
     pageSize,

@@ -7,6 +7,7 @@ import type { MemberWalletTransaction } from '@zenith/shared/member';
 import { WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -35,8 +36,10 @@ export default function MemberWalletPage() {
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    handleSearch, handleReset, applySearch,
   } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.walletLists });
+  // 会员详情等入口的深链筛选（?memberKeyword=，消费后即从 URL 移除）
+  useListDeepLink(['memberKeyword'], (p) => applySearch({ memberKeyword: p.memberKeyword }));
   const [modalVisible, setModalVisible] = useState(false);
   const [mode, setMode] = useState<'adjust' | 'refund'>('adjust');
   const listQuery = useMemberWalletTransactions({

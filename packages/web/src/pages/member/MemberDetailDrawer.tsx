@@ -1,5 +1,6 @@
 import { SideSheet, Tag, Descriptions, Table, Spin, Avatar, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { useNavigate } from 'react-router-dom';
 import type { MemberPointTransaction, MemberWalletTransaction, MemberLoginLog } from '@zenith/shared/member';
 import { MEMBER_STATUS_LABELS, POINT_TX_TYPE_LABELS, WALLET_TX_TYPE_LABELS } from '@zenith/shared/member';
 import { useMemberOverview } from '@/hooks/queries/member-admin';
@@ -46,9 +47,24 @@ const loginLogCols: ColumnProps<MemberLoginLog>[] = [
 ];
 
 export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
+  const navigate = useNavigate();
   const overviewQuery = useMemberOverview(memberId, !!memberId);
   const overview = overviewQuery.data ?? null;
   const m = overview?.member;
+
+  // 跳转到目标页并按会员 ID 精确筛选（memberKeyword 纯数字 = 按会员 ID 匹配），同时关闭抽屉
+  const goTo = (path: string) => {
+    if (!memberId) return;
+    onClose();
+    navigate(`${path}?memberKeyword=${memberId}`);
+  };
+
+  const sectionTitle = (label: string, path: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{label}</span>
+      <Typography.Text link size="small" onClick={() => goTo(path)}>查看全部</Typography.Text>
+    </div>
+  );
 
   return (
     <SideSheet
@@ -95,17 +111,17 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
               </div>
             </div>
 
-            {/* 核心数据卡片 */}
+            {/* 核心数据卡片：点击跳到对应管理页并按当前会员筛选 */}
             <StatGrid minItemWidth={150} style={{ marginBottom: 20 }}>
-              <StatCard title="积分余额" value={overview.points.balance} sub={`累计 ${overview.points.totalEarned}`} />
-              <StatCard title="钱包余额(元)" value={(overview.wallet.balance / 100).toFixed(2)} sub={`累计充值 ${(overview.wallet.totalRecharge / 100).toFixed(2)} 元`} />
-              <StatCard title="可用卡券" value={overview.activeCouponCount} />
-              <StatCard title="累计签到" value={overview.checkinTotal} sub={`登录 ${overview.loginLogCount} 次`} />
+              <StatCard title="积分余额" value={overview.points.balance} sub={`累计 ${overview.points.totalEarned}`} onClick={() => goTo('/member/points')} />
+              <StatCard title="钱包余额(元)" value={(overview.wallet.balance / 100).toFixed(2)} sub={`累计充值 ${(overview.wallet.totalRecharge / 100).toFixed(2)} 元`} onClick={() => goTo('/member/wallets')} />
+              <StatCard title="可用卡券" value={overview.activeCouponCount} onClick={() => goTo('/member/coupon-records')} />
+              <StatCard title="累计签到" value={overview.checkinTotal} sub={`登录 ${overview.loginLogCount} 次`} onClick={() => goTo('/member/checkin-logs')} />
             </StatGrid>
 
             {/* 最近积分流水 */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--semi-color-text-0)' }}>最近积分记录</div>
+              {sectionTitle('最近积分记录', '/member/points')}
               <Table
                 columns={pointTxCols}
                 dataSource={overview.recentPointTxs}
@@ -119,7 +135,7 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
 
             {/* 最近钱包流水 */}
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--semi-color-text-0)' }}>最近钱包记录</div>
+              {sectionTitle('最近钱包记录', '/member/wallets')}
               <Table
                 columns={walletTxCols}
                 dataSource={overview.recentWalletTxs}
@@ -133,7 +149,7 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
 
             {/* 最近登录记录 */}
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, color: 'var(--semi-color-text-0)' }}>最近登录记录</div>
+              {sectionTitle('最近登录记录', '/member/login-logs')}
               <Table
                 columns={loginLogCols}
                 dataSource={overview.recentLoginLogs}

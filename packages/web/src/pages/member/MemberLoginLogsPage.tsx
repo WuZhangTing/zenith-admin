@@ -9,6 +9,7 @@ import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useMemberLoginLogList } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 
@@ -30,8 +31,10 @@ export default function MemberLoginLogsPage() {
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    handleSearch, handleReset, applySearch,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.loginLogLists });
+  // 会员详情等入口的深链筛选（?memberKeyword=，消费后即从 URL 移除）
+  useListDeepLink(['memberKeyword'], (p) => applySearch({ keyword: p.memberKeyword, dateRange: null }));
   const [dateStart, dateEnd] = submittedParams.dateRange ?? [];
   const listQuery = useMemberLoginLogList({
     page,

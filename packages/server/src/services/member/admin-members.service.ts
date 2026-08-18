@@ -163,6 +163,18 @@ export interface AdminCreateMemberInput {
 export async function createMember(input: AdminCreateMemberInput) {
   const hashed = input.password ? await bcrypt.hash(input.password, 10) : null;
   const member = await db.transaction(async (tx) => {
+    // 未显式指定等级时按成长值 0 匹配初始等级（阈值 ≤0 的最高档），
+    // 避免新会员出现"无等级"空档；与 applyGrowthDeltaInTx 的定级口径一致
+    let levelId = input.levelId ?? null;
+    if (levelId == null) {
+      const [initial] = await tx
+        .select({ id: memberLevels.id })
+        .from(memberLevels)
+        .where(and(eq(memberLevels.status, 'enabled'), lte(memberLevels.growthThreshold, 0)))
+        .orderBy(desc(memberLevels.growthThreshold))
+        .limit(1);
+      levelId = initial?.id ?? null;
+    }
     let created: MemberRow;
     try {
       [created] = await tx
@@ -175,7 +187,7 @@ export async function createMember(input: AdminCreateMemberInput) {
           nickname: input.nickname,
           gender: input.gender ?? null,
           status: input.status ?? 'active',
-          levelId: input.levelId ?? null,
+          levelId,
           remark: input.remark ?? null,
           registerSource: 'admin',
         })
@@ -383,7 +395,10 @@ export function buildLoginLogWhere(q: Omit<MemberLoginLogQuery, 'page' | 'pageSi
   const conds: SQL[] = [];
   if (q.keyword) {
     const kw = `%${escapeLike(q.keyword)}%`;
-    const orCond = or(ilike(members.nickname, kw), ilike(members.phone, kw), ilike(members.username, kw));
+    const parts = [ilike(members.nickname, kw), ilike(members.phone, kw), ilike(members.username, kw)];
+    // 与积分/钱包等流水的 memberKeyword 口径对齐：纯数字额外按会员 ID 精确匹配（会员详情深链使用）
+    if (/^\d+$/.test(q.keyword)) parts.push(eq(memberLoginLogs.memberId, parseInt(q.keyword, 10)));
+    const orCond = or(...parts);
     if (orCond) conds.push(orCond);
   }
   if (q.status) conds.push(eq(memberLoginLogs.status, q.status));

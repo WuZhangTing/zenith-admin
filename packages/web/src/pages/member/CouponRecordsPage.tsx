@@ -13,6 +13,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
@@ -27,8 +28,10 @@ export default function CouponRecordsPage() {
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    handleSearch, handleReset, applySearch,
   } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.couponRecordLists });
+  // 会员详情等入口的深链筛选（?memberKeyword=，消费后即从 URL 移除）
+  useListDeepLink(['memberKeyword'], (p) => applySearch({ memberKeyword: p.memberKeyword }));
   const listQuery = useCouponRecordList({
     page,
     pageSize,

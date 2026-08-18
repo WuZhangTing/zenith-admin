@@ -1,0 +1,33 @@
+import { useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+/**
+ * 消费列表页的一次性深链筛选参数（如 `?memberKeyword=`）：
+ * - URL 中出现目标参数时回调 `apply`（通常调 useListSearch 的 applySearch 触发查询），
+ *   随后立即从 URL 移除已消费的参数——「消费即焚」，与全站列表筛选不入 URL 的行为保持一致；
+ * - 依赖 searchParams 而非仅挂载：页签系统复用已挂载页面时，再次携参导航同样生效；
+ * - 消费后参数即被清除，重置/刷新回到页面默认条件，深链不残留。
+ */
+export function useListDeepLink(
+  keys: readonly string[],
+  apply: (picked: Record<string, string>) => void,
+): void {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
+
+  useEffect(() => {
+    const picked: Record<string, string> = {};
+    for (const key of keys) {
+      const value = searchParams.get(key);
+      if (value) picked[key] = value;
+    }
+    if (Object.keys(picked).length === 0) return;
+    applyRef.current(picked);
+    const next = new URLSearchParams(window.location.search);
+    for (const key of Object.keys(picked)) next.delete(key);
+    setSearchParams(next, { replace: true });
+    // keys 为页面字面量数组，按值快照做依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, setSearchParams, JSON.stringify(keys)]);
+}

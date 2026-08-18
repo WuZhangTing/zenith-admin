@@ -13,6 +13,7 @@ import { MemberSelect } from '@/components/MemberSelect';
 import { formatDateForApi } from '@/utils/date';
 import { memberAdminKeys, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
@@ -33,8 +34,10 @@ export default function CheckinLogsPage() {
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    handleSearch, handleReset, applySearch,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.checkinLogLists });
+  // 会员详情等入口的深链筛选（?memberKeyword=，消费后即从 URL 移除）
+  useListDeepLink(['memberKeyword'], (p) => applySearch({ memberKeyword: p.memberKeyword, dateRange: null }));
   const [makeupVisible, setMakeupVisible] = useState(false);
   const makeupFormApi = useRef<FormApi | null>(null);
   const [dateStart, dateEnd] = submittedParams.dateRange ?? [];
