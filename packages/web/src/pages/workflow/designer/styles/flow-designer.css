@@ -884,12 +884,15 @@ body[theme-mode='dark'] .fd-node-card:hover {
   position: absolute;
   left: 0;
   top: 50%;
+  width: 100%;
   height: 3px;
   border-radius: 999px;
   background: var(--semi-color-primary);
   opacity: 0.5;
-  transform: translateY(-50%);
-  transition: width 160ms ease;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: left center;
+  /* 进度动画只走 transform(合成器),不触发布局重排 */
+  transition: transform 160ms ease;
   pointer-events: none;
 }
 
@@ -905,12 +908,12 @@ body[theme-mode='dark'] .fd-node-card:hover {
   background: var(--semi-color-fill-2);
   cursor: pointer;
   transform: translate(-50%, -50%);
-  transition: width 120ms ease, height 120ms ease, background 120ms ease;
+  /* 缩放动画只走 transform(合成器),不触发布局重排 */
+  transition: transform 120ms ease, background 120ms ease;
 }
 
 .fd-simulation-scrubber__dot:hover {
-  width: 15px;
-  height: 15px;
+  transform: translate(-50%, -50%) scale(1.25);
 }
 
 .fd-simulation-scrubber__dot.is-visited {
@@ -918,8 +921,7 @@ body[theme-mode='dark'] .fd-node-card:hover {
 }
 
 .fd-simulation-scrubber__dot.is-current {
-  width: 16px;
-  height: 16px;
+  transform: translate(-50%, -50%) scale(1.34);
   background: var(--dot-color, var(--semi-color-primary));
   box-shadow: 0 0 0 3px var(--semi-color-primary-light-default);
 }
@@ -949,7 +951,7 @@ body[theme-mode='dark'] .fd-node-card:hover {
   max-height: 100%;
   padding: 12px;
   overflow: auto;
-  border-left: 3px solid var(--accent, var(--semi-color-primary));
+  border-left: 1px solid var(--semi-color-border);
   background: var(--semi-color-bg-2);
 }
 

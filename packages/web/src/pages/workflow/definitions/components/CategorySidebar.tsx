@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Button, Dropdown, Toast, Form } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Toast, Form, Input } from '@douyinfe/semi-ui';
 import { MoreHorizontal, Plus, Layers, LayoutGrid, Pencil, Trash2 } from 'lucide-react';
 import type { WorkflowCategory } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
@@ -185,12 +185,12 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
                   aria-label={color}
                 />
               ))}
-              <input
-                type="text"
+              <Input
                 value={selectedColor}
-                onChange={e => setSelectedColor(e.target.value)}
+                onChange={(v) => setSelectedColor(v)}
                 placeholder="自定义 #hex"
-                style={{ width: 110, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-small)', padding: '4px 8px', fontSize: 13, outline: 'none' }}
+                size="small"
+                style={{ width: 110 }}
               />
             </div>
           </Form.Slot>

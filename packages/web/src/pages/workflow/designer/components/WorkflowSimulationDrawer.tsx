@@ -823,7 +823,7 @@ export default function WorkflowSimulationDrawer({
     return (
       <div className="fd-simulation-scrubber" role="group" aria-label="步骤时间轴">
         <div className="fd-simulation-scrubber__rail">
-          <span className="fd-simulation-scrubber__fill" style={{ width: `${fillPct}%` }} />
+          <span className="fd-simulation-scrubber__fill" style={{ transform: `translateY(-50%) scaleX(${fillPct / 100})` }} />
           {result.timeline.map((item, index) => {
             const step = index + 1;
             const meta = STATUS_META[item.status];
