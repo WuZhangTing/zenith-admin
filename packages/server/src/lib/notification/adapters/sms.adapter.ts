@@ -27,6 +27,25 @@ async function lookupPhone(recipient: NotificationRecipient): Promise<string | n
   return row?.phone || null;
 }
 
+/**
+ * 按模板占位符出现顺序从来源变量中挑选参数。
+ *
+ * 服务商按位置映射参数（腾讯云 `Object.values`），而事件 vars 经 jsonb 往返后
+ * 键序会被 PG 重排；以模板内容为准既保证顺序确定，也不会把模板未声明的
+ * 多余变量提交给服务商。导出仅供单测。
+ */
+export function buildTemplateVariables(
+  templateContent: string,
+  source: Record<string, string>,
+): Record<string, string> {
+  const placeholderNames = [...new Set(
+    [...templateContent.matchAll(/\{\{\s*(\w+)\s*\}\}/g)].map((match) => match[1]),
+  )];
+  const variables: Record<string, string> = {};
+  for (const name of placeholderNames) variables[name] = source[name] ?? '';
+  return variables;
+}
+
 export const smsAdapter: NotificationChannelAdapter = {
   channel: 'sms',
 
@@ -51,7 +70,10 @@ export const smsAdapter: NotificationChannelAdapter = {
       throw new Error(`默认短信配置（${config.provider}）与模板服务商（${template.provider}）不匹配`);
     }
 
-    const renderedContent = renderTemplate(template.content, ctx.vars);
+    const source = ctx.options?.sms?.variables ?? ctx.vars;
+    const variables = buildTemplateVariables(template.content, source);
+
+    const renderedContent = renderTemplate(template.content, variables);
     const [log] = await db.insert(smsSendLogs).values({
       configId: config.id,
       templateId: template.id,
@@ -68,7 +90,7 @@ export const smsAdapter: NotificationChannelAdapter = {
       config,
       template,
       phone: ctx.target.address,
-      variables: ctx.vars,
+      variables,
       renderedContent,
     });
 

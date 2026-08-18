@@ -19,6 +19,7 @@ import { notificationOutbox } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { currentTraceId } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
+import { escapeHtml } from '../../lib/html-escape';
 import { deliverOutboxRow } from '../../lib/notification/dispatch';
 import logger from '../../lib/logger';
 import { renderTemplate } from '../../lib/sms-sender';
@@ -209,49 +210,62 @@ export async function aggregateNotificationDigests(): Promise<{ groups: number; 
   let handledGroups = 0;
   let handledItems = 0;
   for (const [, rows] of groups) {
-    // 条件认领整组，多实例并发时同一组只被一个实例聚合
-    const claimed = await db.update(notificationOutbox)
-      .set({ status: 'done', claimedAt: new Date() })
-      .where(and(
-        inArrayIds(rows.map((r) => r.id)),
-        eq(notificationOutbox.status, 'pending'),
-      ))
-      .returning({ id: notificationOutbox.id });
-    if (claimed.length === 0) continue;
-    const claimedIds = new Set(claimed.map((r) => r.id));
-    const items = rows.filter((r) => claimedIds.has(r.id));
-    const recipient = items[0].recipients[0];
-    if (!recipient || recipient.type === 'external') continue;
+    // 单组失败不影响其余分组；未被认领的组保持 pending，下轮继续
+    try {
+      // 认领与摘要入队同事务：若在两步之间崩溃，认领回滚、行保持 pending，
+      // 否则被置 done 的行既没有摘要也没有留痕，延后的邮件会静默丢失
+      const summary = await db.transaction(async (tx) => {
+        const claimed = await tx.update(notificationOutbox)
+          .set({ status: 'done', claimedAt: new Date() })
+          .where(and(
+            inArrayIds(rows.map((r) => r.id)),
+            eq(notificationOutbox.status, 'pending'),
+          ))
+          .returning({ id: notificationOutbox.id });
+        if (claimed.length === 0) return null;
+        const claimedIds = new Set(claimed.map((r) => r.id));
+        const items = rows.filter((r) => claimedIds.has(r.id));
+        const recipient = items[0].recipients[0];
+        if (!recipient || recipient.type === 'external') return null;
 
-    const lines = items.map((r) => {
-      if (!isNotificationEventKey(r.eventKey)) return null;
-      const def = getNotificationEvent(r.eventKey);
-      const vars = normalizeDigestVars(r.vars ?? {});
-      return {
-        title: renderTemplate(def.title, vars),
-        content: renderTemplate(def.content, vars),
-        link: r.link,
-        at: formatDateTime(r.createdAt),
-      };
-    }).filter((line): line is NonNullable<typeof line> => line !== null);
-    if (lines.length === 0) continue;
+        const lines = items.map((r) => {
+          if (!isNotificationEventKey(r.eventKey)) return null;
+          const vars = normalizeDigestVars(r.vars ?? {});
+          const def = getNotificationEvent(r.eventKey);
+          return {
+            title: renderTemplate(def.title, vars),
+            content: renderTemplate(def.content, vars),
+            link: r.link,
+            at: formatDateTime(r.createdAt),
+          };
+        }).filter((line): line is NonNullable<typeof line> => line !== null);
+        if (lines.length === 0) return null;
 
-    const html = [
-      `<h3>通知摘要（${lines.length} 条）</h3>`,
-      '<ul style="padding-left:18px">',
-      ...lines.map((line) => `<li style="margin-bottom:8px"><b>${escapeHtml(line.title)}</b><br/>${escapeHtml(line.content)}<br/><span style="color:#888;font-size:12px">${line.at}</span></li>`),
-      '</ul>',
-    ].join('');
+        const html = [
+          `<h3>通知摘要（${lines.length} 条）</h3>`,
+          '<ul style="padding-left:18px">',
+          ...lines.map((line) => `<li style="margin-bottom:8px"><b>${escapeHtml(line.title)}</b><br/>${escapeHtml(line.content)}<br/><span style="color:#888;font-size:12px">${line.at}</span></li>`),
+          '</ul>',
+        ].join('');
 
-    await notify('messaging.digest', {
-      recipients: [recipient],
-      vars: { count: lines.length, periodText: '摘要' },
-      tenantId: items[0].tenantId,
-      channelPolicy: { only: ['email'] },
-      channelOptions: { email: { html, subject: `通知摘要：${lines.length} 条未读通知` } },
-    });
-    handledGroups += 1;
-    handledItems += items.length;
+        const outboxId = await notifyWithin(tx, 'messaging.digest', {
+          recipients: [recipient],
+          vars: { count: lines.length, periodText: '摘要' },
+          tenantId: items[0].tenantId,
+          channelPolicy: { only: ['email'] },
+          channelOptions: { email: { html, subject: `通知摘要：${lines.length} 条未读通知` } },
+        });
+        return { outboxId, itemCount: items.length };
+      });
+
+      if (summary) {
+        if (summary.outboxId !== null) flushNotification(summary.outboxId);
+        handledGroups += 1;
+        handledItems += summary.itemCount;
+      }
+    } catch (err) {
+      logger.error('[notification-digest] 摘要分组聚合失败', { err });
+    }
   }
   return { groups: handledGroups, items: handledItems };
 }
@@ -266,12 +280,4 @@ function normalizeDigestVars(vars: Record<string, unknown>): Record<string, stri
     result[key] = value === null || value === undefined ? '' : String(value);
   }
   return result;
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

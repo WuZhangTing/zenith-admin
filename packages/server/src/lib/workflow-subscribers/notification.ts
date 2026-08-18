@@ -22,6 +22,7 @@ import type {
 import type { WorkflowNotifyChannels } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { workflowInstances } from '../../db/schema';
+import { escapeHtml } from '../html-escape';
 import { notify } from '../../services/messaging/notification-outbox.service';
 import { workflowEventBus } from '../workflow-event-bus';
 import logger from '../logger';
@@ -63,10 +64,13 @@ function toChannelOptions(
   channels: WorkflowNotifyChannels | undefined,
   subject: string,
   text: string,
+  smsVariables: Record<string, string>,
 ): NotificationChannelOptions {
-  const options: NotificationChannelOptions = { email: { subject, html: `<p>${text}</p>` } };
+  // 流程标题是发起人自由填写的文本，进 HTML 前必须转义，否则可向审批人邮箱注入任意标签
+  const options: NotificationChannelOptions = { email: { subject, html: `<p>${escapeHtml(text)}</p>` } };
   if (channels?.sms && channels.smsTemplateId) {
-    options.sms = { templateId: channels.smsTemplateId };
+    // 显式传短信变量：服务商按位置映射参数，依赖事件 vars 会被 jsonb 键序重排打乱
+    options.sms = { templateId: channels.smsTemplateId, variables: smsVariables };
   }
   return options;
 }
@@ -104,6 +108,7 @@ export function registerNotificationWorkflowSubscriber(): void {
           channels,
           `【待办提醒】${label}`,
           `你有一条新的待办：流程「${label}」（节点：${task.nodeName}），请及时处理。`,
+          { title: label, node: task.nodeName },
         ),
       });
     } catch (err) {
@@ -177,7 +182,7 @@ export function registerNotificationWorkflowSubscriber(): void {
         tenantId: event.tenantId,
         link: instanceLink(event.instanceId),
         channelPolicy: toChannelPolicy(channels),
-        channelOptions: toChannelOptions(channels, `【${meta.status}】${label}`, text),
+        channelOptions: toChannelOptions(channels, `【${meta.status}】${label}`, text, { title: label, status: meta.status }),
       });
     } catch (err) {
       logFailure('流程结果通知', err, { instanceId: event.instanceId, status });

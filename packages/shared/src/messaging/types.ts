@@ -537,7 +537,15 @@ export type NotificationRecipient =
 
 /** 渠道级投递参数，用于渠道本身需要额外配置的场景（短信模板、Webhook 地址）。 */
 export interface NotificationChannelOptions {
-  sms?: { templateId: number };
+  sms?: {
+    templateId: number;
+    /**
+     * 显式短信模板变量。短信服务商按**位置**映射参数（腾讯云 `Object.values`），
+     * 而事件 vars 经 jsonb 往返后键序会被重排；不传时适配器按模板占位符出现顺序
+     * 从事件 vars 中挑选，传了则以此为准。
+     */
+    variables?: Record<string, string>;
+  };
   webhook?: { url: string; body?: Record<string, unknown> };
   email?: { html?: string; subject?: string };
   inapp?: { type?: InAppMessageType };

@@ -35,6 +35,8 @@ export interface ChannelResolution {
   deferUntil: Date | null;
   /** 延后类型：quiet 到点逐条重投；digest 由聚合任务合并成摘要 */
   deferKind?: 'quiet' | 'digest';
+  /** 该渠道对收件人不可自行关闭（必达事件或管理员锁定），适配器据此隐藏退订入口 */
+  locked?: boolean;
 }
 
 export interface RecipientResolution {
@@ -266,6 +268,7 @@ export async function resolveDispatchPlan(input: ResolveInput): Promise<Recipien
       const override = pickOverride(overrides, channel, tenantId);
       const preference = preferenceMap.get(`${key}|${channel}`);
       const fallback = defaultEnabled(event, policy, channel);
+      const locked = event.mandatory === true || override?.locked === true;
 
       let enabled: boolean;
       if (event.mandatory) {
@@ -313,7 +316,7 @@ export async function resolveDispatchPlan(input: ResolveInput): Promise<Recipien
           deferKind: 'quiet',
         };
       }
-      return { channel, allowed: true, reasonCode: null, deferUntil: null };
+      return { channel, allowed: true, reasonCode: null, deferUntil: null, locked };
     });
 
     return { recipient, channels: resolutions };

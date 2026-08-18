@@ -147,7 +147,7 @@ export async function deliverOutboxRow(row: NotificationOutboxRow): Promise<Deli
         pushSuppressed(row, recipient, resolution, records, deferrals, summary);
         continue;
       }
-      deliveries.push(deliverOne(row, event, eventKey, recipient, channel, title, content, vars, records, summary));
+      deliveries.push(deliverOne(row, event, eventKey, recipient, resolution, title, content, vars, records, summary));
     }
   }
 
@@ -193,7 +193,13 @@ function pushSuppressed(
   }
 }
 
-/** 频控：窗口内已成功投递条数达到上限则抑制。仅在事件声明 rateLimit 时才查询。 */
+/**
+ * 频控：窗口内已成功投递条数达到上限则抑制。仅在事件声明 rateLimit 时才查询。
+ *
+ * check-then-act 近似：本批次的 sent 记录在全部投递完成后才批量落库，
+ * 并发突发时可能超出上限至多「突发条数」条，随后收敛。频控目标是止住风暴
+ * 而非精确配额，这里刻意用近似换取免去逐条落库的写放大。
+ */
 async function isRateLimited(
   event: ReturnType<typeof getNotificationEvent>,
   base: ReturnType<typeof dispatchRowBase>,
@@ -218,13 +224,14 @@ async function deliverOne(
   event: ReturnType<typeof getNotificationEvent>,
   eventKey: NotificationEventKey,
   recipient: NotificationRecipient,
-  channel: NotificationChannel,
+  resolution: ChannelResolution,
   title: string,
   content: string,
   vars: Record<string, string>,
   records: NewNotificationDispatch[],
   summary: DeliverSummary,
 ): Promise<void> {
+  const { channel } = resolution;
   const base = dispatchRowBase(row, recipient, channel);
   const adapter = getNotificationAdapter(channel);
   if (!adapter) {
@@ -277,6 +284,7 @@ async function deliverOne(
       link: row.link,
       tenantId: row.tenantId,
       dedupeKey: base.dedupeKey,
+      channelLocked: resolution.locked === true,
       options: row.channelOptions ?? null,
     });
     records.push({ ...base, decision: 'sent', reasonCode: null, reasonDetail: null, providerMsgId: result.providerMsgId ?? null });

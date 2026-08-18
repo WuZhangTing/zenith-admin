@@ -10,16 +10,9 @@ import type { NotificationChannelOptions, NotificationRecipient } from '@zenith/
 import { db } from '../../../db';
 import { emailSendLogs, members, users } from '../../../db/schema';
 import { sendMail } from '../../email';
+import { escapeHtml } from '../../html-escape';
 import { buildUnsubscribeUrl } from '../unsubscribe';
 import type { DeliveryContext, DeliveryResult, NotificationChannelAdapter } from '../types';
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 async function lookupEmail(recipient: NotificationRecipient): Promise<string | null> {
   if (recipient.type === 'external') {
@@ -57,10 +50,15 @@ export const emailAdapter: NotificationChannelAdapter = {
     // 允许调用方覆盖主题：站内信标题偏短，邮件主题通常还需要带上业务对象名
     const subject = ctx.options?.email?.subject || ctx.title;
 
-    // 退订链接与 RFC 8058 One-Click 头：仅对有账号的收件人与可退订（非强制）事件生成
+    // 退订链接与 RFC 8058 One-Click 头。三类情况不给退订入口：
+    // - mandatory：必达事件本就不可退订；
+    // - hidden：摘要等元事件不在偏好矩阵，写入的退订偏好用户永远看不见也改不回；
+    // - channelLocked：管理员锁定时退订偏好不生效，「退订成功却继续收到」是合规事故。
     let headers: Record<string, string> | undefined;
     const recipient = ctx.target.recipient;
-    if ((recipient.type === 'user' || recipient.type === 'member') && !ctx.event.mandatory) {
+    const unsubscribable = (recipient.type === 'user' || recipient.type === 'member')
+      && !ctx.event.mandatory && !ctx.event.hidden && !ctx.channelLocked;
+    if (unsubscribable && (recipient.type === 'user' || recipient.type === 'member')) {
       const url = buildUnsubscribeUrl({
         recipientType: recipient.type,
         recipientId: recipient.id,

@@ -35,6 +35,8 @@ export interface DeliveryContext {
   tenantId: number | null;
   /** 单条投递的幂等键，渠道自身支持幂等时应透传 */
   dedupeKey: string | null;
+  /** 收件人不可自行关闭该渠道（必达事件或管理员锁定）；退订入口应据此隐藏 */
+  channelLocked: boolean;
   options: NotificationChannelOptions | null;
 }
 

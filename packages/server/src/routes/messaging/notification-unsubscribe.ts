@@ -5,6 +5,8 @@
  * POST 实际应用退订（同时兼容 RFC 8058 One-Click：客户端直接 POST 本地址）。
  */
 import { Hono } from 'hono';
+import { getNotificationEvent, isNotificationEventKey } from '@zenith/shared/messaging';
+import { escapeHtml } from '../../lib/html-escape';
 import { verifyUnsubscribeToken } from '../../lib/notification/unsubscribe';
 import { applyUnsubscribe } from '../../services/messaging/notification-preferences.service';
 
@@ -24,7 +26,7 @@ button:hover{background:#0052cc}</style></head>
 
 router.get('/:token', (c) => {
   const payload = verifyUnsubscribeToken(c.req.param('token'));
-  if (!payload) {
+  if (!payload || (payload.scope === 'event' && !isUnsubscribableEvent(payload.eventKey))) {
     return c.html(page('链接无效', '<h2>链接无效或已过期</h2><p>退订链接已失效。你可以登录系统，在「个人中心 → 通知设置」中管理通知偏好。</p>'), 400);
   }
   return c.html(page('退订确认', `
@@ -37,14 +39,29 @@ router.get('/:token', (c) => {
 
 router.post('/:token', async (c) => {
   const payload = verifyUnsubscribeToken(c.req.param('token'));
-  if (!payload) {
+  if (!payload || (payload.scope === 'event' && !isUnsubscribableEvent(payload.eventKey))) {
     return c.html(page('链接无效', '<h2>链接无效或已过期</h2><p>退订链接已失效，未做任何变更。</p>'), 400);
   }
-  const { eventLabels } = await applyUnsubscribe(payload);
+  const { eventLabels, lockedLabels } = await applyUnsubscribe(payload);
+  // 被管理员锁定的渠道写偏好也不生效，必须如实告知，
+  // 「退订成功却继续收到邮件」比拒绝退订的伤害大得多
+  if (eventLabels.length === 0) {
+    const reason = lockedLabels.length > 0
+      ? `「${escapeHtml(lockedLabels.join('」「'))}」的邮件通知由管理员统一管理，无法自行退订。`
+      : '没有可退订的邮件通知。';
+    return c.html(page('无法退订', `<h2>无法退订</h2><p>${reason}</p><p>如有疑问请联系管理员。</p>`));
+  }
   const detail = payload.scope === 'event'
-    ? `已退订「${eventLabels[0] ?? payload.eventKey}」的邮件通知。`
-    : `已退订 ${eventLabels.length} 类通知的邮件推送。`;
+    ? `已退订「${escapeHtml(eventLabels[0])}」的邮件通知。`
+    : `已退订 ${eventLabels.length} 类通知的邮件推送${lockedLabels.length > 0 ? `；另有 ${lockedLabels.length} 类由管理员统一管理，未变更` : ''}。`;
   return c.html(page('退订成功', `<h2>退订成功</h2><p>${detail}</p><p>如需恢复，请登录系统在「个人中心 → 通知设置」中重新开启。</p>`));
 });
+
+/** 事件必须存在、非隐藏、非必达才可退订；摘要等元事件的退订行用户改不回，直接判链接无效 */
+function isUnsubscribableEvent(eventKey: string | undefined): boolean {
+  if (!eventKey || !isNotificationEventKey(eventKey)) return false;
+  const def = getNotificationEvent(eventKey);
+  return !def.hidden && !def.mandatory;
+}
 
 export default router;

@@ -28,9 +28,11 @@ import {
 } from '@zenith/shared/messaging';
 import { db } from '../../db';
 import {
+  members,
   notificationEventOverrides,
   notificationPreferences,
   notificationRecipientSettings,
+  users,
   type NotificationEventOverrideRow,
 } from '../../db/schema';
 import { currentTenantId, currentUserId } from '../../lib/context';
@@ -231,8 +233,27 @@ export async function saveMyNotificationSettings(input: SaveNotificationSettings
 
 // ─── 退订应用 ─────────────────────────────────────────────────────────────────
 
+export interface ApplyUnsubscribeResult {
+  /** 实际退订成功的事件名 */
+  eventLabels: string[];
+  /** 被管理员锁定、无法退订的事件名（写偏好行也不会生效，必须如实告知） */
+  lockedLabels: string[];
+}
+
+/** 收件人归属租户：锁定判定需要与派发时相同的覆盖作用域。 */
+async function lookupRecipientTenantId(payload: UnsubscribePayload): Promise<number | null> {
+  if (payload.recipientType === 'user') {
+    const [row] = await db.select({ tenantId: users.tenantId }).from(users)
+      .where(eq(users.id, payload.recipientId)).limit(1);
+    return row?.tenantId ?? null;
+  }
+  const [row] = await db.select({ tenantId: members.tenantId }).from(members)
+    .where(eq(members.id, payload.recipientId)).limit(1);
+  return row?.tenantId ?? null;
+}
+
 /** 应用退订令牌：把邮件渠道偏好显式置为关闭。幂等，可重复调用。 */
-export async function applyUnsubscribe(payload: UnsubscribePayload): Promise<{ eventLabels: string[] }> {
+export async function applyUnsubscribe(payload: UnsubscribePayload): Promise<ApplyUnsubscribeResult> {
   const targets: string[] = payload.scope === 'event'
     ? [payload.eventKey!]
     : NOTIFICATION_EVENT_KEYS.filter((key) => {
@@ -240,12 +261,22 @@ export async function applyUnsubscribe(payload: UnsubscribePayload): Promise<{ e
       return !def.hidden && !def.mandatory && eventAvailableChannels(def).includes('email');
     });
 
+  const tenantId = await lookupRecipientTenantId(payload);
+  const overrides = await loadEffectiveOverrides(tenantId);
+
   const labels: string[] = [];
+  const lockedLabels: string[] = [];
   await db.transaction(async (tx) => {
     for (const eventKey of targets) {
       if (!isNotificationEventKey(eventKey)) continue;
       const def = getNotificationEvent(eventKey);
-      if (def.mandatory) continue;
+      // hidden：摘要等元事件不在偏好矩阵，写入的退订行用户永远看不见也改不回；
+      // mandatory / locked：派发时偏好被跳过，写了也不生效——「退订成功却继续收到」是合规事故
+      if (def.hidden || def.mandatory) continue;
+      if (baselineEnabled(overrides, eventKey, 'email', tenantId).locked) {
+        lockedLabels.push(def.label);
+        continue;
+      }
       labels.push(def.label);
       await tx.insert(notificationPreferences).values({
         recipientType: payload.recipientType,
@@ -264,5 +295,5 @@ export async function applyUnsubscribe(payload: UnsubscribePayload): Promise<{ e
       });
     }
   });
-  return { eventLabels: labels };
+  return { eventLabels: labels, lockedLabels };
 }
