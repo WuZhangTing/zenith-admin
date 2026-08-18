@@ -1,5 +1,6 @@
 import type React from 'react';
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Typography, Skeleton, Empty } from '@douyinfe/semi-ui';
 import {
   AreaChart,
@@ -33,17 +34,19 @@ interface StatItem {
   icon: React.ReactNode;
   color: string;
   format?: (v: number) => string;
+  /** 点击下钻的目标管理页 */
+  to?: string;
 }
 
 const STAT_ITEMS: StatItem[] = [
-  { key: 'totalMembers', label: '总会员数', icon: <Users size={20} />, color: '#07c160' },
-  { key: 'todayNewMembers', label: '今日新增', icon: <UserPlus size={20} />, color: '#4A90E2' },
-  { key: 'monthNewMembers', label: '本月新增', icon: <CalendarPlus size={20} />, color: '#722ED1' },
-  { key: 'activeMembers30d', label: '近30天活跃', icon: <Activity size={20} />, color: '#13C2C2' },
-  { key: 'totalPoints', label: '积分总量', icon: <Coins size={20} />, color: '#FA8C16' },
-  { key: 'totalWalletBalance', label: '钱包余额(元)', icon: <Wallet size={20} />, color: '#1677FF', format: (v) => (v / 100).toFixed(2) },
-  { key: 'todayCheckins', label: '今日签到', icon: <CalendarCheck size={20} />, color: '#EB2F96' },
-  { key: 'availableCoupons', label: '可用券数', icon: <Ticket size={20} />, color: '#F5222D' },
+  { key: 'totalMembers', label: '总会员数', icon: <Users size={20} />, color: '#07c160', to: '/member/members' },
+  { key: 'todayNewMembers', label: '今日新增', icon: <UserPlus size={20} />, color: '#4A90E2', to: '/member/members' },
+  { key: 'monthNewMembers', label: '本月新增', icon: <CalendarPlus size={20} />, color: '#722ED1', to: '/member/members' },
+  { key: 'activeMembers30d', label: '近30天活跃', icon: <Activity size={20} />, color: '#13C2C2', to: '/member/members' },
+  { key: 'totalPoints', label: '积分总量', icon: <Coins size={20} />, color: '#FA8C16', to: '/member/points' },
+  { key: 'totalWalletBalance', label: '钱包余额(元)', icon: <Wallet size={20} />, color: '#1677FF', format: (v) => (v / 100).toFixed(2), to: '/member/wallets' },
+  { key: 'todayCheckins', label: '今日签到', icon: <CalendarCheck size={20} />, color: '#EB2F96', to: '/member/checkin-logs' },
+  { key: 'availableCoupons', label: '可用券数', icon: <Ticket size={20} />, color: '#F5222D', to: '/member/coupon-records' },
 ];
 
 function ChartCard({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
@@ -56,6 +59,7 @@ function ChartCard({ title, children }: Readonly<{ title: string; children: Reac
 }
 
 export default function MemberDashboardPage() {
+  const navigate = useNavigate();
   const palette = useChartPalette();
   const overviewQuery = useMemberStatsOverview();
   const chartsQuery = useMemberStatsCharts();
@@ -144,13 +148,13 @@ export default function MemberDashboardPage() {
 
   return (
     <div className="page-container zx-flat-panels">
-      {/* 概览卡片 */}
+      {/* 概览卡片：点击下钻到对应管理页 */}
       <StatGrid minItemWidth={200} style={{ marginBottom: 16 }}>
         {overview && STAT_ITEMS.map((item) => {
           const raw = overview[item.key];
           const value = item.format ? item.format(raw) : raw;
           const sub = item.key === 'todayCheckins' ? `签到率 ${overview.todayCheckinRate}%` : undefined;
-          return <StatCard key={item.key} title={item.label} value={value} icon={item.icon} accent={item.color} sub={sub} />;
+          return <StatCard key={item.key} title={item.label} value={value} icon={item.icon} accent={item.color} sub={sub} onClick={item.to ? () => navigate(item.to!) : undefined} />;
         })}
       </StatGrid>
 

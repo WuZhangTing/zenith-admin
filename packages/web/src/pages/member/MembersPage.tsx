@@ -8,6 +8,7 @@ import { MEMBER_STATUS_LABELS } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
+import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
@@ -51,8 +52,10 @@ export default function MembersPage() {
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    handleSearch, handleReset, applySearch,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: memberAdminKeys.memberLists });
+  // 等级列表"会员数"等入口的深链筛选（?levelId=，消费后即从 URL 移除）
+  useListDeepLink(['levelId'], (p) => applySearch({ ...defaultSearch, levelId: Number(p.levelId) || undefined }));
   const [pwdVisible, setPwdVisible] = useState(false);
   const [pwdMember, setPwdMember] = useState<Member | null>(null);
   const [growthVisible, setGrowthVisible] = useState(false);

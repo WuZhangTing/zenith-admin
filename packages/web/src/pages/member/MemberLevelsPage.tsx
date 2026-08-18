@@ -1,6 +1,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
-import { Space, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { useNavigate } from 'react-router-dom';
+import { Space, Form, Toast, Tag, Row, Col, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { MemberLevel } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
@@ -16,6 +17,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 
 export default function MemberLevelsPage() {
+  const navigate = useNavigate();
   const { items: statusItems } = useDictItems('common_status');
   const statusOptions = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
@@ -48,7 +50,11 @@ export default function MemberLevelsPage() {
     { title: '等级序号', dataIndex: 'level', width: 90 },
     { title: '成长值门槛', dataIndex: 'growthThreshold', width: 110 },
     { title: '折扣', dataIndex: 'discount', width: 90, render: (v: number) => (v >= 100 ? '无' : `${(v / 10).toFixed(1)}折`) },
-    { title: '会员数', dataIndex: 'memberCount', width: 90, render: (v?: number) => v ?? 0 },
+    { title: '会员数', dataIndex: 'memberCount', width: 90, render: (v: number | undefined, r: MemberLevel) => (
+      (v ?? 0) > 0
+        ? <Typography.Text link onClick={() => navigate(`/member/members?levelId=${r.id}`)}>{v}</Typography.Text>
+        : 0
+    ) },
     { title: '权益', dataIndex: 'benefits', width: 220, render: (v: string[]) => (v?.length ? <Space wrap spacing={4}>{v.map((b, i) => <Tag key={i} color="light-blue">{b}</Tag>)}</Space> : '-') },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',

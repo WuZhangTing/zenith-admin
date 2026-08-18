@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Select, Form, Toast, Tag, Row, Col } from '@douyinfe/semi-ui';
+import { useNavigate } from 'react-router-dom';
+import { Select, Form, Toast, Tag, Row, Col, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared/member';
@@ -46,6 +47,7 @@ interface FormValues {
 }
 
 export default function CouponsPage() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const issueFormApi = useRef<FormApi | null>(null);
   const {
@@ -153,7 +155,11 @@ export default function CouponsPage() {
     { title: '类型', dataIndex: 'type', width: 90, render: (v: CouponType) => <Tag color={v === 'amount' ? 'green' : 'blue'}>{COUPON_TYPE_LABELS[v]}</Tag> },
     { title: '面值', dataIndex: 'faceValue', width: 100, render: (_: number, r: Coupon) => renderFace(r) },
     { title: '门槛', dataIndex: 'threshold', width: 110, render: renderThreshold },
-    { title: '已发/总量', dataIndex: 'totalQuantity', width: 110, render: (_: number, r: Coupon) => renderQuantity(r) },
+    { title: '已发/总量', dataIndex: 'totalQuantity', width: 110, render: (_: number, r: Coupon) => (
+      r.issuedQuantity > 0
+        ? <Typography.Text link onClick={() => navigate(`/member/coupon-records?couponId=${r.id}`)}>{renderQuantity(r)}</Typography.Text>
+        : renderQuantity(r)
+    ) },
     { title: '每人限领', dataIndex: 'perLimit', width: 90, render: (v: number) => (v > 0 ? v : '不限') },
     { title: '兑换积分', dataIndex: 'exchangePoints', width: 90, render: (v?: number) => (v && v > 0 ? v : '-') },
     { title: '有效期', dataIndex: 'validType', width: 200, render: (_: string, r: Coupon) => <span style={{ fontSize: 12 }}>{renderValid(r)}</span> },

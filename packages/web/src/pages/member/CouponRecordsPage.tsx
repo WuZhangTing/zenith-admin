@@ -30,8 +30,11 @@ export default function CouponRecordsPage() {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset, applySearch,
   } = useListSearch<SearchParams>({ defaults: {}, listKey: memberAdminKeys.couponRecordLists });
-  // 会员详情等入口的深链筛选（?memberKeyword=，消费后即从 URL 移除）
-  useListDeepLink(['memberKeyword'], (p) => applySearch({ memberKeyword: p.memberKeyword }));
+  // 会员详情/优惠券列表入口的深链筛选（?memberKeyword= / ?couponId=，消费后即从 URL 移除）
+  useListDeepLink(['memberKeyword', 'couponId'], (p) => applySearch({
+    ...(p.memberKeyword ? { memberKeyword: p.memberKeyword } : {}),
+    ...(p.couponId ? { couponId: Number(p.couponId) || undefined } : {}),
+  }));
   const listQuery = useCouponRecordList({
     page,
     pageSize,
