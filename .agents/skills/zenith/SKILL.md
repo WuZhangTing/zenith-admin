@@ -1,6 +1,6 @@
 ---
 name: zenith
-description: "Zenith Admin 项目专属开发辅助。Use when: 开发新模块、实现 CRUD、新增页面、配置菜单权限、增删改查、新建后台功能、新增管理功能、异步任务、批量操作、任务进度、发布新版本、db migration、seed data、MSW mock、修改现有模块、添加字段。包含完整的 CRUD 代码生成流程（Step 0-11）、异步任务接入、模块修改流程与版本发布流程。"
+description: "Zenith Admin 项目专属开发辅助。Use when: 开发新模块、实现 CRUD、新增页面、配置菜单权限、增删改查、新建后台功能、新增管理功能、异步任务、批量操作、任务进度、发通知、通知事件、消息提醒、订阅通知、发布新版本、db migration、seed data、MSW mock、修改现有模块、添加字段。包含完整的 CRUD 代码生成流程（Step 0-11）、异步任务接入、通知中心接入、模块修改流程与版本发布流程。"
 argument-hint: "部门管理 CRUD | 公告管理（含 MSW Mock）| 发布 v1.2.0 | 给用户表加字段"
 user-invocable: true
 ---
@@ -21,6 +21,7 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 | --- | --- | --- |
 | CRUD 开发 | 实现 XXX CRUD、新增 XXX 模块、开发 XXX 功能、新增管理页面 | 本文件 Step 0 → Step 11 |
 | 修改已有模块 | 给 XXX 加字段、修改 XXX 接口、XXX 添加关联、改枚举、删字段 | [module-modification.md](./references/module-modification.md) |
+| 发送通知 / 新增通知事件 | 发通知、通知用户、订阅提醒、接入通知中心、加通知事件 | [notifications.md](./references/notifications.md) |
 | 异步任务 / 大批量作业 | 批量导入、大数据量处理、后台任务、任务进度、长耗时操作 | [async-tasks.md](./references/async-tasks.md) |
 | 发布新版本 | 发布 vX.Y.Z、准备发布、release X.Y.Z | [release.md](./references/release.md) |
 | 报错排查 | 构建失败、迁移失败、类型不匹配、缓存不刷新、启动缓慢 | [troubleshooting.md](./references/troubleshooting.md) |
@@ -40,6 +41,7 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 | [seed-config.md](./references/seed-config.md) | Step 9-10 菜单权限与种子数据 | 配菜单 / 种子时 |
 | [crud-mock.md](./references/crud-mock.md) | Step 11 MSW Mock 模板 | 需要 Demo 模式时 |
 | [async-tasks.md](./references/async-tasks.md) | 任务中心接入与选型对照 | 大数据量、长耗时或需进度 / 重试 / 取消时 |
+| [notifications.md](./references/notifications.md) | 通知中心接入：事件注册、notify() 调用、渠道策略 | 任何「发生某事 → 通知相关人」的功能 |
 | [module-modification.md](./references/module-modification.md) | 加字段 / 改接口 / 加关联 / 改枚举 / 删字段的步骤序列 | 改已有模块时 |
 | [troubleshooting.md](./references/troubleshooting.md) | 症状 → 定位 → 指回规范 | 报错时 |
 | [release.md](./references/release.md) | 版本发布流程 | 发版时 |

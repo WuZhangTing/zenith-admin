@@ -188,3 +188,16 @@ server 启动时加载全部路由 / 服务模块图，任何模块顶层静态 
 - 大数据量、长耗时、可重试或需进度 / 取消的操作必须接任务中心（`lib/task-center/`）。
   用户已选中且可在正常 HTTP 请求窗口内快速完成的有界表格批量操作可以使用同步 `/batch`；
   **禁止**自建任务表、后台轮询线程或 `setInterval` 驱动的作业。见 [async-tasks.md](./async-tasks.md)
+
+### 通知发送
+
+- **事件通知唯一入口是 `notify()` / `notifyWithin()`**（`services/messaging/notification-outbox.service`）；
+  业务域**禁止**直接 import `sendMail` / `sendSmsByProvider` / `sendWebhookNotification` /
+  `notifyUserWithCard`（ESLint 已封禁，豁免清单见 `packages/server/eslint.config.js`，
+  仅限事务性发信与配置驱动的编排节点）。见 [notifications.md](./notifications.md)
+- **事件先注册后使用**：新事件必须先加进 `shared/messaging/notification-events.ts`
+  （key 用 `{域}.{对象}.{动作}` 点分小写，变量用 `eventVars<>()` 声明）；未注册的 key 编译不过
+- **定时任务 / 可重放场景必传 `dedupeKey`**；站内信可跳转的场景必传 `link`
+- **`mandatory: true` 仅限账号安全与告警必达**；`availableChannels` 不得列出无投递支撑的渠道
+- **Webhook 收件人只能是 `external`**（它是地址不是人）；配置开关翻译为 `channelPolicy`，
+  渠道参数（短信模板 / 邮件主题）放 `channelOptions`，禁止业务侧自行分发渠道
