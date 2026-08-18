@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { chatMessageExtraSchema } from '../chat/validation';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { MP_CUSTOM_MSG_TYPES } from '../mp/constants';
+import { NOTIFICATION_CHANNELS, NOTIFICATION_DIGEST_MODES } from './constants';
 
 // ─── 公告 Schema ─────────────────────────────────────────────────────────────
 export const announcementRecipientSchema = z.object({
@@ -344,3 +345,49 @@ export const batchSendMpTemplateSchema = z.object({
 });
 
 export type BatchSendMpTemplateInput = z.infer<typeof batchSendMpTemplateSchema>;
+
+// ─── 通知中心（Notification Center）─────────────────────────────────────────
+const clockSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, '时间格式应为 HH:mm');
+
+export const saveNotificationPreferenceItemSchema = z.object({
+  eventKey: z.string().min(1).max(100),
+  channel: z.enum(NOTIFICATION_CHANNELS),
+  enabled: z.boolean(),
+});
+
+export const saveNotificationPreferencesSchema = z.object({
+  items: z.array(saveNotificationPreferenceItemSchema).min(1, '至少提交一项变更').max(500),
+});
+
+export const saveNotificationSettingsSchema = z.object({
+  globalMuted: z.boolean(),
+  timezone: z.string().min(1).max(64),
+  quietStart: clockSchema.nullable(),
+  quietEnd: clockSchema.nullable(),
+  digestMode: z.enum(NOTIFICATION_DIGEST_MODES),
+  digestHour: z.number().int().min(0).max(23),
+}).refine(
+  (v) => (v.quietStart === null) === (v.quietEnd === null),
+  { message: '免打扰起止时间需同时设置或同时留空', path: ['quietEnd'] },
+).refine(
+  (v) => v.quietStart === null || v.quietStart !== v.quietEnd,
+  { message: '免打扰起止时间不能相同', path: ['quietEnd'] },
+);
+
+export const saveNotificationOverrideSchema = z.object({
+  eventKey: z.string().min(1).max(100),
+  channel: z.enum(NOTIFICATION_CHANNELS),
+  enabled: z.boolean(),
+  locked: z.boolean().default(false),
+});
+
+export const resetNotificationOverrideSchema = z.object({
+  eventKey: z.string().min(1).max(100),
+  channel: z.enum(NOTIFICATION_CHANNELS),
+});
+
+export type SaveNotificationPreferenceItem = z.infer<typeof saveNotificationPreferenceItemSchema>;
+export type SaveNotificationPreferencesInput = z.infer<typeof saveNotificationPreferencesSchema>;
+export type SaveNotificationSettingsInput = z.infer<typeof saveNotificationSettingsSchema>;
+export type SaveNotificationOverrideInput = z.infer<typeof saveNotificationOverrideSchema>;
+export type ResetNotificationOverrideInput = z.infer<typeof resetNotificationOverrideSchema>;

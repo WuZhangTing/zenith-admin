@@ -1,0 +1,308 @@
+/**
+ * 通知策略中心（管理员）。
+ *
+ * Tab 1 事件策略：事件目录（来自代码常量）+ 当前作用域的渠道覆盖与锁定；
+ * Tab 2 投递日志：每次派发的「收件人 × 渠道」决策与归因，回答「为什么他没收到」。
+ */
+import { useMemo } from 'react';
+import { Button, Select, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { Lock, RotateCcw, Unlock } from 'lucide-react';
+import {
+  NOTIFICATION_CHANNEL_LABELS,
+  NOTIFICATION_DECISION_LABELS,
+  NOTIFICATION_DECISION_OPTIONS,
+  NOTIFICATION_REASON_CODE_LABELS,
+  NOTIFICATION_SEVERITY_LABELS,
+  type NotificationChannel,
+  type NotificationDecision,
+  type NotificationPolicyEvent,
+  type NotificationReasonCode,
+} from '@zenith/shared/messaging';
+import ConfigurableTable from '@/components/ConfigurableTable';
+import { SearchToolbar } from '@/components/SearchToolbar';
+import { DateRangeFilter } from '@/components/search-filters';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { formatDateTimeRangeForApi } from '@/utils/date';
+import { useListSearch } from '@/hooks/useListSearch';
+import { usePermission } from '@/hooks/usePermission';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
+import {
+  notificationPolicyKeys,
+  useNotificationDispatches,
+  useNotificationPolicyEvents,
+  useResetNotificationOverride,
+  useSaveNotificationOverride,
+  type NotificationDispatchItem,
+} from '@/hooks/queries/notification-policies';
+
+const { Text } = Typography;
+
+const SEVERITY_TAG_COLOR: Record<string, 'grey' | 'orange' | 'red'> = {
+  normal: 'grey',
+  important: 'orange',
+  critical: 'red',
+};
+
+const DECISION_TAG_COLOR: Record<NotificationDecision, 'green' | 'grey' | 'blue' | 'cyan' | 'red'> = {
+  sent: 'green',
+  suppressed: 'grey',
+  deferred: 'blue',
+  deduped: 'cyan',
+  failed: 'red',
+};
+
+// ─── Tab 1：事件策略 ───────────────────────────────────────────────────────────
+
+function ChannelPolicyCell({ event, canSave }: Readonly<{ event: NotificationPolicyEvent; canSave: boolean }>) {
+  const saveMutation = useSaveNotificationOverride();
+  const resetMutation = useResetNotificationOverride();
+
+  return (
+    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      {event.channels.map((cell) => {
+        const effective = cell.override?.enabled ?? cell.defaultEnabled;
+        const locked = cell.override?.locked ?? false;
+        const overridden = cell.override !== null;
+        return (
+          <span key={cell.channel} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Text type="tertiary" size="small">{NOTIFICATION_CHANNEL_LABELS[cell.channel]}</Text>
+            <Switch
+              size="small"
+              checked={effective}
+              disabled={!canSave || saveMutation.isPending}
+              onChange={(checked) => {
+                saveMutation.mutate(
+                  { eventKey: event.key, channel: cell.channel, enabled: checked, locked },
+                  { onSuccess: () => Toast.success('策略已更新') },
+                );
+              }}
+              aria-label={`${event.label} - ${NOTIFICATION_CHANNEL_LABELS[cell.channel]}`}
+            />
+            {!event.mandatory && (
+              <Tooltip content={locked ? '已锁定：用户不可自行修改，点击解锁' : '未锁定：用户可自行开关，点击锁定'}>
+                <Button
+                  theme="borderless"
+                  size="small"
+                  disabled={!canSave}
+                  icon={locked ? <Lock size={13} /> : <Unlock size={13} style={{ color: 'var(--semi-color-text-3)' }} />}
+                  onClick={() => {
+                    saveMutation.mutate(
+                      { eventKey: event.key, channel: cell.channel, enabled: effective, locked: !locked },
+                      { onSuccess: () => Toast.success(locked ? '已解锁' : '已锁定') },
+                    );
+                  }}
+                  aria-label={locked ? '解锁' : '锁定'}
+                />
+              </Tooltip>
+            )}
+            {overridden && (
+              <Tooltip content="存在覆盖，点击恢复默认">
+                <Button
+                  theme="borderless"
+                  size="small"
+                  disabled={!canSave}
+                  icon={<RotateCcw size={13} />}
+                  loading={resetMutation.isPending}
+                  onClick={() => {
+                    resetMutation.mutate(
+                      { eventKey: event.key, channel: cell.channel },
+                      { onSuccess: () => Toast.success('已恢复默认') },
+                    );
+                  }}
+                  aria-label="恢复默认"
+                />
+              </Tooltip>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function PolicyEventsTab() {
+  const { hasPermission: can } = usePermission();
+  const canSave = can('system:notify-policy:save');
+  const eventsQuery = useNotificationPolicyEvents();
+  const events = eventsQuery.data ?? [];
+
+  const columns: ColumnProps<NotificationPolicyEvent>[] = [
+    {
+      title: '分组', dataIndex: 'groupLabel', width: 110,
+      onCell: (_record, index) => {
+        // 相同分组纵向合并，首行承载整组行高
+        if (index === undefined) return {};
+        const record = events[index];
+        const prev = events[index - 1];
+        if (prev && prev.group === record.group) return { rowSpan: 0 };
+        let span = 1;
+        for (let i = index + 1; i < events.length && events[i].group === record.group; i += 1) span += 1;
+        return { rowSpan: span };
+      },
+    },
+    {
+      title: '事件', dataIndex: 'label', width: 220,
+      render: (label: string, record) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Text>{label}</Text>
+          {record.mandatory && (
+            <Tooltip content="必达通知：用户不可退订"><Lock size={12} style={{ color: 'var(--semi-color-text-2)' }} /></Tooltip>
+          )}
+        </span>
+      ),
+    },
+    {
+      title: '级别', dataIndex: 'severity', width: 80,
+      render: (v: NotificationPolicyEvent['severity']) => (
+        <Tag size="small" color={SEVERITY_TAG_COLOR[v]}>{NOTIFICATION_SEVERITY_LABELS[v]}</Tag>
+      ),
+    },
+    {
+      title: '特性', dataIndex: 'bypassQuietHours', width: 130,
+      render: (bypass: boolean, record) => (
+        <span style={{ display: 'inline-flex', gap: 4 }}>
+          {record.mandatory && <Tag size="small" color="red" type="light">必达</Tag>}
+          {bypass && <Tag size="small" color="orange" type="light">穿透免打扰</Tag>}
+          {!record.mandatory && !bypass && <Text type="tertiary" size="small">{EMPTY_PLACEHOLDER}</Text>}
+        </span>
+      ),
+    },
+    {
+      title: '渠道策略（开关 / 锁定 / 恢复默认）', dataIndex: 'channels',
+      render: (_v, record) => (record ? <ChannelPolicyCell event={record} canSave={canSave} /> : null),
+    },
+  ];
+
+  if (eventsQuery.isPending) {
+    return <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>;
+  }
+  return (
+    <Table
+      bordered
+      dataSource={events}
+      columns={columns}
+      rowKey="key"
+      pagination={false}
+      size="small"
+      empty="暂无事件"
+    />
+  );
+}
+
+// ─── Tab 2：投递日志 ───────────────────────────────────────────────────────────
+
+interface DispatchSearchParams {
+  eventKey: string | undefined;
+  channel: NotificationChannel | undefined;
+  decision: NotificationDecision | undefined;
+  timeRange: [Date, Date] | null;
+}
+
+const defaultDispatchParams: DispatchSearchParams = {
+  eventKey: undefined,
+  channel: undefined,
+  decision: undefined,
+  timeRange: null,
+};
+
+const CHANNEL_OPTIONS = Object.entries(NOTIFICATION_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
+
+function DispatchLogTab() {
+  const eventsQuery = useNotificationPolicyEvents();
+  const eventOptions = useMemo(
+    () => (eventsQuery.data ?? []).map((event) => ({ value: event.key, label: `${event.groupLabel} · ${event.label}` })),
+    [eventsQuery.data],
+  );
+
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<DispatchSearchParams>({ defaults: defaultDispatchParams, listKey: notificationPolicyKeys.dispatches });
+
+  const { startTime, endTime } = formatDateTimeRangeForApi(submittedParams.timeRange);
+  const listQuery = useNotificationDispatches({
+    page,
+    pageSize,
+    eventKey: submittedParams.eventKey,
+    channel: submittedParams.channel,
+    decision: submittedParams.decision,
+    startTime,
+    endTime,
+  });
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  const columns: ColumnProps<NotificationDispatchItem>[] = [
+    dateTimeColumn('派发时间', 'createdAt'),
+    { title: '事件', dataIndex: 'eventLabel', width: 180, render: renderEllipsis },
+    {
+      title: '收件人', dataIndex: 'recipientName', width: 160,
+      render: (_v, record) => record?.recipientName
+        ?? record?.recipientAddress
+        ?? (record && record.recipientId !== null ? `#${record.recipientId}` : EMPTY_PLACEHOLDER),
+    },
+    {
+      title: '渠道', dataIndex: 'channel', width: 90,
+      render: (v: NotificationChannel) => NOTIFICATION_CHANNEL_LABELS[v],
+    },
+    {
+      title: '归因', dataIndex: 'reasonCode', width: 220,
+      render: (v: string | null) => (v ? (NOTIFICATION_REASON_CODE_LABELS[v as NotificationReasonCode] ?? v) : EMPTY_PLACEHOLDER),
+    },
+    { title: '详情', dataIndex: 'reasonDetail', render: renderEllipsis },
+    {
+      title: '结论', dataIndex: 'decision', width: 110, fixed: 'right' as const,
+      render: (v: NotificationDecision) => <Tag color={DECISION_TAG_COLOR[v]} type="light">{NOTIFICATION_DECISION_LABELS[v]}</Tag>,
+    },
+  ];
+
+  return (
+    <>
+      <SearchToolbar
+        primary={(
+          <>
+            <Select placeholder="事件" value={draftParams.eventKey} optionList={eventOptions} showClear filter
+              onChange={(v) => setDraftParams({ ...draftParams, eventKey: v as string | undefined })} style={{ width: 240 }} />
+            <Select placeholder="渠道" value={draftParams.channel} optionList={CHANNEL_OPTIONS} showClear
+              onChange={(v) => setDraftParams({ ...draftParams, channel: v as NotificationChannel | undefined })} style={{ width: 110 }} />
+            <Select placeholder="结论" value={draftParams.decision} optionList={NOTIFICATION_DECISION_OPTIONS} showClear
+              onChange={(v) => setDraftParams({ ...draftParams, decision: v as NotificationDecision | undefined })} style={{ width: 130 }} />
+            <DateRangeFilter value={draftParams.timeRange} onChange={(v) => setDraftParams({ ...draftParams, timeRange: v })} />
+            <SearchButton onClick={handleSearch} />
+            <ResetButton onClick={handleReset} />
+          </>
+        )}
+      />
+      <ConfigurableTable<NotificationDispatchItem>
+        bordered
+        dataSource={list}
+        columns={columns}
+        rowKey="id"
+        loading={listQuery.isPending}
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
+      />
+    </>
+  );
+}
+
+export default function NotifyPoliciesPage() {
+  const [activeTab, setActiveTab] = useUrlTabState(['events', 'dispatches'] as const, 'events');
+
+  return (
+    <div className="page-container">
+      <Tabs activeKey={activeTab} onChange={(v) => setActiveTab(v as 'events' | 'dispatches')}>
+        <Tabs.TabPane itemKey="events" tab="事件策略">
+          <PolicyEventsTab />
+        </Tabs.TabPane>
+        <Tabs.TabPane itemKey="dispatches" tab="投递日志">
+          <DispatchLogTab />
+        </Tabs.TabPane>
+      </Tabs>
+    </div>
+  );
+}

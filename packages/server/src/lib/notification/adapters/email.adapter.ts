@@ -10,6 +10,7 @@ import type { NotificationChannelOptions, NotificationRecipient } from '@zenith/
 import { db } from '../../../db';
 import { emailSendLogs, members, users } from '../../../db/schema';
 import { sendMail } from '../../email';
+import { buildUnsubscribeUrl } from '../unsubscribe';
 import type { DeliveryContext, DeliveryResult, NotificationChannelAdapter } from '../types';
 
 function escapeHtml(text: string): string {
@@ -52,9 +53,28 @@ export const emailAdapter: NotificationChannelAdapter = {
   },
 
   async send(ctx: DeliveryContext): Promise<DeliveryResult> {
-    const html = buildHtml(ctx, ctx.options);
+    let html = buildHtml(ctx, ctx.options);
     // 允许调用方覆盖主题：站内信标题偏短，邮件主题通常还需要带上业务对象名
     const subject = ctx.options?.email?.subject || ctx.title;
+
+    // 退订链接与 RFC 8058 One-Click 头：仅对有账号的收件人与可退订（非强制）事件生成
+    let headers: Record<string, string> | undefined;
+    const recipient = ctx.target.recipient;
+    if ((recipient.type === 'user' || recipient.type === 'member') && !ctx.event.mandatory) {
+      const url = buildUnsubscribeUrl({
+        recipientType: recipient.type,
+        recipientId: recipient.id,
+        scope: 'event',
+        eventKey: ctx.eventKey,
+      });
+      headers = {
+        'List-Unsubscribe': `<${url}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      };
+      html += `<hr style="border:none;border-top:1px solid #eee;margin:16px 0"/>`
+        + `<p style="color:#999;font-size:12px">不想再收到此类邮件？<a href="${escapeHtml(url)}">退订「${escapeHtml(ctx.event.label)}」的邮件通知</a></p>`;
+    }
+
     const [log] = await db.insert(emailSendLogs).values({
       toEmail: ctx.target.address,
       subject,
@@ -66,7 +86,7 @@ export const emailAdapter: NotificationChannelAdapter = {
     }).returning({ id: emailSendLogs.id });
 
     try {
-      await sendMail(ctx.target.address, subject, html);
+      await sendMail(ctx.target.address, subject, html, headers ? { headers } : undefined);
     } catch (err) {
       await db.update(emailSendLogs).set({
         status: 'failed',

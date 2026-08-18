@@ -17,6 +17,8 @@ const boolStr = (def: string) => z.string().default(def).transform(v => v === 't
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3300),
   JWT_SECRET: z.string().min(1).default('zenith-admin-secret'),
+  /** 对外可访问的服务基地址，用于邮件退订链接等出站 URL 拼接 */
+  PUBLIC_BASE_URL: z.string().default('http://localhost:3300'),
   DATABASE_URL: z.string().min(1).default('postgresql://postgres:postgres@localhost:5432/zenith_admin'),
   CORS_ORIGIN: z.string().default('*'),
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().positive().default(10),
@@ -151,6 +153,7 @@ function buildMethodOverrides(prefix: 'HTTP_LOG_INCOMING_METHOD' | 'HTTP_LOG_OUT
 export const config = {
   port: env.PORT,
   jwtSecret: env.JWT_SECRET,
+  publicBaseUrl: env.PUBLIC_BASE_URL.replace(/\/+$/, ''),
   databaseUrl: env.DATABASE_URL,
   corsOrigin: env.CORS_ORIGIN,
   database: {

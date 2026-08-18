@@ -649,6 +649,24 @@ export const SEED_CRON_JOBS: CronJob[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  {
+    id: 32,
+    name: '聚合通知摘要',
+    cronExpression: '0 */10 * * * *',
+    handler: 'aggregateNotificationDigests',
+    params: null,
+    status: 'enabled',
+    description: '每 10 分钟把到期的摘要通知按收件人合并成一封汇总邮件（摘要模式为每小时/每日的用户）',
+    retryCount: 0,
+    retryInterval: 0,
+    retryBackoff: false,
+    monitorTimeout: null,
+    lastRunAt: null,
+    lastRunStatus: null,
+    lastRunMessage: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];
 
 // ─── 标签 ─────────────────────────────────────────────────────────────────────

@@ -38,6 +38,13 @@ export interface NotificationEventDef {
   /** 各渠道模板 code；未配置的渠道回退到事件自带的标题/正文渲染 */
   templates?: Partial<Record<NotificationChannel, string>>;
   /**
+   * 频控：同一收件人在窗口内同事件同渠道最多收到 limit 条，超出记 `rate_limited`。
+   * 只给评论/提及这类可能风暴化的事件配置；告警类必达事件不要配。
+   */
+  rateLimit?: { limit: number; windowMinutes: number };
+  /** 不在偏好矩阵中展示（如摘要这类由派发层自身触发的元事件） */
+  hidden?: boolean;
+  /**
    * 变量类型占位。运行期恒为空对象，只用于在编译期把事件 key 与
    * `notify()` 的 `vars` 参数绑定起来。
    */
@@ -79,6 +86,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     severity: 'normal',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email'],
+    rateLimit: { limit: 10, windowMinutes: 60 },
     vars: eventVars<{ docId: number; docTitle: string; summary: string }>(),
     title: '知识文档有新评论',
     content: '《{{docTitle}}》收到新评论：{{summary}}',
@@ -89,6 +97,7 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     severity: 'important',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email'],
+    rateLimit: { limit: 10, windowMinutes: 60 },
     vars: eventVars<{ docId: number; docTitle: string }>(),
     title: '有人在知识文档中提到了你',
     content: '你在《{{docTitle}}》的评论中被提及，去看看吧。',
@@ -348,9 +357,23 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     severity: 'normal',
     defaultChannels: ['inapp'],
     availableChannels: ['inapp', 'email'],
+    rateLimit: { limit: 10, windowMinutes: 60 },
     vars: eventVars<{ dashboardId: number; dashboardName: string }>(),
     title: '仪表盘评论提及提醒',
     content: '你在仪表盘「{{dashboardName}}」评论中被提及，请前往查看。',
+  },
+
+  // ─── 通知中心元事件 ─────────────────────────────────────────────────────────
+  // 摘要邮件本身：由摘要聚合任务触发，不出现在偏好矩阵（用户通过摘要模式控制它）。
+  'messaging.digest': {
+    group: 'messaging',
+    label: '通知摘要',
+    severity: 'normal',
+    defaultChannels: ['email'],
+    hidden: true,
+    vars: eventVars<{ count: number; periodText: string }>(),
+    title: '你有 {{count}} 条未读通知摘要',
+    content: '{{periodText}}期间共有 {{count}} 条通知，详见邮件内容。',
   },
 });
 

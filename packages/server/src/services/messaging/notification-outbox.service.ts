@@ -5,7 +5,7 @@
  * 渠道选择、偏好、免打扰、幂等与留痕全部由派发层负责。
  * 这样新增一个渠道或改一次偏好规则，不需要回头去改任何业务代码。
  */
-import { and, eq, isNull, lt, lte, or, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import type {
   NotificationChannelOptions,
   NotificationChannelPolicy,
@@ -13,13 +13,15 @@ import type {
   NotificationEventVars,
   NotificationRecipient,
 } from '@zenith/shared/messaging';
-import { isNotificationEventKey } from '@zenith/shared/messaging';
+import { isNotificationEventKey, getNotificationEvent } from '@zenith/shared/messaging';
 import { db } from '../../db';
 import { notificationOutbox } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { currentTraceId } from '../../lib/context';
+import { formatDateTime } from '../../lib/datetime';
 import { deliverOutboxRow } from '../../lib/notification/dispatch';
 import logger from '../../lib/logger';
+import { renderTemplate } from '../../lib/sms-sender';
 import { buildWhere } from '../../lib/where-helpers';
 
 const MAX_ATTEMPTS = 5;
@@ -127,6 +129,8 @@ export async function processNotificationOutbox(id: number): Promise<void> {
     .where(and(
       eq(notificationOutbox.id, id),
       eq(notificationOutbox.status, 'pending'),
+      // 摘要行不走逐条派发，由聚合任务合并处理
+      isNull(notificationOutbox.digestKey),
       lt(notificationOutbox.attempts, MAX_ATTEMPTS),
       or(isNull(notificationOutbox.claimedAt), lt(notificationOutbox.claimedAt, claimBefore)),
       or(isNull(notificationOutbox.scheduledAt), lte(notificationOutbox.scheduledAt, now)),
@@ -165,6 +169,7 @@ export async function dispatchPendingNotifications(): Promise<number> {
     .from(notificationOutbox)
     .where(buildWhere(
       eq(notificationOutbox.status, 'pending'),
+      isNull(notificationOutbox.digestKey),
       lt(notificationOutbox.attempts, MAX_ATTEMPTS),
       or(isNull(notificationOutbox.claimedAt), lt(notificationOutbox.claimedAt, claimBefore)),
       or(isNull(notificationOutbox.scheduledAt), lte(notificationOutbox.scheduledAt, now)),
@@ -174,4 +179,99 @@ export async function dispatchPendingNotifications(): Promise<number> {
     await processNotificationOutbox(row.id);
   }
   return rows.length;
+}
+
+/**
+ * 摘要聚合：把到期的摘要行按「收件人 × 窗口」合并成一封汇总邮件。
+ *
+ * 摘要邮件经 `notify('messaging.digest')` 走完整派发链路，
+ * 邮件发送记录与派发留痕都与普通通知同一套，不另起旁路。
+ */
+export async function aggregateNotificationDigests(): Promise<{ groups: number; items: number }> {
+  const now = new Date();
+  const due = await db.select().from(notificationOutbox)
+    .where(buildWhere(
+      eq(notificationOutbox.status, 'pending'),
+      isNotNull(notificationOutbox.digestKey),
+      lte(notificationOutbox.scheduledAt, now),
+    ))
+    .limit(SCAN_LIMIT);
+  if (due.length === 0) return { groups: 0, items: 0 };
+
+  const groups = new Map<string, typeof due>();
+  for (const row of due) {
+    const key = row.digestKey!;
+    const list = groups.get(key) ?? [];
+    list.push(row);
+    groups.set(key, list);
+  }
+
+  let handledGroups = 0;
+  let handledItems = 0;
+  for (const [, rows] of groups) {
+    // 条件认领整组，多实例并发时同一组只被一个实例聚合
+    const claimed = await db.update(notificationOutbox)
+      .set({ status: 'done', claimedAt: new Date() })
+      .where(and(
+        inArrayIds(rows.map((r) => r.id)),
+        eq(notificationOutbox.status, 'pending'),
+      ))
+      .returning({ id: notificationOutbox.id });
+    if (claimed.length === 0) continue;
+    const claimedIds = new Set(claimed.map((r) => r.id));
+    const items = rows.filter((r) => claimedIds.has(r.id));
+    const recipient = items[0].recipients[0];
+    if (!recipient || recipient.type === 'external') continue;
+
+    const lines = items.map((r) => {
+      if (!isNotificationEventKey(r.eventKey)) return null;
+      const def = getNotificationEvent(r.eventKey);
+      const vars = normalizeDigestVars(r.vars ?? {});
+      return {
+        title: renderTemplate(def.title, vars),
+        content: renderTemplate(def.content, vars),
+        link: r.link,
+        at: formatDateTime(r.createdAt),
+      };
+    }).filter((line): line is NonNullable<typeof line> => line !== null);
+    if (lines.length === 0) continue;
+
+    const html = [
+      `<h3>通知摘要（${lines.length} 条）</h3>`,
+      '<ul style="padding-left:18px">',
+      ...lines.map((line) => `<li style="margin-bottom:8px"><b>${escapeHtml(line.title)}</b><br/>${escapeHtml(line.content)}<br/><span style="color:#888;font-size:12px">${line.at}</span></li>`),
+      '</ul>',
+    ].join('');
+
+    await notify('messaging.digest', {
+      recipients: [recipient],
+      vars: { count: lines.length, periodText: '摘要' },
+      tenantId: items[0].tenantId,
+      channelPolicy: { only: ['email'] },
+      channelOptions: { email: { html, subject: `通知摘要：${lines.length} 条未读通知` } },
+    });
+    handledGroups += 1;
+    handledItems += items.length;
+  }
+  return { groups: handledGroups, items: handledItems };
+}
+
+function inArrayIds(ids: number[]) {
+  return sql`${notificationOutbox.id} in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`;
+}
+
+function normalizeDigestVars(vars: Record<string, unknown>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(vars)) {
+    result[key] = value === null || value === undefined ? '' : String(value);
+  }
+  return result;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

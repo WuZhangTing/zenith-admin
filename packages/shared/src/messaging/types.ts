@@ -4,8 +4,10 @@ import type {
   NotificationChannel,
   NotificationDecision,
   NotificationDigestMode,
+  NotificationEventGroup,
   NotificationReasonCode,
   NotificationRecipientType,
+  NotificationSeverity,
 } from './constants';
 
 // ─── 公告 ──────────────────────────────────────────────────
@@ -596,4 +598,55 @@ export interface NotificationDispatchRecord {
   reasonDetail: string | null;
   tenantId: number | null;
   createdAt: string;
+}
+
+// ─── 偏好矩阵与策略中心视图模型 ───────────────────────────────────────────────
+
+/** 偏好矩阵中一个「事件 × 渠道」格子的可视状态。 */
+export interface NotificationMatrixChannel {
+  channel: NotificationChannel;
+  /** 该事件是否开放此渠道（不开放的渠道不渲染开关） */
+  available: boolean;
+  /** 当前生效值（偏好 → 租户/平台覆盖 → 事件默认 逐层求值后的结果） */
+  enabled: boolean;
+  /** 管理员已锁定，用户不可修改 */
+  locked: boolean;
+  /** 无任何覆盖时的默认值，用于「恢复默认」与稀疏存储判断 */
+  defaultEnabled: boolean;
+}
+
+export interface NotificationMatrixEvent {
+  key: string;
+  label: string;
+  description?: string;
+  severity: NotificationSeverity;
+  /** 强制事件：整行锁定 */
+  mandatory: boolean;
+  channels: NotificationMatrixChannel[];
+}
+
+export interface NotificationMatrixGroup {
+  group: NotificationEventGroup;
+  label: string;
+  events: NotificationMatrixEvent[];
+}
+
+/** 策略中心的事件行：目录信息 + 当前作用域的覆盖。 */
+export interface NotificationPolicyChannel {
+  channel: NotificationChannel;
+  available: boolean;
+  defaultEnabled: boolean;
+  override: { enabled: boolean; locked: boolean } | null;
+}
+
+export interface NotificationPolicyEvent {
+  key: string;
+  group: NotificationEventGroup;
+  groupLabel: string;
+  label: string;
+  description?: string;
+  severity: NotificationSeverity;
+  mandatory: boolean;
+  bypassQuietHours: boolean;
+  channels: NotificationPolicyChannel[];
 }

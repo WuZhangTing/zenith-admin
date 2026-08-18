@@ -659,6 +659,12 @@ handlerRegistry.set('dispatchNotifications', async () => {
   return `补投通知事件 ${count} 条`;
 });
 
+handlerRegistry.set('aggregateNotificationDigests', async () => {
+  const { aggregateNotificationDigests } = await import('../services/messaging/notification-outbox.service');
+  const r = await aggregateNotificationDigests();
+  return `聚合通知摘要 ${r.groups} 组（${r.items} 条）`;
+});
+
 handlerRegistry.set('retryFailedSharing', async () => {
   const { retryFailedSharingOrders, syncProcessingSharingOrders } = await import('../services/payment/payment-sharing.service');
   const r = await retryFailedSharingOrders();

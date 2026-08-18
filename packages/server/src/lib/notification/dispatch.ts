@@ -4,7 +4,7 @@
  * 单个渠道失败不影响其他渠道，也不影响其他收件人——一次事件里有人邮箱写错，
  * 不应该让同一批的其他人都收不到。
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import {
   getNotificationEvent,
   isNotificationEventKey,
@@ -84,12 +84,12 @@ async function loadAlreadySent(outboxId: number): Promise<Set<string>> {
 }
 
 /**
- * 把命中免打扰的投递重新入队到窗口结束之后。
- * 只带上被延后的那个收件人与渠道，避免整条事件被一并推迟。
+ * 把命中免打扰 / 摘要的投递重新入队。
+ * quiet 到点后逐条重投；digest 行带 digestKey，由聚合任务合并成一封摘要。
  */
 async function enqueueDeferred(
   row: NotificationOutboxRow,
-  deferrals: Array<{ recipient: NotificationRecipient; channel: NotificationChannel; deferUntil: Date }>,
+  deferrals: Array<{ recipient: NotificationRecipient; channel: NotificationChannel; deferUntil: Date; digestKey: string | null }>,
 ): Promise<void> {
   if (deferrals.length === 0) return;
   await db.insert(notificationOutbox).values(deferrals.map((item) => ({
@@ -102,6 +102,7 @@ async function enqueueDeferred(
     // 延后行不继承 dedupeKey：与原行同键会被唯一索引直接吞掉
     dedupeKey: null,
     scheduledAt: item.deferUntil,
+    digestKey: item.digestKey,
     traceId: row.traceId,
     tenantId: row.tenantId,
   })));
@@ -130,7 +131,7 @@ export async function deliverOutboxRow(row: NotificationOutboxRow): Promise<Deli
   ]);
 
   const records: NewNotificationDispatch[] = [];
-  const deferrals: Array<{ recipient: NotificationRecipient; channel: NotificationChannel; deferUntil: Date }> = [];
+  const deferrals: Array<{ recipient: NotificationRecipient; channel: NotificationChannel; deferUntil: Date; digestKey: string | null }> = [];
   const summary: DeliverSummary = { sent: 0, suppressed: 0, deferred: 0, failed: 0 };
 
   const deliveries: Array<Promise<void>> = [];
@@ -166,7 +167,7 @@ function pushSuppressed(
   recipient: NotificationRecipient,
   resolution: ChannelResolution,
   records: NewNotificationDispatch[],
-  deferrals: Array<{ recipient: NotificationRecipient; channel: NotificationChannel; deferUntil: Date }>,
+  deferrals: Array<{ recipient: NotificationRecipient; channel: NotificationChannel; deferUntil: Date; digestKey: string | null }>,
   summary: DeliverSummary,
 ): void {
   const deferred = resolution.deferUntil !== null;
@@ -177,11 +178,39 @@ function pushSuppressed(
     reasonDetail: null,
   });
   if (deferred && resolution.deferUntil) {
-    deferrals.push({ recipient, channel: resolution.channel, deferUntil: resolution.deferUntil });
+    deferrals.push({
+      recipient,
+      channel: resolution.channel,
+      deferUntil: resolution.deferUntil,
+      // 同一收件人同一窗口共享一个 digestKey，聚合任务据此合并
+      digestKey: resolution.deferKind === 'digest'
+        ? `${recipientTag(recipient)}:${resolution.deferUntil.getTime()}`
+        : null,
+    });
     summary.deferred += 1;
   } else {
     summary.suppressed += 1;
   }
+}
+
+/** 频控：窗口内已成功投递条数达到上限则抑制。仅在事件声明 rateLimit 时才查询。 */
+async function isRateLimited(
+  event: ReturnType<typeof getNotificationEvent>,
+  base: ReturnType<typeof dispatchRowBase>,
+): Promise<boolean> {
+  if (!event.rateLimit) return false;
+  const since = new Date(Date.now() - event.rateLimit.windowMinutes * 60_000);
+  const recipientCondition = base.recipientId !== null
+    ? and(eq(notificationDispatches.recipientType, base.recipientType), eq(notificationDispatches.recipientId, base.recipientId))
+    : eq(notificationDispatches.recipientAddress, base.recipientAddress ?? '');
+  const count = await db.$count(notificationDispatches, and(
+    recipientCondition,
+    eq(notificationDispatches.eventKey, base.eventKey),
+    eq(notificationDispatches.channel, base.channel),
+    eq(notificationDispatches.decision, 'sent'),
+    gte(notificationDispatches.createdAt, since),
+  ));
+  return count >= event.rateLimit.limit;
 }
 
 async function deliverOne(
@@ -200,6 +229,12 @@ async function deliverOne(
   const adapter = getNotificationAdapter(channel);
   if (!adapter) {
     records.push({ ...base, decision: 'suppressed', reasonCode: 'channel_unavailable', reasonDetail: null });
+    summary.suppressed += 1;
+    return;
+  }
+
+  if (await isRateLimited(event, base)) {
+    records.push({ ...base, decision: 'suppressed', reasonCode: 'rate_limited', reasonDetail: null });
     summary.suppressed += 1;
     return;
   }

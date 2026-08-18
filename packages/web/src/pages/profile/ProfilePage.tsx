@@ -5,7 +5,7 @@ import {
   Modal, Tabs, List as SemiList, Descriptions, Divider, PinCode,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck } from 'lucide-react';
+import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck, BellRing } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -53,9 +53,10 @@ import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import NotificationSettingsTab from './NotificationSettingsTab';
 const { Title, Text } = Typography;
 
-type SectionKey = 'profile' | 'security' | 'devices' | 'login' | 'operation' | 'api-tokens' | 'authorized-apps';
+type SectionKey = 'profile' | 'security' | 'notifications' | 'devices' | 'login' | 'operation' | 'api-tokens' | 'authorized-apps';
 
 interface ProfilePageProps {
   readonly user: Omit<UserType, 'password'>;
@@ -115,7 +116,7 @@ function SessionList({
 }
 
 export default function ProfilePage({ user }: ProfilePageProps) {
-  const [activeSection, setActiveSection] = useUrlTabState(['profile', 'security', 'devices', 'login', 'operation', 'api-tokens', 'authorized-apps'] as const, 'profile');
+  const [activeSection, setActiveSection] = useUrlTabState(['profile', 'security', 'notifications', 'devices', 'login', 'operation', 'api-tokens', 'authorized-apps'] as const, 'profile');
 
   // ─── 基本信息 ────────────────────────────────────────────────────────────────
   const { items: genderItems } = useDictItems('user_gender');
@@ -698,6 +699,14 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                   pagination={buildLoginLogsPagination(loginLogsTotal)}
                 />
               </div>
+            </Tabs.TabPane>
+
+            {/* ── 通知设置 ──────────────────────────────────────── */}
+            <Tabs.TabPane
+              itemKey="notifications"
+              tab={<span className="profile-tab-label"><BellRing size={14} /><span>通知设置</span></span>}
+            >
+              {activeSection === 'notifications' && <NotificationSettingsTab />}
             </Tabs.TabPane>
 
             {/* ── 操作记录 ──────────────────────────────────────── */}

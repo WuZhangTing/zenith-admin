@@ -6,6 +6,9 @@ import emailSendLogsRoutes from './email-send-logs';
 import emailTemplatesRoutes from './email-templates';
 import inAppMessagesRoutes from './in-app-messages';
 import inAppTemplatesRoutes from './in-app-templates';
+import notificationPoliciesRoutes from './notification-policies';
+import notificationPreferencesRoutes from './notification-preferences';
+import notificationUnsubscribeRoutes from './notification-unsubscribe';
 import smsConfigsRoutes from './sms-configs';
 import smsSendLogsRoutes from './sms-send-logs';
 import smsTemplatesRoutes from './sms-templates';
@@ -23,5 +26,8 @@ export default defineRouteDomain({
     ['/api/sms-send-logs', smsSendLogsRoutes],
     ['/api/in-app-templates', inAppTemplatesRoutes],
     ['/api/in-app-messages', inAppMessagesRoutes],
+    ['/api/notification-preferences', notificationPreferencesRoutes],
+    ['/api/notification-policies', notificationPoliciesRoutes],
+    ['/api/notification-unsubscribe', notificationUnsubscribeRoutes],
   ],
 });

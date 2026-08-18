@@ -326,6 +326,11 @@ export const notificationOutbox = pgTable('notification_outbox', {
   claimedAt: timestamp('claimed_at', { withTimezone: true }),
   /** 免打扰延后或摘要聚合的目标时间；为空表示立即可派发 */
   scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  /**
+   * 摘要分组键（`{recipientType}:{recipientId}:{窗口时间戳}`）。
+   * 非空的行不走常规逐条派发，由摘要聚合任务按键合并成一封汇总邮件。
+   */
+  digestKey: varchar('digest_key', { length: 128 }),
   /** 链路关联 ID，串起一次业务操作触发的全部异步副作用 */
   traceId: varchar('trace_id', { length: 64 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -333,6 +338,7 @@ export const notificationOutbox = pgTable('notification_outbox', {
 }, (t) => [
   uniqueIndex('notification_outbox_dedupe_uq').on(t.dedupeKey).where(sql`${t.dedupeKey} is not null`),
   index('notification_outbox_pending_idx').on(t.status, t.scheduledAt).where(sql`${t.status} = 'pending'`),
+  index('notification_outbox_digest_idx').on(t.digestKey, t.scheduledAt).where(sql`${t.digestKey} is not null`),
   index('notification_outbox_event_idx').on(t.eventKey, t.createdAt),
   index('notification_outbox_tenant_idx').on(t.tenantId),
 ]);

@@ -1,0 +1,2 @@
+ALTER TABLE "notification_outbox" ADD COLUMN "digest_key" varchar(128);--> statement-breakpoint
+CREATE INDEX "notification_outbox_digest_idx" ON "notification_outbox" USING btree ("digest_key","scheduled_at") WHERE "notification_outbox"."digest_key" is not null;

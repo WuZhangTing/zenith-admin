@@ -190,6 +190,7 @@ export const NOTIFICATION_EVENT_GROUPS = [
   'open-platform',
   'member',
   'analytics',
+  'messaging',
 ] as const;
 
 export type NotificationEventGroup = (typeof NOTIFICATION_EVENT_GROUPS)[number];
@@ -204,6 +205,7 @@ export const NOTIFICATION_EVENT_GROUP_LABELS: Record<NotificationEventGroup, str
   'open-platform': '开放平台',
   member: '会员',
   analytics: '数据分析',
+  messaging: '通知中心',
 };
 
 export const NOTIFICATION_EVENT_GROUP_OPTIONS: Array<{ value: NotificationEventGroup; label: string }> =

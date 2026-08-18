@@ -39,6 +39,7 @@ export * from './region';
 export * from './sms';
 export * from './email';
 export * from './in-app';
+export * from './notifications';
 export * from './chat';
 export * from './channel';
 export * from './tags';
