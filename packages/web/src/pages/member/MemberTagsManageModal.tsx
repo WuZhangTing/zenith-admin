@@ -6,6 +6,7 @@ import { useDeleteMemberTag, useMemberTags, useSaveMemberTag } from '@/hooks/que
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
+import { renderEllipsis } from '@/utils/table-columns';
 
 const TAG_COLORS = ['red', 'orange', 'amber', 'green', 'teal', 'blue', 'purple', 'pink', 'grey'] as const;
 
@@ -40,7 +41,7 @@ export function MemberTagsManageModal({ visible, onClose }: Readonly<Props>) {
       title: '标签', dataIndex: 'name', width: 140,
       render: (v: string, r: MemberTag) => <Tag color={(r.color || 'blue') as 'blue'}>{v}</Tag>,
     },
-    { title: '说明', dataIndex: 'description', render: (v?: string | null) => v || '-' },
+    { title: '说明', dataIndex: 'description', width: 220, render: renderEllipsis },
     { title: '会员数', dataIndex: 'memberCount', width: 80, render: (v?: number) => v ?? 0 },
     {
       title: '状态', dataIndex: 'status', width: 80,
