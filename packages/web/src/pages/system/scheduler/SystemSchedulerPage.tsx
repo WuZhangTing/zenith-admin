@@ -334,6 +334,7 @@ export default function SystemSchedulerPage() {
     { title: '最近耗时', dataIndex: 'lastDurationMs', width: 120, align: 'right', render: formatDuration },
     {
       title: '队列',
+      align: 'right',
       dataIndex: 'queueTotalCount',
       width: 230,
       render: (_: unknown, record) => renderQueue(record),
@@ -359,6 +360,7 @@ export default function SystemSchedulerPage() {
     },
     {
       title: '留存策略',
+      align: 'right',
       dataIndex: 'logRetentionDays',
       width: 150,
       render: (_: unknown, record) => `${record.logRetentionDays} 天 / ${record.logRetentionRuns} 条`,
@@ -510,8 +512,8 @@ export default function SystemSchedulerPage() {
     { title: '版本', dataIndex: 'version', width: 140, render: (value: string | null) => value ?? '-' },
     dateTimeColumn('启动时间', 'startedAt'),
     dateTimeColumn('最近心跳', 'lastHeartbeatAt'),
-    { title: '注册任务', dataIndex: 'registeredTaskCount', width: 120 },
-    { title: '运行任务', dataIndex: 'runningJobCount', width: 120 },
+    { title: '注册任务', dataIndex: 'registeredTaskCount', width: 120, align: 'right' },
+    { title: '运行任务', dataIndex: 'runningJobCount', width: 120, align: 'right' },
   ];
 
   const handleRunSearch = () => {

@@ -49,7 +49,7 @@ export default function MemberLevelsPage() {
     { title: '等级名称', dataIndex: 'name', width: 140, render: renderEllipsis },
     { title: '等级序号', dataIndex: 'level', width: 90, align: 'right' },
     { title: '成长值门槛', dataIndex: 'growthThreshold', width: 110, align: 'right' },
-    { title: '折扣', dataIndex: 'discount', width: 90, render: (v: number) => (v >= 100 ? '无' : `${(v / 10).toFixed(1)}折`) },
+    { title: '折扣', dataIndex: 'discount', width: 90, align: 'right', render: (v: number) => (v >= 100 ? '无' : `${(v / 10).toFixed(1)}折`) },
     { title: '会员数', dataIndex: 'memberCount', width: 90, align: 'right', render: (v: number | undefined, r: MemberLevel) => (
       (v ?? 0) > 0
         ? <Typography.Text link onClick={() => navigate(`/member/members?levelId=${r.id}`)}>{v}</Typography.Text>

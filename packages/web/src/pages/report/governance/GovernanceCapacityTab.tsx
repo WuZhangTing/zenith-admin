@@ -92,10 +92,10 @@ export default function GovernanceCapacityTab() {
   const quotaColumns: ColumnProps<ReportQueryQuota>[] = [
     { title: '范围', dataIndex: 'scope', width: 100, render: (v, r) => v === 'tenant' ? '当前租户' : `用户 #${r.userId}` },
     { title: '并发上限', dataIndex: 'maxConcurrent', width: 110 },
-    { title: '日查询', dataIndex: 'dailyQueryLimit', width: 110 },
+    { title: '日查询', dataIndex: 'dailyQueryLimit', width: 110, align: 'right' },
     { title: '日行数', dataIndex: 'dailyRowLimit', width: 130, align: 'right' },
     { title: '日字节', dataIndex: 'dailyByteLimit', width: 140, align: 'right' },
-    { title: '日成本', dataIndex: 'dailyCostLimit', width: 110 },
+    { title: '日成本', dataIndex: 'dailyCostLimit', width: 110, align: 'right' },
     { title: '重置时区', dataIndex: 'resetTimezone', width: 150 },
     { title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'grey'}>{v ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportQueryQuota>({

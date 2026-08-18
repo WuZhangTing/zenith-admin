@@ -168,7 +168,7 @@ export default function TerminalSessionsPage() {
     },
     dateTimeColumn('开始时间', 'startedAt'),
     {
-      title: '空闲', dataIndex: 'idleSeconds', width: 90,
+      title: '空闲', dataIndex: 'idleSeconds', width: 90, align: 'right',
       render: (s: number) => (s < 60 ? `${s}s` : `${Math.floor(s / 60)}m`),
     },
     {

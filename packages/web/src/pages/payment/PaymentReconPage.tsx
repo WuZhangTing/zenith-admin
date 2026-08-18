@@ -180,8 +180,8 @@ export default function PaymentReconPage() {
     dateColumn('账单日期', 'billDate'),
     { title: '本地笔数/金额', dataIndex: 'localCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.localCount} / ${yuan(r.localAmount)}` },
     { title: '渠道笔数/金额', dataIndex: 'channelCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.channelCount} / ${yuan(r.channelAmount)}` },
-    { title: '匹配数', dataIndex: 'matchedCount', width: 90 },
-    { title: '差异数', dataIndex: 'diffCount', width: 90, render: (v: number) => <Typography.Text type={v > 0 ? 'danger' : 'tertiary'}>{v}</Typography.Text> },
+    { title: '匹配数', dataIndex: 'matchedCount', width: 90, align: 'right' },
+    { title: '差异数', dataIndex: 'diffCount', width: 90, align: 'right', render: (v: number) => <Typography.Text type={v > 0 ? 'danger' : 'tertiary'}>{v}</Typography.Text> },
     dateTimeColumn('创建时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentReconStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_RECON_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentReconBatch>({

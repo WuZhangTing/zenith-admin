@@ -106,6 +106,7 @@ export default function ApiScopesPage() {
     { title: '描述', dataIndex: 'description', width: 240, render: (v: string | null) => v || <Text type="tertiary">—</Text> },
     {
       title: '被引用',
+      align: 'right',
       dataIndex: 'usedByAppCount',
       width: 100,
       render: (v: number | undefined) => (

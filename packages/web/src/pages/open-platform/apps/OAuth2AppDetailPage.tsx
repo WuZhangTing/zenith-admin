@@ -81,7 +81,7 @@ function AppStatsTab({ clientId }: Readonly<{ clientId: string }>) {
             dataSource={endpoints}
             columns={[
               { title: '端点', dataIndex: 'label' },
-              { title: '调用数', dataIndex: 'total', width: 120 },
+              { title: '调用数', dataIndex: 'total', width: 120, align: 'right' },
               { title: '失败数', dataIndex: 'failed', width: 120 },
               { title: '平均耗时', dataIndex: 'avgDurationMs', width: 120, align: 'right', render: (value: number) => `${value} ms` },
             ]}

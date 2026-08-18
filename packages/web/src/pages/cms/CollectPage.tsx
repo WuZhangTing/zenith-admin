@@ -103,7 +103,7 @@ export default function CollectPage() {
       render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{v}</Typography.Text>,
     },
     { title: '翻页', width: 90, render: (_: unknown, r) => (r.listUrl.includes('{page}') ? `${r.pageStart}-${r.pageEnd}` : '单页') },
-    { title: '单次上限', dataIndex: 'maxItems', width: 90 },
+    { title: '单次上限', dataIndex: 'maxItems', width: 90, align: 'right' },
     {
       title: '选项',
       width: 150,

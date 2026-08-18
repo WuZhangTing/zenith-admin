@@ -171,7 +171,7 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
 
   const columns: ColumnProps<TableMaintenance>[] = [
     { title: '表', width: 220, render: (_: unknown, r) => <Text strong>{r.schema === 'public' ? r.name : `${r.schema}.${r.name}`}</Text> },
-    { title: '活元组', dataIndex: 'liveTuples', width: 100, render: (v: number) => v.toLocaleString() },
+    { title: '活元组', dataIndex: 'liveTuples', width: 100, align: 'right', render: (v: number) => v.toLocaleString() },
     { title: '死元组', dataIndex: 'deadTuples', width: 160, render: (v: number, r) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ minWidth: 56 }}>{v.toLocaleString()}</span>

@@ -57,9 +57,10 @@ export default function AnalyticsAcquisitionTab() {
 
   const columns = [
     { title: '来源', dataIndex: 'label', render: (value: string) => <Typography.Text>{value}</Typography.Text> },
-    { title: '归因用户', dataIndex: 'users', width: 110, render: (v: number) => v.toLocaleString() },
+    { title: '归因用户', dataIndex: 'users', width: 110, align: 'right' as const, render: (v: number) => v.toLocaleString() },
     {
       title: '新用户',
+      align: 'right' as const,
       dataIndex: 'newUsers',
       width: 140,
       render: (v: number, record: AnalyticsAcquisitionRow) => (
@@ -71,12 +72,13 @@ export default function AnalyticsAcquisitionTab() {
         </Space>
       ),
     },
-    { title: '会话数', dataIndex: 'sessions', width: 100, render: (v: number) => v.toLocaleString() },
+    { title: '会话数', dataIndex: 'sessions', width: 100, align: 'right' as const, render: (v: number) => v.toLocaleString() },
     ...(conversionEvent
       ? [
-        { title: '转化用户', dataIndex: 'conversions', width: 110, render: (v: number) => v.toLocaleString() },
+        { title: '转化用户', dataIndex: 'conversions', width: 110, align: 'right' as const, render: (v: number) => v.toLocaleString() },
         {
           title: '转化率',
+          align: 'right' as const,
           dataIndex: 'conversionRate',
           width: 110,
           render: (v: number) => <Typography.Text type={v > 0 ? 'success' : 'tertiary'}>{v.toFixed(1)}%</Typography.Text>,

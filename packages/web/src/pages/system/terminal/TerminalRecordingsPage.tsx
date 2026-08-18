@@ -228,6 +228,7 @@ export default function TerminalRecordingsPage() {
     },
     {
       title: '命令数',
+      align: 'right',
       dataIndex: 'commandCount',
       width: 80,
       render: (v: number) => (v > 0 ? <Tag color="green" size="small">{v}</Tag> : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>),

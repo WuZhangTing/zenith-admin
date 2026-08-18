@@ -696,7 +696,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     { title: '外部审批', dataIndex: 'externalDispatchStatus', width: 110, render: (value) => rawTag(value as string | null, value === 'failed' ? 'red' : 'grey') },
     dateTimeColumn('timeoutAt', 'timeoutAt'),
     dateTimeColumn('wakeAt', 'wakeAt'),
-    { title: '年龄', dataIndex: 'ageMinutes', width: 110, render: (value) => formatAge(value as number | null) },
+    { title: '年龄', dataIndex: 'ageMinutes', width: 110, align: 'right', render: (value) => formatAge(value as number | null) },
   ];
 
   const triggerColumns: ColumnProps<WorkflowEngineTriggerExecution>[] = [
@@ -719,7 +719,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     { title: '尝试', dataIndex: 'attempts', width: 80 },
     dateTimeColumn('下次重试', 'nextRetryAt'),
     { title: '错误', dataIndex: 'errorMessage', width: 260, render: (value) => value || '—' },
-    { title: '年龄', dataIndex: 'ageMinutes', width: 110, render: (value) => formatAge(value as number | null) },
+    { title: '年龄', dataIndex: 'ageMinutes', width: 110, align: 'right', render: (value) => formatAge(value as number | null) },
   ];
 
   const invalidDefinitionColumns: ColumnProps<WorkflowEngineDefinitionValidationItem>[] = [
@@ -738,7 +738,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
 
   const listenerColumns: ColumnProps<WorkflowEngineIntrospection['eventBus']['listeners'][number]>[] = [
     { title: '事件类型', dataIndex: 'eventType' },
-    { title: '监听器数', dataIndex: 'listenerCount', width: 120 },
+    { title: '监听器数', dataIndex: 'listenerCount', width: 120, align: 'right' },
   ];
 
   const recurringJobColumns: ColumnProps<WorkflowEngineIntrospection['telemetry']['recurringJobs'][number]>[] = [
@@ -755,7 +755,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
 
   const wipColumns: ColumnProps<WorkflowEngineIntrospection['scheduler']['wip'][number]>[] = [
     { title: '队列', dataIndex: 'name' },
-    { title: '运行中', dataIndex: 'count', width: 100 },
+    { title: '运行中', dataIndex: 'count', width: 100, align: 'right' },
   ];
 
   if (loading && !data) {

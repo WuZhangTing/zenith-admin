@@ -343,7 +343,7 @@ export default function AnalyticsSegmentsTab() {
         </Tag>
       ),
     },
-    { title: '成员数（快照）', dataIndex: 'estimatedSize', width: 150 },
+    { title: '成员数（快照）', dataIndex: 'estimatedSize', width: 150, align: 'right' },
     dateTimeColumn('快照时间', 'snapshotAt', { empty: '未物化' }),
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AnalyticsUserSegment>({

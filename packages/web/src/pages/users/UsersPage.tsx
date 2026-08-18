@@ -1016,7 +1016,7 @@ export default function UsersPage() {
               <Table
                 size="small"
                 columns={[
-                  { title: '行号', dataIndex: 'row', width: 80 },
+                  { title: '行号', dataIndex: 'row', width: 80, align: 'right' },
                   { title: '错误信息', dataIndex: 'message' },
                 ]}
                 dataSource={importResult.errors}

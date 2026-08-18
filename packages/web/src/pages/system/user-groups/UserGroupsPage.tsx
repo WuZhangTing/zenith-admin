@@ -230,7 +230,7 @@ export default function UserGroupsPage() {
       render: (_: unknown, record: UserGroup) => <UserPreviewCell preview={record.memberPreview} count={record.memberCount} scope={{ type: 'userGroup', id: record.id, name: record.name }} />,
     },
     {
-      title: '角色', dataIndex: 'roleCount', width: 80,
+      title: '角色', dataIndex: 'roleCount', width: 80, align: 'right',
       render: (v: number | undefined, record: UserGroup) => (
         <Tag color={v ? 'violet' : 'grey'} style={{ cursor: hasPermission('system:user-groups:assign') ? 'pointer' : 'default' }}
           onClick={() => hasPermission('system:user-groups:assign') && openRoles(record)}>

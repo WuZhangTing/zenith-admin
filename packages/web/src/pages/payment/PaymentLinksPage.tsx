@@ -139,7 +139,7 @@ export default function PaymentLinksPage() {
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number | null) => yuan(v) },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '用户选择') },
     { title: '业务类型', dataIndex: 'bizType', width: 120 },
-    { title: '已用/上限', dataIndex: 'usedCount', width: 110, render: (_: unknown, r: PaymentLink) => `${r.usedCount} / ${r.maxUses ?? '∞'}` },
+    { title: '已用/上限', dataIndex: 'usedCount', width: 110, align: 'right', render: (_: unknown, r: PaymentLink) => `${r.usedCount} / ${r.maxUses ?? '∞'}` },
     dateTimeColumn('失效时间', 'expiredAt', { empty: '永久' }),
     createdAtColumn as ColumnProps<PaymentLink>,
     {

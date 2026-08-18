@@ -99,7 +99,7 @@ export default function GovernanceResourceTab() {
     { title: '目录名称', dataIndex: 'name', width: 220 },
     { title: '资源类型', dataIndex: 'resourceType', width: 130, render: (v) => reportResourceTypeLabel(v as ReportResourceType) },
     { title: '负责人', dataIndex: 'ownerName', width: 130, render: (v) => v || '—' },
-    { title: '资源数', dataIndex: 'resourceCount', width: 90, render: (v) => v ?? 0 },
+    { title: '资源数', dataIndex: 'resourceCount', width: 90, align: 'right', render: (v) => v ?? 0 },
     { title: '排序', dataIndex: 'sort', width: 80 },
     dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },

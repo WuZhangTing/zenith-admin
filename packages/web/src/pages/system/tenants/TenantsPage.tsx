@@ -160,7 +160,7 @@ export default function TenantsPage() {
     { title: '租户编码', dataIndex: 'code', width: 140, render: renderEllipsis },
     { title: '联系人', dataIndex: 'contactName', width: 120, render: renderEllipsis },
     { title: '联系电话', dataIndex: 'contactPhone', width: 140, render: renderEllipsis },
-    { title: '用户数', dataIndex: 'userCount', width: 150, render: (v: number | undefined, record: Tenant) => {
+    { title: '用户数', dataIndex: 'userCount', width: 150, align: 'right', render: (v: number | undefined, record: Tenant) => {
         const used = v ?? 0;
         const max = record.maxUsers;
         if (max == null) return <span>{used} / 不限</span>;

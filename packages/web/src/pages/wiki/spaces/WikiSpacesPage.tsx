@@ -142,8 +142,8 @@ export default function WikiSpacesPage() {
       title: '可见性', dataIndex: 'visibility', width: 100,
       render: (v: WikiSpace['visibility']) => WIKI_SPACE_VISIBILITY_LABELS[v],
     },
-    { title: '成员数', dataIndex: 'memberCount', width: 90 },
-    { title: '文档数', dataIndex: 'docCount', width: 90 },
+    { title: '成员数', dataIndex: 'memberCount', width: 90, align: 'right' },
+    { title: '文档数', dataIndex: 'docCount', width: 90, align: 'right' },
     {
       title: 'AI 同步', dataIndex: 'aiSyncEnabled', width: 90,
       render: (v: boolean) => (v ? '开启' : '关闭'),

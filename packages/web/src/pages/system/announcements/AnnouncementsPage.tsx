@@ -564,6 +564,7 @@ export default function AnnouncementsPage() {
     },
     {
       title: '已读统计',
+      align: 'right',
       dataIndex: 'readCount',
       width: 110,
       render: (v: number, record: Announcement) => {

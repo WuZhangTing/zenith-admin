@@ -42,7 +42,7 @@ export function MemberTagsManageModal({ visible, onClose }: Readonly<Props>) {
       render: (v: string, r: MemberTag) => <Tag color={(r.color || 'blue') as 'blue'}>{v}</Tag>,
     },
     { title: '说明', dataIndex: 'description', width: 220, render: renderEllipsis },
-    { title: '会员数', dataIndex: 'memberCount', width: 80, render: (v?: number) => v ?? 0 },
+    { title: '会员数', dataIndex: 'memberCount', width: 80, align: 'right', render: (v?: number) => v ?? 0 },
     {
       title: '状态', dataIndex: 'status', width: 80,
       render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag>,

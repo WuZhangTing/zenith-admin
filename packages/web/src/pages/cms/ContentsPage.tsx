@@ -349,8 +349,8 @@ export default function ContentsPage() {
       },
     },
     { title: '作者', dataIndex: 'author', width: 90, render: (v: string | null) => v ?? '-' },
-    { title: '浏览', dataIndex: 'viewCount', width: 80 },
-    { title: '赞/藏', dataIndex: 'likeCount', width: 90, render: (_: number, record) => `${record.likeCount}/${record.favoriteCount}` },
+    { title: '浏览', dataIndex: 'viewCount', width: 80, align: 'right' },
+    { title: '赞/藏', dataIndex: 'likeCount', width: 90, align: 'right', render: (_: number, record) => `${record.likeCount}/${record.favoriteCount}` },
     {
       title: '发布时间', dataIndex: 'publishedAt', width: 150,
       render: (v: string | null, record) => {

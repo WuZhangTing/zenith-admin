@@ -462,6 +462,7 @@ function DwellTab() {
     { title: '访问次数', dataIndex: 'visits', width: 120, align: 'right', render: (value) => numberText(Number(value)) },
     {
       title: '平均停留',
+      align: 'right',
       dataIndex: 'avgMs',
       width: 220,
       render: (_value, record) => (
@@ -471,8 +472,8 @@ function DwellTab() {
         </div>
       ),
     },
-    { title: '中位数', dataIndex: 'medianMs', width: 120, render: (_value, record) => msToReadable(record.medianMs) },
-    { title: 'P90', dataIndex: 'p90Ms', width: 120, render: (_value, record) => msToReadable(record.p90Ms) },
+    { title: '中位数', dataIndex: 'medianMs', width: 120, align: 'right', render: (_value, record) => msToReadable(record.medianMs) },
+    { title: 'P90', dataIndex: 'p90Ms', width: 120, align: 'right', render: (_value, record) => msToReadable(record.p90Ms) },
   ];
 
   return (
@@ -745,8 +746,8 @@ function SessionsTab() {
     { title: '用户', dataIndex: 'username', width: 150, render: (_value, record) => record.username || (record.userId == null ? '匿名访客' : `用户 #${record.userId}`) },
     { title: '入口页', dataIndex: 'entryPage', width: 200, render: (_value, record) => <Typography.Text ellipsis={{ showTooltip: true }}>{record.entryPage || '–'}</Typography.Text> },
     { title: '出口页', dataIndex: 'exitPage', width: 200, render: (_value, record) => <Typography.Text ellipsis={{ showTooltip: true }}>{record.exitPage || '–'}</Typography.Text> },
-    { title: '页数', dataIndex: 'pageCount', width: 90 },
-    { title: '事件', dataIndex: 'eventCount', width: 90 },
+    { title: '页数', dataIndex: 'pageCount', width: 90, align: 'right' },
+    { title: '事件', dataIndex: 'eventCount', width: 90, align: 'right' },
     { title: '时长', dataIndex: 'durationMs', width: 120, align: 'right', render: (_value, record) => msToReadable(record.durationMs) },
     {
       title: '设备 / 浏览器 / 系统',
@@ -1492,6 +1493,7 @@ function UsersTab() {
     },
     {
       title: '总操作',
+      align: 'right',
       dataIndex: 'totalEvents',
       width: 220,
       render: (_value, record) => (
@@ -1504,7 +1506,7 @@ function UsersTab() {
     { title: '页面访问', dataIndex: 'pageViews', width: 110 },
     { title: '访问页面数', dataIndex: 'uniquePages', width: 120 },
     { title: '功能使用', dataIndex: 'featureUses', width: 110 },
-    { title: '总停留', dataIndex: 'totalDwellMs', width: 130, render: (_value, record) => msToReadable(record.totalDwellMs) },
+    { title: '总停留', dataIndex: 'totalDwellMs', width: 130, align: 'right', render: (_value, record) => msToReadable(record.totalDwellMs) },
     dateTimeColumn('最近活跃', 'lastActiveAt', { fixed: 'right' }),
   ];
 

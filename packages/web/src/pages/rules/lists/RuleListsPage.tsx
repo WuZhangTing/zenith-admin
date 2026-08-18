@@ -137,7 +137,7 @@ export default function RuleListsPage() {
     { title: 'Key', dataIndex: 'key', width: 170, render: (t: string) => <Text code>{t}</Text> },
     { title: '名称', dataIndex: 'name', width: 170, render: renderEllipsis },
     { title: '类型', dataIndex: 'type', width: 90, render: (t: string) => <Tag size="small" color={TYPE_META[t]?.color}>{TYPE_META[t]?.text ?? t}</Tag> },
-    { title: '条目数', dataIndex: 'itemCount', width: 90 },
+    { title: '条目数', dataIndex: 'itemCount', width: 90, align: 'right' },
     { title: '描述', dataIndex: 'description', render: renderEllipsis },
     createdAtColumn,
     // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层

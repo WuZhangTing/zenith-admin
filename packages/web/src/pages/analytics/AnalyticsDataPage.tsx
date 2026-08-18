@@ -566,7 +566,7 @@ export default function AnalyticsDataPage() {
     { title: '会话', dataIndex: 'sessions', width: 100 },
     { title: '事件', dataIndex: 'events', width: 100 },
     { title: '跳出会话', dataIndex: 'bounceSessions', width: 110 },
-    { title: '总停留', dataIndex: 'totalDwellMs', width: 140, render: (value: number) => msToReadable(value) },
+    { title: '总停留', dataIndex: 'totalDwellMs', width: 140, align: 'right', render: (value: number) => msToReadable(value) },
   ];
 
   const renderEventDetail = () => {

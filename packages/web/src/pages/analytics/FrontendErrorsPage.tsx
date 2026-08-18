@@ -658,6 +658,7 @@ export default function FrontendErrorsPage() {
     },
     {
       title: '触发',
+      align: 'right',
       dataIndex: 'count',
       width: 100,
       render: (_value, record) => <Tag color={record.count >= 10 ? 'red' : 'grey'}>{record.count}</Tag>,
@@ -777,8 +778,8 @@ export default function FrontendErrorsPage() {
   const alertColumns = useMemo<ColumnProps<ErrorAlertRule>[]>(() => [
     { title: '名称', dataIndex: 'name', width: 180 },
     { title: '条件', dataIndex: 'condition', width: 100, render: (_value, record) => CONDITION_CONFIG[record.condition] },
-    { title: '阈值', dataIndex: 'thresholdCount', width: 90 },
-    { title: '窗口', dataIndex: 'windowMinutes', width: 110, render: (value) => `${value} 分钟` },
+    { title: '阈值', dataIndex: 'thresholdCount', width: 90, align: 'right' },
+    { title: '窗口', dataIndex: 'windowMinutes', width: 110, align: 'right', render: (value) => `${value} 分钟` },
     { title: '类型', dataIndex: 'errorType', width: 130, render: (_value, record) => record.errorType ? <TypeTag type={record.errorType} /> : <Tag color="grey">全部</Tag> },
     { title: '级别', dataIndex: 'level', width: 110, render: (_value, record) => record.level ? <LevelTag level={record.level} /> : <Tag color="grey">全部</Tag> },
     {

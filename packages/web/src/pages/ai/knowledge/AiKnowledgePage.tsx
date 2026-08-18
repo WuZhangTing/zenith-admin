@@ -109,8 +109,8 @@ export default function AiKnowledgePage() {
   const columns: ColumnProps<AiKnowledgeBase>[] = [
     { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '描述', dataIndex: 'description', render: renderEllipsis },
-    { title: '文档数', dataIndex: 'documentCount', width: 90 },
-    { title: '分块数', dataIndex: 'chunkCount', width: 90 },
+    { title: '文档数', dataIndex: 'documentCount', width: 90, align: 'right' },
+    { title: '分块数', dataIndex: 'chunkCount', width: 90, align: 'right' },
     {
       title: '检索方式',
       dataIndex: 'embeddingModel',
@@ -166,8 +166,8 @@ export default function AiKnowledgePage() {
         return <Tag color={cfg.color} size="small">{cfg.label}</Tag>;
       },
     },
-    { title: '分块', dataIndex: 'chunkCount', width: 70 },
-    { title: '字符数', dataIndex: 'charCount', width: 90 },
+    { title: '分块', dataIndex: 'chunkCount', width: 70, align: 'right' },
+    { title: '字符数', dataIndex: 'charCount', width: 90, align: 'right' },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<AiKbDocument>({
       width: 80,

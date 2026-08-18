@@ -93,7 +93,7 @@ export default function RatePlansPage() {
       width: 160,
       render: (v: string) => <Text copyable={{ content: v }}>{v}</Text>,
     },
-    { title: 'QPS', dataIndex: 'qpsLimit', width: 100, render: (v: number) => (v > 0 ? `${v}/s` : '不限') },
+    { title: 'QPS', dataIndex: 'qpsLimit', width: 100, align: 'right', render: (v: number) => (v > 0 ? `${v}/s` : '不限') },
     { title: '每日配额', dataIndex: 'dailyQuota', width: 120, align: 'right', render: fmtQuota },
     { title: '每月配额', dataIndex: 'monthlyQuota', width: 120, align: 'right', render: fmtQuota },
     { title: '描述', dataIndex: 'description', width: 220, render: (v: string | null) => v || <Text type="tertiary">—</Text> },

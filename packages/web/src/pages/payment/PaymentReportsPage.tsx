@@ -66,10 +66,10 @@ export default function PaymentReportsPage() {
 
   const columns: ColumnProps<PaymentReportRow>[] = [
     { title: PAYMENT_REPORT_GROUP_BY_LABELS[summary?.groupBy ?? 'bizType'], dataIndex: 'label', width: 160 },
-    { title: '收款', dataIndex: 'gross', width: 130, render: (v: number) => yuan(v) },
-    { title: '手续费', dataIndex: 'fee', width: 120, render: (v: number) => yuan(v) },
-    { title: '退款', dataIndex: 'refund', width: 120, render: (v: number) => yuan(v) },
-    { title: '净额', dataIndex: 'net', width: 130, render: (v: number) => yuan(v) },
+    { title: '收款', dataIndex: 'gross', width: 130, align: 'right', render: (v: number) => yuan(v) },
+    { title: '手续费', dataIndex: 'fee', width: 120, align: 'right', render: (v: number) => yuan(v) },
+    { title: '退款', dataIndex: 'refund', width: 120, align: 'right', render: (v: number) => yuan(v) },
+    { title: '净额', dataIndex: 'net', width: 130, align: 'right', render: (v: number) => yuan(v) },
     { title: '成功笔数', dataIndex: 'count', width: 100, align: 'right' },
   ];
 

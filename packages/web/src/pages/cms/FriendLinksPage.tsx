@@ -191,7 +191,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
   const columns: ColumnProps<CmsFriendLinkGroup>[] = [
     { title: '分组名称', dataIndex: 'name', width: 140 },
     { title: '标识', dataIndex: 'code', width: 120 },
-    { title: '友链数', dataIndex: 'linkCount', width: 80 },
+    { title: '友链数', dataIndex: 'linkCount', width: 80, align: 'right' },
     { title: '排序', dataIndex: 'sort', width: 70 },
     createOperationColumn<CmsFriendLinkGroup>({
       width: 130,

@@ -56,7 +56,7 @@ export default function WikiTagsPage() {
         <Tag style={record.color ? { backgroundColor: record.color, color: '#fff' } : undefined}>{record.name}</Tag>
       ),
     },
-    { title: '关联文档数', dataIndex: 'docCount', width: 120 },
+    { title: '关联文档数', dataIndex: 'docCount', width: 120, align: 'right' },
     createdAtColumn,
     createOperationColumn<WikiTag>({
       width: 130,

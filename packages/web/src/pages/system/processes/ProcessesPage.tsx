@@ -280,6 +280,7 @@ export default function ProcessesPage() {
     },
     {
       title: 'CPU%',
+      align: 'right',
       dataIndex: 'cpu',
       width: 80,
       sorter: (a, b) => (a?.cpu ?? 0) - (b?.cpu ?? 0),
@@ -292,6 +293,7 @@ export default function ProcessesPage() {
     },
     {
       title: '内存',
+      align: 'right',
       dataIndex: 'memory',
       width: 110,
       sorter: (a, b) => (a?.memory ?? 0) - (b?.memory ?? 0),

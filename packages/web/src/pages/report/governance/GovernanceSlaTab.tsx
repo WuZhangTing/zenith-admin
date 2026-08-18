@@ -108,7 +108,7 @@ export default function GovernanceSlaTab() {
     { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number) => datasetNameMap.get(v) ?? `#${v}` },
     { title: '类型', dataIndex: 'type', width: 150, render: (v) => slaTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '目标/预警', width: 130, render: (_v, r) => `${r.targetValue} / ${r.warningValue ?? '—'}` },
-    { title: '窗口', dataIndex: 'windowMinutes', width: 100, render: (v) => `${v} 分钟` },
+    { title: '窗口', dataIndex: 'windowMinutes', width: 100, align: 'right', render: (v) => `${v} 分钟` },
     { title: '调度', width: 180, render: (_v, r) => r.cron ? `${r.cron} · ${r.timezone}` : '仅手动' },
     dateTimeColumn('最近评估', 'lastEvaluatedAt'),
     {

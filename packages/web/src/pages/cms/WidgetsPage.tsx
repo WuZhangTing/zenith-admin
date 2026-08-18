@@ -181,9 +181,10 @@ export default function WidgetsPage() {
         </span>
       ),
     },
-    { title: '引用数', dataIndex: 'referenceCount', width: 90 },
+    { title: '引用数', dataIndex: 'referenceCount', width: 90, align: 'right' },
     {
       title: '影响页面',
+      align: 'right',
       dataIndex: 'impactCount',
       width: 120,
       render: (value: number, record) => (

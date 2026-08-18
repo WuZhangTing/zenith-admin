@@ -77,11 +77,11 @@ export default function AiUsagePage() {
   const modelColumns: ColumnProps<AiUsageByModel>[] = [
     { title: '模型', dataIndex: 'model', width: 180 },
     { title: '供应商', dataIndex: 'provider', width: 140, render: (v: string | null) => v ?? '—' },
-    { title: '回复数', dataIndex: 'messages', width: 90, render: (value: number) => formatNumber(value) },
-    { title: '输入Token', dataIndex: 'tokensInput', width: 120, render: (value: number) => formatNumber(value) },
-    { title: '输出Token', dataIndex: 'tokensOutput', width: 120, render: (value: number) => formatNumber(value) },
-    { title: '总Token', dataIndex: 'totalTokens', width: 120, render: (value: number) => formatNumber(value) },
-    { title: '首字延迟', dataIndex: 'avgTtftMs', width: 100, render: (value: number | null) => formatMs(value) },
+    { title: '回复数', dataIndex: 'messages', width: 90, align: 'right', render: (value: number) => formatNumber(value) },
+    { title: '输入Token', dataIndex: 'tokensInput', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
+    { title: '输出Token', dataIndex: 'tokensOutput', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
+    { title: '总Token', dataIndex: 'totalTokens', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
+    { title: '首字延迟', dataIndex: 'avgTtftMs', width: 100, align: 'right', render: (value: number | null) => formatMs(value) },
     { title: '预估成本', dataIndex: 'costFen', width: 110, render: (value: number | null) => formatCostYuan(value) },
   ];
 
@@ -97,9 +97,9 @@ export default function AiUsagePage() {
         </div>
       ),
     },
-    { title: '对话数', dataIndex: 'conversations', width: 120, render: (value: number) => formatNumber(value) },
-    { title: '回复数', dataIndex: 'messages', width: 120, render: (value: number) => formatNumber(value) },
-    { title: '总Token', dataIndex: 'totalTokens', width: 140, render: (value: number) => formatNumber(value) },
+    { title: '对话数', dataIndex: 'conversations', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
+    { title: '回复数', dataIndex: 'messages', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
+    { title: '总Token', dataIndex: 'totalTokens', width: 140, align: 'right', render: (value: number) => formatNumber(value) },
   ];
 
   const trendChartData = (stats?.trend ?? []).map((item) => ({ ...item, shortDate: shortDate(item.date) }));

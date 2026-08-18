@@ -145,7 +145,7 @@ export default function FormsPage() {
       width: 280,
       render: (fields: CmsForm['fields']) => fields.map((f) => <Tag key={f.name} size="small" style={{ marginRight: 4 }}>{f.label}</Tag>),
     },
-    { title: '提交数', dataIndex: 'submissionCount', width: 90 },
+    { title: '提交数', dataIndex: 'submissionCount', width: 90, align: 'right' },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: renderEnabledStatusTag,

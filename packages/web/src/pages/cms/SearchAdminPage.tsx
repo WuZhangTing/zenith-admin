@@ -76,7 +76,7 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
       render: (v: string) => <span dangerouslySetInnerHTML={{ __html: v }} />,
     },
     { title: '栏目', dataIndex: 'channelName', width: 110 },
-    { title: '相关度', dataIndex: 'rank', width: 90, render: (v: number) => v.toFixed(4) },
+    { title: '相关度', dataIndex: 'rank', width: 90, align: 'right', render: (v: number) => v.toFixed(4) },
     dateTimeColumn('发布时间', 'publishedAt'),
   ];
 

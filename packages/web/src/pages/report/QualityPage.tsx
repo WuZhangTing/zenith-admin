@@ -223,7 +223,7 @@ export default function QualityPage() {
     { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => r.datasetName || `#${v}` },
     { title: '触发方式', dataIndex: 'triggerType', width: 110, render: (v: ReportDqRun['triggerType']) => REPORT_DQ_TRIGGER_LABELS[v] ?? v },
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
-    { title: '通过率', dataIndex: 'passRate', width: 110, render: (v) => formatDqPassRate(v) },
+    { title: '通过率', dataIndex: 'passRate', width: 110, align: 'right', render: (v) => formatDqPassRate(v) },
     { title: '耗时', dataIndex: 'durationMs', width: 100, align: 'right', render: (v) => v == null ? '—' : `${v}ms` },
     dateTimeColumn('开始时间', 'startedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: ReportDqRunStatus) => <Tag color={runStatusColor[v]}>{dqRunStatusLabel(v)}</Tag> },

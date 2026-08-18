@@ -385,7 +385,7 @@ export default function ResourcesPage() {
     },
     { title: '大小', dataIndex: 'size', width: 100, align: 'right', render: (v: number) => formatSize(v) },
     {
-      title: '引用数', dataIndex: 'refCount', width: 90,
+      title: '引用数', dataIndex: 'refCount', width: 90, align: 'right',
       render: (v: number | undefined) => (v ? <Tag size="small" color="blue">{v}</Tag> : <Tag size="small" color="grey">孤立</Tag>),
     },
     dateTimeColumn('上传时间', 'createdAt'),

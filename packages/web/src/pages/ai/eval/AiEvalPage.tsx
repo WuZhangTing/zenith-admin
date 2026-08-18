@@ -97,7 +97,7 @@ export default function AiEvalPage() {
   const setColumns = [
     { title: '名称', dataIndex: 'name', width: 200 },
     { title: '描述', dataIndex: 'description', width: 260, render: (v: string | null) => v || '—' },
-    { title: '题目数', dataIndex: 'items', width: 90, render: (v: AiEvalItem[]) => v?.length ?? 0 },
+    { title: '题目数', dataIndex: 'items', width: 90, align: 'right' as const, render: (v: AiEvalItem[]) => v?.length ?? 0 },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AiEvalSet>({
       width: 180,

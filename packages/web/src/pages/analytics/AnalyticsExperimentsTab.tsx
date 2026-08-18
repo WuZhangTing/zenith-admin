@@ -338,14 +338,14 @@ export default function AnalyticsExperimentsTab() {
               </Space>
             ) },
             { title: '曝光用户', dataIndex: 'exposures', width: 100, align: 'right', render: (value: number) => value.toLocaleString() },
-            { title: '转化用户', dataIndex: 'conversions', width: 100, render: (value: number) => value.toLocaleString() },
-            { title: '转化率', dataIndex: 'conversionRate', width: 220, render: (value: number) => <Space style={{ width: '100%' }}><Typography.Text style={{ width: 56 }}>{value.toFixed(1)}%</Typography.Text><DataBar value={value} max={maxRate} style={{ width: 140 }} /></Space> },
-            { title: '相对提升', dataIndex: 'relativeUplift', width: 110, render: (value: number | null, record) => (
+            { title: '转化用户', dataIndex: 'conversions', width: 100, align: 'right', render: (value: number) => value.toLocaleString() },
+            { title: '转化率', dataIndex: 'conversionRate', width: 220, align: 'right', render: (value: number) => <Space style={{ width: '100%' }}><Typography.Text style={{ width: 56 }}>{value.toFixed(1)}%</Typography.Text><DataBar value={value} max={maxRate} style={{ width: 140 }} /></Space> },
+            { title: '相对提升', dataIndex: 'relativeUplift', width: 110, align: 'right', render: (value: number | null, record) => (
               record.isControl ? <Typography.Text type="tertiary">基准</Typography.Text>
                 : value == null ? '–'
                   : <Typography.Text type={value > 0 ? 'success' : value < 0 ? 'danger' : undefined}>{value > 0 ? '+' : ''}{value.toFixed(1)}%</Typography.Text>
             ) },
-            { title: '95% 置信区间', dataIndex: 'confidenceLow', width: 190, render: (_: unknown, record) => (
+            { title: '95% 置信区间', dataIndex: 'confidenceLow', width: 190, align: 'right', render: (_: unknown, record) => (
               record.isControl || record.confidenceLow == null || record.confidenceHigh == null
                 ? <Typography.Text type="tertiary">–</Typography.Text>
                 : <Typography.Text size="small">{`[${record.confidenceLow.toFixed(2)}, ${record.confidenceHigh.toFixed(2)}] pp`}</Typography.Text>

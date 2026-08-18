@@ -127,6 +127,7 @@ export default function WorkflowFormsPage() {
     },
     {
       title: '引用数',
+      align: 'right',
       dataIndex: 'usageCount',
       width: 90,
       render: (value: number | undefined) => value ?? 0,

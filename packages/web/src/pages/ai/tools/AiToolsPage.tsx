@@ -92,7 +92,7 @@ export default function AiToolsPage() {
       width: 300,
       render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 280, fontSize: 12 }}>{v}</Text>,
     },
-    { title: '参数数', dataIndex: 'params', width: 80, render: (v: AiHttpToolParam[]) => v?.length ?? 0 },
+    { title: '参数数', dataIndex: 'params', width: 80, align: 'right' as const, render: (v: AiHttpToolParam[]) => v?.length ?? 0 },
     {
       title: '状态',
       dataIndex: 'isEnabled',

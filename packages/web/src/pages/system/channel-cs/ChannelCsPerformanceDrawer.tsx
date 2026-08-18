@@ -20,10 +20,11 @@ export function ChannelCsPerformanceDrawer({ visible, onClose }: Readonly<Props>
 
   const columns = [
     { title: '客服', dataIndex: 'agentName', key: 'agentName' },
-    { title: '回复消息数', dataIndex: 'replyCount', key: 'replyCount', width: 110 },
-    { title: '解决会话数', dataIndex: 'resolvedCount', key: 'resolvedCount', width: 110 },
+    { title: '回复消息数', dataIndex: 'replyCount', key: 'replyCount', width: 110, align: 'right' as const },
+    { title: '解决会话数', dataIndex: 'resolvedCount', key: 'resolvedCount', width: 110, align: 'right' as const },
     {
       title: '平均响应(分钟)',
+      align: 'right' as const,
       dataIndex: 'avgResponseMinutes',
       key: 'avgResponseMinutes',
       width: 130,

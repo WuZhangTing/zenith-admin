@@ -48,7 +48,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const columns: ColumnProps<CmsAdSlot>[] = [
     { title: '广告位名称', dataIndex: 'name', width: 180 },
     { title: '模板引用标识', dataIndex: 'code', width: 160, render: (v: string) => <Tag size="small">{v}</Tag> },
-    { title: '投放广告数', dataIndex: 'adCount', width: 110 },
+    { title: '投放广告数', dataIndex: 'adCount', width: 110, align: 'right' },
     { title: '备注', dataIndex: 'remark', width: 220, render: (v: string | null) => v ?? '-' },
     createOperationColumn<CmsAdSlot>({
       width: 160,
