@@ -617,6 +617,7 @@ export interface DirectorySyncSource {
   /** 平台 API 源绑定的 OAuth provider（如 dingtalk） */
   oauthProvider: string | null;
   matchKey: DirectorySyncMatchKey;
+  /** 字段映射：本地字段 → 源侧标准字段（username/nickname/email/phone）或 __ignore__（不同步） */
   fieldMapping: Record<string, string>;
   scopeConfig: DirectorySyncScope;
   conflictPolicy: DirectorySyncConflictPolicy;
@@ -626,6 +627,14 @@ export interface DirectorySyncSource {
   circuitBreakerPercent: number;
   /** 企业微信通讯录 Secret 是否已配置（明文不回显） */
   contactSecretSet?: boolean;
+  /** 回调 Token / SCIM Bearer Token 是否已配置（明文不回显） */
+  callbackTokenSet?: boolean;
+  /** 回调 AES Key 是否已配置（明文不回显） */
+  callbackAesKeySet?: boolean;
+  /** 回调 / SCIM URL 的随机路径段 */
+  callbackUrlKey: string | null;
+  /** 最近一次收到平台回调事件的时间 */
+  callbackLastEventAt: string | null;
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastRunStatus: DirectorySyncRunStatus | null;

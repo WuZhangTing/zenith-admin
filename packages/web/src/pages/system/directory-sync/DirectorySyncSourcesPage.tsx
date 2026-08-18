@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Form, Modal, Spin, Switch, Tag, Toast, Row, Col } from '@douyinfe/semi-ui';
+import { Divider, Form, Modal, Spin, Switch, Tag, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -26,7 +26,16 @@ import {
   DIRECTORY_SYNC_MATCH_KEYS, DIRECTORY_SYNC_MATCH_KEY_LABELS,
   DIRECTORY_SYNC_CONFLICT_POLICIES, DIRECTORY_SYNC_CONFLICT_POLICY_LABELS,
   DIRECTORY_SYNC_RUN_STATUS_LABELS,
+  DIRECTORY_SYNC_CALLBACK_TYPES, DIRECTORY_SYNC_MAPPABLE_SOURCE_FIELDS,
+  DIRECTORY_SYNC_SOURCE_FIELD_LABELS, DIRECTORY_SYNC_FIELD_IGNORE,
 } from '@zenith/shared/identity';
+
+const CALLBACK_TYPE_SET = new Set<string>(DIRECTORY_SYNC_CALLBACK_TYPES);
+
+const MAPPING_SOURCE_OPTIONS = DIRECTORY_SYNC_MAPPABLE_SOURCE_FIELDS.map((f) => ({
+  value: f,
+  label: DIRECTORY_SYNC_SOURCE_FIELD_LABELS[f],
+}));
 
 interface SearchParams {
   keyword: string;
@@ -98,19 +107,32 @@ export default function DirectorySyncSourcesPage() {
       circuitBreakerPercent: r.circuitBreakerPercent,
       lifecycle: r.lifecycle,
       scopeConfig: r.scopeConfig,
+      fieldMapping: r.fieldMapping,
       remark: r.remark,
     }),
     beforeSave: (values) => {
-      const v = values as Partial<DirectorySyncSource> & { type: string; contactSecret?: string | null };
-      const isPlatform = v.type !== 'ldap';
+      const v = values as Partial<DirectorySyncSource> & {
+        type: string;
+        contactSecret?: string | null;
+        callbackToken?: string | null;
+        callbackAesKey?: string | null;
+      };
+      const isPlatform = v.type !== 'ldap' && v.type !== 'scim';
+      // 清掉映射里的空值（= 跟随默认）
+      const fieldMapping = Object.fromEntries(
+        Object.entries(v.fieldMapping ?? {}).filter(([, value]) => typeof value === 'string' && value !== ''),
+      );
       return {
         ...v,
+        fieldMapping,
         // 绑定字段按类型收敛，避免残留另一类型的绑定
         identityProviderId: v.type === 'ldap' ? v.identityProviderId : null,
         oauthProvider: isPlatform ? v.type : null,
-        // 空串 = 不修改已保存的通讯录 Secret
+        // 空串 = 不修改已保存的密钥
         contactSecret: v.type === 'wechat_work' && v.contactSecret?.trim() ? v.contactSecret.trim() : undefined,
-        cronExpression: v.cronExpression?.trim() ? v.cronExpression.trim() : null,
+        callbackToken: v.callbackToken?.trim() ? v.callbackToken.trim() : undefined,
+        callbackAesKey: v.callbackAesKey?.trim() ? v.callbackAesKey.trim() : undefined,
+        cronExpression: v.type === 'scim' ? null : (v.cronExpression?.trim() ? v.cronExpression.trim() : null),
       };
     },
     labelWidth: 110,
@@ -190,12 +212,16 @@ export default function DirectorySyncSourcesPage() {
       title: '凭证来源', dataIndex: 'identityProviderName', width: 180,
       render: (_: unknown, r: DirectorySyncSource) => {
         if (r.type === 'ldap') return r.identityProviderName ? `身份源：${r.identityProviderName}` : EMPTY_PLACEHOLDER;
+        if (r.type === 'scim') return 'IdP 推送（Bearer Token）';
         return `OAuth 配置：${DIRECTORY_SYNC_SOURCE_TYPE_LABELS[r.type]}`;
       },
     },
     {
       title: '调度', dataIndex: 'cronExpression', width: 130,
-      render: (v: string | null) => v ? <code>{v}</code> : '仅手动',
+      render: (v: string | null, r: DirectorySyncSource) => {
+        if (r.type === 'scim') return 'IdP 推送';
+        return v ? <code>{v}</code> : '仅手动';
+      },
     },
     {
       title: '上次同步', dataIndex: 'lastRunStatus', width: 110,
@@ -221,16 +247,16 @@ export default function DirectorySyncSourcesPage() {
       width: 280,
       desktopInlineKeys: ['run', 'preview', 'edit'],
       actions: (record) => [
-        ...(hasPermission('system:dirsync-source:run') ? [{
+        ...(record.type !== 'scim' && hasPermission('system:dirsync-source:run') ? [{
           key: 'run', label: '立即同步', onClick: () => handleRun(record, false),
         }] : []),
-        ...(hasPermission('system:dirsync-source:preview') ? [{
+        ...(record.type !== 'scim' && hasPermission('system:dirsync-source:preview') ? [{
           key: 'preview', label: '预览差异', onClick: () => handleRun(record, true),
         }] : []),
         ...(hasPermission('system:dirsync-source:edit') ? [{
           key: 'edit', label: '编辑', onClick: () => modal.openEdit(record),
         }] : []),
-        ...(hasPermission('system:dirsync-source:test') ? [{
+        ...(record.type !== 'scim' && hasPermission('system:dirsync-source:test') ? [{
           key: 'test', label: testingId === record.id ? '测试中…' : '测试连接', onClick: () => handleTest(record),
         }] : []),
         ...(hasPermission('system:dirsync-source:delete') ? [{
@@ -370,27 +396,48 @@ export default function DirectorySyncSourcesPage() {
                       </div>
                     </Form.Slot>
                   )}
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Select field="matchKey" label="匹配键" style={{ width: '100%' }}
-                        optionList={DIRECTORY_SYNC_MATCH_KEYS.map((k) => ({ value: k, label: DIRECTORY_SYNC_MATCH_KEY_LABELS[k] }))}
-                        helpText="未绑定的外部用户按此字段匹配本地账号" />
-                    </Col>
-                    <Col span={12}>
-                      <Form.Select field="conflictPolicy" label="冲突策略" style={{ width: '100%' }}
-                        optionList={DIRECTORY_SYNC_CONFLICT_POLICIES.map((p) => ({ value: p, label: DIRECTORY_SYNC_CONFLICT_POLICY_LABELS[p] }))} />
-                    </Col>
-                  </Row>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Form.Switch field="syncDepartments" label="同步部门树" />
-                    </Col>
-                    <Col span={12}>
-                      <Form.InputNumber field="circuitBreakerPercent" label="熔断阈值 (%)" style={{ width: '100%' }}
-                        min={0} max={100}
-                        helpText="单次计划禁用人数占已绑定人数比例超过该值时中止同步" />
-                    </Col>
-                  </Row>
+                  {type === 'scim' && (
+                    <>
+                      <Form.Slot label="SCIM Base URL">
+                        {modal.isEdit && modal.editing?.callbackUrlKey ? (
+                          <Typography.Text code copyable>
+                            {`${window.location.origin}/api/directory-sync/scim/${modal.editing.callbackUrlKey}/v2`}
+                          </Typography.Text>
+                        ) : (
+                          <Typography.Text type="tertiary">保存后自动生成，配置到 Azure AD / Okta 的租户 URL</Typography.Text>
+                        )}
+                      </Form.Slot>
+                      <Form.Input field="callbackToken" label="Bearer Token" type="password"
+                        placeholder={modal.isEdit && modal.editing?.callbackTokenSet ? '已配置；留空保持不变' : 'IdP 侧 Secret Token，建议 32 位以上随机串'}
+                        rules={modal.isEdit && modal.editing?.callbackTokenSet ? [] : [{ required: true, message: 'SCIM 源必须设置 Bearer Token' }]}
+                        helpText="IdP 以 Authorization: Bearer <token> 调用本端 SCIM 接口" />
+                    </>
+                  )}
+                  {type !== 'scim' && (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Select field="matchKey" label="匹配键" style={{ width: '100%' }}
+                          optionList={DIRECTORY_SYNC_MATCH_KEYS.map((k) => ({ value: k, label: DIRECTORY_SYNC_MATCH_KEY_LABELS[k] }))}
+                          helpText="未绑定的外部用户按此字段匹配本地账号" />
+                      </Col>
+                      <Col span={12}>
+                        <Form.Select field="conflictPolicy" label="冲突策略" style={{ width: '100%' }}
+                          optionList={DIRECTORY_SYNC_CONFLICT_POLICIES.map((p) => ({ value: p, label: DIRECTORY_SYNC_CONFLICT_POLICY_LABELS[p] }))} />
+                      </Col>
+                    </Row>
+                  )}
+                  {type !== 'scim' && (
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Switch field="syncDepartments" label="同步部门树" />
+                      </Col>
+                      <Col span={12}>
+                        <Form.InputNumber field="circuitBreakerPercent" label="熔断阈值 (%)" style={{ width: '100%' }}
+                          min={0} max={100}
+                          helpText="单次计划禁用人数占已绑定人数比例超过该值时中止同步" />
+                      </Col>
+                    </Row>
+                  )}
                   <Row gutter={16}>
                     <Col span={12}>
                       <Form.Switch field="lifecycle.disableOnLeave" label="离职自动禁用" />
@@ -402,13 +449,66 @@ export default function DirectorySyncSourcesPage() {
                   <Form.Select field="lifecycle.defaultRoleIds" label="默认角色" multiple style={{ width: '100%' }}
                     placeholder="新建账号自动授予的角色（可空）"
                     optionList={roleOptions} loading={rolesQuery.isFetching} />
-                  <Form.Input field="cronExpression" label="定时表达式"
-                    placeholder="如 0 2 * * *（每天 2 点），留空则仅手动同步"
-                    helpText="标准 5 段 cron；由系统调度每分钟扫描到期源" />
-                  <Form.TagInput field="scopeConfig.deptExternalIds" label="部门范围"
-                    placeholder="外部部门 ID，回车添加；留空同步全部" />
-                  <Form.TagInput field="scopeConfig.excludeUserExternalIds" label="排除人员"
-                    placeholder="外部用户 ID，回车添加" />
+                  {type !== 'scim' && (
+                    <>
+                      <Form.Input field="cronExpression" label="定时表达式"
+                        placeholder="如 0 2 * * *（每天 2 点），留空则仅手动同步"
+                        helpText="标准 5 段 cron；由系统调度每分钟扫描到期源" />
+                      <Form.TagInput field="scopeConfig.deptExternalIds" label="部门范围"
+                        placeholder="外部部门 ID，回车添加；留空同步全部" />
+                      <Form.TagInput field="scopeConfig.excludeUserExternalIds" label="排除人员"
+                        placeholder="外部用户 ID，回车添加" />
+                    </>
+                  )}
+                  {CALLBACK_TYPE_SET.has(type) && (
+                    <>
+                      <Divider align="left">事件回调（准实时增量）</Divider>
+                      <Form.Slot label="回调 URL">
+                        {modal.isEdit && modal.editing?.callbackUrlKey ? (
+                          <Typography.Text code copyable>
+                            {`${window.location.origin}/api/directory-sync/callbacks/${modal.editing.callbackUrlKey}`}
+                          </Typography.Text>
+                        ) : (
+                          <Typography.Text type="tertiary">保存后自动生成，配置到平台的事件订阅地址</Typography.Text>
+                        )}
+                      </Form.Slot>
+                      <Form.Input field="callbackToken" label="回调 Token" type="password"
+                        placeholder={modal.isEdit && modal.editing?.callbackTokenSet ? '已配置；留空保持不变' : type === 'feishu' ? 'Verification Token（可空）' : '与平台回调配置一致的 Token'}
+                        helpText="收到事件后置位标记，由系统调度在一分钟内触发一次幂等同步" />
+                      <Form.Input field="callbackAesKey" label="回调 AES Key" type="password"
+                        placeholder={modal.isEdit && modal.editing?.callbackAesKeySet ? '已配置；留空保持不变' : type === 'feishu' ? 'Encrypt Key（明文模式可空）' : '43 位 EncodingAESKey'} />
+                    </>
+                  )}
+                  {type !== 'scim' && (
+                    <>
+                      <Divider align="left">字段映射</Divider>
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Form.Select field="fieldMapping.username" label="登录名来源" style={{ width: '100%' }}
+                            placeholder="默认：登录名（username）" showClear
+                            optionList={MAPPING_SOURCE_OPTIONS}
+                            helpText="仅建号时使用" />
+                        </Col>
+                        <Col span={12}>
+                          <Form.Select field="fieldMapping.nickname" label="姓名来源" style={{ width: '100%' }}
+                            placeholder="默认：姓名（nickname）" showClear
+                            optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
+                        </Col>
+                      </Row>
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Form.Select field="fieldMapping.email" label="邮箱来源" style={{ width: '100%' }}
+                            placeholder="默认：邮箱（email）" showClear
+                            optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
+                        </Col>
+                        <Col span={12}>
+                          <Form.Select field="fieldMapping.phone" label="手机号来源" style={{ width: '100%' }}
+                            placeholder="默认：手机号（phone）" showClear
+                            optionList={[...MAPPING_SOURCE_OPTIONS, { value: DIRECTORY_SYNC_FIELD_IGNORE, label: '不同步' }]} />
+                        </Col>
+                      </Row>
+                    </>
+                  )}
                   <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} />
                 </>
               );

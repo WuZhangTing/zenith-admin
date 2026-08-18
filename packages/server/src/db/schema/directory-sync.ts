@@ -3,7 +3,7 @@ import { statusEnum } from './common';
 import { auditColumns, tenants, users, departments } from './core';
 import { tenantIdentityProviders } from './identity-providers';
 
-export const directorySyncSourceTypeEnum = pgEnum('directory_sync_source_type', ['ldap', 'dingtalk', 'wechat_work', 'feishu']);
+export const directorySyncSourceTypeEnum = pgEnum('directory_sync_source_type', ['ldap', 'dingtalk', 'wechat_work', 'feishu', 'scim']);
 
 export const directorySyncRunStatusEnum = pgEnum('directory_sync_run_status', ['running', 'success', 'partial', 'failed', 'aborted']);
 
@@ -40,6 +40,15 @@ export const directorySyncSources = pgTable('directory_sync_sources', {
   oauthProvider: varchar('oauth_provider', { length: 32 }),
   /** 企业微信通讯录 Secret（独立于应用 Secret，仅同步使用） */
   contactSecret: text('contact_secret'),
+  /** 平台回调 Token / SCIM Bearer Token */
+  callbackToken: text('callback_token'),
+  /** 平台回调 AES Key（钉钉/企微加密模式 43 位；飞书 Encrypt Key） */
+  callbackAesKey: text('callback_aes_key'),
+  /** 回调 / SCIM URL 的随机路径段（防探测） */
+  callbackUrlKey: varchar('callback_url_key', { length: 64 }),
+  /** 收到平台回调事件后置位，由调度 tick 消费并触发一次同步 */
+  pendingCallbackSync: boolean('pending_callback_sync').notNull().default(false),
+  callbackLastEventAt: timestamp('callback_last_event_at', { withTimezone: true }),
   /** 匹配键：未建立绑定的外部用户按此字段匹配本地账号 */
   matchKey: varchar('match_key', { length: 16 }).notNull().default('phone'),
   /** 字段映射覆盖（外部字段 → 本地字段），为空使用连接器默认映射 */
@@ -67,6 +76,7 @@ export const directorySyncSources = pgTable('directory_sync_sources', {
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   unique('directory_sync_sources_tenant_name_unique').on(t.tenantId, t.name),
+  unique('directory_sync_sources_callback_key_unique').on(t.callbackUrlKey),
   index('directory_sync_sources_status_idx').on(t.status),
 ]);
 

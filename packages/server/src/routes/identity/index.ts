@@ -3,6 +3,7 @@ import apiTokensRoutes from './api-tokens';
 import authRoutes from './auth';
 import departmentsRoutes from './departments';
 import directorySyncRoutes from './directory-sync';
+import directorySyncCallbacksRoutes from './directory-sync-callbacks';
 import enterpriseAuthRoutes from './enterprise-auth';
 import identityProvidersRoutes from './identity-providers';
 import identitySecurityRoutes from './identity-security';
@@ -32,6 +33,8 @@ export default defineRouteDomain({
     ['/api/identity-security', identitySecurityRoutes],
     ['/api/identity-providers', identityProvidersRoutes],
     ['/api/directory-sync', directorySyncRoutes],
+    // 机器端点（平台回调 / SCIM）：公开路径，自带验签与 Bearer 校验
+    ['/api/directory-sync', directorySyncCallbacksRoutes],
     ['/api/sessions', sessionsRoutes],
     ['/api/tenants', tenantsRoutes],
     ['/api/tenant-packages', tenantPackagesRoutes],

@@ -42,7 +42,7 @@ export function isSafeOAuthRedirectUri(value: string): boolean {
 }
 
 // ─── 通讯录同步 ──────────────────────────────────────────────────────
-export const DIRECTORY_SYNC_SOURCE_TYPES = ['ldap', 'dingtalk', 'wechat_work', 'feishu'] as const;
+export const DIRECTORY_SYNC_SOURCE_TYPES = ['ldap', 'dingtalk', 'wechat_work', 'feishu', 'scim'] as const;
 
 export type DirectorySyncSourceType = (typeof DIRECTORY_SYNC_SOURCE_TYPES)[number];
 
@@ -51,7 +51,29 @@ export const DIRECTORY_SYNC_SOURCE_TYPE_LABELS: Record<DirectorySyncSourceType, 
   dingtalk: '钉钉',
   wechat_work: '企业微信',
   feishu: '飞书',
+  scim: 'SCIM 2.0',
 };
+
+/** 拉取型源（支持定时/手动全量同步与连接测试）；SCIM 为 IdP 推送型 */
+export const DIRECTORY_SYNC_PULL_TYPES = ['ldap', 'dingtalk', 'wechat_work', 'feishu'] as const;
+
+/** 支持平台事件回调的源类型 */
+export const DIRECTORY_SYNC_CALLBACK_TYPES = ['dingtalk', 'wechat_work', 'feishu'] as const;
+
+/** 字段映射：可选的源侧标准字段 */
+export const DIRECTORY_SYNC_MAPPABLE_SOURCE_FIELDS = ['username', 'nickname', 'email', 'phone'] as const;
+
+export type DirectorySyncMappableSourceField = (typeof DIRECTORY_SYNC_MAPPABLE_SOURCE_FIELDS)[number];
+
+export const DIRECTORY_SYNC_SOURCE_FIELD_LABELS: Record<DirectorySyncMappableSourceField, string> = {
+  username: '登录名（username）',
+  nickname: '姓名（nickname）',
+  email: '邮箱（email）',
+  phone: '手机号（phone）',
+};
+
+/** 字段映射取值：不同步该字段 */
+export const DIRECTORY_SYNC_FIELD_IGNORE = '__ignore__';
 
 export const DIRECTORY_SYNC_MATCH_KEYS = ['phone', 'email', 'username'] as const;
 
@@ -85,7 +107,7 @@ export const DIRECTORY_SYNC_RUN_STATUS_LABELS: Record<DirectorySyncRunStatus, st
   aborted: '已熔断',
 };
 
-export const DIRECTORY_SYNC_TRIGGER_TYPES = ['schedule', 'manual', 'preview'] as const;
+export const DIRECTORY_SYNC_TRIGGER_TYPES = ['schedule', 'manual', 'preview', 'callback'] as const;
 
 export type DirectorySyncTriggerType = (typeof DIRECTORY_SYNC_TRIGGER_TYPES)[number];
 
@@ -93,6 +115,7 @@ export const DIRECTORY_SYNC_TRIGGER_TYPE_LABELS: Record<DirectorySyncTriggerType
   schedule: '定时',
   manual: '手动',
   preview: '预览',
+  callback: '回调',
 };
 
 export const DIRECTORY_SYNC_ITEM_ACTIONS = ['create', 'update', 'link', 'disable', 'skip', 'conflict', 'fail'] as const;

@@ -12,6 +12,7 @@ import {
   type NewDirectorySyncRunItem,
 } from '../../db/schema';
 import type { DirectorySyncRunStatus, DirectorySyncTriggerType } from '@zenith/shared/identity';
+import { DIRECTORY_SYNC_FIELD_IGNORE } from '@zenith/shared/identity';
 import logger from '../../lib/logger';
 import { registerTaskHandler } from '../../lib/task-center';
 import { currentUserOrNull } from '../../lib/context';
@@ -204,6 +205,7 @@ async function insertRunItems(items: NewDirectorySyncRunItem[]): Promise<void> {
 export async function runDirectorySync(sourceId: number, opts: RunOptions): Promise<DirectorySyncEngineResult> {
   const source = await db.query.directorySyncSources.findFirst({ where: eq(directorySyncSources.id, sourceId) });
   if (!source) throw new HTTPException(404, { message: '同步源不存在' });
+  if (source.type === 'scim') throw new HTTPException(400, { message: 'SCIM 源为 IdP 推送模式，无需拉取同步' });
 
   const running = await db.$count(directorySyncRuns, and(
     eq(directorySyncRuns.sourceId, sourceId),
@@ -303,11 +305,31 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
     const presentExtIds = new Set(activeExtUsers.map((u) => u.externalId));
     const plannedUsers: PlannedUser[] = [];
 
+    // 字段映射：本地字段 → 源侧标准字段（缺省同名）或 __ignore__（不同步该字段）
+    const fieldMapping = source.fieldMapping ?? {};
+    const resolveMapped = (ext: DirectoryExtUser, localField: 'username' | 'nickname' | 'email' | 'phone'): string | null => {
+      const sourceField = fieldMapping[localField] ?? localField;
+      if (sourceField === DIRECTORY_SYNC_FIELD_IGNORE) return null;
+      const value = (ext as unknown as Record<string, unknown>)[sourceField];
+      return typeof value === 'string' && value.trim() ? value.trim() : null;
+    };
+    const fieldIgnored = (localField: string) => fieldMapping[localField] === DIRECTORY_SYNC_FIELD_IGNORE;
+
     for (const ext of activeExtUsers) {
       const link = userLinkByExt.get(ext.externalId);
-      const desired: Record<string, unknown> = { nickname: ext.nickname };
-      if (ext.email) desired.email = ext.email;
-      if (ext.phone) desired.phone = ext.phone;
+      const desired: Record<string, unknown> = {};
+      if (!fieldIgnored('nickname')) {
+        const nickname = resolveMapped(ext, 'nickname');
+        if (nickname) desired.nickname = nickname;
+      }
+      if (!fieldIgnored('email')) {
+        const email = resolveMapped(ext, 'email');
+        if (email) desired.email = email;
+      }
+      if (!fieldIgnored('phone')) {
+        const phone = resolveMapped(ext, 'phone');
+        if (phone) desired.phone = phone;
+      }
 
       if (link && localUserById.has(link.userId)) {
         const local = localUserById.get(link.userId)!;
@@ -485,15 +507,15 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
         switch (plan.action) {
           case 'create': {
             const ext = plan.ext!;
-            let username = ext.username.slice(0, 32);
+            let username = (resolveMapped(ext, 'username') ?? ext.username).slice(0, 32);
             if (usedUsernames.has(username)) username = `${username.slice(0, 24)}_${ext.externalId.slice(0, 6)}`.slice(0, 32);
             const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
             await db.transaction(async (tx) => {
               const [created] = await tx.insert(users).values({
                 username,
-                nickname: ext.nickname.slice(0, 32),
-                email: ext.email,
-                phone: ext.phone,
+                nickname: (resolveMapped(ext, 'nickname') ?? ext.nickname).slice(0, 32),
+                email: fieldIgnored('email') ? null : resolveMapped(ext, 'email'),
+                phone: fieldIgnored('phone') ? null : resolveMapped(ext, 'phone'),
                 password,
                 tenantId: source.tenantId,
                 departmentId: resolvePrimaryDeptId(ext),
@@ -519,11 +541,17 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
                 sourceId, externalId: ext.externalId, userId: plan.localUserId!,
                 externalData: linkSnapshot(ext), lastSeenAt: new Date(),
               });
-              const patch: Record<string, unknown> = { nickname: ext.nickname.slice(0, 32) };
-              if (ext.email) patch.email = ext.email;
-              if (ext.phone) patch.phone = ext.phone;
+              const patch: Record<string, unknown> = {};
+              const linkNickname = fieldIgnored('nickname') ? null : resolveMapped(ext, 'nickname');
+              if (linkNickname) patch.nickname = linkNickname.slice(0, 32);
+              const linkEmail = fieldIgnored('email') ? null : resolveMapped(ext, 'email');
+              if (linkEmail) patch.email = linkEmail;
+              const linkPhone = fieldIgnored('phone') ? null : resolveMapped(ext, 'phone');
+              if (linkPhone) patch.phone = linkPhone;
               if (deptId) patch.departmentId = deptId;
-              await tx.update(users).set(patch).where(eq(users.id, plan.localUserId!));
+              if (Object.keys(patch).length > 0) {
+                await tx.update(users).set(patch).where(eq(users.id, plan.localUserId!));
+              }
             });
             stats.userLinked += 1;
             items.push({ ...base, action: 'link', applied: true, diff: plan.diff ?? null, message: null });
@@ -605,29 +633,41 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
   }
 }
 
-/** 系统调度 tick：扫描到期的启用同步源并顺序执行 */
+/** 系统调度 tick：扫描到期（cron 到点或收到平台回调事件）的启用同步源并顺序执行 */
 export async function scanDueDirectorySyncSources(): Promise<string> {
   const now = new Date();
   const candidates = await db.select().from(directorySyncSources)
     .where(eq(directorySyncSources.status, 'enabled'));
-  const due: DirectorySyncSourceRow[] = [];
+  const due: Array<{ source: DirectorySyncSourceRow; trigger: 'schedule' | 'callback' }> = [];
   for (const source of candidates) {
-    if (!source.cronExpression?.trim()) continue;
-    if (!source.nextRunAt) {
-      // 首次启用：只登记下次时间，不立即执行
-      await db.update(directorySyncSources)
-        .set({ nextRunAt: computeNextRunAt(source.cronExpression) })
-        .where(and(eq(directorySyncSources.id, source.id), isNull(directorySyncSources.nextRunAt)));
-      continue;
+    if (source.type === 'scim') continue; // 推送型源不做拉取
+    const callbackDue = source.pendingCallbackSync;
+    let cronDue = false;
+    if (source.cronExpression?.trim()) {
+      if (!source.nextRunAt) {
+        // 首次启用：只登记下次时间，不立即执行
+        await db.update(directorySyncSources)
+          .set({ nextRunAt: computeNextRunAt(source.cronExpression) })
+          .where(and(eq(directorySyncSources.id, source.id), isNull(directorySyncSources.nextRunAt)));
+      } else if (source.nextRunAt <= now) {
+        cronDue = true;
+      }
     }
-    if (source.nextRunAt <= now) due.push(source);
+    if (cronDue || callbackDue) {
+      due.push({ source, trigger: cronDue ? 'schedule' : 'callback' });
+    }
   }
   if (due.length === 0) return '无到期的同步源';
 
   const results: string[] = [];
-  for (const source of due) {
+  for (const { source, trigger } of due) {
+    // 先复位回调标记：运行期间新到的事件会重新置位，下一轮 tick 再消费
+    if (source.pendingCallbackSync) {
+      await db.update(directorySyncSources).set({ pendingCallbackSync: false })
+        .where(eq(directorySyncSources.id, source.id));
+    }
     try {
-      const result = await runDirectorySync(source.id, { trigger: 'schedule', triggeredBy: null });
+      const result = await runDirectorySync(source.id, { trigger, triggeredBy: null });
       results.push(`「${source.name}」${result.message}`);
     } catch (err) {
       // 已在运行等业务性拒绝：推进 nextRunAt 防止 tick 空转

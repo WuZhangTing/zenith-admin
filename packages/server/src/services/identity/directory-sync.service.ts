@@ -1,5 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray } from 'drizzle-orm';
+import crypto from 'node:crypto';
 import { db } from '../../db';
 import {
   directorySyncSources, directorySyncRuns, directorySyncRunItems, directorySyncConflicts,
@@ -40,6 +41,10 @@ export function mapDirectorySyncSource(row: DirectorySyncSourceRow & { identityP
     circuitBreakerPercent: row.circuitBreakerPercent,
     // 密钥不回显，仅暴露是否已配置
     contactSecretSet: Boolean(row.contactSecret),
+    callbackTokenSet: Boolean(row.callbackToken),
+    callbackAesKeySet: Boolean(row.callbackAesKey),
+    callbackUrlKey: row.callbackUrlKey ?? null,
+    callbackLastEventAt: formatNullableDateTime(row.callbackLastEventAt),
     nextRunAt: formatNullableDateTime(row.nextRunAt),
     lastRunAt: formatNullableDateTime(row.lastRunAt),
     lastRunStatus: row.lastRunStatus ?? null,
@@ -195,9 +200,13 @@ export async function createDirectorySyncSource(data: CreateDirectorySyncSourceI
       conflictPolicy: data.conflictPolicy,
       lifecycle: data.lifecycle,
       syncDepartments: data.syncDepartments,
-      cronExpression: data.cronExpression ?? null,
+      cronExpression: data.type === 'scim' ? null : (data.cronExpression ?? null),
       circuitBreakerPercent: data.circuitBreakerPercent,
       contactSecret: data.contactSecret?.trim() ? data.contactSecret.trim() : null,
+      callbackToken: data.callbackToken?.trim() ? data.callbackToken.trim() : null,
+      callbackAesKey: data.callbackAesKey?.trim() ? data.callbackAesKey.trim() : null,
+      // 回调 / SCIM 地址的随机路径段（防探测），创建即生成
+      callbackUrlKey: crypto.randomBytes(12).toString('hex'),
       nextRunAt: data.status === 'enabled' ? computeNextRunAt(data.cronExpression) : null,
       remark: data.remark ?? null,
     }).returning();
@@ -232,7 +241,15 @@ export async function updateDirectorySyncSource(id: number, data: UpdateDirector
       ...(data.contactSecret !== undefined && data.contactSecret !== ''
         ? { contactSecret: data.contactSecret === null ? null : data.contactSecret.trim() }
         : {}),
+      ...(data.callbackToken !== undefined && data.callbackToken !== ''
+        ? { callbackToken: data.callbackToken === null ? null : data.callbackToken.trim() }
+        : {}),
+      ...(data.callbackAesKey !== undefined && data.callbackAesKey !== ''
+        ? { callbackAesKey: data.callbackAesKey === null ? null : data.callbackAesKey.trim() }
+        : {}),
       ...(data.remark !== undefined ? { remark: data.remark } : {}),
+      // 存量源（P3 之前创建）没有回调 Key：更新时补生成
+      ...(before.callbackUrlKey ? {} : { callbackUrlKey: crypto.randomBytes(12).toString('hex') }),
       // 启停或表达式变化后重算下次运行时间
       nextRunAt: status === 'enabled' ? computeNextRunAt(cron) : null,
     }).where(eq(directorySyncSources.id, id));
@@ -251,11 +268,17 @@ export async function deleteDirectorySyncSource(id: number) {
 // ─── 连接测试与同步提交 ────────────────────────────────────────────────────────
 export async function testDirectorySyncSourceConnection(id: number): Promise<DirectoryConnectorTestResult> {
   const source = await ensureDirectorySyncSourceExists(id);
+  if (source.type === 'scim') {
+    throw new HTTPException(400, { message: 'SCIM 源为 IdP 推送模式，请在 IdP 侧使用“测试连接”验证' });
+  }
   return buildDirectoryConnector(source).test();
 }
 
 export async function submitDirectorySyncTask(id: number, dryRun: boolean) {
   const source = await ensureDirectorySyncSourceExists(id);
+  if (source.type === 'scim') {
+    throw new HTTPException(400, { message: 'SCIM 源为 IdP 推送模式，无需拉取同步' });
+  }
   const row = await submitAsyncTask({
     taskType: DIRECTORY_SYNC_TASK_TYPE,
     title: dryRun ? `通讯录差异预览（${source.name}）` : `通讯录同步（${source.name}）`,

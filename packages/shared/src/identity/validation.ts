@@ -445,6 +445,10 @@ export const createDirectorySyncSourceSchema = z.object({
   circuitBreakerPercent: z.number().int().min(0, '熔断阈值最小为 0').max(100, '熔断阈值最大为 100').default(30),
   /** 企业微信通讯录 Secret（独立于应用 Secret；写入后不回显） */
   contactSecret: z.string().max(256).nullable().optional(),
+  /** 平台回调 Token / SCIM Bearer Token（写入后不回显） */
+  callbackToken: z.string().max(256).nullable().optional(),
+  /** 平台回调 AES Key（钉钉/企微必填 43 位；飞书 Encrypt Key 可选；写入后不回显） */
+  callbackAesKey: z.string().max(256).nullable().optional(),
   remark: z.string().max(500).nullable().optional(),
 }).superRefine((v, ctx) => {
   if (v.type === 'ldap' && !v.identityProviderId) {
@@ -455,6 +459,9 @@ export const createDirectorySyncSourceSchema = z.object({
   }
   if (v.type === 'wechat_work' && !v.contactSecret?.trim()) {
     ctx.addIssue({ code: 'custom', path: ['contactSecret'], message: '企业微信源必须填写通讯录 Secret' });
+  }
+  if (v.type === 'scim' && !v.callbackToken?.trim()) {
+    ctx.addIssue({ code: 'custom', path: ['callbackToken'], message: 'SCIM 源必须设置 Bearer Token' });
   }
 });
 
@@ -472,8 +479,10 @@ export const updateDirectorySyncSourceSchema = z.object({
   syncDepartments: z.boolean().optional(),
   cronExpression: z.string().max(64).nullable().optional(),
   circuitBreakerPercent: z.number().int().min(0).max(100).optional(),
-  /** 传非空字符串时更新；传 null 清除；缺省保持不变 */
+  /** 缺省保持不变；空串视为不修改，null 显式清除 */
   contactSecret: z.string().max(256).nullable().optional(),
+  callbackToken: z.string().max(256).nullable().optional(),
+  callbackAesKey: z.string().max(256).nullable().optional(),
   remark: z.string().max(500).nullable().optional(),
 });
 

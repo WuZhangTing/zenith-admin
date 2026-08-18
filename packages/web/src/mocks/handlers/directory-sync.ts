@@ -28,13 +28,18 @@ export const directorySyncHandlers = [
   }),
 
   http.post('/api/directory-sync/sources', async ({ request }) => {
-    const body = (await request.json()) as Partial<DirectorySyncSource> & { contactSecret?: string | null };
+    const body = (await request.json()) as Partial<DirectorySyncSource> & {
+      contactSecret?: string | null;
+      callbackToken?: string | null;
+      callbackAesKey?: string | null;
+    };
     if (mockDirectorySyncSources.some((s) => s.name === body.name)) {
       return badRequest('同名同步源已存在', { status: 400 });
     }
     const now = mockDateTime();
+    const newId = getNextDirectorySyncSourceId();
     const source: DirectorySyncSource = {
-      id: getNextDirectorySyncSourceId(),
+      id: newId,
       name: body.name ?? '',
       type: (body.type ?? 'ldap') as DirectorySyncSource['type'],
       status: body.status ?? 'disabled',
@@ -51,6 +56,10 @@ export const directorySyncHandlers = [
       cronExpression: body.cronExpression ?? null,
       circuitBreakerPercent: body.circuitBreakerPercent ?? 30,
       contactSecretSet: Boolean(body.contactSecret),
+      callbackTokenSet: Boolean(body.callbackToken),
+      callbackAesKeySet: Boolean(body.callbackAesKey),
+      callbackUrlKey: `demo-callback-key-${newId}`,
+      callbackLastEventAt: null,
       nextRunAt: null,
       lastRunAt: null,
       lastRunStatus: null,
@@ -71,10 +80,16 @@ export const directorySyncHandlers = [
   http.put('/api/directory-sync/sources/:id', async ({ params, request }) => {
     const source = findSource(params.id as string);
     if (!source) return notFound('同步源不存在', { status: 404 });
-    const body = (await request.json()) as Partial<DirectorySyncSource> & { contactSecret?: string | null };
-    const { contactSecret, ...rest } = body;
+    const body = (await request.json()) as Partial<DirectorySyncSource> & {
+      contactSecret?: string | null;
+      callbackToken?: string | null;
+      callbackAesKey?: string | null;
+    };
+    const { contactSecret, callbackToken, callbackAesKey, ...rest } = body;
     Object.assign(source, { ...rest, updatedAt: mockDateTime() });
     if (contactSecret) source.contactSecretSet = true;
+    if (callbackToken) source.callbackTokenSet = true;
+    if (callbackAesKey) source.callbackAesKeySet = true;
     return ok(source, '更新成功');
   }),
 
