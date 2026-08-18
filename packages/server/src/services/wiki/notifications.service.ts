@@ -4,11 +4,12 @@ import { wikiDocSubscriptions, wikiDocs } from '../../db/schema';
 import { currentUserId } from '../../lib/context';
 import logger from '../../lib/logger';
 import { buildWhere } from '../../lib/where-helpers';
-import { sendSystemInApp } from '../messaging/in-app-messages.service';
+import { notify } from '../messaging/notification-outbox.service';
 
 /**
- * 知识中心站内通知（P2-C）。
- * 统一走 messaging 的 sendSystemInApp；失败只记录日志，不阻断业务主流程。
+ * 知识中心通知（P2-C）。
+ * 统一走通知中心的 `notify()`：渠道、收件人偏好与免打扰由派发层决定，
+ * 这里只负责说明「发生了什么、跟谁有关」。失败只记录日志，不阻断业务主流程。
  */
 
 async function listSubscriberIds(docId: number, excludeUserId?: number): Promise<number[]> {
@@ -27,6 +28,10 @@ async function getDocBrief(docId: number) {
   });
 }
 
+function toRecipients(userIds: number[]) {
+  return userIds.map((id) => ({ type: 'user' as const, id }));
+}
+
 /** 文档发布（含审核通过与直发）→ 通知订阅者 */
 export async function notifyWikiDocPublished(docId: number): Promise<void> {
   try {
@@ -34,12 +39,11 @@ export async function notifyWikiDocPublished(docId: number): Promise<void> {
     if (!doc) return;
     const userIds = await listSubscriberIds(docId, currentUserId());
     if (userIds.length === 0) return;
-    await sendSystemInApp({
-      userIds,
-      title: '订阅的知识文档已更新',
-      content: `你订阅的文档《${doc.title}》发布了新版本，点击知识中心查看。`,
-      type: 'info',
+    await notify('wiki.doc.published', {
+      recipients: toRecipients(userIds),
+      vars: { docId: doc.id, docTitle: doc.title },
       tenantId: doc.tenantId ?? null,
+      link: `/wiki/docs/${doc.id}`,
     });
   } catch (err) {
     logger.warn('[wiki] 发布通知发送失败', { docId, err });
@@ -55,12 +59,11 @@ export async function notifyWikiDocCommented(docId: number, commentSummary: stri
     const ids = new Set<number>(await listSubscriberIds(docId, me));
     if (doc.createdBy !== null && doc.createdBy !== me) ids.add(doc.createdBy);
     if (ids.size === 0) return;
-    await sendSystemInApp({
-      userIds: [...ids],
-      title: '知识文档有新评论',
-      content: `《${doc.title}》收到新评论：${commentSummary.slice(0, 80)}`,
-      type: 'info',
+    await notify('wiki.doc.commented', {
+      recipients: toRecipients([...ids]),
+      vars: { docId: doc.id, docTitle: doc.title, summary: commentSummary.slice(0, 80) },
       tenantId: doc.tenantId ?? null,
+      link: `/wiki/docs/${doc.id}`,
     });
   } catch (err) {
     logger.warn('[wiki] 评论通知发送失败', { docId, err });
@@ -76,12 +79,11 @@ export async function notifyWikiMentioned(docId: number, mentionedUserIds: numbe
     const me = currentUserId();
     const userIds = [...new Set(mentionedUserIds)].filter((uid) => uid !== me);
     if (userIds.length === 0) return;
-    await sendSystemInApp({
-      userIds,
-      title: '有人在知识文档中提到了你',
-      content: `你在《${doc.title}》的评论中被提及，去看看吧。`,
-      type: 'info',
+    await notify('wiki.doc.mentioned', {
+      recipients: toRecipients(userIds),
+      vars: { docId: doc.id, docTitle: doc.title },
       tenantId: doc.tenantId ?? null,
+      link: `/wiki/docs/${doc.id}`,
     });
   } catch (err) {
     logger.warn('[wiki] @提及通知发送失败', { docId, err });
@@ -93,14 +95,17 @@ export async function notifyWikiDocReviewed(docId: number, approved: boolean, re
   try {
     const doc = await getDocBrief(docId);
     if (!doc || doc.createdBy === null || doc.createdBy === currentUserId()) return;
-    await sendSystemInApp({
-      userIds: [doc.createdBy],
-      title: approved ? '知识文档审核通过' : '知识文档被驳回',
-      content: approved
-        ? `你提交的《${doc.title}》已审核通过并发布。`
-        : `你提交的《${doc.title}》被驳回${reason ? `：${reason.slice(0, 100)}` : '，请修改后重新提交。'}`,
-      type: approved ? 'success' : 'warning',
+    await notify('wiki.doc.reviewed', {
+      recipients: toRecipients([doc.createdBy]),
+      vars: {
+        docId: doc.id,
+        docTitle: doc.title,
+        resultText: approved
+          ? '已审核通过并发布。'
+          : `被驳回${reason ? `：${reason.slice(0, 100)}` : '，请修改后重新提交。'}`,
+      },
       tenantId: doc.tenantId ?? null,
+      link: `/wiki/docs/${doc.id}`,
     });
   } catch (err) {
     logger.warn('[wiki] 审核结果通知发送失败', { docId, err });

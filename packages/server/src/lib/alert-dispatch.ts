@@ -1,23 +1,27 @@
 /**
- * 告警通知的统一派发层（Webhook / 邮件 / 站内信）。
+ * 告警通知派发层（监控告警 / 错误告警）。
  *
- * 抽出公共实现的直接原因：站内信渠道此前在监控告警与错误告警里都只写了一行日志，
- * 而 UI 把「站内信」作为合法渠道（且是新建规则的默认渠道），`validateAlertDelivery`
- * 也强制要求填接收人——用户配置完全正确却收不到任何通知，且没有任何报错。
- * 各域自行拼一遍三渠道分发正是这类静默失效的温床，因此统一收口到此处。
+ * 这里不再自己拼渠道，而是把告警规则翻译成一次通知中心事件：
+ * 规则上配置的 channels 作为「管理员渠道策略」，接收人（系统用户 + 外部邮箱 + Webhook 地址）
+ * 作为收件人集合，其余的幂等、留痕与失败隔离全部复用统一派发链路。
+ *
+ * 之所以仍然同步等待派发结果，是因为告警列表要展示「有没有真的通知到人」——
+ * 只返回「已入队」的话，渠道配错在界面上就完全看不出来了。
  */
 import { eq, inArray, or, type SQL } from 'drizzle-orm';
-import type { InAppMessageType } from '@zenith/shared/messaging';
+import type {
+  InAppMessageType,
+  NotificationChannel,
+  NotificationEventKey,
+  NotificationEventVars,
+  NotificationRecipient,
+} from '@zenith/shared/messaging';
 import type { MonitorAlertNotifyStatus } from '@zenith/shared/platform';
 import { db } from '../db';
-import { users } from '../db/schema';
-import { sendMail } from './email';
-import { httpPost } from './http-client';
+import { notificationDispatches, users } from '../db/schema';
 import logger from './logger';
 import { buildWhere } from './where-helpers';
-import { sendSystemInApp } from '../services/messaging/in-app-messages.service';
-
-const WEBHOOK_TIMEOUT_MS = 8000;
+import { notifyWithin, processNotificationOutbox } from '../services/messaging/notification-outbox.service';
 
 export type AlertDispatchStatus = MonitorAlertNotifyStatus;
 
@@ -35,17 +39,15 @@ export interface AlertDispatchTarget {
   tenantId: number | null;
 }
 
-export interface AlertDispatchPayload {
-  /** 邮件主题 */
-  subject: string;
-  /** 邮件正文（HTML） */
+export interface AlertDispatchPayload<K extends NotificationEventKey = NotificationEventKey> {
+  /** 事件目录中的告警事件 key */
+  eventKey: K;
+  /** 事件变量，用于渲染标题与正文 */
+  vars: NotificationEventVars<K>;
+  /** 邮件正文（HTML），覆盖默认渲染 */
   html: string;
-  /** 站内信标题 */
-  title: string;
-  /** 站内信正文（纯文本） */
-  content: string;
   inAppType?: InAppMessageType;
-  /** 站内信幂等键：同一次触发重复派发时不会产生重复消息 */
+  /** 幂等键：同一次触发重复派发时不会产生重复消息 */
   dedupeKey?: string;
   /** Webhook 请求体 */
   webhookBody: Record<string, unknown>;
@@ -66,9 +68,10 @@ export interface AlertDispatchResult {
   error: string | null;
 }
 
-function describeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
+const SUPPORTED_CHANNELS: readonly string[] = ['inapp', 'email', 'webhook', 'chat'];
+
+function isSupportedChannel(value: string): value is NotificationChannel {
+  return SUPPORTED_CHANNELS.includes(value);
 }
 
 /**
@@ -77,12 +80,7 @@ function describeError(err: unknown): string {
  * 新模型直接使用稳定用户 ID；尚未迁移的告警域仍可传邮箱 / 用户名标识。
  * 停用账号不再接收告警。租户为空的平台级规则不限制租户范围。
  */
-interface ResolvedRecipientUser {
-  id: number;
-  email: string | null;
-}
-
-async function resolveRecipientUsers(target: AlertDispatchTarget): Promise<ResolvedRecipientUser[]> {
+async function resolveRecipientUserIds(target: AlertDispatchTarget): Promise<number[]> {
   const userIds = [...new Set((target.recipientUserIds ?? []).filter((id) => Number.isInteger(id) && id > 0))];
   const identifiers = [...new Set((target.recipients ?? []).map((recipient) => recipient.trim()).filter(Boolean))];
   const recipientConditions: SQL[] = [];
@@ -93,98 +91,119 @@ async function resolveRecipientUsers(target: AlertDispatchTarget): Promise<Resol
   if (recipientConditions.length === 0) return [];
 
   const rows = await db
-    .select({ id: users.id, email: users.email })
+    .select({ id: users.id })
     .from(users)
     .where(buildWhere(
       or(...recipientConditions),
       eq(users.status, 'enabled'),
       target.tenantId == null ? undefined : eq(users.tenantId, target.tenantId),
     ));
-  return rows;
+  return [...new Set(rows.map((row) => row.id))];
+}
+
+/** 规则上的额外邮箱：没有账号，按 external 收件人直投。 */
+function externalEmails(target: AlertDispatchTarget): string[] {
+  return [...new Set(
+    [
+      ...(target.recipientEmails ?? []),
+      ...(target.recipients ?? []).filter((recipient) => recipient.includes('@')),
+    ]
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  )];
+}
+
+/** 汇总派发留痕，还原出「每个渠道到底通没通」。 */
+async function summarizeDispatch(
+  outboxId: number,
+  channels: NotificationChannel[],
+  logTag: string,
+): Promise<AlertDispatchResult> {
+  const rows = await db.select({
+    channel: notificationDispatches.channel,
+    decision: notificationDispatches.decision,
+    reasonCode: notificationDispatches.reasonCode,
+    reasonDetail: notificationDispatches.reasonDetail,
+  }).from(notificationDispatches).where(eq(notificationDispatches.outboxId, outboxId));
+
+  const failures: string[] = [];
+  let succeeded = 0;
+  for (const channel of channels) {
+    const channelRows = rows.filter((row) => row.channel === channel);
+    if (channelRows.some((row) => row.decision === 'sent' || row.decision === 'deduped')) {
+      succeeded += 1;
+      continue;
+    }
+    const reason = channelRows.find((row) => row.reasonDetail)?.reasonDetail
+      ?? channelRows.find((row) => row.reasonCode)
+      ?? '没有匹配到可投递的接收人';
+    failures.push(`${channel}: ${typeof reason === 'string' ? reason : reason.reasonCode}`);
+  }
+
+  if (failures.length > 0) {
+    logger.error(`[${logTag}] 告警通知派发失败`, { outboxId, failures });
+  }
+  return {
+    status: failures.length === 0 ? 'success' : succeeded === 0 ? 'failed' : 'partial',
+    channels,
+    error: failures.length > 0 ? failures.join('；') : null,
+  };
 }
 
 /**
  * 按配置的渠道派发一条告警通知。
  *
- * 单个渠道失败不影响其他渠道（各渠道彼此独立），失败会记日志但不抛出——
- * 告警评估器的状态机推进不应因为下游通知不可用而中断。
- *
- * 返回值让调用方把真实投递结果落库：只记日志的话，「配了渠道却没人收到」
- * 只能靠翻服务器日志发现，运维在告警列表上完全看不出异常。
+ * 单个渠道失败不影响其他渠道；失败会记日志并反映在返回值里，但不抛出——
+ * 告警评估器的状态机推进不应该因为下游通知不可用而中断。
  */
-export async function dispatchAlertChannels(
+export async function dispatchAlertChannels<K extends NotificationEventKey>(
   target: AlertDispatchTarget,
-  payload: AlertDispatchPayload,
+  payload: AlertDispatchPayload<K>,
 ): Promise<AlertDispatchResult> {
-  const channels = target.channels ?? [];
-  const tasks: Array<{ channel: string; run: Promise<unknown> }> = [];
-  const recipientUsers = (channels.includes('inapp') || channels.includes('email'))
-    ? resolveRecipientUsers(target)
-    : Promise.resolve([]);
-
-  if (channels.includes('webhook') && target.webhookUrl) {
-    tasks.push({
-      channel: 'webhook',
-      run: httpPost(target.webhookUrl, payload.webhookBody, { timeout: WEBHOOK_TIMEOUT_MS, ssrfProtection: true }),
-    });
-  }
-
-  if (channels.includes('email')) {
-    tasks.push({
-      channel: 'email',
-      run: (async () => {
-        const usersForDelivery = await recipientUsers;
-        const emails = new Set(
-          [
-            ...(target.recipientEmails ?? []),
-            ...(target.recipients ?? []).filter((recipient) => recipient.includes('@')),
-            ...usersForDelivery.map((user) => user.email).filter((email): email is string => Boolean(email)),
-          ]
-            .map((email) => email.trim().toLowerCase())
-            .filter(Boolean),
-        );
-        // 抛出而非静默返回：这正是「配置看起来正确却没人收到」的典型成因，
-        // 必须计入失败结果，否则它会被记成一次成功派发
-        if (emails.size === 0) throw new Error('邮件接收目标没有可用邮箱');
-        await Promise.all([...emails].map((email) => sendMail(email, payload.subject, payload.html)));
-      })(),
-    });
-  }
-
-  if (channels.includes('inapp')) {
-    tasks.push({
-      channel: 'inapp',
-      run: (async () => {
-        const userIds = (await recipientUsers).map((user) => user.id);
-        if (userIds.length === 0) throw new Error('站内信接收人未匹配到任何启用用户');
-        await sendSystemInApp({
-          userIds,
-          title: payload.title,
-          content: payload.content,
-          type: payload.inAppType ?? 'warning',
-          tenantId: target.tenantId,
-          dedupeKey: payload.dedupeKey,
-        });
-      })(),
-    });
-  }
-
-  if (tasks.length === 0) {
+  const channels = [...new Set((target.channels ?? []).filter(isSupportedChannel))];
+  if (channels.length === 0) {
     return { status: 'skipped', channels: [], error: null };
   }
 
-  const results = await Promise.allSettled(tasks.map((task) => task.run));
-  const failures: string[] = [];
-  for (const [index, result] of results.entries()) {
-    if (result.status !== 'rejected') continue;
-    const channel = tasks[index].channel;
-    failures.push(`${channel}: ${describeError(result.reason)}`);
-    logger.error(`[${payload.logTag}] 告警通知派发失败`, { channel, err: result.reason });
+  const recipients: NotificationRecipient[] = [];
+  if (channels.includes('inapp') || channels.includes('email') || channels.includes('chat')) {
+    const userIds = await resolveRecipientUserIds(target);
+    recipients.push(...userIds.map((id) => ({ type: 'user' as const, id })));
+  }
+  if (channels.includes('email')) {
+    recipients.push(...externalEmails(target).map((address) => ({
+      type: 'external' as const,
+      channel: 'email' as const,
+      address,
+    })));
+  }
+  // Webhook 是地址而不是人：作为 external 收件人只投一次，
+  // 否则规则配了 5 个接收人就会把同一个 Webhook 打 5 次
+  if (channels.includes('webhook') && target.webhookUrl) {
+    recipients.push({ type: 'external', channel: 'webhook', address: target.webhookUrl });
   }
 
-  return {
-    status: failures.length === 0 ? 'success' : failures.length === tasks.length ? 'failed' : 'partial',
-    channels: tasks.map((task) => task.channel),
-    error: failures.length > 0 ? failures.join('；') : null,
-  };
+  if (recipients.length === 0) {
+    return { status: 'failed', channels, error: '没有匹配到任何可投递的接收人' };
+  }
+
+  const outboxId = await notifyWithin(db, payload.eventKey, {
+    recipients,
+    vars: payload.vars,
+    tenantId: target.tenantId,
+    dedupeKey: payload.dedupeKey ?? null,
+    channelPolicy: { only: channels },
+    channelOptions: {
+      email: { html: payload.html },
+      webhook: { url: target.webhookUrl ?? '', body: payload.webhookBody },
+      inapp: { type: payload.inAppType },
+    },
+  });
+  // 幂等键命中：同一次触发已经派发过，重复调用不应该被记成失败
+  if (outboxId === null) {
+    return { status: 'success', channels, error: null };
+  }
+
+  await processNotificationOutbox(outboxId);
+  return summarizeDispatch(outboxId, channels, payload.logTag);
 }

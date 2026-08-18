@@ -12,7 +12,7 @@ import logger from '../../lib/logger';
 import { getConfigNumber } from '../../lib/system-config';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
-import { sendSystemInApp } from '../messaging/in-app-messages.service';
+import { notify } from '../messaging/notification-outbox.service';
 import { wikiSpaceAccessCondition } from './access';
 import { ensureSpaceRole } from './spaces.service';
 
@@ -156,12 +156,11 @@ export async function remindGovernanceOwners(ids: number[]) {
   let sent = 0;
   for (const row of rows) {
     if (row.targetId === null) continue;
-    await sendSystemInApp({
-      userIds: [row.targetId],
-      title: '知识文档待维护提醒',
-      content: `你负责的文档《${row.title}》需要复核更新，请前往知识中心处理。`,
-      type: 'warning',
+    await notify('wiki.governance.maintenance_due', {
+      recipients: [{ type: 'user', id: row.targetId }],
+      vars: { docId: row.id, docTitle: row.title },
       tenantId: row.tenantId ?? null,
+      link: `/wiki/docs/${row.id}`,
     });
     sent += 1;
   }
@@ -323,15 +322,19 @@ export async function runWikiGovernanceTick(): Promise<string> {
   let reminded = 0;
   for (const doc of dueDocs) {
     if (doc.targetId === null) continue;
-    const { sentCount } = await sendSystemInApp({
-      userIds: [doc.targetId],
-      title: doc.expired ? '知识文档已过有效期' : '知识文档复审到期',
-      content: `文档《${doc.title}》${doc.expired ? '已过有效期' : '复审时间已到'}，请前往知识中心更新或归档。`,
-      type: 'warning',
+    // 幂等键命中时返回 null，不计入提醒数——同一天重复跑 cron 不应该把计数刷高
+    const outboxId = await notify('wiki.governance.review_due', {
+      recipients: [{ type: 'user', id: doc.targetId }],
+      vars: {
+        docId: doc.id,
+        docTitle: doc.title,
+        stateText: doc.expired ? '已过有效期' : '复审时间已到',
+      },
       tenantId: doc.tenantId ?? null,
       dedupeKey: `wiki-governance:${doc.id}:${today}`,
+      link: `/wiki/docs/${doc.id}`,
     });
-    reminded += sentCount;
+    if (outboxId !== null) reminded += 1;
   }
 
   // 2) 回收站超期清理（平台级设置）

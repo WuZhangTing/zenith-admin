@@ -16,7 +16,7 @@ import { OPEN_WEBHOOK_SIGNATURE_HEADER, OPEN_WEBHOOK_RETRY_STAGES_MINUTES, OPEN_
 import type { CreateAppWebhookInput, UpdateAppWebhookInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
 import { assertSafeOutboundUrl } from '../../lib/outbound-url';
-import { sendSystemInApp } from '../messaging/in-app-messages.service';
+import { notify } from '../messaging/notification-outbox.service';
 
 const TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BODY_BYTES = 4096;
@@ -384,16 +384,14 @@ async function handleTerminalFailure(
     .limit(1);
   if (!owner?.userId) return;
 
-  const title = autoDisabled ? 'Webhook 已因连续失败自动停用' : 'Webhook 投递失败';
-  const content = autoDisabled
-    ? `订阅「${sub.name}」连续 ${updated.consecutiveFailures} 次投递失败，已自动停用。最近错误：${errorMessage}`
-    : `订阅「${sub.name}」的事件 ${delivery.eventType} 投递最终失败。错误：${errorMessage}`;
-  await sendSystemInApp({
-    userIds: [owner.userId],
-    title,
-    content,
-    type: autoDisabled ? 'error' : 'warning',
+  const detail = autoDisabled
+    ? `连续 ${updated.consecutiveFailures} 次投递失败，已自动停用。最近错误：${errorMessage}`
+    : `的事件 ${delivery.eventType} 投递最终失败。错误：${errorMessage}`;
+  await notify('open-platform.webhook.delivery_failed', {
+    recipients: [{ type: 'user', id: owner.userId }],
+    vars: { subscriptionName: sub.name, detail },
     tenantId: owner.tenantId,
+    link: '/open-platform/my-apps',
   }).catch((err) => logger.error('[app-webhook] failure alert failed', {
     subscriptionId: sub.id,
     deliveryId: delivery.id,

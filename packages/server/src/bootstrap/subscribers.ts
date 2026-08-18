@@ -5,6 +5,7 @@
  * 手续费、分账等下游——delay/trigger/external/webhook 已统一为 workflow_jobs 作业。
  */
 import logger from '../lib/logger';
+import { initNotificationAdapters } from '../lib/notification/adapters';
 import { initPaymentAdapters } from '../lib/payment';
 import { registerChatWorkflowSubscriber } from '../lib/workflow-subscribers/chat';
 import { registerNodeListenersSubscriber } from '../lib/workflow-subscribers/node-listeners';
@@ -24,6 +25,7 @@ import { registerWebhookSubscribers } from '../services/payment/payment-webhook.
 import { registerWorkflowAutomationSubscribers } from '../services/workflow/workflow-automations.service';
 
 export function registerEventSubscribers(): void {
+  initNotificationAdapters();
   registerWsWorkflowSubscriber();
   registerNodeListenersSubscriber();
   registerNotificationWorkflowSubscriber();

@@ -631,6 +631,24 @@ export const SEED_CRON_JOBS: CronJob[] = [
     createdAt: SEED_DATE,
     updatedAt: SEED_DATE,
   },
+  {
+    id: 31,
+    name: '补投通知事件',
+    cronExpression: '0 * * * * *',
+    handler: 'dispatchNotifications',
+    params: null,
+    status: 'enabled',
+    description: '每分钟补投通知中心 outbox 中待派发的事件，并取走免打扰时段结束后到期的延后投递',
+    retryCount: 0,
+    retryInterval: 0,
+    retryBackoff: false,
+    monitorTimeout: null,
+    lastRunAt: null,
+    lastRunStatus: null,
+    lastRunMessage: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];
 
 // ─── 标签 ─────────────────────────────────────────────────────────────────────

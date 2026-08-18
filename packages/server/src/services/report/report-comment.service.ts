@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { reportDashboardComments, users } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentTenantId, currentUser, hasPermission } from '../../lib/context';
-import { sendSystemInApp } from '../messaging/in-app-messages.service';
+import { notify } from '../messaging/notification-outbox.service';
 import { ensureDashboardExists } from './report-dashboard.service';
 import type { ReportDashboardCommentRow, ReportDashboardRow } from '../../db/schema';
 import type { CreateReportCommentInput, ReportDashboardComment } from '@zenith/shared/report';
@@ -107,12 +107,11 @@ async function notifyMentions(
     .where(inArray(users.username, usernames));
   const userIds = mentioned.map((row) => row.id).filter((id) => id !== actorId);
   if (userIds.length === 0) return;
-  await sendSystemInApp({
-    userIds,
-    title: '仪表盘评论提及提醒',
-    content: `你在仪表盘「${dashboard.name}」评论中被提及，请前往查看。`,
-    type: 'info',
+  await notify('report.dashboard.mentioned', {
+    recipients: userIds.map((id) => ({ type: 'user', id })),
+    vars: { dashboardId: dashboard.id, dashboardName: dashboard.name },
     tenantId: currentTenantId(),
+    link: `/report/dashboards/${dashboard.id}`,
   });
 }
 

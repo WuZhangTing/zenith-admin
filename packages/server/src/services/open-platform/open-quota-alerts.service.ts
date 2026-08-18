@@ -5,7 +5,7 @@ import { oauth2Clients, openQuotaAlerts, users, type OpenQuotaAlertRow } from '.
 import logger from '../../lib/logger';
 import { openEventBus } from '../../lib/open-event-bus';
 import { mapWithConcurrency } from '../../lib/concurrency';
-import { sendSystemInApp } from '../messaging/in-app-messages.service';
+import { notify } from '../messaging/notification-outbox.service';
 import redis from '../../lib/redis';
 import { config } from '../../config';
 
@@ -56,13 +56,18 @@ async function deliverQuotaAlert(id: number): Promise<boolean> {
       .where(eq(oauth2Clients.clientId, alert.clientId))
       .limit(1);
     if (owner?.userId) {
-      await sendSystemInApp({
-        userIds: [owner.userId],
-        title: `开放 API 配额已使用 ${alert.threshold}%`,
-        content: `应用「${owner.appName}」${alert.dimension === 'daily' ? '每日' : '每月'}配额已使用 ${alert.used}/${alert.quotaLimit}，请关注剩余额度。`,
-        type: alert.threshold >= 95 ? 'error' : 'warning',
+      await notify('open-platform.quota.threshold_exceeded', {
+        recipients: [{ type: 'user', id: owner.userId }],
+        vars: {
+          threshold: alert.threshold,
+          appName: owner.appName,
+          dimensionText: alert.dimension === 'daily' ? '每日' : '每月',
+          used: alert.used,
+          quotaLimit: alert.quotaLimit,
+        },
         tenantId: owner.tenantId,
         dedupeKey: `open-quota:${alert.eventId}`,
+        link: '/open-platform/my-apps',
       });
     }
 

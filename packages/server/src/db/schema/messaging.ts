@@ -1,4 +1,17 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, unique, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, unique, index, jsonb, uniqueIndex, smallint } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_DECISIONS,
+  NOTIFICATION_DIGEST_MODES,
+  NOTIFICATION_OUTBOX_STATUSES,
+  NOTIFICATION_RECIPIENT_TYPES,
+} from '@zenith/shared/messaging';
+import type {
+  NotificationChannelOptions,
+  NotificationChannelPolicy,
+  NotificationRecipient,
+} from '@zenith/shared/messaging';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 
@@ -200,3 +213,167 @@ export type InAppMessageRow = typeof inAppMessages.$inferSelect;
 export type NewInAppMessage = typeof inAppMessages.$inferInsert;
 
 // ─── 标签管理 ─────────────────────────────────────────────────────────────────
+
+// ─── 通知中心（Notification Center）───────────────────────────────────────────
+// 事件目录本身不落库：唯一定义源是 shared/messaging/notification-events.ts。
+// 这里的五张表只存「运行期可变」的部分——覆盖、偏好、待派发队列与派发留痕。
+
+export const notificationChannelEnum = pgEnum('notification_channel', NOTIFICATION_CHANNELS);
+
+export const notificationRecipientTypeEnum = pgEnum('notification_recipient_type', NOTIFICATION_RECIPIENT_TYPES);
+
+export const notificationDigestModeEnum = pgEnum('notification_digest_mode', NOTIFICATION_DIGEST_MODES);
+
+export const notificationOutboxStatusEnum = pgEnum('notification_outbox_status', NOTIFICATION_OUTBOX_STATUSES);
+
+export const notificationDecisionEnum = pgEnum('notification_decision', NOTIFICATION_DECISIONS);
+
+/**
+ * 平台 / 租户级事件覆盖（稀疏）。
+ * 只存与代码默认值不同的行——全量物化会让「改一次默认值」变成一次数据订正。
+ * `locked = true` 时收件人偏好对该渠道失效，用于合规必达类通知。
+ */
+export const notificationEventOverrides = pgTable('notification_event_overrides', {
+  id: serial('id').primaryKey(),
+  /** null 表示平台级覆盖 */
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  eventKey: varchar('event_key', { length: 100 }).notNull(),
+  channel: notificationChannelEnum('channel').notNull(),
+  enabled: boolean('enabled').notNull(),
+  locked: boolean('locked').notNull().default(false),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('notification_event_overrides_tenant_uq').on(t.tenantId, t.eventKey, t.channel).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('notification_event_overrides_global_uq').on(t.eventKey, t.channel).where(sql`${t.tenantId} is null`),
+  index('notification_event_overrides_event_idx').on(t.eventKey),
+]);
+
+export type NotificationEventOverrideRow = typeof notificationEventOverrides.$inferSelect;
+
+export type NewNotificationEventOverride = typeof notificationEventOverrides.$inferInsert;
+
+/**
+ * 收件人偏好覆盖（稀疏）。
+ * 只落「与默认不同」的行：全量物化是 收件人数 × 事件数 × 渠道数，
+ * 且默认值一变全部失真，等于把配置默认值这件事永久锁死。
+ */
+export const notificationPreferences = pgTable('notification_preferences', {
+  id: serial('id').primaryKey(),
+  recipientType: notificationRecipientTypeEnum('recipient_type').notNull(),
+  recipientId: integer('recipient_id').notNull(),
+  eventKey: varchar('event_key', { length: 100 }).notNull(),
+  channel: notificationChannelEnum('channel').notNull(),
+  enabled: boolean('enabled').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('notification_preferences_uq').on(t.recipientType, t.recipientId, t.eventKey, t.channel),
+  index('notification_preferences_recipient_idx').on(t.recipientType, t.recipientId),
+]);
+
+export type NotificationPreferenceRow = typeof notificationPreferences.$inferSelect;
+
+export type NewNotificationPreference = typeof notificationPreferences.$inferInsert;
+
+/** 收件人全局设置：免打扰时段、时区与摘要模式。 */
+export const notificationRecipientSettings = pgTable('notification_recipient_settings', {
+  id: serial('id').primaryKey(),
+  recipientType: notificationRecipientTypeEnum('recipient_type').notNull(),
+  recipientId: integer('recipient_id').notNull(),
+  globalMuted: boolean('global_muted').notNull().default(false),
+  /** IANA 时区名；免打扰时段按收件人本地时间判定，不按服务器时区 */
+  timezone: varchar('timezone', { length: 64 }).notNull().default('Asia/Shanghai'),
+  /** HH:mm，与 quietEnd 同时为空表示未启用免打扰 */
+  quietStart: varchar('quiet_start', { length: 5 }),
+  quietEnd: varchar('quiet_end', { length: 5 }),
+  digestMode: notificationDigestModeEnum('digest_mode').notNull().default('realtime'),
+  digestHour: smallint('digest_hour').notNull().default(9),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('notification_recipient_settings_uq').on(t.recipientType, t.recipientId),
+]);
+
+export type NotificationRecipientSettingsRow = typeof notificationRecipientSettings.$inferSelect;
+
+export type NewNotificationRecipientSettings = typeof notificationRecipientSettings.$inferInsert;
+
+/**
+ * 待派发事件 Outbox。
+ * `notify()` 在业务事务内写这张表，提交后才真正投递：
+ * 业务事务回滚时通知不会发出去，进程崩溃时通知也不会丢——
+ * 直接在业务流程里同步调渠道两头都保证不了。
+ */
+export const notificationOutbox = pgTable('notification_outbox', {
+  id: serial('id').primaryKey(),
+  eventKey: varchar('event_key', { length: 100 }).notNull(),
+  /** 收件人快照，避免派发时业务数据已变更 */
+  recipients: jsonb('recipients').$type<NotificationRecipient[]>().notNull(),
+  vars: jsonb('vars').$type<Record<string, unknown>>().notNull().default({}),
+  /** 管理员配置层的渠道策略（流程 notifyChannels、告警规则 channels） */
+  channelPolicy: jsonb('channel_policy').$type<NotificationChannelPolicy>(),
+  /** 渠道级参数（短信模板 id、Webhook 地址与请求体） */
+  channelOptions: jsonb('channel_options').$type<NotificationChannelOptions>(),
+  /** 站内路由深链，点击通知跳转 */
+  link: varchar('link', { length: 512 }),
+  dedupeKey: varchar('dedupe_key', { length: 192 }),
+  status: notificationOutboxStatusEnum('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: varchar('last_error', { length: 500 }),
+  /** 认领时间戳：并发实例据此避免重复派发，超时后可被重新认领 */
+  claimedAt: timestamp('claimed_at', { withTimezone: true }),
+  /** 免打扰延后或摘要聚合的目标时间；为空表示立即可派发 */
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  /** 链路关联 ID，串起一次业务操作触发的全部异步副作用 */
+  traceId: varchar('trace_id', { length: 64 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('notification_outbox_dedupe_uq').on(t.dedupeKey).where(sql`${t.dedupeKey} is not null`),
+  index('notification_outbox_pending_idx').on(t.status, t.scheduledAt).where(sql`${t.status} = 'pending'`),
+  index('notification_outbox_event_idx').on(t.eventKey, t.createdAt),
+  index('notification_outbox_tenant_idx').on(t.tenantId),
+]);
+
+export type NotificationOutboxRow = typeof notificationOutbox.$inferSelect;
+
+export type NewNotificationOutbox = typeof notificationOutbox.$inferInsert;
+
+/**
+ * 「收件人 × 渠道」的派发决策与结果。
+ *
+ * 抑制与延后同样落一行：只记成功投递的话，「配置看起来正确却没人收到」
+ * 就只能靠翻服务器日志排查，而这恰恰是通知系统最高频的故障报告。
+ */
+export const notificationDispatches = pgTable('notification_dispatches', {
+  id: serial('id').primaryKey(),
+  outboxId: integer('outbox_id').references(() => notificationOutbox.id, { onDelete: 'set null' }),
+  eventKey: varchar('event_key', { length: 100 }).notNull(),
+  recipientType: notificationRecipientTypeEnum('recipient_type').notNull(),
+  /** external 收件人没有账号，此列为空，地址落在 recipientAddress */
+  recipientId: integer('recipient_id'),
+  recipientAddress: varchar('recipient_address', { length: 512 }),
+  channel: notificationChannelEnum('channel').notNull(),
+  decision: notificationDecisionEnum('decision').notNull(),
+  /** 归因码，取值见 shared 的 NOTIFICATION_REASON_CODES */
+  reasonCode: varchar('reason_code', { length: 64 }),
+  reasonDetail: text('reason_detail'),
+  /** 渠道返回的消息 id，便于与服务商侧对账 */
+  providerMsgId: varchar('provider_msg_id', { length: 128 }),
+  /** 幂等键：`${outboxDedupeKey}:${recipient}:${channel}` */
+  dedupeKey: varchar('dedupe_key', { length: 256 }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('notification_dispatches_dedupe_uq').on(t.dedupeKey).where(sql`${t.dedupeKey} is not null`),
+  index('notification_dispatches_recipient_idx').on(t.recipientType, t.recipientId, t.createdAt),
+  index('notification_dispatches_event_idx').on(t.eventKey, t.createdAt),
+  index('notification_dispatches_outbox_idx').on(t.outboxId),
+  index('notification_dispatches_decision_idx').on(t.decision, t.createdAt),
+]);
+
+export type NotificationDispatchRow = typeof notificationDispatches.$inferSelect;
+
+export type NewNotificationDispatch = typeof notificationDispatches.$inferInsert;

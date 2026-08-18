@@ -1,5 +1,12 @@
 import type { ChatMessageExtra } from '../chat/types';
 import type { EntityStatus } from '../core/types';
+import type {
+  NotificationChannel,
+  NotificationDecision,
+  NotificationDigestMode,
+  NotificationReasonCode,
+  NotificationRecipientType,
+} from './constants';
 
 // ─── 公告 ──────────────────────────────────────────────────
 export type AnnouncementPublishStatus = 'draft' | 'published' | 'recalled' | 'scheduled';
@@ -511,5 +518,82 @@ export interface InAppMessage {
   /** 深链地址（站内路由，点击消息跳转） */
   link?: string | null;
   tenantId?: number | null;
+  createdAt: string;
+}
+
+// ─── 通知中心（Notification Center）─────────────────────────────────────────
+
+/**
+ * 收件人。
+ * `user` / `member` 参与偏好解析；`external` 是不绑定账号的裸地址
+ * （告警规则里的外部邮箱、Webhook URL），没有身份也就没有偏好，直接投递。
+ */
+export type NotificationRecipient =
+  | { type: 'user'; id: number }
+  | { type: 'member'; id: number }
+  | { type: 'external'; channel: NotificationChannel; address: string };
+
+/** 渠道级投递参数，用于渠道本身需要额外配置的场景（短信模板、Webhook 地址）。 */
+export interface NotificationChannelOptions {
+  sms?: { templateId: number };
+  webhook?: { url: string; body?: Record<string, unknown> };
+  email?: { html?: string; subject?: string };
+  inapp?: { type?: InAppMessageType };
+}
+
+/**
+ * 管理员配置层：本次派发允许 / 禁止的渠道。
+ * 典型来源是流程定义的 notifyChannels 开关或告警规则的 channels 字段——
+ * 它决定「渠道是否被开放」，用户偏好在其之后决定「是否真的要收」。
+ */
+export interface NotificationChannelPolicy {
+  /** 白名单：给出时本次只考虑这些渠道 */
+  only?: readonly NotificationChannel[];
+  /** 在默认渠道之外额外开启 */
+  enable?: readonly NotificationChannel[];
+  /** 强制关闭（优先级高于 enable） */
+  disable?: readonly NotificationChannel[];
+}
+
+/** 单条偏好覆盖记录。 */
+export interface NotificationPreference {
+  id: number;
+  recipientType: NotificationRecipientType;
+  recipientId: number;
+  eventKey: string;
+  channel: NotificationChannel;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 收件人的全局通知设置。 */
+export interface NotificationRecipientSettings {
+  recipientType: NotificationRecipientType;
+  recipientId: number;
+  globalMuted: boolean;
+  timezone: string;
+  /** 免打扰起始，HH:mm；与 quietEnd 同时为空表示未启用 */
+  quietStart: string | null;
+  quietEnd: string | null;
+  digestMode: NotificationDigestMode;
+  /** daily 摘要的发送小时（0-23） */
+  digestHour: number;
+  updatedAt: string;
+}
+
+/** 派发决策与结果记录。 */
+export interface NotificationDispatchRecord {
+  id: number;
+  outboxId: number | null;
+  eventKey: string;
+  recipientType: NotificationRecipientType;
+  recipientId: number | null;
+  recipientAddress: string | null;
+  channel: NotificationChannel;
+  decision: NotificationDecision;
+  reasonCode: NotificationReasonCode | null;
+  reasonDetail: string | null;
+  tenantId: number | null;
   createdAt: string;
 }

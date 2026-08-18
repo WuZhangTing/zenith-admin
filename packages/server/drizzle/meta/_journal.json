@@ -253,6 +253,13 @@
       "when": 1787032609580,
       "tag": "0035_conscious_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787062299450,
+      "tag": "0036_amusing_firebird",
+      "breakpoints": true
     }
   ]
 }

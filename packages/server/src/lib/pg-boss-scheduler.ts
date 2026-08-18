@@ -15,11 +15,10 @@ import { cleanExpiredSessions } from './session-manager';
 import { createPgDumpBackup, createDrizzleExportBackup } from './db-backup';
 import { formatFileTimestamp, formatDateTime } from './datetime';
 import { config } from '../config';
-import { notifyUsersWithCard } from '../services/chat/chat-notify.service';
-import type { ChatCard, SystemSchedulerAlertChannel } from '@zenith/shared/chat';
+import { dispatchAlertChannels } from './alert-dispatch';
+import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
 import type { SystemSchedulerTaskBase, SystemSchedulerTaskType, SystemSchedulerRunStatus, SystemSchedulerTriggerType } from '@zenith/shared/platform';
-import { sendMail } from './email';
-import { httpPost } from './http-client';
+import { notify } from '../services/messaging/notification-outbox.service';
 
 /** 定时任务失败 → 推送告警卡片给任务创建者（无则推给系统管理员） */
 async function pushCronFailureAlert(jobId: number, jobName: string, message: string): Promise<void> {
@@ -32,16 +31,14 @@ async function pushCronFailureAlert(jobId: number, jobName: string, message: str
       targetId = admin?.id ?? null;
     }
     if (!targetId) return;
-    const card: ChatCard = {
-      title: '定时任务执行失败',
-      text: `任务「${jobName}」执行失败，请及时排查`,
-      fields: [
-        { label: '错误信息', value: message.slice(0, 200) },
-        { label: '发生时间', value: formatDateTime(new Date()) },
-      ],
-      source: '系统告警',
-    };
-    await notifyUsersWithCard([targetId], card);
+    await notify('ops.scheduler.job_failed', {
+      recipients: [{ type: 'user', id: targetId }],
+      vars: { jobName, errorMessage: message.slice(0, 200) },
+      tenantId: null,
+      // 历史行为是聊天卡片，收口后保持同一渠道，避免告警投递位置发生漂移
+      channelPolicy: { only: ['chat'] },
+      link: '/system/cron-jobs',
+    });
   } catch (err) {
     logger.error('[cron] 失败告警卡片推送异常', err);
   }
@@ -347,49 +344,61 @@ async function dispatchSystemTaskAlert(
   alertMessage: string,
   policy: SystemSchedulerTaskPolicy,
 ): Promise<SystemSchedulerAlertChannel[]> {
-  const sentChannels: SystemSchedulerAlertChannel[] = [];
   const channels = policy.alertChannels;
   const now = formatDateTime(new Date());
-  const subject = `[系统调度告警] ${task.title}`;
   const html = `<h3>系统调度告警</h3><p><b>任务：</b>${task.title} (${task.name})</p><p><b>模块：</b>${task.module}</p><p><b>运行日志：</b>#${runId}</p><p><b>详情：</b>${alertMessage}</p><p><b>发生时间：</b>${now}</p>`;
 
-  if (channels.includes('inapp')) {
-    const targetIds = policy.alertUserIds.length > 0 ? policy.alertUserIds : await defaultSystemAlertUserIds();
-    if (targetIds.length > 0) {
-      const card: ChatCard = {
-        title: subject,
-        text: alertMessage,
-        fields: [
-          { label: '任务', value: `${task.title} (${task.name})` },
-          { label: '模块', value: task.module },
-          { label: '运行日志', value: `#${runId}` },
-          { label: '发生时间', value: now },
-        ],
-        source: '系统调度',
-      };
-      await notifyUsersWithCard(targetIds, card);
-      sentChannels.push('inapp');
-    }
-  }
+  // 策略里的 inapp 历史上投递的是系统号聊天卡片而非站内信，此处保持不变；
+  // 返回值仍用策略侧的 inapp 命名，避免调度详情页的渠道标签发生漂移
+  const dispatchChannels: string[] = [];
+  if (channels.includes('inapp')) dispatchChannels.push('chat');
+  if (channels.includes('email') && policy.alertEmails.length > 0) dispatchChannels.push('email');
+  if (channels.includes('webhook') && policy.alertWebhookUrl) dispatchChannels.push('webhook');
+  if (dispatchChannels.length === 0) return [];
 
-  if (channels.includes('email') && policy.alertEmails.length > 0) {
-    const results = await Promise.allSettled(policy.alertEmails.map((email) => sendMail(email, subject, html)));
-    if (results.some((item) => item.status === 'fulfilled')) sentChannels.push('email');
-  }
+  const alertUserIds = channels.includes('inapp')
+    ? (policy.alertUserIds.length > 0 ? policy.alertUserIds : await defaultSystemAlertUserIds())
+    : [];
 
-  if (channels.includes('webhook') && policy.alertWebhookUrl) {
-    await httpPost(policy.alertWebhookUrl, {
-      type: 'system_scheduler_alert',
-      taskName: task.name,
-      taskTitle: task.title,
-      module: task.module,
-      runId,
-      message: alertMessage,
-      timestamp: now,
-    }, { timeout: 8000 });
-    sentChannels.push('webhook');
-  }
+  const result = await dispatchAlertChannels(
+    {
+      channels: dispatchChannels,
+      webhookUrl: policy.alertWebhookUrl,
+      recipientUserIds: alertUserIds,
+      recipientEmails: policy.alertEmails,
+      tenantId: null,
+    },
+    {
+      eventKey: 'ops.scheduler.task_alert',
+      vars: {
+        taskTitle: task.title,
+        taskName: task.name,
+        module: task.module,
+        runId,
+        alertMessage,
+      },
+      html,
+      inAppType: 'error',
+      webhookBody: {
+        type: 'system_scheduler_alert',
+        taskName: task.name,
+        taskTitle: task.title,
+        module: task.module,
+        runId,
+        message: alertMessage,
+        timestamp: now,
+      },
+      logTag: 'SystemSchedulerAlert',
+    },
+  );
 
+  const failedChannels = new Set(
+    (result.error ?? '').split('；').map((item) => item.split(':')[0].trim()).filter(Boolean),
+  );
+  const sentChannels: SystemSchedulerAlertChannel[] = [];
+  if (dispatchChannels.includes('chat') && !failedChannels.has('chat')) sentChannels.push('inapp');
+  if (dispatchChannels.includes('email') && !failedChannels.has('email')) sentChannels.push('email');
+  if (dispatchChannels.includes('webhook') && !failedChannels.has('webhook')) sentChannels.push('webhook');
   return sentChannels;
 }
 
@@ -642,6 +651,12 @@ handlerRegistry.set('retryPaymentWebhooks', async () => {
   const { retryPendingDeliveries } = await import('../services/payment/payment-webhook.service');
   const count = await retryPendingDeliveries();
   return `重试支付 Webhook 投递 ${count} 条`;
+});
+
+handlerRegistry.set('dispatchNotifications', async () => {
+  const { dispatchPendingNotifications } = await import('../services/messaging/notification-outbox.service');
+  const count = await dispatchPendingNotifications();
+  return `补投通知事件 ${count} 条`;
 });
 
 handlerRegistry.set('retryFailedSharing', async () => {

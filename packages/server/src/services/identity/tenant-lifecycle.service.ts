@@ -2,7 +2,7 @@ import { eq, and, isNull, isNotNull, lte, gt } from 'drizzle-orm';
 import { db } from '../../db';
 import { tenants, users, userRoles, roles } from '../../db/schema';
 import { forceLogoutAllByUsers } from '../../lib/session-manager';
-import { sendSystemInApp } from '../messaging/in-app-messages.service';
+import { notify } from '../messaging/notification-outbox.service';
 import { formatDateTime } from '../../lib/datetime';
 import { TENANT_ADMIN_ROLE_CODE } from './tenants.service';
 import logger from '../../lib/logger';
@@ -34,22 +34,21 @@ async function getPlatformAdminUserIds(): Promise<number[]> {
   return [...new Set(rows.map((r) => r.id))];
 }
 
-/** 通知租户管理员（消息归属该租户）+ 平台超管（消息归属平台） */
-async function notifyTenantAndPlatformAdmins(
-  tenantId: number,
-  title: string,
-  content: string,
-  type: 'warning' | 'error',
-): Promise<number> {
+function toRecipients(userIds: number[]) {
+  return userIds.map((id) => ({ type: 'user' as const, id }));
+}
+
+/**
+ * 租户管理员与平台超管的收件人分组。
+ * 两组分开投递是因为消息归属租户不同：租户管理员的通知属于该租户，
+ * 平台超管的通知属于平台，混在一条里会让多租户的数据归属出错。
+ */
+async function resolveAdminAudiences(tenantId: number) {
   const [tenantAdminIds, platformAdminIds] = await Promise.all([
     getTenantAdminUserIds(tenantId),
     getPlatformAdminUserIds(),
   ]);
-  const [a, b] = await Promise.all([
-    sendSystemInApp({ userIds: tenantAdminIds, title, content, type, tenantId }),
-    sendSystemInApp({ userIds: platformAdminIds, title, content, type, tenantId: null }),
-  ]);
-  return a.sentCount + b.sentCount;
+  return { tenantAdminIds, platformAdminIds };
 }
 
 /**
@@ -78,12 +77,23 @@ export async function runTenantExpiryCheck(): Promise<string> {
     } catch (err) {
       logger.error('停用过期租户后吊销会话失败', { tenantId: t.id, err });
     }
-    notified += await notifyTenantAndPlatformAdmins(
-      t.id,
-      `租户「${t.name}」已到期停用`,
-      `租户「${t.name}」已于 ${formatDateTime(t.expireAt!)} 到期，系统已自动停用，该租户用户将无法登录。如需继续使用请联系平台管理员续期。`,
-      'error',
-    );
+    const { tenantAdminIds, platformAdminIds } = await resolveAdminAudiences(t.id);
+    const vars = { tenantName: t.name, expireAt: formatDateTime(t.expireAt!) };
+    await Promise.all([
+      notify('identity.tenant.expired', {
+        recipients: toRecipients(tenantAdminIds),
+        vars,
+        tenantId: t.id,
+        dedupeKey: `tenant-expired:${t.id}:tenant`,
+      }),
+      notify('identity.tenant.expired', {
+        recipients: toRecipients(platformAdminIds),
+        vars,
+        tenantId: null,
+        dedupeKey: `tenant-expired:${t.id}:platform`,
+      }),
+    ]);
+    notified += tenantAdminIds.length + platformAdminIds.length;
   }
 
   // ── 2. 到期前提醒 ──
@@ -102,12 +112,23 @@ export async function runTenantExpiryCheck(): Promise<string> {
   for (const t of upcoming) {
     const days = Math.ceil((t.expireAt!.getTime() - now.getTime()) / DAY_MS);
     if (!REMIND_DAYS.includes(days)) continue;
-    reminded += await notifyTenantAndPlatformAdmins(
-      t.id,
-      `租户「${t.name}」将于 ${days} 天后到期`,
-      `租户「${t.name}」将于 ${formatDateTime(t.expireAt!)} 到期（剩余 ${days} 天），到期后系统将自动停用该租户，请及时续期。`,
-      'warning',
-    );
+    const { tenantAdminIds, platformAdminIds } = await resolveAdminAudiences(t.id);
+    const vars = { tenantName: t.name, days, expireAt: formatDateTime(t.expireAt!) };
+    await Promise.all([
+      notify('identity.tenant.expiring', {
+        recipients: toRecipients(tenantAdminIds),
+        vars,
+        tenantId: t.id,
+        dedupeKey: `tenant-expiring:${t.id}:${days}:tenant`,
+      }),
+      notify('identity.tenant.expiring', {
+        recipients: toRecipients(platformAdminIds),
+        vars,
+        tenantId: null,
+        dedupeKey: `tenant-expiring:${t.id}:${days}:platform`,
+      }),
+    ]);
+    reminded += tenantAdminIds.length + platformAdminIds.length;
   }
 
   return `停用过期租户 ${expired.length} 个（吊销会话 ${revokedSessions} 个），发送到期提醒/停用通知 ${notified + reminded} 条`;

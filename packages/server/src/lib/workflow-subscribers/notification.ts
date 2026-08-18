@@ -1,24 +1,29 @@
 /**
- * 工作流事件 → 多渠道通知订阅者
+ * 工作流事件 → 通知中心
  *
- * 站内信始终落库（in_app_messages）；当流程的高级设置开启 email/sms 渠道时，
- * 额外向处理人/发起人发送邮件 / 短信（均通过上下文无关的底层 transport，
- * 因事件订阅者运行在请求上下文之外）。
- * - task.created（pending 审批任务）→ 通知处理人（站内信 + 邮件/短信）
- * - task.created（ccNode 抄送任务）  → 通知抄送人（站内信）
- * - task.urged                       → 通知处理人（站内信）
- * - task.transferred                 → 通知新处理人（站内信）
- * - instance.approved/rejected/withdrawn → 通知发起人（站内信 + 邮件/短信）
+ * 流程高级设置里的 `notifyChannels` 是**管理员配置层**：它决定邮件 / 短信渠道
+ * 是否对这条流程开放；开放之后再由收件人偏好决定要不要真的收。两层叠加的顺序
+ * 在派发器里统一处理，这里只负责把流程事件翻译成通知事件。
+ *
+ * - task.created（pending 审批任务）→ 通知处理人
+ * - task.created（ccNode 抄送任务）  → 通知抄送人（抄送不外发邮件/短信）
+ * - task.urged                       → 通知处理人
+ * - task.transferred                 → 通知新处理人
+ * - instance.approved/rejected/withdrawn/returned → 通知发起人
+ *
+ * 站内信此前是直接 insert 到 in_app_messages 的，绕过了幂等与派发留痕；
+ * 收口到 `notify()` 之后这两件事自动具备。
  */
 import { eq } from 'drizzle-orm';
-import { db } from '../../db';
-import { inAppMessages, workflowInstances, users, smsTemplates } from '../../db/schema';
-import type { InAppMessageType } from '@zenith/shared/messaging';
+import type {
+  NotificationChannelOptions,
+  NotificationChannelPolicy,
+} from '@zenith/shared/messaging';
 import type { WorkflowNotifyChannels } from '@zenith/shared/workflow';
+import { db } from '../../db';
+import { workflowInstances } from '../../db/schema';
+import { notify } from '../../services/messaging/notification-outbox.service';
 import { workflowEventBus } from '../workflow-event-bus';
-import { sendMail } from '../email';
-import { sendSmsByProvider, renderTemplate } from '../sms-sender';
-import { findDefaultSmsConfig } from '../../services/messaging/sms-configs.service';
 import logger from '../logger';
 
 interface NotifyContext {
@@ -39,72 +44,35 @@ async function loadNotifyContext(instanceId: number): Promise<NotifyContext> {
   return { label, channels: settings?.notifyChannels, notifyInitiator: settings?.notifyInitiator !== false };
 }
 
-async function insertMessage(input: {
-  userId: number;
-  title: string;
-  content: string;
-  type: InAppMessageType;
-  tenantId: number | null;
-  /** 深链地址（站内路由，点击消息跳转到对应审批页） */
-  link?: string | null;
-}): Promise<void> {
-  try {
-    await db.insert(inAppMessages).values({
-      userId: input.userId,
-      title: input.title,
-      content: input.content,
-      type: input.type,
-      source: 'system',
-      tenantId: input.tenantId,
-      link: input.link ?? null,
-    });
-  } catch (err) {
-    logger.error('[workflow notification] in-app insert failed', { err, userId: input.userId });
-  }
-}
-
 /** 待办处理深链（待我审批页自动弹出对应详情） */
 const pendingLink = (instanceId: number, taskId: number) => `/workflow/pending?instanceId=${instanceId}&taskId=${taskId}`;
 /** 实例查看深链（我的申请页自动弹出详情，参与人均可查看） */
 const instanceLink = (instanceId: number) => `/workflow/applications?instanceId=${instanceId}`;
 
-/** 通过邮件/短信渠道通知用户（上下文无关，失败仅记录日志） */
-async function notifyExternalChannels(
-  userId: number,
+/** 流程设置里开启的外发渠道；未开启时返回 null，收件人也就无从打开它们。 */
+function toChannelPolicy(channels: WorkflowNotifyChannels | undefined): NotificationChannelPolicy | null {
+  if (!channels) return null;
+  const enable: Array<'email' | 'sms'> = [];
+  if (channels.email) enable.push('email');
+  // 没有配模板的短信开关等于没开：发不出去还不如不出现在候选渠道里
+  if (channels.sms && channels.smsTemplateId) enable.push('sms');
+  return enable.length > 0 ? { enable } : null;
+}
+
+function toChannelOptions(
   channels: WorkflowNotifyChannels | undefined,
   subject: string,
   text: string,
-  smsVariables: Record<string, string>,
-): Promise<void> {
-  if (!channels || (!channels.email && !channels.sms)) return;
-  const [user] = await db
-    .select({ email: users.email, phone: users.phone })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  if (!user) return;
-
-  if (channels.email && user.email) {
-    try {
-      await sendMail(user.email, subject, `<p>${text}</p>`);
-    } catch (err) {
-      logger.error('[workflow notification] email failed', { err, userId });
-    }
+): NotificationChannelOptions {
+  const options: NotificationChannelOptions = { email: { subject, html: `<p>${text}</p>` } };
+  if (channels?.sms && channels.smsTemplateId) {
+    options.sms = { templateId: channels.smsTemplateId };
   }
+  return options;
+}
 
-  if (channels.sms && channels.smsTemplateId && user.phone) {
-    try {
-      const config = await findDefaultSmsConfig();
-      if (!config) { logger.warn('[workflow notification] sms skipped: no default config'); return; }
-      const [tpl] = await db.select().from(smsTemplates).where(eq(smsTemplates.id, channels.smsTemplateId)).limit(1);
-      if (!tpl || tpl.status !== 'enabled') { logger.warn('[workflow notification] sms skipped: template missing/disabled'); return; }
-      if (config.provider !== tpl.provider) { logger.warn('[workflow notification] sms skipped: provider mismatch'); return; }
-      const renderedContent = renderTemplate(tpl.content, smsVariables);
-      await sendSmsByProvider({ config, template: tpl, phone: user.phone, variables: smsVariables, renderedContent });
-    } catch (err) {
-      logger.error('[workflow notification] sms failed', { err, userId });
-    }
-  }
+function logFailure(scope: string, err: unknown, meta: Record<string, unknown>): void {
+  logger.error(`[workflow notification] ${scope} 失败`, { err, ...meta });
 }
 
 export function registerNotificationWorkflowSubscriber(): void {
@@ -113,73 +81,107 @@ export function registerNotificationWorkflowSubscriber(): void {
     if (!task.assigneeId) return;
     const isCc = task.nodeType === 'ccNode';
     if (!isCc && task.status !== 'pending') return;
-    const { label, channels } = await loadNotifyContext(event.instanceId);
-    await insertMessage({
-      userId: task.assigneeId,
-      title: isCc ? '流程抄送通知' : '待办审批提醒',
-      content: isCc
-        ? `流程「${label}」抄送给你（节点：${task.nodeName}）`
-        : `你有一条新的待办：流程「${label}」（节点：${task.nodeName}），请及时处理`,
-      type: 'info',
-      tenantId: event.tenantId,
-      link: isCc ? `/workflow/cc?instanceId=${event.instanceId}` : pendingLink(event.instanceId, task.id),
-    });
-    if (!isCc) {
-      await notifyExternalChannels(
-        task.assigneeId,
-        channels,
-        `【待办提醒】${label}`,
-        `你有一条新的待办：流程「${label}」（节点：${task.nodeName}），请及时处理。`,
-        { title: label, node: task.nodeName },
-      );
+    try {
+      const { label, channels } = await loadNotifyContext(event.instanceId);
+      const vars = { instanceId: event.instanceId, taskId: task.id, title: label, node: task.nodeName };
+      if (isCc) {
+        // 抄送只走站内信：抄送人往往不需要处理，外发短信会变成骚扰
+        await notify('workflow.task.cc', {
+          recipients: [{ type: 'user', id: task.assigneeId }],
+          vars,
+          tenantId: event.tenantId,
+          link: `/workflow/cc?instanceId=${event.instanceId}`,
+        });
+        return;
+      }
+      await notify('workflow.task.created', {
+        recipients: [{ type: 'user', id: task.assigneeId }],
+        vars,
+        tenantId: event.tenantId,
+        link: pendingLink(event.instanceId, task.id),
+        channelPolicy: toChannelPolicy(channels),
+        channelOptions: toChannelOptions(
+          channels,
+          `【待办提醒】${label}`,
+          `你有一条新的待办：流程「${label}」（节点：${task.nodeName}），请及时处理。`,
+        ),
+      });
+    } catch (err) {
+      logFailure('待办通知', err, { instanceId: event.instanceId, taskId: task.id });
     }
   });
 
   workflowEventBus.on('task.urged', async (event) => {
     const task = event.task;
     if (!task.assigneeId) return;
-    const { label } = await loadNotifyContext(event.instanceId);
-    const extra = event.comment ? `：${event.comment}` : '';
-    await insertMessage({
-      userId: task.assigneeId,
-      title: '催办提醒',
-      content: `流程「${label}」（节点：${task.nodeName}）有人催办${extra}，请尽快处理`,
-      type: 'warning',
-      tenantId: event.tenantId,
-      link: pendingLink(event.instanceId, task.id),
-    });
+    try {
+      const { label } = await loadNotifyContext(event.instanceId);
+      await notify('workflow.task.urged', {
+        recipients: [{ type: 'user', id: task.assigneeId }],
+        vars: {
+          instanceId: event.instanceId,
+          taskId: task.id,
+          title: label,
+          node: task.nodeName,
+          extra: event.comment ? `：${event.comment}` : '',
+        },
+        tenantId: event.tenantId,
+        link: pendingLink(event.instanceId, task.id),
+      });
+    } catch (err) {
+      logFailure('催办通知', err, { instanceId: event.instanceId, taskId: task.id });
+    }
   });
 
   workflowEventBus.on('task.transferred', async (event) => {
     const task = event.task;
     if (!task.assigneeId || task.status !== 'pending') return;
-    const { label } = await loadNotifyContext(event.instanceId);
-    await insertMessage({
-      userId: task.assigneeId,
-      title: '待办转交提醒',
-      content: `流程「${label}」（节点：${task.nodeName}）的审批任务已转交给你，请及时处理`,
-      type: 'info',
-      tenantId: event.tenantId,
-      link: pendingLink(event.instanceId, task.id),
-    });
+    try {
+      const { label } = await loadNotifyContext(event.instanceId);
+      await notify('workflow.task.transferred', {
+        recipients: [{ type: 'user', id: task.assigneeId }],
+        vars: { instanceId: event.instanceId, taskId: task.id, title: label, node: task.nodeName },
+        tenantId: event.tenantId,
+        link: pendingLink(event.instanceId, task.id),
+      });
+    } catch (err) {
+      logFailure('转交通知', err, { instanceId: event.instanceId, taskId: task.id });
+    }
   });
 
-  const notifyInitiator = (status: 'approved' | 'rejected' | 'withdrawn' | 'returned') => async (
+  const INSTANCE_EVENTS = {
+    approved: { key: 'workflow.instance.approved', status: '审批通过' },
+    rejected: { key: 'workflow.instance.rejected', status: '审批被驳回' },
+    withdrawn: { key: 'workflow.instance.withdrawn', status: '流程已撤回' },
+    returned: { key: 'workflow.instance.returned', status: '申请被退回' },
+  } as const;
+
+  const notifyInitiator = (status: keyof typeof INSTANCE_EVENTS) => async (
     event: { instanceId: number; tenantId: number | null; instance: { initiatorId: number; title: string; serialNo?: string | null } },
   ) => {
     const inst = event.instance;
     const label = inst.serialNo ? `${inst.title}（${inst.serialNo}）` : inst.title;
-    const map = {
-      approved: { title: '审批通过', content: `你发起的流程「${label}」已审批通过`, type: 'success' as const },
-      rejected: { title: '审批被驳回', content: `你发起的流程「${label}」已被驳回`, type: 'warning' as const },
-      withdrawn: { title: '流程已撤回', content: `你发起的流程「${label}」已撤回`, type: 'info' as const },
-      returned: { title: '申请被退回', content: `你发起的流程「${label}」已被退回，请修改后重新提交`, type: 'warning' as const },
-    };
-    const m = map[status];
-    const { channels, notifyInitiator: shouldNotify } = await loadNotifyContext(event.instanceId);
-    if (!shouldNotify) return;
-    await insertMessage({ userId: inst.initiatorId, title: m.title, content: m.content, type: m.type, tenantId: event.tenantId, link: instanceLink(event.instanceId) });
-    await notifyExternalChannels(inst.initiatorId, channels, `【${m.title}】${label}`, m.content, { title: label, status: m.title });
+    const meta = INSTANCE_EVENTS[status];
+    try {
+      const { channels, notifyInitiator: shouldNotify } = await loadNotifyContext(event.instanceId);
+      if (!shouldNotify) return;
+      const text = {
+        approved: `你发起的流程「${label}」已审批通过`,
+        rejected: `你发起的流程「${label}」已被驳回`,
+        withdrawn: `你发起的流程「${label}」已撤回`,
+        returned: `你发起的流程「${label}」已被退回，请修改后重新提交`,
+      }[status];
+      await notify(meta.key, {
+        recipients: [{ type: 'user', id: inst.initiatorId }],
+        vars: { instanceId: event.instanceId, title: label, status: meta.status },
+        tenantId: event.tenantId,
+        link: instanceLink(event.instanceId),
+        channelPolicy: toChannelPolicy(channels),
+        channelOptions: toChannelOptions(channels, `【${meta.status}】${label}`, text),
+      });
+    } catch (err) {
+      logFailure('流程结果通知', err, { instanceId: event.instanceId, status });
+    }
   };
 
   workflowEventBus.on('instance.approved', notifyInitiator('approved'));

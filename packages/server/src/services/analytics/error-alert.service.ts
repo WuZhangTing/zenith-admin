@@ -120,10 +120,9 @@ async function dispatchAlert(rule: ErrorAlertRuleRow, detail: string): Promise<v
       tenantId: rule.tenantId,
     },
     {
-      subject: `[错误告警] ${rule.name}`,
+      eventKey: 'ops.error.alert',
+      vars: { ruleName: rule.name, detail },
       html: `<h3>错误监控告警</h3><p><b>规则：</b>${rule.name}</p><p><b>详情：</b>${detail}</p><p>请前往后台「错误监控」查看处理。</p>`,
-      title: `[错误告警] ${rule.name}`,
-      content: detail,
       inAppType: 'error',
       webhookBody: { type: 'error_alert', rule: rule.name, detail, condition: rule.condition, timestamp: formatDateTime(new Date()) },
       logTag: 'ErrorAlert',

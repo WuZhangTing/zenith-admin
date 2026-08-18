@@ -57,6 +57,56 @@ export default tseslint.config(
     files: ['src/lib/update-schema-defaults.test.ts'],
     rules: { 'no-restricted-imports': 'off' },
   },
+  // 通知渠道收口：业务域一律通过 notify() 发事件通知，不得直接调底层渠道。
+  // 绕过统一入口就等于绕过收件人偏好、免打扰、幂等与派发留痕——
+  // 而「明明配好了却没人收到」的排查完全依赖这些留痕。
+  {
+    files: ['src/**/*.ts'],
+    ignores: [
+      // 通知中心自身：适配器与派发层就是要调底层渠道
+      'src/lib/notification/**',
+      // 消息域：邮件/短信/站内信的管理与手动发送接口
+      'src/services/messaging/**',
+      // 事务性发信，不属于事件通知：登录验证码、密码重置
+      'src/services/identity/auth.service.ts',
+      'src/services/member/member-sms.service.ts',
+      // 用户在流程/补偿动作里显式编排的发信节点，收件人与内容都由配置指定
+      'src/services/workflow/workflow-connectors.service.ts',
+      'src/lib/workflow-jobs/handlers/compensation-action.ts',
+      // 订阅式投递：收件人来自订阅配置而非事件收件人模型
+      'src/services/report/report-delivery.service.ts',
+      'src/services/cms/cms-forms.service.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/lib/email'],
+              importNames: ['sendMail'],
+              message: '事件通知请改用 notify()（services/messaging/notification-outbox.service），邮件渠道由通知中心适配器负责。',
+            },
+            {
+              group: ['**/lib/sms-sender'],
+              importNames: ['sendSmsByProvider'],
+              message: '事件通知请改用 notify()，短信渠道由通知中心适配器负责。',
+            },
+            {
+              group: ['**/lib/webhook-notify'],
+              importNames: ['sendWebhookNotification'],
+              message: '事件通知请改用 notify()，Webhook 渠道由通知中心适配器负责。',
+            },
+            {
+              group: ['**/chat/chat-notify.service'],
+              importNames: ['notifyUserWithCard', 'notifyUsersWithCard'],
+              message: '事件通知请改用 notify() 并指定 chat 渠道。',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Node 启动/构建脚本（纯 JS，需要声明 Node 运行时全局）
   {
     files: ['scripts/**/*.{js,mjs,cjs}'],

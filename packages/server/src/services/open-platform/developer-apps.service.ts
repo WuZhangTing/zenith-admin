@@ -9,7 +9,7 @@ import { APP_TIME_ZONE, formatDateTime } from '../../lib/datetime';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
 import { HTTPException } from 'hono/http-exception';
-import { sendSystemInApp } from '../messaging/in-app-messages.service';
+import { notify } from '../messaging/notification-outbox.service';
 import {
   createOAuth2Client,
   deleteOAuth2Client,
@@ -108,12 +108,11 @@ export async function submitMyOAuth2ClientForReview(id: number) {
       eq(roles.status, 'enabled'),
       isNull(users.tenantId),
     ));
-  await sendSystemInApp({
-    userIds: reviewers.map((reviewer) => reviewer.userId),
-    title: '开放平台应用待审核',
-    content: `开发者应用「${updated.name}」已提交审核。`,
-    type: 'info',
+  await notify('open-platform.app.review_requested', {
+    recipients: reviewers.map((reviewer) => ({ type: 'user', id: reviewer.userId })),
+    vars: { appName: updated.name },
     tenantId: null,
+    link: '/open-platform/apps',
   }).catch((err) => logger.error('[developer-apps] reviewer notification failed', { appId: id, err }));
   return getOAuth2Client(id);
 }
@@ -172,13 +171,15 @@ export async function notifyAppReviewResult(id: number): Promise<void> {
     .where(eq(oauth2Clients.id, id))
     .limit(1);
   if (!app?.ownerId) return;
-  await sendSystemInApp({
-    userIds: [app.ownerId],
-    title: app.reviewStatus === 'approved' ? '应用审核已通过' : '应用审核未通过',
-    content: app.reviewStatus === 'approved'
-      ? `应用「${app.name}」已于 ${formatDateTime(new Date())} 审核通过。`
-      : `应用「${app.name}」审核未通过：${app.reviewComment || '未填写原因'}`,
-    type: app.reviewStatus === 'approved' ? 'success' : 'warning',
+  await notify('open-platform.app.reviewed', {
+    recipients: [{ type: 'user', id: app.ownerId }],
+    vars: {
+      appName: app.name,
+      resultText: app.reviewStatus === 'approved'
+        ? `已于 ${formatDateTime(new Date())} 审核通过。`
+        : `审核未通过：${app.reviewComment || '未填写原因'}`,
+    },
     tenantId: app.tenantId,
+    link: '/open-platform/my-apps',
   }).catch((err) => logger.error('[developer-apps] review notification failed', { appId: id, err }));
 }

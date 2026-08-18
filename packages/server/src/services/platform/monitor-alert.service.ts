@@ -462,10 +462,9 @@ async function dispatchAlert(
       tenantId: rule.tenantId,
     },
     {
-      subject: `[监控${tag}] ${rule.name}`,
+      eventKey: 'ops.monitor.alert',
+      vars: { ruleName: rule.name, tag, message },
       html: `<h3>系统监控${tag}</h3><p><b>规则：</b>${rule.name}</p><p><b>详情：</b>${message}</p><p>请前往后台「监控告警 / 告警记录」查看处理。</p>`,
-      title: `[监控${tag}] ${rule.name}`,
-      content: message,
       inAppType: recovered ? 'success' : rule.level === 'critical' ? 'error' : rule.level === 'info' ? 'info' : 'warning',
       dedupeKey: `monitor-alert:${rule.id}:${recovered ? 'resolved' : 'firing'}:${triggeredAt}`,
       webhookBody: {
@@ -526,10 +525,9 @@ export async function testRule(id: number): Promise<AlertDispatchResult> {
       tenantId: rule.tenantId,
     },
     {
-      subject: `[监控告警测试] ${rule.name}`,
+      eventKey: 'ops.monitor.alert_test',
+      vars: { ruleName: rule.name, message },
       html: `<h3>系统监控告警测试</h3><p><b>规则：</b>${rule.name}</p><p>${message}</p><p>收到本消息说明该渠道配置正常，无需处理。</p>`,
-      title: `[监控告警测试] ${rule.name}`,
-      content: message,
       inAppType: 'info',
       // 带时间戳：连续试发两次应该都能收到，被幂等键吞掉会让人误判渠道不通
       dedupeKey: `monitor-alert-test:${rule.id}:${Date.now()}`,
