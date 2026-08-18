@@ -93,8 +93,8 @@ export default function GovernanceCapacityTab() {
     { title: '范围', dataIndex: 'scope', width: 100, render: (v, r) => v === 'tenant' ? '当前租户' : `用户 #${r.userId}` },
     { title: '并发上限', dataIndex: 'maxConcurrent', width: 110 },
     { title: '日查询', dataIndex: 'dailyQueryLimit', width: 110 },
-    { title: '日行数', dataIndex: 'dailyRowLimit', width: 130 },
-    { title: '日字节', dataIndex: 'dailyByteLimit', width: 140 },
+    { title: '日行数', dataIndex: 'dailyRowLimit', width: 130, align: 'right' },
+    { title: '日字节', dataIndex: 'dailyByteLimit', width: 140, align: 'right' },
     { title: '日成本', dataIndex: 'dailyCostLimit', width: 110 },
     { title: '重置时区', dataIndex: 'resetTimezone', width: 150 },
     { title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'grey'}>{v ? '启用' : '停用'}</Tag> },
@@ -127,8 +127,8 @@ export default function GovernanceCapacityTab() {
     { title: '用户 ID', dataIndex: 'userId', width: 100, render: (v) => v || '—' },
     { title: '数据集/源', width: 130, render: (_v, r) => r.datasetId ? `数据集 #${r.datasetId}` : r.datasourceId ? `数据源 #${r.datasourceId}` : '—' },
     { title: '排队/执行', width: 140, render: (_v, r) => `${r.queuedMs} / ${r.durationMs} ms` },
-    { title: '行数', dataIndex: 'rowCount', width: 100 },
-    { title: '字节', dataIndex: 'byteSize', width: 110 },
+    { title: '行数', dataIndex: 'rowCount', width: 100, align: 'right' },
+    { title: '字节', dataIndex: 'byteSize', width: 110, align: 'right' },
     { title: '成本', dataIndex: 'costUnits', width: 100 },
     dateTimeColumn('时间', 'occurredAt'),
     { title: '状态', dataIndex: 'success', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'red'}>{v ? '成功' : '失败'}</Tag> },
@@ -136,11 +136,11 @@ export default function GovernanceCapacityTab() {
   const trendColumns: ColumnProps<ReportQueryCostTrendPoint>[] = [
     dateTimeColumn('日期', 'bucket'),
     { title: '查询数', dataIndex: 'queries', width: 100 },
-    { title: '行数', dataIndex: 'rows', width: 110 },
-    { title: '字节', dataIndex: 'bytes', width: 120 },
+    { title: '行数', dataIndex: 'rows', width: 110, align: 'right' },
+    { title: '字节', dataIndex: 'bytes', width: 120, align: 'right' },
     { title: '成本', dataIndex: 'costUnits', width: 100 },
-    { title: '平均耗时', dataIndex: 'avgDurationMs', width: 120, render: (v) => `${v}ms` },
-    { title: '排队耗时', dataIndex: 'queueMs', width: 120, render: (v) => `${v}ms` },
+    { title: '平均耗时', dataIndex: 'avgDurationMs', width: 120, align: 'right', render: (v) => `${v}ms` },
+    { title: '排队耗时', dataIndex: 'queueMs', width: 120, align: 'right', render: (v) => `${v}ms` },
   ];
 
   return (

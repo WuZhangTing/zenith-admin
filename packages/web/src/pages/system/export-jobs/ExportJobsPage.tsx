@@ -228,7 +228,7 @@ export default function ExportJobsPage() {
     { title: '格式', dataIndex: 'format', width: 80, render: (value: ExportJobFormat) => value.toUpperCase() },
     { title: '模式', dataIndex: 'executionMode', width: 90, render: (value: string) => (value === 'sync' ? '同步' : '异步') },
     { title: '进度', dataIndex: 'rowCount', width: 120, render: (_: number | null, record: ExportJob) => renderProgress(record) },
-    { title: '大小', dataIndex: 'fileSize', width: 110, render: formatFileSize },
+    { title: '大小', dataIndex: 'fileSize', width: 110, align: 'right', render: formatFileSize },
     {
       title: '安全',
       dataIndex: 'raw',
@@ -243,7 +243,7 @@ export default function ExportJobsPage() {
       ),
     },
     { title: '创建人', dataIndex: 'createdByName', width: 130, render: (value: string | null) => value ?? '-' },
-    { title: '下载次数', dataIndex: 'downloadCount', width: 100 },
+    { title: '下载次数', dataIndex: 'downloadCount', width: 100, align: 'right' },
     dateTimeColumn('过期时间', 'expiresAt'),
     dateTimeColumn('创建时间', 'createdAt'),
     {

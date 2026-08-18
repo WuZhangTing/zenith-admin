@@ -121,7 +121,7 @@ export default function PaymentDisputesPage() {
     copyableNoColumn('订单号', 'orderNo'),
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '类型', dataIndex: 'type', width: 100, render: (v: PaymentDisputeType) => PAYMENT_DISPUTE_TYPE_LABELS[v] },
-    { title: '涉诉金额', dataIndex: 'amount', width: 100, render: (v: number) => yuan(v) },
+    { title: '涉诉金额', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => yuan(v) },
     { title: '投诉人', dataIndex: 'complainant', width: 140, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v || '-'}</Typography.Text> },
     {
       title: '处理时效', dataIndex: 'deadline', width: 180,

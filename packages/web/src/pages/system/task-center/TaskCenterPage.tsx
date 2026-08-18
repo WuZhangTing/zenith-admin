@@ -416,6 +416,7 @@ export default function TaskCenterPage() {
     { title: '进度', dataIndex: 'processedCount', width: 190, render: (_: number, record: AsyncTask) => <AsyncTaskProgress task={record} noteDisplay="tooltip" /> },
     {
       title: '数量',
+      align: 'right',
       dataIndex: 'totalCount',
       width: 140,
       render: (_: number | null, record: AsyncTask) => (
@@ -427,6 +428,7 @@ export default function TaskCenterPage() {
     },
     {
       title: '执行次数',
+      align: 'right',
       dataIndex: 'attempts',
       width: 100,
       render: (value: number, record: AsyncTask) => (
@@ -541,6 +543,7 @@ export default function TaskCenterPage() {
     },
     {
       title: '成功率',
+      align: 'right',
       key: 'successRate',
       width: 110,
       render: (_: unknown, record: TaskTypeRow) => {
@@ -558,6 +561,7 @@ export default function TaskCenterPage() {
     },
     {
       title: '平均耗时',
+      align: 'right',
       key: 'avgDurationMs',
       width: 110,
       render: (_: unknown, record: TaskTypeRow) => formatDuration(record.stat?.avgDurationMs ?? null),
@@ -584,6 +588,7 @@ export default function TaskCenterPage() {
     },
     {
       title: '保留天数',
+      align: 'right',
       dataIndex: 'retentionDays',
       width: 100,
       render: (value: number | null, record: TaskTypeRow) => (record.retired

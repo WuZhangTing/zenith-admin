@@ -337,7 +337,7 @@ export default function AnalyticsExperimentsTab() {
                 {record.isControl && <Tag size="small" color="grey">对照组</Tag>}
               </Space>
             ) },
-            { title: '曝光用户', dataIndex: 'exposures', width: 100, render: (value: number) => value.toLocaleString() },
+            { title: '曝光用户', dataIndex: 'exposures', width: 100, align: 'right', render: (value: number) => value.toLocaleString() },
             { title: '转化用户', dataIndex: 'conversions', width: 100, render: (value: number) => value.toLocaleString() },
             { title: '转化率', dataIndex: 'conversionRate', width: 220, render: (value: number) => <Space style={{ width: '100%' }}><Typography.Text style={{ width: 56 }}>{value.toFixed(1)}%</Typography.Text><DataBar value={value} max={maxRate} style={{ width: 140 }} /></Space> },
             { title: '相对提升', dataIndex: 'relativeUplift', width: 110, render: (value: number | null, record) => (

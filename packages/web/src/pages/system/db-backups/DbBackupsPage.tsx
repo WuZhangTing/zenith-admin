@@ -84,12 +84,14 @@ export default function DbBackupsPage() {
     },
     {
       title: '文件大小',
+      align: 'right' as const,
       dataIndex: 'fileSize',
       width: 100,
       render: (v: number | null) => v ? `${(v / 1024).toFixed(1)} KB` : '-',
     },
     {
       title: '耗时',
+      align: 'right' as const,
       dataIndex: 'durationMs',
       width: 80,
       render: (v: number | null) => v ? `${(v / 1000).toFixed(1)}s` : '-',

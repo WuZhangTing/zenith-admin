@@ -178,8 +178,8 @@ export default function PaymentReconPage() {
     copyableNoColumn('批次号', 'batchNo'),
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     dateColumn('账单日期', 'billDate'),
-    { title: '本地笔数/金额', dataIndex: 'localCount', width: 150, render: (_: unknown, r: PaymentReconBatch) => `${r.localCount} / ${yuan(r.localAmount)}` },
-    { title: '渠道笔数/金额', dataIndex: 'channelCount', width: 150, render: (_: unknown, r: PaymentReconBatch) => `${r.channelCount} / ${yuan(r.channelAmount)}` },
+    { title: '本地笔数/金额', dataIndex: 'localCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.localCount} / ${yuan(r.localAmount)}` },
+    { title: '渠道笔数/金额', dataIndex: 'channelCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.channelCount} / ${yuan(r.channelAmount)}` },
     { title: '匹配数', dataIndex: 'matchedCount', width: 90 },
     { title: '差异数', dataIndex: 'diffCount', width: 90, render: (v: number) => <Typography.Text type={v > 0 ? 'danger' : 'tertiary'}>{v}</Typography.Text> },
     dateTimeColumn('创建时间', 'createdAt'),
@@ -210,8 +210,8 @@ export default function PaymentReconPage() {
   const itemColumns: ColumnProps<PaymentReconItem>[] = [
     copyableNoColumn('订单号', 'orderNo'),
     copyableNoColumn('渠道交易号', 'channelTradeNo', { width: 300 }),
-    { title: '本地金额', dataIndex: 'localAmount', width: 110, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
-    { title: '渠道金额', dataIndex: 'channelAmount', width: 110, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
+    { title: '本地金额', dataIndex: 'localAmount', width: 110, align: 'right', render: (v: number | null) => (v == null ? '-' : yuan(v)) },
+    { title: '渠道金额', dataIndex: 'channelAmount', width: 110, align: 'right', render: (v: number | null) => (v == null ? '-' : yuan(v)) },
     {
       title: '状态（本地/渠道）', dataIndex: 'localStatus', width: 150,
       render: (_: unknown, r: PaymentReconItem) => `${r.localStatus || '—'} / ${r.channelStatus || '—'}`,

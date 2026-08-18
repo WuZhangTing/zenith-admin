@@ -192,7 +192,7 @@ export default function PaymentWebhooksPage() {
     { title: '端点', dataIndex: 'endpointName', width: 160, render: (v: string | null) => v || '-' },
     { title: '事件类型', dataIndex: 'eventType', width: 160 },
     copyableNoColumn('订单号', 'orderNo'),
-    { title: '次数', dataIndex: 'attempts', width: 80 },
+    { title: '次数', dataIndex: 'attempts', width: 80, align: 'right' },
     { title: 'HTTP', dataIndex: 'httpStatus', width: 90, render: (v: number | null) => v ?? '-' },
     dateTimeColumn('创建时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentWebhookDelivery['status']) => <Tag color={DELIVERY_STATUS_COLOR[v]}>{PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS[v]}</Tag> },

@@ -500,7 +500,7 @@ export default function AnalyticsDataPage() {
         );
       },
     },
-    { title: '时长', dataIndex: 'durationMs', width: 100, render: (value: number | null) => msToReadable(value) },
+    { title: '时长', dataIndex: 'durationMs', width: 100, align: 'right', render: (value: number | null) => msToReadable(value) },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<EventListItem>({
       width: 90,
@@ -524,7 +524,7 @@ export default function AnalyticsDataPage() {
     },
     { title: '显示名', dataIndex: 'displayName', width: 150, render: (value: string | null) => (value || <Typography.Text type="tertiary" size="small">未设置</Typography.Text>) },
     { title: '分类', dataIndex: 'category', width: 130, render: (value: string | null) => (value ? (USER_BEHAVIOR_EVENT_TYPE_LABELS[value as UserBehaviorEventType] ?? value) : '–') },
-    { title: '触发次数', dataIndex: 'eventCount', width: 100 },
+    { title: '触发次数', dataIndex: 'eventCount', width: 100, align: 'right' },
     dateTimeColumn('首次出现', 'firstSeenAt'),
     dateTimeColumn('最近出现', 'lastSeenAt'),
     {
@@ -561,8 +561,8 @@ export default function AnalyticsDataPage() {
 
   const rollupColumns: ColumnProps<AnalyticsRollupItem>[] = [
     dateColumn('日期', 'statDate'),
-    { title: 'PV', dataIndex: 'pv', width: 100 },
-    { title: 'UV', dataIndex: 'uv', width: 100 },
+    { title: 'PV', dataIndex: 'pv', width: 100, align: 'right' },
+    { title: 'UV', dataIndex: 'uv', width: 100, align: 'right' },
     { title: '会话', dataIndex: 'sessions', width: 100 },
     { title: '事件', dataIndex: 'events', width: 100 },
     { title: '跳出会话', dataIndex: 'bounceSessions', width: 110 },

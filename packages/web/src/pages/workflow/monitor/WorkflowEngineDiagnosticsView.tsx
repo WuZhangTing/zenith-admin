@@ -706,7 +706,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     { title: '类型', dataIndex: 'triggerType', width: 120 },
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => rawTag(value as string, value === 'failed' ? 'red' : value === 'retrying' ? 'orange' : 'blue') },
     { title: '尝试', dataIndex: 'attempt', width: 80 },
-    { title: '耗时', dataIndex: 'durationMs', width: 100, render: (value) => value == null ? '—' : `${value}ms` },
+    { title: '耗时', dataIndex: 'durationMs', width: 100, align: 'right', render: (value) => value == null ? '—' : `${value}ms` },
     { title: '错误', dataIndex: 'errorMessage', width: 260, render: (value) => value || '—' },
     dateTimeColumn('创建时间', 'createdAt'),
   ];
@@ -733,7 +733,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
   const nodeTypeColumns: ColumnProps<{ type: string; label: string; count: number }>[] = [
     { title: '节点类型', dataIndex: 'label', width: 160 },
     { title: 'Key', dataIndex: 'type', width: 180 },
-    { title: '数量', dataIndex: 'count', width: 100 },
+    { title: '数量', dataIndex: 'count', width: 100, align: 'right' },
   ];
 
   const listenerColumns: ColumnProps<WorkflowEngineIntrospection['eventBus']['listeners'][number]>[] = [

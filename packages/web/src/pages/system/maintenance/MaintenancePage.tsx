@@ -114,7 +114,7 @@ export default function MaintenancePage() {
   const logColumns: ColumnProps<MaintenanceLog>[] = [
     dateTimeColumn('开始时间', 'startedAt'),
     dateTimeColumn('结束时间', 'endedAt'),
-    { title: '时长', dataIndex: 'durationSeconds', width: 120, render: (v: number | null) => formatDuration(v) },
+    { title: '时长', dataIndex: 'durationSeconds', width: 120, align: 'right', render: (v: number | null) => formatDuration(v) },
     { title: '维护提示', dataIndex: 'message', ellipsis: { showTitle: true } },
     { title: '开启人', dataIndex: 'startedByName', width: 120, render: (v: string | null) => v ?? <Text type="tertiary">—</Text> },
     {

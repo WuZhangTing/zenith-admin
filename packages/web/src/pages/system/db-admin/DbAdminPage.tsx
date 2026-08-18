@@ -904,8 +904,8 @@ export default function DbAdminPage() {
         <Text code>{v.length > 100 ? v.slice(0, 100) + '…' : v}</Text>
       </Tooltip>
     )},
-    { title: '耗时', dataIndex: 'durationMs', width: 100, render: (v: number) => `${v}ms` },
-    { title: '行数', dataIndex: 'rowCount', width: 80 },
+    { title: '耗时', dataIndex: 'durationMs', width: 100, align: 'right', render: (v: number) => `${v}ms` },
+    { title: '行数', dataIndex: 'rowCount', width: 80, align: 'right' },
     { title: '错误', dataIndex: 'errorMessage', ellipsis: { showTitle: false }, render: (v: string | null) =>
       v ? <Tooltip content={<div style={{ maxWidth: 400 }}>{v}</div>}><Text type="danger">{v.slice(0, 60)}</Text></Tooltip> : '-',
     },

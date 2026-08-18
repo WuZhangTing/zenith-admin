@@ -331,7 +331,7 @@ export default function SystemSchedulerPage() {
     },
     dateTimeColumn('下次执行', 'nextRunAt'),
     { title: '最近状态', dataIndex: 'lastRunStatus', width: 120, render: statusTag },
-    { title: '最近耗时', dataIndex: 'lastDurationMs', width: 120, render: formatDuration },
+    { title: '最近耗时', dataIndex: 'lastDurationMs', width: 120, align: 'right', render: formatDuration },
     {
       title: '队列',
       dataIndex: 'queueTotalCount',
@@ -377,6 +377,7 @@ export default function SystemSchedulerPage() {
     { title: '注册节点', dataIndex: 'registeredHostname', width: 180, render: (_: unknown, record) => renderNode(record.registeredHostname, record.registeredPid) },
     {
       title: '运行次数',
+      align: 'right',
       dataIndex: 'totalRuns',
       width: 130,
       render: (_: unknown, record) => `${record.totalRuns} / 失败 ${record.failedCount}`,
@@ -453,7 +454,7 @@ export default function SystemSchedulerPage() {
     { title: '状态', dataIndex: 'status', width: 110, render: (value: SystemSchedulerRunStatus) => statusTag(value) },
     dateTimeColumn('开始时间', 'startedAt'),
     dateTimeColumn('结束时间', 'endedAt'),
-    { title: '耗时', dataIndex: 'durationMs', width: 110, render: formatDuration },
+    { title: '耗时', dataIndex: 'durationMs', width: 110, align: 'right', render: formatDuration },
     { title: '执行节点', dataIndex: 'nodeHostname', width: 190, render: (_: unknown, record) => renderNode(record.nodeHostname, record.nodePid) },
     { title: 'Job ID', dataIndex: 'jobId', width: 220, render: renderEllipsis },
     {

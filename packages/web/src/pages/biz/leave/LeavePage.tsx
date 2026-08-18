@@ -166,7 +166,7 @@ export default function LeavePage() {
   const columns: ColumnProps<BizLeave>[] = [
     { title: '请假类型', dataIndex: 'leaveType', width: 110, render: (v: string) => getLeaveTypeLabel(v) },
     { title: '日期', width: 200, render: (_: unknown, r: BizLeave) => `${r.startDate} ~ ${r.endDate}` },
-    { title: '天数', dataIndex: 'days', width: 90, render: (v: number) => `${v} 天` },
+    { title: '天数', dataIndex: 'days', width: 90, align: 'right', render: (v: number) => `${v} 天` },
     { title: '事由', dataIndex: 'reason', render: renderEllipsis },
     createdAtColumn as ColumnProps<BizLeave>,
     {

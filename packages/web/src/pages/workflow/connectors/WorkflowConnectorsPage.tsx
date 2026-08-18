@@ -443,7 +443,7 @@ export default function WorkflowConnectorsPage() {
               { title: '来源', dataIndex: 'source', width: 90, render: (s: WorkflowConnectorInvocation['source']) => <Tag size="small" color="blue">{SOURCE_LABEL[s] ?? s}</Tag> },
               { title: '结果', dataIndex: 'ok', width: 70, render: (ok: boolean) => <Tag size="small" color={ok ? 'green' : 'red'}>{ok ? '成功' : '失败'}</Tag> },
               { title: '状态码', dataIndex: 'status', width: 80, render: (v: number | null) => v ?? '—' },
-              { title: '耗时', dataIndex: 'durationMs', width: 80, render: (v: number) => `${v}ms` },
+              { title: '耗时', dataIndex: 'durationMs', width: 80, align: 'right', render: (v: number) => `${v}ms` },
               { title: '地址', dataIndex: 'requestUrl', width: 200, render: (v: string | null) => renderEllipsis(v ?? '—') },
               { title: '错误', dataIndex: 'error', width: 180, render: (v: string | null) => v ? renderEllipsis(v) : '—' },
               dateTimeColumn('时间', 'createdAt'),

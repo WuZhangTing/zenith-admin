@@ -202,7 +202,7 @@ export default function PublishingPage() {
     { title: '目标', dataIndex: 'targetType', width: 120, render: (value: CmsPublishTargetType) => CMS_PUBLISH_TARGET_TYPE_LABELS[value] },
     { title: '路径', dataIndex: 'path', width: 320, render: renderEllipsis },
     { title: 'URL', dataIndex: 'url', width: 320, render: renderEllipsis },
-    { title: '大小', dataIndex: 'size', width: 100, render: (value: number | null) => value == null ? '-' : `${value} B` },
+    { title: '大小', dataIndex: 'size', width: 100, align: 'right', render: (value: number | null) => value == null ? '-' : `${value} B` },
     dateTimeColumn('生成时间', 'generatedAt'),
     {
       title: '状态', dataIndex: 'status', width: 110, fixed: 'right',

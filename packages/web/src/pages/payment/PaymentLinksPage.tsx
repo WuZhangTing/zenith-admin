@@ -136,7 +136,7 @@ export default function PaymentLinksPage() {
 
   const columns: ColumnProps<PaymentLink>[] = [
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
-    { title: '金额', dataIndex: 'amount', width: 110, render: (v: number | null) => yuan(v) },
+    { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number | null) => yuan(v) },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '用户选择') },
     { title: '业务类型', dataIndex: 'bizType', width: 120 },
     { title: '已用/上限', dataIndex: 'usedCount', width: 110, render: (_: unknown, r: PaymentLink) => `${r.usedCount} / ${r.maxUses ?? '∞'}` },

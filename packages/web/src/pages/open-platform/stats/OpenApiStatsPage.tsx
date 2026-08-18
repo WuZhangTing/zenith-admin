@@ -147,7 +147,7 @@ export default function OpenApiStatsPage() {
             : <Text type="tertiary">—</Text>
       ),
     },
-    { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number) => `${v} ms` },
+    { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right', render: (v: number) => `${v} ms` },
     { title: 'IP', dataIndex: 'ip', width: 130, render: (v: string | null) => v || '—' },
     {
       title: '环境',

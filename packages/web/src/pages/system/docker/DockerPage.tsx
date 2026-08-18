@@ -597,7 +597,7 @@ function ImagesTab() {
       },
     },
     {
-      title: '大小', dataIndex: 'size', width: 110,
+      title: '大小', dataIndex: 'size', width: 110, align: 'right',
       sorter: (a?: ImageRow, b?: ImageRow) => (a?.size ?? 0) - (b?.size ?? 0),
       render: (v: number, r: ImageRow) => (
         r.isGroup

@@ -200,7 +200,7 @@ export default function PaymentContractsPage() {
       const text = v ? `${v}（${r.planPeriod ? describePlanPeriod({ period: r.planPeriod, customDays: null }) : '-'}）` : '-';
       return <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{text}</Typography.Text>;
     } },
-    { title: '每期金额', dataIndex: 'planAmount', width: 100, render: (v: number | null) => (v == null ? '-' : yuan(v)) },
+    { title: '每期金额', dataIndex: 'planAmount', width: 100, align: 'right', render: (v: number | null) => (v == null ? '-' : yuan(v)) },
     { title: '签约账号', dataIndex: 'signerAccount', width: 160, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 140 }}>{v}</Typography.Text> },
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '已扣期数', dataIndex: 'totalDeductCount', width: 90 },
@@ -247,7 +247,7 @@ export default function PaymentContractsPage() {
   const planColumns: ColumnProps<PaymentDeductPlan>[] = [
     { title: '计划名称', dataIndex: 'name', width: 180 },
     { title: '扣款周期', dataIndex: 'period', width: 120, render: (_: unknown, p) => describePlanPeriod(p) },
-    { title: '每期金额', dataIndex: 'amount', width: 110, render: (v: number) => yuan(v) },
+    { title: '每期金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '失败重试上限', dataIndex: 'maxRetries', width: 110 },
     { title: '签约数', dataIndex: 'contractCount', width: 90, render: (v: number | undefined) => v ?? 0 },
     { title: '备注', dataIndex: 'remark', width: 200, render: (v: string | null) => v || '-' },

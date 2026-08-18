@@ -215,7 +215,7 @@ export default function PaymentOrdersPage() {
   const columns: ColumnProps<PaymentOrder>[] = [
     copyableNoColumn('订单号', 'orderNo'),
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => v || '-' },
-    { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => yuan(v) },
+    { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
     { title: '业务类型', dataIndex: 'bizType', width: 160, render: (v: string) => v || '-' },
@@ -261,7 +261,7 @@ export default function PaymentOrdersPage() {
 
   const detailRefundColumns: ColumnProps<PaymentRefund>[] = [
     copyableNoColumn('退款单号', 'refundNo'),
-    { title: '金额', dataIndex: 'refundAmount', width: 90, render: (v: number) => yuan(v) },
+    { title: '金额', dataIndex: 'refundAmount', width: 90, align: 'right', render: (v: number) => yuan(v) },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentRefundStatus) => <Tag color={REFUND_STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
     dateTimeColumn('退款时间', 'refundedAt'),
   ];

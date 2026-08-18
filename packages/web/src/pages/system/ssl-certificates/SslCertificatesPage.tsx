@@ -142,6 +142,7 @@ export default function SslCertificatesPage() {
     dateTimeColumn('有效期至', 'validTo'),
     {
       title: '剩余天数',
+      align: 'right',
       dataIndex: 'daysRemaining',
       width: 100,
       render: (value: number | null) => renderDaysRemaining(value),

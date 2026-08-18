@@ -83,7 +83,7 @@ function AppStatsTab({ clientId }: Readonly<{ clientId: string }>) {
               { title: '端点', dataIndex: 'label' },
               { title: '调用数', dataIndex: 'total', width: 120 },
               { title: '失败数', dataIndex: 'failed', width: 120 },
-              { title: '平均耗时', dataIndex: 'avgDurationMs', width: 120, render: (value: number) => `${value} ms` },
+              { title: '平均耗时', dataIndex: 'avgDurationMs', width: 120, align: 'right', render: (value: number) => `${value} ms` },
             ]}
           />
         ) : <Empty description="暂无端点调用数据" />}

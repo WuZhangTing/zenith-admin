@@ -255,7 +255,7 @@ function NoResultPane() {
 
   const columns: ColumnProps<{ keyword: string; searchCount: number; lastSearchedAt: string }>[] = [
     { title: '搜索关键词', dataIndex: 'keyword', width: 260, render: renderEllipsis },
-    { title: '近 30 天搜索次数', dataIndex: 'searchCount', width: 150 },
+    { title: '近 30 天搜索次数', dataIndex: 'searchCount', width: 150, align: 'right' },
     dateTimeColumn('最近搜索时间', 'lastSearchedAt'),
   ];
 

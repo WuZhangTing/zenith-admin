@@ -299,9 +299,9 @@ export default function WorkflowEventSubscriptionsPage() {
       title: '事件', dataIndex: 'eventType', width: 140,
       render: (v: string) => EVENT_LABEL_MAP[v] ?? v,
     },
-    { title: '次数', dataIndex: 'attempt', width: 70 },
+    { title: '次数', dataIndex: 'attempt', width: 70, align: 'right' },
     { title: 'HTTP', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '-' },
-    { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number | null) => v == null ? '-' : `${v}ms` },
+    { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right', render: (v: number | null) => v == null ? '-' : `${v}ms` },
     { title: '错误', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true } },
     dateTimeColumn('时间', 'createdAt'),
     {

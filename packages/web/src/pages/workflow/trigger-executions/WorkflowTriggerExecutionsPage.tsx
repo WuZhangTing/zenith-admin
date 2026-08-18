@@ -94,7 +94,7 @@ export default function WorkflowTriggerExecutionsPage() {
       width: 110,
       render: (v: WorkflowTriggerType) => TRIGGER_TYPE_LABEL[v] ?? v,
     },
-    { title: '尝试次数', dataIndex: 'attempt', width: 90 },
+    { title: '尝试次数', dataIndex: 'attempt', width: 90, align: 'right' },
     {
       title: '响应码',
       dataIndex: 'responseStatus',
@@ -103,6 +103,7 @@ export default function WorkflowTriggerExecutionsPage() {
     },
     {
       title: '耗时',
+      align: 'right',
       dataIndex: 'durationMs',
       width: 90,
       render: (v: number | null) => (v == null ? '-' : `${v} ms`),

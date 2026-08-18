@@ -224,7 +224,7 @@ export default function QualityPage() {
     { title: '触发方式', dataIndex: 'triggerType', width: 110, render: (v: ReportDqRun['triggerType']) => REPORT_DQ_TRIGGER_LABELS[v] ?? v },
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
     { title: '通过率', dataIndex: 'passRate', width: 110, render: (v) => formatDqPassRate(v) },
-    { title: '耗时', dataIndex: 'durationMs', width: 100, render: (v) => v == null ? '—' : `${v}ms` },
+    { title: '耗时', dataIndex: 'durationMs', width: 100, align: 'right', render: (v) => v == null ? '—' : `${v}ms` },
     dateTimeColumn('开始时间', 'startedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: ReportDqRunStatus) => <Tag color={runStatusColor[v]}>{dqRunStatusLabel(v)}</Tag> },
   ];
@@ -254,7 +254,7 @@ export default function QualityPage() {
         </div>
       );
     } },
-    { title: '规则总数', dataIndex: 'totalRules', width: 100 },
+    { title: '规则总数', dataIndex: 'totalRules', width: 100, align: 'right' },
     { title: '通过', dataIndex: 'passedRules', width: 90 },
     { title: '失败', dataIndex: 'failedRules', width: 90 },
     { title: '维度明细', dataIndex: 'dimensions', width: 260, render: (v: Record<string, number> | null) => {

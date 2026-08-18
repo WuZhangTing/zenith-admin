@@ -107,7 +107,7 @@ export default function PaymentLedgerPage() {
     copyableNoColumn('流水号', 'entryNo'),
     { title: '方向', dataIndex: 'direction', width: 90, render: (v: PaymentLedgerDirection) => <Tag color={v === 'in' ? 'green' : 'red'}>{PAYMENT_LEDGER_DIRECTION_LABELS[v]}</Tag> },
     { title: '类型', dataIndex: 'type', width: 100, render: (v: PaymentLedgerType) => PAYMENT_LEDGER_TYPE_LABELS[v] },
-    { title: '金额', dataIndex: 'amount', width: 120, render: (v: number, r: PaymentLedgerEntry) => <Typography.Text type={r.direction === 'in' ? 'success' : 'danger'}>{yuan(v)}</Typography.Text> },
+    { title: '金额', dataIndex: 'amount', width: 120, align: 'right', render: (v: number, r: PaymentLedgerEntry) => <Typography.Text type={r.direction === 'in' ? 'success' : 'danger'}>{yuan(v)}</Typography.Text> },
     copyableNoColumn('订单号', 'orderNo'),
     copyableNoColumn('退款单号', 'refundNo'),
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel | null) => (v ? <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> : '-') },

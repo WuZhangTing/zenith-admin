@@ -106,7 +106,7 @@ export default function PaymentTransfersPage() {
     { title: '收款账号', dataIndex: 'receiverAccount', width: 180, render: (v: string, r: PaymentTransfer) => (
       <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{r.receiverName ? `${r.receiverName}（${v}）` : v}</Typography.Text>
     ) },
-    { title: '金额', dataIndex: 'amount', width: 110, render: (v: number) => <Typography.Text type="danger">{yuan(v)}</Typography.Text> },
+    { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => <Typography.Text type="danger">{yuan(v)}</Typography.Text> },
     copyableNoColumn('渠道单号', 'channelTransferNo', { width: 300 }),
     { title: '失败原因', dataIndex: 'failReason', width: 180, render: (v: string | null) => (v ? <Typography.Text type="danger" ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
     { title: '备注', dataIndex: 'remark', width: 140, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v || '-'}</Typography.Text> },

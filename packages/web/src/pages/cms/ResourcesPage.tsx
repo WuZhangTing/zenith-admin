@@ -383,7 +383,7 @@ export default function ResourcesPage() {
       title: '尺寸', dataIndex: 'width', width: 110,
       render: (_: number | null, record: CmsResource) => (record.width && record.height ? `${record.width}×${record.height}` : '-'),
     },
-    { title: '大小', dataIndex: 'size', width: 100, render: (v: number) => formatSize(v) },
+    { title: '大小', dataIndex: 'size', width: 100, align: 'right', render: (v: number) => formatSize(v) },
     {
       title: '引用数', dataIndex: 'refCount', width: 90,
       render: (v: number | undefined) => (v ? <Tag size="small" color="blue">{v}</Tag> : <Tag size="small" color="grey">孤立</Tag>),

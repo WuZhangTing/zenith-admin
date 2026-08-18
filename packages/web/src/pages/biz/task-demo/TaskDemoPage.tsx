@@ -156,6 +156,7 @@ export default function TaskDemoPage() {
     { title: '进度', dataIndex: 'processedCount', width: 220, render: (_: number, record: AsyncTask) => <AsyncTaskProgress task={record} /> },
     {
       title: '执行次数',
+      align: 'right',
       dataIndex: 'attempts',
       width: 100,
       render: (value: number, record: AsyncTask) => <Typography.Text size="small">{value} / {record.maxAttempts}</Typography.Text>,

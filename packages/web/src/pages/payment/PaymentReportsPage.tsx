@@ -70,7 +70,7 @@ export default function PaymentReportsPage() {
     { title: '手续费', dataIndex: 'fee', width: 120, render: (v: number) => yuan(v) },
     { title: '退款', dataIndex: 'refund', width: 120, render: (v: number) => yuan(v) },
     { title: '净额', dataIndex: 'net', width: 130, render: (v: number) => yuan(v) },
-    { title: '成功笔数', dataIndex: 'count', width: 100 },
+    { title: '成功笔数', dataIndex: 'count', width: 100, align: 'right' },
   ];
 
   const renderGroupByFilter = () => (

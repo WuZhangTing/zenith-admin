@@ -221,6 +221,7 @@ export default function TerminalRecordingsPage() {
     },
     {
       title: '时长',
+      align: 'right',
       dataIndex: 'duration',
       width: 90,
       render: (v: number) => formatDuration(v),

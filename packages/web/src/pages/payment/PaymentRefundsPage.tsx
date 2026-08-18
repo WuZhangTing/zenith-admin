@@ -85,8 +85,8 @@ export default function PaymentRefundsPage() {
   const columns: ColumnProps<PaymentRefund>[] = [
     copyableNoColumn('退款单号', 'refundNo'),
     copyableNoColumn('原订单号', 'orderNo'),
-    { title: '退款金额', dataIndex: 'refundAmount', width: 110, render: (v: number) => yuan(v) },
-    { title: '原单金额', dataIndex: 'totalAmount', width: 110, render: (v: number) => yuan(v) },
+    { title: '退款金额', dataIndex: 'refundAmount', width: 110, align: 'right', render: (v: number) => yuan(v) },
+    { title: '原单金额', dataIndex: 'totalAmount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     dateTimeColumn('退款时间', 'refundedAt'),
     dateTimeColumn('创建时间', 'createdAt'),

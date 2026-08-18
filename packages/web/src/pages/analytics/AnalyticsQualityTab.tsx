@@ -136,7 +136,7 @@ export default function AnalyticsQualityTab() {
       width: 140,
       render: (value: AnalyticsQualityIssueType) => <Tag color={ISSUE_COLOR[value]} size="small">{ANALYTICS_QUALITY_ISSUE_TYPE_LABELS[value]}</Tag>,
     },
-    { title: '次数', dataIndex: 'count', width: 90 },
+    { title: '次数', dataIndex: 'count', width: 90, align: 'right' },
     {
       title: '样例（脱敏）',
       dataIndex: 'sample',

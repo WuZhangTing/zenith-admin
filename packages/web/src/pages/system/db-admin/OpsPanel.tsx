@@ -85,7 +85,7 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
       </div>
     )},
     { title: '来源', dataIndex: 'clientAddr', width: 120, render: (v: string | null) => v ?? <Text type="tertiary">本地</Text> },
-    { title: '耗时', dataIndex: 'querySeconds', width: 90, render: (v: number | null) => {
+    { title: '耗时', dataIndex: 'querySeconds', width: 90, align: 'right', render: (v: number | null) => {
       const danger = v != null && v > 30;
       return <Text type={danger ? 'danger' : undefined}>{fmtDuration(v)}</Text>;
     }},
@@ -186,7 +186,7 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
         <Text type={r.deadRatio > 20 ? 'danger' : undefined} size="small">{r.deadRatio}%</Text>
       </div>
     )},
-    { title: '大小', dataIndex: 'sizeText', width: 90 },
+    { title: '大小', dataIndex: 'sizeText', width: 90, align: 'right' },
     { title: '上次 VACUUM', width: 160, render: (_: unknown, r) => <Text type="tertiary" size="small">{r.lastVacuum ?? r.lastAutovacuum ?? '从未'}</Text> },
     { title: '上次 ANALYZE', width: 160, render: (_: unknown, r) => <Text type="tertiary" size="small">{r.lastAnalyze ?? r.lastAutoanalyze ?? '从未'}</Text> },
   ];
@@ -269,7 +269,7 @@ function IndexHealthPanel() {
     )},
     { title: '表', width: 180, render: (_: unknown, r) => (r.schema === 'public' ? r.table : `${r.schema}.${r.table}`) },
     { title: '列', dataIndex: 'columns', render: (v: string[]) => v.join(', ') },
-    { title: '大小', dataIndex: 'sizeText', width: 90 },
+    { title: '大小', dataIndex: 'sizeText', width: 90, align: 'right' },
     { title: '扫描次数', dataIndex: 'scans', width: 90, render: (v: number) => <Tag color="amber" size="small">{v}</Tag> },
     createOperationColumn<IndexInfoRow>({
       width: 110,

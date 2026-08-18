@@ -753,7 +753,7 @@ export default function FrontendErrorsPage() {
   const sourceMapColumns = useMemo<ColumnProps<SourceMapItem>[]>(() => [
     { title: 'Release', dataIndex: 'release', width: 180 },
     { title: '文件名', dataIndex: 'fileName', width: 260 },
-    { title: '大小', dataIndex: 'size', width: 120, render: (value) => formatBytes(Number(value)) },
+    { title: '大小', dataIndex: 'size', width: 120, align: 'right', render: (value) => formatBytes(Number(value)) },
     dateTimeColumn('上传时间', 'createdAt'),
     createOperationColumn<SourceMapItem>({
       width: 100,

@@ -57,7 +57,7 @@ export default function FmListView({
         );
       },
     },
-    { title: '大小', dataIndex: 'size', width: 100, sorter: true, sortOrder: sortState?.field === 'size' ? sortState.order : false, render: (v: number, r: FsEntry) => r.type === 'dir' ? '—' : formatSize(v) },
+    { title: '大小', dataIndex: 'size', width: 100, align: 'right', sorter: true, sortOrder: sortState?.field === 'size' ? sortState.order : false, render: (v: number, r: FsEntry) => r.type === 'dir' ? '—' : formatSize(v) },
     dateTimeColumn('修改时间', 'mtime', { sorter: true, sortOrder: sortState?.field === 'mtime' ? sortState.order : false }),
     // Windows 下权限/属主概念不适用，隐藏对应列
     ...(isWindows ? [] : [

@@ -139,7 +139,7 @@ export default function AiEvalPage() {
         return <Tag size="small" color={v === 'done' ? 'green' : 'red'}>{v === 'done' ? '完成' : '失败'}</Tag>;
       },
     },
-    { title: '平均耗时', dataIndex: 'avgDurationMs', width: 110, render: (v: number | null) => (v != null ? `${v} ms` : '—') },
+    { title: '平均耗时', dataIndex: 'avgDurationMs', width: 110, align: 'right' as const, render: (v: number | null) => (v != null ? `${v} ms` : '—') },
     { title: '总 Token', dataIndex: 'totalTokens', width: 100, render: (v: number | null) => v ?? '—' },
     {
       title: '失败题数',
@@ -197,7 +197,7 @@ export default function AiEvalPage() {
       width: 200,
       render: (v: string | undefined) => v ? <Paragraph ellipsis={{ rows: 3, showTooltip: true }} style={{ fontSize: 13 }}>{v}</Paragraph> : '—',
     },
-    { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number) => `${v} ms` },
+    { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right' as const, render: (v: number) => `${v} ms` },
     { title: 'Token', width: 90, render: (_: unknown, r: { tokensInput: number; tokensOutput: number }) => r.tokensInput + r.tokensOutput },
   ];
 

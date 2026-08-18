@@ -177,7 +177,7 @@ export default function PaymentSharingPage() {
     copyableNoColumn('分账单号', 'sharingNo'),
     copyableNoColumn('订单号', 'orderNo'),
     { title: '接收方', dataIndex: 'receiverName', width: 140, render: (v: string | null) => v || '-' },
-    { title: '分账金额', dataIndex: 'amount', width: 110, render: (v: number) => yuan(v) },
+    { title: '分账金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     copyableNoColumn('渠道分账号', 'channelSharingNo', { width: 300 }),
     dateTimeColumn('完成时间', 'finishedAt'),
     createdAtColumn as ColumnProps<PaymentSharingOrder>,

@@ -103,7 +103,7 @@ export default function MpMaterialsPage() {
     { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '类型', dataIndex: 'type', width: 90, render: (v: MpMaterialType) => MP_MATERIAL_TYPE_LABELS[v] },
     { title: '微信 MediaID', dataIndex: 'wechatMediaId', width: 200, render: (v: string | null) => v || '— 未同步' },
-    { title: '大小', dataIndex: 'fileSize', width: 100, render: (v: number | null) => fmtSize(v) },
+    { title: '大小', dataIndex: 'fileSize', width: 100, align: 'right' as const, render: (v: number | null) => fmtSize(v) },
     createdAtColumn,
     createOperationColumn<MpMaterial>({
       width: 140,

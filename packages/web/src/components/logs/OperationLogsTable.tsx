@@ -117,6 +117,7 @@ export function OperationLogsTable({
     { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => v ?? '-' },
     {
       title: '耗时',
+      align: 'right',
       dataIndex: 'durationMs',
       width: 120,
       render: (v: number | null) => v === null ? '-' : `${v} ms`,

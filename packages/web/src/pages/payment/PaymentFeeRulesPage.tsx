@@ -109,9 +109,9 @@ export default function PaymentFeeRulesPage() {
     { title: '名称', dataIndex: 'name', width: 160 },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '全部') },
-    { title: '费率', dataIndex: 'rateBps', width: 90, render: (v: number) => `${(v / 100).toFixed(2)}%` },
+    { title: '费率', dataIndex: 'rateBps', width: 90, align: 'right', render: (v: number) => `${(v / 100).toFixed(2)}%` },
     { title: '固定费', dataIndex: 'fixedFee', width: 100, render: (v: number) => yuan(v) },
-    { title: '限额(低/高)', dataIndex: 'minFee', width: 150, render: (_: unknown, r: PaymentFeeRule) => `${yuan(r.minFee)} / ${yuan(r.maxFee)}` },
+    { title: '限额(低/高)', dataIndex: 'minFee', width: 150, align: 'right', render: (_: unknown, r: PaymentFeeRule) => `${yuan(r.minFee)} / ${yuan(r.maxFee)}` },
     { title: '优先级', dataIndex: 'priority', width: 80 },
     createdAtColumn as ColumnProps<PaymentFeeRule>,
     {

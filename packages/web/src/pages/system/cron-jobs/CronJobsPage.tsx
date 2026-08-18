@@ -58,6 +58,7 @@ const runStatusLabel: Record<string, string> = CRON_RUN_STATUS_LABELS;
 const buildRunLogColumns = (outputWidth: number) => [
   {
     title: '执行次数',
+    align: 'right' as const,
     dataIndex: 'executionCount',
     width: 90,
   },
@@ -65,6 +66,7 @@ const buildRunLogColumns = (outputWidth: number) => [
   dateTimeColumn('结束时间', 'endedAt'),
   {
     title: '耗时 ms',
+    align: 'right' as const,
     dataIndex: 'durationMs',
     width: 90,
     render: (v: number | null) => v ?? '—',

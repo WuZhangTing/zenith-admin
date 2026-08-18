@@ -153,7 +153,7 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
       },
     },
     {
-      title: '命中次数', dataIndex: 'hitCount', width: 90,
+      title: '命中次数', dataIndex: 'hitCount', width: 90, align: 'right',
       render: (v: number) => <Typography.Text>{Number(v) || 0}</Typography.Text>,
     },
     { title: '状态', dataIndex: 'status', width: 70, render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag> },

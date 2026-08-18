@@ -420,7 +420,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
         : <Typography.Text size="small" type="tertiary">—</Typography.Text>,
     },
     { title: '响应码', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '—' },
-    { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number | null) => v != null ? `${v}ms` : '—' },
+    { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right', render: (v: number | null) => v != null ? `${v}ms` : '—' },
     {
       title: '错误',
       dataIndex: 'errorMessage',

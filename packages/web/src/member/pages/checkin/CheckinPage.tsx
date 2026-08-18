@@ -203,9 +203,9 @@ export default function CheckinPage() {
         <Table
           columns={[
             dateColumn('签到日期', 'checkinDate'),
-            { title: '连续天数', dataIndex: 'consecutiveDays', width: 100 },
-            { title: '积分奖励', dataIndex: 'pointsAwarded', width: 100 },
-            { title: '经验奖励', dataIndex: 'experienceAwarded', width: 100 },
+            { title: '连续天数', dataIndex: 'consecutiveDays', width: 100, align: 'right' },
+            { title: '积分奖励', dataIndex: 'pointsAwarded', width: 100, align: 'right' },
+            { title: '经验奖励', dataIndex: 'experienceAwarded', width: 100, align: 'right' },
             dateTimeColumn('签到时间', 'createdAt'),
           ]}
           dataSource={history}

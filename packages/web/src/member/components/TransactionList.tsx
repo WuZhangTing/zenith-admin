@@ -31,6 +31,7 @@ export function TransactionList({ fetchUrl, typeLabels, formatAmount }: Transact
     },
     {
       title: '金额',
+      align: 'right' as const,
       dataIndex: 'amount',
       width: 120,
       render: (amount: number) => {

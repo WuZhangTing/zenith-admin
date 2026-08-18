@@ -459,7 +459,7 @@ function DwellTab() {
         </div>
       ),
     },
-    { title: '访问次数', dataIndex: 'visits', width: 120, render: (value) => numberText(Number(value)) },
+    { title: '访问次数', dataIndex: 'visits', width: 120, align: 'right', render: (value) => numberText(Number(value)) },
     {
       title: '平均停留',
       dataIndex: 'avgMs',
@@ -602,6 +602,7 @@ function FeatureTab() {
     { title: '所在页面', dataIndex: 'pagePath', width: 260, render: (value) => <Typography.Text ellipsis={{ showTooltip: true }}>{String(value)}</Typography.Text> },
     {
       title: '使用次数',
+      align: 'right',
       dataIndex: 'count',
       width: 240,
       render: (_value, record) => (
@@ -746,7 +747,7 @@ function SessionsTab() {
     { title: '出口页', dataIndex: 'exitPage', width: 200, render: (_value, record) => <Typography.Text ellipsis={{ showTooltip: true }}>{record.exitPage || '–'}</Typography.Text> },
     { title: '页数', dataIndex: 'pageCount', width: 90 },
     { title: '事件', dataIndex: 'eventCount', width: 90 },
-    { title: '时长', dataIndex: 'durationMs', width: 120, render: (_value, record) => msToReadable(record.durationMs) },
+    { title: '时长', dataIndex: 'durationMs', width: 120, align: 'right', render: (_value, record) => msToReadable(record.durationMs) },
     {
       title: '设备 / 浏览器 / 系统',
       dataIndex: 'deviceType',
@@ -1365,6 +1366,7 @@ function PathTab() {
     },
     {
       title: '跳转次数',
+      align: 'right',
       dataIndex: 'value',
       width: 220,
       render: (_value, record) => (
@@ -1697,9 +1699,10 @@ function HeatmapTab() {
     },
     { title: 'UI区域', dataIndex: 'componentArea', width: 130, render: (_value, record) => (record.componentArea ? <Tag color="blue">{record.componentArea}</Tag> : <Tag color="grey">未标记</Tag>) },
     { title: '平均落点', dataIndex: 'avgX', width: 120, render: (_value, record) => <Typography.Text type="tertiary">{record.avgX == null || record.avgY == null ? '–' : `${record.avgX}% , ${record.avgY}%`}</Typography.Text> },
-    { title: '点击人数', dataIndex: 'uniqueUsers', width: 110, render: (value) => numberText(Number(value)) },
+    { title: '点击人数', dataIndex: 'uniqueUsers', width: 110, align: 'right', render: (value) => numberText(Number(value)) },
     {
       title: '点击次数',
+      align: 'right',
       dataIndex: 'count',
       width: 200,
       render: (_value, record) => (
@@ -1722,8 +1725,8 @@ function HeatmapTab() {
         </div>
       ),
     },
-    { title: '发生次数', dataIndex: 'count', width: 110, render: (value) => <Tag color="red">{numberText(Number(value))}</Tag> },
-    { title: '影响人数', dataIndex: 'uniqueUsers', width: 110, render: (value) => numberText(Number(value)) },
+    { title: '发生次数', dataIndex: 'count', width: 110, align: 'right', render: (value) => <Tag color="red">{numberText(Number(value))}</Tag> },
+    { title: '影响人数', dataIndex: 'uniqueUsers', width: 110, align: 'right', render: (value) => numberText(Number(value)) },
     dateTimeColumn('最近发生', 'lastAt'),
   ];
 

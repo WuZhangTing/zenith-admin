@@ -126,6 +126,7 @@ export default function RetentionPage() {
           {
             key: 'retentionDays',
             title: '保留天数',
+            align: 'right',
             dataIndex: 'retentionDays',
             width: 120,
             render: (days: number) => (days > 0

@@ -321,6 +321,7 @@ export default function CacheManagePage() {
     },
     {
       title: '大小',
+      align: 'right',
       dataIndex: 'size',
       width: 90,
       render: (v: number, record: CacheItem) => {

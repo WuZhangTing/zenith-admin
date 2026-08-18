@@ -217,7 +217,7 @@ export default function WebhooksPage() {
     { title: '事件', dataIndex: 'eventType', width: 130, render: (v: string) => OPEN_WEBHOOK_EVENT_LABELS[v] ?? v },
     { title: '尝试', dataIndex: 'attempt', width: 60 },
     { title: '响应码', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '—' },
-    { title: '耗时', dataIndex: 'durationMs', width: 80, render: (v: number | null) => v != null ? `${v}ms` : '—' },
+    { title: '耗时', dataIndex: 'durationMs', width: 80, align: 'right', render: (v: number | null) => v != null ? `${v}ms` : '—' },
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right' as const,
       render: (v: string) => <Tag size="small" color={DELIVERY_STATUS_COLOR[v] ?? 'grey'}>{OPEN_WEBHOOK_DELIVERY_STATUS_LABELS[v as keyof typeof OPEN_WEBHOOK_DELIVERY_STATUS_LABELS] ?? v}</Tag>,

@@ -665,7 +665,7 @@ export default function WorkflowMonitorPage() {
       { title: '状态', dataIndex: 'status', width: 130 },
       { title: '尝试', dataIndex: 'attempt', width: 70 },
       { title: 'HTTP', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '—' },
-      { title: '耗时', dataIndex: 'durationMs', width: 90, render: (v: number | null) => v != null ? `${v}ms` : '—' },
+      { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right', render: (v: number | null) => v != null ? `${v}ms` : '—' },
       { title: '错误', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
       dateTimeColumn('创建时间', 'createdAt'),
     ];
@@ -1033,6 +1033,7 @@ export default function WorkflowMonitorPage() {
     dateTimeColumn('最后更新', 'updatedAt'),
     {
       title: '耗时',
+      align: 'right',
       key: 'duration',
       width: 120,
       render: (_: unknown, record: WorkflowInstance) => {
