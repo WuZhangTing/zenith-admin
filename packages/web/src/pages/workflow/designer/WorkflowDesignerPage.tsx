@@ -4,8 +4,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Button, Divider, Modal, RadioGroup, Radio, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
-import { ArrowLeft, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw, Save, Send, Stethoscope, Undo2, Upload } from 'lucide-react';
-import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig, WorkflowDefinitionHealthIssue } from '@zenith/shared/workflow';
+import { ArrowLeft, Check, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw, Save, Send, Stethoscope, TriangleAlert, Undo2, Upload } from 'lucide-react';
+import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig } from '@zenith/shared/workflow';
 import { WORKFLOW_FORM_TYPES, WORKFLOW_FORM_TYPE_LABELS, resolveApproverDedupMode } from '@zenith/shared/workflow';
 import { downloadBlob } from '@/utils/download';
 import { hasPageComponent } from '@/utils/page-registry';
@@ -29,6 +29,7 @@ import {
   validateRouteBranches,
   validateConditionBranches,
   validateBranchChildren,
+  collectUnconfiguredAssigneeNodes,
   treeToFlat,
   deepClone,
   collectAllNodes,
@@ -122,8 +123,9 @@ export default function WorkflowDesignerPage({
 
   // 表单字段（由所选表单派生，供下游节点配置/条件/权限使用）
   const [localFormFields, setLocalFormFields] = useState<WorkflowFormField[]>([]);
-  // 绑定的表单库表单 id
+  // 绑定的表单库表单 id / 名称（名称用于步骤状态与发布摘要展示）
   const [formId, setFormId] = useState<number | null>(null);
+  const [formName, setFormName] = useState<string | null>(null);
   // 表单类型：designer=表单库，custom=自定义业务页面
   const [formType, setFormType] = useState<WorkflowFormType>('designer');
   // 自定义业务表单配置
@@ -229,6 +231,7 @@ export default function WorkflowDesignerPage({
       setMetaInitiatorScopeType(data.initiatorScopeType ?? 'all');
       setMetaInitiatorScopeIds(data.initiatorScopeIds ?? []);
       setFormId(data.formId ?? null);
+      setFormName(data.formName ?? null);
       setFormType(data.formType ?? 'designer');
       setCustomForm(data.customForm ?? null);
       if (data.formFields) setLocalFormFields(data.formFields);
@@ -263,6 +266,7 @@ export default function WorkflowDesignerPage({
     setMetaInitiatorScopeType((d as WorkflowDefinition).initiatorScopeType ?? 'all');
     setMetaInitiatorScopeIds((d as WorkflowDefinition).initiatorScopeIds ?? []);
     setFormId(d.formId ?? null);
+    setFormName(d.formName ?? null);
     setFormType(d.formType ?? 'designer');
     setCustomForm(d.customForm ?? null);
     if (d.formFields) setLocalFormFields(d.formFields);
@@ -615,19 +619,19 @@ export default function WorkflowDesignerPage({
     return saved;
   };
 
-  /** 发布前体检：拉取最新体检并返回严重（critical）问题，用于阻断发布 */
-  const fetchCriticalIssues = async (): Promise<WorkflowDefinitionHealthIssue[]> => {
+  /** 发布前体检：拉取最新体检报告（critical 阻断发布,分数用于发布摘要） */
+  const fetchHealthReport = async () => {
     const flowData = buildCurrentFlowData();
     const fieldPayload = formFields.filter((f) => f.key).map((f) => ({ key: f.key, type: f.type }));
-    const report = await healthCheckMutation.mutateAsync({ flowData, formFields: fieldPayload, silent: true });
-    return report.checks.flatMap((c) => c.issues).filter((i) => i.severity === 'critical');
+    return healthCheckMutation.mutateAsync({ flowData, formFields: fieldPayload, silent: true });
   };
 
   const handlePublish = async () => {
     if (isNew || !id || !validateBeforeSave() || !validateBusinessFormBeforePublish()) return;
     try {
       // 发布前 gate：存在严重问题则阻断，引导去修复 / 打开流程体检
-      const criticals = await fetchCriticalIssues();
+      const report = await fetchHealthReport();
+      const criticals = report.checks.flatMap((c) => c.issues).filter((i) => i.severity === 'critical');
       if (criticals.length > 0) {
         Modal.confirm({
           title: `存在 ${criticals.length} 项严重问题，无法发布`,
@@ -697,6 +701,37 @@ export default function WorkflowDesignerPage({
     { step: 3 as const, label: '流程设计' },
     { step: 4 as const, label: '更多设置' },
   ];
+
+  // ─── 步骤完成态（错误左移：边配置边可见缺什么,而非等到发布时撞校验） ──
+  type StepIndicator = { status: 'done' | 'warn' | 'none'; hints: string[] };
+  const stepStatus = useMemo<Record<1 | 2 | 3 | 4, StepIndicator>>(() => {
+    // 步骤 1:流程名称 + 发起范围
+    const s1Hints: string[] = [];
+    if (!metaName.trim()) s1Hints.push('未填写流程名称');
+    if (metaInitiatorScopeType !== 'all' && metaInitiatorScopeIds.length === 0) s1Hints.push('未选择可发起范围');
+    // 步骤 2:按表单类型判定绑定完整性
+    const s2Hints: string[] = [];
+    if (formType === 'designer') {
+      if (!formId) s2Hints.push('未选择表单');
+    } else if (formType === 'custom') {
+      if (!customForm?.createComponent?.trim()) s2Hints.push('未配置创建页组件');
+    } else if (!customForm?.viewComponent?.trim()) {
+      s2Hints.push('未配置审批查看页组件');
+    }
+    // 步骤 3:未配置审批人的节点 + 分支配置完整性(本地同步校验,与保存前校验同源)
+    const s3Hints: string[] = [];
+    const unconfigured = collectUnconfiguredAssigneeNodes(process);
+    if (unconfigured.length > 0) s3Hints.push(`${unconfigured.length} 个节点未配置处理人：${unconfigured.slice(0, 3).join('、')}${unconfigured.length > 3 ? '…' : ''}`);
+    const branchErrors = [...validateRouteBranches(process), ...validateConditionBranches(process), ...validateBranchChildren(process)];
+    if (branchErrors.length > 0) s3Hints.push(branchErrors.length === 1 ? branchErrors[0] : `${branchErrors[0]} 等 ${branchErrors.length} 处分支问题`);
+    const toIndicator = (hints: string[]): StepIndicator => ({ status: hints.length > 0 ? 'warn' : 'done', hints });
+    return {
+      1: toIndicator(s1Hints),
+      2: toIndicator(s2Hints),
+      3: toIndicator(s3Hints),
+      4: { status: 'none', hints: [] }, // 更多设置全部可选,不参与完成度
+    };
+  }, [metaName, metaInitiatorScopeType, metaInitiatorScopeIds, formType, formId, customForm, process]);
 
   // ─── 基础信息回调 ─────────────────────────────────────────────────
 
@@ -772,19 +807,32 @@ export default function WorkflowDesignerPage({
           </Tooltip>
         </div>
 
-        {/* 步骤导航 */}
+        {/* 步骤导航（含完成态:✓ 已完成 / ⚠ 有缺失,悬停查看明细;只读模式不显示状态） */}
         <div className="fd-steps-nav">
-          {STEPS.map(({ step, label }) => (
-            <button
-              type="button"
-              key={step}
-              className={`fd-steps-nav__item ${currentStep === step ? 'fd-steps-nav__item--active' : ''}`}
-              onClick={() => setCurrentStep(step)}
-            >
-              <span className="fd-steps-nav__number">{step}</span>
-              <span className="fd-steps-nav__label">{label}</span>
-            </button>
-          ))}
+          {STEPS.map(({ step, label }) => {
+            const ind = stepStatus[step];
+            const showStatus = !readOnly && currentStep !== step && ind.status !== 'none';
+            const item = (
+              <button
+                type="button"
+                key={step}
+                className={`fd-steps-nav__item ${currentStep === step ? 'fd-steps-nav__item--active' : ''}`}
+                onClick={() => setCurrentStep(step)}
+              >
+                {showStatus ? (
+                  <span className={`fd-steps-nav__number ${ind.status === 'done' ? 'fd-steps-nav__number--done' : 'fd-steps-nav__number--warn'}`}>
+                    {ind.status === 'done' ? <Check size={12} strokeWidth={3} /> : <TriangleAlert size={11} />}
+                  </span>
+                ) : (
+                  <span className="fd-steps-nav__number">{step}</span>
+                )}
+                <span className="fd-steps-nav__label">{label}</span>
+              </button>
+            );
+            return showStatus && ind.status === 'warn'
+              ? <Tooltip key={step} content={ind.hints.join('；')}>{item}</Tooltip>
+              : item;
+          })}
         </div>
 
         {/* 右侧操作 */}
@@ -881,9 +929,10 @@ export default function WorkflowDesignerPage({
           ) : formType === 'designer' ? (
             <FormSelectorPanel
               formId={formId}
-              formName={definition?.formName}
+              formName={formName ?? definition?.formName}
               onSelect={(form) => {
                 setFormId(form?.id ?? null);
+                setFormName(form?.name ?? null);
                 setLocalFormFields(form?.schema?.fields ?? []);
               }}
             />

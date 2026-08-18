@@ -375,7 +375,7 @@ function findNodeById(node: FlowNode | undefined, id: string): FlowNode | undefi
   return undefined;
 }
 
-function traverseAll(
+export function traverseAll(
   node: FlowNode | undefined,
   callback: (node: FlowNode, parent?: FlowNode, branch?: FlowBranch) => void,
   parent?: FlowNode,
@@ -393,6 +393,18 @@ function traverseAll(
       }
     }
   }
+}
+
+/** 收集未配置处理人来源的人工审批/办理节点名（与 NodeCard「请设置」判定一致） */
+export function collectUnconfiguredAssigneeNodes(process: FlowProcess): string[] {
+  const names: string[] = [];
+  traverseAll(process.initiator, (node) => {
+    if (node.type !== 'approver' && node.type !== 'handler') return;
+    const approvalType = node.props?.approvalType as string | undefined;
+    if (node.type === 'approver' && approvalType && approvalType !== 'manual') return; // 自动通过/拒绝无需处理人
+    if (!node.props?.assigneeType) names.push(node.name || (node.type === 'approver' ? '审批人' : '办理人'));
+  });
+  return names;
 }
 
 function replaceNodeInTree(root: FlowNode, targetId: string, replacement?: FlowNode): void {

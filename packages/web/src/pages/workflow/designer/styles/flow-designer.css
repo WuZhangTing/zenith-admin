@@ -1673,6 +1673,29 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   color: #fff;
 }
 
+/* 步骤完成态:✓ 已完成(绿) / ⚠ 有缺失(橙),仅非当前步显示 */
+.fd-steps-nav__number--done {
+  border-color: var(--semi-color-success);
+  color: var(--semi-color-success);
+  background: var(--semi-color-success-light-default);
+}
+
+.fd-steps-nav__item:hover .fd-steps-nav__number--done {
+  border-color: var(--semi-color-success);
+  color: var(--semi-color-success);
+}
+
+.fd-steps-nav__number--warn {
+  border-color: var(--semi-color-warning);
+  color: var(--semi-color-warning);
+  background: var(--semi-color-warning-light-default);
+}
+
+.fd-steps-nav__item:hover .fd-steps-nav__number--warn {
+  border-color: var(--semi-color-warning);
+  color: var(--semi-color-warning);
+}
+
 .fd-steps-nav__label {
   font-size: 14px;
 }
