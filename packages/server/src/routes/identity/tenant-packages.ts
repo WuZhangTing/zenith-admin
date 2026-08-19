@@ -12,22 +12,28 @@ import {
   updateTenantPackage,
   deleteTenantPackage,
   batchDeleteTenantPackages,
-  assignTenantPackageMenus,
+  assignTenantPackageFeatures,
   getTenantPackageBeforeAudit,
   getTenantPackagesBeforeAudit,
 } from '../../services/identity/tenant-packages.service';
+import { LICENSE_FEATURES } from '@zenith/shared/licensing';
 
 const tenantPackagesRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const platformAdminMiddleware = platformAdminOnly({ message: '仅平台管理员可管理租户套餐' });
 
+const tenantPackageQuotasSchema = z.object({
+  maxUsers: z.number().int().min(1).nullable().optional(),
+}).nullable();
+
 const createTenantPackageSchema = z.object({
   name: z.string().min(1).max(100),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
+  quotas: tenantPackageQuotasSchema.optional(),
   remark: z.string().max(500).optional(),
 });
 const updateTenantPackageSchema = createTenantPackageSchema.partial();
-const assignMenusSchema = z.object({ menuIds: z.array(z.number().int()).default([]) });
+const assignFeaturesSchema = z.object({ features: z.array(z.enum(LICENSE_FEATURES)).default([]) });
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -91,23 +97,23 @@ const updateRouteDef = defineOpenAPIRoute({
   },
 });
 
-const assignMenusRouteDef = defineOpenAPIRoute({
+const assignFeaturesRouteDef = defineOpenAPIRoute({
   route: createRoute({
-    method: 'put', path: '/{id}/menus', tags: ['TenantPackages'], summary: '分配套餐菜单',
+    method: 'put', path: '/{id}/features', tags: ['TenantPackages'], summary: '分配套餐功能',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, platformAdminMiddleware, guard({ audit: { module: '租户套餐', description: '分配套餐菜单' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(assignMenusSchema), required: true } },
-    responses: { ...okMsg('菜单已更新'), ...commonErrorResponses },
+    middleware: [authMiddleware, platformAdminMiddleware, guard({ audit: { module: '租户套餐', description: '分配套餐功能' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(assignFeaturesSchema), required: true } },
+    responses: { ...okMsg('功能已更新'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    const { menuIds } = c.req.valid('json');
+    const { features } = c.req.valid('json');
     const before = await getTenantPackageBeforeAudit(id);
     if (before) setAuditBeforeData(c, before);
-    await assignTenantPackageMenus(id, menuIds);
+    await assignTenantPackageFeatures(id, features);
     const after = await getTenantPackageBeforeAudit(id);
     if (after) setAuditAfterData(c, after);
-    return c.json(okBody(null, '菜单已更新'), 200);
+    return c.json(okBody(null, '功能已更新'), 200);
   },
 });
 
@@ -145,6 +151,6 @@ const deleteRouteDef = defineOpenAPIRoute({
   },
 });
 
-tenantPackagesRoute.openapiRoutes([listRoute, allRoute, detailRoute, createRouteDef, updateRouteDef, assignMenusRouteDef, batchDeleteRouteDef, deleteRouteDef] as const);
+tenantPackagesRoute.openapiRoutes([listRoute, allRoute, detailRoute, createRouteDef, updateRouteDef, assignFeaturesRouteDef, batchDeleteRouteDef, deleteRouteDef] as const);
 
 export default tenantPackagesRoute;

@@ -51,7 +51,7 @@ export const tenantsHandlers = [
       id: t.id, name: t.name, code: t.code, status: t.status,
       userCount: mockUserCount(t), maxUsers: t.maxUsers ?? null,
       departmentCount: 4, roleCount: 3, positionCount: 5,
-      packageId: t.packageId ?? null, packageName: pkg?.name ?? null, packageMenuCount: pkg?.menuIds?.length ?? 0,
+      packageId: t.packageId ?? null, packageName: pkg?.name ?? null, packageFeatureCount: pkg?.features?.length ?? 0,
       expireAt, daysToExpire,
     });
   }),

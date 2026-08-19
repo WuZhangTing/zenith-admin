@@ -1975,7 +1975,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "PUT /api/system-scheduler/tasks/:name/config",
   "PUT /api/tags/:id",
   "PUT /api/tenant-packages/:id",
-  "PUT /api/tenant-packages/:id/menus",
+  "PUT /api/tenant-packages/:id/features",
   "PUT /api/tenants/:id",
   "PUT /api/terminal-files/content",
   "PUT /api/user-groups/:id",

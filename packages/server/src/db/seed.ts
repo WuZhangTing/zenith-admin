@@ -1,5 +1,5 @@
 import { db } from './index';
-import { wikiSpaces, wikiSpaceMembers, wikiTags, wikiTemplates, wikiDocs, wikiDocVersions, wikiDocTags, wikiComments, users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageMenus, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, monitorAlertRules, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, paymentDeductPlans, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, ruleDecisionFlows, ruleLists, ruleListItems, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates, analyticsEventMeta, analyticsSites, asyncTaskItems, asyncTasks, cmsSites, cmsSiteInheritances, cmsModels, cmsModelFields, cmsChannels, cmsDistributionRules, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentVersions, cmsFriendLinkGroups, cmsFriendLinks, cmsAdSlots, cmsAds, cmsAdEvents, cmsForms, cmsSensitiveWords, cmsErrorProneWords, cmsLinkWords, cmsComments, cmsSiteUsers, cmsChannelUsers, cmsInteractions, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractionAnswers, cmsMemberSubscriptions, cmsResources, cmsResourceFolders, cmsResourceRefs, cmsSearchWords, cmsHotwordGroups, cmsHotwords, cmsCollectRules, cmsCollectItems, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs, cmsPages, cmsPageBlockAcls, cmsPublishArtifacts } from './schema';
+import { wikiSpaces, wikiSpaceMembers, wikiTags, wikiTemplates, wikiDocs, wikiDocVersions, wikiDocTags, wikiComments, users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageFeatures, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, monitorAlertRules, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, paymentDeductPlans, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, ruleDecisionFlows, ruleLists, ruleListItems, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates, analyticsEventMeta, analyticsSites, asyncTaskItems, asyncTasks, cmsSites, cmsSiteInheritances, cmsModels, cmsModelFields, cmsChannels, cmsDistributionRules, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentVersions, cmsFriendLinkGroups, cmsFriendLinks, cmsAdSlots, cmsAds, cmsAdEvents, cmsForms, cmsSensitiveWords, cmsErrorProneWords, cmsLinkWords, cmsComments, cmsSiteUsers, cmsChannelUsers, cmsInteractions, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractionAnswers, cmsMemberSubscriptions, cmsResources, cmsResourceFolders, cmsResourceRefs, cmsSearchWords, cmsHotwordGroups, cmsHotwords, cmsCollectRules, cmsCollectItems, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs, cmsPages, cmsPageBlockAcls, cmsPublishArtifacts } from './schema';
 import bcrypt from 'bcryptjs';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
@@ -97,7 +97,7 @@ async function seed() {
 async function seedRest() {
   // ─── 2. 菜单数据（数据来源：@zenith/shared SEED_MENUS）─────────────────────
   // 菜单以 SEED_MENUS 为权威来源，但只按 id upsert，不清空重建：
-  // 手工创建的菜单及 role_menus / user_menus / tenant_package_menus 授权、用户收藏均原样保留。
+  // 手工创建的菜单及 role_menus / user_menus 授权、用户收藏均原样保留。
   // setWhere 让内容未变的行跳过 UPDATE，避免每次 dev 启动都刷新 881 行的 updated_at / updated_by。
   const menuRows = SEED_MENUS.map((row) => ({
     id: row.id,
@@ -112,6 +112,7 @@ async function seedRest() {
     sort: row.sort,
     status: row.status,
     visible: row.visible,
+    featureKey: row.featureKey ?? null,
   }));
   const writtenMenus = await db.insert(menus).values(menuRows)
     .onConflictDoUpdate({
@@ -128,14 +129,15 @@ async function seedRest() {
         sort: sql`excluded.sort`,
         status: sql`excluded.status`,
         visible: sql`excluded.visible`,
+        featureKey: sql`excluded.feature_key`,
         updatedAt: sql`now()`,
       },
       setWhere: sql`(
         ${menus.parentId}, ${menus.title}, ${menus.name}, ${menus.path}, ${menus.component}, ${menus.icon},
-        ${menus.type}, ${menus.permission}, ${menus.sort}, ${menus.status}, ${menus.visible}
+        ${menus.type}, ${menus.permission}, ${menus.sort}, ${menus.status}, ${menus.visible}, ${menus.featureKey}
       ) IS DISTINCT FROM (
         excluded.parent_id, excluded.title, excluded.name, excluded.path, excluded.component, excluded.icon,
-        excluded.type, excluded.permission, excluded.sort, excluded.status, excluded.visible
+        excluded.type, excluded.permission, excluded.sort, excluded.status, excluded.visible, excluded.feature_key
       )`,
     })
     .returning({ id: menus.id });
@@ -384,12 +386,12 @@ async function seedRest() {
 
   // ─── 租户套餐示例数据（数据来源：@zenith/shared SEED_TENANT_PACKAGES）─────────────────────────
   await db.insert(tenantPackages).values(
-    SEED_TENANT_PACKAGES.map(({ id, name, status, remark }) => ({ id, name, status, remark })),
+    SEED_TENANT_PACKAGES.map(({ id, name, status, quotas, remark }) => ({ id, name, status, quotas: quotas ?? null, remark })),
   ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('tenant_packages_id_seq', GREATEST((SELECT MAX(id) FROM tenant_packages), 1))`);
-  const pkgMenuRows = SEED_TENANT_PACKAGES.flatMap((p) => (p.menuIds ?? []).map((menuId) => ({ packageId: p.id, menuId })));
-  if (pkgMenuRows.length > 0) {
-    await db.insert(tenantPackageMenus).values(pkgMenuRows).onConflictDoNothing();
+  const pkgFeatureRows = SEED_TENANT_PACKAGES.flatMap((p) => (p.features ?? []).map((featureKey) => ({ packageId: p.id, featureKey })));
+  if (pkgFeatureRows.length > 0) {
+    await db.insert(tenantPackageFeatures).values(pkgFeatureRows).onConflictDoNothing();
   }
   logger.info('  ✔ Tenant packages seeded (onConflictDoNothing)');
 

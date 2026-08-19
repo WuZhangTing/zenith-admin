@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
 import { users } from '../db/schema';
-import { getTenantPackageMenuIdSet } from './tenant-package';
+import { getTenantPackageFeatureSet } from './tenant-package';
 import { config } from '../config';
 import redis from './redis';
 
@@ -81,7 +81,7 @@ export async function getUserMenuIds(userId: number): Promise<number[]> {
 }
 
 async function fetchUserPermissionData(userId: number): Promise<{ permissions: string[]; menuIds: number[] }> {
-  const menuColumns = { id: true, permission: true, visible: true, status: true } as const;
+  const menuColumns = { id: true, permission: true, visible: true, status: true, featureKey: true } as const;
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { tenantId: true },
@@ -151,10 +151,11 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
   let allMenuRows = [...roleMenuRows, ...directMenuRows, ...groupMenuRows]
     .filter((menu) => menu.status === 'enabled');
 
-  // 多租户：将有效菜单/权限交集到租户套餐白名单内；保留不可见的内置工具菜单（个人中心/消息等），避免锁死。
-  const packageMenuIds = await getTenantPackageMenuIdSet(user.tenantId);
-  if (packageMenuIds) {
-    allMenuRows = allMenuRows.filter((menu) => packageMenuIds.has(menu.id) || !menu.visible);
+  // 多租户：按租户套餐的功能集过滤——featureKey 为空的菜单是核心能力永远保留；
+  // 有 featureKey 的菜单仅当套餐分配了对应功能时保留（套餐禁用时功能集为空 = fail-closed）。
+  const featureSet = await getTenantPackageFeatureSet(user.tenantId);
+  if (featureSet) {
+    allMenuRows = allMenuRows.filter((menu) => !menu.featureKey || featureSet.has(menu.featureKey));
   }
 
   const menuIds = [...new Set(allMenuRows.map((menu) => menu.id))];

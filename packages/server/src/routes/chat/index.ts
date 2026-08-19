@@ -7,7 +7,7 @@ export default defineRouteDomain({
   name: 'chat',
   mounts: () => [
     ['/api/public/chat/webhook', chatPublicRoutes],
-    ['/api/chat', chatRoutes],
-    ['/api/chat-bots', chatBotsRoutes],
+    ['/api/chat', chatRoutes, { feature: 'chat' }],
+    ['/api/chat-bots', chatBotsRoutes, { feature: 'chat' }],
   ],
 });

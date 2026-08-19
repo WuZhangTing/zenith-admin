@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
+import { tenantPackageQuotasSchema } from '../licensing/validation';
 import { MP_OAUTH_SCOPES } from '../mp/constants';
 import {
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_MATCH_KEYS,
@@ -359,24 +360,17 @@ export const createTenantPackageSchema = z.object({
   name: z.string().min(1, '套餐名称不能为空').max(100),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
+  quotas: tenantPackageQuotasSchema.optional().nullable(),
 });
 
 
 export const updateTenantPackageSchema = partialForUpdate(createTenantPackageSchema);
 
 
-export const assignTenantPackageMenusSchema = z.object({
-  menuIds: z.array(z.number().int()).default([]),
-});
-
-
 export type CreateTenantPackageInput = z.infer<typeof createTenantPackageSchema>;
 
 
 export type UpdateTenantPackageInput = z.infer<typeof updateTenantPackageSchema>;
-
-
-export type AssignTenantPackageMenusInput = z.infer<typeof assignTenantPackageMenusSchema>;
 
 
 export type UpdateOauthConfigInput = z.infer<typeof updateOauthConfigSchema>;

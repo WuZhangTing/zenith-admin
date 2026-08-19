@@ -12,14 +12,14 @@ import ratePlansRoutes from './rate-plans';
 export default defineRouteDomain({
   name: 'open-platform',
   mounts: () => [
-    ['/api/oauth2/clients', oauth2ClientsRoutes],
+    ['/api/oauth2/clients', oauth2ClientsRoutes, { feature: 'open-platform' }],
     ['/api/oauth2', oauth2AuthRoutes],
-    ['/api/api-scopes', apiScopesRoutes],
-    ['/api/rate-plans', ratePlansRoutes],
-    ['/api/open-signature', openSignatureRoutes],
-    ['/api/open-api-stats', openApiStatsRoutes],
-    ['/api/app-webhooks', appWebhooksRoutes],
-    ['/api/developer-apps', developerAppsRoutes],
+    ['/api/api-scopes', apiScopesRoutes, { feature: 'open-platform' }],
+    ['/api/rate-plans', ratePlansRoutes, { feature: 'open-platform' }],
+    ['/api/open-signature', openSignatureRoutes, { feature: 'open-platform' }],
+    ['/api/open-api-stats', openApiStatsRoutes, { feature: 'open-platform' }],
+    ['/api/app-webhooks', appWebhooksRoutes, { feature: 'open-platform' }],
+    ['/api/developer-apps', developerAppsRoutes, { feature: 'open-platform' }],
     ['/api/open', openGatewayRoutes],
   ],
 });

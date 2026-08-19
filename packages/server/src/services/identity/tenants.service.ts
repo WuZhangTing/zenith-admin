@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { db } from '../../db';
-import { tenants, users, departments, roles, positions, tenantPackageMenus, menus, userRoles, roleMenus } from '../../db/schema';
+import { tenants, users, departments, roles, positions, tenantPackageFeatures, menus, userRoles, roleMenus } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { HTTPException } from 'hono/http-exception';
 import { clearUserPermissionCache } from '../../lib/permissions';
@@ -75,12 +75,12 @@ export async function getTenantStats(id: number) {
   });
   if (!tenant) throw new HTTPException(404, { message: '租户不存在' });
 
-  const [userCount, departmentCount, roleCount, positionCount, packageMenuCount] = await Promise.all([
+  const [userCount, departmentCount, roleCount, positionCount, packageFeatureCount] = await Promise.all([
     db.$count(users, eq(users.tenantId, id)),
     db.$count(departments, eq(departments.tenantId, id)),
     db.$count(roles, eq(roles.tenantId, id)),
     db.$count(positions, eq(positions.tenantId, id)),
-    tenant.packageId == null ? Promise.resolve(0) : db.$count(tenantPackageMenus, eq(tenantPackageMenus.packageId, tenant.packageId)),
+    tenant.packageId == null ? Promise.resolve(0) : db.$count(tenantPackageFeatures, eq(tenantPackageFeatures.packageId, tenant.packageId)),
   ]);
 
   const daysToExpire = tenant.expireAt
@@ -99,7 +99,7 @@ export async function getTenantStats(id: number) {
     positionCount,
     packageId: tenant.packageId ?? null,
     packageName: tenant.package?.name ?? null,
-    packageMenuCount,
+    packageFeatureCount,
     expireAt: formatNullableDateTime(tenant.expireAt),
     daysToExpire,
   };
@@ -159,13 +159,14 @@ function generateInitialPassword(): string {
   return base.join('');
 }
 
-/** 初始角色的菜单授权范围：有套餐取套餐白名单，否则授权全部启用菜单 */
+/** 初始角色的菜单授权范围：有套餐时按套餐功能集过滤（featureKey 为空的核心菜单始终授予），否则授权全部启用菜单 */
 async function resolveInitialMenuIds(tx: DbTransaction, packageId: number | null | undefined): Promise<number[]> {
+  const all = await tx.select({ id: menus.id, featureKey: menus.featureKey }).from(menus).where(eq(menus.status, 'enabled'));
   if (packageId != null) {
-    const rows = await tx.select({ menuId: tenantPackageMenus.menuId }).from(tenantPackageMenus).where(eq(tenantPackageMenus.packageId, packageId));
-    if (rows.length > 0) return rows.map((r) => r.menuId);
+    const rows = await tx.select({ featureKey: tenantPackageFeatures.featureKey }).from(tenantPackageFeatures).where(eq(tenantPackageFeatures.packageId, packageId));
+    const featureSet = new Set(rows.map((r) => r.featureKey));
+    return all.filter((m) => !m.featureKey || featureSet.has(m.featureKey)).map((m) => m.id);
   }
-  const all = await tx.select({ id: menus.id }).from(menus).where(eq(menus.status, 'enabled'));
   return all.map((r) => r.id);
 }
 

@@ -37,7 +37,7 @@ import {
   usePaymentSharingOrders,
   usePaymentSharingReceivers,
 } from './payment-sharing';
-import { tenantPackageKeys, useAllTenantPackages, useAssignTenantPackageMenus, useTenantPackageDetail } from './tenant-packages';
+import { tenantPackageKeys, useAllTenantPackages, useAssignTenantPackageFeatures, useTenantPackageDetail } from './tenant-packages';
 import { aiProviderKeys, useAiChatModels } from './ai-providers';
 import { aiUserConfigKeys, useAiUserConfigs, useSaveAiUserConfig } from './ai-user-config';
 
@@ -60,8 +60,8 @@ beforeEach(() => {
     .on('GET', '/api/payment/sharing/receivers/enabled', [{ id: 1, name: '分账方 A' }])
     .on('POST', '/api/payment/sharing/orders', { id: 9 })
     .on('GET', '/api/tenant-packages/all', [{ id: 1, name: '基础版' }])
-    .on('GET', '/api/tenant-packages/1', { id: 1, name: '基础版', menuIds: [1] })
-    .on('PUT', '/api/tenant-packages/1/menus', null)
+    .on('GET', '/api/tenant-packages/1', { id: 1, name: '基础版', features: ['wiki'] })
+    .on('PUT', '/api/tenant-packages/1/features', null)
     .on('GET', '/api/ai/models', [{ id: 'gpt', name: 'GPT' }])
     .on('GET', '/api/ai/user-configs', [])
     .on('POST', '/api/ai/user-configs', { id: 1 });
@@ -173,14 +173,14 @@ describe('payment-sharing：新增分账单不改变分账方名单', () => {
   });
 });
 
-describe('tenant-packages：分配菜单只影响详情', () => {
+describe('tenant-packages：分配功能只影响列表与详情', () => {
   it('leaves the package dropdown untouched', async () => {
     const qc = createTestQueryClient();
     const { result } = renderHook(
       () => ({
         detail: useTenantPackageDetail(1),
         lookup: useAllTenantPackages(),
-        assignMenus: useAssignTenantPackageMenus(),
+        assignFeatures: useAssignTenantPackageFeatures(),
       }),
       { wrapper: createWrapper(qc) },
     );
@@ -190,7 +190,7 @@ describe('tenant-packages：分配菜单只影响详情', () => {
     });
 
     const fetches = observeFetches(qc);
-    await result.current.assignMenus.mutateAsync({ id: 1, menuIds: [1, 2] });
+    await result.current.assignFeatures.mutateAsync({ id: 1, features: ['wiki', 'workflow'] });
     await waitFor(() => expect(fetches.countOf(tenantPackageKeys.detail(1))).toBe(1));
 
     expect(fetches.countOf(tenantPackageKeys.lookup)).toBe(0);

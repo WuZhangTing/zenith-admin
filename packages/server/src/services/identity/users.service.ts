@@ -4,11 +4,11 @@ import { createRequire } from 'node:module';
 import type ExcelJS from 'exceljs';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes } from '../../db/schema';
+import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, menus } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { ensureTenantUserQuota, getTenantUserLimit } from '../../lib/tenant-quota';
-import { getTenantPackageMenuIdSet } from '../../lib/tenant-package';
+import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
 import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere } from '../../lib/where-helpers';
@@ -804,10 +804,13 @@ export async function getUserMenuPermissionsBeforeAudit(userId: number) {
 export async function assignUserMenus(userId: number, menuIds: number[]) {
   const target = await ensureUserManageable(userId);
   const uniqueMenuIds = Array.from(new Set(menuIds));
-  // 多租户：直授菜单必须落在目标用户所属租户的套餐白名单内（与角色分配菜单同一口径）
-  const packageMenuIds = await getTenantPackageMenuIdSet(target.tenantId);
-  if (packageMenuIds && uniqueMenuIds.some((mid) => !packageMenuIds.has(mid))) {
-    throw new HTTPException(400, { message: '所选菜单超出该用户所属租户套餐范围，无法分配' });
+  // 多租户：直授菜单必须落在目标用户所属租户的套餐功能范围内（与角色分配菜单同一口径）
+  const featureSet = await getTenantPackageFeatureSet(target.tenantId);
+  if (featureSet && uniqueMenuIds.length > 0) {
+    const rows = await db.select({ featureKey: menus.featureKey }).from(menus).where(inArray(menus.id, uniqueMenuIds));
+    if (rows.some((m) => m.featureKey && !featureSet.has(m.featureKey))) {
+      throw new HTTPException(400, { message: '所选菜单超出该用户所属租户套餐功能范围，无法分配' });
+    }
   }
   await db.transaction(async (tx) => {
     await tx.delete(userMenus).where(eq(userMenus.userId, userId));

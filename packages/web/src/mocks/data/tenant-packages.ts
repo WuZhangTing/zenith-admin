@@ -6,6 +6,7 @@ export function getNextTenantPackageId() { return nextTenantPackageId++; }
 
 export const mockTenantPackages: TenantPackage[] = SEED_TENANT_PACKAGES.map((p) => ({
   ...p,
-  menuIds: p.menuIds ?? [],
-  menuCount: (p.menuIds ?? []).length,
+  features: p.features ?? [],
+  featureCount: (p.features ?? []).length,
+  quotas: p.quotas ?? null,
 }));

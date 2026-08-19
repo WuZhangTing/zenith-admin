@@ -3,36 +3,46 @@ import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
-import { tenantPackages, tenantPackageMenus, tenants, type TenantPackageRow } from '../../db/schema';
+import { tenantPackages, tenantPackageFeatures, tenants, type TenantPackageRow } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { clearUserPermissionCache } from '../../lib/permissions';
 import { formatDateTime } from '../../lib/datetime';
+import { isLicenseFeatureKey, type TenantPackageQuotas } from '@zenith/shared/licensing';
 
 export function mapTenantPackage(
   row: TenantPackageRow,
-  opts?: { menuIds?: number[]; menuCount?: number },
+  opts?: { features?: string[] },
 ) {
   return {
     id: row.id,
     name: row.name,
     status: row.status,
+    quotas: row.quotas ?? null,
     remark: row.remark ?? null,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
-    ...(opts?.menuIds === undefined ? {} : { menuIds: opts.menuIds }),
-    ...(opts?.menuCount === undefined ? {} : { menuCount: opts.menuCount }),
+    ...(opts?.features === undefined ? {} : { features: opts.features, featureCount: opts.features.length }),
   };
 }
 
-/** 先删后插，原子性更新套餐的菜单关联（调用方需传入 tx 或 db） */
-async function setPackageMenus(executor: DbExecutor, packageId: number, menuIds: number[]): Promise<void> {
-  await executor.delete(tenantPackageMenus).where(eq(tenantPackageMenus.packageId, packageId));
-  if (menuIds.length > 0) {
-    await executor.insert(tenantPackageMenus).values(menuIds.map((menuId) => ({ packageId, menuId })));
+/** 先删后插，原子性更新套餐的功能分配（调用方需传入 tx 或 db） */
+async function setPackageFeatures(executor: DbExecutor, packageId: number, features: string[]): Promise<void> {
+  await executor.delete(tenantPackageFeatures).where(eq(tenantPackageFeatures.packageId, packageId));
+  if (features.length > 0) {
+    await executor.insert(tenantPackageFeatures).values(features.map((featureKey) => ({ packageId, featureKey })));
   }
+}
+
+function normalizeFeatures(features: string[]): string[] {
+  const unique = Array.from(new Set(features));
+  const invalid = unique.filter((f) => !isLicenseFeatureKey(f));
+  if (invalid.length > 0) {
+    throw new HTTPException(400, { message: `无效的功能标识：${invalid.join(', ')}` });
+  }
+  return unique;
 }
 
 export interface ListTenantPackagesQuery {
@@ -55,11 +65,11 @@ export async function listTenantPackages(q: ListTenantPackagesQuery) {
       orderBy: desc(tenantPackages.id),
       limit: pageSize,
       offset: pageOffset(page, pageSize),
-      with: { packageMenus: { columns: { menuId: true } } },
+      with: { packageFeatures: { columns: { featureKey: true } } },
     }),
   ]);
   return {
-    list: rows.map((row) => mapTenantPackage(row, { menuCount: row.packageMenus.length })),
+    list: rows.map((row) => mapTenantPackage(row, { features: row.packageFeatures.map((f) => f.featureKey) })),
     total,
     page,
     pageSize,
@@ -76,21 +86,19 @@ export async function listAllTenantPackages() {
 export async function getTenantPackage(id: number) {
   const row = await db.query.tenantPackages.findFirst({
     where: eq(tenantPackages.id, id),
-    with: { packageMenus: { columns: { menuId: true } } },
+    with: { packageFeatures: { columns: { featureKey: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '套餐不存在' });
-  const menuIds = row.packageMenus.map((m) => m.menuId);
-  return mapTenantPackage(row, { menuIds, menuCount: menuIds.length });
+  return mapTenantPackage(row, { features: row.packageFeatures.map((f) => f.featureKey) });
 }
 
 export async function getTenantPackageBeforeAudit(id: number) {
   const row = await db.query.tenantPackages.findFirst({
     where: eq(tenantPackages.id, id),
-    with: { packageMenus: { columns: { menuId: true } } },
+    with: { packageFeatures: { columns: { featureKey: true } } },
   });
   if (!row) return null;
-  const menuIds = row.packageMenus.map((m) => m.menuId);
-  return mapTenantPackage(row, { menuIds, menuCount: menuIds.length });
+  return mapTenantPackage(row, { features: row.packageFeatures.map((f) => f.featureKey) });
 }
 
 export async function getTenantPackagesBeforeAudit(ids: number[]) {
@@ -98,13 +106,10 @@ export async function getTenantPackagesBeforeAudit(ids: number[]) {
   if (validIds.length === 0) return [];
   const rows = await db.query.tenantPackages.findMany({
     where: inArray(tenantPackages.id, validIds),
-    with: { packageMenus: { columns: { menuId: true } } },
+    with: { packageFeatures: { columns: { featureKey: true } } },
     orderBy: tenantPackages.id,
   });
-  return rows.map((row) => {
-    const menuIds = row.packageMenus.map((m) => m.menuId);
-    return mapTenantPackage(row, { menuIds, menuCount: menuIds.length });
-  });
+  return rows.map((row) => mapTenantPackage(row, { features: row.packageFeatures.map((f) => f.featureKey) }));
 }
 
 export async function ensureTenantPackageExists(id: number) {
@@ -116,13 +121,14 @@ export async function ensureTenantPackageExists(id: number) {
 interface TenantPackageInput {
   name: string;
   status?: 'enabled' | 'disabled';
+  quotas?: TenantPackageQuotas | null;
   remark?: string;
 }
 
 export async function createTenantPackage(data: TenantPackageInput) {
   try {
     const [row] = await db.insert(tenantPackages).values(data).returning();
-    return mapTenantPackage(row, { menuIds: [], menuCount: 0 });
+    return mapTenantPackage(row, { features: [] });
   } catch (err: unknown) {
     rethrowPgUniqueViolation(err, '套餐名称已存在');
   }
@@ -132,7 +138,7 @@ export async function updateTenantPackage(id: number, data: Partial<TenantPackag
   try {
     const [row] = await db.update(tenantPackages).set(data).where(eq(tenantPackages.id, id)).returning();
     if (!row) throw new HTTPException(404, { message: '套餐不存在' });
-    // 套餐状态（启用/禁用）影响绑定租户的白名单解析（禁用=fail-closed），清空权限缓存即时生效
+    // 套餐状态（启用/禁用）影响绑定租户的功能集解析（禁用=fail-closed），清空权限缓存即时生效
     await clearUserPermissionCache();
     return getTenantPackage(id);
   } catch (err: unknown) {
@@ -140,17 +146,18 @@ export async function updateTenantPackage(id: number, data: Partial<TenantPackag
   }
 }
 
-export async function assignTenantPackageMenus(id: number, menuIds: number[]) {
+export async function assignTenantPackageFeatures(id: number, features: string[]) {
   await ensureTenantPackageExists(id);
+  const normalized = normalizeFeatures(features);
   await db.transaction(async (tx) => {
-    await setPackageMenus(tx, id, menuIds);
+    await setPackageFeatures(tx, id, normalized);
   });
-  // 套餐菜单变更会影响绑定该套餐的租户用户的有效菜单/权限，清空权限缓存使其即时生效。
+  // 套餐功能变更会影响绑定该套餐的租户用户的有效菜单/权限，清空权限缓存使其即时生效。
   await clearUserPermissionCache();
 }
 
 export async function deleteTenantPackage(id: number) {
-  // 在用保护：已绑定租户的套餐不允许删除，防止解绑后套餐白名单静默变为「不限制」（fail-open）
+  // 在用保护：已绑定租户的套餐不允许删除，防止解绑后套餐功能集静默变为「不限制」（fail-open）
   const bound = await db.$count(tenants, eq(tenants.packageId, id));
   if (bound > 0) {
     throw new HTTPException(409, { message: `该套餐已绑定 ${bound} 个租户，请先解绑或迁移后再删除` });

@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm';
-import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenantPackageMenus, tenantPackages, tenants, userDeptScopes, userGroupMembers, userGroupRoles, userGroups, userMenus, userPositions, userRoles, users } from './core';
+import { departments, menus, positions, roleDeptScopes, roleMenus, roles, tenantPackageFeatures, tenantPackages, tenants, userDeptScopes, userGroupMembers, userGroupRoles, userGroups, userMenus, userPositions, userRoles, users } from './core';
 import { businessFiles, fileStorageConfigs, managedFiles, uploadChunks, uploadSessions } from './files';
 import { asyncTaskItems, asyncTasks, exportJobDownloads, exportJobs } from './tasks';
 import { cronJobLogs, cronJobs, systemConfigs, userFeedbacks } from './system';
@@ -270,13 +270,12 @@ export const tenantsRelations = relations(tenants, ({ one, many }) => ({
 }));
 
 export const tenantPackagesRelations = relations(tenantPackages, ({ many }) => ({
-  packageMenus: many(tenantPackageMenus),
+  packageFeatures: many(tenantPackageFeatures),
   tenants: many(tenants),
 }));
 
-export const tenantPackageMenusRelations = relations(tenantPackageMenus, ({ one }) => ({
-  package: one(tenantPackages, { fields: [tenantPackageMenus.packageId], references: [tenantPackages.id] }),
-  menu: one(menus, { fields: [tenantPackageMenus.menuId], references: [menus.id] }),
+export const tenantPackageFeaturesRelations = relations(tenantPackageFeatures, ({ one }) => ({
+  package: one(tenantPackages, { fields: [tenantPackageFeatures.packageId], references: [tenantPackages.id] }),
 }));
 
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
@@ -344,7 +343,6 @@ export const rolesRelations = relations(roles, ({ one, many }) => ({
 export const menusRelations = relations(menus, ({ many }) => ({
   roleMenus: many(roleMenus),
   userMenus: many(userMenus),
-  tenantPackageMenus: many(tenantPackageMenus),
 }));
 
 export const userRolesRelations = relations(userRoles, ({ one }) => ({

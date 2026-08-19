@@ -32,6 +32,7 @@
 		"./tasks": "./src/tasks/index.ts",
 		"./biz": "./src/biz/index.ts",
 		"./wiki": "./src/wiki/index.ts",
+		"./licensing": "./src/licensing/index.ts",
 		"./seed": "./src/seed/index.ts",
 		"./seed/*": "./src/seed/*.ts",
 		"./*": "./src/*.ts"

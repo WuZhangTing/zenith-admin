@@ -2,15 +2,6 @@ import type { Department, DirectorySyncSource, Position, Role, Tenant, TenantPac
 import { CMS_RAW_EXPORT_MENU_IDS, CMS_ROOT_MENU_ID, SEED_MENUS, WIKI_DOC_CENTER_MENU_ID, WIKI_ROOT_MENU_ID, collectMenuSubtreeIds } from './menus';
 import { SEED_DATE } from './_base';
 
-/** 给定菜单 ID 集合，附加其直接按钮子节点（套餐白名单需包含按钮，权限码才会生效） */
-function withButtonChildIds(menuIds: number[]): number[] {
-  const parentSet = new Set(menuIds);
-  const buttonIds = SEED_MENUS
-    .filter((m) => m.type === 'button' && parentSet.has(m.parentId))
-    .map((m) => m.id);
-  return [...menuIds, ...buttonIds];
-}
-
 /**
  * 知识中心「只读」菜单集：文档中心子树的页面节点 + 仅「查询」权限按钮。
  * 写权限（新增/编辑/删除/发布/移动）由管理员按需显式分配，空间成员角色是服务端兜底。
@@ -87,11 +78,11 @@ export const SEED_TENANTS: Tenant[] = [
 ];
 
 // ─── 租户套餐 ─────────────────────────────────────────────────────────────────
-// 套餐 = 一组菜单白名单，租户绑定套餐圈定其可用功能范围。menuIds 引用 SEED_MENUS 中的菜单 ID；
-// 菜单与操作权限（按钮）分离后，白名单必须同时包含按钮 ID，租户用户的权限码才会生效。
+// 套餐 = 一组可授权功能 + 配额。菜单可见性由 menus.featureKey 与套餐功能交集派生，
+// 不再维护菜单 ID 白名单；页面级微调交给角色（RBAC）。
 export const SEED_TENANT_PACKAGES: TenantPackage[] = [
-  { id: 1, name: '基础版', status: 'enabled', remark: '基础功能套餐：仪表盘 + 用户/角色/字典', menuIds: withButtonChildIds([1, 1000, 1010, 1060, 1070]), createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, name: '标准版', status: 'enabled', remark: '标准功能套餐：含部门/岗位/菜单管理', menuIds: withButtonChildIds([1, 1000, 1010, 1020, 1030, 1040, 1060, 1070]), createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, name: '基础版', status: 'enabled', remark: '基础功能套餐：核心管理 + 工作流 + 知识中心', features: ['workflow', 'wiki'], quotas: { maxUsers: 20 }, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, name: '标准版', status: 'enabled', remark: '标准功能套餐：含数据分析、报表、CMS 与 AI', features: ['workflow', 'wiki', 'chat', 'analytics', 'report', 'cms', 'ai'], quotas: { maxUsers: 100 }, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 通讯录同步演示源（仅 Demo/Mock 使用，DB seed 不插入——真实同步源由管理员创建）───

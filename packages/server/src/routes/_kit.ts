@@ -20,6 +20,7 @@
  *    挂载在表里无法区分。约束 1 只能靠人工保证，调整顺序时请自行核对匹配结果。
  */
 import type { Hono } from 'hono';
+import type { LicenseFeatureKey } from '@zenith/shared/licensing';
 
 /**
  * 可挂载的子路由器。
@@ -32,8 +33,16 @@ import type { Hono } from 'hono';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type MountableRouter = Hono<any, any, any>;
 
-/** 一条挂载：[挂载路径, 子路由器] */
-export type Mount = readonly [path: string, router: MountableRouter];
+/** 一条挂载：[挂载路径, 子路由器, 可选挂载配置] */
+export type Mount = readonly [path: string, router: MountableRouter, options?: MountOptions];
+
+export interface MountOptions {
+  /**
+   * 该挂载所属的可授权功能。声明后整个子路由器被 License 功能门控包裹
+   * （off 模式零开销放行）。公开面（回调 / 前台渲染 / OAuth 等）不要声明。
+   */
+  feature?: LicenseFeatureKey;
+}
 
 export interface RouteDomain {
   /** 域名，用于日志与按域裁剪装载 */

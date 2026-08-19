@@ -5,7 +5,7 @@ import type { Menu } from '@zenith/shared/identity';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { getEffectiveTenantId } from '../../lib/tenant';
-import { getTenantPackageMenuIdSet } from '../../lib/tenant-package';
+import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { isSuperAdmin, getUserMenuIds } from '../../lib/permissions';
 import { formatDateTime } from '../../lib/datetime';
 
@@ -29,6 +29,7 @@ export function mapMenu(row: typeof menus.$inferSelect): Omit<Menu, 'children'> 
     sort: row.sort,
     status: row.status,
     visible: row.visible,
+    featureKey: row.featureKey,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -141,9 +142,9 @@ export async function listUserMenuTree(): Promise<Menu[]> {
 
 export async function listMenuTree(): Promise<Menu[]> {
   const list = await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id));
-  // 多租户：租户管理员（或平台超管切换至某租户视角）分配角色菜单时，可选范围限定在套餐白名单内。
-  const packageMenuIds = await getTenantPackageMenuIdSet(getEffectiveTenantId(currentUser()));
-  const filtered = packageMenuIds ? list.filter((m) => packageMenuIds.has(m.id)) : list;
+  // 多租户：租户管理员（或平台超管切换至某租户视角）分配角色菜单时，可选范围限定在套餐功能内。
+  const featureSet = await getTenantPackageFeatureSet(getEffectiveTenantId(currentUser()));
+  const filtered = featureSet ? list.filter((m) => !m.featureKey || featureSet.has(m.featureKey)) : list;
   return buildMenuTree(filtered.map(mapMenu));
 }
 

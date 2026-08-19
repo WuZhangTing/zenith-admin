@@ -41,7 +41,8 @@ export interface TenantStats {
   positionCount: number;
   packageId: number | null;
   packageName: string | null;
-  packageMenuCount: number;
+  /** 套餐已分配的功能数 */
+  packageFeatureCount: number;
   expireAt: string | null;
   /** 距到期天数；null=永不过期，负数=已过期 */
   daysToExpire: number | null;
@@ -52,10 +53,12 @@ export interface TenantPackage {
   name: string;
   status: EntityStatus;
   remark?: string | null;
-  /** 关联的菜单 ID（详情接口返回）*/
-  menuIds?: number[];
-  /** 已关联菜单数量（列表接口返回）*/
-  menuCount?: number;
+  /** 分配的可授权功能 key（详情与列表都返回） */
+  features?: string[];
+  /** 已分配功能数量（列表返回） */
+  featureCount?: number;
+  /** 套餐配额（席位等），与 License / 租户级上限取最小值生效 */
+  quotas?: { maxUsers?: number | null } | null;
   createdBy?: number | null;
   updatedBy?: number | null;
   createdAt: string;
@@ -159,6 +162,8 @@ export interface Menu {
   sort: number;
   status: EntityStatus;
   visible: boolean;
+  /** 所属可授权功能（null = 核心能力，不受 License / 套餐限制）；由功能目录派生 */
+  featureKey?: string | null;
   createdAt: string;
   updatedAt: string;
   children?: Menu[];

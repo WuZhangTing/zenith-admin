@@ -26,6 +26,10 @@ const envSchema = z.object({
   DATABASE_CONNECT_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(10),
   DATABASE_SSL: boolStr('false'),
   MULTI_TENANT_MODE: boolStr('false'),
+  /** License 执行模式：off = 不检查（默认，开发/演示零感知）；warn = 全功能可用但记录并提示；required = 强制校验 */
+  LICENSE_MODE: z.enum(['off', 'warn', 'required']).default('off'),
+  /** License 验签公钥（base64 SPKI DER，Ed25519）。留空时使用内置测试公钥（仅限非生产评估） */
+  LICENSE_ISSUER_PUBLIC_KEY: z.string().default(''),
   SERVER_TIMING_ENABLED: boolStr('false'),
   REQUEST_BODY_LIMIT: z.coerce.number().int().min(0).default(0),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(0).default(0),
@@ -163,6 +167,8 @@ export const config = {
     ssl: env.DATABASE_SSL,
   },
   multiTenantMode: env.MULTI_TENANT_MODE,
+  licenseMode: env.LICENSE_MODE,
+  licenseIssuerPublicKey: env.LICENSE_ISSUER_PUBLIC_KEY,
   serverTimingEnabled: env.SERVER_TIMING_ENABLED,
   requestBodyLimit: env.REQUEST_BODY_LIMIT,
   requestTimeoutMs: env.REQUEST_TIMEOUT_MS,

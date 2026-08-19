@@ -30,19 +30,20 @@ export const {
 });
 
 /**
- * 分配套餐可见菜单。
+ * 分配套餐可授权功能。
  *
- * 刻意**不**失效下拉源：`menuIds` 只存在于套餐详情，列表与下拉源都不含它，
+ * 刻意**不**失效下拉源：`features` 不进入下拉源（仅列表/详情返回），
  * 失效下拉源纯属无谓回源（由 lookup-collateral.test.tsx 锁定）。
- * 但套餐白名单收紧会影响当前登录者的可访问范围，故需刷新用户权限。
+ * 但套餐功能收紧会影响当前登录者的可访问范围，故需刷新用户权限。
  */
-export function useAssignTenantPackageMenus() {
+export function useAssignTenantPackageFeatures() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, menuIds }: { id: number; menuIds: number[] }) =>
-      request.put<null>(`/api/tenant-packages/${id}/menus`, { menuIds }).then(unwrap),
-    // menuIds 只存在于套餐详情，列表与下拉源都不含
+    mutationFn: ({ id, features }: { id: number; features: string[] }) =>
+      request.put<null>(`/api/tenant-packages/${id}/features`, { features }).then(unwrap),
+    // features 在列表行与详情中都返回，功能变更需同时刷新两者
     onSuccess: (_data, { id }) => {
+      void qc.invalidateQueries({ queryKey: tenantPackageKeys.lists });
       void qc.invalidateQueries({ queryKey: tenantPackageKeys.detail(id) });
       invalidateCurrentUserAccess(qc);
     },

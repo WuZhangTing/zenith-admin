@@ -407,7 +407,7 @@ export default function TenantsPage() {
                   { key: '状态', value: <Tag color={stats.status === 'enabled' ? 'green' : 'grey'}>{stats.status === 'enabled' ? '正常' : '停用'}</Tag> },
                   { key: '租户编码', value: stats.code },
                   { key: '所用套餐', value: stats.packageName ?? '未分配' },
-                  { key: '套餐菜单数', value: stats.packageMenuCount },
+                  { key: '套餐功能数', value: stats.packageFeatureCount },
                   { key: '部门数', value: stats.departmentCount },
                   { key: '角色数', value: stats.roleCount },
                   { key: '岗位数', value: stats.positionCount },

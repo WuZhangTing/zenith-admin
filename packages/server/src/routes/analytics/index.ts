@@ -9,10 +9,10 @@ import frontendErrorsRoutes from './frontend-errors';
 export default defineRouteDomain({
   name: 'analytics',
   mounts: () => [
-    ['/api/analytics', analyticsRoutes],
-    ['/api/analytics', analyticsSitesRoutes],
-    ['/api/analytics', analyticsCampaignsRoutes],
-    ['/api/analytics', analyticsExperimentsRoutes],
+    ['/api/analytics', analyticsRoutes, { feature: 'analytics' }],
+    ['/api/analytics', analyticsSitesRoutes, { feature: 'analytics' }],
+    ['/api/analytics', analyticsCampaignsRoutes, { feature: 'analytics' }],
+    ['/api/analytics', analyticsExperimentsRoutes, { feature: 'analytics' }],
     ['/api/frontend-errors', frontendErrorsRoutes],
     ['/api/dashboard', dashboardRoutes],
   ],

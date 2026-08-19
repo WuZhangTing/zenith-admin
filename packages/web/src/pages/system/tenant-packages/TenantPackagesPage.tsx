@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Button, Select, Form, Toast, Spin, Switch } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Spin, Switch, CheckboxGroup, Tag, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import type { TenantPackage } from '@zenith/shared/identity';
+import { LICENSE_FEATURE_LABELS, LICENSE_FEATURE_OPTIONS } from '@zenith/shared/licensing';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { MenuPermissionPanel } from '@/components/permissions/MenuPermissionPanel';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useDictItems } from '@/hooks/useDictItems';
-import { useMenuTree } from '@/hooks/queries/menus';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
   tenantPackageKeys,
-  useAssignTenantPackageMenus,
+  useAssignTenantPackageFeatures,
   useDeleteTenantPackages,
   useSaveTenantPackage,
   useTenantPackageDetail,
@@ -64,20 +63,19 @@ export default function TenantPackagesPage() {
     labelWidth: 72,
   });
 
-  // 分配菜单弹窗
-  const [menuModalVisible, setMenuModalVisible] = useState(false);
-  const [menuPackage, setMenuPackage] = useState<TenantPackage | null>(null);
-  const [checkedMenuIds, setCheckedMenuIds] = useState<number[]>([]);
-  const menuTreeQuery = useMenuTree({ enabled: menuModalVisible });
-  const menuDetailQuery = useTenantPackageDetail(menuPackage?.id, menuModalVisible);
+  // 分配功能弹窗
+  const [featureModalVisible, setFeatureModalVisible] = useState(false);
+  const [featurePackage, setFeaturePackage] = useState<TenantPackage | null>(null);
+  const [checkedFeatures, setCheckedFeatures] = useState<string[]>([]);
+  const featureDetailQuery = useTenantPackageDetail(featurePackage?.id, featureModalVisible);
 
   useEffect(() => {
-    if (menuModalVisible) setCheckedMenuIds(menuDetailQuery.data?.menuIds ?? []);
-  }, [menuModalVisible, menuDetailQuery.data]);
+    if (featureModalVisible) setCheckedFeatures(featureDetailQuery.data?.features ?? []);
+  }, [featureModalVisible, featureDetailQuery.data]);
 
   const toggleStatusMutation = useSaveTenantPackage();
   const deleteMutation = useDeleteTenantPackages();
-  const assignMenusMutation = useAssignTenantPackageMenus();
+  const assignFeaturesMutation = useAssignTenantPackageFeatures();
 
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
@@ -105,22 +103,39 @@ export default function TenantPackagesPage() {
     );
   };
 
-  function openMenuModal(pkg: TenantPackage) {
-    setMenuPackage(pkg);
-    setMenuModalVisible(true);
+  function openFeatureModal(pkg: TenantPackage) {
+    setFeaturePackage(pkg);
+    setFeatureModalVisible(true);
   }
 
-  const handleAssignMenus = async () => {
-    if (!menuPackage) return;
-    await assignMenusMutation.mutateAsync({ id: menuPackage.id, menuIds: checkedMenuIds });
-    Toast.success('套餐菜单已更新');
-    setMenuModalVisible(false);
+  const handleAssignFeatures = async () => {
+    if (!featurePackage) return;
+    await assignFeaturesMutation.mutateAsync({ id: featurePackage.id, features: checkedFeatures });
+    Toast.success('套餐功能已更新');
+    setFeatureModalVisible(false);
   };
 
   const columns: ColumnProps<TenantPackage>[] = [
     { title: '套餐名称', dataIndex: 'name', width: 180, render: renderEllipsis },
-    { title: '菜单数', dataIndex: 'menuCount', width: 100, align: 'center', render: (v) => v ?? 0 },
-    { title: '备注', dataIndex: 'remark', width: 240, render: renderEllipsis },
+    {
+      title: '已授权功能',
+      dataIndex: 'features',
+      width: 320,
+      render: (features?: string[]) => {
+        if (!features || features.length === 0) return <span style={{ color: 'var(--semi-color-text-2)' }}>仅核心功能</span>;
+        const shown = features.slice(0, 4);
+        return (
+          <Space wrap spacing={4}>
+            {shown.map((f) => (
+              <Tag key={f} size="small" color="blue">{LICENSE_FEATURE_LABELS[f as keyof typeof LICENSE_FEATURE_LABELS] ?? f}</Tag>
+            ))}
+            {features.length > shown.length && <Tag size="small">+{features.length - shown.length}</Tag>}
+          </Space>
+        );
+      },
+    },
+    { title: '席位上限', dataIndex: 'quotas', width: 100, align: 'center', render: (q?: { maxUsers?: number } | null) => q?.maxUsers ?? '不限' },
+    { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     createdAtColumn,
     {
       title: '状态',
@@ -140,7 +155,7 @@ export default function TenantPackagesPage() {
     },
     createOperationColumn<TenantPackage>({
       width: 200,
-      desktopInlineKeys: ['edit', 'menus', 'delete'],
+      desktopInlineKeys: ['edit', 'features', 'delete'],
       actions: (row) => [
         {
           key: 'edit',
@@ -149,10 +164,10 @@ export default function TenantPackagesPage() {
           onClick: () => modal.openEdit(row),
         },
         {
-          key: 'menus',
-          label: '分配菜单',
+          key: 'features',
+          label: '分配功能',
           hidden: !hasPermission('system:tenant-package:assign'),
-          onClick: () => openMenuModal(row),
+          onClick: () => openFeatureModal(row),
         },
         {
           key: 'delete',
@@ -246,6 +261,13 @@ export default function TenantPackagesPage() {
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form {...modal.formProps}>
             <Form.Input field="name" label="套餐名称" placeholder="请输入套餐名称" rules={[{ required: true, message: '请输入套餐名称' }]} />
+            <Form.InputNumber
+              field="quotas.maxUsers"
+              label="席位上限"
+              placeholder="留空表示不限制"
+              min={1}
+              style={{ width: '100%' }}
+            />
             <Form.Select
               field="status"
               label="状态"
@@ -259,19 +281,25 @@ export default function TenantPackagesPage() {
       </AppModal>
 
       <AppModal
-        title={`分配菜单 — ${menuPackage?.name ?? ''}`}
-        visible={menuModalVisible}
-        onCancel={() => setMenuModalVisible(false)}
-        onOk={handleAssignMenus}
-        okButtonProps={{ disabled: !menuDetailQuery.isSuccess, loading: assignMenusMutation.isPending }}
-        width={640}
+        title={`分配功能 — ${featurePackage?.name ?? ''}`}
+        visible={featureModalVisible}
+        onCancel={() => setFeatureModalVisible(false)}
+        onOk={handleAssignFeatures}
+        okButtonProps={{ disabled: !featureDetailQuery.isSuccess, loading: assignFeaturesMutation.isPending }}
+        width={560}
       >
-        <MenuPermissionPanel
-          allMenus={menuTreeQuery.data ?? []}
-          checkedMenuIds={checkedMenuIds}
-          onChange={setCheckedMenuIds}
-          loading={menuTreeQuery.isFetching || menuDetailQuery.isFetching}
-        />
+        <Spin spinning={featureDetailQuery.isFetching}>
+          <div style={{ marginBottom: 12, color: 'var(--semi-color-text-2)', fontSize: 13 }}>
+            核心功能（组织架构、系统管理、消息、文件、任务等）始终可用，无需分配；此处勾选的是可按套餐授权的增值功能模块。
+          </div>
+          <CheckboxGroup
+            options={LICENSE_FEATURE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            value={checkedFeatures}
+            onChange={(values) => setCheckedFeatures((values ?? []) as string[])}
+            direction="horizontal"
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}
+          />
+        </Spin>
       </AppModal>
     </div>
   );

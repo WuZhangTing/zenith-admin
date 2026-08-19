@@ -27,7 +27,7 @@ export const tenantPackagesHandlers = [
     const start = (page - 1) * pageSize;
     const list = filtered
       .slice(start, start + pageSize)
-      .map((p) => ({ ...p, menuCount: (p.menuIds ?? []).length }));
+      .map((p) => ({ ...p, featureCount: (p.features ?? []).length }));
 
     return ok({ list, total, page, pageSize });
   }),
@@ -36,7 +36,7 @@ export const tenantPackagesHandlers = [
   http.get('/api/tenant-packages/:id', ({ params }) => {
     const pkg = mockTenantPackages.find((p) => p.id === Number(params.id));
     if (!pkg) return notFound('套餐不存在');
-    return ok({ ...pkg, menuCount: (pkg.menuIds ?? []).length });
+    return ok({ ...pkg, featureCount: (pkg.features ?? []).length });
   }),
 
   // 新增套餐
@@ -46,9 +46,10 @@ export const tenantPackagesHandlers = [
       id: getNextTenantPackageId(),
       name: body.name ?? '',
       status: body.status ?? 'enabled',
+      quotas: body.quotas ?? null,
       remark: body.remark ?? null,
-      menuIds: [],
-      menuCount: 0,
+      features: [],
+      featureCount: 0,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     };
@@ -65,15 +66,15 @@ export const tenantPackagesHandlers = [
     return ok(pkg, '更新成功');
   }),
 
-  // 分配菜单
-  http.put('/api/tenant-packages/:id/menus', async ({ params, request }) => {
+  // 分配功能
+  http.put('/api/tenant-packages/:id/features', async ({ params, request }) => {
     const pkg = mockTenantPackages.find((p) => p.id === Number(params.id));
     if (!pkg) return notFound('套餐不存在');
-    const body = await request.json() as { menuIds: number[] };
-    pkg.menuIds = body.menuIds ?? [];
-    pkg.menuCount = pkg.menuIds.length;
+    const body = await request.json() as { features: string[] };
+    pkg.features = body.features ?? [];
+    pkg.featureCount = pkg.features.length;
     pkg.updatedAt = mockDateTime();
-    return ok(null, '菜单已更新');
+    return ok(null, '功能已更新');
   }),
 
   // 批量删除（必须在 /:id 之前注册）

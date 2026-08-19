@@ -1,11 +1,11 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbTransaction } from '../../db/types';
-import { roles, roleMenus, roleDeptScopes, userRoles } from '../../db/schema';
+import { roles, roleMenus, roleDeptScopes, userRoles, menus } from '../../db/schema';
 import { clearUserPermissionCache } from '../../lib/permissions';
-import { getTenantPackageMenuIdSet } from '../../lib/tenant-package';
+import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
 import { forceLogoutAllByUsers } from '../../lib/session-manager';
@@ -181,10 +181,13 @@ async function ensureRoleBelongsToTenant(id: number): Promise<{ tenantId: number
 
 export async function assignRoleMenus(id: number, menuIds: number[]) {
   const { tenantId: roleTenantId } = await ensureRoleBelongsToTenant(id);
-  // 多租户：角色所属租户绑定套餐时，分配的菜单必须落在套餐白名单内。
-  const packageMenuIds = await getTenantPackageMenuIdSet(roleTenantId);
-  if (packageMenuIds && menuIds.some((mid) => !packageMenuIds.has(mid))) {
-    throw new HTTPException(400, { message: '所选菜单超出当前租户套餐范围，无法分配' });
+  // 多租户：角色所属租户绑定套餐时，分配的菜单必须落在套餐功能范围内。
+  const featureSet = await getTenantPackageFeatureSet(roleTenantId);
+  if (featureSet && menuIds.length > 0) {
+    const rows = await db.select({ featureKey: menus.featureKey }).from(menus).where(inArray(menus.id, menuIds));
+    if (rows.some((m) => m.featureKey && !featureSet.has(m.featureKey))) {
+      throw new HTTPException(400, { message: '所选菜单超出当前租户套餐功能范围，无法分配' });
+    }
   }
   await db.transaction(async (tx) => {
     await tx.delete(roleMenus).where(eq(roleMenus.roleId, id));

@@ -1,4 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, index, text, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import type { TenantPackageQuotas } from '@zenith/shared/licensing';
 import { statusEnum } from './common';
 
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
@@ -40,11 +41,14 @@ export type TenantRow = typeof tenants.$inferSelect;
 export type NewTenant = typeof tenants.$inferInsert;
 
 // ─── 租户套餐表 ───────────────────────────────────────────────────────────────
-// 套餐 = 一组菜单白名单。租户绑定套餐即圈定其可用功能范围（SaaS 标配）。
+// 套餐 = 一组可授权功能 + 配额。租户绑定套餐即圈定其可用功能范围（SaaS 标配）。
+// 菜单可见性由 menus.featureKey 与套餐功能交集派生，不维护菜单 ID 白名单。
 export const tenantPackages = pgTable('tenant_packages', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull().unique(),
   status: statusEnum('status').notNull().default('enabled'),
+  /** 套餐配额（席位等）；与 License / 租户级上限取最小值生效 */
+  quotas: jsonb('quotas').$type<TenantPackageQuotas>(),
   remark: text('remark'),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -55,11 +59,11 @@ export type TenantPackageRow = typeof tenantPackages.$inferSelect;
 
 export type NewTenantPackage = typeof tenantPackages.$inferInsert;
 
-// ─── 租户套餐-菜单关联表 ──────────────────────────────────────────────────────
-export const tenantPackageMenus = pgTable('tenant_package_menus', {
+// ─── 租户套餐-功能关联表（稀疏，只存已分配的功能）──────────────────────────────
+export const tenantPackageFeatures = pgTable('tenant_package_features', {
   packageId: integer('package_id').notNull().references(() => tenantPackages.id, { onDelete: 'cascade' }),
-  menuId: integer('menu_id').notNull().references((): AnyPgColumn => menus.id, { onDelete: 'cascade' }),
-}, (t) => [primaryKey({ columns: [t.packageId, t.menuId] })]);
+  featureKey: varchar('feature_key', { length: 50 }).notNull(),
+}, (t) => [primaryKey({ columns: [t.packageId, t.featureKey] })]);
 
 // ─── 部门表 ───────────────────────────────────────────────────────────────────
 export const departments = pgTable('departments', {
@@ -155,6 +159,8 @@ export const menus = pgTable('menus', {
   sort: integer('sort').notNull().default(0),
   status: statusEnum('status').notNull().default('enabled'),
   visible: boolean('visible').notNull().default(true),
+  /** 所属可授权功能（null = 核心能力）；由功能目录经种子派生，权限解析按套餐/License 功能交集过滤 */
+  featureKey: varchar('feature_key', { length: 50 }),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),

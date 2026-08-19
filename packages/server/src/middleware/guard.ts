@@ -10,6 +10,8 @@ import { errBody } from '../lib/openapi-schemas';
 import { getClientIp, parseUserAgent } from '../lib/request-helpers';
 import { lookupIpLocation } from '../lib/ip-location';
 import { getEffectiveTenantId } from '../lib/tenant';
+import { assertFeatureEnabled } from '../lib/licensing';
+import type { LicenseFeatureKey } from '@zenith/shared/licensing';
 
 export interface AuditLogOptions {
   description: string;
@@ -33,6 +35,8 @@ export function setAuditAfterData(_c: Context, data: unknown): void {
 export interface GuardOptions {
   /** 需要的权限码，传字符串或数组（满足其一即可） */
   permission?: string | string[];
+  /** 所属可授权功能：License 检查不豁免超管（授权是部署级商业约束，不是权限问题） */
+  feature?: LicenseFeatureKey;
   /** 审计日志配置；不传则不记录操作日志 */
   audit?: AuditLogOptions;
 }
@@ -114,6 +118,11 @@ async function resolveAuditRequestBody(c: Context, options: AuditLogOptions): Pr
  */
 export function guard(opts: GuardOptions) {
   return createMiddleware<AppEnv>(async (c, next) => {
+    // ── License 功能门控（先于权限；超管不豁免）──
+    if (opts.feature) {
+      await assertFeatureEnabled(opts.feature);
+    }
+
     // ── 权限校验 ──
     if (opts.permission) {
       const user = c.get('user');

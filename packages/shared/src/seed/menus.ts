@@ -1,4 +1,5 @@
 import type { Menu } from '../identity/types';
+import { MENU_ROOT_FEATURE_MAP } from '../licensing/feature-catalog';
 import { SEED_MENUS_COMMON } from './menus/common';
 import { SEED_MENUS_SYSTEM } from './menus/system';
 import { SEED_MENUS_SETTINGS } from './menus/settings';
@@ -29,7 +30,7 @@ export { SEED_DATE } from './_base';
  *
  * 数组顺序即菜单落库顺序，调整分片顺序会影响 SEED_MENUS 的相对次序。
  */
-export const SEED_MENUS: Menu[] = [
+export const SEED_MENUS: Menu[] = applyMenuFeatureKeys([
   ...SEED_MENUS_COMMON,
   ...SEED_MENUS_SYSTEM,
   ...SEED_MENUS_SETTINGS,
@@ -47,7 +48,31 @@ export const SEED_MENUS: Menu[] = [
   ...SEED_MENUS_OPEN_PLATFORM,
   ...SEED_MENUS_CMS,
   ...SEED_MENUS_WIKI,
-];
+]);
+
+/**
+ * 按功能目录的 menuRoots 为整棵子树派生 featureKey。
+ * featureKey 为 null 的菜单属于核心能力（不可关闭）；分片文件无需逐行标注，
+ * 目录（@zenith/shared/licensing 的 LICENSE_FEATURE_CATALOG）是唯一事实源。
+ */
+function applyMenuFeatureKeys(menus: Menu[]): Menu[] {
+  const childrenByParent = new Map<number, Menu[]>();
+  for (const m of menus) {
+    const list = childrenByParent.get(m.parentId) ?? [];
+    list.push(m);
+    childrenByParent.set(m.parentId, list);
+  }
+  const featureById = new Map<number, string>();
+  for (const [rootId, featureKey] of MENU_ROOT_FEATURE_MAP) {
+    const queue = [rootId];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      featureById.set(id, featureKey);
+      for (const child of childrenByParent.get(id) ?? []) queue.push(child.id);
+    }
+  }
+  return menus.map((m) => ({ ...m, featureKey: featureById.get(m.id) ?? null }));
+}
 
 // ─── 菜单派生工具（基于 SEED_MENUS 结构化推导，避免硬编码 ID 漂移）───────────────
 

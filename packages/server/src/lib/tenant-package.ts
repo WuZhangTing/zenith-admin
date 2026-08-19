@@ -1,22 +1,21 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db } from '../db';
-import { tenants, tenantPackages, tenantPackageMenus, menus } from '../db/schema';
+import { tenants, tenantPackages, tenantPackageFeatures } from '../db/schema';
 import { config } from '../config';
 
 /**
- * 返回指定租户「套餐菜单白名单」的 Set。
+ * 返回指定租户「套餐功能集」。
  *
- * 返回 `null` 表示**不限制**（调用方应放行全部菜单），命中以下任一条件即视为不限制：
+ * 返回 `null` 表示**不限制**（调用方应放行全部功能），命中以下任一条件即视为不限制：
  *  - 多租户模式关闭（`MULTI_TENANT_MODE=false`，默认）
  *  - `tenantId` 为空（平台级 / 平台超管未切换租户视角）
  *  - 该租户未绑定套餐（`packageId` 为空）
  *
- * 仅当多租户开启、且租户绑定了套餐时，才返回该套餐关联的菜单 ID 集合：
- *  - 套餐被**禁用**时返回空集（fail-closed：除「不可见的内置工具菜单」外功能全关）
- *  - 白名单中菜单的 **button 子节点自动并入**（按钮权限随页面开放；套餐管理只需圈选到
- *    页面粒度，避免只勾页面导致角色无法分配按钮权限的功能死锁）
+ * 仅当多租户开启、且租户绑定了套餐时，才返回该套餐分配的功能 key 集合：
+ *  - 套餐被**禁用**时返回空集（fail-closed：全部可授权功能关闭，核心能力不受影响——
+ *    核心菜单 featureKey 为 null，不参与交集）
  */
-export async function getTenantPackageMenuIdSet(tenantId: number | null | undefined): Promise<Set<number> | null> {
+export async function getTenantPackageFeatureSet(tenantId: number | null | undefined): Promise<Set<string> | null> {
   if (!config.multiTenantMode) return null;
   if (tenantId == null) return null;
 
@@ -36,17 +35,8 @@ export async function getTenantPackageMenuIdSet(tenantId: number | null | undefi
   if (pkg.status === 'disabled') return new Set();
 
   const rows = await db
-    .select({ menuId: tenantPackageMenus.menuId })
-    .from(tenantPackageMenus)
-    .where(eq(tenantPackageMenus.packageId, tenant.packageId));
-  const ids = new Set(rows.map((r) => r.menuId));
-
-  if (ids.size > 0) {
-    const buttons = await db
-      .select({ id: menus.id })
-      .from(menus)
-      .where(and(eq(menus.type, 'button'), inArray(menus.parentId, [...ids])));
-    for (const b of buttons) ids.add(b.id);
-  }
-  return ids;
+    .select({ featureKey: tenantPackageFeatures.featureKey })
+    .from(tenantPackageFeatures)
+    .where(eq(tenantPackageFeatures.packageId, tenant.packageId));
+  return new Set(rows.map((r) => r.featureKey));
 }

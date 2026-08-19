@@ -39,6 +39,7 @@ import { maintenanceMiddleware } from './middleware/maintenance';
 import { authRateLimit, captchaRateLimit, pathBoundRateLimit, sensitiveRateLimit } from './middleware/rate-limit';
 import { requestTraceMiddleware } from './middleware/request-trace';
 import { ROUTE_DOMAINS } from './routes';
+import { licenseFeatureGate } from './lib/licensing';
 
 export function createApp() {
   const app = new OpenAPIHono();
@@ -169,7 +170,11 @@ export function createApp() {
 
   // ─── 路由装配（按域，顺序见 src/routes/index.ts）─────────────────────────
   for (const domain of ROUTE_DOMAINS) {
-    for (const [path, router] of domain.mounts()) app.route(path, router);
+    for (const [path, router, options] of domain.mounts()) {
+      // 声明了 feature 的挂载整体套 License 门控（off 模式零开销直通）
+      if (options?.feature) app.use(`${path}/*`, licenseFeatureGate(options.feature));
+      app.route(path, router);
+    }
   }
 
   app.get('/metrics', printMetrics);

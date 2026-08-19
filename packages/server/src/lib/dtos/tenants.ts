@@ -46,20 +46,27 @@ export const TenantStatsDTO = z
     positionCount: z.number().int(),
     packageId: z.number().int().nullable(),
     packageName: z.string().nullable(),
-    packageMenuCount: z.number().int(),
+    packageFeatureCount: z.number().int().openapi({ description: '套餐已分配的可授权功能数量' }),
     expireAt: z.string().nullable(),
     daysToExpire: z.number().int().nullable().openapi({ description: '距到期天数；null=永不过期，负数=已过期' }),
   })
   .openapi('TenantStats');
+
+export const TenantPackageQuotasDTO = z
+  .object({
+    maxUsers: z.number().int().nullable().optional().openapi({ description: '套餐席位上限；缺省/null=不限制' }),
+  })
+  .nullable();
 
 export const TenantPackageDTO = z
   .object({
     id: z.number().int(),
     name: z.string().openapi({ example: '标准版' }),
     status: z.enum(['enabled', 'disabled']),
+    quotas: TenantPackageQuotasDTO.optional(),
     remark: z.string().nullable().optional(),
-    menuIds: z.array(z.number().int()).optional().openapi({ description: '关联的菜单 ID（详情返回）' }),
-    menuCount: z.number().int().optional().openapi({ description: '已关联菜单数量（列表返回）' }),
+    features: z.array(z.string()).optional().openapi({ description: '已分配的可授权功能 key（列表与详情返回）' }),
+    featureCount: z.number().int().optional().openapi({ description: '已分配功能数量' }),
     ...auditFields,
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
