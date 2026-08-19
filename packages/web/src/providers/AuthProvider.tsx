@@ -57,7 +57,8 @@ function collectDeviceInfo(): Record<string, unknown> | undefined {
     return {
       screenWidth: screen.width,
       screenHeight: screen.height,
-      devicePixelRatio: String(window.devicePixelRatio ?? 1),
+      // 保留 2 位小数：浏览器缩放会产生 1.1000000238418579 之类的长小数，后端列为 varchar(8)
+      devicePixelRatio: String(Math.round((window.devicePixelRatio ?? 1) * 100) / 100),
       ...(gpu ? { gpu } : {}),
       ...(nav.hardwareConcurrency ? { cpuCores: nav.hardwareConcurrency } : {}),
       ...(nav.deviceMemory ? { memoryGb: String(nav.deviceMemory) } : {}),

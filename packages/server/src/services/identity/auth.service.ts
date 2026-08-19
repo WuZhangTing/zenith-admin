@@ -68,6 +68,21 @@ export interface DeviceInfo {
 
 export type LoginEventType = 'login' | 'logout';
 
+// ─── 设备信息兜底清洗：防止超长字符串 / 越界数值导致日志写入失败进而阻断登录 ──
+
+const SMALLINT_MAX = 32767;
+
+function truncateVarchar(value: string | undefined, maxLength: number): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.slice(0, maxLength) : null;
+}
+
+function clampSmallint(value: number | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const int = Math.trunc(value);
+  return int >= 0 && int <= SMALLINT_MAX ? int : null;
+}
+
 export interface LoginLogParams {
   username: string;
   eventType?: LoginEventType;
@@ -95,12 +110,12 @@ export async function recordLoginLog(params: LoginLogParams) {
     status,
     message,
     tenantId: tenantId ?? null,
-    screenWidth: deviceInfo?.screenWidth ?? null,
-    screenHeight: deviceInfo?.screenHeight ?? null,
-    devicePixelRatio: deviceInfo?.devicePixelRatio ?? null,
-    gpu: deviceInfo?.gpu ?? null,
-    cpuCores: deviceInfo?.cpuCores ?? null,
-    memoryGb: deviceInfo?.memoryGb ?? null,
+    screenWidth: clampSmallint(deviceInfo?.screenWidth),
+    screenHeight: clampSmallint(deviceInfo?.screenHeight),
+    devicePixelRatio: truncateVarchar(deviceInfo?.devicePixelRatio, 8),
+    gpu: truncateVarchar(deviceInfo?.gpu, 256),
+    cpuCores: clampSmallint(deviceInfo?.cpuCores),
+    memoryGb: truncateVarchar(deviceInfo?.memoryGb, 8),
   });
 }
 

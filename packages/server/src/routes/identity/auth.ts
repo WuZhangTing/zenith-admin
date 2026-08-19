@@ -27,12 +27,12 @@ const auth = new OpenAPIHono({ defaultHook: validationHook });
 
 // ─── 本地 Zod schemas ────────────────────────────────────────────────────────
 const deviceInfoSchema = z.object({
-  screenWidth: z.number().int().optional(),
-  screenHeight: z.number().int().optional(),
-  devicePixelRatio: z.string().optional(),
+  screenWidth: z.number().int().min(0).max(32767).optional(),
+  screenHeight: z.number().int().min(0).max(32767).optional(),
+  devicePixelRatio: z.string().max(32).optional(),
   gpu: z.string().max(256).optional(),
-  cpuCores: z.number().int().optional(),
-  memoryGb: z.string().optional(),
+  cpuCores: z.number().int().min(0).max(32767).optional(),
+  memoryGb: z.string().max(32).optional(),
 }).optional();
 
 const loginSchema = z.object({
