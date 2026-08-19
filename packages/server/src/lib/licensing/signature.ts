@@ -61,7 +61,7 @@ export function verifyLicenseEnvelope(raw: string): VerifyResult {
     return { ok: false, reason: 'License 编码无效' };
   }
 
-  let signatureValid = false;
+  let signatureValid: boolean;
   try {
     signatureValid = edVerify(null, payloadBytes, publicKey, signatureBytes);
   } catch {

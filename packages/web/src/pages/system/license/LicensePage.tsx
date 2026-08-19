@@ -161,7 +161,8 @@ function OverviewTab() {
               <div
                 key={opt.value}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 6,
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+                  borderRadius: 'var(--semi-border-radius-medium)',
                   border: '1px solid var(--semi-color-border)',
                   background: enabled ? 'var(--semi-color-success-light-default)' : 'var(--semi-color-fill-0)',
                   opacity: enabled ? 1 : 0.65,

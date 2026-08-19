@@ -4,6 +4,50 @@
 
 ---
 
+## v1.74.0 - 2026-08-19
+
+本版本新增 **License 与功能授权体系**：以「功能目录」为唯一事实源，重构租户套餐从菜单白名单到功能授权制，并交付 Ed25519 离线签名 License 全链路（激活 / 巡检 / 席位配额 / 三级运行模式），含 2 个数据库迁移（0038-0039）。
+
+### Added
+
+#### License 授权 · 功能目录与套餐功能制
+
+- **功能目录（Feature Catalog）**：13 个可授权功能（工作流 / 数据分析 / 报表 / CMS / 知识中心 / AI / 支付 / 会员 / 公众号 / 消息 / 开放平台 / 规则 / 系统运维）唯一定义在 `shared/licensing`，菜单 `featureKey` 由目录 `menuRoots` 子树在种子装配时自动派生（689 个菜单自动归类），核心能力（组织架构 / 系统管理 / 文件 / 任务等）featureKey 为空不可关闭
+- **租户套餐功能制**：`tenant_package_menus` 菜单白名单整体删除，改为 `tenant_package_features` 功能分配 + `quotas` 席位配额（迁移 0038）；权限解析、角色 / 直授菜单分配、可选菜单树全部改为功能集交集（禁用套餐 = 空集 fail-closed）
+- **套餐管理页改版**：菜单树弹窗改为功能开关组（3+N 标签折叠单行展示），新增席位上限配额表单
+
+#### License 授权 · 离线签名 License（系统管理 → License 授权，菜单 2660-2662）
+
+- **Ed25519 离线验签**：先对 payload 原始字节验签再解析（拒绝重序列化伪造），audience / keyId / 算法 / 版本显式校验；内置公开测试密钥对开箱可测，生产强制 `LICENSE_ISSUER_PUBLIC_KEY` 自有密钥
+- **三级运行模式 `LICENSE_MODE`**：`off`（默认，开发 / 演示零感知）、`warn`（全放行 + 未授权调用限流记录 feature_denied 事件）、`required`（未授权功能 403、License 失效进入受限模式；登录 / 健康 / 维护 / License 管理面 break-glass 永不拦截）
+- **安装身份与跨节点收敛**：`system_installations` 首启生成安装 ID（advisory lock 防并发重复建行），`licenseEpoch` 单调版本号使激活 / 停用在多节点 10 秒内收敛；进程内 SWR 快照（TTL + singleflight + 失败降级沿用旧快照），请求路径零验签开销
+- **License 管理页**：授权概览（当前授权 / 部署信息 / 功能授权矩阵，支持 `?tab=` 深链）、粘贴 .zenlic 激活（自动替换旧证）、事件日志（激活 / 校验 / 状态迁移 / 功能拒绝审计，保留策略 365 天）
+- **每日巡检任务**（系统调度 license-inspection）：重新验签、grace / expired 状态迁移、时钟回拨检测、到期前 30/7/3/1 天与失效时通知平台超管（通知事件 `ops.license.expiring` / `ops.license.invalid`）
+- **签发 CLI `scripts/license-issue.ts`**：`--gen-keys` 生成生产密钥对；按版本预设（community / pro / enterprise）或显式功能列表签发 .zenlic
+
+#### License 授权 · 席位配额
+
+- **`reserveTenantSeats(tx)` 事务内席位预留**：pg advisory 事务锁串行化校验，消灭 check-then-insert 竞态；管理端创建 / 批量导入 / 自助注册 / 企业 SSO JIT / SCIM / 目录同步 / 租户初始管理员七条建号路径全部收口
+- **双层上限（祖父条款语义，存量永不回收）**：部署级 License `limits.maxUsers`（required 拒绝 / warn 放行并记录 limit_warning）+ 租户级上限（租户 maxUsers 与套餐 quotas.maxUsers 取最小值）
+
+#### 日志与观测
+
+- 登录 / 操作日志统计分析全面增强；操作日志功能模块列加宽并以 Tooltip 展示溢出内容
+
+### Changed
+
+- 租户统计「套餐菜单数」改为「套餐功能数」；套餐 DTO `menuIds/menuCount` 替换为 `features/quotas/featureCount`
+- 套餐分配接口 `PUT /api/tenant-packages/{id}/menus` 替换为 `PUT /api/tenant-packages/{id}/features`
+- 前后端依赖版本更新
+
+### Fixed
+
+- 日志表写入全面加固：字段溢出截断与进程崩溃风险防护；登录日志写入失败不再阻断登录主流程；设备信息超长导致登录失败
+- 数据分析成功 / 失败趋势面积图取消堆叠，修复两线重合
+- License 功能门控 403 携带可读中文消息（含功能名），前端 toast 可直接展示
+
+---
+
 ## v1.73.0 - 2026-08-18
 
 本版本新增**通知中心**：把此前分散在 14 个文件、24 处直调渠道函数的通知发送统一收口为 `notify()` 事件派发链路，交付类型安全事件目录（26 个事件）、可靠投递（Outbox + 兜底重投）、用户级订阅偏好矩阵、免打扰 / 邮件摘要、管理员策略覆盖与投递归因日志、退订合规链接。含 2 个数据库迁移（0036-0037）。

@@ -66,6 +66,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '异地 / 异常设备等登录风险识别记录。',
   },
   {
+    key: 'license_events',
+    title: 'License 事件日志',
+    module: '系统管理',
+    tableName: 'license_events',
+    timeColumn: 'created_at',
+    defaultDays: 365,
+    description: 'License 激活 / 校验 / 状态迁移 / 功能拒绝等授权审计事件，保留一年便于商务追溯。',
+  },
+  {
     key: 'identity_provider_sync_logs',
     title: '身份源同步日志',
     module: '系统管理',

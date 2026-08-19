@@ -74,6 +74,9 @@ describe('ApiRecorder', () => {
   });
 
   it('rejects with a descriptive error when no stub matches, instead of silently resolving undefined', async () => {
-    await expect(api.dispatch('GET', '/api/not-stubbed')).rejects.toThrow('未注册响应桩');
+    // 不用 .rejects.toThrow(string)：vitest 4.1.11 + jsdom 下跨 realm Error 的 message 提取有回归
+    await expect(api.dispatch('GET', '/api/not-stubbed')).rejects.toMatchObject({
+      message: expect.stringContaining('未注册响应桩'),
+    });
   });
 });
