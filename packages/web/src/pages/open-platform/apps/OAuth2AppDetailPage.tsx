@@ -50,7 +50,6 @@ function AppStatsTab({ clientId }: Readonly<{ clientId: string }>) {
       { field: 'failed', name: '失败', color: '#dc2626' },
     ],
     palette,
-    stack: true,
   }), [palette, trend]);
 
   return (

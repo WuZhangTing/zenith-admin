@@ -90,7 +90,6 @@ export default function OpenApiStatsPage() {
       { field: 'failed', name: '失败', color: '#dc2626' },
     ],
     palette,
-    stack: true,
   }), [trend, palette]);
 
   const appSpec = useMemo(() => makeBarSpec({

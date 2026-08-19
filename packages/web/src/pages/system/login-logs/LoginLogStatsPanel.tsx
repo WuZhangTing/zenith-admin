@@ -159,7 +159,6 @@ export default function LoginLogStatsPanel() {
       { field: 'failCount', name: '失败', color: palette.danger },
     ],
     palette,
-    stack: true,
     point: days <= 7,
     pointSize: 6,
     fillOpacity: 0.26,
