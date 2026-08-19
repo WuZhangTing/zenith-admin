@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import type { MiddlewareHandler } from 'hono';
-import { isLicenseFeatureKey, type LicenseFeatureKey, type LicenseMode } from '@zenith/shared/licensing';
+import { isLicenseFeatureKey, LICENSE_FEATURE_LABELS, type LicenseFeatureKey, type LicenseMode } from '@zenith/shared/licensing';
 import { config } from '../../config';
 import { getLicenseSnapshot, logFeatureDeniedThrottled } from './snapshot';
 
@@ -43,14 +43,12 @@ export async function isFeatureEnabled(feature: LicenseFeatureKey): Promise<bool
   return licensed && !snapshot.restricted;
 }
 
-/** 功能不可用时抛 403（带机器可读 code，前端据此展示升级引导）。 */
+/** 功能不可用时抛 403（消息带功能中文名，前端 toast 可直接展示）。 */
 export async function assertFeatureEnabled(feature: LicenseFeatureKey): Promise<void> {
   if (await isFeatureEnabled(feature)) return;
+  const label = LICENSE_FEATURE_LABELS[feature] ?? feature;
   throw new HTTPException(403, {
-    res: Response.json(
-      { code: 'LICENSE_FEATURE_DISABLED', message: `当前授权不包含「${feature}」功能，请联系管理员升级 License`, feature },
-      { status: 403 },
-    ),
+    message: `当前部署授权不包含「${label}」功能，请联系管理员升级 License`,
   });
 }
 
