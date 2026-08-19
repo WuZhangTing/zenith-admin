@@ -65,6 +65,10 @@ vi.mock('../../lib/member-context', () => ({
   currentMemberId: vi.fn().mockReturnValue(1),
 }));
 
+vi.mock('../../lib/logger', () => ({
+  default: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
 // 服务端权威事件为 best-effort 异步旁路，unit test 中整体 mock 掉，
 // 避免真实 logger/db 依赖被间接加载，同时便于断言触发时机与字段脱敏。
 vi.mock('../analytics/analytics-server-events.service', () => ({

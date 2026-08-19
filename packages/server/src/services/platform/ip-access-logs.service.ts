@@ -3,6 +3,8 @@ import { db } from '../../db';
 import { ipAccessLogs } from '../../db/schema';
 import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
+import { truncateVarchar } from '../../lib/sanitize';
+import logger from '../../lib/logger';
 
 export interface ListIpAccessLogsQuery {
   page?: number;
@@ -45,11 +47,16 @@ export async function writeIpAccessLog(data: {
   blockType: 'blacklist' | 'whitelist';
   userAgent?: string | null;
 }) {
-  await db.insert(ipAccessLogs).values({
-    ip: data.ip,
-    path: data.path,
-    method: data.method,
-    blockType: data.blockType,
-    userAgent: data.userAgent ?? null,
-  });
+  try {
+    // ip / path / ua 均为客户端可控输入，按列长截断；失败只告警，调用方 fire-and-forget 不受影响
+    await db.insert(ipAccessLogs).values({
+      ip: truncateVarchar(data.ip, 64) ?? '',
+      path: truncateVarchar(data.path, 256) ?? '',
+      method: truncateVarchar(data.method, 16) ?? '',
+      blockType: data.blockType,
+      userAgent: truncateVarchar(data.userAgent, 512),
+    });
+  } catch (err) {
+    logger.warn('IP 访问拦截日志写入失败', { ip: data.ip?.slice(0, 64), blockType: data.blockType, error: err instanceof Error ? err.message : String(err) });
+  }
 }

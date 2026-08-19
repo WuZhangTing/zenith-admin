@@ -3,7 +3,7 @@ import { createMiddleware } from 'hono/factory';
 import type { JwtPayload } from './auth';
 import { setAuditAfter, setAuditBefore, type AppEnv } from '../lib/context';
 import { isSuperAdmin, getUserPermissions } from '../lib/permissions';
-import { sanitizeBody } from '../lib/sanitize';
+import { sanitizeBody, truncateVarchar } from '../lib/sanitize';
 import { db } from '../db';
 import { operationLogs } from '../db/schema';
 import { errBody } from '../lib/openapi-schemas';
@@ -60,11 +60,11 @@ async function writeOperationLog(
 
     await db.insert(operationLogs).values({
       userId: user?.userId ?? null,
-      username: user?.username ?? null,
+      username: truncateVarchar(user?.username, 32),
       module: options.module ?? null,
       description: options.description,
       method: c.req.method,
-      path: c.req.path,
+      path: truncateVarchar(c.req.path, 256) ?? '',
       requestId: (c.get('requestId') as string | undefined) ?? null,
       requestBody: bodyStr ?? null,
       beforeData: beforeData ?? null,
@@ -72,11 +72,11 @@ async function writeOperationLog(
       responseCode,
       responseBody: responseBody ?? null,
       durationMs,
-      ip,
-      location: ip ? lookupIpLocation(ip) : null,
-      userAgent: ua.slice(0, 512) || null,
-      os: osName === 'Unknown' ? null : osName,
-      browser: browserName === 'Unknown' ? null : browserName,
+      ip: truncateVarchar(ip, 64),
+      location: ip ? truncateVarchar(lookupIpLocation(ip), 128) : null,
+      userAgent: truncateVarchar(ua, 512),
+      os: osName === 'Unknown' ? null : truncateVarchar(osName, 64),
+      browser: browserName === 'Unknown' ? null : truncateVarchar(browserName, 64),
       // 归属租户：租户用户记自身租户；平台超管在租户视角下记该租户，平台视角记 null
       tenantId: user ? getEffectiveTenantId(user) : null,
     });

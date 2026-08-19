@@ -8,6 +8,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
 import { dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
+import { clampSmallint, truncateVarchar } from '../../lib/sanitize';
 import logger from '../../lib/logger';
 import { getPasswordPolicy, validatePassword } from '../../lib/password-policy';
 import {
@@ -69,21 +70,6 @@ export interface DeviceInfo {
 
 export type LoginEventType = 'login' | 'logout';
 
-// ─── 设备信息兜底清洗：防止超长字符串 / 越界数值导致日志写入失败进而阻断登录 ──
-
-const SMALLINT_MAX = 32767;
-
-function truncateVarchar(value: string | undefined, maxLength: number): string | null {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed.slice(0, maxLength) : null;
-}
-
-function clampSmallint(value: number | undefined): number | null {
-  if (value == null || !Number.isFinite(value)) return null;
-  const int = Math.trunc(value);
-  return int >= 0 && int <= SMALLINT_MAX ? int : null;
-}
-
 export interface LoginLogParams {
   username: string;
   eventType?: LoginEventType;
@@ -100,17 +86,18 @@ export async function recordLoginLog(params: LoginLogParams) {
   const { username, eventType = 'login', status, message, userId, tenantId, ip, ua, deviceInfo } = params;
   const { browser, os } = parseUserAgent(ua);
   try {
+    // 各列按 schema 长度截断兜底：ip / ua / browser / os 等源自不可信请求头
     await db.insert(loginLogs).values({
-      username,
+      username: truncateVarchar(username, 64) ?? '',
       userId,
-      ip,
-      location: ip ? lookupIpLocation(ip) : null,
-      browser,
-      os,
-      userAgent: ua || null,
+      ip: truncateVarchar(ip, 64),
+      location: ip ? truncateVarchar(lookupIpLocation(ip), 128) : null,
+      browser: truncateVarchar(browser, 64),
+      os: truncateVarchar(os, 64),
+      userAgent: truncateVarchar(ua, 512),
       eventType,
       status,
-      message,
+      message: truncateVarchar(message, 256),
       tenantId: tenantId ?? null,
       screenWidth: clampSmallint(deviceInfo?.screenWidth),
       screenHeight: clampSmallint(deviceInfo?.screenHeight),
@@ -128,7 +115,10 @@ export async function recordLoginLog(params: LoginLogParams) {
 // ─── 从请求中提取客户端信息 ───────────────────────────────────────────────────
 
 export function getClientInfo(headers: { get: (key: string) => string | null | undefined }) {
-  const ip = headers.get('x-forwarded-for') || headers.get('x-real-ip') || '127.0.0.1';
+  // x-forwarded-for 可能是多级代理链（"client, proxy1, proxy2"），只取首个条目并限长，
+  // 防止伪造的超长头溢出各日志表的 ip varchar(64)
+  const forwarded = headers.get('x-forwarded-for')?.split(',')[0]?.trim();
+  const ip = (forwarded || headers.get('x-real-ip')?.trim() || '127.0.0.1').slice(0, 64);
   const ua = headers.get('user-agent') || '';
   return { ip, ua };
 }

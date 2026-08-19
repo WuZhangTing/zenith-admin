@@ -27,6 +27,8 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { truncateVarchar } from '../../lib/sanitize';
+import logger from '../../lib/logger';
 import { verifyMemberSmsCode } from './member-sms.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type { MemberRegisterInput, MemberLoginInput, MemberUpdateProfileInput, MemberChangePasswordInput, MemberResetPasswordInput, MemberLoginResult } from '@zenith/shared/member';
@@ -150,15 +152,18 @@ interface MemberLoginLogParams {
 
 export function recordMemberLoginLog(params: MemberLoginLogParams): void {
   const { browser, os } = parseUserAgent(params.ua);
-  void db.insert(memberLoginLogs).values({
+  // 各列按 schema 长度截断兜底；写入失败只告警，不影响调用方（fire-and-forget 不产生 unhandledRejection）
+  db.insert(memberLoginLogs).values({
     memberId: params.memberId ?? null,
-    ip: params.ip || null,
-    location: params.ip ? lookupIpLocation(params.ip) : null,
-    browser,
-    os,
-    userAgent: params.ua || null,
+    ip: truncateVarchar(params.ip, 64),
+    location: params.ip ? truncateVarchar(lookupIpLocation(params.ip), 128) : null,
+    browser: truncateVarchar(browser, 64),
+    os: truncateVarchar(os, 64),
+    userAgent: truncateVarchar(params.ua, 512),
     status: params.status,
-    message: params.message ?? null,
+    message: truncateVarchar(params.message, 256),
+  }).catch((err: unknown) => {
+    logger.warn('会员登录日志写入失败', { memberId: params.memberId, status: params.status, error: err instanceof Error ? err.message : String(err) });
   });
 }
 
@@ -320,18 +325,9 @@ async function finalizeAuth(member: MemberRow, ip: string, ua: string): Promise<
       location: null,
       loginAt: new Date(),
     }),
-    db.update(members).set({ lastLoginAt: new Date(), lastLoginIp: ip }).where(eq(members.id, member.id)),
-    db.insert(memberLoginLogs).values({
-      memberId: member.id,
-      ip: ip || null,
-      location: ip ? lookupIpLocation(ip) : null,
-      browser,
-      os,
-      userAgent: ua || null,
-      status: 'success',
-      message: '登录成功',
-    }),
+    db.update(members).set({ lastLoginAt: new Date(), lastLoginIp: truncateVarchar(ip, 64) }).where(eq(members.id, member.id)),
   ]);
+  recordMemberLoginLog({ memberId: member.id, ip, ua, status: 'success', message: '登录成功' });
   return { member: mapMember(member), token: { accessToken, refreshToken } };
 }
 
