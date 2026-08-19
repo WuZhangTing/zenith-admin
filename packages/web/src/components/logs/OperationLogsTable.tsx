@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { Button, Descriptions, JsonViewer, TabPane, Tabs, Tag } from '@douyinfe/semi-ui';
+import { Button, Descriptions, JsonViewer, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { OperationLog } from '@zenith/shared/platform';
@@ -96,7 +96,7 @@ export function OperationLogsTable({
   dataSource,
   loading,
   pagination,
-  scroll = { x: 1600 },
+  scroll = { x: 1660 },
   onRefresh,
   columnSettings,
   columnSettingsKey,
@@ -107,7 +107,7 @@ export function OperationLogsTable({
   const columns = useMemo<ColumnProps<OperationLog>[]>(() => [
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '操作人', dataIndex: 'username', width: 110, render: (v: string | null) => v ?? '-' },
-    { title: '功能模块', dataIndex: 'module', width: 120, render: (v: string | null) => v ?? '-' },
+    { title: '功能模块', dataIndex: 'module', width: 180, ellipsis: { showTitle: false }, render: (v: string | null) => v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Typography.Text> : '-' },
     { title: '操作描述', dataIndex: 'description', width: 220, ellipsis: true },
     { title: '请求方法', dataIndex: 'method', width: 90, render: (v: string) => <Tag color="blue">{v}</Tag> },
     { title: '请求路径', dataIndex: 'path', width: 180, ellipsis: true },
