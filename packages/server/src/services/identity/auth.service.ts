@@ -8,6 +8,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
 import { dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
+import logger from '../../lib/logger';
 import { getPasswordPolicy, validatePassword } from '../../lib/password-policy';
 import {
   clearMfaChallenge,
@@ -98,25 +99,30 @@ export interface LoginLogParams {
 export async function recordLoginLog(params: LoginLogParams) {
   const { username, eventType = 'login', status, message, userId, tenantId, ip, ua, deviceInfo } = params;
   const { browser, os } = parseUserAgent(ua);
-  await db.insert(loginLogs).values({
-    username,
-    userId,
-    ip,
-    location: ip ? lookupIpLocation(ip) : null,
-    browser,
-    os,
-    userAgent: ua || null,
-    eventType,
-    status,
-    message,
-    tenantId: tenantId ?? null,
-    screenWidth: clampSmallint(deviceInfo?.screenWidth),
-    screenHeight: clampSmallint(deviceInfo?.screenHeight),
-    devicePixelRatio: truncateVarchar(deviceInfo?.devicePixelRatio, 8),
-    gpu: truncateVarchar(deviceInfo?.gpu, 256),
-    cpuCores: clampSmallint(deviceInfo?.cpuCores),
-    memoryGb: truncateVarchar(deviceInfo?.memoryGb, 8),
-  });
+  try {
+    await db.insert(loginLogs).values({
+      username,
+      userId,
+      ip,
+      location: ip ? lookupIpLocation(ip) : null,
+      browser,
+      os,
+      userAgent: ua || null,
+      eventType,
+      status,
+      message,
+      tenantId: tenantId ?? null,
+      screenWidth: clampSmallint(deviceInfo?.screenWidth),
+      screenHeight: clampSmallint(deviceInfo?.screenHeight),
+      devicePixelRatio: truncateVarchar(deviceInfo?.devicePixelRatio, 8),
+      gpu: truncateVarchar(deviceInfo?.gpu, 256),
+      cpuCores: clampSmallint(deviceInfo?.cpuCores),
+      memoryGb: truncateVarchar(deviceInfo?.memoryGb, 8),
+    });
+  } catch (err) {
+    // 与操作日志策略对齐：登录日志写入失败只告警，不阻断登录 / 登出主流程
+    logger.warn('登录日志写入失败', { username, eventType, status, error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 // ─── 从请求中提取客户端信息 ───────────────────────────────────────────────────
