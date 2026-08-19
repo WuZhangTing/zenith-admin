@@ -5,6 +5,7 @@ import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { db } from '../../db';
 import { tenants, users, departments, roles, positions, tenantPackageFeatures, menus, userRoles, roleMenus } from '../../db/schema';
+import { reserveTenantSeats } from '../../lib/tenant-quota';
 import type { DbTransaction } from '../../db/types';
 import { HTTPException } from 'hono/http-exception';
 import { clearUserPermissionCache } from '../../lib/permissions';
@@ -210,6 +211,7 @@ export async function createTenant(data: CreateTenantInput) {
     // 2) 管理员账号并绑定角色
     const email = adminEmail || `${adminUsername}@${row.code}.tenant`;
     const hashed = await bcrypt.hash(initialPassword!, 10);
+    await reserveTenantSeats(tx, row.id);
     const [adminUser] = await tx.insert(users).values({
       username: adminUsername,
       nickname: adminNickname || '租户管理员',

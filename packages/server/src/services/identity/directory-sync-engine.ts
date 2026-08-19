@@ -13,6 +13,7 @@ import {
 } from '../../db/schema';
 import type { DirectorySyncRunStatus, DirectorySyncTriggerType } from '@zenith/shared/identity';
 import { DIRECTORY_SYNC_FIELD_IGNORE } from '@zenith/shared/identity';
+import { reserveTenantSeats } from '../../lib/tenant-quota';
 import logger from '../../lib/logger';
 import { registerTaskHandler } from '../../lib/task-center';
 import { currentUserOrNull } from '../../lib/context';
@@ -511,6 +512,7 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
             if (usedUsernames.has(username)) username = `${username.slice(0, 24)}_${ext.externalId.slice(0, 6)}`.slice(0, 32);
             const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
             await db.transaction(async (tx) => {
+              await reserveTenantSeats(tx, source.tenantId);
               const [created] = await tx.insert(users).values({
                 username,
                 nickname: (resolveMapped(ext, 'nickname') ?? ext.nickname).slice(0, 32),

@@ -1,6 +1,7 @@
 import { and, desc, eq, gt, isNull, like, or } from 'drizzle-orm';
 import { db } from '../../db';
 import { users, loginLogs, tenants, operationLogs, passwordResetTokens, type UserRow } from '../../db/schema';
+import { reserveTenantSeats } from '../../lib/tenant-quota';
 import { signToken, verifyToken } from '../../lib/jwt';
 import { generateTokenId, registerSession, removeSession, checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout, getSession } from '../../lib/session-manager';
 import type { JwtPayload } from '../../middleware/auth';
@@ -315,9 +316,14 @@ export async function register(input: RegisterInput) {
   if (emailRow) throw new HTTPException(400, { message: '邮箱已被注册' });
 
   const hashed = await bcrypt.hash(input.password, 10);
-  const [user] = await db.insert(users).values({
-    username: input.username, nickname: input.nickname, email: input.email, password: hashed,
-  }).returning();
+  const user = await db.transaction(async (tx) => {
+    // 席位校验与插入同事务（License 席位对自助注册同样生效）
+    await reserveTenantSeats(tx, null);
+    const [created] = await tx.insert(users).values({
+      username: input.username, nickname: input.nickname, email: input.email, password: hashed,
+    }).returning();
+    return created;
+  });
 
   return finalizeLogin(user, { ip: input.ip, ua: input.ua }, { logMessage: '注册并自动登录成功' });
 }

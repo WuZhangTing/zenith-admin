@@ -8,6 +8,7 @@ import {
 } from '../../db/schema';
 import { timingSafeCompare } from '../../lib/wechat/signature';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { reserveTenantSeats } from '../../lib/tenant-quota';
 import logger from '../../lib/logger';
 import { forceLogoutAllUserSessions } from './sessions.service';
 
@@ -275,6 +276,7 @@ export async function createScimUser(source: DirectorySyncSourceRow, payload: Re
     const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
     try {
       userId = await db.transaction(async (tx) => {
+        await reserveTenantSeats(tx, source.tenantId);
         const [created] = await tx.insert(users).values({
           username: input.userName!.slice(0, 32),
           nickname: (input.displayName ?? input.userName!).slice(0, 32),

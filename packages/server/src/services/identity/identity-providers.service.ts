@@ -8,6 +8,7 @@ import type { CreateTenantIdentityProviderInput, IdentityProviderConnectionTestR
 import { config } from '../../config';
 import { db } from '../../db';
 import { identityProviderSyncLogs, roles, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users } from '../../db/schema';
+import { reserveTenantSeats } from '../../lib/tenant-quota';
 import redis from '../../lib/redis';
 import { formatDateTime } from '../../lib/datetime';
 import { keywordCondition } from '../../lib/where-helpers';
@@ -793,6 +794,7 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
 
   const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
   return db.transaction(async (tx) => {
+    await reserveTenantSeats(tx, provider.tenantId ?? null);
     const [created] = await tx.insert(users).values({
       username: external.username.slice(0, 32),
       nickname: external.nickname.slice(0, 32),
@@ -862,6 +864,7 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
   if (!provider.jitEnabled || !external.email) return 'skipped';
   const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
   await db.transaction(async (tx) => {
+    await reserveTenantSeats(tx, provider.tenantId ?? null);
     const [created] = await tx.insert(users).values({
       username: external.username.slice(0, 32),
       nickname: external.nickname.slice(0, 32),

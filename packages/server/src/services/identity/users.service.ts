@@ -7,7 +7,7 @@ import type { DbExecutor } from '../../db/types';
 import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, menus } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { ensureTenantUserQuota, getTenantUserLimit } from '../../lib/tenant-quota';
+import { reserveTenantSeats, getTenantUserLimit } from '../../lib/tenant-quota';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
@@ -351,11 +351,11 @@ export async function createUser(data: CreateUserInput) {
   if (dupUsername.length > 0) throw new HTTPException(400, { message: '用户名已存在' });
   if (dupEmail.length > 0) throw new HTTPException(400, { message: '邮箱已存在' });
   if (dupPhone.length > 0) throw new HTTPException(400, { message: '手机号已存在' });
-  // 多租户：校验租户用户数上限
-  await ensureTenantUserQuota(newTenantId);
   const hashedPassword = await bcrypt.hash(password, 10);
   try {
     const created = await db.transaction(async (tx) => {
+      // 席位校验必须与插入同事务（advisory lock 串行化，消灭 check-then-insert 竞态）
+      await reserveTenantSeats(tx, newTenantId);
       const [u] = await tx.insert(users).values({
         ...rest,
         password: hashedPassword,
@@ -747,6 +747,7 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
       await db.transaction(async (tx) => {
+        await reserveTenantSeats(tx, importTenantId);
         const [newUser] = await tx.insert(users).values({
           username, nickname, email: email || null, password: hashedPassword,
           departmentId, status, tenantId: getCreateTenantId(user),
