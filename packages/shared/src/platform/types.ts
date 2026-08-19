@@ -233,13 +233,35 @@ export interface OperationLogStats {
     failCount: number;
     avgDurationMs: number | null;
     uniqueUsers: number;
+    /** 耗时分位数（基于有耗时记录的请求） */
+    p50DurationMs: number | null;
+    p95DurationMs: number | null;
+    p99DurationMs: number | null;
+  };
+  /** 上一周期（相同天数）汇总，用于环比 */
+  prevSummary: {
+    total: number;
+    successCount: number;
+    failCount: number;
+    avgDurationMs: number | null;
+    uniqueUsers: number;
   };
   moduleStats: { module: string; count: number }[];
   moduleTimingStats: { module: string; avgMs: number; maxMs: number; count: number }[];
-  dailyStats: { date: string; count: number; successCount: number; failCount: number }[];
+  dailyStats: { date: string; count: number; successCount: number; failCount: number; avgMs: number | null }[];
   userStats: { username: string; count: number }[];
   methodStats: { method: string; count: number }[];
   hourlyStats: { hour: number; count: number }[];
+  /** 响应状态码分布（按 2xx/3xx/4xx/5xx 归类） */
+  statusClassStats: { statusClass: string; count: number }[];
+  /** 耗时区间分布 */
+  durationHistogram: { bucket: string; count: number }[];
+  /** 慢接口 Top（按平均耗时） */
+  slowPaths: { path: string; avgMs: number; maxMs: number; count: number }[];
+  /** 失败热点模块 Top（responseCode >= 400） */
+  failModuleStats: { module: string; count: number }[];
+  /** 用户 → 模块 操作流向（桑基图数据源） */
+  userModuleFlows: { username: string; module: string; count: number }[];
 }
 
 // ─── 系统监控告警 ─────────────────────────────────────────────────────────────

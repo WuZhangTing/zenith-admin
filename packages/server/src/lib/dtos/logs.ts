@@ -99,19 +99,40 @@ export const OperationLogStatsDTO = z
       failCount: z.number(),
       avgDurationMs: z.number().nullable(),
       uniqueUsers: z.number(),
+      p50DurationMs: z.number().nullable(),
+      p95DurationMs: z.number().nullable(),
+      p99DurationMs: z.number().nullable(),
+    }),
+    prevSummary: z.object({
+      total: z.number(),
+      successCount: z.number(),
+      failCount: z.number(),
+      avgDurationMs: z.number().nullable(),
+      uniqueUsers: z.number(),
     }),
     moduleStats: z.array(z.object({ module: z.string(), count: z.number() })),
     moduleTimingStats: z.array(z.object({ module: z.string(), avgMs: z.number(), maxMs: z.number(), count: z.number() })),
-    dailyStats: z.array(z.object({ date: z.string(), count: z.number(), successCount: z.number(), failCount: z.number() })),
+    dailyStats: z.array(z.object({ date: z.string(), count: z.number(), successCount: z.number(), failCount: z.number(), avgMs: z.number().nullable() })),
     userStats: z.array(z.object({ username: z.string(), count: z.number() })),
     methodStats: z.array(z.object({ method: z.string(), count: z.number() })),
     hourlyStats: z.array(z.object({ hour: z.number(), count: z.number() })),
+    statusClassStats: z.array(z.object({ statusClass: z.string(), count: z.number() })),
+    durationHistogram: z.array(z.object({ bucket: z.string(), count: z.number() })),
+    slowPaths: z.array(z.object({ path: z.string(), avgMs: z.number(), maxMs: z.number(), count: z.number() })),
+    failModuleStats: z.array(z.object({ module: z.string(), count: z.number() })),
+    userModuleFlows: z.array(z.object({ username: z.string(), module: z.string(), count: z.number() })),
   })
   .openapi('OperationLogStats');
 
 export const LoginLogStatsDTO = z
   .object({
     summary: z.object({
+      total: z.number(),
+      successCount: z.number(),
+      failCount: z.number(),
+      uniqueUsers: z.number(),
+    }),
+    prevSummary: z.object({
       total: z.number(),
       successCount: z.number(),
       failCount: z.number(),
@@ -124,6 +145,11 @@ export const LoginLogStatsDTO = z
     browserStats: z.array(z.object({ browser: z.string(), count: z.number() })),
     osStats: z.array(z.object({ os: z.string(), count: z.number() })),
     hourlyStats: z.array(z.object({ hour: z.number(), count: z.number() })),
+    failReasonStats: z.array(z.object({ message: z.string(), count: z.number() })),
+    locationStats: z.array(z.object({ location: z.string(), count: z.number() })),
+    dowHourStats: z.array(z.object({ dow: z.number(), hour: z.number(), count: z.number() })),
+    resolutionStats: z.array(z.object({ resolution: z.string(), count: z.number() })),
+    gpuStats: z.array(z.object({ gpu: z.string(), count: z.number() })),
   })
   .openapi('LoginLogStats');
 

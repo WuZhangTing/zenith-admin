@@ -1,4 +1,4 @@
-import { desc, eq, like, and, gte, lte, count, sql } from 'drizzle-orm';
+import { desc, eq, like, and, gte, lt, lte, count, sql } from 'drizzle-orm';
 import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { loginLogs } from '../../db/schema';
@@ -47,18 +47,29 @@ export async function loginLogStats(daysRaw?: number) {
   startDate.setDate(startDate.getDate() - days + 1);
   startDate.setHours(0, 0, 0, 0);
   const startDateLabel = formatDate(startDate);
+  const prevStartDate = new Date(startDate);
+  prevStartDate.setDate(prevStartDate.getDate() - days);
   const tc = tenantCondition(loginLogs, user);
   const baseWhere = tc
     ? and(gte(loginLogs.createdAt, startDate), eq(loginLogs.eventType, 'login'), tc)
     : and(gte(loginLogs.createdAt, startDate), eq(loginLogs.eventType, 'login'));
+  const prevWhere = tc
+    ? and(gte(loginLogs.createdAt, prevStartDate), lt(loginLogs.createdAt, startDate), eq(loginLogs.eventType, 'login'), tc)
+    : and(gte(loginLogs.createdAt, prevStartDate), lt(loginLogs.createdAt, startDate), eq(loginLogs.eventType, 'login'));
 
-  const [summaryRows, dailyStats, userStats, ipStats, ipFailStats, browserStats, osStats, hourlyRaw] = await Promise.all([
-    db.select({
-      total: count(),
-      successCount: sql<number>`(count(case when ${loginLogs.status} = 'success' then 1 end))::integer`,
-      failCount: sql<number>`(count(case when ${loginLogs.status} = 'fail' then 1 end))::integer`,
-      uniqueUsers: sql<number>`(count(distinct ${loginLogs.username}))::integer`,
-    }).from(loginLogs).where(baseWhere),
+  const summarySelect = {
+    total: count(),
+    successCount: sql<number>`(count(case when ${loginLogs.status} = 'success' then 1 end))::integer`,
+    failCount: sql<number>`(count(case when ${loginLogs.status} = 'fail' then 1 end))::integer`,
+    uniqueUsers: sql<number>`(count(distinct ${loginLogs.username}))::integer`,
+  };
+
+  const [
+    summaryRows, prevSummaryRows, dailyStats, userStats, ipStats, ipFailStats, browserStats, osStats, hourlyRaw,
+    failReasonStats, locationStats, dowHourRaw, resolutionStats, gpuStats,
+  ] = await Promise.all([
+    db.select(summarySelect).from(loginLogs).where(baseWhere),
+    db.select(summarySelect).from(loginLogs).where(prevWhere),
     db.select({
       date: sql<string>`to_char(date(${loginLogs.createdAt}), 'YYYY-MM-DD')`,
       count: count(),
@@ -74,10 +85,26 @@ export async function loginLogStats(daysRaw?: number) {
       hour: sql<number>`(extract(hour from ${loginLogs.createdAt}))::integer`,
       cnt: count(),
     }).from(loginLogs).where(baseWhere).groupBy(sql`extract(hour from ${loginLogs.createdAt})`).orderBy(sql`extract(hour from ${loginLogs.createdAt})`),
+    db.select({ message: loginLogs.message, cnt: count() }).from(loginLogs).where(and(baseWhere, eq(loginLogs.status, 'fail'), sql`${loginLogs.message} is not null`)).groupBy(loginLogs.message).orderBy(desc(count())).limit(8),
+    db.select({ location: loginLogs.location, cnt: count() }).from(loginLogs).where(and(baseWhere, sql`${loginLogs.location} is not null`)).groupBy(loginLogs.location).orderBy(desc(count())).limit(10),
+    db.select({
+      dow: sql<number>`(extract(isodow from ${loginLogs.createdAt}))::integer`,
+      hour: sql<number>`(extract(hour from ${loginLogs.createdAt}))::integer`,
+      cnt: count(),
+    }).from(loginLogs).where(baseWhere)
+      .groupBy(sql`extract(isodow from ${loginLogs.createdAt})`, sql`extract(hour from ${loginLogs.createdAt})`),
+    db.select({
+      resolution: sql<string>`(${loginLogs.screenWidth} || '×' || ${loginLogs.screenHeight})`,
+      cnt: count(),
+    }).from(loginLogs).where(and(baseWhere, sql`${loginLogs.screenWidth} is not null`, sql`${loginLogs.screenHeight} is not null`))
+      .groupBy(loginLogs.screenWidth, loginLogs.screenHeight).orderBy(desc(count())).limit(8),
+    db.select({ gpu: loginLogs.gpu, cnt: count() }).from(loginLogs).where(and(baseWhere, sql`${loginLogs.gpu} is not null`)).groupBy(loginLogs.gpu).orderBy(desc(count())).limit(8),
   ]);
 
   const s = summaryRows[0] ?? { total: 0, successCount: 0, failCount: 0, uniqueUsers: 0 };
+  const ps = prevSummaryRows[0] ?? { total: 0, successCount: 0, failCount: 0, uniqueUsers: 0 };
   const hourlyMap = new Map(hourlyRaw.map((r) => [r.hour, r.cnt]));
+  const dowHourMap = new Map(dowHourRaw.map((r) => [`${r.dow}-${r.hour}`, r.cnt]));
 
   return {
     summary: {
@@ -85,6 +112,12 @@ export async function loginLogStats(daysRaw?: number) {
       successCount: Number(s.successCount),
       failCount: Number(s.failCount),
       uniqueUsers: Number(s.uniqueUsers),
+    },
+    prevSummary: {
+      total: ps.total,
+      successCount: Number(ps.successCount),
+      failCount: Number(ps.failCount),
+      uniqueUsers: Number(ps.uniqueUsers),
     },
     dailyStats: dailyStats.map((r) => ({
       date: r.date || startDateLabel,
@@ -98,6 +131,14 @@ export async function loginLogStats(daysRaw?: number) {
     browserStats: browserStats.map((r) => ({ browser: r.browser ?? '未知', count: r.cnt })),
     osStats: osStats.map((r) => ({ os: r.os ?? '未知', count: r.cnt })),
     hourlyStats: Array.from({ length: 24 }, (_, h) => ({ hour: h, count: hourlyMap.get(h) ?? 0 })),
+    failReasonStats: failReasonStats.map((r) => ({ message: r.message ?? '未知原因', count: r.cnt })),
+    locationStats: locationStats.map((r) => ({ location: r.location ?? '未知', count: r.cnt })),
+    // 展平为 7×24 完整矩阵，前端热力图无需再补零
+    dowHourStats: Array.from({ length: 7 }, (_, d) =>
+      Array.from({ length: 24 }, (_, h) => ({ dow: d + 1, hour: h, count: dowHourMap.get(`${d + 1}-${h}`) ?? 0 })),
+    ).flat(),
+    resolutionStats: resolutionStats.map((r) => ({ resolution: r.resolution, count: r.cnt })),
+    gpuStats: gpuStats.map((r) => ({ gpu: r.gpu ?? '未知', count: r.cnt })),
   };
 }
 

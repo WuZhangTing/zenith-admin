@@ -1,4 +1,4 @@
-import { count, desc, like, and, gte, lte, sql, eq } from 'drizzle-orm';
+import { count, desc, like, and, gte, lt, lte, sql, eq } from 'drizzle-orm';
 import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { operationLogs } from '../../db/schema';
@@ -59,21 +59,36 @@ export async function operationLogStats(daysRaw?: number) {
   startDate.setDate(startDate.getDate() - days + 1);
   startDate.setHours(0, 0, 0, 0);
   const startDateLabel = formatDate(startDate);
+  const prevStartDate = new Date(startDate);
+  prevStartDate.setDate(prevStartDate.getDate() - days);
   const tc = tenantCondition(operationLogs, user);
   const baseWhere = tc ? and(gte(operationLogs.createdAt, startDate), tc) : gte(operationLogs.createdAt, startDate);
+  const prevWhere = tc
+    ? and(gte(operationLogs.createdAt, prevStartDate), lt(operationLogs.createdAt, startDate), tc)
+    : and(gte(operationLogs.createdAt, prevStartDate), lt(operationLogs.createdAt, startDate));
   const moduleCount = count();
   const userCount = count();
   const methodCount = count();
   const hourlyCount = count();
   const moduleTimingCount = count();
-  const [summaryRows, moduleStats, moduleTimingStats, dailyStats, userStats, methodStats, hourlyStats] = await Promise.all([
+  const summarySelect = {
+    total: count(),
+    successCount: sql<number>`(count(case when ${operationLogs.responseCode} >= 200 and ${operationLogs.responseCode} < 400 then 1 end))::integer`,
+    failCount: sql<number>`(count(case when ${operationLogs.responseCode} >= 400 then 1 end))::integer`,
+    avgDurationMs: sql<number | null>`round(avg(${operationLogs.durationMs}))::float`,
+    uniqueUsers: sql<number>`(count(distinct ${operationLogs.userId}))::integer`,
+  };
+  const [
+    summaryRows, prevSummaryRows, percentileRows, moduleStats, moduleTimingStats, dailyStats, userStats, methodStats, hourlyStats,
+    statusClassStats, durationHistogramRaw, slowPaths, failModuleStats, userModuleFlows,
+  ] = await Promise.all([
+    db.select(summarySelect).from(operationLogs).where(baseWhere),
+    db.select(summarySelect).from(operationLogs).where(prevWhere),
     db.select({
-      total: count(),
-      successCount: sql<number>`(count(case when ${operationLogs.responseCode} >= 200 and ${operationLogs.responseCode} < 400 then 1 end))::integer`,
-      failCount: sql<number>`(count(case when ${operationLogs.responseCode} >= 400 then 1 end))::integer`,
-      avgDurationMs: sql<number | null>`round(avg(${operationLogs.durationMs}))::float`,
-      uniqueUsers: sql<number>`(count(distinct ${operationLogs.userId}))::integer`,
-    }).from(operationLogs).where(baseWhere),
+      p50: sql<number | null>`(percentile_cont(0.5) within group (order by ${operationLogs.durationMs}))::float`,
+      p95: sql<number | null>`(percentile_cont(0.95) within group (order by ${operationLogs.durationMs}))::float`,
+      p99: sql<number | null>`(percentile_cont(0.99) within group (order by ${operationLogs.durationMs}))::float`,
+    }).from(operationLogs).where(and(baseWhere, sql`${operationLogs.durationMs} is not null`)),
     db.select({ module: operationLogs.module, count: moduleCount }).from(operationLogs).where(baseWhere).groupBy(operationLogs.module).orderBy(desc(moduleCount)).limit(20),
     db.select({
       module: operationLogs.module,
@@ -86,6 +101,7 @@ export async function operationLogStats(daysRaw?: number) {
       count: count(),
       successCount: sql<number>`(count(case when ${operationLogs.responseCode} >= 200 and ${operationLogs.responseCode} < 400 then 1 end))::integer`,
       failCount: sql<number>`(count(case when ${operationLogs.responseCode} >= 400 then 1 end))::integer`,
+      avgMs: sql<number | null>`round(avg(${operationLogs.durationMs}))::float`,
     }).from(operationLogs).where(baseWhere).groupBy(sql`date(${operationLogs.createdAt})`).orderBy(sql`date(${operationLogs.createdAt})`),
     db.select({ username: operationLogs.username, count: userCount }).from(operationLogs).where(baseWhere).groupBy(operationLogs.username).orderBy(desc(userCount)).limit(10),
     db.select({ method: operationLogs.method, count: methodCount }).from(operationLogs).where(baseWhere).groupBy(operationLogs.method).orderBy(desc(methodCount)),
@@ -93,8 +109,49 @@ export async function operationLogStats(daysRaw?: number) {
       hour: sql<number>`(extract(hour from ${operationLogs.createdAt}))::integer`,
       count: hourlyCount,
     }).from(operationLogs).where(baseWhere).groupBy(sql`extract(hour from ${operationLogs.createdAt})`).orderBy(sql`extract(hour from ${operationLogs.createdAt})`),
+    db.select({
+      statusClass: sql<string>`(floor(${operationLogs.responseCode} / 100)::text || 'xx')`,
+      cnt: count(),
+    }).from(operationLogs).where(and(baseWhere, sql`${operationLogs.responseCode} is not null`))
+      .groupBy(sql`floor(${operationLogs.responseCode} / 100)`).orderBy(sql`floor(${operationLogs.responseCode} / 100)`),
+    db.select({
+      bucket: sql<string>`case
+        when ${operationLogs.durationMs} < 100 then '<100ms'
+        when ${operationLogs.durationMs} < 500 then '100-500ms'
+        when ${operationLogs.durationMs} < 1000 then '0.5-1s'
+        when ${operationLogs.durationMs} < 3000 then '1-3s'
+        else '>3s' end`,
+      cnt: count(),
+      bucketOrder: sql<number>`min(case
+        when ${operationLogs.durationMs} < 100 then 0
+        when ${operationLogs.durationMs} < 500 then 1
+        when ${operationLogs.durationMs} < 1000 then 2
+        when ${operationLogs.durationMs} < 3000 then 3
+        else 4 end)`,
+    }).from(operationLogs).where(and(baseWhere, sql`${operationLogs.durationMs} is not null`))
+      .groupBy(sql`case
+        when ${operationLogs.durationMs} < 100 then '<100ms'
+        when ${operationLogs.durationMs} < 500 then '100-500ms'
+        when ${operationLogs.durationMs} < 1000 then '0.5-1s'
+        when ${operationLogs.durationMs} < 3000 then '1-3s'
+        else '>3s' end`),
+    db.select({
+      path: operationLogs.path,
+      avgMs: sql<number>`round(avg(${operationLogs.durationMs}))::integer`,
+      maxMs: sql<number>`max(${operationLogs.durationMs})::integer`,
+      cnt: count(),
+    }).from(operationLogs).where(and(baseWhere, sql`${operationLogs.durationMs} is not null`))
+      .groupBy(operationLogs.path).orderBy(desc(sql<number>`round(avg(${operationLogs.durationMs}))`)).limit(10),
+    db.select({ module: operationLogs.module, cnt: count() }).from(operationLogs)
+      .where(and(baseWhere, gte(operationLogs.responseCode, 400)))
+      .groupBy(operationLogs.module).orderBy(desc(count())).limit(10),
+    db.select({ username: operationLogs.username, module: operationLogs.module, cnt: count() })
+      .from(operationLogs).where(and(baseWhere, sql`${operationLogs.username} is not null`, sql`${operationLogs.module} is not null`))
+      .groupBy(operationLogs.username, operationLogs.module).orderBy(desc(count())).limit(40),
   ]);
   const s = summaryRows[0] ?? { total: 0, successCount: 0, failCount: 0, avgDurationMs: null, uniqueUsers: 0 };
+  const ps = prevSummaryRows[0] ?? { total: 0, successCount: 0, failCount: 0, avgDurationMs: null, uniqueUsers: 0 };
+  const pct = percentileRows[0] ?? { p50: null, p95: null, p99: null };
   const hourlyMap = new Map(hourlyStats.map((r) => [r.hour, r.count]));
   return {
     summary: {
@@ -103,6 +160,16 @@ export async function operationLogStats(daysRaw?: number) {
       failCount: Number(s.failCount),
       avgDurationMs: s.avgDurationMs == null ? null : Math.round(Number(s.avgDurationMs)),
       uniqueUsers: Number(s.uniqueUsers),
+      p50DurationMs: pct.p50 == null ? null : Math.round(Number(pct.p50)),
+      p95DurationMs: pct.p95 == null ? null : Math.round(Number(pct.p95)),
+      p99DurationMs: pct.p99 == null ? null : Math.round(Number(pct.p99)),
+    },
+    prevSummary: {
+      total: ps.total,
+      successCount: Number(ps.successCount),
+      failCount: Number(ps.failCount),
+      avgDurationMs: ps.avgDurationMs == null ? null : Math.round(Number(ps.avgDurationMs)),
+      uniqueUsers: Number(ps.uniqueUsers),
     },
     moduleStats: moduleStats.map((r) => ({ module: r.module ?? '未知模块', count: r.count })),
     moduleTimingStats: moduleTimingStats.map((r) => ({
@@ -116,10 +183,18 @@ export async function operationLogStats(daysRaw?: number) {
       count: r.count,
       successCount: Number(r.successCount),
       failCount: Number(r.failCount),
+      avgMs: r.avgMs == null ? null : Math.round(Number(r.avgMs)),
     })),
     userStats: userStats.map((r) => ({ username: r.username ?? '未知用户', count: r.count })),
     methodStats: methodStats.map((r) => ({ method: r.method, count: r.count })),
     hourlyStats: Array.from({ length: 24 }, (_, h) => ({ hour: h, count: hourlyMap.get(h) ?? 0 })),
+    statusClassStats: statusClassStats.map((r) => ({ statusClass: r.statusClass, count: r.cnt })),
+    durationHistogram: [...durationHistogramRaw]
+      .sort((a, b) => Number(a.bucketOrder) - Number(b.bucketOrder))
+      .map((r) => ({ bucket: r.bucket, count: r.cnt })),
+    slowPaths: slowPaths.map((r) => ({ path: r.path, avgMs: Number(r.avgMs) || 0, maxMs: Number(r.maxMs) || 0, count: r.cnt })),
+    failModuleStats: failModuleStats.map((r) => ({ module: r.module ?? '未知模块', count: r.cnt })),
+    userModuleFlows: userModuleFlows.map((r) => ({ username: r.username ?? '未知用户', module: r.module ?? '未知模块', count: r.cnt })),
   };
 }
 

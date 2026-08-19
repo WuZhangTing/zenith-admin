@@ -19,6 +19,7 @@ export {
   BarChart,
   CircularProgressChart,
   FunnelChart,
+  HeatmapChart,
   LineChart,
   PieChart,
   RadarChart,
@@ -35,6 +36,7 @@ export type {
   IBarChartSpec,
   ICircularProgressChartSpec,
   IFunnelChartSpec,
+  IHeatmapChartSpec,
   ILineChartSpec,
   IPieChartSpec,
   IRadarChartSpec,
@@ -81,6 +83,7 @@ export {
   makeGaugeSpec,
   makeFunnelSpec,
   makeRadarSpec,
+  makeHeatmapSpec,
   type LineAreaOptions,
   type BarOptions,
   type PieOptions,
@@ -94,6 +97,7 @@ export {
   type GaugeOptions,
   type FunnelOptions,
   type RadarOptions,
+  type HeatmapOptions,
 } from './builders';
 
 // 空状态占位

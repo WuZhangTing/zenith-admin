@@ -4,6 +4,7 @@ import type {
   ICircularProgressChartSpec,
   ICommonChartSpec,
   IFunnelChartSpec,
+  IHeatmapChartSpec,
   ILineChartSpec,
   IPieChartSpec,
   IRadarChartSpec,
@@ -1119,4 +1120,90 @@ export function makeRadarSpec(o: RadarOptions): Partial<IRadarChartSpec> {
       },
     },
   };
+}
+
+// ────────────────────────── 热力图（类目 × 类目矩阵） ──────────────────────────
+
+export interface HeatmapOptions {
+  /** 长表数据：每行一个 (x, y, value) 单元格 */
+  readonly data: readonly unknown[];
+  readonly xField: string;
+  readonly yField: string;
+  readonly valueField: string;
+  readonly palette: ChartPalette;
+  readonly dataId?: string;
+  /** 值域两端颜色，默认 [近透明的填充色, 主题色] */
+  readonly colorRange?: readonly string[];
+  readonly axis?: {
+    readonly xLabel?: (value: string) => string;
+    readonly yLabel?: (value: string) => string;
+  };
+  readonly tooltip?: {
+    readonly title?: (datum: ChartDatum) => string;
+    readonly valueName?: string;
+    readonly value?: (value: number, datum: ChartDatum) => string;
+  };
+  /** 颜色图例（连续色带），默认显示 */
+  readonly colorLegend?: boolean;
+}
+
+/** 热力图：适合星期 × 小时等类目矩阵的密度展示，颜色随主题联动。 */
+export function makeHeatmapSpec(o: HeatmapOptions): Partial<IHeatmapChartSpec> {
+  const dataId = o.dataId ?? 'heatmap';
+  const range = o.colorRange ? [...o.colorRange] : [o.palette.fill1, o.palette.primary];
+  const valueFmt = o.tooltip?.value ?? ((value: number) => compactCount(value));
+  const valueName = o.tooltip?.valueName ?? '次数';
+
+  return {
+    type: 'heatmap',
+    background: 'transparent',
+    animation: true,
+    data: [{ id: dataId, values: [...(o.data as readonly Record<string, unknown>[])] }],
+    xField: o.xField,
+    yField: o.yField,
+    valueField: o.valueField,
+    cell: {
+      style: {
+        fill: { field: o.valueField, scale: 'color' },
+        stroke: o.palette.bg1,
+        lineWidth: 1,
+      },
+    },
+    color: {
+      type: 'linear',
+      domain: [{ dataId, fields: [o.valueField] }],
+      range,
+    },
+    axes: [
+      bandAxis('bottom', o.palette, o.axis?.xLabel),
+      { ...bandAxis('left', o.palette, o.axis?.yLabel), bandPadding: 0 },
+    ],
+    legends: o.colorLegend === false
+      ? undefined
+      : {
+          visible: true,
+          type: 'color',
+          field: o.valueField,
+          orient: 'bottom',
+          position: 'start',
+          railHeight: 8,
+          railWidth: 160,
+          handlerText: { style: { fill: o.palette.text2, fontSize: 11 } },
+        },
+    tooltip: {
+      ...makeCommonTooltip(o.palette),
+      mark: {
+        title: {
+          value: (datum?: ChartDatum) =>
+            o.tooltip?.title ? o.tooltip.title(datum) : `${datumText(datum, o.yField)} ${datumText(datum, o.xField)}`,
+        },
+        content: [
+          {
+            key: valueName,
+            value: (datum?: ChartDatum) => valueFmt(datumNumber(datum, o.valueField), datum),
+          },
+        ],
+      },
+    },
+  } as Partial<IHeatmapChartSpec>;
 }

@@ -4,6 +4,7 @@ import { LogIn, CheckCircle2, XCircle, Users } from 'lucide-react';
 import {
   AreaChart,
   BarChart,
+  HeatmapChart,
   PieChart,
   EmptyChart,
   useChartPalette,
@@ -11,6 +12,7 @@ import {
   sectionTitleStyle,
   makeAreaSpec,
   makeBarSpec,
+  makeHeatmapSpec,
   makePieSpec,
   isEmptyValues,
   StatCard,
@@ -46,6 +48,18 @@ function ChartShell({ title, children, danger }: Readonly<{ title: React.ReactNo
       {children}
     </div>
   );
+}
+
+/** GPU 名多为 "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 ...)"，提取括号内主体便于坐标轴展示 */
+function shortGpuName(gpu: string): string {
+  const inner = /\(([^)]+)\)/.exec(gpu)?.[1] ?? gpu;
+  const parts = inner.split(',').map((s) => s.trim());
+  return (parts[1] || parts[0] || gpu).slice(0, 40);
+}
+
+/** 环比增量：上一周期无数据时不展示（返回 null） */
+function deltaOf(current: number, prev: number): number | null {
+  return prev > 0 ? current - prev : null;
 }
 
 export default function LoginLogStatsPanel() {
@@ -92,11 +106,40 @@ export default function LoginLogStatsPanel() {
     () => (stats?.osStats ?? []).map((d) => ({ name: d.os, value: d.count })),
     [stats],
   );
+  const failReasonData = useMemo<PieDatum[]>(
+    () => (stats?.failReasonStats ?? []).map((d) => ({ name: d.message, value: d.count })),
+    [stats],
+  );
+  const locationChartData = useMemo<BarDatum[]>(
+    () => [...(stats?.locationStats ?? [])].reverse().map((d) => ({ name: d.location, count: d.count })),
+    [stats],
+  );
+  const resolutionChartData = useMemo<BarDatum[]>(
+    () => [...(stats?.resolutionStats ?? [])].reverse().map((d) => ({ name: d.resolution, count: d.count })),
+    [stats],
+  );
+  const gpuChartData = useMemo<BarDatum[]>(
+    () => [...(stats?.gpuStats ?? [])].reverse().map((d) => ({ name: shortGpuName(d.gpu), count: d.count })),
+    [stats],
+  );
+  const dowHourData = useMemo(
+    () => (stats?.dowHourStats ?? []).map((d) => ({
+      hour: `${String(d.hour).padStart(2, '0')}h`,
+      weekday: WEEKDAY_LABELS[d.dow - 1] ?? `周${d.dow}`,
+      count: d.count,
+    })),
+    [stats],
+  );
 
   const summary = stats?.summary;
+  const prevSummary = stats?.prevSummary;
   const successRate = summary == null || summary.total === 0
     ? null
     : ((summary.successCount / summary.total) * 100).toFixed(1);
+  // 成功率环比（比率差）：两个周期都有数据才展示
+  const successRateDelta = summary && prevSummary && summary.total > 0 && prevSummary.total > 0
+    ? summary.successCount / summary.total - prevSummary.successCount / prevSummary.total
+    : null;
 
   const statusPieData = useMemo<PieDatum[]>(
     () => (summary
@@ -220,6 +263,69 @@ export default function LoginLogStatsPanel() {
     showLabel: true,
     tooltip: { value: (v) => `${v} 次` },
   }), [weekdayChartData, palette]);
+  const failReasonSpec = useMemo(() => makePieSpec({
+    data: failReasonData,
+    categoryField: 'name',
+    valueField: 'value',
+    palette,
+    donut: true,
+    innerRadius: 0.48,
+    outerRadius: 0.82,
+    padAngle: 1,
+    cornerRadius: 3,
+    legendLabelFontSize: 11,
+    tooltipKey: '失败次数',
+    valueUnit: '次',
+  }), [failReasonData, palette]);
+  const locationSpec = useMemo(() => makeBarSpec({
+    data: locationChartData,
+    xField: 'name',
+    series: [{ field: 'count', name: '登录次数', color: palette.active }],
+    palette,
+    horizontal: true,
+    barMinHeight: 3,
+    cornerRadius: 5,
+    showLabel: true,
+    labelColor: palette.active,
+    categoryAxisWidth: 120,
+    tooltip: { value: (v) => `${v} 次` },
+  }), [locationChartData, palette]);
+  const resolutionSpec = useMemo(() => makeBarSpec({
+    data: resolutionChartData,
+    xField: 'name',
+    series: [{ field: 'count', name: '登录次数', color: palette.dataColors[4] ?? palette.primary }],
+    palette,
+    horizontal: true,
+    barMinHeight: 3,
+    cornerRadius: 5,
+    showLabel: true,
+    categoryAxisWidth: 96,
+    tooltip: { value: (v) => `${v} 次` },
+  }), [resolutionChartData, palette]);
+  const gpuSpec = useMemo(() => makeBarSpec({
+    data: gpuChartData,
+    xField: 'name',
+    series: [{ field: 'count', name: '登录次数', color: palette.dataColors[6] ?? palette.primary }],
+    palette,
+    horizontal: true,
+    barMinHeight: 3,
+    cornerRadius: 5,
+    showLabel: true,
+    categoryAxisWidth: 150,
+    tooltip: { value: (v) => `${v} 次` },
+  }), [gpuChartData, palette]);
+  const dowHourSpec = useMemo(() => makeHeatmapSpec({
+    data: dowHourData,
+    xField: 'hour',
+    yField: 'weekday',
+    valueField: 'count',
+    palette,
+    tooltip: {
+      title: (d) => `${(d as { weekday?: string })?.weekday ?? ''} ${(d as { hour?: string })?.hour ?? ''}`,
+      valueName: '登录次数',
+      value: (v) => `${v} 次`,
+    },
+  }), [dowHourData, palette]);
 
   return (
     <div>
@@ -233,13 +339,24 @@ export default function LoginLogStatsPanel() {
 
       <Spin spinning={statsQuery.isFetching}>
         <StatGrid style={{ marginBottom: 16 }}>
-          <StatCard title="总登录次数" value={summary ? summary.total.toLocaleString() : '—'} sub={`近 ${days} 天累计`} icon={<LogIn size={22} />} accent="var(--semi-color-primary)" />
+          <StatCard
+            title="总登录次数"
+            value={summary ? summary.total.toLocaleString() : '—'}
+            sub={`近 ${days} 天累计`}
+            icon={<LogIn size={22} />}
+            accent="var(--semi-color-primary)"
+            delta={summary && prevSummary ? deltaOf(summary.total, prevSummary.total) : null}
+            deltaLabel="较上一周期"
+          />
           <StatCard
             title="登录成功率"
             value={successRate == null ? '—' : `${successRate}%`}
             sub={summary ? `成功 ${summary.successCount.toLocaleString()} · 失败 ${summary.failCount.toLocaleString()}` : undefined}
             icon={<CheckCircle2 size={22} />}
             accent="var(--semi-color-success)"
+            delta={successRateDelta}
+            deltaLabel="较上一周期"
+            deltaFormat="ratio"
           />
           <StatCard
             title="登录失败次数"
@@ -247,8 +364,18 @@ export default function LoginLogStatsPanel() {
             sub="密码错误、账号锁定等"
             icon={<XCircle size={22} />}
             accent={summary && summary.failCount > 0 ? 'var(--semi-color-danger)' : undefined}
+            delta={summary && prevSummary ? deltaOf(summary.failCount, prevSummary.failCount) : null}
+            deltaLabel="较上一周期"
           />
-          <StatCard title="活跃用户数" value={summary ? summary.uniqueUsers.toLocaleString() : '—'} sub="不重复用户账号" icon={<Users size={22} />} accent="var(--semi-color-data-2)" />
+          <StatCard
+            title="活跃用户数"
+            value={summary ? summary.uniqueUsers.toLocaleString() : '—'}
+            sub="不重复用户账号"
+            icon={<Users size={22} />}
+            accent="var(--semi-color-data-2)"
+            delta={summary && prevSummary ? deltaOf(summary.uniqueUsers, prevSummary.uniqueUsers) : null}
+            deltaLabel="较上一周期"
+          />
         </StatGrid>
 
         <ChartShell title="每日登录趋势（成功 / 失败）">
@@ -300,6 +427,38 @@ export default function LoginLogStatsPanel() {
           <ChartShell title="操作系统分布">
             {osData.length === 0 ? <EmptyChart height={260} /> : (
               <PieChart {...osSpec} options={chartOptions} height={260} />
+            )}
+          </ChartShell>
+        </div>
+
+        <div className="chart-grid" style={{ marginBottom: 16 }}>
+          <ChartShell danger={failReasonData.length > 0} title="失败原因分布">
+            {failReasonData.length === 0 ? <EmptyChart tone="success" text="该时间段无失败登录" height={260} /> : (
+              <PieChart {...failReasonSpec} options={chartOptions} height={260} />
+            )}
+          </ChartShell>
+          <ChartShell title="登录地点 Top 10">
+            {locationChartData.length === 0 ? <EmptyChart height={260} /> : (
+              <BarChart {...locationSpec} options={chartOptions} height={260} />
+            )}
+          </ChartShell>
+        </div>
+
+        <ChartShell title={`星期 × 小时登录热力（近 ${days} 天）`}>
+          {isEmptyValues(dowHourData) ? <EmptyChart height={280} /> : (
+            <HeatmapChart {...dowHourSpec} options={chartOptions} height={280} />
+          )}
+        </ChartShell>
+
+        <div className="chart-grid" style={{ marginTop: 16, marginBottom: 16 }}>
+          <ChartShell title="设备分辨率 Top 8">
+            {resolutionChartData.length === 0 ? <EmptyChart height={240} /> : (
+              <BarChart {...resolutionSpec} options={chartOptions} height={240} />
+            )}
+          </ChartShell>
+          <ChartShell title="设备 GPU Top 8">
+            {gpuChartData.length === 0 ? <EmptyChart height={240} /> : (
+              <BarChart {...gpuSpec} options={chartOptions} height={240} />
             )}
           </ChartShell>
         </div>

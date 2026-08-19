@@ -266,6 +266,13 @@ export interface LoginLogStats {
     failCount: number;
     uniqueUsers: number;
   };
+  /** 上一周期（相同天数）汇总，用于环比 */
+  prevSummary: {
+    total: number;
+    successCount: number;
+    failCount: number;
+    uniqueUsers: number;
+  };
   dailyStats: { date: string; count: number; successCount: number; failCount: number }[];
   userStats: { username: string; count: number }[];
   ipStats: { ip: string; count: number }[];
@@ -273,6 +280,16 @@ export interface LoginLogStats {
   browserStats: { browser: string; count: number }[];
   osStats: { os: string; count: number }[];
   hourlyStats: { hour: number; count: number }[];
+  /** 失败原因分布（按 message 分组） */
+  failReasonStats: { message: string; count: number }[];
+  /** 登录地点 Top（IP 归属地） */
+  locationStats: { location: string; count: number }[];
+  /** 星期 × 小时活跃分布（dow: 1=周一 … 7=周日） */
+  dowHourStats: { dow: number; hour: number; count: number }[];
+  /** 设备屏幕分辨率 Top */
+  resolutionStats: { resolution: string; count: number }[];
+  /** 设备 GPU Top */
+  gpuStats: { gpu: string; count: number }[];
 }
 
 // ─── 用户行为分析 ────────────────────────────────────────────
