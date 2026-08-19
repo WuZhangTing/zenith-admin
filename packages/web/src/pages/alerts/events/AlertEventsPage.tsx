@@ -166,7 +166,7 @@ export default function AlertEventsPage() {
   }
 
   const columns: ColumnProps<MonitorAlertEvent>[] = [
-    dateTimeColumn('触发时间', 'triggeredAt', { fixed: 'left' }),
+    dateTimeColumn('触发时间', 'triggeredAt'),
     { title: '规则', dataIndex: 'ruleName', width: 160, render: renderEllipsis },
     {
       title: '触发条件', dataIndex: 'metric', width: 210,

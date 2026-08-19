@@ -213,7 +213,7 @@ export default function PaymentReconPage() {
     { title: '本地金额', dataIndex: 'localAmount', width: 110, align: 'right', render: (v: number | null) => (v == null ? '-' : yuan(v)) },
     { title: '渠道金额', dataIndex: 'channelAmount', width: 110, align: 'right', render: (v: number | null) => (v == null ? '-' : yuan(v)) },
     {
-      title: '状态（本地/渠道）', dataIndex: 'localStatus', width: 150,
+      title: '状态（本地/渠道）', dataIndex: 'localStatus', width: 170,
       render: (_: unknown, r: PaymentReconItem) => `${r.localStatus || '—'} / ${r.channelStatus || '—'}`,
     },
     { title: '结果', dataIndex: 'result', width: 120, render: (v: PaymentReconResult) => <Tag color={RESULT_COLOR[v]}>{PAYMENT_RECON_RESULT_LABELS[v]}</Tag> },
