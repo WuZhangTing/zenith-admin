@@ -123,9 +123,9 @@ export default function TenantPackagesPage() {
       width: 320,
       render: (features?: string[]) => {
         if (!features || features.length === 0) return <span style={{ color: 'var(--semi-color-text-2)' }}>仅核心功能</span>;
-        const shown = features.slice(0, 4);
+        const shown = features.slice(0, 3);
         return (
-          <Space wrap spacing={4}>
+          <Space spacing={4} style={{ whiteSpace: 'nowrap' }}>
             {shown.map((f) => (
               <Tag key={f} size="small" color="blue">{LICENSE_FEATURE_LABELS[f as keyof typeof LICENSE_FEATURE_LABELS] ?? f}</Tag>
             ))}
@@ -154,7 +154,7 @@ export default function TenantPackagesPage() {
       ),
     },
     createOperationColumn<TenantPackage>({
-      width: 200,
+      width: 240,
       desktopInlineKeys: ['edit', 'features', 'delete'],
       actions: (row) => [
         {

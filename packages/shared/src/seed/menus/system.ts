@@ -56,7 +56,11 @@ export const SEED_MENUS_SYSTEM: Menu[] = [
   { id: 1092, parentId: 1090, title: '新增套餐', type: 'button', permission: 'system:tenant-package:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1093, parentId: 1090, title: '编辑套餐', type: 'button', permission: 'system:tenant-package:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1094, parentId: 1090, title: '删除套餐', type: 'button', permission: 'system:tenant-package:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 1095, parentId: 1090, title: '分配菜单', type: 'button', permission: 'system:tenant-package:assign', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1095, parentId: 1090, title: '分配功能', type: 'button', permission: 'system:tenant-package:assign', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  // License 授权（与租户套餐同属授权治理；菜单本身是核心能力，受限模式下也必须可达）
+  { id: 2660, parentId: 1000, title: 'License 授权', name: 'SystemLicense', path: '/system/license', component: 'system/license/LicensePage', icon: 'KeyRound', type: 'menu', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2661, parentId: 2660, title: '查询', type: 'button', permission: 'system:license:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2662, parentId: 2660, title: '激活/停用', type: 'button', permission: 'system:license:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1100, parentId: 1000, title: '地区管理', name: 'SystemRegions', path: '/system/regions', component: 'system/regions/RegionsPage', icon: 'MapPin', type: 'menu', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1101, parentId: 1100, title: '查询', type: 'button', permission: 'system:region:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 1102, parentId: 1100, title: '新增地区', type: 'button', permission: 'system:region:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

@@ -1,12 +1,20 @@
-import { useState } from 'react';
-import { Banner, Button, Card, Descriptions, Empty, Popconfirm, Space, Spin, Table, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Empty, Popconfirm, Space, Spin, Table, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { useState } from 'react';
 import { Copy, KeyRound, ShieldCheck, Upload } from 'lucide-react';
 import { LICENSE_FEATURE_OPTIONS, LICENSE_STATUS_LABELS, type LicenseEventItem, type LicenseStatus } from '@zenith/shared/licensing';
 import { usePermission } from '@/hooks/usePermission';
+import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useActivateLicense, useDeactivateLicense, useLicenseEvents, useLicensingStatus } from '@/hooks/queries/licensing';
 
 const { Text, Paragraph } = Typography;
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: 'var(--semi-color-text-0)',
+  marginBottom: 12,
+};
 
 const STATUS_COLORS: Record<string, 'green' | 'orange' | 'red' | 'grey' | 'blue'> = {
   active: 'green',
@@ -47,7 +55,7 @@ function OverviewTab() {
   };
 
   return (
-    <Space vertical align="start" spacing={16} style={{ width: '100%' }}>
+    <Space vertical align="start" spacing={24} style={{ width: '100%' }}>
       {usingTestKey && installation.mode !== 'off' && (
         <Banner
           fullMode={false}
@@ -69,47 +77,55 @@ function OverviewTab() {
         />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, width: '100%' }}>
-        <Card title="当前授权" headerExtraContent={<Tag color={STATUS_COLORS[effective.status] ?? 'grey'}>{statusLabel(effective.status)}</Tag>}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px 48px', width: '100%' }}>
+        <section>
+          <div style={sectionTitleStyle}>
+            当前授权
+            <Tag color={STATUS_COLORS[effective.status] ?? 'grey'} style={{ marginLeft: 8 }}>{statusLabel(effective.status)}</Tag>
+          </div>
           {license ? (
-            <Descriptions
-              align="left"
-              data={[
-                { key: 'License ID', value: <Text copyable>{license.licenseId}</Text> },
-                { key: '客户', value: `${license.customerName}（${license.editionLabel}）` },
-                { key: '有效期', value: `${license.notBefore} ~ ${license.expiresAt}` },
-                { key: '宽限截止', value: license.graceUntil },
-                { key: '席位上限', value: license.limits.maxUsers ?? '不限' },
-                { key: '租户上限', value: license.limits.maxTenants ?? '不限' },
-                { key: '签发密钥', value: license.keyId },
-                { key: '激活时间', value: license.activatedAt },
-                { key: '最近校验', value: license.lastVerifiedAt ?? '—' },
-                ...(license.invalidReason ? [{ key: '异常原因', value: <Text type="danger">{license.invalidReason}</Text> }] : []),
-              ]}
-            />
+            <>
+              <Descriptions
+                align="left"
+                data={[
+                  { key: 'License ID', value: <Text copyable>{license.licenseId}</Text> },
+                  { key: '客户', value: `${license.customerName}（${license.editionLabel}）` },
+                  { key: '有效期', value: `${license.notBefore} ~ ${license.expiresAt}` },
+                  { key: '宽限截止', value: license.graceUntil },
+                  { key: '席位上限', value: license.limits.maxUsers ?? '不限' },
+                  { key: '租户上限', value: license.limits.maxTenants ?? '不限' },
+                  { key: '签发密钥', value: license.keyId },
+                  { key: '激活时间', value: license.activatedAt },
+                  { key: '最近校验', value: license.lastVerifiedAt ?? '—' },
+                  ...(license.invalidReason ? [{ key: '异常原因', value: <Text type="danger">{license.invalidReason}</Text> }] : []),
+                ]}
+              />
+              {hasPermission('system:license:manage') && (
+                <div style={{ marginTop: 12 }}>
+                  <Popconfirm
+                    title="确认停用当前 License？"
+                    content="required 模式下停用后全部增值功能将不可用。"
+                    onConfirm={() => {
+                      deactivateMutation.mutate(undefined, { onSuccess: () => Toast.success('已停用') });
+                    }}
+                  >
+                    <Button type="danger" theme="light" loading={deactivateMutation.isPending}>停用 License</Button>
+                  </Popconfirm>
+                </div>
+              )}
+            </>
           ) : (
             <Empty
               image={<KeyRound size={40} style={{ color: 'var(--semi-color-text-3)' }} />}
               title="未激活 License"
               description={installation.mode === 'off' ? '当前为 off 模式，无需 License 即可使用全部功能。' : '请在「激活」页签粘贴 .zenlic 文件内容完成激活。'}
+              style={{ padding: '24px 0' }}
             />
           )}
-          {license && hasPermission('system:license:manage') && (
-            <div style={{ marginTop: 12 }}>
-              <Popconfirm
-                title="确认停用当前 License？"
-                content="required 模式下停用后全部增值功能将不可用。"
-                onConfirm={() => {
-                  deactivateMutation.mutate(undefined, { onSuccess: () => Toast.success('已停用') });
-                }}
-              >
-                <Button type="danger" theme="light" loading={deactivateMutation.isPending}>停用 License</Button>
-              </Popconfirm>
-            </div>
-          )}
-        </Card>
+        </section>
 
-        <Card title="部署信息">
+        <section>
+          <div style={sectionTitleStyle}>部署信息</div>
           <Descriptions
             align="left"
             data={[
@@ -132,10 +148,11 @@ function OverviewTab() {
           <Paragraph type="tertiary" size="small" style={{ marginTop: 12 }}>
             签发 License 时需提供上方安装 ID。运行模式由部署环境变量 LICENSE_MODE 控制。
           </Paragraph>
-        </Card>
+        </section>
       </div>
 
-      <Card title="功能授权矩阵" style={{ width: '100%' }}>
+      <section style={{ width: '100%' }}>
+        <div style={sectionTitleStyle}>功能授权矩阵</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
           {LICENSE_FEATURE_OPTIONS.map((opt) => {
             const enabled = effective.features.includes(opt.value);
@@ -162,7 +179,7 @@ function OverviewTab() {
         <Paragraph type="tertiary" size="small" style={{ marginTop: 12 }}>
           核心能力（组织架构、系统管理、消息、文件、任务等）不占用授权，始终可用。
         </Paragraph>
-      </Card>
+      </section>
     </Space>
   );
 }
@@ -216,7 +233,12 @@ function EventsTab() {
   const eventsQuery = useLicenseEvents({ page, pageSize });
 
   const columns: ColumnProps<LicenseEventItem>[] = [
-    { title: '时间', dataIndex: 'createdAt', width: 170 },
+    {
+      title: '时间',
+      dataIndex: 'createdAt',
+      width: 200,
+      render: (v: string) => <span style={{ whiteSpace: 'nowrap' }}>{v}</span>,
+    },
     {
       title: '事件',
       dataIndex: 'typeLabel',
@@ -248,10 +270,21 @@ function EventsTab() {
   );
 }
 
+const LICENSE_TABS = ['overview', 'activate', 'events'] as const;
+
 export default function LicensePage() {
+  const [activeTab, setActiveTab] = useUrlTabState(LICENSE_TABS, 'overview');
+
   return (
-    <div className="page-container">
-      <Tabs type="line" defaultActiveKey="overview" keepDOM={false}>
+    <div className="page-container page-tabs-page">
+      <Tabs
+        type="line"
+        collapsible="auto"
+        activeKey={activeTab}
+        onChange={(k) => setActiveTab(k as typeof activeTab)}
+        lazyRender
+        keepDOM={false}
+      >
         <Tabs.TabPane tab="授权概览" itemKey="overview"><OverviewTab /></Tabs.TabPane>
         <Tabs.TabPane tab="激活" itemKey="activate"><ActivateTab /></Tabs.TabPane>
         <Tabs.TabPane tab="事件日志" itemKey="events"><EventsTab /></Tabs.TabPane>
