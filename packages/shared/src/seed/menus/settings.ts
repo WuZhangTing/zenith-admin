@@ -195,6 +195,10 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2601, parentId: 2600, title: '查询', type: 'button', permission: 'system:retention:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2602, parentId: 2600, title: '编辑策略', type: 'button', permission: 'system:retention:edit', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2603, parentId: 2600, title: '立即清理', type: 'button', permission: 'system:retention:run', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  // License 授权（平台级；菜单本身是核心能力，受限模式下也必须可达）
+  { id: 2660, parentId: 2000, title: 'License 授权', name: 'SystemLicense', path: '/system/license', component: 'system/license/LicensePage', icon: 'KeyRound', type: 'menu', sort: 21, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2661, parentId: 2660, title: '查询', type: 'button', permission: 'system:license:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2662, parentId: 2660, title: '激活/停用', type: 'button', permission: 'system:license:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2440, parentId: 2000, title: '系统运维', name: 'SystemOps', icon: 'Terminal', type: 'directory', sort: 20, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2450, parentId: 2440, title: 'Web 终端', name: 'SystemTerminal', path: '/system/terminal', component: 'system/terminal/TerminalPage', icon: 'TerminalSquare', type: 'menu', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2451, parentId: 2450, title: '执行终端', type: 'button', permission: 'system:terminal:execute', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

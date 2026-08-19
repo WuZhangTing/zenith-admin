@@ -14,6 +14,7 @@ import rulesFlowsRoutes from './rules-flows';
 import rulesListsRoutes from './rules-lists';
 import rulesRoutes from './rules';
 import systemConfigsRoutes from './system-configs';
+import licensingRoutes from './licensing';
 import tagsRoutes from './tags';
 import userFeedbacksRoutes from './user-feedbacks';
 import { createWsRoute } from './ws';
@@ -27,6 +28,8 @@ export default defineRouteDomain({
     ['/api/operation-logs', operationLogsRoutes],
     ['/api/ip-access-logs', ipAccessLogsRoutes],
     ['/api/system-configs', systemConfigsRoutes],
+    // License 管理面永不打 feature 标（受限模式下也必须可达，否则无法自救）
+    ['/api/licensing', licensingRoutes],
     ['/api/feedbacks', userFeedbacksRoutes],
     ['/api/data-mask-configs', dataMaskConfigsRoutes],
     ['/api/regions', regionsRoutes],

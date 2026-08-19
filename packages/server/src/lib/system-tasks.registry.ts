@@ -251,6 +251,17 @@ export async function registerSystemTasks(): Promise<void> {
     run: runTenantExpiryCheck,
   });
 
+  const { runLicenseInspection } = await import('../services/platform/licensing.service');
+  await registerSystemRecurringJob({
+    name: 'license-inspection',
+    title: 'License 授权巡检',
+    module: '系统设置',
+    cronExpression: '10 1 * * *',
+    description: '每天重新验签当前 License 并同步状态（宽限/过期迁移、时钟回拨检测），到期前 30/7/3/1 天及状态变化时通知平台超管。LICENSE_MODE=off 时自动跳过。',
+    allowManualRun: true,
+    run: runLicenseInspection,
+  });
+
   const { runMemberHousekeeping } = await import('../services/member/member-housekeeping.service');
   await registerSystemRecurringJob({
     name: 'member-housekeeping',

@@ -306,6 +306,29 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '[系统调度告警] {{taskTitle}}',
     content: '任务「{{taskTitle}}」（{{module}} / {{taskName}}，运行 #{{runId}}）触发告警：{{alertMessage}}',
   },
+  'ops.license.expiring': {
+    group: 'ops',
+    label: 'License 即将到期 / 宽限期提醒',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    // 巡检任务按天触发并带 dedupeKey，无需再配 rateLimit
+    vars: eventVars<{ statusText: string; expiresAt: string; graceUntil: string }>(),
+    title: '[License] {{statusText}}',
+    content: '部署授权{{statusText}}（到期 {{expiresAt}}，宽限截止 {{graceUntil}}），请及时联系供应商续期并在「系统设置 → License 授权」中激活新文件。',
+  },
+  'ops.license.invalid': {
+    group: 'ops',
+    label: 'License 失效告警',
+    severity: 'critical',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email', 'webhook'],
+    mandatory: true,
+    bypassQuietHours: true,
+    vars: eventVars<{ reason: string }>(),
+    title: '[License] 部署授权失效',
+    content: '部署授权已失效：{{reason}}。required 模式下增值功能将进入受限状态，请尽快处理。',
+  },
 
   // ─── 开放平台 ───────────────────────────────────────────────────────────────
   'open-platform.app.review_requested': {

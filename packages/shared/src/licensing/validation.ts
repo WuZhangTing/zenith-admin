@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import {
-  LICENSE_ALGORITHM,
   LICENSE_AUDIENCE,
   LICENSE_EDITIONS,
-  LICENSE_ENVELOPE_VERSION,
   LICENSE_FEATURES,
 } from './constants';
 import { dateTimeStringSchema } from '../core/validation';
@@ -34,8 +32,9 @@ export const licensePayloadSchema = z.object({
 }).strict();
 
 export const licenseEnvelopeSchema = z.object({
-  version: z.literal(LICENSE_ENVELOPE_VERSION),
-  algorithm: z.literal(LICENSE_ALGORITHM),
+  // version/algorithm 不用 literal：具体值在验签流程中显式检查，给出可读错误而非「结构无效」
+  version: z.number().int().positive(),
+  algorithm: z.string().min(1).max(32),
   keyId: z.string().min(1).max(64),
   payload: z.string().min(1),
   signature: z.string().min(1),

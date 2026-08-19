@@ -4,6 +4,7 @@
 
 export * from './schema/common';
 export * from './schema/core';
+export * from './schema/licensing';
 export * from './schema/files';
 export * from './schema/data-mask';
 export * from './schema/tasks';
