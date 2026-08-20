@@ -68,42 +68,52 @@ export function useUrlSelectionParams<K extends string>(
   const [selection, setSelection] = useState<UrlSelection<K>>(
     () => readSelection(searchParams, namesRef.current),
   );
+  const search = searchParams.toString();
+  const selectionRef = useRef(selection);
+  const searchRef = useRef(search);
+  const syncRef = useRef<boolean | null>(null);
 
-  // URL → 状态：外部导航（带参进入已挂载页面、浏览器前进后退）时跟随
+  // 在同一个 effect 内判定变化来源，避免 URL→状态与状态→URL 两个 effect 用旧快照互相覆盖。
   useEffect(() => {
-    setSelection((prev) => {
-      const fromUrl = readSelection(searchParams, namesRef.current);
+    const names = namesRef.current;
+    const urlChanged = search !== searchRef.current;
+    const stateChanged = !selectionEquals(selection, selectionRef.current, names);
+    const syncChanged = syncToUrl !== syncRef.current;
+    if (!urlChanged && !stateChanged && !syncChanged) return;
+
+    let nextSelection = selection;
+    if (urlChanged) {
+      const fromUrl = readSelection(searchParams, names);
       if (syncToUrl) {
-        return selectionEquals(prev, fromUrl, namesRef.current) ? prev : fromUrl;
-      }
-      // 消费模式：仅合并在场参数——参数应用后即被移除，缺参不代表清空选中
-      let changed = false;
-      const merged = { ...prev } as Record<K, string | null>;
-      for (const name of namesRef.current) {
-        const value = fromUrl[name];
-        if (value !== null && value !== prev[name]) {
-          merged[name] = value;
-          changed = true;
+        nextSelection = fromUrl;
+      } else {
+        // 消费模式：仅合并在场参数——参数应用后即被移除，缺参不代表清空选中
+        const merged = { ...selection } as Record<K, string | null>;
+        for (const name of names) {
+          const value = fromUrl[name];
+          if (value !== null) merged[name] = value;
         }
+        nextSelection = merged;
       }
-      return changed ? merged : prev;
-    });
-  }, [searchParams, syncToUrl]);
+    }
 
-  // 状态 → URL：基于 router 提供的最新 searchParams 只改自己的参数（兼容 BrowserRouter 与
-  // HashRouter——后者的 query 在 hash 段内，window.location.search 读不到），其他参数原样保留；
-  // 消费模式下只删不写
-  useEffect(() => {
-    const next = new URLSearchParams(searchParams);
-    for (const name of namesRef.current) {
-      const value = selection[name];
-      if (!syncToUrl || value === null || value === '') next.delete(name);
-      else next.set(name, value);
+    // 基于 router 提供的最新 searchParams 只改自己的参数（兼容 BrowserRouter 与
+    // HashRouter——后者的 query 在 hash 段内，window.location.search 读不到）。
+    const nextParams = new URLSearchParams(searchParams);
+    for (const name of names) {
+      const value = nextSelection[name];
+      if (!syncToUrl || value === null || value === '') nextParams.delete(name);
+      else nextParams.set(name, value);
     }
-    if (next.toString() !== searchParams.toString()) {
-      setSearchParams(next, { replace: true });
-    }
-  }, [selection, searchParams, setSearchParams, syncToUrl]);
+    const nextSearch = nextParams.toString();
+
+    selectionRef.current = nextSelection;
+    searchRef.current = nextSearch;
+    syncRef.current = syncToUrl;
+
+    if (!selectionEquals(selection, nextSelection, names)) setSelection(nextSelection);
+    if (nextSearch !== search) setSearchParams(nextParams, { replace: true });
+  }, [search, searchParams, selection, setSearchParams, syncToUrl]);
 
   return [selection, setSelection];
 }

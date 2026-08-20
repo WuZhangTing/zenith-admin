@@ -2,6 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useOptionalPreferences } from '@/hooks/usePreferences';
 
+function parseTab<T extends string>(
+  params: URLSearchParams,
+  paramName: string,
+  validTabs: readonly T[],
+  defaultTab: T,
+): T {
+  const raw = params.get(paramName);
+  return raw && (validTabs as readonly string[]).includes(raw) ? (raw as T) : defaultTab;
+}
+
 /**
  * 将页面级 Tabs 的激活项与 URL 查询参数双向同步（如 `?tab=`）：
  * - 初次渲染从 URL 恢复，非法值回退默认 Tab；
@@ -23,37 +33,61 @@ export function useUrlTabState<T extends string>(
   const syncToUrl = prefs ? (prefs.preferences.syncPageStateToUrl ?? false) : true;
   const validRef = useRef(validTabs);
   validRef.current = validTabs;
+  const [activeTab, setActiveTab] = useState<T>(
+    () => parseTab(searchParams, paramName, validRef.current, defaultTab),
+  );
+  const search = searchParams.toString();
+  const configKey = [paramName, defaultTab, ...validTabs].join('\0');
+  const activeTabRef = useRef(activeTab);
+  const searchRef = useRef(search);
+  const syncRef = useRef<boolean | null>(null);
+  const configRef = useRef(configKey);
 
-  const parse = (params: URLSearchParams): T => {
-    const raw = params.get(paramName);
-    return raw && (validRef.current as readonly string[]).includes(raw) ? (raw as T) : defaultTab;
-  };
-
-  const [activeTab, setActiveTab] = useState<T>(() => parse(searchParams));
-
-  // URL → 状态：外部导航（如从别的页面带参进入、浏览器前进后退）时跟随
+  // 在同一个 effect 内判定变化来源，避免 URL→状态与状态→URL 两个 effect 用旧快照互相覆盖。
   useEffect(() => {
-    if (syncToUrl) {
-      setActiveTab(parse(searchParams));
-      return;
-    }
-    // 消费模式：仅参数在场且合法时跟随——参数应用后即被移除，缺参不代表回默认
-    const raw = searchParams.get(paramName);
-    if (raw && (validRef.current as readonly string[]).includes(raw)) setActiveTab(raw as T);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, syncToUrl]);
+    const urlChanged = search !== searchRef.current;
+    const stateChanged = activeTab !== activeTabRef.current;
+    const syncChanged = syncToUrl !== syncRef.current;
+    const configChanged = configKey !== configRef.current;
+    if (!urlChanged && !stateChanged && !syncChanged && !configChanged) return;
 
-  // 状态 → URL：基于 router 提供的最新 searchParams 只改自己的参数（兼容 BrowserRouter 与
-  // HashRouter——后者的 query 在 hash 段内，window.location.search 读不到），其他参数原样保留；
-  // 消费模式下只删不写
-  useEffect(() => {
-    const next = new URLSearchParams(searchParams);
-    if (!syncToUrl || activeTab === defaultTab) next.delete(paramName);
-    else next.set(paramName, activeTab);
-    if (next.toString() !== searchParams.toString()) {
-      setSearchParams(next, { replace: true });
+    let nextTab = activeTab;
+    if (urlChanged) {
+      if (syncToUrl) {
+        nextTab = parseTab(searchParams, paramName, validRef.current, defaultTab);
+      } else {
+        // 消费模式：仅参数在场且合法时跟随——参数应用后即被移除，缺参不代表回默认
+        const raw = searchParams.get(paramName);
+        if (raw && (validRef.current as readonly string[]).includes(raw)) nextTab = raw as T;
+      }
+    } else if (configChanged && !(validRef.current as readonly string[]).includes(nextTab)) {
+      nextTab = defaultTab;
     }
-  }, [activeTab, defaultTab, paramName, searchParams, setSearchParams, syncToUrl]);
+
+    // 基于 router 提供的最新 searchParams 只改自己的参数（兼容 BrowserRouter 与
+    // HashRouter——后者的 query 在 hash 段内，window.location.search 读不到）。
+    const nextParams = new URLSearchParams(searchParams);
+    if (!syncToUrl || nextTab === defaultTab) nextParams.delete(paramName);
+    else nextParams.set(paramName, nextTab);
+    const nextSearch = nextParams.toString();
+
+    activeTabRef.current = nextTab;
+    searchRef.current = nextSearch;
+    syncRef.current = syncToUrl;
+    configRef.current = configKey;
+
+    if (nextTab !== activeTab) setActiveTab(nextTab);
+    if (nextSearch !== search) setSearchParams(nextParams, { replace: true });
+  }, [
+    activeTab,
+    configKey,
+    defaultTab,
+    paramName,
+    search,
+    searchParams,
+    setSearchParams,
+    syncToUrl,
+  ]);
 
   return [activeTab, setActiveTab];
 }
