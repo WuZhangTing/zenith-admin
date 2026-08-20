@@ -12,6 +12,8 @@ export interface LogFile {
 export interface LogFileContentParams {
   lines: number;
   keyword?: string;
+  /** 全文过滤命中行前后保留的上下文行数（0-10） */
+  context?: number;
 }
 
 export const logFileKeys = {

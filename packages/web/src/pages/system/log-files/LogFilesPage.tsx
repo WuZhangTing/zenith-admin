@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, SetStateAction } from 'react';
-import { Button, Dropdown, Input, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { useSearchParams } from 'react-router-dom';
+import { Button, Dropdown, Input, InputNumber, Popover, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Icon } from '@iconify/react';
 import {
-  Activity, AlertTriangle, ArrowDown, ArrowUp, Download, FileText, ListOrdered,
-  MoreHorizontal, RefreshCw, Search, StopCircle, Trash2, WrapText,
+  Activity, AlertTriangle, ArrowDown, ArrowUp, CaseSensitive, Copy, Download, FileDown, FileText, Hash,
+  ListFilter, ListOrdered, MoreHorizontal, Pause, Play, RefreshCw, Regex, Search, StopCircle, Trash2, WrapText,
 } from 'lucide-react';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
@@ -16,8 +17,8 @@ import { config } from '@/config';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { type LogFile, useDeleteLogFile, useLogFileContent, useLogFiles } from '@/hooks/queries/log-files';
 import { confirmDelete } from '@/utils/confirm';
-import { buildSearchIndex, computeEffectiveLevels, type LogLevel } from './logFilesSearch';
-import { LogContentView } from './LogContentView';
+import { buildSearchIndex, compileSearchPattern, computeEffectiveLevels, type LogLevel, type MatchRange, type SearchMatch } from './logFilesSearch';
+import { LogContentView, type LogContentViewHandle } from './LogContentView';
 
 const EMPTY_LOG_FILES: LogFile[] = [];
 const EMPTY_LINES: string[] = [];
@@ -25,7 +26,7 @@ const MAX_TAIL_LINES = 5000;
 const TAIL_RETRY_LIMIT = 3;
 const TAIL_RETRY_DELAY_MS = 1500;
 
-const LEVEL_FILTER_OPTIONS = [
+const LEVEL_FILTER_VALUES: Array<{ value: 'all' | LogLevel; label: string }> = [
   { value: 'all', label: '全部级别' },
   { value: 'error', label: 'ERROR' },
   { value: 'warn', label: 'WARN' },
@@ -34,6 +35,8 @@ const LEVEL_FILTER_OPTIONS = [
 ];
 
 const LINE_COUNT_OPTIONS = [500, 1000, 2000, 5000].map((n) => ({ value: n, label: `最后 ${n} 行` }));
+
+const CONTEXT_OPTIONS = [0, 2, 5, 10].map((n) => ({ value: n, label: n === 0 ? '无上下文' : `上下文 ±${n} 行` }));
 
 /** 显示偏好持久化到 localStorage */
 function usePersistentState<T>(key: string, initialValue: T) {
@@ -65,8 +68,29 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-/** 打开 tail SSE 连接；401 时借助统一请求层触发 token 刷新后重试一次 */
-async function fetchTailStream(fileName: string, signal: AbortSignal): Promise<Response> {
+/** 复制文本：优先 Clipboard API，失败回退隐藏 textarea + execCommand（无剪贴板权限的宿主环境） */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+/** 打开 tail SSE 连接；401 时借助统一请求层触发 token 刷新后重试一次 */async function fetchTailStream(fileName: string, signal: AbortSignal): Promise<Response> {
   const doFetch = () => fetch(`${config.apiBaseUrl}/api/log-files/${encodeURIComponent(fileName)}/tail`, {
     headers: { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}` },
     signal,
@@ -106,10 +130,15 @@ export default function LogFilesPage() {
   const { hasPermission } = usePermission();
   const [keyword, setKeyword] = useState('');
   const [selected, setSelected] = useState<LogFile | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // 内容搜索：输入即时高亮（防抖），全文模式回车提交服务端过滤
   const [searchDraft, setSearchDraft] = useState('');
   const debouncedSearch = useDebouncedValue(searchDraft.trim(), 250);
+  const [searchRegex, setSearchRegex] = useState(false);
+  const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
+  /** 仅显示匹配行（grep 模式） */
+  const [matchesOnly, setMatchesOnly] = useState(false);
   const [fullText, setFullText] = useState(false);
   const [serverKeyword, setServerKeyword] = useState('');
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
@@ -119,19 +148,33 @@ export default function LogFilesPage() {
   const [showLineNumbers, setShowLineNumbers] = usePersistentState('logFiles.lineNumbers', true);
   const [wrap, setWrap] = usePersistentState('logFiles.wrap', true);
   const [lineCount, setLineCount] = usePersistentState('logFiles.lineCount', 5000);
+  const [serverContext, setServerContext] = usePersistentState('logFiles.context', 0);
 
   // 实时追踪
   const [tailing, setTailing] = useState(false);
   const [tailLines, setTailLines] = useState<string[]>([]);
   const tailAbortRef = useRef<AbortController | null>(null);
+  const [tailPaused, setTailPaused] = useState(false);
+  const tailPausedRef = useRef(false);
+  const pendingTailRef = useRef<string[]>([]);
+  const [pendingTailCount, setPendingTailCount] = useState(0);
+  const [reconnecting, setReconnecting] = useState(false);
+
+  // 跳到行号
+  const contentViewRef = useRef<LogContentViewHandle | null>(null);
+  const [gotoValue, setGotoValue] = useState<number | null>(null);
 
   const filesQuery = useLogFiles();
   const files = filesQuery.data ?? EMPTY_LOG_FILES;
   const deleteMutation = useDeleteLogFile();
 
   const contentParams = useMemo(
-    () => ({ lines: lineCount, keyword: fullText && serverKeyword ? serverKeyword : undefined }),
-    [lineCount, fullText, serverKeyword],
+    () => ({
+      lines: lineCount,
+      keyword: fullText && serverKeyword ? serverKeyword : undefined,
+      context: fullText && serverKeyword && serverContext > 0 ? serverContext : undefined,
+    }),
+    [lineCount, fullText, serverKeyword, serverContext],
   );
   const contentQuery = useLogFileContent(selected?.name, contentParams, !!selected && !tailing);
   const refetchContent = contentQuery.refetch;
@@ -142,10 +185,26 @@ export default function LogFilesPage() {
     return files.filter((file) => file.name.toLowerCase().includes(normalizedKeyword));
   }, [files, keyword]);
 
-  // ── 派生数据：级别 → 可见行 → 搜索索引 ──
+  // ── 派生数据：级别过滤（base 层）→ 搜索索引 → grep 模式（display 层） ──
   const rawLines = tailing ? tailLines : (contentQuery.data?.lines ?? EMPTY_LINES);
   const levels = useMemo(() => computeEffectiveLevels(rawLines), [rawLines]);
-  const visibleIndexes = useMemo(() => {
+
+  const levelCounts = useMemo(() => {
+    const counts: Record<LogLevel, number> = { error: 0, warn: 0, info: 0, debug: 0 };
+    for (const level of levels) {
+      if (level) counts[level] += 1;
+    }
+    return counts;
+  }, [levels]);
+  const levelOptions = useMemo(
+    () => LEVEL_FILTER_VALUES.map(({ value, label }) => ({
+      value,
+      label: value === 'all' ? `${label} (${rawLines.length})` : `${label} (${levelCounts[value]})`,
+    })),
+    [levelCounts, rawLines.length],
+  );
+
+  const baseIndexes = useMemo(() => {
     if (levelFilter === 'all') return rawLines.map((_, i) => i);
     const out: number[] = [];
     levels.forEach((level, i) => {
@@ -153,21 +212,63 @@ export default function LogFilesPage() {
     });
     return out;
   }, [rawLines, levels, levelFilter]);
-  const displayLines = useMemo(
-    () => (levelFilter === 'all' ? rawLines : visibleIndexes.map((i) => rawLines[i])),
-    [levelFilter, rawLines, visibleIndexes],
+  const baseLines = useMemo(
+    () => (levelFilter === 'all' ? rawLines : baseIndexes.map((i) => rawLines[i])),
+    [levelFilter, rawLines, baseIndexes],
   );
-  const searchIndex = useMemo(() => buildSearchIndex(displayLines, debouncedSearch), [displayLines, debouncedSearch]);
-  const matches = searchIndex.matches;
+
+  const searchPattern = useMemo(
+    () => compileSearchPattern(debouncedSearch, { regex: searchRegex, caseSensitive: searchCaseSensitive }),
+    [debouncedSearch, searchRegex, searchCaseSensitive],
+  );
+  const searchInvalid = searchRegex && debouncedSearch !== '' && searchPattern === null;
+  const searchIndex = useMemo(() => buildSearchIndex(baseLines, searchPattern), [baseLines, searchPattern]);
+
+  const grepActive = matchesOnly && searchPattern !== null;
+  const { displayIndexes, displayLines, displayRanges, displayMatches } = useMemo(() => {
+    if (!grepActive) {
+      return {
+        displayIndexes: baseIndexes,
+        displayLines: baseLines,
+        displayRanges: searchIndex.lineRanges,
+        displayMatches: searchIndex.matches,
+      };
+    }
+    // 仅保留匹配行，并把 base 下标重映射为紧凑的展示下标
+    const matchedBase = [...searchIndex.lineRanges.keys()].sort((a, b) => a - b);
+    const baseToDisplay = new Map(matchedBase.map((b, i) => [b, i]));
+    const ranges = new Map<number, MatchRange[]>();
+    matchedBase.forEach((b, i) => {
+      const r = searchIndex.lineRanges.get(b);
+      if (r) ranges.set(i, r);
+    });
+    return {
+      displayIndexes: matchedBase.map((b) => baseIndexes[b]),
+      displayLines: matchedBase.map((b) => baseLines[b]),
+      displayRanges: ranges,
+      displayMatches: searchIndex.matches.map((m): SearchMatch => ({ ...m, lineIndex: baseToDisplay.get(m.lineIndex) ?? 0 })),
+    };
+  }, [grepActive, baseIndexes, baseLines, searchIndex]);
+
+  const matches = displayMatches;
   const safeMatchIndex = matches.length === 0 ? 0 : Math.min(activeMatchIndex, matches.length - 1);
   const activeMatch = matches[safeMatchIndex] ?? null;
 
   // ── 实时追踪 ──
+  const resetTailPause = useCallback(() => {
+    tailPausedRef.current = false;
+    setTailPaused(false);
+    pendingTailRef.current = [];
+    setPendingTailCount(0);
+  }, []);
+
   const abortTail = useCallback(() => {
     tailAbortRef.current?.abort();
     tailAbortRef.current = null;
     setTailing(false);
-  }, []);
+    setReconnecting(false);
+    resetTailPause();
+  }, [resetTailPause]);
 
   const stopTail = useCallback(() => {
     const wasTailing = tailAbortRef.current !== null;
@@ -179,6 +280,26 @@ export default function LogFilesPage() {
   useEffect(() => () => {
     tailAbortRef.current?.abort();
   }, []);
+
+  const appendTailLines = useCallback((batch: string[]) => {
+    setTailLines((prev) => (prev.length + batch.length > MAX_TAIL_LINES
+      ? [...prev, ...batch].slice(-MAX_TAIL_LINES)
+      : [...prev, ...batch]));
+  }, []);
+
+  const pauseTail = useCallback(() => {
+    tailPausedRef.current = true;
+    setTailPaused(true);
+  }, []);
+
+  const resumeTail = useCallback(() => {
+    tailPausedRef.current = false;
+    setTailPaused(false);
+    const pending = pendingTailRef.current;
+    pendingTailRef.current = [];
+    setPendingTailCount(0);
+    if (pending.length > 0) appendTailLines(pending);
+  }, [appendTailLines]);
 
   const toggleTail = async () => {
     if (tailing) {
@@ -193,11 +314,17 @@ export default function LogFilesPage() {
     setTailing(true);
     setTailLines([]);
     setServerKeyword('');
+    resetTailPause();
+    setReconnecting(false);
 
     const appendBatch = (batch: string[]) => {
-      setTailLines((prev) => (prev.length + batch.length > MAX_TAIL_LINES
-        ? [...prev, ...batch].slice(-MAX_TAIL_LINES)
-        : [...prev, ...batch]));
+      // 暂停期间进积压缓冲（同样受 MAX_TAIL_LINES 限制），恢复时一次性合并
+      if (tailPausedRef.current) {
+        pendingTailRef.current = [...pendingTailRef.current, ...batch].slice(-MAX_TAIL_LINES);
+        setPendingTailCount(pendingTailRef.current.length);
+        return;
+      }
+      appendTailLines(batch);
     };
 
     let failures = 0;
@@ -208,6 +335,7 @@ export default function LogFilesPage() {
         try {
           const res = await fetchTailStream(fileName, ctrl.signal);
           if (res.ok && res.body) {
+            setReconnecting(false);
             await readTailStream(res, (batch) => {
               gotData = true;
               appendBatch(batch);
@@ -222,18 +350,29 @@ export default function LogFilesPage() {
           Toast.error('实时追踪连接中断，已停止');
           return;
         }
+        setReconnecting(true);
         await new Promise((resolve) => setTimeout(resolve, TAIL_RETRY_DELAY_MS));
       }
     } finally {
       if (tailAbortRef.current === ctrl) {
         tailAbortRef.current = null;
         setTailing(false);
+        setReconnecting(false);
       }
     }
   };
 
   // ── 交互 ──
-  const selectFile = (file: LogFile) => {
+  const syncFileParam = useCallback((name: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (name) next.set('file', name);
+      else next.delete('file');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const selectFile = useCallback((file: LogFile) => {
     if (selected?.name === file.name) return;
     abortTail();
     setSelected(file);
@@ -242,15 +381,27 @@ export default function LogFilesPage() {
     setServerKeyword('');
     setActiveMatchIndex(0);
     setLevelFilter('all');
-  };
+    syncFileParam(file.name);
+  }, [selected, abortTail, syncFileParam]);
+
+  // URL ?file= 深链恢复：文件列表就绪后应用一次（刷新/分享链接直达）
+  const urlFileAppliedRef = useRef(false);
+  useEffect(() => {
+    if (urlFileAppliedRef.current || files.length === 0) return;
+    urlFileAppliedRef.current = true;
+    const fileParam = searchParams.get('file');
+    if (!fileParam || selected) return;
+    const target = files.find((f) => f.name === fileParam);
+    if (target) selectFile(target);
+  }, [files, searchParams, selected, selectFile]);
 
   const jumpToMatch = useCallback((direction: -1 | 1) => {
-    if (matches.length === 0 || tailing) return;
+    if (matches.length === 0 || (tailing && !tailPaused)) return;
     setActiveMatchIndex((prev) => {
       const current = Math.min(prev, matches.length - 1);
       return (current + direction + matches.length) % matches.length;
     });
-  }, [matches.length, tailing]);
+  }, [matches.length, tailing, tailPaused]);
 
   const handleSearchChange = (value: string) => {
     setSearchDraft(value);
@@ -284,6 +435,13 @@ export default function LogFilesPage() {
     }
   };
 
+  const deselectFile = useCallback(() => {
+    abortTail();
+    setSelected(null);
+    setTailLines([]);
+    syncFileParam(null);
+  }, [abortTail, syncFileParam]);
+
   const handleDelete = (file: LogFile) => {
     confirmDelete({
       title: `确定要删除 ${file.name} 吗？`,
@@ -291,25 +449,77 @@ export default function LogFilesPage() {
       onOk: async () => {
         await deleteMutation.mutateAsync(file.name);
         Toast.success('删除成功');
-        if (selected?.name === file.name) {
-          abortTail();
-          setSelected(null);
-          setTailLines([]);
-        }
+        if (selected?.name === file.name) deselectFile();
       },
     });
+  };
+
+  const gzFiles = useMemo(() => files.filter((f) => f.isGzip), [files]);
+
+  const handleCleanGz = () => {
+    if (gzFiles.length === 0) return;
+    const totalSize = gzFiles.reduce((sum, f) => sum + f.size, 0);
+    confirmDelete({
+      title: '确定要清理全部压缩日志吗？',
+      content: `共 ${gzFiles.length} 个 .gz 文件（${formatFileSize(totalSize)}），删除后无法恢复。`,
+      onOk: async () => {
+        for (const file of gzFiles) {
+          await deleteMutation.mutateAsync(file.name);
+        }
+        Toast.success(`已清理 ${gzFiles.length} 个压缩日志`);
+        if (selected?.isGzip) deselectFile();
+      },
+    });
+  };
+
+  // ── 复制 / 导出 ──
+  const handleCopy = async (mode: 'view' | 'all') => {
+    const source = mode === 'all' ? rawLines : displayLines;
+    if (source.length === 0) {
+      Toast.info('没有可复制的内容');
+      return;
+    }
+    if (await copyText(source.join('\n'))) {
+      Toast.success(`已复制 ${source.length} 行`);
+    } else {
+      Toast.error('复制失败，请检查浏览器剪贴板权限');
+    }
+  };
+
+  const handleExportView = () => {
+    if (displayLines.length === 0) {
+      Toast.info('没有可导出的内容');
+      return;
+    }
+    const blob = new Blob([displayLines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(selected?.name ?? 'log').replace(/\.log(\.gz)?$/, '')}-filtered.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleGotoLine = () => {
+    if (!gotoValue || rawLines.length === 0) return;
+    contentViewRef.current?.scrollToOriginalLine(Math.min(Math.max(1, gotoValue), rawLines.length));
   };
 
   const contentLoading = !tailing && contentQuery.isFetching && !contentQuery.data;
   const contentError = !tailing && contentQuery.isError;
   const resetKey = `${selected?.name ?? ''}|${tailing ? 'tail' : 'static'}|${contentQuery.dataUpdatedAt}`;
-  const emptyText = tailing
-    ? '等待日志输出…'
-    : rawLines.length > 0 && levelFilter !== 'all'
-      ? '当前级别下无日志'
-      : fullText && serverKeyword
-        ? '未找到匹配的日志内容'
-        : '（文件为空）';
+  let emptyText: string;
+  if (tailing) {
+    emptyText = '等待日志输出…';
+  } else if (rawLines.length > 0 && grepActive) {
+    emptyText = '无匹配行';
+  } else if (rawLines.length > 0 && levelFilter !== 'all') {
+    emptyText = '当前级别下无日志';
+  } else if (fullText && serverKeyword) {
+    emptyText = '未找到匹配的日志内容';
+  } else {
+    emptyText = '（文件为空）';
+  }
 
   const matchCounter = debouncedSearch ? (
     <span
@@ -332,18 +542,42 @@ export default function LogFilesPage() {
       maxSize={480}
       persistKey="log-files"
       showDetail={selected !== null}
-      onBack={() => setSelected(null)}
+      onBack={deselectFile}
       master={(
           <NavListPanel
             title="日志文件"
             headerExtra={
-              <Button
-                icon={<RefreshCw size={13} />}
-                size="small"
-                theme="borderless"
-                loading={filesQuery.isFetching}
-                onClick={() => void filesQuery.refetch()}
-              />
+              <>
+                <Button
+                  icon={<RefreshCw size={13} />}
+                  size="small"
+                  theme="borderless"
+                  loading={filesQuery.isFetching}
+                  onClick={() => void filesQuery.refetch()}
+                />
+                {hasPermission('system:log:files:delete') && (
+                  <Dropdown
+                    trigger="click"
+                    position="bottomRight"
+                    clickToHide
+                    render={
+                      <Dropdown.Menu>
+                        <Dropdown.Item
+                          type="danger"
+                          disabled={gzFiles.length === 0}
+                          onClick={handleCleanGz}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Trash2 size={14} /> 清理压缩日志（{gzFiles.length} 个）
+                          </span>
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    }
+                  >
+                    <Button theme="borderless" size="small" icon={<MoreHorizontal size={14} />} />
+                  </Dropdown>
+                )}
+              </>
             }
             search={{
               value: keyword,
@@ -436,10 +670,19 @@ export default function LogFilesPage() {
               <Typography.Text style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 600 }}>
                 {selected.name}
               </Typography.Text>
-              {tailing && (
+              {tailing && !tailPaused && (
                 <Tag color="green" size="small">
                   <Activity size={10} style={{ marginRight: 4 }} />实时追踪中
                 </Tag>
+              )}
+              {tailing && tailPaused && (
+                <Tag color="orange" size="small">
+                  <Pause size={10} style={{ marginRight: 4 }} />
+                  已暂停{pendingTailCount > 0 ? ` · 积压 ${pendingTailCount} 行` : ''}
+                </Tag>
+              )}
+              {tailing && reconnecting && (
+                <Tag color="red" size="small">连接中断，重连中…</Tag>
               )}
               {tailing && tailLines.length >= MAX_TAIL_LINES && (
                 <Tag color="orange" size="small">仅保留最近 {MAX_TAIL_LINES} 行</Tag>
@@ -459,14 +702,42 @@ export default function LogFilesPage() {
                   onEnterPress={handleSearchEnter}
                   showClear
                   size="small"
+                  validateStatus={searchInvalid ? 'error' : 'default'}
                   style={{ width: 240 }}
                 />
+                <Tooltip content={searchInvalid ? '正则表达式无效' : '按正则表达式搜索'}>
+                  <Button
+                    size="small"
+                    theme={searchRegex ? 'light' : 'borderless'}
+                    type={searchInvalid ? 'danger' : searchRegex ? 'primary' : 'tertiary'}
+                    icon={<Regex size={13} />}
+                    onClick={() => { setSearchRegex((v) => !v); setActiveMatchIndex(0); }}
+                  />
+                </Tooltip>
+                <Tooltip content="区分大小写">
+                  <Button
+                    size="small"
+                    theme={searchCaseSensitive ? 'light' : 'borderless'}
+                    type={searchCaseSensitive ? 'primary' : 'tertiary'}
+                    icon={<CaseSensitive size={15} />}
+                    onClick={() => { setSearchCaseSensitive((v) => !v); setActiveMatchIndex(0); }}
+                  />
+                </Tooltip>
+                <Tooltip content="仅显示匹配行（grep 模式）">
+                  <Button
+                    size="small"
+                    theme={matchesOnly ? 'light' : 'borderless'}
+                    type={matchesOnly ? 'primary' : 'tertiary'}
+                    icon={<ListFilter size={13} />}
+                    onClick={() => { setMatchesOnly((v) => !v); setActiveMatchIndex(0); }}
+                  />
+                </Tooltip>
                 <Tooltip content="上一个匹配（Shift+Enter）">
                   <Button
                     size="small"
                     theme="borderless"
                     icon={<ArrowUp size={13} />}
-                    disabled={matches.length === 0 || tailing}
+                    disabled={matches.length === 0 || (tailing && !tailPaused)}
                     onClick={() => jumpToMatch(-1)}
                   />
                 </Tooltip>
@@ -475,7 +746,7 @@ export default function LogFilesPage() {
                     size="small"
                     theme="borderless"
                     icon={<ArrowDown size={13} />}
-                    disabled={matches.length === 0 || tailing}
+                    disabled={matches.length === 0 || (tailing && !tailPaused)}
                     onClick={() => jumpToMatch(1)}
                   />
                 </Tooltip>
@@ -490,12 +761,22 @@ export default function LogFilesPage() {
                     全文
                   </Button>
                 </Tooltip>
+                {fullText && (
+                  <Select
+                    size="small"
+                    value={serverContext}
+                    onChange={(value) => setServerContext(value as number)}
+                    optionList={CONTEXT_OPTIONS}
+                    disabled={tailing}
+                    style={{ width: 128 }}
+                  />
+                )}
                 <Select
                   size="small"
                   value={levelFilter}
-                  onChange={(value) => setLevelFilter(value as 'all' | LogLevel)}
-                  optionList={LEVEL_FILTER_OPTIONS}
-                  style={{ width: 108 }}
+                  onChange={(value) => { setLevelFilter(value as 'all' | LogLevel); setActiveMatchIndex(0); }}
+                  optionList={levelOptions}
+                  style={{ width: 132 }}
                 />
                 <Select
                   size="small"
@@ -506,16 +787,94 @@ export default function LogFilesPage() {
                   style={{ width: 122 }}
                 />
                 {!selected.isGzip && hasPermission('system:log:files') && (
-                  <Button
-                    size="small"
-                    icon={tailing ? <StopCircle size={13} /> : <Activity size={13} />}
-                    type={tailing ? 'danger' : 'primary'}
-                    theme="light"
-                    onClick={() => void toggleTail()}
-                  >
-                    {tailing ? '停止追踪' : '实时追踪'}
-                  </Button>
+                  tailing ? (
+                    <>
+                      <Button
+                        size="small"
+                        icon={tailPaused ? <Play size={13} /> : <Pause size={13} />}
+                        theme="light"
+                        onClick={() => (tailPaused ? resumeTail() : pauseTail())}
+                      >
+                        {tailPaused ? '继续' : '暂停'}
+                      </Button>
+                      <Button
+                        size="small"
+                        icon={<StopCircle size={13} />}
+                        type="danger"
+                        theme="light"
+                        onClick={() => void toggleTail()}
+                      >
+                        停止
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="small"
+                      icon={<Activity size={13} />}
+                      type="primary"
+                      theme="light"
+                      onClick={() => void toggleTail()}
+                    >
+                      实时追踪
+                    </Button>
+                  )
                 )}
+                <Popover
+                  trigger="click"
+                  position="bottomRight"
+                  content={
+                    <div style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <InputNumber
+                        size="small"
+                        min={1}
+                        max={Math.max(1, rawLines.length)}
+                        value={gotoValue ?? undefined}
+                        onChange={(v) => setGotoValue(Number(v) || null)}
+                        placeholder="行号"
+                        style={{ width: 110 }}
+                      />
+                      <Button size="small" theme="solid" type="primary" disabled={!gotoValue} onClick={handleGotoLine}>
+                        跳转
+                      </Button>
+                    </div>
+                  }
+                >
+                  <span style={{ display: 'inline-flex' }}>
+                    <Tooltip content="跳到行号">
+                      <Button size="small" theme="borderless" icon={<Hash size={13} />} disabled={rawLines.length === 0} />
+                    </Tooltip>
+                  </span>
+                </Popover>
+                <Dropdown
+                  trigger="click"
+                  position="bottomRight"
+                  clickToHide
+                  render={
+                    <Dropdown.Menu>
+                      <Dropdown.Item onClick={() => void handleCopy('view')}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Copy size={14} /> 复制当前视图（{displayLines.length} 行）
+                        </span>
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => void handleCopy('all')}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Copy size={14} /> 复制全部（{rawLines.length} 行）
+                        </span>
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={handleExportView}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <FileDown size={14} /> 导出当前视图为 txt
+                        </span>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  }
+                >
+                  <span style={{ display: 'inline-flex' }}>
+                    <Tooltip content="复制 / 导出">
+                      <Button size="small" theme="borderless" icon={<Copy size={13} />} disabled={rawLines.length === 0} />
+                    </Tooltip>
+                  </span>
+                </Dropdown>
                 <Tooltip content={showLineNumbers ? '隐藏行号' : '显示行号'}>
                   <Button
                     size="small"
@@ -585,14 +944,15 @@ export default function LogFilesPage() {
               </div>
             ) : (
               <LogContentView
+                ref={contentViewRef}
                 lines={rawLines}
-                visibleIndexes={visibleIndexes}
+                visibleIndexes={displayIndexes}
                 levels={levels}
-                lineRanges={searchIndex.lineRanges}
+                lineRanges={displayRanges}
                 activeMatch={activeMatch}
                 showLineNumbers={showLineNumbers}
                 wrap={wrap}
-                following={tailing}
+                following={tailing && !tailPaused}
                 resetKey={resetKey}
                 emptyText={emptyText}
               />

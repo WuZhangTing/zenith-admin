@@ -19,30 +19,52 @@ export interface SearchIndex {
 
 const EMPTY_INDEX: SearchIndex = { matches: [], lineRanges: new Map() };
 
+export interface SearchOptions {
+  /** 按正则表达式解释关键词（无效正则返回 null） */
+  regex?: boolean;
+  /** 区分大小写 */
+  caseSensitive?: boolean;
+}
+
 export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
-export function findMatchRanges(line: string, keyword: string): MatchRange[] {
-  const normalizedKeyword = keyword.trim();
-  if (!normalizedKeyword) return [];
+/** 把关键词编译为全局匹配正则；空关键词或无效正则返回 null */
+export function compileSearchPattern(keyword: string, options: SearchOptions = {}): RegExp | null {
+  const normalized = keyword.trim();
+  if (!normalized) return null;
+  const flags = options.caseSensitive ? 'g' : 'gi';
+  try {
+    return new RegExp(options.regex ? normalized : escapeRegExp(normalized), flags);
+  } catch {
+    return null;
+  }
+}
 
-  const regex = new RegExp(escapeRegExp(normalizedKeyword), 'gi');
-  return Array.from(line.matchAll(regex), (match) => {
+export function findMatchRanges(line: string, pattern: RegExp | string): MatchRange[] {
+  const regex = typeof pattern === 'string' ? compileSearchPattern(pattern) : pattern;
+  if (!regex) return [];
+
+  const ranges: MatchRange[] = [];
+  for (const match of line.matchAll(regex)) {
+    // 跳过零宽匹配（如 /a*/ 可匹配空串），matchAll 自身会推进游标不会死循环
+    if (match[0].length === 0) continue;
     const start = match.index ?? 0;
-    return { start, end: start + match[0].length };
-  });
+    ranges.push({ start, end: start + match[0].length });
+  }
+  return ranges;
 }
 
 /** 一次遍历构建搜索索引：导航用扁平列表 + 高亮用按行区间 Map */
-export function buildSearchIndex(lines: string[], keyword: string): SearchIndex {
-  const normalizedKeyword = keyword.trim();
-  if (!normalizedKeyword) return EMPTY_INDEX;
+export function buildSearchIndex(lines: string[], pattern: RegExp | string | null): SearchIndex {
+  const regex = typeof pattern === 'string' ? compileSearchPattern(pattern) : pattern;
+  if (!regex) return EMPTY_INDEX;
 
   const matches: SearchMatch[] = [];
   const lineRanges = new Map<number, MatchRange[]>();
   lines.forEach((line, lineIndex) => {
-    const ranges = findMatchRanges(line, normalizedKeyword);
+    const ranges = findMatchRanges(line, regex);
     if (ranges.length === 0) return;
     lineRanges.set(lineIndex, ranges);
     ranges.forEach((range, matchIndex) => {

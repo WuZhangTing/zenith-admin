@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSearchIndex, computeEffectiveLevels, detectLogLevel, findMatchRanges } from './logFilesSearch';
+import { buildSearchIndex, compileSearchPattern, computeEffectiveLevels, detectLogLevel, findMatchRanges } from './logFilesSearch';
 
 describe('log file search helpers', () => {
   it('finds all case-insensitive match ranges in one line', () => {
@@ -34,6 +34,37 @@ describe('log file search helpers', () => {
     const { matches, lineRanges } = buildSearchIndex(['ERROR boom'], '   ');
     expect(matches).toEqual([]);
     expect(lineRanges.size).toBe(0);
+  });
+});
+
+describe('compileSearchPattern', () => {
+  it('escapes literal keywords by default and ignores case', () => {
+    const pattern = compileSearchPattern('a.b');
+    expect(findMatchRanges('A.B axb', pattern!)).toEqual([{ start: 0, end: 3 }]);
+  });
+
+  it('supports case-sensitive matching', () => {
+    const pattern = compileSearchPattern('Error', { caseSensitive: true });
+    expect(findMatchRanges('error Error ERROR', pattern!)).toEqual([{ start: 6, end: 11 }]);
+  });
+
+  it('supports regex mode', () => {
+    const p = compileSearchPattern(String.raw`\berr\w+`, { regex: true });
+    expect(findMatchRanges('an error and errno', p!)).toEqual([
+      { start: 3, end: 8 },
+      { start: 13, end: 18 },
+    ]);
+  });
+
+  it('returns null for an invalid regex and search degrades to empty', () => {
+    const pattern = compileSearchPattern('([', { regex: true });
+    expect(pattern).toBeNull();
+    expect(buildSearchIndex(['(['], pattern).matches).toEqual([]);
+  });
+
+  it('skips zero-width regex matches', () => {
+    const pattern = compileSearchPattern('x*', { regex: true });
+    expect(findMatchRanges('axxb', pattern!)).toEqual([{ start: 1, end: 3 }]);
   });
 });
 

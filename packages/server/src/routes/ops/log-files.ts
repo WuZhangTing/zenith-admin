@@ -33,6 +33,7 @@ const contentRoute = defineOpenAPIRoute({
       query: z.object({
         lines: z.coerce.number().min(1).max(5000).default(500).optional(),
         keyword: z.string().max(200).optional(),
+        context: z.coerce.number().min(0).max(10).default(0).optional(),
       }),
     },
     responses: {
@@ -44,7 +45,7 @@ const contentRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const q = c.req.valid('query');
-    const lines = await readLogFileLines(c.req.param('filename'), q.lines ?? 500, q.keyword);
+    const lines = await readLogFileLines(c.req.param('filename'), q.lines ?? 500, q.keyword, q.context);
     return c.json(okBody({ lines }, 'success'), 200);
   },
 });

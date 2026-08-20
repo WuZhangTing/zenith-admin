@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Button, Typography } from '@douyinfe/semi-ui';
-import { ChevronsDown } from 'lucide-react';
+import { Button, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { LogLevel, MatchRange, SearchMatch } from './logFilesSearch';
 
 const LEVEL_COLORS: Partial<Record<LogLevel, string>> = {
@@ -63,12 +63,19 @@ export interface LogContentViewProps {
   emptyText: string;
 }
 
-export function LogContentView({
+export interface LogContentViewHandle {
+  scrollToTop: () => void;
+  /** 按原始行号（1-based）定位；目标行被过滤时跳到其后最近的可见行 */
+  scrollToOriginalLine: (lineNo: number) => void;
+}
+
+export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewProps>(function LogContentView({
   lines, visibleIndexes, levels, lineRanges, activeMatch,
   showLineNumbers, wrap, following, resetKey, emptyText,
-}: LogContentViewProps) {
+}, ref) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [atBottom, setAtBottom] = useState(true);
+  const [atTop, setAtTop] = useState(true);
   const atBottomRef = useRef(true);
   const pinRafRef = useRef(0);
   const pinningRef = useRef(false);
@@ -86,6 +93,7 @@ export function LogContentView({
   const updateAtBottom = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
+    setAtTop(el.scrollTop < 40);
     // 钉底期间虚拟行异步测量会产生瞬时偏差，忽略，避免钉底被误判为用户上滚
     if (pinningRef.current) return;
     const next = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
@@ -122,6 +130,38 @@ export function LogContentView({
   }, []);
 
   useEffect(() => () => cancelAnimationFrame(pinRafRef.current), []);
+
+  const scrollToTop = useCallback(() => {
+    cancelPin();
+    atBottomRef.current = false;
+    setAtBottom(false);
+    setAtTop(true);
+    const el = scrollRef.current;
+    if (el) el.scrollTop = 0;
+  }, [cancelPin]);
+
+  const scrollToOriginalLine = useCallback((lineNo: number) => {
+    if (visibleIndexes.length === 0) return;
+    const target = lineNo - 1;
+    // visibleIndexes 升序：二分找第一个 >= target 的展示行
+    let lo = 0;
+    let hi = visibleIndexes.length - 1;
+    let found = visibleIndexes.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (visibleIndexes[mid] >= target) {
+        found = mid;
+        hi = mid - 1;
+      } else {
+        lo = mid + 1;
+      }
+    }
+    cancelPin();
+    virtualizer.scrollToIndex(found, { align: 'center' });
+    requestAnimationFrame(updateAtBottom);
+  }, [visibleIndexes, virtualizer, cancelPin, updateAtBottom]);
+
+  useImperativeHandle(ref, () => ({ scrollToTop, scrollToOriginalLine }), [scrollToTop, scrollToOriginalLine]);
 
   // 数据源变化（切换文件/刷新/开始追踪）→ 回到底部（日志约定：最新内容在末尾）
   useEffect(() => {
@@ -234,18 +274,34 @@ export function LogContentView({
           </div>
         )}
       </div>
-      {!atBottom && count > 0 && (
-        <Button
-          icon={<ChevronsDown size={14} />}
-          size="small"
-          theme="solid"
-          type="tertiary"
-          style={{ position: 'absolute', right: 20, bottom: 16, borderRadius: 16, opacity: 0.85 }}
-          onClick={() => scrollToBottom()}
-        >
-          回到底部
-        </Button>
+      {count > 0 && (
+        <div style={{ position: 'absolute', right: 20, bottom: 16, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+          {!atTop && (
+            <Tooltip content="回到顶部" position="left">
+              <Button
+                icon={<ChevronsUp size={14} />}
+                size="small"
+                theme="solid"
+                type="tertiary"
+                style={{ borderRadius: 16, opacity: 0.85 }}
+                onClick={scrollToTop}
+              />
+            </Tooltip>
+          )}
+          {!atBottom && (
+            <Button
+              icon={<ChevronsDown size={14} />}
+              size="small"
+              theme="solid"
+              type="tertiary"
+              style={{ borderRadius: 16, opacity: 0.85 }}
+              onClick={() => scrollToBottom()}
+            >
+              回到底部
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
-}
+});
