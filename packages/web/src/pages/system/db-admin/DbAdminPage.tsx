@@ -46,6 +46,7 @@ import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { useThemeController } from '@/providers/theme-controller';
 import { usePermission } from '@/hooks/usePermission';
+import { usePreferences } from '@/hooks/usePreferences';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -127,6 +128,7 @@ const VALID_TABS = new Set(['overview', 'browse', 'objects', 'console', 'ops', '
 export default function DbAdminPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
+  const { preferences: { syncPageStateToUrl } } = usePreferences();
   const canQuery = hasPermission('system:db-admin:query');
   const canExport = hasPermission('system:db-admin:export');
   const canWrite = hasPermission('system:db-admin:write');
@@ -254,16 +256,21 @@ export default function DbAdminPage() {
   }, [tablesQuery.isPending, tables, recordRecentTable]);
 
   // 状态 → URL：仅写非默认值，replace 避免污染浏览器历史；
-  // 深链表尚未解析完成时不接管，避免首轮渲染把 table 参数抹掉
+  // 深链表尚未解析完成时不接管，避免首轮渲染把 table 参数抹掉。
+  // 偏好「页面状态同步到地址栏」关闭时消费即焚：深链应用后清参、不再写回
   useEffect(() => {
     if (initialTableParamRef.current) return;
-    const next = new URLSearchParams();
-    if (activeTab !== 'overview') next.set('tab', activeTab);
-    if (selected) next.set('table', `${selected.schema}.${selected.name}`);
     const current = new URLSearchParams(window.location.search);
     current.delete('redirect');
+    const next = new URLSearchParams(current);
+    next.delete('tab');
+    next.delete('table');
+    if (syncPageStateToUrl) {
+      if (activeTab !== 'overview') next.set('tab', activeTab);
+      if (selected) next.set('table', `${selected.schema}.${selected.name}`);
+    }
     if (next.toString() !== current.toString()) setSearchParams(next, { replace: true });
-  }, [activeTab, selected, setSearchParams]);
+  }, [activeTab, selected, setSearchParams, syncPageStateToUrl]);
 
   const structureQuery = useDbAdminTableStructure(selected?.schema, selected?.name, selected !== null);
   const structure = structureQuery.data ?? null;

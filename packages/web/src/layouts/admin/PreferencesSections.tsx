@@ -635,6 +635,19 @@ export function PrefsGeneralSection({
       </div>
       )}
 
+      {/* ── 页面状态同步到地址栏 ── */}
+      {matchesPref(['地址栏', 'URL', '深链', '页面状态', '查询参数', '分享', '书签', '标签参数', 'tab参数', '选中项']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          页面状态同步到地址栏
+          <Tooltip content="页面内的 Tab 与分栏选中项以查询参数写入地址栏（如 ?tab=），刷新、收藏或分享链接可直达当前视图；关闭时地址栏保持干净，外部带参链接进入仍会生效一次" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <Switch checked={preferences.syncPageStateToUrl ?? false} onChange={(v) => setPreferences({ syncPageStateToUrl: v })} />
+      </div>
+      )}
+
       {/* ── 退出登录确认 ── */}
       {matchesPref(['退出确认', '退出登录', '二次确认', '注销', '登出']) && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

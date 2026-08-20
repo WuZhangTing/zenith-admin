@@ -166,6 +166,12 @@ export interface UserPreferences {
   loadingStyle: LoadingStyle;
   /** 全局键盘快捷键（Alt+L 锁屏 / Alt+S 侧边栏 / Alt+C 内容全屏 / Ctrl+K 搜索菜单） */
   enableShortcuts: boolean;
+  /**
+   * 页面状态同步到地址栏：页面级 Tab 与分栏选中项以查询参数写入 URL（如 `?tab=`、`?dict=`），
+   * 刷新 / 收藏 / 分享可直达当前视图。关闭时地址栏保持干净，外部带参深链进入仍生效一次
+   * （消费后即从地址栏移除）
+   */
+  syncPageStateToUrl: boolean;
   /** 登录后默认进入的页面路径，'/' 表示首页仪表盘 */
   homePath: string;
   /** 无操作自动锁屏（分钟），0 = 关闭；需开启屏幕锁并设置密码后生效 */
@@ -232,6 +238,7 @@ export const defaultPreferences: UserPreferences = {
   showProgressBar: true,
   loadingStyle: 'dots',
   enableShortcuts: true,
+  syncPageStateToUrl: false,
   homePath: '/',
   autoLockMinutes: 0,
   reduceMotion: false,

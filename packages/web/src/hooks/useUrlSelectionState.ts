@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useOptionalPreferences } from '@/hooks/usePreferences';
 
 export type UrlSelection<K extends string> = Readonly<Record<K, string | null>>;
 
@@ -48,11 +49,17 @@ function selectionEquals<K extends string>(
  *
  * 与 `useListDeepLink` 的区别：后者是列表筛选参数的「消费即焚」，本 hook 是
  * 选中态的持久双向同步，二者可在同一页面共存。
+ *
+ * 受偏好「页面状态同步到地址栏」（`syncPageStateToUrl`，默认关）控制：
+ * 关闭时降级为「消费即焚」——带参深链进入仍生效一次（缺参不清状态），随后参数
+ * 从地址栏移除，点选不再写 URL。无 PreferencesProvider 的入口保持始终同步。
  */
 export function useUrlSelectionParams<K extends string>(
   paramNames: readonly K[],
 ): [UrlSelection<K>, Dispatch<SetStateAction<UrlSelection<K>>>] {
   const [searchParams, setSearchParams] = useSearchParams();
+  const prefs = useOptionalPreferences();
+  const syncToUrl = prefs ? (prefs.preferences.syncPageStateToUrl ?? false) : true;
 
   // 页面以字面量数组传入，视为常量；ref 兜底避免不稳定引用触发 effect 重跑
   const namesRef = useRef(paramNames);
@@ -65,24 +72,38 @@ export function useUrlSelectionParams<K extends string>(
   // URL → 状态：外部导航（带参进入已挂载页面、浏览器前进后退）时跟随
   useEffect(() => {
     setSelection((prev) => {
-      const next = readSelection(searchParams, namesRef.current);
-      return selectionEquals(prev, next, namesRef.current) ? prev : next;
+      const fromUrl = readSelection(searchParams, namesRef.current);
+      if (syncToUrl) {
+        return selectionEquals(prev, fromUrl, namesRef.current) ? prev : fromUrl;
+      }
+      // 消费模式：仅合并在场参数——参数应用后即被移除，缺参不代表清空选中
+      let changed = false;
+      const merged = { ...prev } as Record<K, string | null>;
+      for (const name of namesRef.current) {
+        const value = fromUrl[name];
+        if (value !== null && value !== prev[name]) {
+          merged[name] = value;
+          changed = true;
+        }
+      }
+      return changed ? merged : prev;
     });
-  }, [searchParams]);
+  }, [searchParams, syncToUrl]);
 
   // 状态 → URL：基于 router 提供的最新 searchParams 只改自己的参数（兼容 BrowserRouter 与
-  // HashRouter——后者的 query 在 hash 段内，window.location.search 读不到），其他参数原样保留
+  // HashRouter——后者的 query 在 hash 段内，window.location.search 读不到），其他参数原样保留；
+  // 消费模式下只删不写
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
     for (const name of namesRef.current) {
       const value = selection[name];
-      if (value === null || value === '') next.delete(name);
+      if (!syncToUrl || value === null || value === '') next.delete(name);
       else next.set(name, value);
     }
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
-  }, [selection, searchParams, setSearchParams]);
+  }, [selection, searchParams, setSearchParams, syncToUrl]);
 
   return [selection, setSelection];
 }

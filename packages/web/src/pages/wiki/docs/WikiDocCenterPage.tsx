@@ -13,6 +13,7 @@ import FileAttachment from '@/components/FileAttachment';
 import AppModal from '@/components/AppModal';
 import { KeywordInput } from '@/components/search-filters';
 import { usePermission } from '@/hooks/usePermission';
+import { usePreferences } from '@/hooks/usePreferences';
 import { useAuth } from '@/hooks/useAuth';
 import { confirmDelete } from '@/utils/confirm';
 import { useAllUsers } from '@/hooks/queries/users';
@@ -114,6 +115,7 @@ function CommentItem({ comment, canDelete, canResolve, onReply, onDelete, onReso
 export default function WikiDocCenterPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
+  const { preferences: { syncPageStateToUrl } } = usePreferences();
   const { user } = useAuth();
 
   // 空间与文档选中态同步到 URL（?spaceId=&docId=），支持刷新恢复、分享链接与跨页跳转
@@ -221,8 +223,9 @@ export default function WikiDocCenterPage() {
   // ─── 选中态 ↔ URL 同步 ────────────────────────────────────────────────────
   const lastWrittenParamsRef = useRef<string | null>(null);
 
-  // 状态 → URL：刷新可恢复、地址栏可直接分享
+  // 状态 → URL：刷新可恢复、地址栏可直接分享。偏好「页面状态同步到地址栏」关闭时不写回
   useEffect(() => {
+    if (!syncPageStateToUrl) return;
     const next = new URLSearchParams();
     if (effectiveSpaceId !== undefined) next.set('spaceId', String(effectiveSpaceId));
     if (selectedDocId !== undefined) next.set('docId', String(selectedDocId));
@@ -232,7 +235,18 @@ export default function WikiDocCenterPage() {
       setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在选中态变化时写回 URL
-  }, [effectiveSpaceId, selectedDocId]);
+  }, [effectiveSpaceId, selectedDocId, syncPageStateToUrl]);
+
+  // 偏好关闭时消费即焚：外部带参深链（评论管理/统计跳转）应用后从地址栏移除
+  useEffect(() => {
+    if (syncPageStateToUrl) return;
+    if (!searchParams.has('spaceId') && !searchParams.has('docId')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('spaceId');
+    next.delete('docId');
+    lastWrittenParamsRef.current = next.toString();
+    setSearchParams(next, { replace: true });
+  }, [syncPageStateToUrl, searchParams, setSearchParams]);
 
   // URL → 状态：页面已挂载时从其他页面（评论管理/知识空间/统计）跳转进来
   useEffect(() => {
