@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banner, Button, Form, Modal, Select, Space, Toast, SideSheet, Empty, Tag, Row, Col, Spin, Switch, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Modal, Select, Space, Toast, SideSheet, Empty, Tag, Spin, Switch, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw, Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
@@ -104,6 +104,7 @@ export default function UserGroupsPage() {
     save: saveMutation,
     useDetail: useUserGroupDetail,
     defaults: { status: 'enabled', memberMode: 'static' },
+    labelPosition: 'top',
     toValues: (group) => ({
       name: group.name,
       code: group.code,
@@ -384,39 +385,47 @@ export default function UserGroupsPage() {
         }}
       />
 
-      <AppModal {...groupModal.modalProps} width={720}>
-        <Spin spinning={groupModal.detailLoading} wrapperClassName="modal-spin-wrapper">
+      <SideSheet
+        title={groupModal.modalProps.title}
+        visible={groupModal.modalProps.visible}
+        onCancel={groupModal.modalProps.onCancel}
+        width={520}
+        closeOnEsc
+        footer={
+          <Space>
+            <Button onClick={groupModal.modalProps.onCancel}>取消</Button>
+            <Button
+              theme="solid"
+              type="primary"
+              loading={groupModal.modalProps.okButtonProps.loading}
+              disabled={groupModal.modalProps.okButtonProps.disabled}
+              onClick={() => void groupModal.modalProps.onOk()}
+            >
+              确定
+            </Button>
+          </Space>
+        }
+      >
+        <Spin spinning={groupModal.detailLoading}>
         <Form {...groupModal.formProps}>
           {({ formState }) => {
             const memberMode = (formState.values as { memberMode?: string }).memberMode ?? 'static';
             return (
               <>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Input field="name" label="名称" placeholder="请输入用户组名称" rules={[{ required: true, message: '请输入用户组名称' }]} />
-                  </Col>
-                  <Col span={12}>
-                    <Form.Input field="code" label="编码" placeholder="字母数字下划线" rules={[
-                      { required: true, message: '请输入用户组编码' },
-                      { pattern: /^\w+$/, message: '编码只能包含字母、数字和下划线' },
-                    ]} />
-                  </Col>
-                </Row>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Select
-                      field="ownerId" label="负责人" placeholder="请选择负责人（可选）"
-                      style={{ width: '100%' }} filter showClear
-                      optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
-                    />
-                  </Col>
-                  <Col span={12}>
-                    <Form.Select
-                      field="status" label="状态" style={{ width: '100%' }}
-                      optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
-                    />
-                  </Col>
-                </Row>
+                <Form.Input field="name" label="名称" placeholder="请输入用户组名称" rules={[{ required: true, message: '请输入用户组名称' }]} />
+                <Form.Input field="code" label="编码" placeholder="字母数字下划线" rules={[
+                  { required: true, message: '请输入用户组编码' },
+                  { pattern: /^\w+$/, message: '编码只能包含字母、数字和下划线' },
+                ]} />
+                <Form.Select
+                  field="ownerId" label="负责人" placeholder="请选择负责人（可选）"
+                  style={{ width: '100%' }} filter showClear
+                  optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                />
+                <Form.Select
+                  field="status" label="状态" style={{ width: '100%' }}
+                  optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+                />
                 <Form.RadioGroup
                   field="memberMode" label="成员模式" type="button"
                   extraText={memberMode === 'dynamic'
@@ -430,43 +439,34 @@ export default function UserGroupsPage() {
                   <div style={{
                     border: '1px solid var(--semi-color-border)',
                     borderRadius: 'var(--semi-border-radius-medium)',
-                    padding: '4px 16px 12px',
-                    marginBottom: 12,
+                    padding: '4px 16px 16px',
+                    margin: '12px 0',
                   }}>
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.TreeSelect
-                          field="memberRule.departmentIds" label="命中部门" placeholder="选择部门（可多选）"
-                          style={{ width: '100%' }} multiple filterTreeNode showClear leafOnly={false}
-                          treeData={departmentTreeData}
-                        />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Select
-                          field="memberRule.positionIds" label="命中岗位（任一）" placeholder="选择岗位（可多选）"
-                          style={{ width: '100%' }} multiple filter showClear
-                          optionList={(positionsQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
-                        />
-                      </Col>
-                    </Row>
+                    <Form.TreeSelect
+                      field="memberRule.departmentIds" label="命中部门" placeholder="选择部门（可多选）"
+                      style={{ width: '100%' }} multiple filterTreeNode showClear leafOnly={false}
+                      treeData={departmentTreeData}
+                    />
                     <Form.Switch field="memberRule.includeSubDepartments" label="包含子部门" checkedText="是" uncheckedText="否" />
-                    <Row gutter={16}>
-                      <Col span={12}>
-                        <Form.Select
-                          field="memberRule.includeUserIds" label="强制包含" placeholder="规则外的例外成员（可选）"
-                          style={{ width: '100%' }} multiple filter showClear
-                          optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
-                        />
-                      </Col>
-                      <Col span={12}>
-                        <Form.Select
-                          field="memberRule.excludeUserIds" label="强制排除（优先级最高）" placeholder="永不加入的用户（可选）"
-                          style={{ width: '100%' }} multiple filter showClear
-                          optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
-                        />
-                      </Col>
-                    </Row>
-                    <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 4 }}>
+                    <Form.Select
+                      field="memberRule.positionIds" label="命中岗位" placeholder="选择岗位（可多选）"
+                      extraText="多个岗位满足任一即可；与部门条件同时设置时须同时满足"
+                      style={{ width: '100%' }} multiple filter showClear
+                      optionList={(positionsQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                    />
+                    <Form.Select
+                      field="memberRule.includeUserIds" label="强制包含" placeholder="选择用户（可选）"
+                      extraText="规则之外的例外成员"
+                      style={{ width: '100%' }} multiple filter showClear
+                      optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                    />
+                    <Form.Select
+                      field="memberRule.excludeUserIds" label="强制排除" placeholder="选择用户（可选）"
+                      extraText="优先级最高，命中规则也不会加入"
+                      style={{ width: '100%' }} multiple filter showClear
+                      optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                    />
+                    <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 12 }}>
                       <Button
                         theme="light"
                         loading={rulePreviewMutation.isPending}
@@ -514,7 +514,7 @@ export default function UserGroupsPage() {
           }}
         </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       <SideSheet
         title={
