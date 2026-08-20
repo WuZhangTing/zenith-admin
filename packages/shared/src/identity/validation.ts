@@ -158,17 +158,44 @@ export const updatePositionSchema = partialForUpdate(createPositionSchema);
 
 
 // ─── 用户组 Schema ────────────────────────────────────────────────────────
-export const createUserGroupSchema = z.object({
+
+/** 动态组成员规则：dynamic 模式下至少要有一个条件或强制包含名单 */
+export const userGroupMemberRuleSchema = z.object({
+  departmentIds: z.array(z.number().int().positive()).max(200).optional(),
+  includeSubDepartments: z.boolean().optional(),
+  positionIds: z.array(z.number().int().positive()).max(200).optional(),
+  includeUserIds: z.array(z.number().int().positive()).max(500).optional(),
+  excludeUserIds: z.array(z.number().int().positive()).max(500).optional(),
+}).strict();
+
+const userGroupBaseSchema = z.object({
   name: z.string().min(1, '用户组名称不能为空').max(64),
   code: z.string().min(1, '用户组编码不能为空').max(64).regex(/^\w+$/, '用户组编码只能包含字母、数字和下划线'),
   description: z.string().max(256).optional(),
   ownerId: z.number().int().positive().nullable().optional(),
-  departmentId: z.number().int().positive().nullable().optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
+  memberMode: z.enum(['static', 'dynamic']).default('static'),
+  memberRule: userGroupMemberRuleSchema.nullable().optional(),
+});
+
+/** dynamic 模式的规则完整性校验（更新走 partial，合并态校验在服务层再做一次） */
+export function validateUserGroupRulePresence(memberMode: string, rule: UserGroupMemberRuleInput | null | undefined): boolean {
+  if (memberMode !== 'dynamic') return true;
+  return Boolean(
+    rule && ((rule.departmentIds?.length ?? 0) > 0 || (rule.positionIds?.length ?? 0) > 0 || (rule.includeUserIds?.length ?? 0) > 0),
+  );
+}
+
+export type UserGroupMemberRuleInput = z.infer<typeof userGroupMemberRuleSchema>;
+
+export const createUserGroupSchema = userGroupBaseSchema.superRefine((val, ctx) => {
+  if (!validateUserGroupRulePresence(val.memberMode, val.memberRule)) {
+    ctx.addIssue({ code: 'custom', path: ['memberRule'], message: '动态用户组至少需要一个部门/岗位条件或强制包含名单' });
+  }
 });
 
 
-export const updateUserGroupSchema = partialForUpdate(createUserGroupSchema);
+export const updateUserGroupSchema = partialForUpdate(userGroupBaseSchema);
 
 
 export type LoginInput = z.infer<typeof loginSchema>;

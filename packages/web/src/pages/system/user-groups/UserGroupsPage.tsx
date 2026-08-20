@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Form, Modal, Select, Space, Toast, SideSheet, Empty, Tag, Row, Col, Spin, Switch } from '@douyinfe/semi-ui';
-import { Trash2, Users } from 'lucide-react';
+import { Banner, Button, Form, Modal, Select, Space, Toast, SideSheet, Empty, Tag, Row, Col, Spin, Switch, Typography } from '@douyinfe/semi-ui';
+import { RefreshCw, Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
-import type { User, UserGroup } from '@zenith/shared/identity';
+import type { User, UserGroup, UserGroupMemberRule } from '@zenith/shared/identity';
 import { usePermission } from '@/hooks/usePermission';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -14,16 +14,20 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { useFlatDepartments } from '@/hooks/queries/departments';
+import { useAllPositions } from '@/hooks/queries/positions';
 import {
   useAssignUserGroupMembers,
   useAssignUserGroupRoles,
   useDeleteUserGroups,
   useSaveUserGroup,
   userGroupKeys,
+  useSyncUserGroup,
   useUserGroupDetail,
   useUserGroupList,
   useUserGroupMembers,
+  useUserGroupRulePreview,
   useUserGroupRoles,
+  type UserGroupRulePreview,
 } from '@/hooks/queries/user-groups';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useAllRoles } from '@/hooks/queries/roles';
@@ -83,6 +87,8 @@ export default function UserGroupsPage() {
   const [memberGroup, setMemberGroup] = useState<UserGroup | null>(null);
   const [memberIds, setMemberIds] = useState<number[]>([]);
   const membersQuery = useUserGroupMembers(memberGroup?.id, memberSheetVisible);
+  // 动态组规则预览
+  const [rulePreview, setRulePreview] = useState<UserGroupRulePreview | null>(null);
   // 角色分配
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [roleGroup, setRoleGroup] = useState<UserGroup | null>(null);
@@ -90,18 +96,22 @@ export default function UserGroupsPage() {
   const groupRolesQuery = useUserGroupRoles(roleGroup?.id, roleModalVisible);
   const allRolesQuery = useAllRoles({ enabled: roleModalVisible });
   const saveMutation = useSaveUserGroup();
+  const rulePreviewMutation = useUserGroupRulePreview();
+  const syncMutation = useSyncUserGroup();
+  const positionsQuery = useAllPositions();
   const groupModal = useEditModal<UserGroup>({
     entityName: '用户组',
     save: saveMutation,
     useDetail: useUserGroupDetail,
-    defaults: { status: 'enabled' },
+    defaults: { status: 'enabled', memberMode: 'static' },
     toValues: (group) => ({
       name: group.name,
       code: group.code,
       description: group.description ?? undefined,
       ownerId: group.ownerId ?? undefined,
-      departmentId: group.departmentId ?? undefined,
       status: group.status,
+      memberMode: group.memberMode ?? 'static',
+      memberRule: group.memberRule ?? undefined,
     }),
   });
   const toggleStatusMutation = useSaveUserGroup();
@@ -146,6 +156,11 @@ export default function UserGroupsPage() {
   useEffect(() => {
     if (roleModalVisible) setRoleIds((groupRolesQuery.data ?? []).map((r) => r.id));
   }, [roleModalVisible, groupRolesQuery.data]);
+
+  // 编辑弹窗关闭时清空规则预览，避免下次打开残留上一个组的结果
+  useEffect(() => {
+    if (!groupModal.modalProps.visible) setRulePreview(null);
+  }, [groupModal.modalProps.visible]);
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync([id]);
@@ -222,8 +237,10 @@ export default function UserGroupsPage() {
       render: (v: string | null | undefined) => v || '—',
     },
     {
-      title: '所属部门', dataIndex: 'departmentName', width: 140,
-      render: (v: string | null | undefined) => v || '—',
+      title: '成员模式', dataIndex: 'memberMode', width: 110,
+      render: (v: string, record: UserGroup) => v === 'dynamic'
+        ? <Tag color="teal">动态{record.ruleSyncedAt ? '' : '（未同步）'}</Tag>
+        : <Tag color="grey">静态</Tag>,
     },
     {
       title: '成员', dataIndex: 'memberPreview', width: 150,
@@ -266,6 +283,14 @@ export default function UserGroupsPage() {
           label: '角色',
           hidden: !hasPermission('system:user-groups:assign'),
           onClick: () => { void openRoles(record); },
+        },
+        {
+          key: 'sync',
+          label: '同步',
+          hidden: record.memberMode !== 'dynamic' || !hasPermission('system:user-groups:assign'),
+          onClick: () => {
+            syncMutation.mutate(record.id, { onSuccess: () => Toast.success('成员已按规则同步') });
+          },
         },
         {
           key: 'edit',
@@ -359,45 +384,134 @@ export default function UserGroupsPage() {
         }}
       />
 
-      <AppModal {...groupModal.modalProps} width={660}>
+      <AppModal {...groupModal.modalProps} width={720}>
         <Spin spinning={groupModal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form {...groupModal.formProps}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Input field="name" label="名称" placeholder="请输入用户组名称" rules={[{ required: true, message: '请输入用户组名称' }]} />
-            </Col>
-            <Col span={12}>
-              <Form.Input field="code" label="编码" placeholder="字母数字下划线" rules={[
-                { required: true, message: '请输入用户组编码' },
-                { pattern: /^\w+$/, message: '编码只能包含字母、数字和下划线' },
-              ]} />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="ownerId" label="负责人" placeholder="请选择负责人（可选）"
-                style={{ width: '100%' }} filter showClear
-                optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
-              />
-            </Col>
-            <Col span={12}>
-              <Form.TreeSelect
-                field="departmentId" label="所属部门" placeholder="请选择部门（可选）"
-                style={{ width: '100%' }} filterTreeNode showClear
-                treeData={departmentTreeData}
-              />
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Select
-                field="status" label="状态" style={{ width: '100%' }}
-                optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
-              />
-            </Col>
-          </Row>
-          <Form.TextArea field="description" label="描述" placeholder="请输入描述（可选）" maxCount={256} />
+          {({ formState }) => {
+            const memberMode = (formState.values as { memberMode?: string }).memberMode ?? 'static';
+            return (
+              <>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input field="name" label="名称" placeholder="请输入用户组名称" rules={[{ required: true, message: '请输入用户组名称' }]} />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Input field="code" label="编码" placeholder="字母数字下划线" rules={[
+                      { required: true, message: '请输入用户组编码' },
+                      { pattern: /^\w+$/, message: '编码只能包含字母、数字和下划线' },
+                    ]} />
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Select
+                      field="ownerId" label="负责人" placeholder="请选择负责人（可选）"
+                      style={{ width: '100%' }} filter showClear
+                      optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Select
+                      field="status" label="状态" style={{ width: '100%' }}
+                      optionList={statusItems.map((i) => ({ value: i.value, label: i.label }))}
+                    />
+                  </Col>
+                </Row>
+                <Form.RadioGroup
+                  field="memberMode" label="成员模式" type="button"
+                  extraText={memberMode === 'dynamic'
+                    ? '成员由规则自动维护：用户的部门/岗位/状态变化后自动加入或退出，不可手工增删'
+                    : '成员由管理员手工维护'}
+                >
+                  <Form.Radio value="static">静态（手工维护）</Form.Radio>
+                  <Form.Radio value="dynamic">动态（按规则自动维护）</Form.Radio>
+                </Form.RadioGroup>
+                {memberMode === 'dynamic' && (
+                  <div style={{
+                    border: '1px solid var(--semi-color-border)',
+                    borderRadius: 'var(--semi-border-radius-medium)',
+                    padding: '4px 16px 12px',
+                    marginBottom: 12,
+                  }}>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.TreeSelect
+                          field="memberRule.departmentIds" label="命中部门" placeholder="选择部门（可多选）"
+                          style={{ width: '100%' }} multiple filterTreeNode showClear leafOnly={false}
+                          treeData={departmentTreeData}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.Select
+                          field="memberRule.positionIds" label="命中岗位（任一）" placeholder="选择岗位（可多选）"
+                          style={{ width: '100%' }} multiple filter showClear
+                          optionList={(positionsQuery.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                        />
+                      </Col>
+                    </Row>
+                    <Form.Switch field="memberRule.includeSubDepartments" label="包含子部门" checkedText="是" uncheckedText="否" />
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Select
+                          field="memberRule.includeUserIds" label="强制包含" placeholder="规则外的例外成员（可选）"
+                          style={{ width: '100%' }} multiple filter showClear
+                          optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Form.Select
+                          field="memberRule.excludeUserIds" label="强制排除（优先级最高）" placeholder="永不加入的用户（可选）"
+                          style={{ width: '100%' }} multiple filter showClear
+                          optionList={allUsers.map(u => ({ value: u.id, label: `${u.nickname} (${u.username})` }))}
+                        />
+                      </Col>
+                    </Row>
+                    <Space vertical align="start" spacing={8} style={{ width: '100%', marginTop: 4 }}>
+                      <Button
+                        theme="light"
+                        loading={rulePreviewMutation.isPending}
+                        onClick={() => {
+                          const memberRule = ((formState.values as { memberRule?: UserGroupMemberRule }).memberRule ?? {});
+                          rulePreviewMutation.mutate(
+                            { groupId: groupModal.editing?.id, memberRule },
+                            { onSuccess: setRulePreview },
+                          );
+                        }}
+                      >
+                        预览成员变化
+                      </Button>
+                      {rulePreview && (
+                        <div style={{ fontSize: 12, lineHeight: '20px', width: '100%' }}>
+                          <Typography.Text type="secondary">
+                            目标成员 {rulePreview.total} 人：新加入 {rulePreview.joiningCount} 人，移除 {rulePreview.leavingCount} 人
+                          </Typography.Text>
+                          {rulePreview.joining.length > 0 && (
+                            <div style={{ marginTop: 4 }}>
+                              <Typography.Text type="success">加入：</Typography.Text>
+                              <Space wrap spacing={4}>
+                                {rulePreview.joining.map((u) => <Tag key={u.id} size="small" color="green">{u.nickname}</Tag>)}
+                                {rulePreview.joiningCount > rulePreview.joining.length && <Tag size="small">+{rulePreview.joiningCount - rulePreview.joining.length}</Tag>}
+                              </Space>
+                            </div>
+                          )}
+                          {rulePreview.leaving.length > 0 && (
+                            <div style={{ marginTop: 4 }}>
+                              <Typography.Text type="danger">移除：</Typography.Text>
+                              <Space wrap spacing={4}>
+                                {rulePreview.leaving.map((u) => <Tag key={u.id} size="small" color="red">{u.nickname}</Tag>)}
+                                {rulePreview.leavingCount > rulePreview.leaving.length && <Tag size="small">+{rulePreview.leavingCount - rulePreview.leaving.length}</Tag>}
+                              </Space>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </Space>
+                  </div>
+                )}
+                <Form.TextArea field="description" label="描述" placeholder="请输入描述（可选）" maxCount={256} />
+              </>
+            );
+          }}
         </Form>
         </Spin>
       </AppModal>
@@ -407,19 +521,60 @@ export default function UserGroupsPage() {
           <Space>
             <Users size={16} />
             <span>成员管理 - {memberGroup?.name}</span>
+            {memberGroup?.memberMode === 'dynamic' && <Tag color="teal" size="small">动态</Tag>}
           </Space>
         }
         visible={memberSheetVisible}
         onCancel={() => setMemberSheetVisible(false)}
         width={720}
         footer={
-          <Space>
-            <Button onClick={() => setMemberSheetVisible(false)}>取消</Button>
-            <Button type="primary" disabled={!membersQuery.isSuccess} loading={assignMembersMutation.isPending} onClick={handleSaveMembers}>保存</Button>
-          </Space>
+          memberGroup?.memberMode === 'dynamic' ? (
+            <Space>
+              <Button onClick={() => setMemberSheetVisible(false)}>关闭</Button>
+              {hasPermission('system:user-groups:assign') && (
+                <Button
+                  type="primary"
+                  icon={<RefreshCw size={14} />}
+                  loading={syncMutation.isPending}
+                  onClick={() => {
+                    if (!memberGroup) return;
+                    syncMutation.mutate(memberGroup.id, { onSuccess: () => Toast.success('成员已按规则同步') });
+                  }}
+                >
+                  立即同步
+                </Button>
+              )}
+            </Space>
+          ) : (
+            <Space>
+              <Button onClick={() => setMemberSheetVisible(false)}>取消</Button>
+              <Button type="primary" disabled={!membersQuery.isSuccess} loading={assignMembersMutation.isPending} onClick={handleSaveMembers}>保存</Button>
+            </Space>
+          )
         }
       >
-        {allUsers.length === 0 ? (
+        {memberGroup?.memberMode === 'dynamic' ? (
+          <Space vertical align="start" spacing={12} style={{ width: '100%' }}>
+            <Banner
+              fullMode={false}
+              type="info"
+              closeIcon={null}
+              description={`成员由规则自动维护，不可手工增删；需要例外时请在编辑规则中使用强制包含/排除名单。${memberGroup.ruleSyncedAt ? `最近同步：${memberGroup.ruleSyncedAt}` : '尚未同步'}`}
+              style={{ width: '100%' }}
+            />
+            <Spin spinning={membersQuery.isFetching} style={{ width: '100%' }}>
+              {(membersQuery.data ?? []).length === 0 ? (
+                <Empty title="暂无成员" description="当前没有用户命中该组规则" style={{ padding: '32px 0' }} />
+              ) : (
+                <Space wrap spacing={6}>
+                  {(membersQuery.data ?? []).map((m) => (
+                    <Tag key={m.id} size="large">{m.nickname}（{m.username}）</Tag>
+                  ))}
+                </Space>
+              )}
+            </Spin>
+          </Space>
+        ) : allUsers.length === 0 ? (
           <Empty title="暂无用户" description="请先创建用户" />
         ) : (
           <UserTransferSelect

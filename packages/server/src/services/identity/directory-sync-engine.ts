@@ -14,6 +14,7 @@ import {
 import type { DirectorySyncRunStatus, DirectorySyncTriggerType } from '@zenith/shared/identity';
 import { DIRECTORY_SYNC_FIELD_IGNORE } from '@zenith/shared/identity';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
+import { syncAllDynamicGroupsSafe } from './user-group-rules.service';
 import logger from '../../lib/logger';
 import { registerTaskHandler } from '../../lib/task-center';
 import { currentUserOrNull } from '../../lib/context';
@@ -622,6 +623,11 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
     }
 
     await insertRunItems(items);
+
+    // 目录同步可能批量改动部门/状态等动态组条件属性，运行后整体校准一次
+    if (!dryRun && stats.userCreated + stats.userLinked + stats.userUpdated + stats.userDisabled > 0) {
+      syncAllDynamicGroupsSafe('目录同步');
+    }
 
     const status: DirectorySyncRunStatus = stats.failedCount > 0 ? 'partial' : 'success';
     const summary = dryRun

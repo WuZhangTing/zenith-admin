@@ -2,6 +2,7 @@ import { asc, eq, and, inArray } from 'drizzle-orm';
 import { db } from '../../db';
 import { departments, users } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
+import { syncAllDynamicGroupsSafe } from './user-group-rules.service';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
@@ -160,6 +161,8 @@ export async function updateDepartment(id: number, input: UpdateDepartmentInput)
       .where(and(eq(departments.id, id), tc))
       .returning();
     if (!row) throw new HTTPException(404, { message: '部门不存在' });
+    // 部门挂载点变化影响动态用户组的子树展开结果，整体校准
+    if (input.parentId !== undefined) syncAllDynamicGroupsSafe('部门移动');
     const leaderMap = await buildLeaderMap(row.leaderId ? [row.leaderId] : []);
     return mapDepartment(row, row.leaderId ? leaderMap.get(row.leaderId) ?? null : null);
   } catch (err) {

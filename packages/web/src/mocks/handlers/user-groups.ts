@@ -4,15 +4,31 @@ import { mockUserGroups, getNextUserGroupId } from '@/mocks/data/user-groups';
 import { mockUsers } from '@/mocks/data/users';
 import { mockRoles } from '@/mocks/data/roles';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { UserGroup } from '@zenith/shared/identity';
+import type { UserGroup, UserGroupMemberRule } from '@zenith/shared/identity';
 
 interface CreateBody {
   name: string;
   code: string;
   description?: string;
   ownerId?: number | null;
-  departmentId?: number | null;
   status?: 'enabled' | 'disabled';
+  memberMode?: 'static' | 'dynamic';
+  memberRule?: UserGroupMemberRule | null;
+}
+
+/** Demo 简化版规则求值：仅按部门（不展开子树层级差异）与强制名单计算 */
+function evaluateRule(rule: UserGroupMemberRule): number[] {
+  const target = new Set<number>();
+  if (rule.departmentIds?.length) {
+    for (const u of mockUsers) {
+      if (u.status === 'enabled' && u.departmentId != null && rule.departmentIds.includes(u.departmentId)) {
+        target.add(u.id);
+      }
+    }
+  }
+  for (const id of rule.includeUserIds ?? []) target.add(id);
+  for (const id of rule.excludeUserIds ?? []) target.delete(id);
+  return [...target];
 }
 
 function publicView(g: typeof mockUserGroups[number]): UserGroup {
@@ -27,6 +43,30 @@ function publicView(g: typeof mockUserGroups[number]): UserGroup {
 export const userGroupsHandlers = [
   http.get('/api/user-groups/all', () =>
     ok(mockUserGroups.map(publicView))),
+
+  // 规则 dry-run（必须先于 /:id 注册）
+  http.post('/api/user-groups/rule-preview', async ({ request }) => {
+    const body = await request.json() as { groupId?: number; memberRule: UserGroupMemberRule };
+    const target = evaluateRule(body.memberRule ?? {});
+    const current = body.groupId != null
+      ? (mockUserGroups.find((g) => g.id === body.groupId)?.memberIds ?? [])
+      : [];
+    const currentSet = new Set(current);
+    const targetSet = new Set(target);
+    const joining = target.filter((id) => !currentSet.has(id));
+    const leaving = current.filter((id) => !targetSet.has(id));
+    const brief = (id: number) => {
+      const u = mockUsers.find((mu) => mu.id === id);
+      return { id, username: u?.username ?? `#${id}`, nickname: u?.nickname ?? `#${id}` };
+    };
+    return ok({
+      total: target.length,
+      joiningCount: joining.length,
+      leavingCount: leaving.length,
+      joining: joining.slice(0, 50).map(brief),
+      leaving: leaving.slice(0, 50).map(brief),
+    });
+  }),
 
   http.get('/api/user-groups', ({ request }) => {
     const url = new URL(request.url);
@@ -59,6 +99,7 @@ export const userGroupsHandlers = [
   http.put('/api/user-groups/:id/members', async ({ params, request }) => {
     const grp = mockUserGroups.find((g) => g.id === Number(params.id));
     if (!grp) return notFound('用户组不存在');
+    if (grp.memberMode === 'dynamic') return badRequest('动态用户组的成员由规则自动维护，请通过编辑规则调整（支持强制包含/排除名单）');
     const body = await request.json() as { userIds: number[] };
     grp.memberIds = Array.isArray(body?.userIds) ? body.userIds : [];
     grp.memberCount = grp.memberIds.length;
@@ -69,6 +110,7 @@ export const userGroupsHandlers = [
   http.post('/api/user-groups/:id/members', async ({ params, request }) => {
     const grp = mockUserGroups.find((g) => g.id === Number(params.id));
     if (!grp) return notFound('用户组不存在');
+    if (grp.memberMode === 'dynamic') return badRequest('动态用户组的成员由规则自动维护，请通过编辑规则调整（支持强制包含/排除名单）');
     const body = await request.json() as { userIds: number[] };
     const set = new Set(grp.memberIds);
     (body?.userIds ?? []).forEach((id) => set.add(id));
@@ -80,11 +122,27 @@ export const userGroupsHandlers = [
   http.delete('/api/user-groups/:id/members', async ({ params, request }) => {
     const grp = mockUserGroups.find((g) => g.id === Number(params.id));
     if (!grp) return notFound('用户组不存在');
+    if (grp.memberMode === 'dynamic') return badRequest('动态用户组的成员由规则自动维护，请通过编辑规则调整（支持强制包含/排除名单）');
     const body = await request.json() as { userIds: number[] };
     const remove = new Set(body?.userIds ?? []);
     grp.memberIds = grp.memberIds.filter((id) => !remove.has(id));
     grp.memberCount = grp.memberIds.length;
     return ok(null, '移除成功');
+  }),
+
+  // 手动同步动态组成员
+  http.post('/api/user-groups/:id/sync', ({ params }) => {
+    const grp = mockUserGroups.find((g) => g.id === Number(params.id));
+    if (!grp) return notFound('用户组不存在');
+    if (grp.memberMode !== 'dynamic') return badRequest('仅动态用户组支持手动同步');
+    const target = evaluateRule(grp.memberRule ?? {});
+    const before = new Set(grp.memberIds);
+    const added = target.filter((id) => !before.has(id)).length;
+    const removed = grp.memberIds.filter((id) => !target.includes(id)).length;
+    grp.memberIds = target;
+    grp.memberCount = target.length;
+    grp.ruleSyncedAt = mockDateTime();
+    return ok(null, `同步完成：加入 ${added} 人，移除 ${removed} 人`);
   }),
 
   http.get('/api/user-groups/:id/roles', ({ params }) => {
@@ -119,6 +177,9 @@ export const userGroupsHandlers = [
       return badRequest('用户组编码已存在');
     }
     const now = mockDateTime();
+    const memberMode = body.memberMode ?? 'static';
+    const memberRule = memberMode === 'dynamic' ? (body.memberRule ?? null) : null;
+    const memberIds = memberMode === 'dynamic' && memberRule ? evaluateRule(memberRule) : [];
     const created = {
       id: getNextUserGroupId(),
       name: body.name,
@@ -126,10 +187,11 @@ export const userGroupsHandlers = [
       description: body.description ?? null,
       ownerId: body.ownerId ?? null,
       ownerName: null,
-      departmentId: body.departmentId ?? null,
-      departmentName: null,
-      memberCount: 0,
-      memberIds: [],
+      memberMode,
+      memberRule,
+      ruleSyncedAt: memberMode === 'dynamic' ? now : null,
+      memberCount: memberIds.length,
+      memberIds,
       roleIds: [],
       roleCount: 0,
       status: body.status ?? 'enabled',
@@ -145,14 +207,21 @@ export const userGroupsHandlers = [
     if (!grp) return notFound('用户组不存在');
     const body = await request.json() as Partial<CreateBody>;
     Object.assign(grp, body, { updatedAt: mockDateTime() });
+    if (grp.memberMode === 'static') {
+      grp.memberRule = null;
+    } else if (body.memberRule !== undefined || body.memberMode !== undefined) {
+      grp.memberIds = evaluateRule(grp.memberRule ?? {});
+      grp.memberCount = grp.memberIds.length;
+      grp.ruleSyncedAt = mockDateTime();
+    }
     return ok(publicView(grp), '更新成功');
   }),
 
   http.delete('/api/user-groups/batch', async ({ request }) => {
     const body = await request.json() as { ids: number[] };
     const ids = body?.ids ?? [];
-    // 在用保护：任一选中用户组仍有成员时整体拒绝
-    const blocked = mockUserGroups.filter((g) => ids.includes(g.id) && (g.memberCount ?? 0) > 0);
+    // 在用保护仅针对静态组：动态组成员是规则物化产物，允许直接删除
+    const blocked = mockUserGroups.filter((g) => ids.includes(g.id) && g.memberMode === 'static' && (g.memberCount ?? 0) > 0);
     if (blocked.length > 0) {
       const names = blocked.slice(0, 3).map((g) => `「${g.name}」`).join('、');
       const suffix = blocked.length > 3 ? ` 等 ${blocked.length} 个用户组` : '';
@@ -170,7 +239,7 @@ export const userGroupsHandlers = [
     if (idx === -1) return notFound('用户组不存在');
     const grp = mockUserGroups[idx];
     const memberCount = grp.memberCount ?? 0;
-    if (memberCount > 0) {
+    if (grp.memberMode === 'static' && memberCount > 0) {
       return conflict(`该用户组下仍有 ${memberCount} 名成员，请先移除成员后再删除`, { status: 409 });
     }
     mockUserGroups.splice(idx, 1);

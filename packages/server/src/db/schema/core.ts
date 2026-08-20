@@ -1,5 +1,6 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, unique, index, text, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import type { TenantPackageQuotas } from '@zenith/shared/licensing';
+import type { UserGroupMemberRule } from '@zenith/shared/identity';
 import { statusEnum } from './common';
 
 export const menuTypeEnum = pgEnum('menu_type', ['directory', 'menu', 'button']);
@@ -209,13 +210,19 @@ export const userPositions = pgTable('user_positions', {
 ]);
 
 // ─── 用户组表 ─────────────────────────────────────────────────────────────────
+// memberMode 决定成员维护方式：static = 手工维护；dynamic = 按 memberRule 自动
+// 物化到 user_group_members（消费方无感知）。动态组的成员接口只读。
 export const userGroups = pgTable('user_groups', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 64 }).notNull(),
   code: varchar('code', { length: 64 }).notNull(),
   description: varchar('description', { length: 256 }),
   ownerId: integer('owner_id').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
-  departmentId: integer('department_id').references((): AnyPgColumn => departments.id, { onDelete: 'set null' }),
+  memberMode: varchar('member_mode', { length: 10 }).notNull().default('static'),
+  /** 动态组成员规则（static 组为 null）；语义见 shared/identity UserGroupMemberRule */
+  memberRule: jsonb('member_rule').$type<UserGroupMemberRule>(),
+  /** 动态组最近一次成员同步时间 */
+  ruleSyncedAt: timestamp('rule_synced_at'),
   status: statusEnum('status').notNull().default('enabled'),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),

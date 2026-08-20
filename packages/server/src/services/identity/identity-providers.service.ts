@@ -9,6 +9,7 @@ import { config } from '../../config';
 import { db } from '../../db';
 import { identityProviderSyncLogs, roles, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users } from '../../db/schema';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
+import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import redis from '../../lib/redis';
 import { formatDateTime } from '../../lib/datetime';
 import { keywordCondition } from '../../lib/where-helpers';
@@ -793,7 +794,7 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
   const email = external.email;
 
   const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
-  return db.transaction(async (tx) => {
+  const createdUser = await db.transaction(async (tx) => {
     await reserveTenantSeats(tx, provider.tenantId ?? null);
     const [created] = await tx.insert(users).values({
       username: external.username.slice(0, 32),
@@ -817,6 +818,8 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
     }
     return created;
   });
+  syncUserDynamicMembershipsSafe([createdUser.id], 'SSO JIT 建号');
+  return createdUser;
 }
 
 type ProviderSyncAction = 'created' | 'linked' | 'updated' | 'skipped';
@@ -863,7 +866,7 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
 
   if (!provider.jitEnabled || !external.email) return 'skipped';
   const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
-  await db.transaction(async (tx) => {
+  const jitCreated = await db.transaction(async (tx) => {
     await reserveTenantSeats(tx, provider.tenantId ?? null);
     const [created] = await tx.insert(users).values({
       username: external.username.slice(0, 32),
@@ -885,7 +888,9 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
     if (provider.defaultRoleIds.length > 0) {
       await tx.insert(userRoles).values(provider.defaultRoleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
     }
+    return created;
   });
+  syncUserDynamicMembershipsSafe([jitCreated.id], '身份源同步建号');
   return 'created';
 }
 

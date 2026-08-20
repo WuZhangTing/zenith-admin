@@ -9,6 +9,7 @@ import { HTTPException } from 'hono/http-exception';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { reserveTenantSeats, getTenantUserLimit } from '../../lib/tenant-quota';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from '../../lib/user-group-access';
+import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
@@ -369,6 +370,7 @@ export async function createUser(data: CreateUserInput) {
     });
     const full = await findUserWithRelations({ where: eq(users.id, created.id) });
     if (!full) throw new HTTPException(500, { message: '创建用户后回读失败' });
+    syncUserDynamicMembershipsSafe([created.id], '管理端创建用户');
     return mapUser(full);
   } catch (err: unknown) {
     rethrowPgUniqueViolation(err, '用户名、邮箱或手机号已存在');
@@ -407,6 +409,8 @@ export async function batchUpdateUserStatus(ids: number[], status: 'enabled' | '
   if (status === 'disabled') {
     await revokeUserSessions(updated.map((r) => r.id));
   }
+  // 状态变化改变动态用户组归属（禁用退出 / 启用回归）
+  syncUserDynamicMembershipsSafe(updated.map((r) => r.id), '批量启停用户');
 }
 
 export async function getUsersBeforeAudit(ids: number[]) {
@@ -523,6 +527,8 @@ export async function updateUser(id: number, data: UpdateUserInput) {
     }
   }
   if (data.status === 'disabled') await revokeUserSessions([id]);
+  // 部门/岗位/状态变化可能改变动态用户组归属
+  syncUserDynamicMembershipsSafe([id], '管理端更新用户');
   const full = await findUserWithRelations({ where: eq(users.id, updated.id) });
   if (!full) throw new HTTPException(404, { message: '用户不存在' });
   return mapUser(full);
@@ -674,6 +680,7 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
   const policy = await getPasswordPolicy();
   const errors: Array<{ row: number; message: string }> = [];
   let success = 0;
+  const importedUserIds: number[] = [];
   const getCellText = (row: ExcelJS.Row, col: number) => {
     const cell = row.getCell(col);
     return cell.text?.toString().trim() ?? '';
@@ -755,6 +762,7 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
         }).returning();
         if (roleIds.length > 0) await setUserRoles(tx, newUser.id, roleIds);
         if (positionIds.length > 0) await setUserPositions(tx, newUser.id, positionIds);
+        importedUserIds.push(newUser.id);
       });
       existingUsernames.add(username);
       if (email) existingEmails.add(email);
@@ -763,6 +771,7 @@ export async function importUsers(file: File): Promise<ImportUsersResult> {
       errors.push({ row: rowNum, message: `插入失败: ${e instanceof Error ? e.message : '未知错误'}` });
     }
   }
+  if (importedUserIds.length > 0) syncUserDynamicMembershipsSafe(importedUserIds, '批量导入用户');
   return { total: dataRows.length, success, failed: errors.length, errors };
 }
 

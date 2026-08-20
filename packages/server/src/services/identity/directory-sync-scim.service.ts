@@ -9,6 +9,7 @@ import {
 import { timingSafeCompare } from '../../lib/wechat/signature';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
+import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import logger from '../../lib/logger';
 import { forceLogoutAllUserSessions } from './sessions.service';
 
@@ -212,6 +213,8 @@ async function applyUserPatch(userId: number, source: DirectorySyncSourceRow, in
       logger.warn(`[directory-sync-scim] 强制下线用户 ${userId} 失败`, err);
     });
   }
+  // SCIM patch 可能变更状态等动态组条件属性
+  syncUserDynamicMembershipsSafe([userId], 'SCIM 用户更新');
 }
 
 function rethrowScimUniqueViolation(err: unknown): void {
@@ -302,6 +305,7 @@ export async function createScimUser(source: DirectorySyncSourceRow, payload: Re
       rethrowScimUniqueViolation(err);
       throw err;
     }
+    syncUserDynamicMembershipsSafe([userId], 'SCIM 建号');
   }
 
   const created = await findLinkedUser(source.id, scimId);

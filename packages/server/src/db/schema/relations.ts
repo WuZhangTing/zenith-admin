@@ -293,7 +293,6 @@ export const positionsRelations = relations(positions, ({ one, many }) => ({
 export const userGroupsRelations = relations(userGroups, ({ one, many }) => ({
   tenant: one(tenants, { fields: [userGroups.tenantId], references: [tenants.id] }),
   owner: one(users, { fields: [userGroups.ownerId], references: [users.id], relationName: 'userGroupOwner' }),
-  department: one(departments, { fields: [userGroups.departmentId], references: [departments.id] }),
   members: many(userGroupMembers),
   groupRoles: many(userGroupRoles),
 }));

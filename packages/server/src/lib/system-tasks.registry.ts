@@ -262,6 +262,17 @@ export async function registerSystemTasks(): Promise<void> {
     run: runLicenseInspection,
   });
 
+  const { runUserGroupRuleSync } = await import('../services/identity/user-group-rules.service');
+  await registerSystemRecurringJob({
+    name: 'user-group-rule-sync',
+    title: '动态用户组成员校准',
+    module: '系统管理',
+    cronExpression: '50 1 * * *',
+    description: '每天全量重算动态用户组的成员物化结果，修复错过实时同步触发点（身份源批量变更、异常中断等）造成的漂移。',
+    allowManualRun: true,
+    run: runUserGroupRuleSync,
+  });
+
   const { runMemberHousekeeping } = await import('../services/member/member-housekeeping.service');
   await registerSystemRecurringJob({
     name: 'member-housekeeping',

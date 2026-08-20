@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { UserGroup } from '@zenith/shared/identity';
+import type { UserGroup, UserGroupMemberRule } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
@@ -92,6 +92,35 @@ export function useAssignUserGroupRoles() {
       void qc.invalidateQueries({ queryKey: userGroupKeys.all });
       // 组角色变化影响成员的继承权限展示，也可能覆盖当前登录者
       void qc.invalidateQueries({ queryKey: userKeys.all });
+      invalidateCurrentUserAccess(qc);
+    },
+  });
+}
+
+export interface UserGroupRulePreview {
+  total: number;
+  joiningCount: number;
+  leavingCount: number;
+  joining: Array<{ id: number; username: string; nickname: string }>;
+  leaving: Array<{ id: number; username: string; nickname: string }>;
+}
+
+/** 规则 dry-run：纯计算不落库，无需失效任何缓存 */
+export function useUserGroupRulePreview() {
+  return useMutation({
+    mutationFn: (input: { groupId?: number; memberRule: UserGroupMemberRule }) =>
+      request.post<UserGroupRulePreview>('/api/user-groups/rule-preview', input).then(unwrap),
+  });
+}
+
+/** 手动同步动态组成员：成员/列表变化，且组可能绑定角色影响当前登录者权限 */
+export function useSyncUserGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      request.post<null>(`/api/user-groups/${id}/sync`).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: userGroupKeys.all });
       invalidateCurrentUserAccess(qc);
     },
   });

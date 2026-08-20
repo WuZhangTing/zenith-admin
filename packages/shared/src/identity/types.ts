@@ -223,6 +223,26 @@ export interface Position {
 }
 
 // ─── 用户组 ────────────────────────────────────────────────────────────
+
+/** 成员模式：static = 手工维护；dynamic = 按规则自动物化到成员表 */
+export type UserGroupMemberMode = 'static' | 'dynamic';
+
+/**
+ * 动态组成员规则。条件组之间 AND，组内多值 OR；隐含条件：仅启用用户、同租户。
+ * exclude 优先级最高；include 是规则外的强制例外。
+ */
+export interface UserGroupMemberRule {
+  /** 命中这些部门（配合 includeSubDepartments 展开子树） */
+  departmentIds?: number[];
+  includeSubDepartments?: boolean;
+  /** 命中任一岗位 */
+  positionIds?: number[];
+  /** 强制包含（规则之外的例外名单） */
+  includeUserIds?: number[];
+  /** 强制排除（优先级最高） */
+  excludeUserIds?: number[];
+}
+
 export interface UserGroup {
   id: number;
   name: string;
@@ -230,8 +250,10 @@ export interface UserGroup {
   description?: string | null;
   ownerId?: number | null;
   ownerName?: string | null;
-  departmentId?: number | null;
-  departmentName?: string | null;
+  memberMode: UserGroupMemberMode;
+  memberRule?: UserGroupMemberRule | null;
+  /** 动态组最近一次成员同步时间 */
+  ruleSyncedAt?: string | null;
   memberCount?: number;
   memberPreview?: UserPreview[];
   roleCount?: number;
