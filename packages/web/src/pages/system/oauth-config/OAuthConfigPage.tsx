@@ -37,7 +37,7 @@ const PROVIDERS: ProviderMeta[] = [
   {
     key: 'feishu',
     label: '飞书',
-    icon: <Icon icon="simple-icons:lark" width="16" height="16" />,
+    icon: <Icon icon="icon-park-outline:lark" width="16" height="16" />,
   },
 ];
 

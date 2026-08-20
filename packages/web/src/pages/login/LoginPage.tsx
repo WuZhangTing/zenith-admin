@@ -530,7 +530,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
                 title="飞书登录"
                 onClick={() => handleOAuthLogin('feishu')}
               >
-                <Icon icon="simple-icons:lark" width="20" height="20" />
+                <Icon icon="icon-park-outline:lark" width="20" height="20" />
               </button>
             </div>
           </div>}
