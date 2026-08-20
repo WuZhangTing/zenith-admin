@@ -12,6 +12,7 @@ import { CheckCheck, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import type { InAppMessage } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import { RefreshButton } from '@/components/toolbar-controls';
+import { SearchToolbar } from '@/components/SearchToolbar';
 import {
   inboxKeys,
   useBatchDeleteInboxMessages,
@@ -126,63 +127,48 @@ export default function InboxPage() {
     setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
   };
 
-  return (
-    <div className="page-container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} style={{ marginBottom: 0, flex: 1 }}>
-            <TabPane tab="全部" itemKey="all" />
-            <TabPane
-              tab={
-                <Space spacing={4}>
-                  <span>未读</span>
-                  {activeTab === 'all' && unreadCount > 0 && (
-                    <Tag color="red" size="small">{unreadCount}</Tag>
-                  )}
-                </Space>
-              }
-              itemKey="unread"
-            />
-            <TabPane tab="已读" itemKey="read" />
-          </Tabs>
-          <Space>
-            {selectedIds.length > 0 && activeTab !== 'read' && (
-              <Button
-                icon={<CheckCheck size={14} />}
-                loading={batchReadMutation.isPending}
-                onClick={() => void handleBatchRead()}
-              >
-                标记已读 ({selectedIds.length})
-              </Button>
-            )}
-            {selectedIds.length > 0 && (
-              <Popconfirm
-                title={`确定要删除选中的 ${selectedIds.length} 条消息吗？`}
-                onConfirm={() => void handleBatchDelete()}
-              >
-                <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={batchDeleteMutation.isPending}>
-                  批量删除 ({selectedIds.length})
-                </Button>
-              </Popconfirm>
-            )}
-            <Button
-              type="primary"
-              icon={<CheckCheck size={14} />}
-              loading={markAllLoading}
-              onClick={handleMarkAllRead}
-              style={{ visibility: activeTab === 'read' ? 'hidden' : 'visible' }}
-            >
-              全部标记为已读
+  const renderInboxContent = (tab: 'all' | 'unread' | 'read') => (
+    <>
+      <SearchToolbar>
+        {selectedIds.length > 0 && tab !== 'read' && (
+          <Button
+            icon={<CheckCheck size={14} />}
+            loading={batchReadMutation.isPending}
+            onClick={() => void handleBatchRead()}
+          >
+            标记已读 ({selectedIds.length})
+          </Button>
+        )}
+        {selectedIds.length > 0 && (
+          <Popconfirm
+            title={`确定要删除选中的 ${selectedIds.length} 条消息吗？`}
+            onConfirm={() => void handleBatchDelete()}
+          >
+            <Button type="danger" theme="light" icon={<Trash2 size={14} />} loading={batchDeleteMutation.isPending}>
+              批量删除 ({selectedIds.length})
             </Button>
-          </Space>
-        </div>
+          </Popconfirm>
+        )}
+        {tab !== 'read' && (
+          <Button
+            type="primary"
+            icon={<CheckCheck size={14} />}
+            loading={markAllLoading}
+            onClick={handleMarkAllRead}
+          >
+            全部标记为已读
+          </Button>
+        )}
+        <RefreshButton onClick={() => void listQuery.refetch()} loading={loading} />
+      </SearchToolbar>
 
       {list.length === 0 && !loading ? (
         <Empty
           image={<IllustrationIdle style={{ width: 120, height: 120 }} />}
           darkModeImage={<IllustrationIdleDark style={{ width: 120, height: 120 }} />}
           description={(() => {
-            if (activeTab === 'unread') return '暂无未读站内信';
-            if (activeTab === 'read') return '暂无已读站内信';
+            if (tab === 'unread') return '暂无未读站内信';
+            if (tab === 'read') return '暂无已读站内信';
             return '暂无站内信';
           })()}
           style={{ padding: '48px 0' }}
@@ -194,16 +180,13 @@ export default function InboxPage() {
             loading={loading}
             dataSource={list}
             header={
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Checkbox
-                  checked={allSelected}
-                  indeterminate={selectedIds.length > 0 && !allSelected}
-                  onChange={(e) => setSelectedIds(e.target.checked ? list.map((n) => n.id) : [])}
-                >
-                  全选{selectedIds.length > 0 ? `（已选 ${selectedIds.length} 条）` : ''}
-                </Checkbox>
-                <RefreshButton onClick={() => void listQuery.refetch()} loading={loading} />
-              </div>
+              <Checkbox
+                checked={allSelected}
+                indeterminate={selectedIds.length > 0 && !allSelected}
+                onChange={(e) => setSelectedIds(e.target.checked ? list.map((n) => n.id) : [])}
+              >
+                全选{selectedIds.length > 0 ? `（已选 ${selectedIds.length} 条）` : ''}
+              </Checkbox>
             }
             renderItem={(item: InAppMessage, index: number) => (
               <List.Item
@@ -252,7 +235,7 @@ export default function InboxPage() {
               </List.Item>
             )}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
             <Pagination
               currentPage={pagination.currentPage}
               pageSize={pagination.pageSize}
@@ -273,6 +256,32 @@ export default function InboxPage() {
           </div>
         </>
       )}
+    </>
+  );
+
+  return (
+    <div className="page-container page-tabs-page">
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={handleTabChange} type="line" lazyRender keepDOM={false}>
+        <TabPane tab="全部" itemKey="all">
+          {renderInboxContent('all')}
+        </TabPane>
+        <TabPane
+          tab={
+            <Space spacing={4}>
+              <span>未读</span>
+              {activeTab === 'all' && unreadCount > 0 && (
+                <Tag color="red" size="small">{unreadCount}</Tag>
+              )}
+            </Space>
+          }
+          itemKey="unread"
+        >
+          {renderInboxContent('unread')}
+        </TabPane>
+        <TabPane tab="已读" itemKey="read">
+          {renderInboxContent('read')}
+        </TabPane>
+      </Tabs>
 
       <AppModal
         title={selectedMessage?.title ?? ''}
