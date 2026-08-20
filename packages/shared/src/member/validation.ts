@@ -1,11 +1,5 @@
 import { z } from 'zod';
 
-export const assignUserGroupMembersSchema = z.object({
-  userIds: z.array(z.number().int().positive()),
-});
-
-export type AssignUserGroupMembersInput = z.infer<typeof assignUserGroupMembersSchema>;
-
 /** 会员端签约自动续费 */
 export const memberSignRenewalSchema = z.object({
   planId: z.number().int().positive(),

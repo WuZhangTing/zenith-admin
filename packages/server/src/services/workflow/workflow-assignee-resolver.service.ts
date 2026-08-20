@@ -10,7 +10,6 @@ import { db } from '../../db';
 import {
   departments,
   roleDeptScopes,
-  userGroupMembers,
   userPositions,
   userRoles,
   users,
@@ -18,6 +17,7 @@ import {
 } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import logger from '../../lib/logger';
+import { resolveGroupMemberUserIds } from '../../lib/user-group-access';
 import { evaluateExpression, ExpressionError } from '../../lib/workflow-expression';
 import { getDecisionOutputs } from '../platform/rules.service';
 
@@ -223,17 +223,6 @@ async function userIdsByDepartmentIds(exec: DbExecutor, deptIds: readonly number
   return rows.map((row) => row.id);
 }
 
-async function userIdsByUserGroupIds(exec: DbExecutor, groupIds: readonly number[]): Promise<number[]> {
-  const uniq = uniquePositiveIds(groupIds);
-  if (uniq.length === 0) return [];
-  const rows = await exec
-    .select({ id: users.id })
-    .from(users)
-    .innerJoin(userGroupMembers, eq(userGroupMembers.userId, users.id))
-    .where(and(inArray(userGroupMembers.groupId, uniq), eq(users.status, 'enabled')));
-  return rows.map((row) => row.id);
-}
-
 export async function resolveSelectScopeUserIds(
   node: WorkflowNodeConfig,
   executor?: DbExecutor,
@@ -249,7 +238,7 @@ export async function resolveSelectScopeUserIds(
     case 'department':
       return userIdsByDepartmentIds(exec, scopeIds);
     case 'userGroup':
-      return userIdsByUserGroupIds(exec, scopeIds);
+      return resolveGroupMemberUserIds(scopeIds, exec);
     default:
       return null;
   }
@@ -489,14 +478,9 @@ export async function resolveAssigneeIds(
       break;
     }
     case 'userGroup': {
-      const groupIds = node.userGroupIds ?? [];
-      if (groupIds.length > 0) {
-        const rows = await exec
-          .select({ userId: userGroupMembers.userId })
-          .from(userGroupMembers)
-          .where(inArray(userGroupMembers.groupId, groupIds));
-        rows.forEach((r) => result.add(r.userId));
-      }
+      // 统一口径：仅启用组的启用成员参与审批（禁用组/禁用用户不再被路由到）
+      const ids = await resolveGroupMemberUserIds(node.userGroupIds ?? [], exec);
+      ids.forEach((id) => result.add(id));
       break;
     }
     case 'initiator': {

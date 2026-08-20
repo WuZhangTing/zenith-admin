@@ -3,6 +3,7 @@ import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { db } from '../db';
 import { users } from '../db/schema';
 import { getTenantPackageFeatureSet } from './tenant-package';
+import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 import { config } from '../config';
 import redis from './redis';
 
@@ -104,31 +105,16 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
         columns: {},
         with: { menu: { columns: menuColumns } },
       },
-      // 用户组绑定的角色：组内成员自动继承（仅启用状态的组生效）
-      userGroupMembers: {
-        columns: {},
+      // 用户组绑定的角色：组内成员自动继承（仅启用组的启用角色生效，口径见 user-group-access）
+      userGroupMembers: enabledGroupRolesWith({
+        columns: { status: true },
         with: {
-          group: {
-            columns: { status: true },
-            with: {
-              groupRoles: {
-                columns: {},
-                with: {
-                  role: {
-                    columns: { status: true },
-                    with: {
-                      roleMenus: {
-                        columns: {},
-                        with: { menu: { columns: menuColumns } },
-                      },
-                    },
-                  },
-                },
-              },
-            },
+          roleMenus: {
+            columns: {},
+            with: { menu: { columns: menuColumns } },
           },
         },
-      },
+      }),
     },
   });
 
@@ -141,13 +127,8 @@ async function fetchUserPermissionData(userId: number): Promise<{ permissions: s
     .filter(({ role }) => role.status === 'enabled')
     .flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu));
   const directMenuRows = user.userMenus.map(({ menu }) => menu);
-  const groupMenuRows = (user.userGroupMembers ?? [])
-    .filter(({ group }) => group.status === 'enabled')
-    .flatMap(({ group }) =>
-      group.groupRoles
-        .filter(({ role }) => role.status === 'enabled')
-        .flatMap(({ role }) => role.roleMenus.map(({ menu }) => menu)),
-    );
+  const groupMenuRows = extractEnabledGroupRoles(user.userGroupMembers)
+    .roles.flatMap((role) => role.roleMenus.map(({ menu }) => menu));
   let allMenuRows = [...roleMenuRows, ...directMenuRows, ...groupMenuRows]
     .filter((menu) => menu.status === 'enabled');
 

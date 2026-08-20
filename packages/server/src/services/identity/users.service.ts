@@ -8,6 +8,7 @@ import { users, userRoles, roles, departments, positions, userPositions, userMen
 import { HTTPException } from 'hono/http-exception';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { reserveTenantSeats, getTenantUserLimit } from '../../lib/tenant-quota';
+import { enabledGroupRolesWith, extractEnabledGroupRoles } from '../../lib/user-group-access';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
@@ -848,43 +849,31 @@ function getMostPermissiveScope(scopes: Array<string | null>): string | null {
   return valid.reduce((best, curr) => (SCOPE_PRIORITY[curr] ?? 0) > (SCOPE_PRIORITY[best] ?? 0) ? curr : best, valid[0]);
 }
 
-const groupRolesWith = {
-  columns: {},
+const groupRolesWith = enabledGroupRolesWith({
+  columns: { status: true, dataScope: true },
   with: {
-    group: {
-      columns: { id: true, name: true, status: true },
-      with: {
-        groupRoles: {
-          columns: {},
-          with: {
-            role: {
-              columns: { dataScope: true },
-              with: {
-                roleMenus: { columns: { menuId: true } },
-                deptScopes: { columns: { deptId: true } },
-              },
-            },
-          },
-        },
-      },
-    },
+    roleMenus: { columns: { menuId: true } },
+    deptScopes: { columns: { deptId: true } },
   },
-} as const;
+});
 
-/** 提取启用状态用户组继承的角色信息（菜单/数据权限），并返回带角色的组名列表 */
+/** 聚合启用组的启用角色继承信息（菜单/数据权限），并返回带角色绑定的组名列表（诊断展示用） */
 function extractGroupInheritance(
-  memberships: Array<{ group: { id: number; name: string; status: string; groupRoles: Array<{ role: { dataScope: string; roleMenus: Array<{ menuId: number }>; deptScopes: Array<{ deptId: number }> } }> } }>,
+  memberships: ReadonlyArray<{
+    group: {
+      id: number;
+      name: string;
+      status: string;
+      groupRoles: Array<{ role: { status: string; dataScope: string; roleMenus: Array<{ menuId: number }>; deptScopes: Array<{ deptId: number }> } }>;
+    };
+  }> | undefined,
 ) {
-  const enabled = memberships.filter((m) => m.group.status === 'enabled');
-  const groupRoles = enabled.flatMap((m) => m.group.groupRoles.map((gr) => gr.role));
-  const groupMenuIds = [...new Set(groupRoles.flatMap((r) => r.roleMenus.map((rm) => rm.menuId)))];
-  const groupDataScope = getMostPermissiveScope(groupRoles.map((r) => r.dataScope));
+  const { roles, groups } = extractEnabledGroupRoles(memberships);
+  const groupMenuIds = [...new Set(roles.flatMap((r) => r.roleMenus.map((rm) => rm.menuId)))];
+  const groupDataScope = getMostPermissiveScope(roles.map((r) => r.dataScope));
   const groupDeptScopeIds = [...new Set(
-    groupRoles.filter((r) => r.dataScope === 'custom').flatMap((r) => r.deptScopes.map((ds) => ds.deptId))
+    roles.filter((r) => r.dataScope === 'custom').flatMap((r) => r.deptScopes.map((ds) => ds.deptId))
   )];
-  const groups = enabled
-    .filter((m) => m.group.groupRoles.length > 0)
-    .map((m) => ({ id: m.group.id, name: m.group.name }));
   return { groupMenuIds, groupDataScope, groupDeptScopeIds, groups };
 }
 

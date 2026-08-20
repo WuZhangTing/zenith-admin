@@ -14,11 +14,11 @@ import {
   reportPrintTemplates,
   reportResourceAcls,
   roles,
-  userGroupMembers,
   userGroups,
   userRoles,
   users,
 } from '../../db/schema';
+import { getUserEnabledGroupIds } from '../../lib/user-group-access';
 import { currentUserOrNull } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
@@ -65,16 +65,17 @@ export function isReportAclActive(expiresAt: Date | null, now = new Date()): boo
 async function loadCurrentSubjects(): Promise<SubjectSet> {
   const user = currentUserOrNull();
   if (!user) return { user: new Set(), role: new Set(), department: new Set(), user_group: new Set() };
-  const [userRow, directRoles, groups] = await Promise.all([
+  const [userRow, directRoles, groupIds] = await Promise.all([
     db.select({ departmentId: users.departmentId }).from(users).where(eq(users.id, user.userId)).limit(1),
     db.select({ roleId: userRoles.roleId }).from(userRoles).where(eq(userRoles.userId, user.userId)),
-    db.select({ groupId: userGroupMembers.groupId }).from(userGroupMembers).where(eq(userGroupMembers.userId, user.userId)),
+    // 仅启用组参与授权匹配：禁用组的成员立即失去按组授予的资源（口径见 user-group-access）
+    getUserEnabledGroupIds(user.userId),
   ]);
   return {
     user: new Set([user.userId]),
     role: new Set(directRoles.map((row) => row.roleId)),
     department: new Set(userRow[0]?.departmentId ? [userRow[0].departmentId] : []),
-    user_group: new Set(groups.map((row) => row.groupId)),
+    user_group: new Set(groupIds),
   };
 }
 

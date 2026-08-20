@@ -1,6 +1,7 @@
 import { eq, inArray, type SQL, type AnyColumn } from 'drizzle-orm';
 import { db } from '../db';
 import { users, departments } from '../db/schema';
+import { enabledGroupRolesWith, extractEnabledGroupRoles } from './user-group-access';
 
 export interface DataScopeOptions {
   /** 当前登录用户 ID */
@@ -52,35 +53,17 @@ export async function getDataScopeCondition(options: DataScopeOptions): Promise<
           },
         },
       },
-      // 用户组绑定的角色：组内成员继承其数据权限（仅启用状态的组生效）
-      userGroupMembers: {
-        columns: {},
-        with: {
-          group: {
-            columns: { status: true },
-            with: {
-              groupRoles: {
-                columns: {},
-                with: {
-                  role: {
-                    columns: { dataScope: true, code: true, tenantId: true, status: true },
-                    with: { deptScopes: { columns: { deptId: true } } },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      // 用户组绑定的角色：组内成员继承其数据权限（仅启用组的启用角色生效，口径见 user-group-access）
+      userGroupMembers: enabledGroupRolesWith({
+        columns: { dataScope: true, code: true, tenantId: true, status: true },
+        with: { deptScopes: { columns: { deptId: true } } },
+      }),
       userDeptScopes: { columns: { deptId: true } },
     },
   });
   // 禁用角色的数据权限不再生效（与功能权限解析同一口径）
   const directRoleList = (userData?.userRoles.map((ur) => ur.role) ?? []).filter((r) => r.status === 'enabled');
-  const groupRoleList = (userData?.userGroupMembers ?? [])
-    .filter(({ group }) => group.status === 'enabled')
-    .flatMap(({ group }) => group.groupRoles.map((gr) => gr.role))
-    .filter((r) => r.status === 'enabled');
+  const groupRoleList = extractEnabledGroupRoles(userData?.userGroupMembers).roles;
   const userRoleList = [...directRoleList, ...groupRoleList];
   const userDirectScope = userData?.userDataScope ?? null;
 
