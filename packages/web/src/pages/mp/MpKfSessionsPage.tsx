@@ -33,6 +33,7 @@ import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 const { Text } = Typography;
 
 const STATUS_TAG: Record<MpKfSessionStatus, { label: string; color: 'orange' | 'green' | 'grey' }> = {
@@ -65,7 +66,9 @@ export default function MpKfSessionsPage() {
   const [tab, setTab] = useUrlTabState(['waiting', 'active', 'closed'] as const, 'waiting');
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // 选中会话以 `?session=` 同步到 URL（深链/刷新/页签直达）；详情按 id 独立拉取，不依赖列表成员资格
+  const [selectedSessionKey, setSelectedSessionKey] = useUrlSelectionState('session');
+  const selectedId = selectedSessionKey === null ? null : Number(selectedSessionKey);
   const [replyText, setReplyText] = useState('');
   const [pickModal, setPickModal] = useState<{ mode: 'accept' | 'transfer'; visible: boolean }>({ mode: 'accept', visible: false });
   const [pickKfId, setPickKfId] = useState<number | null>(null);
@@ -113,12 +116,12 @@ export default function MpKfSessionsPage() {
   };
 
   const selectSession = (id: number) => {
-    setSelectedId(id);
+    setSelectedSessionKey(String(id));
   };
 
   const handleTabChange = (key: string) => {
     setTab(key as MpKfSessionStatus);
-    setSelectedId(null);
+    setSelectedSessionKey(null);
   };
 
   const handleSearch = () => {
@@ -267,7 +270,7 @@ export default function MpKfSessionsPage() {
           maxSize={480}
           persistKey="mpKfSessions"
           showDetail={selectedId != null}
-          onBack={() => setSelectedId(null)}
+          onBack={() => setSelectedSessionKey(null)}
           master={(
             <>
               <MasterDetailLayout.Header style={{ padding: '0 8px' }}>

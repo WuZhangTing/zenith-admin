@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Button, Dropdown, Empty, Form, Spin, Tag, Toast, Row, Col, Select, Tooltip, Tree, Typography } from '@douyinfe/semi-ui';
 import { IllustrationNoContent, IllustrationNoContentDark } from '@douyinfe/semi-illustrations';
@@ -8,6 +8,7 @@ import { Plus, ExternalLink, Merge, ListPlus, Eye, MoreHorizontal, RefreshCw } f
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
+import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import {
   useCmsChannelTree, useAllCmsModels, useAllCmsSites, useSaveCmsChannel, useDeleteCmsChannel,
   useCmsThemeTemplates, useMergeCmsChannels, useClearCmsChannel, useBatchCreateCmsChannels,
@@ -69,7 +70,9 @@ export default function ChannelsPage() {
   const currentSite = sites?.find((s) => s.id === siteId);
   const { data: themeTemplates } = useCmsThemeTemplates(currentSite?.effectiveTheme ?? currentSite?.theme, currentSite?.id);
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // 选中栏目以 `?channel=` 同步到 URL（深链/刷新/页签直达）；新建态不入 URL
+  const [selectedChannelKey, setSelectedChannelKey] = useUrlSelectionState('channel');
+  const selectedId = selectedChannelKey === null ? null : Number(selectedChannelKey);
   /** 非 null 表示处于新建态，值为新栏目的父栏目 id（0 = 顶级） */
   const [createParentId, setCreateParentId] = useState<number | null>(null);
   const [channelType, setChannelType] = useState<string>('list');
@@ -89,6 +92,26 @@ export default function ChannelsPage() {
     ? flatChannels.find((c) => c.id === selectedId) ?? null
     : null;
   const editorOpen = createParentId !== null || editingRecord !== null;
+
+  // 深链进入时补齐编辑态派生状态（点选路径由 openEdit 同步初始化并登记 ref，不会重跑，
+  // 树刷新也不会覆盖未保存的类型/单页内容编辑）；树落定后目标仍不存在则清参回退
+  const initializedChannelIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (selectedId === null) {
+      initializedChannelIdRef.current = null;
+      return;
+    }
+    const record = flatChannels.find((c) => c.id === selectedId);
+    if (!record) {
+      // 数据在途（如新建保存后树未刷新完）时等待，避免误清刚保存的选中
+      if (treeQuery.data && !treeQuery.isFetching) setSelectedChannelKey(null);
+      return;
+    }
+    if (initializedChannelIdRef.current === selectedId) return;
+    initializedChannelIdRef.current = selectedId;
+    setChannelType(record.type);
+    setPageContent(record.pageContent ?? '');
+  }, [selectedId, flatChannels, treeQuery.data, treeQuery.isFetching, setSelectedChannelKey]);
 
   // ─── 栏目授权用户（P5 栏目级数据权限）──────────────────────────────────────
   const [usersModalChannel, setUsersModalChannel] = useState<CmsChannel | null>(null);
@@ -118,7 +141,7 @@ export default function ChannelsPage() {
   const batchFormApi = useRef<FormApi | null>(null);
 
   function openCreate(parentId = 0) {
-    setSelectedId(null);
+    setSelectedChannelKey(null);
     setCreateParentId(parentId);
     setChannelType('list');
     setPageContent('');
@@ -126,21 +149,26 @@ export default function ChannelsPage() {
 
   function openEdit(record: CmsChannel) {
     setCreateParentId(null);
-    setSelectedId(record.id);
+    initializedChannelIdRef.current = record.id;
+    setSelectedChannelKey(String(record.id));
     setChannelType(record.type);
     setPageContent(record.pageContent ?? '');
   }
 
   function closeEditor() {
     setCreateParentId(null);
-    setSelectedId(null);
+    setSelectedChannelKey(null);
   }
 
-  // 站点切换会重挂载栏目树，同时清掉右侧编辑态
+  // 站点切换会重挂载栏目树，同时清掉右侧编辑态；
+  // 首次挂载的站点恢复（undefined → 存储值/默认值）不清，保住 ?channel= 深链
   function handleSiteChange(next: number) {
+    const isSwitch = siteId !== undefined && siteId !== next;
     setSiteId(next);
-    setCreateParentId(null);
-    setSelectedId(null);
+    if (isSwitch) {
+      setCreateParentId(null);
+      setSelectedChannelKey(null);
+    }
   }
 
   const formInitValues = editingRecord
@@ -191,7 +219,7 @@ export default function ChannelsPage() {
     Toast.success(editingRecord ? '更新成功' : '创建成功');
     // 新建成功后停留在该栏目的编辑态，方便继续补充模板/SEO
     setCreateParentId(null);
-    setSelectedId(saved.id);
+    setSelectedChannelKey(String(saved.id));
   }
 
   async function handleDelete(id: number) {

@@ -13,6 +13,7 @@ import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import { formatFileSize } from '@/utils/file-utils';
 import { usePermission } from '@/hooks/usePermission';
+import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import { config } from '@/config';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { type LogFile, useDeleteLogFile, useLogFileContent, useLogFiles } from '@/hooks/queries/log-files';
@@ -129,8 +130,10 @@ async function readTailStream(res: Response, onBatch: (batch: string[]) => void)
 export default function LogFilesPage() {
   const { hasPermission } = usePermission();
   const [keyword, setKeyword] = useState('');
-  const [selected, setSelected] = useState<LogFile | null>(null);
-  const [searchParams, setSearchParams] = useSearchParams();
+  // 选中文件以 `?file=` 同步到 URL（刷新/分享链接/告警事件跳转直达）；选中对象按文件名派生
+  const [selectedFileKey, setSelectedFileKey] = useUrlSelectionState('file');
+  // ?level= 等伴随参数仍直接读取
+  const [searchParams] = useSearchParams();
 
   // 内容搜索：输入即时高亮（防抖），全文模式回车提交服务端过滤
   const [searchDraft, setSearchDraft] = useState('');
@@ -166,6 +169,10 @@ export default function LogFilesPage() {
 
   const filesQuery = useLogFiles();
   const files = filesQuery.data ?? EMPTY_LOG_FILES;
+  const selected = useMemo(
+    () => (selectedFileKey ? files.find((f) => f.name === selectedFileKey) ?? null : null),
+    [files, selectedFileKey],
+  );
   const deleteMutation = useDeleteLogFile();
 
   const contentParams = useMemo(
@@ -363,48 +370,60 @@ export default function LogFilesPage() {
   };
 
   // ── 交互 ──
-  const syncFileParam = useCallback((name: string | null) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (name) next.set('file', name);
-      else next.delete('file');
-      return next;
-    }, { replace: true });
-  }, [setSearchParams]);
-
-  const selectFile = useCallback((file: LogFile) => {
-    if (selected?.name === file.name) return;
+  const applyBrowseReset = useCallback(() => {
     abortTail();
-    setSelected(file);
     setTailLines([]);
     setSearchDraft('');
     setServerKeyword('');
     setActiveMatchIndex(0);
     setLevelFilter('all');
-    syncFileParam(file.name);
-  }, [selected, abortTail, syncFileParam]);
+  }, [abortTail]);
+
+  const appliedFileParamRef = useRef<string | null>(null);
+
+  const selectFile = useCallback((file: LogFile) => {
+    if (selected?.name === file.name) return;
+    // 点选路径在此登记，深链 effect 不再重复应用
+    appliedFileParamRef.current = file.name;
+    applyBrowseReset();
+    setSelectedFileKey(file.name);
+  }, [selected, applyBrowseReset, setSelectedFileKey]);
 
   // URL ?file= 深链：文件列表就绪后应用（刷新/分享链接/告警事件跳转直达）。
   // 页面可能被页签缓存复用，因此按参数值追踪而非只应用一次；
-  // 当天文件已轮转归档时回退到 .gz；?level= 指定初始级别过滤（告警跳转带 error/warn）
-  const appliedFileParamRef = useRef<string | null>(null);
+  // 当天文件已轮转归档时回退到 .gz 并改写参数，落定后仍不存在则清参；
+  // ?level= 指定初始级别过滤（告警跳转带 error/warn）
   useEffect(() => {
-    const fileParam = searchParams.get('file');
-    if (!fileParam || files.length === 0) return;
-    if (appliedFileParamRef.current === fileParam) return;
-    appliedFileParamRef.current = fileParam;
-    // 手动点选后 syncFileParam 会回写 URL，此时选中已一致，无需重复应用
-    if (selected?.name === fileParam) return;
-    const target = files.find((f) => f.name === fileParam)
-      ?? files.find((f) => f.name === `${fileParam}.gz`);
-    if (!target || selected?.name === target.name) return;
-    selectFile(target);
+    if (!selectedFileKey) {
+      if (appliedFileParamRef.current !== null) {
+        // URL 驱动的取消选中（如浏览器后退）：停掉残留的实时追踪
+        appliedFileParamRef.current = null;
+        abortTail();
+        setTailLines([]);
+      }
+      return;
+    }
+    if (files.length === 0) return;
+    if (appliedFileParamRef.current === selectedFileKey) return;
+    const target = files.find((f) => f.name === selectedFileKey)
+      ?? files.find((f) => f.name === `${selectedFileKey}.gz`);
+    if (!target) {
+      if (!filesQuery.isFetching) setSelectedFileKey(null);
+      return;
+    }
+    if (target.name !== selectedFileKey) {
+      setSelectedFileKey(target.name);
+      return;
+    }
+    appliedFileParamRef.current = target.name;
+    // URL 驱动的选中（非点选路径）：重置浏览状态并应用伴随级别参数
+    applyBrowseReset();
     const levelParam = searchParams.get('level');
     if (levelParam === 'error' || levelParam === 'warn' || levelParam === 'info' || levelParam === 'debug') {
-      // selectFile 内部重置为 all，同一批 state 更新中后写的生效
+      // applyBrowseReset 重置为 all，同一批 state 更新中后写的生效
       setLevelFilter(levelParam);
     }
-  }, [files, searchParams, selected, selectFile]);
+  }, [files, filesQuery.isFetching, selectedFileKey, setSelectedFileKey, searchParams, applyBrowseReset, abortTail]);
 
   const jumpToMatch = useCallback((direction: -1 | 1) => {
     if (matches.length === 0 || (tailing && !tailPaused)) return;
@@ -447,11 +466,11 @@ export default function LogFilesPage() {
   };
 
   const deselectFile = useCallback(() => {
+    appliedFileParamRef.current = null;
     abortTail();
-    setSelected(null);
     setTailLines([]);
-    syncFileParam(null);
-  }, [abortTail, syncFileParam]);
+    setSelectedFileKey(null);
+  }, [abortTail, setSelectedFileKey]);
 
   const handleDelete = (file: LogFile) => {
     confirmDelete({

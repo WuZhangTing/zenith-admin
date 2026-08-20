@@ -178,6 +178,16 @@
   （SDK 示例语言、OAuth 提供商列表）；登录方式切换；以及 db-admin 的 `tab`+`table` 联合
   原子写回（拆入 hook 会造成双 effect 竞写 searchParams，保持其手写实现）。
   需要「记住上次停留 Tab」的页面（如监控页）把偏好值作为 `defaultTab` 传入即可与 URL 定位共存
+- **分栏页的选中项必须走 `hooks/useUrlSelectionState.ts`**（深链直达、replace 写回、
+  未选中删参、外部导航跟随）；参数名取所选实体的领域名词（`dict` / `channel` / `file` / `session`…），
+  **禁止** `id` / `item` 这类无信息量的通用名，也**禁止**手写 `searchParams.get` 等价实现。
+  合法值来自异步数据：数据就绪后校验、不存在则清参回退由页面负责；
+  「桌面端自动选中首项」作为渲染期派生回退实现，**不写回 URL**。
+  写法见 [ui-patterns.md → 选中项同步到 URL](./ui-patterns.md#选中项同步到-urluseurlselectionstate)。
+  **不适用**：多参数联合原子写回的页面（wiki 文档中心 `spaceId`+`docId`、db-admin `tab`+`table`——
+  拆入 hook 会双 effect 竞写 searchParams）；「消费即焚」的一次性激活参数（聊天 `?conv=` 选中即触发
+  已读等副作用、列表筛选深链走 `useListDeepLink`）；master 为筛选树的页面（部门 / 栏目是查询条件
+  而非选中项，入 URL 应使用领域筛选参数，单独评估）
 - **Tabs 自动溢出折叠**：所有 `<Tabs>` 必须带 `collapsible="auto"`——窄容器（抽屉、弹窗、
   分栏面板）里标签多时会折行或被裁掉，`auto` 只在真放不下时折叠成带箭头的滚动条，
   宽度充足时渲染与不加时一致，因此**没有「这个页面标签少所以不用加」的例外**。

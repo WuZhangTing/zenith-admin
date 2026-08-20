@@ -30,6 +30,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useTreeExpansion } from '@/hooks/useTreeExpansion';
+import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -66,7 +67,8 @@ export default function DictsPage() {
   const [submittedKeyword, setSubmittedKeyword] = useState('');
   const { page, pageSize, setPage, setPageSize } = usePagination();
   // ─── 字典项列表 ────────────────────────────────────────────────────────────
-  const [selectedDict, setSelectedDict] = useState<Dict | null>(null);
+  // 显式选中的字典以 `?dict=` 同步到 URL（深链/刷新/页签直达）；选中对象按 key 派生
+  const [selectedDictKey, setSelectedDictKey] = useUrlSelectionState('dict');
   const [itemModalVisible, setItemModalVisible] = useState(false);
   const [editingItemRecord, setEditingItemRecord] = useState<DictItem | null>(null);
   const [pendingItemKeyword, setPendingItemKeyword] = useState('');
@@ -79,6 +81,14 @@ export default function DictsPage() {
   const [metadataStr, setMetadataStr] = useState<string>('{}');
   const { items: statusItems } = useDictItems('common_status');
   const tagColor = (color: string) => color as ComponentProps<typeof Tag>['color'];
+
+  // 单栏（窄屏）下 showDetail 由 selectedDict 驱动，若沿用桌面端「默认选中第一项」
+  // 会直接落到字典项详情，字典列表反而要点返回才能看到。布局形态参与选中派生，故用 state。
+  const [isNarrowLayout, setIsNarrowLayout] = useState(false);
+
+  // 选中派生：URL 深链值优先；无深链时桌面端回退首项（默认选中不入 URL），窄屏不自动选中
+  const explicitDict = selectedDictKey ? dicts.find((d) => String(d.id) === selectedDictKey) ?? null : null;
+  const selectedDict = explicitDict ?? (isNarrowLayout ? null : dicts[0] ?? null);
 
   // ─── 数据获取 ──────────────────────────────────────────────────────────────
   const dictListQuery = useDictList({
@@ -107,21 +117,13 @@ export default function DictsPage() {
   const togglingItemStatusId = toggleItemStatusMutation.isPending ? (toggleItemStatusMutation.variables?.itemId ?? null) : null;
   const togglingDictStatusId = toggleDictStatusMutation.isPending ? (toggleDictStatusMutation.variables?.id ?? null) : null;
 
-  // 单栏（窄屏）下 showDetail 由 selectedDict 驱动，若沿用桌面端「默认选中第一项」
-  // 会直接落到字典项详情，字典列表反而要点返回才能看到。用 ref 保存布局形态，
-  // 使本 effect 只依赖数据、不因布局变化重跑。
-  const isNarrowLayoutRef = useRef(false);
-
   useEffect(() => {
-    const nextList = dictListQuery.data?.list ?? [];
+    if (!dictListQuery.data) return;
+    const nextList = dictListQuery.data.list;
     setDicts(nextList);
-    setSelectedDict((prev) => {
-      if (nextList.length === 0) return null;
-      const current = prev ? nextList.find((d) => d.id === prev.id) : null;
-      if (current) return current;
-      return isNarrowLayoutRef.current ? null : nextList[0];
-    });
-  }, [dictListQuery.data]);
+    // 深链校验：列表就绪后目标不存在（已删除 / 不在当前页）则清参，回退默认行为
+    setSelectedDictKey((prev) => (prev && !nextList.some((d) => String(d.id) === prev) ? null : prev));
+  }, [dictListQuery.data, setSelectedDictKey]);
 
   // 每个字典的条目首次加载完成时默认全展开；同一字典内（数据刷新 / keepAlive 页签切回）保持用户展开/折叠状态
   const expandInitedDictIdRef = useRef<number | null>(null);
@@ -143,7 +145,7 @@ export default function DictsPage() {
   };
 
   const selectDict = (dict: Dict) => {
-    setSelectedDict(dict);
+    setSelectedDictKey(String(dict.id));
     setPendingItemKeyword('');
     setPendingItemStatus('');
     setItemKeyword('');
@@ -250,8 +252,8 @@ export default function DictsPage() {
   const handleDictDelete = async (id: number) => {
     await deleteDictMutation.mutateAsync(id);
     Toast.success('删除成功');
-    if (selectedDict?.id === id) {
-      setSelectedDict(null);
+    if (selectedDictKey === String(id)) {
+      setSelectedDictKey(null);
     }
   };
 
@@ -645,12 +647,8 @@ export default function DictsPage() {
         maxSize={420}
         persistKey="dicts"
         showDetail={!!selectedDict}
-        onBack={() => setSelectedDict(null)}
-        onResponsiveChange={(narrow) => {
-          isNarrowLayoutRef.current = narrow;
-          // 由窄屏转回双栏时补选第一项，避免右侧空白
-          if (!narrow) setSelectedDict((prev) => prev ?? dicts[0] ?? null);
-        }}
+        onBack={() => setSelectedDictKey(null)}
+        onResponsiveChange={setIsNarrowLayout}
         style={{ flex: 1, overflow: 'hidden' }}
       />
 

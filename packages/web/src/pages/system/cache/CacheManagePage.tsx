@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
 import { Badge, Button, Dropdown, InputNumber, JsonViewer, Radio, RadioGroup, Space, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
@@ -6,6 +6,7 @@ import { RefreshCw, Trash2, MoreHorizontal, Pencil, Clock } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
+import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -107,7 +108,8 @@ export default function CacheManagePage() {
   const { pageSize } = usePagination();
   const canEdit = hasPermission('system:cache:update');
   const canDelete = hasPermission('system:cache:delete');
-  const [selectedCategory, setSelectedCategory] = useState<CategoryRow | null>(null);
+  // 显式选中的分类以 `?category=` 同步到 URL（深链/刷新/页签直达）；选中对象按 key 派生
+  const [selectedCategoryKey, setSelectedCategoryKey] = useUrlSelectionState('category');
   const [keyword, setKeyword] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [viewingItem, setViewingItem] = useState<CacheItem | null>(null);
@@ -169,22 +171,21 @@ export default function CacheManagePage() {
 
   // 默认选中第一个分类。单栏（窄屏）下 showDetail 由 selectedCategory 驱动，
   // 若沿用该默认会直接落到缓存条目详情，分类列表反而要点返回才能看到。
-  // 用 ref 保存布局形态，使本 effect 只依赖数据、不因布局变化重跑。
-  const isNarrowLayoutRef = useRef(false);
+  // 布局形态参与选中派生，故用 state。
+  const [isNarrowLayout, setIsNarrowLayout] = useState(false);
 
+  // 选中派生：URL 深链值优先；无深链时桌面端回退首个分类（默认选中不入 URL），窄屏不自动选中
+  const explicitCategory = selectedCategoryKey
+    ? categoryRows.find((r) => r.category === selectedCategoryKey) ?? null
+    : null;
+  const selectedCategory = explicitCategory ?? (isNarrowLayout ? null : categoryRows[0] ?? null);
+
+  // 深链校验：数据就绪后分类不存在则清参，回退默认行为
   useEffect(() => {
-    if (!loading && data.length > 0) {
-      setSelectedCategory((prev) => {
-        if (prev) {
-          const stillExists = categoryRows.find((r) => r.category === prev.category);
-          if (stillExists) return stillExists;
-        }
-        if (isNarrowLayoutRef.current) return null;
-        return categoryRows.length > 0 ? categoryRows[0] : null;
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, data.length]);
+    const list = listQuery.data?.list;
+    if (!list) return;
+    setSelectedCategoryKey((prev) => (prev && !list.some((item) => item.category === prev) ? null : prev));
+  }, [listQuery.data, setSelectedCategoryKey]);
 
   // 右侧：当前选中分类的 key 列表，再按关键词过滤
   const displayedItems = data.filter((item) => {
@@ -240,7 +241,7 @@ export default function CacheManagePage() {
         const res = await deleteCategoryMutation.mutateAsync(row.segment);
         Toast.success(`已删除 ${res.count ?? 0} 条缓存`);
         if (selectedCategory?.category === row.category) {
-          setSelectedCategory(null);
+          setSelectedCategoryKey(null);
         }
       },
     });
@@ -253,7 +254,7 @@ export default function CacheManagePage() {
       onOk: async () => {
         const res = await clearAllMutation.mutateAsync();
         Toast.success(`已清空 ${res.count ?? 0} 条缓存`);
-        setSelectedCategory(null);
+        setSelectedCategoryKey(null);
       },
     });
   };
@@ -406,7 +407,7 @@ export default function CacheManagePage() {
         <NavListItem
           key={row.category}
           active={selectedCategory?.category === row.category}
-          onClick={() => setSelectedCategory(row)}
+          onClick={() => setSelectedCategoryKey(row.category)}
           icon={
             <span style={{
               width: 8, height: 8, borderRadius: '50%', flexShrink: 0, display: 'inline-block',
@@ -558,12 +559,8 @@ export default function CacheManagePage() {
         maxSize={420}
         persistKey="cache"
         showDetail={!!selectedCategory}
-        onBack={() => setSelectedCategory(null)}
-        onResponsiveChange={(narrow) => {
-          isNarrowLayoutRef.current = narrow;
-          // 由窄屏转回双栏时补选第一项，避免右侧空白
-          if (!narrow) setSelectedCategory((prev) => prev ?? categoryRows[0] ?? null);
-        }}
+        onBack={() => setSelectedCategoryKey(null)}
+        onResponsiveChange={setIsNarrowLayout}
         style={{ flex: 1, overflow: 'hidden' }}
       />
 

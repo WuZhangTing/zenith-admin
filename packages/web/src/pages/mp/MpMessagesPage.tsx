@@ -4,6 +4,7 @@ import { RefreshCw, Send, Paperclip } from 'lucide-react';
 import { MP_MESSAGE_TYPE_LABELS } from '@zenith/shared/mp';
 import type { MpConversation, MpMessage, MpMessageType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
+import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import AppModal from '@/components/AppModal';
@@ -33,7 +34,8 @@ function msgPreview(type: MpMessageType, content: string | null): string {
 export default function MpMessagesPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-  const [selectedOpenid, setSelectedOpenid] = useState<string | null>(null);
+  // 选中会话以 `?openid=` 同步到 URL（深链/刷新/页签直达）
+  const [selectedOpenid, setSelectedOpenid] = useUrlSelectionState('openid');
   const [reply, setReply] = useState('');
   const bodyRef = useRef<HTMLDivElement>(null);
   const [mediaModalVisible, setMediaModalVisible] = useState(false);
@@ -50,9 +52,20 @@ export default function MpMessagesPage() {
   const materials = mediaQuery.data?.materials ?? [];
   const drafts = mediaQuery.data?.drafts ?? [];
 
+  // 账号切换时清空选中会话；跳过首个值（挂载 / 账号就绪），避免误清 URL 深链
+  const prevAccountIdRef = useRef<number | null>(null);
   useEffect(() => {
-    setSelectedOpenid(null);
-  }, [currentId]);
+    const prev = prevAccountIdRef.current;
+    prevAccountIdRef.current = currentId;
+    if (prev !== null && currentId !== null && prev !== currentId) setSelectedOpenid(null);
+  }, [currentId, setSelectedOpenid]);
+
+  // 深链校验：会话列表就绪后 openid 不存在则清参（无历史会话的粉丝不可主动开聊）
+  useEffect(() => {
+    const list = conversationsQuery.data;
+    if (!list) return;
+    setSelectedOpenid((prev) => (prev && !list.some((c) => c.openid === prev) ? null : prev));
+  }, [conversationsQuery.data, setSelectedOpenid]);
 
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;

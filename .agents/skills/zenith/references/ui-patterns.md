@@ -157,30 +157,39 @@ return (
 ```
 
 **禁止在窄屏自动选中首项。** 双栏下默认选中首项可避免右侧空白，但单栏会直接落到详情，
-根视图反而要点返回才能看到列表。用 `onResponsiveChange` 记录布局形态，仅双栏时自动选中，
-并在切回双栏时补选；用 ref 而非 state 保存布局形态，使自动选中的 effect 只依赖数据：
+根视图反而要点返回才能看到列表。
+
+### 选中项同步到 URL（useUrlSelectionState）
+
+「列表 → 详情」型分栏页的选中项用 `hooks/useUrlSelectionState.ts` 同步到 URL，
+深链 / 刷新 / 页签导航可直达某一项。选中对象在渲染期按 key 派生：显式选中（URL 有参）优先，
+无参时**仅双栏**回退首项——默认选中不入 URL，显式点选与深链才入；
+布局形态用 state 保存并参与派生，窄屏与双栏的行为差异随之自动成立：
 
 ```tsx
-const isNarrowLayoutRef = useRef(false);
+const [selectedKey, setSelectedKey] = useUrlSelectionState('dict'); // 参数名 = 所选实体的领域名词
+const [isNarrowLayout, setIsNarrowLayout] = useState(false);
 
+// URL 深链值优先；无深链时桌面端回退首项（默认选中不入 URL），窄屏不自动选中
+const explicit = selectedKey ? list.find((x) => String(x.id) === selectedKey) ?? null : null;
+const selected = explicit ?? (isNarrowLayout ? null : list[0] ?? null);
+
+// 深链校验：数据就绪后目标不存在（已删除 / 不在当前页）则清参，回退默认行为
 useEffect(() => {
-  setSelected((prev) => {
-    if (list.length === 0) return null;
-    const current = prev ? list.find((x) => x.id === prev.id) : null;
-    if (current) return current;
-    return isNarrowLayoutRef.current ? null : list[0];
-  });
-}, [list]);
+  if (!listQuery.data) return;
+  setSelectedKey((prev) => (prev && !listQuery.data.list.some((x) => String(x.id) === prev) ? null : prev));
+}, [listQuery.data, setSelectedKey]);
 
 <MasterDetailLayout
   showDetail={!!selected}
-  onBack={() => setSelected(null)}
-  onResponsiveChange={(narrow) => {
-    isNarrowLayoutRef.current = narrow;
-    if (!narrow) setSelected((prev) => prev ?? list[0] ?? null);
-  }}
+  onBack={() => setSelectedKey(null)}
+  onResponsiveChange={setIsNarrowLayout}
 />
 ```
+
+选中切换需要重置伴随状态（筛选、搜索词、实时流）时，点选路径在点击处理器里重置；
+深链 / 前进后退等 URL 驱动路径的重置与业务回退（如日志轮转改选 `.gz` 归档、`?level=`
+伴随参数）写在按参数值追踪的 effect 里，参考 `LogFilesPage`。
 
 ### 常见陷阱
 
