@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, SetStateAction } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Dropdown, Input, InputNumber, Popover, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Dropdown, Input, InputNumber, Modal, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Icon } from '@iconify/react';
 import {
   Activity, AlertTriangle, ArrowDown, ArrowUp, CaseSensitive, Copy, Download, FileDown, FileText, Hash,
@@ -166,6 +166,7 @@ export default function LogFilesPage() {
   // 跳到行号
   const contentViewRef = useRef<LogContentViewHandle | null>(null);
   const [gotoValue, setGotoValue] = useState<number | null>(null);
+  const [gotoVisible, setGotoVisible] = useState(false);
 
   const filesQuery = useLogFiles();
   const files = filesQuery.data ?? EMPTY_LOG_FILES;
@@ -849,80 +850,6 @@ export default function LogFilesPage() {
                     </Button>
                   )
                 )}
-                <Popover
-                  trigger="click"
-                  position="bottomRight"
-                  content={
-                    <div style={{ padding: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <InputNumber
-                        size="small"
-                        min={1}
-                        max={Math.max(1, rawLines.length)}
-                        value={gotoValue ?? undefined}
-                        onChange={(v) => setGotoValue(Number(v) || null)}
-                        placeholder="行号"
-                        style={{ width: 110 }}
-                      />
-                      <Button size="small" theme="solid" type="primary" disabled={!gotoValue} onClick={handleGotoLine}>
-                        跳转
-                      </Button>
-                    </div>
-                  }
-                >
-                  <span style={{ display: 'inline-flex' }}>
-                    <Tooltip content="跳到行号">
-                      <Button size="small" theme="borderless" icon={<Hash size={13} />} disabled={rawLines.length === 0} />
-                    </Tooltip>
-                  </span>
-                </Popover>
-                <Dropdown
-                  trigger="click"
-                  position="bottomRight"
-                  clickToHide
-                  render={
-                    <Dropdown.Menu>
-                      <Dropdown.Item onClick={() => void handleCopy('view')}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Copy size={14} /> 复制当前视图（{displayLines.length} 行）
-                        </span>
-                      </Dropdown.Item>
-                      <Dropdown.Item onClick={() => void handleCopy('all')}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Copy size={14} /> 复制全部（{rawLines.length} 行）
-                        </span>
-                      </Dropdown.Item>
-                      <Dropdown.Item onClick={handleExportView}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <FileDown size={14} /> 导出当前视图为 txt
-                        </span>
-                      </Dropdown.Item>
-                    </Dropdown.Menu>
-                  }
-                >
-                  <span style={{ display: 'inline-flex' }}>
-                    <Tooltip content="复制 / 导出">
-                      <Button size="small" theme="borderless" icon={<Copy size={13} />} disabled={rawLines.length === 0} />
-                    </Tooltip>
-                  </span>
-                </Dropdown>
-                <Tooltip content={showLineNumbers ? '隐藏行号' : '显示行号'}>
-                  <Button
-                    size="small"
-                    theme={showLineNumbers ? 'light' : 'borderless'}
-                    type={showLineNumbers ? 'primary' : 'tertiary'}
-                    icon={<ListOrdered size={13} />}
-                    onClick={() => setShowLineNumbers((v) => !v)}
-                  />
-                </Tooltip>
-                <Tooltip content={wrap ? '关闭自动换行' : '开启自动换行'}>
-                  <Button
-                    size="small"
-                    theme={wrap ? 'light' : 'borderless'}
-                    type={wrap ? 'primary' : 'tertiary'}
-                    icon={<WrapText size={13} />}
-                    onClick={() => setWrap((v) => !v)}
-                  />
-                </Tooltip>
                 {hasPermission('system:log:files') && (
                   <Tooltip content="刷新">
                     <Button
@@ -935,27 +862,67 @@ export default function LogFilesPage() {
                     />
                   </Tooltip>
                 )}
-                {hasPermission('system:log:files:download') && (
-                  <Tooltip content="下载">
-                    <Button
-                      size="small"
-                      theme="borderless"
-                      icon={<Download size={13} />}
-                      onClick={() => void handleDownload(selected)}
-                    />
-                  </Tooltip>
-                )}
-                {hasPermission('system:log:files:delete') && (
-                  <Tooltip content="删除">
-                    <Button
-                      size="small"
-                      theme="borderless"
-                      type="danger"
-                      icon={<Trash2 size={13} />}
-                      onClick={() => handleDelete(selected)}
-                    />
-                  </Tooltip>
-                )}
+                <Dropdown
+                  trigger="click"
+                  position="bottomRight"
+                  clickToHide
+                  render={
+                    <Dropdown.Menu>
+                      <Dropdown.Item disabled={rawLines.length === 0} onClick={() => setGotoVisible(true)}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Hash size={14} /> 跳到行号
+                        </span>
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => setShowLineNumbers((v) => !v)}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <ListOrdered size={14} /> {showLineNumbers ? '隐藏行号' : '显示行号'}
+                        </span>
+                      </Dropdown.Item>
+                      <Dropdown.Item onClick={() => setWrap((v) => !v)}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <WrapText size={14} /> {wrap ? '关闭自动换行' : '开启自动换行'}
+                        </span>
+                      </Dropdown.Item>
+                      <Dropdown.Divider />
+                      <Dropdown.Item disabled={rawLines.length === 0} onClick={() => void handleCopy('view')}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Copy size={14} /> 复制当前视图（{displayLines.length} 行）
+                        </span>
+                      </Dropdown.Item>
+                      <Dropdown.Item disabled={rawLines.length === 0} onClick={() => void handleCopy('all')}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Copy size={14} /> 复制全部（{rawLines.length} 行）
+                        </span>
+                      </Dropdown.Item>
+                      <Dropdown.Item disabled={rawLines.length === 0} onClick={handleExportView}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <FileDown size={14} /> 导出当前视图为 txt
+                        </span>
+                      </Dropdown.Item>
+                      {(hasPermission('system:log:files:download') || hasPermission('system:log:files:delete')) && <Dropdown.Divider />}
+                      {hasPermission('system:log:files:download') && (
+                        <Dropdown.Item onClick={() => void handleDownload(selected)}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Download size={14} /> 下载
+                          </span>
+                        </Dropdown.Item>
+                      )}
+                      {hasPermission('system:log:files:delete') && (
+                        <Dropdown.Item type="danger" onClick={() => handleDelete(selected)}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Trash2 size={14} /> 删除
+                          </span>
+                        </Dropdown.Item>
+                      )}
+                    </Dropdown.Menu>
+                  }
+                >
+                  <span style={{ display: 'inline-flex' }}>
+                    <Tooltip content="更多操作">
+                      <Button size="small" theme="borderless" icon={<MoreHorizontal size={13} />} />
+                    </Tooltip>
+                  </span>
+                </Dropdown>
               </div>
             </div>
 
@@ -987,6 +954,26 @@ export default function LogFilesPage() {
                 emptyText={emptyText}
               />
             )}
+            <Modal
+              title="跳到行号"
+              size="small"
+              visible={gotoVisible}
+              onCancel={() => setGotoVisible(false)}
+              onOk={() => { handleGotoLine(); setGotoVisible(false); }}
+              okText="跳转"
+              cancelText="取消"
+              okButtonProps={{ disabled: !gotoValue }}
+            >
+              <InputNumber
+                min={1}
+                max={Math.max(1, rawLines.length)}
+                value={gotoValue ?? undefined}
+                onChange={(v) => setGotoValue(Number(v) || null)}
+                onEnterPress={() => { handleGotoLine(); setGotoVisible(false); }}
+                placeholder={`1 - ${rawLines.length}`}
+                style={{ width: '100%' }}
+              />
+            </Modal>
             </>
           ) : (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
