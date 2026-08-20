@@ -2,15 +2,16 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
 import {
-  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, Popconfirm, Spin, Typography,
+  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, Popconfirm, Spin, Typography, List, Checkbox, Pagination,
 } from '@douyinfe/semi-ui';
-import { usePagination } from '@/hooks/usePagination';
+import { usePagination, TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import type { InAppMessage } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
-import ConfigurableTable from '@/components/ConfigurableTable';
+import { RefreshButton } from '@/components/toolbar-controls';
 import {
   inboxKeys,
   useBatchDeleteInboxMessages,
@@ -21,7 +22,6 @@ import {
   useMarkAllInboxMessagesRead,
   useMarkInboxMessageRead,
 } from '@/hooks/queries/inbox';
-import { dateTimeColumn } from '@/utils/table-columns';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const TYPE_COLOR: Record<string, TagColor> = {
@@ -42,6 +42,7 @@ const { Text } = Typography;
 
 export default function InboxPage() {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [activeTab, setActiveTab] = useUrlTabState(['all', 'unread', 'read'] as const, 'all');
 
@@ -57,7 +58,7 @@ export default function InboxPage() {
   const listQuery = useInboxList(listParams);
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const tablePagination = buildPagination(total);
+  const pagination = buildPagination(total);
   const detailQuery = useInboxMessageDetail(selected?.id, selected !== null);
   const selectedMessage = selected ? (detailQuery.data ? { ...detailQuery.data, isRead: true } : selected) : null;
   const markReadMutation = useMarkInboxMessageRead();
@@ -119,64 +120,11 @@ export default function InboxPage() {
   };
 
   const unreadCount = list.filter((n) => !n.isRead).length;
+  const allSelected = list.length > 0 && list.every((n) => selectedIds.includes(n.id));
 
-  const columns = [
-    {
-      title: '标题',
-      dataIndex: 'title',
-      render: (v: string, record: InAppMessage) => (
-        <Button
-          theme="borderless"
-          size="small"
-          style={{ fontWeight: record.isRead ? 400 : 600, padding: 0 }}
-          onClick={() => void openMessage(record)}
-        >
-          {!record.isRead && (
-            <Badge dot style={{ marginRight: 6, verticalAlign: 'middle' }} />
-          )}
-          {v}
-        </Button>
-      ),
-    },
-    {
-      title: '类型',
-      dataIndex: 'type',
-      width: 80,
-      render: (v: string) => (
-        <Tag color={TYPE_COLOR[v] ?? 'blue'} size="small">{TYPE_LABEL[v] ?? v}</Tag>
-      ),
-    },
-    {
-      title: '发送人',
-      dataIndex: 'senderName',
-      width: 140,
-      render: (v: string | null | undefined) => v ?? '系统',
-    },
-    dateTimeColumn('时间', 'createdAt'),
-    {
-      title: '状态',
-      dataIndex: 'isRead',
-      width: 80,
-      render: (v: boolean) => (
-        <Tag color={v ? 'grey' : 'blue'} size="small">{v ? '已读' : '未读'}</Tag>
-      ),
-    },
-    {
-      title: '操作',
-      width: 140,
-      fixed: 'right' as const,
-      render: (_: unknown, record: InAppMessage) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => void openMessage(record)}>
-            查看
-          </Button>
-          <Popconfirm title="确定要删除吗？" onConfirm={() => void handleDelete(record.id)}>
-            <Button theme="borderless" type="danger" size="small">删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+  const toggleSelect = (id: number, checked: boolean) => {
+    setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+  };
 
   return (
     <div className="page-container">
@@ -240,33 +188,90 @@ export default function InboxPage() {
           style={{ padding: '48px 0' }}
         />
       ) : (
-        <ConfigurableTable
-          bordered
-          loading={loading}
-          onRefresh={() => void listQuery.refetch()}
-          refreshLoading={loading}
-          dataSource={list}
-          rowKey="id"
-          columns={columns}
-          rowSelection={{
-            selectedRowKeys: selectedIds,
-            onChange: (keys) => setSelectedIds((keys ?? []) as number[]),
-          }}
-          pagination={{
-            ...tablePagination,
-            onPageChange: (p) => {
-              tablePagination.onPageChange(p);
-              setSelectedIds([]);
-            },
-            onPageSizeChange: (size) => {
-              tablePagination.onPageSizeChange(size);
-              setSelectedIds([]);
-            },
-          }}
-          onRow={(record) => ({
-            style: { opacity: (record as InAppMessage).isRead ? 0.7 : 1 },
-          })}
-        />
+        <>
+          <List
+            size="small"
+            loading={loading}
+            dataSource={list}
+            header={
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Checkbox
+                  checked={allSelected}
+                  indeterminate={selectedIds.length > 0 && !allSelected}
+                  onChange={(e) => setSelectedIds(e.target.checked ? list.map((n) => n.id) : [])}
+                >
+                  全选{selectedIds.length > 0 ? `（已选 ${selectedIds.length} 条）` : ''}
+                </Checkbox>
+                <RefreshButton onClick={() => void listQuery.refetch()} loading={loading} />
+              </div>
+            }
+            renderItem={(item: InAppMessage, index: number) => (
+              <List.Item
+                key={item.id}
+                style={{ cursor: 'pointer', opacity: item.isRead ? 0.7 : 1 }}
+                onClick={() => void openMessage(item, index)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 }}>
+                  <span role="none" style={{ display: 'inline-flex', flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.includes(item.id)}
+                      onChange={(e) => toggleSelect(item.id, Boolean(e.target.checked))}
+                    />
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      {!item.isRead && <Badge dot style={{ flexShrink: 0 }} />}
+                      <Text strong={!item.isRead} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.title}
+                      </Text>
+                      <Tag color={TYPE_COLOR[item.type] ?? 'blue'} size="small" style={{ flexShrink: 0 }}>
+                        {TYPE_LABEL[item.type] ?? item.type}
+                      </Tag>
+                      <Text style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
+                        {item.senderName ?? '系统'} · {formatDateTime(item.createdAt)}
+                      </Text>
+                    </div>
+                    {item.content && (
+                      <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.content}
+                      </div>
+                    )}
+                  </div>
+                  <Popconfirm title="确定要删除吗？" onConfirm={() => void handleDelete(item.id)}>
+                    <Button
+                      theme="borderless"
+                      type="danger"
+                      size="small"
+                      style={{ flexShrink: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </div>
+              </List.Item>
+            )}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Pagination
+              currentPage={pagination.currentPage}
+              pageSize={pagination.pageSize}
+              total={pagination.total}
+              pageSizeOpts={TABLE_PAGE_SIZE_OPTIONS}
+              showSizeChanger={!isMobile}
+              showTotal={!isMobile}
+              size={isMobile ? 'small' : 'default'}
+              onPageChange={(p) => {
+                pagination.onPageChange(p);
+                setSelectedIds([]);
+              }}
+              onPageSizeChange={(size) => {
+                pagination.onPageSizeChange(size);
+                setSelectedIds([]);
+              }}
+            />
+          </div>
+        </>
       )}
 
       <AppModal

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge,
+  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, List, Pagination, Typography,
 } from '@douyinfe/semi-ui';
-import { usePagination } from '@/hooks/usePagination';
+import { usePagination, TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
+import { useIsMobile } from '@/hooks/useMediaQuery';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck } from 'lucide-react';
-import ConfigurableTable from '@/components/ConfigurableTable';
+import { formatDateTime } from '@/utils/date';
+import { RefreshButton } from '@/components/toolbar-controls';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import {
@@ -18,7 +20,6 @@ import {
   useMyAnnouncementDetail,
   useMyAnnouncementList,
 } from '@/hooks/queries/announcements';
-import { dateTimeColumn } from '@/utils/table-columns';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 type AnnouncementWithRead = MyAnnouncement;
@@ -44,6 +45,7 @@ const PRIORITY_LABEL: Record<string, string> = {
 
 export default function AnnouncementsPage() {
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [activeTab, setActiveTab] = useUrlTabState(['all', 'unread', 'read'] as const, 'all');
 
@@ -105,67 +107,6 @@ export default function AnnouncementsPage() {
 
   const unreadCount = list.filter((n) => !n.isRead).length;
 
-  const columns = [
-    {
-      title: '标题',
-      dataIndex: 'title',
-      render: (v: string, record: AnnouncementWithRead, index: number) => (
-        <Button
-          theme="borderless"
-          size="small"
-          style={{ fontWeight: record.isRead ? 400 : 600, padding: 0 }}
-          onClick={() => void openNotice(record, index)}
-        >
-          {!record.isRead && (
-            <Badge dot style={{ marginRight: 6, verticalAlign: 'middle' }} />
-          )}
-          {v}
-        </Button>
-      ),
-    },
-    {
-      title: '类型',
-      dataIndex: 'type',
-      width: 80,
-      render: (v: string) => <Tag size="small">{TYPE_LABEL[v] ?? v}</Tag>,
-    },
-    {
-      title: '优先级',
-      dataIndex: 'priority',
-      width: 80,
-      render: (v: string) => (
-        <Tag color={PRIORITY_COLOR[v] ?? 'blue'} size="small">
-          {PRIORITY_LABEL[v] ?? v}
-        </Tag>
-      ),
-    },
-    dateTimeColumn('发布时间', 'publishTime'),
-    {
-      title: '状态',
-      dataIndex: 'isRead',
-      width: 80,
-      render: (v: boolean) => (
-        <Tag color={v ? 'grey' : 'blue'} size="small">
-          {v ? '已读' : '未读'}
-        </Tag>
-      ),
-    },
-    {
-      title: '操作',
-      width: 80,
-      fixed: 'right' as const,
-      render: (_: unknown, record: AnnouncementWithRead, index: number) => (
-        <Button
-          theme="borderless"
-          size="small"
-          onClick={() => void openNotice(record, index)}
-        >
-          查看
-        </Button>
-      ),
-    },
-  ];
-
   const renderMarkAllReadButton = (tab: AnnouncementTab) => {
     if (tab === 'read') return null;
 
@@ -183,14 +124,14 @@ export default function AnnouncementsPage() {
 
   const renderAnnouncementsContent = (tab: AnnouncementTab) => {
     const markAllReadButton = renderMarkAllReadButton(tab);
+    const pagination = buildPagination(total);
 
     return (
       <>
-        {markAllReadButton && (
-          <SearchToolbar>
-            {markAllReadButton}
-          </SearchToolbar>
-        )}
+        <SearchToolbar>
+          {markAllReadButton}
+          <RefreshButton onClick={() => void listQuery.refetch()} loading={loading} />
+        </SearchToolbar>
 
         {list.length === 0 && !loading ? (
           <Empty
@@ -204,19 +145,57 @@ export default function AnnouncementsPage() {
             style={{ padding: '48px 0' }}
           />
         ) : (
-          <ConfigurableTable
-            bordered
-            loading={loading}
-            onRefresh={() => void listQuery.refetch()}
-            refreshLoading={loading}
-            dataSource={list}
-            rowKey="id"
-            columns={columns}
-            pagination={buildPagination(total)}
-            onRow={(record) => ({
-              style: { opacity: (record as AnnouncementWithRead).isRead ? 0.7 : 1 },
-            })}
-          />
+          <>
+            <List
+              size="small"
+              loading={loading}
+              dataSource={list}
+              renderItem={(item: AnnouncementWithRead, index: number) => {
+                const preview = item.content.replace(/<[^>]*>/g, '');
+                return (
+                  <List.Item
+                    key={item.id}
+                    style={{ cursor: 'pointer', opacity: item.isRead ? 0.7 : 1 }}
+                    onClick={() => void openNotice(item, index)}
+                  >
+                    <div style={{ width: '100%', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        {!item.isRead && <Badge dot style={{ flexShrink: 0 }} />}
+                        <Typography.Text strong={!item.isRead} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.title}
+                        </Typography.Text>
+                        <Tag size="small" style={{ flexShrink: 0 }}>{TYPE_LABEL[item.type] ?? item.type}</Tag>
+                        <Tag color={PRIORITY_COLOR[item.priority] ?? 'blue'} size="small" style={{ flexShrink: 0 }}>
+                          {PRIORITY_LABEL[item.priority] ?? item.priority}
+                        </Tag>
+                        <Typography.Text style={{ fontSize: 12, color: 'var(--semi-color-text-3)', marginLeft: 'auto', flexShrink: 0 }}>
+                          发布于 {formatDateTime(item.publishTime ?? item.createdAt)}
+                        </Typography.Text>
+                      </div>
+                      {preview && (
+                        <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {preview}
+                        </div>
+                      )}
+                    </div>
+                  </List.Item>
+                );
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+              <Pagination
+                currentPage={pagination.currentPage}
+                pageSize={pagination.pageSize}
+                total={pagination.total}
+                pageSizeOpts={TABLE_PAGE_SIZE_OPTIONS}
+                showSizeChanger={!isMobile}
+                showTotal={!isMobile}
+                size={isMobile ? 'small' : 'default'}
+                onPageChange={pagination.onPageChange}
+                onPageSizeChange={pagination.onPageSizeChange}
+              />
+            </div>
+          </>
         )}
       </>
     );
