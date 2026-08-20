@@ -174,20 +174,32 @@
   写回、默认 Tab 不写参数、非法值回退默认、前进后退跟随）；**禁止**用本地 `useState` 管理页面
   顶层 activeTab，也**禁止**手写 `searchParams.get('tab')` 等价实现。写法见
   [ui-patterns.md → 页面级多 Tab 布局](./ui-patterns.md#页面级多-tab-布局)。
+  写回受偏好 `syncPageStateToUrl`（「页面状态同步到地址栏」，默认关）控制，hook 已内置：
+  关闭时深链进入仍生效一次、参数消费后移除，切换不写 URL；页面代码不感知该偏好。
   **不适用**：弹窗 / 抽屉 / 分栏面板内部 Tabs 与页面二级 Tabs；tab 集合来自动态数据的场景
   （SDK 示例语言、OAuth 提供商列表）；登录方式切换；以及 db-admin 的 `tab`+`table` 联合
-  原子写回（拆入 hook 会造成双 effect 竞写 searchParams，保持其手写实现）。
+  原子写回（拆入 hook 会造成双 effect 竞写 searchParams，保持手写实现，但须同样读取
+  `syncPageStateToUrl` 保证全站行为一致）。
   需要「记住上次停留 Tab」的页面（如监控页）把偏好值作为 `defaultTab` 传入即可与 URL 定位共存
 - **分栏页的选中项必须走 `hooks/useUrlSelectionState.ts`**（深链直达、replace 写回、
-  未选中删参、外部导航跟随）；参数名取所选实体的领域名词（`dict` / `channel` / `file` / `session`…），
-  **禁止** `id` / `item` 这类无信息量的通用名，也**禁止**手写 `searchParams.get` 等价实现。
-  合法值来自异步数据：数据就绪后校验、不存在则清参回退由页面负责；
-  「桌面端自动选中首项」作为渲染期派生回退实现，**不写回 URL**。
+  未选中删参、外部导航跟随，同受 `syncPageStateToUrl` 偏好控制）；参数名取所选实体的领域名词
+  （`dict` / `channel` / `file` / `openid`…），**禁止** `id` / `item` 这类无信息量的通用名，
+  也**禁止**手写 `searchParams.get` 等价实现。硬规则：
+  - **同页已有 `useUrlTabState` 时选中项不入 URL（以 tab 为准）**：同一页面两个写 URL 的
+    hook 实例会双 effect 竞写 searchParams（react-router 的 setSearchParams 含函数式都基于
+    渲染期快照），且 tab 切换即使选中失效，深链语义含糊。选中项退回本地 `useState`
+  - **上下文相关的 id 必须带上下文成组入 URL**：选中项 id 只在某上下文内唯一或可解析时
+    （站点下的栏目、公众号下的会话 openid），用 `useUrlSelectionParams(['site', 'channel'])`
+    单实例原子管理两参数；**禁止**为每个参数各挂一个 hook 实例。上下文默认值（localStorage
+    恢复的站点 / 账号）不入 URL，选中时一并盖章写入
+  - **分页列表禁止拿「当前页成员资格」当存在性判据**：深链目标可能在其他页，不在页内时
+    按 id 拉详情兜底，仅确认无效（非法 id / 404）才清参；数据在途（isFetching）时等待
+  - 「桌面端自动选中首项」作为渲染期派生回退实现，**不写回 URL**
   写法见 [ui-patterns.md → 选中项同步到 URL](./ui-patterns.md#选中项同步到-urluseurlselectionstate)。
-  **不适用**：多参数联合原子写回的页面（wiki 文档中心 `spaceId`+`docId`、db-admin `tab`+`table`——
-  拆入 hook 会双 effect 竞写 searchParams）；「消费即焚」的一次性激活参数（聊天 `?conv=` 选中即触发
-  已读等副作用、列表筛选深链走 `useListDeepLink`）；master 为筛选树的页面（部门 / 栏目是查询条件
-  而非选中项，入 URL 应使用领域筛选参数，单独评估）
+  **不适用**：wiki 文档中心 `spaceId`+`docId` 联合写回（跨页跳转契约成熟，保持手写实现，
+  同样读取 `syncPageStateToUrl`）；「消费即焚」的一次性激活参数（聊天 `?conv=` 选中即触发
+  已读等副作用、列表筛选深链走 `useListDeepLink`）；master 为筛选树的页面（部门 / 分类是
+  查询条件而非选中项，入 URL 应使用领域筛选参数，单独评估）
 - **Tabs 自动溢出折叠**：所有 `<Tabs>` 必须带 `collapsible="auto"`——窄容器（抽屉、弹窗、
   分栏面板）里标签多时会折行或被裁掉，`auto` 只在真放不下时折叠成带箭头的滚动条，
   宽度充足时渲染与不加时一致，因此**没有「这个页面标签少所以不用加」的例外**。

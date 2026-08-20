@@ -162,7 +162,8 @@ return (
 ### 选中项同步到 URL（useUrlSelectionState）
 
 「列表 → 详情」型分栏页的选中项用 `hooks/useUrlSelectionState.ts` 同步到 URL，
-深链 / 刷新 / 页签导航可直达某一项。选中对象在渲染期按 key 派生：显式选中（URL 有参）优先，
+深链 / 刷新 / 页签导航可直达某一项（是否持久写回由偏好「页面状态同步到地址栏」决定，
+hook 已内置，页面代码不感知）。选中对象在渲染期按 key 派生：显式选中（URL 有参）优先，
 无参时**仅双栏**回退首项——默认选中不入 URL，显式点选与深链才入；
 布局形态用 state 保存并参与派生，窄屏与双栏的行为差异随之自动成立：
 
@@ -170,21 +171,45 @@ return (
 const [selectedKey, setSelectedKey] = useUrlSelectionState('dict'); // 参数名 = 所选实体的领域名词
 const [isNarrowLayout, setIsNarrowLayout] = useState(false);
 
-// URL 深链值优先；无深链时桌面端回退首项（默认选中不入 URL），窄屏不自动选中
-const explicit = selectedKey ? list.find((x) => String(x.id) === selectedKey) ?? null : null;
+// URL 深链值优先；无深链时桌面端回退首项（默认选中不入 URL），窄屏不自动选中。
+// 分页列表：深链目标可能不在当前页，不在页内时按 id 拉详情兜底，
+// 仅确认无效（非法 id / 404）才清参——成员资格不可当存在性判据
+const explicitId = selectedKey !== null ? Number(selectedKey) : undefined;
+const idValid = explicitId !== undefined && Number.isInteger(explicitId) && explicitId > 0;
+const inPage = idValid ? list.find((x) => x.id === explicitId) ?? null : null;
+const fallbackQuery = useXxxDetail(explicitId, idValid && !inPage);
+const explicit = inPage ?? (fallbackQuery.data?.id === explicitId ? fallbackQuery.data : null);
 const selected = explicit ?? (isNarrowLayout ? null : list[0] ?? null);
 
-// 深链校验：数据就绪后目标不存在（已删除 / 不在当前页）则清参，回退默认行为
 useEffect(() => {
-  if (!listQuery.data) return;
-  setSelectedKey((prev) => (prev && !listQuery.data.list.some((x) => String(x.id) === prev) ? null : prev));
-}, [listQuery.data, setSelectedKey]);
+  if (selectedKey === null) return;
+  if (!idValid || fallbackQuery.isError) setSelectedKey(null);
+}, [selectedKey, idValid, fallbackQuery.isError, setSelectedKey]);
 
 <MasterDetailLayout
   showDetail={!!selected}
   onBack={() => setSelectedKey(null)}
   onResponsiveChange={setIsNarrowLayout}
 />
+```
+
+不分页的数据源（全量列表 / 树）没有详情接口兜底时，仍须等数据落定
+（`query.data && !query.isFetching`）再判目标不存在并清参，避免在途误清。
+
+**上下文相关的 id 用 `useUrlSelectionParams` 复合成组**：栏目 id 只在站点下可解析、
+会话 openid 只在公众号内唯一，单带选中参数会落到 localStorage 恢复的其他上下文而查无此项。
+两参数必须同一实例原子管理（分两个实例会同帧竞写 searchParams 互相覆盖）：
+
+```tsx
+const [urlSelection, setUrlSelection] = useUrlSelectionParams(['site', 'channel']);
+// 上下文分两层：URL 层（深链/盖章）优先，本地层承接选择器恢复与手动切换；上下文默认值不入 URL
+const siteId = urlSelection.site !== null ? Number(urlSelection.site) : localSiteId;
+
+// 点选时把上下文一并盖章；关闭时先把上下文降级回本地层再整组清参，避免树/列表意外切换
+onSelect: (record) => setUrlSelection({ site: String(siteId), channel: String(record.id) });
+onClose:  () => { setLocalSiteId(siteId); setUrlSelection({ site: null, channel: null }); };
+// 手动切换上下文（非首次恢复）时整组清参；深链应用共享上下文（写 localStorage 的 setCurrentId 等）
+// 需按参数值追踪只应用一次，避免手动切换被 URL 旧值回滚（参考 MpMessagesPage）
 ```
 
 选中切换需要重置伴随状态（筛选、搜索词、实时流）时，点选路径在点击处理器里重置；
