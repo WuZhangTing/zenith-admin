@@ -791,6 +791,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
           handleSidebarOpenChange={handleSidebarOpenChange}
           renderMobileWrapper={renderMobileWrapper}
           showMenuSearch={preferences.showMenuSearch ?? true}
+          toggleIconPosition={preferences.sidebarToggleIconPosition ?? 'right'}
         />
       )}
 
@@ -832,6 +833,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               renderWrapper={renderWrapper}
               darkClassName={sidebarDark ? ' semi-always-dark' : ''}
               getPopupContainer={getSidebarPopupContainer}
+              toggleIconPosition={preferences.sidebarToggleIconPosition ?? 'right'}
             />
           ) : (
             <SidebarNav
@@ -849,6 +851,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
               handleNavigateHomeKey={handleNavigateHomeKey}
               renderWrapper={renderWrapper}
               getPopupContainer={getSidebarPopupContainer}
+              toggleIconPosition={preferences.sidebarToggleIconPosition ?? 'right'}
             />
           )
         )}

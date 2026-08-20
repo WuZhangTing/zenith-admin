@@ -56,6 +56,7 @@ export function MobileNavSheet({
   handleSidebarOpenChange,
   renderMobileWrapper,
   showMenuSearch = true,
+  toggleIconPosition = 'right',
 }: Readonly<{
   mobileNavVisible: boolean;
   setMobileNavVisible: Dispatch<SetStateAction<boolean>>;
@@ -67,6 +68,8 @@ export function MobileNavSheet({
   handleSidebarOpenChange: (data: { openKeys?: (string | number)[] }) => void;
   renderMobileWrapper: (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => React.ReactNode;
   showMenuSearch?: boolean;
+  /** 子菜单展开/收起箭头位置，默认右侧 */
+  toggleIconPosition?: 'left' | 'right';
 }>) {
   // 未读徽标拼进文字（抽屉恒为展开态）
   const decoratedItems = useMemo(() => decorateNavItemsWithBadges(navItems), [navItems]);
@@ -112,6 +115,7 @@ export function MobileNavSheet({
         className="admin-mobile-nav"
         mode="vertical"
         items={decoratedItems}
+        toggleIconPosition={toggleIconPosition}
         selectedKeys={currentSelectedKeys}
         openKeys={openKeys}
         onOpenChange={handleSidebarOpenChange}

@@ -6,6 +6,7 @@ export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
 export type TabStyle = 'line' | 'pill' | 'card' | 'chrome';
 export type TableSizePreference = 'small' | 'default' | 'middle';
 export type RouteAnimation = 'none' | 'fade' | 'slide-up' | 'slide-left';
+export type SidebarToggleIconPosition = 'left' | 'right';
 export type BorderRadiusPreference = 'none' | 'small' | 'medium' | 'large';
 export const LOADING_STYLES = ['dots', 'ring', 'flip', 'bars'] as const;
 export type LoadingStyle = (typeof LOADING_STYLES)[number];
@@ -131,6 +132,8 @@ export interface UserPreferences {
   sidebarAccordion: boolean;
   /** 侧边栏悬浮模式：开启后，侧边栏居按展开，鼠标入内时临时滑出，移开则自动收起 */
   sidebarHoverTrigger: boolean;
+  /** 侧边栏子菜单展开/收起箭头位置：right 菜单项右端（默认）/ left 菜单项左侧 */
+  sidebarToggleIconPosition: SidebarToggleIconPosition;
   /** 面包屑可点击跳转：false 时仅展示文字路径，防止误触导致表单中断 */
   breadcrumbClickable: boolean;
   /** 项目目录节点的子菜单 Popover */
@@ -212,6 +215,7 @@ export const defaultPreferences: UserPreferences = {
   enableLockScreen: false,
   sidebarAccordion: true,
   sidebarHoverTrigger: false,
+  sidebarToggleIconPosition: 'right',
   breadcrumbClickable: true,
   breadcrumbSubMenu: false,
   openTabBehavior: 'append',

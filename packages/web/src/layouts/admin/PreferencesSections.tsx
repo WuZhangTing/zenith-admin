@@ -497,6 +497,26 @@ export function PrefsSidebarSection({
       </div>
       )}
 
+      {/* ── 子菜单箭头位置 ── */}
+      {matchesPref(['箭头', '展开箭头', '箭头位置', '展开收起', '子菜单箭头', '侧边栏']) && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          子菜单箭头位置
+          <Tooltip content="侧边栏可展开子菜单的展开/收起箭头显示位置：默认在菜单项右端，可改为显示在左侧" position="right">
+            <Info size={13} style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} />
+          </Tooltip>
+        </span>
+        <RadioGroup
+          type="button"
+          value={preferences.sidebarToggleIconPosition ?? 'right'}
+          onChange={(e) => setPreferences({ sidebarToggleIconPosition: e.target.value as 'left' | 'right' })}
+        >
+          <Radio value="left">左侧</Radio>
+          <Radio value="right">右侧</Radio>
+        </RadioGroup>
+      </div>
+      )}
+
       {/* ── 侧边栏分组标题 sticky ── */}
       {matchesPref(['侧边栏', '分组标题', '滚动固定', '侧边栏分组']) && (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

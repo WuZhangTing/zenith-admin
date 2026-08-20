@@ -20,6 +20,7 @@ export function SidebarNav({
   handleNavigateHomeKey,
   renderWrapper,
   getPopupContainer,
+  toggleIconPosition = 'right',
 }: Readonly<{
   sidebarClassName: string;
   onMouseEnter: () => void;
@@ -36,6 +37,8 @@ export function SidebarNav({
   renderWrapper: (args: { itemElement: React.ReactNode; props: { itemKey?: string | number } }) => React.ReactNode;
   /** 分区深色时把折叠飞出菜单与折叠项 Tooltip 挂进带 .semi-always-dark 的节点 */
   getPopupContainer?: () => HTMLElement;
+  /** 子菜单展开/收起箭头位置，默认右侧 */
+  toggleIconPosition?: 'left' | 'right';
 }>) {
   // 未读徽标：展开态拼在文字后，收起态显示图标红点
   const decoratedItems = useMemo(
@@ -53,6 +56,7 @@ export function SidebarNav({
           className="admin-sidebar__nav"
           mode="vertical"
           items={decoratedItems}
+          toggleIconPosition={toggleIconPosition}
           style={{ height: '100%' }}
           bodyStyle={{ paddingTop: 8 }}
           isCollapsed={effectiveCollapsed}

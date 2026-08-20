@@ -19,6 +19,7 @@ export function DoubleSidebar({
   renderWrapper,
   darkClassName = '',
   getPopupContainer,
+  toggleIconPosition = 'right',
 }: Readonly<{
   doubleSubItems: NavItem[];
   stickyNavClass: string;
@@ -36,6 +37,8 @@ export function DoubleSidebar({
   darkClassName?: string;
   /** 分区深色时把 rail Tooltip 与子导航弹层挂进带 .semi-always-dark 的节点 */
   getPopupContainer?: () => HTMLElement;
+  /** 子菜单展开/收起箭头位置，默认右侧 */
+  toggleIconPosition?: 'left' | 'right';
 }>) {
   // 子导航未读徽标拼进文字（与垂直侧边栏一致）
   const decoratedSubItems = useMemo(() => decorateNavItemsWithBadges(doubleSubItems), [doubleSubItems]);
@@ -90,6 +93,7 @@ export function DoubleSidebar({
                 className="admin-sidebar__nav double-sidebar__sub-nav"
                 mode="vertical"
                 items={decoratedSubItems}
+                toggleIconPosition={toggleIconPosition}
                 style={{ height: 'calc(100% - 48px)', overflow: 'hidden' }}
                 bodyStyle={{ paddingTop: 8 }}
                 isCollapsed={false}
