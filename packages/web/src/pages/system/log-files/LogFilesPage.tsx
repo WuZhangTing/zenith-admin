@@ -384,15 +384,26 @@ export default function LogFilesPage() {
     syncFileParam(file.name);
   }, [selected, abortTail, syncFileParam]);
 
-  // URL ?file= 深链恢复：文件列表就绪后应用一次（刷新/分享链接直达）
-  const urlFileAppliedRef = useRef(false);
+  // URL ?file= 深链：文件列表就绪后应用（刷新/分享链接/告警事件跳转直达）。
+  // 页面可能被页签缓存复用，因此按参数值追踪而非只应用一次；
+  // 当天文件已轮转归档时回退到 .gz；?level= 指定初始级别过滤（告警跳转带 error/warn）
+  const appliedFileParamRef = useRef<string | null>(null);
   useEffect(() => {
-    if (urlFileAppliedRef.current || files.length === 0) return;
-    urlFileAppliedRef.current = true;
     const fileParam = searchParams.get('file');
-    if (!fileParam || selected) return;
-    const target = files.find((f) => f.name === fileParam);
-    if (target) selectFile(target);
+    if (!fileParam || files.length === 0) return;
+    if (appliedFileParamRef.current === fileParam) return;
+    appliedFileParamRef.current = fileParam;
+    // 手动点选后 syncFileParam 会回写 URL，此时选中已一致，无需重复应用
+    if (selected?.name === fileParam) return;
+    const target = files.find((f) => f.name === fileParam)
+      ?? files.find((f) => f.name === `${fileParam}.gz`);
+    if (!target || selected?.name === target.name) return;
+    selectFile(target);
+    const levelParam = searchParams.get('level');
+    if (levelParam === 'error' || levelParam === 'warn' || levelParam === 'info' || levelParam === 'debug') {
+      // selectFile 内部重置为 all，同一批 state 更新中后写的生效
+      setLevelFilter(levelParam);
+    }
   }, [files, searchParams, selected, selectFile]);
 
   const jumpToMatch = useCallback((direction: -1 | 1) => {

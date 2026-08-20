@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Form, Select, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -39,6 +39,12 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 
 const OP_SYMBOL: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤' };
 const CHANNEL_LABELS: Record<string, string> = NOTIFY_CHANNEL_LABELS;
+
+/** 日志级别计数指标 → 日志文件页深链的级别过滤 */
+const LOG_METRIC_LEVEL: Record<string, 'error' | 'warn'> = {
+  logErrorPerMin: 'error',
+  logWarnPerMin: 'warn',
+};
 
 interface SearchParams {
   keyword: string;
@@ -99,6 +105,7 @@ function MetricFilterSelect({ value, onChange }: { value: string; onChange: (v: 
 
 export default function AlertEventsPage() {
   const { hasPermission } = usePermission();
+  const navigate = useNavigate();
   // 从告警规则页「查看事件」或概览页统计卡跳转而来时按 URL 过滤；
   // URL 是这类联查的唯一来源，刷新后依然生效
   const [urlParams, setUrlParams] = useSearchParams();
@@ -210,6 +217,16 @@ export default function AlertEventsPage() {
       // 最宽的一行是「标记已处理 + 撤销认领」两个按钮并排，150 装不下会挤成换行
       width: 210,
       actions: (record) => [
+        {
+          key: 'viewLog',
+          label: '查看日志',
+          hidden: !(record.metric in LOG_METRIC_LEVEL) || !hasPermission('system:log:files'),
+          onClick: () => {
+            // 按触发日期定位当天日志文件；日志页会自动回退到 .gz 归档
+            const date = record.triggeredAt?.slice(0, 10);
+            navigate(`/system/log-files?file=app-${date}.log&level=${LOG_METRIC_LEVEL[record.metric]}`);
+          },
+        },
         {
           key: 'ack',
           label: '认领',

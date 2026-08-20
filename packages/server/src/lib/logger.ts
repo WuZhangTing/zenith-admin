@@ -1,6 +1,7 @@
 import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import { config } from '../config';
+import { logMetricsTransport } from './log-metrics';
 
 const { combine, timestamp, printf, colorize, errors } = winston.format;
 
@@ -34,6 +35,8 @@ const logger = winston.createLogger({
       ),
     }),
     dailyRotateTransport,
+    // 级别计数指标源（监控告警的 logErrorPerMin / logWarnPerMin），只计数不落盘
+    logMetricsTransport,
   ],
 });
 

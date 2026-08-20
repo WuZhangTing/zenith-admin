@@ -70,9 +70,24 @@ const rules: MockRule[] = [
     silenceMinutes: 120, enabled: false, state: 'ok', lastTriggeredAt: null, lastValue: 0,
     createdAt: minsAgo(12 * 24 * 60), updatedAt: minsAgo(90),
   },
+  {
+    id: 9, name: '日志错误频率异常', metric: 'logErrorPerMin', operator: 'gte', threshold: 10, durationMinutes: 3,
+    level: 'critical', channels: ['inapp'], webhookUrl: null, recipientUserIds: [1], recipientEmails: [],
+    silenceMinutes: 30, enabled: true, state: 'firing', lastTriggeredAt: minsAgo(6), lastValue: 24.6,
+    createdAt: minsAgo(10 * 24 * 60), updatedAt: minsAgo(6),
+  },
 ];
 
 const events: MockEvent[] = [
+  {
+    id: 6, ruleId: 9, ruleName: '日志错误频率异常', metric: 'logErrorPerMin', level: 'critical', operator: 'gte',
+    threshold: 10, value: 24.6, status: 'firing', message: '日志 ERROR 频率 当前 24.6 条/分钟，已满足条件 ≥ 10（持续 3 分钟）',
+    notifyStatus: 'success', notifyChannels: ['inapp'], notifyError: null,
+    notifiedAt: minsAgo(6),
+    handleStatus: 'pending', acknowledgedAt: null, handledBy: null, handledByName: null,
+    handledAt: null, handleNote: null,
+    triggeredAt: minsAgo(6), resolvedAt: null,
+  },
   {
     id: 5, ruleId: 4, ruleName: '支付失败率飙升', metric: 'paymentFailureRate', level: 'critical', operator: 'gte',
     threshold: 20, value: 31.4, status: 'firing', message: '支付失败率 当前 31.4%，已满足条件 ≥ 20%（持续 5 分钟）',

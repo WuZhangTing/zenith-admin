@@ -18,6 +18,7 @@ import { getLatestEngineHealthMetrics } from '../workflow/workflow-engine-ops.se
 import { getWorkflowJobAlertMetrics } from '../workflow/workflow-jobs.service';
 import { getPaymentAlertMetrics, type PaymentAlertMetrics } from '../payment/payment-alert-metrics.service';
 import { getOpenPlatformAlertMetrics } from '../open-platform/open-platform-alert-metrics.service';
+import { getLogAlertMetrics } from '../../lib/log-metrics';
 import type { MonitorMetric } from '@zenith/shared/platform';
 
 export type MetricSnapshot = Record<MonitorMetric, number>;
@@ -70,6 +71,7 @@ async function getGlobalMetricSnapshot(): Promise<GlobalMetricSnapshot> {
   ]);
   return {
     ...infra,
+    ...getLogAlertMetrics(),
     workflowHealth: engineHealth.workflowHealth,
     workflowBacklog: engineHealth.workflowBacklog,
     workflowDeadLetter: jobMetrics.workflowDeadLetter,

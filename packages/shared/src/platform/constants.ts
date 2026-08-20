@@ -122,6 +122,7 @@ export const MONITOR_METRICS = [
   // 基础设施
   'cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag',
   'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps',
+  'logErrorPerMin', 'logWarnPerMin',
   // 流程引擎
   'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning',
   // 支付
@@ -147,6 +148,8 @@ export const MONITOR_METRIC_META: Record<MonitorMetric, MonitorMetricMeta> = {
   netTxBps: { label: '网络上行', group: 'infra', unit: 'bps', scope: 'global', description: '网卡发送速率' },
   diskReadBps: { label: '磁盘读取', group: 'infra', unit: 'bps', scope: 'global', description: '磁盘读取速率' },
   diskWriteBps: { label: '磁盘写入', group: 'infra', unit: 'bps', scope: 'global', description: '磁盘写入速率' },
+  logErrorPerMin: { label: '日志 ERROR 频率', group: 'infra', unit: 'number', scope: 'global', description: '近 5 分钟应用日志 ERROR 级别平均每分钟条数；覆盖后台任务、事件订阅者等 HTTP 之外的错误' },
+  logWarnPerMin: { label: '日志 WARN 频率', group: 'infra', unit: 'number', scope: 'global', description: '近 5 分钟应用日志 WARN 级别平均每分钟条数' },
 
   workflowHealth: { label: '流程引擎健康分', group: 'workflow', unit: 'score', scope: 'global', description: '最近一次引擎健康快照的综合评分（越低越差，建议用 < 比较）' },
   workflowBacklog: { label: '流程引擎队列积压', group: 'workflow', unit: 'count', scope: 'global', description: '最近一次健康快照的各队列待处理作业总数' },
