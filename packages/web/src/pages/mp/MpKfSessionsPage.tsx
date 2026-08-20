@@ -33,7 +33,6 @@ import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
-import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 const { Text } = Typography;
 
 const STATUS_TAG: Record<MpKfSessionStatus, { label: string; color: 'orange' | 'green' | 'grey' }> = {
@@ -66,9 +65,8 @@ export default function MpKfSessionsPage() {
   const [tab, setTab] = useUrlTabState(['waiting', 'active', 'closed'] as const, 'waiting');
   const [keyword, setKeyword] = useState('');
   const [submittedKeyword, setSubmittedKeyword] = useState('');
-  // 选中会话以 `?session=` 同步到 URL（深链/刷新/页签直达）；详情按 id 独立拉取，不依赖列表成员资格
-  const [selectedSessionKey, setSelectedSessionKey] = useUrlSelectionState('session');
-  const selectedId = selectedSessionKey === null ? null : Number(selectedSessionKey);
+  // 页面已用 ?tab= 承载页签态，选中会话不再入 URL（同页两个写 URL 的 hook 会竞写震荡，以 tab 为准）
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
   const [pickModal, setPickModal] = useState<{ mode: 'accept' | 'transfer'; visible: boolean }>({ mode: 'accept', visible: false });
   const [pickKfId, setPickKfId] = useState<number | null>(null);
@@ -116,12 +114,12 @@ export default function MpKfSessionsPage() {
   };
 
   const selectSession = (id: number) => {
-    setSelectedSessionKey(String(id));
+    setSelectedId(id);
   };
 
   const handleTabChange = (key: string) => {
     setTab(key as MpKfSessionStatus);
-    setSelectedSessionKey(null);
+    setSelectedId(null);
   };
 
   const handleSearch = () => {
@@ -270,7 +268,7 @@ export default function MpKfSessionsPage() {
           maxSize={480}
           persistKey="mpKfSessions"
           showDetail={selectedId != null}
-          onBack={() => setSelectedSessionKey(null)}
+          onBack={() => setSelectedId(null)}
           master={(
             <>
               <MasterDetailLayout.Header style={{ padding: '0 8px' }}>

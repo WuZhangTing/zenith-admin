@@ -4,7 +4,7 @@ import { RefreshCw, Send, Paperclip } from 'lucide-react';
 import { MP_MESSAGE_TYPE_LABELS } from '@zenith/shared/mp';
 import type { MpConversation, MpMessage, MpMessageType } from '@zenith/shared/mp';
 import { usePermission } from '@/hooks/usePermission';
-import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
+import { useUrlSelectionParams } from '@/hooks/useUrlSelectionState';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import AppModal from '@/components/AppModal';
@@ -34,8 +34,11 @@ function msgPreview(type: MpMessageType, content: string | null): string {
 export default function MpMessagesPage() {
   const { hasPermission: can } = usePermission();
   const { accounts, currentId, setCurrentId, loading: accountsLoading } = useMpAccounts();
-  // 选中会话以 `?openid=` 同步到 URL（深链/刷新/页签直达）
-  const [selectedOpenid, setSelectedOpenid] = useUrlSelectionState('openid');
+  // 选中会话以 ?account=&openid= 复合同步到 URL——openid 只在公众号内唯一，
+  // 深链单带 openid 会落到 localStorage 恢复的其他账号而查无此会话；两参数原子写回
+  const [urlSelection, setUrlSelection] = useUrlSelectionParams(['account', 'openid']);
+  const urlAccountId = urlSelection.account !== null ? Number(urlSelection.account) : undefined;
+  const selectedOpenid = urlSelection.openid;
   const [reply, setReply] = useState('');
   const bodyRef = useRef<HTMLDivElement>(null);
   const [mediaModalVisible, setMediaModalVisible] = useState(false);
@@ -52,20 +55,45 @@ export default function MpMessagesPage() {
   const materials = mediaQuery.data?.materials ?? [];
   const drafts = mediaQuery.data?.drafts ?? [];
 
-  // 账号切换时清空选中会话；跳过首个值（挂载 / 账号就绪），避免误清 URL 深链
+  // URL 账号深链：应用到共享的「当前公众号」（与手动切换同语义，含 localStorage）；
+  // 账号不存在/越权时整组清参，回退共享上下文。按参数值追踪只应用一次，
+  // 避免手动切换账号时被 URL 旧值回滚
+  const appliedAccountParamRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (urlAccountId === undefined) {
+      appliedAccountParamRef.current = null;
+      return;
+    }
+    if (accounts.length === 0) return;
+    if (!accounts.some((a) => a.id === urlAccountId)) {
+      setUrlSelection({ account: null, openid: null });
+      return;
+    }
+    if (appliedAccountParamRef.current === urlAccountId) return;
+    appliedAccountParamRef.current = urlAccountId;
+    if (currentId !== urlAccountId) setCurrentId(urlAccountId);
+  }, [urlAccountId, accounts, currentId, setCurrentId, setUrlSelection]);
+
+  // 手动切换账号时清空选中会话；URL 驱动的账号切换（深链）除外，跳过首个值（挂载/账号就绪）
   const prevAccountIdRef = useRef<number | null>(null);
   useEffect(() => {
     const prev = prevAccountIdRef.current;
     prevAccountIdRef.current = currentId;
-    if (prev !== null && currentId !== null && prev !== currentId) setSelectedOpenid(null);
-  }, [currentId, setSelectedOpenid]);
+    if (prev !== null && currentId !== null && prev !== currentId && currentId !== urlAccountId) {
+      setUrlSelection({ account: null, openid: null });
+    }
+  }, [currentId, urlAccountId, setUrlSelection]);
 
-  // 深链校验：会话列表就绪后 openid 不存在则清参（无历史会话的粉丝不可主动开聊）
+  // 深链校验：会话列表就绪后 openid 不存在则仅清会话参数（无历史会话的粉丝不可主动开聊）。
+  // 加账号守卫：URL 账号与当前账号不一致（切换在途）或列表在途时等待，防止拿旧账号列表误清
   useEffect(() => {
     const list = conversationsQuery.data;
-    if (!list) return;
-    setSelectedOpenid((prev) => (prev && !list.some((c) => c.openid === prev) ? null : prev));
-  }, [conversationsQuery.data, setSelectedOpenid]);
+    if (!list || conversationsQuery.isFetching) return;
+    if (urlAccountId !== undefined && urlAccountId !== currentId) return;
+    setUrlSelection((prev) => (
+      prev.openid && !list.some((c) => c.openid === prev.openid) ? { ...prev, openid: null } : prev
+    ));
+  }, [conversationsQuery.data, conversationsQuery.isFetching, urlAccountId, currentId, setUrlSelection]);
 
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
@@ -112,7 +140,7 @@ export default function MpMessagesPage() {
         <NavListItem
           key={c.openid}
           active={c.openid === selectedOpenid}
-          onClick={() => setSelectedOpenid(c.openid)}
+          onClick={() => setUrlSelection({ account: currentId !== null ? String(currentId) : null, openid: c.openid })}
           icon={<Avatar size="extra-small" src={c.avatar ?? undefined} color="blue">{(c.nickname ?? c.openid).slice(0, 1)}</Avatar>}
           primary={c.nickname || c.openid}
           meta={(
@@ -187,7 +215,7 @@ export default function MpMessagesPage() {
           maxSize={460}
           persistKey="mp-messages"
           showDetail={selectedOpenid !== null}
-          onBack={() => setSelectedOpenid(null)}
+          onBack={() => setUrlSelection({ account: null, openid: null })}
           style={{ height: '100%' }}
           master={master}
           detail={detail}

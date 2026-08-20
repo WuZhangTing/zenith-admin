@@ -86,10 +86,6 @@ export default function DictsPage() {
   // 会直接落到字典项详情，字典列表反而要点返回才能看到。布局形态参与选中派生，故用 state。
   const [isNarrowLayout, setIsNarrowLayout] = useState(false);
 
-  // 选中派生：URL 深链值优先；无深链时桌面端回退首项（默认选中不入 URL），窄屏不自动选中
-  const explicitDict = selectedDictKey ? dicts.find((d) => String(d.id) === selectedDictKey) ?? null : null;
-  const selectedDict = explicitDict ?? (isNarrowLayout ? null : dicts[0] ?? null);
-
   // ─── 数据获取 ──────────────────────────────────────────────────────────────
   const dictListQuery = useDictList({
     page,
@@ -97,6 +93,23 @@ export default function DictsPage() {
     keyword: submittedKeyword || undefined,
   });
   const total = dictListQuery.data?.total ?? 0;
+
+  // 选中派生：URL 深链值优先；无深链时桌面端回退首项（默认选中不入 URL），窄屏不自动选中。
+  // 深链目标可能不在当前页/当前筛选（列表分页），成员资格不可当存在性判据，
+  // 不在页内时按 id 拉详情兜底，仅确认无效（非法 id / 404）才清参回退
+  const explicitId = selectedDictKey !== null ? Number(selectedDictKey) : undefined;
+  const explicitIdValid = explicitId !== undefined && Number.isInteger(explicitId) && explicitId > 0;
+  const dictInPage = explicitIdValid ? dicts.find((d) => d.id === explicitId) ?? null : null;
+  const dictFallbackQuery = useDictDetail(explicitId, explicitIdValid && !dictInPage);
+  const explicitDict = dictInPage
+    ?? (dictFallbackQuery.data && dictFallbackQuery.data.id === explicitId ? dictFallbackQuery.data : null);
+  const selectedDict = explicitDict ?? (isNarrowLayout ? null : dicts[0] ?? null);
+
+  useEffect(() => {
+    if (selectedDictKey === null) return;
+    if (!explicitIdValid || dictFallbackQuery.isError) setSelectedDictKey(null);
+  }, [selectedDictKey, explicitIdValid, dictFallbackQuery.isError, setSelectedDictKey]);
+
   const itemsQuery = useDictItemsById(selectedDict?.id);
   const items = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data]);
   const itemDetailQuery = useDictItemDetail(selectedDict?.id, editingItemRecord?.id, itemModalVisible);
@@ -119,11 +132,8 @@ export default function DictsPage() {
 
   useEffect(() => {
     if (!dictListQuery.data) return;
-    const nextList = dictListQuery.data.list;
-    setDicts(nextList);
-    // 深链校验：列表就绪后目标不存在（已删除 / 不在当前页）则清参，回退默认行为
-    setSelectedDictKey((prev) => (prev && !nextList.some((d) => String(d.id) === prev) ? null : prev));
-  }, [dictListQuery.data, setSelectedDictKey]);
+    setDicts(dictListQuery.data.list);
+  }, [dictListQuery.data]);
 
   // 每个字典的条目首次加载完成时默认全展开；同一字典内（数据刷新 / keepAlive 页签切回）保持用户展开/折叠状态
   const expandInitedDictIdRef = useRef<number | null>(null);
