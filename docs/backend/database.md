@@ -41,7 +41,7 @@ npm run db:seed
 
 ### 迁移基线
 
-当前迁移链以 v1.23.0 重建的基线为起点，`packages/server/drizzle/` 下只有两条迁移：
+当前迁移链以 v1.75.0 重建的基线为起点，`packages/server/drizzle/` 下只有两条迁移：
 
 | 文件 | 内容 |
 | --- | --- |
@@ -50,7 +50,7 @@ npm run db:seed
 
 基线**不保留向后数据兼容**：更早版本的存量库无法原地升级，需要重新初始化（新建库跑 `db:migrate` + `db:seed`，或自行做数据搬迁）。全新环境执行 `npm run db:migrate` 即一步建库。
 
-再次重建基线（未来迁移又积累过多时）的流程：确认 `db:generate` 无漂移 → 删除 `drizzle/` 目录重新 `generate` → **把 `0001_extensions.sql` 原样保留进新迁移链** → 用两个空库（旧链 vs 新基线）做结构化 schema diff 验证。
+再次重建基线（未来迁移又积累过多时）的流程：确认 `db:generate` 无漂移 → 删除 `drizzle/` 目录后 `drizzle-kit generate --name baseline` → `drizzle-kit generate --custom --name extensions` 并把 `0001_extensions.sql` 内容原样填回 → **在基线顶部前置 `CREATE EXTENSION IF NOT EXISTS pg_trgm;`**（schema 里的 `gin_trgm_ops` 索引如 `wiki_docs_title_trgm_idx` 会被生成进基线，先于 0001 的扩展创建执行，不前置则全新库迁移失败）→ 用两个空库（旧链 vs 新基线）做结构化 schema diff 验证。
 
 ### 手写扩展 DDL（`0001_extensions.sql`）
 

@@ -1,1 +1,0 @@
-ALTER TABLE "system_configs" ADD COLUMN "config_name" varchar(128) DEFAULT '' NOT NULL;

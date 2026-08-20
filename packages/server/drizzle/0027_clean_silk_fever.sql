@@ -1,2 +1,0 @@
-ALTER TABLE "analytics_settings" ADD COLUMN "error_ignore_patterns" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "error_groups" ADD COLUMN "environment" varchar(32) DEFAULT 'production' NOT NULL;

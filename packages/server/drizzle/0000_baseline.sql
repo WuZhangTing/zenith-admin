@@ -1,7 +1,10 @@
+-- pg_trgm 必须先于本文件内的 gin_trgm_ops 索引（wiki_docs 等，由 schema 生成）创建；
+-- 重建基线后需保留此前置行（见 docs/backend/database.md「迁移基线」）。
+CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint
 CREATE TYPE "public"."status" AS ENUM('enabled', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."data_scope" AS ENUM('all', 'custom', 'dept_only', 'dept', 'self');--> statement-breakpoint
 CREATE TYPE "public"."menu_type" AS ENUM('directory', 'menu', 'button');--> statement-breakpoint
-CREATE TYPE "public"."business_type" AS ENUM('announcement');--> statement-breakpoint
+CREATE TYPE "public"."business_type" AS ENUM('announcement', 'wiki_doc');--> statement-breakpoint
 CREATE TYPE "public"."file_object_acl" AS ENUM('default', 'private', 'public-read', 'public-read-write');--> statement-breakpoint
 CREATE TYPE "public"."file_storage_provider" AS ENUM('local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp');--> statement-breakpoint
 CREATE TYPE "public"."file_url_strategy" AS ENUM('proxy', 'public', 'presigned');--> statement-breakpoint
@@ -25,11 +28,14 @@ CREATE TYPE "public"."login_risk_action" AS ENUM('allow', 'challenge', 'block');
 CREATE TYPE "public"."login_risk_level" AS ENUM('low', 'medium', 'high');--> statement-breakpoint
 CREATE TYPE "public"."mfa_factor_status" AS ENUM('pending', 'enabled', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."mfa_factor_type" AS ENUM('totp', 'passkey', 'recovery_code');--> statement-breakpoint
-CREATE TYPE "public"."oauth_provider" AS ENUM('github', 'dingtalk', 'wechat_work');--> statement-breakpoint
+CREATE TYPE "public"."oauth_provider" AS ENUM('github', 'dingtalk', 'wechat_work', 'feishu');--> statement-breakpoint
 CREATE TYPE "public"."rate_limit_key_type" AS ENUM('ip', 'user', 'ip_path');--> statement-breakpoint
 CREATE TYPE "public"."identity_provider_status" AS ENUM('enabled', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."identity_provider_sync_status" AS ENUM('success', 'failed', 'partial');--> statement-breakpoint
 CREATE TYPE "public"."identity_provider_type" AS ENUM('oidc', 'saml', 'ldap', 'ad');--> statement-breakpoint
+CREATE TYPE "public"."directory_sync_conflict_status" AS ENUM('pending', 'resolved', 'ignored');--> statement-breakpoint
+CREATE TYPE "public"."directory_sync_run_status" AS ENUM('running', 'success', 'partial', 'failed', 'aborted');--> statement-breakpoint
+CREATE TYPE "public"."directory_sync_source_type" AS ENUM('ldap', 'dingtalk', 'wechat_work', 'feishu', 'scim');--> statement-breakpoint
 CREATE TYPE "public"."login_event_type" AS ENUM('login', 'logout');--> statement-breakpoint
 CREATE TYPE "public"."login_status" AS ENUM('success', 'fail');--> statement-breakpoint
 CREATE TYPE "public"."analytics_campaign_channel" AS ENUM('email', 'in_app', 'webhook');--> statement-breakpoint
@@ -53,7 +59,7 @@ CREATE TYPE "public"."workflow_connector_type" AS ENUM('http', 'webhook', 'email
 CREATE TYPE "public"."workflow_definition_status" AS ENUM('draft', 'published', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."workflow_event_sign_mode" AS ENUM('hmacSha256', 'none');--> statement-breakpoint
 CREATE TYPE "public"."workflow_form_type" AS ENUM('designer', 'custom', 'external');--> statement-breakpoint
-CREATE TYPE "public"."workflow_instance_status" AS ENUM('draft', 'running', 'suspended', 'approved', 'rejected', 'withdrawn', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."workflow_instance_status" AS ENUM('draft', 'running', 'suspended', 'returned', 'approved', 'rejected', 'withdrawn', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."workflow_job_execution_status" AS ENUM('running', 'succeeded', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."workflow_job_status" AS ENUM('pending', 'running', 'succeeded', 'failed', 'dead', 'canceled');--> statement-breakpoint
 CREATE TYPE "public"."workflow_job_type" AS ENUM('delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch', 'subprocess_spawn', 'subprocess_join', 'event_dispatch', 'webhook_delivery', 'compensation_action');--> statement-breakpoint
@@ -64,6 +70,11 @@ CREATE TYPE "public"."workflow_task_transfer_action" AS ENUM('transfer', 'delega
 CREATE TYPE "public"."workflow_token_status" AS ENUM('active', 'consumed', 'dead');--> statement-breakpoint
 CREATE TYPE "public"."email_encryption" AS ENUM('none', 'ssl', 'tls');--> statement-breakpoint
 CREATE TYPE "public"."in_app_message_type" AS ENUM('info', 'success', 'warning', 'error');--> statement-breakpoint
+CREATE TYPE "public"."notification_channel" AS ENUM('inapp', 'email', 'sms', 'webhook', 'chat');--> statement-breakpoint
+CREATE TYPE "public"."notification_decision" AS ENUM('sent', 'suppressed', 'deferred', 'deduped', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."notification_digest_mode" AS ENUM('realtime', 'hourly', 'daily');--> statement-breakpoint
+CREATE TYPE "public"."notification_outbox_status" AS ENUM('pending', 'done', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."notification_recipient_type" AS ENUM('user', 'member', 'external');--> statement-breakpoint
 CREATE TYPE "public"."send_source" AS ENUM('manual', 'test', 'system', 'api');--> statement-breakpoint
 CREATE TYPE "public"."send_status" AS ENUM('pending', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."sms_provider" AS ENUM('aliyun', 'tencent');--> statement-breakpoint
@@ -123,6 +134,8 @@ CREATE TYPE "public"."app_webhook_sign_mode" AS ENUM('hmacSha256', 'none');--> s
 CREATE TYPE "public"."open_app_environment" AS ENUM('production', 'sandbox');--> statement-breakpoint
 CREATE TYPE "public"."open_app_review_status" AS ENUM('draft', 'pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."ssh_auth_type" AS ENUM('password', 'key_path', 'key_content', 'agent');--> statement-breakpoint
+CREATE TYPE "public"."terminal_session_kind" AS ENUM('local', 'ssh', 'docker');--> statement-breakpoint
+CREATE TYPE "public"."terminal_session_state" AS ENUM('active', 'detached', 'terminated', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."checkin_milestone_reward_type" AS ENUM('points', 'coupon');--> statement-breakpoint
 CREATE TYPE "public"."coupon_template_status" AS ENUM('draft', 'active', 'paused', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."coupon_type" AS ENUM('amount', 'percent');--> statement-breakpoint
@@ -132,10 +145,12 @@ CREATE TYPE "public"."member_status" AS ENUM('active', 'inactive', 'banned');-->
 CREATE TYPE "public"."point_tx_type" AS ENUM('earn', 'redeem', 'expire', 'adjust', 'refund');--> statement-breakpoint
 CREATE TYPE "public"."wallet_tx_type" AS ENUM('recharge', 'consume', 'refund', 'adjust');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_event_status" AS ENUM('firing', 'resolved');--> statement-breakpoint
+CREATE TYPE "public"."monitor_alert_handle_status" AS ENUM('pending', 'acknowledged', 'closed');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_level" AS ENUM('info', 'warning', 'critical');--> statement-breakpoint
+CREATE TYPE "public"."monitor_alert_notify_status" AS ENUM('skipped', 'success', 'partial', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_operator" AS ENUM('gt', 'gte', 'lt', 'lte');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_state" AS ENUM('ok', 'firing');--> statement-breakpoint
-CREATE TYPE "public"."monitor_metric" AS ENUM('cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps', 'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning');--> statement-breakpoint
+CREATE TYPE "public"."monitor_metric" AS ENUM('cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps', 'logErrorPerMin', 'logWarnPerMin', 'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning', 'paymentFailureRate', 'paymentStuckPaying', 'paymentReconDiff', 'paymentEventBacklog', 'paymentWebhookFailureRate', 'openApiErrorRate', 'openApiAppErrorRate', 'openWebhookFailureRate', 'openWebhookDisabledSubs');--> statement-breakpoint
 CREATE TYPE "public"."ssl_cert_status" AS ENUM('valid', 'expiring', 'expired', 'invalid');--> statement-breakpoint
 CREATE TYPE "public"."ssl_cert_type" AS ENUM('self_signed', 'uploaded', 'letsencrypt');--> statement-breakpoint
 CREATE TYPE "public"."mp_account_type" AS ENUM('subscribe', 'service', 'test');--> statement-breakpoint
@@ -223,12 +238,11 @@ CREATE TYPE "public"."cms_widget_ref_owner_type" AS ENUM('page', 'theme_slot');-
 CREATE TYPE "public"."cms_widget_source_type" AS ENUM('content', 'channel');--> statement-breakpoint
 CREATE TYPE "public"."cms_widget_status" AS ENUM('draft', 'published', 'offline');--> statement-breakpoint
 CREATE TYPE "public"."cms_widget_type" AS ENUM('manual-list');--> statement-breakpoint
-CREATE TABLE "app_data_migrations" (
-	"key" varchar(128) PRIMARY KEY NOT NULL,
-	"description" varchar(500) NOT NULL,
-	"applied_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
+CREATE TYPE "public"."wiki_comment_status" AS ENUM('visible', 'hidden');--> statement-breakpoint
+CREATE TYPE "public"."wiki_doc_status" AS ENUM('draft', 'pending', 'published', 'rejected');--> statement-breakpoint
+CREATE TYPE "public"."wiki_review_action" AS ENUM('submit', 'approve', 'reject', 'withdraw');--> statement-breakpoint
+CREATE TYPE "public"."wiki_space_member_role" AS ENUM('owner', 'admin', 'editor', 'viewer');--> statement-breakpoint
+CREATE TYPE "public"."wiki_space_visibility" AS ENUM('public', 'private');--> statement-breakpoint
 CREATE TABLE "departments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"parent_id" integer DEFAULT 0 NOT NULL,
@@ -265,6 +279,7 @@ CREATE TABLE "menus" (
 	"sort" integer DEFAULT 0 NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"visible" boolean DEFAULT true NOT NULL,
+	"feature_key" varchar(50),
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -313,16 +328,17 @@ CREATE TABLE "roles" (
 	CONSTRAINT "roles_tenant_code_unique" UNIQUE("tenant_id","code")
 );
 --> statement-breakpoint
-CREATE TABLE "tenant_package_menus" (
+CREATE TABLE "tenant_package_features" (
 	"package_id" integer NOT NULL,
-	"menu_id" integer NOT NULL,
-	CONSTRAINT "tenant_package_menus_package_id_menu_id_pk" PRIMARY KEY("package_id","menu_id")
+	"feature_key" varchar(50) NOT NULL,
+	CONSTRAINT "tenant_package_features_package_id_feature_key_pk" PRIMARY KEY("package_id","feature_key")
 );
 --> statement-breakpoint
 CREATE TABLE "tenant_packages" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"quotas" jsonb,
 	"remark" text,
 	"created_by" integer,
 	"updated_by" integer,
@@ -375,7 +391,9 @@ CREATE TABLE "user_groups" (
 	"code" varchar(64) NOT NULL,
 	"description" varchar(256),
 	"owner_id" integer,
-	"department_id" integer,
+	"member_mode" varchar(10) DEFAULT 'static' NOT NULL,
+	"member_rule" jsonb,
+	"rule_synced_at" timestamp,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"tenant_id" integer,
 	"created_by" integer,
@@ -427,6 +445,42 @@ CREATE TABLE "users" (
 	CONSTRAINT "users_tenant_username_unique" UNIQUE("tenant_id","username"),
 	CONSTRAINT "users_tenant_email_unique" UNIQUE("tenant_id","email"),
 	CONSTRAINT "users_tenant_phone_unique" UNIQUE("tenant_id","phone")
+);
+--> statement-breakpoint
+CREATE TABLE "license_events" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"license_id" integer,
+	"type" varchar(40) NOT NULL,
+	"detail" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "licenses" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"license_id" varchar(64) NOT NULL,
+	"envelope" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"status" varchar(20) DEFAULT 'active' NOT NULL,
+	"key_id" varchar(32) NOT NULL,
+	"edition" varchar(20) NOT NULL,
+	"customer_name" varchar(200) NOT NULL,
+	"features" jsonb NOT NULL,
+	"expires_at" timestamp NOT NULL,
+	"grace_until" timestamp NOT NULL,
+	"activated_at" timestamp DEFAULT now() NOT NULL,
+	"activated_by" integer,
+	"last_verified_at" timestamp,
+	"invalid_reason" text,
+	"replaced_by_id" integer,
+	CONSTRAINT "licenses_license_id_unique" UNIQUE("license_id")
+);
+--> statement-breakpoint
+CREATE TABLE "system_installations" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"installation_id" varchar(64) NOT NULL,
+	"license_epoch" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "system_installations_installation_id_unique" UNIQUE("installation_id")
 );
 --> statement-breakpoint
 CREATE TABLE "business_files" (
@@ -619,8 +673,7 @@ CREATE TABLE "async_tasks" (
 	"started_at" timestamp,
 	"completed_at" timestamp,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "uniq_async_tasks_idempotency_key" UNIQUE("idempotency_key")
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "export_job_downloads" (
@@ -738,9 +791,21 @@ CREATE TABLE "regions" (
 	CONSTRAINT "regions_code_unique" UNIQUE("code")
 );
 --> statement-breakpoint
+CREATE TABLE "retention_policies" (
+	"policy_key" varchar(128) PRIMARY KEY NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"retention_days" integer NOT NULL,
+	"batch_size" integer DEFAULT 5000 NOT NULL,
+	"last_run_at" timestamp with time zone,
+	"last_deleted" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "system_configs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"config_key" varchar(128) NOT NULL,
+	"config_name" varchar(128) DEFAULT '' NOT NULL,
 	"config_value" varchar(4096) DEFAULT '' NOT NULL,
 	"config_type" "config_type" DEFAULT 'string' NOT NULL,
 	"description" varchar(256) DEFAULT '' NOT NULL,
@@ -1018,6 +1083,120 @@ CREATE TABLE "user_identity_accounts" (
 	CONSTRAINT "user_identity_accounts_user_provider_unique" UNIQUE("user_id","provider_id")
 );
 --> statement-breakpoint
+CREATE TABLE "directory_sync_conflicts" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"source_id" integer NOT NULL,
+	"run_id" integer,
+	"entity_type" varchar(16) NOT NULL,
+	"external_id" varchar(256) NOT NULL,
+	"name" varchar(128),
+	"conflict_type" varchar(32) NOT NULL,
+	"source_data" jsonb,
+	"local_data" jsonb,
+	"candidate_user_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"status" "directory_sync_conflict_status" DEFAULT 'pending' NOT NULL,
+	"resolution" varchar(16),
+	"resolved_by" integer,
+	"resolved_at" timestamp with time zone,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "directory_sync_dept_links" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"source_id" integer NOT NULL,
+	"external_id" varchar(256) NOT NULL,
+	"department_id" integer NOT NULL,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "directory_sync_dept_links_source_external_unique" UNIQUE("source_id","external_id")
+);
+--> statement-breakpoint
+CREATE TABLE "directory_sync_run_items" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"run_id" integer NOT NULL,
+	"entity_type" varchar(16) NOT NULL,
+	"external_id" varchar(256) NOT NULL,
+	"name" varchar(128),
+	"action" varchar(16) NOT NULL,
+	"applied" boolean DEFAULT false NOT NULL,
+	"diff" jsonb,
+	"message" text,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "directory_sync_runs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"source_id" integer NOT NULL,
+	"trigger_type" varchar(16) DEFAULT 'manual' NOT NULL,
+	"dry_run" boolean DEFAULT false NOT NULL,
+	"status" "directory_sync_run_status" DEFAULT 'running' NOT NULL,
+	"total_fetched" integer DEFAULT 0 NOT NULL,
+	"dept_created" integer DEFAULT 0 NOT NULL,
+	"dept_updated" integer DEFAULT 0 NOT NULL,
+	"user_created" integer DEFAULT 0 NOT NULL,
+	"user_linked" integer DEFAULT 0 NOT NULL,
+	"user_updated" integer DEFAULT 0 NOT NULL,
+	"user_disabled" integer DEFAULT 0 NOT NULL,
+	"skipped" integer DEFAULT 0 NOT NULL,
+	"conflict_count" integer DEFAULT 0 NOT NULL,
+	"failed_count" integer DEFAULT 0 NOT NULL,
+	"message" text,
+	"error_message" text,
+	"triggered_by" integer,
+	"started_at" timestamp with time zone NOT NULL,
+	"finished_at" timestamp with time zone,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "directory_sync_sources" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"type" "directory_sync_source_type" NOT NULL,
+	"status" "status" DEFAULT 'disabled' NOT NULL,
+	"tenant_id" integer,
+	"identity_provider_id" integer,
+	"oauth_provider" varchar(32),
+	"contact_secret" text,
+	"callback_token" text,
+	"callback_aes_key" text,
+	"callback_url_key" varchar(64),
+	"pending_callback_sync" boolean DEFAULT false NOT NULL,
+	"callback_last_event_at" timestamp with time zone,
+	"match_key" varchar(16) DEFAULT 'phone' NOT NULL,
+	"field_mapping" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"scope_config" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"conflict_policy" varchar(16) DEFAULT 'suspend' NOT NULL,
+	"lifecycle" jsonb DEFAULT '{"disableOnLeave":true,"kickSessions":true,"defaultRoleIds":[]}'::jsonb NOT NULL,
+	"sync_departments" boolean DEFAULT true NOT NULL,
+	"cron_expression" varchar(64),
+	"circuit_breaker_percent" integer DEFAULT 30 NOT NULL,
+	"next_run_at" timestamp with time zone,
+	"last_run_at" timestamp with time zone,
+	"last_run_status" "directory_sync_run_status",
+	"remark" text,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "directory_sync_sources_tenant_name_unique" UNIQUE("tenant_id","name"),
+	CONSTRAINT "directory_sync_sources_callback_key_unique" UNIQUE("callback_url_key")
+);
+--> statement-breakpoint
+CREATE TABLE "directory_sync_user_links" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"source_id" integer NOT NULL,
+	"external_id" varchar(256) NOT NULL,
+	"user_id" integer NOT NULL,
+	"external_data" jsonb,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "directory_sync_user_links_source_external_unique" UNIQUE("source_id","external_id"),
+	CONSTRAINT "directory_sync_user_links_source_user_unique" UNIQUE("source_id","user_id")
+);
+--> statement-breakpoint
 CREATE TABLE "dict_items" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"dict_id" integer NOT NULL,
@@ -1182,6 +1361,17 @@ CREATE TABLE "analytics_experiments" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "analytics_identity_map" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"anonymous_id" varchar(64) NOT NULL,
+	"distinct_id" varchar(64) NOT NULL,
+	"identity_type" "analytics_identity_type" NOT NULL,
+	"user_id" integer,
+	"member_id" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "analytics_saved_reports" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"tenant_id" integer,
@@ -1269,6 +1459,7 @@ CREATE TABLE "analytics_settings" (
 	"respect_dnt" boolean DEFAULT false NOT NULL,
 	"anonymize_ip" boolean DEFAULT false NOT NULL,
 	"blacklist_paths" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"error_ignore_patterns" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"retention_days" integer DEFAULT 180 NOT NULL,
 	"error_retention_days" integer DEFAULT 90 NOT NULL,
 	"session_timeout_minutes" integer DEFAULT 30 NOT NULL,
@@ -1390,6 +1581,13 @@ CREATE TABLE "error_events" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "error_group_identities" (
+	"group_id" integer NOT NULL,
+	"identity" varchar(80) NOT NULL,
+	"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "error_group_identities_group_id_identity_pk" PRIMARY KEY("group_id","identity")
+);
+--> statement-breakpoint
 CREATE TABLE "error_groups" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"tenant_id" integer,
@@ -1402,6 +1600,7 @@ CREATE TABLE "error_groups" (
 	"assignee_name" varchar(64),
 	"release" varchar(64),
 	"note" text,
+	"environment" varchar(32) DEFAULT 'production' NOT NULL,
 	"count" bigint DEFAULT 0 NOT NULL,
 	"affected_users" integer DEFAULT 0 NOT NULL,
 	"first_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -1951,8 +2150,9 @@ CREATE TABLE "workflow_tasks" (
 	"sub_done" integer DEFAULT 0 NOT NULL,
 	"original_assignee_id" integer,
 	"delegated_from_id" integer,
+	"sign_type" varchar(8),
 	"return_origin_node_key" varchar(64),
-	"activation_id" varchar(36),
+	"activation_id" varchar(36) NOT NULL,
 	"cc_read_at" timestamp with time zone,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "workflow_tasks_external_callback_id_unique" UNIQUE("external_callback_id")
@@ -2075,6 +2275,81 @@ CREATE TABLE "in_app_templates" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "in_app_templates_code_unique" UNIQUE("code")
+);
+--> statement-breakpoint
+CREATE TABLE "notification_dispatches" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"outbox_id" integer,
+	"event_key" varchar(100) NOT NULL,
+	"recipient_type" "notification_recipient_type" NOT NULL,
+	"recipient_id" integer,
+	"recipient_address" varchar(512),
+	"channel" "notification_channel" NOT NULL,
+	"decision" "notification_decision" NOT NULL,
+	"reason_code" varchar(64),
+	"reason_detail" text,
+	"provider_msg_id" varchar(128),
+	"dedupe_key" varchar(256),
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "notification_event_overrides" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"event_key" varchar(100) NOT NULL,
+	"channel" "notification_channel" NOT NULL,
+	"enabled" boolean NOT NULL,
+	"locked" boolean DEFAULT false NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "notification_outbox" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"event_key" varchar(100) NOT NULL,
+	"recipients" jsonb NOT NULL,
+	"vars" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"channel_policy" jsonb,
+	"channel_options" jsonb,
+	"link" varchar(512),
+	"dedupe_key" varchar(192),
+	"status" "notification_outbox_status" DEFAULT 'pending' NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"last_error" varchar(500),
+	"claimed_at" timestamp with time zone,
+	"scheduled_at" timestamp with time zone,
+	"digest_key" varchar(128),
+	"trace_id" varchar(64),
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "notification_preferences" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"recipient_type" "notification_recipient_type" NOT NULL,
+	"recipient_id" integer NOT NULL,
+	"event_key" varchar(100) NOT NULL,
+	"channel" "notification_channel" NOT NULL,
+	"enabled" boolean NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "notification_recipient_settings" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"recipient_type" "notification_recipient_type" NOT NULL,
+	"recipient_id" integer NOT NULL,
+	"global_muted" boolean DEFAULT false NOT NULL,
+	"timezone" varchar(64) DEFAULT 'Asia/Shanghai' NOT NULL,
+	"quiet_start" varchar(5),
+	"quiet_end" varchar(5),
+	"digest_mode" "notification_digest_mode" DEFAULT 'realtime' NOT NULL,
+	"digest_hour" smallint DEFAULT 9 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "sms_configs" (
@@ -2405,6 +2680,14 @@ CREATE TABLE "chat_group_join_requests" (
 	"handled_at" timestamp with time zone,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "chat_message_favorites" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"message_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "chat_message_favorites_message_id_user_id_unique" UNIQUE("message_id","user_id")
 );
 --> statement-breakpoint
 CREATE TABLE "chat_message_reactions" (
@@ -3535,6 +3818,8 @@ CREATE TABLE "open_api_call_logs" (
 	"ip" varchar(64),
 	"user_agent" varchar(256),
 	"scope" varchar(128),
+	"auth_channel" varchar(16),
+	"user_id" integer,
 	"error_message" varchar(512),
 	"request_id" varchar(64),
 	"environment" "open_app_environment" DEFAULT 'production' NOT NULL,
@@ -3624,6 +3909,26 @@ CREATE TABLE "terminal_recordings" (
 	"rows" integer DEFAULT 24 NOT NULL,
 	"duration" real DEFAULT 0 NOT NULL,
 	"events" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "terminal_sessions" (
+	"id" uuid PRIMARY KEY NOT NULL,
+	"user_id" integer NOT NULL,
+	"tenant_id" integer,
+	"kind" "terminal_session_kind" NOT NULL,
+	"target" varchar(255) DEFAULT '' NOT NULL,
+	"label" varchar(255) DEFAULT '' NOT NULL,
+	"client_ip" varchar(64) DEFAULT '' NOT NULL,
+	"node_id" varchar(128) NOT NULL,
+	"state" "terminal_session_state" DEFAULT 'active' NOT NULL,
+	"cols" integer DEFAULT 80 NOT NULL,
+	"rows" integer DEFAULT 24 NOT NULL,
+	"started_at" timestamp DEFAULT now() NOT NULL,
+	"last_activity_at" timestamp DEFAULT now() NOT NULL,
+	"ended_at" timestamp,
+	"end_reason" varchar(32),
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -3901,7 +4206,15 @@ CREATE TABLE "monitor_alert_events" (
 	"value" real NOT NULL,
 	"status" "monitor_alert_event_status" DEFAULT 'firing' NOT NULL,
 	"message" text NOT NULL,
-	"notified" boolean DEFAULT false NOT NULL,
+	"notify_status" "monitor_alert_notify_status" DEFAULT 'skipped' NOT NULL,
+	"notify_channels" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"notify_error" text,
+	"notified_at" timestamp with time zone,
+	"handle_status" "monitor_alert_handle_status" DEFAULT 'pending' NOT NULL,
+	"acknowledged_at" timestamp with time zone,
+	"handled_by" integer,
+	"handled_at" timestamp with time zone,
+	"handle_note" varchar(500),
 	"triggered_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"resolved_at" timestamp with time zone
 );
@@ -3917,7 +4230,8 @@ CREATE TABLE "monitor_alert_rules" (
 	"level" "monitor_alert_level" DEFAULT 'warning' NOT NULL,
 	"channels" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"webhook_url" varchar(512),
-	"recipients" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"recipient_user_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"recipient_emails" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"silence_minutes" integer DEFAULT 30 NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
 	"state" "monitor_alert_state" DEFAULT 'ok' NOT NULL,
@@ -5566,6 +5880,9 @@ CREATE TABLE "cms_model_fields" (
 	"required" boolean DEFAULT false NOT NULL,
 	"searchable" boolean DEFAULT false NOT NULL,
 	"show_in_list" boolean DEFAULT false NOT NULL,
+	"show_in_detail" boolean DEFAULT false NOT NULL,
+	"detail_group" varchar(50),
+	"detail_sort" integer DEFAULT 0 NOT NULL,
 	"placeholder" varchar(200),
 	"default_value" text,
 	"option_source" "cms_field_option_source" DEFAULT 'manual' NOT NULL,
@@ -5580,6 +5897,7 @@ CREATE TABLE "cms_model_fields" (
 --> statement-breakpoint
 CREATE TABLE "cms_models" (
 	"id" serial PRIMARY KEY NOT NULL,
+	"owner_site_id" integer,
 	"name" varchar(100) NOT NULL,
 	"code" varchar(50) NOT NULL,
 	"description" text,
@@ -5889,6 +6207,162 @@ CREATE TABLE "cms_widgets" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "wiki_comments" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"doc_id" integer NOT NULL,
+	"parent_id" integer,
+	"content" varchar(1000) NOT NULL,
+	"status" "wiki_comment_status" DEFAULT 'visible' NOT NULL,
+	"mentioned_user_ids" integer[] DEFAULT '{}' NOT NULL,
+	"is_question" boolean DEFAULT false NOT NULL,
+	"resolved_at" timestamp,
+	"author_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_doc_favorites" (
+	"doc_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "wiki_doc_favorites_doc_id_user_id_pk" PRIMARY KEY("doc_id","user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_doc_read_receipts" (
+	"doc_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "wiki_doc_read_receipts_doc_id_user_id_pk" PRIMARY KEY("doc_id","user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_doc_subscriptions" (
+	"doc_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "wiki_doc_subscriptions_doc_id_user_id_pk" PRIMARY KEY("doc_id","user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_doc_tags" (
+	"doc_id" integer NOT NULL,
+	"tag_id" integer NOT NULL,
+	CONSTRAINT "wiki_doc_tags_doc_id_tag_id_pk" PRIMARY KEY("doc_id","tag_id")
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_doc_versions" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"doc_id" integer NOT NULL,
+	"version" integer NOT NULL,
+	"title" varchar(200) NOT NULL,
+	"content" text DEFAULT '' NOT NULL,
+	"change_note" varchar(300),
+	"author_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "wiki_doc_versions_doc_version_uk" UNIQUE("doc_id","version")
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_doc_views" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"doc_id" integer NOT NULL,
+	"user_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_docs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"space_id" integer NOT NULL,
+	"parent_id" integer,
+	"title" varchar(200) NOT NULL,
+	"summary" varchar(500),
+	"content" text DEFAULT '' NOT NULL,
+	"status" "wiki_doc_status" DEFAULT 'draft' NOT NULL,
+	"reject_reason" varchar(500),
+	"sort" integer DEFAULT 0 NOT NULL,
+	"is_pinned" boolean DEFAULT false NOT NULL,
+	"view_count" integer DEFAULT 0 NOT NULL,
+	"current_version" integer DEFAULT 1 NOT NULL,
+	"revision" integer DEFAULT 1 NOT NULL,
+	"require_read_receipt" boolean DEFAULT false NOT NULL,
+	"owner_id" integer,
+	"expire_at" timestamp,
+	"review_cycle_days" integer,
+	"next_review_at" timestamp,
+	"is_archived" boolean DEFAULT false NOT NULL,
+	"published_at" timestamp,
+	"deleted_at" timestamp,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_review_records" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"doc_id" integer NOT NULL,
+	"version" integer NOT NULL,
+	"action" "wiki_review_action" NOT NULL,
+	"actor_id" integer,
+	"reason" varchar(500),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_search_logs" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"keyword" varchar(200) NOT NULL,
+	"result_count" integer DEFAULT 0 NOT NULL,
+	"clicked_doc_id" integer,
+	"user_id" integer,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_space_members" (
+	"space_id" integer NOT NULL,
+	"user_id" integer NOT NULL,
+	"role" "wiki_space_member_role" DEFAULT 'viewer' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "wiki_space_members_space_id_user_id_pk" PRIMARY KEY("space_id","user_id")
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_spaces" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" varchar(300),
+	"icon" varchar(50),
+	"visibility" "wiki_space_visibility" DEFAULT 'public' NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"ai_sync_enabled" boolean DEFAULT false NOT NULL,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_tags" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(50) NOT NULL,
+	"color" varchar(20),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "wiki_tags_name_unique" UNIQUE("name")
+);
+--> statement-breakpoint
+CREATE TABLE "wiki_templates" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" varchar(300),
+	"content" text DEFAULT '' NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "departments" ADD CONSTRAINT "departments_leader_id_users_id_fk" FOREIGN KEY ("leader_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "departments" ADD CONSTRAINT "departments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "departments" ADD CONSTRAINT "departments_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -5905,8 +6379,7 @@ ALTER TABLE "role_menus" ADD CONSTRAINT "role_menus_menu_id_menus_id_fk" FOREIGN
 ALTER TABLE "roles" ADD CONSTRAINT "roles_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "roles" ADD CONSTRAINT "roles_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "roles" ADD CONSTRAINT "roles_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tenant_package_menus" ADD CONSTRAINT "tenant_package_menus_package_id_tenant_packages_id_fk" FOREIGN KEY ("package_id") REFERENCES "public"."tenant_packages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "tenant_package_menus" ADD CONSTRAINT "tenant_package_menus_menu_id_menus_id_fk" FOREIGN KEY ("menu_id") REFERENCES "public"."menus"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "tenant_package_features" ADD CONSTRAINT "tenant_package_features_package_id_tenant_packages_id_fk" FOREIGN KEY ("package_id") REFERENCES "public"."tenant_packages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenant_packages" ADD CONSTRAINT "tenant_packages_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenant_packages" ADD CONSTRAINT "tenant_packages_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tenants" ADD CONSTRAINT "tenants_package_id_tenant_packages_id_fk" FOREIGN KEY ("package_id") REFERENCES "public"."tenant_packages"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -5919,7 +6392,6 @@ ALTER TABLE "user_group_members" ADD CONSTRAINT "user_group_members_user_id_user
 ALTER TABLE "user_group_roles" ADD CONSTRAINT "user_group_roles_group_id_user_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."user_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_group_roles" ADD CONSTRAINT "user_group_roles_role_id_roles_id_fk" FOREIGN KEY ("role_id") REFERENCES "public"."roles"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_groups" ADD CONSTRAINT "user_groups_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -5990,6 +6462,20 @@ ALTER TABLE "tenant_identity_providers" ADD CONSTRAINT "tenant_identity_provider
 ALTER TABLE "tenant_identity_providers" ADD CONSTRAINT "tenant_identity_providers_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_identity_accounts" ADD CONSTRAINT "user_identity_accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_identity_accounts" ADD CONSTRAINT "user_identity_accounts_provider_id_tenant_identity_providers_id_fk" FOREIGN KEY ("provider_id") REFERENCES "public"."tenant_identity_providers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_conflicts" ADD CONSTRAINT "directory_sync_conflicts_source_id_directory_sync_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."directory_sync_sources"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_conflicts" ADD CONSTRAINT "directory_sync_conflicts_run_id_directory_sync_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."directory_sync_runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_conflicts" ADD CONSTRAINT "directory_sync_conflicts_resolved_by_users_id_fk" FOREIGN KEY ("resolved_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_dept_links" ADD CONSTRAINT "directory_sync_dept_links_source_id_directory_sync_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."directory_sync_sources"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_dept_links" ADD CONSTRAINT "directory_sync_dept_links_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_run_items" ADD CONSTRAINT "directory_sync_run_items_run_id_directory_sync_runs_id_fk" FOREIGN KEY ("run_id") REFERENCES "public"."directory_sync_runs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_runs" ADD CONSTRAINT "directory_sync_runs_source_id_directory_sync_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."directory_sync_sources"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_runs" ADD CONSTRAINT "directory_sync_runs_triggered_by_users_id_fk" FOREIGN KEY ("triggered_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_sources" ADD CONSTRAINT "directory_sync_sources_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_sources" ADD CONSTRAINT "directory_sync_sources_identity_provider_id_tenant_identity_providers_id_fk" FOREIGN KEY ("identity_provider_id") REFERENCES "public"."tenant_identity_providers"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_sources" ADD CONSTRAINT "directory_sync_sources_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_sources" ADD CONSTRAINT "directory_sync_sources_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_user_links" ADD CONSTRAINT "directory_sync_user_links_source_id_directory_sync_sources_id_fk" FOREIGN KEY ("source_id") REFERENCES "public"."directory_sync_sources"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "directory_sync_user_links" ADD CONSTRAINT "directory_sync_user_links_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dict_items" ADD CONSTRAINT "dict_items_dict_id_dicts_id_fk" FOREIGN KEY ("dict_id") REFERENCES "public"."dicts"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dict_items" ADD CONSTRAINT "dict_items_parent_id_dict_items_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."dict_items"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "dict_items" ADD CONSTRAINT "dict_items_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6008,6 +6494,7 @@ ALTER TABLE "analytics_event_overrides" ADD CONSTRAINT "analytics_event_override
 ALTER TABLE "analytics_experiments" ADD CONSTRAINT "analytics_experiments_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_experiments" ADD CONSTRAINT "analytics_experiments_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_experiments" ADD CONSTRAINT "analytics_experiments_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analytics_identity_map" ADD CONSTRAINT "analytics_identity_map_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_saved_reports" ADD CONSTRAINT "analytics_saved_reports_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_segment_campaigns" ADD CONSTRAINT "analytics_segment_campaigns_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "analytics_segment_campaigns" ADD CONSTRAINT "analytics_segment_campaigns_segment_id_analytics_user_segments_id_fk" FOREIGN KEY ("segment_id") REFERENCES "public"."analytics_user_segments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -6034,6 +6521,7 @@ ALTER TABLE "error_alert_rules" ADD CONSTRAINT "error_alert_rules_updated_by_use
 ALTER TABLE "error_events" ADD CONSTRAINT "error_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_events" ADD CONSTRAINT "error_events_group_id_error_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."error_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_events" ADD CONSTRAINT "error_events_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "error_group_identities" ADD CONSTRAINT "error_group_identities_group_id_error_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."error_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_assignee_id_users_id_fk" FOREIGN KEY ("assignee_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6163,6 +6651,12 @@ ALTER TABLE "in_app_messages" ADD CONSTRAINT "in_app_messages_tenant_id_tenants_
 ALTER TABLE "in_app_templates" ADD CONSTRAINT "in_app_templates_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "in_app_templates" ADD CONSTRAINT "in_app_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "in_app_templates" ADD CONSTRAINT "in_app_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_dispatches" ADD CONSTRAINT "notification_dispatches_outbox_id_notification_outbox_id_fk" FOREIGN KEY ("outbox_id") REFERENCES "public"."notification_outbox"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_dispatches" ADD CONSTRAINT "notification_dispatches_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_event_overrides" ADD CONSTRAINT "notification_event_overrides_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_event_overrides" ADD CONSTRAINT "notification_event_overrides_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_event_overrides" ADD CONSTRAINT "notification_event_overrides_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sms_configs" ADD CONSTRAINT "sms_configs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sms_configs" ADD CONSTRAINT "sms_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sms_configs" ADD CONSTRAINT "sms_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6220,6 +6714,8 @@ ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_
 ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_invite_id_chat_group_invites_id_fk" FOREIGN KEY ("invite_id") REFERENCES "public"."chat_group_invites"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_group_join_requests" ADD CONSTRAINT "chat_group_join_requests_handled_by_users_id_fk" FOREIGN KEY ("handled_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_message_favorites" ADD CONSTRAINT "chat_message_favorites_message_id_chat_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."chat_messages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "chat_message_favorites" ADD CONSTRAINT "chat_message_favorites_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_message_reactions" ADD CONSTRAINT "chat_message_reactions_message_id_chat_messages_id_fk" FOREIGN KEY ("message_id") REFERENCES "public"."chat_messages"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_message_reactions" ADD CONSTRAINT "chat_message_reactions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "chat_messages" ADD CONSTRAINT "chat_messages_conversation_id_chat_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."chat_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -6391,6 +6887,8 @@ ALTER TABLE "rate_plans" ADD CONSTRAINT "rate_plans_updated_by_users_id_fk" FORE
 ALTER TABLE "ssh_profiles" ADD CONSTRAINT "ssh_profiles_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "terminal_recordings" ADD CONSTRAINT "terminal_recordings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "terminal_recordings" ADD CONSTRAINT "terminal_recordings_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "terminal_sessions" ADD CONSTRAINT "terminal_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "terminal_sessions" ADD CONSTRAINT "terminal_sessions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "checkin_milestones" ADD CONSTRAINT "checkin_milestones_coupon_id_coupons_id_fk" FOREIGN KEY ("coupon_id") REFERENCES "public"."coupons"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "checkin_milestones" ADD CONSTRAINT "checkin_milestones_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "checkin_milestones" ADD CONSTRAINT "checkin_milestones_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6429,6 +6927,7 @@ ALTER TABLE "members" ADD CONSTRAINT "members_created_by_users_id_fk" FOREIGN KE
 ALTER TABLE "members" ADD CONSTRAINT "members_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "monitor_alert_events" ADD CONSTRAINT "monitor_alert_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "monitor_alert_events" ADD CONSTRAINT "monitor_alert_events_rule_id_monitor_alert_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."monitor_alert_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "monitor_alert_events" ADD CONSTRAINT "monitor_alert_events_handled_by_users_id_fk" FOREIGN KEY ("handled_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "monitor_alert_rules" ADD CONSTRAINT "monitor_alert_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "monitor_alert_rules" ADD CONSTRAINT "monitor_alert_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "monitor_alert_rules" ADD CONSTRAINT "monitor_alert_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6780,6 +7279,7 @@ ALTER TABLE "cms_member_view_history" ADD CONSTRAINT "cms_member_view_history_si
 ALTER TABLE "cms_model_fields" ADD CONSTRAINT "cms_model_fields_model_id_cms_models_id_fk" FOREIGN KEY ("model_id") REFERENCES "public"."cms_models"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_model_fields" ADD CONSTRAINT "cms_model_fields_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_model_fields" ADD CONSTRAINT "cms_model_fields_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_models" ADD CONSTRAINT "cms_models_owner_site_id_cms_sites_id_fk" FOREIGN KEY ("owner_site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_models" ADD CONSTRAINT "cms_models_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_models" ADD CONSTRAINT "cms_models_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_open_app_grants" ADD CONSTRAINT "cms_open_app_grants_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -6834,12 +7334,65 @@ ALTER TABLE "cms_widget_source_refs" ADD CONSTRAINT "cms_widget_source_refs_widg
 ALTER TABLE "cms_widgets" ADD CONSTRAINT "cms_widgets_site_id_cms_sites_id_fk" FOREIGN KEY ("site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_widgets" ADD CONSTRAINT "cms_widgets_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_widgets" ADD CONSTRAINT "cms_widgets_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_comments" ADD CONSTRAINT "wiki_comments_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_comments" ADD CONSTRAINT "wiki_comments_parent_id_wiki_comments_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."wiki_comments"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_comments" ADD CONSTRAINT "wiki_comments_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_favorites" ADD CONSTRAINT "wiki_doc_favorites_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_favorites" ADD CONSTRAINT "wiki_doc_favorites_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_read_receipts" ADD CONSTRAINT "wiki_doc_read_receipts_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_read_receipts" ADD CONSTRAINT "wiki_doc_read_receipts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_subscriptions" ADD CONSTRAINT "wiki_doc_subscriptions_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_subscriptions" ADD CONSTRAINT "wiki_doc_subscriptions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_tags" ADD CONSTRAINT "wiki_doc_tags_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_tags" ADD CONSTRAINT "wiki_doc_tags_tag_id_wiki_tags_id_fk" FOREIGN KEY ("tag_id") REFERENCES "public"."wiki_tags"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_versions" ADD CONSTRAINT "wiki_doc_versions_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_versions" ADD CONSTRAINT "wiki_doc_versions_author_id_users_id_fk" FOREIGN KEY ("author_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_views" ADD CONSTRAINT "wiki_doc_views_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_doc_views" ADD CONSTRAINT "wiki_doc_views_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_docs" ADD CONSTRAINT "wiki_docs_space_id_wiki_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."wiki_spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_docs" ADD CONSTRAINT "wiki_docs_parent_id_wiki_docs_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."wiki_docs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_docs" ADD CONSTRAINT "wiki_docs_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_docs" ADD CONSTRAINT "wiki_docs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_docs" ADD CONSTRAINT "wiki_docs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_docs" ADD CONSTRAINT "wiki_docs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_review_records" ADD CONSTRAINT "wiki_review_records_doc_id_wiki_docs_id_fk" FOREIGN KEY ("doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_review_records" ADD CONSTRAINT "wiki_review_records_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_search_logs" ADD CONSTRAINT "wiki_search_logs_clicked_doc_id_wiki_docs_id_fk" FOREIGN KEY ("clicked_doc_id") REFERENCES "public"."wiki_docs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_search_logs" ADD CONSTRAINT "wiki_search_logs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_search_logs" ADD CONSTRAINT "wiki_search_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_space_members" ADD CONSTRAINT "wiki_space_members_space_id_wiki_spaces_id_fk" FOREIGN KEY ("space_id") REFERENCES "public"."wiki_spaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_space_members" ADD CONSTRAINT "wiki_space_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_spaces" ADD CONSTRAINT "wiki_spaces_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_spaces" ADD CONSTRAINT "wiki_spaces_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_spaces" ADD CONSTRAINT "wiki_spaces_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_tags" ADD CONSTRAINT "wiki_tags_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_tags" ADD CONSTRAINT "wiki_tags_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_templates" ADD CONSTRAINT "wiki_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "wiki_templates" ADD CONSTRAINT "wiki_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "role_dept_scopes_dept_idx" ON "role_dept_scopes" USING btree ("dept_id");--> statement-breakpoint
+CREATE INDEX "role_menus_menu_idx" ON "role_menus" USING btree ("menu_id");--> statement-breakpoint
+CREATE INDEX "user_dept_scopes_dept_idx" ON "user_dept_scopes" USING btree ("dept_id");--> statement-breakpoint
+CREATE INDEX "user_group_members_user_idx" ON "user_group_members" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_group_roles_role_idx" ON "user_group_roles" USING btree ("role_id");--> statement-breakpoint
+CREATE INDEX "user_menus_menu_idx" ON "user_menus" USING btree ("menu_id");--> statement-breakpoint
+CREATE INDEX "user_positions_position_idx" ON "user_positions" USING btree ("position_id");--> statement-breakpoint
+CREATE INDEX "user_roles_role_idx" ON "user_roles" USING btree ("role_id");--> statement-breakpoint
+CREATE INDEX "users_department_idx" ON "users" USING btree ("department_id");--> statement-breakpoint
+CREATE INDEX "license_events_created_idx" ON "license_events" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "business_files_tenant_idx" ON "business_files" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "managed_files_tenant_idx" ON "managed_files" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "upload_sessions_tenant_idx" ON "upload_sessions" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "upload_sessions_created_at_idx" ON "upload_sessions" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "upload_sessions_status_idx" ON "upload_sessions" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "async_task_items_task_idx" ON "async_task_items" USING btree ("task_id");--> statement-breakpoint
 CREATE INDEX "async_task_items_task_status_idx" ON "async_task_items" USING btree ("task_id","status");--> statement-breakpoint
 CREATE INDEX "async_tasks_type_idx" ON "async_tasks" USING btree ("task_type");--> statement-breakpoint
 CREATE INDEX "async_tasks_status_idx" ON "async_tasks" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "async_tasks_created_by_idx" ON "async_tasks" USING btree ("created_by");--> statement-breakpoint
 CREATE INDEX "async_tasks_created_at_idx" ON "async_tasks" USING btree ("created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "async_tasks_idem_tenant_uq" ON "async_tasks" USING btree ("tenant_id","created_by","task_type","idempotency_key") WHERE "async_tasks"."idempotency_key" is not null and "async_tasks"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "async_tasks_idem_platform_uq" ON "async_tasks" USING btree ("created_by","task_type","idempotency_key") WHERE "async_tasks"."idempotency_key" is not null and "async_tasks"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "export_job_downloads_tenant_idx" ON "export_job_downloads" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "export_job_downloads_job_idx" ON "export_job_downloads" USING btree ("job_id");--> statement-breakpoint
 CREATE INDEX "export_job_downloads_downloaded_by_idx" ON "export_job_downloads" USING btree ("downloaded_by");--> statement-breakpoint
 CREATE INDEX "export_jobs_entity_idx" ON "export_jobs" USING btree ("entity");--> statement-breakpoint
@@ -6847,6 +7400,8 @@ CREATE INDEX "export_jobs_status_idx" ON "export_jobs" USING btree ("status");--
 CREATE INDEX "export_jobs_created_by_idx" ON "export_jobs" USING btree ("created_by");--> statement-breakpoint
 CREATE INDEX "export_jobs_tenant_idx" ON "export_jobs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "export_jobs_expires_at_idx" ON "export_jobs" USING btree ("expires_at");--> statement-breakpoint
+CREATE INDEX "cron_job_logs_started_at_idx" ON "cron_job_logs" USING btree ("started_at");--> statement-breakpoint
+CREATE INDEX "cron_job_logs_job_idx" ON "cron_job_logs" USING btree ("job_id");--> statement-breakpoint
 CREATE INDEX "maintenance_logs_started_at_idx" ON "maintenance_logs" USING btree ("started_at");--> statement-breakpoint
 CREATE INDEX "maintenance_logs_ended_at_idx" ON "maintenance_logs" USING btree ("ended_at");--> statement-breakpoint
 CREATE INDEX "system_scheduler_nodes_active_idx" ON "system_scheduler_nodes" USING btree ("active");--> statement-breakpoint
@@ -6862,8 +7417,11 @@ CREATE INDEX "user_feedbacks_created_at_idx" ON "user_feedbacks" USING btree ("c
 CREATE INDEX "login_risk_events_user_idx" ON "login_risk_events" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "login_risk_events_tenant_idx" ON "login_risk_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "login_risk_events_created_idx" ON "login_risk_events" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "password_reset_tokens_user_idx" ON "password_reset_tokens" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_api_tokens_user_idx" ON "user_api_tokens" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_mfa_factors_user_idx" ON "user_mfa_factors" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_mfa_factors_status_idx" ON "user_mfa_factors" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "user_oauth_accounts_user_idx" ON "user_oauth_accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "user_trusted_devices_user_device_uq" ON "user_trusted_devices" USING btree ("user_id","device_id_hash");--> statement-breakpoint
 CREATE INDEX "user_trusted_devices_user_idx" ON "user_trusted_devices" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_trusted_devices_trusted_until_idx" ON "user_trusted_devices" USING btree ("trusted_until");--> statement-breakpoint
@@ -6873,7 +7431,27 @@ CREATE INDEX "tenant_identity_providers_tenant_idx" ON "tenant_identity_provider
 CREATE INDEX "tenant_identity_providers_status_idx" ON "tenant_identity_providers" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "user_identity_accounts_user_idx" ON "user_identity_accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_identity_accounts_provider_idx" ON "user_identity_accounts" USING btree ("provider_id");--> statement-breakpoint
+CREATE INDEX "directory_sync_conflicts_source_idx" ON "directory_sync_conflicts" USING btree ("source_id");--> statement-breakpoint
+CREATE INDEX "directory_sync_conflicts_status_idx" ON "directory_sync_conflicts" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "directory_sync_dept_links_department_idx" ON "directory_sync_dept_links" USING btree ("department_id");--> statement-breakpoint
+CREATE INDEX "directory_sync_run_items_run_idx" ON "directory_sync_run_items" USING btree ("run_id");--> statement-breakpoint
+CREATE INDEX "directory_sync_run_items_action_idx" ON "directory_sync_run_items" USING btree ("action");--> statement-breakpoint
+CREATE INDEX "directory_sync_runs_source_idx" ON "directory_sync_runs" USING btree ("source_id");--> statement-breakpoint
+CREATE INDEX "directory_sync_runs_status_idx" ON "directory_sync_runs" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "directory_sync_sources_status_idx" ON "directory_sync_sources" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "directory_sync_user_links_user_idx" ON "directory_sync_user_links" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "dict_items_parent_idx" ON "dict_items" USING btree ("parent_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "dict_items_dict_id_value_unique" ON "dict_items" USING btree ("dict_id","value");--> statement-breakpoint
+CREATE INDEX "ip_access_logs_created_at_idx" ON "ip_access_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "ip_access_logs_ip_idx" ON "ip_access_logs" USING btree ("ip");--> statement-breakpoint
+CREATE INDEX "login_logs_tenant_idx" ON "login_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "login_logs_created_at_idx" ON "login_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "login_logs_user_idx" ON "login_logs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "login_logs_status_idx" ON "login_logs" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "operation_logs_tenant_idx" ON "operation_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "operation_logs_created_at_idx" ON "operation_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "operation_logs_user_idx" ON "operation_logs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "operation_logs_module_idx" ON "operation_logs" USING btree ("module");--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_rollup_uq" ON "analytics_daily_rollup" USING btree ("tenant_id","stat_date","metric","dim_type","dim_value");--> statement-breakpoint
 CREATE INDEX "analytics_rollup_date_idx" ON "analytics_daily_rollup" USING btree ("stat_date");--> statement-breakpoint
 CREATE INDEX "analytics_rollup_metric_idx" ON "analytics_daily_rollup" USING btree ("metric");--> statement-breakpoint
@@ -6888,6 +7466,7 @@ CREATE INDEX "analytics_event_quality_daily_tenant_idx" ON "analytics_event_qual
 CREATE UNIQUE INDEX "analytics_experiments_tenant_key_uq" ON "analytics_experiments" USING btree (coalesce("tenant_id", 0),"exp_key");--> statement-breakpoint
 CREATE INDEX "analytics_experiments_tenant_idx" ON "analytics_experiments" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "analytics_experiments_status_idx" ON "analytics_experiments" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "analytics_identity_map_tenant_anon_uq" ON "analytics_identity_map" USING btree (coalesce("tenant_id", 0),"anonymous_id");--> statement-breakpoint
 CREATE INDEX "analytics_saved_reports_tenant_idx" ON "analytics_saved_reports" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "analytics_saved_reports_type_idx" ON "analytics_saved_reports" USING btree ("report_type");--> statement-breakpoint
 CREATE INDEX "analytics_segment_campaigns_tenant_idx" ON "analytics_segment_campaigns" USING btree ("tenant_id");--> statement-breakpoint
@@ -6905,10 +7484,12 @@ CREATE INDEX "analytics_sessions_tenant_started_idx" ON "analytics_sessions" USI
 CREATE UNIQUE INDEX "analytics_settings_tenant_uq" ON "analytics_settings" USING btree (coalesce("tenant_id", 0));--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_sites_site_key_uq" ON "analytics_sites" USING btree ("site_key");--> statement-breakpoint
 CREATE INDEX "analytics_sites_tenant_idx" ON "analytics_sites" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "analytics_user_profiles_tenant_idx" ON "analytics_user_profiles" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_user_profiles_tenant_distinct_uq" ON "analytics_user_profiles" USING btree (coalesce("tenant_id", 0),"distinct_id");--> statement-breakpoint
 CREATE INDEX "analytics_user_profiles_user_idx" ON "analytics_user_profiles" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "analytics_user_profiles_member_idx" ON "analytics_user_profiles" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "analytics_user_profiles_last_seen_idx" ON "analytics_user_profiles" USING btree ("last_seen_at");--> statement-breakpoint
+CREATE INDEX "analytics_user_profiles_properties_gin_idx" ON "analytics_user_profiles" USING gin ("properties");--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_user_segments_tenant_name_uq" ON "analytics_user_segments" USING btree ("tenant_id","name") WHERE "analytics_user_segments"."tenant_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_user_segments_global_name_uq" ON "analytics_user_segments" USING btree ("name") WHERE "analytics_user_segments"."tenant_id" is null;--> statement-breakpoint
 CREATE INDEX "analytics_user_segments_tenant_status_idx" ON "analytics_user_segments" USING btree ("tenant_id","status");--> statement-breakpoint
@@ -6944,89 +7525,229 @@ CREATE INDEX "user_events_tenant_created_type_idx" ON "user_events" USING btree 
 CREATE INDEX "user_events_tenant_created_name_idx" ON "user_events" USING btree ("tenant_id","created_at","event_name");--> statement-breakpoint
 CREATE INDEX "user_events_source_created_idx" ON "user_events" USING btree ("source","created_at");--> statement-breakpoint
 CREATE INDEX "user_events_perf_metric_idx" ON "user_events" USING btree ("metric_name","created_at") WHERE "user_events"."event_type" = 'perf';--> statement-breakpoint
+CREATE INDEX "user_events_properties_gin_idx" ON "user_events" USING gin ("properties");--> statement-breakpoint
+CREATE INDEX "user_events_anon_pending_idx" ON "user_events" USING btree ("anonymous_id") WHERE "user_events"."user_id" IS NULL AND "user_events"."member_id" IS NULL AND "user_events"."anonymous_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "announcements_tenant_idx" ON "announcements" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_automations_definition_idx" ON "workflow_automations" USING btree ("definition_id");--> statement-breakpoint
+CREATE INDEX "workflow_automations_tenant_idx" ON "workflow_automations" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_comments_task_idx" ON "workflow_comments" USING btree ("task_id");--> statement-breakpoint
+CREATE INDEX "workflow_comments_parent_idx" ON "workflow_comments" USING btree ("parent_id");--> statement-breakpoint
+CREATE INDEX "workflow_comments_instance_idx" ON "workflow_comments" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "workflow_comments_user_idx" ON "workflow_comments" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "workflow_comments_tenant_idx" ON "workflow_comments" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_compensation_logs_operator_idx" ON "workflow_compensation_logs" USING btree ("operator_id");--> statement-breakpoint
+CREATE INDEX "workflow_compensation_logs_tenant_idx" ON "workflow_compensation_logs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "wf_compensation_log_cid_idx" ON "workflow_compensation_logs" USING btree ("compensation_id");--> statement-breakpoint
+CREATE INDEX "workflow_compensations_tenant_idx" ON "workflow_compensations" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "wf_compensation_instance_idx" ON "workflow_compensations" USING btree ("instance_id");--> statement-breakpoint
 CREATE INDEX "wf_compensation_status_idx" ON "workflow_compensations" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "workflow_connector_invocations_conn_idx" ON "workflow_connector_invocations" USING btree ("connector_id","created_at");--> statement-breakpoint
+CREATE INDEX "workflow_definition_versions_tenant_idx" ON "workflow_definition_versions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_definitions_tenant_status_idx" ON "workflow_definitions" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "workflow_delegations_definition_idx" ON "workflow_delegations" USING btree ("definition_id");--> statement-breakpoint
+CREATE INDEX "workflow_delegations_tenant_idx" ON "workflow_delegations" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_engine_health_snapshots_created_at_idx" ON "workflow_engine_health_snapshots" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "workflow_event_subscriptions_definition_idx" ON "workflow_event_subscriptions" USING btree ("definition_id");--> statement-breakpoint
+CREATE INDEX "workflow_event_subscriptions_tenant_idx" ON "workflow_event_subscriptions" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_instance_migrations_tenant_idx" ON "workflow_instance_migrations" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "wf_inst_migration_idx" ON "workflow_instance_migrations" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "workflow_instances_definition_idx" ON "workflow_instances" USING btree ("definition_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_instances_biz_key_uniq" ON "workflow_instances" USING btree (coalesce("tenant_id", 0),"biz_type","biz_id") WHERE "workflow_instances"."status" in ('draft', 'running', 'suspended');--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_instances_parent_task_item_key_idx" ON "workflow_instances" USING btree ("parent_task_id","parent_task_item_key");--> statement-breakpoint
 CREATE INDEX "workflow_instances_tenant_status_idx" ON "workflow_instances" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_instances_initiator_status_idx" ON "workflow_instances" USING btree ("initiator_id","status");--> statement-breakpoint
+CREATE INDEX "workflow_job_executions_tenant_idx" ON "workflow_job_executions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_job_executions_job_idx" ON "workflow_job_executions" USING btree ("job_id","attempt");--> statement-breakpoint
 CREATE INDEX "workflow_job_executions_type_idx" ON "workflow_job_executions" USING btree ("job_type","status");--> statement-breakpoint
+CREATE INDEX "workflow_jobs_task_idx" ON "workflow_jobs" USING btree ("task_id");--> statement-breakpoint
+CREATE INDEX "workflow_jobs_tenant_idx" ON "workflow_jobs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_due_idx" ON "workflow_jobs" USING btree ("status","run_at");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_type_status_idx" ON "workflow_jobs" USING btree ("job_type","status");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_trace_idx" ON "workflow_jobs" USING btree ("trace_id");--> statement-breakpoint
 CREATE INDEX "workflow_jobs_instance_idx" ON "workflow_jobs" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "workflow_quick_phrases_user_idx" ON "workflow_quick_phrases" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "workflow_quick_phrases_tenant_idx" ON "workflow_quick_phrases" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_saved_views_user_idx" ON "workflow_saved_views" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "workflow_saved_views_tenant_idx" ON "workflow_saved_views" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_schedules_definition_idx" ON "workflow_schedules" USING btree ("definition_id");--> statement-breakpoint
+CREATE INDEX "workflow_schedules_tenant_idx" ON "workflow_schedules" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_simulation_cases_tenant_idx" ON "workflow_simulation_cases" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_task_consults_task_idx" ON "workflow_task_consults" USING btree ("task_id");--> statement-breakpoint
+CREATE INDEX "workflow_task_consults_instance_idx" ON "workflow_task_consults" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "workflow_task_consults_tenant_idx" ON "workflow_task_consults" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_task_transfers_operator_idx" ON "workflow_task_transfers" USING btree ("operator_id");--> statement-breakpoint
+CREATE INDEX "workflow_task_transfers_tenant_idx" ON "workflow_task_transfers" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "wf_task_transfers_task_idx" ON "workflow_task_transfers" USING btree ("task_id");--> statement-breakpoint
 CREATE INDEX "wf_task_transfers_instance_idx" ON "workflow_task_transfers" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "workflow_task_urges_task_idx" ON "workflow_task_urges" USING btree ("task_id");--> statement-breakpoint
+CREATE INDEX "workflow_task_urges_instance_idx" ON "workflow_task_urges" USING btree ("instance_id");--> statement-breakpoint
 CREATE INDEX "workflow_tasks_instance_status_idx" ON "workflow_tasks" USING btree ("instance_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_tasks_assignee_status_idx" ON "workflow_tasks" USING btree ("assignee_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "wf_tasks_active_uniq" ON "workflow_tasks" USING btree ("instance_id","node_key","activation_id","assignee_id") WHERE "workflow_tasks"."status" in ('pending', 'waiting') and "workflow_tasks"."assignee_id" is not null;--> statement-breakpoint
+CREATE INDEX "workflow_templates_tenant_idx" ON "workflow_templates" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_tokens_tenant_idx" ON "workflow_tokens" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_tokens_instance_status_idx" ON "workflow_tokens" USING btree ("instance_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_tokens_parent_idx" ON "workflow_tokens" USING btree ("parent_token_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "wf_tokens_active_uniq" ON "workflow_tokens" USING btree ("instance_id","node_key","branch_path") WHERE "workflow_tokens"."status" = 'active';--> statement-breakpoint
+CREATE INDEX "email_send_logs_user_idx" ON "email_send_logs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "email_send_logs_tenant_idx" ON "email_send_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "email_send_logs_created_at_idx" ON "email_send_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "email_send_logs_status_idx" ON "email_send_logs" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "email_templates_tenant_idx" ON "email_templates" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "in_app_messages_tenant_idx" ON "in_app_messages" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "in_app_messages_user_created_idx" ON "in_app_messages" USING btree ("user_id","created_at");--> statement-breakpoint
+CREATE INDEX "in_app_messages_created_at_idx" ON "in_app_messages" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "in_app_templates_tenant_idx" ON "in_app_templates" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_dispatches_dedupe_uq" ON "notification_dispatches" USING btree ("dedupe_key") WHERE "notification_dispatches"."dedupe_key" is not null;--> statement-breakpoint
+CREATE INDEX "notification_dispatches_recipient_idx" ON "notification_dispatches" USING btree ("recipient_type","recipient_id","created_at");--> statement-breakpoint
+CREATE INDEX "notification_dispatches_event_idx" ON "notification_dispatches" USING btree ("event_key","created_at");--> statement-breakpoint
+CREATE INDEX "notification_dispatches_outbox_idx" ON "notification_dispatches" USING btree ("outbox_id");--> statement-breakpoint
+CREATE INDEX "notification_dispatches_decision_idx" ON "notification_dispatches" USING btree ("decision","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_event_overrides_tenant_uq" ON "notification_event_overrides" USING btree ("tenant_id","event_key","channel") WHERE "notification_event_overrides"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_event_overrides_global_uq" ON "notification_event_overrides" USING btree ("event_key","channel") WHERE "notification_event_overrides"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "notification_event_overrides_event_idx" ON "notification_event_overrides" USING btree ("event_key");--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_outbox_dedupe_uq" ON "notification_outbox" USING btree ("dedupe_key") WHERE "notification_outbox"."dedupe_key" is not null;--> statement-breakpoint
+CREATE INDEX "notification_outbox_pending_idx" ON "notification_outbox" USING btree ("status","scheduled_at") WHERE "notification_outbox"."status" = 'pending';--> statement-breakpoint
+CREATE INDEX "notification_outbox_digest_idx" ON "notification_outbox" USING btree ("digest_key","scheduled_at") WHERE "notification_outbox"."digest_key" is not null;--> statement-breakpoint
+CREATE INDEX "notification_outbox_event_idx" ON "notification_outbox" USING btree ("event_key","created_at");--> statement-breakpoint
+CREATE INDEX "notification_outbox_tenant_idx" ON "notification_outbox" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_preferences_uq" ON "notification_preferences" USING btree ("recipient_type","recipient_id","event_key","channel");--> statement-breakpoint
+CREATE INDEX "notification_preferences_recipient_idx" ON "notification_preferences" USING btree ("recipient_type","recipient_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "notification_recipient_settings_uq" ON "notification_recipient_settings" USING btree ("recipient_type","recipient_id");--> statement-breakpoint
+CREATE INDEX "sms_configs_tenant_idx" ON "sms_configs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "sms_send_logs_user_idx" ON "sms_send_logs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "sms_send_logs_tenant_idx" ON "sms_send_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "sms_send_logs_created_at_idx" ON "sms_send_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "sms_send_logs_status_idx" ON "sms_send_logs" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "sms_templates_tenant_idx" ON "sms_templates" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "db_admin_query_history_executed_at_idx" ON "db_admin_query_history" USING btree ("executed_at");--> statement-breakpoint
+CREATE INDEX "db_admin_query_history_user_idx" ON "db_admin_query_history" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "db_query_favorites_user_idx" ON "db_query_favorites" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "rule_decision_executions_tenant_idx" ON "rule_decision_executions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "rule_exec_instance_idx" ON "rule_decision_executions" USING btree ("instance_id");--> statement-breakpoint
 CREATE INDEX "rule_exec_table_idx" ON "rule_decision_executions" USING btree ("table_id");--> statement-breakpoint
+CREATE INDEX "rule_decision_table_versions_tenant_idx" ON "rule_decision_table_versions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "rule_list_items_list_idx" ON "rule_list_items" USING btree ("list_id");--> statement-breakpoint
+CREATE INDEX "rule_test_cases_tenant_idx" ON "rule_test_cases" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "biz_leaves_tenant_idx" ON "biz_leaves" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "biz_pay_demos_tenant_idx" ON "biz_pay_demos" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "chat_conversation_members_user_idx" ON "chat_conversation_members" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "chat_conversations_tenant_idx" ON "chat_conversations" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "chat_custom_emojis_user_idx" ON "chat_custom_emojis" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "chat_group_invites_conv_idx" ON "chat_group_invites" USING btree ("conversation_id");--> statement-breakpoint
 CREATE INDEX "chat_group_join_requests_conv_status_idx" ON "chat_group_join_requests" USING btree ("conversation_id","status");--> statement-breakpoint
 CREATE INDEX "chat_group_join_requests_user_idx" ON "chat_group_join_requests" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "chat_message_favorites_user_idx" ON "chat_message_favorites" USING btree ("user_id","created_at");--> statement-breakpoint
+CREATE INDEX "chat_message_reactions_user_idx" ON "chat_message_reactions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "chat_messages_conversation_id_idx" ON "chat_messages" USING btree ("conversation_id","id");--> statement-breakpoint
 CREATE INDEX "chat_messages_sender_idx" ON "chat_messages" USING btree ("sender_id");--> statement-breakpoint
 CREATE INDEX "chat_quick_replies_user_idx" ON "chat_quick_replies" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "chat_scheduled_messages_conversation_idx" ON "chat_scheduled_messages" USING btree ("conversation_id");--> statement-breakpoint
 CREATE INDEX "chat_scheduled_messages_due_idx" ON "chat_scheduled_messages" USING btree ("status","scheduled_at");--> statement-breakpoint
 CREATE INDEX "chat_scheduled_messages_sender_idx" ON "chat_scheduled_messages" USING btree ("sender_id");--> statement-breakpoint
+CREATE INDEX "chat_webhooks_conversation_idx" ON "chat_webhooks" USING btree ("conversation_id");--> statement-breakpoint
+CREATE INDEX "chat_webhooks_tenant_idx" ON "chat_webhooks" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "channel_auto_replies_channel_idx" ON "channel_auto_replies" USING btree ("channel_id");--> statement-breakpoint
+CREATE INDEX "channel_conversations_user_idx" ON "channel_conversations" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "channel_menus_channel_idx" ON "channel_menus" USING btree ("channel_id");--> statement-breakpoint
+CREATE INDEX "channel_message_targets_user_idx" ON "channel_message_targets" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "channel_messages_channel_idx" ON "channel_messages" USING btree ("channel_id");--> statement-breakpoint
+CREATE INDEX "channel_quick_replies_channel_idx" ON "channel_quick_replies" USING btree ("channel_id");--> statement-breakpoint
+CREATE INDEX "channel_subscriptions_user_idx" ON "channel_subscriptions" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "channels_tenant_idx" ON "channels" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_accounts_tenant_idx" ON "payment_accounts" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_accounts_channel_tenant_uq" ON "payment_accounts" USING btree ("channel","tenant_id") WHERE "payment_accounts"."tenant_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_accounts_channel_global_uq" ON "payment_accounts" USING btree ("channel") WHERE "payment_accounts"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "payment_apps_tenant_idx" ON "payment_apps" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_channel_configs_tenant_idx" ON "payment_channel_configs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_contracts_tenant_idx" ON "payment_contracts" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_contracts_active_biz_uq" ON "payment_contracts" USING btree ("biz_type","biz_id") WHERE "payment_contracts"."status" in ('pending', 'signed', 'paused');--> statement-breakpoint
 CREATE INDEX "payment_contracts_status_idx" ON "payment_contracts" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_contracts_next_deduct_idx" ON "payment_contracts" USING btree ("next_deduct_at");--> statement-breakpoint
 CREATE INDEX "payment_contracts_biz_idx" ON "payment_contracts" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "payment_deduct_plans_tenant_idx" ON "payment_deduct_plans" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_dispute_replies_operator_idx" ON "payment_dispute_replies" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "payment_dispute_replies_dispute_idx" ON "payment_dispute_replies" USING btree ("dispute_id");--> statement-breakpoint
+CREATE INDEX "payment_disputes_tenant_idx" ON "payment_disputes" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_disputes_status_idx" ON "payment_disputes" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_disputes_order_no_idx" ON "payment_disputes" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_disputes_deadline_idx" ON "payment_disputes" USING btree ("deadline");--> statement-breakpoint
+CREATE INDEX "payment_events_tenant_idx" ON "payment_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_events_status_idx" ON "payment_events" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_fee_rules_tenant_idx" ON "payment_fee_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_fee_rules_channel_idx" ON "payment_fee_rules" USING btree ("channel");--> statement-breakpoint
+CREATE INDEX "payment_ledger_entries_tenant_idx" ON "payment_ledger_entries" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_ledger_order_idx" ON "payment_ledger_entries" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_ledger_type_idx" ON "payment_ledger_entries" USING btree ("type");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_ledger_order_type_uq" ON "payment_ledger_entries" USING btree ("order_no","type") WHERE "payment_ledger_entries"."order_no" is not null and "payment_ledger_entries"."type" in ('payment', 'fee');--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_ledger_refund_uq" ON "payment_ledger_entries" USING btree ("refund_no") WHERE "payment_ledger_entries"."refund_no" is not null and "payment_ledger_entries"."type" = 'refund';--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_ledger_order_type_uq" ON "payment_ledger_entries" USING btree ("order_no","type") WHERE "payment_ledger_entries"."order_no" is not null and "payment_ledger_entries"."refund_no" is null and "payment_ledger_entries"."type" in ('payment', 'fee');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_ledger_refund_type_uq" ON "payment_ledger_entries" USING btree ("refund_no","type") WHERE "payment_ledger_entries"."refund_no" is not null;--> statement-breakpoint
+CREATE INDEX "payment_links_tenant_idx" ON "payment_links" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_method_configs_tenant_idx" ON "payment_method_configs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_notify_logs_tenant_idx" ON "payment_notify_logs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_notify_logs_order_no_idx" ON "payment_notify_logs" USING btree ("order_no");--> statement-breakpoint
+CREATE INDEX "payment_orders_user_idx" ON "payment_orders" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "payment_orders_tenant_idx" ON "payment_orders" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_orders_active_biz_uq" ON "payment_orders" USING btree ("biz_type","biz_id") WHERE "payment_orders"."status" in ('pending', 'paying');--> statement-breakpoint
 CREATE INDEX "payment_orders_biz_idx" ON "payment_orders" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE INDEX "payment_orders_status_idx" ON "payment_orders" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_orders_expired_idx" ON "payment_orders" USING btree ("expired_at");--> statement-breakpoint
+CREATE INDEX "payment_preauths_operator_idx" ON "payment_preauths" USING btree ("operator_id");--> statement-breakpoint
+CREATE INDEX "payment_preauths_tenant_idx" ON "payment_preauths" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_preauths_active_biz_uq" ON "payment_preauths" USING btree ("biz_type","biz_id") WHERE "payment_preauths"."status" in ('pending', 'frozen');--> statement-breakpoint
 CREATE INDEX "payment_preauths_status_idx" ON "payment_preauths" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_preauths_biz_idx" ON "payment_preauths" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "payment_recon_batches_tenant_idx" ON "payment_recon_batches" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_recon_batches_date_idx" ON "payment_recon_batches" USING btree ("bill_date");--> statement-breakpoint
 CREATE INDEX "payment_recon_items_batch_idx" ON "payment_recon_items" USING btree ("batch_id");--> statement-breakpoint
+CREATE INDEX "payment_refunds_order_idx" ON "payment_refunds" USING btree ("order_id");--> statement-breakpoint
+CREATE INDEX "payment_refunds_operator_idx" ON "payment_refunds" USING btree ("operator_id");--> statement-breakpoint
+CREATE INDEX "payment_refunds_tenant_idx" ON "payment_refunds" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_refunds_order_no_idx" ON "payment_refunds" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_refunds_status_idx" ON "payment_refunds" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_report_daily_tenant_idx" ON "payment_report_daily" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_report_daily_date_idx" ON "payment_report_daily" USING btree ("stat_date");--> statement-breakpoint
+CREATE INDEX "payment_risk_hits_user_idx" ON "payment_risk_hits" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "payment_risk_hits_tenant_idx" ON "payment_risk_hits" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_hits_created_idx" ON "payment_risk_hits" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "payment_risk_hits_rule_idx" ON "payment_risk_hits" USING btree ("rule_id");--> statement-breakpoint
+CREATE INDEX "payment_risk_reviews_tenant_idx" ON "payment_risk_reviews" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_risk_reviews_pending_order_uq" ON "payment_risk_reviews" USING btree ("order_no") WHERE "payment_risk_reviews"."status" = 'pending';--> statement-breakpoint
 CREATE INDEX "payment_risk_reviews_status_idx" ON "payment_risk_reviews" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_risk_reviews_biz_idx" ON "payment_risk_reviews" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "payment_risk_rules_tenant_idx" ON "payment_risk_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_rules_scope_idx" ON "payment_risk_rules" USING btree ("scope");--> statement-breakpoint
+CREATE INDEX "payment_settlement_batches_tenant_idx" ON "payment_settlement_batches" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_settlement_batches_status_idx" ON "payment_settlement_batches" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_settlement_period_uq" ON "payment_settlement_batches" USING btree ("channel","period_start","period_end","tenant_id") WHERE "payment_settlement_batches"."tenant_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "payment_settlement_period_global_uq" ON "payment_settlement_batches" USING btree ("channel","period_start","period_end") WHERE "payment_settlement_batches"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "payment_sharing_orders_tenant_idx" ON "payment_sharing_orders" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_sharing_orders_order_no_idx" ON "payment_sharing_orders" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_sharing_orders_receiver_idx" ON "payment_sharing_orders" USING btree ("receiver_id");--> statement-breakpoint
+CREATE INDEX "payment_sharing_receivers_tenant_idx" ON "payment_sharing_receivers" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_transfers_operator_idx" ON "payment_transfers" USING btree ("operator_id");--> statement-breakpoint
+CREATE INDEX "payment_transfers_tenant_idx" ON "payment_transfers" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_transfers_status_idx" ON "payment_transfers" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_transfers_biz_idx" ON "payment_transfers" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "payment_webhook_deliveries_tenant_idx" ON "payment_webhook_deliveries" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_webhook_deliveries_endpoint_idx" ON "payment_webhook_deliveries" USING btree ("endpoint_id");--> statement-breakpoint
 CREATE INDEX "payment_webhook_deliveries_status_idx" ON "payment_webhook_deliveries" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "payment_webhook_endpoints_tenant_idx" ON "payment_webhook_endpoints" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "ai_agents_user_idx" ON "ai_agents" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "ai_arena_votes_user_idx" ON "ai_arena_votes" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "ai_conversations_user_idx" ON "ai_conversations" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "ai_conversations_tenant_idx" ON "ai_conversations" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "ai_eval_runs_created_at_idx" ON "ai_eval_runs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "ai_eval_runs_set_idx" ON "ai_eval_runs" USING btree ("set_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ai_http_tools_name_uq" ON "ai_http_tools" USING btree ("name");--> statement-breakpoint
+CREATE INDEX "ai_knowledge_bases_user_idx" ON "ai_knowledge_bases" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "ai_messages_conversation_idx" ON "ai_messages" USING btree ("conversation_id","created_at");--> statement-breakpoint
+CREATE INDEX "ai_messages_created_at_idx" ON "ai_messages" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "ai_prompt_templates_user_idx" ON "ai_prompt_templates" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "ai_shared_conversations_conversation_idx" ON "ai_shared_conversations" USING btree ("conversation_id");--> statement-breakpoint
+CREATE INDEX "ai_shared_conversations_user_idx" ON "ai_shared_conversations" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ai_shared_conversations_token_uq" ON "ai_shared_conversations" USING btree ("token");--> statement-breakpoint
 CREATE UNIQUE INDEX "ai_user_preferences_user_id_uq" ON "ai_user_preferences" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "user_ai_configs_user_idx" ON "user_ai_configs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_sub_idx" ON "app_webhook_deliveries" USING btree ("subscription_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_client_idx" ON "app_webhook_deliveries" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_status_idx" ON "app_webhook_deliveries" USING btree ("status");--> statement-breakpoint
@@ -7034,8 +7755,10 @@ CREATE INDEX "app_webhook_deliveries_next_retry_idx" ON "app_webhook_deliveries"
 CREATE INDEX "app_webhook_deliveries_created_idx" ON "app_webhook_deliveries" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "app_webhook_subscriptions_client_idx" ON "app_webhook_subscriptions" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_subscriptions_cms_site_idx" ON "app_webhook_subscriptions" USING btree ("cms_site_id");--> statement-breakpoint
+CREATE INDEX "oauth2_authorization_codes_user_idx" ON "oauth2_authorization_codes" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "oauth2_token_families_client_idx" ON "oauth2_token_families" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "oauth2_token_families_user_idx" ON "oauth2_token_families" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "oauth2_tokens_user_idx" ON "oauth2_tokens" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "oauth2_tokens_client_idx" ON "oauth2_tokens" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "oauth2_tokens_family_idx" ON "oauth2_tokens" USING btree ("family_id");--> statement-breakpoint
 CREATE INDEX "oauth2_tokens_active_expiry_idx" ON "oauth2_tokens" USING btree ("revoked","expires_at");--> statement-breakpoint
@@ -7046,6 +7769,13 @@ CREATE INDEX "open_api_call_logs_path_idx" ON "open_api_call_logs" USING btree (
 CREATE INDEX "open_api_call_stats_daily_date_idx" ON "open_api_call_stats_daily" USING btree ("stat_date");--> statement-breakpoint
 CREATE INDEX "open_api_call_stats_daily_client_idx" ON "open_api_call_stats_daily" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "open_quota_alerts_status_idx" ON "open_quota_alerts" USING btree ("status","started_at");--> statement-breakpoint
+CREATE INDEX "ssh_profiles_user_idx" ON "ssh_profiles" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "terminal_recordings_user_idx" ON "terminal_recordings" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "terminal_recordings_tenant_idx" ON "terminal_recordings" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "terminal_sessions_user_state_idx" ON "terminal_sessions" USING btree ("user_id","state");--> statement-breakpoint
+CREATE INDEX "terminal_sessions_tenant_started_idx" ON "terminal_sessions" USING btree ("tenant_id","started_at");--> statement-breakpoint
+CREATE INDEX "terminal_sessions_node_state_idx" ON "terminal_sessions" USING btree ("node_id","state");--> statement-breakpoint
+CREATE INDEX "coupons_tenant_idx" ON "coupons" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "coupons_status_idx" ON "coupons" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "member_coupons_member_idx" ON "member_coupons" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_coupons_coupon_idx" ON "member_coupons" USING btree ("coupon_id");--> statement-breakpoint
@@ -7055,13 +7785,16 @@ CREATE INDEX "member_notifications_member_idx" ON "member_notifications" USING b
 CREATE INDEX "member_notifications_biz_idx" ON "member_notifications" USING btree ("type","biz_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "member_notifications_member_type_biz_uq" ON "member_notifications" USING btree ("member_id","type","biz_id") WHERE "member_notifications"."biz_id" is not null and "member_notifications"."type" = 'cms_content_published';--> statement-breakpoint
 CREATE UNIQUE INDEX "member_point_accounts_member_unique" ON "member_point_accounts" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "member_point_transactions_operator_idx" ON "member_point_transactions" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "member_point_tx_member_idx" ON "member_point_transactions" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_point_tx_biz_idx" ON "member_point_transactions" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE INDEX "member_tag_bindings_tag_idx" ON "member_tag_bindings" USING btree ("tag_id");--> statement-breakpoint
 CREATE INDEX "member_vip_renewals_member_idx" ON "member_vip_renewals" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "member_wallet_transactions_operator_idx" ON "member_wallet_transactions" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "member_wallet_tx_member_idx" ON "member_wallet_transactions" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_wallet_tx_biz_idx" ON "member_wallet_transactions" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "member_wallets_member_unique" ON "member_wallets" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "members_tenant_idx" ON "members" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "members_phone_unique" ON "members" USING btree ("phone") WHERE "members"."deleted_at" is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "members_email_unique" ON "members" USING btree ("email") WHERE "members"."deleted_at" is null;--> statement-breakpoint
 CREATE UNIQUE INDEX "members_username_unique" ON "members" USING btree ("username") WHERE "members"."deleted_at" is null;--> statement-breakpoint
@@ -7070,43 +7803,65 @@ CREATE INDEX "members_status_idx" ON "members" USING btree ("status");--> statem
 CREATE INDEX "members_invited_by_idx" ON "members" USING btree ("invited_by");--> statement-breakpoint
 CREATE INDEX "monitor_alert_events_rule_idx" ON "monitor_alert_events" USING btree ("rule_id");--> statement-breakpoint
 CREATE INDEX "monitor_alert_events_status_idx" ON "monitor_alert_events" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "monitor_alert_events_notify_status_idx" ON "monitor_alert_events" USING btree ("notify_status");--> statement-breakpoint
+CREATE INDEX "monitor_alert_events_handle_status_idx" ON "monitor_alert_events" USING btree ("handle_status");--> statement-breakpoint
 CREATE INDEX "monitor_alert_events_triggered_idx" ON "monitor_alert_events" USING btree ("triggered_at");--> statement-breakpoint
 CREATE INDEX "monitor_alert_events_tenant_idx" ON "monitor_alert_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "monitor_alert_rules_tenant_idx" ON "monitor_alert_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "monitor_alert_rules_enabled_idx" ON "monitor_alert_rules" USING btree ("enabled");--> statement-breakpoint
 CREATE INDEX "system_metric_samples_at_idx" ON "system_metric_samples" USING btree ("sampled_at");--> statement-breakpoint
 CREATE INDEX "mp_accounts_tenant_idx" ON "mp_accounts" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "mp_auto_replies_tenant_idx" ON "mp_auto_replies" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_auto_replies_account_type_idx" ON "mp_auto_replies" USING btree ("account_id","reply_type");--> statement-breakpoint
+CREATE INDEX "mp_broadcasts_tenant_idx" ON "mp_broadcasts" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_broadcasts_account_idx" ON "mp_broadcasts" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "mp_broadcasts_account_status_idx" ON "mp_broadcasts" USING btree ("account_id","status");--> statement-breakpoint
+CREATE INDEX "mp_conditional_menus_tenant_idx" ON "mp_conditional_menus" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_conditional_menus_account_idx" ON "mp_conditional_menus" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "mp_drafts_tenant_idx" ON "mp_drafts" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_drafts_account_idx" ON "mp_drafts" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "mp_fans_tenant_idx" ON "mp_fans" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_fans_account_openid_uq" ON "mp_fans" USING btree ("account_id","openid");--> statement-breakpoint
 CREATE INDEX "mp_fans_account_idx" ON "mp_fans" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "mp_fans_member_idx" ON "mp_fans" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "mp_kf_accounts_tenant_idx" ON "mp_kf_accounts" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_kf_accounts_account_kf_uq" ON "mp_kf_accounts" USING btree ("account_id","kf_account");--> statement-breakpoint
 CREATE INDEX "mp_kf_accounts_account_idx" ON "mp_kf_accounts" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "mp_kf_routing_configs_tenant_idx" ON "mp_kf_routing_configs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_kf_routing_configs_account_uq" ON "mp_kf_routing_configs" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "mp_kf_session_events_operator_idx" ON "mp_kf_session_events" USING btree ("operator_id");--> statement-breakpoint
+CREATE INDEX "mp_kf_session_events_tenant_idx" ON "mp_kf_session_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_kf_session_events_session_idx" ON "mp_kf_session_events" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX "mp_kf_sessions_tenant_idx" ON "mp_kf_sessions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_kf_sessions_open_uq" ON "mp_kf_sessions" USING btree ("account_id","openid") WHERE "mp_kf_sessions"."status" <> 'closed';--> statement-breakpoint
 CREATE INDEX "mp_kf_sessions_account_status_idx" ON "mp_kf_sessions" USING btree ("account_id","status");--> statement-breakpoint
 CREATE INDEX "mp_kf_sessions_kf_idx" ON "mp_kf_sessions" USING btree ("kf_id");--> statement-breakpoint
+CREATE INDEX "mp_materials_tenant_idx" ON "mp_materials" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_materials_account_type_idx" ON "mp_materials" USING btree ("account_id","type");--> statement-breakpoint
+CREATE UNIQUE INDEX "mp_materials_account_media_uq" ON "mp_materials" USING btree ("account_id","wechat_media_id") WHERE "mp_materials"."wechat_media_id" is not null;--> statement-breakpoint
+CREATE INDEX "mp_menus_tenant_idx" ON "mp_menus" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "mp_message_templates_tenant_idx" ON "mp_message_templates" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_message_templates_account_tpl_uq" ON "mp_message_templates" USING btree ("account_id","template_id");--> statement-breakpoint
+CREATE INDEX "mp_messages_tenant_idx" ON "mp_messages" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_messages_account_openid_idx" ON "mp_messages" USING btree ("account_id","openid");--> statement-breakpoint
 CREATE INDEX "mp_messages_account_idx" ON "mp_messages" USING btree ("account_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_messages_account_msgid_uq" ON "mp_messages" USING btree ("account_id","msg_id") WHERE "mp_messages"."msg_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "mp_qrcodes_tenant_idx" ON "mp_qrcodes" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_qrcodes_account_idx" ON "mp_qrcodes" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "mp_qrcodes_account_scene_idx" ON "mp_qrcodes" USING btree ("account_id","scene_str");--> statement-breakpoint
+CREATE INDEX "mp_tags_tenant_idx" ON "mp_tags" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_tags_account_name_uq" ON "mp_tags" USING btree ("account_id","name");--> statement-breakpoint
 CREATE INDEX "mp_tags_account_idx" ON "mp_tags" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "mp_template_send_logs_tenant_idx" ON "mp_template_send_logs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_template_send_logs_account_idx" ON "mp_template_send_logs" USING btree ("account_id");--> statement-breakpoint
+CREATE INDEX "mp_unmatched_keywords_tenant_idx" ON "mp_unmatched_keywords" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "mp_unmatched_keywords_account_kw_uq" ON "mp_unmatched_keywords" USING btree ("account_id","keyword");--> statement-breakpoint
 CREATE INDEX "report_alert_rules_tenant_idx" ON "report_alert_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "report_alert_rules_dataset_idx" ON "report_alert_rules" USING btree ("dataset_id");--> statement-breakpoint
 CREATE INDEX "report_alert_rules_metric_idx" ON "report_alert_rules" USING btree ("metric_id");--> statement-breakpoint
 CREATE INDEX "report_alert_rules_next_run_idx" ON "report_alert_rules" USING btree ("next_run_at");--> statement-breakpoint
 CREATE INDEX "report_dashboard_categories_tenant_idx" ON "report_dashboard_categories" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "report_dashboard_comments_user_idx" ON "report_dashboard_comments" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "report_dashboard_comments_dashboard_idx" ON "report_dashboard_comments" USING btree ("dashboard_id");--> statement-breakpoint
 CREATE INDEX "report_dashboard_comments_parent_idx" ON "report_dashboard_comments" USING btree ("parent_id");--> statement-breakpoint
 CREATE INDEX "report_dashboard_embed_tokens_dashboard_idx" ON "report_dashboard_embed_tokens" USING btree ("dashboard_id");--> statement-breakpoint
@@ -7120,6 +7875,7 @@ CREATE INDEX "report_dashboards_tenant_lifecycle_idx" ON "report_dashboards" USI
 CREATE INDEX "report_dashboards_category_idx" ON "report_dashboards" USING btree ("category_id");--> statement-breakpoint
 CREATE INDEX "report_dashboards_folder_idx" ON "report_dashboards" USING btree ("folder_id");--> statement-breakpoint
 CREATE INDEX "report_dashboards_owner_idx" ON "report_dashboards" USING btree ("owner_id");--> statement-breakpoint
+CREATE INDEX "report_dataset_execution_logs_tenant_idx" ON "report_dataset_execution_logs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "report_dataset_execution_logs_dataset_idx" ON "report_dataset_execution_logs" USING btree ("dataset_id");--> statement-breakpoint
 CREATE INDEX "report_dataset_execution_logs_datasource_idx" ON "report_dataset_execution_logs" USING btree ("datasource_id");--> statement-breakpoint
 CREATE INDEX "report_dataset_execution_logs_scene_idx" ON "report_dataset_execution_logs" USING btree ("scene");--> statement-breakpoint
@@ -7166,8 +7922,10 @@ CREATE INDEX "report_asset_templates_folder_idx" ON "report_asset_templates" USI
 CREATE INDEX "report_asset_templates_owner_idx" ON "report_asset_templates" USING btree ("owner_id");--> statement-breakpoint
 CREATE INDEX "report_asset_usage_logs_resource_time_idx" ON "report_asset_usage_logs" USING btree ("tenant_id","resource_type","resource_id","occurred_at");--> statement-breakpoint
 CREATE INDEX "report_asset_usage_logs_user_time_idx" ON "report_asset_usage_logs" USING btree ("user_id","occurred_at");--> statement-breakpoint
+CREATE INDEX "report_chatbi_messages_user_idx" ON "report_chatbi_messages" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "report_chatbi_messages_session_time_idx" ON "report_chatbi_messages" USING btree ("session_id","created_at");--> statement-breakpoint
 CREATE INDEX "report_chatbi_messages_tenant_user_time_idx" ON "report_chatbi_messages" USING btree ("tenant_id","user_id","created_at");--> statement-breakpoint
+CREATE INDEX "report_chatbi_sessions_user_idx" ON "report_chatbi_sessions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "report_chatbi_sessions_user_status_time_idx" ON "report_chatbi_sessions" USING btree ("tenant_id","user_id","status","updated_at");--> statement-breakpoint
 CREATE INDEX "report_chatbi_sessions_dataset_idx" ON "report_chatbi_sessions" USING btree ("dataset_id");--> statement-breakpoint
 CREATE INDEX "report_chatbi_sessions_datasource_idx" ON "report_chatbi_sessions" USING btree ("datasource_id");--> statement-breakpoint
@@ -7247,18 +8005,23 @@ CREATE INDEX "cms_channel_users_user_idx" ON "cms_channel_users" USING btree ("u
 CREATE UNIQUE INDEX "cms_channels_site_path_uq" ON "cms_channels" USING btree ("site_id","path");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_channels_site_code_uq" ON "cms_channels" USING btree ("site_id","code");--> statement-breakpoint
 CREATE INDEX "cms_channels_site_parent_idx" ON "cms_channels" USING btree ("site_id","parent_id");--> statement-breakpoint
+CREATE INDEX "cms_collect_items_content_idx" ON "cms_collect_items" USING btree ("content_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_collect_items_rule_url_uq" ON "cms_collect_items" USING btree ("rule_id","url");--> statement-breakpoint
 CREATE INDEX "cms_collect_items_rule_idx" ON "cms_collect_items" USING btree ("rule_id","created_at");--> statement-breakpoint
+CREATE INDEX "cms_collect_rules_channel_idx" ON "cms_collect_rules" USING btree ("channel_id");--> statement-breakpoint
 CREATE INDEX "cms_collect_rules_site_idx" ON "cms_collect_rules" USING btree ("site_id");--> statement-breakpoint
 CREATE INDEX "cms_comments_content_idx" ON "cms_comments" USING btree ("content_id","status");--> statement-breakpoint
 CREATE INDEX "cms_comments_member_idx" ON "cms_comments" USING btree ("member_id");--> statement-breakpoint
+CREATE INDEX "cms_content_channels_channel_idx" ON "cms_content_channels" USING btree ("channel_id");--> statement-breakpoint
 CREATE INDEX "cms_content_favorites_content_idx" ON "cms_content_favorites" USING btree ("content_id");--> statement-breakpoint
 CREATE INDEX "cms_content_favorites_member_idx" ON "cms_content_favorites" USING btree ("member_id","created_at");--> statement-breakpoint
 CREATE INDEX "cms_content_likes_content_idx" ON "cms_content_likes" USING btree ("content_id");--> statement-breakpoint
+CREATE INDEX "cms_content_op_logs_operator_idx" ON "cms_content_op_logs" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "cms_content_op_logs_content_idx" ON "cms_content_op_logs" USING btree ("content_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_content_tombstones_content_uq" ON "cms_content_tombstones" USING btree ("content_id");--> statement-breakpoint
 CREATE INDEX "cms_content_tombstones_sync_idx" ON "cms_content_tombstones" USING btree ("site_id","deleted_at","content_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_content_versions_content_ver_uq" ON "cms_content_versions" USING btree ("content_id","version");--> statement-breakpoint
+CREATE INDEX "cms_contents_channel_idx" ON "cms_contents" USING btree ("channel_id");--> statement-breakpoint
 CREATE INDEX "cms_contents_site_channel_idx" ON "cms_contents" USING btree ("site_id","channel_id");--> statement-breakpoint
 CREATE INDEX "cms_contents_status_idx" ON "cms_contents" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "cms_contents_published_at_idx" ON "cms_contents" USING btree ("published_at");--> statement-breakpoint
@@ -7296,6 +8059,7 @@ CREATE UNIQUE INDEX "cms_link_words_site_keyword_uq" ON "cms_link_words" USING b
 CREATE UNIQUE INDEX "cms_member_subscriptions_subject_uq" ON "cms_member_subscriptions" USING btree ("member_id","site_id","subject_type","subject_key");--> statement-breakpoint
 CREATE INDEX "cms_member_subscriptions_member_idx" ON "cms_member_subscriptions" USING btree ("member_id","active","created_at");--> statement-breakpoint
 CREATE INDEX "cms_member_subscriptions_subject_idx" ON "cms_member_subscriptions" USING btree ("site_id","subject_type","subject_key","active");--> statement-breakpoint
+CREATE INDEX "cms_member_view_history_content_idx" ON "cms_member_view_history" USING btree ("content_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_member_view_history_uq" ON "cms_member_view_history" USING btree ("member_id","content_id");--> statement-breakpoint
 CREATE INDEX "cms_member_view_history_member_idx" ON "cms_member_view_history" USING btree ("member_id","updated_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_model_fields_model_name_uq" ON "cms_model_fields" USING btree ("model_id","name");--> statement-breakpoint
@@ -7308,12 +8072,15 @@ CREATE INDEX "cms_page_block_acls_subject_idx" ON "cms_page_block_acls" USING bt
 CREATE UNIQUE INDEX "cms_pages_site_slug_uq" ON "cms_pages" USING btree ("site_id","slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_pages_site_path_uq" ON "cms_pages" USING btree ("site_id","path") WHERE "cms_pages"."path" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "cms_pages_site_idx" ON "cms_pages" USING btree ("site_id");--> statement-breakpoint
+CREATE INDEX "cms_publish_artifacts_content_idx" ON "cms_publish_artifacts" USING btree ("content_id");--> statement-breakpoint
+CREATE INDEX "cms_publish_artifacts_channel_idx" ON "cms_publish_artifacts" USING btree ("channel_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_publish_artifacts_task_path_uq" ON "cms_publish_artifacts" USING btree ("task_id","path");--> statement-breakpoint
 CREATE INDEX "cms_publish_artifacts_site_time_idx" ON "cms_publish_artifacts" USING btree ("site_id","created_at");--> statement-breakpoint
 CREATE INDEX "cms_publish_artifacts_task_status_idx" ON "cms_publish_artifacts" USING btree ("task_id","status");--> statement-breakpoint
 CREATE INDEX "cms_publish_artifacts_target_idx" ON "cms_publish_artifacts" USING btree ("target_type","content_id","channel_id");--> statement-breakpoint
 CREATE INDEX "cms_push_logs_site_idx" ON "cms_push_logs" USING btree ("site_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_redirects_site_from_uq" ON "cms_redirects" USING btree ("site_id","from_path");--> statement-breakpoint
+CREATE INDEX "cms_resource_folders_parent_idx" ON "cms_resource_folders" USING btree ("parent_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_resource_folders_site_parent_name_uq" ON "cms_resource_folders" USING btree ("site_id","parent_id","name") WHERE "cms_resource_folders"."parent_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_resource_folders_site_root_name_uq" ON "cms_resource_folders" USING btree ("site_id","name") WHERE "cms_resource_folders"."parent_id" is null;--> statement-breakpoint
 CREATE INDEX "cms_resource_folders_site_parent_idx" ON "cms_resource_folders" USING btree ("site_id","parent_id");--> statement-breakpoint
@@ -7329,6 +8096,7 @@ CREATE INDEX "cms_search_logs_site_time_idx" ON "cms_search_logs" USING btree ("
 CREATE INDEX "cms_search_logs_keyword_idx" ON "cms_search_logs" USING btree ("site_id","keyword");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_search_words_site_type_word_uq" ON "cms_search_words" USING btree ("site_id","type","word");--> statement-breakpoint
 CREATE INDEX "cms_search_words_site_group_idx" ON "cms_search_words" USING btree ("site_id","type","group_name");--> statement-breakpoint
+CREATE INDEX "cms_site_users_user_idx" ON "cms_site_users" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_sites_domain_uq" ON "cms_sites" USING btree ("domain") WHERE "cms_sites"."domain" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_sites_default_uq" ON "cms_sites" USING btree ("is_default") WHERE "cms_sites"."is_default" = true;--> statement-breakpoint
 CREATE INDEX "cms_sites_parent_idx" ON "cms_sites" USING btree ("parent_id","sort","id");--> statement-breakpoint
@@ -7343,4 +8111,16 @@ CREATE UNIQUE INDEX "cms_widget_source_refs_widget_item_uq" ON "cms_widget_sourc
 CREATE INDEX "cms_widget_source_refs_source_idx" ON "cms_widget_source_refs" USING btree ("source_type","source_id");--> statement-breakpoint
 CREATE INDEX "cms_widget_source_refs_site_idx" ON "cms_widget_source_refs" USING btree ("site_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_widgets_site_code_uq" ON "cms_widgets" USING btree ("site_id","code");--> statement-breakpoint
-CREATE INDEX "cms_widgets_site_status_idx" ON "cms_widgets" USING btree ("site_id","status");
+CREATE INDEX "cms_widgets_site_status_idx" ON "cms_widgets" USING btree ("site_id","status");--> statement-breakpoint
+CREATE INDEX "wiki_comments_doc_idx" ON "wiki_comments" USING btree ("doc_id");--> statement-breakpoint
+CREATE INDEX "wiki_doc_views_doc_idx" ON "wiki_doc_views" USING btree ("doc_id");--> statement-breakpoint
+CREATE INDEX "wiki_doc_views_created_idx" ON "wiki_doc_views" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "wiki_docs_space_idx" ON "wiki_docs" USING btree ("space_id");--> statement-breakpoint
+CREATE INDEX "wiki_docs_parent_idx" ON "wiki_docs" USING btree ("parent_id");--> statement-breakpoint
+CREATE INDEX "wiki_docs_status_idx" ON "wiki_docs" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "wiki_docs_title_trgm_idx" ON "wiki_docs" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "wiki_docs_content_trgm_idx" ON "wiki_docs" USING gin ("content" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "wiki_review_records_doc_idx" ON "wiki_review_records" USING btree ("doc_id");--> statement-breakpoint
+CREATE INDEX "wiki_review_records_actor_idx" ON "wiki_review_records" USING btree ("actor_id");--> statement-breakpoint
+CREATE INDEX "wiki_search_logs_created_idx" ON "wiki_search_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "wiki_search_logs_keyword_idx" ON "wiki_search_logs" USING btree ("keyword");
