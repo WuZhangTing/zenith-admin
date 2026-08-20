@@ -143,38 +143,72 @@ function shouldSkipMount(mount: string, fsType: string): boolean {
   return false;
 }
 
+/**
+ * Windows 磁盘信息。
+ *
+ * 优先 wmic：直接查 WMI，约 300ms；回退 PowerShell + CIM：wmic 在新版 Windows 已弃用/可能缺失。
+ * 不用 `Get-PSDrive` 是因为启动 PowerShell 引擎常需 1-3 秒，采样并发时会撞上超时被杀，
+ * 表现为「Command failed」但没有任何 stderr，磁盘指标长期为 0 且刷屏 warn。
+ */
+async function getWindowsDisks(): Promise<DiskInfo[]> {
+  const toDisk = (name: string, total: number, free: number): DiskInfo | null => {
+    if (!Number.isFinite(total) || total <= 0) return null;
+    const used = total - free;
+    return {
+      filesystem: name,
+      total,
+      used,
+      free,
+      usagePercent: Math.round((used / total) * 100),
+      mount: name,
+    };
+  };
+
+  try {
+    const { stdout } = await execFileAsync(
+      'wmic',
+      ['logicaldisk', 'where', 'DriveType=3', 'get', 'DeviceID,Size,FreeSpace', '/format:csv'],
+      { timeout: 10_000, windowsHide: true },
+    );
+    const disks: DiskInfo[] = [];
+    // CSV 首行是表头 Node,DeviceID,FreeSpace,Size
+    for (const line of stdout.split(/\r?\n/).slice(1)) {
+      const parts = line.trim().split(',');
+      if (parts.length < 4) continue;
+      const disk = toDisk(parts[1], Number(parts[3]), Number(parts[2]));
+      if (disk) disks.push(disk);
+    }
+    if (disks.length > 0) return disks;
+  } catch { /* wmic 已弃用或不可用，回退 PowerShell */ }
+
+  const { stdout } = await execFileAsync(
+    'powershell.exe',
+    [
+      '-NoProfile', '-NonInteractive', '-Command',
+      'Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" | Select-Object DeviceID,Size,FreeSpace | ConvertTo-Json -Compress',
+    ],
+    { timeout: 15_000, windowsHide: true },
+  );
+  const parsed: unknown = JSON.parse(stdout.trim() || '[]');
+  const rows = Array.isArray(parsed) ? parsed : [parsed];
+  const disks: DiskInfo[] = [];
+  for (const rowRaw of rows) {
+    const row = rowRaw as { DeviceID?: string; Size?: number | string; FreeSpace?: number | string };
+    const disk = toDisk(row.DeviceID ?? '', Number(row.Size ?? 0), Number(row.FreeSpace ?? 0));
+    if (disk) disks.push(disk);
+  }
+  return disks;
+}
+
 export async function getDisks(): Promise<DiskInfo[] | null> {
   const cached = fresh(cache.disks);
   if (cached !== undefined) return cached;
   try {
-    const disks: DiskInfo[] = [];
+    let disks: DiskInfo[];
     if (process.platform === 'win32') {
-      const { stdout } = await execFileAsync(
-        'powershell.exe',
-        [
-          '-NoProfile', '-NonInteractive', '-Command',
-          "Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -ne $null } | Select-Object Name,Used,Free | ConvertTo-Json -Compress",
-        ],
-        { timeout: 5000 },
-      );
-      const parsed: unknown = JSON.parse(stdout || '[]');
-      const arr = Array.isArray(parsed) ? parsed : [parsed];
-      for (const itRaw of arr) {
-        const it = itRaw as { Name?: string; Used?: number | string; Free?: number | string };
-        const used = Number(it.Used ?? 0);
-        const free = Number(it.Free ?? 0);
-        const total = used + free;
-        if (total <= 0) continue;
-        disks.push({
-          filesystem: `${it.Name ?? ''}:`,
-          total,
-          used,
-          free,
-          usagePercent: Math.round((used / total) * 100),
-          mount: `${it.Name ?? ''}:`,
-        });
-      }
+      disks = await getWindowsDisks();
     } else {
+      disks = [];
       const { stdout } = await execFileAsync('df', ['-PB1', '-T'], { timeout: 5000 });
       const lines = stdout.trim().split('\n').slice(1);
       const seen = new Set<string>();
@@ -206,7 +240,14 @@ export async function getDisks(): Promise<DiskInfo[] | null> {
     cache.disks = { at: Date.now(), value: disks };
     return disks;
   } catch (err) {
-    logger.warn('[monitor] getDisks failed', { err: String(err) });
+    // 保留 killed / code / stderr：只打 message 时超时被杀与命令失败长得一模一样，无法定位
+    const e = err as { message?: string; killed?: boolean; code?: unknown; stderr?: string };
+    logger.warn('[monitor] getDisks failed', {
+      err: e.message ?? String(err),
+      killed: e.killed ?? false,
+      code: e.code ?? null,
+      stderr: e.stderr?.trim() || null,
+    });
     cache.disks = { at: Date.now(), value: null };
     return null;
   }
