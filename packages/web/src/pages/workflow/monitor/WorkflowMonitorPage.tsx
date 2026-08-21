@@ -34,6 +34,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import SavedViewsBar from '@/components/workflow/SavedViewsBar';
 import WorkflowPriorityTag, { WORKFLOW_PRIORITY_OPTIONS } from '@/components/workflow/WorkflowPriorityTag';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
@@ -839,23 +840,11 @@ export default function WorkflowMonitorPage() {
           </Space>
           <Typography.Text type="tertiary" size="small">{focusDiagnosis.description}</Typography.Text>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', gap: 10, marginTop: 12 }}>
+          <StatGrid minItemWidth={150} gap={10} style={{ marginTop: 12 }}>
             {focusDiagnosis.metrics.map((metric) => (
-              <div
-                key={metric.label}
-                style={{
-                  border: '1px solid var(--semi-color-fill-1)',
-                  borderRadius: 'var(--semi-border-radius-medium)',
-                  padding: '8px 10px',
-                  minWidth: 0,
-                }}
-              >
-                <Typography.Text type="tertiary" size="small">{metric.label}</Typography.Text>
-                <div style={{ fontWeight: 600, marginTop: 2 }}>{metric.value}</div>
-                {metric.hint && <Typography.Text type="tertiary" size="small">{metric.hint}</Typography.Text>}
-              </div>
+              <StatCard key={metric.label} title={metric.label} value={metric.value} sub={metric.hint} />
             ))}
-          </div>
+          </StatGrid>
 
           {focusDiagnosis.activeTasks.length > 0 && (
             <div style={{ marginTop: 12 }}>
@@ -976,7 +965,9 @@ export default function WorkflowMonitorPage() {
       title: '申请标题',
       dataIndex: 'title',
       width: 220,
-      render: renderEllipsis,
+      render: (v: string, record: WorkflowInstance) => (
+        <WorkflowInstanceCell instanceId={record.id} title={v} showSub={false} onOpen={() => openDetail(record)} />
+      ),
     },
     {
       title: '优先级',
@@ -1030,6 +1021,8 @@ export default function WorkflowMonitorPage() {
       key: 'duration',
       width: 120,
       render: (_: unknown, record: WorkflowInstance) => {
+        // 草稿尚未提交，从创建时间累计耗时没有意义
+        if (record.status === 'draft') return <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>;
         const end = RUNNING_STATUSES.has(record.status) ? dayjs().format('YYYY-MM-DD HH:mm:ss') : record.updatedAt;
         return <span style={{ color: 'var(--semi-color-text-1)' }}>{formatDuration(record.createdAt, end)}</span>;
       },

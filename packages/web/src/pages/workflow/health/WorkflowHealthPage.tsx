@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowHealthIssue, WorkflowHealthSummary } from '@zenith/shared/workflow';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
+import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import { useWorkflowHealthSummary, workflowHealthKeys } from '@/hooks/queries/workflow-health';
+import { usePermission } from '@/hooks/usePermission';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { request } from '@/utils/request';
+import { unwrap } from '@/lib/query';
 
 const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   external_dispatch_failed: '外部审批失败',
@@ -43,11 +49,23 @@ const ISSUE_TYPE_OPTIONS = [
 
 export default function WorkflowHealthPage() {
   const queryClient = useQueryClient();
+  const { hasPermission } = usePermission();
   const [thresholdMinutes, setThresholdMinutes] = useState(30);
   const [submittedThresholdMinutes, setSubmittedThresholdMinutes] = useState(30);
   const [issueType, setIssueType] = useState<WorkflowHealthIssue['type'] | ''>('');
+  const [detailInstanceId, setDetailInstanceId] = useState<number | null>(null);
   const summaryQuery = useWorkflowHealthSummary({ thresholdMinutes: submittedThresholdMinutes });
   const data: WorkflowHealthSummary | null = summaryQuery.data ?? null;
+
+  // 与任务监控同一入口：非 0 code（如催办限频）通过 unwrap 抛错走全局提示
+  const urgeMutation = useMutation({
+    mutationFn: (taskId: number) => request.post<unknown>(`/api/workflows/tasks/${taskId}/urge`, {}).then(unwrap),
+    onSuccess: () => {
+      Toast.success('已催办');
+    },
+  });
+
+  const canUrge = hasPermission('workflow:instance:monitor');
 
   const handleSearch = () => {
     setSubmittedThresholdMinutes(thresholdMinutes);
@@ -87,12 +105,47 @@ export default function WorkflowHealthPage() {
         </div>
       ),
     },
-    { title: '实例', dataIndex: 'instanceId', width: 180, render: (_: unknown, row) => row.instanceId ? `#${row.instanceId} ${row.instanceTitle ?? ''}` : '—' },
+    {
+      title: '实例',
+      dataIndex: 'instanceId',
+      width: 220,
+      render: (_: unknown, row) => (
+        <WorkflowInstanceCell
+          instanceId={row.instanceId}
+          title={row.instanceTitle}
+          onOpen={(id) => setDetailInstanceId(id)}
+        />
+      ),
+    },
     { title: '任务', dataIndex: 'taskId', width: 90, render: (v: number | null) => v ? `#${v}` : '—' },
     { title: '节点', dataIndex: 'nodeName', width: 160, render: (_: unknown, row) => row.nodeName ?? row.nodeKey ?? '—' },
     { title: '状态', dataIndex: 'status', width: 110, render: (v: string | null) => v ?? '—' },
     { title: '等待时长', dataIndex: 'ageMinutes', width: 110, align: 'right', render: (v: number) => `${v} 分钟` },
     dateTimeColumn('创建时间', 'createdAt'),
+    createOperationColumn<WorkflowHealthIssue>({
+      width: 150,
+      desktopInlineKeys: ['urge', 'instance'],
+      actions: (row) => [
+        {
+          key: 'urge',
+          label: '催办',
+          hidden: !canUrge || !row.taskId || row.status !== 'pending',
+          onClick: () => {
+            Modal.confirm({
+              title: '确定催办该任务？',
+              content: '将向当前处理人发送催办提醒。',
+              onOk: () => urgeMutation.mutateAsync(row.taskId as number).then(() => undefined),
+            });
+          },
+        },
+        {
+          key: 'instance',
+          label: '查看实例',
+          hidden: !row.instanceId,
+          onClick: () => setDetailInstanceId(row.instanceId as number),
+        },
+      ],
+    }),
   ];
 
   const renderThresholdFilter = () => (
@@ -175,6 +228,12 @@ export default function WorkflowHealthPage() {
         pagination={false}
         onRefresh={() => void summaryQuery.refetch()}
         refreshLoading={summaryQuery.isFetching}
+      />
+
+      <WorkflowInstanceDetailSheet
+        instanceId={detailInstanceId}
+        visible={detailInstanceId != null}
+        onClose={() => setDetailInstanceId(null)}
       />
     </div>
   );

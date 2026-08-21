@@ -11,6 +11,7 @@ import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -348,18 +349,14 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
       dataIndex: 'instanceId',
       width: 240,
       render: (_: unknown, record: WorkflowJob) => (
-        record.instanceId ? (
-          <div style={{ minWidth: 0 }}>
-            <Typography.Text size="small" strong ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: 224 }}>
-              {record.definitionName ?? '未知流程'}
-            </Typography.Text>
-            <Typography.Text size="small" type="tertiary" ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: 224 }}>
-              #{record.instanceId}{record.instanceTitle ? ` · ${record.instanceTitle}` : ''}{record.nodeKey ? ` · ${record.nodeKey}` : ''}
-            </Typography.Text>
-          </div>
-        ) : (
-          <Typography.Text size="small" type="tertiary">系统事件{record.nodeKey ? ` · ${record.nodeKey}` : ''}</Typography.Text>
-        )
+        <WorkflowInstanceCell
+          size="small"
+          instanceId={record.instanceId}
+          title={record.instanceTitle}
+          definitionName={record.definitionName ?? '未知流程'}
+          extra={record.nodeKey}
+          emptyText={`系统事件${record.nodeKey ? ` · ${record.nodeKey}` : ''}`}
+        />
       ),
     },
     {

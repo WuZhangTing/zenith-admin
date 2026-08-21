@@ -17,6 +17,7 @@ import {
   WORKFLOW_TASK_NODE_TYPE_OPTIONS,
   taskAssigneeColumn, taskCommentColumn, taskIdColumn, taskNodeColumn, taskStatusColumn, taskStayDurationColumn,
 } from '@/components/workflow/workflow-task-columns';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowTaskMonitorList, workflowMonitorKeys, type WorkflowTaskMonitorParams } from '@/hooks/queries/workflow-monitor';
@@ -94,9 +95,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
       dataIndex: 'instanceTitle',
       width: 220,
       render: (v: string, r) => (
-        <Typography.Text link ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }} onClick={() => onOpenInstance(r.instanceId)}>
-          {v}
-        </Typography.Text>
+        <WorkflowInstanceCell instanceId={r.instanceId} title={v} showSub={false} onOpen={onOpenInstance} />
       ),
     },
     {

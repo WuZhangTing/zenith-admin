@@ -23,6 +23,7 @@ import {
   replayDeliveriesByFilter,
   getDeliveryBeforeAudit,
   getDeliveriesBeforeAudit,
+  testSubscriptionDelivery,
 } from '../../services/workflow/workflow-event-subscriptions.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -236,8 +237,33 @@ const replayDeliveriesRoute = defineOpenAPIRoute({
   },
 });
 
+const TestDeliveryResultDTO = z.object({
+  ok: z.boolean(),
+  httpStatus: z.number().int().nullable(),
+  durationMs: z.number().int(),
+  responseSnippet: z.string().nullable(),
+  error: z.string().nullable(),
+  requestUrl: z.string(),
+  eventType: z.string(),
+});
+
+const testDeliveryRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/test', tags: ['WorkflowEventSubscriptions'], summary: '测试投递：同步发送一条带 test 标记的样例事件并返回 HTTP 结果',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:edit', audit: { description: '测试事件订阅投递', module: '工作流管理' } })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(TestDeliveryResultDTO, '测试投递结果') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const result = await testSubscriptionDelivery(id);
+    return c.json(okBody(result, result.ok ? '测试投递成功' : '测试投递失败'), 200);
+  },
+});
+
 router.openapiRoutes([
-  list, get, getSecret, create, update, remove, toggle,
+  list, get, getSecret, create, update, remove, toggle, testDeliveryRoute,
   listDeliveriesRoute, getDeliveryRoute, retryDeliveryRoute, batchRetryRoute, replayDeliveriesRoute,
 ] as const);
 

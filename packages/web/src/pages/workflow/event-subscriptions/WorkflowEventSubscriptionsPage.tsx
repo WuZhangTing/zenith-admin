@@ -38,6 +38,7 @@ import {
   useReplayWorkflowEventDeliveries,
   useRetryWorkflowEventDelivery,
   useSaveWorkflowEventSubscription,
+  useTestWorkflowEventSubscription,
   useToggleWorkflowEventSubscription,
   useWorkflowEventDeliveries,
   useWorkflowEventSubscriptionDetail,
@@ -124,6 +125,32 @@ export default function WorkflowEventSubscriptionsPage() {
   // 编辑弹窗
   const saveMutation = useSaveWorkflowEventSubscription();
   const toggleMutation = useToggleWorkflowEventSubscription();
+  const testMutation = useTestWorkflowEventSubscription();
+
+  const handleTestDelivery = (record: WorkflowEventSubscription) => {
+    testMutation.mutate(record.id, {
+      onSuccess: (result) => {
+        Modal.info({
+          title: result.ok ? '测试投递成功' : '测试投递失败',
+          content: (
+            <div style={{ fontSize: 13, lineHeight: 2 }}>
+              <div>请求地址：{result.requestUrl}</div>
+              <div>样例事件：{result.eventType}（X-Zenith-Test: 1）</div>
+              <div>HTTP 状态：{result.httpStatus ?? '—'} · 耗时 {result.durationMs}ms</div>
+              {result.error && <div style={{ color: 'var(--semi-color-danger)' }}>错误：{result.error}</div>}
+              {result.responseSnippet && (
+                <pre style={{ maxHeight: 160, overflow: 'auto', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                  {result.responseSnippet}
+                </pre>
+              )}
+            </div>
+          ),
+          okText: '知道了',
+          hasCancel: false,
+        });
+      },
+    });
+  };
   const deleteMutation = useDeleteWorkflowEventSubscriptions();
   const secretMutation = useWorkflowEventSubscriptionSecret();
 
@@ -262,13 +289,19 @@ export default function WorkflowEventSubscriptionsPage() {
     },
     createOperationColumn<WorkflowEventSubscription>({
       width: 280,
-      desktopInlineKeys: ['edit', 'deliveries', 'secret', 'delete'],
+      desktopInlineKeys: ['edit', 'test', 'deliveries', 'secret', 'delete'],
       actions: (record) => [
         {
           key: 'edit',
           label: '编辑',
           hidden: !canManageEventSubscription,
           onClick: () => openEdit(record),
+        },
+        {
+          key: 'test',
+          label: '测试',
+          hidden: !canManageEventSubscription,
+          onClick: () => handleTestDelivery(record),
         },
         { key: 'deliveries', label: '投递', onClick: () => openDeliveries(record) },
         {

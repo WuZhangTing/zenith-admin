@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
 import {
   workflowEventSubscriptions,
@@ -14,6 +15,9 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
+import { httpPost } from '../../lib/http-client';
+import { signHmac } from '../../lib/workflow-jobs/handlers/shared';
+import { invokeConnector, getConnectorRowById } from './workflow-connectors.service';
 import type { WorkflowEventType } from '@zenith/shared/workflow';
 
 function maskSecret(secret: string | null | undefined): string | null {
@@ -528,4 +532,74 @@ export async function replayDeliveriesByFilter(f: ReplayDeliveriesFilter): Promi
     .set({ status: 'pending', runAt: new Date(), lastError: null })
     .where(inArray(workflowJobs.id, targets.map((t) => t.id)));
   return { count: targets.length };
+}
+
+// ─── 测试投递 ────────────────────────────────────────────────────────
+
+export interface TestDeliveryResult {
+  ok: boolean;
+  httpStatus: number | null;
+  durationMs: number;
+  responseSnippet: string | null;
+  error: string | null;
+  requestUrl: string;
+  eventType: string;
+}
+
+/**
+ * 测试投递：向订阅地址同步发送一条带 test 标记的样例事件，立即返回 HTTP 结果。
+ * - 复用真实投递的签名 / 自定义头 / 连接器链路，验证的就是线上路径；
+ * - 不入作业队列、不产生投递记录，禁用中的订阅也可测试（便于上线前验证）。
+ */
+export async function testSubscriptionDelivery(id: number): Promise<TestDeliveryResult> {
+  const row = await ensureSubscriptionExists(id);
+  const eventType = (Array.isArray(row.events) && row.events.length > 0 ? row.events[0] : 'instance.approved') as string;
+  const now = new Date();
+  const sampleEvent = {
+    eventId: randomUUID(),
+    type: eventType,
+    occurredAt: formatDateTime(now),
+    instanceId: 0,
+    definitionId: row.definitionId ?? 0,
+    tenantId: null,
+    test: true,
+    note: '这是一条测试投递（非真实业务事件），用于验证订阅地址、签名与连接器配置',
+  };
+  const bodyStr = JSON.stringify(sampleEvent);
+  const timestamp = Math.floor(now.getTime() / 1000).toString();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Zenith-Event': eventType,
+    'X-Zenith-Event-Id': sampleEvent.eventId,
+    'X-Zenith-Test': '1',
+    ...(parseHeaders(row.headers) ?? {}),
+  };
+  if (row.signMode === 'hmacSha256' && row.secretEncrypted) {
+    const secret = decryptSubscriptionSecret(row.secretEncrypted);
+    if (secret) headers['X-Zenith-Signature'] = `t=${timestamp},v1=${signHmac(secret, timestamp, bodyStr)}`;
+  }
+
+  const startedAt = Date.now();
+  const base: Omit<TestDeliveryResult, 'ok' | 'httpStatus' | 'responseSnippet' | 'error'> = {
+    durationMs: 0,
+    requestUrl: row.url,
+    eventType,
+  };
+  try {
+    if (row.connectorId) {
+      const connector = await getConnectorRowById(row.connectorId);
+      if (!connector) {
+        return { ...base, durationMs: Date.now() - startedAt, ok: false, httpStatus: null, responseSnippet: null, error: `投递连接器 #${row.connectorId} 不存在` };
+      }
+      base.requestUrl = `[connector:${connector.code}] ${row.url ?? ''}`.trim();
+      const r = await invokeConnector(connector, { path: row.url || undefined, method: 'POST', headers, body: bodyStr, source: 'webhook' });
+      return { ...base, durationMs: Date.now() - startedAt, ok: r.ok, httpStatus: r.status ?? null, responseSnippet: r.responseSnippet ?? null, error: r.ok ? null : (r.error ?? '连接器调用失败') };
+    }
+    const resp = await httpPost(row.url, bodyStr, { headers, timeout: 10_000 });
+    const respText = await resp.text().catch(() => '');
+    return { ...base, durationMs: Date.now() - startedAt, ok: resp.ok, httpStatus: resp.status, responseSnippet: respText.slice(0, 1024) || null, error: resp.ok ? null : `HTTP ${resp.status}` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ...base, durationMs: Date.now() - startedAt, ok: false, httpStatus: null, responseSnippet: null, error: msg.slice(0, 512) };
+  }
 }

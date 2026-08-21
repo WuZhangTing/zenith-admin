@@ -8,6 +8,7 @@ import {
   WORKFLOW_JOB_STATUS_META as JOB_STATUS_META,
 } from './constants';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import { AreaChart, LineChart, StatGrid, chartOptions, makeAreaSpec, makeLineSpec, useChartPalette, type ChartPalette } from '@/components/charts';
 import { formatDateTime } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
@@ -680,15 +681,14 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       dataIndex: 'instanceTitle',
       width: 300,
       render: (_value, record) => (
-        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ minWidth: 0 }}>
-            <Typography.Text strong ellipsis={{ showTooltip: true }}>{record.instanceTitle}</Typography.Text>
-            <div><Typography.Text type="tertiary" size="small">{record.serialNo ?? `#${record.instanceId}`}</Typography.Text></div>
-          </div>
-          {onOpenInstanceDiagnostics && (
+        <WorkflowInstanceCell
+          instanceId={record.instanceId}
+          title={record.instanceTitle}
+          serialNo={record.serialNo}
+          action={onOpenInstanceDiagnostics && (
             <Button theme="borderless" size="small" icon={<Stethoscope size={13} />} onClick={() => onOpenInstanceDiagnostics(record.instanceId)} />
           )}
-        </div>
+        />
       ),
     },
     { title: '节点', dataIndex: 'nodeName', width: 180, render: (_value, record) => `${record.nodeName || record.nodeKey}${record.nodeType ? ` / ${NODE_TYPE_LABEL[record.nodeType] ?? record.nodeType}` : ''}` },
@@ -703,7 +703,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
 
   const triggerColumns: ColumnProps<WorkflowEngineTriggerExecution>[] = [
     { title: 'ID', dataIndex: 'id', width: 80 },
-    { title: '实例', dataIndex: 'instanceTitle', width: 260, render: (value, record) => value || `#${record.instanceId}` },
+    { title: '实例', dataIndex: 'instanceTitle', width: 260, render: (value, record) => <WorkflowInstanceCell instanceId={record.instanceId} title={value as string | null} showSub={false} /> },
     { title: '节点', dataIndex: 'nodeName', width: 160, render: (value, record) => value || record.nodeKey },
     { title: '类型', dataIndex: 'triggerType', width: 120 },
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => rawTag(value as string, value === 'failed' ? 'red' : value === 'retrying' ? 'orange' : 'blue') },
@@ -716,7 +716,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
   const outboxColumns: ColumnProps<WorkflowEngineOutboxEvent>[] = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     { title: '事件', dataIndex: 'eventType', width: 180 },
-    { title: '实例', dataIndex: 'instanceTitle', width: 260, render: (value, record) => value || (record.instanceId != null ? `#${record.instanceId}` : '—') },
+    { title: '实例', dataIndex: 'instanceTitle', width: 260, render: (value, record) => <WorkflowInstanceCell instanceId={record.instanceId} title={value as string | null} showSub={false} /> },
     { title: '状态', dataIndex: 'status', width: 100, render: (value) => rawTag(value as string, value === 'failed' ? 'red' : value === 'retrying' ? 'orange' : 'blue') },
     { title: '尝试', dataIndex: 'attempts', width: 80 },
     dateTimeColumn('下次重试', 'nextRetryAt'),

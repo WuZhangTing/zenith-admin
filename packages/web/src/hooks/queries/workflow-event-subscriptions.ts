@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { WorkflowEventDelivery, WorkflowEventSubscription, WorkflowEventType } from '@zenith/shared/workflow';
+import type { WorkflowEventDelivery, WorkflowEventSubscription, WorkflowEventSubscriptionTestResult, WorkflowEventType } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
@@ -91,5 +91,13 @@ export function useReplayWorkflowEventDeliveries() {
     mutationFn: (payload: WorkflowEventDeliveryReplayPayload) =>
       request.post<{ count: number }>('/api/workflows/event-subscriptions/deliveries/replay', payload).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: workflowEventSubscriptionKeys.deliveries }),
+  });
+}
+
+/** 测试投递：同步发送样例事件并返回 HTTP 结果（不产生投递记录） */
+export function useTestWorkflowEventSubscription() {
+  return useMutation({
+    mutationFn: (id: number) =>
+      request.post<WorkflowEventSubscriptionTestResult>(`/api/workflows/event-subscriptions/${id}/test`, {}).then(unwrap),
   });
 }

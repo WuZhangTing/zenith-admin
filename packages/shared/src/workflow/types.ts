@@ -1775,6 +1775,17 @@ export interface WorkflowEventSubscription {
   updatedAt: string;
 }
 
+/** 测试投递的同步结果（POST /event-subscriptions/:id/test） */
+export interface WorkflowEventSubscriptionTestResult {
+  ok: boolean;
+  httpStatus: number | null;
+  durationMs: number;
+  responseSnippet: string | null;
+  error: string | null;
+  requestUrl: string;
+  eventType: string;
+}
+
 export interface WorkflowEventDelivery {
   id: number;
   subscriptionId: number;
