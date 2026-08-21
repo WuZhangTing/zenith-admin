@@ -154,12 +154,12 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
         <Kpi label="近 7 天发起" value={data.recentCreated} />
         <Kpi label="驳回率" value={fmtPercent(data.rejectionRate)} warn={(data.rejectionRate ?? 0) >= 0.3} />
         <Kpi label="待办超时率" value={fmtPercent(data.timeoutRate)} danger={(data.timeoutRate ?? 0) >= 0.2} />
-        <Kpi label="自动化失败率" value={fmtPercent(data.automation?.jobFailRate)} danger={(data.automation?.jobFailRate ?? 0) >= 0.1} />
+        <Kpi label="作业失败率" value={fmtPercent(data.automation?.jobFailRate)} danger={(data.automation?.jobFailRate ?? 0) >= 0.1} />
         <Kpi label="Webhook成功率" value={fmtPercent(data.automation?.webhookSuccessRate)} warn={(data.automation?.webhookSuccessRate ?? 1) < 0.9} />
         <Kpi label="子流程失败率" value={fmtPercent(data.automation?.subprocessFailRate)} warn={(data.automation?.subprocessFailRate ?? 0) >= 0.2} />
       </StatGrid>
       <div style={{ color: 'var(--semi-color-text-2)', fontSize: 12, marginTop: -6 }}>
-        作业死信 {data.automation?.jobsDead ?? 0} · 失败 {data.automation?.jobsFailed ?? 0} / 总 {data.automation?.jobsTotal ?? 0}
+        比率类指标为全历史累计口径 · 作业失败率含触发器/延迟/Webhook 等全部引擎作业（死信 {data.automation?.jobsDead ?? 0} · 失败 {data.automation?.jobsFailed ?? 0} / 总 {data.automation?.jobsTotal ?? 0}）
       </div>
 
       {/* 超时待办预警 */}

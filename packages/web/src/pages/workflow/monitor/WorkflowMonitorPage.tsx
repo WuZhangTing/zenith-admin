@@ -558,7 +558,7 @@ export default function WorkflowMonitorPage() {
     });
   };
 
-  const stats = data?.stats ?? { total: 0, running: 0, returned: 0, approved: 0, rejected: 0, withdrawn: 0, cancelled: 0 };
+  const stats = data?.stats ?? { total: 0, running: 0, suspended: 0, returned: 0, approved: 0, rejected: 0, withdrawn: 0, cancelled: 0 };
   // 首次加载完成前显示占位符，避免统计短暂闪现误导性的 0
   const statValue = (v: number) => (listQuery.isLoading ? '—' : v);
 
@@ -1192,6 +1192,7 @@ export default function WorkflowMonitorPage() {
       <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>
         <StatCard title="全部" value={statValue(stats.total)} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')} active={draftParams.status === ''} />
         <StatCard title="审批中" value={statValue(stats.running)} accent="var(--semi-color-primary)" onClick={() => handleStatCardClick('running')} active={draftParams.status === 'running'} />
+        <StatCard title="已挂起" value={statValue(stats.suspended ?? 0)} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('suspended')} active={draftParams.status === 'suspended'} />
         <StatCard title="已退回" value={statValue(stats.returned ?? 0)} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('returned')} active={draftParams.status === 'returned'} />
         <StatCard title="已通过" value={statValue(stats.approved)} accent="#0dc87c" onClick={() => handleStatCardClick('approved')} active={draftParams.status === 'approved'} />
         <StatCard title="已驳回" value={statValue(stats.rejected)} accent="#ff4d4f" onClick={() => handleStatCardClick('rejected')} active={draftParams.status === 'rejected'} />

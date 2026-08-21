@@ -400,6 +400,7 @@ const WorkflowEngineRuntimeIssueDTO = z.object({
   description: z.string(),
   refType: z.enum(['definition', 'instance', 'task', 'triggerExecution', 'outbox', 'scheduler']).nullable().optional(),
   refId: z.number().int().nullable().optional(),
+  instanceId: z.number().int().nullable().optional(),
   ageMinutes: z.number().int().nullable().optional(),
   createdAt: z.string().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),

@@ -281,6 +281,7 @@ function buildIssues(input: {
       description: `实例「${inst.title}」状态为 running，但没有 pending / waiting 任务，可能是推进结果未物化或状态回写中断。`,
       refType: 'instance',
       refId: inst.instanceId,
+      instanceId: inst.instanceId,
       ageMinutes: inst.ageMinutes,
       createdAt: inst.createdAt,
     });
@@ -295,6 +296,7 @@ function buildIssues(input: {
         description: `任务 #${task.taskId} 已到 timeoutAt，等待超时处理器扫描执行。`,
         refType: 'task',
         refId: task.taskId,
+        instanceId: task.instanceId,
         ageMinutes: task.ageMinutes,
         createdAt: task.createdAt,
       });
@@ -308,6 +310,7 @@ function buildIssues(input: {
         description: `delay 任务 #${task.taskId} 已到 wakeAt，可能等待 pg-boss 唤醒或兜底恢复扫描。`,
         refType: 'task',
         refId: task.taskId,
+        instanceId: task.instanceId,
         ageMinutes: task.ageMinutes,
         createdAt: task.createdAt,
       });
@@ -321,6 +324,7 @@ function buildIssues(input: {
         description: task.triggerLastError ?? `trigger 任务 #${task.taskId} 当前状态 failed。`,
         refType: 'task',
         refId: task.taskId,
+        instanceId: task.instanceId,
         ageMinutes: task.ageMinutes,
         createdAt: task.createdAt,
       });
@@ -334,6 +338,7 @@ function buildIssues(input: {
         description: `外部审批任务 #${task.taskId} 分派失败，需检查节点 externalApproval 配置或外部服务。`,
         refType: 'task',
         refId: task.taskId,
+        instanceId: task.instanceId,
         ageMinutes: task.ageMinutes,
         createdAt: task.createdAt,
       });
@@ -348,6 +353,7 @@ function buildIssues(input: {
       description: execution.errorMessage ?? `触发器执行 #${execution.id} 失败。`,
       refType: 'triggerExecution',
       refId: execution.id,
+      instanceId: execution.instanceId ?? null,
       createdAt: execution.createdAt,
     });
   }
@@ -360,6 +366,7 @@ function buildIssues(input: {
       description: event.errorMessage ?? `事件 ${event.eventType} 重放失败。`,
       refType: 'outbox',
       refId: event.id,
+      instanceId: event.instanceId ?? null,
       ageMinutes: event.ageMinutes,
       createdAt: event.createdAt,
     });
@@ -712,6 +719,8 @@ export async function getWorkflowEngineIntrospection(
         ...(taskScope ? [taskScope] : []),
         eq(workflowJobExecutions.jobType, 'trigger_dispatch'),
         notInArray(workflowJobExecutions.status, ['succeeded']),
+        // 活动问题只关注近 24h 的失败执行：历史失败已沉淀在作业账本/死信，避免长期压制健康分
+        gte(workflowJobExecutions.createdAt, since24h),
       ]))
       .orderBy(desc(workflowJobExecutions.id))
       .limit(100),

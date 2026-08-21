@@ -469,7 +469,8 @@ function IssuesPanel({ issues, components, onOpenInstanceDiagnostics }: Readonly
   return (
     <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 360, overflow: 'auto' }}>
       {issues.map((issue) => {
-        const canDeepLink = issue.refType === 'instance' && issue.refId != null && onOpenInstanceDiagnostics;
+        const linkInstanceId = issue.instanceId ?? (issue.refType === 'instance' ? issue.refId : null);
+        const canDeepLink = linkInstanceId != null && onOpenInstanceDiagnostics;
         return (
           <div key={issue.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '10px 4px', borderTop: '1px solid var(--semi-color-border)' }}>
             <div style={{ width: 60, flex: '0 0 auto' }}>{issueTag(issue.severity)}</div>
@@ -485,7 +486,7 @@ function IssuesPanel({ issues, components, onOpenInstanceDiagnostics }: Readonly
                   {issue.ageMinutes != null ? ` · ${formatAge(issue.ageMinutes)}` : ''}
                 </Typography.Text>
                 {canDeepLink && (
-                  <Button theme="borderless" size="small" icon={<Stethoscope size={13} />} onClick={() => onOpenInstanceDiagnostics?.(issue.refId as number)}>诊断</Button>
+                  <Button theme="borderless" size="small" icon={<Stethoscope size={13} />} onClick={() => onOpenInstanceDiagnostics?.(linkInstanceId as number)}>诊断</Button>
                 )}
               </div>
             </div>
@@ -587,6 +588,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
     if (!data) return;
     const stamp = (data.generatedAt || formatDateTime(new Date())).replace(/[: ]/g, '-');
     exportDiagnostics(`engine-diagnostics-${stamp}.json`, JSON.stringify({ introspection: data, history }, null, 2), 'application/json');
+    Toast.success('诊断快照已导出');
   }, [data, history]);
 
   const criticalCount = useMemo(() => data?.issues.filter((item) => item.severity === 'critical').length ?? 0, [data]);

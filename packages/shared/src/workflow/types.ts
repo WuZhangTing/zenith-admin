@@ -2287,6 +2287,8 @@ export interface WorkflowEngineRuntimeIssue {
   description: string;
   refType?: 'definition' | 'instance' | 'task' | 'triggerExecution' | 'outbox' | 'scheduler' | null;
   refId?: number | null;
+  /** 关联实例 ID（可跳转实例诊断处置；平台级问题为 null） */
+  instanceId?: number | null;
   ageMinutes?: number | null;
   createdAt?: string | null;
   metadata?: Record<string, unknown> | null;
