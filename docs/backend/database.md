@@ -41,7 +41,7 @@ npm run db:seed
 
 ### 迁移基线
 
-当前迁移链以 v1.75.0 重建的基线为起点，`packages/server/drizzle/` 下只有两条迁移：
+当前迁移链以 v1.76.0 重建的基线为起点，`packages/server/drizzle/` 下只有两条迁移：
 
 | 文件 | 内容 |
 | --- | --- |
