@@ -15,7 +15,7 @@ import {
 import { ChevronDown } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { WorkflowActionButtonConfig, WorkflowActionButtonKey, WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowTask } from '@zenith/shared/workflow';
-import { hasEditableFieldPermission } from '@zenith/shared/workflow';
+import { hasEditableFieldPermission, WORKFLOW_RETURN_TO_INITIATOR_KEY } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { resolveRejectTargetHint } from '@/utils/workflow-reject';
 import { resolveWorkflowDetailDefinition } from '@/utils/workflow-snapshot';
@@ -249,7 +249,9 @@ export default function WorkflowApprovalDetailSheet({
         && ancestorKeys.has(n.data.key)
         && approvedNodeKeys.has(n.data.key),
       )
-      .map((n) => ({ label: n.data.label ?? n.data.key, value: n.data.key }));
+      .map((n) => ({ label: n.data.label ?? n.data.key, value: n.data.key }))
+      // 恒定提供「退回发起人」：首个审批节点没有前序节点时也能退回补材料重提
+      .concat([{ label: '发起人（退回修改后重新提交）', value: WORKFLOW_RETURN_TO_INITIATOR_KEY }]);
   }, [currentDetailDefinition, currentTask, detail]);
 
   const defaultReturnTargetKeys = useMemo(
@@ -590,7 +592,8 @@ export default function WorkflowApprovalDetailSheet({
       {btnApprove.enabled !== false && (
         canQuickApprove ? (
           <SplitButtonGroup>
-            <Button type="primary" loading={submitting} onClick={() => void handleQuickApprove()}>
+            {/* 与待办列表「同意」一致：主按钮恒弹意见弹窗（意见选填）；快速通过收进下拉作为显式选项 */}
+            <Button type="primary" loading={submitting} onClick={openApproveModal}>
               {approveLabel}
             </Button>
             <Dropdown
@@ -599,7 +602,7 @@ export default function WorkflowApprovalDetailSheet({
               clickToHide
               render={(
                 <Dropdown.Menu>
-                  <Dropdown.Item onClick={openApproveModal}>填写意见后{approveLabel}</Dropdown.Item>
+                  <Dropdown.Item onClick={() => void handleQuickApprove()}>快速{approveLabel}（免填意见）</Dropdown.Item>
                 </Dropdown.Menu>
               )}
             >
@@ -894,6 +897,16 @@ export default function WorkflowApprovalDetailSheet({
             optionList={returnTargetOptions}
             rules={[{ required: true, message: '请选择退回节点' }]}
             style={{ width: '100%' }}
+            onChange={(v) => {
+              // 「发起人」与具体节点互斥：后选者生效
+              const arr = (v as string[] | undefined) ?? [];
+              if (arr.length > 1 && arr.includes(WORKFLOW_RETURN_TO_INITIATOR_KEY)) {
+                const next = arr[arr.length - 1] === WORKFLOW_RETURN_TO_INITIATOR_KEY
+                  ? [WORKFLOW_RETURN_TO_INITIATOR_KEY]
+                  : arr.filter((k) => k !== WORKFLOW_RETURN_TO_INITIATOR_KEY);
+                returnFormApi.current?.setValue('targetNodeKeys', next);
+              }
+            }}
           />
           <Form.TextArea
             field="comment"

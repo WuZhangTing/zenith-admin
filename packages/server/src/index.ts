@@ -58,24 +58,43 @@ logger.info(`Server running at http://localhost:${config.port}`);
 void bootstrapRateLimitRules();
 
 let shuttingDown = false;
+
+/** 给停机清理步骤加超时：任一外部资源关闭卡住不应阻塞进程退出 */
+function withTimeout(label: string, p: Promise<unknown>, ms: number): Promise<void> {
+  return Promise.race([
+    p.then(() => undefined),
+    new Promise<void>((resolve) => setTimeout(() => {
+      logger.warn(`Shutdown step "${label}" timed out after ${ms}ms, continuing`);
+      resolve();
+    }, ms).unref()),
+  ]);
+}
+
 async function shutdown(signal: NodeJS.Signals) {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info(`Received ${signal}, shutting down gracefully...`);
-  // 30s 超时保护：防止 keep-alive 连接导致 server.close() 永久阻塞
+  // 硬闸：无论清理卡在哪一步，15s 后强制退出。
+  // 此前 stopAllJobs/closeDb/closeRedis 无超时，任一环节挂起会导致
+  // 「监听已关闭但进程永不退出」，tsx watch 等不到子进程退出也不会重启。
+  setTimeout(() => {
+    logger.error('Graceful shutdown deadline exceeded, forcing exit');
+    process.exit(1);
+  }, 15_000).unref();
+  // 10s 超时保护：防止 keep-alive 连接导致 server.close() 永久阻塞
   const closeServer = new Promise<void>((resolve) => server.close(() => resolve()));
-  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 30_000));
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 10_000));
   await Promise.race([closeServer, timeout]);
   try {
     metricsSampler.stop();
-    stopAllJobs();
+    await withTimeout('stopAllJobs', Promise.resolve(stopAllJobs()), 5_000);
     // 结束全部终端会话：避免留下孤儿 PTY 进程与永远停留在 active 的记录
     const { endAllSessions } = await import('./lib/terminal-session-registry');
     const { stopTerminalSessionReaper } = await import('./services/ops/terminal-sessions.service');
     stopTerminalSessionReaper();
     endAllSessions('server_shutdown');
-    await closeDb();
-    await closeRedis();
+    await withTimeout('closeDb', closeDb(), 5_000);
+    await withTimeout('closeRedis', closeRedis(), 5_000);
     logger.info('Server shutdown complete');
   } catch (err) {
     logger.error('Error during shutdown', err);
@@ -84,8 +103,9 @@ async function shutdown(signal: NodeJS.Signals) {
   }
 }
 
-process.once('SIGINT', () => { void shutdown('SIGINT'); });
-process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+// 重复收到信号（如连续 Ctrl+C）时立即强退，不再等待清理
+process.on('SIGINT', () => { if (shuttingDown) process.exit(130); void shutdown('SIGINT'); });
+process.on('SIGTERM', () => { if (shuttingDown) process.exit(143); void shutdown('SIGTERM'); });
 
 await registerBackgroundWorkers();
 registerEventSubscribers();

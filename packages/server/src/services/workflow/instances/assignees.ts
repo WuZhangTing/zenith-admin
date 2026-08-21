@@ -58,9 +58,13 @@ export async function applyAssigneeRuntimeStrategies(
 ): Promise<AssigneeRuntimeResult> {
   let ids = [...new Set(userIds)];
   const dedupMode = resolveApproverDedupMode(ctx.settings);
+  // 办理(handler)节点是必须实际执行的动作（打款/建档/盖章等），不是审批意见：
+  // 无条件豁免「同发起人跳过」与「审批人去重」两类自动跳过——设计器会给所有节点
+  // 默认写入 autoSkip，无法区分"显式配置"，而执行动作被跳过意味着流程显示完成但无人干活
+  const isHandler = task.nodeType === 'handler';
   // 默认「自动跳过」：审批人解析为发起人本人时不生成自审任务（自批有合规风险），
   // 需要自审的流程在节点上显式配置 selfApprove
-  const sameInitiatorStrategy = task.nodeConfig.sameInitiatorStrategy ?? 'autoSkip';
+  const sameInitiatorStrategy = isHandler ? 'selfApprove' : (task.nodeConfig.sameInitiatorStrategy ?? 'autoSkip');
   let emptiedBy: AssigneeEmptiedReason = null;
 
   if (ids.includes(ctx.initiatorId) && sameInitiatorStrategy !== 'selfApprove') {
@@ -73,8 +77,9 @@ export async function applyAssigneeRuntimeStrategies(
     }
   }
 
-  // 审批人去重：节点级 deduplicateStrategy 显式设置时优先，否则跟随流程级 approverDedupMode
-  const effectiveDedup = resolveEffectiveDedup(task.nodeConfig.deduplicateStrategy, dedupMode);
+  // 审批人去重：节点级 deduplicateStrategy 显式设置时优先，否则跟随流程级 approverDedupMode；
+  // handler 节点恒不去重（执行动作不可被"已审批过"吃掉）
+  const effectiveDedup = isHandler ? 'none' : resolveEffectiveDedup(task.nodeConfig.deduplicateStrategy, dedupMode);
   if (effectiveDedup !== 'none' && ids.length > 0) {
     const dedupUsers = await collectDedupApprovers(ctx.executor, ctx.instanceId, effectiveDedup);
     ids = ids.filter((id) => !dedupUsers.has(id));

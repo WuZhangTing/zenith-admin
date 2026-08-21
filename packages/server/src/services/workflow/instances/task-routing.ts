@@ -10,6 +10,7 @@ import { advanceAndMaterialize, checkNodeCompletion } from './materialize';
 import { emitInstanceEvent, emitNodeEvent, emitTaskEvent } from './shared';
 import { assertActionButtonEnabled, assertActionUploadRequirement, getOwnPendingTask, rejectTaskCore } from './task-actions';
 import type { WorkflowTaskAttachment } from './task-actions';
+import { WORKFLOW_RETURN_TO_INITIATOR_KEY } from '@zenith/shared/workflow';
 import { loadTaskHandledUserIds, recordTaskTransfer, assertAssigneesNotActiveOnNode } from './transfers';
 import logger from '../../../lib/logger';
 import { bridgeReportFillWorkflowOutcome } from '../../report/report-fill-workflow-bridge.service';
@@ -380,6 +381,20 @@ export async function returnTask(taskId: number, targetNodeKeys: string[], comme
   if (!Array.isArray(targetNodeKeys) || targetNodeKeys.length === 0) {
     throw new HTTPException(400, { message: '请选择退回节点' });
   }
+  // 退回发起人：走 returnStart 链路——实例转 returned，发起人修改后重新提交（任意节点可用，含首个审批节点）
+  if (targetNodeKeys.includes(WORKFLOW_RETURN_TO_INITIATOR_KEY)) {
+    const overriddenSnapshot = structuredClone(inst.definitionSnapshot);
+    const currentNode = overriddenSnapshot.flowData?.nodes.find((n) => n.data.key === task.nodeKey);
+    if (currentNode) {
+      currentNode.data.rejectStrategy = 'returnStart';
+      delete currentNode.data.rejectToNodeKey;
+      // 拒绝按钮的跳转配置优先级高于节点策略，须一并清除，避免覆盖本次显式退回目标
+      const rejectBtn = (currentNode.data.actionButtons as { reject?: { jumpToNodeKey?: string } } | undefined)?.reject;
+      if (rejectBtn?.jumpToNodeKey) delete rejectBtn.jumpToNodeKey;
+    }
+    const instOverridden = { ...inst, definitionSnapshot: overriddenSnapshot };
+    return rejectTaskCore(task, instOverridden, `[退回发起人] ${comment}`, actor, attachments);
+  }
   const ancestorKeys = getAncestorNodeKeys(flowData, task.nodeKey);
   const approvedRows = await db.select({ nodeKey: workflowTasks.nodeKey }).from(workflowTasks)
     .where(and(
@@ -411,6 +426,9 @@ export async function returnTask(taskId: number, targetNodeKeys: string[], comme
   if (currentNode) {
     currentNode.data.rejectStrategy = 'returnToNode';
     currentNode.data.rejectToNodeKey = earliest.data.key;
+    // 拒绝按钮的跳转配置优先级高于节点策略，须一并清除，避免覆盖本次显式退回目标
+    const rejectBtn = (currentNode.data.actionButtons as { reject?: { jumpToNodeKey?: string } } | undefined)?.reject;
+    if (rejectBtn?.jumpToNodeKey) delete rejectBtn.jumpToNodeKey;
   }
   const instOverridden = { ...inst, definitionSnapshot: overriddenSnapshot };
   const mergedComment = targets.length > 1

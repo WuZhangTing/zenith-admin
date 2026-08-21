@@ -41,6 +41,12 @@ export function resolveApproverDedupMode(
 /** 流程表单类型：designer=表单库可视化设计器，custom=用户自定义业务页面，external=业务系统主导（businessKey 关联） */
 export const WORKFLOW_FORM_TYPES = ['designer', 'custom', 'external'] as const;
 
+/**
+ * 「退回」目标的特殊值：退回发起人（实例转 returned，发起人修改后重新提交）。
+ * 前端退回对话框与后端 returnTask 共用；非节点 key，不会与流程节点冲突。
+ */
+export const WORKFLOW_RETURN_TO_INITIATOR_KEY = '__initiator__';
+
 export type WorkflowFormType = typeof WORKFLOW_FORM_TYPES[number];
 
 export const WORKFLOW_FORM_TYPE_LABELS: Record<WorkflowFormType, string> = {
