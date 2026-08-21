@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Tooltip, Modal, Toast, Typography, Tabs, TabPane, Input, Dropdown } from '@douyinfe/semi-ui';
-import { Undo2, Redo2, ArrowUp, ArrowDown, ClipboardPaste, CopyPlus, Asterisk, Trash2, Copy as CopyIcon, BookmarkPlus, Columns, History } from 'lucide-react';
+import { Undo2, Redo2, ArrowUp, ArrowDown, ClipboardPaste, CopyPlus, Asterisk, Trash2, Copy as CopyIcon, BookmarkPlus, Columns, History, X } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFormSettings } from '@zenith/shared/workflow';
 import { FORM_FIELD_TYPES, COLUMN_SPAN_OPTIONS } from '../form-types';
 import { findField, updateField, removeField, insertField, insertAfterKey, isDescendant, isContainerType, findFieldDependents, pruneFieldReferences, pruneCascadeMappings, renameFieldKey, moveFieldSibling, cloneFieldWithNewKeys, generateFieldKey, canNestContainer, containerHeightOf, type DropTarget } from '../form-tree';
@@ -817,8 +817,16 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
           />
         </div>
 
-        {/* 右侧：属性配置 / 多选批量操作 */}
-        <div className="fd-form-designer__config">
+        {/* 右侧：属性配置 / 多选批量操作（窄屏浮层化，空闲时隐藏） */}
+        <div className={`fd-form-designer__config${selectedKeys.length <= 1 && !selectedField ? ' fd-form-designer__config--idle' : ''}`}>
+          <button
+            type="button"
+            className="fd-form-designer__config-close"
+            aria-label="关闭配置面板"
+            onClick={() => { setSelectedKeys([]); selectOnly(null); }}
+          >
+            <X size={14} />
+          </button>
           {selectedKeys.length > 1 ? (
             <div className="fd-form-batch">
               <Typography.Text strong>已选中 {selectedKeys.length} 个字段</Typography.Text>

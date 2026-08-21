@@ -549,6 +549,7 @@
 
 .fd-form-designer__canvas {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
   background: var(--semi-color-fill-0);
   padding: 16px;
@@ -560,6 +561,30 @@
   border-left: 1px solid var(--semi-color-border);
   overflow-y: auto;
   background: var(--surface-card);
+}
+
+/* 配置面板关闭按钮：仅窄屏浮层模式显示 */
+.fd-form-designer__config-close {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+}
+
+.fd-form-designer__config-close:hover {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-0);
 }
 
 .fd-form-designer__config-empty {
@@ -1339,4 +1364,49 @@
   border-color: var(--semi-color-primary);
   background: var(--semi-color-primary-light-default);
   color: var(--semi-color-primary);
+}
+
+/* ─── 设计器响应式（置于文件末尾保证覆盖基础规则） ─────────────────
+   画布优先：先收窄两侧，再把配置面板浮层化、控件面板转单列 */
+@media (max-width: 1280px) {
+  .fd-form-designer__palette {
+    width: 200px;
+  }
+
+  .fd-form-designer__config {
+    width: 280px;
+  }
+}
+
+@media (max-width: 992px) {
+  .fd-form-designer {
+    position: relative;
+  }
+
+  .fd-form-designer__palette {
+    width: 172px;
+  }
+
+  .fd-form-palette__grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* 配置面板浮层：覆盖画布右侧，选中字段时出现 */
+  .fd-form-designer__config {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: min(320px, 80vw);
+    box-shadow: var(--semi-shadow-elevated);
+  }
+
+  .fd-form-designer__config--idle {
+    display: none;
+  }
+
+  .fd-form-designer__config-close {
+    display: flex;
+  }
 }
