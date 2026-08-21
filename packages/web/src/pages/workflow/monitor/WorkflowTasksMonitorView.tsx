@@ -116,7 +116,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     dateTimeColumn('任务结束时间', 'actionAt'),
     taskAssigneeColumn<WorkflowTaskMonitorItem>('审批人'),
     taskStatusColumn<WorkflowTaskMonitorItem>('审批状态'),
-    { title: '审批建议', dataIndex: 'comment', width: 200, render: renderEllipsis },
+    { title: '处理意见', dataIndex: 'comment', width: 200, render: renderEllipsis },
     {
       title: '耗时',
       dataIndex: 'stayedSec',
