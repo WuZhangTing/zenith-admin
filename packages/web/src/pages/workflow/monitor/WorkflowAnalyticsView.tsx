@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Card, Empty, Spin, Typography, Select, Tag } from '@douyinfe/semi-ui';
+import { Button, Card, Empty, Spin, Typography, Select, Tag } from '@douyinfe/semi-ui';
+import { RotateCcw } from 'lucide-react';
 import {
   BarChart,
   LineChart,
@@ -133,7 +134,7 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
 
   return (
     <div className="zx-flat-panels" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <Select
           placeholder="全部流程"
           showClear
@@ -142,6 +143,13 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
           style={{ width: 220 }}
           optionList={definitions.map((d) => ({ label: d.name, value: d.id }))}
         />
+        <Button
+          icon={<RotateCcw size={14} />}
+          loading={analyticsQuery.isFetching || overdueQuery.isFetching}
+          onClick={() => { void analyticsQuery.refetch(); void overdueQuery.refetch(); }}
+        >
+          刷新
+        </Button>
       </div>
 
       {/* KPI */}

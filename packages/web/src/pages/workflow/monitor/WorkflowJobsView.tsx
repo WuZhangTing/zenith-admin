@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Descriptions, Empty, Form, JsonViewer, Modal, Popconfirm, Radio, RadioGroup, Row, Select, SideSheet, Space, Table, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -154,9 +154,11 @@ interface JobTypePanelProps {
   jobType: WorkflowJobType;
   summary: WorkflowJobSummaryItem;
   onMutated: () => void;
+  /** 运行状态栏「死信」下钻信号：值变化时打开失败聚类弹窗 */
+  clustersSignal?: number;
 }
 
-function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
+function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePanelProps) {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canOperate = hasPermission('workflow:engine:operate');
@@ -200,6 +202,10 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
     setClusterDim(dim);
     setClustersOpen(true);
   };
+
+  useEffect(() => {
+    if (clustersSignal) setClustersOpen(true);
+  }, [clustersSignal]);
 
   const openReplay = (prefill?: Partial<ReplayFilterState>) => {
     setReplayFilter({ status: 'dead', jobType, ratePerSecond: 20, limit: 500, ...prefill });
@@ -734,7 +740,7 @@ function JobTypePanel({ jobType, summary, onMutated }: JobTypePanelProps) {
 
 const RT_STAT: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 84 };
 
-function RuntimeStatusBar() {
+function RuntimeStatusBar({ onDeadClick }: Readonly<{ onDeadClick?: () => void }>) {
   const statusQuery = useWorkflowJobRuntimeStatus();
   const status = statusQuery.data ?? null;
 
@@ -758,7 +764,11 @@ function RuntimeStatusBar() {
       {stat('在途作业', status?.runningJobs ?? '-')}
       {stat('卡死', status?.stuckRunningJobs ?? '-', !!status && status.stuckRunningJobs > 0)}
       {stat('积压', status?.backlog ?? '-', !!status && status.backlog > 0)}
-      {stat('死信', status?.deadLetter ?? '-', !!status && status.deadLetter > 0)}
+      {status && status.deadLetter > 0 && onDeadClick ? (
+        <Tooltip content="查看失败原因聚类（跨队列），可按簇重放">
+          <div style={{ cursor: 'pointer' }} onClick={onDeadClick}>{stat('死信', status.deadLetter, true)}</div>
+        </Tooltip>
+      ) : stat('死信', status?.deadLetter ?? '-', !!status && status.deadLetter > 0)}
       {stat('最后领取', status?.lastClaimedAt ?? '—')}
       {stat('失败率(1h)', status ? `${status.failureRate}%` : '-', !!status && status.failureRate >= 20)}
       {stat('平均耗时(1h)', status?.avgDurationMs != null ? `${status.avgDurationMs}ms` : '—')}
@@ -769,6 +779,7 @@ function RuntimeStatusBar() {
 
 export default function WorkflowJobsView() {
   const [activeType, setActiveType] = useState<WorkflowJobType>(JOB_TYPES[0]);
+  const [clustersSignal, setClustersSignal] = useState(0);
   const summaryQuery = useWorkflowJobSummary();
   const summaryMap = useMemo(() => {
     const next: Record<string, WorkflowJobSummaryItem> = {};
@@ -778,7 +789,7 @@ export default function WorkflowJobsView() {
 
   return (
     <>
-      <RuntimeStatusBar />
+      <RuntimeStatusBar onDeadClick={() => setClustersSignal((s) => s + 1)} />
       <Tabs
         type="card"
         collapsible="auto"
@@ -805,7 +816,7 @@ export default function WorkflowJobsView() {
                 </Space>
               )}
             >
-              {activeType === t && <JobTypePanel jobType={t} summary={item} onMutated={() => void summaryQuery.refetch()} />}
+              {activeType === t && <JobTypePanel jobType={t} summary={item} onMutated={() => void summaryQuery.refetch()} clustersSignal={clustersSignal} />}
             </TabPane>
           );
         })}

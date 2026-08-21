@@ -411,8 +411,12 @@ export async function getJobFailureClusters(dimension: JobClusterDimension = 're
 
 /** 心跳新鲜阈值（与 system-scheduler.service.ts mapNode 的 90s 一致） */
 const HEARTBEAT_FRESH_MS = 90_000;
-/** 运行状态栏节点可见窗口：只统计近 24h 内有心跳的节点（nodeId 含进程号，历史重启行由保留策略清理） */
-const WORKER_VISIBLE_WINDOW_MS = 24 * 60 * 60_000;
+/**
+ * 运行状态栏节点可见窗口：只统计近 10 分钟内有心跳的节点。
+ * nodeId=hostname:pid，进程每次重启都会注册新行——窗口过宽会让分母持续膨胀
+ * （看起来像大量 Worker 宕机）；10 分钟窗口既能暴露「刚失联」的节点，又不累积历史行。
+ */
+const WORKER_VISIBLE_WINDOW_MS = 10 * 60_000;
 
 export interface WorkflowJobRuntimeStatus {
   activeWorkers: number;
@@ -431,7 +435,7 @@ export interface WorkflowJobRuntimeStatus {
 /**
  * 作业平台运行状态：复用 system_scheduler_nodes 心跳 + workflow_jobs/executions 派生指标。
  * 单 Worker + drain 模型下 activeWorkers 实为"心跳新鲜的调度节点数"；
- * totalWorkers 只统计近 24h 有心跳的节点（nodeId=hostname:pid，历史重启行不再计入分母）。
+ * totalWorkers 只统计近 10 分钟有心跳的节点（历史重启行不计入分母）。
  */
 export async function getWorkflowJobRuntimeStatus(): Promise<WorkflowJobRuntimeStatus> {
   const now = Date.now();
