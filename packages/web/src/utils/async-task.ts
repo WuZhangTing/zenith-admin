@@ -16,3 +16,11 @@ export const ASYNC_TASK_ITEM_STATUS_TAG_MAP = {
   failed: { color: 'red', label: '失败' },
   skipped: { color: 'grey', label: '跳过' },
 } as const satisfies Record<AsyncTaskItemStatus, { color: 'blue' | 'green' | 'red' | 'grey'; label: string }>;
+
+/** 成功率着色：低于 90% 视为需要关注（任务统计与任务类型页签共用） */
+export function asyncTaskRateColor(rate: number | null): string {
+  if (rate === null) return 'var(--semi-color-text-2)';
+  if (rate >= 99) return 'var(--semi-color-success)';
+  if (rate >= 90) return 'var(--semi-color-warning)';
+  return 'var(--semi-color-danger)';
+}

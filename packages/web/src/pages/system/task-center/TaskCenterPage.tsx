@@ -4,7 +4,7 @@ import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Spin, Swit
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Eraser, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta, AsyncTaskTypeStat } from '@zenith/shared/tasks';
+import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStatus, AsyncTaskTypeMeta, AsyncTaskTypeStat } from '@zenith/shared/tasks';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
@@ -14,7 +14,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useTaskProgressEvents } from '@/hooks/useAsyncTasks';
 import { useListSearch } from '@/hooks/useListSearch';
-import { ASYNC_TASK_STATUS_TAG_MAP as statusTagMap, ASYNC_TASK_ITEM_STATUS_TAG_MAP as itemStatusTagMap } from '@/utils/async-task';
+import { ASYNC_TASK_STATUS_TAG_MAP as statusTagMap, ASYNC_TASK_ITEM_STATUS_TAG_MAP as itemStatusTagMap, asyncTaskRateColor as rateColor } from '@/utils/async-task';
 import { formatDurationMs as formatDuration } from '@/utils/format';
 import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -33,9 +33,9 @@ import {
 } from '@/hooks/queries/async-tasks';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { confirmDelete } from '@/utils/confirm';
 import { JsonBlock } from '@/components/JsonBlock';
+import TaskStatsTab from './TaskStatsTab';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 type TabKey = 'tasks' | 'types' | 'stats';
@@ -87,105 +87,6 @@ const EMPTY_ITEMS: AsyncTaskItem[] = [];
 function renderJson(value: Record<string, unknown> | null) {
   if (!value || Object.keys(value).length === 0) return <Typography.Text type="tertiary">-</Typography.Text>;
   return <JsonBlock value={value} />;
-}
-
-/** 统计卡片行 */
-function StatsCards({ stats }: { stats: AsyncTaskStats | null }) {
-  const items = [
-    { label: '总任务', value: stats?.total ?? '-', color: 'var(--semi-color-text-0)' },
-    { label: '进行中', value: stats ? stats.pending + stats.running : '-', color: 'var(--semi-color-info)' },
-    { label: '已完成', value: stats?.success ?? '-', color: 'var(--semi-color-success)' },
-    { label: '失败', value: stats?.failed ?? '-', color: 'var(--semi-color-danger)' },
-    { label: '近24h平均耗时', value: stats ? formatDuration(stats.avgDurationMs) : '-', color: 'var(--semi-color-text-0)' },
-  ];
-  return (
-    <StatGrid minItemWidth={140} style={{ marginBottom: 12 }}>
-      {items.map((item) => (
-        <StatCard key={item.label} title={item.label} value={item.value} accent={item.color} />
-      ))}
-    </StatGrid>
-  );
-}
-
-/** 近 7 天提交趋势：独占一行，与上方数值卡片区分开 */
-function DailyTrend({ stats }: { stats: AsyncTaskStats | null }) {
-  const daily = stats?.daily ?? [];
-  const maxDaily = Math.max(1, ...daily.map((d) => d.submitted));
-  return (
-    <div style={{
-      padding: '12px 16px', marginBottom: 12,
-      borderRadius: 'var(--semi-border-radius-medium)',
-      background: 'var(--semi-color-fill-0)', border: '1px solid var(--semi-color-border)',
-    }}>
-      <Typography.Text type="tertiary" size="small">近 7 天提交趋势（红色为失败）</Typography.Text>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 72, marginTop: 10 }}>
-        {daily.map((day) => (
-          <div
-            key={day.date}
-            title={`${day.date}：提交 ${day.submitted}，失败 ${day.failed}`}
-            style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4 }}
-          >
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: 48, gap: 1 }}>
-              <div style={{ height: `${Math.max((day.failed / maxDaily) * 100, day.failed > 0 ? 8 : 0)}%`, background: 'var(--semi-color-danger)', borderRadius: 'var(--semi-border-radius-small)' }} />
-              <div style={{ height: `${Math.max(((day.submitted - day.failed) / maxDaily) * 100, day.submitted - day.failed > 0 ? 8 : 2)}%`, background: 'var(--semi-color-primary)', borderRadius: 'var(--semi-border-radius-small)', opacity: 0.75 }} />
-            </div>
-            <Typography.Text type="tertiary" size="small" style={{ textAlign: 'center' }}>
-              {day.date.slice(5)}
-            </Typography.Text>
-          </div>
-        ))}
-        {daily.length === 0 && <Typography.Text type="tertiary" size="small">暂无数据</Typography.Text>}
-      </div>
-    </div>
-  );
-}
-
-/** 积压等待时长展示：超过一小时按小时计 */
-function formatWaiting(minutes: number | null): string {
-  if (minutes === null) return '无积压';
-  if (minutes < 60) return `${minutes} 分钟`;
-  return `${Math.round((minutes / 60) * 10) / 10} 小时`;
-}
-
-/** 成功率着色：低于 90% 视为需要关注 */
-function rateColor(rate: number | null): string {
-  if (rate === null) return 'var(--semi-color-text-2)';
-  if (rate >= 99) return 'var(--semi-color-success)';
-  if (rate >= 90) return 'var(--semi-color-warning)';
-  return 'var(--semi-color-danger)';
-}
-
-/** 任务统计页签：整体健康度概览。按类型的执行质量并入「任务类型」页签，与其配置同屏对照 */
-function TaskStatsTab({ stats }: { stats: AsyncTaskStats | null }) {
-  return (
-    <>
-      <StatsCards stats={stats} />
-      <StatGrid minItemWidth={140} style={{ marginBottom: 12 }}>
-        <StatCard
-          title="成功率"
-          value={stats?.successRate === null || stats?.successRate === undefined ? '-' : `${stats.successRate}%`}
-          accent={rateColor(stats?.successRate ?? null)}
-        />
-        <StatCard
-          title="待执行积压"
-          value={stats?.backlog.pending ?? '-'}
-          accent={stats && stats.backlog.pending > 0 ? 'var(--semi-color-warning)' : 'var(--semi-color-text-0)'}
-        />
-        <StatCard
-          title="最久等待"
-          value={stats ? formatWaiting(stats.backlog.oldestPendingMinutes) : '-'}
-          accent="var(--semi-color-text-0)"
-        />
-        <StatCard
-          title="发生过重试"
-          value={stats?.retried ?? '-'}
-          accent={stats && stats.retried > 0 ? 'var(--semi-color-warning)' : 'var(--semi-color-text-0)'}
-        />
-        <StatCard title="已取消" value={stats?.cancelled ?? '-'} accent="var(--semi-color-text-2)" />
-      </StatGrid>
-      <DailyTrend stats={stats} />
-    </>
-  );
 }
 
 export default function TaskCenterPage() {

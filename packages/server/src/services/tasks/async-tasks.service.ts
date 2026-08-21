@@ -1,11 +1,12 @@
 import { and, desc, eq, gte, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import dayjs from 'dayjs';
 import type { AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus } from '@zenith/shared/tasks';
 import { db } from '../../db';
 import { asyncTaskItems, asyncTasks, users } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere, dateRangeConditions, escapeLike, keywordCondition } from '../../lib/where-helpers';
-import { formatDateTime } from '../../lib/datetime';
+import { formatDateTime, APP_TIME_ZONE } from '../../lib/datetime';
 import { currentUser, hasPermission } from '../../lib/context';
 import {
   buildTaskTypeMeta,
@@ -245,10 +246,19 @@ export async function listAsyncTaskItems(taskId: number, query: ListTaskItemsQue
 export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
   const dayMs = 24 * 60 * 60 * 1000;
   const since24h = new Date(Date.now() - dayMs);
-  const since14d = new Date(Date.now() - 14 * dayMs);
   const since30d = new Date(Date.now() - 30 * dayMs);
+  // 时间列存的是 UTC 裸时间，按应用时区出日期/小时桶（与 open-api-stats 同一手法），
+  // 窗口起点对齐本地整天/整点，与前端的补桶逻辑一致
+  const tzSql = sql.raw(`'${APP_TIME_ZONE.replaceAll("'", "''")}'`);
+  const localCreatedAt = sql`${asyncTasks.createdAt} at time zone 'UTC' at time zone ${tzSql}`;
+  const nowLocal = dayjs().tz(APP_TIME_ZONE);
+  const dailyStart = nowLocal.startOf('day').subtract(13, 'day').toDate();
+  const hourlyStart = nowLocal.startOf('hour').subtract(23, 'hour').toDate();
+  const todayStart = nowLocal.startOf('day').toDate();
+  const yesterdayStart = nowLocal.startOf('day').subtract(1, 'day').toDate();
+  // sql`` 模板内的裸 Date 不经过列映射（postgres-js 无法序列化），显式转为 UTC ISO 字符串
+  const todayStartParam = todayStart.toISOString();
   const durationMsExpr = sql`extract(epoch from (${asyncTasks.completedAt} - ${asyncTasks.startedAt})) * 1000`;
-  const todayStart = sql`date_trunc('day', now())`;
   const [
     statusRows, [duration], dailyRows, hourlyRows, [todayRow],
     [backlogRow], [retriedRow], [itemsRow], submitterRows, typeRows,
@@ -263,29 +273,29 @@ export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
     }).from(asyncTasks)
       .where(and(eq(asyncTasks.status, 'success'), gte(asyncTasks.completedAt, since24h))),
     db.select({
-      date: sql<string>`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`,
+      date: sql<string>`to_char(${localCreatedAt}, 'YYYY-MM-DD')`,
       submitted: sql<number>`count(*)::int`,
       success: sql<number>`count(*) filter (where ${asyncTasks.status} = 'success')::int`,
       failed: sql<number>`count(*) filter (where ${asyncTasks.status} = 'failed')::int`,
     }).from(asyncTasks)
-      .where(gte(asyncTasks.createdAt, since14d))
-      .groupBy(sql`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`)
-      .orderBy(sql`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`),
+      .where(gte(asyncTasks.createdAt, dailyStart))
+      .groupBy(sql`to_char(${localCreatedAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${localCreatedAt}, 'YYYY-MM-DD')`),
     db.select({
-      hour: sql<string>`to_char(date_trunc('hour', ${asyncTasks.createdAt}), 'YYYY-MM-DD HH24:00')`,
+      hour: sql<string>`to_char(date_trunc('hour', ${localCreatedAt}), 'YYYY-MM-DD HH24:00')`,
       submitted: sql<number>`count(*)::int`,
       failed: sql<number>`count(*) filter (where ${asyncTasks.status} = 'failed')::int`,
     }).from(asyncTasks)
-      .where(gte(asyncTasks.createdAt, since24h))
-      .groupBy(sql`date_trunc('hour', ${asyncTasks.createdAt})`)
-      .orderBy(sql`date_trunc('hour', ${asyncTasks.createdAt})`),
+      .where(gte(asyncTasks.createdAt, hourlyStart))
+      .groupBy(sql`date_trunc('hour', ${localCreatedAt})`)
+      .orderBy(sql`date_trunc('hour', ${localCreatedAt})`),
     db.select({
-      submitted: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStart})::int`,
-      success: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStart} and ${asyncTasks.status} = 'success')::int`,
-      failed: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStart} and ${asyncTasks.status} = 'failed')::int`,
-      yesterdaySubmitted: sql<number>`count(*) filter (where ${asyncTasks.createdAt} < ${todayStart})::int`,
+      submitted: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStartParam})::int`,
+      success: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStartParam} and ${asyncTasks.status} = 'success')::int`,
+      failed: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStartParam} and ${asyncTasks.status} = 'failed')::int`,
+      yesterdaySubmitted: sql<number>`count(*) filter (where ${asyncTasks.createdAt} < ${todayStartParam})::int`,
     }).from(asyncTasks)
-      .where(gte(asyncTasks.createdAt, sql`date_trunc('day', now()) - interval '1 day'`)),
+      .where(gte(asyncTasks.createdAt, yesterdayStart)),
     db.select({
       oldestMinutes: sql<number | null>`
         extract(epoch from (now() - min(${asyncTasks.createdAt}))) / 60

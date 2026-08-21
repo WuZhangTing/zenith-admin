@@ -1,6 +1,7 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
 import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
+import dayjs from 'dayjs';
 import { mockDateOffset, mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 /**
@@ -641,17 +642,48 @@ export const asyncTasksHandlers = [
       failed: counts.failed,
       cancelled: counts.cancelled,
       avgDurationMs: 12_400,
-      daily: Array.from({ length: 7 }, (_, i) => ({
-        date: mockDateOffset(-(6 - i)),
-        submitted: [3, 5, 2, 6, 4, 7, tasks.length][i] ?? 3,
-        failed: [0, 1, 0, 1, 0, 2, counts.failed][i] ?? 0,
-      })),
+      duration: { p50: 8_600, p95: 46_200, max: 128_000 },
+      today: {
+        submitted: tasks.length,
+        success: counts.success,
+        failed: counts.failed,
+        yesterdaySubmitted: 5,
+      },
+      daily: Array.from({ length: 14 }, (_, i) => {
+        const submitted = [2, 4, 3, 6, 5, 3, 7, 3, 5, 2, 6, 4, 7, tasks.length][i] ?? 3;
+        const failed = [0, 1, 0, 1, 0, 0, 2, 0, 1, 0, 1, 0, 2, counts.failed][i] ?? 0;
+        return {
+          date: mockDateOffset(-(13 - i)),
+          submitted,
+          failed,
+          success: Math.max(submitted - failed - (i === 13 ? counts.pending + counts.running : 0), 0),
+        };
+      }),
+      hourly: Array.from({ length: 24 }, (_, i) => {
+        const submitted = [0, 0, 1, 0, 0, 0, 0, 2, 3, 5, 4, 2, 1, 2, 4, 3, 2, 1, 0, 1, 0, 0, 0, 0][i] ?? 0;
+        return {
+          hour: dayjs().startOf('hour').subtract(23 - i, 'hour').format('YYYY-MM-DD HH:00'),
+          submitted,
+          failed: submitted > 3 ? 1 : 0,
+        };
+      }),
       successRate: settled > 0 ? Math.round((counts.success / settled) * 1000) / 10 : null,
       backlog: {
         pending: counts.pending,
         oldestPendingMinutes: counts.pending > 0 ? 12 : null,
       },
       retried: tasks.filter((task) => task.attempts > 1).length,
+      retriedRecovered: tasks.filter((task) => task.attempts > 1 && task.status === 'success').length,
+      items: {
+        processed: tasks.reduce((sum, task) => sum + task.processedCount, 0),
+        failed: tasks.reduce((sum, task) => sum + task.failedCount, 0),
+      },
+      topSubmitters: [
+        { userId: 1, username: '管理员', count: 18, failed: 1 },
+        { userId: 2, username: '张三', count: 9, failed: 0 },
+        { userId: 3, username: '李四', count: 6, failed: 2 },
+        { userId: null, username: '系统', count: 4, failed: 0 },
+      ],
       byType: [...byTypeMap.entries()]
         .map(([taskType, row]) => {
           const meta = taskTypes.find((item) => item.taskType === taskType);
