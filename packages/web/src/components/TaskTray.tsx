@@ -67,21 +67,21 @@ export default function TaskTray() {
       mouseLeaveDelay={300}
       showArrow
       content={
-        <div style={{ width: 380, maxHeight: 460, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '12px 16px 8px', fontWeight: 600, fontSize: 14, borderBottom: '1px solid var(--semi-color-border)' }}>
+        <div style={{ width: 340, maxHeight: 420, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '10px 14px 6px', fontWeight: 600, fontSize: 13, borderBottom: '1px solid var(--semi-color-border)' }}>
             我的任务{activeCount > 0 ? `（${activeCount} 个进行中）` : ''}
           </div>
           {trayTasks.length === 0 ? (
             <Empty
-              image={<IllustrationIdle style={{ width: 100, height: 100 }} />}
-              darkModeImage={<IllustrationIdleDark style={{ width: 100, height: 100 }} />}
+              image={<IllustrationIdle style={{ width: 80, height: 80 }} />}
+              darkModeImage={<IllustrationIdleDark style={{ width: 80, height: 80 }} />}
               description="暂无进行中的任务"
-              style={{ padding: '24px 0 28px' }}
+              style={{ padding: '16px 0 20px' }}
             />
           ) : (
             <div style={{ overflowY: 'auto', flex: 1 }}>
               {trayTasks.map((task) => (
-                <div key={task.id} style={{ padding: '10px 16px', borderBottom: '1px solid var(--semi-color-border)' }}>
+                <div key={task.id} style={{ padding: '6px 14px 7px', borderBottom: '1px solid var(--semi-color-border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <Typography.Text strong ellipsis={{ showTooltip: true }} style={{ fontSize: 13, flex: 1 }}>
                       {task.title}
@@ -92,8 +92,8 @@ export default function TaskTray() {
                         ? <Tag color="orange" size="small">等待重试</Tag>
                         : <Tag color={statusTagMap[task.status].color} size="small">{statusTagMap[task.status].label}</Tag>}
                   </div>
-                  <div style={{ margin: '6px 0 2px' }}>
-                    <AsyncTaskProgress task={task} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 2px' }}>
+                    <AsyncTaskProgress task={task} noteDisplay="tooltip" fluid />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Typography.Text type="tertiary" size="small">
