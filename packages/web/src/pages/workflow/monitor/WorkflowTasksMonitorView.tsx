@@ -23,7 +23,7 @@ import { useWorkflowTaskMonitorList, workflowMonitorKeys, type WorkflowTaskMonit
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { formatDateTimeRangeForApi } from '@/utils/date';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 const STUCK_OPTIONS = [
   { value: 30, label: '停留 > 30 分钟' },
@@ -94,7 +94,9 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
       dataIndex: 'instanceTitle',
       width: 220,
       render: (v: string, r) => (
-        <Typography.Text link onClick={() => onOpenInstance(r.instanceId)}>{v}</Typography.Text>
+        <Typography.Text link ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }} onClick={() => onOpenInstance(r.instanceId)}>
+          {v}
+        </Typography.Text>
       ),
     },
     {
@@ -114,7 +116,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     dateTimeColumn('任务结束时间', 'actionAt'),
     taskAssigneeColumn<WorkflowTaskMonitorItem>('审批人'),
     taskStatusColumn<WorkflowTaskMonitorItem>('审批状态'),
-    { title: '审批建议', dataIndex: 'comment', width: 200, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
+    { title: '审批建议', dataIndex: 'comment', width: 200, render: renderEllipsis },
     {
       title: '耗时',
       dataIndex: 'stayedSec',
