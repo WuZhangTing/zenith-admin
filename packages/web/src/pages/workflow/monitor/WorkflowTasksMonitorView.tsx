@@ -4,7 +4,7 @@
  * 审批状态 / 审批建议 / 耗时 / 流程编号 / 任务编号；行操作：详情（实例详情抽屉）/ 催办。
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Modal, Select, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { WorkflowTaskMonitorItem } from '@zenith/shared/workflow';
@@ -14,8 +14,8 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import {
-  WORKFLOW_TASK_NODE_TYPE_OPTIONS, formatTaskStayDuration,
-  taskAssigneeColumn, taskIdColumn, taskNodeColumn, taskStatusColumn,
+  WORKFLOW_TASK_NODE_TYPE_OPTIONS,
+  taskAssigneeColumn, taskCommentColumn, taskIdColumn, taskNodeColumn, taskStatusColumn, taskStayDurationColumn,
 } from '@/components/workflow/workflow-task-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
@@ -23,7 +23,7 @@ import { useWorkflowTaskMonitorList, workflowMonitorKeys, type WorkflowTaskMonit
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { formatDateTimeRangeForApi } from '@/utils/date';
-import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { dateTimeColumn } from '@/utils/table-columns';
 
 const STUCK_OPTIONS = [
   { value: 30, label: '停留 > 30 分钟' },
@@ -116,34 +116,8 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     dateTimeColumn('任务结束时间', 'actionAt'),
     taskAssigneeColumn<WorkflowTaskMonitorItem>('审批人'),
     taskStatusColumn<WorkflowTaskMonitorItem>('审批状态'),
-    {
-      title: '处理意见',
-      dataIndex: 'comment',
-      width: 220,
-      render: (v: string | null, r) => {
-        if (!v) return '—';
-        if (r.commentSource === 'system') {
-          return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
-              <Tag size="small" color="grey" type="light" style={{ flexShrink: 0 }}>系统</Tag>
-              <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Typography.Text>
-            </div>
-          );
-        }
-        return renderEllipsis(v);
-      },
-    },
-    {
-      title: '耗时',
-      dataIndex: 'stayedSec',
-      width: 110,
-      align: 'right',
-      render: (v: number | null, r) => (
-        <span style={{ color: (r.status === 'pending' || r.status === 'waiting') && v != null && v > 86_400 ? 'var(--semi-color-danger)' : 'var(--semi-color-text-1)' }}>
-          {formatTaskStayDuration(v)}
-        </span>
-      ),
-    },
+    taskCommentColumn<WorkflowTaskMonitorItem>(),
+    taskStayDurationColumn<WorkflowTaskMonitorItem>(),
     createOperationColumn<WorkflowTaskMonitorItem>({
       width: 150,
       desktopInlineKeys: ['detail', 'urge'],

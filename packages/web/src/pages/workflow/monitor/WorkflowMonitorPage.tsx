@@ -47,7 +47,7 @@ import WorkflowAnalyticsView from './WorkflowAnalyticsView';
 import WorkflowTasksMonitorView from './WorkflowTasksMonitorView';
 import {
   WORKFLOW_NODE_TYPE_LABEL as NODE_TYPE_LABEL,
-  taskAssigneeColumn, taskIdColumn, taskNodeColumn, taskNodeTypeColumn, taskStatusColumn,
+  taskAssigneeColumn, taskCommentColumn, taskIdColumn, taskNodeColumn, taskNodeTypeColumn, taskStatusColumn, taskStayDurationColumn,
 } from '@/components/workflow/workflow-task-columns';
 import WorkflowHandoverModal from './WorkflowHandoverModal';
 import WorkflowEngineDiagnosticsView from './WorkflowEngineDiagnosticsView';
@@ -639,13 +639,16 @@ export default function WorkflowMonitorPage() {
       taskIdColumn<WorkflowTask>(),
       taskNodeColumn<WorkflowTask>(),
       taskNodeTypeColumn<WorkflowTask>(),
-      taskStatusColumn<WorkflowTask>('状态', 110),
-      taskAssigneeColumn<WorkflowTask>('处理人', 120),
+      dateTimeColumn('任务开始时间', 'createdAt'),
+      dateTimeColumn('任务结束时间', 'actionAt'),
+      taskAssigneeColumn<WorkflowTask>('审批人', 120),
+      taskStatusColumn<WorkflowTask>('审批状态', 110),
+      taskCommentColumn<WorkflowTask>(),
+      taskStayDurationColumn<WorkflowTask>(),
       { title: '外部分派', dataIndex: 'externalDispatchStatus', width: 120, render: (v: string | null) => v ?? '—' },
       { title: '触发器状态', dataIndex: 'triggerDispatchStatus', width: 130, render: (v: string | null) => v ?? '—' },
       { title: '尝试', dataIndex: 'triggerAttempt', width: 70, render: (v: number | undefined) => v ?? '—' },
       { title: '错误', dataIndex: 'triggerLastError', width: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
-      dateTimeColumn('创建时间', 'createdAt'),
     ];
     const triggerColumns: ColumnProps<WorkflowTriggerExecution>[] = [
       { title: 'ID', dataIndex: 'id', width: 70 },
@@ -932,7 +935,7 @@ export default function WorkflowMonitorPage() {
             {renderNodes()}
           </TabPane>
           <TabPane tab={`任务 ${diagnostics.tasks.length}`} itemKey="tasks">
-            <ConfigurableTable bordered columns={taskColumns} dataSource={diagnostics.tasks} rowKey="id" pagination={false} scroll={{ x: 1330 }} />
+            <ConfigurableTable bordered columns={taskColumns} dataSource={diagnostics.tasks} rowKey="id" pagination={false} scroll={{ x: 1900 }} />
           </TabPane>
           <TabPane tab={`触发器 ${diagnostics.triggerExecutions.length}`} itemKey="triggers">
             <ConfigurableTable bordered columns={triggerColumns} dataSource={diagnostics.triggerExecutions} rowKey="id" pagination={false} scroll={{ x: 1220 }} />
