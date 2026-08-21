@@ -13,6 +13,8 @@ import { buildWorkflowSummaryItems, findNextApproverSelectNodes, resolveNodeFiel
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../../lib/context';
 import { isSuperAdmin, getUserPermissions } from '../../../lib/permissions';
+import { predictRemainingPath } from '../../../lib/workflow-engine';
+import { buildStarterContext } from '../workflow-assignee-resolver.service';
 import { loadInstanceCommentsForDetail } from '../workflow-comments.service';
 import { loadInstanceConsultsForDetail } from '../workflow-consults.service';
 import { loadInstanceTransfersByTask } from './transfers';
@@ -183,7 +185,7 @@ export async function listPendingMine(query: { page?: number; pageSize?: number;
       const requiresIndividual = flow ? findNextApproverSelectNodes(flow, r.task.nodeKey).length > 0 : false;
       const sla = computeTaskSla(node?.timeout, r.task.createdAt);
       const summary = resolveInstanceSummary(r.inst, flow);
-      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingSignatureRequired, requiresIndividual, summary, ...sla };
+      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingTaskNodeType: r.task.nodeType ?? null, pendingSignatureRequired, requiresIndividual, summary, ...sla };
     }),
     total: Number(total),
     page,
@@ -499,16 +501,38 @@ export async function getInstanceDetail(id: number) {
   }));
   // 读侧字段脱敏：非监控身份按查看者的节点字段权限剔除 hidden 字段（配置缺失时全量，兼容旧流程）
   const sanitizedRow = isMonitor ? row : { ...row, formData: sanitizeDetailFormDataForViewer(row, user.userId) };
-  return mapInstance(sanitizedRow, {
-    definitionName: row.definition?.name ?? null,
-    initiatorName: row.initiator?.nickname ?? null,
-    initiatorAvatar: row.initiator?.avatar ?? null,
-    tasks,
-    childInstances,
-    comments,
-    consults,
-    includeDefinitionSnapshot: true,
-  });
+  // 运行中实例的预测剩余路径：从当前活动节点按实例表单求值条件，时间线未来段只展示将会执行的节点
+  let predictedPath: ReturnType<typeof predictRemainingPath> | null = null;
+  if ((row.status === 'running' || row.status === 'suspended') && snapshot?.flowData) {
+    const activeKeys = [...new Set(row.tasks
+      .filter((t) => t.status === 'pending' || t.status === 'waiting')
+      .map((t) => t.nodeKey))];
+    const fromKeys = activeKeys.length > 0 ? activeKeys : (row.currentNodeKey ? [row.currentNodeKey] : []);
+    if (fromKeys.length > 0) {
+      try {
+        const starter = await buildStarterContext(row.initiatorId);
+        predictedPath = predictRemainingPath(
+          snapshot.flowData,
+          fromKeys,
+          (row.formData ?? {}) as Record<string, unknown>,
+          starter,
+        );
+      } catch { predictedPath = null; /* 预测失败不影响详情主体 */ }
+    }
+  }
+  return {
+    ...mapInstance(sanitizedRow, {
+      definitionName: row.definition?.name ?? null,
+      initiatorName: row.initiator?.nickname ?? null,
+      initiatorAvatar: row.initiator?.avatar ?? null,
+      tasks,
+      childInstances,
+      comments,
+      consults,
+      includeDefinitionSnapshot: true,
+    }),
+    predictedPath,
+  };
 }
 
 // ─── 任务级全局监控（运维视角，Tab「任务监控」）──────────────────────────────

@@ -1,6 +1,6 @@
 // ─── 基础信息设置（名称/字段标识/提示/必填/帮助/默认值，拆分自 FieldConfigPanel.tsx）───
 import { useState, useEffect } from 'react';
-import { Button, Input, InputNumber, Switch, Typography, Tooltip, Dropdown, TextArea } from '@douyinfe/semi-ui';
+import { Button, Input, InputNumber, Switch, Typography, Tooltip, Dropdown, TextArea, Toast } from '@douyinfe/semi-ui';
 import { Wand2 } from 'lucide-react';
 import type { WorkflowFormField } from '@zenith/shared/workflow';
 import { FIELD_KEY_PATTERN, DYNAMIC_DEFAULT_TOKENS, slugifyToKey, uniqueKey, formulaError } from './helpers';
@@ -32,8 +32,14 @@ export function BasicInfoSection({ field, flags, otherKeys, duplicateKey, flatFi
   })();
   const commitKey = () => {
     if (keyDraft === field.key) return;
-    if (keyError) { setKeyDraft(field.key); return; }
+    // 非法草稿不静默回退：提示原因，避免"改了却无声消失"
+    if (keyError) {
+      Toast.warning(`字段标识未生效：${keyError}，已恢复为 ${field.key}`);
+      setKeyDraft(field.key);
+      return;
+    }
     onRenameKey?.(keyDraft);
+    Toast.success(`字段标识已改为 ${keyDraft}，相关引用已同步`);
   };
   // 根据名称一键生成唯一 key
   const generateKey = () => {
@@ -86,7 +92,7 @@ export function BasicInfoSection({ field, flags, otherKeys, duplicateKey, flatFi
               {keyError ? (
                 <Typography.Text type="danger" size="small">{keyError}</Typography.Text>
               ) : (
-                <Typography.Text type="tertiary" size="small">用于提交数据与公式/联动引用；修改会自动同步所有引用</Typography.Text>
+                <Typography.Text type="tertiary" size="small">回车或失焦后生效；用于提交数据与公式/联动引用，修改会自动同步所有引用</Typography.Text>
               )}
             </div>
           )}

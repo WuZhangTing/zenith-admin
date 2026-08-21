@@ -30,8 +30,8 @@ const FINISH_MAP: Partial<Record<WorkflowInstanceStatus, { text: string; color: 
 
 interface ApprovalTimelineProps {
   tasks: WorkflowTask[];
-  /** 流程全部审批节点（按流转顺序，用于展示尚未到达的后续节点） */
-  flowNodes?: FlowNodeBrief[];
+  /** 流程后续节点（优先传服务端预测路径 predictedPath：仅将执行的节点，含分支标签；缺省回退全量线性化） */
+  flowNodes?: Array<FlowNodeBrief & { branchLabel?: string | null }>;
   /** 发起人信息（用于顶部「发起申请」节点） */
   initiator?: { name?: string | null; avatar?: string | null; submittedAt?: string | null };
   /** 实例状态（终态时展示底部「流程结束」节点） */
@@ -42,9 +42,46 @@ interface ApprovalTimelineProps {
   currentUserId?: number | null;
 }
 
+const METHOD_PROGRESS_LABEL: Record<string, string> = {
+  and: '会签',
+  sequential: '顺序会签',
+  ratio: '比例会签',
+  or: '或签',
+};
+
+/**
+ * 多人节点进度徽标：按 nodeKey 分组统计当前轮任务（排除 excluded 留痕行），
+ * 在该节点第一条任务行展示「会签 · 已同意 x/y（比例附 需n%）」。
+ */
+function buildNodeProgress(tasks: WorkflowTask[]): Map<number, string> {
+  const byNode = new Map<string, WorkflowTask[]>();
+  for (const t of tasks) {
+    if (t.nodeType === 'ccNode' || t.signType === 'excluded') continue;
+    const arr = byNode.get(t.nodeKey) ?? [];
+    arr.push(t);
+    byNode.set(t.nodeKey, arr);
+  }
+  const out = new Map<number, string>();
+  for (const group of byNode.values()) {
+    const judged = group.filter((t) => t.signType !== 'before');
+    const method = judged.find((t) => t.approveMethod)?.approveMethod;
+    if (!method || judged.length < 2) continue;
+    // 节点已整体完结（无 pending/waiting）时不再显示进度
+    const active = judged.some((t) => t.status === 'pending' || t.status === 'waiting');
+    if (!active) continue;
+    const approved = judged.filter((t) => t.status === 'approved').length;
+    const ratio = method === 'ratio' ? (judged.find((t) => t.approveRatio)?.approveRatio ?? 51) : null;
+    const label = `${METHOD_PROGRESS_LABEL[method] ?? method} · 已同意 ${approved}/${judged.length}${ratio ? ` · 需${ratio}%` : ''}`;
+    const first = group.reduce((a, b) => (b.id < a.id ? b : a));
+    out.set(first.id, label);
+  }
+  return out;
+}
+
 /** 审批流时间线，使用 Semi Design Timeline 组件统一渲染 */
 export default function ApprovalTimeline({ tasks, flowNodes, initiator, instanceStatus, finishedAt, currentUserId }: Readonly<ApprovalTimelineProps>) {
   const sorted = [...tasks].sort((a, b) => a.id - b.id);
+  const nodeProgress = buildNodeProgress(sorted);
 
   // 为每个 rejected 任务定位"已回退至"的目标节点：取 id 严格大于当前任务、且非抄送节点的第一条后续任务
   const returnTargetMap = new Map<number, string>();
@@ -161,6 +198,9 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
               )}
               {isRegenerated && (
                 <Tag color="orange" size="small" style={{ flexShrink: 0 }}>重新审批</Tag>
+              )}
+              {nodeProgress.has(task.id) && (
+                <Tag color="light-blue" size="small" style={{ flexShrink: 0 }}>{nodeProgress.get(task.id)}</Tag>
               )}
               {duration && (
                 <Typography.Text
@@ -289,7 +329,8 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
         );
       })}
       {!finish && (() => {
-        // 展示流程后续尚未到达的审批节点（无对应 task），运行态预览完整链路
+        // 展示流程后续将要执行的节点（无对应 task）：flowNodes 传入服务端预测路径时
+        // 已按实例表单求值条件分支，未命中分支不再出现
         const doneKeys = new Set(tasks.map((t) => t.nodeKey));
         return (flowNodes ?? [])
           .filter((n) => !doneKeys.has(n.key))
@@ -297,7 +338,8 @@ export default function ApprovalTimeline({ tasks, flowNodes, initiator, instance
             <Timeline.Item key={`future-${n.key}`} dot={timelineDot(Clock, 'var(--semi-color-tertiary)')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Typography.Text strong style={{ fontSize: 13, color: 'var(--semi-color-text-2)' }}>{n.name}</Typography.Text>
-                <Tag color="grey" size="small">{n.type === 'cc' ? '待抄送' : '待审批'}</Tag>
+                <Tag color="grey" size="small">{n.type === 'cc' ? '待抄送' : (n.type === 'handler' ? '待办理' : '待审批')}</Tag>
+                {n.branchLabel && <Tag color="violet" size="small">{n.branchLabel}</Tag>}
               </div>
             </Timeline.Item>
           ));

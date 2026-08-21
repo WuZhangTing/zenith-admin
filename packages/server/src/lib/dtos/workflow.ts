@@ -227,6 +227,9 @@ export const WorkflowTaskDTO = z
       createdAt: z.string(),
     })).nullable().optional(),
     delegatedFromId: z.number().int().nullable().optional(),
+    signType: z.enum(['before', 'after', 'parallel', 'excluded']).nullable().optional(),
+    approveMethod: z.enum(['and', 'or', 'sequential', 'ratio']).nullable().optional(),
+    approveRatio: z.number().int().nullable().optional(),
     externalCallbackId: z.string().nullable().optional(),
     externalDispatchStatus: z.enum(['pending', 'dispatched', 'failed', 'fallback']).nullable().optional(),
     triggerDispatchStatus: z.enum(['pending', 'running', 'success', 'failed', 'retrying']).nullable().optional(),
@@ -346,6 +349,13 @@ export const WorkflowInstanceDTO = z
     ccTaskId: z.number().int().nullable().optional(),
     ccReadAt: z.string().nullable().optional(),
     ccDeliveredAt: z.string().nullable().optional(),
+    /** 运行中实例的预测剩余路径（按实例表单求值条件分支后将执行的节点，详情场景返回） */
+    predictedPath: z.array(z.object({
+      key: z.string(),
+      name: z.string(),
+      type: z.enum(['approve', 'handler', 'cc']),
+      branchLabel: z.string().nullable().optional(),
+    })).nullable().optional(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -361,6 +371,7 @@ export const WorkflowInstanceListItemDTO = WorkflowInstanceDTO.omit({
   consults: true,
 }).extend({
   pendingTaskId: z.number().int().optional(),
+  pendingTaskNodeType: z.string().nullable().optional(),
   pendingSignatureRequired: z.boolean().optional(),
   requiresIndividual: z.boolean().optional(),
   slaLevel: z.enum(['none', 'safe', 'warning', 'overdue']).optional(),

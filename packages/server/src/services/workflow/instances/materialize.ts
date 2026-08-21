@@ -337,6 +337,23 @@ async function expandTasksToRows(
     if (rawMethod === 'random' && userIds.ids.length > 1) {
       effectiveUserIds = [userIds.ids[Math.floor(Math.random() * userIds.ids.length)]];
     }
+    // 运行时策略部分剔除的具名留痕：多人节点中被"同发起人/去重"排除的人落 skipped 行
+    // （signType='excluded' 不参与节点完成判定与 ratio 分母，仅时间线可见性）
+    for (const ex of userIds.excluded) {
+      rows.push({
+        instanceId: ctx.instanceId,
+        nodeKey: t.nodeKey,
+        nodeName: t.nodeName,
+        nodeType: t.nodeType,
+        assigneeId: ex.userId,
+        status: 'skipped' as const,
+        signType: 'excluded' as const,
+        actionAt: new Date(),
+        comment: ex.reason === 'sameInitiator'
+          ? '与发起人为同一人，已按规则自动跳过'
+          : '与前序审批人重复，已按去重规则自动跳过',
+      });
+    }
     // 设计态(含 random/auto) → 运行态 4 值的唯一权威转换点
     const method: WorkflowResolvedApproveMethod = resolveRuntimeApproveMethod(rawMethod, userIds.ids.length);
     const ratioPct = method === 'ratio'
@@ -593,8 +610,9 @@ export async function checkNodeCompletion(
   }
 
   // 前加签任务是「先于原审批人」的前置关卡：全部处理完后即失去话语权，不参与本节点的
-  // and/or/sequential/ratio 完成判定——or 模式下若不排除，加签人通过会立即完成节点并跳过刚恢复的原审批人
-  const judged = siblings.filter((t) => t.signType !== 'before');
+  // and/or/sequential/ratio 完成判定——or 模式下若不排除，加签人通过会立即完成节点并跳过刚恢复的原审批人。
+  // excluded 是运行时排除留痕行（同发起人/去重具名记录），同样不参与判定与 ratio 分母
+  const judged = siblings.filter((t) => t.signType !== 'before' && t.signType !== 'excluded');
 
   if (!method || method === 'and') {
     const allDone = judged.every((t) => t.status === 'approved' || t.status === 'skipped');

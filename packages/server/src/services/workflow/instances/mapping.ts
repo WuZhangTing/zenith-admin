@@ -45,6 +45,8 @@ export function mapTask(
     transfers: transfers ?? null,
     delegatedFromId: row.delegatedFromId ?? null,
     signType: row.signType ?? null,
+    approveMethod: row.approveMethod ?? null,
+    approveRatio: row.approveRatio ?? null,
     actionButtons: actionButtons ?? null,
     externalCallbackId: row.externalCallbackId ?? null,
     createdAt: formatDateTime(row.createdAt),

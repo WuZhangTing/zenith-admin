@@ -398,6 +398,113 @@ export function findReturnPrevTarget(
   return ancestorMatch ?? approvedApproveNodeKeysByRecency[0];
 }
 
+/** 预测剩余路径节点（沿快照前向求值条件后将会执行的人工/抄送节点） */
+export interface PredictedPathNode {
+  key: string;
+  name: string;
+  type: 'approve' | 'handler' | 'cc';
+  branchLabel?: string | null;
+}
+
+/**
+ * 预测实例的剩余执行路径：从当前活动节点的出边前向遍历，
+ * 网关语义与 token 引擎一致（排他/路由=首个命中条件边否则默认边；并行=全部；包容=命中集合否则默认），
+ * 只返回将会执行的 approve/handler/cc 节点（不含当前活动节点自身）。
+ * 表单已提交、条件求值确定，用于详情时间线未来段——替代"罗列全部节点"的误导展示。
+ * 环路（returnMode 回边等）通过 visited 截断，遇到已访问节点停止该方向。
+ */
+export function predictRemainingPath(
+  flowData: WorkflowFlowData,
+  fromNodeKeys: string[],
+  formData: Record<string, unknown>,
+  starter?: WorkflowStarterContext,
+): PredictedPathNode[] {
+  const { nodeMap, outEdges } = buildAdjacency(flowData);
+  const keyToId = new Map<string, string>();
+  for (const n of flowData.nodes) keyToId.set(n.data.key, n.id);
+
+  const out: PredictedPathNode[] = [];
+  const emitted = new Set<string>();
+  const visited = new Set<string>();
+  interface Arrival { nodeId: string; branchLabel: string | null; record: boolean }
+  const queue: Arrival[] = fromNodeKeys
+    .map((k) => keyToId.get(k))
+    .filter((id): id is string => !!id)
+    // record=false：当前活动节点自身不计入（其任务已在时间线中）
+    .map((id) => ({ nodeId: id, branchLabel: null, record: false }));
+
+  const pushOuts = (nodeId: string, branchLabel: string | null) => {
+    for (const { target, edge } of outEdges.get(nodeId) ?? []) {
+      queue.push({ nodeId: target, branchLabel: edge.label ?? branchLabel, record: true });
+    }
+  };
+
+  while (queue.length > 0) {
+    const arrival = queue.shift();
+    if (!arrival) continue;
+    const { nodeId, branchLabel, record } = arrival;
+    if (visited.has(nodeId)) continue;
+    visited.add(nodeId);
+    const node = nodeMap.get(nodeId);
+    if (!node) continue;
+    const type = node.data.type;
+
+    if (type === 'end') continue;
+
+    if (type === 'exclusiveGateway' || type === 'routeGateway') {
+      let chosen: { target: string; label: string | null } | null = null;
+      let fallback: { target: string; label: string | null } | null = null;
+      for (const { target, edge } of outEdges.get(nodeId) ?? []) {
+        const tgt = nodeMap.get(target);
+        if (!tgt) continue;
+        if (edgeHasCondition(edge)) {
+          if (edgeMatchesCondition(edge, formData, starter)) { chosen = { target, label: edge.label ?? null }; break; }
+        } else if (isDefaultEdge(edge, tgt) && !fallback) {
+          fallback = { target, label: edge.label ?? null };
+        }
+      }
+      const next = chosen ?? fallback;
+      if (next) queue.push({ nodeId: next.target, branchLabel: next.label ?? branchLabel, record: true });
+      continue;
+    }
+
+    if (type === 'parallelGateway' || type === 'inclusiveGateway') {
+      if (type === 'inclusiveGateway') {
+        const matched: Array<{ target: string; label: string | null }> = [];
+        let defaultTarget: { target: string; label: string | null } | null = null;
+        for (const { target, edge } of outEdges.get(nodeId) ?? []) {
+          const tgt = nodeMap.get(target);
+          if (!tgt) continue;
+          if (edgeHasCondition(edge)) {
+            if (edgeMatchesCondition(edge, formData, starter)) matched.push({ target, label: edge.label ?? null });
+          } else if (isDefaultEdge(edge, tgt) || !defaultTarget) {
+            defaultTarget = { target, label: edge.label ?? null };
+          }
+        }
+        const targets = matched.length > 0 ? matched : (defaultTarget ? [defaultTarget] : []);
+        for (const t of targets) queue.push({ nodeId: t.target, branchLabel: t.label ?? branchLabel, record: true });
+      } else {
+        pushOuts(nodeId, branchLabel);
+      }
+      continue;
+    }
+
+    // 人工/抄送节点：记录后继续前向（当前活动节点自身不记录）
+    if (record && (type === 'approve' || type === 'handler' || type === 'ccNode') && !emitted.has(node.data.key)) {
+      emitted.add(node.data.key);
+      out.push({
+        key: node.data.key,
+        name: node.data.label || node.data.key,
+        type: type === 'ccNode' ? 'cc' : type,
+        branchLabel,
+      });
+    }
+    // start / delay / trigger / subProcess / catchNode 等其余节点直接穿过
+    pushOuts(nodeId, branchLabel);
+  }
+  return out;
+}
+
 /**
  * 校验流程定义的有效性
  */

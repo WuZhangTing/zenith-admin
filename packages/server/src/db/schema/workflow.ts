@@ -512,7 +512,7 @@ export const workflowTasks = pgTable('workflow_tasks', {
   /** 委派来源（仅委派时设置，原 assignee 接手时清空） */
   delegatedFromId: integer('delegated_from_id').references(() => users.id, { onDelete: 'set null' }),
   /** 加签类型（before/after/parallel，非加签任务为 null）；before 挂起原任务的恢复判定依赖此列，禁止用 comment 前缀判定 */
-  signType: varchar('sign_type', { length: 8 }).$type<'before' | 'after' | 'parallel'>(),
+  signType: varchar('sign_type', { length: 8 }).$type<'before' | 'after' | 'parallel' | 'excluded'>(),
   /** 退回模式 backToOrigin：被退回任务记录发起退回的来源节点 key，通过后直接跳回该节点 */
   returnOriginNodeKey: varchar('return_origin_node_key', { length: 64 }),
   /** 节点激活轮次 ID（同一次进入节点创建的一批任务共享；重入节点生成新值，完成判定只统计当前轮） */

@@ -1330,8 +1330,13 @@ export interface WorkflowTask {
   transfers?: WorkflowTaskTransfer[] | null;
   /** 委派来源（仅委派期间设置；回执任务为 null） */
   delegatedFromId?: number | null;
-  /** 加签类型（before/after/parallel，非加签任务为 null）；before 挂起原任务的恢复判定依赖此列 */
-  signType?: 'before' | 'after' | 'parallel' | null;
+  /** 加签类型（before/after/parallel，非加签任务为 null）；before 挂起原任务的恢复判定依赖此列；
+   * excluded=运行时被排除留痕行（同发起人/去重跳过的具名记录，不参与节点完成判定） */
+  signType?: 'before' | 'after' | 'parallel' | 'excluded' | null;
+  /** 多人节点的审批方式（单人任务为 null，进度徽标展示用） */
+  approveMethod?: WorkflowResolvedApproveMethod | null;
+  /** 比例会签通过阈值百分比（仅 ratio 节点） */
+  approveRatio?: number | null;
   /** 外部审批回调 ID（task.status='waiting' + externalApproval 启用时生效；派发/恢复由 workflow_jobs 接管） */
   externalCallbackId?: string | null;
   /** 当前节点配置中的操作按钮设置（仅审批节点） */
@@ -1418,8 +1423,20 @@ export interface WorkflowInstance {
   ccReadAt?: string | null;
   /** 抄送视图：抄送送达时间（CC 任务创建时间，区别于实例发起时间） */
   ccDeliveredAt?: string | null;
+  /** 运行中实例的预测剩余路径（按实例表单数据求值条件分支，仅含将会执行的节点；详情场景填充） */
+  predictedPath?: WorkflowPredictedPathNode[] | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 预测剩余路径节点（服务端沿快照 flowData 前向求值得出） */
+export interface WorkflowPredictedPathNode {
+  key: string;
+  name: string;
+  /** approve / handler / cc（与时间线未来节点渲染口径一致） */
+  type: 'approve' | 'handler' | 'cc';
+  /** 进入该节点经过的条件分支标签（如「大额(>2万)」） */
+  branchLabel?: string | null;
 }
 
 /** 流程评论 / 沟通时间线条目 */

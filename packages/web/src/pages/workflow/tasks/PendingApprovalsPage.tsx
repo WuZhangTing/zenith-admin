@@ -40,7 +40,7 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', definitionId: null };
 
-type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingSignatureRequired?: boolean; requiresIndividual?: boolean; slaLevel?: WorkflowSlaLevel; slaOverdueSec?: number | null; slaDeadline?: string | null; summary?: WorkflowInstanceSummaryItem[] };
+type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingTaskNodeType?: string | null; pendingSignatureRequired?: boolean; requiresIndividual?: boolean; slaLevel?: WorkflowSlaLevel; slaOverdueSec?: number | null; slaDeadline?: string | null; summary?: WorkflowInstanceSummaryItem[] };
 type SheetState = { instanceId: number; taskId: number; action: 'approve' | 'reject' | null };
 /** 批量审批交互状态（模式与意见总是一起出现/重置） */
 type BatchState = { mode: 'approve' | 'reject'; comment: string } | null;
@@ -211,13 +211,13 @@ export default function PendingApprovalsPage() {
         },
         {
           key: 'approve',
-          label: '同意',
+          label: record.pendingTaskNodeType === 'handler' ? '完成办理' : '同意',
           type: 'primary',
           onClick: () => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'approve' }),
         },
         {
           key: 'reject',
-          label: '拒绝',
+          label: record.pendingTaskNodeType === 'handler' ? '无法办理' : '拒绝',
           danger: true,
           onClick: () => setSheet({ instanceId: record.id, taskId: record.pendingTaskId, action: 'reject' }),
         },

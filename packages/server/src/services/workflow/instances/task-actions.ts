@@ -473,8 +473,8 @@ async function keepRatioNodeAliveAfterReject(
 ): Promise<boolean> {
   const allRows = await tx.select().from(workflowTasks)
     .where(and(eq(workflowTasks.instanceId, instanceId), eq(workflowTasks.nodeKey, nodeKey)));
-  // 只统计当前激活轮，历史轮任务不参与阈值分母；前加签任务是前置关卡，同样不参与（与 checkNodeCompletion 口径一致）
-  const ratioSiblings = filterCurrentActivation(allRows).filter((t) => t.signType !== 'before');
+  // 只统计当前激活轮，历史轮任务不参与阈值分母；前加签任务是前置关卡、excluded 是运行时排除留痕行，同样不参与（与 checkNodeCompletion 口径一致）
+  const ratioSiblings = filterCurrentActivation(allRows).filter((t) => t.signType !== 'before' && t.signType !== 'excluded');
   const ratioPct = ratioSiblings.find((t) => t.approveRatio)?.approveRatio ?? 51;
   const required = Math.ceil(ratioSiblings.length * ratioPct / 100);
   const maxPossibleApproved = ratioSiblings

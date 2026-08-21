@@ -391,7 +391,7 @@ export default function WorkflowInstanceDetailPanel({
   const chainContent = (
     <ApprovalTimeline
       tasks={instance.tasks ?? []}
-      flowNodes={linearizeApprovalNodes(flowData)}
+      flowNodes={instance.predictedPath ?? linearizeApprovalNodes(flowData)}
       initiator={{ name: instance.initiatorName, avatar: instance.initiatorAvatar, submittedAt: instance.createdAt }}
       instanceStatus={instance.status}
       finishedAt={instance.updatedAt}

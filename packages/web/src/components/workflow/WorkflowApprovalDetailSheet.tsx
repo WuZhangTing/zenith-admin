@@ -80,6 +80,23 @@ function appendPhrase(formApi: FormApi | null, text: string) {
   formApi.setValue('comment', cur ? `${cur} ${text}` : text);
 }
 
+/** 通用审批文案集合：节点配置里的这些值视为"未定制"，办理节点按执行语义替换 */
+const GENERIC_APPROVE_LABELS = new Set(['同意', '通过']);
+const GENERIC_REJECT_LABELS = new Set(['拒绝', '驳回']);
+
+/** 办理(handler)任务的动作文案：办理是执行动作而非审批意见，默认文案替换为「完成办理/无法办理」 */
+export function resolveTaskActionLabel(
+  displayName: string | undefined,
+  key: 'approve' | 'reject',
+  isHandlerTask: boolean,
+): string {
+  const generic = key === 'approve' ? GENERIC_APPROVE_LABELS : GENERIC_REJECT_LABELS;
+  const fallback = key === 'approve' ? '同意' : '拒绝';
+  const handlerLabel = key === 'approve' ? '完成办理' : '无法办理';
+  const label = displayName ?? fallback;
+  return isHandlerTask && generic.has(label) ? handlerLabel : label;
+}
+
 export default function WorkflowApprovalDetailSheet({
   instanceId,
   taskId,
@@ -585,7 +602,9 @@ export default function WorkflowApprovalDetailSheet({
   if (btnAddSign.enabled && reduceSignCandidates.length > 0) moreActions.push({ key: 'reduceSign', label: btnReduceSign.displayName ?? '减签', onClick: () => setReduceSignVisible(true) });
   if (btnReturn.enabled) moreActions.push({ key: 'return', label: btnReturn.displayName ?? '退回', onClick: () => setReturnVisible(true) });
 
-  const approveLabel = btnApprove.displayName ?? '同意';
+  const isHandlerTask = currentTask?.nodeType === 'handler';
+  const approveLabel = resolveTaskActionLabel(btnApprove.displayName, 'approve', isHandlerTask);
+  const rejectLabel = resolveTaskActionLabel(btnReject.displayName, 'reject', isHandlerTask);
   // 仅当前 pending 任务显示操作按钮（深链打开已处理任务时只读查看）
   const extraActions = taskId != null && detail?.id === instanceId && currentTask?.status === 'pending' ? (
     <Space>
@@ -617,7 +636,7 @@ export default function WorkflowApprovalDetailSheet({
       )}
       {btnReject.enabled !== false && (
         <Button type="danger" onClick={() => { void openReject(); }}>
-          {btnReject.displayName ?? '拒绝'}
+          {rejectLabel}
         </Button>
       )}
       {moreActions.length > 0 && (
@@ -665,7 +684,7 @@ export default function WorkflowApprovalDetailSheet({
       </WorkflowSideSheet>
 
       <AppModal
-        title={btnApprove.displayName ? `${btnApprove.displayName}` : '审批通过'}
+        title={approveLabel}
         visible={approveVisible}
         onCancel={() => { setApproveVisible(false); setAttachmentsFor('approve', []); setApproveSignature(''); setSelectedNextApprovers({}); if (!detailSheetVisible) onClose(); }}
         onOk={() => void handleApprove()}

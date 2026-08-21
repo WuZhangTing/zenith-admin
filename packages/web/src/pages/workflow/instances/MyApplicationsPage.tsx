@@ -152,11 +152,14 @@ function InstanceDetailDrawer({
   visible,
   onClose,
   onRefresh,
+  onResubmitted,
 }: Readonly<{
   instanceId: number | null;
   visible: boolean;
   onClose: () => void;
   onRefresh: () => void;
+  /** 已驳回/已撤回实例在详情内重新提交后回调（父级打开草稿编辑） */
+  onResubmitted?: (draft: WorkflowInstance) => void;
 }>) {
   const [viewId, setViewId] = useState<number | null>(instanceId);
   const navigate = useNavigate();
@@ -167,10 +170,20 @@ function InstanceDetailDrawer({
   const withdrawMutation = useWithdrawWorkflowInstance();
   const urgeMutation = useUrgeWorkflowInstance();
   const addCcMutation = useAddWorkflowCc();
+  const resubmitMutation = useResubmitWorkflowInstance();
 
   useEffect(() => {
     if (visible) setViewId(instanceId);
   }, [visible, instanceId]);
+
+  const handleResubmitFromDetail = async () => {
+    if (!viewId) return;
+    const draft = await resubmitMutation.mutateAsync(viewId);
+    Toast.success('已生成草稿');
+    onRefresh();
+    onClose();
+    onResubmitted?.(draft);
+  };
 
   const handleWithdraw = async () => {
     if (!viewId) return;
@@ -272,7 +285,17 @@ function InstanceDetailDrawer({
               </Popconfirm>
             )}
           </Space>
-        ) : null
+        ) : ((data?.status === 'rejected' || data?.status === 'withdrawn') && data?.allowResubmit !== false ? (
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button
+              type="primary"
+              loading={resubmitMutation.isPending}
+              onClick={() => void handleResubmitFromDetail()}
+            >
+              重新提交
+            </Button>
+          </Space>
+        ) : null)
       }
     >
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -818,6 +841,7 @@ export default function MyApplicationsPage() {
         visible={detailVisible}
         onClose={() => setDetailVisible(false)}
         onRefresh={() => void queryClient.invalidateQueries({ queryKey: ['workflow'] })}
+        onResubmitted={(draft) => { void openEditDraft(draft); }}
       />
 
       {/* 发起 / 编辑草稿 */}

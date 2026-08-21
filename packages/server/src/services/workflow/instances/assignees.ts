@@ -49,6 +49,8 @@ export interface AssigneeRuntimeResult {
   ids: number[];
   /** ids 为空时的过滤原因：同发起人跳过 / 审批人去重；解析本身为空时为 null */
   emptiedBy: AssigneeEmptiedReason;
+  /** 被运行时策略剔除的具名人员（多人节点部分剔除时留痕用；全空场景由自动任务行说明） */
+  excluded: Array<{ userId: number; reason: Exclude<AssigneeEmptiedReason, null> }>;
 }
 
 export async function applyAssigneeRuntimeStrategies(
@@ -66,9 +68,11 @@ export async function applyAssigneeRuntimeStrategies(
   // 需要自审的流程在节点上显式配置 selfApprove
   const sameInitiatorStrategy = isHandler ? 'selfApprove' : (task.nodeConfig.sameInitiatorStrategy ?? 'autoSkip');
   let emptiedBy: AssigneeEmptiedReason = null;
+  const excluded: AssigneeRuntimeResult['excluded'] = [];
 
   if (ids.includes(ctx.initiatorId) && sameInitiatorStrategy !== 'selfApprove') {
     ids = ids.filter((id) => id !== ctx.initiatorId);
+    excluded.push({ userId: ctx.initiatorId, reason: 'sameInitiator' });
     if (ids.length === 0) emptiedBy = 'sameInitiator';
     if (sameInitiatorStrategy === 'toDirectManager' || sameInitiatorStrategy === 'toDeptHead') {
       const replacements = await resolveSameInitiatorReplacement(task, ctx);
@@ -82,11 +86,14 @@ export async function applyAssigneeRuntimeStrategies(
   const effectiveDedup = isHandler ? 'none' : resolveEffectiveDedup(task.nodeConfig.deduplicateStrategy, dedupMode);
   if (effectiveDedup !== 'none' && ids.length > 0) {
     const dedupUsers = await collectDedupApprovers(ctx.executor, ctx.instanceId, effectiveDedup);
+    for (const id of ids) {
+      if (dedupUsers.has(id)) excluded.push({ userId: id, reason: 'dedup' });
+    }
     ids = ids.filter((id) => !dedupUsers.has(id));
     if (ids.length === 0) emptiedBy = 'dedup';
   }
 
-  return { ids, emptiedBy };
+  return { ids, emptiedBy, excluded };
 }
 
 /**
