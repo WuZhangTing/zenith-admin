@@ -42,7 +42,7 @@ import { usePermission } from '@/hooks/usePermission';
 import WorkflowInstanceDetailPanel from '@/components/workflow/WorkflowInstanceDetailPanel';
 import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import { NODE_RT_STATUS_COLOR, NODE_RT_STATUS_LABEL, INSTANCE_STATUS_MAP, nodeStatusDisplay } from '@/components/workflow/workflow-runtime';
-import { resolveWorkflowFlowData } from '@/utils/workflow-snapshot';
+import { resolveWorkflowFlowData, resolveWorkflowFormFields } from '@/utils/workflow-snapshot';
 import WorkflowAnalyticsView from './WorkflowAnalyticsView';
 import WorkflowHandoverModal from './WorkflowHandoverModal';
 import WorkflowEngineDiagnosticsView from './WorkflowEngineDiagnosticsView';
@@ -967,7 +967,7 @@ export default function WorkflowMonitorPage() {
                 基于发起时的流程定义快照，叠加运行时任务状态（驳回回退轨迹会高亮提示）。
               </Typography.Text>
             </div>
-            <WorkflowGraphView flowData={flowData} tasks={diagnostics.tasks} instanceStatus={inst.status} />
+            <WorkflowGraphView flowData={flowData} tasks={diagnostics.tasks} instanceStatus={inst.status} formFields={resolveWorkflowFormFields(inst, null)} />
           </TabPane>
           <TabPane tab="表单数据" itemKey="formData">
             {renderJsonBlock(diagnostics.snapshot.formData)}

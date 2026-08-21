@@ -280,7 +280,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
             reloadKey={chainReloadKey}
           />
         )}
-        graph={<WorkflowGraphView flowData={def.flowData} height="calc(100vh - 160px)" />}
+        graph={<WorkflowGraphView flowData={def.flowData} formFields={def.formFields ?? undefined} height="calc(100vh - 160px)" />}
       />
     );
   },

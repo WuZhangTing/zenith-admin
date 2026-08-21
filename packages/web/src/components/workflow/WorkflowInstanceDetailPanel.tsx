@@ -400,7 +400,7 @@ export default function WorkflowInstanceDetailPanel({
   );
 
   const graphContent = (
-    <WorkflowGraphView flowData={flowData} tasks={instance.tasks ?? []} instanceStatus={instance.status} height="calc(100vh - 160px)" />
+    <WorkflowGraphView flowData={flowData} tasks={instance.tasks ?? []} instanceStatus={instance.status} formFields={formFields} height="calc(100vh - 160px)" />
   );
 
   return (

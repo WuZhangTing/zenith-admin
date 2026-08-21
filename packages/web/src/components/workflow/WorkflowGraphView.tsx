@@ -19,6 +19,8 @@ interface Props {
   height?: number | string;
   /** 实例状态（用于 start/end 节点运行态标识） */
   instanceStatus?: string;
+  /** 表单字段（用于路由分支等把字段 key 渲染为业务标签） */
+  formFields?: ReadonlyArray<{ key: string; label: string; type?: string }>;
 }
 
 interface ReturnTrack {
@@ -95,7 +97,7 @@ function computeDimmedBranches(process: FlowProcess, taskNodeKeys: Set<string>):
   return dimmed;
 }
 
-export default function WorkflowGraphView({ flowData, tasks, height = 480, instanceStatus }: Readonly<Props>) {
+export default function WorkflowGraphView({ flowData, tasks, height = 480, instanceStatus, formFields }: Readonly<Props>) {
   const scopeId = useId().replaceAll(':', '');
   const scopeClass = `fd-graph-scope-${scopeId}`;
   const process = flowData?.process as FlowProcess | undefined;
@@ -185,7 +187,7 @@ export default function WorkflowGraphView({ flowData, tasks, height = 480, insta
           borderRadius: 'var(--semi-border-radius-medium)',
         }}
       >
-        <FlowRenderer process={process} readOnly nodeRuntime={runtimeMap} dimmedBranchIds={dimmedBranches} instanceStatus={instanceStatus} />
+        <FlowRenderer process={process} readOnly nodeRuntime={runtimeMap} dimmedBranchIds={dimmedBranches} instanceStatus={instanceStatus} formFields={formFields} />
       </div>
     </div>
   );
