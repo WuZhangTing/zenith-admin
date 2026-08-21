@@ -1,0 +1,70 @@
+/* 顶栏菜单搜索触发器：宽屏显示为搜索框样式，点击仍弹出命令面板 */
+.menu-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 190px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+  outline: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.menu-search-trigger:hover {
+  background: var(--semi-color-fill-1);
+  color: var(--semi-color-text-0);
+}
+
+.menu-search-trigger:focus-visible {
+  border-color: var(--semi-color-primary);
+}
+
+.menu-search-trigger__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.menu-search-trigger__label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.menu-search-trigger__kbd {
+  flex-shrink: 0;
+  padding: 3px 5px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-small);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--semi-color-text-2);
+}
+
+/* < 992px：退化为图标按钮，与其他顶栏动作一致 */
+@media (--lg-down) {
+  .menu-search-trigger {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    justify-content: center;
+    background: transparent;
+  }
+
+  .menu-search-trigger:hover {
+    background: var(--semi-color-fill-0);
+  }
+
+  .menu-search-trigger__label,
+  .menu-search-trigger__kbd {
+    display: none;
+  }
+}

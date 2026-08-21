@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 import MenuCommandPalette from './MenuCommandPalette';
+import './MenuSearchInput.css';
 
 export interface FlatMenuItem {
   id: number;
@@ -38,33 +39,16 @@ export default function MenuSearchInput({ menus }: MenuSearchInputProps) {
       <button
         ref={buttonRef}
         type="button"
+        className="menu-search-trigger"
         onClick={() => setOpen(true)}
         title="搜索菜单 (Ctrl+K)"
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 32,
-          height: 32,
-          border: 0,
-          borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'transparent',
-          color: 'var(--semi-color-text-2)',
-          cursor: 'pointer',
-          flexShrink: 0,
-          transition: 'background 0.15s, color 0.15s',
-          outline: 'none',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--semi-color-fill-0)';
-          e.currentTarget.style.color = 'var(--semi-color-text-0)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = 'var(--semi-color-text-2)';
-        }}
+        aria-label="搜索菜单"
       >
-        <Search size={16} strokeWidth={1.8} />
+        <span className="menu-search-trigger__icon">
+          <Search size={16} strokeWidth={1.8} />
+        </span>
+        <span className="menu-search-trigger__label">搜索菜单</span>
+        <kbd className="menu-search-trigger__kbd">Ctrl K</kbd>
       </button>
       <MenuCommandPalette menus={menus} open={open} onClose={handleClose} />
     </>
