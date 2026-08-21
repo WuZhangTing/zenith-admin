@@ -628,6 +628,13 @@ export async function listAllTasks(query: ListAllTasksQuery) {
         : t.actionAt
           ? Math.max(0, Math.floor((t.actionAt.getTime() - t.createdAt.getTime()) / 1000))
           : null;
+      // 处理意见来源：非审批/办理节点（延迟/触发器/子流程/抄送）与 skipped 清场留痕、
+      // 以及无处理人的自动任务（同人跳过/空审批人自动通过）均为引擎写入；其余为人工意见
+      const commentSource: 'user' | 'system' | null = !t.comment
+        ? null
+        : (t.nodeType !== 'approve' && t.nodeType !== 'handler') || t.status === 'skipped' || t.assigneeId == null
+          ? 'system'
+          : 'user';
       return {
         id: t.id,
         instanceId: t.instanceId,
@@ -650,6 +657,7 @@ export async function listAllTasks(query: ListAllTasksQuery) {
         actionAt: formatNullableDateTime(t.actionAt),
         stayedSec,
         comment: t.comment ?? null,
+        commentSource,
       };
     }),
     total: Number(total),

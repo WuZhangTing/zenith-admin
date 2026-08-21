@@ -4,7 +4,7 @@
  * 审批状态 / 审批建议 / 耗时 / 流程编号 / 任务编号；行操作：详情（实例详情抽屉）/ 催办。
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Input, Modal, Select, Toast, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Modal, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { WorkflowTaskMonitorItem } from '@zenith/shared/workflow';
@@ -116,7 +116,23 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     dateTimeColumn('任务结束时间', 'actionAt'),
     taskAssigneeColumn<WorkflowTaskMonitorItem>('审批人'),
     taskStatusColumn<WorkflowTaskMonitorItem>('审批状态'),
-    { title: '处理意见', dataIndex: 'comment', width: 200, render: renderEllipsis },
+    {
+      title: '处理意见',
+      dataIndex: 'comment',
+      width: 220,
+      render: (v: string | null, r) => {
+        if (!v) return '—';
+        if (r.commentSource === 'system') {
+          return (
+            <Space spacing={4} style={{ maxWidth: '100%' }}>
+              <Tag size="small" color="grey" type="light">系统</Tag>
+              <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Typography.Text>
+            </Space>
+          );
+        }
+        return renderEllipsis(v);
+      },
+    },
     {
       title: '耗时',
       dataIndex: 'stayedSec',

@@ -765,6 +765,8 @@ export const WorkflowTaskMonitorItemDTO = z
     /** 停留/处理耗时（秒）：未终态=至今，终态=创建→处理；无 actionAt 的终态为 null */
     stayedSec: z.number().int().nullable(),
     comment: z.string().nullable(),
+    /** 处理意见来源：user=人工填写，system=引擎自动留痕（自动跳过/延迟唤醒/清场备注等） */
+    commentSource: z.enum(['user', 'system']).nullable(),
   })
   .openapi('WorkflowTaskMonitorItem');
 
