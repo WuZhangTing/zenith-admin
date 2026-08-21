@@ -156,6 +156,15 @@ body {
   }
 }
 
+/* 全局兜底：SideSheet 永不超过视口（与各处 width 数值解耦）。
+   此前仅 lg-down(≤991px) 限 95vw，992px~抽屉宽度 之间是保护盲区——
+   1080px 宽的工作流抽屉在 992~1079px 视口会向左溢出裁掉标题区。
+   max-width 直接约束 Semi 写入的 inline width，无需 !important；
+   ≥平板留 48px 边距，保留底层页面感知与遮罩点击关闭区域。 */
+.semi-sidesheet-inner {
+  max-width: calc(100vw - 48px);
+}
+
 /* 窄屏 SideSheet 宽度自适应，防止溢出屏幕 */
 @media (--lg-down) {
   .semi-sidesheet-inner {
