@@ -344,7 +344,7 @@ export default function WorkflowDefinitionsPage() {
     },
     createOperationColumn<WorkflowDefinition>({
       width: 170,
-      desktopInlineKeys: ['design', 'publish'],
+      desktopInlineKeys: ['design', 'publish', 'disable', 'enable'],
       actions: (record) => {
         const canPublish = record.status === 'draft' && hasPermission('workflow:definition:publish');
         return [
@@ -353,7 +353,7 @@ export default function WorkflowDefinitionsPage() {
             key: 'publish',
             label: '发布',
             type: 'primary',
-            disabled: !canPublish,
+            hidden: !canPublish,
             onClick: () => {
               Modal.confirm({
                 title: '确定发布此流程？',

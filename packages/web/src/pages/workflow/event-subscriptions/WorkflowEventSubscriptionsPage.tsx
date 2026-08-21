@@ -293,6 +293,9 @@ export default function WorkflowEventSubscriptionsPage() {
     }),
   ];
 
+  // 投递详情
+  const [deliveryDetail, setDeliveryDetail] = useState<WorkflowEventDelivery | null>(null);
+
   const deliveryColumns: ColumnProps<WorkflowEventDelivery>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
     {
@@ -312,9 +315,14 @@ export default function WorkflowEventSubscriptionsPage() {
       },
     },
     createOperationColumn<WorkflowEventDelivery>({
-      width: 100,
-      desktopInlineKeys: ['retry'],
+      width: 130,
+      desktopInlineKeys: ['detail', 'retry'],
       actions: (record) => [
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => setDeliveryDetail(record),
+        },
         {
           key: 'retry',
           label: record.status === 'success' ? '重新投递' : '重试',
@@ -523,6 +531,77 @@ export default function WorkflowEventSubscriptionsPage() {
           refreshLoading={deliveriesQuery.isFetching}
         />
       </SideSheet>
+
+      <AppModal
+        title="投递详情"
+        visible={deliveryDetail !== null}
+        onCancel={() => setDeliveryDetail(null)}
+        footer={null}
+        closeOnEsc
+        width={640}
+      >
+        {deliveryDetail && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Row gutter={[12, 8]}>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>事件</Typography.Text>
+                <Typography.Text>{EVENT_LABEL_MAP[deliveryDetail.eventType] ?? deliveryDetail.eventType}</Typography.Text>
+              </Col>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>状态</Typography.Text>
+                <Tag color={(DELIVERY_STATUS_MAP[deliveryDetail.status] ?? { color: 'grey' as const }).color}>
+                  {(DELIVERY_STATUS_MAP[deliveryDetail.status] ?? { text: deliveryDetail.status }).text}
+                </Tag>
+              </Col>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>事件 ID</Typography.Text>
+                <Typography.Text size="small" copyable>{deliveryDetail.eventId}</Typography.Text>
+              </Col>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>实例 / 任务</Typography.Text>
+                <Typography.Text size="small">
+                  {deliveryDetail.instanceId != null ? `#${deliveryDetail.instanceId}` : '—'}
+                  {deliveryDetail.taskId != null ? ` / 任务 #${deliveryDetail.taskId}` : ''}
+                </Typography.Text>
+              </Col>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>HTTP / 耗时 / 尝试</Typography.Text>
+                <Typography.Text size="small">
+                  {deliveryDetail.responseStatus ?? '—'} · {deliveryDetail.durationMs != null ? `${deliveryDetail.durationMs}ms` : '—'} · 第 {deliveryDetail.attempt} 次
+                </Typography.Text>
+              </Col>
+              <Col span={12}>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>时间 / 下次重试</Typography.Text>
+                <Typography.Text size="small">{deliveryDetail.createdAt}{deliveryDetail.nextRetryAt ? ` · 重试于 ${deliveryDetail.nextRetryAt}` : ''}</Typography.Text>
+              </Col>
+            </Row>
+            <div>
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>请求地址</Typography.Text>
+              <Typography.Text size="small" copyable style={{ wordBreak: 'break-all' }}>{deliveryDetail.requestUrl ?? '—'}</Typography.Text>
+            </div>
+            {deliveryDetail.errorMessage && (
+              <div>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>错误信息</Typography.Text>
+                <Typography.Text type="danger" size="small" style={{ wordBreak: 'break-all' }}>{deliveryDetail.errorMessage}</Typography.Text>
+              </div>
+            )}
+            <div>
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>事件负载</Typography.Text>
+              <pre style={{ margin: 0, maxHeight: 260, overflow: 'auto', padding: 12, borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)', fontSize: 12, lineHeight: 1.5 }}>
+                {deliveryDetail.payload ? JSON.stringify(deliveryDetail.payload, null, 2) : '—'}
+              </pre>
+            </div>
+            {deliveryDetail.responseBody && (
+              <div>
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>响应内容</Typography.Text>
+                <pre style={{ margin: 0, maxHeight: 160, overflow: 'auto', padding: 12, borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)', fontSize: 12, lineHeight: 1.5 }}>
+                  {deliveryDetail.responseBody}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+      </AppModal>
 
       <AppModal
         title="按筛选批量重放投递"

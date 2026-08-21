@@ -75,9 +75,12 @@ export async function enqueueJob(input: EnqueueJobInput, executor: DbExecutor = 
  * 会推动实例继续流转的调度类作业。实例清场（退回发起人 / 撤回 / 取消 / 终态落定）时必须一并取消，
  * 否则延时唤醒、超时处理或外部回调苏醒后会对已终结 / 已退回的实例发起推进。
  * 事件派发（outbox）与 Webhook 投递属于通知类，不在此列——已发生事实仍需送达订阅方。
+ * trigger_dispatch 同样不取消：fire-and-forget 触发器（任务已 approved、token 已越过节点）是
+ * "已发生事实"的外呼副作用，若随终态清场取消，紧邻结束节点的触发器将永远不执行；
+ * 仍在门控的 waiting 触发器（callback/block/数据变更）由 handler 自身的任务/实例状态守卫安全跳过。
  */
 export const WORKFLOW_ADVANCING_JOB_TYPES = [
-  'delay_wake', 'task_timeout', 'trigger_dispatch', 'external_dispatch', 'subprocess_spawn', 'subprocess_join',
+  'delay_wake', 'task_timeout', 'external_dispatch', 'subprocess_spawn', 'subprocess_join',
 ] as const satisfies readonly WorkflowJobType[];
 
 /**
@@ -130,8 +133,24 @@ export async function skipJob(id: number): Promise<WorkflowJobRow | null> {
   return row ?? null;
 }
 
+/** 快路径领取延迟：首跳等常规事务提交，二跳兜底慢事务（全部落空则由 pg-boss/drain 接管） */
+const IMMEDIATE_PICKUP_DELAYS_MS = [150, 800] as const;
+
 /** 通过 pg-boss 在 runAt 时唤醒统一 Worker 处理该作业（fire-and-forget，drain 为兜底） */
 export function scheduleJobPickup(jobId: number, runAt: Date): void {
+  // 进程内快路径：已到期的作业不等 pg-boss 轮询（默认约 2s/跳，事件派发→Webhook 投递等
+  // 链式作业会把延迟叠加成秒级），短暂延迟后直接领取执行。延迟是为了等业务事务提交——
+  // enqueue 常发生在事务内，未提交的 pending 行对快路径不可见；两次尝试覆盖慢事务。
+  // claim 乐观锁保证与 pg-boss 消费者/drain 互斥：谁先领到谁执行，落空方 claim 返回 null 静默退出。
+  // pg-boss 消息仍照常入队，作为跨进程与进程崩溃场景的兜底。
+  if (runAt.getTime() <= Date.now()) {
+    for (const delay of IMMEDIATE_PICKUP_DELAYS_MS) {
+      const timer = setTimeout(() => {
+        runJob(jobId).catch((err) => logger.warn('[workflow-jobs] immediate pickup failed, pg-boss will retry', { jobId, err }));
+      }, delay);
+      timer.unref?.();
+    }
+  }
   void sendSystemJobAfter<{ jobId: number }>(WORKFLOW_JOB_QUEUE, { jobId }, runAt, {
     retryLimit: 0, // 重试由作业自身的 attempts/退避控制，pg-boss 不再重复重试
     expireInSeconds: 600,

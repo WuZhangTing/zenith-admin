@@ -280,14 +280,16 @@ function mapDeliveryStatus(row: WebhookDeliveryRow): WebhookDeliveryStatus {
 }
 
 export function mapDelivery(row: WebhookDeliveryRow, subscriptionName?: string | null) {
+  // webhook_delivery 作业 payload 形如 { subscriptionId, event }，事件类型/ID 取自嵌套 event
+  const event = payloadRecord(payloadRecord(row.job.payload).event);
   return {
     id: row.execution.id,
     subscriptionId: payloadNumber(row.job.payload, 'subscriptionId') ?? 0,
     subscriptionName: subscriptionName ?? row.subscriptionName ?? null,
     instanceId: row.job.instanceId ?? null,
     taskId: row.job.taskId ?? null,
-    eventId: payloadString(row.job.payload, 'eventId') ?? row.job.idempotencyKey ?? String(row.job.id),
-    eventType: payloadString(row.job.payload, 'eventType') ?? 'workflow.event',
+    eventId: (typeof event.eventId === 'string' ? event.eventId : null) ?? payloadString(row.job.payload, 'eventId') ?? row.job.idempotencyKey ?? String(row.job.id),
+    eventType: (typeof event.type === 'string' ? event.type : null) ?? payloadString(row.job.payload, 'eventType') ?? 'workflow.event',
     payload: payloadWorkflowEvent(row.job.payload),
     attempt: row.execution.attempt,
     status: mapDeliveryStatus(row),

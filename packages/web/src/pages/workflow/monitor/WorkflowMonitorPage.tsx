@@ -571,6 +571,8 @@ export default function WorkflowMonitorPage() {
   };
 
   const stats = data?.stats ?? { total: 0, running: 0, returned: 0, approved: 0, rejected: 0, withdrawn: 0, cancelled: 0 };
+  // 首次加载完成前显示占位符，避免统计短暂闪现误导性的 0
+  const statValue = (v: number) => (listQuery.isLoading ? '—' : v);
 
   const openJump = async (record: WorkflowInstance) => {
     setJumpRecord(record);
@@ -1197,13 +1199,13 @@ export default function WorkflowMonitorPage() {
         <TabPane tab="实例监控" itemKey="list">
       {/* 统计卡片 */}
       <StatGrid minItemWidth={120} style={{ marginBottom: 16 }}>
-        <StatCard title="全部" value={stats.total} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')} active={draftParams.status === ''} />
-        <StatCard title="审批中" value={stats.running} accent="var(--semi-color-primary)" onClick={() => handleStatCardClick('running')} active={draftParams.status === 'running'} />
-        <StatCard title="已退回" value={stats.returned ?? 0} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('returned')} active={draftParams.status === 'returned'} />
-        <StatCard title="已通过" value={stats.approved} accent="#0dc87c" onClick={() => handleStatCardClick('approved')} active={draftParams.status === 'approved'} />
-        <StatCard title="已驳回" value={stats.rejected} accent="#ff4d4f" onClick={() => handleStatCardClick('rejected')} active={draftParams.status === 'rejected'} />
-        <StatCard title="已撤回" value={stats.withdrawn ?? 0} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('withdrawn')} active={draftParams.status === 'withdrawn'} />
-        <StatCard title="已取消" value={stats.cancelled ?? 0} accent="#8b5cf6" onClick={() => handleStatCardClick('cancelled')} active={draftParams.status === 'cancelled'} />
+        <StatCard title="全部" value={statValue(stats.total)} accent="var(--semi-color-text-0)" onClick={() => handleStatCardClick('')} active={draftParams.status === ''} />
+        <StatCard title="审批中" value={statValue(stats.running)} accent="var(--semi-color-primary)" onClick={() => handleStatCardClick('running')} active={draftParams.status === 'running'} />
+        <StatCard title="已退回" value={statValue(stats.returned ?? 0)} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('returned')} active={draftParams.status === 'returned'} />
+        <StatCard title="已通过" value={statValue(stats.approved)} accent="#0dc87c" onClick={() => handleStatCardClick('approved')} active={draftParams.status === 'approved'} />
+        <StatCard title="已驳回" value={statValue(stats.rejected)} accent="#ff4d4f" onClick={() => handleStatCardClick('rejected')} active={draftParams.status === 'rejected'} />
+        <StatCard title="已撤回" value={statValue(stats.withdrawn ?? 0)} accent="var(--semi-color-warning)" onClick={() => handleStatCardClick('withdrawn')} active={draftParams.status === 'withdrawn'} />
+        <StatCard title="已取消" value={statValue(stats.cancelled ?? 0)} accent="#8b5cf6" onClick={() => handleStatCardClick('cancelled')} active={draftParams.status === 'cancelled'} />
       </StatGrid>
 
       {/* 搜索栏 */}

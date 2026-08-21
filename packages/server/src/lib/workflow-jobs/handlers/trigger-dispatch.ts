@@ -162,7 +162,10 @@ async function handle({ payload, attempt, job }: WorkflowJobContext): Promise<Wo
   if (!task || task.nodeType !== 'trigger') throw new WorkflowJobSkip('触发器任务不存在或类型不符');
   if (task.status !== 'waiting' && task.status !== 'approved') throw new WorkflowJobSkip('触发器任务已结束');
   const [inst] = await db.select().from(workflowInstances).where(eq(workflowInstances.id, task.instanceId)).limit(1);
-  if (!inst || inst.status !== 'running') throw new WorkflowJobSkip('实例不在运行中');
+  if (!inst) throw new WorkflowJobSkip('实例不存在');
+  // waiting = 门控型触发器（callback/block/数据变更），实例终结后不再执行；
+  // approved = fire-and-forget，token 已越过节点，触发事实已发生——即使实例已完成也照常外呼（与 Webhook 投递同语义）
+  if (task.status === 'waiting' && inst.status !== 'running') throw new WorkflowJobSkip('实例不在运行中');
 
   const cfg = snapshotNodeConfig(inst, task.nodeKey)?.triggerConfig;
   if (!cfg) {
