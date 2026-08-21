@@ -21,6 +21,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useWorkflowTaskMonitorList, workflowMonitorKeys, type WorkflowTaskMonitorParams } from '@/hooks/queries/workflow-monitor';
 import { request } from '@/utils/request';
+import { unwrap } from '@/lib/query';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { dateTimeColumn } from '@/utils/table-columns';
 
@@ -74,7 +75,8 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
   const statValue = (v: number) => (listQuery.isLoading ? '—' : v);
 
   const urgeMutation = useMutation({
-    mutationFn: (taskId: number) => request.post(`/api/workflows/tasks/${taskId}/urge`, {}).then((r) => r.data),
+    // 必须 unwrap：非 0 code（如 429 催办限频）需抛错走全局错误提示，否则会同时弹「已催办」
+    mutationFn: (taskId: number) => request.post<unknown>(`/api/workflows/tasks/${taskId}/urge`, {}).then(unwrap),
     onSuccess: () => {
       Toast.success('已催办');
       void queryClient.invalidateQueries({ queryKey: workflowMonitorKeys.taskMonitorLists });
@@ -86,20 +88,21 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
   };
 
   const columns: ColumnProps<WorkflowTaskMonitorItem>[] = [
+    taskIdColumn<WorkflowTaskMonitorItem>('任务编号', 90),
     {
       title: '流程',
       dataIndex: 'instanceTitle',
-      width: 240,
+      width: 260,
       render: (v: string, r) => (
         <div>
           <Typography.Text link onClick={() => onOpenInstance(r.instanceId)} style={{ display: 'block' }}>{v}</Typography.Text>
-          <Typography.Text type="tertiary" size="small">{r.definitionName ?? '—'}</Typography.Text>
+          <Typography.Text type="tertiary" size="small">{r.definitionName ?? '—'} · {r.serialNo ?? `#${r.instanceId}`}</Typography.Text>
         </div>
       ),
     },
     { title: '发起人', dataIndex: 'initiatorName', width: 110, render: (v: string | null) => v ?? '—' },
     dateTimeColumn('发起时间', 'instanceCreatedAt'),
-    taskNodeColumn<WorkflowTaskMonitorItem>({ title: '当前任务', width: 150, withTypeTag: true }),
+    taskNodeColumn<WorkflowTaskMonitorItem>({ title: '当前任务', width: 200, withTypeTag: true }),
     dateTimeColumn('任务开始时间', 'createdAt'),
     dateTimeColumn('任务结束时间', 'actionAt'),
     taskAssigneeColumn<WorkflowTaskMonitorItem>('审批人'),
@@ -116,10 +119,8 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
         </span>
       ),
     },
-    { title: '流程编号', dataIndex: 'serialNo', width: 140, render: (v: string | null, r) => v ?? `#${r.instanceId}` },
-    taskIdColumn<WorkflowTaskMonitorItem>('任务编号', 90),
     createOperationColumn<WorkflowTaskMonitorItem>({
-      width: 120,
+      width: 150,
       desktopInlineKeys: ['detail', 'urge'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => onOpenInstance(record.instanceId) },
@@ -198,7 +199,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
         pagination={buildPagination(data?.total ?? 0)}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        scroll={{ x: 1960 }}
+        scroll={{ x: 1950 }}
       />
     </>
   );
