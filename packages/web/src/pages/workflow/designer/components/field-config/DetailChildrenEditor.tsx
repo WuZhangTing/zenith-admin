@@ -1,6 +1,6 @@
 // ─── 明细子字段编辑器（拆分自 FieldConfigPanel.tsx）───
 import { useState } from 'react';
-import { Button, Input, InputNumber, Select, TagInput, TextArea, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, InputNumber, Select, TagInput, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared/workflow';
 import { createLocalFieldKey } from './helpers';
@@ -102,7 +102,7 @@ export function DetailChildrenEditor({
           <button
             type="button"
             className={`fd-detail-children__sum ${(child.formula || child.validationFormula || expandedIndex === i) ? 'fd-detail-children__sum--active' : ''}`}
-            title="行内公式 / 校验公式"
+            title="列设置：key / 行内公式 / 校验公式"
             onClick={() => setExpandedIndex(expandedIndex === i ? null : i)}
           >
             fx
@@ -117,6 +117,26 @@ export function DetailChildrenEditor({
           </div>
           {expandedIndex === i && (
             <div className="fd-detail-children__fx">
+              <Typography.Text strong size="small">列标识 key</Typography.Text>
+              <Input
+                key={`key-editor-${child.key}`}
+                size="small"
+                defaultValue={child.key}
+                placeholder="用于公式引用与提交数据"
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  if (!v || v === child.key) return;
+                  if (items.some((c, ci) => ci !== i && c.key === v)) {
+                    Toast.error(`列 key「${v}」与其他列重复`);
+                    return;
+                  }
+                  updateChild(i, { key: v });
+                  Toast.success(`列 key 已改为 ${v}，引用该列的公式需同步调整`);
+                }}
+              />
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>
+                {'行内公式用 {key} 引用本列，主表汇总用 {明细key.列key} 引用'}
+              </Typography.Text>
               <Typography.Text strong size="small">行内公式</Typography.Text>
               <TextArea
                 value={child.formula ?? ''}

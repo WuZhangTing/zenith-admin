@@ -21,7 +21,7 @@ export default function WorkflowFormDesignerPage() {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <WorkflowFormInlineEditor
         formId={id}
-        backLabel="返回表单库"
+        backLabel="返回"
         onBack={() => navigate('/workflow/forms')}
         onSaved={handleSaved}
       />

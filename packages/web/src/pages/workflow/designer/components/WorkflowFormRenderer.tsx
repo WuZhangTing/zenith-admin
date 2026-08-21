@@ -942,8 +942,12 @@ export default function WorkflowFormRenderer({
   const cascadeFields = useMemo(() => all.filter(f => f.optionsFrom), [all]);
   const autoFillFields = useMemo(() => all.filter(f => f.autoFill && f.autoFill.targets.length > 0), [all]);
 
-  const handleValueChange = (next: Record<string, unknown>) => {
+  const handleValueChange = (raw: Record<string, unknown>) => {
+    // Semi Form 每次回调传入同一个内部可变对象：必须浅拷贝快照，
+    // 否则第一次 setState 之后 state 与 next 恒等（Object.is），
+    // React 跳过重渲染，第二次值变更起显隐/条件必填联动全部失效。
     const prev = valuesRef.current;
+    const next = { ...raw };
     valuesRef.current = next;
     setValuesState(next);
     const api = formApiRef.current;

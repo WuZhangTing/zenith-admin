@@ -30,6 +30,11 @@ interface FormDesignerProps {
   onHistoryChange?: (controls: FormHistoryControls) => void;
   /** 字段 key 重命名上报（oldKey → newKey），供外部跟踪并级联到流程侧引用 */
   onRenameKey?: (oldKey: string, newKey: string) => void;
+  /**
+   * 历史基线标识：变化时以当前 fields/settings 重建撤销栈的「初始状态」。
+   * 用于异步加载场景——服务端数据注入后重建基线，避免首次撤销把表单退回到空白挂载态。
+   */
+  baselineKey?: string | number | null;
 }
 
 export interface FormHistoryEntry {
@@ -257,7 +262,7 @@ const MAX_HISTORY = 100;
 const REQUIRED_EXCLUDE = new Set<WorkflowFormFieldType>(['row', 'group', 'tabs', 'steps', 'divider', 'description', 'formula', 'serialNumber']);
 const canToggleRequired = (t: WorkflowFormFieldType): boolean => !REQUIRED_EXCLUDE.has(t);
 
-export default function FormDesigner({ fields, onChange, settings, onSettingsChange, showToolbar = true, onHistoryChange, onRenameKey }: Readonly<FormDesignerProps>) {
+export default function FormDesigner({ fields, onChange, settings, onSettingsChange, showToolbar = true, onHistoryChange, onRenameKey, baselineKey }: Readonly<FormDesignerProps>) {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   // 主选中（配置面板/键盘导航目标）：最后一次选中的字段
   const selectedKey = selectedKeys.length > 0 ? selectedKeys[selectedKeys.length - 1] : null;
@@ -274,6 +279,17 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
   // 撤销/重做历史栈（快照含字段与表单级设置，所有变更走 commit 统一入栈）
   const historyRef = useRef<HistoryState>({ stack: [{ fields, settings: settings ?? {}, label: '初始状态' }], pointer: 0, lastTag: null });
   const [histVersion, bumpHistory] = useState(0);
+
+  // 基线重建：异步数据注入后（baselineKey 变化）以当前 props 重置初始快照，
+  // 否则首次撤销会退回到数据未加载的空白挂载态
+  const baselineKeyRef = useRef(baselineKey);
+  useEffect(() => {
+    if (baselineKeyRef.current === baselineKey) return;
+    baselineKeyRef.current = baselineKey;
+    historyRef.current = { stack: [{ fields, settings: settings ?? {}, label: '初始状态' }], pointer: 0, lastTag: null };
+    bumpHistory(v => v + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在基线标识变化时用当次渲染的 fields/settings 重建
+  }, [baselineKey]);
 
   const selectedField = findField(fields, selectedKey ?? '');
   const flatFields = useMemo(() => collectFields(fields), [fields]);

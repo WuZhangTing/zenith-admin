@@ -4,6 +4,7 @@
  */
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared/workflow';
 import { collectWorkflowRuleConditions } from '@zenith/shared/workflow';
+import { FORM_FIELD_TYPES } from './form-types';
 import { flattenAllFields, formulaReferencesKey } from './form-tree';
 import { evalFormula } from './form-formula';
 import { findValueDependencyCycles } from './form-graph';
@@ -44,7 +45,7 @@ export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
     }
 
     if (OPTION_TYPES.has(f.type) && !f.dataSourceId) {
-      const opts = (f.options ?? []).map((o) => o.trim()).filter(Boolean);
+      const opts = normalizeOptionList(f.options).map((o) => o.trim()).filter(Boolean);
       if (opts.length === 0) {
         issues.push({ level: 'error', fieldKey: f.key, fieldLabel: label, message: '选项为空' });
       } else if (new Set(opts).size !== opts.length) {
@@ -162,6 +163,25 @@ export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
     if ((f.type === 'tabs' || f.type === 'steps') && (f.panes?.length ?? 0) === 0) {
       issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '容器没有任何面板' });
     }
+
+    // 空容器 / 空说明：预览与发起时会整体隐藏或仅剩占位，提示设计者
+    if (f.type === 'group' && (f.children?.length ?? 0) === 0) {
+      issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '分组内没有字段：预览与发起时整个分组（含标题）不会显示' });
+    }
+    if (f.type === 'row' && (f.columns ?? []).every((c) => (c.fields?.length ?? 0) === 0)) {
+      issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '分栏所有列都为空：预览与发起时整个分栏不会显示' });
+    }
+    if ((f.type === 'tabs' || f.type === 'steps') && (f.panes?.length ?? 0) > 0) {
+      const emptyPanes = (f.panes ?? []).map((p, i) => ((p.fields?.length ?? 0) === 0 ? (p.title || `面板${i + 1}`) : null)).filter(Boolean);
+      if (emptyPanes.length === (f.panes ?? []).length) {
+        issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '所有面板都没有字段，容器发起时没有可填内容' });
+      } else if (emptyPanes.length > 0) {
+        issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: `存在空面板：${emptyPanes.join('、')}` });
+      }
+    }
+    if (f.type === 'description' && !f.description?.trim()) {
+      issues.push({ level: 'warning', fieldKey: f.key, fieldLabel: label, message: '说明文字没有内容，发起时仅显示占位文本' });
+    }
   }
 
   // 值联动循环依赖（公式/天数/赋值互相触发重算，运行时会震荡）
@@ -180,4 +200,95 @@ export function validateFormSchema(fields: WorkflowFormField[]): FormIssue[] {
 
 export function countErrors(issues: FormIssue[]): number {
   return issues.filter((i) => i.level === 'error').length;
+}
+
+// ─── JSON 导入归一化 ────────────────────────────────────────────────
+
+/** 选项归一化：容忍业界常见的 {label, value} 对象格式，统一转为规范 string[]。 */
+export function normalizeOptionList(options: unknown): string[] {
+  if (!Array.isArray(options)) return [];
+  return options
+    .map((o) => {
+      if (typeof o === 'string') return o;
+      if (typeof o === 'number' || typeof o === 'boolean') return String(o);
+      if (o && typeof o === 'object') {
+        const rec = o as { label?: unknown; value?: unknown; name?: unknown };
+        const v = rec.label ?? rec.value ?? rec.name;
+        return v == null ? '' : String(v);
+      }
+      return '';
+    })
+    .filter((s) => s !== '');
+}
+
+const KNOWN_FIELD_TYPES = new Set<string>(FORM_FIELD_TYPES.map((t) => t.type));
+
+export interface NormalizedImport {
+  fields: WorkflowFormField[];
+  warnings: string[];
+  errors: string[];
+}
+
+/**
+ * 外部 JSON 导入的结构校验与归一化：
+ * - 字段必须是对象且含字符串 key / 已注册的 type（否则记为错误并剔除）；
+ * - {label,value} 对象选项自动转为规范 string[] 并提示；
+ * - 递归处理 children / columns / panes；
+ * 归一化失败的字段被剔除而不是让设计器整页崩溃。
+ */
+export function normalizeImportedFields(list: unknown[]): NormalizedImport {
+  const warnings: string[] = [];
+  const errors: string[] = [];
+
+  const walk = (items: unknown[], path: string): WorkflowFormField[] => {
+    const out: WorkflowFormField[] = [];
+    items.forEach((item, i) => {
+      const at = `${path}[${i}]`;
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        errors.push(`${at} 不是字段对象，已剔除`);
+        return;
+      }
+      const f = { ...(item as Record<string, unknown>) };
+      if (typeof f.key === 'number') f.key = String(f.key);
+      if (typeof f.key !== 'string' || !f.key.trim()) {
+        errors.push(`${at} 缺少字符串 key，已剔除`);
+        return;
+      }
+      if (typeof f.type !== 'string' || !KNOWN_FIELD_TYPES.has(f.type)) {
+        errors.push(`${at}（key=${f.key}）控件类型无效：${String(f.type)}，已剔除`);
+        return;
+      }
+      if (f.options !== undefined) {
+        const normalized = normalizeOptionList(f.options);
+        const wasObjectForm = Array.isArray(f.options) && (f.options as unknown[]).some((o) => o !== null && typeof o === 'object');
+        if (wasObjectForm) warnings.push(`字段「${String(f.label ?? f.key)}」的选项为对象格式，已按 label 转为文本选项`);
+        f.options = normalized;
+      }
+      if (f.children !== undefined) {
+        f.children = Array.isArray(f.children) ? walk(f.children, `${at}.children`) : [];
+      }
+      if (f.columns !== undefined) {
+        f.columns = Array.isArray(f.columns)
+          ? (f.columns as unknown[]).map((c, ci) => {
+              const col = (c && typeof c === 'object' ? { ...(c as Record<string, unknown>) } : {}) as Record<string, unknown>;
+              col.fields = Array.isArray(col.fields) ? walk(col.fields as unknown[], `${at}.columns[${ci}]`) : [];
+              return col;
+            })
+          : [];
+      }
+      if (f.panes !== undefined) {
+        f.panes = Array.isArray(f.panes)
+          ? (f.panes as unknown[]).map((p, pi) => {
+              const pane = (p && typeof p === 'object' ? { ...(p as Record<string, unknown>) } : {}) as Record<string, unknown>;
+              pane.fields = Array.isArray(pane.fields) ? walk(pane.fields as unknown[], `${at}.panes[${pi}]`) : [];
+              return pane;
+            })
+          : [];
+      }
+      out.push(f as unknown as WorkflowFormField);
+    });
+    return out;
+  };
+
+  return { fields: walk(list, 'fields'), warnings, errors };
 }

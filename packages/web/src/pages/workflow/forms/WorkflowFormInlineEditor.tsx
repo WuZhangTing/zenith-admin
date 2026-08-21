@@ -6,12 +6,13 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Spin, Toast, Typography, Input, Select, TextArea, RadioGroup, Radio, InputNumber, SideSheet, Divider, Tooltip, Dropdown, Banner, Switch, Tag } from '@douyinfe/semi-ui';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, X, Eye, Save, Settings, Monitor, Smartphone, Undo2, Redo2, Braces, Copy, Stethoscope, LayoutTemplate, SlidersHorizontal, AlertTriangle, CircleAlert, Share2, History as HistoryIcon, GitCompareArrows } from 'lucide-react';
+import { ArrowLeft, X, Eye, Save, Settings, Monitor, Smartphone, Undo2, Redo2, Braces, Copy, Stethoscope, LayoutTemplate, SlidersHorizontal, AlertTriangle, CircleAlert, Share2, History as HistoryIcon, GitCompareArrows, MoreHorizontal } from 'lucide-react';
 import type { WorkflowForm, WorkflowFormField, WorkflowFormFieldType, WorkflowFormSettings, WorkflowFormStatus } from '@zenith/shared/workflow';
+import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { useWorkflowCategories } from '@/hooks/useWorkflowCategories';
 import { ApiError } from '@/lib/query';
 import { LABEL_POSITION_OPTIONS, LABEL_ALIGN_OPTIONS, COLUMN_SPAN_OPTIONS } from '../designer/form-types';
-import { validateFormSchema, countErrors, type FormIssue } from '../designer/form-validate';
+import { validateFormSchema, countErrors, normalizeImportedFields, type FormIssue } from '../designer/form-validate';
 import { flattenAllFields } from '../designer/form-tree';
 import { diffFormFields } from '../designer/form-diff';
 import { loadFormDraft, clearFormDraft, useFormDraftAutosave, type FormDraftPayload } from '../designer/use-draft-autosave';
@@ -133,6 +134,7 @@ export default function WorkflowFormInlineEditor({
 
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [previewVisible, setPreviewVisible] = useState(false);
+  const previewApiRef = useRef<FormApi | null>(null);
   const [previewMode, setPreviewMode] = useState<'pc' | 'mobile'>('pc');
   const [previewState, setPreviewState] = useState<PreviewState>('fill');
   const [jsonVisible, setJsonVisible] = useState(false);
@@ -317,7 +319,7 @@ export default function WorkflowFormInlineEditor({
     }
   };
 
-  // 从 JSON 导入字段（结构校验后整体替换，纳入历史可撤销）
+  // 从 JSON 导入字段（结构校验 + 归一化后整体替换，纳入历史可撤销）
   const importJson = () => {
     let parsed: unknown;
     try {
@@ -332,19 +334,24 @@ export default function WorkflowFormInlineEditor({
       Toast.error('JSON 缺少 fields 数组');
       return;
     }
-    const valid = list.every((f) => f && typeof (f as WorkflowFormField).key === 'string' && typeof (f as WorkflowFormField).type === 'string');
-    if (!valid) {
-      Toast.error('字段结构无效（缺少 key/type）');
+    const { fields: normalized, warnings, errors } = normalizeImportedFields(list);
+    if (normalized.length === 0) {
+      Toast.error(errors[0] ?? '没有可导入的有效字段');
       return;
     }
-    commitFields(list as WorkflowFormField[]);
+    commitFields(normalized);
     if (!Array.isArray(obj) && obj?.settings && typeof obj.settings === 'object') {
       const nextSettings = obj.settings as WorkflowFormSettings;
       if (history) history.commitSettings(nextSettings);
       else setSettings(nextSettings);
     }
     setJsonVisible(false);
-    Toast.success('已导入');
+    const notes = [...errors, ...warnings];
+    if (notes.length > 0) {
+      Toast.warning({ content: `已导入 ${normalized.length} 个字段，${notes.length} 项调整：${notes.slice(0, 3).join('；')}${notes.length > 3 ? ` 等 ${notes.length} 项` : ''}`, duration: 6 });
+    } else {
+      Toast.success('已导入');
+    }
   };
 
   const insertTemplate = (tplKey: string) => {
@@ -376,6 +383,16 @@ export default function WorkflowFormInlineEditor({
 
   const previewBody = useMemo(() => {
     const readOnly = previewState !== 'fill';
+    const handlePreviewSubmit = async () => {
+      const api = previewApiRef.current;
+      if (!api) return;
+      try {
+        await api.validate();
+        Toast.success('校验通过（预览不会真正提交数据）');
+      } catch {
+        Toast.error('存在未通过校验的字段，请检查标红项');
+      }
+    };
     return (
     <div>
       {previewState === 'approval' && (
@@ -398,6 +415,7 @@ export default function WorkflowFormInlineEditor({
           <WorkflowFormRenderer
             fields={fields}
             readOnly={readOnly}
+            getFormApi={(api) => { previewApiRef.current = api; }}
             labelPosition={settings.labelPosition ?? 'top'}
             labelAlign={settings.labelAlign}
             labelWidth={settings.labelWidth}
@@ -413,7 +431,7 @@ export default function WorkflowFormInlineEditor({
             </div>
           ) : (
             <div style={{ marginTop: 16, textAlign: previewMode === 'mobile' ? 'center' : 'right' }}>
-              <Button type="primary" theme="solid" disabled={readOnly} block={previewMode === 'mobile'}>
+              <Button type="primary" theme="solid" disabled={readOnly} block={previewMode === 'mobile'} onClick={() => void handlePreviewSubmit()}>
                 {settings.submitButtonText || '提交'}
               </Button>
             </div>
@@ -451,7 +469,8 @@ export default function WorkflowFormInlineEditor({
           value={name}
           onChange={setName}
           placeholder="未命名表单"
-          style={{ width: 220, fontWeight: 600 }}
+          className="wf-form-editor__name"
+          style={{ fontWeight: 600 }}
         />
         <div style={{ flex: 1 }} />
 
@@ -492,24 +511,6 @@ export default function WorkflowFormInlineEditor({
         )}
         <Divider layout="vertical" margin="6px" />
 
-        <Dropdown
-          trigger="click"
-          position="bottomLeft"
-          render={(
-            <Dropdown.Menu>
-              <Dropdown.Item onClick={() => setGalleryVisible(true)}>浏览模板库…</Dropdown.Item>
-              <Dropdown.Divider />
-              <Dropdown.Title>插入字段组</Dropdown.Title>
-              {FIELD_TEMPLATES.map((t) => (
-                <Dropdown.Item key={t.key} onClick={() => insertTemplate(t.key)}>{t.label}</Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          )}
-        >
-          <Button icon={<LayoutTemplate size={14} />} type="tertiary" theme="borderless" size="small">模板</Button>
-        </Dropdown>
-        <Button icon={<SlidersHorizontal size={14} />} type="tertiary" theme="borderless" size="small" onClick={() => { setBatchPatch({}); setBatchVisible(true); }}>批量设置</Button>
-        <Button icon={<Share2 size={14} />} type="tertiary" theme="borderless" size="small" onClick={() => setGraphVisible(true)}>依赖图</Button>
         <Tooltip content={healthErrorCount > 0 ? `${healthErrorCount} 项错误` : '表单体检'}>
           <Button
             icon={<Stethoscope size={14} />}
@@ -520,17 +521,36 @@ export default function WorkflowFormInlineEditor({
             体检{healthErrorCount > 0 ? `(${healthErrorCount})` : ''}
           </Button>
         </Tooltip>
-        <Divider layout="vertical" margin="6px" />
-
-        <Button icon={<Settings size={14} />} type="tertiary" theme="borderless" size="small" onClick={() => setSettingsVisible(true)}>表单设置</Button>
-        <Button icon={<Braces size={14} />} type="tertiary" theme="borderless" size="small" onClick={openJson}>JSON</Button>
-        {currentId != null && fieldDiff.length > 0 && (
-          <Button icon={<GitCompareArrows size={14} />} type="tertiary" theme="borderless" size="small" onClick={() => setDiffVisible(true)}>
-            变更({fieldDiff.length})
-          </Button>
-        )}
         <Button icon={<Eye size={14} />} type="tertiary" theme="borderless" size="small" onClick={() => setPreviewVisible(true)}>预览</Button>
         <Button icon={<Save size={14} />} type="primary" size="small" loading={saveMutation.isPending} onClick={() => void handleSave()}>保存</Button>
+
+        {/* 低频操作收进「更多」，保证工具栏恒单行 */}
+        <Dropdown
+          trigger="click"
+          position="bottomRight"
+          render={(
+            <Dropdown.Menu>
+              <Dropdown.Item icon={<LayoutTemplate size={14} />} onClick={() => setGalleryVisible(true)}>浏览模板库…</Dropdown.Item>
+              <Dropdown.Title>插入字段组</Dropdown.Title>
+              {FIELD_TEMPLATES.map((t) => (
+                <Dropdown.Item key={t.key} onClick={() => insertTemplate(t.key)}>{t.label}</Dropdown.Item>
+              ))}
+              <Dropdown.Divider />
+              <Dropdown.Item icon={<SlidersHorizontal size={14} />} onClick={() => { setBatchPatch({}); setBatchVisible(true); }}>批量设置</Dropdown.Item>
+              <Dropdown.Item icon={<Share2 size={14} />} onClick={() => setGraphVisible(true)}>依赖图</Dropdown.Item>
+              <Dropdown.Divider />
+              <Dropdown.Item icon={<Settings size={14} />} onClick={() => setSettingsVisible(true)}>表单设置</Dropdown.Item>
+              <Dropdown.Item icon={<Braces size={14} />} onClick={openJson}>JSON</Dropdown.Item>
+              {currentId != null && fieldDiff.length > 0 && (
+                <Dropdown.Item icon={<GitCompareArrows size={14} />} onClick={() => setDiffVisible(true)}>
+                  变更({fieldDiff.length})
+                </Dropdown.Item>
+              )}
+            </Dropdown.Menu>
+          )}
+        >
+          <Button icon={<MoreHorizontal size={15} />} type="tertiary" theme="borderless" size="small" aria-label="更多操作" />
+        </Dropdown>
       </div>
 
       {/* 本地草稿恢复提示 */}
@@ -557,6 +577,7 @@ export default function WorkflowFormInlineEditor({
           settings={settings}
           onSettingsChange={setSettings}
           showToolbar={false}
+          baselineKey={currentId}
           onHistoryChange={handleHistoryChange}
           onRenameKey={trackRenameKey}
         />

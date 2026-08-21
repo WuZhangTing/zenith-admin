@@ -34,7 +34,8 @@
   line-height: 1.5;
 }
 
-/* 紧凑顶部工具栏（WorkflowFormInlineEditor：名称 / 设置 / 撤销重做 / 预览 / 保存） */
+/* 紧凑顶部工具栏（WorkflowFormInlineEditor）：恒单行不换行，
+   低频操作收进「更多」菜单；名称输入框可收缩但有保底宽度 */
 .wf-form-editor__toolbar {
   display: flex;
   align-items: center;
@@ -44,6 +45,13 @@
   border-bottom: 1px solid var(--semi-color-border);
   background: var(--surface-card);
   flex-shrink: 0;
+}
+
+/* 表单名称输入框：窄屏随行收缩但不塌陷成方块 */
+.wf-form-editor__name {
+  width: 220px;
+  min-width: 140px;
+  flex: 0 1 220px;
 }
 
 /* 三栏布局 */
