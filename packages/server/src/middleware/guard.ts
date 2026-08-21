@@ -3,7 +3,8 @@ import { createMiddleware } from 'hono/factory';
 import type { JwtPayload } from './auth';
 import { setAuditAfter, setAuditBefore, type AppEnv } from '../lib/context';
 import { isSuperAdmin, getUserPermissions } from '../lib/permissions';
-import { sanitizeBody, truncateVarchar } from '../lib/sanitize';
+import { clampAuditJson, sliceUtf8Text, AUDIT_REQUEST_BODY_BUDGET_BYTES, AUDIT_SNAPSHOT_BUDGET_BYTES } from '../lib/audit-clamp';
+import { redactBody, truncateVarchar } from '../lib/sanitize';
 import { db } from '../db';
 import { operationLogs } from '../db/schema';
 import { errBody } from '../lib/openapi-schemas';
@@ -57,9 +58,10 @@ async function writeOperationLog(
     const { browser: browserName, os: osName } = parseUserAgent(ua);
 
     const responseCode = c.res?.status ?? 200;
+    // 脱敏 → 结构化裁剪：合法 JSON 且 UTF-8 字节 ≤ 4KB（不再用字符串 slice 切坏 JSON）
     const bodyStr =
       options.recordBody !== false && requestBody !== undefined
-        ? sanitizeBody(requestBody).slice(0, 4096)
+        ? clampAuditJson(redactBody(requestBody), AUDIT_REQUEST_BODY_BUDGET_BYTES)
         : undefined;
 
     await db.insert(operationLogs).values({
@@ -158,16 +160,28 @@ export function guard(opts: GuardOptions) {
           let responseBodyStr: string | undefined;
           try {
             const rawText = await cloned.text();
-            // 完整响应体（限长 16KB，避免超大 payload）
-            if (rawText && auditOpts.recordResponseBody !== false) {
-              responseBodyStr = rawText.length > 16384 ? `${rawText.slice(0, 16384)}…` : rawText;
+            let resJson: unknown;
+            let isJson = false;
+            try {
+              resJson = JSON.parse(rawText);
+              isJson = true;
+            } catch {
+              // 响应体非 JSON（纯文本 / 二进制等）
             }
-            const resJson = JSON.parse(rawText) as { code?: number; data?: unknown };
-            if (afterData === undefined && resJson.code === 0 && resJson.data != null) {
-              afterData = JSON.stringify(resJson.data);
+            if (rawText && auditOpts.recordResponseBody !== false) {
+              // JSON 响应结构化裁剪（保证合法）；非 JSON 按 UTF-8 字节安全截断，均 ≤ 16KB
+              responseBodyStr = isJson
+                ? clampAuditJson(resJson, AUDIT_SNAPSHOT_BUDGET_BYTES)
+                : sliceUtf8Text(rawText, AUDIT_SNAPSHOT_BUDGET_BYTES);
+            }
+            if (afterData === undefined && isJson && resJson && typeof resJson === 'object') {
+              const body = resJson as { code?: number; data?: unknown };
+              if (body.code === 0 && body.data != null) {
+                afterData = clampAuditJson(body.data, AUDIT_SNAPSHOT_BUDGET_BYTES);
+              }
             }
           } catch {
-            // 响应体非 JSON 或无 data，忽略
+            // 响应体读取失败，忽略
           }
           await writeOperationLog(c, auditOpts, durationMs, body, beforeData, afterData, responseBodyStr);
         })().catch(() => {});

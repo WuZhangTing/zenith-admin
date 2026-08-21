@@ -60,6 +60,9 @@ export const operationLogs = pgTable('operation_logs', {
   index('operation_logs_created_at_idx').on(t.createdAt),
   index('operation_logs_user_idx').on(t.userId),
   index('operation_logs_module_idx').on(t.module),
+  // pg_trgm：加速「变更内容包含」ILIKE 模糊检索（扩展在 0001_extensions.sql 已启用）
+  index('operation_logs_before_trgm_idx').using('gin', t.beforeData.op('gin_trgm_ops')),
+  index('operation_logs_after_trgm_idx').using('gin', t.afterData.op('gin_trgm_ops')),
 ]);
 
 export type OperationLogRow = typeof operationLogs.$inferSelect;

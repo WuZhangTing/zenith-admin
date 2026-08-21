@@ -20,12 +20,13 @@ interface SearchParams {
   path: string;
   ip: string;
   status: string;
+  content: string;
   timeRange: [Date, Date] | null;
   minDurationMs: number | null;
   maxDurationMs: number | null;
 }
 
-const defaultParams: SearchParams = { username: '', module: '', description: '', method: '', path: '', ip: '', status: '', timeRange: null, minDurationMs: null, maxDurationMs: null };
+const defaultParams: SearchParams = { username: '', module: '', description: '', method: '', path: '', ip: '', status: '', content: '', timeRange: null, minDurationMs: null, maxDurationMs: null };
 
 export default function OperationLogsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
@@ -44,6 +45,7 @@ export default function OperationLogsPage() {
     method: submittedParams.method || undefined,
     path: submittedParams.path || undefined,
     status: submittedParams.status || undefined,
+    content: submittedParams.content || undefined,
     ...formatDateTimeRangeForApi(submittedParams.timeRange),
     minDurationMs: submittedParams.minDurationMs ?? undefined,
     maxDurationMs: submittedParams.maxDurationMs ?? undefined,
@@ -67,6 +69,7 @@ export default function OperationLogsPage() {
       ...(p.method ? { method: p.method } : {}),
       ...(p.path ? { path: p.path } : {}),
       ...(p.status ? { status: p.status } : {}),
+      ...(p.content ? { content: p.content } : {}),
       ...(p.timeRange ? formatDateTimeRangeForApi(p.timeRange) : {}),
       ...(p.minDurationMs === null ? {} : { minDurationMs: String(p.minDurationMs) }),
       ...(p.maxDurationMs === null ? {} : { maxDurationMs: String(p.maxDurationMs) }),
@@ -107,6 +110,10 @@ export default function OperationLogsPage() {
 
   const renderIpSearch = () => (
     <KeywordInput placeholder="请输入 IP 地址" value={draftParams.ip} onChange={(v) => setDraftParams({ ...draftParams, ip: v })} onSearch={handleSearch} width={160} />
+  );
+
+  const renderContentSearch = () => (
+    <KeywordInput placeholder="变更内容包含…" value={draftParams.content} onChange={(v) => setDraftParams({ ...draftParams, content: v })} onSearch={handleSearch} width={180} />
   );
 
   const renderStatusFilter = () => (
@@ -175,6 +182,7 @@ export default function OperationLogsPage() {
                 {renderMethodFilter()}
                 {renderPathSearch()}
                 {renderIpSearch()}
+                {renderContentSearch()}
                 {renderStatusFilter()}
                 {renderTimeRangeFilter()}
                 {renderDurationFilters()}
@@ -201,6 +209,7 @@ export default function OperationLogsPage() {
                 {renderMethodFilter()}
                 {renderPathSearch()}
                 {renderIpSearch()}
+                {renderContentSearch()}
                 {renderStatusFilter()}
                 {renderTimeRangeFilter()}
                 {renderDurationFilters()}

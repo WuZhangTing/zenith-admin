@@ -1,0 +1,2 @@
+CREATE INDEX "operation_logs_before_trgm_idx" ON "operation_logs" USING gin ("before_data" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "operation_logs_after_trgm_idx" ON "operation_logs" USING gin ("after_data" gin_trgm_ops);

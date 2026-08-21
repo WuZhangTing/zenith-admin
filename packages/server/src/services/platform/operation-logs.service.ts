@@ -1,5 +1,5 @@
 import { count, desc, like, and, gte, lt, lte, sql, eq } from 'drizzle-orm';
-import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { operationLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
@@ -16,6 +16,8 @@ export interface ListOperationLogsQuery {
   path?: string;
   ip?: string;
   status?: 'success' | 'fail';
+  /** 变更内容关键字：模糊匹配 before/after 快照（trgm 索引加速） */
+  content?: string;
   startTime?: string;
   endTime?: string;
   minDurationMs?: number;
@@ -31,6 +33,7 @@ export function buildWhere(q: ListOperationLogsQuery) {
   if (q.method) conditions.push(eq(operationLogs.method, q.method));
   if (q.path) conditions.push(like(operationLogs.path, `%${escapeLike(q.path)}%`));
   if (q.ip) conditions.push(like(operationLogs.ip, `%${escapeLike(q.ip)}%`));
+  conditions.push(keywordCondition(q.content, [operationLogs.beforeData, operationLogs.afterData], 'ilike'));
   if (q.status === 'success') conditions.push(and(gte(operationLogs.responseCode, 200), lte(operationLogs.responseCode, 399)));
   if (q.status === 'fail') conditions.push(gte(operationLogs.responseCode, 400));
   conditions.push(...dateRangeConditions(operationLogs.createdAt, q.startTime, q.endTime));

@@ -15,6 +15,7 @@ import type { AuthEnv, JwtPayload } from '../middleware/auth';
 import { db } from '../db';
 import { users, departments } from '../db/schema';
 import { getUserPermissions } from './permissions';
+import { clampAuditJson } from './audit-clamp';
 
 /** 从 DB 加载的完整用户详情（部门 + 岗位 + 角色），仅在需要时懒查询。 */
 export interface CurrentUserDetail {
@@ -89,7 +90,8 @@ export function runWithTraceId<T>(traceId: string, fn: () => T | Promise<T>): Pr
 export function setAuditBefore(data: unknown): void {
   const ctx = tryGetContext<AppEnv>();
   if (!ctx) return;
-  ctx.set('auditBeforeData', JSON.stringify(data));
+  // 结构化裁剪：合法 JSON + UTF-8 字节硬上界，防实体快照（flowData、批量数组）无界膨胀
+  ctx.set('auditBeforeData', clampAuditJson(data));
 }
 
 /**
@@ -99,7 +101,7 @@ export function setAuditBefore(data: unknown): void {
 export function setAuditAfter(data: unknown): void {
   const ctx = tryGetContext<AppEnv>();
   if (!ctx) return;
-  ctx.set('auditAfterData', JSON.stringify(data));
+  ctx.set('auditAfterData', clampAuditJson(data));
 }
 
 // ─── 快捷工具：无需 DB，直接从 JWT Payload 取 ─────────────────────────────────
