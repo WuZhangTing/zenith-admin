@@ -4,7 +4,7 @@
  * 审批状态 / 审批建议 / 耗时 / 流程编号 / 任务编号；行操作：详情（实例详情抽屉）/ 催办。
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Input, Modal, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { WorkflowTaskMonitorItem } from '@zenith/shared/workflow';
@@ -124,10 +124,10 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
         if (!v) return '—';
         if (r.commentSource === 'system') {
           return (
-            <Space spacing={4} style={{ maxWidth: '100%' }}>
-              <Tag size="small" color="grey" type="light">系统</Tag>
-              <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Typography.Text>
-            </Space>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
+              <Tag size="small" color="grey" type="light" style={{ flexShrink: 0 }}>系统</Tag>
+              <Typography.Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Typography.Text>
+            </div>
           );
         }
         return renderEllipsis(v);
