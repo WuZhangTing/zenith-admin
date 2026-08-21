@@ -2,9 +2,9 @@
 import { createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../../middleware/auth';
 import { guard } from '../../../middleware/guard';
-import { ErrorResponse, PaginationQuery, jsonContent, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../../lib/openapi-schemas';
-import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO, WorkflowRelationOptionDTO, WorkflowSelectableUserDTO } from '../../../lib/openapi-dtos';
-import { listMyInstances, listPendingMine, listAllInstances, listMyCc, listMyHandled, getInstanceDetail, countMyCcUnread, countPendingMine, listRelationOptions } from '../../../services/workflow/workflow-instances.service';
+import { ErrorResponse, PaginationQuery, jsonContent, commonErrorResponses, ok, okPaginated, IdParam, okBody, dateRangeBound } from '../../../lib/openapi-schemas';
+import { WorkflowInstanceDTO, WorkflowInstanceListItemDTO, WorkflowInstanceAllDTO, WorkflowAnalyticsDTO, WorkflowOverdueTaskDTO, WorkflowRelationOptionDTO, WorkflowSelectableUserDTO, WorkflowTaskMonitorDTO } from '../../../lib/openapi-dtos';
+import { listMyInstances, listPendingMine, listAllInstances, listMyCc, listMyHandled, getInstanceDetail, countMyCcUnread, countPendingMine, listRelationOptions, listAllTasks } from '../../../services/workflow/workflow-instances.service';
 import { getWorkflowAnalytics, listOverdueTasks } from '../../../services/workflow/workflow-analytics.service';
 import { listWorkflowSelectableUsers } from '../../../services/workflow/workflow-selectable-users.service';
 
@@ -147,4 +147,27 @@ export const overdueRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okPaginated(WorkflowOverdueTaskDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listOverdueTasks(c.req.valid('query'))), 200),
+});
+
+export const tasksMonitorRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/tasks/monitor', tags: ['WorkflowInstances'], summary: '全局任务监控列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
+    request: {
+      query: PaginationQuery.extend({
+        status: z.enum(['pending', 'waiting', 'approved', 'rejected', 'skipped']).optional(),
+        nodeType: z.enum(['approve', 'handler', 'ccNode', 'delay', 'trigger', 'subProcess']).optional(),
+        keyword: z.string().optional(),
+        assigneeKeyword: z.string().optional(),
+        definitionId: z.coerce.number().int().optional(),
+        instanceId: z.coerce.number().int().optional(),
+        startTime: dateRangeBound('任务创建时间起'),
+        endTime: dateRangeBound('任务创建时间止'),
+        stuckMinutes: z.coerce.number().int().positive().optional(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...ok(WorkflowTaskMonitorDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listAllTasks(c.req.valid('query'))), 200),
 });

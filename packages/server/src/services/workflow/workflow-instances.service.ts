@@ -26,6 +26,7 @@ export {
   listRelationOptions,
   listMyHandled,
   listAllInstances,
+  listAllTasks,
   getInstanceDetail,
 } from './instances/queries';
 export {

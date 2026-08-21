@@ -1603,6 +1603,41 @@ export interface WorkflowOverdueTask {
   overdueSec: number;
 }
 
+/** 全局任务监控行（流程监控页「任务监控」Tab，运维视角的任务粒度读模型） */
+export interface WorkflowTaskMonitorItem {
+  id: number;
+  instanceId: number;
+  instanceTitle: string;
+  instanceStatus: string;
+  instanceCreatedAt: string;
+  priority: string | null;
+  serialNo: string | null;
+  definitionId: number | null;
+  definitionName: string | null;
+  nodeKey: string;
+  nodeName: string;
+  nodeType: string | null;
+  status: WorkflowTaskStatus;
+  assigneeId: number | null;
+  assigneeName: string | null;
+  assigneeAvatar: string | null;
+  initiatorName: string | null;
+  createdAt: string;
+  actionAt: string | null;
+  /** 停留/处理耗时（秒）：未终态=至今，终态=创建→处理；无 actionAt 的终态为 null */
+  stayedSec: number | null;
+  comment: string | null;
+}
+
+/** 全局任务监控响应（stats 为口径内任务状态分布） */
+export interface WorkflowTaskMonitorResult {
+  stats: Record<string, number>;
+  list: WorkflowTaskMonitorItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 /** 批量审批结果（逐条返回成功/失败） */
 export interface WorkflowBatchActionResult {
   taskId: number;

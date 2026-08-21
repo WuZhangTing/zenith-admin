@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { WorkflowAnalytics, WorkflowCompensation, WorkflowCompensationDetail, WorkflowDefinition, WorkflowEngineActionKey, WorkflowEngineActionPreview, WorkflowEngineActionResult, WorkflowEngineHealthHistory, WorkflowEngineIntrospection, WorkflowHandoverPreview, WorkflowHandoverResult, WorkflowInstance, WorkflowInstanceTrace, WorkflowJob, WorkflowJobBatchResult, WorkflowJobChain, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType, WorkflowOverdueTask, WorkflowRecoveryBatchResult, WorkflowRuntimeDiagnostics } from '@zenith/shared/workflow';
+import type { WorkflowAnalytics, WorkflowCompensation, WorkflowCompensationDetail, WorkflowDefinition, WorkflowEngineActionKey, WorkflowEngineActionPreview, WorkflowEngineActionResult, WorkflowEngineHealthHistory, WorkflowEngineIntrospection, WorkflowHandoverPreview, WorkflowHandoverResult, WorkflowInstance, WorkflowInstanceTrace, WorkflowJob, WorkflowJobBatchResult, WorkflowJobChain, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType, WorkflowOverdueTask, WorkflowRecoveryBatchResult, WorkflowRuntimeDiagnostics, WorkflowTaskMonitorResult } from '@zenith/shared/workflow';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -39,6 +39,20 @@ export interface WorkflowJobListParams {
   jobType: WorkflowJobType;
   status?: WorkflowJobStatus;
   keyword?: string;
+}
+
+export interface WorkflowTaskMonitorParams {
+  page: number;
+  pageSize: number;
+  status?: string;
+  nodeType?: string;
+  keyword?: string;
+  assigneeKeyword?: string;
+  definitionId?: number;
+  instanceId?: number;
+  startTime?: string;
+  endTime?: string;
+  stuckMinutes?: number;
 }
 
 export type WorkflowJobDetail = WorkflowJob & { executions: WorkflowJobExecution[] };
@@ -100,6 +114,8 @@ export const workflowMonitorKeys = {
   monitor: ['workflow', 'monitor'] as const,
   monitorLists: ['workflow', 'monitor', 'list'] as const,
   monitorList: (params: WorkflowMonitorListParams) => ['workflow', 'monitor', 'list', params] as const,
+  taskMonitorLists: ['workflow', 'monitor', 'tasks'] as const,
+  taskMonitorList: (params: WorkflowTaskMonitorParams) => ['workflow', 'monitor', 'tasks', params] as const,
   monitorDetail: (id: number | undefined) => ['workflow', 'monitor', 'detail', id] as const,
   definitionsOptions: ['workflow', 'definitions', 'options'] as const,
   definitionDetail: (id: number | undefined) => ['workflow', 'definitions', 'detail', id] as const,
@@ -127,6 +143,14 @@ export function useWorkflowMonitorList(params: WorkflowMonitorListParams) {
   return useQuery({
     queryKey: workflowMonitorKeys.monitorList(params),
     queryFn: () => request.get<WorkflowMonitorResponse>(`/api/workflows/instances/all${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useWorkflowTaskMonitorList(params: WorkflowTaskMonitorParams) {
+  return useQuery({
+    queryKey: workflowMonitorKeys.taskMonitorList(params),
+    queryFn: () => request.get<WorkflowTaskMonitorResult>(`/api/workflows/tasks/monitor${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
   });
 }

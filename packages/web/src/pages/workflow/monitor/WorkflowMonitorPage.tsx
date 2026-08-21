@@ -44,6 +44,11 @@ import WorkflowGraphView from '@/components/workflow/WorkflowGraphView';
 import { NODE_RT_STATUS_COLOR, NODE_RT_STATUS_LABEL, INSTANCE_STATUS_MAP, nodeStatusDisplay } from '@/components/workflow/workflow-runtime';
 import { resolveWorkflowFlowData, resolveWorkflowFormFields } from '@/utils/workflow-snapshot';
 import WorkflowAnalyticsView from './WorkflowAnalyticsView';
+import WorkflowTasksMonitorView from './WorkflowTasksMonitorView';
+import {
+  WORKFLOW_NODE_TYPE_LABEL as NODE_TYPE_LABEL,
+  taskAssigneeColumn, taskIdColumn, taskNodeColumn, taskNodeTypeColumn, taskStatusColumn,
+} from '@/components/workflow/workflow-task-columns';
 import WorkflowHandoverModal from './WorkflowHandoverModal';
 import WorkflowEngineDiagnosticsView from './WorkflowEngineDiagnosticsView';
 import WorkflowJobsView from './WorkflowJobsView';
@@ -79,23 +84,6 @@ const ISSUE_SOURCE_MAP: Record<WorkflowRuntimeIssue['source'], string> = {
   trigger: '触发器',
   outbox: '事件派发',
   token: '执行令牌',
-};
-
-/** 节点类型 → 中文标签（含网关 / 抄送 / 触发器等结构节点） */
-const NODE_TYPE_LABEL: Record<string, string> = {
-  start: '发起',
-  approve: '审批',
-  handler: '办理',
-  end: '结束',
-  exclusiveGateway: '条件分支',
-  parallelGateway: '并行分支',
-  inclusiveGateway: '包容分支',
-  routeGateway: '路由分支',
-  ccNode: '抄送',
-  delay: '延时',
-  trigger: '触发器',
-  subProcess: '子流程',
-  catchNode: '捕获',
 };
 
 /** 审批人来源类型 → 中文标签 */
@@ -388,7 +376,7 @@ function buildFocusDiagnosis(diagnostics: WorkflowRuntimeDiagnostics, diagNodes:
 
 /** 状态统计卡片 */
 export default function WorkflowMonitorPage() {
-  const [activeTab, setActiveTab] = useUrlTabState(['list', 'analytics', 'engine', 'jobs', 'compensations'] as const, 'list');
+  const [activeTab, setActiveTab] = useUrlTabState(['list', 'tasks', 'analytics', 'engine', 'jobs', 'compensations'] as const, 'list');
   const queryClient = useQueryClient();
   interface SearchParams { keyword: string; initiator: string; status: string; categoryId: number | ''; definitionId: number | ''; priority: string }
   const defaultSearchParams: SearchParams = { keyword: '', initiator: '', status: '', categoryId: '', definitionId: '', priority: '' };
@@ -648,11 +636,11 @@ export default function WorkflowMonitorPage() {
   const renderDiagnostics = () => {
     if (!diagnostics) return null;
     const taskColumns: ColumnProps<WorkflowTask>[] = [
-      { title: 'ID', dataIndex: 'id', width: 70 },
-      { title: '节点', dataIndex: 'nodeName', width: 160, render: (_: unknown, row) => row.nodeName || row.nodeKey },
-      { title: '类型', dataIndex: 'nodeType', width: 100, render: (v: string | null) => v ?? '—' },
-      { title: '状态', dataIndex: 'status', width: 130 },
-      { title: '处理人', dataIndex: 'assigneeName', width: 120, render: (v: string | null) => v ?? '—' },
+      taskIdColumn<WorkflowTask>(),
+      taskNodeColumn<WorkflowTask>(),
+      taskNodeTypeColumn<WorkflowTask>(),
+      taskStatusColumn<WorkflowTask>('状态', 110),
+      taskAssigneeColumn<WorkflowTask>('处理人', 120),
       { title: '外部分派', dataIndex: 'externalDispatchStatus', width: 120, render: (v: string | null) => v ?? '—' },
       { title: '触发器状态', dataIndex: 'triggerDispatchStatus', width: 130, render: (v: string | null) => v ?? '—' },
       { title: '尝试', dataIndex: 'triggerAttempt', width: 70, render: (v: number | undefined) => v ?? '—' },
@@ -1270,6 +1258,9 @@ export default function WorkflowMonitorPage() {
         scroll={{ x: 1470 }}
         pagination={buildPagination(data?.total ?? 0)}
       />
+        </TabPane>
+        <TabPane tab="任务监控" itemKey="tasks">
+          <WorkflowTasksMonitorView onOpenInstance={(id) => { setDetailVisible(true); loadDetail(id); }} />
         </TabPane>
         <TabPane tab="数据分析" itemKey="analytics">
           <WorkflowAnalyticsView definitions={definitions} />

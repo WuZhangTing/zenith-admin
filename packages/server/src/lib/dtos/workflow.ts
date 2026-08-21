@@ -741,6 +741,43 @@ export const WorkflowOverdueTaskDTO = z
   })
   .openapi('WorkflowOverdueTask');
 
+export const WorkflowTaskMonitorItemDTO = z
+  .object({
+    id: z.number().int(),
+    instanceId: z.number().int(),
+    instanceTitle: z.string(),
+    instanceStatus: z.string(),
+    instanceCreatedAt: z.string(),
+    priority: z.string().nullable(),
+    serialNo: z.string().nullable(),
+    definitionId: z.number().int().nullable(),
+    definitionName: z.string().nullable(),
+    nodeKey: z.string(),
+    nodeName: z.string(),
+    nodeType: z.string().nullable(),
+    status: z.string(),
+    assigneeId: z.number().int().nullable(),
+    assigneeName: z.string().nullable(),
+    assigneeAvatar: z.string().nullable(),
+    initiatorName: z.string().nullable(),
+    createdAt: z.string(),
+    actionAt: z.string().nullable(),
+    /** 停留/处理耗时（秒）：未终态=至今，终态=创建→处理；无 actionAt 的终态为 null */
+    stayedSec: z.number().int().nullable(),
+    comment: z.string().nullable(),
+  })
+  .openapi('WorkflowTaskMonitorItem');
+
+export const WorkflowTaskMonitorDTO = z
+  .object({
+    stats: z.record(z.string(), z.number().int()),
+    list: z.array(WorkflowTaskMonitorItemDTO),
+    total: z.number().int(),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+  })
+  .openapi('WorkflowTaskMonitor');
+
 export const WorkflowMigrationPreflightDTO = z.object({
   instanceId: z.number().int(), fromVersion: z.number().int(), toVersion: z.number().int(), migratable: z.boolean(),
   blocked: z.array(z.string()),

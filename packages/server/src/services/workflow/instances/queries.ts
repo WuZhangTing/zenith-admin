@@ -1,7 +1,8 @@
 // ─── 实例/待办/已办/抄送列表查询与详情（拆分自 workflow-instances.service.ts）───
-import { formatDateTime } from '../../../lib/datetime';
-import { count, countDistinct, eq, and, desc, ilike, or, inArray, sql, type SQL } from 'drizzle-orm';
-import { escapeLike, keywordCondition, withPagination } from '../../../lib/where-helpers';
+import { formatDateTime, formatNullableDateTime } from '../../../lib/datetime';
+import { count, countDistinct, eq, and, desc, ilike, or, inArray, lte, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { escapeLike, keywordCondition, withPagination, dateRangeConditions } from '../../../lib/where-helpers';
 import { db } from '../../../db';
 import { pageOffset } from '../../../lib/pagination';
 import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../../../db/schema';
@@ -508,4 +509,151 @@ export async function getInstanceDetail(id: number) {
     consults,
     includeDefinitionSnapshot: true,
   });
+}
+
+// ─── 任务级全局监控（运维视角，Tab「任务监控」）──────────────────────────────
+
+type TaskMonitorStatus = 'pending' | 'waiting' | 'approved' | 'rejected' | 'skipped';
+type TaskMonitorNodeType = 'approve' | 'handler' | 'ccNode' | 'delay' | 'trigger' | 'subProcess';
+
+export interface ListAllTasksQuery {
+  page?: number;
+  pageSize?: number;
+  status?: TaskMonitorStatus;
+  nodeType?: TaskMonitorNodeType;
+  keyword?: string;
+  assigneeKeyword?: string;
+  definitionId?: number;
+  instanceId?: number;
+  startTime?: string;
+  endTime?: string;
+  /** 仅看停留超过 N 分钟的未终态任务（pending/waiting） */
+  stuckMinutes?: number;
+}
+
+/** 未终态任务优先展示（pending > waiting > 其余），组内按任务创建时间倒序 */
+const taskMonitorOrder = sql`CASE ${workflowTasks.status} WHEN 'pending' THEN 0 WHEN 'waiting' THEN 1 ELSE 2 END`;
+
+/**
+ * 全局任务监控列表：跨实例的任务粒度读模型（节点/处理人/审批状态/意见/停留时长）。
+ * 与实例监控（listAllInstances）同权限口径：租户隔离 + 按发起人部门的数据权限。
+ * stats 为口径内任务状态分布（不受筛选影响，供状态卡切换筛选，与实例监控一致）。
+ */
+export async function listAllTasks(query: ListAllTasksQuery) {
+  const user = currentUser();
+  const { page = 1, pageSize = 20, status, nodeType, keyword, assigneeKeyword, definitionId, instanceId, startTime, endTime, stuckMinutes } = query;
+  const assignee = alias(users, 'wf_task_assignee');
+
+  const baseConds: (SQL | undefined)[] = [tenantCondition(workflowInstances, user)];
+  const scopeCond = await getDataScopeCondition({
+    currentUserId: user.userId,
+    deptColumn: users.departmentId,
+    ownerColumn: workflowInstances.initiatorId,
+  });
+  if (scopeCond) baseConds.push(scopeCond);
+
+  const conds: (SQL | undefined)[] = [...baseConds];
+  if (status) conds.push(eq(workflowTasks.status, status));
+  if (nodeType) conds.push(eq(workflowTasks.nodeType, nodeType));
+  if (keyword) conds.push(titleOrDefinitionNameLike(keyword));
+  conds.push(keywordCondition(assigneeKeyword, [assignee.nickname, assignee.username], 'ilike'));
+  if (definitionId !== undefined) conds.push(eq(workflowInstances.definitionId, definitionId));
+  if (instanceId !== undefined) conds.push(eq(workflowTasks.instanceId, instanceId));
+  conds.push(...dateRangeConditions(workflowTasks.createdAt, startTime, endTime));
+  if (stuckMinutes !== undefined && stuckMinutes > 0) {
+    conds.push(inArray(workflowTasks.status, ['pending', 'waiting']));
+    conds.push(lte(workflowTasks.createdAt, new Date(Date.now() - stuckMinutes * 60_000)));
+  }
+  const where = and(...conds);
+
+  const buildBase = () => db
+    .select({
+      task: workflowTasks,
+      instanceTitle: workflowInstances.title,
+      instanceStatus: workflowInstances.status,
+      instanceCreatedAt: workflowInstances.createdAt,
+      priority: workflowInstances.priority,
+      serialNo: workflowInstances.serialNo,
+      definitionId: workflowInstances.definitionId,
+      definitionName: workflowDefinitions.name,
+      assigneeName: assignee.nickname,
+      assigneeAvatar: assignee.avatar,
+      initiatorName: users.nickname,
+    })
+    .from(workflowTasks)
+    .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+    .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+    .leftJoin(assignee, eq(workflowTasks.assigneeId, assignee.id));
+
+  const countQuery = db
+    .select({ total: count() })
+    .from(workflowTasks)
+    .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
+    .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+    .leftJoin(assignee, eq(workflowTasks.assigneeId, assignee.id))
+    .where(where);
+
+  const statsQuery = db
+    .select({ status: workflowTasks.status, cnt: count() })
+    .from(workflowTasks)
+    .innerJoin(workflowInstances, eq(workflowTasks.instanceId, workflowInstances.id))
+    .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
+    .where(and(...baseConds))
+    .groupBy(workflowTasks.status);
+
+  const [statRows, [{ total }], rows] = await Promise.all([
+    statsQuery,
+    countQuery,
+    withPagination(
+      buildBase().where(where).orderBy(taskMonitorOrder, desc(workflowTasks.id)).$dynamic(),
+      page, pageSize,
+    ),
+  ]);
+
+  const stats: Record<string, number> = { total: 0, pending: 0, waiting: 0, approved: 0, rejected: 0, skipped: 0 };
+  for (const r of statRows) {
+    stats[r.status] = Number(r.cnt);
+    stats.total += Number(r.cnt);
+  }
+
+  const now = Date.now();
+  return {
+    stats,
+    list: rows.map((r) => {
+      const t = r.task;
+      const stayedSec = t.status === 'pending' || t.status === 'waiting'
+        ? Math.max(0, Math.floor((now - t.createdAt.getTime()) / 1000))
+        : t.actionAt
+          ? Math.max(0, Math.floor((t.actionAt.getTime() - t.createdAt.getTime()) / 1000))
+          : null;
+      return {
+        id: t.id,
+        instanceId: t.instanceId,
+        instanceTitle: r.instanceTitle,
+        instanceStatus: r.instanceStatus,
+        instanceCreatedAt: formatDateTime(r.instanceCreatedAt),
+        priority: r.priority ?? null,
+        serialNo: r.serialNo ?? null,
+        definitionId: r.definitionId ?? null,
+        definitionName: r.definitionName ?? null,
+        nodeKey: t.nodeKey,
+        nodeName: t.nodeName,
+        nodeType: t.nodeType ?? null,
+        status: t.status,
+        assigneeId: t.assigneeId ?? null,
+        assigneeName: r.assigneeName ?? null,
+        assigneeAvatar: r.assigneeAvatar ?? null,
+        initiatorName: r.initiatorName ?? null,
+        createdAt: formatDateTime(t.createdAt),
+        actionAt: formatNullableDateTime(t.actionAt),
+        stayedSec,
+        comment: t.comment ?? null,
+      };
+    }),
+    total: Number(total),
+    page,
+    pageSize,
+  };
 }
