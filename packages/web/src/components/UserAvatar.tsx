@@ -18,8 +18,10 @@ interface UserAvatarProps {
   name: string;
   /** 头像图片 URL，有值时显示图片 */
   avatar?: string | null;
-  /** 像素尺寸，默认 36 */
-  size?: number;
+  /** 像素尺寸，默认 36；传 null 时不内联宽高，交由外部 CSS 类控制（如响应式尺寸） */
+  size?: number | null;
+  /** 传递给 Avatar 的额外 className */
+  className?: string;
   /** 传递给 Avatar 的额外 style */
   style?: React.CSSProperties;
   /** Semi Avatar size 预设，不传时用 size 数值控制 */
@@ -31,8 +33,10 @@ interface UserAvatarProps {
  * - 有 avatar URL → 显示图片
  * - 无头像 → 显示首字母 + 哈希背景色
  */
-export function UserAvatar({ name, avatar, size = 36, style, semiSize = 'small' }: Readonly<UserAvatarProps>) {
-  const sizeStyle: React.CSSProperties = { width: size, height: size, flexShrink: 0, ...style };
+export function UserAvatar({ name, avatar, size = 36, className, style, semiSize = 'small' }: Readonly<UserAvatarProps>) {
+  const sizeStyle: React.CSSProperties = size === null
+    ? { flexShrink: 0, ...style }
+    : { width: size, height: size, flexShrink: 0, ...style };
 
   if (avatar) {
     return (
@@ -40,6 +44,7 @@ export function UserAvatar({ name, avatar, size = 36, style, semiSize = 'small' 
         src={avatar}
         alt={name}
         size={semiSize}
+        className={className}
         style={sizeStyle}
       />
     );
@@ -49,6 +54,7 @@ export function UserAvatar({ name, avatar, size = 36, style, semiSize = 'small' 
     <Avatar
       size={semiSize}
       alt={name}
+      className={className}
       style={{ backgroundColor: getAvatarColor(name), color: '#fff', ...sizeStyle }}
     >
       {name.slice(0, 1).toUpperCase() || '?'}

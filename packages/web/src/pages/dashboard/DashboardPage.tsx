@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Typography, Tag, Skeleton, Empty, List, Avatar, Descriptions } from '@douyinfe/semi-ui';
+import { Button, Typography, Tag, Skeleton, Empty, List, Descriptions } from '@douyinfe/semi-ui';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import type { Announcement } from '@zenith/shared/messaging';
 import type { MonitorAlertOverview } from '@zenith/shared/platform';
@@ -20,6 +20,7 @@ import { formatDateTime } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
+import { UserAvatar } from '@/components/UserAvatar';
 import MonthCalendar from '@/components/MonthCalendar';
 import {
   type DashboardCharts,
@@ -212,14 +213,13 @@ export default function DashboardPage() {
         }>
           <div className="dashboard-welcome">
             <div className="dashboard-welcome__left">
-              <Avatar
-                src={user?.avatar || undefined}
-                color="blue"
-                size="large"
+              <UserAvatar
+                name={user?.nickname || '用户'}
+                avatar={user?.avatar}
+                size={null}
+                semiSize="large"
                 className="dashboard-welcome__avatar"
-              >
-                {user?.nickname?.charAt(0).toUpperCase() ?? 'U'}
-              </Avatar>
+              />
               <div className="dashboard-welcome__info">
                 <div className="dashboard-welcome__greeting">
                   {'欢迎回来，'}
