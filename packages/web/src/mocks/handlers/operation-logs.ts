@@ -80,6 +80,7 @@ export const operationLogsHandlers = [
       if (content && !(
         log.beforeData?.toLowerCase().includes(content)
         || log.afterData?.toLowerCase().includes(content)
+        || log.requestBody?.toLowerCase().includes(content)
       )) return false;
       if (minDurationMs !== null && (log.durationMs === null || log.durationMs < minDurationMs)) return false;
       if (maxDurationMs !== null && (log.durationMs === null || log.durationMs > maxDurationMs)) return false;

@@ -68,8 +68,28 @@ export const AsyncTaskStatsDTO = z
     failed: z.number().int(),
     cancelled: z.number().int(),
     avgDurationMs: z.number().int().nullable(),
+    /** 近 24 小时完成任务耗时分位（毫秒） */
+    duration: z.object({
+      p50: z.number().int().nullable(),
+      p95: z.number().int().nullable(),
+      max: z.number().int().nullable(),
+    }),
+    /** 今日提交概览与昨日提交数 */
+    today: z.object({
+      submitted: z.number().int(),
+      success: z.number().int(),
+      failed: z.number().int(),
+      yesterdaySubmitted: z.number().int(),
+    }),
     daily: z.array(z.object({
       date: z.string(),
+      submitted: z.number().int(),
+      success: z.number().int(),
+      failed: z.number().int(),
+    })),
+    /** 近 24 小时每小时提交/失败数（hour: YYYY-MM-DD HH:00） */
+    hourly: z.array(z.object({
+      hour: z.string(),
       submitted: z.number().int(),
       failed: z.number().int(),
     })),
@@ -80,6 +100,20 @@ export const AsyncTaskStatsDTO = z
       oldestPendingMinutes: z.number().int().nullable(),
     }),
     retried: z.number().int(),
+    /** 重试后最终成功的任务数 */
+    retriedRecovered: z.number().int(),
+    /** 行级处理量累计 */
+    items: z.object({
+      processed: z.number().int(),
+      failed: z.number().int(),
+    }),
+    /** 近 30 天提交人 Top 5 */
+    topSubmitters: z.array(z.object({
+      userId: z.number().int().nullable(),
+      username: z.string(),
+      count: z.number().int(),
+      failed: z.number().int(),
+    })),
     byType: z.array(z.object({
       taskType: z.string(),
       title: z.string(),

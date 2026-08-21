@@ -14,7 +14,7 @@ export interface OperationLogListParams {
   path?: string;
   ip?: string;
   status?: string;
-  /** 变更内容关键字：匹配操作前后快照 */
+  /** 内容关键字：匹配请求体与操作前后快照 */
   content?: string;
   startTime?: string;
   endTime?: string;

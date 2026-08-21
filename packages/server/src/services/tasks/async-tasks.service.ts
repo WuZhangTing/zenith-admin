@@ -241,33 +241,75 @@ export async function listAsyncTaskItems(taskId: number, query: ListTaskItemsQue
   };
 }
 
-/** 任务中心统计概览（状态计数 + 近 24h 平均耗时 + 近 7 天趋势） */
+/** 任务中心统计概览（状态计数 + 耗时分位 + 今日概览 + 近 14 天/24h 趋势 + 提交人 Top） */
 export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
   const dayMs = 24 * 60 * 60 * 1000;
   const since24h = new Date(Date.now() - dayMs);
-  const since7d = new Date(Date.now() - 7 * dayMs);
-  const [statusRows, [duration], dailyRows, [backlogRow], [retriedRow], typeRows] = await Promise.all([
+  const since14d = new Date(Date.now() - 14 * dayMs);
+  const since30d = new Date(Date.now() - 30 * dayMs);
+  const durationMsExpr = sql`extract(epoch from (${asyncTasks.completedAt} - ${asyncTasks.startedAt})) * 1000`;
+  const todayStart = sql`date_trunc('day', now())`;
+  const [
+    statusRows, [duration], dailyRows, hourlyRows, [todayRow],
+    [backlogRow], [retriedRow], [itemsRow], submitterRows, typeRows,
+  ] = await Promise.all([
     db.select({ status: asyncTasks.status, count: sql<number>`count(*)::int` })
       .from(asyncTasks).groupBy(asyncTasks.status),
     db.select({
-      avgMs: sql<number | null>`avg(extract(epoch from (${asyncTasks.completedAt} - ${asyncTasks.startedAt})) * 1000)`,
+      avgMs: sql<number | null>`avg(${durationMsExpr})`,
+      p50: sql<number | null>`percentile_cont(0.5) within group (order by ${durationMsExpr})`,
+      p95: sql<number | null>`percentile_cont(0.95) within group (order by ${durationMsExpr})`,
+      maxMs: sql<number | null>`max(${durationMsExpr})`,
     }).from(asyncTasks)
       .where(and(eq(asyncTasks.status, 'success'), gte(asyncTasks.completedAt, since24h))),
     db.select({
       date: sql<string>`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`,
       submitted: sql<number>`count(*)::int`,
+      success: sql<number>`count(*) filter (where ${asyncTasks.status} = 'success')::int`,
       failed: sql<number>`count(*) filter (where ${asyncTasks.status} = 'failed')::int`,
     }).from(asyncTasks)
-      .where(gte(asyncTasks.createdAt, since7d))
+      .where(gte(asyncTasks.createdAt, since14d))
       .groupBy(sql`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`)
       .orderBy(sql`to_char(${asyncTasks.createdAt}, 'YYYY-MM-DD')`),
+    db.select({
+      hour: sql<string>`to_char(date_trunc('hour', ${asyncTasks.createdAt}), 'YYYY-MM-DD HH24:00')`,
+      submitted: sql<number>`count(*)::int`,
+      failed: sql<number>`count(*) filter (where ${asyncTasks.status} = 'failed')::int`,
+    }).from(asyncTasks)
+      .where(gte(asyncTasks.createdAt, since24h))
+      .groupBy(sql`date_trunc('hour', ${asyncTasks.createdAt})`)
+      .orderBy(sql`date_trunc('hour', ${asyncTasks.createdAt})`),
+    db.select({
+      submitted: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStart})::int`,
+      success: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStart} and ${asyncTasks.status} = 'success')::int`,
+      failed: sql<number>`count(*) filter (where ${asyncTasks.createdAt} >= ${todayStart} and ${asyncTasks.status} = 'failed')::int`,
+      yesterdaySubmitted: sql<number>`count(*) filter (where ${asyncTasks.createdAt} < ${todayStart})::int`,
+    }).from(asyncTasks)
+      .where(gte(asyncTasks.createdAt, sql`date_trunc('day', now()) - interval '1 day'`)),
     db.select({
       oldestMinutes: sql<number | null>`
         extract(epoch from (now() - min(${asyncTasks.createdAt}))) / 60
       `,
     }).from(asyncTasks).where(eq(asyncTasks.status, 'pending')),
-    db.select({ count: sql<number>`count(*)::int` })
-      .from(asyncTasks).where(sql`${asyncTasks.attempts} > 1`),
+    db.select({
+      retried: sql<number>`count(*)::int`,
+      recovered: sql<number>`count(*) filter (where ${asyncTasks.status} = 'success')::int`,
+    }).from(asyncTasks).where(sql`${asyncTasks.attempts} > 1`),
+    db.select({
+      processed: sql<number>`coalesce(sum(${asyncTasks.processedCount}), 0)::int`,
+      failed: sql<number>`coalesce(sum(${asyncTasks.failedCount}), 0)::int`,
+    }).from(asyncTasks),
+    db.select({
+      userId: asyncTasks.createdBy,
+      username: sql<string | null>`max(coalesce(nullif(${users.nickname}, ''), ${users.username}))`,
+      count: sql<number>`count(*)::int`,
+      failed: sql<number>`count(*) filter (where ${asyncTasks.status} = 'failed')::int`,
+    }).from(asyncTasks)
+      .leftJoin(users, eq(users.id, asyncTasks.createdBy))
+      .where(gte(asyncTasks.createdAt, since30d))
+      .groupBy(asyncTasks.createdBy)
+      .orderBy(sql`count(*) desc`)
+      .limit(5),
     db.select({
       taskType: asyncTasks.taskType,
       total: sql<number>`count(*)::int`,
@@ -287,6 +329,8 @@ export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
   const success = counts.success ?? 0;
   const failed = counts.failed ?? 0;
   const settled = success + failed;
+  const roundMs = (value: number | null | undefined): number | null =>
+    value != null ? Math.round(Number(value)) : null;
 
   // 类型元数据来自内存注册表；已下线的类型仍可能留有历史记录，回落展示 taskType
   const metaByType = new Map(listTaskHandlers().map((handler) => [handler.taskType, handler]));
@@ -298,8 +342,22 @@ export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
     success,
     failed,
     cancelled: counts.cancelled ?? 0,
-    avgDurationMs: duration?.avgMs != null ? Math.round(Number(duration.avgMs)) : null,
-    daily: dailyRows.map((row) => ({ date: row.date, submitted: row.submitted, failed: row.failed })),
+    avgDurationMs: roundMs(duration?.avgMs),
+    duration: {
+      p50: roundMs(duration?.p50),
+      p95: roundMs(duration?.p95),
+      max: roundMs(duration?.maxMs),
+    },
+    today: {
+      submitted: todayRow?.submitted ?? 0,
+      success: todayRow?.success ?? 0,
+      failed: todayRow?.failed ?? 0,
+      yesterdaySubmitted: todayRow?.yesterdaySubmitted ?? 0,
+    },
+    daily: dailyRows.map((row) => ({
+      date: row.date, submitted: row.submitted, success: row.success, failed: row.failed,
+    })),
+    hourly: hourlyRows.map((row) => ({ hour: row.hour, submitted: row.submitted, failed: row.failed })),
     successRate: settled > 0 ? Math.round((success / settled) * 1000) / 10 : null,
     backlog: {
       pending: counts.pending ?? 0,
@@ -307,7 +365,18 @@ export async function getAsyncTaskStats(): Promise<AsyncTaskStats> {
         ? Math.round(Number(backlogRow.oldestMinutes))
         : null,
     },
-    retried: retriedRow?.count ?? 0,
+    retried: retriedRow?.retried ?? 0,
+    retriedRecovered: retriedRow?.recovered ?? 0,
+    items: {
+      processed: itemsRow?.processed ?? 0,
+      failed: itemsRow?.failed ?? 0,
+    },
+    topSubmitters: submitterRows.map((row) => ({
+      userId: row.userId,
+      username: row.userId == null ? '系统' : (row.username ?? `用户 #${row.userId}`),
+      count: row.count,
+      failed: row.failed,
+    })),
     byType: typeRows.map((row) => {
       const settledOfType = row.success + row.failed;
       const meta = metaByType.get(row.taskType);

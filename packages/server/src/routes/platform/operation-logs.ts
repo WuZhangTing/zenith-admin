@@ -21,7 +21,7 @@ const listRoute = defineOpenAPIRoute({
         path: z.string().optional(),
         ip: z.string().optional(),
         status: z.enum(['success', 'fail']).optional(),
-        content: z.string().optional().openapi({ description: '变更内容关键字（匹配操作前后快照）' }),
+        content: z.string().optional().openapi({ description: '内容关键字（匹配请求体与操作前后快照）' }),
         startTime: dateRangeBound('起始时间'),
         endTime: dateRangeBound('结束时间'),
         minDurationMs: z.coerce.number().int().nonnegative().optional(),

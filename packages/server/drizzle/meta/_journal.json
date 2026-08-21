@@ -22,6 +22,13 @@
       "when": 1787276094037,
       "tag": "0002_special_tenebrous",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787277470709,
+      "tag": "0003_perpetual_richard_fisk",
+      "breakpoints": true
     }
   ]
 }

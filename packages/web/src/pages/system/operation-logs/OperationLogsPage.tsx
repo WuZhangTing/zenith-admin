@@ -113,7 +113,7 @@ export default function OperationLogsPage() {
   );
 
   const renderContentSearch = () => (
-    <KeywordInput placeholder="变更内容包含…" value={draftParams.content} onChange={(v) => setDraftParams({ ...draftParams, content: v })} onSearch={handleSearch} width={180} />
+    <KeywordInput placeholder="请求/变更内容包含…" value={draftParams.content} onChange={(v) => setDraftParams({ ...draftParams, content: v })} onSearch={handleSearch} width={180} />
   );
 
   const renderStatusFilter = () => (

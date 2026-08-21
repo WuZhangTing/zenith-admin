@@ -161,8 +161,14 @@ export interface AsyncTaskStats {
   cancelled: number;
   /** 近 24 小时完成任务平均耗时（毫秒）；无数据为 null */
   avgDurationMs: number | null;
-  /** 近 7 天每日提交/失败数（date: YYYY-MM-DD） */
-  daily: Array<{ date: string; submitted: number; failed: number }>;
+  /** 近 24 小时完成任务耗时分位（毫秒）；无数据为 null */
+  duration: { p50: number | null; p95: number | null; max: number | null };
+  /** 今日提交概览与昨日提交数（环比用） */
+  today: { submitted: number; success: number; failed: number; yesterdaySubmitted: number };
+  /** 近 14 天每日提交/成功/失败数（date: YYYY-MM-DD） */
+  daily: Array<{ date: string; submitted: number; success: number; failed: number }>;
+  /** 近 24 小时每小时提交/失败数（hour: YYYY-MM-DD HH:00，服务器时区） */
+  hourly: Array<{ hour: string; submitted: number; failed: number }>;
   /** 已结束任务（成功 + 失败）中的成功占比；无已结束任务为 null */
   successRate: number | null;
   /** 等待执行的积压情况 */
@@ -173,6 +179,12 @@ export interface AsyncTaskStats {
   };
   /** 发生过重试的任务数（attempts > 1） */
   retried: number;
+  /** 重试后最终成功的任务数（自动重试挽回） */
+  retriedRecovered: number;
+  /** 行级处理量（全部任务 processedCount / failedCount 累计） */
+  items: { processed: number; failed: number };
+  /** 近 30 天提交人 Top 5（createdBy 为空的系统任务合并为「系统」） */
+  topSubmitters: Array<{ userId: number | null; username: string; count: number; failed: number }>;
   /** 按任务类型聚合（按总数降序，仅含有记录的类型） */
   byType: AsyncTaskTypeStat[];
 }
