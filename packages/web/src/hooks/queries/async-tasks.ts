@@ -11,6 +11,8 @@ export interface AsyncTaskListParams {
   taskType?: string;
   status?: string;
   keyword?: string;
+  /** 任务内容关键字：匹配入参 payload 与产出 result */
+  content?: string;
   createdBy?: string;
 }
 

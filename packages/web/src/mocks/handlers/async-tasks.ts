@@ -589,11 +589,16 @@ function paginate(url: URL, source: AsyncTask[]) {
   const taskType = url.searchParams.get('taskType') ?? '';
   const status = (url.searchParams.get('status') ?? '') as AsyncTaskStatus | '';
   const keyword = url.searchParams.get('keyword') ?? '';
+  const content = (url.searchParams.get('content') ?? '').toLowerCase();
   const createdBy = url.searchParams.get('createdBy') ?? '';
   const filtered = source.filter((task) => {
     if (taskType && task.taskType !== taskType) return false;
     if (status && task.status !== status) return false;
     if (keyword && !task.title.includes(keyword) && !task.taskType.includes(keyword)) return false;
+    if (content && !(
+      JSON.stringify(task.payload ?? {}).toLowerCase().includes(content)
+      || JSON.stringify(task.result ?? {}).toLowerCase().includes(content)
+    )) return false;
     if (createdBy && !(task.createdByName ?? '').includes(createdBy)) return false;
     return true;
   }).sort((a, b) => b.id - a.id);

@@ -107,6 +107,9 @@ export const asyncTasks = pgTable('async_tasks', {
   index('async_tasks_status_idx').on(t.status),
   index('async_tasks_created_by_idx').on(t.createdBy),
   index('async_tasks_created_at_idx').on(t.createdAt),
+  // 注：payload / result 的内容检索走 gin_trgm_ops 表达式索引
+  // （(payload::text)），表达式 + 操作符类超出 Drizzle 索引 DSL 表达范围，
+  // 手写在 drizzle/0004_async_tasks_content_trgm.sql。
   // 幂等键限定在「租户 + 提交人 + 任务类型」内唯一。
   // tenant_id 可空（单租户模式恒为 null，多租户下平台级任务也为 null），而 PG 唯一约束
   // 视 NULL 互不相等，直接建复合约束会让平台级任务的幂等彻底失效；故拆成互补的两个

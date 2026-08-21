@@ -29,6 +29,8 @@ export interface ListAsyncTasksQuery {
   taskType?: string;
   status?: AsyncTaskStatus;
   keyword?: string;
+  /** 任务内容关键字：模糊匹配 payload / result（jsonb 转文本，trgm 表达式索引加速） */
+  content?: string;
   /** 提交人（模糊匹配用户名/昵称，仅管理端列表使用） */
   createdBy?: string;
   startTime?: string;
@@ -40,6 +42,14 @@ function buildConditions(query: ListAsyncTasksQuery): (SQL | undefined)[] {
   if (query.taskType) conditions.push(eq(asyncTasks.taskType, query.taskType));
   if (query.status) conditions.push(eq(asyncTasks.status, query.status));
   conditions.push(keywordCondition(query.keyword, [asyncTasks.title, asyncTasks.taskType], 'ilike'));
+  const content = query.content?.trim();
+  if (content) {
+    const pattern = `%${escapeLike(content)}%`;
+    conditions.push(or(
+      sql`${asyncTasks.payload}::text ILIKE ${pattern}`,
+      sql`${asyncTasks.result}::text ILIKE ${pattern}`,
+    ));
+  }
   conditions.push(...dateRangeConditions(asyncTasks.createdAt, query.startTime, query.endTime));
   return conditions;
 }

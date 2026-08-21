@@ -50,10 +50,11 @@ interface SearchParams {
   taskType: string;
   status: string;
   keyword: string;
+  content: string;
   createdBy: string;
 }
 
-const defaultSearchParams: SearchParams = { taskType: '', status: '', keyword: '', createdBy: '' };
+const defaultSearchParams: SearchParams = { taskType: '', status: '', keyword: '', content: '', createdBy: '' };
 
 const statusOptions: Array<{ value: AsyncTaskStatus | ''; label: string }> = [
   { value: '', label: '全部状态' },
@@ -121,6 +122,7 @@ export default function TaskCenterPage() {
     taskType: submittedParams.taskType || undefined,
     status: submittedParams.status || undefined,
     keyword: submittedParams.keyword || undefined,
+    content: submittedParams.content || undefined,
     createdBy: submittedParams.createdBy || undefined,
   }, { refetchInterval });
   const statsQuery = useAsyncTaskStats({ refetchInterval });
@@ -540,6 +542,7 @@ export default function TaskCenterPage() {
               style={{ width: 120 }}
             />
             <KeywordInput placeholder="搜索任务标题/类型" value={draftParams.keyword} onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))} onSearch={handleSearch} width={190} />
+            <KeywordInput placeholder="任务内容包含…" value={draftParams.content} onChange={(value) => setDraftParams((prev) => ({ ...prev, content: value }))} onSearch={handleSearch} width={170} />
             <Input
               placeholder="提交人（用户名/昵称）"
               value={draftParams.createdBy}

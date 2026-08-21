@@ -32,6 +32,7 @@ const ListQuery = PaginationQuery.extend({
   taskType: z.string().optional(),
   status: AsyncTaskStatusQuery.optional(),
   keyword: z.string().optional(),
+  content: z.string().optional().openapi({ description: '任务内容关键字（匹配入参与产出）' }),
   createdBy: z.string().optional(),
   startTime: dateRangeBound('起始时间'),
   endTime: dateRangeBound('结束时间'),
