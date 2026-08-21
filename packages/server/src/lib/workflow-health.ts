@@ -92,7 +92,9 @@ function isApproverResolvable(cfg: WorkflowNodeConfig): boolean {
   switch (cfg.assigneeType) {
     case 'user': return Boolean(cfg.userIds?.length);
     case 'role': return Boolean(cfg.roleIds?.length);
-    case 'department': return Boolean(cfg.deptIds?.length);
+    // department：指定了部门取部门成员；未指定部门时运行时兜底解析为「发起人所在部门的负责人」（动态来源），
+    // 与 workflow-assignee-resolver 保持一致，不再作为不可解析阻断发布
+    case 'department': return true;
     case 'userGroup': return Boolean(cfg.userGroupIds?.length);
     case 'post': return Boolean(cfg.postIds?.length);
     case 'deptMember': return Boolean(cfg.deptMemberDeptIds?.length);

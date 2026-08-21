@@ -22,11 +22,11 @@ import RegionSelect from '@/components/RegionSelect';
 // 富文本编辑器懒加载：wangeditor（~780KB raw）只在可编辑富文本字段真正渲染时加载，
 // 移动审批、工作流发起/审批等承载本渲染器的入口不再静态背上编辑器
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
-import UserSelect from '@/components/UserSelect';
 import DepartmentSelect from '@/components/DepartmentSelect';
 import DictSelect from '@/components/DictSelect';
 import ColorPickerInput from '@/components/ColorPickerInput';
 import { useWorkflowDesignerRelationOptions, useWorkflowDesignerRemoteDataSourceOptions, fetchWorkflowDataSourceRecord } from '@/hooks/queries/workflow-designer';
+import { useWorkflowSelectableUsers } from '@/hooks/queries/workflow-shared';
 import { useSignaturePad } from '@/hooks/useSignaturePad';
 
 const PHONE_REGEX = /^1[3-9]\d{9}$/;
@@ -245,7 +245,56 @@ function RichTextEditorField(props: Readonly<ComponentProps<typeof RichTextEdito
 }
 const FormRichText = withField(RichTextEditorField);
 const FormSignature = withField(SignaturePad);
-const FormUserSelect = withField(UserSelect);
+
+/**
+ * 工作流表单「人员选择」控件的选人数据源。
+ * 不用系统管理接口 /api/users/all（要求 system:user:list，普通发起人 403 拿不到任何选项），
+ * 统一走面向普通发起人/审批人开放的 /api/workflows/selectable-users（与转办/委派/抄送等选人一致）。
+ */
+interface WorkflowUserSelectProps {
+  value?: number | number[];
+  onChange?: (value: number | number[] | undefined) => void;
+  multiple?: boolean;
+  placeholder?: string;
+  disabled?: boolean;
+  showClear?: boolean;
+  style?: CSSProperties;
+}
+
+function WorkflowUserSelect({
+  value,
+  onChange,
+  multiple = false,
+  placeholder = '请选择人员',
+  disabled = false,
+  showClear = true,
+  style,
+}: Readonly<WorkflowUserSelectProps>) {
+  const { data: users, isPending: loading } = useWorkflowSelectableUsers();
+  const optionList = useMemo(
+    () => (users ?? []).map((u) => ({
+      value: u.id,
+      label: u.departmentName ? `${u.nickname}（${u.departmentName}）` : u.nickname,
+    })),
+    [users],
+  );
+  return (
+    <Select
+      value={value as never}
+      onChange={(v) => onChange?.(v as number | number[] | undefined)}
+      multiple={multiple}
+      filter
+      placeholder={loading ? '加载中...' : placeholder}
+      disabled={disabled || loading}
+      showClear={showClear}
+      maxTagCount={3}
+      style={{ width: '100%', ...style }}
+      optionList={optionList}
+    />
+  );
+}
+
+const FormUserSelect = withField(WorkflowUserSelect);
 const FormDeptSelect = withField(DepartmentSelect);
 const FormDictSelect = withField(DictSelect);
 const FormRelationSelect = withField(RelationSelect);
