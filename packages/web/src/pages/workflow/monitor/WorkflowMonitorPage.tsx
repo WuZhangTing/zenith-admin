@@ -1023,7 +1023,7 @@ export default function WorkflowMonitorPage() {
     {
       title: '申请人',
       dataIndex: 'initiatorName',
-      width: 120,
+      width: 160,
       render: (v: string | null, record: WorkflowInstance) => (
         <Space spacing={6}>
           <UserAvatar name={v ?? '?'} avatar={record.initiatorAvatar} semiSize="extra-extra-small" size={20} />
