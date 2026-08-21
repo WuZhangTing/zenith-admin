@@ -4,7 +4,7 @@
  * 审批状态 / 审批建议 / 耗时 / 流程编号 / 任务编号；行操作：详情（实例详情抽屉）/ 催办。
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Input, Select, Toast, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Input, Modal, Select, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { WorkflowTaskMonitorItem } from '@zenith/shared/workflow';
@@ -90,14 +90,21 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
   const columns: ColumnProps<WorkflowTaskMonitorItem>[] = [
     taskIdColumn<WorkflowTaskMonitorItem>('任务编号', 90),
     {
-      title: '流程',
+      title: '申请标题',
       dataIndex: 'instanceTitle',
-      width: 260,
+      width: 220,
       render: (v: string, r) => (
-        <div>
-          <Typography.Text link onClick={() => onOpenInstance(r.instanceId)} style={{ display: 'block' }}>{v}</Typography.Text>
-          <Typography.Text type="tertiary" size="small">{r.definitionName ?? '—'} · {r.serialNo ?? `#${r.instanceId}`}</Typography.Text>
-        </div>
+        <Typography.Text link onClick={() => onOpenInstance(r.instanceId)}>{v}</Typography.Text>
+      ),
+    },
+    {
+      title: '流程',
+      dataIndex: 'definitionName',
+      width: 200,
+      render: (v: string | null, r) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
+          {r.serialNo ?? `#${r.instanceId}`} · {v ?? '—'}
+        </Typography.Text>
       ),
     },
     { title: '发起人', dataIndex: 'initiatorName', width: 110, render: (v: string | null) => v ?? '—' },
@@ -128,7 +135,13 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
           key: 'urge',
           label: '催办',
           hidden: record.status !== 'pending' || !hasPermission('workflow:instance:monitor'),
-          onClick: () => urgeMutation.mutate(record.id),
+          onClick: () => {
+            Modal.confirm({
+              title: '确定催办该任务？',
+              content: `将向处理人「${record.assigneeName ?? '未指派'}」发送催办提醒。`,
+              onOk: () => urgeMutation.mutateAsync(record.id).then(() => undefined),
+            });
+          },
         },
       ],
     }),
@@ -199,7 +212,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
         pagination={buildPagination(data?.total ?? 0)}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        scroll={{ x: 1950 }}
+        scroll={{ x: 2110 }}
       />
     </>
   );
