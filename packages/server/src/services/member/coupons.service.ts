@@ -19,6 +19,7 @@ import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import type { CouponType, CouponValidType, CouponTemplateStatus } from '@zenith/shared/member';
+import { COUPON_TEMPLATE_STATUS_LABELS } from '@zenith/shared/member';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 import { memberReferenceCondition } from './member-query-helpers';
 
@@ -125,6 +126,15 @@ export async function getMemberCouponBeforeAudit(id: number) {
 }
 
 export async function createCoupon(input: CreateCouponInput) {
+  // 草稿允许保存不完整配置；上架（active）时必须配置完整的有效期
+  if ((input.status ?? 'draft') === 'active') {
+    assertCouponValidityConfig({
+      validType: input.validType,
+      validStart: parseDateTimeInput(input.validStart ?? undefined) ?? null,
+      validEnd: parseDateTimeInput(input.validEnd ?? undefined) ?? null,
+      validDays: input.validDays ?? null,
+    });
+  }
   try {
     const [row] = await db
       .insert(coupons)
@@ -153,7 +163,7 @@ export async function createCoupon(input: CreateCouponInput) {
 }
 
 export async function updateCoupon(id: number, input: UpdateCouponInput) {
-  await ensureCouponExists(id);
+  const existing = await ensureCouponExists(id);
   const patch: Record<string, unknown> = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.type !== undefined) patch.type = input.type;
@@ -169,6 +179,16 @@ export async function updateCoupon(id: number, input: UpdateCouponInput) {
   if (input.exchangePoints !== undefined) patch.exchangePoints = input.exchangePoints;
   if (input.status !== undefined) patch.status = input.status;
   if (input.description !== undefined) patch.description = input.description;
+  // 上架（或维持上架）时必须配置完整的有效期：按合并后的最终值校验
+  const finalStatus = (patch.status ?? existing.status) as CouponTemplateStatus;
+  if (finalStatus === 'active') {
+    assertCouponValidityConfig({
+      validType: (patch.validType ?? existing.validType) as CouponRow['validType'],
+      validStart: (patch.validStart !== undefined ? patch.validStart : existing.validStart) as Date | null,
+      validEnd: (patch.validEnd !== undefined ? patch.validEnd : existing.validEnd) as Date | null,
+      validDays: (patch.validDays !== undefined ? patch.validDays : existing.validDays) as number | null,
+    });
+  }
   const [row] = await db.update(coupons).set(patch).where(eq(coupons.id, id)).returning();
   return mapCoupon(row);
 }
@@ -182,6 +202,31 @@ export async function deleteCoupon(id: number) {
 // ─── 发券核心 ─────────────────────────────────────────────────────────────────
 function genCouponCode(): string {
   return 'CP' + crypto.randomBytes(8).toString('hex').toUpperCase();
+}
+
+/**
+ * 有效期配置完整性校验：上架（active）与发放前强制。
+ * fixed 必须有起止时间且 start < end；relative 必须有正数有效天数——
+ * 否则发出的券 expireAt 为 null，等同永久有效。
+ */
+function assertCouponValidityConfig(c: Pick<CouponRow, 'validType' | 'validStart' | 'validEnd' | 'validDays'>) {
+  if (c.validType === 'fixed') {
+    if (!c.validStart || !c.validEnd) throw new HTTPException(400, { message: '固定有效期券必须配置生效与失效时间' });
+    if (c.validStart >= c.validEnd) throw new HTTPException(400, { message: '失效时间必须晚于生效时间' });
+  } else if (c.validType === 'relative' && (!c.validDays || c.validDays <= 0)) {
+    throw new HTTPException(400, { message: '相对有效期券必须配置有效天数' });
+  }
+}
+
+/** 发放资格校验：所有发放路径（后台发券 / 自助领取 / 积分兑换 / 里程碑奖励）统一收口 */
+function assertCouponIssuable(coupon: CouponRow) {
+  if (coupon.status !== 'active') {
+    throw new HTTPException(400, { message: `仅「生效中」的优惠券可发放，当前状态：${COUPON_TEMPLATE_STATUS_LABELS[coupon.status as CouponTemplateStatus] ?? coupon.status}` });
+  }
+  assertCouponValidityConfig(coupon);
+  if (coupon.validType === 'fixed' && coupon.validEnd && coupon.validEnd < new Date()) {
+    throw new HTTPException(400, { message: '优惠券已过期' });
+  }
 }
 
 function computeExpireAt(coupon: CouponRow): Date | null {
@@ -199,6 +244,7 @@ async function grantCoupon(
   memberId: number,
   opts?: { bizType?: string; bizId?: string },
 ): Promise<MemberCouponRow> {
+  assertCouponIssuable(coupon);
   // 每人限领校验：先锁模板行串行化同一模板的并发发放，防止「先数后写」竞态突破限领
   if (coupon.perLimit > 0) {
     await tx.select({ id: coupons.id }).from(coupons).where(eq(coupons.id, coupon.id)).for('update');

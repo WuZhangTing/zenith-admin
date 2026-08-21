@@ -58,6 +58,7 @@ export default function CouponsPage() {
 
   const [formType, setFormType] = useState<CouponType>('amount');
   const [formValidType, setFormValidType] = useState<'fixed' | 'relative'>('fixed');
+  const [formStatus, setFormStatus] = useState<CouponTemplateStatus>('draft');
 
   const [issueVisible, setIssueVisible] = useState(false);
   const [issuing, setIssuing] = useState<Coupon | null>(null);
@@ -116,11 +117,13 @@ export default function CouponsPage() {
   const openCreate = () => {
     setFormType('amount');
     setFormValidType('fixed');
+    setFormStatus('draft');
     couponModal.openCreate();
   };
   const openEdit = (r: Coupon) => {
     setFormType(r.type);
     setFormValidType(r.validType);
+    setFormStatus(r.status);
     couponModal.openEdit(r);
   };
 
@@ -137,6 +140,13 @@ export default function CouponsPage() {
   };
 
   const openIssue = (r: Coupon) => { setIssuing(r); setIssueVisible(true); };
+
+  // 行内上架/停用：上架时后端校验有效期配置完整性，不完整会拒绝并提示
+  const handleToggleStatus = async (r: Coupon) => {
+    const next = r.status === 'active' ? 'paused' : 'active';
+    await saveMutation.mutateAsync({ id: r.id, values: { status: next } });
+    Toast.success(next === 'active' ? '已上架' : '已停用');
+  };
   const handleIssue = async () => {
     let values: { memberId: number };
     try { values = (await issueFormApi.current!.validate()) as { memberId: number }; } catch { abortSubmit('validation'); }
@@ -167,10 +177,16 @@ export default function CouponsPage() {
     createdAtColumn,
     ...(hasOps ? [
       createOperationColumn<Coupon>({
-        width: 190,
-        desktopInlineKeys: ['issue', 'edit', 'delete'],
+        width: 230,
+        desktopInlineKeys: ['issue', 'toggle', 'edit', 'delete'],
         actions: (record) => [
-          { key: 'issue', label: '发券', hidden: !canIssue, onClick: () => openIssue(record) },
+          { key: 'issue', label: '发券', hidden: !canIssue || record.status !== 'active', onClick: () => openIssue(record) },
+          {
+            key: 'toggle',
+            label: record.status === 'active' ? '停用' : '上架',
+            hidden: !canEdit || record.status === 'expired',
+            onClick: () => void handleToggleStatus(record),
+          },
           { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(record) },
           { key: 'delete', label: '删除', danger: true, hidden: !canDelete, onClick: () => confirmDelete(record) },
         ],
@@ -247,7 +263,7 @@ export default function CouponsPage() {
 
       <AppModal {...couponModal.modalProps} width={700}>
         <Form {...couponModal.formProps}
-          onValueChange={(values) => { if (values.type) setFormType(values.type as CouponType); if (values.validType) setFormValidType(values.validType as 'fixed' | 'relative'); }}>
+          onValueChange={(values) => { if (values.type) setFormType(values.type as CouponType); if (values.validType) setFormValidType(values.validType as 'fixed' | 'relative'); if (values.status) setFormStatus(values.status as CouponTemplateStatus); }}>
           <Row gutter={16}>
             <Col span={24}>
               <Form.Input field="name" label="券名称" rules={[{ required: true, message: '请输入券名称' }]} maxLength={64} />
@@ -309,10 +325,13 @@ export default function CouponsPage() {
           {formValidType === 'fixed' && (
             <Row gutter={16}>
               <Col span={12}>
-                <Form.DatePicker field="validStart" label="生效时间" type="dateTime" style={{ width: '100%' }} />
+                <Form.DatePicker field="validStart" label="生效时间" type="dateTime" style={{ width: '100%' }}
+                  rules={formStatus === 'active' ? [{ required: true, message: '生效中的券必须配置生效时间' }] : []}
+                  extraText={formStatus === 'active' ? undefined : '草稿可暂不配置，上架时必填'} />
               </Col>
               <Col span={12}>
-                <Form.DatePicker field="validEnd" label="失效时间" type="dateTime" style={{ width: '100%' }} />
+                <Form.DatePicker field="validEnd" label="失效时间" type="dateTime" style={{ width: '100%' }}
+                  rules={formStatus === 'active' ? [{ required: true, message: '生效中的券必须配置失效时间' }] : []} />
               </Col>
             </Row>
           )}
