@@ -9,7 +9,8 @@ import { httpRequest } from '../../http-client';
 import { AI_SSRF_OPTIONS } from '../outbound';
 import logger from '../../logger';
 import type { AiHttpToolRow } from '../../../db/schema';
-import type { ChatToolCall } from '../adapters/openai-compatible';
+import type { ChatToolCall } from '../stream-types';
+import { loadMastraToolsModule } from '../mastra-models';
 
 /** 工具执行上下文 */
 export interface AiToolContext {
@@ -191,4 +192,36 @@ export async function executeToolCall(call: ChatToolCall): Promise<string> {
   } catch (err) {
     return JSON.stringify({ error: err instanceof Error ? err.message : '工具执行失败' });
   }
+}
+
+/**
+ * Mastra 工具集（createTool 包装,喂给动态 Agent）。
+ * inputSchema 直接复用 JSON Schema（PublicSchema 原生支持 JSONSchema7）;
+ * execute 统一走 executeToolCall,保留 SSRF 防护、超时与结果截断。
+ * filter 提供时（智能体工具白名单）仅保留名单内工具；undefined = 全部。
+ */
+export async function getMastraTools(filter?: string[] | null): Promise<Record<string, unknown>> {
+  const { createTool } = await loadMastraToolsModule();
+  const imageModel = (await getConfigValue('ai_image_model', '')).trim();
+  const builtin = [...REGISTRY, ...(imageModel ? [generateImage] : [])]
+    .map((t) => ({ name: t.name, description: t.description, parameters: t.parameters }));
+  const httpTools = (await loadEnabledHttpTools())
+    .map((t) => ({ name: t.name, description: t.description, parameters: httpToolToJsonSchema(t) }));
+
+  const allowed = filter ? new Set(filter) : null;
+  const tools: Record<string, unknown> = {};
+  for (const def of [...builtin, ...httpTools]) {
+    if (allowed && !allowed.has(def.name)) continue;
+    tools[def.name] = createTool({
+      id: def.name,
+      description: def.description,
+      inputSchema: def.parameters as never,
+      execute: async (input: unknown) => executeToolCall({
+        id: '',
+        type: 'function',
+        function: { name: def.name, arguments: JSON.stringify(input ?? {}) },
+      }),
+    });
+  }
+  return tools;
 }

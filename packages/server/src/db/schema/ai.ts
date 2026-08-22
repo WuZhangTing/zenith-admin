@@ -1,8 +1,6 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, real, uniqueIndex, index } from 'drizzle-orm/pg-core';
-import { AI_PROVIDER_TYPES } from '@zenith/shared/ai';
+import type { AiModelSettings, AiModelFallbackRef } from '@zenith/shared/ai';
 import { auditColumns, tenants, users } from './core';
-
-export const aiProviderEnum = pgEnum('ai_provider', AI_PROVIDER_TYPES);
 
 export const aiMessageRoleEnum = pgEnum('ai_message_role', ['system', 'user', 'assistant']);
 
@@ -18,25 +16,31 @@ export interface AiModelCapabilities {
 export const aiProviderConfigs = pgTable('ai_provider_configs', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 100 }).notNull(),
-  provider: aiProviderEnum('provider').notNull().default('openai_compatible'),
-  baseUrl: varchar('base_url', { length: 500 }).notNull(),
+  /** Mastra 模型目录 provider ID（'openai' / 'anthropic' / ...）或 'custom'（OpenAI 兼容自定义端点） */
+  providerId: varchar('provider_id', { length: 50 }).notNull(),
+  /** API 地址：custom 必填；目录服务商留空走官方端点，填写则覆盖 */
+  baseUrl: varchar('base_url', { length: 500 }),
   apiKey: varchar('api_key', { length: 1000 }).notNull(),
-  model: varchar('model', { length: 100 }).notNull(),
-  /** 附加可选模型列表（同一服务商多模型，聊天时可切换） */
-  models: text('models').array(),
+  /** 自定义请求头（组织 ID 等，随请求透传） */
+  headers: jsonb('headers').$type<Record<string, string>>(),
+  /** 启用的模型列表（裸模型 ID，聊天时可切换） */
+  models: text('models').array().notNull(),
+  /** 默认模型（必须包含在 models 中） */
+  defaultModel: varchar('default_model', { length: 100 }).notNull(),
+  /** 模型调用默认设置（temperature / maxOutputTokens / reasoning 等，Mastra ModelSettings 子集） */
+  modelSettings: jsonb('model_settings').$type<AiModelSettings>(),
+  /** 服务商特定选项（按 provider 分组透传，如 { openai: { reasoningEffort: 'low' } }） */
+  providerOptions: jsonb('provider_options').$type<Record<string, Record<string, unknown>>>(),
+  /** 多级降级链：主模型失败（5xx/限流/超时）后按序切换（Mastra ModelWithRetries 持久化形态） */
+  fallbacks: jsonb('fallbacks').$type<AiModelFallbackRef[]>(),
   /** 模型能力标签 */
   capabilities: jsonb('capabilities').$type<AiModelCapabilities>(),
-  systemPrompt: text('system_prompt'),
-  maxTokens: integer('max_tokens').notNull().default(4096),
-  temperature: varchar('temperature', { length: 10 }).notNull().default('0.7'),
   /** 输入单价（分 / 百万 token），null = 未配置不计成本 */
   priceInputPerM: integer('price_input_per_m'),
   /** 输出单价（分 / 百万 token），null = 未配置不计成本 */
   priceOutputPerM: integer('price_output_per_m'),
   isDefault: boolean('is_default').notNull().default(false),
   isEnabled: boolean('is_enabled').notNull().default(true),
-  /** 主备切换：首 token 前失败时自动降级到该配置（软引用，一层不链式） */
-  fallbackConfigId: integer('fallback_config_id'),
   /** 并发流上限（null / 0 = 不限制），超限排队等待 */
   maxConcurrent: integer('max_concurrent'),
   ...auditColumns(),
@@ -53,7 +57,7 @@ export const aiConversations = pgTable('ai_conversations', {
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 200 }).notNull().default('新对话'),
-  providerSnapshot: jsonb('provider_snapshot').$type<{ provider: string; model: string; configId?: number }>(),
+  providerSnapshot: jsonb('provider_snapshot').$type<{ providerId: string; model: string; configId?: number }>(),
   isArchived: boolean('is_archived').notNull().default(false),
   isPinned: boolean('is_pinned').notNull().default(false),
   systemPromptOverride: text('system_prompt_override'),
@@ -124,12 +128,13 @@ export const userAiConfigs = pgTable('user_ai_configs', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }),
-  provider: aiProviderEnum('provider').notNull().default('openai_compatible'),
+  /** Mastra 模型目录 provider ID 或 'custom' */
+  providerId: varchar('provider_id', { length: 50 }).notNull().default('custom'),
   baseUrl: varchar('base_url', { length: 500 }),
   apiKey: varchar('api_key', { length: 1000 }),
   model: varchar('model', { length: 100 }),
-  temperature: varchar('temperature', { length: 10 }),
-  maxTokens: integer('max_tokens'),
+  /** 模型调用默认设置（temperature / maxOutputTokens 等） */
+  modelSettings: jsonb('model_settings').$type<AiModelSettings>(),
   systemPrompt: text('system_prompt'),
   isEnabled: boolean('is_enabled').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),

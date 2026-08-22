@@ -391,7 +391,7 @@ export async function saveMessages(
   assistantContent: string,
   tokensInput: number,
   tokensOutput: number,
-  snapshot: { provider: string; model: string; configId?: number } | null,
+  snapshot: { providerId: string; model: string; configId?: number } | null,
   meta: AssistantMessageMeta = {},
   /** user 消息的分支树父节点（发送时的激活叶子；编辑重发时为被编辑消息的父节点） */
   userParentId: number | null = null,
@@ -429,7 +429,7 @@ export async function saveAssistantMessage(
   assistantContent: string,
   tokensInput: number,
   tokensOutput: number,
-  snapshot: { provider: string; model: string; configId?: number } | null,
+  snapshot: { providerId: string; model: string; configId?: number } | null,
   meta: AssistantMessageMeta = {},
   parentId: number | null = null,
 ) {

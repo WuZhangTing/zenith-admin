@@ -16,8 +16,8 @@ export async function generateImageViaProvider(prompt: string): Promise<string> 
   if (!prompt.trim()) throw new Error('图片描述不能为空');
 
   const cfg = await getRawDefaultProviderConfig();
-  if (!cfg || cfg.provider !== 'openai_compatible') {
-    throw new Error('图片生成需要 OpenAI 兼容的系统默认服务商配置');
+  if (!cfg?.baseUrl) {
+    throw new Error('图片生成需要系统默认服务商配置 OpenAI 兼容 API 地址');
   }
 
   const res = await httpRequest(`${cfg.baseUrl.replace(/\/+$/, '')}/images/generations`, {

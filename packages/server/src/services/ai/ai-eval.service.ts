@@ -5,7 +5,7 @@ import { aiEvalSets, aiEvalRuns } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { registerTaskHandler, submitAsyncTask, mapAsyncTask } from '../../lib/task-center';
-import { chatOnceOpenAICompatible } from '../../lib/ai/adapters/openai-compatible';
+import { chatOnce } from '../../lib/ai/mastra-chat';
 import { getRawDefaultProviderConfig, getRawProviderConfig } from './ai-providers.service';
 import type { AiEvalSetRow, AiEvalRunRow, AiEvalResult } from '../../db/schema';
 import type { CreateAiEvalSetInput, UpdateAiEvalSetInput, RunAiEvalInput } from '@zenith/shared/ai';
@@ -114,8 +114,7 @@ export async function submitEvalRun(setId: number, input: RunAiEvalInput) {
   // 预解析目标配置（校验存在性 + 记录最终模型名）
   const cfg = input.configId ? await getRawProviderConfig(input.configId) : await getRawDefaultProviderConfig();
   if (!cfg) throw new HTTPException(400, { message: '未找到可用的 AI 服务商配置' });
-  if (cfg.provider !== 'openai_compatible') throw new HTTPException(400, { message: '评测目前仅支持 OpenAI 兼容服务商' });
-  const model = input.model?.trim() || cfg.model;
+  const model = input.model?.trim() || cfg.defaultModel;
 
   const [run] = await db
     .insert(aiEvalRuns)
@@ -156,27 +155,23 @@ export function registerAiEvalTaskHandlers(): void {
         const item = items[i];
         const started = Date.now();
         try {
-          const answer = await chatOnceOpenAICompatible(
-            {
-              baseUrl: cfg.baseUrl,
-              apiKey: cfg.apiKey,
-              model: run.model,
-              maxTokens: Math.min(cfg.maxTokens, 2048),
-              temperature: cfg.temperature,
-              systemPrompt: cfg.systemPrompt,
+          const { content: answer, tokensInput, tokensOutput } = await chatOnce({
+            chain: [{ source: cfg, model: run.model, maxRetries: 0 }],
+            messages: [{ role: 'user', content: item.question }],
+            modelSettings: {
+              ...cfg.modelSettings,
+              maxOutputTokens: Math.min(cfg.modelSettings?.maxOutputTokens ?? 2048, 2048),
             },
-            [{ role: 'user', content: item.question }],
-            { timeoutMs: 60_000 },
-          );
+            timeoutMs: 60_000,
+          });
           const durationMs = Date.now() - started;
           results.push({
             question: item.question,
             expected: item.expected,
             answer: answer.slice(0, 8000),
             durationMs,
-            // 非流式接口未返回 usage 时按字符估算
-            tokensInput: Math.ceil(item.question.length / 4),
-            tokensOutput: Math.ceil(answer.length / 4),
+            tokensInput,
+            tokensOutput,
           });
           await ctx.reportItems([{ key: `q-${i + 1}`, label: item.question.slice(0, 100), status: 'success', message: `${durationMs}ms` }]);
         } catch (err) {

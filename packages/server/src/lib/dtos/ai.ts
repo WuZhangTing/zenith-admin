@@ -9,36 +9,66 @@ const CapabilitiesDTO = z
   .nullable()
   .openapi({ description: '模型能力标签' });
 
+const ModelSettingsDTO = z
+  .object({
+    temperature: z.number().optional(),
+    maxOutputTokens: z.number().optional(),
+    topP: z.number().optional(),
+    frequencyPenalty: z.number().optional(),
+    presencePenalty: z.number().optional(),
+    reasoning: z.string().optional(),
+  })
+  .nullable()
+  .openapi({ description: '模型调用默认设置（Mastra ModelSettings 子集）' });
+
+const FallbackRefDTO = z
+  .object({
+    configId: z.number().openapi({ description: '目标服务商配置 ID' }),
+    model: z.string().openapi({ description: '目标模型 ID' }),
+    maxRetries: z.number().optional().openapi({ description: '该级重试次数' }),
+  })
+  .openapi({ description: '降级链条目' });
+
 export const AiProviderConfigDTO = z
   .object({
     id: z.number().openapi({ description: 'ID' }),
     name: z.string().openapi({ description: '配置名称' }),
-    provider: z.string().openapi({ description: 'AI 供应商类型' }),
-    baseUrl: z.string().openapi({ description: 'API 地址' }),
+    providerId: z.string().openapi({ description: 'Mastra 模型目录 provider ID 或 custom' }),
+    baseUrl: z.string().nullable().openapi({ description: 'API 地址（custom 必填；目录服务商可覆盖官方端点）' }),
     apiKey: z.string().openapi({ description: 'API Key（脱敏）' }),
-    model: z.string().openapi({ description: '默认模型' }),
-    models: z.array(z.string()).nullable().openapi({ description: '附加可选模型列表' }),
+    headers: z.record(z.string(), z.string()).nullable().openapi({ description: '自定义请求头' }),
+    models: z.array(z.string()).openapi({ description: '启用的模型列表' }),
+    defaultModel: z.string().openapi({ description: '默认模型' }),
+    modelSettings: ModelSettingsDTO,
+    providerOptions: z.record(z.string(), z.record(z.string(), z.unknown())).nullable().openapi({ description: '服务商特定选项' }),
+    fallbacks: z.array(FallbackRefDTO).nullable().openapi({ description: '多级降级链' }),
     capabilities: CapabilitiesDTO,
-    systemPrompt: z.string().nullable().openapi({ description: '系统提示词' }),
-    maxTokens: z.number().openapi({ description: '最大输出 token' }),
-    temperature: z.string().openapi({ description: '温度参数' }),
     priceInputPerM: z.number().nullable().openapi({ description: '输入单价（分/百万token）' }),
     priceOutputPerM: z.number().nullable().openapi({ description: '输出单价（分/百万token）' }),
     isDefault: z.boolean().openapi({ description: '是否默认' }),
     isEnabled: z.boolean().openapi({ description: '是否启用' }),
-    fallbackConfigId: z.number().nullable().openapi({ description: '主备切换降级配置 ID' }),
     maxConcurrent: z.number().nullable().openapi({ description: '并发流上限（null/0=不限）' }),
     createdAt: z.string().openapi({ description: '创建时间' }),
     updatedAt: z.string().openapi({ description: '更新时间' }),
   })
   .openapi('AiProviderConfig');
 
+export const AiProviderCatalogEntryDTO = z
+  .object({
+    id: z.string().openapi({ description: 'Mastra provider ID' }),
+    name: z.string().openapi({ description: '显示名' }),
+    docUrl: z.string().nullable().openapi({ description: '官方文档链接' }),
+    common: z.boolean().openapi({ description: '是否常用服务商' }),
+    modelCount: z.number().openapi({ description: '目录内模型数量' }),
+  })
+  .openapi('AiProviderCatalogEntry');
+
 export const AiChatModelDTO = z
   .object({
     id: z.number().openapi({ description: '配置 ID' }),
     name: z.string().openapi({ description: '配置名称' }),
     model: z.string().openapi({ description: '模型名称' }),
-    provider: z.string().openapi({ description: 'AI 供应商类型' }),
+    providerId: z.string().openapi({ description: 'Mastra provider ID 或 custom' }),
     isDefault: z.boolean().openapi({ description: '是否默认' }),
     capabilities: CapabilitiesDTO,
   })
@@ -114,7 +144,7 @@ export const AiConversationDTO = z
     title: z.string().openapi({ description: '对话标题' }),
     providerSnapshot: z
       .object({
-        provider: z.string(),
+        providerId: z.string(),
         model: z.string(),
         configId: z.number().optional(),
       })
@@ -186,12 +216,11 @@ export const UserAiConfigDTO = z
     id: z.number().openapi({ description: 'ID' }),
     userId: z.number().openapi({ description: '用户 ID' }),
     name: z.string().nullable().openapi({ description: '配置名称' }),
-    provider: z.string().openapi({ description: 'AI 供应商类型' }),
+    providerId: z.string().openapi({ description: 'Mastra provider ID 或 custom' }),
     baseUrl: z.string().nullable().openapi({ description: 'API 地址' }),
     apiKey: z.string().nullable().openapi({ description: 'API Key（脱敏）' }),
     model: z.string().nullable().openapi({ description: '模型名称' }),
-    temperature: z.string().nullable().openapi({ description: '温度' }),
-    maxTokens: z.number().nullable().openapi({ description: '最大 Token 数' }),
+    modelSettings: ModelSettingsDTO,
     systemPrompt: z.string().nullable().openapi({ description: '系统提示词' }),
     isEnabled: z.boolean().openapi({ description: '是否启用' }),
     createdAt: z.string().openapi({ description: '创建时间' }),

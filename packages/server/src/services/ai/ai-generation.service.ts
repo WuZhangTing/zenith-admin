@@ -16,7 +16,7 @@ import { resolveAgentForChat } from './ai-agents.service';
 import { recordAiRequest, recordAiError } from '../../lib/ai/reliability';
 import { addDailyTokensUsed } from '../../lib/ai/quota';
 import logger from '../../lib/logger';
-import type { ChatMessage, ChatMessagePart } from '../../lib/ai/factory';
+import type { ChatMessage, ChatMessagePart } from '../../lib/ai/stream-types';
 import type { AiConversationRow, AiTraceStep } from '../../db/schema';
 
 export interface StartGenerationParams {
@@ -49,7 +49,7 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
   let reasoningContent = '';
   let tokensInput = 0;
   let tokensOutput = 0;
-  let snapshot: { provider: string; model: string; configId?: number } | null = null;
+  let snapshot: { providerId: string; model: string; configId?: number } | null = null;
   let errored = false;
   let cancelled = false;
   const trace: AiTraceStep[] = [];

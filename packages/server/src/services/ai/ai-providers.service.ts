@@ -6,8 +6,17 @@ import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { AI_SSRF_OPTIONS } from '../../lib/ai/outbound';
+import { chatOnce } from '../../lib/ai/mastra-chat';
+import { loadMastraLlmModule } from '../../lib/ai/mastra-models';
+import { AI_COMMON_PROVIDERS, AI_CUSTOM_PROVIDER_ID } from '@zenith/shared/ai';
 import { HTTPException } from 'hono/http-exception';
-import type { CreateAiProviderConfigInput, UpdateAiProviderConfigInput, TestAiConnectionInput, FetchAiModelsInput } from '@zenith/shared/ai';
+import type {
+  AiProviderCatalogEntry,
+  CreateAiProviderConfigInput,
+  UpdateAiProviderConfigInput,
+  TestAiConnectionInput,
+  FetchAiModelsInput,
+} from '@zenith/shared/ai';
 import { httpRequest } from '../../lib/http-client';
 
 const MASKED_KEY = '******';
@@ -38,24 +47,43 @@ function mapRow(row: typeof aiProviderConfigs.$inferSelect) {
   return {
     id: row.id,
     name: row.name,
-    provider: row.provider,
+    providerId: row.providerId,
     baseUrl: row.baseUrl,
     apiKey: maskApiKey(row.apiKey),
-    model: row.model,
+    headers: row.headers,
     models: row.models,
+    defaultModel: row.defaultModel,
+    modelSettings: row.modelSettings,
+    providerOptions: row.providerOptions,
+    fallbacks: row.fallbacks,
     capabilities: row.capabilities,
-    systemPrompt: row.systemPrompt,
-    maxTokens: row.maxTokens,
-    temperature: row.temperature,
     priceInputPerM: row.priceInputPerM,
     priceOutputPerM: row.priceOutputPerM,
     isDefault: row.isDefault,
     isEnabled: row.isEnabled,
-    fallbackConfigId: row.fallbackConfigId,
     maxConcurrent: row.maxConcurrent,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
+}
+
+/** 业务前置校验：custom 必填 baseUrl、默认模型必须在启用模型内、降级链不得引用自身 */
+function ensureProviderConfigInput(input: {
+  providerId?: string;
+  baseUrl?: string | null;
+  models?: string[];
+  defaultModel?: string;
+  fallbacks?: { configId: number }[] | null;
+}, selfId?: number): void {
+  if (input.providerId === AI_CUSTOM_PROVIDER_ID && input.baseUrl !== undefined && !input.baseUrl) {
+    throw new HTTPException(400, { message: '自定义服务商必须填写 API 地址' });
+  }
+  if (input.models && input.defaultModel && !input.models.includes(input.defaultModel)) {
+    throw new HTTPException(400, { message: '默认模型必须在启用模型列表中' });
+  }
+  if (selfId && input.fallbacks?.some((f) => f.configId === selfId)) {
+    throw new HTTPException(400, { message: '降级链不能引用当前配置自身' });
+  }
 }
 
 export async function listAiProviderConfigs() {
@@ -69,9 +97,9 @@ export async function listChatModels() {
     .select({
       id: aiProviderConfigs.id,
       name: aiProviderConfigs.name,
-      model: aiProviderConfigs.model,
       models: aiProviderConfigs.models,
-      provider: aiProviderConfigs.provider,
+      defaultModel: aiProviderConfigs.defaultModel,
+      providerId: aiProviderConfigs.providerId,
       isDefault: aiProviderConfigs.isDefault,
       capabilities: aiProviderConfigs.capabilities,
     })
@@ -79,12 +107,12 @@ export async function listChatModels() {
     .where(eq(aiProviderConfigs.isEnabled, true))
     .orderBy(desc(aiProviderConfigs.isDefault), desc(aiProviderConfigs.createdAt));
   return rows.flatMap((r) => {
-    const extraModels = (r.models ?? []).filter((m) => m && m !== r.model);
-    return [r.model, ...extraModels].map((model, idx) => ({
+    const rest = (r.models ?? []).filter((m) => m && m !== r.defaultModel);
+    return [r.defaultModel, ...rest].map((model, idx) => ({
       id: r.id,
       name: r.name,
       model,
-      provider: r.provider,
+      providerId: r.providerId,
       isDefault: r.isDefault && idx === 0,
       capabilities: r.capabilities ?? null,
     }));
@@ -104,6 +132,10 @@ export async function getDefaultProviderConfig() {
 
 export async function createAiProviderConfig(input: CreateAiProviderConfigInput) {
   const user = currentUser();
+  ensureProviderConfigInput({ ...input, baseUrl: input.baseUrl ?? null });
+  if (input.providerId === AI_CUSTOM_PROVIDER_ID && !input.baseUrl) {
+    throw new HTTPException(400, { message: '自定义服务商必须填写 API 地址' });
+  }
   if (input.isDefault) {
     await db.update(aiProviderConfigs).set({ isDefault: false });
   }
@@ -112,18 +144,18 @@ export async function createAiProviderConfig(input: CreateAiProviderConfigInput)
       .insert(aiProviderConfigs)
       .values({
         name: input.name,
-        provider: input.provider ?? 'openai_compatible',
-        baseUrl: input.baseUrl,
+        providerId: input.providerId,
+        baseUrl: input.baseUrl ?? null,
         apiKey: sealApiKey(input.apiKey),
-        model: input.model,
-        models: input.models ?? null,
+        headers: input.headers ?? null,
+        models: input.models,
+        defaultModel: input.defaultModel,
+        modelSettings: input.modelSettings ?? null,
+        providerOptions: input.providerOptions ?? null,
+        fallbacks: input.fallbacks ?? null,
         capabilities: input.capabilities ?? null,
-        systemPrompt: input.systemPrompt ?? null,
-        maxTokens: input.maxTokens ?? 4096,
-        temperature: input.temperature ?? '0.7',
         priceInputPerM: input.priceInputPerM ?? null,
         priceOutputPerM: input.priceOutputPerM ?? null,
-        fallbackConfigId: input.fallbackConfigId ?? null,
         maxConcurrent: input.maxConcurrent ?? null,
         isDefault: input.isDefault ?? false,
         isEnabled: input.isEnabled ?? true,
@@ -143,6 +175,18 @@ export async function updateAiProviderConfig(id: number, input: UpdateAiProvider
   const [existing] = await db.select().from(aiProviderConfigs).where(eq(aiProviderConfigs.id, id));
   if (!existing) throw new HTTPException(404, { message: 'AI 服务商配置不存在' });
 
+  const merged = {
+    providerId: input.providerId ?? existing.providerId,
+    baseUrl: input.baseUrl !== undefined ? input.baseUrl : existing.baseUrl,
+    models: input.models ?? existing.models,
+    defaultModel: input.defaultModel ?? existing.defaultModel,
+    fallbacks: input.fallbacks !== undefined ? input.fallbacks : existing.fallbacks,
+  };
+  if (merged.providerId === AI_CUSTOM_PROVIDER_ID && !merged.baseUrl) {
+    throw new HTTPException(400, { message: '自定义服务商必须填写 API 地址' });
+  }
+  ensureProviderConfigInput(merged, id);
+
   if (input.isDefault === true) {
     await db.update(aiProviderConfigs).set({ isDefault: false });
   }
@@ -158,18 +202,18 @@ export async function updateAiProviderConfig(id: number, input: UpdateAiProvider
       .update(aiProviderConfigs)
       .set({
         ...(input.name !== undefined && { name: input.name }),
-        ...(input.provider !== undefined && { provider: input.provider }),
+        ...(input.providerId !== undefined && { providerId: input.providerId }),
         ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
         apiKey,
-        ...(input.model !== undefined && { model: input.model }),
+        ...(input.headers !== undefined && { headers: input.headers }),
         ...(input.models !== undefined && { models: input.models }),
+        ...(input.defaultModel !== undefined && { defaultModel: input.defaultModel }),
+        ...(input.modelSettings !== undefined && { modelSettings: input.modelSettings }),
+        ...(input.providerOptions !== undefined && { providerOptions: input.providerOptions }),
+        ...(input.fallbacks !== undefined && { fallbacks: input.fallbacks }),
         ...(input.capabilities !== undefined && { capabilities: input.capabilities }),
-        ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
-        ...(input.maxTokens !== undefined && { maxTokens: input.maxTokens }),
-        ...(input.temperature !== undefined && { temperature: input.temperature }),
         ...(input.priceInputPerM !== undefined && { priceInputPerM: input.priceInputPerM }),
         ...(input.priceOutputPerM !== undefined && { priceOutputPerM: input.priceOutputPerM }),
-        ...(input.fallbackConfigId !== undefined && { fallbackConfigId: input.fallbackConfigId === id ? null : input.fallbackConfigId }),
         ...(input.maxConcurrent !== undefined && { maxConcurrent: input.maxConcurrent }),
         ...(input.isDefault !== undefined && { isDefault: input.isDefault }),
         ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
@@ -210,47 +254,36 @@ export async function getRawDefaultProviderConfig() {
   return row ? { ...row, apiKey: unsealApiKey(row.apiKey) } : null;
 }
 
-/** 测试连接：发送一条简单消息验证配置可用性 */
-export async function testAiProviderConnection(input: TestAiConnectionInput): Promise<{ success: boolean; message: string }> {
-  let apiKey = input.apiKey ?? '';
-
-  // 若 apiKey 为空或含脱敏标记，且提供了 id，则从 DB 取真实密钥
-  if ((!apiKey || apiKey.includes('...') || apiKey === '******') && input.id) {
-    const [row] = await db.select({ apiKey: aiProviderConfigs.apiKey }).from(aiProviderConfigs).where(eq(aiProviderConfigs.id, input.id));
+/** 解析测试/拉模型入参中的 apiKey（脱敏值回落到 DB 真实密钥） */
+async function resolveInputApiKey(apiKey: string | undefined, id: number | undefined): Promise<string> {
+  let key = apiKey ?? '';
+  if ((!key || key.includes('...') || key === MASKED_KEY) && id) {
+    const [row] = await db.select({ apiKey: aiProviderConfigs.apiKey }).from(aiProviderConfigs).where(eq(aiProviderConfigs.id, id));
     if (!row) throw new HTTPException(404, { message: 'AI 服务商配置不存在' });
-    apiKey = unsealApiKey(row.apiKey);
+    key = unsealApiKey(row.apiKey);
   }
+  if (!key) throw new HTTPException(400, { message: 'API Key 不能为空' });
+  return key;
+}
 
-  if (!apiKey) throw new HTTPException(400, { message: 'API Key 不能为空' });
-
-  const url = `${input.baseUrl.replace(/\/$/, '')}/chat/completions`;
+/** 测试连接：经 Mastra 模型路由发送一条最小消息（任意目录服务商 / 自定义端点均可测） */
+export async function testAiProviderConnection(input: TestAiConnectionInput): Promise<{ success: boolean; message: string }> {
+  const apiKey = await resolveInputApiKey(input.apiKey, input.id);
+  if (input.providerId === AI_CUSTOM_PROVIDER_ID && !input.baseUrl) {
+    throw new HTTPException(400, { message: '自定义服务商必须填写 API 地址' });
+  }
   try {
-    const res = await httpRequest(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    await chatOnce({
+      chain: [{
+        source: { providerId: input.providerId, baseUrl: input.baseUrl ?? null, apiKey },
         model: input.model,
-        messages: [{ role: 'user', content: 'Hi' }],
-        max_tokens: 10,
-        stream: false,
-      }),
-      timeout: 15000,
-      ...AI_SSRF_OPTIONS,
+        maxRetries: 0,
+      }],
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelSettings: { maxOutputTokens: 10 },
+      timeoutMs: 15000,
     });
-
-    if (res.ok) {
-      return { success: true, message: '连接成功' };
-    }
-    const body = await res.text().catch(() => '');
-    let errMsg = `HTTP ${res.status}`;
-    try {
-      const parsed = JSON.parse(body) as { error?: { message?: string } };
-      if (parsed?.error?.message) errMsg = parsed.error.message;
-    } catch { /* ignore */ }
-    return { success: false, message: errMsg };
+    return { success: true, message: '连接成功' };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, message };
@@ -258,35 +291,29 @@ export async function testAiProviderConnection(input: TestAiConnectionInput): Pr
 }
 
 /**
- * 从供应商 API 自动发现可用模型列表。
- * openai_compatible: GET {base}/models；anthropic: GET {base}/v1/models；gemini: GET {base}/v1beta/models
+ * 获取服务商可用模型列表：
+ * - 填写了 baseUrl（custom / 覆盖端点）：GET {base}/models 实时发现（OpenAI 兼容协议）
+ * - 目录服务商未填 baseUrl：直接返回 Mastra 目录内该服务商的模型清单
  */
 export async function fetchProviderModels(input: FetchAiModelsInput): Promise<string[]> {
-  let apiKey = input.apiKey ?? '';
-  if ((!apiKey || apiKey.includes('...') || apiKey === '******') && input.id) {
-    const [row] = await db.select({ apiKey: aiProviderConfigs.apiKey }).from(aiProviderConfigs).where(eq(aiProviderConfigs.id, input.id));
-    if (!row) throw new HTTPException(404, { message: 'AI 服务商配置不存在' });
-    apiKey = unsealApiKey(row.apiKey);
+  if (!input.baseUrl) {
+    if (input.providerId === AI_CUSTOM_PROVIDER_ID) {
+      throw new HTTPException(400, { message: '自定义服务商必须填写 API 地址' });
+    }
+    const { getProviderConfig } = await loadMastraLlmModule();
+    const provider = getProviderConfig(input.providerId);
+    if (!provider) throw new HTTPException(400, { message: '未知服务商，请填写 API 地址后从 API 获取' });
+    return [...provider.models].sort((a, b) => a.localeCompare(b));
   }
-  if (!apiKey) throw new HTTPException(400, { message: 'API Key 不能为空' });
 
-  const provider = input.provider ?? 'openai_compatible';
+  const apiKey = await resolveInputApiKey(input.apiKey, input.id);
   const base = input.baseUrl.replace(/\/$/, '');
-  let url: string;
-  let headers: Record<string, string>;
-  if (provider === 'anthropic') {
-    url = base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`;
-    headers = { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
-  } else if (provider === 'gemini') {
-    const geminiBase = /\/v1(beta)?$/.test(base) ? base : `${base}/v1beta`;
-    url = `${geminiBase}/models`;
-    headers = { 'x-goog-api-key': apiKey };
-  } else {
-    url = `${base}/models`;
-    headers = { Authorization: `Bearer ${apiKey}` };
-  }
-
-  const res = await httpRequest(url, { method: 'GET', headers, timeout: 15000, ...AI_SSRF_OPTIONS });
+  const res = await httpRequest(`${base}/models`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    timeout: 15000,
+    ...AI_SSRF_OPTIONS,
+  });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     let msg = `HTTP ${res.status}`;
@@ -301,8 +328,40 @@ export async function fetchProviderModels(input: FetchAiModelsInput): Promise<st
   if (Array.isArray(data.data)) {
     models = data.data.map((m) => m.id ?? '').filter(Boolean);
   } else if (Array.isArray(data.models)) {
-    // Gemini：name 形如 models/gemini-2.0-flash
     models = data.models.map((m) => (m.name ?? '').replace(/^models\//, '')).filter(Boolean);
   }
   return [...new Set(models)].sort((a, b) => a.localeCompare(b)).slice(0, 200);
+}
+
+/** 服务商目录（Mastra PROVIDER_REGISTRY,常用项排前）；custom 恒在首位 */
+export async function getProviderCatalog(): Promise<AiProviderCatalogEntry[]> {
+  const { PROVIDER_REGISTRY } = await loadMastraLlmModule();
+  const commonIds = new Map(AI_COMMON_PROVIDERS.map((p, i) => [p.id, i]));
+  const entries: AiProviderCatalogEntry[] = Object.entries(PROVIDER_REGISTRY as Record<string, { name: string; models: string[]; docUrl?: string }>)
+    .map(([id, cfg]) => ({
+      id,
+      name: cfg.name || id,
+      docUrl: cfg.docUrl ?? null,
+      common: commonIds.has(id),
+      modelCount: cfg.models?.length ?? 0,
+    }));
+  entries.sort((a, b) => {
+    if (a.common !== b.common) return a.common ? -1 : 1;
+    if (a.common && b.common) return (commonIds.get(a.id) ?? 99) - (commonIds.get(b.id) ?? 99);
+    return a.name.localeCompare(b.name);
+  });
+  const customLabel = AI_COMMON_PROVIDERS.find((p) => p.id === AI_CUSTOM_PROVIDER_ID)?.label ?? '自定义(OpenAI 兼容)';
+  return [
+    { id: AI_CUSTOM_PROVIDER_ID, name: customLabel, docUrl: null, common: true, modelCount: 0 },
+    ...entries.filter((e) => e.id !== AI_CUSTOM_PROVIDER_ID),
+  ];
+}
+
+/** 目录内某服务商的模型清单 */
+export async function getCatalogProviderModels(providerId: string): Promise<string[]> {
+  if (providerId === AI_CUSTOM_PROVIDER_ID) return [];
+  const { getProviderConfig } = await loadMastraLlmModule();
+  const provider = getProviderConfig(providerId);
+  if (!provider) throw new HTTPException(404, { message: '服务商不在目录中' });
+  return [...provider.models];
 }

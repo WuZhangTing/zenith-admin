@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiChatModel, AiProviderConfig } from '@zenith/shared/ai';
+import type { AiChatModel, AiProviderCatalogEntry, AiProviderConfig } from '@zenith/shared/ai';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
 
@@ -9,8 +9,8 @@ export interface AiProviderListParams {
 
 export interface AiProviderTestPayload {
   id?: number;
-  provider?: string;
-  baseUrl: string;
+  providerId: string;
+  baseUrl?: string | null;
   apiKey?: string;
   model: string;
 }
@@ -21,6 +21,8 @@ export const aiProviderKeys = {
   list: (params: AiProviderListParams = {}) => ['ai-providers', 'list', params] as const,
   detail: (id: number | undefined) => ['ai-providers', 'detail', id] as const,
   chatModels: ['ai-providers', 'chat-models'] as const,
+  catalog: ['ai-providers', 'catalog'] as const,
+  catalogModels: (providerId: string | undefined) => ['ai-providers', 'catalog', providerId, 'models'] as const,
 };
 
 export function useAiProviderList(params: AiProviderListParams = {}, options?: { enabled?: boolean }) {
@@ -103,7 +105,27 @@ export function useTestAiProviderConnection() {
 /** 从供应商 API 自动发现模型列表 */
 export function useFetchAiProviderModels() {
   return useMutation({
-    mutationFn: (body: { id?: number; provider?: string; baseUrl: string; apiKey?: string }) =>
+    mutationFn: (body: { id?: number; providerId: string; baseUrl?: string | null; apiKey?: string }) =>
       request.post<string[]>('/api/ai/providers/fetch-models', body).then(unwrap),
+  });
+}
+
+/** 服务商目录（Mastra 模型目录,常用项排前） */
+export function useAiProviderCatalog(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: aiProviderKeys.catalog,
+    queryFn: () => request.get<AiProviderCatalogEntry[]>('/api/ai/providers/catalog').then(unwrap),
+    staleTime: LOOKUP_STALE_TIME,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/** 目录内某服务商的模型清单 */
+export function useAiCatalogModels(providerId: string | undefined, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: aiProviderKeys.catalogModels(providerId),
+    queryFn: () => request.get<string[]>(`/api/ai/providers/catalog/${providerId}/models`).then(unwrap),
+    staleTime: LOOKUP_STALE_TIME,
+    enabled: (options?.enabled ?? true) && !!providerId && providerId !== 'custom',
   });
 }

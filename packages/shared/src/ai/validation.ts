@@ -1,9 +1,15 @@
 import { z } from 'zod';
 import { partialForUpdate } from '../core/validation';
+import { AI_REASONING_LEVELS } from './constants';
 
 // ─── AI 对话模块 ──────────────────────────────────────────────────────────────
 
-export const aiProviderEnum = z.enum(['openai_compatible', 'anthropic', 'gemini', 'baidu']);
+/** Mastra 模型目录 provider ID 或 'custom'（小写字母开头,允许数字/连字符/下划线） */
+export const aiProviderIdSchema = z
+  .string()
+  .min(1, '请选择服务商')
+  .max(50)
+  .regex(/^[a-z][a-z0-9_-]*$/, 'provider ID 仅限小写字母/数字/连字符/下划线');
 
 export const aiModelCapabilitiesSchema = z.object({
   vision: z.boolean().optional(),
@@ -11,21 +17,36 @@ export const aiModelCapabilitiesSchema = z.object({
   contextWindow: z.number().int().min(0).max(100000000).optional(),
 });
 
+export const aiModelSettingsSchema = z.object({
+  temperature: z.number().min(0).max(2).optional(),
+  maxOutputTokens: z.number().int().min(1).max(10000000).optional(),
+  topP: z.number().min(0).max(1).optional(),
+  frequencyPenalty: z.number().min(-2).max(2).optional(),
+  presencePenalty: z.number().min(-2).max(2).optional(),
+  reasoning: z.enum(AI_REASONING_LEVELS).optional(),
+});
+
+export const aiModelFallbackRefSchema = z.object({
+  configId: z.number().int().positive(),
+  model: z.string().min(1).max(100),
+  maxRetries: z.number().int().min(0).max(5).optional(),
+});
+
 export const createAiProviderConfigSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(100),
-  provider: aiProviderEnum.default('openai_compatible'),
-  baseUrl: z.url('请输入有效的 URL').max(500),
+  providerId: aiProviderIdSchema,
+  /** custom 必填;目录服务商留空走官方端点（业务校验在 service 层） */
+  baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
   apiKey: z.string().min(1, 'API Key 不能为空').max(1000),
-  model: z.string().min(1, '模型名称不能为空').max(100),
-  models: z.array(z.string().min(1).max(100)).max(50).nullable().optional(),
+  headers: z.record(z.string().max(100), z.string().max(500)).nullable().optional(),
+  models: z.array(z.string().min(1).max(100)).min(1, '至少启用一个模型').max(100),
+  defaultModel: z.string().min(1, '默认模型不能为空').max(100),
+  modelSettings: aiModelSettingsSchema.nullable().optional(),
+  providerOptions: z.record(z.string().max(50), z.record(z.string().max(100), z.unknown())).nullable().optional(),
+  fallbacks: z.array(aiModelFallbackRefSchema).max(5).nullable().optional(),
   capabilities: aiModelCapabilitiesSchema.nullable().optional(),
-  systemPrompt: z.string().max(4096).nullable().optional(),
-  maxTokens: z.number().int().min(1).max(128000).default(4096),
-  temperature: z.string().regex(/^\d+(\.\d+)?$/, '温度须为数字字符串').default('0.7'),
   priceInputPerM: z.number().int().min(0).max(100000000).nullable().optional(),
   priceOutputPerM: z.number().int().min(0).max(100000000).nullable().optional(),
-  /** 主备切换降级配置 ID */
-  fallbackConfigId: z.number().int().positive().nullable().optional(),
   /** 并发流上限（null/0 = 不限） */
   maxConcurrent: z.number().int().min(0).max(1000).nullable().optional(),
   isDefault: z.boolean().default(false),
@@ -41,8 +62,8 @@ export type UpdateAiProviderConfigInput = z.infer<typeof updateAiProviderConfigS
 export const testAiConnectionSchema = z.object({
   /** 已有配置的 id；提供时若 apiKey 为空则从 DB 取真实密钥 */
   id: z.number().int().positive().optional(),
-  provider: aiProviderEnum.default('openai_compatible'),
-  baseUrl: z.url('请输入有效的 URL').max(500),
+  providerId: aiProviderIdSchema,
+  baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).optional(),
   model: z.string().min(1, '模型名称不能为空').max(100),
 });
@@ -52,8 +73,8 @@ export type TestAiConnectionInput = z.infer<typeof testAiConnectionSchema>;
 export const fetchAiModelsSchema = z.object({
   /** 已有配置的 id；提供时若 apiKey 为空则从 DB 取真实密钥 */
   id: z.number().int().positive().optional(),
-  provider: aiProviderEnum.default('openai_compatible'),
-  baseUrl: z.url('请输入有效的 URL').max(500),
+  providerId: aiProviderIdSchema,
+  baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).optional(),
 });
 
@@ -67,12 +88,11 @@ export const createAiConversationSchema = z.object({
 
 export const saveUserAiConfigSchema = z.object({
   name: z.string().max(100).nullable().optional(),
-  provider: aiProviderEnum.optional(),
+  providerId: aiProviderIdSchema.optional(),
   baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).nullable().optional(),
   model: z.string().max(100).nullable().optional(),
-  temperature: z.string().max(10).nullable().optional(),
-  maxTokens: z.number().int().min(1).max(128000).nullable().optional(),
+  modelSettings: aiModelSettingsSchema.nullable().optional(),
   systemPrompt: z.string().max(5000).nullable().optional(),
   isEnabled: z.boolean().optional(),
 });

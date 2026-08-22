@@ -25,20 +25,22 @@ const TOTAL_TOKENS_EXPR = sql<number>`coalesce(sum(${aiMessages.tokensInput} + $
 const ASSISTANT_COUNT_EXPR = sql<number>`count(*) filter (where ${aiMessages.role} = 'assistant')::int`;
 const AVG_TTFT_EXPR = sql<number | null>`round(avg(${aiMessages.ttftMs}))::int`;
 
-/** 模型 → 单价 / 供应商映射（同名模型取第一个配置） */
+/** 模型 → 单价 / 供应商映射（同名模型取第一个配置；配置的全部启用模型共用该配置单价） */
 async function getModelPricingMap() {
   const configs = await db
     .select({
-      model: aiProviderConfigs.model,
-      provider: aiProviderConfigs.provider,
+      models: aiProviderConfigs.models,
+      providerId: aiProviderConfigs.providerId,
       priceInputPerM: aiProviderConfigs.priceInputPerM,
       priceOutputPerM: aiProviderConfigs.priceOutputPerM,
     })
     .from(aiProviderConfigs);
   const map = new Map<string, { provider: string; priceInputPerM: number | null; priceOutputPerM: number | null }>();
   for (const c of configs) {
-    if (!map.has(c.model)) {
-      map.set(c.model, { provider: c.provider, priceInputPerM: c.priceInputPerM, priceOutputPerM: c.priceOutputPerM });
+    for (const model of c.models ?? []) {
+      if (!map.has(model)) {
+        map.set(model, { provider: c.providerId, priceInputPerM: c.priceInputPerM, priceOutputPerM: c.priceOutputPerM });
+      }
     }
   }
   return map;

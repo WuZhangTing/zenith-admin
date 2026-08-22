@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button, Collapse, List, Popconfirm, SideSheet, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import { Plus } from 'lucide-react';
-import type { AiChatModel, AiProvider } from '@zenith/shared/ai';
+import type { AiChatModel } from '@zenith/shared/ai';
+import { AI_COMMON_PROVIDERS } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/identity';
 import AiProviderFormModal from './AiProviderFormModal';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
@@ -9,14 +10,7 @@ import { useAiUserConfigs, useDeleteAiUserConfig } from '@/hooks/queries/ai-user
 
 const { Text } = Typography;
 
-const PROVIDER_LABELS: Record<AiProvider, string> = {
-  openai_compatible: 'OpenAI Compatible',
-  anthropic: 'Anthropic',
-  gemini: 'Google Gemini',
-  baidu: '百度千帆',
-};
-
-const PROVIDERS_ORDER: AiProvider[] = ['openai_compatible', 'anthropic', 'gemini', 'baidu'];
+const PROVIDER_LABELS = new Map(AI_COMMON_PROVIDERS.map((p) => [p.id, p.label]));
 
 interface UserAiConfigModalProps {
   readonly visible: boolean;
@@ -50,19 +44,19 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
     }
   };
 
-  // 按供应商类型分组
-  const grouped = PROVIDERS_ORDER.reduce<Record<AiProvider, GroupedItem[]>>((acc, pType) => {
-    const sys = systemConfigs
-      .filter((c) => c.provider === pType)
-      .map((c) => ({ type: 'system' as const, config: c }));
-    const user = userConfigs
-      .filter((c) => c.provider === pType)
-      .map((c) => ({ type: 'user' as const, config: c }));
-    acc[pType] = [...sys, ...user];
-    return acc;
-  }, {} as Record<AiProvider, GroupedItem[]>);
-
-  const activeProviders = PROVIDERS_ORDER.filter((p) => grouped[p].length > 0);
+  // 按 providerId 分组(常用服务商排前,其余按出现顺序)
+  const grouped = new Map<string, GroupedItem[]>();
+  const pushItem = (providerId: string, item: GroupedItem) => {
+    const list = grouped.get(providerId) ?? [];
+    list.push(item);
+    grouped.set(providerId, list);
+  };
+  for (const c of systemConfigs) pushItem(c.providerId, { type: 'system', config: c });
+  for (const c of userConfigs) pushItem(c.providerId ?? 'custom', { type: 'user', config: c });
+  const commonOrder = new Map(AI_COMMON_PROVIDERS.map((p, i) => [p.id, i]));
+  const activeProviders = [...grouped.keys()].sort(
+    (a, b) => (commonOrder.get(a) ?? 999) - (commonOrder.get(b) ?? 999) || a.localeCompare(b),
+  );
 
   const openCreate = () => {
     setFormTarget(undefined);
@@ -112,8 +106,8 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
                     key={pType}
                     header={
                       <Space>
-                        <span>{PROVIDER_LABELS[pType]}</span>
-                        <Tag size="small" color="blue">{grouped[pType].length}</Tag>
+                        <span>{PROVIDER_LABELS.get(pType) ?? pType}</span>
+                        <Tag size="small" color="blue">{grouped.get(pType)?.length ?? 0}</Tag>
                       </Space>
                     }
                     itemKey={pType}
@@ -121,7 +115,7 @@ export default function UserAiConfigModal({ visible, onClose, onSaved }: UserAiC
                     <List
                       size="small"
                       split
-                      dataSource={grouped[pType]}
+                      dataSource={grouped.get(pType) ?? []}
                       renderItem={({ type, config }) => {
                         const isUser = type === 'user';
                         const name = isUser

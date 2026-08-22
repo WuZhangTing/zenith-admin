@@ -7,7 +7,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { getRawDefaultProviderConfig } from '../ai/ai-providers.service';
 import { ensureDatasetExists } from './report-dataset.service';
-import { streamChat } from '../../lib/ai/factory';
+import { chatOnce } from '../../lib/ai/mastra-chat';
 import { loadSchemaMeta } from '../../lib/report-schema-meta';
 import { isReadonlyReportSql } from '../../lib/report-sql-safety';
 import type { ReportField, ReportSqlDatasetContent } from '@zenith/shared/report';
@@ -79,15 +79,16 @@ export async function generateReportSql(input: { question: string; datasetId?: n
 
 ${schema}`;
 
-  let text = '';
+  let text: string;
   try {
-    for await (const chunk of streamChat(cfg.provider, {
-      baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.model,
-      maxTokens: cfg.maxTokens, temperature: cfg.temperature, systemPrompt,
-    }, [{ role: 'user', content: question }])) {
-      if (chunk.type === 'delta') text += chunk.content;
-      else if (chunk.type === 'error') throw new HTTPException(502, { message: `AI 生成失败：${chunk.error}` });
-    }
+    const { content } = await chatOnce({
+      chain: [{ source: cfg, model: cfg.defaultModel, maxRetries: 0 }],
+      messages: [{ role: 'user', content: question }],
+      systemPrompt,
+      modelSettings: cfg.modelSettings ?? undefined,
+      timeoutMs: 60_000,
+    });
+    text = content;
   } catch (err) {
     if (err instanceof HTTPException) throw err;
     throw new HTTPException(502, { message: 'AI 服务调用失败，请稍后重试' });

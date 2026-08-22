@@ -1,4 +1,4 @@
-import type { AiAgentStatus, AiProvider } from './constants';
+import type { AiAgentStatus, AiReasoningLevel } from './constants';
 
 // ─── AI 对话模块 ──────────────────────────────────────────────────────────────
 
@@ -14,28 +14,63 @@ export interface AiModelCapabilities {
   contextWindow?: number;
 }
 
+/**
+ * 模型调用设置（Mastra ModelSettings 子集,调用时透传）。
+ * 分层覆盖:降级链条目 > 调用时 > 配置默认。
+ */
+export interface AiModelSettings {
+  /** 采样温度 0-2 */
+  temperature?: number;
+  /** 单次回复最大输出 token */
+  maxOutputTokens?: number;
+  /** 核采样 0-1 */
+  topP?: number;
+  /** 频率惩罚 -2~2 */
+  frequencyPenalty?: number;
+  /** 存在惩罚 -2~2 */
+  presencePenalty?: number;
+  /** 推理力度（仅支持 reasoning 的模型生效） */
+  reasoning?: AiReasoningLevel;
+}
+
+/** 降级链条目:引用另一个服务商配置下的某个模型（Mastra ModelWithRetries 的持久化形态） */
+export interface AiModelFallbackRef {
+  /** 目标服务商配置 ID */
+  configId: number;
+  /** 目标模型 ID（裸模型名,不含 provider 前缀） */
+  model: string;
+  /** 该级重试次数,默认 1 */
+  maxRetries?: number;
+}
+
 export interface AiProviderConfig {
   id: number;
   name: string;
-  provider: AiProvider;
-  baseUrl: string;
+  /** Mastra 模型目录 provider ID（'openai' / 'anthropic' / ...）或 'custom'（OpenAI 兼容自定义端点） */
+  providerId: string;
+  /** API 地址:custom 必填;目录服务商留空走官方端点,填写则覆盖 */
+  baseUrl: string | null;
   apiKey: string;
-  model: string;
-  /** 附加可选模型列表（同一服务商多模型） */
-  models: string[] | null;
-  /** 模型能力标签 */
+  /** 自定义请求头（组织 ID 等） */
+  headers: Record<string, string> | null;
+  /** 启用的模型列表（裸模型 ID,聊天时可切换） */
+  models: string[];
+  /** 默认模型（必须包含在 models 中） */
+  defaultModel: string;
+  /** 模型调用默认设置 */
+  modelSettings: AiModelSettings | null;
+  /** 服务商特定选项（如 openai.reasoningEffort,按 provider 分组透传） */
+  providerOptions: Record<string, Record<string, unknown>> | null;
+  /** 多级降级链:主模型失败（5xx/限流/超时）后按序切换 */
+  fallbacks: AiModelFallbackRef[] | null;
+  /** 模型能力标签（custom 服务商手工标注;目录服务商可由 Mastra 能力数据补充） */
   capabilities: AiModelCapabilities | null;
-  systemPrompt: string | null;
-  maxTokens: number;
-  temperature: string;
   /** 输入单价（分 / 百万 token），null = 未配置不计成本 */
   priceInputPerM: number | null;
   /** 输出单价（分 / 百万 token），null = 未配置不计成本 */
   priceOutputPerM: number | null;
   isDefault: boolean;
   isEnabled: boolean;
-  /** 主备切换降级配置 ID */
-  fallbackConfigId: number | null;
   /** 并发流上限（null/0 = 不限） */
   maxConcurrent: number | null;
   createdAt: string;
@@ -44,12 +79,28 @@ export interface AiProviderConfig {
 
 /** 聊天模型选择器条目（/api/ai/models 轻量列表，不含敏感字段）；一个配置可展开多个模型条目 */
 export interface AiChatModel {
+  /** 服务商配置 ID */
   id: number;
   name: string;
   model: string;
-  provider: AiProvider;
+  /** Mastra provider ID 或 'custom' */
+  providerId: string;
   isDefault: boolean;
   capabilities: AiModelCapabilities | null;
+}
+
+/** 服务商目录条目（GET /api/ai/providers/catalog,来自 Mastra PROVIDER_REGISTRY） */
+export interface AiProviderCatalogEntry {
+  /** Mastra provider ID */
+  id: string;
+  /** 显示名 */
+  name: string;
+  /** 官方文档链接 */
+  docUrl: string | null;
+  /** 是否常用服务商（AI_COMMON_PROVIDERS 内） */
+  common: boolean;
+  /** 目录内可用模型数量（模型清单经 /catalog/{providerId}/models 获取） */
+  modelCount: number;
 }
 
 /** 用户级 AI 个性化指令（Custom Instructions） */
@@ -106,7 +157,7 @@ export interface AiConversation {
   userId: number;
   tenantId: number | null;
   title: string;
-  providerSnapshot: { provider: string; model: string; configId?: number } | null;
+  providerSnapshot: { providerId: string; model: string; configId?: number } | null;
   isArchived: boolean;
   isPinned: boolean;
   systemPromptOverride: string | null;

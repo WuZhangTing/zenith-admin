@@ -8,7 +8,8 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePermission } from '@/hooks/usePermission';
 import { useTreeExpansion, type TreeRowKey } from '@/hooks/useTreeExpansion';
-import type { AiProvider, AiProviderConfig } from '@zenith/shared/ai';
+import type { AiProviderConfig } from '@zenith/shared/ai';
+import { AI_COMMON_PROVIDERS } from '@zenith/shared/ai';
 import AiProviderFormModal from '../components/AiProviderFormModal';
 import {
   aiProviderKeys,
@@ -21,21 +22,15 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
-const PROVIDER_LABELS: Record<AiProvider, string> = {
-  openai_compatible: 'OpenAI Compatible',
-  anthropic: 'Anthropic',
-  gemini: 'Google Gemini',
-  baidu: '百度千帆',
-};
-
-const PROVIDER_ORDER: AiProvider[] = ['openai_compatible', 'anthropic', 'gemini', 'baidu'];
+const PROVIDER_LABELS = new Map(AI_COMMON_PROVIDERS.map((p) => [p.id, p.label]));
+const COMMON_ORDER = new Map(AI_COMMON_PROVIDERS.map((p, i) => [p.id, i]));
 
 type AiProviderConfigWithKey = AiProviderConfig & { key: string };
 
 interface ProviderGroupRow {
   _isGroup: true;
   key: string;
-  provider: AiProvider;
+  providerId: string;
   name: string;
   count: number;
   children: AiProviderConfigWithKey[];
@@ -102,29 +97,32 @@ export default function AIProvidersPage() {
     Toast.success('已设为默认');
   };
 
-  // 按供应商类型聚合为树形数据
+  // 按 providerId 聚合为树形数据(常用服务商排前)
   const treeData = useMemo<ProviderGroupRow[]>(() => {
     const filtered = list.filter(
       (item) =>
         !search ||
         item.name.toLowerCase().includes(search.toLowerCase()) ||
-        item.model.toLowerCase().includes(search.toLowerCase()),
+        (item.models ?? []).some((m) => m.toLowerCase().includes(search.toLowerCase())),
     );
 
-    const grouped = new Map<AiProvider, AiProviderConfig[]>();
+    const grouped = new Map<string, AiProviderConfig[]>();
     for (const item of filtered) {
-      const existing = grouped.get(item.provider) ?? [];
+      const existing = grouped.get(item.providerId) ?? [];
       existing.push(item);
-      grouped.set(item.provider, existing);
+      grouped.set(item.providerId, existing);
     }
 
-    return PROVIDER_ORDER.filter((provider) => grouped.has(provider)).map((provider) => {
-      const children = grouped.get(provider)!;
+    const providerIds = [...grouped.keys()].sort(
+      (a, b) => (COMMON_ORDER.get(a) ?? 999) - (COMMON_ORDER.get(b) ?? 999) || a.localeCompare(b),
+    );
+    return providerIds.map((providerId) => {
+      const children = grouped.get(providerId)!;
       return {
         _isGroup: true as const,
-        key: `group_${provider}`,
-        provider,
-        name: PROVIDER_LABELS[provider] ?? provider,
+        key: `group_${providerId}`,
+        providerId,
+        name: PROVIDER_LABELS.get(providerId) ?? providerId,
         count: children.length,
         children: children.map((c) => ({ ...c, key: `config_${c.id}` })),
       };
@@ -166,11 +164,12 @@ export default function AIProvidersPage() {
     },
     {
       title: '模型',
-      dataIndex: 'model',
-      width: 180,
+      dataIndex: 'defaultModel',
+      width: 220,
       render: (_: unknown, record: TableRow) => {
         if ('_isGroup' in record) return null;
-        return record.model;
+        const extra = (record.models ?? []).length - 1;
+        return extra > 0 ? `${record.defaultModel} 等 ${extra + 1} 个` : record.defaultModel;
       },
     },
     {

@@ -151,7 +151,7 @@ async function embedTexts(texts: string[]): Promise<number[][] | null> {
   const model = (await getConfigValue('ai_embedding_model', '')).trim();
   if (!model) return null;
   const cfg = await getRawDefaultProviderConfig();
-  if (!cfg) return null;
+  if (!cfg?.baseUrl) return null;
   try {
     const res = await httpRequest(`${cfg.baseUrl.replace(/\/$/, '')}/embeddings`, {
       method: 'POST',

@@ -10,7 +10,7 @@ import {
   IdParam,
   okBody,
 } from '../../lib/openapi-schemas';
-import { AiProviderConfigDTO } from '../../lib/openapi-dtos';
+import { AiProviderConfigDTO, AiProviderCatalogEntryDTO } from '../../lib/openapi-dtos';
 import {
   listAiProviderConfigs,
   getAiProviderConfig,
@@ -20,6 +20,8 @@ import {
   setDefaultAiProviderConfig,
   testAiProviderConnection,
   fetchProviderModels,
+  getProviderCatalog,
+  getCatalogProviderModels,
 } from '../../services/ai/ai-providers.service';
 import { createAiProviderConfigSchema, updateAiProviderConfigSchema, testAiConnectionSchema, fetchAiModelsSchema } from '@zenith/shared/ai';
 
@@ -36,6 +38,40 @@ const list = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(z.array(AiProviderConfigDTO), '配置列表') },
   }),
   handler: async (c) => c.json(okBody(await listAiProviderConfigs()), 200),
+});
+
+const catalog = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/catalog',
+    tags: ['AI'],
+    summary: '服务商目录（Mastra 模型目录,常用项排前,custom 恒在首位）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:provider:list' })] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(AiProviderCatalogEntryDTO), '服务商目录') },
+  }),
+  handler: async (c) => c.json(okBody(await getProviderCatalog()), 200),
+});
+
+const catalogModels = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/catalog/{providerId}/models',
+    tags: ['AI'],
+    summary: '目录内某服务商的模型清单',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:provider:list' })] as const,
+    request: {
+      params: z.object({
+        providerId: z.string().openapi({ param: { name: 'providerId', in: 'path' }, example: 'openai' }),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...ok(z.array(z.string()), '模型 ID 列表') },
+  }),
+  handler: async (c) => {
+    const { providerId } = c.req.valid('param');
+    return c.json(okBody(await getCatalogProviderModels(providerId)), 200);
+  },
 });
 
 const getOne = defineOpenAPIRoute({
@@ -156,6 +192,6 @@ const fetchModels = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([list, getOne, create, update, remove, setDefault, testConnection, fetchModels] as const);
+router.openapiRoutes([list, catalog, catalogModels, getOne, create, update, remove, setDefault, testConnection, fetchModels] as const);
 
 export default router;

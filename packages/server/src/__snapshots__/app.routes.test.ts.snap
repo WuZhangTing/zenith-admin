@@ -275,6 +275,8 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/ai/prompt-templates/available",
   "GET /api/ai/providers",
   "GET /api/ai/providers/:id",
+  "GET /api/ai/providers/catalog",
+  "GET /api/ai/providers/catalog/:providerId/models",
   "GET /api/ai/public/chat/:token",
   "GET /api/ai/usage/stats",
   "GET /api/ai/user-configs",

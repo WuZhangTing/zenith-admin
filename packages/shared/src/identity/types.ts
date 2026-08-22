@@ -1,4 +1,4 @@
-import type { AiProvider } from '../ai/constants';
+import type { AiModelSettings } from '../ai/types';
 import type { EntityStatus, PaginatedResponse } from '../core/types';
 import type {
   OAuthProviderType,
@@ -594,12 +594,12 @@ export interface UserAiConfig {
   id: number;
   userId: number;
   name: string | null;
-  provider: AiProvider;
+  /** Mastra provider ID 或 'custom' */
+  providerId: string;
   baseUrl: string | null;
   apiKey: string | null;
   model: string | null;
-  temperature: string | null;
-  maxTokens: number | null;
+  modelSettings: AiModelSettings | null;
   systemPrompt: string | null;
   isEnabled: boolean;
   createdAt: string;

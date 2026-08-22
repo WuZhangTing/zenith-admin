@@ -1,10 +1,11 @@
-import type { ChatMessage } from './factory';
-
 /**
  * 轻量 token 估算（无需引入 tokenizer 依赖）。
  * CJK 字符约 1 token/字，其余字符约 0.3 token/字（英文/数字 ≈ 3-4 char/token）。
  * 仅用于上下文裁剪的相对预算控制，非精确计费。
  */
+
+/** 消息内容最小结构(避免依赖 stream-types 形成循环) */
+type MessageContent = string | Array<{ type: string; text?: string }>;
 export function estimateTokens(text: string): number {
   if (!text) return 0;
   let tokens = 0;
@@ -21,7 +22,7 @@ export function estimateTokens(text: string): number {
 }
 
 /** 消息内容 token 估算（vision 数组内容：文本累计 + 每图约 200 token） */
-function estimateContentTokens(content: ChatMessage['content']): number {
+function estimateContentTokens(content: MessageContent): number {
   if (typeof content === 'string') return estimateTokens(content);
   return content.reduce((sum, p) => sum + (p.type === 'text' ? estimateTokens(p.text ?? '') : 200), 0);
 }
@@ -38,7 +39,7 @@ export interface TruncateOptions {
  * 入参为「时间倒序」的消息（最近的在前），返回「时间升序」的裁剪结果。
  * 至少保留最近 1 条，避免预算过小导致空上下文。
  */
-export function truncateHistoryByBudget<T extends Pick<ChatMessage, 'content'>>(
+export function truncateHistoryByBudget<T extends { content: MessageContent }>(
   recentFirst: T[],
   options: TruncateOptions = {},
 ): T[] {
