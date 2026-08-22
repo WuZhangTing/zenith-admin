@@ -139,7 +139,7 @@ export default function WorkflowEventSubscriptionsPage() {
               <div>HTTP 状态：{result.httpStatus ?? '—'} · 耗时 {result.durationMs}ms</div>
               {result.error && <div style={{ color: 'var(--semi-color-danger)' }}>错误：{result.error}</div>}
               {result.responseSnippet && (
-                <pre style={{ maxHeight: 160, overflow: 'auto', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 4, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                <pre style={{ maxHeight: 160, overflow: 'auto', background: 'var(--semi-color-fill-0)', padding: 8, borderRadius: 'var(--semi-border-radius-small)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                   {result.responseSnippet}
                 </pre>
               )}
