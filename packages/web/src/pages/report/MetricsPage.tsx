@@ -274,7 +274,7 @@ export default function MetricsPage() {
             </Banner>
           )}
           {detailQuery.isError && <Banner type="danger" description="指标详情加载失败，请关闭后重试" />}
-          <Form {...metricModal.formProps}
+          <Form key={metricModal.formKey} {...metricModal.formProps}
             onValueChange={(_values, changedValues) => {
               const changed = (changedValues ?? {}) as Record<string, unknown>;
               if ('datasetId' in changed) setFormDatasetId(changed.datasetId ? Number(changed.datasetId) : undefined);

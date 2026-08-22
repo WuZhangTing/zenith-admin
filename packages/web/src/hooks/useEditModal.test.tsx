@@ -55,7 +55,7 @@ describe('打开与初始值', () => {
     expect(result.current.isEdit).toBe(false);
     expect(result.current.modalProps.title).toBe('新增角色');
     expect(result.current.formProps.initValues).toEqual({ name: '' });
-    expect(result.current.formProps.key).toBe('new:row');
+    expect(result.current.formKey).toBe('new:row');
   });
 
   it('defaults 为函数时每次打开重新求值', () => {
@@ -88,7 +88,7 @@ describe('打开与初始值', () => {
     expect(result.current.isEdit).toBe(true);
     expect(result.current.modalProps.title).toBe('编辑角色');
     expect(result.current.formProps.initValues).toEqual({ name: 'admin' });
-    expect(result.current.formProps.key).toBe('7:row');
+    expect(result.current.formKey).toBe('7:row');
   });
 });
 
@@ -104,7 +104,7 @@ describe('异步详情：到达后必须重挂载表单', () => {
     act(() => result.current.openEdit({ id: 12, name: '列表行' }));
     // 详情未到达：用列表行占位
     expect(result.current.formProps.initValues).toMatchObject({ name: '列表行' });
-    expect(result.current.formProps.key).toBe('12:row');
+    expect(result.current.formKey).toBe('12:row');
     expect(result.current.detailLoading).toBe(true);
     // 详情加载期间禁止提交，避免把占位数据当成完整记录保存
     expect(result.current.modalProps.okButtonProps.disabled).toBe(true);
@@ -113,7 +113,7 @@ describe('异步详情：到达后必须重挂载表单', () => {
     rerender();
 
     // key 必须变化，否则 Semi 不会重新读取 initValues
-    expect(result.current.formProps.key).toBe('12:detail');
+    expect(result.current.formKey).toBe('12:detail');
     expect(result.current.formProps.initValues).toMatchObject({ name: '详情名', remark: '仅详情返回的字段' });
     expect(result.current.detailLoading).toBe(false);
     expect(result.current.modalProps.okButtonProps.disabled).toBe(false);
@@ -124,7 +124,7 @@ describe('异步详情：到达后必须重挂载表单', () => {
     const { result } = renderHook(() => useEditModal<Row>({ entityName: '角色', save }));
     act(() => result.current.openEdit({ id: 3, name: 'a' }));
     expect(result.current.detailLoading).toBe(false);
-    expect(result.current.formProps.key).toBe('3:row');
+    expect(result.current.formKey).toBe('3:row');
   });
 });
 
@@ -223,7 +223,7 @@ describe('提交编排', () => {
     act(() => result.current.openCreate());
     expect(result.current.isEdit).toBe(false);
     expect(result.current.formProps.initValues).toEqual({ name: '' });
-    expect(result.current.formProps.key).toBe('new:row');
+    expect(result.current.formKey).toBe('new:row');
   });
 
   it('successMessage 可覆盖默认提示，onSaved 拿到保存结果', async () => {

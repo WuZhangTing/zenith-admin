@@ -295,7 +295,7 @@ export default function TenantsPage() {
 
       <AppModal {...tenantModal.modalProps} width={660}>
         <Spin spinning={tenantModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...tenantModal.formProps}>
+        <Form key={tenantModal.formKey} {...tenantModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="租户名称" placeholder="请输入租户名称" rules={[{ required: true, message: '请输入租户名称' }]} />

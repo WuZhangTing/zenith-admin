@@ -179,7 +179,7 @@ export default function MpQrcodesPage() {
         <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
           <Form
             {...createModal.formProps}
-            key={`${createModal.formProps.key}-${modalType}`}
+            key={`${createModal.formKey}-${modalType}`}
           >
             <Form.Slot label="二维码类型">
               <Select style={{ width: '100%' }} optionList={TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpQrcodeType)} />

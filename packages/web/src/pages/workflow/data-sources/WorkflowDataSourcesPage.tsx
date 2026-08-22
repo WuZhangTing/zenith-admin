@@ -253,7 +253,7 @@ export default function WorkflowDataSourcesPage() {
         closeOnEsc
       >
         <Form
-          {...dataSourceModal.formProps}
+          key={dataSourceModal.formKey} {...dataSourceModal.formProps}
         >
           <Row gutter={16}>
             <Col span={12}>

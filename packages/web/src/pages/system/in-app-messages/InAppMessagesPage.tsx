@@ -214,7 +214,7 @@ export default function InAppMessagesPage() {
         scroll={{ x: 1400 }} />
 
       <AppModal {...sendModal.modalProps} title="发送站内信" width={720}>
-        <Form {...sendModal.formProps}>
+        <Form key={sendModal.formKey} {...sendModal.formProps}>
           <Row gutter={16}>
             <Col span={24}>
               <Form.Select field="userIds" label="收件人" multiple filter style={{ width: '100%' }}

@@ -188,7 +188,7 @@ export default function SubscriptionsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)} />
 
       <AppModal {...subscriptionModal.modalProps} width={560}>
-        <Form {...subscriptionModal.formProps}
+        <Form key={subscriptionModal.formKey} {...subscriptionModal.formProps}
           onValueChange={(v: Record<string, unknown>) => {
             if (typeof v.cron === 'string') setCronExprValue(v.cron);
             if (Array.isArray(v.channels)) setSelectedChannels(v.channels as string[]);

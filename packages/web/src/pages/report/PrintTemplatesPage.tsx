@@ -299,7 +299,7 @@ export default function PrintTemplatesPage() {
         {...printModal.modalProps}
         width={560}
       >
-        <Form {...printModal.formProps}>
+        <Form key={printModal.formKey} {...printModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear placeholder="如：销售出库单" />
           <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
             optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />

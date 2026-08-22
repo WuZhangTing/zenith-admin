@@ -284,7 +284,7 @@ export default function AiAgentsPage() {
         width={660}
       >
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
         >
           <Row gutter={16}>
             <Col span={12}>

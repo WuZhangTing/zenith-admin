@@ -396,7 +396,7 @@ export default function AlertsPage() {
         bodyStyle={{ padding: 16, overflow: 'auto' }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Form {...alertModal.formProps}
+          <Form key={alertModal.formKey} {...alertModal.formProps}
             onValueChange={(values, changedValues) => {
               // 只响应本次实际变更的字段；setValue 会同步重入 onValueChange，
               // 无条件处理会因闭包中的旧 state 造成无限递归（栈溢出崩溃）

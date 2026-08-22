@@ -302,7 +302,7 @@ export default function WorkflowConnectorsPage() {
         )}
       >
         <Form
-          {...connectorModal.formProps}
+          key={connectorModal.formKey} {...connectorModal.formProps}
           onValueChange={(values) => {
             const next = (values as Partial<ConnectorFormValues>).authType;
             if (next && next !== authType) setAuthType(next);

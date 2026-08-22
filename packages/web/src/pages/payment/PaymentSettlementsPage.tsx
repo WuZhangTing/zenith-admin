@@ -188,7 +188,7 @@ export default function PaymentSettlementsPage() {
       />
 
       <AppModal {...generateModal.modalProps} title="生成结算批次" width={520}>
-        <Form {...generateModal.formProps}>
+        <Form key={generateModal.formKey} {...generateModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.DatePicker
             field="period"

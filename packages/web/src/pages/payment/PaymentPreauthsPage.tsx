@@ -201,7 +201,7 @@ export default function PaymentPreauthsPage() {
       <AppModal {...createModal.modalProps} title="发起预授权冻结" width={520}>
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="资金冻结操作（押金场景）：冻结成功计入渠道账户冻结余额，可转支付或解冻；沙箱渠道即时生效。" />
-        <Form {...createModal.formProps}>
+        <Form key={createModal.formKey} {...createModal.formProps}>
           <Form.Select field="payMethod" label="预授权方式" style={{ width: '100%' }} optionList={PREAUTH_METHOD_OPTIONS} rules={[{ required: true, message: '请选择方式' }]} />
           <Form.Input field="payerAccount" label="付款人账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '付款人账号不能为空' }]} />
           <Form.Input field="subject" label="冻结事由" placeholder="如：民宿押金" rules={[{ required: true, message: '冻结事由不能为空' }]} />

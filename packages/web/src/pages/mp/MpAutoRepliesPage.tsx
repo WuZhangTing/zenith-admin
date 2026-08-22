@@ -268,7 +268,7 @@ export default function MpAutoRepliesPage() {
 
       <AppModal {...modal.modalProps} width={640}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Slot label="回复类型">

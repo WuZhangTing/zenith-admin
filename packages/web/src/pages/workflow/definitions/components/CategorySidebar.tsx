@@ -161,7 +161,7 @@ export default function CategorySidebar({ categories, selectedId, onSelect, onCh
 
       >
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
         >
           <Form.Input
             field="name" label="名称"

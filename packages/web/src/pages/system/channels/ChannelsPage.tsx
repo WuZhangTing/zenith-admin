@@ -219,7 +219,7 @@ export default function ChannelsPage() {
         width={520}
       >
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
         >
           <Form.Input
             field="code"

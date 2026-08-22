@@ -437,7 +437,7 @@ export default function AlertRulesPage() {
         width={660}
       >
         <Spin spinning={alertModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...alertModal.formProps}>
+          <Form key={alertModal.formKey} {...alertModal.formProps}>
             {({ values }) => {
               const selectedMetric = values.metric as MonitorMetric | undefined;
               const selectedChannels = Array.isArray(values.channels) ? values.channels as string[] : [];

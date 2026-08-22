@@ -169,7 +169,7 @@ export default function GovernanceResourceTab() {
       />
 
       <AppModal {...folderModal.modalProps} width={560}>
-        <Form {...folderModal.formProps}>
+        <Form key={folderModal.formKey} {...folderModal.formProps}>
           <Form.Input field="name" label="目录名称" rules={[{ required: true }]} />
           <Form.Select field="parentId" label="上级目录" showClear filter style={{ width: '100%' }} optionList={folders.filter((item) => item.id !== folderModal.editing?.id).map((item) => ({ value: item.id, label: item.name }))} />
           <Row gutter={16}>
@@ -187,7 +187,7 @@ export default function GovernanceResourceTab() {
       </SideSheet>
 
       <AppModal {...aclModal.modalProps} title="授予资源权限" width={560}>
-        <Form {...aclModal.formProps} onValueChange={(values) => values.subjectType && setSubjectType(values.subjectType as ReportAclSubjectType)}>
+        <Form key={aclModal.formKey} {...aclModal.formProps} onValueChange={(values) => values.subjectType && setSubjectType(values.subjectType as ReportAclSubjectType)}>
           <Form.Select field="subjectType" label="主体类型" style={{ width: '100%' }} optionList={[{ value: 'user', label: '用户' }, { value: 'role', label: '角色' }, { value: 'department', label: '部门' }, { value: 'user_group', label: '用户组' }]} rules={[{ required: true }]} />
           {subjectType === 'user'
             ? <Form.Select field="subjectId" label="主体" filter style={{ width: '100%' }} optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))} rules={[{ required: true }]} />

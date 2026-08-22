@@ -103,7 +103,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
       <AppModal {...modal.modalProps} width={520}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="fromPath" label="来源路径" placeholder="/old-page.html（须以 / 开头）" rules={[{ required: true, message: '请输入来源路径' }]} />
           <Form.Input field="toUrl" label="目标地址" placeholder="/news/ 或 https://..." rules={[{ required: true, message: '请输入目标地址' }]} />
           <Form.RadioGroup field="redirectType" label="跳转类型">
@@ -195,7 +195,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
       <AppModal {...modal.modalProps} width={520}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="keyword" label="关键词" rules={[{ required: true, message: '请输入关键词' }]} />
           <Form.Input field="url" label="链接地址" placeholder="/news/1.html 或 https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
           <Form.InputNumber field="maxReplaces" label="每篇最多替换" min={1} max={10} style={{ width: 160 }} />

@@ -240,7 +240,7 @@ export default function WorkflowDelegationsPage() {
           width={560}
         >
           <Form
-            {...delegationModal.formProps}
+            key={delegationModal.formKey} {...delegationModal.formProps}
           >
             {canManage && (
               <Form.Select

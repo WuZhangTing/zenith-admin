@@ -313,7 +313,7 @@ export default function PositionsPage() {
 
       <AppModal {...positionModal.modalProps} width={520}>
         <Spin spinning={positionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...positionModal.formProps}>
+        <Form key={positionModal.formKey} {...positionModal.formProps}>
           <Form.Input field="name" label="岗位名称" placeholder="请输入岗位名称" rules={[{ required: true, message: '请输入岗位名称' }]} />
           <Form.Input field="code" label="岗位编码" placeholder="请输入岗位编码" rules={[{ required: true, message: '请输入岗位编码' }]} />
           <Form.InputNumber field="sort" label="排序" placeholder="请输入排序" min={0} style={{ width: '100%' }} />

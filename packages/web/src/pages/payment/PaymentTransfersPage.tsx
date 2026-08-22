@@ -203,7 +203,7 @@ export default function PaymentTransfersPage() {
       <AppModal {...transferModal.modalProps} title="发起转账" width={560}>
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="资金流出操作：微信渠道收款账号为用户 openid（转入零钱），支付宝渠道为登录账号。沙箱渠道为模拟转账。" />
-        <Form {...transferModal.formProps}>
+        <Form key={transferModal.formKey} {...transferModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
             optionList={[{ value: 'wechat', label: '微信支付（零钱）' }, { value: 'alipay', label: '支付宝（账户）' }]} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />

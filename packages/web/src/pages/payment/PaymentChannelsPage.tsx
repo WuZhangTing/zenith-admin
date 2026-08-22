@@ -275,7 +275,7 @@ export default function PaymentChannelsPage() {
         )}
       >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}
+          <Form key={modal.formKey} {...modal.formProps}
             onValueChange={(v) => { if (v.channel) setFormChannel(v.channel as PaymentChannel); }}>
             <Row gutter={16}>
               <Col span={12}><Form.Input field="name" label="名称" placeholder="如：微信主商户" rules={[{ required: true, message: '名称不能为空' }]} /></Col>

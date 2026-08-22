@@ -270,7 +270,7 @@ export default function NginxSitesPage() {
         {...createModal.modalProps}
         width={660}
       >
-        <Form {...createModal.formProps}>
+        <Form key={createModal.formKey} {...createModal.formProps}>
           {({ values }) => (
             <>
               <Row gutter={16}>

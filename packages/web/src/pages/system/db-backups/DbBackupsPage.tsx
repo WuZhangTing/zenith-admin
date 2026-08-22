@@ -226,7 +226,7 @@ export default function DbBackupsPage() {
         cancelText="取消"
       >
         <Form
-          {...createModal.formProps}
+          key={createModal.formKey} {...createModal.formProps}
         >
           <Form.Select
             field="type"

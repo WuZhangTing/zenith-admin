@@ -629,7 +629,7 @@ export default function ResourcesPage() {
         width={480}
       >
         <Form
-          {...folderModal.formProps}
+          key={folderModal.formKey} {...folderModal.formProps}
         >
           <Form.Input field="name" label="名称" maxLength={100} rules={[{ required: true, message: '请输入文件夹名称' }]} />
           <Form.TreeSelect

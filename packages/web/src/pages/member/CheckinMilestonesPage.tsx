@@ -140,7 +140,7 @@ export default function CheckinMilestonesPage() {
         width={560}
       >
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
           onValueChange={(values) => setRewardType(values.rewardType as CheckinMilestoneRewardType)}
         >
           <Form.Input field="title" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />

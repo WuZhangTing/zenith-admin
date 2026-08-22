@@ -670,7 +670,7 @@ export default function DictsPage() {
       >
         <Spin spinning={dictModal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          {...dictModal.formProps}
+          key={dictModal.formKey} {...dictModal.formProps}
         >
           <Form.Input field="name" label="字典名称" placeholder="请输入字典名称" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典名称' }]} />
           <Form.Input field="code" label="字典编码" placeholder="请输入字典编码" style={{ width: '100%' }} rules={[{ required: true, message: '请输入字典编码' }]} />

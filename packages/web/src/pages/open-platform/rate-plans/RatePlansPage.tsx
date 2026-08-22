@@ -170,7 +170,7 @@ export default function RatePlansPage() {
       />
 
       <AppModal {...modal.modalProps} width={660}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input

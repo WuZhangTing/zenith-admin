@@ -311,7 +311,7 @@ export default function WorkflowSchedulesPage() {
         width={620}
       >
         <Form
-          {...scheduleModal.formProps}
+          key={scheduleModal.formKey} {...scheduleModal.formProps}
           onValueChange={(v) => { if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression); }}
         >
           <Form.Select

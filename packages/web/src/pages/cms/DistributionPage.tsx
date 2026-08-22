@@ -571,7 +571,7 @@ export default function DistributionPage() {
         )}
       >
         <Form
-          {...ruleModal.formProps}
+          key={ruleModal.formKey} {...ruleModal.formProps}
           onValueChange={(values) => {
             const sourceSiteId = Number(values.sourceSiteId) || undefined;
             const targetSiteId = Number(values.targetSiteId) || undefined;

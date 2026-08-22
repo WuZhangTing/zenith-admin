@@ -166,7 +166,7 @@ export default function MpKfAccountsPage() {
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑客服' : '添加客服'} width={520}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             <Form.Input field="kfAccount" label="客服账号" disabled={modal.isEdit}
               placeholder="形如 kf2001@公众号微信号" rules={[{ required: true, message: '请输入客服账号' }]} />
             <Form.Input field="nickname" label="客服昵称" placeholder="请输入客服昵称" rules={[{ required: true, message: '请输入客服昵称' }]} />

@@ -439,7 +439,7 @@ export default function MenusPage() {
 
       >
         <Spin spinning={menuModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...menuModal.formProps}>
+        <Form key={menuModal.formKey} {...menuModal.formProps}>
           <Form.RadioGroup
             field="type"
             label="菜单类型"

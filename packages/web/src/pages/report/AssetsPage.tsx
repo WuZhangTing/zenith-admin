@@ -374,7 +374,7 @@ export default function AssetsPage() {
       </SideSheet>
 
       <AppModal {...templateModal.modalProps} width={680}>
-        <Form {...templateModal.formProps}>
+        <Form key={templateModal.formKey} {...templateModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="模板名称" rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Input field="code" label="模板编码" disabled={templateModal.isEdit} rules={[{ required: true }]} /></Col>
@@ -389,7 +389,7 @@ export default function AssetsPage() {
       </AppModal>
 
       <AppModal {...deprecationModal.modalProps} width={680}>
-        <Form {...deprecationModal.formProps}>
+        <Form key={deprecationModal.formKey} {...deprecationModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" disabled={deprecationModal.isEdit} style={{ width: '100%' }} optionList={resourceTypeOptions} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="resourceId" label="资源 ID" disabled={deprecationModal.isEdit} min={1} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>

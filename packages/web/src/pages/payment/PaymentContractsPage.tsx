@@ -379,7 +379,7 @@ export default function PaymentContractsPage() {
       </Tabs>
 
       <AppModal {...planModal.modalProps} width={520}>
-        <Form {...planModal.formProps}>
+        <Form key={planModal.formKey} {...planModal.formProps}>
           <Form.Input field="name" label="计划名称" placeholder="如：连续包月 VIP" rules={[{ required: true, message: '计划名称不能为空' }]} />
           <Form.Select field="period" label="扣款周期" style={{ width: '100%' }} optionList={PAYMENT_DEDUCT_PERIOD_OPTIONS} onChange={(v) => setPlanPeriod(v as PaymentDeductPeriod)} rules={[{ required: true, message: '请选择周期' }]} />
           {planPeriod === 'custom' && (
@@ -393,7 +393,7 @@ export default function PaymentContractsPage() {
       </AppModal>
 
       <AppModal {...signModal.modalProps} title="新增签约（演示/测试）" width={520}>
-        <Form {...signModal.formProps} initValues={{ ...signModal.formProps.initValues, payMethod: 'wechat_papay' }}>
+        <Form key={signModal.formKey} {...signModal.formProps} initValues={{ ...signModal.formProps.initValues, payMethod: 'wechat_papay' }}>
           <Form.Select field="planId" label="扣款计划" style={{ width: '100%' }} rules={[{ required: true, message: '请选择扣款计划' }]}
             optionList={allPlans.map((p) => ({ value: p.id, label: `${p.name}（${describePlanPeriod(p)} ${yuan(p.amount)}）` }))} />
           <Form.Select field="payMethod" label="代扣方式" style={{ width: '100%' }} optionList={DEDUCT_METHOD_OPTIONS} rules={[{ required: true, message: '请选择代扣方式' }]} />

@@ -246,7 +246,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         rowSelection={{ selectedRowKeys: selectedIds.map(String), onChange: (keys) => setSelectedIds((keys ?? []).map(Number)) }}
       />
       <AppModal {...modal.modalProps} width={480}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="word" label="词条" placeholder="如：泽尼斯系统" rules={[{ required: true, message: '请输入词条' }]} />
           <Form.Select field="type" label="类型" optionList={CMS_SEARCH_WORD_TYPES.map((value) => ({ value, label: CMS_SEARCH_WORD_TYPE_LABELS[value] }))} />
           <Form.Input field="groupName" label="分组" />

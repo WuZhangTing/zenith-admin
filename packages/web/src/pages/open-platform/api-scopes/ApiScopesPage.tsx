@@ -204,7 +204,7 @@ export default function ApiScopesPage() {
         title={modal.isEdit ? '编辑 API Scope' : '新增 API Scope'}
         width={520}
       >
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input
             field="code"
             label="Scope 编码"

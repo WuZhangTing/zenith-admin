@@ -429,7 +429,7 @@ export default function FillTemplatesPage() {
           {conflictMessage && <Banner type="danger" closeIcon={null} description={conflictMessage} />}
           {editorStep === 0 ? (
             <Form
-              {...editorModal.formProps}
+              key={editorModal.formKey} {...editorModal.formProps}
               initValues={editorBasicValues}
             >
               <Row gutter={16}>
@@ -525,7 +525,7 @@ export default function FillTemplatesPage() {
         title={`克隆模板 · ${cloneModal.editing?.name ?? ''}`}
         width={520}
       >
-        <Form {...cloneModal.formProps}>
+        <Form key={cloneModal.formKey} {...cloneModal.formProps}>
           <Form.Input field="name" label="模板名称" prefix={<Copy size={14} />} rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="code" label="模板编码" rules={[{ required: true, message: '请输入编码' }]} />
           <Form.Select

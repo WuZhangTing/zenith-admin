@@ -207,7 +207,7 @@ export default function PaymentFeeRulesPage() {
 
       <AppModal {...modal.modalProps} width={700}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             <Form.Input field="name" label="名称" placeholder="如：微信标准费率" rules={[{ required: true, message: '名称不能为空' }]} />
             <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
               <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={channelOptions} rules={[{ required: true, message: '请选择渠道' }]} />

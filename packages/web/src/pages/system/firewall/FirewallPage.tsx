@@ -262,7 +262,7 @@ export default function FirewallPage() {
         okText="保存"
         width={620}
       >
-        <Form {...ruleModal.formProps}>
+        <Form key={ruleModal.formKey} {...ruleModal.formProps}>
           <Form.Select
             field="type"
             label="规则类型"

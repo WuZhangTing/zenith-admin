@@ -156,7 +156,7 @@ export default function MpTagsPage() {
 
       <AppModal {...modal.modalProps} width={480}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             <Form.Input field="name" label="标签名称" placeholder="请输入标签名称（最多30字）"
               maxLength={30} rules={[{ required: true, message: '请输入标签名称' }]} />
           </Form>

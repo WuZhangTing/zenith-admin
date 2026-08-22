@@ -95,7 +95,7 @@ export default function ErrorProneWordsPage() {
       />
 
       <AppModal {...modal.modalProps} width={480}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="word" label="易错词" rules={[{ required: true, message: '请输入易错词' }]} />
           <Form.Input field="correction" label="正确写法" rules={[{ required: true, message: '请输入正确写法' }]} />
           <Form.Input field="remark" label="备注" placeholder="可选" />

@@ -279,7 +279,7 @@ export default function PaymentLedgerPage() {
       <AppModal {...adjustModal.modalProps} title="人工调账" width={480}>
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="调账将记入 adjust 资金流水并同步变更该渠道账户的可用余额，操作可审计。" />
-        <Form {...adjustModal.formProps}>
+        <Form key={adjustModal.formKey} {...adjustModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.Select field="direction" label="方向" style={{ width: '100%' }}
             optionList={[{ value: 'in', label: '调增（入账）' }, { value: 'out', label: '调减（出账）' }]} rules={[{ required: true, message: '请选择方向' }]} />

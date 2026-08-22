@@ -125,7 +125,7 @@ export default function WikiTagsPage() {
 
       <AppModal {...modal.modalProps} width={480}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             <Form.Input field="name" label="名称" placeholder="请输入标签名称"
               rules={[{ required: true, message: '标签名称不能为空' }]} />
             <Form.RadioGroup field="color" label="颜色" type="pureCard" direction="horizontal">

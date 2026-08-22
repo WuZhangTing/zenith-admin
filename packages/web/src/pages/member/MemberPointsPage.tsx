@@ -133,7 +133,7 @@ export default function MemberPointsPage() {
         pagination={buildPagination(total)} empty="暂无积分流水" />
 
       <AppModal {...adjustModal.modalProps} title="调整会员积分" width={480}>
-        <Form {...adjustModal.formProps}>
+        <Form key={adjustModal.formKey} {...adjustModal.formProps}>
           <MemberSelect field="memberId" required />
           <Form.InputNumber field="delta" label="变动量" style={{ width: '100%' }} placeholder="正数增加，负数扣减"
             rules={[{ required: true, message: '请输入变动量' }]} />

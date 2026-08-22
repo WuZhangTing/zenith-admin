@@ -410,7 +410,7 @@ export default function DataMaskPage() {
       >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
           onValueChange={(vals: Record<string, unknown>) => {
             if (vals.maskType) setMaskTypePreview(vals.maskType as unknown as MaskType);
           }}

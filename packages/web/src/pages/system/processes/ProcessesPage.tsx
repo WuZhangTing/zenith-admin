@@ -668,7 +668,7 @@ export default function ProcessesPage() {
       >
         {priorityModal.editing && (
           <Form
-            {...priorityModal.formProps}
+            key={priorityModal.formKey} {...priorityModal.formProps}
           >
             {platform === 'win32' ? (
               <Form.Select

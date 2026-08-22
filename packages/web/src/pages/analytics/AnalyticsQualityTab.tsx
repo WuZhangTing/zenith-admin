@@ -282,7 +282,7 @@ export default function AnalyticsQualityTab() {
         {...overrideModal.modalProps}
         width={480}
       >
-        <Form {...overrideModal.formProps}>
+        <Form key={overrideModal.formKey} {...overrideModal.formProps}>
           <Form.Input field="eventName" label="事件名" placeholder="如 order_submit" disabled={overrideModal.isEdit} rules={[{ required: true, message: '请输入事件名' }]} />
           <Form.Select field="status" label="状态" optionList={ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS} style={{ width: '100%' }} />
           <Form.TextArea field="reason" label="原因" placeholder="启停原因（可选，便于审计追溯）" maxCount={256} />

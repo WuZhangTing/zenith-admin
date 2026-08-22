@@ -146,7 +146,7 @@ export default function CheckinRulesPage() {
         width={520}
       >
         <Form
-          {...ruleModal.formProps}
+          key={ruleModal.formKey} {...ruleModal.formProps}
         >
           <Form.InputNumber field="dayNumber" label="天数" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入天数' }]} />
           <Form.InputNumber field="points" label="积分奖励" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入积分奖励' }]} />

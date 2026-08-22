@@ -190,7 +190,7 @@ export default function MpMaterialsPage() {
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '重命名素材' : '新增素材'} width={520}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             {!modal.isEdit && (
               <Form.Select field="type" label="素材类型" style={{ width: '100%' }} optionList={MP_MATERIAL_TYPE_OPTIONS} />
             )}

@@ -197,7 +197,7 @@ export default function SmsConfigsPage() {
 
       <AppModal {...configModal.modalProps} width={720}>
         <Spin spinning={configModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...configModal.formProps}>
+        <Form key={configModal.formKey} {...configModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="名称" placeholder="请输入名称"

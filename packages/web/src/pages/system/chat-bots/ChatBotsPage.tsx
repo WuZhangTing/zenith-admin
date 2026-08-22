@@ -307,7 +307,7 @@ export default function ChatBotsPage() {
         {...botModal.modalProps}
         width={520}
       >
-        <Form {...botModal.formProps}>
+        <Form key={botModal.formKey} {...botModal.formProps}>
           <Form.Input field="name" label="名称" placeholder="请输入机器人名称" rules={[{ required: true, message: '请输入机器人名称' }]} />
           <Form.Select
             field="conversationId"

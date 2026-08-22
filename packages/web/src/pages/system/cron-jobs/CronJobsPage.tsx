@@ -460,7 +460,7 @@ export default function CronJobsPage() {
       >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
           onValueChange={(v: Record<string, unknown>) => {
             if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression);
           }}

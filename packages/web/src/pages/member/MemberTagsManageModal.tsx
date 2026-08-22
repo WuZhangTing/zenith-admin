@@ -77,7 +77,7 @@ export function MemberTagsManageModal({ visible, onClose }: Readonly<Props>) {
       />
 
       <AppModal {...tagModal.modalProps} width={480}>
-        <Form {...tagModal.formProps}>
+        <Form key={tagModal.formKey} {...tagModal.formProps}>
           <Form.Input field="name" label="名称" placeholder="如：高价值 / 易流失" maxLength={32}
             rules={[{ required: true, message: '请输入标签名称' }]} />
           <Form.Select field="color" label="颜色" style={{ width: '100%' }}

@@ -93,7 +93,7 @@ export default function MemberLevelsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small" pagination={false} empty="暂无数据" />
 
       <AppModal {...levelModal.modalProps} width={660}>
-        <Form {...levelModal.formProps}>
+        <Form key={levelModal.formKey} {...levelModal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="name" label="等级名称" placeholder="如：黄金会员" rules={[{ required: true, message: '请输入等级名称' }]} /></Col>
             <Col span={12}><Form.InputNumber field="level" label="等级序号" min={0} style={{ width: '100%' }} rules={[{ required: true, message: '请输入序号' }]} /></Col>

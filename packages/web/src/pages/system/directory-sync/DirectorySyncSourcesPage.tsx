@@ -342,7 +342,7 @@ export default function DirectorySyncSourcesPage() {
 
       <AppModal {...modal.modalProps} width={660}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             {({ formState }) => {
               const type = (formState.values as { type?: string }).type ?? 'ldap';
               return (

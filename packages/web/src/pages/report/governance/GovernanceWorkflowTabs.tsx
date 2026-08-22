@@ -123,7 +123,7 @@ export function GovernanceApprovalTab() {
       {listQuery.isError && <Banner type="danger" description="发布审批加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={columns} dataSource={listQuery.data?.list ?? []} loading={listQuery.isFetching} empty={<Empty title="暂无发布审批" />} pagination={buildPagination(listQuery.data?.total ?? 0)} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} />
       <AppModal {...approvalModal.modalProps} title="申请发布审批" width={640}>
-        <Form {...approvalModal.formProps}>
+        <Form key={approvalModal.formKey} {...approvalModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
             <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>
@@ -209,7 +209,7 @@ export function GovernanceTransferTab() {
       {listQuery.isError && <Banner type="danger" description="所有权转移列表加载失败" />}
       <ConfigurableTable bordered rowKey="id" columns={columns} dataSource={listQuery.data?.list ?? []} loading={listQuery.isFetching} empty={<Empty title="暂无所有权转移" />} pagination={buildPagination(listQuery.data?.total ?? 0)} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} />
       <AppModal {...transferModal.modalProps} title="申请所有权转移" width={600}>
-        <Form {...transferModal.formProps}>
+        <Form key={transferModal.formKey} {...transferModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setResourceType(v as ReportResourceType)} /></Col>
             <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>

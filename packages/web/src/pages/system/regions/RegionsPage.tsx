@@ -358,7 +358,7 @@ export default function RegionsPage() {
 
       <AppModal {...regionModal.modalProps} width={520}>
         <Spin spinning={regionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...regionModal.formProps}>
+        <Form key={regionModal.formKey} {...regionModal.formProps}>
           <Form.Select
             field="level"
             label="级别"

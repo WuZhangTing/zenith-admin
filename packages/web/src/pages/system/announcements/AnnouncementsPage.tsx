@@ -718,7 +718,7 @@ export default function AnnouncementsPage() {
       >
         <Spin spinning={modalDetailLoading} tip="加载中..." size="small">
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
           layout="vertical"
         >
           <Form.Input

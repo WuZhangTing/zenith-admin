@@ -293,7 +293,7 @@ export default function PaymentSharingPage() {
       </Tabs>
 
       <AppModal {...receiverModal.modalProps} width={520}>
-        <Form {...receiverModal.formProps}>
+        <Form key={receiverModal.formKey} {...receiverModal.formProps}>
           <Form.Input field="name" label="名称" placeholder="如：合作商户 A" rules={[{ required: true, message: '名称不能为空' }]} />
           <Form.Select field="receiverType" label="类型" style={{ width: '100%' }} optionList={receiverTypeOptions} rules={[{ required: true, message: '请选择类型' }]} />
           <Form.Input field="account" label="账号" placeholder="商户号 / 个人 openid" rules={[{ required: true, message: '账号不能为空' }]} />
@@ -305,7 +305,7 @@ export default function PaymentSharingPage() {
       </AppModal>
 
       <AppModal {...dispatchModal.modalProps} title="发起分账" width={520}>
-        <Form {...dispatchModal.formProps}>
+        <Form key={dispatchModal.formKey} {...dispatchModal.formProps}>
           <Form.Input field="orderNo" label="订单号" placeholder="已支付成功的支付订单号" rules={[{ required: true, message: '订单号不能为空' }]} />
           <Form.Select field="receiverId" label="接收方" style={{ width: '100%' }} rules={[{ required: true, message: '请选择接收方' }]}
             optionList={dispatchReceivers.map((r) => ({ value: r.id, label: `${r.name}（${PAYMENT_SHARING_RECEIVER_TYPE_LABELS[r.receiverType]}）` }))} />

@@ -306,7 +306,7 @@ export default function PaymentReconPage() {
       />
 
       <AppModal {...createModal.modalProps} title="新建对账" width={720}>
-        <Form {...createModal.formProps}>
+        <Form key={createModal.formKey} {...createModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
           <Button type="tertiary" loading={sampleBillMutation.isPending} onClick={handleSampleBill} style={{ marginLeft: 100, marginBottom: 12 }}>生成模拟账单</Button>
@@ -332,7 +332,7 @@ export default function PaymentReconPage() {
       </SideSheet>
 
       <AppModal {...autoModal.modalProps} title="自动拉取渠道账单对账" width={480}>
-        <Form {...autoModal.formProps}>
+        <Form key={autoModal.formKey} {...autoModal.formProps}>
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true, message: '请选择渠道' }]} />
           <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
           <Typography.Text type="tertiary" size="small">沙箱渠道生成模拟账单演示闭环；生产微信渠道自动下载交易账单，支付宝暂需手动上传。</Typography.Text>
@@ -340,7 +340,7 @@ export default function PaymentReconPage() {
       </AppModal>
 
       <AppModal {...handleModal.modalProps} title={`处理差异${handleModal.editing?.orderNo ? `（${handleModal.editing.orderNo}）` : ''}`} width={520}>
-        <Form {...handleModal.formProps}>
+        <Form key={handleModal.formKey} {...handleModal.formProps}>
           <Form.Select field="action" label="处理方式" style={{ width: '100%' }} optionList={HANDLE_ACTION_OPTIONS} rules={[{ required: true, message: '请选择处理方式' }]} />
           <Form.TextArea field="remark" label="处理备注" autosize rows={2} placeholder="可选，如：渠道账单延迟，已人工核实" />
         </Form>

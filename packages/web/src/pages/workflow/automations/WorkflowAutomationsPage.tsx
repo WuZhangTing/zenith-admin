@@ -479,7 +479,7 @@ export default function WorkflowAutomationsPage() {
         width={780}
       >
         <Spin spinning={automationModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...automationModal.formProps}>
+        <Form key={automationModal.formKey} {...automationModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="规则名称" maxLength={64} rules={[{ required: true, message: '请输入规则名称' }]} />

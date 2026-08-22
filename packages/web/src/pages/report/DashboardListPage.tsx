@@ -308,7 +308,7 @@ export default function DashboardListPage() {
         {...dashboardModal.modalProps}
         width={520}
       >
-        <Form {...dashboardModal.formProps}>
+        <Form key={dashboardModal.formKey} {...dashboardModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={64} showClear />
           <Form.Select field="ownerId" label="负责人" filter showClear style={{ width: '100%' }}
             optionList={users.map((u) => ({ value: u.id, label: u.nickname || u.username }))} />
@@ -365,7 +365,7 @@ export default function DashboardListPage() {
         {...categoryModal.modalProps}
         width={520}
       >
-        <Form {...categoryModal.formProps}>
+        <Form key={categoryModal.formKey} {...categoryModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入分类名称' }]} maxLength={64} showClear />
           <Form.InputNumber field="sort" label="排序" min={0} max={9999} />
           <Form.TextArea field="remark" label="备注" maxLength={256} autosize={{ minRows: 2, maxRows: 4 }} />

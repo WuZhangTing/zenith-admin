@@ -400,7 +400,7 @@ export default function PaymentRiskRulesPage() {
 
       <AppModal {...modal.modalProps} width={700}>
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
           onValueChange={(v) => { if (v.scope && v.scope !== scopeWatch) setScopeWatch(v.scope as PaymentRiskScope); }}
         >
           <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>

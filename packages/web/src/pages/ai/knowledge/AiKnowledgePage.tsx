@@ -224,7 +224,7 @@ export default function AiKnowledgePage() {
         closeOnEsc
       >
         <Form
-          {...kbModal.formProps}
+          key={kbModal.formKey} {...kbModal.formProps}
         >
           <Form.Input field="name" label="名称" placeholder="请输入名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="description" label="描述" placeholder="可选" maxLength={300} />

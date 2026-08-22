@@ -274,7 +274,7 @@ export default function WebhooksPage() {
         title={modal.isEdit ? '编辑 Webhook 订阅' : '新增 Webhook 订阅'}
         width={600}
       >
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Select field="clientId" label="所属应用" disabled={modal.isEdit} style={{ width: '100%' }} filter optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} rules={[{ required: true, message: '请选择所属应用' }]} />
           <Form.Input field="name" label="名称" placeholder="如 订单回调" rules={[{ required: true, message: '名称不能为空' }]} />
           <Form.Input field="url" label="回调地址" placeholder="https://your-app.com/webhook" rules={[{ required: true, message: '请输入回调地址' }]} />

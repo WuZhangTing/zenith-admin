@@ -254,7 +254,7 @@ export default function SystemConfigsPage() {
       >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
           onValueChange={handleTypeChange}
         >
           <Form.Input

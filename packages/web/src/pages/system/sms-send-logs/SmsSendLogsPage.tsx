@@ -170,7 +170,7 @@ export default function SmsSendLogsPage() {
         scroll={{ x: 1400 }} />
 
       <AppModal {...testModal.modalProps} title="测试发送短信" width={520}>
-        <Form {...testModal.formProps}>
+        <Form key={testModal.formKey} {...testModal.formProps}>
           <Form.Select field="templateId" label="模板" style={{ width: '100%' }}
             optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))}
             rules={[{ required: true, message: '请选择模板' }]} />

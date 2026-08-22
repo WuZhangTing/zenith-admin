@@ -296,7 +296,7 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
         </div>
       ) : (
         <Form
-          {...activeModal.formProps}
+          key={activeModal.formKey} {...activeModal.formProps}
         >
           <Form.Section text="接入信息">
             <Row gutter={16}>

@@ -434,7 +434,7 @@ export default function OAuth2AppsPage() {
         width={660}
       >
         <Spin spinning={appModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...appModal.formProps}>
+          <Form key={appModal.formKey} {...appModal.formProps}>
             {/* 必填：应用名称（全宽） */}
             <Row gutter={16}>
               <Col span={24}>

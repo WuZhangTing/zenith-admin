@@ -217,7 +217,7 @@ export default function ModelsPage() {
 
       <AppModal {...modal.modalProps} width={860}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="模型名称" rules={[{ required: true, message: '请输入模型名称' }]} />

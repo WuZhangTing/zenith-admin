@@ -333,7 +333,7 @@ export default function FeedbacksPage() {
               ]}
             />
             <Form
-              {...handleModal.formProps}
+              key={handleModal.formKey} {...handleModal.formProps}
             >
               <Form.Select
                 field="status"

@@ -226,7 +226,7 @@ export default function MpConditionalMenusPage() {
         columns={columns} dataSource={list} rowKey="id" pagination={buildPagination(list.length)} scroll={{ x: 900 }} />
 
       <AppModal {...modal.modalProps} width={680}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="便于识别，如：女性用户菜单" />
           <Divider margin="8px" align="left"><Text type="tertiary" size="small">匹配规则（至少一项）</Text></Divider>
           <Form.Input field="tagId" label="标签ID" placeholder="微信标签 id（可在标签管理查看）" />

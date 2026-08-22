@@ -165,7 +165,7 @@ export default function GovernanceSlaTab() {
       <ConfigurableTable bordered rowKey="id" columns={violationColumns} dataSource={violationsQuery.data?.list ?? []} loading={violationsQuery.isFetching} empty={<Empty title="暂无 SLA 违规" />} pagination={buildPagination(violationsQuery.data?.total ?? 0)} onRefresh={() => void violationsQuery.refetch()} refreshLoading={violationsQuery.isFetching} />
 
       <AppModal {...ruleModal.modalProps} width={720}>
-        <Form {...ruleModal.formProps}>
+        <Form key={ruleModal.formKey} {...ruleModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasetOptions} rules={[{ required: true }]} /></Col>

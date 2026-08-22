@@ -172,7 +172,7 @@ export default function RuleListsPage() {
         {...modal.modalProps}
         width={560}
       >
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_blacklist" />
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />
           <Form.Select field="type" label="类型" optionList={TYPE_OPTIONS} style={{ width: '100%' }} />

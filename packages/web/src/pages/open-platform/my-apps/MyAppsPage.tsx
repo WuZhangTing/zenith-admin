@@ -279,7 +279,7 @@ export default function MyAppsPage() {
       />
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑我的应用' : '创建应用'} width={700}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="name" label="应用名称" rules={[{ required: true, message: '请输入应用名称' }]} /></Col>
             <Col span={12}><Form.Select field="environment" label="环境" optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))} rules={[{ required: true, message: '请选择环境' }]} style={{ width: '100%' }} /></Col>

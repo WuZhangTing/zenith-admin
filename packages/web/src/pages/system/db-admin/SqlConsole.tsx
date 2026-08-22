@@ -628,7 +628,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
         width={480}
       >
         <Form
-          {...saveFavoriteModal.formProps}
+          key={saveFavoriteModal.formKey} {...saveFavoriteModal.formProps}
         >
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} placeholder="为这条 SQL 起个名字" style={{ width: '100%' }} />
           <Form.TextArea field="description" label="备注" placeholder="可选，描述这条 SQL 的用途" style={{ width: '100%' }} />

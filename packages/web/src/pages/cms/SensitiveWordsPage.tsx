@@ -96,7 +96,7 @@ export default function SensitiveWordsPage() {
       />
 
       <AppModal {...modal.modalProps} width={480}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="word" label="敏感词" rules={[{ required: true, message: '请输入敏感词' }]} />
           <Form.Input field="replaceWith" label="替换为" placeholder="留空 = 拦截模式（命中直接拒绝提交）" />
           <Form.RadioGroup field="status" label="状态">

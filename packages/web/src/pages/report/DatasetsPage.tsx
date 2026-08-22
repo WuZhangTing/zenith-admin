@@ -643,7 +643,7 @@ export default function DatasetsPage() {
           </div>
         )}
       >
-        <Form {...datasetModal.formProps} onValueChange={(v) => {
+        <Form key={datasetModal.formKey} {...datasetModal.formProps} onValueChange={(v) => {
             if (v.datasourceId === undefined) return;
             setSelectedDsId((prev) => {
               const next = v.datasourceId as number;

@@ -396,7 +396,7 @@ export default function TagsPage() {
 
       >
         <Spin spinning={tagModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...tagModal.formProps}>
+        <Form key={tagModal.formKey} {...tagModal.formProps}>
           <Form.Input
             field="name"
             label="标签名称"

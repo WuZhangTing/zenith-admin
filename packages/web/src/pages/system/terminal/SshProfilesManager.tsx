@@ -318,7 +318,7 @@ export default function SshProfilesManager({ onConnect, onBrowseSftp }: Readonly
         keepDOM={false}
       >
         <Form
-          {...profileModal.formProps}
+          key={profileModal.formKey} {...profileModal.formProps}
           style={{ padding: '0 8px' }}
         >
           <Form.Input field="name" label="名称" placeholder="我的服务器" rules={[{ required: true, message: '请输入连接名称' }]} />

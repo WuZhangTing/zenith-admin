@@ -125,7 +125,7 @@ export default function TagsPage() {
       />
 
       <AppModal {...modal.modalProps} width={480}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="name" label="标签名称" onChange={(v) => handleNameChange(String(v ?? ''))} rules={[{ required: true, message: '请输入标签名称' }]} />
           <Form.Input field="slug" label="URL 标识" placeholder="输入名称自动生成，可修改" rules={[{ required: true, message: '请输入 URL 标识' }]} />
           <Form.Input field="groupName" label="分组" placeholder="可选，如「产品」「行业」，便于归类管理" maxLength={50} />

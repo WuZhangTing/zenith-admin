@@ -249,7 +249,7 @@ export default function AiEvalPage() {
         width={720}
       >
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
         >
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} />
           <Form.Input field="description" label="描述" maxLength={300} />

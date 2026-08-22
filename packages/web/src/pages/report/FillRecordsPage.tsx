@@ -535,7 +535,7 @@ export default function FillRecordsPage() {
       >
         <Form
           {...reviewModal.formProps}
-          key={`${reviewModal.editing?.id}-${reviewDecision}`}
+          key={`${reviewModal.formKey}-${reviewDecision}`}
         >
           <Form.TextArea
             field="comment"

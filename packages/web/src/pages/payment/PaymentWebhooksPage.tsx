@@ -310,7 +310,7 @@ export default function PaymentWebhooksPage() {
 
       <AppModal {...endpointModal.modalProps} width={680}>
         <Spin spinning={endpointModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...endpointModal.formProps}>
+          <Form key={endpointModal.formKey} {...endpointModal.formProps}>
             <Form.Input field="name" label="名称" placeholder="如：订单系统回调" rules={[{ required: true, message: '名称不能为空' }]} />
             <Form.Input field="url" label="URL" placeholder="https://example.com/payment/webhook" rules={[{ required: true, message: 'URL 不能为空' }]} />
             <Form.Input field="bizType" label="业务类型" placeholder="留空=全部" />

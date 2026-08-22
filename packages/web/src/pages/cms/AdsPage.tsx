@@ -90,7 +90,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         pagination={false}
       />
       <AppModal {...slotModal.modalProps} width={480}>
-        <Form {...slotModal.formProps}>
+        <Form key={slotModal.formKey} {...slotModal.formProps}>
           <Form.Input field="name" label="广告位名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="code" label="引用标识" disabled={slotModal.isEdit} placeholder="如 home-ad（主题模板中引用）" rules={[{ required: true, message: '请输入标识' }]} />
           <Form.Input field="remark" label="备注" />
@@ -196,7 +196,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
       <AppModal {...adModal.modalProps} width={560}>
-        <Form {...adModal.formProps}>
+        <Form key={adModal.formKey} {...adModal.formProps}>
           <Form.Select field="slotId" label="广告位" style={{ width: '100%' }} rules={[{ required: true, message: '请选择广告位' }]}
             optionList={(slotsQuery.data ?? []).map((s) => ({ value: s.id, label: s.name }))} />
           <Form.Input field="name" label="广告名称" rules={[{ required: true, message: '请输入名称' }]} />

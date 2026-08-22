@@ -244,7 +244,7 @@ export default function AnalyticsExperimentsTab() {
       />
 
       <Modal {...experimentModal.modalProps} title={experimentModal.isEdit ? '编辑 A/B 实验' : '新增 A/B 实验'} width={660}>
-        <Form {...experimentModal.formProps}>
+        <Form key={experimentModal.formKey} {...experimentModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="expKey" label="实验标识" disabled={experimentModal.isEdit} placeholder="如 homepage_banner" style={{ width: '100%' }} rules={[{ required: !experimentModal.isEdit, message: '请输入实验标识' }, { pattern: /^[a-z][a-z0-9_-]*$/, message: '以小写字母开头，仅允许小写字母、数字、下划线和中划线' }]} />

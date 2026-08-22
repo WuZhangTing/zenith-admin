@@ -217,7 +217,7 @@ export default function FormsPage() {
           </div>
         )}
       >
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Section text="基础信息">
             <Row gutter={16}>
               <Col span={12}>

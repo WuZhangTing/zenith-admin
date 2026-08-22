@@ -171,7 +171,7 @@ export default function InAppTemplatesPage() {
 
       <AppModal {...modal.modalProps} width={720}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="模板名称" placeholder="请输入模板名称"

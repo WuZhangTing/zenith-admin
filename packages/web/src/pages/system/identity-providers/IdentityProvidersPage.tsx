@@ -406,7 +406,7 @@ export default function IdentityProvidersPage() {
       >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form
-            {...modal.formProps}
+            key={modal.formKey} {...modal.formProps}
           >
             <Form.Section text="基础信息">
               <Row gutter={16}>

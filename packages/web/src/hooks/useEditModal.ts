@@ -118,9 +118,13 @@ export interface UseEditModalReturn<TRecord extends { id: number }> {
     okButtonProps: { loading: boolean; disabled: boolean };
     closeOnEsc: boolean;
   };
+  /**
+   * 表单重挂载 key：`<Form key={modal.formKey} {...modal.formProps}>`。
+   * 必须直接写在 JSX 上，不能放进 spread 对象——React 要求 key 显式传递。
+   */
+  readonly formKey: string;
   /** 直接展开到 Form */
   readonly formProps: {
-    key: string;
     getFormApi: (api: FormApi) => void;
     allowEmpty: boolean;
     initValues: Record<string, unknown>;
@@ -255,8 +259,8 @@ export function useEditModal<TRecord extends { id: number }, TValues = Partial<T
       okButtonProps: { loading: save.isPending, disabled: detailLoading },
       closeOnEsc: true,
     },
+    formKey,
     formProps: {
-      key: formKey,
       getFormApi: (api: FormApi) => {
         formApi.current = api;
       },

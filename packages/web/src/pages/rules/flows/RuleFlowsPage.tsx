@@ -160,7 +160,7 @@ export default function RuleFlowsPage() {
         width={880}
         bodyStyle={{ maxHeight: '72vh', overflowY: 'auto' }}
       >
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="key" label="Key" disabled={modal.isEdit} rules={[{ required: true, message: 'key 必填' }]} placeholder="如 risk_decision_flow" />
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '名称必填' }]} />
           <Form.TextArea field="description" label="描述" autosize={{ minRows: 2, maxRows: 3 }} maxCount={500} />

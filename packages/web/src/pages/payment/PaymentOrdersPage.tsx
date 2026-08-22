@@ -531,7 +531,7 @@ export default function PaymentOrdersPage() {
 
       <AppModal {...refundModal.modalProps} title="发起退款" okButtonProps={{ ...refundModal.modalProps.okButtonProps, type: 'danger' }} width={480}>
         {refundModal.editing && (
-          <Form {...refundModal.formProps}>
+          <Form key={refundModal.formKey} {...refundModal.formProps}>
             <Form.Slot label="订单号">{refundModal.editing.orderNo}</Form.Slot>
             <Form.Slot label="订单金额">{yuan(refundModal.editing.amount)}</Form.Slot>
             {refundedAmount > 0 && <Form.Slot label="已退金额"><Typography.Text type="warning">{yuan(refundedAmount)}</Typography.Text></Form.Slot>}
@@ -543,7 +543,7 @@ export default function PaymentOrdersPage() {
       </AppModal>
 
       <AppModal {...createOrderModal.modalProps} title="手动下单" width={520}>
-        <Form {...createOrderModal.formProps}>
+        <Form key={createOrderModal.formKey} {...createOrderModal.formProps}>
           <Form.Input field="subject" label="商品标题" placeholder="如 会员充值" rules={[{ required: true, message: '请输入标题' }]} />
           <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
           <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }))} rules={[{ required: true }]} />

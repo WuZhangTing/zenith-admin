@@ -348,7 +348,7 @@ export default function DataSourcesPage() {
         {...datasourceModal.modalProps}
         width={660}
       >
-        <Form {...datasourceModal.formProps}>
+        <Form key={datasourceModal.formKey} {...datasourceModal.formProps}>
           {({ values }) => (
             <>
               <Row gutter={16}>

@@ -249,7 +249,7 @@ export default function MpBroadcastsPage() {
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑群发草稿' : '新增群发'} width={600}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             <Form.Slot label="内容类型">
               <Select style={{ width: '100%' }} optionList={MP_BROADCAST_TYPE_OPTIONS} value={modalType} onChange={(v) => setModalType(v as MpBroadcastType)} />
             </Form.Slot>

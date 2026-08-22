@@ -229,7 +229,7 @@ export default function PromptTemplatesPage() {
       >
         <Spin spinning={promptModal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form
-            {...promptModal.formProps}
+            key={promptModal.formKey} {...promptModal.formProps}
           >
             <Row gutter={16}>
               <Col span={12}>

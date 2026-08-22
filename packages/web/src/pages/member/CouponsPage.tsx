@@ -262,7 +262,7 @@ export default function CouponsPage() {
         pagination={buildPagination(total)} empty="暂无优惠券" scroll={{ x: 1200 }} />
 
       <AppModal {...couponModal.modalProps} width={700}>
-        <Form {...couponModal.formProps}
+        <Form key={couponModal.formKey} {...couponModal.formProps}
           onValueChange={(values) => { if (values.type) setFormType(values.type as CouponType); if (values.validType) setFormValidType(values.validType as 'fixed' | 'relative'); if (values.status) setFormStatus(values.status as CouponTemplateStatus); }}>
           <Row gutter={16}>
             <Col span={24}>

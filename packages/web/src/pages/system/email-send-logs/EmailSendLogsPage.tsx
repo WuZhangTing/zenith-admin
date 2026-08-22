@@ -167,7 +167,7 @@ export default function EmailSendLogsPage() {
         scroll={{ x: 1400 }} />
 
       <AppModal {...testModal.modalProps} title="测试发送邮件" width={560}>
-        <Form {...testModal.formProps}>
+        <Form key={testModal.formKey} {...testModal.formProps}>
           <Form.Select field="templateId" label="模板" style={{ width: '100%' }} showClear
             optionList={templates.map((t) => ({ label: `${t.name} (${t.code})`, value: t.id }))} />
           <Form.Input field="toEmail" label="收件人" rules={[{ required: true, message: '请输入收件人邮箱' }]} />

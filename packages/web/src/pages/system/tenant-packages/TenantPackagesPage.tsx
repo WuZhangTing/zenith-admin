@@ -259,7 +259,7 @@ export default function TenantPackagesPage() {
 
       <AppModal {...modal.modalProps} width={520}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
-          <Form {...modal.formProps}>
+          <Form key={modal.formKey} {...modal.formProps}>
             <Form.Input field="name" label="套餐名称" placeholder="请输入套餐名称" rules={[{ required: true, message: '请输入套餐名称' }]} />
             <Form.InputNumber
               field="quotas.maxUsers"

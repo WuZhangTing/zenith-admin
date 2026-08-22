@@ -289,7 +289,7 @@ export default function RateLimitPage() {
         width={520}
       >
         <Form
-          {...createModal.formProps}
+          key={createModal.formKey} {...createModal.formProps}
         >
           <Form.Input
             field="name"
@@ -336,7 +336,7 @@ export default function RateLimitPage() {
       >
         {editModal.editing && (
           <Form
-            {...editModal.formProps}
+            key={editModal.formKey} {...editModal.formProps}
           >
             <Form.Select
               field="pathPatterns"

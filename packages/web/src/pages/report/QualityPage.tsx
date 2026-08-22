@@ -340,7 +340,7 @@ export default function QualityPage() {
 
       <AppModal {...ruleModal.modalProps} width={680}>
         <Form
-          {...ruleModal.formProps}
+          key={ruleModal.formKey} {...ruleModal.formProps}
           onValueChange={(values: Record<string, unknown>) => {
             if (values.type) setFormRuleType(values.type as ReportDqRuleType);
             if (typeof values.cron === 'string') setCronExprValue(values.cron);

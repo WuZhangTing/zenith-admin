@@ -159,7 +159,7 @@ export default function GovernanceEnvironmentTab() {
       <ConfigurableTable bordered rowKey="id" columns={promotionColumns} dataSource={promotionsQuery.data?.list ?? []} loading={promotionsQuery.isFetching} empty={<Empty title="暂无环境发布" />} pagination={buildPagination(promotionsQuery.data?.total ?? 0)} onRefresh={() => void promotionsQuery.refetch()} refreshLoading={promotionsQuery.isFetching} />
 
       <AppModal {...environmentModal.modalProps} width={650}>
-        <Form {...environmentModal.formProps}>
+        <Form key={environmentModal.formKey} {...environmentModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="环境名称" rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Input field="code" label="环境编码" disabled={environmentModal.isEdit} rules={[{ required: true }]} /></Col>
@@ -174,7 +174,7 @@ export default function GovernanceEnvironmentTab() {
       </AppModal>
 
       <AppModal {...promotionModal.modalProps} title="创建环境发布" width={680}>
-        <Form {...promotionModal.formProps}>
+        <Form key={promotionModal.formKey} {...promotionModal.formProps}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="resourceType" label="资源类型" style={{ width: '100%' }} optionList={REPORT_RESOURCE_TYPE_OPTIONS} rules={[{ required: true }]} onChange={(v) => setPromotionType(v as ReportResourceType)} /></Col>
             <Col xs={24} md={12}><Form.Select field="resourceId" label="资源" filter style={{ width: '100%' }} optionList={(assetsQuery.data?.list ?? []).map((item) => ({ value: item.resourceId, label: item.name }))} rules={[{ required: true }]} /></Col>

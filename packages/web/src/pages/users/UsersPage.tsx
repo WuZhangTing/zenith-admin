@@ -821,7 +821,7 @@ export default function UsersPage() {
         width={660}
       >
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
         >
           <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           {editingUser ? (
@@ -964,7 +964,7 @@ export default function UsersPage() {
         }}
         width={420}
       >
-        <Form {...passwordModal.formProps}>
+        <Form key={passwordModal.formKey} {...passwordModal.formProps}>
           <Form.Input
             field="password"
             label="新密码"

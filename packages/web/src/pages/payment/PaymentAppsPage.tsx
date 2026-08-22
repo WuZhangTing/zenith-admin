@@ -167,7 +167,7 @@ export default function PaymentAppsPage() {
       />
 
       <AppModal {...modal.modalProps} width={620}>
-        <Form {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="name" label="应用名称" placeholder="如：官网商城" rules={[{ required: true, message: '应用名称不能为空' }]} />
           <Form.Input field="appKey" label="appKey" placeholder="如：web-mall" disabled={modal.isEdit} rules={[{ required: true, message: 'appKey 不能为空' }]} />
           <Form.Select field="wechatConfigId" label="微信配置" style={{ width: '100%' }} optionList={channelSelectOptions.wechat} showClear placeholder="可选" />

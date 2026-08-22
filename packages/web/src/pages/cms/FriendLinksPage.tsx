@@ -144,7 +144,7 @@ export default function FriendLinksPage() {
       />
 
       <AppModal {...linkModal.modalProps} width={520}>
-        <Form {...linkModal.formProps}>
+        <Form key={linkModal.formKey} {...linkModal.formProps}>
           <Form.Input field="name" label="链接名称" rules={[{ required: true, message: '请输入链接名称' }]} />
           <Form.Input field="url" label="链接地址" placeholder="https://..." rules={[{ required: true, message: '请输入链接地址' }]} />
           <Form.Select field="groupId" label="所属分组" showClear style={{ width: '100%' }} placeholder="未分组"
@@ -229,7 +229,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
         pagination={buildPagination(listQuery.data?.total ?? 0)}
       />
       <AppModal {...groupModal.modalProps} width={480}>
-        <Form {...groupModal.formProps}>
+        <Form key={groupModal.formKey} {...groupModal.formProps}>
           <Form.Input field="name" label="分组名称" rules={[{ required: true, message: '请输入分组名称' }]} />
           <Form.Input field="code" label="分组标识" placeholder="如 tech" disabled={groupModal.isEdit}
             extraText="主题按组取数的稳定引用，创建后不可修改"

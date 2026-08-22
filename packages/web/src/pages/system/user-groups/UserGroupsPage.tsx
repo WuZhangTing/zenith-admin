@@ -407,7 +407,7 @@ export default function UserGroupsPage() {
         }
       >
         <Spin spinning={groupModal.detailLoading}>
-        <Form {...groupModal.formProps}>
+        <Form key={groupModal.formKey} {...groupModal.formProps}>
           {({ formState }) => {
             const memberMode = (formState.values as { memberMode?: string }).memberMode ?? 'static';
             return (

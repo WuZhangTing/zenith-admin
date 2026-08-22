@@ -167,7 +167,7 @@ export default function AnalyticsSitesTab() {
         {...siteModal.modalProps}
         width={620}
       >
-        <Form {...siteModal.formProps}>
+        <Form key={siteModal.formKey} {...siteModal.formProps}>
           <Form.Input field="name" label="站点名称" placeholder="如 管理后台" rules={[{ required: true, message: '请输入站点名称' }]} />
           <Form.Input field="appId" label="AppId" placeholder="如 admin/member" rules={[{ required: true, message: '请输入 appId' }, { pattern: /^[a-z][a-z0-9_-]*$/, message: '以小写字母开头，仅允许小写字母、数字、下划线和中划线' }]} />
           <Form.TagInput field="allowedOrigins" label="来源白名单" placeholder="输入 origin 后回车，如 https://example.com" />

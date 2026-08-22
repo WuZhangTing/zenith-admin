@@ -174,7 +174,7 @@ export default function GovernanceCapacityTab() {
       <ConfigurableTable bordered rowKey="id" columns={costColumns} dataSource={costsQuery.data?.list ?? []} loading={costsQuery.isFetching} empty={<Empty title="暂无查询成本日志" />} pagination={buildPagination(costsQuery.data?.total ?? 0)} onRefresh={() => void costsQuery.refetch()} refreshLoading={costsQuery.isFetching} style={{ marginTop: 16 }} />
 
       <AppModal {...quotaModal.modalProps} width={700}>
-        <Form {...quotaModal.formProps} onValueChange={(values) => values.scope && setQuotaScope(values.scope as ReportQuotaScope)}>
+        <Form key={quotaModal.formKey} {...quotaModal.formProps} onValueChange={(values) => values.scope && setQuotaScope(values.scope as ReportQuotaScope)}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Select field="scope" label="配额范围" style={{ width: '100%' }} optionList={[{ value: 'tenant', label: '租户' }, { value: 'user', label: '用户' }]} rules={[{ required: true }]} /></Col>
             {quotaScope === 'user' && <Col xs={24} md={12}><Form.Select field="userId" label="用户" filter style={{ width: '100%' }} optionList={(usersQuery.data ?? []).map((user) => ({ value: user.id, label: user.nickname || user.username }))} rules={[{ required: true }]} /></Col>}

@@ -171,7 +171,7 @@ export default function SmsTemplatesPage() {
 
       <AppModal {...templateModal.modalProps} width={720}>
         <Spin spinning={templateModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...templateModal.formProps}>
+        <Form key={templateModal.formKey} {...templateModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="模板名称" placeholder="请输入模板名称"

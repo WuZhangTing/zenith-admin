@@ -360,7 +360,7 @@ export default function DepartmentsPage() {
       >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form
-          {...modal.formProps}
+          key={modal.formKey} {...modal.formProps}
         >
           <Form.TreeSelect
             field="parentId"

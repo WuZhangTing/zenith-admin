@@ -550,7 +550,7 @@ export default function ChatBiPage() {
        okButtonProps={createModal.modalProps.okButtonProps}
        closeOnEsc
       >
-       <Form {...createModal.formProps}>
+       <Form key={createModal.formKey} {...createModal.formProps}>
           <Form.Input field="title" label="会话名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
           <Form.Slot label="上下文类型">
             <RadioGroup type="button" value={contextType} onChange={(event) => setContextType(event.target.value as typeof contextType)}>
@@ -586,7 +586,7 @@ export default function ChatBiPage() {
         okButtonProps={renameModal.modalProps.okButtonProps}
         closeOnEsc
       >
-        <Form {...renameModal.formProps}>
+        <Form key={renameModal.formKey} {...renameModal.formProps}>
           <Form.Input field="title" label="名称" rules={[{ required: true, message: '请输入会话名称' }]} maxLength={128} />
         </Form>
       </AppModal>

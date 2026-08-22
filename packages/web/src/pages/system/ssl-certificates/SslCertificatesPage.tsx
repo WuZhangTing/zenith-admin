@@ -250,7 +250,7 @@ export default function SslCertificatesPage() {
         title="生成自签名证书"
         width={520}
       >
-        <Form {...generateModal.formProps}>
+        <Form key={generateModal.formKey} {...generateModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
           <Form.InputNumber field="days" label="有效期" min={1} max={3650} suffix="天" style={{ width: '100%' }} />
@@ -264,7 +264,7 @@ export default function SslCertificatesPage() {
         title="上传证书"
         width={660}
       >
-        <Form {...uploadModal.formProps}>
+        <Form key={uploadModal.formKey} {...uploadModal.formProps}>
           <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} />
           <Form.Input field="domain" label="域名" rules={[{ required: true, message: '请输入域名' }]} />
           <Form.TextArea field="certContent" label="证书内容" rows={8} rules={[{ required: true, message: '请输入证书内容' }]} />

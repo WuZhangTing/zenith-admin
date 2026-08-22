@@ -741,7 +741,7 @@ export default function RuleTablesPage() {
         bodyStyle={{ maxHeight: editorFullscreen ? 'calc(100vh - 132px)' : '78vh', overflowY: 'auto' }}
       >
         <Form {...modal.formProps}
-          key={modal.editing?.id ?? (importSeed ? `import-${importSeed.key ?? 'new'}` : 'new')}
+          key={`${modal.formKey}-${importSeed ? `import-${importSeed.key ?? 'new'}` : 'new'}`}
           initValues={modal.editing
             ? { key: modal.editing.key, name: modal.editing.name, description: modal.editing.description, hitPolicy: modal.editing.hitPolicy, collectAggregate: modal.editing.settings?.collectAggregate ?? 'list', fallbackToDefaults: !!modal.editing.settings?.fallbackToDefaults }
             : { key: importSeed?.key, name: importSeed?.name, description: importSeed?.description, hitPolicy: importSeed?.hitPolicy ?? 'first', collectAggregate: importSeed?.settings?.collectAggregate ?? 'list', fallbackToDefaults: !!importSeed?.settings?.fallbackToDefaults }}>

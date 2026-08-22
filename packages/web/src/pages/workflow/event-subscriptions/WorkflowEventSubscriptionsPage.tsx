@@ -463,7 +463,7 @@ export default function WorkflowEventSubscriptionsPage() {
         width={680}
       >
         <Spin spinning={eventSubscriptionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
-        <Form {...eventSubscriptionModal.formProps}>
+        <Form key={eventSubscriptionModal.formKey} {...eventSubscriptionModal.formProps}>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="名称" maxLength={64} rules={[{ required: true, message: '请输入名称' }]} />

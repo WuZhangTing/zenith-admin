@@ -83,7 +83,7 @@ export default function PaymentMethodsPage() {
       />
 
       <AppModal {...methodModal.modalProps} title="编辑支付方式" width={480}>
-        <Form {...methodModal.formProps}>
+        <Form key={methodModal.formKey} {...methodModal.formProps}>
           <Form.Input field="label" label="展示名称" rules={[{ required: true, message: '名称不能为空' }]} />
           <Form.Input field="icon" label="图标" placeholder="lucide 图标名，可选" />
           <Form.InputNumber field="sort" label="排序" min={0} max={9999} step={1} precision={0} style={{ width: '100%' }} extraText="数值越小越靠前" />

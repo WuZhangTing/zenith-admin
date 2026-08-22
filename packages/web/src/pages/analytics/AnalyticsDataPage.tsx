@@ -971,7 +971,7 @@ export default function AnalyticsDataPage() {
           />
 
           <AppModal {...metaModal.modalProps} width={640}>
-            <Form {...metaModal.formProps}>
+            <Form key={metaModal.formKey} {...metaModal.formProps}>
               <Form.Input field="eventName" label="事件名" placeholder="如 page_view" rules={[{ required: true, message: '请输入事件名' }]} />
               <Form.Input field="displayName" label="显示名" placeholder="可选，如 页面进入" />
               <Form.Input field="category" label="分类" placeholder="可选，如 页面行为" />
@@ -1028,6 +1028,9 @@ export default function AnalyticsDataPage() {
               </>
             )}
           />
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '0 0 8px' }}>
+            仅统计已结束的完整自然日（不含今天）；今天的数据请在「行为分析 · 概览 / 实时」查看，每日 01:00 自动聚合前一天。
+          </Typography.Text>
           <ConfigurableTable
             bordered
             rowKey="statDate"

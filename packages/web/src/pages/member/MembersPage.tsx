@@ -367,7 +367,7 @@ export default function MembersPage() {
 
       {/* 编辑 / 新增 Modal */}
       <AppModal {...memberModal.modalProps} width={660}>
-        <Form {...memberModal.formProps}>
+        <Form key={memberModal.formKey} {...memberModal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} /></Col>
             <Col span={12}><Form.Input field="username" label="用户名" placeholder="选填" disabled={!!editing} /></Col>
