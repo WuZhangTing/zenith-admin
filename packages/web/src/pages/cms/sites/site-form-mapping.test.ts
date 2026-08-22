@@ -138,22 +138,43 @@ describe('buildSiteSavePayload', () => {
     expect(themeConfigChanged).toBe(false);
   });
 
-  it('编辑：theme 不进 payload；保留既有 settings 键并剔除 legacy h5 键', () => {
+  it('编辑：theme 写入 payload 并报告 themeChanged；保留既有 settings 键并剔除 legacy h5 键', () => {
     const record = makeSite({
       settings: { h5Enabled: true, h5Domain: 'm.example.com', analyticsSiteKey: 'ak-1', themeConfig: { primary: '#111' } },
     });
-    const { payload, themeConfigChanged } = buildSiteSavePayload({
+    const { payload, themeConfigChanged, themeChanged } = buildSiteSavePayload({
       values: baseFormValues(),
       editingRecord: record,
       templateDefaults: EMPTY_TEMPLATE_DEFAULTS,
       themeConfig: { primary: '#222' },
     });
-    expect(payload).not.toHaveProperty('theme');
+    expect(payload.theme).toBe('modern');
+    expect(themeChanged).toBe(true); // record 默认 theme=default，表单切到 modern
     const settings = payload.settings as Record<string, unknown>;
     expect(settings.analyticsSiteKey).toBe('ak-1'); // 未被表单管理的键原样保留
     expect(settings).not.toHaveProperty('h5Enabled');
     expect(settings).not.toHaveProperty('h5Domain');
     expect(themeConfigChanged).toBe(true);
+  });
+
+  it('编辑：theme 未变时 themeChanged 为 false；表单缺失 theme 回退原值', () => {
+    const record = makeSite({ theme: 'modern' });
+    const { payload, themeChanged } = buildSiteSavePayload({
+      values: baseFormValues(),
+      editingRecord: record,
+      templateDefaults: EMPTY_TEMPLATE_DEFAULTS,
+      themeConfig: {},
+    });
+    expect(payload.theme).toBe('modern');
+    expect(themeChanged).toBe(false);
+    const { payload: p2, themeChanged: c2 } = buildSiteSavePayload({
+      values: { ...baseFormValues(), theme: undefined },
+      editingRecord: record,
+      templateDefaults: EMPTY_TEMPLATE_DEFAULTS,
+      themeConfig: {},
+    });
+    expect(p2.theme).toBe('modern');
+    expect(c2).toBe(false);
   });
 
   it('clear 勾选把凭证写为 null；未勾选写 trim 后的值', () => {

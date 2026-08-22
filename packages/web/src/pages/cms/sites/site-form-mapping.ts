@@ -98,6 +98,7 @@ export function buildSiteFormInitValues(record: CmsSite): Record<string, unknown
   return {
     name: record.name,
     code: record.code,
+    theme: record.theme,
     domain: record.domain ?? '',
     aliasDomains: record.aliasDomains,
     isDefault: record.isDefault,
@@ -159,14 +160,16 @@ export interface SiteSavePayloadResult {
   payload: Record<string, unknown>;
   /** 主题参数是否变化（编辑态 + 非纯动态站点时提示重新生成静态页） */
   themeConfigChanged: boolean;
+  /** 主题本身是否切换（编辑态；与 themeConfigChanged 一起决定静态页重建提示） */
+  themeChanged: boolean;
 }
 
 /**
  * 表单值 → 保存 payload：settings 相关字段并入 settings JSONB
  * （保留既有 settings 键；剔除已下线的 h5 旧键）。
  *
- * 注意：编辑模式下 theme 字段刻意不进 payload（主题切换有独立流程），
- * 仅新建时写入 —— 保持与拆分前行为一致。
+ * theme 新建/编辑都写入 payload；编辑态切换主题时通过 themeChanged
+ * 告知调用方提示重新生成静态页。
  */
 export function buildSiteSavePayload({ values, editingRecord, templateDefaults, themeConfig }: BuildSavePayloadArgs): SiteSavePayloadResult {
   const merged = { ...values };
@@ -182,7 +185,8 @@ export function buildSiteSavePayload({ values, editingRecord, templateDefaults, 
     theme: requestedTheme,
     ...rest
   } = merged;
-  if (!editingRecord) rest.theme = requestedTheme ?? 'default';
+  rest.theme = requestedTheme ?? editingRecord?.theme ?? 'default';
+  const themeChanged = editingRecord !== null && rest.theme !== editingRecord.theme;
   const { h5Enabled: _legacyH5Enabled, h5Domain: _legacyH5Domain, ...prevSettings } = (editingRecord?.settings ?? {}) as Record<string, unknown>;
   rest.settings = {
     ...prevSettings,
@@ -222,5 +226,5 @@ export function buildSiteSavePayload({ values, editingRecord, templateDefaults, 
   // 主题参数变更 + 非纯动态站点 → 保存后提示重新生成静态页
   const prevThemeConfig = JSON.stringify(cleanThemeConfig((prevSettings.themeConfig as Record<string, unknown>) ?? {}));
   const themeConfigChanged = editingRecord !== null && prevThemeConfig !== JSON.stringify(cleanThemeConfig(themeConfig));
-  return { payload: rest, themeConfigChanged };
+  return { payload: rest, themeConfigChanged, themeChanged };
 }

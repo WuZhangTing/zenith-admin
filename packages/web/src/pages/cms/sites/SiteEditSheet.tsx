@@ -120,7 +120,7 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
     if (openKey !== null) {
       setActiveTab('basic');
       if (site) {
-        setSelectedTheme(site.effectiveTheme ?? site.theme);
+        setSelectedTheme(site.theme);
         setSelectedModelId(site.modelId ?? undefined);
         setTemplateDefaults(templateDefaultsFromSettings(site.settings as Record<string, unknown>));
         setThemeConfig({ ...((site.settings as Record<string, unknown>)?.themeConfig as Record<string, unknown> ?? {}) });
@@ -174,7 +174,7 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
       setActiveTab('basic');
       return;
     }
-    const { payload, themeConfigChanged } = buildSiteSavePayload({ values, editingRecord: site, templateDefaults, themeConfig });
+    const { payload, themeConfigChanged, themeChanged } = buildSiteSavePayload({ values, editingRecord: site, templateDefaults, themeConfig });
     let saved: CmsSite;
     try {
       saved = await saveMutation.mutateAsync({ id: site?.id, values: payload });
@@ -183,11 +183,13 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
     }
     Toast.success(site ? '更新成功' : '创建成功');
     onClose();
-    // 主题参数变更 + 非纯动态站点 → 保存后提示重新生成静态页
-    if (themeConfigChanged && saved.staticMode !== 'dynamic') {
+    // 主题或主题参数变更 + 非纯动态站点 → 保存后提示重新生成静态页
+    if ((themeChanged || themeConfigChanged) && saved.staticMode !== 'dynamic') {
       Modal.confirm({
         title: '重新生成静态页？',
-        content: '主题参数已变更，已生成的静态页仍是旧样式。是否立即提交全站静态化任务？',
+        content: themeChanged
+          ? '站点主题已切换，已生成的静态页仍是旧主题样式。是否立即提交全站静态化任务？'
+          : '主题参数已变更，已生成的静态页仍是旧样式。是否立即提交全站静态化任务？',
         okText: '立即生成',
         cancelText: '稍后手动',
         onOk: async () => {
