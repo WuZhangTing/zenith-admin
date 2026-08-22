@@ -1,10 +1,11 @@
-import { desc, eq, like, and, gte, lt, lte, count, sql } from 'drizzle-orm';
+import { desc, eq, like, and, or, gte, lt, lte, count, sql, inArray } from 'drizzle-orm';
 import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { loginLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatDate } from '../../lib/datetime';
+import { getNicknameMap, findUsernamesByNickname } from '../../lib/user-nicknames';
 
 export interface ListLoginLogsQuery {
   page?: number;
@@ -21,7 +22,12 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
   const page = Number(q.page) || 1;
   const pageSize = Number(q.pageSize) || 10;
   const conditions = [];
-  if (q.username) conditions.push(like(loginLogs.username, `%${escapeLike(q.username)}%`));
+  if (q.username) {
+    // 关键字同时匹配用户名与昵称（昵称先反查出用户名集合）
+    const byNickname = await findUsernamesByNickname(q.username);
+    const usernameLike = like(loginLogs.username, `%${escapeLike(q.username)}%`);
+    conditions.push(byNickname.length > 0 ? or(usernameLike, inArray(loginLogs.username, byNickname)) : usernameLike);
+  }
   if (q.eventType) conditions.push(eq(loginLogs.eventType, q.eventType));
   if (q.status) conditions.push(eq(loginLogs.status, q.status));
   conditions.push(...dateRangeConditions(loginLogs.createdAt, q.startTime, q.endTime));
@@ -32,8 +38,9 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
     db.$count(loginLogs, finalWhere),
     withPagination(db.select().from(loginLogs).where(finalWhere).orderBy(desc(loginLogs.createdAt)).$dynamic(), page, pageSize),
   ]);
+  const nicknameMap = await getNicknameMap(rows.map((r) => r.username));
   return {
-    list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })),
+    list: rows.map((r) => ({ ...r, nickname: nicknameMap.get(r.username) ?? null, createdAt: formatDateTime(r.createdAt) })),
     total,
     page,
     pageSize,
@@ -105,6 +112,7 @@ export async function loginLogStats(daysRaw?: number) {
   const ps = prevSummaryRows[0] ?? { total: 0, successCount: 0, failCount: 0, uniqueUsers: 0 };
   const hourlyMap = new Map(hourlyRaw.map((r) => [r.hour, r.cnt]));
   const dowHourMap = new Map(dowHourRaw.map((r) => [`${r.dow}-${r.hour}`, r.cnt]));
+  const nicknameMap = await getNicknameMap(userStats.map((r) => r.username));
 
   return {
     summary: {
@@ -125,7 +133,7 @@ export async function loginLogStats(daysRaw?: number) {
       successCount: Number(r.successCount),
       failCount: Number(r.failCount),
     })),
-    userStats: userStats.map((r) => ({ username: r.username, count: r.cnt })),
+    userStats: userStats.map((r) => ({ username: r.username, nickname: nicknameMap.get(r.username) ?? null, count: r.cnt })),
     ipStats: ipStats.map((r) => ({ ip: r.ip ?? '未知', count: r.cnt })),
     ipFailStats: ipFailStats.map((r) => ({ ip: r.ip ?? '未知', count: r.cnt })),
     browserStats: browserStats.map((r) => ({ browser: r.browser ?? '未知', count: r.cnt })),

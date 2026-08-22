@@ -25,6 +25,7 @@ import {
 } from '@/components/charts';
 import dayjs from 'dayjs';
 import { useOperationLogStats } from '@/hooks/queries/operation-logs';
+import { buildUserChartLabels, formatUserLabel } from '@/components/UserDisplay';
 
 const DAYS_OPTIONS = [
   { label: '最近 7 天', value: 7 },
@@ -84,7 +85,14 @@ export default function OperationLogStatsPanel() {
   const stats = statsQuery.data ?? null;
 
   const moduleChartData = useMemo(() => [...(stats?.moduleStats ?? [])].slice(0, 10).reverse(), [stats]);
-  const userChartData = useMemo(() => [...(stats?.userStats ?? [])].reverse(), [stats]);
+  const { userChartData, userChartTitleOf } = useMemo(() => {
+    const items = [...(stats?.userStats ?? [])].reverse();
+    const { nameOf, fullOf } = buildUserChartLabels(items);
+    return {
+      userChartData: items.map((d) => ({ displayName: nameOf(d), count: d.count })),
+      userChartTitleOf: (x: string) => fullOf.get(x) ?? x,
+    };
+  }, [stats]);
   const moduleTimingChartData = useMemo(() => [...(stats?.moduleTimingStats ?? [])].slice(0, 10).reverse(), [stats]);
   const methodChartData = useMemo(
     () => (stats?.methodStats ?? []).map((m) => ({ ...m, fill: METHOD_COLORS[m.method] ?? DEFAULT_METHOD_COLOR })),
@@ -120,13 +128,23 @@ export default function OperationLogStatsPanel() {
     const topUsers = new Set([...sumBy('username').entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k));
     const topModules = new Set([...sumBy('module').entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k]) => k));
     const kept = flows.filter((f) => topUsers.has(f.username) && topModules.has(f.module));
+    // 节点仍按 username 聚合保证唯一；轴上只放短昵称（冲突退化为完整标签），完整标签给 tooltip
+    const userItems = [...new Map(flows.map((f) => [f.username, { username: f.username, nickname: f.nickname }])).values()];
+    const { nameOf } = buildUserChartLabels(userItems);
+    const shortNameOf = new Map(userItems.map((it) => [it.username, nameOf(it)]));
+    const fullNameOf = new Map(userItems.map((it) => [it.username, formatUserLabel(it.username, it.nickname)]));
     const nodeValue = new Map<string, number>();
     for (const f of kept) {
       nodeValue.set(`u:${f.username}`, (nodeValue.get(`u:${f.username}`) ?? 0) + f.count);
       nodeValue.set(`m:${f.module}`, (nodeValue.get(`m:${f.module}`) ?? 0) + f.count);
     }
     return {
-      nodes: [...nodeValue.entries()].map(([id, value]) => ({ id, label: id.slice(2), value })),
+      nodes: [...nodeValue.entries()].map(([id, value]) => ({
+        id,
+        label: id.startsWith('u:') ? shortNameOf.get(id.slice(2)) ?? id.slice(2) : id.slice(2),
+        fullLabel: id.startsWith('u:') ? fullNameOf.get(id.slice(2)) ?? id.slice(2) : id.slice(2),
+        value,
+      })),
       links: kept.map((f) => ({ source: `u:${f.username}`, target: `m:${f.module}`, value: f.count })),
     };
   }, [stats]);
@@ -163,14 +181,14 @@ export default function OperationLogStatsPanel() {
 
   const userSpec = useMemo(() => makeBarSpec({
     data: userChartData,
-    xField: 'username',
+    xField: 'displayName',
     series: [{ field: 'count', name: '操作次数', color: '#10b981' }],
     palette,
     horizontal: true,
-    categoryAxisWidth: 88,
+    categoryAxisWidth: 96,
     showLabel: true,
-    tooltip: { value: (v) => `${v} 次` },
-  }), [userChartData, palette]);
+    tooltip: { title: userChartTitleOf, value: (v) => `${v} 次` },
+  }), [userChartData, userChartTitleOf, palette]);
 
   const timingSpec = useMemo(() => makeBarSpec({
     data: moduleTimingChartData,
@@ -337,6 +355,9 @@ export default function OperationLogStatsPanel() {
     palette,
     nodeLayer: (node) => (node.id.startsWith('u:') ? 0 : 1),
     valueFormatter: (v) => `${v} 次`,
+    tooltip: {
+      nodeTitle: (datum) => String((datum as { fullLabel?: string }).fullLabel ?? (datum as { name?: string }).name ?? ''),
+    },
   }), [sankeyData, palette]);
 
   return (

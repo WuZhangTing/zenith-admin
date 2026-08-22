@@ -6,6 +6,7 @@ import type { LoginLog } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { UserDisplayCell, formatUserLabel } from '@/components/UserDisplay';
 
 interface LoginLogsTableProps {
   readonly dataSource: LoginLog[];
@@ -45,7 +46,7 @@ export function LoginLogsTable({
 
   const columns = useMemo<ColumnProps<LoginLog>[]>(() => [
     { title: 'ID', dataIndex: 'id', width: 80 },
-    { title: '用户名', dataIndex: 'username', width: 120 },
+    { title: '用户', dataIndex: 'username', width: 160, render: (v: string, r: LoginLog) => <UserDisplayCell username={v} nickname={r.nickname} /> },
     {
       title: '事件',
       dataIndex: 'eventType',
@@ -57,13 +58,14 @@ export function LoginLogsTable({
     { title: '地点', dataIndex: 'location', width: 180, render: (v: string | null) => v ?? '-' },
     { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => v ?? '-' },
     { title: '操作系统', dataIndex: 'os', width: 150, render: (v: string | null) => v ?? '-' },
+    dateTimeColumn('操作时间', 'createdAt'),
     {
       title: '状态',
       dataIndex: 'status',
-      width: 100,
+      width: 90,
+      fixed: 'right' as const,
       render: (status: LoginLog['status']) => <LoginStatusTag status={status} />,
     },
-    dateTimeColumn('操作时间', 'createdAt'),
     {
       title: '操作',
       key: 'operation',
@@ -108,7 +110,7 @@ export function LoginLogsTable({
           <Descriptions
             data={[
               { key: 'ID', value: String(detailLog.id) },
-              { key: '用户名', value: detailLog.username },
+              { key: '用户', value: formatUserLabel(detailLog.username, detailLog.nickname) },
               { key: '事件', value: <LoginEventTypeTag eventType={detailLog.eventType} size="small" /> },
               {
                 key: '状态',

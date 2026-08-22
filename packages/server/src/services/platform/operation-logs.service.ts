@@ -1,10 +1,11 @@
-import { count, desc, like, and, gte, lt, lte, sql, eq } from 'drizzle-orm';
+import { count, desc, like, and, or, gte, lt, lte, sql, eq, inArray } from 'drizzle-orm';
 import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { operationLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatDate } from '../../lib/datetime';
+import { getNicknameMap, findUsernamesByNickname } from '../../lib/user-nicknames';
 
 export interface ListOperationLogsQuery {
   page?: number;
@@ -24,10 +25,15 @@ export interface ListOperationLogsQuery {
   maxDurationMs?: number;
 }
 
-export function buildWhere(q: ListOperationLogsQuery) {
+export async function buildWhere(q: ListOperationLogsQuery) {
   const user = currentUser();
   const conditions = [];
-  if (q.username) conditions.push(like(operationLogs.username, `%${escapeLike(q.username)}%`));
+  if (q.username) {
+    // 关键字同时匹配用户名与昵称（昵称先反查出用户名集合）
+    const byNickname = await findUsernamesByNickname(q.username);
+    const usernameLike = like(operationLogs.username, `%${escapeLike(q.username)}%`);
+    conditions.push(byNickname.length > 0 ? or(usernameLike, inArray(operationLogs.username, byNickname)) : usernameLike);
+  }
   if (q.module) conditions.push(like(operationLogs.module, `%${escapeLike(q.module)}%`));
   if (q.description) conditions.push(like(operationLogs.description, `%${escapeLike(q.description)}%`));
   if (q.method) conditions.push(eq(operationLogs.method, q.method));
@@ -47,12 +53,18 @@ export function buildWhere(q: ListOperationLogsQuery) {
 export async function listOperationLogs(q: ListOperationLogsQuery) {
   const page = Number(q.page) || 1;
   const pageSize = Number(q.pageSize) || 10;
-  const finalWhere = buildWhere(q);
+  const finalWhere = await buildWhere(q);
   const [total, rows] = await Promise.all([
     db.$count(operationLogs, finalWhere),
     withPagination(db.select().from(operationLogs).where(finalWhere).orderBy(desc(operationLogs.createdAt)).$dynamic(), page, pageSize),
   ]);
-  return { list: rows.map((r) => ({ ...r, createdAt: formatDateTime(r.createdAt) })), total, page, pageSize };
+  const nicknameMap = await getNicknameMap(rows.map((r) => r.username));
+  return {
+    list: rows.map((r) => ({ ...r, nickname: r.username ? nicknameMap.get(r.username) ?? null : null, createdAt: formatDateTime(r.createdAt) })),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 export async function operationLogStats(daysRaw?: number) {
@@ -156,6 +168,11 @@ export async function operationLogStats(daysRaw?: number) {
   const ps = prevSummaryRows[0] ?? { total: 0, successCount: 0, failCount: 0, avgDurationMs: null, uniqueUsers: 0 };
   const pct = percentileRows[0] ?? { p50: null, p95: null, p99: null };
   const hourlyMap = new Map(hourlyStats.map((r) => [r.hour, r.count]));
+  const nicknameMap = await getNicknameMap([
+    ...userStats.map((r) => r.username),
+    ...userModuleFlows.map((r) => r.username),
+  ]);
+  const nicknameOf = (username: string | null) => (username ? nicknameMap.get(username) ?? null : null);
   return {
     summary: {
       total: s.total,
@@ -188,7 +205,7 @@ export async function operationLogStats(daysRaw?: number) {
       failCount: Number(r.failCount),
       avgMs: r.avgMs == null ? null : Math.round(Number(r.avgMs)),
     })),
-    userStats: userStats.map((r) => ({ username: r.username ?? '未知用户', count: r.count })),
+    userStats: userStats.map((r) => ({ username: r.username ?? '未知用户', nickname: nicknameOf(r.username), count: r.count })),
     methodStats: methodStats.map((r) => ({ method: r.method, count: r.count })),
     hourlyStats: Array.from({ length: 24 }, (_, h) => ({ hour: h, count: hourlyMap.get(h) ?? 0 })),
     statusClassStats: statusClassStats.map((r) => ({ statusClass: r.statusClass, count: r.cnt })),
@@ -197,7 +214,7 @@ export async function operationLogStats(daysRaw?: number) {
       .map((r) => ({ bucket: r.bucket, count: r.cnt })),
     slowPaths: slowPaths.map((r) => ({ path: r.path, avgMs: Number(r.avgMs) || 0, maxMs: Number(r.maxMs) || 0, count: r.cnt })),
     failModuleStats: failModuleStats.map((r) => ({ module: r.module ?? '未知模块', count: r.cnt })),
-    userModuleFlows: userModuleFlows.map((r) => ({ username: r.username ?? '未知用户', module: r.module ?? '未知模块', count: r.cnt })),
+    userModuleFlows: userModuleFlows.map((r) => ({ username: r.username ?? '未知用户', nickname: nicknameOf(r.username), module: r.module ?? '未知模块', count: r.cnt })),
   };
 }
 

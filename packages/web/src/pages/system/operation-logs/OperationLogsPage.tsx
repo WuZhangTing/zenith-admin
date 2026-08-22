@@ -77,7 +77,7 @@ export default function OperationLogsPage() {
   };
 
   const renderUsernameSearch = () => (
-    <KeywordInput placeholder="请输入操作人" value={draftParams.username} onChange={(v) => setDraftParams({ ...draftParams, username: v })} onSearch={handleSearch} width={160} />
+    <KeywordInput placeholder="操作人用户名 / 昵称" value={draftParams.username} onChange={(v) => setDraftParams({ ...draftParams, username: v })} onSearch={handleSearch} width={160} />
   );
 
   const renderModuleSearch = () => (

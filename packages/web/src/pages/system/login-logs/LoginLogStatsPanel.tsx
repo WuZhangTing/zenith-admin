@@ -20,6 +20,7 @@ import {
 } from '@/components/charts';
 import dayjs from 'dayjs';
 import { useLoginLogStats } from '@/hooks/queries/login-logs';
+import { buildUserChartLabels } from '@/components/UserDisplay';
 
 const DAYS_OPTIONS = [
   { label: '最近 7 天', value: 7 },
@@ -86,10 +87,14 @@ export default function LoginLogStatsPanel() {
     return WEEKDAY_LABELS.map((name, i) => ({ name, count: buckets[i] }));
   }, [stats]);
 
-  const userChartData = useMemo<BarDatum[]>(
-    () => [...(stats?.userStats ?? [])].reverse().map((d) => ({ name: d.username, count: d.count })),
-    [stats],
-  );
+  const { userChartData, userChartTitleOf } = useMemo(() => {
+    const items = [...(stats?.userStats ?? [])].reverse();
+    const { nameOf, fullOf } = buildUserChartLabels(items);
+    return {
+      userChartData: items.map((d) => ({ name: nameOf(d), count: d.count })),
+      userChartTitleOf: (x: string) => fullOf.get(x) ?? x,
+    };
+  }, [stats]);
   const ipFailChartData = useMemo<BarDatum[]>(
     () => [...(stats?.ipFailStats ?? [])].reverse().map((d) => ({ name: d.ip, count: d.count })),
     [stats],
@@ -178,9 +183,9 @@ export default function LoginLogStatsPanel() {
     cornerRadius: 5,
     showLabel: true,
     labelColor: palette.success,
-    categoryAxisWidth: 88,
-    tooltip: { value: (value) => `${value} 次` },
-  }), [palette, userChartData]);
+    categoryAxisWidth: 96,
+    tooltip: { title: userChartTitleOf, value: (value) => `${value} 次` },
+  }), [palette, userChartData, userChartTitleOf]);
   const ipFailBarSpec = useMemo(() => makeBarSpec({
     data: ipFailChartData,
     xField: 'name',

@@ -269,6 +269,8 @@ export interface LoginLog {
   id: number;
   userId: number | null;
   username: string;
+  /** 用户当前昵称（按 username 关联补充；用户已删除时为 null） */
+  nickname?: string | null;
   ip: string | null;
   location: string | null;
   browser: string | null;
@@ -301,7 +303,7 @@ export interface LoginLogStats {
     uniqueUsers: number;
   };
   dailyStats: { date: string; count: number; successCount: number; failCount: number }[];
-  userStats: { username: string; count: number }[];
+  userStats: { username: string; nickname?: string | null; count: number }[];
   ipStats: { ip: string; count: number }[];
   ipFailStats: { ip: string; count: number }[];
   browserStats: { browser: string; count: number }[];

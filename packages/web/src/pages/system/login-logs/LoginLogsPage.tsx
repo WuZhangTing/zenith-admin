@@ -46,7 +46,7 @@ export default function LoginLogsPage() {
   });
 
   const renderUsernameSearch = () => (
-    <KeywordInput placeholder="请输入用户名" value={draftParams.username} onChange={(v) => setDraftParams({ ...draftParams, username: v })} onSearch={handleSearch} width={180} />
+    <KeywordInput placeholder="用户名 / 昵称" value={draftParams.username} onChange={(v) => setDraftParams({ ...draftParams, username: v })} onSearch={handleSearch} width={180} />
   );
 
   const renderStatusFilter = () => (

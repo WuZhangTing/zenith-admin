@@ -29,9 +29,9 @@ export const operationLogsExportDefinition = defineExport<ListOperationLogsQuery
   execution: { mode: 'sync', syncModeOverridesAsyncPolicies: true },
   retention: { normalDays: 7, sensitiveDays: 7, rawDays: 7 },
   columns,
-  countRows: async (query) => db.$count(operationLogs, buildWhere(query)),
+  countRows: async (query) => db.$count(operationLogs, await buildWhere(query)),
   streamRows: async (query) => {
-    const where = buildWhere(query);
+    const where = await buildWhere(query);
     return batchIterable((limit, offset) =>
       db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.id)).limit(limit).offset(offset),
     );

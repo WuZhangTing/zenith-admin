@@ -7,6 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 import './OperationLogsTable.css';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { UserDisplayCell, formatUserLabel } from '@/components/UserDisplay';
 
 interface OperationLogsTableProps {
   readonly dataSource: OperationLog[];
@@ -106,7 +107,7 @@ export function OperationLogsTable({
 
   const columns = useMemo<ColumnProps<OperationLog>[]>(() => [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '操作人', dataIndex: 'username', width: 110, render: (v: string | null) => v ?? '-' },
+    { title: '操作人', dataIndex: 'username', width: 160, render: (v: string | null, r: OperationLog) => <UserDisplayCell username={v} nickname={r.nickname} /> },
     { title: '功能模块', dataIndex: 'module', width: 180, ellipsis: { showTitle: false }, render: (v: string | null) => v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Typography.Text> : '-' },
     { title: '操作描述', dataIndex: 'description', width: 220, ellipsis: true },
     { title: '请求方法', dataIndex: 'method', width: 90, render: (v: string) => <Tag color="blue">{v}</Tag> },
@@ -122,16 +123,17 @@ export function OperationLogsTable({
       width: 120,
       render: (v: number | null) => v === null ? '-' : `${v} ms`,
     },
+    dateTimeColumn('操作时间', 'createdAt'),
     {
       title: '状态',
       dataIndex: 'responseCode',
       width: 90,
+      fixed: 'right' as const,
       render: (v: number | null) => {
         const success = v != null && v >= 200 && v < 400;
         return <Tag color={success ? 'green' : 'red'}>{success ? '成功' : '失败'}</Tag>;
       },
     },
-    dateTimeColumn('操作时间', 'createdAt'),
     {
       title: '操作',
       key: 'operation',
@@ -185,7 +187,7 @@ export function OperationLogsTable({
                 <Descriptions
                   data={[
                     { key: 'ID', value: detailLog.id },
-                    { key: '操作人', value: detailLog.username ?? '-' },
+                    { key: '操作人', value: formatUserLabel(detailLog.username, detailLog.nickname) },
                     { key: '功能模块', value: detailLog.module ?? '-' },
                     { key: '操作描述', value: detailLog.description },
                     {

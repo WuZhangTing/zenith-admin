@@ -208,6 +208,8 @@ export interface OperationLog {
   id: number;
   userId: number | null;
   username: string | null;
+  /** 用户当前昵称（按 username 关联补充；用户已删除时为 null） */
+  nickname?: string | null;
   module: string | null;
   description: string;
   method: string;
@@ -249,7 +251,7 @@ export interface OperationLogStats {
   moduleStats: { module: string; count: number }[];
   moduleTimingStats: { module: string; avgMs: number; maxMs: number; count: number }[];
   dailyStats: { date: string; count: number; successCount: number; failCount: number; avgMs: number | null }[];
-  userStats: { username: string; count: number }[];
+  userStats: { username: string; nickname?: string | null; count: number }[];
   methodStats: { method: string; count: number }[];
   hourlyStats: { hour: number; count: number }[];
   /** 响应状态码分布（按 2xx/3xx/4xx/5xx 归类） */
@@ -261,7 +263,7 @@ export interface OperationLogStats {
   /** 失败热点模块 Top（responseCode >= 400） */
   failModuleStats: { module: string; count: number }[];
   /** 用户 → 模块 操作流向（桑基图数据源） */
-  userModuleFlows: { username: string; module: string; count: number }[];
+  userModuleFlows: { username: string; nickname?: string | null; module: string; count: number }[];
 }
 
 // ─── 系统监控告警 ─────────────────────────────────────────────────────────────
