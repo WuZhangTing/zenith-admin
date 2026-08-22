@@ -4,12 +4,14 @@ import {
   isCancelRequested,
 } from '../../lib/ai/generation-buffer';
 import {
-  getHistoryMessages,
   saveAssistantMessage,
   saveMessages,
   getActivePathLeafId,
   getActivePathLastUserId,
+  getActivePathRaw,
 } from './ai-conversations.service';
+import { rebuildThreadMirror } from './ai-memory.service';
+import { chatThreadId, chatResourceId } from '../../lib/mastra';
 import { generateConversationTitle, streamAiChat } from './ai-chat.service';
 import { retrieveKbContext } from './ai-knowledge.service';
 import { resolveAgentForChat } from './ai-agents.service';
@@ -78,49 +80,60 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
     // 智能体：解析预设（提示词 / 模型 / 知识库 / 工具集）
     const agent = conversation.agentId ? await resolveAgentForChat(conversation.agentId, userId) : null;
 
+    // 分支树定位 + Mastra thread 镜像同步(常态追加零成本;分支操作重建为激活路径)
+    let regenerateInput: string | null = null;
     if (regenerate) {
       regenerateParentId = await getActivePathLastUserId(conversation.id, conversation.activeLeafMsgId);
+      const path = await getActivePathRaw(conversation.id, { activeLeafMsgId: conversation.activeLeafMsgId });
+      for (let i = path.length - 1; i >= 0; i--) {
+        if (path[i].role === 'user') { regenerateInput = path[i].content; break; }
+      }
+      // 回放至最后 user 之前;该 user 消息随后作为本轮输入由 Memory 重新写入
+      await rebuildThreadMirror(conversation.id, userId, {
+        activeLeafMsgId: conversation.activeLeafMsgId,
+        dropFromLastUser: true,
+      });
     } else if (parentMsgId !== undefined) {
       userParentId = parentMsgId;
+      // 编辑重发:回放至被编辑消息的父节点(含),新 user 输入挂其后
+      await rebuildThreadMirror(conversation.id, userId, { upToMsgId: parentMsgId });
     } else {
       userParentId = await getActivePathLeafId(conversation.id, conversation.activeLeafMsgId);
     }
 
-    // 加载历史消息（激活路径；编辑重发时取被编辑消息父节点的祖先链）
-    const history = await getHistoryMessages(conversation.id, {
-      activeLeafMsgId: conversation.activeLeafMsgId,
-      upToMsgId: parentMsgId ?? undefined,
-    });
-
-    // 知识库检索：优先智能体绑定，其次对话挂载
-    let kbPrefix = '';
-    const queryText = message ?? '';
+    // 知识库检索：一次性上下文(context),进入本轮请求但不写入记忆与账本
+    const contextMessages: ChatMessage[] = [];
+    const queryText = message ?? regenerateInput ?? '';
     const kbId = agent?.knowledgeBaseId ?? conversation.knowledgeBaseId;
     if (kbId && queryText) {
       const kbStart = Date.now();
       const refs = await retrieveKbContext(kbId, userId, queryText).catch(() => []);
       if (refs.length > 0) {
         trace.push({ type: 'retrieval', label: '知识库检索', durationMs: Date.now() - kbStart, meta: { chunks: refs.length, topScore: refs[0]?.score } });
-        kbPrefix = `请优先基于以下知识库内容回答（如无相关内容请如实说明）：\n\n${refs
-          .map((r, i) => `【${i + 1}】来自《${r.docName}》：\n${r.content}`)
-          .join('\n\n')}\n\n---\n\n`;
+        contextMessages.push({
+          role: 'system',
+          content: `请优先基于以下知识库内容回答用户问题（如无相关内容请如实说明）：\n\n${refs
+            .map((r, i) => `【${i + 1}】来自《${r.docName}》：\n${r.content}`)
+            .join('\n\n')}`,
+        });
         await push('references', {
           references: refs.map((r) => ({ docName: r.docName, content: r.content.slice(0, 200), score: r.score })),
         });
       }
     }
 
-    // vision：图片 + 文本组成 OpenAI 多模态 content 数组（仅当轮生效，不落库）
-    let userContent: ChatMessage['content'] = kbPrefix + queryText;
+    // vision：图片 + 文本组成多模态 content(记忆与账本均只保留文本主体,图片仅当轮)
+    let userContent: ChatMessage['content'] = queryText;
     if (images && images.length > 0) {
       const parts: ChatMessagePart[] = [
-        { type: 'text', text: kbPrefix + queryText },
+        { type: 'text', text: queryText },
         ...images.map((url) => ({ type: 'image_url' as const, image_url: { url } })),
       ];
       userContent = parts;
     }
 
-    const messages: ChatMessage[] = regenerate ? history : [...history, { role: 'user', content: userContent }];
+    // Memory 管理历史:仅传当轮输入(regenerate 时重发最后一条 user 消息)
+    const messages: ChatMessage[] = [{ role: 'user', content: userContent }];
 
     const llmStart = Date.now();
     let toolRounds = 0;
@@ -130,6 +143,8 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
       model: agent?.model ?? model,
       temperatureOverride: agent?.temperature ?? null,
       toolFilter: agent ? (agent.tools ?? []) : undefined,
+      memory: { thread: chatThreadId(conversation.id), resource: chatResourceId(userId) },
+      context: contextMessages,
     })) {
       await checkCancel();
       if (cancelled) break;
@@ -221,6 +236,11 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
         const title = await generateConversationTitle(conversation.id, message ?? '', assistantContent).catch(() => null);
         if (title) await push('title', { title });
       }
+    } else {
+      // 无任何回复内容(连接失败/立即取消):账本未落库,但 Memory 已保存本轮 user 输入,
+      // 重建镜像修正,避免 thread 比激活路径多一条无回复的 user 消息
+      void rebuildThreadMirror(conversation.id, userId, { activeLeafMsgId: conversation.activeLeafMsgId })
+        .catch((err) => logger.warn('[ai-gen] thread mirror repair failed', err));
     }
   } catch (err) {
     logger.error('[ai-gen] persist failed', err);

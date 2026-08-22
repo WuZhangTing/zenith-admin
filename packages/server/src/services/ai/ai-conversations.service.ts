@@ -3,7 +3,6 @@ import { db } from '../../db';
 import { aiConversations, aiMessages, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, formatFileTimestamp, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
-import { truncateHistoryByBudget } from '../../lib/ai/tokens';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { streamToCsv } from '../../lib/excel-export';
 import { HTTPException } from 'hono/http-exception';
@@ -182,11 +181,14 @@ export async function getActivePathLastUserId(conversationId: number, activeLeaf
 
 /** 切换分支：以任意消息为起点沿最新子分支下探到叶子并激活 */
 export async function switchConversationBranch(conversationId: number, msgId: number): Promise<number> {
-  await ensureConversationOwner(conversationId);
+  const conv = await ensureConversationOwner(conversationId);
   const rows = await loadMsgNodes(conversationId);
   if (!rows.some((r) => r.id === msgId)) throw new HTTPException(404, { message: '消息不存在' });
   const leafId = descendToLeaf(rows, msgId);
   await db.update(aiConversations).set({ activeLeafMsgId: leafId }).where(eq(aiConversations.id, conversationId));
+  // Mastra thread 镜像同步为新激活路径(下一轮生成的上下文来源)
+  const { rebuildThreadMirror } = await import('./ai-memory.service');
+  await rebuildThreadMirror(conversationId, conv.userId, { activeLeafMsgId: leafId });
   return leafId;
 }
 
@@ -265,6 +267,9 @@ export async function getConversation(id: number) {
 export async function deleteConversation(id: number) {
   await ensureConversationOwner(id);
   await db.delete(aiConversations).where(eq(aiConversations.id, id));
+  // Mastra thread 镜像随对话删除(失败不阻塞)
+  const { deleteThreadMirror } = await import('./ai-memory.service');
+  void deleteThreadMirror(id);
 }
 
 export async function listMessages(conversationId: number) {
@@ -462,19 +467,16 @@ export async function hasTrailingUserMessage(conversationId: number, activeLeafM
   return path.length > 0 && path[path.length - 1].role === 'user';
 }
 
-export async function getHistoryMessages(
+/** 激活路径原始消息(Mastra thread 镜像回放用,不做 token 裁剪) */
+export async function getActivePathRaw(
   conversationId: number,
-  options: { maxTokens?: number; maxCount?: number; activeLeafMsgId?: number | null; upToMsgId?: number | null } = {},
-) {
-  const maxCount = options.maxCount ?? 50;
+  options: { activeLeafMsgId?: number | null; upToMsgId?: number | null } = {},
+): Promise<Array<{ id: number; role: 'system' | 'user' | 'assistant'; content: string; createdAt: Date }>> {
   const nodes = await loadMsgNodes(conversationId);
-  // 分支树：历史 = 激活路径（或编辑重发时指定消息的祖先链）
   const path = options.upToMsgId
     ? resolveAncestorPath(nodes, options.upToMsgId)
     : resolveActivePath(nodes, options.activeLeafMsgId ?? null);
-  const rows = path.slice(-maxCount).map((n) => ({ role: n.role, content: n.content }));
-  // truncateHistoryByBudget 接受时间倒序输入，返回升序
-  return truncateHistoryByBudget([...rows].reverse(), { maxTokens: options.maxTokens });
+  return path.map((n) => ({ id: n.id, role: n.role, content: n.content, createdAt: n.createdAt }));
 }
 
 /**
@@ -482,7 +484,7 @@ export async function getHistoryMessages(
  * 只允许删除 assistant 消息；会话所有者限制。
  */
 export async function deleteMessage(conversationId: number, messageId: number) {
-  await ensureConversationOwner(conversationId);
+  const conv = await ensureConversationOwner(conversationId);
   const [msg] = await db
     .select()
     .from(aiMessages)
@@ -490,6 +492,8 @@ export async function deleteMessage(conversationId: number, messageId: number) {
   if (!msg) throw new HTTPException(404, { message: '消息不存在' });
   if (msg.role !== 'assistant') throw new HTTPException(400, { message: '只能删除 AI 回复消息' });
   await db.delete(aiMessages).where(eq(aiMessages.id, messageId));
+  const { rebuildThreadMirror } = await import('./ai-memory.service');
+  await rebuildThreadMirror(conversationId, conv.userId, { activeLeafMsgId: conv.activeLeafMsgId });
 }
 
 /**
@@ -531,6 +535,9 @@ export async function deleteMessageCascade(conversationId: number, messageId: nu
   if (conv.activeLeafMsgId === null || toDelete.has(conv.activeLeafMsgId) || newLeaf === null) {
     await db.update(aiConversations).set({ activeLeafMsgId: newLeaf }).where(eq(aiConversations.id, conversationId));
   }
+  const finalLeaf = conv.activeLeafMsgId !== null && !toDelete.has(conv.activeLeafMsgId) ? conv.activeLeafMsgId : newLeaf;
+  const { rebuildThreadMirror } = await import('./ai-memory.service');
+  await rebuildThreadMirror(conversationId, conv.userId, { activeLeafMsgId: finalLeaf });
 }
 
 /**

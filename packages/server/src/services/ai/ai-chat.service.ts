@@ -142,6 +142,10 @@ export interface StreamAiChatOptions {
   temperatureOverride?: string | null;
   /** 工具白名单（智能体勾选的工具集；undefined = 全部，[] = 无） */
   toolFilter?: string[] | null;
+  /** Mastra Memory 作用域(提供则上下文由 Memory 引擎管理,messages 仅传当轮输入) */
+  memory?: { thread: string; resource: string };
+  /** 一次性上下文消息(知识库检索结果等,不写入记忆) */
+  context?: ChatMessage[];
 }
 
 export type StreamAiChatChunk = StreamChunk
@@ -214,6 +218,8 @@ export async function* streamAiChat(
       messages,
       systemPrompt,
       tools,
+      memory: options?.memory,
+      context: options?.context,
       signal: options?.signal,
     })) {
       if (chunk.type === 'delta' && isFirst) {

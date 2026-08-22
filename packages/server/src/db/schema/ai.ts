@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, real, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import type { AiModelSettings, AiModelFallbackRef } from '@zenith/shared/ai';
 import { auditColumns, tenants, users } from './core';
 
@@ -245,8 +245,8 @@ export const aiKbChunks = pgTable('ai_kb_chunks', {
   id: serial('id').primaryKey(),
   kbId: integer('kb_id').notNull().references(() => aiKnowledgeBases.id, { onDelete: 'cascade' }),
   docId: integer('doc_id').notNull().references(() => aiKbDocuments.id, { onDelete: 'cascade' }),
+  /** 分块文本(关键词兜底检索 + UI 展示);向量归 Mastra PgVector(mastra schema,索引 kb_{kbId}) */
   content: text('content').notNull(),
-  embedding: real('embedding').array(),
   tokenCount: integer('token_count').notNull().default(0),
 });
 

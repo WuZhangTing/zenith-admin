@@ -26,7 +26,26 @@ export interface StreamAgentChatParams {
   systemPrompt?: string | null;
   /** Mastra 工具集(getMastraTools 产出);undefined/空 = 不启用工具 */
   tools?: MastraToolsMap;
+  /**
+   * Mastra Memory 作用域:提供时上下文由 Memory 引擎管理
+   * (自动加载历史 + 语义召回,并保存本轮消息),messages 只传当轮输入。
+   */
+  memory?: { thread: string; resource: string };
+  /** 一次性上下文消息(知识库检索结果等):进入本轮请求但不写入记忆 */
+  context?: ChatMessage[];
   signal?: AbortSignal;
+}
+
+/** 一次性上下文 → AI SDK ModelMessage(保留 system 角色,与对话消息区分) */
+function toContextMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+  return messages
+    .filter((m) => m.role !== 'tool')
+    .map((m) => ({
+      role: m.role,
+      content: typeof m.content === 'string'
+        ? m.content
+        : m.content.map((p) => (p.type === 'text' ? p.text ?? '' : '')).join(''),
+    }));
 }
 
 /** OpenAI 形状消息 → AI SDK ModelMessage(system 由 Agent instructions 承载,tool 角色消息由 Agent 内部管理) */
@@ -87,18 +106,24 @@ export async function* streamAgentChat(params: StreamAgentChatParams): AsyncGene
   let usageReported = false;
 
   try {
+    const memoryInstance = params.memory
+      ? await (await import('../mastra')).getChatMemory()
+      : undefined;
     const agent = new Agent({
       id: 'zenith-chat',
       name: 'Zenith Chat',
       instructions: params.systemPrompt?.trim() || '你是一个乐于助人的智能助手。',
       model: buildModelChain(params.chain),
       ...(params.tools && Object.keys(params.tools).length > 0 ? { tools: params.tools as never } : {}),
+      ...(memoryInstance ? { memory: memoryInstance as never } : {}),
     });
 
     armIdle();
     const output = await agent.stream(toModelMessages(params.messages) as never, {
       abortSignal: abort.signal,
       maxSteps: MAX_TOOL_ROUNDS + 1,
+      ...(params.memory ? { memory: { thread: params.memory.thread, resource: params.memory.resource } } : {}),
+      ...(params.context && params.context.length > 0 ? { context: toContextMessages(params.context) as never } : {}),
     });
 
     for await (const chunk of output.fullStream as AsyncIterable<{ type: string; payload?: Record<string, unknown> }>) {

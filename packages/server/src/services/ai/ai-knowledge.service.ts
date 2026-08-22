@@ -5,37 +5,25 @@ import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { estimateTokens } from '../../lib/ai/tokens';
 import { getConfigValue } from '../../lib/system-config';
-import { getRawDefaultProviderConfig } from './ai-providers.service';
+import { getMastraVector, resolveEmbedderConfig } from '../../lib/mastra';
+import { toMastraModel } from '../../lib/ai/mastra-models';
 import { httpRequest } from '../../lib/http-client';
 import { AI_SSRF_OPTIONS } from '../../lib/ai/outbound';
 import { HTTPException } from 'hono/http-exception';
 import logger from '../../lib/logger';
 import type { CreateAiKnowledgeBaseInput, UpdateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput } from '@zenith/shared/ai';
 
-/** 分块目标大小（估算 token） */
-const CHUNK_TOKENS = 500;
-/** 单知识库分块上限（JS 余弦检索的规模保护） */
+/** 分块目标大小（字符,recursive 策略段落边界优先） */
+const CHUNK_SIZE = 800;
+const CHUNK_OVERLAP = 80;
+/** 单知识库分块上限 */
 const MAX_CHUNKS_PER_KB = 5000;
 /** 混合检索权重：向量相似度 0.7 + 关键词命中 0.3 */
 const HYBRID_VECTOR_WEIGHT = 0.7;
 const HYBRID_KEYWORD_WEIGHT = 0.3;
 
-// ─── pgvector 运行时探测（不可用时回退 JS 余弦） ─────────────────────────────
-
-let pgVectorAvailable: boolean | null = null;
-
-async function hasPgVector(): Promise<boolean> {
-  if (pgVectorAvailable !== null) return pgVectorAvailable;
-  try {
-    const rows = await db.execute(sql`SELECT 1 FROM pg_extension WHERE extname = 'vector'`);
-    const list = Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows ?? [];
-    pgVectorAvailable = list.length > 0;
-  } catch {
-    pgVectorAvailable = false;
-  }
-  if (pgVectorAvailable) logger.info('[ai-kb] pgvector enabled, using SQL vector search');
-  return pgVectorAvailable;
-}
+/** 知识库向量索引名(每库一个,维度由首次入库的 embedding 模型决定) */
+const kbIndexName = (kbId: number) => `kb_${kbId}`;
 
 function mapKb(row: typeof aiKnowledgeBases.$inferSelect, documentCount = 0, chunkCount = 0) {
   return {
@@ -114,6 +102,13 @@ export async function deleteKnowledgeBase(id: number) {
   await db.delete(aiKnowledgeBases).where(eq(aiKnowledgeBases.id, id));
   // 软引用清理：解除已挂载该知识库的对话
   await db.update(aiConversations).set({ knowledgeBaseId: null }).where(eq(aiConversations.knowledgeBaseId, id));
+  // 向量索引随库删除(失败仅告警)
+  try {
+    const vector = await getMastraVector();
+    await vector.deleteIndex({ indexName: kbIndexName(id) });
+  } catch (err) {
+    logger.warn('[ai-kb] delete vector index failed', { kbId: id, err });
+  }
 }
 
 export async function listKbDocuments(kbId: number) {
@@ -122,52 +117,28 @@ export async function listKbDocuments(kbId: number) {
   return rows.map(mapDoc);
 }
 
-/** 按段落 + 长度分块（目标 ~CHUNK_TOKENS token，段落边界优先） */
-export function chunkText(text: string): string[] {
-  const paragraphs = text.replaceAll('\r\n', '\n').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
-  const chunks: string[] = [];
-  let current = '';
-  for (const p of paragraphs) {
-    const candidate = current ? `${current}\n\n${p}` : p;
-    if (estimateTokens(candidate) > CHUNK_TOKENS && current) {
-      chunks.push(current);
-      current = p;
-    } else {
-      current = candidate;
-    }
-    // 单段落超长：硬切
-    while (estimateTokens(current) > CHUNK_TOKENS * 2) {
-      const hardLen = Math.max(200, Math.floor(current.length * (CHUNK_TOKENS / estimateTokens(current))));
-      chunks.push(current.slice(0, hardLen));
-      current = current.slice(hardLen);
-    }
-  }
-  if (current.trim()) chunks.push(current.trim());
-  return chunks;
+/** 分块(@mastra/rag MDocument recursive 策略:段落/句子边界优先,超长硬切) */
+export async function chunkText(text: string): Promise<string[]> {
+  const { MDocument } = await import('@mastra/rag');
+  const doc = MDocument.fromText(text);
+  const chunks = await doc.chunk({ strategy: 'recursive', maxSize: CHUNK_SIZE, overlap: CHUNK_OVERLAP });
+  return chunks.map((c) => c.text.trim()).filter(Boolean);
 }
 
-/** 调用系统默认服务商的 /embeddings 接口批量向量化（未配置模型返回 null） */
+/** 批量向量化(Mastra 模型路由,支持任意目录服务商与 custom 端点;未配置返回 null) */
 async function embedTexts(texts: string[]): Promise<number[][] | null> {
-  const model = (await getConfigValue('ai_embedding_model', '')).trim();
-  if (!model) return null;
-  const cfg = await getRawDefaultProviderConfig();
-  if (!cfg?.baseUrl) return null;
+  const embedder = await resolveEmbedderConfig();
+  if (!embedder) return null;
   try {
-    const res = await httpRequest(`${cfg.baseUrl.replace(/\/$/, '')}/embeddings`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${cfg.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, input: texts }),
-      timeout: 60000,
-      ...AI_SSRF_OPTIONS,
-    });
-    if (!res.ok) {
-      logger.warn('[ai-kb] embeddings API failed', { status: res.status });
-      return null;
+    const { ModelRouterEmbeddingModel } = await import('@mastra/core/llm');
+    const model = new ModelRouterEmbeddingModel(toMastraModel(embedder.source, embedder.model));
+    const out: number[][] = [];
+    const BATCH = 32;
+    for (let i = 0; i < texts.length; i += BATCH) {
+      const { embeddings } = await model.doEmbed({ values: texts.slice(i, i + BATCH) });
+      out.push(...embeddings);
     }
-    const data = await res.json<{ data?: { index: number; embedding: number[] }[] }>();
-    if (!Array.isArray(data.data) || data.data.length !== texts.length) return null;
-    const sorted = [...data.data].sort((a, b) => a.index - b.index);
-    return sorted.map((d) => d.embedding);
+    return out.length === texts.length ? out : null;
   } catch (err) {
     logger.warn('[ai-kb] embeddings request error', err);
     return null;
@@ -187,7 +158,7 @@ export async function addKbDocument(kbId: number, input: AddAiKbDocumentInput, s
 export async function ingestKbDocument(kbId: number, input: { name: string; content: string }, sourceUrl: string | null = null) {
   const kb = await db.query.aiKnowledgeBases.findFirst({ where: eq(aiKnowledgeBases.id, kbId) });
   if (!kb) throw new HTTPException(404, { message: '知识库不存在' });
-  const chunks = chunkText(input.content);
+  const chunks = await chunkText(input.content);
   if (chunks.length === 0) throw new HTTPException(400, { message: '内容为空，无法入库' });
 
   const [existingCount] = await db
@@ -206,18 +177,33 @@ export async function ingestKbDocument(kbId: number, input: { name: string; cont
   try {
     const embeddings = await embedTexts(chunks);
     const embeddingModel = embeddings ? (await getConfigValue('ai_embedding_model', '')).trim() : null;
-    await db.insert(aiKbChunks).values(
-      chunks.map((content, i) => ({
+    // 账本只存文本(关键词兜底检索 + UI 计数);向量归 Mastra PgVector
+    const inserted = await db.insert(aiKbChunks).values(
+      chunks.map((content) => ({
         kbId,
         docId: doc.id,
         content,
-        embedding: embeddings?.[i] ?? null,
         tokenCount: estimateTokens(content),
       })),
-    );
-    // pgvector：real[] 直接 cast 物化到 vector 列，检索走 SQL 余弦距离
-    if (embeddings && (await hasPgVector())) {
-      await db.execute(sql`UPDATE ai_kb_chunks SET embedding_vec = embedding::vector WHERE doc_id = ${doc.id} AND embedding IS NOT NULL`);
+    ).returning({ id: aiKbChunks.id });
+
+    if (embeddings && embeddings.length > 0) {
+      const vector = await getMastraVector();
+      const indexName = kbIndexName(kbId);
+      // 幂等建索引:已存在同维度时为 no-op;维度不一致(更换 embedding 模型)会抛错走 failed
+      await vector.createIndex({ indexName, dimension: embeddings[0].length });
+      await vector.upsert({
+        indexName,
+        vectors: embeddings,
+        ids: inserted.map((r) => `chunk-${r.id}`),
+        metadata: chunks.map((content, i) => ({
+          kbId,
+          docId: doc.id,
+          chunkId: inserted[i].id,
+          docName: input.name,
+          content,
+        })),
+      });
     }
     await db.update(aiKbDocuments)
       .set({ status: 'ready', chunkCount: chunks.length })
@@ -285,30 +271,44 @@ export async function importKbUrl(kbId: number, input: ImportAiKbUrlInput) {
   return addKbDocument(kbId, { name, content: text.slice(0, 500_000) }, input.url);
 }
 
+/** 删除文档对应的向量(低频操作,分批逐个删除;失败仅告警) */
+async function deleteDocVectors(kbId: number, docIds: number[]): Promise<void> {
+  if (docIds.length === 0) return;
+  try {
+    const chunkRows = await db
+      .select({ id: aiKbChunks.id })
+      .from(aiKbChunks)
+      .where(and(eq(aiKbChunks.kbId, kbId), inArray(aiKbChunks.docId, docIds)));
+    if (chunkRows.length === 0) return;
+    const vector = await getMastraVector();
+    const indexName = kbIndexName(kbId);
+    const BATCH = 50;
+    for (let i = 0; i < chunkRows.length; i += BATCH) {
+      await Promise.all(chunkRows.slice(i, i + BATCH).map((r) =>
+        vector.deleteVector({ indexName, id: `chunk-${r.id}` }).catch(() => {}),
+      ));
+    }
+  } catch (err) {
+    logger.warn('[ai-kb] delete doc vectors failed', { kbId, docIds, err });
+  }
+}
+
 export async function deleteKbDocument(kbId: number, docId: number) {
   await ensureKbOwner(kbId);
   const [doc] = await db.select().from(aiKbDocuments).where(and(eq(aiKbDocuments.id, docId), eq(aiKbDocuments.kbId, kbId)));
   if (!doc) throw new HTTPException(404, { message: '文档不存在' });
+  await deleteDocVectors(kbId, [docId]);
   await db.delete(aiKbDocuments).where(eq(aiKbDocuments.id, docId));
 }
 
 /** 按来源标识移除文档（不做属主校验）：供知识中心（Wiki）同步取消/更新时清理旧副本 */
 export async function removeKbDocumentsBySource(kbId: number, sourceUrl: string) {
+  const docs = await db
+    .select({ id: aiKbDocuments.id })
+    .from(aiKbDocuments)
+    .where(and(eq(aiKbDocuments.kbId, kbId), eq(aiKbDocuments.sourceUrl, sourceUrl)));
+  await deleteDocVectors(kbId, docs.map((d) => d.id));
   await db.delete(aiKbDocuments).where(and(eq(aiKbDocuments.kbId, kbId), eq(aiKbDocuments.sourceUrl, sourceUrl)));
-}
-
-function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  const len = Math.min(a.length, b.length);
-  for (let i = 0; i < len; i++) {
-    dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 export interface KbRetrievedChunk {
@@ -330,20 +330,14 @@ function splitTerms(query: string): string[] {
 }
 
 /**
- * 知识库混合检索：向量相似度（pgvector SQL 优先，JS 余弦兜底）0.7 + 关键词命中 0.3 加权；
- * 向量不可用（未配置 embedding / 模型不一致）时退化为纯关键词。返回 top N 分块（附综合分数）。
+ * 知识库混合检索：Mastra PgVector 相似度 0.7 + 关键词命中 0.3 加权；
+ * 向量不可用（未配置 embedding / 模型不一致 / 索引缺失）时退化为纯关键词。返回 top N 分块（附综合分数）。
  */
 export async function retrieveKbContext(kbId: number, ownerId: number, query: string, topN = 4): Promise<KbRetrievedChunk[]> {
   const [kb] = await db.select().from(aiKnowledgeBases).where(eq(aiKnowledgeBases.id, kbId));
   if (!kb || kb.userId !== ownerId) return [];
 
   const terms = splitTerms(query);
-  const docNameOf = async (docIds: number[]) => {
-    const docs = docIds.length > 0
-      ? await db.select({ id: aiKbDocuments.id, name: aiKbDocuments.name }).from(aiKbDocuments).where(inArray(aiKbDocuments.id, docIds))
-      : [];
-    return new Map(docs.map((d) => [d.id, d.name]));
-  };
 
   // 向量检索：仅当入库所用 embedding 模型与当前配置一致时启用，
   // 否则（管理员更换了 ai_embedding_model）向量空间不可比，直接走关键词兜底
@@ -352,56 +346,33 @@ export async function retrieveKbContext(kbId: number, ownerId: number, query: st
     const queryEmbedding = await embedTexts([query]);
     const queryVec = queryEmbedding?.[0];
     if (queryVec) {
-      // 路径一：pgvector SQL 余弦（大规模高效，取候选池后做混合加权）
-      if (await hasPgVector()) {
-        try {
-          const vecLiteral = `[${queryVec.join(',')}]`;
-          const raw = await db.execute(sql`
-            SELECT content, doc_id AS "docId", 1 - (embedding_vec <=> ${vecLiteral}::vector) AS score
-            FROM ai_kb_chunks
-            WHERE kb_id = ${kbId} AND embedding_vec IS NOT NULL
-            ORDER BY embedding_vec <=> ${vecLiteral}::vector
-            LIMIT ${Math.max(topN * 5, 20)}
-          `);
-          const rows = (Array.isArray(raw) ? raw : (raw as { rows?: unknown[] }).rows ?? []) as Array<{ content: string; docId: number; score: number }>;
-          if (rows.length > 0) {
-            const nameMap = await docNameOf([...new Set(rows.map((r) => r.docId))]);
-            const scored = rows
-              .map((r) => ({
-                docName: nameMap.get(r.docId) ?? '未知文档',
-                content: r.content,
-                score: Math.round((HYBRID_VECTOR_WEIGHT * Number(r.score) + HYBRID_KEYWORD_WEIGHT * keywordScore(r.content, terms)) * 1000) / 1000,
-              }))
-              .sort((a, b) => b.score - a.score)
-              .slice(0, topN)
-              .filter((c) => c.score > 0.3);
-            if (scored.length > 0) return scored;
-          }
-        } catch (err) {
-          // 维度不一致等 pgvector 错误：回退 JS 路径
-          logger.warn('[ai-kb] pgvector search failed, fallback to JS cosine', err);
+      try {
+        const vector = await getMastraVector();
+        const results = await vector.query({
+          indexName: kbIndexName(kbId),
+          queryVector: queryVec,
+          topK: Math.max(topN * 5, 20),
+        });
+        if (results.length > 0) {
+          const scored = results
+            .map((r) => {
+              const meta = (r.metadata ?? {}) as { docName?: string; content?: string };
+              const content = meta.content ?? '';
+              return {
+                docName: meta.docName ?? '未知文档',
+                content,
+                score: Math.round((HYBRID_VECTOR_WEIGHT * (r.score ?? 0) + HYBRID_KEYWORD_WEIGHT * keywordScore(content, terms)) * 1000) / 1000,
+              };
+            })
+            .filter((c) => c.content)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, topN)
+            .filter((c) => c.score > 0.3);
+          if (scored.length > 0) return scored;
         }
-      }
-
-      // 路径二：JS 余弦（全量加载，规模受 MAX_CHUNKS_PER_KB 保护）
-      const chunks = await db
-        .select({ content: aiKbChunks.content, embedding: aiKbChunks.embedding, docId: aiKbChunks.docId })
-        .from(aiKbChunks)
-        .where(eq(aiKbChunks.kbId, kbId))
-        .limit(MAX_CHUNKS_PER_KB);
-      const withEmbedding = chunks.filter((c) => Array.isArray(c.embedding) && c.embedding.length === queryVec.length);
-      if (withEmbedding.length > 0) {
-        const nameMap = await docNameOf([...new Set(withEmbedding.map((c) => c.docId))]);
-        const scored = withEmbedding
-          .map((c) => ({
-            docName: nameMap.get(c.docId) ?? '未知文档',
-            content: c.content,
-            score: Math.round((HYBRID_VECTOR_WEIGHT * cosineSimilarity(queryVec, c.embedding!) + HYBRID_KEYWORD_WEIGHT * keywordScore(c.content, terms)) * 1000) / 1000,
-          }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, topN)
-          .filter((c) => c.score > 0.3);
-        if (scored.length > 0) return scored;
+      } catch (err) {
+        // 索引缺失 / 维度不一致等:回退关键词
+        logger.warn('[ai-kb] vector search failed, fallback to keyword', { kbId, err });
       }
     }
   }
@@ -414,7 +385,11 @@ export async function retrieveKbContext(kbId: number, ownerId: number, query: st
     .where(eq(aiKbChunks.kbId, kbId))
     .limit(MAX_CHUNKS_PER_KB);
   if (chunks.length === 0) return [];
-  const nameMap = await docNameOf([...new Set(chunks.map((c) => c.docId))]);
+  const docs = await db
+    .select({ id: aiKbDocuments.id, name: aiKbDocuments.name })
+    .from(aiKbDocuments)
+    .where(inArray(aiKbDocuments.id, [...new Set(chunks.map((c) => c.docId))]));
+  const nameMap = new Map(docs.map((d) => [d.id, d.name]));
   return chunks
     .map((c) => ({
       docName: nameMap.get(c.docId) ?? '未知文档',
