@@ -31,6 +31,7 @@ export function mapDelegation(
     delegateName: extras.delegateName ?? null,
     definitionId: row.definitionId ?? null,
     definitionName: extras.definitionName ?? null,
+    mode: (row.mode ?? 'full') as 'full' | 'suggest',
     reason: row.reason ?? null,
     startAt: formatNullableDateTime(row.startAt),
     endAt: formatNullableDateTime(row.endAt),
@@ -42,16 +43,16 @@ export function mapDelegation(
 }
 
 /**
- * 解析委托：返回 principal 当前生效的代理人 userId（无则返回 null）。
+ * 解析委托：返回 principal 当前生效的代理人及代理模式（无则返回 null）。
  * 在创建待审批任务时调用，将待办自动转交给代理人。仅解析一跳，避免链式循环。
  */
 export async function resolveActiveDelegate(
   exec: DbExecutor,
   principalId: number,
   definitionId: number,
-): Promise<number | null> {
+): Promise<{ delegateId: number; mode: 'full' | 'suggest' } | null> {
   const rows = await exec
-    .select({ delegateId: workflowDelegations.delegateId, definitionId: workflowDelegations.definitionId, enabled: workflowDelegations.enabled, startAt: workflowDelegations.startAt, endAt: workflowDelegations.endAt })
+    .select({ delegateId: workflowDelegations.delegateId, definitionId: workflowDelegations.definitionId, mode: workflowDelegations.mode, enabled: workflowDelegations.enabled, startAt: workflowDelegations.startAt, endAt: workflowDelegations.endAt })
     .from(workflowDelegations)
     .where(and(
       eq(workflowDelegations.principalId, principalId),
@@ -62,8 +63,8 @@ export async function resolveActiveDelegate(
   if (active.length === 0) return null;
   // 流程专属委托优先于全局委托
   active.sort((a, b) => (b.definitionId ?? -1) - (a.definitionId ?? -1));
-  const delegateId = active[0].delegateId;
-  return delegateId === principalId ? null : delegateId;
+  const hit = active[0];
+  return hit.delegateId === principalId ? null : { delegateId: hit.delegateId, mode: hit.mode ?? 'full' };
 }
 
 async function ensureUserExists(id: number, msg: string) {
@@ -157,6 +158,7 @@ export async function createWorkflowDelegation(input: CreateWorkflowDelegationIn
     principalId,
     delegateId: input.delegateId,
     definitionId: input.definitionId ?? null,
+    mode: input.mode ?? 'full',
     reason: input.reason ?? null,
     startAt,
     endAt,
@@ -175,6 +177,7 @@ export async function updateWorkflowDelegation(id: number, input: UpdateWorkflow
     patch.delegateId = input.delegateId;
   }
   if (input.definitionId !== undefined) patch.definitionId = input.definitionId ?? null;
+  if (input.mode !== undefined) patch.mode = input.mode;
   if (input.reason !== undefined) patch.reason = input.reason ?? null;
   if (input.startAt !== undefined) patch.startAt = input.startAt ? parseDateTimeInput(input.startAt) : null;
   if (input.endAt !== undefined) patch.endAt = input.endAt ? parseDateTimeInput(input.endAt) : null;

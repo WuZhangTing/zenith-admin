@@ -34,6 +34,7 @@ interface FormValues extends Record<string, unknown> {
   principalId?: number | null;
   delegateId?: number | null;
   definitionId?: number | null;
+  mode?: 'full' | 'suggest';
   startAt?: Date | null;
   endAt?: Date | null;
   reason?: string | null;
@@ -90,9 +91,10 @@ export default function WorkflowDelegationsPage() {
   const delegationModal = useEditModal<WorkflowDelegation, FormValues, Record<string, unknown>>({
     entityName: '审批代理',
     save: saveMutation,
-    defaults: { principalId: undefined, delegateId: undefined, definitionId: undefined, startAt: null, endAt: null, reason: '', enabled: true },
+    defaults: { principalId: undefined, delegateId: undefined, definitionId: undefined, mode: 'full', startAt: null, endAt: null, reason: '', enabled: true },
     toValues: (row) => ({
       principalId: row.principalId, delegateId: row.delegateId, definitionId: row.definitionId ?? undefined,
+      mode: row.mode ?? 'full',
       startAt: row.startAt ? new Date(row.startAt.replace(' ', 'T')) : null,
       endAt: row.endAt ? new Date(row.endAt.replace(' ', 'T')) : null,
       reason: row.reason ?? '', enabled: row.enabled,
@@ -101,6 +103,7 @@ export default function WorkflowDelegationsPage() {
       ...(canManage && vals.principalId != null ? { principalId: Number(vals.principalId) } : {}),
       delegateId: Number(vals.delegateId),
       definitionId: vals.definitionId != null ? Number(vals.definitionId) : null,
+      mode: vals.mode ?? 'full',
       startAt: vals.startAt ? formatDateTimeForApi(vals.startAt as Date) : null,
       endAt: vals.endAt ? formatDateTimeForApi(vals.endAt as Date) : null,
       reason: typeof vals.reason === 'string' && vals.reason.trim() ? vals.reason.trim() : null,
@@ -127,6 +130,14 @@ export default function WorkflowDelegationsPage() {
       width: 180,
       render: (_v: unknown, r: WorkflowDelegation) =>
         r.definitionId == null ? '全部流程' : (r.definitionName ?? `#${r.definitionId}`),
+    },
+    {
+      title: '代理模式',
+      dataIndex: 'mode',
+      width: 110,
+      render: (v: WorkflowDelegation['mode']) => v === 'suggest'
+        ? <Tag color="orange">建议制</Tag>
+        : <Tag color="blue">直接代批</Tag>,
     },
     {
       title: '生效时间',
@@ -269,6 +280,16 @@ export default function WorkflowDelegationsPage() {
               filter
               showClear
               placeholder="不选则对全部流程生效"
+            />
+            <Form.Select
+              field="mode"
+              label="代理模式"
+              style={{ width: '100%' }}
+              initValue="full"
+              optionList={[
+                { value: 'full', label: '直接代批（代理人审批即推进流程，留痕「代 xxx 审批」）' },
+                { value: 'suggest', label: '建议制（代理人意见回执给委托人，由委托人最终确认）' },
+              ]}
             />
             <Form.DatePicker
               field="startAt"

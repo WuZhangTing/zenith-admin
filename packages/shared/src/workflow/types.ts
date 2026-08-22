@@ -1348,6 +1348,8 @@ export interface WorkflowTask {
   transfers?: WorkflowTaskTransfer[] | null;
   /** 委派来源（仅委派期间设置；回执任务为 null） */
   delegatedFromId?: number | null;
+  /** 委派模式快照：full=直接代批；suggest=建议制回执；非委派任务为 null */
+  delegationMode?: 'full' | 'suggest' | null;
   /** 加签类型（before/after/parallel，非加签任务为 null）；before 挂起原任务的恢复判定依赖此列；
    * excluded=运行时被排除留痕行（同发起人/去重跳过的具名记录，不参与节点完成判定） */
   signType?: 'before' | 'after' | 'parallel' | 'excluded' | null;
@@ -1537,6 +1539,8 @@ export interface WorkflowDelegation {
   /** null = 对全部流程生效 */
   definitionId: number | null;
   definitionName?: string | null;
+  /** 代理模式：full=代理人直接代批（默认）；suggest=建议制，意见回执给委托人确认 */
+  mode: 'full' | 'suggest';
   reason?: string | null;
   startAt?: string | null;
   endAt?: string | null;

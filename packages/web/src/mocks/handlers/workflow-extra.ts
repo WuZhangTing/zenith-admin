@@ -758,6 +758,7 @@ export const workflowExtraHandlers = [
       delegateName: getMockUserName(body.delegateId),
       definitionId: body.definitionId ?? null,
       definitionName: getMockDefinitionName(body.definitionId),
+      mode: body.mode ?? 'full',
       reason: body.reason ?? null,
       startAt: body.startAt ?? null,
       endAt: body.endAt ?? null,

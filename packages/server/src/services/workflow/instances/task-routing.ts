@@ -146,6 +146,8 @@ export async function delegateTask(taskId: number, targetUserId: number, comment
         attachments: attachments ?? null,
         originalAssigneeId: task.originalAssigneeId ?? task.assigneeId ?? null,
         delegatedFromId,
+        // 手动委派保持建议制语义：受托人意见回执给原审批人确认（区别于规则委托的 full 直接代批）
+        delegationMode: 'suggest',
       })
       .where(and(eq(workflowTasks.id, task.id), eq(workflowTasks.status, 'pending')))
       .returning();

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
-import { Button, Select, SideSheet, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Select, SideSheet, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import type { WorkflowInstance, WorkflowInstanceSummaryItem, WorkflowSlaLevel } from '@zenith/shared/workflow';
@@ -40,7 +40,7 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', definitionId: null };
 
-type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingTaskNodeType?: string | null; pendingSignatureRequired?: boolean; requiresIndividual?: boolean; slaLevel?: WorkflowSlaLevel; slaOverdueSec?: number | null; slaDeadline?: string | null; summary?: WorkflowInstanceSummaryItem[] };
+type PendingItem = WorkflowInstance & { pendingTaskId: number; pendingTaskNodeType?: string | null; pendingSignatureRequired?: boolean; requiresIndividual?: boolean; pendingDelegatedFromName?: string | null; pendingDelegationMode?: 'full' | 'suggest' | null; slaLevel?: WorkflowSlaLevel; slaOverdueSec?: number | null; slaDeadline?: string | null; summary?: WorkflowInstanceSummaryItem[] };
 type SheetState = { instanceId: number; taskId: number; action: 'approve' | 'reject' | null };
 /** 批量审批交互状态（模式与意见总是一起出现/重置） */
 type BatchState = { mode: 'approve' | 'reject'; comment: string } | null;
@@ -167,6 +167,13 @@ export default function PendingApprovalsPage() {
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
             <Typography.Text ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>{v}</Typography.Text>
+            {record.pendingDelegatedFromName && (
+              <Tooltip content={record.pendingDelegationMode === 'suggest'
+                ? `${record.pendingDelegatedFromName} 委托你提出审批建议，最终由其确认`
+                : `代 ${record.pendingDelegatedFromName} 审批，你的操作将直接推进流程`}>
+                <Tag size="small" color="cyan" style={{ flexShrink: 0 }}>代 {record.pendingDelegatedFromName}</Tag>
+              </Tooltip>
+            )}
             {record.requiresIndividual && (
               <Tag size="small" color="amber" style={{ flexShrink: 0 }}>需单独审批</Tag>
             )}

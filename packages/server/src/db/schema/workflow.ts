@@ -536,6 +536,8 @@ export const workflowTasks = pgTable('workflow_tasks', {
   originalAssigneeId: integer('original_assignee_id').references(() => users.id, { onDelete: 'set null' }),
   /** 委派来源（仅委派时设置，原 assignee 接手时清空） */
   delegatedFromId: integer('delegated_from_id').references(() => users.id, { onDelete: 'set null' }),
+  /** 委派模式快照（分派时固化）：full=代理人直接代批；suggest=建议制回执；非委派任务为 null */
+  delegationMode: varchar('delegation_mode', { length: 16 }).$type<'full' | 'suggest'>(),
   /** 加签类型（before/after/parallel，非加签任务为 null）；before 挂起原任务的恢复判定依赖此列，禁止用 comment 前缀判定 */
   signType: varchar('sign_type', { length: 8 }).$type<'before' | 'after' | 'parallel' | 'excluded'>(),
   /** 退回模式 backToOrigin：被退回任务记录发起退回的来源节点 key，通过后直接跳回该节点 */
@@ -797,6 +799,8 @@ export const workflowDelegations = pgTable('workflow_delegations', {
   delegateId: integer('delegate_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** 限定的流程定义（为 null 表示对全部流程生效） */
   definitionId: integer('definition_id').references(() => workflowDefinitions.id, { onDelete: 'cascade' }),
+  /** 代理模式：full=代理人直接代批（默认）；suggest=建议制，代理人意见回执给委托人确认 */
+  mode: varchar('mode', { length: 16 }).$type<'full' | 'suggest'>().notNull().default('full'),
   reason: varchar('reason', { length: 255 }),
   /** 生效开始时间（为 null 表示立即生效） */
   startAt: timestamp('start_at', { withTimezone: true }),

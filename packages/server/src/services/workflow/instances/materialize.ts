@@ -56,16 +56,16 @@ async function expandTasksToRows(
     }
     return cachedDefinitionId;
   };
-  const applyDelegations = async (userIds: number[]): Promise<Array<{ assigneeId: number; delegatedFromId: number | null }>> => {
+  const applyDelegations = async (userIds: number[]): Promise<Array<{ assigneeId: number; delegatedFromId: number | null; delegationMode: 'full' | 'suggest' | null }>> => {
     const definitionId = await resolveDefinitionId();
-    const result: Array<{ assigneeId: number; delegatedFromId: number | null }> = [];
+    const result: Array<{ assigneeId: number; delegatedFromId: number | null; delegationMode: 'full' | 'suggest' | null }> = [];
     const seen = new Set<number>();
     for (const uid of userIds) {
       const delegate = definitionId ? await resolveActiveDelegate(ctx.executor, uid, definitionId) : null;
-      const finalId = delegate ?? uid;
+      const finalId = delegate?.delegateId ?? uid;
       if (seen.has(finalId)) continue;
       seen.add(finalId);
-      result.push({ assigneeId: finalId, delegatedFromId: delegate ? uid : null });
+      result.push({ assigneeId: finalId, delegatedFromId: delegate ? uid : null, delegationMode: delegate?.mode ?? null });
     }
     return result;
   };
@@ -360,7 +360,7 @@ async function expandTasksToRows(
       ? Math.min(100, Math.max(1, t.nodeConfig.approveRatio ?? 51))
       : null;
     const assignList = await applyDelegations(effectiveUserIds);
-    assignList.forEach(({ assigneeId, delegatedFromId }, idx) => {
+    assignList.forEach(({ assigneeId, delegatedFromId, delegationMode }, idx) => {
       rows.push({
         instanceId: ctx.instanceId,
         nodeKey: t.nodeKey,
@@ -368,6 +368,7 @@ async function expandTasksToRows(
         nodeType: t.nodeType,
         assigneeId,
         delegatedFromId,
+        delegationMode,
         // 顺序会签：只有第一人 pending，其余 waiting
         status: method === 'sequential' && idx > 0 ? 'waiting' as const : 'pending' as const,
         taskOrder: method === 'sequential' ? idx : null,

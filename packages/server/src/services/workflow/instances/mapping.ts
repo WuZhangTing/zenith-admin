@@ -44,6 +44,7 @@ export function mapTask(
     originalAssigneeId: row.originalAssigneeId ?? null,
     transfers: transfers ?? null,
     delegatedFromId: row.delegatedFromId ?? null,
+    delegationMode: row.delegationMode ?? null,
     signType: row.signType ?? null,
     approveMethod: row.approveMethod ?? null,
     approveRatio: row.approveRatio ?? null,

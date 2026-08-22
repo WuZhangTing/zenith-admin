@@ -776,6 +776,8 @@ export const createWorkflowDelegationSchema = z.object({
   principalId: z.number().int().positive().optional(),
   delegateId: z.number().int().positive('请选择代理人'),
   definitionId: z.number().int().positive().nullable().optional(),
+  /** full=代理人直接代批（默认）；suggest=建议制回执 */
+  mode: z.enum(['full', 'suggest']).default('full'),
   reason: z.string().max(255).nullable().optional(),
   startAt: z.string().max(32).nullable().optional(),
   endAt: z.string().max(32).nullable().optional(),

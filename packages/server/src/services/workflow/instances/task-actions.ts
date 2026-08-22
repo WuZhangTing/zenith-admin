@@ -1,7 +1,7 @@
 // ─── 审批动作核心：同意/拒绝（含回调与动作按钮校验）（拆分自 workflow-instances.service.ts）───
 import { eq, and, desc, or, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
-import { workflowInstances, workflowTasks } from '../../../db/schema';
+import { workflowInstances, workflowTasks, users } from '../../../db/schema';
 import { findReturnPrevTarget } from '../../../lib/workflow-engine';
 import type { WorkflowEventActor, WorkflowActionButtonKey, WorkflowActionButtonConfig, WorkflowNodeConfig } from '@zenith/shared/workflow';
 import { findNextApproverSelectNodes, resolveNodeFieldPermissions, sanitizeFormUpdatesByNodePerms } from '@zenith/shared/workflow';
@@ -23,6 +23,12 @@ import { submitReportFillSyncForWorkflowInstance } from '../../report/report-fil
 import type { DbExecutor } from '../../../db/types';
 
 export type WorkflowTaskAttachment = { name: string; url: string; size?: number };
+
+/** 委托人显示名（full 代批留痕用）：昵称优先，查不到退化为 user#id */
+async function findUserDisplayName(userId: number): Promise<string> {
+  const [row] = await db.select({ nickname: users.nickname, username: users.username }).from(users).where(eq(users.id, userId)).limit(1);
+  return row?.nickname ?? row?.username ?? `user#${userId}`;
+}
 
 /** 读取节点「操作按钮设置」中指定按钮的配置 */
 function resolveNodeActionButton(
@@ -135,9 +141,14 @@ export async function approveTask(taskId: number, comment?: string, attachments?
   if (nodeCfg?.operations?.includes('signature') && !signature?.trim()) {
     throw new HTTPException(400, { message: '该节点要求手写签名，请先完成签名' });
   }
-  // 委派回执：若由委派人操作，不推进流程，仅生成回执任务给原委派人
+  // 委派任务：suggest（建议制）由代理人操作时生成回执给委托人确认；full（默认）代理人直接代批，comment 留痕
   if (task.delegatedFromId && task.delegatedFromId !== user.userId) {
-    return processDelegatedReceipt(task, inst, 'approved', comment, { userId: user.userId, name: user.username }, attachments, formUpdates);
+    if (task.delegationMode === 'suggest') {
+      return processDelegatedReceipt(task, inst, 'approved', comment, { userId: user.userId, name: user.username }, attachments, formUpdates);
+    }
+    const principalName = await findUserDisplayName(task.delegatedFromId);
+    const decorated = `[代 ${principalName} 审批] ${comment ?? ''}`.trim();
+    return approveTaskCore(task, inst, decorated, { userId: user.userId, name: user.username }, { selectedNextApprovers, signature, attachments, formUpdates });
   }
   return approveTaskCore(task, inst, comment, { userId: user.userId, name: user.username }, { selectedNextApprovers, signature, attachments, formUpdates });
 }
@@ -382,7 +393,11 @@ export async function rejectTask(taskId: number, comment: string, attachments?: 
   assertActionButtonEnabled(inst, task.nodeKey, 'reject');
   assertActionUploadRequirement(inst, task.nodeKey, 'reject', attachments);
   if (task.delegatedFromId && task.delegatedFromId !== user.userId) {
-    return processDelegatedReceipt(task, inst, 'rejected', comment, { userId: user.userId, name: user.username }, attachments);
+    if (task.delegationMode === 'suggest') {
+      return processDelegatedReceipt(task, inst, 'rejected', comment, { userId: user.userId, name: user.username }, attachments);
+    }
+    const principalName = await findUserDisplayName(task.delegatedFromId);
+    return rejectTaskCore(task, inst, `[代 ${principalName} 审批] ${comment}`, { userId: user.userId, name: user.username }, attachments);
   }
   return rejectTaskCore(task, inst, comment, { userId: user.userId, name: user.username }, attachments);
 }

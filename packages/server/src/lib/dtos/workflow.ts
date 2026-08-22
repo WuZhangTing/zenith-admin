@@ -489,6 +489,7 @@ export const WorkflowDelegationDTO = z
     delegateName: z.string().nullable().optional(),
     definitionId: z.number().int().nullable(),
     definitionName: z.string().nullable().optional(),
+    mode: z.enum(['full', 'suggest']),
     reason: z.string().nullable().optional(),
     startAt: z.string().nullable().optional(),
     endAt: z.string().nullable().optional(),

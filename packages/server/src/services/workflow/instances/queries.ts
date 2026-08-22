@@ -176,6 +176,11 @@ export async function listPendingMine(query: { page?: number; pageSize?: number;
     ),
   ]);
   const activeNodeKeys = await loadActiveNodeKeysByInstance(rows.map((row) => row.inst.id));
+  // 规则委托的任务批量补委托人昵称（待办列表「代 xxx」标识）
+  const delegatorIds = [...new Set(rows.map((r) => r.task.delegatedFromId).filter((v): v is number => v != null))];
+  const delegatorNames = delegatorIds.length
+    ? new Map((await db.select({ id: users.id, nickname: users.nickname, username: users.username }).from(users).where(inArray(users.id, delegatorIds))).map((u) => [u.id, u.nickname ?? u.username]))
+    : new Map<number, string>();
   return {
     list: rows.map((r) => {
       const flow = r.inst.definitionSnapshot?.flowData ?? undefined;
@@ -185,7 +190,8 @@ export async function listPendingMine(query: { page?: number; pageSize?: number;
       const requiresIndividual = flow ? findNextApproverSelectNodes(flow, r.task.nodeKey).length > 0 : false;
       const sla = computeTaskSla(node?.timeout, r.task.createdAt);
       const summary = resolveInstanceSummary(r.inst, flow);
-      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingTaskNodeType: r.task.nodeType ?? null, pendingSignatureRequired, requiresIndividual, summary, ...sla };
+      const pendingDelegatedFromName = r.task.delegatedFromId ? (delegatorNames.get(r.task.delegatedFromId) ?? `#${r.task.delegatedFromId}`) : null;
+      return { ...mapInstance(r.inst, { ...r, currentNodeKeys: activeNodeKeys.get(r.inst.id) }), pendingTaskId: r.task.id, pendingTaskNodeType: r.task.nodeType ?? null, pendingSignatureRequired, requiresIndividual, summary, pendingDelegatedFromName, pendingDelegationMode: r.task.delegationMode ?? null, ...sla };
     }),
     total: Number(total),
     page,
