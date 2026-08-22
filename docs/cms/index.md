@@ -21,7 +21,7 @@ graph LR
         E --> F[搜索引擎推送 + Webhook]
     end
     subgraph 前台呈现
-        T[主题（default/docs/gov-portal/magazine）] --> T1[Theme API 首页取数]
+        T[主题（default/docs/gov-portal/magazine/news-portal）] --> T1[Theme API 首页取数]
         T --> T2[变体模板/主题参数/部件插槽]
     end
     subgraph 流量运营
@@ -76,7 +76,7 @@ CMS 前台路由（Hono 兜底路由）
    ├─ 301/302 重定向 → 草稿预览（签名链接）→ robots/sitemap/RSS
    ├─ 静态文件命中（hybrid/static 模式）
    ├─ Redis 页面缓存（dynamic 模式，按页面类型分级 TTL）
-   └─ React SSR 渲染（主题注册表 default/docs/gov-portal/magazine）→ ETag 协商缓存
+   └─ React SSR 渲染（主题注册表 default/docs/gov-portal/magazine/news-portal）→ ETag 协商缓存
 后台管理（React SPA /cms/*）
    └─ /api/cms/* REST 接口（权限 cms:*，站点数据权限 cms_site_users）
 开放平台
@@ -94,7 +94,7 @@ CMS 前台路由（Hono 兜底路由）
 
 运营表：`cms_comments` / `cms_ad_slots` / `cms_ads` / `cms_ad_events` / `cms_forms` / `cms_form_submissions` / `cms_sensitive_words` / `cms_error_prone_words`（易错词）/ `cms_friend_link_groups` / `cms_friend_links` / `cms_pages` / `cms_page_block_acls` / `cms_widgets` / `cms_widget_refs`（部件被页面/主题插槽引用的索引）/ `cms_widget_source_refs`（实时来源→部件反向索引，供内容/栏目变更触发定向刷新）
 
-主题与发布：主题为仓库内置 React TSX 主题（`default` / `docs` / `gov-portal` / `magazine`，见[主题与模板开发](./themes)），无独立模板表；主题参数存 `cms_sites.settings.themeConfig`；发布产物记录于 `cms_publish_artifacts`，发布任务与逐路径日志复用 `async_tasks` / `async_task_items`。
+主题与发布：主题为仓库内置 React TSX 主题（`default` / `docs` / `gov-portal` / `magazine` / `news-portal`，见[主题与模板开发](./themes)），无独立模板表；主题参数存 `cms_sites.settings.themeConfig`；发布产物记录于 `cms_publish_artifacts`，发布任务与逐路径日志复用 `async_tasks` / `async_task_items`。
 
 会员互动表：`cms_content_likes` / `cms_content_favorites` / `cms_member_view_history` / `cms_member_subscriptions` / `cms_interactions` / `cms_interaction_questions` / `cms_interaction_responses` / `cms_interaction_answers`
 
@@ -130,5 +130,5 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 - **部门数据权限**：内容创建时快照创建人 `created_by` 与其部门 `dept_id`；内容列表接入系统数据权限（`getDataScopeCondition`），角色数据范围为 本部门/本部门及以下/指定部门/仅本人 时自动过滤。
 - **模型站群归属**：内容模型分「平台共享 / 站点专属」，专属模型仅归属站点可见可绑定，跨站绑定服务端拦截；详见[内容模型](./content-models#站群归属治理)。
 - **站点导入导出**：站点操作菜单「导出」下载整站 JSON 包（站点配置、栏目树、标签、**素材库（文件夹 + 素材登记）**、内容及关联、友链、重定向、内链词、广告位/广告、表单定义、搭建页面；不含运行数据与用户绑定）；工具栏「导入」上传导出包创建为新站点，内部 id 全部重映射（素材先建、再把包内 `cms-res://` 句柄改写为新站素材 id，避免跨站引用来源站素材），站点 code 冲突自动加序号，域名/默认站标记不迁移。为避免导入绕过发布权限，包内内容无论原状态或计划时间均统一导入为草稿，并清除发布时间、计划发布时间与归档状态，需由有 `cms:content:publish` 权限的用户重新发布或排期。接口 `GET /api/cms/sites/{id}/export`、`POST /api/cms/sites/import`。
-- **CDN 刷新**：站点设置「CDN 刷新」配置 purge webhook 地址与令牌后，增量静态化/整站重建完成自动 POST 变更路径（请求体 `{ siteCode, origin, purgeAll, paths, urls }`，配置令牌时以 Bearer 方式鉴权）；失败仅记日志不影响静态化。
+- **CDN 刷新**：站点设置「CDN 刷新」配置 purge webhook 地址与令牌后，增量静态化/整站重建完成自动 POST 变更路径（请求体 `{ siteCode, origin, purgeAll, paths, urls }`，配置令牌时通过 `Authorization` 请求头发送），失败仅记日志不影响静态化结果。
 - **多语言站点关联**：站点设置「多语言站点关联」配置本站语言与关联站点（`语言代码=站点标识` 每行一条）后，前台所有页面输出 `<link rel="alternate" hreflang>` 且页头显示语言切换；关联站点 URL 取绑定域名（无域名回退预览路径）。

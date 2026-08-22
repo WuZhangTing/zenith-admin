@@ -20,6 +20,7 @@
 | 互动问卷 | `/interaction/{code}/` |
 | 搜索 | `/search?q=`（永远动态） |
 | 草稿预览 | `/preview/{id}?exp=&sig=`（签名校验） |
+| 主题样式资产 | `/_assets/theme.{hash}.css` |
 | 站点资源 | `/sitemap.xml`、`/robots.txt`、`/rss.xml`、`/{channelPath}/rss.xml` |
 
 ## 静态化三模式
@@ -121,12 +122,13 @@ SSR 响应按页面类型分级缓存：
 
 ## 主题与模板解析
 
-前台外观由**主题**决定（内置 `default` / `docs` / `gov-portal` / `magazine` 四套，全部为仓库内 React TSX 组件，服务端 SSR 渲染）。主题体系——主题注册、Theme API 首页取数、主题参数（settingsSchema）、变体模板与解析链、共享组件、模型字段消费、部件插槽——完整说明见 **[主题与模板开发](./themes)**。
+前台外观由**主题**决定（内置 `default` / `docs` / `gov-portal` / `magazine` / `news-portal` 五套，全部为仓库内 React TSX 组件，服务端 SSR 渲染）。主题体系——主题注册、样式资产、Theme API 首页取数、主题参数（settingsSchema）、变体模板与解析链、共享组件、模型字段消费、部件插槽——完整说明见 **[主题与模板开发](./themes)**。
 
-与渲染管线相关的两个事实：
+与渲染管线相关的几个事实：
 
 - 站点切换主题时服务端校验主题已注册并原子递增 `themeRevision`，发布任务以此做**过期栅栏**——执行中发现站点主题/模板已变更即失效退出
 - 模板解析链为 内容/栏目级覆盖 → 站点有效 `defaultTemplates`（经站群继承 resolver）→ 主题默认；主题升级导致的失效模板引用在站点保存时自动摘除（自愈机制见[主题文档](./themes#变体模板与解析链)）
+- 正式渲染输出 `/_assets/theme.{hash}.css` 指纹外链，文件缺失时由前台 `_assets/` 路由现场生成；整站孤儿清扫保留 `_assets/` 目录
 
 ## 页面部件与主题插槽
 
@@ -145,7 +147,7 @@ SSR 响应按页面类型分级缓存：
 | 引用方式 | 说明 |
 |---|---|
 | 页面搭建 `widget-ref` 区块 | 搭建页面中插入部件（`ownerType=page`），随页面静态化输出 |
-| 主题插槽绑定 | `PUT /api/cms/widgets/slots/{slotKey}`（权限 `cms:widget:bind`），把**已发布**部件绑到主题声明的插槽上；插槽清单由主题注册表 `widgetSlots` 声明（四套内置主题均提供 `home.sidebar` 首页侧栏），并校验部件类型与模板是否适用 |
+| 主题插槽绑定 | `PUT /api/cms/widgets/slots/{slotKey}`（权限 `cms:widget:bind`），把**已发布**部件绑到主题声明的插槽上；插槽清单由主题注册表 `widgetSlots` 声明（五套内置主题均提供 `home.sidebar` 首页侧栏），并校验部件类型与模板是否适用 |
 
 编辑页提供 `GET /{id}/preview`（草稿/发布态渲染预览）与 `GET /{id}/refs`（引用位置清单）；列表以 `referenceCount/impactCount` 展示引用面，达到高扇出阈值（20 个引用位置）标记 `highFanout` 提醒操作影响面。
 

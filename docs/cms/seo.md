@@ -2,7 +2,7 @@
 
 ## Social SEO
 
-全部内置主题、动态 SSR、静态页和草稿预览统一输出 `og:url`、`og:site_name`、图片说明、Article 发布时间/修改时间/作者，以及完整 Twitter Card（card/site/creator/title/description/image/image alt）——SEO head 为主题共享组件（`SeoHead`），新增主题自动获得全套输出。站点配置提供默认 Twitter 账号、Card 类型和图片说明，内容可覆盖作者账号与社交图片说明。
+全部内置主题、动态 SSR、静态页和草稿预览统一输出 `og:url`、`og:site_name`、图片说明、Article 发布时间/修改时间/作者，以及完整 Twitter Card（card/site/creator/title/description/image/image alt）——SEO head 为主题共享组件（`SeoHead`），主题复用该组件即可获得全套输出。站点配置提供默认 Twitter 账号、Card 类型和图片说明，内容可覆盖作者账号与社交图片说明。
 
 ## 三级 TDK 覆盖
 
