@@ -11,14 +11,14 @@ import type { BizLeave, BizLeaveStatus } from '@zenith/shared/biz';
 import type { WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import { WORKFLOW_ACTIVE_INSTANCE_STATUSES } from '@zenith/shared/workflow';
 import { db } from '../../db';
-import { bizLeaves, users, workflowDefinitions, workflowInstances, workflowTasks, type BizLeaveRow } from '../../db/schema';
+import { bizLeaves, users, workflowInstances, workflowTasks, type BizLeaveRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDate, formatDateTime, parseDateRangeStart } from '../../lib/datetime';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
-import { startWorkflowForBiz } from '../../lib/workflow-biz-bridge';
+import { startWorkflowForBiz, resolveBizDefinitionId } from '../../lib/workflow-biz-bridge';
 
 /** 业务类型标识（与订阅器、businessKey 保持一致） */
 export const BIZ_LEAVE_TYPE = 'biz_leave';
@@ -71,17 +71,8 @@ function findOwnLeave(id: number) {
 }
 
 async function ensureLeaveDefinitionId(): Promise<number> {
-  const [def] = await db
-    .select({ id: workflowDefinitions.id })
-    .from(workflowDefinitions)
-    .where(and(
-      eq(workflowDefinitions.name, LEAVE_WORKFLOW_NAME),
-      eq(workflowDefinitions.status, 'published'),
-      eq(workflowDefinitions.formType, 'external'),
-    ))
-    .limit(1);
-  if (!def) throw new HTTPException(400, { message: `未找到已发布的「${LEAVE_WORKFLOW_NAME}」流程定义，请先在流程定义中发布` });
-  return def.id;
+  // 统一走 bridge 的健壮解析：同名多发布取最新并告警，避免随机命中旧定义
+  return resolveBizDefinitionId({ name: LEAVE_WORKFLOW_NAME, formType: 'external' });
 }
 
 /** 查找该请假单当前**活跃**的流程实例（与 bridge 幂等去重口径一致）；终态实例不算占用，允许重新发起 */

@@ -300,7 +300,15 @@ export default function LeavePage() {
         closeOnEsc
         width={520}
       >
-        <Form key={modal.formKey} {...modal.formProps}>
+        <Form key={modal.formKey} {...modal.formProps}
+          onValueChange={(values: Record<string, unknown>, changed: Record<string, unknown>) => {
+            // 选完日期区间自动按自然日算天数（含首尾），仍可手动改成 0.5 步进的实际天数
+            if (!('dateRange' in changed)) return;
+            const range = values.dateRange as [Date, Date] | undefined;
+            if (!range || range.length !== 2 || !range[0] || !range[1]) return;
+            const days = dayjs(range[1]).startOf('day').diff(dayjs(range[0]).startOf('day'), 'day') + 1;
+            if (days > 0) modal.formApi.current?.setValue('days', days);
+          }}>
           <Form.Select field="leaveType" label="请假类型" optionList={leaveTypeItems.map((i) => ({ value: i.value, label: i.label }))} rules={[{ required: true, message: '请选择请假类型' }]} style={{ width: '100%' }} />
           <Form.DatePicker field="dateRange" label="请假日期" type="dateRange" style={{ width: '100%' }} rules={[{ required: true, message: '请选择请假日期' }]} />
           <Form.InputNumber field="days" label="天数" min={0.5} step={0.5} style={{ width: '100%' }} rules={[{ required: true, message: '请输入天数' }]} />
