@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Button, Checkbox, Col, Form, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Col, Form, Modal, Row, Select, SideSheet, Space, Tag, TagGroup, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
@@ -153,7 +153,7 @@ export default function MyAppsPage() {
   };
 
   const columns: ColumnProps<OAuth2Client>[] = [
-    { title: '应用名称', dataIndex: 'name', width: 180 },
+    { title: '应用名称', dataIndex: 'name', width: 180, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 170 }}>{v}</Text> },
     { title: 'Client ID', dataIndex: 'clientId', width: 270, render: (value: string) => <Text copyable={{ content: value }}>{value}</Text> },
     {
       title: '环境',
@@ -171,7 +171,7 @@ export default function MyAppsPage() {
         </Tag>
       ),
     },
-    { title: 'Scope', dataIndex: 'allowedScopes', width: 280, render: (values: string[]) => <Space wrap>{values.map((value) => <Tag key={value} size="small">{value}</Tag>)}</Space> },
+    { title: 'Scope', dataIndex: 'allowedScopes', width: 240, render: (values: string[]) => <TagGroup maxTagCount={2} showPopover size="small" tagList={(values ?? []).map((value) => ({ tagKey: value, children: value, size: 'small' as const }))} /> },
     dateTimeColumn('创建时间', 'createdAt'),
     {
       title: '状态',

@@ -16,7 +16,6 @@ import {
   validationHook,
   commonErrorResponses,
   ok,
-  okMsg,
   okBody,
 } from '../../lib/openapi-schemas';
 import {
@@ -169,7 +168,10 @@ const revoke = defineOpenAPIRoute({
     tags: ['OAuth2'],
     summary: '撤销令牌（RFC 7009）',
     security: [],
-    responses: { ...commonErrorResponses, ...okMsg('已撤销') },
+    responses: {
+      200: { description: '已撤销（RFC 7009 规定始终 200，无业务信封）', content: { 'application/json': { schema: z.object({}).openapi('OAuth2RevokeResponse') } } },
+      ...commonErrorResponses,
+    },
   }),
   handler: async (c) => {
     const body = await c.req.parseBody();
@@ -178,7 +180,7 @@ const revoke = defineOpenAPIRoute({
       body['client_id'] as string,
       body['client_secret'] as string | undefined,
     );
-    return c.json(okBody(null), 200);
+    return c.json({}, 200);
   },
 });
 
@@ -191,15 +193,18 @@ const introspect = defineOpenAPIRoute({
     tags: ['OAuth2'],
     summary: '令牌自省（RFC 7662）',
     security: [],
-    responses: { ...commonErrorResponses, ...ok(OAuth2IntrospectResponseDTO, '自省结果') },
+    responses: {
+      200: { description: '自省结果（RFC 7662 顶层格式，无业务信封）', content: { 'application/json': { schema: OAuth2IntrospectResponseDTO } } },
+      ...commonErrorResponses,
+    },
   }),
   handler: async (c) => {
     const body = await c.req.parseBody();
-    return c.json(okBody(await introspectToken(
+    return c.json(await introspectToken(
       body['token'] as string,
       body['client_id'] as string,
       body['client_secret'] as string,
-    )), 200);
+    ), 200);
   },
 });
 
@@ -212,13 +217,16 @@ const userinfo = defineOpenAPIRoute({
     tags: ['OAuth2'],
     summary: '获取用户信息（需要 Authorization: Bearer <access_token>）',
     security: [{ BearerAuth: [] }],
-    responses: { ...commonErrorResponses, ...ok(OAuth2UserInfoDTO, '用户信息') },
+    responses: {
+      200: { description: '用户信息（OIDC 标准 claims 顶层格式，无业务信封）', content: { 'application/json': { schema: OAuth2UserInfoDTO } } },
+      ...commonErrorResponses,
+    },
   }),
   handler: async (c) => {
     const authHeader = c.req.header('Authorization') ?? '';
     const token = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!token) throw new HTTPException(401, { message: 'missing token' });
-    return c.json(okBody(await getUserInfoByToken(token)), 200);
+    return c.json(await getUserInfoByToken(token), 200);
   },
 });
 

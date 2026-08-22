@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Banner, DatePicker, InputNumber, Select, Typography, Tag, Space, Card } from '@douyinfe/semi-ui';
+import { Banner, DatePicker, InputNumber, Select, Typography, Tag, Tooltip, Space, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import dayjs from 'dayjs';
 import type { OpenApiCallLog } from '@zenith/shared/open-platform';
@@ -119,10 +119,9 @@ export default function OpenApiStatsPage() {
       dataIndex: 'appName',
       width: 180,
       render: (v: string | null, r: OpenApiCallLog) => (
-        <div>
-          <div>{v || <Text type="tertiary">未知</Text>}</div>
-          <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{r.clientId}</Text>
-        </div>
+        <Tooltip content={`Client ID: ${r.clientId ?? '—'}`}>
+          <Text ellipsis style={{ maxWidth: 165 }}>{v || '未知'}</Text>
+        </Tooltip>
       ),
     },
     {

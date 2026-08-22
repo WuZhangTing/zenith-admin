@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Tag, Space, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select, TextArea } from '@douyinfe/semi-ui';
+import { Button, Tag, TagGroup, Space, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select, TextArea } from '@douyinfe/semi-ui';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -199,7 +199,12 @@ export default function OAuth2AppsPage() {
 
   const columns: ColumnProps<OAuth2Client>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '应用名称', dataIndex: 'name', width: 160 },
+    {
+      title: '应用名称',
+      dataIndex: 'name',
+      width: 160,
+      render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Text>,
+    },
     {
       title: 'Client ID',
       dataIndex: 'clientId',
@@ -215,15 +220,18 @@ export default function OAuth2AppsPage() {
     {
       title: '授权类型',
       dataIndex: 'grantTypes',
-      width: 240,
+      width: 200,
       render: (v: string[]) => (
-        <Space wrap>
-          {v?.map((t) => (
-            <Tag key={t} size="small">
-              {OAUTH2_GRANT_TYPE_LABELS[t as keyof typeof OAUTH2_GRANT_TYPE_LABELS] ?? t}
-            </Tag>
-          ))}
-        </Space>
+        <TagGroup
+          maxTagCount={2}
+          showPopover
+          size="small"
+          tagList={(v ?? []).map((t) => ({
+            tagKey: t,
+            children: OAUTH2_GRANT_TYPE_LABELS[t as keyof typeof OAUTH2_GRANT_TYPE_LABELS] ?? t,
+            size: 'small' as const,
+          }))}
+        />
       ),
     },
     {
@@ -231,9 +239,12 @@ export default function OAuth2AppsPage() {
       dataIndex: 'allowedScopes',
       width: 220,
       render: (v: string[]) => (
-        <Space wrap>
-          {v?.map((s) => <Tag key={s} color="blue" size="small">{s}</Tag>)}
-        </Space>
+        <TagGroup
+          maxTagCount={2}
+          showPopover
+          size="small"
+          tagList={(v ?? []).map((s) => ({ tagKey: s, children: s, color: 'blue' as const, size: 'small' as const }))}
+        />
       ),
     },
     {

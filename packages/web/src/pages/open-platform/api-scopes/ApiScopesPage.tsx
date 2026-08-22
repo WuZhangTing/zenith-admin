@@ -96,14 +96,14 @@ export default function ApiScopesPage() {
   const columns: ColumnProps<ApiScope>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: 'Scope 编码', dataIndex: 'code', width: 200, render: (v: string) => <Text copyable={{ content: v }}>{v}</Text> },
-    { title: '名称', dataIndex: 'name', width: 160 },
+    { title: '名称', dataIndex: 'name', width: 160, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Text> },
     {
       title: '分组',
       dataIndex: 'scopeGroup',
       width: 100,
       render: (v: string) => <Tag size="small" color="blue">{API_SCOPE_GROUP_LABELS[v] ?? v}</Tag>,
     },
-    { title: '描述', dataIndex: 'description', width: 240, render: (v: string | null) => v || <Text type="tertiary">—</Text> },
+    { title: '描述', dataIndex: 'description', width: 240, render: (v: string | null) => v ? <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{v}</Text> : <Text type="tertiary">—</Text> },
     {
       title: '被引用',
       align: 'right',
