@@ -156,6 +156,7 @@ export default function AIProvidersPage() {
     {
       title: '名称 / 供应商',
       dataIndex: 'name',
+      width: 320,
       render: (_: unknown, record: TableRow) => {
         if ('_isGroup' in record) {
           return <strong>{record.name}</strong>;

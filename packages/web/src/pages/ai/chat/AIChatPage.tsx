@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { AIChatDialogue, AIChatInput, Typography, Button, Form, RadioGroup, Radio, Select, Tag, Toast, Tooltip, Spin, TextArea, Dropdown, Input, Modal, TagInput, Space } from '@douyinfe/semi-ui';
 import type { Message as AIChatMessage } from '@douyinfe/semi-ui/lib/es/aiChatDialogue';
-import type { RenderActionProps, RenderTitleProps } from '@douyinfe/semi-ui/lib/es/aiChatDialogue/interface';
+import type { RenderActionProps, RenderAvatarProps, RenderTitleProps } from '@douyinfe/semi-ui/lib/es/aiChatDialogue/interface';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { MessageSquarePlus, Trash2, AlignLeft, AlignJustify, Settings, MoreHorizontal, Pencil, Pin, PinOff, Archive, ArchiveRestore, Sparkles, Inbox, Download, Share2, UserRoundPen, Swords, Library, ImagePlus, X, ChevronLeft, ChevronRight, Volume2, Square, Mic, MicOff, Tags, Bot } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +11,7 @@ import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import AppModal from '@/components/AppModal';
 import { useAuth } from '@/hooks/useAuth';
+import { UserAvatar } from '@/components/UserAvatar';
 import UserAiConfigModal from '../components/UserAiConfigModal';
 import PreferenceModal from '../components/PreferenceModal';
 import ShareModal from '../components/ShareModal';
@@ -1083,6 +1084,22 @@ export default function AIChatPage() {
   }, [recording]);
 
   const dialogueRenderConfig = useMemo(() => ({
+    // 用户消息头像与全站一致：有头像显示图片，无头像回退首字母 + 哈希色（Semi 默认无图时是空头像）
+    renderDialogueAvatar: ({ role, message, defaultAvatar }: RenderAvatarProps) => {
+      if (message?.role !== 'user') return defaultAvatar;
+      const className = React.isValidElement(defaultAvatar)
+        ? (defaultAvatar.props as { className?: string }).className
+        : undefined;
+      return (
+        <UserAvatar
+          className={className}
+          name={role?.name ?? '我'}
+          avatar={role?.avatar}
+          size={null}
+          semiSize="extra-small"
+        />
+      );
+    },
     // 操作栏：默认操作（去掉分享）+ 追加 TTS 朗读按钮（assistant 消息）
     renderDialogueAction: (props: RenderActionProps) => {
       if (!props.defaultActionsObj) return null;
