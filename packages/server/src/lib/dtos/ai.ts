@@ -300,23 +300,32 @@ export const AiAgentDTO = z
     name: z.string().openapi({ description: '名称' }),
     description: z.string().nullable().openapi({ description: '描述' }),
     avatar: z.string().openapi({ description: '头像 emoji' }),
-    systemPrompt: z.string().openapi({ description: '系统提示词' }),
+    instructions: z.string().openapi({ description: 'Agent 指令(Mastra instructions)' }),
     configId: z.number().nullable().openapi({ description: '指定服务商配置（null=系统默认）' }),
     model: z.string().nullable().openapi({ description: '指定模型（null=配置默认）' }),
-    temperature: z.string().nullable().openapi({ description: '温度覆盖' }),
+    modelSettings: ModelSettingsDTO,
+    maxSteps: z.number().nullable().openapi({ description: '工具循环最大步数（null=系统默认）' }),
     knowledgeBaseId: z.number().nullable().openapi({ description: '绑定知识库' }),
     tools: z.array(z.string()).openapi({ description: '启用的工具名集合' }),
     openingMessage: z.string().nullable().openapi({ description: '开场白' }),
     suggestedQuestions: z.array(z.string()).openapi({ description: '建议问题' }),
-    status: z.enum(['private', 'pending', 'published', 'rejected']).openapi({ description: '发布状态' }),
-    clonedFromId: z.number().nullable().openapi({ description: '克隆来源智能体 ID' }),
     usageCount: z.number().openapi({ description: '使用次数' }),
     isEnabled: z.boolean().openapi({ description: '是否启用' }),
-    ownerName: z.string().nullable().optional().openapi({ description: '创建者名称（市场展示）' }),
     createdAt: z.string().openapi({ description: '创建时间' }),
     updatedAt: z.string().openapi({ description: '更新时间' }),
   })
   .openapi('AiAgent');
+
+export const AiBuiltinAgentDTO = z
+  .object({
+    agentId: z.string().openapi({ description: 'Mastra agent ID' }),
+    name: z.string().openapi({ description: '名称' }),
+    description: z.string().nullable().openapi({ description: '描述' }),
+    avatar: z.string().openapi({ description: '头像 emoji' }),
+    openingMessage: z.string().nullable().openapi({ description: '开场白' }),
+    suggestedQuestions: z.array(z.string()).openapi({ description: '建议问题' }),
+  })
+  .openapi('AiBuiltinAgent');
 
 // ─── P3：HTTP API 工具 ────────────────────────────────────────────────────────
 
@@ -368,50 +377,50 @@ export const AiPromptTemplateVersionDTO = z
   })
   .openapi('AiPromptTemplateVersion');
 
-// ─── P3：评测集 ───────────────────────────────────────────────────────────────
+// ─── P3：评测(Mastra Datasets + Experiments) ─────────────────────────────────
 
-export const AiEvalItemDTO = z
+export const AiEvalDatasetDTO = z
   .object({
-    question: z.string().openapi({ description: '评测问题' }),
-    expected: z.string().optional().openapi({ description: '期望要点' }),
-  })
-  .openapi('AiEvalItem');
-
-export const AiEvalSetDTO = z
-  .object({
-    id: z.number().openapi({ description: 'ID' }),
+    id: z.string().openapi({ description: 'Mastra dataset ID' }),
     name: z.string().openapi({ description: '评测集名称' }),
     description: z.string().nullable().openapi({ description: '描述' }),
-    items: z.array(AiEvalItemDTO).openapi({ description: '评测条目' }),
+    itemCount: z.number().openapi({ description: '条目数' }),
+    version: z.number().openapi({ description: '当前版本号' }),
     createdAt: z.string().openapi({ description: '创建时间' }),
     updatedAt: z.string().openapi({ description: '更新时间' }),
   })
-  .openapi('AiEvalSet');
+  .openapi('AiEvalDataset');
 
-export const AiEvalRunDTO = z
+export const AiEvalDatasetItemDTO = z
   .object({
-    id: z.number().openapi({ description: 'ID' }),
-    setId: z.number().openapi({ description: '评测集 ID' }),
-    setName: z.string().nullable().optional().openapi({ description: '评测集名称' }),
-    configId: z.number().nullable().openapi({ description: '服务商配置 ID' }),
-    model: z.string().openapi({ description: '评测模型' }),
-    status: z.enum(['running', 'done', 'failed']).openapi({ description: '运行状态' }),
-    results: z
-      .array(
-        z.object({
-          question: z.string(),
-          expected: z.string().optional(),
-          answer: z.string(),
-          durationMs: z.number(),
-          tokensInput: z.number(),
-          tokensOutput: z.number(),
-          error: z.string().optional(),
-        }),
-      )
-      .nullable()
-      .openapi({ description: '逐条结果' }),
-    avgDurationMs: z.number().nullable().openapi({ description: '平均耗时（毫秒）' }),
-    totalTokens: z.number().nullable().openapi({ description: '总 token 数' }),
-    createdAt: z.string().openapi({ description: '运行时间' }),
+    id: z.string().openapi({ description: '条目 ID' }),
+    input: z.string().openapi({ description: '评测问题' }),
+    groundTruth: z.string().nullable().openapi({ description: '期望要点' }),
   })
-  .openapi('AiEvalRun');
+  .openapi('AiEvalDatasetItem');
+
+export const AiEvalExperimentDTO = z
+  .object({
+    id: z.string().openapi({ description: '实验 ID' }),
+    name: z.string().openapi({ description: '实验名' }),
+    datasetId: z.string().openapi({ description: '数据集 ID' }),
+    targetId: z.string().openapi({ description: '目标 Mastra agent ID' }),
+    status: z.enum(['pending', 'running', 'completed', 'failed']).openapi({ description: '状态' }),
+    totalCount: z.number().openapi({ description: '条目总数' }),
+    succeededCount: z.number().openapi({ description: '成功数' }),
+    failedCount: z.number().openapi({ description: '失败数' }),
+    avgScores: z.record(z.string(), z.number()).nullable().openapi({ description: '各打分器平均分(0-1)' }),
+    createdAt: z.string().openapi({ description: '发起时间' }),
+  })
+  .openapi('AiEvalExperiment');
+
+export const AiEvalExperimentResultDTO = z
+  .object({
+    itemId: z.string().openapi({ description: '条目 ID' }),
+    input: z.string().openapi({ description: '评测问题' }),
+    groundTruth: z.string().nullable().openapi({ description: '期望要点' }),
+    output: z.string().openapi({ description: '模型输出' }),
+    scores: z.record(z.string(), z.number()).openapi({ description: '各打分器得分(0-1)' }),
+    error: z.string().nullable().openapi({ description: '失败原因' }),
+  })
+  .openapi('AiEvalExperimentResult');

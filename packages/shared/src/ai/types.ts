@@ -1,4 +1,4 @@
-import type { AiAgentStatus, AiReasoningLevel } from './constants';
+import type { AiReasoningLevel } from './constants';
 
 // ─── AI 对话模块 ──────────────────────────────────────────────────────────────
 
@@ -212,31 +212,43 @@ export type AiFeedbackStatus = 'pending' | 'resolved' | 'ignored';
 
 // ─── P3：自定义智能体 ─────────────────────────────────────────────────────────
 
+/** 自定义智能体(Mastra AgentConfig 形状;创建即用,builtin=编程式内置智能体只读) */
 export interface AiAgent {
   id: number;
   userId: number;
   name: string;
   description: string | null;
   avatar: string;
-  systemPrompt: string;
+  /** Agent 指令(Mastra instructions) */
+  instructions: string;
   /** 指定服务商配置（null = 系统默认） */
   configId: number | null;
   /** 指定模型（null = 配置默认） */
   model: string | null;
-  temperature: string | null;
+  /** 模型调用设置(Mastra ModelSettings 子集) */
+  modelSettings: AiModelSettings | null;
+  /** 工具循环最大步数(null = 系统默认) */
+  maxSteps: number | null;
   knowledgeBaseId: number | null;
   /** 启用的工具名集合 */
   tools: string[];
   openingMessage: string | null;
   suggestedQuestions: string[];
-  status: AiAgentStatus;
-  clonedFromId: number | null;
   usageCount: number;
   isEnabled: boolean;
-  /** 市场展示：创建者名称 */
-  ownerName?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 编程式内置智能体(代码定义、注册进 Mastra;列表只读展示,可直接对话) */
+export interface AiBuiltinAgent {
+  /** Mastra agent ID(如 biz-ops-assistant) */
+  agentId: string;
+  name: string;
+  description: string | null;
+  avatar: string;
+  openingMessage: string | null;
+  suggestedQuestions: string[];
 }
 
 // ─── P3：HTTP API 工具 ────────────────────────────────────────────────────────
@@ -282,43 +294,52 @@ export interface AiPromptTemplateVersion {
   createdAt: string;
 }
 
-// ─── P3：评测集 ───────────────────────────────────────────────────────────────
+// ─── P3：评测(Mastra Datasets + Experiments) ─────────────────────────────────
 
-export interface AiEvalItem {
-  question: string;
-  expected?: string;
-}
-
-export interface AiEvalSet {
-  id: number;
+/** 评测数据集(Mastra dataset 包装视图) */
+export interface AiEvalDataset {
+  /** Mastra dataset ID(UUID) */
+  id: string;
   name: string;
   description: string | null;
-  items: AiEvalItem[];
+  itemCount: number;
+  /** 当前版本号(每次条目变更递增,可回放) */
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface AiEvalResult {
-  question: string;
-  expected?: string;
-  answer: string;
-  durationMs: number;
-  tokensInput: number;
-  tokensOutput: number;
-  error?: string;
+/** 数据集条目:input 为提问文本,groundTruth 为期望要点(可选) */
+export interface AiEvalDatasetItem {
+  id: string;
+  input: string;
+  groundTruth: string | null;
 }
 
-export interface AiEvalRun {
-  id: number;
-  setId: number;
-  setName?: string | null;
-  configId: number | null;
-  model: string;
-  status: 'running' | 'done' | 'failed';
-  results: AiEvalResult[] | null;
-  avgDurationMs: number | null;
-  totalTokens: number | null;
+/** 实验(评测运行):对数据集全量条目执行注册的目标智能体并打分 */
+export interface AiEvalExperiment {
+  id: string;
+  name: string;
+  datasetId: string;
+  /** 目标 Mastra agent ID(agent-{id} / zenith-chat / 内置智能体) */
+  targetId: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  totalCount: number;
+  succeededCount: number;
+  failedCount: number;
+  /** 各 scorer 平均分(0-1) */
+  avgScores: Record<string, number> | null;
   createdAt: string;
+}
+
+/** 实验单条结果 */
+export interface AiEvalExperimentResult {
+  itemId: string;
+  input: string;
+  groundTruth: string | null;
+  output: string;
+  scores: Record<string, number>;
+  error: string | null;
 }
 
 /** 管理端反馈列表条目：消息 + 反馈人 / 会话 / 前置提问上下文 */

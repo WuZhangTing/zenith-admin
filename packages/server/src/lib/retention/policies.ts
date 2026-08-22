@@ -490,17 +490,6 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '公众号客服会话的接入 / 转接 / 关闭事件。',
   },
 
-  // ── AI ─────────────────────────────────────────────────────────────────────
-  {
-    key: 'ai_eval_runs',
-    title: 'AI 评测运行记录',
-    module: '智能助手',
-    tableName: 'ai_eval_runs',
-    timeColumn: 'created_at',
-    defaultDays: 180,
-    description: '模型评测集的运行结果。',
-  },
-
   // ── 知识中心 ───────────────────────────────────────────────────────────────
   {
     key: 'wiki_search_logs',

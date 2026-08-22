@@ -13,98 +13,416 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, FlaskConical } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import AsyncTaskProgress from '@/components/AsyncTaskProgress';
-import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
-import { useAiEvalSets, useAiEvalRuns, useAiEvalRunDetail, useSaveAiEvalSet, useDeleteAiEvalSet, useRunAiEval, useDeleteAiEvalRun } from '@/hooks/queries/ai-eval';
-import { useAiChatModels } from '@/hooks/queries/ai-providers';
+import {
+  useAiEvalDatasets,
+  useAiEvalItems,
+  useSaveAiEvalDataset,
+  useDeleteAiEvalDataset,
+  useAddAiEvalItems,
+  useDeleteAiEvalItem,
+  useRunAiExperiment,
+  useAiEvalExperiments,
+  useAiEvalExperimentDetail,
+} from '@/hooks/queries/ai-eval';
+import { useMyAiAgents, useBuiltinAiAgents } from '@/hooks/queries/ai-agents';
 import { usePermission } from '@/hooks/usePermission';
-import type { AiEvalSet, AiEvalRun, AiEvalItem } from '@zenith/shared/ai';
+import type { AiEvalDataset, AiEvalExperiment, AiEvalExperimentResult } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
-import { useEditModal } from '@/hooks/useEditModal';
-import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn } from '@/utils/table-columns';
 
-import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text, Paragraph } = Typography;
 
-interface SetFormValues {
-  name: string;
-  description?: string;
-  items: AiEvalItem[];
+const STATUS_META: Record<AiEvalExperiment['status'], { label: string; color: 'blue' | 'green' | 'red' | 'grey' }> = {
+  pending: { label: '等待中', color: 'grey' },
+  running: { label: '运行中', color: 'blue' },
+  completed: { label: '完成', color: 'green' },
+  failed: { label: '失败', color: 'red' },
+};
+
+/** 各打分器分数(0-1)→ 百分比 Tag */
+function renderScores(scores: Record<string, number> | null) {
+  if (!scores || Object.keys(scores).length === 0) return '—';
+  return (
+    <Space spacing={4} wrap>
+      {Object.entries(scores).map(([scorer, score]) => (
+        <Tag key={scorer} size="small" color={score >= 0.6 ? 'green' : score >= 0.3 ? 'amber' : 'red'}>
+          {scorer} {(score * 100).toFixed(1)}%
+        </Tag>
+      ))}
+    </Space>
+  );
+}
+
+/** 条目 ArrayField(创建数据集 / 批量添加共用) */
+function EvalItemsArrayField() {
+  return (
+    <ArrayField field="items">
+      {({ add, arrayFields }) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {arrayFields.map(({ field, key, remove }, idx) => (
+            <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <Text type="tertiary" style={{ width: 24, lineHeight: '32px' }}>{idx + 1}.</Text>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <Form.TextArea noLabel field={`${field}[input]`} rows={2} placeholder="评测问题" rules={[{ required: true, message: '必填' }]} />
+                <Form.Input noLabel field={`${field}[groundTruth]`} placeholder="期望要点（可选，ground-truth 打分对照用）" />
+              </div>
+              <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={13} />} onClick={() => remove()} />
+            </div>
+          ))}
+          <Button theme="light" size="small" icon={<Plus size={13} />} onClick={() => add()} style={{ alignSelf: 'flex-start' }}>添加一条（最多 100 条）</Button>
+        </div>
+      )}
+    </ArrayField>
+  );
+}
+
+interface ItemDraft {
+  input: string;
+  groundTruth?: string;
+}
+
+function normalizeItems(items: ItemDraft[] | undefined) {
+  return (items ?? [])
+    .filter((it) => it?.input?.trim())
+    .map((it) => ({ input: it.input.trim(), groundTruth: it.groundTruth?.trim() || null }));
+}
+
+/** 数据集详情(条目 + 实验)SideSheet 内容 */
+function DatasetDetail({ dataset, canManage }: { dataset: AiEvalDataset; canManage: boolean }) {
+  const [activeTab, setActiveTab] = useState('items');
+  const itemsQuery = useAiEvalItems(dataset.id);
+  // 有等待/进行中的实验时 3s 轮询刷新状态
+  const experimentsQuery = useAiEvalExperiments(dataset.id, (query) => {
+    const data = query.state.data as AiEvalExperiment[] | undefined;
+    return data?.some((e) => e.status === 'pending' || e.status === 'running') ? 3000 : false;
+  });
+  const addItemsMutation = useAddAiEvalItems();
+  const deleteItemMutation = useDeleteAiEvalItem();
+  const runMutation = useRunAiExperiment();
+  const myAgentsQuery = useMyAiAgents();
+  const builtinQuery = useBuiltinAiAgents();
+
+  const [addVisible, setAddVisible] = useState(false);
+  const [runVisible, setRunVisible] = useState(false);
+  const [detailExperimentId, setDetailExperimentId] = useState<string | null>(null);
+  const detailQuery = useAiEvalExperimentDetail(dataset.id, detailExperimentId);
+
+  /** 评测目标 = 注册进 Mastra 的 agent:系统对话 + 内置编程式 + 我的智能体(agent-{id}) */
+  const targetOptions = useMemo(() => {
+    const opts = [{ value: 'zenith-chat', label: '系统对话智能体（zenith-chat）' }];
+    for (const b of builtinQuery.data ?? []) {
+      opts.push({ value: b.agentId, label: `${b.name}（内置 ${b.agentId}）` });
+    }
+    for (const a of myAgentsQuery.data ?? []) {
+      opts.push({ value: `agent-${a.id}`, label: `${a.name}（我的 agent-${a.id}）` });
+    }
+    return opts;
+  }, [builtinQuery.data, myAgentsQuery.data]);
+
+  const itemColumns = [
+    { title: '#', width: 50, render: (_: unknown, __: unknown, idx: number) => idx + 1 },
+    {
+      title: '评测问题',
+      dataIndex: 'input',
+      render: (v: string) => <Paragraph ellipsis={{ rows: 2, showTooltip: true }} style={{ fontSize: 13 }}>{v}</Paragraph>,
+    },
+    {
+      title: '期望要点',
+      dataIndex: 'groundTruth',
+      width: 240,
+      render: (v: string | null) => v ? <Paragraph ellipsis={{ rows: 2, showTooltip: true }} style={{ fontSize: 13 }}>{v}</Paragraph> : '—',
+    },
+    ...(canManage ? [{
+      title: '操作',
+      width: 80,
+      render: (_: unknown, record: { id: string }) => (
+        <Button
+          theme="borderless"
+          type="danger"
+          size="small"
+          icon={<Trash2 size={13} />}
+          onClick={() => {
+            confirmDelete({
+              title: '确定要删除该条目吗？',
+              onOk: async () => {
+                await deleteItemMutation.mutateAsync({ datasetId: dataset.id, itemId: record.id }).then(() => Toast.success('已删除')).catch(() => {});
+              },
+            });
+          }}
+        />
+      ),
+    }] : []),
+  ];
+
+  const experimentColumns = [
+    { title: '实验名', dataIndex: 'name', width: 170, render: (v: string) => <Text style={{ fontSize: 13 }}>{v}</Text> },
+    { title: '目标', dataIndex: 'targetId', width: 150, render: (v: string) => <Text code style={{ fontSize: 12 }}>{v}</Text> },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      width: 90,
+      render: (v: AiEvalExperiment['status']) => <Tag size="small" color={STATUS_META[v].color}>{STATUS_META[v].label}</Tag>,
+    },
+    {
+      title: '进度',
+      width: 110,
+      render: (_: unknown, r: AiEvalExperiment) =>
+        r.failedCount > 0
+          ? <span>{r.succeededCount}/{r.totalCount}<Text type="danger" style={{ marginLeft: 4 }}>({r.failedCount} 失败)</Text></span>
+          : `${r.succeededCount}/${r.totalCount}`,
+    },
+    { title: '平均分', dataIndex: 'avgScores', render: (v: Record<string, number> | null) => renderScores(v) },
+    dateTimeColumn('发起时间', 'createdAt'),
+    {
+      title: '操作',
+      width: 100,
+      render: (_: unknown, record: AiEvalExperiment) => (
+        <Button theme="borderless" size="small" onClick={() => setDetailExperimentId(record.id)}>查看结果</Button>
+      ),
+    },
+  ];
+
+  const resultColumns = [
+    { title: '#', width: 50, render: (_: unknown, __: unknown, idx: number) => idx + 1 },
+    {
+      title: '问题',
+      dataIndex: 'input',
+      width: 220,
+      render: (v: string) => <Paragraph ellipsis={{ rows: 3, showTooltip: true }} style={{ fontSize: 13 }}>{v}</Paragraph>,
+    },
+    {
+      title: '模型输出',
+      dataIndex: 'output',
+      render: (v: string, record: AiEvalExperimentResult) =>
+        record.error
+          ? <Text type="danger" style={{ fontSize: 13 }}>{record.error}</Text>
+          : <Paragraph ellipsis={{ rows: 4, showTooltip: { opts: { style: { maxWidth: 560 } } } }} style={{ fontSize: 13 }}>{v}</Paragraph>,
+    },
+    {
+      title: '期望要点',
+      dataIndex: 'groundTruth',
+      width: 180,
+      render: (v: string | null) => v ? <Paragraph ellipsis={{ rows: 3, showTooltip: true }} style={{ fontSize: 13 }}>{v}</Paragraph> : '—',
+    },
+    {
+      title: '得分',
+      dataIndex: 'scores',
+      width: 150,
+      render: (v: Record<string, number>) => renderScores(Object.keys(v).length > 0 ? v : null),
+    },
+  ];
+
+  return (
+    <Space vertical align="start" style={{ width: '100%' }} spacing={8}>
+      <Tabs
+        type="line"
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        style={{ width: '100%' }}
+        tabBarExtraContent={
+          canManage ? (
+            activeTab === 'items'
+              ? <Button theme="light" size="small" icon={<Plus size={13} />} onClick={() => setAddVisible(true)}>添加条目</Button>
+              : <Button theme="solid" size="small" icon={<FlaskConical size={13} />} onClick={() => setRunVisible(true)}>发起实验</Button>
+          ) : undefined
+        }
+      >
+        <TabPane tab="条目" itemKey="items">
+          <Table
+            style={{ marginTop: 12 }}
+            columns={itemColumns}
+            dataSource={itemsQuery.data ?? []}
+            rowKey="id"
+            loading={itemsQuery.isFetching}
+            pagination={false}
+            size="small"
+            bordered
+            empty="暂无条目，添加评测问题后即可发起实验"
+          />
+        </TabPane>
+        <TabPane tab="实验记录" itemKey="experiments">
+          <Table
+            style={{ marginTop: 12 }}
+            columns={experimentColumns}
+            dataSource={experimentsQuery.data ?? []}
+            rowKey="id"
+            loading={experimentsQuery.isFetching}
+            pagination={false}
+            size="small"
+            bordered
+            empty="暂无实验，发起实验后 Mastra 在后台逐条执行并打分"
+          />
+        </TabPane>
+      </Tabs>
+
+      {/* 批量添加条目 */}
+      <Modal
+        title="添加评测条目"
+        visible={addVisible}
+        onCancel={() => setAddVisible(false)}
+        width={680}
+        footer={null}
+      >
+        <Form<{ items: ItemDraft[] }>
+          initValues={{ items: [{ input: '' }] }}
+          onSubmit={async (values) => {
+            const items = normalizeItems(values.items);
+            if (items.length === 0) {
+              Toast.error('至少填写一条评测问题');
+              return;
+            }
+            try {
+              await addItemsMutation.mutateAsync({ datasetId: dataset.id, values: { items } });
+              Toast.success(`已添加 ${items.length} 条`);
+              setAddVisible(false);
+            } catch { /* 请求层已提示 */ }
+          }}
+        >
+          {({ formApi }) => (
+            <>
+              <EvalItemsArrayField />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                <Button onClick={() => setAddVisible(false)}>取消</Button>
+                <Button theme="solid" loading={addItemsMutation.isPending} onClick={() => formApi.submitForm()}>添加</Button>
+              </div>
+            </>
+          )}
+        </Form>
+      </Modal>
+
+      {/* 发起实验 */}
+      <Modal
+        title={`发起实验：${dataset.name}`}
+        visible={runVisible}
+        onCancel={() => setRunVisible(false)}
+        width={520}
+        footer={null}
+      >
+        <Form<{ name?: string; targetId: string }>
+          initValues={{ targetId: 'zenith-chat' }}
+          labelPosition="left"
+          labelWidth={80}
+          onSubmit={async (values) => {
+            try {
+              await runMutation.mutateAsync({ datasetId: dataset.id, values: { name: values.name || undefined, targetId: values.targetId } });
+              Toast.success('实验已发起，Mastra 在后台逐条执行，可在实验记录中查看进度');
+              setRunVisible(false);
+              setActiveTab('experiments');
+            } catch { /* 请求层已提示 */ }
+          }}
+        >
+          {({ formApi }) => (
+            <>
+              <Text type="tertiary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
+                对全部条目执行所选智能体并按 ground-truth 打分。
+                对同一数据集用不同目标分别实验，即可横向对比效果。
+              </Text>
+              <Form.Input field="name" label="实验名" placeholder="留空自动生成" maxLength={100} />
+              <Form.Select
+                field="targetId"
+                label="评测目标"
+                style={{ width: '100%' }}
+                optionList={targetOptions}
+                rules={[{ required: true, message: '请选择评测目标' }]}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                <Button onClick={() => setRunVisible(false)}>取消</Button>
+                <Button theme="solid" loading={runMutation.isPending} onClick={() => formApi.submitForm()}>开始实验</Button>
+              </div>
+            </>
+          )}
+        </Form>
+      </Modal>
+
+      {/* 实验结果 */}
+      <SideSheet
+        title={detailQuery.data ? `实验结果 — ${detailQuery.data.experiment.name}` : '实验结果'}
+        visible={detailExperimentId !== null}
+        onCancel={() => setDetailExperimentId(null)}
+        width={960}
+      >
+        {detailQuery.data && (
+          <Space vertical align="start" style={{ width: '100%' }} spacing={12}>
+            <Space wrap>
+              <Tag color={STATUS_META[detailQuery.data.experiment.status].color}>
+                {STATUS_META[detailQuery.data.experiment.status].label}
+              </Tag>
+              <Tag color="white">目标 {detailQuery.data.experiment.targetId}</Tag>
+              <Tag color="white">{detailQuery.data.experiment.succeededCount}/{detailQuery.data.experiment.totalCount} 成功</Tag>
+              {renderScores(detailQuery.data.experiment.avgScores)}
+            </Space>
+            <Table
+              columns={resultColumns}
+              dataSource={detailQuery.data.results}
+              rowKey="itemId"
+              pagination={false}
+              size="small"
+              bordered
+            />
+          </Space>
+        )}
+      </SideSheet>
+    </Space>
+  );
 }
 
 export default function AiEvalPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('ai:eval:manage');
-  const [activeTab, setActiveTab] = useUrlTabState(['sets', 'runs'] as const, 'sets');
 
-  const setsQuery = useAiEvalSets();
-  const { tasks } = useMyAsyncTasks({ taskTypes: ['ai-eval-run'] });
-  const hasRunning = tasks.some((t) => t.status === 'running' || t.status === 'pending');
-  const runsQuery = useAiEvalRuns(undefined, hasRunning ? 3000 : false);
-  const saveMutation = useSaveAiEvalSet();
-  const deleteMutation = useDeleteAiEvalSet();
-  const runMutation = useRunAiEval();
-  const deleteRunMutation = useDeleteAiEvalRun();
-  const modelsQuery = useAiChatModels();
+  const datasetsQuery = useAiEvalDatasets();
+  const saveMutation = useSaveAiEvalDataset();
+  const deleteMutation = useDeleteAiEvalDataset();
+  const [detailDataset, setDetailDataset] = useState<AiEvalDataset | null>(null);
 
-  const modal = useEditModal<AiEvalSet, SetFormValues, { name: string; description: string | null; items: AiEvalItem[] }>({
-    save: saveMutation,
-    defaults: { items: [{ question: '' }] },
-    toValues: (set) => ({ name: set.name, description: set.description ?? '', items: set.items }),
-    beforeSave: (values) => {
-      const items = (values.items ?? []).filter((it) => it?.question?.trim());
-      if (items.length === 0) {
-        Toast.error('至少添加一条评测问题');
-        abortSubmit();
-      }
-      return { name: values.name, description: values.description || null, items };
-    },
-    successMessage: ({ isEdit }) => (isEdit ? '评测集已更新' : '评测集已创建'),
-    labelWidth: 80,
-  });
-  const [runModalSet, setRunModalSet] = useState<AiEvalSet | null>(null);
-  const [runModelValue, setRunModelValue] = useState('');
-  const [detailRunId, setDetailRunId] = useState<number | null>(null);
-  const detailQuery = useAiEvalRunDetail(detailRunId);
+  /** 数据集编辑弹窗(id 为字符串,不走 useEditModal) */
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [editingDataset, setEditingDataset] = useState<AiEvalDataset | null>(null);
+  const isEdit = editingDataset !== null;
 
-  const modelOptions = useMemo(() => {
-    const models = modelsQuery.data ?? [];
-    return [
-      { value: '', label: '系统默认配置' },
-      ...models.map((m) => ({ value: `${m.id}:${m.model}`, label: `${m.name} / ${m.model}${m.isDefault ? '（默认）' : ''}` })),
-    ];
-  }, [modelsQuery.data]);
+  const openCreate = () => { setEditingDataset(null); setEditorVisible(true); };
+  const openEdit = (ds: AiEvalDataset) => { setEditingDataset(ds); setEditorVisible(true); };
+  const closeEditor = () => { setEditorVisible(false); setEditingDataset(null); };
 
-  const handleRun = async () => {
-    if (!runModalSet) return;
-    const [cfgStr, ...modelParts] = runModelValue.split(':');
+  const handleEditorSubmit = async (
+    values: { name: string; description?: string; items?: ItemDraft[] },
+  ) => {
+    if (isEdit) {
+      try {
+        await saveMutation.mutateAsync({ id: editingDataset.id, values: { name: values.name, description: values.description || null } });
+        Toast.success('数据集已更新');
+        closeEditor();
+      } catch { /* 请求层已提示 */ }
+      return;
+    }
+    const items = normalizeItems(values.items);
+    if (items.length === 0) {
+      Toast.error('至少添加一条评测问题');
+      return;
+    }
     try {
-      await runMutation.mutateAsync({
-        setId: runModalSet.id,
-        configId: cfgStr ? Number(cfgStr) : undefined,
-        model: modelParts.join(':') || undefined,
-      });
-      Toast.success('评测任务已提交，可在下方运行记录查看进度');
-      setRunModalSet(null);
+      await saveMutation.mutateAsync({ values: { name: values.name, description: values.description || null, items } });
+      Toast.success('数据集已创建');
+      closeEditor();
     } catch { /* 请求层已提示 */ }
   };
 
-  const setColumns = [
-    { title: '名称', dataIndex: 'name', width: 200 },
+  const columns = [
+    { title: '名称', dataIndex: 'name', width: 220 },
     { title: '描述', dataIndex: 'description', width: 260, render: (v: string | null) => v || '—' },
-    { title: '题目数', dataIndex: 'items', width: 90, align: 'right' as const, render: (v: AiEvalItem[]) => v?.length ?? 0 },
+    { title: '条目数', dataIndex: 'itemCount', width: 90, align: 'right' as const },
+    { title: '版本', dataIndex: 'version', width: 70, align: 'right' as const, render: (v: number) => <Text code>v{v}</Text> },
     dateTimeColumn('更新时间', 'updatedAt'),
-    createOperationColumn<AiEvalSet>({
-      width: 180,
-      desktopInlineKeys: ['run', 'edit'],
+    createOperationColumn<AiEvalDataset>({
+      width: 200,
+      desktopInlineKeys: ['detail', 'edit'],
       actions: (record) => [
-        { key: 'run', label: '运行评测', type: 'primary', hidden: !canManage, onClick: () => { setRunModalSet(record); setRunModelValue(''); } },
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
+        { key: 'detail', label: '条目与实验', type: 'primary', onClick: () => setDetailDataset(record) },
+        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => openEdit(record) },
         {
           key: 'delete',
           label: '删除',
@@ -112,8 +430,8 @@ export default function AiEvalPage() {
           hidden: !canManage,
           onClick: () => {
             confirmDelete({
-              title: '确定要删除该评测集吗？',
-              content: '将级联删除全部运行记录',
+              title: '确定要删除该数据集吗？',
+              content: '将级联删除全部条目与实验记录',
               onOk: async () => {
                 await deleteMutation.mutateAsync(record.id).then(() => Toast.success('已删除')).catch(() => {});
               },
@@ -124,212 +442,69 @@ export default function AiEvalPage() {
     }),
   ];
 
-  const runColumns = [
-    { title: '评测集', dataIndex: 'setName', width: 180, render: (v: string | null) => v ?? '—' },
-    { title: '模型', dataIndex: 'model', width: 200, render: (v: string) => <Text code>{v}</Text> },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (v: AiEvalRun['status'], record: AiEvalRun) => {
-        if (v === 'running') {
-          const task = tasks.find((t) => (t.payload as { runId?: number } | null)?.runId === record.id);
-          return task ? <AsyncTaskProgress task={task} /> : <Tag size="small" color="blue">运行中</Tag>;
-        }
-        return <Tag size="small" color={v === 'done' ? 'green' : 'red'}>{v === 'done' ? '完成' : '失败'}</Tag>;
-      },
-    },
-    { title: '平均耗时', dataIndex: 'avgDurationMs', width: 110, align: 'right' as const, render: (v: number | null) => (v != null ? `${v} ms` : '—') },
-    { title: '总 Token', dataIndex: 'totalTokens', width: 100, render: (v: number | null) => v ?? '—' },
-    {
-      title: '失败题数',
-      dataIndex: 'results',
-      width: 100,
-      render: (v: AiEvalRun['results']) => {
-        if (!v) return '—';
-        const failed = v.filter((r) => r.error).length;
-        return failed > 0 ? <Text type="danger">{failed}</Text> : 0;
-      },
-    },
-    dateTimeColumn('运行时间', 'createdAt'),
-    createOperationColumn<AiEvalRun>({
-      width: 150,
-      desktopInlineKeys: ['detail', 'delete'],
-      actions: (record) => [
-        { key: 'detail', label: '查看结果', onClick: () => setDetailRunId(record.id) },
-        {
-          key: 'delete',
-          label: '删除',
-          danger: true,
-          hidden: !canManage,
-          onClick: () => {
-            confirmDelete({
-              title: '确定要删除该运行记录吗？',
-              onOk: async () => {
-                await deleteRunMutation.mutateAsync(record.id).then(() => Toast.success('已删除')).catch(() => {});
-              },
-            });
-          },
-        },
-      ],
-    }),
-  ];
-
-  const detailColumns = [
-    { title: '#', width: 50, render: (_: unknown, __: unknown, idx: number) => idx + 1 },
-    {
-      title: '问题',
-      dataIndex: 'question',
-      width: 240,
-      render: (v: string) => <Paragraph ellipsis={{ rows: 3, showTooltip: true }} style={{ fontSize: 13 }}>{v}</Paragraph>,
-    },
-    {
-      title: '模型回答',
-      dataIndex: 'answer',
-      render: (v: string, record: { error?: string }) =>
-        record.error
-          ? <Text type="danger" style={{ fontSize: 13 }}>{record.error}</Text>
-          : <Paragraph ellipsis={{ rows: 4, showTooltip: { opts: { style: { maxWidth: 560 } } } }} style={{ fontSize: 13 }}>{v}</Paragraph>,
-    },
-    {
-      title: '期望要点',
-      dataIndex: 'expected',
-      width: 200,
-      render: (v: string | undefined) => v ? <Paragraph ellipsis={{ rows: 3, showTooltip: true }} style={{ fontSize: 13 }}>{v}</Paragraph> : '—',
-    },
-    { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right' as const, render: (v: number) => `${v} ms` },
-    { title: 'Token', width: 90, render: (_: unknown, r: { tokensInput: number; tokensOutput: number }) => r.tokensInput + r.tokensOutput },
-  ];
-
   return (
-    <div className="page-container page-tabs-page">
-      <Tabs
-        collapsible="auto"
-        type="line"
-        activeKey={activeTab}
-        onChange={(k) => setActiveTab(k as typeof activeTab)}
-        tabBarExtraContent={canManage ? <CreateButton onClick={modal.openCreate}>新建评测集</CreateButton> : undefined}
-      >
-        <TabPane tab="评测集" itemKey="sets">
-          <div style={{ padding: '12px 0' }}>
-            <ConfigurableTable
-              bordered
-              columnSettingsKey="ai-eval-sets"
-              columns={setColumns}
-              dataSource={setsQuery.data ?? []}
-              rowKey="id"
-              loading={setsQuery.isFetching}
-              pagination={false}
-              onRefresh={() => void setsQuery.refetch()}
-              refreshLoading={setsQuery.isFetching}
-            />
-          </div>
-        </TabPane>
-        <TabPane tab="运行记录" itemKey="runs">
-          <div style={{ padding: '12px 0' }}>
-            <ConfigurableTable
-              bordered
-              columnSettingsKey="ai-eval-runs"
-              columns={runColumns}
-              dataSource={runsQuery.data ?? []}
-              rowKey="id"
-              loading={runsQuery.isFetching}
-              pagination={false}
-              onRefresh={() => void runsQuery.refetch()}
-              refreshLoading={runsQuery.isFetching}
-            />
-          </div>
-        </TabPane>
-      </Tabs>
+    <div className="page-container">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <Text type="tertiary" style={{ fontSize: 13 }}>
+          评测由 Mastra Datasets / Experiments 承载：数据集版本化管理评测条目，实验对注册智能体逐条执行并打分。
+        </Text>
+        {canManage && <CreateButton onClick={openCreate}>新建数据集</CreateButton>}
+      </div>
+      <ConfigurableTable
+        bordered
+        columnSettingsKey="ai-eval-datasets"
+        columns={columns}
+        dataSource={datasetsQuery.data ?? []}
+        rowKey="id"
+        loading={datasetsQuery.isFetching}
+        pagination={false}
+        onRefresh={() => void datasetsQuery.refetch()}
+        refreshLoading={datasetsQuery.isFetching}
+      />
 
-      {/* 评测集编辑 */}
+      {/* 数据集编辑 */}
       <Modal
-        {...modal.modalProps}
-        title={modal.isEdit ? '编辑评测集' : '新建评测集'}
+        title={isEdit ? '编辑数据集' : '新建数据集'}
+        visible={editorVisible}
+        onCancel={closeEditor}
         width={720}
+        footer={null}
       >
-        <Form
-          key={modal.formKey} {...modal.formProps}
+        <Form<{ name: string; description?: string; items?: ItemDraft[] }>
+          key={isEdit ? `edit-${editingDataset.id}` : 'create'}
+          initValues={isEdit
+            ? { name: editingDataset.name, description: editingDataset.description ?? '' }
+            : { name: '', description: '', items: [{ input: '' }] }}
+          labelPosition="left"
+          labelWidth={80}
+          onSubmit={(values) => void handleEditorSubmit(values)}
         >
-          <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} />
-          <Form.Input field="description" label="描述" maxLength={300} />
-          <Form.Slot label={{ text: '评测题目' }}>
-            <ArrayField field="items">
-              {({ add, arrayFields }) => (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {arrayFields.map(({ field, key, remove }, idx) => (
-                    <div key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <Text type="tertiary" style={{ width: 24, lineHeight: '32px' }}>{idx + 1}.</Text>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <Form.TextArea noLabel field={`${field}[question]`} rows={2} placeholder="评测问题" rules={[{ required: true, message: '必填' }]} />
-                        <Form.Input noLabel field={`${field}[expected]`} placeholder="期望要点（可选，人工对照用）" />
-                      </div>
-                      <Button theme="borderless" type="danger" size="small" icon={<Trash2 size={13} />} onClick={() => remove()} />
-                    </div>
-                  ))}
-                  <Button theme="light" size="small" icon={<Plus size={13} />} onClick={() => add()} style={{ alignSelf: 'flex-start' }}>添加题目（最多 50 条）</Button>
-                </div>
+          {({ formApi }) => (
+            <>
+              <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} />
+              <Form.Input field="description" label="描述" maxLength={300} />
+              {!isEdit && (
+                <Form.Slot label={{ text: '评测条目' }}>
+                  <EvalItemsArrayField />
+                </Form.Slot>
               )}
-            </ArrayField>
-          </Form.Slot>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+                <Button onClick={closeEditor}>取消</Button>
+                <Button theme="solid" loading={saveMutation.isPending} onClick={() => formApi.submitForm()}>{isEdit ? '保存' : '创建'}</Button>
+              </div>
+            </>
+          )}
         </Form>
       </Modal>
 
-      {/* 运行评测 */}
-      <Modal
-        title={`运行评测：${runModalSet?.name ?? ''}`}
-        visible={runModalSet !== null}
-        onCancel={() => setRunModalSet(null)}
-        onOk={handleRun}
-        confirmLoading={runMutation.isPending}
-        okText={'开始运行'}
-        closeOnEsc
-      >
-        <Space vertical align="start" style={{ width: '100%' }}>
-          <Text type="tertiary" style={{ fontSize: 13 }}>
-            共 {runModalSet?.items.length ?? 0} 题，将通过任务中心逐题调用所选模型（可在顶栏任务托盘查看进度）。
-            对同一评测集使用不同模型分别运行，即可在运行记录中对比回归效果。
-          </Text>
-          <Form labelPosition="left" labelWidth={60} style={{ width: '100%' }}>
-            <Form.Select
-              field="model"
-              label="模型"
-              style={{ width: '100%' }}
-              optionList={modelOptions}
-              initValue=""
-              onChange={(v) => setRunModelValue(String(v ?? ''))}
-            />
-          </Form>
-        </Space>
-      </Modal>
-
-      {/* 运行结果详情 */}
+      {/* 数据集详情:条目 + 实验 */}
       <SideSheet
-        title={detailQuery.data ? `评测结果 — ${detailQuery.data.setName ?? ''}（${detailQuery.data.model}）` : '评测结果'}
-        visible={detailRunId !== null}
-        onCancel={() => setDetailRunId(null)}
-        width={900}
+        title={detailDataset?.name ?? ''}
+        visible={detailDataset !== null}
+        onCancel={() => setDetailDataset(null)}
+        width={980}
       >
-        {detailQuery.data && (
-          <Space vertical align="start" style={{ width: '100%' }} spacing={12}>
-            <Space>
-              <Tag color={detailQuery.data.status === 'done' ? 'green' : detailQuery.data.status === 'failed' ? 'red' : 'blue'}>
-                {detailQuery.data.status === 'done' ? '完成' : detailQuery.data.status === 'failed' ? '失败' : '运行中'}
-              </Tag>
-              {detailQuery.data.avgDurationMs != null && <Tag color="white">平均 {detailQuery.data.avgDurationMs} ms</Tag>}
-              {detailQuery.data.totalTokens != null && <Tag color="white">共 {detailQuery.data.totalTokens} tokens</Tag>}
-              <Tag color="white">{detailQuery.data.createdAt}</Tag>
-            </Space>
-            <Table
-              columns={detailColumns}
-              dataSource={detailQuery.data.results ?? []}
-              rowKey={(r?: { question?: string }) => r?.question ?? ''}
-              pagination={false}
-              size="small"
-              bordered
-            />
-          </Space>
-        )}
+        {detailDataset && <DatasetDetail dataset={detailDataset} canManage={canManage} />}
       </SideSheet>
     </div>
   );

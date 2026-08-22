@@ -1,215 +1,326 @@
-import { eq, desc } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { db } from '../../db';
-import { aiEvalSets, aiEvalRuns } from '../../db/schema';
-import { currentUser } from '../../lib/context';
+import { getMastra } from '../../lib/mastra';
 import { formatDateTime } from '../../lib/datetime';
-import { registerTaskHandler, submitAsyncTask, mapAsyncTask } from '../../lib/task-center';
-import { chatOnce } from '../../lib/ai/mastra-chat';
-import { getRawDefaultProviderConfig, getRawProviderConfig } from './ai-providers.service';
-import type { AiEvalSetRow, AiEvalRunRow, AiEvalResult } from '../../db/schema';
-import type { CreateAiEvalSetInput, UpdateAiEvalSetInput, RunAiEvalInput } from '@zenith/shared/ai';
+import logger from '../../lib/logger';
+import type {
+  AiEvalDataset,
+  AiEvalDatasetItem,
+  AiEvalExperiment,
+  AiEvalExperimentResult,
+  CreateAiEvalDatasetInput,
+  UpdateAiEvalDatasetInput,
+  AddAiEvalItemsInput,
+  RunAiExperimentInput,
+} from '@zenith/shared/ai';
 
-function mapSet(row: AiEvalSetRow) {
+/**
+ * 模型评测(Mastra Datasets + Experiments 包装):
+ * - 评测集 = mastra dataset(版本化,条目 input/groundTruth,落 mastra schema)
+ * - 评测运行 = experiment:对数据集全量条目执行注册的目标智能体
+ *   (zenith-chat / agent-{id} / 内置示例),按 scorer 打分
+ * - 打分器:ground-truth(注册在 Mastra 实例上的词面重合度打分,无 LLM 成本)
+ * - 分数持久化在 scores 域(runId = experimentId,datasetItemId 关联条目),
+ *   实验记录本身不含分数,读取时按需聚合
+ *
+ * 本 service 只做视图映射与业务校验,权限由 route 层 guard 控制。
+ */
+
+const DEFAULT_SCORER = 'ground-truth';
+
+/** Mastra DatasetRecord 的视图子集 */
+interface DatasetRecordView {
+  id: string;
+  name: string;
+  description?: string;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Mastra Experiment 的视图子集 */
+interface ExperimentView {
+  id: string;
+  name?: string;
+  datasetId: string | null;
+  targetId: string | null;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  totalItems: number;
+  succeededCount: number;
+  failedCount: number;
+  createdAt: Date;
+}
+
+/** Mastra ExperimentResult 的视图子集 */
+interface ExperimentResultView {
+  itemId: string;
+  input: unknown;
+  output: unknown;
+  groundTruth: unknown;
+  error: { message: string } | null;
+}
+
+/** Mastra ScoreRowData 的视图子集(实验打分行的 entityId = 数据集条目 ID) */
+interface ScoreRowView {
+  scorerId: string;
+  score: number;
+  datasetItemId?: string | null;
+  entityId?: string | null;
+}
+
+function toDateStr(v: Date | string | undefined): string {
+  if (!v) return '';
+  return formatDateTime(v instanceof Date ? v : new Date(v));
+}
+
+function asText(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  // agent.generate 的完整结果对象:取正文文本
+  if (typeof v === 'object' && typeof (v as { text?: unknown }).text === 'string') {
+    return (v as { text: string }).text;
+  }
+  return JSON.stringify(v);
+}
+
+async function getDatasetOrThrow(id: string) {
+  const mastra = await getMastra();
+  try {
+    return await mastra.datasets.get({ id });
+  } catch {
+    throw new HTTPException(404, { message: '评测集不存在' });
+  }
+}
+
+async function countItems(dataset: { listItems: (args: { page: number; perPage: number }) => Promise<unknown> }): Promise<number> {
+  const res = (await dataset.listItems({ page: 0, perPage: 1 })) as { pagination?: { total?: number } };
+  return res.pagination?.total ?? 0;
+}
+
+function mapDataset(record: DatasetRecordView, itemCount: number): AiEvalDataset {
   return {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    items: row.items ?? [],
-    createdAt: formatDateTime(row.createdAt),
-    updatedAt: formatDateTime(row.updatedAt),
+    id: record.id,
+    name: record.name,
+    description: record.description ?? null,
+    itemCount,
+    version: record.version,
+    createdAt: toDateStr(record.createdAt),
+    updatedAt: toDateStr(record.updatedAt),
   };
 }
 
-function mapRun(row: AiEvalRunRow, setName: string | null = null) {
+function itemToView(item: { id: string; input: unknown; groundTruth?: unknown }): AiEvalDatasetItem {
   return {
-    id: row.id,
-    setId: row.setId,
-    setName,
-    configId: row.configId,
-    model: row.model,
-    status: row.status as 'running' | 'done' | 'failed',
-    results: row.results,
-    avgDurationMs: row.avgDurationMs,
-    totalTokens: row.totalTokens,
-    createdAt: formatDateTime(row.createdAt),
+    id: item.id,
+    input: asText(item.input),
+    groundTruth: item.groundTruth == null ? null : asText(item.groundTruth),
   };
 }
 
 // ─── 评测集 CRUD ──────────────────────────────────────────────────────────────
 
-export async function listEvalSets() {
-  const rows = await db.select().from(aiEvalSets).orderBy(desc(aiEvalSets.updatedAt));
-  return rows.map(mapSet);
+export async function listEvalDatasets(): Promise<AiEvalDataset[]> {
+  const mastra = await getMastra();
+  const { datasets } = await mastra.datasets.list({ page: 0, perPage: 100 });
+  const out: AiEvalDataset[] = [];
+  for (const record of datasets as DatasetRecordView[]) {
+    let itemCount = 0;
+    try {
+      const dataset = await mastra.datasets.get({ id: record.id });
+      itemCount = await countItems(dataset);
+    } catch {
+      // 数据集刚被删除等竞态,按 0 处理
+    }
+    out.push(mapDataset(record, itemCount));
+  }
+  return out;
 }
 
-export async function createEvalSet(input: CreateAiEvalSetInput) {
-  const user = currentUser();
-  const [row] = await db
-    .insert(aiEvalSets)
-    .values({
-      name: input.name,
-      description: input.description ?? null,
-      items: input.items,
-      createdBy: user.userId,
-      updatedBy: user.userId,
-    })
-    .returning();
-  return mapSet(row);
-}
-
-export async function updateEvalSet(id: number, input: UpdateAiEvalSetInput) {
-  const user = currentUser();
-  const [existing] = await db.select().from(aiEvalSets).where(eq(aiEvalSets.id, id));
-  if (!existing) throw new HTTPException(404, { message: '评测集不存在' });
-  const [row] = await db
-    .update(aiEvalSets)
-    .set({
-      ...(input.name !== undefined && { name: input.name }),
-      ...(input.description !== undefined && { description: input.description }),
-      ...(input.items !== undefined && { items: input.items }),
-      updatedBy: user.userId,
-    })
-    .where(eq(aiEvalSets.id, id))
-    .returning();
-  return mapSet(row);
-}
-
-export async function deleteEvalSet(id: number) {
-  const result = await db.delete(aiEvalSets).where(eq(aiEvalSets.id, id)).returning();
-  if (result.length === 0) throw new HTTPException(404, { message: '评测集不存在' });
-}
-
-// ─── 评测运行（任务中心异步执行） ─────────────────────────────────────────────
-
-export async function listEvalRuns(setId?: number) {
-  const conds = setId ? eq(aiEvalRuns.setId, setId) : undefined;
-  const rows = await db
-    .select({ run: aiEvalRuns, setName: aiEvalSets.name })
-    .from(aiEvalRuns)
-    .leftJoin(aiEvalSets, eq(aiEvalRuns.setId, aiEvalSets.id))
-    .where(conds)
-    .orderBy(desc(aiEvalRuns.createdAt))
-    .limit(100);
-  return rows.map((r) => mapRun(r.run, r.setName));
-}
-
-export async function getEvalRun(id: number) {
-  const [row] = await db
-    .select({ run: aiEvalRuns, setName: aiEvalSets.name })
-    .from(aiEvalRuns)
-    .leftJoin(aiEvalSets, eq(aiEvalRuns.setId, aiEvalSets.id))
-    .where(eq(aiEvalRuns.id, id));
-  if (!row) throw new HTTPException(404, { message: '评测运行不存在' });
-  return mapRun(row.run, row.setName);
-}
-
-/** 提交评测运行（任务中心异步执行，返回任务对象） */
-export async function submitEvalRun(setId: number, input: RunAiEvalInput) {
-  const user = currentUser();
-  const [set] = await db.select().from(aiEvalSets).where(eq(aiEvalSets.id, setId));
-  if (!set) throw new HTTPException(404, { message: '评测集不存在' });
-  if ((set.items ?? []).length === 0) throw new HTTPException(400, { message: '评测集没有可运行的问题' });
-
-  // 预解析目标配置（校验存在性 + 记录最终模型名）
-  const cfg = input.configId ? await getRawProviderConfig(input.configId) : await getRawDefaultProviderConfig();
-  if (!cfg) throw new HTTPException(400, { message: '未找到可用的 AI 服务商配置' });
-  const model = input.model?.trim() || cfg.defaultModel;
-
-  const [run] = await db
-    .insert(aiEvalRuns)
-    .values({ setId, configId: cfg.id, model, status: 'running', createdBy: user.userId })
-    .returning();
-
-  const task = await submitAsyncTask({
-    taskType: 'ai-eval-run',
-    title: `AI 评测：${set.name}（${model}）`,
-    payload: { runId: run.id },
+export async function createEvalDataset(input: CreateAiEvalDatasetInput): Promise<AiEvalDataset> {
+  const mastra = await getMastra();
+  const dataset = await mastra.datasets.create({
+    name: input.name,
+    description: input.description ?? undefined,
   });
-  return { run: mapRun(run, set.name), task: mapAsyncTask(task) };
+  let itemCount = 0;
+  if (input.items && input.items.length > 0) {
+    await dataset.addItems({
+      items: input.items.map((i) => ({ input: i.input, groundTruth: i.groundTruth ?? undefined })),
+    });
+    itemCount = input.items.length;
+  }
+  const record = (await dataset.getDetails()) as DatasetRecordView;
+  return mapDataset(record, itemCount);
 }
 
-/** 注册评测任务 handler（index.ts 启动时调用一次） */
-export function registerAiEvalTaskHandlers(): void {
-  registerTaskHandler({
-    taskType: 'ai-eval-run',
-    title: 'AI 模型评测',
-    module: '智能助手',
-    allowConcurrent: false,
-    async run(ctx) {
-      const runId = Number((ctx.payload as { runId?: number }).runId);
-      const [run] = await db.select().from(aiEvalRuns).where(eq(aiEvalRuns.id, runId));
-      if (!run) throw new Error('评测运行记录不存在');
-      const [set] = await db.select().from(aiEvalSets).where(eq(aiEvalSets.id, run.setId));
-      if (!set) throw new Error('评测集不存在');
-      const cfg = run.configId ? await getRawProviderConfig(run.configId) : await getRawDefaultProviderConfig();
-      if (!cfg) throw new Error('AI 服务商配置不存在');
+export async function updateEvalDataset(id: string, input: UpdateAiEvalDatasetInput): Promise<AiEvalDataset> {
+  const dataset = await getDatasetOrThrow(id);
+  const record = (await dataset.update({
+    ...(input.name !== undefined ? { name: input.name } : {}),
+    ...(input.description !== undefined ? { description: input.description ?? undefined } : {}),
+  })) as DatasetRecordView;
+  return mapDataset(record, await countItems(dataset));
+}
 
-      const items = set.items ?? [];
-      // 断点恢复：跳过已完成条目
-      const results: AiEvalResult[] = Array.isArray(ctx.checkpoint?.results)
-        ? (ctx.checkpoint.results as AiEvalResult[])
-        : [];
+export async function deleteEvalDataset(id: string): Promise<void> {
+  const mastra = await getMastra();
+  await getDatasetOrThrow(id);
+  await mastra.datasets.delete({ id });
+}
 
-      for (let i = results.length; i < items.length; i++) {
-        const item = items[i];
-        const started = Date.now();
-        try {
-          const { content: answer, tokensInput, tokensOutput } = await chatOnce({
-            chain: [{ source: cfg, model: run.model, maxRetries: 0 }],
-            messages: [{ role: 'user', content: item.question }],
-            modelSettings: {
-              ...cfg.modelSettings,
-              maxOutputTokens: Math.min(cfg.modelSettings?.maxOutputTokens ?? 2048, 2048),
-            },
-            timeoutMs: 60_000,
-          });
-          const durationMs = Date.now() - started;
-          results.push({
-            question: item.question,
-            expected: item.expected,
-            answer: answer.slice(0, 8000),
-            durationMs,
-            tokensInput,
-            tokensOutput,
-          });
-          await ctx.reportItems([{ key: `q-${i + 1}`, label: item.question.slice(0, 100), status: 'success', message: `${durationMs}ms` }]);
-        } catch (err) {
-          const durationMs = Date.now() - started;
-          const message = err instanceof Error ? err.message : '调用失败';
-          results.push({ question: item.question, expected: item.expected, answer: '', durationMs, tokensInput: 0, tokensOutput: 0, error: message });
-          await ctx.reportItems([{ key: `q-${i + 1}`, label: item.question.slice(0, 100), status: 'failed', message: message.slice(0, 200) }]);
-        }
-        const { cancelRequested } = await ctx.progress({
-          processed: i + 1,
-          total: items.length,
-          note: `已评测 ${i + 1}/${items.length} 题`,
-          checkpoint: { results },
-        });
-        if (cancelRequested) {
-          await persistRunResults(runId, results, 'failed');
-          return;
-        }
-      }
+// ─── 条目管理 ─────────────────────────────────────────────────────────────────
 
-      await persistRunResults(runId, results, 'done');
-      return { total: items.length, failed: results.filter((r) => r.error).length };
-    },
+export async function listEvalItems(datasetId: string): Promise<AiEvalDatasetItem[]> {
+  const dataset = await getDatasetOrThrow(datasetId);
+  const res = (await dataset.listItems({ page: 0, perPage: 500 })) as {
+    items: Array<{ id: string; input: unknown; groundTruth?: unknown }>;
+  };
+  return res.items.map(itemToView);
+}
+
+export async function addEvalItems(datasetId: string, input: AddAiEvalItemsInput): Promise<AiEvalDatasetItem[]> {
+  const dataset = await getDatasetOrThrow(datasetId);
+  await dataset.addItems({
+    items: input.items.map((i) => ({ input: i.input, groundTruth: i.groundTruth ?? undefined })),
   });
+  return listEvalItems(datasetId);
 }
 
-async function persistRunResults(runId: number, results: AiEvalResult[], status: 'done' | 'failed') {
-  const okResults = results.filter((r) => !r.error);
-  const avgDurationMs = okResults.length > 0 ? Math.round(okResults.reduce((acc, r) => acc + r.durationMs, 0) / okResults.length) : null;
-  const totalTokens = results.reduce((acc, r) => acc + r.tokensInput + r.tokensOutput, 0);
-  await db
-    .update(aiEvalRuns)
-    .set({ status, results, avgDurationMs, totalTokens })
-    .where(eq(aiEvalRuns.id, runId));
+export async function deleteEvalItem(datasetId: string, itemId: string): Promise<void> {
+  const dataset = await getDatasetOrThrow(datasetId);
+  await dataset.deleteItem({ itemId });
 }
 
-/** 兜底：删除评测运行记录 */
-export async function deleteEvalRun(id: number) {
-  const result = await db.delete(aiEvalRuns).where(eq(aiEvalRuns.id, id)).returning();
-  if (result.length === 0) throw new HTTPException(404, { message: '评测运行不存在' });
+// ─── 实验(评测运行) ───────────────────────────────────────────────────────────
+
+/** 读取一次实验的全部分数行(runId = experimentId) */
+async function listScoreRows(experimentId: string): Promise<ScoreRowView[]> {
+  const mastra = await getMastra();
+  const scoresStore = (mastra.getStorage() as unknown as {
+    stores?: { scores?: { listScoresByRunId: (input: { runId: string; pagination: { page: number; perPage: number } }) => Promise<{ scores: ScoreRowView[] }> } };
+  })?.stores?.scores;
+  if (!scoresStore) return [];
+  try {
+    const res = await scoresStore.listScoresByRunId({ runId: experimentId, pagination: { page: 0, perPage: 1000 } });
+    return res.scores ?? [];
+  } catch (err) {
+    logger.warn('[ai-eval] failed to list scores for experiment', { experimentId, err });
+    return [];
+  }
+}
+
+/** 按 scorer 聚合平均分(0-1,保留 3 位小数) */
+function avgByScorer(rows: ScoreRowView[]): Record<string, number> | null {
+  if (rows.length === 0) return null;
+  const sum = new Map<string, { total: number; count: number }>();
+  for (const row of rows) {
+    if (typeof row.score !== 'number' || Number.isNaN(row.score)) continue;
+    const agg = sum.get(row.scorerId) ?? { total: 0, count: 0 };
+    agg.total += row.score;
+    agg.count += 1;
+    sum.set(row.scorerId, agg);
+  }
+  if (sum.size === 0) return null;
+  const out: Record<string, number> = {};
+  for (const [scorerId, agg] of sum) {
+    out[scorerId] = Math.round((agg.total / agg.count) * 1000) / 1000;
+  }
+  return out;
+}
+
+function mapExperiment(exp: ExperimentView, datasetId: string, avgScores: Record<string, number> | null): AiEvalExperiment {
+  return {
+    id: exp.id,
+    name: exp.name || exp.id.slice(0, 8),
+    datasetId: exp.datasetId ?? datasetId,
+    targetId: exp.targetId ?? '',
+    status: exp.status,
+    totalCount: exp.totalItems,
+    succeededCount: exp.succeededCount,
+    failedCount: exp.failedCount,
+    avgScores,
+    createdAt: toDateStr(exp.createdAt),
+  };
+}
+
+/**
+ * 发起实验(异步):startExperimentAsync 立即返回 experimentId,
+ * Mastra 在后台逐条执行,前端经 listExperiments 轮询状态。
+ */
+export async function runEvalExperiment(
+  datasetId: string,
+  input: RunAiExperimentInput,
+): Promise<{ experimentId: string; name: string }> {
+  const mastra = await getMastra();
+  const dataset = await getDatasetOrThrow(datasetId);
+  if ((await countItems(dataset)) === 0) {
+    throw new HTTPException(400, { message: '评测集没有可运行的条目' });
+  }
+  let agent: unknown;
+  try {
+    agent = mastra.getAgentById(input.targetId);
+  } catch {
+    agent = null;
+  }
+  if (!agent) throw new HTTPException(400, { message: '评测目标智能体不存在或未注册' });
+
+  const name = input.name?.trim() || `exp-${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+  const { experimentId } = await dataset.startExperimentAsync({
+    name,
+    targetType: 'agent',
+    targetId: input.targetId,
+    scorers: input.scorers && input.scorers.length > 0 ? input.scorers : [DEFAULT_SCORER],
+    maxConcurrency: 2,
+  });
+  logger.info('[ai-eval] experiment started', { datasetId, experimentId, name, targetId: input.targetId });
+  return { experimentId, name };
+}
+
+export async function listEvalExperiments(datasetId: string): Promise<AiEvalExperiment[]> {
+  const dataset = await getDatasetOrThrow(datasetId);
+  const { experiments } = (await dataset.listExperiments({ page: 0, perPage: 20 })) as unknown as {
+    experiments: ExperimentView[];
+  };
+  const out: AiEvalExperiment[] = [];
+  for (const exp of experiments) {
+    // 分数存 scores 域,实验记录不含;只为已完成实验聚合平均分
+    const avgScores = exp.status === 'completed' ? avgByScorer(await listScoreRows(exp.id)) : null;
+    out.push(mapExperiment(exp, datasetId, avgScores));
+  }
+  return out;
+}
+
+export async function getEvalExperimentResults(
+  datasetId: string,
+  experimentId: string,
+): Promise<{ experiment: AiEvalExperiment; results: AiEvalExperimentResult[] }> {
+  const dataset = await getDatasetOrThrow(datasetId);
+  const exp = (await dataset.getExperiment({ experimentId })) as ExperimentView | null;
+  if (!exp) throw new HTTPException(404, { message: '实验不存在' });
+
+  const { results: rows } = (await dataset.listExperimentResults({
+    experimentId,
+    page: 0,
+    perPage: 500,
+  })) as unknown as { results: ExperimentResultView[] };
+
+  const scoreRows = await listScoreRows(experimentId);
+  const scoresByItem = new Map<string, Record<string, number>>();
+  for (const row of scoreRows) {
+    const itemId = row.datasetItemId ?? row.entityId;
+    if (!itemId || typeof row.score !== 'number') continue;
+    const bucket = scoresByItem.get(itemId) ?? {};
+    bucket[row.scorerId] = Math.round(row.score * 1000) / 1000;
+    scoresByItem.set(itemId, bucket);
+  }
+
+  const results: AiEvalExperimentResult[] = rows.map((r) => ({
+    itemId: r.itemId,
+    input: asText(r.input),
+    groundTruth: r.groundTruth == null ? null : asText(r.groundTruth),
+    output: r.output == null ? '' : asText(r.output),
+    scores: scoresByItem.get(r.itemId) ?? {},
+    error: r.error ? r.error.message : null,
+  }));
+
+  return { experiment: mapExperiment(exp, datasetId, avgByScorer(scoreRows)), results };
 }

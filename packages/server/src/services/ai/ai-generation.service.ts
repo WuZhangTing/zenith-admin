@@ -139,9 +139,9 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
     let toolRounds = 0;
     for await (const chunk of streamAiChat(messages, configSource, agent?.configId ?? configId, {
       signal: ac.signal,
-      systemPromptOverride: conversation.systemPromptOverride ?? agent?.systemPrompt ?? null,
+      systemPromptOverride: conversation.systemPromptOverride ?? agent?.instructions ?? null,
       model: agent?.model ?? model,
-      temperatureOverride: agent?.temperature ?? null,
+      modelSettingsOverride: agent?.modelSettings ?? null,
       toolFilter: agent ? (agent.tools ?? []) : undefined,
       memory: { thread: chatThreadId(conversation.id), resource: chatResourceId(userId) },
       context: contextMessages,

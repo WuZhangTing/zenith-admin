@@ -28,7 +28,7 @@ export const SEED_MENUS_AI: Menu[] = [
   { id: 3073, parentId: 3070, title: '编辑', type: 'button', permission: 'ai:kb:edit', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 3074, parentId: 3070, title: '删除', type: 'button', permission: 'ai:kb:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 3080, parentId: 3000, title: '智能体', name: 'AiAgents', path: '/ai/agents', component: 'ai/agents/AiAgentsPage', icon: 'Bot', type: 'menu', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 3081, parentId: 3080, title: '上架审核', type: 'button', permission: 'ai:agent:review', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3081, parentId: 3080, title: 'Studio 接入', type: 'button', permission: 'ai:studio:access', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 3090, parentId: 3000, title: 'AI 工具', name: 'AiTools', path: '/ai/tools', component: 'ai/tools/AiToolsPage', icon: 'Wrench', type: 'menu', sort: 9, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 3091, parentId: 3090, title: '查询', type: 'button', permission: 'ai:tool:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 3092, parentId: 3090, title: '管理', type: 'button', permission: 'ai:tool:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

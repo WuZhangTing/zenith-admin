@@ -1,75 +1,111 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiEvalSet, AiEvalRun, CreateAiEvalSetInput, UpdateAiEvalSetInput } from '@zenith/shared/ai';
-import type { AsyncTask } from '@zenith/shared/tasks';
+import type {
+  AiEvalDataset,
+  AiEvalDatasetItem,
+  AiEvalExperiment,
+  AiEvalExperimentResult,
+  CreateAiEvalDatasetInput,
+  UpdateAiEvalDatasetInput,
+  AddAiEvalItemsInput,
+  RunAiExperimentInput,
+} from '@zenith/shared/ai';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 
 export const aiEvalKeys = {
   all: ['ai-eval'] as const,
-  sets: ['ai-eval', 'sets'] as const,
-  runs: (setId?: number) => ['ai-eval', 'runs', setId ?? 'all'] as const,
-  runDetail: (id: number | null) => ['ai-eval', 'run', id] as const,
+  datasets: ['ai-eval', 'datasets'] as const,
+  items: (datasetId: string | null) => ['ai-eval', 'items', datasetId] as const,
+  experiments: (datasetId: string | null) => ['ai-eval', 'experiments', datasetId] as const,
+  experimentDetail: (datasetId: string | null, experimentId: string | null) =>
+    ['ai-eval', 'experiment', datasetId, experimentId] as const,
 };
 
-export function useAiEvalSets() {
+export function useAiEvalDatasets() {
   return useQuery({
-    queryKey: aiEvalKeys.sets,
-    queryFn: () => request.get<AiEvalSet[]>('/api/ai/eval/sets').then(unwrap),
+    queryKey: aiEvalKeys.datasets,
+    queryFn: () => request.get<AiEvalDataset[]>('/api/ai/eval').then(unwrap),
   });
 }
 
-export function useAiEvalRuns(setId?: number, refetchInterval?: number | false) {
+export function useAiEvalItems(datasetId: string | null) {
   return useQuery({
-    queryKey: aiEvalKeys.runs(setId),
-    queryFn: () =>
-      request
-        .get<AiEvalRun[]>(`/api/ai/eval/runs${setId ? `?setId=${setId}` : ''}`)
-        .then(unwrap),
-    refetchInterval,
+    queryKey: aiEvalKeys.items(datasetId),
+    queryFn: () => request.get<AiEvalDatasetItem[]>(`/api/ai/eval/${datasetId}/items`).then(unwrap),
+    enabled: datasetId !== null,
   });
 }
 
-export function useAiEvalRunDetail(id: number | null) {
-  return useQuery({
-    queryKey: aiEvalKeys.runDetail(id),
-    queryFn: () => request.get<AiEvalRun>(`/api/ai/eval/runs/${id}`).then(unwrap),
-    enabled: id !== null,
-  });
-}
-
-export function useSaveAiEvalSet() {
+export function useSaveAiEvalDataset() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: CreateAiEvalSetInput | UpdateAiEvalSetInput }) =>
+    mutationFn: ({ id, values }: { id?: string; values: CreateAiEvalDatasetInput | UpdateAiEvalDatasetInput }) =>
       (id === undefined
-        ? request.post<AiEvalSet>('/api/ai/eval/sets', values)
-        : request.put<AiEvalSet>(`/api/ai/eval/sets/${id}`, values)
+        ? request.post<AiEvalDataset>('/api/ai/eval', values)
+        : request.put<AiEvalDataset>(`/api/ai/eval/${id}`, values)
       ).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: aiEvalKeys.all }),
   });
 }
 
-export function useDeleteAiEvalSet() {
+export function useDeleteAiEvalDataset() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/ai/eval/sets/${id}`).then(unwrap),
+    mutationFn: (id: string) => request.delete<null>(`/api/ai/eval/${id}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: aiEvalKeys.all }),
   });
 }
 
-export function useRunAiEval() {
+export function useAddAiEvalItems() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ setId, configId, model }: { setId: number; configId?: number; model?: string }) =>
-      request.post<{ run: AiEvalRun; task: AsyncTask }>(`/api/ai/eval/sets/${setId}/run`, { configId, model }).then(unwrap),
+    mutationFn: ({ datasetId, values }: { datasetId: string; values: AddAiEvalItemsInput }) =>
+      request.post<AiEvalDatasetItem[]>(`/api/ai/eval/${datasetId}/items`, values).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: aiEvalKeys.all }),
   });
 }
 
-export function useDeleteAiEvalRun() {
+export function useDeleteAiEvalItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/ai/eval/runs/${id}`).then(unwrap),
+    mutationFn: ({ datasetId, itemId }: { datasetId: string; itemId: string }) =>
+      request.delete<null>(`/api/ai/eval/${datasetId}/items/${itemId}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: aiEvalKeys.all }),
+  });
+}
+
+export function useRunAiExperiment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ datasetId, values }: { datasetId: string; values: RunAiExperimentInput }) =>
+      request.post<{ experimentId: string; name: string }>(`/api/ai/eval/${datasetId}/experiments`, values).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: aiEvalKeys.all }),
+  });
+}
+
+type ExperimentsRefetchInterval =
+  | number
+  | false
+  | ((query: { state: { data: AiEvalExperiment[] | undefined } }) => number | false);
+
+export function useAiEvalExperiments(datasetId: string | null, refetchInterval?: ExperimentsRefetchInterval) {
+  return useQuery({
+    queryKey: aiEvalKeys.experiments(datasetId),
+    queryFn: () => request.get<AiEvalExperiment[]>(`/api/ai/eval/${datasetId}/experiments`).then(unwrap),
+    enabled: datasetId !== null,
+    refetchInterval,
+  });
+}
+
+export function useAiEvalExperimentDetail(datasetId: string | null, experimentId: string | null) {
+  return useQuery({
+    queryKey: aiEvalKeys.experimentDetail(datasetId, experimentId),
+    queryFn: () =>
+      request
+        .get<{ experiment: AiEvalExperiment; results: AiEvalExperimentResult[] }>(
+          `/api/ai/eval/${datasetId}/experiments/${experimentId}`,
+        )
+        .then(unwrap),
+    enabled: datasetId !== null && experimentId !== null,
   });
 }

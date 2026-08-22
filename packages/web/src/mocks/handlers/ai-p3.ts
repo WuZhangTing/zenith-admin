@@ -1,9 +1,18 @@
 import { http } from 'msw';
 import { ok, notFound } from '@/mocks/utils/handlers';
-import type { AiAgent, AiHttpTool, AiToolInfo, AiEvalSet, AiEvalRun } from '@zenith/shared/ai';
+import type {
+  AiAgent,
+  AiBuiltinAgent,
+  AiHttpTool,
+  AiToolInfo,
+  AiEvalDataset,
+  AiEvalDatasetItem,
+  AiEvalExperiment,
+  AiEvalExperimentResult,
+} from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
-/* ─── 智能体 ─────────────────────────────────────────────── */
+/* ─── 智能体(创建即用,注册进 Mastra) ─────────────────────── */
 
 let nextAgentId = 3;
 const agentStore: AiAgent[] = [
@@ -13,19 +22,17 @@ const agentStore: AiAgent[] = [
     name: '合同审阅助手',
     description: '帮你快速审阅合同条款，标记风险点',
     avatar: '⚖️',
-    systemPrompt: '你是一位资深法务，擅长审阅商业合同。请指出条款风险并给出修改建议。',
+    instructions: '你是一位资深法务，擅长审阅商业合同。请指出条款风险并给出修改建议。',
     configId: null,
     model: null,
-    temperature: null,
+    modelSettings: { temperature: 0.3 },
+    maxSteps: null,
     knowledgeBaseId: 1,
     tools: ['get_current_time'],
     openingMessage: '您好！我是合同审阅助手，请把需要审阅的合同条款粘贴给我。',
     suggestedQuestions: ['帮我审阅一段保密条款', '违约金比例多少合适？'],
-    status: 'published',
-    clonedFromId: null,
     usageCount: 12,
     isEnabled: true,
-    ownerName: '管理员',
     createdAt: '2025-01-01 00:00:00',
     updatedAt: '2025-01-01 00:00:00',
   },
@@ -35,21 +42,31 @@ const agentStore: AiAgent[] = [
     name: '周报小助手',
     description: '把零散工作记录整理成结构化周报',
     avatar: '✍️',
-    systemPrompt: '你是周报写作助手，请把用户提供的零散工作内容整理为结构化周报（本周工作 / 下周计划 / 风险与求助）。',
+    instructions: '你是周报写作助手，请把用户提供的零散工作内容整理为结构化周报（本周工作 / 下周计划 / 风险与求助）。',
     configId: null,
     model: null,
-    temperature: null,
+    modelSettings: null,
+    maxSteps: null,
     knowledgeBaseId: null,
     tools: [],
     openingMessage: '把这周做的事丢给我，我来帮你整理成周报~',
     suggestedQuestions: ['帮我把这几条记录写成周报'],
-    status: 'private',
-    clonedFromId: null,
     usageCount: 5,
     isEnabled: true,
-    ownerName: '管理员',
     createdAt: '2025-01-02 00:00:00',
     updatedAt: '2025-01-02 00:00:00',
+  },
+];
+
+/** 编程式内置智能体(代码定义,演示 Agent×Workflow 双向整合) */
+const BUILTIN_AGENTS: AiBuiltinAgent[] = [
+  {
+    agentId: 'biz-ops-assistant',
+    name: '运营助理（编程式）',
+    description: '代码定义的教学示例：zod 工具查询真实运营数据 + 周报 Workflow 编排（Agent 步骤 + structuredOutput），并把 Workflow 挂为 Agent 工具。',
+    avatar: '🛠️',
+    openingMessage: '我是编程式运营助理，可以查询运营快照或生成结构化周报。',
+    suggestedQuestions: ['查询本周运营快照', '生成一份运营周报'],
   },
 ];
 
@@ -79,80 +96,73 @@ const BUILTIN_TOOLS: AiToolInfo[] = [
   { name: 'get_system_overview', description: '查询系统基础运营概览', source: 'builtin' },
 ];
 
-/* ─── 评测 ───────────────────────────────────────────────── */
+/* ─── 评测(Mastra Datasets + Experiments) ────────────────── */
 
-let nextEvalSetId = 2;
-let nextEvalRunId = 2;
-const evalSetStore: AiEvalSet[] = [
+let nextItemId = 3;
+let nextExperimentId = 2;
+const datasetStore: AiEvalDataset[] = [
   {
-    id: 1,
+    id: 'ds-demo-1',
     name: '通用问答回归集',
-    description: '发版前跑一遍，观察基础问答质量与延迟',
-    items: [
-      { question: '用一句话解释什么是 RBAC 权限模型', expected: '基于角色的访问控制' },
-      { question: '把这句话翻译成英文：今天天气很好', expected: 'The weather is nice today' },
-    ],
+    description: '发版前跑一遍，观察基础问答质量',
+    itemCount: 2,
+    version: 1,
     createdAt: '2025-01-01 00:00:00',
     updatedAt: '2025-01-01 00:00:00',
   },
 ];
-const evalRunStore: AiEvalRun[] = [
-  {
-    id: 1,
-    setId: 1,
-    setName: '通用问答回归集',
-    configId: 1,
-    model: 'gpt-4o',
-    status: 'done',
-    results: [
-      { question: '用一句话解释什么是 RBAC 权限模型', expected: '基于角色的访问控制', answer: 'RBAC 是基于角色的访问控制模型，通过给用户分配角色、给角色分配权限来管理访问。', durationMs: 1450, tokensInput: 18, tokensOutput: 42 },
-      { question: '把这句话翻译成英文：今天天气很好', expected: 'The weather is nice today', answer: 'The weather is very nice today.', durationMs: 980, tokensInput: 14, tokensOutput: 9 },
-    ],
-    avgDurationMs: 1215,
-    totalTokens: 83,
-    createdAt: '2025-01-05 10:00:00',
-  },
-];
+const itemStore = new Map<string, AiEvalDatasetItem[]>([
+  ['ds-demo-1', [
+    { id: 'item-1', input: '用一句话解释什么是 RBAC 权限模型', groundTruth: '基于角色的访问控制' },
+    { id: 'item-2', input: '把这句话翻译成英文：今天天气很好', groundTruth: 'The weather is nice today' },
+  ]],
+]);
+const experimentStore = new Map<string, AiEvalExperiment[]>([
+  ['ds-demo-1', [
+    {
+      id: 'exp-demo-1',
+      name: 'baseline',
+      datasetId: 'ds-demo-1',
+      targetId: 'zenith-chat',
+      status: 'completed',
+      totalCount: 2,
+      succeededCount: 2,
+      failedCount: 0,
+      avgScores: { 'ground-truth': 0.62 },
+      createdAt: '2025-01-05 10:00:00',
+    },
+  ]],
+]);
+const resultStore = new Map<string, AiEvalExperimentResult[]>([
+  ['exp-demo-1', [
+    {
+      itemId: 'item-1',
+      input: '用一句话解释什么是 RBAC 权限模型',
+      groundTruth: '基于角色的访问控制',
+      output: 'RBAC 是基于角色的访问控制模型，通过给用户分配角色、给角色分配权限来管理访问。',
+      scores: { 'ground-truth': 0.71 },
+      error: null,
+    },
+    {
+      itemId: 'item-2',
+      input: '把这句话翻译成英文：今天天气很好',
+      groundTruth: 'The weather is nice today',
+      output: 'The weather is very nice today.',
+      scores: { 'ground-truth': 0.53 },
+      error: null,
+    },
+  ]],
+]);
 
 export const aiP3Handlers = [
   // ── 智能体 ──
-  http.get('/api/ai/agents/market', () =>
-    ok(agentStore.filter((a) => a.status === 'published' && a.isEnabled))),
-  http.get('/api/ai/agents/pending', () =>
-    ok(agentStore.filter((a) => a.status === 'pending'))),
+  http.get('/api/ai/agents/builtin', () => ok(BUILTIN_AGENTS)),
   http.get('/api/ai/agents/:id', ({ params }) => {
     const agent = agentStore.find((a) => a.id === Number(params.id));
     if (!agent) return notFound('智能体不存在', { status: 404 });
     return ok(agent);
   }),
   http.get('/api/ai/agents', () => ok(agentStore)),
-  http.post('/api/ai/agents/:id/publish', ({ params }) => {
-    const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return notFound('智能体不存在', { status: 404 });
-    agent.status = 'pending';
-    return ok(agent, '已提交审核');
-  }),
-  http.post('/api/ai/agents/:id/unpublish', ({ params }) => {
-    const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return notFound('智能体不存在', { status: 404 });
-    agent.status = 'private';
-    return ok(agent, '已撤回');
-  }),
-  http.post('/api/ai/agents/:id/review', async ({ params, request }) => {
-    const agent = agentStore.find((a) => a.id === Number(params.id));
-    if (!agent) return notFound('智能体不存在', { status: 404 });
-    const body = await request.json() as { approve?: boolean };
-    agent.status = body.approve ? 'published' : 'rejected';
-    return ok(agent, body.approve ? '已通过上架' : '已驳回');
-  }),
-  http.post('/api/ai/agents/:id/clone', ({ params }) => {
-    const src = agentStore.find((a) => a.id === Number(params.id));
-    if (!src) return notFound('智能体不存在', { status: 404 });
-    const now = mockDateTime();
-    const cloned: AiAgent = { ...src, id: nextAgentId++, name: `${src.name} 副本`, status: 'private', clonedFromId: src.id, usageCount: 0, knowledgeBaseId: null, createdAt: now, updatedAt: now };
-    agentStore.unshift(cloned);
-    return ok(cloned, '克隆成功');
-  }),
   http.post('/api/ai/agents', async ({ request }) => {
     const body = await request.json() as Partial<AiAgent>;
     const now = mockDateTime();
@@ -162,19 +172,17 @@ export const aiP3Handlers = [
       name: body.name ?? '未命名智能体',
       description: body.description ?? null,
       avatar: body.avatar ?? '🤖',
-      systemPrompt: body.systemPrompt ?? '',
+      instructions: body.instructions ?? '',
       configId: body.configId ?? null,
       model: body.model ?? null,
-      temperature: body.temperature ?? null,
+      modelSettings: body.modelSettings ?? null,
+      maxSteps: body.maxSteps ?? null,
       knowledgeBaseId: body.knowledgeBaseId ?? null,
       tools: body.tools ?? [],
       openingMessage: body.openingMessage ?? null,
       suggestedQuestions: body.suggestedQuestions ?? [],
-      status: 'private',
-      clonedFromId: null,
       usageCount: 0,
       isEnabled: body.isEnabled ?? true,
-      ownerName: '管理员',
       createdAt: now,
       updatedAt: now,
     };
@@ -231,79 +239,117 @@ export const aiP3Handlers = [
     return ok(null, '删除成功');
   }),
 
-  // ── 评测 ──
-  http.get('/api/ai/eval/sets', () => ok(evalSetStore)),
-  http.post('/api/ai/eval/sets/:id/run', ({ params }) => {
-    const set = evalSetStore.find((s) => s.id === Number(params.id));
-    if (!set) return notFound('评测集不存在', { status: 404 });
-    const now = mockDateTime();
-    const run: AiEvalRun = {
-      id: nextEvalRunId++,
-      setId: set.id,
-      setName: set.name,
-      configId: 1,
-      model: 'gpt-4o (demo)',
-      status: 'done',
-      results: set.items.map((it, i) => ({
-        question: it.question,
-        expected: it.expected,
-        answer: `【Demo】对「${it.question.slice(0, 30)}」的模拟评测回答（第 ${i + 1} 题）。`,
-        durationMs: 800 + i * 120,
-        tokensInput: Math.ceil(it.question.length / 4),
-        tokensOutput: 30,
-      })),
-      avgDurationMs: 900,
-      totalTokens: set.items.length * 40,
-      createdAt: now,
-    };
-    evalRunStore.unshift(run);
-    return ok({
-      run,
-      task: { id: Date.now(), taskType: 'ai-eval-run', title: `AI 评测：${set.name}`, module: '智能助手', status: 'succeeded', payload: { runId: run.id }, totalCount: set.items.length, processedCount: set.items.length, failedCount: 0, progressNote: null, result: null, errorMessage: null, cancelRequested: false, attempts: 1, maxAttempts: 1, nextRunAt: null, createdBy: 1, createdByName: '管理员', tenantId: null, startedAt: now, completedAt: now, createdAt: now, updatedAt: now },
-    }, '评测任务已提交');
+  // ── 评测:数据集 ──
+  http.get('/api/ai/eval/:id/items', ({ params }) => {
+    if (!datasetStore.some((d) => d.id === params.id)) return notFound('评测集不存在', { status: 404 });
+    return ok(itemStore.get(String(params.id)) ?? []);
   }),
-  http.post('/api/ai/eval/sets', async ({ request }) => {
-    const body = await request.json() as Partial<AiEvalSet>;
+  http.post('/api/ai/eval/:id/items', async ({ params, request }) => {
+    const dataset = datasetStore.find((d) => d.id === params.id);
+    if (!dataset) return notFound('评测集不存在', { status: 404 });
+    const body = await request.json() as { items: Array<{ input: string; groundTruth?: string | null }> };
+    const list = itemStore.get(dataset.id) ?? [];
+    for (const it of body.items ?? []) {
+      list.push({ id: `item-${nextItemId++}`, input: it.input, groundTruth: it.groundTruth ?? null });
+    }
+    itemStore.set(dataset.id, list);
+    dataset.itemCount = list.length;
+    dataset.version += 1;
+    dataset.updatedAt = mockDateTime();
+    return ok(list, '添加成功');
+  }),
+  http.delete('/api/ai/eval/:id/items/:itemId', ({ params }) => {
+    const dataset = datasetStore.find((d) => d.id === params.id);
+    if (!dataset) return notFound('评测集不存在', { status: 404 });
+    const list = itemStore.get(dataset.id) ?? [];
+    const idx = list.findIndex((it) => it.id === params.itemId);
+    if (idx === -1) return notFound('条目不存在', { status: 404 });
+    list.splice(idx, 1);
+    dataset.itemCount = list.length;
+    dataset.version += 1;
+    dataset.updatedAt = mockDateTime();
+    return ok(null, '删除成功');
+  }),
+
+  // ── 评测:实验 ──
+  http.get('/api/ai/eval/:id/experiments/:experimentId', ({ params }) => {
+    const experiments = experimentStore.get(String(params.id)) ?? [];
+    const experiment = experiments.find((e) => e.id === params.experimentId);
+    if (!experiment) return notFound('实验不存在', { status: 404 });
+    return ok({ experiment, results: resultStore.get(experiment.id) ?? [] });
+  }),
+  http.get('/api/ai/eval/:id/experiments', ({ params }) => {
+    if (!datasetStore.some((d) => d.id === params.id)) return notFound('评测集不存在', { status: 404 });
+    return ok(experimentStore.get(String(params.id)) ?? []);
+  }),
+  http.post('/api/ai/eval/:id/experiments', async ({ params, request }) => {
+    const dataset = datasetStore.find((d) => d.id === params.id);
+    if (!dataset) return notFound('评测集不存在', { status: 404 });
+    const body = await request.json() as { name?: string; targetId: string };
+    const items = itemStore.get(dataset.id) ?? [];
+    const experimentId = `exp-${nextExperimentId++}`;
+    const name = body.name?.trim() || `exp-${experimentId}`;
+    const experiment: AiEvalExperiment = {
+      id: experimentId,
+      name,
+      datasetId: dataset.id,
+      targetId: body.targetId,
+      status: 'completed',
+      totalCount: items.length,
+      succeededCount: items.length,
+      failedCount: 0,
+      avgScores: { 'ground-truth': 0.58 },
+      createdAt: mockDateTime(),
+    };
+    const list = experimentStore.get(dataset.id) ?? [];
+    list.unshift(experiment);
+    experimentStore.set(dataset.id, list);
+    resultStore.set(experimentId, items.map((it, i) => ({
+      itemId: it.id,
+      input: it.input,
+      groundTruth: it.groundTruth,
+      output: `【Demo】${body.targetId} 对「${it.input.slice(0, 30)}」的模拟回答（第 ${i + 1} 题）。`,
+      scores: { 'ground-truth': 0.58 },
+      error: null,
+    })));
+    return ok({ experimentId, name }, '实验已发起');
+  }),
+
+  // ── 评测:数据集 CRUD ──
+  http.get('/api/ai/eval', () => ok(datasetStore)),
+  http.post('/api/ai/eval', async ({ request }) => {
+    const body = await request.json() as { name?: string; description?: string | null; items?: Array<{ input: string; groundTruth?: string | null }> };
     const now = mockDateTime();
-    const set: AiEvalSet = {
-      id: nextEvalSetId++,
-      name: body.name ?? '未命名评测集',
+    const id = `ds-${Date.now()}`;
+    const items = (body.items ?? []).map((it) => ({ id: `item-${nextItemId++}`, input: it.input, groundTruth: it.groundTruth ?? null }));
+    const dataset: AiEvalDataset = {
+      id,
+      name: body.name ?? '未命名数据集',
       description: body.description ?? null,
-      items: body.items ?? [],
+      itemCount: items.length,
+      version: 1,
       createdAt: now,
       updatedAt: now,
     };
-    evalSetStore.unshift(set);
-    return ok(set, '创建成功');
+    datasetStore.unshift(dataset);
+    itemStore.set(id, items);
+    return ok(dataset, '创建成功');
   }),
-  http.put('/api/ai/eval/sets/:id', async ({ params, request }) => {
-    const set = evalSetStore.find((s) => s.id === Number(params.id));
-    if (!set) return notFound('评测集不存在', { status: 404 });
-    const body = await request.json() as Partial<AiEvalSet>;
-    Object.assign(set, body, { updatedAt: mockDateTime() });
-    return ok(set, '更新成功');
+  http.put('/api/ai/eval/:id', async ({ params, request }) => {
+    const dataset = datasetStore.find((d) => d.id === params.id);
+    if (!dataset) return notFound('评测集不存在', { status: 404 });
+    const body = await request.json() as { name?: string; description?: string | null };
+    if (body.name !== undefined) dataset.name = body.name;
+    if (body.description !== undefined) dataset.description = body.description;
+    dataset.updatedAt = mockDateTime();
+    return ok(dataset, '更新成功');
   }),
-  http.delete('/api/ai/eval/sets/:id', ({ params }) => {
-    const idx = evalSetStore.findIndex((s) => s.id === Number(params.id));
+  http.delete('/api/ai/eval/:id', ({ params }) => {
+    const idx = datasetStore.findIndex((d) => d.id === params.id);
     if (idx === -1) return notFound('评测集不存在', { status: 404 });
-    evalSetStore.splice(idx, 1);
-    return ok(null, '删除成功');
-  }),
-  http.get('/api/ai/eval/runs/:id', ({ params }) => {
-    const run = evalRunStore.find((r) => r.id === Number(params.id));
-    if (!run) return notFound('评测运行不存在', { status: 404 });
-    return ok(run);
-  }),
-  http.get('/api/ai/eval/runs', ({ request }) => {
-    const url = new URL(request.url);
-    const setId = url.searchParams.get('setId');
-    const list = setId ? evalRunStore.filter((r) => r.setId === Number(setId)) : evalRunStore;
-    return ok(list);
-  }),
-  http.delete('/api/ai/eval/runs/:id', ({ params }) => {
-    const idx = evalRunStore.findIndex((r) => r.id === Number(params.id));
-    if (idx === -1) return notFound('评测运行不存在', { status: 404 });
-    evalRunStore.splice(idx, 1);
+    const [removed] = datasetStore.splice(idx, 1);
+    itemStore.delete(removed.id);
+    experimentStore.delete(removed.id);
     return ok(null, '删除成功');
   }),
 ];

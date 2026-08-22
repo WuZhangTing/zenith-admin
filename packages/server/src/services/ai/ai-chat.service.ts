@@ -138,8 +138,8 @@ export interface StreamAiChatOptions {
   model?: string;
   /** 是否启用内置工具（还需配置 capabilities.tools 声明支持函数调用） */
   enableTools?: boolean;
-  /** 温度覆盖（智能体） */
-  temperatureOverride?: string | null;
+  /** 模型设置覆盖（智能体的 modelSettings,合并到主模型条目） */
+  modelSettingsOverride?: AiModelSettings | null;
   /** 工具白名单（智能体勾选的工具集；undefined = 全部，[] = 无） */
   toolFilter?: string[] | null;
   /** Mastra Memory 作用域(提供则上下文由 Memory 引擎管理,messages 仅传当轮输入) */
@@ -189,11 +189,10 @@ export async function* streamAiChat(
     }
   } catch { /* 无登录上下文（如内部调用）时跳过 */ }
 
-  // 温度覆盖（智能体）：作用于主模型条目
-  const temperature = Number.parseFloat(options?.temperatureOverride ?? '');
-  if (!Number.isNaN(temperature)) {
+  // 模型设置覆盖(智能体):合并到主模型条目(优先级高于服务商配置默认)
+  if (options?.modelSettingsOverride && Object.keys(options.modelSettingsOverride).length > 0) {
     const primary = resolved.chain[0];
-    primary.modelSettings = { ...primary.modelSettings, temperature };
+    primary.modelSettings = { ...primary.modelSettings, ...options.modelSettingsOverride };
   }
 
   // function calling：配置声明 tools 能力时启用（Mastra 模型路由对任意服务商生效）

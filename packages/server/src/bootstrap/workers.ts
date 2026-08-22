@@ -7,7 +7,6 @@
 import logger from '../lib/logger';
 import { initCronScheduler } from '../lib/pg-boss-scheduler';
 import { registerTaskDemoHandlers } from '../routes/tasks/task-demo';
-import { registerAiEvalTaskHandlers } from '../services/ai/ai-eval.service';
 import { registerAnalyticsTaskHandlers } from '../services/analytics/analytics-tasks';
 import { registerCmsTaskHandlers } from '../services/cms/cms-tasks';
 import { registerReportDatasetTaskHandlers } from '../services/report/report-dataset-tasks';
@@ -42,7 +41,7 @@ export async function registerBackgroundWorkers(): Promise<void> {
     registerCmsTaskHandlers(); // CMS 全站静态化 / 检索索引重建 / 死链检测
     const { reloadCmsSearchDict } = await import('../services/cms/cms-search.service');
     await reloadCmsSearchDict(); // CMS 检索自定义词典（DB → jieba）
-    registerAiEvalTaskHandlers(); // AI 评测任务
+    // AI 评测已迁移至 Mastra Datasets/Experiments(自带异步执行),不再挂任务中心
     registerReportDatasourceTaskHandlers();
     registerReportDatasetTaskHandlers();
     registerReportDeliveryTaskHandlers();

@@ -17,35 +17,22 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { Bot, MessageSquare, Copy, Send, Undo2, Check, X } from 'lucide-react';
-import { usePermission } from '@/hooks/usePermission';
+import { Bot, Code2, MessageSquare } from 'lucide-react';
 import {
   useMyAiAgents,
-  useMarketAiAgents,
-  usePendingAiAgents,
+  useBuiltinAiAgents,
   useSaveAiAgent,
   useDeleteAiAgent,
-  usePublishAiAgent,
-  useReviewAiAgent,
-  useCloneAiAgent,
 } from '@/hooks/queries/ai-agents';
 import { useAvailableAiTools } from '@/hooks/queries/ai-tools';
 import { useAvailableKnowledgeBases } from '@/hooks/queries/ai-extras';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
-import { AI_AGENT_STATUS_LABELS } from '@zenith/shared/ai';
-import type { AiAgent, CreateAiAgentInput } from '@zenith/shared/ai';
+import type { AiAgent, AiBuiltinAgent, CreateAiAgentInput } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { useEditModal } from '@/hooks/useEditModal';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text, Paragraph } = Typography;
-
-const STATUS_COLORS: Record<AiAgent['status'], 'grey' | 'amber' | 'green' | 'red'> = {
-  private: 'grey',
-  pending: 'amber',
-  published: 'green',
-  rejected: 'red',
-};
 
 const EMOJI_CHOICES = ['🤖', '🧠', '📚', '💼', '🩺', '⚖️', '💻', '✍️', '🌐', '📈', '🎨', '🧮'];
 
@@ -53,15 +40,17 @@ interface AgentFormValues {
   name: string;
   avatar?: string;
   description?: string;
-  systemPrompt: string;
+  instructions: string;
   modelValue?: string;
+  temperature?: number | null;
+  maxSteps?: number | null;
   knowledgeBaseId?: number | null;
   tools?: string[];
   openingMessage?: string;
   suggestedQuestions?: string[];
 }
 
-function AgentCard({ agent, footer, showOwner }: { agent: AiAgent; footer: React.ReactNode; showOwner?: boolean }) {
+function AgentCard({ agent, footer }: { agent: AiAgent; footer: React.ReactNode }) {
   return (
     <Card
       style={{ width: 300 }}
@@ -74,38 +63,56 @@ function AgentCard({ agent, footer, showOwner }: { agent: AiAgent; footer: React
         <div>
           <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 190, display: 'block' }}>{agent.name}</Text>
           <Space spacing={4}>
-            <Tag size="small" color={STATUS_COLORS[agent.status]}>{AI_AGENT_STATUS_LABELS[agent.status]}</Tag>
             {agent.usageCount > 0 && <Tag size="small" color="white">已用 {agent.usageCount} 次</Tag>}
+            {!agent.isEnabled && <Tag size="small" color="grey">已停用</Tag>}
           </Space>
         </div>
       </Space>
       <Paragraph type="tertiary" ellipsis={{ rows: 2, showTooltip: true }} style={{ fontSize: 13, flex: 1 }}>
-        {agent.description || agent.systemPrompt}
+        {agent.description || agent.instructions}
       </Paragraph>
       <Space spacing={4} wrap>
         {agent.knowledgeBaseId && <Tag size="small" color="blue">知识库</Tag>}
         {agent.tools.length > 0 && <Tag size="small" color="purple">{agent.tools.length} 个工具</Tag>}
         {agent.model && <Tag size="small" color="cyan">{agent.model}</Tag>}
-        {showOwner && agent.ownerName && <Tag size="small" color="white">@{agent.ownerName}</Tag>}
+        {agent.maxSteps != null && <Tag size="small" color="white">{agent.maxSteps} 步</Tag>}
       </Space>
+    </Card>
+  );
+}
+
+function BuiltinAgentCard({ agent }: { agent: AiBuiltinAgent }) {
+  return (
+    <Card
+      style={{ width: 300 }}
+      bodyStyle={{ display: 'flex', flexDirection: 'column', gap: 8, height: 170 }}
+      footer={
+        <Space>
+          <Tag size="small" color="violet" prefixIcon={<Code2 size={11} />}>编程式</Tag>
+          <Text type="tertiary" size="small" code>{agent.agentId}</Text>
+        </Space>
+      }
+      footerLine
+    >
+      <Space>
+        <span style={{ fontSize: 28, lineHeight: '32px' }}>{agent.avatar}</span>
+        <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: 200, display: 'block' }}>{agent.name}</Text>
+      </Space>
+      <Paragraph type="tertiary" ellipsis={{ rows: 3, showTooltip: true }} style={{ fontSize: 13, flex: 1 }}>
+        {agent.description}
+      </Paragraph>
     </Card>
   );
 }
 
 export default function AiAgentsPage() {
   const navigate = useNavigate();
-  const { hasPermission } = usePermission();
-  const canReview = hasPermission('ai:agent:review');
 
-  const [activeTab, setActiveTab] = useUrlTabState(['mine', 'market', 'review'] as const, 'mine');
+  const [activeTab, setActiveTab] = useUrlTabState(['mine', 'builtin'] as const, 'mine');
   const mineQuery = useMyAiAgents();
-  const marketQuery = useMarketAiAgents();
-  const pendingQuery = usePendingAiAgents(canReview);
+  const builtinQuery = useBuiltinAiAgents();
   const saveMutation = useSaveAiAgent();
   const deleteMutation = useDeleteAiAgent();
-  const publishMutation = usePublishAiAgent();
-  const reviewMutation = useReviewAiAgent();
-  const cloneMutation = useCloneAiAgent();
 
   const modal = useEditModal<AiAgent, AgentFormValues, CreateAiAgentInput>({
     save: saveMutation,
@@ -114,8 +121,10 @@ export default function AiAgentsPage() {
       name: agent.name,
       avatar: agent.avatar,
       description: agent.description ?? '',
-      systemPrompt: agent.systemPrompt,
+      instructions: agent.instructions,
       modelValue: agent.configId ? `${agent.configId}:${agent.model ?? ''}` : '',
+      temperature: agent.modelSettings?.temperature ?? undefined,
+      maxSteps: agent.maxSteps ?? undefined,
       knowledgeBaseId: agent.knowledgeBaseId ?? undefined,
       tools: agent.tools,
       openingMessage: agent.openingMessage ?? '',
@@ -129,9 +138,11 @@ export default function AiAgentsPage() {
         name: values.name,
         avatar: values.avatar || '🤖',
         description: values.description || null,
-        systemPrompt: values.systemPrompt,
+        instructions: values.instructions,
         configId: configId || null,
         model,
+        modelSettings: values.temperature != null ? { temperature: values.temperature } : null,
+        maxSteps: values.maxSteps ?? null,
         knowledgeBaseId: values.knowledgeBaseId || null,
         tools: values.tools ?? [],
         openingMessage: values.openingMessage || null,
@@ -139,7 +150,7 @@ export default function AiAgentsPage() {
       };
     },
     successMessage: ({ isEdit }) => (isEdit ? '智能体已更新' : '智能体已创建'),
-    // 最长标签「系统提示词」5 字带必填星号，90 会折行
+    // 最长标签「Agent 指令」带必填星号,90 会折行
     labelWidth: 100,
   });
 
@@ -164,7 +175,7 @@ export default function AiAgentsPage() {
     const list = mineQuery.data ?? [];
     if (mineQuery.isLoading) return <Spin style={{ margin: '48px auto', display: 'block' }} />;
     if (list.length === 0) {
-      return <Empty title="还没有智能体" description="创建你的第一个智能体：预设提示词 + 绑定知识库 + 勾选工具" style={{ marginTop: 48 }} />;
+      return <Empty title="还没有智能体" description="创建即用：预设指令 + 绑定知识库 + 勾选工具，同时注册进 Mastra 供评测与 Studio 使用" style={{ marginTop: 48 }} />;
     }
     return (
       <Space wrap align="start" spacing={16}>
@@ -176,22 +187,6 @@ export default function AiAgentsPage() {
               <Space>
                 <Button theme="borderless" size="small" icon={<MessageSquare size={13} />} onClick={() => startChat(agent)}>对话</Button>
                 <Button theme="borderless" size="small" onClick={() => modal.openEdit(agent)}>编辑</Button>
-                {(agent.status === 'private' || agent.status === 'rejected') && (
-                  <Button
-                    theme="borderless"
-                    size="small"
-                    icon={<Send size={13} />}
-                    onClick={() => publishMutation.mutateAsync({ id: agent.id, action: 'publish' }).then(() => Toast.success('已提交审核')).catch(() => {})}
-                  >上架</Button>
-                )}
-                {(agent.status === 'published' || agent.status === 'pending') && (
-                  <Button
-                    theme="borderless"
-                    size="small"
-                    icon={<Undo2 size={13} />}
-                    onClick={() => publishMutation.mutateAsync({ id: agent.id, action: 'unpublish' }).then(() => Toast.success('已撤回')).catch(() => {})}
-                  >撤回</Button>
-                )}
                 <Popconfirm title="确定要删除该智能体吗？" content="关联对话会保留但不再应用预设" onConfirm={() => deleteMutation.mutateAsync(agent.id).then(() => Toast.success('已删除')).catch(() => {})}>
                   <Button theme="borderless" type="danger" size="small">删除</Button>
                 </Popconfirm>
@@ -203,53 +198,19 @@ export default function AiAgentsPage() {
     );
   };
 
-  const renderMarket = () => {
-    const list = marketQuery.data ?? [];
-    if (marketQuery.isLoading) return <Spin style={{ margin: '48px auto', display: 'block' }} />;
-    if (list.length === 0) return <Empty title="市场暂无智能体" description="上架的智能体会展示在这里，供所有人使用" style={{ marginTop: 48 }} />;
+  const renderBuiltin = () => {
+    const list = builtinQuery.data ?? [];
+    if (builtinQuery.isLoading) return <Spin style={{ margin: '48px auto', display: 'block' }} />;
+    if (list.length === 0) return <Empty title="暂无内置智能体" description="内置智能体由代码定义（含工具与工作流编排示例），注册进 Mastra 后可在评测与 Studio 中使用" style={{ marginTop: 48 }} />;
     return (
-      <Space wrap align="start" spacing={16}>
-        {list.map((agent) => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            showOwner
-            footer={
-              <Space>
-                <Button theme="borderless" size="small" icon={<MessageSquare size={13} />} onClick={() => startChat(agent)}>对话</Button>
-                <Button
-                  theme="borderless"
-                  size="small"
-                  icon={<Copy size={13} />}
-                  onClick={() => cloneMutation.mutateAsync(agent.id).then(() => { Toast.success('已克隆为我的智能体'); setActiveTab('mine'); }).catch(() => {})}
-                >克隆</Button>
-              </Space>
-            }
-          />
-        ))}
-      </Space>
-    );
-  };
-
-  const renderReview = () => {
-    const list = pendingQuery.data ?? [];
-    if (pendingQuery.isLoading) return <Spin style={{ margin: '48px auto', display: 'block' }} />;
-    if (list.length === 0) return <Empty title="没有待审核的智能体" style={{ marginTop: 48 }} />;
-    return (
-      <Space wrap align="start" spacing={16}>
-        {list.map((agent) => (
-          <AgentCard
-            key={agent.id}
-            agent={agent}
-            showOwner
-            footer={
-              <Space>
-                <Button theme="borderless" size="small" icon={<Check size={13} />} onClick={() => reviewMutation.mutateAsync({ id: agent.id, approve: true }).then(() => Toast.success('已通过上架')).catch(() => {})}>通过</Button>
-                <Button theme="borderless" type="danger" size="small" icon={<X size={13} />} onClick={() => reviewMutation.mutateAsync({ id: agent.id, approve: false }).then(() => Toast.success('已驳回')).catch(() => {})}>驳回</Button>
-              </Space>
-            }
-          />
-        ))}
+      <Space vertical align="start" spacing={12} style={{ width: '100%' }}>
+        <Text type="tertiary" style={{ fontSize: 13 }}>
+          内置智能体由代码定义（见 services/biz-demo/demo-agent），演示 zod 工具、Workflow 编排与 Agent×Workflow 双向整合；
+          注册进 Mastra 后可作为评测实验目标，也可在 Studio 中调试。
+        </Text>
+        <Space wrap align="start" spacing={16}>
+          {list.map((agent) => <BuiltinAgentCard key={agent.agentId} agent={agent} />)}
+        </Space>
       </Space>
     );
   };
@@ -268,14 +229,9 @@ export default function AiAgentsPage() {
         <TabPane tab={<span><Bot size={14} style={{ verticalAlign: -2, marginRight: 4 }} />我的智能体</span>} itemKey="mine">
           <div style={{ padding: '16px 0' }}>{renderMine()}</div>
         </TabPane>
-        <TabPane tab="智能体市场" itemKey="market">
-          <div style={{ padding: '16px 0' }}>{renderMarket()}</div>
+        <TabPane tab={<span><Code2 size={14} style={{ verticalAlign: -2, marginRight: 4 }} />内置智能体</span>} itemKey="builtin">
+          <div style={{ padding: '16px 0' }}>{renderBuiltin()}</div>
         </TabPane>
-        {canReview && (
-          <TabPane tab={`上架审核${(pendingQuery.data?.length ?? 0) > 0 ? `（${pendingQuery.data!.length}）` : ''}`} itemKey="review">
-            <div style={{ padding: '16px 0' }}>{renderReview()}</div>
-          </TabPane>
-        )}
       </Tabs>
 
       <Modal
@@ -296,8 +252,8 @@ export default function AiAgentsPage() {
               </Form.Select>
             </Col>
           </Row>
-          <Form.Input field="description" label="描述" maxLength={300} placeholder="一句话介绍（市场展示）" />
-          <Form.TextArea field="systemPrompt" label="系统提示词" rules={[{ required: true, message: '请输入提示词' }]} maxCount={8192} rows={5} placeholder="定义智能体的角色、能力边界与回答风格" />
+          <Form.Input field="description" label="描述" maxLength={300} placeholder="一句话介绍" />
+          <Form.TextArea field="instructions" label="Agent 指令" rules={[{ required: true, message: '请输入指令' }]} maxCount={8192} rows={5} placeholder="定义智能体的角色、能力边界与回答风格（Mastra instructions）" />
           <Row gutter={16}>
             <Col span={12}>
               <Form.Select field="modelValue" label="模型" optionList={modelOptions} style={{ width: '100%' }} placeholder="跟随系统默认" />
@@ -311,6 +267,14 @@ export default function AiAgentsPage() {
                 showClear
                 optionList={(kbQuery.data ?? []).map((kb) => ({ value: kb.id, label: `${kb.name}（${kb.documentCount} 文档）` }))}
               />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.InputNumber field="temperature" label="温度" min={0} max={2} step={0.1} style={{ width: '100%' }} placeholder="跟随模型默认" extraText="采样温度 0-2，留空跟随默认" />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber field="maxSteps" label="最大步数" min={1} max={20} style={{ width: '100%' }} placeholder="系统默认" extraText="工具调用循环上限" />
             </Col>
           </Row>
           <Form.Select

@@ -181,10 +181,11 @@ export const createAiAgentSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(100),
   description: z.string().max(300).nullable().optional(),
   avatar: z.string().max(20).optional(),
-  systemPrompt: z.string().min(1, '提示词不能为空').max(8192),
+  instructions: z.string().min(1, '指令不能为空').max(8192),
   configId: z.number().int().positive().nullable().optional(),
   model: z.string().max(100).nullable().optional(),
-  temperature: z.string().max(10).nullable().optional(),
+  modelSettings: aiModelSettingsSchema.nullable().optional(),
+  maxSteps: z.number().int().min(1).max(20).nullable().optional(),
   knowledgeBaseId: z.number().int().positive().nullable().optional(),
   tools: z.array(z.string().max(60)).max(20).optional(),
   openingMessage: z.string().max(2000).nullable().optional(),
@@ -193,10 +194,6 @@ export const createAiAgentSchema = z.object({
 });
 
 export const updateAiAgentSchema = partialForUpdate(createAiAgentSchema);
-
-export const reviewAiAgentSchema = z.object({
-  approve: z.boolean(),
-});
 
 export type CreateAiAgentInput = z.infer<typeof createAiAgentSchema>;
 
@@ -228,33 +225,44 @@ export type CreateAiHttpToolInput = z.infer<typeof createAiHttpToolSchema>;
 
 export type UpdateAiHttpToolInput = z.infer<typeof updateAiHttpToolSchema>;
 
-// ─── P3：评测集 ───────────────────────────────────────────────────────────────
+// ─── P3：评测(Mastra Datasets + Experiments) ─────────────────────────────────
 
 export const aiEvalItemSchema = z.object({
-  question: z.string().min(1, '问题不能为空').max(4000),
-  expected: z.string().max(4000).optional(),
+  input: z.string().min(1, '问题不能为空').max(4000),
+  groundTruth: z.string().max(4000).nullable().optional(),
 });
 
-export const createAiEvalSetSchema = z.object({
+export const createAiEvalDatasetSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(100),
   description: z.string().max(300).nullable().optional(),
-  items: z.array(aiEvalItemSchema).min(1, '至少一条评测问题').max(50),
+  items: z.array(aiEvalItemSchema).max(100).optional(),
 });
 
-export const updateAiEvalSetSchema = partialForUpdate(createAiEvalSetSchema);
-
-export const runAiEvalSchema = z.object({
-  /** 服务商配置 ID（缺省 = 系统默认配置） */
-  configId: z.number().int().positive().optional(),
-  /** 多模型配置下指定模型 */
-  model: z.string().max(100).optional(),
+export const updateAiEvalDatasetSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(300).nullable().optional(),
 });
 
-export type CreateAiEvalSetInput = z.infer<typeof createAiEvalSetSchema>;
+export const addAiEvalItemsSchema = z.object({
+  items: z.array(aiEvalItemSchema).min(1, '至少一条评测问题').max(100),
+});
 
-export type UpdateAiEvalSetInput = z.infer<typeof updateAiEvalSetSchema>;
+export const runAiExperimentSchema = z.object({
+  /** 实验名(缺省自动生成) */
+  name: z.string().max(100).optional(),
+  /** 目标 Mastra agent ID(agent-{id} / zenith-chat / 内置智能体) */
+  targetId: z.string().min(1, '请选择评测目标').max(100),
+  /** 打分器(缺省 ground-truth) */
+  scorers: z.array(z.string().max(60)).max(5).optional(),
+});
 
-export type RunAiEvalInput = z.infer<typeof runAiEvalSchema>;
+export type CreateAiEvalDatasetInput = z.infer<typeof createAiEvalDatasetSchema>;
+
+export type UpdateAiEvalDatasetInput = z.infer<typeof updateAiEvalDatasetSchema>;
+
+export type AddAiEvalItemsInput = z.infer<typeof addAiEvalItemsSchema>;
+
+export type RunAiExperimentInput = z.infer<typeof runAiExperimentSchema>;
 
 // ─── P3：对话体验 ─────────────────────────────────────────────────────────────
 

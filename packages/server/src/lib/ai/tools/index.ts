@@ -225,3 +225,29 @@ export async function getMastraTools(filter?: string[] | null): Promise<Record<s
   }
   return tools;
 }
+
+/**
+ * 知识库检索工具(createTool 包装 retrieveKbContext):
+ * 绑定知识库的智能体在实验(Experiments)/ Studio 场景没有 service 前置检索编排,
+ * 由模型按需调用本工具完成 RAG;kbId/ownerId 在注册时闭包绑定。
+ */
+export async function createKbSearchTool(kbId: number, ownerId: number): Promise<unknown> {
+  const { createTool } = await loadMastraToolsModule();
+  return createTool({
+    id: 'kb_search',
+    description: '检索绑定知识库中与问题相关的内容片段。回答涉及知识库内容的问题前先调用本工具',
+    inputSchema: {
+      type: 'object',
+      properties: { query: { type: 'string', description: '检索关键词或问题' } },
+      required: ['query'],
+    } as never,
+    execute: async (input: unknown) => {
+      const { retrieveKbContext } = await import('../../../services/ai/ai-knowledge.service');
+      const query = String((input as { query?: unknown })?.query ?? '');
+      if (!query) return JSON.stringify({ error: '缺少检索词' });
+      const refs = await retrieveKbContext(kbId, ownerId, query).catch(() => []);
+      if (refs.length === 0) return JSON.stringify({ result: '知识库中未找到相关内容' });
+      return JSON.stringify(refs.map((r, i) => ({ index: i + 1, doc: r.docName, content: r.content, score: r.score })));
+    },
+  });
+}

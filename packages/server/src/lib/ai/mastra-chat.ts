@@ -1,10 +1,10 @@
 import { estimateTokens } from './tokens';
 import { estimateMessageTokens, type ChatMessage, type StreamChunk } from './stream-types';
-import { loadMastraAgentModule, buildModelChain, type ModelChainEntry } from './mastra-models';
+import { buildModelChain, type ModelChainEntry } from './mastra-models';
 import type { AiModelSettings } from '@zenith/shared/ai';
 
 /**
- * Mastra Agent 聊天桥:动态 Agent + 模型降级链 + 工具循环,
+ * Mastra Agent 聊天桥:注册式 zenith-chat(requestContext 动态注入模型链/提示词/工具),
  * 把 Mastra 流 chunk 映射回系统稳定的 SSE 协议(StreamChunk / tool_result)。
  */
 
@@ -86,8 +86,6 @@ function toErrorMessage(error: unknown): string {
  * - usage 缺失时按文本估算兜底
  */
 export async function* streamAgentChat(params: StreamAgentChatParams): AsyncGenerator<AgentChatChunk> {
-  const { Agent } = await loadMastraAgentModule();
-
   const abort = new AbortController();
   let idleTimedOut = false;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -106,20 +104,19 @@ export async function* streamAgentChat(params: StreamAgentChatParams): AsyncGene
   let usageReported = false;
 
   try {
-    const memoryInstance = params.memory
-      ? await (await import('../mastra')).getChatMemory()
-      : undefined;
-    const agent = new Agent({
-      id: 'zenith-chat',
-      name: 'Zenith Chat',
-      instructions: params.systemPrompt?.trim() || '你是一个乐于助人的智能助手。',
-      model: buildModelChain(params.chain),
-      ...(params.tools && Object.keys(params.tools).length > 0 ? { tools: params.tools as never } : {}),
-      ...(memoryInstance ? { memory: memoryInstance as never } : {}),
-    });
+    const { getMastra, CHAT_MODEL_CHAIN_KEY, CHAT_SYSTEM_PROMPT_KEY, CHAT_TOOLS_KEY } = await import('../mastra');
+    const { RequestContext } = await import('@mastra/core/request-context');
+    const mastra = await getMastra();
+    // 注册式 zenith-chat:模型链/提示词/工具经 requestContext 动态注入(每次调用独立)
+    const agent = mastra.getAgentById('zenith-chat' as never);
+    const requestContext = new RequestContext();
+    requestContext.set(CHAT_MODEL_CHAIN_KEY, buildModelChain(params.chain));
+    if (params.systemPrompt?.trim()) requestContext.set(CHAT_SYSTEM_PROMPT_KEY, params.systemPrompt);
+    if (params.tools && Object.keys(params.tools).length > 0) requestContext.set(CHAT_TOOLS_KEY, params.tools);
 
     armIdle();
     const output = await agent.stream(toModelMessages(params.messages) as never, {
+      requestContext,
       abortSignal: abort.signal,
       maxSteps: MAX_TOOL_ROUNDS + 1,
       ...(params.memory ? { memory: { thread: params.memory.thread, resource: params.memory.resource } } : {}),
@@ -229,16 +226,17 @@ export interface ChatOnceResult {
   tokensOutput: number;
 }
 
-/** 非流式一次性调用(标题生成 / 评测 / 报表解读等场景) */
+/** 非流式一次性调用(标题生成 / 评测 / 报表解读等场景;走注册式 zenith-chat,无记忆) */
 export async function chatOnce(params: ChatOnceParams): Promise<ChatOnceResult> {
-  const { Agent } = await loadMastraAgentModule();
-  const agent = new Agent({
-    id: 'zenith-chat-once',
-    name: 'Zenith Chat Once',
-    instructions: params.systemPrompt?.trim() || '你是一个乐于助人的智能助手。',
-    model: buildModelChain(params.chain),
-  });
+  const { getMastra, CHAT_MODEL_CHAIN_KEY, CHAT_SYSTEM_PROMPT_KEY } = await import('../mastra');
+  const { RequestContext } = await import('@mastra/core/request-context');
+  const mastra = await getMastra();
+  const agent = mastra.getAgentById('zenith-chat' as never);
+  const requestContext = new RequestContext();
+  requestContext.set(CHAT_MODEL_CHAIN_KEY, buildModelChain(params.chain));
+  if (params.systemPrompt?.trim()) requestContext.set(CHAT_SYSTEM_PROMPT_KEY, params.systemPrompt);
   const result = await agent.generate(toModelMessages(params.messages) as never, {
+    requestContext,
     maxSteps: 1,
     modelSettings: {
       ...params.modelSettings,

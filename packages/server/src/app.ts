@@ -38,6 +38,8 @@ import { ipAccessMiddleware } from './middleware/ip-access';
 import { maintenanceMiddleware } from './middleware/maintenance';
 import { authRateLimit, captchaRateLimit, pathBoundRateLimit, sensitiveRateLimit } from './middleware/rate-limit';
 import { requestTraceMiddleware } from './middleware/request-trace';
+import { authMiddleware } from './middleware/auth';
+import { guard } from './middleware/guard';
 import { ROUTE_DOMAINS } from './routes';
 import { licenseFeatureGate } from './lib/licensing';
 
@@ -176,6 +178,13 @@ export function createApp() {
       app.route(path, router);
     }
   }
+
+  // ─── Mastra 标准 API(Studio 后端):系统鉴权 + 权限门控后转发到懒加载子 app ──
+  app.use('/api/mastra/*', authMiddleware, guard({ permission: 'ai:studio:access' }));
+  app.all('/api/mastra/*', async (c) => {
+    const { mastraApiProxy } = await import('./lib/mastra/server');
+    return mastraApiProxy(c.req.raw);
+  });
 
   app.get('/metrics', printMetrics);
 

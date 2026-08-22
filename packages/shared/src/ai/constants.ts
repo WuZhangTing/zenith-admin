@@ -32,14 +32,3 @@ export const AI_COMMON_PROVIDERS: ReadonlyArray<{ id: string; label: string }> =
 export const AI_REASONING_LEVELS = ['provider-default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
 
 export type AiReasoningLevel = (typeof AI_REASONING_LEVELS)[number];
-
-export const AI_AGENT_STATUSES = ['private', 'pending', 'published', 'rejected'] as const;
-
-export type AiAgentStatus = (typeof AI_AGENT_STATUSES)[number];
-
-export const AI_AGENT_STATUS_LABELS: Record<AiAgentStatus, string> = {
-  private: '私有',
-  pending: '待审核',
-  published: '已上架',
-  rejected: '已驳回',
-};

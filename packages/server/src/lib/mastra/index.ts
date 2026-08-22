@@ -1,6 +1,7 @@
 import { config } from '../../config';
 import { getConfigValue } from '../system-config';
 import logger from '../logger';
+import type { Mastra } from '@mastra/core';
 import type { PostgresStore, PgVector } from '@mastra/pg';
 import type { Memory } from '@mastra/memory';
 import type { AiModelSource } from '../ai/mastra-models';
@@ -10,15 +11,21 @@ import type { AiModelSource } from '../ai/mastra-models';
  *
  * 职责边界(运行时全量 + 薄业务账本):
  * - Mastra storage(PostgreSQL 同库独立 `mastra` schema,首次使用自动建表):
- *   memory(上下文引擎)/ workflows(挂起恢复)/ traces(执行观测)等运行时域的权威;
+ *   memory(上下文引擎)/ workflows(挂起恢复)/ traces(执行观测)/
+ *   datasets & experiments(评测)等运行时域的权威;
  * - 业务账本(public schema,drizzle 管理)仍是 UI 渲染与审计/反馈/用量的权威。
  *
- * ⚠️ @mastra/pg、@mastra/memory 均为重依赖:全部惰性加载,禁止顶层静态 import 值。
+ * ⚠️ @mastra/* 均为重依赖:全部惰性加载,禁止顶层静态 import 值。
  * PostgresStore 内部使用 node-postgres 连接池(与 drizzle 的 postgres-js 各自独立),
  * 连接同一数据库;池上限独立配置,避免挤占业务连接。
  */
 
 const MASTRA_SCHEMA = 'mastra';
+
+/** 聊天 Agent 动态参数的 requestContext 键 */
+export const CHAT_MODEL_CHAIN_KEY = 'zenith-chat-model-chain';
+export const CHAT_SYSTEM_PROMPT_KEY = 'zenith-chat-system-prompt';
+export const CHAT_TOOLS_KEY = 'zenith-chat-tools';
 
 let storagePromise: Promise<PostgresStore> | null = null;
 
@@ -125,4 +132,111 @@ export function chatThreadId(conversationId: number): string {
 /** 用户 → Mastra resource 的确定性映射 */
 export function chatResourceId(userId: number): string {
   return `user:${userId}`;
+}
+
+/** 业务智能体(ai_agents)→ Mastra agent ID 的确定性映射 */
+export function bizAgentId(agentId: number): string {
+  return `agent-${agentId}`;
+}
+
+let mastraPromise: Promise<Mastra> | null = null;
+
+/**
+ * 注册式 Mastra 实例(进程内单例):
+ * - `zenith-chat`:聊天 Agent,模型链/提示词/工具经 requestContext 每次调用动态注入
+ * - `agent-{id}`:业务智能体(ai_agents),CRUD 时同步注册,可被实验评测与 Studio 调试
+ * - storage / vectors / observability(traces+metrics 自动采集,敏感数据自动脱敏)
+ */
+export function getMastra(): Promise<Mastra> {
+  mastraPromise ??= buildMastra().catch((err) => {
+    mastraPromise = null;
+    throw err;
+  });
+  return mastraPromise;
+}
+
+async function buildMastra(): Promise<Mastra> {
+  const [{ Mastra }, { Agent }, storage, vector] = await Promise.all([
+    import('@mastra/core/mastra'),
+    import('@mastra/core/agent'),
+    getMastraStorage(),
+    getMastraVector(),
+  ]);
+  const { Observability, MastraStorageExporter, SensitiveDataFilter } = await import('@mastra/observability');
+
+  const chatAgent = new Agent({
+    id: 'zenith-chat',
+    name: 'Zenith Chat',
+    instructions: ({ requestContext }) =>
+      (requestContext.get(CHAT_SYSTEM_PROMPT_KEY) as string | undefined)?.trim() || '你是一个乐于助人的智能助手。',
+    model: (({ requestContext }: { requestContext: { get: (k: string) => unknown } }) =>
+      requestContext.get(CHAT_MODEL_CHAIN_KEY)) as never,
+    tools: (({ requestContext }: { requestContext: { get: (k: string) => unknown } }) =>
+      requestContext.get(CHAT_TOOLS_KEY) ?? {}) as never,
+    memory: (() => getChatMemory()) as never,
+  });
+
+  const mastra = new Mastra({
+    agents: { 'zenith-chat': chatAgent },
+    storage: storage as never,
+    vectors: { default: vector as never },
+    observability: new Observability({
+      configs: {
+        default: {
+          serviceName: 'zenith-ai',
+          exporters: [new MastraStorageExporter()],
+          spanOutputProcessors: [new SensitiveDataFilter()],
+        },
+      },
+    }) as never,
+  });
+
+  // 业务智能体批量注册(失败不阻塞实例可用性;传入实例避免与 getMastra 互等死锁)
+  try {
+    const { registerAllBizAgents } = await import('../../services/ai/ai-agents.service');
+    await registerAllBizAgents(mastra);
+  } catch (err) {
+    logger.warn('[mastra] register biz agents failed', err);
+  }
+
+  // 编程式内置智能体(业务示例:Agent×Workflow 双向整合教学)
+  try {
+    const { registerDemoAgents } = await import('../../services/biz-demo/demo-agent');
+    await registerDemoAgents(mastra);
+  } catch (err) {
+    logger.warn('[mastra] register demo agents failed', err);
+  }
+
+  // ground-truth 打分器:与期望答案的词面重合度(0-1,无 LLM 成本、跨实验可比)
+  try {
+    const { createScorer } = await import('@mastra/core/evals');
+    const groundTruthScorer = createScorer({
+      id: 'ground-truth',
+      name: 'ground-truth',
+      description: '模型输出与期望答案(groundTruth)的词面重合度(0-1)',
+    }).generateScore(({ run }: { run: { output?: unknown; groundTruth?: unknown } }) => {
+      const textOf = (v: unknown): string => {
+        if (typeof v === 'string') return v;
+        if (v && typeof v === 'object' && 'text' in (v as Record<string, unknown>)) return String((v as { text: unknown }).text ?? '');
+        return JSON.stringify(v ?? '');
+      };
+      const output = textOf(run.output).toLowerCase();
+      const expected = textOf(run.groundTruth).toLowerCase().trim();
+      if (!expected) return 1;
+      if (!output) return 0;
+      // 以期望答案的字符 bigram 命中率近似重合度(对中英文均适用)
+      const grams = new Set<string>();
+      for (let i = 0; i < expected.length - 1; i++) grams.add(expected.slice(i, i + 2));
+      if (grams.size === 0) return output.includes(expected) ? 1 : 0;
+      let hit = 0;
+      for (const g of grams) if (output.includes(g)) hit++;
+      return Math.round((hit / grams.size) * 1000) / 1000;
+    });
+    mastra.addScorer(groundTruthScorer as never, 'ground-truth');
+  } catch (err) {
+    logger.warn('[mastra] register ground-truth scorer failed', err);
+  }
+
+  logger.info('[mastra] instance ready (agents registered)');
+  return mastra;
 }

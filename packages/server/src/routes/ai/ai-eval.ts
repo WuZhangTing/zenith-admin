@@ -7,159 +7,205 @@ import {
   commonErrorResponses,
   ok,
   okMsg,
-  IdParam,
   okBody,
 } from '../../lib/openapi-schemas';
-import { AiEvalSetDTO, AiEvalRunDTO, AsyncTaskDTO } from '../../lib/openapi-dtos';
+import { AiEvalDatasetDTO, AiEvalDatasetItemDTO, AiEvalExperimentDTO, AiEvalExperimentResultDTO } from '../../lib/openapi-dtos';
 import {
-  listEvalSets,
-  createEvalSet,
-  updateEvalSet,
-  deleteEvalSet,
-  listEvalRuns,
-  getEvalRun,
-  submitEvalRun,
-  deleteEvalRun,
+  listEvalDatasets,
+  createEvalDataset,
+  updateEvalDataset,
+  deleteEvalDataset,
+  listEvalItems,
+  addEvalItems,
+  deleteEvalItem,
+  runEvalExperiment,
+  listEvalExperiments,
+  getEvalExperimentResults,
 } from '../../services/ai/ai-eval.service';
-import { createAiEvalSetSchema, updateAiEvalSetSchema, runAiEvalSchema } from '@zenith/shared/ai';
+import { createAiEvalDatasetSchema, updateAiEvalDatasetSchema, addAiEvalItemsSchema, runAiExperimentSchema } from '@zenith/shared/ai';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const listSets = defineOpenAPIRoute({
+const DatasetIdParam = z.object({
+  id: z.string().min(1).openapi({ param: { name: 'id', in: 'path' }, example: 'ds-uuid' }),
+});
+
+const ItemParam = DatasetIdParam.extend({
+  itemId: z.string().min(1).openapi({ param: { name: 'itemId', in: 'path' }, example: 'item-uuid' }),
+});
+
+const ExperimentParam = DatasetIdParam.extend({
+  experimentId: z.string().min(1).openapi({ param: { name: 'experimentId', in: 'path' }, example: 'exp-uuid' }),
+});
+
+const list = defineOpenAPIRoute({
   route: createRoute({
     method: 'get',
-    path: '/sets',
+    path: '/',
     tags: ['AI'],
-    summary: '获取评测集列表',
+    summary: '评测数据集列表(Mastra Datasets)',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'ai:eval:list' })] as const,
-    responses: { ...commonErrorResponses, ...ok(z.array(AiEvalSetDTO), '评测集列表') },
+    responses: { ...commonErrorResponses, ...ok(z.array(AiEvalDatasetDTO), '数据集列表') },
   }),
-  handler: async (c) => c.json(okBody(await listEvalSets()), 200),
+  handler: async (c) => c.json(okBody(await listEvalDatasets()), 200),
 });
 
-const createSet = defineOpenAPIRoute({
+const create = defineOpenAPIRoute({
   route: createRoute({
     method: 'post',
-    path: '/sets',
+    path: '/',
     tags: ['AI'],
-    summary: '创建评测集',
+    summary: '创建评测数据集',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'ai:eval:manage', audit: { description: '创建 AI 评测集', module: '智能助手' } })] as const,
-    request: { body: { content: jsonContent(createAiEvalSetSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AiEvalSetDTO, '创建成功') },
+    middleware: [authMiddleware, guard({ permission: 'ai:eval:manage' })] as const,
+    request: { body: { content: jsonContent(createAiEvalDatasetSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(AiEvalDatasetDTO, '创建成功') },
   }),
-  handler: async (c) => c.json(okBody(await createEvalSet(c.req.valid('json')), '创建成功'), 200),
+  handler: async (c) => c.json(okBody(await createEvalDataset(c.req.valid('json')), '创建成功'), 200),
 });
 
-const updateSet = defineOpenAPIRoute({
+const update = defineOpenAPIRoute({
   route: createRoute({
     method: 'put',
-    path: '/sets/{id}',
+    path: '/{id}',
     tags: ['AI'],
-    summary: '更新评测集',
+    summary: '更新评测数据集',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'ai:eval:manage' })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateAiEvalSetSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AiEvalSetDTO, '更新成功') },
+    request: { params: DatasetIdParam, body: { content: jsonContent(updateAiEvalDatasetSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(AiEvalDatasetDTO, '更新成功') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    return c.json(okBody(await updateEvalSet(id, c.req.valid('json')), '更新成功'), 200);
+    return c.json(okBody(await updateEvalDataset(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
 
-const removeSet = defineOpenAPIRoute({
+const remove = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete',
-    path: '/sets/{id}',
+    path: '/{id}',
     tags: ['AI'],
-    summary: '删除评测集（级联删除运行记录）',
+    summary: '删除评测数据集',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'ai:eval:manage', audit: { description: '删除 AI 评测集', module: '智能助手' } })] as const,
-    request: { params: IdParam },
+    middleware: [authMiddleware, guard({ permission: 'ai:eval:manage' })] as const,
+    request: { params: DatasetIdParam },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    await deleteEvalSet(id);
+    await deleteEvalDataset(id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
 
-const runEval = defineOpenAPIRoute({
+const items = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/{id}/items',
+    tags: ['AI'],
+    summary: '数据集条目列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:eval:list' })] as const,
+    request: { params: DatasetIdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(AiEvalDatasetItemDTO), '条目列表') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await listEvalItems(id)), 200);
+  },
+});
+
+const addItems = defineOpenAPIRoute({
   route: createRoute({
     method: 'post',
-    path: '/sets/{id}/run',
+    path: '/{id}/items',
     tags: ['AI'],
-    summary: '运行评测（任务中心异步执行）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'ai:eval:manage', audit: { description: '运行 AI 评测', module: '智能助手' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(runAiEvalSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(z.object({ run: AiEvalRunDTO, task: AsyncTaskDTO }), '任务已提交') },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await submitEvalRun(id, c.req.valid('json')), '评测任务已提交'), 200);
-  },
-});
-
-const RunsQuery = z.object({
-  setId: z.coerce.number().int().positive().optional().openapi({ description: '按评测集过滤' }),
-});
-
-const listRuns = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/runs',
-    tags: ['AI'],
-    summary: '获取评测运行列表（最近 100 次）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'ai:eval:list' })] as const,
-    request: { query: RunsQuery },
-    responses: { ...commonErrorResponses, ...ok(z.array(AiEvalRunDTO), '运行列表') },
-  }),
-  handler: async (c) => {
-    const { setId } = c.req.valid('query');
-    return c.json(okBody(await listEvalRuns(setId)), 200);
-  },
-});
-
-const runDetail = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get',
-    path: '/runs/{id}',
-    tags: ['AI'],
-    summary: '获取评测运行详情（含逐条结果）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'ai:eval:list' })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AiEvalRunDTO, '运行详情') },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    return c.json(okBody(await getEvalRun(id)), 200);
-  },
-});
-
-const removeRun = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete',
-    path: '/runs/{id}',
-    tags: ['AI'],
-    summary: '删除评测运行记录',
+    summary: '批量添加数据集条目',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'ai:eval:manage' })] as const,
-    request: { params: IdParam },
+    request: { params: DatasetIdParam, body: { content: jsonContent(addAiEvalItemsSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(z.array(AiEvalDatasetItemDTO), '添加成功') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await addEvalItems(id, c.req.valid('json')), '添加成功'), 200);
+  },
+});
+
+const removeItem = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete',
+    path: '/{id}/items/{itemId}',
+    tags: ['AI'],
+    summary: '删除数据集条目',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:eval:manage' })] as const,
+    request: { params: ItemParam },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    const { id } = c.req.valid('param');
-    await deleteEvalRun(id);
+    const { id, itemId } = c.req.valid('param');
+    await deleteEvalItem(id, itemId);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });
 
-router.openapiRoutes([listSets, createSet, updateSet, removeSet, runEval, listRuns, runDetail, removeRun] as const);
+const runExperiment = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post',
+    path: '/{id}/experiments',
+    tags: ['AI'],
+    summary: '发起实验(异步执行,经实验列表轮询状态)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:eval:manage', audit: { description: '发起评测实验', module: '智能助手' } })] as const,
+    request: { params: DatasetIdParam, body: { content: jsonContent(runAiExperimentSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(z.object({ experimentId: z.string(), name: z.string() }).openapi('AiEvalExperimentStarted'), '已发起') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await runEvalExperiment(id, c.req.valid('json')), '实验已发起'), 200);
+  },
+});
+
+const experiments = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/{id}/experiments',
+    tags: ['AI'],
+    summary: '实验列表(含各打分器平均分,可横向对比)',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:eval:list' })] as const,
+    request: { params: DatasetIdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(AiEvalExperimentDTO), '实验列表') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await listEvalExperiments(id)), 200);
+  },
+});
+
+const experimentResults = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/{id}/experiments/{experimentId}',
+    tags: ['AI'],
+    summary: '实验详情与逐条结果',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:eval:list' })] as const,
+    request: { params: ExperimentParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(z.object({ experiment: AiEvalExperimentDTO, results: z.array(AiEvalExperimentResultDTO) }).openapi('AiEvalExperimentDetail'), '实验结果'),
+    },
+  }),
+  handler: async (c) => {
+    const { id, experimentId } = c.req.valid('param');
+    return c.json(okBody(await getEvalExperimentResults(id, experimentId)), 200);
+  },
+});
+
+router.openapiRoutes([list, create, update, remove, items, addItems, removeItem, runExperiment, experiments, experimentResults] as const);
 
 export default router;

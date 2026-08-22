@@ -254,9 +254,7 @@ export type AiKbChunkRow = typeof aiKbChunks.$inferSelect;
 
 // ─── P3：自定义智能体 ─────────────────────────────────────────────────────────
 
-export const aiAgentStatusEnum = pgEnum('ai_agent_status', ['private', 'pending', 'published', 'rejected']);
-
-/** 自定义智能体（预设提示词 + 模型 + 知识库 + 工具集的组合） */
+/** 自定义智能体(Mastra AgentConfig 形状:instructions + model + tools + memory 组合;创建即用) */
 export const aiAgents = pgTable('ai_agents', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -264,12 +262,16 @@ export const aiAgents = pgTable('ai_agents', {
   description: varchar('description', { length: 300 }),
   /** 头像 emoji */
   avatar: varchar('avatar', { length: 20 }).notNull().default('🤖'),
-  systemPrompt: text('system_prompt').notNull(),
+  /** Agent 指令(Mastra instructions) */
+  instructions: text('instructions').notNull(),
   /** 指定服务商配置（null = 系统默认配置），软引用 */
   configId: integer('config_id'),
   /** 指定模型（null = 配置默认模型） */
   model: varchar('model', { length: 100 }),
-  temperature: varchar('temperature', { length: 10 }),
+  /** 模型调用设置(temperature / maxOutputTokens 等,Mastra ModelSettings 子集) */
+  modelSettings: jsonb('model_settings').$type<AiModelSettings>(),
+  /** 工具循环最大步数(null = 系统默认) */
+  maxSteps: integer('max_steps'),
   /** 绑定知识库（软引用，删除知识库时置空） */
   knowledgeBaseId: integer('knowledge_base_id'),
   /** 启用的工具名集合（内置 + HTTP 工具） */
@@ -278,10 +280,6 @@ export const aiAgents = pgTable('ai_agents', {
   openingMessage: text('opening_message'),
   /** 建议问题 */
   suggestedQuestions: text('suggested_questions').array(),
-  /** private 私有 / pending 待审核 / published 已上架 / rejected 已驳回 */
-  status: aiAgentStatusEnum('status').notNull().default('private'),
-  /** 市场克隆来源（软引用） */
-  clonedFromId: integer('cloned_from_id'),
   usageCount: integer('usage_count').notNull().default(0),
   isEnabled: boolean('is_enabled').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -338,54 +336,4 @@ export const aiPromptTemplateVersions = pgTable('ai_prompt_template_versions', {
 
 export type AiPromptTemplateVersionRow = typeof aiPromptTemplateVersions.$inferSelect;
 
-// ─── P3：评测集与评测运行 ─────────────────────────────────────────────────────
-
-/** 评测集条目 */
-export interface AiEvalItem {
-  question: string;
-  /** 期望要点（可选，用于人工对照） */
-  expected?: string;
-}
-
-export const aiEvalSets = pgTable('ai_eval_sets', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 100 }).notNull(),
-  description: varchar('description', { length: 300 }),
-  items: jsonb('items').$type<AiEvalItem[]>().notNull().default([]),
-  ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
-
-export type AiEvalSetRow = typeof aiEvalSets.$inferSelect;
-
-/** 单条评测结果 */
-export interface AiEvalResult {
-  question: string;
-  expected?: string;
-  answer: string;
-  durationMs: number;
-  tokensInput: number;
-  tokensOutput: number;
-  error?: string;
-}
-
-export const aiEvalRuns = pgTable('ai_eval_runs', {
-  id: serial('id').primaryKey(),
-  setId: integer('set_id').notNull().references(() => aiEvalSets.id, { onDelete: 'cascade' }),
-  /** 使用的服务商配置（软引用） */
-  configId: integer('config_id'),
-  model: varchar('model', { length: 100 }).notNull(),
-  /** running / done / failed */
-  status: varchar('status', { length: 20 }).notNull().default('running'),
-  results: jsonb('results').$type<AiEvalResult[]>(),
-  avgDurationMs: integer('avg_duration_ms'),
-  totalTokens: integer('total_tokens'),
-  createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
-  index('ai_eval_runs_created_at_idx').on(t.createdAt),
-  index('ai_eval_runs_set_idx').on(t.setId),
-]);
-
-export type AiEvalRunRow = typeof aiEvalRuns.$inferSelect;
+// ─── P3:评测(Mastra Datasets + Experiments,mastra schema 承载,业务表已移除) ──
