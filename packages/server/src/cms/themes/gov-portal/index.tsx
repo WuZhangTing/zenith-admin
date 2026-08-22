@@ -24,7 +24,7 @@ a { color: inherit; text-decoration: none; }
 a:hover { color: var(--primary); }
 img { max-width: 100%; }
 .w1200 { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
-.masthead { background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 6%, #fff), #fff); border-bottom: 3px solid var(--primary); }
+.masthead { background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 6%, #fff), #fff); }
 .masthead .w1200 { display: flex; align-items: center; justify-content: space-between; padding-top: 26px; padding-bottom: 22px; gap: 24px; flex-wrap: wrap; }
 .masthead-brand { display: flex; align-items: center; gap: 14px; }
 .masthead-brand img { height: 56px; }
@@ -34,9 +34,9 @@ img { max-width: 100%; }
 .masthead-search input { border: 1px solid var(--border); border-right: none; border-radius: 4px 0 0 4px; padding: 9px 14px; font-size: 14px; width: 240px; outline: none; }
 .masthead-search button { background: var(--primary); color: #fff; border: none; border-radius: 0 4px 4px 0; padding: 0 20px; font-size: 14px; cursor: pointer; }
 .main-nav { background: var(--primary); }
-.main-nav .w1200 { display: flex; }
-.main-nav > .w1200 > .nav-item > a { color: #fff; font-size: 16px; padding: 13px 26px; white-space: nowrap; display: block; }
-.nav-item { position: relative; }
+.main-nav .w1200 { display: flex; align-items: stretch; }
+.main-nav > .w1200 > .nav-item > a { color: #fff; font-size: 16px; height: 52px; line-height: 52px; padding: 0 26px; white-space: nowrap; display: block; }
+.nav-item { position: relative; flex-shrink: 0; }
 .nav-item > a.active, .nav-item:hover > a { background: rgba(0,0,0,.18); color: #fff; }
 .nav-item .caret { font-size: 10px; margin-left: 6px; opacity: .75; }
 .nav-sub { display: none; position: absolute; top: 100%; left: 0; min-width: 200px; background: #fff; border: 1px solid var(--border); border-top: 2px solid var(--primary); box-shadow: 0 6px 18px rgba(0,0,0,.12); z-index: 30; padding: 6px 0; }
@@ -64,9 +64,10 @@ main { min-height: 60vh; padding: 22px 0 44px; }
 .gov-list li time { color: var(--text-2); font-size: 13px; flex-shrink: 0; }
 .gov-list .top-badge { display: inline-block; font-size: 11px; color: #fff; background: var(--primary); border-radius: 3px; padding: 0 5px; margin-right: 6px; vertical-align: 1px; }
 .svc-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
-.svc-grid a { display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 6px; padding: 18px 8px 14px; font-size: 14px; background: var(--bg); }
-.svc-grid a:hover { border-color: var(--primary); color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
-.svc-grid .svc-ico { width: 40px; height: 40px; border-radius: 50%; background: color-mix(in srgb, var(--primary) 10%, #fff); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; }
+.svc-grid a { display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 6px; padding: 18px 8px 14px; font-size: 14px; background: var(--bg); transition: all .18s ease; }
+.svc-grid a:hover { border-color: var(--primary); color: var(--primary); box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--primary) 30%, rgba(0,0,0,.1)); transform: translateY(-2px); }
+.svc-grid .svc-ico { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 14%, #fff), color-mix(in srgb, var(--primary) 6%, #fff)); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 22%, transparent); transition: all .18s ease; }
+.svc-grid a:hover .svc-ico { background: var(--primary); color: #fff; }
 .content-list { display: flex; flex-direction: column; }
 .content-item { display: flex; justify-content: space-between; gap: 16px; padding: 13px 2px; border-bottom: 1px dashed var(--border); font-size: 15px; }
 .content-item a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -95,7 +96,7 @@ main { min-height: 60vh; padding: 22px 0 44px; }
 .pagination .current { background: var(--primary); border-color: var(--primary); color: #fff; }
 .empty { text-align: center; color: var(--text-2); padding: 44px 0; }
 .search-result mark { background: #ffe9a8; color: #8a4b00; padding: 0 1px; }
-.gov-footer { background: #2d3138; color: #b6bcc6; padding: 26px 0; font-size: 13px; }
+.gov-footer { background: linear-gradient(180deg, #30343b, #272b31); color: #b6bcc6; padding: 28px 0 26px; font-size: 13px; border-top: 3px solid var(--primary); line-height: 2; }
 .gov-footer a { color: #b6bcc6; }
 .gov-footer a:hover { color: #fff; }
 .gov-footer .links { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; }

@@ -445,7 +445,12 @@ function IndexBody({ ctx, channelBlocks }: { ctx: CmsHomeContext; channelBlocks:
             ? <a href={bannerLink} target="_blank" rel="noopener noreferrer"><img src={bannerImage} alt="banner" /></a>
             : <img src={bannerImage} alt="banner" />}
         </div>
-      ) : null}
+      ) : (
+        <div className="home-hero">
+          <h1>{ctx.site.name}</h1>
+          {ctx.site.description ? <p>{ctx.site.description}</p> : null}
+        </div>
+      )}
       <AdSlot ctx={ctx} code="home-ad" />
       <div className="home-grid">
         <section>
@@ -474,24 +479,24 @@ function IndexBody({ ctx, channelBlocks }: { ctx: CmsHomeContext; channelBlocks:
         <aside>
           {ctx.homeSidebar ? <div dangerouslySetInnerHTML={{ __html: renderCmsWidgetHtml(ctx.homeSidebar) }} /> : null}
           {ctx.recommended.length > 0 ? (
-            <>
+            <div className="side-card">
               <h2 className="section-title">推荐阅读</h2>
               <ul className="side-list">
                 {ctx.recommended.map((item) => (
                   <li key={item.id}><a href={item.url}>{item.title}</a></li>
                 ))}
               </ul>
-            </>
+            </div>
           ) : null}
           {showHot && ctx.hot.length > 0 ? (
-            <>
+            <div className="side-card">
               <h2 className="section-title">热门排行</h2>
-              <ul className="side-list">
+              <ul className="side-list ranked">
                 {ctx.hot.map((item) => (
                   <li key={item.id}><a href={item.url}>{item.title}</a><time>{item.viewCount} 阅读</time></li>
                 ))}
               </ul>
-            </>
+            </div>
           ) : null}
         </aside>
       </div>
