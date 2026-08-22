@@ -158,7 +158,8 @@ async function resolveFrozenContext(input: CreateReportChatbiSessionInput): Prom
     throw new HTTPException(400, { message: 'ChatBI 仅支持 SQL 类型数据源' });
   }
   const metadata = datasource.type === 'sql'
-    ? await loadSchemaMeta()
+    // 数据集上下文：其 SQL 已通过治理审核，放行引用到的敏感表（如 users）的列结构（敏感列仍过滤）
+    ? await loadSchemaMeta(datasetTables ? { forceIncludeTables: datasetTables } : undefined)
     : isExternalDbType(datasource.type)
       ? await loadExternalSchemaMeta(datasource.type, (datasource.config ?? {}) as ReportExternalDbConfig)
       : new Map<string, ReportMetaColumn[]>();

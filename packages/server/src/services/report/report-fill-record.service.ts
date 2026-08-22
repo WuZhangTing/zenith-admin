@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { reportFillRecords, reportFillTemplates } from '../../db/schema';
+import { reportFillRecords, reportFillTemplates, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
@@ -25,15 +25,41 @@ import {
 
 type RecordRow = typeof reportFillRecords.$inferSelect;
 
-export function mapReportFillRecord(row: RecordRow): ReportFillRecord {
+export function mapReportFillRecord(
+  row: RecordRow,
+  extras?: { templateName?: string | null; submitterName?: string | null },
+): ReportFillRecord {
   return {
     ...row,
+    templateName: extras?.templateName ?? null,
+    submitterName: extras?.submitterName ?? null,
     submittedAt: row.submittedAt ? formatDateTime(row.submittedAt) : null,
     reviewedAt: row.reviewedAt ? formatDateTime(row.reviewedAt) : null,
     syncedAt: row.syncedAt ? formatDateTime(row.syncedAt) : null,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
+}
+
+/** 列表行选择：join 模板名与提交人昵称（列表展示用，避免前端显示裸 ID） */
+function selectRecordListRows() {
+  return db
+    .select({
+      record: reportFillRecords,
+      templateName: reportFillTemplates.name,
+      submitterNickname: users.nickname,
+      submitterUsername: users.username,
+    })
+    .from(reportFillRecords)
+    .leftJoin(reportFillTemplates, eq(reportFillRecords.templateId, reportFillTemplates.id))
+    .leftJoin(users, eq(reportFillRecords.submitterId, users.id));
+}
+
+function mapRecordListRow(r: { record: RecordRow; templateName: string | null; submitterNickname: string | null; submitterUsername: string | null }): ReportFillRecord {
+  return mapReportFillRecord(r.record, {
+    templateName: r.templateName,
+    submitterName: r.submitterNickname ?? r.submitterUsername,
+  });
 }
 
 async function canReviewFillRecords(): Promise<boolean> {
@@ -92,11 +118,11 @@ export async function listMyReportFillRecords(query: {
   }
   const [total, rows] = await Promise.all([
     db.$count(reportFillRecords, where),
-    db.select().from(reportFillRecords).where(where)
+    selectRecordListRows().where(where)
       .orderBy(desc(reportFillRecords.updatedAt))
       .limit(pageSize).offset(pageOffset(page, pageSize)),
   ]);
-  return { list: rows.map(mapReportFillRecord), total, page, pageSize };
+  return { list: rows.map(mapRecordListRow), total, page, pageSize };
 }
 
 export async function listAdminReportFillRecords(query: {
@@ -119,11 +145,11 @@ export async function listAdminReportFillRecords(query: {
   );
   const [total, rows] = await Promise.all([
     db.$count(reportFillRecords, where),
-    db.select().from(reportFillRecords).where(where)
+    selectRecordListRows().where(where)
       .orderBy(desc(reportFillRecords.updatedAt))
       .limit(pageSize).offset(pageOffset(page, pageSize)),
   ]);
-  return { list: rows.map(mapReportFillRecord), total, page, pageSize };
+  return { list: rows.map(mapRecordListRow), total, page, pageSize };
 }
 
 export async function getReportFillRecord(id: number): Promise<ReportFillRecord> {

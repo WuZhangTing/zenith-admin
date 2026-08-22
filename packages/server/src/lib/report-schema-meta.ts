@@ -26,26 +26,39 @@ export function isSensitiveTable(table: string): boolean {
 const CACHE_TTL_MS = 5 * 60_000;
 let metaCache: { byTable: Map<string, ReportMetaColumn[]>; expire: number } | null = null;
 
-/** 读取 public schema 全部表/列（脱敏 + 5 分钟缓存） */
-export async function loadSchemaMeta(): Promise<Map<string, ReportMetaColumn[]>> {
+/**
+ * 读取 public schema 全部表/列（列级脱敏 + 5 分钟缓存）。
+ *
+ * 默认过滤敏感表；`forceIncludeTables` 可放行指定敏感表（仍剔除敏感列）——
+ * 供 ChatBI 数据集上下文使用：数据集 SQL 已通过治理审核，其引用的表（如 users）
+ * 需要暴露列结构供 NL2SQL 生成查询，密码/密钥等敏感列仍然不可见。
+ */
+export async function loadSchemaMeta(opts?: { forceIncludeTables?: Iterable<string> }): Promise<Map<string, ReportMetaColumn[]>> {
   if (config.multiTenantMode && !isPlatformAdmin(currentUser())) {
     throw new HTTPException(403, { message: '多租户模式下仅平台超级管理员可读取内置主库元数据' });
   }
-  if (metaCache && metaCache.expire > Date.now()) return metaCache.byTable;
-  const rows = (await db.execute(sql.raw(
-    `SELECT table_name, column_name, data_type FROM information_schema.columns
-     WHERE table_schema = 'public' AND table_name NOT LIKE 'drizzle%'
-     ORDER BY table_name, ordinal_position`,
-  ))) as unknown as { table_name: string; column_name: string; data_type: string }[];
-  const byTable = new Map<string, ReportMetaColumn[]>();
-  for (const r of rows ?? []) {
-    if (isSensitiveTable(r.table_name)) continue;
-    if (SENSITIVE_COLUMN_RE.test(r.column_name)) continue;
-    if (!byTable.has(r.table_name)) byTable.set(r.table_name, []);
-    byTable.get(r.table_name)!.push({ name: r.column_name, type: r.data_type });
+  if (!metaCache || metaCache.expire <= Date.now()) {
+    const rows = (await db.execute(sql.raw(
+      `SELECT table_name, column_name, data_type FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name NOT LIKE 'drizzle%'
+       ORDER BY table_name, ordinal_position`,
+    ))) as unknown as { table_name: string; column_name: string; data_type: string }[];
+    // 缓存全部表（列已脱敏），敏感表过滤在返回视图做，便于 forceIncludeTables 精准放行
+    const byTable = new Map<string, ReportMetaColumn[]>();
+    for (const r of rows ?? []) {
+      if (SENSITIVE_COLUMN_RE.test(r.column_name)) continue;
+      if (!byTable.has(r.table_name)) byTable.set(r.table_name, []);
+      byTable.get(r.table_name)!.push({ name: r.column_name, type: r.data_type });
+    }
+    metaCache = { byTable, expire: Date.now() + CACHE_TTL_MS };
   }
-  metaCache = { byTable, expire: Date.now() + CACHE_TTL_MS };
-  return byTable;
+  const force = new Set([...(opts?.forceIncludeTables ?? [])].map((t) => t.split('.').at(-1)!.toLowerCase()));
+  const view = new Map<string, ReportMetaColumn[]>();
+  for (const [table, columns] of metaCache.byTable) {
+    if (isSensitiveTable(table) && !force.has(table.toLowerCase())) continue;
+    view.set(table, columns);
+  }
+  return view;
 }
 
 /** 可视化建模：可用表清单 */

@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { abortSubmit } from '@/lib/abort-submit';
+import { ApiError } from '@/lib/query';
+import { showRequestErrorToast } from '@/utils/request-toast';
 
 /**
  * 新增/编辑弹窗的状态与提交编排。
@@ -235,7 +237,16 @@ export function useEditModal<TRecord extends { id: number }, TValues = Partial<T
     }
     const ctx: EditContext<TRecord> = { editing, isEdit };
     const payload = beforeSave ? await beforeSave(values, ctx) : (values as unknown as TPayload);
-    const saved = await save.mutateAsync({ id: editingRecord?.id, values: payload });
+    let saved: TRecord;
+    try {
+      saved = await save.mutateAsync({ id: editingRecord?.id, values: payload });
+    } catch (err) {
+      // silent mutation 的业务错误兜底提示：showRequestErrorToast 自带同内容去重，
+      // 非 silent 场景 http 层已弹过同文案时这里会被丢弃，不会出现双 Toast
+      if (err instanceof ApiError) showRequestErrorToast(err.message);
+      // 抛出以保持弹窗打开并让确定按钮退出 loading（其余真错误由全局兜底处理）
+      abortSubmit('save-failed');
+    }
     // successMessage 返回 null 表示调用方另有更强反馈，此处不弹提示
     const message = successMessage ? successMessage(ctx) : isEdit ? '更新成功' : '创建成功';
     if (message) Toast.success(message);
