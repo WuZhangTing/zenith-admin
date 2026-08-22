@@ -1559,7 +1559,8 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   gap: 8px;
   min-width: 0;
   flex: 0 1 auto;
-  max-width: min(280px, calc(50% - 340px));
+  /* 上限避开绝对居中的步骤导航；下限保证窄窗口下仍能看到若干字符而不是缩成省略号 */
+  max-width: min(320px, max(96px, calc(50% - 340px)));
 }
 
 .fd-toolbar__title > * {

@@ -801,7 +801,8 @@ export default function WorkflowDesignerPage({
 
         <div className="fd-toolbar__title">
           <Tooltip content={isNew ? '新建流程' : (metaName || definition?.name || '')} position="bottom">
-            <Typography.Title heading={6} style={{ margin: 0 }} ellipsis={{ showTooltip: false }}>
+            {/* 纯 CSS 截断（.fd-toolbar__title > *）：Semi 的 JS ellipsis 在工具栏宽度变化时测量不可靠，会把标题截到一个字且不随变宽恢复 */}
+            <Typography.Title heading={6} style={{ margin: 0 }}>
               {isNew ? '新建流程' : (metaName || definition?.name || '')}
             </Typography.Title>
           </Tooltip>
