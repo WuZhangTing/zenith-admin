@@ -8,6 +8,7 @@ import { defaultTheme } from './default';
 import { docsTheme } from './docs';
 import { govPortalTheme } from './gov-portal';
 import { magazineTheme } from './magazine';
+import { newsPortalTheme } from './news-portal';
 
 /**
  * 主题注册表：新增主题时在 themes/{code}/ 下实现 CmsTheme 接口并在此登记。
@@ -18,6 +19,7 @@ const themes = new Map<string, CmsTheme>([
   [docsTheme.code, docsTheme],
   [govPortalTheme.code, govPortalTheme],
   [magazineTheme.code, magazineTheme],
+  [newsPortalTheme.code, newsPortalTheme],
 ]);
 
 // 回退告警去重（同一失效引用只记一次，避免高频渲染刷日志）
