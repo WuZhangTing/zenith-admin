@@ -195,6 +195,11 @@ export interface CmsBaseContext {
   langAlternates: { language: string; name: string; url: string; current: boolean }[];
   /** 搭建页受众渲染上下文；仅 dynamic=true 时使用 Bearer 可选会员身份二次渲染。 */
   audience: { dynamic: boolean; member: boolean };
+  /**
+   * 主题样式资产（渲染管线装配）：正式渲染输出外链 cssHref（/_assets/theme.{hash}.css，
+   * immutable 缓存）；预览渲染内联 inlineCss 保证改动即时可见。SeoHead 统一消费。
+   */
+  assets: { cssHref: string | null; inlineCss: string | null; darkMode: 'auto' | 'light' | 'dark' };
 }
 
 export interface CmsHomeContext extends CmsBaseContext {
@@ -413,6 +418,8 @@ export interface CmsTheme {
   extraDetailTemplates?: Record<string, CmsTemplateVariant<CmsDetailContext>>;
   /** 主题参数声明：后台「主题参数」面板按此渲染表单，值存 settings.themeConfig，模板经 site.themeConfig 消费 */
   settingsSchema?: CmsThemeSettingField[];
+  /** 暗色模式 CSS 变量组（如 '--text:#e6edf3; --bg:#0d1117;'）；声明后站点可启用暗色/跟随系统 */
+  darkVars?: string;
   /** 主题可放置页面部件的位置；第一期仅支持单值 home.sidebar。 */
   widgetSlots?: {
     key: 'home.sidebar';

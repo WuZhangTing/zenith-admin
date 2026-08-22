@@ -8,7 +8,8 @@ import type { CmsHomeContext, CmsHomeTemplateDefinition, CmsHomeTemplateHandle, 
 import type { ComponentType, ReactNode } from 'react';
 
 export type { CmsThemeDataApi, CmsThemeContentCollection, CmsThemeContentQuery, CmsModelFieldValue } from './types';
-export { ModelFieldTable, MODEL_FIELD_TABLE_STYLES } from './_shared';
+export { ModelFieldTable } from './_shared';
+export { loadThemeStylesheet, buildSiteThemeCss } from './theme-css';
 
 /**
  * 定义带声明式取数的首页模板：

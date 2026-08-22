@@ -13,6 +13,10 @@ import type {
   CmsThemeDataApi, CmsThemeContentCollection,
 } from '../../cms/themes/types';
 import { isHomeTemplateDefinition } from '../../cms/themes/sdk';
+import { buildSiteThemeCss } from '../../cms/themes/theme-css';
+import { resolveStaticFile } from './cms-static-path';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { buildCmsModelFieldValues, buildCmsListModelFieldValues, loadCmsListModelFieldDefs, type CmsListModelFieldDefs } from './cms-model-field-values';
 import { listCmsChannelTree } from './cms-channels.service';
 import { channelUrl, tagUrl, contentUrl, customPageUrl, type CmsUrlChannel } from './cms-urls';
@@ -181,12 +185,13 @@ export function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathFo
 }
 
 async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number): Promise<CmsBaseContext> {
-  const [tree, friendLinks, friendLinkGroups, ads, langAlternates] = await Promise.all([
+  const [tree, friendLinks, friendLinkGroups, ads, langAlternates, assets] = await Promise.all([
     listCmsChannelTree({ siteId: site.id, status: 'enabled' }, { skipAccessCheck: true }),
     listEnabledFriendLinks(site.id),
     listEnabledFriendLinkGroups(site.id),
     getActiveAds(site.id),
     buildLangAlternates(site),
+    resolveThemeAssets(site, baseUrl),
   ]);
   const analyticsSiteKey = (site.settings as Record<string, unknown> | null)?.analyticsSiteKey;
   // 站点 logo/favicon/主题配置、广告、友链都以素材句柄存储，
@@ -220,7 +225,46 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
       : null,
     langAlternates,
     audience: { dynamic: false, member: false },
+    assets,
   });
+}
+
+// ─── 主题样式资产 ─────────────────────────────────────────────────────────────
+
+/**
+ * 确保站点主题 CSS 资产已写盘（_assets/theme.{hash}.css），返回当前指纹与内容。
+ * 渲染管线与前台 _assets 路由共用：文件缺失即补写自愈（fs.access 为 stat 级开销）。
+ */
+export async function ensureSiteThemeCssAsset(site: CmsSiteRow): Promise<{ relPath: string; hash: string; css: string; darkMode: 'auto' | 'light' | 'dark' }> {
+  const theme = getBuiltinThemeFallback(site.theme);
+  const result = buildSiteThemeCss(theme, site.settings as Record<string, unknown> | null);
+  const relPath = `_assets/theme.${result.hash}.css`;
+  const abs = resolveStaticFile(site.code, relPath);
+  if (abs) {
+    try {
+      await fs.access(abs);
+    } catch {
+      await fs.mkdir(path.dirname(abs), { recursive: true });
+      // 同 hash 内容恒等，并发写同名文件无害
+      await fs.writeFile(abs, result.css, 'utf8');
+    }
+  }
+  return { relPath, hash: result.hash, css: result.css, darkMode: result.darkMode };
+}
+
+/**
+ * 主题样式资产装配：预览路径内联（改主题/参数即时可见、不落盘），
+ * 正式渲染确保指纹资产落盘并输出外链。
+ */
+async function resolveThemeAssets(site: CmsSiteRow, baseUrl: string): Promise<CmsBaseContext['assets']> {
+  const isPreview = baseUrl !== '';
+  if (isPreview) {
+    const theme = getBuiltinThemeFallback(site.theme);
+    const result = buildSiteThemeCss(theme, site.settings as Record<string, unknown> | null);
+    return { cssHref: null, inlineCss: result.css, darkMode: result.darkMode };
+  }
+  const asset = await ensureSiteThemeCssAsset(site);
+  return { cssHref: `${baseUrl}/${asset.relPath}`, inlineCss: null, darkMode: asset.darkMode };
 }
 
 /**

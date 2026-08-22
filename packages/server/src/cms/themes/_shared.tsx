@@ -1,32 +1,12 @@
 /**
- * 主题公共件：`default` 与 `docs` 两套主题（以及后续新增主题）共用的
- * SEO head、暗色主题脚本、埋点 beacon、分页与面包屑。
+ * 主题公共件：全部主题共用的 SEO head、暗色主题脚本、埋点 beacon、分页与面包屑。
  *
- * 这些片段与主题视觉无关（分页 / 面包屑只输出语义结构，样式由各主题 CSS 决定），
- * 此前在两套主题里各存一份，SEO 字段一旦新增就只有一套主题吃到。
+ * 这些片段与主题视觉无关（分页 / 面包屑只输出语义结构，样式由各主题 styles.css 决定）。
+ * 主题样式表装配（base.css + 主题 css + 站点覆盖）见 theme-css.ts，
+ * SeoHead 统一消费渲染管线注入的 ctx.assets（正式外链 / 预览内联）。
  */
 import type { ReactNode } from 'react';
 import type { CmsBaseContext, CmsBreadcrumb, CmsModelFieldValue, CmsPagination } from './types';
-
-/** 主题参数（站点 settings）：主色 / 暗色模式；`darkVars` 由各主题给出自己的暗色变量组 */
-export function buildThemeOverrides(
-  settings: Record<string, unknown>,
-  darkVars: string,
-): { css: string; darkMode: 'auto' | 'light' | 'dark' } {
-  const primary = typeof settings.themePrimary === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(settings.themePrimary)
-    ? settings.themePrimary
-    : null;
-  const darkMode = settings.themeDark === 'dark' || settings.themeDark === 'auto' ? settings.themeDark : 'light';
-  let css = '';
-  if (primary) css += `:root { --primary: ${primary}; }\n`;
-  if (darkMode !== 'light') {
-    css += `html[data-theme="dark"] { ${darkVars} }\n`;
-    if (darkMode === 'auto') {
-      css += `@media (prefers-color-scheme: dark) { html:not([data-theme="light"]) { ${darkVars} } }\n`;
-    }
-  }
-  return { css, darkMode };
-}
 
 /** 暗色初始化脚本（head 内先行执行防闪烁）+ 切换按钮事件委托 */
 export const THEME_TOGGLE_SCRIPT = `(function(){try{
@@ -53,9 +33,6 @@ if(C){navigator.sendBeacon('/api/public/cms/view',new Blob([JSON.stringify({cont
 
 export interface SeoHeadProps {
   ctx: CmsBaseContext;
-  /** 主题 CSS（基础样式 + buildThemeOverrides 产出的变量覆盖） */
-  css: string;
-  darkMode: 'auto' | 'light' | 'dark';
   /** 是否输出 hreflang 备用语言链接（仅多语言站点主题需要） */
   langAlternates?: boolean;
   /** 主题追加的 head 节点（额外 preload / 第三方脚本等） */
@@ -65,10 +42,11 @@ export interface SeoHeadProps {
 /**
  * 完整 `<head>`：TDK + Open Graph + Twitter Card + JSON-LD + 站点图标 + 主题样式与暗色脚本。
  *
- * 三级 TDK 覆盖与各 SEO 字段的取值已在渲染上下文（`ctx.seo`）算好，这里只负责输出。
+ * 三级 TDK 覆盖与各 SEO 字段的取值已在渲染上下文（`ctx.seo`）算好；
+ * 主题样式经 `ctx.assets` 输出——正式渲染外链指纹 CSS，预览渲染内联。
  */
-export function SeoHead({ ctx, css, darkMode, langAlternates = false, children }: SeoHeadProps) {
-  const { site, seo } = ctx;
+export function SeoHead({ ctx, langAlternates = false, children }: SeoHeadProps) {
+  const { site, seo, assets } = ctx;
   return (
     <head>
       <meta charSet="utf-8" />
@@ -104,8 +82,10 @@ export function SeoHead({ ctx, css, darkMode, langAlternates = false, children }
       {seo.jsonLd ? (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(seo.jsonLd) }} />
       ) : null}
-      <style dangerouslySetInnerHTML={{ __html: css }} />
-      {darkMode !== 'light' ? (
+      {assets.cssHref
+        ? <link rel="stylesheet" href={assets.cssHref} />
+        : <style dangerouslySetInnerHTML={{ __html: assets.inlineCss ?? '' }} />}
+      {assets.darkMode !== 'light' ? (
         <script dangerouslySetInnerHTML={{ __html: THEME_TOGGLE_SCRIPT }} />
       ) : null}
       {children}
@@ -186,20 +166,11 @@ function chunkPairs(list: CmsModelFieldValue[]): [CmsModelFieldValue, CmsModelFi
   return out;
 }
 
-/** 模型字段表的默认样式（主题 CSS 中引入；主题可整体覆盖） */
-export const MODEL_FIELD_TABLE_STYLES = `
-.model-fields { margin: 16px 0 20px; }
-.model-fields-title { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--text-2); }
-.model-fields-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.model-fields-table th, .model-fields-table td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; }
-.model-fields-table th { width: 17%; background: var(--bg-2); font-weight: 500; color: var(--text-2); white-space: nowrap; }
-.model-fields-table td { width: 33%; }
-`;
 
 /**
  * 内容形态区块：图集九宫格 / 音视频播放器（article/link 返回 null）。
  * 详情模板须在正文前调用，否则 album/media 形态只剩正文，主图数据丢失。
- * 样式钩子 .album-grid / .media-player（默认样式见 MEDIA_BLOCK_STYLES）。
+ * 样式钩子 .album-grid / .media-player（默认样式见 _shared/base.css）。
  */
 export function MediaBlock({ content }: {
   content: {
@@ -239,16 +210,3 @@ export function MediaBlock({ content }: {
   return null;
 }
 
-/** 形态区块默认样式（图集网格 + 播放器），主题 CSS 中引入 */
-export const MEDIA_BLOCK_STYLES = `
-.album-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
-.album-grid figure { margin: 0; }
-.album-grid a { display: block; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
-.album-grid img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
-.album-grid figcaption { font-size: 13px; color: var(--text-2); padding: 6px 2px; text-align: center; }
-.media-player { margin: 16px 0; }
-.media-player video, .media-player audio { width: 100%; border-radius: 8px; background: #000; }
-.media-player audio { background: transparent; }
-.media-duration { font-size: 13px; color: var(--text-2); margin-top: 6px; }
-@media (max-width: 768px) { .album-grid { grid-template-columns: repeat(2, 1fr); } }
-`;

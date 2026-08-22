@@ -12,7 +12,7 @@ import {
   signCmsAdRenderProof,
 } from '../../../services/cms/cms-ad-render-proof';
 import { renderCmsWidgetHtml } from '../widgets';
-import { Breadcrumbs, MediaBlock, ModelFieldTable, MODEL_FIELD_TABLE_STYLES, Pagination } from '../_shared';
+import { Breadcrumbs, MediaBlock, ModelFieldTable, Pagination } from '../_shared';
 import { defineHomeTemplate } from '../sdk';
 import type { CmsThemeContentCollection } from '../types';
 
@@ -580,7 +580,6 @@ export function DetailTemplate(ctx: CmsDetailContext) {
         <MediaBlock content={content} />
         {content.modelFields.length > 0 ? (
           <>
-            <style>{MODEL_FIELD_TABLE_STYLES}</style>
             <ModelFieldTable fields={content.modelFields} />
           </>
         ) : null}
@@ -802,7 +801,6 @@ export function DetailPlainTemplate(ctx: CmsDetailContext) {
         <MediaBlock content={content} />
         {content.modelFields.length > 0 ? (
           <>
-            <style>{MODEL_FIELD_TABLE_STYLES}</style>
             <ModelFieldTable fields={content.modelFields} />
           </>
         ) : null}

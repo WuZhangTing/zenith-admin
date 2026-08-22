@@ -12,7 +12,7 @@ import {
 } from '../../services/cms/cms-render.service';
 import { verifyContentPreviewToken } from '../../services/cms/cms-preview.service';
 import { readStaticFile, writeStaticFile, generateSitemapXml, buildRobotsTxt } from '../../services/cms/cms-static.service';
-import { generateRssXml, findChannelByPath } from '../../services/cms/cms-render.service';
+import { generateRssXml, findChannelByPath, ensureSiteThemeCssAsset } from '../../services/cms/cms-render.service';
 import { recordCmsVisit, pageKindFromPath } from '../../services/cms/cms-stats.service';
 import { optionalMemberSessionMiddleware } from '../../middleware/optional-member-session';
 import { resolveDynamicCmsPageForPath } from '../../services/cms/cms-pages.service';
@@ -134,6 +134,24 @@ export function createCmsFrontendRoutes(): Hono {
         host: c.req.header('host') ?? null,
       });
     };
+
+    // 主题样式资产（内容指纹文件名，长缓存 immutable；miss 时现场生成自愈）
+    if (sitePath.startsWith('_assets/') && sitePath.endsWith('.css')) {
+      const cached = await readStaticFile(site.code, sitePath);
+      if (cached !== null) {
+        return c.newResponse(cached, 200, {
+          'Content-Type': 'text/css; charset=utf-8',
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        });
+      }
+      const asset = await ensureSiteThemeCssAsset(site);
+      // 请求的是当前指纹 → immutable；旧指纹（陈旧静态页引用）→ 返回当前内容但禁长缓存，避免污染
+      const isCurrent = sitePath === asset.relPath;
+      return c.newResponse(asset.css, 200, {
+        'Content-Type': 'text/css; charset=utf-8',
+        'Cache-Control': isCurrent ? 'public, max-age=31536000, immutable' : 'no-cache',
+      });
+    }
 
     // 301/302 重定向规则（优先级最高）
     const redirect = await resolveRedirect(site.id, `/${sitePath}`);

@@ -164,6 +164,8 @@ export async function pruneOrphanStaticFiles(siteCode: string, kept: ReadonlySet
   const existing = await listSiteStaticFiles(dir);
   let removed = 0;
   for (const relPath of existing) {
+    // 主题样式资产由渲染管线按内容指纹管理（_assets/theme.{hash}.css），不属于页面产物清单
+    if (relPath.startsWith('_assets/')) continue;
     if (keptFiles.has(relPath)) continue;
     if (await deleteStaticFile(siteCode, relPath)) removed += 1;
   }

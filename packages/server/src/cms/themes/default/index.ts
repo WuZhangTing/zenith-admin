@@ -1,5 +1,6 @@
 import type { CmsTheme } from '../types';
 import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared/cms';
+import { DEFAULT_THEME_DARK_VARS } from './Layout';
 import {
   HomeTemplate, ListTemplate, DetailTemplate, PageTemplate, SearchTemplate, TagTemplate, NotFoundTemplate, CustomPageTemplate,
   ListCardTemplate, ListCompactTemplate, DetailPlainTemplate, InteractionTemplate,
@@ -9,6 +10,7 @@ import {
 export const defaultTheme: CmsTheme = {
   code: 'default',
   label: '默认主题',
+  darkVars: DEFAULT_THEME_DARK_VARS,
   templates: {
     index: HomeTemplate,
     list: ListTemplate,
