@@ -56,7 +56,7 @@ import { useNavInteractions } from './admin/useNavInteractions';
 import { useScrollMenuIntoView } from './admin/useScrollMenuIntoView';
 import { useSectionDarkPopupContainer } from './admin/useSectionDarkPopup';
 import { MobileQuickPagesPanel } from './admin/MobileQuickPagesPanel';
-import { RecentMenusPopover, FavoritesPopover } from './admin/QuickAccessPopovers';
+import { FavoritesPopover } from './admin/QuickAccessPopovers';
 import { TenantSwitcher } from './admin/TenantSwitcher';
 import { AnnouncementPopover, MessagePopover } from './admin/NotificationPopovers';
 import { ThemeModeDropdown, PagesDropdown, MoreDropdown } from './admin/HeaderDropdowns';
@@ -604,15 +604,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   // ─── Header actions (reused in both topbar and vertical header) ────────────
   const headerActions = (
     <div className="admin-header__actions">
-      {(preferences.showMenuSearch ?? true) && <div className="admin-menu-search"><MenuSearchInput menus={flatMenus} /></div>}
-      {/* 最近访问 */}
-      <RecentMenusPopover
-        recents={recents}
-        recentMenus={recentMenus}
-        clearRecents={clearRecents}
-        removeRecent={removeRecent}
-        navigate={navigate}
-      />
+      {(preferences.showMenuSearch ?? true) && <div className="admin-menu-search"><MenuSearchInput menus={flatMenus} recentMenus={recentMenus} onClearRecents={clearRecents} /></div>}
       {/* 收藏菜单快捷入口 */}
       {(preferences.showFavorites ?? false) && (
         <FavoritesPopover

@@ -8,37 +8,11 @@ import { useOptionalPreferences } from '@/hooks/usePreferences';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { FlatMenuItem } from './MenuSearchInput';
 
-const RECENT_KEY = 'zenith_menu_search_recent';
-const MAX_RECENT = 8;
-
-function getRecentItems(menus: FlatMenuItem[]): FlatMenuItem[] {
-  try {
-    const ids: number[] = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') as number[];
-    return ids.flatMap((id) => {
-      const found = menus.find((m) => m.id === id);
-      return found ? [found] : [];
-    });
-  } catch {
-    return [];
-  }
-}
-
-function saveRecent(item: FlatMenuItem): void {
-  try {
-    const ids: number[] = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
-    const next = [item.id, ...ids.filter((id) => id !== item.id)].slice(0, MAX_RECENT);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  } catch {
-    // ignore
-  }
-}
-
-function clearRecent(): void {
-  localStorage.removeItem(RECENT_KEY);
-}
-
 interface Props {
   readonly menus: FlatMenuItem[];
+  /** 最近访问菜单（与全局路由访问记录共享，来自 useRecentMenus） */
+  readonly recentMenus: FlatMenuItem[];
+  readonly onClearRecents: () => void;
   readonly open: boolean;
   readonly onClose: () => void;
 }
@@ -51,7 +25,7 @@ function getItemIcon(item: FlatMenuItem, isRecent: boolean) {
   return isRecent ? <Clock size={13} /> : <Hash size={13} />;
 }
 
-export default function MenuCommandPalette({ menus, open, onClose }: Props) {
+export default function MenuCommandPalette({ menus, recentMenus, onClearRecents, open, onClose }: Props) {
   const navigate = useNavigate();
   // 全局快捷键偏好：关闭后 Ctrl+K 不再唤起（组件可能在 Provider 外使用，做可选兜底）
   const shortcutsEnabled = useOptionalPreferences()?.preferences.enableShortcuts ?? true;
@@ -59,7 +33,6 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
   const isMobile = useIsMobile();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [recentItems, setRecentItems] = useState<FlatMenuItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -83,17 +56,16 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
     [menus]
   )(query);
 
-  const displayItems = query.trim() ? results : recentItems;
+  const displayItems = query.trim() ? results : recentMenus;
   const isShowingRecent = !query.trim();
 
   useEffect(() => {
     if (open) {
       setQuery('');
       setSelectedIndex(0);
-      setRecentItems(getRecentItems(menus));
       setTimeout(() => inputRef.current?.focus(), 30);
     }
-  }, [open, menus]);
+  }, [open]);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -106,14 +78,9 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
   }, [selectedIndex]);
 
 
-  const handleClearRecent = useCallback(() => {
-    clearRecent();
-    setRecentItems([]);
-  }, []);
-
+  // 选中后无需手动记录：路由变化时 useRecentMenus 会自动追加
   const handleSelect = useCallback(
     (item: FlatMenuItem) => {
-      saveRecent(item);
       onClose();
       navigate(item.path);
     },
@@ -261,7 +228,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
           }}
         >
           {/* Section header */}
-          {isShowingRecent && recentItems.length > 0 && (
+          {isShowingRecent && recentMenus.length > 0 && (
             <div
               style={{
                 display: 'flex',
@@ -284,7 +251,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
               </span>
               <button
                 type="button"
-                onClick={handleClearRecent}
+                onClick={onClearRecents}
                 style={{
                   border: 'none',
                   background: 'none',
@@ -299,7 +266,7 @@ export default function MenuCommandPalette({ menus, open, onClose }: Props) {
             </div>
           )}
 
-          {isShowingRecent && recentItems.length === 0 && (
+          {isShowingRecent && recentMenus.length === 0 && (
             <div
               style={{
                 textAlign: 'center',

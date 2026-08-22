@@ -13,9 +13,11 @@ export interface FlatMenuItem {
 
 interface MenuSearchInputProps {
   readonly menus: FlatMenuItem[];
+  readonly recentMenus: FlatMenuItem[];
+  readonly onClearRecents: () => void;
 }
 
-export default function MenuSearchInput({ menus }: MenuSearchInputProps) {
+export default function MenuSearchInput({ menus, recentMenus, onClearRecents }: MenuSearchInputProps) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -50,7 +52,7 @@ export default function MenuSearchInput({ menus }: MenuSearchInputProps) {
         <span className="menu-search-trigger__label">搜索菜单</span>
         <kbd className="menu-search-trigger__kbd">Ctrl K</kbd>
       </button>
-      <MenuCommandPalette menus={menus} open={open} onClose={handleClose} />
+      <MenuCommandPalette menus={menus} recentMenus={recentMenus} onClearRecents={onClearRecents} open={open} onClose={handleClose} />
     </>
   );
 }
