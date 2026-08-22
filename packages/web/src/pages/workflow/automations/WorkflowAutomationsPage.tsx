@@ -409,7 +409,7 @@ export default function WorkflowAutomationsPage() {
       .map((d) => ({ value: d.id, label: d.name })),
     [defs],
   );
-  const launchableDefOptions = defOptions;
+  // 「发起流程」动作目标下拉与所属流程同源（defOptions：published 且非 external），无需单独变量
   // 筛选器保留全量定义（含已停用/历史），保证老规则可以被筛出来
   const filterDefOptions = useMemo(
     () => defs.map((d) => ({ value: d.id, label: d.name })),
