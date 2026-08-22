@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
-import type { WorkflowTriggerNodeConfig, WorkflowTriggerType } from '@zenith/shared/workflow';
+import type { WorkflowTriggerNodeConfig } from '@zenith/shared/workflow';
+import { isGatedTrigger } from '@zenith/shared/workflow';
 import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
 import type { workflowTasks as workflowTasksTable, workflowInstances as workflowInstancesTable } from '../../../db/schema';
@@ -36,10 +37,6 @@ function renderTemplate(template: string, formData: Record<string, unknown>, ext
       return '';
     })
     .replace(/\{\{([a-zA-Z_]\w*)\}\}/g, (_, key) => extras[key] ?? '');
-}
-
-function isDataMutationTrigger(t: WorkflowTriggerType): boolean {
-  return t === 'updateData' || t === 'deleteData';
 }
 
 async function executeHttpTrigger(cfg: WorkflowTriggerNodeConfig, formData: Record<string, unknown>, extras: Record<string, string>): Promise<TriggerRunResult> {
@@ -178,8 +175,9 @@ async function handle({ payload, attempt, job }: WorkflowJobContext): Promise<Wo
   const detail = toDetail(result);
 
   if (result.status === 'success') {
-    const shouldAdvance = task.status === 'waiting' && triggerType !== 'callback'
-      && ((cfg.onFailure ?? 'continue') === 'block' || isDataMutationTrigger(triggerType));
+    // 门控触发器（callback 除外，callback 由外部回调推进）执行成功后推进流程；
+    // 判定与 token-engine / materialize 的 isGatedTrigger 保持一致
+    const shouldAdvance = task.status === 'waiting' && triggerType !== 'callback' && isGatedTrigger(cfg);
     if (shouldAdvance) {
       await approveTaskCore(task, inst, '触发器执行成功，自动推进', ACTOR);
     }

@@ -4,6 +4,7 @@ import { workflowInstances, workflowTasks, workflowTokens, inAppMessages } from 
 import { resolveRuntimeApproveMethod, type TaskAction } from '../../../lib/workflow-engine';
 import { advanceTokens, type AdvanceTrigger, type BranchPath } from '../../../lib/workflow-token-engine';
 import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared/workflow';
+import { isGatedTrigger } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { createDeptTree, resolveAssigneeIds } from '../workflow-assignee-resolver.service';
 import { getDecisionOutputs } from '../../platform/rules.service';
@@ -105,9 +106,8 @@ async function expandTasksToRows(
     if (t.nodeType === 'trigger') {
       const tcfg = t.nodeConfig.triggerConfig;
       const isCallback = tcfg?.triggerType === 'callback';
-      const isBlocking = tcfg?.onFailure === 'block';
-      const isDataMutation = tcfg?.triggerType === 'updateData' || tcfg?.triggerType === 'deleteData';
-      if (isCallback || isBlocking || isDataMutation) {
+      // 门控判定必须与 token-engine / trigger-dispatch 一致（isGatedTrigger）
+      if (isGatedTrigger(tcfg)) {
         rows.push({
           instanceId: ctx.instanceId,
           nodeKey: t.nodeKey,

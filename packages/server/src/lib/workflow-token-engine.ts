@@ -14,6 +14,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared/workflow';
+import { isGatedTrigger } from '@zenith/shared/workflow';
 import {
   buildAdjacency,
   edgeMatchesCondition,
@@ -339,8 +340,9 @@ export function advanceTokens(input: AdvanceTokensInput): AdvanceTokensResult {
 
     if (type === 'trigger') {
       tasksToCreate.push(makeTaskAction(node, null));
-      const isCallback = node.data.triggerConfig?.triggerType === 'callback';
-      if (isCallback) {
+      // 门控触发器（callback/block/数据变更）：token 停在节点，由作业完成或外部回调推进；
+      // 其余为 fire-and-forget，token 直接越过（与 materialize 任务展开、trigger-dispatch 推进判定保持一致）
+      if (isGatedTrigger(node.data.triggerConfig)) {
         emitToken(node.data.key, arrival.branchPath, arrival.parentTokenId);
         activeNodeKeys.push(node.data.key);
       } else {

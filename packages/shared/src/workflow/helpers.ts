@@ -95,6 +95,25 @@ export function resolveFailurePolicy(node: WorkflowNodeConfig | null | undefined
   return null;
 }
 
+/**
+ * 触发器是否为「门控」语义：token 停在节点上，等异步作业执行完成后才推进流程。
+ *
+ * - callback：外呼后挂起，等外部系统回调才继续
+ * - onFailure='block'：执行成功才放行，失败阻塞在节点
+ * - updateData / deleteData：数据写入必须先于后续节点（后续条件分支/审批人解析可能依赖新值）
+ *
+ * 其余（webhook + continue/retry）为 fire-and-forget：任务落为 approved，token 直接越过节点。
+ * 引擎推进（token-engine）、任务展开（materialize）与作业执行（trigger-dispatch）三处必须使用
+ * 同一判定，否则会出现「任务 waiting 而 token 已越过」的脱节，作业完成推进时报「缺少执行 Token」。
+ */
+export function isGatedTrigger(cfg: { triggerType?: string; onFailure?: string } | null | undefined): boolean {
+  if (!cfg) return false;
+  return cfg.triggerType === 'callback'
+    || cfg.onFailure === 'block'
+    || cfg.triggerType === 'updateData'
+    || cfg.triggerType === 'deleteData';
+}
+
 // ─── 节点级表单字段权限（read / edit / hidden）──────────────────────────────────
 //
 // 设计器 FormPermissionTab 按节点为每个字段 key 配置权限；未配置的字段默认 `read`。
