@@ -457,10 +457,28 @@ export default function WorkflowEventSubscriptionsPage() {
         refreshLoading={listQuery.isFetching}
       />
 
-      <AppModal
-        {...eventSubscriptionModal.modalProps}
-        closeOnEsc
+      <SideSheet
+        title={eventSubscriptionModal.modalProps.title}
+        visible={eventSubscriptionModal.modalProps.visible}
+        onCancel={eventSubscriptionModal.modalProps.onCancel}
+        placement="right"
         width={680}
+        closeOnEsc
+        bodyStyle={{ paddingBottom: 16 }}
+        footer={(
+          <Space>
+            <Button onClick={eventSubscriptionModal.modalProps.onCancel}>取消</Button>
+            <Button
+              theme="solid"
+              type="primary"
+              loading={eventSubscriptionModal.modalProps.okButtonProps.loading}
+              disabled={eventSubscriptionModal.modalProps.okButtonProps.disabled}
+              onClick={() => void eventSubscriptionModal.modalProps.onOk()}
+            >
+              {eventSubscriptionModal.isEdit ? '保存' : '创建'}
+            </Button>
+          </Space>
+        )}
       >
         <Spin spinning={eventSubscriptionModal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form key={eventSubscriptionModal.formKey} {...eventSubscriptionModal.formProps}>
@@ -540,7 +558,7 @@ export default function WorkflowEventSubscriptionsPage() {
           </Row>
         </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       <SideSheet
         title="投递记录"
@@ -565,13 +583,14 @@ export default function WorkflowEventSubscriptionsPage() {
         />
       </SideSheet>
 
-      <AppModal
+      {/* 投递详情：叠加在投递记录抽屉之上的窄层 */}
+      <SideSheet
         title="投递详情"
         visible={deliveryDetail !== null}
         onCancel={() => setDeliveryDetail(null)}
-        footer={null}
-        closeOnEsc
+        placement="right"
         width={640}
+        closeOnEsc
       >
         {deliveryDetail && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -634,7 +653,7 @@ export default function WorkflowEventSubscriptionsPage() {
             )}
           </div>
         )}
-      </AppModal>
+      </SideSheet>
 
       <AppModal
         title="按筛选批量重放投递"
