@@ -124,7 +124,7 @@ settingsSchema: [
 
 - 字段类型：`text` / `textarea` / `color` / `number` / `switch` / `select` / `image`（image 直接对接素材上传）
 - 渲染时经 `resolveThemeConfig` 解析：schema 默认值 ⊕ 已存值按类型宽容解析（非法值回退默认），模板经 `ctx.site.themeConfig` 消费，无需自行处理缺省
-- 通用外观参数（主题色 `themePrimary`、暗色模式 `themeDark`、最大宽度）独立于 schema，全主题一致；主题色与暗色变量覆盖由 `themes/theme-css.ts` 的 `buildThemeOverrides` 装配
+- 通用外观参数（主题色 `themePrimary`、暗色模式 `themeDark`）独立于 schema，全主题一致；主题色与暗色变量覆盖由 `themes/theme-css.ts` 的 `buildThemeOverrides` 装配进最终样式表
 - 接口：`GET /api/cms/sites/themes/{code}/settings-schema`
 
 各内置主题的专属参数：default（页头电话/首页横幅/栏目区块/热门开关/页脚）、docs（无专属参数）、gov-portal（页头副标题/首页栏目区块/**办事入口**（每行 `名称|链接`）/页脚）、magazine（首页栏目区块/**评分字段**/页脚）、news-portal（报头口号/首页栏目区块/页脚）。
@@ -156,7 +156,7 @@ settingsSchema: [
 
 | 组件 / 常量 | 职责 |
 |------|------|
-| `SeoHead` | 完整 SEO head：TDK、canonical、Open Graph、Twitter Card、JSON-LD、hreflang、埋点 |
+| `SeoHead` | 完整 SEO head：TDK、canonical、Open Graph、Twitter Card、JSON-LD、hreflang；样式经 `ctx.assets` 输出（正式外链指纹 CSS / 预览内联），暗色模式自动注入切换脚本 |
 | `Breadcrumbs` / `Pagination` | 面包屑 / 分页导航（语义结构，样式由主题 CSS 决定） |
 | `ModelFieldTable` | 模型字段双栏键值表，按 `detailGroup` 分组（公文信息表头样式钩子 `.model-fields*`，公共样式在 `_shared/base.css`） |
 | `MediaBlock` | 内容形态区块：图集九宫格 / 音视频播放器（article/link 返回 null，公共样式在 `_shared/base.css`）。**详情模板须在正文前调用**，否则 album/media 形态丢失主图 |
