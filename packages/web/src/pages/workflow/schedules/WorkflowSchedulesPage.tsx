@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Form, Select, Space, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
+import { Form, Select, Space, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { WorkflowSchedule } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
@@ -10,7 +10,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
-import { usePublishedWorkflowDefinitions } from '@/hooks/queries/workflow-definitions';
+import { usePublishedWorkflowDefinitions, useWorkflowDefinitionDetail } from '@/hooks/queries/workflow-definitions';
 import { useAllUsers } from '@/hooks/queries/users';
 import {
   useDeleteWorkflowSchedules,
@@ -24,6 +24,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import { abortSubmit } from '@/lib/abort-submit';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
@@ -41,6 +42,7 @@ interface FormValues extends Record<string, unknown> {
   timezone?: string | null;
   initiatorId?: number | null;
   titleTemplate?: string | null;
+  formDataJson?: string;
   status?: ScheduleStatus;
 }
 
@@ -58,7 +60,7 @@ const toFiveField = (expr: string) => {
 };
 
 function renderStatus(status: ScheduleStatus) {
-  return status === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">停用</Tag>;
+  return status === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>;
 }
 
 function renderLastRunStatus(status: string | null, message: string | null) {
@@ -96,6 +98,9 @@ export default function WorkflowSchedulesPage() {
   const usersQuery = useAllUsers();
 
   const [cronExprValue, setCronExprValue] = useState('');
+  // 弹窗内当前选中的流程：用于拉取定义详情，提示可预填的表单字段
+  const [modalDefinitionId, setModalDefinitionId] = useState<number | null>(null);
+  const definitionDetailQuery = useWorkflowDefinitionDetail(modalDefinitionId);
   const saveMutation = useSaveWorkflowSchedule();
   const deleteMutation = useDeleteWorkflowSchedules();
   const runMutation = useRunWorkflowSchedule();
@@ -114,27 +119,52 @@ export default function WorkflowSchedulesPage() {
 
   const scheduleModal = useEditModal<WorkflowSchedule, FormValues, Record<string, unknown>>({
     save: saveMutation,
-    defaults: { definitionId: null, name: '', cronExpression: '', timezone: null, initiatorId: null, titleTemplate: '', status: 'enabled' },
-    toValues: (row) => ({ definitionId: row.definitionId, name: row.name, cronExpression: row.cronExpression, timezone: row.timezone ?? null, initiatorId: row.initiatorId, titleTemplate: row.titleTemplate ?? '', status: row.status }),
-    beforeSave: (values) => ({
-      definitionId: Number(values.definitionId),
-      name: String(values.name ?? '').trim(),
-      cronExpression: String(values.cronExpression ?? '').trim(),
-      timezone: typeof values.timezone === 'string' && values.timezone.trim() ? values.timezone.trim() : null,
-      initiatorId: Number(values.initiatorId),
-      titleTemplate:
-        typeof values.titleTemplate === 'string' && values.titleTemplate.trim()
-          ? values.titleTemplate.trim()
-          : null,
-      status: values.status ?? 'enabled',
+    defaults: { definitionId: null, name: '', cronExpression: '', timezone: null, initiatorId: null, titleTemplate: '', formDataJson: '', status: 'enabled' },
+    toValues: (row) => ({
+      definitionId: row.definitionId,
+      name: row.name,
+      cronExpression: row.cronExpression,
+      timezone: row.timezone ?? null,
+      initiatorId: row.initiatorId,
+      titleTemplate: row.titleTemplate ?? '',
+      formDataJson: row.formData && Object.keys(row.formData).length ? JSON.stringify(row.formData, null, 2) : '',
+      status: row.status,
     }),
+    beforeSave: (values) => {
+      let formData: Record<string, unknown> | null = null;
+      const json = typeof values.formDataJson === 'string' ? values.formDataJson.trim() : '';
+      if (json) {
+        try {
+          const parsed: unknown = JSON.parse(json);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            Toast.error('表单数据必须是 JSON 对象'); abortSubmit('validation');
+          }
+          formData = parsed as Record<string, unknown>;
+        } catch {
+          Toast.error('表单数据不是合法的 JSON'); abortSubmit('validation');
+        }
+      }
+      return {
+        definitionId: Number(values.definitionId),
+        name: String(values.name ?? '').trim(),
+        cronExpression: String(values.cronExpression ?? '').trim(),
+        timezone: typeof values.timezone === 'string' && values.timezone.trim() ? values.timezone.trim() : null,
+        initiatorId: Number(values.initiatorId),
+        titleTemplate:
+          typeof values.titleTemplate === 'string' && values.titleTemplate.trim()
+            ? values.titleTemplate.trim()
+            : null,
+        formData,
+        status: values.status ?? 'enabled',
+      };
+    },
     successMessage: ({ isEdit }) => (isEdit ? '更新成功' : '创建成功'),
     labelWidth: 110,
   });
   const editing = scheduleModal.editing;
 
-  const openCreate = () => { setCronExprValue(''); scheduleModal.openCreate(); };
-  const openEdit = (row: WorkflowSchedule) => { setCronExprValue(row.cronExpression ?? ''); scheduleModal.openEdit(row); };
+  const openCreate = () => { setCronExprValue(''); setModalDefinitionId(null); scheduleModal.openCreate(); };
+  const openEdit = (row: WorkflowSchedule) => { setCronExprValue(row.cronExpression ?? ''); setModalDefinitionId(row.definitionId); scheduleModal.openEdit(row); };
 
   const handleDelete = async (id: number) => {
     await deleteMutation.mutateAsync([id]);
@@ -312,7 +342,11 @@ export default function WorkflowSchedulesPage() {
       >
         <Form
           key={scheduleModal.formKey} {...scheduleModal.formProps}
-          onValueChange={(v) => { if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression); }}
+          onValueChange={(v) => {
+            if (typeof v.cronExpression === 'string') setCronExprValue(v.cronExpression);
+            const defId = typeof v.definitionId === 'number' ? v.definitionId : null;
+            setModalDefinitionId((prev) => (prev === defId ? prev : defId));
+          }}
         >
           <Form.Select
             field="definitionId"
@@ -362,6 +396,26 @@ export default function WorkflowSchedulesPage() {
             label="标题模板"
             maxLength={255}
             extraText="支持 {{date}} {{datetime}} 占位，留空用规则名"
+          />
+          <Form.TextArea
+            field="formDataJson"
+            label="表单数据"
+            autosize={{ minRows: 3, maxRows: 10 }}
+            placeholder={'JSON 对象，作为发起实例的表单数据\n例：{\n  "leave_type": "年假",\n  "leave_days": 1\n}'}
+            extraText={(() => {
+              const def = definitionDetailQuery.data;
+              if (!def) return '发起时作为实例表单数据；含必填字段或条件分支的流程建议预填，否则实例将以空表单发起';
+              const fields = def.formType === 'designer'
+                ? (def.formFields ?? []).map((f) => `${f.key}（${f.label}${f.required ? '，必填' : ''}）`)
+                : (def.customForm?.variables ?? []).map((v) => `${v.key}（${v.label}）`);
+              return fields.length
+                ? (
+                  <Typography.Text type="tertiary" size="small">
+                    可用字段：{fields.join('、')}
+                  </Typography.Text>
+                )
+                : '该流程未声明表单字段';
+            })()}
           />
           <Form.Select
             field="status"

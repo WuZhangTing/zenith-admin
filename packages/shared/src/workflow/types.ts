@@ -1115,6 +1115,24 @@ export interface WorkflowAutomation {
   updatedAt: string;
 }
 
+/** 自动化动作执行记录（每个动作执行一次记一行） */
+export interface WorkflowAutomationRun {
+  id: number;
+  ruleId: number | null;
+  ruleName: string;
+  instanceId: number | null;
+  instanceTitle: string | null;
+  trigger: WorkflowAutomationTrigger;
+  actionIndex: number;
+  actionType: WorkflowAutomationAction['type'];
+  /** success=执行成功 failed=执行失败 skipped=幂等去重跳过 */
+  status: 'success' | 'failed' | 'skipped';
+  error: string | null;
+  durationMs: number | null;
+  tenantId: number | null;
+  createdAt: string;
+}
+
 /** 流程定时发起规则 */
 export interface WorkflowSchedule {
   id: number;

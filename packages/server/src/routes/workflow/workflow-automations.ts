@@ -5,10 +5,11 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody,
 } from '../../lib/openapi-schemas';
-import { WorkflowAutomationDTO } from '../../lib/openapi-dtos';
+import { WorkflowAutomationDTO, WorkflowAutomationRunDTO } from '../../lib/openapi-dtos';
 import { createWorkflowAutomationSchema, updateWorkflowAutomationSchema } from '@zenith/shared/workflow';
 import {
   listWorkflowAutomations,
+  listWorkflowAutomationRuns,
   getWorkflowAutomation,
   createWorkflowAutomation,
   updateWorkflowAutomation,
@@ -35,6 +36,23 @@ const listRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okPaginated(WorkflowAutomationDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listWorkflowAutomations(c.req.valid('query'))), 200),
+});
+
+const runsQuery = PaginationQuery.extend({
+  ruleId: z.coerce.number().int().optional(),
+  instanceId: z.coerce.number().int().optional(),
+  status: z.enum(['success', 'failed', 'skipped']).optional(),
+});
+
+const listRunsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/runs', tags: ['WorkflowAutomations'], summary: '自动化动作执行记录',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'workflow:definition:list' })] as const,
+    request: { query: runsQuery },
+    responses: { ...commonErrorResponses, ...okPaginated(WorkflowAutomationRunDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listWorkflowAutomationRuns(c.req.valid('query'))), 200),
 });
 
 const getRoute = defineOpenAPIRoute({
@@ -109,6 +127,6 @@ const batchDeleteRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, getRoute, createRouteDef, updateRoute, deleteRoute, batchDeleteRoute] as const);
+router.openapiRoutes([listRoute, listRunsRoute, getRoute, createRouteDef, updateRoute, deleteRoute, batchDeleteRoute] as const);
 
 export default router;

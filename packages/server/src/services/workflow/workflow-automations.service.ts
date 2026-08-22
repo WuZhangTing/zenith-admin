@@ -9,6 +9,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
   workflowAutomations,
+  workflowAutomationRuns,
   workflowDefinitions,
   workflowInstances,
   workflowTasks,
@@ -129,6 +130,49 @@ export async function listWorkflowAutomations(q: ListWorkflowAutomationsQuery) {
     }),
   ]);
   const list = rows.map((r) => mapAutomation(r, r.definition?.name ?? null));
+  return { list, total, page, pageSize };
+}
+
+export interface ListWorkflowAutomationRunsQuery {
+  ruleId?: number;
+  instanceId?: number;
+  status?: 'success' | 'failed' | 'skipped';
+  page?: number;
+  pageSize?: number;
+}
+
+export async function listWorkflowAutomationRuns(q: ListWorkflowAutomationRunsQuery) {
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? 20;
+  const tc = tenantCondition(workflowAutomationRuns, currentUser());
+  const conds = [];
+  if (tc) conds.push(tc);
+  if (q.ruleId) conds.push(eq(workflowAutomationRuns.ruleId, q.ruleId));
+  if (q.instanceId) conds.push(eq(workflowAutomationRuns.instanceId, q.instanceId));
+  if (q.status) conds.push(eq(workflowAutomationRuns.status, q.status));
+  const where = conds.length ? and(...conds) : undefined;
+  const [total, rows] = await Promise.all([
+    db.$count(workflowAutomationRuns, where),
+    db.select().from(workflowAutomationRuns).where(where)
+      .orderBy(desc(workflowAutomationRuns.id))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+  ]);
+  const list = rows.map((r) => ({
+    id: r.id,
+    ruleId: r.ruleId,
+    ruleName: r.ruleName,
+    instanceId: r.instanceId,
+    instanceTitle: r.instanceTitle,
+    trigger: r.trigger,
+    actionIndex: r.actionIndex,
+    actionType: r.actionType,
+    status: r.status as 'success' | 'failed' | 'skipped',
+    error: r.error,
+    durationMs: r.durationMs,
+    tenantId: r.tenantId,
+    createdAt: formatDateTime(r.createdAt),
+  }));
   return { list, total, page, pageSize };
 }
 
@@ -356,6 +400,36 @@ async function loadAutomationContext(instance: WorkflowInstance): Promise<Automa
   };
 }
 
+/** 动作执行留痕：写入失败仅告警，不影响动作本身的执行结果 */
+async function recordAutomationRun(entry: {
+  rule: WorkflowAutomationRow;
+  instance: WorkflowInstance;
+  trigger: WorkflowAutomationTrigger;
+  actionIndex: number;
+  actionType: string;
+  status: 'success' | 'failed' | 'skipped';
+  error?: string | null;
+  durationMs?: number | null;
+}) {
+  try {
+    await db.insert(workflowAutomationRuns).values({
+      ruleId: entry.rule.id,
+      ruleName: entry.rule.name,
+      instanceId: entry.instance.id,
+      instanceTitle: entry.instance.title?.slice(0, 256) ?? null,
+      trigger: entry.trigger,
+      actionIndex: entry.actionIndex,
+      actionType: entry.actionType,
+      status: entry.status,
+      error: entry.error ? String(entry.error).slice(0, 512) : null,
+      durationMs: entry.durationMs ?? null,
+      tenantId: entry.rule.tenantId,
+    });
+  } catch (err) {
+    logger.warn('[workflow-automation] record run failed', { ruleId: entry.rule.id, err });
+  }
+}
+
 export async function executeAutomationsForInstance(
   instance: WorkflowInstance,
   trigger: WorkflowAutomationTrigger,
@@ -383,8 +457,10 @@ export async function executeAutomationsForInstance(
         logger.info('[workflow-automation] action skipped (already executed)', {
           ruleId: rule.id, instanceId: instance.id, actionType: action.type, eventId,
         });
+        await recordAutomationRun({ rule, instance, trigger, actionIndex, actionType: action.type, status: 'skipped' });
         continue;
       }
+      const startedAt = Date.now();
       try {
         if (action.type === 'startWorkflow') {
           await runStartWorkflowAction(action, ctx);
@@ -395,9 +471,18 @@ export async function executeAutomationsForInstance(
         } else if (action.type === 'updateField') {
           await runUpdateFieldAction(action, ctx);
         }
+        await recordAutomationRun({
+          rule, instance, trigger, actionIndex, actionType: action.type,
+          status: 'success', durationMs: Date.now() - startedAt,
+        });
       } catch (err) {
         // 执行失败释放幂等占位，允许事件作业层重试时再次执行该动作
         if (dedupKey) await releaseAutomationDedup(dedupKey);
+        await recordAutomationRun({
+          rule, instance, trigger, actionIndex, actionType: action.type,
+          status: 'failed', durationMs: Date.now() - startedAt,
+          error: err instanceof Error ? err.message : String(err),
+        });
         logger.error('[workflow-automation] action failed', {
           ruleId: rule.id,
           instanceId: instance.id,

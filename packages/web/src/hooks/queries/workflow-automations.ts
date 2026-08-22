@@ -1,4 +1,7 @@
-import type { WorkflowAutomation } from '@zenith/shared/workflow';
+import type { WorkflowAutomation, WorkflowAutomationRun } from '@zenith/shared/workflow';
+import { useQuery } from '@tanstack/react-query';
+import { request } from '@/utils/request';
+import { toQueryString, unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
 export interface WorkflowAutomationListParams extends CrudListParams {
@@ -21,3 +24,30 @@ export const {
   path: '/api/workflows/automations',
   deleteMode: 'single',
 });
+
+export interface WorkflowAutomationRunListParams {
+  ruleId?: number;
+  instanceId?: number;
+  status?: 'success' | 'failed' | 'skipped';
+  page?: number;
+  pageSize?: number;
+}
+
+interface WorkflowAutomationRunListResult {
+  list: WorkflowAutomationRun[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** 自动化动作执行记录（打开执行记录抽屉时启用） */
+export function useWorkflowAutomationRunList(params: WorkflowAutomationRunListParams, enabled = true) {
+  return useQuery({
+    queryKey: ['workflow', 'automations', 'runs', params] as const,
+    queryFn: () =>
+      request
+        .get<WorkflowAutomationRunListResult>(`/api/workflows/automations/runs${toQueryString(params)}`)
+        .then(unwrap),
+    enabled,
+  });
+}

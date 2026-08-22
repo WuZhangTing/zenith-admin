@@ -8,13 +8,12 @@ import { useDictItems } from '@/hooks/useDictItems';
  *   - Webhook 回调 / 回写表单字段
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Col, Form, Input, Row, Select, Space, Spin, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Empty, Form, Input, Row, Select, SideSheet, Space, Spin, Tag, TextArea, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag/interface';
 import { Plus, Trash2 } from 'lucide-react';
-import type { WorkflowAutomation, WorkflowAutomationAction, WorkflowAutomationTrigger, WorkflowDefinition } from '@zenith/shared/workflow';
+import type { WorkflowAutomation, WorkflowAutomationAction, WorkflowAutomationRun, WorkflowAutomationTrigger, WorkflowDefinition } from '@zenith/shared/workflow';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
@@ -25,6 +24,7 @@ import {
   useSaveWorkflowAutomation,
   useWorkflowAutomationDetail,
   useWorkflowAutomationList,
+  useWorkflowAutomationRunList,
   workflowAutomationKeys,
 } from '@/hooks/queries/workflow-automations';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -104,6 +104,80 @@ function createDefaultActionDraft(type: ActionType): ActionDraft {
 }
 
 type JsonRecordParseResult = { ok: true; value: Record<string, string> } | { ok: false; message: string };
+
+const RUN_STATUS_META: Record<WorkflowAutomationRun['status'], { label: string; color: TagColor }> = {
+  success: { label: '成功', color: 'green' },
+  failed: { label: '失败', color: 'red' },
+  skipped: { label: '已去重', color: 'grey' },
+};
+
+/** 单条规则的动作执行记录抽屉 */
+function AutomationRunsSheet({ rule, onClose }: { rule: WorkflowAutomation | null; onClose: () => void }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const runsQuery = useWorkflowAutomationRunList({ ruleId: rule?.id, page, pageSize }, !!rule);
+  const list = runsQuery.data?.list ?? [];
+  const total = runsQuery.data?.total ?? 0;
+
+  const columns: ColumnProps<WorkflowAutomationRun>[] = [
+    dateTimeColumn('时间', 'createdAt'),
+    {
+      title: '触发实例', dataIndex: 'instanceTitle', width: 200,
+      render: (_v, r) => r.instanceTitle
+        ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{`#${r.instanceId} ${r.instanceTitle}`}</Typography.Text>
+        : (r.instanceId ? `#${r.instanceId}` : '—'),
+    },
+    {
+      title: '触发时机', dataIndex: 'trigger', width: 100,
+      render: (v: WorkflowAutomationTrigger) => {
+        const t = TRIGGER_LABEL_MAP[v];
+        return t ? <Tag color={t.color} size="small">{t.label}</Tag> : v;
+      },
+    },
+    {
+      title: '动作', dataIndex: 'actionType', width: 130,
+      render: (v: WorkflowAutomationRun['actionType'], r) => {
+        const meta = ACTION_TYPE_META[v as ActionType];
+        return <Tag color={meta?.color} size="small">{`${r.actionIndex + 1}. ${meta?.label ?? v}`}</Tag>;
+      },
+    },
+    {
+      title: '结果', dataIndex: 'status', width: 90,
+      render: (v: WorkflowAutomationRun['status'], r) => {
+        const meta = RUN_STATUS_META[v];
+        const tag = <Tag color={meta.color} size="small">{meta.label}</Tag>;
+        return r.error ? <Tooltip content={r.error}>{tag}</Tooltip> : tag;
+      },
+    },
+    {
+      title: '耗时', dataIndex: 'durationMs', width: 80,
+      render: (v: number | null) => (v == null ? '—' : v < 1000 ? `${v}ms` : `${(v / 1000).toFixed(1)}s`),
+    },
+  ];
+
+  return (
+    <SideSheet
+      title={rule ? `执行记录 · ${rule.name}` : '执行记录'}
+      visible={!!rule}
+      onCancel={onClose}
+      width={720}
+      closeOnEsc
+    >
+      {total === 0 && !runsQuery.isFetching ? (
+        <Empty description="暂无执行记录，规则触发后会在这里留痕" style={{ marginTop: 80 }} />
+      ) : (
+        <ConfigurableTable<WorkflowAutomationRun>
+          rowKey="id"
+          loading={runsQuery.isFetching}
+          dataSource={list}
+          columns={columns}
+          pagination={{ currentPage: page, pageSize, total, onPageChange: setPage }}
+        />
+      )}
+    </SideSheet>
+  );
+}
+
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -260,6 +334,7 @@ export default function WorkflowAutomationsPage() {
   const defs: WorkflowDefinition[] = useMemo(() => definitionsQuery.data?.list ?? [], [definitionsQuery.data]);
 
   const [actions, setActions] = useState<ActionDraft[]>([]);
+  const [runsRule, setRunsRule] = useState<WorkflowAutomation | null>(null);
   const saveMutation = useSaveWorkflowAutomation();
   const deleteMutation = useDeleteWorkflowAutomations();
 
@@ -329,11 +404,15 @@ export default function WorkflowAutomationsPage() {
   };
 
   const defOptions = useMemo(
-    () => defs.map((d) => ({ value: d.id, label: d.name })),
+    () => defs
+      .filter((d) => d.status === 'published' && d.formType !== 'external')
+      .map((d) => ({ value: d.id, label: d.name })),
     [defs],
   );
-  const launchableDefOptions = useMemo(
-    () => defs.filter((d) => d.formType !== 'external').map((d) => ({ value: d.id, label: d.name })),
+  const launchableDefOptions = defOptions;
+  // 筛选器保留全量定义（含已停用/历史），保证老规则可以被筛出来
+  const filterDefOptions = useMemo(
+    () => defs.map((d) => ({ value: d.id, label: d.name })),
     [defs],
   );
 
@@ -361,9 +440,14 @@ export default function WorkflowAutomationsPage() {
       render: (v: string) => v === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>,
     },
     createOperationColumn<WorkflowAutomation>({
-      width: 160,
-      desktopInlineKeys: ['edit', 'delete'],
+      width: 220,
+      desktopInlineKeys: ['runs', 'edit', 'delete'],
       actions: (record) => [
+        {
+          key: 'runs',
+          label: '执行记录',
+          onClick: () => setRunsRule(record),
+        },
         {
           key: 'edit',
           label: '编辑',
@@ -393,7 +477,7 @@ export default function WorkflowAutomationsPage() {
       onChange={(v) => setDraftParams(prev => ({ ...prev, definitionId: (v as number) ?? '' }))}
       showClear
       style={{ width: 220 }}
-      optionList={launchableDefOptions}
+      optionList={filterDefOptions}
     />
   );
 
@@ -473,10 +557,28 @@ export default function WorkflowAutomationsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal
-        {...automationModal.modalProps}
-        closeOnEsc
+      <SideSheet
+        title={automationModal.modalProps.title}
+        visible={automationModal.modalProps.visible}
+        onCancel={automationModal.modalProps.onCancel}
+        placement="right"
         width={780}
+        closeOnEsc
+        bodyStyle={{ paddingBottom: 16 }}
+        footer={(
+          <Space>
+            <Button onClick={automationModal.modalProps.onCancel}>取消</Button>
+            <Button
+              theme="solid"
+              type="primary"
+              loading={automationModal.modalProps.okButtonProps.loading}
+              disabled={automationModal.modalProps.okButtonProps.disabled}
+              onClick={() => void automationModal.modalProps.onOk()}
+            >
+              {automationModal.isEdit ? '保存' : '创建'}
+            </Button>
+          </Space>
+        )}
       >
         <Spin spinning={automationModal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form key={automationModal.formKey} {...automationModal.formProps}>
@@ -511,6 +613,8 @@ export default function WorkflowAutomationsPage() {
         <Typography.Title heading={6} style={{ marginTop: 16 }}>动作列表</Typography.Title>
         <Typography.Text type="tertiary" size="small">
           支持模板变量：<code>{'{{title}}'}</code> <code>{'{{initiator}}'}</code> <code>{'{{instanceId}}'}</code> <code>{'{{status}}'}</code> 以及 <code>{'{{formData.xxx}}'}</code>
+          <br />
+          动作在流程事件后台作业中异步执行，失败会随事件重试，重复触发自动去重；结果见「执行记录」。
         </Typography.Text>
 
         <div style={{ marginTop: 12 }}>
@@ -649,7 +753,9 @@ export default function WorkflowAutomationsPage() {
           <Button icon={<Plus size={14} />} onClick={() => addAction('updateField')}>添加「回写字段」</Button>
         </Space>
         </Spin>
-      </AppModal>
+      </SideSheet>
+
+      <AutomationRunsSheet rule={runsRule} onClose={() => setRunsRule(null)} />
     </div>
   );
 }

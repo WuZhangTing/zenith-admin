@@ -433,6 +433,24 @@ export const WorkflowAutomationDTO = z  .object({
   })
   .openapi('WorkflowAutomation');
 
+export const WorkflowAutomationRunDTO = z
+  .object({
+    id: z.number().int(),
+    ruleId: z.number().int().nullable(),
+    ruleName: z.string(),
+    instanceId: z.number().int().nullable(),
+    instanceTitle: z.string().nullable(),
+    trigger: z.enum(['approved', 'rejected', 'withdrawn', 'created']),
+    actionIndex: z.number().int(),
+    actionType: z.string(),
+    status: z.enum(['success', 'failed', 'skipped']),
+    error: z.string().nullable(),
+    durationMs: z.number().int().nullable(),
+    tenantId: z.number().int().nullable(),
+    createdAt: z.string(),
+  })
+  .openapi('WorkflowAutomationRun');
+
 export const WorkflowTemplateDTO = z
   .object({
     id: z.number().int(),

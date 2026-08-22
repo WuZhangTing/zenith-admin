@@ -212,6 +212,31 @@ export type WorkflowAutomationRow = typeof workflowAutomations.$inferSelect;
 
 export type NewWorkflowAutomation = typeof workflowAutomations.$inferInsert;
 
+// 自动化动作执行留痕：每个动作执行一次记一行（成功/失败/跳过），供管理员核对 Webhook 等副作用是否生效
+export const workflowAutomationRuns = pgTable('workflow_automation_runs', {
+  id: serial('id').primaryKey(),
+  /** 规则删除后保留历史记录（置空），靠 ruleName 冗余追溯 */
+  ruleId: integer('rule_id').references(() => workflowAutomations.id, { onDelete: 'set null' }),
+  ruleName: varchar('rule_name', { length: 128 }).notNull(),
+  instanceId: integer('instance_id').references(() => workflowInstances.id, { onDelete: 'set null' }),
+  instanceTitle: varchar('instance_title', { length: 256 }),
+  trigger: workflowAutomationTriggerEnum('trigger').notNull(),
+  actionIndex: integer('action_index').notNull(),
+  actionType: varchar('action_type', { length: 32 }).notNull(),
+  /** success | failed | skipped（幂等去重命中） */
+  status: varchar('status', { length: 16 }).notNull(),
+  error: varchar('error', { length: 512 }),
+  durationMs: integer('duration_ms'),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('workflow_automation_runs_rule_idx').on(t.ruleId),
+  index('workflow_automation_runs_instance_idx').on(t.instanceId),
+  index('workflow_automation_runs_created_idx').on(t.createdAt),
+]);
+
+export type WorkflowAutomationRunRow = typeof workflowAutomationRuns.$inferSelect;
+
 // 流程定时发起：按 cron 周期自动发起流程实例
 export const workflowSchedules = pgTable('workflow_schedules', {
   id: serial('id').primaryKey(),
