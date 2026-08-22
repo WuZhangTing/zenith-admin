@@ -190,7 +190,6 @@ export default function WikiDocCenterPage() {
   function selectDoc(id: number) {
     setSelectedDocId(id);
     setShowDetailOnNarrow(true);
-    viewMutation.mutate(id);
   }
 
   function selectSearchResult(id: number) {
@@ -293,6 +292,16 @@ export default function WikiDocCenterPage() {
       return isNarrowLayoutRef.current ? undefined : treeDocIds[0];
     });
   }, [treeDocIds]);
+
+  // 浏览上报：跟随选中文档变化（覆盖点击、默认选中首篇、深链与正文内链），
+  // 同一文档连续选中只报一次，避免 URL 同步等重复触发虚增浏览量
+  const lastViewedDocIdRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (selectedDocId === undefined || selectedDocId === lastViewedDocIdRef.current) return;
+    lastViewedDocIdRef.current = selectedDocId;
+    viewMutation.mutate(selectedDocId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在选中文档变化时上报
+  }, [selectedDocId]);
 
   const detailContent = !selectedDocId ? (
     <Empty title="选择文档开始阅读" description="从左侧目录树选择一篇文档" style={{ marginTop: 80 }} />
