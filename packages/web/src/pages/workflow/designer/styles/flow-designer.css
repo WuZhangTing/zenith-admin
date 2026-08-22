@@ -1546,11 +1546,20 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   position: relative;
   padding: 10px 16px;
   border-bottom: 1px solid var(--semi-color-border);
-  display: flex;
+  /* 三段布局：左右列等分剩余空间（1fr），步骤导航自然严格居中，标题可用满左列 */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   background: var(--surface-card);
   flex-shrink: 0;
+}
+
+.fd-toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .fd-toolbar__title {
@@ -1558,9 +1567,6 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  flex: 0 1 auto;
-  /* 上限避开绝对居中的步骤导航；下限保证窄窗口下仍能看到若干字符而不是缩成省略号 */
-  max-width: min(320px, max(96px, calc(50% - 340px)));
 }
 
 .fd-toolbar__title > * {
@@ -1573,7 +1579,7 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  justify-self: end;
 }
 
 .fd-toolbar__zoom {
@@ -1603,13 +1609,11 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
 /* ─── 步骤导航 ────────────────────────────────────────────────────── */
 
 .fd-steps-nav {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   gap: 0;
+  /* 窄窗口下导航项可收缩，配合 grid 中列 auto 不撑爆 */
+  min-width: 0;
 }
 
 .fd-steps-nav__item {
@@ -1709,18 +1713,14 @@ body[theme-mode='dark'] .fd-branch-banner--inclusive {
 }
 
 @container (max-width: 1100px) {
+  /* 两行 grid：首行 左区+操作区，次行步骤导航通栏居中 */
   .fd-toolbar {
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 1fr) auto;
     row-gap: 8px;
   }
-  /* 脱离绝对居中，作为独立一行的流式元素铺满整行并居中 */
   .fd-steps-nav {
-    position: static;
-    left: auto;
-    top: auto;
-    transform: none;
-    order: 10;
-    flex: 1 0 100%;
+    grid-column: 1 / -1;
+    grid-row: 2;
     justify-content: center;
   }
 }

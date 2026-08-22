@@ -787,25 +787,27 @@ export default function WorkflowDesignerPage({
 
   return (
     <div className="fd-designer-root" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* 顶部工具栏 */}
+      {/* 顶部工具栏：grid 三段布局（左右等分列保证步骤导航严格居中，标题用满左列真实剩余空间） */}
       <div className="fd-toolbar">
-        {!embedded && (
-          <Button
-            icon={<ArrowLeft size={14} />}
-            type="tertiary"
-            theme="borderless"
-            title="返回列表"
-            onClick={handleBack}
-          />
-        )}
+        <div className="fd-toolbar__left">
+          {!embedded && (
+            <Button
+              icon={<ArrowLeft size={14} />}
+              type="tertiary"
+              theme="borderless"
+              title="返回列表"
+              onClick={handleBack}
+            />
+          )}
 
-        <div className="fd-toolbar__title">
-          <Tooltip content={isNew ? '新建流程' : (metaName || definition?.name || '')} position="bottom">
-            {/* 纯 CSS 截断（.fd-toolbar__title > *）：Semi 的 JS ellipsis 在工具栏宽度变化时测量不可靠，会把标题截到一个字且不随变宽恢复 */}
-            <Typography.Title heading={6} style={{ margin: 0 }}>
-              {isNew ? '新建流程' : (metaName || definition?.name || '')}
-            </Typography.Title>
-          </Tooltip>
+          <div className="fd-toolbar__title">
+            <Tooltip content={isNew ? '新建流程' : (metaName || definition?.name || '')} position="bottom">
+              {/* 纯 CSS 截断（.fd-toolbar__title > *）：Semi 的 JS ellipsis 在工具栏宽度变化时测量不可靠，会把标题截到一个字且不随变宽恢复 */}
+              <Typography.Title heading={6} style={{ margin: 0 }}>
+                {isNew ? '新建流程' : (metaName || definition?.name || '')}
+              </Typography.Title>
+            </Tooltip>
+          </div>
         </div>
 
         {/* 步骤导航（含完成态:✓ 已完成 / ⚠ 有缺失,悬停查看明细;只读模式不显示状态） */}
