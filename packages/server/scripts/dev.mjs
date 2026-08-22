@@ -30,7 +30,9 @@ runSync('tsx src/db/migrate.ts');
 runSync('tsx src/db/seed.ts');
 
 // 3) 启动并监听文件变化（长驻进程）
-const child = spawn('tsx watch src/index.ts', { stdio: 'inherit', env, shell: true });
+// --exclude：CMS 静态化产物（storage/）与日志（logs/）属于运行时输出，
+// 写入时不应触发 tsx watch 重启，否则每次静态化都会导致后端重启、API 间歇 502。
+const child = spawn('tsx watch --exclude "storage/**" --exclude "logs/**" src/index.ts', { stdio: 'inherit', env, shell: true });
 child.on('exit', (code) => process.exit(code ?? 0));
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => child.kill(signal));
