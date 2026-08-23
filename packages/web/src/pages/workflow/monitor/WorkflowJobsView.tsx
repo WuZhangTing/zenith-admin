@@ -373,6 +373,7 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
     {
       title: '最近错误',
       dataIndex: 'lastError',
+      width: 260,
       render: (v: string | null) => v
         ? <Tooltip content={<div style={{ maxWidth: 360, wordBreak: 'break-all' }}>{v}</div>}><Typography.Text size="small" type="danger" ellipsis={{ rows: 1 }} style={{ maxWidth: 240 }}>{v}</Typography.Text></Tooltip>
         : <Typography.Text size="small" type="tertiary">—</Typography.Text>,
