@@ -1237,7 +1237,8 @@ export default function AIChatPage() {
             </div>
           }
           search={{ value: searchKeyword, onChange: setSearchKeyword, placeholder: '搜索对话 / 消息内容' }}
-          loading={conversationsQuery.isFetching && !conversationsQuery.isFetchingNextPage}
+          // isLoading = 无缓存首载;done 事件触发的列表后台 refetch 不得进 loading 态(侧栏会闪)
+          loading={conversationsQuery.isLoading}
           emptyText={showArchived ? '暂无已归档对话' : (searchKeyword ? '未找到匹配的对话' : '暂无对话')}
           dataSource={convRows}
           footer={conversationsQuery.hasNextPage ? (
