@@ -167,8 +167,8 @@ function convertApiMessage(m: AiMessage): Message {
     content: m.role === 'assistant'
       ? buildAssistantContent(m.content, m.reasoning, true)
       : buildUserContent(m.content, (m.images ?? []).map((id) => `${config.apiBaseUrl}/api/files/${id}/content`)),
-    // Semi 对数组型 content 且带思维链的复制操作取 output_text(user 消息不可设,否则短路数组渲染)
-    ...(m.reasoning && { output_text: m.content }),
+    // ⚠️ 不能设 output_text:Semi 对数组 content 优先渲染 output_text 纯文本,
+    // 会整体短路 reasoning / 工具调用 / 引用等块(复制与朗读经 extractPlainText 提取)
     createdAt: new Date(m.createdAt).getTime(),
     status: 'completed',
     // 映射 DB feedback 字段到 Semi AIChatDialogue 的 like/dislike 显示状态
@@ -255,12 +255,23 @@ function speakText(text: string, onEnd: () => void): boolean {
   return true;
 }
 
-/** 提取消息纯文本（数组 content 取 output_text） */
+/** 提取消息纯文本（数组 content 时取 message 项内的 output_text / input_text 文本） */
 function extractPlainText(msg: Message): string {
   if (typeof msg.content === 'string') return msg.content;
-  const outputText = (msg as Record<string, unknown>).output_text;
-  if (typeof outputText === 'string') return outputText;
-  return '';
+  if (!Array.isArray(msg.content)) return '';
+  const texts: string[] = [];
+  for (const item of msg.content as Record<string, unknown>[]) {
+    if (item.type !== 'message') continue;
+    const inner = item.content;
+    if (typeof inner === 'string') { texts.push(inner); continue; }
+    if (!Array.isArray(inner)) continue;
+    for (const part of inner as Record<string, unknown>[]) {
+      if ((part.type === 'output_text' || part.type === 'input_text') && typeof part.text === 'string') {
+        texts.push(part.text);
+      }
+    }
+  }
+  return texts.join('\n');
 }
 
 type SpeechRecognitionLike = {
@@ -513,7 +524,7 @@ export default function AIChatPage() {
     const refreshAssistant = () => {
       const nextContent = buildAssistantContent(accContent, accReasoning, accContent.length > 0, accToolCalls, accReferences);
       setMessages((prev) =>
-        prev.map((m) => (m.id === assistantMsgId ? { ...m, content: nextContent, output_text: accContent } : m))
+        prev.map((m) => (m.id === assistantMsgId ? { ...m, content: nextContent } : m))
       );
     };
 
