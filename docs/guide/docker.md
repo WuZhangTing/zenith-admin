@@ -53,6 +53,10 @@ redis    ─┤──→  api (Node.js :3300)  ──→  web (Nginx :80)
 | `api` | 本地构建 `server` stage | Hono 后端，启动时自动迁移 |
 | `web` | 本地构建 `web` stage | Nginx 托管前端 + 反向代理 `/api` |
 
+::: tip Mastra Studio 已内置
+`web` 镜像同时托管 [Mastra Studio](https://mastra.ai/docs/studio/overview)（AI 智能体调试与评测控制台），访问 `http://localhost/studio/` 即可。数据面走同源 `/api/mastra`，需登录 + `ai:studio:access` 权限，在 Studio Settings → Custom headers 配置 `Authorization: Bearer <token>`。详见[部署说明](./deployment#部署-mastra-studio-可选)。
+:::
+
 ---
 
 ## 环境变量

@@ -21,6 +21,7 @@ RUN npm ci
 
 # Copy source code
 COPY tsconfig.base.json ./
+COPY docker/build-studio.mjs ./docker/
 COPY packages/shared ./packages/shared
 COPY packages/analytics-sdk ./packages/analytics-sdk
 COPY packages/server ./packages/server
@@ -31,6 +32,10 @@ RUN npm run build -w @zenith/shared \
  && npm run build -w @zenith/analytics-sdk \
  && npm run build -w @zenith/server \
  && npm run build -w @zenith/web
+
+# Mastra Studio 静态资源:产出到 web dist 子目录,随 web 产物一起进 Nginx 镜像
+# (版本由根 devDependencies 的 mastra 包管理;同源部署,鉴权由 API 侧强制)
+RUN node docker/build-studio.mjs packages/web/dist/studio
 
 # Patch shared package.json so Node.js can resolve @zenith/shared at runtime.
 # The source package.json exports TypeScript files (for tsx dev), which plain

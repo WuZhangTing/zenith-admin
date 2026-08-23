@@ -225,6 +225,53 @@ npm run build -w @zenith/web
 CORS_ORIGIN=https://admin.example.com
 ```
 
+## 部署 Mastra Studio（可选）
+
+[Mastra Studio](https://mastra.ai/docs/studio/overview) 是 AI 智能体的调试与评测控制台（对话调试、Workflow 可视化、评测数据集/实验、链路追踪）。它是一个纯静态 SPA，推荐与前端同域部署在 `/studio` 子路径下，数据面走同源 `/api/mastra/*`（已由上文 `/api/` 反代覆盖），无跨域问题。
+
+### 1. 构建静态文件
+
+Studio 静态资源来自根 `devDependencies` 中的 `mastra` 包（版本随锁文件统一管理）。**先构建前端，再产出 Studio**（`build` 会清空 `dist/`）：
+
+```bash
+npm run build          # 前端产物 → packages/web/dist/
+npm run build:studio   # Studio 产物 → packages/web/dist/studio/
+```
+
+产物已内置生产配置：以浏览器当前域名为服务端地址（同源自适应，无需配置域名）、API 前缀 `/api/mastra`、子路径 `/studio`、关闭遥测。
+
+### 2. Nginx 追加配置
+
+在上文 server 块中追加：
+
+```nginx
+    # Mastra Studio（静态 SPA）
+    # /studio/refresh-events 是 Studio 内置的开发态热重载探测，静态部署返回 204 消音
+    location = /studio/refresh-events {
+        return 204;
+    }
+    location /studio/ {
+        try_files $uri $uri/ /studio/index.html;
+    }
+    location = /studio {
+        return 301 /studio/;
+    }
+```
+
+### 3. 访问与鉴权
+
+浏览器打开 `https://your-domain.com/studio/`。`/api/mastra/*` 由服务端强制鉴权（登录 + `ai:studio:access` 权限，对应菜单「Studio 接入」），首次使用需在 Studio **Settings → Custom headers** 添加：
+
+```
+Authorization: Bearer <登录管理后台后获取的 token>
+```
+
+该配置持久化在浏览器本地，token 过期后重新粘贴即可。
+
+::: warning
+Studio 连上后拥有智能体/工作流/评测的完整操作能力。生产环境严禁设置 `MASTRA_STUDIO_ALLOW_ANONYMOUS`（该开关仅开发环境生效，`NODE_ENV=production` 下自动忽略），并确保仅授予可信角色 `ai:studio:access` 权限。
+:::
+
 ## 健康检查
 
 服务启动后，可通过以下接口确认后端运行正常：

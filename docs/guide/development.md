@@ -10,9 +10,14 @@
 npm run dev            # 同时启动后端 + 前端开发服务器
 npm run dev:server     # 仅后端（启动前自动执行迁移与种子脚本）
 npm run dev:web        # 仅前端
+npm run dev:studio     # Mastra Studio（localhost:5380，直连后端 3300 的 /api/mastra）
 npm run dev:demo       # 前端 Demo 模式（MSW Mock，无需后端）
 npm run dev:electron   # 前端 dev server + Electron 窗口（后端需另行启动）
 ```
+
+::: tip Mastra Studio 免鉴权调试
+Studio 是 AI 智能体的调试控制台（对话调试 / Workflow / 评测 / 追踪）。开发时在 `packages/server/.env` 设置 `MASTRA_STUDIO_ALLOW_ANONYMOUS=true` 可放开 `/api/mastra` 鉴权，Studio 打开即用、无需配置 token；该开关在 `NODE_ENV=production` 下强制失效。VS Code 用户可直接用运行配置「Mastra Studio」或「Debug: Full Stack + Studio」。
+:::
 
 ### 构建与校验
 

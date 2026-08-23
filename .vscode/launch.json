@@ -20,12 +20,27 @@
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal",
       "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Mastra Studio",
+      "runtimeExecutable": "npm",
+      "args": ["run", "dev:studio"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
     }
   ],
   "compounds": [
     {
       "name": "Debug: Full Stack",
       "configurations": ["Debug: Server", "Debug: Web"],
+      "stopAll": true
+    },
+    {
+      "name": "Debug: Full Stack + Studio",
+      "configurations": ["Debug: Server", "Debug: Web", "Mastra Studio"],
       "stopAll": true
     }
   ]
