@@ -6,9 +6,9 @@ import {
   Col,
   Empty,
   Form,
-  Modal,
   Popconfirm,
   Row,
+  SideSheet,
   Space,
   Spin,
   TabPane,
@@ -150,8 +150,8 @@ export default function AiAgentsPage() {
       };
     },
     successMessage: ({ isEdit }) => (isEdit ? '智能体已更新' : '智能体已创建'),
-    // 最长标签「Agent 指令」带必填星号,90 会折行
-    labelWidth: 100,
+    // 最长标签「Agent 指令」带必填星号,110 以下会折行
+    labelWidth: 120,
   });
 
   const toolsQuery = useAvailableAiTools(modal.visible);
@@ -234,14 +234,31 @@ export default function AiAgentsPage() {
         </TabPane>
       </Tabs>
 
-      <Modal
-        {...modal.modalProps}
+      <SideSheet
         title={modal.isEdit ? '编辑智能体' : '新建智能体'}
-        width={660}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={640}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
       >
-        <Form
-          key={modal.formKey} {...modal.formProps}
-        >
+        <Spin spinning={modal.detailLoading}>
+          <Form
+            key={modal.formKey} {...modal.formProps}
+          >
           <Row gutter={16}>
             <Col span={12}>
               <Form.Input field="name" label="名称" rules={[{ required: true, message: '请输入名称' }]} maxLength={100} placeholder="如：合同审阅助手" />
@@ -287,8 +304,9 @@ export default function AiAgentsPage() {
           />
           <Form.TextArea field="openingMessage" label="开场白" rows={2} maxCount={2000} placeholder="新对话开始时展示给用户的欢迎语" />
           <Form.TagInput field="suggestedQuestions" label="建议问题" max={6} placeholder="输入后回车添加（最多 6 条）" style={{ width: '100%' }} />
-        </Form>
-      </Modal>
+          </Form>
+        </Spin>
+      </SideSheet>
     </div>
   );
 }
