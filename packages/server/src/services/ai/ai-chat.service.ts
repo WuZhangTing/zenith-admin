@@ -102,32 +102,36 @@ async function resolveStreamConfigById(configId: number, modelOverride?: string)
   return mapSystemStreamConfig(sysCfg, modelOverride);
 }
 
-async function resolveStreamConfigForUser(userConfigId: number): Promise<ResolvedStreamConfig> {
+async function resolveStreamConfigForUser(userConfigId: number, modelOverride?: string): Promise<ResolvedStreamConfig> {
   const allowed = await getConfigBoolean('ai_allow_user_custom_key', false);
   if (!allowed) throw new HTTPException(403, { message: '管理员未开放自定义 AI 配置' });
   const user = currentUser();
   const userCfg = await getRawUserAiConfigById(userConfigId, user.userId);
-  if (!userCfg?.isEnabled || !userCfg.apiKey || !userCfg.model) {
-    throw new HTTPException(400, { message: '用户 AI 配置不完整，请先在设置中填写 API Key 和模型名称' });
+  if (!userCfg?.isEnabled || !userCfg.apiKey || userCfg.models.length === 0 || !userCfg.defaultModel) {
+    throw new HTTPException(400, { message: '用户 AI 配置不完整，请先在设置中填写 API Key 与模型列表' });
   }
   if (userCfg.providerId === 'custom' && !userCfg.baseUrl) {
     throw new HTTPException(400, { message: '自定义服务商必须填写 API 地址' });
   }
+  // 与系统配置同款约束与映射(applyModelOverride + buildModelChain 单一路径);用户配置无降级链
+  const model = applyModelOverride({ defaultModel: userCfg.defaultModel, models: userCfg.models }, modelOverride);
   return {
     chain: [{
       source: {
         providerId: userCfg.providerId,
         baseUrl: userCfg.baseUrl,
         apiKey: userCfg.apiKey,
+        headers: userCfg.headers,
         modelSettings: userCfg.modelSettings,
+        providerOptions: userCfg.providerOptions,
       },
-      model: userCfg.model,
+      model,
       maxRetries: 1,
       modelSettings: userCfg.modelSettings,
     }],
-    capabilities: null,
+    capabilities: userCfg.capabilities ?? null,
     systemPrompt: userCfg.systemPrompt ?? null,
-    snapshot: { providerId: userCfg.providerId, model: userCfg.model },
+    snapshot: { providerId: userCfg.providerId, model },
   };
 }
 
@@ -166,7 +170,7 @@ export async function* streamAiChat(
 ): AsyncGenerator<StreamAiChatChunk & { snapshot?: ProviderSnapshot }> {
   let resolved: ResolvedStreamConfig;
   if (configSource === 'user' && configId) {
-    resolved = await resolveStreamConfigForUser(configId);
+    resolved = await resolveStreamConfigForUser(configId, options?.model);
   } else if (configId) {
     resolved = await resolveStreamConfigById(configId, options?.model);
   } else {

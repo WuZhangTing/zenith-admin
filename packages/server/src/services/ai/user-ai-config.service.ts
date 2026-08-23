@@ -18,13 +18,24 @@ function mapRow(row: typeof userAiConfigs.$inferSelect) {
     providerId: row.providerId,
     baseUrl: row.baseUrl,
     apiKey: plainKey ? `${plainKey.slice(0, 4)}...${plainKey.slice(-4)}` : null,
-    model: row.model,
+    headers: row.headers ?? null,
+    models: row.models ?? [],
+    defaultModel: row.defaultModel ?? null,
     modelSettings: row.modelSettings,
+    providerOptions: row.providerOptions ?? null,
+    capabilities: row.capabilities ?? null,
     systemPrompt: row.systemPrompt,
     isEnabled: row.isEnabled,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
+}
+
+/** defaultModel 必须包含在 models 中（与全局服务商配置同款约束） */
+function assertDefaultInModels(models: string[] | undefined, defaultModel: string | null | undefined) {
+  if (models && models.length > 0 && defaultModel && !models.includes(defaultModel)) {
+    throw new HTTPException(400, { message: '默认模型必须包含在模型列表中' });
+  }
 }
 
 /** 获取当前用户所有 AI 配置 */
@@ -37,6 +48,7 @@ export async function getUserAiConfigs() {
 /** 新增用户 AI 配置 */
 export async function createUserAiConfig(input: SaveUserAiConfigInput) {
   const user = currentUser();
+  assertDefaultInModels(input.models, input.defaultModel);
   const [row] = await db
     .insert(userAiConfigs)
     .values({
@@ -45,8 +57,12 @@ export async function createUserAiConfig(input: SaveUserAiConfigInput) {
       providerId: input.providerId ?? 'custom',
       baseUrl: input.baseUrl ?? null,
       apiKey: input.apiKey ? sealApiKey(input.apiKey) : null,
-      model: input.model ?? null,
+      headers: input.headers ?? null,
+      models: input.models ?? [],
+      defaultModel: input.defaultModel ?? input.models?.[0] ?? null,
       modelSettings: input.modelSettings ?? null,
+      providerOptions: input.providerOptions ?? null,
+      capabilities: input.capabilities ?? null,
       systemPrompt: input.systemPrompt ?? null,
       isEnabled: input.isEnabled ?? true,
     })
@@ -63,6 +79,10 @@ export async function updateUserAiConfig(id: number, input: SaveUserAiConfigInpu
     .where(and(eq(userAiConfigs.id, id), eq(userAiConfigs.userId, user.userId)));
   if (!existing) throw new HTTPException(404, { message: '配置不存在' });
 
+  const nextModels = input.models ?? existing.models ?? [];
+  const nextDefault = input.defaultModel !== undefined ? input.defaultModel : existing.defaultModel;
+  assertDefaultInModels(nextModels, nextDefault);
+
   const apiKey =
     input.apiKey && input.apiKey !== MASKED_KEY && !input.apiKey.includes('...')
       ? sealApiKey(input.apiKey)
@@ -75,8 +95,12 @@ export async function updateUserAiConfig(id: number, input: SaveUserAiConfigInpu
       ...(input.providerId !== undefined && { providerId: input.providerId }),
       ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
       apiKey,
-      ...(input.model !== undefined && { model: input.model }),
+      ...(input.headers !== undefined && { headers: input.headers }),
+      ...(input.models !== undefined && { models: input.models }),
+      ...(input.defaultModel !== undefined && { defaultModel: input.defaultModel ?? input.models?.[0] ?? null }),
       ...(input.modelSettings !== undefined && { modelSettings: input.modelSettings }),
+      ...(input.providerOptions !== undefined && { providerOptions: input.providerOptions }),
+      ...(input.capabilities !== undefined && { capabilities: input.capabilities }),
       ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
       ...(input.isEnabled !== undefined && { isEnabled: input.isEnabled }),
     })

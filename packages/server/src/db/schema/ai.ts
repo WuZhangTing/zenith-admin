@@ -130,13 +130,22 @@ export const userAiConfigs = pgTable('user_ai_configs', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }),
-  /** Mastra 模型目录 provider ID 或 'custom' */
+  /** Mastra 模型目录 provider ID 或 'custom'(与全局 ai_provider_configs 同构的用户子集) */
   providerId: varchar('provider_id', { length: 50 }).notNull().default('custom'),
   baseUrl: varchar('base_url', { length: 500 }),
   apiKey: varchar('api_key', { length: 1000 }),
-  model: varchar('model', { length: 100 }),
-  /** 模型调用默认设置（temperature / maxOutputTokens 等） */
+  /** 自定义请求头（组织 ID 等，随请求透传） */
+  headers: jsonb('headers').$type<Record<string, string>>(),
+  /** 启用的模型列表（聊天时可切换） */
+  models: text('models').array().notNull().default([]),
+  /** 默认模型（须包含在 models 中） */
+  defaultModel: varchar('default_model', { length: 100 }),
+  /** 模型调用默认设置（temperature / maxOutputTokens / reasoning 等） */
   modelSettings: jsonb('model_settings').$type<AiModelSettings>(),
+  /** 服务商特定选项（按 provider 分组透传） */
+  providerOptions: jsonb('provider_options').$type<Record<string, Record<string, unknown>>>(),
+  /** 模型能力标签（vision / tools） */
+  capabilities: jsonb('capabilities').$type<AiModelCapabilities>(),
   systemPrompt: text('system_prompt'),
   isEnabled: boolean('is_enabled').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),

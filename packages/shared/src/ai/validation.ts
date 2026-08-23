@@ -91,8 +91,12 @@ export const saveUserAiConfigSchema = z.object({
   providerId: aiProviderIdSchema.optional(),
   baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).nullable().optional(),
-  model: z.string().max(100).nullable().optional(),
+  headers: z.record(z.string().max(100), z.string().max(500)).nullable().optional(),
+  models: z.array(z.string().min(1).max(100)).max(100).optional(),
+  defaultModel: z.string().max(100).nullable().optional(),
   modelSettings: aiModelSettingsSchema.nullable().optional(),
+  providerOptions: z.record(z.string().max(50), z.record(z.string().max(100), z.unknown())).nullable().optional(),
+  capabilities: aiModelCapabilitiesSchema.nullable().optional(),
   systemPrompt: z.string().max(5000).nullable().optional(),
   isEnabled: z.boolean().optional(),
 });

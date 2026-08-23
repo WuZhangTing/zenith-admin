@@ -308,12 +308,17 @@ export default function AIChatPage() {
   const messagesQuery = useAiConversationMessages(activeConvId);
   const createConversationMutation = useCreateAiConversation();
 
-  // Load AI chat models + user configs as model options（value: `${configId}:${model}` / `user-${id}`）
+  // Load AI chat models + user configs as model options（value: `${configId}:${model}` / `user-${id}:${model}`）
   const loadModelOptions = useCallback((models: AiChatModel[], userConfigs: UserAiConfig[]) => {
     const sysOptions = models.map((m) => ({ value: `${m.id}:${m.model}`, label: `${m.name} (${m.model})`, source: 'system' as const }));
+    // 用户配置对齐系统形态:逐模型展开(与系统同款 `${id}:${model}` 复合值,前缀 user- 区分来源)
     const userOptions = userConfigs
-      .filter((uc) => uc.isEnabled && uc.model)
-      .map((uc) => ({ value: `user-${uc.id}`, label: `${uc.name ?? '我的配置'} (${uc.model})`, source: 'user' as const }));
+      .filter((uc) => uc.isEnabled && uc.models.length > 0)
+      .flatMap((uc) => uc.models.map((m) => ({
+        value: `user-${uc.id}:${m}`,
+        label: `${uc.name ?? '我的配置'} (${m})`,
+        source: 'user' as const,
+      })));
     const options = [...userOptions, ...sysOptions];
     setModelOptions(options);
     if (options.length > 0) {
@@ -325,13 +330,17 @@ export default function AIChatPage() {
     loadModelOptions(chatModels, allowUserCustomKey ? (userConfigsQuery.data ?? []) : []);
   }, [allowUserCustomKey, loadModelOptions, chatModels, userConfigsQuery.data]);
 
-  /** 当前选中模型的能力（vision / tools），用户自定义配置无能力标注 */
+  /** 当前选中模型的能力（vision / tools）:系统与用户配置统一解析 */
   const selectedCapabilities = useMemo(() => {
-    if (!selectedModelValue || selectedModelValue.startsWith('user-')) return null;
+    if (!selectedModelValue) return null;
+    if (selectedModelValue.startsWith('user-')) {
+      const [idStr] = selectedModelValue.replace('user-', '').split(':');
+      return (userConfigsQuery.data ?? []).find((uc) => uc.id === Number(idStr))?.capabilities ?? null;
+    }
     const [idStr, ...modelParts] = selectedModelValue.split(':');
     const model = modelParts.join(':');
     return chatModels.find((m) => m.id === Number(idStr) && m.model === model)?.capabilities ?? null;
-  }, [chatModels, selectedModelValue]);
+  }, [chatModels, userConfigsQuery.data, selectedModelValue]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearchKeyword(searchKeyword), 300);
@@ -613,8 +622,10 @@ export default function AIChatPage() {
                 const reasoning = configureValuesRef.current.reasoning as string | undefined;
                 if (reasoning) base.reasoning = reasoning;
                 if (selectedModel.startsWith('user-')) {
-                  const userConfigId = Number.parseInt(selectedModel.replace('user-', ''), 10);
-                  return { ...base, configSource: 'user', configId: userConfigId };
+                  // `user-${configId}:${model}` 组合(用户配置多模型,与系统同构)
+                  const [idStr, ...modelParts] = selectedModel.replace('user-', '').split(':');
+                  const model = modelParts.join(':');
+                  return { ...base, configSource: 'user', configId: Number.parseInt(idStr, 10), ...(model && { model }) };
                 }
                 // `${configId}:${model}` 组合（多模型配置）
                 const [idStr, ...modelParts] = selectedModel.split(':');

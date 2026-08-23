@@ -113,6 +113,20 @@
       "when": 1787499104201,
       "tag": "0015_bouncy_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787499776440,
+      "tag": "0016_glossy_khan",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787499843610,
+      "tag": "0017_conscious_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

@@ -22,8 +22,6 @@ interface FormValues {
   apiKey: string;
   models: string[];
   defaultModel: string;
-  /** 用户模式的单模型 */
-  model?: string;
   temperature?: number | null;
   maxOutputTokens?: number | null;
   /** 推理力度(仅支持 reasoning 的模型生效;空 = 跟随模型默认) */
@@ -48,7 +46,6 @@ const SYSTEM_DEFAULTS: FormValues = {
   apiKey: '',
   models: [],
   defaultModel: '',
-  model: '',
   temperature: null,
   maxOutputTokens: null,
   reasoning: null,
@@ -128,10 +125,14 @@ function userConfigToFormValues(config: UserAiConfig): FormValues {
     providerId: config.providerId ?? AI_CUSTOM_PROVIDER_ID,
     baseUrl: config.baseUrl,
     apiKey: config.apiKey ?? '',
-    model: config.model ?? '',
+    models: config.models ?? [],
+    defaultModel: config.defaultModel ?? '',
     temperature: config.modelSettings?.temperature ?? null,
     maxOutputTokens: config.modelSettings?.maxOutputTokens ?? null,
     reasoning: config.modelSettings?.reasoning ?? null,
+    capVision: config.capabilities?.vision ?? false,
+    capTools: config.capabilities?.tools ?? false,
+    contextWindow: config.capabilities?.contextWindow ?? null,
     systemPrompt: config.systemPrompt ?? null,
     isEnabled: config.isEnabled,
   };
@@ -232,8 +233,14 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
       providerId: values.providerId,
       baseUrl: values.baseUrl?.trim() || null,
       apiKey: values.apiKey || null,
-      model: values.model || null,
+      models: (values.models ?? []).map((m) => m.trim()).filter(Boolean),
+      defaultModel: values.defaultModel || null,
       modelSettings: toModelSettings(values),
+      capabilities: {
+        vision: values.capVision ?? false,
+        tools: values.capTools ?? false,
+        ...(values.contextWindow ? { contextWindow: values.contextWindow } : {}),
+      },
       systemPrompt: values.systemPrompt || null,
       isEnabled: values.isEnabled,
     }),
@@ -316,9 +323,9 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
     const formApi = activeModal.formApi.current as FormApiLike;
     if (!formApi) return;
     const values = formApi.getValues();
-    const model = isUser ? values.model : values.defaultModel;
+    const model = values.defaultModel;
     if (!model) {
-      Toast.warning('请先填写模型名称');
+      Toast.warning('请先选择默认模型');
       return;
     }
     if (values.providerId === AI_CUSTOM_PROVIDER_ID && !values.baseUrl) {
@@ -414,54 +421,47 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
           </Form.Section>
 
           <Form.Section text="模型">
-            {!isUser && (
-              <>
-                {isCustom ? (
-                  <Form.TagInput
-                    field="models"
-                    label="启用模型"
-                    placeholder="输入模型名后回车添加，或点击右侧「从 API 获取」"
-                    allowDuplicates={false}
-                    rules={[{ required: true, message: '至少启用一个模型' }]}
-                    extraText={(
-                      <span>
-                        聊天时可在启用的模型间切换
-                        <Button
-                          theme="borderless"
-                          type="primary"
-                          size="small"
-                          loading={fetchModelsMutation.isPending}
-                          style={{ marginLeft: 4 }}
-                          onClick={() => void handleFetchModels()}
-                        >
-                          从 API 获取
-                        </Button>
-                      </span>
-                    )}
-                  />
-                ) : (
-                  <Form.Select
-                    field="models"
-                    label="启用模型"
-                    // allowCreate 的 Select 不响应 optionList 动态更新:目录数据到达后经 key 重挂载
-                    key={`models-${providerId}-${catalogModelsQuery.data?.length ?? 0}`}
-                    multiple
-                    filter
-                    allowCreate
-                    loading={catalogModelsQuery.isLoading}
-                    optionList={(catalogModelsQuery.data ?? []).map((m) => ({ value: m, label: m }))}
-                    style={{ width: '100%' }}
-                    rules={[{ required: true, message: '至少启用一个模型' }]}
-                    placeholder="从目录选择,支持搜索与手动输入"
-                    extraText="模型清单来自 Mastra 目录;也可输入目录外的模型名"
-                  />
+            {isCustom ? (
+              <Form.TagInput
+                field="models"
+                label="启用模型"
+                placeholder="输入模型名后回车添加，或点击右侧「从 API 获取」"
+                allowDuplicates={false}
+                rules={[{ required: true, message: '至少启用一个模型' }]}
+                extraText={(
+                  <span>
+                    聊天时可在启用的模型间切换
+                    <Button
+                      theme="borderless"
+                      type="primary"
+                      size="small"
+                      loading={fetchModelsMutation.isPending}
+                      style={{ marginLeft: 4 }}
+                      onClick={() => void handleFetchModels()}
+                    >
+                      从 API 获取
+                    </Button>
+                  </span>
                 )}
-                <DefaultModelField />
-              </>
+              />
+            ) : (
+              <Form.Select
+                field="models"
+                label="启用模型"
+                // allowCreate 的 Select 不响应 optionList 动态更新:目录数据到达后经 key 重挂载
+                key={`models-${providerId}-${catalogModelsQuery.data?.length ?? 0}`}
+                multiple
+                filter
+                allowCreate
+                loading={catalogModelsQuery.isLoading}
+                optionList={(catalogModelsQuery.data ?? []).map((m) => ({ value: m, label: m }))}
+                style={{ width: '100%' }}
+                rules={[{ required: true, message: '至少启用一个模型' }]}
+                placeholder="从目录选择,支持搜索与手动输入"
+                extraText="模型清单来自 Mastra 目录;也可输入目录外的模型名"
+              />
             )}
-            {isUser && (
-              <Form.Input field="model" label="模型" rules={[{ required: true, message: '请输入模型名称' }]} placeholder="gpt-4o" />
-            )}
+            <DefaultModelField />
             <Row gutter={16}>
               <Col span={12}>
                 <Form.InputNumber field="temperature" label="温度" min={0} max={2} step={0.1} placeholder="留空用模型默认" style={{ width: '100%' }} extraText="0–2，越大越发散" />
@@ -474,22 +474,16 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
               <Col span={12}>
                 <Form.Select field="reasoning" label="推理力度" optionList={REASONING_OPTIONS} style={{ width: '100%' }} placeholder="跟随模型默认" extraText="仅推理模型生效，开启后回复带思考过程" />
               </Col>
+              <Col span={12}>
+                <Form.InputNumber field="contextWindow" label="上下文窗口" min={0} placeholder="可选" style={{ width: '100%' }} extraText="单位 Token" />
+              </Col>
             </Row>
-            {!isUser && (
-              <>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.InputNumber field="contextWindow" label="上下文窗口" min={0} placeholder="可选" style={{ width: '100%' }} extraText="单位 Token" />
-                  </Col>
-                </Row>
-                <Form.Slot label="模型能力">
-                  <div style={{ display: 'flex', gap: 24 }}>
-                    <Form.Switch field="capVision" noLabel label="图片理解" extraText="支持图片理解" />
-                    <Form.Switch field="capTools" noLabel label="函数调用" extraText="支持函数调用" />
-                  </div>
-                </Form.Slot>
-              </>
-            )}
+            <Form.Slot label="模型能力">
+              <div style={{ display: 'flex', gap: 24 }}>
+                <Form.Switch field="capVision" noLabel label="图片理解" extraText="支持图片理解" />
+                <Form.Switch field="capTools" noLabel label="函数调用" extraText="支持函数调用" />
+              </div>
+            </Form.Slot>
           </Form.Section>
 
           {!isUser && (
