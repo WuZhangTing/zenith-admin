@@ -4,6 +4,54 @@
 
 ---
 
+## v1.81.0 - 2026-08-23
+
+本版本完成 **AI 域全量迁移至 Mastra 框架**的三阶段工程：模型层接入 178+ 服务商目录与多级降级链，运行时以 Mastra Memory / PgVector 重建上下文引擎与知识库检索，智能体去市场化改为「创建即注册」的一等 Mastra Agent，评测迁移 Datasets/Experiments，并经官方 Hono 适配器挂载 Mastra 标准 API 作为 **Mastra Studio** 后端（开发一键起、生产静态部署），全链路（对话 / 智能体 / 评测 / 工作流 / 追踪）在 Studio 实测打通。
+
+### Added
+
+#### AI · Mastra 模型层（Phase 1）
+
+- **服务商目录接入**：服务商配置改为 Mastra 模型目录形态（`providerId` + 多模型 + 默认模型），支持 178+ 服务商与私有 OpenAI 兼容网关（`custom` 直连 baseUrl）；新增目录查询接口（`GET /ai/providers/catalog`、`catalog/{id}/models`）
+- **多级模型降级链**：配置级 `fallbacks` 级联（每级独立重试次数 / 模型设置 / providerOptions），5xx / 限流 / 超时自动切换下一级
+- 服务商表单重构：目录选择器、从 API 拉取模型清单、降级链编辑器
+
+#### AI · Mastra 运行时（Phase 2）
+
+- **Memory 上下文引擎**：对话上下文改由 Mastra Memory 承载（近 20 条 + 可选语义召回），业务消息账本与 Memory thread 确定性映射，分支操作（重新生成 / 编辑重发 / 切分支 / 删消息）自动重建镜像
+- **PgVector 知识库检索**：RAG 迁移 MDocument 分块 + ModelRouterEmbeddingModel + PgVector（每库独立索引，metadata 零回表）；Mastra 运行时数据落同库独立 `mastra` schema
+- 未配置 embedding 模型时语义检索自动退化为关键词检索
+
+#### AI · 智能体与评测（Phase 3）
+
+- **智能体去市场化**：删除市场 / 上架审核 / 克隆概念，创建即用；参数向 Mastra 对齐（instructions / modelSettings / maxSteps），创建 / 更新 / 停用 / 删除全程与 Mastra 注册表同步（`agent-{id}`），可作为评测目标并在 Studio 调试
+- **编程式内置智能体示例**：`biz-demo/demo-agent` 演示 zod 工具查询真实运营数据、`.agent()` 步骤 + structuredOutput 的周报 Workflow，及 Agent×Workflow 双向整合（workflows 自动转工具）
+- **评测迁移 Mastra Datasets/Experiments**：数据集版本化管理条目，实验异步执行 + 内置 ground-truth 打分器，按打分器聚合平均分与逐条结果对比；评测页重写为数据集 + 条目管理 + 实验发起 / 轮询 / 结果视图
+
+#### AI · Mastra Studio 接入
+
+- **Hono 官方适配器挂载 Mastra 标准 API**（`/api/mastra/*`）：agents / workflows / datasets / experiments / scorers / traces / memory 全部端点，懒初始化零冷启动成本，上游系统鉴权 + `ai:studio:access` 权限门控（菜单「Studio 接入」）
+- **开发一键起 Studio**：`npm run dev:studio`（端口 5380 直连后端），`MASTRA_STUDIO_ALLOW_ANONYMOUS` 开发免贴 token（生产强制失效）；VS Code 新增「Mastra Studio」与「Full Stack + Studio」运行配置
+- **生产静态部署**：`npm run build:studio` 产出同源自适应静态产物（Docker 镜像内置 `/studio` 入口，手动部署文档含 Nginx 配置与鉴权说明）
+- **执行链路可观测**：后台对话 / 智能体 / 评测 / 工作流每次执行的完整 traces（模型调用 / 工具 / Memory 操作）落 `mastra_ai_spans`，Studio 追踪页可查，敏感数据自动脱敏
+
+### Changed
+
+- **BREAKING**：AI 服务商配置 schema v2（providerId / models / defaultModel / fallbacks）、智能体 schema v2（instructions / modelSettings / maxSteps），评测数据全部迁移 mastra schema，历史 AI 配置与评测数据不保留
+- 智能体创建 / 编辑改用 SideSheet（标签加宽不折行）
+- AI 评测不再挂任务中心，由 Mastra Experiments 自带异步执行承载
+- 全局 CORS `allowHeaders` 改为预检反射；`/api/mastra` 单独反射 Origin + 允许凭据（Studio 请求带 credentials）
+- mastra CLI 进根 devDependencies，版本随锁文件统一管理
+
+### Fixed
+
+- 新建对话在侧栏出现两条重复行（TanStack Query v5 mutateAsync 等待 invalidate refetch 完成后手动前插未去重）
+- zenith-chat 无 requestContext 注入时（Studio 详情 / 评测目标）模型解析为 undefined 报 Agent not found，现回退系统默认服务商配置
+- Mastra OpenAPI spec 因子 app 路径错位返回空 paths（改用官方 prefix 选项后修复）
+- AI 服务商「名称 / 供应商」列过窄；智能对话页用户头像缺失（接入通用 UserAvatar 首字母兜底）
+
+---
+
 ## v1.80.0 - 2026-08-22
 
 本版本围绕**工作流运行时正确性**、**开放平台协议合规**与**报表中心可用性**三条线：修复门控触发器 token 提前越过、业务接入桥同名随机命中两处引擎级缺陷；审批代理新增**直接代批模式**（解决委托人缺席流程卡死）；流程自动化补齐**动作执行留痕**、定时发起支持**表单数据预填**；OAuth2 标准端点改为 **RFC 合规顶层格式**；ChatBI 治理数据集解锁敏感表引用。以上均基于工作流引擎全目录（18 页）、开放平台（9 页）与报表中心（14 页）的端到端浏览器实测。
