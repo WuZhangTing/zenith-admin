@@ -1,5 +1,5 @@
 import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, text, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
-import type { AiModelSettings, AiModelFallbackRef } from '@zenith/shared/ai';
+import type { AiModelSettings, AiModelFallbackRef, AiUserSettingsPatch } from '@zenith/shared/ai';
 import { auditColumns, tenants, users } from './core';
 
 export const aiMessageRoleEnum = pgEnum('ai_message_role', ['system', 'user', 'assistant']);
@@ -171,20 +171,16 @@ export type AiPromptTemplateRow = typeof aiPromptTemplates.$inferSelect;
 
 export type NewAiPromptTemplate = typeof aiPromptTemplates.$inferInsert;
 
-/** 用户级 AI 个性化指令（Custom Instructions） */
-export const aiUserPreferences = pgTable('ai_user_preferences', {
+/** 用户级 AI 设置(单份文档:个人指令 / AI 记忆开关等,分域稀疏存储,读取时与默认值深合并) */
+export const aiUserSettings = pgTable('ai_user_settings', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /** 关于我：背景、身份、偏好等 */
-  aboutMe: text('about_me'),
-  /** 回答风格要求 */
-  replyStyle: text('reply_style'),
-  isEnabled: boolean('is_enabled').notNull().default(true),
+  settings: jsonb('settings').$type<AiUserSettingsPatch>().notNull().default({}),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [uniqueIndex('ai_user_preferences_user_id_uq').on(t.userId)]);
+}, (t) => [uniqueIndex('ai_user_settings_user_id_uq').on(t.userId)]);
 
-export type AiUserPreferenceRow = typeof aiUserPreferences.$inferSelect;
+export type AiUserSettingsRow = typeof aiUserSettings.$inferSelect;
 
 /** 对话分享链接 */
 export const aiSharedConversations = pgTable('ai_shared_conversations', {

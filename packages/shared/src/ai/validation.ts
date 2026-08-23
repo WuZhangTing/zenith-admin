@@ -282,3 +282,26 @@ export const arenaVoteSchema = z.object({
 });
 
 export type ArenaVoteInput = z.infer<typeof arenaVoteSchema>;
+
+// ─── 用户级 AI 设置 ───────────────────────────────────────────────────────────
+
+/** 用户级 AI 设置写入 schema(深度可选;域内字段逐个合并,未知键拒绝) */
+export const saveAiUserSettingsSchema = z.object({
+  instructions: z.object({
+    enabled: z.boolean().optional(),
+    aboutMe: z.string().max(2000).nullable().optional(),
+    replyStyle: z.string().max(2000).nullable().optional(),
+  }).strict().optional(),
+  memory: z.object({
+    enabled: z.boolean().optional(),
+  }).strict().optional(),
+}).strict();
+
+export type SaveAiUserSettingsInput = z.infer<typeof saveAiUserSettingsSchema>;
+
+/** AI 记忆画像(working memory)编辑 schema */
+export const updateAiMemoryProfileSchema = z.object({
+  content: z.string().max(8000),
+});
+
+export type UpdateAiMemoryProfileInput = z.infer<typeof updateAiMemoryProfileSchema>;

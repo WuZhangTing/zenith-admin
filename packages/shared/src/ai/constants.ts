@@ -32,3 +32,9 @@ export const AI_COMMON_PROVIDERS: ReadonlyArray<{ id: string; label: string }> =
 export const AI_REASONING_LEVELS = ['provider-default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
 
 export type AiReasoningLevel = (typeof AI_REASONING_LEVELS)[number];
+
+/** 用户级 AI 设置默认值(DB 稀疏存储,读取时深合并;新增域只需扩展此处与 schema) */
+export const AI_USER_SETTINGS_DEFAULTS = {
+  instructions: { enabled: true, aboutMe: null, replyStyle: null },
+  memory: { enabled: true },
+} as const;

@@ -103,12 +103,26 @@ export interface AiProviderCatalogEntry {
   modelCount: number;
 }
 
-/** 用户级 AI 个性化指令（Custom Instructions） */
-export interface AiUserPreference {
-  aboutMe: string | null;
-  replyStyle: string | null;
-  isEnabled: boolean;
+/** 用户级 AI 设置（单份文档，分域；DB 稀疏存储，读取时与 AI_USER_SETTINGS_DEFAULTS 深合并） */
+export interface AiUserSettings {
+  /** 个人指令（Custom Instructions） */
+  instructions: {
+    enabled: boolean;
+    /** 关于我：背景、身份、偏好等 */
+    aboutMe: string | null;
+    /** 回答风格要求 */
+    replyStyle: string | null;
+  };
+  /** AI 记忆（Mastra working memory 用户画像） */
+  memory: {
+    enabled: boolean;
+  };
 }
+
+/** 深度可选形态（写入与存储用） */
+export type AiUserSettingsPatch = {
+  [K in keyof AiUserSettings]?: Partial<AiUserSettings[K]>;
+};
 
 /** 对话分享信息 */
 export interface AiConversationShare {

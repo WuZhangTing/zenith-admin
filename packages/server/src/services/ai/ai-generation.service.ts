@@ -163,6 +163,10 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
     // Memory 管理历史:仅传当轮输入(regenerate 时重发最后一条 user 消息)
     const messages: ChatMessage[] = [{ role: 'user', content: userContent }];
 
+    // 用户级 AI 设置:working memory(AI 记忆画像)开关,默认开启
+    const { getUserAiSettings } = await import('./ai-user-settings.service');
+    const userSettings = await getUserAiSettings(userId);
+
     const llmStart = Date.now();
     let toolRounds = 0;
     for await (const chunk of streamAiChat(messages, configSource, agent?.configId ?? configId, {
@@ -174,7 +178,11 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
         ? { ...agent?.modelSettings, reasoning }
         : (agent?.modelSettings ?? null),
       toolFilter: agent ? (agent.tools ?? []) : undefined,
-      memory: { thread: chatThreadId(conversation.id), resource: chatResourceId(userId) },
+      memory: {
+        thread: chatThreadId(conversation.id),
+        resource: chatResourceId(userId),
+        workingMemoryEnabled: userSettings.memory.enabled,
+      },
       context: contextMessages,
     })) {
       await checkCancel();

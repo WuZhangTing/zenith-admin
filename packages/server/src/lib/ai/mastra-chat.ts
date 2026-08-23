@@ -29,8 +29,9 @@ export interface StreamAgentChatParams {
   /**
    * Mastra Memory 作用域:提供时上下文由 Memory 引擎管理
    * (自动加载历史 + 语义召回,并保存本轮消息),messages 只传当轮输入。
+   * workingMemoryEnabled=false 时按用户设置关闭 AI 记忆(用户画像)读写。
    */
-  memory?: { thread: string; resource: string };
+  memory?: { thread: string; resource: string; workingMemoryEnabled?: boolean };
   /** 一次性上下文消息(知识库检索结果等):进入本轮请求但不写入记忆 */
   context?: ChatMessage[];
   signal?: AbortSignal;
@@ -119,7 +120,15 @@ export async function* streamAgentChat(params: StreamAgentChatParams): AsyncGene
       requestContext,
       abortSignal: abort.signal,
       maxSteps: MAX_TOOL_ROUNDS + 1,
-      ...(params.memory ? { memory: { thread: params.memory.thread, resource: params.memory.resource } } : {}),
+      ...(params.memory ? {
+        memory: {
+          thread: params.memory.thread,
+          resource: params.memory.resource,
+          ...(params.memory.workingMemoryEnabled === false
+            ? { options: { workingMemory: { enabled: false } } }
+            : {}),
+        },
+      } : {}),
       ...(params.context && params.context.length > 0 ? { context: toContextMessages(params.context) as never } : {}),
     });
 

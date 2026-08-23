@@ -70,3 +70,33 @@ export async function deleteThreadMirror(conversationId: number): Promise<void> 
     logger.warn('[ai-memory] delete thread mirror failed', { conversationId, err });
   }
 }
+
+// ─── AI 记忆画像(resource-scoped working memory)────────────────────────────────
+
+/** 画像操作用的稳定 thread 句柄(resource 域读写实际落 mastra_resources,thread 仅作 API 参数) */
+const profileThreadId = (userId: number) => `profile:${userId}`;
+
+/** 读取当前用户的 AI 记忆画像(未生成时返回 null 或模板) */
+export async function getMemoryProfile(userId: number): Promise<string | null> {
+  const memory = await getChatMemory();
+  const result = await memory.getWorkingMemory({
+    threadId: profileThreadId(userId),
+    resourceId: chatResourceId(userId),
+  });
+  return typeof result === 'string' ? result : null;
+}
+
+/** 覆盖当前用户的 AI 记忆画像(用户编辑) */
+export async function updateMemoryProfile(userId: number, content: string): Promise<void> {
+  const memory = await getChatMemory();
+  await memory.updateWorkingMemory({
+    threadId: profileThreadId(userId),
+    resourceId: chatResourceId(userId),
+    workingMemory: content,
+  });
+}
+
+/** 清空当前用户的 AI 记忆画像(被遗忘权) */
+export async function clearMemoryProfile(userId: number): Promise<void> {
+  await updateMemoryProfile(userId, '');
+}

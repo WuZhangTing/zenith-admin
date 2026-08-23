@@ -1,11 +1,13 @@
 import { http, HttpResponse } from 'msw';
 import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
-import type { AiKnowledgeBase, AiKbDocument, AiUserPreference } from '@zenith/shared/ai';
+import type { AiKnowledgeBase, AiKbDocument, AiUserSettings, SaveAiUserSettingsInput } from '@zenith/shared/ai';
+import { AI_USER_SETTINGS_DEFAULTS } from '@zenith/shared/ai';
 import { mockDateTime } from '../utils/date';
 
-/* ─── 个人指令 ─────────────────────────────────────────────── */
+/* ─── 用户级 AI 设置（个人指令 / AI 记忆） ────────────────────── */
 
-let preference: AiUserPreference = { aboutMe: null, replyStyle: null, isEnabled: true };
+let settings: AiUserSettings = structuredClone(AI_USER_SETTINGS_DEFAULTS) as AiUserSettings;
+let memoryProfile: string | null = null;
 
 /* ─── 分享 ────────────────────────────────────────────────── */
 
@@ -45,16 +47,25 @@ const docStore: Record<number, AiKbDocument[]> = {
 };
 
 export const aiExtrasHandlers = [
-  // ── 个人指令 ──
-  http.get('/api/ai/preferences', () => ok(preference)),
-  http.put('/api/ai/preferences', async ({ request }) => {
-    const body = await request.json() as Partial<AiUserPreference>;
-    preference = {
-      aboutMe: body.aboutMe ?? null,
-      replyStyle: body.replyStyle ?? null,
-      isEnabled: body.isEnabled ?? true,
+  // ── 用户级 AI 设置 ──
+  http.get('/api/ai/settings', () => ok(settings)),
+  http.put('/api/ai/settings', async ({ request }) => {
+    const body = await request.json() as SaveAiUserSettingsInput;
+    settings = {
+      instructions: { ...settings.instructions, ...body.instructions },
+      memory: { ...settings.memory, ...body.memory },
     };
-    return ok(preference, '保存成功');
+    return ok(settings, '保存成功');
+  }),
+  http.get('/api/ai/settings/memory-profile', () => ok({ content: memoryProfile })),
+  http.put('/api/ai/settings/memory-profile', async ({ request }) => {
+    const body = await request.json() as { content: string };
+    memoryProfile = body.content || null;
+    return ok({ content: memoryProfile }, '保存成功');
+  }),
+  http.delete('/api/ai/settings/memory-profile', () => {
+    memoryProfile = null;
+    return ok(null, '已清空');
   }),
 
   // ── 对话分享 ──

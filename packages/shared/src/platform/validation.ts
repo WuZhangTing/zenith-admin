@@ -294,15 +294,7 @@ export type CreateTagInput = z.infer<typeof createTagSchema>;
 
 export type UpdateTagInput = z.infer<typeof updateTagSchema>;
 
-// ─── AI 个性化指令 / 分享 / 知识库 Schema ─────────────────────────────────────
-
-export const saveAiPreferenceSchema = z.object({
-  aboutMe: z.string().max(2000).nullable().optional(),
-  replyStyle: z.string().max(2000).nullable().optional(),
-  isEnabled: z.boolean().optional(),
-});
-
-export type SaveAiPreferenceInput = z.infer<typeof saveAiPreferenceSchema>;
+// ─── AI 分享 / 知识库 Schema ──────────────────────────────────────────────────
 
 // ─── 数据脱敏配置 Schema ──────────────────────────────────────────────────────
 

@@ -91,6 +91,8 @@ const memoryCache = new Map<string, Promise<Memory>>();
 /**
  * 聊天记忆实例(按 embedding 配置缓存;配置变化自动重建)。
  * - 始终启用 lastMessages(最近 20 条,替代自研滑窗裁剪)
+ * - working memory(resource 域用户画像):模型自动维护跨对话的用户信息,
+ *   实例级默认开启,是否生效由调用时 per-call options 按用户设置覆盖
  * - 配置了 embedding 模型时启用 semantic recall(当前对话内向量召回早期内容)
  */
 export function getChatMemory(): Promise<Memory> {
@@ -101,10 +103,24 @@ export function getChatMemory(): Promise<Memory> {
     if (!cached) {
       cached = (async () => {
         const [{ Memory }, storage] = await Promise.all([import('@mastra/memory'), getMastraStorage()]);
+        const workingMemory = {
+          enabled: true,
+          scope: 'resource' as const,
+          template: [
+            '# 用户画像',
+            '- 称呼:',
+            '- 职业/角色:',
+            '- 技术栈/工作背景:',
+            '- 偏好(语言/风格/格式):',
+            '- 长期目标:',
+            '',
+            '仅记录用户主动透露的稳定事实与偏好;不要记录敏感信息(证件号/密码/精确住址)。',
+          ].join('\n'),
+        };
         if (!embedder) {
           return new Memory({
             storage: storage as never,
-            options: { lastMessages: 20, semanticRecall: false },
+            options: { lastMessages: 20, semanticRecall: false, workingMemory },
           });
         }
         const [{ ModelRouterEmbeddingModel }, vector] = await Promise.all([
@@ -119,6 +135,7 @@ export function getChatMemory(): Promise<Memory> {
           options: {
             lastMessages: 20,
             semanticRecall: { topK: 4, messageRange: 2, scope: 'thread' },
+            workingMemory,
           },
         });
       })();

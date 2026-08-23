@@ -74,13 +74,24 @@ export const AiChatModelDTO = z
   })
   .openapi('AiChatModel');
 
-export const AiUserPreferenceDTO = z
+export const AiUserSettingsDTO = z
   .object({
-    aboutMe: z.string().nullable().openapi({ description: '关于我（背景信息）' }),
-    replyStyle: z.string().nullable().openapi({ description: '回答风格要求' }),
-    isEnabled: z.boolean().openapi({ description: '是否启用个人指令' }),
+    instructions: z.object({
+      enabled: z.boolean().openapi({ description: '是否启用个人指令' }),
+      aboutMe: z.string().nullable().openapi({ description: '关于我（背景信息）' }),
+      replyStyle: z.string().nullable().openapi({ description: '回答风格要求' }),
+    }),
+    memory: z.object({
+      enabled: z.boolean().openapi({ description: '是否启用 AI 记忆（working memory 用户画像）' }),
+    }),
   })
-  .openapi('AiUserPreference');
+  .openapi('AiUserSettings');
+
+export const AiMemoryProfileDTO = z
+  .object({
+    content: z.string().nullable().openapi({ description: 'AI 记忆画像内容（Markdown），null=尚未生成' }),
+  })
+  .openapi('AiMemoryProfile');
 
 export const AiConversationShareDTO = z
   .object({

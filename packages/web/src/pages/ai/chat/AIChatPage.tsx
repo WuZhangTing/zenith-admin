@@ -12,7 +12,7 @@ import AppModal from '@/components/AppModal';
 import { useAuth } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/UserAvatar';
 import UserAiConfigModal from '../components/UserAiConfigModal';
-import PreferenceModal from '../components/PreferenceModal';
+import AiSettingsModal from '../components/AiSettingsModal';
 import ShareModal from '../components/ShareModal';
 import ArenaModal from '../components/ArenaModal';
 import { request } from '@/utils/request';
@@ -1340,7 +1340,7 @@ export default function AIChatPage() {
                     onClick={() => setArenaVisible(true)}
                   />
                 </Tooltip>
-                <Tooltip content="个人指令（AI 全局记住你的偏好）">
+                <Tooltip content="AI 个性化设置（个人指令 / AI 记忆）">
                   <Button
                     theme="borderless"
                     size="small"
@@ -1624,7 +1624,7 @@ export default function AIChatPage() {
         }}
       />
     )}
-    <PreferenceModal visible={preferenceVisible} onClose={() => setPreferenceVisible(false)} />
+    <AiSettingsModal visible={preferenceVisible} onClose={() => setPreferenceVisible(false)} />
     <ShareModal convId={shareConvId} onClose={() => setShareConvId(null)} />
     <ArenaModal visible={arenaVisible} onClose={() => setArenaVisible(false)} models={chatModels} />
     <AppModal

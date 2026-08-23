@@ -10,7 +10,7 @@ import aiGenerationsRoutes from './ai-generations';
 import aiHttpToolsRoutes from './ai-http-tools';
 import aiKnowledgeRoutes from './ai-knowledge';
 import aiModelsRoutes from './ai-models';
-import aiPreferencesRoutes from './ai-preferences';
+import aiSettingsRoutes from './ai-settings';
 import aiPromptTemplatesRoutes from './ai-prompt-templates';
 import aiProvidersRoutes from './ai-providers';
 import aiPublicRoutes from './ai-public';
@@ -22,7 +22,7 @@ export default defineRouteDomain({
   mounts: () => [
     ['/api/ai/providers', aiProvidersRoutes, { feature: 'ai' }],
     ['/api/ai/models', aiModelsRoutes, { feature: 'ai' }],
-    ['/api/ai/preferences', aiPreferencesRoutes, { feature: 'ai' }],
+    ['/api/ai/settings', aiSettingsRoutes, { feature: 'ai' }],
     ['/api/ai/conversations', aiConversationExtrasRoutes, { feature: 'ai' }],
     ['/api/ai/public', aiPublicRoutes],
     ['/api/ai/knowledge-bases', aiKnowledgeRoutes, { feature: 'ai' }],

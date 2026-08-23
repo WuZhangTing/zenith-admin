@@ -3,7 +3,7 @@ import { currentUser } from '../../lib/context';
 import { getConfigBoolean } from '../../lib/system-config';
 import { getRawDefaultProviderConfig, getRawProviderConfig } from './ai-providers.service';
 import { getRawUserAiConfigById } from './user-ai-config.service';
-import { buildPreferencePrompt } from './ai-preferences.service';
+import { buildPreferencePrompt } from './ai-user-settings.service';
 import { streamAgentChat, chatOnce } from '../../lib/ai/mastra-chat';
 import { getMastraTools } from '../../lib/ai/tools';
 import { acquireProviderSlot } from '../../lib/ai/reliability';
@@ -143,7 +143,7 @@ export interface StreamAiChatOptions {
   /** 工具白名单（智能体勾选的工具集；undefined = 全部，[] = 无） */
   toolFilter?: string[] | null;
   /** Mastra Memory 作用域(提供则上下文由 Memory 引擎管理,messages 仅传当轮输入) */
-  memory?: { thread: string; resource: string };
+  memory?: { thread: string; resource: string; workingMemoryEnabled?: boolean };
   /** 一次性上下文消息(知识库检索结果等,不写入记忆) */
   context?: ChatMessage[];
 }

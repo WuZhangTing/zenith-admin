@@ -1,30 +1,58 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiUserPreference, AiConversationShare, AiKnowledgeBase, AiKbDocument, AiKbChunk, CreateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput, AiPromptTemplateVersion } from '@zenith/shared/ai';
-import type { SaveAiPreferenceInput } from '@zenith/shared/platform';
+import type { AiUserSettings, SaveAiUserSettingsInput, AiConversationShare, AiKnowledgeBase, AiKbDocument, AiKbChunk, CreateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput, AiPromptTemplateVersion } from '@zenith/shared/ai';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
 
-/* ─── 个人指令（Custom Instructions） ─────────────────────────────────────── */
+/* ─── 用户级 AI 设置（个人指令 / AI 记忆） ─────────────────────────────────── */
 
-export const aiPreferenceKeys = {
-  me: ['ai-preferences', 'me'] as const,
+export const aiSettingsKeys = {
+  me: ['ai-settings', 'me'] as const,
+  memoryProfile: ['ai-settings', 'memory-profile'] as const,
 };
 
-export function useAiPreference(enabled = true) {
+export function useAiSettings(enabled = true) {
   return useQuery({
-    queryKey: aiPreferenceKeys.me,
-    queryFn: () => request.get<AiUserPreference>('/api/ai/preferences').then(unwrap),
+    queryKey: aiSettingsKeys.me,
+    queryFn: () => request.get<AiUserSettings>('/api/ai/settings').then(unwrap),
     enabled,
     staleTime: LOOKUP_STALE_TIME,
   });
 }
 
-export function useSaveAiPreference() {
+export function useSaveAiSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: SaveAiPreferenceInput) =>
-      request.put<AiUserPreference>('/api/ai/preferences', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: aiPreferenceKeys.me }),
+    mutationFn: (values: SaveAiUserSettingsInput) =>
+      request.put<AiUserSettings>('/api/ai/settings', values).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: aiSettingsKeys.me }),
+  });
+}
+
+/** AI 记忆画像（working memory）：查看 */
+export function useAiMemoryProfile(enabled = true) {
+  return useQuery({
+    queryKey: aiSettingsKeys.memoryProfile,
+    queryFn: () => request.get<{ content: string | null }>('/api/ai/settings/memory-profile').then(unwrap),
+    enabled,
+  });
+}
+
+/** AI 记忆画像：编辑保存 */
+export function useSaveAiMemoryProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (content: string) =>
+      request.put<{ content: string | null }>('/api/ai/settings/memory-profile', { content }).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: aiSettingsKeys.memoryProfile }),
+  });
+}
+
+/** AI 记忆画像：清空 */
+export function useClearAiMemoryProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request.delete<null>('/api/ai/settings/memory-profile').then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: aiSettingsKeys.memoryProfile }),
   });
 }
 
