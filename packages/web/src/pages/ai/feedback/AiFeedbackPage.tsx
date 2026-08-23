@@ -292,7 +292,7 @@ export default function AiFeedbackPage() {
   );
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', height: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
+    <div className="page-container">
       <SearchToolbar
         primary={(
           <>
@@ -319,23 +319,21 @@ export default function AiFeedbackPage() {
         onFilterApply={handleSearch}
         onFilterReset={handleReset}
       />
-      <div style={{ flex: 1, minHeight: 0, marginTop: 12 }}>
-        <ConfigurableTable<AiFeedbackItem>
-          bordered
-          rowKey="id"
-          columns={columns}
-          dataSource={data?.list ?? []}
-          loading={listQuery.isFetching}
-          onRefresh={() => void listQuery.refetch()}
-          refreshLoading={listQuery.isFetching}
-          pagination={{
-            ...buildPagination(data?.total ?? 0),
-            pageSizeOpts: [10, 20, 50],
-            showSizeChanger: true,
-            showTotal: true,
-          }}
-        />
-      </div>
+      <ConfigurableTable<AiFeedbackItem>
+        bordered
+        rowKey="id"
+        columns={columns}
+        dataSource={data?.list ?? []}
+        loading={listQuery.isFetching}
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={{
+          ...buildPagination(data?.total ?? 0),
+          pageSizeOpts: [10, 20, 50],
+          showSizeChanger: true,
+          showTotal: true,
+        }}
+      />
       <AppModal
         title="处理反馈"
         visible={modalVisible}
