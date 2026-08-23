@@ -213,7 +213,7 @@ export const aiConversationsHandlers = [
   // SSE 聊天 (模拟流式响应；regenerate 模式不保存新的 user 消息，回复成为兄弟分支)
   http.post('/api/ai/conversations/:id/chat', async ({ params, request }) => {
     const id = Number(params.id);
-    const body = await request.json() as { message?: string; regenerate?: boolean; parentMsgId?: number | null };
+    const body = await request.json() as { message?: string; regenerate?: boolean; parentMsgId?: number | null; images?: string[] };
     const regenerate = body.regenerate ?? false;
     if (!msgStore[id]) msgStore[id] = [];
 
@@ -254,6 +254,7 @@ export const aiConversationsHandlers = [
         feedbackRemark: null,
         feedbackHandledAt: null,
         trace: null,
+        images: body.images?.length ? ['demo-img'] : null,
         createdAt: now,
       };
       msgStore[id].push(userMsg);
@@ -316,6 +317,7 @@ export const aiConversationsHandlers = [
       trace: [
         { type: 'llm_round', label: 'LLM 生成', durationMs: 3200, meta: { model: 'qwen (demo)', toolCalls: 0 } },
       ],
+      images: null,
       createdAt: now,
     };
     msgStore[id].push(assistantMsg);

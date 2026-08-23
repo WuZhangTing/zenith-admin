@@ -101,6 +101,7 @@ export const mockAiMessages: Record<number, AiMessage[]> = {
       durationMs: null,
       parentId: null,
       trace: null,
+      images: null,
       createdAt: mockDateTimeOffset(-3600 * 1000 * 2),
     },
     {
@@ -139,6 +140,7 @@ CREATE INDEX idx_users_dept ON users(department_id);
       durationMs: 6200,
       parentId: null,
       trace: null,
+      images: null,
       createdAt: mockDateTimeOffset(-3600 * 1000 * 2 + 5000),
     },
   ],
@@ -161,6 +163,7 @@ CREATE INDEX idx_users_dept ON users(department_id);
       durationMs: null,
       parentId: null,
       trace: null,
+      images: null,
       createdAt: mockDateTimeOffset(-86400 * 1000),
     },
     {
@@ -187,6 +190,7 @@ CREATE INDEX idx_users_dept ON users(department_id);
       durationMs: 6200,
       parentId: null,
       trace: null,
+      images: null,
       createdAt: mockDateTimeOffset(-86400 * 1000 + 5000),
     },
   ],

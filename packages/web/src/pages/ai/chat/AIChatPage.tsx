@@ -148,8 +148,10 @@ function convertApiMessage(m: AiMessage): Message {
   return {
     id: `api-${m.id}`,
     role: m.role,
-    content: m.role === 'assistant' ? buildAssistantContent(m.content, m.reasoning, true) : m.content,
-    // Semi 对数组型 content 的复制操作取 output_text
+    content: m.role === 'assistant'
+      ? buildAssistantContent(m.content, m.reasoning, true)
+      : buildUserContent(m.content, (m.images ?? []).map((id) => `${config.apiBaseUrl}/api/files/${id}/content`)),
+    // Semi 对数组型 content 且带思维链的复制操作取 output_text(user 消息不可设,否则短路数组渲染)
     ...(m.reasoning && { output_text: m.content }),
     createdAt: new Date(m.createdAt).getTime(),
     status: 'completed',
@@ -157,6 +159,19 @@ function convertApiMessage(m: AiMessage): Message {
     ...(m.feedback === 1  && { like: true }),
     ...(m.feedback === -1 && { dislike: true }),
   };
+}
+
+/** 组装 user 消息内容：Semi 官方多模态形态（input_text 文本 + input_image 图片附件） */
+function buildUserContent(text: string, imageUrls: string[]): NonNullable<AIChatMessage['content']> {
+  if (imageUrls.length === 0) return text;
+  const items: Record<string, unknown>[] = [{
+    type: 'message',
+    content: [
+      ...(text ? [{ type: 'input_text', text }] : []),
+      ...imageUrls.map((url) => ({ type: 'input_image', image_url: url })),
+    ],
+  }];
+  return items as NonNullable<AIChatMessage['content']>;
 }
 
 /** 提取提示词模板中的 {{变量}} 占位符（去重、保序） */
@@ -612,7 +627,8 @@ export default function AIChatPage() {
         const userMsg: Message = {
           id: localUserMsgId!,
           role: 'user',
-          content: text!,
+          // 发送即回显图片(本地 data URL);刷新后由 convertApiMessage 换稳定文件 URL
+          content: buildUserContent(text!, pendingImages),
           createdAt: Date.now(),
           status: 'completed',
         };

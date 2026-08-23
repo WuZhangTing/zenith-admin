@@ -190,6 +190,7 @@ export const AiMessageDTO = z
     feedbackRemark: z.string().nullable().openapi({ description: '处理备注' }),
     feedbackHandledAt: z.string().nullable().openapi({ description: '处理时间' }),
     trace: z.array(AiTraceStepDTO).nullable().openapi({ description: '生成调用链 trace' }),
+    images: z.array(z.string()).nullable().openapi({ description: '用户消息附带图片（managed file id，经 /api/files/{id}/content 访问）' }),
     createdAt: z.string().openapi({ description: '创建时间' }),
   })
   .openapi('AiMessage');

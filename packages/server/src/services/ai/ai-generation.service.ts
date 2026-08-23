@@ -21,6 +21,31 @@ import logger from '../../lib/logger';
 import type { ChatMessage, ChatMessagePart } from '../../lib/ai/stream-types';
 import type { AiConversationRow, AiTraceStep } from '../../db/schema';
 
+/** data:image URL → 统一文件存储,返回 managed file id 数组(失败仅告警,不阻塞消息保存) */
+async function persistChatImages(images: string[], userId: number, tenantId: number | null): Promise<string[]> {
+  const { saveGeneratedManagedFile } = await import('../files/files.service');
+  const ids: string[] = [];
+  for (const [i, dataUrl] of images.entries()) {
+    try {
+      const match = /^data:(image\/[a-z+.-]+);base64,(.+)$/i.exec(dataUrl);
+      if (!match) continue;
+      const [, mimeType, base64] = match;
+      const ext = (mimeType.split('/')[1] ?? 'png').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '');
+      const saved = await saveGeneratedManagedFile({
+        buffer: Buffer.from(base64, 'base64'),
+        filename: `ai-chat-${Date.now()}-${i + 1}.${ext}`,
+        mimeType,
+        tenantId,
+        createdBy: userId,
+      });
+      ids.push(saved.id);
+    } catch (err) {
+      logger.warn('[ai-generation] persist chat image failed', { userId, index: i, err });
+    }
+  }
+  return ids;
+}
+
 export interface StartGenerationParams {
   genId: string;
   conversation: AiConversationRow;
@@ -209,15 +234,18 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
         const saved = await saveAssistantMessage(conversation.id, assistantContent, tokensInput, tokensOutput, snapshot, meta, regenerateParentId);
         assistantMsgId = saved.assistantMsgId;
       } else {
+        // 图片落统一文件存储,消息只存引用(内容经 /api/files/{id}/content 访问)
+        const imageIds = images?.length ? await persistChatImages(images, userId, conversation.tenantId) : [];
         const saved = await saveMessages(
           conversation.id,
-          (images?.length ? `[图片 ×${images.length}] ` : '') + (message ?? ''),
+          message ?? '',
           assistantContent,
           tokensInput,
           tokensOutput,
           snapshot,
           meta,
           userParentId,
+          imageIds.length > 0 ? imageIds : null,
         );
         userMsgId = saved.userMsgId;
         assistantMsgId = saved.assistantMsgId;

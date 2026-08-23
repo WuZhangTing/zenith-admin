@@ -47,6 +47,7 @@ function mapMessage(row: typeof aiMessages.$inferSelect) {
     feedbackRemark: row.feedbackRemark,
     feedbackHandledAt: formatNullableDateTime(row.feedbackHandledAt),
     trace: row.trace,
+    images: row.images ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
 }
@@ -400,9 +401,11 @@ export async function saveMessages(
   meta: AssistantMessageMeta = {},
   /** user 消息的分支树父节点（发送时的激活叶子；编辑重发时为被编辑消息的父节点） */
   userParentId: number | null = null,
+  /** user 消息附带的图片（managed file id 数组） */
+  userImages: string[] | null = null,
 ) {
   const [userRow] = await db.insert(aiMessages).values(
-    { conversationId, parentId: userParentId, role: 'user', content: userContent, tokensInput: 0, tokensOutput: 0 },
+    { conversationId, parentId: userParentId, role: 'user', content: userContent, tokensInput: 0, tokensOutput: 0, images: userImages },
   ).returning({ id: aiMessages.id });
   const [assistantRow] = await db.insert(aiMessages).values(
     {

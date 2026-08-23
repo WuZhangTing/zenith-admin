@@ -205,6 +205,8 @@ export interface AiMessage {
   feedbackHandledAt: string | null;
   /** 生成调用链 trace（assistant 消息） */
   trace: AiTraceStep[] | null;
+  /** 用户消息附带的图片（managed file id 数组，经 /api/files/{id}/content 访问） */
+  images: string[] | null;
   createdAt: string;
 }
 

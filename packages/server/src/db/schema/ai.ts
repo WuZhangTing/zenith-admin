@@ -114,6 +114,8 @@ export const aiMessages = pgTable('ai_messages', {
   feedbackHandledAt: timestamp('feedback_handled_at'),
   /** 生成调用链 trace（assistant 消息：检索/工具/LLM 轮次耗时明细） */
   trace: jsonb('trace').$type<AiTraceStep[]>(),
+  /** 用户消息附带的图片（managed file id 数组,内容经 /api/files/{id}/content 访问） */
+  images: jsonb('images').$type<string[]>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('ai_messages_conversation_idx').on(t.conversationId, t.createdAt),
