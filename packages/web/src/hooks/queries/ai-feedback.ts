@@ -23,6 +23,8 @@ export interface AiFeedbackContext {
   conversationId: number;
   conversationTitle: string | null;
   targetMsgId: number;
+  /** 会话属主（发送人） */
+  user: { id: number; username: string; nickname: string | null; avatar: string | null } | null;
   messages: AiMessage[];
 }
 

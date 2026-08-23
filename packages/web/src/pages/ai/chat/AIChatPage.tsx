@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { AIChatDialogue, AIChatInput, Typography, Button, Form, RadioGroup, Radio, Select, Tag, Toast, Tooltip, Spin, TextArea, Dropdown, Input, Modal, TagInput, Space } from '@douyinfe/semi-ui';
-import type { Message as AIChatMessage } from '@douyinfe/semi-ui/lib/es/aiChatDialogue';
 import type { RenderActionProps, RenderAvatarProps, RenderTitleProps } from '@douyinfe/semi-ui/lib/es/aiChatDialogue/interface';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { MessageSquarePlus, Trash2, AlignLeft, AlignJustify, Settings, MoreHorizontal, Pencil, Pin, PinOff, Archive, ArchiveRestore, Sparkles, Inbox, Download, Share2, UserRoundPen, Swords, Library, ImagePlus, X, ChevronLeft, ChevronRight, Volume2, Square, Mic, MicOff, Tags, Bot } from 'lucide-react';
@@ -36,19 +35,22 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
+import {
+  AI_AVATAR,
+  buildAssistantContent,
+  buildUserContent,
+  convertApiMessage,
+  extractPlainText,
+  formatMessageTime,
+  type ChatMessage as Message,
+  type ToolCallDisplay,
+  type KbRefDisplay,
+} from './message-adapters';
 
 const { Configure } = AIChatInput;
 const { Title } = Typography;
 
 type AIChatDialogueInstance = InstanceType<typeof AIChatDialogue>;
-
-type Message = Omit<AIChatMessage, 'role' | 'content' | 'status' | 'createdAt'> & {
-  id: string;
-  role: 'system' | 'user' | 'assistant';
-  content: NonNullable<AIChatMessage['content']>;
-  createdAt: number;
-  status?: 'completed' | 'in_progress' | 'failed';
-};
 
 interface MessageEditWidgetProps {
   readonly msgId: string;
@@ -87,8 +89,6 @@ function MessageEditWidget({ msgId, defaultText, onSubmit, onCancel }: MessageEd
   );
 }
 
-const AI_AVATAR = 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png';
-
 const DEFAULT_MODEL_OPTIONS: { value: string; label: string; source: 'system' | 'user' }[] = [];
 
 /** 会话级推理力度选项:空 = 跟随智能体/服务商配置;provider-default = 显式回到厂商默认 */
@@ -116,79 +116,6 @@ const SUGGESTED_QUESTIONS = [
 let msgIdCounter = 1000;
 function nextMsgId() {
   return `msg-${++msgIdCounter}`;
-}
-
-/** 工具调用过程（SSE tool_call 事件） */
-interface ToolCallDisplay {
-  name: string;
-  arguments: string;
-  result: string;
-}
-
-/** 知识库引用（SSE references 事件） */
-interface KbRefDisplay {
-  docName: string;
-  content: string;
-  score: number;
-}
-
-/** 组装 assistant 消息内容：思维链折叠面板 + 工具调用过程 + 正文 + 知识库引用 */
-function buildAssistantContent(
-  text: string,
-  reasoning: string | null | undefined,
-  reasoningDone: boolean,
-  toolCalls?: ToolCallDisplay[],
-  references?: KbRefDisplay[],
-): NonNullable<AIChatMessage['content']> {
-  const hasExtras = !!reasoning || (toolCalls?.length ?? 0) > 0 || (references?.length ?? 0) > 0;
-  if (!hasExtras) return text;
-  const items: Record<string, unknown>[] = [];
-  if (reasoning) {
-    items.push({
-      type: 'reasoning',
-      status: reasoningDone ? 'completed' : 'in_progress',
-      content: [{ type: 'reasoning_text', text: reasoning }],
-    });
-  }
-  for (const tc of toolCalls ?? []) {
-    items.push({ type: 'function_call', status: 'completed', name: tc.name, arguments: tc.arguments, output: tc.result });
-  }
-  items.push({ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text }] });
-  if (references?.length) {
-    items.push({ type: 'kb_references', refs: references });
-  }
-  return items as NonNullable<AIChatMessage['content']>;
-}
-
-function convertApiMessage(m: AiMessage): Message {
-  return {
-    id: `api-${m.id}`,
-    role: m.role,
-    content: m.role === 'assistant'
-      ? buildAssistantContent(m.content, m.reasoning, true)
-      : buildUserContent(m.content, (m.images ?? []).map((id) => `${config.apiBaseUrl}/api/files/${id}/content`)),
-    // ⚠️ 不能设 output_text:Semi 对数组 content 优先渲染 output_text 纯文本,
-    // 会整体短路 reasoning / 工具调用 / 引用等块(复制与朗读经 extractPlainText 提取)
-    ...(m.role === 'assistant' && m.model && { model: m.model }),
-    createdAt: new Date(m.createdAt).getTime(),
-    status: 'completed',
-    // 映射 DB feedback 字段到 Semi AIChatDialogue 的 like/dislike 显示状态
-    ...(m.feedback === 1  && { like: true }),
-    ...(m.feedback === -1 && { dislike: true }),
-  };
-}
-
-/** 组装 user 消息内容：Semi 官方多模态形态（input_text 文本 + input_image 图片附件） */
-function buildUserContent(text: string, imageUrls: string[]): NonNullable<AIChatMessage['content']> {
-  if (imageUrls.length === 0) return text;
-  const items: Record<string, unknown>[] = [{
-    type: 'message',
-    content: [
-      ...(text ? [{ type: 'input_text', text }] : []),
-      ...imageUrls.map((url) => ({ type: 'input_image', image_url: url })),
-    ],
-  }];
-  return items as NonNullable<AIChatMessage['content']>;
 }
 
 /** 提取提示词模板中的 {{变量}} 占位符（去重、保序） */
@@ -254,25 +181,6 @@ function speakText(text: string, onEnd: () => void): boolean {
   utter.onerror = onEnd;
   window.speechSynthesis.speak(utter);
   return true;
-}
-
-/** 提取消息纯文本（数组 content 时取 message 项内的 output_text / input_text 文本） */
-function extractPlainText(msg: Message): string {
-  if (typeof msg.content === 'string') return msg.content;
-  if (!Array.isArray(msg.content)) return '';
-  const texts: string[] = [];
-  for (const item of msg.content as Record<string, unknown>[]) {
-    if (item.type !== 'message') continue;
-    const inner = item.content;
-    if (typeof inner === 'string') { texts.push(inner); continue; }
-    if (!Array.isArray(inner)) continue;
-    for (const part of inner as Record<string, unknown>[]) {
-      if ((part.type === 'output_text' || part.type === 'input_text') && typeof part.text === 'string') {
-        texts.push(part.text);
-      }
-    }
-  }
-  return texts.join('\n');
 }
 
 type SpeechRecognitionLike = {
@@ -1067,13 +975,6 @@ export default function AIChatPage() {
       setConversations((prev) => prev.map((c) => (c.id === activeConvId ? { ...c, activeLeafMsgId: res.activeLeafMsgId } : c)));
     } catch { /* 请求层已提示 */ }
   }, [activeConvId, generating]);
-
-  /** 消息时间：完整年月日时分秒 */
-  const formatMessageTime = (ts: number) => {
-    const d = new Date(ts);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-  };
 
   /** 消息标题行：默认标题 + 模型标注（assistant）+ 时间 + 分支切换器（‹ i/n ›） */
   const renderDialogueTitle = useCallback((props: RenderTitleProps) => {

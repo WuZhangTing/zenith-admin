@@ -4,12 +4,13 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AiFeedbackItem } from '@zenith/shared/ai';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatDateTime, formatDateForApi } from '@/utils/date';
+import { formatDateForApi } from '@/utils/date';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
 import AppModal from '@/components/AppModal';
+import AiMessagesViewer from '../components/AiMessagesViewer';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
@@ -213,36 +214,11 @@ export default function AiAuditPage() {
             <Text type="tertiary">加载中…</Text>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto', paddingRight: 4 }}>
-            {(contextQuery.data?.messages ?? []).map((m) => {
-              const isTarget = m.id === contextQuery.data?.targetMsgId;
-              const isUser = m.role === 'user';
-              const aiLabel = m.model ? `AI · ${m.model}` : 'AI';
-              const roleLabel = isUser ? '用户' : aiLabel;
-              return (
-                <div key={m.id} style={{ display: 'flex', justifyContent: isUser ? 'flex-end' : 'flex-start' }}>
-                  <div
-                    style={{
-                      maxWidth: '85%',
-                      padding: '8px 12px',
-                      borderRadius: 'var(--semi-border-radius-large)',
-                      fontSize: 13,
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      background: isUser ? 'var(--semi-color-primary-light-default)' : 'var(--semi-color-fill-0)',
-                      border: isTarget ? '1.5px solid var(--semi-color-warning)' : '1px solid transparent',
-                    }}
-                  >
-                    <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 2 }}>
-                      {roleLabel} · {formatDateTime(m.createdAt)}
-                      {isTarget && <Tag color="orange" size="small" style={{ marginLeft: 6 }}>目标消息</Tag>}
-                    </Text>
-                    {m.content}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <AiMessagesViewer
+            messages={contextQuery.data?.messages ?? []}
+            targetMsgId={contextQuery.data?.targetMsgId}
+            userMeta={contextQuery.data?.user}
+          />
         )}
       </AppModal>
       <AppModal

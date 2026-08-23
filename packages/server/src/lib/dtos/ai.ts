@@ -208,6 +208,15 @@ export const AiFeedbackContextDTO = z
     conversationId: z.number().openapi({ description: '对话 ID' }),
     conversationTitle: z.string().nullable().openapi({ description: '对话标题' }),
     targetMsgId: z.number().openapi({ description: '目标消息 ID' }),
+    user: z
+      .object({
+        id: z.number(),
+        username: z.string(),
+        nickname: z.string().nullable(),
+        avatar: z.string().nullable(),
+      })
+      .nullable()
+      .openapi({ description: '会话属主（发送人）' }),
     messages: z.array(AiMessageDTO).openapi({ description: '目标消息前后的上下文消息' }),
   })
   .openapi('AiFeedbackContext');

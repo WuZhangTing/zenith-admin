@@ -736,6 +736,11 @@ export async function getFeedbackContext(msgId: number, before = 8, after = 2) {
   const [msg] = await db.select().from(aiMessages).where(eq(aiMessages.id, msgId));
   if (!msg) throw new HTTPException(404, { message: '消息不存在' });
   const [conv] = await db.select().from(aiConversations).where(eq(aiConversations.id, msg.conversationId));
+  // 会话属主(发送人)信息:回放时展示真实用户名与头像
+  const [owner] = conv
+    ? await db.select({ id: users.id, username: users.username, nickname: users.nickname, avatar: users.avatar })
+        .from(users).where(eq(users.id, conv.userId))
+    : [];
 
   const [prevRows, nextRows] = await Promise.all([
     db.select().from(aiMessages)
@@ -752,6 +757,9 @@ export async function getFeedbackContext(msgId: number, before = 8, after = 2) {
     conversationId: msg.conversationId,
     conversationTitle: conv?.title ?? null,
     targetMsgId: msg.id,
+    user: owner
+      ? { id: owner.id, username: owner.username, nickname: owner.nickname ?? null, avatar: owner.avatar ?? null }
+      : null,
     messages,
   };
 }
