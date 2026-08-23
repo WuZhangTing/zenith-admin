@@ -80,8 +80,15 @@ export function createApp() {
     (c) => COMPRESS_EXCLUDE_PREFIXES.some((p) => c.req.path.startsWith(p)),
     compress(),
   ));
-  // allowMethods 使用 hono 官方默认值（含 PATCH/QUERY），避免显式列表遗漏导致跨域预检失败
-  app.use('*', cors({ origin: config.corsOrigin, allowHeaders: ['Content-Type', 'Authorization'] }));
+  // allowMethods 使用 hono 官方默认值（含 PATCH/QUERY），避免显式列表遗漏导致跨域预检失败；
+  // allowHeaders 留空 = 反射预检请求头（hono 默认），兼容携带自定义头的客户端。
+  // Mastra Studio 的请求带 credentials:'include'，通配符 '*' 对凭据模式无效
+  // → /api/mastra 单独反射请求 Origin 并允许凭据（该域鉴权走 Bearer + 权限,不依赖 Cookie）
+  app.use('/api/mastra/*', cors({ origin: (origin) => origin, credentials: true }));
+  app.use('*', except(
+    (c) => c.req.path.startsWith('/api/mastra'),
+    cors({ origin: config.corsOrigin }),
+  ));
   // CSRF 防护：校验 Origin 头，防止跨站请求伪造
   // ALLOWED_ORIGINS 为空时（开发模式）不限制
   //
@@ -180,7 +187,12 @@ export function createApp() {
   }
 
   // ─── Mastra 标准 API(Studio 后端):系统鉴权 + 权限门控后转发到懒加载子 app ──
-  app.use('/api/mastra/*', authMiddleware, guard({ permission: 'ai:studio:access' }));
+  // 开发可经 MASTRA_STUDIO_ALLOW_ANONYMOUS=true 免鉴权(Studio 无需贴 token);生产强制鉴权
+  if (config.ai.mastraStudioAllowAnonymous) {
+    logger.warn('[mastra] /api/mastra 鉴权已放开(MASTRA_STUDIO_ALLOW_ANONYMOUS=true,仅开发环境生效)');
+  } else {
+    app.use('/api/mastra/*', authMiddleware, guard({ permission: 'ai:studio:access' }));
+  }
   app.all('/api/mastra/*', async (c) => {
     const { mastraApiProxy } = await import('./lib/mastra/server');
     return mastraApiProxy(c.req.raw);

@@ -38,6 +38,8 @@ const envSchema = z.object({
   REPORT_OUTBOUND_PRIVATE_ALLOWLIST: z.string().default(''),
   /** AI 出站请求（LLM/embeddings 网关）SSRF 内网允许清单；默认放行本机以兼容 Ollama 等本地网关 */
   AI_OUTBOUND_PRIVATE_ALLOWLIST: z.string().default('127.0.0.1,localhost'),
+  /** 开发环境放开 /api/mastra 鉴权(Studio 免贴 token);NODE_ENV=production 时强制忽略 */
+  MASTRA_STUDIO_ALLOW_ANONYMOUS: z.enum(['true', 'false']).default('false'),
   REPORT_PDF_FONT_PATH: z.string().default(''),
   REPORT_SLOW_QUERY_MS: z.coerce.number().int().min(1).default(3000),
   REPORT_DASHBOARD_MAX_CONCURRENT: z.coerce.number().int().min(1).max(20).default(5),
@@ -177,6 +179,8 @@ export const config = {
   ai: {
     /** AI 出站请求 SSRF 内网允许清单（LLM / embeddings 网关地址） */
     outboundPrivateAllowlist: env.AI_OUTBOUND_PRIVATE_ALLOWLIST.split(',').map(s => s.trim()).filter(Boolean),
+    /** 开发环境放开 /api/mastra 鉴权;生产(NODE_ENV=production)强制忽略 */
+    mastraStudioAllowAnonymous: env.MASTRA_STUDIO_ALLOW_ANONYMOUS === 'true' && process.env.NODE_ENV !== 'production',
   },
   report: {
     outboundPrivateAllowlist: env.REPORT_OUTBOUND_PRIVATE_ALLOWLIST.split(',').map(s => s.trim()).filter(Boolean),

@@ -12,6 +12,7 @@
 		"dev": "concurrently \"npm run dev -w @zenith/server\" \"npm run dev -w @zenith/web\"",
 		"dev:server": "npm run dev -w @zenith/server",
 		"dev:web": "npm run dev -w @zenith/web",
+		"dev:studio": "npx -y mastra@latest studio -p 5380 -s 3300 --server-api-prefix /api/mastra",
 		"dev:electron": "npm run dev -w @zenith/electron",
 		"build:electron": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build -w @zenith/electron",
 		"build:electron:win": "env VITE_ELECTRON=true npm run build -w @zenith/web && npm run build:win -w @zenith/electron",
