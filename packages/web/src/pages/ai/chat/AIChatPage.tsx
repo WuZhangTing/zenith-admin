@@ -334,6 +334,8 @@ export default function AIChatPage() {
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   /** 当前生成任务 ID（停止 / 断线续传用） */
   const currentGenIdRef = useRef<string | null>(null);
+  /** 已完成叶子/滚动初始化的会话(同一会话的后续数据刷新不再重置) */
+  const syncedConvRef = useRef<number | null>(null);
   /** 分支树：全量 API 消息与激活叶子（本地镜像，切换分支即时生效） */
   const [allApiMessages, setAllApiMessages] = useState<AiMessage[]>([]);
   const [activeLeafId, setActiveLeafId] = useState<number | null>(null);
@@ -417,18 +419,26 @@ export default function AIChatPage() {
       setMessages([]);
       setAllApiMessages([]);
       setActiveLeafId(null);
+      syncedConvRef.current = null;
       return;
     }
     const apiMessages = messagesQuery.data;
     if (!apiMessages) return;
+    // 生成中跳过同步:流式气泡即时态为准,saved 事件触发的 refetch 会在
+    // generating 归位后经本效应重放——否则中途重置叶子/滚动会造成聊天区闪动
+    if (generating) return;
     setAllApiMessages(apiMessages);
-    // 激活叶子以会话记录为准（本地分支切换后由 switch 流程更新）
-    const conv = conversations.find((c) => c.id === activeConvId);
-    setActiveLeafId(conv?.activeLeafMsgId ?? null);
-    const scrollTimer = setTimeout(() => dialogueRef.current?.scrollToBottom(false), 120);
-    return () => clearTimeout(scrollTimer);
+    // 激活叶子与滚底仅在切入该会话首次加载时初始化(以会话记录为准);
+    // 同一会话的后续数据刷新不得重置叶子(列表可能滞后)或跳动滚动条
+    if (syncedConvRef.current !== activeConvId) {
+      syncedConvRef.current = activeConvId;
+      const conv = conversations.find((c) => c.id === activeConvId);
+      setActiveLeafId(conv?.activeLeafMsgId ?? null);
+      const scrollTimer = setTimeout(() => dialogueRef.current?.scrollToBottom(false), 120);
+      return () => clearTimeout(scrollTimer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- conversations 仅作初始叶子来源，避免列表刷新反复重置
-  }, [activeConvId, messagesQuery.data]);
+  }, [activeConvId, messagesQuery.data, generating]);
 
   /** 分支信息（同父同角色兄弟 > 1 时展示切换器） */
   const branchInfo = useMemo(() => computeBranchInfo(allApiMessages), [allApiMessages]);
@@ -941,20 +951,15 @@ export default function AIChatPage() {
     }
   };
 
-  /** 选择 vision 图片（转 data URL，单张 ≤2MB，最多 3 张） */
+  /** 选择 vision 图片（转 data URL，数量与大小不限） */
   const handlePickImages = (files: FileList | null) => {
     if (!files) return;
-    const list = [...files].slice(0, 3 - pendingImages.length);
-    for (const file of list) {
+    for (const file of files) {
       if (!file.type.startsWith('image/')) continue;
-      if (file.size > 2 * 1024 * 1024) {
-        Toast.warning(`图片 ${file.name} 超过 2MB，已跳过`);
-        continue;
-      }
       const reader = new FileReader();
       reader.onload = () => {
         const url = reader.result as string;
-        setPendingImages((prev) => (prev.length >= 3 ? prev : [...prev, url]));
+        setPendingImages((prev) => [...prev, url]);
       };
       reader.readAsDataURL(file);
     }
@@ -1562,7 +1567,7 @@ export default function AIChatPage() {
                           style={{ display: 'none' }}
                           onChange={(e) => { handlePickImages(e.target.files); e.target.value = ''; }}
                         />
-                        <Tooltip content="添加图片（当前模型支持图片理解，≤3 张 / 单张 ≤2MB）">
+                        <Tooltip content="添加图片（当前模型支持图片理解）">
                           <Button
                             theme="borderless"
                             icon={<ImagePlus size={16} />}

@@ -27,7 +27,7 @@ const SendMessageBody = z.object({
   /** 多模型配置下选择的具体模型 */
   model: z.string().max(100).optional(),
   /** vision 图片（data URL，base64），仅当轮上下文生效 */
-  images: z.array(z.string().max(4_000_000).regex(/^data:image\//, '仅支持 data:image 格式')).max(3).optional(),
+  images: z.array(z.string().regex(/^data:image\//, '仅支持 data:image 格式')).optional(),
 }).refine((d) => d.regenerate || !!d.message?.trim(), { message: '消息不能为空' });
 
 /**
