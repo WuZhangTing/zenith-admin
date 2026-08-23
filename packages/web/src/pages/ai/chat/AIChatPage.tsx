@@ -20,6 +20,7 @@ import { request } from '@/utils/request';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import type { AiChatModel, AiConversation, AiMessage, AiPromptTemplate } from '@zenith/shared/ai';
+import { AI_REASONING_LEVELS } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/identity';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
 import { useAiAllowUserCustomKey, useAiUserConfigs, aiUserConfigKeys } from '@/hooks/queries/ai-user-config';
@@ -89,6 +90,21 @@ function MessageEditWidget({ msgId, defaultText, onSubmit, onCancel }: MessageEd
 const AI_AVATAR = 'https://lf3-static.bytednsdoc.com/obj/eden-cn/ptlz_zlp/ljhwZthlaukjlkulzlp/other/logo.png';
 
 const DEFAULT_MODEL_OPTIONS: { value: string; label: string; source: 'system' | 'user' }[] = [];
+
+/** 会话级推理力度选项:空 = 跟随智能体/服务商配置;provider-default = 显式回到厂商默认 */
+const REASONING_LABELS: Record<string, string> = {
+  'provider-default': '厂商默认',
+  none: '关闭',
+  minimal: '极低',
+  low: '低',
+  medium: '中',
+  high: '高',
+  xhigh: '极高',
+};
+const REASONING_OPTIONS = [
+  { value: '', label: '推理:跟随配置' },
+  ...AI_REASONING_LEVELS.map((lv) => ({ value: lv, label: `推理:${REASONING_LABELS[lv] ?? lv}` })),
+];
 
 const SUGGESTED_QUESTIONS = [
   '介绍一下你能做什么',
@@ -666,6 +682,9 @@ export default function AIChatPage() {
                 const base: Record<string, unknown> = regenerate ? { regenerate: true } : { message: text };
                 if (opts?.parentMsgId !== undefined) base.parentMsgId = opts.parentMsgId;
                 if (!regenerate && pendingImages.length > 0) base.images = pendingImages;
+                // 会话级推理力度(输入框配置区选择;空 = 跟随智能体/服务商配置)
+                const reasoning = configureValuesRef.current.reasoning as string | undefined;
+                if (reasoning) base.reasoning = reasoning;
                 if (selectedModel.startsWith('user-')) {
                   const userConfigId = Number.parseInt(selectedModel.replace('user-', ''), 10);
                   return { ...base, configSource: 'user', configId: userConfigId };
@@ -1587,8 +1606,11 @@ export default function AIChatPage() {
                     onMessageSend={(c) => void handleMessageSend(c)}
                     onStopGenerate={handleStopGenerate}
                     onConfigureChange={(value) => setConfigureValues(value)}
+                    // 注意:AIChatInput 内部已渲染 Configure 容器(带值收集 onChange),
+                    // 此处只能返回 Configure.Select 等子项;再包一层 <Configure> 会形成
+                    // 内层 Context 拦截取值,外层 onConfigureChange 永不触发
                     renderConfigureArea={() => (
-                      <Configure>
+                      <>
                         <Configure.Select
                           key={modelOptions[0]?.value ?? 'default'}
                           field="model"
@@ -1623,7 +1645,14 @@ export default function AIChatPage() {
                             );
                           }}
                         />
-                      </Configure>
+                        <Configure.Select
+                          field="reasoning"
+                          initValue=""
+                          optionList={REASONING_OPTIONS}
+                          style={{ minWidth: 128 }}
+                          placeholder="推理力度"
+                        />
+                      </>
                     )}
                     style={{ borderRadius: 'var(--semi-border-radius-large)' }}
                   />

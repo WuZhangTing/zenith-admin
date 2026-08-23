@@ -12,6 +12,7 @@ import { checkSensitiveContent } from '../../lib/ai/content-filter';
 import { getConfigNumber } from '../../lib/system-config';
 import { currentUser } from '../../lib/context';
 import logger from '../../lib/logger';
+import { AI_REASONING_LEVELS } from '@zenith/shared/ai';
 import { z } from 'zod';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -26,6 +27,8 @@ const SendMessageBody = z.object({
   configId: z.number().int().positive().optional(),
   /** 多模型配置下选择的具体模型 */
   model: z.string().max(100).optional(),
+  /** 推理力度(会话级覆盖,优先级高于智能体/服务商配置;AI SDK 统一档位) */
+  reasoning: z.enum(AI_REASONING_LEVELS).optional(),
   /** vision 图片（data URL，base64），仅当轮上下文生效 */
   images: z.array(z.string().regex(/^data:image\//, '仅支持 data:image 格式')).optional(),
 }).refine((d) => d.regenerate || !!d.message?.trim(), { message: '消息不能为空' });
@@ -53,7 +56,7 @@ router.post('/:id/chat', authMiddleware, namedRateLimit('ai_chat_send'), async (
     return c.json({ code: 400, message: '消息不能为空', data: null }, 400);
   }
 
-  const { message, regenerate, parentMsgId, configSource, configId, model, images } = parsed.data;
+  const { message, regenerate, parentMsgId, configSource, configId, model, reasoning, images } = parsed.data;
 
   // 验证对话归属
   let conversation: Awaited<ReturnType<typeof ensureConversationOwner>>;
@@ -107,6 +110,7 @@ router.post('/:id/chat', authMiddleware, namedRateLimit('ai_chat_send'), async (
     configSource,
     configId,
     model,
+    reasoning,
     images,
   }).catch((err) => logger.error('[ai-chat] generation crashed', err));
 

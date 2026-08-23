@@ -19,6 +19,7 @@ import { recordAiRequest, recordAiError } from '../../lib/ai/reliability';
 import { addDailyTokensUsed } from '../../lib/ai/quota';
 import logger from '../../lib/logger';
 import type { ChatMessage, ChatMessagePart } from '../../lib/ai/stream-types';
+import type { AiReasoningLevel } from '@zenith/shared/ai';
 import type { AiConversationRow, AiTraceStep } from '../../db/schema';
 
 /** data:image URL → 统一文件存储,返回 managed file id 数组(失败仅告警,不阻塞消息保存) */
@@ -57,6 +58,8 @@ export interface StartGenerationParams {
   configSource?: 'system' | 'user';
   configId?: number;
   model?: string;
+  /** 推理力度(会话级覆盖,优先级高于智能体/服务商配置) */
+  reasoning?: AiReasoningLevel;
   images?: string[];
 }
 
@@ -69,7 +72,7 @@ const CANCEL_CHECK_INTERVAL = 800;
  * 客户端断开不影响生成，通过 cancel 端点显式停止。
  */
 export async function runGeneration(params: StartGenerationParams): Promise<void> {
-  const { genId, conversation, userId, message, regenerate, parentMsgId, configSource, configId, model, images } = params;
+  const { genId, conversation, userId, message, regenerate, parentMsgId, configSource, configId, model, reasoning, images } = params;
   const push = (event: string, data: unknown) => pushGenEvent(genId, event, JSON.stringify(data));
 
   let assistantContent = '';
@@ -166,7 +169,10 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
       signal: ac.signal,
       systemPromptOverride: conversation.systemPromptOverride ?? agent?.instructions ?? null,
       model: agent?.model ?? model,
-      modelSettingsOverride: agent?.modelSettings ?? null,
+      // 会话级推理力度 > 智能体 modelSettings > 服务商配置默认
+      modelSettingsOverride: reasoning
+        ? { ...agent?.modelSettings, reasoning }
+        : (agent?.modelSettings ?? null),
       toolFilter: agent ? (agent.tools ?? []) : undefined,
       memory: { thread: chatThreadId(conversation.id), resource: chatResourceId(userId) },
       context: contextMessages,

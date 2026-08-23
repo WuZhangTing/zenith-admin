@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Col, Form, Row, SideSheet, Spin, Toast, useFormState } from '@douyinfe/semi-ui';
-import type { AiModelFallbackRef, AiProviderConfig } from '@zenith/shared/ai';
-import { AI_CUSTOM_PROVIDER_ID } from '@zenith/shared/ai';
+import type { AiModelFallbackRef, AiProviderConfig, AiReasoningLevel } from '@zenith/shared/ai';
+import { AI_CUSTOM_PROVIDER_ID, AI_REASONING_LEVELS } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/identity';
 import {
   useAiProviderDetail,
@@ -26,6 +26,8 @@ interface FormValues {
   model?: string;
   temperature?: number | null;
   maxOutputTokens?: number | null;
+  /** 推理力度(仅支持 reasoning 的模型生效;空 = 跟随模型默认) */
+  reasoning?: AiReasoningLevel | null;
   capVision?: boolean;
   capTools?: boolean;
   contextWindow?: number | null;
@@ -49,6 +51,7 @@ const SYSTEM_DEFAULTS: FormValues = {
   model: '',
   temperature: null,
   maxOutputTokens: null,
+  reasoning: null,
   capVision: false,
   capTools: false,
   contextWindow: null,
@@ -104,6 +107,7 @@ function providerToFormValues(config: AiProviderConfig): FormValues {
     defaultModel: config.defaultModel,
     temperature: config.modelSettings?.temperature ?? null,
     maxOutputTokens: config.modelSettings?.maxOutputTokens ?? null,
+    reasoning: config.modelSettings?.reasoning ?? null,
     capVision: config.capabilities?.vision ?? false,
     capTools: config.capabilities?.tools ?? false,
     contextWindow: config.capabilities?.contextWindow ?? null,
@@ -127,18 +131,26 @@ function userConfigToFormValues(config: UserAiConfig): FormValues {
     model: config.model ?? '',
     temperature: config.modelSettings?.temperature ?? null,
     maxOutputTokens: config.modelSettings?.maxOutputTokens ?? null,
+    reasoning: config.modelSettings?.reasoning ?? null,
     systemPrompt: config.systemPrompt ?? null,
     isEnabled: config.isEnabled,
   };
 }
 
-/** 温度/最大输出并入 Mastra modelSettings(留空的键不写入) */
+/** 温度/最大输出/推理力度并入 Mastra modelSettings(留空的键不写入) */
 function toModelSettings(values: FormValues) {
-  const settings: Record<string, number> = {};
+  const settings: Record<string, number | string> = {};
   if (values.temperature !== null && values.temperature !== undefined) settings.temperature = values.temperature;
   if (values.maxOutputTokens) settings.maxOutputTokens = values.maxOutputTokens;
+  if (values.reasoning) settings.reasoning = values.reasoning;
   return Object.keys(settings).length > 0 ? settings : null;
 }
+
+/** 推理力度选项(shared 档位;首项为跟随模型默认) */
+const REASONING_OPTIONS = [
+  { value: '', label: '跟随模型默认' },
+  ...AI_REASONING_LEVELS.map((lv) => ({ value: lv, label: lv })),
+];
 
 interface BaseProps {
   visible: boolean;
@@ -456,6 +468,11 @@ export default function AiProviderFormModal(props: AiProviderFormModalProps) {
               </Col>
               <Col span={12}>
                 <Form.InputNumber field="maxOutputTokens" label="最大输出" min={1} placeholder="留空用模型默认" style={{ width: '100%' }} extraText="单次回复最大 Token" />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Select field="reasoning" label="推理力度" optionList={REASONING_OPTIONS} style={{ width: '100%' }} placeholder="跟随模型默认" extraText="仅推理模型生效，开启后回复带思考过程" />
               </Col>
             </Row>
             {!isUser && (
