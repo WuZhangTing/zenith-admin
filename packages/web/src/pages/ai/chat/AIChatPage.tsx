@@ -1068,7 +1068,14 @@ export default function AIChatPage() {
     } catch { /* 请求层已提示 */ }
   }, [activeConvId, generating]);
 
-  /** 消息标题行：默认标题 + 模型标注（assistant）+ 分支切换器（‹ i/n ›） */
+  /** 消息时间：完整年月日时分秒 */
+  const formatMessageTime = (ts: number) => {
+    const d = new Date(ts);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  };
+
+  /** 消息标题行：默认标题 + 模型标注（assistant）+ 时间 + 分支切换器（‹ i/n ›） */
   const renderDialogueTitle = useCallback((props: RenderTitleProps) => {
     const msg = props.message;
     const dbId = msg && String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
@@ -1077,11 +1084,15 @@ export default function AIChatPage() {
     const modelTag = msg?.role === 'assistant' && msg.model ? (
       <span style={{ fontSize: 11, color: 'var(--semi-color-text-2)', fontWeight: 'normal' }}>{msg.model}</span>
     ) : null;
-    if (!info && !modelTag) return props.defaultTitle;
+    const timeTag = msg?.createdAt ? (
+      <span style={{ fontSize: 11, color: 'var(--semi-color-text-2)', fontWeight: 'normal' }}>{formatMessageTime(msg.createdAt)}</span>
+    ) : null;
+    if (!info && !modelTag && !timeTag) return props.defaultTitle;
     return (
       <Space spacing={4}>
         {props.defaultTitle}
         {modelTag}
+        {timeTag}
         {info && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
           <Button
