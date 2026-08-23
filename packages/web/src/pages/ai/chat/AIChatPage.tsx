@@ -22,7 +22,7 @@ import type { AiChatModel, AiConversation, AiMessage, AiPromptTemplate } from '@
 import { AI_REASONING_LEVELS } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/identity';
 import { useAiChatModels } from '@/hooks/queries/ai-providers';
-import { useAiAllowUserCustomKey, useAiUserConfigs, aiUserConfigKeys } from '@/hooks/queries/ai-user-config';
+import { useAiUserConfigs, aiUserConfigKeys } from '@/hooks/queries/ai-user-config';
 import { useAvailableAiPrompts, recordAiPromptUse } from '@/hooks/queries/ai-prompts';
 import { useAvailableKnowledgeBases, setConversationKb, setConversationTags, switchConversationBranch, getActiveGeneration, cancelGeneration } from '@/hooks/queries/ai-extras';
 import { useAiAgentDetail } from '@/hooks/queries/ai-agents';
@@ -292,11 +292,9 @@ export default function AIChatPage() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const { items: dislikeReasons } = useDictItems('ai_dislike_reason');
-  const allowUserCustomKeyQuery = useAiAllowUserCustomKey();
-  const allowUserCustomKey = allowUserCustomKeyQuery.data ?? false;
   const chatModelsQuery = useAiChatModels();
   const chatModels = useMemo(() => chatModelsQuery.data ?? [], [chatModelsQuery.data]);
-  const userConfigsQuery = useAiUserConfigs(allowUserCustomKey);
+  const userConfigsQuery = useAiUserConfigs();
   const promptTemplatesQuery = useAvailableAiPrompts();
   const promptTemplates = promptTemplatesQuery.data ?? [];
   const kbQuery = useAvailableKnowledgeBases();
@@ -327,8 +325,8 @@ export default function AIChatPage() {
   }, [setConfigureValues]);
 
   useEffect(() => {
-    loadModelOptions(chatModels, allowUserCustomKey ? (userConfigsQuery.data ?? []) : []);
-  }, [allowUserCustomKey, loadModelOptions, chatModels, userConfigsQuery.data]);
+    loadModelOptions(chatModels, userConfigsQuery.data ?? []);
+  }, [loadModelOptions, chatModels, userConfigsQuery.data]);
 
   /** 当前选中模型的能力（vision / tools）:系统与用户配置统一解析 */
   const selectedCapabilities = useMemo(() => {
@@ -1380,16 +1378,14 @@ export default function AIChatPage() {
                   <Radio value="leftRight"><AlignJustify size={12} /></Radio>
                   <Radio value="leftAlign"><AlignLeft size={12} /></Radio>
                 </RadioGroup>
-                {allowUserCustomKey && (
-                  <Tooltip content="我的 AI 配置">
-                    <Button
-                      theme="borderless"
-                      size="small"
-                      icon={<Settings size={14} />}
-                      onClick={() => setSettingsVisible(true)}
-                    />
-                  </Tooltip>
-                )}
+                <Tooltip content="我的 AI 配置">
+                  <Button
+                    theme="borderless"
+                    size="small"
+                    icon={<Settings size={14} />}
+                    onClick={() => setSettingsVisible(true)}
+                  />
+                </Tooltip>
               </div>
             }
           >
@@ -1626,15 +1622,13 @@ export default function AIChatPage() {
         </>
       )}
     />
-    {allowUserCustomKey && (
-      <UserAiConfigModal
-        visible={settingsVisible}
-        onClose={() => setSettingsVisible(false)}
-        onSaved={() => {
-          void queryClient.invalidateQueries({ queryKey: aiUserConfigKeys.all });
-        }}
-      />
-    )}
+    <UserAiConfigModal
+      visible={settingsVisible}
+      onClose={() => setSettingsVisible(false)}
+      onSaved={() => {
+        void queryClient.invalidateQueries({ queryKey: aiUserConfigKeys.all });
+      }}
+    />
     <AiSettingsModal visible={preferenceVisible} onClose={() => setPreferenceVisible(false)} />
     <ShareModal convId={shareConvId} onClose={() => setShareConvId(null)} />
     <ArenaModal visible={arenaVisible} onClose={() => setArenaVisible(false)} models={chatModels} />

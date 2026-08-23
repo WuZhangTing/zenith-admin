@@ -1,6 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
-import { getConfigBoolean } from '../../lib/system-config';
 import { getRawDefaultProviderConfig, getRawProviderConfig } from './ai-providers.service';
 import { getRawUserAiConfigById } from './user-ai-config.service';
 import { buildPreferencePrompt } from './ai-user-settings.service';
@@ -103,8 +102,6 @@ async function resolveStreamConfigById(configId: number, modelOverride?: string)
 }
 
 async function resolveStreamConfigForUser(userConfigId: number, modelOverride?: string): Promise<ResolvedStreamConfig> {
-  const allowed = await getConfigBoolean('ai_allow_user_custom_key', false);
-  if (!allowed) throw new HTTPException(403, { message: '管理员未开放自定义 AI 配置' });
   const user = currentUser();
   const userCfg = await getRawUserAiConfigById(userConfigId, user.userId);
   if (!userCfg?.isEnabled || !userCfg.apiKey || userCfg.models.length === 0 || !userCfg.defaultModel) {

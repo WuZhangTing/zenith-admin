@@ -217,8 +217,6 @@ describe('ai-user-config：个人 Key 只影响可用模型', () => {
     await waitFor(() => expect(fetches.countOf(aiProviderKeys.chatModels)).toBe(1));
 
     expect(fetches.countOf(aiUserConfigKeys.lists)).toBe(1);
-    // allowCustomKey 读的是系统配置，与个人 Key 无关
-    expect(fetches.countOf(aiUserConfigKeys.allowCustomKey)).toBe(0);
 
     fetches.stop();
   });
