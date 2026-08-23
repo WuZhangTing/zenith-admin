@@ -169,6 +169,7 @@ function convertApiMessage(m: AiMessage): Message {
       : buildUserContent(m.content, (m.images ?? []).map((id) => `${config.apiBaseUrl}/api/files/${id}/content`)),
     // ⚠️ 不能设 output_text:Semi 对数组 content 优先渲染 output_text 纯文本,
     // 会整体短路 reasoning / 工具调用 / 引用等块(复制与朗读经 extractPlainText 提取)
+    ...(m.role === 'assistant' && m.model && { model: m.model }),
     createdAt: new Date(m.createdAt).getTime(),
     status: 'completed',
     // 映射 DB feedback 字段到 Semi AIChatDialogue 的 like/dislike 显示状态
@@ -341,8 +342,14 @@ export default function AIChatPage() {
   /** 选中模型（state 镜像，驱动 vision 按钮等 UI 随切换刷新） */
   const [selectedModelValue, setSelectedModelValue] = useState('');
   const setConfigureValues = useCallback((v: Record<string, unknown>) => {
-    configureValuesRef.current = v;
-    setSelectedModelValue(String(v.model ?? ''));
+    // Semi Configure 在 Select 重挂(key 随选项加载变化)时经 onRemove 回调缺失该字段的值,
+    // 会把程序化预选的 model 清空:缺失时回退当前值
+    const merged = { ...v };
+    if (merged.model == null || merged.model === '') {
+      merged.model = configureValuesRef.current.model ?? '';
+    }
+    configureValuesRef.current = merged;
+    setSelectedModelValue(String(merged.model ?? ''));
   }, []);
   const dialogueRef = useRef<AIChatDialogueInstance | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -584,9 +591,10 @@ export default function AIChatPage() {
               // 服务端保存完成：本地气泡映射数据库 ID，并同步分支叶子与消息树
               const dbId = (parsed.assistantMsgId as number | undefined);
               const userDbId = (parsed.userMsgId as number | null | undefined);
+              const usedModel = (parsed.model as string | null | undefined);
               setMessages((prev) =>
                 prev.map((m) => {
-                  if (dbId && m.id === assistantMsgId) return { ...m, id: `api-${dbId}` };
+                  if (dbId && m.id === assistantMsgId) return { ...m, id: `api-${dbId}`, ...(usedModel && { model: usedModel }) };
                   if (userDbId && localUserMsgId && m.id === localUserMsgId) return { ...m, id: `api-${userDbId}` };
                   return m;
                 })
@@ -982,7 +990,7 @@ export default function AIChatPage() {
   };
 
   /** 选择 vision 图片（转 data URL，数量与大小不限） */
-  const handlePickImages = (files: FileList | null) => {
+  const handlePickImages = (files: FileList | File[] | null) => {
     if (!files) return;
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue;
@@ -993,6 +1001,18 @@ export default function AIChatPage() {
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  /** 粘贴截图：剪贴板中的图片文件直接进入待发图片条（仅 vision 模型） */
+  const handleInputPaste = (e: React.ClipboardEvent) => {
+    if (!selectedCapabilities?.vision) return;
+    const files = [...(e.clipboardData?.items ?? [])]
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (files.length === 0) return;
+    e.preventDefault(); // 阻止编辑器插入图片节点/文件名文本
+    handlePickImages(files);
   };
 
   const handleExportConversation = (id: number, title: string, format: 'md' | 'json') => {
@@ -1048,15 +1068,21 @@ export default function AIChatPage() {
     } catch { /* 请求层已提示 */ }
   }, [activeConvId, generating]);
 
-  /** 消息标题行：默认标题 + 分支切换器（‹ i/n ›） */
+  /** 消息标题行：默认标题 + 模型标注（assistant）+ 分支切换器（‹ i/n ›） */
   const renderDialogueTitle = useCallback((props: RenderTitleProps) => {
     const msg = props.message;
     const dbId = msg && String(msg.id).startsWith('api-') ? Number(String(msg.id).replace('api-', '')) : null;
     const info = dbId ? branchInfo.get(dbId) : undefined;
-    if (!info) return props.defaultTitle;
+    // 每条回复标注实际使用的模型(failover 场景下与选择器所选可能不同)
+    const modelTag = msg?.role === 'assistant' && msg.model ? (
+      <span style={{ fontSize: 11, color: 'var(--semi-color-text-2)', fontWeight: 'normal' }}>{msg.model}</span>
+    ) : null;
+    if (!info && !modelTag) return props.defaultTitle;
     return (
       <Space spacing={4}>
         {props.defaultTitle}
+        {modelTag}
+        {info && (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
           <Button
             theme="borderless"
@@ -1076,6 +1102,7 @@ export default function AIChatPage() {
             onClick={() => void handleSwitchBranch(info.siblings[info.index + 1])}
           />
         </span>
+        )}
       </Space>
     );
   }, [branchInfo, generating, handleSwitchBranch]);
@@ -1579,7 +1606,7 @@ export default function AIChatPage() {
                       ))}
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }} onPaste={handleInputPaste}>
                     <Tooltip content={recording ? '停止语音输入' : '语音输入（识别结果可编辑后发送）'}>
                       <Button
                         theme="borderless"

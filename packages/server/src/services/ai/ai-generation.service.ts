@@ -262,7 +262,8 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
       }
 
       if (assistantMsgId) {
-        await push('saved', { assistantMsgId, userMsgId });
+        // model:实际使用的模型(failover 后为切换目标),供前端气泡即时标注
+        await push('saved', { assistantMsgId, userMsgId, model: snapshot?.model ?? model ?? null });
       }
 
       // 首轮完成后自动生成对话标题（LLM 总结，失败回退前 30 字）
