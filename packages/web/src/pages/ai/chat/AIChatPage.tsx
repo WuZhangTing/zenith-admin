@@ -582,7 +582,8 @@ export default function AIChatPage() {
         try {
           const newConv = await createConversationMutation.mutateAsync({ title: '新对话' });
           convId = newConv.id;
-          setConversations((prev) => [newConv, ...prev]);
+          // onSuccess 的 invalidate 可能已把新会话经列表 refetch 写入,前插必须按 id 去重
+          setConversations((prev) => (prev.some((c) => c.id === newConv.id) ? prev : [newConv, ...prev]));
           setActiveConvId(convId);
           setMessages([]);
           setAllApiMessages([]);
@@ -804,7 +805,8 @@ export default function AIChatPage() {
     try {
       setShowArchived(false);
       const newConv = await createConversationMutation.mutateAsync({ title: '新对话' });
-      setConversations((prev) => [newConv, ...prev]);
+      // onSuccess 的 invalidate 可能已把新会话经列表 refetch 写入,前插必须按 id 去重
+      setConversations((prev) => (prev.some((c) => c.id === newConv.id) ? prev : [newConv, ...prev]));
       setActiveConvId(newConv.id);
       setMessages([]);
       setAllApiMessages([]);
@@ -974,7 +976,8 @@ export default function AIChatPage() {
       try {
         setShowArchived(false);
         const newConv = await createConversationMutation.mutateAsync({ title: '新对话', agentId });
-        setConversations((prev) => [newConv, ...prev]);
+        // onSuccess 的 invalidate 可能已把新会话经列表 refetch 写入,前插必须按 id 去重
+        setConversations((prev) => (prev.some((c) => c.id === newConv.id) ? prev : [newConv, ...prev]));
         setActiveConvId(newConv.id);
         setMessages([]);
         setAllApiMessages([]);
