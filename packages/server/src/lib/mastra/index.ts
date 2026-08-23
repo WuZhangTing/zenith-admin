@@ -169,8 +169,19 @@ async function buildMastra(): Promise<Mastra> {
     name: 'Zenith Chat',
     instructions: ({ requestContext }) =>
       (requestContext.get(CHAT_SYSTEM_PROMPT_KEY) as string | undefined)?.trim() || '你是一个乐于助人的智能助手。',
-    model: (({ requestContext }: { requestContext: { get: (k: string) => unknown } }) =>
-      requestContext.get(CHAT_MODEL_CHAIN_KEY)) as never,
+    // 业务聊天每次经 requestContext 注入模型链;无注入(Studio 详情/调试、评测 target)
+    // 时回退到系统默认服务商配置,否则解析出 undefined 会让 Studio 报 Agent not found
+    model: (async ({ requestContext }: { requestContext: { get: (k: string) => unknown } }) => {
+      const injected = requestContext.get(CHAT_MODEL_CHAIN_KEY);
+      if (injected) return injected;
+      const [{ getRawDefaultProviderConfig }, { buildModelChain }] = await Promise.all([
+        import('../../services/ai/ai-providers.service'),
+        import('../ai/mastra-models'),
+      ]);
+      const cfg = await getRawDefaultProviderConfig();
+      if (!cfg) throw new Error('没有可用的默认 AI 服务商配置');
+      return buildModelChain([{ source: cfg, model: cfg.defaultModel, maxRetries: 1, modelSettings: cfg.modelSettings ?? undefined }]);
+    }) as never,
     tools: (({ requestContext }: { requestContext: { get: (k: string) => unknown } }) =>
       requestContext.get(CHAT_TOOLS_KEY) ?? {}) as never,
     memory: (() => getChatMemory()) as never,
