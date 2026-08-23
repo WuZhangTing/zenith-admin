@@ -10,13 +10,14 @@ import {
   IdParam,
   okBody,
 } from '../../lib/openapi-schemas';
-import { AiKnowledgeBaseDTO, AiKbDocumentDTO } from '../../lib/openapi-dtos';
+import { AiKnowledgeBaseDTO, AiKbDocumentDTO, AiKbChunkDTO } from '../../lib/openapi-dtos';
 import {
   listKnowledgeBases,
   createKnowledgeBase,
   updateKnowledgeBase,
   deleteKnowledgeBase,
   listKbDocuments,
+  listKbChunks,
   addKbDocument,
   importKbUrl,
   deleteKbDocument,
@@ -152,6 +153,23 @@ const importUrl = defineOpenAPIRoute({
   },
 });
 
+const listChunks = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/{id}/documents/{docId}/chunks',
+    tags: ['AI'],
+    summary: '获取文档分块内容（回看原文）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'ai:kb:list' })] as const,
+    request: { params: z.object({ id: z.coerce.number(), docId: z.coerce.number() }) },
+    responses: { ...commonErrorResponses, ...ok(z.array(AiKbChunkDTO), '分块列表') },
+  }),
+  handler: async (c) => {
+    const { id, docId } = c.req.valid('param');
+    return c.json(okBody(await listKbChunks(id, docId)), 200);
+  },
+});
+
 const removeDoc = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete',
@@ -171,6 +189,6 @@ const removeDoc = defineOpenAPIRoute({
 });
 
 // 路由注册
-router.openapiRoutes([list, available, create, update, remove, listDocs, addDoc, importUrl, removeDoc] as const);
+router.openapiRoutes([list, available, create, update, remove, listDocs, addDoc, importUrl, listChunks, removeDoc] as const);
 
 export default router;

@@ -15,6 +15,7 @@ import {
   useSaveAiKnowledgeBase,
   useDeleteAiKnowledgeBase,
   useAiKbDocuments,
+  useAiKbChunks,
   useAddAiKbDocument,
   useDeleteAiKbDocument,
   useImportAiKbUrl,
@@ -38,6 +39,7 @@ export default function AiKnowledgePage() {
   const { hasPermission } = usePermission();
   const [search, setSearch] = useState('');
   const [docsKb, setDocsKb] = useState<AiKnowledgeBase | null>(null);
+  const [viewingDoc, setViewingDoc] = useState<AiKbDocument | null>(null);
   const [docModalVisible, setDocModalVisible] = useState(false);
   const [urlModalVisible, setUrlModalVisible] = useState(false);
   const docFormApi = useRef<FormApi | null>(null);
@@ -50,6 +52,7 @@ export default function AiKnowledgePage() {
   const saveMutation = useSaveAiKnowledgeBase();
   const deleteMutation = useDeleteAiKnowledgeBase();
   const docsQuery = useAiKbDocuments(docsKb?.id ?? null);
+  const chunksQuery = useAiKbChunks(docsKb?.id ?? null, viewingDoc?.id ?? null);
   const addDocMutation = useAddAiKbDocument();
   const importUrlMutation = useImportAiKbUrl();
   const deleteDocMutation = useDeleteAiKbDocument();
@@ -170,9 +173,14 @@ export default function AiKnowledgePage() {
     { title: '字符数', dataIndex: 'charCount', width: 90, align: 'right' },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<AiKbDocument>({
-      width: 80,
-      desktopInlineKeys: ['delete'],
+      width: 140,
+      desktopInlineKeys: ['view', 'delete'],
       actions: (record) => [
+        {
+          key: 'view',
+          label: '查看',
+          onClick: () => setViewingDoc(record),
+        },
         {
           key: 'delete',
           label: '删除',
@@ -249,7 +257,7 @@ export default function AiKnowledgePage() {
         }
         visible={docsKb !== null}
         onCancel={() => setDocsKb(null)}
-        width={680}
+        width={800}
         footer={null}
       >
         <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>
@@ -266,6 +274,45 @@ export default function AiKnowledgePage() {
           pagination={false}
         />
       </SideSheet>
+
+      <AppModal
+        title={viewingDoc ? `文档内容 — ${viewingDoc.name}` : '文档内容'}
+        visible={viewingDoc !== null}
+        onCancel={() => setViewingDoc(null)}
+        footer={null}
+        width={640}
+        closeOnEsc
+      >
+        {chunksQuery.isLoading ? (
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
+            <Text type="tertiary">加载中…</Text>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto', paddingRight: 4 }}>
+            {(chunksQuery.data ?? []).map((chunk, i) => (
+              <div
+                key={chunk.id}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 'var(--semi-border-radius-medium)',
+                  background: 'var(--semi-color-fill-0)',
+                  fontSize: 13,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
+                <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>
+                  分块 {i + 1} / {chunksQuery.data?.length ?? 0} · {chunk.tokenCount} tokens
+                </Text>
+                {chunk.content}
+              </div>
+            ))}
+            {(chunksQuery.data ?? []).length === 0 && (
+              <Text type="tertiary" style={{ textAlign: 'center', padding: '24px 0' }}>无分块内容</Text>
+            )}
+          </div>
+        )}
+      </AppModal>
 
       <AppModal
         title="添加文档"

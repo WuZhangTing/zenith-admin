@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AiUserPreference, AiConversationShare, AiKnowledgeBase, AiKbDocument, CreateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput, AiPromptTemplateVersion } from '@zenith/shared/ai';
+import type { AiUserPreference, AiConversationShare, AiKnowledgeBase, AiKbDocument, AiKbChunk, CreateAiKnowledgeBaseInput, AddAiKbDocumentInput, ImportAiKbUrlInput, AiPromptTemplateVersion } from '@zenith/shared/ai';
 import type { SaveAiPreferenceInput } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
@@ -119,6 +119,15 @@ export function useAiKbDocuments(kbId: number | null) {
     queryKey: aiKbKeys.docs(kbId),
     queryFn: () => request.get<AiKbDocument[]>(`/api/ai/knowledge-bases/${kbId}/documents`).then(unwrap),
     enabled: kbId !== null,
+  });
+}
+
+/** 文档分块内容（回看原文） */
+export function useAiKbChunks(kbId: number | null, docId: number | null) {
+  return useQuery({
+    queryKey: [...aiKbKeys.docs(kbId), 'chunks', docId] as const,
+    queryFn: () => request.get<AiKbChunk[]>(`/api/ai/knowledge-bases/${kbId}/documents/${docId}/chunks`).then(unwrap),
+    enabled: kbId !== null && docId !== null,
   });
 }
 

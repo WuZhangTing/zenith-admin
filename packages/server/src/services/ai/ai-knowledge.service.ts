@@ -117,6 +117,19 @@ export async function listKbDocuments(kbId: number) {
   return rows.map(mapDoc);
 }
 
+/** 文档分块内容（回看原文）：按分块顺序返回 */
+export async function listKbChunks(kbId: number, docId: number) {
+  await ensureKbOwner(kbId);
+  const [doc] = await db.select().from(aiKbDocuments)
+    .where(and(eq(aiKbDocuments.id, docId), eq(aiKbDocuments.kbId, kbId)));
+  if (!doc) throw new HTTPException(404, { message: '文档不存在' });
+  const rows = await db.select({ id: aiKbChunks.id, content: aiKbChunks.content, tokenCount: aiKbChunks.tokenCount })
+    .from(aiKbChunks)
+    .where(and(eq(aiKbChunks.kbId, kbId), eq(aiKbChunks.docId, docId)))
+    .orderBy(aiKbChunks.id);
+  return rows;
+}
+
 /** 分块(@mastra/rag MDocument recursive 策略:段落/句子边界优先,超长硬切) */
 export async function chunkText(text: string): Promise<string[]> {
   const { MDocument } = await import('@mastra/rag');

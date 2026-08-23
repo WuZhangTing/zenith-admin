@@ -145,6 +145,13 @@ export interface AiKbDocument {
   createdAt: string;
 }
 
+/** 知识库文档分块（回看原文） */
+export interface AiKbChunk {
+  id: number;
+  content: string;
+  tokenCount: number;
+}
+
 /** 知识库检索引用（SSE references 事件） */
 export interface AiKbReference {
   docName: string;

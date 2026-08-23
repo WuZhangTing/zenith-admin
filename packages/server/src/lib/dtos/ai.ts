@@ -136,6 +136,14 @@ export const AiKbDocumentDTO = z
   })
   .openapi('AiKbDocument');
 
+export const AiKbChunkDTO = z
+  .object({
+    id: z.number().openapi({ description: '分块 ID' }),
+    content: z.string().openapi({ description: '分块文本' }),
+    tokenCount: z.number().openapi({ description: 'token 数' }),
+  })
+  .openapi('AiKbChunk');
+
 export const AiConversationDTO = z
   .object({
     id: z.number().openapi({ description: 'ID' }),
