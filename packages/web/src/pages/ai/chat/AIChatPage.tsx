@@ -1425,7 +1425,8 @@ export default function AIChatPage() {
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
                 {/* 对话内容 */}
                 <div style={{ flex: 1, overflow: 'hidden' }}>
-                  {messagesQuery.isFetching ? (
+                  {/* isLoading = 无缓存首载;后台 refetch(saved 落库/停止生成等)不得卸载对话组件,否则整屏闪一下 */}
+                  {messagesQuery.isLoading ? (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
                       <Spin size="large" />
                     </div>
