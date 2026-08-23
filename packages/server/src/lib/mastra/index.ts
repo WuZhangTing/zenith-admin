@@ -29,18 +29,24 @@ export const CHAT_TOOLS_KEY = 'zenith-chat-tools';
 
 let storagePromise: Promise<PostgresStore> | null = null;
 
-/** Mastra 存储(PostgresStore,mastra schema);进程内单例 */
+/**
+ * Mastra 存储(PostgresStoreVNext,mastra schema);进程内单例。
+ * VNext 的 observability 域(logs/metrics/traces)支持 Studio 日志页;
+ * observability 连接必须显式给出——本项目复用同库(低量级,官方允许并警告),
+ * 生产高量级场景可改为独立观测库连接。
+ */
 export function getMastraStorage(): Promise<PostgresStore> {
   storagePromise ??= (async () => {
-    const { PostgresStore } = await import('@mastra/pg');
-    const store = new PostgresStore({
+    const { PostgresStoreVNext } = await import('@mastra/pg');
+    const store = new PostgresStoreVNext({
       id: 'zenith-mastra-storage',
       connectionString: config.databaseUrl,
       schemaName: MASTRA_SCHEMA,
       max: 10,
+      observability: { connectionString: config.databaseUrl },
     });
     await store.init();
-    logger.info('[mastra] PostgresStore initialized (schema: mastra)');
+    logger.info('[mastra] PostgresStoreVNext initialized (schema: mastra, observability: same-db)');
     return store;
   })();
   return storagePromise;
@@ -163,6 +169,7 @@ async function buildMastra(): Promise<Mastra> {
     getMastraVector(),
   ]);
   const { Observability, MastraStorageExporter, SensitiveDataFilter } = await import('@mastra/observability');
+  const { PinoLogger } = await import('@mastra/loggers');
 
   const chatAgent = new Agent({
     id: 'zenith-chat',
@@ -191,12 +198,16 @@ async function buildMastra(): Promise<Mastra> {
     agents: { 'zenith-chat': chatAgent },
     storage: storage as never,
     vectors: { default: vector as never },
+    // Mastra 包装该 logger:同时写控制台与 observability 存储(mastra_log_events),
+    // Studio /logs 页面据此可查运行时日志
+    logger: new PinoLogger({ name: 'zenith-ai', level: 'info' }),
     observability: new Observability({
       configs: {
         default: {
           serviceName: 'zenith-ai',
           exporters: [new MastraStorageExporter()],
           spanOutputProcessors: [new SensitiveDataFilter()],
+          logging: { enabled: true, level: 'info' },
         },
       },
     }) as never,
