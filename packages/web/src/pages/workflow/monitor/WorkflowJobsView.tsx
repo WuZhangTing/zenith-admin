@@ -373,7 +373,7 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
         const text = jobSummaryText(record);
         return text === '—'
           ? <Typography.Text size="small" type="tertiary">—</Typography.Text>
-          : <Tooltip content={text}><Tag size="small" color="light-blue" type="light">{text}</Tag></Tooltip>;
+          : <Tooltip content={text}><Tag size="small" color="light-blue" type="light" style={{ maxWidth: '100%' }}>{text}</Tag></Tooltip>;
       },
     },
     {
