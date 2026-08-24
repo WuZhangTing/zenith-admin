@@ -2,6 +2,7 @@ import { HTTPException } from 'hono/http-exception';
 import { getMastra } from '../../lib/mastra';
 import { formatDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
+import { AI_EVAL_SCORERS } from '@zenith/shared/ai';
 import type {
   AiEvalDataset,
   AiEvalDatasetItem,
@@ -18,7 +19,8 @@ import type {
  * - 评测集 = mastra dataset(版本化,条目 input/groundTruth,落 mastra schema)
  * - 评测运行 = experiment:对数据集全量条目执行注册的目标智能体
  *   (zenith-chat / agent-{id} / 内置示例),按 scorer 打分
- * - 打分器:ground-truth(注册在 Mastra 实例上的词面重合度打分,无 LLM 成本)
+ * - 打分器目录见 shared AI_EVAL_SCORERS:code 类零成本;llm 类为 LLM-as-judge
+ *   (评审模型 = 当前默认服务商配置,发实验时刷新注册),产出分数与评审理由
  * - 分数持久化在 scores 域(runId = experimentId,datasetItemId 关联条目),
  *   实验记录本身不含分数,读取时按需聚合
  *
@@ -63,6 +65,8 @@ interface ExperimentResultView {
 interface ScoreRowView {
   scorerId: string;
   score: number;
+  /** LLM 评审理由(code 类打分器为空) */
+  reason?: string | null;
   datasetItemId?: string | null;
   entityId?: string | null;
 }
@@ -264,14 +268,37 @@ export async function runEvalExperiment(
   if (!agent) throw new HTTPException(400, { message: '评测目标智能体不存在或未注册' });
 
   const name = input.name?.trim() || `exp-${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+  const scorers = input.scorers && input.scorers.length > 0 ? [...new Set(input.scorers)] : [DEFAULT_SCORER];
+
+  // llm 类打分器:发起前以当前默认服务商刷新注册(评审模型跟随配置);无可用配置时明确报错
+  const llmScorers = new Set(AI_EVAL_SCORERS.filter((s) => s.kind === 'llm').map((s) => s.id as string));
+  if (scorers.some((s) => llmScorers.has(s))) {
+    const { ensureLlmScorers } = await import('../../lib/mastra/scorers');
+    const ok = await ensureLlmScorers(mastra);
+    if (!ok) {
+      throw new HTTPException(400, { message: 'LLM 评审打分器需要系统默认 AI 服务商配置,请先在 AI 服务商中设置默认配置' });
+    }
+  }
+
+  // 需要期望答案的打分器:校验数据集条目已填 groundTruth
+  const needsGt = new Set(AI_EVAL_SCORERS.filter((s) => s.needsGroundTruth).map((s) => s.id as string));
+  if (scorers.some((s) => needsGt.has(s))) {
+    const { items } = (await dataset.listItems({ page: 0, perPage: 500 })) as unknown as {
+      items: Array<{ groundTruth?: unknown }>;
+    };
+    if (items.some((i) => i.groundTruth == null || asText(i.groundTruth).trim() === '')) {
+      throw new HTTPException(400, { message: '所选打分器需要期望答案,请先为全部条目填写期望要点' });
+    }
+  }
+
   const { experimentId } = await dataset.startExperimentAsync({
     name,
     targetType: 'agent',
     targetId: input.targetId,
-    scorers: input.scorers && input.scorers.length > 0 ? input.scorers : [DEFAULT_SCORER],
+    scorers,
     maxConcurrency: 2,
   });
-  logger.info('[ai-eval] experiment started', { datasetId, experimentId, name, targetId: input.targetId });
+  logger.info('[ai-eval] experiment started', { datasetId, experimentId, name, targetId: input.targetId, scorers });
   return { experimentId, name };
 }
 
@@ -305,12 +332,18 @@ export async function getEvalExperimentResults(
 
   const scoreRows = await listScoreRows(experimentId);
   const scoresByItem = new Map<string, Record<string, number>>();
+  const reasonsByItem = new Map<string, Record<string, string>>();
   for (const row of scoreRows) {
     const itemId = row.datasetItemId ?? row.entityId;
     if (!itemId || typeof row.score !== 'number') continue;
     const bucket = scoresByItem.get(itemId) ?? {};
     bucket[row.scorerId] = Math.round(row.score * 1000) / 1000;
     scoresByItem.set(itemId, bucket);
+    if (row.reason && row.reason.trim()) {
+      const rb = reasonsByItem.get(itemId) ?? {};
+      rb[row.scorerId] = row.reason.trim();
+      reasonsByItem.set(itemId, rb);
+    }
   }
 
   const results: AiEvalExperimentResult[] = rows.map((r) => ({
@@ -319,6 +352,7 @@ export async function getEvalExperimentResults(
     groundTruth: r.groundTruth == null ? null : asText(r.groundTruth),
     output: r.output == null ? '' : asText(r.output),
     scores: scoresByItem.get(r.itemId) ?? {},
+    reasons: reasonsByItem.get(r.itemId) ?? {},
     error: r.error ? r.error.message : null,
   }));
 

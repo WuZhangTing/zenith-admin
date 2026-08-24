@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { partialForUpdate } from '../core/validation';
-import { AI_REASONING_LEVELS } from './constants';
+import { AI_REASONING_LEVELS, AI_EVAL_SCORER_IDS } from './constants';
 
 // ─── AI 对话模块 ──────────────────────────────────────────────────────────────
 
@@ -256,8 +256,8 @@ export const runAiExperimentSchema = z.object({
   name: z.string().max(100).optional(),
   /** 目标 Mastra agent ID(agent-{id} / zenith-chat / 内置智能体) */
   targetId: z.string().min(1, '请选择评测目标').max(100),
-  /** 打分器(缺省 ground-truth) */
-  scorers: z.array(z.string().max(60)).max(5).optional(),
+  /** 打分器(缺省 ground-truth;目录见 AI_EVAL_SCORERS) */
+  scorers: z.array(z.enum(AI_EVAL_SCORER_IDS)).max(7).optional(),
 });
 
 export type CreateAiEvalDatasetInput = z.infer<typeof createAiEvalDatasetSchema>;

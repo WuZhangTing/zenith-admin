@@ -11,6 +11,7 @@ import {
   Tabs,
   Tag,
   Toast,
+  Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
 import { Plus, Trash2, FlaskConical } from 'lucide-react';
@@ -29,12 +30,25 @@ import {
 } from '@/hooks/queries/ai-eval';
 import { useMyAiAgents, useBuiltinAiAgents } from '@/hooks/queries/ai-agents';
 import { usePermission } from '@/hooks/usePermission';
-import type { AiEvalDataset, AiEvalExperiment, AiEvalExperimentResult } from '@zenith/shared/ai';
+import type { AiEvalDataset, AiEvalExperiment, AiEvalExperimentResult, AiEvalScorerId } from '@zenith/shared/ai';
+import { AI_EVAL_SCORERS } from '@zenith/shared/ai';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 
 const { Text, Paragraph } = Typography;
+
+/** 打分器 id → 中文名(目录见 shared AI_EVAL_SCORERS) */
+const SCORER_LABELS = new Map<string, string>(AI_EVAL_SCORERS.map((s) => [s.id, s.label]));
+
+/** 反向指标(toxicity/bias:高分 = 差) */
+const INVERTED_SCORERS = new Set<string>(AI_EVAL_SCORERS.filter((s) => s.inverted).map((s) => s.id));
+
+const SCORER_OPTIONS = AI_EVAL_SCORERS.map((s) => ({
+  value: s.id,
+  label: `${s.label}${s.kind === 'llm' ? '（LLM 评审）' : '（免费）'}`,
+  extra: s.description,
+}));
 
 const STATUS_META: Record<AiEvalExperiment['status'], { label: string; color: 'blue' | 'green' | 'red' | 'grey' }> = {
   pending: { label: '等待中', color: 'grey' },
@@ -43,16 +57,24 @@ const STATUS_META: Record<AiEvalExperiment['status'], { label: string; color: 'b
   failed: { label: '失败', color: 'red' },
 };
 
-/** 各打分器分数(0-1)→ 百分比 Tag */
-function renderScores(scores: Record<string, number> | null) {
+/** 各打分器分数(0-1)→ 百分比 Tag;reasons 提供时 LLM 评审理由经 Tooltip 透出 */
+function renderScores(scores: Record<string, number> | null, reasons?: Record<string, string>) {
   if (!scores || Object.keys(scores).length === 0) return '—';
   return (
     <Space spacing={4} wrap>
-      {Object.entries(scores).map(([scorer, score]) => (
-        <Tag key={scorer} size="small" color={score >= 0.6 ? 'green' : score >= 0.3 ? 'amber' : 'red'}>
-          {scorer} {(score * 100).toFixed(1)}%
-        </Tag>
-      ))}
+      {Object.entries(scores).map(([scorer, score]) => {
+        // 反向指标(毒性/偏见)高分为差:颜色按「好坏」而非分值
+        const goodness = INVERTED_SCORERS.has(scorer) ? 1 - score : score;
+        const tag = (
+          <Tag key={scorer} size="small" color={goodness >= 0.6 ? 'green' : goodness >= 0.3 ? 'amber' : 'red'}>
+            {SCORER_LABELS.get(scorer) ?? scorer} {(score * 100).toFixed(1)}%
+          </Tag>
+        );
+        const reason = reasons?.[scorer];
+        return reason
+          ? <Tooltip key={scorer} content={<div style={{ maxWidth: 420 }}>{reason}</div>}>{tag}</Tooltip>
+          : tag;
+      })}
     </Space>
   );
 }
@@ -211,8 +233,9 @@ function DatasetDetail({ dataset, canManage }: { dataset: AiEvalDataset; canMana
     {
       title: '得分',
       dataIndex: 'scores',
-      width: 150,
-      render: (v: Record<string, number>) => renderScores(Object.keys(v).length > 0 ? v : null),
+      width: 170,
+      render: (v: Record<string, number>, record: AiEvalExperimentResult) =>
+        renderScores(Object.keys(v).length > 0 ? v : null, record.reasons),
     },
   ];
 
@@ -302,13 +325,20 @@ function DatasetDetail({ dataset, canManage }: { dataset: AiEvalDataset; canMana
         width={520}
         footer={null}
       >
-        <Form<{ name?: string; targetId: string }>
-          initValues={{ targetId: 'zenith-chat' }}
+        <Form<{ name?: string; targetId: string; scorers: AiEvalScorerId[] }>
+          initValues={{ targetId: 'zenith-chat', scorers: ['ground-truth'] }}
           labelPosition="left"
           labelWidth={80}
           onSubmit={async (values) => {
             try {
-              await runMutation.mutateAsync({ datasetId: dataset.id, values: { name: values.name || undefined, targetId: values.targetId } });
+              await runMutation.mutateAsync({
+                datasetId: dataset.id,
+                values: {
+                  name: values.name || undefined,
+                  targetId: values.targetId,
+                  scorers: values.scorers?.length ? values.scorers : undefined,
+                },
+              });
               Toast.success('实验已发起，Mastra 在后台逐条执行，可在实验记录中查看进度');
               setRunVisible(false);
               setActiveTab('experiments');
@@ -318,8 +348,8 @@ function DatasetDetail({ dataset, canManage }: { dataset: AiEvalDataset; canMana
           {({ formApi }) => (
             <>
               <Text type="tertiary" style={{ fontSize: 13, display: 'block', marginBottom: 12 }}>
-                对全部条目执行所选智能体并按 ground-truth 打分。
-                对同一数据集用不同目标分别实验，即可横向对比效果。
+                对全部条目执行所选智能体并按所选打分器打分；LLM 评审类打分器以系统默认服务商为评审模型，
+                每条消耗 token 并产出评审理由。对同一数据集用不同目标分别实验，即可横向对比效果。
               </Text>
               <Form.Input field="name" label="实验名" placeholder="留空自动生成" maxLength={100} />
               <Form.Select
@@ -328,6 +358,15 @@ function DatasetDetail({ dataset, canManage }: { dataset: AiEvalDataset; canMana
                 style={{ width: '100%' }}
                 optionList={targetOptions}
                 rules={[{ required: true, message: '请选择评测目标' }]}
+              />
+              <Form.Select
+                field="scorers"
+                label="打分器"
+                multiple
+                style={{ width: '100%' }}
+                optionList={SCORER_OPTIONS}
+                rules={[{ required: true, type: 'array', min: 1, message: '至少选择一个打分器' }]}
+                extraText="「语义一致性」「期望答案重合度」需要条目已填期望要点"
               />
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
                 <Button onClick={() => setRunVisible(false)}>取消</Button>

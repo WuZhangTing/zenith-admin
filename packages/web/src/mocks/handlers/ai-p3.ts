@@ -140,7 +140,8 @@ const resultStore = new Map<string, AiEvalExperimentResult[]>([
       input: '用一句话解释什么是 RBAC 权限模型',
       groundTruth: '基于角色的访问控制',
       output: 'RBAC 是基于角色的访问控制模型，通过给用户分配角色、给角色分配权限来管理访问。',
-      scores: { 'ground-truth': 0.71 },
+      scores: { 'ground-truth': 0.71, 'answer-similarity': 0.9 },
+      reasons: { 'answer-similarity': '输出准确表达了「基于角色的访问控制」核心语义，且补充了角色-权限分配机制，语义高度一致。' },
       error: null,
     },
     {
@@ -148,7 +149,8 @@ const resultStore = new Map<string, AiEvalExperimentResult[]>([
       input: '把这句话翻译成英文：今天天气很好',
       groundTruth: 'The weather is nice today',
       output: 'The weather is very nice today.',
-      scores: { 'ground-truth': 0.53 },
+      scores: { 'ground-truth': 0.53, 'answer-similarity': 0.85 },
+      reasons: { 'answer-similarity': '译文与期望答案语义一致，仅多出程度副词 very，不影响正确性。' },
       error: null,
     },
   ]],
@@ -310,6 +312,7 @@ export const aiP3Handlers = [
       groundTruth: it.groundTruth,
       output: `【Demo】${body.targetId} 对「${it.input.slice(0, 30)}」的模拟回答（第 ${i + 1} 题）。`,
       scores: { 'ground-truth': 0.58 },
+      reasons: {},
       error: null,
     })));
     return ok({ experimentId, name }, '实验已发起');

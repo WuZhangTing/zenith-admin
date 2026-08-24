@@ -247,35 +247,9 @@ async function buildMastra(): Promise<Mastra> {
     logger.warn('[mastra] register demo agents failed', err);
   }
 
-  // ground-truth 打分器:与期望答案的词面重合度(0-1,无 LLM 成本、跨实验可比)
-  try {
-    const { createScorer } = await import('@mastra/core/evals');
-    const groundTruthScorer = createScorer({
-      id: 'ground-truth',
-      name: 'ground-truth',
-      description: '模型输出与期望答案(groundTruth)的词面重合度(0-1)',
-    }).generateScore(({ run }: { run: { output?: unknown; groundTruth?: unknown } }) => {
-      const textOf = (v: unknown): string => {
-        if (typeof v === 'string') return v;
-        if (v && typeof v === 'object' && 'text' in (v as Record<string, unknown>)) return String((v as { text: unknown }).text ?? '');
-        return JSON.stringify(v ?? '');
-      };
-      const output = textOf(run.output).toLowerCase();
-      const expected = textOf(run.groundTruth).toLowerCase().trim();
-      if (!expected) return 1;
-      if (!output) return 0;
-      // 以期望答案的字符 bigram 命中率近似重合度(对中英文均适用)
-      const grams = new Set<string>();
-      for (let i = 0; i < expected.length - 1; i++) grams.add(expected.slice(i, i + 2));
-      if (grams.size === 0) return output.includes(expected) ? 1 : 0;
-      let hit = 0;
-      for (const g of grams) if (output.includes(g)) hit++;
-      return Math.round((hit / grams.size) * 1000) / 1000;
-    });
-    mastra.addScorer(groundTruthScorer as never, 'ground-truth');
-  } catch (err) {
-    logger.warn('[mastra] register ground-truth scorer failed', err);
-  }
+  // 评测打分器(code 类必注册;llm 类以当前默认服务商为评审模型,发实验时会刷新)
+  const { registerAllScorers } = await import('./scorers');
+  await registerAllScorers(mastra);
 
   logger.info('[mastra] instance ready (agents registered)');
   return mastra;

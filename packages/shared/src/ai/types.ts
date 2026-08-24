@@ -362,6 +362,8 @@ export interface AiEvalExperimentResult {
   groundTruth: string | null;
   output: string;
   scores: Record<string, number>;
+  /** LLM 评审理由(按 scorerId,code 类打分器无理由) */
+  reasons: Record<string, string>;
   error: string | null;
 }
 

@@ -458,6 +458,7 @@ export const AiEvalExperimentResultDTO = z
     groundTruth: z.string().nullable().openapi({ description: '期望要点' }),
     output: z.string().openapi({ description: '模型输出' }),
     scores: z.record(z.string(), z.number()).openapi({ description: '各打分器得分(0-1)' }),
+    reasons: z.record(z.string(), z.string()).openapi({ description: 'LLM 评审理由(按 scorerId,code 类无理由)' }),
     error: z.string().nullable().openapi({ description: '失败原因' }),
   })
   .openapi('AiEvalExperimentResult');
