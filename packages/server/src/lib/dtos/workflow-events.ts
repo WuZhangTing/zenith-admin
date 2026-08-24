@@ -65,6 +65,8 @@ export const WorkflowTriggerExecutionDTO = z
   .object({
     id: z.number().int(),
     instanceId: z.number().int(),
+    /** 实例标题（实例被清理后为 null） */
+    instanceTitle: z.string().nullable(),
     taskId: z.number().int().nullable(),
     nodeKey: z.string(),
     nodeName: z.string().nullable(),

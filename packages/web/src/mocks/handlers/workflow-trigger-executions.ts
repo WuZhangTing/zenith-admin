@@ -11,6 +11,7 @@ export const mockWorkflowTriggerExecutions: WorkflowTriggerExecution[] = [
   {
     id: 1,
     instanceId: 1,
+    instanceTitle: '请假审批测试 - 管理员',
     taskId: 1,
     nodeKey: 'approve_1',
     nodeName: '直属主管审批',
@@ -30,6 +31,7 @@ export const mockWorkflowTriggerExecutions: WorkflowTriggerExecution[] = [
   {
     id: 2,
     instanceId: 2,
+    instanceTitle: '差旅报销 - 8200 元 - 张三',
     taskId: 3,
     nodeKey: 'approve_2',
     nodeName: '财务审批',
@@ -49,6 +51,7 @@ export const mockWorkflowTriggerExecutions: WorkflowTriggerExecution[] = [
   {
     id: 3,
     instanceId: 2,
+    instanceTitle: '差旅报销 - 8200 元 - 张三',
     taskId: null,
     nodeKey: 'update_form_data',
     nodeName: '字段回写',

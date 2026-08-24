@@ -1,6 +1,6 @@
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
-import { workflowJobExecutions, workflowJobs, workflowTasks } from '../../db/schema';
+import { workflowJobExecutions, workflowJobs, workflowTasks, workflowInstances } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
@@ -16,6 +16,8 @@ export interface TriggerExecutionRow {
   execution: typeof workflowJobExecutions.$inferSelect;
   job: typeof workflowJobs.$inferSelect;
   nodeName: string | null;
+  /** 实例标题；引擎内省等调用方不查实例表时可缺省 */
+  instanceTitle?: string | null;
 }
 
 function getPayloadString(payload: unknown, key: string): string | null {
@@ -58,6 +60,7 @@ export function mapTriggerExecution(row: TriggerExecutionRow): WorkflowTriggerEx
   return {
     id: execution.id,
     instanceId: job.instanceId ?? 0,
+    instanceTitle: row.instanceTitle ?? null,
     taskId: job.taskId ?? null,
     nodeKey: job.nodeKey ?? '',
     nodeName: row.nodeName,
@@ -76,11 +79,12 @@ export function mapTriggerExecution(row: TriggerExecutionRow): WorkflowTriggerEx
   };
 }
 
-/** 执行记录查询的公共选择列与关联：父作业提供上下文，任务提供节点名 */
+/** 执行记录查询的公共选择列与关联：父作业提供上下文，任务提供节点名，实例提供标题 */
 const TRIGGER_EXECUTION_SELECTION = {
   execution: workflowJobExecutions,
   job: workflowJobs,
   nodeName: workflowTasks.nodeName,
+  instanceTitle: workflowInstances.title,
 } as const;
 
 export interface ListTriggerExecutionsParams {
@@ -111,6 +115,7 @@ export async function listTriggerExecutions(params: ListTriggerExecutionsParams)
     db.select(TRIGGER_EXECUTION_SELECTION).from(workflowJobExecutions)
       .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
       .leftJoin(workflowTasks, eq(workflowJobs.taskId, workflowTasks.id))
+      .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .where(where)
       .orderBy(desc(workflowJobExecutions.id))
       .limit(pageSize)
@@ -127,6 +132,7 @@ export async function getTriggerExecution(id: number) {
     .from(workflowJobExecutions)
     .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
     .leftJoin(workflowTasks, eq(workflowJobs.taskId, workflowTasks.id))
+    .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
     .where(and(...conds))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '触发器执行记录不存在' });

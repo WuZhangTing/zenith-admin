@@ -11,6 +11,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
+import WorkflowInstanceDetailSheet from '@/components/workflow/WorkflowInstanceDetailSheet';
 import type {
   WorkflowTriggerExecution,
   WorkflowTriggerExecutionStatus,
@@ -70,6 +71,7 @@ export default function WorkflowTriggerExecutionsPage() {
   const [detailId, setDetailId] = useState<number | null>(null);
   const detailQuery = useWorkflowTriggerExecutionDetail(detailId, detailId !== null);
   const detail = detailQuery.data ?? null;
+  const [detailInstanceId, setDetailInstanceId] = useState<number | null>(null);
 
   const openDetail = (row: WorkflowTriggerExecution) => {
     setDetailId(row.id);
@@ -77,11 +79,12 @@ export default function WorkflowTriggerExecutionsPage() {
 
   const columns: ColumnProps<WorkflowTriggerExecution>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '实例', dataIndex: 'instanceId', width: 100, render: (v: number) => <WorkflowInstanceCell size="small" instanceId={v} showSub={false} /> },
+    { title: '实例', dataIndex: 'instanceId', width: 200, render: (v: number, r) => <WorkflowInstanceCell size="small" instanceId={v} title={r.instanceTitle} showSub={false} onOpen={(id) => setDetailInstanceId(id)} /> },
     {
       title: '节点',
       dataIndex: 'nodeName',
-      width: 180,
+      // 副行 nodeKey 为生成串（如 trigger_1787286640649_116），240 可完整展示典型长度
+      width: 240,
       render: (_: unknown, r) => (
         <span>
           <Typography.Text>{r.nodeName || r.nodeKey}</Typography.Text>
@@ -216,7 +219,7 @@ export default function WorkflowTriggerExecutionsPage() {
       >
         {detail && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Row label="实例 ID">{detail.instanceId}</Row>
+            <Row label="实例">{detail.instanceTitle ? `#${detail.instanceId} · ${detail.instanceTitle}` : `#${detail.instanceId}`}</Row>
             <Row label="任务 ID">{detail.taskId ?? '-'}</Row>
             <Row label="节点">{detail.nodeName}（{detail.nodeKey}）</Row>
             <Row label="触发类型">{TRIGGER_TYPE_LABEL[detail.triggerType] ?? detail.triggerType}</Row>
@@ -244,6 +247,12 @@ export default function WorkflowTriggerExecutionsPage() {
           </div>
         )}
       </SideSheet>
+
+      <WorkflowInstanceDetailSheet
+        instanceId={detailInstanceId}
+        visible={detailInstanceId != null}
+        onClose={() => setDetailInstanceId(null)}
+      />
     </div>
   );
 }

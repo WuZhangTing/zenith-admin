@@ -1840,6 +1840,8 @@ export type WorkflowTriggerType = 'webhook' | 'callback' | 'updateData' | 'delet
 export interface WorkflowTriggerExecution {
   id: number;
   instanceId: number;
+  /** 实例标题（来自 workflow_instances，实例被清理后为 null） */
+  instanceTitle: string | null;
   taskId: number | null;
   nodeKey: string;
   nodeName: string | null;
