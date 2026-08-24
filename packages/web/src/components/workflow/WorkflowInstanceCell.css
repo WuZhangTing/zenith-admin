@@ -1,0 +1,19 @@
+/* 实例标题链接：用主题主色替代 Semi 默认链接蓝，与整站主色一致。
+   Semi 在 link + ellipsis 组合下把链接色画在内层 <a> 上（className 只落在外层 span），
+   因此选择器需同时覆盖自身与内层锚点；叠加 .semi-typography 提高特异性。 */
+.semi-typography.wf-instance-cell-link,
+.semi-typography.wf-instance-cell-link:visited,
+.semi-typography.wf-instance-cell-link a,
+.semi-typography.wf-instance-cell-link a:visited {
+  color: var(--semi-color-primary);
+}
+
+.semi-typography.wf-instance-cell-link:hover,
+.semi-typography.wf-instance-cell-link a:hover {
+  color: var(--semi-color-primary-hover);
+}
+
+.semi-typography.wf-instance-cell-link:active,
+.semi-typography.wf-instance-cell-link a:active {
+  color: var(--semi-color-primary-active);
+}

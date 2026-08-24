@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Typography } from '@douyinfe/semi-ui';
+import './WorkflowInstanceCell.css';
 
 /**
  * 流程实例标题单元格（全局统一）。
@@ -54,6 +55,7 @@ export default function WorkflowInstanceCell({
     <Typography.Text
       link
       size={size}
+      className="wf-instance-cell-link"
       ellipsis={{ showTooltip: true }}
       style={{ maxWidth: '100%' }}
       onClick={() => onOpen(instanceId)}
