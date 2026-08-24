@@ -3,7 +3,6 @@ import { Button, Select, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, 
 import type { Tenant } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTimeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
@@ -293,7 +292,27 @@ export default function TenantsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal {...tenantModal.modalProps} width={660}>
+      <SideSheet
+        title={tenantModal.modalProps.title}
+        visible={tenantModal.visible}
+        onCancel={tenantModal.close}
+        closeOnEsc
+        width={660}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={tenantModal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={tenantModal.modalProps.okButtonProps.loading}
+              disabled={tenantModal.modalProps.okButtonProps.disabled}
+              onClick={() => void tenantModal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Spin spinning={tenantModal.detailLoading} wrapperClassName="modal-spin-wrapper">
         <Form key={tenantModal.formKey} {...tenantModal.formProps}>
           <Row gutter={16}>
@@ -370,7 +389,7 @@ export default function TenantsPage() {
           )}
         </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       <SideSheet
         title={`租户概览 — ${statsTenant?.name ?? ''}`}
