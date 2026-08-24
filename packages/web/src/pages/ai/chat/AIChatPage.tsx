@@ -264,7 +264,6 @@ export default function AIChatPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('');
   const [showArchived, setShowArchived] = useState(false);
-  const didInitConvRef = useRef(false);
   const [dislikeMsgId, setDislikeMsgId] = useState<number | null>(null);
   const [varFillTemplate, setVarFillTemplate] = useState<AiPromptTemplate | null>(null);
   const varFormApi = useRef<FormApi | null>(null);
@@ -345,19 +344,11 @@ export default function AIChatPage() {
     return () => clearTimeout(t);
   }, [searchKeyword]);
 
-  // 单栏（窄屏）下 showDetail 由 activeConvId 驱动，若沿用桌面端「默认打开首个会话」
-  // 会直接落到对话详情，会话列表反而要点返回才能看到。
-  const isNarrowLayoutRef = useRef(false);
-
+  // 进入页面不默认选中会话：右侧展示欢迎页，直接提问即自动新建对话
   useEffect(() => {
     const pages = conversationsQuery.data?.pages;
     if (!pages) return;
-    const list = pages.flat();
-    setConversations(list);
-    if (!didInitConvRef.current && list.length > 0 && !isNarrowLayoutRef.current) {
-      setActiveConvId(list[0].id);
-    }
-    didInitConvRef.current = true;
+    setConversations(pages.flat());
   }, [conversationsQuery.data]);
 
   // 侧栏渲染行：置顶 / 今天 / 昨天 / 近 7 天 / 更早 分组
@@ -1183,11 +1174,6 @@ export default function AIChatPage() {
       persistKey="ai-chat"
       showDetail={activeConvId !== null}
       onBack={() => setActiveConvId(null)}
-      onResponsiveChange={(narrow) => {
-        isNarrowLayoutRef.current = narrow;
-        // 由窄屏转回双栏时补选首个会话，避免右侧空白
-        if (!narrow) setActiveConvId((prev) => prev ?? conversations[0]?.id ?? null);
-      }}
       master={(
         <NavListPanel
           headerExtra={
