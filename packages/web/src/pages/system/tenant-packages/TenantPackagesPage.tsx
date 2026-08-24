@@ -60,7 +60,7 @@ export default function TenantPackagesPage() {
     save: saveMutation,
     useDetail: useTenantPackageDetail,
     defaults: { status: 'enabled' },
-    labelWidth: 72,
+    labelWidth: 90,
   });
 
   // 分配功能弹窗
