@@ -288,7 +288,8 @@ export default function WorkflowEventSubscriptionsPage() {
         : (v ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>),
     },
     createOperationColumn<WorkflowEventSubscription>({
-      width: 280,
+      // 编辑/测试/投递/密钥/删除 5 个两字动作可同时内联：5×52 + 4×4 间距 + 32 padding ≈ 308
+      width: 310,
       desktopInlineKeys: ['edit', 'test', 'deliveries', 'secret', 'delete'],
       actions: (record) => [
         {
@@ -348,7 +349,8 @@ export default function WorkflowEventSubscriptionsPage() {
       },
     },
     createOperationColumn<WorkflowEventDelivery>({
-      width: 130,
+      // 「详情 + 重新投递」同时出现：52 + 80 + 4 间距 + 32 padding ≈ 168
+      width: 170,
       desktopInlineKeys: ['detail', 'retry'],
       actions: (record) => [
         {
