@@ -4,7 +4,7 @@ import { Button, Typography, Tag, Skeleton, Empty, List, Descriptions } from '@d
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import type { Announcement } from '@zenith/shared/messaging';
 import type { MonitorAlertOverview } from '@zenith/shared/platform';
-import { Bell, BookOpen, MonitorPlay, Siren, Users, UserCheck, Wifi, LogIn, Activity, MapPin, Clock } from 'lucide-react';
+import { Bell, BookOpen, MonitorPlay, Siren, Users, Wifi, LogIn, Activity, MapPin, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 // 图表区懒加载：'@/components/charts' 拖 ~1.9MB 的 @visactor 依赖树，
@@ -46,7 +46,6 @@ const STAT_ITEMS: Array<{
   icon: React.ReactNode;
 }> = [
   { key: 'totalUsers',      label: '系统用户总数', icon: <Users size={16} /> },
-  { key: 'activeUsers',     label: '活跃用户',     icon: <UserCheck size={16} /> },
   { key: 'onlineUsers',     label: '当前在线',     icon: <Wifi size={16} /> },
   { key: 'todayLogins',     label: '今日登录',     icon: <LogIn size={16} /> },
   { key: 'todayOperations', label: '今日操作',     icon: <Activity size={16} /> },

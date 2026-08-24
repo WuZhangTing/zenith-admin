@@ -25,7 +25,6 @@ export async function getDashboardStats() {
   const ltc = tenantCondition(loginLogs, user);
   const otc = tenantCondition(operationLogs, user);
 
-  const activeUsersWhere = utc ? and(eq(users.status, 'enabled'), utc) : eq(users.status, 'enabled');
   const todayLoginWhere = ltc
     ? and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), eq(loginLogs.eventType, 'login'), ltc)
     : and(gte(loginLogs.createdAt, todayStart), lt(loginLogs.createdAt, todayEnd), eq(loginLogs.eventType, 'login'));
@@ -33,15 +32,14 @@ export async function getDashboardStats() {
     ? and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd), otc)
     : and(gte(operationLogs.createdAt, todayStart), lt(operationLogs.createdAt, todayEnd));
 
-  const [totalUsers, activeUsers, todayLogins, todayOperations, onlineUsers] = await Promise.all([
+  const [totalUsers, todayLogins, todayOperations, onlineUsers] = await Promise.all([
     db.$count(users, utc),
-    db.$count(users, activeUsersWhere),
     db.$count(loginLogs, todayLoginWhere),
     db.$count(operationLogs, todayOpWhere),
     // 在线口径与行为分析实时看板一致：近 5 分钟有活动的登录用户数
     getActiveAdminUserCount(),
   ]);
-  return { totalUsers, activeUsers, onlineUsers, todayLogins, todayOperations };
+  return { totalUsers, onlineUsers, todayLogins, todayOperations };
 }
 
 export async function getDashboardCharts() {

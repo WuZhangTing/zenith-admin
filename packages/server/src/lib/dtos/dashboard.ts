@@ -6,7 +6,6 @@ import { z } from '@hono/zod-openapi';
 export const DashboardStatsDTO = z
   .object({
     totalUsers: z.number().int(),
-    activeUsers: z.number().int(),
     onlineUsers: z.number().int(),
     todayLogins: z.number().int(),
     todayOperations: z.number().int(),

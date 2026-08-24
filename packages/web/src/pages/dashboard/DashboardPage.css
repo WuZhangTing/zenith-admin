@@ -98,7 +98,7 @@
    改为不设 row-gap、用上下内边距撑开行距，竖线跨行连续贯通。 */
 .dashboard-stats-row {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .dashboard-stat-item {
@@ -141,7 +141,7 @@
 }
 
 /* 告警区：与统计行同一套「细线分栏」语言，但列数由内容自适应，
-   不能并进 .dashboard-stats-row——那一行的分隔线靠 nth-child 按固定 5/3/2 列算行首，
+   不能并进 .dashboard-stats-row——那一行的分隔线靠 nth-child 按固定 4/3/2 列算行首，
    插入额外项会让行首竖线错位。 */
 .dashboard-alerts {
   margin-top: 34px;

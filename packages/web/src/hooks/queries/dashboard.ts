@@ -4,7 +4,6 @@ import { unwrap } from '@/lib/query';
 
 export interface DashboardStats {
   totalUsers: number;
-  activeUsers: number;
   onlineUsers: number;
   todayLogins: number;
   todayOperations: number;
