@@ -12,12 +12,10 @@ import type { Mastra } from '@mastra/core';
 
 /** code 类打分器:无条件注册(无 LLM 依赖) */
 export async function registerCodeScorers(mastra: Mastra): Promise<void> {
-  const [{ createScorer }, { createCompletenessScorer, createKeywordCoverageScorer }] = await Promise.all([
-    import('@mastra/core/evals'),
-    import('@mastra/evals/scorers/prebuilt'),
-  ]);
+  const { createScorer } = await import('@mastra/core/evals');
 
-  // ground-truth:输出与期望答案的词面重合度(内置库无 groundTruth 对齐的 code 类打分器,自研保留)
+  // ground-truth:输出与期望答案的词面重合度。bigram 算法对中英文语料均有效
+  // (内置库的 code 类 scorer 基于英文 NLP,对中文无效,不接入——见 shared AI_EVAL_SCORERS)
   const groundTruthScorer = createScorer({
     id: 'ground-truth',
     name: 'ground-truth',
@@ -41,10 +39,6 @@ export async function registerCodeScorers(mastra: Mastra): Promise<void> {
     return Math.round((hit / grams.size) * 1000) / 1000;
   });
   mastra.addScorer(groundTruthScorer as never, 'ground-truth');
-
-  // 内置 code 类:注册 key 与内置 scorer.id 一致(实验执行器按 scorer.id 匹配)
-  mastra.addScorer(createCompletenessScorer() as never);
-  mastra.addScorer(createKeywordCoverageScorer() as never);
 }
 
 /**

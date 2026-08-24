@@ -257,7 +257,7 @@ export const runAiExperimentSchema = z.object({
   /** 目标 Mastra agent ID(agent-{id} / zenith-chat / 内置智能体) */
   targetId: z.string().min(1, '请选择评测目标').max(100),
   /** 打分器(缺省 ground-truth;目录见 AI_EVAL_SCORERS) */
-  scorers: z.array(z.enum(AI_EVAL_SCORER_IDS)).max(7).optional(),
+  scorers: z.array(z.enum(AI_EVAL_SCORER_IDS)).max(5).optional(),
 });
 
 export type CreateAiEvalDatasetInput = z.infer<typeof createAiEvalDatasetSchema>;

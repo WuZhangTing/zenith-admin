@@ -40,14 +40,18 @@ export const AI_USER_SETTINGS_DEFAULTS = {
 } as const;
 
 /**
- * 评测打分器目录(id 与 Mastra 注册表一致):
+ * 评测打分器目录(id 与 Mastra 注册的 scorer.id 一致,实验执行器按 scorer.id 匹配):
  * - code 类:纯算法,零 LLM 成本
  * - llm 类:LLM-as-judge,评审模型 = 系统默认服务商配置,每条消耗 token 并产出评审理由
+ * - inverted:反向指标(高分 = 差),前端按好坏着色
+ *
+ * 不接入的内置 scorer 及原因:
+ * - completeness / keyword-coverage / content-similarity:基于英文 NLP(compromise)
+ *   或比较 input vs output,对中文语料无效(实测中文数据集关键词覆盖仅 5%,纯噪声)
+ * - faithfulness / hallucination:需真实 RAG 检索上下文,实验链路尚未捕获
  */
 export const AI_EVAL_SCORERS = [
-  { id: 'ground-truth',             kind: 'code', label: '期望答案重合度', description: '输出与期望答案的词面重合度(免费)', needsGroundTruth: true,  inverted: false },
-  { id: 'completeness-scorer',      kind: 'code', label: '要素完整度',     description: '输出对问题要素的覆盖完整度(免费)', needsGroundTruth: false, inverted: false },
-  { id: 'keyword-coverage-scorer',  kind: 'code', label: '关键词覆盖',     description: '问题关键词在输出中的覆盖率(免费)', needsGroundTruth: false, inverted: false },
+  { id: 'ground-truth',             kind: 'code', label: '期望答案重合度', description: '输出与期望答案的词面重合度,中英文适用(免费)', needsGroundTruth: true,  inverted: false },
   { id: 'answer-similarity-scorer', kind: 'llm',  label: '语义一致性',     description: '输出与期望答案的语义一致性(LLM 评审)', needsGroundTruth: true,  inverted: false },
   { id: 'answer-relevancy-scorer',  kind: 'llm',  label: '答案相关性',     description: '是否答非所问(LLM 评审)', needsGroundTruth: false, inverted: false },
   { id: 'toxicity-scorer',          kind: 'llm',  label: '毒性检测',       description: '输出的毒性程度,0=无毒(LLM 评审)', needsGroundTruth: false, inverted: true },
