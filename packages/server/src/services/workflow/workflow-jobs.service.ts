@@ -316,6 +316,30 @@ export async function replayDeadJobs(
 
 export type JobClusterDimension = 'reason' | 'jobType' | 'instance' | 'trace';
 
+/** 每簇随响应携带的成员作业明细上限（按最近失败时间倒序取前 N 条） */
+export const CLUSTER_MEMBER_LIMIT = 10;
+
+/** 聚类簇内的成员作业明细：回答「哪个作业 / 哪个流程实例 / 哪个进程 / 何时失败 / 完整原因」 */
+export interface JobFailureClusterMember {
+  id: number;
+  jobType: string;
+  status: string;
+  instanceId: number | null;
+  instanceTitle: string | null;
+  definitionName: string | null;
+  nodeKey: string | null;
+  attempts: number;
+  maxAttempts: number;
+  /** 最后领取该作业的 worker 节点（hostname:pid），失败后保留 */
+  lockedBy: string | null;
+  traceId: string | null;
+  /** 完整原始错误（未归一） */
+  lastError: string | null;
+  /** 最近一次失败时间（最后一次尝试写入 lastError 的时刻） */
+  failedAt: string;
+  createdAt: string;
+}
+
 export interface JobFailureCluster {
   /** 聚类维度 */
   dimension: JobClusterDimension;
@@ -331,6 +355,14 @@ export interface JobFailureCluster {
   traceId: string | null;
   /** reason 维度下的错误关键字，供"重放该簇"（模糊匹配） */
   reasonKeyword: string | null;
+  /** 簇内最早失败时间 */
+  firstAt: string | null;
+  /** 簇内最近失败时间 */
+  lastAt: string | null;
+  /** 涉及的流程实例数 */
+  instanceCount: number;
+  /** 成员作业明细（最多 CLUSTER_MEMBER_LIMIT 条，按最近失败倒序） */
+  jobs: JobFailureClusterMember[];
 }
 
 /** 从原始 lastError 提取一个可用于 ilike 的字面关键字（取首个数字前的字面前缀，不足则回退取前 40 字符）。 */
@@ -343,44 +375,86 @@ export function reasonKeywordOf(lastError: string | null): string | null {
 }
 
 export interface ClusterInputRow {
+  id: number;
   jobType: string;
+  status: string;
   lastError: string | null;
   instanceId: number | null;
   instanceTitle: string | null;
+  definitionName: string | null;
+  nodeKey: string | null;
+  attempts: number;
+  maxAttempts: number;
+  lockedBy: string | null;
   traceId: string | null;
+  /** 最近失败时间（updatedAt：失败收口时写入 lastError 的时刻） */
+  failedAt: Date;
+  createdAt: Date;
 }
 
-/** 纯聚合逻辑：按维度对 dead/failed 行分组（无 DB 依赖，便于单测）。 */
+/** 纯聚合逻辑：按维度对 dead/failed 行分组（无 DB 依赖，便于单测）。入参需按 failedAt 倒序，成员取每簇前 N 条即最近失败。 */
 export function clusterFailureRows(rows: ClusterInputRow[], dimension: JobClusterDimension): JobFailureCluster[] {
-  const map = new Map<string, JobFailureCluster & { _types: Set<string> }>();
-  const bump = (key: string, base: Omit<JobFailureCluster, 'count' | 'jobTypes'>, jobType: string) => {
+  type Acc = JobFailureCluster & { _types: Set<string>; _instances: Set<number>; _first: number; _last: number };
+  const map = new Map<string, Acc>();
+  const bump = (key: string, base: Pick<JobFailureCluster, 'dimension' | 'key' | 'label' | 'instanceId' | 'traceId' | 'reasonKeyword'>, row: ClusterInputRow) => {
     let e = map.get(key);
     if (!e) {
-      e = { ...base, count: 0, jobTypes: [], _types: new Set<string>() };
+      e = {
+        ...base, count: 0, jobTypes: [], firstAt: null, lastAt: null, instanceCount: 0, jobs: [],
+        _types: new Set<string>(), _instances: new Set<number>(), _first: Number.POSITIVE_INFINITY, _last: Number.NEGATIVE_INFINITY,
+      };
       map.set(key, e);
     }
     e.count += 1;
-    e._types.add(jobType);
+    e._types.add(row.jobType);
+    if (row.instanceId != null) e._instances.add(row.instanceId);
+    const at = row.failedAt.getTime();
+    if (at < e._first) e._first = at;
+    if (at > e._last) e._last = at;
+    if (e.jobs.length < CLUSTER_MEMBER_LIMIT) {
+      e.jobs.push({
+        id: row.id,
+        jobType: row.jobType,
+        status: row.status,
+        instanceId: row.instanceId,
+        instanceTitle: row.instanceTitle,
+        definitionName: row.definitionName,
+        nodeKey: row.nodeKey,
+        attempts: row.attempts,
+        maxAttempts: row.maxAttempts,
+        lockedBy: row.lockedBy,
+        traceId: row.traceId,
+        lastError: row.lastError,
+        failedAt: formatDateTime(row.failedAt),
+        createdAt: formatDateTime(row.createdAt),
+      });
+    }
   };
 
   for (const r of rows) {
     if (dimension === 'jobType') {
-      bump(r.jobType, { dimension, key: r.jobType, label: r.jobType, instanceId: null, traceId: null, reasonKeyword: null }, r.jobType);
+      bump(r.jobType, { dimension, key: r.jobType, label: r.jobType, instanceId: null, traceId: null, reasonKeyword: null }, r);
     } else if (dimension === 'instance') {
       if (r.instanceId == null) continue;
       const key = String(r.instanceId);
-      bump(key, { dimension, key, label: r.instanceTitle ? `${r.instanceTitle} (#${r.instanceId})` : `实例 #${r.instanceId}`, instanceId: r.instanceId, traceId: null, reasonKeyword: null }, r.jobType);
+      bump(key, { dimension, key, label: r.instanceTitle ? `${r.instanceTitle} (#${r.instanceId})` : `实例 #${r.instanceId}`, instanceId: r.instanceId, traceId: null, reasonKeyword: null }, r);
     } else if (dimension === 'trace') {
       if (!r.traceId) continue;
-      bump(r.traceId, { dimension, key: r.traceId, label: r.traceId, instanceId: null, traceId: r.traceId, reasonKeyword: null }, r.jobType);
+      bump(r.traceId, { dimension, key: r.traceId, label: r.traceId, instanceId: null, traceId: r.traceId, reasonKeyword: null }, r);
     } else {
       const reason = (r.lastError ?? '未知错误').replace(/\d+/g, 'N').slice(0, 60);
-      bump(reason, { dimension, key: reason, label: reason, instanceId: null, traceId: null, reasonKeyword: reasonKeywordOf(r.lastError) }, r.jobType);
+      bump(reason, { dimension, key: reason, label: reason, instanceId: null, traceId: null, reasonKeyword: reasonKeywordOf(r.lastError) }, r);
     }
   }
 
   return [...map.values()]
-    .map(({ _types, ...c }) => ({ ...c, jobTypes: [..._types] }))
+    .map(({ _types, _instances, _first, _last, ...c }) => ({
+      ...c,
+      jobTypes: [..._types],
+      instanceCount: _instances.size,
+      firstAt: Number.isFinite(_first) ? formatDateTime(new Date(_first)) : null,
+      lastAt: Number.isFinite(_last) ? formatDateTime(new Date(_last)) : null,
+    }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 20);
 }
@@ -391,19 +465,31 @@ export function clusterFailureRows(rows: ClusterInputRow[], dimension: JobCluste
  * - jobType：按作业类型
  * - instance：按流程实例
  * - trace：按 traceId
+ * 每簇附带首次/最近失败时间、涉及实例数与成员作业明细（哪个作业、哪个进程、完整错误）。
  */
 export async function getJobFailureClusters(dimension: JobClusterDimension = 'reason'): Promise<JobFailureCluster[]> {
   const rows = await db
     .select({
+      id: workflowJobs.id,
       jobType: workflowJobs.jobType,
+      status: workflowJobs.status,
       lastError: workflowJobs.lastError,
       instanceId: workflowJobs.instanceId,
       instanceTitle: workflowInstances.title,
+      definitionName: workflowDefinitions.name,
+      nodeKey: workflowJobs.nodeKey,
+      attempts: workflowJobs.attempts,
+      maxAttempts: workflowJobs.maxAttempts,
+      lockedBy: workflowJobs.lockedBy,
       traceId: workflowJobs.traceId,
+      failedAt: workflowJobs.updatedAt,
+      createdAt: workflowJobs.createdAt,
     })
     .from(workflowJobs)
     .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
+    .leftJoin(workflowDefinitions, eq(workflowInstances.definitionId, workflowDefinitions.id))
     .where(inArray(workflowJobs.status, ['dead', 'failed']))
+    .orderBy(desc(workflowJobs.updatedAt))
     .limit(2000);
 
   return clusterFailureRows(rows, dimension);

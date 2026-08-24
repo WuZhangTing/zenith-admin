@@ -1855,30 +1855,50 @@ export const workflowHandlers = [
   }),
   http.get('/api/workflows/engine/jobs/failure-clusters', ({ request }) => {
     const dim = (new URL(request.url).searchParams.get('dimension') || 'reason') as 'reason' | 'jobType' | 'instance' | 'trace';
-    const rows = mockWorkflowJobs.filter((j) => j.status === 'dead' || j.status === 'failed');
-    const map = new Map<string, { dimension: string; key: string; label: string; count: number; instanceId: number | null; traceId: string | null; reasonKeyword: string | null; _types: Set<string> }>();
-    const bump = (key: string, base: { dimension: string; key: string; label: string; instanceId: number | null; traceId: string | null; reasonKeyword: string | null }, jobType: string) => {
-      const e = map.get(key) ?? { ...base, count: 0, _types: new Set<string>() };
-      e.count++; e._types.add(jobType); map.set(key, e);
+    const MEMBER_LIMIT = 10;
+    const rows = mockWorkflowJobs
+      .filter((j) => j.status === 'dead' || j.status === 'failed')
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    type Member = {
+      id: number; jobType: string; status: string; instanceId: number | null; instanceTitle: string | null;
+      definitionName: string | null; nodeKey: string | null; attempts: number; maxAttempts: number;
+      lockedBy: string | null; traceId: string | null; lastError: string | null; failedAt: string; createdAt: string;
+    };
+    const map = new Map<string, { dimension: string; key: string; label: string; count: number; instanceId: number | null; traceId: string | null; reasonKeyword: string | null; firstAt: string | null; lastAt: string | null; jobs: Member[]; _types: Set<string>; _instances: Set<number> }>();
+    const bump = (key: string, base: { dimension: string; key: string; label: string; instanceId: number | null; traceId: string | null; reasonKeyword: string | null }, j: typeof rows[number]) => {
+      const e = map.get(key) ?? { ...base, count: 0, firstAt: null, lastAt: null, jobs: [], _types: new Set<string>(), _instances: new Set<number>() };
+      e.count++; e._types.add(j.jobType);
+      if (j.instanceId != null) e._instances.add(j.instanceId);
+      // 行已按 failedAt 倒序：首行即最近失败，末次覆盖即最早失败
+      e.lastAt = e.lastAt ?? j.updatedAt;
+      e.firstAt = j.updatedAt;
+      if (e.jobs.length < MEMBER_LIMIT) {
+        e.jobs.push({
+          id: j.id, jobType: j.jobType, status: j.status, instanceId: j.instanceId, instanceTitle: j.instanceTitle,
+          definitionName: j.definitionName, nodeKey: j.nodeKey, attempts: j.attempts, maxAttempts: j.maxAttempts,
+          lockedBy: j.lockedBy, traceId: j.traceId, lastError: j.lastError, failedAt: j.updatedAt, createdAt: j.createdAt,
+        });
+      }
+      map.set(key, e);
     };
     for (const j of rows) {
       if (dim === 'jobType') {
-        bump(j.jobType, { dimension: dim, key: j.jobType, label: j.jobType, instanceId: null, traceId: null, reasonKeyword: null }, j.jobType);
+        bump(j.jobType, { dimension: dim, key: j.jobType, label: j.jobType, instanceId: null, traceId: null, reasonKeyword: null }, j);
       } else if (dim === 'instance') {
         if (j.instanceId == null) continue;
         const k = String(j.instanceId);
-        bump(k, { dimension: dim, key: k, label: `实例 #${j.instanceId}`, instanceId: j.instanceId, traceId: null, reasonKeyword: null }, j.jobType);
+        bump(k, { dimension: dim, key: k, label: j.instanceTitle ? `${j.instanceTitle} (#${j.instanceId})` : `实例 #${j.instanceId}`, instanceId: j.instanceId, traceId: null, reasonKeyword: null }, j);
       } else if (dim === 'trace') {
         if (!j.traceId) continue;
-        bump(j.traceId, { dimension: dim, key: j.traceId, label: j.traceId, instanceId: null, traceId: j.traceId, reasonKeyword: null }, j.jobType);
+        bump(j.traceId, { dimension: dim, key: j.traceId, label: j.traceId, instanceId: null, traceId: j.traceId, reasonKeyword: null }, j);
       } else {
         const reason = (j.lastError ?? '未知错误').replace(/\d+/g, 'N').slice(0, 60);
         const lead = (j.lastError ?? '').trim().split(/\d/)[0]?.trim() ?? '';
         const kwRaw = (lead.length >= 4 ? lead : (j.lastError ?? '').trim()).slice(0, 40).trim();
-        bump(reason, { dimension: dim, key: reason, label: reason, instanceId: null, traceId: null, reasonKeyword: kwRaw.length >= 2 ? kwRaw : null }, j.jobType);
+        bump(reason, { dimension: dim, key: reason, label: reason, instanceId: null, traceId: null, reasonKeyword: kwRaw.length >= 2 ? kwRaw : null }, j);
       }
     }
-    return ok([...map.values()].map(({ _types, ...c }) => ({ ...c, jobTypes: [..._types] })).sort((a, b) => b.count - a.count).slice(0, 20));
+    return ok([...map.values()].map(({ _types, _instances, ...c }) => ({ ...c, jobTypes: [..._types], instanceCount: _instances.size })).sort((a, b) => b.count - a.count).slice(0, 20));
   }),
   http.get('/api/workflows/engine/jobs/runtime-status', () => {
     const running = mockWorkflowJobs.filter((j) => j.status === 'running');

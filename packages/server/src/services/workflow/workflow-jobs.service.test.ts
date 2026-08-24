@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   REPLAY_DEFAULTS,
+  CLUSTER_MEMBER_LIMIT,
   clampRate,
   clampLimit,
   staggeredRunAt,
@@ -78,11 +79,21 @@ describe('reasonKeywordOf', () => {
 });
 
 describe('clusterFailureRows', () => {
+  const at = (iso: string) => new Date(iso);
+  const base = {
+    status: 'dead',
+    definitionName: '测试流程',
+    nodeKey: null as string | null,
+    attempts: 3,
+    maxAttempts: 3,
+    lockedBy: 'host-a:100',
+  };
+  // 按 failedAt 倒序排列（与 getJobFailureClusters 的 orderBy 一致）
   const rows: ClusterInputRow[] = [
-    { jobType: 'webhook_delivery', lastError: 'timeout after 5000ms', instanceId: 1, instanceTitle: '请假单', traceId: 't-a' },
-    { jobType: 'webhook_delivery', lastError: 'timeout after 3000ms', instanceId: 1, instanceTitle: '请假单', traceId: 't-a' },
-    { jobType: 'trigger_dispatch', lastError: 'connection refused', instanceId: 2, instanceTitle: null, traceId: 't-b' },
-    { jobType: 'trigger_dispatch', lastError: null, instanceId: null, traceId: null },
+    { ...base, id: 4, jobType: 'webhook_delivery', lastError: 'timeout after 5000ms', instanceId: 1, instanceTitle: '请假单', traceId: 't-a', failedAt: at('2026-08-21T12:00:00'), createdAt: at('2026-08-21T11:00:00') },
+    { ...base, id: 3, jobType: 'webhook_delivery', lastError: 'timeout after 3000ms', instanceId: 1, instanceTitle: '请假单', traceId: 't-a', failedAt: at('2026-08-21T10:00:00'), createdAt: at('2026-08-21T09:00:00') },
+    { ...base, id: 2, jobType: 'trigger_dispatch', lastError: 'connection refused', instanceId: 2, instanceTitle: null, traceId: 't-b', failedAt: at('2026-08-21T09:00:00'), createdAt: at('2026-08-21T08:00:00') },
+    { ...base, id: 1, jobType: 'trigger_dispatch', lastError: null, instanceId: null, instanceTitle: null, traceId: null, failedAt: at('2026-08-21T08:00:00'), createdAt: at('2026-08-21T07:00:00') },
   ];
 
   it('reason 维度：数字归一后合并相似错误并按数量倒序', () => {
@@ -95,6 +106,42 @@ describe('clusterFailureRows', () => {
     expect(top.reasonKeyword).toBe('timeout after');
     // 未知错误也成簇
     expect(clusters.some((c) => c.key === '未知错误')).toBe(true);
+  });
+
+  it('簇附带时间窗 / 涉及实例数 / 成员明细（按最近失败倒序）', () => {
+    const clusters = clusterFailureRows(rows, 'reason');
+    const top = clusters[0];
+    expect(top.firstAt).toBe('2026-08-21 10:00:00');
+    expect(top.lastAt).toBe('2026-08-21 12:00:00');
+    expect(top.instanceCount).toBe(1);
+    expect(top.jobs.map((j) => j.id)).toEqual([4, 3]);
+    expect(top.jobs[0]).toMatchObject({
+      id: 4,
+      status: 'dead',
+      lockedBy: 'host-a:100',
+      lastError: 'timeout after 5000ms',
+      failedAt: '2026-08-21 12:00:00',
+      createdAt: '2026-08-21 11:00:00',
+      definitionName: '测试流程',
+    });
+  });
+
+  it('成员明细按 CLUSTER_MEMBER_LIMIT 截断，计数不受影响', () => {
+    const many: ClusterInputRow[] = Array.from({ length: CLUSTER_MEMBER_LIMIT + 5 }, (_, i) => ({
+      ...base,
+      id: 100 + i,
+      jobType: 'webhook_delivery',
+      lastError: 'fetch failed',
+      instanceId: i,
+      instanceTitle: null,
+      traceId: null,
+      failedAt: at('2026-08-21T12:00:00'),
+      createdAt: at('2026-08-21T11:00:00'),
+    }));
+    const [cluster] = clusterFailureRows(many, 'reason');
+    expect(cluster.count).toBe(CLUSTER_MEMBER_LIMIT + 5);
+    expect(cluster.jobs).toHaveLength(CLUSTER_MEMBER_LIMIT);
+    expect(cluster.instanceCount).toBe(CLUSTER_MEMBER_LIMIT + 5);
   });
 
   it('jobType 维度：按类型聚合计数', () => {

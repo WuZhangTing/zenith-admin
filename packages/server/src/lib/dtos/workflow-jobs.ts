@@ -164,7 +164,7 @@ export const WorkflowJobFailureClusterQuery = z.object({
   dimension: z.enum(['reason', 'jobType', 'instance', 'trace']).optional(),
 });
 
-/** 失败聚类项（多维，支持对某簇直接重放） */
+/** 失败聚类项（多维，支持对某簇直接重放；附成员作业明细回答"哪个作业/进程/时间/原因"） */
 export const WorkflowJobFailureClusterDTO = z
   .object({
     dimension: z.enum(['reason', 'jobType', 'instance', 'trace']),
@@ -175,6 +175,32 @@ export const WorkflowJobFailureClusterDTO = z
     instanceId: z.number().int().nullable(),
     traceId: z.string().nullable(),
     reasonKeyword: z.string().nullable(),
+    /** 簇内最早失败时间 */
+    firstAt: z.string().nullable(),
+    /** 簇内最近失败时间 */
+    lastAt: z.string().nullable(),
+    /** 涉及的流程实例数 */
+    instanceCount: z.number().int(),
+    /** 成员作业明细（按最近失败倒序，最多 10 条） */
+    jobs: z.array(z.object({
+      id: z.number().int(),
+      jobType: z.string(),
+      status: z.string(),
+      instanceId: z.number().int().nullable(),
+      instanceTitle: z.string().nullable(),
+      definitionName: z.string().nullable(),
+      nodeKey: z.string().nullable(),
+      attempts: z.number().int(),
+      maxAttempts: z.number().int(),
+      /** 最后领取该作业的 worker 节点（hostname:pid） */
+      lockedBy: z.string().nullable(),
+      traceId: z.string().nullable(),
+      /** 完整原始错误 */
+      lastError: z.string().nullable(),
+      /** 最近失败时间 */
+      failedAt: z.string(),
+      createdAt: z.string(),
+    })),
   })
   .openapi('WorkflowJobFailureCluster');
 

@@ -58,6 +58,26 @@ export interface WorkflowTaskMonitorParams {
 
 export type WorkflowJobDetail = WorkflowJob & { executions: WorkflowJobExecution[] };
 
+export interface FailureClusterJob {
+  id: number;
+  jobType: string;
+  status: string;
+  instanceId: number | null;
+  instanceTitle: string | null;
+  definitionName: string | null;
+  nodeKey: string | null;
+  attempts: number;
+  maxAttempts: number;
+  /** 最后领取该作业的 worker 节点（hostname:pid） */
+  lockedBy: string | null;
+  traceId: string | null;
+  /** 完整原始错误 */
+  lastError: string | null;
+  /** 最近失败时间 */
+  failedAt: string;
+  createdAt: string;
+}
+
 export interface FailureCluster {
   dimension: 'reason' | 'jobType' | 'instance' | 'trace';
   key: string;
@@ -67,6 +87,14 @@ export interface FailureCluster {
   instanceId: number | null;
   traceId: string | null;
   reasonKeyword: string | null;
+  /** 簇内最早失败时间 */
+  firstAt: string | null;
+  /** 簇内最近失败时间 */
+  lastAt: string | null;
+  /** 涉及的流程实例数 */
+  instanceCount: number;
+  /** 成员作业明细（按最近失败倒序，最多 10 条） */
+  jobs: FailureClusterJob[];
 }
 
 export interface WorkflowJobReplayResult {

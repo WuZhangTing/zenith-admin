@@ -2,21 +2,23 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Rea
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Descriptions, Empty, Form, JsonViewer, Modal, Popconfirm, Radio, RadioGroup, Row, Select, SideSheet, Space, Table, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Download, RotateCcw } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Download, RotateCcw } from 'lucide-react';
 import type { WorkflowJob, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared/workflow';
 import { WORKFLOW_JOB_STATUS_META as JOB_STATUS_META } from './constants';
 import { request } from '@/utils/request';
 import { downloadBlob } from '@/utils/download';
 import { formatDateTime } from '@/utils/date';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
+import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import {
   type FailureCluster,
+  type FailureClusterJob,
   type WorkflowJobReplayResult,
   useWorkflowJobActionMutation,
   useWorkflowJobBatchMutation,
@@ -117,6 +119,28 @@ const JOB_STATUS_OPTIONS = (Object.keys(JOB_STATUS_META) as WorkflowJobStatus[])
 
 const EMPTY_SUMMARY = (jobType: WorkflowJobType): WorkflowJobSummaryItem => ({ jobType, total: 0, pending: 0, running: 0, succeeded: 0, failed: 0, dead: 0, canceled: 0 });
 
+/**
+ * 失败聚类树形行：簇为父行、成员作业为子行（Semi Table 树形数据展示）。
+ * 时间与错误拍平到行上，供 dateTimeColumn 等工厂列直接按 dataIndex 读取。
+ */
+interface ClusterTreeRow {
+  id: string;
+  kind: 'cluster' | 'job';
+  cluster: FailureCluster | null;
+  job: FailureClusterJob | null;
+  failedAt: string | null;
+  lastError: string | null;
+  children?: ClusterTreeRow[];
+}
+
+/** 「全部展开」只收集有子行的簇行 key */
+function collectClusterRowKeys(rows: readonly ClusterTreeRow[]): string[] {
+  return rows.filter((r) => (r.children?.length ?? 0) > 0).map((r) => r.id);
+}
+
+/** 加载中的稳定空引用：避免每次渲染新建数组导致树形数据与展开态反复重算 */
+const EMPTY_FAILURE_CLUSTERS: FailureCluster[] = [];
+
 function renderStatusTag(status: WorkflowJobStatus) {
   const meta = JOB_STATUS_META[status];
   return <Tag color={meta?.color ?? 'grey'} size="small">{meta?.text ?? status}</Tag>;
@@ -188,7 +212,7 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
   const [clustersOpen, setClustersOpen] = useState(false);
   const [clusterDim, setClusterDim] = useState<ClusterDimension>('reason');
   const clustersQuery = useWorkflowJobFailureClusters(clusterDim, clustersOpen);
-  const clusters = clustersQuery.data ?? [];
+  const clusters = clustersQuery.data ?? EMPTY_FAILURE_CLUSTERS;
   const [replayOpen, setReplayOpen] = useState(false);
   const [replayPreview, setReplayPreview] = useState<number | null>(null);
   const [replayFilter, setReplayFilter] = useState<ReplayFilterState>({ status: 'dead', jobType, ratePerSecond: 20, limit: 500 });
@@ -443,6 +467,126 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
     { title: '尝试', width: 64, render: (_: unknown, r: WorkflowJob) => `${r.attempts}/${r.maxAttempts}` },
   ];
 
+  const clusterTreeData: ClusterTreeRow[] = useMemo(() => clusters.map((c) => ({
+    id: `c:${c.key}`,
+    kind: 'cluster' as const,
+    cluster: c,
+    job: null,
+    failedAt: c.lastAt,
+    lastError: c.jobs[0]?.lastError ?? null,
+    children: c.jobs.map((j) => ({
+      id: `j:${j.id}`,
+      kind: 'job' as const,
+      cluster: null,
+      job: j,
+      failedAt: j.failedAt,
+      lastError: j.lastError,
+    })),
+  })), [clusters]);
+
+  const clusterTree = useTreeExpansion(clusterTreeData, { collectKeys: collectClusterRowKeys });
+
+  /** 聚类树列：父行看规模与时间窗，子行看作业来源、执行进程与完整错误 */
+  const clusterColumns: ColumnProps<ClusterTreeRow>[] = [
+    {
+      title: '聚类 / 作业',
+      dataIndex: 'id',
+      render: (_: unknown, row: ClusterTreeRow) => {
+        if (row.kind === 'cluster' && row.cluster) {
+          return (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0, maxWidth: 'calc(100% - 28px)', verticalAlign: 'middle' }}>
+              <Typography.Text size="small" strong ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{row.cluster.label}</Typography.Text>
+              <Tag size="small" color="red" type="light" style={{ flexShrink: 0 }}>{row.cluster.count} 条</Tag>
+            </span>
+          );
+        }
+        const j = row.job!;
+        return (
+          <span style={{ display: 'inline-flex', alignItems: 'flex-start', gap: 8, minWidth: 0, maxWidth: '100%', verticalAlign: 'middle' }}>
+            <Typography.Text size="small" type="tertiary" style={{ flexShrink: 0 }}>#{j.id}</Typography.Text>
+            <WorkflowInstanceCell
+              size="small"
+              instanceId={j.instanceId}
+              title={j.instanceTitle}
+              definitionName={j.definitionName ?? '未知流程'}
+              extra={j.nodeKey}
+              emptyText={`系统事件${j.nodeKey ? ` · ${j.nodeKey}` : ''}`}
+            />
+          </span>
+        );
+      },
+    },
+    {
+      title: '类型 / 状态',
+      dataIndex: 'kind',
+      width: 220,
+      render: (_: unknown, row: ClusterTreeRow) => {
+        if (row.kind === 'cluster' && row.cluster) {
+          return (
+            <Space wrap spacing={4}>
+              {row.cluster.jobTypes.map((t) => {
+                const meta = JOB_TYPE_META[t as WorkflowJobType];
+                return <Tag key={t} color={meta?.color ?? 'grey'} size="small">{meta?.text ?? t}</Tag>;
+              })}
+            </Space>
+          );
+        }
+        const j = row.job!;
+        const meta = JOB_TYPE_META[j.jobType as WorkflowJobType];
+        return (
+          <Space spacing={4}>
+            <Tag color={meta?.color ?? 'grey'} size="small">{meta?.text ?? j.jobType}</Tag>
+            {renderStatusTag(j.status as WorkflowJobStatus)}
+          </Space>
+        );
+      },
+    },
+    {
+      title: '执行进程 / 尝试',
+      dataIndex: 'job',
+      width: 140,
+      render: (_: unknown, row: ClusterTreeRow) => {
+        if (row.kind === 'cluster') {
+          return <Typography.Text size="small" type="tertiary">涉及 {row.cluster?.instanceCount ?? 0} 个实例</Typography.Text>;
+        }
+        const j = row.job!;
+        return (
+          <div style={{ minWidth: 0 }}>
+            {renderEllipsis(j.lockedBy)}
+            <Typography.Text size="small" type="tertiary" style={{ display: 'block' }}>尝试 {j.attempts}/{j.maxAttempts}</Typography.Text>
+          </div>
+        );
+      },
+    },
+    dateTimeColumn('最近失败', 'failedAt', { className: 'table-cell-muted' }),
+    {
+      title: '完整错误',
+      dataIndex: 'lastError',
+      width: 210,
+      render: (v: string | null) => v
+        ? <Tooltip content={<div style={{ maxWidth: 420, wordBreak: 'break-all' }}>{v}</div>}><Typography.Text size="small" type="danger" ellipsis={{ rows: 1 }} style={{ maxWidth: 190 }}>{v}</Typography.Text></Tooltip>
+        : <Typography.Text size="small" type="tertiary">{EMPTY_PLACEHOLDER}</Typography.Text>,
+    },
+    createOperationColumn<ClusterTreeRow>({
+      width: 120,
+      desktopInlineKeys: ['replay', 'detail'],
+      actions: (row) => [
+        {
+          key: 'replay',
+          label: '重放该簇',
+          onClick: () => { if (row.cluster) replayCluster(row.cluster); },
+          hidden: row.kind !== 'cluster' || !canOperate || (row.cluster?.dimension === 'reason' && !row.cluster?.reasonKeyword),
+        },
+        {
+          key: 'detail',
+          label: '详情',
+          onClick: () => { if (row.job) { setClustersOpen(false); openDetail(row.job.id); } },
+          hidden: row.kind !== 'job',
+        },
+      ],
+    }),
+  ];
+
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -645,26 +789,40 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
           </Space>
         )}
       </SideSheet>
-      <Modal title="失败原因聚类" visible={clustersOpen} onCancel={() => setClustersOpen(false)} footer={null} width={680}>
-        <div style={{ marginBottom: 12 }}>
-          <RadioGroup type="button" value={clusterDim} onChange={(e) => void openClusters(e.target.value as ClusterDimension)}>
-            {CLUSTER_DIM_OPTIONS.map((o) => <Radio key={o.value} value={o.value}>{o.label}</Radio>)}
-          </RadioGroup>
+      <Modal title="失败原因聚类" visible={clustersOpen} onCancel={() => setClustersOpen(false)} footer={null} width={1200} closeOnEsc>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+          <Space>
+            <RadioGroup type="button" value={clusterDim} onChange={(e) => void openClusters(e.target.value as ClusterDimension)}>
+              {CLUSTER_DIM_OPTIONS.map((o) => <Radio key={o.value} value={o.value}>{o.label}</Radio>)}
+            </RadioGroup>
+            {clusterTree.allRowKeys.length > 0 && (
+              <Button
+                type="tertiary"
+                icon={clusterTree.isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+                onClick={clusterTree.toggleExpandAll}
+              >
+                {clusterTree.isAllExpanded ? '全部折叠' : '全部展开'}
+              </Button>
+            )}
+          </Space>
+          <Typography.Text type="tertiary" size="small">统计全部死信 / 失败作业（跨队列），每簇展示最近 10 条成员作业</Typography.Text>
         </div>
-        {clustersQuery.isFetching ? (
-          <Typography.Text type="tertiary">加载中…</Typography.Text>
-        ) : clusters?.length ? clusters.map((c, i) => {
-          const canReplayCluster = canOperate && (c.dimension !== 'reason' || !!c.reasonKeyword);
-          return (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '6px 0', borderBottom: '1px solid var(--semi-color-border)' }}>
-              <Typography.Text style={{ maxWidth: 380 }} ellipsis={{ showTooltip: true }}>{c.label}</Typography.Text>
-              <Space>
-                <Typography.Text type="tertiary" size="small">{c.jobTypes.join(',')} · {c.count}</Typography.Text>
-                {canReplayCluster && <Button theme="borderless" size="small" onClick={() => replayCluster(c)}>重放该簇</Button>}
-              </Space>
-            </div>
-          );
-        }) : <Typography.Text type="tertiary">暂无失败/死信作业</Typography.Text>}
+        <ConfigurableTable
+          bordered
+          size="small"
+          columnSettingsKey="workflow-job-failure-clusters"
+          dataSource={clusterTreeData}
+          rowKey="id"
+          loading={clustersQuery.isFetching}
+          onRefresh={() => void clustersQuery.refetch()}
+          refreshLoading={clustersQuery.isFetching}
+          pagination={false}
+          columns={clusterColumns}
+          expandRowByClick
+          expandedRowKeys={clusterTree.expandedRowKeys}
+          onExpandedRowsChange={clusterTree.onExpandedRowsChange}
+          empty={<Empty description="暂无失败/死信作业" />}
+        />
       </Modal>
 
       <Modal
