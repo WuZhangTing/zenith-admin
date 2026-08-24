@@ -10,6 +10,7 @@ import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import type {
   WorkflowTriggerExecution,
   WorkflowTriggerExecutionStatus,
@@ -76,7 +77,7 @@ export default function WorkflowTriggerExecutionsPage() {
 
   const columns: ColumnProps<WorkflowTriggerExecution>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '实例 ID', dataIndex: 'instanceId', width: 90 },
+    { title: '实例', dataIndex: 'instanceId', width: 100, render: (v: number) => <WorkflowInstanceCell size="small" instanceId={v} showSub={false} /> },
     {
       title: '节点',
       dataIndex: 'nodeName',
