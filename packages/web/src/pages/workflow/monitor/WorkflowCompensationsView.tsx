@@ -9,6 +9,7 @@ import { formatDateTime } from '@/utils/date';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import {
@@ -94,7 +95,7 @@ export default function WorkflowCompensationsView() {
   };
 
   const columns: ColumnProps<WorkflowCompensation>[] = [
-    { title: '实例', dataIndex: 'instanceId', width: 80, render: (v: number) => `#${v}` },
+    { title: '实例', dataIndex: 'instanceId', width: 100, render: (v: number) => <WorkflowInstanceCell size="small" instanceId={v} showSub={false} /> },
     { title: '节点', dataIndex: 'nodeName', width: 120, render: renderEllipsis },
     { title: '错误', dataIndex: 'errorMessage', render: renderEllipsis },
     { title: '处理动作', dataIndex: 'action', width: 90, render: (a: string) => ACTION_LABEL[a] ?? a },

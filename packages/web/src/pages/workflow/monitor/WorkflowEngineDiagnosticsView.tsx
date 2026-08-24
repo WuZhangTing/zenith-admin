@@ -786,7 +786,7 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       title: '状态', dataIndex: 'status', width: 84,
       render: (v: string) => { const m = JOB_STATUS_META[v]; return m ? <Tag color={m.color}>{m.text}</Tag> : <Tag>{v}</Tag>; },
     },
-    { title: '实例', dataIndex: 'instanceId', width: 88, render: (v: number | null) => (v != null ? `#${v}` : '—') },
+    { title: '实例', dataIndex: 'instanceId', width: 108, render: (v: number | null) => <WorkflowInstanceCell size="small" instanceId={v} showSub={false} /> },
     { title: '尝试', dataIndex: 'attempts', width: 64 },
     dateTimeColumn('到期时间', 'runAt'),
     {

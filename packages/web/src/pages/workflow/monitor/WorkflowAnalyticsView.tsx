@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Button, Card, Empty, Spin, Typography, Select, Tag } from '@douyinfe/semi-ui';
+import { Button, Card, Empty, Spin, Typography, Select } from '@douyinfe/semi-ui';
 import { RotateCcw } from 'lucide-react';
+import WorkflowInstanceCell from '@/components/workflow/WorkflowInstanceCell';
 import {
   BarChart,
   LineChart,
@@ -192,7 +193,15 @@ export default function WorkflowAnalyticsView({ definitions }: Readonly<{ defini
                   return (
                     <tr key={o.taskId} style={{ borderTop: '1px solid var(--semi-color-border)' }}>
                       <td style={{ padding: '6px 8px' }}><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: lamp }} /></td>
-                      <td style={{ padding: '6px 8px' }}>{o.serialNo ? <Tag size="small" color="grey" style={{ marginRight: 4 }}>{o.serialNo}</Tag> : null}{o.instanceTitle}</td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <WorkflowInstanceCell
+                          size="small"
+                          instanceId={o.instanceId}
+                          title={o.instanceTitle}
+                          serialNo={o.serialNo}
+                          definitionName={o.definitionName}
+                        />
+                      </td>
                       <td style={{ padding: '6px 8px' }}>{o.nodeName}</td>
                       <td style={{ padding: '6px 8px' }}>{o.assigneeName ?? '—'}</td>
                       <td style={{ padding: '6px 8px', color: 'var(--semi-color-text-2)' }}>{o.timeoutAt}</td>
