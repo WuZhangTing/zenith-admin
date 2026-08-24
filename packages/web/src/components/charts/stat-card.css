@@ -263,6 +263,13 @@
   transition: background 0.15s;
 }
 
+/* 卡片被中间层包裹（如 Tooltip 需要一个可注入事件的 div）时，
+   分栏竖线由外层栅格子元素负责，内层卡片必须归零左边框——
+   button 形态的 UA 默认边框会在数值旁凭空多出一条竖线 */
+.zx-stat-grid > * .zx-stat {
+  border-left: 0;
+}
+
 .zx-stat--interactive:hover {
   background: var(--semi-color-fill-0);
 }

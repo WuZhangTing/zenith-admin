@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Descriptions, Empty, Form, JsonViewer, Modal, Popconfirm, Radio, RadioGroup, Row, Select, SideSheet, Space, Table, Tabs, TabPane, Tag, Timeline, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { ChevronsDownUp, ChevronsUpDown, Download, RotateCcw } from 'lucide-react';
+import { ChevronsDownUp, ChevronsUpDown, Download } from 'lucide-react';
 import type { WorkflowJob, WorkflowJobExecution, WorkflowJobStatus, WorkflowJobSummaryItem, WorkflowJobType } from '@zenith/shared/workflow';
 import { WORKFLOW_JOB_STATUS_META as JOB_STATUS_META } from './constants';
 import { request } from '@/utils/request';
@@ -32,8 +32,10 @@ import {
   useWorkflowJobSummary,
   workflowMonitorKeys,
 } from '@/hooks/queries/workflow-monitor';
-import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { ResetButton, RefreshButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+// 本页无图表，直接引具体文件，避免桶文件带入 vchart
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'orange' | 'red' | 'violet';
 
@@ -228,8 +230,14 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
     setClustersOpen(true);
   };
 
+  // 信号是跨面板存活的计数器：挂载时视当前值为已消费，只响应挂载后的新信号。
+  // 否则关掉弹窗后切换作业类型 Tab，新面板挂载会把旧信号再消费一次，弹窗凭空复现
+  const consumedClustersSignal = useRef(clustersSignal);
   useEffect(() => {
-    if (clustersSignal) setClustersOpen(true);
+    if (clustersSignal !== undefined && clustersSignal !== consumedClustersSignal.current) {
+      consumedClustersSignal.current = clustersSignal;
+      setClustersOpen(true);
+    }
   }, [clustersSignal]);
 
   const openReplay = (prefill?: Partial<ReplayFilterState>) => {
@@ -894,41 +902,46 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
 
 // ───────────────────────── 作业账本（按类型分 Tab） ─────────────────────────
 
-const RT_STAT: CSSProperties = { display: 'flex', flexDirection: 'column', minWidth: 84 };
-
 function RuntimeStatusBar({ onDeadClick }: Readonly<{ onDeadClick?: () => void }>) {
   const statusQuery = useWorkflowJobRuntimeStatus();
   const status = statusQuery.data ?? null;
-
-  const stat = (label: string, value: ReactNode, danger?: boolean) => (
-    <div style={RT_STAT}>
-      <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-      <Typography.Text strong style={danger ? { color: 'var(--semi-color-danger)' } : undefined}>{value}</Typography.Text>
-    </div>
-  );
+  const danger = 'var(--semi-color-danger)';
 
   const workerTip = status?.workers.length
     ? status.workers.map((w) => `${w.hostname ?? w.nodeId}｜在途 ${w.runningJobCount}｜心跳 ${w.lastHeartbeatAt ?? '—'}${w.fresh ? '' : '（离线）'}`).join('\n')
     : '暂无注册节点';
 
+  // 'YYYY-MM-DD HH:mm:ss' → 数值位展示时间、副文案展示日期，避免长串在数值字号下折行
+  const [claimDate, claimTime] = (status?.lastClaimedAt ?? '').split(' ');
+
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24, padding: '10px 16px', marginBottom: 12, border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--surface-card)' }}>
-      <Typography.Text strong style={{ marginRight: 4 }}>运行状态</Typography.Text>
-      <Tooltip content={<pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{workerTip}</pre>}>
-        <div>{stat('存活 Worker', `${status?.activeWorkers ?? '-'} / ${status?.totalWorkers ?? '-'}`)}</div>
-      </Tooltip>
-      {stat('在途作业', status?.runningJobs ?? '-')}
-      {stat('卡死', status?.stuckRunningJobs ?? '-', !!status && status.stuckRunningJobs > 0)}
-      {stat('积压', status?.backlog ?? '-', !!status && status.backlog > 0)}
-      {status && status.deadLetter > 0 && onDeadClick ? (
-        <Tooltip content="查看失败原因聚类（跨队列），可按簇重放">
-          <div style={{ cursor: 'pointer' }} onClick={onDeadClick}>{stat('死信', status.deadLetter, true)}</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <Typography.Text strong>运行状态</Typography.Text>
+        <RefreshButton onClick={() => void statusQuery.refetch()} loading={statusQuery.isFetching} />
+      </div>
+      <StatGrid minItemWidth={150}>
+        <Tooltip content={<pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{workerTip}</pre>}>
+          <div style={{ minWidth: 0 }}>
+            <StatCard title="存活 Worker" value={`${status?.activeWorkers ?? '-'} / ${status?.totalWorkers ?? '-'}`} />
+          </div>
         </Tooltip>
-      ) : stat('死信', status?.deadLetter ?? '-', !!status && status.deadLetter > 0)}
-      {stat('最后领取', status?.lastClaimedAt ?? '—')}
-      {stat('失败率(1h)', status ? `${status.failureRate}%` : '-', !!status && status.failureRate >= 20)}
-      {stat('平均耗时(1h)', status?.avgDurationMs != null ? `${status.avgDurationMs}ms` : '—')}
-      <Button size="small" theme="borderless" icon={<RotateCcw size={14} />} loading={statusQuery.isFetching} onClick={() => void statusQuery.refetch()} style={{ marginLeft: 'auto' }}>刷新</Button>
+        <StatCard title="在途作业" value={status?.runningJobs ?? '-'} />
+        <StatCard title="卡死" value={status?.stuckRunningJobs ?? '-'} accent={status && status.stuckRunningJobs > 0 ? danger : undefined} />
+        <StatCard title="积压" value={status?.backlog ?? '-'} accent={status && status.backlog > 0 ? danger : undefined} />
+        {status && status.deadLetter > 0 && onDeadClick ? (
+          <Tooltip content="查看失败原因聚类（跨队列），可按簇重放">
+            <div style={{ minWidth: 0 }}>
+              <StatCard title="死信" value={status.deadLetter} accent={danger} onClick={onDeadClick} />
+            </div>
+          </Tooltip>
+        ) : (
+          <StatCard title="死信" value={status?.deadLetter ?? '-'} accent={status && status.deadLetter > 0 ? danger : undefined} />
+        )}
+        <StatCard title="最后领取" value={claimTime ?? '—'} sub={claimDate || undefined} />
+        <StatCard title="失败率(1h)" value={status ? `${status.failureRate}%` : '-'} accent={status && status.failureRate >= 20 ? danger : undefined} />
+        <StatCard title="平均耗时(1h)" value={status?.avgDurationMs != null ? `${status.avgDurationMs}ms` : '—'} />
+      </StatGrid>
     </div>
   );
 }
