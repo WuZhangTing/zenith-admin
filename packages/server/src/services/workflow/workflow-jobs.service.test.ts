@@ -18,6 +18,7 @@ import {
   clusterFailureRows,
   type ClusterInputRow,
 } from './workflow-jobs.service';
+import { formatDateTime } from '../../lib/datetime';
 
 describe('clampRate', () => {
   it('未传 / 非法 / 非正数回退默认速率', () => {
@@ -111,8 +112,9 @@ describe('clusterFailureRows', () => {
   it('簇附带时间窗 / 涉及实例数 / 成员明细（按最近失败倒序）', () => {
     const clusters = clusterFailureRows(rows, 'reason');
     const top = clusters[0];
-    expect(top.firstAt).toBe('2026-08-21 10:00:00');
-    expect(top.lastAt).toBe('2026-08-21 12:00:00');
+    // 期望值经同一 formatDateTime 计算：格式化按固定业务时区，硬编码字符串会随 runner 时区漂移
+    expect(top.firstAt).toBe(formatDateTime(at('2026-08-21T10:00:00')));
+    expect(top.lastAt).toBe(formatDateTime(at('2026-08-21T12:00:00')));
     expect(top.instanceCount).toBe(1);
     expect(top.jobs.map((j) => j.id)).toEqual([4, 3]);
     expect(top.jobs[0]).toMatchObject({
@@ -120,8 +122,8 @@ describe('clusterFailureRows', () => {
       status: 'dead',
       lockedBy: 'host-a:100',
       lastError: 'timeout after 5000ms',
-      failedAt: '2026-08-21 12:00:00',
-      createdAt: '2026-08-21 11:00:00',
+      failedAt: formatDateTime(at('2026-08-21T12:00:00')),
+      createdAt: formatDateTime(at('2026-08-21T11:00:00')),
       definitionName: '测试流程',
     });
   });
