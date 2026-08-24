@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
   Descriptions, Empty, Skeleton, Table, Tabs, TabPane, Tag, Typography, Button,
-  Avatar, TextArea, Select, Toast, Popconfirm,
+  Avatar, TextArea, Select, Toast, Popconfirm, Radio, RadioGroup,
 } from '@douyinfe/semi-ui';
 import { CornerUpLeft, Reply, Send, Undo2, X } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -94,6 +94,45 @@ interface Props {
    * designer 表单为 Semi FormApi；custom 业务表单为组件注册的 WorkflowBusinessFormApi。
    */
   onFormApiReady?: (api: FormApi | WorkflowBusinessFormApi) => void;
+}
+
+/** 流转记录显示范围：默认仅真实审批环节（与审批链口径一致），可放开到抄送 / 全部留痕 */
+type FlowRecordScope = 'approval' | 'with-cc' | 'all';
+
+const FLOW_RECORD_SCOPE_OPTIONS: Array<{ value: FlowRecordScope; label: string }> = [
+  { value: 'approval', label: '仅审批环节' },
+  { value: 'with-cc', label: '含抄送' },
+  { value: 'all', label: '全部记录' },
+];
+
+/** 流转记录：分段切换显示范围，表格形态便于审计对账 */
+function FlowRecords({ tasks }: Readonly<{ tasks: WorkflowTask[] }>) {
+  const [scope, setScope] = useState<FlowRecordScope>('approval');
+  const filtered = tasks.filter((t) => {
+    if (scope === 'all') return true;
+    if (t.signType === 'excluded') return false;
+    return scope === 'with-cc' || t.nodeType !== 'ccNode';
+  });
+  return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+        <RadioGroup type="button" value={scope} onChange={(e) => setScope(e.target.value as FlowRecordScope)}>
+          {FLOW_RECORD_SCOPE_OPTIONS.map((o) => <Radio key={o.value} value={o.value}>{o.label}</Radio>)}
+        </RadioGroup>
+        <Typography.Text type="tertiary" size="small">共 {filtered.length} 条</Typography.Text>
+      </div>
+      <Table
+        size="small"
+        bordered
+        dataSource={filtered}
+        rowKey="id"
+        pagination={false}
+        columns={FLOW_RECORD_COLUMNS}
+        scroll={{ x: 940 }}
+        empty={<Empty title="暂无流转记录" />}
+      />
+    </>
+  );
 }
 
 /** 流程沟通时间线（自由评论 + @提及 + 附件 + 回复引用），自管理状态与请求 */
@@ -520,16 +559,7 @@ export default function WorkflowInstanceDetailPanel({
           </TabPane>
         )}
         <TabPane tab={`流转记录${flowTasks.length > 0 ? ` (${flowTasks.length})` : ''}`} itemKey="flow-records">
-          <Table
-            size="small"
-            bordered
-            dataSource={flowTasks}
-            rowKey="id"
-            pagination={false}
-            columns={FLOW_RECORD_COLUMNS}
-            scroll={{ x: 940 }}
-            empty={<Empty title="暂无流转记录" />}
-          />
+          <FlowRecords key={instance.id} tasks={instance.tasks ?? []} />
         </TabPane>
         </Tabs>
       )}
