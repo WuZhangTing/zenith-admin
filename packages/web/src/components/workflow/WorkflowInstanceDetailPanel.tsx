@@ -6,16 +6,18 @@ import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
-  Descriptions, Empty, Skeleton, Tabs, TabPane, Tag, Typography, Button,
+  Descriptions, Empty, Skeleton, Table, Tabs, TabPane, Tag, Typography, Button,
   Avatar, TextArea, Select, Toast, Popconfirm,
 } from '@douyinfe/semi-ui';
 import { CornerUpLeft, Reply, Send, Undo2, X } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import type { WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowComment, WorkflowTaskConsult } from '@zenith/shared/workflow';
-import { applyFieldPermissionsToFields } from '@zenith/shared/workflow';
+import type { WorkflowDefinition, WorkflowFieldPermission, WorkflowInstance, WorkflowComment, WorkflowTask, WorkflowTaskConsult } from '@zenith/shared/workflow';
+import { applyFieldPermissionsToFields, WORKFLOW_TASK_STATUS_LABELS } from '@zenith/shared/workflow';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { request } from '@/utils/request';
 import { useAuth } from '@/hooks/useAuth';
-import { formatDateTime } from '@/utils/date';
+import { formatDateTime, formatDurationBetween } from '@/utils/date';
+import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import ApprovalTimeline from '@/components/ApprovalTimeline';
 import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
@@ -33,6 +35,46 @@ import {
   resolveWorkflowFormSettings,
   resolveWorkflowFormType,
 } from '@/utils/workflow-snapshot';
+
+/** 任务状态 → 标签色（文案统一取 WORKFLOW_TASK_STATUS_LABELS） */
+const TASK_STATUS_TAG_COLOR: Record<string, 'amber' | 'blue' | 'green' | 'grey' | 'red'> = {
+  pending: 'amber',
+  waiting: 'blue',
+  approved: 'green',
+  rejected: 'red',
+  skipped: 'grey',
+};
+
+/** 流转记录列：与审批链时间线同源（instance.tasks），表格形态便于审计对账 */
+const FLOW_RECORD_COLUMNS: ColumnProps<WorkflowTask>[] = [
+  { title: '审批节点', dataIndex: 'nodeName', width: 130, render: renderEllipsis },
+  {
+    title: '审批人',
+    dataIndex: 'assigneeName',
+    width: 110,
+    render: (v: string | null, r: WorkflowTask) => v ?? (r.assigneeId != null ? `#${r.assigneeId}` : EMPTY_PLACEHOLDER),
+  },
+  dateTimeColumn('开始时间', 'createdAt', { className: 'table-cell-muted' }),
+  dateTimeColumn('结束时间', 'actionAt', { className: 'table-cell-muted' }),
+  {
+    title: '审批状态',
+    dataIndex: 'status',
+    width: 92,
+    render: (v: WorkflowTask['status']) => (
+      <Tag size="small" color={TASK_STATUS_TAG_COLOR[v] ?? 'grey'}>
+        {WORKFLOW_TASK_STATUS_LABELS[v as keyof typeof WORKFLOW_TASK_STATUS_LABELS] ?? v}
+      </Tag>
+    ),
+  },
+  { title: '审批建议', dataIndex: 'comment', width: 150, render: renderEllipsis },
+  {
+    title: '耗时',
+    dataIndex: 'actionAt',
+    key: 'duration',
+    width: 100,
+    render: (_: unknown, r: WorkflowTask) => (r.actionAt ? formatDurationBetween(r.createdAt, r.actionAt) || '0秒' : EMPTY_PLACEHOLDER),
+  },
+];
 
 interface Props {
   instance: WorkflowInstance | null;
@@ -204,8 +246,7 @@ function InstanceComments({ instance }: Readonly<{ instance: WorkflowInstance }>
 }
 
 /** 流程详情加载骨架屏（替代居中 Spin，减少跳动），发起/审批详情共用 */
-export function WorkflowDetailSkeleton() {
-  const placeholder = (
+export function WorkflowDetailSkeleton() {  const placeholder = (
     <div style={{ padding: '16px 20px' }}>
       <Skeleton.Title style={{ width: 260, height: 22, marginBottom: 16 }} />
       <Skeleton.Paragraph rows={2} style={{ width: '55%', marginBottom: 28 }} />
@@ -245,6 +286,8 @@ export default function WorkflowInstanceDetailPanel({
     } catch { Toast.error('撤回失败'); }
   };
   const consults = instance.consults ?? [];
+  // 流转记录：真实审批任务（排除运行时留痕行与抄送节点），口径与审批链徽标一致
+  const flowTasks = (instance.tasks ?? []).filter((t) => t.signType !== 'excluded' && t.nodeType !== 'ccNode');
   const effectiveDefinition = resolveWorkflowDetailDefinition(instance, definition);
   // 历史实例渲染冻结快照（发起时绑定），不受表单后续修改影响；无快照时回退到当前表单
   const formFields = resolveWorkflowFormFields(instance, effectiveDefinition);
@@ -476,6 +519,18 @@ export default function WorkflowInstanceDetailPanel({
             </div>
           </TabPane>
         )}
+        <TabPane tab={`流转记录${flowTasks.length > 0 ? ` (${flowTasks.length})` : ''}`} itemKey="flow-records">
+          <Table
+            size="small"
+            bordered
+            dataSource={flowTasks}
+            rowKey="id"
+            pagination={false}
+            columns={FLOW_RECORD_COLUMNS}
+            scroll={{ x: 940 }}
+            empty={<Empty title="暂无流转记录" />}
+          />
+        </TabPane>
         </Tabs>
       )}
     />
