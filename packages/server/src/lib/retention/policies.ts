@@ -110,6 +110,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 90,
     description: '数据库管理台的 SQL 执行历史。',
   },
+  {
+    key: 'app_release_events',
+    title: '应用升级事件',
+    module: '系统管理',
+    tableName: 'app_release_events',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '客户端检查更新 / 下载 / 安装回执流水，驱动升级看板统计与灰度设备数。',
+  },
 
   // ── 系统调度 ───────────────────────────────────────────────────────────────
   {

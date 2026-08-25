@@ -70,7 +70,7 @@ export const createClientAppSchema = z.object({
 });
 
 /** appKey 是客户端侧标识，创建后不可修改（改了会导致在网客户端失联） */
-export const updateClientAppSchema = createClientAppSchema.omit({ appKey: true }).partial();
+export const updateClientAppSchema = partialForUpdate(createClientAppSchema).omit({ appKey: true });
 
 export type CreateClientAppInput = z.infer<typeof createClientAppSchema>;
 export type UpdateClientAppInput = z.infer<typeof updateClientAppSchema>;
@@ -86,7 +86,7 @@ export const createAppReleaseSchema = z.object({
 });
 
 /** 所属应用创建后不可更换 */
-export const updateAppReleaseSchema = createAppReleaseSchema.omit({ appId: true }).partial();
+export const updateAppReleaseSchema = partialForUpdate(createAppReleaseSchema).omit({ appId: true });
 
 export type CreateAppReleaseInput = z.infer<typeof createAppReleaseSchema>;
 export type UpdateAppReleaseInput = z.infer<typeof updateAppReleaseSchema>;
