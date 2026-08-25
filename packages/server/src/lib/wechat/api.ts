@@ -1,6 +1,7 @@
 import { httpGet, httpPost } from '../http-client';
 import type { MpAccountRow } from '../../db/schema';
 import { getMpAccessToken, refreshMpAccessToken, WechatApiError } from './access-token';
+import { isSandboxAccount, sandboxCall } from './sandbox';
 
 const WECHAT_API_BASE = 'https://api.weixin.qq.com';
 
@@ -35,12 +36,13 @@ async function callWithToken<T extends WechatErrorFields>(
   return ensureOk(data);
 }
 
-/** 调用微信 GET 接口（自动注入 access_token） */
+/** 调用微信 GET 接口（自动注入 access_token；沙箱账号短路返回模拟响应） */
 export async function wechatApiGet<T extends WechatErrorFields>(
   account: MpCredential,
   path: string,
   params: Record<string, string | number> = {},
 ): Promise<T> {
+  if (isSandboxAccount(account)) return sandboxCall<T>(path, params);
   return callWithToken(account, async (token) => {
     const qs = new URLSearchParams({ access_token: token });
     for (const [k, v] of Object.entries(params)) qs.set(k, String(v));
@@ -49,12 +51,13 @@ export async function wechatApiGet<T extends WechatErrorFields>(
   });
 }
 
-/** 调用微信 POST 接口（自动注入 access_token） */
+/** 调用微信 POST 接口（自动注入 access_token；沙箱账号短路返回模拟响应） */
 export async function wechatApiPost<T extends WechatErrorFields>(
   account: MpCredential,
   path: string,
   body: Record<string, unknown> | unknown[],
 ): Promise<T> {
+  if (isSandboxAccount(account)) return sandboxCall<T>(path, body);
   return callWithToken(account, async (token) => {
     const resp = await httpPost(`${WECHAT_API_BASE}${path}?access_token=${encodeURIComponent(token)}`, body, { timeout: 10_000, httpLog: { level: 'off' } });
     return resp.json<T>();

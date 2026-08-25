@@ -2,6 +2,7 @@ import { wechatApiPost } from './api';
 import type { MpCredential } from './api';
 import { httpPost } from '../http-client';
 import { getMpAccessToken, refreshMpAccessToken, WechatApiError } from './access-token';
+import { isSandboxAccount } from './sandbox';
 
 const WECHAT_API_BASE = 'https://api.weixin.qq.com';
 /** access_token 失效错误码：刷新后重试一次 */
@@ -57,6 +58,10 @@ export async function uploadWechatMaterial(
   filename: string,
   videoMeta?: { title: string; introduction: string },
 ): Promise<{ mediaId: string; url: string | null }> {
+  // 沙箱账号：不出网，返回模拟 media_id（本地素材记录仍照常落库）
+  if (isSandboxAccount(account)) {
+    return { mediaId: `sandbox-material-${Date.now()}`, url: null };
+  }
   const doUpload = async (token: string): Promise<AddMaterialResponse> => {
     const form = new FormData();
     form.append('media', file, filename);

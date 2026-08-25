@@ -2,6 +2,7 @@ import redis from '../redis';
 import { config } from '../../config';
 import { httpGet } from '../http-client';
 import type { MpAccountRow } from '../../db/schema';
+import { isSandboxAccount } from './sandbox';
 
 const TOKEN_KEY_PREFIX = `${config.redis.keyPrefix}mp:access_token:`;
 const WECHAT_API_BASE = 'https://api.weixin.qq.com';
@@ -35,6 +36,7 @@ function tokenKey(accountId: number): string {
 
 /** 强制向微信服务器拉取新的 access_token 并写入 Redis 缓存。 */
 export async function refreshMpAccessToken(account: MpCredential): Promise<string> {
+  if (isSandboxAccount(account)) return 'sandbox-access-token';
   const url = `${WECHAT_API_BASE}/cgi-bin/token?grant_type=client_credential`
     + `&appid=${encodeURIComponent(account.appId)}`
     + `&secret=${encodeURIComponent(account.appSecret)}`;
@@ -51,6 +53,7 @@ export async function refreshMpAccessToken(account: MpCredential): Promise<strin
 
 /** 获取 access_token：优先读 Redis 缓存，未命中则向微信拉取。 */
 export async function getMpAccessToken(account: MpCredential): Promise<string> {
+  if (isSandboxAccount(account)) return 'sandbox-access-token';
   const cached = await redis.get(tokenKey(account.id));
   if (cached) return cached;
   return refreshMpAccessToken(account);
