@@ -30,6 +30,7 @@ export * from './schema/open-platform';
 export * from './schema/terminal';
 export * from './schema/member';
 export * from './schema/monitor';
+export * from './schema/app-releases';
 export * from './schema/mp';
 export * from './schema/report';
 export * from './schema/report-platform';

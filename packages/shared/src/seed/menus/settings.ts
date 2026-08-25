@@ -230,5 +230,13 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2592, parentId: 2590, title: '新增证书', type: 'button', permission: 'system:ssl:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2593, parentId: 2590, title: '删除证书', type: 'button', permission: 'system:ssl:delete', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
+  // ─── 应用版本管理（2670 段，客户端在线升级）
+  { id: 2670, parentId: 2000, title: '应用版本', name: 'SystemAppReleases', path: '/system/app-releases', component: 'system/app-releases/AppReleasesPage', icon: 'Rocket', type: 'menu', sort: 14, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2671, parentId: 2670, title: '查询', type: 'button', permission: 'system:app-release:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2672, parentId: 2670, title: '新增版本', type: 'button', permission: 'system:app-release:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2673, parentId: 2670, title: '编辑版本', type: 'button', permission: 'system:app-release:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2674, parentId: 2670, title: '删除版本', type: 'button', permission: 'system:app-release:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2675, parentId: 2670, title: '发布/撤回', type: 'button', permission: 'system:app-release:publish', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
   // ─── 智能助手（3000 段）
 ];

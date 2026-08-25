@@ -1,3 +1,11 @@
+import type {
+  AppArch,
+  AppArtifactKind,
+  AppPlatform,
+  AppReleaseChannel,
+  AppReleaseStatus,
+} from './constants';
+
 /** Terminal WebSocket 消息（独立端点 /api/ws/terminal） */
 export type TerminalMessage =
   | { type: 'terminal:input'; data: string }
@@ -138,5 +146,115 @@ export interface RetentionRunResult {
   key: string;
   title: string;
   deleted: number;
+}
+
+// ─── 应用版本管理（在线升级）──────────────────────────────────────────────────
+
+export interface ClientApp {
+  id: number;
+  appKey: string;
+  name: string;
+  description?: string | null;
+  status: 'enabled' | 'disabled';
+  /** 列表冗余：版本总数与最新已发布版本号 */
+  releaseCount?: number;
+  latestVersion?: string | null;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppArtifact {
+  id: number;
+  releaseId: number;
+  platform: AppPlatform;
+  arch: AppArch;
+  kind: AppArtifactKind;
+  fileId?: string | null;
+  externalUrl?: string | null;
+  fileName: string;
+  size: number;
+  sha256?: string | null;
+  downloadCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppRelease {
+  id: number;
+  appId: number;
+  /** JOIN 冗余，供列表直接展示 */
+  appKey?: string;
+  appName?: string;
+  channel: AppReleaseChannel;
+  version: string;
+  notes?: string | null;
+  status: AppReleaseStatus;
+  mandatory: boolean;
+  minVersion?: string | null;
+  rolloutPercent: number;
+  publishedAt?: string | null;
+  artifactCount?: number;
+  artifacts?: AppArtifact[];
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 公开 check API 的响应（对外裁剪，不含内部字段） */
+export interface AppUpdateCheckResult {
+  hasUpdate: boolean;
+  /** hasUpdate=true 时以下字段存在 */
+  mandatory?: boolean;
+  version?: string;
+  notes?: string | null;
+  publishedAt?: string | null;
+  artifact?: {
+    kind: AppArtifactKind;
+    fileName: string;
+    size: number;
+    sha256?: string | null;
+    /** 托管制品为服务端下载地址；external 制品为外部跳转链接 */
+    downloadUrl: string;
+  };
+}
+
+/** 公开 latest API 的响应（官网下载页用） */
+export interface AppPublicReleaseInfo {
+  version: string;
+  notes?: string | null;
+  publishedAt?: string | null;
+  artifacts: Array<{
+    platform: AppPlatform;
+    arch: AppArch;
+    kind: AppArtifactKind;
+    fileName: string;
+    size: number;
+    sha256?: string | null;
+    downloadUrl: string;
+  }>;
+}
+
+/** 升级看板统计 */
+export interface AppReleaseStats {
+  totals: {
+    checks: number;
+    downloads: number;
+    devices: number;
+    installSuccess: number;
+    installFail: number;
+  };
+  trend: Array<{
+    date: string;
+    checks: number;
+    downloads: number;
+    installSuccess: number;
+    installFail: number;
+  }>;
+  platforms: Array<{ platform: AppPlatform; count: number }>;
+  /** 近 30 天活跃设备的客户端版本分布（按 check 事件的设备去重） */
+  versions: Array<{ version: string; devices: number }>;
 }
 

@@ -5,6 +5,7 @@
 export * from './menus';
 export * from './ai';
 export * from './analytics';
+export * from './app-releases';
 export * from './cms';
 export * from './identity';
 export * from './member';

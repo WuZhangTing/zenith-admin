@@ -71,3 +71,4 @@ export * from './rules';
 export * from './user-feedbacks';
 export * from './cms';
 export * from './wiki';
+export * from './app-releases';

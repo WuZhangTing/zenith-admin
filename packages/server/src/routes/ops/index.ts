@@ -1,5 +1,7 @@
 import { upgradeWebSocket } from '@hono/node-server';
 import { defineRouteDomain } from '../_kit';
+import appReleasesRoutes from './app-releases';
+import publicAppReleasesRoutes from './public-app-releases';
 import dbAdminRoutes from './db-admin';
 import dbBackupsRoutes from './db-backups';
 import dockerRoutes from './docker';
@@ -45,5 +47,8 @@ export default defineRouteDomain({
     ['/api/nginx-sites', nginxSitesRoutes, { feature: 'ops' }],
     ['/api/log-files', logFilesRoutes, { feature: 'ops' }],
     ['/api/retention-policies', retentionRoutes, { feature: 'ops' }],
+    ['/api/app-releases', appReleasesRoutes],
+    // 公开面（客户端检查更新 / 制品分发）不声明 feature：在网客户端必须始终可达
+    ['/api/public/app-releases', publicAppReleasesRoutes],
   ],
 });

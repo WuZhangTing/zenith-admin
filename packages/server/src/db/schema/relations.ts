@@ -20,6 +20,7 @@ import { aiConversations, aiMessages, aiPromptTemplates, aiProviderConfigs, user
 import { appWebhookDeliveries, appWebhookSubscriptions, oauth2AuthorizationCodes, oauth2Clients, oauth2TokenFamilies, oauth2Tokens, oauth2UserGrants, ratePlans } from './open-platform';
 import { checkinMilestones, coupons, memberCheckinMilestoneAwards, memberCheckins, memberCoupons, memberLevels, memberNotifications, memberPointAccounts, memberPointTransactions, members, memberTagBindings, memberTags, memberVipRenewals, memberWallets, memberWalletTransactions } from './member';
 import { monitorAlertEvents, monitorAlertRules } from './monitor';
+import { appArtifacts, appReleases, clientApps } from './app-releases';
 import { mpAccounts, mpAutoReplies, mpBroadcasts, mpConditionalMenus, mpDrafts, mpFans, mpKfAccounts, mpKfRoutingConfigs, mpKfSessionEvents, mpKfSessions, mpMaterials, mpMenus, mpMessages, mpMessageTemplates, mpQrcodes, mpTags, mpTemplateSendLogs, mpUnmatchedKeywords } from './mp';
 import { reportAlertRules, reportDashboardCategories, reportDashboardComments, reportDashboardEmbedTokens, reportDashboards, reportDashboardShares, reportDashboardSubscriptions, reportDashboardVersions, reportDatasetExecutionLogs, reportDatasets, reportDatasources, reportDeliveryAttempts, reportDeliveryRuns, reportFolders, reportPrintTemplates, reportShareAccessLogs } from './report';
 import {
@@ -1654,4 +1655,19 @@ export const directorySyncUserLinksRelations = relations(directorySyncUserLinks,
 export const directorySyncDeptLinksRelations = relations(directorySyncDeptLinks, ({ one }) => ({
   source: one(directorySyncSources, { fields: [directorySyncDeptLinks.sourceId], references: [directorySyncSources.id] }),
   department: one(departments, { fields: [directorySyncDeptLinks.departmentId], references: [departments.id] }),
+}));
+
+// ─── 应用版本管理 ─────────────────────────────────────────────────────────────
+export const clientAppsRelations = relations(clientApps, ({ many }) => ({
+  releases: many(appReleases),
+}));
+
+export const appReleasesRelations = relations(appReleases, ({ one, many }) => ({
+  app: one(clientApps, { fields: [appReleases.appId], references: [clientApps.id] }),
+  artifacts: many(appArtifacts),
+}));
+
+export const appArtifactsRelations = relations(appArtifacts, ({ one }) => ({
+  release: one(appReleases, { fields: [appArtifacts.releaseId], references: [appReleases.id] }),
+  file: one(managedFiles, { fields: [appArtifacts.fileId], references: [managedFiles.id] }),
 }));
