@@ -27,8 +27,8 @@ export function LeftPaneContextMenu({
   handleTogglePinMessage: (msg: ChatMessage) => Promise<void>;
   /** 该消息所在会话是否允许当前用户置顶（群聊仅群主/管理员） */
   canPinMessage: (msg: ChatMessage) => boolean;
-  /** 退订频道（频道条目右键菜单） */
-  handleUnsubscribeChannel: (ch: Channel) => Promise<void>;
+  /** 退订频道（内部自带确认弹窗） */
+  handleUnsubscribeChannel: (ch: Channel) => void;
 }>) {
   let targetId: number;
   if (leftPaneContextMenu.type === 'conversation') targetId = leftPaneContextMenu.conv.id;
@@ -44,11 +44,7 @@ export function LeftPaneContextMenu({
             type="danger"
             icon={<UserMinus size={13} />}
             onClick={() => {
-              confirmDelete({
-                title: `确定退订「${channel.name}」吗？`,
-                content: '退订后将不再接收该频道的消息推送，可随时在「发现频道」中重新订阅。',
-                onOk: () => { void handleUnsubscribeChannel(channel); },
-              });
+              handleUnsubscribeChannel(channel);
               setLeftPaneContextMenu(null);
             }}
           >

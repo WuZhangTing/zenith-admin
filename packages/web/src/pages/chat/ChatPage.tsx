@@ -871,7 +871,7 @@ export default function ChatPage({
             channel={activeChannel}
             currentUserId={currentUserId}
             onBack={() => setActiveChannelId(null)}
-            onUnsubscribe={() => { if (activeChannel) void handleUnsubscribeChannel(activeChannel); }}
+            onUnsubscribe={() => { if (activeChannel) handleUnsubscribeChannel(activeChannel); }}
             onCardAction={handleCardAction}
             onOpenWorkflow={handleOpenWorkflowFromCard}
           />

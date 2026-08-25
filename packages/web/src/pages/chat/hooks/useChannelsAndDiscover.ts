@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { request } from '@/utils/request';
+import { confirmDanger } from '@/utils/confirm';
 import { useDiscoverableChannels } from '@/hooks/queries/chat';
 import type { ChatConversation } from '@zenith/shared/chat';
 import type { Channel } from '@zenith/shared/messaging';
@@ -38,13 +39,20 @@ export function useChannelsAndDiscover({
 
   useEffect(() => { void fetchChannels(); }, [fetchChannels]);
 
-  const handleUnsubscribeChannel = useCallback(async (ch: Channel) => {
-    const res = await request.delete(`/api/channels/${ch.id}/subscribe`);
-    if (res.code === 0) {
-      Toast.success('已退订');
-      setActiveChannelId(null);
-      void fetchChannels();
-    }
+  /** 退订频道（自带确认弹窗）：确认逻辑收敛在此，所有入口（右键菜单/频道视图按钮）直接调用即可 */
+  const handleUnsubscribeChannel = useCallback((ch: Channel) => {
+    confirmDanger({
+      title: `确定退订「${ch.name}」吗？`,
+      content: '退订后将不再接收该频道的消息推送，可随时在「发现频道」中重新订阅。',
+      onOk: async () => {
+        const res = await request.delete(`/api/channels/${ch.id}/subscribe`);
+        if (res.code === 0) {
+          Toast.success('已退订');
+          setActiveChannelId(null);
+          void fetchChannels();
+        }
+      },
+    });
   }, [fetchChannels]);
 
   const loadDiscoverList = useCallback(async (keyword: string) => {
