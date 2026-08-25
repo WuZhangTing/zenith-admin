@@ -62,6 +62,18 @@ export default function RichTextEditor({
     onChange(e: IDomEditor) {
       onChange?.(e.getHtml());
     },
+    // 默认粘贴管线会丢弃 <ul>/<ol> 列表结构（实测整段被吞或降级为纯文本段落）。
+    // 改走官方 HTML 解析入口 dangerouslyInsertHtml，保留标题/列表/引用/图片等语义；
+    // 内容安全由服务端白名单净化与渲染端 DOMPurify 兜底。
+    customPaste(e: IDomEditor, event: ClipboardEvent): boolean {
+      const html = event.clipboardData?.getData('text/html');
+      if (html?.trim()) {
+        e.dangerouslyInsertHtml(html);
+        event.preventDefault();
+        return false;
+      }
+      return true;
+    },
     MENU_CONF: {
       uploadImage: {
         server: uploadServer ?? `${appConfig.apiBaseUrl}/api/files/upload`,
