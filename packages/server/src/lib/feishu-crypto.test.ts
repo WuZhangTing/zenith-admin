@@ -15,9 +15,18 @@ describe('feishu-crypto', () => {
     expect(decryptFeishuEvent('test key', encrypted)).toBe('hello world');
   });
 
-  it('错误的 key 解密失败', () => {
-    const encrypted = encryptFeishuEvent('key-a', '{"a":1}');
-    expect(() => decryptFeishuEvent('key-b', encrypted)).toThrow();
+  it('错误的 key 无法还原明文', () => {
+    // CBC 错误 key 解密大概率 padding 非法抛错，但随机 iv 下存在约 1/256 的
+    // 概率 padding 恰好合法而返回乱码——两种结果都不能等于原文，据此断言
+    const plain = '{"a":1}';
+    const encrypted = encryptFeishuEvent('key-a', plain);
+    let result: string | null = null;
+    try {
+      result = decryptFeishuEvent('key-b', encrypted);
+    } catch {
+      // 预期路径之一：padding 校验失败
+    }
+    expect(result).not.toBe(plain);
   });
 
   it('密文过短抛错', () => {
