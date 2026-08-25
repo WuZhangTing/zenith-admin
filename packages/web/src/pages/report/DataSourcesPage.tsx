@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Col, Form, Row, Select, Switch, Toast, Modal, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Select, Switch, Toast, Modal, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Activity } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
-import { createdAtColumn, dateTimeColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -241,22 +241,30 @@ export default function DataSourcesPage() {
       },
     },
     {
-      title: '健康状态', dataIndex: 'lastTestStatus', width: 90,
-      render: (value: ReportDatasource['lastTestStatus'], record: ReportDatasource) =>
-        record.type === 'static' ? EMPTY_PLACEHOLDER : healthTag(value),
-    },
-    dateTimeColumn('最近测试', 'lastTestAt'),
-    {
-      title: '测试延迟', dataIndex: 'lastTestLatencyMs', width: 100, align: 'right',
-      render: (value: number | null) => (value == null ? EMPTY_PLACEHOLDER : `${value}ms`),
-    },
-    {
-      title: '连续失败', dataIndex: 'consecutiveFailures', width: 100,
-      render: (value: number) => value > 0 ? <Typography.Text type="danger">{value}</Typography.Text> : 0,
-    },
-    {
-      title: '最近错误', dataIndex: 'lastTestError', width: 200,
-      render: renderEllipsis,
+      title: '健康状态', dataIndex: 'lastTestStatus', width: 110,
+      render: (value: ReportDatasource['lastTestStatus'], record: ReportDatasource) => {
+        if (record.type === 'static') return EMPTY_PLACEHOLDER;
+        // 测试明细收进 tooltip：列表保持紧凑，悬停可见延迟/连续失败/最近错误
+        return (
+          <Tooltip
+            content={(
+              <div style={{ maxWidth: 320 }}>
+                <div>最近测试：{record.lastTestAt ?? '未检测'}</div>
+                <div>测试延迟：{record.lastTestLatencyMs == null ? EMPTY_PLACEHOLDER : `${record.lastTestLatencyMs}ms`}</div>
+                <div>连续失败：{record.consecutiveFailures}</div>
+                {record.lastTestError ? <div>最近错误：{record.lastTestError}</div> : null}
+              </div>
+            )}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {healthTag(value)}
+              {record.consecutiveFailures > 0 ? (
+                <Typography.Text type="danger" size="small">×{record.consecutiveFailures}</Typography.Text>
+              ) : null}
+            </span>
+          </Tooltip>
+        );
+      },
     },
     { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
     createdAtColumn,
