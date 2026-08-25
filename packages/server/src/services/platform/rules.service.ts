@@ -262,8 +262,8 @@ function ensurePublishable(row: TableRow): void {
   const rules = (row.rules ?? []) as RuleDecisionRow[];
   const errors: string[] = [];
   inputs.forEach((col, i) => {
-    const err = validateExpression(col.expr ?? '');
-    if (err) errors.push(`输入列 ${i + 1}「${col.label}」取值表达式无效：${err}`);
+    const check = validateExpression(col.expr ?? '');
+    if (!check.valid) errors.push(`输入列 ${i + 1}「${col.label}」取值表达式无效：${check.error ?? '语法错误'}`);
   });
   rules.forEach((r, ri) => {
     inputs.forEach((col, ci) => {
@@ -273,8 +273,8 @@ function ensurePublishable(row: TableRow): void {
     outputs.forEach((o) => {
       const raw = r.then?.[o.key];
       if (isOutputExpression(raw)) {
-        const err = validateExpression(String(raw).trim().slice(1));
-        if (err) errors.push(`规则行 ${ri + 1} 的输出「${o.label}」表达式无效：${err}`);
+        const check = validateExpression(String(raw).trim().slice(1));
+        if (!check.valid) errors.push(`规则行 ${ri + 1} 的输出「${o.label}」表达式无效：${check.error ?? '语法错误'}`);
       }
     });
   });
@@ -313,8 +313,8 @@ export async function publishDecisionTable(id: number, opts?: { skipApprovalChec
       throw new HTTPException(400, { message: '首次发布不能灰度：没有旧版本可承接灰度外流量，请先全量发布一个版本' });
     }
     if (opts.gray.grayDimension) {
-      const err = validateExpression(opts.gray.grayDimension);
-      if (err) throw new HTTPException(400, { message: `灰度主体表达式不合法：${err}` });
+      const check = validateExpression(opts.gray.grayDimension);
+      if (!check.valid) throw new HTTPException(400, { message: `灰度主体表达式不合法：${check.error ?? '语法错误'}` });
     }
   }
   await ensurePublishGates(row);

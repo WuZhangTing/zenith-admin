@@ -59,7 +59,7 @@ export default function RuleListsPage() {
   const [itemsRow, setItemsRow] = useState<RuleList | null>(null);
   const [itemsPage, setItemsPage] = useState(1);
   const [itemKeyword, setItemKeyword] = useState('');
-  const [itemForm, setItemForm] = useState<{ value: string; label: string; expiresAt?: string; remark: string }>({ value: '', label: '', remark: '' });
+  const [itemForm, setItemForm] = useState<{ value: string; label: string; matchMode: 'exact' | 'prefix' | 'regex'; expiresAt?: string; remark: string }>({ value: '', label: '', matchMode: 'exact', remark: '' });
   const [importText, setImportText] = useState('');
   const [checkValue, setCheckValue] = useState('');
   const [checkResult, setCheckResult] = useState<{ hit: boolean; listType?: string } | null>(null);
@@ -92,7 +92,7 @@ export default function RuleListsPage() {
     setItemsRow(r);
     setItemsPage(1);
     setItemKeyword('');
-    setItemForm({ value: '', label: '', remark: '' });
+    setItemForm({ value: '', label: '', matchMode: 'exact', remark: '' });
     setImportText('');
     setCheckValue('');
     setCheckResult(null);
@@ -112,9 +112,9 @@ export default function RuleListsPage() {
   const addItem = async () => {
     if (!itemsRow) return;
     if (!itemForm.value.trim()) { Toast.warning('请输入名单值'); return; }
-    await saveItemMutation.mutateAsync({ listId: itemsRow.id, values: { value: itemForm.value.trim(), label: itemForm.label || null, expiresAt: itemForm.expiresAt ?? null, remark: itemForm.remark || null } });
+    await saveItemMutation.mutateAsync({ listId: itemsRow.id, values: { value: itemForm.value.trim(), label: itemForm.label || null, matchMode: itemForm.matchMode, expiresAt: itemForm.expiresAt ?? null, remark: itemForm.remark || null } });
     Toast.success('已添加');
-    setItemForm({ value: '', label: '', remark: '' });
+    setItemForm({ value: '', label: '', matchMode: 'exact', remark: '' });
   };
 
   const batchImport = async () => {
@@ -194,9 +194,12 @@ export default function RuleListsPage() {
             <Text strong size="small">新增条目</Text>
             <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
               <Input size="small" value={itemForm.value} onChange={(v) => setItemForm((p) => ({ ...p, value: v }))} placeholder="值（必填）" style={{ width: 170 }} />
-              <Input size="small" value={itemForm.label} onChange={(v) => setItemForm((p) => ({ ...p, label: v }))} placeholder="标签(可选)" style={{ width: 130 }} />
-              <DatePicker size="small" type="dateTime" value={itemForm.expiresAt} onChange={(d) => setItemForm((p) => ({ ...p, expiresAt: d == null ? undefined : formatDateTimeForApi(d as Date) }))} placeholder="过期时间(可选)" style={{ width: 200 }} />
-              <Input size="small" value={itemForm.remark} onChange={(v) => setItemForm((p) => ({ ...p, remark: v }))} placeholder="备注(可选)" style={{ width: 150 }} />
+              <Select size="small" value={itemForm.matchMode} style={{ width: 96 }}
+                optionList={[{ value: 'exact', label: '精确' }, { value: 'prefix', label: '前缀' }, { value: 'regex', label: '正则' }]}
+                onChange={(v) => setItemForm((p) => ({ ...p, matchMode: v as 'exact' | 'prefix' | 'regex' }))} />
+              <Input size="small" value={itemForm.label} onChange={(v) => setItemForm((p) => ({ ...p, label: v }))} placeholder="标签(可选)" style={{ width: 120 }} />
+              <DatePicker size="small" type="dateTime" value={itemForm.expiresAt} onChange={(d) => setItemForm((p) => ({ ...p, expiresAt: d == null ? undefined : formatDateTimeForApi(d as Date) }))} placeholder="过期时间(可选)" style={{ width: 190 }} />
+              <Input size="small" value={itemForm.remark} onChange={(v) => setItemForm((p) => ({ ...p, remark: v }))} placeholder="备注(可选)" style={{ width: 130 }} />
               <Button size="small" type="primary" loading={saveItemMutation.isPending} onClick={addItem}>添加</Button>
             </div>
             <div style={{ marginTop: 8 }}>
@@ -217,7 +220,8 @@ export default function RuleListsPage() {
             rowKey="id"
             columns={[
               { title: '值', dataIndex: 'value', render: (t: string) => <Text code>{t}</Text> },
-              { title: '标签', dataIndex: 'label', width: 120, render: (t: string | null) => t ?? '-' },
+              { title: '匹配', dataIndex: 'matchMode', width: 76, render: (m: string) => <Tag size="small" color={m === 'exact' ? 'grey' : m === 'prefix' ? 'blue' : 'purple'}>{m === 'exact' ? '精确' : m === 'prefix' ? '前缀' : '正则'}</Tag> },
+              { title: '标签', dataIndex: 'label', width: 110, render: renderEllipsis },
               dateTimeColumn('过期时间', 'expiresAt', { empty: '永久' }),
               { title: '操作', width: 70, fixed: 'right', render: (_: unknown, item: RuleListItem) => (
                 <Button theme="borderless" type="danger" size="small" onClick={async () => { if (itemsRow) { await deleteItemMutation.mutateAsync({ listId: itemsRow.id, itemId: item.id }); Toast.success('已删除'); } }}>删除</Button>

@@ -159,8 +159,8 @@ async function ensureFlowPublishable(row: FlowRow): Promise<void> {
     else ids.add(s.id);
     if (!s.tableKey?.trim()) errors.push(`${ref} 未选择决策表`);
     if (s.condition?.trim()) {
-      const err = validateExpression(s.condition);
-      if (err) errors.push(`${ref} 条件表达式无效：${err}`);
+      const check = validateExpression(s.condition);
+      if (!check.valid) errors.push(`${ref} 条件表达式无效：${check.error ?? '语法错误'}`);
     }
     if (s.outputNamespace?.trim() && !NS_PATTERN.test(s.outputNamespace.trim())) {
       errors.push(`${ref} 输出命名空间不是合法标识符`);

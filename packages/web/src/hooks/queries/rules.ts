@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { RuleDecisionExecution, RuleDecisionFlow, RuleDecisionTable, RuleEvaluateResult, RuleFlowEvaluateResult, RuleList, RuleListItem, RuleShadowRunResult, RuleTableStats, RuleTestCase, RuleTestRunResult, RuleUsageItem, RuleVersionDiff } from '@zenith/shared/rules';
+import type { RuleDecisionExecution, RuleDecisionFlow, RuleDecisionTable, RuleEvaluateResult, RuleFlowEvaluateResult, RuleList, RuleListItem, RuleShadowRunResult, RuleSimulateResult, RuleTableStats, RuleTestCase, RuleTestRunResult, RuleUsageItem, RuleVersionDiff } from '@zenith/shared/rules';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 
@@ -72,8 +72,27 @@ export function useSaveRuleDecisionTable() {
 export function usePublishRuleDecisionTable() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<null>(`/api/rules/decision-tables/${id}/publish`).then(unwrap),
+    mutationFn: ({ id, gray }: { id: number; gray?: { grayPercent: number; grayDimension?: string | null } }) =>
+      request.post<null>(`/api/rules/decision-tables/${id}/publish`, gray ? { grayPercent: gray.grayPercent, grayDimension: gray.grayDimension ?? null } : {}).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: ruleKeys.decisionTables.all }),
+  });
+}
+
+/** 灰度操作：complete=转正全量；cancel=放弃（旧版本前滚为新版本） */
+export function useGrayActionRuleTable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'complete' | 'cancel' }) =>
+      request.post<RuleDecisionTable>(`/api/rules/decision-tables/${id}/gray`, { action }).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ruleKeys.decisionTables.all }),
+  });
+}
+
+/** 批量仿真：纯读操作，不触发失效 */
+export function useSimulateRuleTable() {
+  return useMutation({
+    mutationFn: ({ id, rows }: { id: number; rows: Array<Record<string, unknown>> }) =>
+      request.post<RuleSimulateResult>(`/api/rules/decision-tables/${id}/simulate`, { rows }).then(unwrap),
   });
 }
 

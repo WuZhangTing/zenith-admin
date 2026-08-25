@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, DatePicker, Input, InputNumber, Select, Space, Tag, Modal, Form, Toast, Typography, SideSheet, List, Empty } from '@douyinfe/semi-ui';
+import { Button, Checkbox, DatePicker, Input, InputNumber, Select, Space, Tag, Modal, Form, TextArea, Toast, Typography, SideSheet, List, Empty } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Save, Upload } from 'lucide-react';
-import type { RuleDecisionTable, RuleEvaluateResult, RuleTestRunResult, RuleHitPolicy, RuleTestCase, RuleUsageItem, RuleDecisionTableSettings, RuleShadowRunResult } from '@zenith/shared/rules';
+import type { RuleDecisionTable, RuleEvaluateResult, RuleTestRunResult, RuleHitPolicy, RuleTestCase, RuleUsageItem, RuleDecisionTableSettings, RuleShadowRunResult, RuleSimulateResult } from '@zenith/shared/rules';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -21,6 +21,7 @@ import {
   ruleKeys,
   useDeleteRuleDecisionTable,
   useDeleteRuleTestCase,
+  useGrayActionRuleTable,
   usePublishRuleDecisionTable,
   useReviewRuleTable,
   useRollbackRuleDecisionTable,
@@ -35,6 +36,7 @@ import {
   useSaveRuleDecisionTable,
   useSaveRuleTestCase,
   useShadowRunRuleTable,
+  useSimulateRuleTable,
   useSubmitRuleTableReview,
   useTestRuleDecisionTable,
   useToggleRuleDecisionTable,
@@ -195,6 +197,11 @@ export default function RuleTablesPage() {
   const shadowMutation = useShadowRunRuleTable();
   const submitReviewMutation = useSubmitRuleTableReview();
   const reviewMutation = useReviewRuleTable();
+  const grayMutation = useGrayActionRuleTable();
+  const simulateMutation = useSimulateRuleTable();
+  const [simulateRow, setSimulateRow] = useState<RuleDecisionTable | null>(null);
+  const [simulateText, setSimulateText] = useState('');
+  const [simulateResult, setSimulateResult] = useState<RuleSimulateResult | null>(null);
   const approvalEnabledQuery = useRulePublishApprovalEnabled();
   const approvalEnabled = approvalEnabledQuery.data ?? false;
   const canApprove = hasPermission('rule:table:approve');
@@ -339,13 +346,85 @@ export default function RuleTablesPage() {
       });
       return;
     }
+    // 灰度选项：仅已发布过（有旧版本可承接灰度外流量）的表可灰度发布
+    const grayRef = { enabled: false, percent: 20, dimension: '' };
     Modal.confirm({
-    title: `发布「${r.name}」？`, content: warnings.length ? <div><Text type="warning">规则体检有 {warnings.length} 项提醒，发布接口仍会执行用例门禁。</Text><div style={{ marginTop: 8 }}>{renderIssueList(warnings, 6)}</div></div> : '将生成版本快照并置为已发布',
-    onOk: async () => { await publishMutation.mutateAsync(r.id); Toast.success('发布成功'); },
-  }); };
+      title: `发布「${r.name}」？`,
+      width: 480,
+      content: (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {warnings.length
+            ? <div><Text type="warning">规则体检有 {warnings.length} 项提醒，发布接口仍会执行用例门禁。</Text><div style={{ marginTop: 8 }}>{renderIssueList(warnings, 6)}</div></div>
+            : <Text>将生成版本快照并置为已发布。</Text>}
+          {r.publishedAt ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Checkbox onChange={(e) => { grayRef.enabled = !!e.target.checked; }}>灰度发布（新版本按主体分桶生效，其余流量走上一版本）</Checkbox>
+              <Space spacing={8}>
+                <InputNumber prefix="灰度流量 %" min={1} max={99} defaultValue={20} style={{ width: 170 }}
+                  onChange={(v) => { grayRef.percent = Number(v) || 20; }} />
+                <Input placeholder="灰度主体表达式（选填，如 form.userId）" style={{ width: 250 }}
+                  onChange={(v) => { grayRef.dimension = v; }} />
+              </Space>
+            </div>
+          ) : null}
+        </div>
+      ),
+      onOk: async () => {
+        const gray = grayRef.enabled ? { grayPercent: grayRef.percent, grayDimension: grayRef.dimension.trim() || null } : undefined;
+        await publishMutation.mutateAsync({ id: r.id, gray });
+        Toast.success(gray ? `已灰度发布（${gray.grayPercent}% 流量）` : '发布成功');
+      },
+    });
+  };
 
-  const handleReview = (r: RuleDecisionTable, approve: boolean) => {
-    const commentRef = { current: '' };
+  const handleGray = (r: RuleDecisionTable, action: 'complete' | 'cancel') => {
+    Modal.confirm({
+      title: action === 'complete' ? `灰度转正「${r.name}」？` : `放弃灰度「${r.name}」？`,
+      content: action === 'complete'
+        ? `新版本 v${r.gray?.grayVersion} 将全量生效`
+        : `旧版本 v${(r.gray?.grayVersion ?? 1) - 1} 内容将前滚为新版本全量生效（历史快照保留）`,
+      okButtonProps: action === 'cancel' ? { type: 'danger' } : undefined,
+      onOk: async () => {
+        await grayMutation.mutateAsync({ id: r.id, action });
+        Toast.success(action === 'complete' ? '灰度已转正' : '已放弃灰度，回到旧版本');
+      },
+    });
+  };
+
+  const openSimulate = (r: RuleDecisionTable) => {
+    setSimulateRow(r);
+    setSimulateResult(null);
+    const sample: Record<string, unknown> = {};
+    for (const input of r.inputs) {
+      const path = input.expr.split('.');
+      if (path.length === 2) {
+        const ns = (sample[path[0]] as Record<string, unknown>) ?? {};
+        ns[path[1]] = input.type === 'number' ? 0 : input.type === 'boolean' ? true : '';
+        sample[path[0]] = ns;
+      }
+    }
+    setSimulateText(`${JSON.stringify(sample)}\n${JSON.stringify(sample)}`);
+  };
+
+  const runSimulate = async () => {
+    if (!simulateRow) return;
+    const rows: Array<Record<string, unknown>> = [];
+    for (const [lineNo, line] of simulateText.split(/\r?\n/).entries()) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        rows.push(JSON.parse(trimmed) as Record<string, unknown>);
+      } catch {
+        Toast.warning(`第 ${lineNo + 1} 行不是合法 JSON`);
+        return;
+      }
+    }
+    if (rows.length === 0) { Toast.warning('请至少输入一行 JSON 数据'); return; }
+    if (rows.length > 200) { Toast.warning('单次最多仿真 200 行'); return; }
+    setSimulateResult(await simulateMutation.mutateAsync({ id: simulateRow.id, rows }));
+  };
+
+  const handleReview = (r: RuleDecisionTable, approve: boolean) => {    const commentRef = { current: '' };
     Modal.confirm({
       title: approve ? `批准并发布「${r.name}」？` : `驳回「${r.name}」的发布申请？`,
       okButtonProps: approve ? undefined : { type: 'danger' },
@@ -689,6 +768,7 @@ export default function RuleTablesPage() {
     { title: '状态', dataIndex: 'status', width: 132, fixed: 'right', render: (s: string, r: RuleDecisionTable) => (
       <Space spacing={4} wrap>
         <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag>
+        {r.gray && s === 'published' && <Tag size="small" color="cyan">灰度 {r.gray.grayPercent}%</Tag>}
         {r.reviewStatus === 'pending' && <Tag size="small" color="blue">待审批</Tag>}
         {r.dirty && s === 'published' && r.reviewStatus !== 'pending' && <Tag size="small" color="orange">改动未发布</Tag>}
       </Space>
@@ -697,6 +777,7 @@ export default function RuleTablesPage() {
       desktopInlineKeys: ['edit', 'publish'],
       actions: (r) => [
         { key: 'test', label: '测试', onClick: () => openTest(r) },
+        { key: 'simulate', label: '批量仿真', onClick: () => openSimulate(r) },
         { key: 'versions', label: '版本', onClick: () => openVersions(r) },
         { key: 'cases', label: '用例', onClick: () => openCases(r) },
         { key: 'stats', label: '分析', onClick: () => { setStatsDays(30); setStatsRow(r); } },
@@ -704,6 +785,8 @@ export default function RuleTablesPage() {
         { key: 'audit', label: '审计', onClick: () => openExec(r) },
         { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(r) },
         { key: 'publish', label: approvalEnabled ? '申请发布' : '发布', hidden: !canPublish || r.status === 'disabled' || r.reviewStatus === 'pending', onClick: () => handlePublish(r) },
+        { key: 'gray-complete', label: '灰度转正', hidden: !canPublish || !r.gray || r.status !== 'published', onClick: () => handleGray(r, 'complete') },
+        { key: 'gray-cancel', label: '放弃灰度', danger: true, hidden: !canPublish || !r.gray || r.status !== 'published', onClick: () => handleGray(r, 'cancel') },
         { key: 'approve', label: '批准发布', hidden: !canApprove || r.reviewStatus !== 'pending', onClick: () => handleReview(r, true) },
         { key: 'reject', label: '驳回申请', danger: true, hidden: !canApprove || r.reviewStatus !== 'pending', onClick: () => handleReview(r, false) },
         { key: 'duplicate', label: '复制', hidden: !canCreate, onClick: () => duplicateTable(r) },
@@ -1031,6 +1114,62 @@ export default function RuleTablesPage() {
           </div>
         )}
       </SideSheet>
+
+      {/* 批量仿真：JSON Lines 输入，逐行以编辑态求值 */}
+      <AppModal
+        title={`批量仿真「${simulateRow?.name ?? ''}」（按编辑态求值，每行一条 JSON）`}
+        visible={!!simulateRow}
+        closeOnEsc
+        width={760}
+        onCancel={() => setSimulateRow(null)}
+        footer={(
+          <Space spacing={8}>
+            <Button onClick={() => setSimulateRow(null)}>关闭</Button>
+            <Button theme="solid" loading={simulateMutation.isPending} onClick={() => void runSimulate()}>运行仿真</Button>
+          </Space>
+        )}
+      >
+        <TextArea
+          rows={7}
+          value={simulateText}
+          onChange={setSimulateText}
+          placeholder={'{"form": {"amount": 5000}}\n{"form": {"amount": 12000}}'}
+          style={{ fontFamily: 'monospace' }}
+        />
+        {simulateResult ? (
+          <div style={{ marginTop: 12 }}>
+            <Space spacing={12} style={{ marginBottom: 8 }}>
+              <Text strong>共 {simulateResult.total} 行</Text>
+              <Text style={{ color: 'var(--semi-color-success)' }}>命中 {simulateResult.matched}</Text>
+              <Text type="tertiary">未命中 {simulateResult.unmatched}</Text>
+              {simulateResult.errors > 0 ? <Text type="danger">异常 {simulateResult.errors}</Text> : null}
+              <Text type="tertiary">命中率 {simulateResult.total ? Math.round((simulateResult.matched / simulateResult.total) * 100) : 0}%</Text>
+            </Space>
+            {simulateResult.rowHits.length > 0 ? (
+              <div style={{ marginBottom: 8 }}>
+                <Text type="tertiary" size="small">规则行命中分布：</Text>
+                <Space spacing={4} wrap>
+                  {simulateResult.rowHits.map((h) => <Tag key={h.rowId} size="small">{h.rowId} × {h.count}</Tag>)}
+                </Space>
+              </div>
+            ) : null}
+            <ConfigurableTable
+              bordered
+              size="small"
+              rowKey="index"
+              columns={[
+                { title: '#', dataIndex: 'index', width: 60, render: (v: number) => v + 1 },
+                { title: '命中', dataIndex: 'matched', width: 80, render: (v: boolean, r: RuleSimulateResult['results'][number]) => (r.error ? <Tag size="small" color="red">异常</Tag> : <Tag size="small" color={v ? 'green' : 'grey'}>{v ? '命中' : '未命中'}</Tag>) },
+                { title: '命中行', dataIndex: 'matchedRowIds', width: 110, render: (v: string[]) => renderEllipsis(v.join(', ')) },
+                { title: '输出', dataIndex: 'outputs', width: 300, render: (v: Record<string, unknown>, r: RuleSimulateResult['results'][number]) => renderEllipsis(r.error ?? JSON.stringify(v)) },
+              ] as ColumnProps<RuleSimulateResult['results'][number]>[]}
+              dataSource={simulateResult.results}
+              pagination={false}
+              style={{ maxHeight: 300, overflowY: 'auto' }}
+            />
+          </div>
+        ) : null}
+      </AppModal>
     </div>
   );
 }
