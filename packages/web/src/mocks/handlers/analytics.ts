@@ -932,12 +932,14 @@ export const analyticsHandlers = [
     return ok<AnalyticsQualityQueryResult>({ items, totals, totalCount: filtered.length });
   }),
 
-  // 事件调试流
+  // 事件调试（分页）
   http.get('/api/analytics/debug/events', ({ request }) => {
     const u = new URL(request.url);
-    const limit = Math.min(50, Math.max(1, Number(u.searchParams.get('limit')) || 50));
+    const page = Math.max(1, Number(u.searchParams.get('page')) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(u.searchParams.get('pageSize')) || 20));
     const eventName = u.searchParams.get('eventName') ?? '';
-    const source = MOCK_EVENTS.filter((e) => !eventName || (e.eventName ?? '').includes(eventName)).slice(0, limit);
+    const filtered = MOCK_EVENTS.filter((e) => !eventName || (e.eventName ?? '').includes(eventName));
+    const source = filtered.slice((page - 1) * pageSize, page * pageSize);
     const list: AnalyticsDebugEvent[] = source.map((e) => ({
       id: e.id,
       eventId: `evt-${e.id}`,
@@ -954,7 +956,7 @@ export const analyticsHandlers = [
       createdAt: e.createdAt,
       issueTypes: Array.from(new Set(mockQualityDaily.filter((q) => q.eventName === e.eventName).map((q) => q.issueType))),
     }));
-    return ok<AnalyticsDebugEvent[]>(list);
+    return ok({ list, total: filtered.length, page, pageSize });
   }),
 
   // 设置

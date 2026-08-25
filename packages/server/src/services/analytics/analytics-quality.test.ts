@@ -85,9 +85,10 @@ describe('listDebugEvents', () => {
     platformAdmin = false;
   });
 
-  it('caps the limit at 50 regardless of a larger requested value', async () => {
-    select.mockReturnValue({ from: () => ({ where: () => ({ orderBy: () => ({ limit: (n: number) => { expect(n).toBeLessThanOrEqual(50); return Promise.resolve([]); } }) }) }) });
-    await listDebugEvents({ limit: 500 });
+  it('clamps pageSize to at most 100 regardless of a larger requested value', async () => {
+    select.mockReturnValue({ from: () => ({ where: () => ({ orderBy: () => ({ limit: (n: number) => { expect(n).toBeLessThanOrEqual(100); return { offset: () => Promise.resolve([]) }; } }) }) }) });
+    count.mockResolvedValue(0);
+    await listDebugEvents({ pageSize: 500 });
   });
 
   it('attaches deduplicated same-day issueTypes for each returned event by eventName', async () => {
@@ -100,7 +101,7 @@ describe('listDebugEvents', () => {
     select.mockImplementation(() => {
       selectCall += 1;
       if (selectCall === 1) {
-        return { from: () => ({ where: () => ({ orderBy: () => ({ limit: async () => [eventRow] }) }) }) };
+        return { from: () => ({ where: () => ({ orderBy: () => ({ limit: () => ({ offset: async () => [eventRow] }) }) }) }) };
       }
       return {
         from: () => ({
@@ -112,8 +113,11 @@ describe('listDebugEvents', () => {
         }),
       };
     });
+    count.mockResolvedValue(1);
 
-    const [debugEvent] = await listDebugEvents({});
+    const result = await listDebugEvents({});
+    expect(result.total).toBe(1);
+    const [debugEvent] = result.list;
     expect(debugEvent.issueTypes.sort()).toEqual(['invalid_enum', 'missing_required']);
     expect(debugEvent.properties).toEqual({ amount: 10 });
   });

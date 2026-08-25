@@ -69,18 +69,19 @@ describe('analytics 治理闭环 handlers smoke', () => {
     expect(j.data.items.every((row: { issueType: string }) => row.issueType === 'event_disabled')).toBe(true);
   });
 
-  it('事件调试流：限制最大 50 条，附带 issueTypes', async () => {
-    const j = await call('GET', '/api/analytics/debug/events?limit=200');
+  it('事件调试：分页返回 list/total，附带 issueTypes', async () => {
+    const j = await call('GET', '/api/analytics/debug/events?page=1&pageSize=20');
     expect(j.code).toBe(0);
-    expect(j.data.length).toBeLessThanOrEqual(50);
-    expect(j.data[0]).toHaveProperty('issueTypes');
-    expect(j.data[0]).toHaveProperty('eventId');
+    expect(j.data.list.length).toBeLessThanOrEqual(20);
+    expect(typeof j.data.total).toBe('number');
+    expect(j.data.list[0]).toHaveProperty('issueTypes');
+    expect(j.data.list[0]).toHaveProperty('eventId');
   });
 
-  it('事件调试流：eventName 过滤', async () => {
-    const j = await call('GET', '/api/analytics/debug/events?limit=50&eventName=order_submit');
+  it('事件调试：eventName 过滤', async () => {
+    const j = await call('GET', '/api/analytics/debug/events?page=1&pageSize=50&eventName=order_submit');
     expect(j.code).toBe(0);
-    expect(j.data.every((e: { eventName: string | null }) => (e.eventName ?? '').includes('order_submit'))).toBe(true);
+    expect(j.data.list.every((e: { eventName: string | null }) => (e.eventName ?? '').includes('order_submit'))).toBe(true);
   });
 
   it('聚合重建：提交后返回 AsyncTask（异步任务化，非同步完成）', async () => {

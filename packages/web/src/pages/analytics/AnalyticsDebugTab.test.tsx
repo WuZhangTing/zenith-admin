@@ -2,13 +2,13 @@
  * AnalyticsDebugTab 单元测试
  *
  * 覆盖点：
- *  1. 渲染事件调试流列表（事件名/来源/质量问题标签）
- *  2. 查询/重置触发 useAnalyticsDebugEvents 使用新的 eventName 参数调用
- *  3. 点击「详情」打开 SideSheet 并展示属性 JSON
- *  4. active=false 时仍然渲染（hook 内部据此决定是否轮询，由 hook 自身测试覆盖）
+ *  1. 渲染事件调试列表（事件名/来源/质量问题标签）
+ *  2. 查询/重置触发 useAnalyticsDebugEvents 使用新的 eventName 参数调用（分页回到第 1 页）
+ *  3. 点击行展开，行内展示属性 JSON
+ *  4. active=false 时仍然渲染（hook 内部据此决定是否请求，由 hook 自身测试覆盖）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { AnalyticsDebugEvent } from '@zenith/shared/analytics';
 import { PreferencesContext, defaultPreferences } from '@/hooks/usePreferences';
@@ -61,7 +61,7 @@ function makeEvent(overrides: Partial<AnalyticsDebugEvent> = {}): AnalyticsDebug
 beforeEach(() => {
   vi.clearAllMocks();
   useAnalyticsDebugEventsMock.mockReturnValue({
-    data: [makeEvent()],
+    data: { list: [makeEvent()], total: 1, page: 1, pageSize: 20 },
     isFetching: false,
     refetch: vi.fn(),
   });
@@ -81,7 +81,7 @@ describe('AnalyticsDebugTab', () => {
     fireEvent.change(input, { target: { value: 'order_submit' } });
     fireEvent.click(screen.getByText('查询'));
     const lastCallParams = useAnalyticsDebugEventsMock.mock.calls.at(-1)?.[0];
-    expect(lastCallParams).toEqual({ limit: 50, eventName: 'order_submit' });
+    expect(lastCallParams).toEqual({ page: 1, pageSize: 10, eventName: 'order_submit' });
   });
 
   it('重置按钮清空事件名过滤', () => {
@@ -91,14 +91,13 @@ describe('AnalyticsDebugTab', () => {
     fireEvent.click(screen.getByText('查询'));
     fireEvent.click(screen.getByText('重置'));
     const lastCallParams = useAnalyticsDebugEventsMock.mock.calls.at(-1)?.[0];
-    expect(lastCallParams).toEqual({ limit: 50, eventName: undefined });
+    expect(lastCallParams).toEqual({ page: 1, pageSize: 10, eventName: undefined });
   });
 
-  it('点击详情打开 SideSheet 展示事件属性 JSON', () => {
+  it('点击行展开行内展示事件属性 JSON', () => {
     renderWithPreferences(<AnalyticsDebugTab active />);
-    fireEvent.click(screen.getByText('详情'));
-    expect(screen.getByText('事件详情')).toBeInTheDocument();
-    const sheet = screen.getByText('事件详情').closest('.semi-sidesheet-inner') ?? document.body;
-    expect(within(sheet as HTMLElement).getByText(/"amount": 100/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('order_submit'));
+    expect(screen.getByText(/"amount": 100/)).toBeInTheDocument();
+    expect(screen.getByText('evt-1')).toBeInTheDocument();
   });
 });

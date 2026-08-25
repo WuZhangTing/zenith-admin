@@ -73,38 +73,41 @@ export async function queryQuality(q: QualityQuery) {
   };
 }
 
-export interface DebugEventsQuery { limit?: number; eventName?: string }
-
-const DEBUG_EVENTS_MAX = 50;
+export interface DebugEventsQuery { page?: number; pageSize?: number; eventName?: string }
 
 export async function listDebugEvents(q: DebugEventsQuery) {
-  const limit = Math.min(Math.max(Number(q.limit) || 20, 1), DEBUG_EVENTS_MAX);
+  const page = Math.max(Number(q.page) || 1, 1);
+  const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
   const conditions: SQL[] = [];
   if (q.eventName) conditions.push(eq(userEvents.eventName, q.eventName));
   const scope = tenantScope(userEvents);
   if (scope) conditions.push(scope);
   const where = conditions.length ? and(...conditions) : undefined;
 
-  const rows = await db
-    .select({
-      id: userEvents.id,
-      eventId: userEvents.eventId,
-      eventType: userEvents.eventType,
-      eventName: userEvents.eventName,
-      source: userEvents.source,
-      appId: userEvents.appId,
-      environment: userEvents.environment,
-      distinctId: userEvents.distinctId,
-      memberId: userEvents.memberId,
-      userId: userEvents.userId,
-      pagePath: userEvents.pagePath,
-      properties: userEvents.properties,
-      createdAt: userEvents.createdAt,
-    })
-    .from(userEvents)
-    .where(where)
-    .orderBy(desc(userEvents.createdAt))
-    .limit(limit);
+  const [rows, total] = await Promise.all([
+    db
+      .select({
+        id: userEvents.id,
+        eventId: userEvents.eventId,
+        eventType: userEvents.eventType,
+        eventName: userEvents.eventName,
+        source: userEvents.source,
+        appId: userEvents.appId,
+        environment: userEvents.environment,
+        distinctId: userEvents.distinctId,
+        memberId: userEvents.memberId,
+        userId: userEvents.userId,
+        pagePath: userEvents.pagePath,
+        properties: userEvents.properties,
+        createdAt: userEvents.createdAt,
+      })
+      .from(userEvents)
+      .where(where)
+      .orderBy(desc(userEvents.createdAt))
+      .limit(pageSize)
+      .offset(pageOffset(page, pageSize)),
+    db.$count(userEvents, where),
+  ]);
 
   const eventNames = [...new Set(rows.map((r) => r.eventName).filter((n): n is string => !!n))];
   const issueTypesByEventName = new Map<string, AnalyticsQualityIssueType[]>();
@@ -124,20 +127,25 @@ export async function listDebugEvents(q: DebugEventsQuery) {
     }
   }
 
-  return rows.map((r) => ({
-    id: r.id,
-    eventId: r.eventId,
-    eventType: r.eventType,
-    eventName: r.eventName,
-    source: r.source,
-    appId: r.appId,
-    environment: r.environment,
-    distinctId: r.distinctId,
-    memberId: r.memberId,
-    userId: r.userId,
-    pagePath: r.pagePath,
-    properties: r.properties ?? null,
-    createdAt: formatDateTime(r.createdAt),
-    issueTypes: r.eventName ? (issueTypesByEventName.get(r.eventName) ?? []) : [],
-  }));
+  return {
+    list: rows.map((r) => ({
+      id: r.id,
+      eventId: r.eventId,
+      eventType: r.eventType,
+      eventName: r.eventName,
+      source: r.source,
+      appId: r.appId,
+      environment: r.environment,
+      distinctId: r.distinctId,
+      memberId: r.memberId,
+      userId: r.userId,
+      pagePath: r.pagePath,
+      properties: r.properties ?? null,
+      createdAt: formatDateTime(r.createdAt),
+      issueTypes: r.eventName ? (issueTypesByEventName.get(r.eventName) ?? []) : [],
+    })),
+    total,
+    page,
+    pageSize,
+  };
 }

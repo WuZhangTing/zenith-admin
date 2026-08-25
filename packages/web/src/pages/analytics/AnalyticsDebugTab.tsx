@@ -1,14 +1,13 @@
 /**
- * 行为中心阶段 1：事件调试流 —— 当前租户最近事件摘要，3s 轮询近实时刷新。
+ * 行为中心：事件调试 —— 事件明细分页查询，行内展开查看属性 payload。
  */
 import { useState } from 'react';
-import { SideSheet, Tag, Typography } from '@douyinfe/semi-ui';
+import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { formatDateTime } from '@/utils/date';
+import { usePagination } from '@/hooks/usePagination';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAnalyticsDebugEvents } from '@/hooks/queries/analytics';
 import type { AnalyticsDebugEvent, AnalyticsQualityIssueType } from '@zenith/shared/analytics';
@@ -17,8 +16,6 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
-
-const DEBUG_LIMIT = 50;
 
 const ISSUE_COLOR: Record<AnalyticsQualityIssueType, TagColor> = {
   missing_required: 'orange',
@@ -41,15 +38,16 @@ function labelOf(labels: Record<string, string>, value: string | null | undefine
 
 export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean }>) {
   const queryClient = useQueryClient();
+  const { page, pageSize, setPage, buildPagination } = usePagination();
   const [eventNameDraft, setEventNameDraft] = useState('');
   const [eventName, setEventName] = useState('');
-  const [detailVisible, setDetailVisible] = useState(false);
-  const [detailRecord, setDetailRecord] = useState<AnalyticsDebugEvent | null>(null);
 
-  const debugQuery = useAnalyticsDebugEvents({ limit: DEBUG_LIMIT, eventName: eventName || undefined }, active);
-  const events = debugQuery.data ?? [];
+  const debugQuery = useAnalyticsDebugEvents({ page, pageSize, eventName: eventName || undefined }, active);
+  const events = debugQuery.data?.list ?? [];
+  const total = debugQuery.data?.total ?? 0;
 
   const handleSearch = () => {
+    setPage(1);
     setEventName(eventNameDraft);
     // 事件名未变时 query key 不变，不显式失效就看不到新上报的事件
     void queryClient.invalidateQueries({ queryKey: ['analytics', 'data', 'debug-events'] });
@@ -57,10 +55,9 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
   const handleReset = () => {
     setEventNameDraft('');
     setEventName('');
+    setPage(1);
     void queryClient.invalidateQueries({ queryKey: ['analytics', 'data', 'debug-events'] });
   };
-
-  const openDetail = (record: AnalyticsDebugEvent) => { setDetailRecord(record); setDetailVisible(true); };
 
   const columns: ColumnProps<AnalyticsDebugEvent>[] = [
     dateTimeColumn('时间', 'createdAt'),
@@ -87,12 +84,22 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
           : <Typography.Text type="tertiary" size="small">–</Typography.Text>
       ),
     },
-    createOperationColumn<AnalyticsDebugEvent>({
-      width: 90,
-      desktopInlineKeys: ['detail'],
-      actions: (record) => [{ key: 'detail', label: '详情', onClick: () => openDetail(record) }],
-    }),
   ];
+
+  /** 行内展开：只补充行上没有的信息（事件 ID / 用户 / 属性 payload） */
+  const renderExpanded = (record?: AnalyticsDebugEvent) => (record ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0' }}>
+      <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+        <span><Typography.Text strong>事件 ID：</Typography.Text>{nullableText(record.eventId)}</span>
+        <span><Typography.Text strong>用户 / 会员：</Typography.Text>{nullableText(record.userId)} / {nullableText(record.memberId)}</span>
+        <span><Typography.Text strong>页面：</Typography.Text>{record.pagePath}</span>
+      </div>
+      <div>
+        <Typography.Text strong>属性：</Typography.Text>
+        <JsonBlock value={record.properties ?? {}} style={{ marginTop: 8 }} />
+      </div>
+    </div>
+  ) : null);
 
   return (
     <div>
@@ -100,7 +107,6 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
         <KeywordInput placeholder="事件名" value={eventNameDraft} onChange={setEventNameDraft} onSearch={handleSearch} width={180} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
-        <Typography.Text type="tertiary" size="small">每 3 秒自动刷新，最多展示 {DEBUG_LIMIT} 条</Typography.Text>
       </SearchToolbar>
       <ConfigurableTable
         bordered
@@ -110,40 +116,13 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
         dataSource={events}
         onRefresh={() => void debugQuery.refetch()}
         refreshLoading={debugQuery.isFetching}
-        scroll={{ x: 1520 }}
-        pagination={false}
+        scroll={{ x: 1480 }}
+        pagination={buildPagination(total)}
         empty="暂无最近事件"
+        expandedRowRender={renderExpanded}
+        hideExpandedColumn={false}
+        expandRowByClick
       />
-
-      <SideSheet
-        title="事件详情"
-        visible={detailVisible}
-        onCancel={() => setDetailVisible(false)}
-        width={480}
-      >
-        {detailRecord && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div><Typography.Text strong>事件 ID：</Typography.Text>{nullableText(detailRecord.eventId)}</div>
-            <div><Typography.Text strong>事件名：</Typography.Text>{nullableText(detailRecord.eventName)}</div>
-            <div><Typography.Text strong>类型：</Typography.Text>{labelOf(USER_BEHAVIOR_EVENT_TYPE_LABELS, detailRecord.eventType)}</div>
-            <div><Typography.Text strong>来源：</Typography.Text>{labelOf(ANALYTICS_EVENT_SOURCE_LABELS, detailRecord.source)} / {detailRecord.appId} / {labelOf(ANALYTICS_ENVIRONMENT_LABELS, detailRecord.environment)}</div>
-            <div><Typography.Text strong>Distinct ID：</Typography.Text>{nullableText(detailRecord.distinctId)}</div>
-            <div><Typography.Text strong>用户 / 会员：</Typography.Text>{nullableText(detailRecord.userId)} / {nullableText(detailRecord.memberId)}</div>
-            <div><Typography.Text strong>页面：</Typography.Text>{detailRecord.pagePath}</div>
-            <div><Typography.Text strong>时间：</Typography.Text>{formatDateTime(detailRecord.createdAt)}</div>
-            <div>
-              <Typography.Text strong>质量问题：</Typography.Text>
-              {detailRecord.issueTypes.length
-                ? detailRecord.issueTypes.map((t) => <Tag key={t} color={ISSUE_COLOR[t]} size="small" style={{ marginRight: 4 }}>{ANALYTICS_QUALITY_ISSUE_TYPE_LABELS[t]}</Tag>)
-                : '–'}
-            </div>
-            <div>
-              <Typography.Text strong>属性：</Typography.Text>
-              <JsonBlock value={detailRecord.properties ?? {}} style={{ marginTop: 8 }} />
-            </div>
-          </div>
-        )}
-      </SideSheet>
     </div>
   );
 }

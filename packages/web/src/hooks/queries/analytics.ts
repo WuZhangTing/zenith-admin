@@ -95,7 +95,8 @@ export interface AnalyticsQualityParams {
 }
 
 export interface AnalyticsDebugEventsParams {
-  limit?: number;
+  page: number;
+  pageSize: number;
   eventName?: string;
 }
 
@@ -522,9 +523,9 @@ export function useAnalyticsQuality(params: AnalyticsQualityParams, enabled = tr
 export function useAnalyticsDebugEvents(params: AnalyticsDebugEventsParams, enabled = true) {
   return useQuery({
     queryKey: analyticsKeys.data.debugEvents(params),
-    queryFn: () => request.get<AnalyticsDebugEvent[]>(`/api/analytics/debug/events${toQueryString(params)}`, { silent: true }).then(unwrap),
+    queryFn: () => request.get<PaginatedResponse<AnalyticsDebugEvent>>(`/api/analytics/debug/events${toQueryString(params)}`, { silent: true }).then(unwrap),
     enabled,
-    refetchInterval: enabled ? 3000 : false,
+    placeholderData: keepPreviousData,
   });
 }
 

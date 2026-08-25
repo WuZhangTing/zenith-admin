@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { DatePicker, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { DatePicker, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { RuleDecisionExecution } from '@zenith/shared/rules';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { ruleKeys, useRuleExecutions } from '@/hooks/queries/rules';
 import { formatDateTimeRangeValuesForApi } from '@/utils/date';
@@ -36,7 +35,6 @@ export default function RuleExecutionsPage() {
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [draft, setDraft] = useState<Filters>({});
   const [submitted, setSubmitted] = useState<Filters>({});
-  const [detail, setDetail] = useState<RuleDecisionExecution | null>(null);
 
   const listQuery = useRuleExecutions({ page, pageSize, ...submitted });
   const data = listQuery.data ?? null;
@@ -61,12 +59,28 @@ export default function RuleExecutionsPage() {
     { title: '命中行', width: 130, render: (_: unknown, r: RuleDecisionExecution) => <Text type="tertiary" size="small">{r.matchedRowIds.join(', ') || '-'}</Text> },
     { title: '流程实例', width: 130, render: (_: unknown, r: RuleDecisionExecution) => (r.instanceId ? <Text type="tertiary" size="small">#{r.instanceId}{r.nodeKey ? ` · ${r.nodeKey}` : ''}</Text> : '-') },
     { title: '输出', render: (_: unknown, r: RuleDecisionExecution) => <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>{JSON.stringify(r.outputs)}</Text> },
-    createOperationColumn<RuleDecisionExecution>({
-      width: 90,
-      desktopInlineKeys: ['detail'],
-      actions: (r) => [{ key: 'detail', label: '详情', onClick: () => setDetail(r) }],
-    }),
   ];
+
+  /** 行内展开：命中策略上下文 + 输入 / 输出双栏对比 */
+  const renderExpanded = (r?: RuleDecisionExecution) => (r ? (
+    <div style={{ display: 'grid', gap: 12, padding: '4px 0' }}>
+      <Space spacing={8} wrap>
+        <Tag size="small">{r.hitPolicy}</Tag>
+        <Text type="tertiary" size="small" code>{r.ruleKey}{r.tableId ? ` (#${r.tableId})` : ''}</Text>
+        {r.instanceId && <Text type="tertiary" size="small">实例 #{r.instanceId}{r.nodeKey ? ` · 节点 ${r.nodeKey}` : ''}</Text>}
+      </Space>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div>
+          <Text strong size="small">输入</Text>
+          <JsonBlock value={r.input} style={{ marginTop: 4 }} />
+        </div>
+        <div>
+          <Text strong size="small">输出</Text>
+          <JsonBlock value={r.outputs} style={{ marginTop: 4 }} />
+        </div>
+      </div>
+    </div>
+  ) : null);
 
   return (
     <div className="page-container">
@@ -95,42 +109,21 @@ export default function RuleExecutionsPage() {
           </>
         )}
       />
-      <ConfigurableTable bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small" empty="暂无执行记录" pagination={buildPagination(data?.total ?? 0)} />
-
-      <SideSheet title={`执行详情 #${detail?.id ?? ''}`} visible={!!detail} onCancel={() => setDetail(null)} width={560}>
-        {detail && (
-          <div style={{ display: 'grid', gap: 12 }}>
-            <Space spacing={8} wrap>
-              <Tag color={detail.matched ? 'green' : 'red'}>{detail.matched ? '命中' : '未命中'}</Tag>
-              <Tag size="small" color={SOURCE_META[detail.source]?.color}>{SOURCE_META[detail.source]?.text ?? detail.source}</Tag>
-              <Tag size="small">{detail.hitPolicy}</Tag>
-              <Text type="tertiary" size="small">{detail.createdAt}</Text>
-            </Space>
-            <div>
-              <Text strong size="small">决策表</Text>
-              <Text style={{ display: 'block', marginTop: 4 }} code>{detail.ruleKey}{detail.tableId ? ` (#${detail.tableId})` : ''}</Text>
-            </div>
-            {detail.instanceId && (
-              <div>
-                <Text strong size="small">流程上下文</Text>
-                <Text style={{ display: 'block', marginTop: 4 }} type="tertiary" size="small">实例 #{detail.instanceId}{detail.nodeKey ? ` · 节点 ${detail.nodeKey}` : ''}</Text>
-              </div>
-            )}
-            <div>
-              <Text strong size="small">命中行</Text>
-              <Text style={{ display: 'block', marginTop: 4 }} type="tertiary" size="small">{detail.matchedRowIds.join(', ') || '-'}</Text>
-            </div>
-            <div>
-              <Text strong size="small">输入</Text>
-              <JsonBlock value={detail.input} style={{ marginTop: 4 }} />
-            </div>
-            <div>
-              <Text strong size="small">输出</Text>
-              <JsonBlock value={detail.outputs} style={{ marginTop: 4 }} />
-            </div>
-          </div>
-        )}
-      </SideSheet>
+      <ConfigurableTable
+        bordered
+        columns={columns}
+        dataSource={data?.list ?? []}
+        loading={listQuery.isFetching}
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        rowKey="id"
+        size="small"
+        empty="暂无执行记录"
+        pagination={buildPagination(data?.total ?? 0)}
+        expandedRowRender={renderExpanded}
+        hideExpandedColumn={false}
+        expandRowByClick
+      />
     </div>
   );
 }

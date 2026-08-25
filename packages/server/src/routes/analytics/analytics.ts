@@ -493,10 +493,10 @@ const qualityRoute = defineOpenAPIRoute({
 // ─── 事件调试流 ───────────────────────────────────────────────────────────────
 const debugEventsRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'get', path: '/debug/events', tags: ['Analytics'], summary: '实时事件调试流', security: [{ BearerAuth: [] }],
+    method: 'get', path: '/debug/events', tags: ['Analytics'], summary: '事件调试查询', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
-    request: { query: z.object({ limit: z.coerce.number().int().min(1).max(50).optional().default(50), eventName: z.string().optional() }) },
-    responses: { ...ok(z.array(AnalyticsDebugEventDTO), '最近事件摘要'), ...commonErrorResponses },
+    request: { query: PaginationQuery.extend({ eventName: z.string().optional() }) },
+    responses: { ...okPaginated(AnalyticsDebugEventDTO, '事件分页数据'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listDebugEvents(c.req.valid('query'))), 200),
 });
