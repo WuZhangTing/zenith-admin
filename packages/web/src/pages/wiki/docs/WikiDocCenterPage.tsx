@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
-  Bell, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, Send, Star, Trash2, Undo2,
+  Bell, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, Trash2, Undo2,
 } from 'lucide-react';
 import type { WikiComment, WikiDocTreeNode } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS } from '@zenith/shared/wiki';
@@ -20,7 +20,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { useMyWikiSpaces } from '@/hooks/queries/wiki-spaces';
 import {
   useConfirmWikiDocRead, useDeleteWikiDocs, useFavoriteWikiDoc, useMoveWikiDoc, useMyFavoriteWikiDocs,
-  useRecentWikiDocs, useRecordWikiDocView, useReportWikiSearchClick, useSubmitWikiDoc, useSubscribeWikiDoc,
+  useRecentWikiDocs, useRecordWikiDocView, useReportWikiSearchClick, useSaveWikiDoc, useSubmitWikiDoc, useSubscribeWikiDoc,
   useWikiDocDetail, useWikiDocList, useWikiDocReadReceipts, useWikiDocSearch, useWikiDocTree, useWithdrawWikiDoc,
 } from '@/hooks/queries/wiki-docs';
 import { useCreateWikiComment, useDeleteMyWikiComment, useResolveWikiComment, useWikiDocComments } from '@/hooks/queries/wiki-comments';
@@ -42,6 +42,8 @@ function toTreeData(nodes: WikiDocTreeNode[]): TreeNodeData[] {
   return nodes.map((n) => ({
     key: String(n.id),
     value: n.id,
+    // label 是 JSX，Semi 默认按 label 过滤永远匹配不到；搜索经 treeNodeFilterProp 走这里的纯文本
+    titleText: n.title,
     label: (
       <Space spacing={4}>
         {n.isPinned ? <Pin size={12} style={{ color: 'var(--semi-color-warning)' }} /> : null}
@@ -166,6 +168,7 @@ export default function WikiDocCenterPage() {
   const withdrawMutation = useWithdrawWikiDoc();
   const deleteMutation = useDeleteWikiDocs();
   const moveMutation = useMoveWikiDoc();
+  const pinMutation = useSaveWikiDoc();
   const viewMutation = useRecordWikiDocView();
   const createCommentMutation = useCreateWikiComment();
   const deleteCommentMutation = useDeleteMyWikiComment();
@@ -398,6 +401,17 @@ export default function WikiDocCenterPage() {
                 <Dropdown.Item icon={<History size={14} />} onClick={() => navigate(`/wiki/docs/history?id=${doc.id}`)}>
                   版本历史
                 </Dropdown.Item>
+                {canManageDoc && hasPermission('wiki:doc:edit') && doc.status !== 'pending' ? (
+                  <Dropdown.Item
+                    icon={doc.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                    onClick={() => pinMutation.mutate(
+                      { id: doc.id, values: { isPinned: !doc.isPinned } },
+                      { onSuccess: () => Toast.success(doc.isPinned ? '已取消置顶' : '已置顶，目录树中将优先展示') },
+                    )}
+                  >
+                    {doc.isPinned ? '取消置顶' : '置顶'}
+                  </Dropdown.Item>
+                ) : null}
                 {canMoveDoc ? (
                   <Dropdown.Item icon={<FolderInput size={14} />} onClick={() => { setMoveTarget({ id: doc.id, title: doc.title }); setMoveParentId(doc.parentId ?? null); }}>
                     移动
@@ -625,6 +639,7 @@ export default function WikiDocCenterPage() {
                       value={selectedDocId !== undefined ? String(selectedDocId) : undefined}
                       onChange={(v) => selectDoc(Number(v))}
                       filterTreeNode
+                      treeNodeFilterProp="titleText"
                       showFilteredOnly
                       searchPlaceholder="搜索文档标题..."
                       defaultExpandAll
