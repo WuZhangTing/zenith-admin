@@ -58,6 +58,19 @@ export interface MemberStatsCharts {
   activitySegments: { name: string; value: number }[];
   /** 充值能力分层（按累计充值金额分档）*/
   rechargeSegments: { name: string; value: number }[];
+  /** 近30天钱包收支（单位分：income 入账，expense 支出）*/
+  walletTrend: { date: string; income: number; expense: number }[];
+  /** 注册来源分布 */
+  sourceDistribution: { name: string; value: number }[];
+  /** 卡券状态分布（未使用/已使用/已过期）*/
+  couponStatusDistribution: { name: string; value: number }[];
+}
+
+/** 签到日历单日聚合（管理端日历视图） */
+export interface MemberCheckinCalendarDay {
+  date: string;
+  count: number;
+  makeupCount: number;
 }
 
 export interface HeatmapPoint {

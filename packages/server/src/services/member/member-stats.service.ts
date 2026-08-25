@@ -6,7 +6,7 @@ import { count, sql, and, gte, lt, eq, isNull } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   members, memberLevels, memberPointAccounts, memberWallets,
-  memberPointTransactions, memberCheckins, memberCoupons,
+  memberPointTransactions, memberCheckins, memberCoupons, memberWalletTransactions,
 } from '../../db/schema';
 import { formatDate } from '../../lib/datetime';
 
@@ -91,7 +91,7 @@ export async function getMemberCharts() {
   const active30 = shiftDays(todayStart, -29);
   const active90 = shiftDays(todayStart, -89);
 
-  const [registerRows, levelRows, pointRows, checkinRows, activityRows, rechargeRows] = await Promise.all([
+  const [registerRows, levelRows, pointRows, checkinRows, activityRows, rechargeRows, walletRows, sourceRows, couponRows] = await Promise.all([
     db.select({
       date: sql<string>`to_char(date(${members.createdAt}), 'YYYY-MM-DD')`,
       count: count(),
@@ -153,6 +153,25 @@ export async function getMemberCharts() {
       .innerJoin(members, eq(members.id, memberWallets.memberId))
       .where(isNull(members.deletedAt))
       .groupBy(sql`1`),
+    // 近30天钱包收支（单位分）
+    db.select({
+      date: sql<string>`to_char(date(${memberWalletTransactions.createdAt}), 'YYYY-MM-DD')`,
+      income: sql<number>`coalesce(sum(case when ${memberWalletTransactions.amount} > 0 then ${memberWalletTransactions.amount} else 0 end), 0)::int`,
+      expense: sql<number>`coalesce(sum(case when ${memberWalletTransactions.amount} < 0 then -${memberWalletTransactions.amount} else 0 end), 0)::int`,
+    })
+      .from(memberWalletTransactions)
+      .where(gte(memberWalletTransactions.createdAt, days30Ago))
+      .groupBy(sql`date(${memberWalletTransactions.createdAt})`)
+      .orderBy(sql`date(${memberWalletTransactions.createdAt})`),
+    // 注册来源分布
+    db.select({ source: members.registerSource, count: count() })
+      .from(members)
+      .where(isNull(members.deletedAt))
+      .groupBy(members.registerSource),
+    // 卡券状态分布
+    db.select({ status: memberCoupons.status, count: count() })
+      .from(memberCoupons)
+      .groupBy(memberCoupons.status),
   ]);
 
   const axis30 = buildDateAxis(days30Ago, 30);
@@ -180,5 +199,22 @@ export async function getMemberCharts() {
   const rechargeMap = new Map(rechargeRows.map((r) => [r.segment, r.count]));
   const rechargeSegments = RECHARGE_ORDER.map((name) => ({ name, value: rechargeMap.get(name) ?? 0 }));
 
-  return { registerTrend, levelDistribution, pointTrend, checkinTrend, activitySegments, rechargeSegments };
+  const walletMap = new Map(walletRows.map((r) => [r.date, { income: r.income, expense: r.expense }]));
+  const walletTrend = axis30.map((date) => ({ date, income: walletMap.get(date)?.income ?? 0, expense: walletMap.get(date)?.expense ?? 0 }));
+
+  const SOURCE_LABELS: Record<string, string> = {
+    web: '网页注册', admin: '后台创建', invite: '邀请注册', mp: '公众号', app: 'App', import: '批量导入',
+  };
+  const sourceDistribution = sourceRows
+    .map((r) => ({ name: SOURCE_LABELS[r.source] ?? r.source, value: r.count }))
+    .sort((a, b) => b.value - a.value);
+
+  const COUPON_STATUS_LABELS: Record<string, string> = { unused: '未使用', used: '已使用', expired: '已过期', frozen: '已冻结' };
+  const COUPON_ORDER = ['unused', 'used', 'expired', 'frozen'] as const;
+  const couponMap = new Map<string, number>(couponRows.map((r) => [r.status, r.count]));
+  const couponStatusDistribution = COUPON_ORDER
+    .map((s) => ({ name: COUPON_STATUS_LABELS[s] ?? s, value: couponMap.get(s) ?? 0 }))
+    .filter((d) => d.name !== '已冻结' || d.value > 0);
+
+  return { registerTrend, levelDistribution, pointTrend, checkinTrend, activitySegments, rechargeSegments, walletTrend, sourceDistribution, couponStatusDistribution };
 }

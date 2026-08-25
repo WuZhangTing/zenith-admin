@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { and, asc, desc, eq, gte, isNull, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
@@ -99,6 +99,25 @@ export async function listMemberCheckins(params: {
     page: params.page,
     pageSize: params.pageSize,
   };
+}
+
+/** 签到日历：按月聚合每日签到人数与补签数（管理端日历视图） */
+export async function getCheckinCalendar(month: string) {
+  const [y, m] = month.split('-').map(Number);
+  const start = `${month}-01`;
+  const endDate = new Date(y, m, 1); // 下月 1 日
+  const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-01`;
+  const rows = await db
+    .select({
+      date: memberCheckins.checkinDate,
+      count: count(),
+      makeupCount: sql<number>`coalesce(sum(case when ${memberCheckins.isMakeup} then 1 else 0 end), 0)::int`,
+    })
+    .from(memberCheckins)
+    .where(and(gte(memberCheckins.checkinDate, start), lt(memberCheckins.checkinDate, end)))
+    .groupBy(memberCheckins.checkinDate)
+    .orderBy(memberCheckins.checkinDate);
+  return rows.map((r) => ({ date: r.date, count: r.count, makeupCount: r.makeupCount }));
 }
 
 export async function getMakeupCheckinBeforeAudit(memberId: number, date: string) {

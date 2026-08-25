@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { CheckinMilestone, CheckinRule, CheckinSettings, Coupon, Member, MemberCheckin, MemberCoupon, MemberLevel, MemberLoginLog, MemberPointAccount, MemberPointTransaction, MemberRecharge, MemberStatsCharts, MemberStatsOverview, MemberTag, MemberWallet, MemberWalletTransaction } from '@zenith/shared/member';
+import type { CheckinMilestone, CheckinRule, CheckinSettings, Coupon, Member, MemberCheckin, MemberCheckinCalendarDay, MemberCoupon, MemberLevel, MemberLoginLog, MemberPointAccount, MemberPointTransaction, MemberRecharge, MemberStatsCharts, MemberStatsOverview, MemberTag, MemberWallet, MemberWalletTransaction } from '@zenith/shared/member';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -113,6 +113,7 @@ export const memberAdminKeys = {
   checkinSettings: ['member-admin', 'checkins', 'settings'] as const,
   checkinLogLists: ['member-admin', 'checkins', 'logs', 'list'] as const,
   checkinLogList: (params: CheckinLogListParams) => ['member-admin', 'checkins', 'logs', 'list', params] as const,
+  checkinCalendar: (month: string) => ['member-admin', 'checkins', 'calendar', month] as const,
   checkinMilestones: ['member-admin', 'checkins', 'milestones'] as const,
 };
 
@@ -454,6 +455,15 @@ export function useCheckinLogList(params: CheckinLogListParams) {
     queryKey: memberAdminKeys.checkinLogList(params),
     queryFn: () => request.get<PaginatedResponse<MemberCheckin>>(`/api/member-checkins${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useCheckinCalendar(month: string, enabled = true) {
+  return useQuery({
+    queryKey: memberAdminKeys.checkinCalendar(month),
+    queryFn: () => request.get<MemberCheckinCalendarDay[]>(`/api/member-checkins/calendar?month=${month}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

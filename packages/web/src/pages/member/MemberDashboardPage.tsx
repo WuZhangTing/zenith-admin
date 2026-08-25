@@ -119,6 +119,54 @@ export default function MemberDashboardPage() {
     palette,
   }), [charts?.rechargeSegments, palette]);
 
+  // 累计会员增长：现存总量减去区间尾部逐日新增，反推每日累计值
+  const cumulativeTrend = useMemo(() => {
+    const trend = charts?.registerTrend ?? [];
+    const total = overview?.totalMembers ?? 0;
+    let acc = total;
+    const result: { date: string; total: number }[] = [];
+    for (let i = trend.length - 1; i >= 0; i--) {
+      result.unshift({ date: trend[i].date, total: acc });
+      acc -= trend[i].count;
+    }
+    return result;
+  }, [charts?.registerTrend, overview?.totalMembers]);
+
+  const cumulativeSpec = useMemo(() => makeAreaSpec({
+    data: cumulativeTrend,
+    xField: 'date',
+    series: [{ field: 'total', name: '累计会员', color: '#722ED1' }],
+    palette,
+    axis: { xLabel: shortDate },
+  }), [cumulativeTrend, palette]);
+
+  const walletSpec = useMemo(() => makeLineSpec({
+    data: (charts?.walletTrend ?? []).map((d) => ({ date: d.date, income: d.income / 100, expense: d.expense / 100 })),
+    xField: 'date',
+    series: [
+      { field: 'income', name: '入账(元)', color: '#07c160' },
+      { field: 'expense', name: '支出(元)', color: '#FA8C16' },
+    ],
+    palette,
+    axis: { xLabel: shortDate },
+  }), [charts?.walletTrend, palette]);
+
+  const sourceSpec = useMemo(() => makePieSpec({
+    data: charts?.sourceDistribution ?? [],
+    categoryField: 'name',
+    valueField: 'value',
+    donut: true,
+    colors: (charts?.sourceDistribution ?? []).map((_, i) => PIE_COLORS[i % PIE_COLORS.length]),
+    palette,
+  }), [charts?.sourceDistribution, palette]);
+
+  const couponSpec = useMemo(() => makeBarSpec({
+    data: charts?.couponStatusDistribution ?? [],
+    xField: 'name',
+    series: [{ field: 'value', name: '券数', color: '#EB2F96' }],
+    palette,
+  }), [charts?.couponStatusDistribution, palette]);
+
   if (loading) {
     const skeletonPlaceholder = (
       <div className="page-container zx-flat-panels">
@@ -186,6 +234,24 @@ export default function MemberDashboardPage() {
 
         <ChartCard title="充值能力分层（累计充值）">
           <BarChart {...rechargeSpec} options={chartOptions} height={260} />
+        </ChartCard>
+
+        <ChartCard title="累计会员增长（近30天）">
+          <AreaChart {...cumulativeSpec} options={chartOptions} height={260} />
+        </ChartCard>
+
+        <ChartCard title="近30天钱包收支（元）">
+          <LineChart {...walletSpec} options={chartOptions} height={260} />
+        </ChartCard>
+
+        <ChartCard title="注册来源分布">
+          {(charts?.sourceDistribution?.length ?? 0) > 0 ? (
+            <PieChart {...sourceSpec} options={chartOptions} height={260} />
+          ) : <Empty description="暂无数据" style={{ padding: '60px 0' }} />}
+        </ChartCard>
+
+        <ChartCard title="卡券状态分布">
+          <BarChart {...couponSpec} options={chartOptions} height={260} />
         </ChartCard>
       </div>
 

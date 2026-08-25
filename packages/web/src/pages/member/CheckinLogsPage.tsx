@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Button, Form, Tag, Toast } from '@douyinfe/semi-ui';
+import { useMemo, useRef, useState } from 'react';
+import { Button, Calendar, DatePicker, Form, RadioGroup, Radio, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CalendarPlus } from 'lucide-react';
@@ -11,7 +11,7 @@ import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { MemberSelect } from '@/components/MemberSelect';
 import { formatDateForApi } from '@/utils/date';
-import { memberAdminKeys, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
+import { memberAdminKeys, useCheckinCalendar, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -29,6 +29,10 @@ const defaultSearch: SearchParams = {
   dateRange: null,
 };
 
+function formatMonth(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function CheckinLogsPage() {
   const { hasPermission } = usePermission();
   const {
@@ -40,6 +44,14 @@ export default function CheckinLogsPage() {
   useListDeepLink(['memberKeyword'], (p) => applySearch({ memberKeyword: p.memberKeyword, dateRange: null }));
   const [makeupVisible, setMakeupVisible] = useState(false);
   const makeupFormApi = useRef<FormApi | null>(null);
+  // 视图切换：列表 / 日历（日历按月聚合展示每日签到量，点击某天回列表查明细）
+  const [view, setView] = useState<'list' | 'calendar'>('list');
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
+  const calendarQuery = useCheckinCalendar(formatMonth(calendarMonth), view === 'calendar');
+  const calendarMap = useMemo(
+    () => new Map((calendarQuery.data ?? []).map((d) => [d.date, d])),
+    [calendarQuery.data],
+  );
   const [dateStart, dateEnd] = submittedParams.dateRange ?? [];
   const listQuery = useCheckinLogList({
     page,
@@ -111,45 +123,102 @@ export default function CheckinLogsPage() {
     </Button>
   ) : null;
 
+  const renderViewSwitch = () => (
+    <RadioGroup type="button" value={view} onChange={(e) => setView(e.target.value as 'list' | 'calendar')}>
+      <Radio value="list">列表</Radio>
+      <Radio value="calendar">日历</Radio>
+    </RadioGroup>
+  );
+
+  /** 点击日历某天：切回列表并按该日过滤 */
+  const drillDownDate = (date: Date) => {
+    setView('list');
+    applySearch({ memberKeyword: undefined, dateRange: [date, date] });
+  };
+
+  const renderCalendarCell = (dateString?: string) => {
+    if (!dateString) return null;
+    const key = formatDateForApi(new Date(dateString));
+    const day = calendarMap.get(key);
+    if (!day) return null;
+    return (
+      <div style={{ position: 'absolute', right: 6, bottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, pointerEvents: 'none' }}>
+        <Tag color="green" size="small">{day.count} 人签到</Tag>
+        {day.makeupCount > 0 && <Tag color="orange" size="small">补签 {day.makeupCount}</Tag>}
+      </div>
+    );
+  };
+
   return (
     <div className="page-container">
       <SearchToolbar
         primary={(
           <>
-            {renderKeywordSearch()}
-            {renderDateRangeFilter()}
-            {renderSearchButton()}
-            {renderResetButton()}
-            {renderExportButton()}
+            {renderViewSwitch()}
+            {view === 'list' && (
+              <>
+                {renderKeywordSearch()}
+                {renderDateRangeFilter()}
+                {renderSearchButton()}
+                {renderResetButton()}
+                {renderExportButton()}
+              </>
+            )}
             {renderMakeupButton()}
           </>
         )}
         mobilePrimary={(
           <>
-            {renderKeywordSearch()}
-            {renderSearchButton()}
+            {renderViewSwitch()}
+            {view === 'list' && (
+              <>
+                {renderKeywordSearch()}
+                {renderSearchButton()}
+              </>
+            )}
             {renderMakeupButton()}
           </>
         )}
-        mobileFilters={renderDateRangeFilter()}
-        mobileActions={renderExportButton('flat')}
+        mobileFilters={view === 'list' ? renderDateRangeFilter() : undefined}
+        mobileActions={view === 'list' ? renderExportButton('flat') : undefined}
         filterTitle="签到记录筛选"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}
       />
 
-      <ConfigurableTable
-        bordered
-        columns={columns}
-        dataSource={data}
-        loading={listQuery.isFetching}
-        onRefresh={() => void listQuery.refetch()}
-        refreshLoading={listQuery.isFetching}
-        rowKey="id"
-        size="small"
-        pagination={buildPagination(total)}
-        empty="暂无签到记录"
-      />
+      {view === 'list' ? (
+        <ConfigurableTable
+          bordered
+          columns={columns}
+          dataSource={data}
+          loading={listQuery.isFetching}
+          onRefresh={() => void listQuery.refetch()}
+          refreshLoading={listQuery.isFetching}
+          rowKey="id"
+          size="small"
+          pagination={buildPagination(total)}
+          empty="暂无签到记录"
+        />
+      ) : (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <DatePicker
+              type="month"
+              value={calendarMonth}
+              onChange={(v) => { if (v instanceof Date) setCalendarMonth(v); }}
+              style={{ width: 140 }}
+            />
+            <Typography.Text type="tertiary" size="small">点击日期查看当天签到明细</Typography.Text>
+          </div>
+          <Calendar
+            mode="month"
+            displayValue={calendarMonth}
+            dateGridRender={renderCalendarCell}
+            onClick={(_e, value) => drillDownDate(value)}
+            height={640}
+          />
+        </div>
+      )}
 
       <AppModal
         title="会员补签"
