@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Button, Modal, Tag, Toast, Switch } from '@douyinfe/semi-ui';
+import { Button, Modal, Tag, Toast, Switch, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,21 +22,11 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 
+const { Text } = Typography;
+
 const PROVIDER_LABELS = new Map(AI_COMMON_PROVIDERS.map((p) => [p.id, p.label]));
 const COMMON_ORDER = new Map(AI_COMMON_PROVIDERS.map((p, i) => [p.id, i]));
 
-type AiProviderConfigWithKey = AiProviderConfig & { key: string };
-
-interface ProviderGroupRow {
-  _isGroup: true;
-  key: string;
-  providerId: string;
-  name: string;
-  count: number;
-  children: AiProviderConfigWithKey[];
-}
-
-type TableRow = ProviderGroupRow | AiProviderConfigWithKey;
 const EMPTY_PROVIDER_CONFIGS: AiProviderConfig[] = [];
 
 export default function AIProvidersPage() {
@@ -97,46 +87,36 @@ export default function AIProvidersPage() {
     Toast.success('已设为默认');
   };
 
-  // 按 providerId 聚合为树形数据(常用服务商排前)
-  const treeData = useMemo<ProviderGroupRow[]>(() => {
+  // 扁平数据 + 组间排序（常用服务商排前），分组由表格 groupBy 完成
+  const flatData = useMemo<AiProviderConfig[]>(() => {
     const filtered = list.filter(
       (item) =>
         !search ||
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         (item.models ?? []).some((m) => m.toLowerCase().includes(search.toLowerCase())),
     );
-
-    const grouped = new Map<string, AiProviderConfig[]>();
-    for (const item of filtered) {
-      const existing = grouped.get(item.providerId) ?? [];
-      existing.push(item);
-      grouped.set(item.providerId, existing);
-    }
-
-    const providerIds = [...grouped.keys()].sort(
-      (a, b) => (COMMON_ORDER.get(a) ?? 999) - (COMMON_ORDER.get(b) ?? 999) || a.localeCompare(b),
+    return [...filtered].sort(
+      (a, b) =>
+        (COMMON_ORDER.get(a.providerId) ?? 999) - (COMMON_ORDER.get(b.providerId) ?? 999)
+        || a.providerId.localeCompare(b.providerId),
     );
-    return providerIds.map((providerId) => {
-      const children = grouped.get(providerId)!;
-      return {
-        _isGroup: true as const,
-        key: `group_${providerId}`,
-        providerId,
-        name: PROVIDER_LABELS.get(providerId) ?? providerId,
-        count: children.length,
-        children: children.map((c) => ({ ...c, key: `config_${c.id}` })),
-      };
-    });
   }, [list, search]);
+
+  // providerId → 配置数（组头计数）
+  const groupCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of flatData) counts.set(item.providerId, (counts.get(item.providerId) ?? 0) + 1);
+    return counts;
+  }, [flatData]);
 
   const {
     expandedRowKeys, allRowKeys: allGroupKeys,
     isAllExpanded, toggleExpandAll, setExpandedRowKeys, onExpandedRowsChange,
-  } = useTreeExpansion(treeData, {
-    // 只有分组行可展开，其子行是配置叶子节点；行 key 是 `key` 而不是 `id`
-    collectKeys: (groups) => groups.map((group) => group.key),
-    getRowKey: (row) => (row && typeof row === 'object' && '_isGroup' in row
-      ? (row as ProviderGroupRow).key
+  } = useTreeExpansion(flatData, {
+    // 展开态的 key 是组 key（providerId）；onExpandedRowsChange 回传 { groupKey } 行
+    collectKeys: (rows) => [...new Set(rows.map((row) => row.providerId))],
+    getRowKey: (row) => (row && typeof row === 'object' && 'groupKey' in row
+      ? (row as { groupKey: TreeRowKey }).groupKey
       : undefined),
   });
 
@@ -148,26 +128,19 @@ export default function AIProvidersPage() {
     if (newKeys.length === 0) return;
     newKeys.forEach((k) => seenGroupKeysRef.current.add(k));
     setExpandedRowKeys((prev) => [...prev, ...newKeys]);
-  }, [allGroupKeys]);
+  }, [allGroupKeys, setExpandedRowKeys]);
 
-  const columns: ColumnProps<TableRow>[] = [
+  const columns: ColumnProps<AiProviderConfig>[] = [
     {
-      title: '名称 / 供应商',
+      title: '名称',
       dataIndex: 'name',
       width: 320,
-      render: (_: unknown, record: TableRow) => {
-        if ('_isGroup' in record) {
-          return <strong>{record.name}</strong>;
-        }
-        return record.name;
-      },
     },
     {
       title: '模型',
       dataIndex: 'defaultModel',
       width: 220,
-      render: (_: unknown, record: TableRow) => {
-        if ('_isGroup' in record) return null;
+      render: (_: unknown, record: AiProviderConfig) => {
         const extra = (record.models ?? []).length - 1;
         return extra > 0 ? `${record.defaultModel} 等 ${extra + 1} 个` : record.defaultModel;
       },
@@ -176,61 +149,53 @@ export default function AIProvidersPage() {
       title: '默认',
       dataIndex: 'isDefault',
       width: 80,
-      render: (_: unknown, record: TableRow) => {
-        if ('_isGroup' in record) return null;
-        return record.isDefault ? <Tag color="blue" size="small">默认</Tag> : null;
-      },
+      render: (_: unknown, record: AiProviderConfig) =>
+        (record.isDefault ? <Tag color="blue" size="small">默认</Tag> : null),
     },
     {
       title: '状态',
       dataIndex: 'isEnabled',
       width: 80,
       fixed: 'right' as const,
-      render: (_: unknown, record: TableRow) => {
-        if ('_isGroup' in record) return null;
-        return (
-          <Switch
-            checked={record.isEnabled}
-            loading={togglingStatusId === record.id}
-            disabled={!hasPermission('ai:provider:edit')}
-            onChange={(checked) => handleToggleStatus(record, checked)}
-            size="small"
-          />
-        );
-      },
+      render: (_: unknown, record: AiProviderConfig) => (
+        <Switch
+          checked={record.isEnabled}
+          loading={togglingStatusId === record.id}
+          disabled={!hasPermission('ai:provider:edit')}
+          onChange={(checked) => handleToggleStatus(record, checked)}
+          size="small"
+        />
+      ),
     },
-    createOperationColumn<TableRow>({
+    createOperationColumn<AiProviderConfig>({
       width: 250,
       desktopInlineKeys: ['edit', 'set-default', 'delete'],
-      actions: (record) => {
-        if ('_isGroup' in record) return [];
-        return [
-          {
-            key: 'edit',
-            label: '编辑',
-            hidden: !hasPermission('ai:provider:edit'),
-            onClick: () => openEdit(record),
+      actions: (record) => [
+        {
+          key: 'edit',
+          label: '编辑',
+          hidden: !hasPermission('ai:provider:edit'),
+          onClick: () => openEdit(record),
+        },
+        {
+          key: 'set-default',
+          label: '设为默认',
+          hidden: !hasPermission('ai:provider:edit') || record.isDefault,
+          onClick: () => handleSetDefault(record.id),
+        },
+        {
+          key: 'delete',
+          label: '删除',
+          danger: true,
+          hidden: !hasPermission('ai:provider:delete'),
+          onClick: () => {
+            confirmDelete({
+              title: '确定要删除该服务商配置吗？',
+              onOk: () => handleDelete(record.id),
+            });
           },
-          {
-            key: 'set-default',
-            label: '设为默认',
-            hidden: !hasPermission('ai:provider:edit') || record.isDefault,
-            onClick: () => handleSetDefault(record.id),
-          },
-          {
-            key: 'delete',
-            label: '删除',
-            danger: true,
-            hidden: !hasPermission('ai:provider:delete'),
-            onClick: () => {
-              confirmDelete({
-                title: '确定要删除该服务商配置吗？',
-                onOk: () => handleDelete(record.id),
-              });
-            },
-          },
-        ];
-      },
+        },
+      ],
     }),
   ];
 
@@ -289,15 +254,27 @@ export default function AIProvidersPage() {
       <ConfigurableTable
         bordered
         columns={columns}
-        dataSource={treeData}
+        dataSource={flatData}
         loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        rowKey="key"
+        rowKey="id"
         pagination={false}
+        groupBy={(record?: AiProviderConfig) => record?.providerId ?? ''}
+        clickGroupedRowToExpand
+        renderGroupSection={(groupKey) => {
+          const providerId = String(groupKey);
+          return (
+            <>
+              <strong>{PROVIDER_LABELS.get(providerId) ?? providerId}</strong>
+              <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>
+                {groupCounts.get(providerId) ?? 0} 个配置
+              </Text>
+            </>
+          );
+        }}
         expandedRowKeys={expandedRowKeys}
         onExpandedRowsChange={onExpandedRowsChange}
-        expandRowByClick
       />
 
       <AiProviderFormModal
