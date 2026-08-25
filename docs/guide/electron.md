@@ -85,13 +85,43 @@ Electron 开发模式会连接本地 `http://localhost:5373` 的 Vite dev server
 | `contextIsolation` | `true` | 渲染进程与 Node 环境隔离 |
 | `nodeIntegration` | `false` | 渲染进程无法直接访问 Node.js API |
 | `webSecurity` | `true` | 保持默认 Web 安全策略 |
-| Preload 脚本 | 受限 API | 通过 `contextBridge` 暴露窗口控制、最大化状态监听和 `isElectron` 标识 |
+| Preload 脚本 | 受限 API | 通过 `contextBridge` 暴露窗口控制、最大化状态监听、在线升级配置/检查和 `isElectron` 标识 |
 
-## 升级版本
+## 在线升级
+
+客户端已接入服务端的**应用版本管理**（系统设置 → 应用版本，appKey 为 `zenith-desktop`），
+双层更新，打包运行时自动生效（启动 15 秒后首查，之后每 4 小时一次）：
+
+| 层 | 制品类型 | 行为 |
+| --- | --- | --- |
+| Web 热更新 | `热更新包`（前端 dist 打成的 zip） | 下载 → SHA256 校验 → 解压到 `userData/web-updates/{version}` → 提示重载，壳不动 |
+| 壳全量更新 | `安装包` + `元数据`（electron-builder 产物） | electron-updater 走服务端 latest.yml feed，后台差量下载 → 提示重启安装 |
+| 外链 | `外部链接` | 打开系统浏览器跳转 |
+
+### 更新服务器地址
+
+主进程按以下优先级取更新服务器地址：
+
+1. `userData/update-config.json`（`{ "serverUrl": "https://...", "channel": "stable" }`，运维可现场覆盖）
+2. 渲染进程上报的 `VITE_API_BASE_URL`（构建时打进 web 包，默认来源）
+3. 环境变量 `ZENITH_UPDATE_SERVER`（调试用）
+
+### 发布新版本
+
+1. 执行平台构建命令得到 `dist/electron/` 产物
+2. 在管理后台「应用版本」新建版本（semver 须高于在网版本）
+3. 上传制品：
+   - **仅前端变更**：把 `packages/web/dist`（Electron 模式构建）打成 zip，按平台上传为 `热更新包`
+   - **壳变更**：上传 `Setup x.y.z.exe` / `.blockmap`（类型 `安装包` / `元数据`），
+     `latest.yml` 上传为 `元数据`；macOS 需上传 `zip` 目标产物且应用必须签名
+4. 发布（可先设灰度比例小流量验证，看板确认后放量到 100%）
+
+::: tip 灰度与回执
+客户端首次运行生成匿名 `deviceId`（`userData/device-id`），灰度按其哈希命中；
+热更成功与壳更新重启后自动上报安装回执，升级看板可见。
+:::
+
+## 升级版本（手动分发）
 
 1. 重新执行对应平台的构建命令
 2. 将新安装包分发给用户安装（覆盖安装即可）
-
-::: tip 自动更新
-自动更新功能未接入。如需实现，可接入 `electron-updater` 配合 GitHub Releases 实现 Delta 更新。
-:::

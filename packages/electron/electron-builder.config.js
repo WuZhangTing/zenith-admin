@@ -37,7 +37,11 @@ const config = {
   },
 
   mac: {
-    target: [{ target: 'dmg', arch: ['x64', 'arm64'] }],
+    // electron-updater 在 macOS 上要求 zip 目标（Squirrel.Mac），dmg 仅供人工分发
+    target: [
+      { target: 'dmg', arch: ['x64', 'arm64'] },
+      { target: 'zip', arch: ['x64', 'arm64'] },
+    ],
     category: 'public.app-category.business',
     icon: '../web/public/icons/icon-512.png',
   },

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'node:path';
+import { initUpdater, resolveWebIndexPath } from './updater';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -32,9 +33,8 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5373').catch(console.error);
     mainWindow.webContents.openDevTools();
   } else {
-    // 生产模式：加载打包好的前端静态文件
-    const webPath = path.join(process.resourcesPath, 'web', 'index.html');
-    mainWindow.loadFile(webPath).catch(console.error);
+    // 生产模式：优先加载已应用的 Web 热更资源，否则加载打包内置的前端静态文件
+    mainWindow.loadFile(resolveWebIndexPath()).catch(console.error);
   }
 
   // 加载完毕后显示窗口
@@ -77,6 +77,7 @@ ipcMain.on('window:close', () => mainWindow?.close());
 
 app.whenReady().then(() => {
   createWindow();
+  initUpdater(() => mainWindow);
 
   app.on('activate', () => {
     // macOS：点击 Dock 图标时重新创建窗口

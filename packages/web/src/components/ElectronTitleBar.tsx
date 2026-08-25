@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Minus, Square, X } from 'lucide-react';
+import { config } from '@/config';
 
 // 声明 Electron 预加载脚本暴露的 API 类型
 declare global {
@@ -10,6 +11,11 @@ declare global {
       close: () => void;
       onMaximizeChange: (cb: (isMaximized: boolean) => void) => void;
       offMaximizeChange: () => void;
+      /** 在线升级：configure 上报 API 地址（主进程据此调 check API），check 手动检查 */
+      updater?: {
+        configure: (cfg: { serverUrl?: string; channel?: string }) => void;
+        check: () => void;
+      };
       isElectron: boolean;
     };
   }
@@ -27,6 +33,12 @@ export default function ElectronTitleBar() {
     if (!api) return;
     api.onMaximizeChange(setIsMaximized);
     return () => api.offMaximizeChange();
+  }, [api]);
+
+  // 把打包进 web 的 API 地址告知主进程，主进程据此检查在线升级
+  useEffect(() => {
+    if (!api?.isElectron || !config.apiBaseUrl) return;
+    api.updater?.configure({ serverUrl: config.apiBaseUrl });
   }, [api]);
 
   // 非 Electron 环境不渲染

@@ -9,6 +9,10 @@
     "url": "https://github.com/iwangbowen/zenith-admin.git"
   },
   "main": "dist/main.js",
+  "dependencies": {
+    "electron-updater": "^6.6.2",
+    "extract-zip": "^2.0.1"
+  },
   "scripts": {
     "dev": "tsc && concurrently \"npm run dev -w @zenith/web\" \"tsc --watch --preserveWatchOutput\" \"wait-on http://localhost:5373 && electron .\"",
     "build": "tsc && electron-builder",
@@ -57,6 +61,13 @@
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "x64",
             "arm64"
