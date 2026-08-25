@@ -10,6 +10,16 @@ export const PREFERENCES_KEY = 'zenith_preferences';
 
 export const TABS_STORAGE_KEY = 'zenith_tabs';
 
+// ─── 账号切换器（Account Switcher）──────────────────────────────────
+/** 停靠账号注册表的 localStorage key（仅存非活跃账号：资料快照 + refreshToken） */
+export const ACCOUNTS_STORE_KEY = 'zenith_accounts';
+
+/** 同时保持登录的账号总数上限（1 个活跃 + 最多 4 个停靠） */
+export const MAX_STORED_ACCOUNTS = 5;
+
+/** 账号切换跨标签页广播 key：写入时间戳通知其他标签页整页重载为新账号 */
+export const ACCOUNT_SWITCH_BROADCAST_KEY = 'zenith_account_switch';
+
 export const USER_STATUSES = ['enabled', 'disabled'] as const;
 
 /** 通用启用/禁用状态标签（与 common_status 字典种子文案一致；server 导出等无法走字典的场景使用） */

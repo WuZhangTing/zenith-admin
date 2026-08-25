@@ -407,6 +407,36 @@ export async function logoutSession(clientInfo?: { ip: string; ua: string }) {
   ]);
 }
 
+/**
+ * 按 refresh token 退出对应会话（账号切换器场景）。
+ * 停靠账号本地只保留 refreshToken，注销它时拿不到 access token，
+ * 因此以 refresh token 校验身份后按其 jti 移除会话，语义与 logoutSession 一致。
+ */
+export async function logoutByRefreshToken(token: string, clientInfo?: { ip: string; ua: string }) {
+  let payload: { userId: number; username: string; type?: string; jti?: string; tenantId?: number | null };
+  try {
+    payload = await verifyToken(token);
+  } catch {
+    throw new HTTPException(401, { message: 'refresh token 已过期' });
+  }
+  if (payload.type !== 'refresh') throw new HTTPException(401, { message: '无效的 refresh token' });
+  await Promise.all([
+    payload.jti ? removeSession(payload.jti) : Promise.resolve(),
+    clientInfo
+      ? recordLoginLog({
+          eventType: 'logout',
+          ip: clientInfo.ip,
+          ua: clientInfo.ua,
+          username: payload.username,
+          status: 'success',
+          message: '退出登录成功（账号切换）',
+          userId: payload.userId,
+          tenantId: payload.tenantId ?? null,
+        })
+      : Promise.resolve(),
+  ]);
+}
+
 export async function getMyPreferences() {
   const userId = currentUser().userId;
   const [row] = await db.select({ preferences: users.preferences }).from(users).where(eq(users.id, userId)).limit(1);

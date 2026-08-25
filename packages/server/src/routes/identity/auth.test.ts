@@ -325,3 +325,60 @@ describe('GET /api/auth/me - 认证中间件', () => {
     expect(body.message).toBe('无效的访问令牌');
   });
 });
+
+describe('POST /api/auth/logout-by-refresh - 账号切换器注销停靠账号', () => {
+  it('缺少 refreshToken → 400', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/logout-by-refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('无效 refresh token → 401', async () => {
+    const app = buildApp();
+    const res = await app.request('/api/auth/logout-by-refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: 'not-a-jwt' }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body.code).toBe(401);
+  });
+
+  it('access token 冒充 refresh token → 401', async () => {
+    const accessToken = await makeToken(); // 无 type: 'refresh'
+    const app = buildApp();
+    const res = await app.request('/api/auth/logout-by-refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: accessToken }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(body.message).toBe('无效的 refresh token');
+  });
+
+  it('有效 refresh token → 200 并按 jti 移除会话', async () => {
+    const refreshToken = await makeToken({ type: 'refresh', jti: 'parked-jti' });
+    dbMock.insert.mockReturnValue(createChain([])); // recordLoginLog 写登录日志
+
+    const app = buildApp();
+    const res = await app.request('/api/auth/logout-by-refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.code).toBe(0);
+    const { removeSession } = await import('../../lib/session-manager');
+    expect(vi.mocked(removeSession)).toHaveBeenCalledWith('parked-jti');
+  });
+});

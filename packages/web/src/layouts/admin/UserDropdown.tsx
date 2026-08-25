@@ -1,11 +1,14 @@
-import type { Dispatch, SetStateAction } from 'react';
-import { Badge, Dropdown, Modal } from '@douyinfe/semi-ui';
-import { Bell, Keyboard, Lock, LogOut, Megaphone, MessageSquareHeart, Settings, Smartphone, User as UserIcon } from 'lucide-react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
+import { Badge, Button, Dropdown, Modal, Tooltip } from '@douyinfe/semi-ui';
+import { ArrowLeftRight, Bell, Keyboard, Lock, LogOut, Megaphone, MessageSquareHeart, Settings, Smartphone, User as UserIcon } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { User } from '@zenith/shared/identity';
 import { UserAvatar } from '@/components/UserAvatar';
+import { useAuth } from '@/hooks/useAuth';
+import { AccountSwitcherModal } from './AccountSwitcher';
+import './AccountSwitcher.css';
 
-// 顶栏用户下拉菜单（个人中心 / 消息 / 设置 / 锁屏 / 退出登录）
+// 顶栏用户下拉菜单（账号切换 / 个人中心 / 消息 / 设置 / 锁屏 / 退出登录）
 export function UserDropdown({
   user,
   navigate,
@@ -39,11 +42,39 @@ export function UserDropdown({
   clearLockPassword: () => void;
   onLogout: () => void;
 }>) {
+  const { parkedAccounts } = useAuth();
+  const [switcherVisible, setSwitcherVisible] = useState(false);
   return (
+    <>
+    <AccountSwitcherModal
+      visible={switcherVisible}
+      onClose={() => setSwitcherVisible(false)}
+      navigate={navigate}
+      disconnectWs={disconnectWs}
+    />
     <Dropdown
       position="bottomRight"
       render={
         <Dropdown.Menu>
+          {/* 当前账号块 + 账号切换入口（GitHub 风格） */}
+          <div className="user-dropdown-account">
+            <UserAvatar name={user.nickname || '用户'} avatar={user.avatar} semiSize="default" size={36} />
+            <div className="user-dropdown-account-meta">
+              <span className="user-dropdown-account-name">{user.nickname}</span>
+              <span className="user-dropdown-account-sub">{user.username}</span>
+            </div>
+            <Tooltip content="账号切换">
+              <Button
+                icon={<ArrowLeftRight size={14} />}
+                theme="borderless"
+                type="tertiary"
+                size="small"
+                aria-label="账号切换"
+                onClick={() => setSwitcherVisible(true)}
+              />
+            </Tooltip>
+          </div>
+          <Dropdown.Divider />
           <Dropdown.Item icon={<UserIcon size={14} strokeWidth={1.5} />} onClick={() => navigate('/profile')}>个人中心</Dropdown.Item>
           <Dropdown.Item
             icon={<Bell size={14} strokeWidth={1.5} />}
@@ -66,13 +97,16 @@ export function UserDropdown({
             icon={<LogOut size={14} strokeWidth={1.5} />}
             onClick={() => {
               const doLogout = () => { disconnectWs(); clearLockPassword(); onLogout(); };
+              const nextAccount = parkedAccounts[0];
               if (!(confirmLogout ?? true)) {
                 doLogout();
                 return;
               }
               Modal.confirm({
                 title: '确认退出',
-                content: '确定要退出登录吗？',
+                content: nextAccount
+                  ? `确定要退出当前账号吗？退出后将切换到「${nextAccount.nickname || nextAccount.username}」。`
+                  : '确定要退出登录吗？',
                 okText: '退出',
                 cancelText: '取消',
                 okButtonProps: { type: 'danger', theme: 'solid' },
@@ -90,5 +124,6 @@ export function UserDropdown({
         <span className="admin-header__username">{user.nickname}</span>
       </div>
     </Dropdown>
+    </>
   );
 }

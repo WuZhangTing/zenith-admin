@@ -7,7 +7,7 @@ import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRang
 import { LoginResultDTO, UserProfileDTO, CaptchaDTO, RefreshTokenResultDTO as RefreshDTO, SessionDTO, TenantItemDTO, SwitchTenantResultDTO as SwitchTenantDTO, LogRowDTO, UserPreferencesDTO } from '../../lib/openapi-dtos';
 import {
   getClientInfo,
-  login, register, refreshAccessToken, logoutSession,
+  login, register, refreshAccessToken, logoutSession, logoutByRefreshToken,
   getMyProfile, updateMyProfile, changeMyPassword, verifyMyPassword,
   listMyLoginLogs, listMyOperationLogs, listMySessions, deleteMyOtherSessions, deleteMySession,
   switchTenantView, listSwitchableTenants, forgotPassword, resetPassword,
@@ -177,6 +177,24 @@ const logoutRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { ip, ua } = getClientInfo(c.req.raw.headers);
     await logoutSession({ ip, ua });
+    return c.json(okBody(null, '已退出登录'), 200);
+  },
+});
+
+const logoutByRefreshRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/logout-by-refresh', tags: ['Auth'], summary: '按 refresh token 退出会话（账号切换器注销停靠账号）', security: [],
+    middleware: [authRateLimit] as const,
+    request: { body: { content: jsonContent(refreshSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('ok'),
+      401: { content: jsonContent(ErrorResponse), description: '无效令牌' },
+    },
+  }),
+  handler: async (c) => {
+    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    await logoutByRefreshToken(c.req.valid('json').refreshToken, { ip, ua });
     return c.json(okBody(null, '已退出登录'), 200);
   },
 });
@@ -524,6 +542,6 @@ const deleteTrustedDeviceRoute = defineOpenAPIRoute({
   },
 });
 
-auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, logoutRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
+auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, logoutRoute, logoutByRefreshRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
 
 export default auth;

@@ -92,10 +92,16 @@ function RedirectToLogin() {
  * 已登录用户访问登录页时的重定向守卫。
  * 避免 /login 落入 AdminLayout 的 catch-all 404，从而作为标签页出现在多标签栏。
  * 若存在合法的 redirect 参数则跳转到目标页，否则回到首页。
+ * 例外：?add_account=1 渲染登录页进入「添加账号」模式（保留当前登录，成功后切换为新账号）。
  */
 function RedirectFromLogin() {
   const location = useLocation();
-  const redirect = new URLSearchParams(location.search).get('redirect');
+  const { login, verifyMfaLogin, register } = useAuth();
+  const params = new URLSearchParams(location.search);
+  if (params.get('add_account') === '1') {
+    return <Suspense fallback={routeFallback}><LoginPage onLogin={login} onVerifyMfa={verifyMfaLogin} onRegister={register} /></Suspense>;
+  }
+  const redirect = params.get('redirect');
   const safe =
     !!redirect &&
     redirect.startsWith('/') &&

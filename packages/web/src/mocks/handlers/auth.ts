@@ -7,8 +7,24 @@ import { mockLoginLogs, mockOperationLogs } from '@/mocks/data/logs';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 import type { MfaFactor, TotpSetupResult } from '@zenith/shared/platform';
 
-const MOCK_TOKEN = 'mock-access-token-demo';
-const MOCK_REFRESH_TOKEN = 'mock-refresh-token-demo';
+const MOCK_TOKEN_PREFIX = 'mock-access-token';
+const MOCK_REFRESH_TOKEN_PREFIX = 'mock-refresh-token';
+
+/** 按用户名签发可区分的 mock token，让 Demo 模式支持账号切换器 */
+const mockAccessToken = (username: string) => `${MOCK_TOKEN_PREFIX}:${username}`;
+const mockRefreshToken = (username: string) => `${MOCK_REFRESH_TOKEN_PREFIX}:${username}`;
+
+/** 从 mock token 中解析用户名（兼容旧的无用户名 token，回退 admin） */
+function resolveMockUser(token: string | null | undefined, prefix: string) {
+  const username = token?.startsWith(`${prefix}:`) ? token.slice(prefix.length + 1) : null;
+  return (username && mockUsers.find((u) => u.username === username)) || mockUsers[0];
+}
+
+function currentMockUser(request: Request) {
+  const auth = request.headers.get('Authorization');
+  const token = auth?.startsWith('Bearer ') ? auth.slice('Bearer '.length) : null;
+  return resolveMockUser(token, MOCK_TOKEN_PREFIX);
+}
 
 // 偏好设置 & 收藏菜单 mock 状态（模块级可变，模拟服务端持久化）
 let mockPreferencesStore: Record<string, unknown> | null = null;
@@ -39,7 +55,7 @@ export const authHandlers = [
     const { password: _, ...userWithoutPassword } = user;
     return ok({
       user: userWithoutPassword,
-      token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
+      token: { accessToken: mockAccessToken(user.username), refreshToken: mockRefreshToken(user.username) },
     });
   }),
 
@@ -47,17 +63,18 @@ export const authHandlers = [
     const { password: _, ...userWithoutPassword } = mockUsers[0];
     return ok({
       user: userWithoutPassword,
-      token: { accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN },
+      token: { accessToken: mockAccessToken(mockUsers[0].username), refreshToken: mockRefreshToken(mockUsers[0].username) },
     }, '登录成功');
   }),
 
   // 当前用户信息（含权限）
-  http.get('/api/auth/me', () => {
-    const { password: _, ...userWithoutPassword } = mockUsers[0];
+  http.get('/api/auth/me', ({ request }) => {
+    const current = currentMockUser(request);
+    const { password: _, ...userWithoutPassword } = current;
     const role = mockRoles.find((r) => r.code === 'super_admin');
     const permissions = role ? getAllPermissions() : [];
     // 取最近第 2 条成功登录记录模拟上次登录
-    const myLogs = mockLoginLogs.filter((l) => l.userId === mockUsers[0].id && (l.eventType ?? 'login') === 'login' && l.status === 'success');
+    const myLogs = mockLoginLogs.filter((l) => l.userId === current.id && (l.eventType ?? 'login') === 'login' && l.status === 'success');
     const prevLogin = myLogs[1] ?? null;
     return ok({
       ...userWithoutPassword,
@@ -68,9 +85,16 @@ export const authHandlers = [
     });
   }),
 
-  // token 刷新
-  http.post('/api/auth/refresh', () => {
-    return ok({ accessToken: MOCK_TOKEN, refreshToken: MOCK_REFRESH_TOKEN });
+  // token 刷新（按 refreshToken 归属的用户签发，支持账号切换器换发）
+  http.post('/api/auth/refresh', async ({ request }) => {
+    const body = await request.json() as { refreshToken?: string };
+    const user = resolveMockUser(body?.refreshToken, MOCK_REFRESH_TOKEN_PREFIX);
+    return ok({ accessToken: mockAccessToken(user.username), refreshToken: mockRefreshToken(user.username) });
+  }),
+
+  // 按 refresh token 注销停靠账号（账号切换器）
+  http.post('/api/auth/logout-by-refresh', () => {
+    return ok(null, '已退出登录');
   }),
 
   // 退出登录

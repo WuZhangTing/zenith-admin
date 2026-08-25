@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  ACCOUNT_SWITCH_BROADCAST_KEY,
+  ACCOUNTS_STORE_KEY,
+  MAX_STORED_ACCOUNTS,
   PREFERENCES_KEY,
   REFRESH_TOKEN_KEY,
   TABS_STORAGE_KEY,
@@ -14,8 +17,21 @@ import {
   authKeys,
   authSessionQueryOptions,
   updateCachedAuthUser,
+  type AuthSession,
 } from '@/hooks/queries/auth';
+import {
+  broadcastSwitchAndReload,
+  clearParkedAccounts,
+  getParkedAccount,
+  listParkedAccounts,
+  parkAccount,
+  reloadForExternalAccountSwitch,
+  removeParkedAccount,
+  takeParkedAccount,
+  type StoredAccount,
+} from '@/lib/account-store';
 import { ADMIN_AUTH_INVALIDATED_EVENT, request } from '@/utils/request';
+import { LOCK_SCREEN_STORAGE_KEYS } from '@/hooks/useLockScreen';
 
 const DEVICE_ID_KEY = 'zenith_device_id';
 const AUTH_PUBLIC_QUERY_ROOT = 'auth-public';
@@ -32,11 +48,17 @@ function isLoginResponse(data: LoginResult): data is LoginResponse {
   return 'token' in data;
 }
 
+/** 清除跟随账号的本地状态（偏好缓存、多标签页、锁屏凭证），账号切换与退出共用 */
+function clearAccountScopedData(): void {
+  localStorage.removeItem(PREFERENCES_KEY);
+  localStorage.removeItem(TABS_STORAGE_KEY);
+  for (const key of LOCK_SCREEN_STORAGE_KEYS) localStorage.removeItem(key);
+}
+
 function clearStoredUserData(): void {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
-  localStorage.removeItem(PREFERENCES_KEY);
-  localStorage.removeItem(TABS_STORAGE_KEY);
+  clearAccountScopedData();
 }
 
 function collectDeviceInfo(): Record<string, unknown> | undefined {
@@ -116,6 +138,125 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     await fetchCurrentSession();
   }, [clearIdentityCache, fetchCurrentSession]);
 
+  // ─── 账号切换器 ────────────────────────────────────────────────────
+  const [parkedAccounts, setParkedAccounts] = useState<StoredAccount[]>(() => listParkedAccounts());
+  const syncParkedAccounts = useCallback(() => setParkedAccounts(listParkedAccounts()), []);
+
+  /** 把当前活跃账号快照为可停靠账号（凭证取槽位最新值，资料取 /me 缓存） */
+  const snapshotCurrentAccount = useCallback((): StoredAccount | null => {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refreshToken) return null;
+    const cached = queryClient.getQueryData<AuthSession>(authKeys.me);
+    const u = cached?.user;
+    if (!u) return null;
+    return {
+      userId: u.id,
+      username: u.username,
+      nickname: u.nickname,
+      avatar: u.avatar,
+      tenantName: u.tenantName ?? null,
+      refreshToken,
+      lastUsedAt: Date.now(),
+    };
+  }, [queryClient]);
+
+  /** 添加账号模式登录成功：停靠原账号 → 写入新账号凭证 → 整页重载 */
+  const activateAddedAccount = useCallback((data: LoginResponse) => {
+    const current = snapshotCurrentAccount();
+    if (current && current.userId !== data.user.id) parkAccount(current);
+    removeParkedAccount(data.user.id);
+    localStorage.setItem(TOKEN_KEY, data.token.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, data.token.refreshToken);
+    clearAccountScopedData();
+    broadcastSwitchAndReload();
+  }, [snapshotCurrentAccount]);
+
+  const switchAccount = useCallback<AuthContextValue['switchAccount']>(async (userId) => {
+    const target = getParkedAccount(userId);
+    if (!target) return { ok: false, message: '该账号不在已登录列表中' };
+    // 用停靠的 refreshToken 换发新令牌：既拿到凭证也校验了会话有效性
+    const res = await request.post<{ accessToken: string }>(
+      '/api/auth/refresh',
+      { refreshToken: target.refreshToken },
+      { silent: true, skipAuth: true },
+    );
+    if (res.code !== 0 || !res.data?.accessToken) {
+      if (res.code === -1) return { ok: false, message: res.message || '网络异常，切换失败，请稍后重试' };
+      // 会话已失效（过期 / 被管理员下线）：移除死账号并引导重新登录
+      removeParkedAccount(userId);
+      syncParkedAccounts();
+      return { ok: false, expired: true, username: target.username, message: res.message || '该账号登录状态已失效，请重新登录' };
+    }
+    const current = snapshotCurrentAccount();
+    takeParkedAccount(userId);
+    if (current && current.userId !== userId) parkAccount(current);
+    localStorage.setItem(TOKEN_KEY, res.data.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, target.refreshToken);
+    clearAccountScopedData();
+    broadcastSwitchAndReload();
+    return { ok: true };
+  }, [snapshotCurrentAccount, syncParkedAccounts]);
+
+  /** 退出当前账号后自动切到最近使用的停靠账号；全部失效则回登录页 */
+  const switchToNextParked = useCallback(async () => {
+    for (;;) {
+      const next = listParkedAccounts()[0];
+      if (!next) {
+        transitionToAnonymous();
+        return;
+      }
+      const res = await request.post<{ accessToken: string }>(
+        '/api/auth/refresh',
+        { refreshToken: next.refreshToken },
+        { silent: true, skipAuth: true },
+      );
+      if (res.code === 0 && res.data?.accessToken) {
+        takeParkedAccount(next.userId);
+        localStorage.setItem(TOKEN_KEY, res.data.accessToken);
+        localStorage.setItem(REFRESH_TOKEN_KEY, next.refreshToken);
+        clearAccountScopedData();
+        broadcastSwitchAndReload();
+        return;
+      }
+      if (res.code === -1) {
+        // 网络异常：不误删可能仍有效的会话，回登录页（登录页保留快捷入口）
+        transitionToAnonymous();
+        return;
+      }
+      removeParkedAccount(next.userId);
+    }
+  }, [transitionToAnonymous]);
+
+  const removeAccount = useCallback<AuthContextValue['removeAccount']>(async (userId) => {
+    const target = getParkedAccount(userId);
+    if (!target) return;
+    // 服务端按 refreshToken 注销对应会话；网络失败也照常移除本地条目
+    await request.post('/api/auth/logout-by-refresh', { refreshToken: target.refreshToken }, { silent: true, skipAuth: true }).catch(() => {});
+    removeParkedAccount(userId);
+    syncParkedAccounts();
+  }, [syncParkedAccounts]);
+
+  const logoutAllAccounts = useCallback<AuthContextValue['logoutAllAccounts']>(async () => {
+    const parked = listParkedAccounts();
+    await Promise.allSettled(parked.map((a) =>
+      request.post('/api/auth/logout-by-refresh', { refreshToken: a.refreshToken }, { silent: true, skipAuth: true }),
+    ));
+    clearParkedAccounts();
+    syncParkedAccounts();
+    request.post('/api/auth/logout', {}, { silent: true, skipAuth: true }).catch(() => {});
+    transitionToAnonymous();
+  }, [syncParkedAccounts, transitionToAnonymous]);
+
+  // 任何路径（含 OAuth / SSO 回调）登录后，若当前用户仍留在停靠区则去重
+  useEffect(() => {
+    const uid = sessionQuery.data?.user?.id;
+    if (uid == null) return;
+    if (getParkedAccount(uid)) {
+      removeParkedAccount(uid);
+      syncParkedAccounts();
+    }
+  }, [sessionQuery.data, syncParkedAccounts]);
+
   useEffect(() => {
     const wasAuthenticated = previousCredentialsRef.current;
     previousCredentialsRef.current = hasCredentials;
@@ -142,6 +283,15 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
+      // 其他标签页切换了账号：整页重载为新账号，避免旧界面发新账号请求
+      if (event.key === ACCOUNT_SWITCH_BROADCAST_KEY && event.newValue) {
+        reloadForExternalAccountSwitch();
+        return;
+      }
+      if (event.key === ACCOUNTS_STORE_KEY) {
+        syncParkedAccounts();
+        return;
+      }
       if (event.key !== TOKEN_KEY) return;
       if (!event.newValue) {
         transitionToAnonymous();
@@ -161,7 +311,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     };
     globalThis.addEventListener('storage', handleStorage);
     return () => globalThis.removeEventListener('storage', handleStorage);
-  }, [clearIdentityCache, fetchCurrentSession, transitionToAnonymous]);
+  }, [clearIdentityCache, fetchCurrentSession, syncParkedAccounts, transitionToAnonymous]);
 
   const login = useCallback<AuthContextValue['login']>(async (
     username,
@@ -169,6 +319,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     captchaId,
     captchaCode,
     tenantCode,
+    options,
   ) => {
     const res = await request.post<LoginResult>(
       '/api/auth/login',
@@ -184,34 +335,49 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       },
       { silent: true },
     );
-    if (res.code === 0 && isLoginResponse(res.data)) await activateSession(res.data.token);
+    if (res.code === 0 && isLoginResponse(res.data)) {
+      if (options?.addAccount) activateAddedAccount(res.data);
+      else await activateSession(res.data.token);
+    }
     return res;
-  }, [activateSession]);
+  }, [activateAddedAccount, activateSession]);
 
   const verifyMfaLogin = useCallback<AuthContextValue['verifyMfaLogin']>(async (
     challengeId,
     code,
     rememberDevice,
+    options,
   ) => {
     const res = await request.post<LoginResponse>(
       '/api/auth/mfa/verify',
       { challengeId, code, rememberDevice },
       { silent: true },
     );
-    if (res.code === 0) await activateSession(res.data.token);
+    if (res.code === 0) {
+      if (options?.addAccount) activateAddedAccount(res.data);
+      else await activateSession(res.data.token);
+    }
     return res;
-  }, [activateSession]);
+  }, [activateAddedAccount, activateSession]);
 
-  const register = useCallback<AuthContextValue['register']>(async (data) => {
+  const register = useCallback<AuthContextValue['register']>(async (data, options) => {
     const res = await request.post<LoginResponse>('/api/auth/register', data, { silent: true });
-    if (res.code === 0) await activateSession(res.data.token);
+    if (res.code === 0) {
+      if (options?.addAccount) activateAddedAccount(res.data);
+      else await activateSession(res.data.token);
+    }
     return res;
-  }, [activateSession]);
+  }, [activateAddedAccount, activateSession]);
 
   const logout = useCallback(() => {
     request.post('/api/auth/logout', {}, { silent: true, skipAuth: true }).catch(() => {});
+    // 还有停靠账号时对齐 GitHub：退出当前账号后自动回落到最近使用的账号
+    if (listParkedAccounts().length > 0) {
+      void switchToNextParked();
+      return;
+    }
     transitionToAnonymous();
-  }, [transitionToAnonymous]);
+  }, [switchToNextParked, transitionToAnonymous]);
 
   const refresh = useCallback(async () => {
     await fetchCurrentSession();
@@ -241,21 +407,30 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     loading: status === 'checking',
     refreshing: sessionQuery.isFetching,
     error: sessionQuery.error,
+    parkedAccounts,
+    canAddAccount: parkedAccounts.length + (session?.user ? 1 : 0) < MAX_STORED_ACCOUNTS,
     login,
     verifyMfaLogin,
     register,
     logout,
     refresh,
     updateUser,
+    switchAccount,
+    removeAccount,
+    logoutAllAccounts,
   }), [
     login,
     logout,
+    logoutAllAccounts,
+    parkedAccounts,
     refresh,
     register,
+    removeAccount,
     session,
     sessionQuery.error,
     sessionQuery.isFetching,
     status,
+    switchAccount,
     updateUser,
     verifyMfaLogin,
   ]);

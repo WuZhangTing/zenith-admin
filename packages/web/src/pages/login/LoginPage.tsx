@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Form, Button, Toast, Typography, Tabs, TabPane, Divider } from '@douyinfe/semi-ui';
+import { Form, Button, Toast, Typography, Tabs, TabPane, Divider, Spin } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness, Check } from 'lucide-react';
+import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness, Check, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import dayjs from 'dayjs';
-import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
+import { MAX_STORED_ACCOUNTS, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
 import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, TenantIdentityProviderSummary } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
 import { config } from '@/config';
 import { markPostLoginHome } from '@/lib/post-login';
+import { useAuth, type LoginOptions } from '@/hooks/useAuth';
+import { UserAvatar } from '@/components/UserAvatar';
 import AppLogo from '@/components/AppLogo';
 import AppModal from '@/components/AppModal';
 import ForgotPasswordModal from './ForgotPasswordModal';
@@ -20,9 +22,9 @@ import './LoginPage.css';
 const { Title, Text } = Typography;
 
 interface LoginPageProps {
-  onLogin: (username: string, password: string, captchaId?: string, captchaCode?: string, tenantCode?: string) => Promise<{ code: number; message: string; retryAfterSeconds?: number; data: LoginResult }>;
-  onVerifyMfa: (challengeId: string, code: string, rememberDevice: boolean) => Promise<{ code: number; message: string; retryAfterSeconds?: number; data: LoginResponse }>;
-  onRegister: (data: { username: string; nickname: string; email: string; password: string }) => Promise<{ code: number; message: string; retryAfterSeconds?: number }>;
+  onLogin: (username: string, password: string, captchaId?: string, captchaCode?: string, tenantCode?: string, options?: LoginOptions) => Promise<{ code: number; message: string; retryAfterSeconds?: number; data: LoginResult }>;
+  onVerifyMfa: (challengeId: string, code: string, rememberDevice: boolean, options?: LoginOptions) => Promise<{ code: number; message: string; retryAfterSeconds?: number; data: LoginResponse }>;
+  onRegister: (data: { username: string; nickname: string; email: string; password: string }, options?: LoginOptions) => Promise<{ code: number; message: string; retryAfterSeconds?: number }>;
 }
 
 function isMfaChallenge(data: LoginResult): data is Extract<LoginResult, { mfaRequired: true }> {
@@ -34,6 +36,12 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const redirectTo = params.get('redirect') || '/';
+  // 添加账号模式：保留当前登录，成功后停靠原账号并整页切换为新账号
+  const addAccountMode = params.get('add_account') === '1';
+  const prefillUsername = params.get('username') ?? '';
+  const loginOptions: LoginOptions | undefined = addAccountMode ? { addAccount: true } : undefined;
+  const { status: authStatus, parkedAccounts, canAddAccount, switchAccount } = useAuth();
+  const [resumingId, setResumingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState('login');
   const [retrySeconds, setRetrySeconds] = useState(0);
@@ -96,12 +104,13 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     if (retrySeconds > 0) return;
     setLoading(true);
     try {
-      const res = await onLogin(values.username, values.password, captchaId, values.captchaCode, values.tenantCode);
+      const res = await onLogin(values.username, values.password, captchaId, values.captchaCode, values.tenantCode, loginOptions);
       if (res.code === 0) {
         if (isMfaChallenge(res.data)) {
           setMfaChallenge(res.data);
           return;
         }
+        if (addAccountMode) return; // 添加账号成功后由 AuthProvider 整页重载接管
         navigateAfterLogin(redirectTo);
         return;
       }
@@ -119,8 +128,9 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     if (!mfaChallenge || retrySeconds > 0) return;
     setLoading(true);
     try {
-      const res = await onVerifyMfa(mfaChallenge.challengeId, String(values.code ?? ''), Boolean(values.rememberDevice));
+      const res = await onVerifyMfa(mfaChallenge.challengeId, String(values.code ?? ''), Boolean(values.rememberDevice), loginOptions);
       if (res.code === 0) {
+        if (addAccountMode) return;
         navigateAfterLogin(redirectTo);
         return;
       }
@@ -134,8 +144,9 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     if (retrySeconds > 0) return;
     setLoading(true);
     try {
-      const res = await onRegister(values);
+      const res = await onRegister(values, loginOptions);
       if (res.code === 0) {
+        if (addAccountMode) return;
         navigateAfterLogin(redirectTo);
         return;
       }
@@ -148,8 +159,21 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     }
   };
 
+  /** 登录页快捷入口：一键回到某个仍在登录状态的停靠账号 */
+  const handleResumeAccount = async (userId: number) => {
+    if (resumingId !== null) return;
+    setResumingId(userId);
+    try {
+      const result = await switchAccount(userId);
+      if (result.ok) return; // 成功后整页重载
+      Toast.warning(result.message || '该账号登录状态已失效，请重新登录');
+    } finally {
+      setResumingId(null);
+    }
+  };
+
   const renderLoginForm = () => (
-    <Form onSubmit={handleLogin} style={{ marginTop: 12 }}>
+    <Form onSubmit={handleLogin} initValues={prefillUsername ? { username: prefillUsername } : undefined} style={{ marginTop: 12 }}>
       {config.multiTenantMode && (
         <Form.Input
           field="tenantCode"
@@ -213,7 +237,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         type="primary"
         theme="solid"
         loading={loading}
-        disabled={retrySeconds > 0}
+        disabled={retrySeconds > 0 || (addAccountMode && !canAddAccount)}
         block
         size="large"
         style={{ marginTop: 8, borderRadius: 'var(--semi-border-radius-medium)', height: 42 }}
@@ -411,6 +435,10 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
 
   if (mfaChallenge) {
     formSubtitle = '请完成多因素认证以进入工作台';
+  } else if (addAccountMode) {
+    formSubtitle = canAddAccount
+      ? '登录另一个账号，成功后可在右上角账号菜单中随时切换'
+      : `最多同时保持 ${MAX_STORED_ACCOUNTS} 个账号登录，请先在账号切换器中退出一个账号`;
   } else if (isDemoMode) {
     formSubtitle = '当前为演示模式，仅开放预置账号登录，页面数据为模拟环境。';
   } else if (tab !== 'login') {
@@ -452,12 +480,39 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
         <div className="login-card">
           <div className="login-form-header">
             <Title heading={3} style={{ marginBottom: 8, fontWeight: 600 }}>
-              {mfaChallenge ? '安全验证' : (isDemoMode || tab === 'login' ? '欢迎回来' : '创建账号')}
+              {mfaChallenge ? '安全验证' : addAccountMode ? '添加账号' : (isDemoMode || tab === 'login' ? '欢迎回来' : '创建账号')}
             </Title>
             <Text type="tertiary" style={{ fontSize: 14, display: 'block', marginBottom: 24 }}>
               {formSubtitle}
             </Text>
           </div>
+          {/* 快捷账号入口：仍在登录状态的停靠账号一键继续（对齐 GitHub 登录页账号选择） */}
+          {!mfaChallenge && !addAccountMode && parkedAccounts.length > 0 && (
+            <div className="login-accounts">
+              {parkedAccounts.map((account) => (
+                <button
+                  key={account.userId}
+                  type="button"
+                  className="login-account-card"
+                  disabled={resumingId !== null}
+                  onClick={() => void handleResumeAccount(account.userId)}
+                >
+                  <UserAvatar name={account.nickname || account.username} avatar={account.avatar} semiSize="default" size={36} />
+                  <span className="login-account-meta">
+                    <span className="login-account-name">{account.nickname || account.username}</span>
+                    <span className="login-account-sub">
+                      {account.username}
+                      {account.tenantName ? ` · ${account.tenantName}` : ''}
+                    </span>
+                  </span>
+                  {resumingId === account.userId ? <Spin size="small" /> : <ChevronRight size={16} className="login-account-arrow" />}
+                </button>
+              ))}
+              <Divider align="center">
+                <span className="login-oauth-label">或使用其他账号登录</span>
+              </Divider>
+            </div>
+          )}
           {mfaChallenge ? (
             <div style={{ marginBottom: 20 }}>
               {renderMfaForm()}
@@ -475,6 +530,11 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
                 {renderRegisterForm()}
               </TabPane>
             </Tabs>
+          )}
+          {addAccountMode && authStatus === 'authenticated' && !mfaChallenge && (
+            <Button theme="borderless" type="tertiary" block style={{ marginTop: -8, marginBottom: 12 }} onClick={() => navigate('/')}>
+              取消添加，返回工作台
+            </Button>
           )}
           {/* OAuth 第三方登录 */}
           {!mfaChallenge && enterpriseProviders.length > 0 && (

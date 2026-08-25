@@ -1,0 +1,109 @@
+/* ─── 顶栏用户菜单的当前账号块（GitHub 风格）─── */
+.user-dropdown-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 8px;
+  min-width: 224px;
+}
+
+.user-dropdown-account-meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.user-dropdown-account-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--semi-color-text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-dropdown-account-sub {
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── 账号切换弹层 ─── */
+.account-switcher-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--semi-border-radius-medium);
+}
+
+.account-switcher-hit {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: var(--semi-border-radius-medium);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.account-switcher-item.is-current .account-switcher-hit {
+  cursor: default;
+}
+
+.account-switcher-item:not(.is-current) .account-switcher-hit:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.account-switcher-hit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.account-switcher-meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.account-switcher-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--semi-color-text-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-switcher-sub {
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-switcher-remove {
+  margin-right: 6px;
+}
+
+.account-switcher-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
