@@ -126,22 +126,18 @@ function PolicyEventsTab() {
   const { hasPermission: can } = usePermission();
   const canSave = can('system:notify-policy:save');
   const eventsQuery = useNotificationPolicyEvents();
-  const events = eventsQuery.data ?? [];
+  const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
+
+  // group key → 中文分组名（组头整行渲染用）
+  const groupLabels = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const event of events) {
+      if (!map.has(event.group)) map.set(event.group, event.groupLabel);
+    }
+    return map;
+  }, [events]);
 
   const columns: ColumnProps<NotificationPolicyEvent>[] = [
-    {
-      title: '分组', dataIndex: 'groupLabel', width: 110,
-      onCell: (_record, index) => {
-        // 相同分组纵向合并，首行承载整组行高
-        if (index === undefined) return {};
-        const record = events[index];
-        const prev = events[index - 1];
-        if (prev && prev.group === record.group) return { rowSpan: 0 };
-        let span = 1;
-        for (let i = index + 1; i < events.length && events[i].group === record.group; i += 1) span += 1;
-        return { rowSpan: span };
-      },
-    },
     {
       title: '事件', dataIndex: 'label', width: 220,
       render: (label: string, record) => (
@@ -187,6 +183,12 @@ function PolicyEventsTab() {
       pagination={false}
       size="small"
       empty="暂无事件"
+      groupBy={(record?: NotificationPolicyEvent) => record?.group ?? ''}
+      clickGroupedRowToExpand
+      defaultExpandAllGroupRows
+      renderGroupSection={(groupKey) => (
+        <Text strong>{groupLabels.get(String(groupKey)) ?? String(groupKey)}</Text>
+      )}
     />
   );
 }
