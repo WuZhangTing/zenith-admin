@@ -125,6 +125,7 @@ const rechargeRoute = defineOpenAPIRoute({
 const levelsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/levels', tags: ['MemberSelf'], summary: '会员等级权益列表',
+    security: [],
     responses: { ...commonErrorResponses, ...ok(z.array(MemberLevelDTO), 'ok') },
   }),
   handler: async (c) => c.json(okBody(await getEnabledLevels()), 200),

@@ -608,6 +608,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/maintenance/logs",
   "GET /api/maintenance/status",
   "GET /api/member-checkins",
+  "GET /api/member-checkins/calendar",
   "GET /api/member-levels",
   "GET /api/member-levels/:id",
   "GET /api/member-points/account/:id",
