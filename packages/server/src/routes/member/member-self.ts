@@ -121,11 +121,10 @@ const rechargeRoute = defineOpenAPIRoute({
 });
 
 // ─── GET /levels — 会员等级权益 ──────────────────────────────────────────────
+// 等级体系属于公开营销信息（落地页「等级体系」也要展示），不做登录门槛
 const levelsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/levels', tags: ['MemberSelf'], summary: '会员等级权益列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [memberAuthMiddleware] as const,
     responses: { ...commonErrorResponses, ...ok(z.array(MemberLevelDTO), 'ok') },
   }),
   handler: async (c) => c.json(okBody(await getEnabledLevels()), 200),

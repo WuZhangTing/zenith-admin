@@ -1,6 +1,6 @@
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Button, Tag } from '@douyinfe/semi-ui';
-import { Coins, Gift, Star, Shield, Zap, Crown, Info } from 'lucide-react';
+import { Coins, Gift, Star, Shield, Zap, Crown } from 'lucide-react';
 import { useMemberAuth } from '../../hooks/useMemberAuth';
 import type { PublicOutletContext } from '../../layouts/PublicLayout';
 
@@ -68,12 +68,6 @@ export default function FeaturesPage() {
           </p>
         </div>
       </section>
-
-      {/* Placeholder notice */}
-      <div style={{ background: '#fffbe6', borderBottom: '1px solid #ffe58f', padding: '12px 40px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#875400' }}>
-        <Info size={14} />
-        <span>这是一个示例占位页面，您可以在此基础上实现自定义的会员特权展示逻辑。</span>
-      </div>
 
       {/* Privileges Grid */}
       <section className="mc-features-section">

@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import { Button, Empty, Modal, Pagination, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
-import { BellRing, CalendarCheck } from 'lucide-react';
+import { BellRing } from 'lucide-react';
 import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import { MemberPage } from '../../components/MemberPage';
 import {
   useCancelCmsSubscription,
-  useCheckinStatus,
-  useMemberCheckin,
   useMyCmsSubscriptions,
   useUpdateCmsSubscription,
 } from '../../hooks/queries';
@@ -20,15 +18,8 @@ export default function SubscriptionsPage() {
   const listQuery = useMyCmsSubscriptions({ page, pageSize: PAGE_SIZE, subjectType });
   const updateMutation = useUpdateCmsSubscription();
   const cancelMutation = useCancelCmsSubscription();
-  const checkinQuery = useCheckinStatus();
-  const checkinMutation = useMemberCheckin();
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-
-  const handleCheckin = async () => {
-    const result = await checkinMutation.mutateAsync();
-    Toast.success(`签到成功，获得 ${result.points} 积分`);
-  };
 
   const handleCancel = (id: number, label: string) => {
     Modal.confirm({
@@ -43,41 +34,6 @@ export default function SubscriptionsPage() {
 
   return (
     <MemberPage title="我的关注">
-      <section
-        aria-label="签到状态"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-          padding: 16,
-          marginBottom: 16,
-          border: '1px solid var(--semi-color-border)',
-          borderRadius: 12,
-          background: 'var(--semi-color-bg-1)',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
-            <CalendarCheck size={17} />
-            每日签到
-          </div>
-          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--semi-color-text-2)' }}>
-            {checkinQuery.data?.checkedToday
-              ? `今日已签到，连续 ${checkinQuery.data.consecutiveDays} 天`
-              : `今日签到可得 ${checkinQuery.data?.todayPoints ?? 0} 积分`}
-          </div>
-        </div>
-        <Button
-          type="primary"
-          disabled={checkinQuery.data?.checkedToday}
-          loading={checkinMutation.isPending || checkinQuery.isFetching}
-          onClick={() => void handleCheckin()}
-        >
-          {checkinQuery.data?.checkedToday ? '今日已签到' : '立即签到'}
-        </Button>
-      </section>
-
       <div style={{ marginBottom: 14 }}>
         <Select
           aria-label="关注类型"

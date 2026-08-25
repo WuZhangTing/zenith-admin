@@ -1,6 +1,6 @@
 import { useOutletContext } from 'react-router-dom';
 import { Button } from '@douyinfe/semi-ui';
-import { Building2, Info, Mail, Phone, MapPin, Users, Globe, Award } from 'lucide-react';
+import { Building2, Mail, Phone, MapPin, Users, Globe, Award } from 'lucide-react';
 import { useMemberAuth } from '../../hooks/useMemberAuth';
 import type { PublicOutletContext } from '../../layouts/PublicLayout';
 
@@ -35,12 +35,6 @@ export default function AboutPage() {
           </p>
         </div>
       </section>
-
-      {/* Placeholder notice */}
-      <div style={{ background: '#fffbe6', borderBottom: '1px solid #ffe58f', padding: '12px 40px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#875400' }}>
-        <Info size={14} />
-        <span>这是一个示例占位页面，您可以在此基础上填写真实的公司介绍与联系方式。</span>
-      </div>
 
       {/* Content */}
       <section className="mc-features-section">
