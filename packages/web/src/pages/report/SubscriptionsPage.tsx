@@ -194,6 +194,7 @@ export default function SubscriptionsPage() {
             if (Array.isArray(v.channels)) setSelectedChannels(v.channels as string[]);
           }}>
           <Form.Select field="dashboardId" label="仪表盘" style={{ width: '100%' }} rules={[{ required: true, message: '请选择仪表盘' }]} filter
+            extraText="定时推送在无用户上下文执行：使用数据权限变量（${__userId} 等）、必填参数或行级权限数据集的仪表盘无法订阅"
             optionList={dashboards.map((d) => ({ value: d.id, label: d.name }))} />
           <Form.Input field="cron" label="Cron 表达式" rules={[{ required: true, message: '请输入 Cron 表达式' }]} placeholder="如 0 0 9 * * *（每天 9 点）"
             addonAfter={<CronBuilderPopover value={cronExprValue} onApply={(expr) => { subscriptionModal.formApi.current?.setValue('cron', expr); setCronExprValue(expr); }} />} />

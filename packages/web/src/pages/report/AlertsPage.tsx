@@ -452,7 +452,9 @@ export default function AlertsPage() {
                     <Form.Select field="field" label="监控字段" style={{ width: '100%' }} disabled={selectedAggregate === 'count'}
                       placeholder={selectedAggregate === 'count' ? 'count 不需要选择字段' : '请选择监控字段'}
                       rules={selectedAggregate === 'count' ? [] : [{ required: true, message: '请选择监控字段' }]}
-                      optionList={selectedFields.map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
+                      extraText={selectedAggregate === 'count' ? undefined : '仅数值类型字段可参与 sum/avg/min/max 聚合'}
+                      optionList={(selectedAggregate === 'count' ? selectedFields : selectedFields.filter((field) => field.type === 'number'))
+                        .map((field) => ({ value: field.name, label: field.label ? `${field.label}（${field.name}）` : field.name }))} />
                   </Col>
                   <Col xs={24} md={12}>
                     <Form.Select field="groupByField" label="分组维度" style={{ width: '100%' }} showClear
