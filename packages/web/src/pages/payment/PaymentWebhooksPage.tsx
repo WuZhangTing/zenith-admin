@@ -83,8 +83,6 @@ export default function PaymentWebhooksPage() {
   const [deliverySearch, setDeliverySearch] = useState<DeliverySearchParams>(defaultDeliverySearch);
   const [submittedDeliverySearch, setSubmittedDeliverySearch] = useState<DeliverySearchParams>(defaultDeliverySearch);
 
-  const [detailDelivery, setDetailDelivery] = useState<PaymentWebhookDelivery | null>(null);
-
   const endpointQuery = usePaymentWebhookEndpoints({
     page: endpointPage,
     pageSize: endpointPageSize,
@@ -197,13 +195,8 @@ export default function PaymentWebhooksPage() {
     dateTimeColumn('创建时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentWebhookDelivery['status']) => <Tag color={DELIVERY_STATUS_COLOR[v]}>{PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentWebhookDelivery>({
-      width: 120,
+      width: 80,
       actions: (r) => [
-        {
-          key: 'detail',
-          label: '详情',
-          onClick: () => setDetailDelivery(r),
-        },
         ...(r.status !== 'success' ? [{
           key: 'redeliver',
           label: '重投',
@@ -213,6 +206,24 @@ export default function PaymentWebhooksPage() {
       ],
     }),
   ];
+
+  /** 行内展开：投递 Payload / 响应体 / 最近错误 */
+  const renderDeliveryExpanded = (r?: PaymentWebhookDelivery) => (r ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+      <div>
+        <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Payload</Typography.Text>
+        <JsonBlock value={formatRaw(r.payload)} />
+      </div>
+      <div>
+        <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Response Body</Typography.Text>
+        <JsonBlock value={formatRaw(r.responseBody)} />
+      </div>
+      <div>
+        <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Last Error</Typography.Text>
+        <JsonBlock value={formatRaw(r.lastError)} />
+      </div>
+    </div>
+  ) : null);
 
   const renderEndpointKeywordSearch = () => (
     <KeywordInput placeholder="名称/URL..." value={endpointSearch.keyword} onChange={(v) => setEndpointSearch((p) => ({ ...p, keyword: v }))} onSearch={handleEndpointSearch} width={200} />
@@ -304,6 +315,8 @@ export default function PaymentWebhooksPage() {
           <ConfigurableTable
             bordered columns={deliveryColumns} dataSource={deliveryData} loading={deliveryQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void deliveryQuery.refetch()} refreshLoading={deliveryQuery.isFetching} pagination={buildDeliveryPagination(deliveryTotal)}
+            expandedRowRender={renderDeliveryExpanded}
+            hideExpandedColumn={false}
           />
         </TabPane>
       </Tabs>
@@ -320,25 +333,6 @@ export default function PaymentWebhooksPage() {
             <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
           </Form>
         </Spin>
-      </AppModal>
-
-      <AppModal title={`投递详情（#${detailDelivery?.id ?? ''}）`} visible={!!detailDelivery} onCancel={() => setDetailDelivery(null)} footer={null} width={760} closeOnEsc>
-        {detailDelivery && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div>
-              <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Payload</Typography.Text>
-              <JsonBlock value={formatRaw(detailDelivery.payload)} />
-            </div>
-            <div>
-              <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Response Body</Typography.Text>
-              <JsonBlock value={formatRaw(detailDelivery.responseBody)} />
-            </div>
-            <div>
-              <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Last Error</Typography.Text>
-              <JsonBlock value={formatRaw(detailDelivery.lastError)} />
-            </div>
-          </div>
-        )}
       </AppModal>
     </div>
   );

@@ -1,9 +1,7 @@
-import { useState } from 'react';
 import { PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Modal, Select, Tag, Typography } from '@douyinfe/semi-ui';
+import { Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
-import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
@@ -29,7 +27,6 @@ export default function PaymentLogsPage() {  const {
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLogKeys.lists });
-  const [detailLog, setDetailLog] = useState<PaymentNotifyLog | null>(null);
 
   function buildQuery(active: SearchParams): Record<string, string> {
     return compactQuery({
@@ -54,17 +51,23 @@ export default function PaymentLogsPage() {  const {
     { title: '说明', dataIndex: 'message', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v || '-'}</Typography.Text> },
     { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string | null) => v || '-' },
     dateTimeColumn('时间', 'createdAt'),
-    createOperationColumn<PaymentNotifyLog>({
-      width: 80,
-      actions: (r) => [{
-        key: 'detail',
-        label: '详情',
-        disabled: !r.rawBody && !r.headers,
-        disabledReason: '无详情内容',
-        onClick: () => setDetailLog(r),
-      }],
-    }),
   ];
+
+  /** 行内展开：请求头与原始 Body（无内容的行不可展开） */
+  const renderExpanded = (r?: PaymentNotifyLog) => (r ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+      {r.headers && (
+        <div>
+          <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>请求头</Typography.Text>
+          <JsonBlock value={formatRaw(r.headers)} />
+        </div>
+      )}
+      <div>
+        <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>原始 Body</Typography.Text>
+        <JsonBlock value={formatRaw(r.rawBody) || '（无）'} />
+      </div>
+    </div>
+  ) : null);
 
   const renderKeywordSearch = () => (
     <KeywordInput placeholder="订单号..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
@@ -146,38 +149,11 @@ export default function PaymentLogsPage() {  const {
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
+        expandedRowRender={renderExpanded}
+        hideExpandedColumn={false}
+        rowExpandable={(r) => !!(r && (r.rawBody || r.headers))}
+        expandRowByClick
       />
-
-      <Modal
-        title={`回调详情（#${detailLog?.id ?? ''}）`}
-        visible={!!detailLog}
-        onCancel={() => setDetailLog(null)}
-        footer={null}
-        width={720}
-        closeOnEsc
-      >
-        {detailLog && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Tag color={PAYMENT_CHANNEL_TAG_COLOR[detailLog.channel]}>{PAYMENT_CHANNEL_LABELS[detailLog.channel]}</Tag>
-              <Tag color="grey">{detailLog.scene === 'refund' ? '退款回调' : '支付回调'}</Tag>
-              <Tag color={detailLog.signatureValid ? 'green' : 'red'}>{detailLog.signatureValid ? '验签通过' : '验签失败'}</Tag>
-              {detailLog.orderNo && <Typography.Text type="tertiary">订单号：{detailLog.orderNo}</Typography.Text>}
-            </div>
-            {detailLog.message && <Typography.Text type="warning">{detailLog.message}</Typography.Text>}
-            {detailLog.headers && (
-              <div>
-                <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>请求头</Typography.Text>
-                <JsonBlock value={formatRaw(detailLog.headers)} />
-              </div>
-            )}
-            <div>
-              <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>原始 Body</Typography.Text>
-              <JsonBlock value={formatRaw(detailLog.rawBody) || '（无）'} />
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

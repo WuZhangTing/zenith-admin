@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Col, Modal, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Col, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -57,7 +56,6 @@ export default function PaymentEventsPage() {
   const health = healthQuery.data ?? null;
   const redispatchMutation = useRedispatchPaymentEvent();
   const redispatchingId = redispatchMutation.isPending ? (redispatchMutation.variables ?? null) : null;
-  const [detailEvent, setDetailEvent] = useState<PaymentOutboxEvent | null>(null);
 
   function handleRedispatch(record: PaymentOutboxEvent) {
     redispatchMutation.mutate(record.id, { onSuccess: () => Toast.success('重投成功') });
@@ -73,13 +71,8 @@ export default function PaymentEventsPage() {
     dateTimeColumn('处理时间', 'processedAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentOutboxEvent['status']) => <Tag color={EVENT_STATUS_COLOR[v]}>{EVENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentOutboxEvent>({
-      width: 130,
+      width: 80,
       actions: (r) => [
-        {
-          key: 'detail',
-          label: '详情',
-          onClick: () => setDetailEvent(r),
-        },
         ...(r.status !== 'done' && hasPermission('payment:ops:manage') ? [{
           key: 'redispatch',
           label: '重投',
@@ -89,6 +82,22 @@ export default function PaymentEventsPage() {
       ],
     }),
   ];
+
+  /** 行内展开：完整错误信息与事件载荷 */
+  const renderExpanded = (r?: PaymentOutboxEvent) => (r ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+      {r.lastError && (
+        <div>
+          <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>最近错误</Typography.Text>
+          <Typography.Text type="danger" style={{ wordBreak: 'break-all' }}>{r.lastError}</Typography.Text>
+        </div>
+      )}
+      <div>
+        <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>事件载荷</Typography.Text>
+        <JsonBlock value={formatPayload(r.payload)} />
+      </div>
+    </div>
+  ) : null);
 
   const renderKeywordSearch = () => (
     <KeywordInput placeholder="订单号..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} width={200} />
@@ -166,37 +175,9 @@ export default function PaymentEventsPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
+        expandedRowRender={renderExpanded}
+        hideExpandedColumn={false}
       />
-
-      <Modal
-        title={`事件详情（#${detailEvent?.id ?? ''}）`}
-        visible={!!detailEvent}
-        onCancel={() => setDetailEvent(null)}
-        footer={null}
-        width={720}
-        closeOnEsc
-      >
-        {detailEvent && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Tag color={EVENT_STATUS_COLOR[detailEvent.status]}>{EVENT_STATUS_LABELS[detailEvent.status]}</Tag>
-              <Tag color="grey">{detailEvent.type}</Tag>
-              <Typography.Text type="tertiary">订单号：{detailEvent.orderNo}</Typography.Text>
-              <Typography.Text type="tertiary">投递次数：{detailEvent.attempts}</Typography.Text>
-            </div>
-            {detailEvent.lastError && (
-              <div>
-                <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>最近错误</Typography.Text>
-                <Typography.Text type="danger" style={{ wordBreak: 'break-all' }}>{detailEvent.lastError}</Typography.Text>
-              </div>
-            )}
-            <div>
-              <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>事件载荷</Typography.Text>
-              <JsonBlock value={formatPayload(detailEvent.payload)} />
-            </div>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

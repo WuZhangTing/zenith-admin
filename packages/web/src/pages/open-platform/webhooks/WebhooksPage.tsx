@@ -74,7 +74,6 @@ export default function WebhooksPage() {
   // 投递日志抽屉
   const [drawerSub, setDrawerSub] = useState<AppWebhookSubscription | null>(null);
   const [deliveryPage, setDeliveryPage] = useState(1);
-  const [detailDelivery, setDetailDelivery] = useState<AppWebhookDelivery | null>(null);
   const [deliveryStatus, setDeliveryStatus] = useState<AppWebhookDelivery['status'] | undefined>();
   const [deliveryEventType, setDeliveryEventType] = useState<string | undefined>();
   const [selectedDeliveryIds, setSelectedDeliveryIds] = useState<number[]>([]);
@@ -230,13 +229,28 @@ export default function WebhooksPage() {
       render: (v: string) => <Tag size="small" color={DELIVERY_STATUS_COLOR[v] ?? 'grey'}>{OPEN_WEBHOOK_DELIVERY_STATUS_LABELS[v as keyof typeof OPEN_WEBHOOK_DELIVERY_STATUS_LABELS] ?? v}</Tag>,
     },
     createOperationColumn<AppWebhookDelivery>({
-      width: 120,
+      width: 80,
       actions: (record) => [
-        { key: 'detail', label: '详情', onClick: () => setDetailDelivery(record) },
         { key: 'retry', label: '重试', hidden: !canManage || record.status !== 'failed', onClick: () => void retryDelivery(record.id) },
       ],
     }),
   ];
+
+  /** 行内展开：补充行上没有的事件 ID / 重试计划 / 错误与响应 */
+  const renderDeliveryExpanded = (record?: AppWebhookDelivery) => (record ? (
+    <Descriptions
+      align="plain"
+      layout="horizontal"
+      column={2}
+      style={{ width: '100%', padding: '4px 0' }}
+      data={[
+        { key: '事件 ID', value: record.eventId },
+        { key: '下次重试', value: record.nextRetryAt ?? '—' },
+        { key: '错误信息', value: record.errorMessage ?? '—', span: 2 },
+        { key: '响应内容', span: 2, value: <Paragraph style={{ maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>{record.responseBody || '—'}</Paragraph> },
+      ]}
+    />
+  ) : null);
 
   return (
     <div className="page-container">
@@ -346,6 +360,8 @@ export default function WebhooksPage() {
           rowKey="id"
           size="small"
           empty="暂无投递记录"
+          expandedRowRender={renderDeliveryExpanded}
+          hideExpandedColumn={false}
           rowSelection={{
             selectedRowKeys: selectedDeliveryIds,
             getCheckboxProps: (record: AppWebhookDelivery) => ({ disabled: record.status !== 'failed' }),
@@ -359,29 +375,6 @@ export default function WebhooksPage() {
           }}
         />
       </SideSheet>
-
-      {/* 投递详情 */}
-      <Modal title="投递详情" visible={!!detailDelivery} onCancel={() => setDetailDelivery(null)} footer={null} width={620}>
-        {detailDelivery && (
-          <Descriptions
-            align="plain"
-            layout="horizontal"
-            column={2}
-            style={{ width: '100%' }}
-            data={[
-              { key: '事件', value: OPEN_WEBHOOK_EVENT_LABELS[detailDelivery.eventType] ?? detailDelivery.eventType },
-              { key: '状态', value: OPEN_WEBHOOK_DELIVERY_STATUS_LABELS[detailDelivery.status] },
-              { key: '尝试次数', value: String(detailDelivery.attempt) },
-              { key: '响应码', value: detailDelivery.responseStatus ?? '—' },
-              { key: '耗时', value: detailDelivery.durationMs != null ? `${detailDelivery.durationMs}ms` : '—' },
-              { key: '下次重试', value: detailDelivery.nextRetryAt ?? '—' },
-              { key: '事件 ID', value: detailDelivery.eventId, span: 2 },
-              { key: '错误信息', value: detailDelivery.errorMessage ?? '—', span: 2 },
-              { key: '响应内容', span: 2, value: <Paragraph style={{ maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0 }}>{detailDelivery.responseBody || '—'}</Paragraph> },
-            ]}
-          />
-        )}
-      </Modal>
     </div>
   );
 }
