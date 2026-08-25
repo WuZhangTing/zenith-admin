@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, conflict } from '@/mocks/utils/handlers';
-import type { RuleDecisionFlow, RuleFlowStep, RuleFlowStepTrace, RuleList } from '@zenith/shared/rules';
-import { mockDecisionFlows, getNextFlowId, mockRuleLists, mockRuleListItems, getNextListId, getNextListItemId } from '@/mocks/data/rules-p2';
+import type { RuleDecisionFlow, RuleFlowStep, RuleFlowStepTrace, RuleList, RuleScorecard, RuleScorecardEvaluateResult } from '@zenith/shared/rules';
+import { mockDecisionFlows, getNextFlowId, mockRuleLists, mockRuleListItems, getNextListId, getNextListItemId, mockRuleScorecards, getNextScorecardId } from '@/mocks/data/rules-p2';
 import { mockDecisionTables } from '@/mocks/data/decision-tables';
 import { evaluateMockDecisionTable } from './decision-tables';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -40,6 +40,42 @@ function evaluateFlow(steps: RuleFlowStep[], input: Record<string, unknown>) {
 }
 
 const flowDirty = (f: RuleDecisionFlow) => !!f.publishedSteps && JSON.stringify(f.steps) !== JSON.stringify(f.publishedSteps);
+
+/** mock 评分卡求值：与后端 rules-scorecard 引擎语义对齐（分段命中×权重+基础分→等级） */
+function evaluateMockScorecard(card: RuleScorecard, input: Record<string, unknown>): RuleScorecardEvaluateResult {
+  const get = (path: string) => path.split('.').reduce<unknown>((o, k) => (o == null ? o : (o as Record<string, unknown>)[k]), input);
+  let total = card.baseScore;
+  const variables = card.variables.map((v) => {
+    const raw = get(v.expr);
+    let score = v.missingScore ?? 0;
+    let matchedBand: string | null = null;
+    let missed = true;
+    for (const band of v.bands) {
+      let hit: boolean;
+      if (band.op === 'default') hit = true;
+      else if (band.op === 'eq') hit = raw != null && String(raw) === String(band.value ?? '');
+      else if (band.op === 'in') hit = raw != null && (band.values ?? []).some((x) => String(raw) === x);
+      else {
+        const n = Number(raw);
+        hit = raw != null && raw !== '' && Number.isFinite(n)
+          && (band.min == null || n >= band.min) && (band.max == null || n < band.max);
+      }
+      if (hit) {
+        score = band.score;
+        matchedBand = band.label ?? (band.op === 'range' ? `[${band.min ?? '-∞'}, ${band.max ?? '+∞'})` : band.op === 'eq' ? `= ${band.value ?? ''}` : band.op === 'in' ? `in [${(band.values ?? []).join(', ')}]` : '兜底');
+        missed = false;
+        break;
+      }
+    }
+    const weight = v.weight ?? 1;
+    const weighted = Math.round(score * weight * 10000) / 10000;
+    total += weighted;
+    return { key: v.key, label: v.label, raw, matchedBand, score, weight, weighted, missed };
+  });
+  const totalScore = Math.round(total * 10000) / 10000;
+  const grade = [...card.grades].sort((a, b) => b.minScore - a.minScore).find((g) => totalScore >= g.minScore) ?? null;
+  return { totalScore, baseScore: card.baseScore, grade: grade?.grade ?? null, decision: grade?.decision ?? null, variables };
+}
 
 export const rulesP2Handlers = [
   // ── 决策流 ──────────────────────────────────────────────────────────────────
@@ -103,6 +139,65 @@ export const rulesP2Handlers = [
     return ok(null, '删除成功');
   }),
 
+  // ── 评分卡 ──────────────────────────────────────────────────────────────────
+  http.get('/api/rules/scorecards', ({ request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page')) || 1, pageSize = Number(url.searchParams.get('pageSize')) || 20;
+    const kw = url.searchParams.get('keyword') ?? '';
+    const status = url.searchParams.get('status') ?? '';
+    let list = [...mockRuleScorecards];
+    if (kw) list = list.filter((t) => t.name.includes(kw) || t.key.includes(kw));
+    if (status) list = list.filter((t) => t.status === status);
+    return ok({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
+  }),
+  http.post('/api/rules/scorecards', async ({ request }) => {
+    const b = (await request.json()) as Partial<RuleScorecard>;
+    if (mockRuleScorecards.some((t) => t.key === b.key)) return conflict('评分卡 key 已存在', { status: 409 });
+    const now = mockDateTime();
+    const row: RuleScorecard = {
+      id: getNextScorecardId(), key: b.key!, name: b.name!, description: b.description ?? null,
+      status: 'draft', baseScore: b.baseScore ?? 0, variables: b.variables ?? [], grades: b.grades ?? [],
+      version: 1, publishedAt: null, dirty: false, createdAt: now, updatedAt: now,
+    };
+    mockRuleScorecards.unshift(row);
+    return ok(row, '创建成功');
+  }),
+  http.put('/api/rules/scorecards/:id', async ({ params, request }) => {
+    const r = mockRuleScorecards.find((t) => t.id === Number(params.id));
+    if (!r) return notFound('评分卡不存在', { status: 404 });
+    const { expectedUpdatedAt, ...body } = (await request.json()) as Record<string, unknown> & { expectedUpdatedAt?: string };
+    if (expectedUpdatedAt && expectedUpdatedAt !== r.updatedAt) return conflict('评分卡已被他人修改，请刷新后重试', { status: 409 });
+    Object.assign(r, body, { updatedAt: mockDateTime(), dirty: r.status === 'published' ? true : r.dirty });
+    return ok(r, '更新成功');
+  }),
+  http.post('/api/rules/scorecards/:id/publish', ({ params }) => {
+    const r = mockRuleScorecards.find((t) => t.id === Number(params.id));
+    if (!r) return notFound('评分卡不存在', { status: 404 });
+    if (r.variables.length === 0) return badRequest('评分卡至少需要一个变量', { status: 400 });
+    r.status = 'published'; r.publishedAt = mockDateTime(); r.version = r.publishedAt && r.dirty ? r.version + 1 : r.version; r.dirty = false;
+    return ok(r, '发布成功');
+  }),
+  http.post('/api/rules/scorecards/:id/toggle', async ({ params, request }) => {
+    const r = mockRuleScorecards.find((t) => t.id === Number(params.id));
+    if (!r) return notFound('评分卡不存在', { status: 404 });
+    const { enabled } = (await request.json()) as { enabled: boolean };
+    if (enabled && !r.publishedAt) return badRequest('评分卡尚未发布过，请先发布', { status: 400 });
+    r.status = enabled ? 'published' : 'disabled';
+    return ok(r);
+  }),
+  http.post('/api/rules/scorecards/:id/evaluate', async ({ params, request }) => {
+    const r = mockRuleScorecards.find((t) => t.id === Number(params.id));
+    if (!r) return notFound('评分卡不存在', { status: 404 });
+    const { input } = (await request.json()) as { input: Record<string, unknown> };
+    return ok(evaluateMockScorecard(r, input ?? {}));
+  }),
+  http.delete('/api/rules/scorecards/:id', ({ params }) => {
+    const i = mockRuleScorecards.findIndex((t) => t.id === Number(params.id));
+    if (i === -1) return notFound('评分卡不存在', { status: 404 });
+    mockRuleScorecards.splice(i, 1);
+    return ok(null, '删除成功');
+  }),
+
   // ── 名单库 ──────────────────────────────────────────────────────────────────
   http.get('/api/rules/lists', ({ request }) => {
     const url = new URL(request.url);
@@ -158,7 +253,7 @@ export const rulesP2Handlers = [
     let added = 0;
     for (const raw of [...new Set(values.map((v) => v.trim()).filter(Boolean))]) {
       if (existing.has(raw)) continue;
-      mockRuleListItems.push({ id: getNextListItemId(), listId, value: raw, label: null, expiresAt: expiresAt ?? null, remark: null, createdAt: mockDateTime() });
+      mockRuleListItems.push({ id: getNextListItemId(), listId, value: raw, label: null, matchMode: 'exact', expiresAt: expiresAt ?? null, remark: null, createdAt: mockDateTime() });
       added += 1;
     }
     return ok(null, `导入完成：新增 ${added} 条（重复值已跳过）`);
@@ -175,9 +270,9 @@ export const rulesP2Handlers = [
   }),
   http.post('/api/rules/lists/:id/items', async ({ params, request }) => {
     const listId = Number(params.id);
-    const b = (await request.json()) as { value: string; label?: string | null; expiresAt?: string | null; remark?: string | null };
+    const b = (await request.json()) as { value: string; label?: string | null; matchMode?: 'exact' | 'prefix' | 'regex'; expiresAt?: string | null; remark?: string | null };
     if (mockRuleListItems.some((i) => i.listId === listId && i.value === b.value.trim())) return badRequest('该值已在名单中', { status: 400 });
-    const row = { id: getNextListItemId(), listId, value: b.value.trim(), label: b.label ?? null, expiresAt: b.expiresAt ?? null, remark: b.remark ?? null, createdAt: mockDateTime() };
+    const row = { id: getNextListItemId(), listId, value: b.value.trim(), label: b.label ?? null, matchMode: b.matchMode ?? 'exact' as const, expiresAt: b.expiresAt ?? null, remark: b.remark ?? null, createdAt: mockDateTime() };
     mockRuleListItems.push(row);
     return ok(row, '新增成功');
   }),

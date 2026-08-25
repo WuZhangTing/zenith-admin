@@ -1,5 +1,5 @@
-import { SEED_DECISION_FLOWS, SEED_RULE_LISTS, SEED_RULE_LIST_ITEMS } from '@zenith/shared/seed';
-import type { RuleDecisionFlow, RuleList, RuleListItem } from '@zenith/shared/rules';
+import { SEED_DECISION_FLOWS, SEED_RULE_LISTS, SEED_RULE_LIST_ITEMS, SEED_RULE_SCORECARDS } from '@zenith/shared/seed';
+import type { RuleDecisionFlow, RuleList, RuleListItem, RuleScorecard } from '@zenith/shared/rules';
 import { mockDateTime } from '@/mocks/utils/date';
 
 export const mockDecisionFlows: RuleDecisionFlow[] = SEED_DECISION_FLOWS.map((f) => ({
@@ -37,3 +37,18 @@ let listSeq = mockRuleLists.length + 1;
 export const getNextListId = () => listSeq++;
 let itemSeq = mockRuleListItems.length + 1;
 export const getNextListItemId = () => itemSeq++;
+
+// ─── 评分卡 ──────────────────────────────────────────────────────────────────────
+export const mockRuleScorecards: RuleScorecard[] = SEED_RULE_SCORECARDS.map((s) => ({
+  ...s,
+  description: s.description ?? null,
+  status: 'draft',
+  version: 1,
+  publishedAt: null,
+  dirty: false,
+  createdAt: mockDateTime(),
+  updatedAt: mockDateTime(),
+}));
+
+let scorecardSeq = mockRuleScorecards.length + 1;
+export const getNextScorecardId = () => scorecardSeq++;
