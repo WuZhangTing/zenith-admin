@@ -1104,7 +1104,6 @@ export default function ChatPage({
                           onCardAction={handleCardAction}
                           onOpenWorkflow={handleOpenWorkflowFromCard}
                           canPin={canPinInActiveConv}
-                          senderOnline={onlineUserIds.has(msg.senderId)}
                         />
                       </div>
                     );
