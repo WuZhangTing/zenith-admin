@@ -437,7 +437,7 @@ export async function estimateAudience(audience: ChannelPublishAudienceInput): P
 }
 
 /** 从富文本 HTML 提取纯文本摘录（列表/会话预览用），截断到 500 字 */
-function htmlToPlainExcerpt(html: string): string {
+export function htmlToPlainExcerpt(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')

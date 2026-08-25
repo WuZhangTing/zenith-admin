@@ -4,15 +4,22 @@
  * 优先级（后端 matchAutoReply）：subscribe → keyword(exact 优先 contains，按 sort) → default。
  */
 import { useState } from 'react';
-import { Form, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, SideSheet, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
+import { Eye } from 'lucide-react';
 import type { ChannelAutoReply, ChannelMessageType, ChannelRichReplyExtra } from '@zenith/shared/messaging';
 import { CHANNEL_AUTO_REPLY_MATCH_LABELS, CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS, CHANNEL_MESSAGE_TYPE_LABELS as REPLY_TYPE_LABELS } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { AppModal } from '@/components/AppModal';
-import { ImageUploadField } from '@/components/ImageUploadField';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import {
+  ChannelContentFields,
+  ChannelNewsBodyField,
+  ChannelNewsPreviewModal,
+} from './ChannelContentEditor';
+import { EMPTY_CHANNEL_CONTENT, validateChannelContent, type ChannelContentValue } from './channel-content';
 import {
   useChannelAutoReplies,
   useDeleteChannelAutoReply,
@@ -26,6 +33,15 @@ interface Props {
   channelName: string;
   visible: boolean;
   onClose: () => void;
+}
+
+interface AutoReplyFormValues {
+  matchType: ChannelAutoReply['matchType'];
+  keyword?: string;
+  keywordMode?: ChannelAutoReply['keywordMode'];
+  replyType?: ChannelMessageType;
+  status?: ChannelAutoReply['status'];
+  sort?: number;
 }
 
 const MATCH_COLOR: Record<string, 'green' | 'blue' | 'orange'> = {
@@ -48,9 +64,11 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
 
   const [editVisible, setEditVisible] = useState(false);
   const [editing, setEditing] = useState<ChannelAutoReply | null>(null);
-  const [formValues, setFormValues] = useState<Record<string, unknown>>({});
-  const [imageUrl, setImageUrl] = useState('');
-  const [coverUrl, setCoverUrl] = useState('');
+  const [formApi, setFormApi] = useState<FormApi<AutoReplyFormValues> | null>(null);
+  /** 回复内容（text/image/news），与群发共用同一套内容编辑组件 */
+  const [content, setContent] = useState<ChannelContentValue>(EMPTY_CHANNEL_CONTENT);
+  const updateContent = (patch: Partial<ChannelContentValue>) => setContent((prev) => ({ ...prev, ...patch }));
+  const [previewVisible, setPreviewVisible] = useState(false);
   const listQuery = useChannelAutoReplies(channelId, visible && !!channelId);
   const list = listQuery.data ?? [];
   const saveMutation = useSaveChannelAutoReply();
@@ -58,48 +76,43 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
 
   const openCreate = () => {
     setEditing(null);
-    setImageUrl('');
-    setCoverUrl('');
+    setContent(EMPTY_CHANNEL_CONTENT);
     setEditVisible(true);
   };
   const openEdit = (r: ChannelAutoReply) => {
     setEditing(r);
-    setImageUrl(r.replyExtra?.imageUrl ?? '');
-    setCoverUrl(r.replyExtra?.cover ?? '');
+    setContent({
+      title: r.replyExtra?.title ?? '',
+      content: r.replyType === 'text' ? r.replyContent : '',
+      imageUrl: r.replyExtra?.imageUrl ?? '',
+      cover: r.replyExtra?.cover ?? '',
+      summary: r.replyExtra?.summary ?? '',
+      linkUrl: r.replyExtra?.linkUrl ?? '',
+      bodyHtml: r.replyExtra?.bodyHtml ?? '',
+    });
     setEditVisible(true);
   };
 
   const handleSubmit = async () => {
-    const values = formValues as {
-      matchType: ChannelAutoReply['matchType'];
-      keyword?: string;
-      keywordMode: ChannelAutoReply['keywordMode'];
-      replyType?: ChannelMessageType;
-      replyContent?: string;
-      title?: string;
-      summary?: string;
-      linkUrl?: string;
-      status: ChannelAutoReply['status'];
-      sort: number;
-    };
+    if (!formApi) return;
+    // 直接读表单快照；onValueChange 收集在「打开后未改任何字段」时会拿到空值
+    const values = formApi.getValues();
     const replyType: ChannelMessageType = values.replyType ?? 'text';
-    const replyContent = (values.replyContent ?? '').trim();
-    const title = (values.title ?? '').trim();
 
     if (values.matchType === 'keyword' && !values.keyword?.trim()) { Toast.error('关键词回复必须填写关键词'); return; }
-    if (replyType === 'text' && !replyContent) { Toast.error('请填写回复内容'); return; }
-    if (replyType === 'image' && !imageUrl) { Toast.error('请上传图片'); return; }
-    if (replyType === 'news' && !title) { Toast.error('图文回复请填写标题'); return; }
+    const contentErr = validateChannelContent(replyType, content);
+    if (contentErr) { Toast.error(contentErr); return; }
 
     let replyExtra: ChannelRichReplyExtra | null = null;
     if (replyType === 'image') {
-      replyExtra = { imageUrl };
+      replyExtra = { imageUrl: content.imageUrl };
     } else if (replyType === 'news') {
       replyExtra = {
-        title,
-        cover: coverUrl || null,
-        summary: (values.summary ?? '').trim() || null,
-        linkUrl: (values.linkUrl ?? '').trim() || null,
+        title: content.title.trim(),
+        cover: content.cover || null,
+        summary: content.summary.trim() || null,
+        linkUrl: content.linkUrl.trim() || null,
+        bodyHtml: content.bodyHtml.trim() || null,
       };
     }
 
@@ -107,7 +120,7 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
       keyword: values.matchType === 'keyword' ? (values.keyword ?? '').trim() : null,
       keywordMode: values.keywordMode ?? 'contains',
       replyType,
-      replyContent,
+      replyContent: replyType === 'text' ? content.content.trim() : '',
       replyExtra,
       status: values.status ?? 'enabled',
       sort: Number(values.sort) || 0,
@@ -132,9 +145,14 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
       render: (v: string) => <Tag color={MATCH_COLOR[v] ?? 'grey'} size="small">{CHANNEL_AUTO_REPLY_MATCH_LABELS[v as keyof typeof CHANNEL_AUTO_REPLY_MATCH_LABELS] ?? v}</Tag>,
     },
     {
-      title: '关键词', dataIndex: 'keyword',
+      title: '关键词', dataIndex: 'keyword', width: 170,
       render: (v: string | null, r: ChannelAutoReply) => (r.matchType === 'keyword'
-        ? <span>{v} <Typography.Text type="tertiary" size="small">({CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS[r.keywordMode]})</Typography.Text></span>
+        ? (
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>
+            {v}
+            <Typography.Text type="tertiary" size="small">（{CHANNEL_AUTO_REPLY_KEYWORD_MODE_LABELS[r.keywordMode]}）</Typography.Text>
+          </Typography.Text>
+        )
         : <Typography.Text type="tertiary">—</Typography.Text>),
     },
     {
@@ -149,17 +167,17 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
           : r.replyType === 'news'
             ? (r.replyExtra?.title ?? v)
             : v;
-        return <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{text || '—'}</Typography.Text>;
+        return <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 210 }}>{text || '—'}</Typography.Text>;
       },
     },
     {
-      title: '命中次数', dataIndex: 'hitCount', width: 90, align: 'right',
+      title: '命中', dataIndex: 'hitCount', width: 70, align: 'right',
       render: (v: number) => <Typography.Text>{Number(v) || 0}</Typography.Text>,
     },
     { title: '状态', dataIndex: 'status', width: 70, render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag> },
-    { title: '排序', dataIndex: 'sort', width: 60 },
+    { title: '排序', dataIndex: 'sort', width: 64 },
     createOperationColumn<ChannelAutoReply>({
-      width: 130,
+      width: 140,
       actions: (record) => [
         {
           key: 'edit',
@@ -184,7 +202,7 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
   ];
 
   return (
-    <SideSheet title={`自动回复 · ${channelName}`} visible={visible} onCancel={onClose} width={620} placement="right" closeOnEsc>
+    <SideSheet title={`自动回复 · ${channelName}`} visible={visible} onCancel={onClose} width="min(1000px, 95vw)" placement="right" closeOnEsc>
       <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography.Text type="tertiary" size="small">优先级：关注欢迎语 → 关键词（完全匹配优先）→ 默认兜底</Typography.Text>
         {canSave && <CreateButton onClick={openCreate}>新增规则</CreateButton>}
@@ -205,10 +223,11 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
         onOk={() => void handleSubmit()}
         confirmLoading={saveMutation.isPending}
         okText="保存"
-        width={520}
+        width={760}
       >
-        <Form
+        <Form<AutoReplyFormValues>
           key={editing?.id ?? 'new'}
+          getFormApi={(api) => setFormApi(api as FormApi<AutoReplyFormValues>)}
           labelPosition="left"
           labelWidth={90}
           initValues={{
@@ -216,14 +235,9 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
             keyword: editing?.keyword ?? '',
             keywordMode: editing?.keywordMode ?? 'contains',
             replyType: editing?.replyType ?? 'text',
-            replyContent: editing?.replyContent ?? '',
-            title: editing?.replyExtra?.title ?? '',
-            summary: editing?.replyExtra?.summary ?? '',
-            linkUrl: editing?.replyExtra?.linkUrl ?? '',
             status: editing?.status ?? 'enabled',
             sort: editing?.sort ?? 0,
           }}
-          onValueChange={(v) => setFormValues(v)}
         >
           {({ formState }) => {
             const matchType = (formState.values?.matchType as string) ?? 'keyword';
@@ -261,30 +275,14 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
                   <Form.Radio value="news">图文</Form.Radio>
                 </Form.RadioGroup>
 
-                {replyType === 'text' && (
-                  <Form.TextArea field="replyContent" label="回复内容" rules={[{ required: true, message: '请填写回复内容' }]} autosize={{ minRows: 3, maxRows: 6 }} />
-                )}
-
-                {replyType === 'image' && (
-                  <Form.Slot label="图片">
-                    <ImageUploadField value={imageUrl} onChange={setImageUrl} label="图片" />
-                  </Form.Slot>
-                )}
-
+                {/* 内容编辑与群发共用 ChannelContentEditor，图文正文支持富文本 */}
+                <ChannelContentFields type={replyType} value={content} onChange={updateContent} />
                 {replyType === 'news' && (
                   <>
-                    <Form.Input field="title" label="标题" rules={[{ required: true, message: '请填写标题' }]} />
-                    <Form.Slot label="封面图">
-                      <ImageUploadField
-                        value={coverUrl}
-                        onChange={setCoverUrl}
-                        label="封面"
-                        previewStyle={{ width: 120, height: 80 }}
-                      />
+                    <ChannelNewsBodyField value={content} onChange={updateContent} height={280} />
+                    <Form.Slot label=" ">
+                      <Button icon={<Eye size={14} />} onClick={() => setPreviewVisible(true)}>预览图文</Button>
                     </Form.Slot>
-                    <Form.TextArea field="summary" label="摘要" placeholder="可选，列表摘要" autosize={{ minRows: 2, maxRows: 3 }} />
-                    <Form.Input field="linkUrl" label="跳转链接" placeholder="可选，点击图文跳转的 URL" />
-                    <Form.TextArea field="replyContent" label="正文" placeholder="可选，图文正文内容" autosize={{ minRows: 3, maxRows: 6 }} />
                   </>
                 )}
 
@@ -300,6 +298,12 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
           }}
         </Form>
       </AppModal>
+
+      <ChannelNewsPreviewModal
+        visible={previewVisible}
+        onCancel={() => setPreviewVisible(false)}
+        value={content}
+      />
     </SideSheet>
   );
 }

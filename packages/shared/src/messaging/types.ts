@@ -182,6 +182,8 @@ export interface ChannelRichReplyExtra {
   cover?: string | null;
   summary?: string | null;
   linkUrl?: string | null;
+  /** 图文消息：富文本正文（服务端净化后存储） */
+  bodyHtml?: string | null;
 }
 
 /** 频道自动回复规则 */

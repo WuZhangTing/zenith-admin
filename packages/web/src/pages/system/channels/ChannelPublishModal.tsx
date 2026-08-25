@@ -10,18 +10,21 @@
  * 封面图通过 /api/files/upload-one 上传得到 URL。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Col, Form, Input, Row, Select, SideSheet, Space, Toast, Typography, Upload, withField } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Row, Select, SideSheet, Space, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import DOMPurify from 'dompurify';
-import { Eye, ImagePlus, Save, Send, Settings2, Trash2, Users } from 'lucide-react';
+import { Eye, Save, Send, Settings2, Users } from 'lucide-react';
 import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
 import type { ChannelAdmin, ChannelMessage, ChannelMessageTemplate, ChannelMessageType, ChannelPublishAudienceMode, ChannelSendMode } from '@zenith/shared/messaging';
-import { config } from '@/config';
 import { formatDateTimeForApi } from '@/utils/date';
 import { AppModal } from '@/components/AppModal';
 import UserSelect from '@/components/UserSelect';
 import DepartmentSelect from '@/components/DepartmentSelect';
-import RichTextEditor from '@/components/RichTextEditor';
+import {
+  ChannelContentFields,
+  ChannelNewsBodyField,
+  ChannelNewsPreviewModal,
+} from './ChannelContentEditor';
+import { EMPTY_CHANNEL_CONTENT, validateChannelContent, type ChannelContentValue } from './channel-content';
 import { ChannelTemplateDrawer } from './ChannelTemplateDrawer';
 import { useAllRoles } from '@/hooks/queries/roles';
 import {
@@ -46,10 +49,6 @@ interface Props {
 
 interface PublishFormValues {
   type: ChannelMessageType;
-  title?: string;
-  content?: string;
-  summary?: string;
-  linkUrl?: string;
   audienceMode: ChannelPublishAudienceMode;
   userIds?: number[];
   departmentIds?: number[];
@@ -90,10 +89,9 @@ function toDateValue(v: string | null | undefined): Date | undefined {
 
 export function ChannelPublishModal({ channel, editing, visible, onClose, onSuccess }: Readonly<Props>) {
   const [formApi, setFormApi] = useState<FormApi<PublishFormValues> | null>(null);
-  const [coverUrl, setCoverUrl] = useState<string>('');
-  const [imageUrl, setImageUrl] = useState<string>('');
-  /** 图文正文富文本 HTML（不进 Form，与封面图同为本地状态） */
-  const [bodyHtml, setBodyHtml] = useState<string>('');
+  /** 消息内容（标题/正文/图片/封面/摘要/链接/富文本），与发布设置分离，便于模板往返 */
+  const [content, setContent] = useState<ChannelContentValue>(EMPTY_CHANNEL_CONTENT);
+  const updateContent = (patch: Partial<ChannelContentValue>) => setContent((prev) => ({ ...prev, ...patch }));
   const [modalType, setModalType] = useState<ChannelMessageType>('text');
 
   const [audienceSel, setAudienceSel] = useState<AudienceSelection>({
@@ -121,13 +119,20 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
 
   useEffect(() => {
     if (!visible) return;
-    setCoverUrl(card?.cover ?? '');
-    setBodyHtml(card?.bodyHtml ?? '');
-    setImageUrl(editing?.type === 'image' ? (editing?.content ?? '') : '');
+    setContent({
+      title: editing?.title ?? '',
+      content: editing && editing.type !== 'image' && editing.type !== 'news' ? (editing.content ?? '') : '',
+      imageUrl: editing?.type === 'image' ? (editing?.content ?? '') : '',
+      cover: card?.cover ?? '',
+      summary: card?.text ?? '',
+      linkUrl: card?.actions?.[0]?.url ?? '',
+      bodyHtml: card?.bodyHtml ?? '',
+    });
     setModalType(editing?.type === 'news' ? 'news' : editing?.type === 'image' ? 'image' : 'text');
     setAudienceSel({ mode: 'all', userIds: [], departmentIds: [], roleIds: [] });
     setEstimateCount(null);
-  }, [visible, editing?.id, editing?.type, editing?.content, card?.cover, card?.bodyHtml]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, editing?.id]);
 
   const audienceKey = JSON.stringify(audienceSel);
   useEffect(() => {
@@ -157,10 +162,6 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
 
   const initValues: PublishFormValues = {
     type: (editing?.type === 'news' ? 'news' : editing?.type === 'image' ? 'image' : 'text'),
-    title: editing?.title ?? '',
-    content: editing?.type === 'image' ? '' : (editing?.content ?? ''),
-    summary: card?.text ?? '',
-    linkUrl: card?.actions?.[0]?.url ?? '',
     audienceMode: 'all',
     userIds: [],
     departmentIds: [],
@@ -169,35 +170,12 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
     scheduledAt: toDateValue(editing?.scheduledAt) ?? null,
   };
 
-  const handleUploadSuccess = (res: unknown) => {
-    const r = res as { code?: number; data?: { url?: string } };
-    if (r?.code === 0 && r.data?.url) {
-      setCoverUrl(r.data.url);
-      Toast.success('封面已上传');
-    } else {
-      Toast.error('封面上传失败');
-    }
-  };
-
-  const handleImageUploadSuccess = (res: unknown) => {
-    const r = res as { code?: number; data?: { url?: string } };
-    if (r?.code === 0 && r.data?.url) {
-      setImageUrl(r.data.url);
-      Toast.success('图片已上传');
-    } else {
-      Toast.error('图片上传失败');
-    }
-  };
-
   const buildBody = (values: PublishFormValues) => {
     const type = values.type;
-    const content = (values.content ?? '').trim();
-    const title = (values.title ?? '').trim();
-
-    if (type === 'text' && !content) { Toast.error('请填写文本内容'); return null; }
-    if (type === 'image' && !imageUrl) { Toast.error('请上传图片'); return null; }
-    if (type === 'news' && !title) { Toast.error('图文消息请填写标题'); return null; }
-    if (type === 'news' && !coverUrl) { Toast.error('请上传图文封面'); return null; }
+    const contentErr = validateChannelContent(type, content, { requireCover: true });
+    if (contentErr) { Toast.error(contentErr); return null; }
+    const text = content.content.trim();
+    const title = content.title.trim();
 
     const mode = values.audienceMode;
     if (mode === 'users' && !(values.userIds?.length)) { Toast.error('请选择指定用户'); return null; }
@@ -219,12 +197,12 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
     return {
       type,
       title: type === 'news' ? title : (title || null),
-      content: type === 'image' || type === 'news' ? '' : content,
-      bodyHtml: type === 'news' ? (bodyHtml.trim() || null) : null,
-      imageUrl: type === 'image' ? (imageUrl || null) : null,
-      cover: type === 'news' ? (coverUrl || null) : null,
-      summary: type === 'news' ? ((values.summary ?? '').trim() || null) : null,
-      linkUrl: type === 'news' ? ((values.linkUrl ?? '').trim() || null) : null,
+      content: type === 'image' || type === 'news' ? '' : text,
+      bodyHtml: type === 'news' ? (content.bodyHtml.trim() || null) : null,
+      imageUrl: type === 'image' ? (content.imageUrl || null) : null,
+      cover: type === 'news' ? (content.cover || null) : null,
+      summary: type === 'news' ? (content.summary.trim() || null) : null,
+      linkUrl: type === 'news' ? (content.linkUrl.trim() || null) : null,
       audience,
       sendMode: values.sendMode,
       scheduledAt: values.sendMode === 'scheduled' && values.scheduledAt
@@ -276,17 +254,17 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
     extra: ChatMessageExtra | null;
   } => {
     const type = values.type;
-    const title = (values.title ?? '').trim();
+    const title = content.title.trim();
     if (type === 'image') {
-      return { type, title: null, content: imageUrl, extra: null };
+      return { type, title: null, content: content.imageUrl, extra: null };
     }
     if (type === 'news') {
-      const summary = (values.summary ?? '').trim();
-      const linkUrl = (values.linkUrl ?? '').trim();
+      const summary = content.summary.trim();
+      const linkUrl = content.linkUrl.trim();
       const card: ChatCard = {
         title,
-        cover: coverUrl || null,
-        bodyHtml: bodyHtml.trim() || null,
+        cover: content.cover || null,
+        bodyHtml: content.bodyHtml.trim() || null,
         text: summary || null,
         actions: linkUrl
           ? [{ key: 'link', label: '查看详情', action: 'link', url: linkUrl }]
@@ -294,40 +272,29 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
       };
       return { type, title: title || null, content: '', extra: { card } };
     }
-    return { type: 'text', title: title || null, content: (values.content ?? '').trim(), extra: null };
+    return { type: 'text', title: title || null, content: content.content.trim(), extra: null };
   };
 
-  /** 把模板内容回填到表单 / 本地状态，实现 保存→载入→发布 的内容往返 */
+  /** 把模板内容回填到本地内容状态，实现 保存→载入→发布 的内容往返 */
   const applyTemplate = (tpl: ChannelMessageTemplate) => {
     if (!formApi) return;
     const type: ChannelMessageType = tpl.type === 'news' ? 'news' : tpl.type === 'image' ? 'image' : 'text';
     setModalType(type);
     formApi.setValue('type', type);
     if (type === 'image') {
-      setImageUrl(tpl.content ?? '');
-      setCoverUrl('');
-      setBodyHtml('');
-      formApi.setValue('title', '');
-      formApi.setValue('content', '');
-      formApi.setValue('summary', '');
-      formApi.setValue('linkUrl', '');
+      setContent({ ...EMPTY_CHANNEL_CONTENT, imageUrl: tpl.content ?? '' });
     } else if (type === 'news') {
       const tplCard = tpl.extra?.card ?? null;
-      setImageUrl('');
-      setCoverUrl(tplCard?.cover ?? '');
-      setBodyHtml(tplCard?.bodyHtml ?? '');
-      formApi.setValue('title', tpl.title ?? '');
-      formApi.setValue('content', '');
-      formApi.setValue('summary', tplCard?.text ?? '');
-      formApi.setValue('linkUrl', tplCard?.actions?.[0]?.url ?? '');
+      setContent({
+        ...EMPTY_CHANNEL_CONTENT,
+        title: tpl.title ?? '',
+        cover: tplCard?.cover ?? '',
+        bodyHtml: tplCard?.bodyHtml ?? '',
+        summary: tplCard?.text ?? '',
+        linkUrl: tplCard?.actions?.[0]?.url ?? '',
+      });
     } else {
-      setImageUrl('');
-      setCoverUrl('');
-      setBodyHtml('');
-      formApi.setValue('title', tpl.title ?? '');
-      formApi.setValue('content', tpl.content ?? '');
-      formApi.setValue('summary', '');
-      formApi.setValue('linkUrl', '');
+      setContent({ ...EMPTY_CHANNEL_CONTENT, title: tpl.title ?? '', content: tpl.content ?? '' });
     }
     Toast.success(`已载入模板「${tpl.name}」`);
   };
@@ -488,61 +455,16 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
                   </>
                 );
 
-                const newsEditor = (
-                  <>
-                    <Form.Input field="title" label="标题" rules={[{ required: true, message: '请填写标题' }]} />
-                    <Form.Slot label="封面图">
-                      <Space align="start">
-                        {coverUrl
-                          ? (
-                            <div style={{ position: 'relative' }}>
-                              <img src={coverUrl} alt="封面" style={{ width: 120, height: 80, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
-                              <Button
-                                theme="borderless"
-                                type="danger"
-                                size="small"
-                                icon={<Trash2 size={14} />}
-                                style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(255,255,255,0.8)' }}
-                                onClick={() => setCoverUrl('')}
-                              />
-                            </div>
-                          )
-                          : (
-                            <Upload
-                              action={`${config.apiBaseUrl}/api/files/upload-one`}
-                              headers={{ Authorization: `Bearer ${localStorage.getItem('zenith_token') ?? ''}` }}
-                              name="file"
-                              accept="image/*"
-                              limit={1}
-                              showUploadList={false}
-                              onSuccess={handleUploadSuccess}
-                            >
-                              <Button icon={<ImagePlus size={14} />}>上传封面</Button>
-                            </Upload>
-                          )}
-                      </Space>
-                    </Form.Slot>
-                    <Form.TextArea field="summary" label="摘要" placeholder="可选，卡片与列表摘要" autosize={{ minRows: 2, maxRows: 3 }} />
-                    <Form.Input field="linkUrl" label="跳转链接" placeholder="可选，卡片「查看详情」跳转的 URL" />
-                  </>
-                );
 
                 if (type === 'news') {
                   return (
                     <>
                       <Row gutter={24}>
-                        <Col span={12}>{newsEditor}</Col>
+                        <Col span={12}><ChannelContentFields type="news" value={content} onChange={updateContent} /></Col>
                         <Col span={12}>{sendSettings}</Col>
                       </Row>
                       {/* 正文整行独占，给富文本最大编辑空间；预览走底部「预览」按钮弹窗 */}
-                      <Form.Slot label="正文">
-                        <RichTextEditor
-                          value={bodyHtml}
-                          onChange={setBodyHtml}
-                          placeholder="图文正文，支持富文本排版与图片混排…"
-                          height={440}
-                        />
-                      </Form.Slot>
+                      <ChannelNewsBodyField value={content} onChange={updateContent} height={440} />
                     </>
                   );
                 }
@@ -550,44 +472,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
                 return (
                   <Row gutter={24}>
                     <Col span={12}>
-                    {type === 'text' ? (
-                      <>
-                        <Form.Input field="title" label="标题" placeholder="可选" />
-                        <Form.TextArea field="content" label="内容" placeholder="请输入文本内容" autosize={{ minRows: 6, maxRows: 16 }} />
-                      </>
-                    ) : (
-                      <Form.Slot label="图片">
-                        <Space align="start">
-                          {imageUrl
-                            ? (
-                              <div style={{ position: 'relative' }}>
-                                <img src={imageUrl} alt="图片" style={{ maxWidth: 240, maxHeight: 180, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', border: '1px solid var(--semi-color-border)' }} />
-                                <Button
-                                  theme="borderless"
-                                  type="danger"
-                                  size="small"
-                                  icon={<Trash2 size={14} />}
-                                  style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(255,255,255,0.8)' }}
-                                  onClick={() => setImageUrl('')}
-                                />
-                              </div>
-                            )
-                            : (
-                              <Upload
-                                action={`${config.apiBaseUrl}/api/files/upload-one`}
-                                headers={{ Authorization: `Bearer ${localStorage.getItem('zenith_token') ?? ''}` }}
-                                name="file"
-                                accept="image/*"
-                                limit={1}
-                                showUploadList={false}
-                                onSuccess={handleImageUploadSuccess}
-                              >
-                                <Button icon={<ImagePlus size={14} />}>上传图片</Button>
-                              </Upload>
-                            )}
-                        </Space>
-                      </Form.Slot>
-                    )}
+                      <ChannelContentFields type={type} value={content} onChange={updateContent} showTextTitle />
                     </Col>
                     <Col span={12}>{sendSettings}</Col>
                   </Row>
@@ -623,36 +508,11 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
       onChanged={() => void templatesQuery.refetch()}
     />
 
-    <AppModal
-      title="图文预览"
+    <ChannelNewsPreviewModal
       visible={previewVisible}
       onCancel={() => setPreviewVisible(false)}
-      footer={null}
-      width={720}
-    >
-      {(() => {
-        const v: Partial<PublishFormValues> = formApi?.getValues() ?? {};
-        const previewTitle = (v.title ?? '').trim();
-        const previewSummary = (v.summary ?? '').trim();
-        return (
-          <div style={{ maxHeight: '68vh', overflowY: 'auto' }}>
-            {coverUrl && <img src={coverUrl} alt="封面预览" style={{ width: '100%', maxHeight: 240, objectFit: 'cover', display: 'block', borderRadius: 'var(--semi-border-radius-medium)', marginBottom: 12 }} />}
-            <Typography.Title heading={5} style={{ margin: 0 }}>{previewTitle || '图文标题'}</Typography.Title>
-            {previewSummary && (
-              <Typography.Text type="tertiary" style={{ display: 'block', marginTop: 8 }}>{previewSummary}</Typography.Text>
-            )}
-            {bodyHtml.trim()
-              ? (
-                <div
-                  style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--semi-color-border)', fontSize: 14, lineHeight: 1.8, wordBreak: 'break-word' }}
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml) }}
-                />
-              )
-              : <Typography.Text type="tertiary" style={{ display: 'block', marginTop: 14 }}>（正文为空）</Typography.Text>}
-          </div>
-        );
-      })()}
-    </AppModal>
+      value={content}
+    />
     </>
   );
 }

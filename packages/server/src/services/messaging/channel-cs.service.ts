@@ -27,7 +27,8 @@ import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { broadcast, scheduleSendToUsers } from '../../lib/ws-manager';
-import { mapChannelMessage } from './channel.service';
+import { htmlToPlainExcerpt, mapChannelMessage } from './channel.service';
+import { sanitizeCmsHtml } from '../cms/cms-html-sanitizer';
 
 // ─── 频道前置校验 ──────────────────────────────────────────────────────────────
 
@@ -114,6 +115,13 @@ export async function saveChannelMenus(channelId: number, input: SaveChannelMenu
 
 // ─── 自动回复规则 ──────────────────────────────────────────────────────────────
 
+/** 富文本正文经白名单净化后入库（一次净化，多次投递直接使用） */
+function sanitizeReplyExtra(extra: ChannelRichReplyExtra | null | undefined): ChannelRichReplyExtra | null {
+  if (!extra) return extra ?? null;
+  const bodyHtml = extra.bodyHtml?.trim();
+  return { ...extra, bodyHtml: bodyHtml ? sanitizeCmsHtml(bodyHtml) : null };
+}
+
 function mapAutoReply(row: ChannelAutoReplyRow): ChannelAutoReply {
   return {
     id: row.id,
@@ -156,7 +164,7 @@ export async function createChannelAutoReply(channelId: number, input: CreateCha
     keywordMode: input.keywordMode,
     replyType: input.replyType,
     replyContent: input.replyContent,
-    replyExtra: input.replyExtra ?? null,
+    replyExtra: sanitizeReplyExtra(input.replyExtra),
     status: input.status,
     sort: input.sort,
   }).returning();
@@ -171,7 +179,7 @@ export async function updateChannelAutoReply(id: number, input: UpdateChannelAut
     ...(input.keywordMode === undefined ? {} : { keywordMode: input.keywordMode }),
     ...(input.replyType === undefined ? {} : { replyType: input.replyType }),
     ...(input.replyContent === undefined ? {} : { replyContent: input.replyContent }),
-    ...(input.replyExtra === undefined ? {} : { replyExtra: input.replyExtra }),
+    ...(input.replyExtra === undefined ? {} : { replyExtra: sanitizeReplyExtra(input.replyExtra) }),
     ...(input.status === undefined ? {} : { status: input.status }),
     ...(input.sort === undefined ? {} : { sort: input.sort }),
   }).where(eq(channelAutoReplies.id, id)).returning();
@@ -232,15 +240,19 @@ function buildAutoReplyArgs(rule: ChannelAutoReplyRow): { content: string; type:
     return { content: (ex?.imageUrl ?? '').trim(), type: 'image', extra: null };
   }
   if (rule.replyType === 'news') {
+    const bodyHtml = ex?.bodyHtml ?? null;
     const card: ChatCard = {
       title: (ex?.title ?? '').trim() || '图文消息',
       text: ex?.summary ?? null,
       cover: ex?.cover ?? null,
+      bodyHtml,
       actions: ex?.linkUrl ? [{ key: 'open', label: '查看详情', action: 'link', url: ex.linkUrl }] : null,
       source: '图文',
       status: null,
     };
-    return { content: rule.replyContent || ex?.summary || '', type: 'news', extra: { card } };
+    // 会话预览文本：显式回复内容 → 摘要 → 正文纯文本摘录
+    const content = rule.replyContent || ex?.summary || (bodyHtml ? htmlToPlainExcerpt(bodyHtml) : '');
+    return { content, type: 'news', extra: { card } };
   }
   return { content: rule.replyContent, type: 'text', extra: null };
 }

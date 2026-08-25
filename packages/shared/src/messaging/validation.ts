@@ -229,6 +229,7 @@ const channelRichReplyExtraSchema = z.object({
   cover: z.string().max(1000).nullable().optional(),
   summary: z.string().max(500).nullable().optional(),
   linkUrl: z.string().max(1000).nullable().optional(),
+  bodyHtml: z.string().max(200000).nullable().optional(),
 });
 
 /** 新建频道自动回复规则 */
