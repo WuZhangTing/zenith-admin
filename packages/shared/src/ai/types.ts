@@ -202,6 +202,20 @@ export interface AiTraceStep {
   meta?: Record<string, unknown>;
 }
 
+/** assistant 消息的工具调用记录（展示用途,与 SSE tool_call 事件同构） */
+export interface AiToolCallRecord {
+  name: string;
+  arguments: string;
+  result: string;
+}
+
+/** 知识库检索引用（展示用途,与 SSE references 事件同构） */
+export interface AiKbReference {
+  docName: string;
+  content: string;
+  score: number;
+}
+
 export interface AiMessage {
   id: number;
   conversationId: number;
@@ -226,6 +240,10 @@ export interface AiMessage {
   feedbackHandledAt: string | null;
   /** 生成调用链 trace（assistant 消息） */
   trace: AiTraceStep[] | null;
+  /** 工具调用过程（assistant 消息,刷新后仍可展示） */
+  toolCalls: AiToolCallRecord[] | null;
+  /** 知识库检索引用（assistant 消息,刷新后仍可展示） */
+  references: AiKbReference[] | null;
   /** 用户消息附带的图片（managed file id 数组，经 /api/files/{id}/content 访问） */
   images: string[] | null;
   createdAt: string;

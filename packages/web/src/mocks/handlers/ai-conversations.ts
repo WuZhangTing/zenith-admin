@@ -254,6 +254,8 @@ export const aiConversationsHandlers = [
         feedbackRemark: null,
         feedbackHandledAt: null,
         trace: null,
+        toolCalls: null,
+        references: null,
         images: body.images?.length ? ['demo-img'] : null,
         createdAt: now,
       };
@@ -317,6 +319,8 @@ export const aiConversationsHandlers = [
       trace: [
         { type: 'llm_round', label: 'LLM 生成', durationMs: 3200, meta: { model: 'qwen (demo)', toolCalls: 0 } },
       ],
+      toolCalls: null,
+      references: null,
       images: null,
       createdAt: now,
     };

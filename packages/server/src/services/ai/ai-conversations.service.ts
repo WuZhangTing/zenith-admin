@@ -47,6 +47,8 @@ function mapMessage(row: typeof aiMessages.$inferSelect) {
     feedbackRemark: row.feedbackRemark,
     feedbackHandledAt: formatNullableDateTime(row.feedbackHandledAt),
     trace: row.trace,
+    toolCalls: row.toolCalls ?? null,
+    references: row.kbReferences ?? null,
     images: row.images ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
@@ -389,6 +391,10 @@ export interface AssistantMessageMeta {
   ttftMs?: number | null;
   durationMs?: number | null;
   trace?: import('../../db/schema').AiTraceStep[] | null;
+  /** 工具调用过程（展示用途,与 SSE tool_call 事件同构） */
+  toolCalls?: { name: string; arguments: string; result: string }[] | null;
+  /** 知识库检索引用（展示用途,与 SSE references 事件同构） */
+  kbReferences?: { docName: string; content: string; score: number }[] | null;
 }
 
 export async function saveMessages(
@@ -420,6 +426,8 @@ export async function saveMessages(
       ttftMs: meta.ttftMs ?? null,
       durationMs: meta.durationMs ?? null,
       trace: meta.trace ?? null,
+      toolCalls: meta.toolCalls ?? null,
+      kbReferences: meta.kbReferences ?? null,
     },
   ).returning({ id: aiMessages.id });
   await db
@@ -453,6 +461,8 @@ export async function saveAssistantMessage(
     ttftMs: meta.ttftMs ?? null,
     durationMs: meta.durationMs ?? null,
     trace: meta.trace ?? null,
+    toolCalls: meta.toolCalls ?? null,
+    kbReferences: meta.kbReferences ?? null,
   }).returning({ id: aiMessages.id });
   await db
     .update(aiConversations)

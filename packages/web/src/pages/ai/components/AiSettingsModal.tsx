@@ -14,11 +14,13 @@ const { Text } = Typography;
 
 interface AiSettingsModalProps {
   readonly visible: boolean;
+  /** 打开时定位到的 Tab（如从聊天记忆卡片直达「AI 记忆」） */
+  readonly initialTab?: 'instructions' | 'memory';
   readonly onClose: () => void;
 }
 
 /** 用户级 AI 设置弹窗：个人指令（Custom Instructions）+ AI 记忆（working memory 画像） */
-export default function AiSettingsModal({ visible, onClose }: AiSettingsModalProps) {
+export default function AiSettingsModal({ visible, initialTab = 'instructions', onClose }: AiSettingsModalProps) {
   const formApi = useRef<FormApi | null>(null);
   const settingsQuery = useAiSettings(visible);
   const saveMutation = useSaveAiSettings();
@@ -27,10 +29,16 @@ export default function AiSettingsModal({ visible, onClose }: AiSettingsModalPro
   const clearProfileMutation = useClearAiMemoryProfile();
   const [formKey, setFormKey] = useState(0);
   const [profileDraft, setProfileDraft] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>(initialTab);
 
   useEffect(() => {
     if (visible && settingsQuery.data) setFormKey((k) => k + 1);
   }, [visible, settingsQuery.data]);
+
+  // 打开时定位到调用方指定的 Tab
+  useEffect(() => {
+    if (visible) setActiveTab(initialTab);
+  }, [visible, initialTab]);
 
   // 画像草稿：打开/远端刷新时重置为远端值
   useEffect(() => {
@@ -81,7 +89,7 @@ export default function AiSettingsModal({ visible, onClose }: AiSettingsModalPro
         }}
         labelPosition="top"
       >
-        <Tabs type="line" size="small">
+        <Tabs type="line" size="small" activeKey={activeTab} onChange={setActiveTab}>
           <TabPane tab="个人指令" itemKey="instructions">
             <Text type="tertiary" size="small" style={{ display: 'block', margin: '8px 0 12px' }}>
               AI 在所有对话中都会参考这些信息（对话角色模板优先级更高）

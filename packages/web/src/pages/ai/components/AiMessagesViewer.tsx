@@ -5,6 +5,7 @@ import type { RenderAvatarProps, RenderTitleProps } from '@douyinfe/semi-ui/lib/
 import type { AiMessage } from '@zenith/shared/ai';
 import { UserAvatar } from '@/components/UserAvatar';
 import { AI_AVATAR, convertApiMessage, formatMessageTime } from '../chat/message-adapters';
+import { buildContentItemRenderers } from '../chat/content-renderers';
 
 const { Text } = Typography;
 
@@ -26,6 +27,9 @@ interface AiMessagesViewerProps {
  */
 export default function AiMessagesViewer({ messages, targetMsgId, targetLabel = '目标消息', targetColor = 'orange', userMeta, maxHeight = 480 }: AiMessagesViewerProps) {
   const chats = useMemo(() => messages.map(convertApiMessage), [messages]);
+
+  // 与聊天页共用内容项渲染器（工具调用 / 记忆更新 / 知识库引用）；只读场景无管理入口
+  const contentRenderers = useMemo(() => buildContentItemRenderers(), []);
 
   const roleConfig = useMemo(() => ({
     user: {
@@ -82,6 +86,7 @@ export default function AiMessagesViewer({ messages, targetMsgId, targetLabel = 
         align="leftRight"
         mode="bubble"
         dialogueRenderConfig={dialogueRenderConfig}
+        renderDialogueContentItem={contentRenderers}
       />
     </div>
   );

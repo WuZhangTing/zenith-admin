@@ -47,6 +47,7 @@ import {
   type ToolCallDisplay,
   type KbRefDisplay,
 } from './message-adapters';
+import { buildContentItemRenderers } from './content-renderers';
 
 const { Configure } = AIChatInput;
 const { Title } = Typography;
@@ -269,6 +270,7 @@ export default function AIChatPage() {
   const [varFillTemplate, setVarFillTemplate] = useState<AiPromptTemplate | null>(null);
   const varFormApi = useRef<FormApi | null>(null);
   const [preferenceVisible, setPreferenceVisible] = useState(false);
+  const [preferenceTab, setPreferenceTab] = useState<'instructions' | 'memory'>('instructions');
   const [shareConvId, setShareConvId] = useState<number | null>(null);
   const [arenaVisible, setArenaVisible] = useState(false);
   /** 待发送图片（vision，data URL） */
@@ -393,20 +395,11 @@ export default function AIChatPage() {
   }, [allApiMessages, activeLeafId]);
 
   /** 自定义内容项：知识库引用列表 */
-  const renderDialogueContentItem = useMemo(() => ({
-    kb_references: (item: Record<string, unknown>) => {
-      const refs = (item.refs as KbRefDisplay[] | undefined) ?? [];
-      if (refs.length === 0) return null;
-      return (
-        <div style={{ marginTop: 8, padding: '8px 12px', borderRadius: 'var(--semi-border-radius-medium)', background: 'var(--semi-color-fill-0)', fontSize: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--semi-color-text-1)' }}>📚 知识库引用</div>
-          {refs.map((r, i) => (
-            <div key={`${r.docName}-${i}`} style={{ color: 'var(--semi-color-text-2)', marginTop: 2 }}>
-              【{i + 1}】《{r.docName}》（相关度 {r.score}）：{r.content}…
-            </div>
-          ))}
-        </div>
-      );
+  // 共享内容项渲染器（与审计/反馈回放一致）；记忆更新卡片可直达设置的「AI 记忆」Tab
+  const renderDialogueContentItem = useMemo(() => buildContentItemRenderers({
+    onManageMemory: () => {
+      setPreferenceTab('memory');
+      setPreferenceVisible(true);
     },
   }), []);
 
@@ -1342,7 +1335,7 @@ export default function AIChatPage() {
                     theme="borderless"
                     size="small"
                     icon={<UserRoundPen size={14} />}
-                    onClick={() => setPreferenceVisible(true)}
+                    onClick={() => { setPreferenceTab('instructions'); setPreferenceVisible(true); }}
                   />
                 </Tooltip>
                 <Select
@@ -1617,7 +1610,7 @@ export default function AIChatPage() {
         void queryClient.invalidateQueries({ queryKey: aiUserConfigKeys.all });
       }}
     />
-    <AiSettingsModal visible={preferenceVisible} onClose={() => setPreferenceVisible(false)} />
+    <AiSettingsModal visible={preferenceVisible} initialTab={preferenceTab} onClose={() => setPreferenceVisible(false)} />
     <ShareModal convId={shareConvId} onClose={() => setShareConvId(null)} />
     <ArenaModal visible={arenaVisible} onClose={() => setArenaVisible(false)} models={chatModels} />
     <AppModal

@@ -114,6 +114,10 @@ export const aiMessages = pgTable('ai_messages', {
   feedbackHandledAt: timestamp('feedback_handled_at'),
   /** 生成调用链 trace（assistant 消息：检索/工具/LLM 轮次耗时明细） */
   trace: jsonb('trace').$type<AiTraceStep[]>(),
+  /** 工具调用过程（assistant 消息:名称/参数/结果,刷新后仍可展示） */
+  toolCalls: jsonb('tool_calls').$type<{ name: string; arguments: string; result: string }[]>(),
+  /** 知识库检索引用（assistant 消息,刷新后仍可展示） */
+  kbReferences: jsonb('kb_references').$type<{ docName: string; content: string; score: number }[]>(),
   /** 用户消息附带的图片（managed file id 数组,内容经 /api/files/{id}/content 访问） */
   images: jsonb('images').$type<string[]>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

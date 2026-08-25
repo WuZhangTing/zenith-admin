@@ -78,7 +78,7 @@ export function convertApiMessage(m: AiMessage): ChatMessage {
     id: `api-${m.id}`,
     role: m.role,
     content: m.role === 'assistant'
-      ? buildAssistantContent(m.content, m.reasoning, true)
+      ? buildAssistantContent(m.content, m.reasoning, true, m.toolCalls ?? undefined, m.references ?? undefined)
       : buildUserContent(m.content, (m.images ?? []).map((id) => `${config.apiBaseUrl}/api/files/${id}/content`)),
     // ⚠️ 不能设 output_text:Semi 对数组 content 优先渲染 output_text 纯文本,
     // 会整体短路 reasoning / 工具调用 / 引用等块(复制与朗读经 extractPlainText 提取)

@@ -134,6 +134,13 @@
       "when": 1787659329340,
       "tag": "0018_mushy_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787665785003,
+      "tag": "0019_same_talisman",
+      "breakpoints": true
     }
   ]
 }

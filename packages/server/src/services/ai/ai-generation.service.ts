@@ -77,6 +77,8 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
 
   let assistantContent = '';
   let reasoningContent = '';
+  const collectedToolCalls: { name: string; arguments: string; result: string }[] = [];
+  let collectedKbRefs: { docName: string; content: string; score: number }[] | null = null;
   let tokensInput = 0;
   let tokensOutput = 0;
   let snapshot: { providerId: string; model: string; configId?: number } | null = null;
@@ -144,9 +146,8 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
             .map((r, i) => `【${i + 1}】来自《${r.docName}》：\n${r.content}`)
             .join('\n\n')}`,
         });
-        await push('references', {
-          references: refs.map((r) => ({ docName: r.docName, content: r.content.slice(0, 200), score: r.score })),
-        });
+        collectedKbRefs = refs.map((r) => ({ docName: r.docName, content: r.content.slice(0, 200), score: r.score }));
+        await push('references', { references: collectedKbRefs });
       }
     }
 
@@ -199,6 +200,8 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
       } else if (chunk.type === 'tool_result') {
         toolRounds += 1;
         trace.push({ type: 'tool_call', label: `工具 ${chunk.name}`, durationMs: chunk.durationMs, meta: { arguments: chunk.arguments.slice(0, 500) } });
+        // 落库与 SSE 同构同截断:刷新/回放后工具调用过程仍可展示
+        collectedToolCalls.push({ name: chunk.name, arguments: chunk.arguments, result: chunk.result.slice(0, 2000) });
         await push('tool_call', { name: chunk.name, arguments: chunk.arguments, result: chunk.result.slice(0, 2000) });
       } else if (chunk.type === 'failover') {
         trace.push({ type: 'failover', label: `主备切换 ${chunk.from} → ${chunk.to}`, durationMs: Date.now() - llmStart });
@@ -241,6 +244,8 @@ export async function runGeneration(params: StartGenerationParams): Promise<void
         ttftMs: firstTokenAt === null ? null : firstTokenAt - startedAt,
         durationMs: Date.now() - startedAt,
         trace,
+        toolCalls: collectedToolCalls.length > 0 ? collectedToolCalls : null,
+        kbReferences: collectedKbRefs,
       };
       let userMsgId: number | null = null;
       let assistantMsgId: number | null = null;
