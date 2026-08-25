@@ -3,6 +3,7 @@ import { Button, Toast, Tooltip, TextArea, Input, Tag, Typography, List as SemiL
 import { UserPlus, UserMinus, Crown, Pencil, Shield, MicOff, Mic, Link2, UserCheck } from 'lucide-react';
 import dayjs from 'dayjs';
 import { UserAvatar } from '@/components/UserAvatar';
+import { PresenceAvatar } from './PresenceAvatar';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { UserSearchList } from './UserSearchList';
 import { OrgTreePicker } from './OrgTreePicker';
@@ -356,12 +357,9 @@ export function GroupMembersPanel({
                 align="center"
                 style={{ padding: '6px 0' }}
                 header={(
-                  <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <PresenceAvatar online={!!onlineUserIds?.has(m.id)}>
                     <UserAvatar name={m.nickname} avatar={m.avatar} size={28} />
-                    {onlineUserIds?.has(m.id) && (
-                      <span style={{ position: 'absolute', insetInlineEnd: -1, bottom: -1, width: 9, height: 9, borderRadius: '50%', background: 'var(--semi-color-success)', border: '2px solid var(--semi-color-bg-1)', boxSizing: 'border-box' }} />
-                    )}
-                  </span>
+                  </PresenceAvatar>
                 )}
                 main={(
                   <div style={{ flex: 1, minWidth: 0 }}>

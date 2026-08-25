@@ -4,7 +4,6 @@ import type { ChatConversation } from '@zenith/shared/chat';
 import { formatPresenceText } from '../utils-state';
 import type { GroupAvatarMap } from '../types';
 import { GroupGridAvatar } from './GroupGridAvatar';
-import { PresenceAvatar } from './PresenceAvatar';
 
 const { Text, Title } = Typography;
 
@@ -58,9 +57,8 @@ export function ChatConvTitle({
                 )}
               >
                 <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isQuick ? 6 : 8, maxWidth: '60%', minWidth: 0 }}>
-                  <PresenceAvatar online={onlineUserIds.has(activeConv.targetUser.id)}>
-                    <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={24} />
-                  </PresenceAvatar>
+                  {/* 状态点省略：右侧已有「在线/最近在线」文字，头像再叠点属重复表达 */}
+                  <UserAvatar name={activeConv.targetUser.nickname} avatar={activeConv.targetUser.avatar} size={24} />
                   <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0, overflow: 'hidden' }}>
                     <Title
                       heading={6}

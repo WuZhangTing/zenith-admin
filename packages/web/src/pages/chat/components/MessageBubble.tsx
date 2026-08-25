@@ -8,6 +8,7 @@ import { downloadBlob } from '@/utils/download';
 import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared/chat';
 import { getAssetMeta } from '../utils';
 import { UserAvatar } from '@/components/UserAvatar';
+import { PresenceAvatar } from './PresenceAvatar';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import { MessageContent } from './MessageContent';
 import type { MessageReadReceipt } from '../types';
@@ -42,7 +43,7 @@ export const MessageBubble = memo(function MessageBubble({
   onToggleFavorite, onTogglePin, onEditRecalled, recalledDraft, multiSelectMode, isSelected,
   onToggleSelect, onForwardSingle, onOpenForwardView, onDeleteMessage, onReaction, onPickReactionEmoji,
   currentUserId, onEdit, onVote, isHighlighted, onOpenFilePreview, readReceipt, onCardAction, onOpenWorkflow, verifiedSender, onSaveAsEmoji,
-  canPin = true,
+  canPin = true, senderOnline = false,
 }: Readonly<{
   msg: ChatMessage;
   isSelf: boolean;
@@ -77,6 +78,8 @@ export const MessageBubble = memo(function MessageBubble({
   onSaveAsEmoji?: (msg: ChatMessage) => void;
   /** 是否允许置顶消息：群聊仅群主/管理员，单聊双方均可（默认 true） */
   canPin?: boolean;
+  /** 发送者是否在线（WS presence 口径），头像右下角绿点；频道官方徽标优先 */
+  senderOnline?: boolean;
 }>) {
   const fullTimeStr = formatDateTime(msg.createdAt);
   // 机器人/系统消息（senderId 为空）的展示身份取自 extra.bot
@@ -334,7 +337,7 @@ export const MessageBubble = memo(function MessageBubble({
         </div>
       )}
       {!isSelf && (
-        <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+        <PresenceAvatar online={senderOnline && !verifiedSender}>
           <UserAvatar name={displayName ?? '?'} avatar={displayAvatar} size={32} />
           {verifiedSender && (
             <BadgeCheck
@@ -343,7 +346,7 @@ export const MessageBubble = memo(function MessageBubble({
               aria-label="官方频道"
             />
           )}
-        </span>
+        </PresenceAvatar>
       )}
       <div // NOSONAR
         style={{ maxWidth: '65%', position: 'relative' }}
