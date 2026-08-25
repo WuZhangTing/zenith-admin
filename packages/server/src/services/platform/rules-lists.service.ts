@@ -35,6 +35,7 @@ const mapItem = (r: ItemRow) => ({
   listId: r.listId,
   value: r.value,
   label: r.label ?? null,
+  matchMode: (r.matchMode ?? 'exact') as 'exact' | 'prefix' | 'regex',
   expiresAt: formatNullableDateTime(r.expiresAt),
   remark: r.remark ?? null,
   createdAt: formatDateTime(r.createdAt),
@@ -142,17 +143,31 @@ export async function listRuleListItems(listId: number, q: ListRuleListItemsQuer
 export interface CreateRuleListItemInput {
   value: string;
   label?: string | null;
+  matchMode?: 'exact' | 'prefix' | 'regex';
   expiresAt?: string | null;
   remark?: string | null;
 }
 
+/** 正则条目安全校验：必须可编译，限制长度防 ReDoS 滥用 */
+function ensureRegexValid(pattern: string): void {
+  if (pattern.length > 128) throw new HTTPException(400, { message: '正则过长（最多 128 字符）' });
+  try {
+    void new RegExp(pattern);
+  } catch {
+    throw new HTTPException(400, { message: '正则表达式无法编译' });
+  }
+}
+
 export async function createRuleListItem(listId: number, input: CreateRuleListItemInput) {
   await ensureRuleList(listId);
+  const matchMode = input.matchMode ?? 'exact';
+  if (matchMode === 'regex') ensureRegexValid(input.value.trim());
   try {
     const [row] = await db.insert(ruleListItems).values({
       listId,
       value: input.value.trim(),
       label: input.label ?? null,
+      matchMode,
       expiresAt: parseDateTimeInput(input.expiresAt) ?? null,
       remark: input.remark ?? null,
       createdBy: currentUser().userId,
@@ -206,12 +221,40 @@ export async function checkRuleList(key: string, value: string, meta?: { tenantI
     ?? candidates.find((r) => r.tenantId == null)
     ?? (tenantId === undefined && candidates.length === 1 ? candidates[0] : undefined);
   if (!row || row.status !== 'enabled') return { hit: false };
+  const trimmed = value.trim();
+  const notExpired = or(isNull(ruleListItems.expiresAt), gt(ruleListItems.expiresAt, new Date()));
+  // 精确条目走索引等值查询；未命中再加载前缀/正则条目逐条匹配（此类条目通常极少）
   const [item] = await db.select().from(ruleListItems)
     .where(and(
       eq(ruleListItems.listId, row.id),
-      eq(ruleListItems.value, value.trim()),
-      or(isNull(ruleListItems.expiresAt), gt(ruleListItems.expiresAt, new Date())),
+      eq(ruleListItems.value, trimmed),
+      eq(ruleListItems.matchMode, 'exact'),
+      notExpired,
     )).limit(1);
-  if (!item) return { hit: false };
-  return { hit: true, listType: row.type as RuleListType, item: { value: item.value, label: item.label ?? null, expiresAt: formatNullableDateTime(item.expiresAt) } };
+  const toHit = (it: ItemRow): RuleListCheckResult => ({
+    hit: true,
+    listType: row.type as RuleListType,
+    item: {
+      value: it.value,
+      label: it.label ?? null,
+      matchMode: (it.matchMode ?? 'exact') as 'exact' | 'prefix' | 'regex',
+      expiresAt: formatNullableDateTime(it.expiresAt),
+    },
+  });
+  if (item) return toHit(item);
+  const patternItems = await db.select().from(ruleListItems)
+    .where(and(
+      eq(ruleListItems.listId, row.id),
+      sql`${ruleListItems.matchMode} <> 'exact'`,
+      notExpired,
+    ));
+  for (const it of patternItems) {
+    if (it.matchMode === 'prefix' && trimmed.startsWith(it.value)) return toHit(it);
+    if (it.matchMode === 'regex') {
+      try {
+        if (new RegExp(it.value).test(trimmed)) return toHit(it);
+      } catch { /* 无法编译的历史正则视为不命中 */ }
+    }
+  }
+  return { hit: false };
 }

@@ -193,6 +193,7 @@ export const RuleListItemDTO = z
     listId: z.number().int(),
     value: z.string(),
     label: z.string().nullable(),
+    matchMode: z.enum(['exact', 'prefix', 'regex']),
     expiresAt: z.string().nullable(),
     remark: z.string().nullable(),
     createdAt: z.string(),
@@ -203,7 +204,7 @@ export const RuleListCheckResultDTO = z
   .object({
     hit: z.boolean(),
     listType: z.enum(['black', 'white', 'grey']).optional(),
-    item: z.object({ value: z.string(), label: z.string().nullable().optional(), expiresAt: z.string().nullable().optional() }).optional(),
+    item: z.object({ value: z.string(), label: z.string().nullable().optional(), matchMode: z.enum(['exact', 'prefix', 'regex']).optional(), expiresAt: z.string().nullable().optional() }).optional(),
   })
   .openapi('RuleListCheckResult');
 
@@ -235,3 +236,86 @@ export const RuleShadowRunResultDTO = z
     })),
   })
   .openapi('RuleShadowRunResult');
+
+// ─── 名单条目匹配模式 / 批量仿真 / 灰度 ──────────────────────────────────────────
+export const RuleSimulateResultDTO = z
+  .object({
+    total: z.number().int(),
+    matched: z.number().int(),
+    unmatched: z.number().int(),
+    errors: z.number().int(),
+    rowHits: z.array(z.object({ rowId: z.string(), count: z.number().int() })),
+    results: z.array(z.object({
+      index: z.number().int(),
+      matched: z.boolean(),
+      outputs: z.record(z.string(), z.unknown()),
+      matchedRowIds: z.array(z.string()),
+      error: z.string().optional(),
+    })),
+  })
+  .openapi('RuleSimulateResult');
+
+// ─── 评分卡 ──────────────────────────────────────────────────────────────────────
+const ScorecardBandDTO = z.object({
+  id: z.string(),
+  op: z.enum(['range', 'eq', 'in', 'default']),
+  min: z.number().nullable().optional(),
+  max: z.number().nullable().optional(),
+  value: z.string().optional(),
+  values: z.array(z.string()).optional(),
+  score: z.number(),
+  label: z.string().optional(),
+});
+
+const ScorecardVariableDTO = z.object({
+  key: z.string(),
+  label: z.string(),
+  expr: z.string(),
+  type: z.enum(['number', 'string', 'boolean']),
+  weight: z.number().optional(),
+  missingScore: z.number().optional(),
+  bands: z.array(ScorecardBandDTO),
+});
+
+const ScorecardGradeDTO = z.object({
+  grade: z.string(),
+  minScore: z.number(),
+  decision: z.string().nullable().optional(),
+});
+
+export const RuleScorecardDTO = z
+  .object({
+    id: z.number().int(),
+    key: z.string(),
+    name: z.string(),
+    description: z.string().nullable(),
+    status: z.enum(['draft', 'published', 'disabled']),
+    baseScore: z.number(),
+    variables: z.array(ScorecardVariableDTO),
+    grades: z.array(ScorecardGradeDTO),
+    version: z.number().int(),
+    publishedAt: z.string().nullable(),
+    dirty: z.boolean().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('RuleScorecard');
+
+export const RuleScorecardEvaluateResultDTO = z
+  .object({
+    totalScore: z.number(),
+    baseScore: z.number(),
+    grade: z.string().nullable(),
+    decision: z.string().nullable(),
+    variables: z.array(z.object({
+      key: z.string(),
+      label: z.string(),
+      raw: z.unknown(),
+      matchedBand: z.string().nullable(),
+      score: z.number(),
+      weight: z.number(),
+      weighted: z.number(),
+      missed: z.boolean(),
+    })),
+  })
+  .openapi('RuleScorecardEvaluateResult');

@@ -62,6 +62,22 @@ export const evaluateDecisionTableSchema = z.object({
   input: z.record(z.string(), z.unknown()).default({}),
 });
 
+/** 发布决策表：可选灰度参数（不传 = 全量发布） */
+export const publishDecisionTableSchema = z.object({
+  grayPercent: z.number().int().min(1).max(99).nullable().optional(),
+  grayDimension: z.string().max(200).nullable().optional(),
+});
+
+/** 灰度操作：complete=转正（新版本全量）；cancel=取消灰度（全量回旧版本） */
+export const grayActionSchema = z.object({
+  action: z.enum(['complete', 'cancel']),
+});
+
+/** 批量仿真：逐行以草稿态求值 */
+export const simulateDecisionTableSchema = z.object({
+  rows: z.array(z.record(z.string(), z.unknown())).min(1).max(200),
+});
+
 export type CreateDecisionTableInput = z.input<typeof createDecisionTableSchema>;
 
 export type UpdateDecisionTableInput = z.input<typeof updateDecisionTableSchema>;
@@ -115,6 +131,7 @@ export const updateRuleListSchema = partialForUpdate(createRuleListSchema).omit(
 export const createRuleListItemSchema = z.object({
   value: z.string().min(1).max(128),
   label: z.string().max(64).nullable().optional(),
+  matchMode: z.enum(['exact', 'prefix', 'regex']).default('exact'),
   expiresAt: z.string().nullable().optional(),
   remark: z.string().max(255).nullable().optional(),
 });
@@ -134,3 +151,53 @@ export const reviewDecisionTableSchema = z.object({
   approve: z.boolean(),
   comment: z.string().max(255).optional(),
 });
+
+// ─── 规则中心：评分卡 Schema ─────────────────────────────────────────────────────
+export const ruleScorecardBandSchema = z.object({
+  id: z.string().min(1).max(64),
+  op: z.enum(['range', 'eq', 'in', 'default']),
+  min: z.number().nullable().optional(),
+  max: z.number().nullable().optional(),
+  value: z.string().max(64).optional(),
+  values: z.array(z.string().min(1).max(64)).max(50).optional(),
+  score: z.number(),
+  label: z.string().max(64).optional(),
+});
+
+export const ruleScorecardVariableSchema = z.object({
+  key: z.string().min(1).max(64).regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/, '变量 key 需为合法标识符'),
+  label: z.string().min(1).max(64),
+  expr: z.string().min(1).max(500),
+  type: z.enum(['number', 'string', 'boolean']),
+  weight: z.number().min(0).max(100).optional(),
+  missingScore: z.number().optional(),
+  bands: z.array(ruleScorecardBandSchema).max(50).default([]),
+});
+
+export const ruleScorecardGradeSchema = z.object({
+  grade: z.string().min(1).max(32),
+  minScore: z.number(),
+  decision: z.string().max(64).nullable().optional(),
+});
+
+export const createRuleScorecardSchema = z.object({
+  key: z.string().min(1).max(64).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/, 'key 仅限字母开头的字母数字下划线'),
+  name: z.string().min(1).max(64),
+  description: z.string().max(500).nullable().optional(),
+  baseScore: z.number().default(0),
+  variables: z.array(ruleScorecardVariableSchema).max(50).default([]),
+  grades: z.array(ruleScorecardGradeSchema).max(20).default([]),
+});
+
+export const updateRuleScorecardSchema = partialForUpdate(createRuleScorecardSchema).omit({ key: true }).extend({
+  /** 编辑乐观锁：携带打开编辑时的 updatedAt，服务端不一致时返回 409 */
+  expectedUpdatedAt: z.string().optional(),
+});
+
+export const evaluateRuleScorecardSchema = z.object({
+  input: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type CreateRuleScorecardInput = z.input<typeof createRuleScorecardSchema>;
+
+export type UpdateRuleScorecardInput = z.input<typeof updateRuleScorecardSchema>;

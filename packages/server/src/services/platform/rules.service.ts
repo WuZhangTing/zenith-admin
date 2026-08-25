@@ -1,6 +1,6 @@
 import { and, desc, eq, like, inArray, gte, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult, RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample } from '@zenith/shared/rules';
+import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult, RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample, RuleSimulateResult, RuleSimulateRowResult } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleDecisionExecutions, workflowDefinitions, systemConfigs } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
@@ -10,7 +10,7 @@ import { rethrowPgUniqueViolation, isPgUniqueViolation } from '../../lib/db-erro
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { evaluateDecisionTable, isOutputExpression } from '../../lib/rules-engine';
-import { validateExpression } from '../../lib/workflow-expression';
+import { evaluateExpression, validateExpression } from '../../lib/workflow-expression';
 import { validateRuleCell } from '@zenith/shared/rules';
 import { diffDecisionSnapshots } from '../../lib/rules-version-diff';
 
@@ -43,6 +43,9 @@ export function mapDecisionTable(row: TableRow, latestVersion?: VersionRow | nul
     settings: (row.settings ?? {}) as RuleDecisionTableSettings,
     version: row.version,
     publishedAt: formatNullableDateTime(row.publishedAt),
+    gray: row.grayPercent != null && row.grayVersion != null
+      ? { grayPercent: row.grayPercent, grayDimension: row.grayDimension ?? null, grayVersion: row.grayVersion }
+      : null,
     dirty: latestVersion === undefined ? undefined : (latestVersion ? snapshotComparable(row) !== snapshotComparable(latestVersion) : false),
     reviewStatus: (row.reviewStatus ?? null) as 'pending' | null,
     reviewRequestedBy: row.reviewRequestedBy ?? null,
@@ -299,11 +302,20 @@ async function ensurePublishGates(row: TableRow): Promise<void> {
   if (run.total > 0 && run.coverage < 100) throw new HTTPException(400, { message: `发布受阻：规则覆盖率 ${run.coverage}%，未覆盖行 ${run.uncoveredRowIds.join(', ')}` });
 }
 
-/** 发布：写版本快照、版本号 +1、状态置 published、记录发布时间 */
-export async function publishDecisionTable(id: number, opts?: { skipApprovalCheck?: boolean }) {
+/** 发布：写版本快照、版本号 +1、状态置 published、记录发布时间；可选灰度参数（新版本按主体分桶生效） */
+export async function publishDecisionTable(id: number, opts?: { skipApprovalCheck?: boolean; gray?: { grayPercent: number; grayDimension?: string | null } }) {
   const row = await ensureDecisionTable(id);
   if (!opts?.skipApprovalCheck && await isPublishApprovalRequired()) {
     throw new HTTPException(400, { message: '已开启发布审批，请通过「申请发布」提交，由审批人批准后生效' });
+  }
+  if (opts?.gray) {
+    if (!row.publishedAt || row.version < 2) {
+      throw new HTTPException(400, { message: '首次发布不能灰度：没有旧版本可承接灰度外流量，请先全量发布一个版本' });
+    }
+    if (opts.gray.grayDimension) {
+      const err = validateExpression(opts.gray.grayDimension);
+      if (err) throw new HTTPException(400, { message: `灰度主体表达式不合法：${err}` });
+    }
   }
   await ensurePublishGates(row);
   let mapped;
@@ -323,7 +335,14 @@ export async function publishDecisionTable(id: number, opts?: { skipApprovalChec
         tenantId: row.tenantId,
       });
       const [updated] = await tx.update(ruleDecisionTables)
-        .set({ status: 'published', publishedAt: new Date(), version: row.version + 1, reviewStatus: null, reviewRequestedBy: null, reviewRequestedAt: null, reviewComment: null })
+        .set({
+          status: 'published', publishedAt: new Date(), version: row.version + 1,
+          reviewStatus: null, reviewRequestedBy: null, reviewRequestedAt: null, reviewComment: null,
+          // 全量发布清空既有灰度；灰度发布则以本次快照版本为灰度新版本
+          grayPercent: opts?.gray ? opts.gray.grayPercent : null,
+          grayDimension: opts?.gray ? opts.gray.grayDimension ?? null : null,
+          grayVersion: opts?.gray ? row.version : null,
+        })
         .where(eq(ruleDecisionTables.id, id)).returning();
       // 刚发布：编辑态与最新快照必然一致
       return { ...mapDecisionTable(updated), dirty: false };
@@ -334,6 +353,61 @@ export async function publishDecisionTable(id: number, opts?: { skipApprovalChec
     throw err;
   }
   // 事务提交后再失效，避免提交前被旧数据回填
+  invalidateRuleRuntimeCache();
+  return mapped;
+}
+
+/**
+ * 灰度操作：complete=转正（清灰度，新版本全量）；
+ * cancel=放弃灰度（不可变回滚：把旧版本内容重新发布为新版本，历史快照不动）。
+ */
+export async function grayActionDecisionTable(id: number, action: 'complete' | 'cancel') {
+  const row = await ensureDecisionTable(id);
+  if (row.grayPercent == null || row.grayVersion == null) {
+    throw new HTTPException(400, { message: '该决策表不在灰度发布中' });
+  }
+  if (action === 'complete') {
+    const [updated] = await db.update(ruleDecisionTables)
+      .set({ grayPercent: null, grayDimension: null, grayVersion: null })
+      .where(eq(ruleDecisionTables.id, id)).returning();
+    invalidateRuleRuntimeCache();
+    return mapDecisionTable(updated, await latestVersionOf(id));
+  }
+  // cancel：旧版本前滚为新版本（roll-forward），运行时全量回到灰度前行为
+  const prevVersion = row.grayVersion - 1;
+  const [prev] = await db.select().from(ruleDecisionTableVersions)
+    .where(and(eq(ruleDecisionTableVersions.tableId, id), eq(ruleDecisionTableVersions.version, prevVersion))).limit(1);
+  if (!prev) throw new HTTPException(404, { message: `灰度前版本 v${prevVersion} 不存在，无法取消` });
+  let mapped;
+  try {
+    mapped = await db.transaction(async (tx) => {
+      await tx.insert(ruleDecisionTableVersions).values({
+        tableId: id,
+        version: row.version,
+        name: prev.name,
+        description: prev.description,
+        hitPolicy: prev.hitPolicy,
+        inputs: prev.inputs,
+        outputs: prev.outputs,
+        rules: prev.rules,
+        settings: prev.settings ?? {},
+        publishedBy: currentUser()?.userId ?? null,
+        tenantId: row.tenantId,
+      });
+      const [updated] = await tx.update(ruleDecisionTables)
+        .set({
+          name: prev.name, description: prev.description, hitPolicy: prev.hitPolicy,
+          inputs: prev.inputs, outputs: prev.outputs, rules: prev.rules, settings: prev.settings ?? {},
+          status: 'published', publishedAt: new Date(), version: row.version + 1,
+          grayPercent: null, grayDimension: null, grayVersion: null,
+        })
+        .where(eq(ruleDecisionTables.id, id)).returning();
+      return { ...mapDecisionTable(updated), dirty: false };
+    });
+  } catch (err) {
+    if (isPgUniqueViolation(err)) throw new HTTPException(409, { message: '决策表已被并发发布，请刷新后重试' });
+    throw err;
+  }
   invalidateRuleRuntimeCache();
   return mapped;
 }
@@ -388,8 +462,56 @@ interface RuntimeSnapshot {
 const RUNTIME_CACHE_TTL_MS = 60_000;
 const runtimeCache = new Map<string, { at: number; value: RuntimeSnapshot | null }>();
 
+/** 灰度配置缓存（与快照缓存同 TTL/同失效时机） */
+interface GrayConfigCached { percent: number; dimension: string | null; version: number }
+const grayCache = new Map<string, { at: number; value: GrayConfigCached | null }>();
+
 export function invalidateRuleRuntimeCache(): void {
   runtimeCache.clear();
+  grayCache.clear();
+}
+
+// ─── 灰度分桶：FNV-1a 哈希主体 → 0-99 桶号，桶号 < grayPercent 走新版本 ─────────
+function fnv1a(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+async function loadGrayConfig(key: string, tenantId: number | null | undefined): Promise<GrayConfigCached | null> {
+  const cacheKey = `${tenantId === undefined ? 'ctxless' : tenantId ?? 'global'}|${key}`;
+  const hit = grayCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < RUNTIME_CACHE_TTL_MS) return hit.value;
+  const row = await resolveTableRowByKey(key, tenantId);
+  const value = row && row.status === 'published' && row.grayPercent != null && row.grayVersion != null
+    ? { percent: row.grayPercent, dimension: row.grayDimension ?? null, version: row.grayVersion }
+    : null;
+  grayCache.set(cacheKey, { at: Date.now(), value });
+  return value;
+}
+
+/**
+ * 灰度选版：主体表达式取灰度维度（缺省对整包输入哈希），稳定分桶——
+ * 同一主体在灰度期内始终命中同一版本。非灰度返回 undefined（走最新版本）。
+ */
+async function resolveGrayPinnedVersion(key: string, scope: Record<string, unknown>, tenantId?: number | null): Promise<number | undefined> {
+  const gray = await loadGrayConfig(key, runtimeTenantId(tenantId));
+  if (!gray) return undefined;
+  let subject: unknown = null;
+  if (gray.dimension) {
+    try { subject = evaluateExpression(gray.dimension, scope); } catch { subject = null; }
+  }
+  let basis: string;
+  if (subject == null || subject === '') {
+    try { basis = JSON.stringify(scope ?? {}); } catch { basis = String(scope); }
+  } else {
+    basis = String(subject);
+  }
+  const bucket = fnv1a(basis) % 100;
+  return bucket < gray.percent ? gray.version : gray.version - 1;
 }
 
 /** 运行时求值使用的租户：显式指定 > 当前登录用户生效租户 > 无上下文（member/cron 场景） */
@@ -470,8 +592,14 @@ export async function evaluateDecisionTableByKey(key: string, input: Record<stri
   if (!row) throw new HTTPException(404, { message: '决策表不存在' });
   if (row.status === 'disabled') throw new HTTPException(400, { message: '决策表已禁用' });
   if (row.status === 'published') {
+    // 灰度中按主体分桶选版本；非灰度取最新快照
+    const pinned = row.grayPercent != null && row.grayVersion != null
+      ? await resolveGrayPinnedVersion(key, input)
+      : undefined;
+    const versionConds = [eq(ruleDecisionTableVersions.tableId, row.id)];
+    if (pinned !== undefined) versionConds.push(eq(ruleDecisionTableVersions.version, pinned));
     const [snapshot] = await db.select().from(ruleDecisionTableVersions)
-      .where(eq(ruleDecisionTableVersions.tableId, row.id))
+      .where(and(...versionConds))
       .orderBy(desc(ruleDecisionTableVersions.version)).limit(1);
     if (snapshot) {
       return evaluateDecisionTable({
@@ -502,6 +630,41 @@ export async function testEvaluateDecisionTable(id: number, input: Record<string
     rules: (row.rules ?? []) as RuleDecisionRow[],
     settings: (row.settings ?? {}) as RuleDecisionTableSettings,
   }, input);
+}
+
+/** 批量仿真：逐行以编辑态求值（评估「若现在发布」的批量表现），汇总命中率与规则行命中分布 */
+export async function simulateDecisionTable(id: number, rows: Array<Record<string, unknown>>): Promise<RuleSimulateResult> {
+  const row = await ensureDecisionTable(id);
+  const def = {
+    hitPolicy: row.hitPolicy,
+    inputs: (row.inputs ?? []) as RuleDecisionInput[],
+    outputs: (row.outputs ?? []) as RuleDecisionOutput[],
+    rules: (row.rules ?? []) as RuleDecisionRow[],
+    settings: (row.settings ?? {}) as RuleDecisionTableSettings,
+  };
+  const results: RuleSimulateRowResult[] = [];
+  const rowHitCount = new Map<string, number>();
+  let matched = 0;
+  let errors = 0;
+  for (const [index, input] of rows.entries()) {
+    try {
+      const res = evaluateDecisionTable(def, input);
+      if (res.matched) matched += 1;
+      for (const rid of res.matchedRowIds) rowHitCount.set(rid, (rowHitCount.get(rid) ?? 0) + 1);
+      results.push({ index, matched: res.matched, outputs: res.outputs, matchedRowIds: res.matchedRowIds });
+    } catch (err) {
+      errors += 1;
+      results.push({ index, matched: false, outputs: {}, matchedRowIds: [], error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return {
+    total: rows.length,
+    matched,
+    unmatched: rows.length - matched - errors,
+    errors,
+    rowHits: [...rowHitCount.entries()].map(([rowId, count]) => ({ rowId, count })).sort((a, b) => b.count - a.count),
+    results,
+  };
 }
 
 // ─── 执行记录：异步批写（削峰，不阻塞求值热路径）────────────────────────────────
@@ -551,7 +714,9 @@ export async function getDecisionOutputs(
   meta?: { instanceId?: number | null; nodeKey?: string | null; source?: 'runtime' | 'manual' | 'test'; version?: number; tenantId?: number | null },
 ): Promise<Record<string, unknown>> {
   try {
-    const snapshot = await loadRuntimeSnapshot(key, { tenantId: meta?.tenantId, version: meta?.version });
+    // 未显式 pin 版本时应用灰度选版（同一主体稳定命中同一版本）
+    const pinned = meta?.version ?? await resolveGrayPinnedVersion(key, scope, meta?.tenantId);
+    const snapshot = await loadRuntimeSnapshot(key, { tenantId: meta?.tenantId, version: pinned });
     if (!snapshot) return {};
     const res = evaluateDecisionTable(snapshot, scope);
     queueExecutionRecord({

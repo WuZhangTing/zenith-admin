@@ -60,6 +60,8 @@ export interface RuleDecisionTable {
   /** 当前编辑态与最新发布快照不一致（有未发布修改） */
   dirty?: boolean;
   settings?: RuleDecisionTableSettings;
+  /** 灰度发布中：新版本按主体分桶生效，null=非灰度 */
+  gray?: RuleGrayConfig | null;
   /** 发布审批（四眼）：pending=待审批 */
   reviewStatus?: 'pending' | null;
   reviewRequestedBy?: number | null;
@@ -161,8 +163,120 @@ export interface RuleFlowEvaluateResult {
   steps: RuleFlowStepTrace[];
 }
 
+// ─── 规则中心：评分卡 ────────────────────────────────────────────────────────────
+/** 分段匹配方式：range=数值区间[min,max)；eq=等值；in=集合；default=兜底恒中 */
+export type RuleScorecardBandOp = 'range' | 'eq' | 'in' | 'default';
+
+export interface RuleScorecardBand {
+  id: string;
+  op: RuleScorecardBandOp;
+  /** range：下界（含），null/缺省 = -∞ */
+  min?: number | null;
+  /** range：上界（不含），null/缺省 = +∞ */
+  max?: number | null;
+  /** eq：比较值（按字符串比较） */
+  value?: string;
+  /** in：集合（按字符串比较） */
+  values?: string[];
+  score: number;
+  label?: string;
+}
+
+export interface RuleScorecardVariable {
+  key: string;
+  label: string;
+  /** 取值表达式（安全表达式引擎，从 scope 取值，如 form.age） */
+  expr: string;
+  type: 'number' | 'string' | 'boolean';
+  /** 权重：变量得分 × 权重计入总分，缺省 1 */
+  weight?: number;
+  /** 所有分段均未命中时该变量的得分，缺省 0 */
+  missingScore?: number;
+  bands: RuleScorecardBand[];
+}
+
+/** 等级映射：按 minScore 从高到低取首个 totalScore >= minScore 的档位 */
+export interface RuleScorecardGrade {
+  grade: string;
+  minScore: number;
+  /** 建议决策（如 approve/review/reject），透出给调用方 */
+  decision?: string | null;
+}
+
+export interface RuleScorecard {
+  id: number;
+  key: string;
+  name: string;
+  description?: string | null;
+  status: RuleDecisionStatus;
+  /** 基础分：所有变量得分之外的起始分 */
+  baseScore: number;
+  variables: RuleScorecardVariable[];
+  grades: RuleScorecardGrade[];
+  version: number;
+  publishedAt?: string | null;
+  /** 编辑态与最新发布快照不一致（有未发布修改） */
+  dirty?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: number | null;
+  createdByName?: string | null;
+}
+
+export interface RuleScorecardVariableTrace {
+  key: string;
+  label: string;
+  raw: unknown;
+  /** 命中的分段说明；未命中为 null（走 missingScore） */
+  matchedBand: string | null;
+  score: number;
+  weight: number;
+  weighted: number;
+  missed: boolean;
+}
+
+export interface RuleScorecardEvaluateResult {
+  totalScore: number;
+  baseScore: number;
+  grade: string | null;
+  decision: string | null;
+  variables: RuleScorecardVariableTrace[];
+}
+
+// ─── 规则中心：决策表灰度发布 ────────────────────────────────────────────────────
+/** 灰度配置：新版本按灰度主体哈希分桶生效，其余流量走上一版本快照 */
+export interface RuleGrayConfig {
+  /** 灰度流量百分比（1-99） */
+  grayPercent: number;
+  /** 灰度主体表达式（如 form.userId），缺省对整包输入哈希 */
+  grayDimension?: string | null;
+  /** 灰度中的新版本号（灰度外流量走 grayVersion - 1） */
+  grayVersion: number;
+}
+
+// ─── 规则中心：批量仿真 ──────────────────────────────────────────────────────────
+export interface RuleSimulateRowResult {
+  index: number;
+  matched: boolean;
+  outputs: Record<string, unknown>;
+  matchedRowIds: string[];
+  error?: string;
+}
+
+export interface RuleSimulateResult {
+  total: number;
+  matched: number;
+  unmatched: number;
+  errors: number;
+  rowHits: Array<{ rowId: string; count: number }>;
+  results: RuleSimulateRowResult[];
+}
+
 // ─── 规则中心：名单库（黑/白/灰名单） ────────────────────────────────────────────
 export type RuleListType = 'black' | 'white' | 'grey';
+
+/** 条目匹配模式：exact=精确；prefix=前缀；regex=正则 */
+export type RuleListMatchMode = 'exact' | 'prefix' | 'regex';
 
 export interface RuleList {
   id: number;
@@ -181,6 +295,7 @@ export interface RuleListItem {
   listId: number;
   value: string;
   label?: string | null;
+  matchMode: RuleListMatchMode;
   /** 过期时间；到期后自动不再命中 */
   expiresAt?: string | null;
   remark?: string | null;
@@ -190,7 +305,7 @@ export interface RuleListItem {
 export interface RuleListCheckResult {
   hit: boolean;
   listType?: RuleListType;
-  item?: { value: string; label?: string | null; expiresAt?: string | null };
+  item?: { value: string; label?: string | null; matchMode?: RuleListMatchMode; expiresAt?: string | null };
 }
 
 // ─── 规则中心：命中分析 / 影子对比 ───────────────────────────────────────────────

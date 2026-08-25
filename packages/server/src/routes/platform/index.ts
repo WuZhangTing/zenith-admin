@@ -12,6 +12,7 @@ import rateLimitRoutes from './rate-limit';
 import regionsRoutes from './regions';
 import rulesFlowsRoutes from './rules-flows';
 import rulesListsRoutes from './rules-lists';
+import rulesScorecardsRoutes from './rules-scorecards';
 import rulesRoutes from './rules';
 import systemConfigsRoutes from './system-configs';
 import licensingRoutes from './licensing';
@@ -37,6 +38,7 @@ export default defineRouteDomain({
     ['/api/rules/decision-tables', rulesRoutes, { feature: 'rules' }],
     ['/api/rules/decision-flows', rulesFlowsRoutes, { feature: 'rules' }],
     ['/api/rules/lists', rulesListsRoutes, { feature: 'rules' }],
+    ['/api/rules/scorecards', rulesScorecardsRoutes, { feature: 'rules' }],
     ['/api/tags', tagsRoutes],
     ['/api/rate-limit', rateLimitRoutes],
     ['/api/ws', createWsRoute(upgradeWebSocket)],

@@ -3,8 +3,8 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { sensitiveRateLimit } from '../../middleware/rate-limit';
 import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { DecisionTableDTO, DecisionTableVersionDTO, RuleEvaluateResultDTO, RuleVersionDiffDTO, RuleTestCaseDTO, RuleTestRunResultDTO, RuleExecutionDTO, RuleUsageDTO, RuleTableStatsDTO, RuleShadowRunResultDTO } from '../../lib/openapi-dtos';
-import { createDecisionTableSchema, updateDecisionTableSchema, createRuleTestCaseSchema, updateRuleTestCaseSchema, toggleDecisionTableSchema, reviewDecisionTableSchema } from '@zenith/shared/rules';
+import { DecisionTableDTO, DecisionTableVersionDTO, RuleEvaluateResultDTO, RuleVersionDiffDTO, RuleTestCaseDTO, RuleTestRunResultDTO, RuleExecutionDTO, RuleUsageDTO, RuleTableStatsDTO, RuleShadowRunResultDTO, RuleSimulateResultDTO } from '../../lib/openapi-dtos';
+import { createDecisionTableSchema, updateDecisionTableSchema, createRuleTestCaseSchema, updateRuleTestCaseSchema, toggleDecisionTableSchema, reviewDecisionTableSchema, publishDecisionTableSchema, grayActionSchema, simulateDecisionTableSchema } from '@zenith/shared/rules';
 import {
   listDecisionTables, getDecisionTable, getDecisionTableBeforeAudit,
   createDecisionTable, updateDecisionTable, deleteDecisionTable, deleteDecisionTables,
@@ -12,6 +12,7 @@ import {
   diffDecisionTableVersions, rollbackDecisionTable, toggleDecisionTable, listDecisionTableUsages,
   listTestCases, createTestCase, updateTestCase, deleteTestCase, runTestCases, listDecisionExecutions,
   getDecisionTableStats, shadowRunDecisionTable, submitDecisionTableReview, reviewDecisionTable,
+  grayActionDecisionTable, simulateDecisionTable,
 } from '../../services/platform/rules.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -166,13 +167,44 @@ const updateRoute = defineOpenAPIRoute({
 
 const publishRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post', path: '/{id}/publish', tags: ['DecisionTables'], summary: '发布决策表',
+    method: 'post', path: '/{id}/publish', tags: ['DecisionTables'], summary: '发布决策表（可选灰度：新版本按主体分桶生效，其余流量走上一版本）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'rule:table:publish', audit: { description: '发布决策表', module: '规则中心' } })] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, body: { content: jsonContent(publishDecisionTableSchema), required: false } },
     responses: { ...commonErrorResponses, ...ok(DecisionTableDTO, '发布成功') },
   }),
-  handler: async (c) => c.json(okBody(await publishDecisionTable(c.req.valid('param').id), '发布成功'), 200),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const body = c.req.valid('json') as { grayPercent?: number | null; grayDimension?: string | null } | undefined;
+    const gray = body?.grayPercent != null ? { grayPercent: body.grayPercent, grayDimension: body.grayDimension ?? null } : undefined;
+    return c.json(okBody(await publishDecisionTable(id, { gray }), gray ? `已灰度发布（${gray.grayPercent}% 流量）` : '发布成功'), 200);
+  },
+});
+
+const grayActionRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/gray', tags: ['DecisionTables'], summary: '灰度操作：complete=转正全量；cancel=放弃（旧版本前滚为新版本）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:table:publish', audit: { description: '决策表灰度操作', module: '规则中心' } })] as const,
+    request: { params: IdParam, body: { content: jsonContent(grayActionSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(DecisionTableDTO, '操作成功') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { action } = c.req.valid('json');
+    return c.json(okBody(await grayActionDecisionTable(id, action), action === 'complete' ? '灰度已转正，新版本全量生效' : '已放弃灰度，全量回到旧版本'), 200);
+  },
+});
+
+const simulateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/simulate', tags: ['DecisionTables'], summary: '批量仿真（逐行以编辑态求值，汇总命中率与规则行分布）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:table:evaluate' })] as const,
+    request: { params: IdParam, body: { content: jsonContent(simulateDecisionTableSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(RuleSimulateResultDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await simulateDecisionTable(c.req.valid('param').id, c.req.valid('json').rows)), 200),
 });
 
 const toggleRoute = defineOpenAPIRoute({
@@ -311,6 +343,6 @@ const executionsRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await listDecisionExecutions(c.req.valid('query'))), 200),
 });
 
-router.openapiRoutes([listRoute, executionsRoute, getRoute, versionsRoute, diffRoute, rollbackRoute, usagesRoute, statsRoute, shadowRunRoute, submitReviewRoute, reviewRoute, casesRoute, caseCreateRoute, caseRunRoute, caseUpdateRoute, caseDeleteRoute, createRouteDef, updateRoute, publishRoute, toggleRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
+router.openapiRoutes([listRoute, executionsRoute, getRoute, versionsRoute, diffRoute, rollbackRoute, usagesRoute, statsRoute, shadowRunRoute, submitReviewRoute, reviewRoute, casesRoute, caseCreateRoute, caseRunRoute, caseUpdateRoute, caseDeleteRoute, createRouteDef, updateRoute, publishRoute, grayActionRoute, simulateRoute, toggleRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
 
 export default router;

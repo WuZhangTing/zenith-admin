@@ -141,6 +141,13 @@
       "when": 1787665785003,
       "tag": "0019_same_talisman",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787689853116,
+      "tag": "0020_clean_kang",
+      "breakpoints": true
     }
   ]
 }

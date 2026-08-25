@@ -27,6 +27,13 @@ export const SEED_MENUS_RULES: Menu[] = [
   { id: 6043, parentId: 6040, title: '编辑名单', type: 'button', permission: 'rule:list:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 6044, parentId: 6040, title: '删除名单', type: 'button', permission: 'rule:list:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 6045, parentId: 6040, title: '条目管理', type: 'button', permission: 'rule:list:item', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6050, parentId: 6000, title: '评分卡', name: 'RuleScorecards', path: '/rules/scorecards', component: 'rules/scorecards/RuleScorecardsPage', icon: 'Calculator', type: 'menu', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6051, parentId: 6050, title: '查询', type: 'button', permission: 'rule:scorecard:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6052, parentId: 6050, title: '新增评分卡', type: 'button', permission: 'rule:scorecard:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6053, parentId: 6050, title: '编辑评分卡', type: 'button', permission: 'rule:scorecard:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6054, parentId: 6050, title: '删除评分卡', type: 'button', permission: 'rule:scorecard:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6055, parentId: 6050, title: '发布评分卡', type: 'button', permission: 'rule:scorecard:publish', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6056, parentId: 6050, title: '评分卡求值', type: 'button', permission: 'rule:scorecard:evaluate', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ─── 数据分析（7000 段）
 ];

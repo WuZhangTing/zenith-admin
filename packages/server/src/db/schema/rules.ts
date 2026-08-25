@@ -24,6 +24,10 @@ export const ruleDecisionTables = pgTable('rule_decision_tables', {
   settings: jsonb('settings').notNull().default(sql`'{}'::jsonb`), // RuleDecisionTableSettings
   version: integer('version').default(1).notNull(),
   publishedAt: timestamp('published_at', { withTimezone: true }),
+  // 灰度发布：grayPercent 非空即灰度中——新版本(grayVersion)按主体哈希分桶生效，其余流量走上一版本
+  grayPercent: integer('gray_percent'),
+  grayDimension: varchar('gray_dimension', { length: 200 }),
+  grayVersion: integer('gray_version'),
   // 发布审批（四眼）：pending=待审批；批准/驳回后清空
   reviewStatus: varchar('review_status', { length: 16 }),
   reviewRequestedBy: integer('review_requested_by').references(() => users.id, { onDelete: 'set null' }),
@@ -143,6 +147,7 @@ export const ruleListItems = pgTable('rule_list_items', {
   listId: integer('list_id').notNull().references(() => ruleLists.id, { onDelete: 'cascade' }),
   value: varchar('value', { length: 128 }).notNull(),
   label: varchar('label', { length: 64 }),
+  matchMode: varchar('match_mode', { length: 8 }).notNull().default('exact'), // exact | prefix | regex
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   remark: varchar('remark', { length: 255 }),
   createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
@@ -152,3 +157,28 @@ export const ruleListItems = pgTable('rule_list_items', {
 export type RuleListItemRow = typeof ruleListItems.$inferSelect;
 
 export type NewRuleListItem = typeof ruleListItems.$inferInsert;
+
+// ─── 评分卡：变量分段打分 × 权重 + 基础分 → 总分 → 等级/决策映射 ─────────────────
+// 发布采用单快照（publishedSnapshot）：运行时按快照执行，编辑态不影响线上；
+// 结构较决策表简单，不建独立版本表，version 号随每次发布 +1。
+export const ruleScorecards = pgTable('rule_scorecards', {
+  id: serial('id').primaryKey(),
+  key: varchar('key', { length: 64 }).notNull(),
+  name: varchar('name', { length: 64 }).notNull(),
+  description: text('description'),
+  status: workflowDefinitionStatusEnum('status').default('draft').notNull(),
+  baseScore: integer('base_score').default(0).notNull(),
+  variables: jsonb('variables').notNull().default(sql`'[]'::jsonb`), // RuleScorecardVariable[]
+  grades: jsonb('grades').notNull().default(sql`'[]'::jsonb`),       // RuleScorecardGrade[]
+  publishedSnapshot: jsonb('published_snapshot'),                    // { baseScore, variables, grades }
+  version: integer('version').default(1).notNull(),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [unique('rule_scorecards_key_uniq').on(t.tenantId, t.key)]);
+
+export type RuleScorecardRow = typeof ruleScorecards.$inferSelect;
+
+export type NewRuleScorecard = typeof ruleScorecards.$inferInsert;

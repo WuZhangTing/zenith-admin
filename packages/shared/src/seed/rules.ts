@@ -36,7 +36,49 @@ export const SEED_RULE_LISTS = [
 ];
 
 export const SEED_RULE_LIST_ITEMS = [
-  { id: 1, listId: 1, value: '13800000000', label: '演示黑名单手机号', expiresAt: null, remark: '示例数据' },
-  { id: 2, listId: 1, value: '198.51.100.23', label: '恶意 IP', expiresAt: null, remark: '示例数据' },
-  { id: 3, listId: 2, value: 'member_1001', label: '演示 VIP 会员', expiresAt: null, remark: '示例数据' },
+  { id: 1, listId: 1, value: '13800000000', label: '演示黑名单手机号', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
+  { id: 2, listId: 1, value: '198.51.100.23', label: '恶意 IP', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
+  { id: 3, listId: 2, value: 'member_1001', label: '演示 VIP 会员', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
+];
+
+// ─── 规则中心：评分卡种子 ────────────────────────────────────────────────────────
+export const SEED_RULE_SCORECARDS = [
+  {
+    id: 1,
+    key: 'credit_score',
+    name: '信用评分卡',
+    description: '示例：基础分 300，按年龄/城市等级/逾期次数分段打分，映射信用等级与建议决策',
+    baseScore: 300,
+    variables: [
+      {
+        key: 'age', label: '年龄', expr: 'form.age', type: 'number' as const, weight: 2,
+        bands: [
+          { id: 'b1', op: 'range' as const, min: 18, max: 30, score: 40, label: '18-30 岁' },
+          { id: 'b2', op: 'range' as const, min: 30, max: 50, score: 60, label: '30-50 岁' },
+          { id: 'b3', op: 'range' as const, min: 50, max: null, score: 45, label: '50 岁以上' },
+        ],
+      },
+      {
+        key: 'city_tier', label: '城市等级', expr: 'form.cityTier', type: 'string' as const,
+        bands: [
+          { id: 'c1', op: 'in' as const, values: ['一线', '新一线'], score: 50 },
+          { id: 'c2', op: 'eq' as const, value: '二线', score: 35 },
+          { id: 'c3', op: 'default' as const, score: 20, label: '其他城市' },
+        ],
+      },
+      {
+        key: 'overdue', label: '近一年逾期次数', expr: 'form.overdueCount', type: 'number' as const, weight: 3,
+        bands: [
+          { id: 'o1', op: 'range' as const, min: null, max: 1, score: 30, label: '无逾期' },
+          { id: 'o2', op: 'range' as const, min: 1, max: 3, score: 0, label: '1-2 次' },
+          { id: 'o3', op: 'range' as const, min: 3, max: null, score: -40, label: '3 次以上' },
+        ],
+      },
+    ],
+    grades: [
+      { grade: 'A', minScore: 500, decision: 'approve' },
+      { grade: 'B', minScore: 430, decision: 'review' },
+      { grade: 'C', minScore: 0, decision: 'reject' },
+    ],
+  },
 ];
