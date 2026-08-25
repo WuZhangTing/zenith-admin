@@ -1,7 +1,8 @@
 /**
  * 频道数据看板（I）聚合服务
  *
- * 概览指标 + 近 7 天消息趋势 + 会话状态分布 + 群发已读率 + 热门自动回复 + 运营号排行。
+ * 概览指标 + 近 7 天消息趋势 + 会话状态分布 + 群发已读率 + 热门自动回复 + 运营号排行
+ * + 订阅增长 + 消息类型分布 + 小时分布 + 会话评分 + 自动回复命中类型占比。
  * 纯只读聚合，所有独立查询用 Promise.all 并行。
  */
 import { and, eq, desc, gte, isNotNull, isNull, sql } from 'drizzle-orm';
@@ -10,7 +11,11 @@ import {
   channels, channelMessages, channelSubscriptions, channelConversations,
   channelAutoReplies, channelMessageTargets,
 } from '../../db/schema';
-import type { ChannelDashboard, ChannelDashboardTrendPoint, ChannelDashboardStatusDist, ChannelDashboardTopReply, ChannelDashboardChannelRank } from '@zenith/shared/messaging';
+import type {
+  ChannelDashboard, ChannelDashboardTrendPoint, ChannelDashboardStatusDist, ChannelDashboardTopReply, ChannelDashboardChannelRank,
+  ChannelDashboardSubscriptionTrendPoint, ChannelDashboardMessageTypeDistItem, ChannelDashboardHourlyPoint,
+  ChannelDashboardRatingDist, ChannelDashboardAutoReplyMatchDistItem,
+} from '@zenith/shared/messaging';
 import { formatDate } from '../../lib/datetime';
 
 function startOfToday(): Date {
@@ -149,11 +154,82 @@ async function buildChannelRank(): Promise<ChannelDashboardChannelRank[]> {
     .slice(0, 5);
 }
 
+/** 近 30 天每日新增订阅（含今天，共 30 个点） */
+async function buildSubscriptionTrend(): Promise<ChannelDashboardSubscriptionTrendPoint[]> {
+  const since = daysAgo(29);
+  const rows = await db.select({
+    date: sql<string>`to_char(date(${channelSubscriptions.subscribedAt}), 'YYYY-MM-DD')`,
+    count: sql<number>`count(*)::int`,
+  }).from(channelSubscriptions)
+    .where(gte(channelSubscriptions.subscribedAt, since))
+    .groupBy(sql`date(${channelSubscriptions.subscribedAt})`);
+
+  const counts = new Map(rows.map((r) => [r.date, Number(r.count)]));
+  const points: ChannelDashboardSubscriptionTrendPoint[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const date = formatDate(daysAgo(i));
+    points.push({ date, count: counts.get(date) ?? 0 });
+  }
+  return points;
+}
+
+/** 消息类型分布（已发送 out，未撤回） */
+async function buildMessageTypeDist(): Promise<ChannelDashboardMessageTypeDistItem[]> {
+  const rows = await db.select({ type: channelMessages.type, count: sql<number>`count(*)::int` })
+    .from(channelMessages)
+    .where(and(eq(channelMessages.direction, 'out'), eq(channelMessages.status, 'sent'), isNull(channelMessages.retractedAt)))
+    .groupBy(channelMessages.type)
+    .orderBy(desc(sql`count(*)`));
+  return rows.map((r) => ({ type: r.type, count: Number(r.count) }));
+}
+
+/** 按小时消息分布（近 7 天双向，0-23 全量补齐） */
+async function buildHourlyDist(): Promise<ChannelDashboardHourlyPoint[]> {
+  const since = daysAgo(6);
+  const rows = await db.select({
+    hour: sql<number>`extract(hour from ${channelMessages.createdAt})::int`,
+    count: sql<number>`count(*)::int`,
+  }).from(channelMessages)
+    .where(and(gte(channelMessages.createdAt, since), eq(channelMessages.status, 'sent'), isNull(channelMessages.retractedAt)))
+    .groupBy(sql`extract(hour from ${channelMessages.createdAt})`);
+
+  const counts = new Map(rows.map((r) => [Number(r.hour), Number(r.count)]));
+  return Array.from({ length: 24 }, (_, hour) => ({ hour, count: counts.get(hour) ?? 0 }));
+}
+
+/** 会话评分分布（1-5 星全量补齐）与平均分 */
+async function buildRatingDist(): Promise<ChannelDashboardRatingDist> {
+  const rows = await db.select({ rating: channelConversations.rating, count: sql<number>`count(*)::int` })
+    .from(channelConversations)
+    .where(isNotNull(channelConversations.rating))
+    .groupBy(channelConversations.rating);
+
+  const counts = new Map(rows.map((r) => [Number(r.rating), Number(r.count)]));
+  const dist = Array.from({ length: 5 }, (_, i) => ({ rating: i + 1, count: counts.get(i + 1) ?? 0 }));
+  const total = dist.reduce((sum, d) => sum + d.count, 0);
+  const avgRating = total === 0
+    ? null
+    : Math.round((dist.reduce((sum, d) => sum + d.rating * d.count, 0) / total) * 10) / 10;
+  return { avgRating, dist };
+}
+
+/** 自动回复命中类型占比（按累计命中次数） */
+async function buildAutoReplyMatchDist(): Promise<ChannelDashboardAutoReplyMatchDistItem[]> {
+  const rows = await db.select({
+    matchType: channelAutoReplies.matchType,
+    count: sql<number>`sum(${channelAutoReplies.hitCount})::int`,
+  }).from(channelAutoReplies)
+    .where(sql`${channelAutoReplies.hitCount} > 0`)
+    .groupBy(channelAutoReplies.matchType);
+  return rows.map((r) => ({ matchType: r.matchType, count: Number(r.count) }));
+}
+
 export async function getChannelDashboard(): Promise<ChannelDashboard> {
   const [
     businessChannelCount, subscriptionCount, messageCount, todayPushCount, openConversationCount,
     targetsTotal, targetsRead,
     avgResponseMinutes, trend, statusDist, topReplies, channelRank,
+    subscriptionTrend, messageTypeDist, hourlyDist, ratingDist, autoReplyMatchDist,
   ] = await Promise.all([
     db.$count(channels, eq(channels.type, 'business')),
     db.$count(channelSubscriptions),
@@ -167,6 +243,11 @@ export async function getChannelDashboard(): Promise<ChannelDashboard> {
     buildStatusDist(),
     buildTopReplies(),
     buildChannelRank(),
+    buildSubscriptionTrend(),
+    buildMessageTypeDist(),
+    buildHourlyDist(),
+    buildRatingDist(),
+    buildAutoReplyMatchDist(),
   ]);
 
   const readRate = targetsTotal > 0 ? Math.round((targetsRead / targetsTotal) * 100) : 0;
@@ -185,5 +266,10 @@ export async function getChannelDashboard(): Promise<ChannelDashboard> {
     readRate,
     topReplies,
     channelRank,
+    subscriptionTrend,
+    messageTypeDist,
+    hourlyDist,
+    ratingDist,
+    autoReplyMatchDist,
   };
 }

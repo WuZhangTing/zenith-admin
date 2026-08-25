@@ -342,6 +342,38 @@ export interface ChannelDashboardChannelRank {
   subscriberCount: number;
 }
 
+/** 每日新增订阅趋势点 */
+export interface ChannelDashboardSubscriptionTrendPoint {
+  date: string;
+  /** 当日新增订阅数 */
+  count: number;
+}
+
+/** 消息类型分布项（已发送 out） */
+export interface ChannelDashboardMessageTypeDistItem {
+  type: ChannelMessageType;
+  count: number;
+}
+
+/** 按小时消息分布点（近 7 天，双向） */
+export interface ChannelDashboardHourlyPoint {
+  hour: number;
+  count: number;
+}
+
+/** 会话评分分布（1-5 星） */
+export interface ChannelDashboardRatingDist {
+  /** 平均评分（保留 1 位小数），无评分时为 null */
+  avgRating: number | null;
+  dist: { rating: number; count: number }[];
+}
+
+/** 自动回复命中类型占比项（按累计命中次数） */
+export interface ChannelDashboardAutoReplyMatchDistItem {
+  matchType: ChannelAutoReplyMatchType;
+  count: number;
+}
+
 /** 频道数据看板聚合结果 */
 export interface ChannelDashboard {
   overview: ChannelDashboardOverview;
@@ -351,6 +383,12 @@ export interface ChannelDashboard {
   readRate: number;
   topReplies: ChannelDashboardTopReply[];
   channelRank: ChannelDashboardChannelRank[];
+  /** 近 30 天每日新增订阅 */
+  subscriptionTrend: ChannelDashboardSubscriptionTrendPoint[];
+  messageTypeDist: ChannelDashboardMessageTypeDistItem[];
+  hourlyDist: ChannelDashboardHourlyPoint[];
+  ratingDist: ChannelDashboardRatingDist;
+  autoReplyMatchDist: ChannelDashboardAutoReplyMatchDistItem[];
 }
 
 /** 公众号 / 系统号（在聊天会话列表中以只读频道形式呈现） */

@@ -126,6 +126,18 @@ export const ChannelDashboardDTO = z
     channelRank: z.array(z.object({
       channelId: z.number().int(), channelName: z.string(), messageCount: z.number().int(), subscriberCount: z.number().int(),
     })),
+    subscriptionTrend: z.array(z.object({ date: z.string(), count: z.number().int() })),
+    messageTypeDist: z.array(z.object({
+      type: z.enum(['text', 'card', 'image', 'news']), count: z.number().int(),
+    })),
+    hourlyDist: z.array(z.object({ hour: z.number().int(), count: z.number().int() })),
+    ratingDist: z.object({
+      avgRating: z.number().nullable(),
+      dist: z.array(z.object({ rating: z.number().int(), count: z.number().int() })),
+    }),
+    autoReplyMatchDist: z.array(z.object({
+      matchType: z.enum(['subscribe', 'keyword', 'default']), count: z.number().int(),
+    })),
   })
   .openapi('ChannelDashboard');
 

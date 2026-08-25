@@ -683,6 +683,32 @@ export const channelsHandlers = [
       messageCount: mockChannelMessages.filter((m) => m.channelId === c.id && m.direction === 'out' && !m.isRetracted).length,
       subscriberCount: c.id === 3 ? 3 : 0,
     })).sort((a, b) => b.messageCount - a.messageCount).slice(0, 5);
+    // 近 30 天新增订阅：确定性伪随机波动（无真实订阅时间数据）
+    const subscriptionTrend = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(); d.setDate(d.getDate() - (29 - i));
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return { date, count: (i * 7) % 5 + (i % 3 === 0 ? 2 : 0) };
+    });
+    const typeCounts = new Map<string, number>();
+    for (const m of outs) typeCounts.set(m.type, (typeCounts.get(m.type) ?? 0) + 1);
+    const messageTypeDist = [...typeCounts.entries()]
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+    const hourlyDist = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      count: hour >= 9 && hour <= 18 ? (hour * 5) % 7 + 3 : (hour % 3 === 0 ? 1 : 0),
+    }));
+    const ratedAttrs = [...convAttrs.values()].filter((a) => a.rating != null);
+    const ratingCounts = new Map<number, number>([[4, 2], [5, 3]]);
+    for (const a of ratedAttrs) ratingCounts.set(a.rating as number, (ratingCounts.get(a.rating as number) ?? 0) + 1);
+    const ratingDistArr = Array.from({ length: 5 }, (_, i) => ({ rating: i + 1, count: ratingCounts.get(i + 1) ?? 0 }));
+    const ratingTotal = ratingDistArr.reduce((s, d) => s + d.count, 0);
+    const avgRating = ratingTotal === 0 ? null : Math.round((ratingDistArr.reduce((s, d) => s + d.rating * d.count, 0) / ratingTotal) * 10) / 10;
+    const matchCounts = new Map<string, number>();
+    for (const r of mockChannelAutoReplies) {
+      if (r.hitCount > 0) matchCounts.set(r.matchType, (matchCounts.get(r.matchType) ?? 0) + r.hitCount);
+    }
+    const autoReplyMatchDist = [...matchCounts.entries()].map(([matchType, count]) => ({ matchType, count }));
     return ok({
       overview: { businessChannelCount: bizChannels.length, subscriptionCount: 5, messageCount: outs.length, todayPushCount: 3, openConversationCount: 2, avgResponseMinutes: 8 },
       trend,
@@ -690,6 +716,11 @@ export const channelsHandlers = [
       readRate: 76,
       topReplies,
       channelRank,
+      subscriptionTrend,
+      messageTypeDist,
+      hourlyDist,
+      ratingDist: { avgRating, dist: ratingDistArr },
+      autoReplyMatchDist,
     });
   }),
 
