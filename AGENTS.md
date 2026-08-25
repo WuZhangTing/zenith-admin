@@ -117,8 +117,8 @@ packages/web/src/mocks/                 # 可选的 Demo API 替身
 
 主要能力群包括：
 
-- **基础治理**：`core`、`identity`、`platform`、`ops`
-- **协作与内容**：`messaging`、`chat`、`mp`、`cms`
+- **基础治理**：`core`、`identity`、`platform`、`ops`、`licensing`
+- **协作与内容**：`messaging`、`chat`、`mp`、`cms`、`wiki`
 - **流程与自动化**：`workflow`、`rules`、`tasks`
 - **用户与交易**：`member`、`payment`、`biz`
 - **数据与智能**：`report`、`analytics`、`ai`
@@ -134,7 +134,7 @@ packages/web/src/mocks/                 # 可选的 Demo API 替身
 | 层次 | 主要位置 | 职责 |
 | --- | --- | --- |
 | 进程编排 | `src/index.ts`、`src/bootstrap/` | 服务监听、worker、subscriber、遥测与优雅停机 |
-| 应用装配 | `src/app.ts`、`src/middleware/` | 中间件、领域路由、CMS 兜底路由、OpenAPI 与全局错误处理 |
+| 应用装配 | `src/app.ts`、`src/middleware/` | 中间件、领域路由、CMS 兜底路由、Mastra 标准 API 挂载、OpenAPI 与全局错误处理 |
 | 协议边界 | `src/routes/` | 输入输出协议与参数校验；常规业务委托 Service |
 | 业务层 | `src/services/` | 业务规则、数据映射、事务和前置校验 |
 | 共享内核与基础设施 | `src/db/`、`src/lib/`、领域适配器 | DTO、上下文、数据库、缓存、任务、存储与第三方平台适配 |
@@ -176,6 +176,7 @@ Demo 模式通过 MSW 替换 API 边界，但继续复用真实接口契约，�
 | 异步处理 | 任务中心与 worker 负责调度、重试、进度和批量处理 |
 | 通知触达 | 事件目录（shared 代码定义）+ 统一派发层收口全部通知：`notify()` 唯一入口，渠道、偏好、免打扰与投递留痕由派发层负责 |
 | 跨域协作 | 同步协作复用服务函数，需解耦的后续副作用使用领域事件与 subscriber，不走内部 HTTP |
+| AI 运行时 | AI 域由 Mastra 框架承载（模型目录、Memory、RAG、评测），运行数据落同库独立 `mastra` schema，Studio 经 `/api/mastra` 标准 API 接入 |
 | 外部集成 | 文件、消息、OAuth、支付、AI 等能力通过服务端适配层接入 |
 | 可观测性 | 浏览器采集、请求追踪、日志、指标和审计共同构成观测面 |
 
@@ -203,6 +204,7 @@ npm run lint         # 检查 Shared、Server、SDK 与 Web
 npm test             # 运行 Server 与 Web 测试
 npm run db:generate  # 生成数据库迁移
 npm run db:migrate   # 执行数据库迁移
+npm run db:seed      # 填充初始数据
 npm run docs:dev     # 启动文档站
 ```
 
