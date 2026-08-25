@@ -40,13 +40,39 @@ npm install --package-lock-only
 
 ---
 
-## Step 4：验证（默认增量快验，CI 全量把关）
+## Step 4：更新 `docs/changelog/index.md`
+
+在文件顶部（第一个 `---` 分隔符之后，上一版本记录之前）**追加**当前版本的变更记录：
+
+```markdown
+## vX.Y.Z - YYYY-MM-DD
+
+### Added
+
+#### 功能分类
+- 具体变更描述
+
+### Changed
+
+- 变更内容
+
+### Fixed
+
+- 修复内容
+```
+
+> 仅记录本次版本的实际变更，不伪造内容。根据 Step 1 的 git log 整理，与用户确认关键变更点后再写入。
+> changelog 先于验证写入，Step 5 的 docs 路构建的就是最终内容，**无需**在验证后再单独重跑 `docs:build`。
+
+---
+
+## Step 5：验证（默认增量快验，CI 全量把关）
 
 CI（`ci.yml`）在每次 push master 时已全量跑 lint + test + build，Pages（`pages.yml`）构建文档站与 Demo。
 发布验证据此分两级：**本地只快验受影响的包，全量交给发布提交推送后的 CI**——Step 6 中 tag 只在
 CI 绿灯后才打；CI 红了就修复再推，tag 未推送就不会产生 Release，master 上的发布提交本身是惰性的。
 
-### 4a. 确定受影响的包
+### 5a. 确定受影响的包
 
 ```bash
 git diff --name-only <上一版本tag>..HEAD
@@ -56,30 +82,33 @@ git diff --name-only <上一版本tag>..HEAD
 
 | 变更路径 | 需本地验证的包 |
 | --- | --- |
-| `packages/shared/**` | 全部（等价全量，直接走 4c） |
+| `packages/shared/**` | 全部（等价全量，直接走 5c） |
 | `packages/analytics-sdk/**` | analytics-sdk + web |
 | `packages/server/**` | server |
 | `packages/web/**` | web |
 | `packages/electron/**` | 无独立测试，跟随 web（仅打包 web 产物） |
-| `docs/**` | 仅 Step 5 后的 `npm run docs:build` |
+| `docs/**` | `npm run docs:build`（Step 4 的 changelog 属于此类，docs 路必跑） |
 | 其余（`.github/`、`.agents/`、根配置） | 无需本地验证 |
 
-### 4b. 本地快验（仅受影响包）
+### 5b. 本地快验（仅受影响包）
 
-对受影响的包并行跑 lint + test，**不跑本地 build**——全量 build 由推送后的 CI 把关，Demo 由 Pages 构建：
+对受影响的包并行跑 lint + test，外加 docs 一路（Step 4 已改 changelog，docs 路必跑）；
+**不跑本地 build**——全量 build 由推送后的 CI 把关，Demo 由 Pages 构建：
 
 ```bash
 # 例：仅 web 受影响时
-npx concurrently --group --timings -n lint,test \
+npx concurrently --group --timings -n lint,test,docs \
   "npm run lint -w @zenith/web" \
-  "npm run test -w @zenith/web"
+  "npm run test -w @zenith/web" \
+  "npm run docs:build"
 ```
 
-通过标准：lint **0 error**（warning 不阻塞）、test 全部通过。多包受影响时按包各加一对 lint / test 命令。
+通过标准：lint **0 error**（warning 不阻塞）、test 全部通过、docs 输出 `build complete`。
+多包受影响时按包各加一对 lint / test 命令。
 
-### 4c. 全量路径（回退用）
+### 5c. 全量路径（回退用）
 
-以下情况跳过 4a/4b 直接全量四路：shared 有变更、跨包大范围改动、CI 不可用，或对增量判定没有把握。
+以下情况跳过 5a/5b 直接全量四路：shared 有变更、跨包大范围改动、CI 不可用，或对增量判定没有把握。
 Lint、测试、构建、文档站四类验证**互相独立**（只读源码、产物互不干扰），统一并行执行（项目已内置 `concurrently`）：
 
 ```bash
@@ -128,33 +157,6 @@ vitest 的转译成本决定了测试耗时，由三处配置共同压住，**�
   ⚠️ `build` 与 `build:demo` 都写 `packages/web/dist` 与 tsbuildinfo，**两者之间禁止并行**，只能如上串联在同一路里
 - **docs**：`npm run docs:build` 输出 `build complete`
 
-> Step 5 写入 changelog 后**无需**重跑整套验证：changelog 只影响文档站，单独重跑 `npm run docs:build` 确认即可。
-
----
-
-## Step 5：更新 `docs/changelog/index.md`
-
-在文件顶部（第一个 `---` 分隔符之后，上一版本记录之前）**追加**当前版本的变更记录：
-
-```markdown
-## vX.Y.Z - YYYY-MM-DD
-
-### Added
-
-#### 功能分类
-- 具体变更描述
-
-### Changed
-
-- 变更内容
-
-### Fixed
-
-- 修复内容
-```
-
-> 仅记录本次版本的实际变更，不伪造内容。根据 git log 整理，与用户确认关键变更点后再写入。
-
 ---
 
 ## Step 6：提交推送，等 CI 绿灯后打 tag
@@ -165,7 +167,7 @@ git add .
 git commit -m "chore: release vX.Y.Z"
 git push origin master
 
-# 2. 等待 CI 通过（全量 lint + test + build，走 4b 增量快验时这一步是全量把关）
+# 2. 等待 CI 通过（全量 lint + test + build，走 5b 增量快验时这一步是全量把关）
 gh run list --workflow=ci.yml --branch master --limit 1   # 取最新 run id
 gh run watch <run-id> --exit-status
 
@@ -175,7 +177,7 @@ git push origin vX.Y.Z
 ```
 
 > CI 失败时：修复后追加提交再推 master，全绿后再打 tag。tag 未推送就不会产生 Release，
-> 无需回滚发布提交。走 4c 全量路径且 CI 拥堵时，可在本地全量已绿的前提下直接打 tag。
+> 无需回滚发布提交。走 5c 全量路径且 CI 拥堵时，可在本地全量已绿的前提下直接打 tag。
 
 ---
 

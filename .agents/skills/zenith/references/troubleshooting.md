@@ -260,7 +260,7 @@ vitest 默认 worker 数 = 核数−1，每个 worker 都要独立转译整套 a
 真卡死（如顶层 await 死锁）仍应快速失败。
 
 > 不要因此把发布流程的四路并行改成串行——单独跑 `npm test`（零外层并发）同样会超时，
-> 外层并行不是根因。见 [release.md → Step 4](./release.md)。
+> 外层并行不是根因。见 [release.md → Step 5](./release.md)。
 
 ### `npm run dev:server` 冷启动明显变慢
 
