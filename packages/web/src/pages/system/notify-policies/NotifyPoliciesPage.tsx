@@ -139,7 +139,7 @@ function PolicyEventsTab() {
 
   const columns: ColumnProps<NotificationPolicyEvent>[] = [
     {
-      title: '事件', dataIndex: 'label', width: 220,
+      title: '事件', dataIndex: 'label', width: 260,
       render: (label: string, record) => (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <Text>{label}</Text>
@@ -156,7 +156,7 @@ function PolicyEventsTab() {
       ),
     },
     {
-      title: '特性', dataIndex: 'bypassQuietHours', width: 130,
+      title: '特性', dataIndex: 'bypassQuietHours', width: 170,
       render: (bypass: boolean, record) => (
         <span style={{ display: 'inline-flex', gap: 4 }}>
           {record.mandatory && <Tag size="small" color="red" type="light">必达</Tag>}
