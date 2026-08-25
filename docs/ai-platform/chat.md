@@ -1,6 +1,6 @@
 # 智能对话
 
-前端页面菜单路径为 `/ai/chat`，是 AI 能力的核心入口。
+前端页面菜单路径为 `/ai/chat`，是 AI 能力的核心入口。对话由内置 Mastra Agent `zenith-chat` 承载，模型、提示词、工具与记忆按请求动态注入。
 
 ---
 
@@ -8,85 +8,89 @@
 
 页面采用左右主从布局：
 
-- 左侧为会话列表，按「置顶 / 今天 / 昨天 / 近 7 天 / 更早」分组展示，增量加载（每页 30 条，底部「加载更多」）；支持按标题或消息内容搜索、按标签过滤、查看已归档会话、新建会话、重命名、置顶、归档、标签维护、分享、导出 Markdown / JSON、删除。
-- 右侧为对话区，支持双侧气泡、无气泡、用户气泡三种展示模式，以及左右对齐 / 左对齐切换；推理模型（DeepSeek-R1 等）的思维链以可折叠面板展示在回答上方。
-- 空会话显示引导问题（智能体会话则展示智能体开场白与建议问题）。
-- 输入区使用 Semi Design `AIChatInput`，支持选择模型和停止生成。模型选择器数据来自 `GET /api/ai/models`（所有登录用户可访问的轻量列表，仅包含启用配置的 `id`、`name`、`model`、`provider`、`isDefault`、`capabilities` 字段，不暴露密钥与 API 地址）。
+- 左侧为会话列表，按「置顶 / 今天 / 昨天 / 近 7 天 / 更早」分组，增量加载；支持按标题或消息内容搜索、标签过滤、归档查看、新建 / 重命名 / 置顶 / 归档 / 标签维护 / 分享 / 导出 / 删除。进入页面默认不选中会话，展示欢迎页。
+- 右侧为对话区：思维链以可折叠面板展示在回答上方；每条回复的标题行标注**实际使用的模型**（降级切换后为切换目标）与完整时间。
+- 空会话显示引导问题；智能体会话展示智能体开场白与建议问题。
+- 输入区配置项：**模型选择**（系统配置 `{configId}:{model}` 与个人配置 `user-{id}:{model}` 逐模型展开）、**推理力度**、**知识库挂载**、**智能体选择**；vision 模型显示图片上传入口。
+
+## 推理力度
+
+输入区「推理力度」下拉共七档：跟随配置（默认空值）、`provider-default`、`none`、`minimal`、`low`、`medium`、`high`、`xhigh`。
+
+- 优先级：**会话选择 > 智能体 modelSettings > 服务商配置**。
+- 档位翻译为 providerOptions 的 `reasoningEffort` / `thinking` 请求字段；支持思维链回传的网关将思考过程实时流入折叠面板并持久化（`ai_messages.reasoning`）。
 
 ## 流式输出
 
-聊天接口为 `POST /api/ai/conversations/{id}/chat`。接口使用 `streamSSE` 返回服务端事件：
+聊天接口为 `POST /api/ai/conversations/{id}/chat`，以 SSE 返回事件：
 
 | SSE 事件 | 说明 |
 | --- | --- |
-| `gen` | 首个事件，返回本次生成任务的 `genId`（停止生成与断线续传的凭据） |
-| `delta` | 返回增量文本片段，前端实时追加到当前 AI 回复 |
-| `reasoning` | 返回推理模型思维链增量（`reasoning_content` / Anthropic thinking），前端在折叠面板中实时展示 |
-| `tool_call` | function calling 执行过程（工具名 / 参数 / 结果），前端以折叠卡片展示 |
-| `references` | 知识库检索命中的引用（文档名 / 片段 / 相关度），前端展示在回答下方 |
-| `failover` | 主备切换发生时返回 `from` / `to` 模型标识，前端 Toast 提示 |
-| `done` | 返回 `tokensInput`、`tokensOutput`，表示本次生成结束 |
-| `saved` | 返回 `assistantMsgId` 与 `userMsgId`，前端据此把临时消息 ID 替换为数据库消息 ID |
-| `title` | 首轮对话完成后返回 LLM 自动生成的会话标题 |
-| `error` | 返回错误信息，前端将当前回复标记为失败 |
+| `gen` | 首个事件，返回生成任务 `genId`（停止与续传凭据） |
+| `delta` | 增量正文文本 |
+| `reasoning` | 思维链增量，前端折叠面板实时展示 |
+| `tool_call` | 函数调用过程（工具名 / 参数 / 结果），折叠卡片展示 |
+| `references` | 知识库检索命中的引用（文档名 / 片段 / 相关度） |
+| `failover` | 降级链切换时返回 `from` / `to` 模型标识 |
+| `done` | 返回 `tokensInput` / `tokensOutput` |
+| `saved` | 返回落库的 `assistantMsgId` / `userMsgId` 与实际模型 |
+| `title` | 首轮完成后返回 LLM 自动生成的会话标题 |
+| `error` | 错误信息 |
 
-请求体包含：
+请求体要点：
 
 | 字段 | 说明 |
 | --- | --- |
-| `message` | 用户消息，长度 1–8192；`regenerate = true` 时可省略 |
-| `regenerate` | 可选，重新生成模式：不追加新的 user 消息，基于激活路径重新回答，新回复保存为旧回复的**兄弟分支** |
-| `parentMsgId` | 可选，编辑重发模式：新 user 消息挂到该父节点形成兄弟分支（`null` = 作为根消息） |
-| `configSource` | 可选，`system` / `user`，表示使用系统配置或个人配置 |
-| `configId` | 可选，指定系统服务商配置 ID 或个人配置 ID；指定已禁用的系统配置会返回 400 |
-| `model` | 可选，多模型配置下选择的具体模型（须在该配置的模型列表中） |
-| `images` | 可选，vision 图片（data URL base64，≤3 张、单张 ≤4MB），仅当轮上下文生效不落库；需模型声明 `capabilities.vision` |
+| `message` | 用户消息；`regenerate = true` 时可省略 |
+| `regenerate` | 重新生成：基于激活路径重答，新回复保存为旧回复的兄弟分支 |
+| `parentMsgId` | 编辑重发：新 user 消息挂到该父节点形成兄弟分支 |
+| `model` | 模型标识（系统 / 个人配置逐模型展开后的选择） |
+| `reasoning` | 会话级推理档位 |
+| `images` | vision 图片；经统一文件存储持久化（`ai_messages.images` 存文件引用），刷新后以稳定 URL 回显，支持粘贴截图直接上传 |
 
-服务端会校验会话归属，按**当前激活分支路径**读取历史消息（先截取最近 50 条），再按 Token 预算裁剪上下文（默认 6000 Token、最多 20 条）。接口按用户限流（内置规则 `ai_chat_send`，默认 15 次 / 分钟）；另受 `ai_daily_token_quota` 每用户每日 token 配额约束（Redis 按自然日计数，0 = 不限制，超限返回 429）。
+上下文由 **Mastra Memory** 承载：近 20 条消息 + 语义召回（配置 embedding 模型后启用，topK 4）。接口按用户限流（内置规则 `ai_chat_send`），并受 `ai_daily_token_quota` 每日配额约束。
 
 ## 生成与连接解耦（断线续传）
 
-生成任务与客户端连接完全解耦：
-
-1. 聊天接口收到请求后启动后台生成任务，所有 SSE 事件先写入 Redis 缓冲（key 前缀 `ai:gen:*`，TTL 10 分钟），响应流只是缓冲的实时 tail。
-2. 客户端断开（关闭页面 / 断网）不会中断生成；进入会话时前端探测 `GET /api/ai/conversations/{id}/active-generation`，发现进行中任务则调用 `GET /api/ai/generations/{genId}/stream?offset=N` 恢复实时输出。
-3. 「停止生成」通过 `POST /api/ai/generations/{genId}/cancel` 通知服务端协作式停止，**已生成的部分内容仍会保存**。
-4. 同一会话同时只允许一个生成任务（重复发送返回 429）。
+1. 生成任务后台运行，SSE 事件先写 Redis 缓冲，响应流只是缓冲的实时 tail。
+2. 断开连接不中断生成；重新进入会话时探测 `GET .../active-generation`，发现进行中任务则 `GET /api/ai/generations/{genId}/stream?offset=N` 续传。
+3. 「停止生成」调用 `POST /api/ai/generations/{genId}/cancel` 协作式停止，已生成部分仍保存。
+4. 同一会话同时只允许一个生成任务。
 
 ## 消息分支树
 
-消息模型对齐 ChatGPT：`ai_messages.parent_id` 组成树、`ai_conversations.active_leaf_msg_id` 指定当前激活分支的叶子，激活路径 = 叶子的祖先链。历史线性数据（`parent_id` 为空）按时间序推导隐式父节点兼容。
+消息模型对齐 ChatGPT：`ai_messages.parent_id` 组成树，`ai_conversations.active_leaf_msg_id` 指定激活分支叶子。
 
-- **重新生成**：新回复保存为旧回复的兄弟分支（同一条 user 消息的多个回答），旧回复完整保留。
-- **编辑重发**：新 user 消息挂到被编辑消息的父节点，旧分支完整保留。
-- **分支切换**：存在兄弟分支的消息标题行出现「‹ i/n ›」切换器，`PUT /api/ai/conversations/{id}/active-branch` 以目标消息为起点沿最新子分支下探到叶子并激活。
-- **消息删除**：`DELETE .../messages/{msgId}` 删除单条消息（仅允许删除 assistant 回复）；`DELETE .../messages/{msgId}/cascade` 删除整个子树（所有后代分支），若激活叶子位于被删子树内，自动回退到父链最新叶子。
-- 导出 Markdown / JSON 仅导出当前激活分支路径。
+- **重新生成**：新回复保存为旧回复的兄弟分支，旧回复完整保留。
+- **编辑重发**：新 user 消息挂到被编辑消息的父节点。
+- **分支切换**：兄弟分支消息出现「‹ i/n ›」切换器，切换后沿最新子分支下探到叶子并激活。
+- **消息删除**：支持删除单条 assistant 回复或整个子树；激活叶子位于被删子树内时自动回退。
+- 导出 Markdown / JSON 仅导出当前激活分支路径；业务消息账本与 Memory thread 确定性映射，分支操作自动重建镜像。
 
-## 消息与会话管理
+## 记忆与个性化
 
-对话保存在 `ai_conversations`，消息保存在 `ai_messages`。助手消息会记录生成所用模型、思维链内容（`reasoning`）、输入 / 输出 Token、首字延迟（`ttft_ms`）、总耗时（`duration_ms`）与生成调用链 `trace`。上游未返回 usage 时（部分兼容网关不支持 `stream_options.include_usage`），服务端按字符数估算 Token 兜底。
+头部设置入口打开 **AI 设置**弹窗，两个 Tab：
 
-会话标题默认为「新对话」，首轮回答完成后由系统默认模型异步总结生成标题（需系统默认配置为 OpenAI 兼容类型；不超过 15 字，失败回退为用户消息前 30 字），并通过 `title` 事件推送给前端。
+- **个人指令**：「关于我」与「回答风格」两个文本字段，启用后注入对话系统提示词。
+- **AI 记忆**：开关 + 记忆画像编辑。开启后 Mastra working memory（`scope=resource`，按用户物理隔离）由模型自动从对话中维护跨对话画像（称呼 / 职业 / 技术栈 / 偏好 / 长期目标，约束不记录敏感信息），画像可随时查看、编辑、清空。
 
-会话支持最多 10 个自定义**标签**（`PUT /{id}/tags`），列表接口支持 `tag` 参数过滤。
+存储：`ai_user_settings`（用户 1:1，JSONB 稀疏文档）。
 
 ## 语音交互
 
-- **TTS 朗读**：assistant 消息操作栏提供喇叭按钮，使用浏览器 `speechSynthesis` 朗读回复（再次点击停止）。
-- **STT 语音输入**：输入区麦克风按钮启动浏览器 `SpeechRecognition`（Chrome / Edge 支持最佳），识别结果进入可编辑草稿条，确认后发送。
+- **TTS 朗读**：assistant 消息操作栏喇叭按钮，浏览器 `speechSynthesis` 朗读（再次点击停止）。
+- **STT 语音输入**：麦克风按钮启动浏览器 `SpeechRecognition`，识别文本进入可编辑草稿条。
 
-两者均为纯浏览器能力，不经过服务端，不支持的浏览器会给出提示。
+均为纯浏览器能力，不经过服务端。
 
-## 个性化与分享
+## 分享与竞技场
 
-- **个人指令（Custom Instructions）**：头部「个人指令」入口维护「关于我」与「回答风格」（`/api/ai/preferences`），启用后自动追加到所有对话的 system prompt 末尾。
-- **对话角色**：头部「角色」下拉应用提示词模板为当前对话的 `systemPromptOverride`，含 `{{变量}}` 的模板会弹出填充表单，详见[提示词模板](./prompts.md)。
-- **对话分享**：会话菜单生成只读分享链接（有效期 0–365 天，0 = 永久，前端预设永久 / 7 天 / 30 天；可随时撤销，同一会话仅保留一个有效分享），免登录访问 `/public/ai-chat/{token}`，按 IP 限流（`ai_share_view`）。
-- **模型对比（Arena）**：头部入口打开双栏对比，同一提问并行发给两个模型流式对比（`POST /api/ai/arena/chat`，单模型 SSE 流，不保存对话、不携带历史上下文，受 `ai_chat_send` 限流、敏感词过滤与每日配额约束），投票结果写入 `ai_arena_votes`（`POST /api/ai/arena/vote`）。
+- **对话分享**：会话菜单生成只读分享链接（有效期 0–365 天，0 = 永久；同一会话仅保留一个有效分享，可随时撤销），免登录访问 `/public/ai-chat/{token}`，展示正文 / 思维链 / 模型标注，按 IP 限流。
+- **模型竞技场（Arena）**：双栏对比，同一提问并行发给两个模型流式对比（不保存对话、不带历史上下文），投票（A / B / 平局）写入 `ai_arena_votes`。
+- **消息反馈**：点赞 / 点踩（可选原因），进入[反馈闭环](./operations.md)。
 
 ## 相关文档
 
-- [自定义智能体](./agents.md) — 以智能体预设开启对话
+- [模型接入](./providers.md) — 模型选择器背后的配置形态
+- [智能体](./agents.md) — 以智能体预设开启对话
 - [知识库 RAG](./knowledge.md) — 对话挂载知识库
-- [工具与函数调用](./tools.md) — 对话中的工具执行

@@ -1,57 +1,41 @@
-# 自定义智能体
+# 智能体
 
-「智能体」页菜单路径为 `/ai/agents`，对标 GPTs / Coze Bot：把提示词、模型、知识库与工具组合成可复用、可分享的 AI 助手。
+智能体页面菜单路径为 `/ai/agents`。智能体是「instructions + 模型 + 知识库 + 工具」的组合预设，**创建即注册**为一等 Mastra Agent（注册表 ID `agent-{id}`），无市场与上架审核环节。
 
 ---
 
-## 智能体组成
+## 组成字段
 
 | 字段 | 说明 |
 | --- | --- |
-| `name` / `avatar` / `description` | 名称（≤100 字符）、emoji 头像与一句话介绍（≤300 字符，市场展示） |
-| `systemPrompt` | 系统提示词（必填，最大 8192 字符），定义角色、能力边界与回答风格 |
-| `configId` + `model` | 指定服务商配置与具体模型（留空 = 跟随系统默认配置） |
-| `temperature` | 温度覆盖（可空） |
-| `knowledgeBaseId` | 绑定知识库（软引用，须为创建者本人的知识库） |
-| `tools` | 启用的工具名集合（最多 20 个，内置 + HTTP 工具，见[工具文档](./tools.md)）；空数组 = 不启用工具 |
-| `openingMessage` | 开场白（≤2000 字符，新对话空状态展示） |
-| `suggestedQuestions` | 建议问题（最多 6 条，点击直接发送） |
-| `isEnabled` | 启用开关；禁用后市场不再展示，关联对话降级为普通对话 |
+| `name` / `description` / `avatar` | 基本信息（头像为预设 emoji） |
+| `instructions` | 智能体指令（1–8192 字，必填） |
+| `configId` / `model` | 绑定的服务商配置与模型（空 = 系统默认） |
+| `modelSettings` | temperature / maxOutputTokens / 推理档位等模型参数 |
+| `maxSteps` | 工具调用最大步数（1–20） |
+| `knowledgeBaseId` | 挂载的知识库 |
+| `tools` | 可调用的 HTTP 工具列表 |
+| `openingMessage` / `suggestedQuestions` | 开场白与建议问题 |
 
-## 上架审核流
+创建 / 更新 / 停用 / 删除全程与 Mastra 注册表同步；已注册的智能体可作为[模型评测](./eval.md)目标，并可在 [Mastra Studio](./studio.md) 中调试。
 
-智能体状态机：`private`（私有）→ `pending`（待审核）→ `published`（已上架）/ `rejected`(已驳回)。
+## 内置智能体
 
-- 创建者提交上架（`POST /{id}/publish`）后进入待审核；可随时撤回（`POST /{id}/unpublish`）。
-- 具备 `ai:agent:review` 权限的管理员在「上架审核」tab 通过 / 驳回（`POST /{id}/review`）。
-- 已上架智能体修改**系统提示词、工具或知识库绑定**后自动回到私有状态，需重新提交审核（名称、开场白等展示字段变更不触发）。
-
-## 智能体市场
-
-- 「智能体市场」tab 展示全部已上架且启用的智能体（按使用次数排序，展示创建者）。
-- 任何用户可直接与市场智能体对话，或**克隆**为自己的私有副本（`POST /{id}/clone`；副本名称自动追加「副本」后缀，`cloned_from_id` 记录来源；不复制知识库绑定，因属主不同）。
+除用户创建的智能体外，系统支持**编程式内置智能体**（代码注册，前端以只读卡片展示），示例见 `biz-demo` 的演示智能体——演示 zod 工具定义与运行时注册。
 
 ## 对话集成
 
-- 智能体卡片「对话」按钮跳转 `/ai/chat?agentId={id}`，自动以该智能体创建新会话（会话标题取智能体名称，`usage_count` +1）。
-- 智能体会话生成时自动应用全部预设：系统提示词（对话级角色模板优先）、指定配置与模型、温度、绑定知识库检索、工具白名单。
-- 空会话展示智能体头像、开场白与建议问题；标题栏展示智能体徽标。
-- 删除或禁用智能体后关联对话保留，但不再应用预设（降级为普通对话）。
+- 聊天输入区选择智能体后，会话按智能体的 instructions / 模型 / 知识库 / 工具执行；
+- 空会话展示智能体开场白与建议问题；
+- 智能体会话计入 `usageCount` 使用统计。
 
 ## 接口一览
 
-| 方法 | 路径 | 说明 | 权限 |
-| --- | --- | --- | --- |
-| `GET` | `/api/ai/agents` | 我的智能体列表 | 登录用户 |
-| `GET` | `/api/ai/agents/market` | 智能体市场（已上架） | 登录用户 |
-| `GET` | `/api/ai/agents/pending` | 待审核列表 | `ai:agent:review` |
-| `GET` | `/api/ai/agents/{id}` | 详情（本人任意状态 / 他人仅已上架） | 登录用户 |
-| `POST` | `/api/ai/agents` | 创建智能体 | 登录用户 |
-| `PUT` | `/api/ai/agents/{id}` | 更新（仅创建者） | 登录用户 |
-| `DELETE` | `/api/ai/agents/{id}` | 删除（仅创建者） | 登录用户 |
-| `POST` | `/api/ai/agents/{id}/publish` | 提交上架审核 | 登录用户 |
-| `POST` | `/api/ai/agents/{id}/unpublish` | 撤回上架 / 取消审核 | 登录用户 |
-| `POST` | `/api/ai/agents/{id}/review` | 审核通过 / 驳回 | `ai:agent:review` |
-| `POST` | `/api/ai/agents/{id}/clone` | 克隆市场智能体 | 登录用户 |
-
-数据表：`ai_agents`（状态枚举 `ai_agent_status`），会话通过 `ai_conversations.agent_id` 软引用。
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/ai/agents` | 我的智能体列表 |
+| `GET` | `/api/ai/agents/builtin` | 内置智能体列表 |
+| `GET` | `/api/ai/agents/{id}` | 详情 |
+| `POST` | `/api/ai/agents` | 创建（同步注册 Mastra） |
+| `PUT` | `/api/ai/agents/{id}` | 更新（同步注册表） |
+| `DELETE` | `/api/ai/agents/{id}` | 删除（同步注销） |
