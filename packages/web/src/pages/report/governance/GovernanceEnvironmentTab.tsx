@@ -24,7 +24,7 @@ import { parseJsonObject } from '../report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 const environmentKindOptions = [
   { value: 'development', label: '开发' },
@@ -103,10 +103,10 @@ export default function GovernanceEnvironmentTab() {
   };
 
   const environmentColumns: ColumnProps<ReportEnvironment>[] = [
-    { title: '环境名称', dataIndex: 'name', width: 180 },
-    { title: '编码', dataIndex: 'code', width: 130 },
+    { title: '环境名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '编码', dataIndex: 'code', width: 130, render: renderEllipsis },
     { title: '类型', dataIndex: 'kind', width: 110, render: (v) => environmentKindOptions.find((item) => item.value === v)?.label ?? v },
-    { title: '访问地址', dataIndex: 'baseUrl', width: 240, render: (v) => v || '—' },
+    { title: '访问地址', dataIndex: 'baseUrl', width: 240, render: renderEllipsis },
     { title: '默认环境', dataIndex: 'isDefault', width: 100, render: (v) => v ? <Tag color="blue">默认</Tag> : '—' },
     dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },
@@ -127,12 +127,12 @@ export default function GovernanceEnvironmentTab() {
     }),
   ];
   const promotionColumns: ColumnProps<ReportEnvironmentPromotion>[] = [
-    { title: '资源', dataIndex: 'resourceName', width: 190, render: (v, r) => v || `${reportResourceTypeLabel(r.resourceType)} #${r.resourceId}` },
-    { title: '来源环境', dataIndex: 'sourceEnvironmentName', width: 130, render: (v, r) => v || `#${r.sourceEnvironmentId}` },
-    { title: '目标环境', dataIndex: 'targetEnvironmentName', width: 130, render: (v, r) => v || `#${r.targetEnvironmentId}` },
+    { title: '资源', dataIndex: 'resourceName', width: 190, render: (v, r) => renderEllipsis(v || `${reportResourceTypeLabel(r.resourceType)} #${r.resourceId}`) },
+    { title: '来源环境', dataIndex: 'sourceEnvironmentName', width: 130, render: (v, r) => renderEllipsis(v || `#${r.sourceEnvironmentId}`) },
+    { title: '目标环境', dataIndex: 'targetEnvironmentName', width: 130, render: (v, r) => renderEllipsis(v || `#${r.targetEnvironmentId}`) },
     { title: '来源修订', dataIndex: 'sourceRevision', width: 100 },
     dateTimeColumn('开始时间', 'startedAt'),
-    { title: '错误', dataIndex: 'errorMessage', width: 220, render: (v) => v || '—' },
+    { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportPromotionStatus) => <Tag color={promotionStatusColor[v]}>{REPORT_PROMOTION_STATUS_LABELS[v] ?? v}</Tag> },
     createOperationColumn<ReportEnvironmentPromotion>({
       width: 120,

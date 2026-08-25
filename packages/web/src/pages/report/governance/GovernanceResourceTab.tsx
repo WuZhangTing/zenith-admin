@@ -29,7 +29,7 @@ import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report
 import { aclRevokeWarning, normalizeAclGrantValues } from '../report-platform-utils';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 export default function GovernanceResourceTab() {
   const { hasPermission } = usePermission();
@@ -96,7 +96,7 @@ export default function GovernanceResourceTab() {
   };
 
   const folderColumns: ColumnProps<ReportFolderTreeNode>[] = [
-    { title: '目录名称', dataIndex: 'name', width: 220 },
+    { title: '目录名称', dataIndex: 'name', width: 220, render: renderEllipsis },
     { title: '资源类型', dataIndex: 'resourceType', width: 130, render: (v) => reportResourceTypeLabel(v as ReportResourceType) },
     { title: '负责人', dataIndex: 'ownerName', width: 130, render: (v) => v || '—' },
     { title: '资源数', dataIndex: 'resourceCount', width: 90, align: 'right', render: (v) => v ?? 0 },

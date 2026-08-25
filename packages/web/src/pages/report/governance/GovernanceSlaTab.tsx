@@ -32,7 +32,7 @@ import {
 } from '@/hooks/queries/report-sla';
 import { CreateButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 const slaTypeOptions = [
@@ -104,12 +104,12 @@ export default function GovernanceSlaTab() {
   };
 
   const ruleColumns: ColumnProps<ReportSlaRule>[] = [
-    { title: '规则名称', dataIndex: 'name', width: 190 },
-    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number) => datasetNameMap.get(v) ?? `#${v}` },
+    { title: '规则名称', dataIndex: 'name', width: 190, render: renderEllipsis },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number) => renderEllipsis(datasetNameMap.get(v) ?? `#${v}`) },
     { title: '类型', dataIndex: 'type', width: 150, render: (v) => slaTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '目标/预警', width: 130, render: (_v, r) => `${r.targetValue} / ${r.warningValue ?? '—'}` },
     { title: '窗口', dataIndex: 'windowMinutes', width: 100, align: 'right', render: (v) => `${v} 分钟` },
-    { title: '调度', width: 180, render: (_v, r) => r.cron ? `${r.cron} · ${r.timezone}` : '仅手动' },
+    { title: '调度', width: 200, render: (_v, r) => renderEllipsis(r.cron ? `${r.cron} · ${r.timezone}` : '仅手动') },
     dateTimeColumn('最近评估', 'lastEvaluatedAt'),
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
@@ -133,11 +133,11 @@ export default function GovernanceSlaTab() {
   ];
   const violationColumns: ColumnProps<ReportSlaViolation>[] = [
     { title: '规则 ID', dataIndex: 'ruleId', width: 100 },
-    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number) => datasetNameMap.get(v) ?? `#${v}` },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number) => renderEllipsis(datasetNameMap.get(v) ?? `#${v}`) },
     { title: '观测/目标', width: 130, render: (_v, r) => `${r.observedValue} / ${r.targetValue}` },
     dateTimeColumn('窗口开始', 'windowStartedAt'),
     dateTimeColumn('窗口结束', 'windowEndedAt'),
-    { title: '详情', dataIndex: 'detail', width: 230, render: (v) => v || '—' },
+    { title: '详情', dataIndex: 'detail', width: 230, render: renderEllipsis },
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: ReportSlaViolationStatus) => <Tag color={v === 'open' ? 'red' : v === 'resolved' ? 'green' : 'orange'}>{v === 'open' ? '未处理' : v === 'resolved' ? '已解决' : '已确认'}</Tag> },
     createOperationColumn<ReportSlaViolation>({
       width: 150,

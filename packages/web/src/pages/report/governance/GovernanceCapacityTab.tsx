@@ -27,7 +27,7 @@ import { validateQuotaForm } from '../report-platform-utils';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { DEFAULT_TIMEZONE } from '@/utils/timezones';
 
 export default function GovernanceCapacityTab() {
@@ -96,7 +96,7 @@ export default function GovernanceCapacityTab() {
     { title: '日行数', dataIndex: 'dailyRowLimit', width: 130, align: 'right' },
     { title: '日字节', dataIndex: 'dailyByteLimit', width: 140, align: 'right' },
     { title: '日成本', dataIndex: 'dailyCostLimit', width: 110, align: 'right' },
-    { title: '重置时区', dataIndex: 'resetTimezone', width: 150 },
+    { title: '重置时区', dataIndex: 'resetTimezone', width: 150, render: renderEllipsis },
     { title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'grey'}>{v ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportQueryQuota>({
       width: 200,

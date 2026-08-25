@@ -131,9 +131,9 @@ export default function SubscriptionsPage() {
   }
 
   const columns: ColumnProps<ReportDashboardSubscription>[] = [
-    { title: '仪表盘', dataIndex: 'dashboardName', width: 180, render: (v: string) => v || '-' },
-    { title: 'Cron', dataIndex: 'cron', width: 130 },
-    { title: '时区', dataIndex: 'timezone', width: 140 },
+    { title: '仪表盘', dataIndex: 'dashboardName', width: 180, render: renderEllipsis },
+    { title: 'Cron', dataIndex: 'cron', width: 130, render: renderEllipsis },
+    { title: '时区', dataIndex: 'timezone', width: 150, render: renderEllipsis },
     { title: '错过策略', dataIndex: 'misfirePolicy', width: 110, render: (value: string) => REPORT_MISFIRE_POLICY_OPTIONS.find((item) => item.value === value)?.label ?? value },
     dateTimeColumn('下次执行', 'nextRunAt'),
     { title: '通道', dataIndex: 'channels', width: 170, render: (ch: string[]) => (ch ?? []).map((c) => <Tag key={c} size="small" color={c === 'email' ? 'blue' : c === 'webhook' ? 'purple' : 'green'} style={{ marginRight: 4 }}>{NOTIFY_CHANNEL_LABELS[c.toLowerCase() as NotifyChannel] ?? c}</Tag>) },

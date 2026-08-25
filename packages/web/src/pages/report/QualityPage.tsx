@@ -190,12 +190,12 @@ export default function QualityPage() {
 
   const ruleColumns: ColumnProps<ReportDqRule>[] = [
     { title: '规则名称', dataIndex: 'name', width: 180, render: renderEllipsis },
-    { title: '数据集', dataIndex: 'datasetName', width: 160, render: (v) => v || '—' },
+    { title: '数据集', dataIndex: 'datasetName', width: 160, render: renderEllipsis },
     { title: '类型', dataIndex: 'type', width: 120, render: (v) => ruleTypeOptions.find((item) => item.value === v)?.label ?? v },
-    { title: '字段', dataIndex: 'field', width: 120, render: (v) => v || '—' },
+    { title: '字段', dataIndex: 'field', width: 120, render: renderEllipsis },
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqRule['severity']) => <Tag color={severityColor[v]}>{severityOptions.find((i) => i.value === v)?.label}</Tag> },
-    { title: 'Cron', dataIndex: 'cron', width: 160, render: (v) => v || '仅手动' },
-    { title: '时区', dataIndex: 'timezone', width: 130 },
+    { title: 'Cron', dataIndex: 'cron', width: 160, render: (v) => renderEllipsis(v || '仅手动') },
+    { title: '时区', dataIndex: 'timezone', width: 150, render: renderEllipsis },
     dateTimeColumn('最近运行', 'lastRunAt'),
     {
       title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right',
@@ -219,8 +219,8 @@ export default function QualityPage() {
     }),
   ];
   const runColumns: ColumnProps<ReportDqRun>[] = [
-    { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number, r) => r.ruleName || `#${v}` },
-    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => r.datasetName || `#${v}` },
+    { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number, r) => renderEllipsis(r.ruleName || `#${v}`) },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => renderEllipsis(r.datasetName || `#${v}`) },
     { title: '触发方式', dataIndex: 'triggerType', width: 110, render: (v: ReportDqRun['triggerType']) => REPORT_DQ_TRIGGER_LABELS[v] ?? v },
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
     { title: '通过率', dataIndex: 'passRate', width: 110, align: 'right', render: (v) => formatDqPassRate(v) },
@@ -230,8 +230,8 @@ export default function QualityPage() {
   ];
   const anomalyColumns: ColumnProps<ReportDqAnomaly>[] = [
     { title: '异常', dataIndex: 'title', width: 230, render: renderEllipsis },
-    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => r.datasetName || `#${v}` },
-    { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number | null, r) => (v ? r.ruleName || `#${v}` : '—') },
+    { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => renderEllipsis(r.datasetName || `#${v}`) },
+    { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number | null, r) => renderEllipsis(v ? r.ruleName || `#${v}` : null) },
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqAnomaly['severity']) => <Tag color={severityColor[v]}>{severityOptions.find((item) => item.value === v)?.label ?? v}</Tag> },
     { title: '详情', dataIndex: 'detail', width: 260, render: renderEllipsis },
     dateTimeColumn('发现时间', 'createdAt'),

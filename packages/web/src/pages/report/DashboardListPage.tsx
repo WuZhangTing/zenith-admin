@@ -8,7 +8,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import AppModal from '@/components/AppModal';
 import { ShareModal, VersionModal } from './components/DashboardOpsModals';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { ReportDashboard, ReportWidget } from '@zenith/shared/report';
@@ -201,7 +201,7 @@ export default function DashboardListPage() {
         </Typography.Text>
       ),
     },
-    { title: '分类', dataIndex: 'categoryName', width: 120, render: (v: string) => v ? <Tag size="small" color="light-blue">{v}</Tag> : '-' },
+    { title: '分类', dataIndex: 'categoryName', width: 120, render: (v: string) => v ? <Tag size="small" color="light-blue">{v}</Tag> : EMPTY_PLACEHOLDER },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     { title: '组件数', dataIndex: 'widgets', width: 80, render: (w: ReportWidget[]) => (w?.length ?? 0) },
@@ -345,7 +345,7 @@ export default function DashboardListPage() {
           loading={categoriesQuery.isFetching}
           empty="暂无分类"
           columns={[
-            { title: '名称', dataIndex: 'name', width: 180 },
+            { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
             { title: '排序', dataIndex: 'sort', width: 80 },
             { title: '引用仪表盘', dataIndex: 'dashboardCount', width: 100, align: 'right', render: (value: number) => value ?? 0 },
             { title: '备注', dataIndex: 'remark', render: renderEllipsis },

@@ -7,7 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -510,7 +510,7 @@ export default function DatasetsPage() {
         <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => openEdit(record)}>{v}</Typography.Text>
       ) : v,
     },
-    { title: '数据源', dataIndex: 'datasourceName', width: 160, render: (v: string) => v || '-' },
+    { title: '数据源', dataIndex: 'datasourceName', width: 160, render: renderEllipsis },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     {

@@ -208,7 +208,7 @@ export default function PrintTemplatesPage() {
         <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => void openPreview(record)}>{v}</Typography.Text>
       ) : v,
     },
-    { title: '数据集', dataIndex: 'datasetName', width: 160, render: (v: string | null) => v || '-' },
+    { title: '数据集', dataIndex: 'datasetName', width: 160, render: renderEllipsis },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v: string | null) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 140, render: (v: string | null) => v || '—' },
     { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },

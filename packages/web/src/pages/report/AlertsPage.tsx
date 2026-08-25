@@ -253,14 +253,21 @@ export default function AlertsPage() {
   }
 
   const columns: ColumnProps<ReportAlertRule>[] = [
-    { title: '名称', dataIndex: 'name', width: 180 },
+    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     {
       title: '来源', dataIndex: 'datasetName', width: 180,
-      render: (_: unknown, record) => record.metricId
-        ? <span><Tag color="purple" size="small">指标</Tag> {record.metricName || `#${record.metricId}`}</span>
-        : <span><Tag color="blue" size="small">数据集</Tag> {record.datasetName || `#${record.datasetId}`}</span>,
+      render: (_: unknown, record) => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+          {record.metricId
+            ? <Tag color="purple" size="small" style={{ flexShrink: 0 }}>指标</Tag>
+            : <Tag color="blue" size="small" style={{ flexShrink: 0 }}>数据集</Tag>}
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
+            {record.metricId ? (record.metricName || `#${record.metricId}`) : (record.datasetName || `#${record.datasetId}`)}
+          </Typography.Text>
+        </span>
+      ),
     },
-    { title: '规则', dataIndex: 'id', width: 180, render: (_: unknown, record: ReportAlertRule) => formatRule(record) },
+    { title: '规则', dataIndex: 'id', width: 180, render: (_: unknown, record: ReportAlertRule) => renderEllipsis(formatRule(record)) },
     {
       title: '通道',
       dataIndex: 'channels',
@@ -289,7 +296,7 @@ export default function AlertsPage() {
       ),
     },
     dateTimeColumn('下次执行', 'nextRunAt'),
-    { title: '时区', dataIndex: 'timezone', width: 120, render: (value: string) => value || '—' },
+    { title: '时区', dataIndex: 'timezone', width: 150, render: renderEllipsis },
     { title: '错过策略', dataIndex: 'misfirePolicy', width: 110, render: (value: string) => REPORT_MISFIRE_POLICY_OPTIONS.find((item) => item.value === value)?.label ?? value },
     {
       title: '最近投递',

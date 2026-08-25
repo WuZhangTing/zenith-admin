@@ -34,7 +34,7 @@ import { canRunFillRecordAction, isRevisionConflict, shouldShowFillReviewTab } f
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { abortSubmit } from '@/lib/abort-submit';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 interface MineFilters {
@@ -185,7 +185,7 @@ export default function FillRecordsPage() {
 
   const createColumns = (admin: boolean): ColumnProps<ReportFillRecord>[] => [
     { title: '记录号', dataIndex: 'id', width: 90, render: (value: number) => `#${value}` },
-    { title: '模板', dataIndex: 'templateName', width: 180, render: (value: string | null, record) => value || `模板 #${record.templateId}` },
+    { title: '模板', dataIndex: 'templateName', width: 180, render: (value: string | null, record) => renderEllipsis(value || `模板 #${record.templateId}`) },
     ...(admin ? [{
       title: '提交人',
       dataIndex: 'submitterName',
