@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Banner, Breadcrumb, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
+import { Banner, Breadcrumb, Button, Checkbox, Divider, Dropdown, Empty, List, Popover, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { OnDragProps, TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
-  Bell, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, Trash2, Undo2,
+  Bell, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, TableOfContents, Trash2, Undo2,
 } from 'lucide-react';
 import type { WikiComment, WikiDocTreeNode } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS } from '@zenith/shared/wiki';
@@ -16,6 +16,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useAuth } from '@/hooks/useAuth';
 import { confirmDelete } from '@/utils/confirm';
+import { extractMarkdownHeadings, type MarkdownHeading } from '@/utils/markdown-outline';
 import { useAllUsers } from '@/hooks/queries/users';
 import { useMyWikiSpaces } from '@/hooks/queries/wiki-spaces';
 import {
@@ -524,6 +525,17 @@ export default function WikiDocCenterPage() {
     detailScrollRef.current?.scrollTo({ top: 0 });
   }, [selectedDocId]);
 
+  // 正文大纲（TOC）：标题少于 2 个不展示
+  const outline = useMemo(() => (doc?.content ? extractMarkdownHeadings(doc.content) : []), [doc?.content]);
+  const outlineMinLevel = useMemo(() => Math.min(...outline.map((h) => h.level), 6), [outline]);
+
+  function scrollToHeading(heading: MarkdownHeading) {
+    const container = detailScrollRef.current;
+    if (!container) return;
+    const anchors = container.querySelectorAll(`[id="${CSS.escape(heading.id)}"]`);
+    (anchors[heading.occurrence] ?? anchors[0])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   const detailContent = !selectedDocId ? (
     <Empty title="选择文档开始阅读" description="从左侧目录树选择一篇文档" style={{ marginTop: 80 }} />
   ) : docQuery.isPending ? (
@@ -574,6 +586,31 @@ export default function WikiDocCenterPage() {
           ) : null}
         </div>
         <Space spacing={4}>
+          {outline.length >= 2 ? (
+            <Popover
+              trigger="click"
+              position="bottomRight"
+              content={(
+                <div style={{ padding: '8px 6px', minWidth: 200, maxWidth: 320, maxHeight: 360, overflowY: 'auto' }}>
+                  {outline.map((heading, headingIndex) => (
+                    <div key={headingIndex} style={{ paddingLeft: (heading.level - outlineMinLevel) * 14 }}>
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        type="tertiary"
+                        style={{ maxWidth: 280, justifyContent: 'flex-start' }}
+                        onClick={() => scrollToHeading(heading)}
+                      >
+                        <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 260, color: 'inherit' }}>{heading.text}</Text>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            >
+              <Button aria-label="正文大纲" theme="borderless" icon={<TableOfContents size={16} />} />
+            </Popover>
+          ) : null}
           <Tooltip content={doc.favorited ? '取消收藏' : '收藏'}>
             <Button
               aria-label={doc.favorited ? '取消收藏' : '收藏文档'}
@@ -694,7 +731,7 @@ export default function WikiDocCenterPage() {
       {/* 正文与评论 */}
       <div ref={detailScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div onClickCapture={handleContentClick}>
-          <MarkdownPreviewPanel content={doc.content ?? ''} style={{ height: 'auto', overflowY: 'visible' }} />
+          <MarkdownPreviewPanel content={doc.content ?? ''} anchorHeadings style={{ height: 'auto', overflowY: 'visible' }} />
         </div>
 
         {doc.attachments?.length ? (

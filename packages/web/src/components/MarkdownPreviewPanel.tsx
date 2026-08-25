@@ -1,8 +1,10 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { isValidElement } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { useThemeController } from '@/providers/theme-controller';
+import { slugifyHeading } from '@/utils/markdown-outline';
 import 'highlight.js/styles/github-dark.css';
 import './MarkdownPreviewPanel.css';
 
@@ -10,14 +12,37 @@ interface MarkdownPreviewPanelProps {
   readonly content: string;
   /** 为 true 时使用 <pre> 原文本渲染（适用于 .txt 等纳文本文件） */
   readonly rawText?: boolean;
+  /** 为 true 时给 h1-h3 注入 slug 锚点 id，配合大纲（TOC）定位；slug 规则见 utils/markdown-outline */
+  readonly anchorHeadings?: boolean;
   readonly style?: CSSProperties;
 }
+
+/** 递归取 React 子树的纯文本（标题含行内代码/加粗时仍能得到稳定 slug） */
+function childrenText(node: ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(childrenText).join('');
+  if (isValidElement<{ children?: ReactNode }>(node)) return childrenText(node.props.children);
+  return '';
+}
+
+function anchoredHeading(Level: 'h1' | 'h2' | 'h3') {
+  return function AnchoredHeading({ node: _node, children, ...rest }: { node?: unknown; children?: ReactNode }) {
+    return <Level id={slugifyHeading(childrenText(children))} {...rest}>{children}</Level>;
+  };
+}
+
+const ANCHORED_HEADING_COMPONENTS = {
+  h1: anchoredHeading('h1'),
+  h2: anchoredHeading('h2'),
+  h3: anchoredHeading('h3'),
+};
 
 /**
  * Markdown 只读预览面板：使用 react-markdown + remark-gfm + rehype-highlight 渲染。
  * 支持 GFM（表格/任务列表/删除线）和代码块语法高亮，无 dangerouslySetInnerHTML。
  */
-export function MarkdownPreviewPanel({ content, rawText, style }: MarkdownPreviewPanelProps) {
+export function MarkdownPreviewPanel({ content, rawText, anchorHeadings, style }: MarkdownPreviewPanelProps) {
   const { isDark } = useThemeController();
 
   return (
@@ -55,6 +80,7 @@ export function MarkdownPreviewPanel({ content, rawText, style }: MarkdownPrevie
                   </a>
                 );
               },
+              ...(anchorHeadings ? ANCHORED_HEADING_COMPONENTS : {}),
             }}
           >
             {content}
