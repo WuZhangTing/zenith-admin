@@ -215,6 +215,62 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '申请被退回',
     content: '你发起的流程「{{title}}」已被退回，请修改后重新提交',
   },
+  'workflow.consult.invited': {
+    group: 'workflow',
+    label: '收到协办邀请',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    // 协办人不回复时审批人处于等待状态，与新待办同级，不该等到早上
+    bypassQuietHours: true,
+    vars: eventVars<{ instanceId: number; taskId: number; title: string; node: string; inviter: string; question: string }>(),
+    title: '协办邀请',
+    content: '{{inviter}} 邀请你协办流程「{{title}}」（节点：{{node}}）{{question}}',
+  },
+  'workflow.consult.replied': {
+    group: 'workflow',
+    label: '协办意见已回复',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ instanceId: number; title: string; replier: string; summary: string }>(),
+    title: '协办意见已回复',
+    content: '{{replier}} 已回复你在流程「{{title}}」的协办邀请：{{summary}}',
+  },
+  'workflow.comment.mentioned': {
+    group: 'workflow',
+    label: '流程评论中被 @ 提及',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    rateLimit: { limit: 10, windowMinutes: 60 },
+    vars: eventVars<{ instanceId: number; title: string; author: string; summary: string }>(),
+    title: '有人在流程中@你',
+    content: '{{author}} 在流程「{{title}}」的评论中提到了你：{{summary}}',
+  },
+  'workflow.node.exception': {
+    group: 'workflow',
+    label: '流程节点异常处理',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    // 异常兜底改变了流程走向（自动通过/跳过），相关人越早知道越好
+    bypassQuietHours: true,
+    vars: eventVars<{ instanceId: number; node: string; detail: string }>(),
+    title: '流程异常提醒',
+    content: '流程节点「{{node}}」{{detail}}',
+  },
+  'workflow.automation.message': {
+    group: 'workflow',
+    label: '流程自动化消息',
+    description: '流程自动化规则中配置的站内信动作',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    // 标题与正文由自动化规则的管理员配置决定，仅站内信有投递支撑
+    vars: eventVars<{ instanceId: number; title: string; content: string }>(),
+    title: '{{title}}',
+    content: '{{content}}',
+  },
 
   // ─── 组织与租户 ─────────────────────────────────────────────────────────────
   'identity.tenant.expiring': {
@@ -384,6 +440,28 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     vars: eventVars<{ dashboardId: number; dashboardName: string }>(),
     title: '仪表盘评论提及提醒',
     content: '你在仪表盘「{{dashboardName}}」评论中被提及，请前往查看。',
+  },
+
+  // ─── 平台服务 ───────────────────────────────────────────────────────────────
+  'platform.feedback.handled': {
+    group: 'platform',
+    label: '意见反馈处理结果',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ feedbackId: number; statusText: string; remark: string }>(),
+    title: '你的意见反馈已处理',
+    content: '你提交的意见反馈{{statusText}}{{remark}}',
+  },
+  'platform.export.finished': {
+    group: 'platform',
+    label: '导出任务完成 / 失败',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ jobId: number; moduleName: string; resultText: string; detail: string }>(),
+    title: '导出任务{{resultText}}',
+    content: '「{{moduleName}}」的导出任务{{resultText}}{{detail}}，可前往导出中心查看。',
   },
 
   // ─── 通知中心元事件 ─────────────────────────────────────────────────────────

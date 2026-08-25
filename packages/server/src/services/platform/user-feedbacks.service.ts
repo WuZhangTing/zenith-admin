@@ -3,11 +3,14 @@ import { and, desc, eq, gte, inArray, like, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { userFeedbacks } from '../../db/schema';
 import type { UserFeedbackRow } from '../../db/schema';
+import { USER_FEEDBACK_STATUS_LABELS } from '@zenith/shared/identity';
 import type { UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/identity';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
+import logger from '../../lib/logger';
 import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
+import { notify } from '../messaging/notification-outbox.service';
 
 type UserFeedbackWithUsers = UserFeedbackRow & {
   user?: { nickname: string | null } | null;
@@ -122,6 +125,20 @@ export async function handleUserFeedback(id: number, data: HandleUserFeedbackDat
     },
   });
   if (!row) throw new HTTPException(404, { message: '反馈不存在' });
+
+  // 处理结果通知提交人（自己处理自己的反馈不通知）；失败不阻断处理主流程
+  if (handled && row.userId !== user.userId) {
+    try {
+      const remark = row.handleRemark ? `，处理备注：${row.handleRemark.slice(0, 100)}` : '。';
+      await notify('platform.feedback.handled', {
+        recipients: [{ type: 'user', id: row.userId }],
+        vars: { feedbackId: row.id, statusText: `已标记为「${USER_FEEDBACK_STATUS_LABELS[row.status]}」`, remark },
+        tenantId: null,
+      });
+    } catch (err) {
+      logger.warn('[feedback] 处理结果通知发送失败', { id, err });
+    }
+  }
   return mapUserFeedback(row);
 }
 

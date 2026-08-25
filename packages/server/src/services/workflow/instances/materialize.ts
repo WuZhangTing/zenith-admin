@@ -1,6 +1,6 @@
 // ─── 任务行物化与令牌推进（拆分自 workflow-instances.service.ts）───
 import { eq, and, or, inArray } from 'drizzle-orm';
-import { workflowInstances, workflowTasks, workflowTokens, inAppMessages } from '../../../db/schema';
+import { workflowInstances, workflowTasks, workflowTokens } from '../../../db/schema';
 import { resolveRuntimeApproveMethod, type TaskAction } from '../../../lib/workflow-engine';
 import { advanceTokens, type AdvanceTrigger, type BranchPath } from '../../../lib/workflow-token-engine';
 import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowStarterContext } from '@zenith/shared/workflow';
@@ -13,6 +13,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { enqueueJob } from '../../../lib/workflow-jobs/engine';
 import { computeTimeoutAt } from '../../../lib/workflow-timeout';
 import { resolveActiveDelegate } from '../workflow-delegations.service';
+import { notifyWithin } from '../../messaging/notification-outbox.service';
 import { applyAssigneeRuntimeStrategies, resolveAdminAssigneeId } from './assignees';
 import { armTaskAsyncJobs } from './async-jobs';
 import { findExceptionCatchNode } from './mapping';
@@ -68,6 +69,29 @@ async function expandTasksToRows(
       result.push({ assigneeId: finalId, delegatedFromId: delegate ? uid : null, delegationMode: delegate?.mode ?? null });
     }
     return result;
+  };
+
+  // 异常提醒统一走通知中心：与本次物化同事务登记，提交后由补投 cron 派发（事务回滚则不发）
+  let cachedTenantId: number | null | undefined;
+  const notifyNodeException = async (nodeName: string, detail: string, userIds: number[]) => {
+    const recipients = [...new Set(userIds)];
+    if (recipients.length === 0) return;
+    try {
+      if (cachedTenantId === undefined) {
+        const [r] = await ctx.executor
+          .select({ tenantId: workflowInstances.tenantId })
+          .from(workflowInstances)
+          .where(eq(workflowInstances.id, ctx.instanceId))
+          .limit(1);
+        cachedTenantId = r?.tenantId ?? null;
+      }
+      await notifyWithin(ctx.executor, 'workflow.node.exception', {
+        recipients: recipients.map((id) => ({ type: 'user' as const, id })),
+        vars: { instanceId: ctx.instanceId, node: nodeName, detail },
+        tenantId: cachedTenantId,
+        link: `/workflow/applications?instanceId=${ctx.instanceId}`,
+      });
+    } catch { /* 通知失败不影响流转 */ }
   };
 
   const pushAutoRow = (task: TaskAction, status: 'approved' | 'rejected', reason?: string) => {
@@ -229,18 +253,7 @@ async function expandTasksToRows(
           const recipients = t.nodeConfig.catchNotifyUserIds && t.nodeConfig.catchNotifyUserIds.length > 0
             ? t.nodeConfig.catchNotifyUserIds
             : [ctx.initiatorId, adminId].filter((v): v is number => typeof v === 'number');
-          if (recipients.length > 0) {
-            try {
-              await ctx.executor.insert(inAppMessages).values([...new Set(recipients)].map((uid) => ({
-                userId: uid,
-                title: '流程异常提醒',
-                content: `流程节点「${t.nodeName}」审批人解析为空，已按异常处理自动通过`,
-                type: 'warning' as const,
-                source: 'system' as const,
-                tenantId: null,
-              })));
-            } catch { /* 通知失败不影响流转 */ }
-          }
+          await notifyNodeException(t.nodeName, '审批人解析为空，已按异常处理自动通过', recipients);
         }
         continue;
       }
@@ -281,18 +294,7 @@ async function expandTasksToRows(
           const recipients = catchCfg.catchNotifyUserIds && catchCfg.catchNotifyUserIds.length > 0
             ? catchCfg.catchNotifyUserIds
             : [ctx.initiatorId, adminId].filter((v): v is number => typeof v === 'number');
-          if (recipients.length > 0) {
-            try {
-              await ctx.executor.insert(inAppMessages).values([...new Set(recipients)].map((uid) => ({
-                userId: uid,
-                title: '流程异常提醒',
-                content: `流程节点「${t.nodeName}」审批人解析为空，已触发异常处理（${catchCfg.label}）`,
-                type: 'warning' as const,
-                source: 'system' as const,
-                tenantId: null,
-              })));
-            } catch { /* 通知失败不影响流转 */ }
-          }
+          await notifyNodeException(t.nodeName, `审批人解析为空，已触发异常处理（${catchCfg.label}）`, recipients);
         }
         continue;
       }

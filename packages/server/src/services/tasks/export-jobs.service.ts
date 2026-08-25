@@ -17,6 +17,7 @@ import { DEFAULT_EXPORT_EXECUTION, DEFAULT_EXPORT_RETENTION } from '../../lib/ex
 import { registerSystemQueueWorker, sendSystemJob } from '../../lib/pg-boss-scheduler';
 import { runAsUser } from '../../lib/audit-context';
 import { getExportMaskRuleMap } from '../platform/data-mask.service';
+import { notify } from '../messaging/notification-outbox.service';
 import logger from '../../lib/logger';
 import type { JwtPayload } from '../../middleware/auth';
 
@@ -255,13 +256,30 @@ async function executeExportJob(row: typeof exportJobs.$inferSelect, definition:
       })
       .where(eq(exportJobs.id, row.id))
       .returning();
+    await notifyExportFinished(row, '已完成', `，文件「${rendered.filename}」已生成`);
     return updated;
   } catch (err) {
     const message = err instanceof Error ? err.message : '导出失败';
     await db.update(exportJobs)
       .set({ status: 'failed', errorMessage: message, completedAt: new Date() })
       .where(eq(exportJobs.id, row.id));
+    await notifyExportFinished(row, '失败', `：${message.slice(0, 120)}`);
     throw err;
+  }
+}
+
+/** 导出结果通知创建人：异步任务里用户看不到请求响应，完成/失败必须主动触达（同步导出当场拿到文件，不发）。 */
+async function notifyExportFinished(row: typeof exportJobs.$inferSelect, resultText: string, detail: string): Promise<void> {
+  if (!row.createdBy || row.executionMode === 'sync') return;
+  try {
+    await notify('platform.export.finished', {
+      recipients: [{ type: 'user', id: row.createdBy }],
+      vars: { jobId: row.id, moduleName: row.moduleName, resultText, detail },
+      tenantId: row.tenantId ?? null,
+      link: '/system/export-jobs',
+    });
+  } catch (err) {
+    logger.warn('[export-jobs] 导出结果通知发送失败', { jobId: row.id, err });
   }
 }
 

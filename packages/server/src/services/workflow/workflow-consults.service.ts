@@ -1,6 +1,6 @@
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
-import { workflowTaskConsults, workflowTasks, workflowInstances, inAppMessages } from '../../db/schema';
+import { workflowTaskConsults, workflowTasks, workflowInstances } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
@@ -8,6 +8,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import type { WorkflowTaskConsult, CreateWorkflowConsultInput, ReplyWorkflowConsultInput } from '@zenith/shared/workflow';
+import { notify } from '../messaging/notification-outbox.service';
 import { loadWorkflowUserDisplays } from './workflow-user-helpers';
 
 type ConsultRow = typeof workflowTaskConsults.$inferSelect;
@@ -74,17 +75,22 @@ export async function createConsult(taskId: number, input: CreateWorkflowConsult
     tenantId: inst.tenantId,
   }))).returning();
 
-  // 通知协办人
+  // 通知协办人：统一走通知中心，渠道与偏好由派发层决定
   try {
     const label = inst.serialNo ? `${inst.title}（${inst.serialNo}）` : inst.title;
-    await db.insert(inAppMessages).values(consulteeIds.map((cid) => ({
-      userId: cid,
-      title: '协办邀请',
-      content: `${user.username} 邀请你协办流程「${label}」（节点：${task.nodeName}）${input.question ? `：${input.question}` : ''}`,
-      type: 'info' as const,
-      source: 'system' as const,
+    await notify('workflow.consult.invited', {
+      recipients: consulteeIds.map((id) => ({ type: 'user' as const, id })),
+      vars: {
+        instanceId: task.instanceId,
+        taskId,
+        title: label,
+        node: task.nodeName,
+        inviter: user.username,
+        question: input.question ? `：${input.question}` : '',
+      },
       tenantId: inst.tenantId,
-    })));
+      link: '/workflow/pending',
+    });
   } catch (err) {
     logger.error('[workflow consult] notify failed', { err, taskId });
   }
@@ -109,18 +115,21 @@ export async function replyConsult(consultId: number, input: ReplyWorkflowConsul
     .set({ opinion: input.opinion, status: 'replied', repliedAt: new Date() })
     .where(eq(workflowTaskConsults.id, consultId)).returning();
 
-  // 通知发起协办的审批人
+  // 通知发起协办的审批人：统一走通知中心
   try {
     const [inst] = await db.select({ title: workflowInstances.title, serialNo: workflowInstances.serialNo, tenantId: workflowInstances.tenantId })
       .from(workflowInstances).where(eq(workflowInstances.id, row.instanceId)).limit(1);
     const label = inst ? (inst.serialNo ? `${inst.title}（${inst.serialNo}）` : inst.title) : `#${row.instanceId}`;
-    await db.insert(inAppMessages).values({
-      userId: row.inviterId,
-      title: '协办意见已回复',
-      content: `${user.username} 已回复你在流程「${label}」的协办邀请：${input.opinion.slice(0, 80)}`,
-      type: 'info',
-      source: 'system',
+    await notify('workflow.consult.replied', {
+      recipients: [{ type: 'user', id: row.inviterId }],
+      vars: {
+        instanceId: row.instanceId,
+        title: label,
+        replier: user.username,
+        summary: input.opinion.slice(0, 80),
+      },
       tenantId: inst?.tenantId ?? null,
+      link: `/workflow/pending?instanceId=${row.instanceId}&taskId=${row.taskId}`,
     });
   } catch (err) {
     logger.error('[workflow consult] reply notify failed', { err, consultId });

@@ -13,7 +13,6 @@ import {
   workflowDefinitions,
   workflowInstances,
   workflowTasks,
-  inAppMessages,
   users,
   type WorkflowAutomationRow,
   type WorkflowAutomationActionConfig,
@@ -28,6 +27,7 @@ import { httpRequest } from '../../lib/http-client';
 import redis from '../../lib/redis';
 import { config } from '../../config';
 import logger from '../../lib/logger';
+import { notify } from '../messaging/notification-outbox.service';
 import type { WorkflowAutomationTrigger, WorkflowInstance } from '@zenith/shared/workflow';
 
 export function mapAutomation(row: WorkflowAutomationRow, definitionName?: string | null) {
@@ -310,16 +310,14 @@ async function runSendMessageAction(
     const lines = action.buttons.slice(0, 3).map((b) => `[${b.text}](${b.url})`);
     content = `${content}\n\n${lines.join('  ')}`;
   }
-  const rows = recipientIds.map((uid) => ({
-    userId: uid,
-    title,
-    content,
-    type: action.messageType ?? 'info',
-    isRead: false,
-    source: 'system' as const,
+  // 统一走通知中心：标题正文由规则配置决定，事件模板原样透传；
+  // 消息视觉类型通过渠道参数指定，投递留痕与 WS 推送由派发层负责
+  await notify('workflow.automation.message', {
+    recipients: recipientIds.map((id) => ({ type: 'user' as const, id })),
+    vars: { instanceId: ctx.instance.id, title, content },
     tenantId: ctx.instance.tenantId,
-  }));
-  await db.insert(inAppMessages).values(rows);
+    channelOptions: { inapp: { type: action.messageType ?? 'info' } },
+  });
 }
 
 async function runWebhookAction(
