@@ -1,5 +1,17 @@
 /* AppModal — 带全屏切换的 Modal 封装 */
 
+/* 全屏时正文区约束在视口内滚动：content 纵向 flex，body 占余量并可滚（否则内容超高被裁剪且无法滚动） */
+.semi-modal-content-fullScreen {
+  display: flex;
+  flex-direction: column;
+}
+
+.semi-modal-content-fullScreen .semi-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .app-modal-header {
   display: flex;
   align-items: center;
