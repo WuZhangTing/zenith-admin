@@ -251,14 +251,14 @@ export default function DataSourcesPage() {
               <div style={{ maxWidth: 320 }}>
                 <div>最近测试：{record.lastTestAt ?? '未检测'}</div>
                 <div>测试延迟：{record.lastTestLatencyMs == null ? EMPTY_PLACEHOLDER : `${record.lastTestLatencyMs}ms`}</div>
-                <div>连续失败：{record.consecutiveFailures}</div>
+                <div>连续失败：{record.consecutiveFailures ?? 0}</div>
                 {record.lastTestError ? <div>最近错误：{record.lastTestError}</div> : null}
               </div>
             )}
           >
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               {healthTag(value)}
-              {record.consecutiveFailures > 0 ? (
+              {(record.consecutiveFailures ?? 0) > 0 ? (
                 <Typography.Text type="danger" size="small">×{record.consecutiveFailures}</Typography.Text>
               ) : null}
             </span>
