@@ -65,6 +65,7 @@ interface PublishBody {
   type?: 'text' | 'image' | 'news';
   title?: string | null;
   content?: string;
+  bodyHtml?: string | null;
   imageUrl?: string | null;
   cover?: string | null;
   summary?: string | null;
@@ -83,6 +84,7 @@ function buildPublishExtra(body: PublishBody): ChatMessageExtra | null {
       title: (body.title ?? '').trim() || '图文消息',
       text: body.summary ?? null,
       cover: body.cover ?? null,
+      bodyHtml: body.bodyHtml?.trim() || null,
       actions: linkUrl ? [{ key: 'open', label: '查看详情', action: 'link', url: linkUrl }] : null,
       source: '图文',
       status: null,
@@ -96,7 +98,10 @@ function applyPublishFields(msg: MockChannelMessage, body: PublishBody): void {
   const audienceMode = body.audience?.mode ?? 'all';
   msg.type = body.type ?? 'text';
   msg.title = body.title ?? null;
-  msg.content = body.content ?? '';
+  // 图文的 content 为正文纯文本摘录（与真实后端一致）
+  msg.content = body.type === 'news'
+    ? (body.bodyHtml ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500) || (body.summary ?? '')
+    : (body.content ?? '');
   msg.extra = buildPublishExtra(body);
   msg.audienceType = audienceMode === 'all' ? 'broadcast' : 'targeted';
   msg.status = sendMode === 'draft' ? 'draft' : sendMode === 'scheduled' ? 'scheduled' : 'sent';

@@ -10,9 +10,10 @@
  * 封面图通过 /api/files/upload-one 上传得到 URL。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Col, Form, Input, Row, Select, Space, Toast, Typography, Upload, withField } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Input, Row, Select, SideSheet, Space, Toast, Typography, Upload, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { ImagePlus, Save, Send, Settings2, Trash2, Users } from 'lucide-react';
+import DOMPurify from 'dompurify';
+import { Eye, ImagePlus, Save, Send, Settings2, Trash2, Users } from 'lucide-react';
 import type { ChatCard, ChatMessageExtra } from '@zenith/shared/chat';
 import type { ChannelAdmin, ChannelMessage, ChannelMessageTemplate, ChannelMessageType, ChannelPublishAudienceMode, ChannelSendMode } from '@zenith/shared/messaging';
 import { config } from '@/config';
@@ -20,6 +21,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { AppModal } from '@/components/AppModal';
 import UserSelect from '@/components/UserSelect';
 import DepartmentSelect from '@/components/DepartmentSelect';
+import RichTextEditor from '@/components/RichTextEditor';
 import { ChannelTemplateDrawer } from './ChannelTemplateDrawer';
 import { useAllRoles } from '@/hooks/queries/roles';
 import {
@@ -90,6 +92,8 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
   const [formApi, setFormApi] = useState<FormApi<PublishFormValues> | null>(null);
   const [coverUrl, setCoverUrl] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string>('');
+  /** 图文正文富文本 HTML（不进 Form，与封面图同为本地状态） */
+  const [bodyHtml, setBodyHtml] = useState<string>('');
   const [modalType, setModalType] = useState<ChannelMessageType>('text');
 
   const [audienceSel, setAudienceSel] = useState<AudienceSelection>({
@@ -100,6 +104,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
   const [tplDrawerVisible, setTplDrawerVisible] = useState(false);
   const [saveTplVisible, setSaveTplVisible] = useState(false);
   const [saveTplName, setSaveTplName] = useState('');
+  const [previewVisible, setPreviewVisible] = useState(false);
   const rolesQuery = useAllRoles({ enabled: visible });
   const templatesQuery = useChannelTemplates(visible);
   const templates = templatesQuery.data ?? [];
@@ -117,11 +122,12 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
   useEffect(() => {
     if (!visible) return;
     setCoverUrl(card?.cover ?? '');
+    setBodyHtml(card?.bodyHtml ?? '');
     setImageUrl(editing?.type === 'image' ? (editing?.content ?? '') : '');
     setModalType(editing?.type === 'news' ? 'news' : editing?.type === 'image' ? 'image' : 'text');
     setAudienceSel({ mode: 'all', userIds: [], departmentIds: [], roleIds: [] });
     setEstimateCount(null);
-  }, [visible, editing?.id, editing?.type, editing?.content, card?.cover]);
+  }, [visible, editing?.id, editing?.type, editing?.content, card?.cover, card?.bodyHtml]);
 
   const audienceKey = JSON.stringify(audienceSel);
   useEffect(() => {
@@ -213,7 +219,8 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
     return {
       type,
       title: type === 'news' ? title : (title || null),
-      content: type === 'image' ? '' : content,
+      content: type === 'image' || type === 'news' ? '' : content,
+      bodyHtml: type === 'news' ? (bodyHtml.trim() || null) : null,
       imageUrl: type === 'image' ? (imageUrl || null) : null,
       cover: type === 'news' ? (coverUrl || null) : null,
       summary: type === 'news' ? ((values.summary ?? '').trim() || null) : null,
@@ -279,12 +286,13 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
       const card: ChatCard = {
         title,
         cover: coverUrl || null,
+        bodyHtml: bodyHtml.trim() || null,
         text: summary || null,
         actions: linkUrl
           ? [{ key: 'link', label: '查看详情', action: 'link', url: linkUrl }]
           : [],
       };
-      return { type, title: title || null, content: (values.content ?? '').trim(), extra: { card } };
+      return { type, title: title || null, content: '', extra: { card } };
     }
     return { type: 'text', title: title || null, content: (values.content ?? '').trim(), extra: null };
   };
@@ -298,6 +306,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
     if (type === 'image') {
       setImageUrl(tpl.content ?? '');
       setCoverUrl('');
+      setBodyHtml('');
       formApi.setValue('title', '');
       formApi.setValue('content', '');
       formApi.setValue('summary', '');
@@ -306,13 +315,15 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
       const tplCard = tpl.extra?.card ?? null;
       setImageUrl('');
       setCoverUrl(tplCard?.cover ?? '');
+      setBodyHtml(tplCard?.bodyHtml ?? '');
       formApi.setValue('title', tpl.title ?? '');
-      formApi.setValue('content', tpl.content ?? '');
+      formApi.setValue('content', '');
       formApi.setValue('summary', tplCard?.text ?? '');
       formApi.setValue('linkUrl', tplCard?.actions?.[0]?.url ?? '');
     } else {
       setImageUrl('');
       setCoverUrl('');
+      setBodyHtml('');
       formApi.setValue('title', tpl.title ?? '');
       formApi.setValue('content', tpl.content ?? '');
       formApi.setValue('summary', '');
@@ -346,14 +357,21 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
 
   const footer = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <Button
-        icon={<Send size={14} />}
-        loading={testSendMutation.isPending}
-        disabled={publishMutation.isPending}
-        onClick={() => void handleTestSend()}
-      >
-        测试发送
-      </Button>
+      <Space>
+        <Button
+          icon={<Send size={14} />}
+          loading={testSendMutation.isPending}
+          disabled={publishMutation.isPending}
+          onClick={() => void handleTestSend()}
+        >
+          测试发送
+        </Button>
+        {modalType === 'news' && (
+          <Button icon={<Eye size={14} />} onClick={() => setPreviewVisible(true)}>
+            预览
+          </Button>
+        )}
+      </Space>
       <Space>
         <Button onClick={onClose}>取消</Button>
         <Button type="primary" loading={publishMutation.isPending} onClick={() => void handleSubmit()}>
@@ -365,13 +383,13 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
 
   return (
     <>
-    <AppModal
+    <SideSheet
       title={titleText}
       visible={visible}
       onCancel={onClose}
-      confirmLoading={publishMutation.isPending}
       footer={footer}
-      width={modalType === 'news' ? 900 : 620}
+      closeOnEsc
+      width="min(1100px, 96vw)"
     >
       <Form<PublishFormValues>
         key={editing?.id ?? channel?.id ?? 'new'}
@@ -504,44 +522,38 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
                           )}
                       </Space>
                     </Form.Slot>
-                    <Form.TextArea field="summary" label="摘要" placeholder="可选，列表摘要" autosize={{ minRows: 2, maxRows: 3 }} />
-                    <Form.TextArea field="content" label="正文" placeholder="图文正文内容" autosize={{ minRows: 4, maxRows: 12 }} />
-                    <Form.Input field="linkUrl" label="跳转链接" placeholder="可选，点击图文跳转的 URL" />
+                    <Form.TextArea field="summary" label="摘要" placeholder="可选，卡片与列表摘要" autosize={{ minRows: 2, maxRows: 3 }} />
+                    <Form.Input field="linkUrl" label="跳转链接" placeholder="可选，卡片「查看详情」跳转的 URL" />
                   </>
-                );
-
-                const newsPreview = (
-                  <Form.Slot label="预览">
-                    <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden', width: '100%' }}>
-                      {coverUrl && <img src={coverUrl} alt="封面预览" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />}
-                      <div style={{ padding: 12 }}>
-                        <Typography.Title heading={6} style={{ margin: 0 }}>{(values.title ?? '').trim() || '图文标题'}</Typography.Title>
-                        <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
-                          {(values.summary ?? '').trim() || '图文摘要'}
-                        </Typography.Text>
-                      </div>
-                    </div>
-                  </Form.Slot>
                 );
 
                 if (type === 'news') {
                   return (
-                    <Row gutter={24}>
-                      <Col span={12}>{newsEditor}</Col>
-                      <Col span={12}>
-                        {newsPreview}
-                        {sendSettings}
-                      </Col>
-                    </Row>
+                    <>
+                      <Row gutter={24}>
+                        <Col span={12}>{newsEditor}</Col>
+                        <Col span={12}>{sendSettings}</Col>
+                      </Row>
+                      {/* 正文整行独占，给富文本最大编辑空间；预览走底部「预览」按钮弹窗 */}
+                      <Form.Slot label="正文">
+                        <RichTextEditor
+                          value={bodyHtml}
+                          onChange={setBodyHtml}
+                          placeholder="图文正文，支持富文本排版与图片混排…"
+                          height={440}
+                        />
+                      </Form.Slot>
+                    </>
                   );
                 }
 
                 return (
-                  <>
+                  <Row gutter={24}>
+                    <Col span={12}>
                     {type === 'text' ? (
                       <>
                         <Form.Input field="title" label="标题" placeholder="可选" />
-                        <Form.TextArea field="content" label="内容" placeholder="请输入文本内容" autosize={{ minRows: 3, maxRows: 8 }} />
+                        <Form.TextArea field="content" label="内容" placeholder="请输入文本内容" autosize={{ minRows: 6, maxRows: 16 }} />
                       </>
                     ) : (
                       <Form.Slot label="图片">
@@ -576,15 +588,16 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
                         </Space>
                       </Form.Slot>
                     )}
-                    {sendSettings}
-                  </>
+                    </Col>
+                    <Col span={12}>{sendSettings}</Col>
+                  </Row>
                 );
               })()}
             </>
           );
         }}
       </Form>
-    </AppModal>
+    </SideSheet>
 
     <AppModal
       title="存为模板"
@@ -609,6 +622,37 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
       onClose={() => setTplDrawerVisible(false)}
       onChanged={() => void templatesQuery.refetch()}
     />
+
+    <AppModal
+      title="图文预览"
+      visible={previewVisible}
+      onCancel={() => setPreviewVisible(false)}
+      footer={null}
+      width={720}
+    >
+      {(() => {
+        const v: Partial<PublishFormValues> = formApi?.getValues() ?? {};
+        const previewTitle = (v.title ?? '').trim();
+        const previewSummary = (v.summary ?? '').trim();
+        return (
+          <div style={{ maxHeight: '68vh', overflowY: 'auto' }}>
+            {coverUrl && <img src={coverUrl} alt="封面预览" style={{ width: '100%', maxHeight: 240, objectFit: 'cover', display: 'block', borderRadius: 'var(--semi-border-radius-medium)', marginBottom: 12 }} />}
+            <Typography.Title heading={5} style={{ margin: 0 }}>{previewTitle || '图文标题'}</Typography.Title>
+            {previewSummary && (
+              <Typography.Text type="tertiary" style={{ display: 'block', marginTop: 8 }}>{previewSummary}</Typography.Text>
+            )}
+            {bodyHtml.trim()
+              ? (
+                <div
+                  style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--semi-color-border)', fontSize: 14, lineHeight: 1.8, wordBreak: 'break-word' }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(bodyHtml) }}
+                />
+              )
+              : <Typography.Text type="tertiary" style={{ display: 'block', marginTop: 14 }}>（正文为空）</Typography.Text>}
+          </div>
+        );
+      })()}
+    </AppModal>
     </>
   );
 }

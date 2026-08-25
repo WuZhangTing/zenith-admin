@@ -157,6 +157,8 @@ export interface ChatCard {
   text?: string | null;
   /** 图文消息封面图 URL（频道图文群发使用，工作流卡片不设） */
   cover?: string | null;
+  /** 图文正文富文本 HTML（服务端已白名单净化；接收端点击卡片进入阅读视图） */
+  bodyHtml?: string | null;
   fields?: ChatCardField[] | null;
   actions?: ChatCardAction[] | null;
   /** 来源标识（如「工作流」「系统告警」「监控」） */

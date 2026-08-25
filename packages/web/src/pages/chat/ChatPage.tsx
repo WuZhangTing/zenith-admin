@@ -34,7 +34,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useAddChatCustomEmoji, useChatGroupMembers, useChatJoinRequests } from '@/hooks/queries/chat';
-import type { LeftListItem } from './types';
+import type { LeftListItem, LeftPaneContextMenuState } from './types';
 import {
   VIRTUOSO_FIRST_INDEX_BUFFER, computeLeftListModel, createComposerKeyDownHandler, getReplyPreviewText,
   getRootStyle, markCardDoneLocal, markConversationReadById,
@@ -205,11 +205,7 @@ export default function ChatPage({
   const [globalSearchHasSearched, setGlobalSearchHasSearched] = useState(false);
   const [globalSearchConvNames, setGlobalSearchConvNames] = useState<Record<string, string>>({});
   const [favoriteMessages, setFavoriteMessages] = useState<ChatMessage[]>([]);
-  const [leftPaneContextMenu, setLeftPaneContextMenu] = useState<
-    | { x: number; y: number; type: 'conversation'; conv: ChatConversation }
-    | { x: number; y: number; type: 'favorite'; msg: ChatMessage }
-    | null
-  >(null);
+  const [leftPaneContextMenu, setLeftPaneContextMenu] = useState<LeftPaneContextMenuState | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<ChatMessage[]>([]);
   const [announcementHistoryVisible, setAnnouncementHistoryVisible] = useState(false);
   const [recalledDrafts, setRecalledDrafts] = useState<Record<number, { content: string; mentions?: Array<{ userId: number; nickname: string }> }>>({});

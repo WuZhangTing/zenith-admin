@@ -26,6 +26,7 @@ import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../.
 import { pageOffset } from '../../lib/pagination';
 import { broadcast, scheduleSendToUsers } from '../../lib/ws-manager';
 import { escapeLike } from '../../lib/where-helpers';
+import { sanitizeCmsHtml } from '../cms/cms-html-sanitizer';
 import logger from '../../lib/logger';
 
 interface PublishInput {
@@ -435,21 +436,35 @@ export async function estimateAudience(audience: ChannelPublishAudienceInput): P
   return new Set(ids).size;
 }
 
+/** 从富文本 HTML 提取纯文本摘录（列表/会话预览用），截断到 500 字 */
+function htmlToPlainExcerpt(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500);
+}
+
 /** 由群发入参构造底层消息载荷（type + content + extra） */
 function buildPublishPayload(input: PublishChannelInput, publishedById: number): PublishInput {
   if (input.type === 'image') {
     return { type: 'image', title: null, content: (input.imageUrl ?? '').trim(), extra: null, publishedById };
   }
   if (input.type === 'news') {
+    // 正文富文本经白名单净化后随卡片投递；content 存纯文本摘录供预览/检索
+    const bodyHtml = input.bodyHtml?.trim() ? sanitizeCmsHtml(input.bodyHtml) : null;
     const card: ChatCard = {
       title: (input.title ?? '').trim(),
       text: input.summary ?? null,
       cover: input.cover ?? null,
+      bodyHtml,
       actions: input.linkUrl ? [{ key: 'open', label: '查看详情', action: 'link', url: input.linkUrl }] : null,
       source: '图文',
       status: null,
     };
-    return { type: 'news', title: card.title, content: input.content || input.summary || '', extra: { card }, publishedById };
+    const excerpt = bodyHtml ? htmlToPlainExcerpt(bodyHtml) : '';
+    return { type: 'news', title: card.title, content: excerpt || input.summary || card.title, extra: { card }, publishedById };
   }
   return { type: 'text', title: input.title ?? null, content: input.content, extra: null, publishedById };
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Button, Tag, Typography } from '@douyinfe/semi-ui';
-import { Check, ChevronRight } from 'lucide-react';
+import { Button, Modal, Tag, Typography } from '@douyinfe/semi-ui';
+import DOMPurify from 'dompurify';
+import { BookOpen, Check, ChevronRight } from 'lucide-react';
 import type { ChatMessage, ChatCardAction } from '@zenith/shared/chat';
 import { getMessageExtra } from '../utils';
 
@@ -26,6 +27,7 @@ export function CardMessage({
 }>) {
   const card = getMessageExtra(msg)?.card ?? null;
   const [hovered, setHovered] = useState(false);
+  const [readerVisible, setReaderVisible] = useState(false);
   if (!card) {
     return (
       <div style={{ padding: '8px 12px', background: 'var(--semi-color-fill-1)', borderRadius: 'var(--semi-border-radius-medium)' }}>
@@ -38,13 +40,16 @@ export function CardMessage({
   const actions = card.actions ?? [];
   const instanceId = card.instanceId ?? null;
   const taskId = actions.find((a) => a.taskId != null)?.taskId ?? null;
-  const clickable = instanceId != null && !!onOpenWorkflow;
+  const hasBody = !!card.bodyHtml?.trim();
+  const clickable = (instanceId != null && !!onOpenWorkflow) || hasBody;
 
   const openWorkflow = () => {
-    if (clickable && instanceId != null) onOpenWorkflow?.(instanceId, taskId);
+    if (instanceId != null && onOpenWorkflow) { onOpenWorkflow(instanceId, taskId); return; }
+    if (hasBody) setReaderVisible(true);
   };
 
   return (
+    <>
     <div
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
@@ -85,6 +90,12 @@ export function CardMessage({
           <Text style={{ fontSize: 13, color: 'var(--semi-color-text-1)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {card.text}
           </Text>
+        )}
+        {hasBody && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, color: 'var(--semi-color-primary)', fontSize: 12 }}>
+            <BookOpen size={13} />
+            阅读全文
+          </div>
         )}
       </div>
 
@@ -127,5 +138,28 @@ export function CardMessage({
         </div>
       )}
     </div>
+    {hasBody && (
+      <Modal
+        title={card.title}
+        visible={readerVisible}
+        onCancel={() => setReaderVisible(false)}
+        footer={null}
+        closeOnEsc
+        width="min(760px, 94vw)"
+        bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
+      >
+        {card.cover && (
+          <img src={card.cover} alt={card.title} style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', marginBottom: 12, display: 'block' }} />
+        )}
+        {card.text && (
+          <Text type="tertiary" style={{ display: 'block', marginBottom: 12 }}>{card.text}</Text>
+        )}
+        <div
+          style={{ fontSize: 14, lineHeight: 1.8, wordBreak: 'break-word' }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(card.bodyHtml ?? '') }}
+        />
+      </Modal>
+    )}
+    </>
   );
 }

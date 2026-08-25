@@ -115,6 +115,9 @@ export const ChatCardDTO = z
   .object({
     title: z.string(),
     text: z.string().nullable().optional(),
+    cover: z.string().nullable().optional(),
+    /** 图文正文富文本 HTML（已净化） */
+    bodyHtml: z.string().nullable().optional(),
     fields: z.array(ChatCardFieldDTO).nullable().optional(),
     actions: z.array(ChatCardActionDTO).nullable().optional(),
     source: z.string().nullable().optional(),

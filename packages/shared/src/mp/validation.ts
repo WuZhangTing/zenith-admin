@@ -9,6 +9,8 @@ export const publishChannelSchema = z
     type: z.enum(['text', 'image', 'news']).default('text'),
     title: z.string().max(200).nullable().optional(),
     content: z.string().max(10000).default(''),
+    /** 图文正文富文本 HTML（服务端净化后随卡片投递） */
+    bodyHtml: z.string().max(200000).nullable().optional(),
     imageUrl: z.string().max(1000).nullable().optional(),
     cover: z.string().max(1000).nullable().optional(),
     summary: z.string().max(500).nullable().optional(),
