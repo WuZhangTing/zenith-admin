@@ -38,6 +38,10 @@ export function LeftListRow({
                         key={`channel-${ch.id}`}
                         align="center"
                         onClick={() => { setActiveChannelId(ch.id); setActiveConvId(null); setChannels((prev) => prev.map((c) => c.id === ch.id ? { ...c, unreadCount: 0 } : c)); }}
+                        onRightClick={(e) => {
+                          e.preventDefault();
+                          setLeftPaneContextMenu({ x: e.clientX, y: e.clientY, type: 'channel', channel: ch });
+                        }}
                         style={{ padding: '10px 12px', cursor: 'pointer', background: activeChannelId === ch.id ? 'var(--semi-color-primary-light-default)' : 'transparent' }}
                         header={ch.unreadCount > 0
                           ? <Badge count={ch.unreadCount} overflowCount={99}>{channelAvatarNode(ch)}</Badge>

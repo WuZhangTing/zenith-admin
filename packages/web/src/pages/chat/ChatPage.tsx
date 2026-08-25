@@ -863,6 +863,7 @@ export default function ChatPage({
                   const conv = conversations.find((c) => c.id === msg.conversationId);
                   return conv?.type !== 'group' || conv.myRole === 'owner' || conv.myRole === 'admin';
                 }}
+                handleUnsubscribeChannel={handleUnsubscribeChannel}
               />
             )}
           </Spin>

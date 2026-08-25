@@ -10,9 +10,10 @@ export type LeftListItem =
   | { kind: 'channel'; sortTime: number; pinned: boolean; channel: Channel }
   | { kind: 'conv'; sortTime: number; pinned: boolean; conv: ChatConversation };
 
-/** 左栏右键菜单状态（会话 / 收藏两种目标） */
+/** 左栏右键菜单状态（会话 / 频道 / 收藏三种目标） */
 export type LeftPaneContextMenuState =
   | { x: number; y: number; type: 'conversation'; conv: ChatConversation }
+  | { x: number; y: number; type: 'channel'; channel: Channel }
   | { x: number; y: number; type: 'favorite'; msg: ChatMessage };
 
 /** 正在输入用户表（key 为 userId） */

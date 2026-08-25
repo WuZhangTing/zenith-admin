@@ -1,17 +1,18 @@
 import { Dropdown, Toast } from '@douyinfe/semi-ui';
-import { Archive, ArchiveRestore, BellOff, Bookmark, Pin, Search, Star } from 'lucide-react';
+import { Archive, ArchiveRestore, BellOff, Bookmark, Pin, Search, Star, UserMinus } from 'lucide-react';
 import { request } from '@/utils/request';
 import { confirmDelete } from '@/utils/confirm';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import type { ChatConversation, ChatMessage } from '@zenith/shared/chat';
+import type { Channel } from '@zenith/shared/messaging';
 import { removeConversationById, toggleConvMuted, toggleConvStarred, togglePinAndSort } from '../utils-state';
 import type { LeftPaneContextMenuState, Setter } from '../types';
 
-/** 左栏右键菜单：会话（置顶/星标/免打扰/归档/删除）与收藏（定位/取消收藏）（自 ChatPage 原样搬移） */
+/** 左栏右键菜单：会话（置顶/星标/免打扰/归档/删除）、频道（退订）与收藏（定位/取消收藏）（自 ChatPage 原样搬移） */
 export function LeftPaneContextMenu({
   leftPaneContextMenu, setLeftPaneContextMenu, setConversations, activeConvId, setActiveConvId, setMessages,
   setPendingNewMsgCount, openFavoriteMessage, setFavPreviewVisible, handleToggleFavorite, handleTogglePinMessage,
-  canPinMessage,
+  canPinMessage, handleUnsubscribeChannel,
 }: Readonly<{
   leftPaneContextMenu: LeftPaneContextMenuState;
   setLeftPaneContextMenu: Setter<LeftPaneContextMenuState | null>;
@@ -26,17 +27,37 @@ export function LeftPaneContextMenu({
   handleTogglePinMessage: (msg: ChatMessage) => Promise<void>;
   /** 该消息所在会话是否允许当前用户置顶（群聊仅群主/管理员） */
   canPinMessage: (msg: ChatMessage) => boolean;
+  /** 退订频道（频道条目右键菜单） */
+  handleUnsubscribeChannel: (ch: Channel) => Promise<void>;
 }>) {
-  const targetId = leftPaneContextMenu.type === 'conversation'
-    ? leftPaneContextMenu.conv.id
-    : leftPaneContextMenu.msg.id;
+  let targetId: number;
+  if (leftPaneContextMenu.type === 'conversation') targetId = leftPaneContextMenu.conv.id;
+  else if (leftPaneContextMenu.type === 'channel') targetId = leftPaneContextMenu.channel.id;
+  else targetId = leftPaneContextMenu.msg.id;
 
-  return (
-              <CursorContextDropdown
-                point={leftPaneContextMenu}
-                contextKey={`${leftPaneContextMenu.type}:${targetId}`}
-                onClose={() => setLeftPaneContextMenu(null)}
-                render={leftPaneContextMenu.type === 'conversation' ? (
+  const renderMenu = () => {
+    if (leftPaneContextMenu.type === 'channel') {
+      const { channel } = leftPaneContextMenu;
+      return (
+        <Dropdown.Menu>
+          <Dropdown.Item
+            type="danger"
+            icon={<UserMinus size={13} />}
+            onClick={() => {
+              confirmDelete({
+                title: `确定退订「${channel.name}」吗？`,
+                content: '退订后将不再接收该频道的消息推送，可随时在「发现频道」中重新订阅。',
+                onOk: () => { void handleUnsubscribeChannel(channel); },
+              });
+              setLeftPaneContextMenu(null);
+            }}
+          >
+            退订频道
+          </Dropdown.Item>
+        </Dropdown.Menu>
+      );
+    }
+    return leftPaneContextMenu.type === 'conversation' ? (
                   <Dropdown.Menu>
                     <Dropdown.Item
                       icon={<Pin size={13} />}
@@ -186,7 +207,15 @@ export function LeftPaneContextMenu({
                       </Dropdown.Item>
                     )}
                   </Dropdown.Menu>
-                )}
-              />
+                );
+  };
+
+  return (
+    <CursorContextDropdown
+      point={leftPaneContextMenu}
+      contextKey={`${leftPaneContextMenu.type}:${targetId}`}
+      onClose={() => setLeftPaneContextMenu(null)}
+      render={renderMenu()}
+    />
   );
 }
