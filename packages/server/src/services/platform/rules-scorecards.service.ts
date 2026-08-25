@@ -37,10 +37,19 @@ function draftSnapshot(row: Row): ScorecardSnapshot {
   };
 }
 
+/** 键序稳定序列化：jsonb 回读会重排对象键序，直接 JSON.stringify 对比会误报 dirty */
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value as object).sort().map((k) => `${JSON.stringify(k)}:${stableStringify((value as Record<string, unknown>)[k])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 export function mapRuleScorecard(row: Row) {
   const snapshot = row.publishedSnapshot as ScorecardSnapshot | null;
   const dirty = row.status === 'published' && snapshot != null
-    ? JSON.stringify(draftSnapshot(row)) !== JSON.stringify(snapshot)
+    ? stableStringify(draftSnapshot(row)) !== stableStringify(snapshot)
     : undefined;
   return {
     id: row.id,
