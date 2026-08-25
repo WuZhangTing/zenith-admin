@@ -59,10 +59,11 @@ export const updateWikiDocSchema = z.object({
 export type CreateWikiDocInput = z.infer<typeof createWikiDocSchema>;
 export type UpdateWikiDocInput = z.infer<typeof updateWikiDocSchema>;
 
-/** 移动文档（改父节点 / 排序） */
+/** 移动文档：改父节点并指定插入位置，服务端对目标层级整层重排 sort */
 export const moveWikiDocSchema = z.object({
   parentId: z.number().int().positive().nullable(),
-  sort: z.number().int().optional(),
+  /** 在目标层级中的插入位（不含自身）；缺省 = 追加到末尾 */
+  index: z.number().int().min(0).optional(),
 });
 
 export type MoveWikiDocInput = z.infer<typeof moveWikiDocSchema>;

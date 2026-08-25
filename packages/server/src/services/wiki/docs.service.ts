@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import type {
   CreateWikiDocInput,
   MoveWikiDocInput,
@@ -315,12 +315,21 @@ export async function createWikiDoc(data: CreateWikiDocInput) {
   await ensureParentValid(data.spaceId, data.parentId);
 
   const row = await db.transaction(async (tx) => {
+    // 新文档追加到目标层级末尾，保持手工排序不被打乱
+    const [{ maxSort }] = await tx.select({ maxSort: sql<number>`coalesce(max(${wikiDocs.sort}), -1)` })
+      .from(wikiDocs)
+      .where(buildWhere(
+        eq(wikiDocs.spaceId, data.spaceId),
+        data.parentId ? eq(wikiDocs.parentId, data.parentId) : isNull(wikiDocs.parentId),
+        isNull(wikiDocs.deletedAt),
+      ));
     const [created] = await tx.insert(wikiDocs).values({
       spaceId: data.spaceId,
       parentId: data.parentId ?? null,
       title: data.title,
       summary: data.summary ?? null,
       content: data.content,
+      sort: maxSort + 1,
       requireReadReceipt: data.requireReadReceipt,
       ownerId: currentUserId(),
       tenantId: getCreateTenantId(currentUser()),
@@ -410,10 +419,41 @@ export async function moveWikiDoc(id: number, data: MoveWikiDocInput) {
   await ensureSpaceRole(row.spaceId, 'editor');
   await ensureParentValid(row.spaceId, data.parentId, id);
 
-  await db.update(wikiDocs).set({
-    parentId: data.parentId,
-    ...(data.sort !== undefined ? { sort: data.sort } : {}),
-  }).where(eq(wikiDocs.id, id));
+  await db.transaction(async (tx) => {
+    // 目标层级兄弟（不含自身；排除回收站与归档，与拖拽方看到的树一致），按展示序取出
+    const siblings = await tx.select({
+      id: wikiDocs.id,
+      sort: wikiDocs.sort,
+      updatedAt: wikiDocs.updatedAt,
+      updatedBy: wikiDocs.updatedBy,
+    }).from(wikiDocs)
+      .where(buildWhere(
+        eq(wikiDocs.spaceId, row.spaceId),
+        data.parentId === null ? isNull(wikiDocs.parentId) : eq(wikiDocs.parentId, data.parentId),
+        isNull(wikiDocs.deletedAt),
+        eq(wikiDocs.isArchived, false),
+        ne(wikiDocs.id, id),
+      ))
+      .orderBy(desc(wikiDocs.isPinned), asc(wikiDocs.sort), asc(wikiDocs.id));
+
+    const ordered = siblings.map((s) => s.id);
+    const insertAt = data.index === undefined ? ordered.length : Math.min(data.index, ordered.length);
+    ordered.splice(insertAt, 0, id);
+
+    for (const [position, docId] of ordered.entries()) {
+      if (docId === id) {
+        await tx.update(wikiDocs).set({ parentId: data.parentId, sort: position }).where(eq(wikiDocs.id, id));
+        continue;
+      }
+      const sibling = siblings.find((s) => s.id === docId)!;
+      if (sibling.sort === position) continue;
+      // 兄弟文档只是让位重排，不算内容变更：显式回填原 updatedAt/updatedBy，
+      // 覆盖 $onUpdate 与审计代理的自动注入，避免「更新于」被批量刷新
+      await tx.update(wikiDocs)
+        .set({ sort: position, updatedAt: sibling.updatedAt, updatedBy: sibling.updatedBy })
+        .where(eq(wikiDocs.id, docId));
+    }
+  });
   return getWikiDoc(id);
 }
 

@@ -282,6 +282,10 @@ const docHandlers = [
   http.post('/api/wiki/docs', async ({ request }) => {
     const body = (await request.json()) as Partial<MockWikiDoc>;
     const now = mockDateTime();
+    // 与服务端一致：新文档追加到目标层级末尾
+    const nextSort = 1 + Math.max(-1, ...mockWikiDocs
+      .filter((d) => d.spaceId === (body.spaceId ?? 1) && (d.parentId ?? null) === (body.parentId ?? null) && !d.deletedAt)
+      .map((d) => d.sort));
     const doc: MockWikiDoc = {
       id: getNextWikiDocId(),
       spaceId: body.spaceId ?? 1,
@@ -291,7 +295,7 @@ const docHandlers = [
       content: body.content ?? '',
       status: 'draft',
       rejectReason: null,
-      sort: 0,
+      sort: nextSort,
       isPinned: false,
       viewCount: 0,
       currentVersion: 1,
@@ -336,9 +340,15 @@ const docHandlers = [
   http.post('/api/wiki/docs/:id/move', async ({ params, request }) => {
     const doc = findDoc(Number(params.id));
     if (!doc || doc.deletedAt) return notFound('文档不存在', { status: 404 });
-    const body = (await request.json()) as { parentId: number | null; sort?: number };
+    const body = (await request.json()) as { parentId: number | null; index?: number };
+    // 与服务端一致：目标层级兄弟（不含自身）按展示序在 index 处插入后整层重排 sort
+    const siblings = mockWikiDocs
+      .filter((d) => d.spaceId === doc.spaceId && (d.parentId ?? null) === body.parentId && !d.deletedAt && !d.isArchived && d.id !== doc.id)
+      .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || a.sort - b.sort || a.id - b.id);
+    const insertAt = body.index === undefined ? siblings.length : Math.min(body.index, siblings.length);
+    siblings.splice(insertAt, 0, doc);
     doc.parentId = body.parentId;
-    if (body.sort !== undefined) doc.sort = body.sort;
+    siblings.forEach((d, position) => { d.sort = position; });
     doc.updatedAt = mockDateTime();
     return ok(toDetailDoc(doc), '移动成功');
   }),

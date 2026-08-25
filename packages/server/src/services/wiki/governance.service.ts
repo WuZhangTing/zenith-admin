@@ -214,7 +214,15 @@ export async function importWikiDocs(data: ImportWikiDocsInput) {
 
   const created: number[] = [];
   await db.transaction(async (tx) => {
-    for (const file of data.files) {
+    // 导入的草稿依次追加到目标层级末尾
+    const [{ maxSort }] = await tx.select({ maxSort: sql<number>`coalesce(max(${wikiDocs.sort}), -1)` })
+      .from(wikiDocs)
+      .where(buildWhere(
+        eq(wikiDocs.spaceId, data.spaceId),
+        data.parentId ? eq(wikiDocs.parentId, data.parentId) : isNull(wikiDocs.parentId),
+        isNull(wikiDocs.deletedAt),
+      ));
+    for (const [fileIndex, file] of data.files.entries()) {
       const headingMatch = /^#\s+(.+)$/m.exec(file.content);
       const title = (headingMatch?.[1] ?? file.name.replace(/\.(md|markdown|txt|html?)$/i, '')).trim().slice(0, 200);
       const [doc] = await tx.insert(wikiDocs).values({
@@ -222,6 +230,7 @@ export async function importWikiDocs(data: ImportWikiDocsInput) {
         parentId: data.parentId ?? null,
         title: title || file.name.slice(0, 200),
         content: file.content,
+        sort: maxSort + 1 + fileIndex,
         ownerId: currentUserId(),
         tenantId: getCreateTenantId(currentUser()),
       }).returning({ id: wikiDocs.id, title: wikiDocs.title, content: wikiDocs.content });

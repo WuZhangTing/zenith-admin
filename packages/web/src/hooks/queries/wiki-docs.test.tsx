@@ -13,10 +13,15 @@ const api = new ApiRecorder();
 vi.mock('@/utils/request', () => ({ request: createRequestMock(() => api) }));
 
 import {
+  useMoveWikiDoc,
   useMyProcessedReviews,
   useReviewWikiDoc,
   useSubmitWikiDoc,
+  useWikiDocDetail,
   useWikiDocReviewRecords,
+  useWikiDocTree,
+  wikiDocKeys,
+  wikiDocTreeKeys,
   wikiReviewRecordKeys,
 } from './wiki-docs';
 import { useWikiOpsStats, useWikiStatsOverview } from './wiki-stats';
@@ -75,6 +80,9 @@ beforeEach(() => {
     })
     .on('GET', '/api/wiki/stats/overview', OVERVIEW)
     .on('GET', '/api/wiki/stats/ops', OPS)
+    .on('GET', '/api/wiki/docs/tree?spaceId=1', [])
+    .on('GET', '/api/wiki/docs/1', DOC)
+    .on('POST', '/api/wiki/docs/1/move', DOC)
     .on('POST', '/api/wiki/docs/1/review', { ...DOC, status: 'published' })
     .on('POST', '/api/wiki/docs/1/submit', DOC);
 });
@@ -140,6 +148,32 @@ describe('知识中心审核缓存契约', () => {
     expect(api.countOf('GET', '/api/wiki/docs/reviews/processed?page=1&pageSize=10')).toBe(0);
     expect(api.countOf('GET', '/api/wiki/stats/overview')).toBe(1);
     expect(api.countOf('GET', '/api/wiki/stats/ops')).toBe(1);
+    fetches.stop();
+  });
+
+  it('移动后刷新所属空间目录树与文档详情', async () => {
+    const qc = createTestQueryClient();
+    const { result } = renderHook(
+      () => ({
+        tree: useWikiDocTree(1),
+        detail: useWikiDocDetail(1),
+        move: useMoveWikiDoc(),
+      }),
+      { wrapper: createWrapper(qc) },
+    );
+    await waitFor(() => {
+      expect(result.current.tree.isSuccess).toBe(true);
+      expect(result.current.detail.isSuccess).toBe(true);
+    });
+
+    const fetches = observeFetches(qc);
+    api.resetCalls();
+    await result.current.move.mutateAsync({ id: 1, parentId: null, index: 0 });
+    await waitFor(() => expect(fetches.countOf(wikiDocTreeKeys.of(1))).toBe(1));
+
+    expect(fetches.countOf(wikiDocKeys.detail(1))).toBe(1);
+    expect(api.countOf('GET', '/api/wiki/docs/tree?spaceId=1')).toBe(1);
+    expect(api.countOf('GET', '/api/wiki/docs/1')).toBe(1);
     fetches.stop();
   });
 });

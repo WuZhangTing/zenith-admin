@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
-import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
+import type { OnDragProps, TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
   Bell, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, Trash2, Undo2,
 } from 'lucide-react';
@@ -285,6 +285,48 @@ export default function WikiDocCenterPage() {
   // ─── 渲染 ─────────────────────────────────────────────────────────────────
   const treeData = useMemo(() => toTreeData(treeQuery.data ?? []), [treeQuery.data]);
   const treeDocIds = useMemo(() => collectTreeDocIds(treeQuery.data ?? []), [treeQuery.data]);
+
+  // 目录树索引：父指针与各层展示序（拖拽定位、防环校验共用）
+  const treeIndex = useMemo(() => {
+    const parentOf = new Map<number, number | null>();
+    const childrenOf = new Map<number | null, number[]>();
+    const walk = (nodes: WikiDocTreeNode[], parent: number | null) => {
+      childrenOf.set(parent, nodes.map((n) => n.id));
+      for (const n of nodes) {
+        parentOf.set(n.id, parent);
+        if (n.children?.length) walk(n.children, n.id);
+      }
+    };
+    walk(treeQuery.data ?? [], null);
+    return { parentOf, childrenOf };
+  }, [treeQuery.data]);
+
+  const canDragTree = canWrite && hasPermission('wiki:doc:move');
+  // 搜索过滤态下渲染序与完整树不一致，拖拽定位会错位，暂停拖拽
+  const [treeSearching, setTreeSearching] = useState(false);
+
+  function handleTreeDrop({ node, dragNode, dropToGap, dropPosition }: OnDragProps) {
+    const dragId = Number(dragNode.key);
+    const targetId = Number(node.key);
+    if (!Number.isFinite(dragId) || !Number.isFinite(targetId) || dragId === targetId) return;
+    let parentId: number | null;
+    let index: number;
+    if (!dropToGap) {
+      // 拖放到节点上 = 成为其最后一个子文档
+      parentId = targetId;
+      index = (treeIndex.childrenOf.get(targetId) ?? []).filter((childId) => childId !== dragId).length;
+    } else {
+      parentId = treeIndex.parentOf.get(targetId) ?? null;
+      const siblings = treeIndex.childrenOf.get(parentId) ?? [];
+      const targetIndex = siblings.indexOf(targetId);
+      // Semi 的 dropPosition = 目标节点下标 + 相对方位（-1 上方 / +1 下方）
+      index = dropPosition - targetIndex < 0 ? targetIndex : targetIndex + 1;
+      const dragIndex = siblings.indexOf(dragId);
+      // move 接口的 index 语义是「移除自身后的插入位」：同层下移时前面少了自己，回退一位
+      if (dragIndex !== -1 && dragIndex < index) index -= 1;
+    }
+    moveMutation.mutate({ id: dragId, parentId, index }, { onSuccess: () => Toast.success('已移动') });
+  }
 
   useEffect(() => {
     setSelectedDocId((current) => {
@@ -642,6 +684,9 @@ export default function WikiDocCenterPage() {
                       treeNodeFilterProp="titleText"
                       showFilteredOnly
                       searchPlaceholder="搜索文档标题..."
+                      onSearch={(input) => setTreeSearching(!!input)}
+                      draggable={canDragTree && !treeSearching}
+                      onDrop={handleTreeDrop}
                       defaultExpandAll
                     />
                   )}
