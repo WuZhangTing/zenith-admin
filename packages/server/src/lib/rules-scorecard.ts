@@ -64,7 +64,7 @@ export function evaluateScorecard(card: ScorecardLike, scope: Record<string, unk
   const traces: RuleScorecardVariableTrace[] = [];
 
   for (const variable of card.variables ?? []) {
-    let raw: unknown = null;
+    let raw: unknown;
     try {
       raw = evaluateExpression(variable.expr, scope);
     } catch {
