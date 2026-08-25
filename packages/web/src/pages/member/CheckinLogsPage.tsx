@@ -1,9 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { Button, Calendar, DatePicker, Form, RadioGroup, Radio, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Calendar, DatePicker, Form, List, Popover, RadioGroup, Radio, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CalendarPlus } from 'lucide-react';
-import type { MemberCheckin } from '@zenith/shared/member';
+import type { MemberCheckin, MemberCheckinCalendarDay } from '@zenith/shared/member';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -11,7 +11,7 @@ import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { MemberSelect } from '@/components/MemberSelect';
 import { formatDateForApi } from '@/utils/date';
-import { memberAdminKeys, useCheckinCalendar, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
+import { memberAdminKeys, useCheckinCalendar, useCheckinDayMembersInfinite, useCheckinLogList, useMakeupCheckin } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -31,6 +31,65 @@ const defaultSearch: SearchParams = {
 
 function formatMonth(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * 日历格悬浮层：hover 时才按日分页拉取签到会员，滚动列表 + 「加载更多」，
+ * 大名单不会全量下发。
+ */
+function CheckinDayPopoverContent({ day }: Readonly<{ day: MemberCheckinCalendarDay }>) {
+  const membersQuery = useCheckinDayMembersInfinite(day.date);
+  const items = (membersQuery.data?.pages ?? []).flatMap((p) => p.list);
+  const normalCount = day.count - day.makeupCount;
+  return (
+    // 弹层经 portal 渲染，但 React 事件仍沿组件树冒泡到日历格子的 onClick（下钻），须在根节点阻断
+    <div
+      style={{ padding: '10px 12px', width: 260 }}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      role="presentation"
+    >
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{day.date} · 签到 {day.count} 人</div>
+      <div style={{ fontSize: 12, color: 'var(--semi-color-text-2)', marginBottom: 8 }}>
+        正常 {normalCount} · 补签 {day.makeupCount} · 点击日期查看全部明细
+      </div>
+      {membersQuery.isPending ? (
+        <div style={{ textAlign: 'center', padding: 16 }}><Spin /></div>
+      ) : (
+        <List
+          size="small"
+          dataSource={items}
+          style={{ maxHeight: 240, overflowY: 'auto' }}
+          renderItem={(item) => (
+            <List.Item
+              main={(
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.memberNickname || `#${item.memberId}`}
+                  </span>
+                  {item.isMakeup && <Tag color="orange" size="small">补签</Tag>}
+                  <Typography.Text type="tertiary" size="small">{item.createdAt.slice(11, 16)}</Typography.Text>
+                </span>
+              )}
+              style={{ padding: '6px 4px' }}
+            />
+          )}
+          loadMore={membersQuery.hasNextPage ? (
+            <div style={{ textAlign: 'center', padding: '6px 0 2px' }}>
+              <Button
+                size="small"
+                theme="borderless"
+                loading={membersQuery.isFetchingNextPage}
+                onClick={() => void membersQuery.fetchNextPage()}
+              >
+                加载更多（还有 {day.count - items.length} 人）
+              </Button>
+            </div>
+          ) : null}
+        />
+      )}
+    </div>
+  );
 }
 
 export default function CheckinLogsPage() {
@@ -142,9 +201,13 @@ export default function CheckinLogsPage() {
     const day = calendarMap.get(key);
     if (!day) return null;
     return (
-      <div style={{ position: 'absolute', right: 6, bottom: 4, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, pointerEvents: 'none' }}>
-        <Tag color="green" size="small">{day.count} 人签到</Tag>
-        {day.makeupCount > 0 && <Tag color="orange" size="small">补签 {day.makeupCount}</Tag>}
+      <div style={{ position: 'absolute', right: 6, bottom: 4 }}>
+        <Popover position="top" showArrow content={<CheckinDayPopoverContent day={day} />}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+            <Tag color="green" size="small">{day.count} 人签到</Tag>
+            {day.makeupCount > 0 && <Tag color="orange" size="small">补签 {day.makeupCount}</Tag>}
+          </div>
+        </Popover>
       </div>
     );
   };

@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { CheckinMilestone, CheckinRule, CheckinSettings, Coupon, Member, MemberCheckin, MemberCheckinCalendarDay, MemberCoupon, MemberLevel, MemberLoginLog, MemberPointAccount, MemberPointTransaction, MemberRecharge, MemberStatsCharts, MemberStatsOverview, MemberTag, MemberWallet, MemberWalletTransaction } from '@zenith/shared/member';
 import { request } from '@/utils/request';
@@ -114,6 +114,7 @@ export const memberAdminKeys = {
   checkinLogLists: ['member-admin', 'checkins', 'logs', 'list'] as const,
   checkinLogList: (params: CheckinLogListParams) => ['member-admin', 'checkins', 'logs', 'list', params] as const,
   checkinCalendar: (month: string) => ['member-admin', 'checkins', 'calendar', month] as const,
+  checkinDayMembers: (date: string) => ['member-admin', 'checkins', 'day-members', date] as const,
   checkinMilestones: ['member-admin', 'checkins', 'milestones'] as const,
 };
 
@@ -463,6 +464,24 @@ export function useCheckinCalendar(month: string, enabled = true) {
     queryKey: memberAdminKeys.checkinCalendar(month),
     queryFn: () => request.get<MemberCheckinCalendarDay[]>(`/api/member-checkins/calendar?month=${month}`).then(unwrap),
     placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+/** 日历悬浮层分页大小 */
+export const CHECKIN_DAY_PAGE_SIZE = 20;
+
+/** 某日签到会员无限分页（日历悬浮层懒加载，防止大名单全量下发） */
+export function useCheckinDayMembersInfinite(date: string, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: memberAdminKeys.checkinDayMembers(date),
+    queryFn: ({ pageParam }) =>
+      request
+        .get<PaginatedResponse<MemberCheckin>>(`/api/member-checkins${toQueryString({ page: pageParam, pageSize: CHECKIN_DAY_PAGE_SIZE, dateStart: date, dateEnd: date })}`)
+        .then(unwrap),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      (lastPage.page * lastPage.pageSize < lastPage.total ? lastPage.page + 1 : undefined),
     enabled,
   });
 }

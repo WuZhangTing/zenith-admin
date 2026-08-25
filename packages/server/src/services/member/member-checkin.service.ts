@@ -101,7 +101,7 @@ export async function listMemberCheckins(params: {
   };
 }
 
-/** 签到日历：按月聚合每日签到人数与补签数（管理端日历视图） */
+/** 签到日历：按月聚合每日签到人数与补签数（管理端日历视图；明细由悬浮层按日分页懒加载） */
 export async function getCheckinCalendar(month: string) {
   const [y, m] = month.split('-').map(Number);
   const start = `${month}-01`;
