@@ -32,14 +32,18 @@ function prettyJson(value: string): string {
 
 export default function ApiDebugConsolePage() {
   const [searchParams] = useSearchParams();
-  const initialAppId = Number(searchParams.get('appId'));
+  // 注意 Number(null) === 0：无 appId 参数时必须落到 undefined，否则选择器显示「0」且自动选中首个应用的逻辑失效
+  const initialAppIdRaw = searchParams.get('appId');
+  const initialAppId = initialAppIdRaw === null ? Number.NaN : Number(initialAppIdRaw);
   const appListQuery = useMyAppList({ page: 1, pageSize: 100 });
   const endpointsQuery = useDebugEndpoints();
   const debugMutation = useDebugMyApp();
   const apps = useMemo(() => appListQuery.data?.list ?? [], [appListQuery.data]);
   // 端点目录来自服务端（按实际注册的开放路由派生），新增开放端点后调试台自动可见
   const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data]);
-  const [appId, setAppId] = useState<number | undefined>(Number.isFinite(initialAppId) ? initialAppId : undefined);
+  const [appId, setAppId] = useState<number | undefined>(
+    Number.isInteger(initialAppId) && initialAppId > 0 ? initialAppId : undefined,
+  );
   const [endpointKey, setEndpointKey] = useState<string>('GET /api/open/v1/ping');
   const [pathParams, setPathParams] = useState('');
   const [queryText, setQueryText] = useState('{\n  "message": "hello"\n}');
@@ -121,6 +125,7 @@ export default function ApiDebugConsolePage() {
             <Form labelPosition="left" labelWidth={90}>
               <Select
                 prefix="应用"
+                placeholder="选择应用"
                 value={appId}
                 onChange={(value) => setAppId(Number(value))}
                 optionList={apps.map((app) => ({
