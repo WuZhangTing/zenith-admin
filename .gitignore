@@ -15,7 +15,7 @@ docs/.vitepress/dist/
 **/coverage/
 .claude/settings.local.json
 
-logs/
+/logs/
 packages/web/public/file-viewer/
 
 .playwright-cli/

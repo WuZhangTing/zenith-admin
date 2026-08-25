@@ -10,21 +10,15 @@ import { Typography, Skeleton, Empty } from '@douyinfe/semi-ui';
 import {
   AreaChart,
   LineChart,
-  PieChart,
   chartOptions,
   makeAreaSpec,
   makeLineSpec,
-  makePieSpec,
   useChartPalette,
 } from '@/components/charts';
+import { ModuleOperationPie } from '@/components/logs/ModuleOperationPie';
 import type { DashboardCharts } from '@/hooks/queries/dashboard';
 
 const { Text } = Typography;
-
-const PIE_COLORS = [
-  '#4A90E2', '#52C41A', '#FA8C16', '#13C2C2',
-  '#722ED1', '#F5222D', '#EB2F96', '#1677FF',
-];
 
 function shortDate(dateStr: string) {
   return dateStr.slice(5); // MM-DD
@@ -83,23 +77,12 @@ export default function DashboardChartsRow({ charts, chartsLoading }: DashboardC
         } />
       </div>
     );
-    const pieData = charts?.operationTypes ?? [];
-    if (pieData.length === 0) {
-      return <div className="dashboard-chart-placeholder"><Empty description="今日暂无操作记录" /></div>;
-    }
-    const coloredData = pieData.map((item, idx) => ({ ...item, fill: PIE_COLORS[idx % PIE_COLORS.length] }));
-    const operationPieSpec = makePieSpec({
-      data: coloredData,
-      categoryField: 'module',
-      valueField: 'count',
-      donut: false,
-      colors: coloredData.map((d) => d.fill),
-      palette,
-      label: 'percent',
-      valueUnit: '次',
-    });
     return (
-      <PieChart {...operationPieSpec} options={chartOptions} height={200} />
+      <ModuleOperationPie
+        data={charts?.operationTypes ?? []}
+        height={200}
+        empty={<div className="dashboard-chart-placeholder"><Empty description="今日暂无操作记录" /></div>}
+      />
     );
   }
 

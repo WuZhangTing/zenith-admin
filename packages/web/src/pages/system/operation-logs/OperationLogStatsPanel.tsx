@@ -25,6 +25,7 @@ import {
 } from '@/components/charts';
 import dayjs from 'dayjs';
 import { useOperationLogStats } from '@/hooks/queries/operation-logs';
+import { ModuleOperationPie } from '@/components/logs/ModuleOperationPie';
 import { buildUserChartLabels, formatUserLabel } from '@/components/UserDisplay';
 
 const DAYS_OPTIONS = [
@@ -414,8 +415,8 @@ export default function OperationLogStatsPanel() {
           />
         </StatGrid>
 
-        {/* ── 模块 Top 10 + 用户 Top 10 ── */}
-        <div className="chart-grid" style={{ marginBottom: 16 }}>
+        {/* ── 模块 Top 10 + 模块分布 + 用户 Top 10 ── */}
+        <div className="chart-grid chart-grid--3" style={{ marginBottom: 16 }}>
           <div className="zx-panel">
             <div style={sectionTitleStyle}>按模块操作统计（Top 10）</div>
             {moduleChartData.length === 0 ? (
@@ -423,6 +424,14 @@ export default function OperationLogStatsPanel() {
             ) : (
               <BarChart {...moduleSpec} options={chartOptions} height={260} />
             )}
+          </div>
+          <div className="zx-panel">
+            <div style={sectionTitleStyle}>按模块操作分布</div>
+            <ModuleOperationPie
+              data={stats?.moduleStats ?? []}
+              height={260}
+              empty={<div style={EMPTY_PLACEHOLDER_STYLE}>暂无数据</div>}
+            />
           </div>
           <div className="zx-panel">
             <div style={sectionTitleStyle}>Top 10 操作用户</div>
