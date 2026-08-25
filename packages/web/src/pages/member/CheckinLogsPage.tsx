@@ -67,8 +67,8 @@ function CheckinDayPopoverContent({ day }: Readonly<{ day: MemberCheckinCalendar
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {item.memberNickname || `#${item.memberId}`}
                   </span>
-                  {item.isMakeup && <Tag color="orange" size="small">补签</Tag>}
                   <Typography.Text type="tertiary" size="small">{item.createdAt.slice(11, 16)}</Typography.Text>
+                  {item.isMakeup && <Tag color="orange" size="small">补签</Tag>}
                 </span>
               )}
               style={{ padding: '6px 4px' }}
