@@ -129,7 +129,7 @@ export default function MyAppsPage() {
       }
     },
     successMessage: ({ isEdit }) => (isEdit ? '应用已更新并回到草稿状态' : '创建成功'),
-    labelWidth: 110,
+    labelWidth: 140,
   });
 
   const search = () => {
@@ -278,7 +278,7 @@ export default function MyAppsPage() {
         pagination={buildPagination(data?.total ?? 0)}
       />
 
-      <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑我的应用' : '创建应用'} width={700}>
+      <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑我的应用' : '创建应用'} width={800}>
         <Form key={modal.formKey} {...modal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="name" label="应用名称" rules={[{ required: true, message: '请输入应用名称' }]} /></Col>

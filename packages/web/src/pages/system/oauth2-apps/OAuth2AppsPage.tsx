@@ -145,7 +145,7 @@ export default function OAuth2AppsPage() {
         setSecretModal(true);
       }
     },
-    labelWidth: 120,
+    labelWidth: 140,
   });
   const editing = appModal.editing;
   const deleteMutation = useDeleteOAuth2App();
@@ -442,7 +442,7 @@ export default function OAuth2AppsPage() {
       {/* 新增 / 编辑弹窗 */}
       <AppModal
         {...appModal.modalProps}
-        width={660}
+        width={800}
       >
         <Spin spinning={appModal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={appModal.formKey} {...appModal.formProps}>
