@@ -228,7 +228,7 @@ const docHandlers = [
       .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || a.sort - b.sort || a.id - b.id);
     const nodes = new Map<number, WikiDocTreeNode>();
     for (const d of docs) {
-      nodes.set(d.id, { id: d.id, parentId: d.parentId ?? null, title: d.title, status: d.status, isPinned: d.isPinned, sort: d.sort, children: [] });
+      nodes.set(d.id, { id: d.id, parentId: d.parentId ?? null, title: d.title, status: d.status, isPinned: d.isPinned, sort: d.sort, createdBy: d.createdBy ?? null, children: [] });
     }
     const roots: WikiDocTreeNode[] = [];
     for (const node of nodes.values()) {

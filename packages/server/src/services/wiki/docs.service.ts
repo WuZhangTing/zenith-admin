@@ -265,7 +265,7 @@ export async function getWikiDocTree(spaceId: number): Promise<WikiDocTreeNode[]
 
   const nodes = new Map<number, WikiDocTreeNode>();
   for (const r of rows) {
-    nodes.set(r.id, { id: r.id, parentId: r.parentId ?? null, title: r.title, status: r.status, isPinned: r.isPinned, sort: r.sort, children: [] });
+    nodes.set(r.id, { id: r.id, parentId: r.parentId ?? null, title: r.title, status: r.status, isPinned: r.isPinned, sort: r.sort, createdBy: r.createdBy ?? null, children: [] });
   }
   const roots: WikiDocTreeNode[] = [];
   for (const node of nodes.values()) {

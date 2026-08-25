@@ -106,6 +106,7 @@ export interface WikiDocTreeNodeDTOType {
   status: (typeof WIKI_DOC_STATUSES)[number];
   isPinned: boolean;
   sort: number;
+  createdBy: number | null;
   children?: WikiDocTreeNodeDTOType[];
 }
 
@@ -118,6 +119,7 @@ export const WikiDocTreeNodeDTO: z.ZodType<WikiDocTreeNodeDTOType> = z
       status: z.enum(WIKI_DOC_STATUSES),
       isPinned: z.boolean(),
       sort: z.number().int(),
+      createdBy: z.number().int().nullable(),
       children: z.array(WikiDocTreeNodeDTO).optional(),
     }),
   )

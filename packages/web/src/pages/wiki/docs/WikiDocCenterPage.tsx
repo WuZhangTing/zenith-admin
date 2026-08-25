@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { OnDragProps, TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
-  Bell, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, Trash2, Undo2,
+  Bell, ChevronsDownUp, ChevronsUpDown, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, Trash2, Undo2,
 } from 'lucide-react';
 import type { WikiComment, WikiDocTreeNode } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS } from '@zenith/shared/wiki';
@@ -25,6 +25,7 @@ import {
 } from '@/hooks/queries/wiki-docs';
 import { useCreateWikiComment, useDeleteMyWikiComment, useResolveWikiComment, useWikiDocComments } from '@/hooks/queries/wiki-comments';
 import { useImportWikiDocs } from '@/hooks/queries/wiki-governance';
+import './WikiDocCenterPage.css';
 
 const { Text, Title } = Typography;
 
@@ -38,22 +39,34 @@ const STATUS_TAG_COLOR: Record<string, 'grey' | 'orange' | 'green' | 'red'> = {
 /** 与 .md-preview-content 相同的阅读列（860px 居中 + 40px 水平内边距），附件与评论跟随正文对齐 */
 const READING_COLUMN_STYLE = { maxWidth: 860, margin: '0 auto', padding: '0 40px' } as const;
 
-function toTreeData(nodes: WikiDocTreeNode[]): TreeNodeData[] {
+function toTreeData(nodes: WikiDocTreeNode[], renderNodeActions?: (node: WikiDocTreeNode) => React.ReactNode): TreeNodeData[] {
   return nodes.map((n) => ({
     key: String(n.id),
     value: n.id,
     // label 是 JSX，Semi 默认按 label 过滤永远匹配不到；搜索经 treeNodeFilterProp 走这里的纯文本
     titleText: n.title,
     label: (
-      <Space spacing={4}>
-        {n.isPinned ? <Pin size={12} style={{ color: 'var(--semi-color-warning)' }} /> : null}
-        <span>{n.title}</span>
-        {n.status !== 'published' ? (
-          <Tag size="small" color={STATUS_TAG_COLOR[n.status]}>{WIKI_DOC_STATUS_LABELS[n.status]}</Tag>
+      <span className="wiki-tree-label">
+        <Space spacing={4} className="wiki-tree-label-main">
+          {n.isPinned ? <Pin size={12} style={{ color: 'var(--semi-color-warning)', flexShrink: 0 }} /> : null}
+          <span>{n.title}</span>
+          {n.status !== 'published' ? (
+            <Tag size="small" color={STATUS_TAG_COLOR[n.status]}>{WIKI_DOC_STATUS_LABELS[n.status]}</Tag>
+          ) : null}
+        </Space>
+        {renderNodeActions ? (
+          // 阻止冒泡：点操作菜单不应选中/展开节点
+          <span
+            className="wiki-tree-node-actions"
+            role="presentation"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {renderNodeActions(n)}
+          </span>
         ) : null}
-      </Space>
+      </span>
     ),
-    children: n.children?.length ? toTreeData(n.children) : undefined,
+    children: n.children?.length ? toTreeData(n.children, renderNodeActions) : undefined,
   }));
 }
 
@@ -283,10 +296,9 @@ export default function WikiDocCenterPage() {
   }
 
   // ─── 渲染 ─────────────────────────────────────────────────────────────────
-  const treeData = useMemo(() => toTreeData(treeQuery.data ?? []), [treeQuery.data]);
   const treeDocIds = useMemo(() => collectTreeDocIds(treeQuery.data ?? []), [treeQuery.data]);
 
-  // 目录树索引：父指针与各层展示序（拖拽定位、防环校验共用）
+  // 目录树索引：父指针与各层展示序（拖拽定位、面包屑、自动展开共用）
   const treeIndex = useMemo(() => {
     const parentOf = new Map<number, number | null>();
     const childrenOf = new Map<number | null, number[]>();
@@ -301,6 +313,131 @@ export default function WikiDocCenterPage() {
     return { parentOf, childrenOf };
   }, [treeQuery.data]);
 
+  // ─── 目录树节点操作 ───────────────────────────────────────────────────────
+  const canManage = myRole === 'owner' || myRole === 'admin';
+  const canCreateInTree = canWrite && hasPermission('wiki:doc:create');
+  const canPinInTree = canManage && hasPermission('wiki:doc:edit');
+  const canMoveInTree = canWrite && hasPermission('wiki:doc:move');
+  const canDeleteInTree = hasPermission('wiki:doc:delete');
+  const { mutate: pinDoc } = pinMutation;
+  const { mutateAsync: deleteDocs } = deleteMutation;
+
+  const renderNodeActions = useCallback((n: WikiDocTreeNode) => {
+    const items: React.ReactNode[] = [];
+    if (canCreateInTree) {
+      items.push(
+        <Dropdown.Item key="child" icon={<FilePlus2 size={14} />} onClick={() => navigate(`/wiki/docs/edit?spaceId=${effectiveSpaceId}&parentId=${n.id}`)}>
+          新建子文档
+        </Dropdown.Item>,
+      );
+    }
+    if (canPinInTree && n.status !== 'pending') {
+      items.push(
+        <Dropdown.Item
+          key="pin"
+          icon={n.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+          onClick={() => pinDoc(
+            { id: n.id, values: { isPinned: !n.isPinned } },
+            { onSuccess: () => Toast.success(n.isPinned ? '已取消置顶' : '已置顶，目录树中将优先展示') },
+          )}
+        >
+          {n.isPinned ? '取消置顶' : '置顶'}
+        </Dropdown.Item>,
+      );
+    }
+    if (canMoveInTree) {
+      items.push(
+        <Dropdown.Item key="move" icon={<FolderInput size={14} />} onClick={() => { setMoveTarget({ id: n.id, title: n.title }); setMoveParentId(n.parentId ?? null); }}>
+          移动
+        </Dropdown.Item>,
+      );
+    }
+    // editor 只能删除自己创建的文档，空间管理员不受限（与服务端 ensureDocEditable 一致）
+    if (canDeleteInTree && (canManage || (canWrite && n.createdBy === user?.id))) {
+      items.push(
+        <Dropdown.Item
+          key="delete"
+          type="danger"
+          icon={<Trash2 size={14} />}
+          onClick={() => confirmDelete({
+            title: `确定要删除「${n.title}」吗？`,
+            content: '删除后可在回收站还原',
+            onOk: async () => {
+              await deleteDocs([n.id]);
+              Toast.success('已移入回收站');
+              setSelectedDocId((current) => (current === n.id ? undefined : current));
+            },
+          })}
+        >
+          删除
+        </Dropdown.Item>,
+      );
+    }
+    if (items.length === 0) return null;
+    return (
+      <Dropdown trigger="click" clickToHide position="bottomRight" render={<Dropdown.Menu>{items}</Dropdown.Menu>}>
+        <Button aria-label={`文档「${n.title}」更多操作`} size="small" theme="borderless" type="tertiary" icon={<MoreHorizontal size={14} />} />
+      </Dropdown>
+    );
+  }, [canCreateInTree, canPinInTree, canMoveInTree, canDeleteInTree, canManage, canWrite, user?.id, effectiveSpaceId, navigate, pinDoc, deleteDocs]);
+
+  const treeData = useMemo(() => toTreeData(treeQuery.data ?? [], renderNodeActions), [treeQuery.data, renderNodeActions]);
+
+  // ─── 展开状态：受控 + 按空间持久化，默认全展开 ────────────────────────────
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
+  const expandInitSpaceRef = useRef<number | undefined>(undefined);
+
+  const treeBranchKeys = useMemo(() => {
+    const keys: string[] = [];
+    const walk = (nodes: WikiDocTreeNode[]) => {
+      for (const n of nodes) {
+        if (n.children?.length) {
+          keys.push(String(n.id));
+          walk(n.children);
+        }
+      }
+    };
+    walk(treeQuery.data ?? []);
+    return keys;
+  }, [treeQuery.data]);
+
+  const applyExpandedKeys = useCallback((keys: string[]) => {
+    setExpandedKeys(keys);
+    if (effectiveSpaceId === undefined) return;
+    try {
+      localStorage.setItem(`wiki-doc-tree-expanded:${effectiveSpaceId}`, JSON.stringify(keys));
+    } catch { /* storage unavailable */ }
+  }, [effectiveSpaceId]);
+
+  // 首次进入空间：恢复上次展开状态，无记录则全展开
+  useEffect(() => {
+    if (effectiveSpaceId === undefined || !treeQuery.data) return;
+    if (expandInitSpaceRef.current === effectiveSpaceId) return;
+    expandInitSpaceRef.current = effectiveSpaceId;
+    let stored: string[] | null;
+    try {
+      const raw = localStorage.getItem(`wiki-doc-tree-expanded:${effectiveSpaceId}`);
+      stored = raw ? (JSON.parse(raw) as string[]) : null;
+    } catch { stored = null; }
+    setExpandedKeys(stored ?? treeBranchKeys);
+  }, [effectiveSpaceId, treeQuery.data, treeBranchKeys]);
+
+  // 选中文档自动展开其祖先链（深链、正文内链、搜索/收藏/最近选中后目录树可定位）
+  useEffect(() => {
+    if (selectedDocId === undefined) return;
+    const ancestors: string[] = [];
+    let cursor = treeIndex.parentOf.get(selectedDocId) ?? null;
+    while (cursor !== null) {
+      ancestors.push(String(cursor));
+      cursor = treeIndex.parentOf.get(cursor) ?? null;
+    }
+    if (ancestors.length === 0) return;
+    setExpandedKeys((keys) => (ancestors.every((k) => keys.includes(k)) ? keys : [...new Set([...keys, ...ancestors])]));
+  }, [selectedDocId, treeIndex]);
+
+  const isAllExpanded = treeBranchKeys.length > 0 && treeBranchKeys.every((k) => expandedKeys.includes(k));
+
+  // ─── 拖拽移动 ────────────────────────────────────────────────────────────
   const canDragTree = canWrite && hasPermission('wiki:doc:move');
   // 搜索过滤态下渲染序与完整树不一致，拖拽定位会错位，暂停拖拽
   const [treeSearching, setTreeSearching] = useState(false);
@@ -325,7 +462,15 @@ export default function WikiDocCenterPage() {
       // move 接口的 index 语义是「移除自身后的插入位」：同层下移时前面少了自己，回退一位
       if (dragIndex !== -1 && dragIndex < index) index -= 1;
     }
-    moveMutation.mutate({ id: dragId, parentId, index }, { onSuccess: () => Toast.success('已移动') });
+    moveMutation.mutate({ id: dragId, parentId, index }, {
+      onSuccess: () => {
+        Toast.success('已移动');
+        // 移入的目标层级保持展开，落点立即可见
+        if (parentId !== null) {
+          setExpandedKeys((keys) => (keys.includes(String(parentId)) ? keys : [...keys, String(parentId)]));
+        }
+      },
+    });
   }
 
   useEffect(() => {
@@ -669,12 +814,32 @@ export default function WikiDocCenterPage() {
                 collapsible="auto"
                 activeKey={masterTab}
                 onChange={setMasterTab}
+                tabBarExtraContent={masterTab === 'tree' && treeBranchKeys.length > 0 ? (
+                  <Tooltip content={isAllExpanded ? '收起全部' : '展开全部'}>
+                    <Button
+                      aria-label={isAllExpanded ? '收起全部目录' : '展开全部目录'}
+                      size="small"
+                      theme="borderless"
+                      type="tertiary"
+                      icon={isAllExpanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+                      onClick={() => applyExpandedKeys(isAllExpanded ? [] : treeBranchKeys)}
+                    />
+                  </Tooltip>
+                ) : null}
               >
                 <Tabs.TabPane tab="目录" itemKey="tree">
                   {treeQuery.isPending && effectiveSpaceId !== undefined ? (
                     <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
                   ) : treeData.length === 0 ? (
-                    <Empty description="空间还没有文档" style={{ marginTop: 32 }} />
+                    <Empty description="空间还没有文档" style={{ marginTop: 32 }}>
+                      {canCreateInTree ? (
+                        <div style={{ textAlign: 'center' }}>
+                          <Button theme="solid" icon={<FilePlus2 size={14} />} onClick={() => navigate(`/wiki/docs/edit?spaceId=${effectiveSpaceId}`)}>
+                            新建文档
+                          </Button>
+                        </div>
+                      ) : null}
+                    </Empty>
                   ) : (
                     <Tree
                       treeData={treeData}
@@ -687,7 +852,8 @@ export default function WikiDocCenterPage() {
                       onSearch={(input) => setTreeSearching(!!input)}
                       draggable={canDragTree && !treeSearching}
                       onDrop={handleTreeDrop}
-                      defaultExpandAll
+                      expandedKeys={expandedKeys}
+                      onExpand={(keys) => applyExpandedKeys(keys)}
                     />
                   )}
                 </Tabs.TabPane>
@@ -810,7 +976,16 @@ export default function WikiDocCenterPage() {
           if (!moveTarget) return;
           moveMutation.mutate(
             { id: moveTarget.id, parentId: moveParentId },
-            { onSuccess: () => { Toast.success('移动成功'); setMoveTarget(null); } },
+            {
+              onSuccess: () => {
+                Toast.success('移动成功');
+                // 移入的目标层级保持展开，落点立即可见
+                if (moveParentId !== null) {
+                  setExpandedKeys((keys) => (keys.includes(String(moveParentId)) ? keys : [...keys, String(moveParentId)]));
+                }
+                setMoveTarget(null);
+              },
+            },
           );
         }}
         okButtonProps={{ loading: moveMutation.isPending }}

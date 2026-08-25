@@ -116,6 +116,8 @@ export interface WikiDocTreeNode {
   status: WikiDocStatus;
   isPinned: boolean;
   sort: number;
+  /** 作者：editor 角色只能操作自己创建的文档，树节点操作菜单据此收敛 */
+  createdBy: number | null;
   children?: WikiDocTreeNode[];
 }
 

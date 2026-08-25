@@ -1,0 +1,27 @@
+/* 目录树节点：主体可截断，悬停/选中/键盘聚焦时露出行内操作 */
+.wiki-tree-label {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	justify-content: space-between;
+	gap: 4px;
+	min-width: 0;
+}
+
+.wiki-tree-label-main {
+	overflow: hidden;
+	min-width: 0;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.wiki-tree-node-actions {
+	flex-shrink: 0;
+	opacity: 0;
+}
+
+.semi-tree-option:hover .wiki-tree-node-actions,
+.semi-tree-option-selected .wiki-tree-node-actions,
+.wiki-tree-node-actions:focus-within {
+	opacity: 1;
+}
