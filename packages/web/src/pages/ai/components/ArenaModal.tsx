@@ -6,6 +6,7 @@ import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import type { AiChatModel } from '@zenith/shared/ai';
 import { submitArenaVote } from '@/hooks/queries/ai-extras';
+import { healStreamingMarkdown } from '@/utils/streaming-markdown';
 
 const { Text } = Typography;
 
@@ -136,7 +137,7 @@ export default function ArenaModal({ visible, onClose, models }: ArenaModalProps
         {panel.status === 'error' ? (
           <Text type="danger">{panel.error ?? '生成失败'}</Text>
         ) : panel.content ? (
-          <MarkdownRender raw={panel.content} format="md" />
+          <MarkdownRender raw={panel.status === 'running' ? healStreamingMarkdown(panel.content) : panel.content} format="md" />
         ) : (
           <Text type="tertiary">回答将显示在这里</Text>
         )}

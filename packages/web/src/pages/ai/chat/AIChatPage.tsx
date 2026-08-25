@@ -35,6 +35,7 @@ import {
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
+import { healStreamingMarkdown } from '@/utils/streaming-markdown';
 import {
   AI_AVATAR,
   buildAssistantContent,
@@ -435,7 +436,8 @@ export default function AIChatPage() {
     let accReferences: KbRefDisplay[] = [];
 
     const refreshAssistant = () => {
-      const nextContent = buildAssistantContent(accContent, accReasoning, accContent.length > 0, accToolCalls, accReferences);
+      // 流式自愈:补全未闭合 markdown(粗体/行内代码/链接),消除原始符号闪现
+      const nextContent = buildAssistantContent(healStreamingMarkdown(accContent), healStreamingMarkdown(accReasoning), accContent.length > 0, accToolCalls, accReferences);
       setMessages((prev) =>
         prev.map((m) => (m.id === assistantMsgId ? { ...m, content: nextContent } : m))
       );
