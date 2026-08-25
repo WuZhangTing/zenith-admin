@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Banner, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
+import { Banner, Breadcrumb, Button, Checkbox, Divider, Dropdown, Empty, List, Select, Space, Spin, Tabs, Tag, TextArea, Toast, Tooltip, Tree, TreeSelect, Typography } from '@douyinfe/semi-ui';
 import type { OnDragProps, TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import {
-  Bell, ChevronsDownUp, ChevronsUpDown, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, Trash2, Undo2,
+  Bell, ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, FilePlus2, FileUp, FolderInput, History, MessageSquare, MoreHorizontal, Pencil, Pin, PinOff, Send, Star, Trash2, Undo2,
 } from 'lucide-react';
 import type { WikiComment, WikiDocTreeNode } from '@zenith/shared/wiki';
 import { WIKI_DOC_STATUS_LABELS } from '@zenith/shared/wiki';
@@ -298,20 +298,45 @@ export default function WikiDocCenterPage() {
   // ─── 渲染 ─────────────────────────────────────────────────────────────────
   const treeDocIds = useMemo(() => collectTreeDocIds(treeQuery.data ?? []), [treeQuery.data]);
 
-  // 目录树索引：父指针与各层展示序（拖拽定位、面包屑、自动展开共用）
+  // 目录树索引：父指针、各层展示序与标题（拖拽定位、面包屑、自动展开共用）
   const treeIndex = useMemo(() => {
     const parentOf = new Map<number, number | null>();
     const childrenOf = new Map<number | null, number[]>();
+    const titleOf = new Map<number, string>();
+    // 展示序拍平（父在前、子随后），供上一篇/下一篇按阅读顺序导航
+    const flatIds: number[] = [];
     const walk = (nodes: WikiDocTreeNode[], parent: number | null) => {
       childrenOf.set(parent, nodes.map((n) => n.id));
       for (const n of nodes) {
         parentOf.set(n.id, parent);
+        titleOf.set(n.id, n.title);
+        flatIds.push(n.id);
         if (n.children?.length) walk(n.children, n.id);
       }
     };
     walk(treeQuery.data ?? [], null);
-    return { parentOf, childrenOf };
+    return { parentOf, childrenOf, titleOf, flatIds };
   }, [treeQuery.data]);
+
+  // 阅读上下文：祖先面包屑与上一篇/下一篇（均来自当前空间目录树，树外文档不展示）
+  const docAncestors = useMemo(() => {
+    if (selectedDocId === undefined) return [];
+    const chain: Array<{ id: number; title: string }> = [];
+    let cursor = treeIndex.parentOf.get(selectedDocId) ?? null;
+    while (cursor !== null) {
+      chain.unshift({ id: cursor, title: treeIndex.titleOf.get(cursor) ?? '' });
+      cursor = treeIndex.parentOf.get(cursor) ?? null;
+    }
+    return chain;
+  }, [selectedDocId, treeIndex]);
+
+  const { prevDoc, nextDoc } = useMemo(() => {
+    if (selectedDocId === undefined) return { prevDoc: null, nextDoc: null };
+    const position = treeIndex.flatIds.indexOf(selectedDocId);
+    if (position === -1) return { prevDoc: null, nextDoc: null };
+    const toItem = (id: number | undefined) => (id === undefined ? null : { id, title: treeIndex.titleOf.get(id) ?? '' });
+    return { prevDoc: toItem(treeIndex.flatIds[position - 1]), nextDoc: toItem(treeIndex.flatIds[position + 1]) };
+  }, [selectedDocId, treeIndex]);
 
   // ─── 目录树节点操作 ───────────────────────────────────────────────────────
   const canManage = myRole === 'owner' || myRole === 'admin';
@@ -493,6 +518,12 @@ export default function WikiDocCenterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅在选中文档变化时上报
   }, [selectedDocId]);
 
+  // 切换文档回到顶部：滚动容器被 React 复用，上一篇的阅读位置会残留
+  const detailScrollRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    detailScrollRef.current?.scrollTo({ top: 0 });
+  }, [selectedDocId]);
+
   const detailContent = !selectedDocId ? (
     <Empty title="选择文档开始阅读" description="从左侧目录树选择一篇文档" style={{ marginTop: 80 }} />
   ) : docQuery.isPending ? (
@@ -501,6 +532,17 @@ export default function WikiDocCenterPage() {
     <Empty title="文档不可用" description="文档不存在或没有访问权限" style={{ marginTop: 80 }} />
   ) : (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* 层级面包屑：嵌套文档展示所属路径，可点击回到上层 */}
+      {docAncestors.length > 0 ? (
+        <Breadcrumb compact style={{ marginBottom: 6 }}>
+          {docAncestors.map((ancestor) => (
+            <Breadcrumb.Item key={ancestor.id} onClick={() => selectDoc(ancestor.id)}>
+              {ancestor.title}
+            </Breadcrumb.Item>
+          ))}
+          <Breadcrumb.Item>{doc.title}</Breadcrumb.Item>
+        </Breadcrumb>
+      ) : null}
       {/* 标题与操作 */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
@@ -650,7 +692,7 @@ export default function WikiDocCenterPage() {
       ) : null}
 
       {/* 正文与评论 */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <div ref={detailScrollRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
         <div onClickCapture={handleContentClick}>
           <MarkdownPreviewPanel content={doc.content ?? ''} style={{ height: 'auto', overflowY: 'visible' }} />
         </div>
@@ -658,6 +700,38 @@ export default function WikiDocCenterPage() {
         {doc.attachments?.length ? (
           <div style={{ ...READING_COLUMN_STYLE, marginTop: 16 }}>
             <FileAttachment mode="view" value={doc.attachments} title="附件" />
+          </div>
+        ) : null}
+
+        {prevDoc || nextDoc ? (
+          <div style={{ ...READING_COLUMN_STYLE, marginTop: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+              {prevDoc ? (
+                <Button
+                  theme="borderless"
+                  icon={<ChevronLeft size={14} />}
+                  style={{ maxWidth: '48%' }}
+                  onClick={() => selectDoc(prevDoc.id)}
+                >
+                  <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240, color: 'inherit' }}>
+                    上一篇：{prevDoc.title}
+                  </Text>
+                </Button>
+              ) : <span />}
+              {nextDoc ? (
+                <Button
+                  theme="borderless"
+                  icon={<ChevronRight size={14} />}
+                  iconPosition="right"
+                  style={{ maxWidth: '48%' }}
+                  onClick={() => selectDoc(nextDoc.id)}
+                >
+                  <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240, color: 'inherit' }}>
+                    下一篇：{nextDoc.title}
+                  </Text>
+                </Button>
+              ) : <span />}
+            </div>
           </div>
         ) : null}
 
