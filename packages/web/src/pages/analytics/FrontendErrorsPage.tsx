@@ -1244,6 +1244,7 @@ export default function FrontendErrorsPage() {
         visible={detailVisible}
         onCancel={() => setDetailVisible(false)}
         width={720}
+        className="zx-flat-panels"
       >
         {detail && !detailQuery.isFetching ? (
           <Space vertical align="start" style={{ width: '100%' }}>
