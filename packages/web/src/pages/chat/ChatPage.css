@@ -16,14 +16,14 @@
   50% { opacity: 0.4; transform: scale(0.7); }
 }
 
-/* 未读消息分割线（Semi Divider + 危险色调） */
+/* 未读消息分割线（Semi Divider + 主题色调） */
 .chat-unread-divider.semi-divider-with-text::before,
 .chat-unread-divider.semi-divider-with-text::after {
-  border-bottom-color: var(--semi-color-danger-light-active);
+  border-bottom-color: var(--semi-color-primary-light-active);
 }
 
 .chat-unread-divider .semi-divider_inner-text {
   font-size: 11px;
   font-weight: 400;
-  color: var(--semi-color-danger);
+  color: var(--semi-color-primary);
 }
