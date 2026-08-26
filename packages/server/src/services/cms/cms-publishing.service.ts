@@ -581,6 +581,8 @@ export function registerCmsPublishingTaskHandler(): void {
     allowConcurrent: true,
     maxAttempts: 3,
     retryDelayMs: 5000,
+    // 发布产物索引（cms_publish_artifacts）随任务级联删除，保留期需长于全局默认的 30 天
+    retentionDays: 180,
     async run(ctx) {
       const input = ctx.payload as unknown as CmsPublishSubmitInput;
       const systemTriggered = (ctx.payload as { systemTriggered?: unknown }).systemTriggered === true;
