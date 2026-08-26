@@ -290,7 +290,7 @@
 > **按设备分开看**：落点坐标是视口百分比，桌面端与移动端的分布不可直接比较，混算会让热区失真。
 > `deviceType`（`desktop` / `mobile` / `tablet` / `bot` / `unknown`）与 `source`（`web_admin` / `web_member` / `server`）用于分端与分来源查看，传空字符串表示不筛选，传非法值返回 400。
 
-> 区域维度（`componentArea`）依赖手动接入 `trackAreaClick`（见 [埋点采集 SDK](./tracking#手动埋点-api)）；
+> 区域维度（`componentArea`）依赖手动接入 `trackAreaClick`（见 [埋点采集 SDK](./tracking#公开-api-与手动埋点)）；
 > 不选区域时为全页模式，聚合 autocapture 自动采集的视口坐标，无需任何埋点代码。
 > 挫败点击事件不带坐标与区域，因此 `rageClicks` 只受页面、时间与设备/来源筛选影响。
 

@@ -15,7 +15,7 @@
 | 表格列显隐、刷新、全屏、尺寸/斑马纹、操作列 | [公共组件](/frontend/components#列表页基础组件) |
 | 时间列、空值、文本省略 | `packages/web/src/utils/table-columns.ts`；`constraints-frontend.md`「搜索栏与表格」 |
 | 弹窗表单、上传字段、时区字段、滑块输入、分割线 | [公共组件](/frontend/components#表单与展示组件)；`constraints-frontend.md`「表单与展示组件」 |
-| 多 Tab、左右分栏、平铺列表、统计卡、栅格、URL 状态 | `ui-patterns.md`；[公共组件](/frontend/components#布局导航与状态组件) |
+| 多 Tab、左右分栏、平铺列表、统计卡、栅格、URL 状态 | `ui-patterns.md`；[公共组件](/frontend/components#布局、导航与状态组件) |
 | 文件预览、附件上传、文件名列 | [文件预览组件](/frontend/file-preview)；[公共组件](/frontend/components#文件与预览组件) |
 | 认证、请求实例、账号切换、维护模式 | [认证与请求](/frontend/auth-request) |
 | 动态菜单、路由守卫、标签页、页面缓存 | [前端路由与菜单](/frontend/routing) |

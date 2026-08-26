@@ -46,7 +46,7 @@ Zenith Admin 的运维文档按能力拆分维护。运维能力覆盖服务器�
 监控指标、日志级别频率、告警规则与事件闭环详见[监控与告警](./observability.md)。
 ## 相关文档
 
-- [功能模块：系统运维](../product/features.md#系统运维)
+- [功能模块：系统运维](../product/features.md#运维与可观测性)
 - [WebSocket 事件](../backend/websocket-events.md)
 - [维护模式](../backend/maintenance-mode.md)
 - [安全体系](../backend/security.md)
