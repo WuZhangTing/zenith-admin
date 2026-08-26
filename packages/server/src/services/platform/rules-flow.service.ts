@@ -18,7 +18,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { validateExpression } from '../../lib/workflow-expression';
 import { evaluateDecisionFlowSteps } from '../../lib/rules-flow';
-import { resolveRuntimeDecisionTable, resolveDecisionTableForTest } from './rules.service';
+import { resolveRuntimeDecisionTable, resolveDecisionTableForTest, findWorkflowGatewayUsages } from './rules.service';
 import { recordRuleExecution, snapshotRuleScope } from './rules-executions.service';
 import { invalidateRuleRuntimeCache } from './rules-runtime-cache';
 
@@ -128,8 +128,17 @@ export async function updateDecisionFlow(id: number, input: UpdateDecisionFlowIn
   return mapDecisionFlow(row);
 }
 
+/** 删除前校验：仍被工作流网关引用时拒绝删除 */
+async function ensureFlowNotReferenced(row: FlowRow): Promise<void> {
+  const usages = await findWorkflowGatewayUsages(row.key, 'flow', row.tenantId ?? null);
+  if (usages.length === 0) return;
+  const names = usages.slice(0, 3).map((u) => u.name).join('、');
+  throw new HTTPException(400, { message: `决策流「${row.name}」被 ${usages.length} 处工作流引用（${names}${usages.length > 3 ? ' 等' : ''}），请先解除引用后再删除` });
+}
+
 export async function deleteDecisionFlow(id: number): Promise<void> {
-  await ensureDecisionFlow(id);
+  const row = await ensureDecisionFlow(id);
+  await ensureFlowNotReferenced(row);
   await db.delete(ruleDecisionFlows).where(eq(ruleDecisionFlows.id, id));
   invalidateRuleRuntimeCache();
 }
@@ -139,6 +148,8 @@ export async function deleteDecisionFlows(ids: number[]): Promise<void> {
   const tc = tenantCondition(ruleDecisionFlows, currentUser());
   const conds = [inArray(ruleDecisionFlows.id, ids)];
   if (tc) conds.push(tc);
+  const rows = await db.select().from(ruleDecisionFlows).where(and(...conds));
+  for (const row of rows) await ensureFlowNotReferenced(row);
   await db.delete(ruleDecisionFlows).where(and(...conds));
   invalidateRuleRuntimeCache();
 }

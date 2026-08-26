@@ -223,15 +223,29 @@ export async function listDecisionTableUsages(id: number): Promise<RuleUsageItem
   return findUsagesByKey(row.key, row.tenantId ?? null);
 }
 
-async function findUsagesByKey(key: string, tableTenantId: number | null): Promise<RuleUsageItem[]> {
+/**
+ * 工作流网关引用扫描（decisionRuleKey + decisionRefKind 精确匹配，供决策表/流/评分卡删除保护共用）。
+ * 租户资产只可能被本租户的工作流引用；平台级（null）资产可被任意租户引用，保持全量扫描。
+ */
+export async function findWorkflowGatewayUsages(key: string, kind: 'table' | 'scorecard' | 'flow', assetTenantId: number | null): Promise<RuleUsageItem[]> {
   const pattern = `%"decisionRuleKey":"${escapeLike(key)}"%`;
   const conds = [sql`${workflowDefinitions.flowData}::text LIKE ${pattern}`];
-  // 租户表只可能被本租户的工作流解析引用；平台级（null）表可被任意租户引用，保持全量扫描
-  if (tableTenantId != null) conds.push(eq(workflowDefinitions.tenantId, tableTenantId));
-  const defs = await db.select({ id: workflowDefinitions.id, name: workflowDefinitions.name, status: workflowDefinitions.status })
+  if (assetTenantId != null) conds.push(eq(workflowDefinitions.tenantId, assetTenantId));
+  const defs = await db.select({ id: workflowDefinitions.id, name: workflowDefinitions.name, status: workflowDefinitions.status, flowData: workflowDefinitions.flowData })
     .from(workflowDefinitions)
     .where(and(...conds));
-  const usages: RuleUsageItem[] = defs.map((d) => ({ type: 'workflow' as const, id: d.id, name: d.name, status: d.status }));
+  // LIKE 只做粗筛；kind 与 key 的精确匹配在 JS 侧完成（防止同 key 不同类型资产误报）
+  type GatewayNode = { data?: { type?: string; decisionRuleKey?: string | null; decisionRefKind?: string | null } };
+  return defs
+    .filter((d) => {
+      const nodes = ((d.flowData as { nodes?: GatewayNode[] } | null)?.nodes ?? []);
+      return nodes.some((n) => n.data?.decisionRuleKey === key && (n.data?.decisionRefKind ?? 'table') === kind);
+    })
+    .map((d) => ({ type: 'workflow' as const, id: d.id, name: d.name, status: d.status }));
+}
+
+async function findUsagesByKey(key: string, tableTenantId: number | null): Promise<RuleUsageItem[]> {
+  const usages = await findWorkflowGatewayUsages(key, 'table', tableTenantId);
   if (key === 'coupon_eligibility') {
     usages.push({ type: 'coupon', id: null, name: '优惠券领取资格判定（内置消费方）', status: null });
   }

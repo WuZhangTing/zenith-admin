@@ -320,8 +320,10 @@ export interface WorkflowNodeConfig {
   catchAction?: 'toAdmin' | 'notify' | 'terminate';
   /** catchAction='notify' 时额外通知的用户 ID（默认通知发起人+管理员） */
   catchNotifyUserIds?: number[] | null;
-  /** routeGateway：决策表 key，运行时进入网关前求值并把输出并入 formData，供出边条件选支 */
+  /** routeGateway：决策资产 key（配合 decisionRefKind），运行时进入网关前求值并把输出并入 formData，供出边条件选支 */
   decisionRuleKey?: string | null;
+  /** routeGateway：决策资产类型（table=决策表 / scorecard=评分卡 / flow=决策流），缺省 table */
+  decisionRefKind?: 'table' | 'scorecard' | 'flow' | null;
   /** 统一失败策略（外部副作用节点 trigger/subProcess/externalApproval 等；设置后优先于 legacy onFailure/catch 语义） */
   failurePolicy?: WorkflowNodeFailurePolicy;
 }

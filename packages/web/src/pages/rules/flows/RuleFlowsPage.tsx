@@ -11,7 +11,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
-import { useWorkflowDesignerDecisionTableOptions } from '@/hooks/queries/workflow-designer';
+import { useWorkflowDesignerDecisionRefOptions } from '@/hooks/queries/workflow-designer';
 import {
   ruleKeys,
   useDeleteRuleFlow,
@@ -71,7 +71,7 @@ export default function RuleFlowsPage() {
     },
     labelWidth: 80,
   });
-  const tableOptionsQuery = useWorkflowDesignerDecisionTableOptions(modal.visible);
+  const tableOptionsQuery = useWorkflowDesignerDecisionRefOptions('table', modal.visible);
   const tableOptions = tableOptionsQuery.data ?? [];
 
   const openCreate = () => { setSteps([]); modal.openCreate(); };

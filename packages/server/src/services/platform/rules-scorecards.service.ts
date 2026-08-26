@@ -21,6 +21,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { evaluateScorecard, type ScorecardLike } from '../../lib/rules-scorecard';
 import { recordRuleExecution, snapshotRuleScope } from './rules-executions.service';
 import { invalidateRuleRuntimeCache } from './rules-runtime-cache';
+import { findWorkflowGatewayUsages } from './rules.service';
 
 type Row = typeof ruleScorecards.$inferSelect;
 
@@ -143,7 +144,12 @@ export async function updateRuleScorecard(id: number, input: UpdateRuleScorecard
 }
 
 export async function deleteRuleScorecard(id: number): Promise<void> {
-  await ensureRuleScorecard(id);
+  const row = await ensureRuleScorecard(id);
+  const usages = await findWorkflowGatewayUsages(row.key, 'scorecard', row.tenantId ?? null);
+  if (usages.length > 0) {
+    const names = usages.slice(0, 3).map((u) => u.name).join('、');
+    throw new HTTPException(400, { message: `评分卡「${row.name}」被 ${usages.length} 处工作流引用（${names}${usages.length > 3 ? ' 等' : ''}），请先解除引用后再删除` });
+  }
   await db.delete(ruleScorecards).where(eq(ruleScorecards.id, id));
   invalidateRuleRuntimeCache();
 }

@@ -448,11 +448,12 @@ export async function advanceAndMaterialize(
   let rejected = false;
   let currentNodeKeys: string[] = [];
 
-  // 决策表→网关注入：routeGateway 配 decisionRuleKey 时，求值并把输出并入 formData，供出边条件选支
+  // 决策资产→网关注入：routeGateway 配 decisionRuleKey 时按 decisionRefKind（缺省决策表）求值，
+  // 输出并入 formData 供出边条件选支
   const decisionNodes = (ctx.flowData.nodes ?? []).filter((n) => n.data.type === 'routeGateway' && n.data.decisionRuleKey);
   for (const n of decisionNodes) {
     const decision = await decide(
-      { kind: 'table', key: n.data.decisionRuleKey! },
+      { kind: n.data.decisionRefKind ?? 'table', key: n.data.decisionRuleKey! },
       { form: ctx.formData, starter: ctx.starter },
       { caller: 'workflow.gateway', instanceId: ctx.instanceId, nodeKey: n.data.key },
     );

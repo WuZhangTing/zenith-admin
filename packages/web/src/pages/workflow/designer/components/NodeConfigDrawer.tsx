@@ -29,7 +29,7 @@ import { normalizeActionButtons } from '../action-buttons';
 import NodeListenersTab from './tabs/NodeListenersTab';
 import FailurePolicySection from './FailurePolicySection';
 import type { WorkflowNodeFailurePolicy } from '@zenith/shared/workflow';
-import { useWorkflowDesignerConnectorOptions, useWorkflowDesignerDecisionTableOptions } from '@/hooks/queries/workflow-designer';
+import { useWorkflowDesignerConnectorOptions, useWorkflowDesignerDecisionRefOptions, type WorkflowDecisionRefKind } from '@/hooks/queries/workflow-designer';
 
 interface UserOption { id: number; nickname: string; }
 interface RoleOption { id: number; name: string; }
@@ -273,9 +273,10 @@ export default function NodeConfigDrawer({
   const isSubProcess = node?.type === 'subProcess';
   const isRouteBranch = node?.type === 'routeBranch';
   const connectorOptionsQuery = useWorkflowDesignerConnectorOptions(visible && isTrigger);
-  const decisionTableOptionsQuery = useWorkflowDesignerDecisionTableOptions(visible && isRouteBranch);
+  const decisionRefKind = ((props.decisionRefKind as WorkflowDecisionRefKind) ?? 'table');
+  const decisionRefOptionsQuery = useWorkflowDesignerDecisionRefOptions(decisionRefKind, visible && isRouteBranch);
   const connectorOptions = connectorOptionsQuery.data ?? [];
-  const decisionTableOptions = decisionTableOptionsQuery.data ?? [];
+  const decisionRefOptions = decisionRefOptionsQuery.data ?? [];
   const hasAssigneeSettings = isApprover || isHandler || isCc;
   const hasFormPermission = isApprover || isHandler || isCc || isInitiator;
   const hasOperationPermission = isApprover;
@@ -997,19 +998,31 @@ export default function NodeConfigDrawer({
                 showClear
               />
             </Form.Slot>
-            <Form.Slot label="决策表（可选）">
-              <Select
-                value={(props.decisionRuleKey as string) ?? undefined}
-                onChange={(v) => handlePropsChange({ decisionRuleKey: v })}
-                placeholder={decisionTableOptions.length === 0 ? '规则中心暂无已发布决策表' : '选择决策表，进网关前求值并并入表单数据'}
-                style={{ width: '100%' }}
-                optionList={decisionTableOptions}
-                filter
-                emptyContent="暂无已发布决策表"
-                showClear
-              />
+            <Form.Slot label="决策资产（可选）">
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Select
+                  value={decisionRefKind}
+                  onChange={(v) => handlePropsChange({ decisionRefKind: v, decisionRuleKey: undefined })}
+                  style={{ width: 120, flexShrink: 0 }}
+                  optionList={[
+                    { value: 'table', label: '决策表' },
+                    { value: 'scorecard', label: '评分卡' },
+                    { value: 'flow', label: '决策流' },
+                  ]}
+                />
+                <Select
+                  value={(props.decisionRuleKey as string) ?? undefined}
+                  onChange={(v) => handlePropsChange({ decisionRuleKey: v })}
+                  placeholder={decisionRefOptions.length === 0 ? '规则中心暂无已发布资产' : '选择规则资产，进网关前求值并并入表单数据'}
+                  style={{ flex: 1 }}
+                  optionList={decisionRefOptions}
+                  filter
+                  emptyContent="暂无已发布资产"
+                  showClear
+                />
+              </div>
               <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
-                配置后，规则中心该决策表的输出字段将合并到表单数据，可在路由字段/出边条件中直接引用其输出键。
+                配置后，该规则资产的输出字段（决策表/决策流=输出键；评分卡=totalScore / grade / decision）将合并到表单数据，可在路由字段/出边条件中直接引用。
               </Typography.Text>
             </Form.Slot>
           </div>

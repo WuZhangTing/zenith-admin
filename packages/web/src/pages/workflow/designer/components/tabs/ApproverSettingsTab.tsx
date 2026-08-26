@@ -24,10 +24,10 @@ import {
 } from '../../constants';
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react';
 import ApproverAdvancedSections from './ApproverAdvancedSections';
-import { useWorkflowDesignerDecisionTableOptions } from '@/hooks/queries/workflow-designer';
+import { useWorkflowDesignerDecisionRefOptions } from '@/hooks/queries/workflow-designer';
 
 function DecisionTableSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const optionsQuery = useWorkflowDesignerDecisionTableOptions();
+  const optionsQuery = useWorkflowDesignerDecisionRefOptions('table');
   const opts = optionsQuery.data ?? [];
   return <Select value={value || undefined} onChange={(v) => onChange(v as string)} optionList={opts} filter showClear style={{ width: '100%' }}
     placeholder={opts.length === 0 ? '规则中心暂无已发布决策表' : '选择审批人矩阵决策表'} />;

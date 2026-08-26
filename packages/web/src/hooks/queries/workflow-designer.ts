@@ -9,7 +9,7 @@ import { workflowDefinitionKeys } from './workflow-definitions';
 export const workflowDesignerKeys = {
   all: ['workflow', 'designer'] as const,
   connectorOptions: ['workflow', 'designer', 'connectors', 'options'] as const,
-  decisionTableOptions: ['workflow', 'designer', 'decision-tables', 'options'] as const,
+  decisionRefOptions: (kind: WorkflowDecisionRefKind) => ['workflow', 'designer', 'decision-refs', kind, 'options'] as const,
   userGroupOptions: ['workflow', 'designer', 'user-groups', 'options'] as const,
   positionOptions: ['workflow', 'designer', 'positions', 'options'] as const,
   dataSourceOptions: ['workflow', 'designer', 'data-sources', 'options'] as const,
@@ -67,12 +67,21 @@ export function useWorkflowDesignerConnectorOptions(enabled = true) {
   });
 }
 
-export function useWorkflowDesignerDecisionTableOptions(enabled = true) {
+export type WorkflowDecisionRefKind = 'table' | 'scorecard' | 'flow';
+
+const DECISION_REF_ENDPOINTS: Record<WorkflowDecisionRefKind, string> = {
+  table: '/api/rules/decision-tables',
+  scorecard: '/api/rules/scorecards',
+  flow: '/api/rules/decision-flows',
+};
+
+/** 网关决策资产下拉源：按类型取规则中心已发布资产（决策表/评分卡/决策流） */
+export function useWorkflowDesignerDecisionRefOptions(kind: WorkflowDecisionRefKind, enabled = true) {
   return useQuery({
-    queryKey: workflowDesignerKeys.decisionTableOptions,
+    queryKey: workflowDesignerKeys.decisionRefOptions(kind),
     queryFn: () =>
       request
-        .get<{ list: Array<{ key: string; name: string }> }>('/api/rules/decision-tables?status=published&pageSize=100')
+        .get<{ list: Array<{ key: string; name: string }> }>(`${DECISION_REF_ENDPOINTS[kind]}?status=published&pageSize=100`)
         .then(unwrap)
         .then((data) => data.list.map((t) => ({ value: t.key, label: `${t.name}（${t.key}）` }))),
     staleTime: LOOKUP_STALE_TIME,
