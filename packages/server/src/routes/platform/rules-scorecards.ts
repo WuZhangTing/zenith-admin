@@ -5,15 +5,37 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { RuleScorecardDTO, RuleScorecardEvaluateResultDTO } from '../../lib/openapi-dtos';
+import { RuleScorecardDTO, RuleScorecardEvaluateResultDTO, RuleAssetVersionDTO } from '../../lib/openapi-dtos';
 import { createRuleScorecardSchema, updateRuleScorecardSchema, evaluateRuleScorecardSchema, toggleDecisionTableSchema } from '@zenith/shared/rules';
 import {
   listRuleScorecards, getRuleScorecard, createRuleScorecard, updateRuleScorecard, deleteRuleScorecard,
   publishRuleScorecard, toggleRuleScorecard, testEvaluateRuleScorecard, evaluateRuleScorecardByKey,
-  ensureRuleScorecard, mapRuleScorecard,
+  ensureRuleScorecard, mapRuleScorecard, listRuleScorecardVersions, rollbackRuleScorecard,
 } from '../../services/platform/rules-scorecards.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+
+const versionsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/versions', tags: ['RuleScorecards'], summary: '评分卡版本历史',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:scorecard:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(RuleAssetVersionDTO), 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listRuleScorecardVersions(c.req.valid('param').id)), 200),
+});
+
+const rollbackRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/rollback/{version}', tags: ['RuleScorecards'], summary: '回滚到历史版本（覆盖编辑态，置为草稿）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:scorecard:update', audit: { description: '回滚评分卡版本', module: '规则中心' } })] as const,
+    request: { params: z.object({ id: z.coerce.number().int(), version: z.coerce.number().int() }) },
+    responses: { ...commonErrorResponses, ...ok(RuleScorecardDTO, '回滚成功') },
+  }),
+  handler: async (c) => { const { id, version } = c.req.valid('param'); return c.json(okBody(await rollbackRuleScorecard(id, version), '回滚成功'), 200); },
+});
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -123,6 +145,8 @@ router.openapiRoutes([
   listRoute,
   evaluateByKeyRoute,
   createRouteDef,
+  versionsRoute,
+  rollbackRoute,
   detailRoute,
   updateRoute,
   deleteRoute,

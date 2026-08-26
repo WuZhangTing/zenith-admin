@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { RuleDecisionFlow, RuleDecisionTable, RuleEvaluateResult, RuleExecution, RuleExecutionSource, RuleFlowEvaluateResult, RuleList, RuleListItem, RuleRefKind, RuleShadowRunResult, RuleSimulateResult, RuleTableStats, RuleTestCase, RuleTestRunResult, RuleUsageItem, RuleVersionDiff } from '@zenith/shared/rules';
+import type { RuleAssetVersion, RuleDecisionFlow, RuleDecisionTable, RuleEvaluateResult, RuleExecution, RuleExecutionSource, RuleFlowEvaluateResult, RuleList, RuleListItem, RuleRefKind, RuleShadowRunResult, RuleSimulateResult, RuleTableStats, RuleTestCase, RuleTestRunResult, RuleUsageItem, RuleVersionDiff } from '@zenith/shared/rules';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 
@@ -44,6 +44,7 @@ export const ruleKeys = {
     all: ['rules', 'flows'] as const,
     lists: ['rules', 'flows', 'list'] as const,
     list: (params: RuleFlowListParams) => ['rules', 'flows', 'list', params] as const,
+    versions: (id: number | undefined) => ['rules', 'flows', 'versions', id] as const,
   },
   ruleLists: {
     all: ['rules', 'lists'] as const,
@@ -305,6 +306,23 @@ export function useTestRuleFlow() {
   return useMutation({
     mutationFn: ({ id, input }: { id: number; input: unknown }) =>
       request.post<RuleFlowEvaluateResult>(`/api/rules/decision-flows/${id}/test`, { input }).then(unwrap),
+  });
+}
+
+export function useRuleFlowVersions(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ruleKeys.flows.versions(id),
+    queryFn: () => request.get<RuleAssetVersion[]>(`/api/rules/decision-flows/${id}/versions`).then(unwrap),
+    enabled: enabled && id !== undefined,
+  });
+}
+
+export function useRollbackRuleFlow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: number; version: number }) =>
+      request.post<RuleDecisionFlow>(`/api/rules/decision-flows/${id}/rollback/${version}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ruleKeys.flows.all }),
   });
 }
 

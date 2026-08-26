@@ -6,15 +6,38 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody, BatchIdsBody,
 } from '../../lib/openapi-schemas';
-import { DecisionFlowDTO, RuleFlowEvaluateResultDTO } from '../../lib/openapi-dtos';
+import { DecisionFlowDTO, RuleFlowEvaluateResultDTO, RuleAssetVersionDTO } from '../../lib/openapi-dtos';
 import { createDecisionFlowSchema, updateDecisionFlowSchema, toggleDecisionTableSchema } from '@zenith/shared/rules';
 import {
   listDecisionFlows, getDecisionFlow, getDecisionFlowBeforeAudit,
   createDecisionFlow, updateDecisionFlow, deleteDecisionFlow, deleteDecisionFlows,
   toggleDecisionFlow, publishDecisionFlow, testEvaluateDecisionFlow, evaluateDecisionFlowByKey,
+  listDecisionFlowVersions, rollbackDecisionFlow,
 } from '../../services/platform/rules-flow.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+
+const versionsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/versions', tags: ['DecisionFlows'], summary: '决策流版本历史',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:flow:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(RuleAssetVersionDTO), 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listDecisionFlowVersions(c.req.valid('param').id)), 200),
+});
+
+const rollbackRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/rollback/{version}', tags: ['DecisionFlows'], summary: '回滚到历史版本（覆盖编辑态，置为草稿）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:flow:update', audit: { description: '回滚决策流版本', module: '规则中心' } })] as const,
+    request: { params: z.object({ id: z.coerce.number().int(), version: z.coerce.number().int() }) },
+    responses: { ...commonErrorResponses, ...ok(DecisionFlowDTO, '回滚成功') },
+  }),
+  handler: async (c) => { const { id, version } = c.req.valid('param'); return c.json(okBody(await rollbackDecisionFlow(id, version), '回滚成功'), 200); },
+});
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -141,6 +164,6 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, getRoute, createRouteDef, updateRoute, publishRoute, toggleRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
+router.openapiRoutes([listRoute, getRoute, versionsRoute, rollbackRoute, createRouteDef, updateRoute, publishRoute, toggleRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
 
 export default router;

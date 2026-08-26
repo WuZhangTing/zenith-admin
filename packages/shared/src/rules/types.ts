@@ -165,6 +165,16 @@ export interface RuleFlowEvaluateResult {
   steps: RuleFlowStepTrace[];
 }
 
+// ─── 规则中心：资产版本快照（决策流/评分卡通用） ─────────────────────────────────
+export interface RuleAssetVersion {
+  id: number;
+  refKind: 'flow' | 'scorecard';
+  refId: number;
+  version: number;
+  publishedBy: number | null;
+  publishedAt: string;
+}
+
 // ─── 规则中心：评分卡 ────────────────────────────────────────────────────────────
 /** 分段匹配方式：range=数值区间[min,max)；eq=等值；in=集合；default=兜底恒中 */
 export type RuleScorecardBandOp = 'range' | 'eq' | 'in' | 'default';

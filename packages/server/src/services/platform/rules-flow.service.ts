@@ -9,7 +9,7 @@ import { and, desc, eq, like, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { RuleFlowStep, RuleFlowEvaluateResult } from '@zenith/shared/rules';
 import { db } from '../../db';
-import { ruleDecisionFlows, ruleDecisionTables } from '../../db/schema';
+import { ruleDecisionFlows, ruleDecisionTables, ruleAssetVersions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { escapeLike } from '../../lib/where-helpers';
@@ -199,15 +199,51 @@ async function ensureFlowPublishable(row: FlowRow): Promise<void> {
   if (bad.length > 0) throw new HTTPException(400, { message: `发布受阻：引用的决策表未发布或不存在：${bad.join('、')}` });
 }
 
-/** 发布：编辑态 steps 固化为 publishedSteps，版本 +1 */
+/** 发布：编辑态 steps 固化为 publishedSteps 并写版本快照；首次发布保持版本 1，此后 +1 */
 export async function publishDecisionFlow(id: number) {
   const row = await ensureDecisionFlow(id);
   await ensureFlowPublishable(row);
-  const [updated] = await db.update(ruleDecisionFlows)
-    .set({ status: 'published', publishedSteps: row.steps, publishedAt: new Date(), version: row.version + 1 })
-    .where(eq(ruleDecisionFlows.id, id)).returning();
+  const nextVersion = row.publishedAt == null ? row.version : row.version + 1;
+  const updated = await db.transaction(async (tx) => {
+    const [u] = await tx.update(ruleDecisionFlows)
+      .set({ status: 'published', publishedSteps: row.steps, publishedAt: new Date(), version: nextVersion })
+      .where(eq(ruleDecisionFlows.id, id)).returning();
+    await tx.insert(ruleAssetVersions).values({
+      refKind: 'flow', refId: id, version: nextVersion,
+      snapshot: { name: row.name, description: row.description, steps: row.steps },
+      publishedBy: currentUser()?.userId ?? null,
+      tenantId: row.tenantId,
+    }).onConflictDoNothing();
+    return u;
+  });
   invalidateRuleRuntimeCache();
   return mapDecisionFlow(updated);
+}
+
+/** 版本历史（元信息，不含快照体） */
+export async function listDecisionFlowVersions(id: number) {
+  await ensureDecisionFlow(id);
+  const rows = await db.select({
+    id: ruleAssetVersions.id, refKind: ruleAssetVersions.refKind, refId: ruleAssetVersions.refId,
+    version: ruleAssetVersions.version, publishedBy: ruleAssetVersions.publishedBy, publishedAt: ruleAssetVersions.publishedAt,
+  }).from(ruleAssetVersions)
+    .where(and(eq(ruleAssetVersions.refKind, 'flow'), eq(ruleAssetVersions.refId, id)))
+    .orderBy(desc(ruleAssetVersions.version));
+  return rows.map((r) => ({ ...r, refKind: 'flow' as const, publishedAt: formatDateTime(r.publishedAt) }));
+}
+
+/** 回滚：用历史版本快照覆盖当前编辑态并置为草稿（不动 publishedSteps，线上继续跑既有发布） */
+export async function rollbackDecisionFlow(id: number, version: number) {
+  await ensureDecisionFlow(id);
+  const [v] = await db.select().from(ruleAssetVersions)
+    .where(and(eq(ruleAssetVersions.refKind, 'flow'), eq(ruleAssetVersions.refId, id), eq(ruleAssetVersions.version, version))).limit(1);
+  if (!v) throw new HTTPException(404, { message: `版本 v${version} 不存在` });
+  const snapshot = v.snapshot as { name: string; description: string | null; steps: RuleFlowStep[] };
+  const [row] = await db.update(ruleDecisionFlows)
+    .set({ name: snapshot.name, description: snapshot.description ?? null, steps: snapshot.steps ?? [], status: 'draft' })
+    .where(eq(ruleDecisionFlows.id, id)).returning();
+  invalidateRuleRuntimeCache();
+  return mapDecisionFlow(row);
 }
 
 /** 测试求值：跑编辑态 steps；引用表优先发布快照，未发布草稿回退编辑态。留痕 source=test */

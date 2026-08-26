@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { RuleScorecard, RuleScorecardEvaluateResult } from '@zenith/shared/rules';
+import type { RuleAssetVersion, RuleScorecard, RuleScorecardEvaluateResult } from '@zenith/shared/rules';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 
@@ -16,6 +16,7 @@ export const ruleScorecardKeys = {
   all: ['rules', 'scorecards'] as const,
   lists: ['rules', 'scorecards', 'list'] as const,
   list: (params: RuleScorecardListParams) => ['rules', 'scorecards', 'list', params] as const,
+  versions: (id: number | undefined) => ['rules', 'scorecards', 'versions', id] as const,
 };
 
 export function useRuleScorecardList(params: RuleScorecardListParams) {
@@ -68,5 +69,22 @@ export function useEvaluateRuleScorecard() {
   return useMutation({
     mutationFn: ({ id, input }: { id: number; input: Record<string, unknown> }) =>
       request.post<RuleScorecardEvaluateResult>(`/api/rules/scorecards/${id}/evaluate`, { input }).then(unwrap),
+  });
+}
+
+export function useRuleScorecardVersions(id: number | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ruleScorecardKeys.versions(id),
+    queryFn: () => request.get<RuleAssetVersion[]>(`/api/rules/scorecards/${id}/versions`).then(unwrap),
+    enabled: enabled && id !== undefined,
+  });
+}
+
+export function useRollbackRuleScorecard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: number; version: number }) =>
+      request.post<RuleScorecard>(`/api/rules/scorecards/${id}/rollback/${version}`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ruleScorecardKeys.all }),
   });
 }

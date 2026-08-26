@@ -112,6 +112,26 @@ export type RuleExecutionRow = typeof ruleExecutions.$inferSelect;
 
 export type NewRuleExecution = typeof ruleExecutions.$inferInsert;
 
+// 规则资产版本快照（决策流 / 评分卡通用；决策表沿用专表 rule_decision_table_versions）：
+// 发布时写入一行，支持版本历史查看与回滚编辑态
+export const ruleAssetVersions = pgTable('rule_asset_versions', {
+  id: serial('id').primaryKey(),
+  refKind: varchar('ref_kind', { length: 16 }).notNull(), // flow | scorecard
+  refId: integer('ref_id').notNull(),
+  version: integer('version').notNull(),
+  snapshot: jsonb('snapshot').notNull().default(sql`'{}'::jsonb`),
+  publishedBy: integer('published_by').references(() => users.id, { onDelete: 'set null' }),
+  publishedAt: timestamp('published_at', { withTimezone: true }).defaultNow().notNull(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('rule_asset_versions_tenant_idx').on(t.tenantId),
+  unique('rule_asset_versions_uniq').on(t.refKind, t.refId, t.version),
+]);
+
+export type RuleAssetVersionRow = typeof ruleAssetVersions.$inferSelect;
+
+export type NewRuleAssetVersion = typeof ruleAssetVersions.$inferInsert;
+
 // ─── 决策流：多决策表顺序编排（DRD 简化版），步骤输出并入 scope 供后续步骤引用 ────
 export const ruleDecisionFlows = pgTable('rule_decision_flows', {
   id: serial('id').primaryKey(),

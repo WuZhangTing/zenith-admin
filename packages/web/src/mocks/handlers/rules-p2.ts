@@ -1,7 +1,7 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, conflict } from '@/mocks/utils/handlers';
 import type { RuleDecisionFlow, RuleFlowStep, RuleFlowStepTrace, RuleList, RuleScorecard, RuleScorecardEvaluateResult } from '@zenith/shared/rules';
-import { mockDecisionFlows, getNextFlowId, mockRuleLists, mockRuleListItems, getNextListId, getNextListItemId, mockRuleScorecards, getNextScorecardId } from '@/mocks/data/rules-p2';
+import { mockDecisionFlows, getNextFlowId, mockRuleLists, mockRuleListItems, getNextListId, getNextListItemId, mockRuleScorecards, getNextScorecardId, mockAssetVersions, getNextAssetVersionId } from '@/mocks/data/rules-p2';
 import { mockDecisionTables } from '@/mocks/data/decision-tables';
 import { mockPaymentRiskRules } from './payment-bext';
 import { evaluateMockDecisionTable } from './decision-tables';
@@ -110,8 +110,25 @@ export const rulesP2Handlers = [
     if (r.steps.length === 0) return badRequest('决策流至少需要一个步骤', { status: 400 });
     const bad = r.steps.filter((s) => mockDecisionTables.find((t) => t.key === s.tableKey)?.status !== 'published');
     if (bad.length > 0) return badRequest(`发布受阻：引用的决策表未发布或不存在：${bad.map((s) => s.tableKey).join('、')}`, { status: 400 });
-    r.status = 'published'; r.publishedSteps = JSON.parse(JSON.stringify(r.steps)); r.publishedAt = mockDateTime(); r.version += 1; r.dirty = false;
+    const nextVersion = r.publishedAt == null ? r.version : r.version + 1;
+    r.status = 'published'; r.publishedSteps = JSON.parse(JSON.stringify(r.steps)); r.publishedAt = mockDateTime(); r.version = nextVersion; r.dirty = false;
+    mockAssetVersions.unshift({ id: getNextAssetVersionId(), refKind: 'flow', refId: r.id, version: nextVersion, publishedBy: 1, publishedAt: r.publishedAt, snapshot: { name: r.name, description: r.description, steps: JSON.parse(JSON.stringify(r.steps)) } });
     return ok(r, '发布成功');
+  }),
+  http.get('/api/rules/decision-flows/:id/versions', ({ params }) => {
+    const list = mockAssetVersions.filter((v) => v.refKind === 'flow' && v.refId === Number(params.id))
+      .map(({ snapshot: _s, ...meta }) => meta);
+    return ok(list);
+  }),
+  http.post('/api/rules/decision-flows/:id/rollback/:version', ({ params }) => {
+    const r = mockDecisionFlows.find((t) => t.id === Number(params.id));
+    if (!r) return notFound('决策流不存在', { status: 404 });
+    const v = mockAssetVersions.find((x) => x.refKind === 'flow' && x.refId === r.id && x.version === Number(params.version));
+    if (!v) return notFound(`版本 v${params.version} 不存在`, { status: 404 });
+    const snap = v.snapshot as { name: string; description: string | null; steps: RuleFlowStep[] };
+    Object.assign(r, { name: snap.name, description: snap.description ?? null, steps: snap.steps ?? [], status: 'draft', updatedAt: mockDateTime() });
+    r.dirty = flowDirty(r);
+    return ok(r, '回滚成功');
   }),
   http.post('/api/rules/decision-flows/:id/toggle', async ({ params, request }) => {
     const r = mockDecisionFlows.find((t) => t.id === Number(params.id));
@@ -175,8 +192,24 @@ export const rulesP2Handlers = [
     const r = mockRuleScorecards.find((t) => t.id === Number(params.id));
     if (!r) return notFound('评分卡不存在', { status: 404 });
     if (r.variables.length === 0) return badRequest('评分卡至少需要一个变量', { status: 400 });
-    r.status = 'published'; r.publishedAt = mockDateTime(); r.version = r.publishedAt && r.dirty ? r.version + 1 : r.version; r.dirty = false;
+    const nextVersion = r.publishedAt == null ? r.version : r.version + 1;
+    r.status = 'published'; r.publishedAt = mockDateTime(); r.version = nextVersion; r.dirty = false;
+    mockAssetVersions.unshift({ id: getNextAssetVersionId(), refKind: 'scorecard', refId: r.id, version: nextVersion, publishedBy: 1, publishedAt: r.publishedAt, snapshot: { name: r.name, description: r.description, baseScore: r.baseScore, variables: JSON.parse(JSON.stringify(r.variables)), grades: JSON.parse(JSON.stringify(r.grades)) } });
     return ok(r, '发布成功');
+  }),
+  http.get('/api/rules/scorecards/:id/versions', ({ params }) => {
+    const list = mockAssetVersions.filter((v) => v.refKind === 'scorecard' && v.refId === Number(params.id))
+      .map(({ snapshot: _s, ...meta }) => meta);
+    return ok(list);
+  }),
+  http.post('/api/rules/scorecards/:id/rollback/:version', ({ params }) => {
+    const r = mockRuleScorecards.find((t) => t.id === Number(params.id));
+    if (!r) return notFound('评分卡不存在', { status: 404 });
+    const v = mockAssetVersions.find((x) => x.refKind === 'scorecard' && x.refId === r.id && x.version === Number(params.version));
+    if (!v) return notFound(`版本 v${params.version} 不存在`, { status: 404 });
+    const snap = v.snapshot as { name: string; description: string | null; baseScore: number; variables: RuleScorecard['variables']; grades: RuleScorecard['grades'] };
+    Object.assign(r, { name: snap.name, description: snap.description ?? null, baseScore: snap.baseScore ?? 0, variables: snap.variables ?? [], grades: snap.grades ?? [], status: 'draft', updatedAt: mockDateTime() });
+    return ok(r, '回滚成功');
   }),
   http.post('/api/rules/scorecards/:id/toggle', async ({ params, request }) => {
     const r = mockRuleScorecards.find((t) => t.id === Number(params.id));

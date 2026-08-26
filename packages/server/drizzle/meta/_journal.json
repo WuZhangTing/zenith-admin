@@ -176,6 +176,13 @@
       "when": 1787717349196,
       "tag": "0024_pink_namorita",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787720076504,
+      "tag": "0025_glamorous_violations",
+      "breakpoints": true
     }
   ]
 }

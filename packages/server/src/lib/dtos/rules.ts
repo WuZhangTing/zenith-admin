@@ -131,6 +131,17 @@ export const RuleExecutionDTO = z
   })
   .openapi('RuleExecution');
 
+export const RuleAssetVersionDTO = z
+  .object({
+    id: z.number().int(),
+    refKind: z.enum(['flow', 'scorecard']),
+    refId: z.number().int(),
+    version: z.number().int(),
+    publishedBy: z.number().int().nullable(),
+    publishedAt: z.string(),
+  })
+  .openapi('RuleAssetVersion');
+
 // ─── 决策流 ─────────────────────────────────────────────────────────────────────
 const RuleFlowStepDTO = z.object({
   id: z.string(),

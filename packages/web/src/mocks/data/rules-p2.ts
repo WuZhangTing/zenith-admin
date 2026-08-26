@@ -52,3 +52,11 @@ export const mockRuleScorecards: RuleScorecard[] = SEED_RULE_SCORECARDS.map((s) 
 
 let scorecardSeq = mockRuleScorecards.length + 1;
 export const getNextScorecardId = () => scorecardSeq++;
+
+// ─── 资产版本快照（决策流/评分卡通用；snapshot 仅 mock 内部使用，不出现在响应中） ──
+export const mockAssetVersions: Array<{
+  id: number; refKind: 'flow' | 'scorecard'; refId: number; version: number;
+  publishedBy: number | null; publishedAt: string; snapshot: Record<string, unknown>;
+}> = [];
+let assetVersionSeq = 1;
+export const getNextAssetVersionId = () => assetVersionSeq++;

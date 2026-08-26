@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Banner, Button, Divider, Input, InputNumber, Modal, Select, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Divider, Input, InputNumber, List, Modal, Select, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
 import type { RuleScorecard, RuleScorecardBand, RuleScorecardEvaluateResult, RuleScorecardGrade, RuleScorecardVariable } from '@zenith/shared/rules';
@@ -15,7 +15,8 @@ import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import {
   useDeleteRuleScorecard, useEvaluateRuleScorecard, usePublishRuleScorecard,
-  useRuleScorecardList, useSaveRuleScorecard, useToggleRuleScorecard,
+  useRollbackRuleScorecard, useRuleScorecardList, useRuleScorecardVersions,
+  useSaveRuleScorecard, useToggleRuleScorecard,
 } from '@/hooks/queries/rules-scorecards';
 
 const { Text } = Typography;
@@ -77,6 +78,7 @@ export default function RuleScorecardsPage() {
   const [testTarget, setTestTarget] = useState<RuleScorecard | null>(null);
   const [testInput, setTestInput] = useState('');
   const [testResult, setTestResult] = useState<RuleScorecardEvaluateResult | null>(null);
+  const [versionsRow, setVersionsRow] = useState<RuleScorecard | null>(null);
 
   const listQuery = useRuleScorecardList({
     page, pageSize,
@@ -88,6 +90,8 @@ export default function RuleScorecardsPage() {
   const deleteMutation = useDeleteRuleScorecard();
   const publishMutation = usePublishRuleScorecard();
   const toggleMutation = useToggleRuleScorecard();
+  const versionsQuery = useRuleScorecardVersions(versionsRow?.id, !!versionsRow);
+  const rollbackMutation = useRollbackRuleScorecard();
   const evaluateMutation = useEvaluateRuleScorecard();
 
   const handleSearch = () => { setPage(1); setSubmittedKeyword(draftKeyword.trim()); setSubmittedStatus(draftStatus); };
@@ -190,6 +194,7 @@ export default function RuleScorecardsPage() {
         { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(r) },
         { key: 'publish', label: '发布', hidden: !canPublish, onClick: () => handlePublish(r) },
         { key: 'test', label: '测试', hidden: !canEvaluate, onClick: () => openTest(r) },
+        { key: 'versions', label: '版本', onClick: () => setVersionsRow(r) },
         {
           key: 'toggle', label: r.status === 'disabled' ? '启用' : '停用', hidden: !canEdit || r.status === 'draft',
           onClick: async () => { await toggleMutation.mutateAsync({ id: r.id, enabled: r.status === 'disabled' }); Toast.success('操作成功'); },
@@ -387,6 +392,45 @@ export default function RuleScorecardsPage() {
             />
           </div>
         ) : null}
+      </AppModal>
+
+      <AppModal
+        title={versionsRow ? `版本历史 · ${versionsRow.name}` : '版本历史'}
+        visible={!!versionsRow}
+        onCancel={() => setVersionsRow(null)}
+        footer={null}
+        width={460}
+      >
+        <List
+          dataSource={versionsQuery.data ?? []}
+          emptyContent="暂无发布版本"
+          renderItem={(v) => (
+            <List.Item
+              main={(
+                <Space spacing={8} wrap>
+                  <Tag size="small" color="blue">v{v.version}</Tag>
+                  <Text type="tertiary" size="small">{v.publishedAt}</Text>
+                </Space>
+              )}
+              extra={canEdit ? (
+                <Button
+                  size="small"
+                  loading={rollbackMutation.isPending}
+                  onClick={() => { Modal.confirm({
+                    title: `回滚到 v${v.version}？`,
+                    content: '历史快照将覆盖当前编辑态并置为草稿；线上继续运行既有发布，重新发布后生效',
+                    onOk: async () => {
+                      if (!versionsRow) return;
+                      await rollbackMutation.mutateAsync({ id: versionsRow.id, version: v.version });
+                      Toast.success('回滚成功');
+                      setVersionsRow(null);
+                    },
+                  }); }}
+                >回滚</Button>
+              ) : undefined}
+            />
+          )}
+        />
       </AppModal>
     </div>
   );

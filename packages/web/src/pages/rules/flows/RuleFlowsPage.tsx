@@ -16,7 +16,9 @@ import {
   ruleKeys,
   useDeleteRuleFlow,
   usePublishRuleFlow,
+  useRollbackRuleFlow,
   useRuleFlowList,
+  useRuleFlowVersions,
   useSaveRuleFlow,
   useTestRuleFlow,
   useToggleRuleFlow,
@@ -50,6 +52,7 @@ export default function RuleFlowsPage() {
   const [testRow, setTestRow] = useState<RuleDecisionFlow | null>(null);
   const [testInput, setTestInput] = useState('{\n  "form": {}\n}');
   const [testResult, setTestResult] = useState<RuleFlowEvaluateResult | null>(null);
+  const [versionsRow, setVersionsRow] = useState<RuleDecisionFlow | null>(null);
 
   const listQuery = useRuleFlowList({ page, pageSize, keyword: submittedKeyword || undefined });
   const data = listQuery.data ?? null;
@@ -58,6 +61,8 @@ export default function RuleFlowsPage() {
   const toggleMutation = useToggleRuleFlow();
   const deleteMutation = useDeleteRuleFlow();
   const testMutation = useTestRuleFlow();
+  const versionsQuery = useRuleFlowVersions(versionsRow?.id, !!versionsRow);
+  const rollbackMutation = useRollbackRuleFlow();
   const modal = useEditModal<RuleDecisionFlow>({
     entityName: '决策流',
     save: saveMutation,
@@ -135,6 +140,7 @@ export default function RuleFlowsPage() {
         { key: 'test', label: '测试', onClick: () => { setTestRow(r); setTestResult(null); } },
         { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(r) },
         { key: 'publish', label: '发布', hidden: !canPublish || r.status === 'disabled', onClick: () => handlePublish(r) },
+        { key: 'versions', label: '版本', onClick: () => setVersionsRow(r) },
         { key: 'toggle', label: r.status === 'disabled' ? '启用' : '停用', danger: r.status !== 'disabled', hidden: !canPublish, onClick: () => handleToggle(r) },
         { key: 'delete', label: '删除', danger: true, hidden: !canDelete, onClick: () => handleDelete(r) },
       ],
@@ -222,6 +228,44 @@ export default function RuleFlowsPage() {
             />
           </div>
         )}
+      </SideSheet>
+
+      <SideSheet
+        title={versionsRow ? `版本历史 · ${versionsRow.name}` : '版本历史'}
+        visible={!!versionsRow}
+        onCancel={() => setVersionsRow(null)}
+        width={420}
+      >
+        <List
+          dataSource={versionsQuery.data ?? []}
+          emptyContent="暂无发布版本"
+          renderItem={(v) => (
+            <List.Item
+              main={(
+                <Space spacing={8} wrap>
+                  <Tag size="small" color="blue">v{v.version}</Tag>
+                  <Text type="tertiary" size="small">{v.publishedAt}</Text>
+                </Space>
+              )}
+              extra={canEdit ? (
+                <Button
+                  size="small"
+                  loading={rollbackMutation.isPending}
+                  onClick={() => { Modal.confirm({
+                    title: `回滚到 v${v.version}？`,
+                    content: '历史快照将覆盖当前编辑态并置为草稿；线上继续运行既有发布，重新发布后生效',
+                    onOk: async () => {
+                      if (!versionsRow) return;
+                      await rollbackMutation.mutateAsync({ id: versionsRow.id, version: v.version });
+                      Toast.success('回滚成功');
+                      setVersionsRow(null);
+                    },
+                  }); }}
+                >回滚</Button>
+              ) : undefined}
+            />
+          )}
+        />
       </SideSheet>
     </div>
   );

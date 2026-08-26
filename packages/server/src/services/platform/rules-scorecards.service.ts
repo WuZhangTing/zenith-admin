@@ -11,7 +11,7 @@ import type {
 } from '@zenith/shared/rules';
 import type { CreateRuleScorecardInput, UpdateRuleScorecardInput } from '@zenith/shared/rules';
 import { db } from '../../db';
-import { ruleScorecards } from '../../db/schema';
+import { ruleScorecards, ruleAssetVersions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { escapeLike } from '../../lib/where-helpers';
@@ -177,18 +177,58 @@ function ensureScorecardPublishable(row: Row): void {
   }
 }
 
-/** 发布：固化快照，version +1（首次发布保持 1），状态置 published */
+/** 发布：固化快照并写版本历史，version +1（首次发布保持 1），状态置 published */
 export async function publishRuleScorecard(id: number) {
   const row = await ensureRuleScorecard(id);
   ensureScorecardPublishable(row);
-  const [updated] = await db.update(ruleScorecards).set({
-    status: 'published',
-    publishedAt: new Date(),
-    publishedSnapshot: draftSnapshot(row),
-    version: row.publishedSnapshot == null ? row.version : row.version + 1,
-  }).where(eq(ruleScorecards.id, id)).returning();
+  const nextVersion = row.publishedSnapshot == null ? row.version : row.version + 1;
+  const updated = await db.transaction(async (tx) => {
+    const [u] = await tx.update(ruleScorecards).set({
+      status: 'published',
+      publishedAt: new Date(),
+      publishedSnapshot: draftSnapshot(row),
+      version: nextVersion,
+    }).where(eq(ruleScorecards.id, id)).returning();
+    await tx.insert(ruleAssetVersions).values({
+      refKind: 'scorecard', refId: id, version: nextVersion,
+      snapshot: { name: row.name, description: row.description, ...draftSnapshot(row) },
+      publishedBy: currentUser()?.userId ?? null,
+      tenantId: row.tenantId,
+    }).onConflictDoNothing();
+    return u;
+  });
   invalidateRuleRuntimeCache();
   return mapRuleScorecard(updated);
+}
+
+/** 版本历史（元信息，不含快照体） */
+export async function listRuleScorecardVersions(id: number) {
+  await ensureRuleScorecard(id);
+  const rows = await db.select({
+    id: ruleAssetVersions.id, refKind: ruleAssetVersions.refKind, refId: ruleAssetVersions.refId,
+    version: ruleAssetVersions.version, publishedBy: ruleAssetVersions.publishedBy, publishedAt: ruleAssetVersions.publishedAt,
+  }).from(ruleAssetVersions)
+    .where(and(eq(ruleAssetVersions.refKind, 'scorecard'), eq(ruleAssetVersions.refId, id)))
+    .orderBy(desc(ruleAssetVersions.version));
+  return rows.map((r) => ({ ...r, refKind: 'scorecard' as const, publishedAt: formatDateTime(r.publishedAt) }));
+}
+
+/** 回滚：用历史版本快照覆盖当前编辑态并置为草稿（不动 publishedSnapshot，线上继续跑既有发布） */
+export async function rollbackRuleScorecard(id: number, version: number) {
+  await ensureRuleScorecard(id);
+  const [v] = await db.select().from(ruleAssetVersions)
+    .where(and(eq(ruleAssetVersions.refKind, 'scorecard'), eq(ruleAssetVersions.refId, id), eq(ruleAssetVersions.version, version))).limit(1);
+  if (!v) throw new HTTPException(404, { message: `版本 v${version} 不存在` });
+  const snapshot = v.snapshot as { name: string; description: string | null; baseScore: number; variables: RuleScorecardVariable[]; grades: RuleScorecardGrade[] };
+  const [row] = await db.update(ruleScorecards)
+    .set({
+      name: snapshot.name, description: snapshot.description ?? null,
+      baseScore: snapshot.baseScore ?? 0, variables: snapshot.variables ?? [], grades: snapshot.grades ?? [],
+      status: 'draft',
+    })
+    .where(eq(ruleScorecards.id, id)).returning();
+  invalidateRuleRuntimeCache();
+  return mapRuleScorecard(row);
 }
 
 export async function toggleRuleScorecard(id: number, enabled: boolean) {
