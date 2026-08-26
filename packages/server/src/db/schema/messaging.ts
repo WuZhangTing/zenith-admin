@@ -208,6 +208,10 @@ export const pushSendLogs = pgTable('push_send_logs', {
   eventKey: varchar('event_key', { length: 128 }),
   status: sendStatusEnum('status').default('pending').notNull(),
   providerMsgId: varchar('provider_msg_id', { length: 128 }),
+  /** 送达回执（供应商回调写入）:delivered=已送达,clicked=已点击 */
+  deliveryStatus: varchar('delivery_status', { length: 32 }),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  clickedAt: timestamp('clicked_at', { withTimezone: true }),
   errorMsg: text('error_msg'),
   source: sendSourceEnum('source').default('system').notNull(),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
@@ -217,6 +221,8 @@ export const pushSendLogs = pgTable('push_send_logs', {
   index('push_send_logs_created_at_idx').on(t.createdAt),
   index('push_send_logs_status_idx').on(t.status),
   index('push_send_logs_subject_idx').on(t.subjectType, t.subjectId),
+  // 回执按供应商消息 ID 定位
+  index('push_send_logs_provider_msg_id_idx').on(t.providerMsgId),
 ]);
 
 export type PushSendLogRow = typeof pushSendLogs.$inferSelect;

@@ -2,7 +2,7 @@
  * App 推送 DTO（配置 / 发送记录）。
  */
 import { z } from '@hono/zod-openapi';
-import { PUSH_PROVIDERS } from '@zenith/shared/messaging';
+import { PUSH_DELIVERY_STATUSES, PUSH_PROVIDERS } from '@zenith/shared/messaging';
 
 export const PushConfigDTO = z
   .object({
@@ -38,6 +38,9 @@ export const PushSendLogDTO = z
     eventKey: z.string().nullable().optional(),
     status: z.enum(['pending', 'success', 'failed']),
     providerMsgId: z.string().nullable().optional(),
+    deliveryStatus: z.enum(PUSH_DELIVERY_STATUSES).nullable().optional(),
+    deliveredAt: z.string().nullable().optional(),
+    clickedAt: z.string().nullable().optional(),
     errorMsg: z.string().nullable().optional(),
     source: z.enum(['manual', 'test', 'system', 'api']),
     tenantId: z.number().int().nullable().optional(),

@@ -165,6 +165,29 @@ export async function findPushableDevices(subjectType: DeviceSubjectType, subjec
     ));
 }
 
+/**
+ * 供应商判定无效的 registrationId → 清除设备推送绑定（设备档案保留）。
+ * 触发源:发送响应 1003/1011、回执回调点名的失效 RID。清理失败只告警,不影响主流程。
+ */
+export async function clearInvalidPushRegistrations(provider: string, registrationIds: string[]): Promise<void> {
+  if (registrationIds.length === 0) return;
+  try {
+    const rows = await db
+      .update(clientDevices)
+      .set({ pushProvider: null, pushRegistrationId: null })
+      .where(and(
+        eq(clientDevices.pushProvider, provider as ClientDeviceRow['pushProvider'] & string),
+        inArray(clientDevices.pushRegistrationId, registrationIds),
+      ))
+      .returning({ deviceId: clientDevices.deviceId });
+    if (rows.length > 0) {
+      logger.info(`[client-devices] 已清理 ${rows.length} 台设备的无效推送绑定: ${rows.map((r) => r.deviceId).join(', ')}`);
+    }
+  } catch (err) {
+    logger.warn(`[client-devices] 清理无效推送绑定失败: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
 // ─── 管理端 ───────────────────────────────────────────────────────────────────
 
 export interface ListClientDevicesQuery {

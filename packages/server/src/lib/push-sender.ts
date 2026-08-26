@@ -26,11 +26,27 @@ export interface PushSendResult {
   /** 供应商消息 ID（多批时取首批） */
   msgId?: string;
   errorMsg?: string;
+  /** 供应商判定无效/未注册的 registrationId,调用方据此清理设备绑定 */
+  invalidRegistrationIds?: string[];
 }
 
 interface JPushResponse {
   msg_id?: string | number;
   error?: { code: number; message: string };
+}
+
+/**
+ * 从极光错误中提取无效 registrationId:
+ * - 1003 报文里点名单个非法 RID（"The registration_id xxx is invalid!"）
+ * - 1011 表示 audience 内全部目标不存在/已失效,整批视为无效
+ */
+function extractInvalidRegistrationIds(error: { code: number; message: string }, batch: string[]): string[] {
+  if (error.code === 1011) return batch;
+  if (error.code === 1003) {
+    const m = /registration_id\s+(\S+)\s+is invalid/i.exec(error.message);
+    if (m) return batch.filter((rid) => rid === m[1]);
+  }
+  return [];
 }
 
 async function sendByJPush(input: PushSendInput): Promise<PushSendResult> {
@@ -61,7 +77,12 @@ async function sendByJPush(input: PushSendInput): Promise<PushSendResult> {
     const body = await res.json<JPushResponse>().catch(() => ({} as JPushResponse));
     if (!res.ok || body.error) {
       const detail = body.error ? `[${body.error.code}] ${body.error.message}` : `HTTP ${res.status}`;
-      return { success: false, msgId: firstMsgId, errorMsg: `极光推送失败: ${detail}` };
+      return {
+        success: false,
+        msgId: firstMsgId,
+        errorMsg: `极光推送失败: ${detail}`,
+        invalidRegistrationIds: body.error ? extractInvalidRegistrationIds(body.error, batch) : undefined,
+      };
     }
     if (!firstMsgId && body.msg_id !== undefined) firstMsgId = String(body.msg_id);
   }

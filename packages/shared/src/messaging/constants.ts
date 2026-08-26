@@ -114,6 +114,15 @@ export const PUSH_PROVIDER_LABELS: Record<PushProvider, string> = {
 export const PUSH_PROVIDER_OPTIONS: Array<{ value: PushProvider; label: string }> =
   createLabelOptionsFromMap(PUSH_PROVIDER_LABELS);
 
+/** 送达回执状态（供应商回调写入;clicked 蕴含已送达） */
+export const PUSH_DELIVERY_STATUSES = ['delivered', 'clicked'] as const;
+export type PushDeliveryStatus = (typeof PUSH_DELIVERY_STATUSES)[number];
+
+export const PUSH_DELIVERY_STATUS_LABELS: Record<PushDeliveryStatus, string> = {
+  delivered: '已送达',
+  clicked: '已点击',
+};
+
 export const SEND_STATUS_LABELS: Record<SendStatus, string> = {
   pending: '待发送',
   success: '已发送',

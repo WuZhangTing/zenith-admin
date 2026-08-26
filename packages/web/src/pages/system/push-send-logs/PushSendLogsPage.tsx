@@ -1,11 +1,13 @@
 /**
  * App 推送发送记录页(只读日志:事件派发与测试发送的成败留痕)。
  */
-import { Tag, Typography } from '@douyinfe/semi-ui';
+import { Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
+  PUSH_DELIVERY_STATUS_LABELS,
   PUSH_PROVIDER_LABELS,
   SEND_SOURCE_LABELS,
+  type PushDeliveryStatus,
   type PushProvider,
   type PushSendLog,
   type SendSource,
@@ -27,6 +29,11 @@ const STATUS_COLORS: Record<SendStatus, 'orange' | 'green' | 'red'> = {
   pending: 'orange',
   success: 'green',
   failed: 'red',
+};
+
+const DELIVERY_COLORS: Record<PushDeliveryStatus, 'green' | 'blue'> = {
+  delivered: 'green',
+  clicked: 'blue',
 };
 
 interface SearchParams {
@@ -75,6 +82,21 @@ export default function PushSendLogsPage() {
     {
       title: '来源', dataIndex: 'source', width: 80,
       render: (v: SendSource) => SEND_SOURCE_LABELS[v],
+    },
+    {
+      title: '送达状态', dataIndex: 'deliveryStatus', width: 100,
+      render: (v: PushDeliveryStatus | null, record: PushSendLog) => {
+        if (!v) return EMPTY_PLACEHOLDER;
+        const detail = [
+          record.deliveredAt ? `送达 ${record.deliveredAt}` : null,
+          record.clickedAt ? `点击 ${record.clickedAt}` : null,
+        ].filter(Boolean).join(' / ');
+        return (
+          <Tooltip content={detail || undefined}>
+            <Tag color={DELIVERY_COLORS[v]} size="small">{PUSH_DELIVERY_STATUS_LABELS[v]}</Tag>
+          </Tooltip>
+        );
+      },
     },
     { title: '错误信息', dataIndex: 'errorMsg', width: 220, render: renderEllipsis },
     dateTimeColumn('发送时间', 'sentAt'),

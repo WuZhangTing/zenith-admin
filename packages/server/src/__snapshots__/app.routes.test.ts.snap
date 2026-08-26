@@ -1578,6 +1578,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "POST /api/public/mp/callback/:accountId",
   "POST /api/public/payment/link/:token/pay",
   "POST /api/public/payment/notify/:channel",
+  "POST /api/public/push/callbacks/jpush",
   "POST /api/public/workflow/external-callback/:callbackId",
   "POST /api/public/workflow/trigger-callback/:callbackId",
   "POST /api/push-configs",

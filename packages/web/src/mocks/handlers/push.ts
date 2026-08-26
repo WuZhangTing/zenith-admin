@@ -72,7 +72,8 @@ export const pushHandlers = [
       title: body.title ?? 'Zenith 推送测试',
       content: body.content ?? '这是一条测试推送',
       link: null, eventKey: null,
-      status: 'success', providerMsgId: `demo-${Date.now()}`, errorMsg: null,
+      status: 'success', providerMsgId: `demo-${Date.now()}`,
+      deliveryStatus: 'delivered', deliveredAt: now, clickedAt: null, errorMsg: null,
       source: 'test', sentAt: now, createdAt: now,
     });
     return ok({ msgId: `demo-${Date.now()}` }, '发送成功');

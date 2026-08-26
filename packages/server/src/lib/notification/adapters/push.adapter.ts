@@ -13,7 +13,7 @@ import type { NotificationRecipient } from '@zenith/shared/messaging';
 import { db } from '../../../db';
 import { pushSendLogs } from '../../../db/schema';
 import { findEnabledPushConfigsByAppIds } from '../../../services/messaging/push-configs.service';
-import { findPushableDevices } from '../../../services/ops/client-devices.service';
+import { clearInvalidPushRegistrations, findPushableDevices } from '../../../services/ops/client-devices.service';
 import { sendPushByProvider } from '../../push-sender';
 import type { DeliveryContext, DeliveryResult, NotificationChannelAdapter } from '../types';
 
@@ -97,6 +97,10 @@ export const pushAdapter: NotificationChannelAdapter = {
         if (!firstMsgId) firstMsgId = result.msgId ?? String(log.id);
       } else {
         failures.push(result.errorMsg ?? `应用 #${appId} 推送失败`);
+      }
+      // 供应商点名的无效 RID:清绑定,下次寻址不再包含
+      if (result.invalidRegistrationIds?.length) {
+        await clearInvalidPushRegistrations(config.provider, result.invalidRegistrationIds);
       }
     }
 

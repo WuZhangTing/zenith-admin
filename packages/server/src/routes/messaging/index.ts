@@ -14,6 +14,7 @@ import smsSendLogsRoutes from './sms-send-logs';
 import smsTemplatesRoutes from './sms-templates';
 import pushConfigsRoutes from './push-configs';
 import pushSendLogsRoutes from './push-send-logs';
+import pushCallbacksRoutes from './push-callbacks';
 
 export default defineRouteDomain({
   name: 'messaging',
@@ -28,6 +29,7 @@ export default defineRouteDomain({
     ['/api/sms-send-logs', smsSendLogsRoutes],
     ['/api/push-configs', pushConfigsRoutes],
     ['/api/push-send-logs', pushSendLogsRoutes],
+    ['/api/public/push/callbacks', pushCallbacksRoutes],
     ['/api/in-app-templates', inAppTemplatesRoutes],
     ['/api/in-app-messages', inAppMessagesRoutes],
     ['/api/notification-preferences', notificationPreferencesRoutes],

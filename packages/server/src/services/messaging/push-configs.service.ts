@@ -13,6 +13,7 @@ import { pushConfigs, pushSendLogs, type PushConfigRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { sendPushByProvider } from '../../lib/push-sender';
+import { clearInvalidPushRegistrations } from '../ops/client-devices.service';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 
@@ -168,6 +169,11 @@ export async function testPushSend(configId: number, input: TestPushSendInput) {
     errorMsg: result.errorMsg,
     sentAt: new Date(),
   }).where(eq(pushSendLogs.id, log.id));
+
+  // 测试直发的 RID 若被供应商判无效且恰好是某设备的绑定,一并清理
+  if (result.invalidRegistrationIds?.length) {
+    await clearInvalidPushRegistrations(config.provider, result.invalidRegistrationIds);
+  }
 
   if (!result.success) throw new HTTPException(400, { message: result.errorMsg ?? '推送发送失败' });
   return { msgId: result.msgId ?? null };

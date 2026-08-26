@@ -1,8 +1,8 @@
 /**
- * App 推送发送记录（追加型日志,只读查询）。
+ * App 推送发送记录（追加型日志,回执回调更新送达状态）。
  */
-import { desc, eq, inArray } from 'drizzle-orm';
-import type { PushProvider } from '@zenith/shared/messaging';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import type { PushDeliveryStatus, PushProvider } from '@zenith/shared/messaging';
 import { db } from '../../db';
 import { pushSendLogs, users, type PushSendLogRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -26,6 +26,9 @@ export function mapPushSendLog(row: PushSendLogRow & { app?: { name: string } | 
     eventKey: row.eventKey ?? null,
     status: row.status,
     providerMsgId: row.providerMsgId ?? null,
+    deliveryStatus: (row.deliveryStatus as PushDeliveryStatus | null) ?? null,
+    deliveredAt: formatNullableDateTime(row.deliveredAt),
+    clickedAt: formatNullableDateTime(row.clickedAt),
     errorMsg: row.errorMsg ?? null,
     source: row.source,
     tenantId: row.tenantId ?? null,
@@ -77,4 +80,46 @@ export async function listPushSendLogs(q: ListPushSendLogsQuery) {
     page,
     pageSize,
   };
+}
+
+// ─── 送达回执（供应商回调）────────────────────────────────────────────────────
+
+export interface PushReceiptEvent {
+  provider: PushProvider;
+  msgId: string;
+  /** received=送达,click=点击 */
+  type: 'received' | 'click';
+  /** 事件发生时间（秒级时间戳）,缺省用当前时间 */
+  itime?: number;
+}
+
+/**
+ * 将供应商回执写回发送记录。
+ * 按 (provider, providerMsgId) 定位;点击蕴含送达;时间列只写一次(重复回执幂等)。
+ * 找不到对应记录时静默忽略——回调方无法区分,返回错误只会招致重试轰炸。
+ */
+export async function applyPushReceipt(event: PushReceiptEvent): Promise<boolean> {
+  const eventAt = (event.itime ? new Date(event.itime * 1000) : new Date()).toISOString();
+  const result = await db
+    .update(pushSendLogs)
+    .set(event.type === 'click'
+      ? {
+        deliveryStatus: 'clicked' satisfies PushDeliveryStatus,
+        clickedAt: sql`coalesce(${pushSendLogs.clickedAt}, ${eventAt}::timestamptz)`,
+        deliveredAt: sql`coalesce(${pushSendLogs.deliveredAt}, ${eventAt}::timestamptz)`,
+      }
+      : {
+        // 已是 clicked 的不回退为 delivered
+        deliveryStatus: sql`coalesce(${pushSendLogs.deliveryStatus}, 'delivered')`,
+        deliveredAt: sql`coalesce(${pushSendLogs.deliveredAt}, ${eventAt}::timestamptz)`,
+      })
+    .where(and(
+      eq(pushSendLogs.provider, event.provider),
+      eq(pushSendLogs.providerMsgId, event.msgId),
+      event.type === 'click'
+        ? or(isNull(pushSendLogs.clickedAt), isNull(pushSendLogs.deliveredAt))
+        : isNull(pushSendLogs.deliveredAt),
+    ))
+    .returning({ id: pushSendLogs.id });
+  return result.length > 0;
 }

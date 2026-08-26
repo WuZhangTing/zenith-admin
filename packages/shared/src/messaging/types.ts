@@ -8,6 +8,7 @@ import type {
   NotificationReasonCode,
   NotificationRecipientType,
   NotificationSeverity,
+  PushDeliveryStatus,
   PushProvider,
 } from './constants';
 
@@ -563,6 +564,9 @@ export interface PushSendLog {
   eventKey: string | null;
   status: SendStatus;
   providerMsgId: string | null;
+  deliveryStatus: PushDeliveryStatus | null;
+  deliveredAt: string | null;
+  clickedAt: string | null;
   errorMsg: string | null;
   source: SendSource;
   tenantId?: number | null;
