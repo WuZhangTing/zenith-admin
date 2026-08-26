@@ -20,7 +20,7 @@ import {
   deactivateMyAccount,
 } from '../../services/member/member-auth.service';
 import { sendMemberSmsCode } from '../../services/member/member-sms.service';
-import { getClientInfo } from '../../services/identity/auth.service';
+import { getClientInfo } from '../../lib/request-helpers';
 
 const memberAuth = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -96,7 +96,7 @@ const registerRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => {
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     const result = await registerMember({ ...c.req.valid('json'), ip, ua, source: 'web' });
     return c.json(okBody(result, '注册成功'), 200);
   },
@@ -115,7 +115,7 @@ const loginRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => {
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     const result = await loginMember({ ...c.req.valid('json'), ip, ua });
     return c.json(okBody(result, '登录成功'), 200);
   },

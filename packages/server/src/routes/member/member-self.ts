@@ -21,7 +21,7 @@ import {
   MemberInviteSummaryDTO,
 } from '../../lib/openapi-dtos';
 import { currentMemberId } from '../../lib/member-context';
-import { getClientInfo } from '../../services/identity/auth.service';
+import { getClientInfo } from '../../lib/request-helpers';
 import { getMyPointAccount, listMyPointTransactions } from '../../services/member/member-points.service';
 import { getMyWallet, listMyWalletTransactions, rechargeWallet } from '../../services/member/member-wallet.service';
 import { getEnabledLevels } from '../../services/member/member-levels.service';
@@ -114,7 +114,7 @@ const rechargeRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { amount, payMethod, memberCouponId } = c.req.valid('json');
-    const { ip } = getClientInfo(c.req.raw.headers);
+    const { ip } = getClientInfo(c);
     const result = await rechargeWallet(currentMemberId(), amount, payMethod, ip, memberCouponId);
     return c.json(okBody(result, '已创建充值订单'), 200);
   },

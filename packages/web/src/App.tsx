@@ -396,6 +396,7 @@ export default function App() {
               <Route path="/oauth2/authorize" element={<Suspense fallback={routeFallback}><OAuth2AuthorizePage /></Suspense>} />
               <Route path="/public/payment/link/:token" element={<Suspense fallback={routeFallback}><PaymentLinkPublicPage /></Suspense>} />
               <Route path="/public/report/:token" element={<Suspense fallback={routeFallback}><PublicDashboardPage /></Suspense>} />
+              <Route path="/public/ai-chat/:token" element={<Suspense fallback={routeFallback}><PublicAiChatPage /></Suspense>} />
               <Route path="*" element={<RedirectToLogin />} />
             </Routes>
           </PageErrorBoundary>

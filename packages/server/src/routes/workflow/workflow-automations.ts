@@ -23,7 +23,7 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const listQuery = PaginationQuery.extend({
   definitionId: z.coerce.number().int().optional(),
-  trigger: z.enum(['approved', 'rejected', 'withdrawn']).optional(),
+  trigger: z.enum(['approved', 'rejected', 'withdrawn', 'created']).optional(),
   status: z.enum(['enabled', 'disabled']).optional(),
 });
 

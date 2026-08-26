@@ -10,6 +10,7 @@ import { EmailSendLogDTO, EmailSendResultDTO } from '../../lib/openapi-dtos';
 import {
   listEmailSendLogs, getEmailSendLog, deleteEmailSendLog, sendEmail,
 } from '../../services/messaging/email-send-logs.service';
+import { getClientIp } from '../../lib/request-helpers';
 
 const emailSendLogsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -56,7 +57,7 @@ const sendRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(EmailSendResultDTO, '发送结果') },
   }),
   handler: async (c) => {
-    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip');
+    const ip = getClientIp(c);
     const result = await sendEmail(c.req.valid('json'), 'manual', ip);
     return c.json(okBody(result, result.status === 'success' ? '发送成功' : '发送失败'), 200);
   },

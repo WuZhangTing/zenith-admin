@@ -10,7 +10,7 @@ import { db } from '../db';
 import { rateLimitRules } from '../db/schema';
 import { currentUser } from '../lib/context';
 
-export type RateLimitName = 'auth' | 'captcha' | 'sensitive' | 'analytics-ingest' | 'error-report' | 'report_public_share' | 'chat_send' | 'chatbi_ask' | 'report_chatbi_write' | 'report_fill_write' | 'ai_chat_send' | 'ai_share_view';
+export type RateLimitName = 'auth' | 'captcha' | 'sensitive' | 'analytics-ingest' | 'error-report' | 'report_public_share' | 'workflow_public_callback' | 'chat_send' | 'chatbi_ask' | 'report_chatbi_write' | 'report_fill_write' | 'ai_chat_send' | 'ai_share_view';
 export type RateLimitKeyType = 'ip' | 'user' | 'ip_path';
 
 export interface RuleConfig {
@@ -31,6 +31,7 @@ const DEFAULTS: Record<RateLimitName, RuleConfig> = {
   'analytics-ingest': { name: 'analytics-ingest', description: '匿名埋点事件上报限流', windowMs: 60 * 1000, limit: 120, keyType: 'ip', enabled: true, blockedMessage: '埋点上报过于频繁，请稍后再试', pathPatterns: [] },
   'error-report': { name: 'error-report', description: '匿名前端错误上报限流', windowMs: 60 * 1000, limit: 60, keyType: 'ip', enabled: true, blockedMessage: '错误上报过于频繁，请稍后再试', pathPatterns: [] },
   report_public_share: { name: 'report_public_share', description: '报表公开分享访问限流（无需登录，防滥用/防爆破）', windowMs: 60 * 1000, limit: 120, keyType: 'ip', enabled: true, blockedMessage: '访问过于频繁，请稍后再试', pathPatterns: ['/api/report/public/*'] },
+  workflow_public_callback: { name: 'workflow_public_callback', description: '工作流公开回调接口限流', windowMs: 60 * 1000, limit: 120, keyType: 'ip_path', enabled: true, blockedMessage: '工作流回调请求过于频繁，请稍后再试', pathPatterns: ['/api/public/workflow/external-callback/*', '/api/public/workflow/trigger-callback/*'] },
   chat_send: { name: 'chat_send', description: '聊天消息发送限流（按用户）', windowMs: 60 * 1000, limit: 60, keyType: 'user', enabled: true, blockedMessage: '消息发送过于频繁，请稍后再试', pathPatterns: [] },
   chatbi_ask: { name: 'chatbi_ask', description: 'ChatBI 提问限流（按用户）', windowMs: 60 * 1000, limit: 10, keyType: 'user', enabled: true, blockedMessage: 'ChatBI 提问过于频繁，请稍后再试', pathPatterns: [] },
   report_chatbi_write: { name: 'report_chatbi_write', description: 'ChatBI 写操作限流（按用户）', windowMs: 60 * 1000, limit: 30, keyType: 'user', enabled: true, blockedMessage: 'ChatBI 操作过于频繁，请稍后再试', pathPatterns: [] },
@@ -192,7 +193,7 @@ export const captchaRateLimit: MiddlewareHandler = makeNamed('captcha');
 export const sensitiveRateLimit: MiddlewareHandler = makeNamed('sensitive');
 
 /** 内置规则名称集合（不可删除） */
-export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'report_public_share', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view']);
+export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'report_public_share', 'workflow_public_callback', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view']);
 
 /** 通过规则名称动态应用限流（支持自定义规则） */
 export function namedRateLimit(name: string): MiddlewareHandler {

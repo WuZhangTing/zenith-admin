@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { ErrorResponse, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okBody } from '../../lib/openapi-schemas';
 import { OAuthAccountDTO, OAuthAuthUrlDTO, LoginResultDTO } from '../../lib/openapi-dtos';
-import { getClientInfo } from '../../services/identity/auth.service';
+import { getClientInfo } from '../../lib/request-helpers';
 import {
   listOAuthAccounts, generateAuthUrl, handleOAuthCallback,
   bindOAuthAccount, unbindOAuthAccount,
@@ -65,7 +65,7 @@ const callbackRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { provider } = c.req.valid('param');
     const { code } = c.req.valid('json');
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     const result = await handleOAuthCallback(provider, code, { ip, ua });
     return c.json(okBody(result.data, result.message), 200);
   },

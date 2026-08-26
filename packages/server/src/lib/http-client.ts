@@ -12,7 +12,9 @@ import {
   safeRedactBodyForLog,
   writeHttpLogEntry,
   type HttpLogEntry,
-} from './http-logger';import type { HttpLogLevel, HttpLogFormat } from '../config';
+} from './http-logger';
+import type { HttpLogLevel, HttpLogFormat } from '../config';
+
 export interface HttpRequestOptions extends Omit<RequestInit, 'signal' | 'body'> {
   /** Base URL prefix; only applied when `url` is not absolute */
   baseURL?: string;

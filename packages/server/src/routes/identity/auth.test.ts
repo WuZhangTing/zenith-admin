@@ -34,6 +34,7 @@ vi.mock('../../config', () => ({
     redis: { keyPrefix: 'test:' },
     log: { level: 'silent', dir: 'logs', maxFiles: '30d' },
     oauth: { github: {}, dingtalk: {}, wechatWork: {}, callbackBaseUrl: '' },
+    trustedProxyCidrs: [],
   },
 }));
 
@@ -71,7 +72,9 @@ vi.mock('../../lib/redis', () => ({
 vi.mock('../../lib/session-manager', () => ({
   generateTokenId: () => 'mock-token-id',
   registerSession: vi.fn(),
-  touchSession: vi.fn(),
+  // touchSession 必须返回 true：返回 falsy 会触发 authMiddleware 的会话懒重注册分支，
+  // 额外消费一次 db.select mock 队列，导致依赖队列顺序的用例错位失败
+  touchSession: vi.fn().mockResolvedValue(true),
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
   forceLogout: vi.fn(),
   removeSession: vi.fn(),

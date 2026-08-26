@@ -245,8 +245,9 @@ export async function emitMaterializedAdvanceEvents(
 }
 
 /**
- * 查找同业务键的**活跃**实例（draft/running/suspended）作为幂等去重口径：
- * 已终态（通过/驳回/撤回/取消）的实例不再拦截，业务记录可修改后重新发起新流程。
+ * 查找同业务键的**活跃**实例（draft/running/suspended/returned，即 WORKFLOW_ACTIVE_INSTANCE_STATUSES）
+ * 作为幂等去重口径：已终态（通过/驳回/撤回/取消）的实例不再拦截，业务记录可修改后重新发起新流程；
+ * 退回待修改重提的实例仍占用业务键。
  */
 async function findInstanceByBusinessKey(
   bizType: string | null,

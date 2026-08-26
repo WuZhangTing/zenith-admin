@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { Hono } from 'hono';
-import { getClientIp, parseUserAgent } from './request-helpers';
+import { getClientInfo, getClientIp, parseUserAgent } from './request-helpers';
 import { config } from '../config';
 
 async function ipFor(headers: Record<string, string>): Promise<string> {
@@ -52,6 +52,44 @@ describe('getClientIp', () => {
   it('从右向左跳过受信代理，拒绝最左侧伪造值', async () => {
     config.trustedProxyCidrs.splice(0, config.trustedProxyCidrs.length, '127.0.0.1/32');
     expect(await ipFor({ 'x-forwarded-for': '203.0.113.7, 198.51.100.9' })).toBe('198.51.100.9');
+  });
+});
+
+describe('getClientInfo', () => {
+  const originalTrustedProxies = [...config.trustedProxyCidrs];
+
+  afterEach(() => {
+    config.trustedProxyCidrs.splice(0, config.trustedProxyCidrs.length, ...originalTrustedProxies);
+  });
+
+  async function infoFor(headers: Record<string, string>): Promise<{ ip: string; ua: string }> {
+    let info = { ip: '', ua: '' };
+    const app = new Hono();
+    app.get('/probe', (c) => {
+      info = getClientInfo(c);
+      return c.json({});
+    });
+    await app.request('/probe', { headers });
+    return info;
+  }
+
+  it('非受信代理下不接受伪造的 x-forwarded-for / x-real-ip（登录日志 IP 不可伪造）', async () => {
+    config.trustedProxyCidrs.splice(0, config.trustedProxyCidrs.length);
+    const { ip } = await infoFor({ 'x-forwarded-for': '203.0.113.7', 'x-real-ip': '198.51.100.3' });
+    expect(ip).toBe('127.0.0.1');
+  });
+
+  it('受信代理链下取客户端真实 IP，并返回 user-agent', async () => {
+    config.trustedProxyCidrs.splice(0, config.trustedProxyCidrs.length, '127.0.0.1/32');
+    const { ip, ua } = await infoFor({ 'x-forwarded-for': '203.0.113.7', 'user-agent': 'curl/8.4.0' });
+    expect(ip).toBe('203.0.113.7');
+    expect(ua).toBe('curl/8.4.0');
+  });
+
+  it('IP 截断到 64 字符以内（防日志表 varchar(64) 溢出）', async () => {
+    config.trustedProxyCidrs.splice(0, config.trustedProxyCidrs.length, '127.0.0.1/32');
+    const { ip } = await infoFor({ 'x-forwarded-for': 'a'.repeat(200) });
+    expect(ip.length).toBeLessThanOrEqual(64);
   });
 });
 
