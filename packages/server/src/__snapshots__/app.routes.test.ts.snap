@@ -1508,6 +1508,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "POST /api/open/v1/cms/contents/:id/publish",
   "POST /api/open/v1/cms/contents/:id/submit",
   "POST /api/open/v1/echo",
+  "POST /api/open/v1/rules/evaluate",
   "POST /api/payment/accounts/adjust",
   "POST /api/payment/accounts/rebuild",
   "POST /api/payment/apps",

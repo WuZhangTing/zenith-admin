@@ -8,9 +8,12 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import { RULE_REF_KINDS, type RuleRefKind } from '@zenith/shared/rules';
 import { okBody, errBody } from '../../lib/openapi-schemas';
 import { formatDateTime } from '../../lib/datetime';
 import { openGatewayAuth, openApiMetering, openRateLimit } from '../../middleware/open-gateway';
+import { decide } from '../../services/platform/rules-runtime.service';
 import openCmsRoutes, { OPEN_CMS_ENDPOINTS } from './open-cms';
 
 /**
@@ -77,6 +80,40 @@ router.get('/v1/userinfo', (c) => {
   }), 200);
 });
 
+// POST /v1/rules/evaluate —— 规则中心统一求值（scope: rules:evaluate）
+// 只允许求值已发布的平台级资产；kind=list 需传 subjects（待检测主体值集合）
+router.post('/v1/rules/evaluate', async (c) => {
+  if (!hasScope(c, 'rules:evaluate')) return c.json(errBody('应用未授权 scope：rules:evaluate', 403), 403);
+  let body: { kind?: string; key?: string; facts?: Record<string, unknown>; subjects?: string[] };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json(errBody('请求体必须是 JSON', 400), 400);
+  }
+  const kind = (body.kind ?? 'table') as RuleRefKind;
+  if (!RULE_REF_KINDS.includes(kind)) return c.json(errBody(`不支持的资产类型：${String(body.kind)}（可选：${RULE_REF_KINDS.join('/')}）`, 400), 400);
+  const key = body.key?.trim();
+  if (!key) return c.json(errBody('缺少规则资产 key', 400), 400);
+  const principal = c.get('openPrincipal');
+  try {
+    const decision = await decide(
+      { kind, key },
+      (body.facts ?? {}) as Record<string, unknown>,
+      {
+        caller: `open.${principal?.app.clientId ?? 'unknown'}`.slice(0, 64),
+        mode: 'required',
+        source: 'open',
+        tenantId: null,
+        subjects: Array.isArray(body.subjects) ? body.subjects.map(String) : undefined,
+      },
+    );
+    return c.json(okBody(decision), 200);
+  } catch (err) {
+    if (err instanceof HTTPException) return c.json(errBody(err.message, err.status), err.status as 400);
+    return c.json(errBody('规则求值失败，请检查 facts 输入', 400), 400);
+  }
+});
+
 export default router;
 
 /**
@@ -93,5 +130,6 @@ export const OPEN_GATEWAY_ENDPOINTS: Array<{
   { method: 'GET', path: '/api/open/v1/echo', summary: '查询参数回显', scope: 'data:read' },
   { method: 'POST', path: '/api/open/v1/echo', summary: '请求体回显（验证 body 参与签名）', scope: 'data:write' },
   { method: 'GET', path: '/api/open/v1/userinfo', summary: '当前调用主体信息', scope: 'user:read' },
+  { method: 'POST', path: '/api/open/v1/rules/evaluate', summary: '规则中心统一求值（决策表/决策流/评分卡/名单）', scope: 'rules:evaluate' },
   ...OPEN_CMS_ENDPOINTS.map((item) => ({ ...item, scope: null })),
 ];
