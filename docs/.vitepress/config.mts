@@ -140,7 +140,14 @@ export default withMermaid(defineConfig({
           { text: '权限与组织', link: '/iam/' },
           { text: '即时通讯', link: '/chat/' },
           { text: '会员中心', link: '/member/' },
-          { text: '通知中心', link: '/notification/' },
+          {
+            text: '通知中心',
+            collapsed: true,
+            items: [
+              { text: '总览', link: '/notification/' },
+              { text: 'App 推送', link: '/notification/push' },
+            ],
+          },
           { text: '文件与存储', link: '/storage/' },
         ],
       },

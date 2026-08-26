@@ -1,6 +1,6 @@
 # 通知中心
 
-本页描述 Zenith Admin 当前通知中心实现：通知事件目录、`notify()` 统一派发、站内信/邮件/短信/Webhook/聊天卡片渠道、偏好矩阵、免打扰、摘要与投递留痕。事实来源以 `packages\shared\src\messaging`、`packages\server\src\services\messaging`、`packages\server\src\lib\notification`、`packages\server\src\routes\messaging` 为准。
+本页描述 Zenith Admin 当前通知中心实现：通知事件目录、`notify()` 统一派发、站内信/邮件/短信/App 推送/Webhook/聊天卡片渠道、偏好矩阵、免打扰、摘要与投递留痕。事实来源以 `packages\shared\src\messaging`、`packages\server\src\services\messaging`、`packages\server\src\lib\notification`、`packages\server\src\routes\messaging` 为准。
 
 ## 模块边界
 
@@ -64,13 +64,14 @@
 
 ## 渠道
 
-通知中心渠道枚举为 `inapp`、`email`、`sms`、`webhook`、`chat`。适配器通过 `registerNotificationAdapter()` 集中注册，未注册渠道会留下 `channel_unavailable` 结论，不会静默丢弃。
+通知中心渠道枚举为 `inapp`、`email`、`sms`、`push`、`webhook`、`chat`。适配器通过 `registerNotificationAdapter()` 集中注册，未注册渠道会留下 `channel_unavailable` 结论，不会静默丢弃。
 
 | 渠道 | 当前实现 |
 | --- | --- |
 | `inapp` | 写入 `in_app_messages`，支持模板、已读、批量已读、删除、管理端查看；消息可带 `link` 深链 |
 | `email` | 使用 `email_configs` 的 SMTP 配置发送，支持 `email_templates` 与 `email_send_logs`；退订链接通过邮件渠道提供 |
 | `sms` | 支持阿里云、腾讯云配置与模板，发送记录写 `sms_send_logs`；模板变量可显式指定以避免 JSON 键序影响服务商位置参数 |
+| `push` | App 推送，经聚合供应商（极光）投递到移动/桌面客户端，按收件人查统一设备中心的在活绑定设备，发送记录写 `push_send_logs`，详见 [App 推送](./push) |
 | `webhook` | 通过 `channelOptions.webhook.url/body` 投递，适合告警和外部接收人 |
 | `chat` | 作为聊天卡片渠道接入通知适配器；系统调度告警等事件可声明可用 |
 
