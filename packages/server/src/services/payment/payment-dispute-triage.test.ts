@@ -57,6 +57,7 @@ function makeRow(overrides: Partial<PaymentDisputeRow> = {}): PaymentDisputeRow 
     deadline: new Date(createdAt.getTime() + 24 * 3600 * 1000),
     refundNo: null, resolvedAt: null, tenantId: null,
     createdAt, updatedAt: createdAt,
+    ...overrides,
   } as PaymentDisputeRow;
 }
 
