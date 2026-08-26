@@ -1,7 +1,7 @@
 /**
  * App 推送配置页。
  *
- * 聚合供应商凭证管理(密钥脱敏、唯一默认、APNs 环境)+ 测试发送(直发 RegistrationID)。
+ * 聚合供应商凭证管理(一对一挂应用、密钥脱敏、APNs 环境)+ 测试发送(直发 RegistrationID)。
  * 厂商通道(华为/小米/OV/荣耀/APNs)在供应商后台配置,本页只管聚合商凭证。
  */
 import { useRef, useState } from 'react';
@@ -21,19 +21,19 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { confirmDelete } from '@/utils/confirm';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
+import { useAllClientApps } from '@/hooks/queries/app-releases';
 import {
   pushConfigKeys,
   useDeletePushConfigs,
   usePushConfigDetail,
   usePushConfigList,
   useSavePushConfig,
-  useSetPushConfigDefault,
   useTestPushSend,
 } from '@/hooks/queries/push';
 
@@ -116,29 +116,32 @@ export default function PushConfigsPage() {
     entityName: '推送配置',
     save: useSavePushConfig(),
     useDetail: usePushConfigDetail,
-    defaults: { provider: 'jpush', apnsProduction: false, isDefault: false, status: 'enabled' },
+    defaults: { provider: 'jpush', apnsProduction: false, status: 'enabled' },
     labelWidth: 120,
     toValues: (r) => ({
+      appId: r.appId,
       name: r.name,
       provider: r.provider,
       appKey: r.appKey,
       masterSecret: '',
       apnsProduction: r.apnsProduction,
-      isDefault: r.isDefault,
       remark: r.remark ?? '',
     }),
   });
 
   const toggleMutation = useSavePushConfig();
   const deleteMutation = useDeletePushConfigs();
-  const setDefaultMutation = useSetPushConfigDefault();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
   const [testConfig, setTestConfig] = useState<PushConfig | null>(null);
+
+  const appsQuery = useAllClientApps();
+  const appOptions = (appsQuery.data ?? []).map((a) => ({ value: a.id, label: a.name }));
 
   const { items: statusItems } = useDictItems('common_status');
   const canUpdate = hasPermission('system:push:update');
 
   const columns: ColumnProps<PushConfig>[] = [
+    { title: '所属应用', dataIndex: 'appName', width: 140, render: renderEllipsis },
     { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis },
     {
       title: '供应商', dataIndex: 'provider', width: 100,
@@ -148,10 +151,6 @@ export default function PushConfigsPage() {
     {
       title: 'APNs 环境', dataIndex: 'apnsProduction', width: 120,
       render: (v: boolean) => <Tag color={v ? 'green' : 'grey'} size="small">{v ? '生产' : '开发'}</Tag>,
-    },
-    {
-      title: '默认', dataIndex: 'isDefault', width: 70,
-      render: (v: boolean) => (v ? <Tag color="blue" size="small">默认</Tag> : EMPTY_PLACEHOLDER),
     },
     { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
     createdAtColumn,
@@ -186,12 +185,6 @@ export default function PushConfigsPage() {
           key: 'test', label: '测试', onClick: () => setTestConfig(record),
         }] : []),
         ...(canUpdate ? [{ key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) }] : []),
-        ...(canUpdate && !record.isDefault ? [{
-          key: 'set-default', label: '设为默认',
-          onClick: () => {
-            setDefaultMutation.mutate(record.id, { onSuccess: () => Toast.success('已设为默认') });
-          },
-        }] : []),
         ...(hasPermission('system:push:delete') ? [{
           key: 'delete', label: '删除', danger: true,
           onClick: () => {
@@ -268,12 +261,23 @@ export default function PushConfigsPage() {
           <Form key={modal.formKey} {...modal.formProps}>
             <Row gutter={16}>
               <Col span={12}>
+                <Form.Select field="appId" label="所属应用" style={{ width: '100%' }}
+                  optionList={appOptions} disabled={modal.isEdit}
+                  rules={[{ required: true, message: '请选择所属应用' }]} />
+              </Col>
+              <Col span={12}>
                 <Form.Input field="name" label="配置名称" placeholder="如:极光-生产"
                   rules={[{ required: true, message: '名称不能为空' }]} />
               </Col>
+            </Row>
+            <Row gutter={16}>
               <Col span={12}>
                 <Form.Select field="provider" label="供应商" style={{ width: '100%' }}
                   optionList={PUSH_PROVIDER_OPTIONS} />
+              </Col>
+              <Col span={12}>
+                <Form.Switch field="apnsProduction" label="APNs 生产环境"
+                  extraText="iOS 推送环境:开发阶段关闭(走 APNs 沙箱),上架后开启" />
               </Col>
             </Row>
             <Row gutter={16}>
@@ -289,15 +293,6 @@ export default function PushConfigsPage() {
                   placeholder={modal.isEdit ? '留空表示不修改' : '供应商后台的 Master Secret'}
                   rules={modal.isEdit ? [] : [{ required: true, message: 'MasterSecret 不能为空' }]}
                 />
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Switch field="apnsProduction" label="APNs 生产环境"
-                  extraText="iOS 推送环境:开发阶段关闭(走 APNs 沙箱),上架后开启" />
-              </Col>
-              <Col span={12}>
-                <Form.Switch field="isDefault" label="设为默认" extraText="推送发送时使用默认配置,全局仅一个" />
               </Col>
             </Row>
             <Form.TextArea field="remark" label="备注" rows={2} maxCount={500} placeholder="选填" />

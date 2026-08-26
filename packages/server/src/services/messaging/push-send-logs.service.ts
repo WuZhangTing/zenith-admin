@@ -6,12 +6,15 @@ import type { PushProvider } from '@zenith/shared/messaging';
 import { db } from '../../db';
 import { pushSendLogs, users, type PushSendLogRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
+import { pageOffset } from '../../lib/pagination';
 
-export function mapPushSendLog(row: PushSendLogRow, subjectName?: string | null) {
+export function mapPushSendLog(row: PushSendLogRow & { app?: { name: string } | null }, subjectName?: string | null) {
   return {
     id: row.id,
     configId: row.configId ?? null,
+    appId: row.appId ?? null,
+    appName: row.app?.name ?? null,
     provider: row.provider,
     subjectType: row.subjectType ?? null,
     subjectId: row.subjectId ?? null,
@@ -51,11 +54,13 @@ export async function listPushSendLogs(q: ListPushSendLogsQuery) {
   );
   const [total, rows] = await Promise.all([
     db.$count(pushSendLogs, where),
-    withPagination(
-      db.select().from(pushSendLogs).where(where).orderBy(desc(pushSendLogs.id)).$dynamic(),
-      page,
-      pageSize,
-    ),
+    db.query.pushSendLogs.findMany({
+      where,
+      with: { app: { columns: { name: true } } },
+      orderBy: desc(pushSendLogs.id),
+      limit: pageSize,
+      offset: pageOffset(page, pageSize),
+    }),
   ]);
 
   // 管理端收件人只展示 user 主体的昵称;member 主体显示 ID 即可

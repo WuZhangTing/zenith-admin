@@ -24,7 +24,6 @@ import {
   getPushConfig,
   getPushConfigBeforeAudit,
   listPushConfigs,
-  setPushConfigDefault,
   testPushSend,
   updatePushConfig,
 } from '../../services/messaging/push-configs.service';
@@ -130,29 +129,6 @@ const deleteRoute_ = defineOpenAPIRoute({
   },
 });
 
-const setDefaultRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/default',
-    tags: ['推送管理'], summary: '设为默认推送配置',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'system:push:update',
-      audit: { description: '设置默认推送配置', module: '推送管理' },
-    })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(PushConfigDTO, '设置成功'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await getPushConfigBeforeAudit(id));
-    return c.json(okBody(await setPushConfigDefault(id), '设置成功'), 200);
-  },
-});
-
 const testSendRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/{id}/test',
@@ -181,7 +157,6 @@ router.openapiRoutes([
   createRoute_,
   updateRoute_,
   deleteRoute_,
-  setDefaultRoute,
   testSendRoute,
 ] as const);
 

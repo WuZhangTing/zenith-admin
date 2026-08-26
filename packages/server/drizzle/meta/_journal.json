@@ -232,6 +232,20 @@
       "when": 1787760523919,
       "tag": "0032_gifted_magdalene",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787773723306,
+      "tag": "0033_natural_skullbuster",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787773748264,
+      "tag": "0034_bouncy_grey_gargoyle",
+      "breakpoints": true
     }
   ]
 }

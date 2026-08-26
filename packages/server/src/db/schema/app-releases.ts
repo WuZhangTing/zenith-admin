@@ -6,10 +6,9 @@
  * app_release_events 是追加型日志（检查 / 下载 / 安装回执），供升级看板统计。
  */
 import { pgTable, pgEnum, serial, varchar, text, integer, smallint, bigint, boolean, timestamp, unique, index, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
-import { statusEnum } from './common';
+import { statusEnum, pushProviderEnum } from './common';
 import { auditColumns } from './core';
 import { managedFiles } from './files';
-import { pushProviderEnum } from './messaging';
 
 // ─── 枚举（三端同步：pgEnum / shared constants / Zod enum）──────────────────
 export const appReleaseChannelEnum = pgEnum('app_release_channel', ['stable', 'beta', 'internal']);

@@ -1995,7 +1995,6 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "PUT /api/positions/:id/members",
   "PUT /api/processes/:pid/priority",
   "PUT /api/push-configs/:id",
-  "PUT /api/push-configs/:id/default",
   "PUT /api/rate-plans/:id",
   "PUT /api/regions/:id",
   "PUT /api/report/alerts/:id",

@@ -1,27 +1,35 @@
 /**
- * App 推送配置（镜像 sms-configs:密钥脱敏、唯一默认、测试发送）。
- * 推送配置是平台级资源（client_apps 无租户),不做租户隔离。
+ * App 推送配置。
+ *
+ * 凭证一对一挂应用（`unique(app_id)`,供应商侧凭证本就按 App 发放）,
+ * 不存在"全局默认配置"——适配器按设备所属应用取各自凭证。
+ * 推送配置是平台级资源（client_apps 无租户）,不做租户隔离。
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { CreatePushConfigInput, PushProvider, TestPushSendInput, UpdatePushConfigInput } from '@zenith/shared/messaging';
 import { db } from '../../db';
 import { pushConfigs, pushSendLogs, type PushConfigRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
+import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { sendPushByProvider } from '../../lib/push-sender';
-import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
+import { pageOffset } from '../../lib/pagination';
 
 const SECRET_MASK = '******';
 
+type PushConfigWithApp = PushConfigRow & { app?: { name: string } | null };
+
 /** 列表返回脱敏 */
-export function mapPushConfigSafe(row: PushConfigRow) {
+export function mapPushConfigSafe(row: PushConfigWithApp) {
   return {
     id: row.id,
+    appId: row.appId,
+    appName: row.app?.name,
     name: row.name,
     provider: row.provider,
     appKey: row.appKey ? `${row.appKey.slice(0, 4)}${SECRET_MASK}${row.appKey.slice(-4)}` : '',
     apnsProduction: row.apnsProduction,
-    isDefault: row.isDefault,
     status: row.status,
     remark: row.remark ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -30,19 +38,11 @@ export function mapPushConfigSafe(row: PushConfigRow) {
 }
 
 /** 编辑详情:masterSecret 不返回原文 */
-export function mapPushConfigForEdit(row: PushConfigRow) {
+export function mapPushConfigForEdit(row: PushConfigWithApp) {
   return {
-    id: row.id,
-    name: row.name,
-    provider: row.provider,
+    ...mapPushConfigSafe(row),
     appKey: row.appKey,
     masterSecret: '', // 留空,前端不传则后端保持原值
-    apnsProduction: row.apnsProduction,
-    isDefault: row.isDefault,
-    status: row.status,
-    remark: row.remark ?? null,
-    createdAt: formatDateTime(row.createdAt),
-    updatedAt: formatDateTime(row.updatedAt),
   };
 }
 
@@ -69,41 +69,61 @@ export async function listPushConfigs(q: ListPushConfigsQuery) {
   );
   const [total, rows] = await Promise.all([
     db.$count(pushConfigs, where),
-    withPagination(db.select().from(pushConfigs).where(where).orderBy(pushConfigs.id).$dynamic(), page, pageSize),
+    db.query.pushConfigs.findMany({
+      where,
+      with: { app: { columns: { name: true } } },
+      orderBy: pushConfigs.id,
+      limit: pageSize,
+      offset: pageOffset(page, pageSize),
+    }),
   ]);
   return { list: rows.map(mapPushConfigSafe), total, page, pageSize };
 }
 
 export async function getPushConfig(id: number) {
-  return mapPushConfigForEdit(await ensurePushConfigExists(id));
+  const row = await db.query.pushConfigs.findFirst({
+    where: eq(pushConfigs.id, id),
+    with: { app: { columns: { name: true } } },
+  });
+  if (!row) throw new HTTPException(404, { message: '推送配置不存在' });
+  return mapPushConfigForEdit(row);
 }
 
 export async function getPushConfigBeforeAudit(id: number) {
   return mapPushConfigSafe(await ensurePushConfigExists(id));
 }
 
-export async function createPushConfig(data: CreatePushConfigInput) {
-  return db.transaction(async (tx) => {
-    if (data.isDefault) {
-      await tx.update(pushConfigs).set({ isDefault: false }).where(eq(pushConfigs.isDefault, true));
-    }
-    const [row] = await tx.insert(pushConfigs).values(data).returning();
-    return mapPushConfigSafe(row);
+async function findPushConfigSafeById(id: number) {
+  const row = await db.query.pushConfigs.findFirst({
+    where: eq(pushConfigs.id, id),
+    with: { app: { columns: { name: true } } },
   });
+  if (!row) throw new HTTPException(404, { message: '推送配置不存在' });
+  return mapPushConfigSafe(row);
+}
+
+export async function createPushConfig(data: CreatePushConfigInput) {
+  try {
+    const [row] = await db.insert(pushConfigs).values(data).returning();
+    return findPushConfigSafeById(row.id);
+  } catch (err) {
+    rethrowPgUniqueViolation(err, '该应用已存在推送配置(一个应用只允许一套凭证)');
+    throw err;
+  }
 }
 
 export async function updatePushConfig(id: number, data: UpdatePushConfigInput) {
   const existing = await ensurePushConfigExists(id);
-  return db.transaction(async (tx) => {
-    if (data.isDefault === true) {
-      await tx.update(pushConfigs).set({ isDefault: false }).where(eq(pushConfigs.isDefault, true));
-    }
-    // masterSecret 留空表示不更新
-    const patch: Partial<typeof pushConfigs.$inferInsert> = { ...data };
-    if (!data.masterSecret) delete patch.masterSecret;
-    const [row] = await tx.update(pushConfigs).set(patch).where(eq(pushConfigs.id, id)).returning();
-    return mapPushConfigSafe(row ?? existing);
-  });
+  // masterSecret 留空表示不更新
+  const patch: Partial<typeof pushConfigs.$inferInsert> = { ...data };
+  if (!data.masterSecret) delete patch.masterSecret;
+  try {
+    await db.update(pushConfigs).set(patch).where(eq(pushConfigs.id, id));
+    return findPushConfigSafeById(existing.id);
+  } catch (err) {
+    rethrowPgUniqueViolation(err, '该应用已存在推送配置(一个应用只允许一套凭证)');
+    throw err;
+  }
 }
 
 export async function deletePushConfig(id: number) {
@@ -111,23 +131,14 @@ export async function deletePushConfig(id: number) {
   await db.delete(pushConfigs).where(eq(pushConfigs.id, id));
 }
 
-export async function setPushConfigDefault(id: number) {
-  const row = await ensurePushConfigExists(id);
-  await db.transaction(async (tx) => {
-    await tx.update(pushConfigs).set({ isDefault: false }).where(eq(pushConfigs.isDefault, true));
-    await tx.update(pushConfigs).set({ isDefault: true }).where(eq(pushConfigs.id, id));
-  });
-  return mapPushConfigSafe({ ...row, isDefault: true });
-}
-
-/** 获取启用的默认推送配置（运行时发送使用） */
-export async function findDefaultPushConfig(): Promise<PushConfigRow | null> {
-  const [row] = await db
+/** 按应用批量取启用凭证（适配器按设备所属应用分组投递时使用） */
+export async function findEnabledPushConfigsByAppIds(appIds: number[]): Promise<Map<number, PushConfigRow>> {
+  if (appIds.length === 0) return new Map();
+  const rows = await db
     .select()
     .from(pushConfigs)
-    .where(and(eq(pushConfigs.isDefault, true), eq(pushConfigs.status, 'enabled')))
-    .limit(1);
-  return row ?? null;
+    .where(and(inArray(pushConfigs.appId, appIds), eq(pushConfigs.status, 'enabled')));
+  return new Map(rows.map((row) => [row.appId, row]));
 }
 
 /** 测试发送:直发 registrationId,验证凭证与通道,成败都落发送记录 */
@@ -135,6 +146,7 @@ export async function testPushSend(configId: number, input: TestPushSendInput) {
   const config = await ensurePushConfigExists(configId);
   const [log] = await db.insert(pushSendLogs).values({
     configId: config.id,
+    appId: config.appId,
     provider: config.provider,
     deviceCount: 1,
     title: input.title,

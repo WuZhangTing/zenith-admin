@@ -532,13 +532,15 @@ export interface SmsSendLog {
 
 export interface PushConfig {
   id: number;
+  appId: number;
+  /** JOIN 冗余 */
+  appName?: string;
   name: string;
   provider: PushProvider;
   appKey: string;
   /** 列表/详情脱敏,编辑留空表示不更新 */
   masterSecret?: string;
   apnsProduction: boolean;
-  isDefault: boolean;
   status: EntityStatus;
   remark: string | null;
   createdAt: string;
@@ -548,6 +550,8 @@ export interface PushConfig {
 export interface PushSendLog {
   id: number;
   configId: number | null;
+  appId: number | null;
+  appName?: string | null;
   provider: PushProvider;
   subjectType: string | null;
   subjectId: number | null;

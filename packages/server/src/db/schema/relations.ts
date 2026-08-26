@@ -1667,8 +1667,13 @@ export const clientDevicesRelations = relations(clientDevices, ({ one }) => ({
   app: one(clientApps, { fields: [clientDevices.appId], references: [clientApps.id] }),
 }));
 
+export const pushConfigsRelations = relations(pushConfigs, ({ one }) => ({
+  app: one(clientApps, { fields: [pushConfigs.appId], references: [clientApps.id] }),
+}));
+
 export const pushSendLogsRelations = relations(pushSendLogs, ({ one }) => ({
   config: one(pushConfigs, { fields: [pushSendLogs.configId], references: [pushConfigs.id] }),
+  app: one(clientApps, { fields: [pushSendLogs.appId], references: [clientApps.id] }),
 }));
 
 export const appReleasesRelations = relations(appReleases, ({ one, many }) => ({

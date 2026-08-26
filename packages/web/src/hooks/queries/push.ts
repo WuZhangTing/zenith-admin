@@ -42,18 +42,6 @@ export const {
   resource: 'push-send-logs',
 });
 
-/** 设为默认:影响列表的默认列(旧默认行同时变化),失效配置列表 */
-export function useSetPushConfigDefault() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.put<PushConfig>(`/api/push-configs/${id}/default`).then(unwrap),
-    onSuccess: (saved) => {
-      void qc.invalidateQueries({ queryKey: pushConfigKeys.detail(saved.id) });
-      void qc.invalidateQueries({ queryKey: pushConfigKeys.lists });
-    },
-  });
-}
-
 /** 测试发送:产生一条发送记录 → 失效记录列表;配置本身不变 */
 export function useTestPushSend() {
   const qc = useQueryClient();

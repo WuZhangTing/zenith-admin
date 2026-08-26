@@ -12,8 +12,9 @@ import type {
   NotificationChannelPolicy,
   NotificationRecipient,
 } from '@zenith/shared/messaging';
-import { statusEnum } from './common';
+import { statusEnum, pushProviderEnum } from './common';
 import { auditColumns, tenants, users } from './core';
+import { clientApps } from './app-releases';
 
 // ─── 邮件配置表 ──────────────────────────────────────────────────────────────
 export const emailEncryptionEnum = pgEnum('email_encryption', ['none', 'ssl', 'tls']);
@@ -164,23 +165,24 @@ export type SmsSendLogRow = typeof smsSendLogs.$inferSelect;
 export type NewSmsSendLog = typeof smsSendLogs.$inferInsert;
 
 // ── App 推送（聚合供应商;厂商通道凭证配置在供应商后台,服务端零感知）─────────
-export const pushProviderEnum = pgEnum('push_provider', ['jpush']);
+// pushProviderEnum 定义在 common.ts（messaging 与 app-releases 共用,避免模块环）
 
+/** 推送凭证一对一挂应用:供应商侧凭证本就按 App 发放,unique(appId) 是客观模型 */
 export const pushConfigs = pgTable('push_configs', {
   id: serial('id').primaryKey(),
+  appId: integer('app_id').notNull().references(() => clientApps.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
   provider: pushProviderEnum('provider').notNull().default('jpush'),
   appKey: varchar('app_key', { length: 128 }).notNull().default(''),
   masterSecret: varchar('master_secret', { length: 256 }).notNull().default(''),
   /** iOS APNs 环境:true=生产 false=开发（极光 options.apns_production） */
   apnsProduction: boolean('apns_production').notNull().default(false),
-  isDefault: boolean('is_default').notNull().default(false),
   status: statusEnum('status').default('enabled').notNull(),
   remark: text('remark'),
   ...auditColumns(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [unique('push_configs_app_unique').on(t.appId)]);
 
 export type PushConfigRow = typeof pushConfigs.$inferSelect;
 
@@ -190,6 +192,8 @@ export type NewPushConfig = typeof pushConfigs.$inferInsert;
 export const pushSendLogs = pgTable('push_send_logs', {
   id: serial('id').primaryKey(),
   configId: integer('config_id').references(() => pushConfigs.id, { onDelete: 'set null' }),
+  /** 所属应用（多应用凭证路由下,一次派发可能按应用拆成多行） */
+  appId: integer('app_id').references(() => clientApps.id, { onDelete: 'set null' }),
   provider: pushProviderEnum('provider').notNull(),
   /** 收件人（test 直发 registrationId 时为空） */
   subjectType: varchar('subject_type', { length: 16 }),

@@ -7,12 +7,13 @@ import { PUSH_PROVIDERS } from '@zenith/shared/messaging';
 export const PushConfigDTO = z
   .object({
     id: z.number().int(),
+    appId: z.number().int(),
+    appName: z.string().optional(),
     name: z.string(),
     provider: z.enum(PUSH_PROVIDERS),
     appKey: z.string(),
     masterSecret: z.string().optional(),
     apnsProduction: z.boolean(),
-    isDefault: z.boolean(),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
     createdAt: z.string(),
@@ -24,6 +25,8 @@ export const PushSendLogDTO = z
   .object({
     id: z.number().int(),
     configId: z.number().int().nullable().optional(),
+    appId: z.number().int().nullable().optional(),
+    appName: z.string().nullable().optional(),
     provider: z.enum(PUSH_PROVIDERS),
     subjectType: z.string().nullable().optional(),
     subjectId: z.number().int().nullable().optional(),

@@ -395,12 +395,13 @@ export type ResetNotificationOverrideInput = z.infer<typeof resetNotificationOve
 
 // ── App 推送配置 ─────────────────────────────────────────────────────────────
 export const createPushConfigSchema = z.object({
+  /** 凭证一对一挂应用（供应商侧凭证按 App 发放） */
+  appId: z.number().int().positive({ message: '请选择所属应用' }),
   name: z.string().min(1, '配置名称不能为空').max(100),
   provider: z.enum(PUSH_PROVIDERS).default('jpush'),
   appKey: z.string().min(1, 'AppKey 不能为空').max(128),
   masterSecret: z.string().min(1, 'MasterSecret 不能为空').max(256),
   apnsProduction: z.boolean().default(false),
-  isDefault: z.boolean().default(false),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(500).optional(),
 });

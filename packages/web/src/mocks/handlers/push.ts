@@ -33,15 +33,19 @@ export const pushHandlers = [
 
   http.post('/api/push-configs', async ({ request }) => {
     const body = (await request.json()) as Partial<PushConfig>;
+    if (mockPushConfigs.some((c) => c.appId === body.appId)) {
+      return badRequest('该应用已存在推送配置(一个应用只允许一套凭证)', { status: 400 });
+    }
     const now = mockDateTime();
-    if (body.isDefault) for (const c of mockPushConfigs) c.isDefault = false;
+    const appNames: Record<number, string> = { 1: 'Zenith 桌面端', 2: 'Zenith 移动端' };
     const config: PushConfig = {
       id: getNextPushConfigId(),
+      appId: body.appId ?? 0,
+      appName: appNames[body.appId ?? 0] ?? `应用#${body.appId}`,
       name: body.name ?? '',
       provider: body.provider ?? 'jpush',
       appKey: body.appKey ?? '',
       apnsProduction: body.apnsProduction ?? false,
-      isDefault: body.isDefault ?? false,
       status: body.status ?? 'enabled',
       remark: body.remark ?? null,
       createdAt: now,
@@ -49,14 +53,6 @@ export const pushHandlers = [
     };
     mockPushConfigs.push(config);
     return ok(config, '创建成功');
-  }),
-
-  http.put('/api/push-configs/:id/default', ({ params }) => {
-    const config = mockPushConfigs.find((c) => c.id === Number(params.id));
-    if (!config) return notFound('推送配置不存在', { status: 404 });
-    for (const c of mockPushConfigs) c.isDefault = false;
-    config.isDefault = true;
-    return ok(config, '设置成功');
   }),
 
   http.post('/api/push-configs/:id/test', async ({ params, request }) => {
@@ -68,6 +64,8 @@ export const pushHandlers = [
     mockPushSendLogs.unshift({
       id: getNextPushSendLogId(),
       configId: config.id,
+      appId: config.appId,
+      appName: config.appName ?? null,
       provider: config.provider,
       subjectType: null, subjectId: null, subjectName: null,
       deviceCount: 1,
@@ -84,9 +82,9 @@ export const pushHandlers = [
     const config = mockPushConfigs.find((c) => c.id === Number(params.id));
     if (!config) return notFound('推送配置不存在', { status: 404 });
     const body = (await request.json()) as Partial<PushConfig>;
-    if (body.isDefault) for (const c of mockPushConfigs) c.isDefault = false;
-    // masterSecret 留空表示不更新;脱敏字段不覆盖
+    // masterSecret 留空表示不更新;脱敏字段不覆盖;所属应用创建后不可改
     delete body.masterSecret;
+    delete body.appId;
     Object.assign(config, { ...body, updatedAt: mockDateTime() });
     return ok(config, '更新成功');
   }),

@@ -55,6 +55,7 @@ export default function PushSendLogsPage() {
   const total = listQuery.data?.total ?? 0;
 
   const columns: ColumnProps<PushSendLog>[] = [
+    { title: '应用', dataIndex: 'appName', width: 120, render: renderEllipsis },
     { title: '标题', dataIndex: 'title', width: 200, render: renderEllipsis },
     { title: '内容', dataIndex: 'content', width: 260, render: renderEllipsis },
     {
