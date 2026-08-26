@@ -2,7 +2,13 @@
  * App 推送 DTO（配置 / 发送记录）。
  */
 import { z } from '@hono/zod-openapi';
-import { PUSH_DELIVERY_STATUSES, PUSH_PROVIDERS } from '@zenith/shared/messaging';
+import {
+  BROADCAST_AUDIENCE_TYPES,
+  BROADCAST_CHANNELS,
+  BROADCAST_STATUSES,
+  PUSH_DELIVERY_STATUSES,
+  PUSH_PROVIDERS,
+} from '@zenith/shared/messaging';
 
 export const PushConfigDTO = z
   .object({
@@ -70,3 +76,25 @@ export const PushSendLogStatsDTO = z
     trend: z.array(PushTrendPointDTO),
   })
   .openapi('PushSendLogStats');
+
+export const BroadcastCampaignDTO = z
+  .object({
+    id: z.number().int(),
+    title: z.string(),
+    content: z.string(),
+    link: z.string().nullable().optional(),
+    channels: z.array(z.enum(BROADCAST_CHANNELS)),
+    audienceType: z.enum(BROADCAST_AUDIENCE_TYPES),
+    audienceIds: z.array(z.number().int()),
+    status: z.enum(BROADCAST_STATUSES),
+    totalRecipients: z.number().int().nullable().optional(),
+    enqueuedCount: z.number().int(),
+    taskId: z.number().int().nullable().optional(),
+    sentAt: z.string().nullable().optional(),
+    remark: z.string().nullable().optional(),
+    createdBy: z.number().int().nullable().optional(),
+    createdByName: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('BroadcastCampaign');

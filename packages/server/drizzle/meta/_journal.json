@@ -253,6 +253,13 @@
       "when": 1787775340282,
       "tag": "0035_flippant_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787776866846,
+      "tag": "0036_even_mauler",
+      "breakpoints": true
     }
   ]
 }

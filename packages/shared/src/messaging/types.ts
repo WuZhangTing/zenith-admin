@@ -1,6 +1,9 @@
 import type { ChatMessageExtra } from '../chat/types';
 import type { EntityStatus } from '../core/types';
 import type {
+  BroadcastAudienceType,
+  BroadcastChannel,
+  BroadcastStatus,
   NotificationChannel,
   NotificationDecision,
   NotificationDigestMode,
@@ -593,6 +596,34 @@ export interface PushSendLogStats {
     delivered: number;
     clicked: number;
   }>;
+}
+
+// ─── 运营群发 ─────────────────────────────────────────────────────────────────
+
+export interface BroadcastCampaign {
+  id: number;
+  title: string;
+  content: string;
+  /** 点击深链（站内路由或外链） */
+  link: string | null;
+  /** 投递渠道（映射 notify 的 channelPolicy.only） */
+  channels: BroadcastChannel[];
+  audienceType: BroadcastAudienceType;
+  /** audienceType 为指定名单时的主体 ID 列表 */
+  audienceIds: number[];
+  status: BroadcastStatus;
+  /** 受众解析后的总人数（发送时快照） */
+  totalRecipients: number | null;
+  /** 已入队批次覆盖的人数 */
+  enqueuedCount: number;
+  /** 关联的任务中心任务 */
+  taskId: number | null;
+  sentAt: string | null;
+  remark: string | null;
+  createdBy?: number | null;
+  createdByName?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // 站内信模板

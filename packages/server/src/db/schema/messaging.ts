@@ -229,6 +229,46 @@ export type PushSendLogRow = typeof pushSendLogs.$inferSelect;
 
 export type NewPushSendLog = typeof pushSendLogs.$inferInsert;
 
+// ─── 运营群发 ─────────────────────────────────────────────────────────────────
+export const broadcastAudienceEnum = pgEnum('broadcast_audience', ['all_users', 'all_members', 'user_ids', 'member_ids']);
+export const broadcastStatusEnum = pgEnum('broadcast_status', ['draft', 'sending', 'sent', 'failed', 'cancelled']);
+
+/**
+ * 群发活动:管理页圈定受众与渠道,发送时经任务中心分批调用 notify()
+ * （hidden 事件 messaging.broadcast,dedupeKey `broadcast:{id}:batch:{n}` 幂等）。
+ */
+export const broadcastCampaigns = pgTable('broadcast_campaigns', {
+  id: serial('id').primaryKey(),
+  title: varchar('title', { length: 200 }).notNull(),
+  content: text('content').notNull(),
+  link: varchar('link', { length: 500 }),
+  /** 投递渠道(映射 notify 的 channelPolicy.only) */
+  channels: jsonb('channels').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  audienceType: broadcastAudienceEnum('audience_type').notNull(),
+  /** 指定名单时的主体 ID 列表 */
+  audienceIds: jsonb('audience_ids').$type<number[]>().notNull().default(sql`'[]'::jsonb`),
+  status: broadcastStatusEnum('status').notNull().default('draft'),
+  /** 受众解析后的总人数(发送时快照) */
+  totalRecipients: integer('total_recipients'),
+  /** 已入队批次覆盖的人数 */
+  enqueuedCount: integer('enqueued_count').notNull().default(0),
+  /** 任务中心任务 ID(发送后回填) */
+  taskId: integer('task_id'),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  remark: text('remark'),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('broadcast_campaigns_status_idx').on(t.status),
+  index('broadcast_campaigns_created_at_idx').on(t.createdAt),
+]);
+
+export type BroadcastCampaignRow = typeof broadcastCampaigns.$inferSelect;
+
+export type NewBroadcastCampaign = typeof broadcastCampaigns.$inferInsert;
+
 // ── 站内信模板 ──────────────────────────────────────────────────────────────
 export const inAppTemplates = pgTable('in_app_templates', {
   id: serial('id').primaryKey(),

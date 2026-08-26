@@ -10,7 +10,7 @@ import { dictItems, dicts } from './dicts';
 import { analyticsEventMeta, analyticsEventOverrides, analyticsExperiments, analyticsSegmentCampaigns, analyticsSites, analyticsSegmentMembers, analyticsUserProfiles, analyticsUserSegments, errorEvents, errorGroups } from './analytics';
 import { announcementReads, announcementRecipients, announcements } from './announcements';
 import { workflowAutomations, workflowCategories, workflowComments, workflowDefinitions, workflowDefinitionVersions, workflowDelegations, workflowForms, workflowInstances, workflowJobExecutions, workflowJobs, workflowQuickPhrases, workflowTaskConsults, workflowTasks, workflowTaskUrges, workflowTokens } from './workflow';
-import { emailSendLogs, emailTemplates, inAppMessages, inAppTemplates, pushConfigs, pushSendLogs, smsConfigs, smsSendLogs, smsTemplates } from './messaging';
+import { broadcastCampaigns, emailSendLogs, emailTemplates, inAppMessages, inAppTemplates, pushConfigs, pushSendLogs, smsConfigs, smsSendLogs, smsTemplates } from './messaging';
 import { dbBackups } from './db-admin';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases } from './rules';
 import { chatConversationMembers, chatConversations, chatMessageReactions, chatMessages, chatWebhooks, chatQuickReplies, chatScheduledMessages, chatCustomEmojis, chatGroupInvites, chatGroupJoinRequests } from './chat';
@@ -1674,6 +1674,10 @@ export const pushConfigsRelations = relations(pushConfigs, ({ one }) => ({
 export const pushSendLogsRelations = relations(pushSendLogs, ({ one }) => ({
   config: one(pushConfigs, { fields: [pushSendLogs.configId], references: [pushConfigs.id] }),
   app: one(clientApps, { fields: [pushSendLogs.appId], references: [clientApps.id] }),
+}));
+
+export const broadcastCampaignsRelations = relations(broadcastCampaigns, ({ one }) => ({
+  creator: one(users, { fields: [broadcastCampaigns.createdBy], references: [users.id] }),
 }));
 
 export const appReleasesRelations = relations(appReleases, ({ one, many }) => ({

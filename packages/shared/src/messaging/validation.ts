@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { chatMessageExtraSchema } from '../chat/validation';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { MP_CUSTOM_MSG_TYPES } from '../mp/constants';
-import { NOTIFICATION_CHANNELS, NOTIFICATION_DIGEST_MODES, PUSH_PROVIDERS } from './constants';
+import { NOTIFICATION_CHANNELS, NOTIFICATION_DIGEST_MODES, PUSH_PROVIDERS, BROADCAST_AUDIENCE_TYPES, BROADCAST_CHANNELS } from './constants';
 
 // ─── 公告 Schema ─────────────────────────────────────────────────────────────
 export const announcementRecipientSchema = z.object({
@@ -429,3 +429,24 @@ export const testFireNotificationSchema = z.object({
 });
 
 export type TestFireNotificationInput = z.infer<typeof testFireNotificationSchema>;
+
+// ─── 运营群发 Schema ──────────────────────────────────────────────────────────
+
+export const createBroadcastSchema = z.object({
+  title: z.string().min(1, '标题不能为空').max(200),
+  content: z.string().min(1, '内容不能为空').max(2000),
+  link: z.string().max(500).optional().nullable(),
+  channels: z.array(z.enum(BROADCAST_CHANNELS)).min(1, '至少选择一个投递渠道'),
+  audienceType: z.enum(BROADCAST_AUDIENCE_TYPES),
+  audienceIds: z.array(z.number().int().positive()).max(10000).optional().default([]),
+  remark: z.string().max(500).optional().nullable(),
+}).superRefine((val, ctx) => {
+  if ((val.audienceType === 'user_ids' || val.audienceType === 'member_ids') && val.audienceIds.length === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['audienceIds'], message: '指定名单时至少填写一个 ID' });
+  }
+});
+
+export type CreateBroadcastInput = z.infer<typeof createBroadcastSchema>;
+
+export const updateBroadcastSchema = createBroadcastSchema;
+export type UpdateBroadcastInput = z.infer<typeof updateBroadcastSchema>;

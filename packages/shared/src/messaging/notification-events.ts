@@ -477,6 +477,19 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '你有 {{count}} 条未读通知摘要',
     content: '{{periodText}}期间共有 {{count}} 条通知，详见邮件内容。',
   },
+  // 运营群发：管理页选定受众与渠道后经任务中心分批派发；
+  // 渠道由 campaign 的 channelPolicy.only 决定,不出现在偏好矩阵,但尊重全局免打扰。
+  'messaging.broadcast': {
+    group: 'messaging',
+    label: '运营群发',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'push', 'email'],
+    hidden: true,
+    vars: eventVars<{ title: string; content: string }>(),
+    title: '{{title}}',
+    content: '{{content}}',
+  },
 });
 
 export type NotificationEventKey = keyof typeof NOTIFICATION_EVENTS;

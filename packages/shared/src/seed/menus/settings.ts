@@ -159,6 +159,14 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2695, parentId: 2690, title: '测试发送', type: 'button', permission: 'system:push:send', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2700, parentId: 2680, title: '推送记录', name: 'NotificationPushSendLogs', path: '/system/push-send-logs', component: 'system/push-send-logs/PushSendLogsPage', icon: 'ScrollText', type: 'menu', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2701, parentId: 2700, title: '查询', type: 'button', permission: 'system:push-log:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 运营群发（2710 段,通知管理下）
+  { id: 2710, parentId: 2200, title: '运营群发', name: 'NotificationBroadcasts', path: '/system/broadcasts', component: 'system/broadcasts/BroadcastsPage', icon: 'Megaphone', type: 'menu', sort: 9, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2711, parentId: 2710, title: '查询', type: 'button', permission: 'system:broadcast:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2712, parentId: 2710, title: '新建活动', type: 'button', permission: 'system:broadcast:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2713, parentId: 2710, title: '编辑活动', type: 'button', permission: 'system:broadcast:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2714, parentId: 2710, title: '删除活动', type: 'button', permission: 'system:broadcast:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2715, parentId: 2710, title: '发送', type: 'button', permission: 'system:broadcast:send', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2350, parentId: 2000, title: '标签管理', name: 'SystemTags', path: '/system/tags', component: 'system/tags/TagsPage', icon: 'Tags', type: 'menu', sort: 14, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2351, parentId: 2350, title: '查询', type: 'button', permission: 'system:tag:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2352, parentId: 2350, title: '新增标签', type: 'button', permission: 'system:tag:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

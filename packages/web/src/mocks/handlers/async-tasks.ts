@@ -12,6 +12,17 @@ import { mockDateOffset, mockDateTime, mockDateTimeOffset } from '@/mocks/utils/
 
 const taskTypes: AsyncTaskTypeMeta[] = [
   {
+    taskType: 'messaging-broadcast',
+    title: '运营群发',
+    module: '通知管理',
+    description: '分批经通知派发层投递群发活动(站内信/推送/邮件)。',
+    allowConcurrent: true,
+    enabled: true,
+    maxAttempts: 3,
+    retryDelayMs: 5000,
+    retentionDays: 30,
+  },
+  {
     taskType: 'directory-sync-run',
     title: '通讯录同步',
     module: '通讯录同步',
@@ -392,7 +403,7 @@ export function createImmediateMockTask(input: {
 }
 
 export function createProgressingMockTask(input: {
-  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-static-build' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync';
+  taskType: 'report-dq-rule-run' | 'report-dataset-materialize' | 'report-sla-rule-evaluate' | 'report-fill-sync' | 'analytics-rollup-rebuild' | 'analytics-segment-materialize' | 'analytics-campaign-execute' | 'cms-static-build' | 'cms-search-reindex' | 'cms-deadlink-check' | 'cms-collect-run' | 'cms-content-import' | 'cms-resource-governance' | 'cms-resource-ref-rebuild' | 'cms-publish-build' | 'cms-widget-batch' | 'cms-widget-refresh' | 'cms-ad-events-cleanup' | 'cms-interactions-batch-status' | 'cms-subscription-notify' | 'cms-distribution-sync' | 'messaging-broadcast';
   title: string;
   payload?: Record<string, unknown>;
   totalItems?: number;

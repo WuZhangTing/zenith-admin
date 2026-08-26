@@ -123,6 +123,39 @@ export const PUSH_DELIVERY_STATUS_LABELS: Record<PushDeliveryStatus, string> = {
   clicked: '已点击',
 };
 
+// ─── 运营群发（通知中心级,经 hidden 事件 messaging.broadcast 派发）──────────────
+
+export const BROADCAST_AUDIENCE_TYPES = ['all_users', 'all_members', 'user_ids', 'member_ids'] as const;
+export type BroadcastAudienceType = (typeof BROADCAST_AUDIENCE_TYPES)[number];
+
+export const BROADCAST_AUDIENCE_TYPE_LABELS: Record<BroadcastAudienceType, string> = {
+  all_users: '全体用户',
+  all_members: '全体会员',
+  user_ids: '指定用户',
+  member_ids: '指定会员',
+};
+
+export const BROADCAST_AUDIENCE_TYPE_OPTIONS: Array<{ value: BroadcastAudienceType; label: string }> =
+  createLabelOptionsFromMap(BROADCAST_AUDIENCE_TYPE_LABELS);
+
+export const BROADCAST_STATUSES = ['draft', 'sending', 'sent', 'failed', 'cancelled'] as const;
+export type BroadcastStatus = (typeof BROADCAST_STATUSES)[number];
+
+export const BROADCAST_STATUS_LABELS: Record<BroadcastStatus, string> = {
+  draft: '草稿',
+  sending: '发送中',
+  sent: '已发送',
+  failed: '失败',
+  cancelled: '已取消',
+};
+
+export const BROADCAST_STATUS_OPTIONS: Array<{ value: BroadcastStatus; label: string }> =
+  createLabelOptionsFromMap(BROADCAST_STATUS_LABELS);
+
+/** 群发可选投递渠道（sms 需模板参数,不开放给群发） */
+export const BROADCAST_CHANNELS = ['inapp', 'push', 'email'] as const;
+export type BroadcastChannel = (typeof BROADCAST_CHANNELS)[number];
+
 export const SEND_STATUS_LABELS: Record<SendStatus, string> = {
   pending: '待发送',
   success: '已发送',
