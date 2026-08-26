@@ -49,6 +49,7 @@ import { cmsStage5Handlers } from './cms-stage5';
 import { cmsWidgetsHandlers } from './cms-widgets';
 import { wikiHandlers } from './wiki';
 import { appReleasesHandlers } from './app-releases';
+import { pushHandlers } from './push';
 import { workflowAutomationsHandlers } from './workflow-automations';
 import { workflowEventSubscriptionsHandlers } from './workflow-event-subscriptions';
 import { workflowTriggerExecutionsHandlers } from './workflow-trigger-executions';
@@ -264,6 +265,7 @@ export const handlers = [
   ...cmsWidgetsHandlers,
   ...wikiHandlers,
   ...appReleasesHandlers,
+  ...pushHandlers,
   // 兜底 handler 必须放在最后：拦截所有未实现的 /api/* 请求，避免 dev:demo 下被代理到后端返回 401 跳转登录页
   ...fallbackHandlers,
 ];

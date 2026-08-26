@@ -58,6 +58,7 @@ import {
   type AppReleaseChannel,
   type AppReleaseStatus,
   type ClientApp,
+  type ClientDevice,
 } from '@zenith/shared/ops';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AppModal from '@/components/AppModal';
@@ -87,20 +88,24 @@ import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import {
   appReleaseKeys,
+  clientDeviceKeys,
   useAddExternalArtifact,
   useAllClientApps,
   useAppReleaseDetail,
   useAppReleaseList,
   useAppReleaseStats,
   useClientAppList,
+  useClientDeviceList,
   useDeleteAppArtifact,
   useDeleteAppReleases,
   useDeleteClientApps,
+  useDeleteClientDevice,
   usePublishAppRelease,
   useRevokeAppRelease,
   useSaveAppRelease,
   useSaveClientApp,
   useSetAppReleaseRollout,
+  useUnbindDevicePush,
   useUploadAppArtifact,
 } from '@/hooks/queries/app-releases';
 
@@ -913,10 +918,217 @@ function ReleaseStatsTab({ active }: { active: boolean }) {
   );
 }
 
+// ─── 设备 Tab（统一设备中心:升级心跳与推送绑定共用的设备档案）──────────────────
+
+const SUBJECT_TYPE_OPTIONS = [
+  { value: 'user', label: '系统用户' },
+  { value: 'member', label: '会员' },
+];
+
+const PUSH_BOUND_OPTIONS = [
+  { value: 'true', label: '已绑定推送' },
+];
+
+interface DeviceSearchParams {
+  appId: number | undefined;
+  platform: string;
+  subjectType: string;
+  pushBound: string;
+  keyword: string;
+}
+
+const defaultDeviceSearchParams: DeviceSearchParams = {
+  appId: undefined, platform: '', subjectType: '', pushBound: '', keyword: '',
+};
+
+function DevicesTab({ active }: { active: boolean }) {
+  const { hasPermission } = usePermission();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<DeviceSearchParams>({ defaults: defaultDeviceSearchParams, listKey: clientDeviceKeys.lists });
+
+  const listQuery = useClientDeviceList({
+    page,
+    pageSize,
+    appId: submittedParams.appId,
+    platform: submittedParams.platform || undefined,
+    subjectType: submittedParams.subjectType || undefined,
+    pushBound: submittedParams.pushBound || undefined,
+    keyword: submittedParams.keyword || undefined,
+  }, active);
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  const appsQuery = useAllClientApps(active);
+  const appOptions = (appsQuery.data ?? []).map((a) => ({ value: a.id, label: a.name }));
+
+  const unbindMutation = useUnbindDevicePush();
+  const deleteMutation = useDeleteClientDevice();
+  const canUpdate = hasPermission('system:app-release:update');
+
+  const columns: ColumnProps<ClientDevice>[] = [
+    { title: '设备标识', dataIndex: 'deviceId', width: 180, render: renderEllipsis },
+    { title: '应用', dataIndex: 'appName', width: 130, render: renderEllipsis },
+    {
+      title: '平台', dataIndex: 'platform', width: 100,
+      render: (v: AppPlatform, record: ClientDevice) => (
+        <>{APP_PLATFORM_LABELS[v]}{record.arch ? ` / ${APP_ARCH_LABELS[record.arch]}` : ''}</>
+      ),
+    },
+    { title: '设备型号', dataIndex: 'deviceModel', width: 140, render: renderEllipsis },
+    {
+      title: '客户端版本', dataIndex: 'appVersion', width: 110,
+      render: (v: string | null) => v ?? EMPTY_PLACEHOLDER,
+    },
+    {
+      title: '绑定人', dataIndex: 'subjectName', width: 130,
+      render: (_: unknown, record: ClientDevice) => (record.subjectType
+        ? <Tag color={record.subjectType === 'user' ? 'blue' : 'cyan'} size="small">
+            {record.subjectName ?? `${record.subjectType}#${record.subjectId}`}
+          </Tag>
+        : <Text type="tertiary">匿名</Text>),
+    },
+    {
+      title: '推送', dataIndex: 'pushRegistrationId', width: 90,
+      render: (v: string | null, record: ClientDevice) => (v
+        ? <Tag color={record.pushEnabled ? 'green' : 'grey'} size="small">{record.pushEnabled ? '已绑定' : '已关闭'}</Tag>
+        : EMPTY_PLACEHOLDER),
+    },
+    dateTimeColumn('最近活跃', 'lastActiveAt'),
+    createdAtColumn,
+    createOperationColumn<ClientDevice>({
+      width: 150,
+      actions: (record) => [
+        ...(canUpdate && (record.pushRegistrationId || record.subjectType) ? [{
+          key: 'unbind', label: '解绑推送',
+          onClick: () => {
+            Modal.confirm({
+              title: `确认解绑设备「${record.deviceId}」的推送？`,
+              content: '解绑后该设备不再接收 App 推送,设备档案保留',
+              onOk: async () => {
+                await unbindMutation.mutateAsync(record.id);
+                Toast.success('已解绑');
+              },
+            });
+          },
+        }] : []),
+        ...(hasPermission('system:app-release:delete') ? [{
+          key: 'delete', label: '删除', danger: true,
+          onClick: () => {
+            confirmDelete({
+              title: `确定要删除设备「${record.deviceId}」的档案吗？`,
+              content: '删除后该设备的活跃与版本信息将从统计中消失,下次心跳会重新登记',
+              onOk: async () => {
+                await deleteMutation.mutateAsync(record.id);
+                Toast.success('删除成功');
+              },
+            });
+          },
+        }] : []),
+      ],
+    }),
+  ];
+
+  const renderAppFilter = () => (
+    <Select
+      placeholder="全部应用"
+      value={draftParams.appId}
+      onChange={(v) => setDraftParams((p) => ({ ...p, appId: v as number | undefined }))}
+      optionList={appOptions}
+      showClear
+      style={{ width: 160, maxWidth: '100%' }}
+    />
+  );
+
+  const renderPlatformFilter = () => (
+    <StatusSelect
+      placeholder="全部平台"
+      items={APP_PLATFORM_OPTIONS}
+      value={draftParams.platform}
+      onChange={(v) => setDraftParams((p) => ({ ...p, platform: v }))}
+    />
+  );
+
+  const renderSubjectFilter = () => (
+    <StatusSelect
+      placeholder="绑定人类型"
+      width={130}
+      items={SUBJECT_TYPE_OPTIONS}
+      value={draftParams.subjectType}
+      onChange={(v) => setDraftParams((p) => ({ ...p, subjectType: v }))}
+    />
+  );
+
+  const renderPushBoundFilter = () => (
+    <StatusSelect
+      placeholder="推送绑定"
+      width={130}
+      items={PUSH_BOUND_OPTIONS}
+      value={draftParams.pushBound}
+      onChange={(v) => setDraftParams((p) => ({ ...p, pushBound: v }))}
+    />
+  );
+
+  const renderKeywordSearch = () => (
+    <KeywordInput
+      placeholder="搜索设备标识 / 型号 / 版本..."
+      value={draftParams.keyword}
+      onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
+      onSearch={handleSearch}
+    />
+  );
+
+  return (
+    <>
+      <SearchToolbar
+        primary={<>
+          {renderAppFilter()}
+          {renderKeywordSearch()}
+          <SearchButton onClick={handleSearch} />
+          <ResetButton onClick={handleReset} />
+        </>}
+        filters={<>
+          {renderPlatformFilter()}
+          {renderSubjectFilter()}
+          {renderPushBoundFilter()}
+        </>}
+        mobilePrimary={<>
+          {renderKeywordSearch()}
+          <SearchButton onClick={handleSearch} />
+        </>}
+        mobileFilters={<>
+          {renderAppFilter()}
+          {renderPlatformFilter()}
+          {renderSubjectFilter()}
+          {renderPushBoundFilter()}
+        </>}
+        filterTitle="筛选条件"
+        onFilterApply={handleSearch}
+        onFilterReset={handleReset}
+      />
+
+      <ConfigurableTable
+        bordered
+        columns={columns}
+        dataSource={list}
+        loading={listQuery.isFetching}
+        rowKey="id"
+        size="small"
+        empty="暂无设备,客户端检查更新或绑定推送后自动登记"
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
+      />
+    </>
+  );
+}
+
 // ─── 页面入口 ─────────────────────────────────────────────────────────────────
 
 export default function AppReleasesPage() {
-  const [activeTab, setActiveTab] = useUrlTabState(['manage', 'stats'] as const, 'manage');
+  const [activeTab, setActiveTab] = useUrlTabState(['manage', 'stats', 'devices'] as const, 'manage');
 
   return (
     <div className="page-container page-tabs-page zx-flat-panels">
@@ -933,6 +1145,9 @@ export default function AppReleasesPage() {
         </TabPane>
         <TabPane tab="统计分析" itemKey="stats">
           <ReleaseStatsTab active={activeTab === 'stats'} />
+        </TabPane>
+        <TabPane tab="设备" itemKey="devices">
+          <DevicesTab active={activeTab === 'devices'} />
         </TabPane>
       </Tabs>
     </div>

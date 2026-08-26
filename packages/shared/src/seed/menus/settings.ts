@@ -147,6 +147,17 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2650, parentId: 2200, title: '通知策略', name: 'NotificationPolicies', path: '/system/notify-policies', component: 'system/notify-policies/NotifyPoliciesPage', icon: 'SlidersHorizontal', type: 'menu', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2651, parentId: 2650, title: '查询', type: 'button', permission: 'system:notify-policy:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2652, parentId: 2650, title: '保存策略', type: 'button', permission: 'system:notify-policy:save', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── App 推送管理（2680 段,通知管理下）
+  { id: 2680, parentId: 2200, title: 'App 推送', name: 'NotificationPush', icon: 'TabletSmartphone', type: 'directory', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2690, parentId: 2680, title: '推送配置', name: 'NotificationPushConfigs', path: '/system/push-configs', component: 'system/push-configs/PushConfigsPage', icon: 'Cog', type: 'menu', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2691, parentId: 2690, title: '查询', type: 'button', permission: 'system:push:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2692, parentId: 2690, title: '新增配置', type: 'button', permission: 'system:push:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2693, parentId: 2690, title: '编辑配置', type: 'button', permission: 'system:push:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2694, parentId: 2690, title: '删除配置', type: 'button', permission: 'system:push:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2695, parentId: 2690, title: '测试发送', type: 'button', permission: 'system:push:send', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2700, parentId: 2680, title: '推送记录', name: 'NotificationPushSendLogs', path: '/system/push-send-logs', component: 'system/push-send-logs/PushSendLogsPage', icon: 'ScrollText', type: 'menu', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2701, parentId: 2700, title: '查询', type: 'button', permission: 'system:push-log:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2350, parentId: 2000, title: '标签管理', name: 'SystemTags', path: '/system/tags', component: 'system/tags/TagsPage', icon: 'Tags', type: 'menu', sort: 14, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2351, parentId: 2350, title: '查询', type: 'button', permission: 'system:tag:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2352, parentId: 2350, title: '新增标签', type: 'button', permission: 'system:tag:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

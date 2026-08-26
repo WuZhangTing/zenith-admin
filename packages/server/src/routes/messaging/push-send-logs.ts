@@ -23,7 +23,7 @@ const listRoute = defineOpenAPIRoute({
     method: 'get', path: '/',
     tags: ['推送管理'], summary: '推送发送记录',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:push:list' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'system:push-log:list' })] as const,
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().max(256).optional(),

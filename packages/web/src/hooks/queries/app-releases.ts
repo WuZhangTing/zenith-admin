@@ -11,6 +11,7 @@ import type {
   AppRelease,
   AppReleaseStats,
   ClientApp,
+  ClientDevice,
   CreateExternalArtifactInput,
 } from '@zenith/shared/ops';
 import { request } from '@/utils/request';
@@ -147,5 +148,45 @@ export function useAppReleaseStats(appId: number | undefined, days: number) {
     queryKey: appReleaseStatsKeys.of(appId, days),
     queryFn: () => request.get<AppReleaseStats>(`/api/app-releases/stats?appId=${appId}&days=${days}`).then(unwrap),
     enabled: appId !== undefined,
+  });
+}
+
+// ─── 统一设备中心（升级心跳 / 推送绑定共用的设备档案）───────────────────────
+
+export interface ClientDeviceListParams extends CrudListParams {
+  appId?: number;
+  platform?: string;
+  subjectType?: string;
+  pushBound?: string;
+  keyword?: string;
+}
+
+export const {
+  keys: clientDeviceKeys,
+  useList: useClientDeviceList,
+} = createCrudQueries<ClientDevice, ClientDeviceListParams, never>({
+  resource: 'client-devices',
+  path: '/api/app-releases/devices',
+});
+
+/** 解绑推送:设备行的绑定人与推送标识变化,失效设备列表 */
+export function useUnbindDevicePush() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.put<null>(`/api/app-releases/devices/${id}/unbind`).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clientDeviceKeys.lists });
+    },
+  });
+}
+
+/** 删除设备档案:失效设备列表;在网统计随下次查询自然刷新,不强制失效 stats */
+export function useDeleteClientDevice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.delete<null>(`/api/app-releases/devices/${id}`).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: clientDeviceKeys.lists });
+    },
   });
 }
