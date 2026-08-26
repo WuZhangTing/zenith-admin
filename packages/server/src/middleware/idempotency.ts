@@ -38,6 +38,7 @@ import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
 import { currentUserOrNull } from '../lib/context';
 import { currentMemberOrNull } from '../lib/member-context';
+import { getClientIp } from '../lib/request-helpers';
 import logger from '../lib/logger';
 
 /** idempotency Redis key 前缀，与其他 key 命名空间隔离 */
@@ -114,8 +115,8 @@ function resolveActor(c: Context): string {
   const user = currentUserOrNull();
   if (user) return `u:${user.tenantId ?? 0}:${user.userId}`;
 
-  const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim();
-  return ip ? `ip:${ip}` : 'anon';
+  const ip = getClientIp(c);
+  return ip !== '127.0.0.1' ? `ip:${ip}` : 'anon';
 }
 
 /**

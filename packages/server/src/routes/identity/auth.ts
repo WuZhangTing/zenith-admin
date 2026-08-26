@@ -6,7 +6,6 @@ import { getConfigBoolean, getConfigValue } from '../../lib/system-config';
 import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { LoginResultDTO, UserProfileDTO, CaptchaDTO, RefreshTokenResultDTO as RefreshDTO, SessionDTO, TenantItemDTO, SwitchTenantResultDTO as SwitchTenantDTO, LogRowDTO, UserPreferencesDTO } from '../../lib/openapi-dtos';
 import {
-  getClientInfo,
   login, register, refreshAccessToken, logoutSession, logoutByRefreshToken,
   getMyProfile, updateMyProfile, changeMyPassword, verifyMyPassword,
   listMyLoginLogs, listMyOperationLogs, listMySessions, deleteMyOtherSessions, deleteMySession,
@@ -14,6 +13,7 @@ import {
   getMyPreferences, saveMyPreferences, getMyFavoriteMenus, saveMyFavoriteMenus,
   verifyMfaLogin,
 } from '../../services/identity/auth.service';
+import { getClientInfo } from '../../lib/request-helpers';
 import {
   beginTotpSetup,
   disableMyMfaFactor,
@@ -105,7 +105,7 @@ const loginRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => {
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     const result = await login({ ...c.req.valid('json'), ip, ua });
     return c.json(okBody(result, '登录成功'), 200);
   },
@@ -124,7 +124,7 @@ const registerRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => {
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     const result = await register({ ...c.req.valid('json'), ip, ua });
     return c.json(okBody(result, '注册成功'), 200);
   },
@@ -144,7 +144,7 @@ const refreshRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { refreshToken } = c.req.valid('json');
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     return c.json(okBody(await refreshAccessToken(refreshToken, { ip, ua })), 200);
   },
 });
@@ -175,7 +175,7 @@ const logoutRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('ok') },
   }),
   handler: async (c) => {
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     await logoutSession({ ip, ua });
     return c.json(okBody(null, '已退出登录'), 200);
   },
@@ -193,7 +193,7 @@ const logoutByRefreshRoute = defineOpenAPIRoute({
     },
   }),
   handler: async (c) => {
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     await logoutByRefreshToken(c.req.valid('json').refreshToken, { ip, ua });
     return c.json(okBody(null, '已退出登录'), 200);
   },
@@ -331,7 +331,7 @@ const switchTenantRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { tenantId } = c.req.valid('json');
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     const { message, ...data } = await switchTenantView(tenantId, ip, ua);
     return c.json(okBody(data, message), 200);
   },

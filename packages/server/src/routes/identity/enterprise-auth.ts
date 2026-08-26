@@ -15,7 +15,7 @@ import {
   handleEnterpriseOidcCallback,
   handleEnterpriseSamlAcs,
 } from '../../services/identity/identity-providers.service';
-import { getClientInfo } from '../../services/identity/auth.service';
+import { getClientInfo } from '../../lib/request-helpers';
 import { enterpriseLdapLoginSchema } from '@zenith/shared/identity';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -60,7 +60,7 @@ const authUrlRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { redirect } = c.req.valid('query');
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     return c.json(okBody(await generateEnterpriseAuthUrl(id, { ip, ua, redirectTo: redirect })), 200);
   },
 });
@@ -106,7 +106,7 @@ const ldapLoginRoute = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const body = c.req.valid('json');
-    const { ip, ua } = getClientInfo(c.req.raw.headers);
+    const { ip, ua } = getClientInfo(c);
     return c.json(okBody(await handleEnterpriseLdapLogin({ ...body, ip, ua })), 200);
   },
 });

@@ -113,17 +113,6 @@ export async function recordLoginLog(params: LoginLogParams) {
   }
 }
 
-// ─── 从请求中提取客户端信息 ───────────────────────────────────────────────────
-
-export function getClientInfo(headers: { get: (key: string) => string | null | undefined }) {
-  // x-forwarded-for 可能是多级代理链（"client, proxy1, proxy2"），只取首个条目并限长，
-  // 防止伪造的超长头溢出各日志表的 ip varchar(64)
-  const forwarded = headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const ip = (forwarded || headers.get('x-real-ip')?.trim() || '127.0.0.1').slice(0, 64);
-  const ua = headers.get('user-agent') || '';
-  return { ip, ua };
-}
-
 // ─── 以下为下沉后的登录/注册/会话业务逻辑 ─────────────────────────────────────
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';

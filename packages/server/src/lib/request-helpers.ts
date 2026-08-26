@@ -44,3 +44,15 @@ export function parseUserAgent(ua: string): { browser: string; os: string } {
     os: o.name ? `${o.name} ${o.version ?? ''}`.trim() : 'Unknown',
   };
 }
+
+/**
+ * 从请求中提取客户端 IP 与 User-Agent（登录日志 / 风险事件 / 登录锁定 / 会话审计共用）。
+ * IP 复用 getClientIp 的可信代理链判定，直连客户端伪造的 x-forwarded-for / x-real-ip 不生效；
+ * 截断到 64 字符防止异常长值溢出各日志表的 ip varchar(64)。
+ */
+export function getClientInfo(c: Context): { ip: string; ua: string } {
+  return {
+    ip: getClientIp(c).slice(0, 64),
+    ua: c.req.header('user-agent') ?? '',
+  };
+}

@@ -16,7 +16,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 
 vi.mock('../config', () => ({
-  config: { redis: { keyPrefix: 'test:' } },
+  // 测试经 app.request() 发起，无 TCP 连接信息 → 远端地址回退 127.0.0.1；
+  // 将其列入可信代理后 x-forwarded-for 才会被采信（与真实反代部署一致）
+  config: { redis: { keyPrefix: 'test:' }, trustedProxyCidrs: ['127.0.0.1/32'] },
 }));
 
 vi.mock('../lib/redis', () => ({
