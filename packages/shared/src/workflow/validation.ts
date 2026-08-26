@@ -41,7 +41,7 @@ export const workflowAssigneeTypeSchema = z.enum([
   'manager', 'multiLevelManager', 'multiLevelDeptHead',
   'formUser', 'formDepartment', 'nodeApprover',
   'initiatorSelect', 'initiatorSelectScope', 'approverSelect',
-  'expression',
+  'decision', 'expression',
 ]);
 
 export const workflowApproveMethodSchema = z.enum(['and', 'or', 'sequential', 'ratio', 'random', 'auto']);
