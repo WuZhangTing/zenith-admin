@@ -1,116 +1,86 @@
 # 项目结构
 
-Zenith Admin 采用 npm monorepo 结构，核心目录如下：
+Zenith Admin 是 npm workspaces monorepo。后端是模块化单体，前端提供多入口应用，共享层维护前后端契约。
 
 ```text
 zenith-admin/
+├── .agents/              # AI 辅助开发资产（Zenith Skill）
+├── .github/workflows/    # CI、Pages、Release 工作流
 ├── docs/                 # VitePress 文档站
-├── docker/               # Docker 部署辅助文件（entrypoint、nginx 配置）
+├── docker/               # Nginx、entrypoint、Mastra Studio 构建脚本
 ├── packages/
-│   ├── server/           # Hono 后端服务
-│   ├── shared/           # 共享类型、常量、Zod schema
-│   ├── web/              # React 管理后台与会员前台
-│   ├── analytics-sdk/    # 埋点采集 SDK
-│   └── electron/         # Electron 桌面客户端
-├── package.json          # 根脚本与工作区配置
+│   ├── server/           # Hono API、CMS SSR/静态化、后台运行时
+│   ├── web/              # React 管理后台、会员前台、移动审批、Demo
+│   ├── shared/           # 类型、常量、Zod schema、seed
+│   ├── analytics-sdk/    # 浏览器埋点与错误采集 SDK
+│   └── electron/         # Electron 主进程、preload、桌面更新
+├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.dev.yml
+├── package.json
 └── README.md
 ```
 
 ## `packages/server`
 
-后端基于 **Hono v4**，通过 `@hono/node-server` 在 Node.js 中运行。
+后端基于 **Hono v4** 与 `@hono/zod-openapi`，通过 Node.js 运行。
 
-关注这些目录：
-
-- `packages/server/src/app.ts`：应用装配（中间件栈 → 路由装配 → 文档 → 兜底与错误处理），纯函数、无副作用，可在测试中直接构造
-- `packages/server/src/index.ts`：启动编排（遥测 → 装配 app → 监听 → 后台 worker → 事件订阅 → 优雅停机）
-- `packages/server/src/bootstrap/`：后台 worker 注册与事件总线订阅者注册
-- `packages/server/src/routes/`：API 路由（认证、用户、部门、岗位、角色、菜单、字典、通知、日志、监控、会话、定时任务、会员、支付、工作流、AI、运维等）。每个业务域在自己的 `index.ts` 中声明挂载清单，域顺序由 `routes/index.ts` 统一声明
-- `packages/server/src/services/`：Service 层（业务逻辑、数据映射 `mapXxx`、前置校验 `ensureXxx`；所有路由均已完成提取）
-- `packages/server/src/db/`：Drizzle schema、统一数据库类型别名、迁移与 seed
-- `packages/server/src/middleware/`：认证（`auth.ts` / `member-auth.ts`）、权限守卫（`guard.ts`）、IP 访问控制（`ip-access.ts`）、接口限流（`rate-limit.ts`）、幂等控制（`idempotency.ts`）、开放平台网关（`open-gateway.ts`）、维护模式、请求追踪与 HTTP 日志等
-- `packages/server/src/lib/`：通用能力封装，详见下方列表
-- `packages/server/src/types/`：后端全局类型声明
-- `packages/server/drizzle/`：生成的迁移文件
-
-`src/lib/` 主要模块：
-
-| 文件 | 说明 |
+| 目录 / 文件 | 职责 |
 | --- | --- |
-| `jwt.ts` | JWT 签发与校验（管理员 / 会员双体系统一入口） |
-| `context.ts` | 请求上下文取值（`currentUser()` / `getCtx()`） |
-| `datetime.ts` | 日期时间统一格式化（DTO 映射、导出、入参解析） |
-| `dtos/` | 响应实体 DTO（按业务域拆分） |
-| `session-manager.ts` | Redis 会话管理（在线会话 + 黑名单） |
-| `redis.ts` | ioredis 客户端单例与工具 |
-| `oauth/` | OAuth 提供方抽象（GitHub / 钉钉 / 企业微信） |
-| `pg-boss-scheduler.ts` | 定时任务调度器（基于 pg-boss，PostgreSQL 多进程安全） |
-| `db-backup.ts` | 基于 pg_dump 的数据库备份 |
-| `file-storage.ts` | 文件存储抽象（本地 / 阿里云 OSS / S3 / COS / OBS / Kodo / BOS / Azure Blob / SFTP） |
-| `email.ts` | SMTP 邮件发送 |
-| `password-policy.ts` | 密码复杂度校验与过期策略 |
-| `system-config.ts` | 系统配置读取封装 |
-| `tenant.ts` | 多租户数据隔离工具 |
-| `data-scope.ts` | 数据权限过滤（全部 / 部门 / 本人） |
-| `permissions.ts` | 菜单与按钮权限判断 |
-| `excel-export.ts` | Excel 导出工具 |
-| `captcha.ts` | 图形验证码生成 |
-| `sanitize.ts` | XSS 输入清洗 |
-| `ws-manager.ts` | WebSocket 连接管理 |
-| `logger.ts` | 日志工具（基于 winston） |
+| `src/app.ts` | 创建 Hono 应用、装配中间件、领域路由、OpenAPI、CMS 兜底与全局错误处理 |
+| `src/index.ts` | 进程启动、监听、worker / subscriber 注册、遥测与优雅停机 |
+| `src/bootstrap/` | 后台 worker 与事件订阅者注册 |
+| `src/routes/` | HTTP 协议边界，当前 18 个领域目录见下方清单 |
+| `src/services/` | 业务规则、事务、数据映射、前置校验 |
+| `src/db/` | Drizzle schema、迁移、seed、数据库封装 |
+| `src/middleware/` | 认证、权限、限流、幂等、CSRF、维护模式、开放平台网关、HTTP 日志等 |
+| `src/lib/` | DTO、时间、JWT、Redis、文件存储、任务中心、通知 outbox、HTTP 客户端、日志等通用能力 |
+| `drizzle/` | Drizzle 生成的迁移文件 |
+
+`packages/server/src/routes/` 当前领域目录：
+
+```text
+ai, analytics, biz-demo, chat, cms, files, identity, member,
+messaging, mp, open-platform, ops, payment, platform, report,
+tasks, wiki, workflow
+```
 
 ## `packages/web`
 
-前端基于 **React 19 + Vite + Semi Design**，构建三个入口：`index.html`（后台管理）、`member.html`（会员前台 SPA）、`approval.html`（移动端审批页）。
+前端基于 **React 19 + Vite 8 + Semi Design v2**。Vite 多入口：
 
-关注这些目录：
+| 入口 | 说明 |
+| --- | --- |
+| `index.html` | 后台管理主应用 |
+| `member.html` | C 端会员前台 SPA |
+| `approval.html` | 移动审批轻页 |
 
-- `packages/web/src/pages/`：页面级组件
-- `packages/web/src/layouts/`：后台主布局
-- `packages/web/src/components/`：公共组件
-- `packages/web/src/hooks/`：认证、主题等逻辑
-- `packages/web/src/hooks/queries/`：TanStack Query 域 hooks（服务端状态，按业务域拆分）
-- `packages/web/src/lib/`：前端通用库封装
-- `packages/web/src/member/`：会员前台独立 SPA
-- `packages/web/src/approval/`：移动端审批页入口
-- `packages/web/src/mocks/`：MSW Demo 模式数据与 handlers
-- `packages/web/src/utils/`：请求封装、日期处理等工具
-- `packages/web/src/providers/`：全局 Provider
-- `packages/web/src/styles/`：全局样式
-- `packages/web/src/webrtc/`：音视频通话相关逻辑
+关键目录：
+
+| 目录 | 职责 |
+| --- | --- |
+| `src/pages/` | 后台页面，按业务域拆分（含 `rules`、`wiki`、`open-platform`、`system/app-releases` 等） |
+| `src/member/` | 会员前台独立应用 |
+| `src/approval/` | 移动审批入口 |
+| `src/layouts/` | 后台主布局、偏好面板、多账号切换、Electron 标题栏承载 |
+| `src/components/` | 公共组件 |
+| `src/hooks/queries/` | TanStack Query v5 域 hooks |
+| `src/lib/` | 请求、账号停靠、主题色、CRUD query 工厂等封装 |
+| `src/mocks/` | MSW Demo 数据、handlers、测试与工具 |
+| `src/webrtc/` | Chat 音视频通话管理 |
+| `src/styles/` | 全局样式与响应式规则 |
 
 ## `packages/shared`
 
-共享层用于减少前后端重复定义，**按业务域拆分**（与 `packages/server/src/routes` 的域一一对应）：
+共享层按业务域拆分并通过 package exports 暴露子路径。当前目录：
 
 ```text
-packages/shared/src/
-├── core/              ApiResponse<T> / PaginatedResponse<T> / EntityStatus / Token key 等跨域基础契约
-├── identity/          用户 / 角色 / 菜单 / 部门 / 岗位 / 用户组 / 租户 / 认证
-├── platform/          字典 / 系统配置 / 文件 / 日志 / 会话 / 监控 / 备份 / 脱敏 / 标签 / 地区
-├── messaging/         公告 / 邮件 / 短信 / 站内信 / 渠道
-├── workflow/          流程与表单（附 formula / form-runtime / helpers / serial 运行时）
-├── payment/           支付订单 / 退款 / 对账 / 结算 / 分账 / 风控
-├── member/            会员 / 等级 / 积分 / 钱包 / 优惠券 / 签到
-├── report/            数据源 / 数据集 / 仪表盘 / 治理（附 print / format / embed / aggregation / visual-sql）
-├── analytics/         行为埋点 / 分群 / 实验 / 前端错误监控
-├── ai/ chat/ mp/      智能助手 / 即时通讯 / 公众号
-├── cms/               内容管理（附 link）
-├── open-platform/     OAuth2 应用 / API Scope / 限流套餐 / Webhook
-├── rules/             决策表 / 决策流 / 名单库（附 cell）
-├── ops/ tasks/ biz/   运维 / 异步任务与导出 / 业务示例
-├── seed/              DB seed 与 MSW mock 共用的种子数据（menus.ts 单独承载 SEED_MENUS）
-└── index.ts           根入口（仅供元编程全量扫描，业务代码禁用）
+ai, analytics, biz, chat, cms, core, identity, licensing, member,
+messaging, mp, open-platform, ops, payment, platform, report,
+rules, seed, tasks, wiki, workflow
 ```
 
-每个域内固定三件套：
-
-- `{业务域}/types.ts`：实体类型与接口响应类型
-- `{业务域}/validation.ts`：Zod 校验 schema
-- `{业务域}/constants.ts`：常量与枚举（枚举 SSOT，含 `XXX_LABELS` / `XXX_OPTIONS`）
-- `{业务域}/index.ts`：域公共入口（**刻意不导出 seed**）
-
-导入一律走域子路径，根入口已被 ESLint 禁用：
+每个业务域通常包含 `types.ts`、`validation.ts`、`constants.ts`、`index.ts`。业务代码使用域子路径导入，例如：
 
 ```ts
 import type { User } from '@zenith/shared/identity';
@@ -120,29 +90,33 @@ import { SEED_MENUS } from '@zenith/shared/seed';
 
 ## `packages/analytics-sdk`
 
-浏览器端埋点采集 SDK：负责行为事件、页面访问与前端错误的采集上报，由根构建流程（`npm run build`）在 web 之前构建。
+浏览器端 SDK，负责页面访问、行为事件、Web Vitals 与前端错误采集，上报到后端分析域。根 `npm run build` 会在 `web` 之前构建该包。
 
 ## `packages/electron`
 
-Electron 桌面客户端封装：主进程与 preload 脚本源码在 `src/`，打包配置见 `electron-builder.config.js`，详见 [Electron 客户端](./electron)。
+Electron 桌面客户端：
+
+- `src/main.ts`：窗口创建、外链打开、生命周期与 IPC 窗口控制
+- `src/preload.ts`：通过 `contextBridge` 暴露受限 API
+- `src/updater.ts`：连接服务端「应用版本管理」公开 API，支持 Web 热更新与壳全量更新
+- `package.json` / `electron-builder.config.js`：打包配置与平台产物定义
 
 ## `docs`
 
-文档站使用 **VitePress** 构建，当前按以下思路组织：
+| 目录 | 内容 |
+| --- | --- |
+| `guide/` | 快速开始、开发、结构、部署、Docker、PWA、Electron、Demo、维护 |
+| `product/` | 产品概览与功能全景 |
+| `backend/` | API、安全、数据库、任务中心、支付、Mastra 等后端专题 |
+| `frontend/` | UI、认证、数据获取等前端专题 |
+| `ai/` | AGENTS.md 与 Zenith Skill 协作说明 |
+| 业务专题目录 | `/rules/`、`/wiki/`、`/open-platform/`、`/workflow/`、`/payment/`、`/cms/` 等 |
+| `changelog/` | 版本更新记录 |
 
-- `index.md`：Landing Page
-- `guide/`：快速开始、开发、结构、部署、Docker、PWA、Electron、维护、Demo
-- `product/`：产品概览与功能模块
-- `backend/`：接口规范、数据库说明
-- `frontend/`：UI 规范、认证与请求
-- `ai/`：AI 开发辅助说明（AGENTS.md、Zenith Skill）
-- 按业务域的专题目录：`iam/`、`member/`、`payment/`、`workflow/`、`report/`、`analytics/`、`cms/`、`chat/`、`mp/`、`notification/`、`ops/`、`storage/`、`ai-platform/` 等
-- `changelog/`：版本更新历史
+## 分层原则
 
-## 为什么这样分层
-
-这样的结构适合后台项目长期演进：
-
-- **业务边界清晰**：前后端职责明确
-- **复用成本低**：共享类型和校验只维护一份
-- **协作效率高**：文档、代码、脚本都在根仓库统一管理
+- `shared` 是契约底座，不依赖 `server` 或 `web`。
+- `server` 是业务权威边界，负责认证授权、事务、任务、通知、CMS 渲染和外部集成。
+- `web` 是交互边界，只通过 HTTP / WebSocket / SSE 与后端协作。
+- `electron` 封装 Web 产物，不承载后端业务逻辑。
+- Demo 模式通过 MSW 替换 API 边界，继续复用真实契约与 seed。

@@ -99,7 +99,7 @@
 区块只支持公开且非敏感的 `always`、`guest`、`member` 与可组合时间窗。出现 `guest/member` 或 `startAt/endAt` 时，页面写入自动标记 `requiresDynamic=true`：
 
 - 全量/增量静态构建删除并跳过该页面的静态文件，hybrid miss 也不回写，共享 Redis 页面缓存同样跳过。
-- 首次导航只渲染游客可见区块；浏览器若存在会员 token，会用 Bearer 对同 URL 发起 `no-store` 请求，服务端经 optional member auth 重新渲染会员版本后替换文档。
+- 首次导航只渲染游客可见区块；浏览器若存在会员 token，会用当前页面 URL 携带会员 `Authorization` 请求头发起 `no-store` 请求，服务端经 optional member auth 重新渲染会员版本后替换文档。
 - 会员响应使用 `private, no-store` 与 `Vary: Authorization, Cookie`。JWT、JTI 黑名单、Redis 会话或会员状态任一校验失败均保留游客版本。
 - 时间条件在服务端过滤；未到 `startAt` 或已过 `endAt` 的内容不会进入 HTML。为避免静态文件跨越时间边界后泄露，含 dateRange 的页面采用 dynamic；仅纯 `always` 页面进入静态产物。角色/权限/私密字段不属于展示条件 DSL。
 

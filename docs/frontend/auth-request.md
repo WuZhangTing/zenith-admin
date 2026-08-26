@@ -1,72 +1,102 @@
 # 认证与请求
 
-这一页说明前端如何维护登录态，以及请求层如何与后端接口协作。
+这一页说明后台、会员端与移动审批端如何维护登录态，以及请求层如何与后端接口协作。
 
 ## 登录态管理
 
-认证状态集中在 `packages/web/src/providers/AuthProvider.tsx`，由 `main.tsx` 挂载在 `QueryClientProvider` 之内、`App` 之外。页面通过 `useAuth()`（`hooks/useAuth.ts`）读取 context，`usePermission()` 读取由同一 Provider 注入的权限码。
+后台认证状态集中在 `packages/web/src/providers/AuthProvider.tsx`，由 `main.tsx` 挂载在 `QueryClientProvider` 之内、`App` 之外。页面通过 `useAuth()`（`hooks/useAuth.ts`）读取账号状态，通过 `usePermission()` 读取同一 Provider 注入的权限码。
 
-- **会话数据也是服务端状态**：当前用户与权限来自 TanStack Query 查询 `['auth', 'me']`（`hooks/queries/auth.ts` 的 `authSessionQueryOptions`，请求 `GET /api/auth/me`，`staleTime` 5 分钟、`refetchOnWindowFocus: true`）
-- `useAuth()` 暴露：`user`、`permissions`、`status`、`login`、`verifyMfaLogin`、`register`、`logout`、`refresh`、`updateUser`
-- **状态机**：`anonymous`（本地无 token）→ `checking`（有 token，正在确认会话）→ `authenticated`；会话请求失败但**并非** 401 时进入 `unavailable`（网络故障不清凭证，`App.tsx` 渲染重试页）
+- **会话数据也是服务端状态**：当前用户与权限来自 `hooks/queries/auth.ts` 的 `authSessionQueryOptions()`，query key 为 `['auth', 'me']`，请求 `GET /api/auth/me`，`staleTime` 为 5 分钟，`refetchOnWindowFocus: true`
+- `useAuth()` 暴露：`user`、`permissions`、`status`、`loading`、`refreshing`、`error`、`parkedAccounts`、`canAddAccount`、`login`、`verifyMfaLogin`、`register`、`logout`、`refresh`、`updateUser`、`switchAccount`、`removeAccount`、`logoutAllAccounts`
+- **状态机**：`anonymous`（本地无 access token）→ `checking`（有 access token，正在确认会话）→ `authenticated`；会话查询失败但不是 401 时进入 `unavailable`，凭证保留，`App.tsx` 渲染 `FullPageRetry`
 
-Token 存储在 `localStorage`，key 来自 `@zenith/shared/core`：
+后台登录态使用 `@zenith/shared/core` 中的本地存储 key：
 
 | 常量 | Key | 说明 |
-|------|-----|------|
-| `TOKEN_KEY` | `zenith_token` | Access Token |
-| `REFRESH_TOKEN_KEY` | `zenith_refresh_token` | Refresh Token，用于自动续期 |
-| `PREFERENCES_KEY` | `zenith_preferences` | 用户偏好设置（主题、布局等）|
-| `TABS_STORAGE_KEY` | `zenith_tabs` | 多标签页状态 |
+| --- | --- | --- |
+| `TOKEN_KEY` | `zenith_token` | 当前活跃账号的 Access Token |
+| `REFRESH_TOKEN_KEY` | `zenith_refresh_token` | 当前活跃账号的 Refresh Token |
+| `ACCOUNTS_STORE_KEY` | `zenith_accounts` | 停靠账号列表，只保存资料快照与 refreshToken |
+| `ACCOUNT_SWITCH_BROADCAST_KEY` | `zenith_account_switch` | 跨标签页账号切换广播 |
+| `PREFERENCES_KEY` | `zenith_preferences` | 当前账号的偏好缓存 |
+| `TABS_STORAGE_KEY` | `zenith_tabs` | 当前账号的多标签页缓存 |
 
-此外 `AuthProvider` 维护 `zenith_device_id`（随机 UUID，登录时随 `deviceInfo` 一并上报，用于可信设备识别）。
+`AuthProvider` 还维护 `zenith_device_id`（随机 UUID），登录时随 `deviceInfo` 上报，用于可信设备识别。
 
-### 关键行为
+## 多账号切换
 
-- **登录 / MFA 验证 / 注册成功**：先清空身份相关查询缓存（防跨账号数据泄漏，保留 `auth-public` 公开配置查询），写入双 token，再拉取 `/api/auth/me`
-- **退出登录**：静默请求 `POST /api/auth/logout`（`skipAuth`，不等待结果），清理 token、偏好设置与标签页缓存，切回 `anonymous`——路由随之切换到登录页，无整页跳转
-- **凭证失效**：请求层 401 刷新失败时派发 `auth:invalidated` 事件（常量 `ADMIN_AUTH_INVALIDATED_EVENT`），`AuthProvider` 监听后切回匿名态
-- **多标签页同步**：监听 `storage` 事件——另一个浏览器标签页登录/退出时，本标签页同步切换登录态
-- **401 与网络故障区分**：只有 `/api/auth/me` 明确返回 401（`AuthRejectedError`）才清除凭证；网络异常保留凭证进入 `unavailable`
-- `updateUser`：个人资料修改后回写 `['auth', 'me']` 缓存，头像昵称即时生效
+后台右上角头像菜单内置 GitHub 风格账号切换器（`layouts/admin/AccountSwitcher.tsx`）。当前活跃账号占 1 席，最多同时保持 `MAX_STORED_ACCOUNTS = 5` 个账号登录；停靠区最多保存 4 个非活跃账号。
+
+### 停靠账号模型
+
+`packages/web/src/lib/account-store.ts` 是停靠账号仓库的唯一读写方。`StoredAccount` 字段为：
+
+```ts
+interface StoredAccount {
+  userId: number;
+  username: string;
+  nickname: string;
+  avatar?: string;
+  tenantName?: string | null;
+  refreshToken: string;
+  lastUsedAt: number;
+}
+```
+
+停靠账号不保存 access token。切换账号时使用目标账号的 `refreshToken` 调用 `POST /api/auth/refresh` 换发新的 access token；目标会话过期时移除该停靠账号，并引导到 `/login?add_account=1&username=...` 重新登录。
+
+### 添加与切换流程
+
+- 点击「添加其他账号」跳转 `/login?add_account=1`；该模式保留当前登录态，登录、MFA 验证或注册成功后把原账号停靠，写入新账号凭证并整页重载
+- 切换停靠账号时先快照当前账号的用户资料与 refreshToken，再把目标账号从停靠区取出，写入目标 refreshToken 与换发得到的 access token
+- 切换、添加成功后调用 `broadcastSwitchAndReload()`：写入 `zenith_account_switch` 广播其他标签页，本标签页跳到应用首页并重载；其他标签页监听到广播后整页重载，避免旧内存态发新账号请求
+- `ACCOUNTS_STORE_KEY` 变化时同步账号切换器列表；`TOKEN_KEY` 变化时同步登录/退出状态
+- 退出当前账号时若存在停靠账号，自动切到最近使用的账号；退出停靠账号或退出全部账号时使用 `POST /api/auth/logout-by-refresh` 按 refreshToken 注销服务端会话
+
+账号切换会清理账号级本地状态：偏好缓存、标签页缓存与锁屏凭证；查询缓存也会清空身份相关内容，仅保留 `auth-public` 公开配置查询。
 
 ## 请求封装
 
-通用 HTTP 客户端核心在 `packages/web/src/utils/http-client.ts`（`HttpClient` 类），三个入口各自实例化，token 与登录页互相隔离：
+通用 HTTP 客户端在 `packages/web/src/utils/http-client.ts`（`HttpClient` 类），三端各自实例化，token 与登录入口隔离：
 
 | 实例 | 文件 | token key | 401 刷新接口 | 凭证失效后 |
-|------|------|-----------|--------------|------------|
-| `request`（后台 admin） | `utils/request.ts` | `zenith_token` | `POST /api/auth/refresh` | 派发 `auth:invalidated`，由 `AuthProvider` 切回登录态 |
-| `memberRequest`（会员前台） | `member/utils/member-request.ts` | `zenith_member_token` | `POST /api/member/auth/refresh` | 整页跳转 `/member.html#/login` |
-| `approvalRequest`（移动审批轻页） | `approval/lib/approval-request.ts` | `zenith_token`（与 admin 共享，同域免登） | `POST /api/auth/refresh` | 整页跳转 `/approval.html#/login` |
+| --- | --- | --- | --- | --- |
+| `request`（后台 admin） | `utils/request.ts` | `zenith_token` / `zenith_refresh_token` | `POST /api/auth/refresh` | 派发 `auth:invalidated`，由 `AuthProvider` 切回匿名态 |
+| `memberRequest`（会员前台） | `member/utils/member-request.ts` | `zenith_member_token` / `zenith_member_refresh_token` | `POST /api/member/auth/refresh` | 跳转 `/member.html#/login` |
+| `approvalRequest`（移动审批轻页） | `approval/lib/approval-request.ts` | `zenith_token` / `zenith_refresh_token` | `POST /api/auth/refresh` | 跳转 `/approval.html#/login`；退出只清 access token |
 
 `HttpClient` 统一实现：
 
-- 自动附加 `Authorization` 请求头；非 `FormData` 请求自动设置 `Content-Type: application/json`
-- Access Token 过期时自动用 Refresh Token 换取新 token 并重试原请求；并发请求共享同一个刷新 Promise（single-flight）
-- 刷新失败或重试仍 401：清除本地凭证，执行各端的失效回调/跳转
-- 统一错误 Toast；`silent` 静默模式由调用方自行处理错误
-- `skipAuth`：401 直接返回响应体，不触发刷新与退出（用于密码校验、登录接口等）
-- 429 响应读取 `Retry-After` 头，附加 `retryAfterSeconds` 返回
-- 503 维护模式（仅 admin 端启用）：派发 `maintenance:enabled` 事件，`App.tsx` 展示维护覆盖层
+- 自动附加 `Authorization`；非 `FormData` 请求自动设置 `Content-Type: application/json`
+- Access Token 过期时用 Refresh Token 换取新 access token 并重试原请求；并发请求共享同一个刷新 Promise
+- 刷新失败或重试仍 401 时清除配置的本地凭证，写入 `zenith_auth_invalidated_reason`，再执行宿主回调或整页跳转
+- `silent` 由调用方接管错误提示；`skipAuth` 让 401 直接返回响应体，不触发刷新与退出
+- 429 读取 `Retry-After` 并返回 `retryAfterSeconds`
+- 后台端 503 维护模式派发 `maintenance:enabled`，`App.tsx` 失效维护状态查询并展示 `MaintenanceOverlay`
 
-admin 端 `request` 额外提供 `postForm`（`onProgress` 上传进度，内部走 XMLHttpRequest）与 `download`（二进制文件下载）。
+后台 `request` 额外提供：
+
+| 方法 | 用途 |
+| --- | --- |
+| `postForm(url, formData, { onProgress })` | 带上传进度的表单提交；传 `onProgress` 时走 XMLHttpRequest |
+| `getBlob(url)` | 二进制读取，复用 token 注入与 401 刷新 |
+| `download(url, filename)` | 下载二进制响应并保存为文件 |
 
 ::: tip request 只是传输层
-业务代码不直接调用 `request.get` 拉取页面数据。服务端状态（列表、详情、下拉源等）统一通过 TanStack Query 的域 hooks 管理（`hooks/queries/`），queryFn 内部才使用 `request.get(url).then(unwrap)`。完整规范见[数据获取与服务端状态](/frontend/data-fetching)。
+页面数据读取不要直接写 `request.get` + 本地 `loading` 状态。可缓存读与影响其他视图的写统一收口到 `hooks/queries/` 域 hooks，queryFn / mutationFn 内部再使用 `request.*(...).then(unwrap)`。完整规范见[数据获取与服务端状态](/frontend/data-fetching)。
 :::
 
 ## 与后端的协作方式
 
 ### 401 刷新流程
 
-请求返回 401 时，请求封装读取 refresh token 并调用刷新接口：
+请求返回 401 且未设置 `skipAuth` 时，请求封装读取 refresh token 并调用对应刷新接口：
 
 ```json
 { "refreshToken": "<refresh-token>" }
 ```
 
-刷新成功后更新 access token 并重试原请求；失败则清除凭证并按上表处理。
+刷新成功后只更新 access token 并重试原请求；refresh token 由当前登录槽位或停靠账号继续持有。
 
 ### 响应读取
 
@@ -80,75 +110,41 @@ admin 端 `request` 额外提供 `postForm`（`onProgress` 上传进度，内部
 }
 ```
 
+`lib/query.ts` 的 `unwrap(res)` 在 `code !== 0` 时抛 `ApiError`，供 TanStack Query 的 queryFn / mutationFn 使用。
+
 ### 共享类型
 
 接口类型、实体定义和校验 schema 尽量复用 `@zenith/shared`（按域子路径导入），避免前后端各写一套。
 
 ## 开发环境代理配置
 
-开发环境下，前端 Vite Dev Server 通过内置代理将 `/api/*` 请求转发到后端，避免跨域问题，同时让前端无需感知后端地址。
-
-**相关文件：**
-
-- `packages/web/.env.development` — 开发环境变量
-- `packages/web/vite.config.ts` — 代理规则定义
-
-**关键环境变量：**
+开发环境下，Vite Dev Server 将 `/api/*` 请求转发到后端，客户端保持使用相对路径。
 
 | 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `VITE_API_PROXY_TARGET` | 代理目标（后端地址），仅在 Vite Dev Server 中生效，**不会**暴露到客户端 | `http://localhost:3300` |
-| `VITE_API_BASE_URL` | 客户端 API 基础 URL。**开发时留空**，请求走相对路径 `/api/...` 由代理转发；**生产部署时**填写后端完整地址，如 `https://api.yourdomain.com` | 空（开发）|
-| `VITE_WS_BASE_URL` | WebSocket 基础 URL。**开发时留空**，由 `useWebSocket.ts` 自动从当前 Origin 推导并经代理转发；**生产时**填写如 `wss://api.yourdomain.com` | 空（开发）|
-
-**代理规则（`vite.config.ts`）：**
+| --- | --- | --- |
+| `VITE_API_PROXY_TARGET` | Dev Server 代理目标，只在 `vite.config.ts` 读取，不进入客户端包 | `http://localhost:3300` |
+| `VITE_API_BASE_URL` | 客户端 API 基础 URL。开发留空，生产可填完整后端地址 | 空 |
+| `VITE_WS_BASE_URL` | WebSocket 基础 URL。开发留空，由 `useWebSocket.ts` 从当前 Origin 推导 | 空 |
 
 ```ts
 server: {
   proxy: {
     '/api': {
-      target: apiTarget, // 来自 VITE_API_PROXY_TARGET
+      target: apiTarget,
       changeOrigin: true,
-      ws: true, // 同时代理 WebSocket（/api/ws）
+      ws: true,
     },
   },
-},
+}
 ```
-
-**各环境配置示例：**
-
-::: code-group
-
-```dotenv [.env.development（开发）]
-VITE_API_BASE_URL=
-VITE_WS_BASE_URL=
-VITE_API_PROXY_TARGET=http://localhost:3300
-```
-
-```dotenv [生产部署（自行创建 .env.production）]
-VITE_API_BASE_URL=https://api.yourdomain.com
-VITE_WS_BASE_URL=wss://api.yourdomain.com
-# 生产构建无 Dev Server，无需 VITE_API_PROXY_TARGET
-```
-
-:::
-
-> **注意**：`VITE_API_PROXY_TARGET` 只在 `vite.config.ts` 中通过 `loadEnv` 读取，用于 Dev Server 代理配置；业务代码不通过 `import.meta.env` 读取它，后端代理地址不会进入生产包。
 
 ## 会员端独立请求实例
 
-会员前台（`member.html` 入口）使用独立请求封装 `member/utils/member-request.ts`，会员 token 与后台管理员 token 隔离：
-
-| 常量 | Key | 说明 |
-|------|-----|------|
-| `MEMBER_TOKEN_KEY` | `zenith_member_token` | 会员 Access Token |
-| `MEMBER_REFRESH_TOKEN_KEY` | `zenith_member_refresh_token` | 会员 Refresh Token |
-
-会员端不要复用后台的 `request.ts`。会员端服务端状态同样由 TanStack Query 管理，使用独立的 `memberQueryClient`（`member/lib/member-query.ts`）与域 hooks（`member/hooks/queries.ts`）；登录态由 `member/hooks/useMemberAuth.tsx` 维护，退出登录时清空 `memberQueryClient` 缓存。
+会员前台使用 `member.html` 入口、`member/App-member.tsx`、`MemberAuthProvider`、`memberQueryClient` 与 `memberRequest`。会员路由基于 `HashRouter`，公开页在 `/`、`/features`、`/levels`、`/promotions`、`/about`，会员中心页由 `RequireMember` 保护。会员 token 与后台管理员 token 隔离，退出登录时清空会员 Query 缓存。
 
 ## 开发建议
 
-- 新增接口前，先确认是否已有共享类型或校验 schema
-- 对需要登录的页面，优先复用现有登录态与跳转机制
-- 请求错误处理尽量集中在封装层，不把每个页面都写成“各自为战”
-- 页面数据获取遵循[数据获取与服务端状态](/frontend/data-fetching)中的域 hooks 模式，不在组件里手写 fetch 状态机
+- 新增接口前先确认 `@zenith/shared` 是否已有类型、常量或校验 schema
+- 后台、会员端、移动审批端不要混用请求实例或 token key
+- 登录态、权限码、菜单树都按服务端状态处理，账号切换和退出必须清理身份相关缓存
+- 页面数据获取遵循[数据获取与服务端状态](/frontend/data-fetching)中的域 hooks 模式

@@ -10,6 +10,7 @@
 | `instance.approved` | 实例通过 |
 | `instance.rejected` | 实例驳回终止 |
 | `instance.withdrawn` | 发起人撤回 |
+| `instance.returned` | 实例退回发起人待重提 |
 | `node.entered` | 进入节点 |
 | `node.left` | 离开节点 |
 | `task.created` | 任务创建 |
@@ -100,6 +101,7 @@ X-Zenith-Signature: t={timestamp},v1={hex_hmac}
 | `PUT` | `/api/workflows/event-subscriptions/{id}` | 更新订阅 |
 | `DELETE` | `/api/workflows/event-subscriptions/{id}` | 删除订阅 |
 | `PATCH` | `/api/workflows/event-subscriptions/{id}/toggle` | 启用 / 禁用 |
+| `POST` | `/api/workflows/event-subscriptions/{id}/test` | 测试投递 |
 | `GET` | `/api/workflows/event-subscriptions/deliveries/list` | 投递记录 |
 | `GET` | `/api/workflows/event-subscriptions/deliveries/{id}` | 投递记录详情 |
 | `POST` | `/api/workflows/event-subscriptions/deliveries/{id}/retry` | 重试投递 |

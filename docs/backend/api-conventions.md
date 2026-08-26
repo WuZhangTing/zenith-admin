@@ -1,10 +1,10 @@
 # API 规范
 
-后端所有路由统一挂载在 `/api` 前缀下，并遵循一致的响应与校验规则。
+后端 API 由 `packages/server/src/app.ts` 统一装配，业务路由统一挂载在 `/api` 前缀下。常规业务接口使用 Hono + `@hono/zod-openapi`，以 Zod schema 同时驱动运行时校验与 OpenAPI 文档。
 
 ## 统一响应格式
 
-成功响应：
+成功响应统一由 `okBody(data, message?)` 构造：
 
 ```json
 {
@@ -14,60 +14,75 @@
 }
 ```
 
-失败时 `code` 为非零值，并包含明确的错误信息。
-
-## 分页返回格式
-
-所有列表接口返回 `PaginatedResponse<T>`：
+失败响应统一由 `errBody(message, code?)` 构造，`code` 与 HTTP 状态码保持同语义，`data` 为 `null`：
 
 ```json
 {
-  "list": [],
-  "total": 100,
-  "page": 1,
-  "pageSize": 10
+  "code": 404,
+  "message": "资源不存在",
+  "data": null
 }
 ```
 
+路由 handler 中使用 `return c.json(okBody(...), 200)` 或 `return c.json(errBody(...), status)`，不要内联 `{ code, message, data }` 字面量。文件下载类响应通过 `okExcel()` / `okCsv()` / `okFile()` 声明 OpenAPI，handler 中使用 `excelBody()` / `excelStreamBody()` / `csvStreamBody()` / `fileBody()` 或直接返回 `Response`。
+
+## 分页返回格式
+
+列表接口返回 `PaginatedResponse<T>`，并放在统一响应的 `data` 字段内：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "list": [],
+    "total": 100,
+    "page": 1,
+    "pageSize": 10
+  }
+}
+```
+
+分页查询参数统一使用 `PaginationQuery.extend({ ... })`。默认 `page=1`、`pageSize=10`，`pageSize` 最大 200。Service 层 SQL-builder 查询使用 `withPagination(query.$dynamic(), page, pageSize)`；RQB 查询使用 `pageOffset(page, pageSize)`。
+
 ## 日期时间格式
 
-所有对外 API 响应和日期时间入参统一使用 `YYYY-MM-DD HH:mm:ss`，例如：`2026-03-22 20:09:37`。
+所有对外 API 响应和业务日期时间入参统一使用 `YYYY-MM-DD HH:mm:ss`，例如：`2026-03-22 20:09:37`。
 
-- Service 层 DTO 映射、导出和文件时间戳统一使用 `packages/server/src/lib/datetime.ts` 中的 `formatDateTime()` / `formatNullableDateTime()` / `formatDate()` / `formatFileTimestamp()`。
-- 查询参数或 JSON 入参中的日期时间统一使用 `parseDateTimeInput()`、日期范围使用 `parseDateRangeStart()` / `parseDateRangeEnd()` 解析。
-- 共享 Zod schema 中的日期时间字段使用 `YYYY-MM-DD HH:mm:ss` 正则校验，禁止继续使用 ISO datetime 作为业务接口契约。
-- 禁止在 route/service/DTO 映射中直接使用 `toISOString()` 作为对外响应格式。
+- DTO 映射、导出和文件时间戳使用 `packages/server/src/lib/datetime.ts` 中的 `formatDateTime()` / `formatNullableDateTime()` / `formatDate()` / `formatFileTimestamp()`。
+- 单点时间入参使用 `parseDateTimeInput()`。
+- 范围端点使用 `parseDateRangeStart()` / `parseDateRangeEnd()`，或直接使用 `dateRangeConditions()`。
+- 路由查询 schema 中的范围端点用 `dateRangeBound('说明')`，接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`。
+- 业务接口契约不要使用 ISO datetime，DTO 映射不要直接 `toISOString()`。
 
 ## 认证方式
 
-项目采用 **Access Token + Refresh Token 双 token** 机制：
+管理端使用 Access Token + Refresh Token：
 
-| Token | 存储 Key | 说明 |
+| Token | 前端存储 Key | 说明 |
 | --- | --- | --- |
-| Access Token | `zenith_token` | 短期 token，附在每次请求头中 |
-| Refresh Token | `zenith_refresh_token` | 长期 token，用于在 Access Token 过期时自动续期 |
+| Access Token | `zenith_token` | 短期凭证，通过请求头传递 |
+| Refresh Token | `zenith_refresh_token` | 长期凭证，用于 `/api/auth/refresh` 换发 Access Token |
 
-需要认证的请求需携带：
+需要认证的请求携带：
 
 ```http
-Authorization: Bearer <access_token>
+Authorization: Bearer <accessToken>
 ```
 
-当 Access Token 过期时，前端 `request.ts` 会自动携带 Refresh Token 向后端换取新的 Access Token，对业务代码透明。
+管理端 `authMiddleware` 同时支持以 `zat_` 开头的 API Token。管理员 token 与会员 token 严格隔离：`authMiddleware` 拒绝 `type: 'member'` 的 token，会员接口由 `memberAuthMiddleware` 校验 `type: 'member'`。
 
-认证中间件会在上下文中注入用户信息。路由守卫可通过 `c.get('user')` 读取；业务 Service 中统一使用 `currentUser()` 零参获取当前用户，避免在 route handler 与 service 之间层层透传：
+认证中间件会在 Hono 上下文中注入 `user`。路由守卫可通过 `c.get('user')` 读取；Service 层统一使用 `currentUser()` / `currentUserOrNull()`，避免在 route handler 与 service 之间透传 Context。
 
-```typescript
+```ts
 import { currentUser } from '../lib/context';
 
-const user = currentUser(); // JwtPayload
+const user = currentUser();
 ```
 
 ## 参数校验
 
-所有入参通过 `@hono/zod-openapi` 的 `createRoute` 中 `request.body / request.params / request.query` 定义的 Zod schema 自动校验，验证结果通过 `c.req.valid()` 读取。
-
-校验失败时统一返回：
+所有入参通过 `createRoute(...)` 的 `request.body` / `request.params` / `request.query` 定义 Zod schema，由 `validationHook` 统一转为标准错误响应。
 
 ```json
 {
@@ -79,285 +94,190 @@ const user = currentUser(); // JwtPayload
 
 推荐写法：
 
-```typescript
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+```ts
+import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
+import { createXxxSchema } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { jsonContent, PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody, errBody } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, jsonContent, ok, okBody, validationHook } from '../../lib/openapi-schemas';
+import { XxxDTO } from '../../lib/openapi-dtos';
 
-// 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-// 每个路由定义为命名常量，middleware 中显式声明 authMiddleware
 const createXxxRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'post', path: '/',
+    method: 'post',
+    path: '/',
+    tags: ['Xxx'],
+    summary: '创建 XXX',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建XXX', module: 'XXX管理' } })] as const,
+    middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建 XXX', module: 'XXX 管理' } })] as const,
     request: { body: { content: jsonContent(createXxxSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(XxxDTO, 'ok'),
-    },
+    responses: { ...commonErrorResponses, ...ok(XxxDTO, '创建成功') },
   }),
   handler: async (c) => {
-    const data = c.req.valid('json');  // 类型安全，已验证
-    // ...
+    const data = c.req.valid('json');
+    const row = await createXxx(data);
+    return c.json(okBody(row, '创建成功'), 200);
   },
 });
 
-// 收集所有路由常量，统一注册（放在 export 之前）
-xxxRouter.openapiRoutes([createXxxRoute, /* 其他路由 */] as const);
+xxxRouter.openapiRoutes([createXxxRoute] as const);
+export default xxxRouter;
 ```
 
-> `validationHook` 将 Zod 校验失败自动转为 `{ code: 400, message, data: null }` 标准格式，**创建 `OpenAPIHono` 实例时必须传入 `{ defaultHook: validationHook }`**。`commonErrorResponses` 已包含 400/401/403/404/500 标准错误码，所有路由的 `responses:` 块均需通过 `...commonErrorResponses` 展开。Zod schema 可直接从 `@zenith/shared/{业务域}` 导入（shared 使用 Zod v4），或在路由文件内本地声明。共享的辅助类型与工具函数位于 `packages/server/src/lib/openapi-schemas.ts`，文件下载类响应使用 `okExcel()` / `okCsv()` / `okFile()` 声明，handler 中配合 `excelBody()` / `excelStreamBody()` / `csvStreamBody()` / `fileBody()` 返回内容。
->
-> **响应体构造**：handler 内部统一使用 `okBody(data, msg?)` / `errBody(msg, code?)` 构造响应体，禁止内联写字面量对象：
->
-> ```typescript
-> // ✅ 正确
-> return c.json(okBody(user), 200);
-> return c.json(okBody({ list, total, page, pageSize }), 200);
-> return c.json(okBody(null, '删除成功'), 200);
-> return c.json(errBody('用户不存在', 404), 404);
-> // ❌ 禁止
-> return c.json({ code: 0 as const, message: 'success', data: user }, 200);
-> return c.json({ code: 404, message: '用户不存在', data: null }, 404);
-> ```
+要点：
+
+- 每个 `OpenAPIHono` 实例传入 `{ defaultHook: validationHook }`。
+- 每个 OpenAPI 路由用命名常量声明，并通过 `router.openapiRoutes([... ] as const)` 统一注册。
+- 需要登录的路由显式声明 `security: [{ BearerAuth: [] }]` 与 `authMiddleware`；公开路由显式 `security: []`。
+- `responses` 展开 `...commonErrorResponses`，并用 `ok()` / `okPaginated()` / `okMsg()` 描述 200 响应。
+- 数值 path 参数用 `IdParam`；自定义 path 参数必须带 `.openapi({ param: { name, in: 'path' } })`。
+- 共享 Zod schema 从 `@zenith/shared/{业务域}` 导入；仅路由私有的一次性 schema 可本地声明。
 
 ## Service 层规范
 
-业务逻辑、数据映射、前置校验统一放在 `packages/server/src/services/{业务域}/` 下（与 `src/routes/{业务域}/` 目录同构），每个业务模块对应一个 `xxx.service.ts` 文件。
-
-### 职责划分
+业务逻辑、数据映射、前置校验统一放在 `packages/server/src/services/{业务域}/` 下，目录与 `src/routes/{业务域}/` 对齐。
 
 | 层 | 职责 | 禁止事项 |
 | --- | --- | --- |
-| **route handler** | 取参数（`c.req.valid()`）、调 service 函数、返回 HTTP 响应 | 不得包含业务逻辑、数据映射、DB 查询 |
-| **service** | 数据映射、前置校验、复杂 DB 查询、事务、关联写操作；需要当前用户时通过 `currentUser()` 获取 | 不得调用 `c.json()`、直接访问 Hono `Context`、使用 `console.*` |
+| route handler | 读取 `c.req.valid()`、调用 service、返回 HTTP 响应、设置必要审计快照 | 直接写业务规则、DTO 映射、DB 查询 |
+| service | 业务规则、数据映射、前置校验、复杂查询、事务、关联写操作；通过 `currentUser()` 获取登录用户 | `c.json()`、直接依赖 Hono `Context`、`console.*` |
 
-### 命名约定
+常用命名：
 
-```typescript
-// 数据映射（纯函数，DB 行 → 公开 DTO 字段）
+```ts
 export function mapXxx(row: XxxRow) { ... }
 
-// 前置校验（直接 throw HTTPException，由全局 onError 转为 JSON 错误响应）
 export async function ensureXxxExists(id: number) {
-  const [row] = await db.select()...;
+  const [row] = await db.select().from(xxxs).where(eq(xxxs.id, id)).limit(1);
   if (!row) throw new HTTPException(404, { message: 'XXX 不存在' });
   return row;
 }
 ```
 
-### 错误处理：HTTPException
-
-使用 Hono 原生 `HTTPException`（`hono/http-exception`），由 `packages/server/src/app.ts` 的全局 `onError` 统一处理：
-
-```typescript
-import { HTTPException } from 'hono/http-exception';
-
-// service 中
-throw new HTTPException(400, { message: '用户名已存在' });
-throw new HTTPException(404, { message: '资源不存在' });
-
-// service 中（DB 唯一约束错误统一映射为 HTTPException(400)）
-try {
-  await db.insert(xxxs).values(data);
-} catch (err: unknown) {
-  rethrowPgUniqueViolation(err, '该名称已存在');
-}
-```
+业务错误抛 `HTTPException(statusCode, { message })`，由 `app.onError()` 转为统一 JSON。唯一约束冲突使用 `rethrowPgUniqueViolation(err, message, byConstraint?)` 映射为 400。
 
 ## 响应实体 DTO（中心化）
 
-所有响应实体 DTO 按业务域拆分在 `packages/server/src/lib/dtos/` 下，`openapi-dtos.ts` 作为 re-export 入口。各路由通过 `import { XxxDTO } from '../lib/openapi-dtos'` 引用，**新增实体请直接在对应子文件中维护**：
+响应 DTO 按业务域维护在 `packages/server/src/lib/dtos/`，并由 `packages/server/src/lib/openapi-dtos.ts` 统一 re-export。路由文件只引用中心化 DTO：
 
-```typescript
-import { UserDTO, RoleDTO, MenuDTO } from '../lib/openapi-dtos';
-
-const listXxxRoute = defineOpenAPIRoute({
-  route: createRoute({
-    // ...
-    responses: {
-      ...commonErrorResponses,
-      ...ok(UserDTO, 'ok'),
-    },
-  }),
-  handler: async (c) => { /* ... */ },
-});
+```ts
+import { UserDTO } from '../../lib/openapi-dtos';
 ```
 
-**约束：**
+约束：
 
-- ❌ **禁止**在路由文件中本地声明带 `.openapi('EntityName')` 的实体 DTO（会导致 Swagger Components 重复或冲突）
-- ✅ 所有实体 DTO 按业务域拆分在 `packages/server/src/lib/dtos/` 下的子文件中（如 `users.ts`、`export-jobs.ts`、`async-tasks.ts`、`payment.ts`、`cms.ts` 等，与业务模块一一对应），`_audit.ts` 供 DTO 审计字段复用，`index.ts` 统一 re-export，`lib/openapi-dtos.ts` 作为对外 barrel
-- ✅ 内联使用的 request body schema、不作为 Component 的一次性匿名对象无需搬到中心文件
-- ✅ 新增实体模块时，先在 `packages/server/src/lib/dtos/` 下对应的子文件（或新建子文件）中添加 `export const XxxDTO = z.object({...}).openapi('Xxx');`，再在路由中从 `'../../lib/openapi-dtos'` 导入
-
-这样做的好处：Swagger Components 有单一来源，避免同名冲突；前端/第三方可直接使用稳定的 OpenAPI Components 名称。
+- 不在路由文件内本地声明带 `.openapi('EntityName')` 的实体 DTO，避免 OpenAPI Components 同名冲突。
+- 新增实体 DTO 时放入对应 `lib/dtos/*.ts` 文件，再经 `lib/dtos/index.ts` 与 `lib/openapi-dtos.ts` 导出。
+- 请求体 schema 和非复用匿名对象可保留在路由文件内。
 
 ## 常用错误码
 
 | code | 含义 |
 | --- | --- |
 | `0` | 成功 |
-| `400` | 参数校验失败 |
-| `401` | 未登录或 token 无效 |
-| `403` | 无权限访问该资源 |
+| `400` | 参数校验失败或业务前置条件不满足 |
+| `401` | 未登录、token 无效或会话失效 |
+| `403` | 权限不足、账号禁用、功能授权不满足 |
 | `404` | 资源不存在 |
 | `408` | 请求处理超时（启用 `REQUEST_TIMEOUT_MS` 时） |
-| `409` | 并发冲突（乐观锁重试耗尽等场景） |
+| `409` | 并发冲突、乐观锁重试耗尽 |
+| `410` | 导出文件等资源已过期 |
 | `413` | 请求体超出大小限制（启用 `REQUEST_BODY_LIMIT` 时） |
+| `423` | 登录账号被锁定 |
 | `429` | 触发接口级限流 |
 | `500` | 服务端内部错误 |
 
 ## 路由组织
 
-- 路由文件位于 `packages/server/src/routes/{业务域}/`，每个路由文件使用独立的 `OpenAPIHono` 实例并 `export default`
-- 每个业务域在自己的 `index.ts` 中用 `defineRouteDomain`（契约见 `src/routes/_kit.ts`）声明挂载清单；`src/routes/index.ts` 的 `ROUTE_DOMAINS` 只声明域顺序
-- `src/app.ts` 的 `createApp()` 按 `ROUTE_DOMAINS` 顺序统一装配所有域
-- 全量路由表（method + path）由 `src/app.routes.test.ts` 快照锁定——新增/删除路由后需运行该测试并更新快照
-- 保持资源命名直观（如 `users.ts`、`roles.ts`、`dicts.ts`），和前端页面、共享 schema 尽量一一对应
+- 路由文件位于 `packages/server/src/routes/{业务域}/`，每个文件导出一个子路由器。
+- 每个业务域在 `routes/{业务域}/index.ts` 中用 `defineRouteDomain` 声明挂载清单。
+- `routes/index.ts` 的 `ROUTE_DOMAINS` 声明域顺序：`ops → identity → member → platform → files → tasks → analytics → report → messaging → payment → open-platform → workflow → chat → mp → biz-demo → ai → cms → wiki`。
+- `src/app.ts` 的 `createApp()` 按域装配常规 API，再挂载 `/api/mastra/*`，再注册 Swagger 文档和 fallback 路由。
+- CMS 前台 SSR 等兜底路由放在域的 `fallback()` 中，保证晚于全部 API 与文档路由。
+- 全量 method + path 由 `src/app.routes.test.ts` 快照锁定；增删接口需更新该快照。
 
 ## 数据删除与批量操作规范
 
-- 单条删除：`DELETE /api/resource/:id`
-- 批量删除：`DELETE /api/resource/batch`，body 传 `{ ids: number[] }`
-- 批量修改状态：`PUT /api/resource/batch-status`，body 传 `{ ids: number[], status: 'enabled' | 'disabled' }`
+- 单条删除：`DELETE /api/resource/{id}`。
+- 批量删除：`DELETE /api/resource/batch` 或按领域既有约定使用 `POST /batch-delete`，body 传 `{ ids: number[] }`。
+- 批量修改状态：`PUT /api/resource/batch-status`，body 传 `{ ids: number[], status: 'enabled' | 'disabled' }`。
+- `DELETE /batch` 必须注册在 `DELETE /{id}` 之前，避免被动态参数捕获。
 
 ## 文件上传
 
-`POST /api/files/upload`，使用 `multipart/form-data`，返回文件 URL。
+标准文件上传由文件域提供。小文件使用 `POST /api/files/upload`（`multipart/form-data`）；大文件使用上传会话与分片接口。文件下载、预览和业务附件关系由 `packages/server/src/routes/files/` 与 `services/files/` 收口。
 
 ## 健康检查
 
-`GET /api/health` — 无需鉴权，返回服务健康状态、运行时长以及数据库 / Redis 连通性检查结果。
+`GET /api/health` 无需鉴权，返回服务状态、版本、运行时长，以及数据库 / Redis 连通性：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "status": "ok",
+    "version": "1.90.0",
+    "uptimeSeconds": 12345,
+    "checks": { "database": "ok", "redis": "ok" }
+  }
+}
+```
 
 ## Prometheus 指标
 
-`GET /metrics` — 无需鉴权，返回 Prometheus 文本格式指标，可直接被 Prometheus Server 抓取。
+`GET /metrics` 无需鉴权，返回 Prometheus 文本格式指标，不属于 OpenAPI 文档。指标来源包括：
 
-当前指标来源包括：
-
-- `@hono/prometheus` 自动生成的 HTTP RED 指标（请求总量、请求耗时）
-- `prom-client` 默认进程指标（事件循环、GC、进程 / Node.js 运行时指标等）
-
-该端点返回 `text/plain`，**不属于 OpenAPI / Swagger 文档的一部分**。
+- `@hono/prometheus` HTTP RED 指标；
+- `prom-client` 默认进程指标；
+- `registerZenithMetrics()` 注册的 Zenith 业务 / 系统指标（CPU、内存、HTTP、WebSocket、DB、Redis 等）。
 
 ## OpenTelemetry Trace
 
-服务端已接入 `@hono/otel`，可对 Hono 请求生命周期生成 Trace Span。
-
-### 当前行为
-
-- 默认关闭，避免在未配置 OTLP Collector 时产生无效导出
-- 当 `OTEL_ENABLED=true` 时强制启用
-- 若未显式设置 `OTEL_ENABLED`，但配置了 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` 或 `OTEL_EXPORTER_OTLP_ENDPOINT`，也会自动启用
-- 当前会附带采集以下请求 / 响应头：`x-request-id`、`user-agent`
-
-### 常用环境变量
+服务端通过 `@hono/otel` 接入 Hono 请求 Trace。`OTEL_ENABLED=true` 时启用；未显式设置 `OTEL_ENABLED` 但配置了 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` 或 `OTEL_EXPORTER_OTLP_ENDPOINT` 时也会启用。采集请求 / 响应头包括 `x-request-id`、`user-agent`。
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `OTEL_ENABLED` | `false` | 是否启用 Trace。若未设置但存在 OTLP endpoint，也会自动启用 |
-| `OTEL_SERVICE_NAME` | `zenith-admin-server` | 服务名，写入 Span 资源属性 |
-| `OTEL_SERVICE_VERSION` | 当前 `npm package version` | 服务版本，便于在可观测平台区分发布版本 |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | 空 | OTLP traces 专用导出地址，推荐显式配置为 `http://host:4318/v1/traces` |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | 空 | 通用 OTLP 导出地址；未设置 traces 专用地址时可使用该项 |
-| `OTEL_EXPORTER_OTLP_HEADERS` | 空 | 导出请求头，适用于 SaaS 观测平台鉴权 |
+| `OTEL_ENABLED` | `false` | 是否启用 Trace |
+| `OTEL_SERVICE_NAME` | `zenith-admin-server` | 服务名 |
+| `OTEL_SERVICE_VERSION` | npm package version | 服务版本 |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | 空 | OTLP traces 专用导出地址 |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | 空 | 通用 OTLP 导出地址 |
+| `OTEL_EXPORTER_OTLP_HEADERS` | 空 | 导出请求头 |
 
 ## 共享约定
 
-- 类型统一放到 `@zenith/shared/{业务域}`
-- Zod schema 统一放到 `@zenith/shared/{业务域}`
-- 枚举和常量统一放到 `@zenith/shared/{业务域}`
+- 类型、Zod schema、枚举和常量按域放到 `@zenith/shared/{业务域}` 子路径。
+- 禁止从 `@zenith/shared` 根入口导入。
+- 种子数据统一从 `@zenith/shared/seed` 导入。
 
 ## Server-Timing 性能分析头
 
-当 `SERVER_TIMING_ENABLED=true` 时，服务端会自动在每个响应中附加 [`Server-Timing`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Server-Timing) 响应头（默认关闭）：
+`SERVER_TIMING_ENABLED=true` 时，服务端通过 `hono/timing` 为响应附加 `Server-Timing` 头。默认关闭。
 
 ```http
 Server-Timing: total;dur=45.2;desc="Total Response Time"
 ```
 
-**使用方式：**
-
-打开 Chrome DevTools → Network → 选中任意 API 请求 → Timing 面板，即可查看各阶段耗时。
-
-若需要对某个路由内部的关键操作（如数据库查询）埋点，可使用 `hono/timing` 提供的工具函数：
-
-```typescript
-import { startTime, endTime } from 'hono/timing';
-import type { TimingVariables } from 'hono/timing';
-import { okBody } from '../lib/openapi-schemas';
-
-// 路由 handler 中使用
-app.get('/api/heavy', async (c) => {
-  startTime(c, 'db');
-  const data = await db.query.users.findMany();
-  endTime(c, 'db');
-  return c.json(okBody(data), 200);
-});
-```
-
-响应头将包含：
-
-```http
-Server-Timing: total;dur=45.2;desc="Total Response Time", db;dur=12.3
-```
-
-**环境变量配置：**
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `SERVER_TIMING_ENABLED` | `false` | 设为 `true` 可开启，生产环境建议保持关闭以避免暴露内部耗时信息 |
+路由内部可使用 `startTime(c, name)` / `endTime(c, name)` 标记关键阶段。
 
 ## 请求防护
 
-服务端内置多层可选防护，均在 `src/app.ts` 的 `createApp()` 中装配。
+服务端在 `createApp()` 中装配以下中间件：
 
-### 请求体大小限制（Body Limit）
-
-基于 `hono/body-limit`，默认不启用。
-
-- 作用范围：全局所有请求。
-- 超出限制时返回：`{ code: 413, message: '请求体超出大小限制', data: null }`（HTTP 413）。
-- 生产环境建议开启，视业务场景设定合理值。
-
-### 请求超时（Request Timeout）
-
-基于 `hono/timeout` + `hono/combine` 的 `except()`，默认不启用。
-
-- 作用范围：`/api/*`，但**自动排除以下长耗时路径**：
-  - `/api/ws` — WebSocket 连接
-  - `/api/files/*` — 文件上传/下载
-  - `/api/db-backups/*` — 数据库备份
-  - `/api/db-admin/*` — 数据库管理
-  - `/api/log-files/*` — 日志文件读取
-  - `/api/monitor/stream/*` — 监控流
-  - `/api/ai/conversations/*` — AI 对话流
-  - `/api/ai/arena/*` — AI 竞技场流式对战
-  - `/api/ai/generations/*` — AI 生成任务
-  - 所有以 `/export` 结尾的导出接口
-- 超时后返回：`{ code: 408, message: '请求处理超时（Xms）', data: null }`（HTTP 408）。
-
-### CSRF 防护
-
-`hono/csrf` 校验 `Origin` 请求头，白名单由 `ALLOWED_ORIGINS`（逗号分隔）配置，留空时开发模式不限制。无 `Origin` 头的请求（curl / Postman / 服务端调用）直接放行；`/api/auth/enterprise/saml/acs`（SAML 回调）豁免校验。
-
-### 接口级限流
-
-基于 `hono-rate-limiter` + Redis，按场景挂载：登录（`/api/auth/login`）、验证码（`/api/auth/captcha`）、敏感操作（注册 / 忘记密码 / 重置密码）以及 `/api/*` 全局路径级限流。超限返回 `{ code: 429, ... }`。配置见 `src/middleware/rate-limit.ts`。
-
-### 幂等控制
-
-`idempotencyGuard`（`src/middleware/idempotency.ts`）在 `createRoute` 的 `middleware` 数组中按路由声明。客户端可显式传 `X-Idempotency-Key`，否则服务端按 `userId + method + path + bodyHash` 自动指纹，窗口期内重复请求直接返回首次结果。
-
-**环境变量配置：**
-
-| 变量 | 默认值 | 说明 |
+| 能力 | 实现 | 说明 |
 | --- | --- | --- |
-| `REQUEST_BODY_LIMIT` | `0` | 请求体大小上限（字节）。`0` 或未设置 = 不限制。常用值：`10485760` (10MB)、`104857600` (100MB) |
-| `REQUEST_TIMEOUT_MS` | `0` | 请求超时时间（毫秒）。`0` 或未设置 = 不启用 |
-| `ALLOWED_ORIGINS` | 空 | CSRF 来源白名单，逗号分隔。留空 = 开发模式不限制 |
+| Request ID | `hono/request-id` | 为请求设置 `requestId` 上下文 |
+| Trace ID | `requestTraceMiddleware` | 接收 `X-Trace-Id`（≤64 字符）或生成 UUID，并回写响应头 |
+| 安全响应头 | `hono/secure-headers` | API 场景下放开 CORP / COOP / X-Frame-Options 的不适用限制 |
+| 压缩 | `hono/compress` | WebSocket、文件、日志流、监控流、AI 流式、公开制品等长连接 / 二进制端点排除 |
+| CORS | `hono/cors` | `/api/mastra/*` 反射 Origin 并允许 credentials，其余路径使用 `CORS_ORIGIN` |
+| CSRF | `hono/csrf` | 按 `ALLOWED_ORIGINS` 校验 Origin；SAML ACS、OAuth2 authorize/token、开放网关 `/api/open/*` 豁免 |
+| Body Limit | `hono/body-limit` | `REQUEST_BODY_LIMIT > 0` 时启用，超限返回 413 |
+| Timeout | `hono/timeout` | `REQUEST_TIMEOUT_MS > 0` 时对 `/api/*` 启用，WebSocket / 文件 / DB 管理 / 日志 / 监控流 / AI 流 / 应用发布制品 / `*/export` 排除 |
+| IP 访问控制 | `ipAccessMiddleware` | 对 `/api/*` 生效 |
+| 限流 | `rate-limit.ts` | 登录、验证码、注册 / 找回 / 重置密码和路径绑定限流 |
+| 维护模式 | `maintenanceMiddleware` | 对 `/api/*` 生效，认证与公开维护接口除外 |
+| License 门控 | `licenseFeatureGate` | 域挂载声明 `feature` 时整体套功能授权 |

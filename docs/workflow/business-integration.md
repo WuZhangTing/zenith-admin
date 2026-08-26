@@ -17,12 +17,12 @@
 | 函数 | 说明 |
 | --- | --- |
 | `startWorkflowForBiz` | 保存业务数据后发起流程，并写入 `bizType`、`bizId`、路由变量和优先级 |
-| `onWorkflowResult` | 监听指定 `bizType` 的创建、通过、驳回、撤回事件，回写业务状态 |
+| `onWorkflowResult` | 监听指定 `bizType` 的创建、通过、驳回、撤回、退回事件，回写业务状态 |
 | `getWorkflowStatusByBiz` | 按业务键批量查询工作流状态（每个 bizId 取最新一条实例） |
 
 幂等与重新发起语义：
 
-- 同一业务键（`bizType + bizId`）**同时只允许一个活跃实例**（草稿/运行中/挂起）。重复调用 `startWorkflowForBiz` 会直接返回已存在的活跃实例（含并发下的数据库唯一约束兜底）。
+- 同一业务键（`bizType + bizId`）**同时只允许一个活跃实例**（草稿/运行中/挂起/退回待重提）。重复调用 `startWorkflowForBiz` 会直接返回已存在的活跃实例。
 - 流程到达终态（通过/驳回/撤回/取消）后不再占用业务键：业务记录可修改后**再次调用 `startWorkflowForBiz` 发起全新实例**（如「驳回 → 重新编辑 → 重新提交」），`getWorkflowStatusByBiz` 始终返回最新实例。
 - 发起守卫：若流程节点按 `formUser` / `formDepartment` 解析审批人且未配置空审批人兜底策略，对应路由变量缺失时发起会返回 400 并说明缺失变量，避免节点被默认「自动通过」静默跳过。
 

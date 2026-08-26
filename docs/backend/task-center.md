@@ -1,44 +1,59 @@
 # 任务中心（通用异步任务框架）
 
-任务中心为**长耗时操作**（批量处理、导入、数据迁移、报表生成、消息群发等）提供统一的异步任务框架：页面提交任务 → 后台队列执行 → 实时进度展示 → 取消 / 断点恢复 / 重新开始，任务中断或服务重启后可从断点继续。
+任务中心为长耗时、可重试、需要进度或需要取消/断点恢复的业务操作提供统一异步执行框架。业务页面提交任务，后端持久化任务实例并投递 pg-boss 队列，Worker 执行注册的 handler，进度通过任务表与 WebSocket 同步到前端。
 
-与「系统调度」是上下两层的关系：
+与「系统调度」的分工：
 
 | | 系统调度（调度中心） | 任务中心 |
 | --- | --- | --- |
-| 管什么 | **执行器**：有哪些 cron / 队列 Worker | **任务实例**：某人提交的某次任务 |
-| 粒度 | 每个 Worker 一行 | 每次提交一行（进度 / 断点 / 结果） |
-| 给谁看 | 管理员 / 运维（启停、告警、运行日志） | 业务用户（自己任务的进度）+ 管理员（全局监控） |
+| 管理对象 | cron / 队列 Worker / 系统周期任务 | 用户提交的业务任务实例 |
+| 数据粒度 | 每个执行器与每次运行日志 | 每次任务的状态、进度、断点、结果、行级明细 |
+| 主要使用者 | 管理员 / 运维 | 业务用户查看自己的任务，管理员监控全局任务 |
 
-任务中心的 Worker（`async-tasks`）以「队列 Worker」身份出现在系统调度页面，运维可在那里查看吞吐、运行日志与告警策略；任务实例则在 **系统设置 → 任务中心** 页面全局监控。
+任务中心队列 Worker 名为 `async-tasks`，注册到系统调度；任务实例在「系统设置 → 任务中心」页面查看。
 
 ## 架构
 
 ```text
 业务页面提交
-   │  POST /api/xxx（业务自己的接口，支持 idempotencyKey 幂等）
+   │  业务接口调用 submitAsyncTask()
    ▼
-submitAsyncTask()  ──►  async_tasks 表（status=pending，快照 maxAttempts）
-   │                        ▲
-   │  pg-boss 入队           │  progress()：进度 + 断点 + 心跳
-   ▼                        │  reportItems()：行级明细（async_task_items）
-异步任务执行 Worker ──►  handler.run(ctx)
-   │                        │
-   │                        └─ 抛错且未用尽重试 → pending + nextRunAt（指数退避，断点保留）
-   ├─►  WS 推送 task:progress（创建者实时进度）
-   └─►  system_scheduler_runs（调度中心运行日志）
+async_tasks（pending，快照 maxAttempts / tenant / createdBy）
+   │
+   │  pg-boss 队列 async-tasks
+   ▼
+registerAsyncTaskWorker() → runAsyncTask(taskId) → handler.run(ctx)
+   │                                     │
+   │                                     ├─ ctx.progress(): 进度 / 断点 / 心跳 / WS 推送
+   │                                     ├─ ctx.reportItems(): async_task_items 行级明细 upsert
+   │                                     └─ 抛错: 自动重试或 failed
+   ├─ WebSocket task:progress（推送给创建者）
+   └─ system_scheduler_runs（系统调度运行日志）
 
-兜底扫描（每分钟）：回收心跳超时的卡死任务重投续跑；补投长时间停留 pending 的任务
-自动清理（每天 03:30）：删除超过保留期的已结束任务（全局 30 天，类型可覆盖）
+async-tasks-drain（每分钟）:
+  - 回收心跳超时的 running 任务并重投
+  - 重投长时间停留 pending 且已到执行时间的任务
+
+data-retention（每天 03:00）:
+  - 按数据保留策略清理已结束任务；类型级 retentionDays 可覆盖
 ```
 
 核心文件：
 
-- `packages/server/src/lib/task-center/` — 框架（`types` / `registry` / `config` / `runner` / `map`，入口 `index.ts` 统一导出）
-- `packages/server/src/{routes,services}/tasks/` — 查询与操作 API、业务接入示例（演示任务类型）
-- 前端：`useAsyncTasks` Hook（实时进度）、`TaskTray` 全局任务托盘（顶栏）、管理端全局监控页 `/system/task-center`（任务列表 / 任务类型策略）、业务示例页 `/biz/task-demo`（可模拟提交）
+- `packages/server/src/lib/task-center/`：框架入口、类型、注册表、运行器、策略与 DTO 映射。
+- `packages/server/src/routes/tasks/async-tasks.ts`：任务中心管理 API。
+- `packages/server/src/services/tasks/async-tasks.service.ts`：列表、统计、权限、操作服务。
+- `packages/server/src/bootstrap/workers.ts`：任务类型注册与 Worker 启动编排。
+- `packages/server/src/lib/system-tasks.registry.ts`：`async-tasks-drain` 兜底扫描注册。
+- 前端：`useAsyncTasks` / `TaskTray` / `/system/task-center` / `/biz/task-demo`。
 
-数据表：`async_tasks`（任务实例）、`async_task_items`（行级明细，可选层）、`async_task_type_configs`（类型级运行时策略）。
+数据表：
+
+| 表 | 说明 |
+| --- | --- |
+| `async_tasks` | 任务实例、状态、进度、断点、结果、错误、幂等键、租户和创建者 |
+| `async_task_items` | 可选的行级处理明细，按 `task_id + item_key` 幂等覆盖 |
+| `async_task_type_configs` | 任务类型运行时策略，覆盖注册默认值 |
 
 ## 业务接入三步
 
@@ -48,71 +63,77 @@ submitAsyncTask()  ──►  async_tasks 表（status=pending，快照 maxAttem
 import { registerTaskHandler } from '../../lib/task-center';
 
 registerTaskHandler({
-  taskType: 'member-batch-import',   // 唯一标识
-  title: '会员批量导入',              // 默认任务标题
-  module: '会员中心',                 // 展示模块
-  allowConcurrent: false,            // false：同一用户存在未结束任务时拒绝重复提交
-  maxAttempts: 3,                    // 失败自动重试次数（默认 1 = 不重试）
-  retryDelayMs: 5000,                // 重试退避基数：5s → 10s → 20s…（上限 15 分钟）
-  retentionDays: 90,                 // 可选：该类型已结束任务的保留天数（默认跟随全局 30 天）
+  taskType: 'member-batch-import',
+  title: '会员批量导入',
+  module: '会员中心',
+  description: '从上传文件导入会员',
+  allowConcurrent: false,
+  maxAttempts: 3,
+  retryDelayMs: 5000,
+  retentionDays: 90,
   async run(ctx) {
-    // 断点恢复：ctx.checkpoint 是上次中断时保存的状态
     let processed = Number(ctx.checkpoint?.processed ?? 0);
     const rows = await loadRows(ctx.payload);
 
     for (let i = processed; i < rows.length; i++) {
-      const ok = await importOne(rows[i]);           // 业务处理
+      const ok = await importOne(rows[i]);
       processed = i + 1;
-      await ctx.reportItems([{                       // 行级明细（可选）：按 key 幂等 upsert
-        key: `row-${i + 1}`,
-        label: rows[i].name,
-        status: ok ? 'success' : 'failed',
-        message: ok ? null : '数据校验不通过',
-      }]);
+      await ctx.reportItems([{ key: `row-${i + 1}`, label: rows[i].name, status: ok ? 'success' : 'failed' }]);
       const { cancelRequested } = await ctx.progress({
         processed,
         total: rows.length,
         note: `已导入 ${processed}/${rows.length} 条`,
-        checkpoint: { processed },                   // 断点随进度一起持久化
+        checkpoint: { processed },
       });
-      if (cancelRequested) return;                   // 协作式取消
+      if (cancelRequested) return { processed };
     }
-    return { processed };                            // 写入 result 字段
+
+    return { processed };
   },
 });
 ```
 
-注册时机：在 `src/bootstrap/workers.ts` 的 `registerBackgroundWorkers()` 中、任务中心 Worker 与 `registerSystemTasks()` 之前调用注册函数（参考 `registerTaskDemoHandlers()` 的挂载位置）。同一 `taskType` 重复注册时以最后一次为准。注册默认值会落库到 `async_task_type_configs`，管理员可在 **任务中心 → 任务类型** 页面覆盖（暂停提交 / 并发 / 重试 / 保留期），运行时以 DB 覆盖值为准。
+注册时机放在 `src/bootstrap/workers.ts` 的 `registerBackgroundWorkers()` 中，并确保业务 handler 在 `registerAsyncTaskWorker()` 前完成注册。重复注册同一 `taskType` 时后注册者覆盖先注册者。启动 Worker 时会把注册默认策略落库到 `async_task_type_configs`，已有配置保留管理员修改。
 
 ### ② 业务接口中提交任务
 
 ```ts
 import { submitAsyncTask, mapAsyncTask } from '../../lib/task-center';
+import { okBody } from '../../lib/openapi-schemas';
 
 const row = await submitAsyncTask({
   taskType: 'member-batch-import',
-  title: `会员批量导入（${fileName}）`,   // 可选，覆盖默认标题
-  payload: { fileId },                    // handler 自定义入参
-  idempotencyKey: `member-import-${fileId}`, // 可选幂等键：重复提交返回同一任务
+  title: `会员批量导入（${fileName}）`,
+  payload: { fileId },
+  idempotencyKey: `member-import-${fileId}`,
 });
+
 return c.json(okBody(mapAsyncTask(row), '任务已提交'), 200);
 ```
 
-`submitAsyncTask` 必须在 HTTP 上下文中调用（依赖 `currentUser()`）。提交前检查类型策略：`enabled=false` 抛 400（暂停提交）；`allowConcurrent=false` 且存在未结束任务抛 400；`idempotencyKey` 命中已存在任务时直接返回该任务（唯一索引 + `onConflictDoNothing`，天然防重复点击）。
+`submitAsyncTask()` 依赖 `currentUser()`，通常在已认证 HTTP 请求中调用。提交时会检查：
 
-**与外部事务一起提交（事务性 outbox）**：任务提交需要与业务写操作同事务原子化时，通过第二个参数传入事务执行器——事务内只写 pending 记录、不入队，事务提交后再调用 `enqueueAsyncTask()`：
+- 任务类型必须已注册；
+- `enabled=false` 时拒绝新提交；
+- `allowConcurrent=false` 时，同一创建者未结束的同类型任务会阻止重复提交；
+- `idempotencyKey` 会按「租户 + 创建者 + 任务类型 + key」命中已有任务，避免跨租户或跨用户泄漏。
+
+### 与业务事务一起提交
+
+任务需要与业务写操作原子提交时，在事务内传入 `executor`。事务内只写 `pending` 任务记录；事务提交后再入队。
 
 ```ts
 import { submitAsyncTask, enqueueAsyncTask } from '../../lib/task-center';
 
 const task = await db.transaction(async (tx) => {
-  await tx.insert(orders).values(orderData);                       // 业务写操作
+  await tx.insert(orders).values(orderData);
   return submitAsyncTask({ taskType: 'order-sync', payload }, { executor: tx });
 });
-await enqueueAsyncTask(task.id);   // 事务提交后入队
+
+await enqueueAsyncTask(task.id);
 ```
 
-事务回滚时任务记录一并回滚；若提交后入队失败，兜底扫描会把长时间停留 pending 的任务补投（见下）。在外部事务内传 `enqueue: true` 会直接抛 500（禁止事务内入队）。`restartAsyncTask` 同样支持 `executor` 选项。
+外部事务内禁止 `enqueue: true`。提交成功但入队失败时，每分钟兜底扫描会重投长期停留 `pending` 的任务。
 
 ### ③ 前端展示进度
 
@@ -121,90 +142,90 @@ import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 
 const { tasks, loading, refresh } = useMyAsyncTasks({ taskTypes: ['member-batch-import'] });
-// tasks 通过 WS（task:progress）实时更新；存在进行中任务时每 3s 轮询兜底（Demo 模式无 WS 全靠轮询）
 ```
 
-进度单元格直接使用 `<AsyncTaskProgress task={task} />`：`totalCount` 有值显示百分比进度条，为 `null` 显示不定进度（Spin + 进度说明）。
+`useMyAsyncTasks` 通过 WebSocket `task:progress` 实时更新，并在存在进行中任务时使用轮询兜底。进度单元格使用 `<AsyncTaskProgress task={task} />`：`totalCount` 有值显示百分比，无总量显示不定进度。
 
 ## TaskRunContext API
 
 | 成员 | 说明 |
 | --- | --- |
-| `taskId` | 当前任务 ID |
+| `taskId` | 任务 ID |
 | `payload` | 提交时传入的任务参数 |
-| `checkpoint` | 上次中断保存的断点状态；首次执行为 `null` |
-| `attempt` | 第几次领取执行（首次 1；断点恢复/自动重试/兜底重跑递增；重新开始清零） |
-| `progress(update)` | 上报进度：`processed` / `failed` / `total`（`null`=不可枚举）/ `note` / `checkpoint`。同时刷新心跳、持久化断点、WS 推送（300ms 节流）；返回 `{ cancelRequested }` |
-| `reportItems(items)` | 批量上报行级明细（`key/label/status/message/data`），按 `taskId+key` 幂等 upsert，重试自动覆盖旧状态；导入等需要逐行错误报告的场景使用，普通任务可不用 |
-| `isCancelRequested()` | 单独查询取消标记（`progress` 返回值已包含，通常不需要） |
+| `checkpoint` | 上次持久化的断点；首次执行为 `null` |
+| `attempt` | 第几次领取执行；首次为 1，自动重试 / 断点恢复 / 兜底重跑递增，重新开始清零 |
+| `progress(update)` | 上报 `processed` / `failed` / `total` / `note` / `checkpoint`，刷新心跳并推送 WS；返回 `{ cancelRequested }` |
+| `reportItems(items)` | 批量上报行级明细，按 `taskId + key` 幂等 upsert |
+| `isCancelRequested()` | 单独查询取消标记；通常使用 `progress()` 返回值即可 |
 
-**约定**：handler 应在每个处理批次后调用 `progress()`——它同时承担心跳职责，超过 90 秒无心跳的 running 任务会被兜底扫描判定为卡死并回收重跑；`checkpoint` 结构完全由 handler 自定义（游标 / 行号 / 阶段名 / syncToken 均可），处理逻辑需要按 checkpoint 幂等（重跑已处理的条目不产生副作用）。
+handler 应在每个批次后调用 `progress()`。超过 90 秒无心跳的 `running` 任务会被兜底扫描回收为 `pending` 并重投。`checkpoint` 结构由 handler 自定义，重跑逻辑必须幂等。
 
-**主动终止不重试**：handler 判定任务已过期或无需继续时，抛出 `TaskCancelledError`（可携带 `result`）——runner 直接把任务终止为 `cancelled`，不触发自动重试。
+handler 主动判定任务无需继续时抛 `TaskCancelledError(message, result?)`，runner 会把任务终止为 `cancelled`，不触发自动重试。
 
 ## 自动重试
 
-任务抛错时，若 `attempts < maxAttempts` 且未请求取消，框架自动安排重试而不是直接失败：
+handler 抛错时，若 `attempts < maxAttempts` 且未请求取消，框架会自动重试：
 
-- 状态回到 `pending`，`nextRunAt` 设为退避时间点（`retryDelayMs × 2^(attempts-1)`，上限 15 分钟），UI 显示「等待重试」；
-- **checkpoint 不清空**——重试从断点续跑，不重复已处理条目；
-- 通过 pg-boss `sendAfter` 定时投递；Worker 领取时校验 `nextRunAt` 已到达，兜底扫描不会提前重投退避中的任务；
-- 重试用尽后落 `failed`（可手动断点恢复或重新开始），期间任务被取消则直接终止。
+- 状态回到 `pending`；
+- `nextRunAt` 设为 `retryDelayMs × 2^(attempts-1)`，上限 15 分钟；
+- `checkpoint` 保留；
+- pg-boss 使用 `sendAfter` 定时投递；
+- 领取时校验 `nextRunAt`，兜底扫描不会提前重投退避中的任务；
+- 重试耗尽后状态为 `failed`。
 
 ## 生命周期与操作
 
 ```text
-pending ──领取──► running ──✓──► success ─┐
-   │取消             │抛错──► failed  ─────┼─► 重新开始（清空进度从头跑）
-   ▼                 │取消──► cancelled ───┘        failed / cancelled 另支持
-cancelled            │心跳超时（崩溃）                断点恢复（保留 checkpoint 续跑）
-                     └──兜底扫描──► pending（断点续跑）
+pending ──领取──► running ──完成──► success ─┐
+   │取消              │抛错                  ├─► 重新开始（清空进度 / 断点 / 明细）
+   ▼                  ▼                      │
+cancelled          pending / failed ─────────┘
+                      │
+                      └─ 断点恢复（保留 checkpoint）
 ```
 
 | 操作 | 语义 | 适用状态 |
 | --- | --- | --- |
-| 取消 | pending 直接终止；running 置 `cancelRequested`，handler 在下一次 `progress()` 时感知并退出（协作式） | pending / running |
-| 断点恢复 | 保留进度与 checkpoint，重新入队从中断处继续 | failed / cancelled |
-| 重新开始 | 清空进度 / 断点 / 结果，从头执行 | success / failed / cancelled |
-| 删除 | 删除任务记录（进行中不可删） | 已结束 |
-| 清理 | 删除超过 30 天保留期的已结束任务（页面按钮 / 调度中心手动执行 / 每日自动） | — |
-
-**崩溃恢复**：服务重启或进程崩溃时，pg-boss 队列（存于 PostgreSQL）中未消费的任务照常消费；执行中被打断的任务心跳停止，`异步任务兜底扫描`（每分钟，`drainAsyncTasks()`）做两件事：① 回收心跳超时（>90s）的 running 任务为 pending 并重投，handler 从 `checkpoint` 继续——这是「任务中断或系统重启后继续之前进度」的关键路径；② 重投停留 pending 超过 3 分钟且已到执行时间的任务（如队列消息丢失、outbox 提交后入队失败），退避中的重试任务不会被提前投递。
+| 取消 | `pending` 直接终止；`running` 置 `cancelRequested`，由 handler 协作退出 | `pending` / `running` |
+| 断点恢复 | 保留进度与 checkpoint，重新入队继续执行 | `failed` / `cancelled` |
+| 重新开始 | 清空进度、断点、结果和明细，按类型策略重新快照 `maxAttempts` | `success` / `failed` / `cancelled` |
+| 删除 | 删除已结束任务记录 | `success` / `failed` / `cancelled` |
+| 清理 | 删除超过保留期的已结束任务；全局策略由数据保留中心驱动，类型可设置 `retentionDays` | — |
 
 ## API 一览
 
 | 方法 | 路径 | 权限 | 说明 |
 | --- | --- | --- | --- |
-| GET | `/api/async-tasks/types` | 登录 | 已注册任务类型（含生效策略） |
-| PUT | `/api/async-tasks/types/{taskType}/config` | `system:async-task:config` | 更新类型运行时策略 |
-| GET | `/api/async-tasks/stats` | `system:async-task:list` | 统计概览（状态计数 / 24h 平均耗时 / 7 天趋势） |
-| GET | `/api/async-tasks/mine` | 登录 | 我的任务（业务页面进度展示） |
-| GET | `/api/async-tasks` | `system:async-task:list` | 全局任务列表（支持提交人筛选） |
-| GET | `/api/async-tasks/{id}` | 创建者或 `list` | 任务详情 |
-| GET | `/api/async-tasks/{id}/items` | 创建者或 `list` | 任务项明细（行级状态分页） |
-| POST | `/api/async-tasks/{id}/cancel` | 创建者或 `manage` | 取消 |
-| POST | `/api/async-tasks/{id}/resume` | 创建者或 `manage` | 断点恢复 |
-| POST | `/api/async-tasks/{id}/restart` | 创建者或 `manage` | 重新开始（清空明细重新快照策略） |
-| POST | `/api/async-tasks/batch-cancel` | `system:async-task:manage` | 批量取消 |
-| POST | `/api/async-tasks/batch-delete` | `system:async-task:manage` | 批量删除（仅已结束） |
-| DELETE | `/api/async-tasks/{id}` | `system:async-task:manage` | 删除记录 |
-| POST | `/api/async-tasks/cleanup` | `system:async-task:cleanup` | 立即清理过期记录 |
+| `GET` | `/api/async-tasks/types` | 登录 | 已注册任务类型与生效策略 |
+| `PUT` | `/api/async-tasks/types/{taskType}/config` | `system:async-task:config` | 更新类型运行时策略 |
+| `GET` | `/api/async-tasks/stats` | `system:async-task:list` | 统计概览 |
+| `GET` | `/api/async-tasks/mine` | 登录 | 我的任务列表 |
+| `GET` | `/api/async-tasks` | `system:async-task:list` | 全局任务列表，支持类型、状态、标题、内容、提交人、时间范围筛选 |
+| `GET` | `/api/async-tasks/{id}` | 创建者或 `system:async-task:list` | 任务详情 |
+| `GET` | `/api/async-tasks/{id}/items` | 创建者或 `system:async-task:list` | 任务项明细分页 |
+| `POST` | `/api/async-tasks/{id}/cancel` | 创建者或 `system:async-task:manage` | 取消任务 |
+| `POST` | `/api/async-tasks/{id}/resume` | 创建者或 `system:async-task:manage` | 断点恢复 |
+| `POST` | `/api/async-tasks/{id}/restart` | 创建者或 `system:async-task:manage` | 重新开始 |
+| `POST` | `/api/async-tasks/batch-cancel` | `system:async-task:manage` | 批量取消 |
+| `POST` | `/api/async-tasks/batch-delete` | `system:async-task:manage` | 批量删除已结束任务 |
+| `DELETE` | `/api/async-tasks/{id}` | `system:async-task:manage` | 删除任务记录 |
+| `POST` | `/api/async-tasks/cleanup` | `system:async-task:cleanup` | 立即清理过期任务记录 |
 
-WS 事件：`task:progress`（推送给任务创建者，payload 为 `AsyncTask`），见 [WebSocket 事件清单](./websocket-events.md)。
+WS 事件：`task:progress`，payload 为 `AsyncTask`，推送给任务创建者。
 
 ## 全局任务托盘
 
-顶栏「我的任务」入口（`TaskTray` 组件，挂载于 AdminLayout）跨页面展示当前用户的进行中 / 最近 10 分钟完成的任务：Badge 显示进行中数量，Popover 内实时进度条并支持直接取消。数据源与业务页共享 `useMyAsyncTasks`（WS 实时 + 轮询兜底），提交任务后无论跳到哪个页面都能看到进度。
+顶栏「我的任务」入口（`TaskTray`）展示当前用户进行中任务和近期完成任务。Badge 显示进行中数量，Popover 内展示进度并支持取消。数据源与业务页共享 `useMyAsyncTasks`。
 
 ## 与导出中心的分工
 
-导出中心是**文件导出**这一特定场景的完整方案（列定义 / 脱敏 / 水印 / 下载审计 / 文件保留策略），继续独立使用；任务中心面向**任意业务异步任务**，需要细粒度进度与断点续跑的新场景优先接入任务中心。
+导出中心专注文件导出：列定义、渲染格式、脱敏、水印式元信息、下载审计、文件保留策略和托管文件保存。任务中心面向任意业务异步任务，适合导入、批量处理、外部同步、治理扫描、静态化等需要进度、明细、重试或取消的场景。
 
 ## 业务示例
 
-**业务示例 → 异步任务示例**（`/biz/task-demo`）提供两个可交互的演示任务类型：
+业务示例页 `/biz/task-demo` 注册两个演示类型：
 
-- `demo-batch`（批量处理演示，可并发，maxAttempts=3）：可配置总条数、单条耗时、**硬失败点**（整个任务失败 → 观察自动重试与断点续跑）与**软失败间隔**（每 N 条失败一条，任务继续 → 行级明细可在「明细」抽屉查看）。
-- `demo-serial`（串行阶段演示，不可并发）：多阶段不定进度任务；存在未结束任务时重复提交会被拒绝，演示 `allowConcurrent: false`。
+- `demo-batch`：批量处理演示，可并发，`maxAttempts=3`，包含硬失败点、软失败间隔和行级明细。
+- `demo-serial`：串行阶段演示，不可并发，用于演示重复提交拦截和不定进度。
 
-Demo 演示模式（MSW）下按「读取时间推进」模拟任务执行（含自动重试与行级明细），无需后端即可完整体验提交 / 进度 / 取消 / 断点恢复 / 重新开始 / 类型策略调整。
+Demo 模式通过 MSW 模拟提交、进度、取消、断点恢复、重新开始、自动重试和类型策略调整。

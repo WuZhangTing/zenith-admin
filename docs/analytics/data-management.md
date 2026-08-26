@@ -7,7 +7,7 @@
 `GET /api/analytics/events` —— 原始事件分页列表，支持多维筛选：
 
 - 事件类型、事件名、用户名、页面路径、设备类型
-- **日期范围**（`startTime` / `endTime`，`YYYY-MM-DD HH:mm:ss`）
+- **日期范围**（`startTime` / `endTime`，接受 `YYYY-MM-DD` 或 `YYYY-MM-DD HH:mm:ss`，纯日期按起止日闭区间处理）
 
 点击某条事件打开详情侧边栏（`GET /api/analytics/events/{id}`），展示完整字段：身份（distinctId / anonymousId）、属性袋 `properties`、来源（referrer / UTM）、环境（浏览器 / 系统 / 设备 / 分辨率 / 语言 / UA）、地域（IP / 国家 / 城市）、性能指标等。
 
@@ -53,7 +53,7 @@
 
 ## 事件调试
 
-`GET /api/analytics/debug/events` —— 实时事件调试流：返回最近入库的事件摘要（最多 50 条，可按事件名过滤），配合前端自动轮询，用于埋点开发时验证「事件是否上报成功、属性是否正确」，无需去事件明细里翻页。
+`GET /api/analytics/debug/events` —— 事件调试列表：按标准分页返回最近入库的事件摘要，可按事件名过滤，用于埋点开发时验证「事件是否上报成功、属性是否正确」，无需去事件明细里翻页。
 
 ## 数据聚合
 
@@ -76,6 +76,7 @@
 | `anonymizeIp` | IP 匿名化存储（先解析地域再抹除） |
 | `respectDnt` | 尊重浏览器 Do Not Track |
 | `blacklistPaths` | 路径黑名单 |
+| `errorIgnorePatterns` | 错误忽略规则，正则数组；命中错误 `message` 的前端错误上报在服务端丢弃 |
 | `retentionDays` / `errorRetentionDays` | 埋点 / 错误数据保留天数（1–3650） |
 | `sessionTimeoutMinutes` | 会话闲置超时（1–1440 分钟） |
 
@@ -97,7 +98,7 @@
   - **属性条件**（`type: 'attribute'`）：针对 `analytics_user_profiles` 的 `identityType` / `userId` / `memberId` 或任意 `property.<key>`（`key` 经严格正则校验，禁止拼接任意列名）。
   - 不支持分群嵌套分群（规则条件中不能引用其他 `segmentId`），避免循环依赖与未受控的联表爆炸。
   - AND 语义使用 SQL `INTERSECT`、OR 语义使用 SQL `UNION` 合并各条件命中的 `distinctId` 集合，全程不在 Node 侧加载全量 ID 到内存后再比对。
-- **物化**：`POST /api/analytics/segments/{id}/materialize` 通过任务中心异步执行（任务类型 `analytics-segment-materialize`，`allowConcurrent: false`，`maxAttempts: 2`），事务内先清空旧快照再 `INSERT ... SELECT` 写入新成员（含 `tenantId` / `identityType` / `userId` / `memberId`），完成后更新 `estimatedSize` 与 `snapshotAt`。幂等键由「任务类型 + 分群 ID + 规则版本 + 分钟桶」构成：同一分钟内的重复提交被拦截，规则更新后旧幂等键自动失效可立即重算。任务执行时会重新校验分群仍属于创建者租户。
+- **物化**：`POST /api/analytics/segments/{id}/materialize` 通过任务中心异步执行（任务类型 `analytics-segment-materialize`，`allowConcurrent: false`，`maxAttempts: 2`），事务内先清空既有快照再 `INSERT ... SELECT` 写入新成员（含 `tenantId` / `identityType` / `userId` / `memberId`），完成后更新 `estimatedSize` 与 `snapshotAt`。幂等键由「任务类型 + 分群 ID + 规则版本 + 分钟桶」构成：同一分钟内的重复提交被拦截，规则更新后上一幂等键自动失效可立即重算。任务执行时会重新校验分群仍属于创建者租户。
 - `GET /api/analytics/segments/{id}/members`：分页查看物化后的成员快照。
 - 前端「用户分群」Tab：列表 + 状态/关键词搜索、创建/编辑弹窗（可视化规则编辑器，支持 AND/OR 与事件/属性两类条件的可视化拼装）、「重算成员」按钮（提交后跳转任务中心跟踪进度）、「触达」操作（见 [行为分析 · 分群触达](./behavior#分群触达)）、成员侧边栏。
 

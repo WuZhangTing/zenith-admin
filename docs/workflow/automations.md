@@ -41,7 +41,7 @@
 | `{{字段key}}` | 当前实例表单字段 |
 :::
 
-未匹配变量渲染为空字符串。
+未匹配变量渲染为空字符串。规则执行结果写入自动化运行记录，可通过 `GET /api/workflows/automations/runs` 查询。
 
 ## 定时发起
 
@@ -61,6 +61,14 @@
 页面支持立即执行一次（手动触发，不影响下次调度时间），用于验证 Cron 规则和表单数据。列表展示每条规则的上次执行时间、结果与下次执行时间。
 
 调度由系统任务 `workflow-schedule-tick` 每分钟扫描到期规则驱动（运行记录可在系统任务中心查看）。执行时先以行级锁占位（`FOR UPDATE SKIP LOCKED`）并推进下次执行时间，多副本部署或单副本 tick 重叠时同一规则不会重复发起。定时发起的表单数据沿用宽松语义，不强制必填校验。
+
+## API 摘要
+
+| 能力 | 路径 |
+| --- | --- |
+| 自动化规则 | `GET/POST /api/workflows/automations`、`GET/PUT/DELETE /api/workflows/automations/{id}`、`POST /api/workflows/automations/batch-delete` |
+| 自动化运行记录 | `GET /api/workflows/automations/runs` |
+| 定时发起 | `GET/POST /api/workflows/schedules`、`PUT/DELETE /api/workflows/schedules/{id}`、`POST /api/workflows/schedules/{id}/run` |
 
 ## 与事件订阅的区别
 

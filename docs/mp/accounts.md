@@ -44,7 +44,7 @@
 
 ## 连接测试
 
-`POST /api/mp/accounts/{id}/test` 使用账号 `app_id` / `app_secret` 向微信换取 `access_token`，验证凭证是否有效：成功返回 `{ success: true }` 并缓存 token，凭证错误时返回微信错误信息。前端在账号列表「测试连接」按钮触发。
+`POST /api/mp/accounts/{id}/test` 使用账号 `app_id` / `app_secret` 向微信换取 `access_token`，验证凭证是否有效：成功返回 `{ success: true, message }` 并缓存 token，凭证错误时返回微信错误信息。AppID 以 `wxdemo` 开头的演示账号返回沙箱 token，不访问微信真实接口。前端在账号列表「测试连接」按钮触发。
 
 ---
 

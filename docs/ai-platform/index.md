@@ -51,9 +51,9 @@ Mastra Studio ──/api/mastra/*(标准 API)──▶ agents / datasets / exper
 | 推理力度 | 七档推理档位（跟随配置 / 厂商默认 / 关闭 / minimal→xhigh），会话级选择 > 智能体设置 > 服务商配置 |
 | 记忆 | Mastra Memory：近 20 条消息 + 语义召回（需 embedding 模型）+ working memory 跨对话用户画像（可编辑可清空） |
 | 图片消息 | vision 模型图片输入（含粘贴截图），经统一文件存储持久化，刷新后回显 |
-| 知识库 RAG | 文本 / URL 入库自动分块，PgVector 向量检索（索引 `kb_{kbId}`），无 embedding 时退化关键词检索，回答注入引用溯源 |
+| 知识库 RAG | 文本 / URL 入库自动分块，PgVector 向量检索（索引 `kb_{kbId}`），无 embedding 时退化关键词检索，回答注入并持久化引用溯源 |
 | 智能体 | instructions / modelSettings / maxSteps / 知识库 / 工具组合，创建即注册为一等 Mastra Agent |
-| 函数调用 | HTTP API 工具（管理员零代码注册）+ 内置工具，过程折叠卡片展示 |
+| 函数调用 | HTTP API 工具（管理员零代码注册）+ 内置工具，过程以语义化折叠卡片展示并随消息持久化 |
 | 模型评测 | Mastra Datasets / Experiments：数据集版本化、异步实验、code 与 LLM-as-judge 双类打分器 |
 | Studio | `/api/mastra/*` 标准 API（鉴权 + `ai:studio:access` 门控），全链路 traces 落库可查 |
 | 个性化 | 个人指令（关于我 / 回答风格）、AI 记忆开关与画像编辑、个人 AI 配置 |

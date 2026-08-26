@@ -16,7 +16,7 @@
 | 恢复 | 回收站 | draft | `cms:content:delete` |
 | 彻底删除 | 仅回收站 | —（硬删除） | `cms:content:delete` |
 
-回收站内容超过 30 天由周期任务自动清理。
+回收站保留天数由站点内容策略 `recycleKeepDays` 控制，默认 30 天；设为 `0` 时永久保留，不自动清理。
 
 ## 审核双轨制
 
@@ -163,6 +163,7 @@
 | `autoReplaceSensitiveWords` | `false` | 见上 |
 | `autoReplaceErrorProneWords` | `false` | 见上 |
 | `autoCoverFromBody` | `false` | 未填封面时，保存自动提取正文第一张图片作为封面（跳过 `data:` URI） |
+| `openApiPublishEnabled` | `false` | 允许开放 API 直接发布的站点级开关；仍需应用持有 `cms:publish` scope 且开放授权行开启 `canPublish` |
 
 ### 操作日志时间线
 

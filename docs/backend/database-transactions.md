@@ -1,57 +1,54 @@
 # 数据库事务
 
-本页介绍 Zenith Admin 中使用 Drizzle ORM 管理 PostgreSQL 事务的完整规范，包括何时需要事务、常见模式、副作用处理和错误处理。
+Zenith Admin 使用 Drizzle ORM 的 `db.transaction()` 管理 PostgreSQL 事务。本页约定事务使用场景、可复用写函数、任务 outbox、副作用边界和错误处理。
 
 ## 基本用法
 
-`db.transaction()` 接受一个异步回调，回调内的所有操作使用同一个 `tx`（事务对象）执行。回调正常返回时自动 **COMMIT**，抛出异常时自动 **ROLLBACK**：
+`db.transaction()` 接受异步回调。回调正常返回时 COMMIT，抛出异常时 ROLLBACK。回调内所有数据库操作使用同一个 `tx`。
 
 ```ts
 const result = await db.transaction(async (tx) => {
   const [created] = await tx.insert(mainTable).values(data).returning();
   await tx.insert(relTable).values({ parentId: created.id, ...extra });
-  return created; // 返回值会作为 db.transaction() 的结果
+  return created;
 });
 ```
+
+`db/index.ts` 会包装事务对象，因此审计字段自动注入在 `tx.insert()` / `tx.update()` 中同样生效。
 
 ## 何时需要事务
 
 | 场景 | 示例 | 是否需要事务 |
-| ---- | ---- | ------------ |
-| **replace 模式**（先 delete 再 insert） | 保存角色菜单、保存通知接收人 | ✅ 必须 |
-| **多表联写**（写入主表 + 关联表） | 创建用户同时设置角色和岗位 | ✅ 必须 |
-| **互斥写入**（先读再写，保证状态一致） | 切换默认存储配置：先清 isDefault，再设新默认 | ✅ 必须 |
-| **级联删除**（递归查找子节点再批量删除） | 删除菜单及其所有子菜单 | ✅ 必须 |
-| **单表单次写入** | 普通 create / update / delete | ❌ 不需要 |
+| --- | --- | --- |
+| replace 模式 | 保存角色菜单、保存公告接收人：先删旧关系再插新关系 | 必须 |
+| 多表联写 | 创建用户同时设置角色、岗位、用户组 | 必须 |
+| 互斥写入 | 切换默认存储配置：先清默认标记，再设置新默认 | 必须 |
+| 状态机推进 | 支付、工作流、任务等需要校验状态后写入多处结果 | 必须 |
+| 账本 / 余额 | 积分、钱包、账户余额与流水同时写入 | 必须 |
+| 写业务记录 + 任务 outbox | 写业务表并提交任务中心任务 | 必须 |
+| 单表单次写入 | 普通 create / update / delete | 不需要 |
 
 ## 常见模式
 
 ### 模式一：多表联写（创建主记录 + 关联关系）
 
-最常见的场景：创建一条主记录，同时写入多张关联表，要求三者同时成功或同时回滚。
-
 ```ts
-// 来自 services/identity/users.service.ts：创建用户时，同步设置角色和岗位
 const created = await db.transaction(async (tx) => {
   const [u] = await tx.insert(users).values({
     ...rest,
     password: hashedPassword,
     departmentId: departmentId ?? null,
   }).returning();
-  await setUserRoles(tx, u.id, nextRoleIds);        // 写 user_roles
-  await setUserPositions(tx, u.id, nextPositionIds); // 写 user_positions
+
+  await setUserRoles(tx, u.id, roleIds);
+  await setUserPositions(tx, u.id, positionIds);
   return u;
 });
 ```
 
-> `setUserRoles` / `setUserPositions` 等辅助函数的签名为 `(executor: DbExecutor, ...)` ，既可在事务内传 `tx`，也可直接传 `db`（见[模式三](#模式三-辅助函数接受-dbexecutor-推荐用于可复用的写操作)）。
-
 ### 模式二：replace 模式（先删后插）
 
-对于"覆盖式更新"关联关系，直接先删全部再重新插入，事务保证中间状态不可见：
-
 ```ts
-// 来自 services/identity/roles.service.ts：保存角色的菜单权限
 await db.transaction(async (tx) => {
   await tx.delete(roleMenus).where(eq(roleMenus.roleId, id));
   if (menuIds.length > 0) {
@@ -60,24 +57,13 @@ await db.transaction(async (tx) => {
 });
 ```
 
-同样的模式也用于"保存通知接收人"：
+### 模式三：辅助函数接受 `DbExecutor`
 
-```ts
-// 来自 services/messaging/announcements.service.ts（saveRecipients 内部）
-await tx.delete(announcementRecipients).where(eq(announcementRecipients.announcementId, announcementId));
-if (recipientList.length > 0) {
-  await tx.insert(announcementRecipients).values(recipientList.map((userId) => ({ announcementId, userId })));
-}
-```
-
-### 模式三：辅助函数接受 `DbExecutor`（推荐用于可复用的写操作）
-
-当一个写操作逻辑需要在多处调用（有时在事务内、有时独立调用）时，将 `db` 或 `tx` 抽象为 `DbExecutor` 参数：
+可复用写函数使用 `DbExecutor`，调用方可传 `db` 或事务内的 `tx`。
 
 ```ts
 import type { DbExecutor } from '../../db/types';
 
-// 辅助函数接受 executor，可在事务内和事务外都调用
 async function setUserRoles(executor: DbExecutor, userId: number, roleIds: number[]) {
   await executor.delete(userRoles).where(eq(userRoles.userId, userId));
   if (roleIds.length > 0) {
@@ -85,25 +71,18 @@ async function setUserRoles(executor: DbExecutor, userId: number, roleIds: numbe
   }
 }
 
-// 调用方一：在事务内传 tx
 await db.transaction(async (tx) => {
   const [u] = await tx.insert(users).values(data).returning();
   await setUserRoles(tx, u.id, roleIds);
   return u;
 });
-
-// 调用方二：独立执行时传 db
-await setUserRoles(db, userId, roleIds);
 ```
 
-### 模式四：互斥写入（先读后写保证唯一性）
-
-当需要"先读取状态再修改，保证同一时刻只有一条记录满足某条件"时，整个读-写操作放入事务：
+### 模式四：互斥写入
 
 ```ts
-// 来自 services/files/file-storage-configs.service.ts：切换默认存储配置
 await db.transaction(async (tx) => {
-  await clearDefaultFlag(tx);                              // 先清除所有 isDefault=true
+  await clearDefaultFlag(tx);
   const [row] = await tx
     .update(fileStorageConfigs)
     .set({ isDefault: true })
@@ -115,10 +94,7 @@ await db.transaction(async (tx) => {
 
 ### 模式五：级联递归操作
 
-当删除一条记录需要先在事务内完成树形遍历，再批量删除，避免读到中间态：
-
 ```ts
-// 来自 services/identity/menus.service.ts：删除菜单及其所有子菜单（BFS 遍历）
 await db.transaction(async (tx) => {
   const all = await tx.select({ id: menus.id, parentId: menus.parentId }).from(menus);
   const toDelete = new Set<number>();
@@ -132,42 +108,44 @@ await db.transaction(async (tx) => {
 });
 ```
 
+### 模式六：事务性任务 outbox
+
+任务中心任务需要与业务写操作同事务落库时，在事务内传 `executor: tx`，事务提交后再入队。
+
+```ts
+const task = await db.transaction(async (tx) => {
+  await tx.insert(orders).values(orderData);
+  return submitAsyncTask({ taskType: 'order-sync', payload }, { executor: tx });
+});
+
+await enqueueAsyncTask(task.id);
+```
+
+事务内禁止直接入队；入队失败由任务中心 pending 兜底扫描补投。
+
 ## 副作用的处理原则
 
-WebSocket 推送、邮件发送、缓存清除等**副作用操作必须放在事务之外**，在事务成功提交后执行：
+WebSocket 推送、邮件 / 短信 / Webhook、文件存储、缓存清除、pg-boss 入队等副作用放在事务提交之后执行。需要事务一致性的异步副作用使用 outbox 表或任务中心 pending 记录承接。
 
 ```ts
-// ✅ 正确：先完成事务，再执行副作用
 const row = await db.transaction(async (tx) => {
   const [inserted] = await tx.insert(announcements).values(data).returning();
-  await saveRecipients(tx, inserted.id, recipientList);  // 纯 DB 操作
+  await saveRecipients(tx, inserted.id, recipientList);
   return inserted;
 });
-await broadcastAnnouncement(row);  // 副作用：事务成功后才推送 WebSocket
 
-// ❌ 错误：副作用放在事务内（事务回滚后推送已发出，无法撤回）
-await db.transaction(async (tx) => {
-  const [inserted] = await tx.insert(announcements).values(data).returning();
-  await broadcastAnnouncement(inserted); // 事务可能失败，但消息已发出
-});
+await broadcastAnnouncement(row);
 ```
 
-缓存清除（如 `clearUserPermissionCache()`）同理，在事务完成后调用：
-
-```ts
-await db.transaction(async (tx) => {
-  await tx.delete(userRoles).where(eq(userRoles.roleId, id));
-  await tx.insert(userRoles).values(newPairs);
-});
-clearUserPermissionCache(); // 事务提交后再清缓存
-```
+通知类副作用通过通知中心 `notify()` / `notifyWithin()` 收口；需要与业务写入原子化时使用该服务提供的事务内接口，而不是在业务事务里直接调用通道发送函数。
 
 ## 事务内的错误处理
 
-事务回调内抛出 `HTTPException` 或普通 `Error`，Drizzle 都会自动 ROLLBACK。唯一约束冲突使用 `rethrowPgUniqueViolation` 统一映射：
+事务回调内抛出 `HTTPException` 或普通 `Error`，Drizzle 自动 ROLLBACK。唯一约束冲突使用 `rethrowPgUniqueViolation()` 统一映射：
 
 ```ts
-// 来自 services/identity/users.service.ts：创建用户并捕获唯一约束冲突
+import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+
 try {
   const created = await db.transaction(async (tx) => {
     const [u] = await tx.insert(users).values(data).returning();
@@ -175,15 +153,18 @@ try {
     return u;
   });
 } catch (err: unknown) {
-  rethrowPgUniqueViolation(err, '用户名或邮箱已存在');
+  rethrowPgUniqueViolation(err, '用户名或邮箱已存在', {
+    users_username_unique: '用户名已存在',
+    users_email_unique: '邮箱已存在',
+  });
 }
 ```
 
-`rethrowPgUniqueViolation` 定义在 `packages/server/src/lib/db-errors.ts`：如果是 PG 唯一约束错误（`23505`）则抛 `HTTPException(400)`，否则原样重新抛出。
+`rethrowPgUniqueViolation` 会沿 `cause` 链读取 PG 错误码 `23505` 和约束名；非唯一约束错误原样抛出。
 
 ## 乐观锁与重试
 
-积分、钱包等资金一致性场景使用 `version` 字段做乐观锁。`member_point_accounts` 与 `member_wallets` 均带 `version` 列，更新时同时校验主键与当前版本号，成功后 `version + 1`：
+积分、钱包等资金一致性场景使用 `version` 字段做乐观锁。`member_point_accounts` 与 `member_wallets` 带 `version` 列，更新时校验主键与版本号，成功后 `version + 1`。
 
 ```ts
 import { withOptimisticRetry, OptimisticLockError } from '../../lib/optimistic';
@@ -192,10 +173,7 @@ return withOptimisticRetry(() =>
   db.transaction(async (tx) => {
     const [updated] = await tx
       .update(memberWallets)
-      .set({
-        balance: nextBalance,
-        version: wallet.version + 1,
-      })
+      .set({ balance: nextBalance, version: wallet.version + 1 })
       .where(and(eq(memberWallets.id, wallet.id), eq(memberWallets.version, wallet.version)))
       .returning();
 
@@ -205,33 +183,24 @@ return withOptimisticRetry(() =>
 );
 ```
 
-`withOptimisticRetry(fn, retries = 3)` 定义在 `packages/server/src/lib/optimistic.ts`。遇到 `OptimisticLockError` 时会重试整个操作，重试耗尽后抛出 `HTTPException(409, { message: '操作过于频繁，请稍后重试' })`。
+`withOptimisticRetry(fn, retries = 3)` 重试整个操作；重试耗尽后抛 `HTTPException(409, { message: '操作过于频繁，请稍后重试' })`。
 
 ## 注意事项
 
-- 事务内**不要** `await Promise.all()` 并发执行多条写语句，PostgreSQL 的 `postgres.js` 驱动在同一连接上串行执行事务 SQL，并发会导致连接竞争。需要并行时，把并行逻辑放在事务外。
-- 事务内**可以** `Promise.all` 执行多条只读查询（如并行拉取几张表的数据再写入），这是安全的。
-- 事务对象 `tx` 不可跨 `await` 边界传递给其他并发分支——保持线性调用链。
+- 事务内写操作保持线性 `await`，不要用 `Promise.all()` 并发执行多条写语句。
+- 事务内可以并行读取互不依赖的数据，但后续写入仍保持顺序。
+- 不要把 `tx` 传到脱离当前调用链的异步分支、定时器或后台任务。
+- `updatedAt` 普通 update 由 schema 的 `$onUpdate` 维护；`onConflictDoUpdate({ set })` 中需要显式写更新时间。
+- 写入需要审计字段时不要手动赋 `createdBy` / `updatedBy`；非请求场景用 `runAsUser()`。
 
 ## 统一数据库类型（`src/db/types.ts`）
-
-当 helper 需要同时接受 `db` 与事务里的 `tx` 执行器时，统一从 `packages/server/src/db/types.ts` 导入类型，避免手工从 `db.transaction()` 签名反推：
 
 ```ts
 import type { Db, DbExecutor, DbTransaction } from '../../db/types';
 
-// 三种类型的含义：
-// Db            — 顶层 db 实例（PostgresJsDatabase）
+// Db            — 顶层 db 实例
 // DbTransaction — db.transaction() 回调中的 tx 对象
-// DbExecutor    — Db | DbTransaction，函数兼容两种调用方式时使用
-
-async function saveItems(executor: DbExecutor, parentId: number, items: Item[]) {
-  // ...
-}
+// DbExecutor    — Db | DbTransaction
 ```
 
-**不要**再写这类手工推导：
-
-```ts
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-```
+不要手工从 `db.transaction()` 签名推导事务类型。

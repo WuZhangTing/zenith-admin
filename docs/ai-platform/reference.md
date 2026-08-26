@@ -11,7 +11,7 @@ AI 域的表结构、权限码与配置速查。业务表位于主 schema（`db/
 | `ai_provider_configs` | 系统服务商配置：providerId / baseUrl / apiKey / headers / models / defaultModel / modelSettings / providerOptions / fallbacks / capabilities / 定价 / 并发上限 |
 | `user_ai_configs` | 个人 AI 配置（与系统配置同构的用户子集） |
 | `ai_conversations` | 会话：标题 / 标签 / 知识库与智能体绑定 / 系统提示词覆盖 / 激活分支叶子 |
-| `ai_messages` | 消息树：parent_id 分支结构 / 思维链 reasoning / 图片引用 images / token 计数 / ttft / trace / 反馈 |
+| `ai_messages` | 消息树：parent_id 分支结构 / 思维链 reasoning / 图片引用 images / 工具调用 tool_calls / 知识库引用 kb_references / token 计数 / ttft / trace / 反馈 |
 | `ai_user_settings` | 用户 AI 偏好（1:1，JSONB 稀疏文档）：个人指令（关于我 / 回答风格）、记忆开关 |
 | `ai_shared_conversations` | 对话分享链接与过期控制 |
 | `ai_arena_votes` | 竞技场投票记录 |
@@ -43,7 +43,7 @@ AI 域的表结构、权限码与配置速查。业务表位于主 schema（`db/
 | `ai:usage:view` | 用量统计 |
 | `ai:studio:access` | Mastra Studio（`/api/mastra/*`） |
 
-对话、消息、个人配置、个人设置为用户私有数据，按归属校验，无独立 RBAC 权限码。
+对话、消息、自定义智能体、个人配置、个人设置为用户私有数据，按归属校验，无独立 RBAC 权限码。
 
 ## 环境变量与系统配置
 

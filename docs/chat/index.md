@@ -10,14 +10,14 @@ Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、�
 | --- | --- |
 | 会话 | 支持 `direct` 单聊与 `group` 群聊；会话成员关系记录置顶、星标、免打扰、归档、最后已读时间 |
 | 群管理 | 创建群聊、添加 / 移除成员、退出会话、群主转移、群管理员、群名称与群公告维护、群公告历史、邀请链接、入群审批、成员禁言与全员禁言 |
-| 消息能力 | 消息类型为 `text`、`image`、`file`、`system`、`forward`、`vote`、`voice`、`card`、`video`；支持回复、撤回、编辑、转发、收藏、置顶、删除对自己可见消息、表情回应、投票 |
+| 消息能力 | 消息类型为 `text`、`image`、`file`、`system`、`forward`、`vote`、`voice`、`card`、`video`；支持回复、撤回、编辑、转发、个人收藏、会话级置顶、仅对自己隐藏、表情回应、投票 |
 | 效率工具 | 常用语（快捷回复短语）、定时消息、自定义表情收藏 |
 | 草稿与状态 | 输入草稿保存在浏览器 `localStorage` 的 `zenith_chat_drafts`；会话列表展示未读数、@我未读、在线状态与最近在线时间 |
 | 媒体库 | 通过会话内消息搜索聚合图片、文件与链接；图片使用预览灯箱，文件支持可预览类型的预览入口 |
 | 搜索与导出 | 支持会话内搜索、上下文定位、收藏消息列表、跨会话全局搜索；持 `chat:message:export` 权限可经导出中心导出会话聊天记录 |
 | 快捷聊天 | 非 `/chat` 页面展示浮动快捷聊天按钮，支持未读角标、快捷面板与跳转完整聊天页 |
-| 频道入口 | 消息中心左侧同时承载「频道」（站内公众号）订阅与消息视图，详见[通知中心 · 频道](../notification/index.md#频道) |
-| 实时通信 | `GET /api/ws?token=...` 维护共享 WebSocket 连接，推送消息、撤回、编辑、已读、输入中、成员变化、群信息变化、表情、投票与在线状态 |
+| 频道与客服 | 消息中心左侧同时承载「频道」（站内公众号）订阅与消息视图；`business` 运营号支持双向客服、底部菜单、会话评价与客服工作台，详见[通知中心 · 频道](../notification/index.md#频道) |
+| 实时通信 | `GET /api/ws?token=...` 维护共享 WebSocket 连接，推送消息、撤回、编辑、已读、输入中、成员变化、群信息变化、入群申请、会话解散、表情、投票、频道消息、在线状态与 WebRTC 信令 |
 
 ---
 
@@ -31,6 +31,7 @@ Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、�
 | `chat_conversation_members` | `conversation_id`、`user_id`、`role`、`is_pinned`、`is_starred`、`is_muted`、`is_archived`、`muted_until`、`last_read_at`、`joined_at` | 会话成员表；主键为 `conversation_id + user_id`；`role` 使用 `chat_member_role`：`owner` / `admin` / `member`；`muted_until` 为禁言截止时间（`NULL` 且被禁言时为永久） |
 | `chat_messages` | `id`、`conversation_id`、`sender_id`、`type`、`content`、`reply_to_id`、`is_recalled`、`is_edited`、`extra`、`created_at`、`updated_at` | 消息表；`type` 使用 `chat_message_type`：`text`、`image`、`file`、`system`、`forward`、`vote`、`voice`、`card`、`video` |
 | `chat_message_reactions` | `id`、`message_id`、`user_id`、`emoji`、`created_at` | 表情回应表；`message_id + user_id + emoji` 唯一 |
+| `chat_message_favorites` | `id`、`message_id`、`user_id`、`created_at` | 消息个人收藏表；`message_id + user_id` 唯一，列表 DTO 按当前用户回填 `extra.isFavorited` |
 | `chat_quick_replies` | `id`、`user_id`、`content`、`sort` | 用户私有常用语，每人最多 50 条 |
 | `chat_scheduled_messages` | `id`、`conversation_id`、`sender_id`、`type`、`content`、`extra`、`scheduled_at`、`status`、`fail_reason`、`sent_message_id` | 定时消息；`status` 使用 `chat_scheduled_status`：`pending` / `sent` / `canceled` / `failed` |
 | `chat_custom_emojis` | `id`、`user_id`、`url`、`file_id`、`name`、`width`、`height` | 用户自定义表情收藏，每人最多 100 个 |
@@ -43,7 +44,8 @@ Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、�
 - `asset`：图片、文件、语音、视频元数据，`kind` 为 `image` / `file` / `voice` / `video`
 - `linkPreview`：链接预览信息，链接消息仍以 `text` 类型存储
 - `mentions`：@提及用户列表
-- `isFavorited`、`isPinned`：消息收藏与消息置顶状态
+- `isFavorited`：DTO 中回填的当前用户收藏标记（持久化在 `chat_message_favorites`）
+- `isPinned`：会话级消息置顶状态（持久化在消息 `extra`）
 - `announcementHistory`：群公告历史系统消息元数据
 - `forwardedMessages`、`forwardSourceConvName`：合并转发内容与来源会话名
 - `hiddenFor`：对指定用户隐藏的消息 ID 过滤依据
@@ -154,7 +156,7 @@ Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、�
 - `mode = merge`：发送一条 `forward` 消息，`extra.forwardedMessages` 保存原消息摘要
 - `mode = individual`：逐条发送原消息，跳过撤回消息以及 `system`、`forward`、`card` 类型
 
-消息收藏与置顶分别写入 `extra.isFavorited`、`extra.isPinned`。删除消息接口 `POST /api/chat/messages/batch-delete` 仅对当前用户隐藏消息，通过 `extra.hiddenFor` 过滤列表与搜索结果。
+消息收藏写入 `chat_message_favorites`，并在消息列表、收藏列表与搜索结果中按当前用户回填 `extra.isFavorited`；消息置顶写入 `extra.isPinned`，属于会话内共享视图。删除消息接口 `POST /api/chat/messages/batch-delete` 仅对当前用户隐藏消息，通过 `extra.hiddenFor` 过滤列表与搜索结果，并同步清理当前用户对这些消息的收藏。
 
 ### 表情回应与投票
 
@@ -220,11 +222,17 @@ WebSocket 断开期间仍可通过 HTTP 接口发送消息。重连成功后，�
 | `chat:member-join` | 服务端 → 客户端 | 群成员加入 |
 | `chat:member-leave` | 服务端 → 客户端 | 群成员离开或被移除 |
 | `chat:member-update` | 服务端 → 客户端 | 成员角色、禁言状态变化或入群申请动态 |
+| `chat:join-request` | 服务端 → 客户端 | 新入群申请，客户端刷新审批列表 |
+| `chat:conversation-removed` | 服务端 → 客户端 | 群聊已解散，客户端移除会话 |
 | `chat:group-update` | 服务端 → 客户端 | 群名称、群公告或群主状态变化 |
 | `chat:typing` | 客户端 → 服务端 → 客户端 | 输入中状态，服务端转发给会话内其他成员 |
 | `chat:reaction` | 服务端 → 客户端 | 表情回应聚合结果变化 |
 | `chat:vote-update` | 服务端 → 客户端 | 投票数据变化 |
 | `chat:presence` | 服务端 → 客户端 | 用户上线 / 下线状态，包含 `lastSeen` |
+| `channel:message` | 服务端 → 客户端 | 频道或客服消息实时追加 |
+| `channel:message-retract` | 服务端 → 客户端 | 频道或客服消息撤回 |
+| `channel:cs-message` | 服务端 → 客户端 | 客服工作台轻量刷新信号 |
+| `rtc:*` | 客户端 → 服务端 → 客户端 | WebRTC 通话信令，包含邀请、接听、拒绝、忙线、取消、加入、离开、Offer / Answer / ICE |
 
 ### 已读回执与在线状态
 
@@ -239,7 +247,7 @@ WebSocket 断开期间仍可通过 HTTP 接口发送消息。重连成功后，�
 
 ### WebRTC 信令
 
-聊天 WebSocket 同时承载音视频通话信令：`routes/platform/ws.ts` 处理 `rtc:*` 消息（邀请、接听、拒绝、忙线、取消、加入 / 离开房间、offer / answer / ICE 等），优先按 `payload.to` 定向发送，没有 `to` 但包含 `conversationId` 时转发给会话内其他成员。ICE 配置通过 `GET /api/chat/rtc/config` 获取；通话结束后可调用 `POST /api/chat/conversations/{id}/call-record` 写入系统消息，入参包含 `callType`（`audio` / `video`）、`mode`（`p2p` / `group`）、`status`（`completed` / `missed` / `canceled` / `rejected`）和 `durationSec`。
+聊天 WebSocket 同时承载音视频通话信令：`routes/platform/ws.ts` 处理 `rtc:invite`、`rtc:accept`、`rtc:reject`、`rtc:busy`、`rtc:cancel`、`rtc:join`、`rtc:room-participants`、`rtc:leave`、`rtc:offer`、`rtc:answer`、`rtc:ice`。优先按 `payload.to` 定向发送；没有 `to` 但包含 `conversationId` 时转发给会话内其他成员；群通话 `rtc:join` 会登记房间并向加入者返回现有参与者。ICE 配置通过 `GET /api/chat/rtc/config` 获取；通话结束后可调用 `POST /api/chat/conversations/{id}/call-record` 写入系统消息，入参包含 `callType`（`audio` / `video`）、`mode`（`p2p` / `group`）、`status`（`completed` / `missed` / `canceled` / `rejected`）和 `durationSec`。
 
 完整的信令流程、群通话房间管理与前端实现见 [WebRTC 音视频通话](../backend/webrtc-calls.md)。
 
@@ -298,6 +306,14 @@ POST /api/public/chat/webhook/{token}
 
 `type` 支持 `text` / `card`。令牌命中且机器人启用时，服务端向目标会话投递消息；文本消息写入 `type = text`，卡片消息写入 `type = card`，发送者为 `senderId = null` 并在 `extra.bot` 中携带机器人名称与头像。投递成功后更新 `chat_webhooks.last_used_at`。
 
+### 频道客服
+
+聊天页的频道视图复用消息气泡组件展示 `channel_messages`，并把 `news` 图文消息映射为 `card` 样式。系统号（`system`）只读接收通知；运营号（`business`）支持订阅用户与客服双向会话：
+
+- 会员侧：`GET /api/channels/{id}/messages` 拉取消息，`POST /api/channels/{id}/send` 发送咨询，`GET /api/channels/{id}/menus` 获取底部菜单，`POST /api/channels/{id}/rate` 评价客服会话。
+- 客服侧：`/api/channels/cs/*` 按 `channel:cs` 权限提供可服务频道、会话聚合、消息流、回复、指派 / 转接、解决会话、标签与快捷回复管理。
+- 实时同步：`channel:message` 追加或更新会员侧消息，`channel:message-retract` 标记撤回，`channel:cs-message` 通知客服工作台刷新；客服待回复数按最近一次人工回复计算。
+
 ---
 
 ## 接口一览
@@ -325,6 +341,7 @@ POST /api/public/chat/webhook/{token}
 | `PATCH` | `/api/chat/conversations/{id}/star` | 标记或取消星标会话 |
 | `PATCH` | `/api/chat/conversations/{id}/mute` | 免打扰或取消免打扰会话 |
 | `PATCH` | `/api/chat/conversations/{id}/archive` | 归档或取消归档会话 |
+| `DELETE` | `/api/chat/conversations/{id}/disband` | 解散群聊（群主专属） |
 | `DELETE` | `/api/chat/conversations/{id}` | 删除或退出会话 |
 | `GET` | `/api/chat/org-users` | 获取组织架构选人数据（部门 + 用户） |
 | `GET` | `/api/chat/conversations/{id}/members` | 获取群成员列表 |

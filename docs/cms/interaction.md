@@ -26,15 +26,15 @@
 
 ## 评论
 
-- **提交**：前台原生 form POST `/api/public/cms/comments`（静态页可用），Redis IP 限流（60s 5 次）+ 蜜罐字段 + 敏感词过滤，入库后待审核
+- **提交**：前台原生 form POST `/api/public/cms/comments`（静态页可用），Redis IP 限流（60s 5 次）+ 蜜罐字段 + 规则中心名单守卫 + 敏感词过滤，入库后待审核
 - **树形回复**：支持两级回复树——回复「回复」时自动挂到顶级评论下；前台每条评论带「回复」按钮（内联 JS 定位表单并填充 parentId）
 - **点赞**：匿名点赞 `/api/public/cms/comments/{id}/like`，同 IP 对同评论 24h 去重
-- **审核**：后台按状态 Tab 批量通过/拒绝/删除（权限 `cms:comment:list|audit|delete`），过审自动触发详情页静态刷新；列表展示回复对象与点赞数
+- **审核**：后台按状态 Tab 批量通过/拒绝/删除（权限 `cms:comment:list|audit|delete`），过审自动触发详情页静态刷新；列表展示回复对象、点赞数和「观察主体」徽标（`riskFlag = 'watchlist'`）
 
 ## 自定义表单
 
-- 表单定义（8 种字段类型：text/textarea/select/radio/email/mobile/url/number + 必填 + 选项 + 字段级验证规则），前台按栏目 `settings.formCode` 绑定展示，原生 form POST 提交（`POST /api/public/cms/forms/{siteCode}/{formCode}`）
-- 提交防护：IP 限流 + 蜜罐 + 敏感词 + 按字段定义校验
+- 表单定义（8 种字段类型：`text` / `textarea` / `select` / `radio` / `email` / `mobile` / `url` / `number` + 必填 + 选项 + 字段级验证规则），前台按栏目 `settings.formCode` 绑定展示，原生 form POST 提交（`POST /api/public/cms/forms/{siteCode}/{formCode}`）
+- 提交防护：IP 限流 + 蜜罐 + 按字段定义校验 + 规则中心名单守卫 + 敏感词；名单主体包含 IP，以及字段类型或字段名匹配 `email|phone|mobile|tel` 的联系方式
 - **通知邮箱**：配置后新提交异步邮件通知（多邮箱逗号分隔）
 - **数据导出**：提交数据抽屉支持导出中心导出（entity `cms.form-submissions`，按表单字段动态生成列）
 
@@ -59,7 +59,7 @@
 
 ## 敏感词
 
-全局词库，两种处理方式：**拦截**（replaceWith 为空，命中拒绝提交）与**替换**。应用于评论与表单提交。
+全局词库，两种处理方式：**拦截**（replaceWith 为空，命中拒绝提交）与**替换**。应用于评论与表单提交。公开评论/表单提交同时接入规则中心名单守卫：`risk_blacklist` 命中返回 403，`cms_watchlist` 命中仅标注观察。名单配置与求值留痕见 [规则中心](/rules/evaluation)。
 
 引擎：**Aho-Corasick 多模式匹配自动机**，单次扫描 O(文本长度) 完成全词库匹配，千级词库高频提交无 CPU 尖刺；词库 60s 内存缓存，增删改即时失效。
 

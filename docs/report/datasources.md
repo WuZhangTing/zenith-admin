@@ -10,7 +10,7 @@
 | **API**（api） | 远程 HTTP 接口返回的 JSON 数组 | 走统一 HTTP 客户端（防 SSRF），按数组路径提取 |
 | **MySQL** | 外部 MySQL 数据库 | 只读连接池 + 行上限 + 语句超时 |
 | **PostgreSQL** | 外部 PostgreSQL 数据库 | 只读连接（连接级 `statement_timeout` + `read_only`） |
-| **SQL Server** | 外部 Microsoft SQL Server | 只读连接池 + `SET ROWCOUNT` 行上限 |
+| **SQL Server** | 外部 Microsoft SQL Server | 只读连接池 + 自动包装 `OFFSET … FETCH NEXT` 行上限 |
 | **静态数据**（static） | 内置容器，承载粘贴的 JSON 或上传的 Excel/CSV | 直接读取内联数据 |
 
 > 内置「内置主库」「静态数据」两个数据源由系统预置，可直接使用。
@@ -30,13 +30,13 @@
    | port | 端口（默认 MySQL 3306 / PostgreSQL 5432 / SQL Server 1433） |
    | database | 库名 |
    | user | 账号 |
-   | password | 密码（**AES‑256‑GCM 加密存储**，列表/详情接口返回时脱敏为 `******`） |
+   | password | 密码（**AES‑256‑GCM 加密存储**；列表/详情不返回明文，仅返回 `hasPassword` 标记，`password` 为 `null`） |
    | SSL | 是否启用 SSL 连接 |
 3. 点击「**测试连接**」验证连通性（返回延迟毫秒数）。
 4. 保存。编辑时密码留空表示不修改、沿用原密码。
 
 ::: tip 安全说明
-外部库取数强制只读：仅允许 `SELECT` / `WITH` 查询，自动包裹行数上限（默认 5000），并设置语句超时（15s）。连接按 `类型+主机+库+账号` 缓存复用，空闲自动回收。
+外部库取数强制只读：仅允许 `SELECT` / `WITH` 查询，自动包裹行数上限（默认 5000），并设置语句超时（15s）。PostgreSQL 在连接级设置 `statement_timeout` 与只读事务；MySQL / SQL Server 通过只读 SQL 规范化与分页包装限制结果。连接按 `类型+主机+库+账号` 缓存复用，连接池最大 3 个连接，空闲约 5 分钟回收。
 
 报表出站连接默认拒绝 localhost、私网、链路本地、云元数据和保留地址，且不自动跟随 HTTP 重定向。确需连接可信内网 API 或数据库时，由运维通过 `REPORT_OUTBOUND_PRIVATE_ALLOWLIST` 显式配置主机名、IP 或 CIDR 白名单。
 :::
@@ -65,13 +65,13 @@
 
 ## 健康检查
 
-- **单个测试并留痕**：行操作「测试」（`POST /{id}/test`）对已保存的数据源执行连通性测试，并把结果持久化到 `lastTestStatus`（success / failed / unknown）、`lastTestAt`、`lastTestLatencyMs`，列表中直接展示健康状态与延迟。
-- **批量健康检查**：多选后点「健康检查」（`POST /health-check`）提交异步任务 `report-datasource-health-check` 到任务中心，逐个测试所选数据源并更新健康字段；**API 类型数据源会跳过**（避免对远程接口产生副作用）。任务进度、逐项结果与失败明细在任务中心查看，支持取消，按数据源集合与更新时间幂等防重复提交。
+- **单个测试并留痕**：行操作「测试」（`POST /api/report/datasources/{id}/test`）对已保存的数据源执行连通性测试，并把结果持久化到 `lastTestStatus`（success / failed / unknown）、`lastTestAt`、`lastTestLatencyMs`、`lastTestError` 与连续失败次数，列表集中展示健康状态、延迟和错误摘要。API 数据源单测会按配置发起一次 GET/POST 请求。
+- **批量健康检查**：多选后点「健康检查」（`POST /api/report/datasources/health-check`）提交异步任务 `report-datasource-health-check` 到任务中心，逐个测试所选数据源并更新健康字段；**API 类型数据源会跳过**（避免对远程接口产生副作用）。任务进度、逐项结果与失败明细在任务中心查看，支持取消，按数据源集合与更新时间幂等防重复提交。
 
 ## 复制与批量操作
 
-- **复制数据源**（`POST /{id}/clone`）：克隆连接配置生成新数据源（含加密凭据），名称自动加「副本」后缀（可指定新名称），健康状态重置为 unknown。
-- **批量启停**（`PUT /batch-status`）：多选后一键启用 / 停用。
+- **复制数据源**（`POST /api/report/datasources/{id}/clone`）：克隆连接配置生成新数据源（含加密凭据），名称自动加「副本」后缀（可指定新名称），健康状态重置为 unknown。
+- **批量启停**（`PUT /api/report/datasources/batch-status`）：多选后一键启用 / 停用。
 
 ## 状态与删除
 

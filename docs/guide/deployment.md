@@ -1,120 +1,88 @@
 # 部署说明
 
-本页说明如何将 Zenith Admin 部署到生产服务器，面向需要独立运行此系统的团队或个人。
+本页说明源码方式部署 Zenith Admin。若希望一键启动 PostgreSQL、Redis、API 与 Nginx，优先使用 [Docker 部署](./docker.md)。
 
-有两种部署方式：
+## 环境要求
 
-| 方式 | 适用场景 |
+| 依赖 | 版本 / 说明 |
 | --- | --- |
-| **[Docker 部署](./docker)**（推荐） | 无需手动安装运行时环境，一键启动所有服务 |
-| **手动部署**（本页） | 对运行时有精细控制需求，或已有独立的 DB/Redis |
+| Node.js | 24.x |
+| npm | 使用仓库 `package-lock.json` |
+| PostgreSQL | 生产主数据库 |
+| Redis | 会话、限流、幂等、黑名单等运行时状态 |
+| Nginx | 托管前端静态文件并反向代理 API / WebSocket |
+| Git | 拉取源码与切换 tag |
 
----
-
-## 手动部署
-
-### 环境要求
-
-在目标服务器上准备以下环境：
-
-| 依赖          | 版本要求 | 说明                         |
-| ------------- | -------- | ---------------------------- |
-| Node.js       | 24.x     | 运行后端服务                 |
-| Git           | 任意     | 拉取源码                     |
-| PostgreSQL    | >= 14    | 持久化业务数据               |
-| Redis         | >= 6     | 持久化在线会话与黑名单状态   |
-| Nginx（可选） | 任意     | 托管前端静态文件 + 反向代理  |
-
-::: warning 后端以源码方式部署
-后端依赖工作区内的 `@zenith/shared` 共享包（未发布到 npm registry），因此**手动部署采用源码方式**：在服务器上 checkout 仓库、安装工作区依赖后运行。GitHub Releases 中的 `server` 压缩包仅包含构建产物，无法独立 `npm install` 后运行，见下文[发布产物说明](#github-releases-产物说明)。
+::: warning 源码方式运行后端
+`@zenith/shared` 是工作区包，后端源码部署时依赖仓库完整 checkout。GitHub Release 中的 server zip 是归档产物，不作为独立 npm 包分发。
 :::
 
----
-
-## 部署后端
+## 后端部署
 
 ### 1. 获取代码并安装依赖
 
 ```bash
 git clone https://github.com/iwangbowen/zenith-admin.git
 cd zenith-admin
-git checkout vX.Y.Z    # 检出目标版本 tag
-
-# 安装全部工作区依赖
+git checkout vX.Y.Z
 npm ci
 ```
 
-### 2. 配置环境变量
+### 2. 配置 `packages/server/.env`
 
-在 `packages/server/` 目录下创建 `.env` 文件（`packages/server/.env.example` 列出了全部可用变量，可复制后修改）：
+```bash
+cp packages/server/.env.example packages/server/.env
+```
+
+生产最小配置：
 
 ```dotenv
 PORT=3300
 JWT_SECRET=your-strong-secret-key
-# 字段加密密钥（报表凭据等敏感字段加密用，建议随机 32 字节十六进制）
-# FIELD_ENCRYPTION_KEY=
-
-# PostgreSQL
-DATABASE_URL=postgresql://user:pass@localhost:5432/zenith_admin
-
-# Redis（URL 格式，支持带密码）
-REDIS_URL=redis://127.0.0.1:6379
-# REDIS_URL=redis://:your_password@127.0.0.1:6379/0
-
-# 日志（可选）
+DATABASE_URL=postgresql://zenith:strong-password@db.example.com:5432/zenith_admin
+REDIS_URL=redis://redis.example.com:6379
 LOG_LEVEL=info
 LOG_DIR=./logs
-
-# 请求防护（可选，默认均不启用）
-# 请求体大小上限（字节），0 = 不限制。建议生产环境至少开启一个合理值
-# REQUEST_BODY_LIMIT=10485760
-# 请求超时（毫秒），0 = 不启用。启用后自动排除长耗时接口
-# REQUEST_TIMEOUT_MS=30000
-
-# Prometheus 指标默认暴露在 GET /metrics
-# OpenTelemetry tracing（可选）
-# OTEL_ENABLED=true
-# OTEL_SERVICE_NAME=zenith-admin-server
-# OTEL_SERVICE_VERSION=    # 未设置时自动取当前服务版本号
-# OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces
-# OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer xxx
-
-# CSRF 防护（生产环境强烈建议配置，防止跨站请求伪造）
-# 逗号分隔的允许来源，留空则不限制（开发模式）
-ALLOWED_ORIGINS=https://your-domain.com
-
-# CORS（仅在前后端跨域部署时需要；同域反向代理无需设置）
-# CORS_ORIGIN=https://admin.example.com
+ALLOWED_ORIGINS=https://admin.example.com
 ```
 
-::: warning 安全提示
-生产环境务必使用强随机字符串作为 `JWT_SECRET`。若前端通过浏览器跨域访问后端，请同时配置 `ALLOWED_ORIGINS`（CSRF 白名单）和 `CORS_ORIGIN`（CORS 允许来源）；若通过 Nginx 同域反向代理 `/api/`，则通常无需单独配置 CORS。
-:::
+按需启用的常见变量：
+
+| 变量 | 用途 |
+| --- | --- |
+| `FIELD_ENCRYPTION_KEY` | 报表数据源凭据等敏感字段加密 |
+| `REQUEST_BODY_LIMIT` | 请求体大小上限，`0` 或未设置表示不启用限制 |
+| `REQUEST_TIMEOUT_MS` | 请求超时，自动排除 `/api/ws`、`/api/files`、`/api/db-backups` 与 `/export` 接口 |
+| `TRUSTED_PROXY_CIDRS` | 仅信任指定代理的 `X-Forwarded-For` / `X-Real-IP` |
+| `REPORT_OUTBOUND_PRIVATE_ALLOWLIST` | 报表外部数据源访问私网的 allowlist |
+| `AI_OUTBOUND_PRIVATE_ALLOWLIST` | AI 服务商请求访问本地 / 私网模型的 allowlist，默认含 `127.0.0.1,localhost` |
+| `MASTRA_STUDIO_ALLOW_ANONYMOUS` | 开发环境放开 `/api/mastra` 鉴权；生产环境强制忽略 |
+| `WEBRTC_STUN_URLS` / `WEBRTC_TURN_*` | Chat 音视频通话 ICE 服务器配置 |
+| `PAYMENT_NOTIFY_BASE_URL` | 支付渠道回调基址 |
+| `CMS_STATIC_ROOT` | CMS 静态化输出目录 |
+| `OPEN_WEBHOOK_ALLOWED_HOSTS` | 开放平台 Webhook 私网回调 allowlist |
+
+跨域部署时同时设置 `CORS_ORIGIN=https://admin.example.com`。同域反向代理 `/api` 时通常不需要 CORS。
 
 ### 3. 初始化数据库
 
-在仓库根目录执行：
-
 ```bash
-# 执行数据库迁移
 npm run db:migrate
-
-# 填充初始种子数据（创建默认管理员 admin / 123456、菜单、字典等，可安全重复执行）
 npm run db:seed
 ```
 
-### 4. 启动服务
+`db:seed` 写入默认管理员 `admin` / `123456`、菜单、字典和各域种子数据，可重复执行。
 
-后端通过 [tsx](https://tsx.is/) 直接运行 TypeScript 源码（与开发链路一致，tsx 已包含在工作区依赖中）。
+### 4. 启动后端
 
-前台试运行：
+源码方式可直接用 TypeScript 运行：
 
 ```bash
 cd packages/server
 npx tsx src/index.ts
 ```
 
-生产环境推荐使用 PM2 管理进程（在仓库根目录执行）：
+使用 PM2 管理进程时在仓库根目录执行：
 
 ```bash
 npm install -g pm2
@@ -123,93 +91,69 @@ pm2 save
 pm2 startup
 ```
 
-后端服务默认监听 `http://localhost:3300`。
+后端默认监听 `http://localhost:3300`。
 
-::: tip 多实例横向扩展
-Zenith Admin 的定时任务与后台 worker 全部基于 pg-boss（PostgreSQL 队列），通过 `SKIP LOCKED` 天然实现多进程安全——需要更高吞吐时可直接以不同端口启动多个实例（Nginx 负载均衡），任务不会被重复执行。
-:::
+## 前端部署
 
----
+前端是 Vite 静态产物。推荐同域部署：Nginx 托管静态文件，并把 `/api`、`/api/ws` 代理到后端。
 
-## 部署前端
-
-前端为纯静态文件。**推荐同域部署**：直接托管静态文件，并通过 Nginx 将 `/api/` 反向代理到后端。
-
-### 1. 获取静态文件
-
-同域部署时，两种来源任选其一：
+### 1. 构建或获取静态文件
 
 ```bash
-# 方式一：从 GitHub Releases 下载现成产物（默认使用相对路径 /api/*，适合同域部署）
-unzip zenith-admin-web-vX.Y.Z.zip -d zenith-web
-# 静态文件位于 zenith-web/web/dist/
-
-# 方式二：在服务器上从源码构建（后端已按源码方式部署时顺手可得）
 npm run build
-# 静态文件位于 packages/web/dist/
+# 静态产物位于 packages/web/dist/
 ```
 
-### 2. Nginx 配置示例
+GitHub Release 的 `zenith-admin-web-vX.Y.Z.zip` 也包含 `web/dist/`，适合同域部署。
+
+### 2. Nginx 配置要点
+
+仓库 `docker/nginx.conf` 是 Docker 镜像使用的生产配置，可作为手动部署模板。关键行为：
+
+- `/api` 代理到后端，并开启 WebSocket upgrade。
+- `/studio/` 托管 Mastra Studio 静态 SPA，数据面走 `/api/mastra`。
+- `/studio/refresh-events` 返回 204。
+- `/` fallback 到 `/index.html` 支持 React Router。
+- JS/CSS/字体/图片等静态资源使用一年 immutable 缓存。
+
+最小同域配置示例：
 
 ```nginx
 server {
     listen 80;
-    server_name your-domain.com;
-
-    # 前端静态文件
-    root /path/to/zenith-web/web/dist;
+    server_name admin.example.com;
+    root /path/to/packages/web/dist;
     index index.html;
 
-    # SPA 路由支持
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # 后端 API 反向代理
-    location /api/ {
-        proxy_pass http://localhost:3300;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # Prometheus 指标（建议仅对内网或采集器开放）
-    location = /metrics {
-        proxy_pass http://localhost:3300;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # WebSocket 支持（路径必须为 /api/ws，与服务端路由一致）
-    location /api/ws {
+    location /api {
         proxy_pass http://localhost:3300;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        client_max_body_size 100m;
     }
+
+    location /studio/ { try_files $uri $uri/ /studio/index.html; }
+    location = /studio { return 301 /studio/; }
+    location = /studio/refresh-events { return 204; }
+
+    location / { try_files $uri $uri/ /index.html; }
 }
 ```
 
-::: tip
-将 `your-domain.com` 替换为实际域名，`root` 指向实际的静态文件目录（如 `packages/web/dist`）。
-生产环境建议同时配置 HTTPS（可使用 Let's Encrypt）。
-:::
-
 ### 3. 前端 API 地址策略
 
-GitHub Releases 中的 web 产物与默认构建均使用相对路径 `/api/*`，**同域部署时无需修改任何前端环境变量**：
+同域部署使用默认相对路径：浏览器访问 `https://admin.example.com`，前端请求 `/api/*`，Nginx 代理到后端。
 
-- 浏览器访问 `https://admin.example.com`
-- Nginx 将 `https://admin.example.com/api/*` 反向代理到 `http://localhost:3300`
-
-这种模式下，前端静态文件与 API 共用同一域名，部署简单，也不需要额外处理浏览器跨域。
-
-如果你必须将前端部署在独立域名，并直接请求另一个域名下的 API（例如前端 `https://admin.example.com`，后端 `https://api.example.com`），则**不能使用现成的 web 产物**，需创建 `packages/web/.env.production` 后从源码重新构建：
+跨域部署需创建 `packages/web/.env.production` 后重新构建：
 
 ```ini
-# packages/web/.env.production
 VITE_API_BASE_URL=https://api.example.com
 VITE_WS_BASE_URL=wss://api.example.com
 VITE_APP_TITLE=Zenith Admin
@@ -219,130 +163,41 @@ VITE_APP_TITLE=Zenith Admin
 npm run build -w @zenith/web
 ```
 
-使用重新生成的 `packages/web/dist/` 作为静态文件目录。此场景下，后端还应配置：
+后端同时配置 `CORS_ORIGIN` 与 `ALLOWED_ORIGINS`。
 
-```dotenv
-CORS_ORIGIN=https://admin.example.com
-```
+## Mastra Studio
 
-## 部署 Mastra Studio（可选）
+`npm run build:studio` 将根依赖中的 Mastra Studio 静态资源复制到 `packages/web/dist/studio/`，并写入生产配置：`MASTRA_AUTO_DETECT_URL=true`、`MASTRA_API_PREFIX=/api/mastra`、`MASTRA_STUDIO_BASE_PATH=/studio`，同时关闭遥测、云 CTA、模板与实验 UI。
 
-[Mastra Studio](https://mastra.ai/docs/studio/overview) 是 AI 智能体的调试与评测控制台（对话调试、Workflow 可视化、评测数据集/实验、链路追踪）。它是一个纯静态 SPA，推荐与前端同域部署在 `/studio` 子路径下，数据面走同源 `/api/mastra/*`（已由上文 `/api/` 反代覆盖），无跨域问题。
+Docker 构建会自动执行该步骤。手动部署时需先 `npm run build`，再执行 `npm run build:studio`。
 
-### 1. 构建静态文件
+生产访问 `/studio/` 时，服务端要求登录并具备 `ai:studio:access` 权限。Studio 的 Settings → Custom headers 中配置当前登录用户的 `Authorization` 请求头。
 
-Studio 静态资源来自根 `devDependencies` 中的 `mastra` 包（版本随锁文件统一管理）。**先构建前端，再产出 Studio**（`build` 会清空 `dist/`）：
+## 健康检查与观测
 
-```bash
-npm run build          # 前端产物 → packages/web/dist/
-npm run build:studio   # Studio 产物 → packages/web/dist/studio/
-```
+| 能力 | 地址 / 配置 |
+| --- | --- |
+| 健康检查 | `GET /api/health` |
+| Swagger UI | `GET /api/docs` |
+| OpenAPI JSON | `GET /api/openapi.json` |
+| Prometheus | `GET /metrics` |
+| OpenTelemetry | `OTEL_ENABLED=true` 或配置 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `OTEL_EXPORTER_OTLP_ENDPOINT` |
 
-产物已内置生产配置：以浏览器当前域名为服务端地址（同源自适应，无需配置域名）、API 前缀 `/api/mastra`、子路径 `/studio`、关闭遥测。
+`/metrics` 默认无鉴权，生产环境应只向内网、VPN 或采集器开放。
 
-### 2. Nginx 追加配置
+## GitHub Actions
 
-在上文 server 块中追加：
-
-```nginx
-    # Mastra Studio（静态 SPA）
-    # /studio/refresh-events 是 Studio 内置的开发态热重载探测，静态部署返回 204 消音
-    location = /studio/refresh-events {
-        return 204;
-    }
-    location /studio/ {
-        try_files $uri $uri/ /studio/index.html;
-    }
-    location = /studio {
-        return 301 /studio/;
-    }
-```
-
-### 3. 访问与鉴权
-
-浏览器打开 `https://your-domain.com/studio/`。`/api/mastra/*` 由服务端强制鉴权（登录 + `ai:studio:access` 权限，对应菜单「Studio 接入」），首次使用需在 Studio **Settings → Custom headers** 添加：
-
-```
-Authorization: Bearer <登录管理后台后获取的 token>
-```
-
-该配置持久化在浏览器本地，token 过期后重新粘贴即可。
-
-::: warning
-Studio 连上后拥有智能体/工作流/评测的完整操作能力。生产环境严禁设置 `MASTRA_STUDIO_ALLOW_ANONYMOUS`（该开关仅开发环境生效，`NODE_ENV=production` 下自动忽略），并确保仅授予可信角色 `ai:studio:access` 权限。
-:::
-
-## 健康检查
-
-服务启动后，可通过以下接口确认后端运行正常：
-
-```bash
-curl http://localhost:3300/api/health
-```
-
-返回 `200 OK` 表示服务正常。
-
-## Prometheus 指标抓取
-
-若已完成部署，可通过以下接口确认指标端点可用：
-
-```bash
-curl http://localhost:3300/metrics
-```
-
-若服务位于 Nginx 后面并通过同域名暴露，请确保已按上文示例代理 `/metrics`，否则 Prometheus 会抓到前端静态站点而不是后端指标。
-
-::: warning
-`/metrics` 默认无需鉴权，生产环境建议仅对内网、VPN 或 Prometheus 所在网段开放，避免把内部运行指标暴露到公网。
-:::
-
-## OpenTelemetry Tracing
-
-如需将 Trace 导出到 OTLP Collector、Tempo、Jaeger、Honeycomb 等系统，可在后端 `.env` 中加入：
-
-```dotenv
-OTEL_ENABLED=true
-OTEL_SERVICE_NAME=zenith-admin-server
-# OTEL_SERVICE_VERSION 未设置时自动取当前服务版本号
-OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
-```
-
-说明：
-
-- 若未设置 `OTEL_ENABLED`，但已配置 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` 或 `OTEL_EXPORTER_OTLP_ENDPOINT`，服务也会自动启用 tracing
-- 当前 Trace 基于 `@hono/otel`，覆盖整个 Hono 请求生命周期；若后续需要 PostgreSQL / Redis 更细粒度 spans，可继续叠加 OpenTelemetry Node auto instrumentation
-
----
-
-## GitHub Releases 产物说明
-
-每个版本的 [GitHub Releases](https://github.com/iwangbowen/zenith-admin/releases) 附带两个压缩包：
-
-| 产物 | 内容 | 用途 |
+| 工作流 | 触发 | 行为 |
 | --- | --- | --- |
-| `zenith-admin-web-vX.Y.Z.zip` | 前端静态文件（`web/dist/`） | 可直接托管，适合同域部署 |
-| `zenith-admin-server-vX.Y.Z.zip` | 后端构建产物（`dist/` + `drizzle/` + `package.json`） | 仅作产物归档 |
-
-后端压缩包依赖工作区内的 `@zenith/shared` 共享包（未发布到 npm registry），解压后无法通过 `npm install` 安装依赖并独立运行，**请按本页源码方式部署后端**。
-
----
+| `.github/workflows/ci.yml` | `master` push、pull request | Node 24、`npm ci`、`npm run lint`、`npm run test`、`npm run build` |
+| `.github/workflows/pages.yml` | 文档 / Web / shared / lockfile 变更、手动触发 | 构建 VitePress 文档与 Demo 站，把 Demo 合并到 `/demo/` 后发布 GitHub Pages |
+| `.github/workflows/release.yml` | `v*.*.*` tag、手动指定 tag | 构建全部包，打包 server / web zip，从 changelog 提取 Release Notes，创建 GitHub Release |
 
 ## 升级版本
 
-1. 停止当前后端进程（`pm2 stop zenith-server`）
-2. 在服务器上检出目标版本并更新依赖：
-
-   ```bash
-   git fetch --tags
-   git checkout vX.Y.Z
-   npm ci
-   ```
-
-3. 执行数据库迁移（目标版本包含 schema 变更时会应用对应迁移）：
-
-   ```bash
-   npm run db:migrate
-   ```
-
-4. 重启后端进程（`pm2 restart zenith-server`）
-5. 重新构建并替换前端静态文件（或下载对应版本的 web 产物），Nginx 无需重启
+1. 停止当前后端进程。
+2. 切换到目标 tag 并安装依赖：`git fetch --tags && git checkout vX.Y.Z && npm ci`。
+3. 执行 `npm run db:migrate`。
+4. 重启后端。
+5. 重新构建或替换 `packages/web/dist/`，Nginx 无需重启。
+6. Electron 客户端可通过「系统设置 → 应用版本」发布热更新包或安装包，详见 [Electron 桌面客户端](./electron.md)。

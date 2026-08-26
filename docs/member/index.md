@@ -35,7 +35,7 @@
 | 接口 | 说明 | 保护 |
 |------|------|------|
 | `POST /sms-code` | 发送短信验证码，场景为 `register` / `login` / `reset` | `sensitiveRateLimit` |
-| `POST /register` | 会员注册，支持手机号验证码注册，也可设置密码 | `sensitiveRateLimit` |
+| `POST /register` | 会员注册；手机号 + 验证码可无密码，用户名 / 邮箱 / 手机号也可配合密码注册 | `sensitiveRateLimit` |
 | `POST /login` | 会员登录 | `authRateLimit` |
 | `POST /refresh` | 使用 Refresh Token 刷新 Access Token | 公开 |
 | `POST /reset-password` | 手机号 + 验证码重置密码 | `sensitiveRateLimit` |
@@ -52,6 +52,8 @@
 - 用户名 + 密码：`loginType = 'password'`，`account` 填用户名
 
 密码使用 `bcryptjs`，hash 强度为 `10`。会员注册与后台创建会员都会在事务内初始化 `member_point_accounts` 与 `member_wallets`。
+
+注册与登录在业务校验前接入规则中心名单判定：`member-auth.service.ts` 通过统一求值门面 `decide({ kind: 'list', key: 'risk_blacklist' }, ..., { caller: 'member.auth' })` 检查手机号（注册 / 短信登录）与客户端 IP。名单命中时写入失败登录日志并返回 403；名单不存在、禁用或求值异常按可选接入语义放行。规则资产配置与执行留痕见[规则中心 · 在线求值](/rules/evaluation)。
 
 短信验证码存储在 Redis：
 
@@ -134,6 +136,7 @@
 - `bizId = String(memberId)`
 - `subject = '会员钱包充值'`
 - 过期时间为 30 分钟
+- 可选 `memberCouponId` 用于充值满减；支付成功后钱包按支付单 `originalAmount` 入账，平台补贴优惠差额
 
 支付成功后，`paymentEventBus` 触发 `payment.succeeded` 事件，`payment-subscribers.ts` 监听 `bizType = 'member_recharge'` 并调用 `creditWalletOnRecharge()` 入账。入账按支付单号做幂等校验：若 `member_wallet_transactions` 中已存在 `biz_type = 'member_recharge'` 且 `biz_id = orderNo` 的流水，则不重复入账。
 
@@ -176,9 +179,11 @@
 1. **优惠券过期**：`member_coupons` 中已过 `expire_at` 的未使用券批量置为 `expired`，保证统计与展示口径准确。
 2. **积分不活跃过期**：由 system_config `member_point_expire_days` 控制（默认 `0` 不启用）；账户超过 N 天无任何积分变动时，余额通过 `changePoints(type='expire')` 清零并写 `bizType = 'points_inactive_expire'` 流水，可审计可对账。
 3. **生日礼发放**：见「生日礼自动发放」章节。
-4. **登录日志清理**：由「数据保留」中的 `member_login_logs` 策略控制（默认 `180` 天，`0` 表示永久保留），每日 `data-retention` 任务分批删除超期记录（表带 `(member_id, created_at)` 复合索引）。
+4. **券到期提醒**：见「券到期提醒」章节。
 
-会员域已注册 6 个导出中心实体（execution 为 `auto`，大数据量自动转异步任务）：
+会员登录日志的生命周期由全局「数据保留」框架中的 `member_login_logs` 策略管理（默认 `180` 天，`0` 表示永久保留），每日 `data-retention` 任务分批删除超期记录。
+
+会员域已注册 7 个导出中心实体（execution 为 `auto`，大数据量自动转异步任务）：
 
 | 实体 | 页面 | 权限码 |
 |------|------|--------|
@@ -208,7 +213,7 @@
 
 有效期类型为 `fixed` / `relative`，模板状态为 `draft` / `active` / `paused` / `expired`。会员券状态为 `unused` / `used` / `expired` / `frozen`。
 
-发券使用事务内原子库存扣减：`issued_quantity + 1` 与库存条件在同一条 `UPDATE` 中完成，`total_quantity = 0` 表示不限量；同时校验 `per_limit` 每人限领数量。券码以 `CP` 开头并全局唯一。
+发券使用事务内原子库存扣减：`issued_quantity + 1` 与库存条件在同一条 `UPDATE` 中完成，`total_quantity = 0` 表示不限量；同时校验 `per_limit` 每人限领数量。券码以 `CP` 开头并全局唯一。后台向指定会员发券时接入规则中心决策表 `coupon_eligibility`：`issueCoupon()` 调用 `decide({ kind: 'table', key: 'coupon_eligibility' }, { member, coupon }, { caller: 'member.coupon' })`，当输出 `eligible = false` 时拒绝发券；规则资产缺失或异常按可选接入语义放行，配置方式见[规则中心 · 在线求值](/rules/evaluation)。
 
 前台会员可查看可领取优惠券、领取优惠券、查看自己的卡券列表；后台可管理模板、发券给指定会员、查看领券记录、作废未使用券码。服务层提供 `redeemCoupon(code)` 核销入口，会将可用券更新为 `used` 并写入 `used_at`、`biz_type`、`biz_id`。
 
@@ -315,7 +320,7 @@
 后台「会员看板」页（`/member/dashboard`，权限码 `member:dashboard:view`）提供只读聚合统计：
 
 - `GET /api/member-stats/overview`：会员总数、今日 / 本月新增、30 日活跃、积分总余额、钱包总余额、今日签到数与签到率等概览卡片
-- `GET /api/member-stats/charts`：近 30 日注册趋势、等级分布、积分收支、签到人数等图表数据
+- `GET /api/member-stats/charts`：10 张图表数据，包括近 30 日注册趋势、累计会员增长、等级分布、近 30 日积分收支、近 7 日签到人数、活跃分层、充值能力分层、近 30 日钱包收支、注册来源分布与卡券状态分布
 
 ---
 
@@ -390,9 +395,9 @@
 | `/api/member-wallets` | `GET /transactions`、`GET /account/{id}` | `member:wallet:list` |
 | `/api/member-wallets` | `POST /adjust` | `member:wallet:adjust` |
 | `/api/member-wallets` | `POST /refund` | `member:wallet:refund` |
-| `/api/coupons` | `GET /`、`GET /{id}`、`GET /records` | `member:coupon:list` |
+| `/api/coupons` | `GET /`、`GET /{id}`、`GET /records`、`GET /code/{code}` | `member:coupon:list` |
 | `/api/coupons` | `POST /` | `member:coupon:create` |
-| `/api/coupons` | `PUT /{id}` | `member:coupon:update` |
+| `/api/coupons` | `PUT /{id}`、`POST /redeem` | `member:coupon:update` |
 | `/api/coupons` | `DELETE /{id}` | `member:coupon:delete` |
 | `/api/coupons` | `POST /{id}/issue` | `member:coupon:issue` |
 | `/api/coupons` | `POST /records/{id}/revoke` | `member:coupon:revoke` |
@@ -407,6 +412,7 @@
 | `/api/checkin-milestones` | `PUT /{id}` | `member:checkin:milestone:update` |
 | `/api/checkin-milestones` | `DELETE /{id}` | `member:checkin:milestone:delete` |
 | `/api/member-checkins` | `GET /` | `member:checkin:log:list` |
+| `/api/member-checkins` | `GET /calendar?month=YYYY-MM` | `member:checkin:log:list` |
 
 会员中心后台菜单种子位于 `SEED_MENUS` 的 9000 段，包括会员看板、会员管理、会员等级、积分管理、钱包管理、优惠券、领券记录、会员签到（签到配置 / 签到记录 / 里程碑配置）、登录日志与充值记录。
 

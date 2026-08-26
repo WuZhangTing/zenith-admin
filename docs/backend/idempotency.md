@@ -1,109 +1,60 @@
-# 幂等控制
+# 幂等防重复提交
 
-`idempotencyGuard` 中间件（`packages/server/src/middleware/idempotency.ts`）为写操作提供防重复提交能力：同一请求在 TTL 窗口内重复到达时，要么**原样回放首次成功响应**，要么返回 429 拒绝。
-
-适用场景：支付下单、钱包充值、审批提交、批量操作等「重复执行会产生脏数据或资损」的接口。
+幂等保护由 `packages/server/src/middleware/idempotency.ts` 提供，用于审批、支付、发券、CMS 发布等不可安全重复执行的写接口。
 
 ## 使用方式
 
-在 `createRoute` 的 `middleware` 数组中按路由声明：
+在路由中显式追加 `idempotencyGuard()`：
 
 ```ts
-import { idempotencyGuard } from '../../middleware/idempotency';
-
-const submitRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/',
-    middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 60 })] as const,
-    // ...
-  }),
-  handler: async (c) => { /* ... */ },
-});
+middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 10 }), guard(...)] as const
 ```
 
-选项：
+常用参数：
 
-| 选项 | 默认 | 说明 |
+| 参数 | 默认值 | 说明 |
 | --- | --- | --- |
-| `ttlSeconds` | 60 | 幂等窗口时长 |
+| `ttlSeconds` | `10` | 锁与成功响应缓存时间 |
+| `message` | `请勿重复提交` | 重复提交时返回消息 |
+| `autoFingerprint` | `true` | 自动用方法、路径、查询、JSON body 生成指纹 |
+| `fingerprint` | - | 自定义指纹函数 |
 
-## 两种识别模式
+## 判定键
 
-### 显式模式：X-Idempotency-Key
+Redis key 前缀为 `${REDIS_KEY_PREFIX}idempotency:`。Actor 命名空间按以下顺序确定：
 
-客户端主动生成幂等键并放入请求头：
+1. Open Platform client：`clientId`；
+2. 会员：`m:{memberId}`；
+3. 管理员：`u:{tenantId ?? 0}:{userId}`；
+4. `x-forwarded-for` 首个 IP；
+5. `anon`。
 
-```http
-POST /api/payment/orders
-X-Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
-```
+默认 fingerprint 包含 HTTP 方法、路径、查询参数和 JSON 请求体；因此同一用户对同一路径提交不同 payload 不会互相阻塞。
 
-服务端按 `sha256(identity + "|" + key前128字符)` 取前 32 位作为存储 key（幂等键按身份隔离，不同用户使用相同 key 互不影响）。
+## 响应行为
 
-### 自动指纹模式
+- 首次请求占用 `processing` 锁。
+- 首次请求成功且响应为 JSON 2xx 时，响应体会在 TTL 内缓存。
+- TTL 内相同 actor + fingerprint 再次提交：
+  - 若已有成功缓存，直接回放缓存响应；
+  - 若仍在处理中、响应非 JSON 或首次请求失败，返回 `429` 与 `message`。
+- Redis 异常时 fail-open，不阻断业务请求。
 
-客户端未传 key 时，服务端按请求特征自动生成指纹：
+## 已接入场景
 
-```text
-fingerprint = identity + method + pathname + search + sha256(body)前16位
-```
+代码中通过 `idempotencyGuard()` 显式接入，主要覆盖：
 
-- **包含 query string**（`pathname + search`），同路径不同参数视为不同请求
-- 空请求体的 bodyHash 记为 `nobody`
+- 工作流审批、驳回、批量处理、转办、委派、加签、减签、退回、发起流程；
+- 支付下单、退款、预授权、转账、合同、账户、争议；
+- 会员积分、余额、优惠券、续费、自助资料和 CMS 互动；
+- CMS 静态化、发布任务、内容分发；
+- 公众号群发、二维码；
+- 开放平台 CMS 写入接口；
+- 用户反馈与演示请假接口。
 
-### 身份命名空间
+## 设计注意
 
-指纹中的 `identity` 按优先级取：
-
-1. 开放平台网关注入的 `openApp.clientId` → `app:{clientId}`
-2. 已认证用户 → `u{userId}`
-3. `X-Forwarded-For` 首个 IP（未认证请求）
-4. 兜底 `0.0.0.0`
-
-## 执行流程与响应回放
-
-```text
-请求到达
-  → 计算幂等 key
-  → Redis SET NX EX：写入 { state: 'processing' }
-      ├─ 写入成功（首次请求）→ 执行 handler
-      │     ├─ 响应 2xx 且 Content-Type 为 application/json
-      │     │   → 把 { status, contentType, body } 写回同 key（保留 TTL）
-      │     └─ 其他情况 → 保留 processing 占位（TTL 内到期自动释放）
-      └─ 写入失败（key 已存在）
-            ├─ 已缓存成功响应 → 原样回放（相同状态码与响应体）
-            └─ 仍在 processing / 非 JSON 成功 → 429
-```
-
-要点：
-
-- **成功响应会被缓存并回放**：TTL 窗口内的重复请求收到与首次完全一致的响应，客户端重试逻辑无需特殊处理
-- **失败不缓存但占用窗口**：handler 抛错或返回非 2xx 时，processing 占位保留至 TTL 到期，期间重复请求返回 429（防止失败后立刻重试打穿下游）
-- 429 响应体：
-
-```json
-{ "code": 429, "message": "请求正在处理或已提交，请勿重复操作", "data": null }
-```
-
-- **Redis 不可用时 fail-open**：跳过幂等检查直接放行，幂等是「尽力而为」的防护层，不是业务正确性的唯一保障——资金类操作仍需数据库唯一约束 / 乐观锁兜底
-
-## 已接入的接口
-
-按业务域（以代码为准，可 grep `idempotencyGuard(` 查看全量）：
-
-| 业务域 | 典型接口 |
-| --- | --- |
-| 支付中心 | 下单、转账、预授权、代扣签约、争议处理、账户操作（`routes/payment/*`） |
-| 会员中心 | 钱包充值、积分调整、优惠券领取/核销、会员自助操作、续费（`routes/member/*`） |
-| 工作流 | 实例发起、任务审批/转办/加签、批量操作（`routes/workflow/instances/*`） |
-| CMS | 发布、静态化、站群分发（`routes/cms/*`） |
-| 公众号 | 群发任务、带参二维码（`routes/mp/*`） |
-| 开放平台 | 开放 CMS 写接口（`routes/open-platform/open-cms.ts`） |
-| 其他 | 业务示例（请假单）、意见反馈提交 |
-
-## 客户端建议
-
-- 对资金类操作**始终显式传 `X-Idempotency-Key`**（UUID），并在网络超时后用同一 key 重试——会拿到首次结果的回放而非重复扣款
-- 前端表单防重可依赖自动指纹模式，无需额外代码
-- 收到 429 时提示用户「操作处理中，请勿重复提交」，稍后刷新状态而非立即重试
+- 幂等中间件不是事务锁；它只降低重复提交进入业务层的概率。
+- 涉及余额、库存、审批状态流转的接口仍需在 Service 层使用事务与条件更新。
+- TTL 不宜过长，避免正常重试被误判为重复提交。
+- 对第三方回调类接口，应优先使用业务方提供的事件 ID、订单号或幂等键作为自定义 fingerprint。

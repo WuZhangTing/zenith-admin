@@ -56,7 +56,7 @@ stateDiagram-v2
 ```
 
 - 晋级保存**源修订与源快照**，禁止直接从开发环境覆盖生产环境的未审批版本；
-- 通过 `POST /promotions/{id}/transition` 驱动状态：**审批（approve）→ 部署（deploy）→ 成功/失败**；待处理或已审批记录可**取消**（cancel）；
+- 通过 `POST /api/report/environments/promotions/{id}/transition` 驱动状态：**审批（approve）→ 部署（deploy）→ 成功/失败**；待处理或已审批记录可**取消**（cancel）；
 - 部署时自动留存上一次成功晋级的快照为**回滚快照**；成功发布可**回滚**（rollback），不直接改生产快照；
 - 环境的 `baseUrl/config` 不存密钥，数据源凭据仍由加密字段管理。
 

@@ -1,7 +1,7 @@
 # 开放能力（Headless API）
 
 CMS 内容可通过开放平台网关以 **Headless** 方式供外部系统消费：读取走查询 DSL 与增量同步，
-写入走受治理的双向接口，变更通过 Webhook 实时外推。
+写入走受治理的双向接口，变更通过 Webhook 实时外推。本篇只说明 CMS 侧资源语义；应用、签名、限流、配额、Webhook 投递与调试台能力见 [开放平台](/open-platform/)。
 
 所有端点使用与后台一致的 `defineOpenAPIRoute` + Zod 定义，因此会进入 Swagger（`/api/docs`），
 客户端可直接由 `openapi.json` 生成 SDK。
@@ -9,7 +9,7 @@ CMS 内容可通过开放平台网关以 **Headless** 方式供外部系统消�
 ## 接入方式
 
 走开放平台标准链路：创建开发者应用 → 授权 scope → HMAC 签名调用（经鉴权/计量/限流三层网关）。
-签名规范见开放平台文档。
+CMS 开放端点由 `packages\server\src\routes\open-platform\open-cms.ts` 承载并挂载到 `/api/open/v1/cms`；签名规范见 [开放平台](/open-platform/)。
 
 Base：`/api/open/v1/cms`
 
@@ -184,4 +184,4 @@ CMS 事件是**站点域**事件（无 clientId），只投递给「订阅了该
 ## 相关能力
 
 - **草稿预览链接**：后台签发的 HMAC 签名临时 URL（2h 有效），见 [内容管线](./content-pipeline#草稿预览链接)
-- 前台公开接口（无需签名）：评论提交/点赞、表单提交、浏览计数 beacon、广告点击中转，均带 IP 限流与去重防刷
+- 前台公开接口（无需签名）：评论提交/点赞、表单提交、浏览计数 beacon、广告令牌/曝光/点击中转，均带 IP 限流、幂等或去重防刷；评论和表单提交还接入规则中心名单守卫（黑名单 403、灰名单观察标注）

@@ -7,7 +7,7 @@
 仪表盘查看、内部嵌入、公开分享**统一走同一条批量取数链路**：
 
 - 登录态：`POST /api/report/dashboards/{id}/data`
-- 公开分享：`POST /api/report/public/dashboards/{token}/data`
+- 公开分享：`POST /api/report/public/dashboards/{token}/data`；嵌入令牌：`POST /api/report/public/embed/{token}/data`
 
 一次请求返回整个仪表盘所有组件的结构化结果，逐组件隔离成功与失败：
 
@@ -23,7 +23,7 @@
 ```
 
 - 单个组件取数失败只影响该卡片，不拖垮整屏；
-- `fields` 字段元数据（格式化、字典翻译）贯通表格、图表 tooltip 与导出；
+- `fields` 字段元数据（格式化、字典翻译）贯通表格、图表 tooltip 与导出；表格类结果按单行结构输出，保持一条记录对应一行展示；
 - 数据集取数支持 `limit` 模式或 `page/pageSize/sortField/sortOrder` 分页模式：**表格组件走服务端分页**，其余组件走 limit；
 - 数据源停用后，预览、数据集、仪表盘、打印、预警、订阅、公开分享**统一禁止取数**。
 
@@ -137,7 +137,7 @@ flowchart LR
 | `report-dq-rule-scan` | 每分钟 | 扫描到期的 DQ 规则 Cron 并提交执行 |
 | `report-sla-rule-scan` | 每分钟 | 扫描到期的 SLA 规则并提交评估 |
 | `report-fill-workflow-reconcile` | 每 5 分钟 | 填报工作流对账兜底（见[数据填报](./fill#对账兜底-自动自愈)） |
-| `report-asset-deprecation-scan` | 每小时 | 处理到达生效日的弃用公告 |
+| `report-asset-deprecation-scan` | 每小时 | 将到达生效日的弃用公告标记为已处理 |
 | `report-materialization-snapshot-cleanup` | 每日 | 清理过期/孤儿物化快照 |
 
 ## 运维要点

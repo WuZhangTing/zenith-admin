@@ -1,136 +1,105 @@
-# 系统配置
+# 系统内置配置
 
-`system_configs` 表存储运行时可调的键值配置，管理端「系统设置」页面维护，后端通过 `src/lib/system-config.ts` 的辅助函数读取。种子数据定义在 `packages/shared/src/seed/platform.ts` 的 `SEED_SYSTEM_CONFIGS`。
+系统配置表为 `system_configs`，管理运行时开关、密码策略、上传限制、水印、AI 配额等轻量配置。种子数据位于 `packages/shared/src/seed/platform.ts`。
 
 ## 数据模型
 
 | 字段 | 说明 |
 | --- | --- |
-| `configKey` | 配置键（租户内唯一） |
-| `configValue` | 字符串存储的配置值 |
-| `configType` | `string` / `number` / `boolean`（前端渲染控件用） |
-| `description` | 配置说明 |
-| `tenantId` | 归属租户；`NULL` = 平台级默认值 |
+| `config_key` | 配置键，支持字母、数字、下划线、点和冒号 |
+| `config_name` | 展示名称 |
+| `config_value` | 字符串存储，最长 4096 |
+| `config_type` | `string`、`number`、`boolean`、`json` |
+| `description` | 描述 |
+| `tenant_id` | 可选租户归属 |
 
-## 读取辅助函数
+唯一约束为 `(tenant_id, config_key)`。列表与详情接口使用租户条件过滤；公开读取接口按 key 查询首条记录，不做租户过滤。
 
-```ts
-import { getConfigValue, getConfigNumber, getConfigBoolean } from '../lib/system-config';
+## API
 
-const siteName = await getConfigValue('site_name');          // string | null
-const maxAttempts = await getConfigNumber('login_max_attempts', 10); // 带默认值
-const captchaOn = await getConfigBoolean('captcha_enabled'); // 'true' 或 '1' 视为 true
-```
+路由挂载在 `/api/system-configs`：
 
-**租户回退**：多租户开启时先查当前租户的配置值，未配置则回退到平台级（`tenantId IS NULL`）的值——租户可以覆盖平台默认，未覆盖时继承。
+| 方法 | 路径 | 鉴权 / 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/public/{key}` | 无 | 公开读取单项配置 |
+| `GET` | `/password-policy` | 无 | 获取密码策略 |
+| `GET` | `/` | 管理员 | 分页查询，支持 `keyword`、`configType`、`keys` |
+| `GET` | `/{id}` | `system:config:list` | 配置详情 |
+| `POST` | `/` | `system:config:create` | 新增配置，记录审计 |
+| `PUT` | `/{id}` | `system:config:update` | 更新配置，记录审计 |
+| `DELETE` | `/{id}` | `system:config:delete` | 删除配置，记录审计 |
 
-## API 端点
+`keys` 参数为逗号分隔的 `configKey` 列表，传入后忽略分页并精确批量查询。
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/system-configs` | 分页列表 |
-| GET | `/api/system-configs/{id}` | 详情 |
-| POST | `/api/system-configs` | 新增 |
-| PUT | `/api/system-configs/{id}` | 更新 |
-| DELETE | `/api/system-configs/{id}` | 删除 |
-| GET | `/api/system-configs/public/{key}` | **公开**读取单个配置（登录页等未认证场景用，如 `captcha_enabled`、`site_name`） |
-| GET | `/api/system-configs/password-policy` | **公开**读取密码策略聚合（前端表单校验提示） |
+## 读取工具
 
-## 内置配置清单
+服务端配置读取工具位于 `packages/server/src/lib/system-config.ts`：
 
-种子数据内置 43 项，按用途分组：
+- `getConfigValue(key, defaultValue?)`
+- `getConfigBoolean(key, defaultValue?)`
+- `getConfigNumber(key, defaultValue?)`
 
-### 站点与登录安全
+读取结果直接查询数据库；没有统一缓存层。
 
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `site_name` | `Zenith Admin` | 站点名称 |
-| `captcha_enabled` | `false` | 登录验证码开关 |
-| `captcha_complexity` | `medium` | 验证码复杂度：`low` / `medium` / `high` |
-| `user_default_password` | `123456` | 新增用户默认密码 |
-| `login_max_attempts` | `10` | 登录失败上限，超出锁定账号 |
-| `login_lock_duration_minutes` | `30` | 账号锁定时长（分钟） |
-| `allow_registration` | `false` | 开放注册 |
-| `forgot_password_enabled` | `false` | 忘记密码 / 邮件重置 |
+## 种子配置
 
-### 密码策略
+`SEED_SYSTEM_CONFIGS` 包含 40 项内置配置：
 
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `password_min_length` | `6` | 最小长度 |
-| `password_require_uppercase` | `false` | 必须含大写字母 |
-| `password_require_special_char` | `false` | 必须含特殊字符 |
-| `password_expiry_enabled` | `false` | 密码过期强制重置 |
-| `password_expiry_days` | `90` | 过期天数 |
+| 配置键 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `captcha_enabled` | boolean | `false` | 登录验证码 |
+| `site_name` | string | `Zenith Admin` | 站点名称 |
+| `user_default_password` | string | `123456` | 用户默认密码 |
+| `login_max_attempts` | number | `10` | 登录失败次数上限 |
+| `login_lock_duration_minutes` | number | `30` | 账号锁定时长 |
+| `password_min_length` | number | `6` | 密码最小长度 |
+| `password_require_uppercase` | boolean | `false` | 密码需含大写字母 |
+| `password_require_special_char` | boolean | `false` | 密码需含特殊字符 |
+| `password_expiry_enabled` | boolean | `false` | 密码过期重置 |
+| `password_expiry_days` | number | `90` | 密码过期天数 |
+| `allow_registration` | boolean | `false` | 开放用户注册 |
+| `forgot_password_enabled` | boolean | `false` | 忘记密码重置 |
+| `watermark_enabled` | boolean | `false` | 页面水印 |
+| `watermark_content` | string | 空 | 水印文本 |
+| `watermark_font_size` | number | `14` | 水印字号 |
+| `watermark_opacity` | number | `15` | 水印透明度 |
+| `quick_chat_enabled` | boolean | `false` | 快捷聊天按钮 |
+| `file_upload_validate_type` | boolean | `true` | 上传文件类型校验 |
+| `file_upload_allowed_types` | string | MIME 列表 | 允许上传类型 |
+| `file_upload_max_size_mb` | number | `0` | 文件上传大小上限，0 表示不限制 |
+| `terminal_recording_enabled` | boolean | `false` | 终端录屏 |
+| `terminal_recording_retain_days` | number | `30` | 终端录屏保留天数 |
+| `terminal_recording_max_size_mb` | number | `500` | 终端录屏容量上限 |
+| `terminal_upload_max_size_mb` | number | `200` | 终端上传大小上限 |
+| `mfa_enabled` | boolean | `false` | MFA 多因素认证 |
+| `mfa_mode` | string | `off` | MFA 模式 |
+| `mfa_remember_device_days` | number | `30` | 可信设备免 MFA 天数 |
+| `login_risk_enabled` | boolean | `false` | 登录风险策略 |
+| `login_risk_new_device_action` | string | `allow` | 新设备登录动作 |
+| `member_point_expire_days` | number | `0` | 会员积分过期天数 |
+| `member_birthday_points` | number | `0` | 会员生日礼积分 |
+| `member_birthday_coupon_id` | number | `0` | 会员生日礼优惠券 |
+| `member_invite_reward_points` | number | `0` | 邀请奖励积分 |
+| `feedback_entry_enabled` | boolean | `false` | 意见反馈入口 |
+| `captcha_complexity` | string | `medium` | 验证码复杂度 |
+| `ai_daily_token_quota` | number | `0` | AI 每日 Token 配额 |
+| `ai_content_filter_enabled` | boolean | `false` | AI 敏感词过滤 |
+| `ai_embedding_model` | string | 空 | 知识库向量模型 |
+| `ai_image_model` | string | 空 | 图片生成模型 |
+| `rule_publish_approval` | boolean | `false` | 决策表发布审批 |
 
-### MFA 与登录风险
+## 运行时使用但不在种子中的键
 
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `mfa_enabled` | `false` | MFA 多因素认证总开关 |
-| `mfa_mode` | `off` | `off` / `optional` / `required` |
-| `mfa_remember_device_days` | `30` | 可信设备免 MFA 天数 |
-| `login_risk_enabled` | `false` | 登录风险策略 |
-| `login_risk_new_device_action` | `allow` | 新设备动作：`allow` / `challenge` |
+IP 访问控制中间件读取以下配置键。它们可通过配置管理接口创建和维护：
 
-### 文件上传
+- `ip_whitelist_enabled`
+- `ip_whitelist`
+- `ip_blacklist_enabled`
+- `ip_blacklist`
 
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `file_upload_validate_type` | `true` | 基于 magic bytes 校验真实文件类型 |
-| `file_upload_allowed_types` | `image/*,video/*,...` | 允许的 MIME 类型（逗号分隔，支持通配符；`*/*` 放开全部） |
-| `file_upload_max_size_mb` | `0` | 单文件大小上限（MB），0 = 不限制，含分片上传 |
-| `upload_session_ttl_hours` | `24` | 分片上传会话保留时长，超时未完成由定时任务清理 |
+## 注意事项
 
-### 界面与体验
+- 多租户开关来自环境变量 `MULTI_TENANT_MODE`，不是系统配置。
+- 密码策略接口组合读取密码相关配置。
+- 新增公开配置前需评估敏感性，因为 `/public/{key}` 无鉴权。
 
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `watermark_enabled` | `false` | 页面水印 |
-| `watermark_content` | 空 | 水印文本，留空显示当前用户名 |
-| `watermark_font_size` | `14` | 字号（px） |
-| `watermark_opacity` | `15` | 透明度（1-100） |
-| `quick_chat_enabled` | `false` | 快捷聊天按钮全局开关 |
-| `feedback_entry_enabled` | `false` | 意见反馈入口 |
-
-### Web 终端
-
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `terminal_recording_enabled` | `false` | 终端录屏 |
-| `terminal_recording_retain_days` | `30` | 录屏保留天数（0 = 不按天清理） |
-| `terminal_recording_max_size_mb` | `500` | 录屏总容量上限（0 = 不限制） |
-| `terminal_upload_max_size_mb` | `200` | 文件管理器 / SFTP 单个上传大小上限（0 = 不限制） |
-
-### AI
-
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `ai_allow_user_custom_key` | `false` | 允许用户配置自己的 AI API Key |
-| `ai_daily_token_quota` | `0` | 每用户每日 token 配额（0 = 不限制） |
-| `ai_content_filter_enabled` | `false` | 输入侧敏感词过滤（词库在字典「AI 敏感词」） |
-| `ai_embedding_model` | 空 | 知识库 embedding 模型；留空退化为关键词检索 |
-| `ai_image_model` | 空 | 图片生成模型；留空关闭 generate_image 工具 |
-
-### 会员中心
-
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `member_point_expire_days` | `0` | 积分不活跃过期天数（0 = 永不过期） |
-| `member_birthday_points` | `0` | 生日礼积分（0 = 不发放） |
-| `member_birthday_coupon_id` | `0` | 生日礼优惠券模板 ID（0 = 不发放） |
-| `member_invite_reward_points` | `0` | 邀请奖励积分（0 = 不奖励） |
-
-### 其他
-
-| 配置键 | 默认值 | 说明 |
-| --- | --- | --- |
-| `rule_publish_approval` | `false` | 决策表发布审批（四眼原则） |
-
-## 新增配置项
-
-1. 在 `packages/shared/src/seed/platform.ts` 的 `SEED_SYSTEM_CONFIGS` 追加条目（id 递增），供 DB seed 与 MSW mock 共用
-2. 业务代码用 `getConfigValue` / `getConfigNumber` / `getConfigBoolean` 读取并给定合理默认值——配置缺失时代码不应崩溃
-3. 需要未登录访问的键（如登录页开关），前端走 `GET /api/system-configs/public/{key}`
-
-> 环境变量与系统配置的分工：连接信息、密钥、部署形态（Redis、数据库、代理、日志级别）用环境变量；业务运行时可调项（开关、阈值、文案）用系统配置。

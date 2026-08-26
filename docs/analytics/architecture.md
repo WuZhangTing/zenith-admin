@@ -1,12 +1,13 @@
 # 架构与数据模型
 
-## 数据表（19 张）
+## 数据表（21 张）
 
 ### 行为采集与分析
 
 | 表 | 说明 |
 |----|------|
-| `user_events` | 原始事件流（幂等 `eventId` 唯一索引、`properties` JSONB、UTM、身份、设备、地域、性能指标、多端平台字段 `source`/`appId`/`environment`；共 14 个索引，含慢接口部分索引） |
+| `user_events` | 原始事件流（幂等 `eventId` 唯一索引、`properties` JSONB、UTM、身份、设备、地域、性能指标、多端平台字段 `source`/`appId`/`environment`/`sdkVersion`；包含时间、租户、事件名、来源、性能与 JSONB 属性等查询索引） |
+| `analytics_identity_map` | 匿名 `anonymousId` 到权威 `distinctId` 的首绑映射，支撑匿名批次前向合并与 `$identify` 后的历史回溯合并 |
 | `analytics_sessions` | 会话聚合（时长 / 页数 / 事件数 / 入口出口页 / 是否跳出 / 设备与地域） |
 | `analytics_daily_rollup` | 每日预聚合，维度化窄表（`tenantId` + `statDate` + `metric` + `dimType` + `dimValue` + `value`）：`dimType='overall'` 存整体 PV/UV/会话/事件/跳出/停留总量，另按 `browser` / `os` / `device` / `region` / `page` 五个低基数维度分别聚合 |
 | `analytics_user_profiles` | 用户画像（`distinctId` 主键式唯一、`identityType`、`userId` / `memberId`、首末次活跃、属性袋），采集事务内 upsert，支撑分群属性条件 |
@@ -37,6 +38,7 @@
 |----|------|
 | `error_groups` | 错误分组（Issue，`fingerprint` 全局唯一索引，状态 / 指派 / 备注） |
 | `error_events` | 单次错误事件（堆栈 / 面包屑 / 上下文 / 解析后 UA / HTTP 详情） |
+| `error_group_identities` | 错误分组影响身份去重表（`groupId` + `identity` 主键），用于增量维护 `affectedUsers` |
 | `error_alert_rules` | 错误告警规则（条件、阈值、时间窗口、渠道、收件人、`lastTriggeredAt` 去抖） |
 | `error_alert_logs` | 告警触发历史（规则快照、命中详情、投递渠道） |
 | `source_maps` | 上传的 Source Map（堆栈还原，`release` + 文件名 replace 语义） |
@@ -61,6 +63,7 @@
 | 文件 | 职责 |
 |------|------|
 | `analytics.service.ts` | 采集主流程（治理 → 事务写入 → 会话/画像 upsert）与大部分统计查询 |
+| `analytics-identity.service.ts` | 匿名身份映射、前向合并与 `$identify` 后历史事件 / 会话 / 画像回溯合并 |
 | `analytics-conversion.service.ts` | 漏斗（有序转化）与留存（双口径 + 日/周/月粒度 + 对比轴） |
 | `analytics-breakdown.ts` | 统一对比轴：维度 → SQL 表达式白名单、渠道派生、序列解析（漏斗/留存/下钻共用） |
 | `analytics-drill.service.ts` | 图表下钻：漏斗步骤 / 留存周期坐标 → 用户名单 |
@@ -111,8 +114,9 @@ routes/analytics/analytics.ts / frontend-errors.ts
   ↓ 站点 siteKey 解析（匿名）→ 来源白名单校验
   ↓ Tracking Plan 治理（屏蔽 / 租户覆盖 / 严格模式，质量问题落 analytics_event_quality_daily）
   ↓ 事务写入：user_events（eventId 幂等）→ 站点日配额消费（Redis）→ analytics_sessions → analytics_user_profiles
+  ↓ $identify best-effort：analytics_identity_map → 历史匿名事件 / 会话 / 画像合并
   ↓ WebSocket analytics:ingest 节流广播（5s），前端实时 Tab 收到后刷新
-user_events / analytics_sessions / analytics_user_profiles / error_groups / error_events
+user_events / analytics_sessions / analytics_user_profiles / error_groups / error_events / error_group_identities
   ↓ 查询接口实时聚合，定时任务维护 analytics_daily_rollup 与保留清理
 packages/web/src/pages/analytics/*
 

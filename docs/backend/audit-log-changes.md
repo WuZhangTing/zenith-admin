@@ -1,104 +1,90 @@
-# 审计日志
+# 操作日志与变更记录
 
-系统的操作审计由 `guard` 中间件统一实现：写操作声明 `audit` 配置后，自动记录操作人、请求、响应与**变更前后数据快照**（diff 展示），落 `operation_logs` 表。登录 / 登出行为单独记 `login_logs`。
+操作日志由 `guard()` 中间件与 `operation-logs.service.ts` 写入，主要记录管理端有权限保护的业务操作、请求摘要、响应摘要和变更快照。
 
-代码位置速查：
+## 数据表
 
-| 模块 | 位置 |
-| --- | --- |
-| guard 中间件（权限 + 审计） | `packages/server/src/middleware/guard.ts` |
-| 快照辅助（零参版） | `packages/server/src/lib/context.ts` |
-| 表结构 | `packages/server/src/db/schema/logs.ts` |
-| 查询路由 | `routes/platform/operation-logs.ts`、`routes/identity/login-logs.ts` |
+表名：`operation_logs`。
 
-## 声明审计
+关键字段：
 
-在路由的 `guard` 中传 `audit`：
+- `user_id`、`username`、`tenant_id`
+- `module`、`description`
+- `method`、`path`、`request_id`
+- `request_body`
+- `before_data`、`after_data`
+- `response_code`、`response_body`
+- `duration_ms`
+- `ip`、`location`、`user_agent`、`os`、`browser`
+- `created_at`
+
+`before_data`、`after_data`、`request_body` 建有 `pg_trgm` GIN 索引，用于内容模糊检索。
+
+## 写入方式
+
+路由通过 `guard({ audit: { module, description, ... } })` 开启审计。`guard()` 在响应结束后使用异步任务写入日志，写入失败不影响业务响应。
+
+审计选项：
+
+| 选项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `recordBody` | `true` | 记录请求体 |
+| `recordResponseBody` | `true` | 记录响应体 |
+| `module` | - | 模块名 |
+| `description` | - | 操作描述 |
+
+请求体优先使用校验后的 JSON body；校验失败时尝试读取原始 JSON。非 JSON 请求体不作为结构化请求体记录。
+
+## 变更快照
+
+业务代码可在 handler 中设置快照：
 
 ```ts
-middleware: [authMiddleware, guard({
-  permission: 'system:user:update',
-  audit: { description: '更新用户', module: '用户管理' },
-})] as const
+setAuditBeforeData(c, before)
+setAuditAfterData(c, after)
 ```
 
-`AuditLogOptions`：
+如果标准响应为 `code === 0` 且 `data != null`，未手动设置 `afterData` 时可自动捕获响应 `data` 作为操作后快照。
 
-| 选项 | 默认 | 说明 |
-| --- | --- | --- |
-| `description` | — | 操作描述（必填） |
-| `module` | — | 所属模块（列表筛选用） |
-| `recordBody` | `true` | 是否记录请求体；文件上传等场景传 `false` |
-| `recordResponseBody` | `true` | 是否记录完整响应体；返回一次性密钥等敏感响应传 `false` |
+## 裁剪策略
 
-## 自动采集内容
+裁剪逻辑位于 `packages/server/src/lib/audit-clamp.ts`：
 
-每条操作日志（`operation_logs`）包含：
+- 请求体预算：4 KB；
+- 响应体、操作前快照、操作后快照预算：16 KB；
+- JSON 使用结构化裁剪，按字符串长度、数组项数、对象键数和深度逐级收紧；
+- 超出预算时落为摘要对象，保证仍是合法 JSON；
+- 非 JSON 文本响应使用 UTF-8 安全截断，避免截断多字节字符。
 
-- **操作人**：userId、username、归属租户（`getEffectiveTenantId`：租户用户记自身租户，平台超管在租户视角记该租户、平台视角记 null）
-- **请求**：method、path、requestId、请求体（`sanitizeBody` 脱敏后**截断 4096 字符**；校验失败的 400 请求也会记录原始 body，便于审计异常请求）
-- **响应**：状态码、完整响应体（**截断 16KB**）、耗时
-- **环境**：客户端 IP（走受信代理解析）、IP 归属地、User-Agent、OS、浏览器
-- **数据快照**：`beforeData` / `afterData`（见下节）
+## 查询接口
 
-写入时机：响应发出后经 `setImmediate` 异步落库，**不增加请求延迟**；日志写入失败不影响主流程。
+路由挂载在 `/api/operation-logs`：
 
-### 请求体脱敏
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/` | `system:log:operation` | 分页查询 |
+| `GET` | `/stats` | `system:log:operation` | 统计 |
+| `DELETE` | `/clean` | `system:log:operation` | 按天数清理并记录审计 |
 
-`sanitizeBody`（`src/lib/sanitize.ts`）深度遍历 JSON，键名命中敏感词（`password`、`secret`、`token`、`accessKey`、`privateKey`、`apiKey`、`clientSecret`、`refreshToken`、`credential`、`webhook` 等）的字段替换为 `***`。
+分页查询支持：
 
-## 变更前后快照（diff）
+- `username`
+- `module`
+- `description`
+- `method`
+- `path`
+- `ip`
+- `status=success/fail`
+- `content`：匹配请求体、操作前快照、操作后快照
+- `startTime`、`endTime`
+- `minDurationMs`、`maxDurationMs`
 
-### afterData 自动捕获
+## 登录日志关系
 
-响应体为标准信封（`code: 0` 且 `data` 非空）时，`data` 自动作为 `afterData`——大多数更新接口返回更新后实体，无需额外代码。
-
-### beforeData 手动注入
-
-更新 / 删除操作在改动前注入旧数据快照：
-
-```ts
-import { setAuditBefore } from '../../lib/context';
-
-handler: async (c) => {
-  const { id } = c.req.valid('param');
-  setAuditBefore(await getUserById(id));   // 零参上下文版，无需透传 c
-  const updated = await updateUser(id, c.req.valid('json'));
-  return c.json(okBody(updated), 200);
-},
-```
-
-等价的 Context 版本：`setAuditBeforeData(c, data)`（`middleware/guard.ts`）。
-
-### afterData 手动注入
-
-删除等响应 `data` 为 null 的操作，可用 `setAuditAfter(data)` / `setAuditAfterData(c, data)` 显式提供操作后快照。
-
-前端操作日志详情页对 `beforeData` / `afterData` 做字段级 diff 高亮展示。
-
-## 查询与管理端点
-
-操作日志（权限 `system:log:operation`）：
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/operation-logs` | 分页查询（按模块 / 操作人 / 时间 / 状态码筛选） |
-| GET | `/api/operation-logs/stats` | 统计 |
-| DELETE | `/api/operation-logs/clean` | 清空 |
-
-登录日志（`login_logs`，登录 / 登出各记一条，含成功与失败）：
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/login-logs` | 分页查询 |
-| GET | `/api/login-logs/stats` | 统计 |
-| DELETE | `/api/login-logs/clean` | 清空 |
-
-`login_logs` 除 IP / 归属地 / 浏览器 / OS 外，还记录前端上报的设备信息（分辨率、DPR、GPU、CPU 核数、内存）用于风控分析。
+登录与退出日志写入 `login_logs`，不写入 `operation_logs`。管理端普通登录、刷新失败、退出等认证事件应在登录日志中查询；业务操作审计在操作日志中查询。
 
 ## 使用建议
 
-- **只审计写操作**：GET 查询不声明 `audit`，避免日志膨胀
-- `description` 用「动词 + 对象」：「新增角色」「重置用户密码」
-- 涉及敏感响应（密钥、token 明文）务必 `recordResponseBody: false`
-- 与 [HTTP 流量日志](./http-logging.md) 的分工：审计日志面向合规追溯（业务视角、入库可查），流量日志面向排障（技术视角、写日志文件）
+- 修改或删除接口应在执行前读取 before 快照。
+- 创建接口可依赖响应数据作为 after 快照，但包含一次性密码、密钥等敏感值时应关闭响应体记录或手动脱敏。
+- 批量操作应记录 ID 列表、匹配条件和影响数量，避免写入完整大对象。

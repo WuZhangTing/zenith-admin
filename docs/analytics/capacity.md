@@ -4,12 +4,12 @@
 
 ## 现状基线
 
-| 链路 | 当前实现 |
+| 链路 | 实现状态 |
 |------|----------|
-| 存储 | PostgreSQL 单表存储：`user_events` 原始事件流、`analytics_sessions` 会话聚合、`analytics_user_profiles` 用户画像、`error_events` 错误事件、`analytics_daily_rollup` 每日预聚合（整体 + 维度窄表）；表定义位于 `packages/server/src/db/schema/analytics.ts` |
-| 写路径 | `POST /api/analytics/events` 批量采集（单批最多 100 条）+ 服务端权威语义事件 `trackServerEvent()`；落库前经 Tracking Plan 治理（内存缓存 60s）与站点来源白名单校验；写入 `user_events` 时使用 `eventId` 唯一索引和 `ON CONFLICT DO NOTHING` 幂等 |
-| 事务边界 | HTTP 批量采集在事务中写入事件、消费站点日配额（Redis 计数，超限回滚）、更新 `analytics_sessions`、upsert 用户画像；服务端事件在事务中写入事件、upsert 用户画像，不创建会话 |
-| 读路径 | 行为分析接口按时间范围实时聚合；趋势与维度分布查询优先读 `analytics_daily_rollup`（整体与维度聚合行），当天或缺失日期回退 `user_events`；报表中心通过内置主库数据源复用行为数据集 |
+| 存储 | PostgreSQL 单表存储：`user_events` 原始事件流、`analytics_identity_map` 匿名身份映射、`analytics_sessions` 会话聚合、`analytics_user_profiles` 用户画像、`error_events` 错误事件、`error_group_identities` 错误影响身份去重、`analytics_daily_rollup` 每日预聚合（整体 + 维度窄表）；表定义位于 `packages/server/src/db/schema/analytics.ts` |
+| 写路径 | `POST /api/analytics/events` 批量采集（单批最多 100 条）+ 服务端权威语义事件 `trackServerEvent()`；落库前经 Tracking Plan 治理（内存缓存 60s）与站点来源白名单校验；写入 `user_events` 时使用 `eventId` 唯一索引和 `ON CONFLICT DO NOTHING` 幂等；`$identify` 通过 `analytics_identity_map` 做匿名身份合并 |
+| 事务边界 | HTTP 批量采集在事务中写入事件、消费站点日配额（Redis 计数，超限回滚）、更新 `analytics_sessions`、upsert 用户画像；服务端事件在事务中写入事件、upsert 用户画像，不创建会话；错误上报在事务中 upsert `error_groups`、写 `error_events` 并增量维护 `error_group_identities` |
+| 读路径 | 行为分析接口按时间范围实时聚合；趋势查询优先读 `analytics_daily_rollup` 的 overall 行，当天或缺失日期回退 `user_events`；数据聚合页直接展示 rollup；报表中心通过内置主库数据源复用行为数据集 |
 | 保留策略 | `analyticsRetention` 每日 02:00 执行，逐租户读取 `analytics_settings.retentionDays` / `errorRetentionDays`，清理过期事件、会话、错误事件、埋点质量日聚合和空错误分组 |
 | 观测手段 | 系统监控 `/api/monitor` 暴露全局 HTTP QPS / P95 / 错误率；数据库监控读取 `pg_stat_statements` Top 慢查询（需启用扩展）；埋点质量看板暴露拒收类问题（`origin_rejected` / `quota_exceeded`）。当前没有按单个分析接口持久化的 p95 明细表 |
 
@@ -107,10 +107,10 @@ CREATE INDEX user_events_2026_07_created_brin
 迁移策略：
 
 1. 新建分区表与未来月份分区，补齐唯一约束、索引和默认值。
-2. 采集服务并行写旧表与新表，验证 `eventId` 幂等、会话聚合、rollup 结果一致。
+2. 采集服务并行写原表与分区表，验证 `eventId` 幂等、会话聚合、rollup 结果一致。
 3. 按月份回填历史数据，分批校验行数与核心指标。
-4. 切换读路径到分区表，保留旧表只读观察一个保留周期。
-5. 确认后归档或删除旧表。
+4. 切换读路径到分区表，保留原表只读观察一个保留周期。
+5. 确认后归档或删除原表。
 
 ### 第二级：写入队列 + OLAP（后做）
 

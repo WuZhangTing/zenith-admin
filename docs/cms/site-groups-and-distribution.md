@@ -36,7 +36,7 @@ CMS 站群是平台级全局能力，不带 `tenant_id`，涵盖**站点层级�
 | `themeConfig` | `themeConfig` 与主题色/暗色配置 |
 | `templates` | `defaultTemplates`（站点级默认模板） |
 
-开关关闭表示 `own`，开启表示 `inherited`。恢复本站覆盖时，原先保存的本站值重新生效。根站点不能开启继承。
+开关关闭表示 `own`，开启表示 `inherited`。恢复本站覆盖时，站点自身保存的值重新生效。根站点不能开启继承。
 
 `GET /api/cms/sites/{id}/effective-config` 返回 `resolved + sources`。Webhook secret、CDN token 等敏感值只返回 `********` 或 `null`；即使来源是无权查看的父站点，也不返回父级名称/id 或明文 secret。
 

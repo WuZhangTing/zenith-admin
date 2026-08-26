@@ -1,182 +1,145 @@
 # Docker 部署
 
-使用 Docker Compose 一键启动 Zenith Admin 全部服务（PostgreSQL + Redis + API + Nginx），无需在宿主机手动安装运行时环境。
+Docker Compose 会启动 PostgreSQL、Redis、API 与 Nginx，适合生产试运行与中小规模部署。配置文件位于仓库根目录：`Dockerfile`、`docker-compose.yml`、`docker-compose.dev.yml`、`.env.docker`。
 
 ## 前置依赖
 
-- [Docker](https://docs.docker.com/get-docker/) >= 24
-- [Docker Compose](https://docs.docker.com/compose/) >= v2（已内置于 Docker Desktop）
-
----
+- Docker 24+
+- Docker Compose v2
 
 ## 快速开始
 
 ```bash
-# 1. 克隆仓库
 git clone https://github.com/iwangbowen/zenith-admin.git
 cd zenith-admin
 
-# 2. 配置环境变量（至少修改 JWT_SECRET）
 cp .env.docker .env
-# 用编辑器打开 .env，修改 JWT_SECRET 为强随机字符串
+# 编辑 .env，至少修改 JWT_SECRET
 
-# 3. 启动全部服务（首次会自动构建镜像，约 2-5 分钟）
 docker compose up -d
 
-# 4. 初始化种子数据（创建默认管理员账号 admin / 123456 及菜单等初始数据，仅首次需要）
 docker compose exec api node dist/db/seed.js
 
-# 5. 查看服务状态
 docker compose ps
 ```
 
-服务启动完成后，访问：
+访问地址：
 
-- **前端**：`http://localhost`（默认 80 端口），默认账号 `admin` / `123456`
-- **API**：`http://localhost:3300`（仅需调试时使用）
+| 服务 | 默认地址 |
+| --- | --- |
+| 前端 / Nginx | `http://localhost` |
+| API | `http://localhost:3300` |
+| Mastra Studio | `http://localhost/studio/` |
 
-> 首次启动时后端容器会自动执行 Drizzle 数据库迁移；种子数据不会自动填充，需按上面第 4 步手动执行一次（可安全重复执行）。
+默认管理员：`admin` / `123456`。
 
----
+::: tip
+后端容器入口 `docker/entrypoint.sh` 会在启动时执行 `node dist/db/migrate.js`，因此迁移自动应用；种子数据需手动执行一次，可重复执行。
+:::
 
 ## 服务拓扑
 
 ```text
 postgres ─┐
-redis    ─┤──→  api (Node.js :3300)  ──→  web (Nginx :80)
+redis    ─┤──→ api (Node.js :3300) ──→ web (Nginx :80)
 ```
 
-| 服务 | 镜像 | 说明 |
+| 服务 | 镜像 / 阶段 | 说明 |
 | --- | --- | --- |
-| `postgres` | `postgres:16-alpine` | 持久化业务数据 |
-| `redis` | `redis:7-alpine` | 会话状态与黑名单 |
-| `api` | 本地构建 `server` stage | Hono 后端，启动时自动迁移 |
-| `web` | 本地构建 `web` stage | Nginx 托管前端 + 反向代理 `/api` |
+| `postgres` | `postgres:16-alpine` | 数据库，库名 `zenith_admin` |
+| `redis` | `redis:7-alpine` | 会话、限流、幂等与黑名单状态；可开启密码与 AOF |
+| `api` | Dockerfile `server` stage | Hono 后端，端口 3300，启动时迁移 |
+| `web` | Dockerfile `web` stage | Nginx 静态站点，代理 `/api` 与 `/api/ws` |
 
-::: tip Mastra Studio 已内置
-`web` 镜像同时托管 [Mastra Studio](https://mastra.ai/docs/studio/overview)（AI 智能体调试与评测控制台），访问 `http://localhost/studio/` 即可。数据面走同源 `/api/mastra`，需登录 + `ai:studio:access` 权限，在 Studio Settings → Custom headers 配置 `Authorization: Bearer <token>`。详见[部署说明](./deployment#部署-mastra-studio-可选)。
-:::
+## Dockerfile 构建流程
 
----
+| 阶段 | 基础镜像 | 行为 |
+| --- | --- | --- |
+| `builder` | `node:24-alpine` | 安装全量依赖，构建 shared、analytics-sdk、server、web，并执行 `docker/build-studio.mjs` |
+| `server` | `node:24-alpine` | 安装生产依赖，复制 server dist、Drizzle 迁移与 shared dist，写入 entrypoint |
+| `web` | `nginx:1.27-alpine` | 复制 `packages/web/dist` 与 `docker/nginx.conf` |
+
+`node-pty` 在 Linux 下需要编译，构建阶段安装 `python3 make g++`；server 阶段保留 `libstdc++` 并移除编译工具链。
 
 ## 环境变量
 
-复制 `.env.docker` 为 `.env` 后按需修改：
-
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `JWT_SECRET` | *(必须修改)* | JWT 签名密钥，生产环境使用 ≥ 32 字符强随机字符串 |
+| `JWT_SECRET` | `change-me-to-a-strong-random-secret` | JWT 签名密钥，生产必须修改 |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL 密码 |
 | `POSTGRES_PORT` | `5432` | PostgreSQL 宿主机映射端口 |
-| `REDIS_PASSWORD` | *(空，无认证)* | Redis 密码，留空则不启用 `requirepass` |
-| `REDIS_PORT` | `6379` | Redis 宿主机映射端口 |
-| `REDIS_URL` | `redis://redis:6379` | 覆盖完整 Redis 连接 URL（外部 Redis 或 Redis 密码场景使用） |
-| `WEB_PORT` | `80` | 前端对外端口 |
-| `API_PORT` | `3300` | 后端 API 对外端口 |
-| `ALLOWED_ORIGINS` | *(空)* | CSRF 白名单，生产环境设置为前端域名 |
-| `CORS_ORIGIN` | `*` | CORS 允许来源，同域部署无需修改 |
-| `LOG_LEVEL` | `info` | 日志级别（`debug` / `info` / `warn` / `error`） |
-| `OAUTH_GITHUB_CLIENT_ID` | *(空)* | GitHub OAuth 登录的 Client ID（可选） |
-| `OAUTH_GITHUB_CLIENT_SECRET` | *(空)* | GitHub OAuth 登录的 Client Secret（可选） |
-| `OAUTH_CALLBACK_BASE_URL` | `http://localhost` | OAuth 回调基础地址，需与前端对外地址一致 |
-| `TAG` | `latest` | 镜像标签，多版本管理时使用（如 `1.33.0`） |
+| `REDIS_PASSWORD` | 空 | Redis 密码；设置后 Redis 启用 `requirepass` |
+| `REDIS_URL` | `redis://redis:6379` | API 使用的 Redis URL，可覆盖为外部 Redis |
+| `WEB_PORT` | `80` | Nginx 对外端口 |
+| `API_PORT` | `3300` | API 对外端口 |
+| `ALLOWED_ORIGINS` | 空 | CSRF 允许来源 |
+| `CORS_ORIGIN` | `*` | CORS 允许来源 |
+| `LOG_LEVEL` | `info` | 后端日志级别 |
+| `OAUTH_GITHUB_CLIENT_ID` / `OAUTH_GITHUB_CLIENT_SECRET` | 空 | GitHub OAuth 登录凭据 |
+| `OAUTH_CALLBACK_BASE_URL` | `http://localhost` | OAuth 回调基础地址 |
+| `TAG` | `latest` | 本地构建镜像标签 |
 
-::: warning 生产环境安全提示
-`JWT_SECRET` 务必修改为强随机字符串。推荐使用：
+生产环境请修改 `JWT_SECRET`，并按实际域名设置 `ALLOWED_ORIGINS`。如果 Redis 设置密码，请同步把 `REDIS_URL` 配成带密码的连接串，例如 `redis://:your_password@redis:6379/0`。
 
-```bash
-openssl rand -base64 32
-```
+## Nginx 行为
 
-同时建议设置 `ALLOWED_ORIGINS` 防止 CSRF 攻击。若设置 `REDIS_PASSWORD`，请同步将 `REDIS_URL` 配置为带密码的连接串，例如 `redis://:your_password@redis:6379/0`。
-:::
+`docker/nginx.conf` 的当前行为：
 
----
+- `/api` 代理到 `api:3300`，包含 WebSocket upgrade，覆盖 `/api/ws`。
+- `/studio/` 托管 Mastra Studio 静态资源，数据面走同源 `/api/mastra`。
+- `/studio/refresh-events` 返回 204，减少静态部署下的 EventSource 重试日志。
+- `/index` / `/index.html` 跳转到 `/`。
+- `/` fallback 到 `/index.html` 支持 SPA 路由。
+- JS/CSS/字体/图片等静态资源使用一年 immutable 缓存。
 
 ## 常用操作
 
 ```bash
-# 查看所有服务实时日志
+# 查看日志
 docker compose logs -f
-
-# 只看后端日志
 docker compose logs -f api
-
-# 只看 Nginx 日志
 docker compose logs -f web
 
-# 停止所有服务（保留数据卷）
+# 停止服务（保留数据卷）
 docker compose down
 
-# 停止并删除所有数据卷（⚠️ 数据将永久丢失）
+# 停止并删除数据卷
 docker compose down -v
 
-# 进入后端容器调试
+# 进入容器
 docker compose exec api sh
 
-# 查看数据库
+# 连接数据库
 docker compose exec postgres psql -U postgres -d zenith_admin
 ```
-
----
 
 ## 升级版本
 
 ```bash
-# 1. 拉取最新代码
 git pull
-
-# 2. 重新构建镜像（--no-cache 确保获取最新依赖）
 docker compose build --no-cache
-
-# 3. 重启服务（数据库迁移在容器启动时自动执行）
 docker compose up -d
 ```
 
----
+API 容器重启时会自动迁移数据库。前端静态资源由 `web` 镜像提供，重建镜像后随容器替换生效。
 
 ## 本地开发基础设施
 
-如果你在本地以 `npm run dev` 开发，只需用 Docker 启动数据库和缓存服务即可：
-
 ```bash
-# 启动 PostgreSQL(5432) + Redis(6379)，与本地 dev 默认连接配置一致
 docker compose -f docker-compose.dev.yml up -d
-
-# 正常启动开发服务器
 npm run dev
 ```
 
-此方式不会构建 Node.js / Nginx 镜像，启动速度极快。
-
----
-
-## 镜像构建说明
-
-`Dockerfile` 采用多阶段构建，最终生成两个精简镜像：
-
-| 阶段 | 目标镜像 | 基础 | 说明 |
-| --- | --- | --- | --- |
-| `builder` | *(中间层)* | `node:24-alpine` | 安装全量依赖、编译 shared + analytics-sdk + server + web |
-| `server` | `zenith-admin-api` | `node:24-alpine` | 仅含生产依赖 + 编译产物 |
-| `web` | `zenith-admin-web` | `nginx:1.27-alpine` | 静态文件 + nginx 配置 |
-
-**关键技术说明**：`packages/shared` 的 `package.json` 开发模式下导出 TypeScript 源文件（供 `tsx` 使用），在 `builder` 阶段完成编译后，Dockerfile 会自动将 exports 切换为 `dist/*.js`，保证生产环境 Node.js 能正常解析，无需改动源代码。
-
----
+`docker-compose.dev.yml` 只启动 `postgres:16-alpine` 与 `redis:7-alpine`，端口固定映射为 `5432` / `6379`，用于配合本地 Node / Vite 开发。
 
 ## 数据持久化
 
-所有运行时数据均通过 Docker 命名卷持久化，容器重启或重建后数据不会丢失：
-
 | 卷名 | 内容 |
 | --- | --- |
-| `postgres_data` | 所有业务数据 |
-| `redis_data` | 会话状态与强制下线黑名单 |
-| `api_storage` | 本地文件上传（`STORAGE_PROVIDER=local` 时使用） |
-| `api_logs` | 服务器运行日志 |
-
-备份数据卷：
+| `postgres_data` | PostgreSQL 数据 |
+| `redis_data` | Redis AOF 数据 |
+| `api_storage` | 本地上传文件 |
+| `api_logs` | 后端日志 |
 
 ```bash
 # 备份 PostgreSQL

@@ -1,93 +1,76 @@
 # HTTP 流量日志
 
-用于排障与联调的双向 HTTP 流量记录：
-
-- **入站**（incoming）：`src/middleware/http-logger.ts` 拦截进入系统的请求
-- **出站**（outgoing）：`src/lib/http-client.ts` 集成，记录[外呼请求](./http-client.md)
-
-共享工具（脱敏、截断、格式化、写入）在 `src/lib/http-logger.ts`。默认**全部关闭**，按需通过环境变量开启。
+HTTP 流量日志由 `packages/server/src/lib/http-logger.ts` 和 `packages/server/src/middleware/http-logger.ts` 实现，覆盖入站请求与 `http-client` 发起的出站请求。
 
 ## 日志级别
 
-| 级别 | 记录内容 |
+`HttpLogLevel` 支持：
+
+| 级别 | 内容 |
 | --- | --- |
 | `off` | 不记录 |
-| `access` | 方法、路径、状态码、耗时（一行访问日志） |
-| `headers` | access + 请求/响应 Header（脱敏后） |
-| `body` | access + 请求/响应 Body（脱敏 + 截断） |
-| `full` | 全部 |
+| `access` | 方法、路径、状态、耗时、大小等访问日志 |
+| `headers` | 访问日志 + 请求 / 响应头 |
+| `body` | 访问日志 + body 采样 |
+| `full` | 访问日志 + headers + body |
 
-级别解析优先级：**路由级覆盖 > 方法级配置 > 全局默认**。
+格式支持 `json`、`text`、`curl`。
 
-### 路由级覆盖
+## 入站日志
 
-```ts
-import { withHttpLog } from '../../middleware/http-logger';
+默认配置：
 
-// 单独对该路由开全量日志（联调支付回调等场景）
-middleware: [authMiddleware, withHttpLog('full')] as const
+- level：`access`
+- max body bytes：`65536`
+- 记录请求 body；默认不记录响应 body
 
-// 敏感路由强制关闭
-middleware: [authMiddleware, withHttpLog('off')] as const
-```
+内置排除路径：
+
+- `/api/health`
+- `/api/ws`
+- `/api/metrics`
+- `/docs`
+- `/api/ui`
+- `/favicon.ico`
+
+入站日志位于全局中间件链路中，早于业务路由执行。请求 body 采样不改变后续业务读取。
+
+## 出站日志
+
+出站日志由 HTTP 客户端触发。默认配置：
+
+- level：`full`
+- max body bytes：`4096`
+- 记录请求 body 与响应 body
+
+出站日志会记录目标 URL、方法、状态码、耗时、重试、错误和 body 采样。
+
+## 脱敏
+
+日志会对敏感 header 做脱敏处理，例如：
+
+- `authorization`
+- `cookie`
+- `set-cookie`
+- `x-api-key`
+
+body 只做长度采样，不替代业务字段级脱敏；涉及密码、token、密钥的业务接口应避免在响应中返回敏感值。
 
 ## 环境变量
 
-入站与出站配置同构，前缀分别为 `HTTP_LOG_INCOMING_` 与 `HTTP_LOG_OUTGOING_`：
+配置项按入站和出站分组，位于 `packages/server/src/config.ts`：
 
-| 变量 | 入站默认 | 出站默认 | 说明 |
-| --- | --- | --- | --- |
-| `..._ENABLED` | `false` | `false` | 开关 |
-| `..._LEVEL` | `access` | `full` | 全局级别 |
-| `..._FORMAT` | `json` | `json` | 输出格式：`json` / `text` / `curl` |
-| `..._MAX_BODY` | `65536` | `4096` | body 截断阈值（字节） |
-| `..._RESPONSE_BODY` | `false` | `true` | 是否捕获响应体 |
-| `..._FILE` | `false` | `false` | 写入独立文件 `logs/http-traffic-%DATE%.log` |
-| `..._METHOD_GET` 等 | — | — | 按方法覆盖级别（`GET/POST/PUT/PATCH/DELETE/OPTIONS/HEAD`） |
-| `HTTP_LOG_INCOMING_EXCLUDE` | 空 | —（无此项） | 额外排除的路径前缀，逗号分隔 |
+- `INCOMING_HTTP_LOG_LEVEL`
+- `INCOMING_HTTP_LOG_FORMAT`
+- `INCOMING_HTTP_LOG_BODY_LIMIT`
+- `INCOMING_HTTP_LOG_RESPONSE_BODY`
+- `OUTGOING_HTTP_LOG_LEVEL`
+- `OUTGOING_HTTP_LOG_FORMAT`
+- `OUTGOING_HTTP_LOG_BODY_LIMIT`
+- `OUTGOING_HTTP_LOG_RESPONSE_BODY`
 
-示例：
+## 使用建议
 
-```dotenv
-# 联调期：入站 POST/PUT 记 body，出站全量
-HTTP_LOG_INCOMING_ENABLED=true
-HTTP_LOG_INCOMING_METHOD_POST=body
-HTTP_LOG_INCOMING_METHOD_PUT=body
-HTTP_LOG_OUTGOING_ENABLED=true
-```
-
-### 内置排除路径（入站）
-
-以下前缀始终不记录：`/api/health`、`/api/ws`、`/api/metrics`、`/docs`、`/api/ui`、`/favicon.ico`。`HTTP_LOG_INCOMING_EXCLUDE` 在此基础上追加。
-
-## 输出格式
-
-每次请求产生 request / response 两条日志（通过 `requestId` 关联，字段 `correlation`）：
-
-- `json`：结构化 `HttpLogEntry`（direction、phase、method、url、statusCode、durationMs、headers、body、timestamp），适合采集分析
-- `text`：人读格式
-- `curl`：请求阶段输出可直接复制重放的 curl 命令（响应阶段自动降级 text）
-
-写入独立文件时按天滚动（`http-traffic-%DATE%.log`，zip 归档，保留份数跟随全局日志 `maxFiles` 配置）；否则并入主应用日志。
-
-## 脱敏与截断
-
-- **Header 脱敏**：精确匹配 `authorization`、`cookie`、`set-cookie`、`proxy-authorization`、`x-auth-token`、`x-api-key`，及模糊匹配含 `token` / `secret` / `password` / `api-key` / `api_key` 的 Header → 值替换为 `***`
-- **Body 脱敏**：JSON body 深度遍历，命中敏感键名（`password`、`secret`、`token`、`accessKey`、`privateKey`、`apiKey`、`clientSecret`、`refreshToken`、`credential` 等，见 `src/lib/sanitize.ts` 的 `SENSITIVE_KEYS`）的字段替换为 `***`
-- **非 JSON 载荷**：FormData / Blob / ArrayBuffer / TypedArray / ReadableStream 不读取内容，只记录类型占位符
-- **截断**：超过 `MAX_BODY` 的 body 替换为 `[truncated, N bytes > limit M]`
-- 出站 URL 的敏感 query 参数（`access_token`、`sign` 等）替换为 `key=***`
-
-::: warning 生产环境建议
-`body` / `full` 级别即使有脱敏也可能记录业务敏感数据且影响吞吐，生产环境建议入站保持 `access`，仅在排障时临时提级或用 `withHttpLog` 精准放大单个路由。
-:::
-
-## 与其他日志的关系
-
-| 能力 | 本模块 | [审计日志](./audit-log-changes.md) |
-| --- | --- | --- |
-| 定位 | 排障 / 联调（技术视角） | 合规追溯（业务视角） |
-| 存储 | 日志文件 | `operation_logs` 表 |
-| 范围 | 全部流量（按级别） | 声明了 `guard({ audit })` 的写操作 |
-
-在线查看日志文件可用运维中心的日志查看器（`GET /api/log-viewer/content|stream|download`，尾部读取默认 500 行、上限 5000 行，下载上限 100MB）。
+- 生产环境建议入站使用 `access` 或 `headers`，谨慎开启响应 body。
+- 排查第三方接口时可临时提高出站日志级别。
+- 长连接、WebSocket、健康检查和文档资源应保持排除，避免噪音和日志膨胀。

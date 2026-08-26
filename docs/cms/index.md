@@ -1,6 +1,6 @@
 # CMS 内容管理
 
-Zenith Admin 内置企业级 CMS 内容管理模块，支持**多站点（站群）、内容模型自定义字段、审核工作流、多主题 React SSR 静态化发布、SEO 工具链、PostgreSQL 中文全文检索**，功能对标主流内容管理系统。
+Zenith Admin 内置企业级 CMS 内容管理模块，支持**多站点（站群）、内容模型自定义字段、审核工作流、多主题 React SSR 静态化发布、SEO 工具链、PostgreSQL 中文全文检索、评论/表单公开提交风控守卫**，功能对标主流内容管理系统。
 
 ## 功能地图
 
@@ -25,7 +25,7 @@ graph LR
         T --> T2[变体模板/主题参数/部件插槽]
     end
     subgraph 流量运营
-        G[SEO 管理] & H[广告事件] & I[评论] & J[互动问卷] & K[页面搭建/页面部件]
+        G[SEO 管理] & H[广告事件] & I[评论/表单名单守卫] & J[互动问卷] & K[页面搭建/页面部件]
     end
     subgraph 平台能力
         L[数据看板] & M[Headless API] & N[采集中心] & O[全文检索]
@@ -46,9 +46,9 @@ graph LR
 | 素材中心 | `/cms/resources` | 文件夹树、句柄化引用索引、素材替换/裁剪、孤立素材治理与报告导出 | [内容管线](./content-pipeline) |
 | 检索管理 | `/cms/search` | 分词测试、自定义词典、搜索热词 | [全文检索](./search) |
 | SEO 管理 | `/cms/seo` | 301 重定向、内链词、搜索推送、死链检测 | [SEO 与流量](./seo) |
-| 评论管理 | `/cms/comments` | 树形回复、点赞、批量审核 | [互动与运营](./interaction) |
+| 评论管理 | `/cms/comments` | 树形回复、点赞、批量审核、观察主体标注 | [互动与运营](./interaction) |
 | 广告管理 | `/cms/ads` | 广告投放、事件明细、统计、保留期任务与导出 | [互动与运营](./interaction) |
-| 表单管理 | `/cms/forms` | 自定义表单、提交数据导出、邮件通知 | [互动与运营](./interaction) |
+| 表单管理 | `/cms/forms` | 自定义表单、提交数据导出、邮件通知、提交名单守卫 | [互动与运营](./interaction) |
 | 敏感词库 | `/cms/sensitive-words` | Aho-Corasick 引擎，评论/表单提交拦截 | [互动与运营](./interaction) |
 | 易错词库 | `/cms/error-prone-words` | 编辑辅助：错误词→正确词，内容检查一键替换 | [内容管线](./content-pipeline) |
 | 互动问卷 | `/cms/interactions` | survey/poll 统一设计、发布/关闭、答卷、结果与导出 | [互动与运营](./interaction) |
@@ -120,7 +120,7 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 
 ## 权限码
 
-所有权限以 `cms:` 前缀，按资源划分：`cms:site:list|create|update|delete|hierarchy`、`cms:channel:*`、`cms:content:list|create|update|delete|publish|audit|lock`、`cms:distribution:list|create|update|delete|run|export`、`cms:model:*`、`cms:tag:*`、`cms:link:*`、`cms:resource:list|upload|update|delete`、`cms:search:manage`、`cms:seo:manage|push`、`cms:comment:list|audit|delete`、`cms:ad:list|manage`、`cms:ad-event:list|export|export-raw|cleanup`、`cms:form:list|manage`、`cms:sensitive:list|manage`、`cms:word:list|manage`、`cms:interaction:list|manage|batch|export|export-raw`、`cms:subscription:list|export|export-raw`、`cms:stat:view`、`cms:collect:list|create|update|delete|run`、`cms:widget:list|create|update|publish|offline|delete|bind`、`cms:page:list|create|update|delete|acl`、`cms:publish:view|build|manage|group`、`cms:dashboard:view`。
+所有权限以 `cms:` 前缀，按资源划分：`cms:dashboard:view`、`cms:site:list|create|update|delete|hierarchy`、`cms:channel:list|create|update|delete`、`cms:content:list|create|update|delete|publish|audit|lock`、`cms:resource:list|upload|update|delete`、`cms:model:list|create|update|delete`、`cms:tag:list|create|update|delete`、`cms:link:list|create|update|delete`、`cms:search:manage`、`cms:seo:manage|push`、`cms:comment:list|audit|delete`、`cms:ad:list|manage`、`cms:ad-event:list|export|export-raw|cleanup`、`cms:form:list|manage`、`cms:sensitive:list|manage`、`cms:collect:list|create|update|delete|run`、`cms:widget:list|create|update|publish|offline|delete|bind`、`cms:page:list|create|update|delete|acl`、`cms:word:list|manage`、`cms:interaction:list|manage|batch|export|export-raw`、`cms:stat:view`、`cms:publish:view|build|manage|group`、`cms:subscription:list|export|export-raw`、`cms:distribution:list|create|update|delete|run|export`。
 
 站点级数据权限：非平台超管必须在「站点管理 → 授权用户」中显式绑定后才能访问；未绑定时默认拒绝。平台超管可跨站点管理。
 
@@ -132,3 +132,4 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 - **站点导入导出**：站点操作菜单「导出」下载整站 JSON 包（站点配置、栏目树、标签、**素材库（文件夹 + 素材登记）**、内容及关联、友链、重定向、内链词、广告位/广告、表单定义、搭建页面；不含运行数据与用户绑定）；工具栏「导入」上传导出包创建为新站点，内部 id 全部重映射（素材先建、再把包内 `cms-res://` 句柄改写为新站素材 id，避免跨站引用来源站素材），站点 code 冲突自动加序号，域名/默认站标记不迁移。为避免导入绕过发布权限，包内内容无论原状态或计划时间均统一导入为草稿，并清除发布时间、计划发布时间与归档状态，需由有 `cms:content:publish` 权限的用户重新发布或排期。接口 `GET /api/cms/sites/{id}/export`、`POST /api/cms/sites/import`。
 - **CDN 刷新**：站点设置「CDN 刷新」配置 purge webhook 地址与令牌后，增量静态化/整站重建完成自动 POST 变更路径（请求体 `{ siteCode, origin, purgeAll, paths, urls }`，配置令牌时通过 `Authorization` 请求头发送），失败仅记日志不影响静态化结果。
 - **多语言站点关联**：站点设置「多语言站点关联」配置本站语言与关联站点（`语言代码=站点标识` 每行一条）后，前台所有页面输出 `<link rel="alternate" hreflang>` 且页头显示语言切换；关联站点 URL 取绑定域名（无域名回退预览路径）。
+- **公开提交名单守卫**：评论与自定义表单提交复用规则中心统一求值门面 `decide()`。`risk_blacklist` 命中直接返回 403，`cms_watchlist` 命中放行但评论写入 `cms_comments.risk_flag = 'watchlist'`，审核队列展示「观察主体」徽标；名单规则的配置与留痕见 [规则中心](/rules/evaluation)。

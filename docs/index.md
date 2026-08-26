@@ -44,10 +44,15 @@ features:
   - title: 微信公众号
     details: 多公众号统一管理、粉丝与标签（会员打通）、自动回复与多客服会话、自定义/个性化菜单、素材与图文草稿、群发与模板消息、带参二维码、网页授权与 JS-SDK、数据统计。
     link: /mp/
+  - title: 知识中心
+    details: 企业内部 Wiki：空间与角色权限、文档树（拖拽排序/置顶/模板/版本历史）、阅读视图（面包屑/上下篇/大纲）、评论协作、发布审批、治理统计与回收站。
+    link: /wiki/
   - title: 规则中心
-    details: 决策表（first/unique/priority/collect/any 命中策略、版本管理、测试用例与影子运行）、决策流编排、黑白灰名单库与决策执行记录，让业务规则与风控脱离硬编码。
+    details: 统一决策底座：决策表（多命中策略、灰度发布、批量仿真）、决策流编排、评分卡引擎、黑白灰名单库；decide() 统一求值门面与全链路执行留痕，让业务规则与风控脱离硬编码。
+    link: /rules/
   - title: 开放平台
     details: 开发者自助应用、生产/沙箱环境、OAuth 2.1（PKCE）、HMAC 签名网关、API Scope 与限流套餐、调用统计与导出、Webhook 签名投递与失败自动停用、在线 API 调试台。
+    link: /open-platform/
   - title: 数据分析与错误监控
     details: 行为埋点（PV/UV/停留/点击）多维大盘展示；前端 JS 异常自动上报，错误堆栈一键查看，无需额外 APM 工具。
     link: /analytics/
@@ -55,10 +60,10 @@ features:
     details: JWT 双 Token、身份安全策略与登录风险事件、企业身份源（OIDC/SAML/LDAP/AD）、IP 访问控制、登录锁定、数据脱敏、幂等防重提交、接口限流、文件类型 Magic Bytes 校验。
     link: /backend/security
   - title: 运维与可观测
-    details: 仪表盘、服务监控（SSE 实时）、监控告警、定时任务（pg-boss）、任务中心与导出中心、数据库管理与备份、缓存管理；Web SSH 终端、终端录屏、文件管理器、进程管理、Docker、网络诊断、systemd/防火墙/Nginx/SSL 证书管理。
+    details: 仪表盘、服务监控（SSE 实时）、监控告警、定时任务（pg-boss）、任务中心与导出中心、数据库管理与备份、缓存管理、应用版本管理与在线升级；Web SSH 终端、终端录屏、文件管理器、进程管理、Docker、网络诊断、systemd/防火墙/Nginx/SSL 证书管理。
     link: /ops/
   - title: 个性化、PWA 与桌面端
-    details: 偏好设置（拼音搜索）、菜单收藏与最近访问、19 种主题色、路由动画、灰色/色弱模式；可选 PWA 支持与 Electron 桌面客户端。
+    details: 偏好设置（拼音搜索）、菜单收藏与最近访问、19 种主题色、路由动画、灰色/色弱模式；可选 PWA 支持与 Electron 桌面客户端（应用版本管理 + 双层在线升级）。
 ---
 
 <script setup>

@@ -28,11 +28,11 @@ CRUD 操作均**先调微信**（`customservice/kfaccount/add|update|del`）成�
 | --- | --- |
 | `mp_kf_sessions` | 会话主体（粉丝 openid × 客服）：`waiting` 排队 → `active` 进行 → `closed` 结束；含 `priority` 优先级、`unread_count` 未读、各时间戳、`close_reason`、`rating` 满意度 |
 | `mp_kf_session_events` | 事件流水：`create` / `assign` / `accept` / `transfer` / `reroute` / `close`，支撑转接历史与时间线 |
-| `mp_kf_routing_configs` | 每公众号一份路由治理配置：`enabled` 总开关（默认关闭）、策略、单客服最大并发、排队超时、空闲超时、自动结束开关、欢迎语 |
+| `mp_kf_routing_configs` | 每公众号一份路由治理配置：`enabled` 总开关、策略、单客服最大并发、排队超时、空闲超时、自动结束开关、欢迎语 |
 
 > `(account_id, openid) where status <> 'closed'` 部分唯一索引保证同一粉丝在同一公众号下至多一个未结束会话。
 
-> **路由治理默认关闭**：`enabled` 未开启时，粉丝消息不会创建会话（回调中 `onFanInboundMessage` 直接返回），定时任务也不处理该账号。在会话工作台「路由配置」中开启后生效。
+> `enabled` 未开启时，粉丝消息不会创建会话（回调中 `onFanInboundMessage` 直接返回），定时任务也不处理该账号。在会话工作台「路由配置」中开启或关闭会话治理。
 
 ### 状态流转
 

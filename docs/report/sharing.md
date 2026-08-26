@@ -47,7 +47,7 @@
 
 列表「最近投递」列展示上次推送状态（成功 / 部分成功 / 失败），点开**投递历史**可查看每次推送的各通道明细；失败重试与状态语义见[取数运行时与可靠投递](./runtime-governance#可靠投递)。
 
-订阅在创建及每次执行前都会检查仪表盘数据集；包含行级权限、`${__*}` 系统变量或必填参数的仪表盘不能进入无身份定时推送。
+订阅在创建及每次执行前都会检查仪表盘数据集；包含行级权限、`${__*}` 系统变量或必填参数的仪表盘不能进入无身份定时推送。摘要来自仪表盘中的 KPI 组件；KPI 绑定的数据集字段和对比字段必须存在且可数值化，`count` 聚合不要求字段。
 
 ## 跨模块嵌入 `<ReportEmbed>`
 
@@ -67,20 +67,24 @@ import { ReportEmbed } from '@/components/ReportEmbed';
 | 属性 | 说明 |
 |------|------|
 | `dashboardId` | 要嵌入的仪表盘 ID |
-| `filterValues` | 外部注入的筛选器值（按 filterId），覆盖内部默认值 |
+| `embedToken` | 外部匿名嵌入令牌；传入后走公开嵌入接口，不使用后台登录态 |
+| `filterValues` | 外部注入的筛选器值（按 filterId），受控时始终以 props 为真值 |
 | `showFilters` | 是否显示内置筛选栏（默认隐藏，由宿主控制） |
 | `readOnly` | 禁止筛选器、ref 和 `postMessage` 修改筛选值 |
 | `interceptDrilldown` | 触发回调后阻止默认钻取跳转 |
 | `allowedOrigins` | 精确宿主 origin 白名单；默认读取仪表盘配置，再回退同源 |
-| `height` | 容器高度（默认自适应内容） |
+| `onLoad` / `onError` | 嵌入仪表盘加载成功或失败时回调 |
+| `onFilterChange` | 筛选值变化时回调；受控模式下仅通知宿主，不覆盖 props |
+| `onWidgetClick` / `onDrilldown` | 组件点击与钻取事件回调 |
+| `height` / `className` / `style` | 容器高度、样式类与内联样式 |
 
-嵌入为只读渲染，复用同一套组件与取数逻辑；大屏画布仪表盘按比例自适应容器。
+嵌入为只读渲染，复用同一套组件与取数逻辑；大屏画布仪表盘按比例自适应容器。组件 ref 暴露 `refresh()`、`setFilter()`、`resetFilters()`、`getState()` 与 `exportPng()`，便于宿主主动刷新、设置筛选和导出图片。
 
 登录内嵌按 `dashboardId` 读取发布态；外部宿主使用 scoped embed token：
 
 - `GET /api/report/dashboards/{id}/embed-tokens`：Token 列表；
 - `POST /api/report/dashboards/{id}/embed-tokens`：创建限定仪表盘、来源与有效期的 Token，并可声明**允许外部修改的筛选器**（`allowedFilterIds`）与**固定筛选值**（`fixedFilters`，宿主不可覆盖）；
-- `POST /api/report/dashboards/embed-tokens/{id}/revoke`：立即吊销；
+- `POST /api/report/dashboards/embed-tokens/{embedTokenId}/revoke`：立即吊销；
 - `GET /api/report/public/embed/{token}`、`POST /api/report/public/embed/{token}/data`：匿名读取发布快照和取数。
 
 Token 不放在日志或 URL 查询参数中，不等价于后台 JWT；吊销、过期、来源不匹配或仪表盘未发布时拒绝访问。移动端自动切换为单列阅读模式，使用同一发布快照、组件权限和查询预算。
@@ -162,4 +166,6 @@ window.addEventListener('message', (event) => {
 | 创建/管理公开分享 | `report:dashboard:update` |
 | 评论 | `report:dashboard:list` |
 | 订阅查看 | `report:subscription:list` |
-| 订阅新增 / 编辑 / 删除 | `report:subscription:create` / `:update` / `:delete` |
+| 订阅新增 | `report:subscription:create` |
+| 订阅编辑 / 批量启停 / 立即推送 | `report:subscription:update` |
+| 订阅删除 | `report:subscription:delete` |

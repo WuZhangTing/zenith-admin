@@ -1,49 +1,56 @@
 # PWA 支持
 
-Zenith Admin 内置 PWA 支持（由 `vite-plugin-pwa` 提供），可让用户将系统"添加到主屏幕"像原生 App 一样使用。默认**关闭**，需从源码重新构建前端开启。
+前端集成 `vite-plugin-pwa`，通过环境变量选择是否在生产构建中生成 Service Worker 与 Manifest。默认关闭。
 
 ## 启用方式
 
-创建（或编辑已有的）`packages/web/.env.production`，加入以下配置后重新构建：
+创建或编辑 `packages/web/.env.production`：
 
 ```ini
 VITE_PWA_ENABLED=true
-VITE_APP_SHORT_NAME=Zenith        # 主屏幕显示的短名称
+VITE_APP_TITLE=Zenith Admin
+VITE_APP_SHORT_NAME=Zenith
 VITE_APP_DESCRIPTION=企业级后台管理系统
-VITE_APP_THEME_COLOR=#07c160      # 标题栏颜色，建议与系统主题色一致
+VITE_APP_THEME_COLOR=#07c160
 ```
 
-> manifest 中的应用完整名称取自 `VITE_APP_TITLE`（默认 `Zenith Admin`），短名称取自 `VITE_APP_SHORT_NAME`。
+重新构建前端：
 
 ```bash
-# 重新构建前端
 npm run build -w @zenith/web
 ```
 
-构建产物中会包含 `sw.js`（Service Worker）和 `manifest.webmanifest`。
+构建产物会包含 `sw.js` 与 `manifest.webmanifest`。
 
-## 技术细节
+## 当前配置
 
-| 策略 | 说明 |
+| 项 | 当前实现 |
 | --- | --- |
-| API 请求 `/api/*` | Network Only — 数据始终实时，不缓存 |
-| 静态资源 JS/CSS/字体/图片 | Precache — 预缓存 Vite 构建产物，首屏加载更快 |
-| Service Worker 更新 | `autoUpdate` — Service Worker 自动更新 |
+| 注册策略 | `registerType: 'autoUpdate'` |
+| Manifest 名称 | `VITE_APP_TITLE`，默认 `Zenith Admin` |
+| Manifest 短名称 | `VITE_APP_SHORT_NAME`，默认 `Zenith` |
+| 主题色 | `VITE_APP_THEME_COLOR`，默认 `#07c160` |
+| `display` | `standalone` |
+| `start_url` / `scope` | `/` |
+| 预缓存 | `**/*.{js,css,woff2,png,svg,ico}` |
+| API 请求 | `/api/*` 使用 `NetworkOnly`，不缓存业务数据 |
+| SPA fallback | `index.html`，排除 `/api/` |
+| 开发模式 SW | `devOptions.enabled=false` |
+
+## 图标
+
+默认图标位于：
+
+```text
+packages/web/public/icons/icon-192.png
+packages/web/public/icons/icon-512.png
+```
+
+替换品牌图标时保持 192×192 与 512×512 尺寸。Manifest 中 `icon-512.png` 同时作为 `maskable` 图标。
 
 ## 注意事项
 
-::: tip
-- **需要 HTTPS**：Service Worker 要求在 HTTPS 下运行（`localhost` 除外）
-- **自定义图标**：可将品牌图标替换 `packages/web/public/icons/icon-192.png` 和 `icon-512.png`（需 192×192 和 512×512 像素）
-- **开发模式**：PWA 开发模式 Service Worker 未启用，需通过生产构建产物验证
-:::
-
-## 图标生成
-
-如果有 `favicon.svg`，可使用 ImageMagick 生成标准尺寸 PNG 图标：
-
-```bash
-cd packages/web/public
-magick -background none favicon.svg -resize 192x192 icons/icon-192.png
-magick -background none favicon.svg -resize 512x512 icons/icon-512.png
-```
+- Service Worker 在 HTTPS 或 `localhost` 下工作。
+- API 不缓存，后台数据实时性由网络请求保证。
+- Electron 构建不依赖 PWA；桌面客户端使用 Electron 自身的更新机制。
+- GitHub Pages Demo 站由 `npm run build:demo` 构建，是否启用 PWA 取决于 Demo 构建时注入的环境变量。

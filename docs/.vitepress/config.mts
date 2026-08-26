@@ -55,13 +55,16 @@ export default withMermaid(defineConfig({
           { text: '会员中心', link: '/member/' },
           { text: '通知中心', link: '/notification/' },
           { text: '文件与存储', link: '/storage/' },
+          { text: '知识中心', link: '/wiki/' },
           { text: 'CMS 内容管理', link: '/cms/' },
           { text: 'AI 能力', link: '/ai-platform/' },
           { text: '工作流', link: '/workflow/' },
+          { text: '规则中心', link: '/rules/' },
           { text: '支付中心', link: '/payment/' },
           { text: '数据分析', link: '/analytics/' },
           { text: '报表中心', link: '/report/' },
           { text: '微信公众号', link: '/mp/' },
+          { text: '开放平台', link: '/open-platform/' },
         ],
       },
       {
@@ -142,6 +145,18 @@ export default withMermaid(defineConfig({
         ],
       },
       {
+        text: '知识中心',
+        collapsed: true,
+        items: [
+          { text: '总览', link: '/wiki/' },
+          { text: '空间与权限', link: '/wiki/spaces-permissions' },
+          { text: '文档管理与阅读', link: '/wiki/documents' },
+          { text: '协作与审批', link: '/wiki/collaboration-approval' },
+          { text: '治理、统计与设置', link: '/wiki/governance-stats-settings' },
+          { text: '数据模型与接口速查', link: '/wiki/reference' },
+        ],
+      },
+      {
         text: 'CMS 内容管理',
         collapsed: true,
         items: [
@@ -193,6 +208,21 @@ export default withMermaid(defineConfig({
         ],
       },
       {
+        text: '开放平台',
+        collapsed: true,
+        items: [
+          { text: '总览', link: '/open-platform/' },
+          { text: '快速接入', link: '/open-platform/quickstart' },
+          { text: '应用与凭证', link: '/open-platform/apps' },
+          { text: 'OAuth 2.1 授权', link: '/open-platform/oauth2' },
+          { text: '签名与网关', link: '/open-platform/gateway-signature' },
+          { text: 'Scope 与限流', link: '/open-platform/scopes-rate-limits' },
+          { text: 'Webhook', link: '/open-platform/webhooks' },
+          { text: '调用统计与调试台', link: '/open-platform/stats-debug' },
+          { text: '开放 API 目录', link: '/open-platform/api-reference' },
+        ],
+      },
+      {
         text: '工作流',
         collapsed: true,
         items: [
@@ -232,6 +262,20 @@ export default withMermaid(defineConfig({
               { text: '权限与范围控制', link: '/workflow/permissions' },
             ],
           },
+        ],
+      },
+      {
+        text: '规则中心',
+        collapsed: true,
+        items: [
+          { text: '总览', link: '/rules/' },
+          { text: '决策表', link: '/rules/decision-tables' },
+          { text: '决策流', link: '/rules/flows' },
+          { text: '评分卡', link: '/rules/scorecards' },
+          { text: '名单库', link: '/rules/lists' },
+          { text: '求值接入', link: '/rules/evaluation' },
+          { text: '执行留痕', link: '/rules/executions' },
+          { text: '接口与数据模型速查', link: '/rules/reference' },
         ],
       },
       {
@@ -310,7 +354,13 @@ export default withMermaid(defineConfig({
         text: '系统运维与可观测',
         collapsed: true,
         items: [
-          { text: '系统运维', link: '/ops/' },
+          { text: '系统运维总览', link: '/ops/' },
+          { text: '终端与文件', link: '/ops/terminal' },
+          { text: '主机与中间件', link: '/ops/host-infra' },
+          { text: '数据库、缓存与保留策略', link: '/ops/data-platform' },
+          { text: '监控与告警', link: '/ops/observability' },
+          { text: '应用版本与在线升级', link: '/ops/app-releases' },
+          { text: '接口与页面速查', link: '/ops/reference' },
           { text: '定时任务', link: '/backend/cron-jobs' },
           { text: '数据保留', link: '/backend/data-retention' },
           { text: '维护模式', link: '/backend/maintenance-mode' },

@@ -2,7 +2,7 @@
 
 公众号管理是一个**一级菜单目录**，将微信公众平台的开发者能力（账号、粉丝、消息、菜单、素材、群发、模板消息、网页授权、客服、数据等）整合进后台，支持**多公众号统一管理**。管理接口挂载在 `/api/mp` 前缀下，消息回调与网页授权回调为 `/api/public/mp/*` 公开端点；业务表集中在 `packages/server/src/db/schema/mp.ts` 的 `mp_*` 系列表，前端页面集中在「公众号管理」目录（`packages/web/src/pages/mp/`）。
 
-> 与微信的所有交互统一通过 `packages/server/src/lib/wechat/` 封装，外呼走 `http-client`，`access_token` / `jsapi_ticket` 经 Redis 缓存。示例种子账号未配置真实 AppSecret，调用真实接口时会返回 `40013 invalid appid`，并被统一映射为 `400` 业务错误（便于在未接入真实公众号时演示页面）。
+> 与微信的所有交互统一通过 `packages/server/src/lib/wechat/` 封装，外呼走 `http-client`，`access_token` / `jsapi_ticket` 经 Redis 缓存。AppID 以 `wxdemo` 开头的演示账号走微信 API 沙箱：`api.ts` / `access-token.ts` 在收口层短路返回模拟成功响应，二维码、群发、菜单、素材、模板、客服、内容安全、数据立方等页面可在无真实凭证环境演示；网页授权 `sns/oauth2/*` 不走该沙箱。
 
 ---
 
@@ -51,7 +51,7 @@
 | `mp_broadcasts` | 群发任务（含 `scheduled_at` 定时） |
 | `mp_qrcodes` | 带参二维码（含 `reward_points` 扫码奖励） |
 | `mp_kf_accounts` | 多客服账号 |
-| `mp_kf_sessions` / `mp_kf_session_events` / `mp_kf_routing_configs` | 多客服会话状态机 / 事件流水 / 路由治理配置（含 `enabled` 总开关，默认关闭） |
+| `mp_kf_sessions` / `mp_kf_session_events` / `mp_kf_routing_configs` | 多客服会话状态机 / 事件流水 / 路由治理配置（含 `enabled` 总开关） |
 
 ---
 

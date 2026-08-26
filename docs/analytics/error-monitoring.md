@@ -1,6 +1,6 @@
 # 错误监控
 
-错误监控页面（`/analytics/errors`）对标 Sentry，提供 6 个 Tab：**概览 / 错误 Issue / 错误事件 / Source Map / 告警规则 / 告警历史**，覆盖 Issue 分组、堆栈还原、行为面包屑、状态流转与多渠道告警。
+错误监控页面（`/analytics/errors`）提供 6 个 Tab：**错误 Issue / 概览 / 错误事件 / Source Map / 告警规则 / 告警历史**，默认进入「错误 Issue」，覆盖 Issue 分组、堆栈还原、行为面包屑、状态流转与多渠道告警。
 
 ## 捕获范围
 
@@ -9,7 +9,7 @@
 | 类型 | 来源 |
 |------|------|
 | `js_error` | 未捕获的运行时错误（window error） |
-| `promise_rejection` | 未处理的 Promise 拒绝（不含约定内拒绝：`ApiError` 业务错误与弹窗 `onOk` 控制流标记如 `Error('validation')`，二者已由 request 层 / 页面自行提示，不提示也不上报） |
+| `promise_rejection` | 未处理的 Promise 拒绝（不含约定内拒绝：`ApiError` 业务错误与 `SubmitAborted` 提交中断标记，二者由 request 层或页面自行提示，不进入错误监控） |
 | `resource_error` | 图片 / 脚本 / 样式等资源加载失败 |
 | `console_error` | `console.error` 调用 |
 | `http_error` | 失败的 fetch/XHR 请求（5xx / 网络错误，由 SDK API 监控转报） |
@@ -23,15 +23,17 @@
 - 每次上报携带最近 30 条**行为面包屑**（导航 / 点击 / 网络 / 控制台）用于还原现场。
 - SDK 侧对同一 `type + message` 的错误做 10 秒去重，避免循环报错刷爆队列。
 - 载荷截断上限：`message` 2000 字符、`stack` 16000 字符、来源/页面 URL 512 字符。
+- 采集设置中的 `errorIgnorePatterns` 按租户配置正则规则，命中 `message` 的错误在服务端丢弃；非法正则被跳过，不影响其他规则。
 
 ## Issue 分组模型
 
 相同错误按**指纹**聚合为一个 `error_group`（Issue），每次发生记录为一条 `error_event`：
 
-- 指纹 = `hash(tenantId + errorType + 归一化 message + 顶层堆栈帧 + 来源文件)`；归一化会抹掉数字、UUID、十六进制地址等易变部分，含租户因子保证全局唯一。
+- 指纹 = `hash(tenantId + environment + errorType + 归一化 message + 顶层堆栈帧 + 来源文件)`；归一化会抹掉数字、UUID、十六进制地址等易变部分，含租户与环境因子保证全局唯一。
 - 列表 `GET /api/frontend-errors/groups` 支持按状态 / 类型 / 级别 / 错误信息关键词筛选。
 - 概览 `GET /api/frontend-errors/overview` 提供错误种类、未解决数、总发生次数、影响用户、今日新增、趋势与 Top Issues。
-- 「错误事件」Tab（`GET /api/frontend-errors/events`）跨 Issue 平铺检索单次错误事件，支持类型 / 级别 / 关键词 / 时间范围筛选。
+- 「错误事件」Tab（`GET /api/frontend-errors/events`）按标准分页平铺查看单次错误事件；Issue 详情可通过 `groupId` 查看该分组的最近事件。
+- `error_group_identities` 以 `u:{userId}` / `m:{memberId}` / `a:{sessionId}` 对每个 Issue 去重维护影响用户数，避免详情页临时做大范围 `COUNT(DISTINCT)`。
 
 ## 详情
 

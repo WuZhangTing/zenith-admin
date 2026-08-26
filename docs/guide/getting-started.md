@@ -1,53 +1,56 @@
 # 快速开始
 
-Zenith Admin 是一个基于 **Hono + React 19 + Drizzle ORM** 的 npm monorepo 项目。
-
-如果你想在本地把项目和文档站都跑起来，建议按下面的顺序执行。
+Zenith Admin 是基于 **Hono v4 + React 19 + Drizzle ORM** 的 npm monorepo 项目，当前版本为 `1.90.0`。本页用于把本地开发环境跑通；生产部署请看 [部署说明](./deployment.md) 与 [Docker 部署](./docker.md)。
 
 ## 环境要求
 
-- Node.js 24.x（仓库根目录提供 `.nvmrc`，根 `package.json` 的 `engines` 限定 `>=24 <25`，与 CI / Docker 环境一致）
+- Node.js 24.x（根 `package.json` 限定 `>=24 <25`，CI 与 Docker 也使用 Node 24）
 - npm
 - PostgreSQL
-- Redis（用于会话持久化，默认连接本地 `127.0.0.1:6379`）
+- Redis（会话、限流、幂等、黑名单等运行时状态）
 
 ::: tip 用 Docker 启动本地基础设施
-本机没有现成的 PostgreSQL / Redis 时，可以用仓库自带的 `docker-compose.dev.yml` 一键启动两者（端口与默认连接配置一致），详见 [Docker 部署 → 本地开发基础设施](./docker#本地开发基础设施)。
+本机没有 PostgreSQL / Redis 时，在仓库根目录执行：
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+该 compose 只启动 PostgreSQL `5432` 与 Redis `6379`，不构建 API / Web 镜像。
 :::
 
 ## 安装依赖
-
-在仓库根目录执行：
 
 ```bash
 npm install
 ```
 
+CI、Docker 和发布流程使用 `npm ci`；本地首次开发或更新依赖时使用 `npm install` 更方便。
+
 ## 配置环境变量
 
 ### 后端 `packages/server/.env`
 
-复制模板后按需修改（`packages/server/.env.example` 包含全部可用变量及说明，如请求防护、可观测性、WebRTC、HTTP 流量日志等）：
+从模板复制：
 
 ```bash
 cp packages/server/.env.example packages/server/.env
 ```
 
-本地开发的最小配置如下：
+本地最小配置：
 
 ```ini
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/zenith_admin
-JWT_SECRET=your-secret-key
 PORT=3300
-# Redis 连接（默认连接本地无密码 Redis）
+JWT_SECRET=your-secret-key
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/zenith_admin
 REDIS_URL=redis://127.0.0.1:6379
-# 带密码示例: REDIS_URL=redis://:your_password@127.0.0.1:6379/0
-# REDIS_KEY_PREFIX=zenith:   # 所有 key 的命名空间前缀（默认 zenith:）
 ```
+
+`packages/server/.env.example` 还列出开放平台、请求限制、CSRF、可信代理、出站私网 allowlist、Mastra Studio、WebRTC、HTTP 流量日志、支付、CMS 与 Webhook 等可选变量。
 
 ### 前端 `packages/web/.env.development`
 
-开发环境下，API 请求通过 Vite Dev Server 代理转发到后端，无需直接填写后端地址：
+开发模式默认通过 Vite 代理访问后端：
 
 ```ini
 VITE_API_BASE_URL=
@@ -58,7 +61,7 @@ VITE_APP_TITLE=Zenith Admin
 VITE_BASE_URL=
 ```
 
-> `VITE_API_PROXY_TARGET` 仅在开发模式的 Vite Dev Server 中生效，不会暴露到客户端 bundle。生产部署时通过 `VITE_API_BASE_URL` 指定后端地址，详见 [部署文档](./deployment.md)。
+`VITE_API_PROXY_TARGET` 只作用于 Vite Dev Server，不会写入浏览器 bundle。生产跨域部署时才需要设置 `VITE_API_BASE_URL` / `VITE_WS_BASE_URL`。
 
 ## 初始化数据库
 
@@ -67,9 +70,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-种子脚本会创建默认管理员账号（`admin` / `123456`）及菜单、字典等初始数据，采用「已存在则跳过」策略，可安全重复执行。
-
-> `npm run dev`（或 `npm run dev:server`）启动时会自动依次执行迁移与种子脚本，因此首次启动也可以跳过本步骤直接 `npm run dev`。
+种子脚本写入默认管理员 `admin` / `123456`、菜单、字典、演示数据等，可重复执行。`npm run dev:server` 会先执行迁移与种子，再启动 watch 服务，因此也可以直接进入开发启动。
 
 ## 启动业务项目
 
@@ -82,10 +83,14 @@ npm run dev:server
 npm run dev:web
 ```
 
-- 前端开发服务器默认地址为 `http://localhost:5373`（后台管理入口；会员前台入口为 `/member.html`）
-- 后端默认地址为 `http://localhost:3300`，开发模式下前端通过 Vite 代理转发 `/api` 请求
-- 默认登录账号：`admin` / `123456`
-- Swagger UI：`http://localhost:3300/api/docs`；OpenAPI JSON：`http://localhost:3300/api/openapi.json`
+| 入口 | 地址 |
+| --- | --- |
+| 后台管理 | `http://localhost:5373/` |
+| 会员前台 | `http://localhost:5373/member.html` |
+| 移动审批 | `http://localhost:5373/approval.html` |
+| 后端 API | `http://localhost:3300` |
+| Swagger UI | `http://localhost:3300/api/docs` |
+| OpenAPI JSON | `http://localhost:3300/api/openapi.json` |
 
 ## 启动文档站
 
@@ -93,10 +98,10 @@ npm run dev:web
 npm run docs:dev
 ```
 
-默认地址：`http://localhost:4177`
+默认地址：`http://localhost:4177`。构建产物预览使用 `npm run docs:preview`，端口为 `4178`。
 
 ## 下一步建议
 
-- 想先了解目录分层：继续阅读 [项目结构](/guide/project-structure)
-- 想快速判断能否满足场景：查看 [功能模块](/product/features)
-- 想看接口与数据规范：查看 [后端文档](/backend/api-conventions)
+- 了解目录分层：阅读 [项目结构](/guide/project-structure)
+- 查看所有功能：阅读 [功能模块](/product/features)
+- 开发新模块：阅读 [AI 辅助开发](/ai/) 与仓库内 `.agents/skills/zenith/`

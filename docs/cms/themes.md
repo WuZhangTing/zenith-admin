@@ -18,7 +18,7 @@
 
 ## CmsTheme 接口
 
-新增主题 = 在 `themes/{code}/` 下实现 `CmsTheme`、放一份 `styles.css`，并在 registry 登记一行：
+开发主题 = 在 `themes/{code}/` 下实现 `CmsTheme`、放一份 `styles.css`，并在 registry 登记一行：
 
 ```ts
 export const myTheme: CmsTheme = {
@@ -188,7 +188,7 @@ const rest = content.modelFields.filter((f) => f !== rating && f.displayValue);
 
 ```ts
 widgetSlots: [{
-  key: 'home.sidebar',           // 第一期仅支持该插槽
+  key: 'home.sidebar',           // 当前内置主题统一声明的首页侧栏插槽
   label: '首页侧栏',
   allowedTypes: ['manual-list'],
   rendererKeys: [...CMS_WIDGET_RENDERER_KEYS],

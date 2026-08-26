@@ -1,127 +1,84 @@
 # Electron 桌面客户端
 
-Zenith Admin 支持打包为 Electron 桌面应用，适用于需要将系统以客户端形式分发给用户的场景（无需浏览器，直接安装运行）。
-
-::: warning 架构说明
-Electron 客户端仅包含**前端**（渲染层），**后端仍需独立部署**。客户端通过配置的 API 地址访问服务器，本质是将 Web 前端包装为原生桌面窗口。
-:::
+`packages/electron` 将 Web 前端打包为桌面客户端。桌面壳不包含后端业务逻辑，仍通过 API 地址访问已部署的 Zenith Server。
 
 ## 构建要求
 
-| 依赖 | 版本 |
+| 依赖 | 要求 |
 | --- | --- |
 | Node.js | 24.x |
-| 已完成依赖安装 | `npm install` |
-
-## 构建步骤
-
-### 1. 配置 API 地址
-
-Electron 模式下，前端通过 `VITE_API_BASE_URL` 指定后端地址。在 `packages/web/.env.production` 中添加（如未使用同域部署）：
-
-```ini
-VITE_API_BASE_URL=https://your-server.com
-VITE_WS_BASE_URL=wss://your-server.com
-```
-
-若前端和后端同域（如通过 Nginx 代理），无需设置。
-
-### 2. 执行构建命令
-
-```bash
-# 构建当前平台安装包
-npm run build:electron
-
-# 构建 Windows 安装包（.exe）
-npm run build:electron:win
-
-# 构建 macOS 安装包（.dmg）
-npm run build:electron:mac
-
-# 构建 Linux 安装包（.AppImage）
-npm run build:electron:linux
-```
-
-::: warning Windows 下的 shell 要求
-`build:electron*` 脚本通过 Unix 的 `env` 命令注入 `VITE_ELECTRON=true`，在 Windows 默认的 cmd 中无法执行。Windows 上请在 **Git Bash**（或 WSL）中运行这些命令。
-:::
-
-构建命令会自动：
-
-1. 以 Electron 模式构建前端（注入 `VITE_ELECTRON=true`，启用 `HashRouter` 和相对路径资源）
-2. 编译 Electron 主进程 TypeScript 代码
-3. 通过 `electron-builder` 打包为平台安装包
-
-### 3. 查找产物
-
-构建完成后，安装包位于项目根目录的 `dist/electron/` 目录：
-
-```
-dist/electron/
-├── Zenith Admin Setup x.y.z.exe          # Windows NSIS 安装包
-├── Zenith Admin Setup x.y.z.exe.blockmap
-└── win-unpacked/                         # 免安装版本（可直接运行）
-    ├── Zenith Admin.exe
-    └── resources/
-        ├── app.asar                      # 主进程代码
-        └── web/                          # 前端静态资源
-```
+| npm 依赖 | 在仓库根目录完成 `npm install` / `npm ci` |
+| 平台构建工具 | 按 electron-builder 对 Windows / macOS / Linux 的要求准备 |
 
 ## 开发调试
 
 ```bash
-# 启动前端 dev server、主进程 TypeScript watch 编译和 Electron 窗口
 npm run dev:electron
 ```
 
-Electron 开发模式会连接本地 `http://localhost:5373` 的 Vite dev server，支持热重载，并自动打开 DevTools。
+该脚本执行 `packages/electron` 的 `dev`：编译 Electron TypeScript、启动 `@zenith/web`、监听主进程 TypeScript，并在 `http://localhost:5373` 可用后打开窗口。后端需另行启动 `npm run dev:server` 或由前端环境变量指向远程 API。
 
-> 该命令**不包含后端**：需要另行执行 `npm run dev:server` 启动本地后端，或通过 `VITE_API_BASE_URL` 指向远程 API。
+## 构建命令
 
-## 安全机制
+```bash
+npm run build:electron         # 当前平台
+npm run build:electron:win     # Windows NSIS，x64
+npm run build:electron:mac     # macOS dmg + zip，x64 / arm64
+npm run build:electron:linux   # Linux AppImage，x64
+```
 
-| 配置 | 值 | 说明 |
-| --- | --- | --- |
-| `contextIsolation` | `true` | 渲染进程与 Node 环境隔离 |
-| `nodeIntegration` | `false` | 渲染进程无法直接访问 Node.js API |
-| `webSecurity` | `true` | 保持默认 Web 安全策略 |
-| Preload 脚本 | 受限 API | 通过 `contextBridge` 暴露窗口控制、最大化状态监听、在线升级配置/检查和 `isElectron` 标识 |
+根脚本先以 `VITE_ELECTRON=true` 构建 `@zenith/web`，再运行 `@zenith/electron` 的平台构建。Electron 模式下 Web 使用相对资源路径与 `HashRouter`，适配 `file://` 协议。
+
+::: warning Windows shell
+根 `build:electron*` 脚本使用 Unix `env VITE_ELECTRON=true`。Windows 默认 cmd 不支持该写法，请使用 Git Bash 或 WSL。
+:::
+
+## 产物位置
+
+产物输出到根目录 `dist/electron/`。当前 electron-builder 配置：
+
+| 平台 | 目标 |
+| --- | --- |
+| Windows | NSIS 安装包，x64 |
+| macOS | dmg + zip，x64 / arm64 |
+| Linux | AppImage，x64 |
+
+Web 静态文件作为 `extraResources` 复制到安装包资源目录的 `web/` 下。
+
+## 主进程与 preload
+
+| 文件 | 职责 |
+| --- | --- |
+| `packages/electron/src/main.ts` | 创建 1280×800 主窗口、外链用系统浏览器打开、窗口状态同步、应用生命周期 |
+| `packages/electron/src/preload.ts` | 通过 `contextBridge` 暴露窗口控制、`isElectron`、在线升级配置与手动检查 API |
+| `packages/electron/src/updater.ts` | 双层在线升级、deviceId、灰度命中、下载校验、安装回执 |
+
+安全配置：`contextIsolation=true`、`nodeIntegration=false`、`webSecurity=true`。
 
 ## 在线升级
 
-客户端已接入服务端的**应用版本管理**（系统设置 → 应用版本，appKey 为 `zenith-desktop`），
-双层更新，打包运行时自动生效（启动 15 秒后首查，之后每 4 小时一次）：
+桌面端对接服务端「系统设置 → 应用版本」，固定 appKey 为 `zenith-desktop`。打包运行后，启动 15 秒执行首次检查，随后每 4 小时检查一次；也支持渲染进程手动触发检查。
 
-| 层 | 制品类型 | 行为 |
+| 更新类型 | 制品 kind | 行为 |
 | --- | --- | --- |
-| Web 热更新 | `热更新包`（前端 dist 打成的 zip） | 下载 → SHA256 校验 → 解压到 `userData/web-updates/{version}` → 提示重载，壳不动 |
-| 壳全量更新 | `安装包` + `元数据`（electron-builder 产物） | electron-updater 走服务端 latest.yml feed，后台差量下载 → 提示重启安装 |
-| 外链 | `外部链接` | 打开系统浏览器跳转 |
+| Web 热更新 | `hotupdate` | 下载 zip → SHA256 校验 → 解压到 `userData/web-updates/{version}` → 提示重载；壳版本不变 |
+| 壳全量更新 | `installer` + `metadata` | `electron-updater` 使用 generic feed 下载安装包 / blockmap / latest.yml，提示重启安装 |
+| 外链更新 | `external` | 打开系统浏览器访问外部下载地址 |
 
-### 更新服务器地址
+更新服务器地址优先级：
 
-主进程按以下优先级取更新服务器地址：
+1. `userData/update-config.json`，例如 `{ "serverUrl": "https://admin.example.com", "channel": "stable" }`
+2. 渲染进程上报的 `VITE_API_BASE_URL`
+3. 环境变量 `ZENITH_UPDATE_SERVER`
 
-1. `userData/update-config.json`（`{ "serverUrl": "https://...", "channel": "stable" }`，运维可现场覆盖）
-2. 渲染进程上报的 `VITE_API_BASE_URL`（构建时打进 web 包，默认来源）
-3. 环境变量 `ZENITH_UPDATE_SERVER`（调试用）
+渠道支持 `stable`、`beta`、`internal`。客户端首次运行生成匿名 `deviceId`，检查、下载与回执请求都会携带该标识，用于灰度分桶与统计。
 
-### 发布新版本
+## 发布客户端版本
 
-1. 执行平台构建命令得到 `dist/electron/` 产物
-2. 在管理后台「应用版本」新建版本（semver 须高于在网版本）
-3. 上传制品：
-   - **仅前端变更**：把 `packages/web/dist`（Electron 模式构建）打成 zip，按平台上传为 `热更新包`
-   - **壳变更**：上传 `Setup x.y.z.exe` / `.blockmap`（类型 `安装包` / `元数据`），
-     `latest.yml` 上传为 `元数据`；macOS 需上传 `zip` 目标产物且应用必须签名
-4. 发布（可先设灰度比例小流量验证，看板确认后放量到 100%）
+1. 执行对应平台构建命令。
+2. 在「系统设置 → 应用版本」维护应用、版本与制品。
+3. 仅 Web 前端变化时上传 Electron 模式构建的 `packages/web/dist` zip，类型选 `热更新包`。
+4. 壳能力变化时上传安装包、blockmap 与 latest.yml 等 electron-builder 产物，类型选 `安装包` / `元数据`。
+5. 发布版本，可配置灰度比例；升级看板记录检查、下载、安装成功与失败事件。
 
-::: tip 灰度与回执
-客户端首次运行生成匿名 `deviceId`（`userData/device-id`），灰度按其哈希命中；
-热更成功与壳更新重启后自动上报安装回执，升级看板可见。
-:::
-
-## 升级版本（手动分发）
-
-1. 重新执行对应平台的构建命令
-2. 将新安装包分发给用户安装（覆盖安装即可）
+macOS 自动更新依赖签名与 zip feed，按 electron-builder 平台要求处理证书与公证。

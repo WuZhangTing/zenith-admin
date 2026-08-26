@@ -1,187 +1,163 @@
 # 数据库与迁移
 
-项目使用 **PostgreSQL + Drizzle ORM** 管理数据库结构与迁移。
+项目使用 PostgreSQL + Drizzle ORM 管理数据库结构与迁移。Server 工作区的 Drizzle 配置在 `packages/server/drizzle.config.ts`，schema 入口是 `packages/server/src/db/schema.ts`，迁移目录是 `packages/server/drizzle/`。
 
 ## 默认连接
 
-默认连接字符串如下，可通过 `.env` 覆盖：
+`.env` 通过 `DATABASE_URL` 配置数据库连接：
 
 ```ini
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/zenith_admin
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/zenith_admin
 ```
+
+运行时连接池参数由 `config.database` 控制，`db/index.ts` 使用 `postgres` + `drizzle-orm/postgres-js` 创建单例连接。
 
 ## 迁移流程
 
-当你修改数据库 schema 后：
+修改 `packages/server/src/db/schema/` 后，在仓库根目录执行：
 
 ```bash
 npm run db:generate
 npm run db:migrate
 ```
 
-如果需要初始化演示数据：
+如需初始化演示 / 内置数据：
 
 ```bash
 npm run db:seed
 ```
 
-迁移入口是 `packages/server/src/db/migrate.ts`（纯 Drizzle migrator）。三条启动链路都会先跑迁移、再启动服务，因此它是唯一的 schema 收敛点：
+根目录脚本会转发到 `@zenith/server`：
 
-- 开发：`npm run dev` → `scripts/dev.mjs`（migrate → seed → 服务）
-- 生产：`npm start` → `node dist/db/migrate.js && node dist/index.js`
-- 容器：`docker/entrypoint.sh` → migrate → 服务
+| 根目录脚本 | Server 脚本 |
+| --- | --- |
+| `npm run db:generate` | `npm run db:generate -w @zenith/server` → `drizzle-kit generate` |
+| `npm run db:migrate` | `npm run db:migrate -w @zenith/server` → `tsx src/db/migrate.ts` |
+| `npm run db:seed` | `npm run db:seed -w @zenith/server` → `tsx src/db/seed.ts` |
 
-**迁移失败以非零码退出并阻断服务启动**，避免带着半迁移状态对外提供服务。
+迁移入口 `packages/server/src/db/migrate.ts` 使用 Drizzle migrator 执行 `./drizzle`。开发、生产和容器启动链路都会先执行迁移再启动服务；迁移失败以非零码退出，阻断服务启动。
 
 ## 重要约定
 
-### 不要直接手改迁移 SQL
+### 迁移文件来源
 
-正确方式是修改 `src/db/schema/` 下的域文件，然后 `npm run db:generate` 生成新的迁移文件。唯一例外是 `drizzle/0001_extensions.sql`（见下）。
+结构变更先改 `src/db/schema/`，再由 `drizzle-kit generate` 生成迁移 SQL。不要手工改写已生成迁移来适配代码。仅 Drizzle schema 无法表达的 DDL 可使用 custom migration，例如扩展、表达式索引、条件 DDL。
 
-### 迁移基线
+### 迁移目录
 
-当前迁移链以 v1.76.0 重建的基线为起点，`packages/server/drizzle/` 下只有两条迁移：
+`packages/server/drizzle/` 包含 `0000_baseline.sql`、`0001_extensions.sql` 和后续增量迁移，执行顺序由 `drizzle/meta/_journal.json` 管理。全新数据库执行 `npm run db:migrate` 会按该顺序建库。
 
-| 文件 | 内容 |
-| --- | --- |
-| `0000_baseline.sql` | 全量表结构基线（由 `drizzle-kit generate` 从 schema 生成） |
-| `0001_extensions.sql` | 手写扩展 DDL（无法由 Drizzle schema 表达，见下节） |
+`0001_extensions.sql` 维护 Drizzle schema 无法完整表达的扩展 DDL：
 
-基线**不保留向后数据兼容**：更早版本的存量库无法原地升级，需要重新初始化（新建库跑 `db:migrate` + `db:seed`，或自行做数据搬迁）。全新环境执行 `npm run db:migrate` 即一步建库。
+- `pg_trgm` 与相关 trigram 索引；
+- 条件启用 pgvector 的 `ai_kb_chunks.embedding_vec` 列；运行时通过 `hasPgVector()` 探测，不可用时回退 JS 余弦相似度。
 
-再次重建基线（未来迁移又积累过多时）的流程：确认 `db:generate` 无漂移 → 删除 `drizzle/` 目录后 `drizzle-kit generate --name baseline` → `drizzle-kit generate --custom --name extensions` 并把 `0001_extensions.sql` 内容原样填回 → **在基线顶部前置 `CREATE EXTENSION IF NOT EXISTS pg_trgm;`**（schema 里的 `gin_trgm_ops` 索引如 `wiki_docs_title_trgm_idx` 会被生成进基线，先于 0001 的扩展创建执行，不前置则全新库迁移失败）→ 用两个空库（旧链 vs 新基线）做结构化 schema diff 验证。
+后续 custom migration 也用于表达式 / 操作符类索引等场景，例如 `async_tasks.payload/result` 内容检索的 `gin_trgm_ops` 表达式索引。
 
-### 手写扩展 DDL（`0001_extensions.sql`）
+### 枚举同步
 
-两处 DDL 超出 Drizzle 的表达能力，单独维护在 `drizzle/0001_extensions.sql`，`drizzle-kit generate` 不会重新生成它们：
+枚举必须保持三端一致：
 
-- **pg_trgm**：`CREATE EXTENSION pg_trgm` + `cms_contents.title` 的 `gin_trgm_ops` GIN 索引（CMS 标题模糊检索加速）
-- **pgvector（条件启用）**：扩展可用时创建 `ai_kb_chunks.embedding_vec`（无维度 `vector` 列，兼容任意 embedding 模型），不可用时静默跳过；运行时由 `ai-knowledge.service.ts` 的 `hasPgVector()` 探测，不可用则回退 JS 余弦相似度。该列不进入 Drizzle schema，读写走原生 SQL
+- PostgreSQL `pgEnum`；
+- `@zenith/shared/{domain}` 中的 TS union / 常量数组；
+- Zod enum。
 
-### 枚举需要三处保持一致
+可被其他域复用的枚举常量放在 `shared/src/{domain}/constants.ts`，不要放在 `validation.ts` 中制造 ESM 值循环。
 
-以下三者必须同步：
+### LIKE 查询转义
 
-- PostgreSQL enum
-- TypeScript union type
-- Zod enum
-
-### LIKE 查询必须使用 escapeLike
-
-所有使用 `like()` / `ilike()` 的模糊查询，**必须**通过 `escapeLike()` 对用户输入进行转义，防止 `%`、`_`、`\` 等通配符被恶意利用：
+使用 `like()` / `ilike()` 拼接用户输入时必须调用 `escapeLike()`；跨列关键字搜索优先用 `keywordCondition()`。
 
 ```ts
 import { escapeLike } from '../lib/where-helpers';
 
-// ✅ 正确
-like(users.username, `%${escapeLike(keyword)}%`)
-
-// ❌ 错误 - 未转义，可能匹配任意记录
-like(users.username, `%${keyword}%`)
+like(users.username, `%${escapeLike(keyword)}%`);
 ```
-
-`escapeLike` 定义在 `packages/server/src/lib/where-helpers.ts`，同时处理 `%`、`_`、`\` 三种元字符。
 
 ## Schema 组织（按业务域拆分）
 
-全库超过 330 张表，schema 按业务域拆分在 `packages/server/src/db/schema/` 下，由 `src/db/schema.ts` barrel 统一 re-export——**导入方式不变**：`import { users } from '../db/schema'`。表间关联（250+ 个 `relations()`）统一声明在 `schema/relations.ts`，数据库类型别名（`Db` / `DbTransaction` / `DbExecutor`）在 `src/db/types.ts`。
+全库约 375 张表，schema 按业务域拆分在 `packages/server/src/db/schema/`。`src/db/schema.ts` 是 barrel，业务代码导入方式保持：
+
+```ts
+import { users, roles } from '../db/schema';
+```
+
+表间关联统一声明在 `schema/relations.ts`；数据库类型别名在 `src/db/types.ts`。
 
 | Schema 文件 | 业务域 | 代表性表 |
 | --- | --- | --- |
-| `core.ts` | 租户 / 组织 / 权限 | `tenants`、`tenant_packages`、`departments`、`positions`、`users`、`menus`、`roles`、`user_roles`、`role_menus`、`user_groups` 及数据范围关联表 |
-| `auth.ts` | 认证与安全 | `user_oauth_accounts`、`oauth_configs`、`user_api_tokens`、`password_reset_tokens`、`user_mfa_factors`、`user_trusted_devices`、`login_risk_events`、`rate_limit_rules` |
+| `core.ts` | 租户 / 组织 / 权限 | `tenants`、`tenant_packages`、`departments`、`positions`、`users`、`menus`、`roles`、`user_roles`、`user_groups` |
+| `licensing.ts` | 授权许可 | `system_installations`、`licenses`、`license_events` |
+| `auth.ts` | 认证与账号安全 | `user_oauth_accounts`、`oauth_configs`、`user_api_tokens`、`password_reset_tokens`、`user_mfa_factors`、`user_trusted_devices`、`login_risk_events`、`rate_limit_rules` |
 | `identity-providers.ts` | 企业 SSO | `tenant_identity_providers`、`user_identity_accounts`、`identity_provider_sync_logs` |
-| `system.ts` | 系统配置与调度 | `system_configs`、`cron_jobs`、`cron_job_logs`、`system_scheduler_*`、`regions`、`maintenance_mode`、`user_feedbacks` |
+| `directory-sync.ts` | 通讯录同步 | `directory_sync_sources`、`directory_sync_runs`、`directory_sync_run_items`、`directory_sync_conflicts`、`directory_sync_user_links`、`directory_sync_dept_links` |
+| `system.ts` | 系统配置与调度 | `system_configs`、`cron_jobs`、`cron_job_logs`、`system_scheduler_*`、`retention_policies`、`regions`、`maintenance_mode`、`user_feedbacks` |
 | `dicts.ts` | 数据字典 | `dicts`、`dict_items` |
-| `files.ts` | 文件存储 | `file_storage_configs`、`managed_files`（主键 UUIDv7，应用层生成；`url` 由服务端动态拼接不入库）、`upload_sessions`、`upload_chunks`、`business_files` |
-| `logs.ts` | 审计日志 | `login_logs`、`operation_logs`（含 `before_data` / `after_data` JSON 快照）、`ip_access_logs` |
+| `files.ts` | 文件存储 | `file_storage_configs`、`managed_files`、`upload_sessions`、`upload_chunks`、`business_files` |
+| `logs.ts` | 审计日志 | `login_logs`、`operation_logs`、`ip_access_logs` |
 | `announcements.ts` | 通知公告 | `announcements`、`announcement_reads`、`announcement_recipients` |
-| `messaging.ts` | 邮件 / 短信 / 站内信 | `email_configs`、`email_templates`、`email_send_logs`、`sms_*`、`in_app_*` |
-| `channels.ts` | 消息渠道 | 渠道接入与投递相关表 |
+| `messaging.ts` | 邮件 / 短信 / 站内信 | `email_configs`、`email_templates`、`email_send_logs`、`sms_*`、`in_app_*`、通知策略与偏好表 |
+| `channels.ts` | 消息渠道 | 频道、订阅、消息、菜单、自动回复、客服会话等表 |
 | `tasks.ts` | 任务中心 / 导出中心 | `async_tasks`、`async_task_items`、`async_task_type_configs`、`export_jobs`、`export_job_downloads` |
 | `db-admin.ts` | 数据库运维 | `db_backups`、`db_admin_query_history`、`db_query_favorites` |
 | `monitor.ts` | 监控告警 | `system_metric_samples`、`monitor_alert_rules`、`monitor_alert_events`、`ssl_certificates` |
-| `terminal.ts` | 终端 / SSH | `terminal_recordings`、`ssh_profiles` |
+| `terminal.ts` | 终端 / SSH | `terminal_sessions`、`terminal_recordings`、`ssh_profiles` |
 | `data-mask.ts` | 数据脱敏 | `data_mask_configs` |
 | `tags.ts` | 通用标签 | `tags` |
-| `workflow.ts` | 工作流 | 流程定义 / 版本 / 实例 / 任务 / 委托 / 自动化 / 触发器等 29 张表 |
-| `payment.ts` | 支付中心 | 应用、订单、退款、对账、分账、结算、风控等 28 张表 |
-| `member.ts` | 会员体系 | `members`、`member_levels`、积分 / 钱包账户与流水（含 `version` 乐观锁，金额单位为分）、优惠券、签到 |
-| `chat.ts` | 聊天 | 会话、成员、消息、表情反应、机器人、Webhook |
-| `ai.ts` | AI | 提供方配置、对话、消息、提示词、知识库、评测 |
-| `analytics.ts` | 埋点分析 / 前端错误 | 事件、会话、聚合、`error_groups`、`error_events`、`source_maps` |
-| `report.ts` / `report-platform.ts` | 报表中心 | 数据源、数据集、仪表盘、订阅、投递、打印等 39 张表 |
-| `cms.ts` | CMS | 站点、栏目、内容、素材、发布、采集、评论等 55 张表 |
-| `mp.ts` | 微信公众号 | 粉丝、菜单、素材、群发、模板消息、客服等 18 张表 |
-| `open-platform.ts` | 开放平台 | 开发者应用、API 授权范围、签名、调用统计 |
-| `rules.ts` | 规则引擎 | 决策表、决策流、名单库 |
+| `workflow.ts` | 工作流 | 流程分类、表单、定义、版本、实例、任务、作业、事件订阅、调度、健康快照等表 |
+| `payment.ts` | 支付中心 | 应用、订单、退款、回调、事件、对账、分账、结算、风控、合约等表 |
+| `member.ts` | 会员体系 | `members`、`member_levels`、`member_tags`、积分 / 钱包账户与流水、优惠券、签到、充值、登录日志 |
+| `chat.ts` | 聊天 | 会话、成员、消息、反应、收藏、Webhook、快捷回复、定时消息、坐席等表 |
+| `ai.ts` | AI | 提供方配置、会话、消息、提示词、知识库、评测、Arena、分享等表 |
+| `analytics.ts` | 埋点分析 / 前端错误 | 事件、身份映射、会话、聚合、Tracking Plan、实验、错误组、错误事件、Source Map、告警历史 |
+| `report.ts` / `report-platform.ts` | 报表中心 | 文件夹、数据源、数据集、仪表盘、订阅、投递、打印、质量规则、资产、填报等表 |
+| `cms.ts` | CMS | 站点、模型、栏目、内容、素材、发布、采集、评论、页面搭建、表单、订阅、互动等表 |
+| `mp.ts` | 微信公众号 | 账号、粉丝、标签、菜单、素材、群发、模板消息、客服、网页授权等表 |
+| `open-platform.ts` | 开放平台 | OAuth2 客户端、授权、Token、API Scope、限流套餐、调用日志、统计、Webhook 等表 |
+| `rules.ts` | 规则引擎 | 决策表、版本、测试用例、执行记录、资产版本、决策流、名单库 |
 | `biz.ts` | 业务示例 | `biz_leaves`、`biz_pay_demos` |
+| `app-releases.ts` | 应用发布 | `client_apps`、`app_releases`、`app_artifacts`、`app_release_events` |
+| `wiki.ts` | 知识中心 | 空间、成员、文档、版本、模板、标签、评论、导入导出、治理表 |
 | `common.ts` | 公共枚举 | 无表，提供 `statusEnum` 等跨域共享枚举 |
 | `relations.ts` | 关联关系 | 无表，统一声明全部 `xxxRelations` |
 
-> 新增表时：在对应域文件（或新建域文件）中声明 `pgTable`，关联写进 `relations.ts`，新建域文件需在 `src/db/schema.ts` barrel 中补一行 re-export。
+新增表时在对应域文件声明 `pgTable`，关联写进 `relations.ts`，新建域文件时同步 `src/db/schema.ts` re-export。
 
 ### 通用审计字段（`created_by` / `updated_by`）
 
-带审计字段的业务表均通过 schema 中的 [`auditColumns()`](https://github.com/iwangbowen/zenith-admin/blob/master/packages/server/src/db/schema/core.ts) 展开 `created_by` / `updated_by` 两列（指向 `users.id`，`ON DELETE SET NULL`）。赋值由 [`db/index.ts`](https://github.com/iwangbowen/zenith-admin/blob/master/packages/server/src/db/index.ts) 的 Proxy 统一拦截：
+业务主表通过 `auditColumns()` 展开 `created_by` / `updated_by`。赋值由 `db/index.ts` 的 Proxy 统一注入：
 
-- **读取顺序**：`overrideStore`（`runAsUser()` 包裹）→ 请求上下文中的当前用户（`auth` 中间件设置）→ `null`。
-- **拦截点**：`db.insert(t).values(d)` / `db.update(t).set(d)` / `db.insert(t).values(d).onConflictDoUpdate({set})` 及其在 `db.transaction()` 中的子事务版本。
-- **严禁**：service / route / seed / cron 任意位置手动赋值 `createdBy` / `updatedBy`。
-- **不加审计列的典型表**：
-  - 多对多关联表：`user_roles`、`user_positions`、`role_menus`、`announcement_reads`、`announcement_recipients`、`chat_conversation_members`、`chat_message_reactions`
-  - 追加型日志：`login_logs`、`operation_logs`、`cron_job_logs`、`email_send_logs`、`sms_send_logs`、`in_app_messages`
-  - 用户自身/临时凭证：`user_oauth_accounts`、`password_reset_tokens`、`chat_messages`
-  - 工作流运行时：`workflow_tasks`
-- **种子数据**：`db/seed.ts` 主函数被 `runAsUser(adminId, ...)` 包裹，所有种子记录的创建人 / 修改人默认为 admin。
+- `runAsUser(userId, fn)` 覆盖优先；
+- 其次读取请求上下文中的 `currentUserOrNull()`；
+- 没有可用身份时写入 `null`；
+- 拦截 `db.insert(table).values(...)`、`db.update(table).set(...)`、`db.insert(...).onConflictDoUpdate({ set })`，事务内 `tx` 同样生效。
+
+Service、route、seed、cron 不手动赋值 `createdBy` / `updatedBy`。需要指定操作人时使用：
+
+```ts
+import { runAsUser } from '../lib/audit-context';
+
+await runAsUser(adminId, async () => {
+  await db.insert(xxxs).values(data);
+});
+```
+
+典型不加审计列的表：纯关联表、追加型日志、临时凭证、IM 消息、天然已有操作者语义的运行时表。
 
 ## 数据库备份
 
-系统内置数据库备份功能，支持 `pg_dump` 完整 SQL 压缩备份与 Drizzle 逻辑 JSON 导出两种类型。
+系统内置数据库备份功能，路由在 `packages/server/src/routes/ops/db-backups.ts`，服务在 `services/ops/db-backups.service.ts` 与 `lib/db-backup.ts`。
 
 ### 菜单入口
 
-**系统设置 → 数据库备份**（路由：`/system/db-backups`，权限：`system:db-backup:list`）
+系统设置 → 数据库备份（路由 `/system/db-backups`，权限 `system:db-backup:list`）。
 
 ### 操作说明
 
-- **立即备份**：手动触发 `pg_dump` 或 Drizzle 逻辑导出，创建异步备份任务
-- **删除备份**：删除指定备份记录
+- 立即备份：创建 `pg_dump` 完整 SQL 压缩备份或 Drizzle 逻辑 JSON 导出。
+- 删除备份：删除指定备份记录。
+- 文件归档：配置默认 `file_storage_configs` 后，备份文件保存到文件存储，并在 `db_backups.file_id` 记录 `managed_files.id`。
 
 ### 前置条件
 
-使用 `pg_dump` 类型时，服务器环境必须安装 `pg_dump` 工具（PostgreSQL 客户端工具包），且版本需与数据库服务端版本兼容：
-
-```bash
-# Ubuntu / Debian
-apt-get install postgresql-client
-
-# 验证安装
-pg_dump --version
-```
-
-### 备份文件存储位置
-
-备份任务会先在后端服务工作目录的 `storage/backups/` 下生成文件：
-
-- `pg_dump`：`pgdump-YYYYMMDD_HHmmss.sql.gz`
-- `drizzle_export`：`drizzle-export-YYYYMMDD_HHmmss.json`
-
-若已配置默认 `file_storage_configs`，备份完成后会上传到默认文件存储，并在 `db_backups.file_id` 记录对应的 `managed_files.id`（UUIDv7）。
-
-### 相关接口
-
-- `GET /api/db-backups`：获取备份列表，支持 `status` 与 `type` 查询参数
-- `POST /api/db-backups`：触发立即备份，body 为 `{ type: 'pg_dump' | 'drizzle_export', name?: string }`
-- `DELETE /api/db-backups/{id}`：删除指定备份记录
-
-### 定期自动备份建议
-
-定期自动备份可通过**定时任务模块**实现：
-
-1. 在「定时任务」页面创建任务，Handler 填写 `databaseBackup`
-2. 参数填写 `pg_dump` 或 `drizzle_export`
-3. 设置适合的 Cron 表达式（如每天凌晨 2 点）
-
-> **生产建议**：建议将备份文件定期同步到对象存储（如阿里云 OSS、AWS S3），避免仅依赖本地磁盘存储。
+使用 `pg_dump` 类型时，服务器环境必须安装 PostgreSQL 客户端工具，并保证版本与数据库服务端兼容。

@@ -1,122 +1,108 @@
 # Swagger / OpenAPI 文档
 
-Zenith Admin 后端集成了 Swagger UI，开发时可直接在浏览器中浏览、调试所有 REST 接口，无需借助外部工具。
+Zenith Admin 后端通过 `@hono/zod-openapi` 在运行时生成 OpenAPI 3.1 文档，并提供 Swagger UI。路由 schema 是唯一维护入口，不需要手写静态 OpenAPI 文件。
 
 ---
 
 ## 访问地址
 
-| 路径                     | 说明                                              |
-|--------------------------|---------------------------------------------------|
-| `GET /api/docs`          | Swagger UI 交互式界面                             |
-| `GET /api/openapi.json`  | OpenAPI 3.1 JSON Spec（可导入 Postman / Apifox）  |
-| `GET /metrics`           | Prometheus 文本指标端点（非 OpenAPI 端点）        |
+| 路径 | 说明 |
+| --- | --- |
+| `GET /api/docs` | Swagger UI 交互式界面 |
+| `GET /api/openapi.json` | OpenAPI 3.1 JSON Spec，可导入 Postman / Apifox |
+| `GET /metrics` | Prometheus 文本指标端点，非 OpenAPI 端点 |
 
 默认开发环境地址：
 
-- **Swagger UI**：`http://localhost:3300/api/docs`
-- **JSON Spec**：`http://localhost:3300/api/openapi.json`
-- **Metrics**：`http://localhost:3300/metrics`
+- Swagger UI：`http://localhost:3300/api/docs`
+- JSON Spec：`http://localhost:3300/api/openapi.json`
+- Metrics：`http://localhost:3300/metrics`
 
-> `GET /api/docs`、`GET /api/openapi.json` 与 `GET /metrics` 均**无需认证**，可直接访问。
+`/api/docs`、`/api/openapi.json` 与 `/metrics` 无需认证。
 
 ## 非 OpenAPI 运维端点
 
-以下端点由服务端直接暴露，但不属于 Swagger / OpenAPI 文档：
-
-| 路径 | 说明 |
-| --- | --- |
-| `GET /metrics` | Prometheus 文本格式指标，用于被 Prometheus Server 抓取 |
-
-这类端点不返回 JSON schema，也不面向前端业务调试，因此不会出现在 `/api/openapi.json` 中。
+`GET /metrics` 由 `@hono/prometheus` 与 `prom-client` 暴露，返回 Prometheus 文本格式，不返回 JSON schema，也不进入 `/api/openapi.json`。
 
 ---
 
 ## 鉴权方式
 
-所有需要登录的接口均使用 **Bearer Token** 认证。在 Swagger UI 中调试前需先完成授权：
+OpenAPI 全局声明 `BearerAuth`：
 
-1. 调用 `POST /api/auth/login` 获取 `accessToken`
-2. 点击 Swagger UI 右上角 **Authorize** 按钮
-3. 在弹窗的 `BearerAuth` 输入框中填入 Token 值，格式：`Bearer <accessToken>`
-4. 点击 **Authorize → Close**，后续所有请求将自动携带该 Token
+```http
+Authorization: Bearer <accessToken>
+```
+
+Swagger UI 调试步骤：
+
+1. 调用 `POST /api/auth/login` 获取 `accessToken`。
+2. 点击 Swagger UI 右上角 **Authorize**。
+3. 在 `BearerAuth` 中填入 `Bearer <accessToken>` 或直接填入 token 值（Swagger UI 会按 http bearer 方案处理）。
+4. 授权后调试带 `security: [{ BearerAuth: [] }]` 的接口。
+
+公开接口在路由定义中显式写 `security: []`，例如登录、验证码、刷新令牌、公开升级接口、开放回调类端点。
 
 ---
 
 ## 导入 Postman / Apifox
 
-1. 打开 Postman 或 Apifox
-2. 选择 **Import → URL**
-3. 填入 JSON Spec 地址：`http://localhost:3300/api/openapi.json`
-4. 导入完成后即可看到所有接口分组
+1. 打开 Postman 或 Apifox。
+2. 选择 **Import → URL**。
+3. 填入 `http://localhost:3300/api/openapi.json`。
+4. 导入后按 tags 查看接口分组。
 
 ---
 
 ## Spec 维护
 
-OpenAPI Spec **自动生成**，由 `@hono/zod-openapi` 在运行时从每个路由文件的 `createRoute(...)` 声明中汇总。**无需维护任何静态文件**。
+OpenAPI Spec 由每个路由文件的 `createRoute(...)` 声明汇总生成。维护规则：
 
-### 新增接口时的更新步骤
+1. 路由文件创建 `new OpenAPIHono({ defaultHook: validationHook })`。
+2. 每个端点用 `defineOpenAPIRoute({ route: createRoute(...), handler })` 声明。
+3. `request.params` / `request.query` / `request.body` 使用 Zod schema；handler 只从 `c.req.valid()` 取已校验值。
+4. `responses` 使用 `...commonErrorResponses` 和 `ok()` / `okPaginated()` / `okMsg()` / 文件响应 helper。
+5. 实体响应 DTO 放在 `packages/server/src/lib/dtos/`，通过 `packages/server/src/lib/openapi-dtos.ts` 导入。
+6. 子路由通过 `router.openapiRoutes([... ] as const)` 注册；业务域在 `routes/{domain}/index.ts` 的 `defineRouteDomain` 挂载。
+7. 新增业务域时加入 `routes/index.ts` 的 `ROUTE_DOMAINS`。
+8. 路由表快照由 `packages/server/src/app.routes.test.ts` 维护，OpenAPI 文档可用性由 `packages/server/src/lib/openapi-doc.test.ts` 覆盖。
 
-1. 在路由文件中用 `createRoute(...)` 声明新接口（设好 `method`、`path`、`tags`、`request`、`responses`）
-2. 确保路由已在所属业务域的 `packages/server/src/routes/{业务域}/index.ts` 的 `defineRouteDomain` 挂载清单中声明（新增域需同步加入 `routes/index.ts` 的 `ROUTE_DOMAINS`）
-3. 运行 `src/app.routes.test.ts` 并更新路由表快照（该测试锁定全量 method + path 清单）
-4. 刷新 Swagger UI 即可看到新接口
+递归 Zod schema 使用项目封装的稳定引用写法，避免 `/api/openapi.json` 展开递归结构时栈溢出。普通 `Hono` 子路由不会自动合并 OpenAPI registry；需要出现在文档中的端点应使用 `OpenAPIHono`。
 
 ---
 
 ## 接口分组
 
-接口按业务域挂载（`ROUTE_DOMAINS` 顺序：ops → identity → member → platform → files → tasks → analytics → report → messaging → payment → open-platform → workflow → chat → mp → biz-demo → ai → cms），每个接口通过 `tags` 归入分组。
+业务域装配顺序由 `packages/server/src/routes/index.ts` 的 `ROUTE_DOMAINS` 控制：
 
-> 以下仅列出核心分组，完整 Tag 列表请以 `/api/docs` Swagger UI 为准。
+```text
+ops → identity → member → platform → files → tasks → analytics → report → messaging → payment → open-platform → workflow → chat → mp → biz-demo → ai → cms → wiki
+```
 
-| 标签 | 说明 |
+OpenAPI tags 由各路由文件声明。代码中同时存在英文标签（如 `Auth`、`Users`、`AsyncTasks`、`ExportJobs`、`WorkflowDefinitions`）和少量中文领域标签。完整列表以 Swagger UI 为准，核心分组包括：
+
+| 标签/领域 | 说明 |
 | --- | --- |
-| 认证 | 登录、登出、Token 刷新、验证码 |
-| 用户管理 | 用户 CRUD 及登录锁定解除 |
-| 角色管理 | 角色 CRUD 及菜单权限分配 |
-| 菜单管理 | 菜单 / 按钮权限树管理 |
-| 部门管理 | 组织架构 CRUD |
-| 岗位管理 | 岗位 CRUD |
-| 用户组 | 用户组与成员管理 |
-| 企业认证 | SSO 身份提供方（OAuth / OIDC / SAML / LDAP）与企业登录 |
-| 字典管理 | 数据字典及字典项 CRUD |
-| 操作日志 | 系统操作日志查询（含变更 diff） |
-| 登录日志 | 登录历史查询 |
-| IP 访问日志 | IP 访问控制命中记录 |
-| 限流规则 | 接口级限流规则管理 |
-| 系统配置 | 内置系统配置项的读写 |
-| 定时任务 | 定时任务管理及执行历史 |
-| 系统调度 | 系统级周期任务的统一调度中心 |
-| 任务中心 | 异步任务查询、取消、断点恢复与类型策略配置 |
-| 导出中心 | 导出任务提交、进度查询与文件下载 |
-| 文件管理 | 文件上传、下载及存储配置 |
-| 业务附件 | 业务文件附件关联 |
-| 通知公告 | 通知发布与已读状态 |
-| 会话管理 | 在线会话查询与强制下线 |
-| 数据库备份 | 备份任务创建、状态查询及删除 |
-| 数据库管理 | SQL 查询、元数据与收藏 |
-| 数据脱敏 | 脱敏规则配置与导出脱敏 |
-| 邮件 / 短信 / 站内信 | 模板、通道配置与发送日志 |
-| 渠道管理 | 消息渠道接入与投递 |
-| 工作流 | 流程定义、实例、待办、委托、自动化与触发器 |
-| 租户管理 | 多租户 CRUD（开启多租户模式时可见） |
-| 支付中心 | 应用、订单、退款、对账、分账、结算、风控与回调 |
-| 会员体系 | 会员、等级、积分、钱包、优惠券与签到 |
-| 报表中心 | 数据源、数据集、仪表盘、订阅、投递与打印 |
-| CMS | 站点、栏目、内容、素材、发布、采集与全文检索 |
-| 公众号 | 微信公众号粉丝、菜单、素材、群发与回调 |
-| 开放平台 | 开发者应用、API 授权范围、签名与调用统计 |
-| 规则引擎 | 决策表、决策流与名单库 |
-| 聊天 | 会话、消息、机器人与 Webhook |
-| AI | AI 提供方、对话、提示词、知识库与用量 |
-| 埋点分析 | 用户行为事件、会话与统计聚合 |
-| 前端错误 | 错误聚合、事件、告警与 Source Map |
-| OAuth2 | OAuth2 客户端、授权与 Token |
-| 终端 / SSH / SFTP | 终端会话、录屏、文件与 SSH/SFTP 配置 |
-| 维护模式 | 维护开关与公开维护信息 |
-| 运维工具 | 进程、端口、Docker、网络诊断、systemd、防火墙、Nginx 站点、SSL 证书与日志查看 |
-| 缓存管理 | Redis 缓存查看与清理 |
-| 仪表盘 | 统计数据汇总接口 |
-| 服务状态 | 健康检查，无需认证 |
+| `Auth` / `MemberAuth` | 管理员与会员认证、刷新令牌、会话、个人资料 |
+| `Users` / `Roles` / `Menus` / `Departments` / `Positions` / `UserGroups` | 身份、组织、角色、菜单权限与用户组 |
+| `Tenants` / `TenantPackages` / `Licensing` | 租户、套餐与授权 |
+| `SystemConfigs` / `CronJobs` / `SystemScheduler` / `Retention` / `Cache` | 系统配置、业务定时任务、系统调度、数据保留与缓存 |
+| `AsyncTasks` / `TaskDemo` | 通用异步任务、任务类型策略、任务明细与演示任务 |
+| `ExportJobs` | 导出实体、导出任务、下载与下载日志 |
+| `Files` / `Business Files` | 文件上传、托管文件、业务附件 |
+| `DbAdmin` / `DbBackups` | 数据库管理、查询、备份 |
+| `OperationLogs` / `LoginLogs` / `IpAccessLogs` | 审计、登录与 IP 访问日志 |
+| `Notifications` / `Announcements` / `Channels` / `Email*` / `Sms*` / `InApp*` | 通知公告、频道、邮件、短信与站内信 |
+| `Workflow*` | 流程定义、实例、任务、自动化、事件订阅、引擎运维 |
+| `Payment*` | 支付应用、订单、退款、对账、分账、结算、风控与回调 |
+| `Member*` | 会员、等级、标签、积分、钱包、优惠券、签到、充值 |
+| `Report*` | 数据源、数据集、仪表盘、订阅、投递、打印、数据质量 |
+| `CMS-*` / `MemberCms` / `公开API-CMS` | CMS 站点、栏目、内容、素材、发布、采集、前台与开放 API |
+| `Mp*` | 微信公众号账号、粉丝、菜单、素材、群发、模板消息、客服 |
+| `Open*` / `ApiScopes` / `DeveloperApps` / `AppWebhooks` | 开放平台、OAuth2、API Scope、签名与调用统计 |
+| `AI` | AI 配置、对话、智能体、知识库、评测、Mastra Studio 代理 API |
+| `Chat*` | 聊天会话、消息、机器人、Webhook、定时消息 |
+| `Rules*` | 决策表、决策流、名单库与执行记录 |
+| `Ops` 相关标签 | 进程、端口、Docker、网络诊断、systemd、Nginx、SSL、终端与日志 |
+| `Wiki*` | 知识空间、文档、模板、标签、评论与治理 |
+| `服务状态` | `GET /api/health` 健康检查 |

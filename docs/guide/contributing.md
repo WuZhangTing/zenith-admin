@@ -1,82 +1,75 @@
 # 项目维护
 
-本页面向项目维护者，说明文档站自动部署、版本发布以及 Demo 站的维护方式。
+本页面向维护者，记录文档站、Demo 站、CI 与 Release 的当前自动化方式。
 
 ## 文档站与 Demo 站
 
-### 构建方式
-
-文档站基于 **VitePress** 构建；Demo 站则先构建到 `packages/web/dist/`，再由 GitHub Pages 工作流合并到文档站产物的 `/demo/` 路径。
+### 本地命令
 
 ```bash
-# 本地开发预览文档
-npm run docs:dev
-
-# 构建文档（生产）
-npm run docs:build
-
-# 构建 Demo 站
-npm run build:demo
-
-# 本地预览构建结果
-npm run docs:preview
+npm run docs:dev       # VitePress dev，http://localhost:4177
+npm run docs:build     # 构建 docs/.vitepress/dist
+npm run docs:preview   # 预览构建产物，http://localhost:4178
+npm run build:demo     # shared + web demo 构建，产物在 packages/web/dist
 ```
 
-### GitHub Pages 自动部署
+Demo 模式由 `packages/web/.env.demo` 的 `VITE_DEMO_MODE=true` 激活，详见 [Demo 演示模式](./demo-mode.md)。
 
-文档站与 Demo 站通过 `.github/workflows/pages.yml` 自动部署到 GitHub Pages。
+### GitHub Pages
 
-**触发条件：**
+`.github/workflows/pages.yml` 负责文档站与 Demo 站：
 
-- 推送到 `master` 分支且变更命中路径过滤（`docs/**`、`packages/web/**`、`packages/shared/**`、根 `package.json` / `package-lock.json`、工作流自身）
-- PR 时仅构建校验，不发布
-- 支持手动触发（`workflow_dispatch`）
+| 项 | 当前配置 |
+| --- | --- |
+| 触发 | `master` push、PR、手动触发 |
+| 路径过滤 | `docs/**`、`packages/web/**`、`packages/shared/**`、根 `package.json` / `package-lock.json`、工作流自身 |
+| Node | 24 |
+| 构建 | `npm run docs:build` + `npm run build:demo` |
+| Demo 合并 | `cp -r packages/web/dist docs/.vitepress/dist/demo` |
+| 发布 | 非 PR 时使用 GitHub Pages artifact 部署 |
 
-**访问地址：**
+访问地址：
 
 - 文档站：`https://iwangbowen.github.io/zenith-admin/`
 - Demo 站：`https://iwangbowen.github.io/zenith-admin/demo/`
 
-### 首次启用 GitHub Pages
+首次启用 GitHub Pages 时，仓库 Settings → Pages 的 Source 选择 GitHub Actions。
 
-首次使用时，需要在 GitHub 仓库设置中完成以下配置：
+### `base` 路径
 
-1. 打开仓库 **Settings → Pages**
-2. 将 **Build and deployment → Source** 设为 **GitHub Actions**
-3. 确认默认分支是 `master`
-4. 推送代码后到 **Actions** 页面确认 `Pages (Docs + Demo)` 工作流执行成功
-
-### `base` 路径策略
-
-VitePress 配置已按环境自动切换 `base` 路径：
-
-- 本地开发：`/`
-- GitHub Pages 构建：`/zenith-admin/`
-
-无需手动修改，CI 通过环境变量 `GITHUB_REPOSITORY` 自动确定。
+VitePress 按环境切换：本地为 `/`，GitHub Pages 构建为 `/zenith-admin/`。Pages 工作流通过 `GITHUB_REPOSITORY` 提供上下文，无需手动修改配置。
 
 ### 文档写作约定
 
-- **避免在文档中引用具体代码文件路径**（如 `packages/server/src/routes/ai/ai-chat.ts`）：代码重构/搬迁时这类引用会批量失效且难以发现。描述实现位置时使用**模块名/组件名/目录级**表述（如「`ExportButton` 组件」「`packages/web/src/member/` 目录」）。
-- 例外（允许引用文件路径）：面向开发者的**规范性指引**——告诉读者「该从哪个模块 import / 在哪个位置创建文件」的内容（如 `lib/datetime.ts` 的时间函数、`src/pages/<module>/<ComponentName>.tsx` 创建模板），以及代码示例内的注释。
-- `AGENTS.md` 与 `.agents/skills/` 不受此限制（AI 协作指引需要精确路径），但重构时必须同步更新。
+- 只描述当前实现状态，不写版本迁移故事。
+- 命令、端口、环境变量与脚本以 `package.json`、`.env.example`、Docker / Workflow 文件为准。
+- 产品能力以路由、菜单 seed、页面、服务和 mock 的当前代码为准。
+- 开发规范正文只放在 `.agents/skills/zenith/references/`；文档站只做说明与链接。
 
----
+## CI
+
+`.github/workflows/ci.yml` 在 `master` push 与 pull request 上运行：
+
+```bash
+npm ci
+npm run lint
+npm run test
+npm run build
+```
+
+CI 使用 Node 24，并通过 concurrency 取消同一 ref 的旧任务。
 
 ## 版本发布
 
-### 发布流程
+### 本地准备
 
-Zenith Admin 采用 **tag 触发 Release** 的自动化发布流程：
+发布前维护者通常需要：
 
-1. 更新六个 `package.json` 中的版本号（根 / server / web / shared / analytics-sdk / electron）
-2. 在项目根目录执行 `npm install --package-lock-only`，同步 `package-lock.json`
-3. 执行 `npm run lint` 做静态检查
-4. 执行 `npm test` 运行全部测试
-5. 在 `docs/changelog/index.md` 顶部追加当前版本的变更记录
-6. 使用 Node.js 24 依次执行 `npm run build`、`npm run docs:build`、`npm run build:demo` 做发布前构建校验
-7. 提交并推送到 `master`
-8. 本地打 tag 并推送，触发 Release 工作流
+1. 更新根目录与各 workspace 的版本号（root、server、web、shared、analytics-sdk、electron）。
+2. 运行 `npm install --package-lock-only` 同步 lockfile。
+3. 更新 `docs/changelog/index.md` 中对应版本段落。
+4. 在本地按变更范围运行必要校验。
+5. 提交到 `master` 后创建并推送 `vX.Y.Z` tag。
 
 ```bash
 npm install --package-lock-only
@@ -94,53 +87,40 @@ git tag vX.Y.Z
 git push origin vX.Y.Z
 ```
 
-> 如本地测试或构建未通过，请先修复问题再继续发布，避免 CI 在 Release 流程中失败。
+### Release 工作流
 
-### Release 工作流（`release.yml`）
+`.github/workflows/release.yml` 的触发方式：
 
-推送 `v*.*.*` 格式的 tag 后，`.github/workflows/release.yml` 自动完成：
+- 推送 `v*.*.*` tag
+- `workflow_dispatch` 手动输入 tag
 
-1. 构建全部产物（shared → analytics-sdk → server → web）
-2. 打包发布产物：
-   - `zenith-admin-server-vX.Y.Z.zip`（后端 `dist/` + `drizzle/` + `package.json`）
-   - `zenith-admin-web-vX.Y.Z.zip`（前端静态文件）
-3. 从 `docs/changelog/index.md` 提取对应版本的 Release Notes
-4. 在 GitHub Releases 页面创建 Release，并上传两个产物
+工作流行为：
 
-> tag 含 `-beta`、`-rc`、`-alpha` 时，Release 自动标记为 Pre-release。
+1. Node 24 + `npm ci`。
+2. `npm run build` 构建全部包。
+3. 打包 `zenith-admin-server-${tag}.zip`：`packages/server/dist`、`packages/server/drizzle`、`packages/server/package.json`。
+4. 打包 `zenith-admin-web-${tag}.zip`：`packages/web/dist`。
+5. 从 `docs/changelog/index.md` 提取对应 tag 的 Release Notes。
+6. 创建 GitHub Release 并上传两个 zip。
 
-### 手动重新触发 Release
-
-如果 Release 工作流执行失败，可以通过以下方式重新触发：
-
-#### 方式一：在 GitHub Actions 页面重跑
-
-打开 [Actions](https://github.com/iwangbowen/zenith-admin/actions/workflows/release.yml) → 点击失败的 Run → **Re-run all jobs**
-
-#### 方式二：workflow_dispatch 手动指定 tag
-
-在 [release.yml 工作流页面](https://github.com/iwangbowen/zenith-admin/actions/workflows/release.yml) 点击 **Run workflow**，在 `tag` 输入框填入目标 tag（如 `v0.1.0`）后触发。
-
----
+tag 包含 `-beta`、`-rc` 或 `-alpha` 时，Release 标记为 prerelease。
 
 ## Changelog 维护规范
 
-所有版本记录统一维护在 `docs/changelog/index.md`，按版本倒序。
+`docs/changelog/index.md` 按版本倒序维护。Release 工作流通过标题 `## vX.Y.Z` 定位对应段落，因此 tag 之前需先提交 changelog。
 
-每个版本遵循以下结构：
+推荐结构：
 
 ```markdown
 ## vX.Y.Z - YYYY-MM-DD
 
 ### Added
 #### 功能分类
-- 具体变更
+- 变更项
 
 ### Changed
-- 变更内容
+- 变更项
 
 ### Fixed
-- 修复内容
+- 修复项
 ```
-
-Release 工作流会自动提取对应版本段落作为 GitHub Release 描述，因此 **Changelog 需要在打 tag 之前** 写好并推送。

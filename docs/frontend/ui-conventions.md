@@ -1,46 +1,69 @@
 # UI 规范
 
-前端采用 **Semi Design**（`@douyinfe/semi-ui`）作为组件库，图标统一使用 **lucide-react**，页面结构与交互节奏在全站保持一致。
+前端采用 **Semi Design v2** 作为组件库，图标统一使用 **lucide-react**。页面结构、表格、筛选、弹窗、状态展示与响应式行为优先复用 `packages/web/src/components/`、`packages/web/src/hooks/` 中的公共封装。
 
 ::: tip 硬性约束不在本页
-「必须用哪个组件、哪些写法被禁止」这类可机械核对的规则，统一维护在
-[`.agents/skills/zenith/references/constraints-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)，
-可直接复制的完整页面模板在
-[`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)。
-规范只有一个来源，本页只讲**设计取向**和**去哪查**。
+可机械核对的「必须 / 禁止」规则维护在 [`.agents/skills/zenith/references/constraints-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md)。可直接复制的 CRUD 页面模板见 [`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md)。本页只描述设计取向与文档入口。
 :::
 
 ## 规范索引
 
 | 你要做的事 | 去哪查 |
 | --- | --- |
-| 列表页搜索区、表格、操作列、状态列必须用什么 | [`constraints-frontend.md` → 搜索栏与表格](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md#搜索栏与表格) |
-| 上面这些具体怎么写（含结构化 `SearchToolbar`、移动端覆盖） | [`crud-frontend.md` → 完整页面模板](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md#step-8b完整页面模板) |
-| 弹窗表单：必须加 `labelPosition="left"` / `closeOnEsc` | [`constraints-frontend.md` → 表单与展示组件](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md#表单与展示组件) |
-| 弹窗表单：`labelWidth` 取值与单列 / 双列怎么选 | [`crud-frontend.md` → 弹窗表单布局](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md#弹窗表单布局) |
-| 查询 / 重置 / 新增 / 刷新按钮 | [`constraints-frontend.md` → 搜索栏与表格](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md#搜索栏与表格)；API 见 [组件文档](/frontend/components#toolbar-controls-查询-重置-新增-刷新按钮) |
-| 关键字输入 / 状态下拉 / 时间范围等筛选控件 | [组件文档 → search-filters](/frontend/components#search-filters-关键字-状态-时间范围筛选)；仅关键字的列表页可直接用 `KeywordSearchToolbar` |
-| 时间格式、分页格式、图标库 | [`constraints.md` → 全局约束](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints.md#全局约束) |
-| 完整列表页代码模板（域 hooks、批量操作） | [`crud-frontend.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/crud-frontend.md) |
-| 多 Tab、左右分栏、左侧平铺列表、统计卡、栅格、虚拟化表格 | [`ui-patterns.md`](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/ui-patterns.md) |
-| mutation 失效粒度、query key 结构、能否回填详情 | [`query-cache.md` → 缓存一致性契约](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/query-cache.md#缓存一致性契约) |
-| 枚举标签从哪来（字典 / shared constants） | [`constraints-frontend.md` → 表单与展示组件](https://github.com/iwangbowen/zenith-admin/blob/master/.agents/skills/zenith/references/constraints-frontend.md#表单与展示组件) |
-
-> 分工是固定的：**`constraints*.md` 只写「必须 / 禁止」这类一句话可核对的断言，
-> 主题文件写代码怎么落地**。查约束去前者，查写法去后者。
+| 标准 CRUD 页面、域 hooks、列表搜索、弹窗保存 | [数据获取与服务端状态](/frontend/data-fetching)；`crud-frontend.md` |
+| 搜索栏、筛选控件、查询/重置/新增/刷新按钮 | [公共组件](/frontend/components#列表页基础组件)；`constraints-frontend.md`「搜索栏与表格」 |
+| 表格列显隐、刷新、全屏、尺寸/斑马纹、操作列 | [公共组件](/frontend/components#列表页基础组件) |
+| 时间列、空值、文本省略 | `packages/web/src/utils/table-columns.ts`；`constraints-frontend.md`「搜索栏与表格」 |
+| 弹窗表单、上传字段、时区字段、滑块输入、分割线 | [公共组件](/frontend/components#表单与展示组件)；`constraints-frontend.md`「表单与展示组件」 |
+| 多 Tab、左右分栏、平铺列表、统计卡、栅格、URL 状态 | `ui-patterns.md`；[公共组件](/frontend/components#布局导航与状态组件) |
+| 文件预览、附件上传、文件名列 | [文件预览组件](/frontend/file-preview)；[公共组件](/frontend/components#文件与预览组件) |
+| 认证、请求实例、账号切换、维护模式 | [认证与请求](/frontend/auth-request) |
+| 动态菜单、路由守卫、标签页、页面缓存 | [前端路由与菜单](/frontend/routing) |
+| mutation 失效粒度与 query key 结构 | `query-cache.md` |
 
 ## 页面设计原则
 
-这几条是取向判断，没法机械核对，也不适合写成约束条目：
+- **信息层次清晰，高频操作易于触达**：列表页优先服务查询、筛选、批量处理与快速定位
+- **稳定一致**：新页面沿用既有容器、工具栏、表格、弹窗和状态反馈，不为单页发明交互范式
+- **移动端做减法**：窄屏只保留关键词、查询、新增等核心入口；低频筛选放底部抽屉，低频操作放更多菜单
+- **服务端状态交给 Query**：列表、详情、统计、下拉源、权限快照、菜单树都按 Query 管理；本地 state 只表达交互状态
+- **表单校验声明式**：使用 Semi Form `rules`；跨字段校验放在提交编排中，失败时用 `abortSubmit()` 中断
+- **语义变量优先**：卡片 / 面板用 `var(--surface-card)`，页面底衬用 `var(--color-content-bg)`；无需背景时继承容器颜色
+- **可访问与可复制**：详情查看态优先纯文本展示，必要时保留复杂控件（附件、签名、明细等）
 
-- **信息层次清晰，高频操作易于触达**。列表页优先考虑操作效率，不过度装饰
-- **保持后台系统的稳定感**。新页面尽量沿用已有布局与交互节奏，不要为单个页面发明新的交互范式
-- **移动端做减法而非等比缩小**。只露出关键词搜索和最高频的一两个入口，其余筛选进底部抽屉、低频操作进更多菜单——判断哪个筛选项"最高频"需要结合业务，这是设计决策而非规则
-- **表单校验走声明式**。用 Semi Form 的 `rules` 声明，而不是在提交回调里手写 if-else，让错误提示的位置和时机保持一致
+## 列表页视觉约定
+
+标准列表页由 `SearchToolbar`、`KeywordInput` / `StatusSelect` / `DateRangeFilter`、`SearchButton` / `ResetButton` / `CreateButton`、`ConfigurableTable` 和 `createOperationColumn` 组合。
+
+- 搜索条件较多时使用 `SearchToolbar` 的结构化 props：`primary`、`filters`、`actions`，并按需覆盖 `mobilePrimary`、`mobileFilters`、`mobileActions`
+- 关键词、状态、时间范围筛选使用 `components/search-filters.tsx`；面板或弹窗内需要自适应宽度的搜索框可直接用 Semi `Input`
+- 表格使用 `<ConfigurableTable bordered ... />`，传 `onRefresh` 与 `refreshLoading`
+- 操作列使用 `createOperationColumn`；动作 label 使用纯文字，危险动作标 `danger: true`
+- 状态列紧靠操作列左侧并固定在右侧；时间列使用 `dateTimeColumn` / `dateColumn` / `createdAtColumn` / `updatedAtColumn`
+- 空值占位统一使用 `EMPTY_PLACEHOLDER`（`—`）
+
+## 弹窗与表单约定
+
+- 新增/编辑弹窗优先使用 `useEditModal` + `AppModal`
+- `Form` 使用 `labelPosition="left"`；`Form key={modal.formKey}` 必须显式写出
+- 所有 `Modal` 应允许 `closeOnEsc`；使用 `AppModal` 时默认具备 ESC 关闭与全屏按钮
+- 单图上传使用 `ImageUploadField`；时区字段使用 `FormTimezoneSelect`
+- 有明确上下界且适合拖动预览的数值字段使用 `SliderInput` / `FormSliderInput`
+- 分割线使用 Semi `Divider` 或 `Dropdown.Divider`
+
+## 布局与响应式约定
+
+- 页面级业务 Tab 使用 `.page-container.page-tabs-page`，Tab 状态用 `useUrlTabState`
+- 主从分栏使用 `MasterDetailLayout`；左侧平铺列表使用 `NavListPanel` + `NavListItem`
+- 分栏选中项深链使用 `useUrlSelectionState`；同页已使用 `useUrlTabState` 时选中项保持本地 state
+- 指标卡使用 `StatCard` + `StatGrid`；有界度量用 `MetricMeter`；排行/占比条用 `DataBar`
+- 栅格使用 `StatGrid`、`.chart-grid` 或 `.auto-grid`，不要在行内样式写死列数
+- 行内「图标 + 文字」「头像 + 姓名」「小按钮组」优先用 Semi `Space`，不要为替换已有复杂 flex 布局而引入回归风险
 
 ## 相关文档
 
-- [公共组件](/frontend/components)：`ConfigurableTable`、`SearchToolbar`、`toolbar-controls`、`search-filters` 等组件的 Props 与用法
-- [数据获取与服务端状态](/frontend/data-fetching)：TanStack Query 分层、域 hooks 约定、列表页模式
-- [前端路由与菜单](/frontend/routing)：动态菜单路由、路由守卫、新增页面的完整流程
-- [认证与请求](/frontend/auth-request)：AuthProvider、HttpClient 三端实例、token 管理
+- [公共组件](/frontend/components)
+- [数据获取与服务端状态](/frontend/data-fetching)
+- [前端路由与菜单](/frontend/routing)
+- [认证与请求](/frontend/auth-request)
+- [文件预览组件](/frontend/file-preview)
