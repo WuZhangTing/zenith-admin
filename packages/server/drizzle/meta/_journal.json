@@ -204,6 +204,13 @@
       "when": 1787725217222,
       "tag": "0028_nebulous_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787725883282,
+      "tag": "0029_yielding_bloodstrike",
+      "breakpoints": true
     }
   ]
 }

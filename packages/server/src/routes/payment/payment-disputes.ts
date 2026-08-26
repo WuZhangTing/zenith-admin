@@ -36,6 +36,7 @@ const listRoute = defineOpenAPIRoute({
         status: disputeStatusEnum.optional(),
         channel: channelEnum.optional(),
         type: disputeTypeEnum.optional(),
+        route: z.enum(['urgent', 'manual', 'auto_refund_suggest']).optional(),
         overdueOnly: z.coerce.boolean().optional(),
         startTime: dateRangeBound('起始时间'),
         endTime: dateRangeBound('结束时间'),

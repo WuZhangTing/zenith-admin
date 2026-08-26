@@ -813,6 +813,12 @@ export const paymentDisputes = pgTable('payment_disputes', {
   /** 涉诉金额（分） */
   amount: integer('amount').notNull().default(0),
   status: paymentDisputeStatusEnum('status').notNull().default('pending'),
+  /** 智能分流路由（规则中心 dispute_triage 决策表输出；null=未分流走默认队列） */
+  route: varchar('route', { length: 32 }),
+  /** 分流优先级（数值越大越紧急；null=未分流） */
+  priority: integer('priority'),
+  /** 分流建议 SLA（小时，写入 deadline 的依据留痕） */
+  slaHours: integer('sla_hours'),
   /** 处理时效（超过未完结视为超时，触发预警） */
   deadline: timestamp('deadline', { withTimezone: true }),
   /** 关联退款单号（投诉退款后回填） */
@@ -827,6 +833,7 @@ export const paymentDisputes = pgTable('payment_disputes', {
   index('payment_disputes_status_idx').on(t.status),
   index('payment_disputes_order_no_idx').on(t.orderNo),
   index('payment_disputes_deadline_idx').on(t.deadline),
+  index('payment_disputes_route_idx').on(t.route),
 ]);
 
 export type PaymentDisputeRow = typeof paymentDisputes.$inferSelect;

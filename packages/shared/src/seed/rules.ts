@@ -35,6 +35,30 @@ export const SEED_DECISION_TABLES = [
       { id: 'r3', when: ['-', '-', '> 20'], then: { action: 'review', reason: '当日交易频次异常' } },
     ],
   },
+  {
+    id: 3,
+    key: 'dispute_triage',
+    name: '交易投诉分流',
+    description: '发布后接管新投诉工单分流：按投诉类型/金额/投诉人90天投诉数输出 route（urgent=加急 / manual=人工 / auto_refund_suggest=建议自动退款，仅为建议，退款仍人工确认）、priority 与 slaHours（只收紧不放松 deadline）。未命中或未发布走默认队列',
+    hitPolicy: 'priority' as const,
+    inputs: [
+      { key: 'type', label: '投诉类型', expr: 'dispute.type', type: 'string' as const },
+      { key: 'amount', label: '投诉金额(分)', expr: 'dispute.amount', type: 'number' as const },
+      { key: 'count90d', label: '90天投诉数', expr: 'history.disputeCount90d', type: 'number' as const },
+    ],
+    outputs: [
+      { key: 'route', label: '分流路由', type: 'string' as const },
+      { key: 'priority', label: '优先级', type: 'number' as const },
+      { key: 'slaHours', label: 'SLA(小时)', type: 'number' as const },
+    ],
+    rules: [
+      { id: 'r1', label: '欺诈举报加急', priority: 100, when: ['fraud_report', '-', '-'], then: { route: 'urgent', priority: 100, slaHours: 12 } },
+      { id: 'r2', label: '高频投诉人加急', priority: 90, when: ['-', '-', '>= 3'], then: { route: 'urgent', priority: 90, slaHours: 24 } },
+      { id: 'r3', label: '大额加急', priority: 80, when: ['-', '> 100000', '-'], then: { route: 'urgent', priority: 80, slaHours: 24 } },
+      { id: 'r4', label: '小额退款建议自动退', priority: 60, when: ['refund_request', '<= 10000', '-'], then: { route: 'auto_refund_suggest', priority: 50, slaHours: 24 } },
+      { id: 'r5', label: '兜底人工', priority: 10, when: ['-', '-', '-'], then: { route: 'manual', priority: 10, slaHours: 48 } },
+    ],
+  },
 ];
 
 // ─── 规则中心：决策流种子 ────────────────────────────────────────────────────────
@@ -62,7 +86,7 @@ export const SEED_RULE_LIST_ITEMS = [
   { id: 2, listId: 1, value: '198.51.100.23', label: '恶意 IP', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
   { id: 3, listId: 2, value: 'member_1001', label: '演示 VIP 会员', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
   { id: 4, listId: 3, value: '203.0.113.', label: '演示观察网段', matchMode: 'prefix' as const, expiresAt: null, remark: '灰名单示例：命中只标注不拦截' },
-];;
+];
 
 // ─── 规则中心：评分卡种子 ────────────────────────────────────────────────────────
 export const SEED_RULE_SCORECARDS = [

@@ -274,6 +274,18 @@ export const PAYMENT_DISPUTE_STATUS_LABELS: Record<PaymentDisputeStatus, string>
 export const PAYMENT_DISPUTE_STATUS_OPTIONS: Array<{ value: PaymentDisputeStatus; label: string }> =
   createLabelOptions(PAYMENT_DISPUTE_STATUSES, PAYMENT_DISPUTE_STATUS_LABELS);
 
+// 智能分流路由（规则中心 dispute_triage 决策表输出；auto_refund_suggest 仅为建议，退款仍人工确认）
+export const PAYMENT_DISPUTE_ROUTES = ['urgent', 'manual', 'auto_refund_suggest'] as const;
+
+export type PaymentDisputeRoute = typeof PAYMENT_DISPUTE_ROUTES[number];
+
+export const PAYMENT_DISPUTE_ROUTE_LABELS: Record<PaymentDisputeRoute, string> = {
+  urgent: '加急处理', manual: '人工处理', auto_refund_suggest: '建议自动退款',
+};
+
+export const PAYMENT_DISPUTE_ROUTE_OPTIONS: Array<{ value: PaymentDisputeRoute; label: string }> =
+  createLabelOptions(PAYMENT_DISPUTE_ROUTES, PAYMENT_DISPUTE_ROUTE_LABELS);
+
 // ─── 支付中心扩展 · 预授权（资金冻结/解冻/转支付）────────────────────
 export const PAYMENT_PREAUTH_STATUSES = ['pending', 'frozen', 'captured', 'released', 'failed'] as const;
 

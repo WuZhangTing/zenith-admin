@@ -26,8 +26,10 @@ import { tenantCondition } from '../../lib/tenant';
 import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { refund } from './payment.service';
+import { decide } from '../platform/rules-runtime.service';
 import logger from '../../lib/logger';
 import type { PaymentChannel, PaymentDispute, PaymentDisputeDetail, PaymentDisputeReply, PaymentDisputeStats, PaymentDisputeStatus, PaymentDisputeType, RefundPaymentDisputeInput } from '@zenith/shared/payment';
+import { PAYMENT_DISPUTE_ROUTE_LABELS } from '@zenith/shared/payment';
 
 const OPEN_STATUSES: PaymentDisputeStatus[] = ['pending', 'processing'];
 /** 模拟拉单：保持未完结工单不超过该数量，避免演示环境刷屏 */
@@ -56,6 +58,9 @@ export function mapDispute(row: PaymentDisputeRow): PaymentDispute {
     content: row.content,
     amount: row.amount,
     status: row.status,
+    route: row.route ?? null,
+    priority: row.priority ?? null,
+    slaHours: row.slaHours ?? null,
     deadline: formatNullableDateTime(row.deadline),
     overdue: isOverdue(row),
     refundNo: row.refundNo ?? null,
@@ -84,6 +89,8 @@ export interface ListDisputesQuery {
   status?: PaymentDisputeStatus;
   channel?: PaymentChannel;
   type?: PaymentDisputeType;
+  /** 分流路由筛选（urgent/manual/auto_refund_suggest） */
+  route?: string;
   overdueOnly?: boolean;
   startTime?: string;
   endTime?: string;
@@ -100,6 +107,7 @@ export async function buildDisputesWhere(q: ListDisputesQuery) {
   if (q.status) conds.push(eq(paymentDisputes.status, q.status));
   if (q.channel) conds.push(eq(paymentDisputes.channel, q.channel));
   if (q.type) conds.push(eq(paymentDisputes.type, q.type));
+  if (q.route) conds.push(eq(paymentDisputes.route, q.route));
   if (q.overdueOnly) {
     conds.push(inArray(paymentDisputes.status, OPEN_STATUSES));
     conds.push(lt(paymentDisputes.deadline, new Date()));
@@ -163,6 +171,51 @@ export async function getDisputeStats(): Promise<PaymentDisputeStats> {
   ]);
   const rate = last30dOrders > 0 ? Number(((last30dCount / last30dOrders) * 100).toFixed(2)) : 0;
   return { open, overdue, last30dCount, last30dRate: rate, avgResolveHours: Number(Number(resolvedRows[0]?.avgHours ?? 0).toFixed(1)) };
+}
+
+// ─── 智能分流（规则中心 dispute_triage 决策表，optional：未发布不影响工单创建）────
+
+/** 分流约定表 key：发布即生效，输出 route/priority/slaHours；未命中或未发布走默认队列 */
+const DISPUTE_TRIAGE_TABLE_KEY = 'dispute_triage';
+
+/**
+ * 新工单智能分流：组装事实（工单类型/金额 + 投诉人近90天投诉数）交决策表裁决，
+ * 命中则写 route/priority/slaHours（SLA 同步收紧 deadline，只紧不松）并落 system 时间线。
+ * 决策表输出是「建议」——auto_refund_suggest 仅在 UI 呈现徽标与预填退款，资金动作仍人工确认。
+ */
+export async function triageDispute(row: PaymentDisputeRow): Promise<void> {
+  const complainant = row.complainant ?? '';
+  const history90d = complainant
+    ? await db.$count(paymentDisputes, and(
+      eq(paymentDisputes.complainant, complainant),
+      gte(paymentDisputes.createdAt, dayjs().subtract(90, 'day').toDate()),
+    ))
+    : 0;
+  const decision = await decide(
+    { kind: 'table', key: DISPUTE_TRIAGE_TABLE_KEY },
+    {
+      dispute: { type: row.type, amount: row.amount },
+      history: { disputeCount90d: history90d },
+    },
+    { caller: 'payment.dispute', tenantId: row.tenantId ?? null, bizRef: `payment:dispute:${row.disputeNo}` },
+  );
+  if (!decision.matched) return;
+  const route = typeof decision.outputs.route === 'string' && decision.outputs.route ? decision.outputs.route : null;
+  if (!route) return;
+  const priority = Number.isFinite(Number(decision.outputs.priority)) ? Number(decision.outputs.priority) : null;
+  const slaHours = Number.isFinite(Number(decision.outputs.slaHours)) && Number(decision.outputs.slaHours) > 0 ? Number(decision.outputs.slaHours) : null;
+  const patch: Partial<typeof paymentDisputes.$inferInsert> = { route, priority, slaHours };
+  // SLA 只收紧不放松：分流 deadline 早于默认时效才覆盖
+  if (slaHours != null) {
+    const slaDeadline = dayjs(row.createdAt).add(slaHours, 'hour').toDate();
+    if (row.deadline == null || slaDeadline.getTime() < row.deadline.getTime()) patch.deadline = slaDeadline;
+  }
+  await db.update(paymentDisputes).set(patch).where(eq(paymentDisputes.id, row.id));
+  const label = (PAYMENT_DISPUTE_ROUTE_LABELS as Record<string, string>)[route] ?? route;
+  const bits = [`路由：${label}`];
+  if (priority != null) bits.push(`优先级 ${priority}`);
+  if (slaHours != null) bits.push(`SLA ${slaHours} 小时`);
+  await appendReply(row.id, 'system', `智能分流（规则中心 ${DISPUTE_TRIAGE_TABLE_KEY} v${decision.ref.version ?? '-'}）：${bits.join(' · ')}`);
 }
 
 // ─── 处理动作 ─────────────────────────────────────────────────────────────────
@@ -242,7 +295,14 @@ async function createMockDispute(order: { orderNo: string; channel: PaymentChann
     })
     .returning();
   await appendReply(row.id, 'user', tpl.content);
-  return row;
+  // 智能分流（best-effort：决策表未发布/求值异常不阻断工单创建）
+  try {
+    await triageDispute(row);
+  } catch (err) {
+    logger.warn('[payment-dispute] triage failed', { disputeNo: row.disputeNo, error: err instanceof Error ? err.message : String(err) });
+  }
+  const [fresh] = await db.select().from(paymentDisputes).where(eq(paymentDisputes.id, row.id)).limit(1);
+  return fresh ?? row;
 }
 
 /**

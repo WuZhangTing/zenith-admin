@@ -20,18 +20,19 @@ import {
   useResolvePaymentDispute,
   useSimulatePaymentDispute,
 } from '@/hooks/queries/payment-disputes';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_STATUS_LABELS, PAYMENT_DISPUTE_STATUS_OPTIONS, PAYMENT_DISPUTE_TYPE_LABELS, PAYMENT_DISPUTE_TYPE_OPTIONS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
-import type { PaymentChannel, PaymentDispute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_ROUTE_LABELS, PAYMENT_DISPUTE_ROUTE_OPTIONS, PAYMENT_DISPUTE_STATUS_LABELS, PAYMENT_DISPUTE_STATUS_OPTIONS, PAYMENT_DISPUTE_TYPE_LABELS, PAYMENT_DISPUTE_TYPE_OPTIONS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentDispute, PaymentDisputeRoute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'red', processing: 'blue', resolved: 'green', refunded: 'purple' } as const satisfies Record<PaymentDisputeStatus, string>;
+const ROUTE_COLOR = { urgent: 'red', manual: 'grey', auto_refund_suggest: 'orange' } as const satisfies Record<PaymentDisputeRoute, string>;
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
 const REPLY_AUTHOR_LABELS = { merchant: '商户', user: '投诉人', system: '系统' } as const;
 
-interface SearchParams { keyword: string; status: string; type: string; channel: string }
-const defaultSearchParams: SearchParams = { keyword: '', status: '', type: '', channel: '' };
+interface SearchParams { keyword: string; status: string; type: string; channel: string; route: string }
+const defaultSearchParams: SearchParams = { keyword: '', status: '', type: '', channel: '', route: '' };
 
 export default function PaymentDisputesPage() {
   const { hasPermission } = usePermission();
@@ -52,6 +53,7 @@ export default function PaymentDisputesPage() {
     status: submittedParams.status || undefined,
     type: submittedParams.type || undefined,
     channel: submittedParams.channel || undefined,
+    route: submittedParams.route || undefined,
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -124,6 +126,15 @@ export default function PaymentDisputesPage() {
     { title: '涉诉金额', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => yuan(v) },
     { title: '投诉人', dataIndex: 'complainant', width: 140, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v || '-'}</Typography.Text> },
     {
+      title: '分流', dataIndex: 'route', width: 110,
+      render: (v: string | null, r) => {
+        if (!v) return <Typography.Text type="tertiary">默认队列</Typography.Text>;
+        const label = PAYMENT_DISPUTE_ROUTE_LABELS[v as PaymentDisputeRoute] ?? v;
+        const color = ROUTE_COLOR[v as PaymentDisputeRoute] ?? 'grey';
+        return <Tag color={color}>{label}{r.priority != null ? ` P${r.priority}` : ''}</Tag>;
+      },
+    },
+    {
       title: '处理时效', dataIndex: 'deadline', width: 180,
       render: (v: string | null, r) => {
         if (!v) return '-';
@@ -147,6 +158,7 @@ export default function PaymentDisputesPage() {
     status: submittedParams.status || undefined,
     type: submittedParams.type || undefined,
     channel: submittedParams.channel || undefined,
+    route: submittedParams.route || undefined,
   };
 
   const renderKeywordSearch = () => (
@@ -160,6 +172,9 @@ export default function PaymentDisputesPage() {
   );
   const renderChannelFilter = () => (
     <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
+  );
+  const renderRouteFilter = () => (
+    <Select placeholder="全部分流" value={draftParams.route || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, route: (v as string) ?? '' }))} showClear style={{ width: 130 }} optionList={PAYMENT_DISPUTE_ROUTE_OPTIONS} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
@@ -182,6 +197,7 @@ export default function PaymentDisputesPage() {
             {renderStatusFilter()}
             {renderTypeFilter()}
             {renderChannelFilter()}
+            {renderRouteFilter()}
             {renderSearchButton()}
             {renderResetButton()}
             <ExportButton entity="payment.disputes" query={exportQuery} />
@@ -200,6 +216,7 @@ export default function PaymentDisputesPage() {
             {renderStatusFilter()}
             {renderTypeFilter()}
             {renderChannelFilter()}
+            {renderRouteFilter()}
           </>
         )}
         filterTitle="投诉筛选"
@@ -231,9 +248,21 @@ export default function PaymentDisputesPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {detail.overdue && <Banner type="danger" closeIcon={null} description={`该工单已超过处理时效（${detail.deadline}），请尽快处理`} />}
+            {detail.route === 'auto_refund_suggest' && canAct && (
+              <Banner
+                type="warning" closeIcon={null}
+                description={`智能分流建议自动退款（小额退款诉求）：请核实后使用下方「退款并完结」，默认全额 ${yuan(detail.amount)}。退款仍需人工确认，不会自动执行。`}
+              />
+            )}
 
             <div style={{ fontSize: 13, lineHeight: 2 }}>
-              <div>状态：<Tag color={STATUS_COLOR[detail.status]}>{PAYMENT_DISPUTE_STATUS_LABELS[detail.status]}</Tag>{'　'}类型：{PAYMENT_DISPUTE_TYPE_LABELS[detail.type]}{'　'}渠道：{PAYMENT_CHANNEL_LABELS[detail.channel]}</div>
+              <div>
+                状态：<Tag color={STATUS_COLOR[detail.status]}>{PAYMENT_DISPUTE_STATUS_LABELS[detail.status]}</Tag>{'　'}
+                分流：{detail.route
+                  ? <Tag color={ROUTE_COLOR[detail.route as PaymentDisputeRoute] ?? 'grey'}>{PAYMENT_DISPUTE_ROUTE_LABELS[detail.route as PaymentDisputeRoute] ?? detail.route}{detail.priority != null ? ` P${detail.priority}` : ''}{detail.slaHours != null ? ` · SLA ${detail.slaHours}h` : ''}</Tag>
+                  : <Typography.Text type="tertiary">默认队列</Typography.Text>}{'　'}
+                类型：{PAYMENT_DISPUTE_TYPE_LABELS[detail.type]}{'　'}渠道：{PAYMENT_CHANNEL_LABELS[detail.channel]}
+              </div>
               <div>投诉人：{detail.complainant ?? '-'}（{detail.complainantPhone ?? '-'}）{'　'}涉诉金额：{yuan(detail.amount)}</div>
               <div>渠道投诉号：{detail.channelDisputeNo ?? '-'}</div>
               {detail.refundNo && <div>关联退款单：{detail.refundNo}</div>}

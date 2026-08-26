@@ -24,6 +24,9 @@ const disputes: MockDispute[] = [
     content: '商品与描述不符，申请全额退款。',
     amount: 9900,
     status: 'pending',
+    route: 'auto_refund_suggest',
+    priority: 50,
+    slaHours: 24,
     deadline: dayjs().add(6, 'hour').format('YYYY-MM-DD HH:mm:ss'),
     overdue: false,
     refundNo: null,
@@ -32,6 +35,7 @@ const disputes: MockDispute[] = [
     updatedAt: dayjs().subtract(18, 'hour').format('YYYY-MM-DD HH:mm:ss'),
     replies: [
       { id: 1, author: 'user', content: '商品与描述不符，申请全额退款。', operatorName: null, createdAt: dayjs().subtract(18, 'hour').format('YYYY-MM-DD HH:mm:ss') },
+      { id: 7, author: 'system', content: '智能分流（规则中心 dispute_triage v1）：路由：建议自动退款 · 优先级 50 · SLA 24 小时', operatorName: null, createdAt: dayjs().subtract(18, 'hour').format('YYYY-MM-DD HH:mm:ss') },
     ],
   },
   {
@@ -46,6 +50,9 @@ const disputes: MockDispute[] = [
     content: '付款成功后长时间未到账/未发货，请尽快处理。',
     amount: 45000,
     status: 'processing',
+    route: 'manual',
+    priority: 10,
+    slaHours: 48,
     deadline: dayjs().subtract(2, 'hour').format('YYYY-MM-DD HH:mm:ss'),
     overdue: true,
     refundNo: null,
@@ -69,6 +76,9 @@ const disputes: MockDispute[] = [
     content: '重复扣款，请核实并退回多扣金额。',
     amount: 1500,
     status: 'refunded',
+    route: null,
+    priority: null,
+    slaHours: null,
     deadline: dayjs().subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'),
     overdue: false,
     refundNo: 'REF17580000000000031',
@@ -111,10 +121,11 @@ export const paymentDisputeHandlers = [
     const status = url.searchParams.get('status') ?? '';
     const type = url.searchParams.get('type') ?? '';
     const channel = url.searchParams.get('channel') ?? '';
+    const route = url.searchParams.get('route') ?? '';
     disputes.forEach(refreshOverdue);
     const filtered = disputes.filter((d) =>
       (!keyword || d.disputeNo.includes(keyword) || d.orderNo.includes(keyword) || (d.complainant ?? '').includes(keyword)) &&
-      (!status || d.status === status) && (!type || d.type === type) && (!channel || d.channel === channel),
+      (!status || d.status === status) && (!type || d.type === type) && (!channel || d.channel === channel) && (!route || d.route === route),
     ).map(({ replies: _r, ...rest }) => rest);
     return ok(paginate([...filtered].sort((a, b) => b.id - a.id), url));
   }),
@@ -171,13 +182,19 @@ export const paymentDisputeHandlers = [
       content: '联系客服无人响应，问题一直未解决。',
       amount: 2900,
       status: 'pending',
+      route: 'manual',
+      priority: 10,
+      slaHours: 48,
       deadline: dayjs().add(24, 'hour').format('YYYY-MM-DD HH:mm:ss'),
       overdue: false,
       refundNo: null,
       resolvedAt: null,
       createdAt: now,
       updatedAt: now,
-      replies: [{ id: nextReplyId++, author: 'user', content: '联系客服无人响应，问题一直未解决。', operatorName: null, createdAt: now }],
+      replies: [
+        { id: nextReplyId++, author: 'user', content: '联系客服无人响应，问题一直未解决。', operatorName: null, createdAt: now },
+        { id: nextReplyId++, author: 'system', content: '智能分流（规则中心 dispute_triage v1）：路由：人工处理 · 优先级 10 · SLA 48 小时', operatorName: null, createdAt: now },
+      ],
     };
     disputes.push(item);
     const { replies: _r, ...rest } = item;

@@ -11,6 +11,7 @@ export interface PaymentDisputeListParams {
   status?: string;
   channel?: string;
   type?: string;
+  route?: string;
   overdueOnly?: boolean;
   startTime?: string;
   endTime?: string;

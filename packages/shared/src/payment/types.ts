@@ -347,6 +347,12 @@ export interface PaymentDispute {
   content: string;
   amount: number; // 分
   status: PaymentDisputeStatus;
+  /** 智能分流路由（urgent/manual/auto_refund_suggest；null=未分流走默认队列） */
+  route: string | null;
+  /** 分流优先级（数值越大越紧急） */
+  priority: number | null;
+  /** 分流建议 SLA（小时） */
+  slaHours: number | null;
   deadline?: string | null;
   /** 是否已超时（未完结且已过处理时效） */
   overdue: boolean;
