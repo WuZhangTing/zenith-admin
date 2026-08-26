@@ -5,10 +5,11 @@
  * 桌面 / 移动 / Web 只是不同的平台与制品类型，共用同一套发布与灰度模型。
  * app_release_events 是追加型日志（检查 / 下载 / 安装回执），供升级看板统计。
  */
-import { pgTable, pgEnum, serial, varchar, text, integer, smallint, bigint, boolean, timestamp, unique, index, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, serial, varchar, text, integer, smallint, bigint, boolean, timestamp, unique, index, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns } from './core';
 import { managedFiles } from './files';
+import { pushProviderEnum } from './messaging';
 
 // ─── 枚举（三端同步：pgEnum / shared constants / Zod enum）──────────────────
 export const appReleaseChannelEnum = pgEnum('app_release_channel', ['stable', 'beta', 'internal']);
@@ -106,3 +107,35 @@ export const appReleaseEvents = pgTable('app_release_events', {
 
 export type AppReleaseEventRow = typeof appReleaseEvents.$inferSelect;
 export type NewAppReleaseEvent = typeof appReleaseEvents.$inferInsert;
+
+// ─── 统一设备中心 ─────────────────────────────────────────────────────────────
+// 设备是一等公民:升级灰度、App 推送与在网统计共用一份档案。
+// 写入来自客户端上报（升级检查心跳顺手 upsert、登录后绑定推送），无审计列。
+export const clientDevices = pgTable('client_devices', {
+  id: serial('id').primaryKey(),
+  /** 客户端生成并持久化的匿名设备标识（与升级灰度 deviceId 同源） */
+  deviceId: varchar('device_id', { length: 64 }).notNull().unique(),
+  appId: integer('app_id').notNull().references(() => clientApps.id, { onDelete: 'cascade' }),
+  platform: appPlatformEnum('platform').notNull(),
+  arch: appArchEnum('arch'),
+  deviceModel: varchar('device_model', { length: 128 }),
+  osVersion: varchar('os_version', { length: 64 }),
+  /** 客户端当前版本（升级检查心跳回写,在网版本分布直查本列） */
+  appVersion: varchar('app_version', { length: 32 }),
+  /** 当前绑定人（登录绑定/登出解绑;空=匿名设备） */
+  subjectType: varchar('subject_type', { length: 16 }),
+  subjectId: integer('subject_id'),
+  /** 推送通道绑定（移动端集成推送 SDK 后上报） */
+  pushProvider: pushProviderEnum('push_provider'),
+  pushRegistrationId: varchar('push_registration_id', { length: 128 }),
+  pushEnabled: boolean('push_enabled').notNull().default(true),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastActiveAt: timestamp('last_active_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_devices_app_active_idx').on(t.appId, t.lastActiveAt),
+  index('client_devices_subject_idx').on(t.subjectType, t.subjectId),
+  uniqueIndex('client_devices_push_reg_unique').on(t.pushProvider, t.pushRegistrationId),
+]);
+
+export type ClientDeviceRow = typeof clientDevices.$inferSelect;
+export type NewClientDevice = typeof clientDevices.$inferInsert;

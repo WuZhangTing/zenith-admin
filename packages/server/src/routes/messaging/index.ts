@@ -12,6 +12,8 @@ import notificationUnsubscribeRoutes from './notification-unsubscribe';
 import smsConfigsRoutes from './sms-configs';
 import smsSendLogsRoutes from './sms-send-logs';
 import smsTemplatesRoutes from './sms-templates';
+import pushConfigsRoutes from './push-configs';
+import pushSendLogsRoutes from './push-send-logs';
 
 export default defineRouteDomain({
   name: 'messaging',
@@ -24,6 +26,8 @@ export default defineRouteDomain({
     ['/api/sms-configs', smsConfigsRoutes],
     ['/api/sms-templates', smsTemplatesRoutes],
     ['/api/sms-send-logs', smsSendLogsRoutes],
+    ['/api/push-configs', pushConfigsRoutes],
+    ['/api/push-send-logs', pushSendLogsRoutes],
     ['/api/in-app-templates', inAppTemplatesRoutes],
     ['/api/in-app-messages', inAppMessagesRoutes],
     ['/api/notification-preferences', notificationPreferencesRoutes],

@@ -126,3 +126,25 @@ export const AppReleaseStatsDTO = z
     versions: z.array(z.object({ version: z.string(), devices: z.number().int() })),
   })
   .openapi('AppReleaseStats');
+
+export const ClientDeviceDTO = z
+  .object({
+    id: z.number().int(),
+    deviceId: z.string(),
+    appId: z.number().int(),
+    appName: z.string().optional(),
+    platform: z.enum(APP_PLATFORMS),
+    arch: z.enum(APP_ARCHES).nullable().optional(),
+    deviceModel: z.string().nullable().optional(),
+    osVersion: z.string().nullable().optional(),
+    appVersion: z.string().nullable().optional(),
+    subjectType: z.enum(['user', 'member']).nullable().optional(),
+    subjectId: z.number().int().nullable().optional(),
+    subjectName: z.string().nullable().optional(),
+    pushProvider: z.string().nullable().optional(),
+    pushRegistrationId: z.string().nullable().optional(),
+    pushEnabled: z.boolean(),
+    createdAt: z.string(),
+    lastActiveAt: z.string(),
+  })
+  .openapi('ClientDevice');

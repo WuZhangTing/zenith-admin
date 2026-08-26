@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { chatMessageExtraSchema } from '../chat/validation';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { MP_CUSTOM_MSG_TYPES } from '../mp/constants';
-import { NOTIFICATION_CHANNELS, NOTIFICATION_DIGEST_MODES } from './constants';
+import { NOTIFICATION_CHANNELS, NOTIFICATION_DIGEST_MODES, PUSH_PROVIDERS } from './constants';
 
 // ─── 公告 Schema ─────────────────────────────────────────────────────────────
 export const announcementRecipientSchema = z.object({
@@ -392,3 +392,32 @@ export type SaveNotificationPreferencesInput = z.infer<typeof saveNotificationPr
 export type SaveNotificationSettingsInput = z.infer<typeof saveNotificationSettingsSchema>;
 export type SaveNotificationOverrideInput = z.infer<typeof saveNotificationOverrideSchema>;
 export type ResetNotificationOverrideInput = z.infer<typeof resetNotificationOverrideSchema>;
+
+// ── App 推送配置 ─────────────────────────────────────────────────────────────
+export const createPushConfigSchema = z.object({
+  name: z.string().min(1, '配置名称不能为空').max(100),
+  provider: z.enum(PUSH_PROVIDERS).default('jpush'),
+  appKey: z.string().min(1, 'AppKey 不能为空').max(128),
+  masterSecret: z.string().min(1, 'MasterSecret 不能为空').max(256),
+  apnsProduction: z.boolean().default(false),
+  isDefault: z.boolean().default(false),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+  remark: z.string().max(500).optional(),
+});
+
+export const updatePushConfigSchema = partialForUpdate(createPushConfigSchema).extend({
+  masterSecret: z.string().max(256).optional(), // 更新时允许不传（保持原值）
+});
+
+export type CreatePushConfigInput = z.infer<typeof createPushConfigSchema>;
+
+export type UpdatePushConfigInput = z.infer<typeof updatePushConfigSchema>;
+
+/** 测试发送:直发 registrationId,不依赖设备登记 */
+export const testPushSendSchema = z.object({
+  registrationId: z.string().min(1, 'RegistrationID 不能为空').max(128),
+  title: z.string().max(200).default('Zenith 推送测试'),
+  content: z.string().max(1000).default('这是一条测试推送,收到说明通道配置正确'),
+});
+
+export type TestPushSendInput = z.infer<typeof testPushSendSchema>;

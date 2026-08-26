@@ -134,3 +134,20 @@ export const reportAppReleaseEventSchema = z.object({
 
 export type ReportAppReleaseEventInput = z.infer<typeof reportAppReleaseEventSchema>;
 
+/** 设备绑定推送（App 登录后上报;管理端与会员端共用同一 schema） */
+export const bindPushDeviceSchema = z.object({
+  app: z.string().min(1).max(64),
+  deviceId: z.string().min(1).max(64),
+  provider: z.enum(['jpush']).default('jpush'),
+  registrationId: z.string().min(1, 'RegistrationID 不能为空').max(128),
+  platform: z.enum(APP_PLATFORMS),
+  arch: z.enum(APP_ARCHES).optional(),
+  deviceModel: z.string().max(128).optional(),
+  osVersion: z.string().max(64).optional(),
+  appVersion: z.string().max(32).optional(),
+  /** 用户在 App 设置里关闭推送时传 false（保留绑定但不投递） */
+  pushEnabled: z.boolean().default(true),
+});
+
+export type BindPushDeviceInput = z.infer<typeof bindPushDeviceSchema>;
+

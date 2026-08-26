@@ -163,6 +163,62 @@ export type SmsSendLogRow = typeof smsSendLogs.$inferSelect;
 
 export type NewSmsSendLog = typeof smsSendLogs.$inferInsert;
 
+// ── App 推送（聚合供应商;厂商通道凭证配置在供应商后台,服务端零感知）─────────
+export const pushProviderEnum = pgEnum('push_provider', ['jpush']);
+
+export const pushConfigs = pgTable('push_configs', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  provider: pushProviderEnum('provider').notNull().default('jpush'),
+  appKey: varchar('app_key', { length: 128 }).notNull().default(''),
+  masterSecret: varchar('master_secret', { length: 256 }).notNull().default(''),
+  /** iOS APNs 环境:true=生产 false=开发（极光 options.apns_production） */
+  apnsProduction: boolean('apns_production').notNull().default(false),
+  isDefault: boolean('is_default').notNull().default(false),
+  status: statusEnum('status').default('enabled').notNull(),
+  remark: text('remark'),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export type PushConfigRow = typeof pushConfigs.$inferSelect;
+
+export type NewPushConfig = typeof pushConfigs.$inferInsert;
+
+// 推送发送记录（追加型日志）
+export const pushSendLogs = pgTable('push_send_logs', {
+  id: serial('id').primaryKey(),
+  configId: integer('config_id').references(() => pushConfigs.id, { onDelete: 'set null' }),
+  provider: pushProviderEnum('provider').notNull(),
+  /** 收件人（test 直发 registrationId 时为空） */
+  subjectType: varchar('subject_type', { length: 16 }),
+  subjectId: integer('subject_id'),
+  /** 本次投递的设备数（多设备聚合一次调用） */
+  deviceCount: integer('device_count').notNull().default(0),
+  title: varchar('title', { length: 200 }).notNull(),
+  content: text('content').notNull(),
+  /** 点击跳转深链（映射自通知事件的 link） */
+  link: varchar('link', { length: 500 }),
+  /** 通知事件 key（notify() 派发时记录;测试发送为空） */
+  eventKey: varchar('event_key', { length: 128 }),
+  status: sendStatusEnum('status').default('pending').notNull(),
+  providerMsgId: varchar('provider_msg_id', { length: 128 }),
+  errorMsg: text('error_msg'),
+  source: sendSourceEnum('source').default('system').notNull(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('push_send_logs_created_at_idx').on(t.createdAt),
+  index('push_send_logs_status_idx').on(t.status),
+  index('push_send_logs_subject_idx').on(t.subjectType, t.subjectId),
+]);
+
+export type PushSendLogRow = typeof pushSendLogs.$inferSelect;
+
+export type NewPushSendLog = typeof pushSendLogs.$inferInsert;
+
 // ── 站内信模板 ──────────────────────────────────────────────────────────────
 export const inAppTemplates = pgTable('in_app_templates', {
   id: serial('id').primaryKey(),

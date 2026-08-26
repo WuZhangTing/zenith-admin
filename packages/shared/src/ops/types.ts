@@ -222,8 +222,7 @@ export interface AppUpdateCheckResult {
   };
 }
 
-/** 公开 latest API 的响应（官网下载页用） */
-export interface AppPublicReleaseInfo {
+/** 公开 latest API 的响应（官网下载页用） */export interface AppPublicReleaseInfo {
   version: string;
   notes?: string | null;
   publishedAt?: string | null;
@@ -255,7 +254,35 @@ export interface AppReleaseStats {
     installFail: number;
   }>;
   platforms: Array<{ platform: AppPlatform; count: number }>;
-  /** 近 30 天活跃设备的客户端版本分布（按 check 事件的设备去重） */
+  /** 活跃设备的客户端版本分布（直查统一设备中心） */
   versions: Array<{ version: string; devices: number }>;
+}
+
+// ─── 统一设备中心 ─────────────────────────────────────────────────────────────
+
+/** 设备绑定人类型（与通知收件人 user/member 对齐） */
+export const DEVICE_SUBJECT_TYPES = ['user', 'member'] as const;
+export type DeviceSubjectType = (typeof DEVICE_SUBJECT_TYPES)[number];
+
+export interface ClientDevice {
+  id: number;
+  deviceId: string;
+  appId: number;
+  /** JOIN 冗余 */
+  appName?: string;
+  platform: AppPlatform;
+  arch?: AppArch | null;
+  deviceModel?: string | null;
+  osVersion?: string | null;
+  appVersion?: string | null;
+  subjectType?: DeviceSubjectType | null;
+  subjectId?: number | null;
+  /** JOIN 冗余:绑定人显示名 */
+  subjectName?: string | null;
+  pushProvider?: string | null;
+  pushRegistrationId?: string | null;
+  pushEnabled: boolean;
+  createdAt: string;
+  lastActiveAt: string;
 }
 

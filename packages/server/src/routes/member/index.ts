@@ -8,6 +8,7 @@ import memberCheckinsRoutes from './member-checkins';
 import memberCmsRoutes from './member-cms';
 import memberLevelsRoutes from './member-levels';
 import memberPointsRoutes from './member-points';
+import memberPushRoutes from './member-push';
 import memberRechargesRoutes from './member-recharges';
 import memberRenewalRoutes from './member-renewal';
 import memberSelfRoutes from './member-self';
@@ -22,6 +23,8 @@ export default defineRouteDomain({
     ['/api/member/auth', memberAuthRoutes, { feature: 'member' }],
     ['/api/member/renewal', memberRenewalRoutes, { feature: 'member' }],
     ['/api/member/cms', memberCmsRoutes, { feature: 'member' }],
+    // 会员端设备推送绑定;须先于 /api/member 兜底挂载
+    ['/api/member/push/devices', memberPushRoutes, { feature: 'member' }],
     ['/api/member', memberSelfRoutes, { feature: 'member' }],
     ['/api/members', membersRoutes, { feature: 'member' }],
     ['/api/member-levels', memberLevelsRoutes, { feature: 'member' }],

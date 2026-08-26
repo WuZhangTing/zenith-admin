@@ -10,7 +10,7 @@ import { dictItems, dicts } from './dicts';
 import { analyticsEventMeta, analyticsEventOverrides, analyticsExperiments, analyticsSegmentCampaigns, analyticsSites, analyticsSegmentMembers, analyticsUserProfiles, analyticsUserSegments, errorEvents, errorGroups } from './analytics';
 import { announcementReads, announcementRecipients, announcements } from './announcements';
 import { workflowAutomations, workflowCategories, workflowComments, workflowDefinitions, workflowDefinitionVersions, workflowDelegations, workflowForms, workflowInstances, workflowJobExecutions, workflowJobs, workflowQuickPhrases, workflowTaskConsults, workflowTasks, workflowTaskUrges, workflowTokens } from './workflow';
-import { emailSendLogs, emailTemplates, inAppMessages, inAppTemplates, smsConfigs, smsSendLogs, smsTemplates } from './messaging';
+import { emailSendLogs, emailTemplates, inAppMessages, inAppTemplates, pushConfigs, pushSendLogs, smsConfigs, smsSendLogs, smsTemplates } from './messaging';
 import { dbBackups } from './db-admin';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases } from './rules';
 import { chatConversationMembers, chatConversations, chatMessageReactions, chatMessages, chatWebhooks, chatQuickReplies, chatScheduledMessages, chatCustomEmojis, chatGroupInvites, chatGroupJoinRequests } from './chat';
@@ -20,7 +20,7 @@ import { aiConversations, aiMessages, aiPromptTemplates, aiProviderConfigs, user
 import { appWebhookDeliveries, appWebhookSubscriptions, oauth2AuthorizationCodes, oauth2Clients, oauth2TokenFamilies, oauth2Tokens, oauth2UserGrants, ratePlans } from './open-platform';
 import { checkinMilestones, coupons, memberCheckinMilestoneAwards, memberCheckins, memberCoupons, memberLevels, memberNotifications, memberPointAccounts, memberPointTransactions, members, memberTagBindings, memberTags, memberVipRenewals, memberWallets, memberWalletTransactions } from './member';
 import { monitorAlertEvents, monitorAlertRules } from './monitor';
-import { appArtifacts, appReleases, clientApps } from './app-releases';
+import { appArtifacts, appReleases, clientApps, clientDevices } from './app-releases';
 import { mpAccounts, mpAutoReplies, mpBroadcasts, mpConditionalMenus, mpDrafts, mpFans, mpKfAccounts, mpKfRoutingConfigs, mpKfSessionEvents, mpKfSessions, mpMaterials, mpMenus, mpMessages, mpMessageTemplates, mpQrcodes, mpTags, mpTemplateSendLogs, mpUnmatchedKeywords } from './mp';
 import { reportAlertRules, reportDashboardCategories, reportDashboardComments, reportDashboardEmbedTokens, reportDashboards, reportDashboardShares, reportDashboardSubscriptions, reportDashboardVersions, reportDatasetExecutionLogs, reportDatasets, reportDatasources, reportDeliveryAttempts, reportDeliveryRuns, reportFolders, reportPrintTemplates, reportShareAccessLogs } from './report';
 import {
@@ -1660,6 +1660,15 @@ export const directorySyncDeptLinksRelations = relations(directorySyncDeptLinks,
 // ─── 应用版本管理 ─────────────────────────────────────────────────────────────
 export const clientAppsRelations = relations(clientApps, ({ many }) => ({
   releases: many(appReleases),
+  devices: many(clientDevices),
+}));
+
+export const clientDevicesRelations = relations(clientDevices, ({ one }) => ({
+  app: one(clientApps, { fields: [clientDevices.appId], references: [clientApps.id] }),
+}));
+
+export const pushSendLogsRelations = relations(pushSendLogs, ({ one }) => ({
+  config: one(pushConfigs, { fields: [pushSendLogs.configId], references: [pushConfigs.id] }),
 }));
 
 export const appReleasesRelations = relations(appReleases, ({ one, many }) => ({

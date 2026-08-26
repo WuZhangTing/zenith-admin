@@ -33,7 +33,7 @@ import {
   okPaginated,
   validationHook,
 } from '../../lib/openapi-schemas';
-import { AppArtifactDTO, AppReleaseDTO, AppReleaseStatsDTO, ClientAppDTO } from '../../lib/openapi-dtos';
+import { AppArtifactDTO, AppReleaseDTO, AppReleaseStatsDTO, ClientAppDTO, ClientDeviceDTO } from '../../lib/openapi-dtos';
 import {
   addExternalArtifact,
   addFileArtifact,
@@ -56,6 +56,12 @@ import {
   updateAppRelease,
   updateClientApp,
 } from '../../services/ops/app-releases.service';
+import {
+  adminUnbindDevicePush,
+  deleteClientDevice,
+  getClientDeviceBeforeAudit,
+  listClientDevices,
+} from '../../services/ops/client-devices.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -447,6 +453,79 @@ const statsRoute = defineOpenAPIRoute({
   },
 });
 
+// ─── 设备中心（管理端）───────────────────────────────────────────────────────
+
+const listDevicesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/devices',
+    tags: ['应用版本管理'], summary: '设备列表（统一设备中心）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:app-release:list' })] as const,
+    request: {
+      query: PaginationQuery.extend({
+        appId: z.coerce.number().int().positive().optional(),
+        platform: z.enum(APP_PLATFORMS).optional(),
+        subjectType: z.enum(['user', 'member']).optional(),
+        pushBound: z.enum(['true', 'false']).optional(),
+        keyword: z.string().max(256).optional(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...okPaginated(ClientDeviceDTO, '设备列表') },
+  }),
+  handler: async (c) => {
+    const { pushBound, ...rest } = c.req.valid('query');
+    return c.json(okBody(await listClientDevices({ ...rest, pushBound: pushBound === 'true' })), 200);
+  },
+});
+
+const unbindDeviceRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/devices/{id}/unbind',
+    tags: ['应用版本管理'], summary: '解绑设备推送（保留设备档案）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:app-release:update',
+      audit: { description: '解绑设备推送', module: '应用版本管理' },
+    })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('解绑成功'),
+      404: { content: jsonContent(ErrorResponse), description: '不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getClientDeviceBeforeAudit(id));
+    await adminUnbindDevicePush(id);
+    return c.json(okBody(null, '解绑成功'), 200);
+  },
+});
+
+const deleteDeviceRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/devices/{id}',
+    tags: ['应用版本管理'], summary: '删除设备档案',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:app-release:delete',
+      audit: { description: '删除设备档案', module: '应用版本管理' },
+    })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...okMsg('删除成功'),
+      404: { content: jsonContent(ErrorResponse), description: '不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    setAuditBeforeData(c, await getClientDeviceBeforeAudit(id));
+    await deleteClientDevice(id);
+    return c.json(okBody(null, '删除成功'), 200);
+  },
+});
+
 router.openapiRoutes([
   listAppsRoute,
   allAppsRoute,
@@ -455,6 +534,9 @@ router.openapiRoutes([
   deleteAppRoute,
   listReleasesRoute,
   statsRoute,
+  listDevicesRoute,
+  unbindDeviceRoute,
+  deleteDeviceRoute,
   getReleaseRoute,
   createReleaseRoute,
   updateReleaseRoute,

@@ -72,3 +72,4 @@ export * from './user-feedbacks';
 export * from './cms';
 export * from './wiki';
 export * from './app-releases';
+export * from './push';

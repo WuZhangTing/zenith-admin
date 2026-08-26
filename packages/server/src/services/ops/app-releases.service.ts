@@ -44,6 +44,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { deleteManagedFile, saveGeneratedManagedFile } from '../files/files.service';
+import { countActiveDevices, getDeviceVersionDistribution, upsertDeviceHeartbeat } from './client-devices.service';
 
 // ─── semver 比较（无依赖实现；仅服务本模块的版本新旧判断）────────────────────
 
@@ -536,6 +537,17 @@ export async function checkAppUpdate(q: CheckAppUpdateQuery): Promise<AppUpdateC
     deviceId: q.deviceId ?? null,
   });
 
+  // 检查即心跳:携带 deviceId 的请求顺手养活统一设备中心（失败不影响主流程）
+  if (q.deviceId) {
+    await upsertDeviceHeartbeat({
+      deviceId: q.deviceId,
+      appId: app.id,
+      platform: q.platform,
+      arch: q.arch,
+      appVersion: q.version,
+    });
+  }
+
   if (!matched) return { hasUpdate: false };
 
   const { release, artifact } = matched;
@@ -694,16 +706,14 @@ export async function getAppReleaseStats(appId: number, days: number): Promise<A
   const baseWhere = and(eq(appReleaseEvents.appId, appId), gte(appReleaseEvents.createdAt, since));
   const dateExpr = sql<string>`to_char(${appReleaseEvents.createdAt}, 'YYYY-MM-DD')`;
 
-  const [typeTotals, deviceTotal, trendRows, platformRows, versionRows] = await Promise.all([
+  const [typeTotals, activeDevices, trendRows, platformRows, versionRows] = await Promise.all([
     db
       .select({ eventType: appReleaseEvents.eventType, cnt: sql<number>`count(*)::int` })
       .from(appReleaseEvents)
       .where(baseWhere)
       .groupBy(appReleaseEvents.eventType),
-    db
-      .select({ cnt: sql<number>`count(distinct ${appReleaseEvents.deviceId})::int` })
-      .from(appReleaseEvents)
-      .where(and(baseWhere, sql`${appReleaseEvents.deviceId} is not null`)),
+    // 在网设备与版本分布直查统一设备中心（比事件去重更准:一台设备只算一次）
+    countActiveDevices(appId, since),
     db
       .select({ date: dateExpr, eventType: appReleaseEvents.eventType, cnt: sql<number>`count(*)::int` })
       .from(appReleaseEvents)
@@ -714,16 +724,7 @@ export async function getAppReleaseStats(appId: number, days: number): Promise<A
       .from(appReleaseEvents)
       .where(and(baseWhere, eq(appReleaseEvents.eventType, 'check'), sql`${appReleaseEvents.platform} is not null`))
       .groupBy(appReleaseEvents.platform),
-    db
-      .select({
-        version: appReleaseEvents.version,
-        devices: sql<number>`count(distinct coalesce(${appReleaseEvents.deviceId}, 'unknown'))::int`,
-      })
-      .from(appReleaseEvents)
-      .where(and(baseWhere, eq(appReleaseEvents.eventType, 'check'), sql`${appReleaseEvents.version} is not null`))
-      .groupBy(appReleaseEvents.version)
-      .orderBy(desc(sql`count(distinct coalesce(${appReleaseEvents.deviceId}, 'unknown'))`))
-      .limit(20),
+    getDeviceVersionDistribution(appId, since),
   ]);
 
   const totalsMap = new Map(typeTotals.map((r) => [r.eventType, r.cnt]));
@@ -748,7 +749,7 @@ export async function getAppReleaseStats(appId: number, days: number): Promise<A
     totals: {
       checks: totalsMap.get('check') ?? 0,
       downloads: totalsMap.get('download') ?? 0,
-      devices: deviceTotal[0]?.cnt ?? 0,
+      devices: activeDevices,
       installSuccess: totalsMap.get('install_success') ?? 0,
       installFail: totalsMap.get('install_fail') ?? 0,
     },

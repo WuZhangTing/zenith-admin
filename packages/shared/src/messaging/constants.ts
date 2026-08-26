@@ -103,6 +103,17 @@ export const SMS_PROVIDER_LABELS: Record<SmsProvider, string> = {
 export const SMS_PROVIDER_OPTIONS: Array<{ value: SmsProvider; label: string }> =
   createLabelOptionsFromMap(SMS_PROVIDER_LABELS);
 
+// ─── App 推送供应商（聚合商;厂商通道在其后台配置）────────────────────────────
+export const PUSH_PROVIDERS = ['jpush'] as const;
+export type PushProvider = (typeof PUSH_PROVIDERS)[number];
+
+export const PUSH_PROVIDER_LABELS: Record<PushProvider, string> = {
+  jpush: '极光推送',
+};
+
+export const PUSH_PROVIDER_OPTIONS: Array<{ value: PushProvider; label: string }> =
+  createLabelOptionsFromMap(PUSH_PROVIDER_LABELS);
+
 export const SEND_STATUS_LABELS: Record<SendStatus, string> = {
   pending: '待发送',
   success: '已发送',

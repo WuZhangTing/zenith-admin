@@ -8,6 +8,7 @@ import type {
   NotificationReasonCode,
   NotificationRecipientType,
   NotificationSeverity,
+  PushProvider,
 } from './constants';
 
 // ─── 公告 ──────────────────────────────────────────────────
@@ -522,6 +523,44 @@ export interface SmsSendLog {
   userId: number | null;
   userName?: string | null;
   ip: string | null;
+  tenantId?: number | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+// ─── App 推送 ─────────────────────────────────────────────────────────────────
+
+export interface PushConfig {
+  id: number;
+  name: string;
+  provider: PushProvider;
+  appKey: string;
+  /** 列表/详情脱敏,编辑留空表示不更新 */
+  masterSecret?: string;
+  apnsProduction: boolean;
+  isDefault: boolean;
+  status: EntityStatus;
+  remark: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PushSendLog {
+  id: number;
+  configId: number | null;
+  provider: PushProvider;
+  subjectType: string | null;
+  subjectId: number | null;
+  subjectName?: string | null;
+  deviceCount: number;
+  title: string;
+  content: string;
+  link: string | null;
+  eventKey: string | null;
+  status: SendStatus;
+  providerMsgId: string | null;
+  errorMsg: string | null;
+  source: SendSource;
   tenantId?: number | null;
   sentAt: string | null;
   createdAt: string;
