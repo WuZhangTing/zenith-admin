@@ -7,7 +7,7 @@ import type { WorkflowResolvedApproveMethod, WorkflowFlowData, WorkflowStarterCo
 import { isGatedTrigger } from '@zenith/shared/workflow';
 import { HTTPException } from 'hono/http-exception';
 import { createDeptTree, resolveAssigneeIds } from '../workflow-assignee-resolver.service';
-import { getDecisionOutputs } from '../../platform/rules.service';
+import { decide } from '../../platform/rules-runtime.service';
 import type { DbExecutor } from '../../../db/types';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { enqueueJob } from '../../../lib/workflow-jobs/engine';
@@ -451,8 +451,12 @@ export async function advanceAndMaterialize(
   // 决策表→网关注入：routeGateway 配 decisionRuleKey 时，求值并把输出并入 formData，供出边条件选支
   const decisionNodes = (ctx.flowData.nodes ?? []).filter((n) => n.data.type === 'routeGateway' && n.data.decisionRuleKey);
   for (const n of decisionNodes) {
-    const outputs = await getDecisionOutputs(n.data.decisionRuleKey!, { form: ctx.formData, starter: ctx.starter }, { instanceId: ctx.instanceId, nodeKey: n.data.key, source: 'runtime' });
-    Object.assign(ctx.formData, outputs);
+    const decision = await decide(
+      { kind: 'table', key: n.data.decisionRuleKey! },
+      { form: ctx.formData, starter: ctx.starter },
+      { caller: 'workflow.gateway', instanceId: ctx.instanceId, nodeKey: n.data.key },
+    );
+    Object.assign(ctx.formData, decision.outputs);
   }
 
   // 解析初始引擎触发（并按需先行消费 token）

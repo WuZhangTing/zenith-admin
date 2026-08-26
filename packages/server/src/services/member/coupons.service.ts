@@ -13,7 +13,7 @@ import type { CouponRow, MemberCouponRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
-import { getDecisionOutputs } from '../platform/rules.service';
+import { decide } from '../platform/rules-runtime.service';
 import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -283,8 +283,12 @@ export async function issueCoupon(couponId: number, memberId: number) {
       .from(members).where(and(eq(members.id, memberId), isNull(members.deletedAt))).limit(1);
     if (!m) throw new HTTPException(404, { message: '会员不存在' });
     // 规则中心资格判定（可选）：若已发布 coupon_eligibility 决策表且判定不通过则拒发；表缺失/异常默认放行
-    const decision = await getDecisionOutputs('coupon_eligibility', { member: m, coupon: { id: coupon.id, faceValue: coupon.faceValue, type: coupon.type } });
-    if (decision.eligible === false || decision.eligible === 'false') throw new HTTPException(400, { message: '该会员不满足此优惠券发放资格' });
+    const decision = await decide(
+      { kind: 'table', key: 'coupon_eligibility' },
+      { member: m, coupon: { id: coupon.id, faceValue: coupon.faceValue, type: coupon.type } },
+      { caller: 'member.coupon' },
+    );
+    if (decision.outputs.eligible === false || decision.outputs.eligible === 'false') throw new HTTPException(400, { message: '该会员不满足此优惠券发放资格' });
     return mapMemberCoupon(await grantCoupon(tx, coupon, memberId), coupon);
   });
 }

@@ -109,10 +109,12 @@ export const decisionTablesHandlers = [
     if (status) list = list.filter((t) => t.status === status);
     return ok({ list: list.slice((page - 1) * pageSize, page * pageSize), total: list.length, page, pageSize });
   }),
-  http.get('/api/rules/decision-tables/executions', ({ request }) => {
+  http.get('/api/rules/executions', ({ request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get('page')) || 1, pageSize = Number(url.searchParams.get('pageSize')) || 20;
-    const tableId = Number(url.searchParams.get('tableId')) || null;
+    const refKind = url.searchParams.get('refKind');
+    const refId = Number(url.searchParams.get('refId')) || null;
+    const caller = url.searchParams.get('caller');
     const instanceId = Number(url.searchParams.get('instanceId')) || null;
     const ruleKey = url.searchParams.get('ruleKey');
     const source = url.searchParams.get('source');
@@ -120,7 +122,9 @@ export const decisionTablesHandlers = [
     const dateStart = url.searchParams.get('dateStart');
     const dateEnd = url.searchParams.get('dateEnd');
     const list = mockExecutions.filter((e) =>
-      (!tableId || e.tableId === tableId)
+      (!refKind || e.refKind === refKind)
+      && (!refId || e.refId === refId)
+      && (!caller || e.caller === caller)
       && (!instanceId || e.instanceId === instanceId)
       && (!ruleKey || e.ruleKey.includes(ruleKey))
       && (!source || e.source === source)
@@ -141,7 +145,7 @@ export const decisionTablesHandlers = [
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
     if (!r) return notFound('决策表不存在', { status: 404 });
     const days = Number(new URL(request.url).searchParams.get('days')) || 30;
-    const execs = mockExecutions.filter((e) => e.tableId === r.id);
+    const execs = mockExecutions.filter((e) => e.refKind === 'table' && e.refId === r.id);
     const total = execs.length;
     const matched = execs.filter((e) => e.matched).length;
     const byDayMap = new Map<string, { total: number; matched: number }>();
@@ -167,7 +171,7 @@ export const decisionTablesHandlers = [
     const r = mockDecisionTables.find((t) => t.id === Number(params.id));
     if (!r) return notFound('决策表不存在', { status: 404 });
     const { limit } = (await request.json()) as { limit?: number };
-    const execs = mockExecutions.filter((e) => e.tableId === r.id).slice(0, limit ?? 100);
+    const execs = mockExecutions.filter((e) => e.refKind === 'table' && e.refId === r.id).slice(0, limit ?? 100);
     const samples: Array<{ executionId: number; input: Record<string, unknown>; before: Record<string, unknown>; after: Record<string, unknown>; beforeMatched: boolean; afterMatched: boolean }> = [];
     let same = 0;
     for (const e of execs) {
@@ -281,7 +285,7 @@ export const decisionTablesHandlers = [
     if (!r) return notFound('决策表不存在', { status: 404 });
     const { input } = (await request.json()) as { input: Record<string, unknown> };
     const res = evaluate(r, input ?? {});
-    mockExecutions.unshift({ id: getNextExecId(), ruleKey: r.key, tableId: r.id, instanceId: null, nodeKey: null, source: 'test', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
+    mockExecutions.unshift({ id: getNextExecId(), refKind: 'table', refId: r.id, ruleKey: r.key, version: null, caller: 'admin.test', instanceId: null, nodeKey: null, source: 'test', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
     return ok(res);
   }),
   http.post('/api/rules/decision-tables/evaluate', async ({ request }) => {
@@ -289,7 +293,9 @@ export const decisionTablesHandlers = [
     const r = mockDecisionTables.find((t) => t.key === key);
     if (!r) return notFound('决策表不存在', { status: 404 });
     if (r.status === 'disabled') return badRequest('决策表已禁用', { status: 400 });
-    return ok(evaluate(r, input ?? {}));
+    const res = evaluate(r, input ?? {});
+    mockExecutions.unshift({ id: getNextExecId(), refKind: 'table', refId: r.id, ruleKey: r.key, version: r.status === 'published' ? r.version : null, caller: 'admin.evaluate', instanceId: null, nodeKey: null, source: 'manual', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
+    return ok(res);
   }),
   http.delete('/api/rules/decision-tables/:id', ({ params }) => {
     const i = mockDecisionTables.findIndex((t) => t.id === Number(params.id));

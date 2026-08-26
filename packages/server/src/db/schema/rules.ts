@@ -81,27 +81,36 @@ export type RuleTestCaseRow = typeof ruleTestCases.$inferSelect;
 
 export type NewRuleTestCase = typeof ruleTestCases.$inferInsert;
 
-// 决策表执行记录（运行时/测试/手动求值，append-only），用于实例 trace 与规则审计
-export const ruleDecisionExecutions = pgTable('rule_decision_executions', {
+// 规则执行记录（全资产通用，append-only）：决策表 / 决策流 / 评分卡 / 名单命中统一留痕，
+// 供 trace、审计与「谁在调哪条规则」的消费方分析
+export const ruleExecutions = pgTable('rule_executions', {
   id: serial('id').primaryKey(),
+  refKind: varchar('ref_kind', { length: 16 }).notNull(), // RuleRefKind: table | flow | scorecard | list
+  refId: integer('ref_id'),
   ruleKey: varchar('rule_key', { length: 64 }).notNull(),
-  tableId: integer('table_id'),
+  version: integer('version'),                             // 求值所用发布版本（名单为 null）
+  caller: varchar('caller', { length: 64 }),               // 调用方标识（如 workflow.gateway）
   instanceId: integer('instance_id'),
   nodeKey: varchar('node_key', { length: 64 }),
-  source: varchar('source', { length: 16 }).notNull().default('runtime'),
+  source: varchar('source', { length: 16 }).notNull().default('runtime'), // RuleExecutionSource
   matched: boolean('matched').notNull().default(false),
-  hitPolicy: ruleHitPolicyEnum('hit_policy').default('first').notNull(),
+  hitPolicy: ruleHitPolicyEnum('hit_policy'),              // 仅决策表类记录有值
   input: jsonb('input').notNull().default(sql`'{}'::jsonb`),
   outputs: jsonb('outputs').notNull().default(sql`'{}'::jsonb`),
   matchedRowIds: jsonb('matched_row_ids').notNull().default(sql`'[]'::jsonb`),
   createdBy: integer('created_by').references(() => users.id, { onDelete: 'set null' }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('rule_decision_executions_tenant_idx').on(t.tenantId), index('rule_exec_instance_idx').on(t.instanceId), index('rule_exec_table_idx').on(t.tableId)]);
+}, (t) => [
+  index('rule_executions_tenant_idx').on(t.tenantId),
+  index('rule_executions_instance_idx').on(t.instanceId),
+  index('rule_executions_ref_idx').on(t.refKind, t.refId),
+  index('rule_executions_caller_idx').on(t.caller),
+]);
 
-export type RuleDecisionExecutionRow = typeof ruleDecisionExecutions.$inferSelect;
+export type RuleExecutionRow = typeof ruleExecutions.$inferSelect;
 
-export type NewRuleDecisionExecution = typeof ruleDecisionExecutions.$inferInsert;
+export type NewRuleExecution = typeof ruleExecutions.$inferInsert;
 
 // ─── 决策流：多决策表顺序编排（DRD 简化版），步骤输出并入 scope 供后续步骤引用 ────
 export const ruleDecisionFlows = pgTable('rule_decision_flows', {

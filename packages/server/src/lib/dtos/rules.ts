@@ -2,6 +2,7 @@
  * 规则中心 DTO（决策表）
  */
 import { z } from '@hono/zod-openapi';
+import { RULE_EXECUTION_SOURCES, RULE_REF_KINDS } from '@zenith/shared/rules';
 import { auditFields } from './_audit';
 
 const RuleInputDTO = z.object({
@@ -122,8 +123,10 @@ export const RuleTestRunResultDTO = z
 
 export const RuleExecutionDTO = z
   .object({
-    id: z.number().int(), ruleKey: z.string(), tableId: z.number().int().nullable(), instanceId: z.number().int().nullable(),
-    nodeKey: z.string().nullable(), source: z.enum(['runtime', 'manual', 'test']), matched: z.boolean(), hitPolicy,
+    id: z.number().int(), refKind: z.enum(RULE_REF_KINDS), refId: z.number().int().nullable(),
+    ruleKey: z.string(), version: z.number().int().nullable(), caller: z.string().nullable(),
+    instanceId: z.number().int().nullable(), nodeKey: z.string().nullable(),
+    source: z.enum(RULE_EXECUTION_SOURCES), matched: z.boolean(), hitPolicy: hitPolicy.nullable(),
     input: z.record(z.string(), z.unknown()), outputs: z.record(z.string(), z.unknown()), matchedRowIds: z.array(z.string()), createdAt: z.string(),
   })
   .openapi('RuleExecution');

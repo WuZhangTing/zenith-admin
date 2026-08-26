@@ -12,7 +12,7 @@ export const SEED_MENUS_RULES: Menu[] = [
   { id: 6015, parentId: 6010, title: '发布决策表', type: 'button', permission: 'rule:table:publish', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 6016, parentId: 6010, title: '求值测试', type: 'button', permission: 'rule:table:evaluate', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 6017, parentId: 6010, title: '审批发布', type: 'button', permission: 'rule:table:approve', sort: 6, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 6020, parentId: 6000, title: '决策执行记录', name: 'RuleExecutions', path: '/rules/executions', component: 'rules/executions/RuleExecutionsPage', icon: 'History', type: 'menu', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 6020, parentId: 6000, title: '执行记录', name: 'RuleExecutions', path: '/rules/executions', component: 'rules/executions/RuleExecutionsPage', icon: 'History', type: 'menu', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 6021, parentId: 6020, title: '查询', type: 'button', permission: 'rule:table:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 6030, parentId: 6000, title: '决策流', name: 'RuleFlows', path: '/rules/flows', component: 'rules/flows/RuleFlowsPage', icon: 'GitBranch', type: 'menu', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 6031, parentId: 6030, title: '查询', type: 'button', permission: 'rule:flow:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

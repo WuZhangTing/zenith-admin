@@ -1,18 +1,20 @@
-import { and, desc, eq, like, inArray, gte, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, like, inArray, gte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult, RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample, RuleSimulateResult, RuleSimulateRowResult } from '@zenith/shared/rules';
 import { db } from '../../db';
-import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleDecisionExecutions, workflowDefinitions, systemConfigs } from '../../db/schema';
+import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleExecutions, workflowDefinitions, systemConfigs } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation, isPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
-import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { evaluateDecisionTable, isOutputExpression } from '../../lib/rules-engine';
 import { evaluateExpression, validateExpression } from '../../lib/workflow-expression';
 import { validateRuleCell } from '@zenith/shared/rules';
 import { diffDecisionSnapshots } from '../../lib/rules-version-diff';
+import { cachedRuleRuntime, invalidateRuleRuntimeCache } from './rules-runtime-cache';
+import { recordRuleExecution, flushRuleExecutionQueue, snapshotRuleScope } from './rules-executions.service';
 
 type TableRow = typeof ruleDecisionTables.$inferSelect;
 type VersionRow = typeof ruleDecisionTableVersions.$inferSelect;
@@ -448,28 +450,22 @@ export async function listDecisionTableVersions(id: number) {
 }
 
 // ─── 运行时快照解析与缓存 ──────────────────────────────────────────────────────
-// 缓存已解析的运行时快照（含"不可用"负缓存），发布/回滚/更新/删除/启停时全量失效；
-// TTL 兜底防多实例部署下的长期漂移。
+// 已解析的运行时快照（含"不可用"负缓存）走统一规则运行时缓存（rules-runtime-cache），
+// 发布/回滚/更新/删除/启停时全量失效；TTL 兜底防多实例部署下的长期漂移。
 interface RuntimeSnapshot {
   tableId: number;
   tenantId: number | null;
+  /** 求值所用的发布版本；published 但无快照的历史回退场景为 null */
+  version: number | null;
   hitPolicy: RuleHitPolicy;
   inputs: RuleDecisionInput[];
   outputs: RuleDecisionOutput[];
   rules: RuleDecisionRow[];
   settings: RuleDecisionTableSettings;
 }
-const RUNTIME_CACHE_TTL_MS = 60_000;
-const runtimeCache = new Map<string, { at: number; value: RuntimeSnapshot | null }>();
 
-/** 灰度配置缓存（与快照缓存同 TTL/同失效时机） */
+/** 灰度配置 */
 interface GrayConfigCached { percent: number; dimension: string | null; version: number }
-const grayCache = new Map<string, { at: number; value: GrayConfigCached | null }>();
-
-export function invalidateRuleRuntimeCache(): void {
-  runtimeCache.clear();
-  grayCache.clear();
-}
 
 // ─── 灰度分桶：FNV-1a 哈希主体 → 0-99 桶号，桶号 < grayPercent 走新版本 ─────────
 function fnv1a(str: string): number {
@@ -483,21 +479,19 @@ function fnv1a(str: string): number {
 
 async function loadGrayConfig(key: string, tenantId: number | null | undefined): Promise<GrayConfigCached | null> {
   const cacheKey = `${tenantId === undefined ? 'ctxless' : tenantId ?? 'global'}|${key}`;
-  const hit = grayCache.get(cacheKey);
-  if (hit && Date.now() - hit.at < RUNTIME_CACHE_TTL_MS) return hit.value;
-  const row = await resolveTableRowByKey(key, tenantId);
-  const value = row && row.status === 'published' && row.grayPercent != null && row.grayVersion != null
-    ? { percent: row.grayPercent, dimension: row.grayDimension ?? null, version: row.grayVersion }
-    : null;
-  grayCache.set(cacheKey, { at: Date.now(), value });
-  return value;
+  return cachedRuleRuntime('table-gray', cacheKey, async () => {
+    const row = await resolveTableRowByKey(key, tenantId);
+    return row && row.status === 'published' && row.grayPercent != null && row.grayVersion != null
+      ? { percent: row.grayPercent, dimension: row.grayDimension ?? null, version: row.grayVersion }
+      : null;
+  });
 }
 
 /**
  * 灰度选版：主体表达式取灰度维度（缺省对整包输入哈希），稳定分桶——
  * 同一主体在灰度期内始终命中同一版本。非灰度返回 undefined（走最新版本）。
  */
-async function resolveGrayPinnedVersion(key: string, scope: Record<string, unknown>, tenantId?: number | null): Promise<number | undefined> {
+export async function resolveGrayPinnedVersion(key: string, scope: Record<string, unknown>, tenantId?: number | null): Promise<number | undefined> {
   const gray = await loadGrayConfig(key, runtimeTenantId(tenantId));
   if (!gray) return undefined;
   let subject: unknown = null;
@@ -544,8 +538,6 @@ async function resolveTableRowByKey(key: string, tenantId: number | null | undef
 async function loadRuntimeSnapshot(key: string, opts?: { tenantId?: number | null; version?: number }): Promise<RuntimeSnapshot | null> {
   const tenantId = runtimeTenantId(opts?.tenantId);
   const cacheKey = `${tenantId === undefined ? 'ctxless' : tenantId ?? 'global'}|${key}|${opts?.version ?? 'latest'}`;
-  const hit = runtimeCache.get(cacheKey);
-  if (hit && Date.now() - hit.at < RUNTIME_CACHE_TTL_MS) return hit.value;
 
   const resolve = async (): Promise<RuntimeSnapshot | null> => {
     const row = await resolveTableRowByKey(key, tenantId);
@@ -558,6 +550,7 @@ async function loadRuntimeSnapshot(key: string, opts?: { tenantId?: number | nul
       return {
         tableId: row.id,
         tenantId: row.tenantId ?? null,
+        version: snapshot.version,
         hitPolicy: snapshot.hitPolicy,
         inputs: (snapshot.inputs ?? []) as RuleDecisionInput[],
         outputs: (snapshot.outputs ?? []) as RuleDecisionOutput[],
@@ -570,6 +563,7 @@ async function loadRuntimeSnapshot(key: string, opts?: { tenantId?: number | nul
     return {
       tableId: row.id,
       tenantId: row.tenantId ?? null,
+      version: null,
       hitPolicy: row.hitPolicy,
       inputs: (row.inputs ?? []) as RuleDecisionInput[],
       outputs: (row.outputs ?? []) as RuleDecisionOutput[],
@@ -578,12 +572,10 @@ async function loadRuntimeSnapshot(key: string, opts?: { tenantId?: number | nul
     };
   };
 
-  const value = await resolve();
-  runtimeCache.set(cacheKey, { at: Date.now(), value });
-  return value;
+  return cachedRuleRuntime('table-snapshot', cacheKey, resolve);
 }
 
-/** 按 key 求值（对外通用）：已发布用最新发布快照；草稿直接跑编辑态（便于联调）；禁用报错 */
+/** 按 key 求值（对外通用）：已发布用最新发布快照；草稿直接跑编辑态（便于联调）；禁用报错。留痕 source=manual */
 export async function evaluateDecisionTableByKey(key: string, input: Record<string, unknown>): Promise<RuleEvaluateResult> {
   const tc = tenantCondition(ruleDecisionTables, currentUser());
   const conds = [eq(ruleDecisionTables.key, key)];
@@ -591,6 +583,8 @@ export async function evaluateDecisionTableByKey(key: string, input: Record<stri
   const [row] = await db.select().from(ruleDecisionTables).where(and(...conds)).limit(1);
   if (!row) throw new HTTPException(404, { message: '决策表不存在' });
   if (row.status === 'disabled') throw new HTTPException(400, { message: '决策表已禁用' });
+  let def: Parameters<typeof evaluateDecisionTable>[0] | null = null;
+  let version: number | null = null;
   if (row.status === 'published') {
     // 灰度中按主体分桶选版本；非灰度取最新快照
     const pinned = row.grayPercent != null && row.grayVersion != null
@@ -602,34 +596,48 @@ export async function evaluateDecisionTableByKey(key: string, input: Record<stri
       .where(and(...versionConds))
       .orderBy(desc(ruleDecisionTableVersions.version)).limit(1);
     if (snapshot) {
-      return evaluateDecisionTable({
+      version = snapshot.version;
+      def = {
         hitPolicy: snapshot.hitPolicy,
         inputs: (snapshot.inputs ?? []) as RuleDecisionInput[],
         outputs: (snapshot.outputs ?? []) as RuleDecisionOutput[],
         rules: (snapshot.rules ?? []) as RuleDecisionRow[],
         settings: (snapshot.settings ?? {}) as RuleDecisionTableSettings,
-      }, input);
+      };
     }
   }
-  return evaluateDecisionTable({
+  def ??= {
     hitPolicy: row.hitPolicy,
     inputs: (row.inputs ?? []) as RuleDecisionInput[],
     outputs: (row.outputs ?? []) as RuleDecisionOutput[],
     rules: (row.rules ?? []) as RuleDecisionRow[],
     settings: (row.settings ?? {}) as RuleDecisionTableSettings,
-  }, input);
+  };
+  const res = evaluateDecisionTable(def, input);
+  recordRuleExecution({
+    refKind: 'table', refId: row.id, ruleKey: key, version, caller: 'admin.evaluate',
+    source: 'manual', matched: res.matched, hitPolicy: res.hitPolicy,
+    input: snapshotRuleScope(input), outputs: res.outputs, matchedRowIds: res.matchedRowIds, tenantId: row.tenantId ?? null,
+  });
+  return res;
 }
 
-/** 测试求值：按 id 跑当前编辑态配置，无需发布 */
+/** 测试求值：按 id 跑当前编辑态配置，无需发布。留痕 source=test */
 export async function testEvaluateDecisionTable(id: number, input: Record<string, unknown>): Promise<RuleEvaluateResult> {
   const row = await ensureDecisionTable(id);
-  return evaluateDecisionTable({
+  const res = evaluateDecisionTable({
     hitPolicy: row.hitPolicy,
     inputs: (row.inputs ?? []) as RuleDecisionInput[],
     outputs: (row.outputs ?? []) as RuleDecisionOutput[],
     rules: (row.rules ?? []) as RuleDecisionRow[],
     settings: (row.settings ?? {}) as RuleDecisionTableSettings,
   }, input);
+  recordRuleExecution({
+    refKind: 'table', refId: row.id, ruleKey: row.key, version: null, caller: 'admin.test',
+    source: 'test', matched: res.matched, hitPolicy: res.hitPolicy,
+    input: snapshotRuleScope(input), outputs: res.outputs, matchedRowIds: res.matchedRowIds, tenantId: row.tenantId ?? null,
+  });
+  return res;
 }
 
 /** 批量仿真：逐行以编辑态求值（评估「若现在发布」的批量表现），汇总命中率与规则行命中分布 */
@@ -667,68 +675,7 @@ export async function simulateDecisionTable(id: number, rows: Array<Record<strin
   };
 }
 
-// ─── 执行记录：异步批写（削峰，不阻塞求值热路径）────────────────────────────────
-type NewExecRow = typeof ruleDecisionExecutions.$inferInsert;
-const EXEC_FLUSH_INTERVAL_MS = 2_000;
-const EXEC_FLUSH_BATCH = 50;
-const execWriteQueue: NewExecRow[] = [];
-let execFlushTimer: ReturnType<typeof setTimeout> | null = null;
-
-async function flushExecutionQueue(): Promise<void> {
-  if (execFlushTimer) { clearTimeout(execFlushTimer); execFlushTimer = null; }
-  if (execWriteQueue.length === 0) return;
-  const batch = execWriteQueue.splice(0, execWriteQueue.length);
-  try { await db.insert(ruleDecisionExecutions).values(batch); } catch { /* 执行流水尽力而为，不阻断业务 */ }
-}
-
-function queueExecutionRecord(row: NewExecRow): void {
-  execWriteQueue.push(row);
-  if (execWriteQueue.length >= EXEC_FLUSH_BATCH) {
-    void flushExecutionQueue();
-    return;
-  }
-  if (!execFlushTimer) {
-    execFlushTimer = setTimeout(() => { void flushExecutionQueue(); }, EXEC_FLUSH_INTERVAL_MS);
-    execFlushTimer.unref?.();
-  }
-}
-
-/** 执行流水入队前的 scope 深拷贝：异步批写期间调用方可能继续改写原对象（如工作流合并输出回 formData） */
-export function snapshotRuleScope(scope: Record<string, unknown>): Record<string, unknown> {
-  try {
-    return structuredClone(scope);
-  } catch {
-    try { return JSON.parse(JSON.stringify(scope)) as Record<string, unknown>; } catch { return { ...scope }; }
-  }
-}
-
-/**
- * 运行时按 key 求值，返回输出键值；表不存在/禁用/未发布/异常一律返回空对象（不阻断流程）。
- * 始终基于**发布版本快照**求值（默认最新，meta.version 可 pin 指定版本），编辑态修改不影响线上。
- * collect 策略输出已按 settings.collectAggregate 聚合（默认各键为数组，供包容网关 contains/in 命中多分支）；
- * settings.fallbackToDefaults 开启时未命中返回默认值。执行记录异步批写供 trace/审计。
- */
-export async function getDecisionOutputs(
-  key: string,
-  scope: Record<string, unknown>,
-  meta?: { instanceId?: number | null; nodeKey?: string | null; source?: 'runtime' | 'manual' | 'test'; version?: number; tenantId?: number | null },
-): Promise<Record<string, unknown>> {
-  try {
-    // 未显式 pin 版本时应用灰度选版（同一主体稳定命中同一版本）
-    const pinned = meta?.version ?? await resolveGrayPinnedVersion(key, scope, meta?.tenantId);
-    const snapshot = await loadRuntimeSnapshot(key, { tenantId: meta?.tenantId, version: pinned });
-    if (!snapshot) return {};
-    const res = evaluateDecisionTable(snapshot, scope);
-    queueExecutionRecord({
-      ruleKey: key, tableId: snapshot.tableId, instanceId: meta?.instanceId ?? null, nodeKey: meta?.nodeKey ?? null,
-      source: meta?.source ?? 'runtime', matched: res.matched, hitPolicy: res.hitPolicy,
-      input: snapshotRuleScope(scope), outputs: res.outputs, matchedRowIds: res.matchedRowIds, tenantId: snapshot.tenantId,
-    });
-    return res.matched || res.usedFallback ? res.outputs : {};
-  } catch { return {}; }
-}
-
-/** 供决策流运行时使用：按 key 解析发布快照（含缓存/租户语义），不可用返回 null */
+/** 供统一门面（rules-runtime）与决策流运行时使用：按 key 解析发布快照（含缓存/租户语义），不可用返回 null */
 export async function resolveRuntimeDecisionTable(key: string, opts?: { tenantId?: number | null; version?: number }): Promise<(RuntimeSnapshot & { settings: RuleDecisionTableSettings }) | null> {
   return loadRuntimeSnapshot(key, opts);
 }
@@ -742,6 +689,7 @@ export async function resolveDecisionTableForTest(key: string): Promise<RuntimeS
   return {
     tableId: row.id,
     tenantId: row.tenantId ?? null,
+    version: null,
     hitPolicy: row.hitPolicy,
     inputs: (row.inputs ?? []) as RuleDecisionInput[],
     outputs: (row.outputs ?? []) as RuleDecisionOutput[],
@@ -750,42 +698,37 @@ export async function resolveDecisionTableForTest(key: string): Promise<RuntimeS
   };
 }
 
-/** 供其它规则服务（决策流等）写执行流水（异步批写） */
-export function recordRuleExecution(row: NewExecRow): void {
-  queueExecutionRecord(row);
-}
-
 /** 命中分析：总量/命中率/按日趋势/规则行命中分布/来源分布（近 N 天执行流水聚合） */
 export async function getDecisionTableStats(id: number, days = 30): Promise<RuleTableStats> {
   const row = await ensureDecisionTable(id);
-  await flushExecutionQueue();
+  await flushRuleExecutionQueue();
   const span = Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 30;
   const cutoff = new Date(Date.now() - span * 24 * 60 * 60 * 1000);
   // 原生 SQL 无列类型编码器，Date 参数无法被驱动序列化（ERR_INVALID_ARG_TYPE），改绑格式化时间串再显式 cast
   const cutoffText = formatDateTime(cutoff);
-  const where = and(eq(ruleDecisionExecutions.tableId, row.id), gte(ruleDecisionExecutions.createdAt, cutoff));
+  const where = and(eq(ruleExecutions.refKind, 'table'), eq(ruleExecutions.refId, row.id), gte(ruleExecutions.createdAt, cutoff));
   const [totals, byDay, rowHits, bySource] = await Promise.all([
     db.select({
       total: sql<number>`count(*)::int`,
-      matched: sql<number>`count(*) filter (where ${ruleDecisionExecutions.matched})::int`,
-    }).from(ruleDecisionExecutions).where(where),
+      matched: sql<number>`count(*) filter (where ${ruleExecutions.matched})::int`,
+    }).from(ruleExecutions).where(where),
     db.select({
-      date: sql<string>`to_char(${ruleDecisionExecutions.createdAt}, 'YYYY-MM-DD')`,
+      date: sql<string>`to_char(${ruleExecutions.createdAt}, 'YYYY-MM-DD')`,
       total: sql<number>`count(*)::int`,
-      matched: sql<number>`count(*) filter (where ${ruleDecisionExecutions.matched})::int`,
-    }).from(ruleDecisionExecutions).where(where)
-      .groupBy(sql`to_char(${ruleDecisionExecutions.createdAt}, 'YYYY-MM-DD')`)
-      .orderBy(sql`to_char(${ruleDecisionExecutions.createdAt}, 'YYYY-MM-DD')`),
+      matched: sql<number>`count(*) filter (where ${ruleExecutions.matched})::int`,
+    }).from(ruleExecutions).where(where)
+      .groupBy(sql`to_char(${ruleExecutions.createdAt}, 'YYYY-MM-DD')`)
+      .orderBy(sql`to_char(${ruleExecutions.createdAt}, 'YYYY-MM-DD')`),
     db.execute(sql`
       SELECT elem AS row_id, count(*)::int AS cnt
-      FROM ${ruleDecisionExecutions}, jsonb_array_elements_text(${ruleDecisionExecutions.matchedRowIds}) AS elem
-      WHERE ${ruleDecisionExecutions.tableId} = ${row.id} AND ${ruleDecisionExecutions.createdAt} >= ${cutoffText}::timestamp
+      FROM ${ruleExecutions}, jsonb_array_elements_text(${ruleExecutions.matchedRowIds}) AS elem
+      WHERE ${ruleExecutions.refKind} = 'table' AND ${ruleExecutions.refId} = ${row.id} AND ${ruleExecutions.createdAt} >= ${cutoffText}::timestamp
       GROUP BY elem ORDER BY cnt DESC LIMIT 50
     `),
     db.select({
-      source: ruleDecisionExecutions.source,
+      source: ruleExecutions.source,
       count: sql<number>`count(*)::int`,
-    }).from(ruleDecisionExecutions).where(where).groupBy(ruleDecisionExecutions.source),
+    }).from(ruleExecutions).where(where).groupBy(ruleExecutions.source),
   ]);
   const total = totals[0]?.total ?? 0;
   const matched = totals[0]?.matched ?? 0;
@@ -804,7 +747,7 @@ export async function getDecisionTableStats(id: number, days = 30): Promise<Rule
 /** 影子对比：以最近执行记录的输入重放当前编辑态，评估「若现在发布」的行为差异（不影响线上） */
 export async function shadowRunDecisionTable(id: number, limit = 100): Promise<RuleShadowRunResult> {
   const row = await ensureDecisionTable(id);
-  await flushExecutionQueue();
+  await flushRuleExecutionQueue();
   const draft = {
     hitPolicy: row.hitPolicy,
     inputs: (row.inputs ?? []) as RuleDecisionInput[],
@@ -813,9 +756,9 @@ export async function shadowRunDecisionTable(id: number, limit = 100): Promise<R
     settings: (row.settings ?? {}) as RuleDecisionTableSettings,
   };
   const cap = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : 100;
-  const execs = await db.select().from(ruleDecisionExecutions)
-    .where(eq(ruleDecisionExecutions.tableId, row.id))
-    .orderBy(desc(ruleDecisionExecutions.id)).limit(cap);
+  const execs = await db.select().from(ruleExecutions)
+    .where(and(eq(ruleExecutions.refKind, 'table'), eq(ruleExecutions.refId, row.id)))
+    .orderBy(desc(ruleExecutions.id)).limit(cap);
   const samples: RuleShadowDiffSample[] = [];
   let same = 0;
   for (const exec of execs) {
@@ -836,44 +779,6 @@ export async function shadowRunDecisionTable(id: number, limit = 100): Promise<R
     }
   }
   return { total: execs.length, same, changed: execs.length - same, samples };
-}
-
-export interface ListDecisionExecutionsQuery {
-  page?: number;
-  pageSize?: number;
-  instanceId?: number;
-  tableId?: number;
-  ruleKey?: string;
-  source?: 'runtime' | 'manual' | 'test';
-  matched?: boolean;
-  dateStart?: string;
-  dateEnd?: string;
-}
-
-export async function listDecisionExecutions(q: ListDecisionExecutionsQuery) {
-  // 分页前先落盘缓冲区，保证刚发生的求值可见
-  await flushExecutionQueue();
-  const page = q.page ?? 1;
-  const pageSize = q.pageSize ?? 20;
-  const conds = [];
-  const tc = tenantCondition(ruleDecisionExecutions, currentUser());
-  if (tc) conds.push(tc);
-  if (q.instanceId) conds.push(eq(ruleDecisionExecutions.instanceId, q.instanceId));
-  if (q.tableId) conds.push(eq(ruleDecisionExecutions.tableId, q.tableId));
-  if (q.ruleKey) conds.push(like(ruleDecisionExecutions.ruleKey, `%${escapeLike(q.ruleKey)}%`));
-  if (q.source) conds.push(eq(ruleDecisionExecutions.source, q.source));
-  if (q.matched !== undefined) conds.push(eq(ruleDecisionExecutions.matched, q.matched));
-  const start = parseDateRangeStart(q.dateStart);
-  if (start) conds.push(gte(ruleDecisionExecutions.createdAt, start));
-  const end = parseDateRangeEnd(q.dateEnd);
-  if (end) conds.push(lte(ruleDecisionExecutions.createdAt, end));
-  const where = conds.length ? and(...conds) : undefined;
-  const [total, rows] = await Promise.all([
-    db.$count(ruleDecisionExecutions, where),
-    db.select().from(ruleDecisionExecutions).where(where).orderBy(desc(ruleDecisionExecutions.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
-  ]);
-  const list = rows.map((r) => ({ id: r.id, ruleKey: r.ruleKey, tableId: r.tableId, instanceId: r.instanceId, nodeKey: r.nodeKey, source: r.source as 'runtime' | 'manual' | 'test', matched: r.matched, hitPolicy: r.hitPolicy, input: (r.input ?? {}) as Record<string, unknown>, outputs: (r.outputs ?? {}) as Record<string, unknown>, matchedRowIds: (r.matchedRowIds ?? []) as string[], createdAt: formatDateTime(r.createdAt) }));
-  return { list, total, page, pageSize };
 }
 
 /** 测试用例 CRUD + 批跑 + 覆盖率 */

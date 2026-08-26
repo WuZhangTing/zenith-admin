@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { RuleDecisionExecution, RuleDecisionFlow, RuleDecisionTable, RuleEvaluateResult, RuleFlowEvaluateResult, RuleList, RuleListItem, RuleShadowRunResult, RuleSimulateResult, RuleTableStats, RuleTestCase, RuleTestRunResult, RuleUsageItem, RuleVersionDiff } from '@zenith/shared/rules';
+import type { RuleDecisionFlow, RuleDecisionTable, RuleEvaluateResult, RuleExecution, RuleExecutionSource, RuleFlowEvaluateResult, RuleList, RuleListItem, RuleRefKind, RuleShadowRunResult, RuleSimulateResult, RuleTableStats, RuleTestCase, RuleTestRunResult, RuleUsageItem, RuleVersionDiff } from '@zenith/shared/rules';
 import { toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
 
@@ -14,10 +14,12 @@ export interface RuleDecisionTableListParams {
 export interface RuleExecutionsParams {
   page: number;
   pageSize: number;
-  tableId?: number;
+  refKind?: RuleRefKind;
+  refId?: number;
+  caller?: string;
   instanceId?: number;
   ruleKey?: string;
-  source?: 'runtime' | 'manual' | 'test';
+  source?: RuleExecutionSource;
   matched?: boolean;
   dateStart?: string;
   dateEnd?: string;
@@ -32,8 +34,11 @@ export const ruleKeys = {
     versions: (id: number | undefined) => ['rules', 'decision-tables', 'versions', id] as const,
     diff: (id: number | undefined, from: number | null, to: number) => ['rules', 'decision-tables', 'diff', id, from, to] as const,
     cases: (id: number | undefined) => ['rules', 'decision-tables', 'cases', id] as const,
-    executions: (params: RuleExecutionsParams) => ['rules', 'decision-tables', 'executions', params] as const,
     stats: (id: number | undefined, days: number) => ['rules', 'decision-tables', 'stats', id, days] as const,
+  },
+  executions: {
+    all: ['rules', 'executions'] as const,
+    list: (params: RuleExecutionsParams) => ['rules', 'executions', 'list', params] as const,
   },
   flows: {
     all: ['rules', 'flows'] as const,
@@ -181,8 +186,8 @@ export function useTestRuleDecisionTable() {
 
 export function useRuleExecutions(params: RuleExecutionsParams, enabled = true) {
   return useQuery({
-    queryKey: ruleKeys.decisionTables.executions(params),
-    queryFn: () => request.get<PaginatedResponse<RuleDecisionExecution>>(`/api/rules/decision-tables/executions${toQueryString(params)}`).then(unwrap),
+    queryKey: ruleKeys.executions.list(params),
+    queryFn: () => request.get<PaginatedResponse<RuleExecution>>(`/api/rules/executions${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
     enabled,
   });

@@ -1,3 +1,5 @@
+import type { RuleExecutionSource, RuleRefKind } from './constants';
+
 // ─── 规则中心：决策表 ────────────────────────────────────────────────────────────
 export type RuleHitPolicy = 'first' | 'unique' | 'priority' | 'collect' | 'any';
 
@@ -378,16 +380,45 @@ export interface RuleTestRunResult {
   cases: RuleCaseResult[];
 }
 
-// ─── 规则中心：执行记录 ──────────────────────────────────────────────────────────
-export interface RuleDecisionExecution {
+// ─── 规则中心：统一求值门面 ──────────────────────────────────────────────────────
+/** 统一规则资产引用：kind + key 定位一个可求值资产 */
+export interface RuleRef {
+  kind: RuleRefKind;
+  key: string;
+}
+
+/**
+ * 统一求值结论信封（rules-runtime decide() 返回值）。
+ * 业务消费方只依赖该结构，不感知各资产的解析与快照细节。
+ */
+export interface RuleDecision {
+  matched: boolean;
+  outputs: Record<string, unknown>;
+  /** 实际求值的资产与版本（名单无版本概念，为 null） */
+  ref: { kind: RuleRefKind; key: string; version: number | null };
+  /** matched=false 的原因；not_found=资产不存在/未发布/已禁用；error=求值异常（仅 optional 模式） */
+  reason?: RuleEvaluateReason | 'not_found' | 'error';
+  /** 决策表未命中但按设置回退了默认输出 */
+  usedFallback?: boolean;
+}
+
+// ─── 规则中心：执行记录（全资产通用） ────────────────────────────────────────────
+export interface RuleExecution {
   id: number;
+  refKind: RuleRefKind;
+  /** 资产行 ID（决策表/流/评分卡/名单）；快照缺失时可为 null */
+  refId: number | null;
   ruleKey: string;
-  tableId: number | null;
+  /** 求值所用的发布版本；名单/无版本场景为 null */
+  version: number | null;
+  /** 调用方标识（如 workflow.gateway / member.coupon / admin.evaluate） */
+  caller: string | null;
   instanceId: number | null;
   nodeKey: string | null;
-  source: 'runtime' | 'manual' | 'test';
+  source: RuleExecutionSource;
   matched: boolean;
-  hitPolicy: RuleHitPolicy;
+  /** 命中策略；仅决策表类记录有值 */
+  hitPolicy: RuleHitPolicy | null;
   input: Record<string, unknown>;
   outputs: Record<string, unknown>;
   matchedRowIds: string[];

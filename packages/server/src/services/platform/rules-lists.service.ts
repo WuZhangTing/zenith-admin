@@ -208,53 +208,110 @@ export async function purgeExpiredRuleListItems(listId: number): Promise<number>
 
 // ─── 运行时命中判定 ─────────────────────────────────────────────────────────────
 
+export interface RuleListBatchHit {
+  key: string;
+  listId: number;
+  value: string;
+  listType: RuleListType;
+  label: string | null;
+  matchMode: 'exact' | 'prefix' | 'regex';
+  expiresAt: string | null;
+}
+
+export interface RuleListsBatchResult {
+  /** 成功解析且启用的名单（缺失/禁用的 key 不在其中） */
+  lists: Array<{ key: string; id: number; type: RuleListType; tenantId: number | null }>;
+  /** 全部命中（每个 key×value 至多一条，精确命中优先） */
+  hits: RuleListBatchHit[];
+}
+
+function runtimeListTenantId(explicit?: number | null): number | null | undefined {
+  if (explicit !== undefined) return explicit;
+  const u = currentUserOrNull();
+  return u ? (u.viewingTenantId ?? u.tenantId ?? null) : undefined;
+}
+
 /**
- * 名单命中判定（运行时/业务侧通用）：租户精确匹配优先回退平台级；
- * 名单禁用或不存在视为未命中；条目过期不命中。
+ * 名单批量命中判定（运行时/业务侧通用）：keys × values 全组合一次判定，整批 2~3 条 SQL。
+ * 租户精确匹配优先回退平台级；名单禁用或不存在不参与判定；条目过期不命中。
  */
-export async function checkRuleList(key: string, value: string, meta?: { tenantId?: number | null }): Promise<RuleListCheckResult> {
-  const tenantId = meta?.tenantId !== undefined
-    ? meta.tenantId
-    : (() => { const u = currentUserOrNull(); return u ? (u.viewingTenantId ?? u.tenantId ?? null) : undefined; })();
-  const candidates = await db.select().from(ruleLists).where(eq(ruleLists.key, key));
-  const row = (tenantId != null ? candidates.find((r) => r.tenantId === tenantId) : undefined)
-    ?? candidates.find((r) => r.tenantId == null)
-    ?? (tenantId === undefined && candidates.length === 1 ? candidates[0] : undefined);
-  if (!row || row.status !== 'enabled') return { hit: false };
-  const trimmed = value.trim();
+export async function checkRuleListsBatch(keys: string[], values: string[], meta?: { tenantId?: number | null }): Promise<RuleListsBatchResult> {
+  const uniqKeys = [...new Set(keys.map((k) => k?.trim()).filter(Boolean))];
+  const trimmedValues = [...new Set(values.map((v) => v?.trim()).filter(Boolean))];
+  if (uniqKeys.length === 0) return { lists: [], hits: [] };
+  const tenantId = runtimeListTenantId(meta?.tenantId);
+  const candidates = await db.select().from(ruleLists).where(inArray(ruleLists.key, uniqKeys));
+  const resolved: ListRow[] = [];
+  for (const key of uniqKeys) {
+    const cands = candidates.filter((c) => c.key === key);
+    const row = (tenantId != null ? cands.find((r) => r.tenantId === tenantId) : undefined)
+      ?? cands.find((r) => r.tenantId == null)
+      ?? (tenantId === undefined && cands.length === 1 ? cands[0] : undefined);
+    if (row && row.status === 'enabled') resolved.push(row);
+  }
+  const lists = resolved.map((r) => ({ key: r.key, id: r.id, type: r.type as RuleListType, tenantId: r.tenantId ?? null }));
+  if (resolved.length === 0 || trimmedValues.length === 0) return { lists, hits: [] };
+
+  const listIds = resolved.map((r) => r.id);
+  const keyByListId = new Map(resolved.map((r) => [r.id, r.key]));
+  const typeByListId = new Map(resolved.map((r) => [r.id, r.type as RuleListType]));
   const notExpired = or(isNull(ruleListItems.expiresAt), gt(ruleListItems.expiresAt, new Date()));
-  // 精确条目走索引等值查询；未命中再加载前缀/正则条目逐条匹配（此类条目通常极少）
-  const [item] = await db.select().from(ruleListItems)
-    .where(and(
-      eq(ruleListItems.listId, row.id),
-      eq(ruleListItems.value, trimmed),
+  // 精确条目走索引等值批查；前缀/正则条目一次载入逐条匹配（此类条目通常极少）
+  const [exactItems, patternItems] = await Promise.all([
+    db.select().from(ruleListItems).where(and(
+      inArray(ruleListItems.listId, listIds),
+      inArray(ruleListItems.value, trimmedValues),
       eq(ruleListItems.matchMode, 'exact'),
       notExpired,
-    )).limit(1);
-  const toHit = (it: ItemRow): RuleListCheckResult => ({
-    hit: true,
-    listType: row.type as RuleListType,
-    item: {
-      value: it.value,
-      label: it.label ?? null,
-      matchMode: (it.matchMode ?? 'exact') as 'exact' | 'prefix' | 'regex',
-      expiresAt: formatNullableDateTime(it.expiresAt),
-    },
-  });
-  if (item) return toHit(item);
-  const patternItems = await db.select().from(ruleListItems)
-    .where(and(
-      eq(ruleListItems.listId, row.id),
+    )),
+    db.select().from(ruleListItems).where(and(
+      inArray(ruleListItems.listId, listIds),
       sql`${ruleListItems.matchMode} <> 'exact'`,
       notExpired,
-    ));
-  for (const it of patternItems) {
-    if (it.matchMode === 'prefix' && trimmed.startsWith(it.value)) return toHit(it);
-    if (it.matchMode === 'regex') {
-      try {
-        if (new RegExp(it.value).test(trimmed)) return toHit(it);
-      } catch { /* 无法编译的历史正则视为不命中 */ }
+    )),
+  ]);
+
+  const hits: RuleListBatchHit[] = [];
+  const seen = new Set<string>();
+  const pushHit = (item: ItemRow, value: string) => {
+    const dedupe = `${item.listId}|${value}`;
+    if (seen.has(dedupe)) return;
+    seen.add(dedupe);
+    hits.push({
+      key: keyByListId.get(item.listId) ?? '',
+      listId: item.listId,
+      value,
+      listType: typeByListId.get(item.listId) ?? 'black',
+      label: item.label ?? null,
+      matchMode: (item.matchMode ?? 'exact') as 'exact' | 'prefix' | 'regex',
+      expiresAt: formatNullableDateTime(item.expiresAt),
+    });
+  };
+  for (const item of exactItems) pushHit(item, item.value);
+  for (const item of patternItems) {
+    for (const value of trimmedValues) {
+      if (item.matchMode === 'prefix' && value.startsWith(item.value)) pushHit(item, value);
+      if (item.matchMode === 'regex') {
+        try {
+          if (new RegExp(item.value).test(value)) pushHit(item, value);
+        } catch { /* 无法编译的历史正则视为不命中 */ }
+      }
     }
   }
-  return { hit: false };
+  return { lists, hits };
+}
+
+/**
+ * 单 key 单值命中判定（批量判定的薄封装）：
+ * 租户精确匹配优先回退平台级；名单禁用或不存在视为未命中；条目过期不命中。
+ */
+export async function checkRuleList(key: string, value: string, meta?: { tenantId?: number | null }): Promise<RuleListCheckResult> {
+  const { hits } = await checkRuleListsBatch([key], [value], meta);
+  const hit = hits[0];
+  if (!hit) return { hit: false };
+  return {
+    hit: true,
+    listType: hit.listType,
+    item: { value: hit.value, label: hit.label, matchMode: hit.matchMode, expiresAt: hit.expiresAt },
+  };
 }

@@ -914,7 +914,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/rules/decision-tables/:id/stats",
   "GET /api/rules/decision-tables/:id/usages",
   "GET /api/rules/decision-tables/:id/versions",
-  "GET /api/rules/decision-tables/executions",
+  "GET /api/rules/executions",
   "GET /api/rules/lists",
   "GET /api/rules/lists/:id/items",
   "GET /api/rules/scorecards",

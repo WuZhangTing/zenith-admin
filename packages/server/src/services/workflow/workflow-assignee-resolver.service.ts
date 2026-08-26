@@ -19,7 +19,7 @@ import type { DbExecutor } from '../../db/types';
 import logger from '../../lib/logger';
 import { resolveGroupMemberUserIds } from '../../lib/user-group-access';
 import { evaluateExpression, ExpressionError } from '../../lib/workflow-expression';
-import { getDecisionOutputs } from '../platform/rules.service';
+import { decide } from '../platform/rules-runtime.service';
 
 export interface ResolveAssigneeContext {
   /** 流程发起人 ID（用于 initiator / initiatorLeader / initiatorDept / manager） */
@@ -649,7 +649,11 @@ export async function resolveAssigneeIds(
     case 'decision': {
       // 审批人矩阵：查决策表得「来源类型 + id 列表」，复用现有 role/dept/post/user 解析
       if (!node.decisionRuleKey) break;
-      const out = await getDecisionOutputs(node.decisionRuleKey, { form: ctx.formData ?? {}, starter: { id: ctx.initiatorId } });
+      const { outputs: out } = await decide(
+        { kind: 'table', key: node.decisionRuleKey },
+        { form: ctx.formData ?? {}, starter: { id: ctx.initiatorId } },
+        { caller: 'workflow.assignee', instanceId: ctx.instanceId ?? null },
+      );
       const srcType = String(out.type ?? out.assigneeType ?? 'user') as WorkflowAssigneeType;
       const raw = out.ids ?? out.id ?? '';
       const ids = (Array.isArray(raw) ? raw : String(raw).split(',')).map((x) => Number(x)).filter((n) => Number.isFinite(n));

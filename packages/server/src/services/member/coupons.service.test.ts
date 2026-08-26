@@ -10,7 +10,7 @@
  *  4. revokeCoupon：已使用不可作废、未使用冻结成功
  *  5. expireCoupons：返回批量置过期数量
  *
- * Mock 策略：db / member-context / rules.service mock；事务回调直接以 db mock 作为 tx。
+ * Mock 策略：db / member-context / rules-runtime mock；事务回调直接以 db mock 作为 tx。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
@@ -34,8 +34,8 @@ vi.mock('../../lib/member-context', () => ({
   currentMemberId: vi.fn().mockReturnValue(7),
 }));
 
-vi.mock('../platform/rules.service', () => ({
-  getDecisionOutputs: vi.fn().mockResolvedValue({}),
+vi.mock('../platform/rules-runtime.service', () => ({
+  decide: vi.fn().mockResolvedValue({ matched: false, outputs: {}, ref: { kind: 'table', key: 'coupon_eligibility', version: null }, reason: 'not_found' }),
 }));
 
 // 服务端权威事件为 best-effort 异步旁路，unit test 中整体 mock 掉，
@@ -46,7 +46,7 @@ vi.mock('../analytics/analytics-server-events.service', () => ({
 
 import { db } from '../../db';
 import { currentMemberId } from '../../lib/member-context';
-import { getDecisionOutputs } from '../platform/rules.service';
+import { decide } from '../platform/rules-runtime.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import {
   issueCoupon,
@@ -58,7 +58,7 @@ import {
 import type { CouponRow, MemberCouponRow } from '../../db/schema';
 
 const dbMock = vi.mocked(db);
-const decisionMock = vi.mocked(getDecisionOutputs);
+const decisionMock = vi.mocked(decide);
 const trackServerEventMock = vi.mocked(trackServerEvent);
 
 // ─── 工具：可 await 的链式 query builder mock ─────────────────────────────────
@@ -117,7 +117,7 @@ function makeMemberCoupon(overrides: Partial<MemberCouponRow> = {}): MemberCoupo
 beforeEach(() => {
   // resetAllMocks 同时清空 mockReturnValueOnce 队列，避免失败用例的残留 mock 污染后续用例
   vi.resetAllMocks();
-  decisionMock.mockResolvedValue({});
+  decisionMock.mockResolvedValue({ matched: false, outputs: {}, ref: { kind: 'table', key: 'coupon_eligibility', version: null }, reason: 'not_found' });
   vi.mocked(currentMemberId).mockReturnValue(7);
   dbMock.transaction.mockImplementation(async (callback: (tx: typeof db) => unknown) => callback(db));
 });
@@ -149,7 +149,7 @@ describe('issueCoupon', () => {
     dbMock.select
       .mockReturnValueOnce(createChain([makeCoupon()]))
       .mockReturnValueOnce(createChain([member]));
-    decisionMock.mockResolvedValueOnce({ eligible: false });
+    decisionMock.mockResolvedValueOnce({ matched: true, outputs: { eligible: false }, ref: { kind: 'table', key: 'coupon_eligibility', version: 1 } });
     await expect(issueCoupon(1, 7)).rejects.toMatchObject({ status: 400, message: '该会员不满足此优惠券发放资格' });
   });
 

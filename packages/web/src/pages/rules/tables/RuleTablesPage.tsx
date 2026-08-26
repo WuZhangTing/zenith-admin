@@ -181,7 +181,7 @@ export default function RuleTablesPage() {
   const stats = statsQuery.data ?? null;
   const casesQuery = useRuleTestCases(caseRow?.id, !!caseRow);
   const cases = casesQuery.data ?? [];
-  const execsQuery = useRuleExecutions({ tableId: execRow?.id, page: 1, pageSize: 50 }, !!execRow);
+  const execsQuery = useRuleExecutions({ refKind: 'table', refId: execRow?.id, page: 1, pageSize: 50 }, !!execRow);
   const execs = execsQuery.data?.list ?? [];
   const saveMutation = useSaveRuleDecisionTable();
   const publishMutation = usePublishRuleDecisionTable();

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { DatePicker, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import type { RuleDecisionExecution } from '@zenith/shared/rules';
+import type { RuleExecution, RuleExecutionSource, RuleRefKind } from '@zenith/shared/rules';
+import { RULE_EXECUTION_SOURCE_LABELS, RULE_REF_KIND_LABELS, RULE_EXECUTION_SOURCES, RULE_REF_KINDS } from '@zenith/shared/rules';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { usePagination } from '@/hooks/usePagination';
@@ -15,21 +16,25 @@ import { JsonBlock } from '@/components/JsonBlock';
 
 const { Text } = Typography;
 
-const SOURCE_META: Record<string, { text: string; color: 'blue' | 'purple' | 'cyan' }> = {
-  runtime: { text: '运行时', color: 'blue' },
-  manual: { text: '手动', color: 'purple' },
-  test: { text: '测试', color: 'cyan' },
+const SOURCE_COLORS: Record<RuleExecutionSource, 'blue' | 'purple' | 'cyan' | 'orange'> = {
+  runtime: 'blue', manual: 'purple', test: 'cyan', open: 'orange',
+};
+
+const REF_KIND_COLORS: Record<RuleRefKind, 'indigo' | 'teal' | 'violet' | 'amber'> = {
+  table: 'indigo', flow: 'teal', scorecard: 'violet', list: 'amber',
 };
 
 interface Filters {
   ruleKey?: string;
-  source?: 'runtime' | 'manual' | 'test';
+  refKind?: RuleRefKind;
+  caller?: string;
+  source?: RuleExecutionSource;
   matched?: boolean;
   dateStart?: string;
   dateEnd?: string;
 }
 
-/** 规则中心 · 决策执行记录（跨表 trace / 审计） */
+/** 规则中心 · 执行记录（决策表/决策流/评分卡/名单统一 trace / 审计） */
 export default function RuleExecutionsPage() {
   const queryClient = useQueryClient();
   const { page, pageSize, setPage, buildPagination } = usePagination();
@@ -42,31 +47,36 @@ export default function RuleExecutionsPage() {
   const handleSearch = () => {
     setPage(1);
     setSubmitted(draft);
-    void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.all });
+    void queryClient.invalidateQueries({ queryKey: ruleKeys.executions.all });
   };
   const handleReset = () => {
     setDraft({});
     setSubmitted({});
     setPage(1);
-    void queryClient.invalidateQueries({ queryKey: ruleKeys.decisionTables.all });
+    void queryClient.invalidateQueries({ queryKey: ruleKeys.executions.all });
   };
 
-  const columns: ColumnProps<RuleDecisionExecution>[] = [
+  const columns: ColumnProps<RuleExecution>[] = [
     dateTimeColumn('时间', 'createdAt'),
-    { title: '决策表 Key', dataIndex: 'ruleKey', width: 170, render: (t: string) => <Text code>{t}</Text> },
-    { title: '来源', dataIndex: 'source', width: 90, render: (s: string) => <Tag size="small" color={SOURCE_META[s]?.color}>{SOURCE_META[s]?.text ?? s}</Tag> },
+    { title: '类型', dataIndex: 'refKind', width: 90, render: (k: RuleRefKind) => <Tag size="small" color={REF_KIND_COLORS[k]}>{RULE_REF_KIND_LABELS[k] ?? k}</Tag> },
+    { title: '规则 Key', dataIndex: 'ruleKey', width: 170, render: (t: string) => <Text code>{t}</Text> },
+    { title: '调用方', dataIndex: 'caller', width: 150, render: (c: string | null) => (c ? <Text type="tertiary" size="small" code>{c}</Text> : '-') },
+    { title: '来源', dataIndex: 'source', width: 90, render: (s: RuleExecutionSource) => <Tag size="small" color={SOURCE_COLORS[s]}>{RULE_EXECUTION_SOURCE_LABELS[s] ?? s}</Tag> },
     { title: '结果', dataIndex: 'matched', width: 90, render: (m: boolean) => <Tag size="small" color={m ? 'green' : 'red'}>{m ? '命中' : '未命中'}</Tag> },
-    { title: '命中行', width: 130, render: (_: unknown, r: RuleDecisionExecution) => <Text type="tertiary" size="small">{r.matchedRowIds.join(', ') || '-'}</Text> },
-    { title: '流程实例', width: 130, render: (_: unknown, r: RuleDecisionExecution) => (r.instanceId ? <Text type="tertiary" size="small">#{r.instanceId}{r.nodeKey ? ` · ${r.nodeKey}` : ''}</Text> : '-') },
-    { title: '输出', render: (_: unknown, r: RuleDecisionExecution) => <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>{JSON.stringify(r.outputs)}</Text> },
+    { title: '版本', dataIndex: 'version', width: 70, render: (v: number | null) => (v != null ? <Text type="tertiary" size="small">v{v}</Text> : '-') },
+    { title: '命中行', width: 120, render: (_: unknown, r: RuleExecution) => <Text type="tertiary" size="small">{r.matchedRowIds.join(', ') || '-'}</Text> },
+    { title: '流程实例', width: 130, render: (_: unknown, r: RuleExecution) => (r.instanceId ? <Text type="tertiary" size="small">#{r.instanceId}{r.nodeKey ? ` · ${r.nodeKey}` : ''}</Text> : '-') },
+    { title: '输出', render: (_: unknown, r: RuleExecution) => <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>{JSON.stringify(r.outputs)}</Text> },
   ];
 
   /** 行内展开：命中策略上下文 + 输入 / 输出双栏对比 */
-  const renderExpanded = (r?: RuleDecisionExecution) => (r ? (
+  const renderExpanded = (r?: RuleExecution) => (r ? (
     <div style={{ display: 'grid', gap: 12, padding: '4px 0' }}>
       <Space spacing={8} wrap>
-        <Tag size="small">{r.hitPolicy}</Tag>
-        <Text type="tertiary" size="small" code>{r.ruleKey}{r.tableId ? ` (#${r.tableId})` : ''}</Text>
+        <Tag size="small" color={REF_KIND_COLORS[r.refKind]}>{RULE_REF_KIND_LABELS[r.refKind] ?? r.refKind}</Tag>
+        {r.hitPolicy && <Tag size="small">{r.hitPolicy}</Tag>}
+        <Text type="tertiary" size="small" code>{r.ruleKey}{r.refId ? ` (#${r.refId})` : ''}{r.version != null ? ` · v${r.version}` : ''}</Text>
+        {r.caller && <Text type="tertiary" size="small">调用方 {r.caller}</Text>}
         {r.instanceId && <Text type="tertiary" size="small">实例 #{r.instanceId}{r.nodeKey ? ` · 节点 ${r.nodeKey}` : ''}</Text>}
       </Space>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -87,9 +97,11 @@ export default function RuleExecutionsPage() {
       <SearchToolbar
         primary={(
           <>
-            <KeywordInput placeholder="决策表 Key" value={draft.ruleKey ?? ''} onChange={(v) => setDraft((p) => ({ ...p, ruleKey: v || undefined }))} onSearch={handleSearch} width={200} />
-            <Select placeholder="来源" value={draft.source} onChange={(v) => setDraft((p) => ({ ...p, source: v as Filters['source'] }))} optionList={[{ value: 'runtime', label: '运行时' }, { value: 'manual', label: '手动' }, { value: 'test', label: '测试' }]} showClear style={{ width: 120 }} />
-            <Select placeholder="结果" value={draft.matched === undefined ? undefined : String(draft.matched)} onChange={(v) => setDraft((p) => ({ ...p, matched: v === undefined ? undefined : v === 'true' }))} optionList={[{ value: 'true', label: '命中' }, { value: 'false', label: '未命中' }]} showClear style={{ width: 110 }} />
+            <KeywordInput placeholder="规则 Key" value={draft.ruleKey ?? ''} onChange={(v) => setDraft((p) => ({ ...p, ruleKey: v || undefined }))} onSearch={handleSearch} width={180} />
+            <Select placeholder="类型" value={draft.refKind} onChange={(v) => setDraft((p) => ({ ...p, refKind: v as Filters['refKind'] }))} optionList={RULE_REF_KINDS.map((k) => ({ value: k, label: RULE_REF_KIND_LABELS[k] }))} showClear style={{ width: 110 }} />
+            <KeywordInput placeholder="调用方" value={draft.caller ?? ''} onChange={(v) => setDraft((p) => ({ ...p, caller: v || undefined }))} onSearch={handleSearch} width={150} />
+            <Select placeholder="来源" value={draft.source} onChange={(v) => setDraft((p) => ({ ...p, source: v as Filters['source'] }))} optionList={RULE_EXECUTION_SOURCES.map((s) => ({ value: s, label: RULE_EXECUTION_SOURCE_LABELS[s] }))} showClear style={{ width: 110 }} />
+            <Select placeholder="结果" value={draft.matched === undefined ? undefined : String(draft.matched)} onChange={(v) => setDraft((p) => ({ ...p, matched: v === undefined ? undefined : v === 'true' }))} optionList={[{ value: 'true', label: '命中' }, { value: 'false', label: '未命中' }]} showClear style={{ width: 100 }} />
             <DatePicker
               type="dateTimeRange"
               value={draft.dateStart && draft.dateEnd ? [draft.dateStart, draft.dateEnd] : undefined}

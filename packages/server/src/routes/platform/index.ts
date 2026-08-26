@@ -10,6 +10,7 @@ import monitorRoutes from './monitor';
 import operationLogsRoutes from './operation-logs';
 import rateLimitRoutes from './rate-limit';
 import regionsRoutes from './regions';
+import rulesExecutionsRoutes from './rules-executions';
 import rulesFlowsRoutes from './rules-flows';
 import rulesListsRoutes from './rules-lists';
 import rulesScorecardsRoutes from './rules-scorecards';
@@ -37,6 +38,7 @@ export default defineRouteDomain({
     ['/api/cache', cacheRoutes],
     ['/api/rules/decision-tables', rulesRoutes, { feature: 'rules' }],
     ['/api/rules/decision-flows', rulesFlowsRoutes, { feature: 'rules' }],
+    ['/api/rules/executions', rulesExecutionsRoutes, { feature: 'rules' }],
     ['/api/rules/lists', rulesListsRoutes, { feature: 'rules' }],
     ['/api/rules/scorecards', rulesScorecardsRoutes, { feature: 'rules' }],
     ['/api/tags', tagsRoutes],

@@ -358,13 +358,13 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
 
   // ── 规则中心 ───────────────────────────────────────────────────────────────
   {
-    key: 'rule_decision_executions',
-    title: '决策执行记录',
+    key: 'rule_executions',
+    title: '规则执行记录',
     module: '规则中心',
-    tableName: 'rule_decision_executions',
+    tableName: 'rule_executions',
     timeColumn: 'created_at',
     defaultDays: 90,
-    description: '决策表 / 决策流的执行流水。',
+    description: '决策表 / 决策流 / 评分卡 / 名单命中的统一执行流水。',
   },
 
   // ── 报表中心 ───────────────────────────────────────────────────────────────

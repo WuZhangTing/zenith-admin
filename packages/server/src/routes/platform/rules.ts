@@ -2,15 +2,15 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { sensitiveRateLimit } from '../../middleware/rate-limit';
-import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { DecisionTableDTO, DecisionTableVersionDTO, RuleEvaluateResultDTO, RuleVersionDiffDTO, RuleTestCaseDTO, RuleTestRunResultDTO, RuleExecutionDTO, RuleUsageDTO, RuleTableStatsDTO, RuleShadowRunResultDTO, RuleSimulateResultDTO } from '../../lib/openapi-dtos';
+import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { DecisionTableDTO, DecisionTableVersionDTO, RuleEvaluateResultDTO, RuleVersionDiffDTO, RuleTestCaseDTO, RuleTestRunResultDTO, RuleUsageDTO, RuleTableStatsDTO, RuleShadowRunResultDTO, RuleSimulateResultDTO } from '../../lib/openapi-dtos';
 import { createDecisionTableSchema, updateDecisionTableSchema, createRuleTestCaseSchema, updateRuleTestCaseSchema, toggleDecisionTableSchema, reviewDecisionTableSchema, publishDecisionTableSchema, grayActionSchema, simulateDecisionTableSchema } from '@zenith/shared/rules';
 import {
   listDecisionTables, getDecisionTable, getDecisionTableBeforeAudit,
   createDecisionTable, updateDecisionTable, deleteDecisionTable, deleteDecisionTables,
   publishDecisionTable, listDecisionTableVersions, evaluateDecisionTableByKey, testEvaluateDecisionTable,
   diffDecisionTableVersions, rollbackDecisionTable, toggleDecisionTable, listDecisionTableUsages,
-  listTestCases, createTestCase, updateTestCase, deleteTestCase, runTestCases, listDecisionExecutions,
+  listTestCases, createTestCase, updateTestCase, deleteTestCase, runTestCases,
   getDecisionTableStats, shadowRunDecisionTable, submitDecisionTableReview, reviewDecisionTable,
   grayActionDecisionTable, simulateDecisionTable,
 } from '../../services/platform/rules.service';
@@ -322,27 +322,6 @@ const deleteRoute = defineOpenAPIRoute({
   },
 });
 
-const executionsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/executions', tags: ['DecisionTables'], summary: '决策执行记录（trace/审计，分页）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'rule:table:list' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        instanceId: z.coerce.number().int().optional(),
-        tableId: z.coerce.number().int().optional(),
-        ruleKey: z.string().optional(),
-        source: z.enum(['runtime', 'manual', 'test']).optional(),
-        matched: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),
-        dateStart: dateRangeBound('起始日期'),
-        dateEnd: dateRangeBound('结束日期'),
-      }),
-    },
-    responses: { ...commonErrorResponses, ...okPaginated(RuleExecutionDTO, 'ok') },
-  }),
-  handler: async (c) => c.json(okBody(await listDecisionExecutions(c.req.valid('query'))), 200),
-});
-
-router.openapiRoutes([listRoute, executionsRoute, getRoute, versionsRoute, diffRoute, rollbackRoute, usagesRoute, statsRoute, shadowRunRoute, submitReviewRoute, reviewRoute, casesRoute, caseCreateRoute, caseRunRoute, caseUpdateRoute, caseDeleteRoute, createRouteDef, updateRoute, publishRoute, grayActionRoute, simulateRoute, toggleRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
+router.openapiRoutes([listRoute, getRoute, versionsRoute, diffRoute, rollbackRoute, usagesRoute, statsRoute, shadowRunRoute, submitReviewRoute, reviewRoute, casesRoute, caseCreateRoute, caseRunRoute, caseUpdateRoute, caseDeleteRoute, createRouteDef, updateRoute, publishRoute, grayActionRoute, simulateRoute, toggleRoute, testRoute, evaluateRoute, batchDeleteRoute, deleteRoute] as const);
 
 export default router;

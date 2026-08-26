@@ -19,7 +19,8 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { evaluateScorecard, type ScorecardLike } from '../../lib/rules-scorecard';
-import { snapshotRuleScope } from './rules.service';
+import { recordRuleExecution, snapshotRuleScope } from './rules-executions.service';
+import { invalidateRuleRuntimeCache } from './rules-runtime-cache';
 
 type Row = typeof ruleScorecards.$inferSelect;
 
@@ -137,12 +138,14 @@ export async function updateRuleScorecard(id: number, input: UpdateRuleScorecard
     ...(input.variables !== undefined ? { variables: input.variables } : {}),
     ...(input.grades !== undefined ? { grades: input.grades } : {}),
   }).where(eq(ruleScorecards.id, id)).returning();
+  invalidateRuleRuntimeCache();
   return mapRuleScorecard(row);
 }
 
 export async function deleteRuleScorecard(id: number): Promise<void> {
   await ensureRuleScorecard(id);
   await db.delete(ruleScorecards).where(eq(ruleScorecards.id, id));
+  invalidateRuleRuntimeCache();
 }
 
 function ensureVariableKeysUnique(variables: RuleScorecardVariable[]): void {
@@ -178,6 +181,7 @@ export async function publishRuleScorecard(id: number) {
     publishedSnapshot: draftSnapshot(row),
     version: row.publishedSnapshot == null ? row.version : row.version + 1,
   }).where(eq(ruleScorecards.id, id)).returning();
+  invalidateRuleRuntimeCache();
   return mapRuleScorecard(updated);
 }
 
@@ -189,21 +193,39 @@ export async function toggleRuleScorecard(id: number, enabled: boolean) {
   const [updated] = await db.update(ruleScorecards)
     .set({ status: enabled ? 'published' : 'disabled' })
     .where(eq(ruleScorecards.id, id)).returning();
+  invalidateRuleRuntimeCache();
   return mapRuleScorecard(updated);
 }
 
-/** 测试求值：按编辑态（草稿）求值，评估「若现在发布」的行为 */
+/** 测试求值：按编辑态（草稿）求值，评估「若现在发布」的行为。留痕 source=test */
 export async function testEvaluateRuleScorecard(id: number, input: Record<string, unknown>): Promise<RuleScorecardEvaluateResult> {
   const row = await ensureRuleScorecard(id);
-  return evaluateScorecard(draftSnapshot(row), snapshotRuleScope(input));
+  const res = evaluateScorecard(draftSnapshot(row), snapshotRuleScope(input));
+  recordRuleExecution({
+    refKind: 'scorecard', refId: row.id, ruleKey: row.key, version: null, caller: 'admin.test',
+    source: 'test', matched: true, hitPolicy: null,
+    input: snapshotRuleScope(input),
+    outputs: { totalScore: res.totalScore, baseScore: res.baseScore, grade: res.grade, decision: res.decision },
+    matchedRowIds: [], tenantId: row.tenantId ?? null,
+  });
+  return res;
 }
 
-/** 运行时求值：按 key 取发布快照执行（disabled/未发布视为不可用） */
+/** 运行时求值：按 key 取发布快照执行（disabled/未发布视为不可用）。留痕 source=manual */
 export async function evaluateRuleScorecardByKey(key: string, input: Record<string, unknown>): Promise<RuleScorecardEvaluateResult> {
   const tc = tenantCondition(ruleScorecards, currentUser());
   const conds = [eq(ruleScorecards.key, key), eq(ruleScorecards.status, 'published')];
   if (tc) conds.push(tc);
   const [row] = await db.select().from(ruleScorecards).where(and(...conds)).limit(1);
   if (!row || row.publishedSnapshot == null) throw new HTTPException(404, { message: `评分卡不可用：${key}` });
-  return evaluateScorecard(row.publishedSnapshot as ScorecardLike, snapshotRuleScope(input));
+  const res = evaluateScorecard(row.publishedSnapshot as ScorecardLike, snapshotRuleScope(input));
+  recordRuleExecution({
+    refKind: 'scorecard', refId: row.id, ruleKey: key, version: row.version,
+    caller: 'admin.evaluate', source: 'manual',
+    matched: true, hitPolicy: null,
+    input: snapshotRuleScope(input),
+    outputs: { totalScore: res.totalScore, baseScore: res.baseScore, grade: res.grade, decision: res.decision },
+    matchedRowIds: [], tenantId: row.tenantId ?? null,
+  });
+  return res;
 }

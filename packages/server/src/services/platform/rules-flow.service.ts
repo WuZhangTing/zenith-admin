@@ -10,7 +10,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { RuleFlowStep, RuleFlowEvaluateResult } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionFlows, ruleDecisionTables } from '../../db/schema';
-import { currentUser, currentUserOrNull } from '../../lib/context';
+import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -18,7 +18,9 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { validateExpression } from '../../lib/workflow-expression';
 import { evaluateDecisionFlowSteps } from '../../lib/rules-flow';
-import { resolveRuntimeDecisionTable, resolveDecisionTableForTest, recordRuleExecution, snapshotRuleScope } from './rules.service';
+import { resolveRuntimeDecisionTable, resolveDecisionTableForTest } from './rules.service';
+import { recordRuleExecution, snapshotRuleScope } from './rules-executions.service';
+import { invalidateRuleRuntimeCache } from './rules-runtime-cache';
 
 type FlowRow = typeof ruleDecisionFlows.$inferSelect;
 
@@ -122,12 +124,14 @@ export async function updateDecisionFlow(id: number, input: UpdateDecisionFlowIn
   if (input.description !== undefined) patch.description = input.description;
   if (input.steps !== undefined) patch.steps = input.steps;
   const [row] = await db.update(ruleDecisionFlows).set(patch).where(eq(ruleDecisionFlows.id, id)).returning();
+  invalidateRuleRuntimeCache();
   return mapDecisionFlow(row);
 }
 
 export async function deleteDecisionFlow(id: number): Promise<void> {
   await ensureDecisionFlow(id);
   await db.delete(ruleDecisionFlows).where(eq(ruleDecisionFlows.id, id));
+  invalidateRuleRuntimeCache();
 }
 
 export async function deleteDecisionFlows(ids: number[]): Promise<void> {
@@ -136,6 +140,7 @@ export async function deleteDecisionFlows(ids: number[]): Promise<void> {
   const conds = [inArray(ruleDecisionFlows.id, ids)];
   if (tc) conds.push(tc);
   await db.delete(ruleDecisionFlows).where(and(...conds));
+  invalidateRuleRuntimeCache();
 }
 
 export async function toggleDecisionFlow(id: number, enabled: boolean) {
@@ -143,6 +148,7 @@ export async function toggleDecisionFlow(id: number, enabled: boolean) {
   const nextStatus = enabled ? (row.publishedAt ? 'published' as const : 'draft' as const) : 'disabled' as const;
   if (row.status === nextStatus) return mapDecisionFlow(row);
   const [updated] = await db.update(ruleDecisionFlows).set({ status: nextStatus }).where(eq(ruleDecisionFlows.id, id)).returning();
+  invalidateRuleRuntimeCache();
   return mapDecisionFlow(updated);
 }
 
@@ -189,16 +195,23 @@ export async function publishDecisionFlow(id: number) {
   const [updated] = await db.update(ruleDecisionFlows)
     .set({ status: 'published', publishedSteps: row.steps, publishedAt: new Date(), version: row.version + 1 })
     .where(eq(ruleDecisionFlows.id, id)).returning();
+  invalidateRuleRuntimeCache();
   return mapDecisionFlow(updated);
 }
 
-/** 测试求值：跑编辑态 steps；引用表优先发布快照，未发布草稿回退编辑态 */
+/** 测试求值：跑编辑态 steps；引用表优先发布快照，未发布草稿回退编辑态。留痕 source=test */
 export async function testEvaluateDecisionFlow(id: number, input: Record<string, unknown>): Promise<RuleFlowEvaluateResult> {
   const row = await ensureDecisionFlow(id);
-  return evaluateDecisionFlowSteps((row.steps ?? []) as RuleFlowStep[], input, resolveDecisionTableForTest);
+  const res = await evaluateDecisionFlowSteps((row.steps ?? []) as RuleFlowStep[], input, resolveDecisionTableForTest);
+  recordRuleExecution({
+    refKind: 'flow', refId: row.id, ruleKey: row.key, version: null, caller: 'admin.test',
+    source: 'test', matched: res.steps.some((s) => !s.skipped && s.matched), hitPolicy: null,
+    input: snapshotRuleScope(input), outputs: res.outputs, matchedRowIds: [], tenantId: row.tenantId ?? null,
+  });
+  return res;
 }
 
-/** 按 key 求值（对外通用）：published 用 publishedSteps；draft 跑编辑态（联调）；禁用报错 */
+/** 按 key 求值（对外通用）：published 用 publishedSteps；draft 跑编辑态（联调）；禁用报错。留痕 source=manual */
 export async function evaluateDecisionFlowByKey(key: string, input: Record<string, unknown>): Promise<RuleFlowEvaluateResult> {
   const tc = tenantCondition(ruleDecisionFlows, currentUser());
   const conds = [eq(ruleDecisionFlows.key, key)];
@@ -206,40 +219,16 @@ export async function evaluateDecisionFlowByKey(key: string, input: Record<strin
   const [row] = await db.select().from(ruleDecisionFlows).where(and(...conds)).limit(1);
   if (!row) throw new HTTPException(404, { message: '决策流不存在' });
   if (row.status === 'disabled') throw new HTTPException(400, { message: '决策流已禁用' });
-  if (row.status === 'published' && row.publishedSteps) {
-    return evaluateDecisionFlowSteps((row.publishedSteps ?? []) as RuleFlowStep[], input, (k) => resolveRuntimeDecisionTable(k));
-  }
-  return evaluateDecisionFlowSteps((row.steps ?? []) as RuleFlowStep[], input, resolveDecisionTableForTest);
-}
-
-/**
- * 运行时按 key 求值（供业务侧调用）：只跑已发布快照；不可用返回空输出（不阻断流程）。
- * 各步骤写执行流水（nodeKey = flow:{flowKey}#{步骤序号}）供 trace/审计。
- */
-export async function getDecisionFlowOutputs(key: string, scope: Record<string, unknown>, meta?: { tenantId?: number | null }): Promise<Record<string, unknown>> {
-  try {
-    const tenantId = meta?.tenantId !== undefined
-      ? meta.tenantId
-      : (() => { const u = currentUserOrNull(); return u ? (u.viewingTenantId ?? u.tenantId ?? null) : undefined; })();
-    const candidates = await db.select().from(ruleDecisionFlows).where(eq(ruleDecisionFlows.key, key));
-    const row = (tenantId != null ? candidates.find((r) => r.tenantId === tenantId) : undefined)
-      ?? candidates.find((r) => r.tenantId == null)
-      ?? (tenantId === undefined && candidates.length === 1 ? candidates[0] : undefined);
-    if (!row || row.status !== 'published' || !row.publishedSteps) return {};
-    const res = await evaluateDecisionFlowSteps(
-      (row.publishedSteps ?? []) as RuleFlowStep[],
-      scope,
-      (k) => resolveRuntimeDecisionTable(k, { tenantId }),
-      (trace, index, scopeAtEval) => {
-        if (trace.skipped) return;
-        recordRuleExecution({
-          ruleKey: trace.tableKey, tableId: null, instanceId: null,
-          nodeKey: `flow:${key}#${index + 1}`, source: 'runtime',
-          matched: trace.matched, hitPolicy: trace.hitPolicy ?? 'first',
-          input: snapshotRuleScope(scopeAtEval), outputs: trace.outputs, matchedRowIds: trace.matchedRowIds, tenantId: row.tenantId ?? null,
-        });
-      },
-    );
-    return res.outputs;
-  } catch { return {}; }
+  const usePublished = row.status === 'published' && row.publishedSteps;
+  const res = usePublished
+    ? await evaluateDecisionFlowSteps((row.publishedSteps ?? []) as RuleFlowStep[], input, (k) => resolveRuntimeDecisionTable(k))
+    : await evaluateDecisionFlowSteps((row.steps ?? []) as RuleFlowStep[], input, resolveDecisionTableForTest);
+  recordRuleExecution({
+    refKind: 'flow', refId: row.id, ruleKey: key, version: usePublished ? row.version : null,
+    caller: 'admin.evaluate', source: 'manual',
+    matched: res.steps.some((s) => !s.skipped && s.matched), hitPolicy: null,
+    input: snapshotRuleScope(input), outputs: res.outputs, matchedRowIds: [],
+    tenantId: row.tenantId ?? null,
+  });
+  return res;
 }
