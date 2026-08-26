@@ -229,7 +229,7 @@ const DATA_ASSET_MIME_TYPES = new Set([
 
 /**
  * 判断是否为 File Viewer Data renderer 支持的数据 / 设计 / 字体资产。
- * 覆盖字体样张、PSD 图层、SQLite 表结构、Parquet / Avro 记录与 WASM 导入导出表。
+ * 覆盖字体样张、PSD 图层、SQLite 表结构、Parquet 记录与 WASM 导入导出表（不含 Avro，原因见上方注释）。
  */
 export function isDataAssetFile(mimeType?: string | null): boolean {
   return !!mimeType && DATA_ASSET_MIME_TYPES.has(mimeType.toLowerCase());
