@@ -422,3 +422,10 @@ export const testPushSendSchema = z.object({
 });
 
 export type TestPushSendInput = z.infer<typeof testPushSendSchema>;
+
+/** 通知策略页「测试触发」:真实走一遍 notify(),收件人为当前管理员 */
+export const testFireNotificationSchema = z.object({
+  eventKey: z.string().min(1).max(128),
+});
+
+export type TestFireNotificationInput = z.infer<typeof testFireNotificationSchema>;

@@ -574,6 +574,27 @@ export interface PushSendLog {
   createdAt: string;
 }
 
+/** 推送记录页顶部统计（窗口内汇总 + 按日趋势） */
+export interface PushSendLogStats {
+  totals: {
+    total: number;
+    success: number;
+    failed: number;
+    /** 收到送达回执的记录数 */
+    delivered: number;
+    /** 收到点击回执的记录数 */
+    clicked: number;
+  };
+  trend: Array<{
+    date: string;
+    total: number;
+    success: number;
+    failed: number;
+    delivered: number;
+    clicked: number;
+  }>;
+}
+
 // 站内信模板
 export interface InAppTemplate {
   id: number;

@@ -98,6 +98,34 @@ export const pushHandlers = [
   }),
 
   // ─── 发送记录 ───────────────────────────────────────────────────────────────
+  http.get('/api/push-send-logs/stats', ({ request }) => {
+    const url = new URL(request.url);
+    const days = Number(url.searchParams.get('days') || 14);
+    const totals = {
+      total: mockPushSendLogs.length,
+      success: mockPushSendLogs.filter((l) => l.status === 'success').length,
+      failed: mockPushSendLogs.filter((l) => l.status === 'failed').length,
+      delivered: mockPushSendLogs.filter((l) => l.deliveredAt).length,
+      clicked: mockPushSendLogs.filter((l) => l.clickedAt).length,
+    };
+    const trend = Array.from({ length: days }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (days - 1 - i));
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      // 演示数据:最后一天放真实计数,其余为 0
+      const isLast = i === days - 1;
+      return {
+        date,
+        total: isLast ? totals.total : 0,
+        success: isLast ? totals.success : 0,
+        failed: isLast ? totals.failed : 0,
+        delivered: isLast ? totals.delivered : 0,
+        clicked: isLast ? totals.clicked : 0,
+      };
+    });
+    return ok({ totals, trend });
+  }),
+
   http.get('/api/push-send-logs', ({ request }) => {
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') || '';

@@ -8,9 +8,11 @@ import {
   NOTIFICATION_RECIPIENT_TYPES,
   resetNotificationOverrideSchema,
   saveNotificationOverrideSchema,
+  testFireNotificationSchema,
 } from '@zenith/shared/messaging';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
+import { currentUser } from '../../lib/context';
 import {
   commonErrorResponses, dateRangeBound, jsonContent, ok, okMsg, okPaginated, okBody,
   PaginationQuery, validationHook,
@@ -21,6 +23,7 @@ import {
   listNotificationPolicyEvents,
   resetNotificationOverride,
   saveNotificationOverride,
+  testFireNotificationEvent,
 } from '../../services/messaging/notification-policies.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -72,8 +75,29 @@ const resetOverrideRoute = defineOpenAPIRoute({
   },
 });
 
-const dispatchesRoute = defineOpenAPIRoute({
+const testFireRoute = defineOpenAPIRoute({
   route: createRoute({
+    method: 'post', path: '/test-fire',
+    tags: ['NotificationPolicies'], summary: '测试触发事件（真实派发给当前管理员）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:notify-policy:test',
+      audit: { description: '测试触发通知事件', module: '通知策略' },
+    })] as const,
+    request: { body: { content: jsonContent(testFireNotificationSchema), required: true } },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(z.object({ outboxId: z.number().nullable() }), '已触发'),
+    },
+  }),
+  handler: async (c) => {
+    const { eventKey } = c.req.valid('json');
+    const outboxId = await testFireNotificationEvent(eventKey, currentUser().userId);
+    return c.json(okBody({ outboxId }, '已触发,请在「投递日志」查看派发结果'), 200);
+  },
+});
+
+const dispatchesRoute = defineOpenAPIRoute({  route: createRoute({
     method: 'get', path: '/dispatches',
     tags: ['NotificationPolicies'], summary: '通知派发日志（含抑制归因）',
     security: [{ BearerAuth: [] }],
@@ -98,6 +122,7 @@ router.openapiRoutes([
   eventsRoute,
   saveOverrideRoute,
   resetOverrideRoute,
+  testFireRoute,
   dispatchesRoute,
 ] as const);
 

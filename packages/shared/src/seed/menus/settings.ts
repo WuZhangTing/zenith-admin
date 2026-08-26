@@ -147,6 +147,7 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2650, parentId: 2200, title: '通知策略', name: 'NotificationPolicies', path: '/system/notify-policies', component: 'system/notify-policies/NotifyPoliciesPage', icon: 'SlidersHorizontal', type: 'menu', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2651, parentId: 2650, title: '查询', type: 'button', permission: 'system:notify-policy:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2652, parentId: 2650, title: '保存策略', type: 'button', permission: 'system:notify-policy:save', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2653, parentId: 2650, title: '测试触发', type: 'button', permission: 'system:notify-policy:test', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ─── App 推送管理（2680 段,通知管理下）
   { id: 2680, parentId: 2200, title: 'App 推送', name: 'NotificationPush', icon: 'TabletSmartphone', type: 'directory', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

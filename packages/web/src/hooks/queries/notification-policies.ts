@@ -96,3 +96,15 @@ export function useNotificationDispatches(params: NotificationDispatchListParams
     placeholderData: keepPreviousData,
   });
 }
+
+/** 测试触发:真实派发一次事件给当前管理员 → 失效投递日志 */
+export function useTestFireNotification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (eventKey: string) =>
+      request.post<{ outboxId: number | null }>('/api/notification-policies/test-fire', { eventKey }).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: notificationPolicyKeys.dispatches });
+    },
+  });
+}

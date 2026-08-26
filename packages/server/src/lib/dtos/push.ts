@@ -48,3 +48,25 @@ export const PushSendLogDTO = z
     createdAt: z.string(),
   })
   .openapi('PushSendLog');
+
+const PushTrendPointDTO = z.object({
+  date: z.string(),
+  total: z.number().int(),
+  success: z.number().int(),
+  failed: z.number().int(),
+  delivered: z.number().int(),
+  clicked: z.number().int(),
+});
+
+export const PushSendLogStatsDTO = z
+  .object({
+    totals: z.object({
+      total: z.number().int(),
+      success: z.number().int(),
+      failed: z.number().int(),
+      delivered: z.number().int(),
+      clicked: z.number().int(),
+    }),
+    trend: z.array(PushTrendPointDTO),
+  })
+  .openapi('PushSendLogStats');

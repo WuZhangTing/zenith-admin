@@ -1,8 +1,11 @@
 /**
  * App 推送发送记录页(只读日志:事件派发与测试发送的成败留痕)。
+ * 顶部统计:窗口汇总卡 + 按日趋势(送达/点击来自供应商回执)。
  */
-import { Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { useMemo, useState } from 'react';
+import { Card, Select, Skeleton, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { CheckCircle2, MousePointerClick, Send, XCircle } from 'lucide-react';
 import {
   PUSH_DELIVERY_STATUS_LABELS,
   PUSH_PROVIDER_LABELS,
@@ -13,6 +16,14 @@ import {
   type SendSource,
   type SendStatus,
 } from '@zenith/shared/messaging';
+import {
+  LineChart,
+  StatCard,
+  StatGrid,
+  chartOptions,
+  makeLineSpec,
+  useChartPalette,
+} from '@/components/charts';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
@@ -20,7 +31,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { useListSearch } from '@/hooks/useListSearch';
-import { pushSendLogKeys, usePushSendLogList } from '@/hooks/queries/push';
+import { pushSendLogKeys, usePushSendLogList, usePushSendLogStats } from '@/hooks/queries/push';
 import { SEND_LOG_STATUS_OPTIONS } from '../send-log-constants';
 
 const { Text } = Typography;
@@ -43,6 +54,75 @@ interface SearchParams {
 }
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
+
+const STATS_DAYS_OPTIONS = [
+  { value: 7, label: '近 7 天' },
+  { value: 14, label: '近 14 天' },
+  { value: 30, label: '近 30 天' },
+];
+
+function shortDate(dateStr: string) {
+  return dateStr.length >= 5 ? dateStr.slice(5) : dateStr;
+}
+
+function PushStatsSection() {
+  const palette = useChartPalette();
+  const [days, setDays] = useState(14);
+  const statsQuery = usePushSendLogStats(days);
+  const stats = statsQuery.data ?? null;
+  const loading = statsQuery.isFetching;
+
+  const trendSpec = useMemo(() => makeLineSpec({
+    data: stats?.trend ?? [],
+    xField: 'date',
+    series: [
+      { field: 'success', name: '成功', color: '#52C41A' },
+      { field: 'failed', name: '失败', color: '#F5222D' },
+      { field: 'delivered', name: '送达', color: '#4A90E2' },
+      { field: 'clicked', name: '点击', color: '#722ED1' },
+    ],
+    palette,
+    axis: { xLabel: shortDate },
+  }), [stats, palette]);
+
+  const statItems = [
+    { key: 'total', label: '总发送', icon: <Send size={19} />, color: '#4A90E2', value: stats?.totals.total },
+    { key: 'success', label: '成功', icon: <CheckCircle2 size={19} />, color: '#52C41A', value: stats?.totals.success },
+    { key: 'failed', label: '失败', icon: <XCircle size={19} />, color: '#F5222D', value: stats?.totals.failed },
+    { key: 'delivered', label: '已送达', icon: <CheckCircle2 size={19} />, color: '#13C2C2', value: stats?.totals.delivered },
+    { key: 'clicked', label: '已点击', icon: <MousePointerClick size={19} />, color: '#722ED1', value: stats?.totals.clicked },
+  ];
+
+  return (
+    <>
+      <StatGrid minItemWidth={150}>
+        {statItems.map((item) => (
+          <StatCard
+            key={item.key}
+            title={item.label}
+            value={item.value ?? EMPTY_PLACEHOLDER}
+            icon={item.icon}
+            accent={item.color}
+          />
+        ))}
+      </StatGrid>
+      <Card
+        title={<Text strong style={{ fontSize: 14 }}>推送趋势</Text>}
+        headerExtraContent={(
+          <Select value={days} onChange={(v) => setDays(v as number)} optionList={STATS_DAYS_OPTIONS} size="small" style={{ width: 110 }} />
+        )}
+        bodyStyle={{ padding: '12px 16px 8px' }}
+        style={{ margin: '12px 0' }}
+      >
+        {loading && !stats ? (
+          <Skeleton active loading placeholder={<Skeleton.Image style={{ height: 200, width: '100%' }} />} style={{ width: '100%' }} />
+        ) : (
+          <LineChart {...trendSpec} options={chartOptions} height={200} />
+        )}
+      </Card>
+    </>
+  );
+}
 
 export default function PushSendLogsPage() {
   const {
@@ -133,6 +213,7 @@ export default function PushSendLogsPage() {
 
   return (
     <div className="page-container">
+      <PushStatsSection />
       <SearchToolbar
         primary={<>
           {renderKeywordSearch()}

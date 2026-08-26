@@ -31,6 +31,7 @@ import { effectiveTenantId } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope } from '../../lib/tenant';
 import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
+import { notify } from './notification-outbox.service';
 
 /** 当前管理作用域：平台管理员为 null，租户管理员为其租户 ID。 */
 function policyScopeTenantId(): number | null {
@@ -128,6 +129,31 @@ export async function resetNotificationOverride(input: ResetNotificationOverride
       ? isNull(notificationEventOverrides.tenantId)
       : eq(notificationEventOverrides.tenantId, tenantId),
   ));
+}
+
+// ─── 测试触发 ─────────────────────────────────────────────────────────────────
+
+/**
+ * 以当前管理员为收件人真实触发一次事件:模板 {{var}} 提取变量填示例值,
+ * 走完整 notify() 链路（策略/偏好/渠道适配器全部生效）,结果在「投递日志」可见。
+ */
+export async function testFireNotificationEvent(eventKey: string, userId: number): Promise<number | null> {
+  if (!isNotificationEventKey(eventKey)) {
+    throw new HTTPException(400, { message: `未知的通知事件：${eventKey}` });
+  }
+  const def = getNotificationEvent(eventKey);
+  if (def.hidden) throw new HTTPException(400, { message: '该事件不支持测试触发' });
+
+  const varNames = [...new Set(
+    [...`${def.title}\n${def.content}`.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]),
+  )];
+  const vars = Object.fromEntries(varNames.map((name) => [name, `示例${name}`]));
+
+  return notify(eventKey, {
+    recipients: [{ type: 'user', id: userId }],
+    vars: vars as never,
+    tenantId: policyScopeTenantId(),
+  });
 }
 
 // ─── 派发日志 ─────────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 /**
  * App 推送发送记录（追加型日志,回执回调更新送达状态）。
  */
-import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
-import type { PushDeliveryStatus, PushProvider } from '@zenith/shared/messaging';
+import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import type { PushDeliveryStatus, PushProvider, PushSendLogStats } from '@zenith/shared/messaging';
 import { db } from '../../db';
 import { pushSendLogs, users, type PushSendLogRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -122,4 +122,65 @@ export async function applyPushReceipt(event: PushReceiptEvent): Promise<boolean
     ))
     .returning({ id: pushSendLogs.id });
   return result.length > 0;
+}
+
+// ─── 记录页统计（窗口汇总 + 按日趋势补零）────────────────────────────────────
+
+export async function getPushSendLogStats(days = 14): Promise<PushSendLogStats> {
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - (days - 1));
+
+  const dateExpr = sql<string>`to_char(${pushSendLogs.createdAt}, 'YYYY-MM-DD')`;
+  const successExpr = sql<number>`count(*) filter (where ${pushSendLogs.status} = 'success')::int`;
+  const failedExpr = sql<number>`count(*) filter (where ${pushSendLogs.status} = 'failed')::int`;
+  const deliveredExpr = sql<number>`count(*) filter (where ${pushSendLogs.deliveredAt} is not null)::int`;
+  const clickedExpr = sql<number>`count(*) filter (where ${pushSendLogs.clickedAt} is not null)::int`;
+
+  const [[totals], trendRows] = await Promise.all([
+    db
+      .select({
+        total: sql<number>`count(*)::int`,
+        success: successExpr,
+        failed: failedExpr,
+        delivered: deliveredExpr,
+        clicked: clickedExpr,
+      })
+      .from(pushSendLogs)
+      .where(gte(pushSendLogs.createdAt, since)),
+    db
+      .select({
+        date: dateExpr,
+        total: sql<number>`count(*)::int`,
+        success: successExpr,
+        failed: failedExpr,
+        delivered: deliveredExpr,
+        clicked: clickedExpr,
+      })
+      .from(pushSendLogs)
+      .where(gte(pushSendLogs.createdAt, since))
+      .groupBy(dateExpr),
+  ]);
+
+  // 趋势补零:图表需要连续日期轴
+  const trendMap = new Map<string, PushSendLogStats['trend'][number]>();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(since.getTime() + i * 24 * 60 * 60 * 1000);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    trendMap.set(key, { date: key, total: 0, success: 0, failed: 0, delivered: 0, clicked: 0 });
+  }
+  for (const row of trendRows) {
+    if (trendMap.has(row.date)) trendMap.set(row.date, row);
+  }
+
+  return {
+    totals: {
+      total: totals?.total ?? 0,
+      success: totals?.success ?? 0,
+      failed: totals?.failed ?? 0,
+      delivered: totals?.delivered ?? 0,
+      clicked: totals?.clicked ?? 0,
+    },
+    trend: [...trendMap.values()],
+  };
 }

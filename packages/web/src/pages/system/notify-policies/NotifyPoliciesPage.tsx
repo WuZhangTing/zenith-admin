@@ -7,7 +7,7 @@
 import { useMemo } from 'react';
 import { Button, Select, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Lock, RotateCcw, Unlock } from 'lucide-react';
+import { Lock, RotateCcw, Send, Unlock } from 'lucide-react';
 import {
   NOTIFICATION_CHANNEL_LABELS,
   NOTIFICATION_DECISION_LABELS,
@@ -34,6 +34,7 @@ import {
   useNotificationPolicyEvents,
   useResetNotificationOverride,
   useSaveNotificationOverride,
+  useTestFireNotification,
   type NotificationDispatchItem,
 } from '@/hooks/queries/notification-policies';
 
@@ -125,8 +126,10 @@ function ChannelPolicyCell({ event, canSave }: Readonly<{ event: NotificationPol
 function PolicyEventsTab() {
   const { hasPermission: can } = usePermission();
   const canSave = can('system:notify-policy:save');
+  const canTest = can('system:notify-policy:test');
   const eventsQuery = useNotificationPolicyEvents();
   const events = useMemo(() => eventsQuery.data ?? [], [eventsQuery.data]);
+  const testMutation = useTestFireNotification();
 
   // group key → 中文分组名（组头整行渲染用）
   const groupLabels = useMemo(() => {
@@ -169,6 +172,27 @@ function PolicyEventsTab() {
       title: '渠道策略（开关 / 锁定 / 恢复默认）', dataIndex: 'channels',
       render: (_v, record) => (record ? <ChannelPolicyCell event={record} canSave={canSave} /> : null),
     },
+    ...(canTest ? [{
+      title: '操作', dataIndex: 'key', width: 110,
+      render: (_v: unknown, record: NotificationPolicyEvent) => (
+        <Tooltip content="以当前账号为收件人真实派发一次,模板变量填示例值,结果见「投递日志」">
+          <Button
+            theme="borderless"
+            size="small"
+            icon={<Send size={13} />}
+            loading={testMutation.isPending && testMutation.variables === record.key}
+            disabled={testMutation.isPending}
+            onClick={() => {
+              testMutation.mutate(record.key, {
+                onSuccess: () => Toast.success('已触发,请在「投递日志」查看派发结果'),
+              });
+            }}
+          >
+            测试触发
+          </Button>
+        </Tooltip>
+      ),
+    } satisfies ColumnProps<NotificationPolicyEvent>] : []),
   ];
 
   if (eventsQuery.isPending) {
