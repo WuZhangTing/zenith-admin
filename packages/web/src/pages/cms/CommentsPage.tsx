@@ -55,11 +55,12 @@ export default function CommentsPage() {
 
   const columns: ColumnProps<CmsComment>[] = [
     {
-      title: '昵称', dataIndex: 'nickname', width: 150,
+      title: '昵称', dataIndex: 'nickname', width: 170,
       render: (v: string, record: CmsComment) => (
         <span>
           {v}
           {record.memberId != null ? <Tag size="small" color="green" style={{ marginLeft: 6 }}>会员</Tag> : null}
+          {record.riskFlag === 'watchlist' ? <Tag size="small" color="orange" style={{ marginLeft: 6 }}>观察主体</Tag> : null}
         </span>
       ),
     },

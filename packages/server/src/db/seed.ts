@@ -1089,7 +1089,7 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('cms_link_words_id_seq', GREATEST((SELECT MAX(id) FROM cms_link_words), 1))`);
 
   await db.insert(cmsComments).values(
-    SEED_CMS_COMMENTS.map(({ id, siteId, contentId, memberId, nickname, content, status, ip, userAgent }) => ({ id, siteId, contentId, memberId, nickname, content, status, ip, userAgent })),
+    SEED_CMS_COMMENTS.map(({ id, siteId, contentId, memberId, nickname, content, status, riskFlag, ip, userAgent }) => ({ id, siteId, contentId, memberId, nickname, content, status, riskFlag, ip, userAgent })),
   ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('cms_comments_id_seq', GREATEST((SELECT MAX(id) FROM cms_comments), 1))`);
 

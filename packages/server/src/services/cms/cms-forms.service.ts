@@ -10,6 +10,7 @@ import { like } from 'drizzle-orm';
 import { sanitizeUserText } from './cms-sensitive-words.service';
 import { assertSiteAccess } from './cms-sites.service';
 import { throttleFrontSubmit } from './cms-comments.service';
+import { ensureCmsSubmitAllowed } from './cms-submit-guard';
 import { sendMail } from '../../lib/email';
 import logger from '../../lib/logger';
 import { CMS_SECRET_MASK } from '@zenith/shared/cms';
@@ -75,11 +76,17 @@ export interface SubmitFormInput {
   userAgent: string | null;
 }
 
-/** 前台表单提交：限流 + 按字段定义校验 + 敏感词过滤 */
+/** 前台表单提交：限流 + 名单守卫 + 按字段定义校验 + 敏感词过滤 */
 export async function submitCmsForm(input: SubmitFormInput) {
   await throttleFrontSubmit(input.ip);
-  await verifyCmsFormCaptcha(input);
   const validated = validateCmsFormFields(input.form.fields as CmsFormField[], input.raw);
+  // 表单里的联系方式（email/phone/tel 类字段）一并纳入名单主体判定
+  const contactValues = (input.form.fields as CmsFormField[] ?? [])
+    .filter((f) => /email|phone|mobile|tel/i.test(`${f.type ?? ''} ${f.name}`))
+    .map((f) => validated[f.name])
+    .filter((v): v is string => typeof v === 'string' && !!v.trim());
+  await ensureCmsSubmitAllowed([input.ip, ...contactValues], `cms:form:${input.form.id}`);
+  await verifyCmsFormCaptcha(input);
   const data: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(validated)) {
     data[name] = value ? await sanitizeUserText(value) : '';

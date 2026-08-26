@@ -52,15 +52,17 @@ export const SEED_DECISION_FLOWS = [
 
 // ─── 规则中心：名单库种子 ────────────────────────────────────────────────────────
 export const SEED_RULE_LISTS = [
-  { id: 1, key: 'risk_blacklist', name: '风控黑名单', type: 'black' as const, description: '命中即拒绝的高风险主体（手机号/用户ID/IP 等）', status: 'enabled' as const },
+  { id: 1, key: 'risk_blacklist', name: '风控黑名单', type: 'black' as const, description: '命中即拒绝的高风险主体（手机号/用户ID/IP 等），会员认证 / 支付风控 / CMS 提交共用', status: 'enabled' as const },
   { id: 2, key: 'vip_whitelist',  name: 'VIP 白名单', type: 'white' as const, description: '免风控校验的可信主体', status: 'enabled' as const },
+  { id: 3, key: 'cms_watchlist',  name: 'CMS 观察灰名单', type: 'grey' as const, description: '公开评论/表单提交命中不拦截，但在审核队列标注「观察主体」辅助审核', status: 'enabled' as const },
 ];
 
 export const SEED_RULE_LIST_ITEMS = [
   { id: 1, listId: 1, value: '13800000000', label: '演示黑名单手机号', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
   { id: 2, listId: 1, value: '198.51.100.23', label: '恶意 IP', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
   { id: 3, listId: 2, value: 'member_1001', label: '演示 VIP 会员', matchMode: 'exact' as const, expiresAt: null, remark: '示例数据' },
-];
+  { id: 4, listId: 3, value: '203.0.113.', label: '演示观察网段', matchMode: 'prefix' as const, expiresAt: null, remark: '灰名单示例：命中只标注不拦截' },
+];;
 
 // ─── 规则中心：评分卡种子 ────────────────────────────────────────────────────────
 export const SEED_RULE_SCORECARDS = [

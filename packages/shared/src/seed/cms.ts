@@ -673,7 +673,8 @@ export const SEED_CMS_SUBSCRIPTIONS: CmsMemberSubscription[] = [
 ];
 
 export const SEED_CMS_COMMENTS: CmsComment[] = [
-  { id: 1, siteId: 1, contentId: 1, parentId: 0, memberId: null, nickname: '热心网友', content: '期待 CMS 模块的采集功能！', likeCount: 3, status: 'approved', ip: null, userAgent: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, siteId: 1, contentId: 1, parentId: 0, memberId: null, nickname: '路人甲', content: '静态化方案讲得很清楚', likeCount: 0, status: 'pending', ip: null, userAgent: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 3, siteId: 1, contentId: 1, parentId: 0, memberId: 1, nickname: '演示会员', content: '登录会员的评论会带会员标识，支持在会员中心统一管理。', likeCount: 1, status: 'approved', ip: null, userAgent: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, siteId: 1, contentId: 1, parentId: 0, memberId: null, nickname: '热心网友', content: '期待 CMS 模块的采集功能！', likeCount: 3, status: 'approved', riskFlag: null, ip: null, userAgent: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2, siteId: 1, contentId: 1, parentId: 0, memberId: null, nickname: '路人甲', content: '静态化方案讲得很清楚', likeCount: 0, status: 'pending', riskFlag: null, ip: null, userAgent: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 3, siteId: 1, contentId: 1, parentId: 0, memberId: 1, nickname: '演示会员', content: '登录会员的评论会带会员标识，支持在会员中心统一管理。', likeCount: 1, status: 'approved', riskFlag: null, ip: null, userAgent: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 4, siteId: 1, contentId: 1, parentId: 0, memberId: null, nickname: '匿名用户', content: '内容不错，收藏了。', likeCount: 0, status: 'pending', riskFlag: 'watchlist', ip: '203.0.113.66', userAgent: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

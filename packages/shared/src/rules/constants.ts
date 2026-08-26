@@ -30,4 +30,6 @@ export const RULE_CALLER_LABELS: Record<string, string> = {
   'member.coupon': '优惠券资格判定',
   'member.auth': '会员认证风控',
   'payment.risk': '支付风控',
+  'cms.submit': 'CMS 提交守卫',
+  'payment.dispute': '争议智能分流',
 };

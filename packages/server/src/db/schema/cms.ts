@@ -836,6 +836,8 @@ export const cmsComments = pgTable('cms_comments', {
   /** 点赞数（前台匿名点赞，IP 去重） */
   likeCount: integer('like_count').notNull().default(0),
   status: cmsCommentStatusEnum('status').notNull().default('pending'),
+  /** 风控标注（规则中心名单守卫写入，如 watchlist=命中观察灰名单；null=无标注） */
+  riskFlag: varchar('risk_flag', { length: 32 }),
   ip: varchar('ip', { length: 64 }),
   userAgent: varchar('user_agent', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),

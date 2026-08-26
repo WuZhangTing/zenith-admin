@@ -645,6 +645,7 @@ export const CmsCommentDTO = z
     content: z.string(),
     likeCount: z.number().int(),
     status: z.enum(['pending', 'approved', 'rejected']),
+    riskFlag: z.string().nullable().openapi({ description: '风控标注：watchlist=命中观察灰名单' }),
     ip: z.string().nullable(),
     userAgent: z.string().nullable(),
     createdAt: z.string(),

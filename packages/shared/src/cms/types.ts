@@ -1016,6 +1016,8 @@ export interface CmsComment {
   content: string;
   likeCount: number;
   status: CmsCommentStatus;
+  /** 风控标注：watchlist=命中观察灰名单（规则中心名单守卫写入）；null=无标注 */
+  riskFlag: string | null;
   ip: string | null;
   userAgent: string | null;
   createdAt: string;

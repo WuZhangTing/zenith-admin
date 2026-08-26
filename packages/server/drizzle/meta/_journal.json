@@ -197,6 +197,13 @@
       "when": 1787722719333,
       "tag": "0027_loose_lilandra",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787725217222,
+      "tag": "0028_nebulous_alice",
+      "breakpoints": true
     }
   ]
 }

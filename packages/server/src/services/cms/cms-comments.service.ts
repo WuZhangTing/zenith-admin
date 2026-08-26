@@ -9,6 +9,7 @@ import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import { sanitizeUserText } from './cms-sensitive-words.service';
+import { ensureCmsSubmitAllowed } from './cms-submit-guard';
 import { assertSiteAccess, assertSitesAccess, ensureCmsSiteExists } from './cms-sites.service';
 import type { CmsCommentStatus } from '@zenith/shared/cms';
 import { alias } from 'drizzle-orm/pg-core';
@@ -44,6 +45,7 @@ export function mapCmsComment(row: CmsCommentRow, extra?: { contentTitle?: strin
     content: row.content,
     likeCount: row.likeCount,
     status: row.status,
+    riskFlag: row.riskFlag ?? null,
     ip: row.ip ?? null,
     userAgent: row.userAgent ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -75,9 +77,13 @@ export async function getCmsCommentSite(contentId: number): Promise<CmsSiteRow |
   return row?.site ?? null;
 }
 
-/** 前台评论提交：限流 + 敏感词过滤 → 待审核；回复统一挂到顶级评论下（两级树） */
+/** 前台评论提交：限流 + 名单守卫 + 敏感词过滤 → 待审核；回复统一挂到顶级评论下（两级树） */
 export async function submitCmsComment(input: SubmitCommentInput) {
   await throttleFrontSubmit(input.ip);
+  const guard = await ensureCmsSubmitAllowed(
+    [input.ip, input.memberId != null ? String(input.memberId) : null],
+    `cms:comment:${input.contentId}`,
+  );
   const [content] = await db.select({ id: cmsContents.id, siteId: cmsContents.siteId, status: cmsContents.status, deletedAt: cmsContents.deletedAt })
     .from(cmsContents).where(eq(cmsContents.id, input.contentId)).limit(1);
   if (!content || content.status !== 'published' || content.deletedAt) {
@@ -105,6 +111,7 @@ export async function submitCmsComment(input: SubmitCommentInput) {
     nickname,
     content: text,
     status: 'pending',
+    riskFlag: guard.watch ? 'watchlist' : null,
     ip: input.ip,
     userAgent: input.userAgent,
   }).returning();
