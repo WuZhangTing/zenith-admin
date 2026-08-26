@@ -5,7 +5,7 @@
  * 厂商通道(华为/小米/OV/荣耀/APNs)在供应商后台配置,本页只管聚合商凭证。
  */
 import { useRef, useState } from 'react';
-import { Banner, Form, Modal, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
+import { Banner, Col, Form, Modal, Row, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import {
@@ -117,6 +117,7 @@ export default function PushConfigsPage() {
     save: useSavePushConfig(),
     useDetail: usePushConfigDetail,
     defaults: { provider: 'jpush', apnsProduction: false, isDefault: false, status: 'enabled' },
+    labelWidth: 120,
     toValues: (r) => ({
       name: r.name,
       provider: r.provider,
@@ -145,7 +146,7 @@ export default function PushConfigsPage() {
     },
     { title: 'AppKey', dataIndex: 'appKey', width: 180, render: renderEllipsis },
     {
-      title: 'APNs 环境', dataIndex: 'apnsProduction', width: 100,
+      title: 'APNs 环境', dataIndex: 'apnsProduction', width: 120,
       render: (v: boolean) => <Tag color={v ? 'green' : 'grey'} size="small">{v ? '生产' : '开发'}</Tag>,
     },
     {
@@ -262,25 +263,43 @@ export default function PushConfigsPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal {...modal.modalProps} width={620}>
+      <AppModal {...modal.modalProps} width={720}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Input field="name" label="配置名称" placeholder="如:极光-生产"
-              rules={[{ required: true, message: '名称不能为空' }]} />
-            <Form.Select field="provider" label="供应商" style={{ width: '100%' }}
-              optionList={PUSH_PROVIDER_OPTIONS} />
-            <Form.Input field="appKey" label="AppKey" placeholder="供应商后台的应用 AppKey"
-              rules={[{ required: true, message: 'AppKey 不能为空' }]} />
-            <Form.Input
-              field="masterSecret"
-              label="MasterSecret"
-              mode="password"
-              placeholder={modal.isEdit ? '留空表示不修改' : '供应商后台的 Master Secret'}
-              rules={modal.isEdit ? [] : [{ required: true, message: 'MasterSecret 不能为空' }]}
-            />
-            <Form.Switch field="apnsProduction" label="APNs 生产环境"
-              extraText="iOS 推送环境:开发阶段关闭(走 APNs 沙箱),上架后开启" />
-            <Form.Switch field="isDefault" label="设为默认" extraText="推送发送时使用默认配置,全局仅一个" />
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="name" label="配置名称" placeholder="如:极光-生产"
+                  rules={[{ required: true, message: '名称不能为空' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Select field="provider" label="供应商" style={{ width: '100%' }}
+                  optionList={PUSH_PROVIDER_OPTIONS} />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Input field="appKey" label="AppKey" placeholder="供应商后台的应用 AppKey"
+                  rules={[{ required: true, message: 'AppKey 不能为空' }]} />
+              </Col>
+              <Col span={12}>
+                <Form.Input
+                  field="masterSecret"
+                  label="MasterSecret"
+                  mode="password"
+                  placeholder={modal.isEdit ? '留空表示不修改' : '供应商后台的 Master Secret'}
+                  rules={modal.isEdit ? [] : [{ required: true, message: 'MasterSecret 不能为空' }]}
+                />
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Switch field="apnsProduction" label="APNs 生产环境"
+                  extraText="iOS 推送环境:开发阶段关闭(走 APNs 沙箱),上架后开启" />
+              </Col>
+              <Col span={12}>
+                <Form.Switch field="isDefault" label="设为默认" extraText="推送发送时使用默认配置,全局仅一个" />
+              </Col>
+            </Row>
             <Form.TextArea field="remark" label="备注" rows={2} maxCount={500} placeholder="选填" />
           </Form>
         </Spin>
