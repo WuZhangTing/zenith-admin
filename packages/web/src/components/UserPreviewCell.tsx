@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Avatar, AvatarGroup, Empty, Modal, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Avatar, AvatarGroup, Empty, List, Modal, Pagination, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { UserPreview } from '@zenith/shared/identity';
-import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { KeywordInput } from '@/components/search-filters';
 import { usePagination } from '@/hooks/usePagination';
 import { useScopeMembers, type ScopeMember, type UserScopeType } from '@/hooks/queries/scope-members';
@@ -95,7 +94,7 @@ interface ScopeMemberModalProps {
 function ScopeMemberModal({ scope, total, onClose }: ScopeMemberModalProps) {
   const [keywordDraft, setKeywordDraft] = useState('');
   const [keyword, setKeyword] = useState('');
-  const { page, pageSize, resetPage, buildPagination } = usePagination();
+  const { page, pageSize, setPage, resetPage } = usePagination();
   const query = useScopeMembers(scope.type, scope.id, { page, pageSize, keyword: keyword || undefined });
   const data = query.data;
 
@@ -126,7 +125,7 @@ function ScopeMemberModal({ scope, total, onClose }: ScopeMemberModalProps) {
       width={640}
       closeOnEsc
     >
-      <Space style={{ width: '100%', marginBottom: 12 }}>
+      <Space style={{ width: '100%', marginBottom: 8 }}>
         <KeywordInput
           placeholder="搜索昵称 / 用户名"
           value={keywordDraft}
@@ -134,39 +133,44 @@ function ScopeMemberModal({ scope, total, onClose }: ScopeMemberModalProps) {
         />
         <Typography.Text type="tertiary" size="small">共 {total} 人</Typography.Text>
       </Space>
-      {data && data.total === 0 && keyword ? (
-        <Empty description={`没有匹配「${keyword}」的成员`} />
-      ) : (
-        <ConfigurableTable<ScopeMember>
-          bordered
-          rowKey="id"
-          loading={query.isFetching}
-          dataSource={data?.list ?? []}
-          pagination={buildPagination(data?.total ?? 0)}
-          onRefresh={() => void query.refetch()}
-          refreshLoading={query.isFetching}
-          empty="暂无成员"
-          columns={[
-            {
-              title: '成员',
-              dataIndex: 'nickname',
-              render: (_value: unknown, record: ScopeMember) => (
-                <Space spacing={8}>
-                  <Avatar size="extra-extra-small" src={record.avatar ?? undefined} color="light-blue" alt={record.nickname}>
-                    {record.nickname?.[0]}
-                  </Avatar>
-                  <Typography.Text>{record.nickname}</Typography.Text>
-                </Space>
-              ),
-            },
-            {
-              title: '用户名',
-              dataIndex: 'username',
-              width: 200,
-              render: (value: string) => <Typography.Text type="tertiary">{value}</Typography.Text>,
-            },
-          ]}
-        />
+      <List<ScopeMember>
+        size="small"
+        loading={query.isFetching}
+        dataSource={data?.list ?? []}
+        grid={{ span: 12 }}
+        emptyContent={<Empty description={keyword ? `没有匹配「${keyword}」的成员` : '暂无成员'} />}
+        renderItem={(member) => (
+          <List.Item
+            key={member.id}
+            style={{ padding: '8px 4px' }}
+            header={(
+              <Avatar size="small" src={member.avatar ?? undefined} color="light-blue" alt={member.nickname}>
+                {member.nickname?.[0]}
+              </Avatar>
+            )}
+            main={(
+              <div style={{ minWidth: 0 }}>
+                <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{member.nickname}</Typography.Text>
+                <div>
+                  <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
+                    {member.username}
+                  </Typography.Text>
+                </div>
+              </div>
+            )}
+          />
+        )}
+      />
+      {(data?.total ?? 0) > pageSize && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <Pagination
+            size="small"
+            currentPage={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+          />
+        </div>
       )}
     </Modal>
   );
