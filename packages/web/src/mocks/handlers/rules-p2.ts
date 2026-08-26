@@ -3,6 +3,7 @@ import { ok, badRequest, notFound, conflict } from '@/mocks/utils/handlers';
 import type { RuleDecisionFlow, RuleFlowStep, RuleFlowStepTrace, RuleList, RuleScorecard, RuleScorecardEvaluateResult } from '@zenith/shared/rules';
 import { mockDecisionFlows, getNextFlowId, mockRuleLists, mockRuleListItems, getNextListId, getNextListItemId, mockRuleScorecards, getNextScorecardId } from '@/mocks/data/rules-p2';
 import { mockDecisionTables } from '@/mocks/data/decision-tables';
+import { mockPaymentRiskRules } from './payment-bext';
 import { evaluateMockDecisionTable } from './decision-tables';
 import { mockDateTime } from '@/mocks/utils/date';
 
@@ -229,10 +230,20 @@ export const rulesP2Handlers = [
     Object.assign(r, await request.json() as object, { updatedAt: mockDateTime() });
     return ok(r, '更新成功');
   }),
+  http.get('/api/rules/lists/:id/usages', ({ params }) => {
+    const list = mockRuleLists.find((l) => l.id === Number(params.id));
+    if (!list) return notFound('名单不存在', { status: 404 });
+    const usages = mockPaymentRiskRules
+      .filter((r) => (r.blockListKeys ?? []).includes(list.key) || (r.allowListKeys ?? []).includes(list.key))
+      .map((r) => ({ type: 'paymentRisk' as const, id: r.id, name: r.name, status: r.status }));
+    return ok(usages);
+  }),
   http.delete('/api/rules/lists/:id', ({ params }) => {
     const i = mockRuleLists.findIndex((t) => t.id === Number(params.id));
     if (i === -1) return notFound('名单不存在', { status: 404 });
-    const listId = mockRuleLists[i].id;
+    const { id: listId, key, name } = mockRuleLists[i];
+    const refs = mockPaymentRiskRules.filter((r) => (r.blockListKeys ?? []).includes(key) || (r.allowListKeys ?? []).includes(key));
+    if (refs.length > 0) return badRequest(`名单「${name}」被 ${refs.length} 处引用（${refs.map((r) => r.name).join('、')}），请先解除引用后再删除`, { status: 400 });
     mockRuleLists.splice(i, 1);
     for (let k = mockRuleListItems.length - 1; k >= 0; k -= 1) if (mockRuleListItems[k].listId === listId) mockRuleListItems.splice(k, 1);
     return ok(null, '删除成功');

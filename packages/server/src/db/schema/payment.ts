@@ -470,9 +470,10 @@ export const paymentRiskRules = pgTable('payment_risk_rules', {
   singleLimit: integer('single_limit'),
   dailyLimit: integer('daily_limit'),
   dailyCountLimit: integer('daily_count_limit'),
-  blocklist: jsonb('blocklist').$type<string[]>().default([]).notNull(),
-  /** 白名单（openid / 用户ID / IP），任一命中则跳过本规则全部检查 */
-  allowlist: jsonb('allowlist').$type<string[]>().default([]).notNull(),
+  /** 引用的黑名单库 key（规则中心名单库，type=black/grey），任一名单命中任一主体标识即触发动作 */
+  blockListKeys: jsonb('block_list_keys').$type<string[]>().default([]).notNull(),
+  /** 引用的白名单库 key（type=white），任一命中则跳过本规则全部检查 */
+  allowListKeys: jsonb('allow_list_keys').$type<string[]>().default([]).notNull(),
   /** 命中动作（block=拦截，review=挂起人工审核） */
   action: paymentRiskActionEnum('action').notNull().default('block'),
   status: statusEnum('status').notNull().default('enabled'),
@@ -488,7 +489,7 @@ export type PaymentRiskRuleRow = typeof paymentRiskRules.$inferSelect;
 export type NewPaymentRiskRule = typeof paymentRiskRules.$inferInsert;
 
 // ─── 风控命中留痕（追加型日志：每次拦截/送审都落一条）─────────────────────────
-export const paymentRiskDimensionEnum = pgEnum('payment_risk_dimension', ['blocklist', 'single_limit', 'daily_limit', 'daily_count']);
+export const paymentRiskDimensionEnum = pgEnum('payment_risk_dimension', ['blocklist', 'single_limit', 'daily_limit', 'daily_count', 'decision']);
 
 export const paymentRiskHits = pgTable('payment_risk_hits', {
   id: serial('id').primaryKey(),

@@ -14,6 +14,27 @@ export const SEED_DECISION_TABLES = [
       { id: 'r3', when: ['-'], then: { level: 'normal', discount: 1 } },
     ],
   },
+  {
+    id: 2,
+    key: 'payment_risk',
+    name: '支付风控策略',
+    description: '发布后优先于风控规则原生维度裁决支付下单：命中输出 action=block/review/pass（pass 为显式放行）；未命中或未发布回退原生维度。可用事实：order.*（单笔）、today.*（当日聚合）、hit.*（名单命中 key）、subject.*（openId/userId/ip）',
+    hitPolicy: 'first' as const,
+    inputs: [
+      { key: 'blackHit', label: '命中黑名单', expr: 'hit.black', type: 'string' as const },
+      { key: 'amount', label: '单笔金额(分)', expr: 'order.amount', type: 'number' as const },
+      { key: 'todayCount', label: '当日笔数', expr: 'today.count', type: 'number' as const },
+    ],
+    outputs: [
+      { key: 'action', label: '动作', type: 'string' as const },
+      { key: 'reason', label: '原因', type: 'string' as const },
+    ],
+    rules: [
+      { id: 'r1', when: ['risk_blacklist', '-', '-'], then: { action: 'block', reason: '命中风控黑名单' } },
+      { id: 'r2', when: ['-', '>= 5000000', '-'], then: { action: 'review', reason: '单笔大额，转人工审核' } },
+      { id: 'r3', when: ['-', '-', '> 20'], then: { action: 'review', reason: '当日交易频次异常' } },
+    ],
+  },
 ];
 
 // ─── 规则中心：决策流种子 ────────────────────────────────────────────────────────

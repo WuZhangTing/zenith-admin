@@ -446,8 +446,8 @@ export const PaymentRiskRuleDTO = z
     singleLimit: z.number().int().nullable().optional(),
     dailyLimit: z.number().int().nullable().optional(),
     dailyCountLimit: z.number().int().nullable().optional(),
-    blocklist: z.array(z.string()),
-    allowlist: z.array(z.string()),
+    blockListKeys: z.array(z.string()),
+    allowListKeys: z.array(z.string()),
     action: z.enum(['block', 'review']),
     status: z.enum(['enabled', 'disabled']),
     remark: z.string().nullable().optional(),
@@ -457,7 +457,7 @@ export const PaymentRiskRuleDTO = z
   .openapi('PaymentRiskRule');
 
 const riskActionEnum = z.enum(['block', 'review']);
-const riskDimensionEnum = z.enum(['blocklist', 'single_limit', 'daily_limit', 'daily_count']);
+const riskDimensionEnum = z.enum(['blocklist', 'single_limit', 'daily_limit', 'daily_count', 'decision']);
 
 export const PaymentRiskHitDTO = z
   .object({

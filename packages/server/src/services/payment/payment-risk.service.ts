@@ -1,7 +1,9 @@
 /**
  * 支付风控 Service。
- * 规则（全局/按渠道/按业务类型）：单笔上限、当日累计金额/笔数、黑名单（openid/用户ID/IP）、
- * 白名单（命中跳过规则）；命中动作 block=拦截下单，review=落单挂起进入人工审核队列。
+ * 两层裁决：规则中心 payment_risk 决策表（发布即优先接管，输出 block/review/pass）；
+ * 原生维度规则（全局/按渠道/按业务类型）：单笔上限、当日累计金额/笔数、名单命中——
+ * 黑/白名单统一引用规则中心名单库（blockListKeys/allowListKeys）。
+ * 命中动作 block=拦截下单，review=落单挂起进入人工审核队列。
  * 每次命中均落留痕（payment_risk_hits）；审核放行后用户重新下单复用挂起订单继续支付，
  * 拒绝则本地关闭挂起订单（渠道侧从未下单）。
  */
@@ -25,6 +27,9 @@ import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-he
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { recordEvent, processEvent } from './payment-outbox.service';
+import { checkRuleListsBatch, type RuleListBatchHit } from '../platform/rules-lists.service';
+import { decide } from '../platform/rules-runtime.service';
+import { resolveRuntimeDecisionTable } from '../platform/rules.service';
 import type { CreatePaymentRiskRuleInput, UpdatePaymentRiskRuleInput } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskReviewStatus, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
 
@@ -38,8 +43,8 @@ export function mapRiskRule(row: PaymentRiskRuleRow): PaymentRiskRule {
     singleLimit: row.singleLimit ?? null,
     dailyLimit: row.dailyLimit ?? null,
     dailyCountLimit: row.dailyCountLimit ?? null,
-    blocklist: row.blocklist ?? [],
-    allowlist: row.allowlist ?? [],
+    blockListKeys: row.blockListKeys ?? [],
+    allowListKeys: row.allowListKeys ?? [],
     action: row.action,
     status: row.status,
     remark: row.remark ?? null,
@@ -86,10 +91,25 @@ function normalizeScopeFields(input: Partial<CreatePaymentRiskRuleInput>): { cha
   return { channel: null, bizType: null };
 }
 
+/** 名单引用校验：key 必须存在且启用，黑名单字段只能引用 black/grey 型、白名单字段只能引用 white 型 */
+async function ensureListRefs(blockKeys: string[], allowKeys: string[]): Promise<void> {
+  const keys = [...new Set([...blockKeys, ...allowKeys])];
+  if (keys.length === 0) return;
+  const { lists } = await checkRuleListsBatch(keys, []);
+  const byKey = new Map(lists.map((l) => [l.key, l]));
+  const missing = keys.filter((k) => !byKey.has(k));
+  if (missing.length > 0) throw new HTTPException(400, { message: `引用的名单不存在或未启用：${missing.join('、')}` });
+  const badBlock = blockKeys.filter((k) => byKey.get(k)!.type === 'white');
+  if (badBlock.length > 0) throw new HTTPException(400, { message: `黑名单字段不能引用白名单库：${badBlock.join('、')}` });
+  const badAllow = allowKeys.filter((k) => byKey.get(k)!.type !== 'white');
+  if (badAllow.length > 0) throw new HTTPException(400, { message: `白名单字段只能引用白名单库：${badAllow.join('、')}` });
+}
+
 export async function createRiskRule(input: CreatePaymentRiskRuleInput): Promise<PaymentRiskRule> {
   const scoped = normalizeScopeFields(input);
   if (input.scope === 'channel' && !scoped.channel) throw new HTTPException(400, { message: '按渠道规则需指定渠道' });
   if (input.scope === 'bizType' && !scoped.bizType) throw new HTTPException(400, { message: '按业务类型规则需指定业务类型' });
+  await ensureListRefs(input.blockListKeys ?? [], input.allowListKeys ?? []);
   const [row] = await db
     .insert(paymentRiskRules)
     .values({
@@ -100,8 +120,8 @@ export async function createRiskRule(input: CreatePaymentRiskRuleInput): Promise
       singleLimit: input.singleLimit ?? null,
       dailyLimit: input.dailyLimit ?? null,
       dailyCountLimit: input.dailyCountLimit ?? null,
-      blocklist: input.blocklist ?? [],
-      allowlist: input.allowlist ?? [],
+      blockListKeys: input.blockListKeys ?? [],
+      allowListKeys: input.allowListKeys ?? [],
       action: input.action ?? 'block',
       status: input.status ?? 'enabled',
       remark: input.remark ?? null,
@@ -127,8 +147,13 @@ export async function updateRiskRule(id: number, input: UpdatePaymentRiskRuleInp
   if (input.singleLimit !== undefined) set.singleLimit = input.singleLimit ?? null;
   if (input.dailyLimit !== undefined) set.dailyLimit = input.dailyLimit ?? null;
   if (input.dailyCountLimit !== undefined) set.dailyCountLimit = input.dailyCountLimit ?? null;
-  if (input.blocklist !== undefined) set.blocklist = input.blocklist;
-  if (input.allowlist !== undefined) set.allowlist = input.allowlist;
+  if (input.blockListKeys !== undefined || input.allowListKeys !== undefined) {
+    const nextBlock = input.blockListKeys ?? existing.blockListKeys ?? [];
+    const nextAllow = input.allowListKeys ?? existing.allowListKeys ?? [];
+    await ensureListRefs(nextBlock, nextAllow);
+    set.blockListKeys = nextBlock;
+    set.allowListKeys = nextAllow;
+  }
   if (input.action !== undefined) set.action = input.action;
   if (input.status !== undefined) set.status = input.status;
   if (input.remark !== undefined) set.remark = input.remark ?? null;
@@ -156,7 +181,7 @@ export interface RiskCheckInput {
 
 export type RiskDecision =
   | { action: 'pass' }
-  | { action: 'block' | 'review'; rule: PaymentRiskRuleRow; dimension: PaymentRiskDimension; dimensionValue: string; message: string };
+  | { action: 'block' | 'review'; ruleId: number | null; ruleName: string; dimension: PaymentRiskDimension; dimensionValue: string; message: string };
 
 function ruleApplies(rule: PaymentRiskRuleRow, input: RiskCheckInput): boolean {
   if (rule.scope === 'global') return true;
@@ -203,42 +228,105 @@ function createDailyStatsLoader(input: RiskCheckInput) {
 }
 
 /**
- * 下单前风控评估：按启用规则依次检查白名单（跳过）、黑名单、单笔上限、当日累计金额/笔数，
+ * 下单前风控评估，两层裁决：
+ * 1. 决策表策略层（规则中心 payment_risk 表，已发布时优先）：服务端组装事实
+ *    （单笔/当日聚合/名单命中/主体标识）交由决策表裁决，命中即权威结论——
+ *    block/review 直接生效，pass 为显式放行（跳过原生维度）；未命中或未发布回退第 2 层。
+ * 2. 原生维度层：按启用规则依次检查白名单（跳过）、黑名单、单笔上限、当日累计金额/笔数。
+ * 黑/白名单统一引用规则中心名单库（blockListKeys/allowListKeys），整批一次判定。
  * 返回第一条命中的决策（block/review）；全部通过返回 pass。不抛异常，由调用方决定拦截/挂起。
  */
 export async function evaluateRisk(input: RiskCheckInput): Promise<RiskDecision> {
   const tenantCond = input.tenantId == null ? isNull(paymentRiskRules.tenantId) : or(eq(paymentRiskRules.tenantId, input.tenantId), isNull(paymentRiskRules.tenantId));
   const rules = await db.select().from(paymentRiskRules).where(and(eq(paymentRiskRules.status, 'enabled'), tenantCond));
   const applicable = rules.filter((r) => ruleApplies(r, input));
-  if (applicable.length === 0) return { action: 'pass' };
 
   const identifiers = identifiersOf(input);
   const dailyStats = createDailyStatsLoader(input);
 
+  // 名单批量判定：一次解析全部引用名单（keys × 标识全组合，2~3 条 SQL）
+  const allKeys = [...new Set(applicable.flatMap((r) => [...(r.allowListKeys ?? []), ...(r.blockListKeys ?? [])]))];
+  const listHits = allKeys.length > 0 && identifiers.length > 0
+    ? (await checkRuleListsBatch(allKeys, identifiers, { tenantId: input.tenantId ?? null })).hits
+    : [];
+  const hitsByKey = new Map<string, RuleListBatchHit[]>();
+  for (const h of listHits) {
+    const arr = hitsByKey.get(h.key) ?? [];
+    arr.push(h);
+    hitsByKey.set(h.key, arr);
+  }
+
+  // 第 1 层：决策表策略（未发布/未命中返回 null 回退原生维度）
+  const verdict = await evaluateRiskDecisionTable(input, hitsByKey, dailyStats);
+  if (verdict) return verdict;
+
+  // 第 2 层：原生维度
   for (const rule of applicable) {
-    // 白名单：任一标识命中则跳过本规则全部检查
-    if ((rule.allowlist ?? []).length > 0 && identifiers.some((id) => rule.allowlist.includes(id))) continue;
-    // 黑名单（openid / 用户ID / IP）
-    const hitBlockValue = identifiers.find((id) => rule.blocklist.includes(id));
-    if (rule.blocklist.length > 0 && hitBlockValue) {
-      return { action: rule.action, rule, dimension: 'blocklist', dimensionValue: hitBlockValue, message: `命中风控黑名单（${rule.name}）` };
+    // 白名单：任一引用名单命中任一标识则跳过本规则全部检查
+    if ((rule.allowListKeys ?? []).some((k) => hitsByKey.get(k)?.length)) continue;
+    // 黑名单：任一引用名单命中即触发动作
+    const blockKey = (rule.blockListKeys ?? []).find((k) => hitsByKey.get(k)?.length);
+    if (blockKey) {
+      const hit = hitsByKey.get(blockKey)![0];
+      return { action: rule.action, ruleId: rule.id, ruleName: rule.name, dimension: 'blocklist', dimensionValue: `${hit.value}@${blockKey}`, message: `命中名单「${blockKey}」（${rule.name}）` };
     }
     // 单笔上限
     if (rule.singleLimit != null && input.amount > rule.singleLimit) {
-      return { action: rule.action, rule, dimension: 'single_limit', dimensionValue: `${input.amount} > ${rule.singleLimit}`, message: `单笔金额超过限额（${rule.name}）` };
+      return { action: rule.action, ruleId: rule.id, ruleName: rule.name, dimension: 'single_limit', dimensionValue: `${input.amount} > ${rule.singleLimit}`, message: `单笔金额超过限额（${rule.name}）` };
     }
     // 当日累计金额 / 笔数（按规则作用域聚合当日已支付订单；未支付的 pending/paying 不计入，避免误伤正常下单）
     if (rule.dailyLimit != null || rule.dailyCountLimit != null) {
       const { total: dayTotal, count: dayCount } = await dailyStats(rule.scope);
       if (rule.dailyLimit != null && dayTotal + input.amount > rule.dailyLimit) {
-        return { action: rule.action, rule, dimension: 'daily_limit', dimensionValue: `${dayTotal} + ${input.amount} > ${rule.dailyLimit}`, message: `当日累计金额超过限额（${rule.name}）` };
+        return { action: rule.action, ruleId: rule.id, ruleName: rule.name, dimension: 'daily_limit', dimensionValue: `${dayTotal} + ${input.amount} > ${rule.dailyLimit}`, message: `当日累计金额超过限额（${rule.name}）` };
       }
       if (rule.dailyCountLimit != null && dayCount + 1 > rule.dailyCountLimit) {
-        return { action: rule.action, rule, dimension: 'daily_count', dimensionValue: `${dayCount} + 1 > ${rule.dailyCountLimit}`, message: `当日交易笔数超过限额（${rule.name}）` };
+        return { action: rule.action, ruleId: rule.id, ruleName: rule.name, dimension: 'daily_count', dimensionValue: `${dayCount} + 1 > ${rule.dailyCountLimit}`, message: `当日交易笔数超过限额（${rule.name}）` };
       }
     }
   }
   return { action: 'pass' };
+}
+
+/** 规则中心策略表 key（约定引用）：发布即接管裁决，停用/删除自动回退原生维度 */
+const RISK_DECISION_TABLE_KEY = 'payment_risk';
+
+/**
+ * 决策表策略层：payment_risk 表已发布时组装事实求值。
+ * 返回 null 表示不裁决（未发布/未命中/输出无有效动作），回退原生维度。
+ */
+async function evaluateRiskDecisionTable(
+  input: RiskCheckInput,
+  hitsByKey: Map<string, RuleListBatchHit[]>,
+  dailyStats: (scope: PaymentRiskScope) => Promise<{ total: number; count: number }>,
+): Promise<RiskDecision | null> {
+  // 先廉价探测可用性（带缓存），避免为不存在的表白算当日聚合
+  const snapshot = await resolveRuntimeDecisionTable(RISK_DECISION_TABLE_KEY, { tenantId: input.tenantId ?? null });
+  if (!snapshot) return null;
+  const [global, channel, biz] = await Promise.all([dailyStats('global'), dailyStats('channel'), dailyStats('bizType')]);
+  const hits = [...hitsByKey.entries()].filter(([, arr]) => arr.length > 0);
+  const blackEntry = hits.find(([, arr]) => arr[0].listType !== 'white');
+  const whiteEntry = hits.find(([, arr]) => arr[0].listType === 'white');
+  const facts = {
+    order: { amount: input.amount, channel: input.channel, bizType: input.bizType },
+    today: { amount: global.total, count: global.count, channelAmount: channel.total, channelCount: channel.count, bizAmount: biz.total, bizCount: biz.count },
+    hit: { black: blackEntry?.[0] ?? '', white: whiteEntry?.[0] ?? '', value: blackEntry?.[1][0]?.value ?? '' },
+    subject: { openId: input.openId ?? '', userId: input.userId ?? null, ip: input.clientIp ?? '' },
+  };
+  const decision = await decide({ kind: 'table', key: RISK_DECISION_TABLE_KEY }, facts, { caller: 'payment.risk', tenantId: input.tenantId ?? null });
+  if (!decision.matched) return null;
+  const action = String(decision.outputs.action ?? '');
+  if (action === 'pass') return { action: 'pass' };
+  if (action !== 'block' && action !== 'review') return null;
+  const reason = typeof decision.outputs.reason === 'string' && decision.outputs.reason ? decision.outputs.reason : '命中支付风控策略';
+  return {
+    action,
+    ruleId: null,
+    ruleName: `决策表 ${RISK_DECISION_TABLE_KEY}`,
+    dimension: 'decision',
+    dimensionValue: `${RISK_DECISION_TABLE_KEY} v${decision.ref.version ?? '-'}`,
+    message: reason,
+  };
 }
 
 // ─── 命中留痕 ─────────────────────────────────────────────────────────────────
@@ -268,8 +356,8 @@ export async function recordRiskHit(decision: Exclude<RiskDecision, { action: 'p
   const [row] = await db
     .insert(paymentRiskHits)
     .values({
-      ruleId: decision.rule.id,
-      ruleName: decision.rule.name,
+      ruleId: decision.ruleId,
+      ruleName: decision.ruleName,
       action: decision.action,
       dimension: decision.dimension,
       dimensionValue: decision.dimensionValue.slice(0, 256),

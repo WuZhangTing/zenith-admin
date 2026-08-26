@@ -108,7 +108,7 @@ export interface RuleEvaluateResult {
 
 /** 决策表引用方（where-used 分析） */
 export interface RuleUsageItem {
-  type: 'workflow' | 'coupon';
+  type: 'workflow' | 'coupon' | 'paymentRisk';
   id: number | null;
   name: string;
   status?: string | null;

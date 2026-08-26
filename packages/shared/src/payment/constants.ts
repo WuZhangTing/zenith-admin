@@ -185,12 +185,12 @@ export const PAYMENT_RISK_ACTION_LABELS: Record<PaymentRiskAction, string> = {
   block: '直接拦截', review: '人工审核',
 };
 
-export const PAYMENT_RISK_DIMENSIONS = ['blocklist', 'single_limit', 'daily_limit', 'daily_count'] as const;
+export const PAYMENT_RISK_DIMENSIONS = ['blocklist', 'single_limit', 'daily_limit', 'daily_count', 'decision'] as const;
 
 export type PaymentRiskDimension = typeof PAYMENT_RISK_DIMENSIONS[number];
 
 export const PAYMENT_RISK_DIMENSION_LABELS: Record<PaymentRiskDimension, string> = {
-  blocklist: '黑名单', single_limit: '单笔限额', daily_limit: '当日累计金额', daily_count: '当日交易笔数',
+  blocklist: '黑名单', single_limit: '单笔限额', daily_limit: '当日累计金额', daily_count: '当日交易笔数', decision: '决策表策略',
 };
 
 export const PAYMENT_RISK_REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;

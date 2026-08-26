@@ -388,10 +388,11 @@ const appHandlers = [
 ];
 
 // ─── 风控规则 ─────────────────────────────────────────────────────────────────
-const riskRules: PaymentRiskRule[] = [
-  { id: 1, name: '单笔大额拦截', scope: 'global', channel: null, bizType: null, singleLimit: 5000000, dailyLimit: null, dailyCountLimit: null, blocklist: [], allowlist: [], action: 'block', status: 'enabled', remark: '单笔不超过 5 万元', createdAt: SEED, updatedAt: SEED },
-  { id: 2, name: '会员业务限频', scope: 'bizType', channel: null, bizType: 'membership', singleLimit: null, dailyLimit: 2000000, dailyCountLimit: 50, blocklist: ['oBLOCK001'], allowlist: ['oVIP888'], action: 'review', status: 'enabled', remark: null, createdAt: SEED, updatedAt: SEED },
+export const mockPaymentRiskRules: PaymentRiskRule[] = [
+  { id: 1, name: '单笔大额拦截', scope: 'global', channel: null, bizType: null, singleLimit: 5000000, dailyLimit: null, dailyCountLimit: null, blockListKeys: ['risk_blacklist'], allowListKeys: ['vip_whitelist'], action: 'block', status: 'enabled', remark: '单笔不超过 5 万元；名单引用规则中心名单库', createdAt: SEED, updatedAt: SEED },
+  { id: 2, name: '会员业务限频', scope: 'bizType', channel: null, bizType: 'membership', singleLimit: null, dailyLimit: 2000000, dailyCountLimit: 50, blockListKeys: [], allowListKeys: [], action: 'review', status: 'enabled', remark: null, createdAt: SEED, updatedAt: SEED },
 ];
+const riskRules = mockPaymentRiskRules;
 let nextRiskId = 3;
 
 const riskHandlers = [
@@ -411,8 +412,8 @@ const riskHandlers = [
     const now = mockDateTime();
     const item: PaymentRiskRule = {
       id: nextRiskId++, name: b.name ?? '', scope: b.scope ?? 'global', channel: (b.channel as PaymentChannel) ?? null, bizType: b.bizType ?? null,
-      singleLimit: b.singleLimit ?? null, dailyLimit: b.dailyLimit ?? null, dailyCountLimit: b.dailyCountLimit ?? null, blocklist: b.blocklist ?? [],
-      allowlist: b.allowlist ?? [], action: b.action ?? 'block',
+      singleLimit: b.singleLimit ?? null, dailyLimit: b.dailyLimit ?? null, dailyCountLimit: b.dailyCountLimit ?? null, blockListKeys: b.blockListKeys ?? [],
+      allowListKeys: b.allowListKeys ?? [], action: b.action ?? 'block',
       status: b.status ?? 'enabled', remark: b.remark ?? null, createdAt: now, updatedAt: now,
     };
     riskRules.push(item);

@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Modal, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, Select, Space, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -25,6 +25,7 @@ import {
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_RISK_ACTION_LABELS, PAYMENT_RISK_DIMENSION_LABELS, PAYMENT_RISK_REVIEW_STATUS_LABELS, PAYMENT_RISK_SCOPE_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentRiskAction, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskReviewStatus, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
+import { useRuleListList } from '@/hooks/queries/rules';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -50,8 +51,8 @@ interface RiskFormValues {
   singleYuan?: number;
   dailyYuan?: number;
   dailyCountLimit?: number;
-  blocklist?: string[];
-  allowlist?: string[];
+  blockListKeys?: string[];
+  allowListKeys?: string[];
   action?: PaymentRiskAction;
   status?: 'enabled' | 'disabled';
   remark?: string;
@@ -118,6 +119,12 @@ export default function PaymentRiskRulesPage() {
   const rejectMutation = useRejectPaymentRiskReview();
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
+  // 名单库下拉源（黑名单字段可选 black/grey，白名单字段仅 white）
+  const ruleListsQuery = useRuleListList({ page: 1, pageSize: 100 });
+  const allRuleLists = ruleListsQuery.data?.list ?? [];
+  const blockListOptions = allRuleLists.filter((l) => l.type !== 'white').map((l) => ({ value: l.key, label: `${l.name}（${l.key}）` }));
+  const allowListOptions = allRuleLists.filter((l) => l.type === 'white').map((l) => ({ value: l.key, label: `${l.name}（${l.key}）` }));
+
   function handleHitSearch() { setHPage(1); setSubmittedHitParams({ keyword: hitKeyword, action: hitAction, dimension: hitDimension }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.hitLists }); }
   function handleHitReset() { setHitKeyword(''); setHitAction(''); setHitDimension(''); setHPage(1); setSubmittedHitParams({ keyword: '', action: '', dimension: '' }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.hitLists }); }
   function handleReviewSearch() { setRPage(1); setSubmittedReviewParams({ keyword: reviewKeyword, status: reviewStatus }); void queryClient.invalidateQueries({ queryKey: paymentRiskKeys.reviewLists }); }
@@ -126,7 +133,7 @@ export default function PaymentRiskRulesPage() {
   const modal = useEditModal<PaymentRiskRule, RiskFormValues, Partial<PaymentRiskRule>>({
     entityName: '风控规则',
     save: saveMutation,
-    defaults: { scope: 'global', status: 'enabled', action: 'block', blocklist: [], allowlist: [] },
+    defaults: { scope: 'global', status: 'enabled', action: 'block', blockListKeys: [], allowListKeys: [] },
     toValues: (record) => ({
       name: record.name,
       scope: record.scope,
@@ -135,8 +142,8 @@ export default function PaymentRiskRulesPage() {
       singleYuan: record.singleLimit != null ? record.singleLimit / 100 : undefined,
       dailyYuan: record.dailyLimit != null ? record.dailyLimit / 100 : undefined,
       dailyCountLimit: record.dailyCountLimit ?? undefined,
-      blocklist: record.blocklist ?? [],
-      allowlist: record.allowlist ?? [],
+      blockListKeys: record.blockListKeys ?? [],
+      allowListKeys: record.allowListKeys ?? [],
       action: record.action,
       status: record.status,
       remark: record.remark ?? '',
@@ -149,8 +156,8 @@ export default function PaymentRiskRulesPage() {
       singleLimit: values.singleYuan != null ? Math.round(values.singleYuan * 100) : undefined,
       dailyLimit: values.dailyYuan != null ? Math.round(values.dailyYuan * 100) : undefined,
       dailyCountLimit: values.dailyCountLimit ?? undefined,
-      blocklist: values.blocklist ?? [],
-      allowlist: values.allowlist ?? [],
+      blockListKeys: values.blockListKeys ?? [],
+      allowListKeys: values.allowListKeys ?? [],
       action: values.action ?? 'block',
       status: values.status,
       remark: values.remark || undefined,
@@ -205,8 +212,8 @@ export default function PaymentRiskRulesPage() {
     { title: '单笔上限', dataIndex: 'singleLimit', width: 110, align: 'right', render: (v: number | null) => yuan(v) },
     { title: '当日限额', dataIndex: 'dailyLimit', width: 110, align: 'right', render: (v: number | null) => yuan(v) },
     { title: '当日笔数', dataIndex: 'dailyCountLimit', width: 95, align: 'right', render: (v: number | null) => (v == null ? '-' : v) },
-    { title: '黑名单', dataIndex: 'blocklist', width: 85, render: (v: string[]) => (v.length ? <Tag color="red">{v.length} 项</Tag> : '-') },
-    { title: '白名单', dataIndex: 'allowlist', width: 85, render: (v: string[]) => (v.length ? <Tag color="green">{v.length} 项</Tag> : '-') },
+    { title: '黑名单', dataIndex: 'blockListKeys', width: 150, render: (v: string[]) => (v?.length ? <Space spacing={4} wrap>{v.map((k) => <Tag key={k} size="small" color="red">{k}</Tag>)}</Space> : '-') },
+    { title: '白名单', dataIndex: 'allowListKeys', width: 150, render: (v: string[]) => (v?.length ? <Space spacing={4} wrap>{v.map((k) => <Tag key={k} size="small" color="green">{k}</Tag>)}</Space> : '-') },
     createdAtColumn as ColumnProps<PaymentRiskRule>,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
@@ -309,6 +316,9 @@ export default function PaymentRiskRulesPage() {
     <div className="page-container page-tabs-page">
       <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as 'rules' | 'hits' | 'reviews')} type="line" lazyRender keepDOM={false}>
         <TabPane tab="限额规则" itemKey="rules">
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
+            两层裁决：规则中心决策表 <Typography.Text code size="small">payment_risk</Typography.Text> 发布后优先接管（输出 block / review / pass，未命中回退本页规则）；名单统一引用规则中心名单库
+          </Typography.Text>
           <SearchToolbar
             primary={(
               <>
@@ -419,9 +429,17 @@ export default function PaymentRiskRulesPage() {
             <Form.InputNumber field="dailyYuan" label="当日累计(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
           </div>
           <Form.InputNumber field="dailyCountLimit" label="当日笔数" min={0} step={1} precision={0} style={{ width: '100%' }} placeholder="可选" />
-          <Form.TagInput field="blocklist" label="黑名单" placeholder="输入 openid / 用户ID / IP 后回车" />
-          <Form.TagInput field="allowlist" label="白名单" placeholder="输入 openid / 用户ID / IP 后回车" />
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>黑名单命中执行规则动作；白名单命中跳过本规则全部检查</Typography.Text>
+          <Form.Select
+            field="blockListKeys" label="黑名单" multiple filter showClear style={{ width: '100%' }}
+            placeholder="选择规则中心名单库（黑/灰名单）" optionList={blockListOptions}
+          />
+          <Form.Select
+            field="allowListKeys" label="白名单" multiple filter showClear style={{ width: '100%' }}
+            placeholder="选择规则中心名单库（白名单）" optionList={allowListOptions}
+          />
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>
+            名单引用自规则中心名单库（条目、过期与批量导入在<Typography.Text link={{ href: '/rules/lists' }} size="small">名单库</Typography.Text>统一管理）；黑名单命中执行规则动作，白名单命中跳过本规则全部检查
+          </Typography.Text>
           <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
         </Form>
       </AppModal>

@@ -3,9 +3,9 @@
  */
 import { and, desc, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { RuleListType, RuleListCheckResult } from '@zenith/shared/rules';
+import type { RuleListType, RuleListCheckResult, RuleUsageItem } from '@zenith/shared/rules';
 import { db } from '../../db';
-import { ruleLists, ruleListItems } from '../../db/schema';
+import { ruleLists, ruleListItems, paymentRiskRules } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { escapeLike } from '../../lib/where-helpers';
@@ -113,8 +113,39 @@ export async function updateRuleList(id: number, input: Partial<CreateRuleListIn
   return mapRuleList(row, count);
 }
 
+// ─── 引用分析（where-used）与删除保护 ────────────────────────────────────────────
+
+/** 名单引用方：扫描支付风控规则的 blockListKeys / allowListKeys */
+export async function listRuleListUsages(id: number): Promise<RuleUsageItem[]> {
+  const row = await ensureRuleList(id);
+  return findListUsagesByKey(row.key, row.tenantId ?? null);
+}
+
+async function findListUsagesByKey(key: string, listTenantId: number | null): Promise<RuleUsageItem[]> {
+  const pattern = `%"${escapeLike(key)}"%`;
+  const refCond = or(
+    sql`${paymentRiskRules.blockListKeys}::text LIKE ${pattern}`,
+    sql`${paymentRiskRules.allowListKeys}::text LIKE ${pattern}`,
+  );
+  // 租户名单只可能被本租户的风控规则引用；平台级（null）名单可被任意租户引用，保持全量扫描
+  const conds = [refCond];
+  if (listTenantId != null) conds.push(eq(paymentRiskRules.tenantId, listTenantId));
+  const rows = await db.select({ id: paymentRiskRules.id, name: paymentRiskRules.name, status: paymentRiskRules.status })
+    .from(paymentRiskRules).where(and(...conds));
+  return rows.map((r) => ({ type: 'paymentRisk' as const, id: r.id, name: r.name, status: r.status }));
+}
+
+/** 删除前校验：仍被引用时拒绝删除（停用不受限，作为运维开关保留） */
+async function ensureListNotReferenced(row: ListRow): Promise<void> {
+  const usages = await findListUsagesByKey(row.key, row.tenantId ?? null);
+  if (usages.length === 0) return;
+  const names = usages.slice(0, 3).map((u) => u.name).join('、');
+  throw new HTTPException(400, { message: `名单「${row.name}」被 ${usages.length} 处引用（${names}${usages.length > 3 ? ' 等' : ''}），请先解除引用后再删除` });
+}
+
 export async function deleteRuleList(id: number): Promise<void> {
-  await ensureRuleList(id);
+  const row = await ensureRuleList(id);
+  await ensureListNotReferenced(row);
   await db.delete(ruleLists).where(eq(ruleLists.id, id));
 }
 

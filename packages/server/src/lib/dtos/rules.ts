@@ -85,7 +85,7 @@ export const RuleEvaluateResultDTO = z
 
 export const RuleUsageDTO = z
   .object({
-    type: z.enum(['workflow', 'coupon']),
+    type: z.enum(['workflow', 'coupon', 'paymentRisk']),
     id: z.number().int().nullable(),
     name: z.string(),
     status: z.string().nullable().optional(),

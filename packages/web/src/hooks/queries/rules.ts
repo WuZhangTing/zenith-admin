@@ -198,6 +198,11 @@ export function fetchRuleUsages(id: number): Promise<RuleUsageItem[]> {
   return request.get<RuleUsageItem[]>(`/api/rules/decision-tables/${id}/usages`).then(unwrap);
 }
 
+/** 名单引用分析（删除确认时按需拉取） */
+export function fetchRuleListUsages(id: number): Promise<RuleUsageItem[]> {
+  return request.get<RuleUsageItem[]>(`/api/rules/lists/${id}/usages`).then(unwrap);
+}
+
 // ─── 命中分析 / 影子对比 / 发布审批 ──────────────────────────────────────────────
 
 export function useRuleTableStats(id: number | undefined, days: number, enabled = true) {

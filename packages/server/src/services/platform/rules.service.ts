@@ -235,6 +235,9 @@ async function findUsagesByKey(key: string, tableTenantId: number | null): Promi
   if (key === 'coupon_eligibility') {
     usages.push({ type: 'coupon', id: null, name: '优惠券领取资格判定（内置消费方）', status: null });
   }
+  if (key === 'payment_risk') {
+    usages.push({ type: 'paymentRisk', id: null, name: '支付下单风控裁决（内置消费方，发布即接管）', status: null });
+  }
   return usages;
 }
 

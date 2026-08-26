@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, DatePicker, Form, Input, Modal, Select, SideSheet, Space, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
-import type { RuleList, RuleListItem } from '@zenith/shared/rules';
+import type { RuleList, RuleListItem, RuleUsageItem } from '@zenith/shared/rules';
 import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -13,6 +13,7 @@ import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { formatDateTimeForApi } from '@/utils/date';
 import {
+  fetchRuleListUsages,
   ruleKeys,
   useBatchImportRuleListItems,
   useCheckRuleList,
@@ -104,10 +105,31 @@ export default function RuleListsPage() {
     okButtonProps: r.status === 'enabled' ? { type: 'danger' } : undefined,
     onOk: async () => { await saveMutation.mutateAsync({ id: r.id, values: { status: r.status === 'enabled' ? 'disabled' : 'enabled' } }); Toast.success('操作成功'); },
   }); };
-  const handleDelete = (r: RuleList) => { confirmDelete({
-    title: '确定删除？', content: '将级联删除全部条目，删除后不可恢复', okButtonProps: { type: 'danger' },
-    onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('删除成功'); },
-  }); };
+  const handleDelete = async (r: RuleList) => {
+    const usages = await fetchRuleListUsages(r.id).catch(() => [] as RuleUsageItem[]);
+    if (usages.length > 0) {
+      Modal.warning({
+        title: `「${r.name}」正在被 ${usages.length} 处引用`,
+        content: (
+          <div>
+            <Text>请先解除以下引用后再删除（服务端会拒绝删除被引用的名单）：</Text>
+            <div style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+              {usages.map((u, i) => (
+                <Text key={`${u.type}-${u.id}-${i}`} size="small" type="warning">
+                  {u.type === 'paymentRisk' ? `支付风控规则 #${u.id}「${u.name}」（${u.status ?? '-'}）` : u.name}
+                </Text>
+              ))}
+            </div>
+          </div>
+        ),
+      });
+      return;
+    }
+    confirmDelete({
+      title: '确定删除？', content: '将级联删除全部条目，删除后不可恢复', okButtonProps: { type: 'danger' },
+      onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('删除成功'); },
+    });
+  };
 
   const addItem = async () => {
     if (!itemsRow) return;

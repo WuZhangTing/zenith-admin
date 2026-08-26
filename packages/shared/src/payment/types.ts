@@ -421,9 +421,10 @@ export interface PaymentRiskRule {
   singleLimit?: number | null; // 分
   dailyLimit?: number | null; // 分
   dailyCountLimit?: number | null;
-  blocklist: string[];
-  /** 白名单（openid / 用户ID / IP），命中则跳过本规则 */
-  allowlist: string[];
+  /** 引用的黑名单库 key（规则中心名单库，type=black/grey），任一名单命中任一主体标识即触发动作 */
+  blockListKeys: string[];
+  /** 引用的白名单库 key（type=white），任一命中则跳过本规则全部检查 */
+  allowListKeys: string[];
   /** 命中动作：block=直接拦截，review=挂起人工审核 */
   action: PaymentRiskAction;
   status: 'enabled' | 'disabled';

@@ -1,0 +1,2 @@
+ALTER TABLE "payment_risk_rules" ADD COLUMN "block_list_keys" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "payment_risk_rules" ADD COLUMN "allow_list_keys" jsonb DEFAULT '[]'::jsonb NOT NULL;

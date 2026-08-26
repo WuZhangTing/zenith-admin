@@ -159,8 +159,8 @@ export const createPaymentRiskRuleSchema = z.object({
   singleLimit: z.number().int().min(0).optional(), // 分
   dailyLimit: z.number().int().min(0).optional(), // 分
   dailyCountLimit: z.number().int().min(0).optional(),
-  blocklist: z.array(z.string().max(128)).default([]),
-  allowlist: z.array(z.string().max(128)).default([]),
+  blockListKeys: z.array(z.string().min(1).max(64)).default([]),
+  allowListKeys: z.array(z.string().min(1).max(64)).default([]),
   action: z.enum(['block', 'review']).default('block'),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
@@ -169,8 +169,8 @@ export const createPaymentRiskRuleSchema = z.object({
 // partial() 不剥离 default，显式覆盖带默认值字段为纯 optional（防部分更新静默重置）
 export const updatePaymentRiskRuleSchema = partialForUpdate(createPaymentRiskRuleSchema).extend({
   scope: z.enum(['global', 'channel', 'bizType']).optional(),
-  blocklist: z.array(z.string().max(128)).optional(),
-  allowlist: z.array(z.string().max(128)).optional(),
+  blockListKeys: z.array(z.string().min(1).max(64)).optional(),
+  allowListKeys: z.array(z.string().min(1).max(64)).optional(),
   action: z.enum(['block', 'review']).optional(),
   status: z.enum(['enabled', 'disabled']).optional(),
 });

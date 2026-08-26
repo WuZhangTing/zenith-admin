@@ -6,12 +6,12 @@ import {
   PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody,
 } from '../../lib/openapi-schemas';
-import { RuleListDTO, RuleListItemDTO, RuleListCheckResultDTO } from '../../lib/openapi-dtos';
+import { RuleListDTO, RuleListItemDTO, RuleListCheckResultDTO, RuleUsageDTO } from '../../lib/openapi-dtos';
 import { createRuleListSchema, updateRuleListSchema, createRuleListItemSchema, batchRuleListItemsSchema, checkRuleListSchema } from '@zenith/shared/rules';
 import {
   listRuleLists, createRuleList, updateRuleList, deleteRuleList,
   listRuleListItems, createRuleListItem, batchCreateRuleListItems, deleteRuleListItem, purgeExpiredRuleListItems,
-  checkRuleList, ensureRuleList, mapRuleList,
+  checkRuleList, ensureRuleList, mapRuleList, listRuleListUsages,
 } from '../../services/platform/rules-lists.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -47,6 +47,17 @@ const createRouteDef = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(RuleListDTO, '创建成功') },
   }),
   handler: async (c) => c.json(okBody(await createRuleList(c.req.valid('json')), '创建成功'), 200),
+});
+
+const usagesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/usages', tags: ['RuleLists'], summary: '名单引用分析（where-used）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'rule:list:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(z.array(RuleUsageDTO), 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listRuleListUsages(c.req.valid('param').id)), 200),
 });
 
 const updateRoute = defineOpenAPIRoute({
@@ -143,6 +154,6 @@ const purgeExpiredRoute = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRoute, checkRoute, createRouteDef, updateRoute, deleteRoute, itemsRoute, itemCreateRoute, itemBatchRoute, itemDeleteRoute, purgeExpiredRoute] as const);
+router.openapiRoutes([listRoute, checkRoute, createRouteDef, usagesRoute, updateRoute, deleteRoute, itemsRoute, itemCreateRoute, itemBatchRoute, itemDeleteRoute, purgeExpiredRoute] as const);
 
 export default router;
