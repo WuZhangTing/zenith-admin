@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Spin, Select } from '@douyinfe/semi-ui';
+import { Skeleton, Spin, Select } from '@douyinfe/semi-ui';
 import {
   AreaChart,
   BarChart,
@@ -53,6 +53,40 @@ const STATUS_CLASS_COLORS: Record<string, string> = {
   '4xx': '#f59e0b',
   '5xx': '#ef4444',
 };
+
+/** 首屏加载骨架：按最终布局占位（4 张统计卡 + 趋势图 + 双图行），避免空白闪烁 */
+function StatsSkeleton() {
+  return (
+    <Skeleton
+      loading
+      active
+      placeholder={(
+        <>
+          <StatGrid style={{ marginBottom: 16 }}>
+            {Array.from({ length: 4 }, (_, i) => `sk-stat-${i}`).map((key) => (
+              <div key={key}>
+                <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
+                <Skeleton.Paragraph rows={1} style={{ width: 80, marginBottom: 0 }} />
+              </div>
+            ))}
+          </StatGrid>
+          <div className="zx-panel" style={{ marginBottom: 16 }}>
+            <Skeleton.Title style={{ width: 180, height: 14, marginBottom: 16 }} />
+            <Skeleton.Image style={{ width: '100%', height: 230 }} />
+          </div>
+          <div className="chart-grid">
+            {['sk-chart-a', 'sk-chart-b'].map((key) => (
+              <div key={key} className="zx-panel">
+                <Skeleton.Title style={{ width: 120, height: 14, marginBottom: 16 }} />
+                <Skeleton.Image style={{ width: '100%', height: 260 }} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    >{null}</Skeleton>
+  );
+}
 
 /** 环比增量：上一周期无数据时不展示（返回 null） */
 function deltaOf(current: number, prev: number): number | null {
@@ -372,6 +406,7 @@ export default function OperationLogStatsPanel() {
         </Select>
       </div>
 
+      {statsQuery.isLoading ? <StatsSkeleton /> : (
       <Spin spinning={statsQuery.isFetching}>
         {/* ── 汇总指标卡 ── */}
         <StatGrid style={{ marginBottom: 16 }}>
@@ -565,6 +600,7 @@ export default function OperationLogStatsPanel() {
           )}
         </div>
       </Spin>
+      )}
     </div>
   );
 }

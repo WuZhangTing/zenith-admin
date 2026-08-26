@@ -46,6 +46,8 @@ export function useOperationLogStats(params: OperationLogStatsParams) {
   return useQuery({
     queryKey: operationLogKeys.statsDetail(params),
     queryFn: () => request.get<OperationLogStats>(`/api/operation-logs/stats${toQueryString(params)}`).then(unwrap),
+    // 切换统计周期时保留上一周期数据，由面板的 Spin 覆盖刷新，避免整屏回退骨架
+    placeholderData: keepPreviousData,
   });
 }
 

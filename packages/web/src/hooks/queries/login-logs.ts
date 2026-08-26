@@ -38,6 +38,8 @@ export function useLoginLogStats(params: LoginLogStatsParams) {
   return useQuery({
     queryKey: loginLogKeys.statsDetail(params),
     queryFn: () => request.get<LoginLogStats>(`/api/login-logs/stats${toQueryString(params)}`).then(unwrap),
+    // 切换统计周期时保留上一周期数据，由面板的 Spin 覆盖刷新，避免整屏回退骨架
+    placeholderData: keepPreviousData,
   });
 }
 

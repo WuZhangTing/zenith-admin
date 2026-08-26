@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Spin, Select } from '@douyinfe/semi-ui';
+import { Skeleton, Spin, Select } from '@douyinfe/semi-ui';
 import { LogIn, CheckCircle2, XCircle, Users } from 'lucide-react';
 import {
   AreaChart,
@@ -48,6 +48,40 @@ function ChartShell({ title, children, danger }: Readonly<{ title: React.ReactNo
       <div style={{ ...sectionTitleStyle, color: danger ? FAIL_COLOR : sectionTitleStyle.color }}>{title}</div>
       {children}
     </div>
+  );
+}
+
+/** 首屏加载骨架：按最终布局占位（4 张统计卡 + 趋势图 + 双图行），避免空白闪烁 */
+function StatsSkeleton() {
+  return (
+    <Skeleton
+      loading
+      active
+      placeholder={(
+        <>
+          <StatGrid style={{ marginBottom: 16 }}>
+            {Array.from({ length: 4 }, (_, i) => `sk-stat-${i}`).map((key) => (
+              <div key={key}>
+                <Skeleton.Title style={{ width: 64, height: 26, marginBottom: 10 }} />
+                <Skeleton.Paragraph rows={1} style={{ width: 80, marginBottom: 0 }} />
+              </div>
+            ))}
+          </StatGrid>
+          <div className="zx-panel" style={{ marginBottom: 16 }}>
+            <Skeleton.Title style={{ width: 180, height: 14, marginBottom: 16 }} />
+            <Skeleton.Image style={{ width: '100%', height: 230 }} />
+          </div>
+          <div className="chart-grid">
+            {['sk-chart-a', 'sk-chart-b'].map((key) => (
+              <div key={key} className="zx-panel">
+                <Skeleton.Title style={{ width: 120, height: 14, marginBottom: 16 }} />
+                <Skeleton.Image style={{ width: '100%', height: 260 }} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    >{null}</Skeleton>
   );
 }
 
@@ -341,6 +375,7 @@ export default function LoginLogStatsPanel() {
         </Select>
       </div>
 
+      {statsQuery.isLoading ? <StatsSkeleton /> : (
       <Spin spinning={statsQuery.isFetching}>
         <StatGrid style={{ marginBottom: 16 }}>
           <StatCard
@@ -473,6 +508,7 @@ export default function LoginLogStatsPanel() {
           )}
         </ChartShell>
       </Spin>
+      )}
     </div>
   );
 }
