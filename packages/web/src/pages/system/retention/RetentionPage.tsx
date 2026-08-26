@@ -152,6 +152,12 @@ export default function RetentionPage() {
                 {row.mode === 'ageAndCap' && (
                   <Tag size="small" color="orange">另限 {row.capLimit} 条/组</Tag>
                 )}
+                {row.mode === 'expiresAt' && (
+                  <Tag size="small" color="cyan">按到期时间</Tag>
+                )}
+                {row.mode === 'custom' && (
+                  <Tag size="small" color="indigo">域内清理</Tag>
+                )}
                 {row.mode === 'age' && !row.perTenant && (
                   <Tag size="small" color="white">按时间</Tag>
                 )}

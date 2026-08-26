@@ -87,15 +87,6 @@ export async function getOnlineCount(): Promise<number> {
   return store.count();
 }
 
-/**
- * Clean expired sessions.
- * Redis TTL handles expiry automatically; this function is a no-op retained for interface compatibility.
- */
-export async function cleanExpiredSessions(): Promise<number> {
-  // Redis automatically removes keys past their TTL — nothing to do here
-  return 0;
-}
-
 // ─── 登录失败锁定 ────────────────────────────────────────────────────────────
 
 const LOGIN_ATTEMPT_PREFIX = `${keyPrefix}login_attempt:`;

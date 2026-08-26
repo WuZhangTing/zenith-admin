@@ -52,7 +52,7 @@ export async function runWorkflowEngineHealthCapture(): Promise<string> {
 }
 
 /**
- * 清理终态实例的执行 Token（默认保留 90 天）。
+ * 清理终态实例的执行 Token（保留天数由「数据保留策略」workflow_tokens 配置）。
  * Token 随分支执行持续增长，终态实例的 token 仅供保留期内的 Trace / 诊断回放使用；
  * 超期后分批删除（每批 batchLimit），避免长事务锁表。返回删除总数。
  */
@@ -78,10 +78,18 @@ export async function cleanupTerminalInstanceTokens(retentionDays = 90, batchLim
   return total;
 }
 
-/** 定时任务入口：终态实例 token 保留期清理。 */
-export async function runWorkflowTokenCleanup(): Promise<string> {
-  const deleted = await cleanupTerminalInstanceTokens();
-  return `工作流 Token 清理完成：删除 ${deleted} 条终态实例超期 token`;
+/** 待清理的终态实例 Token 数量（供数据保留策略预览） */
+export async function countTerminalInstanceTokens(retentionDays: number): Promise<number> {
+  const cutoffText = formatDateTime(new Date(Date.now() - retentionDays * 24 * 60 * 60_000));
+  const res = await db.execute(sql`
+    SELECT count(*)::int AS pending
+    FROM workflow_tokens wt
+    JOIN workflow_instances wi ON wi.id = wt.instance_id
+    WHERE wi.status IN ('approved', 'rejected', 'withdrawn', 'cancelled')
+      AND wi.updated_at < ${cutoffText}::timestamp
+  `);
+  const rows = res as unknown as Array<{ pending: number }>;
+  return Number(rows[0]?.pending ?? 0);
 }
 
 /** 读取近 N 小时健康趋势点（时间升序）。 */

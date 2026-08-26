@@ -32,5 +32,15 @@ export interface RetentionPolicyDefinition {
   perTenant?: () => Promise<TenantRetentionDays>;
   /** 删除行后的副作用（如清理关联的对象存储文件） */
   onDeleted?: (deleted: number) => Promise<void>;
+  /**
+   * `custom` 模式的删除实现：天数与批大小来自本策略的运行期配置，
+   * 跨表条件、逐行文件副作用等由领域函数自行负责。返回删除行数。
+   */
+  run?: (days: number, batchSize: number) => Promise<number>;
+  /**
+   * 待清理行数的精确预估；未提供时回落到「timeColumn < now - days」的通用计数。
+   * 仅在通用计数与实际删除条件不一致时（如 custom 模式带状态过滤）需要实现。
+   */
+  previewPending?: (days: number) => Promise<number>;
   description: string;
 }

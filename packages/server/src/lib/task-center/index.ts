@@ -11,6 +11,7 @@ export {
   restartAsyncTask,
   drainAsyncTasks,
   cleanupAsyncTasks,
+  countCleanableAsyncTasks,
   registerAsyncTaskWorker,
   type SubmitAsyncTaskInput,
   type SubmitAsyncTaskOptions,

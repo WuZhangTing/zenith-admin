@@ -11,7 +11,6 @@ import { db } from '../db';
 import { cronJobs, cronJobLogs, dbBackups, systemSchedulerNodes, systemSchedulerRuns, systemSchedulerTaskConfigs, users } from '../db/schema';
 import logger from './logger';
 import { cleanExpiredCaptchas } from './captcha';
-import { cleanExpiredSessions } from './session-manager';
 import { createPgDumpBackup, createDrizzleExportBackup } from './db-backup';
 import { formatFileTimestamp, formatDateTime } from './datetime';
 import { config } from '../config';
@@ -587,11 +586,6 @@ handlerRegistry.set('cleanExpiredCaptchas', async () => {
   return `清理了 ${count} 个过期验证码`;
 });
 
-handlerRegistry.set('cleanExpiredSessions', async () => {
-  const count = await cleanExpiredSessions();
-  return `清理了 ${count} 个过期会话（Redis TTL 自动清理）`;
-});
-
 handlerRegistry.set('echo', async (params) => {
   return `Echo: ${params ?? 'no params'}`;
 });
@@ -726,12 +720,6 @@ handlerRegistry.set('evaluateMonitorAlerts', async () => {
   const { evaluateMonitorAlerts } = await import('../services/platform/monitor-alert.service');
   const r = await evaluateMonitorAlerts();
   return `监控告警评估：规则 ${r.evaluated} 条，触发 ${r.fired} 条，恢复 ${r.resolved} 条`;
-});
-
-handlerRegistry.set('cleanupUploadSessions', async () => {
-  const { cleanupStaleUploadSessions } = await import('../services/files/upload-sessions.service');
-  const r = await cleanupStaleUploadSessions();
-  return `清理分片上传：过期会话 ${r.staleSessions} 个、孤儿临时目录 ${r.orphanDirs} 个，释放约 ${(r.freedBytes / 1024 / 1024).toFixed(2)} MB`;
 });
 
 handlerRegistry.set('dispatchReportSubscriptions', async () => {

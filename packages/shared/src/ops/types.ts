@@ -104,9 +104,10 @@ export interface SslCertificate {
  * 清理模式：
  * - `age`       按时间列裁剪超期行
  * - `ageAndCap` 在 `age` 之上，再按分组保留最近 N 行
- * - `expiresAt` 按行内到期列裁剪（到期时间在写入时确定）
+ * - `expiresAt` 按行内到期列裁剪（保留天数 = 到期后的宽限天数）
+ * - `custom`    删除逻辑委托给领域函数（跨表条件、文件副作用等），天数仍由本策略配置
  */
-export type RetentionMode = 'age' | 'ageAndCap' | 'expiresAt';
+export type RetentionMode = 'age' | 'ageAndCap' | 'expiresAt' | 'custom';
 
 export interface RetentionPolicy {
   /** 策略唯一键，等于目标物理表名 */

@@ -10,7 +10,7 @@ export const RetentionPolicyDTO = z
     module: z.string().openapi({ example: '系统管理' }),
     tableName: z.string().openapi({ example: 'operation_logs' }),
     timeColumn: z.string().openapi({ example: 'created_at' }),
-    mode: z.enum(['age', 'ageAndCap', 'expiresAt']),
+    mode: z.enum(['age', 'ageAndCap', 'expiresAt', 'custom']),
     enabled: z.boolean(),
     /** 保留天数；0 表示不清理 */
     retentionDays: z.number().int(),

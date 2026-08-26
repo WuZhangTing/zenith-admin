@@ -164,11 +164,16 @@ export async function runPolicy(key: string, override?: { days?: number }): Prom
   const batchSize = config.batchSize || DEFAULT_BATCH_SIZE;
   const mode = policy.mode ?? 'age';
 
-  let deleted = policy.perTenant && override?.days === undefined
-    ? await purgeByTenant(policy, days, batchSize)
-    : await purgeByAge(policy, days, batchSize);
-  if (mode === 'ageAndCap' && policy.capColumn && policy.capLimit) {
-    deleted += await purgeByCap(policy, batchSize);
+  let deleted: number;
+  if (mode === 'custom') {
+    deleted = days > 0 ? await policy.run!(days, batchSize) : 0;
+  } else {
+    deleted = policy.perTenant && override?.days === undefined
+      ? await purgeByTenant(policy, days, batchSize)
+      : await purgeByAge(policy, days, batchSize);
+    if (mode === 'ageAndCap' && policy.capColumn && policy.capLimit) {
+      deleted += await purgeByCap(policy, batchSize);
+    }
   }
 
   if (deleted > 0 && policy.onDeleted) await policy.onDeleted(deleted);
@@ -185,6 +190,13 @@ export async function previewPolicy(key: string): Promise<RetentionPreview> {
   const config = policy ? await loadConfig(key) : undefined;
   if (!policy || !config || config.retentionDays <= 0) {
     return { key, pending: 0, cutoff: null };
+  }
+  if (policy.previewPending) {
+    return {
+      key,
+      pending: await policy.previewPending(config.retentionDays),
+      cutoff: formatDateTime(cutoffFor(config.retentionDays)),
+    };
   }
   const res = await db.execute(sql`
     SELECT count(*)::int AS pending

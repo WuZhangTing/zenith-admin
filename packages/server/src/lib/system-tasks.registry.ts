@@ -203,18 +203,7 @@ export async function registerSystemTasks(): Promise<void> {
     run: runWorkflowEngineHealthCapture,
   });
 
-  const { runWorkflowTokenCleanup } = await import('../services/workflow/workflow-engine-ops.service');
-  await registerSystemRecurringJob({
-    name: 'workflow-token-cleanup',
-    title: '工作流 Token 保留期清理',
-    module: '工作流',
-    cronExpression: '40 3 * * *',
-    description: '每天分批清理终态（通过/驳回/撤回/取消）超过 90 天实例的执行 Token，控制 token 表增长；保留期内 Trace 与诊断不受影响。',
-    allowManualRun: true,
-    run: runWorkflowTokenCleanup,
-  });
-
-  const { registerAsyncTaskWorker, drainAsyncTasks, cleanupAsyncTasks } = await import('./task-center');  await registerAsyncTaskWorker();
+  const { registerAsyncTaskWorker, drainAsyncTasks } = await import('./task-center');  await registerAsyncTaskWorker();
   await registerSystemRecurringJob({
     name: 'async-tasks-drain',
     title: '异步任务兜底扫描',
@@ -225,18 +214,6 @@ export async function registerSystemTasks(): Promise<void> {
     run: async () => {
       const r = await drainAsyncTasks();
       return `异步任务兜底：回收卡死 ${r.recovered}，重投待执行 ${r.redispatched}`;
-    },
-  });
-  await registerSystemRecurringJob({
-    name: 'async-tasks-cleanup',
-    title: '异步任务记录清理',
-    module: '任务中心',
-    cronExpression: '30 3 * * *',
-    description: '每天清理超过 30 天保留期的已结束任务记录（成功/失败/已取消）。',
-    allowManualRun: true,
-    run: async () => {
-      const cleaned = await cleanupAsyncTasks();
-      return `清理了 ${cleaned} 条已结束任务记录`;
     },
   });
 

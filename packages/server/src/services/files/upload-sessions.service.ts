@@ -11,7 +11,6 @@ import { uploadSessions, uploadChunks, managedFiles, fileStorageConfigs } from '
 import { buildUploadObjectKey, uploadObjectByConfig, extractBucketName, getMultipartDriver, mapObjectAclError, resolveObjectAcl } from '../../lib/file-storage';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
-import { getConfigNumber } from '../../lib/system-config';
 import { assertUploadSizeAllowed, assertUploadTypeAllowed, mapManagedFile } from './files.service';
 
 const UPLOAD_TEMP_ROOT = path.resolve(process.cwd(), 'storage/tmp/uploads');
@@ -228,12 +227,12 @@ export async function abortChunkUpload(uploadId: string) {
 }
 
 /**
- * 清理过期的分片上传会话（定时任务）：
+ * 清理超时未完成的分片上传（数据保留策略 upload_sessions 的 custom 实现，
+ * ttlHours = 策略保留天数 × 24）：
  * 1. 删除创建时间超过 TTL 的会话（任意状态），级联删除 upload_chunks 并移除临时目录；
  * 2. 扫描临时根目录，删除无活跃会话对应、且修改时间超过 TTL 的孤儿目录（mtime 校验避免误删进行中上传）。
  */
-export async function cleanupStaleUploadSessions(): Promise<{ staleSessions: number; orphanDirs: number; freedBytes: number }> {
-  const ttlHours = await getConfigNumber('upload_session_ttl_hours', 24);
+export async function cleanupStaleUploadSessions(ttlHours = 24): Promise<{ staleSessions: number; orphanDirs: number; freedBytes: number }> {
   const cutoff = new Date(Date.now() - ttlHours * 3600 * 1000);
   let freedBytes = 0;
 

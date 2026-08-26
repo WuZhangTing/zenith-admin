@@ -434,7 +434,7 @@ export async function drainAsyncTasks(): Promise<{ recovered: number; redispatch
 export async function cleanupAsyncTasks(retentionDays = ASYNC_TASK_RETENTION_DAYS): Promise<number> {
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
-  // 类型级覆盖：按各自保留期清理
+  // 类型级覆盖：按各自保留期清理；全局保留天数由「数据保留策略」async_tasks 配置驱动
   const overrides = await db.select({ taskType: asyncTaskTypeConfigs.taskType, retentionDays: asyncTaskTypeConfigs.retentionDays })
     .from(asyncTaskTypeConfigs).where(gt(asyncTaskTypeConfigs.retentionDays, 0));
   let cleaned = 0;
@@ -458,6 +458,28 @@ export async function cleanupAsyncTasks(retentionDays = ASYNC_TASK_RETENTION_DAY
   if (overriddenTypes.length > 0) conditions.push(notInArray(asyncTasks.taskType, overriddenTypes));
   const rows = await db.delete(asyncTasks).where(and(...conditions)).returning({ id: asyncTasks.id });
   return cleaned + rows.length;
+}
+
+/** 待清理的已结束任务数量（与 cleanupAsyncTasks 同口径，供数据保留策略预览） */
+export async function countCleanableAsyncTasks(retentionDays = ASYNC_TASK_RETENTION_DAYS): Promise<number> {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const overrides = await db.select({ taskType: asyncTaskTypeConfigs.taskType, retentionDays: asyncTaskTypeConfigs.retentionDays })
+    .from(asyncTaskTypeConfigs).where(gt(asyncTaskTypeConfigs.retentionDays, 0));
+  let pending = 0;
+  const overriddenTypes: string[] = [];
+  for (const override of overrides) {
+    if (override.retentionDays == null) continue;
+    overriddenTypes.push(override.taskType);
+    pending += await db.$count(asyncTasks, and(
+      eq(asyncTasks.taskType, override.taskType),
+      inArray(asyncTasks.status, TERMINAL_STATUSES),
+      lt(asyncTasks.completedAt, new Date(now - override.retentionDays * dayMs)),
+    ));
+  }
+  const conditions = [inArray(asyncTasks.status, TERMINAL_STATUSES), lt(asyncTasks.completedAt, new Date(now - retentionDays * dayMs))];
+  if (overriddenTypes.length > 0) conditions.push(notInArray(asyncTasks.taskType, overriddenTypes));
+  return pending + await db.$count(asyncTasks, and(...conditions));
 }
 
 /** 注册任务中心队列 Worker（启动时调用一次；会出现在系统调度页） */

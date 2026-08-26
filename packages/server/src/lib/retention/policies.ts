@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { analyticsSettings } from '../../db/schema';
 import type { RetentionPolicyDefinition, TenantRetentionDays } from './types';
@@ -119,6 +120,34 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 180,
     description: '客户端检查更新 / 下载 / 安装回执流水，驱动升级看板统计与灰度设备数。',
   },
+  {
+    key: 'terminal_sessions',
+    title: '终端会话记录',
+    module: '系统管理',
+    tableName: 'terminal_sessions',
+    timeColumn: 'started_at',
+    defaultDays: 180,
+    description: 'Web 终端 / SSH / Docker 会话的连接审计记录；录屏（terminal_recordings）由独立双策略回收，不受本策略影响。',
+  },
+  {
+    key: 'password_reset_tokens',
+    title: '密码重置凭证',
+    module: '系统管理',
+    tableName: 'password_reset_tokens',
+    timeColumn: 'expires_at',
+    defaultDays: 7,
+    mode: 'expiresAt',
+    description: '一次性密码重置凭证；到期后保留数天便于排查，随后删除。',
+  },
+  {
+    key: 'directory_sync_conflicts',
+    title: '通讯录同步冲突',
+    module: '通讯录同步',
+    tableName: 'directory_sync_conflicts',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '同步产生的多重匹配 / 字段冲突记录，含两侧数据快照；超期未裁决的冲突随下次同步重建。',
+  },
 
   // ── 系统调度 ───────────────────────────────────────────────────────────────
   {
@@ -202,6 +231,24 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     timeColumn: 'created_at',
     defaultDays: 365,
     description: '站内信收件记录。',
+  },
+  {
+    key: 'notification_outbox',
+    title: '通知事件 outbox',
+    module: '通知中心',
+    tableName: 'notification_outbox',
+    timeColumn: 'created_at',
+    defaultDays: 90,
+    description: '通知事件的暂存与派发队列；正常事件在分钟级内派发完成，超期行均为终态或死信。',
+  },
+  {
+    key: 'notification_dispatches',
+    title: '通知派发留痕',
+    module: '通知中心',
+    tableName: 'notification_dispatches',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '「收件人 × 渠道」的派发决策与结果，含抑制与免打扰归因，是通知排障的第一现场。',
   },
 
   // ── 数据分析 ───────────────────────────────────────────────────────────────
@@ -306,6 +353,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 180,
     description: 'C 端会员登录记录。',
   },
+  {
+    key: 'member_notifications',
+    title: '会员通知',
+    module: '会员中心',
+    tableName: 'member_notifications',
+    timeColumn: 'created_at',
+    defaultDays: 365,
+    description: '生日礼 / 券到期 / 积分变动等会员站内通知，与管理端站内信同保留口径。',
+  },
 
   // ── 开放平台 ───────────────────────────────────────────────────────────────
   {
@@ -325,6 +381,23 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     timeColumn: 'created_at',
     defaultDays: 180,
     description: '开放应用 Webhook 的投递与重试记录。',
+  },
+  {
+    key: 'oauth2_tokens',
+    title: 'OAuth2 令牌',
+    module: '开放平台',
+    tableName: 'oauth2_tokens',
+    timeColumn: 'expires_at',
+    defaultDays: 30,
+    mode: 'expiresAt',
+    onDeleted: async () => {
+      // 令牌随族级联，孤儿令牌族一并回收
+      await db.execute(sql`
+        DELETE FROM oauth2_token_families f
+        WHERE NOT EXISTS (SELECT 1 FROM oauth2_tokens t WHERE t.family_id = f.id)
+      `);
+    },
+    description: '开放平台 OAuth2 access / refresh 令牌；到期后保留一段时间供审计与重放检测，随后连同无引用的令牌族一并删除。',
   },
 
   // ── 工作流 ─────────────────────────────────────────────────────────────────
@@ -354,6 +427,33 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     timeColumn: 'created_at',
     defaultDays: 90,
     description: '自动化规则动作（站内信 / Webhook / 发起流程 / 回写字段）的执行留痕。',
+  },
+  {
+    key: 'workflow_connector_invocations',
+    title: '流程连接器调用记录',
+    module: '工作流',
+    tableName: 'workflow_connector_invocations',
+    timeColumn: 'created_at',
+    defaultDays: 90,
+    description: '连接器（外呼 HTTP）的调用留痕，含耗时、状态码与错误信息。',
+  },
+  {
+    key: 'workflow_tokens',
+    title: '流程执行 Token',
+    module: '工作流',
+    tableName: 'workflow_tokens',
+    timeColumn: 'created_at',
+    defaultDays: 90,
+    mode: 'custom',
+    run: async (days, batchSize) => {
+      const { cleanupTerminalInstanceTokens } = await import('../../services/workflow/workflow-engine-ops.service');
+      return cleanupTerminalInstanceTokens(days, batchSize);
+    },
+    previewPending: async (days) => {
+      const { countTerminalInstanceTokens } = await import('../../services/workflow/workflow-engine-ops.service');
+      return countTerminalInstanceTokens(days);
+    },
+    description: '流程实例的分支执行 Token；仅清理终态（通过/驳回/撤回/取消）超过保留期实例的 token，运行中实例不受影响。',
   },
 
   // ── 规则中心 ───────────────────────────────────────────────────────────────
@@ -421,6 +521,24 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     timeColumn: 'occurred_at',
     defaultDays: 180,
     description: '报表资产的引用与访问统计。',
+  },
+  {
+    key: 'report_dq_anomalies',
+    title: '数据质量异常明细',
+    module: '报表中心',
+    tableName: 'report_dq_anomalies',
+    timeColumn: 'created_at',
+    defaultDays: 365,
+    description: '数据质量巡检发现的异常工单，含采样数据快照（单行体积较大）。',
+  },
+  {
+    key: 'report_sla_violations',
+    title: '报表 SLA 违约记录',
+    module: '报表中心',
+    tableName: 'report_sla_violations',
+    timeColumn: 'created_at',
+    defaultDays: 365,
+    description: 'SLA 规则的违约事件与处置留痕。',
   },
 
   // ── CMS 内容管理 ───────────────────────────────────────────────────────────
@@ -490,6 +608,24 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '公众号模板消息发送流水。',
   },
   {
+    key: 'mp_messages',
+    title: '粉丝消息记录',
+    module: '公众号',
+    tableName: 'mp_messages',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '公众号粉丝收发消息流水（含客服会话消息）。',
+  },
+  {
+    key: 'mp_kf_sessions',
+    title: '客服会话',
+    module: '公众号',
+    tableName: 'mp_kf_sessions',
+    timeColumn: 'last_msg_at',
+    defaultDays: 365,
+    description: '公众号客服会话记录，按最后消息时间裁剪；会话事件（90 天）先行清理，不受级联影响。',
+  },
+  {
     key: 'mp_kf_session_events',
     title: '客服会话事件',
     module: '公众号',
@@ -508,6 +644,64 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     timeColumn: 'created_at',
     defaultDays: 180,
     description: '知识中心搜索关键词与点击流水，供无结果关键词分析与运营统计。',
+  },
+  {
+    key: 'wiki_doc_views',
+    title: '知识文档浏览流水',
+    module: '知识中心',
+    tableName: 'wiki_doc_views',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '文档浏览明细，驱动热度榜与最近访问；文档上的累计浏览数不受清理影响。',
+  },
+
+  // ── 任务中心 ───────────────────────────────────────────────────────────────
+  {
+    key: 'async_tasks',
+    title: '异步任务记录',
+    module: '任务中心',
+    tableName: 'async_tasks',
+    timeColumn: 'completed_at',
+    defaultDays: 30,
+    mode: 'custom',
+    run: async (days) => {
+      const { cleanupAsyncTasks } = await import('../task-center');
+      return cleanupAsyncTasks(days);
+    },
+    previewPending: async (days) => {
+      const { countCleanableAsyncTasks } = await import('../task-center');
+      return countCleanableAsyncTasks(days);
+    },
+    description: '已结束（成功/失败/已取消）的任务记录，级联清理子项明细；任务类型可在任务中心单独覆盖保留期，本策略作为全局默认值。',
+  },
+  {
+    key: 'export_jobs',
+    title: '导出任务记录',
+    module: '任务中心',
+    tableName: 'export_jobs',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    mode: 'custom',
+    run: async (days, batchSize) => {
+      const { purgeExpiredExportJobRecords } = await import('../../services/tasks/export-jobs.service');
+      return purgeExpiredExportJobRecords(days, batchSize);
+    },
+    description: '导出任务记录，级联清理下载留痕；导出文件由「导出文件自动清理」任务按 expires_at 提前回收，此处删行时兜底清理残留文件。',
+  },
+  {
+    key: 'upload_sessions',
+    title: '分片上传会话',
+    module: '任务中心',
+    tableName: 'upload_sessions',
+    timeColumn: 'created_at',
+    defaultDays: 1,
+    mode: 'custom',
+    run: async (days) => {
+      const { cleanupStaleUploadSessions } = await import('../../services/files/upload-sessions.service');
+      const result = await cleanupStaleUploadSessions(days * 24);
+      return result.staleSessions;
+    },
+    description: '超时未完成的分片上传会话；清理时中止云端 multipart、删除临时分片与孤儿目录，级联清理分片记录。',
   },
 ];
 

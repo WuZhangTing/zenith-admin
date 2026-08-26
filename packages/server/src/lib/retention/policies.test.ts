@@ -25,14 +25,9 @@ const EXEMPT: Record<string, string> = {
   member_point_transactions: '积分流水，用户可查全部历史，属于账务数据',
   member_wallet_transactions: '钱包流水，属于账务数据',
   report_fill_records: '填报业务数据，非日志',
-  export_jobs: '导出任务记录，文件与记录由导出中心按 expires_at 一并回收',
-  async_tasks: '异步任务记录，由任务中心按类型策略回收（含级联子项）',
   monitor_alert_rules: '告警规则配置表，非日志',
   terminal_recordings: '终端录屏，按天数与容量双策略回收，含对象存储副作用',
   report_materialization_snapshots: '物化快照，按行内 expires_at 与托管文件一并回收',
-  oauth2_tokens: '令牌表，按自身 expires_at 回收',
-  password_reset_tokens: '一次性凭证，按自身 expires_at 回收',
-  upload_sessions: '分片上传会话，按 TTL 连同临时文件一并回收',
   cms_publish_artifacts: '发布产物索引，随内容生命周期回收',
   cms_publish_logs: '发布日志，随发布产物级联回收',
   cms_distribution_runs: '分发运行记录，随分发规则级联回收',
@@ -80,6 +75,16 @@ describe('数据保留策略声明', () => {
       if (policy.mode !== 'ageAndCap') continue;
       expect(policy.capColumn, `${policy.key} 缺少 capColumn`).toBeTruthy();
       expect(policy.capLimit, `${policy.key} 缺少 capLimit`).toBeGreaterThan(0);
+    }
+  });
+
+  it('custom 模式必须提供删除实现，其余模式不得携带', () => {
+    for (const policy of RETENTION_POLICIES) {
+      if (policy.mode === 'custom') {
+        expect(policy.run, `${policy.key} 缺少 run 实现`).toBeTypeOf('function');
+      } else {
+        expect(policy.run, `${policy.key} 非 custom 模式不应声明 run`).toBeUndefined();
+      }
     }
   });
 

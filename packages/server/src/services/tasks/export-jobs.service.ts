@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lte, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, lte, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { exportJobDownloads, exportJobs, fileStorageConfigs, managedFiles, users } from '../../db/schema';
@@ -528,12 +528,7 @@ export async function cleanupExpiredExportFiles() {
   for (const job of rows) {
     if (!job.fileId) continue;
     try {
-      const [file] = await db.select().from(managedFiles).where(eq(managedFiles.id, job.fileId)).limit(1);
-      if (file) {
-        const [storageConfig] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, file.storageConfigId)).limit(1);
-        if (storageConfig) await deleteStoredFile(file, storageConfig);
-        await db.delete(managedFiles).where(eq(managedFiles.id, job.fileId));
-      }
+      await deleteExportJobFile(job.fileId);
       await db.update(exportJobs)
         .set({ status: 'expired', fileDeletedAt: new Date(), deleteReason: 'expired' })
         .where(eq(exportJobs.id, job.id));
@@ -543,4 +538,39 @@ export async function cleanupExpiredExportFiles() {
     }
   }
   return cleaned;
+}
+
+/** 删除导出任务关联的托管文件与物理文件 */
+async function deleteExportJobFile(fileId: string): Promise<void> {
+  const [file] = await db.select().from(managedFiles).where(eq(managedFiles.id, fileId)).limit(1);
+  if (!file) return;
+  const [storageConfig] = await db.select().from(fileStorageConfigs).where(eq(fileStorageConfigs.id, file.storageConfigId)).limit(1);
+  if (storageConfig) await deleteStoredFile(file, storageConfig);
+  await db.delete(managedFiles).where(eq(managedFiles.id, fileId));
+}
+
+/**
+ * 清理超过保留期的导出任务记录（数据保留策略 export_jobs 的 custom 实现）。
+ * 文件通常已由 `cleanupExpiredExportFiles` 按 expires_at 提前回收；此处兜底删除
+ * 仍挂着文件的超期行（如未设置过期时间的任务），随后删行并级联下载记录。
+ */
+export async function purgeExpiredExportJobRecords(retentionDays: number, batchSize = 5000): Promise<number> {
+  const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+  const victims = await db.select({ id: exportJobs.id, fileId: exportJobs.fileId, fileDeletedAt: exportJobs.fileDeletedAt })
+    .from(exportJobs).where(lt(exportJobs.createdAt, cutoff));
+  for (const job of victims) {
+    if (!job.fileId || job.fileDeletedAt) continue;
+    try {
+      await deleteExportJobFile(job.fileId);
+    } catch (err) {
+      logger.warn('[export-jobs] purge file failed', { jobId: job.id, err });
+    }
+  }
+  let total = 0;
+  for (let start = 0; start < victims.length; start += batchSize) {
+    const ids = victims.slice(start, start + batchSize).map((job) => job.id);
+    const rows = await db.delete(exportJobs).where(inArray(exportJobs.id, ids)).returning({ id: exportJobs.id });
+    total += rows.length;
+  }
+  return total;
 }
