@@ -14,7 +14,7 @@ import { db } from '../../db';
 import { clientApps, clientDevices, members, users, type ClientDeviceRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
 /** 判定「在活设备」的窗口（管理端列表徽标与推送寻址共用） */
 export const DEVICE_ACTIVE_WINDOW_DAYS = 30;

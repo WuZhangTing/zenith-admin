@@ -233,7 +233,7 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: 'App 推送发送流水，含供应商回执与失败原因。',
   },
   {
-    key: 'client_devices_inactive',
+    key: 'client_devices',
     title: '不活跃客户端设备',
     module: '通知中心',
     tableName: 'client_devices',
