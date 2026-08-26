@@ -82,7 +82,7 @@ export async function submitCmsForm(input: SubmitFormInput) {
   const validated = validateCmsFormFields(input.form.fields as CmsFormField[], input.raw);
   // 表单里的联系方式（email/phone/tel 类字段）一并纳入名单主体判定
   const contactValues = (input.form.fields as CmsFormField[] ?? [])
-    .filter((f) => /email|phone|mobile|tel/i.test(`${f.type ?? ''} ${f.name}`))
+    .filter((f) => /email|phone|mobile|tel/i.test(`${f.fieldType ?? ''} ${f.name}`))
     .map((f) => validated[f.name])
     .filter((v): v is string => typeof v === 'string' && !!v.trim());
   await ensureCmsSubmitAllowed([input.ip, ...contactValues], `cms:form:${input.form.id}`);
