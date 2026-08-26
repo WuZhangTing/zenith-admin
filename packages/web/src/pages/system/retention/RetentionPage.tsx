@@ -113,14 +113,17 @@ export default function RetentionPage() {
           { key: 'module', title: '模块', dataIndex: 'module', width: 130 },
           {
             key: 'title',
-            title: '数据表',
+            title: '名称',
             dataIndex: 'title',
-            width: 200,
-            render: (_: unknown, row: RetentionPolicy) => (
-              <div>
-                <div>{row.title}</div>
-                <Text type="tertiary" size="small">{row.tableName}</Text>
-              </div>
+            width: 150,
+          },
+          {
+            key: 'tableName',
+            title: '数据表',
+            dataIndex: 'tableName',
+            width: 320,
+            render: (tableName: string) => (
+              <Text type="tertiary" size="small" code>{tableName}</Text>
             ),
           },
           {
