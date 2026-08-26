@@ -781,24 +781,24 @@ export default function LogFilesPage() {
                     onClick={() => jumpToMatch(1)}
                   />
                 </Tooltip>
-                <Tooltip content="全文搜索：按关键词过滤整个文件（服务端），回车提交">
-                  <Button
-                    size="small"
-                    theme={fullText ? 'solid' : 'borderless'}
-                    type={fullText ? 'primary' : 'tertiary'}
-                    disabled={tailing}
-                    onClick={toggleFullText}
-                  >
-                    全文
-                  </Button>
-                </Tooltip>
-                {fullText && (
+                {!tailing && (
+                  <Tooltip content="全文搜索：按关键词过滤整个文件（服务端），回车提交">
+                    <Button
+                      size="small"
+                      theme={fullText ? 'solid' : 'borderless'}
+                      type={fullText ? 'primary' : 'tertiary'}
+                      onClick={toggleFullText}
+                    >
+                      全文
+                    </Button>
+                  </Tooltip>
+                )}
+                {fullText && !tailing && (
                   <Select
                     size="small"
                     value={serverContext}
                     onChange={(value) => setServerContext(value as number)}
                     optionList={CONTEXT_OPTIONS}
-                    disabled={tailing}
                     style={{ width: 128 }}
                   />
                 )}
@@ -809,14 +809,16 @@ export default function LogFilesPage() {
                   optionList={levelOptions}
                   style={{ width: 132 }}
                 />
-                <Select
-                  size="small"
-                  value={lineCount}
-                  onChange={(value) => setLineCount(value as number)}
-                  optionList={LINE_COUNT_OPTIONS}
-                  disabled={tailing}
-                  style={{ width: 122 }}
-                />
+                {/* 追踪中隐藏而非置灰：行数/全文/刷新此时不生效，腾出的宽度正好容纳暂停/停止，避免工具栏换行跳动 */}
+                {!tailing && (
+                  <Select
+                    size="small"
+                    value={lineCount}
+                    onChange={(value) => setLineCount(value as number)}
+                    optionList={LINE_COUNT_OPTIONS}
+                    style={{ width: 122 }}
+                  />
+                )}
                 {!selected.isGzip && hasPermission('system:log:files') && (
                   tailing ? (
                     <>
@@ -850,14 +852,13 @@ export default function LogFilesPage() {
                     </Button>
                   )
                 )}
-                {hasPermission('system:log:files') && (
+                {!tailing && hasPermission('system:log:files') && (
                   <Tooltip content="刷新">
                     <Button
                       size="small"
                       theme="borderless"
                       icon={<RefreshCw size={13} />}
-                      loading={!tailing && contentQuery.isFetching}
-                      disabled={tailing}
+                      loading={contentQuery.isFetching}
                       onClick={() => void refetchContent()}
                     />
                   </Tooltip>
