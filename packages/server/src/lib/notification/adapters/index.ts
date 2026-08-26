@@ -8,6 +8,7 @@ import { registerNotificationAdapter } from '../registry';
 import { chatAdapter } from './chat.adapter';
 import { emailAdapter } from './email.adapter';
 import { inAppAdapter } from './inapp.adapter';
+import { pushAdapter } from './push.adapter';
 import { smsAdapter } from './sms.adapter';
 import { webhookAdapter } from './webhook.adapter';
 
@@ -15,6 +16,7 @@ export function initNotificationAdapters(): void {
   registerNotificationAdapter(inAppAdapter);
   registerNotificationAdapter(emailAdapter);
   registerNotificationAdapter(smsAdapter);
+  registerNotificationAdapter(pushAdapter);
   registerNotificationAdapter(webhookAdapter);
   registerNotificationAdapter(chatAdapter);
 }

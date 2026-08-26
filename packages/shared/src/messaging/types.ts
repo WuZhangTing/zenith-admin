@@ -628,6 +628,8 @@ export interface NotificationChannelOptions {
   webhook?: { url: string; body?: Record<string, unknown> };
   email?: { html?: string; subject?: string };
   inapp?: { type?: InAppMessageType };
+  /** App 推送渠道参数;标题默认取事件渲染结果,extras 随通知透传给客户端 */
+  push?: { title?: string; sound?: string; extras?: Record<string, string> };
 }
 
 /**

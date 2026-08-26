@@ -150,7 +150,7 @@ export const IN_APP_MESSAGE_TYPE_OPTIONS: Array<{ value: InAppMessageType; label
  * 投递渠道全集。新增渠道需同时提供 `NotificationChannelAdapter` 实现，
  * 否则解析阶段会以 `channel_unavailable` 抑制并留痕（不会静默丢失）。
  */
-export const NOTIFICATION_CHANNELS = ['inapp', 'email', 'sms', 'webhook', 'chat'] as const;
+export const NOTIFICATION_CHANNELS = ['inapp', 'email', 'sms', 'push', 'webhook', 'chat'] as const;
 
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
@@ -158,6 +158,7 @@ export const NOTIFICATION_CHANNEL_LABELS: Record<NotificationChannel, string> = 
   inapp: '站内信',
   email: '邮件',
   sms: '短信',
+  push: 'App 推送',
   webhook: 'Webhook',
   chat: '聊天卡片',
 };
