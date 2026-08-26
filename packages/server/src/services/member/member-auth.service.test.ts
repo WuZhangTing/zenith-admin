@@ -75,6 +75,11 @@ vi.mock('../analytics/analytics-server-events.service', () => ({
   trackServerEvent: vi.fn(),
 }));
 
+// 入口反滥用：默认名单未命中（放行）
+vi.mock('../platform/rules-runtime.service', () => ({
+  decide: vi.fn().mockResolvedValue({ matched: false, outputs: { hit: false }, ref: { kind: 'list', key: 'risk_blacklist', version: null }, reason: 'not_found' }),
+}));
+
 import { db } from '../../db';
 import {
   generateMemberTokenId,
@@ -88,6 +93,7 @@ import { verifyMemberSmsCode } from './member-sms.service';
 import { currentMember } from '../../lib/member-context';
 import { verifyToken } from '../../lib/jwt';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
+import { decide } from '../platform/rules-runtime.service';
 import {
   loginMember,
   registerMember,
@@ -162,6 +168,7 @@ beforeEach(() => {
   smsMock.mockResolvedValue(true);
   vi.mocked(generateMemberTokenId).mockReturnValue('mock-member-token-id');
   vi.mocked(registerMemberSession).mockResolvedValue(undefined);
+  vi.mocked(decide).mockResolvedValue({ matched: false, outputs: { hit: false }, ref: { kind: 'list', key: 'risk_blacklist', version: null }, reason: 'not_found' });
   dbMock.transaction.mockImplementation(async (callback: (tx: typeof db) => unknown) => callback(db));
   // 默认：任意 insert/update 返回空结果链（登录日志等 fire-and-forget 写入）
   dbMock.insert.mockImplementation(() => createChain([]));
@@ -313,6 +320,33 @@ describe('refreshMemberToken', () => {
 });
 
 // ─── registerMember ───────────────────────────────────────────────────────────
+describe('入口反滥用（risk_blacklist 名单）', () => {
+  it('登录：手机号/IP 命中黑名单 → 403，不进入后续校验', async () => {
+    vi.mocked(decide).mockResolvedValueOnce({ matched: true, outputs: { hit: true, listType: 'black', matches: [{ value: '13800000000', label: null }] }, ref: { kind: 'list', key: 'risk_blacklist', version: null } });
+    await expect(loginMember({ loginType: 'sms', phone: '13800000000', smsCode: '123456', ip: '1.2.3.4', ua: 'UA' }))
+      .rejects.toMatchObject({ status: 403 });
+    expect(smsMock).not.toHaveBeenCalled();
+    expect(vi.mocked(decide)).toHaveBeenCalledWith(
+      { kind: 'list', key: 'risk_blacklist' },
+      {},
+      expect.objectContaining({ caller: 'member.auth', subjects: ['13800000000', '1.2.3.4'] }),
+    );
+  });
+
+  it('注册：IP 命中黑名单 → 403，不落库', async () => {
+    vi.mocked(decide).mockResolvedValueOnce({ matched: true, outputs: { hit: true }, ref: { kind: 'list', key: 'risk_blacklist', version: null } });
+    await expect(registerMember({ phone: '13900000000', smsCode: '123456', ip: '198.51.100.23', ua: 'UA' }))
+      .rejects.toMatchObject({ status: 403 });
+    expect(dbMock.transaction).not.toHaveBeenCalled();
+  });
+
+  it('名单未命中/不存在 → 正常放行进入后续校验', async () => {
+    smsMock.mockResolvedValueOnce(false);
+    await expect(loginMember({ loginType: 'sms', phone: '13800000001', smsCode: '000000', ip: '1.2.3.4', ua: 'UA' }))
+      .rejects.toMatchObject({ status: 400, message: '验证码错误或已过期' });
+  });
+});
+
 describe('registerMember', () => {
   const base = { ...REQ, source: 'web' };
 

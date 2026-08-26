@@ -31,6 +31,7 @@ import { truncateVarchar } from '../../lib/sanitize';
 import logger from '../../lib/logger';
 import { verifyMemberSmsCode } from './member-sms.service';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
+import { decide } from '../platform/rules-runtime.service';
 import type { MemberRegisterInput, MemberLoginInput, MemberUpdateProfileInput, MemberChangePasswordInput, MemberResetPasswordInput, MemberLoginResult } from '@zenith/shared/member';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 
@@ -174,8 +175,24 @@ export interface MemberRegisterServiceInput extends MemberRegisterInput {
   source?: string;
 }
 
+/**
+ * 入口反滥用：手机号 / IP 命中规则中心 risk_blacklist 名单即拒绝。
+ * 名单不存在/禁用/求值异常按未命中放行（optional 语义），不阻断正常注册登录；
+ * 命中由 decide() 统一留痕（caller=member.auth），可在规则中心执行记录追溯。
+ */
+async function ensureNotBlacklisted(subjects: Array<string | null | undefined>, entry: '注册' | '登录', meta: { ip: string; ua: string }): Promise<void> {
+  const values = subjects.filter((s): s is string => !!s?.trim());
+  if (values.length === 0) return;
+  const decision = await decide({ kind: 'list', key: 'risk_blacklist' }, {}, { caller: 'member.auth', tenantId: null, subjects: values });
+  if (!decision.matched) return;
+  recordMemberLoginLog({ ip: meta.ip, ua: meta.ua, status: 'fail', message: `${entry}被风控名单拦截` });
+  throw new HTTPException(403, { message: '当前账号或网络环境存在风险，暂无法完成操作，请联系客服' });
+}
+
 export async function registerMember(input: MemberRegisterServiceInput): Promise<MemberLoginResult> {
   const { username, phone, email, password, smsCode, nickname } = input;
+
+  await ensureNotBlacklisted([phone, input.ip], '注册', input);
 
   // 手机号注册：校验短信验证码
   if (phone && smsCode) {
@@ -250,6 +267,8 @@ export interface MemberLoginServiceInput extends MemberLoginInput {
 
 export async function loginMember(input: MemberLoginServiceInput): Promise<MemberLoginResult> {
   let member: MemberRow | undefined;
+
+  await ensureNotBlacklisted([input.phone, input.ip], '登录', input);
 
   if (input.loginType === 'sms') {
     if (!input.phone || !input.smsCode) throw new HTTPException(400, { message: '请输入手机号和验证码' });
