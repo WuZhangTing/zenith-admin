@@ -115,7 +115,7 @@ export const decisionTablesHandlers = [
     const refKind = url.searchParams.get('refKind');
     const refId = Number(url.searchParams.get('refId')) || null;
     const caller = url.searchParams.get('caller');
-    const instanceId = Number(url.searchParams.get('instanceId')) || null;
+    const bizRef = url.searchParams.get('bizRef');
     const ruleKey = url.searchParams.get('ruleKey');
     const source = url.searchParams.get('source');
     const matched = url.searchParams.get('matched');
@@ -125,7 +125,7 @@ export const decisionTablesHandlers = [
       (!refKind || e.refKind === refKind)
       && (!refId || e.refId === refId)
       && (!caller || e.caller === caller)
-      && (!instanceId || e.instanceId === instanceId)
+      && (!bizRef || (e.bizRef ?? '').startsWith(bizRef))
       && (!ruleKey || e.ruleKey.includes(ruleKey))
       && (!source || e.source === source)
       && (matched == null || String(e.matched) === matched)
@@ -285,7 +285,7 @@ export const decisionTablesHandlers = [
     if (!r) return notFound('决策表不存在', { status: 404 });
     const { input } = (await request.json()) as { input: Record<string, unknown> };
     const res = evaluate(r, input ?? {});
-    mockExecutions.unshift({ id: getNextExecId(), refKind: 'table', refId: r.id, ruleKey: r.key, version: null, caller: 'admin.test', instanceId: null, nodeKey: null, source: 'test', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
+    mockExecutions.unshift({ id: getNextExecId(), refKind: 'table', refId: r.id, ruleKey: r.key, version: null, caller: 'admin.test', callerName: '后台测试', bizRef: null, source: 'test', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
     return ok(res);
   }),
   http.post('/api/rules/decision-tables/evaluate', async ({ request }) => {
@@ -294,7 +294,7 @@ export const decisionTablesHandlers = [
     if (!r) return notFound('决策表不存在', { status: 404 });
     if (r.status === 'disabled') return badRequest('决策表已禁用', { status: 400 });
     const res = evaluate(r, input ?? {});
-    mockExecutions.unshift({ id: getNextExecId(), refKind: 'table', refId: r.id, ruleKey: r.key, version: r.status === 'published' ? r.version : null, caller: 'admin.evaluate', instanceId: null, nodeKey: null, source: 'manual', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
+    mockExecutions.unshift({ id: getNextExecId(), refKind: 'table', refId: r.id, ruleKey: r.key, version: r.status === 'published' ? r.version : null, caller: 'admin.evaluate', callerName: '后台求值', bizRef: null, source: 'manual', matched: res.matched, hitPolicy: r.hitPolicy, input: input ?? {}, outputs: res.outputs, matchedRowIds: res.matchedRowIds, createdAt: mockDateTime() });
     return ok(res);
   }),
   http.delete('/api/rules/decision-tables/:id', ({ params }) => {

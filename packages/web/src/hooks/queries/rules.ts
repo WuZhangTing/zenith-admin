@@ -17,7 +17,7 @@ export interface RuleExecutionsParams {
   refKind?: RuleRefKind;
   refId?: number;
   caller?: string;
-  instanceId?: number;
+  bizRef?: string;
   ruleKey?: string;
   source?: RuleExecutionSource;
   matched?: boolean;

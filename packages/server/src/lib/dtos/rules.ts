@@ -124,8 +124,8 @@ export const RuleTestRunResultDTO = z
 export const RuleExecutionDTO = z
   .object({
     id: z.number().int(), refKind: z.enum(RULE_REF_KINDS), refId: z.number().int().nullable(),
-    ruleKey: z.string(), version: z.number().int().nullable(), caller: z.string().nullable(),
-    instanceId: z.number().int().nullable(), nodeKey: z.string().nullable(),
+    ruleKey: z.string(), version: z.number().int().nullable(), caller: z.string().nullable(), callerName: z.string().nullable(),
+    bizRef: z.string().nullable(),
     source: z.enum(RULE_EXECUTION_SOURCES), matched: z.boolean(), hitPolicy: hitPolicy.nullable(),
     input: z.record(z.string(), z.unknown()), outputs: z.record(z.string(), z.unknown()), matchedRowIds: z.array(z.string()), createdAt: z.string(),
   })

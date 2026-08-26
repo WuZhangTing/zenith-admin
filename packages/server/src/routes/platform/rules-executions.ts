@@ -22,7 +22,7 @@ const listRoute = defineOpenAPIRoute({
         refKind: z.enum(RULE_REF_KINDS).optional(),
         refId: z.coerce.number().int().optional(),
         caller: z.string().optional(),
-        instanceId: z.coerce.number().int().optional(),
+        bizRef: z.string().max(128).optional(),
         ruleKey: z.string().optional(),
         source: z.enum(RULE_EXECUTION_SOURCES).optional(),
         matched: z.enum(['true', 'false']).transform((v) => v === 'true').optional(),

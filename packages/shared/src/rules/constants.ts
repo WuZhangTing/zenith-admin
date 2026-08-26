@@ -20,3 +20,14 @@ export type RuleExecutionSource = typeof RULE_EXECUTION_SOURCES[number];
 export const RULE_EXECUTION_SOURCE_LABELS: Record<RuleExecutionSource, string> = {
   runtime: '运行时', manual: '手动', test: '测试', open: '开放平台',
 };
+
+/** 内置调用方标识 → 展示名；open.{clientId} 由服务端解析为 open.{应用名} */
+export const RULE_CALLER_LABELS: Record<string, string> = {
+  'admin.test': '后台测试',
+  'admin.evaluate': '后台求值',
+  'workflow.gateway': '工作流网关',
+  'workflow.assignee': '工作流审批人解析',
+  'member.coupon': '优惠券资格判定',
+  'member.auth': '会员认证风控',
+  'payment.risk': '支付风控',
+};

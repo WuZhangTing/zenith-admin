@@ -652,7 +652,7 @@ export async function resolveAssigneeIds(
       const { outputs: out } = await decide(
         { kind: 'table', key: node.decisionRuleKey },
         { form: ctx.formData ?? {}, starter: { id: ctx.initiatorId } },
-        { caller: 'workflow.assignee', instanceId: ctx.instanceId ?? null },
+        { caller: 'workflow.assignee', bizRef: ctx.instanceId ? `workflow:${ctx.instanceId}` : null },
       );
       const srcType = String(out.type ?? out.assigneeType ?? 'user') as WorkflowAssigneeType;
       const raw = out.ids ?? out.id ?? '';

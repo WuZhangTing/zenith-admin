@@ -90,8 +90,7 @@ export const ruleExecutions = pgTable('rule_executions', {
   ruleKey: varchar('rule_key', { length: 64 }).notNull(),
   version: integer('version'),                             // 求值所用发布版本（名单为 null）
   caller: varchar('caller', { length: 64 }),               // 调用方标识（如 workflow.gateway）
-  instanceId: integer('instance_id'),
-  nodeKey: varchar('node_key', { length: 64 }),
+  bizRef: varchar('biz_ref', { length: 128 }),             // 关联上下文，调用方自定语义（如 workflow:42#gateway_1 / payment:order:ORD1）
   source: varchar('source', { length: 16 }).notNull().default('runtime'), // RuleExecutionSource
   matched: boolean('matched').notNull().default(false),
   hitPolicy: ruleHitPolicyEnum('hit_policy'),              // 仅决策表类记录有值
@@ -103,9 +102,9 @@ export const ruleExecutions = pgTable('rule_executions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('rule_executions_tenant_idx').on(t.tenantId),
-  index('rule_executions_instance_idx').on(t.instanceId),
   index('rule_executions_ref_idx').on(t.refKind, t.refId),
   index('rule_executions_caller_idx').on(t.caller),
+  index('rule_executions_biz_ref_idx').on(t.bizRef),
 ]);
 
 export type RuleExecutionRow = typeof ruleExecutions.$inferSelect;

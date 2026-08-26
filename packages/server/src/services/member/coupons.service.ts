@@ -286,7 +286,7 @@ export async function issueCoupon(couponId: number, memberId: number) {
     const decision = await decide(
       { kind: 'table', key: 'coupon_eligibility' },
       { member: m, coupon: { id: coupon.id, faceValue: coupon.faceValue, type: coupon.type } },
-      { caller: 'member.coupon' },
+      { caller: 'member.coupon', bizRef: `member:${memberId}` },
     );
     if (decision.outputs.eligible === false || decision.outputs.eligible === 'false') throw new HTTPException(400, { message: '该会员不满足此优惠券发放资格' });
     return mapMemberCoupon(await grantCoupon(tx, coupon, memberId), coupon);

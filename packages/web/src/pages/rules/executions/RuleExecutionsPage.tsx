@@ -60,13 +60,13 @@ export default function RuleExecutionsPage() {
     dateTimeColumn('时间', 'createdAt'),
     { title: '类型', dataIndex: 'refKind', width: 90, render: (k: RuleRefKind) => <Tag size="small" color={REF_KIND_COLORS[k]}>{RULE_REF_KIND_LABELS[k] ?? k}</Tag> },
     { title: '规则 Key', dataIndex: 'ruleKey', width: 170, render: (t: string) => <Text code>{t}</Text> },
-    { title: '调用方', dataIndex: 'caller', width: 150, render: (c: string | null) => (c ? <Text type="tertiary" size="small" code>{c}</Text> : '-') },
+    { title: '调用方名称', dataIndex: 'callerName', width: 170, render: (n: string | null) => (n ? <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{n}</Text> : '-') },
+    { title: '调用方', dataIndex: 'caller', width: 260, render: (c: string | null) => (c ? <Text type="tertiary" size="small" code ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{c}</Text> : '-') },
     { title: '来源', dataIndex: 'source', width: 90, render: (s: RuleExecutionSource) => <Tag size="small" color={SOURCE_COLORS[s]}>{RULE_EXECUTION_SOURCE_LABELS[s] ?? s}</Tag> },
     { title: '结果', dataIndex: 'matched', width: 90, render: (m: boolean) => <Tag size="small" color={m ? 'green' : 'red'}>{m ? '命中' : '未命中'}</Tag> },
     { title: '版本', dataIndex: 'version', width: 70, render: (v: number | null) => (v != null ? <Text type="tertiary" size="small">v{v}</Text> : '-') },
     { title: '命中行', width: 120, render: (_: unknown, r: RuleExecution) => <Text type="tertiary" size="small">{r.matchedRowIds.join(', ') || '-'}</Text> },
-    { title: '流程实例', width: 130, render: (_: unknown, r: RuleExecution) => (r.instanceId ? <Text type="tertiary" size="small">#{r.instanceId}{r.nodeKey ? ` · ${r.nodeKey}` : ''}</Text> : '-') },
-    { title: '输出', render: (_: unknown, r: RuleExecution) => <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 320 }}>{JSON.stringify(r.outputs)}</Text> },
+    { title: '关联对象', dataIndex: 'bizRef', width: 200, render: (b: string | null) => (b ? <Text type="tertiary" size="small" code ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{b}</Text> : '-') },
   ];
 
   /** 行内展开：命中策略上下文 + 输入 / 输出双栏对比 */
@@ -76,8 +76,8 @@ export default function RuleExecutionsPage() {
         <Tag size="small" color={REF_KIND_COLORS[r.refKind]}>{RULE_REF_KIND_LABELS[r.refKind] ?? r.refKind}</Tag>
         {r.hitPolicy && <Tag size="small">{r.hitPolicy}</Tag>}
         <Text type="tertiary" size="small" code>{r.ruleKey}{r.refId ? ` (#${r.refId})` : ''}{r.version != null ? ` · v${r.version}` : ''}</Text>
-        {r.caller && <Text type="tertiary" size="small">调用方 {r.caller}</Text>}
-        {r.instanceId && <Text type="tertiary" size="small">实例 #{r.instanceId}{r.nodeKey ? ` · 节点 ${r.nodeKey}` : ''}</Text>}
+        {r.caller && <Text type="tertiary" size="small">调用方 {r.callerName ?? r.caller}</Text>}
+        {r.bizRef && <Text type="tertiary" size="small">关联 {r.bizRef}</Text>}
       </Space>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div>

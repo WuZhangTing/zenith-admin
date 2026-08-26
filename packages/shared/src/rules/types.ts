@@ -423,8 +423,10 @@ export interface RuleExecution {
   version: number | null;
   /** 调用方标识（如 workflow.gateway / member.coupon / admin.evaluate） */
   caller: string | null;
-  instanceId: number | null;
-  nodeKey: string | null;
+  /** 调用方展示名：内置调用方为中文名，open.{clientId} 解析为 open.{应用名} */
+  callerName: string | null;
+  /** 关联上下文（调用方自定语义，如 workflow:42#gateway_1 / payment:order:ORD1 / member:138xxx） */
+  bizRef: string | null;
   source: RuleExecutionSource;
   matched: boolean;
   /** 命中策略；仅决策表类记录有值 */

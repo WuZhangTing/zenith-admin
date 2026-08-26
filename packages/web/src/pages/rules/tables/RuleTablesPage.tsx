@@ -998,7 +998,7 @@ export default function RuleTablesPage() {
           renderItem={(e) => (
             <List.Item
               main={<>
-                <Text strong>{e.matched ? '命中' : '未命中'}</Text> <Tag size="small">{e.source}</Tag> {e.instanceId ? <Text type="tertiary" size="small">实例#{e.instanceId}{e.nodeKey ? `·${e.nodeKey}` : ''}</Text> : null}
+                <Text strong>{e.matched ? '命中' : '未命中'}</Text> <Tag size="small">{e.source}</Tag> {e.bizRef ? <Text type="tertiary" size="small">{e.bizRef}</Text> : null}
                 <Text type="tertiary" size="small" style={{ display: 'block' }}>{e.createdAt} · 行 {e.matchedRowIds.join(',') || '-'}</Text>
                 <Text size="small" style={{ display: 'block' }}>out: {JSON.stringify(e.outputs)}</Text>
               </>}

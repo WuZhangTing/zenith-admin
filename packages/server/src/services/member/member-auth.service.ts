@@ -183,7 +183,7 @@ export interface MemberRegisterServiceInput extends MemberRegisterInput {
 async function ensureNotBlacklisted(subjects: Array<string | null | undefined>, entry: '注册' | '登录', meta: { ip: string; ua: string }): Promise<void> {
   const values = subjects.filter((s): s is string => !!s?.trim());
   if (values.length === 0) return;
-  const decision = await decide({ kind: 'list', key: 'risk_blacklist' }, {}, { caller: 'member.auth', tenantId: null, subjects: values });
+  const decision = await decide({ kind: 'list', key: 'risk_blacklist' }, {}, { caller: 'member.auth', tenantId: null, subjects: values, bizRef: `member:${values[0]}`.slice(0, 128) });
   if (!decision.matched) return;
   recordMemberLoginLog({ ip: meta.ip, ua: meta.ua, status: 'fail', message: `${entry}被风控名单拦截` });
   throw new HTTPException(403, { message: '当前账号或网络环境存在风险，暂无法完成操作，请联系客服' });

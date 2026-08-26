@@ -4,13 +4,14 @@
  * 写入走内存队列批量落盘（削峰，不阻塞求值热路径），流水尽力而为，不阻断业务；
  * 每条记录携带 refKind / caller / version，执行记录页可按资产类型与调用方分析。
  */
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, like, inArray } from 'drizzle-orm';
 import type { RuleExecution, RuleExecutionSource, RuleHitPolicy, RuleRefKind } from '@zenith/shared/rules';
+import { RULE_CALLER_LABELS } from '@zenith/shared/rules';
 import { db } from '../../db';
-import { ruleExecutions } from '../../db/schema';
+import { ruleExecutions, oauth2Clients } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { buildWhere, keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, dateRangeConditions, escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 
@@ -57,12 +58,38 @@ export interface ListRuleExecutionsQuery {
   refKind?: RuleRefKind;
   refId?: number;
   caller?: string;
-  instanceId?: number;
+  /** 关联上下文前缀匹配（如 workflow:42） */
+  bizRef?: string;
   ruleKey?: string;
   source?: RuleExecutionSource;
   matched?: boolean;
   dateStart?: string;
   dateEnd?: string;
+}
+
+const OPEN_CALLER_PREFIX = 'open.';
+
+/**
+ * 调用方展示名解析：内置调用方查常量映射；open.{clientId} 按当页去重后的 clientId
+ * 一次 IN 查询 OAuth2 应用名（应用已删除时兜底截断 clientId）。留痕本身不落展示名，防应用改名后口径漂移。
+ */
+async function resolveCallerNames(callers: Array<string | null>): Promise<(caller: string | null) => string | null> {
+  const openClientIds = [...new Set(
+    callers.filter((c): c is string => !!c?.startsWith(OPEN_CALLER_PREFIX)).map((c) => c.slice(OPEN_CALLER_PREFIX.length)),
+  )];
+  const apps = openClientIds.length > 0
+    ? await db.select({ clientId: oauth2Clients.clientId, name: oauth2Clients.name })
+      .from(oauth2Clients).where(inArray(oauth2Clients.clientId, openClientIds))
+    : [];
+  const nameByClientId = new Map(apps.map((a) => [a.clientId, a.name]));
+  return (caller) => {
+    if (!caller) return null;
+    if (caller.startsWith(OPEN_CALLER_PREFIX)) {
+      const clientId = caller.slice(OPEN_CALLER_PREFIX.length);
+      return `open.${nameByClientId.get(clientId) ?? `${clientId.slice(0, 8)}…`}`;
+    }
+    return RULE_CALLER_LABELS[caller] ?? null;
+  };
 }
 
 export async function listRuleExecutions(q: ListRuleExecutionsQuery) {
@@ -75,7 +102,7 @@ export async function listRuleExecutions(q: ListRuleExecutionsQuery) {
     q.refKind ? eq(ruleExecutions.refKind, q.refKind) : undefined,
     q.refId ? eq(ruleExecutions.refId, q.refId) : undefined,
     q.caller ? eq(ruleExecutions.caller, q.caller) : undefined,
-    q.instanceId ? eq(ruleExecutions.instanceId, q.instanceId) : undefined,
+    q.bizRef?.trim() ? like(ruleExecutions.bizRef, `${escapeLike(q.bizRef.trim())}%`) : undefined,
     keywordCondition(q.ruleKey, [ruleExecutions.ruleKey]),
     q.source ? eq(ruleExecutions.source, q.source) : undefined,
     q.matched !== undefined ? eq(ruleExecutions.matched, q.matched) : undefined,
@@ -85,6 +112,7 @@ export async function listRuleExecutions(q: ListRuleExecutionsQuery) {
     db.$count(ruleExecutions, where),
     db.select().from(ruleExecutions).where(where).orderBy(desc(ruleExecutions.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
   ]);
+  const callerNameOf = await resolveCallerNames(rows.map((r) => r.caller));
   const list: RuleExecution[] = rows.map((r) => ({
     id: r.id,
     refKind: r.refKind as RuleRefKind,
@@ -92,8 +120,8 @@ export async function listRuleExecutions(q: ListRuleExecutionsQuery) {
     ruleKey: r.ruleKey,
     version: r.version,
     caller: r.caller,
-    instanceId: r.instanceId,
-    nodeKey: r.nodeKey,
+    callerName: callerNameOf(r.caller),
+    bizRef: r.bizRef,
     source: r.source as RuleExecutionSource,
     matched: r.matched,
     hitPolicy: (r.hitPolicy ?? null) as RuleHitPolicy | null,

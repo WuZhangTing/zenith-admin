@@ -9,7 +9,7 @@
  * - mode='optional'（默认）：资产不存在/未发布/已禁用/求值异常 → matched=false + reason，不阻断业务
  *   （即「资产存在才生效」的可插拔接入样板）；
  * - mode='required'：资产不可用直接抛 HTTPException(400)，求值异常原样上抛；
- * - 统一执行留痕（refKind/caller/version）：决策表/流/评分卡每次求值留痕，名单仅命中时留痕；
+ * - 统一执行留痕（refKind/caller/version/bizRef）：决策表/流/评分卡每次求值留痕，名单仅命中时留痕；
  * - kind='list' 需传 opts.subjects（待检测主体值集合，如 [openid, userId, ip]）。
  */
 import { HTTPException } from 'hono/http-exception';
@@ -39,9 +39,8 @@ export interface DecideOptions {
   tenantId?: number | null;
   /** 仅决策表：pin 指定发布版本（缺省走灰度选版/最新快照） */
   version?: number;
-  /** 工作流 trace 关联 */
-  instanceId?: number | null;
-  nodeKey?: string | null;
+  /** 关联上下文（调用方自定语义，如 workflow:42#gateway_1 / payment:order:ORD1），用于留痕追溯 */
+  bizRef?: string | null;
   /** 仅名单：待检测主体值集合 */
   subjects?: string[];
 }
@@ -120,7 +119,7 @@ async function decideTable(ref: RuleRef, facts: Record<string, unknown>, opts: D
   recordRuleExecution({
     refKind: 'table', refId: snapshot.tableId, ruleKey: ref.key, version: snapshot.version,
     caller: opts.caller, source: opts.source ?? 'runtime',
-    instanceId: opts.instanceId ?? null, nodeKey: opts.nodeKey ?? null,
+    bizRef: opts.bizRef ?? null,
     matched: res.matched, hitPolicy: res.hitPolicy,
     input: snapshotRuleScope(facts), outputs: res.outputs, matchedRowIds: res.matchedRowIds,
     tenantId: snapshot.tenantId,
@@ -138,6 +137,8 @@ async function decideFlow(ref: RuleRef, facts: Record<string, unknown>, opts: De
   const tenantId = runtimeTenantId(opts.tenantId);
   const row = await resolveRuntimeFlow(ref.key, tenantId);
   if (!row) return unavailable(ref, mode);
+  // 步骤留痕的关联上下文：沿用调用方 bizRef（无则以流 key 定位），追加步骤序号便于还原执行轨迹
+  const stepBase = opts.bizRef ?? `flow:${ref.key}`;
   const res = await evaluateDecisionFlowSteps(
     (row.publishedSteps ?? []) as RuleFlowStep[],
     facts,
@@ -147,7 +148,7 @@ async function decideFlow(ref: RuleRef, facts: Record<string, unknown>, opts: De
       recordRuleExecution({
         refKind: 'table', refId: null, ruleKey: trace.tableKey, version: null,
         caller: opts.caller, source: opts.source ?? 'runtime',
-        instanceId: opts.instanceId ?? null, nodeKey: `flow:${ref.key}#${index + 1}`,
+        bizRef: `${stepBase}#step${index + 1}`.slice(0, 128),
         matched: trace.matched, hitPolicy: trace.hitPolicy ?? null,
         input: snapshotRuleScope(scopeAtEval), outputs: trace.outputs, matchedRowIds: trace.matchedRowIds,
         tenantId: row.tenantId ?? null,
@@ -158,7 +159,7 @@ async function decideFlow(ref: RuleRef, facts: Record<string, unknown>, opts: De
   recordRuleExecution({
     refKind: 'flow', refId: row.id, ruleKey: ref.key, version: row.version,
     caller: opts.caller, source: opts.source ?? 'runtime',
-    instanceId: opts.instanceId ?? null, nodeKey: opts.nodeKey ?? null,
+    bizRef: opts.bizRef ?? null,
     matched, hitPolicy: null,
     input: snapshotRuleScope(facts), outputs: res.outputs, matchedRowIds: [],
     tenantId: row.tenantId ?? null,
@@ -175,7 +176,7 @@ async function decideScorecard(ref: RuleRef, facts: Record<string, unknown>, opt
   recordRuleExecution({
     refKind: 'scorecard', refId: row.id, ruleKey: ref.key, version: row.version,
     caller: opts.caller, source: opts.source ?? 'runtime',
-    instanceId: opts.instanceId ?? null, nodeKey: opts.nodeKey ?? null,
+    bizRef: opts.bizRef ?? null,
     matched: true, hitPolicy: null,
     input: snapshotRuleScope(facts), outputs, matchedRowIds: [],
     tenantId: row.tenantId ?? null,
@@ -199,7 +200,7 @@ async function decideList(ref: RuleRef, opts: DecideOptions, mode: 'optional' | 
     recordRuleExecution({
       refKind: 'list', refId: list.id, ruleKey: ref.key, version: null,
       caller: opts.caller, source: opts.source ?? 'runtime',
-      instanceId: opts.instanceId ?? null, nodeKey: opts.nodeKey ?? null,
+      bizRef: opts.bizRef ?? null,
       matched: true, hitPolicy: null,
       input: { subjects }, outputs, matchedRowIds: hits.map((h) => h.value),
       tenantId: list.tenantId,

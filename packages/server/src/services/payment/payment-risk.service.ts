@@ -313,7 +313,7 @@ async function evaluateRiskDecisionTable(
     hit: { black: blackEntry?.[0] ?? '', white: whiteEntry?.[0] ?? '', value: blackEntry?.[1][0]?.value ?? '' },
     subject: { openId: input.openId ?? '', userId: input.userId ?? null, ip: input.clientIp ?? '' },
   };
-  const decision = await decide({ kind: 'table', key: RISK_DECISION_TABLE_KEY }, facts, { caller: 'payment.risk', tenantId: input.tenantId ?? null });
+  const decision = await decide({ kind: 'table', key: RISK_DECISION_TABLE_KEY }, facts, { caller: 'payment.risk', tenantId: input.tenantId ?? null, bizRef: `payment:${input.bizType}:${input.bizId}`.slice(0, 128) });
   if (!decision.matched) return null;
   const action = String(decision.outputs.action ?? '');
   if (action === 'pass') return { action: 'pass' };

@@ -455,7 +455,7 @@ export async function advanceAndMaterialize(
     const decision = await decide(
       { kind: n.data.decisionRefKind ?? 'table', key: n.data.decisionRuleKey! },
       { form: ctx.formData, starter: ctx.starter },
-      { caller: 'workflow.gateway', instanceId: ctx.instanceId, nodeKey: n.data.key },
+      { caller: 'workflow.gateway', bizRef: `workflow:${ctx.instanceId}#${n.data.key}` },
     );
     Object.assign(ctx.formData, decision.outputs);
   }
