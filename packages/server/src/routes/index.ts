@@ -23,6 +23,7 @@ import bizDemo from './biz-demo';
 import ai from './ai';
 import shortLink from './short-link';
 import marketing from './marketing';
+import iot from './iot';
 import cms from './cms';
 import wiki from './wiki';
 
@@ -45,6 +46,7 @@ export const ROUTE_DOMAINS = [
   ai,
   shortLink,
   marketing,
+  iot,
   cms,
   wiki,
 ] as const;

@@ -1,0 +1,80 @@
+/**
+ * IoT 设备侧接入 API（/api/iot/ingest/*，设备 HMAC 签名鉴权，无管理端 token）。
+ *
+ * 签名基于原始请求体文本，因此这里手动 text→zod 校验而非 openapi validator。
+ * 全局 pathBoundRateLimit 已覆盖 /api/*，平台「限流规则」配 /api/iot/ingest/* 即可精细限流。
+ */
+import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
+import type { z } from 'zod';
+import {
+  IOT_SN_HEADER, IOT_TIMESTAMP_HEADER, IOT_SIGN_HEADER,
+  iotTelemetryIngestSchema, iotCommandAckSchema,
+} from '@zenith/shared/iot';
+import { authenticateDevice, touchDevice } from '../../services/iot/iot-access.service';
+import { ingestTelemetry, pullPendingCommands, ackIotCommand } from '../../services/iot/iot-telemetry.service';
+import { okBody } from '../../lib/openapi-schemas';
+import type { IotDeviceRow } from '../../db/schema';
+
+const ingestRouter = new Hono();
+
+/** 读取原始 body → 验签 → zod 校验，返回设备行与解析后的数据 */
+async function authAndParse<T extends z.ZodTypeAny>(
+  c: { req: { header: (name: string) => string | undefined; text: () => Promise<string> } },
+  schema: T,
+): Promise<{ device: IotDeviceRow; data: z.infer<T> }> {
+  const rawBody = await c.req.text();
+  const device = await authenticateDevice(
+    c.req.header(IOT_SN_HEADER),
+    c.req.header(IOT_TIMESTAMP_HEADER),
+    c.req.header(IOT_SIGN_HEADER),
+    rawBody,
+  );
+  let json: unknown = {};
+  if (rawBody) {
+    try {
+      json = JSON.parse(rawBody);
+    } catch {
+      throw new HTTPException(400, { message: '请求体不是合法 JSON' });
+    }
+  }
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+  }
+  return { device, data: parsed.data as z.infer<T> };
+}
+
+/** POST /telemetry — 批量上报遥测（自动续期在线态） */
+ingestRouter.post('/telemetry', async (c) => {
+  const { device, data } = await authAndParse(c, iotTelemetryIngestSchema);
+  const count = await ingestTelemetry(device, data);
+  return c.json(okBody({ accepted: count }));
+});
+
+/** POST /heartbeat — 心跳（body 可为空对象），响应携带待执行指令，轮询设备无需单独拉取 */
+ingestRouter.post('/heartbeat', async (c) => {
+  const rawBody = await c.req.text();
+  const device = await authenticateDevice(
+    c.req.header(IOT_SN_HEADER),
+    c.req.header(IOT_TIMESTAMP_HEADER),
+    c.req.header(IOT_SIGN_HEADER),
+    rawBody,
+  );
+  await touchDevice(device);
+  const commands = await pullPendingCommands(device);
+  return c.json(okBody({ commands }));
+});
+
+/** POST /commands/:commandId/ack — 指令执行回执 */
+ingestRouter.post('/commands/:commandId/ack', async (c) => {
+  const commandId = Number(c.req.param('commandId'));
+  if (!Number.isInteger(commandId) || commandId <= 0) {
+    throw new HTTPException(400, { message: '指令 ID 不合法' });
+  }
+  const { device, data } = await authAndParse(c, iotCommandAckSchema);
+  await ackIotCommand(device, commandId, data);
+  return c.json(okBody(null, '回执已记录'));
+});
+
+export default ingestRouter;

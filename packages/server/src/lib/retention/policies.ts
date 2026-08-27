@@ -730,6 +730,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 180,
     description: '短链访问的原始点击明细；日粒度趋势已由「短链访问日聚合」任务物化到 short_link_daily_stats，超期明细可安全清理（清理后统计详情中的设备/地域/来源分布仅覆盖保留窗口）。',
   },
+  {
+    key: 'iot_telemetry',
+    title: 'IoT 遥测数据',
+    module: 'IoT 设备',
+    tableName: 'iot_telemetry',
+    timeColumn: 'reported_at',
+    defaultDays: 90,
+    description: 'IoT 设备上报的原始遥测点位；设备详情图表默认只查询近 90 天窗口，超期数据可安全清理。',
+  },
 ];
 
 export function findPolicy(key: string): RetentionPolicyDefinition | undefined {
