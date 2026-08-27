@@ -106,6 +106,7 @@ export default function IotProductsPage() {
         }] : []),
         ...(hasPermission('iot:product:delete') ? [{
           key: 'delete', label: '删除', danger: true,
+          disabled: (record.deviceCount ?? 0) > 0,
           disabledReason: (record.deviceCount ?? 0) > 0 ? '产品下存在设备' : undefined,
           onClick: () => {
             confirmDelete({
