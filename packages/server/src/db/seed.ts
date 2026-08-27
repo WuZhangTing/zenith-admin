@@ -9,6 +9,8 @@ import { SEED_MENUS, SEED_ROLES, SEED_DEPARTMENTS, SEED_POSITIONS, SEED_DICTS, S
 import type { PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
 import { SEED_PAYMENT_DEDUCT_PLANS, SEED_CMS_EDITOR_USER, SEED_CMS_SITES, SEED_CMS_SITE_INHERITANCES, SEED_CMS_MODELS, SEED_CMS_CHANNELS, SEED_CMS_DISTRIBUTION_RULES, SEED_CMS_CONTENTS, SEED_CMS_CONTENT_CHANNELS, SEED_CMS_CONTENT_RELATIONS, SEED_CMS_CONTENT_VERSIONS, SEED_CMS_TAGS, SEED_CMS_FRIEND_LINK_GROUPS, SEED_CMS_FRIEND_LINKS, SEED_CMS_AD_SLOTS, SEED_CMS_ADS, SEED_CMS_AD_EVENTS, SEED_CMS_FORMS, SEED_CMS_SENSITIVE_WORDS, SEED_CMS_ERROR_PRONE_WORDS, SEED_CMS_LINK_WORDS, SEED_CMS_COMMENTS, SEED_CMS_INTERACTIONS, SEED_CMS_INTERACTION_RESPONSES, SEED_CMS_INTERACTION_ANSWERS, SEED_CMS_SUBSCRIPTIONS, SEED_CMS_RESOURCES, SEED_CMS_RESOURCE_FOLDERS, SEED_CMS_SEARCH_WORDS, SEED_CMS_HOTWORD_GROUPS, SEED_CMS_HOTWORDS, SEED_CMS_COLLECT_RULES, SEED_CMS_COLLECT_ITEMS, SEED_CMS_WIDGETS, SEED_CMS_WIDGET_REFS, SEED_CMS_WIDGET_SOURCE_REFS, SEED_CMS_PAGES, SEED_CMS_PAGE_BLOCK_ACLS, SEED_CMS_PUBLISH_TASKS, SEED_CMS_PUBLISH_ARTIFACTS, SEED_CMS_DISTRIBUTION_TASKS, SEED_CMS_DISTRIBUTION_TASK_ITEMS } from '@zenith/shared/seed';
 import { SEED_WIKI_SPACES, SEED_WIKI_SPACE_MEMBERS, SEED_WIKI_TAGS, SEED_WIKI_TEMPLATES, SEED_WIKI_DOCS, SEED_WIKI_COMMENTS } from '@zenith/shared/seed';
+import { SEED_SHORT_LINKS } from '@zenith/shared/seed';
+import { shortLinks } from './schema';
 import { buildSearchVector } from '../services/cms/cms-search.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
@@ -1324,6 +1326,16 @@ async function seedRest() {
   await db.execute(sql`SELECT setval('wiki_comments_id_seq', GREATEST((SELECT MAX(id) FROM wiki_comments), 1))`);
 
   logger.info('  ✔ Wiki seeded (onConflictDoNothing)');
+
+  // ─── 短链服务 ────────────────────────────────────────────────────────────────
+  await db.insert(shortLinks).values(
+    SEED_SHORT_LINKS.map(({ id, code, targetUrl, title, redirectType, status, maxVisits, password, utmSource, utmMedium, utmCampaign, utmTerm, utmContent, bizType, bizRef, remark }) => ({
+      id, code, targetUrl, title, redirectType, status, maxVisits, password,
+      utmSource, utmMedium, utmCampaign, utmTerm, utmContent, bizType, bizRef, remark,
+    })),
+  ).onConflictDoNothing({ target: shortLinks.id });
+  await db.execute(sql`SELECT setval('short_links_id_seq', GREATEST((SELECT MAX(id) FROM short_links), 1))`);
+  logger.info('  ✔ Short links seeded (onConflictDoNothing)');
 
 }
 

@@ -16,5 +16,6 @@ export * from './payment';
 export * from './platform';
 export * from './report';
 export * from './rules';
+export * from './short-link';
 export * from './wiki';
 export * from './workflow';
