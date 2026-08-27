@@ -177,6 +177,7 @@
 | 左侧列表 / 筛选树 + 右侧详情 | `components/MasterDetailLayout.tsx` | **禁止**手写 flex 两栏 |
 | 左侧 master 是平铺列表（非树形） | `NavListPanel<T>` + `NavListItem` | 树形数据（需展开 / 折叠）改用 Semi `Tree` |
 | 指标卡（数值 + 标题） | `components/charts/StatCard.tsx` 的 `StatCard` + `StatGrid` | **禁止**再写 `<Card>` + 大字号数值 + tertiary 标签的组合 |
+| 统计 / 仪表盘页的图表、榜单、明细面板 | 页面根容器挂 `.zx-flat-panels`，面板仍写 Semi `<Card title / extra>`（外壳由它统一脱掉，呈「顶部细线起头」的无卡片面板） | 抽屉 / 弹窗走 portal，根类覆盖不到，需在弹层内容层再挂一次；**禁止**自定义 sectionStyle 卡片盒子，也**禁止**在此类页面渲染带边框圆角的裸 `Card`。写法见 [ui-patterns.md → 无卡片面板](./ui-patterns.md#无卡片面板zx-flat-panels) |
 
 - **页面级 Tabs 的激活态必须走 `hooks/useUrlTabState.ts`**（`?tab=` 深链直达、切换 `replace`
   写回、默认 Tab 不写参数、非法值回退默认、前进后退跟随）；**禁止**用本地 `useState` 管理页面

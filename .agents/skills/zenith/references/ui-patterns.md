@@ -262,7 +262,7 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
   <StatCard title="今日 PV" value={stats.pv} icon={<Eye size={19} />} accent="#3b82f6" />
   {/* 环比：absolute 展示差值，ratio 按比率渲染成百分比（0.12 → +12.0%） */}
   <StatCard title="今日 UV" value={stats.uv} delta={stats.uvDelta} deltaFormat="absolute" />
-  {/* 可点击筛选卡：渲染为 button，自动带 aria-pressed 与选中边框 */}
+  {/* 可点击筛选卡：渲染为 button，自动带 aria-pressed；选中态为底部 2px 强调条（无边框） */}
   <StatCard
     title="审批中" value={stats.running}
     accent="var(--semi-color-primary)"
@@ -274,8 +274,32 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 `StatGrid` 用 `auto-fit` + `minmax(min(minItemWidth, 100%), 1fr)`，容器变窄自动降列，
 `min()` 保证容器比单列还窄时也不溢出。
+`StatCard` 视觉上**不是卡片**：无底色、无边框、无圆角，分隔交给 StatGrid 的竖向细线，
+与首页 `.dashboard-stat-item` 同一套语言。
+
+### 无卡片面板（`.zx-flat-panels`）
+
+统计 / 仪表盘页的图表、榜单、明细区不用「带边框的卡片盒」，而是与首页 `.dashboard-section`
+一致的**扁平面板**：顶部一条细线起头 + 标题，无底色 / 边框 / 圆角 / 阴影。
+
+```tsx
+{/* 页面根挂一次即可，页内所有 Semi Card 自动脱壳（保留 title / extra 结构能力） */}
+<div className="page-container zx-flat-panels">
+  <StatGrid minItemWidth={180}>…</StatGrid>
+  <Card title="访问趋势" bodyStyle={{ padding: 16 }}><LineChart {...spec} /></Card>
+</div>
+```
+
+- 面板代码**仍写 Semi `<Card>`**，脱壳由 `.zx-flat-panels` 的样式统一接管——不要为扁平化
+  手写替代容器；独立一块面板也可直接用 `.zx-panel` 类
+- **抽屉 / 弹窗走 portal**，页面根的类覆盖不到，需在弹层内容层再挂一次
+  （例：`ShortLinkStatsDrawer`）
+- 个别页面需保留卡片外观时在页面 CSS 内覆盖并注明理由（例：`ChannelDashboardPage.css`）
 
 ### 图表分栏（`.chart-grid`）
+
+配合 `.zx-flat-panels` 使用：行首通栏横线起头，行内面板之间竖向细线分隔（与首页
+`.dashboard-charts-row` 一致）。**不挂** `.zx-flat-panels` 时 Card 保留边框，会退回旧卡片样式。
 
 ```tsx
 {/* 等宽多图：最小 380px，xl 以上锁两列（三列以上横轴过密） */}
