@@ -52,6 +52,7 @@ import { appReleasesHandlers } from './app-releases';
 import { pushHandlers } from './push';
 import { broadcastHandlers } from './broadcasts';
 import { shortLinksHandlers } from './short-links';
+import { marketingHandlers } from './marketing';
 import { workflowAutomationsHandlers } from './workflow-automations';
 import { workflowEventSubscriptionsHandlers } from './workflow-event-subscriptions';
 import { workflowTriggerExecutionsHandlers } from './workflow-trigger-executions';
@@ -270,6 +271,7 @@ export const handlers = [
   ...pushHandlers,
   ...broadcastHandlers,
   ...shortLinksHandlers,
+  ...marketingHandlers,
   // 兜底 handler 必须放在最后：拦截所有未实现的 /api/* 请求，避免 dev:demo 下被代理到后端返回 401 跳转登录页
   ...fallbackHandlers,
 ];

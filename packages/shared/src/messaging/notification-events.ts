@@ -441,6 +441,16 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '短链即将过期',
     content: '短链「{{title}}」（{{shortUrl}}）将于 {{expiresAtText}} 过期，如需继续使用请及时调整有效期。',
   },
+  'marketing.award.won': {
+    group: 'growth',
+    label: '营销活动中奖',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp'],
+    vars: eventVars<{ campaignName: string; prizeName: string }>(),
+    title: '恭喜中奖',
+    content: '你在活动「{{campaignName}}」中抽中了「{{prizeName}}」，奖励已发放，请注意查收。',
+  },
 
   // ─── 报表中心 ───────────────────────────────────────────────────────────────
   'report.dashboard.mentioned': {

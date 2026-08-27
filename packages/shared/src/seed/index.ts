@@ -9,6 +9,7 @@ export * from './app-releases';
 export * from './cms';
 export * from './identity';
 export * from './member';
+export * from './marketing';
 export * from './messaging';
 export * from './mp';
 export * from './open-platform';

@@ -11,6 +11,8 @@ import { SEED_PAYMENT_DEDUCT_PLANS, SEED_CMS_EDITOR_USER, SEED_CMS_SITES, SEED_C
 import { SEED_WIKI_SPACES, SEED_WIKI_SPACE_MEMBERS, SEED_WIKI_TAGS, SEED_WIKI_TEMPLATES, SEED_WIKI_DOCS, SEED_WIKI_COMMENTS } from '@zenith/shared/seed';
 import { SEED_SHORT_LINKS } from '@zenith/shared/seed';
 import { shortLinks } from './schema';
+import { SEED_MARKETING_CAMPAIGNS, SEED_MARKETING_PRIZES } from '@zenith/shared/seed';
+import { marketingCampaigns, marketingPrizes } from './schema';
 import { buildSearchVector } from '../services/cms/cms-search.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
@@ -1336,6 +1338,25 @@ async function seedRest() {
   ).onConflictDoNothing({ target: shortLinks.id });
   await db.execute(sql`SELECT setval('short_links_id_seq', GREATEST((SELECT MAX(id) FROM short_links), 1))`);
   logger.info('  ✔ Short links seeded (onConflictDoNothing)');
+
+  // ─── 营销活动 ────────────────────────────────────────────────────────────────
+  await db.insert(marketingCampaigns).values(
+    SEED_MARKETING_CAMPAIGNS.map(({ id, name, type, status, startAt, endAt, perMemberLimit, dailyPerMemberLimit, landingUrl, description }) => ({
+      id, name, type, status,
+      startAt: new Date(startAt),
+      endAt: new Date(endAt),
+      perMemberLimit, dailyPerMemberLimit, landingUrl, description,
+    })),
+  ).onConflictDoNothing({ target: marketingCampaigns.id });
+  await db.execute(sql`SELECT setval('marketing_campaigns_id_seq', GREATEST((SELECT MAX(id) FROM marketing_campaigns), 1))`);
+
+  await db.insert(marketingPrizes).values(
+    SEED_MARKETING_PRIZES.map(({ id, campaignId, name, prizeType, points, couponId, stock, totalStock, weight, sort }) => ({
+      id, campaignId, name, prizeType, points, couponId, stock, totalStock, weight, sort,
+    })),
+  ).onConflictDoNothing({ target: marketingPrizes.id });
+  await db.execute(sql`SELECT setval('marketing_prizes_id_seq', GREATEST((SELECT MAX(id) FROM marketing_prizes), 1))`);
+  logger.info('  ✔ Marketing campaigns seeded (onConflictDoNothing)');
 
 }
 

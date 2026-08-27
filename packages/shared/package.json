@@ -33,6 +33,7 @@
 		"./biz": "./src/biz/index.ts",
 		"./wiki": "./src/wiki/index.ts",
 		"./short-link": "./src/short-link/index.ts",
+		"./marketing": "./src/marketing/index.ts",
 		"./licensing": "./src/licensing/index.ts",
 		"./seed": "./src/seed/index.ts",
 		"./seed/*": "./src/seed/*.ts",

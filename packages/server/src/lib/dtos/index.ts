@@ -74,3 +74,4 @@ export * from './wiki';
 export * from './app-releases';
 export * from './push';
 export * from './short-links';
+export * from './marketing';

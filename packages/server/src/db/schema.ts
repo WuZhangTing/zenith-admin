@@ -37,4 +37,5 @@ export * from './schema/report-platform';
 export * from './schema/cms';
 export * from './schema/wiki';
 export * from './schema/short-link';
+export * from './schema/marketing';
 export * from './schema/relations';
