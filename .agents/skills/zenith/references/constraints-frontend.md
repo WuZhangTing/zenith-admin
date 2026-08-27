@@ -25,6 +25,7 @@
 | 树形表格展开态 | `hooks/useTreeExpansion.ts` | 递归收集节点 key + `isAllExpanded` 计数比较 + `onExpandedRowsChange` 行→key 映射 | 传未筛选数据时按钮显示「全部展开」却点不动（死按钮）；数据清空后空表格显示「全部折叠」 |
 | 中断表单提交 | `lib/abort-submit.ts` 的 `abortSubmit()`（先给用户提示再调用） | `return`、`throw new Error('多词消息')` | 按钮一直转圈；或多弹一个「操作失败：xxx」并向 `/api/frontend-errors` 灌入假告警 |
 | 破坏性操作确认 | `utils/confirm.ts` 的 `confirmDelete` / `confirmDanger` | `Modal.confirm({ okButtonProps: { type: 'danger', theme: 'solid' } })` | 「确定删除」与「确定提交」渲染成同一个蓝色主按钮 |
+| 防抖 / 节流 | `@tanstack/react-pacer`：值防抖 `useDebouncedValue`，回调防抖 `useDebouncedCallback`（需手动 `cancel` / `flush` 时用 `useDebouncer`），节流 `useThrottledCallback`；`useEffect` 内等非 hook 上下文用 `Debouncer` / `Throttler` 类 | `setTimeout` + `clearTimeout` 手写防抖、`Date.now()` 差值手写节流、timer ref + 卸载清理样板 | 各处 wait / 边沿语义不一致；漏写卸载清理导致组件卸载后仍 setState / 发请求 |
 
 各症状的完整诊断见 [troubleshooting.md](./troubleshooting.md)。
 
@@ -39,6 +40,13 @@
   **禁止**暴露 `submittedParams` 的裸 setter（会绕过页码重置与失效）
 - **非破坏性确认**（提交、发布、启用、退出、导出）继续用原生 `Modal.confirm`，不加 danger；
   删除文案**不做统一**，指明对象的具体文案比通用文案更能防误操作
+- **Pacer 只接管「重复触发」语义**（防抖 = 突发取最后、节流 = 限频）。一次性定时器不属于此范围
+  （DOM 就绪等待、倒计时、到期清理、重连退避、可中止 sleep），继续用原生 `setTimeout`；
+  按 key 分组的定时器集合（如 typing 每用户过期）属专用逻辑，不强制迁移
+- **前沿节流**（立即执行 + 冷却窗口内丢弃）显式传 `{ leading: true, trailing: false }`；
+  Pacer hooks 卸载时自动 cancel，**禁止**再写 timer ref + 卸载清理样板
+- **Pacer 仅限 web 端**：服务端限流走 `hono-rate-limiter` + Redis 等既有设施（进程内存节流在多实例下失效），
+  `analytics-sdk` 保持零依赖，两者**禁止**引入 Pacer
 
 ## 缓存与 query key
 
