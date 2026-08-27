@@ -75,7 +75,7 @@ export function useChannelsAndDiscover({
   }, [fetchChannels, refetchDiscoverableChannels]);
 
   return {
-    fetchConversations, fetchChannels, handleUnsubscribeChannel, loadDiscoverList, openDiscover, discoverList,
+    fetchConversations, fetchChannels, handleUnsubscribeChannel, openDiscover, discoverList,
     handleSubscribeChannel,
   };
 }
