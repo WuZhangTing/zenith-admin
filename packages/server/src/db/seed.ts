@@ -13,6 +13,8 @@ import { SEED_SHORT_LINKS } from '@zenith/shared/seed';
 import { shortLinks } from './schema';
 import { SEED_MARKETING_CAMPAIGNS, SEED_MARKETING_PRIZES } from '@zenith/shared/seed';
 import { marketingCampaigns, marketingPrizes } from './schema';
+import { SEED_ANALYTICS_SEGMENTS } from '@zenith/shared/seed';
+import { analyticsUserSegments } from './schema';
 import { buildSearchVector } from '../services/cms/cms-search.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
@@ -924,6 +926,16 @@ async function seedRest() {
   ).onConflictDoNothing();
   await db.execute(sql`SELECT setval('analytics_sites_id_seq', GREATEST((SELECT MAX(id) FROM analytics_sites), 1))`);
   logger.info('  ✔ Analytics sites seeded (onConflictDoNothing)');
+
+  // ─── 行为中心：内置用户分群（数据来源：@zenith/shared SEED_ANALYTICS_SEGMENTS）──
+  // 名称冲突（用户已手建同名分群）时跳过：全局分群 name 唯一约束 + onConflictDoNothing
+  await db.insert(analyticsUserSegments).values(
+    SEED_ANALYTICS_SEGMENTS.map(({ id, tenantId, name, description, rules, status }) => ({
+      id, tenantId, name, description, rules, status,
+    })),
+  ).onConflictDoNothing();
+  await db.execute(sql`SELECT setval('analytics_user_segments_id_seq', GREATEST((SELECT MAX(id) FROM analytics_user_segments), 1))`);
+  logger.info('  ✔ Analytics segments seeded (onConflictDoNothing)');
 
   // ─── CMS：站点 / 模型 / 栏目 / 内容 / 标签 / 友链（数据来源：@zenith/shared SEED_CMS_*）──
   await db.insert(cmsSites).values(

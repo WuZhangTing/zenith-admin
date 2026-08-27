@@ -30,7 +30,7 @@ import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPT
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 const MAX_CONDITIONS = 10;
@@ -358,7 +358,7 @@ export default function AnalyticsSegmentsTab() {
 
   const columns: ColumnProps<AnalyticsUserSegment>[] = useMemo(() => [
     { title: '名称', dataIndex: 'name', width: 180 },
-    { title: '描述', dataIndex: 'description', render: (v: string | null) => v || '–' },
+    { title: '描述', dataIndex: 'description', width: 320, render: (v: string | null) => (v ? renderEllipsis(v) : EMPTY_PLACEHOLDER) },
     {
       title: '规则',
       dataIndex: 'rules',

@@ -6,7 +6,7 @@ import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/sha
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
 import type { AsyncTask } from '@zenith/shared/tasks';
 import { ANALYTICS_SITE_KEY_HEADER, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_PATH_EXIT_PAGE, ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_SERIES_OVERALL_KEY, ANALYTICS_ACQUISITION_CHANNELS, ANALYTICS_ACQUISITION_CHANNEL_LABELS } from '@zenith/shared/analytics';
-import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES } from '@zenith/shared/seed';
+import { SEED_ANALYTICS_EVENT_META, SEED_ANALYTICS_SITES, SEED_ANALYTICS_SEGMENTS } from '@zenith/shared/seed';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '../utils/date';
 import { createProgressingMockTask } from './async-tasks';
 
@@ -261,39 +261,15 @@ function mockPickExperimentVariant(exp: AnalyticsExperiment, distinctId: string)
 }
 
 // ─── 行为中心阶段1：用户分群（内存）────────────────────────────────────────────
-let mockSegments: AnalyticsUserSegment[] = [
-  {
-    id: 1,
-    tenantId: null,
-    name: '活跃下单用户',
-    description: '最近 7 天内提交过订单事件的用户',
-    rules: { operator: 'AND', conditions: [{ type: 'event', eventName: 'order_submit', days: 7, minCount: 1 }] },
-    status: 'enabled',
-    estimatedSize: 128,
-    snapshotAt: mockDateTimeOffset(-2 * 86400000),
-    createdAt: mockDateTimeOffset(-10 * 86400000),
-    updatedAt: mockDateTimeOffset(-2 * 86400000),
-  },
-  {
-    id: 2,
-    tenantId: null,
-    name: '桌面端会员用户',
-    description: '身份类型为会员，且最近使用桌面端访问',
-    rules: {
-      operator: 'AND',
-      conditions: [
-        { type: 'attribute', field: 'identityType', op: 'eq', value: 'member' },
-        { type: 'event', eventName: '$pageview', days: 30, minCount: 3 },
-      ],
-    },
-    status: 'enabled',
-    estimatedSize: 56,
-    snapshotAt: mockDateTimeOffset(-1 * 86400000),
-    createdAt: mockDateTimeOffset(-20 * 86400000),
-    updatedAt: mockDateTimeOffset(-1 * 86400000),
-  },
-];
-let nextSegmentId = 3;
+// 内置分群来自 shared seed（与 DB 种子同源）；Demo 给前两个附上已物化的展示数据
+let mockSegments: AnalyticsUserSegment[] = SEED_ANALYTICS_SEGMENTS.map((s, idx) => ({
+  ...s,
+  estimatedSize: idx === 0 ? 128 : idx === 1 ? 56 : 0,
+  snapshotAt: idx <= 1 ? mockDateTimeOffset(-(idx + 1) * 86400000) : null,
+  createdAt: mockDateTimeOffset(-10 * 86400000),
+  updatedAt: mockDateTimeOffset(-2 * 86400000),
+}));
+let nextSegmentId = nextIdFrom(mockSegments);
 
 function buildSegmentMembers(segmentId: number, count: number): AnalyticsSegmentMember[] {
   return Array.from({ length: count }, (_, i) => ({
@@ -316,7 +292,7 @@ let mockCampaigns: AnalyticsSegmentCampaign[] = [
     id: 1,
     tenantId: null,
     segmentId: 1,
-    segmentName: '活跃下单用户',
+    segmentName: '短链点击人群',
     name: '下单用户优惠券触达',
     channel: 'in_app',
     templateId: 1,

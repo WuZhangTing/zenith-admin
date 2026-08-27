@@ -1,6 +1,6 @@
 import { ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, ANALYTICS_SEMANTIC_EVENT_LABELS } from '../analytics/constants';
 import type { AnalyticsSemanticEventName } from '../analytics/constants';
-import type { AnalyticsEventPropertyDef, AnalyticsSite } from '../analytics/types';
+import type { AnalyticsEventPropertyDef, AnalyticsSite, AnalyticsUserSegment } from '../analytics/types';
 import { SEED_DATE } from './_base';
 
 // ─── 行为中心阶段 1：服务端权威语义事件 Tracking Plan 初始种子 ─────────────────
@@ -147,4 +147,100 @@ export const SEED_ANALYTICS_EVENT_META: SeedAnalyticsEventMeta[] = [
     { key: 'province', type: 'string', description: '省份' },
     { key: 'city', type: 'string', description: '城市' },
   ], strictMode: false },
+];
+
+// ─── 内置用户分群（圈选规则种子）───────────────────────────────────────────────
+// 全部基于服务端权威语义事件与身份属性，装机即可用（点「重算」即物化成员快照）；
+// 覆盖三种规则形态：单事件条件 / 属性条件 / 属性 × 事件组合。
+export const SEED_ANALYTICS_SEGMENTS: AnalyticsUserSegment[] = [
+  {
+    id: 1,
+    tenantId: null,
+    name: '短链点击人群',
+    description: '近 30 天点击过任意短链的用户（事件 shortlink.link.clicked），适合渠道再触达',
+    rules: { operator: 'AND', conditions: [{ type: 'event', eventName: 'shortlink.link.clicked', days: 30, minCount: 1 }] },
+    status: 'enabled',
+    estimatedSize: 0,
+    snapshotAt: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 2,
+    tenantId: null,
+    name: '新注册会员',
+    description: '近 30 天完成注册的会员（事件 member.registered），适合新人引导与首单转化',
+    rules: { operator: 'AND', conditions: [{ type: 'event', eventName: 'member.registered', days: 30, minCount: 1 }] },
+    status: 'enabled',
+    estimatedSize: 0,
+    snapshotAt: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 3,
+    tenantId: null,
+    name: '签到活跃会员',
+    description: '近 30 天签到不少于 3 次的会员（事件 member.checkin.completed），高粘性人群',
+    rules: { operator: 'AND', conditions: [{ type: 'event', eventName: 'member.checkin.completed', days: 30, minCount: 3 }] },
+    status: 'enabled',
+    estimatedSize: 0,
+    snapshotAt: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 4,
+    tenantId: null,
+    name: '支付成功用户',
+    description: '近 90 天有成功支付记录的用户（事件 payment.succeeded），适合复购与会员权益运营',
+    rules: { operator: 'AND', conditions: [{ type: 'event', eventName: 'payment.succeeded', days: 90, minCount: 1 }] },
+    status: 'enabled',
+    estimatedSize: 0,
+    snapshotAt: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 5,
+    tenantId: null,
+    name: '优惠券核销会员',
+    description: '近 90 天核销过优惠券的会员（事件 member.coupon.redeemed），券敏感人群',
+    rules: { operator: 'AND', conditions: [{ type: 'event', eventName: 'member.coupon.redeemed', days: 90, minCount: 1 }] },
+    status: 'enabled',
+    estimatedSize: 0,
+    snapshotAt: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 6,
+    tenantId: null,
+    name: '全部前台会员',
+    description: '身份类型为前台会员的全部用户（属性条件示例）',
+    rules: { operator: 'AND', conditions: [{ type: 'attribute', field: 'identityType', op: 'eq', value: 'member' }] },
+    status: 'enabled',
+    estimatedSize: 0,
+    snapshotAt: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
+  {
+    id: 7,
+    tenantId: null,
+    name: '点击短链的会员',
+    description: '会员身份且近 30 天点击过短链（属性 × 事件组合示例），营销触达优选人群',
+    rules: {
+      operator: 'AND',
+      conditions: [
+        { type: 'attribute', field: 'identityType', op: 'eq', value: 'member' },
+        { type: 'event', eventName: 'shortlink.link.clicked', days: 30, minCount: 1 },
+      ],
+    },
+    status: 'enabled',
+    estimatedSize: 0,
+    snapshotAt: null,
+    createdAt: SEED_DATE,
+    updatedAt: SEED_DATE,
+  },
 ];
