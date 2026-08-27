@@ -13,4 +13,8 @@ export const SEED_MENUS_GROWTH: Menu[] = [
   { id: 17014, parentId: 17010, title: '删除短链', type: 'button', permission: 'shortlink:link:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 17015, parentId: 17010, title: '导出', type: 'button', permission: 'shortlink:link:export', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 17016, parentId: 17010, title: '访问统计', type: 'button', permission: 'shortlink:stats:view', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 渠道推广分析 ──────────────────────────────────────────────────────────
+  { id: 17030, parentId: 17000, title: '渠道分析', name: 'GrowthChannelAnalysis', path: '/growth/channel-analysis', component: 'short-link/ChannelAnalysisPage', icon: 'TrendingUp', type: 'menu', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 17031, parentId: 17030, title: '查询', type: 'button', permission: 'shortlink:analysis:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

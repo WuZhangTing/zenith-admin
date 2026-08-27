@@ -51,3 +51,22 @@ export const ShortLinkStatsDTO = z
     referers: z.array(dimensionItem),
   })
   .openapi('ShortLinkStats');
+
+export const ChannelAnalysisDTO = z
+  .object({
+    totals: z.object({
+      clicks: z.number().int(),
+      uv: z.number().int(),
+      links: z.number().int(),
+      conversions: z.number().int().nullable(),
+    }),
+    trend: z.array(z.object({ date: z.string(), pv: z.number().int(), uv: z.number().int() })),
+    rows: z.array(z.object({
+      name: z.string(),
+      clicks: z.number().int(),
+      uv: z.number().int(),
+      conversions: z.number().int().nullable(),
+      convRate: z.number().nullable(),
+    })),
+  })
+  .openapi('ChannelAnalysis');

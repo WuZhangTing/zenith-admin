@@ -61,3 +61,29 @@ export interface ShortLinkStats {
   regions: ShortLinkDimensionItem[];
   referers: ShortLinkDimensionItem[];
 }
+
+// ─── 渠道推广分析 ─────────────────────────────────────────────────────────────
+export interface ChannelAnalysisRow {
+  /** 维度值（utm_source / utm_medium / utm_campaign），未设置归为「未设置」 */
+  name: string;
+  /** 短链点击（PV） */
+  clicks: number;
+  /** 独立访客 */
+  uv: number;
+  /** 转化事件数（选择了转化事件时返回） */
+  conversions: number | null;
+  /** 转化率（conversions / clicks，保留 4 位小数；clicks=0 时为 null） */
+  convRate: number | null;
+}
+
+export interface ChannelAnalysisResult {
+  totals: {
+    clicks: number;
+    uv: number;
+    /** 窗口内产生过点击的短链数 */
+    links: number;
+    conversions: number | null;
+  };
+  trend: ShortLinkTrendPoint[];
+  rows: ChannelAnalysisRow[];
+}

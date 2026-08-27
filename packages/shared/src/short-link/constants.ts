@@ -59,3 +59,19 @@ export const SHORT_LINK_STATS_MAX_DAYS = 90;
 
 /** 维度分布 Top N */
 export const SHORT_LINK_STATS_TOP_LIMIT = 10;
+
+// ─── 渠道推广分析 ─────────────────────────────────────────────────────────────
+export const CHANNEL_ANALYSIS_DIMENSIONS = ['source', 'medium', 'campaign'] as const;
+
+export type ChannelAnalysisDimension = (typeof CHANNEL_ANALYSIS_DIMENSIONS)[number];
+
+export const CHANNEL_ANALYSIS_DIMENSION_LABELS: Record<ChannelAnalysisDimension, string> = {
+  source: '来源（utm_source）',
+  medium: '媒介（utm_medium）',
+  campaign: '活动（utm_campaign）',
+};
+
+export const CHANNEL_ANALYSIS_DIMENSION_OPTIONS = createLabelOptions(CHANNEL_ANALYSIS_DIMENSIONS, CHANNEL_ANALYSIS_DIMENSION_LABELS);
+
+/** 维度值为空时的归组名 */
+export const CHANNEL_ANALYSIS_UNSET = '未设置';

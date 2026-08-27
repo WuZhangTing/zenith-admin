@@ -1,8 +1,8 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
-import type { ShortLink, ShortLinkStats } from '@zenith/shared/short-link';
-import { SHORT_LINK_CODE_ALPHABET, SHORT_LINK_CODE_LENGTH } from '@zenith/shared/short-link';
+import type { ChannelAnalysisResult, ShortLink, ShortLinkStats } from '@zenith/shared/short-link';
+import { CHANNEL_ANALYSIS_UNSET, SHORT_LINK_CODE_ALPHABET, SHORT_LINK_CODE_LENGTH } from '@zenith/shared/short-link';
 import { mockShortLinks, getNextShortLinkId } from '../data/short-links';
 import { mockDateTime } from '../utils/date';
 
@@ -34,6 +34,52 @@ function seededSeries(seed: number, days: number): Array<{ date: string; pv: num
 }
 
 export const shortLinksHandlers = [
+  // ─── GET /api/growth/channel-analysis — 渠道推广分析（独立路径，先于短链资源）──
+  http.get('/api/growth/channel-analysis', ({ request }) => {
+    const url = new URL(request.url);
+    const days = Math.min(Math.max(Number(url.searchParams.get('days')) || 30, 1), 90);
+    const convEvent = url.searchParams.get('convEvent') || '';
+    const hasConv = convEvent !== '';
+    const channelNames = ['wechat', 'weibo', 'baidu-sem', 'douyin', CHANNEL_ANALYSIS_UNSET];
+    const rows = channelNames.map((name, i) => {
+      const clicks = Math.max(8, Math.round(360 / (i + 1)));
+      const conversions = hasConv ? Math.round(clicks * 0.18) : null;
+      return {
+        name,
+        clicks,
+        uv: Math.round(clicks * 0.64),
+        conversions,
+        convRate: conversions !== null ? Number((conversions / clicks).toFixed(4)) : null,
+      };
+    });
+    const trend: ChannelAnalysisResult['trend'] = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const wave = Math.abs(Math.sin(i * 1.3));
+      const pv = Math.round(wave * 60 + 12);
+      trend.push({
+        date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        pv,
+        uv: Math.round(pv * 0.64),
+      });
+    }
+    const totalClicks = rows.reduce((s, r) => s + r.clicks, 0);
+    const result: ChannelAnalysisResult = {
+      totals: {
+        clicks: totalClicks,
+        uv: Math.round(totalClicks * 0.64),
+        links: mockShortLinks.length,
+        conversions: hasConv ? rows.reduce((s, r) => s + (r.conversions ?? 0), 0) : null,
+      },
+      trend,
+      rows,
+    };
+    return ok(result);
+  }),
+
   // ─── GET / — 分页列表 ─────────────────────────────────────────────────────
   http.get('/api/short-links', ({ request }) => {
     const url = new URL(request.url);

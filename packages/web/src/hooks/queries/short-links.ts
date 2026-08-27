@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { EnsureShortLinkInput, ShortLink, ShortLinkStats } from '@zenith/shared/short-link';
+import type { ChannelAnalysisDimension, ChannelAnalysisResult, EnsureShortLinkInput, ShortLink, ShortLinkStats } from '@zenith/shared/short-link';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
@@ -58,5 +58,24 @@ export function useShortLinkStats(id: number | null, days: number) {
     queryKey: shortLinkStatsKeys.stats(id ?? 0, days),
     queryFn: () => request.get<ShortLinkStats>(`/api/short-links/${id}/stats${toQueryString({ days })}`).then(unwrap),
     enabled: id !== null,
+  });
+}
+
+/** 渠道推广分析：独立命名空间的纯读聚合，不与短链列表互相失效 */
+export interface ChannelAnalysisParams {
+  dimension: ChannelAnalysisDimension;
+  days: number;
+  convEvent?: string;
+}
+
+export const channelAnalysisKeys = {
+  all: ['channel-analysis'] as const,
+  result: (params: ChannelAnalysisParams) => ['channel-analysis', params] as const,
+};
+
+export function useChannelAnalysis(params: ChannelAnalysisParams) {
+  return useQuery({
+    queryKey: channelAnalysisKeys.result(params),
+    queryFn: () => request.get<ChannelAnalysisResult>(`/api/growth/channel-analysis${toQueryString(params)}`).then(unwrap),
   });
 }
