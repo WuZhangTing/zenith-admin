@@ -166,14 +166,12 @@ function buildDeviceWhere(q: ListIotDevicesQuery & { id?: number }): SQL | undef
 /** 各设备最近一条遥测（DISTINCT ON 快照，用于列表关键指标列） */
 async function loadLatestMetrics(deviceIds: number[]): Promise<Map<number, Record<string, number | string | boolean>>> {
   if (deviceIds.length === 0) return new Map();
-  const { sql } = await import('drizzle-orm');
-  const rows = await db.execute(sql`
-    SELECT DISTINCT ON (device_id) device_id, metrics
-    FROM iot_telemetry
-    WHERE device_id = ANY(${deviceIds})
-    ORDER BY device_id, reported_at DESC
-  `) as unknown as Array<{ device_id: number; metrics: Record<string, number | string | boolean> }>;
-  return new Map(rows.map((r) => [r.device_id, r.metrics]));
+  const rows = await db
+    .selectDistinctOn([iotTelemetry.deviceId], { deviceId: iotTelemetry.deviceId, metrics: iotTelemetry.metrics })
+    .from(iotTelemetry)
+    .where(inArray(iotTelemetry.deviceId, deviceIds))
+    .orderBy(iotTelemetry.deviceId, desc(iotTelemetry.reportedAt));
+  return new Map(rows.map((r) => [r.deviceId, r.metrics]));
 }
 
 export async function listIotDevices(q: ListIotDevicesQuery) {
