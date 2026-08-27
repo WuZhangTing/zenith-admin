@@ -491,10 +491,10 @@ export default function AnalyticsSegmentsTab() {
                 </div>
                 {condition.type === 'event' ? (
                   <>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px 150px', gap: 8 }}>
                       <Input placeholder="事件名，如 order_submit" value={condition.eventName} onChange={(v) => updateCondition(condition.id, { eventName: v })} />
-                      <InputNumber placeholder="统计天数" value={condition.days} min={1} max={365} onChange={(v) => updateCondition(condition.id, { days: Number(v) || 30 })} />
-                      <InputNumber placeholder="最小次数" value={condition.minCount} min={1} max={100000} onChange={(v) => updateCondition(condition.id, { minCount: v == null ? undefined : Number(v) })} />
+                      <InputNumber prefix="近" suffix="天内" placeholder="30" value={condition.days} min={1} max={365} onChange={(v) => updateCondition(condition.id, { days: Number(v) || 30 })} />
+                      <InputNumber prefix="≥" suffix="次" placeholder="1" value={condition.minCount} min={1} max={100000} onChange={(v) => updateCondition(condition.id, { minCount: v == null ? undefined : Number(v) })} />
                     </div>
                     <div style={{ display: 'grid', gap: 6 }}>
                       {condition.properties.map((prop) => (
