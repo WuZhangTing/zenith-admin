@@ -13,11 +13,11 @@ interface MarketingRecordsDrawerProps {
   onClose: () => void;
 }
 
-const GRANT_STATUS_COLORS: Record<MarketingParticipation['grantStatus'], string> = {
+const GRANT_STATUS_COLORS = {
   none: 'grey',
   granted: 'green',
   failed: 'red',
-};
+} as const satisfies Record<MarketingParticipation['grantStatus'], string>;
 
 /** 参与/中奖记录抽屉（纯读） */
 export default function MarketingRecordsDrawer({ campaign, onClose }: MarketingRecordsDrawerProps) {

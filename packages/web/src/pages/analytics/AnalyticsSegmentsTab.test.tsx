@@ -44,6 +44,9 @@ vi.mock('@/hooks/queries/email-templates', () => ({
 vi.mock('@/hooks/queries/in-app-templates', () => ({
   useInAppTemplateList: () => ({ data: { list: [{ id: 2, name: '站内信模板' }] }, isFetching: false }),
 }));
+vi.mock('@/hooks/queries/sms-templates', () => ({
+  useSmsTemplateList: () => ({ data: { list: [{ id: 3, name: '短信模板' }] }, isFetching: false }),
+}));
 
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>();

@@ -34,11 +34,11 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '', timeRange: null };
 
-const STATUS_COLORS: Record<MarketingCampaign['status'], string> = {
+const STATUS_COLORS = {
   draft: 'grey',
   published: 'green',
   ended: 'red',
-};
+} as const satisfies Record<MarketingCampaign['status'], string>;
 
 export default function MarketingCampaignsPage() {
   const { hasPermission } = usePermission();

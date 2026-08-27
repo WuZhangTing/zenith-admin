@@ -16,7 +16,7 @@ import {
   coupons, members, shortLinks,
   type MarketingCampaignRow, type MarketingPrizeRow, type MarketingParticipationRow,
 } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import logger from '../../lib/logger';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { currentUser } from '../../lib/context';
