@@ -15,6 +15,8 @@ import { SEED_MARKETING_CAMPAIGNS, SEED_MARKETING_PRIZES } from '@zenith/shared/
 import { marketingCampaigns, marketingPrizes } from './schema';
 import { SEED_ANALYTICS_SEGMENTS } from '@zenith/shared/seed';
 import { analyticsUserSegments } from './schema';
+import { SEED_IOT_PRODUCTS, SEED_IOT_DEVICES } from '@zenith/shared/seed';
+import { iotProducts, iotDevices, iotTelemetry } from './schema';
 import { buildSearchVector } from '../services/cms/cms-search.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
@@ -1369,6 +1371,44 @@ async function seedRest() {
   ).onConflictDoNothing({ target: marketingPrizes.id });
   await db.execute(sql`SELECT setval('marketing_prizes_id_seq', GREATEST((SELECT MAX(id) FROM marketing_prizes), 1))`);
   logger.info('  ✔ Marketing campaigns seeded (onConflictDoNothing)');
+
+  // ─── IoT 设备管理 ────────────────────────────────────────────────────────────
+  await db.insert(iotProducts).values(
+    SEED_IOT_PRODUCTS.map(({ id, name, keyMetrics, description, status }) => ({
+      id, name, keyMetrics, description, status,
+    })),
+  ).onConflictDoNothing({ target: iotProducts.id });
+  await db.execute(sql`SELECT setval('iot_products_id_seq', GREATEST((SELECT MAX(id) FROM iot_products), 1))`);
+
+  const insertedIotDevices = await db.insert(iotDevices).values(
+    SEED_IOT_DEVICES.map(({ id, sn, secret, productId, name, status, firmwareVersion, activatedAt, lastSeenAt, remark }) => ({
+      id, sn, secret, productId, name, status, firmwareVersion,
+      activatedAt: activatedAt ? new Date(activatedAt) : null,
+      lastSeenAt: lastSeenAt ? new Date(lastSeenAt) : null,
+      remark,
+    })),
+  ).onConflictDoNothing({ target: iotDevices.id }).returning({ id: iotDevices.id });
+  await db.execute(sql`SELECT setval('iot_devices_id_seq', GREATEST((SELECT MAX(id) FROM iot_devices), 1))`);
+
+  // 首次 seed 时为 1 号演示设备生成近 24 小时遥测曲线（半小时一点，温度日周期 + 湿度反相）
+  if (insertedIotDevices.some((d) => d.id === 1)) {
+    const now = Date.now();
+    const points = Array.from({ length: 48 }, (_, i) => {
+      const reportedAt = new Date(now - (47 - i) * 30 * 60 * 1000);
+      const hour = reportedAt.getHours() + reportedAt.getMinutes() / 60;
+      const phase = Math.sin(((hour - 14) / 24) * Math.PI * 2);
+      return {
+        deviceId: 1,
+        metrics: {
+          temperature: Math.round((24 + phase * 3 + (Math.random() - 0.5)) * 10) / 10,
+          humidity: Math.round(50 - phase * 8 + (Math.random() - 0.5) * 4),
+        },
+        reportedAt,
+      };
+    });
+    await db.insert(iotTelemetry).values(points);
+  }
+  logger.info('  ✔ IoT products/devices seeded (onConflictDoNothing)');
 
 }
 

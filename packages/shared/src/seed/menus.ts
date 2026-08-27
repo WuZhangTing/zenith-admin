@@ -18,6 +18,7 @@ import { SEED_MENUS_OPEN_PLATFORM } from './menus/open-platform';
 import { SEED_MENUS_CMS } from './menus/cms';
 import { SEED_MENUS_WIKI } from './menus/wiki';
 import { SEED_MENUS_GROWTH } from './menus/growth';
+import { SEED_MENUS_IOT } from './menus/iot';
 
 export { SEED_DATE } from './_base';
 
@@ -51,6 +52,7 @@ export const SEED_MENUS: Menu[] = applyMenuFeatureKeys([
   ...SEED_MENUS_CMS,
   ...SEED_MENUS_WIKI,
   ...SEED_MENUS_GROWTH,
+  ...SEED_MENUS_IOT,
 ]);
 
 /**

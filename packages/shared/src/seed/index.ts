@@ -8,6 +8,7 @@ export * from './analytics';
 export * from './app-releases';
 export * from './cms';
 export * from './identity';
+export * from './iot';
 export * from './member';
 export * from './marketing';
 export * from './messaging';
