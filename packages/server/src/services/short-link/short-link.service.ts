@@ -20,7 +20,7 @@ import { config } from '../../config';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { currentUser } from '../../lib/context';
+import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { invalidateShortLinkCache } from './short-link-redirect.service';
 
@@ -279,6 +279,11 @@ export interface EnsureShortLinkOptions {
  */
 export async function ensureShortLink(options: EnsureShortLinkOptions) {
   ensureSafeTargetUrl(options.targetUrl);
+  // 未显式指定租户时：请求上下文内按当前用户归属，后台任务/钩子场景落平台级
+  const user = currentUserOrNull();
+  const tenantId = options.tenantId !== undefined
+    ? options.tenantId
+    : (user ? getCreateTenantId(user) : null);
   const [existing] = await db
     .select()
     .from(shortLinks)
@@ -286,10 +291,13 @@ export async function ensureShortLink(options: EnsureShortLinkOptions) {
     .limit(1);
 
   if (existing) {
-    if (existing.targetUrl !== options.targetUrl) {
+    const patch: Partial<typeof existing> = {};
+    if (existing.targetUrl !== options.targetUrl) patch.targetUrl = options.targetUrl;
+    if (options.title !== undefined && options.title !== null && existing.title !== options.title) patch.title = options.title;
+    if (Object.keys(patch).length > 0) {
       const [row] = await db
         .update(shortLinks)
-        .set({ targetUrl: options.targetUrl })
+        .set(patch)
         .where(eq(shortLinks.id, existing.id))
         .returning();
       await invalidateShortLinkCache(existing.code);
@@ -309,7 +317,7 @@ export async function ensureShortLink(options: EnsureShortLinkOptions) {
           title: options.title ?? null,
           bizType: options.bizType,
           bizRef: options.bizRef,
-          tenantId: options.tenantId ?? null,
+          tenantId,
         })
         .returning();
       return mapShortLink(row);

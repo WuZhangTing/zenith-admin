@@ -10,12 +10,12 @@ import {
 } from '../../lib/openapi-schemas';
 import { ShortLinkDTO, ShortLinkStatsDTO } from '../../lib/openapi-dtos';
 import {
-  createShortLinkSchema, updateShortLinkSchema, batchUpdateShortLinkStatusSchema,
+  createShortLinkSchema, updateShortLinkSchema, batchUpdateShortLinkStatusSchema, ensureShortLinkSchema,
   SHORT_LINK_BIZ_TYPES, SHORT_LINK_STATS_MAX_DAYS,
 } from '@zenith/shared/short-link';
 import {
   listShortLinks, getShortLink, createShortLink, updateShortLink,
-  deleteShortLink, deleteShortLinks, batchUpdateShortLinkStatus, ensureShortLinkExists,
+  deleteShortLink, deleteShortLinks, batchUpdateShortLinkStatus, ensureShortLinkExists, ensureShortLink,
 } from '../../services/short-link/short-link.service';
 import { getShortLinkStats } from '../../services/short-link/short-link-stats.service';
 
@@ -134,6 +134,25 @@ const statsRoute = defineOpenAPIRoute({
   },
 });
 
+// ─── POST /ensure — 业务对象幂等取短链 ────────────────────────────────────────
+const ensureRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/ensure',
+    tags: ['短链管理'], summary: '为业务对象幂等获取短链（同 bizType+bizRef 复用）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'shortlink:link:create',
+      audit: { description: '业务对象生成短链', module: '短链管理' },
+    })] as const,
+    request: { body: { content: jsonContent(ensureShortLinkSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(ShortLinkDTO, '短链') },
+  }),
+  handler: async (c) => {
+    const row = await ensureShortLink(c.req.valid('json'));
+    return c.json(okBody(row), 200);
+  },
+});
+
 // ─── POST / — 创建 ────────────────────────────────────────────────────────────
 const createRoute_ = defineOpenAPIRoute({
   route: createRoute({
@@ -207,6 +226,7 @@ shortLinksRouter.openapiRoutes([
   listRoute,
   batchDeleteRoute,
   batchStatusRoute,
+  ensureRoute,
   getOneRoute,
   statsRoute,
   createRoute_,

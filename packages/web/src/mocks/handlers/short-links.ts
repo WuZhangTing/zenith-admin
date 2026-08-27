@@ -77,6 +77,48 @@ export const shortLinksHandlers = [
     return ok(null, `已${status === 'enabled' ? '启用' : '禁用'} ${updated} 条记录`);
   }),
 
+  // ─── POST /ensure — 业务对象幂等取短链 ───────────────────────────────────
+  http.post('/api/short-links/ensure', async ({ request }) => {
+    const body = (await request.json()) as { targetUrl?: string; bizType?: ShortLink['bizType']; bizRef?: string; title?: string | null };
+    if (!body.targetUrl || !body.bizType || !body.bizRef) return badRequest('参数不完整', { status: 400 });
+    const existing = mockShortLinks.find((x) => x.bizType === body.bizType && x.bizRef === body.bizRef);
+    if (existing) {
+      existing.targetUrl = body.targetUrl;
+      if (body.title) existing.title = body.title;
+      existing.updatedAt = mockDateTime();
+      return ok(existing);
+    }
+    const now = mockDateTime();
+    const code = generateMockCode();
+    const newLink: ShortLink = {
+      id: getNextShortLinkId(),
+      code,
+      shortUrl: `${window.location.origin}/s/${code}`,
+      targetUrl: body.targetUrl,
+      title: body.title ?? null,
+      redirectType: '302',
+      status: 'enabled',
+      expiresAt: null,
+      expired: false,
+      maxVisits: null,
+      password: null,
+      utmSource: null,
+      utmMedium: null,
+      utmCampaign: null,
+      utmTerm: null,
+      utmContent: null,
+      bizType: body.bizType,
+      bizRef: body.bizRef,
+      remark: null,
+      totalPv: 0,
+      lastVisitAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockShortLinks.push(newLink);
+    return ok(newLink);
+  }),
+
   // ─── GET /:id/stats — 访问统计 ───────────────────────────────────────────
   http.get('/api/short-links/:id/stats', ({ params, request }) => {
     const link = mockShortLinks.find((x) => x.id === Number(params.id));

@@ -27,6 +27,9 @@ export const SHORT_LINK_BIZ_TYPE_LABELS: Record<ShortLinkBizType, string> = {
 
 export const SHORT_LINK_BIZ_TYPE_OPTIONS = createLabelOptions(SHORT_LINK_BIZ_TYPES, SHORT_LINK_BIZ_TYPE_LABELS);
 
+/** 业务对象幂等短链（ensure）允许的来源类型：排除手工 custom */
+export const SHORT_LINK_ENSURE_BIZ_TYPES = ['sms', 'broadcast', 'payment_link', 'cms_content'] as const;
+
 // ─── 短码规则 ─────────────────────────────────────────────────────────────────
 /** 自动生成短码使用的字符表：base62 剔除易混字符 0/O/1/l/I */
 export const SHORT_LINK_CODE_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ';

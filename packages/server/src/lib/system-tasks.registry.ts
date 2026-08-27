@@ -40,6 +40,20 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
+  const { rollupShortLinkDailyStats } = await import('../services/short-link/short-link-rollup.service');
+  await registerSystemRecurringJob({
+    name: 'short-link-daily-rollup',
+    title: '短链访问日聚合',
+    module: '短链服务',
+    cronExpression: '30 2 * * *',
+    description: '把今天之前的短链点击明细按日物化到 short_link_daily_stats（幂等 upsert），先于数据保留清理执行，保证明细裁剪后长周期趋势仍可用。',
+    allowManualRun: true,
+    run: async () => {
+      const rows = await rollupShortLinkDailyStats();
+      return `聚合更新 ${rows} 行日统计`;
+    },
+  });
+
   const { retryPendingQuotaAlerts } = await import('../services/open-platform/open-quota-alerts.service');
   await registerSystemRecurringJob({
     name: 'open-quota-alert-retry',

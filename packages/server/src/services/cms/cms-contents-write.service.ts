@@ -658,6 +658,9 @@ function triggerCmsPublishedSideEffects(row: CmsContentRow): void {
   void import('./cms-push.service').then((pushService) => {
     pushService.triggerAutoPushForContent(row.id);
   });
+  void import('./cms-short-link.service')
+    .then(({ triggerShortLinkForContent }) => triggerShortLinkForContent(row.id))
+    .catch((error) => logger.warn(`[cms-short-link] 内容 #${row.id} 发布后的短链生成失败`, error));
   void import('./cms-distributions.service')
     .then(({ submitCmsMappingDistributionSideEffects }) => submitCmsMappingDistributionSideEffects(row.id))
     .catch((error) => logger.warn(`[cms-distribution] 内容 #${row.id} 发布后的映射任务提交失败`, error));

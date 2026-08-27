@@ -721,6 +721,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     },
     description: '超时未完成的分片上传会话；清理时中止云端 multipart、删除临时分片与孤儿目录，级联清理分片记录。',
   },
+  {
+    key: 'short_link_clicks',
+    title: '短链点击明细',
+    module: '短链服务',
+    tableName: 'short_link_clicks',
+    timeColumn: 'clicked_at',
+    defaultDays: 180,
+    description: '短链访问的原始点击明细；日粒度趋势已由「短链访问日聚合」任务物化到 short_link_daily_stats，超期明细可安全清理（清理后统计详情中的设备/地域/来源分布仅覆盖保留窗口）。',
+  },
 ];
 
 export function findPolicy(key: string): RetentionPolicyDefinition | undefined {

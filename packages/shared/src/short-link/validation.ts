@@ -3,6 +3,7 @@ import {
   SHORT_LINK_CODE_MAX,
   SHORT_LINK_CODE_MIN,
   SHORT_LINK_CODE_PATTERN,
+  SHORT_LINK_ENSURE_BIZ_TYPES,
   SHORT_LINK_REDIRECT_TYPES,
 } from './constants';
 
@@ -43,8 +44,18 @@ export const batchUpdateShortLinkStatusSchema = z.object({
   status: z.enum(['enabled', 'disabled']),
 });
 
+/** 业务对象幂等取短链：同 bizType+bizRef 复用，目标地址变化时同步更新 */
+export const ensureShortLinkSchema = z.object({
+  targetUrl: z.url('目标地址必须是合法 URL').max(2048),
+  bizType: z.enum(SHORT_LINK_ENSURE_BIZ_TYPES),
+  bizRef: z.string().min(1, '业务标识不能为空').max(64),
+  title: z.string().max(128).nullable().optional(),
+});
+
 export type CreateShortLinkInput = z.infer<typeof createShortLinkSchema>;
 
 export type UpdateShortLinkInput = z.infer<typeof updateShortLinkSchema>;
 
 export type BatchUpdateShortLinkStatusInput = z.infer<typeof batchUpdateShortLinkStatusSchema>;
+
+export type EnsureShortLinkInput = z.infer<typeof ensureShortLinkSchema>;

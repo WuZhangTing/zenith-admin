@@ -4,6 +4,7 @@ import type { SmsProvider, SmsTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
+import InsertShortLinkButton from '@/components/short-link/InsertShortLinkButton';
 import { useListSearch } from '@/hooks/useListSearch';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -204,7 +205,17 @@ export default function SmsTemplatesPage() {
           <Row gutter={16}>
             <Col span={24}>
               <Form.TextArea field="content" label="模板内容" rows={4} placeholder="请输入模板内容"
-                rules={[{ required: true, message: '请输入模板内容' }]} />
+                rules={[{ required: true, message: '请输入模板内容' }]}
+                extraText={(
+                  <InsertShortLinkButton
+                    onInsert={(url) => {
+                      const api = templateModal.formApi.current;
+                      if (!api) return;
+                      const current = (api.getValue('content') as string | undefined) ?? '';
+                      api.setValue('content', current ? `${current} ${url}` : url);
+                    }}
+                  />
+                )} />
             </Col>
           </Row>
           <Row gutter={16}>

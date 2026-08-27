@@ -16,6 +16,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
 import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
+import { useEnsureShortLink } from '@/hooks/queries/short-links';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -56,6 +57,9 @@ export default function PaymentLinksPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLinkKeys.lists });
 
   const [qrLink, setQrLink] = useState<PaymentLink | null>(null);
+  // 当前收款码弹窗对应的短链地址；切换目标链接时重置
+  const [payShortUrl, setPayShortUrl] = useState<string | null>(null);
+  const ensureShortLinkMutation = useEnsureShortLink();
 
   const listQuery = usePaymentLinkList({
     page,
@@ -123,6 +127,28 @@ export default function PaymentLinksPage() {
     }
   }
 
+  async function handleGenerateShortLink() {
+    if (!qrLink) return;
+    const link = await ensureShortLinkMutation.mutateAsync({
+      targetUrl: publicUrl(qrLink.token),
+      bizType: 'payment_link',
+      bizRef: String(qrLink.id),
+      title: qrLink.subject,
+    });
+    setPayShortUrl(link.shortUrl);
+    Toast.success('短链已生成，二维码已切换为短链');
+  }
+
+  async function copyShortLink() {
+    if (!payShortUrl) return;
+    try {
+      await navigator.clipboard.writeText(payShortUrl);
+      Toast.success('短链已复制');
+    } catch {
+      Toast.error('复制失败，请手动复制链接');
+    }
+  }
+
   function downloadQrCode() {
     if (!qrLink) return;
     const svg = qrContainerRef.current?.querySelector('svg');
@@ -161,7 +187,10 @@ export default function PaymentLinksPage() {
         {
           key: 'qr',
           label: '收款码',
-          onClick: () => setQrLink(r),
+          onClick: () => {
+            setPayShortUrl(null);
+            setQrLink(r);
+          },
         },
         ...(hasPermission('payment:link:update') ? [{
           key: 'edit',
@@ -270,13 +299,20 @@ export default function PaymentLinksPage() {
             <Typography.Title heading={6}>{qrLink.subject}</Typography.Title>
             <Typography.Text strong style={{ fontSize: 18, color: '#10b981' }}>{yuan(qrLink.amount)}</Typography.Text>
             <div ref={qrContainerRef} style={{ padding: 12, background: '#fff', borderRadius: 'var(--semi-border-radius-medium)' }}>
-              <QRCodeSVG value={publicUrl(qrLink.token)} size={200} level="M" />
+              <QRCodeSVG value={payShortUrl ?? publicUrl(qrLink.token)} size={200} level="M" />
             </div>
-            <Input value={publicUrl(qrLink.token)} readonly style={{ width: '100%' }} />
+            <Input value={payShortUrl ?? publicUrl(qrLink.token)} readonly style={{ width: '100%' }} />
             <Space>
-              <Button size="small" onClick={() => { void copyPublicLink(qrLink); }}>复制链接</Button>
+              {payShortUrl ? (
+                <Button size="small" onClick={() => { void copyShortLink(); }}>复制短链</Button>
+              ) : (
+                <Button size="small" onClick={() => { void copyPublicLink(qrLink); }}>复制链接</Button>
+              )}
+              {!payShortUrl && hasPermission('shortlink:link:create') && (
+                <Button size="small" loading={ensureShortLinkMutation.isPending} onClick={() => { void handleGenerateShortLink(); }}>生成短链</Button>
+              )}
               <Button size="small" onClick={downloadQrCode}>下载二维码</Button>
-              <Button size="small" onClick={() => window.open(publicUrl(qrLink.token), '_blank', 'noopener')}>打开链接</Button>
+              <Button size="small" onClick={() => window.open(payShortUrl ?? publicUrl(qrLink.token), '_blank', 'noopener')}>打开链接</Button>
             </Space>
           </div>
         )}

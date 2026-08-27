@@ -30,6 +30,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
+import InsertShortLinkButton from '@/components/short-link/InsertShortLinkButton';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useMyAsyncTasks } from '@/hooks/useAsyncTasks';
@@ -284,7 +285,17 @@ export default function BroadcastsPage() {
             <Form.Input field="title" label="标题" placeholder="通知标题(即推送/站内信标题)" maxLength={200}
               rules={[{ required: true, message: '标题不能为空' }]} />
             <Form.TextArea field="content" label="内容" rows={4} maxCount={2000}
-              rules={[{ required: true, message: '内容不能为空' }]} />
+              rules={[{ required: true, message: '内容不能为空' }]}
+              extraText={(
+                <InsertShortLinkButton
+                  onInsert={(url) => {
+                    const api = modal.formApi.current;
+                    if (!api) return;
+                    const current = (api.getValue('content') as string | undefined) ?? '';
+                    api.setValue('content', current ? `${current} ${url}` : url);
+                  }}
+                />
+              )} />
             <Form.Input field="link" label="跳转链接" placeholder="可选,站内路由(/path)或外链" maxLength={500} />
             <Form.CheckboxGroup field="channels" label="投递渠道" direction="horizontal" options={CHANNEL_OPTIONS}
               rules={[{ required: true, message: '至少选择一个投递渠道' }]} />

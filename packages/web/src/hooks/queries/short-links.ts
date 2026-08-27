@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ShortLink, ShortLinkStats } from '@zenith/shared/short-link';
+import type { EnsureShortLinkInput, ShortLink, ShortLinkStats } from '@zenith/shared/short-link';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
@@ -31,6 +31,18 @@ export function useBatchUpdateShortLinkStatus() {
     onSuccess: (_data, { ids }) => {
       void qc.invalidateQueries({ queryKey: shortLinkKeys.lists });
       for (const id of ids) void qc.invalidateQueries({ queryKey: shortLinkKeys.detail(id) });
+    },
+  });
+}
+
+/** 业务对象幂等取短链（payment-link/CMS 等页面嵌入）：可能新建记录，失效列表 */
+export function useEnsureShortLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: EnsureShortLinkInput) =>
+      request.post<ShortLink>('/api/short-links/ensure', input).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: shortLinkKeys.lists });
     },
   });
 }
