@@ -12,7 +12,9 @@ import { rebuildRollup } from './analytics-rollup.service';
 import { materializeSegment } from './analytics-segments.service';
 import { sendEmail } from '../messaging/email-send-logs.service';
 import { sendInApp } from '../messaging/in-app-messages.service';
+import { sendSms } from '../messaging/sms-send-logs.service';
 import { renderTemplate } from '../../lib/sms-sender';
+import { ensureShortLink } from '../short-link/short-link.service';
 import { ANALYTICS_CAMPAIGN_EXECUTE_TASK_TYPE } from './analytics-campaigns.service';
 
 export const ANALYTICS_ROLLUP_REBUILD_TASK_TYPE = 'analytics-rollup-rebuild';
@@ -38,8 +40,8 @@ async function loadMemberNames(rows: SegmentMember[]) {
   const userIds = rows.map((r) => r.userId).filter((id): id is number => typeof id === 'number');
   const memberIds = rows.map((r) => r.memberId).filter((id): id is number => typeof id === 'number');
   const [adminRows, memberRows] = await Promise.all([
-    userIds.length ? db.select({ id: users.id, email: users.email, name: users.nickname }).from(users).where(inArray(users.id, userIds)) : Promise.resolve([]),
-    memberIds.length ? db.select({ id: members.id, email: members.email, name: members.nickname }).from(members).where(inArray(members.id, memberIds)) : Promise.resolve([]),
+    userIds.length ? db.select({ id: users.id, email: users.email, name: users.nickname, phone: users.phone }).from(users).where(inArray(users.id, userIds)) : Promise.resolve([]),
+    memberIds.length ? db.select({ id: members.id, email: members.email, name: members.nickname, phone: members.phone }).from(members).where(inArray(members.id, memberIds)) : Promise.resolve([]),
   ]);
   return {
     admins: new Map(adminRows.map((u) => [u.id, u])),
@@ -47,7 +49,23 @@ async function loadMemberNames(rows: SegmentMember[]) {
   };
 }
 
-async function executeEmailCampaign(campaign: typeof analyticsSegmentCampaigns.$inferSelect, rows: SegmentMember[], onProgress: (processed: number, note: string) => Promise<void>) {
+/**
+ * 配置了落地页时幂等生成短链（bizType=campaign），返回注入模板的公共变量。
+ * email/in_app/sms 模板均可通过 {{shortUrl}} 引用，点击数据回流到活动指标。
+ */
+async function buildCampaignVariables(campaign: typeof analyticsSegmentCampaigns.$inferSelect): Promise<Record<string, string>> {
+  if (!campaign.landingUrl) return {};
+  const link = await ensureShortLink({
+    targetUrl: campaign.landingUrl,
+    bizType: 'campaign',
+    bizRef: String(campaign.id),
+    title: campaign.name,
+    tenantId: campaign.tenantId ?? null,
+  });
+  return { shortUrl: link.shortUrl };
+}
+
+async function executeEmailCampaign(campaign: typeof analyticsSegmentCampaigns.$inferSelect, rows: SegmentMember[], extraVars: Record<string, string>, onProgress: (processed: number, note: string) => Promise<void>) {
   const contacts = await loadMemberNames(rows);
   const targets = new Map<string, { email: string; name: string }>();
   let failed = 0;
@@ -63,7 +81,7 @@ async function executeEmailCampaign(campaign: typeof analyticsSegmentCampaigns.$
   let processed = failed;
   for (const batch of chunk([...targets.values()], 50)) {
     for (const target of batch) {
-      const res = await sendEmail({ toEmail: target.email, templateId: campaign.templateId ?? undefined, variables: { name: target.name } }, 'system');
+      const res = await sendEmail({ toEmail: target.email, templateId: campaign.templateId ?? undefined, variables: { name: target.name, ...extraVars } }, 'system');
       if (res.status === 'success') sent += 1;
       else failed += 1;
     }
@@ -73,7 +91,7 @@ async function executeEmailCampaign(campaign: typeof analyticsSegmentCampaigns.$
   return { sent, failed };
 }
 
-async function executeInAppCampaign(campaign: typeof analyticsSegmentCampaigns.$inferSelect, rows: SegmentMember[], onProgress: (processed: number, note: string) => Promise<void>) {
+async function executeInAppCampaign(campaign: typeof analyticsSegmentCampaigns.$inferSelect, rows: SegmentMember[], extraVars: Record<string, string>, onProgress: (processed: number, note: string) => Promise<void>) {
   const adminRows = rows.filter((row) => row.identityType === 'admin' && row.userId);
   const failed = rows.length - adminRows.length;
   const contacts = await loadMemberNames(adminRows);
@@ -85,7 +103,7 @@ async function executeInAppCampaign(campaign: typeof analyticsSegmentCampaigns.$
     for (const row of batch) {
       const userId = row.userId!;
       const name = contacts.admins.get(userId)?.name ?? String(userId);
-      const variables = { name };
+      const variables = { name, ...extraVars };
       const result = await sendInApp({
         userIds: [userId],
         templateId: campaign.templateId ?? undefined,
@@ -98,6 +116,38 @@ async function executeInAppCampaign(campaign: typeof analyticsSegmentCampaigns.$
     }
     processed += batch.length;
     await onProgress(processed, `站内信触达 ${processed}/${rows.length}`);
+  }
+  return { sent, failed };
+}
+
+/** 短信触达：按手机号去重后逐条发送（sendSms 内部写发送留痕，计费口径与手动群发一致） */
+async function executeSmsCampaign(campaign: typeof analyticsSegmentCampaigns.$inferSelect, rows: SegmentMember[], extraVars: Record<string, string>, onProgress: (processed: number, note: string) => Promise<void>) {
+  if (!campaign.templateId) throw new Error('短信模板不存在');
+  const contacts = await loadMemberNames(rows);
+  const targets = new Map<string, { phone: string; name: string }>();
+  let failed = 0;
+  for (const row of rows) {
+    const contact = row.identityType === 'admin' && row.userId ? contacts.admins.get(row.userId) : row.identityType === 'member' && row.memberId ? contacts.members.get(row.memberId) : null;
+    if (!contact?.phone) {
+      failed += 1;
+      continue;
+    }
+    if (!targets.has(contact.phone)) targets.set(contact.phone, { phone: contact.phone, name: contact.name || contact.phone });
+  }
+  let sent = 0;
+  let processed = failed;
+  for (const batch of chunk([...targets.values()], 50)) {
+    for (const target of batch) {
+      try {
+        const res = await sendSms({ templateId: campaign.templateId, phone: target.phone, variables: { name: target.name, ...extraVars } }, 'system');
+        if (res.status === 'success') sent += 1;
+        else failed += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    processed += batch.length;
+    await onProgress(processed, `短信触达 ${processed}/${rows.length}`);
   }
   return { sent, failed };
 }
@@ -183,11 +233,15 @@ export function registerAnalyticsTaskHandlers(): void {
         const onProgress = async (processed: number, note: string) => {
           await ctx.progress({ processed, total: rows.length, note, checkpoint: { processed } });
         };
+        // 落地页短链：幂等生成并注入 {{shortUrl}} 模板变量（点击回流活动指标）
+        const extraVars = await buildCampaignVariables(campaign);
         const result = campaign.channel === 'email'
-          ? await executeEmailCampaign(campaign, rows, onProgress)
+          ? await executeEmailCampaign(campaign, rows, extraVars, onProgress)
           : campaign.channel === 'in_app'
-            ? await executeInAppCampaign(campaign, rows, onProgress)
-            : await executeWebhookCampaign(campaign, rows, onProgress);
+            ? await executeInAppCampaign(campaign, rows, extraVars, onProgress)
+            : campaign.channel === 'sms'
+              ? await executeSmsCampaign(campaign, rows, extraVars, onProgress)
+              : await executeWebhookCampaign(campaign, rows, onProgress);
         const finalStatus = result.sent > 0 ? 'completed' : 'failed';
         const lastError = finalStatus === 'failed' ? '全部触达失败' : result.failed > 0 ? `部分触达失败：${result.failed} 条` : null;
         await updateCampaignResult(campaignId, {

@@ -321,6 +321,9 @@ let mockCampaigns: AnalyticsSegmentCampaign[] = [
     channel: 'in_app',
     templateId: 1,
     webhookUrl: null,
+    landingUrl: 'https://www.example.com/coupon/landing',
+    shortUrl: `${window.location.origin}/s/cpn2026`,
+    clickCount: 37,
     status: 'completed',
     totalCount: 24,
     sentCount: 16,
@@ -1161,6 +1164,9 @@ export const analyticsHandlers = [
       channel: body.channel,
       templateId: body.channel === 'webhook' ? null : body.templateId ?? null,
       webhookUrl: body.channel === 'webhook' ? body.webhookUrl ?? null : null,
+      landingUrl: body.channel === 'webhook' ? null : body.landingUrl ?? null,
+      shortUrl: null,
+      clickCount: null,
       status: 'draft',
       totalCount: 0,
       sentCount: 0,
@@ -1201,7 +1207,19 @@ export const analyticsHandlers = [
       const current = mockCampaigns.findIndex((c) => c.id === id);
       if (current >= 0) {
         const failed = rand(0, Math.max(1, Math.floor(total * 0.2)));
-        mockCampaigns[current] = { ...mockCampaigns[current], status: 'completed', sentCount: total - failed, failedCount: failed, lastRunAt: mockDateTime(), lastError: failed ? `模拟失败 ${failed} 条` : null, updatedAt: mockDateTime() };
+        const withLanding = mockCampaigns[current].landingUrl;
+        mockCampaigns[current] = {
+          ...mockCampaigns[current],
+          status: 'completed',
+          sentCount: total - failed,
+          failedCount: failed,
+          lastRunAt: mockDateTime(),
+          lastError: failed ? `模拟失败 ${failed} 条` : null,
+          // 配置了落地页时模拟短链生成与点击回流
+          shortUrl: withLanding ? `${window.location.origin}/s/cam${id}x` : null,
+          clickCount: withLanding ? rand(5, total * 2) : null,
+          updatedAt: mockDateTime(),
+        };
       }
     }, 2000);
     const task = createProgressingMockTask({ taskType: 'analytics-campaign-execute', title: `执行分群触达 #${id}`, payload: { campaignId: id }, totalItems: Math.max(1, Math.ceil(total / 50)) });

@@ -17,7 +17,7 @@ export const analyticsEventSourceEnum = pgEnum('analytics_event_source', ['web_a
 // 身份归属类型：后台管理员 / 前台会员 / 匿名访客
 export const analyticsIdentityTypeEnum = pgEnum('analytics_identity_type', ['admin', 'member', 'anonymous']);
 
-export const analyticsCampaignChannelEnum = pgEnum('analytics_campaign_channel', ['email', 'in_app', 'webhook']);
+export const analyticsCampaignChannelEnum = pgEnum('analytics_campaign_channel', ['email', 'in_app', 'webhook', 'sms']);
 
 export const analyticsCampaignStatusEnum = pgEnum('analytics_campaign_status', ['draft', 'running', 'completed', 'failed']);
 
@@ -649,6 +649,8 @@ export const analyticsSegmentCampaigns = pgTable('analytics_segment_campaigns', 
   channel: analyticsCampaignChannelEnum('channel').notNull(),
   templateId: integer('template_id'),
   webhookUrl: varchar('webhook_url', { length: 500 }),
+  /** 落地页地址：执行时自动生成短链（bizType=campaign）并注入模板变量 {{shortUrl}} */
+  landingUrl: varchar('landing_url', { length: 2048 }),
   status: analyticsCampaignStatusEnum('status').notNull().default('draft'),
   totalCount: integer('total_count').notNull().default(0),
   sentCount: integer('sent_count').notNull().default(0),

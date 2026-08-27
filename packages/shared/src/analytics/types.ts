@@ -824,7 +824,7 @@ export interface AnalyticsExperimentReport {
 }
 
 // ─── 行为中心阶段 2：分群触达 ──────────────────────────────────────────────────
-export type AnalyticsCampaignChannel = 'email' | 'in_app' | 'webhook';
+export type AnalyticsCampaignChannel = 'email' | 'in_app' | 'webhook' | 'sms';
 
 export type AnalyticsCampaignStatus = 'draft' | 'running' | 'completed' | 'failed';
 
@@ -837,6 +837,12 @@ export interface AnalyticsSegmentCampaign {
   channel: AnalyticsCampaignChannel;
   templateId: number | null;
   webhookUrl: string | null;
+  /** 落地页地址：执行时自动生成短链并注入模板变量 {{shortUrl}} */
+  landingUrl: string | null;
+  /** 落地页短链（已执行过且配置了落地页时回显） */
+  shortUrl?: string | null;
+  /** 落地页短链累计点击 */
+  clickCount?: number | null;
   status: AnalyticsCampaignStatus;
   totalCount: number;
   sentCount: number;

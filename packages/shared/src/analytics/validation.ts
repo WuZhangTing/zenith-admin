@@ -229,9 +229,9 @@ function refineAnalyticsCampaign(
     }
     return;
   }
-  if (value.channel === 'email' || value.channel === 'in_app') {
+  if (value.channel === 'email' || value.channel === 'in_app' || value.channel === 'sms') {
     if (!value.templateId) {
-      ctx.addIssue({ code: 'custom', path: ['templateId'], message: '邮件/站内信渠道必须选择模板' });
+      ctx.addIssue({ code: 'custom', path: ['templateId'], message: '邮件/站内信/短信渠道必须选择模板' });
     }
   }
 }
@@ -242,6 +242,7 @@ const analyticsCampaignBaseSchema = z.object({
   channel: z.enum(ANALYTICS_CAMPAIGN_CHANNELS),
   templateId: z.number().int().positive().nullable().optional(),
   webhookUrl: z.preprocess((value) => value === '' ? null : value, analyticsWebhookUrlSchema.nullable().optional()),
+  landingUrl: z.preprocess((value) => value === '' ? null : value, z.url('落地页必须是合法 URL').max(2048).nullable().optional()),
 });
 
 export const createAnalyticsCampaignSchema = analyticsCampaignBaseSchema.superRefine(refineAnalyticsCampaign);

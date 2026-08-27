@@ -1,13 +1,14 @@
-import { and, desc, eq, ne, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { CreateAnalyticsCampaignInput, UpdateAnalyticsCampaignInput } from '@zenith/shared/analytics';
 import { db } from '../../db';
-import { analyticsSegmentCampaigns, analyticsUserSegments, emailTemplates, inAppTemplates } from '../../db/schema';
+import { analyticsSegmentCampaigns, analyticsUserSegments, emailTemplates, inAppTemplates, shortLinks, smsTemplates } from '../../db/schema';
 import type { AnalyticsSegmentCampaignRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { submitAsyncTask } from '../../lib/task-center';
+import { buildShortUrl } from '../short-link/short-link.service';
 import { ensureSegmentExists } from './analytics-segments.service';
 
 export const ANALYTICS_CAMPAIGN_EXECUTE_TASK_TYPE = 'analytics-campaign-execute';
@@ -24,7 +25,12 @@ interface CampaignJoinedRow {
   segmentName: string | null;
 }
 
-export function mapCampaign(row: AnalyticsSegmentCampaignRow, segmentName: string | null = null) {
+interface CampaignShortLinkInfo {
+  shortUrl: string;
+  clickCount: number;
+}
+
+export function mapCampaign(row: AnalyticsSegmentCampaignRow, segmentName: string | null = null, shortLink: CampaignShortLinkInfo | null = null) {
   return {
     id: row.id,
     tenantId: row.tenantId,
@@ -34,6 +40,9 @@ export function mapCampaign(row: AnalyticsSegmentCampaignRow, segmentName: strin
     channel: row.channel,
     templateId: row.templateId,
     webhookUrl: row.webhookUrl,
+    landingUrl: row.landingUrl ?? null,
+    shortUrl: shortLink?.shortUrl ?? null,
+    clickCount: shortLink?.clickCount ?? null,
     status: row.status,
     totalCount: row.totalCount,
     sentCount: row.sentCount,
@@ -47,8 +56,20 @@ export function mapCampaign(row: AnalyticsSegmentCampaignRow, segmentName: strin
   };
 }
 
-function mapJoined(row: CampaignJoinedRow) {
-  return mapCampaign(row.campaign, row.segmentName);
+/** 批量取触达活动的落地页短链（执行时按 bizType=campaign 幂等生成） */
+async function loadCampaignShortLinks(ids: number[]): Promise<Map<number, CampaignShortLinkInfo>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select({ bizRef: shortLinks.bizRef, code: shortLinks.code, totalPv: shortLinks.totalPv })
+    .from(shortLinks)
+    .where(and(eq(shortLinks.bizType, 'campaign'), inArray(shortLinks.bizRef, ids.map(String))));
+  return new Map(rows
+    .filter((r): r is typeof r & { bizRef: string } => r.bizRef !== null)
+    .map((r) => [Number(r.bizRef), { shortUrl: buildShortUrl(r.code), clickCount: r.totalPv }]));
+}
+
+function mapJoined(row: CampaignJoinedRow, shortLinkMap: Map<number, CampaignShortLinkInfo>) {
+  return mapCampaign(row.campaign, row.segmentName, shortLinkMap.get(row.campaign.id) ?? null);
 }
 
 function buildWhere(q: ListCampaignsQuery): SQL | undefined {
@@ -75,7 +96,8 @@ export async function listCampaigns(q: ListCampaignsQuery) {
     withPagination(base.$dynamic(), page, pageSize),
     db.$count(analyticsSegmentCampaigns, where),
   ]);
-  return { list: rows.map(mapJoined), total, page, pageSize };
+  const shortLinkMap = await loadCampaignShortLinks(rows.map((r) => r.campaign.id));
+  return { list: rows.map((r) => mapJoined(r, shortLinkMap)), total, page, pageSize };
 }
 
 export async function ensureCampaignExists(id: number): Promise<AnalyticsSegmentCampaignRow> {
@@ -88,12 +110,12 @@ export async function ensureCampaignExists(id: number): Promise<AnalyticsSegment
 
 async function ensureTemplateForChannel(channel: CreateAnalyticsCampaignInput['channel'], templateId?: number | null) {
   if (channel === 'webhook') return;
-  if (!templateId) throw new HTTPException(400, { message: '邮件/站内信渠道必须选择模板' });
-  const table = channel === 'email' ? emailTemplates : inAppTemplates;
+  if (!templateId) throw new HTTPException(400, { message: '邮件/站内信/短信渠道必须选择模板' });
+  const table = channel === 'email' ? emailTemplates : channel === 'sms' ? smsTemplates : inAppTemplates;
   const [tpl] = await db.select({ id: table.id, status: table.status }).from(table)
     .where(and(eq(table.id, templateId), tenantScope(table)))
     .limit(1);
-  if (!tpl) throw new HTTPException(404, { message: channel === 'email' ? '邮件模板不存在' : '站内信模板不存在' });
+  if (!tpl) throw new HTTPException(404, { message: channel === 'email' ? '邮件模板不存在' : channel === 'sms' ? '短信模板不存在' : '站内信模板不存在' });
   if (tpl.status !== 'enabled') throw new HTTPException(400, { message: '模板已禁用' });
 }
 
@@ -107,6 +129,7 @@ export async function createCampaign(input: CreateAnalyticsCampaignInput) {
     channel: input.channel,
     templateId: input.channel === 'webhook' ? null : input.templateId ?? null,
     webhookUrl: input.channel === 'webhook' ? input.webhookUrl ?? null : null,
+    landingUrl: input.landingUrl ?? null,
   }).returning();
   return mapCampaign(row, segment.name);
 }
@@ -122,6 +145,7 @@ export async function updateCampaign(id: number, input: UpdateAnalyticsCampaignI
     ...(input.channel !== undefined ? { channel: input.channel } : {}),
     ...(input.channel === 'webhook' ? { templateId: null } : input.templateId !== undefined ? { templateId: input.templateId } : {}),
     ...(input.channel && input.channel !== 'webhook' ? { webhookUrl: null } : input.webhookUrl !== undefined ? { webhookUrl: input.webhookUrl } : {}),
+    ...(input.landingUrl !== undefined ? { landingUrl: input.landingUrl } : {}),
   }).where(eq(analyticsSegmentCampaigns.id, id)).returning();
   const segment = await ensureSegmentExists(row.segmentId);
   return mapCampaign(row, segment.name);

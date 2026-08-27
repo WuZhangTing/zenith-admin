@@ -153,11 +153,12 @@ export const ANALYTICS_EXPERIMENT_STATUS_LABELS: Record<AnalyticsExperimentStatu
 export const ANALYTICS_EXPERIMENT_STATUS_OPTIONS: Array<{ value: AnalyticsExperimentStatus; label: string }> =
   createLabelOptions(ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_EXPERIMENT_STATUS_LABELS);
 
-export const ANALYTICS_CAMPAIGN_CHANNELS: readonly AnalyticsCampaignChannel[] = ['email', 'in_app', 'webhook'] as const;
+export const ANALYTICS_CAMPAIGN_CHANNELS: readonly AnalyticsCampaignChannel[] = ['email', 'in_app', 'sms', 'webhook'] as const;
 
 export const ANALYTICS_CAMPAIGN_CHANNEL_LABELS: Record<AnalyticsCampaignChannel, string> = {
   email: '邮件',
   in_app: '站内信',
+  sms: '短信',
   webhook: 'Webhook',
 };
 

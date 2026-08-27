@@ -3,7 +3,7 @@
  */
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, InputNumber, Input, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, InputNumber, Input, Select, SideSheet, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
@@ -24,12 +24,13 @@ import {
 } from '@/hooks/queries/analytics';
 import { useEmailTemplateList } from '@/hooks/queries/email-templates';
 import { useInAppTemplateList } from '@/hooks/queries/in-app-templates';
+import { useSmsTemplateList } from '@/hooks/queries/sms-templates';
 import type { AnalyticsSegmentAttributeCondition, AnalyticsSegmentCompareOp, AnalyticsSegmentCondition, AnalyticsSegmentEventCondition, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSegmentPropertyFilter, AnalyticsUserSegment } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_OVERRIDE_STATUS_OPTIONS, ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS, ANALYTICS_CAMPAIGN_STATUS_LABELS, ANALYTICS_IDENTITY_TYPE_OPTIONS, ANALYTICS_SEGMENT_COMPARE_OP_OPTIONS } from '@zenith/shared/analytics';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 const MAX_CONDITIONS = 10;
@@ -140,30 +141,51 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
   const [channel, setChannel] = useState<AnalyticsSegmentCampaign['channel']>('email');
   const [templateId, setTemplateId] = useState<number | undefined>();
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [landingUrl, setLandingUrl] = useState('');
   const campaignsQuery = useCampaigns({ page: 1, pageSize: 50, segmentId: segment.id }, true, 3000);
   const emailTemplatesQuery = useEmailTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, channel === 'email');
   const inAppTemplatesQuery = useInAppTemplateList({ page: 1, pageSize: 100, status: 'enabled' });
+  const smsTemplatesQuery = useSmsTemplateList({ page: 1, pageSize: 100, status: 'enabled' }, channel === 'sms');
   const createCampaign = useCreateCampaign();
   const deleteCampaign = useDeleteCampaign();
   const executeCampaign = useExecuteCampaign();
   const campaigns = campaignsQuery.data?.list ?? [];
-  const templateOptions = (channel === 'email' ? emailTemplatesQuery.data?.list : inAppTemplatesQuery.data?.list)?.map((tpl) => ({ label: tpl.name, value: tpl.id })) ?? [];
+  const templateOptions = (channel === 'email'
+    ? emailTemplatesQuery.data?.list
+    : channel === 'sms'
+      ? smsTemplatesQuery.data?.list
+      : inAppTemplatesQuery.data?.list)?.map((tpl) => ({ label: tpl.name, value: tpl.id })) ?? [];
 
   const handleCreate = async () => {
     if (!name.trim()) { Toast.warning('请输入触达名称'); return; }
     if (channel !== 'webhook' && !templateId) { Toast.warning('请选择模板'); return; }
     if (channel === 'webhook' && !/^https?:\/\/.+/i.test(webhookUrl)) { Toast.warning('请输入 http/https Webhook URL'); return; }
-    await createCampaign.mutateAsync({ segmentId: segment.id, name: name.trim(), channel, templateId: channel === 'webhook' ? null : templateId, webhookUrl: channel === 'webhook' ? webhookUrl.trim() : null });
+    if (landingUrl && !/^https?:\/\/.+/i.test(landingUrl)) { Toast.warning('落地页必须是 http/https 地址'); return; }
+    await createCampaign.mutateAsync({
+      segmentId: segment.id,
+      name: name.trim(),
+      channel,
+      templateId: channel === 'webhook' ? null : templateId,
+      webhookUrl: channel === 'webhook' ? webhookUrl.trim() : null,
+      landingUrl: channel === 'webhook' ? null : (landingUrl.trim() || null),
+    });
     Toast.success('触达活动已创建');
     setName('');
     setTemplateId(undefined);
     setWebhookUrl('');
+    setLandingUrl('');
   };
 
   const columns: ColumnProps<AnalyticsSegmentCampaign>[] = [
     { title: '名称', dataIndex: 'name', width: 160 },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: AnalyticsSegmentCampaign['channel']) => ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS.find((o) => o.value === v)?.label ?? v },
     { title: '计数', width: 140, render: (_: unknown, r: AnalyticsSegmentCampaign) => `${r.sentCount}/${r.totalCount}（失败 ${r.failedCount}）` },
+    {
+      title: '短链点击', width: 110,
+      render: (_: unknown, r: AnalyticsSegmentCampaign) => r.shortUrl
+        ? <Typography.Text copyable={{ content: r.shortUrl }}>{r.clickCount ?? 0}</Typography.Text>
+        : (r.landingUrl ? <Typography.Text type="tertiary">待执行</Typography.Text> : EMPTY_PLACEHOLDER),
+    },
     dateTimeColumn('最近执行', 'lastRunAt'),
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: AnalyticsSegmentCampaign['status']) => <Tag color={v === 'completed' ? 'green' : v === 'failed' ? 'red' : v === 'running' ? 'orange' : 'grey'} size="small">{ANALYTICS_CAMPAIGN_STATUS_LABELS[v]}</Tag> },
@@ -186,7 +208,17 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
           {channel === 'webhook' ? (
             <Input placeholder="https://example.com/webhook" value={webhookUrl} onChange={setWebhookUrl} style={{ width: 300 }} />
           ) : (
-            <Select placeholder="选择模板" value={templateId} optionList={templateOptions} onChange={(v) => setTemplateId(v as number)} loading={channel === 'email' ? emailTemplatesQuery.isFetching : inAppTemplatesQuery.isFetching} style={{ width: 220 }} />
+            <>
+              <Select
+                placeholder="选择模板" value={templateId} optionList={templateOptions}
+                onChange={(v) => setTemplateId(v as number)}
+                loading={channel === 'email' ? emailTemplatesQuery.isFetching : channel === 'sms' ? smsTemplatesQuery.isFetching : inAppTemplatesQuery.isFetching}
+                style={{ width: 200 }}
+              />
+              <Tooltip content="选填。执行时自动生成短链（可在运营中心统一治理），模板内用 {{shortUrl}} 引用，点击数据回流到本活动">
+                <Input placeholder="落地页 URL（选填，自动转短链）" value={landingUrl} onChange={setLandingUrl} style={{ width: 250 }} />
+              </Tooltip>
+            </>
           )}
           <CreateButton onClick={() => void handleCreate()} loading={createCampaign.isPending} />
         </SearchToolbar>
