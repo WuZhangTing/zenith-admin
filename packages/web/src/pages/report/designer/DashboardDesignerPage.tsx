@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useDebouncer } from '@tanstack/react-pacer';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Input, Select, Spin, Toast, Typography, Empty, Tooltip, Form, Space, Modal } from '@douyinfe/semi-ui';
 import { Save, ArrowLeft, Eye, Trash2, Copy, Undo2, Redo2, SlidersHorizontal, LayoutGrid, Monitor, Settings2, Images } from 'lucide-react';
@@ -70,7 +71,6 @@ export default function DashboardDesignerPage() {
   const [revision, setRevision] = useState(1);
   const [conflictInfo, setConflictInfo] = useState<{ currentRevision: number } | null>(null);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
-  const autosaveTimerRef = useRef<number | null>(null);
 
   const docRef = useRef(doc); docRef.current = doc;
   const past = useRef<Doc[]>([]);
@@ -305,16 +305,14 @@ export default function DashboardDesignerPage() {
     await saveDraft(expectedRevision, silent);
   }, [revision, saveDraft]);
 
+  const autosaveDebouncer = useDebouncer(() => {
+    void handleSave(revision, true).catch(() => undefined);
+  }, { wait: 1500 });
+
   useEffect(() => {
-    if (!canSave || !dirty || saveMutation.isPending) return undefined;
-    if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = window.setTimeout(() => {
-      void handleSave(revision, true).catch(() => undefined);
-    }, 1500);
-    return () => {
-      if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
-    };
-  }, [canSave, dirty, handleSave, revision, saveMutation.isPending]);
+    if (!canSave || !dirty || saveMutation.isPending) { autosaveDebouncer.cancel(); return; }
+    autosaveDebouncer.maybeExecute();
+  }, [canSave, dirty, handleSave, revision, saveMutation.isPending, autosaveDebouncer]);
 
   function confirmNavigate(to: string) {
     if (dirty && !window.confirm('当前草稿尚未保存，确定离开吗？')) return;

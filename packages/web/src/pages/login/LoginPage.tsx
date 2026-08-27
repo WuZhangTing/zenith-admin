@@ -17,6 +17,7 @@ import AppLogo from '@/components/AppLogo';
 import AppModal from '@/components/AppModal';
 import ForgotPasswordModal from './ForgotPasswordModal';
 import { useEnterpriseProviders, usePublicCaptcha, usePublicSystemConfig } from '@/hooks/queries/auth-public';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import './LoginPage.css';
 
 const { Title, Text } = Typography;
@@ -80,17 +81,11 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
   const [mfaChallenge, setMfaChallenge] = useState<Extract<LoginResult, { mfaRequired: true }> | null>(null);
   const [tenantCode, setTenantCode] = useState('');
-  const [debouncedTenantCode, setDebouncedTenantCode] = useState('');
+  const [debouncedTenantCode] = useDebouncedValue(tenantCode, { wait: 250 });
   const [directoryProvider, setDirectoryProvider] = useState<TenantIdentityProviderSummary | null>(null);
   const [directoryLoginLoading, setDirectoryLoginLoading] = useState(false);
   const directoryFormApi = useRef<FormApi | null>(null);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedTenantCode(tenantCode);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [tenantCode]);
   const enterpriseProvidersQuery = useEnterpriseProviders(debouncedTenantCode);
   const captchaEnabled = captchaQuery.data?.enabled ?? false;
   const captchaId = captchaQuery.data?.captchaId ?? '';

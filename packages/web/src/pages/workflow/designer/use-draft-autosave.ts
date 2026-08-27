@@ -3,6 +3,7 @@
  * 编辑中防丢失：变更后 debounce 写入 localStorage，加载时检测未保存草稿提示恢复。
  */
 import { useEffect, useRef } from 'react';
+import { useDebouncer } from '@tanstack/react-pacer';
 import type { WorkflowFormField, WorkflowFormSettings } from '@zenith/shared/workflow';
 
 export interface FormDraftPayload {
@@ -49,43 +50,41 @@ interface AutosaveOptions {
 const AUTOSAVE_DEBOUNCE_MS = 3000;
 
 export function useFormDraftAutosave({ formId, name, fields, settings, revision, enabled }: AutosaveOptions): { clearDraftNow: () => void } {
-  const timerRef = useRef<number | null>(null);
   // 每个存储 key 跳过首次快照（刚加载/刚保存的内容不算用户编辑）
   const primedForRef = useRef<string | null>(null);
   const key = draftKey(formId);
 
+  const draftDebouncer = useDebouncer(() => {
+    const payload: FormDraftPayload = {
+      name,
+      fields,
+      settings,
+      savedAt: new Date().toISOString(),
+      revision,
+    };
+    try {
+      localStorage.setItem(key, JSON.stringify(payload));
+    } catch {
+      /* 配额满等场景静默失败 */
+    }
+  }, { wait: AUTOSAVE_DEBOUNCE_MS });
+
   useEffect(() => {
     if (!enabled) {
       primedForRef.current = null;
+      draftDebouncer.cancel();
       return;
     }
     if (primedForRef.current !== key) {
       primedForRef.current = key;
+      draftDebouncer.cancel();
       return;
     }
-    if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => {
-      const payload: FormDraftPayload = {
-        name,
-        fields,
-        settings,
-        savedAt: new Date().toISOString(),
-        revision,
-      };
-      try {
-        localStorage.setItem(key, JSON.stringify(payload));
-      } catch {
-        /* 配额满等场景静默失败 */
-      }
-    }, AUTOSAVE_DEBOUNCE_MS);
-    return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current);
-    };
-     
-  }, [enabled, key, name, fields, settings, revision]);
+    draftDebouncer.maybeExecute();
+  }, [enabled, key, name, fields, settings, revision, draftDebouncer]);
 
   const clearDraftNow = () => {
-    if (timerRef.current) window.clearTimeout(timerRef.current);
+    draftDebouncer.cancel();
     // 重新跳过下一次快照（清除后紧跟的状态同步不应立刻重建草稿）
     primedForRef.current = null;
     try {

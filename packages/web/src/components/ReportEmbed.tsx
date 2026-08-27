@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Empty, Spin } from '@douyinfe/semi-ui';
 import { Download, RefreshCw } from 'lucide-react';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import { toPng } from 'html-to-image';
 import '@/pages/report/report-grid.css';
 import '@/pages/report/report-screen.css';
@@ -102,7 +103,6 @@ export const ReportEmbed = forwardRef<ReportEmbedHandle, Readonly<ReportEmbedPro
   const isMobile = useIsMobile();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [innerValues, setInnerValues] = useState<Record<string, unknown>>({});
-  const [debouncedValues, setDebouncedValues] = useState<Record<string, unknown>>({});
   const [widgetQueries, setWidgetQueries] = useState<Record<string, ReportDatasetQueryOptions>>({});
   const dashboardQuery = useReportEmbedDashboard(dashboardId, embedToken);
   const dashboard = dashboardQuery.data ?? null;
@@ -119,6 +119,7 @@ export const ReportEmbed = forwardRef<ReportEmbedHandle, Readonly<ReportEmbedPro
   );
   const effectiveValuesRef = useRef<Record<string, unknown>>(effectiveValues);
   effectiveValuesRef.current = effectiveValues;
+  const [debouncedValues] = useDebouncedValue(effectiveValues, { wait: 250 });
 
   const isCanvas = dashboard?.config?.layoutMode === 'canvas';
   const screen = dashboard?.config?.screenConfig;
@@ -144,11 +145,6 @@ export const ReportEmbed = forwardRef<ReportEmbedHandle, Readonly<ReportEmbedPro
     }
     setWidgetQueries({});
   }, [controlled, dashboard, dashboardId, defaults, embedToken]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedValues(effectiveValues), 250);
-    return () => window.clearTimeout(timer);
-  }, [effectiveValues]);
 
   useEffect(() => {
     setWidgetQueries({});

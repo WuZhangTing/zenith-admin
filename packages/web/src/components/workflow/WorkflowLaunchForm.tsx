@@ -4,7 +4,8 @@
  * 封装标准字段（标题/优先级/抄送）+ 4 个页签（填写表单/审批链路/流程图预览/节点详情）
  * 及取数校验逻辑，通过 ref 暴露 collectFormData 供外层提交/存草稿调用。
  */
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { Banner, Button, Col, Form, Row, Toast, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw } from 'lucide-react';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -67,12 +68,7 @@ const WorkflowLaunchForm = forwardRef<WorkflowLaunchFormHandle, WorkflowLaunchFo
     const [highlightMissing, setHighlightMissing] = useState(false);
     // 审批链路预测刷新信号：表单变更防抖触发，发起人也可手动「刷新」
     const [chainReloadKey, setChainReloadKey] = useState(0);
-    const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const scheduleChainReload = useCallback(() => {
-      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
-      reloadTimerRef.current = setTimeout(() => setChainReloadKey((k) => k + 1), 500);
-    }, []);
-    useEffect(() => () => { if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current); }, []);
+    const scheduleChainReload = useDebouncedCallback(() => setChainReloadKey((k) => k + 1), { wait: 500 });
 
     useEffect(() => {
       latestSelectedInitiatorApproversRef.current = {};

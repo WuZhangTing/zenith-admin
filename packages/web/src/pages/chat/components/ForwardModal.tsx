@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Input, Toast, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import { Search, CheckSquare, Square } from 'lucide-react';
 import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useChatUsers } from '@/hooks/queries/chat';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import type { ChatConversation } from '@zenith/shared/chat';
 import type { ChatUser } from '../types';
 
@@ -23,13 +24,8 @@ export function ForwardModal({
   const [selected, setSelected] = useState<number[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<ChatUser[]>([]);
   const [keyword, setKeyword] = useState('');
-  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  const [debouncedKeyword] = useDebouncedValue(keyword.trim(), { wait: 300 });
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedKeyword(keyword.trim()), 300);
-    return () => clearTimeout(t);
-  }, [keyword]);
 
   const filtered = conversations.filter((c) => {
     if (c.id === currentConvId) return false;

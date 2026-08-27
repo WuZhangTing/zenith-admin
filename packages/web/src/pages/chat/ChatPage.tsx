@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import { AppModal } from '@/components/AppModal';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Input, Button, Badge, Divider, Typography, Empty, Spin, Toast, Tooltip, ImagePreview, List as SemiList } from '@douyinfe/semi-ui';
@@ -154,7 +155,10 @@ export default function ChatPage({
   const [activeChannelId, setActiveChannelId] = useState<number | null>(null);
   const [discoverVisible, setDiscoverVisible] = useState(false);
   const [discoverKeyword, setDiscoverKeyword] = useState('');
-  const [debouncedDiscoverKeyword, setDebouncedDiscoverKeyword] = useState('');
+  // 发现频道搜索：输入 300ms 防抖；清空/打开时立即生效
+  const [debouncedDiscoverKeyword] = useDebouncedValue(discoverKeyword.trim(), {
+    wait: (d) => (d.store.state.lastArgs?.[0] ? 300 : 0),
+  });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [mentionClosed, setMentionClosed] = useState(false);
@@ -222,7 +226,6 @@ export default function ChatPage({
   const [favPreviewMsg, setFavPreviewMsg] = useState<ChatMessage | null>(null);
   const [contextMode, setContextMode] = useState<{ anchorMessageId: number; keyword: string } | null>(null);
   const [typingUsers, setTypingUsers] = useState<Record<number, { nickname: string; timer: ReturnType<typeof setTimeout> }>>({});
-  const typingThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [failedMessages, setFailedMessages] = useState<FailedMessage[]>([]);
@@ -386,8 +389,8 @@ export default function ChatPage({
     fetchConversations, handleUnsubscribeChannel, openDiscover, discoverList,
     handleSubscribeChannel,
   } = useChannelsAndDiscover({
-    discoverVisible, discoverKeyword, debouncedDiscoverKeyword, setLoadingConvs, setConversations, setChannels,
-    setActiveChannelId, setDiscoverKeyword, setDebouncedDiscoverKeyword, setDiscoverVisible,
+    discoverVisible, debouncedDiscoverKeyword, setLoadingConvs, setConversations, setChannels,
+    setActiveChannelId, setDiscoverKeyword, setDiscoverVisible,
   });
 
   // 初始化时从 localStorage 加载所有草稿
@@ -494,7 +497,7 @@ export default function ChatPage({
     sendFileMessage, sendSticker, handleSaveAsEmoji, handleTyping, sendImageFile,
     voiceRecorder, fetchLinkPreview,
   } = useSendMedia({
-    activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation, typingThrottleRef,
+    activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation,
     setEmojiVisible,
   });
 

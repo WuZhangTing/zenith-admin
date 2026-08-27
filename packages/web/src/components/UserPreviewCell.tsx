@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import { Avatar, AvatarGroup, Empty, List, Modal, Pagination, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { UserPreview } from '@zenith/shared/identity';
 import { KeywordInput } from '@/components/search-filters';
@@ -104,17 +105,14 @@ function ScopeMemberModal({ scope, total, onClose }: ScopeMemberModalProps) {
     用户以为清掉了筛选，列表却仍停在上一次的过滤结果。以 draft 为唯一输入源就没有这个缝隙。
     搜索必须重置页码：停在第 3 页搜一个只有 2 条结果的关键字会落到空页。
   */
+  const [debouncedDraft] = useDebouncedValue(keywordDraft.trim(), { wait: 300 });
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const next = keywordDraft.trim();
-      setKeyword((prev) => {
-        if (prev === next) return prev;
-        resetPage();
-        return next;
-      });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [keywordDraft, resetPage]);
+    setKeyword((prev) => {
+      if (prev === debouncedDraft) return prev;
+      resetPage();
+      return debouncedDraft;
+    });
+  }, [debouncedDraft, resetPage]);
 
   return (
     <Modal

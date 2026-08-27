@@ -1,4 +1,5 @@
-import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import { useDebouncer } from '@tanstack/react-pacer';
 import { useQueryClient } from '@tanstack/react-query';
 import { Table, Button, Tag, Space, Modal, SideSheet, Form, Spin, Toast, Select, RadioGroup, Radio, Tabs, TabPane, Typography } from '@douyinfe/semi-ui';
 import { Trash2 } from 'lucide-react';
@@ -87,8 +88,8 @@ export default function AnnouncementsPage() {
   const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [selectedDeptIds, setSelectedDeptIds] = useState<number[]>([]);
   const [userOptions, setUserOptions] = useState<{ value: number; label: string }[]>([]);
-  const userSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [userSearchKeyword, setUserSearchKeyword] = useState('');
+  const userSearchDebouncer = useDebouncer((kw: string) => setUserSearchKeyword(kw), { wait: 300 });
 
   // 附件相关状态
   const [attachmentFileIds, setAttachmentFileIds] = useState<string[]>([]);
@@ -242,12 +243,9 @@ export default function AnnouncementsPage() {
   };
 
   const handleUserSearch = (keyword: string) => {
-    if (userSearchTimer.current) clearTimeout(userSearchTimer.current);
-    if (!keyword.trim()) return;
     const trimmed = keyword.trim();
-    userSearchTimer.current = setTimeout(() => {
-      setUserSearchKeyword(trimmed);
-    }, 300);
+    if (!trimmed) { userSearchDebouncer.cancel(); return; }
+    userSearchDebouncer.maybeExecute(trimmed);
   };
 
   const openCreateModal = () => {

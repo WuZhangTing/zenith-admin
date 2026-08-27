@@ -4,6 +4,7 @@ import type { RenderActionProps, RenderAvatarProps, RenderTitleProps } from '@do
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { MessageSquarePlus, Trash2, AlignLeft, AlignJustify, Settings, MoreHorizontal, Pencil, Pin, PinOff, Archive, ArchiveRestore, Sparkles, Inbox, Download, Share2, UserRoundPen, Swords, Library, ImagePlus, X, ChevronLeft, ChevronRight, Volume2, Square, Mic, MicOff, Tags, Bot } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
@@ -264,7 +265,7 @@ export default function AIChatPage() {
   const dialogueRef = useRef<AIChatDialogueInstance | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('');
+  const [debouncedSearchKeyword] = useDebouncedValue(searchKeyword, { wait: 300 });
   const [showArchived, setShowArchived] = useState(false);
   const [dislikeMsgId, setDislikeMsgId] = useState<number | null>(null);
   const [varFillTemplate, setVarFillTemplate] = useState<AiPromptTemplate | null>(null);
@@ -341,11 +342,6 @@ export default function AIChatPage() {
     const model = modelParts.join(':');
     return chatModels.find((m) => m.id === Number(idStr) && m.model === model)?.capabilities ?? null;
   }, [chatModels, userConfigsQuery.data, selectedModelValue]);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearchKeyword(searchKeyword), 300);
-    return () => clearTimeout(t);
-  }, [searchKeyword]);
 
   // 进入页面不默认选中会话：右侧展示欢迎页，直接提问即自动新建对话
   useEffect(() => {

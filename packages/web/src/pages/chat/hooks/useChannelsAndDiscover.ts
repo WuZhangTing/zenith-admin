@@ -9,18 +9,16 @@ import type { Setter } from '../types';
 
 /** 会话/频道列表加载 + 发现频道（防抖搜索、订阅/退订）（自 ChatPage 原样搬移） */
 export function useChannelsAndDiscover({
-  discoverVisible, discoverKeyword, debouncedDiscoverKeyword, setLoadingConvs, setConversations, setChannels,
-  setActiveChannelId, setDiscoverKeyword, setDebouncedDiscoverKeyword, setDiscoverVisible,
+  discoverVisible, debouncedDiscoverKeyword, setLoadingConvs, setConversations, setChannels,
+  setActiveChannelId, setDiscoverKeyword, setDiscoverVisible,
 }: {
   discoverVisible: boolean;
-  discoverKeyword: string;
   debouncedDiscoverKeyword: string;
   setLoadingConvs: Setter<boolean>;
   setConversations: Setter<ChatConversation[]>;
   setChannels: Setter<Channel[]>;
   setActiveChannelId: Setter<number | null>;
   setDiscoverKeyword: Setter<string>;
-  setDebouncedDiscoverKeyword: Setter<string>;
   setDiscoverVisible: Setter<boolean>;
 }) {
   const fetchConversations = useCallback(async () => {
@@ -55,22 +53,10 @@ export function useChannelsAndDiscover({
     });
   }, [fetchChannels]);
 
-  const loadDiscoverList = useCallback(async (keyword: string) => {
-    setDebouncedDiscoverKeyword(keyword.trim());
-  }, []);
-
   const openDiscover = useCallback(() => {
     setDiscoverKeyword('');
-    setDebouncedDiscoverKeyword('');
     setDiscoverVisible(true);
   }, []);
-
-  // 发现频道搜索：打开时立即加载，输入关键词时 300ms 防抖重新加载
-  useEffect(() => {
-    if (!discoverVisible) return;
-    const handler = setTimeout(() => { void loadDiscoverList(discoverKeyword); }, discoverKeyword.trim() ? 300 : 0);
-    return () => clearTimeout(handler);
-  }, [discoverVisible, discoverKeyword, loadDiscoverList]);
 
   const discoverableChannelsQuery = useDiscoverableChannels(
     { keyword: debouncedDiscoverKeyword || undefined },

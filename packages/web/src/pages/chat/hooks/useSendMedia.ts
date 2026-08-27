@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useThrottledCallback } from '@tanstack/react-pacer';
 import { Toast } from '@douyinfe/semi-ui';
 import { request } from '@/utils/request';
 import { sendWsMessage } from '@/hooks/useWebSocket';
@@ -10,7 +11,7 @@ import { useVoiceRecorder } from '../useVoiceRecorder';
 
 /** 文件/图片/贴纸/语音发送、正在输入节流、链接预览抓取（自 ChatPage 原样搬移） */
 export function useSendMedia({
-  activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation, typingThrottleRef,
+  activeConvId, currentUserId, currentUserNickname, appendMessageOnce, addEmojiMutation,
   setEmojiVisible,
 }: {
   activeConvId: number | null;
@@ -18,7 +19,6 @@ export function useSendMedia({
   currentUserNickname: string;
   appendMessageOnce: (message: ChatMessage) => void;
   addEmojiMutation: ReturnType<typeof useAddChatCustomEmoji>;
-  typingThrottleRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
   setEmojiVisible: Setter<boolean>;
 }) {
   const sendFileMessage = useCallback(async (file: File, onProgress?: (percent: number) => void) => {
@@ -86,12 +86,15 @@ export function useSendMedia({
     }).then(() => Toast.success('已收藏为表情')).catch(() => undefined);
   }, [addEmojiMutation]);
 
+  // 正在输入信号：3s 前沿节流（窗口内多次输入只发一次）
+  const sendTypingSignal = useThrottledCallback((conversationId: number, userId: number) => {
+    sendWsMessage({ type: 'chat:typing', payload: { conversationId, userId, nickname: currentUserNickname } });
+  }, { wait: 3000, leading: true, trailing: false });
+
   const handleTyping = useCallback((newValue: string) => {
     if (!activeConvId || !currentUserId || !newValue.trim()) return;
-    if (typingThrottleRef.current) return;
-    sendWsMessage({ type: 'chat:typing', payload: { conversationId: activeConvId, userId: currentUserId, nickname: currentUserNickname } });
-    typingThrottleRef.current = setTimeout(() => { typingThrottleRef.current = null; }, 3000);
-  }, [activeConvId, currentUserId, currentUserNickname]);
+    sendTypingSignal(activeConvId, currentUserId);
+  }, [activeConvId, currentUserId, sendTypingSignal]);
 
   const sendImageFile = useCallback(async (file: File, onProgress?: (percent: number) => void) => {
     if (!activeConvId) return false;

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Banner, Button, Empty, Input, Skeleton, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -166,12 +167,7 @@ export default function LaunchFormPage() {
 
   // 审批链路预测：表单变更防抖 500ms 重新预测（条件分支可能随表单值变化）
   const [chainReloadKey, setChainReloadKey] = useState(0);
-  const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleChainReload = useCallback(() => {
-    if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
-    reloadTimerRef.current = setTimeout(() => setChainReloadKey((k) => k + 1), 500);
-  }, []);
-  useEffect(() => () => { if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current); }, []);
+  const scheduleChainReload = useDebouncedCallback(() => setChainReloadKey((k) => k + 1), { wait: 500 });
 
   const previewQuery = useApprovalChainPreview(
     canSubmit ? def.id : null,

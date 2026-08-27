@@ -3,6 +3,7 @@
  * 支持：从控件面板拖入 / 字段排序 / 跨容器移动（顶层 ↔ 分栏列 ↔ 分组）/ 选中 / 复制 / 删除。
  */
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useThrottledCallback } from '@tanstack/react-pacer';
 import { Divider, Popconfirm, Tag, Typography } from '@douyinfe/semi-ui';
 import { GripVertical, Trash2, Asterisk, Copy } from 'lucide-react';
 import type { WorkflowFormField, WorkflowFormFieldType } from '@zenith/shared/workflow';
@@ -64,7 +65,14 @@ export default function FormCanvas({
   const [hint, setHint] = useState<string | null>(null);
   const rootRef = useRef<HTMLElement>(null);
   const ghostRef = useRef<HTMLDivElement | null>(null);
-  const lastAutoScrollRef = useRef(0);
+  // 边缘自动滚动（F05）：靠近画布容器上下边时滚动，16ms 前沿节流
+  const autoScrollOnDrag = useThrottledCallback((clientY: number) => {
+    const scroller = rootRef.current?.parentElement;
+    if (!scroller) return;
+    const rect = scroller.getBoundingClientRect();
+    if (clientY < rect.top + 48) scroller.scrollBy({ top: -14 });
+    else if (clientY > rect.bottom - 48) scroller.scrollBy({ top: 14 });
+  }, { wait: 16, leading: true, trailing: false });
 
   // 大表单降级：字段总数超限时关闭真实控件预览
   const wysiwyg = useMemo(() => flattenAllFields(fields).length <= WYSIWYG_FIELD_LIMIT, [fields]);
@@ -99,18 +107,8 @@ export default function FormCanvas({
     e.stopPropagation();
     e.dataTransfer.dropEffect = e.dataTransfer.types.includes('fieldtype') ? 'copy' : 'move';
     setHint(prev => (prev === id ? prev : id));
-    // 边缘自动滚动（F05）：靠近画布容器上下边时滚动，16ms 节流
-    const now = Date.now();
-    if (now - lastAutoScrollRef.current > 16) {
-      lastAutoScrollRef.current = now;
-      const scroller = rootRef.current?.parentElement;
-      if (scroller) {
-        const rect = scroller.getBoundingClientRect();
-        if (e.clientY < rect.top + 48) scroller.scrollBy({ top: -14 });
-        else if (e.clientY > rect.bottom - 48) scroller.scrollBy({ top: 14 });
-      }
-    }
-  }, []);
+    autoScrollOnDrag(e.clientY);
+  }, [autoScrollOnDrag]);
 
   // 拖拽浮签（F05）：图标+字段名的自定义 drag image
   const startDrag = useCallback((e: React.DragEvent, key: string, label?: string) => {

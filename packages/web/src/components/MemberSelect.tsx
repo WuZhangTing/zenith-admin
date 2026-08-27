@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import { useDebouncedCallback } from '@tanstack/react-pacer';
 import { Form } from '@douyinfe/semi-ui';
 import type { MemberOption } from '@zenith/shared/member';
 import { useMemberOptions } from '@/hooks/queries/members-lookup';
@@ -27,19 +28,10 @@ function toLabel(m: MemberOption): string {
  */
 export function MemberSelect({ field, label = '会员', required, placeholder = '输入昵称/手机号搜索' }: Readonly<MemberSelectProps>) {
   const [keyword, setKeyword] = useState('');
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const optionsQuery = useMemberOptions(keyword || undefined);
   const options: OptionItem[] = (optionsQuery.data ?? []).map((m) => ({ value: m.id, label: toLabel(m) }));
 
-  useEffect(() => {
-    return () => { if (timer.current) clearTimeout(timer.current); };
-  }, []);
-
-  const handleSearch = (keyword: string) => {
-    if (timer.current) clearTimeout(timer.current);
-    const trimmed = keyword.trim();
-    timer.current = setTimeout(() => setKeyword(trimmed), 300);
-  };
+  const handleSearch = useDebouncedCallback((kw: string) => setKeyword(kw.trim()), { wait: 300 });
 
   return (
     <Form.Select

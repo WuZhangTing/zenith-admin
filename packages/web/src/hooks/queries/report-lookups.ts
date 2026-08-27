@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import type { ReportLookupOption } from '@zenith/shared/report';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
@@ -61,12 +62,7 @@ export function useDebouncedReportLookup(
   },
 ) {
   const [keyword, setKeyword] = useState('');
-  const [debouncedKeyword, setDebouncedKeyword] = useState('');
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedKeyword(keyword.trim()), 300);
-    return () => clearTimeout(timer);
-  }, [keyword]);
+  const [debouncedKeyword] = useDebouncedValue(keyword.trim(), { wait: 300 });
 
   const query = useReportLookup(entity, {
     keyword: debouncedKeyword || undefined,

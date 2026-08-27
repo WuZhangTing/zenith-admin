@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Button, Input, Spin, Empty, Toast } from '@douyinfe/semi-ui';
 import { Download, Lock, RefreshCw } from 'lucide-react';
@@ -32,7 +33,7 @@ export default function PublicDashboardPage() {
   const [pwdInput, setPwdInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
-  const [debouncedFilterValues, setDebouncedFilterValues] = useState<Record<string, unknown>>({});
+  const [debouncedFilterValues] = useDebouncedValue(filterValues, { wait: 250 });
   const [widgetQueries, setWidgetQueries] = useState<Record<string, ReportDatasetQueryOptions>>({});
   const [sessionToken, setSessionToken] = useState<string | undefined>(undefined);
   const [bootstrapDashboard, setBootstrapDashboard] = useState<ReportPublicDashboard | null>(null);
@@ -62,11 +63,6 @@ export default function PublicDashboardPage() {
     setWidgetQueries({});
     // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams 为初始化时的闭包快照，回写不重置
   }, [dashboard, sessionToken, token]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedFilterValues(filterValues), 250);
-    return () => window.clearTimeout(timer);
-  }, [filterValues]);
 
   const load = useCallback(async (pwd?: string) => {
     if (!token) return;

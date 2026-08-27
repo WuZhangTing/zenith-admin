@@ -10,6 +10,7 @@
  * 封面图通过 /api/files/upload-one 上传得到 URL。
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useDebouncer } from '@tanstack/react-pacer';
 import { Button, Col, Form, Input, Row, Select, SideSheet, Space, Toast, Typography, withField } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Eye, Save, Send, Settings2, Users } from 'lucide-react';
@@ -135,7 +136,13 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
   }, [visible, editing?.id]);
 
   const audienceKey = JSON.stringify(audienceSel);
+  const estimateDebouncer = useDebouncer((audience: AudienceSelection) => {
+    audienceEstimateMutation.mutateAsync(audience as unknown as Record<string, unknown>)
+      .then((res) => setEstimateCount(res.count))
+      .catch(() => setEstimateCount(null));
+  }, { wait: 300 });
   useEffect(() => {
+    estimateDebouncer.cancel();
     if (!visible) return;
     const mode = audienceSel.mode;
     const userIds = audienceSel.userIds ?? [];
@@ -151,12 +158,7 @@ export function ChannelPublishModal({ channel, editing, visible, onClose, onSucc
     if (mode === 'departments') audience.departmentIds = departmentIds;
     if (mode === 'roles') audience.roleIds = roleIds;
 
-    const timer = setTimeout(() => {
-      audienceEstimateMutation.mutateAsync(audience as unknown as Record<string, unknown>)
-        .then((res) => setEstimateCount(res.count))
-        .catch(() => setEstimateCount(null));
-    }, 300);
-    return () => clearTimeout(timer);
+    estimateDebouncer.maybeExecute(audience);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, audienceKey]);
 

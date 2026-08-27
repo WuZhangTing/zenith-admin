@@ -1,22 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Input, Empty, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import { Search } from 'lucide-react';
 import { UserAvatar } from '@/components/UserAvatar';
 import type { ChatUser } from '../types';
 import { useChatUsers } from '@/hooks/queries/chat';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 
 const { Text } = Typography;
 
 export function UserSearchList({ onSelect, excludeIds }: Readonly<{ onSelect: (user: ChatUser) => void; excludeIds?: number[] }>) {
   const [keyword, setKeyword] = useState('');
-  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  const [debouncedKeyword] = useDebouncedValue(keyword, { wait: 300 });
   const excludeIdKey = (excludeIds ?? []).join(',');
   const usersQuery = useChatUsers({ keyword: debouncedKeyword || undefined });
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedKeyword(keyword), 300);
-    return () => clearTimeout(t);
-  }, [keyword]);
 
   const excludeIdSet = new Set(excludeIdKey ? excludeIdKey.split(',').map(Number) : []);
   const ulist = (usersQuery.data ?? []).filter((u) => !excludeIdSet.has(u.id));

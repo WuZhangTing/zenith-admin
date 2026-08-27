@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Avatar, Banner, Button, Empty, SideSheet, Space, Spin, TextArea, Toast, Typography, Tag } from '@douyinfe/semi-ui';
 import { ArrowLeft, RotateCcw, PencilRuler, Maximize, Image, MessageSquare, Send, Trash2, CheckCircle2, CornerDownRight } from 'lucide-react';
@@ -42,7 +43,7 @@ export default function DashboardViewPage() {
   const isMobile = useIsMobile();
 
   const [filterValues, setFilterValues] = useState<Record<string, unknown>>({});
-  const [debouncedFilterValues, setDebouncedFilterValues] = useState<Record<string, unknown>>({});
+  const [debouncedFilterValues] = useDebouncedValue(filterValues, { wait: 250 });
   const [widgetQueries, setWidgetQueries] = useState<Record<string, ReportDatasetQueryOptions>>({});
   const rootRef = useRef<HTMLDivElement | null>(null);
   const exportRef = useRef<HTMLDivElement | null>(null);
@@ -119,11 +120,6 @@ export default function DashboardViewPage() {
     setWidgetQueries({});
     // eslint-disable-next-line react-hooks/exhaustive-deps -- searchParams 为初始化时的闭包快照
   }, [dashboard, dashboardId, viewMode]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebouncedFilterValues(filterValues), 250);
-    return () => window.clearTimeout(timer);
-  }, [filterValues]);
 
   /** 更新筛选值并回写 URL（replace，不产生历史记录），分享/刷新可保留筛选状态 */
   function updateFilter(filterId: string, value: unknown) {

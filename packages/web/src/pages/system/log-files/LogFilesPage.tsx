@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useDebouncedValue } from '@tanstack/react-pacer';
 import type { KeyboardEvent as ReactKeyboardEvent, SetStateAction } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, Dropdown, Input, InputNumber, Modal, Select, Spin, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
@@ -58,15 +59,6 @@ function usePersistentState<T>(key: string, initialValue: T) {
     });
   }, [key]);
   return [value, set] as const;
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return debounced;
 }
 
 /** 复制文本：优先 Clipboard API，失败回退隐藏 textarea + execCommand（无剪贴板权限的宿主环境） */
@@ -137,7 +129,7 @@ export default function LogFilesPage() {
 
   // 内容搜索：输入即时高亮（防抖），全文模式回车提交服务端过滤
   const [searchDraft, setSearchDraft] = useState('');
-  const debouncedSearch = useDebouncedValue(searchDraft.trim(), 250);
+  const debouncedSearch = useDebouncedValue(searchDraft.trim(), { wait: 250 })[0];
   const [searchRegex, setSearchRegex] = useState(false);
   const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
   /** 仅显示匹配行（grep 模式） */

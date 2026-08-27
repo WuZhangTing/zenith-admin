@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { useDebouncer } from '@tanstack/react-pacer';
 import { PREFERENCES_KEY } from '@zenith/shared/core';
 import { request } from '@/utils/request';
 import { defaultPreferences, isLoadingStyle, PreferencesContext } from './usePreferences';
@@ -40,7 +41,6 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
   const [prefs, setPrefs] = useState<UserPreferences>(loadPreferences);
   const [ready, setReady] = useState(false);
   const prefsRef = useRef(prefs);
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const applyLocalPreferences = useCallback((next: UserPreferences, persist = true) => {
     prefsRef.current = next;
@@ -52,21 +52,16 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
     request.put('/api/auth/preferences', next, { silent: true }).catch(() => { /* ignore */ });
   }, []);
 
+  const syncDebouncer = useDebouncer(putPreferences, { wait: 500 });
+
   const scheduleSync = useCallback((next: UserPreferences) => {
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      syncTimerRef.current = null;
-      putPreferences(next);
-    }, 500);
-  }, [putPreferences]);
+    syncDebouncer.maybeExecute(next);
+  }, [syncDebouncer]);
 
   const syncNow = useCallback((next: UserPreferences) => {
-    if (syncTimerRef.current) {
-      clearTimeout(syncTimerRef.current);
-      syncTimerRef.current = null;
-    }
+    syncDebouncer.cancel();
     putPreferences(next);
-  }, [putPreferences]);
+  }, [syncDebouncer, putPreferences]);
 
   // 组件挂载时（用户已登录）从服务器拉取偏好，覆盖本地缓存
   useEffect(() => {
@@ -86,10 +81,6 @@ export function PreferencesProvider({ children }: Readonly<{ children: ReactNode
       .finally(() => { if (!cancelled) setReady(true); });
     return () => { cancelled = true; };
   }, [applyLocalPreferences, scheduleSync]);
-
-  useEffect(() => () => {
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-  }, []);
 
   const setPreferences = useCallback((partial: Partial<UserPreferences>) => {
     const next = { ...prefsRef.current, ...partial };

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useDebouncer } from '@tanstack/react-pacer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Checkbox, Input, Modal, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
@@ -87,19 +88,20 @@ export default function WikiDocEditPage() {
   }, [id, detailQuery.data, readDraft]);
 
   // 自动保存草稿：有未保存修改时每 2 秒落一次 localStorage，异常退出可恢复
+  const draftDebouncer = useDebouncer(() => {
+    try {
+      const draft: EditorDraft = {
+        title, summary, content, tagIds,
+        savedAt: new Date().toLocaleString('sv-SE').replace('T', ' ').slice(0, 19),
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch { /* storage unavailable */ }
+  }, { wait: 2000 });
+
   useEffect(() => {
-    if (!dirty) return;
-    const timer = setTimeout(() => {
-      try {
-        const draft: EditorDraft = {
-          title, summary, content, tagIds,
-          savedAt: new Date().toLocaleString('sv-SE').replace('T', ' ').slice(0, 19),
-        };
-        localStorage.setItem(draftKey, JSON.stringify(draft));
-      } catch { /* storage unavailable */ }
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [dirty, title, summary, content, tagIds, draftKey]);
+    if (!dirty) { draftDebouncer.cancel(); return; }
+    draftDebouncer.maybeExecute();
+  }, [dirty, title, summary, content, tagIds, draftKey, draftDebouncer]);
 
   function restoreDraft() {
     if (!pendingDraft) return;
