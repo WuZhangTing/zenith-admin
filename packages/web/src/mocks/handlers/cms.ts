@@ -1292,7 +1292,7 @@ export const cmsP2Handlers = [
       folderId,
       type,
       name: file.name,
-      url: type === 'image' ? `/avatars/avatar-${String(idx).padStart(2, '0')}.svg` : `/files/${file.name}`,
+      url: type === 'image' ? `${import.meta.env.BASE_URL}avatars/avatar-${String(idx).padStart(2, '0')}.svg` : `/files/${file.name}`,
       thumbUrl: null,
       fileId: null,
       size: file.size,
@@ -1345,7 +1345,7 @@ export const cmsP2Handlers = [
     // 句柄化后素材 id 是稳定引用，换文件只改素材行本身，站内引用无需改动
     const idx = Math.floor(Math.random() * 12) + 1;
     res.name = file.name;
-    res.url = res.type === 'image' ? `/avatars/avatar-${String(idx).padStart(2, '0')}.svg` : `/files/${file.name}`;
+    res.url = res.type === 'image' ? `${import.meta.env.BASE_URL}avatars/avatar-${String(idx).padStart(2, '0')}.svg` : `/files/${file.name}`;
     res.size = file.size;
     res.mimeType = file.type || res.mimeType;
     res.updatedAt = mockDateTime();

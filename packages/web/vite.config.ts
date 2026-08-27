@@ -46,7 +46,9 @@ export default defineConfig(({ mode }) => {
   // GitHub Pages 部署时通过环境变量注入 base 路径（如 /zenith-admin/）
   // Electron 模式下使用相对路径（./ 针对 file:// 协议）
   const isElectron = env.VITE_ELECTRON === 'true';
-  const base = isElectron ? './' : (env.VITE_BASE_URL || '/');
+  const rawBase = isElectron ? './' : (env.VITE_BASE_URL || '/');
+  // 统一保证尾斜杠，供 manifest 等手动拼接场景使用（Vite 内部也会做同样的规范化）
+  const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
   // 使用 esnext 目标（React 19 要求现代浏览器）
   const buildTarget = 'esnext';
 
@@ -81,18 +83,22 @@ export default defineConfig(({ mode }) => {
           theme_color: env.VITE_APP_THEME_COLOR || '#07c160',
           background_color: '#ffffff',
           display: 'standalone',
-          start_url: '/',
-          scope: '/',
+          // 手写的 manifest 字段不会被 Vite base 自动改写，子路径部署时需显式拼接
+          start_url: base,
+          scope: base,
           lang: 'zh-CN',
           icons: [
-            { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-            { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-            { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+            { src: `${base}icons/icon-192.png`, sizes: '192x192', type: 'image/png' },
+            { src: `${base}icons/icon-512.png`, sizes: '512x512', type: 'image/png' },
+            { src: `${base}icons/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
           ],
         },
         workbox: {
           // 只缓存静态资源（JS/CSS/字体/图片），API 请求完全走网络
           globPatterns: ['**/*.{js,css,woff2,png,svg,ico}'],
+          // 超大懒加载文档引擎（univerjs/rtf 等）超过 workbox 2MiB 上限，排除出预缓存，按需经网络加载
+          globIgnores: ['**/vendor-univerjs-*.js', '**/vendor-rtf.js-*.js'],
+          maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
           // API 请求不缓存，保证数据实时性
           navigateFallback: 'index.html',
           navigateFallbackDenylist: [/^\/api\//],

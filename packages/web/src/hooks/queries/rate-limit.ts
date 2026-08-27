@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { config } from '@/config';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 
@@ -66,7 +67,8 @@ export function useRateLimitApiPaths() {
   return useQuery({
     queryKey: rateLimitKeys.apiPaths,
     queryFn: async () => {
-      const res = await fetch('/api/openapi.json');
+      // openapi.json 返回原始 OpenAPI 文档（非 ApiResponse 信封），不走 request；但仍需拼接 API 基址
+      const res = await fetch(`${config.apiBaseUrl}/api/openapi.json`);
       const spec = (await res.json()) as { paths?: Record<string, unknown> };
       return Object.keys(spec.paths ?? {})
         .filter((p) => p.startsWith('/api/'))

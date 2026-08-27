@@ -6,7 +6,7 @@ import { useMemberAuth } from '../../hooks/useMemberAuth';
 import { MemberPage } from '../../components/MemberPage';
 import { useUpdateMemberProfile, useUploadMemberAvatar } from '../../hooks/queries';
 
-const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/avatar-${String(i + 1).padStart(2, '0')}.svg`);
+const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `${import.meta.env.BASE_URL}avatars/avatar-${String(i + 1).padStart(2, '0')}.svg`);
 
 function FieldRow({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (

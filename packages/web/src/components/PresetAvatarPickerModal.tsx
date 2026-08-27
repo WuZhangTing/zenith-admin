@@ -1,7 +1,7 @@
 import { AppModal } from '@/components/AppModal';
 
-/** 系统内置预设头像列表（public/avatars/avatar-01..12.svg） */
-const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/avatar-${String(i + 1).padStart(2, '0')}.svg`);
+/** 系统内置预设头像列表（public/avatars/avatar-01..12.svg）；BASE_URL 前缀保证子路径部署可用 */
+const PRESET_AVATARS = Array.from({ length: 12 }, (_, i) => `${import.meta.env.BASE_URL}avatars/avatar-${String(i + 1).padStart(2, '0')}.svg`);
 
 interface PresetAvatarPickerModalProps {
   readonly visible: boolean;
