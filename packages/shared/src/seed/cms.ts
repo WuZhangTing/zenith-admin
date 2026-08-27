@@ -235,13 +235,11 @@ export const SEED_CMS_FRIEND_LINKS: CmsFriendLink[] = [
 
 // ─── CMS 素材中心（P2 示例素材）──────────────────────────────────────────────────
 export const SEED_CMS_RESOURCES: CmsResource[] = [
-  { id: 1, siteId: 1, folderId: 1, type: 'image', name: 'demo-avatar-01.svg', url: '/avatars/avatar-01.svg', thumbUrl: null, fileId: null, ownsFile: true, size: 4096, width: 128, height: 128, mimeType: 'image/svg+xml', remark: '演示素材（外链登记）', createdAt: SEED_DATE, updatedAt: SEED_DATE },
-  { id: 2, siteId: 1, folderId: 1, type: 'image', name: 'demo-avatar-02.svg', url: '/avatars/avatar-02.svg', thumbUrl: null, fileId: null, ownsFile: true, size: 4096, width: 128, height: 128, mimeType: 'image/svg+xml', remark: null, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 3, siteId: 1, folderId: 2, type: 'document', name: '产品白皮书.pdf', url: '/files/demo-whitepaper.pdf', thumbUrl: null, fileId: null, ownsFile: true, size: 1048576, width: null, height: null, mimeType: 'application/pdf', remark: '示例文档素材', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 export const SEED_CMS_RESOURCE_FOLDERS: CmsResourceFolder[] = [
-  { id: 1, siteId: 1, parentId: null, name: '图片素材', sort: 1, resourceCount: 2, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 1, siteId: 1, parentId: null, name: '图片素材', sort: 1, resourceCount: 0, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2, siteId: 1, parentId: null, name: '文档资料', sort: 2, resourceCount: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
