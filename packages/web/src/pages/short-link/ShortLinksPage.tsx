@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Col, Form, Modal, Row, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Collapse, Form, Modal, Row, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { QRCodeSVG } from 'qrcode.react';
 import { Ban, CircleCheck, Trash2 } from 'lucide-react';
@@ -110,12 +110,19 @@ export default function ShortLinksPage() {
       remark: r.remark ?? '',
     }),
     beforeSave: (values, ctx) => normalizePayload(values, ctx.isEdit),
+    labelWidth: 110,
   });
 
   const toggleStatusMutation = useSaveShortLink();
   const deleteMutation = useDeleteShortLinks();
   const batchStatusMutation = useBatchUpdateShortLinkStatus();
   const togglingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
+
+  // 编辑已配置 UTM 的记录时，折叠面板默认展开
+  const editing = modal.editing;
+  const editingHasUtm = Boolean(
+    editing && (editing.utmSource || editing.utmMedium || editing.utmCampaign || editing.utmTerm || editing.utmContent),
+  );
 
   const { items: statusItems } = useDictItems('common_status');
 
@@ -407,29 +414,33 @@ export default function ShortLinksPage() {
                 <Form.Input field="password" label="访问密码" placeholder="留空无需密码，至少 4 位" />
               </Col>
             </Row>
-            <Form.Section text="UTM 跟踪参数（选填，跳转时自动拼接）">
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="utmSource" label="utm_source" placeholder="流量来源，如 sms" />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="utmMedium" label="utm_medium" placeholder="媒介，如 shortlink" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="utmCampaign" label="utm_campaign" placeholder="活动名称" />
-                </Col>
-                <Col span={12}>
-                  <Form.Input field="utmTerm" label="utm_term" placeholder="关键词" />
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Input field="utmContent" label="utm_content" placeholder="内容标识" />
-                </Col>
-              </Row>
-            </Form.Section>
+            {/* UTM 低频选填：默认折叠压缩弹窗高度；编辑已填 UTM 的记录时自动展开。
+                keepDOM 保证折叠时字段仍注册在表单中，提交不丢值 */}
+            <Collapse keepDOM key={modal.formKey} defaultActiveKey={editingHasUtm ? ['utm'] : []} style={{ marginBottom: 12 }}>
+              <Collapse.Panel header="UTM 跟踪参数（选填，跳转时自动拼接）" itemKey="utm">
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input field="utmSource" label="utm_source" placeholder="流量来源，如 sms" />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Input field="utmMedium" label="utm_medium" placeholder="媒介，如 shortlink" />
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input field="utmCampaign" label="utm_campaign" placeholder="活动名称" />
+                  </Col>
+                  <Col span={12}>
+                    <Form.Input field="utmTerm" label="utm_term" placeholder="关键词" />
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Form.Input field="utmContent" label="utm_content" placeholder="内容标识" />
+                  </Col>
+                </Row>
+              </Collapse.Panel>
+            </Collapse>
             <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} maxCount={256} />
           </Form>
         </Spin>

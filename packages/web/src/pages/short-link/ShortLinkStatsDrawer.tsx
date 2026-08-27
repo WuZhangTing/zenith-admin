@@ -85,56 +85,60 @@ export default function ShortLinkStatsDrawer({ link, onClose }: ShortLinkStatsDr
       width={760}
       closeOnEsc
     >
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <RadioGroup
-          type="button"
-          buttonSize="small"
-          value={days}
-          onChange={(e) => setDays(e.target.value as number)}
-        >
-          <Radio value={7}>近 7 天</Radio>
-          <Radio value={30}>近 30 天</Radio>
-          <Radio value={90}>近 90 天</Radio>
-        </RadioGroup>
-      </div>
-
-      <Spin spinning={link !== null && statsQuery.isPending}>
-        <StatGrid>
-          <StatCard title="累计访问（PV）" value={stats?.totals.pv ?? 0} icon={<MousePointerClick size={16} />} />
-          <StatCard title="访客数（UV）" value={stats?.totals.uv ?? 0} icon={<Users size={16} />} />
-          <StatCard title="今日访问" value={stats?.totals.todayPv ?? 0} icon={<TrendingUp size={16} />} />
-          <StatCard title="今日访客" value={stats?.totals.todayUv ?? 0} icon={<Eye size={16} />} />
-        </StatGrid>
-
-        <Card title="访问趋势" style={{ marginTop: 16 }}>
-          {isEmptyValues((stats?.trend ?? []).map((p) => ({ value: p.pv + p.uv }))) ? <EmptyChart height={220} /> : (
-            <AreaChart {...trendSpec} options={chartOptions} height={220} />
-          )}
-        </Card>
-
-        <div className="chart-grid" style={{ marginTop: 16 }}>
-          <Card title="设备分布">
-            {(stats?.devices.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
-              <PieChart {...deviceSpec} options={chartOptions} height={220} />
-            )}
-          </Card>
-          <Card title="地域分布 Top 10">
-            {(stats?.regions.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
-              <BarChart {...regionSpec} options={chartOptions} height={220} />
-            )}
-          </Card>
-          <Card title="来源分布 Top 10">
-            {(stats?.referers.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
-              <BarChart {...refererSpec} options={chartOptions} height={220} />
-            )}
-          </Card>
-          <Card title="浏览器分布 Top 10">
-            {(stats?.browsers.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
-              <BarChart {...browserSpec} options={chartOptions} height={220} />
-            )}
-          </Card>
+      {/* 抽屉走 portal 渲染，页面根的 .zx-flat-panels 覆盖不到，需在内容层自带：
+          统计区遵循「无卡片」设计语言，Card 退化为细线起头的平铺面板 */}
+      <div className="zx-flat-panels">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <RadioGroup
+            type="button"
+            buttonSize="small"
+            value={days}
+            onChange={(e) => setDays(e.target.value as number)}
+          >
+            <Radio value={7}>近 7 天</Radio>
+            <Radio value={30}>近 30 天</Radio>
+            <Radio value={90}>近 90 天</Radio>
+          </RadioGroup>
         </div>
-      </Spin>
+
+        <Spin spinning={link !== null && statsQuery.isPending}>
+          <StatGrid>
+            <StatCard title="累计访问（PV）" value={stats?.totals.pv ?? 0} icon={<MousePointerClick size={16} />} />
+            <StatCard title="访客数（UV）" value={stats?.totals.uv ?? 0} icon={<Users size={16} />} />
+            <StatCard title="今日访问" value={stats?.totals.todayPv ?? 0} icon={<TrendingUp size={16} />} />
+            <StatCard title="今日访客" value={stats?.totals.todayUv ?? 0} icon={<Eye size={16} />} />
+          </StatGrid>
+
+          <Card title="访问趋势" style={{ marginTop: 16 }}>
+            {isEmptyValues((stats?.trend ?? []).map((p) => ({ value: p.pv + p.uv }))) ? <EmptyChart height={220} /> : (
+              <AreaChart {...trendSpec} options={chartOptions} height={220} />
+            )}
+          </Card>
+
+          <div className="chart-grid" style={{ marginTop: 16 }}>
+            <Card title="设备分布">
+              {(stats?.devices.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
+                <PieChart {...deviceSpec} options={chartOptions} height={220} />
+              )}
+            </Card>
+            <Card title="地域分布 Top 10">
+              {(stats?.regions.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
+                <BarChart {...regionSpec} options={chartOptions} height={220} />
+              )}
+            </Card>
+            <Card title="来源分布 Top 10">
+              {(stats?.referers.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
+                <BarChart {...refererSpec} options={chartOptions} height={220} />
+              )}
+            </Card>
+            <Card title="浏览器分布 Top 10">
+              {(stats?.browsers.length ?? 0) === 0 ? <EmptyChart height={220} /> : (
+                <BarChart {...browserSpec} options={chartOptions} height={220} />
+              )}
+            </Card>
+          </div>
+        </Spin>
+      </div>
     </SideSheet>
   );
 }

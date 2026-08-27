@@ -12,7 +12,7 @@ export interface SeedAnalyticsEventMeta {
   id: number;
   eventName: AnalyticsSemanticEventName;
   displayName: string;
-  category: 'payment' | 'workflow' | 'member' | 'system';
+  category: 'payment' | 'workflow' | 'member' | 'system' | 'growth';
   description: string;
   propertySchema: AnalyticsEventPropertyDef[];
   strictMode: boolean;
