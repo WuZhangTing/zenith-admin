@@ -143,7 +143,7 @@ export default function TaskStatsTab({ stats }: Readonly<{ stats: AsyncTaskStats
   const todayDelta = stats ? stats.today.submitted - stats.today.yesterdaySubmitted : null;
 
   return (
-    <>
+    <div className="zx-flat-panels">
       <StatGrid minItemWidth={150} style={{ marginBottom: 16 }}>
         <StatCard title="总任务" value={stats?.total ?? '-'} />
         <StatCard
@@ -220,6 +220,6 @@ export default function TaskStatsTab({ stats }: Readonly<{ stats: AsyncTaskStats
             : <BarChart {...submitterSpec} options={chartOptions} height={CHART_HEIGHT} />}
         </Card>
       </div>
-    </>
+    </div>
   );
 }

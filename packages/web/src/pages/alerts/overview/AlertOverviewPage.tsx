@@ -86,7 +86,7 @@ export default function AlertOverviewPage() {
   );
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <SearchToolbar
         primary={(
           <>

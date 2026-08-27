@@ -212,7 +212,7 @@ export default function PushSendLogsPage() {
   );
 
   return (
-    <div className="page-container">
+    <div className="page-container zx-flat-panels">
       <PushStatsSection />
       <SearchToolbar
         primary={<>
