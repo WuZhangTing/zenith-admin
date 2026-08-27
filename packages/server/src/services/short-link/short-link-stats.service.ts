@@ -53,8 +53,17 @@ async function refererBreakdown(linkId: number, since: Date) {
 
 interface DayAgg { pv: number; uv: number }
 
+/** 管理端入口：行级访问校验（租户边界）后计算 */
 export async function getShortLinkStats(id: number, days?: number): Promise<ShortLinkStats> {
   await ensureShortLinkExists(id);
+  return computeShortLinkStats(id, days);
+}
+
+/**
+ * 统计核心计算（无访问校验）：管理端与开放 API 共用，
+ * 调用方自行保证 id 已通过各自的访问边界检查。
+ */
+export async function computeShortLinkStats(id: number, days?: number): Promise<ShortLinkStats> {
   const windowDays = clampDays(days, SHORT_LINK_STATS_DEFAULT_DAYS, SHORT_LINK_STATS_MAX_DAYS);
   const since = windowStart(windowDays);
   const notBot = and(eq(shortLinkClicks.linkId, id), eq(shortLinkClicks.isBot, false));

@@ -263,6 +263,57 @@ export async function batchUpdateShortLinkStatus(ids: number[], status: 'enabled
   return updated.length;
 }
 
+// ─── 开放 API（open gateway 无管理员会话上下文，独立入口）──────────────────────
+export interface CreateOpenShortLinkOptions {
+  targetUrl: string;
+  code?: string;
+  title?: string | null;
+  /** YYYY-MM-DD HH:mm:ss */
+  expiresAt?: string | null;
+}
+
+/** 开放平台创建短链：平台级归属（tenantId=null），remark 记录来源应用便于治理 */
+export async function createOpenShortLink(options: CreateOpenShortLinkOptions, appLabel: string) {
+  ensureSafeTargetUrl(options.targetUrl);
+  const expiresAt = parseExpiresAt(options.expiresAt) ?? null;
+  const baseValues = {
+    targetUrl: options.targetUrl,
+    title: options.title ?? null,
+    expiresAt,
+    remark: `开放应用「${appLabel}」创建`,
+    tenantId: null,
+  };
+
+  if (options.code) {
+    ensureCodeNotReserved(options.code);
+    try {
+      const [row] = await db.insert(shortLinks).values({ ...baseValues, code: options.code }).returning();
+      return mapShortLink(row);
+    } catch (err) {
+      rethrowPgUniqueViolation(err, `短码 "${options.code}" 已被占用，请更换`);
+      throw err;
+    }
+  }
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateShortCode(SHORT_LINK_CODE_LENGTH + (attempt >= 3 ? 1 : 0));
+    try {
+      const [row] = await db.insert(shortLinks).values({ ...baseValues, code }).returning();
+      return mapShortLink(row);
+    } catch (err) {
+      if (isPgUniqueViolation(err)) continue;
+      throw err;
+    }
+  }
+  throw new HTTPException(500, { message: '短码生成失败，请重试' });
+}
+
+/** 开放平台按短码取短链（平台级查询，不做租户过滤；调用方负责 scope 校验） */
+export async function findShortLinkByCode(code: string) {
+  const [row] = await db.select().from(shortLinks).where(eq(shortLinks.code, code)).limit(1);
+  return row ? mapShortLink(row) : null;
+}
+
 // ─── 跨域复用入口 ─────────────────────────────────────────────────────────────
 export interface EnsureShortLinkOptions {
   targetUrl: string;

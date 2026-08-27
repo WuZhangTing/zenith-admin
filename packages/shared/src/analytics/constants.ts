@@ -403,6 +403,10 @@ export const ANALYTICS_SERVER_MEMBER_EVENT_NAMES = [
   'member.checkin.completed',
 ] as const;
 
+export const ANALYTICS_SERVER_SHORTLINK_EVENT_NAMES = [
+  'shortlink.link.clicked',
+] as const;
+
 export const ANALYTICS_CLIENT_SYSTEM_EVENT_NAMES = [ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, 'page_not_found', 'page_forbidden'] as const;
 
 export const ANALYTICS_SEMANTIC_EVENT_NAMES = [
@@ -410,6 +414,7 @@ export const ANALYTICS_SEMANTIC_EVENT_NAMES = [
   ...ANALYTICS_SERVER_PAYMENT_EVENT_NAMES,
   ...ANALYTICS_SERVER_WORKFLOW_EVENT_NAMES,
   ...ANALYTICS_SERVER_MEMBER_EVENT_NAMES,
+  ...ANALYTICS_SERVER_SHORTLINK_EVENT_NAMES,
 ] as const;
 
 export type AnalyticsSemanticEventName = (typeof ANALYTICS_SEMANTIC_EVENT_NAMES)[number];
@@ -434,6 +439,7 @@ export const ANALYTICS_EVENT_NAMES = {
   memberCouponReceived: 'member.coupon.received',
   memberCouponRedeemed: 'member.coupon.redeemed',
   memberCheckinCompleted: 'member.checkin.completed',
+  shortLinkClicked: 'shortlink.link.clicked',
 } as const satisfies Record<string, AnalyticsSemanticEventName>;
 
 /** member.points.* 系列事件按 `member-points.service.ts` 的 PointTxType 一一映射，避免拼写漂移 */
@@ -479,4 +485,5 @@ export const ANALYTICS_SEMANTIC_EVENT_LABELS: Record<AnalyticsSemanticEventName,
   'member.coupon.received': '优惠券领取',
   'member.coupon.redeemed': '优惠券核销',
   'member.checkin.completed': '签到完成',
+  'shortlink.link.clicked': '短链点击',
 };

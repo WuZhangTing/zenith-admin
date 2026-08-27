@@ -114,6 +114,49 @@ router.post('/v1/rules/evaluate', async (c) => {
   }
 });
 
+// ─── 短链服务（scope: data:write / data:read）────────────────────────────────
+// POST /v1/short-links —— 生成短链（支持自定义短码 / 标题 / 有效期）
+router.post('/v1/short-links', async (c) => {
+  if (!hasScope(c, 'data:write')) return c.json(errBody('应用未授权 scope：data:write', 403), 403);
+  let body: { targetUrl?: string; code?: string; title?: string; expiresAt?: string };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json(errBody('请求体必须是 JSON', 400), 400);
+  }
+  const targetUrl = body.targetUrl?.trim();
+  if (!targetUrl) return c.json(errBody('缺少 targetUrl', 400), 400);
+  const code = body.code?.trim();
+  if (code && !/^[0-9A-Za-z_-]{4,32}$/.test(code)) {
+    return c.json(errBody('自定义短码需为 4-32 位字母、数字、连字符或下划线', 400), 400);
+  }
+  const principal = c.get('openPrincipal');
+  const { createOpenShortLink } = await import('../../services/short-link/short-link.service');
+  try {
+    const link = await createOpenShortLink(
+      { targetUrl, code, title: body.title?.trim() || null, expiresAt: body.expiresAt?.trim() || null },
+      principal?.app.name ?? principal?.app.clientId ?? 'unknown',
+    );
+    return c.json(okBody({ code: link.code, shortUrl: link.shortUrl, targetUrl: link.targetUrl, expiresAt: link.expiresAt }), 200);
+  } catch (err) {
+    if (err instanceof HTTPException) return c.json(errBody(err.message, err.status), err.status as 400);
+    throw err;
+  }
+});
+
+// GET /v1/short-links/:code/stats —— 短链访问统计（趋势/汇总）
+router.get('/v1/short-links/:code/stats', async (c) => {
+  if (!hasScope(c, 'data:read')) return c.json(errBody('应用未授权 scope：data:read', 403), 403);
+  const code = c.req.param('code');
+  const { findShortLinkByCode } = await import('../../services/short-link/short-link.service');
+  const link = await findShortLinkByCode(code);
+  if (!link) return c.json(errBody('短链不存在', 404), 404);
+  const days = Number(c.req.query('days')) || undefined;
+  const { computeShortLinkStats } = await import('../../services/short-link/short-link-stats.service');
+  const stats = await computeShortLinkStats(link.id, days);
+  return c.json(okBody({ code: link.code, shortUrl: link.shortUrl, totals: stats.totals, trend: stats.trend }), 200);
+});
+
 export default router;
 
 /**
@@ -131,5 +174,7 @@ export const OPEN_GATEWAY_ENDPOINTS: Array<{
   { method: 'POST', path: '/api/open/v1/echo', summary: '请求体回显（验证 body 参与签名）', scope: 'data:write' },
   { method: 'GET', path: '/api/open/v1/userinfo', summary: '当前调用主体信息', scope: 'user:read' },
   { method: 'POST', path: '/api/open/v1/rules/evaluate', summary: '规则中心统一求值（决策表/决策流/评分卡/名单）', scope: 'rules:evaluate' },
+  { method: 'POST', path: '/api/open/v1/short-links', summary: '生成短链（支持自定义短码/有效期）', scope: 'data:write' },
+  { method: 'GET', path: '/api/open/v1/short-links/{code}/stats', summary: '短链访问统计（汇总与趋势）', scope: 'data:read' },
   ...OPEN_CMS_ENDPOINTS.map((item) => ({ ...item, scope: null })),
 ];

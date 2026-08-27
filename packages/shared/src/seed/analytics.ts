@@ -135,4 +135,16 @@ export const SEED_ANALYTICS_EVENT_META: SeedAnalyticsEventMeta[] = [
     { key: 'experienceAwarded', type: 'number', description: '本次奖励经验值' },
     { key: 'checkinDate', type: 'string', description: '签到日期（YYYY-MM-DD）' },
   ], strictMode: false },
+  { id: 1060, eventName: 'shortlink.link.clicked', displayName: ANALYTICS_SEMANTIC_EVENT_LABELS['shortlink.link.clicked'], category: 'growth', description: '短链跳转成功（服务端权威事件，爬虫流量不上报）', propertySchema: [
+    { key: 'linkId', type: 'number', required: true, description: '短链 ID' },
+    { key: 'code', type: 'string', required: true, description: '短码' },
+    { key: 'bizType', type: 'string', description: '来源业务类型（custom/sms/broadcast/payment_link/cms_content）' },
+    { key: 'bizRef', type: 'string', description: '来源业务标识' },
+    { key: 'deviceType', type: 'string', description: '设备类型' },
+    { key: 'os', type: 'string', description: '操作系统' },
+    { key: 'browser', type: 'string', description: '浏览器' },
+    { key: 'country', type: 'string', description: '国家' },
+    { key: 'province', type: 'string', description: '省份' },
+    { key: 'city', type: 'string', description: '城市' },
+  ], strictMode: false },
 ];

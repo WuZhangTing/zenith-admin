@@ -90,7 +90,7 @@ redirectRouter.get('/:code', async (c) => {
   }
 
   const { ip, ua } = getClientInfo(c);
-  recordShortLinkClickSafe({ linkId: link.id, ip, ua, referer: c.req.header('referer') ?? null });
+  recordShortLinkClickSafe({ link, ip, ua, referer: c.req.header('referer') ?? null });
 
   if (link.redirectType === '301') {
     return c.redirect(link.finalUrl, 301);

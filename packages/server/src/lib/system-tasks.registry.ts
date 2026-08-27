@@ -54,6 +54,20 @@ export async function registerSystemTasks(): Promise<void> {
     },
   });
 
+  const { scanExpiringShortLinks } = await import('../services/short-link/short-link-notify.service');
+  await registerSystemRecurringJob({
+    name: 'short-link-expiry-scan',
+    title: '短链过期提醒扫描',
+    module: '短链服务',
+    cronExpression: '0 9 * * *',
+    description: '每天扫描 72 小时内到期且仍启用的短链，经通知中心提醒创建人（幂等去重，调整有效期后会重新提醒）。',
+    allowManualRun: true,
+    run: async () => {
+      const notified = await scanExpiringShortLinks();
+      return notified > 0 ? `已提醒 ${notified} 条即将过期的短链` : '无即将过期的短链';
+    },
+  });
+
   const { retryPendingQuotaAlerts } = await import('../services/open-platform/open-quota-alerts.service');
   await registerSystemRecurringJob({
     name: 'open-quota-alert-retry',

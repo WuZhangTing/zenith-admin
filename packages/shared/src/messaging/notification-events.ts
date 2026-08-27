@@ -430,6 +430,18 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     content: '应用「{{appName}}」{{dimensionText}}配额已使用 {{used}}/{{quotaLimit}}，请关注剩余额度。',
   },
 
+  // ─── 运营中心 ───────────────────────────────────────────────────────────────
+  'shortlink.link.expiring': {
+    group: 'growth',
+    label: '短链即将过期',
+    severity: 'normal',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ code: string; title: string; shortUrl: string; expiresAtText: string }>(),
+    title: '短链即将过期',
+    content: '短链「{{title}}」（{{shortUrl}}）将于 {{expiresAtText}} 过期，如需继续使用请及时调整有效期。',
+  },
+
   // ─── 报表中心 ───────────────────────────────────────────────────────────────
   'report.dashboard.mentioned': {
     group: 'report',

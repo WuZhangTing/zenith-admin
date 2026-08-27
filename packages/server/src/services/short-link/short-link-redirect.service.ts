@@ -6,11 +6,13 @@
  */
 import { createHash } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
 import { db } from '../../db';
 import { shortLinks, shortLinkClicks, type ShortLinkRow } from '../../db/schema';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
 import { parseClientEnv, lookupIpGeo } from '../../lib/analytics-helpers';
+import { trackServerEvent } from '../analytics/analytics-server-events.service';
 
 const CACHE_PREFIX = 'shortlink:code:';
 const CACHE_TTL_SECONDS = 300;
@@ -19,6 +21,7 @@ const CACHE_NULL = '__null__';
 
 export interface ResolvedShortLink {
   id: number;
+  code: string;
   /** 已拼装 UTM 参数的最终跳转地址 */
   finalUrl: string;
   redirectType: '302' | '301';
@@ -26,6 +29,9 @@ export interface ResolvedShortLink {
   expiresAtMs: number | null;
   maxVisits: number | null;
   password: string | null;
+  bizType: string;
+  bizRef: string | null;
+  tenantId: number | null;
 }
 
 /** 目标地址追加 UTM 参数（原地址已有同名参数时不覆盖） */
@@ -52,12 +58,16 @@ export function buildFinalUrl(row: ShortLinkRow): string {
 function toResolved(row: ShortLinkRow): ResolvedShortLink {
   return {
     id: row.id,
+    code: row.code,
     finalUrl: buildFinalUrl(row),
     redirectType: row.redirectType,
     status: row.status,
     expiresAtMs: row.expiresAt ? row.expiresAt.getTime() : null,
     maxVisits: row.maxVisits ?? null,
     password: row.password ?? null,
+    bizType: row.bizType,
+    bizRef: row.bizRef ?? null,
+    tenantId: row.tenantId ?? null,
   };
 }
 
@@ -101,7 +111,7 @@ export async function getLiveVisitCount(linkId: number): Promise<number> {
 }
 
 export interface ClickContext {
-  linkId: number;
+  link: ResolvedShortLink;
   ip: string;
   ua: string;
   referer: string | null;
@@ -109,7 +119,7 @@ export interface ClickContext {
 
 /**
  * 记录一次点击（响应后异步调用，不阻塞跳转）。
- * 爬虫流量落明细（isBot=true）但不计入 totalPv 与统计口径。
+ * 爬虫流量落明细（isBot=true）但不计入 totalPv、统计口径与分析事件。
  */
 export async function recordShortLinkClick(ctx: ClickContext): Promise<void> {
   const env = parseClientEnv(ctx.ua);
@@ -118,7 +128,7 @@ export async function recordShortLinkClick(ctx: ClickContext): Promise<void> {
   const visitorId = createHash('md5').update(`${ctx.ip}|${ctx.ua}`).digest('hex').slice(0, 32);
 
   await db.insert(shortLinkClicks).values({
-    linkId: ctx.linkId,
+    linkId: ctx.link.id,
     visitorId,
     ip: ctx.ip || null,
     country: geo.country,
@@ -134,14 +144,31 @@ export async function recordShortLinkClick(ctx: ClickContext): Promise<void> {
   if (!isBot) {
     // 原生 SQL 递增计数：绕过 $onUpdate 与审计 Proxy，避免点击流量污染 updatedAt / updatedBy
     await db.execute(
-      sql`UPDATE short_links SET total_pv = total_pv + 1, last_visit_at = now() WHERE id = ${ctx.linkId}`,
+      sql`UPDATE short_links SET total_pv = total_pv + 1, last_visit_at = now() WHERE id = ${ctx.link.id}`,
     );
+    // 桥接为服务端语义事件：进入行为分析（fire-and-forget，内部吞错，不影响点击链路）
+    trackServerEvent({
+      eventName: ANALYTICS_EVENT_NAMES.shortLinkClicked,
+      tenantId: ctx.link.tenantId,
+      properties: {
+        linkId: ctx.link.id,
+        code: ctx.link.code,
+        bizType: ctx.link.bizType,
+        bizRef: ctx.link.bizRef,
+        deviceType: env.deviceType,
+        os: env.os,
+        browser: env.browser,
+        country: geo.country,
+        province: geo.region,
+        city: geo.city,
+      },
+    });
   }
 }
 
 /** 供路由 fire-and-forget 调用的安全包装 */
 export function recordShortLinkClickSafe(ctx: ClickContext): void {
   void recordShortLinkClick(ctx).catch((err) => {
-    logger.warn(`[short-link] 点击记录失败 linkId=${ctx.linkId}: ${(err as Error).message}`);
+    logger.warn(`[short-link] 点击记录失败 linkId=${ctx.link.id}: ${(err as Error).message}`);
   });
 }
