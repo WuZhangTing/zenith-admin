@@ -142,6 +142,14 @@ export function useVerifyTotpSetup() {
 export function useDisableMfaFactor() {
   const qc = useQueryClient();
   return useMutation({
+    mutationFn: (id: number) => request.post<null>(`/api/auth/mfa/factors/${id}/disable`).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
+  });
+}
+
+export function useDeleteMfaFactor() {
+  const qc = useQueryClient();
+  return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/auth/mfa/factors/${id}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: profileKeys.mfaFactors }),
   });

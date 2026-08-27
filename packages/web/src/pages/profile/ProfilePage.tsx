@@ -32,6 +32,7 @@ import {
   useCreateApiToken,
   useDeleteApiToken,
   useDisableMfaFactor,
+  useDeleteMfaFactor,
   useKickOtherProfileSessions,
   useKickProfileSession,
   useProfileApiTokens,
@@ -207,6 +208,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   const beginTotpSetupMutation = useBeginTotpSetup();
   const verifyTotpSetupMutation = useVerifyTotpSetup();
   const disableMfaMutation = useDisableMfaFactor();
+  const deleteMfaMutation = useDeleteMfaFactor();
   const kickOthersMutation = useKickOtherProfileSessions();
   const kickSessionMutation = useKickProfileSession();
   const createTokenMutation = useCreateApiToken();
@@ -270,6 +272,11 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   async function handleDisableMfaFactor(id: number) {
     await disableMfaMutation.mutateAsync(id);
     Toast.success('已停用');
+  }
+
+  async function handleDeleteMfaFactor(id: number) {
+    await deleteMfaMutation.mutateAsync(id);
+    Toast.success('已删除');
   }
 
   function handleAvatarFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -583,7 +590,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                             {factor.lastUsedAt && <Text type="tertiary" size="small">上次使用 {formatDateTime(factor.lastUsedAt)}</Text>}
                           </div>
                         )}
-                        extra={factor.status === 'enabled' && (
+                        extra={factor.status === 'enabled' ? (
                           <Button
                             theme="borderless"
                             type="danger"
@@ -597,6 +604,22 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                             }}
                           >
                             停用
+                          </Button>
+                        ) : (
+                          <Button
+                            theme="borderless"
+                            type="danger"
+                            size="small"
+                            onClick={() => {
+                              Modal.confirm({
+                                title: '确定要删除该 MFA 因子吗？',
+                                content: '删除后不可恢复，如需继续使用请重新绑定。',
+                                okButtonProps: { type: 'danger', theme: 'solid' },
+                                onOk: () => handleDeleteMfaFactor(factor.id),
+                              });
+                            }}
+                          >
+                            删除
                           </Button>
                         )}
                       />

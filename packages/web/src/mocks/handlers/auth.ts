@@ -196,6 +196,10 @@ export const authHandlers = [
   }),
 
   http.post('/api/auth/mfa/totp/setup', () => {
+    // 重新发起绑定时清理遗留的待验证因子
+    for (let i = mockMfaFactors.length - 1; i >= 0; i -= 1) {
+      if (mockMfaFactors[i].type === 'totp' && mockMfaFactors[i].status === 'pending') mockMfaFactors.splice(i, 1);
+    }
     const result: TotpSetupResult = {
       factorId: nextMfaFactorId++,
       secret: 'JBSWY3DPEHPK3PXP',
@@ -223,12 +227,21 @@ export const authHandlers = [
     return ok(null, '绑定成功');
   }),
 
-  http.delete('/api/auth/mfa/factors/:id', ({ params }) => {
+  http.post('/api/auth/mfa/factors/:id/disable', ({ params }) => {
     const id = Number(params.id);
     const factor = mockMfaFactors.find((item) => item.id === id);
     if (!factor) return notFound('MFA 因子不存在', { status: 404 });
     factor.status = 'disabled';
     return ok(null, '已停用');
+  }),
+
+  http.delete('/api/auth/mfa/factors/:id', ({ params }) => {
+    const id = Number(params.id);
+    const index = mockMfaFactors.findIndex((item) => item.id === id);
+    if (index === -1) return notFound('MFA 因子不存在', { status: 404 });
+    if (mockMfaFactors[index].status === 'enabled') return badRequest('已启用的 MFA 因子请先停用后再删除', { status: 400 });
+    mockMfaFactors.splice(index, 1);
+    return ok(null, '已删除');
   }),
 
   http.get('/api/auth/trusted-devices', () => {

@@ -1203,6 +1203,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "POST /api/auth/login",
   "POST /api/auth/logout",
   "POST /api/auth/logout-by-refresh",
+  "POST /api/auth/mfa/factors/:id/disable",
   "POST /api/auth/mfa/totp/setup",
   "POST /api/auth/mfa/totp/verify",
   "POST /api/auth/mfa/verify",

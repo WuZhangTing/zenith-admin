@@ -133,13 +133,22 @@ export async function beginTotpSetup() {
   const [profile] = await db.select({ username: users.username, email: users.email }).from(users).where(eq(users.id, user.userId)).limit(1);
   if (!profile) throw new HTTPException(404, { message: '用户不存在' });
   const secret = generateTotpSecret();
-  const [row] = await db.insert(userMfaFactors).values({
-    userId: user.userId,
-    type: 'totp',
-    name: '身份验证器',
-    secretEncrypted: encryptSecret(secret),
-    status: 'pending',
-  }).returning();
+  const row = await db.transaction(async (tx) => {
+    // 重新发起绑定时清理遗留的待验证因子，避免挂起记录堆积
+    await tx.delete(userMfaFactors).where(and(
+      eq(userMfaFactors.userId, user.userId),
+      eq(userMfaFactors.type, 'totp'),
+      eq(userMfaFactors.status, 'pending'),
+    ));
+    const [created] = await tx.insert(userMfaFactors).values({
+      userId: user.userId,
+      type: 'totp',
+      name: '身份验证器',
+      secretEncrypted: encryptSecret(secret),
+      status: 'pending',
+    }).returning();
+    return created;
+  });
   const accountName = profile.email || profile.username;
   return {
     factorId: row.id,
@@ -166,6 +175,13 @@ export async function disableMyMfaFactor(factorId: number) {
   const userId = currentUser().userId;
   await ensureOwnTotpFactor(userId, factorId);
   await db.update(userMfaFactors).set({ status: 'disabled' }).where(and(eq(userMfaFactors.id, factorId), eq(userMfaFactors.userId, userId)));
+}
+
+export async function deleteMyMfaFactor(factorId: number) {
+  const userId = currentUser().userId;
+  const factor = await ensureOwnTotpFactor(userId, factorId);
+  if (factor.status === 'enabled') throw new HTTPException(400, { message: '已启用的 MFA 因子请先停用后再删除' });
+  await db.delete(userMfaFactors).where(and(eq(userMfaFactors.id, factorId), eq(userMfaFactors.userId, userId)));
 }
 
 export async function hasEnabledMfa(userId: number): Promise<boolean> {

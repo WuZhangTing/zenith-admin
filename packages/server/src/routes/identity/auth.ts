@@ -16,6 +16,7 @@ import {
 import { getClientInfo } from '../../lib/request-helpers';
 import {
   beginTotpSetup,
+  deleteMyMfaFactor,
   disableMyMfaFactor,
   listMyMfaFactors,
   listMyTrustedDevices,
@@ -498,7 +499,7 @@ const verifyTotpSetupRoute = defineOpenAPIRoute({
 
 const disableMfaFactorRoute = defineOpenAPIRoute({
   route: createRoute({
-    method: 'delete', path: '/mfa/factors/{id}', tags: ['Auth'], summary: '停用 MFA 因子',
+    method: 'post', path: '/mfa/factors/{id}/disable', tags: ['Auth'], summary: '停用 MFA 因子',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
     request: { params: IdParam },
@@ -507,6 +508,20 @@ const disableMfaFactorRoute = defineOpenAPIRoute({
   handler: async (c) => {
     await disableMyMfaFactor(c.req.valid('param').id);
     return c.json(okBody(null, '已停用'), 200);
+  },
+});
+
+const deleteMfaFactorRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/mfa/factors/{id}', tags: ['Auth'], summary: '删除 MFA 因子（仅待验证 / 已停用）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...okMsg('已删除') },
+  }),
+  handler: async (c) => {
+    await deleteMyMfaFactor(c.req.valid('param').id);
+    return c.json(okBody(null, '已删除'), 200);
   },
 });
 
@@ -542,6 +557,6 @@ const deleteTrustedDeviceRoute = defineOpenAPIRoute({
   },
 });
 
-auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, logoutRoute, logoutByRefreshRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
+auth.openapiRoutes([captchaRoute, loginRoute, registerRoute, refreshRoute, mfaVerifyRoute, logoutRoute, logoutByRefreshRoute, meRoute, profileRoute, passwordRoute, myLoginLogsRoute, myOperationLogsRoute, mySessionsRoute, deleteOtherSessionsRoute, deleteSessionRoute, switchTenantRoute, authTenantsRoute, forgotPasswordRoute, resetPasswordRoute, getPreferencesRoute, savePreferencesRoute, getFavoriteMenusRoute, saveFavoriteMenusRoute, verifyPasswordRoute, myMfaFactorsRoute, beginTotpSetupRoute, verifyTotpSetupRoute, disableMfaFactorRoute, deleteMfaFactorRoute, myTrustedDevicesRoute, deleteTrustedDeviceRoute] as const);
 
 export default auth;
