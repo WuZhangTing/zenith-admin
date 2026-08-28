@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Banner, Button, Card, Collapse, Empty, Input, SideSheet, Spin, Tag, Timeline, Typography,
+  Banner, Button, Card, Collapse, Empty, Input, Select, SideSheet, Spin, Table, Tabs, TabPane, Tag, Timeline, Typography,
 } from '@douyinfe/semi-ui';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
-import type { TraceNodeStatus, TraceTimelineNode } from '@zenith/shared/platform';
-import { TRACE_NODE_KIND_LABELS, TRACE_NODE_STATUS_LABELS } from '@zenith/shared/platform';
+import type { TraceFailureEntry, TraceNodeKind, TraceNodeStatus, TraceTimelineNode } from '@zenith/shared/platform';
+import { TRACE_NODE_KIND_LABELS, TRACE_NODE_KINDS, TRACE_NODE_STATUS_LABELS } from '@zenith/shared/platform';
 import { usePermission } from '@/hooks/usePermission';
-import { useTraceTimeline } from '@/hooks/queries/trace';
+import { useRecentTraceFailures, useTraceTimeline } from '@/hooks/queries/trace';
 import { useLogFiles, useLogFileContent } from '@/hooks/queries/log-files';
+import { renderEllipsis } from '@/utils/table-columns';
 
 const { Text, Paragraph } = Typography;
 
@@ -31,23 +33,37 @@ const KIND_COLORS = {
 
 const TRACE_ID_RE = /^[\w-]{8,64}$/;
 
-/** 链路日志（复用日志文件接口按 traceId 全文过滤，默认查最新的应用日志文件） */
+/** 链路日志（复用日志文件接口按 traceId 全文过滤，支持切换近 7 天的日志文件） */
 function TraceLogsPanel({ traceId }: { traceId: string }) {
   const filesQuery = useLogFiles();
-  // pino-roll 按天滚动：取最新未压缩的 app 日志文件
-  const latestFile = useMemo(() => {
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  // pino-roll 按天滚动：候选 = 近 7 个未压缩的 app 日志文件，默认最新
+  const appFiles = useMemo(() => {
     const files = filesQuery.data ?? [];
     return files
       .filter((f) => f.name.startsWith('app.') && !f.isGzip)
-      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))[0]?.name;
+      .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
+      .slice(0, 7);
   }, [filesQuery.data]);
-  const contentQuery = useLogFileContent(latestFile, { lines: 5000, keyword: traceId }, Boolean(latestFile));
+  const activeFile = selectedFile && appFiles.some((f) => f.name === selectedFile)
+    ? selectedFile
+    : appFiles[0]?.name;
+  const contentQuery = useLogFileContent(activeFile, { lines: 5000, keyword: traceId }, Boolean(activeFile));
   const lines = contentQuery.data?.lines ?? [];
 
   return (
     <Spin spinning={filesQuery.isPending || contentQuery.isFetching}>
+      {appFiles.length > 1 && (
+        <Select
+          size="small"
+          value={activeFile}
+          onChange={(v) => setSelectedFile(v as string)}
+          optionList={appFiles.map((f) => ({ value: f.name, label: f.name }))}
+          style={{ width: 260, marginBottom: 8 }}
+        />
+      )}
       {lines.length === 0 ? (
-        <Empty description="当天日志中未检索到该链路的记录" style={{ padding: '16px 0' }} />
+        <Empty description="所选日志文件中未检索到该链路的记录" style={{ padding: '16px 0' }} />
       ) : (
         <div style={{
           fontFamily: 'var(--zx-font-mono, monospace)', fontSize: 12, lineHeight: '20px',
@@ -57,12 +73,76 @@ function TraceLogsPanel({ traceId }: { traceId: string }) {
           {lines.map((line, i) => <div key={i}>{line}</div>)}
         </div>
       )}
-      {latestFile && (
+      {activeFile && (
         <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 6 }}>
-          检索范围：{latestFile} 最近 5000 行（跨天日志请到「日志文件」页按关键字查询）
+          检索范围：{activeFile} 最近 5000 行
         </Text>
       )}
     </Spin>
+  );
+}
+
+/** 最近失败链路列表（排障入口：不知道 ID 时从这里进） */
+function RecentFailuresPanel({ onView }: { onView: (traceId: string) => void }) {
+  const [days, setDays] = useState(7);
+  const [kind, setKind] = useState<TraceNodeKind | ''>('');
+  const failuresQuery = useRecentTraceFailures(days, kind);
+  const list = failuresQuery.data ?? [];
+
+  const columns: ColumnProps<TraceFailureEntry>[] = [
+    {
+      title: '类型', dataIndex: 'kind', width: 100,
+      render: (v: TraceNodeKind) => <Tag size="small" color={KIND_COLORS[v]}>{TRACE_NODE_KIND_LABELS[v]}</Tag>,
+    },
+    { title: '标题', dataIndex: 'title', width: 240, render: (v: string) => renderEllipsis(v) },
+    { title: '失败原因', dataIndex: 'error', width: 320, render: (v: string) => renderEllipsis(v) },
+    { title: '发生时间', dataIndex: 'ts', width: 160 },
+    {
+      title: '操作', width: 110, fixed: 'right',
+      render: (_: unknown, r: TraceFailureEntry) => (
+        <Button size="small" theme="borderless" type="primary" onClick={() => onView(r.traceId)}>查看链路</Button>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <Select
+          value={days}
+          onChange={(v) => setDays(v as number)}
+          optionList={[{ value: 1, label: '近 1 天' }, { value: 3, label: '近 3 天' }, { value: 7, label: '近 7 天' }, { value: 30, label: '近 30 天' }]}
+          style={{ width: 120 }}
+        />
+        <Select
+          placeholder="全部类型"
+          value={kind || undefined}
+          showClear
+          onChange={(v) => setKind((v as TraceNodeKind | undefined) ?? '')}
+          optionList={TRACE_NODE_KINDS.filter((k) => k !== 'event').map((k) => ({ value: k, label: TRACE_NODE_KIND_LABELS[k] }))}
+          style={{ width: 140 }}
+        />
+        <Button
+          theme="borderless"
+          onClick={() => void failuresQuery.refetch()}
+          loading={failuresQuery.isFetching}
+        >
+          刷新
+        </Button>
+      </div>
+      <Table
+        columns={columns}
+        dataSource={list}
+        loading={failuresQuery.isFetching}
+        rowKey={(r?: TraceFailureEntry) => `${r?.kind}-${r?.refId}`}
+        size="small"
+        empty="时间窗内没有失败记录，一切正常 🎉"
+        pagination={false}
+      />
+      <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
+        聚合请求 5xx、作业失败/死信、任务失败与通知派发失败，最多展示最近 50 条。
+      </Text>
+    </>
   );
 }
 
@@ -70,6 +150,7 @@ export default function TracePage() {
   const { hasPermission } = usePermission();
   const [searchParams, setSearchParams] = useSearchParams();
   const traceId = searchParams.get('traceId');
+  const [activeTab, setActiveTab] = useState('query');
   const [draft, setDraft] = useState(traceId ?? '');
   const [detailNode, setDetailNode] = useState<TraceTimelineNode | null>(null);
 
@@ -82,6 +163,13 @@ export default function TracePage() {
     setSearchParams(next === traceId ? searchParams : { traceId: next });
   }
 
+  /** 失败列表行点击：回填 ID、切换到查询 Tab 并触发查询 */
+  function handleViewFailure(id: string) {
+    setDraft(id);
+    setActiveTab('query');
+    setSearchParams({ traceId: id });
+  }
+
   const kindCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const n of nodes) counts.set(n.kind, (counts.get(n.kind) ?? 0) + 1);
@@ -92,67 +180,76 @@ export default function TracePage() {
     <div className="page-container zx-flat-panels">
       <Banner
         fullMode={false} type="info" closeIcon={null} style={{ marginBottom: 12 }}
-        description="输入链路 ID（接口响应头 X-Request-Id / 报错提示中的链路ID / 操作日志详情），查看一次操作触发的请求、作业、事件、通知与任务的完整时间线。"
+        description="输入链路 ID（接口响应头 X-Request-Id / 报错提示中的链路ID / 操作日志详情），查看一次操作触发的请求、作业、事件、通知与任务的完整时间线。数据受各锚点保留策略约束，超出保留窗口的节点不再展示。"
       />
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, maxWidth: 560 }}>
-        <Input
-          prefix={<Search size={14} />}
-          placeholder="链路 ID，如 b9c67477-1433-4815-bbf3-51419c322770"
-          value={draft}
-          onChange={setDraft}
-          onEnterPress={handleSearch}
-          showClear
-        />
-        <Button theme="solid" onClick={handleSearch} disabled={!TRACE_ID_RE.test(draft.trim())}>查询</Button>
-      </div>
+      <Tabs type="line" activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="按 ID 查询" itemKey="query">
+          <div style={{ display: 'flex', gap: 8, margin: '12px 0 16px', maxWidth: 560 }}>
+            <Input
+              prefix={<Search size={14} />}
+              placeholder="链路 ID，如 b9c67477-1433-4815-bbf3-51419c322770"
+              value={draft}
+              onChange={setDraft}
+              onEnterPress={handleSearch}
+              showClear
+            />
+            <Button theme="solid" onClick={handleSearch} disabled={!TRACE_ID_RE.test(draft.trim())}>查询</Button>
+          </div>
 
-      {!traceId ? (
-        <Empty title="输入链路 ID 开始追踪" description="从操作日志详情、任务中心或报错提示中获取链路 ID" style={{ padding: '48px 0' }} />
-      ) : (
-        <Spin spinning={timelineQuery.isFetching}>
-          {timelineQuery.isFetched && nodes.length === 0 ? (
-            <Empty title="未找到该链路的留痕" description="链路 ID 可能有误，或相关数据已按保留策略清理" style={{ padding: '48px 0' }} />
+          {!traceId ? (
+            <Empty title="输入链路 ID 开始追踪" description="从操作日志详情、任务中心、报错提示或「最近失败」页签获取链路 ID" style={{ padding: '48px 0' }} />
           ) : (
-            <>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
-                <Text type="tertiary" size="small">共 {nodes.length} 个节点：</Text>
-                {[...kindCounts.entries()].map(([kind, count]) => (
-                  <Tag key={kind} size="small" color={KIND_COLORS[kind as TraceTimelineNode['kind']]}>
-                    {TRACE_NODE_KIND_LABELS[kind as TraceTimelineNode['kind']]} × {count}
-                  </Tag>
-                ))}
-              </div>
+            <Spin spinning={timelineQuery.isFetching}>
+              {timelineQuery.isFetched && nodes.length === 0 ? (
+                <Empty title="未找到该链路的留痕" description="链路 ID 可能有误，或相关数据已按保留策略清理" style={{ padding: '48px 0' }} />
+              ) : (
+                <>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center' }}>
+                    <Text type="tertiary" size="small">共 {nodes.length} 个节点：</Text>
+                    {[...kindCounts.entries()].map(([kind, count]) => (
+                      <Tag key={kind} size="small" color={KIND_COLORS[kind as TraceTimelineNode['kind']]}>
+                        {TRACE_NODE_KIND_LABELS[kind as TraceTimelineNode['kind']]} × {count}
+                      </Tag>
+                    ))}
+                  </div>
 
-              <Timeline mode="left">
-                {nodes.map((node, i) => (
-                  <Timeline.Item
-                    key={`${node.kind}-${node.refId}-${i}`}
-                    time={node.ts}
-                    type={STATUS_META[node.status].timeline}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <Tag size="small" color={KIND_COLORS[node.kind]}>{TRACE_NODE_KIND_LABELS[node.kind]}</Tag>
-                      <Text strong>{node.title}</Text>
-                      <Tag size="small" color={STATUS_META[node.status].color}>{TRACE_NODE_STATUS_LABELS[node.status]}</Tag>
-                      {node.durationMs !== null && <Text type="tertiary" size="small">{node.durationMs}ms</Text>}
-                      <Button size="small" theme="borderless" type="primary" onClick={() => setDetailNode(node)}>详情</Button>
-                    </div>
-                  </Timeline.Item>
-                ))}
-              </Timeline>
+                  <Timeline mode="left">
+                    {nodes.map((node, i) => (
+                      <Timeline.Item
+                        key={`${node.kind}-${node.refId}-${i}`}
+                        time={node.ts}
+                        type={STATUS_META[node.status].timeline}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <Tag size="small" color={KIND_COLORS[node.kind]}>{TRACE_NODE_KIND_LABELS[node.kind]}</Tag>
+                          <Text strong>{node.title}</Text>
+                          <Tag size="small" color={STATUS_META[node.status].color}>{TRACE_NODE_STATUS_LABELS[node.status]}</Tag>
+                          {node.durationMs !== null && <Text type="tertiary" size="small">{node.durationMs}ms</Text>}
+                          <Button size="small" theme="borderless" type="primary" onClick={() => setDetailNode(node)}>详情</Button>
+                        </div>
+                      </Timeline.Item>
+                    ))}
+                  </Timeline>
 
-              {hasPermission('system:log:files') && (
-                <Collapse style={{ marginTop: 16 }}>
-                  <Collapse.Panel header="应用日志（按链路 ID 过滤）" itemKey="logs">
-                    <TraceLogsPanel traceId={traceId} />
-                  </Collapse.Panel>
-                </Collapse>
+                  {hasPermission('system:log:files') && (
+                    <Collapse style={{ marginTop: 16 }}>
+                      <Collapse.Panel header="应用日志（按链路 ID 过滤）" itemKey="logs">
+                        <TraceLogsPanel traceId={traceId} />
+                      </Collapse.Panel>
+                    </Collapse>
+                  )}
+                </>
               )}
-            </>
+            </Spin>
           )}
-        </Spin>
-      )}
+        </TabPane>
+        <TabPane tab="最近失败" itemKey="failures">
+          <div style={{ marginTop: 12 }}>
+            <RecentFailuresPanel onView={handleViewFailure} />
+          </div>
+        </TabPane>
+      </Tabs>
 
       {/* 节点明细抽屉 */}
       <SideSheet

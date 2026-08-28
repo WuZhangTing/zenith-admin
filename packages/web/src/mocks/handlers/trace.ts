@@ -38,6 +38,11 @@ function buildDemoNodes(): TraceTimelineNode[] {
 }
 
 export const traceHandlers = [
+  http.get('/api/trace/recent-failures', () => ok([
+    { kind: 'job', refId: 601, traceId: 'demo-trace-failed-0001', title: 'webhook_delivery', error: '死信：目标地址连接超时', ts: mockDateTime() },
+    { kind: 'task', refId: 89, traceId: 'demo-trace-failed-0002', title: '数据导入', error: '第 12 行手机号格式不合法', ts: mockDateTime() },
+    { kind: 'request', refId: 1002, traceId: 'demo-trace-failed-0003', title: 'POST /api/payment/refunds', error: '发起退款（HTTP 500）', ts: mockDateTime() },
+  ])),
   http.get('/api/trace/:traceId', ({ params }) => {
     const traceId = String(params.traceId);
     return ok({ traceId, nodes: buildDemoNodes() });

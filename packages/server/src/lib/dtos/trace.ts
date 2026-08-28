@@ -22,3 +22,14 @@ export const TraceTimelineDTO = z
     nodes: z.array(TraceTimelineNodeDTO),
   })
   .openapi('TraceTimeline');
+
+export const TraceFailureEntryDTO = z
+  .object({
+    kind: z.enum(TRACE_NODE_KINDS),
+    refId: z.number().int(),
+    traceId: z.string(),
+    title: z.string(),
+    error: z.string(),
+    ts: z.string(),
+  })
+  .openapi('TraceFailureEntry');

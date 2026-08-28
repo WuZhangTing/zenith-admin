@@ -877,3 +877,14 @@ export interface TraceTimeline {
   traceId: string;
   nodes: TraceTimelineNode[];
 }
+
+/** 最近失败链路条目（排障入口列表） */
+export interface TraceFailureEntry {
+  kind: TraceNodeKind;
+  refId: number;
+  traceId: string;
+  title: string;
+  error: string;
+  /** YYYY-MM-DD HH:mm:ss */
+  ts: string;
+}

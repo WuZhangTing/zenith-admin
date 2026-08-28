@@ -8,18 +8,23 @@
  *   notification ← notification_outbox.trace_id + notification_dispatches（渠道级投递结果）
  *   task         ← async_tasks.trace_id
  */
-import { desc, eq, inArray } from 'drizzle-orm';
-import type { TraceNodeStatus, TraceTimeline, TraceTimelineNode } from '@zenith/shared/platform';
+import { and, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm';
+import type { TraceFailureEntry, TraceNodeKind, TraceNodeStatus, TraceTimeline, TraceTimelineNode } from '@zenith/shared/platform';
 import { db } from '../../db';
 import {
   asyncTasks, notificationDispatches, notificationOutbox, operationLogs, workflowJobs,
 } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere } from '../../lib/where-helpers';
+import { clampDays } from '../../lib/analytics-helpers';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 
 const NODE_LIMIT_PER_KIND = 200;
+
+const FAILURE_LIMIT_PER_SOURCE = 50;
+
+const FAILURE_LIMIT_TOTAL = 50;
 
 const JOB_STATUS_MAP: Record<string, TraceNodeStatus> = {
   pending: 'pending',
@@ -205,4 +210,97 @@ export async function getTraceTimeline(traceId: string): Promise<TraceTimeline> 
   ].sort((a, b) => a.ts.localeCompare(b.ts) || a.refId - b.refId);
 
   return { traceId, nodes };
+}
+
+// ─── 最近失败链路（排障入口：不知道 traceId 时从这里进）───────────────────────
+export interface ListTraceFailuresQuery {
+  days?: number;
+  kind?: TraceNodeKind;
+}
+
+/** 四类锚点的失败记录归一列表（每源限 50，合并倒序取前 50） */
+export async function listRecentTraceFailures(q: ListTraceFailuresQuery): Promise<TraceFailureEntry[]> {
+  const user = currentUser();
+  const days = clampDays(q.days, 7, 30);
+  const since = new Date(Date.now() - days * 86_400_000);
+  const want = (kind: TraceNodeKind) => !q.kind || q.kind === kind;
+
+  const [logRows, jobRows, taskRows, outboxRows] = await Promise.all([
+    want('request')
+      ? db.select({
+          id: operationLogs.id, requestId: operationLogs.requestId, method: operationLogs.method,
+          path: operationLogs.path, description: operationLogs.description,
+          responseCode: operationLogs.responseCode, createdAt: operationLogs.createdAt,
+        }).from(operationLogs)
+        .where(mergeWhere(
+          and(gte(operationLogs.responseCode, 500), isNotNull(operationLogs.requestId), gte(operationLogs.createdAt, since)),
+          tenantCondition(operationLogs, user),
+        ))
+        .orderBy(desc(operationLogs.id))
+        .limit(FAILURE_LIMIT_PER_SOURCE)
+      : Promise.resolve([]),
+    want('job')
+      ? db.select({
+          id: workflowJobs.id, traceId: workflowJobs.traceId, jobType: workflowJobs.jobType,
+          status: workflowJobs.status, lastError: workflowJobs.lastError, createdAt: workflowJobs.createdAt,
+        }).from(workflowJobs)
+        .where(mergeWhere(
+          and(inArray(workflowJobs.status, ['failed', 'dead']), isNotNull(workflowJobs.traceId), gte(workflowJobs.createdAt, since)),
+          tenantCondition(workflowJobs, user),
+        ))
+        .orderBy(desc(workflowJobs.id))
+        .limit(FAILURE_LIMIT_PER_SOURCE)
+      : Promise.resolve([]),
+    want('task')
+      ? db.select({
+          id: asyncTasks.id, traceId: asyncTasks.traceId, title: asyncTasks.title,
+          errorMessage: asyncTasks.errorMessage, createdAt: asyncTasks.createdAt,
+        }).from(asyncTasks)
+        .where(mergeWhere(
+          and(eq(asyncTasks.status, 'failed'), isNotNull(asyncTasks.traceId), gte(asyncTasks.createdAt, since)),
+          tenantCondition(asyncTasks, user),
+        ))
+        .orderBy(desc(asyncTasks.id))
+        .limit(FAILURE_LIMIT_PER_SOURCE)
+      : Promise.resolve([]),
+    want('notification')
+      ? db.select({
+          id: notificationOutbox.id, traceId: notificationOutbox.traceId, eventKey: notificationOutbox.eventKey,
+          lastError: notificationOutbox.lastError, createdAt: notificationOutbox.createdAt,
+        }).from(notificationOutbox)
+        .where(mergeWhere(
+          and(eq(notificationOutbox.status, 'failed'), isNotNull(notificationOutbox.traceId), gte(notificationOutbox.createdAt, since)),
+          tenantCondition(notificationOutbox, user),
+        ))
+        .orderBy(desc(notificationOutbox.id))
+        .limit(FAILURE_LIMIT_PER_SOURCE)
+      : Promise.resolve([]),
+  ]);
+
+  const entries: TraceFailureEntry[] = [
+    ...logRows.map((r) => ({
+      kind: 'request' as const, refId: r.id, traceId: r.requestId!,
+      title: `${r.method} ${r.path}`, error: `${r.description}（HTTP ${r.responseCode}）`,
+      ts: formatDateTime(r.createdAt),
+    })),
+    ...jobRows.map((r) => ({
+      kind: 'job' as const, refId: r.id, traceId: r.traceId!,
+      title: r.jobType, error: `${r.status === 'dead' ? '死信：' : ''}${r.lastError ?? '执行失败'}`,
+      ts: formatDateTime(r.createdAt),
+    })),
+    ...taskRows.map((r) => ({
+      kind: 'task' as const, refId: r.id, traceId: r.traceId!,
+      title: r.title, error: r.errorMessage ?? '任务失败',
+      ts: formatDateTime(r.createdAt),
+    })),
+    ...outboxRows.map((r) => ({
+      kind: 'notification' as const, refId: r.id, traceId: r.traceId!,
+      title: r.eventKey, error: r.lastError ?? '派发失败',
+      ts: formatDateTime(r.createdAt),
+    })),
+  ];
+
+  return entries
+    .sort((a, b) => b.ts.localeCompare(a.ts) || b.refId - a.refId)
+    .slice(0, FAILURE_LIMIT_TOTAL);
 }
