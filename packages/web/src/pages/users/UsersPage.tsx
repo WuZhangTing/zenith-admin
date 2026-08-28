@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Table, Button, Select, Space, Modal, Form, Toast, Tag, Upload, Typography, Row, Col, Tree, Spin, Switch } from '@douyinfe/semi-ui';
+import { Button, Select, Space, Modal, Form, Toast, Tag, Row, Col, Tree, Spin, Switch } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
-import { Download, Trash2, FileUp, ChevronsUpDown, ChevronsDownUp, Building2, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Trash2, ChevronsUpDown, ChevronsDownUp, Building2, KeyRound, ToggleLeft, ToggleRight } from 'lucide-react';
 import type { User, Role, Department, Position } from '@zenith/shared/identity';
-import { request } from '@/utils/request';
 import { UserAvatar } from '@/components/UserAvatar';
 import { formatDateTimeRangeForApi } from '@/utils/date';
 import { formatPasswordPolicyHint, type PasswordPolicy } from '@/utils/password-policy';

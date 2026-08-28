@@ -4,6 +4,32 @@
 
 ---
 
+## v2.3.0 - 2026-08-29
+
+**数据导入中心一期**：与导出中心对偶的统一导入框架，收口全站散落的 Excel 导入轮子。
+
+### Added
+
+#### 数据导入中心（系统管理）
+
+- **统一框架** `lib/import-center`：实体以 Definition 声明（模板列 / 行校验 / 落库），框架统一承担模板生成（必填标星 + 枚举下拉 + 示例行 + 批注）、表头定位校验、单元格类型归一、逐行解析与行级错误报告
+- **执行复用任务中心**（taskType `data-import`，零新表）：进度、取消、断点续跑、行级成败明细、幂等（同文件同实体只跑一次）与链路追踪全部继承
+- **导入中心页** `/system/import-center`（菜单 2730）：按模块分组的可导入实体卡片墙 + 导入历史
+- **ImportButton 通用组件**（对偶 ExportButton）：下载模板 / 上传 xlsx / 提交 → 进度弹窗 + 实时行级明细，可后台运行
+- **首批实体**：会员（`member.members`，新能力）、用户（`identity.users`）、IoT 设备（`iot.devices`）
+- API：`GET /api/import-jobs/entities`（权限过滤）、`GET /{entity}/template`、`POST /api/import-jobs`
+
+### Changed
+
+- **BREAKING**：用户与 IoT 设备的同步导入接口（`/api/users/import*`、`/api/iot/devices/import*`）下线，统一走导入中心；同步导入升级为异步任务，大文件不再超时
+- 会员注册来源新增 `import`（批量导入渠道统计口径）
+
+### Removed
+
+- users.service 与 iot-devices.service 中的私有 exceljs 模板/解析实现（~260 行），用户页与设备页的两套导入 Modal
+
+---
+
 ## v2.2.0 - 2026-08-29
 
 链路追踪二期 M2+M3：时间线从「平铺」升级为「因果树」，链路 ID 走出系统边界。

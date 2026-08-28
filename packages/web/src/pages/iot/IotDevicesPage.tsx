@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
-import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Tooltip, Typography, Upload } from '@douyinfe/semi-ui';
+import { useState } from 'react';
+import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { Download, FileUp } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -18,7 +17,6 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
-import { request } from '@/utils/request';
 import type { IotDevice, IotDeviceGroup } from '@zenith/shared/iot';
 import { IOT_NODE_TYPE_OPTIONS } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
