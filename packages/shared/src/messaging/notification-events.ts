@@ -411,6 +411,18 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '[IoT 恢复] {{ruleName}}',
     content: '设备「{{deviceName}}」（SN: {{sn}}）告警已恢复：{{message}}',
   },
+  'iot.automation.triggered': {
+    group: 'iot',
+    label: 'IoT 场景联动通知',
+    description: '联动规则的「发送通知」动作，接收人由规则显式指定',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email', 'webhook'],
+    rateLimit: { limit: 30, windowMinutes: 60 },
+    vars: eventVars<{ automationName: string; deviceName: string; sn: string; detail: string }>(),
+    title: '[IoT 联动] {{automationName}}',
+    content: '设备「{{deviceName}}」（SN: {{sn}}）触发场景联动：{{detail}}',
+  },
 
   // ─── 开放平台 ───────────────────────────────────────────────────────────────
   'open-platform.app.review_requested': {

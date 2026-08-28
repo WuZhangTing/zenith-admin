@@ -1,11 +1,12 @@
 import {
-  SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_DEVICE_EVENTS, SEED_IOT_DEVICE_GROUPS,
+  SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_AUTOMATION_RUNS, SEED_IOT_AUTOMATIONS,
+  SEED_IOT_DEVICE_EVENTS, SEED_IOT_DEVICE_GROUPS,
   SEED_IOT_DEVICES, SEED_IOT_FIRMWARES, SEED_IOT_OTA_TASK_DEVICES, SEED_IOT_OTA_TASKS,
   SEED_IOT_PRODUCT_EVENTS, SEED_IOT_PRODUCT_PROPERTIES,
   SEED_IOT_PRODUCT_SERVICES, SEED_IOT_PRODUCTS,
 } from '@zenith/shared/seed';
 import type {
-  IotAlarm, IotAlarmRule, IotCommand, IotDevice, IotDeviceEvent, IotDeviceGroup,
+  IotAlarm, IotAlarmRule, IotAutomation, IotAutomationRun, IotCommand, IotDevice, IotDeviceEvent, IotDeviceGroup,
   IotDeviceShadow, IotFirmware, IotOtaTask, IotOtaTaskDevice, IotProduct, IotProductEvent,
   IotProductProperty, IotProductService, IotTelemetryAggPoint, IotTelemetryPoint,
 } from '@zenith/shared/iot';
@@ -149,6 +150,19 @@ export function getNextIotOtaTaskId(): number {
 let nextOtaTaskDeviceId = nextIdFrom(mockIotOtaTaskDevices);
 export function getNextIotOtaTaskDeviceId(): number {
   return nextOtaTaskDeviceId++;
+}
+
+// ─── 四期：场景联动 ───────────────────────────────────────────────────────────
+export const mockIotAutomations: IotAutomation[] = SEED_IOT_AUTOMATIONS.map((a) => ({
+  ...a,
+  actions: a.actions.map((x) => ({ ...x })),
+}));
+
+export const mockIotAutomationRuns: IotAutomationRun[] = SEED_IOT_AUTOMATION_RUNS.map((r) => ({ ...r }));
+
+let nextAutomationId = nextIdFrom(mockIotAutomations);
+export function getNextIotAutomationId(): number {
+  return nextAutomationId++;
 }
 
 /** 近 N 天的小时聚合演示曲线（仅 1 号设备的数值属性） */

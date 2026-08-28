@@ -18,10 +18,11 @@ import { analyticsUserSegments } from './schema';
 import {
   SEED_IOT_PRODUCTS, SEED_IOT_DEVICES, SEED_IOT_PRODUCT_PROPERTIES, SEED_IOT_PRODUCT_SERVICES,
   SEED_IOT_PRODUCT_EVENTS, SEED_IOT_DEVICE_GROUPS, SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_DEVICE_EVENTS,
+  SEED_IOT_AUTOMATIONS,
 } from '@zenith/shared/seed';
 import {
   iotProducts, iotDevices, iotTelemetry, iotProductProperties, iotProductServices, iotProductEvents,
-  iotDeviceGroups, iotDeviceGroupMembers, iotAlarmRules, iotAlarms, iotDeviceEvents, iotDeviceState,
+  iotDeviceGroups, iotDeviceGroupMembers, iotAlarmRules, iotAlarms, iotAutomations, iotDeviceEvents, iotDeviceState,
 } from './schema';
 import { buildSearchVector } from '../services/cms/cms-search.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
@@ -1482,6 +1483,15 @@ async function seedRest() {
     });
     await db.insert(iotTelemetry).values(points);
   }
+  // 场景联动（演示：高温通知管理员）
+  await db.insert(iotAutomations).values(
+    SEED_IOT_AUTOMATIONS.map(({ id, name, productId, deviceId, triggerType, propertyIdentifier, operator, threshold, eventIdentifier, decisionRuleKey, cooldownSeconds, actions, status }) => ({
+      id, name, productId, deviceId, triggerType, propertyIdentifier, operator, threshold,
+      eventIdentifier, decisionRuleKey, cooldownSeconds, actions, status,
+    })),
+  ).onConflictDoNothing({ target: iotAutomations.id });
+  await db.execute(sql`SELECT setval('iot_automations_id_seq', GREATEST((SELECT MAX(id) FROM iot_automations), 1))`);
+
   logger.info('  ✔ IoT products/devices/model/alarms seeded (onConflictDoNothing)');
 
 }

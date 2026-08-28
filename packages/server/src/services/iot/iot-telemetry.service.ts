@@ -27,6 +27,8 @@ import { pushCommandToDevice } from './iot-gateway.service';
 import { loadThingModel } from './iot-model.service';
 import { mergeIotReported } from './iot-shadow.service';
 import { evaluateIotThresholdRules } from './iot-alarms.service';
+import { evaluateIotAutomationsOnTelemetry } from './iot-automations.service';
+import { pushIotRealtime } from './iot-realtime';
 
 // ─── 遥测 ─────────────────────────────────────────────────────────────────────
 /** 单值校验：类型/量程/枚举不符返回 false（该键被丢弃） */
@@ -99,10 +101,21 @@ export async function ingestTelemetry(device: IotDeviceRow, input: IotTelemetryI
     await mergeIotReported(device.id, merged, latestAt).catch((err) => {
       logger.warn(`[iot] 影子合并失败 deviceId=${device.id}: ${(err as Error).message}`);
     });
+    // 管理端实时推送（打开设备详情的页面即时刷新；300ms/设备节流）
+    pushIotRealtime({
+      type: 'iot:telemetry',
+      payload: { deviceId: device.id, metrics: merged, reportedAt: formatDateTime(latestAt) },
+    });
     // 阈值告警：逐点判定（连续计数语义依赖点序）
     for (const row of rows) {
       await evaluateIotThresholdRules(device, row.metrics).catch((err) => {
         logger.warn(`[iot] 阈值告警判定失败 deviceId=${device.id}: ${(err as Error).message}`);
+      });
+    }
+    // 场景联动：属性触发（冷却抑制在引擎内）
+    for (const row of rows) {
+      await evaluateIotAutomationsOnTelemetry(device, row.metrics).catch((err) => {
+        logger.warn(`[iot] 场景联动判定失败 deviceId=${device.id}: ${(err as Error).message}`);
       });
     }
   }

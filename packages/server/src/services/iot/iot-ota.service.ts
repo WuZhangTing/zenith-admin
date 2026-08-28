@@ -21,6 +21,7 @@ import { buildWhere, keywordCondition, withPagination } from '../../lib/where-he
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import logger from '../../lib/logger';
+import { openEventBus } from '../../lib/open-event-bus';
 import { pushOtaToDevice } from './iot-gateway.service';
 import { ensureIotFirmwareExists } from './iot-firmware.service';
 import { resolveIotBatchTargets } from './iot-groups.service';
@@ -252,7 +253,7 @@ export async function cancelIotOtaTask(id: number) {
 }
 
 // ─── 任务收敛 ─────────────────────────────────────────────────────────────────
-/** 终态变更后重算计数；全部终态则任务 completed */
+/** 终态变更后重算计数；全部终态则任务 completed（完成时派发开放 Webhook） */
 async function convergeOtaTask(taskId: number): Promise<void> {
   const rows = await db.select({ status: iotOtaTaskDevices.status, cnt: count() })
     .from(iotOtaTaskDevices)
@@ -261,11 +262,21 @@ async function convergeOtaTask(taskId: number): Promise<void> {
   const by = new Map(rows.map((r) => [r.status, Number(r.cnt)]));
   const active = (by.get('pending') ?? 0) + (by.get('notified') ?? 0)
     + (by.get('downloading') ?? 0) + (by.get('installing') ?? 0);
-  await db.update(iotOtaTasks).set({
+  const [updated] = await db.update(iotOtaTasks).set({
     succeededCount: by.get('succeeded') ?? 0,
     failedCount: by.get('failed') ?? 0,
     ...(active === 0 ? { status: 'completed' as const } : {}),
-  }).where(and(eq(iotOtaTasks.id, taskId), eq(iotOtaTasks.status, 'running')));
+  }).where(and(eq(iotOtaTasks.id, taskId), eq(iotOtaTasks.status, 'running')))
+    .returning({ id: iotOtaTasks.id, status: iotOtaTasks.status, title: iotOtaTasks.title, firmwareVersion: iotOtaTasks.firmwareVersion, succeededCount: iotOtaTasks.succeededCount, failedCount: iotOtaTasks.failedCount, totalCount: iotOtaTasks.totalCount });
+  if (updated && updated.status === 'completed') {
+    openEventBus.emit({
+      type: 'iot.ota.task_completed',
+      data: {
+        taskId: updated.id, title: updated.title, firmwareVersion: updated.firmwareVersion,
+        totalCount: updated.totalCount, succeededCount: updated.succeededCount, failedCount: updated.failedCount,
+      },
+    });
+  }
 }
 
 // ─── 设备侧协议 ───────────────────────────────────────────────────────────────

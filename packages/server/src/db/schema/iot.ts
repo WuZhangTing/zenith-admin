@@ -473,3 +473,75 @@ export const iotOtaTaskDevices = pgTable('iot_ota_task_devices', {
 export type IotOtaTaskDeviceRow = typeof iotOtaTaskDevices.$inferSelect;
 
 export type NewIotOtaTaskDevice = typeof iotOtaTaskDevices.$inferInsert;
+
+// ─── 四期：场景联动 ───────────────────────────────────────────────────────────
+export const iotAutomationTriggerEnum = pgEnum('iot_automation_trigger', ['property', 'event', 'online', 'offline']);
+
+/** 联动动作（jsonb 内嵌，随联动整体编辑） */
+export interface IotAutomationActionDef {
+  type: 'command' | 'desired' | 'notify' | 'workflow';
+  /** 动作目标：self = 触发设备；或显式设备/分组（command/desired 用） */
+  target?: 'self' | 'device' | 'group';
+  targetDeviceId?: number | null;
+  targetGroupId?: number | null;
+  /** command：服务标识符与参数 */
+  service?: string | null;
+  params?: Record<string, unknown> | null;
+  /** desired：期望属性 */
+  desired?: Record<string, number | string | boolean> | null;
+  /** notify：接收人（管理端用户） */
+  userIds?: number[] | null;
+  /** workflow：流程定义 id 与表单数据 */
+  workflowDefinitionId?: number | null;
+  formData?: Record<string, unknown> | null;
+}
+
+export const iotAutomations = pgTable('iot_automations', {
+  id:                 serial('id').primaryKey(),
+  name:               varchar('name', { length: 128 }).notNull(),
+  productId:          integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  /** 空 = 产品下全部设备触发；指定则仅该设备 */
+  deviceId:           integer('device_id').references(() => iotDevices.id, { onDelete: 'cascade' }),
+  triggerType:        iotAutomationTriggerEnum('trigger_type').notNull(),
+  /** property 触发：属性 + 比较符 + 阈值 */
+  propertyIdentifier: varchar('property_identifier', { length: 64 }),
+  operator:           iotCompareOpEnum('operator'),
+  threshold:          doublePrecision('threshold'),
+  /** event 触发：物模型事件标识符 */
+  eventIdentifier:    varchar('event_identifier', { length: 64 }),
+  /** 可选：规则中心决策表二次判定（按 key 软引用，命中任意行才执行动作） */
+  decisionRuleKey:    varchar('decision_rule_key', { length: 64 }),
+  /** 冷却期（秒）：同一联动 × 同一触发设备在窗口内不重复执行 */
+  cooldownSeconds:    integer('cooldown_seconds').notNull().default(60),
+  actions:            jsonb('actions').$type<IotAutomationActionDef[]>().notNull().default([]),
+  status:             statusEnum('status').notNull().default('enabled'),
+  tenantId:           integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt:          timestamp('created_at').defaultNow().notNull(),
+  updatedAt:          timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('idx_iot_automations_product').on(t.productId),
+]);
+
+export type IotAutomationRow = typeof iotAutomations.$inferSelect;
+
+export type NewIotAutomation = typeof iotAutomations.$inferInsert;
+
+/** 联动执行留痕：追加型日志（触发上下文 + 逐动作结果） */
+export const iotAutomationRuns = pgTable('iot_automation_runs', {
+  id:             bigserial('id', { mode: 'number' }).primaryKey(),
+  automationId:   integer('automation_id').notNull().references(() => iotAutomations.id, { onDelete: 'cascade' }),
+  /** 名称快照（联动改名后历史不漂移） */
+  automationName: varchar('automation_name', { length: 128 }).notNull(),
+  deviceId:       integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  triggerContext: jsonb('trigger_context').$type<Record<string, unknown>>().notNull(),
+  /** 逐动作结果：[{ type, target?, success, message? }] */
+  results:        jsonb('results').$type<Array<{ type: string; target?: string; success: boolean; message?: string }>>().notNull().default([]),
+  success:        boolean('success').notNull().default(true),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_iot_automation_runs_automation').on(t.automationId, t.createdAt),
+  index('idx_iot_automation_runs_device').on(t.deviceId, t.createdAt),
+]);
+
+export type IotAutomationRunRow = typeof iotAutomationRuns.$inferSelect;

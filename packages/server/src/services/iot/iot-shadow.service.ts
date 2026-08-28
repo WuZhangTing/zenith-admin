@@ -14,6 +14,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { ensureIotDeviceExists } from './iot-devices.service';
 import { loadThingModel } from './iot-model.service';
 import { pushDesiredToDevice } from './iot-gateway.service';
+import { pushIotRealtime } from './iot-realtime';
 
 export function mapIotShadow(row: IotDeviceStateRow) {
   return {
@@ -69,6 +70,11 @@ function validateDesiredValue(prop: IotProductPropertyRow, value: IotMetricValue
 /** 管理端设置期望属性：合并 desired、版本 +1、WS 在线即时推送 */
 export async function setIotDesired(deviceId: number, input: SetIotDesiredInput) {
   const device = await ensureIotDeviceExists(deviceId);
+  return setIotDesiredForDevice(device, input);
+}
+
+/** 运行时变体（场景联动等无用户上下文场景）：调用方需自行完成目标校验 */
+export async function setIotDesiredForDevice(device: IotDeviceRow, input: SetIotDesiredInput) {
   if (device.status !== 'enabled') throw new HTTPException(400, { message: '设备已禁用，无法下发期望属性' });
   const model = await loadThingModel(device.productId);
   const propMap = new Map(model.properties.map((p) => [p.identifier, p]));
@@ -80,14 +86,18 @@ export async function setIotDesired(deviceId: number, input: SetIotDesiredInput)
     if (err) throw new HTTPException(400, { message: err });
   }
 
-  await loadStateRow(deviceId);
+  await loadStateRow(device.id);
   const [row] = await db.update(iotDeviceState).set({
     desired: sql`${iotDeviceState.desired} || ${JSON.stringify(input.desired)}::jsonb`,
     desiredVersion: sql`${iotDeviceState.desiredVersion} + 1`,
     desiredAt: new Date(),
-  }).where(eq(iotDeviceState.deviceId, deviceId)).returning();
+  }).where(eq(iotDeviceState.deviceId, device.id)).returning();
 
   pushDesiredToDevice(device.sn, { version: row.desiredVersion, desired: row.desired ?? {} });
+  pushIotRealtime({
+    type: 'iot:shadow',
+    payload: { deviceId: device.id, reported: row.reported ?? {}, desired: row.desired ?? {}, desiredVersion: row.desiredVersion },
+  });
   return mapIotShadow(row);
 }
 
@@ -131,6 +141,13 @@ export async function mergeIotReported(
       '{}'::jsonb)
     WHERE device_id = ${deviceId} AND desired <> '{}'::jsonb
   `);
+  const [after] = await db.select().from(iotDeviceState).where(eq(iotDeviceState.deviceId, deviceId)).limit(1);
+  if (after) {
+    pushIotRealtime({
+      type: 'iot:shadow',
+      payload: { deviceId, reported: after.reported ?? {}, desired: after.desired ?? {}, desiredVersion: after.desiredVersion },
+    });
+  }
 }
 
 /** 设备侧待同步期望值（WS 上线补推 / 心跳响应捎带）；为空返回 null */

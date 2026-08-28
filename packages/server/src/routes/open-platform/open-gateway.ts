@@ -15,6 +15,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { openGatewayAuth, openApiMetering, openRateLimit } from '../../middleware/open-gateway';
 import { decide } from '../../services/platform/rules-runtime.service';
 import openCmsRoutes, { OPEN_CMS_ENDPOINTS } from './open-cms';
+import openIotRoutes, { OPEN_IOT_ENDPOINTS } from './open-iot';
 
 /**
  * 必须是 OpenAPIHono 而非普通 Hono：`OpenAPIHono.route()` 只在**父子都是 OpenAPIHono**
@@ -28,6 +29,9 @@ router.use('/v1/*', openGatewayAuth, openApiMetering, openRateLimit);
 
 // CMS Headless 端点（挂在中间件之后，共用同一条鉴权/计量/限流链）
 router.route('/v1', openCmsRoutes);
+
+// IoT 设备查询与控制端点（同上）
+router.route('/v1', openIotRoutes);
 
 /** scope 校验：记录本次所需 scope；以 principal 的有效 scope 为准（令牌级而非应用级） */
 function hasScope(c: Context, scope: string): boolean {
@@ -177,4 +181,5 @@ export const OPEN_GATEWAY_ENDPOINTS: Array<{
   { method: 'POST', path: '/api/open/v1/short-links', summary: '生成短链（支持自定义短码/有效期）', scope: 'data:write' },
   { method: 'GET', path: '/api/open/v1/short-links/{code}/stats', summary: '短链访问统计（汇总与趋势）', scope: 'data:read' },
   ...OPEN_CMS_ENDPOINTS.map((item) => ({ ...item, scope: null })),
+  ...OPEN_IOT_ENDPOINTS,
 ];

@@ -63,7 +63,7 @@ import { wikiComments, wikiDocFavorites, wikiDocReadReceipts, wikiDocSubscriptio
 import {
   iotAlarmRules, iotAlarms, iotCommands, iotDeviceEvents, iotDeviceGroupMembers, iotDeviceGroups,
   iotDevices, iotDeviceState, iotProductEvents, iotProductProperties, iotProducts, iotProductServices, iotTelemetry,
-  iotFirmwares, iotOtaTaskDevices, iotOtaTasks, iotTelemetryHourly,
+  iotFirmwares, iotOtaTaskDevices, iotOtaTasks, iotTelemetryHourly, iotAutomationRuns, iotAutomations,
 } from './iot';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
@@ -1787,4 +1787,16 @@ export const iotOtaTasksRelations = relations(iotOtaTasks, ({ one, many }) => ({
 export const iotOtaTaskDevicesRelations = relations(iotOtaTaskDevices, ({ one }) => ({
   task: one(iotOtaTasks, { fields: [iotOtaTaskDevices.taskId], references: [iotOtaTasks.id] }),
   device: one(iotDevices, { fields: [iotOtaTaskDevices.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotAutomationsRelations = relations(iotAutomations, ({ one, many }) => ({
+  product: one(iotProducts, { fields: [iotAutomations.productId], references: [iotProducts.id] }),
+  device: one(iotDevices, { fields: [iotAutomations.deviceId], references: [iotDevices.id] }),
+  tenant: one(tenants, { fields: [iotAutomations.tenantId], references: [tenants.id] }),
+  runs: many(iotAutomationRuns),
+}));
+
+export const iotAutomationRunsRelations = relations(iotAutomationRuns, ({ one }) => ({
+  automation: one(iotAutomations, { fields: [iotAutomationRuns.automationId], references: [iotAutomations.id] }),
+  device: one(iotDevices, { fields: [iotAutomationRuns.deviceId], references: [iotDevices.id] }),
 }));

@@ -1,5 +1,5 @@
 import type {
-  IotAlarm, IotAlarmRule, IotDevice, IotDeviceEvent, IotDeviceGroup, IotFirmware,
+  IotAlarm, IotAlarmRule, IotAutomation, IotAutomationRun, IotDevice, IotDeviceEvent, IotDeviceGroup, IotFirmware,
   IotOtaTask, IotOtaTaskDevice, IotProduct, IotProductEvent, IotProductProperty, IotProductService,
 } from '../iot/types';
 import { SEED_DATE } from './_base';
@@ -204,5 +204,35 @@ export const SEED_IOT_OTA_TASK_DEVICES: IotOtaTaskDevice[] = [
     id: 1, taskId: 1, deviceId: 1, deviceName: '机房 A-01 温湿度', deviceSn: 'SN-DEMO-TH100-0001',
     status: 'notified', progress: 0, fromVersion: '1.2.0', errorMsg: null,
     notifiedAt: SEED_DATE, finishedAt: null,
+  },
+];
+
+/** 场景联动演示数据：高温 → 通知管理员（配合模拟器 --hot 可实测触发） */
+export const SEED_IOT_AUTOMATIONS: IotAutomation[] = [
+  {
+    id: 1, name: '高温通知管理员', productId: 1, productName: '温湿度传感器 TH-100',
+    deviceId: null, deviceName: null, triggerType: 'property',
+    propertyIdentifier: 'temperature', operator: 'gt', threshold: 36,
+    eventIdentifier: null, decisionRuleKey: null, cooldownSeconds: 60,
+    actions: [{ type: 'notify', userIds: [1] }],
+    status: 'enabled', recentRunCount: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+  {
+    id: 2, name: '传感器故障挂起维修流程', productId: 1, productName: '温湿度传感器 TH-100',
+    deviceId: null, deviceName: null, triggerType: 'event',
+    propertyIdentifier: null, operator: null, threshold: null,
+    eventIdentifier: 'sensor_fault', decisionRuleKey: null, cooldownSeconds: 600,
+    actions: [{ type: 'notify', userIds: [1] }],
+    status: 'disabled', recentRunCount: 0, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_IOT_AUTOMATION_RUNS: IotAutomationRun[] = [
+  {
+    id: 1, automationId: 1, automationName: '高温通知管理员', deviceId: 1,
+    deviceName: '机房 A-01 温湿度', deviceSn: 'SN-DEMO-TH100-0001',
+    triggerContext: { trigger: 'property', property: 'temperature', value: 39.5, operator: 'gt', threshold: 38 },
+    results: [{ type: 'notify', success: true, message: '已通知 1 人' }],
+    success: true, createdAt: '2024-01-01 10:05:00',
   },
 ];

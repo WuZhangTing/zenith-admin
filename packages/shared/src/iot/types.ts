@@ -1,6 +1,7 @@
 import type {
-  IotAccessMode, IotAlarmLevel, IotAlarmRuleType, IotAlarmStatus, IotCommandStatus,
-  IotDeviceEventKind, IotEventLevel, IotOtaDeviceStatus, IotOtaTaskStatus, IotPropertyType, IotValidationMode,
+  IotAccessMode, IotAlarmLevel, IotAlarmRuleType, IotAlarmStatus, IotAutomationActionType,
+  IotAutomationTarget, IotAutomationTrigger, IotCommandStatus, IotDeviceEventKind, IotEventLevel,
+  IotOtaDeviceStatus, IotOtaTaskStatus, IotPropertyType, IotValidationMode,
 } from './constants';
 
 export type IotMetricValue = number | string | boolean;
@@ -347,4 +348,55 @@ export interface IotDashboard {
   productDistribution: IotProductDistributionItem[];
   recentAlarms: IotAlarm[];
   recentEvents: Array<IotDeviceEvent & { deviceName?: string | null }>;
+}
+
+// ─── 场景联动 ─────────────────────────────────────────────────────────────────
+export interface IotAutomationAction {
+  type: IotAutomationActionType;
+  target?: IotAutomationTarget;
+  targetDeviceId?: number | null;
+  targetGroupId?: number | null;
+  service?: string | null;
+  params?: Record<string, unknown> | null;
+  desired?: Record<string, IotMetricValue> | null;
+  userIds?: number[] | null;
+  workflowDefinitionId?: number | null;
+  formData?: Record<string, unknown> | null;
+}
+
+export interface IotAutomation {
+  id: number;
+  name: string;
+  productId: number;
+  productName?: string | null;
+  deviceId: number | null;
+  deviceName?: string | null;
+  triggerType: IotAutomationTrigger;
+  propertyIdentifier: string | null;
+  operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq' | 'neq' | null;
+  threshold: number | null;
+  eventIdentifier: string | null;
+  decisionRuleKey: string | null;
+  cooldownSeconds: number;
+  actions: IotAutomationAction[];
+  status: 'enabled' | 'disabled';
+  /** 近 24h 执行次数（列表聚合返回） */
+  recentRunCount?: number;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IotAutomationRun {
+  id: number;
+  automationId: number;
+  automationName: string;
+  deviceId: number;
+  deviceName?: string | null;
+  deviceSn?: string | null;
+  triggerContext: Record<string, unknown>;
+  results: Array<{ type: string; target?: string; success: boolean; message?: string }>;
+  success: boolean;
+  createdAt: string;
 }

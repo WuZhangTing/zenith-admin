@@ -221,3 +221,49 @@ export const IOT_OTA_DEFAULT_TIMEOUT_MINUTES = 30;
 
 /** 固件版本格式：1.2.3 或 1.2.3-beta.1 */
 export const IOT_FIRMWARE_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+
+// ─── 场景联动 ─────────────────────────────────────────────────────────────────
+export const IOT_AUTOMATION_TRIGGERS = ['property', 'event', 'online', 'offline'] as const;
+
+export type IotAutomationTrigger = (typeof IOT_AUTOMATION_TRIGGERS)[number];
+
+export const IOT_AUTOMATION_TRIGGER_LABELS: Record<IotAutomationTrigger, string> = {
+  property: '属性条件',
+  event: '设备事件',
+  online: '设备上线',
+  offline: '设备离线',
+};
+
+export const IOT_AUTOMATION_TRIGGER_OPTIONS = createLabelOptions(IOT_AUTOMATION_TRIGGERS, IOT_AUTOMATION_TRIGGER_LABELS);
+
+export const IOT_AUTOMATION_ACTION_TYPES = ['command', 'desired', 'notify', 'workflow'] as const;
+
+export type IotAutomationActionType = (typeof IOT_AUTOMATION_ACTION_TYPES)[number];
+
+export const IOT_AUTOMATION_ACTION_TYPE_LABELS: Record<IotAutomationActionType, string> = {
+  command: '下发服务指令',
+  desired: '设置期望属性',
+  notify: '发送通知',
+  workflow: '发起工作流',
+};
+
+export const IOT_AUTOMATION_ACTION_TYPE_OPTIONS = createLabelOptions(IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_ACTION_TYPE_LABELS);
+
+/** 动作目标语义（command/desired） */
+export const IOT_AUTOMATION_TARGETS = ['self', 'device', 'group'] as const;
+
+export type IotAutomationTarget = (typeof IOT_AUTOMATION_TARGETS)[number];
+
+export const IOT_AUTOMATION_TARGET_LABELS: Record<IotAutomationTarget, string> = {
+  self: '触发设备',
+  device: '指定设备',
+  group: '指定分组',
+};
+
+export const IOT_AUTOMATION_TARGET_OPTIONS = createLabelOptions(IOT_AUTOMATION_TARGETS, IOT_AUTOMATION_TARGET_LABELS);
+
+/** 联动默认冷却期（秒） */
+export const IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS = 60;
+
+/** 单条联动最大动作数 */
+export const IOT_AUTOMATION_ACTION_MAX = 5;

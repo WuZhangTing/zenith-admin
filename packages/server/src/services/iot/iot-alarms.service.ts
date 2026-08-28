@@ -25,6 +25,7 @@ import { currentUser, currentUserId } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
+import { openEventBus } from '../../lib/open-event-bus';
 import { notify } from '../messaging/notification-outbox.service';
 import { loadThingModel } from './iot-model.service';
 
@@ -261,6 +262,12 @@ export async function resolveIotAlarm(id: number) {
     .where(and(eq(iotAlarms.id, id), eq(iotAlarms.status, 'firing')))
     .returning();
   if (!row) throw new HTTPException(404, { message: '告警不存在或已恢复' });
+  const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name })
+    .from(iotDevices).where(eq(iotDevices.id, row.deviceId)).limit(1);
+  openEventBus.emit({
+    type: 'iot.alarm.resolved',
+    data: { alarmId: row.id, ruleName: row.ruleName, deviceId: row.deviceId, sn: device?.sn ?? null, deviceName: device?.name ?? null, message: '管理员手动处理', resolvedBy: 'manual' },
+  });
   return mapIotAlarm(row);
 }
 
@@ -317,6 +324,10 @@ async function fireIotAlarm(
     context,
   }).onConflictDoNothing().returning({ id: iotAlarms.id });
   if (!inserted) return;
+  openEventBus.emit({
+    type: 'iot.alarm.triggered',
+    data: { alarmId: inserted.id, ruleName: rule.name, ruleType: rule.ruleType, level: rule.level, deviceId: device.id, sn: device.sn, deviceName: device.name, message },
+  });
   await notifyAlarm('iot.alarm.triggered', rule, device, message, inserted.id);
 }
 
@@ -335,6 +346,10 @@ async function autoResolveIotAlarm(
     ))
     .returning({ id: iotAlarms.id });
   if (!resolved) return;
+  openEventBus.emit({
+    type: 'iot.alarm.resolved',
+    data: { alarmId: resolved.id, ruleName: rule.name, deviceId: device.id, sn: device.sn, deviceName: device.name, message, resolvedBy: 'auto' },
+  });
   await notifyAlarm('iot.alarm.resolved', rule, device, message, resolved.id);
 }
 

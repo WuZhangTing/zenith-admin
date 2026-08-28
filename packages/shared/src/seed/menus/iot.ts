@@ -41,4 +41,11 @@ export const SEED_MENUS_IOT: Menu[] = [
   { id: 18051, parentId: 18050, title: '查询', type: 'button', permission: 'iot:ota:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18052, parentId: 18050, title: '固件管理', type: 'button', permission: 'iot:ota:firmware:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18053, parentId: 18050, title: '创建升级任务', type: 'button', permission: 'iot:ota:task:create', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 场景联动 ──────────────────────────────────────────────────────────────
+  { id: 18060, parentId: 18000, title: '场景联动', name: 'IotAutomations', path: '/iot/automations', component: 'iot/IotAutomationsPage', icon: 'Workflow', type: 'menu', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18061, parentId: 18060, title: '查询', type: 'button', permission: 'iot:automation:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18062, parentId: 18060, title: '新增联动', type: 'button', permission: 'iot:automation:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18063, parentId: 18060, title: '编辑联动', type: 'button', permission: 'iot:automation:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18064, parentId: 18060, title: '删除联动', type: 'button', permission: 'iot:automation:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

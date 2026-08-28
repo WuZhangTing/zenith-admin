@@ -98,7 +98,10 @@ export const OPEN_WEBHOOK_DELIVERY_STATUS_LABELS: Record<OpenWebhookDeliveryStat
 };
 
 /** 可订阅的开放平台事件类型 */
-export const OPEN_WEBHOOK_EVENTS = ['app.test', 'app.call.failed', 'app.quota.warning', 'app.quota.exceeded', 'app.scope.denied'] as const;
+export const OPEN_WEBHOOK_EVENTS = [
+  'app.test', 'app.call.failed', 'app.quota.warning', 'app.quota.exceeded', 'app.scope.denied',
+  'iot.device.online', 'iot.device.offline', 'iot.alarm.triggered', 'iot.alarm.resolved', 'iot.ota.task_completed',
+] as const;
 
 export type OpenWebhookEvent = (typeof OPEN_WEBHOOK_EVENTS)[number];
 
@@ -108,6 +111,11 @@ export const OPEN_WEBHOOK_EVENT_LABELS: Record<string, string> = {
   'app.quota.exceeded': '配额超限',
   'app.quota.warning': '配额预警',
   'app.scope.denied': 'Scope 未授权',
+  'iot.device.online': 'IoT 设备上线',
+  'iot.device.offline': 'IoT 设备离线',
+  'iot.alarm.triggered': 'IoT 告警触发',
+  'iot.alarm.resolved': 'IoT 告警恢复',
+  'iot.ota.task_completed': 'IoT 升级任务完成',
 };
 
 /** Webhook 投递签名请求头 */

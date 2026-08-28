@@ -766,6 +766,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 180,
     description: 'IoT 设备生命周期事件（上下线/激活/重置密钥）与物模型事件的追加型日志；告警记录独立保存，超期事件可安全清理。',
   },
+  {
+    key: 'iot_automation_runs',
+    title: 'IoT 场景联动执行记录',
+    module: 'IoT 设备',
+    tableName: 'iot_automation_runs',
+    timeColumn: 'created_at',
+    defaultDays: 90,
+    description: 'IoT 场景联动的执行留痕（触发上下文与动作结果）；联动列表的近 24h 触发计数只查最近窗口，超期记录可安全清理。',
+  },
 ];
 
 export function findPolicy(key: string): RetentionPolicyDefinition | undefined {

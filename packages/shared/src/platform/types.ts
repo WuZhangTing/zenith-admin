@@ -759,7 +759,10 @@ export type WsMessage =
   | { type: 'mp-kf:session-update'; payload: MpKfSession }
   | { type: 'mp-kf:session-message'; payload: { sessionId: number; accountId: number; openid: string; direction: MpMessageDirection; msgType: MpMessageType; content: string | null; createdAt: string } }
   | { type: 'analytics:ingest'; payload: { count: number } }
-  | { type: 'analytics:config-updated'; payload: { tenantId: number | null } };
+  | { type: 'analytics:config-updated'; payload: { tenantId: number | null } }
+  | { type: 'iot:telemetry'; payload: { deviceId: number; metrics: Record<string, number | string | boolean>; reportedAt: string } }
+  | { type: 'iot:shadow'; payload: { deviceId: number; reported: Record<string, number | string | boolean>; desired: Record<string, number | string | boolean>; desiredVersion: number } }
+  | { type: 'iot:device-event'; payload: { deviceId: number; kind: 'lifecycle' | 'model'; identifier: string; name: string; level: 'info' | 'warn' | 'fault'; reportedAt: string } };
 
 // ─── 地区管理 ──────────────────────────────────────────────
 export type RegionLevel = 'province' | 'city' | 'county';

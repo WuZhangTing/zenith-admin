@@ -8,12 +8,15 @@ import { and, desc, eq } from 'drizzle-orm';
 import type { IotEventIngestInput } from '@zenith/shared/iot';
 import { IOT_LIFECYCLE_EVENTS, type IotDeviceEventKind, type IotEventLevel, type IotLifecycleEventId } from '@zenith/shared/iot';
 import { db } from '../../db';
-import { iotDeviceEvents, type IotDeviceEventRow, type IotDeviceRow } from '../../db/schema';
+import { iotDeviceEvents, iotDevices, type IotDeviceEventRow, type IotDeviceRow } from '../../db/schema';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { buildWhere, withPagination } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
+import { openEventBus } from '../../lib/open-event-bus';
 import { loadThingModel } from './iot-model.service';
 import { evaluateIotEventRules } from './iot-alarms.service';
+import { evaluateIotAutomationsOnEvent, evaluateIotAutomationsOnLifecycle } from './iot-automations.service';
+import { pushIotRealtime } from './iot-realtime';
 
 export function mapIotDeviceEvent(row: IotDeviceEventRow) {
   return {
@@ -43,8 +46,29 @@ export async function recordIotLifecycleEvent(
       level: identifier === 'offline' ? 'warn' : 'info',
       payload: payload ?? null,
     });
+    pushIotRealtime({
+      type: 'iot:device-event',
+      payload: {
+        deviceId, kind: 'lifecycle', identifier, name: IOT_LIFECYCLE_EVENTS[identifier],
+        level: identifier === 'offline' ? 'warn' : 'info', reportedAt: formatDateTime(new Date()),
+      },
+    });
   } catch (err) {
     logger.warn(`[iot] 生命周期事件写入失败 deviceId=${deviceId} event=${identifier}: ${(err as Error).message}`);
+  }
+  // 上线/离线：场景联动 + 开放平台 Webhook（失败不阻断打点方）
+  if (identifier === 'online' || identifier === 'offline') {
+    const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name })
+      .from(iotDevices).where(eq(iotDevices.id, deviceId)).limit(1);
+    if (device) {
+      openEventBus.emit({
+        type: `iot.device.${identifier}`,
+        data: { deviceId, sn: device.sn, name: device.name },
+      });
+    }
+    await evaluateIotAutomationsOnLifecycle(deviceId, identifier).catch((err) => {
+      logger.warn(`[iot] 生命周期联动判定失败 deviceId=${deviceId}: ${(err as Error).message}`);
+    });
   }
 }
 
@@ -65,11 +89,23 @@ export async function ingestIotDeviceEvents(device: IotDeviceRow, input: IotEven
     };
   });
   await db.insert(iotDeviceEvents).values(rows);
-  // 事件类告警：仅对模型内已声明的事件判定
+  for (const row of rows) {
+    pushIotRealtime({
+      type: 'iot:device-event',
+      payload: {
+        deviceId: device.id, kind: 'model', identifier: row.identifier, name: row.name,
+        level: row.level, reportedAt: formatDateTime(row.reportedAt),
+      },
+    });
+  }
+  // 事件类告警与场景联动：仅对模型内已声明的事件判定
   for (const item of input.items) {
     if (!defs.has(item.identifier)) continue;
     await evaluateIotEventRules(device, item.identifier, item.payload ?? null).catch((err) => {
       logger.warn(`[iot] 事件告警判定失败 deviceId=${device.id} event=${item.identifier}: ${(err as Error).message}`);
+    });
+    await evaluateIotAutomationsOnEvent(device, item.identifier, item.payload ?? null).catch((err) => {
+      logger.warn(`[iot] 事件联动判定失败 deviceId=${device.id} event=${item.identifier}: ${(err as Error).message}`);
     });
   }
   return rows.length;

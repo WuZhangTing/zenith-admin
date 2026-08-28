@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Banner, Button, Descriptions, Form, Popconfirm, Radio, RadioGroup, Select,
   SideSheet, Spin, Table, TabPane, Tabs, Tag, Toast, Typography,
@@ -17,14 +18,16 @@ import {
   IOT_PROPERTY_TYPE_LABELS,
 } from '@zenith/shared/iot';
 import type {
-  IotCommand, IotDevice, IotDeviceEvent, IotMetricValue, IotParamDef,
+  IotCommand, IotDevice, IotDeviceEvent, IotDeviceShadow, IotMetricValue, IotParamDef,
   IotProductProperty, IotProductService,
 } from '@zenith/shared/iot';
 import {
+  iotDeviceEventKeys, iotShadowKeys, iotTelemetryKeys,
   useClearIotDesired, useIotCommands, useIotDeviceEvents, useIotDeviceShadow,
   useIotTelemetry, useIotTelemetryAgg, useResetIotDeviceSecret, useSendIotCommand, useSetIotDesired,
 } from '@/hooks/queries/iot-devices';
 import { useIotThingModel } from '@/hooks/queries/iot-products';
+import { useWebSocket, useWsConnected } from '@/hooks/useWebSocket';
 
 const { Text } = Typography;
 
@@ -87,6 +90,25 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
   const model = modelQuery.data;
   const shadowQuery = useIotDeviceShadow(deviceId);
   const shadow = shadowQuery.data;
+  const qc = useQueryClient();
+  const wsConnected = useWsConnected();
+
+  // 实时通道：遥测/影子帧直接合并进缓存（免轮询），事件帧精确失效事件列表
+  useWebSocket((msg) => {
+    if (!deviceId) return;
+    if (msg.type === 'iot:shadow' && msg.payload.deviceId === deviceId) {
+      const { reported, desired, desiredVersion } = msg.payload;
+      qc.setQueryData<IotDeviceShadow>(iotShadowKeys.of(deviceId), (prev) =>
+        prev ? { ...prev, reported, desired, desiredVersion } : prev);
+    } else if (msg.type === 'iot:telemetry' && msg.payload.deviceId === deviceId) {
+      const { metrics, reportedAt } = msg.payload;
+      qc.setQueryData<IotDeviceShadow>(iotShadowKeys.of(deviceId), (prev) =>
+        prev ? { ...prev, reported: { ...prev.reported, ...metrics }, reportedAt, online: true } : prev);
+      void qc.invalidateQueries({ queryKey: iotTelemetryKeys.all });
+    } else if (msg.type === 'iot:device-event' && msg.payload.deviceId === deviceId) {
+      void qc.invalidateQueries({ queryKey: iotDeviceEventKeys.all });
+    }
+  });
 
   // ─── 属性影子 ────────────────────────────────────────────────────────────────
   const [desiredTarget, setDesiredTarget] = useState<IotProductProperty | null>(null);
@@ -373,7 +395,14 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
 
   return (
     <SideSheet
-      title={`设备详情 · ${device?.name ?? ''}`}
+      title={(
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          {`设备详情 · ${device?.name ?? ''}`}
+          <Tag size="small" color={wsConnected ? 'green' : 'grey'}>
+            {wsConnected ? '实时' : '离线'}
+          </Tag>
+        </span>
+      )}
       visible={device !== null}
       onCancel={onClose}
       width={820}

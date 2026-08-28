@@ -1,15 +1,15 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, paginate, pageResult } from '@/mocks/utils/handlers';
 import type {
-  CreateIotAlarmRuleInput, CreateIotDeviceGroupInput, CreateIotEventInput, CreateIotPropertyInput,
+  CreateIotAlarmRuleInput, CreateIotAutomationInput, CreateIotDeviceGroupInput, CreateIotEventInput, CreateIotPropertyInput,
   CreateIotServiceInput, ImportIotTslInput, IotBatchCommandInput, IotDevice, IotMetricValue,
   IotProduct, SendIotCommandInput, SetIotDesiredInput,
 } from '@zenith/shared/iot';
 import {
-  buildMockTelemetry, buildMockTelemetryAgg, getNextIotAlarmRuleId, getNextIotCommandId, getNextIotDeviceId,
+  buildMockTelemetry, buildMockTelemetryAgg, getNextIotAlarmRuleId, getNextIotAutomationId, getNextIotCommandId, getNextIotDeviceId,
   getNextIotFirmwareId, getNextIotGroupId, getNextIotModelItemId, getNextIotOtaTaskDeviceId,
   getNextIotOtaTaskId, getNextIotProductId,
-  mockIotAlarmRules, mockIotAlarms, mockIotCommands, mockIotDeviceEvents, mockIotDevices,
+  mockIotAlarmRules, mockIotAlarms, mockIotAutomationRuns, mockIotAutomations, mockIotCommands, mockIotDeviceEvents, mockIotDevices,
   mockIotEvents, mockIotFirmwares, mockIotGroups, mockIotOtaTaskDevices, mockIotOtaTasks,
   mockIotProducts, mockIotProperties, mockIotServices, mockIotShadows, withGroupInfo,
 } from '../data/iot';
@@ -612,6 +612,83 @@ export const iotHandlers = [
     alarm.resolvedAt = mockDateTime();
     alarm.resolvedBy = 1;
     return ok(alarm, '告警已处理');
+  }),
+
+  // ─── 场景联动（/runs 静态段先于 /:id）───────────────────────────────────────
+  http.get('/api/iot/automations/runs', ({ request }) => {
+    const url = new URL(request.url);
+    const automationId = url.searchParams.get('automationId');
+    const success = url.searchParams.get('success');
+    let list = [...mockIotAutomationRuns];
+    if (automationId) list = list.filter((r) => r.automationId === Number(automationId));
+    if (success) list = list.filter((r) => r.success === (success === 'true'));
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.get('/api/iot/automations', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') || '';
+    const triggerType = url.searchParams.get('triggerType') || '';
+    const status = url.searchParams.get('status') || '';
+    let list = [...mockIotAutomations];
+    if (keyword) list = list.filter((a) => a.name.includes(keyword));
+    if (triggerType) list = list.filter((a) => a.triggerType === triggerType);
+    if (status) list = list.filter((a) => a.status === status);
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.post('/api/iot/automations', async ({ request }) => {
+    const body = (await request.json()) as CreateIotAutomationInput;
+    const product = mockIotProducts.find((p) => p.id === body.productId);
+    if (!product) return badRequest('指定的产品不存在', { status: 400 });
+    const device = body.deviceId ? mockIotDevices.find((d) => d.id === body.deviceId) : null;
+    const automation = {
+      id: getNextIotAutomationId(),
+      name: body.name,
+      productId: body.productId,
+      productName: product.name,
+      deviceId: body.deviceId ?? null,
+      deviceName: device?.name ?? null,
+      triggerType: body.triggerType,
+      propertyIdentifier: body.triggerType === 'property' ? (body.propertyIdentifier ?? null) : null,
+      operator: body.triggerType === 'property' ? (body.operator ?? null) : null,
+      threshold: body.triggerType === 'property' ? (body.threshold ?? null) : null,
+      eventIdentifier: body.triggerType === 'event' ? (body.eventIdentifier ?? null) : null,
+      decisionRuleKey: body.decisionRuleKey ?? null,
+      cooldownSeconds: body.cooldownSeconds ?? 60,
+      actions: body.actions,
+      status: body.status ?? 'enabled',
+      recentRunCount: 0,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockIotAutomations.push(automation);
+    return ok(automation, '创建成功');
+  }),
+  http.put('/api/iot/automations/:id', async ({ params, request }) => {
+    const automation = mockIotAutomations.find((a) => a.id === Number(params.id));
+    if (!automation) return notFound('联动规则不存在', { status: 404 });
+    const body = (await request.json()) as Partial<CreateIotAutomationInput>;
+    if (body.deviceId !== undefined) {
+      const device = body.deviceId ? mockIotDevices.find((d) => d.id === body.deviceId) : null;
+      automation.deviceId = body.deviceId ?? null;
+      automation.deviceName = device?.name ?? null;
+    }
+    if (body.name !== undefined) automation.name = body.name;
+    if (body.propertyIdentifier !== undefined) automation.propertyIdentifier = body.propertyIdentifier ?? null;
+    if (body.operator !== undefined) automation.operator = body.operator ?? null;
+    if (body.threshold !== undefined) automation.threshold = body.threshold ?? null;
+    if (body.eventIdentifier !== undefined) automation.eventIdentifier = body.eventIdentifier ?? null;
+    if (body.decisionRuleKey !== undefined) automation.decisionRuleKey = body.decisionRuleKey ?? null;
+    if (body.cooldownSeconds !== undefined) automation.cooldownSeconds = body.cooldownSeconds;
+    if (body.actions !== undefined) automation.actions = body.actions;
+    if (body.status !== undefined) automation.status = body.status;
+    automation.updatedAt = mockDateTime();
+    return ok(automation, '更新成功');
+  }),
+  http.delete('/api/iot/automations/:id', ({ params }) => {
+    const idx = mockIotAutomations.findIndex((a) => a.id === Number(params.id));
+    if (idx < 0) return notFound('联动规则不存在', { status: 404 });
+    mockIotAutomations.splice(idx, 1);
+    return ok(null, '删除成功');
   }),
 
   // ─── 设备（静态段 batch 先于 /:id）──────────────────────────────────────────

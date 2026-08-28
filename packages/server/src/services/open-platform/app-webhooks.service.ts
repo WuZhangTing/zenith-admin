@@ -561,6 +561,8 @@ export async function dispatchDelivery(deliveryId: number): Promise<boolean> {
  * 应用域事件（带 clientId）定向投递给该应用；站点域事件（cms.*，无 clientId）
  * 广播给「已被授权该站点」的应用 —— 授权表是唯一的可见性来源，未授权应用即便
  * 订阅了事件类型也收不到，避免通过 Webhook 侧信道泄露其他站点的内容变更。
+ * 平台域事件（iot.* 等，无 clientId 无站点范围）仅投递给**显式**订阅了该事件
+ * 类型、且未绑定 CMS 站点的订阅 —— 不含空列表通配，避免站点通配订阅被平台事件打扰。
  */
 async function findMatchingSubscriptions(event: OpenPlatformEvent): Promise<AppWebhookSubscriptionRow[]> {
   const siteId = event.scope?.siteId;
@@ -569,7 +571,11 @@ async function findMatchingSubscriptions(event: OpenPlatformEvent): Promise<AppW
       .where(and(eq(appWebhookSubscriptions.clientId, event.clientId), eq(appWebhookSubscriptions.status, 'enabled')));
     return rows.filter((s) => matchesEventType(s, event.type) && matchesSite(s, siteId));
   }
-  if (siteId == null) return [];
+  if (siteId == null) {
+    const rows = await db.select().from(appWebhookSubscriptions)
+      .where(eq(appWebhookSubscriptions.status, 'enabled'));
+    return rows.filter((s) => (s.events ?? []).includes(event.type) && s.cmsSiteId == null);
+  }
 
   const rows = await db.select().from(appWebhookSubscriptions)
     .where(eq(appWebhookSubscriptions.status, 'enabled'));

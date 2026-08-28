@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import {
-  IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_BATCH_DEVICE_MAX,
+  IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_AUTOMATION_ACTION_MAX,
+  IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS, IOT_AUTOMATION_TARGETS,
+  IOT_AUTOMATION_TRIGGERS, IOT_BATCH_DEVICE_MAX,
   IOT_COMPARE_OPS, IOT_EVENT_BATCH_MAX, IOT_EVENT_LEVELS, IOT_FIRMWARE_VERSION_PATTERN,
   IOT_OTA_DEFAULT_TIMEOUT_MINUTES, IOT_OTA_PROGRESS_STATUSES, IOT_PROPERTY_TYPES,
   IOT_TELEMETRY_BATCH_MAX, IOT_VALIDATION_MODES,
@@ -325,3 +327,78 @@ export type UpdateIotFirmwareInput = z.infer<typeof updateIotFirmwareSchema>;
 export type CreateIotOtaTaskInput = z.infer<typeof createIotOtaTaskSchema>;
 
 export type IotOtaProgressInput = z.infer<typeof iotOtaProgressSchema>;
+
+// ─── 四期：场景联动 ───────────────────────────────────────────────────────────
+const automationActionSchema = z.object({
+  type: z.enum(IOT_AUTOMATION_ACTION_TYPES),
+  target: z.enum(IOT_AUTOMATION_TARGETS).optional(),
+  targetDeviceId: z.number().int().positive().nullable().optional(),
+  targetGroupId: z.number().int().positive().nullable().optional(),
+  service: identifierSchema.nullable().optional(),
+  params: z.record(z.string(), z.unknown()).nullable().optional(),
+  desired: z.record(z.string().min(1).max(64), metricValueSchema).nullable().optional(),
+  userIds: z.array(z.number().int().positive()).max(50).nullable().optional(),
+  workflowDefinitionId: z.number().int().positive().nullable().optional(),
+  formData: z.record(z.string(), z.unknown()).nullable().optional(),
+}).superRefine((a, ctx) => {
+  if ((a.type === 'command' || a.type === 'desired') && (a.target === 'device') && !a.targetDeviceId) {
+    ctx.addIssue({ code: 'custom', path: ['targetDeviceId'], message: '指定设备目标必须选择设备' });
+  }
+  if ((a.type === 'command' || a.type === 'desired') && (a.target === 'group') && !a.targetGroupId) {
+    ctx.addIssue({ code: 'custom', path: ['targetGroupId'], message: '指定分组目标必须选择分组' });
+  }
+  if (a.type === 'command' && !a.service) {
+    ctx.addIssue({ code: 'custom', path: ['service'], message: '指令动作必须指定服务' });
+  }
+  if (a.type === 'desired' && (!a.desired || Object.keys(a.desired).length === 0)) {
+    ctx.addIssue({ code: 'custom', path: ['desired'], message: '期望属性动作至少设置一个属性' });
+  }
+  if (a.type === 'notify' && (!a.userIds || a.userIds.length === 0)) {
+    ctx.addIssue({ code: 'custom', path: ['userIds'], message: '通知动作至少选择一个接收人' });
+  }
+  if (a.type === 'workflow' && !a.workflowDefinitionId) {
+    ctx.addIssue({ code: 'custom', path: ['workflowDefinitionId'], message: '工作流动作必须指定流程定义' });
+  }
+});
+
+export const createIotAutomationSchema = z.object({
+  name: z.string().min(1, '联动名称不能为空').max(128),
+  productId: z.number().int().positive(),
+  deviceId: z.number().int().positive().nullable().optional(),
+  triggerType: z.enum(IOT_AUTOMATION_TRIGGERS),
+  propertyIdentifier: identifierSchema.nullable().optional(),
+  operator: z.enum(IOT_COMPARE_OPS).nullable().optional(),
+  threshold: z.number().nullable().optional(),
+  eventIdentifier: identifierSchema.nullable().optional(),
+  decisionRuleKey: z.string().max(64).nullable().optional(),
+  cooldownSeconds: z.number().int().min(0).max(86400).default(IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS),
+  actions: z.array(automationActionSchema).min(1, '至少配置一个动作').max(IOT_AUTOMATION_ACTION_MAX),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+}).superRefine((val, ctx) => {
+  if (val.triggerType === 'property') {
+    if (!val.propertyIdentifier) ctx.addIssue({ code: 'custom', path: ['propertyIdentifier'], message: '属性触发必须指定属性' });
+    if (!val.operator) ctx.addIssue({ code: 'custom', path: ['operator'], message: '属性触发必须指定比较符' });
+    if (val.threshold == null) ctx.addIssue({ code: 'custom', path: ['threshold'], message: '属性触发必须指定阈值' });
+  }
+  if (val.triggerType === 'event' && !val.eventIdentifier) {
+    ctx.addIssue({ code: 'custom', path: ['eventIdentifier'], message: '事件触发必须指定物模型事件' });
+  }
+});
+
+/** 触发类型与所属产品创建后不可变更 */
+export const updateIotAutomationSchema = z.object({
+  name: z.string().min(1).max(128).optional(),
+  deviceId: z.number().int().positive().nullable().optional(),
+  propertyIdentifier: identifierSchema.nullable().optional(),
+  operator: z.enum(IOT_COMPARE_OPS).nullable().optional(),
+  threshold: z.number().nullable().optional(),
+  eventIdentifier: identifierSchema.nullable().optional(),
+  decisionRuleKey: z.string().max(64).nullable().optional(),
+  cooldownSeconds: z.number().int().min(0).max(86400).optional(),
+  actions: z.array(automationActionSchema).min(1).max(IOT_AUTOMATION_ACTION_MAX).optional(),
+  status: z.enum(['enabled', 'disabled']).optional(),
+});
+
+export type CreateIotAutomationInput = z.infer<typeof createIotAutomationSchema>;
+
+export type UpdateIotAutomationInput = z.infer<typeof updateIotAutomationSchema>;

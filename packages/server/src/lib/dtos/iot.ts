@@ -4,6 +4,7 @@
 import { z } from '@hono/zod-openapi';
 import {
   IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_ALARM_STATUSES,
+  IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_TARGETS, IOT_AUTOMATION_TRIGGERS,
   IOT_COMMAND_STATUSES, IOT_COMPARE_OPS, IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS,
   IOT_OTA_DEVICE_STATUSES, IOT_OTA_TASK_STATUSES,
   IOT_PROPERTY_TYPES, IOT_VALIDATION_MODES,
@@ -317,3 +318,87 @@ export const IotDashboardDTO = z
     recentEvents: z.array(IotDeviceEventDTO.extend({ deviceName: z.string().nullable().optional() })),
   })
   .openapi('IotDashboard');
+
+const automationActionDef = z.object({
+  type: z.enum(IOT_AUTOMATION_ACTION_TYPES),
+  target: z.enum(IOT_AUTOMATION_TARGETS).optional(),
+  targetDeviceId: z.number().int().nullable().optional(),
+  targetGroupId: z.number().int().nullable().optional(),
+  service: z.string().nullable().optional(),
+  params: z.record(z.string(), z.unknown()).nullable().optional(),
+  desired: z.record(z.string(), metricValue).nullable().optional(),
+  userIds: z.array(z.number().int()).nullable().optional(),
+  workflowDefinitionId: z.number().int().nullable().optional(),
+  formData: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+
+export const IotAutomationDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    productId: z.number().int(),
+    productName: z.string().nullable(),
+    deviceId: z.number().int().nullable(),
+    deviceName: z.string().nullable(),
+    triggerType: z.enum(IOT_AUTOMATION_TRIGGERS),
+    propertyIdentifier: z.string().nullable(),
+    operator: z.enum(IOT_COMPARE_OPS).nullable(),
+    threshold: z.number().nullable(),
+    eventIdentifier: z.string().nullable(),
+    decisionRuleKey: z.string().nullable(),
+    cooldownSeconds: z.number().int(),
+    actions: z.array(automationActionDef),
+    status: z.enum(['enabled', 'disabled']),
+    recentRunCount: z.number().int(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('IotAutomation');
+
+export const IotAutomationRunDTO = z
+  .object({
+    id: z.number().int(),
+    automationId: z.number().int(),
+    automationName: z.string(),
+    deviceId: z.number().int(),
+    deviceName: z.string().nullable(),
+    deviceSn: z.string().nullable(),
+    triggerContext: z.record(z.string(), z.unknown()),
+    results: z.array(z.object({
+      type: z.string(),
+      target: z.string().optional(),
+      success: z.boolean(),
+      message: z.string().optional(),
+    })),
+    success: z.boolean(),
+    createdAt: z.string(),
+  })
+  .openapi('IotAutomationRun');
+
+// ─── 开放 API DTO（对外以 SN 寻址，不暴露内部 id）─────────────────────────────
+export const OpenIotDeviceDTO = z
+  .object({
+    sn: z.string(),
+    name: z.string(),
+    productId: z.number().int(),
+    productName: z.string().nullable(),
+    status: z.enum(['enabled', 'disabled']),
+    online: z.boolean(),
+    firmwareVersion: z.string().nullable(),
+    activatedAt: z.string().nullable(),
+    lastSeenAt: z.string().nullable(),
+  })
+  .openapi('OpenIotDevice');
+
+export const OpenIotDeviceDetailDTO = OpenIotDeviceDTO
+  .extend({
+    shadow: z.object({
+      reported: z.record(z.string(), metricValue),
+      desired: z.record(z.string(), metricValue),
+      desiredVersion: z.number().int(),
+      reportedAt: z.string().nullable(),
+      desiredAt: z.string().nullable(),
+    }),
+  })
+  .openapi('OpenIotDeviceDetail');
