@@ -207,3 +207,29 @@ export interface AsyncTaskTypeStat {
   /** 成功任务的平均耗时（毫秒）；无数据为 null */
   avgDurationMs: number | null;
 }
+
+// ─── 数据导入中心 ─────────────────────────────────────────────────────────────
+/** 导入模板列说明（模板生成与前端展示共用） */
+export interface ImportColumnMeta {
+  key: string;
+  /** 表头文案（上传文件按它定位列） */
+  header: string;
+  required?: boolean;
+  /** 示例值（模板示例行） */
+  example?: string;
+  /** 枚举可选值（模板做数据验证下拉） */
+  enumValues?: string[];
+  /** 补充说明（如格式要求） */
+  note?: string;
+}
+
+/** 可导入实体元信息（按权限过滤后返回前端） */
+export interface ImportEntityMeta {
+  entity: string;
+  title: string;
+  module: string;
+  description: string | null;
+  /** 单文件最大数据行数 */
+  maxRows: number;
+  columns: ImportColumnMeta[];
+}

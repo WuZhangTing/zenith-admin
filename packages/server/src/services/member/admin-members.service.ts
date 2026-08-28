@@ -158,6 +158,8 @@ export interface AdminCreateMemberInput {
   status?: MemberStatus;
   levelId?: number | null;
   remark?: string | null;
+  /** 注册来源：后台创建 admin（默认）/ 批量导入 import */
+  registerSource?: 'admin' | 'import';
 }
 
 export async function createMember(input: AdminCreateMemberInput) {
@@ -189,7 +191,7 @@ export async function createMember(input: AdminCreateMemberInput) {
           status: input.status ?? 'active',
           levelId,
           remark: input.remark ?? null,
-          registerSource: 'admin',
+          registerSource: input.registerSource ?? 'admin',
         })
         .returning();
     } catch (err) {

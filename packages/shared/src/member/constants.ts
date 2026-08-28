@@ -37,7 +37,7 @@ export const MEMBER_COUPON_STATUSES = ['unused', 'used', 'expired', 'frozen'] as
 
 export type MemberCouponStatus = typeof MEMBER_COUPON_STATUSES[number];
 
-export const MEMBER_REGISTER_SOURCES = ['web', 'h5', 'app', 'admin'] as const;
+export const MEMBER_REGISTER_SOURCES = ['web', 'h5', 'app', 'admin', 'import'] as const;
 
 export type MemberRegisterSource = typeof MEMBER_REGISTER_SOURCES[number];
 

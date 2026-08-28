@@ -10,3 +10,12 @@ export const createExportJobSchema = z.object({
   watermark: z.boolean().optional().default(true),
   executionMode: z.enum(['sync', 'async', 'auto']).optional().default('sync'),
 });
+
+/** 提交数据导入任务 */
+export const submitImportJobSchema = z.object({
+  entity: z.string().min(1).max(64),
+  /** 文件中心 fileId（先经 /api/files/upload 上传） */
+  fileId: z.string().min(8).max(64),
+});
+
+export type SubmitImportJobInput = z.infer<typeof submitImportJobSchema>;
