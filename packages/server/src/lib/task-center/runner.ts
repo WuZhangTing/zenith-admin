@@ -5,7 +5,7 @@ import { asyncTaskItems, asyncTasks, asyncTaskTypeConfigs, users } from '../../d
 import type { AsyncTaskRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { registerSystemQueueWorker, sendSystemJob, sendSystemJobAfter } from '../pg-boss-scheduler';
-import { currentUser, runWithCurrentUser, currentTraceId, runWithTraceId } from '../context';
+import { currentUser, runWithCurrentUser, currentTraceId, runWithTraceId, currentParentRef, runWithParentRef } from '../context';
 import { getCreateTenantId } from '../tenant';
 import type { JwtPayload } from '../../middleware/auth';
 import logger from '../logger';
@@ -84,6 +84,7 @@ export async function submitAsyncTask(
     tenantId,
     // 链路关联：任务与其提交请求同链，worker 执行时恢复该 trace 作用域
     traceId: currentTraceId() ?? null,
+    parentRef: currentParentRef() ?? null,
     // 显式写入而非依赖 db Proxy 的审计注入：createdBy 是幂等作用域的一部分，
     // 下面的冲突回查要按它过滤，作用域不能取决于别处的副作用。
     createdBy: user.userId,
@@ -237,10 +238,10 @@ export async function runAsyncTask(taskId: number): Promise<string> {
 
   try {
     const creator = await getCreatorPayload(claimed);
-    // 恢复提交时的链路作用域：handler 内的日志/作业/事件/通知继续同链
-    const runHandler = () => (creator
+    // 恢复提交时的链路作用域并登记因果父节点：handler 内的日志/作业/事件/通知继续同链且挂到本任务下
+    const runHandler = () => runWithParentRef(`task:${claimed.id}`, () => (creator
       ? runWithCurrentUser(creator, () => handler.run(ctx))
-      : handler.run(ctx));
+      : handler.run(ctx)));
     const result = claimed.traceId
       ? await runWithTraceId(claimed.traceId, runHandler)
       : await runHandler();

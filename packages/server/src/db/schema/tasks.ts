@@ -98,6 +98,8 @@ export const asyncTasks = pgTable('async_tasks', {
   heartbeatAt: timestamp('heartbeat_at'),
   /** 链路关联 ID（= 提交请求的 requestId），串起任务与其触发源/后续副作用 */
   traceId: varchar('trace_id', { length: 64 }),
+  /** 因果父引用（`kind:refId` 或 `request`），链路时间线树形展示的触发源 */
+  parentRef: varchar('parent_ref', { length: 32 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   startedAt: timestamp('started_at'),

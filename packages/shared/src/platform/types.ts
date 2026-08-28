@@ -869,6 +869,8 @@ export interface TraceTimelineNode {
   durationMs: number | null;
   /** 源单据 ID（对应锚点表主键） */
   refId: number;
+  /** 因果父引用（`kind:refId` 或 `request`）；null 表示无法定位触发源 */
+  parentRef?: string | null;
   /** kind 专属明细（渠道投递结果 / 作业错误 / 审计摘要等） */
   detail: Record<string, unknown>;
 }

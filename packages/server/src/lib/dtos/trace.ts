@@ -12,6 +12,7 @@ export const TraceTimelineNodeDTO = z
     status: z.enum(TRACE_NODE_STATUSES),
     durationMs: z.number().int().nullable(),
     refId: z.number().int(),
+    parentRef: z.string().nullable().optional(),
     detail: z.record(z.string(), z.unknown()),
   })
   .openapi('TraceTimelineNode');

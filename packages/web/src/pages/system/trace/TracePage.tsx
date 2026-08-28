@@ -176,6 +176,32 @@ export default function TracePage() {
     return counts;
   }, [nodes]);
 
+  // 因果树展开：按 parentRef 组织父子（`kind:refId` / `request`），DFS 顺序 + 缩进深度；
+  // 父引用缺失或指向窗口外节点时兜底为根，保持平铺可读
+  const treeRows = useMemo(() => {
+    const nodeKey = (n: TraceTimelineNode) => (n.kind === 'request' ? 'request' : `${n.kind}:${n.refId}`);
+    const keySet = new Set(nodes.map(nodeKey));
+    const children = new Map<string, TraceTimelineNode[]>();
+    const roots: TraceTimelineNode[] = [];
+    for (const n of nodes) {
+      const parent = n.parentRef && n.parentRef !== nodeKey(n) && keySet.has(n.parentRef) ? n.parentRef : null;
+      if (parent) {
+        const list = children.get(parent) ?? [];
+        list.push(n);
+        children.set(parent, list);
+      } else {
+        roots.push(n);
+      }
+    }
+    const rows: Array<{ node: TraceTimelineNode; depth: number }> = [];
+    const visit = (n: TraceTimelineNode, depth: number) => {
+      rows.push({ node: n, depth });
+      for (const child of children.get(nodeKey(n)) ?? []) visit(child, depth + 1);
+    };
+    for (const r of roots) visit(r, 0);
+    return rows;
+  }, [nodes]);
+
   return (
     <div className="page-container zx-flat-panels">
       <Banner
@@ -215,13 +241,14 @@ export default function TracePage() {
                   </div>
 
                   <Timeline mode="left">
-                    {nodes.map((node, i) => (
+                    {treeRows.map(({ node, depth }, i) => (
                       <Timeline.Item
                         key={`${node.kind}-${node.refId}-${i}`}
                         time={node.ts}
                         type={STATUS_META[node.status].timeline}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginLeft: depth * 24 }}>
+                          {depth > 0 && <Text type="tertiary" size="small">↳</Text>}
                           <Tag size="small" color={KIND_COLORS[node.kind]}>{TRACE_NODE_KIND_LABELS[node.kind]}</Tag>
                           <Text strong>{node.title}</Text>
                           <Tag size="small" color={STATUS_META[node.status].color}>{TRACE_NODE_STATUS_LABELS[node.status]}</Tag>

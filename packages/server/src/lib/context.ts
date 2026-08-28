@@ -67,7 +67,7 @@ export function runWithCurrentUser<T>(user: JwtPayload, fn: () => T | Promise<T>
 
 // ─── 链路关联 traceId（贯穿一次操作的作业/事件 fan-out，跨异步/跨实例/子流程串联）─────
 // 定义在零依赖的 trace-context.ts（logger 的 mixin 也要读，放这里会成 logger→context→db→logger 环）
-export { currentTraceId, runWithTraceId } from './trace-context';
+export { currentTraceId, runWithTraceId, currentParentRef, runWithParentRef } from './trace-context';
 
 /**
  * 在 Service 层写入"操作前实体快照"，用于审计日志 diff 展示。

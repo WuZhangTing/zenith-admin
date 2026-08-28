@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'hono';
-import { runWithTraceId } from '../lib/context';
+import { runWithTraceId, runWithParentRef } from '../lib/context';
 
 /**
  * 为每个请求建立链路关联 traceId（贯穿其触发的全部作业/事件/通知/任务 fan-out）。
@@ -9,8 +9,11 @@ import { runWithTraceId } from '../lib/context';
  * AsyncLocalStorage，使下游 `enqueueJob` / 事件 outbox / `submitAsyncTask` /
  * pino 日志（mixin 注入 reqId 字段）自动继承。
  *
+ * 同时建立因果父引用 `request`：请求内直接产生的作业/通知/任务挂在请求节点下
+ * （一条链路只有一个请求节点，无需携带 id）。
+ *
  * 必须挂在 `requestId()` 之后。
  */
 export const requestTraceMiddleware: MiddlewareHandler = async (c, next) => {
-  await runWithTraceId(c.get('requestId'), () => next());
+  await runWithTraceId(c.get('requestId'), () => runWithParentRef('request', () => next()));
 };

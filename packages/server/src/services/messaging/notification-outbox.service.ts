@@ -17,7 +17,7 @@ import { isNotificationEventKey, getNotificationEvent } from '@zenith/shared/mes
 import { db } from '../../db';
 import { notificationOutbox } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
-import { currentTraceId } from '../../lib/context';
+import { currentTraceId, currentParentRef } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { escapeHtml } from '../../lib/html-escape';
 import { deliverOutboxRow } from '../../lib/notification/dispatch';
@@ -58,6 +58,7 @@ function buildValues<K extends NotificationEventKey>(eventKey: K, input: NotifyI
     dedupeKey: input.dedupeKey ?? null,
     scheduledAt: input.scheduledAt ?? null,
     traceId: currentTraceId() ?? null,
+    parentRef: currentParentRef() ?? null,
     tenantId: input.tenantId ?? null,
   };
 }

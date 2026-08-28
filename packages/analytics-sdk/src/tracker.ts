@@ -687,14 +687,18 @@ class Tracker {
       }
     };
 
-    const record = (url: string, method: string, status: number, durationMs: number, failed: boolean) => {
+    const record = (url: string, method: string, status: number, durationMs: number, failed: boolean, requestId?: string | null) => {
       if (isInternal(url, method)) return;
       addBreadcrumb({ type: 'http', message: `${method} ${url} → ${failed ? 'ERR' : status}`, level: status >= 400 || failed ? 'warning' : 'info', data: { status, durationMs } });
       if (status >= 400 || failed || durationMs > SLOW_API_MS) {
         this.track({ eventType: 'api_request', eventName: '$api', pagePath: globalThis.location.pathname, durationMs: Math.round(durationMs), properties: { url, method, status, failed } });
       }
       if ((status >= 500 || failed) && this.config.trackErrors) {
-        reportError('http_error', `${method} ${url} ${failed ? '请求失败' : status}`, { level: 'error', httpStatus: status || undefined, httpMethod: method, httpUrl: url });
+        reportError('http_error', `${method} ${url} ${failed ? '请求失败' : status}`, {
+          level: 'error', httpStatus: status || undefined, httpMethod: method, httpUrl: url,
+          // 服务端链路 ID：错误详情可一键跳转链路追踪查看服务端时间线
+          context: requestId ? { requestId } : undefined,
+        });
       }
     };
 
@@ -706,7 +710,7 @@ class Tracker {
       const start = performance.now();
       try {
         const res = await origFetch(...args);
-        record(url, method, res.status, performance.now() - start, false);
+        record(url, method, res.status, performance.now() - start, false, res.headers.get('X-Request-Id'));
         return res;
       } catch (err) {
         record(url, method, 0, performance.now() - start, true);

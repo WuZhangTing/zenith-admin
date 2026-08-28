@@ -85,6 +85,7 @@ function jobNodes(rows: (typeof workflowJobs.$inferSelect)[]): TraceTimelineNode
         status: JOB_STATUS_MAP[r.status] ?? 'pending',
         durationMs: null,
         refId: r.id,
+        parentRef: r.parentRef ?? null,
         detail: {
           eventId: event?.eventId,
           attempts: r.attempts,
@@ -100,6 +101,7 @@ function jobNodes(rows: (typeof workflowJobs.$inferSelect)[]): TraceTimelineNode
       status: JOB_STATUS_MAP[r.status] ?? 'pending',
       durationMs: null,
       refId: r.id,
+      parentRef: r.parentRef ?? null,
       detail: {
         jobType: r.jobType,
         nodeKey: r.nodeKey,
@@ -122,6 +124,7 @@ function taskNodes(rows: (typeof asyncTasks.$inferSelect)[]): TraceTimelineNode[
     status: TASK_STATUS_MAP[r.status] ?? 'pending',
     durationMs: r.startedAt && r.completedAt ? r.completedAt.getTime() - r.startedAt.getTime() : null,
     refId: r.id,
+    parentRef: r.parentRef ?? null,
     detail: {
       taskType: r.taskType,
       processedCount: r.processedCount,
@@ -167,6 +170,7 @@ async function notificationNodes(traceId: string): Promise<TraceTimelineNode[]> 
     status: OUTBOX_STATUS_MAP[r.status] ?? 'pending',
     durationMs: null,
     refId: r.id,
+    parentRef: r.parentRef ?? null,
     detail: {
       eventKey: r.eventKey,
       recipientCount: Array.isArray(r.recipients) ? r.recipients.length : 0,

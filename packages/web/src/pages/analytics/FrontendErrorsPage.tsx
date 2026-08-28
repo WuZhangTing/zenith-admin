@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Tabs,
@@ -53,6 +53,7 @@ import { ConfigurableTable } from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { usePagination } from '@/hooks/usePagination';
+import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { formatDateTime } from '@/utils/date';
 import {
@@ -292,6 +293,31 @@ function BreadcrumbTimeline({ breadcrumbs }: { readonly breadcrumbs: ErrorBreadc
 
 const TIMELINE_SPARK_W = 96;
 const TIMELINE_SPARK_H = 26;
+
+/** 从事件 context 提取服务端链路 ID（SDK 在 http_error 上报时写入） */
+function extractRequestId(context: unknown): string | null {
+  if (!context || typeof context !== 'object') return null;
+  const rid = (context as Record<string, unknown>).requestId;
+  return typeof rid === 'string' && rid.length >= 8 ? rid : null;
+}
+
+/** 「查看服务端链路」跳转按钮（事件 context 携带 requestId 时展示） */
+function TraceJumpButton({ context }: Readonly<{ context: unknown }>) {
+  const navigate = useNavigate();
+  const { hasPermission } = usePermission();
+  const requestId = extractRequestId(context);
+  if (!requestId || !hasPermission('system:trace:view')) return null;
+  return (
+    <Button
+      size="small"
+      theme="borderless"
+      type="primary"
+      onClick={() => navigate(`/system/trace?traceId=${encodeURIComponent(requestId)}`)}
+    >
+      查看服务端链路
+    </Button>
+  );
+}
 
 /** 表格内嵌迷你趋势曲线（近 7 日发生次数） */
 function TrendSparkline({ data }: Readonly<{ data?: number[] }>) {
@@ -1344,7 +1370,7 @@ export default function FrontendErrorsPage() {
                           { key: '会话', value: event.sessionId || '–' },
                         ]}
                       />
-                      <Title heading={6} style={{ margin: '12px 0 8px' }}>Context</Title>
+                      <Title heading={6} style={{ margin: '12px 0 8px' }}>Context <TraceJumpButton context={event.context} /></Title>
                       <TextBlock maxHeight={180}>{safeJson(event.context)}</TextBlock>
                       <Title heading={6} style={{ margin: '12px 0 8px' }}>Breadcrumbs</Title>
                       <BreadcrumbTimeline breadcrumbs={event.breadcrumbs} />
@@ -1385,7 +1411,7 @@ export default function FrontendErrorsPage() {
               <TextBlock>{eventDetail.stack || '暂无堆栈'}</TextBlock>
               <Title heading={6}>Breadcrumbs</Title>
               <BreadcrumbTimeline breadcrumbs={eventDetail.breadcrumbs} />
-              <Title heading={6}>Context</Title>
+              <Title heading={6}>Context <TraceJumpButton context={eventDetail.context} /></Title>
               <TextBlock>{safeJson(eventDetail.context)}</TextBlock>
             </Space>
           </div>

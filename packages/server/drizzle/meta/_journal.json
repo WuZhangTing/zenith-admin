@@ -351,6 +351,13 @@
       "when": 1787929690199,
       "tag": "0049_curvy_xorn",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787935991504,
+      "tag": "0050_fat_mojo",
+      "breakpoints": true
     }
   ]
 }

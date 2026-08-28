@@ -439,6 +439,8 @@ export const notificationOutbox = pgTable('notification_outbox', {
   digestKey: varchar('digest_key', { length: 128 }),
   /** 链路关联 ID，串起一次业务操作触发的全部异步副作用 */
   traceId: varchar('trace_id', { length: 64 }),
+  /** 因果父引用（`kind:refId` 或 `request`），链路时间线树形展示的触发源 */
+  parentRef: varchar('parent_ref', { length: 32 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
