@@ -4,6 +4,35 @@
 
 ---
 
+## v1.99.0 - 2026-08-28
+
+本版本完成**日志框架从 winston 到 pino 的全面迁移**：NDJSON 结构化落盘、worker 线程输出、官方 pino-http 访问日志；并消除多处热路径串行查询，优化若干界面细节。
+
+### Changed
+
+#### 日志框架迁移（winston → pino）
+
+- **主日志**：原生 pino 实例输出 NDJSON（数字级别、本地时区偏移 ISO 时间戳），文件经 pino-roll worker transport 按天轮转——命名 `app.YYYY-MM-DD.N.log`，保留 `LOG_MAX_FILES` 份，不再 gzip 归档；`logMethod` hook 归一化「消息在前」的调用签名并承担 ERROR/WARN 频率计数（`lib/log-metrics.ts` 口径不变），业务调用点零改动，child logger 等原生能力可用
+- **访问日志**：`hono/logger` 文本行改为官方 pino-http 集成——结构化访问行含 reqId 与耗时，5xx 记 error 级，`/api/health`、`/api/metrics`、`/api/ws` 不记；请求级子 logger 经 `c.get('logger')` 可用；移除 `strip-ansi` 依赖
+- **控制台格式**：新增 `LOG_CONSOLE_PRETTY`（默认 `false` 输出 NDJSON；本地开发设 `true` 得 pino-pretty 彩色单行。只影响控制台，日志文件始终 NDJSON）
+- **配置收紧**：`LOG_LEVEL` 校验为 pino 级别枚举（fatal/error/warn/info/debug/trace）；`LOG_MAX_FILES` 改为数字份数——**原 `30d` 写法需改为 `30`**
+- **日志查看器**：级别识别新增 NDJSON 行首数字 level 键分支（精确识别，不再依赖大写单词猜测），`http-traffic` 等文本日志回退保留；告警事件「查看日志」跳转适配新文件名
+- HTTP 流量日志（Logbook 风格深度排障）格式化/脱敏/关联逻辑不变，仅写入后端换为 pino-roll，独立文件更名 `http-traffic.YYYY-MM-DD.N.log`
+- 热路径查询优化：站内信/短信/邮件日志列表 count 与 list 并行；CMS 批量回收/归档的映射副本锁校验改单次 `inArray` 批量查询；工作流批量催办 DISTINCT ON 一次取数 + 批量插入（2N 次 → 2 次）
+
+#### 界面
+
+- 联动规则编辑弹窗改为 SideSheet，冷却期与决策表 Key 拆为两行
+- 计划任务弹窗布局与调度列优化
+- SideSheet 页脚统一右对齐并写入前端规范
+
+### Fixed
+
+- pino 多 target 模式下 per-target level 缺省为 `info`，显式跟随 `LOG_LEVEL` 修复 `debug`/`trace` 级日志被静默过滤
+- 决策表 Key 标签折行——「可选」移入占位文案
+
+---
+
 ## v1.98.0 - 2026-08-28
 
 本版本交付 **IoT 设备管理六期 —— 运维闭环与智能升级**：告警从「看见」走向「处理完成」的闭环，OTA 引入灰度发布，新增时间驱动的设备计划任务、一型一密动态注册与 AI 设备助手。
