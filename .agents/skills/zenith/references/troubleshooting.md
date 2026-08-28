@@ -263,7 +263,7 @@ mock 初始数据应从 `@zenith/shared/seed` 的 `SEED_XXXS` 派生，而非另
 
 ### `npm test` 报超时，但单独跑那几个文件却能通过
 
-vitest 默认 worker 数 = 核数−1，每个 worker 都要独立转译整套 app（267 个路由文件）。
+vitest 默认 worker 数 = 核数−1，每个 worker 都要独立转译整套 app（300+ 个路由文件）。
 核数越多，重复转译的开销越是反超并行收益；装配整个 app 的重用例
 （`app.contract.test.ts` 建 app + 1800 次进程内请求、`app.routes.test.ts` 建 app 取路由表）
 本就贴近超时线，被饿死后直接撞破。
