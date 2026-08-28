@@ -11,6 +11,7 @@ import {
   IOT_SN_HEADER, IOT_TIMESTAMP_HEADER, IOT_SIGN_HEADER,
   iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
   iotGatewayBatchSchema, iotGatewayEventSchema, iotLogIngestSchema, iotOtaProgressSchema,
+  iotRegisterDeviceSchema,
 } from '@zenith/shared/iot';
 import { authenticateDevice, touchDevice } from '../../services/iot/iot-access.service';
 import { ingestTelemetry, pullPendingCommands, ackIotCommand } from '../../services/iot/iot-telemetry.service';
@@ -137,6 +138,28 @@ ingestRouter.post('/commands/:commandId/ack', async (c) => {
   const { device, data } = await authAndParse(c, iotCommandAckSchema);
   await ackIotCommand(device, commandId, data);
   return c.json(okBody(null, '回执已记录'));
+});
+
+/** POST /register — 一型一密动态注册（产品注册密钥签名，白名单核销后返回设备密钥） */
+ingestRouter.post('/register', async (c) => {
+  const rawBody = await c.req.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(rawBody);
+  } catch {
+    throw new HTTPException(400, { message: '请求体不是合法 JSON' });
+  }
+  const parsed = iotRegisterDeviceSchema.safeParse(json);
+  if (!parsed.success) {
+    throw new HTTPException(400, { message: parsed.error.issues[0]?.message ?? '参数校验失败' });
+  }
+  const { registerIotDevice } = await import('../../services/iot/iot-register.service');
+  const result = await registerIotDevice(parsed.data, {
+    ts: c.req.header(IOT_TIMESTAMP_HEADER),
+    sign: c.req.header(IOT_SIGN_HEADER),
+    rawBody,
+  });
+  return c.json(okBody(result, '注册成功，请持久化设备密钥'));
 });
 
 export default ingestRouter;

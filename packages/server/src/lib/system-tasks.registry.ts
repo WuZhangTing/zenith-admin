@@ -418,4 +418,26 @@ export async function registerSystemTasks(): Promise<void> {
     allowManualRun: true,
     run: sweepIotOtaTimeouts,
   });
+
+  const { sweepIotAlarmEscalations } = await import('../services/iot/iot-alarms.service');
+  await registerSystemRecurringJob({
+    name: 'iot-alarm-escalation-sweep',
+    title: 'IoT 告警升级扫描',
+    module: 'IoT 设备',
+    cronExpression: '* * * * *',
+    description: '每分钟扫描超过规则升级时长仍未认领/未恢复的告警，升级通知升级接收人（每条告警至多一次；维护窗口内跳过）。',
+    allowManualRun: true,
+    run: sweepIotAlarmEscalations,
+  });
+
+  const { dispatchDueIotSchedules } = await import('../services/iot/iot-schedules.service');
+  await registerSystemRecurringJob({
+    name: 'iot-schedule-dispatch',
+    title: 'IoT 计划任务调度',
+    module: 'IoT 设备',
+    cronExpression: '* * * * *',
+    description: '每分钟执行到期的设备计划任务（定时/周期性下发指令或期望属性），执行结果留痕。',
+    allowManualRun: true,
+    run: dispatchDueIotSchedules,
+  });
 }

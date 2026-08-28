@@ -10,7 +10,7 @@
  * 通知：唯一入口 notify()，接收人来自规则 notifyUserIds，为空则只留告警记录。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, count, desc, eq, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm';
 import type { CreateIotAlarmRuleInput, IotAlarmLevel, IotAlarmRuleType, IotAlarmStatus, IotCompareOp, UpdateIotAlarmRuleInput } from '@zenith/shared/iot';
 import { IOT_ALARM_LEVEL_LABELS, IOT_COMPARE_OP_LABELS, IOT_ONLINE_TTL_SECONDS } from '@zenith/shared/iot';
 import type { IotMetricValue } from '@zenith/shared/iot';
@@ -19,6 +19,7 @@ import {
   iotAlarmRules, iotAlarms, iotDevices, iotDeviceState, iotProducts,
   type IotAlarmRow, type IotAlarmRuleRow, type IotDeviceRow,
 } from '../../db/schema';
+import { users } from '../../db/schema/core';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { currentUser, currentUserId } from '../../lib/context';
@@ -29,6 +30,7 @@ import { openEventBus } from '../../lib/open-event-bus';
 import { notify } from '../messaging/notification-outbox.service';
 import { dispatchIotForward } from './iot-forward.service';
 import { loadThingModel } from './iot-model.service';
+import { isDeviceInMaintenance } from './iot-maintenance.service';
 
 // ─── 规则映射与 CRUD ─────────────────────────────────────────────────────────
 export function mapIotAlarmRule(
@@ -51,6 +53,8 @@ export function mapIotAlarmRule(
     eventIdentifier: row.eventIdentifier ?? null,
     level: row.level,
     notifyUserIds: row.notifyUserIds ?? [],
+    escalateAfterMinutes: row.escalateAfterMinutes ?? null,
+    escalateUserIds: row.escalateUserIds ?? [],
     status: row.status,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
@@ -147,6 +151,8 @@ export async function createIotAlarmRule(data: CreateIotAlarmRuleInput) {
     eventIdentifier: data.ruleType === 'event' ? data.eventIdentifier : null,
     level: data.level,
     notifyUserIds: data.notifyUserIds,
+    escalateAfterMinutes: data.escalateAfterMinutes ?? null,
+    escalateUserIds: data.escalateUserIds,
     status: data.status,
     tenantId: getCreateTenantId(currentUser()),
   }).returning();
@@ -173,6 +179,8 @@ export async function updateIotAlarmRule(id: number, data: UpdateIotAlarmRuleInp
     ...(data.eventIdentifier !== undefined ? { eventIdentifier: data.eventIdentifier } : {}),
     ...(data.level !== undefined ? { level: data.level } : {}),
     ...(data.notifyUserIds !== undefined ? { notifyUserIds: data.notifyUserIds } : {}),
+    ...(data.escalateAfterMinutes !== undefined ? { escalateAfterMinutes: data.escalateAfterMinutes } : {}),
+    ...(data.escalateUserIds !== undefined ? { escalateUserIds: data.escalateUserIds } : {}),
     ...(data.status !== undefined ? { status: data.status } : {}),
   }).where(buildRuleWhere({ id })).returning();
   if (!row) throw new HTTPException(404, { message: '告警规则不存在' });
@@ -189,7 +197,7 @@ export async function deleteIotAlarmRule(id: number): Promise<void> {
 // ─── 告警记录 ─────────────────────────────────────────────────────────────────
 export function mapIotAlarm(
   row: IotAlarmRow,
-  extra?: { deviceName?: string | null; deviceSn?: string | null },
+  extra?: { deviceName?: string | null; deviceSn?: string | null; acknowledgedByName?: string | null },
 ) {
   return {
     id: row.id,
@@ -204,8 +212,13 @@ export function mapIotAlarm(
     message: row.message,
     context: row.context ?? null,
     firedAt: formatDateTime(row.firedAt),
+    acknowledgedAt: formatNullableDateTime(row.acknowledgedAt),
+    acknowledgedBy: row.acknowledgedBy ?? null,
+    acknowledgedByName: extra?.acknowledgedByName ?? null,
+    escalatedAt: formatNullableDateTime(row.escalatedAt),
     resolvedAt: formatNullableDateTime(row.resolvedAt),
     resolvedBy: row.resolvedBy ?? null,
+    resolveNote: row.resolveNote ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
 }
@@ -235,9 +248,10 @@ export async function listIotAlarms(q: ListIotAlarmsQuery) {
     ),
     tenantCondition(iotDevices, currentUser()),
   );
-  const base = db.select({ alarm: iotAlarms, deviceName: iotDevices.name, deviceSn: iotDevices.sn })
+  const base = db.select({ alarm: iotAlarms, deviceName: iotDevices.name, deviceSn: iotDevices.sn, acknowledgedByName: users.username })
     .from(iotAlarms)
-    .innerJoin(iotDevices, eq(iotAlarms.deviceId, iotDevices.id));
+    .innerJoin(iotDevices, eq(iotAlarms.deviceId, iotDevices.id))
+    .leftJoin(users, eq(iotAlarms.acknowledgedBy, users.id));
   const [countRows, rows] = await Promise.all([
     db.select({ value: count() }).from(iotAlarms)
       .innerJoin(iotDevices, eq(iotAlarms.deviceId, iotDevices.id))
@@ -249,18 +263,28 @@ export async function listIotAlarms(q: ListIotAlarmsQuery) {
     ),
   ]);
   return {
-    list: rows.map((r) => mapIotAlarm(r.alarm, { deviceName: r.deviceName, deviceSn: r.deviceSn })),
+    list: rows.map((r) => mapIotAlarm(r.alarm, { deviceName: r.deviceName, deviceSn: r.deviceSn, acknowledgedByName: r.acknowledgedByName })),
     total: Number(countRows[0]?.value ?? 0),
     page,
     pageSize,
   };
 }
 
-/** 管理员手动处理（恢复）告警 */
-export async function resolveIotAlarm(id: number) {
+/** 认领告警：接手处理，升级计时停止（幂等拒绝重复认领） */
+export async function acknowledgeIotAlarm(id: number) {
   const [row] = await db.update(iotAlarms)
-    .set({ status: 'resolved', resolvedAt: new Date(), resolvedBy: currentUserId() })
+    .set({ status: 'acknowledged', acknowledgedAt: new Date(), acknowledgedBy: currentUserId() })
     .where(and(eq(iotAlarms.id, id), eq(iotAlarms.status, 'firing')))
+    .returning();
+  if (!row) throw new HTTPException(404, { message: '告警不存在或已被认领/恢复' });
+  return mapIotAlarm(row);
+}
+
+/** 管理员手动处理（恢复）告警：firing/acknowledged 均可直接处理，可附处理备注 */
+export async function resolveIotAlarm(id: number, note?: string | null) {
+  const [row] = await db.update(iotAlarms)
+    .set({ status: 'resolved', resolvedAt: new Date(), resolvedBy: currentUserId(), resolveNote: note ?? null })
+    .where(and(eq(iotAlarms.id, id), inArray(iotAlarms.status, ['firing', 'acknowledged'])))
     .returning();
   if (!row) throw new HTTPException(404, { message: '告警不存在或已恢复' });
   const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name, productId: iotDevices.productId })
@@ -353,7 +377,7 @@ async function autoResolveIotAlarm(
     .where(and(
       eq(iotAlarms.ruleId, rule.id),
       eq(iotAlarms.deviceId, device.id),
-      eq(iotAlarms.status, 'firing'),
+      inArray(iotAlarms.status, ['firing', 'acknowledged']),
     ))
     .returning({ id: iotAlarms.id });
   if (!resolved) return;
@@ -371,12 +395,17 @@ async function autoResolveIotAlarm(
 async function notifyAlarm(
   event: 'iot.alarm.triggered' | 'iot.alarm.resolved',
   rule: IotAlarmRuleRow,
-  device: Pick<IotDeviceRow, 'name' | 'sn' | 'tenantId'>,
+  device: Pick<IotDeviceRow, 'id' | 'name' | 'sn' | 'tenantId' | 'productId'>,
   message: string,
   alarmId: number,
 ): Promise<void> {
   const userIds = rule.notifyUserIds ?? [];
   if (userIds.length === 0) return;
+  // 维护窗口静默：窗口内告警仍记录（事实不丢），但不派发通知
+  if (event === 'iot.alarm.triggered' && await isDeviceInMaintenance(device.id, device.productId)) {
+    logger.info(`[iot] 告警 #${alarmId} 处于维护窗口，通知已静默（sn=${device.sn}）`);
+    return;
+  }
   try {
     await notify(event, {
       recipients: userIds.map((id) => ({ type: 'user' as const, id })),
@@ -390,6 +419,56 @@ async function notifyAlarm(
   } catch (err) {
     logger.warn(`[iot] 告警通知发送失败 alarmId=${alarmId}: ${(err as Error).message}`);
   }
+}
+
+/**
+ * 升级扫描（系统周期任务，每分钟）：firing 且超过规则升级时长仍未认领/未恢复的告警，
+ * 升级通知升级接收人（每条告警至多一次）；维护窗口内跳过升级。
+ */
+export async function sweepIotAlarmEscalations(): Promise<string> {
+  const candidates = await db.select({ alarm: iotAlarms, rule: iotAlarmRules, device: iotDevices })
+    .from(iotAlarms)
+    .innerJoin(iotAlarmRules, eq(iotAlarms.ruleId, iotAlarmRules.id))
+    .innerJoin(iotDevices, eq(iotAlarms.deviceId, iotDevices.id))
+    .where(and(
+      eq(iotAlarms.status, 'firing'),
+      isNull(iotAlarms.escalatedAt),
+      isNotNull(iotAlarmRules.escalateAfterMinutes),
+    ));
+  let escalated = 0;
+  const now = Date.now();
+  for (const { alarm, rule, device } of candidates) {
+    const dueAt = alarm.firedAt.getTime() + (rule.escalateAfterMinutes ?? 0) * 60_000;
+    if (now < dueAt) continue;
+    const escalateUserIds = rule.escalateUserIds ?? [];
+    if (escalateUserIds.length === 0) continue;
+    if (await isDeviceInMaintenance(device.id, device.productId)) continue;
+    // 先置位再通知（并发扫描下防重复升级）
+    const [claimed] = await db.update(iotAlarms)
+      .set({ escalatedAt: new Date() })
+      .where(and(eq(iotAlarms.id, alarm.id), isNull(iotAlarms.escalatedAt)))
+      .returning({ id: iotAlarms.id });
+    if (!claimed) continue;
+    try {
+      await notify('iot.alarm.escalated', {
+        recipients: escalateUserIds.map((id) => ({ type: 'user' as const, id })),
+        vars: {
+          ruleName: rule.name,
+          deviceName: device.name,
+          sn: device.sn,
+          minutes: String(rule.escalateAfterMinutes),
+          message: alarm.message,
+        },
+        tenantId: device.tenantId ?? null,
+        link: '/iot/alarms',
+        dedupeKey: `iot.alarm.escalated:${alarm.id}`,
+      });
+      escalated += 1;
+    } catch (err) {
+      logger.warn(`[iot] 告警升级通知失败 alarmId=${alarm.id}: ${(err as Error).message}`);
+    }
+  }
+  return `升级 ${escalated} 条超时未认领告警`;
 }
 
 const STREAK_PREFIX = 'iot:alarm:streak:';
@@ -449,7 +528,7 @@ export async function resolveIotOfflineAlarms(deviceId: number): Promise<void> {
     .where(and(
       eq(iotAlarms.deviceId, deviceId),
       eq(iotAlarms.ruleType, 'offline'),
-      eq(iotAlarms.status, 'firing'),
+      inArray(iotAlarms.status, ['firing', 'acknowledged']),
     ));
   for (const row of firing) {
     if (row.rule) {

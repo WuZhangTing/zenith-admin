@@ -25,6 +25,12 @@
  * - iot_forward_rules / iot_forward_logs  数据流转：遥测/事件/告警/生命周期 → HTTP 推送 + 投递留痕
  * - iot_device_logs             设备日志通道（设备上报运行日志，保留期裁剪）
  * - iot_product_properties.anomaly_enabled  遥测异常检测开关（3σ 基线判定）
+ *
+ * 六期（运维闭环与智能升级）：
+ * - iot_alarms 认领/处理备注 + 规则升级策略 + iot_maintenance_windows 维护静默窗口
+ * - iot_schedules (+runs)       设备计划任务（时间驱动的指令/期望属性下发）
+ * - iot_ota_tasks 灰度分批（batch_size/failure_threshold/paused）+ 设备批次号
+ * - iot_products.registration_secret + iot_device_whitelist  一型一密动态注册
  */
 import {
   pgTable, pgEnum, serial, bigserial, varchar, timestamp, integer, text, jsonb, boolean,
@@ -54,7 +60,7 @@ export const iotCompareOpEnum = pgEnum('iot_compare_op', ['gt', 'gte', 'lt', 'lt
 
 export const iotAlarmLevelEnum = pgEnum('iot_alarm_level', ['warning', 'critical']);
 
-export const iotAlarmStatusEnum = pgEnum('iot_alarm_status', ['firing', 'resolved']);
+export const iotAlarmStatusEnum = pgEnum('iot_alarm_status', ['firing', 'acknowledged', 'resolved']);
 
 export const iotNodeTypeEnum = pgEnum('iot_node_type', ['direct', 'gateway', 'sub']);
 
@@ -64,6 +70,10 @@ export const iotForwardStatusEnum = pgEnum('iot_forward_status', ['succeeded', '
 
 export const iotLogLevelEnum = pgEnum('iot_log_level', ['debug', 'info', 'warn', 'error']);
 
+export const iotScheduleTypeEnum = pgEnum('iot_schedule_type', ['cron', 'once']);
+
+export const iotScheduleActionEnum = pgEnum('iot_schedule_action', ['command', 'desired']);
+
 // ─── 产品与物模型 ─────────────────────────────────────────────────────────────
 export const iotProducts = pgTable('iot_products', {
   id:             serial('id').primaryKey(),
@@ -72,6 +82,8 @@ export const iotProducts = pgTable('iot_products', {
   /** 遥测校验模式：loose = 已声明属性校验类型/量程（不符丢弃该键）、未声明键放行；strict = 仅接受已声明属性 */
   validationMode: iotValidationModeEnum('validation_mode').notNull().default('loose'),
   status:         statusEnum('status').notNull().default('enabled'),
+  /** 一型一密动态注册密钥（null = 关闭动态注册；设备用它签名换取设备密钥自动建档） */
+  registrationSecret: varchar('registration_secret', { length: 64 }),
   tenantId:       integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt:      timestamp('created_at').defaultNow().notNull(),
@@ -318,6 +330,10 @@ export const iotAlarmRules = pgTable('iot_alarm_rules', {
   level:              iotAlarmLevelEnum('level').notNull().default('warning'),
   /** 告警通知接收人（管理端用户 id） */
   notifyUserIds:      jsonb('notify_user_ids').$type<number[]>().notNull().default([]),
+  /** 升级策略：触发后 N 分钟内未认领/未恢复 → 升级通知（null = 不升级） */
+  escalateAfterMinutes: integer('escalate_after_minutes'),
+  /** 升级通知接收人（如值班主管） */
+  escalateUserIds:    jsonb('escalate_user_ids').$type<number[]>().notNull().default([]),
   status:             statusEnum('status').notNull().default('enabled'),
   tenantId:           integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
@@ -344,16 +360,23 @@ export const iotAlarms = pgTable('iot_alarms', {
   /** 触发上下文：{ value, threshold, offlineMinutes, eventPayload… } */
   context:    jsonb('context').$type<Record<string, unknown>>(),
   firedAt:    timestamp('fired_at').defaultNow().notNull(),
+  /** 认领（acknowledged）：处理人接手，升级计时停止 */
+  acknowledgedAt: timestamp('acknowledged_at'),
+  acknowledgedBy: integer('acknowledged_by'),
+  /** 升级通知已发出（每条告警至多升级一次） */
+  escalatedAt: timestamp('escalated_at'),
   resolvedAt: timestamp('resolved_at'),
   /** resolved 来源：auto = 恢复判定，manual = 管理员处理 */
   resolvedBy: integer('resolved_by'),
+  /** 处理备注（手动 resolve 时填写） */
+  resolveNote: varchar('resolve_note', { length: 512 }),
   createdAt:  timestamp('created_at').defaultNow().notNull(),
   updatedAt:  timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_alarms_device_time').on(t.deviceId, t.firedAt),
   index('idx_iot_alarms_status').on(t.status),
-  /** 同规则同设备仅一条活跃告警（去重防风暴） */
-  uniqueIndex('uq_iot_alarms_active').on(t.ruleId, t.deviceId).where(sql`status = 'firing'`),
+  /** 同规则同设备仅一条未解决告警（firing/acknowledged 都算活跃，去重防风暴） */
+  uniqueIndex('uq_iot_alarms_active').on(t.ruleId, t.deviceId).where(sql`status <> 'resolved'`),
 ]);
 
 export type IotAlarmRow = typeof iotAlarms.$inferSelect;
@@ -420,7 +443,7 @@ export const iotOnlineSnapshots = pgTable('iot_online_snapshots', {
 export type IotOnlineSnapshotRow = typeof iotOnlineSnapshots.$inferSelect;
 
 // ─── 三期：固件与 OTA ─────────────────────────────────────────────────────────
-export const iotOtaTaskStatusEnum = pgEnum('iot_ota_task_status', ['running', 'completed', 'cancelled']);
+export const iotOtaTaskStatusEnum = pgEnum('iot_ota_task_status', ['running', 'paused', 'completed', 'cancelled']);
 
 export const iotOtaDeviceStatusEnum = pgEnum('iot_ota_device_status', [
   'pending', 'notified', 'downloading', 'installing', 'succeeded', 'failed', 'cancelled',
@@ -460,6 +483,12 @@ export const iotOtaTasks = pgTable('iot_ota_tasks', {
   status:          iotOtaTaskStatusEnum('status').notNull().default('running'),
   /** 单设备超时（分钟）：越期未终态的设备判 failed，全部终态后任务收敛为 completed */
   timeoutMinutes:  integer('timeout_minutes').notNull().default(30),
+  /** 灰度批次大小：null = 全量一批；否则首批 N 台，放量后逐批推进 */
+  batchSize:       integer('batch_size'),
+  /** 当前已放量到的批次号（从 1 开始） */
+  currentBatch:    integer('current_batch').notNull().default(1),
+  /** 失败率熔断阈值（百分比，1-100）：当前批失败占比达到即自动暂停；null = 不熔断 */
+  failureThreshold: integer('failure_threshold'),
   totalCount:      integer('total_count').notNull().default(0),
   succeededCount:  integer('succeeded_count').notNull().default(0),
   failedCount:     integer('failed_count').notNull().default(0),
@@ -485,6 +514,8 @@ export const iotOtaTaskDevices = pgTable('iot_ota_task_devices', {
   progress:    integer('progress').notNull().default(0),
   /** 升级前固件版本快照 */
   fromVersion: varchar('from_version', { length: 32 }),
+  /** 灰度批次号（从 1 开始；全量任务恒为 1） */
+  batchIndex:  integer('batch_index').notNull().default(1),
   errorMsg:    varchar('error_msg', { length: 256 }),
   notifiedAt:  timestamp('notified_at'),
   finishedAt:  timestamp('finished_at'),
@@ -638,3 +669,98 @@ export const iotDeviceLogs = pgTable('iot_device_logs', {
 ]);
 
 export type IotDeviceLogRow = typeof iotDeviceLogs.$inferSelect;
+
+// ─── 六期：维护窗口 ───────────────────────────────────────────────────────────
+/** 计划性维护静默：窗口内命中的告警仍记录但不派发通知/升级 */
+export const iotMaintenanceWindows = pgTable('iot_maintenance_windows', {
+  id:        serial('id').primaryKey(),
+  name:      varchar('name', { length: 128 }).notNull(),
+  /** 作用范围（三者至少其一；同时填写取并集语义按设备命中判断） */
+  productId: integer('product_id').references(() => iotProducts.id, { onDelete: 'cascade' }),
+  groupId:   integer('group_id').references(() => iotDeviceGroups.id, { onDelete: 'cascade' }),
+  deviceId:  integer('device_id').references(() => iotDevices.id, { onDelete: 'cascade' }),
+  startAt:   timestamp('start_at').notNull(),
+  endAt:     timestamp('end_at').notNull(),
+  reason:    varchar('reason', { length: 256 }),
+  tenantId:  integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('idx_iot_maintenance_windows_time').on(t.startAt, t.endAt),
+]);
+
+export type IotMaintenanceWindowRow = typeof iotMaintenanceWindows.$inferSelect;
+
+// ─── 六期：设备计划任务 ───────────────────────────────────────────────────────
+/** 时间驱动的自动化（与场景联动的事件驱动互补）：cron/一次性定时下发指令或期望属性 */
+export const iotSchedules = pgTable('iot_schedules', {
+  id:             serial('id').primaryKey(),
+  name:           varchar('name', { length: 128 }).notNull(),
+  scheduleType:   iotScheduleTypeEnum('schedule_type').notNull(),
+  /** cron 型：五段 cron 表达式（分 时 日 月 周） */
+  cronExpression: varchar('cron_expression', { length: 64 }),
+  /** once 型：执行时刻 */
+  runAt:          timestamp('run_at'),
+  /** 目标圈选：product 全量 / group 分组 / device 单台 */
+  productId:      integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  groupId:        integer('group_id').references(() => iotDeviceGroups.id, { onDelete: 'set null' }),
+  deviceId:       integer('device_id').references(() => iotDevices.id, { onDelete: 'cascade' }),
+  /** 动作：command 服务调用 / desired 期望属性 */
+  actionType:     iotScheduleActionEnum('action_type').notNull(),
+  service:        varchar('service', { length: 64 }),
+  params:         jsonb('params').$type<Record<string, unknown>>(),
+  desired:        jsonb('desired').$type<Record<string, number | string | boolean>>(),
+  status:         statusEnum('status').notNull().default('enabled'),
+  /** 调度游标：下次应执行时刻（分钟级扫描按此判定到期；once 执行后置空并停用） */
+  nextRunAt:      timestamp('next_run_at'),
+  lastRunAt:      timestamp('last_run_at'),
+  tenantId:       integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+  updatedAt:      timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('idx_iot_schedules_next_run').on(t.status, t.nextRunAt),
+  index('idx_iot_schedules_product').on(t.productId),
+]);
+
+export type IotScheduleRow = typeof iotSchedules.$inferSelect;
+
+/** 计划执行留痕：追加型（保留策略裁剪） */
+export const iotScheduleRuns = pgTable('iot_schedule_runs', {
+  id:           bigserial('id', { mode: 'number' }).primaryKey(),
+  scheduleId:   integer('schedule_id').notNull().references(() => iotSchedules.id, { onDelete: 'cascade' }),
+  scheduleName: varchar('schedule_name', { length: 128 }).notNull(),
+  deviceCount:  integer('device_count').notNull().default(0),
+  successCount: integer('success_count').notNull().default(0),
+  failedCount:  integer('failed_count').notNull().default(0),
+  /** 失败明细（截断保留前 20 条）：[{ deviceId, sn, error }] */
+  errors:       jsonb('errors').$type<Array<{ deviceId: number; sn: string; error: string }>>().notNull().default([]),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_iot_schedule_runs_schedule').on(t.scheduleId, t.createdAt),
+]);
+
+export type IotScheduleRunRow = typeof iotScheduleRuns.$inferSelect;
+
+// ─── 六期：动态注册白名单 ─────────────────────────────────────────────────────
+/** 一型一密预注册：SN 白名单（设备首连以产品注册密钥签名，命中白名单即自动建档换取设备密钥） */
+export const iotDeviceWhitelist = pgTable('iot_device_whitelist', {
+  id:        serial('id').primaryKey(),
+  productId: integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  sn:        varchar('sn', { length: 64 }).notNull().unique(),
+  /** 已使用：注册成功后置位（一次性凭证语义） */
+  used:      boolean('used').notNull().default(false),
+  usedAt:    timestamp('used_at'),
+  /** 注册产生的设备 id（追溯） */
+  deviceId:  integer('device_id').references(() => iotDevices.id, { onDelete: 'set null' }),
+  remark:    varchar('remark', { length: 256 }),
+  tenantId:  integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('idx_iot_device_whitelist_product').on(t.productId, t.used),
+]);
+
+export type IotDeviceWhitelistRow = typeof iotDeviceWhitelist.$inferSelect;

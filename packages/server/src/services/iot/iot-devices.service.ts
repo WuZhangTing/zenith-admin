@@ -43,6 +43,7 @@ export function mapIotProduct(
     description: row.description ?? null,
     validationMode: row.validationMode,
     status: row.status,
+    registrationEnabled: Boolean(row.registrationSecret),
     deviceCount: extra?.deviceCount ?? 0,
     propertyCount: extra?.propertyCount ?? 0,
     serviceCount: extra?.serviceCount ?? 0,

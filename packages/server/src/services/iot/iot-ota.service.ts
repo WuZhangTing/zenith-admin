@@ -8,7 +8,7 @@
  * 全部设备进入终态后任务收敛为 completed。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, count, desc, eq, inArray, lt, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import type { CreateIotOtaTaskInput, IotOtaPayload, IotOtaProgressInput } from '@zenith/shared/iot';
 import { IOT_BATCH_DEVICE_MAX } from '@zenith/shared/iot';
 import { db } from '../../db';
@@ -28,6 +28,7 @@ import { resolveIotBatchTargets } from './iot-groups.service';
 
 // ─── 映射 ─────────────────────────────────────────────────────────────────────
 export function mapIotOtaTask(row: IotOtaTaskRow, extra?: { productName?: string | null }) {
+  const totalBatches = row.batchSize ? Math.ceil(row.totalCount / row.batchSize) : 1;
   return {
     id: row.id,
     title: row.title,
@@ -37,6 +38,10 @@ export function mapIotOtaTask(row: IotOtaTaskRow, extra?: { productName?: string
     firmwareVersion: row.firmwareVersion,
     status: row.status,
     timeoutMinutes: row.timeoutMinutes,
+    batchSize: row.batchSize ?? null,
+    currentBatch: row.currentBatch,
+    totalBatches,
+    failureThreshold: row.failureThreshold ?? null,
     totalCount: row.totalCount,
     succeededCount: row.succeededCount,
     failedCount: row.failedCount,
@@ -60,6 +65,7 @@ export function mapIotOtaTaskDevice(
     status: row.status,
     progress: row.progress,
     fromVersion: row.fromVersion ?? null,
+    batchIndex: row.batchIndex,
     errorMsg: row.errorMsg ?? null,
     notifiedAt: formatNullableDateTime(row.notifiedAt),
     finishedAt: formatNullableDateTime(row.finishedAt),
@@ -72,7 +78,7 @@ export interface ListIotOtaTasksQuery {
   pageSize?: number;
   keyword?: string;
   productId?: number;
-  status?: 'running' | 'completed' | 'cancelled';
+  status?: 'running' | 'paused' | 'completed' | 'cancelled';
 }
 
 function buildTaskWhere(q: ListIotOtaTasksQuery & { id?: number }): SQL | undefined {
@@ -212,21 +218,28 @@ export async function createIotOtaTask(input: CreateIotOtaTaskInput) {
       productId: firmware.productId,
       firmwareVersion: firmware.version,
       timeoutMinutes: input.timeoutMinutes,
+      batchSize: input.batchSize ?? null,
+      failureThreshold: input.failureThreshold ?? null,
       totalCount: eligible.length,
       tenantId: getCreateTenantId(currentUser()),
     }).returning();
-    await tx.insert(iotOtaTaskDevices).values(eligible.map((d) => ({
+    // 灰度分批：按目标顺序切批（batchSize 为空 = 全量一批）
+    const size = input.batchSize ?? eligible.length;
+    await tx.insert(iotOtaTaskDevices).values(eligible.map((d, i) => ({
       taskId: created.id,
       deviceId: d.id,
       fromVersion: d.firmwareVersion ?? null,
+      batchIndex: Math.floor(i / size) + 1,
     })));
     return created;
   });
 
-  // WS 在线设备立即推送（成功即 notified）；离线设备留 pending 等心跳/上线捎带
+  // 仅首批推送：WS 在线设备立即推（成功即 notified）；离线设备留 pending 等心跳/上线捎带
+  const size = input.batchSize ?? eligible.length;
+  const firstBatch = eligible.slice(0, size);
   const payload = buildOtaPayload(task.id, firmware);
   const notifiedIds: number[] = [];
-  for (const d of eligible) {
+  for (const d of firstBatch) {
     if (pushOtaToDevice(d.sn, payload)) notifiedIds.push(d.id);
   }
   if (notifiedIds.length > 0) {
@@ -237,9 +250,59 @@ export async function createIotOtaTask(input: CreateIotOtaTaskInput) {
   return getIotOtaTask(task.id);
 }
 
+/** 放量下一批（灰度）：running/paused 任务推进 currentBatch 并推送该批在线设备；paused 恢复 running */
+export async function releaseNextIotOtaBatch(id: number) {
+  const task = await ensureIotOtaTaskExists(id);
+  if (task.status !== 'running' && task.status !== 'paused') {
+    throw new HTTPException(400, { message: '任务已结束，无法放量' });
+  }
+  const totalBatches = task.batchSize ? Math.ceil(task.totalCount / task.batchSize) : 1;
+  if (task.currentBatch >= totalBatches) throw new HTTPException(400, { message: '已是最后一批，无可放量批次' });
+  const nextBatch = task.currentBatch + 1;
+
+  const [firmware] = await db.select().from(iotFirmwares).where(eq(iotFirmwares.id, task.firmwareId)).limit(1);
+  if (!firmware?.fileId) throw new HTTPException(400, { message: '固件文件已被删除，无法继续放量' });
+
+  await db.update(iotOtaTasks)
+    .set({ currentBatch: nextBatch, status: 'running' })
+    .where(eq(iotOtaTasks.id, id));
+
+  // 推送新批在线设备
+  const batchDevices = await db.select({ deviceId: iotOtaTaskDevices.deviceId, sn: iotDevices.sn })
+    .from(iotOtaTaskDevices)
+    .innerJoin(iotDevices, eq(iotOtaTaskDevices.deviceId, iotDevices.id))
+    .where(and(
+      eq(iotOtaTaskDevices.taskId, id),
+      eq(iotOtaTaskDevices.batchIndex, nextBatch),
+      eq(iotOtaTaskDevices.status, 'pending'),
+    ));
+  const payload = buildOtaPayload(id, firmware);
+  const notifiedIds: number[] = [];
+  for (const d of batchDevices) {
+    if (pushOtaToDevice(d.sn, payload)) notifiedIds.push(d.deviceId);
+  }
+  if (notifiedIds.length > 0) {
+    await db.update(iotOtaTaskDevices)
+      .set({ status: 'notified', notifiedAt: new Date() })
+      .where(and(eq(iotOtaTaskDevices.taskId, id), inArray(iotOtaTaskDevices.deviceId, notifiedIds)));
+  }
+  return getIotOtaTask(id);
+}
+
+/** 恢复被熔断暂停的任务（不放量，继续当前批） */
+export async function resumeIotOtaTask(id: number) {
+  const task = await ensureIotOtaTaskExists(id);
+  if (task.status !== 'paused') throw new HTTPException(400, { message: '仅暂停中的任务可恢复' });
+  await db.update(iotOtaTasks).set({ status: 'running' }).where(eq(iotOtaTasks.id, id));
+  await convergeOtaTask(id);
+  return getIotOtaTask(id);
+}
+
 export async function cancelIotOtaTask(id: number) {
   const task = await ensureIotOtaTaskExists(id);
-  if (task.status !== 'running') throw new HTTPException(400, { message: '任务已结束，无法取消' });
+  if (task.status !== 'running' && task.status !== 'paused') {
+    throw new HTTPException(400, { message: '任务已结束，无法取消' });
+  }
   await db.transaction(async (tx) => {
     await tx.update(iotOtaTaskDevices)
       .set({ status: 'cancelled', finishedAt: new Date() })
@@ -253,8 +316,15 @@ export async function cancelIotOtaTask(id: number) {
 }
 
 // ─── 任务收敛 ─────────────────────────────────────────────────────────────────
-/** 终态变更后重算计数；全部终态则任务 completed（完成时派发开放 Webhook） */
+/**
+ * 终态变更后重算计数与熔断判定：
+ * - 熔断：配置了 failureThreshold 时，已放量范围内失败占比达阈值 → 任务 paused（人工恢复/放量）
+ * - 完成：全部设备终态（未放量批次的 pending 天然阻止提前完成）→ completed + 开放 Webhook
+ */
 async function convergeOtaTask(taskId: number): Promise<void> {
+  const [task] = await db.select().from(iotOtaTasks).where(eq(iotOtaTasks.id, taskId)).limit(1);
+  if (!task || (task.status !== 'running' && task.status !== 'paused')) return;
+
   const rows = await db.select({ status: iotOtaTaskDevices.status, cnt: count() })
     .from(iotOtaTaskDevices)
     .where(eq(iotOtaTaskDevices.taskId, taskId))
@@ -262,11 +332,35 @@ async function convergeOtaTask(taskId: number): Promise<void> {
   const by = new Map(rows.map((r) => [r.status, Number(r.cnt)]));
   const active = (by.get('pending') ?? 0) + (by.get('notified') ?? 0)
     + (by.get('downloading') ?? 0) + (by.get('installing') ?? 0);
+  const succeededCount = by.get('succeeded') ?? 0;
+  const failedCount = by.get('failed') ?? 0;
+
+  // 熔断判定：仅 running 任务；已放量范围 = batchIndex <= currentBatch
+  if (task.status === 'running' && task.failureThreshold != null && failedCount > 0) {
+    const [released] = await db.select({
+      total: count(),
+      failed: sql<number>`count(*) filter (where ${iotOtaTaskDevices.status} = 'failed')`,
+    }).from(iotOtaTaskDevices)
+      .where(and(
+        eq(iotOtaTaskDevices.taskId, taskId),
+        lte(iotOtaTaskDevices.batchIndex, task.currentBatch),
+      ));
+    const releasedTotal = Number(released?.total ?? 0);
+    const releasedFailed = Number(released?.failed ?? 0);
+    if (releasedTotal > 0 && (releasedFailed / releasedTotal) * 100 >= task.failureThreshold) {
+      await db.update(iotOtaTasks)
+        .set({ succeededCount, failedCount, status: 'paused' })
+        .where(and(eq(iotOtaTasks.id, taskId), eq(iotOtaTasks.status, 'running')));
+      logger.warn(`[iot-ota] 任务 #${taskId} 失败率 ${((releasedFailed / releasedTotal) * 100).toFixed(0)}% 达熔断阈值 ${task.failureThreshold}%，已自动暂停`);
+      return;
+    }
+  }
+
   const [updated] = await db.update(iotOtaTasks).set({
-    succeededCount: by.get('succeeded') ?? 0,
-    failedCount: by.get('failed') ?? 0,
+    succeededCount,
+    failedCount,
     ...(active === 0 ? { status: 'completed' as const } : {}),
-  }).where(and(eq(iotOtaTasks.id, taskId), eq(iotOtaTasks.status, 'running')))
+  }).where(and(eq(iotOtaTasks.id, taskId), inArray(iotOtaTasks.status, ['running', 'paused'])))
     .returning({ id: iotOtaTasks.id, status: iotOtaTasks.status, title: iotOtaTasks.title, firmwareVersion: iotOtaTasks.firmwareVersion, succeededCount: iotOtaTasks.succeededCount, failedCount: iotOtaTasks.failedCount, totalCount: iotOtaTasks.totalCount });
   if (updated && updated.status === 'completed') {
     openEventBus.emit({
@@ -280,7 +374,7 @@ async function convergeOtaTask(taskId: number): Promise<void> {
 }
 
 // ─── 设备侧协议 ───────────────────────────────────────────────────────────────
-/** 设备待升级载荷（WS 上线补推 / 心跳响应捎带）；无活跃任务返回 null，取到即标 notified */
+/** 设备待升级载荷（WS 上线补推 / 心跳响应捎带）；无活跃任务返回 null，取到即标 notified。仅已放量批次可见 */
 export async function getPendingOtaPayload(device: IotDeviceRow): Promise<IotOtaPayload | null> {
   const [row] = await db.select({ td: iotOtaTaskDevices, task: iotOtaTasks, firmware: iotFirmwares })
     .from(iotOtaTaskDevices)
@@ -290,6 +384,7 @@ export async function getPendingOtaPayload(device: IotDeviceRow): Promise<IotOta
       eq(iotOtaTaskDevices.deviceId, device.id),
       inArray(iotOtaTaskDevices.status, ['pending', 'notified']),
       eq(iotOtaTasks.status, 'running'),
+      lte(iotOtaTaskDevices.batchIndex, iotOtaTasks.currentBatch),
     ))
     .orderBy(desc(iotOtaTaskDevices.id))
     .limit(1);
@@ -359,7 +454,7 @@ export async function ensureOtaDownloadAllowed(device: IotDeviceRow, taskId: num
   return row.fileId;
 }
 
-/** 超时收敛（系统周期任务，每分钟）：越期未终态的设备判 failed */
+/** 超时收敛（系统周期任务，每分钟）：已放量批次内越期未终态的设备判 failed */
 export async function sweepIotOtaTimeouts(): Promise<string> {
   const running = await db.select().from(iotOtaTasks).where(eq(iotOtaTasks.status, 'running'));
   let failed = 0;
@@ -370,7 +465,9 @@ export async function sweepIotOtaTimeouts(): Promise<string> {
       .where(and(
         eq(iotOtaTaskDevices.taskId, task.id),
         inArray(iotOtaTaskDevices.status, ['pending', 'notified', 'downloading', 'installing']),
-        lt(iotOtaTaskDevices.createdAt, cutoff),
+        lte(iotOtaTaskDevices.batchIndex, task.currentBatch),
+        // 超时基准：通知时刻优先（灰度后批以放量通知起算），未通知的离线设备退回创建时刻
+        lt(sql`coalesce(${iotOtaTaskDevices.notifiedAt}, ${iotOtaTaskDevices.createdAt})`, cutoff),
       ))
       .returning({ id: iotOtaTaskDevices.id });
     if (overdue.length > 0) {

@@ -240,8 +240,9 @@ export async function registerAllBizAgents(mastra: { addAgent: (agent: never, ke
 
 // ─── 编程式内置智能体(业务示例:services/biz-demo/demo-agent) ────────────────
 
-/** 内置智能体清单(列表只读展示,可直接对话;定义见 services/biz-demo/demo-agent) */
+/** 内置智能体清单(列表只读展示,可直接对话;定义见 services/biz-demo/demo-agent 与 services/iot/iot-ai-agent) */
 export async function listBuiltinAgents(): Promise<AiBuiltinAgent[]> {
   const { DEMO_AGENT_METAS } = await import('../biz-demo/demo-agent');
-  return DEMO_AGENT_METAS;
+  const { IOT_AGENT_METAS } = await import('../iot/iot-ai-agent');
+  return [...DEMO_AGENT_METAS, ...IOT_AGENT_METAS];
 }

@@ -7,11 +7,11 @@ import type {
 } from '@zenith/shared/iot';
 import {
   buildMockTelemetry, buildMockTelemetryAgg, getNextIotAlarmRuleId, getNextIotAutomationId, getNextIotCommandId, getNextIotDeviceId,
-  getNextIotFirmwareId, getNextIotForwardRuleId, getNextIotGroupId, getNextIotModelItemId, getNextIotOtaTaskDeviceId,
-  getNextIotOtaTaskId, getNextIotProductId,
+  getNextIotFirmwareId, getNextIotForwardRuleId, getNextIotGroupId, getNextIotMaintenanceWindowId, getNextIotModelItemId, getNextIotOtaTaskDeviceId,
+  getNextIotOtaTaskId, getNextIotProductId, getNextIotScheduleId, getNextIotWhitelistId,
   mockIotAlarmRules, mockIotAlarms, mockIotAutomationRuns, mockIotAutomations, mockIotCommands, mockIotDeviceEvents, mockIotDeviceLogs, mockIotDevices,
-  mockIotEvents, mockIotFirmwares, mockIotForwardLogs, mockIotForwardRules, mockIotGroups, mockIotOtaTaskDevices, mockIotOtaTasks,
-  mockIotProducts, mockIotProperties, mockIotServices, mockIotShadows, withGroupInfo,
+  mockIotEvents, mockIotFirmwares, mockIotForwardLogs, mockIotForwardRules, mockIotGroups, mockIotMaintenanceWindows, mockIotOtaTaskDevices, mockIotOtaTasks,
+  mockIotProducts, mockIotProperties, mockIotScheduleRuns, mockIotSchedules, mockIotServices, mockIotShadows, mockIotWhitelist, withGroupInfo,
 } from '../data/iot';
 import { mockDateTime } from '../utils/date';
 
@@ -162,7 +162,7 @@ export const iotHandlers = [
     return ok(paginate(list.sort((a, b) => b.id - a.id), url));
   }),
   http.post('/api/iot/ota-tasks', async ({ request }) => {
-    const body = (await request.json()) as { firmwareId: number; deviceIds?: number[]; groupId?: number; allDevices?: boolean; timeoutMinutes?: number };
+    const body = (await request.json()) as { firmwareId: number; deviceIds?: number[]; groupId?: number; allDevices?: boolean; timeoutMinutes?: number; batchSize?: number | null; failureThreshold?: number | null };
     const firmware = mockIotFirmwares.find((f) => f.id === body.firmwareId);
     if (!firmware) return notFound('固件不存在', { status: 404 });
     const ids = new Set<number>(body.deviceIds ?? []);
@@ -177,6 +177,8 @@ export const iotHandlers = [
       ids.has(d.id) && d.productId === firmware.productId && d.status === 'enabled' && d.firmwareVersion !== firmware.version);
     if (eligible.length === 0) return badRequest('没有可升级的目标设备（需属于该固件产品、启用且版本不同）', { status: 400 });
     const now = mockDateTime();
+    const batchSize = body.batchSize ?? null;
+    const totalBatches = batchSize ? Math.ceil(eligible.length / batchSize) : 1;
     const task = {
       id: getNextIotOtaTaskId(),
       title: `升级到 v${firmware.version}（${eligible.length} 台）`,
@@ -186,6 +188,10 @@ export const iotHandlers = [
       firmwareVersion: firmware.version,
       status: 'running' as const,
       timeoutMinutes: body.timeoutMinutes ?? 30,
+      batchSize,
+      currentBatch: 1,
+      totalBatches,
+      failureThreshold: body.failureThreshold ?? null,
       totalCount: eligible.length,
       succeededCount: 0,
       failedCount: 0,
@@ -193,21 +199,24 @@ export const iotHandlers = [
       updatedAt: now,
     };
     mockIotOtaTasks.push(task);
-    for (const d of eligible) {
+    eligible.forEach((d, i) => {
+      const batchIndex = batchSize ? Math.floor(i / batchSize) + 1 : 1;
+      const inFirstBatch = batchIndex === 1;
       mockIotOtaTaskDevices.push({
         id: getNextIotOtaTaskDeviceId(),
         taskId: task.id,
         deviceId: d.id,
         deviceName: d.name,
         deviceSn: d.sn,
-        status: d.online ? 'notified' : 'pending',
+        status: inFirstBatch && d.online ? 'notified' : 'pending',
         progress: 0,
         fromVersion: d.firmwareVersion,
+        batchIndex,
         errorMsg: null,
-        notifiedAt: d.online ? now : null,
+        notifiedAt: inFirstBatch && d.online ? now : null,
         finishedAt: null,
       });
-    }
+    });
     return ok(task, '升级任务已创建');
   }),
   http.get('/api/iot/ota-tasks/:id/devices', ({ params, request }) => {
@@ -241,10 +250,30 @@ export const iotHandlers = [
     if (status) list = list.filter((d) => d.status === status);
     return ok(pageResult([...list].sort((a, b) => b.id - a.id), page, pageSize));
   }),
+  http.post('/api/iot/ota-tasks/:id/release-next-batch', ({ params }) => {
+    const task = mockIotOtaTasks.find((t) => t.id === Number(params.id));
+    if (!task) return notFound('升级任务不存在', { status: 404 });
+    if (!task.batchSize || !task.totalBatches) return badRequest('该任务不是灰度任务', { status: 400 });
+    if ((task.currentBatch ?? 1) >= task.totalBatches) return badRequest('所有批次均已放量', { status: 400 });
+    task.currentBatch = (task.currentBatch ?? 1) + 1;
+    if (task.status === 'paused') task.status = 'running';
+    for (const d of mockIotOtaTaskDevices.filter((d) => d.taskId === task.id && d.batchIndex === task.currentBatch && d.status === 'pending')) {
+      d.status = 'notified';
+      d.notifiedAt = mockDateTime();
+    }
+    return ok(task, `已放量第 ${task.currentBatch} 批`);
+  }),
+  http.post('/api/iot/ota-tasks/:id/resume', ({ params }) => {
+    const task = mockIotOtaTasks.find((t) => t.id === Number(params.id));
+    if (!task) return notFound('升级任务不存在', { status: 404 });
+    if (task.status !== 'paused') return badRequest('仅熔断暂停的任务可恢复', { status: 400 });
+    task.status = 'running';
+    return ok(task, '任务已恢复');
+  }),
   http.post('/api/iot/ota-tasks/:id/cancel', ({ params }) => {
     const task = mockIotOtaTasks.find((t) => t.id === Number(params.id));
     if (!task) return notFound('升级任务不存在', { status: 404 });
-    if (task.status !== 'running') return badRequest('任务已结束，无法取消', { status: 400 });
+    if (task.status !== 'running' && task.status !== 'paused') return badRequest('任务已结束，无法取消', { status: 400 });
     task.status = 'cancelled';
     for (const d of mockIotOtaTaskDevices.filter((d) => d.taskId === task.id)) {
       if (['pending', 'notified', 'downloading', 'installing'].includes(d.status)) {
@@ -562,6 +591,8 @@ export const iotHandlers = [
       eventIdentifier: body.eventIdentifier ?? null,
       level: body.level ?? 'warning',
       notifyUserIds: body.notifyUserIds ?? [],
+      escalateAfterMinutes: body.escalateAfterMinutes ?? null,
+      escalateUserIds: body.escalateUserIds ?? [],
       status: body.status ?? 'enabled',
       createdAt: now,
       updatedAt: now,
@@ -605,13 +636,190 @@ export const iotHandlers = [
     if (deviceId) list = list.filter((a) => a.deviceId === Number(deviceId));
     return ok(paginate(list.sort((a, b) => b.id - a.id), url));
   }),
-  http.post('/api/iot/alarms/:id/resolve', ({ params }) => {
+  http.post('/api/iot/alarms/:id/acknowledge', ({ params }) => {
     const alarm = mockIotAlarms.find((a) => a.id === Number(params.id));
-    if (!alarm || alarm.status !== 'firing') return notFound('告警不存在或已恢复', { status: 404 });
+    if (!alarm || alarm.status !== 'firing') return notFound('告警不存在或不处于告警中', { status: 404 });
+    alarm.status = 'acknowledged';
+    alarm.acknowledgedAt = mockDateTime();
+    alarm.acknowledgedBy = 1;
+    alarm.acknowledgedByName = '演示管理员';
+    return ok(alarm, '已认领');
+  }),
+  http.post('/api/iot/alarms/:id/resolve', async ({ params, request }) => {
+    const alarm = mockIotAlarms.find((a) => a.id === Number(params.id));
+    if (!alarm || alarm.status === 'resolved') return notFound('告警不存在或已恢复', { status: 404 });
+    const body = await request.json().catch(() => ({})) as { note?: string | null };
     alarm.status = 'resolved';
     alarm.resolvedAt = mockDateTime();
     alarm.resolvedBy = 1;
+    alarm.resolveNote = body?.note?.trim() || null;
     return ok(alarm, '告警已处理');
+  }),
+
+  // ─── 六期：维护窗口 ─────────────────────────────────────────────────────────
+  http.get('/api/iot/maintenance-windows', ({ request }) => {
+    const url = new URL(request.url);
+    return ok(paginate([...mockIotMaintenanceWindows].sort((a, b) => b.id - a.id), url));
+  }),
+  http.post('/api/iot/maintenance-windows', async ({ request }) => {
+    const body = await request.json() as Record<string, unknown>;
+    const win = {
+      id: getNextIotMaintenanceWindowId(),
+      name: body.name as string,
+      productId: (body.productId as number | null) ?? null,
+      productName: mockIotProducts.find((p) => p.id === body.productId)?.name ?? null,
+      groupId: (body.groupId as number | null) ?? null,
+      groupName: mockIotGroups.find((g) => g.id === body.groupId)?.name ?? null,
+      deviceId: (body.deviceId as number | null) ?? null,
+      deviceName: mockIotDevices.find((d) => d.id === body.deviceId)?.name ?? null,
+      startAt: body.startAt as string,
+      endAt: body.endAt as string,
+      reason: (body.reason as string | null) ?? null,
+      active: false,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockIotMaintenanceWindows.push(win);
+    return ok(win, '创建成功');
+  }),
+  http.put('/api/iot/maintenance-windows/:id', async ({ params, request }) => {
+    const win = mockIotMaintenanceWindows.find((w) => w.id === Number(params.id));
+    if (!win) return notFound('维护窗口不存在', { status: 404 });
+    const body = await request.json() as Record<string, unknown>;
+    Object.assign(win, body, { updatedAt: mockDateTime() });
+    return ok(win, '更新成功');
+  }),
+  http.delete('/api/iot/maintenance-windows/:id', ({ params }) => {
+    const idx = mockIotMaintenanceWindows.findIndex((w) => w.id === Number(params.id));
+    if (idx === -1) return notFound('维护窗口不存在', { status: 404 });
+    mockIotMaintenanceWindows.splice(idx, 1);
+    return ok(null, '删除成功');
+  }),
+
+  // ─── 六期：计划任务（/runs 静态段先于 /:id）─────────────────────────────────
+  http.get('/api/iot/schedules/runs', ({ request }) => {
+    const url = new URL(request.url);
+    const scheduleId = url.searchParams.get('scheduleId');
+    let list = [...mockIotScheduleRuns];
+    if (scheduleId) list = list.filter((r) => r.scheduleId === Number(scheduleId));
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.get('/api/iot/schedules', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') || '';
+    const status = url.searchParams.get('status') || '';
+    let list = [...mockIotSchedules];
+    if (keyword) list = list.filter((s) => s.name.includes(keyword));
+    if (status) list = list.filter((s) => s.status === status);
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.post('/api/iot/schedules', async ({ request }) => {
+    const body = await request.json() as Record<string, unknown>;
+    const product = mockIotProducts.find((p) => p.id === body.productId);
+    if (!product) return notFound('产品不存在', { status: 404 });
+    const schedule = {
+      id: getNextIotScheduleId(),
+      name: body.name as string,
+      scheduleType: body.scheduleType as 'cron' | 'once',
+      cronExpression: (body.cronExpression as string | null) ?? null,
+      runAt: (body.runAt as string | null) ?? null,
+      productId: product.id,
+      productName: product.name,
+      groupId: (body.groupId as number | null) ?? null,
+      groupName: mockIotGroups.find((g) => g.id === body.groupId)?.name ?? null,
+      deviceId: (body.deviceId as number | null) ?? null,
+      deviceName: mockIotDevices.find((d) => d.id === body.deviceId)?.name ?? null,
+      actionType: body.actionType as 'command' | 'desired',
+      service: (body.service as string | null) ?? null,
+      params: (body.params as Record<string, never> | null) ?? null,
+      desired: (body.desired as Record<string, IotMetricValue> | null) ?? null,
+      status: (body.status as 'enabled' | 'disabled') ?? 'enabled',
+      nextRunAt: null,
+      lastRunAt: null,
+      recentRunCount: 0,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockIotSchedules.push(schedule);
+    return ok(schedule, '创建成功');
+  }),
+  http.put('/api/iot/schedules/:id', async ({ params, request }) => {
+    const schedule = mockIotSchedules.find((s) => s.id === Number(params.id));
+    if (!schedule) return notFound('计划任务不存在', { status: 404 });
+    const body = await request.json() as Record<string, unknown>;
+    Object.assign(schedule, body, { updatedAt: mockDateTime() });
+    schedule.groupName = mockIotGroups.find((g) => g.id === schedule.groupId)?.name ?? null;
+    schedule.deviceName = mockIotDevices.find((d) => d.id === schedule.deviceId)?.name ?? null;
+    return ok(schedule, '更新成功');
+  }),
+  http.delete('/api/iot/schedules/:id', ({ params }) => {
+    const idx = mockIotSchedules.findIndex((s) => s.id === Number(params.id));
+    if (idx === -1) return notFound('计划任务不存在', { status: 404 });
+    mockIotSchedules.splice(idx, 1);
+    return ok(null, '删除成功');
+  }),
+
+  // ─── 六期：动态注册（/stats 与 /products 静态段先于 /:id）───────────────────
+  http.get('/api/iot/whitelist/stats', ({ request }) => {
+    const url = new URL(request.url);
+    const productId = url.searchParams.get('productId');
+    const list = productId ? mockIotWhitelist.filter((e) => e.productId === Number(productId)) : mockIotWhitelist;
+    return ok({ total: list.length, used: list.filter((e) => e.used).length });
+  }),
+  http.post('/api/iot/whitelist/products/:productId/registration-secret', ({ params }) => {
+    const product = mockIotProducts.find((p) => p.id === Number(params.productId));
+    if (!product) return notFound('产品不存在', { status: 404 });
+    product.registrationEnabled = true;
+    return ok({ registrationSecret: randomHex(32) }, '注册密钥已生成');
+  }),
+  http.delete('/api/iot/whitelist/products/:productId/registration-secret', ({ params }) => {
+    const product = mockIotProducts.find((p) => p.id === Number(params.productId));
+    if (!product) return notFound('产品不存在', { status: 404 });
+    product.registrationEnabled = false;
+    return ok(null, '已关闭动态注册');
+  }),
+  http.get('/api/iot/whitelist', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') || '';
+    const productId = url.searchParams.get('productId');
+    const used = url.searchParams.get('used');
+    let list = [...mockIotWhitelist];
+    if (keyword) list = list.filter((e) => e.sn.includes(keyword) || (e.remark ?? '').includes(keyword));
+    if (productId) list = list.filter((e) => e.productId === Number(productId));
+    if (used !== null && used !== '') list = list.filter((e) => e.used === (used === 'true'));
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.post('/api/iot/whitelist', async ({ request }) => {
+    const body = await request.json() as { productId: number; sns: string[]; remark?: string | null };
+    const product = mockIotProducts.find((p) => p.id === body.productId);
+    if (!product) return notFound('产品不存在', { status: 404 });
+    const existing = new Set(mockIotWhitelist.map((e) => e.sn));
+    let inserted = 0;
+    for (const sn of body.sns) {
+      if (existing.has(sn)) continue;
+      existing.add(sn);
+      inserted += 1;
+      mockIotWhitelist.push({
+        id: getNextIotWhitelistId(),
+        productId: product.id,
+        productName: product.name,
+        sn,
+        used: false,
+        usedAt: null,
+        deviceId: null,
+        deviceName: null,
+        remark: body.remark?.trim() || null,
+        createdAt: mockDateTime(),
+      });
+    }
+    return ok({ total: body.sns.length, inserted, skipped: body.sns.length - inserted }, '导入完成');
+  }),
+  http.delete('/api/iot/whitelist/:id', ({ params }) => {
+    const idx = mockIotWhitelist.findIndex((e) => e.id === Number(params.id));
+    if (idx === -1) return notFound('白名单条目不存在', { status: 404 });
+    if (mockIotWhitelist[idx].used) return badRequest('已注册核销的条目不可删除', { status: 400 });
+    mockIotWhitelist.splice(idx, 1);
+    return ok(null, '已移除');
   }),
 
   // ─── 场景联动（/runs 静态段先于 /:id）───────────────────────────────────────

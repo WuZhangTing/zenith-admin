@@ -1,4 +1,5 @@
-import { Form, Modal, Spin, TabPane, Tabs, Tag, Toast, Typography, withField } from '@douyinfe/semi-ui';
+import { useState } from 'react';
+import { Form, Modal, Spin, TabPane, Tabs, Tag, TextArea, Toast, Tooltip, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -21,12 +22,15 @@ import {
   IOT_ALARM_RULE_TYPE_OPTIONS, IOT_ALARM_STATUS_LABELS, IOT_ALARM_STATUS_OPTIONS,
   IOT_COMPARE_OP_LABELS, IOT_COMPARE_OP_OPTIONS,
 } from '@zenith/shared/iot';
-import type { IotAlarm, IotAlarmRule } from '@zenith/shared/iot';
+import type { IotAlarm, IotAlarmRule, IotMaintenanceWindow } from '@zenith/shared/iot';
 import { useAllIotProducts, useIotThingModel } from '@/hooks/queries/iot-products';
 import { useIotDeviceList } from '@/hooks/queries/iot-devices';
+import { useAllIotGroups } from '@/hooks/queries/iot-groups';
 import {
-  iotAlarmKeys, iotAlarmRuleKeys, useDeleteIotAlarmRules, useIotAlarmList,
-  useIotAlarmRuleList, useResolveIotAlarm, useSaveIotAlarmRule,
+  iotAlarmKeys, iotAlarmRuleKeys, iotMaintenanceWindowKeys,
+  useAcknowledgeIotAlarm, useDeleteIotAlarmRules, useDeleteIotMaintenanceWindows,
+  useIotAlarmList, useIotAlarmRuleList, useIotMaintenanceWindowList,
+  useResolveIotAlarm, useSaveIotAlarmRule, useSaveIotMaintenanceWindow,
 } from '@/hooks/queries/iot-alarms';
 
 const { Text } = Typography;
@@ -34,6 +38,8 @@ const { Text } = Typography;
 const FormUserSelect = withField(UserSelect);
 
 const ALARM_LEVEL_COLORS = { warning: 'orange', critical: 'red' } as const;
+
+const ALARM_STATUS_COLORS = { firing: 'red', acknowledged: 'blue', resolved: 'green' } as const;
 
 // ─── 告警记录 Tab ─────────────────────────────────────────────────────────────
 interface AlarmSearchParams {
@@ -71,12 +77,22 @@ function AlarmRecordsTab() {
   const todayQuery = useIotAlarmList({ page: 1, pageSize: 1, startTime: todayStart });
 
   const resolveMutation = useResolveIotAlarm();
+  const acknowledgeMutation = useAcknowledgeIotAlarm();
+  const [resolveTarget, setResolveTarget] = useState<IotAlarm | null>(null);
+  const [resolveNote, setResolveNote] = useState('');
 
   const columns: ColumnProps<IotAlarm>[] = [
     {
       title: '状态', dataIndex: 'status', width: 90,
-      render: (v: IotAlarm['status']) => (
-        <Tag size="small" color={v === 'firing' ? 'red' : 'green'}>{IOT_ALARM_STATUS_LABELS[v]}</Tag>
+      render: (v: IotAlarm['status'], r: IotAlarm) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+          <Tag size="small" color={ALARM_STATUS_COLORS[v]}>{IOT_ALARM_STATUS_LABELS[v]}</Tag>
+          {r.escalatedAt && (
+            <Tooltip content={`已于 ${r.escalatedAt} 升级通知`}>
+              <Tag size="small" color="purple">升</Tag>
+            </Tooltip>
+          )}
+        </span>
       ),
     },
     {
@@ -104,26 +120,41 @@ function AlarmRecordsTab() {
         : EMPTY_PLACEHOLDER,
     },
     {
-      title: '告警内容', dataIndex: 'message', width: 260,
+      title: '告警内容', dataIndex: 'message', width: 240,
       render: (v: string) => renderEllipsis(v),
+    },
+    {
+      title: '处理人', width: 110,
+      render: (_: unknown, r: IotAlarm) => {
+        if (r.status === 'resolved' && r.resolveNote) {
+          return (
+            <Tooltip content={`处理备注：${r.resolveNote}`}>
+              <span style={{ whiteSpace: 'nowrap' }}>{r.acknowledgedByName ?? (r.resolvedBy ? `#${r.resolvedBy}` : '自动恢复')} 📝</span>
+            </Tooltip>
+          );
+        }
+        if (r.acknowledgedByName) return renderEllipsis(r.acknowledgedByName);
+        return EMPTY_PLACEHOLDER;
+      },
     },
     dateTimeColumn<IotAlarm>('触发时间', 'firedAt'),
     dateTimeColumn<IotAlarm>('恢复时间', 'resolvedAt'),
     createOperationColumn<IotAlarm>({
-      width: 100,
+      width: 130,
       actions: (record) => [
         ...(hasPermission('iot:alarm:resolve') && record.status === 'firing' ? [{
+          key: 'acknowledge', label: '认领',
+          onClick: () => {
+            void acknowledgeMutation.mutateAsync(record.id).then(() => {
+              Toast.success('已认领，升级计时停止');
+            });
+          },
+        }] : []),
+        ...(hasPermission('iot:alarm:resolve') && record.status !== 'resolved' ? [{
           key: 'resolve', label: '处理',
           onClick: () => {
-            Modal.confirm({
-              title: `确认处理告警「${record.ruleName}」？`,
-              content: '将标记为已恢复；若告警条件仍满足会再次触发',
-              closeOnEsc: true,
-              onOk: async () => {
-                await resolveMutation.mutateAsync(record.id);
-                Toast.success('告警已处理');
-              },
-            });
+            setResolveNote('');
+            setResolveTarget(record);
           },
         }] : []),
       ],
@@ -223,6 +254,32 @@ function AlarmRecordsTab() {
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(total)}
       />
+
+      {/* 处理告警：可附处理备注 */}
+      <Modal
+        title={resolveTarget ? `处理告警「${resolveTarget.ruleName}」` : ''}
+        visible={resolveTarget !== null}
+        onCancel={() => setResolveTarget(null)}
+        onOk={async () => {
+          if (!resolveTarget) return;
+          await resolveMutation.mutateAsync({ id: resolveTarget.id, note: resolveNote.trim() || null });
+          Toast.success('告警已处理');
+          setResolveTarget(null);
+        }}
+        okText="确认处理"
+        confirmLoading={resolveMutation.isPending}
+        closeOnEsc
+      >
+        <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
+          将标记为已恢复；若告警条件仍满足会再次触发
+        </Text>
+        <TextArea
+          rows={3} maxCount={512}
+          placeholder="处理备注（选填）：如现场处理情况、根因说明"
+          value={resolveNote}
+          onChange={(v) => setResolveNote(v)}
+        />
+      </Modal>
     </>
   );
 }
@@ -271,9 +328,11 @@ function AlarmRulesTab() {
       eventIdentifier: r.eventIdentifier,
       level: r.level,
       notifyUserIds: r.notifyUserIds,
+      escalateAfterMinutes: r.escalateAfterMinutes,
+      escalateUserIds: r.escalateUserIds,
       status: r.status,
     }),
-    defaults: { ruleType: 'threshold', level: 'warning', consecutiveCount: 1, status: 'enabled', notifyUserIds: [] },
+    defaults: { ruleType: 'threshold', level: 'warning', consecutiveCount: 1, status: 'enabled', notifyUserIds: [], escalateUserIds: [] },
     beforeSave: (values, { isEdit }) => ({
       name: values.name as string,
       ...(isEdit ? {} : { productId: values.productId as number, ruleType: values.ruleType as IotAlarmRule['ruleType'] }),
@@ -286,6 +345,8 @@ function AlarmRulesTab() {
       eventIdentifier: (values.eventIdentifier as string | undefined) ?? null,
       level: values.level as IotAlarmRule['level'],
       notifyUserIds: (values.notifyUserIds as number[] | undefined) ?? [],
+      escalateAfterMinutes: (values.escalateAfterMinutes as number | undefined) ?? null,
+      escalateUserIds: (values.escalateUserIds as number[] | undefined) ?? [],
       status: values.status as IotAlarmRule['status'],
     }),
     labelWidth: 110,
@@ -522,6 +583,11 @@ function RuleFormBody({ isEdit, values }: Readonly<{ isEdit: boolean; values: Re
         optionList={IOT_ALARM_LEVEL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))} />
       <FormUserSelect field="notifyUserIds" label="通知接收人" multiple placeholder="选择接收告警通知的用户"
         extraText="通过通知中心派发（站内信默认开启，用户可自行订阅邮件等渠道）；不选则只记录告警" />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+        <Form.InputNumber field="escalateAfterMinutes" label="升级时长（分钟）" min={1} max={1440} style={{ width: 160 }}
+          showClear extraText="触发后超时未认领/未恢复即升级通知；留空 = 不升级" />
+      </div>
+      <FormUserSelect field="escalateUserIds" label="升级接收人" multiple placeholder="如值班主管（配置升级时长后必选）" />
       <Form.RadioGroup field="status" label="状态">
         {statusItems.map((o) => (
           <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
@@ -531,8 +597,163 @@ function RuleFormBody({ isEdit, values }: Readonly<{ isEdit: boolean; values: Re
   );
 }
 
+// ─── 维护窗口 Tab ─────────────────────────────────────────────────────────────
+function MaintenanceWindowsTab() {
+  const { hasPermission } = usePermission();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams,
+    handleSearch, handleReset, submittedParams,
+  } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: iotMaintenanceWindowKeys.lists });
+
+  const listQuery = useIotMaintenanceWindowList({
+    page, pageSize, keyword: submittedParams.keyword || undefined,
+  });
+  const list = listQuery.data?.list ?? [];
+  const total = listQuery.data?.total ?? 0;
+
+  const productsQuery = useAllIotProducts();
+  const products = productsQuery.data ?? [];
+  const groupsQuery = useAllIotGroups();
+  const groups = groupsQuery.data ?? [];
+
+  const modal = useEditModal<IotMaintenanceWindow, Record<string, unknown>, Partial<IotMaintenanceWindow>>({
+    entityName: '维护窗口',
+    save: useSaveIotMaintenanceWindow(),
+    toValues: (r) => ({
+      name: r.name,
+      productId: r.productId,
+      groupId: r.groupId,
+      deviceId: r.deviceId,
+      timeRange: [r.startAt, r.endAt],
+      reason: r.reason ?? '',
+    }),
+    defaults: {},
+    beforeSave: (values) => {
+      const range = values.timeRange as [string | Date, string | Date] | undefined;
+      const fmt = (v: string | Date | undefined) => {
+        if (!v) return '';
+        if (typeof v === 'string') return v;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())} ${pad(v.getHours())}:${pad(v.getMinutes())}:${pad(v.getSeconds())}`;
+      };
+      return {
+        name: values.name as string,
+        productId: (values.productId as number | undefined) ?? null,
+        groupId: (values.groupId as number | undefined) ?? null,
+        deviceId: (values.deviceId as number | undefined) ?? null,
+        startAt: fmt(range?.[0]),
+        endAt: fmt(range?.[1]),
+        reason: (values.reason as string) || null,
+      } as Partial<IotMaintenanceWindow>;
+    },
+    labelWidth: 100,
+  });
+
+  const deleteMutation = useDeleteIotMaintenanceWindows();
+
+  const columns: ColumnProps<IotMaintenanceWindow>[] = [
+    {
+      title: '窗口名称', dataIndex: 'name', width: 170,
+      render: (v: string, r: IotMaintenanceWindow) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          {renderEllipsis(v)}
+          {r.active && <Tag size="small" color="orange">生效中</Tag>}
+        </span>
+      ),
+    },
+    {
+      title: '作用范围', width: 220,
+      render: (_: unknown, r: IotMaintenanceWindow) => {
+        const parts = [
+          r.productName ? `产品：${r.productName}` : null,
+          r.groupName ? `分组：${r.groupName}` : null,
+          r.deviceName ? `设备：${r.deviceName}` : null,
+        ].filter(Boolean);
+        return renderEllipsis(parts.join('；') || '—');
+      },
+    },
+    dateTimeColumn<IotMaintenanceWindow>('开始时间', 'startAt'),
+    dateTimeColumn<IotMaintenanceWindow>('结束时间', 'endAt'),
+    {
+      title: '原因', dataIndex: 'reason', width: 200,
+      render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
+    },
+    createOperationColumn<IotMaintenanceWindow>({
+      width: 130,
+      actions: (record) => [
+        ...(hasPermission('iot:alarm:rule:update') ? [{
+          key: 'edit', label: '编辑', onClick: () => modal.openEdit(record),
+        }] : []),
+        ...(hasPermission('iot:alarm:rule:delete') ? [{
+          key: 'delete', label: '删除', danger: true,
+          onClick: () => {
+            confirmDelete({
+              title: `确定要删除维护窗口「${record.name}」吗？`,
+              content: '删除后窗口内的告警恢复正常通知',
+              onOk: async () => {
+                await deleteMutation.mutateAsync([record.id]);
+                Toast.success('删除成功');
+              },
+            });
+          },
+        }] : []),
+      ],
+    }),
+  ];
+
+  return (
+    <>
+      <SearchToolbar
+        primary={<>
+          <KeywordInput
+            placeholder="搜索窗口名称..."
+            value={draftParams.keyword}
+            onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))}
+            onSearch={handleSearch}
+          />
+          <SearchButton onClick={handleSearch} />
+          <ResetButton onClick={handleReset} />
+        </>}
+        actions={hasPermission('iot:alarm:rule:create')
+          ? <CreateButton onClick={modal.openCreate}>新增窗口</CreateButton> : null}
+      />
+      <ConfigurableTable
+        bordered
+        columns={columns}
+        dataSource={list}
+        loading={listQuery.isFetching}
+        rowKey="id"
+        size="small"
+        empty="暂无维护窗口；窗口内命中设备的告警仍会记录，但不派发通知与升级"
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
+      />
+
+      <AppModal {...modal.modalProps} width={560}>
+        <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
+          <Form key={modal.formKey} {...modal.formProps}>
+            <Form.Input field="name" label="窗口名称" placeholder="如：B 栋机房年度检修"
+              rules={[{ required: true, message: '窗口名称不能为空' }]} />
+            <Form.Select field="productId" label="产品" placeholder="不限" showClear style={{ width: '100%' }}
+              optionList={products.map((p) => ({ value: p.id, label: p.name }))}
+              extraText="产品/分组/设备至少指定一项，命中任一即静默" />
+            <Form.Select field="groupId" label="分组" placeholder="不限" showClear style={{ width: '100%' }}
+              optionList={groups.map((g) => ({ value: g.id, label: g.name }))} />
+            <Form.InputNumber field="deviceId" label="设备 ID" placeholder="不限（填设备 id）" hideButtons showClear style={{ width: 200 }} />
+            <Form.DatePicker field="timeRange" label="静默时段" type="dateTimeRange" style={{ width: '100%' }}
+              rules={[{ required: true, message: '请选择静默时段' }]} />
+            <Form.TextArea field="reason" label="维护原因" rows={2} maxCount={256} placeholder="选填" />
+          </Form>
+        </Spin>
+      </AppModal>
+    </>
+  );
+}
+
 // ─── 页面 ─────────────────────────────────────────────────────────────────────
-const ALARM_TABS = ['records', 'rules'] as const;
+const ALARM_TABS = ['records', 'rules', 'windows'] as const;
 
 export default function IotAlarmsPage() {
   const [activeTab, setActiveTab] = useUrlTabState(ALARM_TABS, 'records');
@@ -545,6 +766,9 @@ export default function IotAlarmsPage() {
         </TabPane>
         <TabPane tab="告警规则" itemKey="rules">
           <AlarmRulesTab />
+        </TabPane>
+        <TabPane tab="维护窗口" itemKey="windows">
+          <MaintenanceWindowsTab />
         </TabPane>
       </Tabs>
     </div>

@@ -128,12 +128,13 @@ export const IOT_ALARM_LEVEL_LABELS: Record<IotAlarmLevel, string> = {
 
 export const IOT_ALARM_LEVEL_OPTIONS = createLabelOptions(IOT_ALARM_LEVELS, IOT_ALARM_LEVEL_LABELS);
 
-export const IOT_ALARM_STATUSES = ['firing', 'resolved'] as const;
+export const IOT_ALARM_STATUSES = ['firing', 'acknowledged', 'resolved'] as const;
 
 export type IotAlarmStatus = (typeof IOT_ALARM_STATUSES)[number];
 
 export const IOT_ALARM_STATUS_LABELS: Record<IotAlarmStatus, string> = {
   firing: '告警中',
+  acknowledged: '已认领',
   resolved: '已恢复',
 };
 
@@ -190,12 +191,13 @@ export const IOT_WS_FRAME_TYPES = {
 } as const;
 
 // ─── OTA 升级 ─────────────────────────────────────────────────────────────────
-export const IOT_OTA_TASK_STATUSES = ['running', 'completed', 'cancelled'] as const;
+export const IOT_OTA_TASK_STATUSES = ['running', 'paused', 'completed', 'cancelled'] as const;
 
 export type IotOtaTaskStatus = (typeof IOT_OTA_TASK_STATUSES)[number];
 
 export const IOT_OTA_TASK_STATUS_LABELS: Record<IotOtaTaskStatus, string> = {
   running: '进行中',
+  paused: '已暂停',
   completed: '已完成',
   cancelled: '已取消',
 };
@@ -337,3 +339,40 @@ export const IOT_ANOMALY_DEBOUNCE_SECONDS = 600;
 
 /** 基线最少样本数（小时桶数），不足则不判定 */
 export const IOT_ANOMALY_MIN_SAMPLES = 24;
+
+// ─── 六期：设备计划任务 ───────────────────────────────────────────────────────
+export const IOT_SCHEDULE_TYPES = ['cron', 'once'] as const;
+
+export type IotScheduleType = (typeof IOT_SCHEDULE_TYPES)[number];
+
+export const IOT_SCHEDULE_TYPE_LABELS: Record<IotScheduleType, string> = {
+  cron: '周期执行',
+  once: '定时一次',
+};
+
+export const IOT_SCHEDULE_TYPE_OPTIONS = createLabelOptions(IOT_SCHEDULE_TYPES, IOT_SCHEDULE_TYPE_LABELS);
+
+export const IOT_SCHEDULE_ACTIONS = ['command', 'desired'] as const;
+
+export type IotScheduleAction = (typeof IOT_SCHEDULE_ACTIONS)[number];
+
+export const IOT_SCHEDULE_ACTION_LABELS: Record<IotScheduleAction, string> = {
+  command: '下发服务指令',
+  desired: '设置期望属性',
+};
+
+export const IOT_SCHEDULE_ACTION_OPTIONS = createLabelOptions(IOT_SCHEDULE_ACTIONS, IOT_SCHEDULE_ACTION_LABELS);
+
+/** 计划单次执行的目标设备上限（防误圈全量大产品） */
+export const IOT_SCHEDULE_TARGET_MAX = 500;
+
+// ─── 六期：OTA 灰度 ───────────────────────────────────────────────────────────
+/** 灰度失败率熔断阈值默认值（百分比） */
+export const IOT_OTA_DEFAULT_FAILURE_THRESHOLD = 30;
+
+// ─── 六期：动态注册 ───────────────────────────────────────────────────────────
+/** 注册请求时间窗（秒，防重放） */
+export const IOT_REGISTER_MAX_SKEW_SECONDS = 300;
+
+/** 白名单单次批量导入上限 */
+export const IOT_WHITELIST_BATCH_MAX = 1000;

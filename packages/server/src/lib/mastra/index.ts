@@ -247,6 +247,14 @@ async function buildMastra(): Promise<Mastra> {
     logger.warn('[mastra] register demo agents failed', err);
   }
 
+  // IoT 设备助手（编程式：设备状态/告警/异常查询工具）
+  try {
+    const { registerIotAgent } = await import('../../services/iot/iot-ai-agent');
+    await registerIotAgent(mastra);
+  } catch (err) {
+    logger.warn('[mastra] register iot agent failed', err);
+  }
+
   // 评测打分器(code 类必注册;llm 类以当前默认服务商为评审模型,发实验时会刷新)
   const { registerAllScorers } = await import('./scorers');
   await registerAllScorers(mastra);

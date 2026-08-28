@@ -59,4 +59,15 @@ export const SEED_MENUS_IOT: Menu[] = [
   // ─── 设备地图 ──────────────────────────────────────────────────────────────
   { id: 18080, parentId: 18000, title: '设备地图', name: 'IotMap', path: '/iot/map', component: 'iot/IotMapPage', icon: 'MapPin', type: 'menu', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18081, parentId: 18080, title: '查询', type: 'button', permission: 'iot:device:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 计划任务 ──────────────────────────────────────────────────────────────
+  { id: 18090, parentId: 18000, title: '计划任务', name: 'IotSchedules', path: '/iot/schedules', component: 'iot/IotSchedulesPage', icon: 'CalendarClock', type: 'menu', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18091, parentId: 18090, title: '查询', type: 'button', permission: 'iot:schedule:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18092, parentId: 18090, title: '新增计划', type: 'button', permission: 'iot:schedule:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18093, parentId: 18090, title: '编辑计划', type: 'button', permission: 'iot:schedule:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18094, parentId: 18090, title: '删除计划', type: 'button', permission: 'iot:schedule:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 动态注册 ──────────────────────────────────────────────────────────────
+  { id: 18100, parentId: 18000, title: '动态注册', name: 'IotRegister', path: '/iot/register', component: 'iot/IotRegisterPage', icon: 'KeyRound', type: 'menu', sort: 9, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18101, parentId: 18100, title: '白名单与密钥管理', type: 'button', permission: 'iot:register:manage', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

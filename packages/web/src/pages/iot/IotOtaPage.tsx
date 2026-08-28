@@ -28,12 +28,13 @@ import { useAllIotGroups } from '@/hooks/queries/iot-groups';
 import { useIotDeviceList } from '@/hooks/queries/iot-devices';
 import {
   iotFirmwareKeys, iotOtaTaskKeys, useCancelIotOtaTask, useCreateIotOtaTask, useDeleteIotFirmware,
+  useReleaseNextIotOtaBatch, useResumeIotOtaTask,
   useIotFirmwareList, useIotOtaTaskDevices, useIotOtaTaskList, useUpdateIotFirmware, useUploadIotFirmware,
 } from '@/hooks/queries/iot-ota';
 
 const { Text } = Typography;
 
-const TASK_STATUS_COLORS = { running: 'blue', completed: 'green', cancelled: 'grey' } as const;
+const TASK_STATUS_COLORS = { running: 'blue', paused: 'orange', completed: 'green', cancelled: 'grey' } as const;
 
 const DEVICE_STATUS_COLORS = {
   pending: 'grey', notified: 'blue', downloading: 'cyan', installing: 'indigo',
@@ -333,6 +334,8 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
   const total = listQuery.data?.total ?? 0;
 
   const cancelMutation = useCancelIotOtaTask();
+  const releaseMutation = useReleaseNextIotOtaBatch();
+  const resumeMutation = useResumeIotOtaTask();
 
   const columns: ColumnProps<IotOtaTask>[] = [
     { title: '任务', dataIndex: 'title', width: 210, render: (v: string) => renderEllipsis(v) },
@@ -346,6 +349,12 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
       render: (v: IotOtaTask['status']) => (
         <Tag size="small" color={TASK_STATUS_COLORS[v]}>{IOT_OTA_TASK_STATUS_LABELS[v]}</Tag>
       ),
+    },
+    {
+      title: '批次', width: 100,
+      render: (_: unknown, r: IotOtaTask) => r.batchSize
+        ? <Text size="small" style={{ whiteSpace: 'nowrap' }}>{r.currentBatch} / {r.totalBatches ?? '-'} 批</Text>
+        : <Text size="small" type="tertiary">全量</Text>,
     },
     {
       title: '进度', width: 220,
@@ -365,24 +374,44 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
     { title: '超时(分)', dataIndex: 'timeoutMinutes', width: 90, align: 'right' },
     createdAtColumn,
     createOperationColumn<IotOtaTask>({
-      width: 130,
+      width: 190,
       desktopInlineKeys: ['detail'],
-      actions: (record) => [
-        { key: 'detail', label: '明细', onClick: () => onOpenDetail(record) },
-        ...(hasPermission('iot:ota:task:create') && record.status === 'running' ? [{
-          key: 'cancel', label: '取消', danger: true,
-          onClick: () => {
-            confirmDelete({
-              title: `确定要取消任务「${record.title}」吗？`,
-              content: '未终态设备将标记为已取消；已升级成功的设备不受影响',
-              onOk: async () => {
-                await cancelMutation.mutateAsync(record.id);
-                Toast.success('任务已取消');
-              },
-            });
-          },
-        }] : []),
-      ],
+      actions: (record) => {
+        const canRelease = (record.status === 'running' || record.status === 'paused')
+          && record.batchSize != null && record.currentBatch < (record.totalBatches ?? 1);
+        return [
+          { key: 'detail', label: '明细', onClick: () => onOpenDetail(record) },
+          ...(hasPermission('iot:ota:task:create') && canRelease ? [{
+            key: 'release', label: '放量下一批',
+            onClick: () => {
+              void releaseMutation.mutateAsync(record.id).then(() => {
+                Toast.success('下一批已放量');
+              });
+            },
+          }] : []),
+          ...(hasPermission('iot:ota:task:create') && record.status === 'paused' ? [{
+            key: 'resume', label: '恢复',
+            onClick: () => {
+              void resumeMutation.mutateAsync(record.id).then(() => {
+                Toast.success('任务已恢复');
+              });
+            },
+          }] : []),
+          ...(hasPermission('iot:ota:task:create') && (record.status === 'running' || record.status === 'paused') ? [{
+            key: 'cancel', label: '取消', danger: true,
+            onClick: () => {
+              confirmDelete({
+                title: `确定要取消任务「${record.title}」吗？`,
+                content: '未终态设备将标记为已取消；已升级成功的设备不受影响',
+                onOk: async () => {
+                  await cancelMutation.mutateAsync(record.id);
+                  Toast.success('任务已取消');
+                },
+              });
+            },
+          }] : []),
+        ];
+      },
     }),
   ];
 
@@ -547,6 +576,8 @@ function CreateTaskModal({ firmware, onClose, onCreated }: Readonly<{
       groupId: target === 'group' ? (values.groupId as number) : undefined,
       deviceIds: target === 'devices' ? (values.deviceIds as number[]) : undefined,
       timeoutMinutes: (values.timeoutMinutes as number) || 30,
+      batchSize: (values.batchSize as number | undefined) ?? null,
+      failureThreshold: (values.failureThreshold as number | undefined) ?? null,
     });
     Toast.success('升级任务已创建，可在「升级任务」页签跟进进度');
     onClose();
@@ -599,6 +630,16 @@ function CreateTaskModal({ firmware, onClose, onCreated }: Readonly<{
             field="timeoutMinutes" label="超时(分钟)" min={5} max={1440} style={{ width: 160 }}
             extraText="超过该时长未完成的设备判为失败"
           />
+          <div style={{ display: 'flex', gap: 12 }}>
+            <Form.InputNumber
+              field="batchSize" label="灰度批次" min={1} max={10000} showClear hideButtons style={{ width: 140 }}
+              placeholder="留空 = 全量" extraText="首批 N 台，手动放量推进"
+            />
+            <Form.InputNumber
+              field="failureThreshold" label="熔断阈值(%)" min={1} max={100} showClear hideButtons style={{ width: 140 }}
+              placeholder="留空 = 不熔断" extraText="已放量批失败率达标即自动暂停"
+            />
+          </div>
           <Text type="tertiary" size="small">
             仅产品匹配、已启用且版本不同的设备会进入任务；WS 在线设备立即推送，离线设备心跳时补收。
           </Text>

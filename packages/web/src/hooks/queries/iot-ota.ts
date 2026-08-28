@@ -123,3 +123,28 @@ export function useCancelIotOtaTask() {
     },
   });
 }
+
+/** 灰度放量下一批：任务详情/列表与设备明细都刷新 */
+export function useReleaseNextIotOtaBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.post<IotOtaTask>(`/api/iot/ota-tasks/${id}/release-next-batch`, {}).then(unwrap),
+    onSuccess: (saved) => {
+      qc.setQueryData(iotOtaTaskKeys.detail(saved.id), saved);
+      void qc.invalidateQueries({ queryKey: iotOtaTaskKeys.lists });
+      void qc.invalidateQueries({ queryKey: [...iotOtaTaskDeviceKeys.all, saved.id] });
+    },
+  });
+}
+
+/** 恢复被熔断暂停的任务 */
+export function useResumeIotOtaTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.post<IotOtaTask>(`/api/iot/ota-tasks/${id}/resume`, {}).then(unwrap),
+    onSuccess: (saved) => {
+      qc.setQueryData(iotOtaTaskKeys.detail(saved.id), saved);
+      void qc.invalidateQueries({ queryKey: iotOtaTaskKeys.lists });
+    },
+  });
+}

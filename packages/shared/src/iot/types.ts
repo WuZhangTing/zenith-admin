@@ -2,7 +2,7 @@ import type {
   IotAccessMode, IotAlarmLevel, IotAlarmRuleType, IotAlarmStatus, IotAutomationActionType,
   IotAutomationTarget, IotAutomationTrigger, IotCommandStatus, IotDeviceEventKind, IotEventLevel,
   IotForwardSource, IotLogLevel, IotNodeType,
-  IotOtaDeviceStatus, IotOtaTaskStatus, IotPropertyType, IotValidationMode,
+  IotOtaDeviceStatus, IotOtaTaskStatus, IotPropertyType, IotScheduleAction, IotScheduleType, IotValidationMode,
 } from './constants';
 
 export type IotMetricValue = number | string | boolean;
@@ -14,6 +14,8 @@ export interface IotProduct {
   description: string | null;
   validationMode: IotValidationMode;
   status: 'enabled' | 'disabled';
+  /** 是否已开启动态注册（密钥明文不下发） */
+  registrationEnabled?: boolean;
   /** 关联设备数（列表聚合返回） */
   deviceCount?: number;
   /** 物模型三元组规模（列表聚合返回） */
@@ -209,6 +211,9 @@ export interface IotAlarmRule {
   eventIdentifier: string | null;
   level: IotAlarmLevel;
   notifyUserIds: number[];
+  /** 升级策略：触发后 N 分钟未认领/未恢复 → 升级通知（null = 不升级） */
+  escalateAfterMinutes: number | null;
+  escalateUserIds: number[];
   status: 'enabled' | 'disabled';
   createdBy?: number | null;
   updatedBy?: number | null;
@@ -229,8 +234,13 @@ export interface IotAlarm {
   message: string;
   context: Record<string, unknown> | null;
   firedAt: string;
+  acknowledgedAt: string | null;
+  acknowledgedBy: number | null;
+  acknowledgedByName?: string | null;
+  escalatedAt: string | null;
   resolvedAt: string | null;
   resolvedBy: number | null;
+  resolveNote: string | null;
   createdAt: string;
 }
 
@@ -288,6 +298,14 @@ export interface IotOtaTask {
   firmwareVersion: string;
   status: IotOtaTaskStatus;
   timeoutMinutes: number;
+  /** 灰度批次大小（null = 全量一批） */
+  batchSize: number | null;
+  /** 当前已放量到的批次号 */
+  currentBatch: number;
+  /** 总批次数（列表聚合返回） */
+  totalBatches?: number;
+  /** 失败率熔断阈值（百分比；null = 不熔断） */
+  failureThreshold: number | null;
   totalCount: number;
   succeededCount: number;
   failedCount: number;
@@ -306,6 +324,8 @@ export interface IotOtaTaskDevice {
   status: IotOtaDeviceStatus;
   progress: number;
   fromVersion: string | null;
+  /** 灰度批次号 */
+  batchIndex: number;
   errorMsg: string | null;
   notifiedAt: string | null;
   finishedAt: string | null;
@@ -478,4 +498,78 @@ export interface IotDeviceLog {
   tag: string | null;
   content: string;
   reportedAt: string;
+}
+
+// ─── 六期：维护窗口 ───────────────────────────────────────────────────────────
+export interface IotMaintenanceWindow {
+  id: number;
+  name: string;
+  productId: number | null;
+  productName?: string | null;
+  groupId: number | null;
+  groupName?: string | null;
+  deviceId: number | null;
+  deviceName?: string | null;
+  startAt: string;
+  endAt: string;
+  reason: string | null;
+  /** 当前是否生效中（列表计算返回） */
+  active?: boolean;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── 六期：设备计划任务 ───────────────────────────────────────────────────────
+export interface IotSchedule {
+  id: number;
+  name: string;
+  scheduleType: IotScheduleType;
+  cronExpression: string | null;
+  runAt: string | null;
+  productId: number;
+  productName?: string | null;
+  groupId: number | null;
+  groupName?: string | null;
+  deviceId: number | null;
+  deviceName?: string | null;
+  actionType: IotScheduleAction;
+  service: string | null;
+  params: Record<string, unknown> | null;
+  desired: Record<string, IotMetricValue> | null;
+  status: 'enabled' | 'disabled';
+  nextRunAt: string | null;
+  lastRunAt: string | null;
+  /** 近 24h 执行次数（列表聚合返回） */
+  recentRunCount?: number;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IotScheduleRun {
+  id: number;
+  scheduleId: number;
+  scheduleName: string;
+  deviceCount: number;
+  successCount: number;
+  failedCount: number;
+  errors: Array<{ deviceId: number; sn: string; error: string }>;
+  createdAt: string;
+}
+
+// ─── 六期：动态注册白名单 ─────────────────────────────────────────────────────
+export interface IotWhitelistEntry {
+  id: number;
+  productId: number;
+  productName?: string | null;
+  sn: string;
+  used: boolean;
+  usedAt: string | null;
+  deviceId: number | null;
+  deviceName?: string | null;
+  remark: string | null;
+  createdAt: string;
 }

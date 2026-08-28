@@ -19,11 +19,12 @@ import {
   SEED_IOT_PRODUCTS, SEED_IOT_DEVICES, SEED_IOT_PRODUCT_PROPERTIES, SEED_IOT_PRODUCT_SERVICES,
   SEED_IOT_PRODUCT_EVENTS, SEED_IOT_DEVICE_GROUPS, SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_DEVICE_EVENTS,
   SEED_IOT_AUTOMATIONS, SEED_IOT_FORWARD_RULES, SEED_IOT_DEVICE_LOGS,
+  SEED_IOT_SCHEDULES, SEED_IOT_SCHEDULE_RUNS, SEED_IOT_MAINTENANCE_WINDOWS, SEED_IOT_WHITELIST,
 } from '@zenith/shared/seed';
 import {
   iotProducts, iotDevices, iotTelemetry, iotProductProperties, iotProductServices, iotProductEvents,
   iotDeviceGroups, iotDeviceGroupMembers, iotAlarmRules, iotAlarms, iotAutomations, iotDeviceEvents, iotDeviceState,
-  iotForwardRules, iotDeviceLogs,
+  iotForwardRules, iotDeviceLogs, iotSchedules, iotScheduleRuns, iotMaintenanceWindows, iotDeviceWhitelist,
 } from './schema';
 import { buildSearchVector } from '../services/cms/cms-search.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
@@ -1442,18 +1443,24 @@ async function seedRest() {
 
   // 告警规则与演示告警记录
   await db.insert(iotAlarmRules).values(
-    SEED_IOT_ALARM_RULES.map(({ id, name, productId, deviceId, ruleType, propertyIdentifier, operator, threshold, consecutiveCount, offlineMinutes, eventIdentifier, level, notifyUserIds, status }) => ({
+    SEED_IOT_ALARM_RULES.map(({ id, name, productId, deviceId, ruleType, propertyIdentifier, operator, threshold, consecutiveCount, offlineMinutes, eventIdentifier, level, notifyUserIds, escalateAfterMinutes, escalateUserIds, status }) => ({
       id, name, productId, deviceId, ruleType, propertyIdentifier, operator, threshold,
-      consecutiveCount, offlineMinutes, eventIdentifier, level, notifyUserIds, status,
+      consecutiveCount, offlineMinutes, eventIdentifier, level, notifyUserIds,
+      escalateAfterMinutes, escalateUserIds, status,
     })),
   ).onConflictDoNothing({ target: iotAlarmRules.id });
   await db.execute(sql`SELECT setval('iot_alarm_rules_id_seq', GREATEST((SELECT MAX(id) FROM iot_alarm_rules), 1))`);
 
   await db.insert(iotAlarms).values(
-    SEED_IOT_ALARMS.map(({ id, ruleId, ruleName, deviceId, ruleType, level, status, message, context, firedAt, resolvedAt }) => ({
+    SEED_IOT_ALARMS.map(({ id, ruleId, ruleName, deviceId, ruleType, level, status, message, context, firedAt, acknowledgedAt, acknowledgedBy, escalatedAt, resolvedAt, resolvedBy, resolveNote }) => ({
       id, ruleId, ruleName, deviceId, ruleType, level, status, message, context,
       firedAt: new Date(firedAt),
+      acknowledgedAt: acknowledgedAt ? new Date(acknowledgedAt) : null,
+      acknowledgedBy: acknowledgedBy ?? null,
+      escalatedAt: escalatedAt ? new Date(escalatedAt) : null,
       resolvedAt: resolvedAt ? new Date(resolvedAt) : null,
+      resolvedBy: resolvedBy ?? null,
+      resolveNote: resolveNote ?? null,
     })),
   ).onConflictDoNothing({ target: iotAlarms.id });
   await db.execute(sql`SELECT setval('iot_alarms_id_seq', GREATEST((SELECT MAX(id) FROM iot_alarms), 1))`);
@@ -1510,6 +1517,38 @@ async function seedRest() {
     })),
   ).onConflictDoNothing({ target: iotDeviceLogs.id });
   await db.execute(sql`SELECT setval('iot_device_logs_id_seq', GREATEST((SELECT MAX(id) FROM iot_device_logs), 1))`);
+
+  // 六期：设备计划任务（演示）
+  await db.insert(iotSchedules).values(
+    SEED_IOT_SCHEDULES.map(({ id, name, scheduleType, cronExpression, runAt, productId, groupId, deviceId, actionType, service, params, desired, status }) => ({
+      id, name, scheduleType, cronExpression,
+      runAt: runAt ? new Date(runAt) : null,
+      productId, groupId, deviceId, actionType, service, params, desired, status,
+    })),
+  ).onConflictDoNothing({ target: iotSchedules.id });
+  await db.execute(sql`SELECT setval('iot_schedules_id_seq', GREATEST((SELECT MAX(id) FROM iot_schedules), 1))`);
+
+  await db.insert(iotScheduleRuns).values(
+    SEED_IOT_SCHEDULE_RUNS.map(({ id, scheduleId, scheduleName, deviceCount, successCount, failedCount, errors, createdAt }) => ({
+      id, scheduleId, scheduleName, deviceCount, successCount, failedCount, errors, createdAt: new Date(createdAt),
+    })),
+  ).onConflictDoNothing({ target: iotScheduleRuns.id });
+  await db.execute(sql`SELECT setval('iot_schedule_runs_id_seq', GREATEST((SELECT MAX(id) FROM iot_schedule_runs), 1))`);
+
+  // 六期：维护窗口（演示）
+  await db.insert(iotMaintenanceWindows).values(
+    SEED_IOT_MAINTENANCE_WINDOWS.map(({ id, name, productId, groupId, deviceId, startAt, endAt, reason }) => ({
+      id, name, productId, groupId, deviceId,
+      startAt: new Date(startAt), endAt: new Date(endAt), reason,
+    })),
+  ).onConflictDoNothing({ target: iotMaintenanceWindows.id });
+  await db.execute(sql`SELECT setval('iot_maintenance_windows_id_seq', GREATEST((SELECT MAX(id) FROM iot_maintenance_windows), 1))`);
+
+  // 六期：动态注册白名单（演示）
+  await db.insert(iotDeviceWhitelist).values(
+    SEED_IOT_WHITELIST.map(({ id, productId, sn, used, remark }) => ({ id, productId, sn, used, remark })),
+  ).onConflictDoNothing({ target: iotDeviceWhitelist.id });
+  await db.execute(sql`SELECT setval('iot_device_whitelist_id_seq', GREATEST((SELECT MAX(id) FROM iot_device_whitelist), 1))`);
 
   logger.info('  ✔ IoT products/devices/model/alarms seeded (onConflictDoNothing)');
 

@@ -23,6 +23,7 @@ import {
 } from '../../services/iot/iot-firmware.service';
 import {
   cancelIotOtaTask, createIotOtaTask, getIotOtaTask, listIotOtaTaskDevices, listIotOtaTasks,
+  releaseNextIotOtaBatch, resumeIotOtaTask,
 } from '../../services/iot/iot-ota.service';
 
 // ─── 仪表盘 ───────────────────────────────────────────────────────────────────
@@ -267,10 +268,56 @@ const cancelTaskRoute = defineOpenAPIRoute({
   },
 });
 
+const releaseBatchRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/release-next-batch',
+    tags: ['IoT 固件'], summary: '放量下一批（灰度任务；暂停中的任务放量即恢复）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'iot:ota:task:create',
+      audit: { description: '放量 IoT 升级批次', module: 'IoT 固件' },
+    })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(IotOtaTaskDTO, '已放量'),
+      400: { content: jsonContent(ErrorResponse), description: '任务已结束或无可放量批次' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await releaseNextIotOtaBatch(id), '下一批已放量'), 200);
+  },
+});
+
+const resumeTaskRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/resume',
+    tags: ['IoT 固件'], summary: '恢复被熔断暂停的任务（继续当前批，不放量）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'iot:ota:task:create',
+      audit: { description: '恢复 IoT 升级任务', module: 'IoT 固件' },
+    })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(IotOtaTaskDTO, '已恢复'),
+      400: { content: jsonContent(ErrorResponse), description: '仅暂停中的任务可恢复' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await resumeIotOtaTask(id), '任务已恢复'), 200);
+  },
+});
+
 iotOtaTasksRouter.openapiRoutes([
   listTasksRoute,
   createTaskRoute,
   getTaskRoute,
   listTaskDevicesRoute,
   cancelTaskRoute,
+  releaseBatchRoute,
+  resumeTaskRoute,
 ] as const);

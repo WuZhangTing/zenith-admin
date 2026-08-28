@@ -2,15 +2,18 @@ import {
   SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_AUTOMATION_RUNS, SEED_IOT_AUTOMATIONS,
   SEED_IOT_DEVICE_EVENTS, SEED_IOT_DEVICE_GROUPS, SEED_IOT_DEVICE_LOGS,
   SEED_IOT_DEVICES, SEED_IOT_FIRMWARES, SEED_IOT_FORWARD_LOGS, SEED_IOT_FORWARD_RULES,
-  SEED_IOT_OTA_TASK_DEVICES, SEED_IOT_OTA_TASKS,
+  SEED_IOT_MAINTENANCE_WINDOWS, SEED_IOT_OTA_TASK_DEVICES, SEED_IOT_OTA_TASKS,
   SEED_IOT_PRODUCT_EVENTS, SEED_IOT_PRODUCT_PROPERTIES,
   SEED_IOT_PRODUCT_SERVICES, SEED_IOT_PRODUCTS,
+  SEED_IOT_SCHEDULE_RUNS, SEED_IOT_SCHEDULES, SEED_IOT_WHITELIST,
 } from '@zenith/shared/seed';
 import type {
   IotAlarm, IotAlarmRule, IotAutomation, IotAutomationRun, IotCommand, IotDevice, IotDeviceEvent, IotDeviceGroup,
-  IotDeviceLog, IotDeviceShadow, IotFirmware, IotForwardLog, IotForwardRule, IotOtaTask, IotOtaTaskDevice,
+  IotDeviceLog, IotDeviceShadow, IotFirmware, IotForwardLog, IotForwardRule, IotMaintenanceWindow,
+  IotOtaTask, IotOtaTaskDevice,
   IotProduct, IotProductEvent,
-  IotProductProperty, IotProductService, IotTelemetryAggPoint, IotTelemetryPoint,
+  IotProductProperty, IotProductService, IotSchedule, IotScheduleRun,
+  IotTelemetryAggPoint, IotTelemetryPoint, IotWhitelistEntry,
 } from '@zenith/shared/iot';
 import { mockDateTime } from '@/mocks/utils/date';
 import { nextIdFrom } from '@/mocks/utils/handlers';
@@ -178,6 +181,30 @@ export function getNextIotForwardRuleId(): number {
 }
 
 export const mockIotDeviceLogs: IotDeviceLog[] = SEED_IOT_DEVICE_LOGS.map((l) => ({ ...l }));
+
+// ─── 六期：计划任务 / 维护窗口 / 动态注册 ────────────────────────────────────
+export const mockIotSchedules: IotSchedule[] = SEED_IOT_SCHEDULES.map((s) => ({ ...s }));
+
+export const mockIotScheduleRuns: IotScheduleRun[] = SEED_IOT_SCHEDULE_RUNS.map((r) => ({ ...r }));
+
+export const mockIotMaintenanceWindows: IotMaintenanceWindow[] = SEED_IOT_MAINTENANCE_WINDOWS.map((w) => ({ ...w }));
+
+export const mockIotWhitelist: IotWhitelistEntry[] = SEED_IOT_WHITELIST.map((e) => ({ ...e }));
+
+let nextScheduleId = nextIdFrom(mockIotSchedules);
+export function getNextIotScheduleId(): number {
+  return nextScheduleId++;
+}
+
+let nextMaintenanceWindowId = nextIdFrom(mockIotMaintenanceWindows);
+export function getNextIotMaintenanceWindowId(): number {
+  return nextMaintenanceWindowId++;
+}
+
+let nextWhitelistId = nextIdFrom(mockIotWhitelist);
+export function getNextIotWhitelistId(): number {
+  return nextWhitelistId++;
+}
 
 /** 近 N 天的小时聚合演示曲线（仅 1 号设备的数值属性） */
 export function buildMockTelemetryAgg(deviceId: number, property: string, days: number): IotTelemetryAggPoint[] {

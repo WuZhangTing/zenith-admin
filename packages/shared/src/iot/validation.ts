@@ -6,7 +6,8 @@ import {
   IOT_COMPARE_OPS, IOT_EVENT_BATCH_MAX, IOT_EVENT_LEVELS, IOT_FIRMWARE_VERSION_PATTERN,
   IOT_FORWARD_SOURCES, IOT_GATEWAY_BATCH_MAX, IOT_LOG_BATCH_MAX, IOT_LOG_LEVELS, IOT_NODE_TYPES,
   IOT_OTA_DEFAULT_TIMEOUT_MINUTES, IOT_OTA_PROGRESS_STATUSES, IOT_PROPERTY_TYPES,
-  IOT_TELEMETRY_BATCH_MAX, IOT_VALIDATION_MODES,
+  IOT_SCHEDULE_ACTIONS, IOT_SCHEDULE_TYPES,
+  IOT_TELEMETRY_BATCH_MAX, IOT_VALIDATION_MODES, IOT_WHITELIST_BATCH_MAX,
 } from './constants';
 
 /** 物模型标识符：字母开头，字母/数字/下划线 */
@@ -194,6 +195,8 @@ export const createIotAlarmRuleSchema = z.object({
   eventIdentifier: identifierSchema.nullable().optional(),
   level: z.enum(IOT_ALARM_LEVELS).default('warning'),
   notifyUserIds: z.array(z.number().int().positive()).max(50).default([]),
+  escalateAfterMinutes: z.number().int().min(1).max(1440).nullable().optional(),
+  escalateUserIds: z.array(z.number().int().positive()).max(50).default([]),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 }).superRefine((val, ctx) => {
   if (val.ruleType === 'threshold') {
@@ -206,6 +209,9 @@ export const createIotAlarmRuleSchema = z.object({
   }
   if (val.ruleType === 'event' && !val.eventIdentifier) {
     ctx.addIssue({ code: 'custom', path: ['eventIdentifier'], message: '事件规则必须指定触发事件' });
+  }
+  if (val.escalateAfterMinutes != null && val.escalateUserIds.length === 0) {
+    ctx.addIssue({ code: 'custom', path: ['escalateUserIds'], message: '配置升级时长后需指定升级接收人' });
   }
 });
 
@@ -220,6 +226,8 @@ export const updateIotAlarmRuleSchema = z.object({
   eventIdentifier: identifierSchema.nullable().optional(),
   level: z.enum(IOT_ALARM_LEVELS).optional(),
   notifyUserIds: z.array(z.number().int().positive()).max(50).optional(),
+  escalateAfterMinutes: z.number().int().min(1).max(1440).nullable().optional(),
+  escalateUserIds: z.array(z.number().int().positive()).max(50).optional(),
   status: z.enum(['enabled', 'disabled']).optional(),
 });
 
@@ -332,6 +340,10 @@ export const createIotOtaTaskSchema = z.object({
   groupId: z.number().int().positive().optional(),
   allDevices: z.boolean().optional(),
   timeoutMinutes: z.number().int().min(5).max(1440).default(IOT_OTA_DEFAULT_TIMEOUT_MINUTES),
+  /** 灰度批次大小（不填 = 全量一批推送） */
+  batchSize: z.number().int().min(1).max(10000).nullable().optional(),
+  /** 失败率熔断阈值（百分比；当前批失败占比达到即自动暂停，不填 = 不熔断） */
+  failureThreshold: z.number().int().min(1).max(100).nullable().optional(),
 }).refine((v) => (v.deviceIds?.length ?? 0) > 0 || v.groupId !== undefined || v.allDevices === true, {
   message: '请选择目标设备、分组或全部设备',
   path: ['deviceIds'],
@@ -481,3 +493,103 @@ export type CreateIotForwardRuleInput = z.infer<typeof createIotForwardRuleSchem
 export const updateIotForwardRuleSchema = createIotForwardRuleSchema.omit({ source: true }).partial();
 
 export type UpdateIotForwardRuleInput = z.infer<typeof updateIotForwardRuleSchema>;
+
+// ─── 六期：告警处理闭环 ───────────────────────────────────────────────────────
+export const resolveIotAlarmSchema = z.object({
+  /** 处理备注（手动处理时填写） */
+  note: z.string().max(512).nullable().optional(),
+});
+
+export type ResolveIotAlarmInput = z.infer<typeof resolveIotAlarmSchema>;
+
+export const createIotMaintenanceWindowSchema = z.object({
+  name: z.string().min(1, '窗口名称不能为空').max(128),
+  productId: z.number().int().positive().nullable().optional(),
+  groupId: z.number().int().positive().nullable().optional(),
+  deviceId: z.number().int().positive().nullable().optional(),
+  /** YYYY-MM-DD HH:mm:ss */
+  startAt: z.string().min(1, '开始时间不能为空').max(32),
+  endAt: z.string().min(1, '结束时间不能为空').max(32),
+  reason: z.string().max(256).nullable().optional(),
+}).superRefine((v, ctx) => {
+  if (!v.productId && !v.groupId && !v.deviceId) {
+    ctx.addIssue({ code: 'custom', path: ['productId'], message: '至少指定产品、分组或设备之一' });
+  }
+  if (v.startAt && v.endAt && v.startAt >= v.endAt) {
+    ctx.addIssue({ code: 'custom', path: ['endAt'], message: '结束时间需晚于开始时间' });
+  }
+});
+
+export type CreateIotMaintenanceWindowInput = z.infer<typeof createIotMaintenanceWindowSchema>;
+
+// ─── 六期：设备计划任务 ───────────────────────────────────────────────────────
+/** 五段 cron 粗校验（精确解析在服务端用 cron-parser） */
+const cronFieldPattern = /^[\d*,/\-A-Za-z]+$/;
+
+const iotScheduleBaseSchema = z.object({
+  name: z.string().min(1, '计划名称不能为空').max(128),
+  scheduleType: z.enum(IOT_SCHEDULE_TYPES),
+  cronExpression: z.string().max(64).nullable().optional(),
+  runAt: z.string().max(32).nullable().optional(),
+  productId: z.number().int().positive(),
+  groupId: z.number().int().positive().nullable().optional(),
+  deviceId: z.number().int().positive().nullable().optional(),
+  actionType: z.enum(IOT_SCHEDULE_ACTIONS),
+  service: z.string().max(64).nullable().optional(),
+  params: z.record(z.string(), z.unknown()).nullable().optional(),
+  desired: z.record(z.string().min(1).max(64), z.union([z.number(), z.string().max(256), z.boolean()])).nullable().optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+});
+
+function refineIotSchedule(v: {
+  scheduleType?: string; cronExpression?: string | null; runAt?: string | null;
+  actionType?: string; service?: string | null; desired?: Record<string, unknown> | null;
+}, ctx: z.RefinementCtx) {
+  if (v.scheduleType === 'cron') {
+    const parts = v.cronExpression?.trim().split(/\s+/) ?? [];
+    if (parts.length !== 5 || !parts.every((p) => cronFieldPattern.test(p))) {
+      ctx.addIssue({ code: 'custom', path: ['cronExpression'], message: '需为五段 cron 表达式（分 时 日 月 周）' });
+    }
+  }
+  if (v.scheduleType === 'once' && !v.runAt) {
+    ctx.addIssue({ code: 'custom', path: ['runAt'], message: '定时一次需指定执行时刻' });
+  }
+  if (v.actionType === 'command' && !v.service) {
+    ctx.addIssue({ code: 'custom', path: ['service'], message: '服务指令动作需选择服务' });
+  }
+  if (v.actionType === 'desired' && (!v.desired || Object.keys(v.desired).length === 0)) {
+    ctx.addIssue({ code: 'custom', path: ['desired'], message: '期望属性动作至少设置一个属性' });
+  }
+}
+
+export const createIotScheduleSchema = iotScheduleBaseSchema.superRefine(refineIotSchedule);
+
+export type CreateIotScheduleInput = z.infer<typeof createIotScheduleSchema>;
+
+/** 产品与动作类型创建后不可变更 */
+export const updateIotScheduleSchema = iotScheduleBaseSchema
+  .omit({ productId: true, actionType: true, scheduleType: true }).partial().superRefine(refineIotSchedule);
+
+export type UpdateIotScheduleInput = z.infer<typeof updateIotScheduleSchema>;
+
+// ─── 六期：动态注册 ───────────────────────────────────────────────────────────
+export const createIotWhitelistSchema = z.object({
+  productId: z.number().int().positive(),
+  /** 批量 SN（每行一个由前端拆分） */
+  sns: z.array(z.string().min(4).max(64).regex(/^[0-9A-Za-z-]+$/, 'SN 仅支持字母、数字、连字符'))
+    .min(1, '至少一个 SN').max(IOT_WHITELIST_BATCH_MAX),
+  remark: z.string().max(256).nullable().optional(),
+});
+
+export type CreateIotWhitelistInput = z.infer<typeof createIotWhitelistSchema>;
+
+/** 设备侧动态注册请求（body 参与 HMAC(registrationSecret) 签名） */
+export const iotRegisterDeviceSchema = z.object({
+  productId: z.number().int().positive(),
+  sn: z.string().min(4).max(64),
+  /** 可选设备名（缺省用 SN） */
+  name: z.string().max(128).optional(),
+  firmwareVersion: z.string().max(32).optional(),
+});
+
+export type IotRegisterDeviceInput = z.infer<typeof iotRegisterDeviceSchema>;

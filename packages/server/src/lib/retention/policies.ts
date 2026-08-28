@@ -793,6 +793,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 30,
     description: 'IoT 设备上报的运行日志（调试/诊断用途）；追加型高频写入，超期日志可安全清理。',
   },
+  {
+    key: 'iot_schedule_runs',
+    title: 'IoT 计划任务执行记录',
+    module: 'IoT 设备',
+    tableName: 'iot_schedule_runs',
+    timeColumn: 'created_at',
+    defaultDays: 90,
+    description: 'IoT 设备计划任务的执行留痕（目标数/成功失败/错误明细）；计划列表的近 24h 执行计数只查最近窗口，超期记录可安全清理。',
+  },
 ];
 
 export function findPolicy(key: string): RetentionPolicyDefinition | undefined {

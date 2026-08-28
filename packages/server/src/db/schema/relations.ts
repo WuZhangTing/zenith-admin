@@ -65,6 +65,7 @@ import {
   iotDevices, iotDeviceState, iotProductEvents, iotProductProperties, iotProducts, iotProductServices, iotTelemetry,
   iotFirmwares, iotOtaTaskDevices, iotOtaTasks, iotTelemetryHourly, iotAutomationRuns, iotAutomations,
   iotForwardRules, iotForwardLogs, iotDeviceLogs,
+  iotMaintenanceWindows, iotSchedules, iotScheduleRuns, iotDeviceWhitelist,
 } from './iot';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
@@ -1815,4 +1816,29 @@ export const iotForwardLogsRelations = relations(iotForwardLogs, ({ one }) => ({
 
 export const iotDeviceLogsRelations = relations(iotDeviceLogs, ({ one }) => ({
   device: one(iotDevices, { fields: [iotDeviceLogs.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotMaintenanceWindowsRelations = relations(iotMaintenanceWindows, ({ one }) => ({
+  product: one(iotProducts, { fields: [iotMaintenanceWindows.productId], references: [iotProducts.id] }),
+  group: one(iotDeviceGroups, { fields: [iotMaintenanceWindows.groupId], references: [iotDeviceGroups.id] }),
+  device: one(iotDevices, { fields: [iotMaintenanceWindows.deviceId], references: [iotDevices.id] }),
+  tenant: one(tenants, { fields: [iotMaintenanceWindows.tenantId], references: [tenants.id] }),
+}));
+
+export const iotSchedulesRelations = relations(iotSchedules, ({ one, many }) => ({
+  product: one(iotProducts, { fields: [iotSchedules.productId], references: [iotProducts.id] }),
+  group: one(iotDeviceGroups, { fields: [iotSchedules.groupId], references: [iotDeviceGroups.id] }),
+  device: one(iotDevices, { fields: [iotSchedules.deviceId], references: [iotDevices.id] }),
+  tenant: one(tenants, { fields: [iotSchedules.tenantId], references: [tenants.id] }),
+  runs: many(iotScheduleRuns),
+}));
+
+export const iotScheduleRunsRelations = relations(iotScheduleRuns, ({ one }) => ({
+  schedule: one(iotSchedules, { fields: [iotScheduleRuns.scheduleId], references: [iotSchedules.id] }),
+}));
+
+export const iotDeviceWhitelistRelations = relations(iotDeviceWhitelist, ({ one }) => ({
+  product: one(iotProducts, { fields: [iotDeviceWhitelist.productId], references: [iotProducts.id] }),
+  device: one(iotDevices, { fields: [iotDeviceWhitelist.deviceId], references: [iotDevices.id] }),
+  tenant: one(tenants, { fields: [iotDeviceWhitelist.tenantId], references: [tenants.id] }),
 }));

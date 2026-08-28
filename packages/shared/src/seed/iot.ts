@@ -1,7 +1,8 @@
 import type {
   IotAlarm, IotAlarmRule, IotAutomation, IotAutomationRun, IotDevice, IotDeviceEvent, IotDeviceGroup,
-  IotDeviceLog, IotFirmware, IotForwardLog, IotForwardRule,
+  IotDeviceLog, IotFirmware, IotForwardLog, IotForwardRule, IotMaintenanceWindow,
   IotOtaTask, IotOtaTaskDevice, IotProduct, IotProductEvent, IotProductProperty, IotProductService,
+  IotSchedule, IotScheduleRun, IotWhitelistEntry,
 } from '../iot/types';
 import { SEED_DATE } from './_base';
 
@@ -217,6 +218,7 @@ export const SEED_IOT_ALARM_RULES: IotAlarmRule[] = [
     deviceId: null, deviceName: null, ruleType: 'threshold',
     propertyIdentifier: 'temperature', operator: 'gt', threshold: 35, consecutiveCount: 2,
     offlineMinutes: null, eventIdentifier: null, level: 'critical', notifyUserIds: [1],
+    escalateAfterMinutes: 30, escalateUserIds: [1],
     status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE,
   },
   {
@@ -224,6 +226,7 @@ export const SEED_IOT_ALARM_RULES: IotAlarmRule[] = [
     deviceId: null, deviceName: null, ruleType: 'offline',
     propertyIdentifier: null, operator: null, threshold: null, consecutiveCount: 1,
     offlineMinutes: 5, eventIdentifier: null, level: 'warning', notifyUserIds: [1],
+    escalateAfterMinutes: null, escalateUserIds: [],
     status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE,
   },
   {
@@ -231,6 +234,7 @@ export const SEED_IOT_ALARM_RULES: IotAlarmRule[] = [
     deviceId: null, deviceName: null, ruleType: 'event',
     propertyIdentifier: null, operator: null, threshold: null, consecutiveCount: 1,
     offlineMinutes: null, eventIdentifier: 'sensor_fault', level: 'critical', notifyUserIds: [1],
+    escalateAfterMinutes: null, escalateUserIds: [],
     status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE,
   },
 ];
@@ -242,7 +246,9 @@ export const SEED_IOT_ALARMS: IotAlarm[] = [
     ruleType: 'threshold', level: 'critical', status: 'resolved',
     message: 'temperature 当前值 36.2 > 35（连续 2 次）',
     context: { value: 36.2, operator: 'gt', threshold: 35, property: 'temperature' },
-    firedAt: '2024-01-01 10:00:00', resolvedAt: '2024-01-01 10:30:00', resolvedBy: null,
+    firedAt: '2024-01-01 10:00:00',
+    acknowledgedAt: '2024-01-01 10:05:00', acknowledgedBy: 1, escalatedAt: null,
+    resolvedAt: '2024-01-01 10:30:00', resolvedBy: 1, resolveNote: '已到场检查，空调故障修复后温度回落',
     createdAt: '2024-01-01 10:00:00',
   },
   {
@@ -251,7 +257,9 @@ export const SEED_IOT_ALARMS: IotAlarm[] = [
     ruleType: 'offline', level: 'warning', status: 'firing',
     message: '设备离线超过 5 分钟（最后在线 2024-01-01 00:00:00）',
     context: { offlineMinutes: 5, lastSeenAt: '2024-01-01 00:00:00' },
-    firedAt: '2024-01-01 12:00:00', resolvedAt: null, resolvedBy: null,
+    firedAt: '2024-01-01 12:00:00',
+    acknowledgedAt: null, acknowledgedBy: null, escalatedAt: null,
+    resolvedAt: null, resolvedBy: null, resolveNote: null,
     createdAt: '2024-01-01 12:00:00',
   },
 ];
@@ -277,7 +285,8 @@ export const SEED_IOT_OTA_TASKS: IotOtaTask[] = [
   {
     id: 1, title: '升级到 v2.0.0（1 台）', firmwareId: 1, productId: 1,
     productName: '温湿度传感器 TH-100', firmwareVersion: '2.0.0', status: 'running',
-    timeoutMinutes: 30, totalCount: 1, succeededCount: 0, failedCount: 0,
+    timeoutMinutes: 30, batchSize: null, currentBatch: 1, totalBatches: 1, failureThreshold: null,
+    totalCount: 1, succeededCount: 0, failedCount: 0,
     createdAt: SEED_DATE, updatedAt: SEED_DATE,
   },
 ];
@@ -285,7 +294,7 @@ export const SEED_IOT_OTA_TASKS: IotOtaTask[] = [
 export const SEED_IOT_OTA_TASK_DEVICES: IotOtaTaskDevice[] = [
   {
     id: 1, taskId: 1, deviceId: 1, deviceName: '机房 A-01 温湿度', deviceSn: 'SN-DEMO-TH100-0001',
-    status: 'notified', progress: 0, fromVersion: '1.2.0', errorMsg: null,
+    status: 'notified', progress: 0, fromVersion: '1.2.0', batchIndex: 1, errorMsg: null,
     notifiedAt: SEED_DATE, finishedAt: null,
   },
 ];
@@ -351,4 +360,47 @@ export const SEED_IOT_DEVICE_LOGS: IotDeviceLog[] = [
   { id: 2, deviceId: 1, level: 'info', tag: 'net', content: 'wifi connected, rssi=-52dBm', reportedAt: '2024-01-01 00:00:03' },
   { id: 3, deviceId: 1, level: 'warn', tag: 'sensor', content: 'humidity read retry (attempt 2)', reportedAt: '2024-01-01 09:58:12' },
   { id: 4, deviceId: 1, level: 'error', tag: 'sensor', content: 'temperature spike detected: 39.5C', reportedAt: '2024-01-01 10:00:00' },
+];
+
+/** 六期：设备计划任务演示（时间驱动自动化） */
+export const SEED_IOT_SCHEDULES: IotSchedule[] = [
+  {
+    id: 1, name: '夜间关闭指示灯', scheduleType: 'cron', cronExpression: '0 22 * * *', runAt: null,
+    productId: 1, productName: '温湿度传感器 TH-100', groupId: null, groupName: null, deviceId: null, deviceName: null,
+    actionType: 'desired', service: null, params: null, desired: { led_enabled: false },
+    status: 'enabled', nextRunAt: null, lastRunAt: null, recentRunCount: 0,
+    createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+  {
+    id: 2, name: '每日晨间重启（机房 A 区）', scheduleType: 'cron', cronExpression: '0 6 * * *', runAt: null,
+    productId: 1, productName: '温湿度传感器 TH-100', groupId: 1, groupName: '机房 A 区', deviceId: null, deviceName: null,
+    actionType: 'command', service: 'reboot', params: {}, desired: null,
+    status: 'disabled', nextRunAt: null, lastRunAt: null, recentRunCount: 0,
+    createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_IOT_SCHEDULE_RUNS: IotScheduleRun[] = [
+  {
+    id: 1, scheduleId: 1, scheduleName: '夜间关闭指示灯',
+    deviceCount: 2, successCount: 2, failedCount: 0, errors: [],
+    createdAt: '2024-01-01 22:00:00',
+  },
+];
+
+/** 六期：维护窗口演示 */
+export const SEED_IOT_MAINTENANCE_WINDOWS: IotMaintenanceWindow[] = [
+  {
+    id: 1, name: 'B 栋机房年度检修', productId: null, productName: null,
+    groupId: 2, groupName: '机房 B 区', deviceId: null, deviceName: null,
+    startAt: '2024-01-15 00:00:00', endAt: '2024-01-15 06:00:00',
+    reason: '空调系统年度维护，期间设备可能频繁上下线', active: false,
+    createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+/** 六期：动态注册白名单演示 */
+export const SEED_IOT_WHITELIST: IotWhitelistEntry[] = [
+  { id: 1, productId: 1, productName: '温湿度传感器 TH-100', sn: 'SN-PRE-TH100-1001', used: false, usedAt: null, deviceId: null, deviceName: null, remark: '2024 Q1 采购批次', createdAt: SEED_DATE },
+  { id: 2, productId: 1, productName: '温湿度传感器 TH-100', sn: 'SN-PRE-TH100-1002', used: false, usedAt: null, deviceId: null, deviceName: null, remark: '2024 Q1 采购批次', createdAt: SEED_DATE },
 ];

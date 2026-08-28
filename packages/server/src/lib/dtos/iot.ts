@@ -8,7 +8,7 @@ import {
   IOT_COMMAND_STATUSES, IOT_COMPARE_OPS, IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS,
   IOT_FORWARD_SOURCES, IOT_LOG_LEVELS, IOT_NODE_TYPES,
   IOT_OTA_DEVICE_STATUSES, IOT_OTA_TASK_STATUSES,
-  IOT_PROPERTY_TYPES, IOT_VALIDATION_MODES,
+  IOT_PROPERTY_TYPES, IOT_SCHEDULE_ACTIONS, IOT_SCHEDULE_TYPES, IOT_VALIDATION_MODES,
 } from '@zenith/shared/iot';
 import { auditFields } from './_audit';
 
@@ -200,6 +200,8 @@ export const IotAlarmRuleDTO = z
     eventIdentifier: z.string().nullable(),
     level: z.enum(IOT_ALARM_LEVELS),
     notifyUserIds: z.array(z.number().int()),
+    escalateAfterMinutes: z.number().int().nullable(),
+    escalateUserIds: z.array(z.number().int()),
     status: z.enum(['enabled', 'disabled']),
     ...auditFields,
     createdAt: z.string(),
@@ -221,8 +223,13 @@ export const IotAlarmDTO = z
     message: z.string(),
     context: z.record(z.string(), z.unknown()).nullable(),
     firedAt: z.string(),
+    acknowledgedAt: z.string().nullable(),
+    acknowledgedBy: z.number().int().nullable(),
+    acknowledgedByName: z.string().nullable().optional(),
+    escalatedAt: z.string().nullable(),
     resolvedAt: z.string().nullable(),
     resolvedBy: z.number().int().nullable(),
+    resolveNote: z.string().nullable(),
     createdAt: z.string(),
   })
   .openapi('IotAlarm');
@@ -279,6 +286,10 @@ export const IotOtaTaskDTO = z
     firmwareVersion: z.string(),
     status: z.enum(IOT_OTA_TASK_STATUSES),
     timeoutMinutes: z.number().int(),
+    batchSize: z.number().int().nullable(),
+    currentBatch: z.number().int(),
+    totalBatches: z.number().int(),
+    failureThreshold: z.number().int().nullable(),
     totalCount: z.number().int(),
     succeededCount: z.number().int(),
     failedCount: z.number().int(),
@@ -299,6 +310,7 @@ export const IotOtaTaskDeviceDTO = z
     status: z.enum(IOT_OTA_DEVICE_STATUSES),
     progress: z.number().int(),
     fromVersion: z.string().nullable(),
+    batchIndex: z.number().int(),
     errorMsg: z.string().nullable(),
     notifiedAt: z.string().nullable(),
     finishedAt: z.string().nullable(),
@@ -411,6 +423,82 @@ export const OpenIotDeviceDetailDTO = OpenIotDeviceDTO
     }),
   })
   .openapi('OpenIotDeviceDetail');
+
+// ─── 六期：维护窗口 / 计划任务 / 动态注册 ─────────────────────────────────────
+export const IotMaintenanceWindowDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    productId: z.number().int().nullable(),
+    productName: z.string().nullable(),
+    groupId: z.number().int().nullable(),
+    groupName: z.string().nullable(),
+    deviceId: z.number().int().nullable(),
+    deviceName: z.string().nullable(),
+    startAt: z.string(),
+    endAt: z.string(),
+    reason: z.string().nullable(),
+    active: z.boolean(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('IotMaintenanceWindow');
+
+export const IotScheduleDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    scheduleType: z.enum(IOT_SCHEDULE_TYPES),
+    cronExpression: z.string().nullable(),
+    runAt: z.string().nullable(),
+    productId: z.number().int(),
+    productName: z.string().nullable(),
+    groupId: z.number().int().nullable(),
+    groupName: z.string().nullable(),
+    deviceId: z.number().int().nullable(),
+    deviceName: z.string().nullable(),
+    actionType: z.enum(IOT_SCHEDULE_ACTIONS),
+    service: z.string().nullable(),
+    params: z.record(z.string(), z.unknown()).nullable(),
+    desired: z.record(z.string(), metricValue).nullable(),
+    status: z.enum(['enabled', 'disabled']),
+    nextRunAt: z.string().nullable(),
+    lastRunAt: z.string().nullable(),
+    recentRunCount: z.number().int(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('IotSchedule');
+
+export const IotScheduleRunDTO = z
+  .object({
+    id: z.number().int(),
+    scheduleId: z.number().int(),
+    scheduleName: z.string(),
+    deviceCount: z.number().int(),
+    successCount: z.number().int(),
+    failedCount: z.number().int(),
+    errors: z.array(z.object({ deviceId: z.number().int(), sn: z.string(), error: z.string() })),
+    createdAt: z.string(),
+  })
+  .openapi('IotScheduleRun');
+
+export const IotWhitelistEntryDTO = z
+  .object({
+    id: z.number().int(),
+    productId: z.number().int(),
+    productName: z.string().nullable(),
+    sn: z.string(),
+    used: z.boolean(),
+    usedAt: z.string().nullable(),
+    deviceId: z.number().int().nullable(),
+    deviceName: z.string().nullable(),
+    remark: z.string().nullable(),
+    createdAt: z.string(),
+  })
+  .openapi('IotWhitelistEntry');
 
 // ─── 五期：网关拓扑 / 数据流转 / 设备日志 ─────────────────────────────────────
 export const IotTopologyDTO = z
