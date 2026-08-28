@@ -1,7 +1,7 @@
 // ─── 催办与抄送（转发/已读）（拆分自 workflow-instances.service.ts）───
 import { randomUUID } from 'node:crypto';
 import { formatDateTime } from '../../../lib/datetime';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import { db } from '../../../db';
 import { workflowInstances, workflowTasks, workflowTaskUrges } from '../../../db/schema';
 import { tenantCondition } from '../../../lib/tenant';
@@ -172,30 +172,41 @@ export async function urgeInstance(instanceId: number, message?: string) {
   if (pendings.length === 0) throw new HTTPException(400, { message: '没有待办任务可催办' });
 
   const created: import('@zenith/shared').WorkflowTaskUrge[] = [];
-  let skipped = 0;
-  for (const task of pendings) {
-    const [last] = await db.select({ createdAt: workflowTaskUrges.createdAt }).from(workflowTaskUrges)
-      .where(eq(workflowTaskUrges.taskId, task.id))
-      .orderBy(desc(workflowTaskUrges.createdAt)).limit(1);
-    if (last && Date.now() - new Date(last.createdAt).getTime() < URGE_MIN_INTERVAL_MS) {
-      skipped += 1;
-      continue;
-    }
-    const [row] = await db.insert(workflowTaskUrges).values({
+  // 一次查出每个任务的最近催办时间做节流判断，再批量插入，避免逐任务 2N 次往返
+  const lastUrges = await db.selectDistinctOn([workflowTaskUrges.taskId], {
+    taskId: workflowTaskUrges.taskId,
+    createdAt: workflowTaskUrges.createdAt,
+  }).from(workflowTaskUrges)
+    .where(inArray(workflowTaskUrges.taskId, pendings.map((t) => t.id)))
+    .orderBy(workflowTaskUrges.taskId, desc(workflowTaskUrges.createdAt));
+  const lastByTask = new Map(lastUrges.map((r) => [r.taskId, r.createdAt]));
+  const now = Date.now();
+  const eligible = pendings.filter((task) => {
+    const last = lastByTask.get(task.id);
+    return !(last && now - new Date(last).getTime() < URGE_MIN_INTERVAL_MS);
+  });
+  const skipped = pendings.length - eligible.length;
+  if (eligible.length > 0) {
+    const rows = await db.insert(workflowTaskUrges).values(eligible.map((task) => ({
       taskId: task.id,
       instanceId,
       urgerId: user.userId,
       urgerName: user.username ?? null,
       message: message?.trim() || null,
-    }).returning();
-    created.push(mapTaskUrge(row));
+    }))).returning();
+    const taskById = new Map(eligible.map((task) => [task.id, task]));
     const actor = { userId: user.userId, name: user.username };
-    emitTaskEvent('task.urged', mapTask(task), {
-      definitionId: inst.definitionId,
-      tenantId: inst.tenantId,
-      actor,
-      comment: row.message ?? undefined,
-    });
+    for (const row of rows) {
+      created.push(mapTaskUrge(row));
+      const task = taskById.get(row.taskId);
+      if (!task) continue;
+      emitTaskEvent('task.urged', mapTask(task), {
+        definitionId: inst.definitionId,
+        tenantId: inst.tenantId,
+        actor,
+        comment: row.message ?? undefined,
+      });
+    }
   }
   return {
     list: created,

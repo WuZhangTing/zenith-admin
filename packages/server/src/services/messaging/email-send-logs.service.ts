@@ -33,22 +33,24 @@ export function buildListWhere(q: ListEmailSendLogsQuery) {
 
 export async function listEmailSendLogs(q: ListEmailSendLogsQuery) {
   const where = buildListWhere(q);
-  const rows = await withPagination(
-    db.select({
-      log: emailSendLogs,
-      templateName: emailTemplates.name,
-      username: users.username,
-    })
-      .from(emailSendLogs)
-      .leftJoin(emailTemplates, eq(emailSendLogs.templateId, emailTemplates.id))
-      .leftJoin(users, eq(emailSendLogs.userId, users.id))
-      .where(where)
-      .orderBy(desc(emailSendLogs.id))
-      .$dynamic(),
-    q.page,
-    q.pageSize,
-  );
-  const total = await db.$count(emailSendLogs, where);
+  const [total, rows] = await Promise.all([
+    db.$count(emailSendLogs, where),
+    withPagination(
+      db.select({
+        log: emailSendLogs,
+        templateName: emailTemplates.name,
+        username: users.username,
+      })
+        .from(emailSendLogs)
+        .leftJoin(emailTemplates, eq(emailSendLogs.templateId, emailTemplates.id))
+        .leftJoin(users, eq(emailSendLogs.userId, users.id))
+        .where(where)
+        .orderBy(desc(emailSendLogs.id))
+        .$dynamic(),
+      q.page,
+      q.pageSize,
+    ),
+  ]);
   return {
     list: rows.map((r) => ({
       id: r.log.id,

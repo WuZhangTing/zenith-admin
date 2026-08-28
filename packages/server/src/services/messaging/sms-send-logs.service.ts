@@ -35,24 +35,26 @@ export function buildListWhere(q: ListSmsSendLogsQuery) {
 
 export async function listSmsSendLogs(q: ListSmsSendLogsQuery) {
   const where = buildListWhere(q);
-  const rows = await withPagination(
-    db.select({
-      log: smsSendLogs,
-      templateName: smsTemplates.name,
-      configName: smsConfigs.name,
-      username: users.username,
-    })
-      .from(smsSendLogs)
-      .leftJoin(smsTemplates, eq(smsSendLogs.templateId, smsTemplates.id))
-      .leftJoin(smsConfigs, eq(smsSendLogs.configId, smsConfigs.id))
-      .leftJoin(users, eq(smsSendLogs.userId, users.id))
-      .where(where)
-      .orderBy(desc(smsSendLogs.id))
-      .$dynamic(),
-    q.page,
-    q.pageSize,
-  );
-  const total = await db.$count(smsSendLogs, where);
+  const [total, rows] = await Promise.all([
+    db.$count(smsSendLogs, where),
+    withPagination(
+      db.select({
+        log: smsSendLogs,
+        templateName: smsTemplates.name,
+        configName: smsConfigs.name,
+        username: users.username,
+      })
+        .from(smsSendLogs)
+        .leftJoin(smsTemplates, eq(smsSendLogs.templateId, smsTemplates.id))
+        .leftJoin(smsConfigs, eq(smsSendLogs.configId, smsConfigs.id))
+        .leftJoin(users, eq(smsSendLogs.userId, users.id))
+        .where(where)
+        .orderBy(desc(smsSendLogs.id))
+        .$dynamic(),
+      q.page,
+      q.pageSize,
+    ),
+  ]);
   return {
     list: rows.map((r) => ({
       id: r.log.id,

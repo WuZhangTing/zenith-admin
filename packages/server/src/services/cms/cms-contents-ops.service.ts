@@ -52,7 +52,7 @@ export async function recycleCmsContents(ids: number[]) {
   if (ids.length === 0) return 0;
   await assertBatchSiteAccess(ids);
   await assertCmsWidgetSourcesMutable('content', ids);
-  for (const id of [...new Set(ids)]) await assertNoLockedCmsMappedCopies(id);
+  await assertNoLockedCmsMappedCopies(ids);
   const initial = await db.select({ id: cmsContents.id, siteId: cmsContents.siteId }).from(cmsContents)
     .where(and(inArray(cmsContents.id, ids), isNull(cmsContents.deletedAt)));
   const mutation = await db.transaction(async (tx) => {
@@ -244,7 +244,7 @@ async function setCmsContentsArchived(ids: number[], archived: boolean): Promise
   if (ids.length === 0) return 0;
   await assertBatchSiteAccess(ids);
   if (archived) {
-    for (const id of [...new Set(ids)]) await assertNoLockedCmsMappedCopies(id);
+    await assertNoLockedCmsMappedCopies(ids);
   }
   const initial = await db.select().from(cmsContents).where(inArray(cmsContents.id, ids));
   const mutation = await db.transaction(async (tx) => {

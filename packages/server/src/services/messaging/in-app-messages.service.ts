@@ -88,15 +88,17 @@ export async function listMyInAppMessages(q: ListInAppMessagesQuery) {
   const me = currentUser();
   const recipientId = q.recipientId ?? me.userId;
   const where = buildWhere(q, recipientId);
-  const rows = await withPagination(
-    selectMessageWithJoins()
-      .where(where)
-      .orderBy(desc(inAppMessages.id))
-      .$dynamic(),
-    q.page,
-    q.pageSize,
-  );
-  const total = await db.$count(inAppMessages, where);
+  const [total, rows] = await Promise.all([
+    db.$count(inAppMessages, where),
+    withPagination(
+      selectMessageWithJoins()
+        .where(where)
+        .orderBy(desc(inAppMessages.id))
+        .$dynamic(),
+      q.page,
+      q.pageSize,
+    ),
+  ]);
   return {
     list: rows.map((r) => mapInAppMessageRow(r)),
     total,
@@ -140,25 +142,27 @@ export async function listAllInAppMessages(q: Omit<ListInAppMessagesQuery, 'reci
   const sender = alias(users, 'sender');
   const recipient = alias(users, 'recipient');
 
-  const rows = await withPagination(
-    db.select({
-      msg: inAppMessages,
-      templateName: inAppTemplates.name,
-      senderName: sender.username,
-      recipientName: recipient.username,
-      recipientNickname: recipient.nickname,
-    })
-      .from(inAppMessages)
-      .leftJoin(inAppTemplates, eq(inAppMessages.templateId, inAppTemplates.id))
-      .leftJoin(sender, eq(inAppMessages.senderId, sender.id))
-      .leftJoin(recipient, eq(inAppMessages.userId, recipient.id))
-      .where(where)
-      .orderBy(desc(inAppMessages.id))
-      .$dynamic(),
-    q.page,
-    q.pageSize,
-  );
-  const total = await db.$count(inAppMessages, where);
+  const [total, rows] = await Promise.all([
+    db.$count(inAppMessages, where),
+    withPagination(
+      db.select({
+        msg: inAppMessages,
+        templateName: inAppTemplates.name,
+        senderName: sender.username,
+        recipientName: recipient.username,
+        recipientNickname: recipient.nickname,
+      })
+        .from(inAppMessages)
+        .leftJoin(inAppTemplates, eq(inAppMessages.templateId, inAppTemplates.id))
+        .leftJoin(sender, eq(inAppMessages.senderId, sender.id))
+        .leftJoin(recipient, eq(inAppMessages.userId, recipient.id))
+        .where(where)
+        .orderBy(desc(inAppMessages.id))
+        .$dynamic(),
+      q.page,
+      q.pageSize,
+    ),
+  ]);
   return {
     list: rows.map((r) => mapInAppMessageRow(r, r.recipientNickname || r.recipientName || null)),
     total,

@@ -34,13 +34,15 @@ export async function assertCmsContentsUnlocked(ids: number[]): Promise<void> {
 }
 
 /** 映射副本锁定时，来源正文也不可变更，避免锁定页面内容随来源静默漂移。 */
-export async function assertNoLockedCmsMappedCopies(sourceId: number): Promise<void> {
+export async function assertNoLockedCmsMappedCopies(sourceIds: number | number[]): Promise<void> {
+  const unique = [...new Set(Array.isArray(sourceIds) ? sourceIds : [sourceIds])];
+  if (unique.length === 0) return;
   const [locked] = await db.select({
     id: cmsContents.id,
     lockedAt: cmsContents.lockedAt,
     lockReason: cmsContents.lockReason,
   }).from(cmsContents).where(and(
-    eq(cmsContents.mappingSourceId, sourceId),
+    inArray(cmsContents.mappingSourceId, unique),
     isNotNull(cmsContents.lockedAt),
   )).limit(1);
   if (locked) throw new HTTPException(423, { message: lockedMessage(locked) });
