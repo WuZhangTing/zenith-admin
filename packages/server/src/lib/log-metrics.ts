@@ -1,13 +1,12 @@
 /**
- * 日志级别计数指标源：在 winston 写入点拦截计数，供监控告警评估器取数。
+ * 日志级别计数指标源：在 lib/logger 门面写入点计数，供监控告警评估器取数。
  *
- * 不扫描日志文件——零 I/O、零解析，也不用管轮转与 gzip；
+ * 不扫描日志文件——零 I/O、零解析，也不用管轮转与归档；
  * 与 metricsSampler 的 qps / errorRate 同属进程内口径。
  * 补足 `errorRate`（仅 HTTP 5xx）的盲区：后台任务、事件订阅者、启动期错误只出现在日志里。
  *
- * 注意：本文件不得引入 logger（logger 挂载本 Transport，反向引用会成环）。
+ * 注意：本文件不得引入 logger（logger 写入点调用本模块，反向引用会成环）。
  */
-import Transport from 'winston-transport';
 
 /** 滚动窗口长度（分钟）：告警评估器每 30s 取一次「近 N 分钟平均每分钟条数」 */
 const WINDOW_MINUTES = 5;
@@ -53,17 +52,12 @@ class LogLevelCounter {
 
 const counter = new LogLevelCounter();
 
-/** 挂到 winston 的计数 Transport：只累加内存计数，永不抛错阻塞日志链路 */
-class LogMetricsTransport extends Transport {
-  log(info: { level: string }, callback: () => void): void {
-    try {
-      counter.record(info.level);
-    } catch { /* 计数失败不影响日志写入 */ }
-    callback();
-  }
+/** 供 logger 门面在写入点调用的计数入口：只累加内存计数，永不抛错阻塞日志链路 */
+export function recordLogLevel(level: string): void {
+  try {
+    counter.record(level);
+  } catch { /* 计数失败不影响日志写入 */ }
 }
-
-export const logMetricsTransport = new LogMetricsTransport();
 
 export interface LogAlertMetrics {
   logErrorPerMin: number;

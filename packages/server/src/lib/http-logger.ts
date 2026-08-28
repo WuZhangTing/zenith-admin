@@ -7,15 +7,17 @@
  *  - 全局 + 方法级别覆盖配置
  *  - 3 种输出格式（json / text / curl）
  *  - 自动脱敏（Headers 中的 Authorization/Cookie，Body 中的 password/secret/token）
- *  - 独立日志文件（http-traffic-YYYY-MM-DD.log）或合并进主日志
+ *  - 独立日志文件（http-traffic.YYYY-MM-DD.N.log）或合并进主日志
  *  - 关联 ID（correlation = request-id）将同一对请求/响应关联
  */
 
-import winston from 'winston';
-import DailyRotateFile from 'winston-daily-rotate-file';
+import path from 'node:path';
+import type { SonicBoom } from 'sonic-boom';
+import pinoRoll from 'pino-roll';
 import type { HttpLogLevel, HttpLogFormat, HttpLogMethod } from '../config';
 import { config } from '../config';
-import appLogger from './logger';
+import appLogger, { resolveLogMaxFiles } from './logger';
+import { formatDateTime } from './datetime';
 import { redactBody } from './sanitize';
 
 export type { HttpLogLevel, HttpLogFormat, HttpLogMethod };
@@ -178,39 +180,24 @@ export function formatEntry(entry: HttpLogEntry, format: HttpLogFormat): string 
   }
 }
 
-// ─── Separate HTTP Traffic Logger ─────────────────────────────────────────────
+// ─── Separate HTTP Traffic Log Stream ─────────────────────────────────────────
 
-let _httpTrafficLogger: winston.Logger | null = null;
+let _httpTrafficStream: Promise<SonicBoom> | null = null;
 
 /**
- * 懒加载独立的 HTTP 流量 winston logger。
- * 写入 http-traffic-YYYY-MM-DD.log，每行是原始的格式化字符串（不带 winston 元信息）。
+ * 懒加载独立的 HTTP 流量轮转写入流（pino-roll）。
+ * 写入 http-traffic.YYYY-MM-DD.N.log，每行是原始的格式化字符串（时间戳 + 消息体，不带级别标签）。
  */
-function getHttpTrafficLogger(): winston.Logger {
-  if (_httpTrafficLogger) return _httpTrafficLogger;
-
-  const { combine, timestamp, printf } = winston.format;
-  // 独立文件使用原始格式：每行只写时间戳 + 消息体，不添加 level 标签
-  const rawLine = printf(({ message, timestamp: ts }) => `${ts as string} ${message as string}`);
-
-  _httpTrafficLogger = winston.createLogger({
-    level: 'info',
-    transports: [
-      new DailyRotateFile({
-        dirname: config.log.dir,
-        filename: 'http-traffic-%DATE%.log',
-        datePattern: 'YYYY-MM-DD',
-        maxFiles: config.log.maxFiles,
-        zippedArchive: true,
-        format: combine(
-          timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-          rawLine,
-        ),
-      }),
-    ],
+function getHttpTrafficStream(): Promise<SonicBoom> {
+  _httpTrafficStream ??= pinoRoll({
+    file: path.join(config.log.dir, 'http-traffic'),
+    frequency: 'daily',
+    dateFormat: 'yyyy-MM-dd',
+    extension: '.log',
+    mkdir: true,
+    limit: { count: resolveLogMaxFiles(config.log.maxFiles), removeOtherLogFiles: true },
   });
-
-  return _httpTrafficLogger;
+  return _httpTrafficStream;
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -299,7 +286,7 @@ export function safeRedactBodyForLog(body: unknown, maxBytes: number): unknown {
  *
  * @param entry       日志条目
  * @param format      输出格式（json / text / curl）
- * @param separateFile 是否写入独立的 http-traffic-*.log（false = 合并进 app-*.log）
+ * @param separateFile 是否写入独立的 http-traffic.*.log（false = 合并进 app.*.log）
  */
 export function writeHttpLogEntry(
   entry: HttpLogEntry,
@@ -308,7 +295,11 @@ export function writeHttpLogEntry(
 ): void {
   const msg = formatEntry(entry, format);
   if (separateFile) {
-    getHttpTrafficLogger().info(msg);
+    const line = `${formatDateTime(new Date())} ${msg}\n`;
+    // 同一 Promise 上顺序注册 then 回调，写入顺序与调用顺序一致
+    void getHttpTrafficStream()
+      .then((stream) => { stream.write(line); })
+      .catch((err: unknown) => appLogger.warn('[http-log] 独立流量日志写入失败', err));
   } else {
     // 合并进主日志，带方向前缀便于 grep
     const tag = entry.direction === 'incoming' ? '[http-in]' : '[http-out]';

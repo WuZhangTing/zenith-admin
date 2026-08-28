@@ -222,9 +222,9 @@ export default function AlertEventsPage() {
           label: '查看日志',
           hidden: !(record.metric in LOG_METRIC_LEVEL) || !hasPermission('system:log:files'),
           onClick: () => {
-            // 按触发日期定位当天日志文件；日志页会自动回退到 .gz 归档
+            // 按触发日期定位当天应用日志文件（app.日期.1.log）
             const date = record.triggeredAt?.slice(0, 10);
-            navigate(`/system/log-files?file=app-${date}.log&level=${LOG_METRIC_LEVEL[record.metric]}`);
+            navigate(`/system/log-files?file=app.${date}.1.log&level=${LOG_METRIC_LEVEL[record.metric]}`);
           },
         },
         {

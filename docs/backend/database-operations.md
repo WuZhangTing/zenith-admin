@@ -47,7 +47,7 @@ const [total, rows] = await Promise.all([
 LOG_LEVEL=debug
 ```
 
-开启后 SQL 与参数通过 winston 以 `debug` 级别输出。
+开启后 SQL 与参数通过 pino 以 `debug` 级别输出。
 
 ## 分页：`withPagination`（SQL-builder）与 `pageOffset`（RQB）
 

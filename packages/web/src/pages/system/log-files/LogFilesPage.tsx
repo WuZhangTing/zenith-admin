@@ -384,7 +384,7 @@ export default function LogFilesPage() {
 
   // URL ?file= 深链：文件列表就绪后应用（刷新/分享链接/告警事件跳转直达）。
   // 页面可能被页签缓存复用，因此按参数值追踪而非只应用一次；
-  // 当天文件已轮转归档时回退到 .gz 并改写参数，落定后仍不存在则清参；
+  // 目标不存在时尝试同名 .gz（日志目录中的既有归档），落定后仍不存在则清参；
   // ?level= 指定初始级别过滤（告警跳转带 error/warn）
   useEffect(() => {
     if (!selectedFileKey) {

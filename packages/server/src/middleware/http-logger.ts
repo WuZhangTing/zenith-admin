@@ -12,7 +12,7 @@
  *  - maxBodyBytes:   body 截断阈值
  *  - logResponseBody:是否捕获响应体（需克隆 Response）
  *  - excludePaths:   不记录的路径前缀
- *  - separateFile:   是否写入独立的 http-traffic-*.log
+ *  - separateFile:   是否写入独立的 http-traffic.*.log
  *
  * 路由级覆盖：
  *  - 使用 withHttpLog(level) 工具中间件覆盖全局级别（仅对当前路由生效）

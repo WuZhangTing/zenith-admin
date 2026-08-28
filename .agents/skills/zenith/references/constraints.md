@@ -181,7 +181,7 @@ server 启动时加载全部路由 / 服务模块图，任何模块顶层静态 
   写法见 [backend-patterns.md](./backend-patterns.md)
 - **禁止**在 ESM 模块中使用裸 `require()`；必须 `createRequire(import.meta.url)`
 - 新引入第三方依赖先评估加载成本（`node -e "console.time('t');require('pkg');console.timeEnd('t')"`）；
-  启动即需要的依赖（`hono`、`drizzle-orm`、`winston`、`pg-boss`、`ioredis`、`zod`）可静态 import
+  启动即需要的依赖（`hono`、`drizzle-orm`、`pino`、`pg-boss`、`ioredis`、`zod`）可静态 import
 
 ### 异步任务
 

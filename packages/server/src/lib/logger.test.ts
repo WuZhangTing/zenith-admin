@@ -6,39 +6,26 @@ describe('logger', () => {
     expect(logger).toBeDefined();
   });
 
-  it('should have an info method', () => {
-    expect(typeof logger.info).toBe('function');
+  it.each(['info', 'error', 'warn', 'debug'] as const)('should have a %s method', (method) => {
+    expect(typeof logger[method]).toBe('function');
   });
 
-  it('should have an error method', () => {
-    expect(typeof logger.error).toBe('function');
-  });
-
-  it('should have a warn method', () => {
-    expect(typeof logger.warn).toBe('function');
-  });
-
-  it('should have a debug method', () => {
-    expect(typeof logger.debug).toBe('function');
-  });
-
-  it('should have a verbose method', () => {
-    expect(typeof logger.verbose).toBe('function');
-  });
-
-  it('should not throw when logging info', () => {
+  it('should not throw when logging a plain message', () => {
     expect(() => logger.info('Test info message')).not.toThrow();
-  });
-
-  it('should not throw when logging error', () => {
     expect(() => logger.error('Test error message')).not.toThrow();
-  });
-
-  it('should not throw when logging warn', () => {
     expect(() => logger.warn('Test warn message')).not.toThrow();
+    expect(() => logger.debug('Test debug message')).not.toThrow();
   });
 
-  it('should not throw when logging debug', () => {
-    expect(() => logger.debug('Test debug message')).not.toThrow();
+  it('should not throw when logging with an object meta', () => {
+    expect(() => logger.info('with meta', { userId: 42 })).not.toThrow();
+  });
+
+  it('should not throw when logging with an Error meta', () => {
+    expect(() => logger.error('failed', new Error('boom'))).not.toThrow();
+  });
+
+  it('should not throw when logging with a primitive meta', () => {
+    expect(() => logger.warn('odd meta', 'raw-string')).not.toThrow();
   });
 });

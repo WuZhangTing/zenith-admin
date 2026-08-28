@@ -338,7 +338,7 @@ try {
 ```
 
 无需调用方关心的内置能力：按 host 熔断（连续 5 次失败开启 30s 冷却）、敏感 Header 日志脱敏、
-完整 winston 结构化日志。详细 API 见 [docs/backend/http-client.md](../../../../docs/backend/http-client.md)。
+完整 pino 结构化日志。详细 API 见 [docs/backend/http-client.md](../../../../docs/backend/http-client.md)。
 
 ---
 

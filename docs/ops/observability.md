@@ -34,14 +34,14 @@ SSE 首帧推送完整 `metrics`、全量 `series` 和 `ws` 指标；后续采�
 
 ## 日志级别频率指标
 
-日志 ERROR / WARN 频率在 winston Transport 写入点由 `lib/log-metrics.ts` 计数，不扫描日志文件。实现特性：
+日志 ERROR / WARN 频率在 logger 门面写入点由 `lib/log-metrics.ts` 计数，不扫描日志文件。实现特性：
 
-- 不依赖文件 I/O，不受日志轮转与 gzip 归档影响；
+- 不依赖文件 I/O，不受日志轮转影响；
 - 按 epoch 分钟分桶保留近 5 个桶，读写时惰性淘汰；
 - 与 QPS、HTTP 错误率一样是进程内口径，多实例部署时各实例统计自身；
 - 计数失败不影响日志写入。
 
-内置规则包括 ERROR ≥ 10 条/分持续 3 分钟（严重）和 WARN ≥ 30 条/分持续 5 分钟（警告）。此类告警事件操作列提供「查看日志」（需 `system:log:files`），跳转到 `/system/log-files?file=app-YYYY-MM-DD.log&level=error`，并在当天文件归档时回退到对应 `.gz`。
+内置规则包括 ERROR ≥ 10 条/分持续 3 分钟（严重）和 WARN ≥ 30 条/分持续 5 分钟（警告）。此类告警事件操作列提供「查看日志」（需 `system:log:files`），跳转到 `/system/log-files?file=app.YYYY-MM-DD.1.log&level=error`。
 
 ## 告警中心
 
