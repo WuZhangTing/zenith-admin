@@ -65,6 +65,9 @@ function logMethod(this: Logger, args: Parameters<LogFn>, method: LogFn, level: 
 
 const fileTarget: TransportTargetOptions = {
   target: 'pino-roll',
+  // targets 多目标模式下 per-target level 缺省是 'info'（api.md），
+  // 必须显式跟随 logger 级别，否则 LOG_LEVEL=debug/trace 的日志到不了输出
+  level: config.log.level,
   options: {
     file: path.join(config.log.dir, 'app'),
     frequency: 'daily',
@@ -78,6 +81,7 @@ const fileTarget: TransportTargetOptions = {
 const consoleTarget: TransportTargetOptions = config.log.pretty
   ? {
       target: 'pino-pretty',
+      level: config.log.level,
       options: {
         colorize: true,
         translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
@@ -85,7 +89,7 @@ const consoleTarget: TransportTargetOptions = config.log.pretty
         singleLine: true,
       },
     }
-  : { target: 'pino/file', options: { destination: 1 } };
+  : { target: 'pino/file', level: config.log.level, options: { destination: 1 } };
 
 /**
  * 测试进程（vitest）直写 stdout，不启用 worker transport：
