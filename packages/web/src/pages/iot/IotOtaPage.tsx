@@ -131,8 +131,10 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
       render: (v: number) => formatSize(v),
     },
     {
-      title: 'SHA256', dataIndex: 'sha256', width: 140,
-      render: (v: string) => <Text copyable={{ content: v }} size="small" code>{v.slice(0, 12)}…</Text>,
+      title: 'SHA256', dataIndex: 'sha256', width: 150,
+      render: (v: string) => (
+        <Text copyable={{ content: v }} size="small" code style={{ whiteSpace: 'nowrap' }}>{v.slice(0, 12)}…</Text>
+      ),
     },
     { title: '任务数', dataIndex: 'taskCount', width: 80, align: 'right' },
     {
