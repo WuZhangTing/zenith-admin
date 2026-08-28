@@ -3,8 +3,8 @@
  *
  * 输出（worker 线程 transport，序列化之外的开销不占主线程）：
  *  - 文件：pino-roll 按天轮转 `logs/app.YYYY-MM-DD.N.log`，保留 LOG_MAX_FILES 份，NDJSON
- *  - 控制台：生产环境输出 NDJSON 到 stdout（交给容器日志采集）；
- *    非生产环境经 pino-pretty 彩色单行输出
+ *  - 控制台：默认输出 NDJSON 到 stdout（交给容器日志采集）；
+ *    LOG_PRETTY=true 时经 pino-pretty 彩色单行输出（本地开发用）
  *
  * 调用约定（`hooks.logMethod` 归一化，两种写法都支持）：
  *  - pino 原生：`logger.info({ userId }, '登录成功')`，新代码优先用这种
@@ -75,9 +75,8 @@ const fileTarget: TransportTargetOptions = {
   },
 };
 
-const consoleTarget: TransportTargetOptions = process.env.NODE_ENV === 'production'
-  ? { target: 'pino/file', options: { destination: 1 } }
-  : {
+const consoleTarget: TransportTargetOptions = config.log.pretty
+  ? {
       target: 'pino-pretty',
       options: {
         colorize: true,
@@ -85,7 +84,8 @@ const consoleTarget: TransportTargetOptions = process.env.NODE_ENV === 'producti
         ignore: 'pid,hostname',
         singleLine: true,
       },
-    };
+    }
+  : { target: 'pino/file', options: { destination: 1 } };
 
 /**
  * 测试进程（vitest）直写 stdout，不启用 worker transport：

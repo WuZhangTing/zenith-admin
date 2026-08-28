@@ -64,6 +64,8 @@ const envSchema = z.object({
   LOG_DIR: z.string().default('logs'),
   /** 轮转日志文件保留份数（按天轮转，1 份 = 1 天） */
   LOG_MAX_FILES: z.coerce.number().int().min(1).default(30),
+  /** 控制台输出 pino-pretty 彩色单行（本地开发用）；默认 NDJSON */
+  LOG_PRETTY: boolStr('false'),
   // HTTP 入站日志
   HTTP_LOG_INCOMING_ENABLED: boolStr('false'),
   HTTP_LOG_INCOMING_LEVEL: httpLogLevelEnum.default('access'),
@@ -213,6 +215,7 @@ export const config = {
     level: env.LOG_LEVEL,
     dir: env.LOG_DIR,
     maxFiles: env.LOG_MAX_FILES,
+    pretty: env.LOG_PRETTY,
   },
   httpLog: {
     incoming: {
