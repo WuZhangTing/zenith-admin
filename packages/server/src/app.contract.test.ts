@@ -1,5 +1,5 @@
 /**
- * 路由契约测试——覆盖全部路由文件暴露的 1800+ 个操作。
+ * 路由契约测试——覆盖全部路由文件暴露的所有操作。
  *
  * 为什么需要这层测试：
  * service 层已有近 200 个单测，但它们测不到路由声明本身。以下缺陷类型只有在
@@ -35,7 +35,7 @@ beforeAll(async () => {
   app = built.app;
   operations = built.operations;
 
-  // 全量探测一次，后续断言复用结果——1800+ 次进程内请求约 20 秒，
+  // 全量探测一次，后续断言复用结果——对所有操作的进程内请求成本可观，
   // 拆到各 it 里重复发送会让耗时翻倍。
   for (const op of operations) {
     unauthenticatedStatus.set(op.id, await requestWithoutCredentials(app, op));
