@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   IotBatchCommandInput, IotBatchDesiredInput, IotCommand, IotDevice, IotDeviceEvent,
-  IotDeviceShadow, IotTelemetryPoint, SendIotCommandInput, SetIotDesiredInput,
+  IotDeviceShadow, IotTelemetryAggPoint, IotTelemetryPoint, SendIotCommandInput, SetIotDesiredInput,
 } from '@zenith/shared/iot';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import { request } from '@/utils/request';
@@ -161,6 +161,41 @@ export function useIotDeviceEvents(deviceId: number | null, params: IotDeviceEve
       `/api/iot/devices/${deviceId}/events${toQueryString(params)}`,
     ).then(unwrap),
     enabled: deviceId !== null,
+  });
+}
+
+// ─── 遥测聚合（长窗口图表：min/max/avg 区间带）────────────────────────────────
+export const iotTelemetryAggKeys = {
+  all: ['iot-telemetry-agg'] as const,
+  of: (deviceId: number, property: string, days: number) => ['iot-telemetry-agg', deviceId, property, days] as const,
+};
+
+export function useIotTelemetryAgg(deviceId: number | null, property: string | null, days: number) {
+  return useQuery({
+    queryKey: iotTelemetryAggKeys.of(deviceId ?? 0, property ?? '', days),
+    queryFn: () => request.get<IotTelemetryAggPoint[]>(
+      `/api/iot/devices/${deviceId}/telemetry/agg${toQueryString({ property, days })}`,
+    ).then(unwrap),
+    enabled: deviceId !== null && property !== null,
+  });
+}
+
+// ─── Excel 导入 ───────────────────────────────────────────────────────────────
+export interface IotDeviceImportResult {
+  total: number;
+  success: number;
+  failed: number;
+  errors: Array<{ row: number; message: string }>;
+}
+
+export function useImportIotDevices() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
+      request.postForm<IotDeviceImportResult>('/api/iot/devices/import', formData, { onProgress }).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: iotDeviceKeys.lists });
+    },
   });
 }
 

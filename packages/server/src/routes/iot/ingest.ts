@@ -9,12 +9,14 @@ import { HTTPException } from 'hono/http-exception';
 import type { z } from 'zod';
 import {
   IOT_SN_HEADER, IOT_TIMESTAMP_HEADER, IOT_SIGN_HEADER,
-  iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
+  iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema, iotOtaProgressSchema,
 } from '@zenith/shared/iot';
 import { authenticateDevice, touchDevice } from '../../services/iot/iot-access.service';
 import { ingestTelemetry, pullPendingCommands, ackIotCommand } from '../../services/iot/iot-telemetry.service';
 import { ingestIotDeviceEvents } from '../../services/iot/iot-events.service';
 import { getIotDesiredPayload } from '../../services/iot/iot-shadow.service';
+import { ensureOtaDownloadAllowed, getPendingOtaPayload, reportIotOtaProgress } from '../../services/iot/iot-ota.service';
+import { getFileAccessUrl } from '../../services/files/files.service';
 import { okBody } from '../../lib/openapi-schemas';
 import type { IotDeviceRow } from '../../db/schema';
 
@@ -62,7 +64,7 @@ ingestRouter.post('/events', async (c) => {
   return c.json(okBody({ accepted: count }));
 });
 
-/** POST /heartbeat — 心跳（body 可为空对象），响应携带待执行指令与期望属性，轮询设备无需单独拉取 */
+/** POST /heartbeat — 心跳（body 可为空对象），响应携带待执行指令、期望属性与待升级固件 */
 ingestRouter.post('/heartbeat', async (c) => {
   const rawBody = await c.req.text();
   const device = await authenticateDevice(
@@ -72,11 +74,31 @@ ingestRouter.post('/heartbeat', async (c) => {
     rawBody,
   );
   await touchDevice(device);
-  const [commands, desired] = await Promise.all([
+  const [commands, desired, ota] = await Promise.all([
     pullPendingCommands(device),
     getIotDesiredPayload(device),
+    getPendingOtaPayload(device),
   ]);
-  return c.json(okBody({ commands, desired }));
+  return c.json(okBody({ commands, desired, ota }));
+});
+
+/** POST /ota/progress — OTA 进度回报（downloading/installing 带进度，succeeded/failed 终态） */
+ingestRouter.post('/ota/progress', async (c) => {
+  const { device, data } = await authAndParse(c, iotOtaProgressSchema);
+  await reportIotOtaProgress(device, data);
+  return c.json(okBody(null, '进度已记录'));
+});
+
+/** GET /ota/firmware?taskId=N — 固件下载（query 携带 sn/ts/sign，对空串签名；302 跳转存储直链） */
+ingestRouter.get('/ota/firmware', async (c) => {
+  const device = await authenticateDevice(c.req.query('sn'), c.req.query('ts'), c.req.query('sign'), '');
+  const taskId = Number(c.req.query('taskId'));
+  if (!Number.isInteger(taskId) || taskId <= 0) {
+    throw new HTTPException(400, { message: '任务 ID 不合法' });
+  }
+  const fileId = await ensureOtaDownloadAllowed(device, taskId);
+  const { url } = await getFileAccessUrl(fileId, 'download');
+  return c.redirect(url, 302);
 });
 
 /** POST /commands/:commandId/ack — 指令执行回执 */

@@ -1,10 +1,11 @@
 /**
- * IoT 设备管理（iot 域）二期：物模型驱动。
+ * IoT 设备管理（iot 域）。
  *
+ * 二期（物模型驱动）：
  * - iot_products                产品（设备类型），物模型三元组挂在产品下
  * - iot_product_properties     物模型·属性（遥测校验 / 图表单位 / 影子键的唯一定义源）
  * - iot_product_services       物模型·服务（指令模板：参数 schema 驱动表单化下发）
- * - iot_product_events         物模型·事件（设备事件的级别与参数声明）
+ * - iot_product_events          物模型·事件（设备事件的级别与参数声明）
  * - iot_devices                 设备：SN 全局唯一 + 一机一密；实时在线态在 Redis TTL 键
  * - iot_device_state            设备影子：reported（最新上报快照）/ desired（期望值待确认）
  * - iot_device_events           统一事件流：生命周期（上下线/激活/重置密钥）+ 物模型事件
@@ -12,14 +13,21 @@
  * - iot_commands                指令下发记录（pending→delivered→acked/failed，惰性超时）
  * - iot_alarm_rules / iot_alarms 告警规则（阈值/离线/事件）与告警记录（firing→resolved）
  * - iot_device_groups (+members) 设备静态分组（批量操作圈选目标）
+ *
+ * 三期（可视化与规模化运维）：
+ * - iot_telemetry_hourly        遥测小时聚合（长窗口图表与仪表盘数据源，明细保留期可独立缩短）
+ * - iot_online_snapshots        在线率采样（离线扫描任务顺带落点，仪表盘在线趋势）
+ * - iot_firmwares               固件包（产品维度版本 + 托管文件 + sha256）
+ * - iot_ota_tasks (+devices)    OTA 升级任务与单设备状态机（notified→downloading→installing→succeeded/failed）
  */
 import {
   pgTable, pgEnum, serial, bigserial, varchar, timestamp, integer, text, jsonb, boolean,
-  doublePrecision, index, uniqueIndex, primaryKey,
+  doublePrecision, bigint, uuid, index, uniqueIndex, primaryKey,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { statusEnum } from './common';
 import { auditColumns, tenants } from './core';
+import { managedFiles } from './files';
 
 // ─── 枚举 ─────────────────────────────────────────────────────────────────────
 export const iotCommandStatusEnum = pgEnum('iot_command_status', ['pending', 'delivered', 'acked', 'failed', 'expired']);
@@ -350,3 +358,118 @@ export const iotDeviceGroupMembers = pgTable('iot_device_group_members', {
 }, (t) => [primaryKey({ columns: [t.groupId, t.deviceId] })]);
 
 export type IotDeviceGroupMemberRow = typeof iotDeviceGroupMembers.$inferSelect;
+
+// ─── 三期：遥测聚合与在线快照 ─────────────────────────────────────────────────
+/** 遥测小时聚合：数值属性按 (设备, 属性, 小时桶) 物化 min/max/avg/last，长窗口图表与仪表盘数据源 */
+export const iotTelemetryHourly = pgTable('iot_telemetry_hourly', {
+  id:        bigserial('id', { mode: 'number' }).primaryKey(),
+  deviceId:  integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  property:  varchar('property', { length: 64 }).notNull(),
+  /** 小时桶起点（date_trunc('hour', reported_at)） */
+  bucket:    timestamp('bucket').notNull(),
+  minValue:  doublePrecision('min_value').notNull(),
+  maxValue:  doublePrecision('max_value').notNull(),
+  avgValue:  doublePrecision('avg_value').notNull(),
+  lastValue: doublePrecision('last_value').notNull(),
+  count:     integer('count').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('uq_iot_telemetry_hourly').on(t.deviceId, t.property, t.bucket),
+  index('idx_iot_telemetry_hourly_bucket').on(t.bucket),
+]);
+
+export type IotTelemetryHourlyRow = typeof iotTelemetryHourly.$inferSelect;
+
+export type NewIotTelemetryHourly = typeof iotTelemetryHourly.$inferInsert;
+
+/** 在线率采样：离线扫描任务每分钟顺带落点（仪表盘在线趋势） */
+export const iotOnlineSnapshots = pgTable('iot_online_snapshots', {
+  id:          serial('id').primaryKey(),
+  totalCount:  integer('total_count').notNull(),
+  onlineCount: integer('online_count').notNull(),
+  sampledAt:   timestamp('sampled_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_iot_online_snapshots_time').on(t.sampledAt),
+]);
+
+export type IotOnlineSnapshotRow = typeof iotOnlineSnapshots.$inferSelect;
+
+// ─── 三期：固件与 OTA ─────────────────────────────────────────────────────────
+export const iotOtaTaskStatusEnum = pgEnum('iot_ota_task_status', ['running', 'completed', 'cancelled']);
+
+export const iotOtaDeviceStatusEnum = pgEnum('iot_ota_device_status', [
+  'pending', 'notified', 'downloading', 'installing', 'succeeded', 'failed', 'cancelled',
+]);
+
+export const iotFirmwares = pgTable('iot_firmwares', {
+  id:           serial('id').primaryKey(),
+  productId:    integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  /** 语义化版本（同产品唯一），设备上报一致即判定升级成功 */
+  version:      varchar('version', { length: 32 }).notNull(),
+  /** 托管文件；文件被删时置空以保留固件记录（不可再下发） */
+  fileId:       uuid('file_id').references(() => managedFiles.id, { onDelete: 'set null' }),
+  fileName:     varchar('file_name', { length: 255 }).notNull(),
+  size:         bigint('size', { mode: 'number' }).notNull().default(0),
+  sha256:       varchar('sha256', { length: 64 }).notNull(),
+  releaseNotes: text('release_notes'),
+  status:       statusEnum('status').notNull().default('enabled'),
+  tenantId:     integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+  updatedAt:    timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('uq_iot_firmwares_product_version').on(t.productId, t.version),
+]);
+
+export type IotFirmwareRow = typeof iotFirmwares.$inferSelect;
+
+export type NewIotFirmware = typeof iotFirmwares.$inferInsert;
+
+export const iotOtaTasks = pgTable('iot_ota_tasks', {
+  id:              serial('id').primaryKey(),
+  title:           varchar('title', { length: 128 }).notNull(),
+  /** 固件存在升级任务时禁止删除（restrict），保证任务明细可追溯 */
+  firmwareId:      integer('firmware_id').notNull().references(() => iotFirmwares.id, { onDelete: 'restrict' }),
+  productId:       integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  firmwareVersion: varchar('firmware_version', { length: 32 }).notNull(),
+  status:          iotOtaTaskStatusEnum('status').notNull().default('running'),
+  /** 单设备超时（分钟）：越期未终态的设备判 failed，全部终态后任务收敛为 completed */
+  timeoutMinutes:  integer('timeout_minutes').notNull().default(30),
+  totalCount:      integer('total_count').notNull().default(0),
+  succeededCount:  integer('succeeded_count').notNull().default(0),
+  failedCount:     integer('failed_count').notNull().default(0),
+  tenantId:        integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt:       timestamp('created_at').defaultNow().notNull(),
+  updatedAt:       timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('idx_iot_ota_tasks_product').on(t.productId),
+  index('idx_iot_ota_tasks_status').on(t.status),
+]);
+
+export type IotOtaTaskRow = typeof iotOtaTasks.$inferSelect;
+
+export type NewIotOtaTask = typeof iotOtaTasks.$inferInsert;
+
+export const iotOtaTaskDevices = pgTable('iot_ota_task_devices', {
+  id:          serial('id').primaryKey(),
+  taskId:      integer('task_id').notNull().references(() => iotOtaTasks.id, { onDelete: 'cascade' }),
+  deviceId:    integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  status:      iotOtaDeviceStatusEnum('status').notNull().default('pending'),
+  /** 下载/安装进度（0-100，设备 ota:progress 帧回报） */
+  progress:    integer('progress').notNull().default(0),
+  /** 升级前固件版本快照 */
+  fromVersion: varchar('from_version', { length: 32 }),
+  errorMsg:    varchar('error_msg', { length: 256 }),
+  notifiedAt:  timestamp('notified_at'),
+  finishedAt:  timestamp('finished_at'),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+  updatedAt:   timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('uq_iot_ota_task_devices').on(t.taskId, t.deviceId),
+  index('idx_iot_ota_task_devices_device').on(t.deviceId, t.status),
+]);
+
+export type IotOtaTaskDeviceRow = typeof iotOtaTaskDevices.$inferSelect;
+
+export type NewIotOtaTaskDevice = typeof iotOtaTaskDevices.$inferInsert;

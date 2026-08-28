@@ -5,6 +5,10 @@ import { SEED_DATE } from '../_base';
 export const SEED_MENUS_IOT: Menu[] = [
   { id: 18000, parentId: 0, title: 'IoT 设备', name: 'IotCenter', icon: 'Cpu', type: 'directory', sort: 18, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
+  // ─── 总览仪表盘 ────────────────────────────────────────────────────────────
+  { id: 18040, parentId: 18000, title: '总览', name: 'IotDashboard', path: '/iot/dashboard', component: 'iot/IotDashboardPage', icon: 'Gauge', type: 'menu', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18041, parentId: 18040, title: '查询', type: 'button', permission: 'iot:dashboard:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
   // ─── 产品管理 ──────────────────────────────────────────────────────────────
   { id: 18010, parentId: 18000, title: '产品管理', name: 'IotProducts', path: '/iot/products', component: 'iot/IotProductsPage', icon: 'Package', type: 'menu', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18011, parentId: 18010, title: '查询', type: 'button', permission: 'iot:product:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -22,6 +26,7 @@ export const SEED_MENUS_IOT: Menu[] = [
   { id: 18026, parentId: 18020, title: '指令下发', type: 'button', permission: 'iot:command:send', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18027, parentId: 18020, title: '分组管理', type: 'button', permission: 'iot:group:manage', sort: 6, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18028, parentId: 18020, title: '批量操作', type: 'button', permission: 'iot:device:batch', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18029, parentId: 18020, title: '导入设备', type: 'button', permission: 'iot:device:import', sort: 8, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ─── 告警中心 ──────────────────────────────────────────────────────────────
   { id: 18030, parentId: 18000, title: '告警中心', name: 'IotAlarms', path: '/iot/alarms', component: 'iot/IotAlarmsPage', icon: 'BellRing', type: 'menu', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
@@ -30,4 +35,10 @@ export const SEED_MENUS_IOT: Menu[] = [
   { id: 18033, parentId: 18030, title: '新增规则', type: 'button', permission: 'iot:alarm:rule:create', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18034, parentId: 18030, title: '编辑规则', type: 'button', permission: 'iot:alarm:rule:update', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18035, parentId: 18030, title: '删除规则', type: 'button', permission: 'iot:alarm:rule:delete', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 固件升级 ──────────────────────────────────────────────────────────────
+  { id: 18050, parentId: 18000, title: '固件升级', name: 'IotOta', path: '/iot/ota', component: 'iot/IotOtaPage', icon: 'CloudUpload', type: 'menu', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18051, parentId: 18050, title: '查询', type: 'button', permission: 'iot:ota:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18052, parentId: 18050, title: '固件管理', type: 'button', permission: 'iot:ota:firmware:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18053, parentId: 18050, title: '创建升级任务', type: 'button', permission: 'iot:ota:task:create', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

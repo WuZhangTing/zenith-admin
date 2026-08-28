@@ -8,6 +8,8 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import AppModal from '@/components/AppModal';
 import UserSelect from '@/components/UserSelect';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { StatCard, StatGrid } from '@/components/charts';
+import { formatDateForApi } from '@/utils/date';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -48,7 +50,7 @@ function AlarmRecordsTab() {
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch, handleReset,
+    handleSearch, handleReset, applySearch,
   } = useListSearch<AlarmSearchParams>({ defaults: defaultAlarmSearch, listKey: iotAlarmKeys.lists });
 
   const listQuery = useIotAlarmList({
@@ -61,6 +63,12 @@ function AlarmRecordsTab() {
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
+
+  // 统计卡：以最小页读取 total（复用列表契约，无需独立聚合接口）
+  const todayStart = `${formatDateForApi(new Date())} 00:00:00`;
+  const firingCriticalQuery = useIotAlarmList({ page: 1, pageSize: 1, status: 'firing', level: 'critical' });
+  const firingWarningQuery = useIotAlarmList({ page: 1, pageSize: 1, status: 'firing', level: 'warning' });
+  const todayQuery = useIotAlarmList({ page: 1, pageSize: 1, startTime: todayStart });
 
   const resolveMutation = useResolveIotAlarm();
 
@@ -160,6 +168,27 @@ function AlarmRecordsTab() {
 
   return (
     <>
+      <StatGrid style={{ marginBottom: 12 }}>
+        <StatCard
+          title="告警中 · 严重"
+          value={firingCriticalQuery.data?.total ?? 0}
+          accent="var(--semi-color-danger)"
+          onClick={() => applySearch({ ...defaultAlarmSearch, status: 'firing', level: 'critical' })}
+          active={submittedParams.status === 'firing' && submittedParams.level === 'critical'}
+        />
+        <StatCard
+          title="告警中 · 警告"
+          value={firingWarningQuery.data?.total ?? 0}
+          accent="var(--semi-color-warning)"
+          onClick={() => applySearch({ ...defaultAlarmSearch, status: 'firing', level: 'warning' })}
+          active={submittedParams.status === 'firing' && submittedParams.level === 'warning'}
+        />
+        <StatCard
+          title="今日触发"
+          value={todayQuery.data?.total ?? 0}
+          sub="今天 0 点起新触发的告警数"
+        />
+      </StatGrid>
       <SearchToolbar
         primary={<>
           {renderKeyword()}

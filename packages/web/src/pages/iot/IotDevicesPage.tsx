@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { useRef, useState } from 'react';
+import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
+import { Download, FileUp } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
+import ExportButton from '@/components/ExportButton';
 import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -15,11 +17,12 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
+import { request } from '@/utils/request';
 import type { IotDevice, IotDeviceGroup } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import {
-  iotDeviceKeys, useDeleteIotDevices, useIotDeviceList, useSaveIotDevice,
-  useSubmitIotBatchCommand, useSubmitIotBatchDesired,
+  iotDeviceKeys, useDeleteIotDevices, useImportIotDevices, useIotDeviceList, useSaveIotDevice,
+  useSubmitIotBatchCommand, useSubmitIotBatchDesired, type IotDeviceImportResult,
 } from '@/hooks/queries/iot-devices';
 import { useAllIotGroups, useDeleteIotGroups, useSaveIotGroup } from '@/hooks/queries/iot-groups';
 import IotDeviceDetailDrawer from './IotDeviceDetailDrawer';
@@ -65,6 +68,10 @@ export default function IotDevicesPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [groupsVisible, setGroupsVisible] = useState(false);
   const [batchKind, setBatchKind] = useState<'command' | 'desired' | null>(null);
+  const [importVisible, setImportVisible] = useState(false);
+  const [importResult, setImportResult] = useState<IotDeviceImportResult | null>(null);
+  const importFileRef = useRef<File | null>(null);
+  const importMutation = useImportIotDevices();
 
   const productsQuery = useAllIotProducts();
   const products = productsQuery.data ?? [];
@@ -133,6 +140,26 @@ export default function IotDevicesPage() {
     labelWidth: 90,
   });
   const deleteGroupMutation = useDeleteIotGroups();
+
+  // ─── Excel 导入 ──────────────────────────────────────────────────────────────
+  async function handleImportTemplate() {
+    try {
+      await request.download('/api/iot/devices/import-template', 'iot_device_import_template.xlsx');
+    } catch {
+      Toast.error('模板下载失败');
+    }
+  }
+
+  async function handleImportSubmit() {
+    if (!importFileRef.current) {
+      Toast.warning('请先选择文件');
+      abortSubmit();
+    }
+    const formData = new FormData();
+    formData.append('file', importFileRef.current);
+    const result = await importMutation.mutateAsync({ formData });
+    setImportResult(result);
+  }
 
   // ─── 批量操作 ────────────────────────────────────────────────────────────────
   const batchCommandMutation = useSubmitIotBatchCommand();
@@ -324,6 +351,13 @@ export default function IotDevicesPage() {
 
   const canBatch = hasPermission('iot:device:batch');
 
+  const buildExportQuery = () => ({
+    keyword: submittedParams.keyword || undefined,
+    status: submittedParams.status || undefined,
+    productId: submittedParams.productId ?? undefined,
+    groupId: submittedParams.groupId ?? undefined,
+  });
+
   return (
     <div className="page-container">
       <SearchToolbar
@@ -342,6 +376,10 @@ export default function IotDevicesPage() {
           )}
         </>}
         actions={<>
+          {hasPermission('iot:device:import') && (
+            <Button theme="light" icon={<FileUp size={14} />} onClick={() => { setImportVisible(true); setImportResult(null); importFileRef.current = null; }}>导入</Button>
+          )}
+          <ExportButton entity="iot.devices" query={buildExportQuery()} />
           {hasPermission('iot:group:manage') && (
             <Button theme="light" onClick={() => setGroupsVisible(true)}>分组管理</Button>
           )}
@@ -357,9 +395,15 @@ export default function IotDevicesPage() {
           {renderGroupFilter()}
           {renderStatusFilter()}
         </>}
-        mobileActions={hasPermission('iot:group:manage')
-          ? <Button theme="borderless" onClick={() => setGroupsVisible(true)}>分组管理</Button>
-          : undefined}
+        mobileActions={<>
+          {hasPermission('iot:device:import') && (
+            <Button theme="borderless" onClick={() => { setImportVisible(true); setImportResult(null); importFileRef.current = null; }}>导入设备</Button>
+          )}
+          <ExportButton entity="iot.devices" query={buildExportQuery()} variant="flat" />
+          {hasPermission('iot:group:manage') && (
+            <Button theme="borderless" onClick={() => setGroupsVisible(true)}>分组管理</Button>
+          )}
+        </>}
         filterTitle="筛选条件"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}
@@ -485,6 +529,59 @@ export default function IotDevicesPage() {
               rules={[{ required: true, message: '期望属性不能为空' }]} />
           )}
         </Form>
+      </AppModal>
+
+      {/* 导入设备 */}
+      <AppModal
+        title="导入设备"
+        visible={importVisible}
+        onCancel={() => setImportVisible(false)}
+        onOk={importResult ? () => setImportVisible(false) : handleImportSubmit}
+        okText={importResult ? '关闭' : '开始导入'}
+        okButtonProps={{ loading: importMutation.isPending }}
+        width={560}
+        closeOnEsc
+      >
+        {importResult ? (
+          <div>
+            <Text>
+              导入完成：共 {importResult.total} 行，成功 <Text type="success" strong>{importResult.success}</Text>，
+              失败 <Text type={importResult.failed > 0 ? 'danger' : 'tertiary'} strong>{importResult.failed}</Text>
+            </Text>
+            {importResult.errors.length > 0 && (
+              <Table
+                style={{ marginTop: 12 }}
+                columns={[
+                  { title: '行号', dataIndex: 'row', width: 70 },
+                  { title: '错误原因', dataIndex: 'message' },
+                ]}
+                dataSource={importResult.errors}
+                rowKey="row"
+                size="small"
+                pagination={false}
+              />
+            )}
+          </div>
+        ) : (
+          <div style={{ padding: '8px 0' }}>
+            <div style={{ marginBottom: 12 }}>
+              <Button type="tertiary" icon={<Download size={14} />} onClick={handleImportTemplate}>下载导入模板</Button>
+              <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>请先下载模板，按格式填写后上传；SN 留空自动生成</Text>
+            </div>
+            <Upload
+              accept=".xlsx,.xls"
+              limit={1}
+              action=""
+              beforeUpload={({ file }) => {
+                importFileRef.current = file.fileInstance ?? null;
+                return false;
+              }}
+              onRemove={() => { importFileRef.current = null; }}
+            >
+              <Button icon={<FileUp size={14} />}>选择文件</Button>
+            </Upload>
+          </div>
+        )}
       </AppModal>
 
       <IotDeviceDetailDrawer device={detailDevice} onClose={() => setDetailDevice(null)} />

@@ -5,7 +5,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { AreaChart, EmptyChart, chartOptions, makeAreaSpec, useChartPalette } from '@/components/charts';
+import { AreaChart, EmptyChart, LineChart, chartOptions, makeAreaSpec, makeLineSpec, useChartPalette } from '@/components/charts';
 import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
 import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
@@ -22,7 +22,7 @@ import type {
 } from '@zenith/shared/iot';
 import {
   useClearIotDesired, useIotCommands, useIotDeviceEvents, useIotDeviceShadow,
-  useIotTelemetry, useResetIotDeviceSecret, useSendIotCommand, useSetIotDesired,
+  useIotTelemetry, useIotTelemetryAgg, useResetIotDeviceSecret, useSendIotCommand, useSetIotDesired,
 } from '@/hooks/queries/iot-devices';
 import { useIotThingModel } from '@/hooks/queries/iot-products';
 
@@ -187,7 +187,10 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
   // ─── 遥测曲线 ────────────────────────────────────────────────────────────────
   const [days, setDays] = useState(1);
   const [metricKey, setMetricKey] = useState<string | null>(null);
-  const telemetryQuery = useIotTelemetry(hasPermission('iot:telemetry:view') ? deviceId : null, days);
+  const canViewTelemetry = hasPermission('iot:telemetry:view');
+  // 近 24h 查明细；长窗口切小时聚合（min/avg/max），明细保留期与图表性能解耦
+  const useAgg = days > 1;
+  const telemetryQuery = useIotTelemetry(canViewTelemetry && !useAgg ? deviceId : null, days);
   const points = useMemo(() => telemetryQuery.data ?? [], [telemetryQuery.data]);
 
   // 可绘制指标 = 物模型数值属性 ∪ 数据中出现过的数值键
@@ -203,6 +206,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
 
   const activeMetric = metricKey && metricKeys.includes(metricKey) ? metricKey : (metricKeys[0] ?? null);
   const activeProp = model?.properties.find((p) => p.identifier === activeMetric);
+  const aggQuery = useIotTelemetryAgg(canViewTelemetry && useAgg ? deviceId : null, activeMetric, days);
 
   const chartData = useMemo(() => {
     if (!activeMetric) return [];
@@ -211,19 +215,42 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
       .map((p) => ({ time: p.reportedAt, value: p.metrics[activeMetric] as number }));
   }, [points, activeMetric]);
 
+  const metricLabel = activeProp
+    ? `${activeProp.name}${activeProp.unit ? `（${activeProp.unit}）` : ''}`
+    : (activeMetric ?? '指标');
+
   const chartSpec = useMemo(() => makeAreaSpec({
     data: chartData,
     xField: 'time',
-    series: [{
-      field: 'value',
-      name: activeProp ? `${activeProp.name}${activeProp.unit ? `（${activeProp.unit}）` : ''}` : (activeMetric ?? '指标'),
-      color: palette.primary,
-    }],
+    series: [{ field: 'value', name: metricLabel, color: palette.primary }],
     palette,
     fillOpacity: 0.16,
     axis: { xLabel: (value) => String(value).slice(5, 16) },
     tooltip: { title: (value) => `时间：${value}` },
-  }), [chartData, activeMetric, activeProp, palette]);
+  }), [chartData, metricLabel, palette]);
+
+  const aggData = useMemo(() => (aggQuery.data ?? []).map((r) => ({
+    time: r.bucket,
+    min: r.minValue,
+    avg: r.avgValue,
+    max: r.maxValue,
+  })), [aggQuery.data]);
+
+  const aggSpec = useMemo(() => makeLineSpec({
+    data: aggData,
+    xField: 'time',
+    series: [
+      { field: 'max', name: '小时最高', color: '#fa8c16' },
+      { field: 'avg', name: `${metricLabel} · 小时均值`, color: palette.primary },
+      { field: 'min', name: '小时最低', color: '#13c2c2' },
+    ],
+    palette,
+    axis: { xLabel: (value) => String(value).slice(5, 13) },
+    tooltip: { title: (value) => `小时桶：${value}` },
+  }), [aggData, metricLabel, palette]);
+
+  const chartLoading = useAgg ? aggQuery.isFetching : telemetryQuery.isFetching;
+  const chartEmpty = useAgg ? aggData.length === 0 : chartData.length === 0;
 
   // ─── 指令 ────────────────────────────────────────────────────────────────────
   const [commandPage, setCommandPage] = useState(1);
@@ -433,11 +460,18 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
                   })}
                 </RadioGroup>
               </div>
-              <Spin spinning={telemetryQuery.isFetching}>
-                {chartData.length > 0
-                  ? <AreaChart {...chartSpec} options={chartOptions} height={260} />
-                  : <EmptyChart height={260} text="时间窗内暂无数值遥测" />}
+              <Spin spinning={chartLoading}>
+                {chartEmpty
+                  ? <EmptyChart height={260} text="时间窗内暂无数值遥测" />
+                  : useAgg
+                    ? <LineChart {...aggSpec} options={chartOptions} height={260} />
+                    : <AreaChart {...chartSpec} options={chartOptions} height={260} />}
               </Spin>
+              {useAgg && (
+                <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 4 }}>
+                  长窗口展示每小时聚合（最高 / 均值 / 最低），近 24 时展示原始点位。
+                </Text>
+              )}
             </TabPane>
 
             {canCommand && (

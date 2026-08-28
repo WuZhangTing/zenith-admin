@@ -8,14 +8,16 @@
  *   设备 → 服务端：{type:'heartbeat'} | {type:'telemetry',payload:IotTelemetryIngestInput}
  *                  | {type:'event',payload:IotEventIngestInput}
  *                  | {type:'command:ack',payload:{commandId,success,response?,errorMsg?}}
+ *                  | {type:'ota:progress',payload:{taskId,status,progress?,errorMsg?}}
  *   服务端 → 设备：{type:'command:exec',payload:IotCommandPayload} | {type:'heartbeat:ack'}
  *                  | {type:'shadow:desired',payload:IotDesiredPayload}
+ *                  | {type:'ota:upgrade',payload:IotOtaPayload}
  */
 import { Hono } from 'hono';
 import type { UpgradeWebSocket } from 'hono/ws';
 import { z } from 'zod';
 import {
-  IOT_WS_FRAME_TYPES, iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
+  IOT_WS_FRAME_TYPES, iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema, iotOtaProgressSchema,
 } from '@zenith/shared/iot';
 import type { IotDeviceRow } from '../../db/schema';
 import { authenticateDevice, markDeviceOnline, markDeviceOffline, touchDevice } from '../../services/iot/iot-access.service';
@@ -24,6 +26,7 @@ import {
 } from '../../services/iot/iot-telemetry.service';
 import { ingestIotDeviceEvents } from '../../services/iot/iot-events.service';
 import { getIotDesiredPayload } from '../../services/iot/iot-shadow.service';
+import { getPendingOtaPayload, reportIotOtaProgress } from '../../services/iot/iot-ota.service';
 import { registerDeviceConnection, removeDeviceConnection } from '../../services/iot/iot-gateway.service';
 import logger from '../../lib/logger';
 
@@ -50,12 +53,13 @@ export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
           }
           const d = device;
           registerDeviceConnection(d.sn, ws);
-          // 在线登记 + 上线补推 pending 指令（推完统一标 delivered）与未确认期望属性
+          // 在线登记 + 上线补推 pending 指令（推完统一标 delivered）、未确认期望属性与待升级固件
           void (async () => {
             await touchDevice(d);
-            const [pendings, desired] = await Promise.all([
+            const [pendings, desired, ota] = await Promise.all([
               getPendingCommandPayloads(d.id),
               getIotDesiredPayload(d),
+              getPendingOtaPayload(d),
             ]);
             if (pendings.length > 0) {
               for (const payload of pendings) {
@@ -65,6 +69,9 @@ export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
             }
             if (desired) {
               ws.send(JSON.stringify({ type: IOT_WS_FRAME_TYPES.shadowDesired, payload: desired }));
+            }
+            if (ota) {
+              ws.send(JSON.stringify({ type: IOT_WS_FRAME_TYPES.otaUpgrade, payload: ota }));
             }
           })().catch((err) => {
             logger.warn(`[iot-ws] 上线处理失败 sn=${d.sn}: ${(err as Error).message}`);
@@ -88,6 +95,11 @@ export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
               case IOT_WS_FRAME_TYPES.event: {
                 const parsed = iotEventIngestSchema.safeParse(frame.payload);
                 if (parsed.success) await ingestIotDeviceEvents(device, parsed.data);
+                break;
+              }
+              case IOT_WS_FRAME_TYPES.otaProgress: {
+                const parsed = iotOtaProgressSchema.safeParse(frame.payload);
+                if (parsed.success) await reportIotOtaProgress(device, parsed.data).catch(() => { /* 任务已结束等业务性拒绝，忽略 */ });
                 break;
               }
               case IOT_WS_FRAME_TYPES.commandAck: {

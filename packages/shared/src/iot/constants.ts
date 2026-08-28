@@ -176,4 +176,48 @@ export const IOT_WS_FRAME_TYPES = {
   heartbeatAck: 'heartbeat:ack',
   /** 服务端 → 设备：期望属性变更（设备应用后通过属性上报回执，服务端按键收敛） */
   shadowDesired: 'shadow:desired',
+  /** 服务端 → 设备：OTA 升级通知 */
+  otaUpgrade: 'ota:upgrade',
+  /** 设备 → 服务端：OTA 进度回报 */
+  otaProgress: 'ota:progress',
 } as const;
+
+// ─── OTA 升级 ─────────────────────────────────────────────────────────────────
+export const IOT_OTA_TASK_STATUSES = ['running', 'completed', 'cancelled'] as const;
+
+export type IotOtaTaskStatus = (typeof IOT_OTA_TASK_STATUSES)[number];
+
+export const IOT_OTA_TASK_STATUS_LABELS: Record<IotOtaTaskStatus, string> = {
+  running: '进行中',
+  completed: '已完成',
+  cancelled: '已取消',
+};
+
+export const IOT_OTA_TASK_STATUS_OPTIONS = createLabelOptions(IOT_OTA_TASK_STATUSES, IOT_OTA_TASK_STATUS_LABELS);
+
+export const IOT_OTA_DEVICE_STATUSES = ['pending', 'notified', 'downloading', 'installing', 'succeeded', 'failed', 'cancelled'] as const;
+
+export type IotOtaDeviceStatus = (typeof IOT_OTA_DEVICE_STATUSES)[number];
+
+export const IOT_OTA_DEVICE_STATUS_LABELS: Record<IotOtaDeviceStatus, string> = {
+  pending: '待通知',
+  notified: '已通知',
+  downloading: '下载中',
+  installing: '安装中',
+  succeeded: '升级成功',
+  failed: '升级失败',
+  cancelled: '已取消',
+};
+
+export const IOT_OTA_DEVICE_STATUS_OPTIONS = createLabelOptions(IOT_OTA_DEVICE_STATUSES, IOT_OTA_DEVICE_STATUS_LABELS);
+
+/** 设备可回报的 OTA 进度状态（终态由服务端收敛） */
+export const IOT_OTA_PROGRESS_STATUSES = ['downloading', 'installing', 'succeeded', 'failed'] as const;
+
+export type IotOtaProgressStatus = (typeof IOT_OTA_PROGRESS_STATUSES)[number];
+
+/** OTA 单设备默认超时（分钟） */
+export const IOT_OTA_DEFAULT_TIMEOUT_MINUTES = 30;
+
+/** 固件版本格式：1.2.3 或 1.2.3-beta.1 */
+export const IOT_FIRMWARE_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;

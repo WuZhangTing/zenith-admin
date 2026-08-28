@@ -1,0 +1,372 @@
+/**
+ * IoT OTA 升级：任务创建 / 设备状态机 / 协议下发 / 版本确认 / 超时收敛。
+ *
+ * 单设备状态机：pending →(WS 推送或心跳捎带)→ notified →(设备回报)→ downloading → installing
+ *              → succeeded / failed；任务取消时未终态设备一并 cancelled。
+ * 成功判定双通道：设备显式回报 succeeded，或遥测上报的 firmwareVersion 与目标版本一致
+ * （与影子收敛同一语义）；超时未终态由每分钟扫描判 failed。
+ * 全部设备进入终态后任务收敛为 completed。
+ */
+import { HTTPException } from 'hono/http-exception';
+import { and, count, desc, eq, inArray, lt, type SQL } from 'drizzle-orm';
+import type { CreateIotOtaTaskInput, IotOtaPayload, IotOtaProgressInput } from '@zenith/shared/iot';
+import { IOT_BATCH_DEVICE_MAX } from '@zenith/shared/iot';
+import { db } from '../../db';
+import {
+  iotDevices, iotFirmwares, iotOtaTaskDevices, iotOtaTasks, iotProducts,
+  type IotDeviceRow, type IotFirmwareRow, type IotOtaTaskDeviceRow, type IotOtaTaskRow,
+} from '../../db/schema';
+import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { currentUser } from '../../lib/context';
+import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import logger from '../../lib/logger';
+import { pushOtaToDevice } from './iot-gateway.service';
+import { ensureIotFirmwareExists } from './iot-firmware.service';
+import { resolveIotBatchTargets } from './iot-groups.service';
+
+// ─── 映射 ─────────────────────────────────────────────────────────────────────
+export function mapIotOtaTask(row: IotOtaTaskRow, extra?: { productName?: string | null }) {
+  return {
+    id: row.id,
+    title: row.title,
+    firmwareId: row.firmwareId,
+    productId: row.productId,
+    productName: extra?.productName ?? null,
+    firmwareVersion: row.firmwareVersion,
+    status: row.status,
+    timeoutMinutes: row.timeoutMinutes,
+    totalCount: row.totalCount,
+    succeededCount: row.succeededCount,
+    failedCount: row.failedCount,
+    createdBy: row.createdBy ?? null,
+    createdAt: formatDateTime(row.createdAt),
+    updatedAt: formatDateTime(row.updatedAt),
+  };
+}
+
+export function mapIotOtaTaskDevice(
+  row: IotOtaTaskDeviceRow,
+  extra?: { deviceName?: string | null; deviceSn?: string | null; online?: boolean },
+) {
+  return {
+    id: row.id,
+    taskId: row.taskId,
+    deviceId: row.deviceId,
+    deviceName: extra?.deviceName ?? null,
+    deviceSn: extra?.deviceSn ?? null,
+    online: extra?.online ?? false,
+    status: row.status,
+    progress: row.progress,
+    fromVersion: row.fromVersion ?? null,
+    errorMsg: row.errorMsg ?? null,
+    notifiedAt: formatNullableDateTime(row.notifiedAt),
+    finishedAt: formatNullableDateTime(row.finishedAt),
+  };
+}
+
+// ─── 任务查询 ─────────────────────────────────────────────────────────────────
+export interface ListIotOtaTasksQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  productId?: number;
+  status?: 'running' | 'completed' | 'cancelled';
+}
+
+function buildTaskWhere(q: ListIotOtaTasksQuery & { id?: number }): SQL | undefined {
+  return buildWhere(
+    q.id !== undefined ? eq(iotOtaTasks.id, q.id) : undefined,
+    keywordCondition(q.keyword, [iotOtaTasks.title, iotOtaTasks.firmwareVersion]),
+    q.productId ? eq(iotOtaTasks.productId, q.productId) : undefined,
+    q.status ? eq(iotOtaTasks.status, q.status) : undefined,
+    tenantCondition(iotOtaTasks, currentUser()),
+  );
+}
+
+export async function listIotOtaTasks(q: ListIotOtaTasksQuery) {
+  const { page = 1, pageSize = 10 } = q;
+  const where = buildTaskWhere(q);
+  const [total, rows] = await Promise.all([
+    db.$count(iotOtaTasks, where),
+    withPagination(
+      db.select({ task: iotOtaTasks, productName: iotProducts.name })
+        .from(iotOtaTasks)
+        .leftJoin(iotProducts, eq(iotOtaTasks.productId, iotProducts.id))
+        .where(where)
+        .orderBy(desc(iotOtaTasks.id))
+        .$dynamic(),
+      page,
+      pageSize,
+    ),
+  ]);
+  return {
+    list: rows.map((r) => mapIotOtaTask(r.task, { productName: r.productName })),
+    total,
+    page,
+    pageSize,
+  };
+}
+
+export async function ensureIotOtaTaskExists(id: number): Promise<IotOtaTaskRow> {
+  const [row] = await db.select().from(iotOtaTasks).where(buildTaskWhere({ id })).limit(1);
+  if (!row) throw new HTTPException(404, { message: '升级任务不存在' });
+  return row;
+}
+
+export async function getIotOtaTask(id: number) {
+  const row = await ensureIotOtaTaskExists(id);
+  const [product] = await db.select({ name: iotProducts.name })
+    .from(iotProducts).where(eq(iotProducts.id, row.productId)).limit(1);
+  return mapIotOtaTask(row, { productName: product?.name ?? null });
+}
+
+export interface ListOtaTaskDevicesQuery {
+  page?: number;
+  pageSize?: number;
+  status?: IotOtaTaskDeviceRow['status'];
+}
+
+export async function listIotOtaTaskDevices(taskId: number, q: ListOtaTaskDevicesQuery) {
+  await ensureIotOtaTaskExists(taskId);
+  const { page = 1, pageSize = 10 } = q;
+  const where = buildWhere(
+    eq(iotOtaTaskDevices.taskId, taskId),
+    q.status ? eq(iotOtaTaskDevices.status, q.status) : undefined,
+  );
+  const [countRows, rows] = await Promise.all([
+    db.select({ value: count() }).from(iotOtaTaskDevices).where(where),
+    withPagination(
+      db.select({ row: iotOtaTaskDevices, deviceName: iotDevices.name, deviceSn: iotDevices.sn })
+        .from(iotOtaTaskDevices)
+        .innerJoin(iotDevices, eq(iotOtaTaskDevices.deviceId, iotDevices.id))
+        .where(where)
+        .orderBy(desc(iotOtaTaskDevices.id))
+        .$dynamic(),
+      page,
+      pageSize,
+    ),
+  ]);
+  return {
+    list: rows.map((r) => mapIotOtaTaskDevice(r.row, { deviceName: r.deviceName, deviceSn: r.deviceSn })),
+    total: Number(countRows[0]?.value ?? 0),
+    page,
+    pageSize,
+  };
+}
+
+// ─── 任务创建与取消 ───────────────────────────────────────────────────────────
+function buildOtaPayload(taskId: number, firmware: Pick<IotFirmwareRow, 'version' | 'fileName' | 'size' | 'sha256'>): IotOtaPayload {
+  return {
+    taskId,
+    version: firmware.version,
+    fileName: firmware.fileName,
+    size: firmware.size,
+    sha256: firmware.sha256,
+    downloadPath: `/api/iot/ingest/ota/firmware?taskId=${taskId}`,
+  };
+}
+
+export async function createIotOtaTask(input: CreateIotOtaTaskInput) {
+  const firmware = await ensureIotFirmwareExists(input.firmwareId);
+  if (firmware.status !== 'enabled') throw new HTTPException(400, { message: '固件已禁用，无法下发升级' });
+  if (!firmware.fileId) throw new HTTPException(400, { message: '固件文件已被删除，无法下发升级' });
+
+  // 目标集：显式设备/分组 或 产品下全部启用设备；统一校验产品归属
+  let deviceRows: Array<Pick<IotDeviceRow, 'id' | 'sn' | 'firmwareVersion' | 'productId' | 'status'>>;
+  if (input.allDevices) {
+    deviceRows = await db.select({
+      id: iotDevices.id, sn: iotDevices.sn, firmwareVersion: iotDevices.firmwareVersion,
+      productId: iotDevices.productId, status: iotDevices.status,
+    })
+      .from(iotDevices)
+      .where(buildWhere(
+        eq(iotDevices.productId, firmware.productId),
+        eq(iotDevices.status, 'enabled'),
+        tenantCondition(iotDevices, currentUser()),
+      ))
+      .limit(IOT_BATCH_DEVICE_MAX + 1);
+    if (deviceRows.length > IOT_BATCH_DEVICE_MAX) {
+      throw new HTTPException(400, { message: `产品设备数超过单任务上限 ${IOT_BATCH_DEVICE_MAX}，请分批（按分组）下发` });
+    }
+  } else {
+    const targets = await resolveIotBatchTargets(input.deviceIds, input.groupId, IOT_BATCH_DEVICE_MAX);
+    deviceRows = await db.select({
+      id: iotDevices.id, sn: iotDevices.sn, firmwareVersion: iotDevices.firmwareVersion,
+      productId: iotDevices.productId, status: iotDevices.status,
+    })
+      .from(iotDevices)
+      .where(inArray(iotDevices.id, targets.deviceIds));
+  }
+  const eligible = deviceRows.filter((d) =>
+    d.productId === firmware.productId && d.status === 'enabled' && d.firmwareVersion !== firmware.version);
+  if (eligible.length === 0) {
+    throw new HTTPException(400, { message: '没有可升级的目标设备（需属于该固件产品、启用且版本不同）' });
+  }
+
+  const task = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(iotOtaTasks).values({
+      title: `升级到 v${firmware.version}（${eligible.length} 台）`,
+      firmwareId: firmware.id,
+      productId: firmware.productId,
+      firmwareVersion: firmware.version,
+      timeoutMinutes: input.timeoutMinutes,
+      totalCount: eligible.length,
+      tenantId: getCreateTenantId(currentUser()),
+    }).returning();
+    await tx.insert(iotOtaTaskDevices).values(eligible.map((d) => ({
+      taskId: created.id,
+      deviceId: d.id,
+      fromVersion: d.firmwareVersion ?? null,
+    })));
+    return created;
+  });
+
+  // WS 在线设备立即推送（成功即 notified）；离线设备留 pending 等心跳/上线捎带
+  const payload = buildOtaPayload(task.id, firmware);
+  const notifiedIds: number[] = [];
+  for (const d of eligible) {
+    if (pushOtaToDevice(d.sn, payload)) notifiedIds.push(d.id);
+  }
+  if (notifiedIds.length > 0) {
+    await db.update(iotOtaTaskDevices)
+      .set({ status: 'notified', notifiedAt: new Date() })
+      .where(and(eq(iotOtaTaskDevices.taskId, task.id), inArray(iotOtaTaskDevices.deviceId, notifiedIds)));
+  }
+  return getIotOtaTask(task.id);
+}
+
+export async function cancelIotOtaTask(id: number) {
+  const task = await ensureIotOtaTaskExists(id);
+  if (task.status !== 'running') throw new HTTPException(400, { message: '任务已结束，无法取消' });
+  await db.transaction(async (tx) => {
+    await tx.update(iotOtaTaskDevices)
+      .set({ status: 'cancelled', finishedAt: new Date() })
+      .where(and(
+        eq(iotOtaTaskDevices.taskId, id),
+        inArray(iotOtaTaskDevices.status, ['pending', 'notified', 'downloading', 'installing']),
+      ));
+    await tx.update(iotOtaTasks).set({ status: 'cancelled' }).where(eq(iotOtaTasks.id, id));
+  });
+  return getIotOtaTask(id);
+}
+
+// ─── 任务收敛 ─────────────────────────────────────────────────────────────────
+/** 终态变更后重算计数；全部终态则任务 completed */
+async function convergeOtaTask(taskId: number): Promise<void> {
+  const rows = await db.select({ status: iotOtaTaskDevices.status, cnt: count() })
+    .from(iotOtaTaskDevices)
+    .where(eq(iotOtaTaskDevices.taskId, taskId))
+    .groupBy(iotOtaTaskDevices.status);
+  const by = new Map(rows.map((r) => [r.status, Number(r.cnt)]));
+  const active = (by.get('pending') ?? 0) + (by.get('notified') ?? 0)
+    + (by.get('downloading') ?? 0) + (by.get('installing') ?? 0);
+  await db.update(iotOtaTasks).set({
+    succeededCount: by.get('succeeded') ?? 0,
+    failedCount: by.get('failed') ?? 0,
+    ...(active === 0 ? { status: 'completed' as const } : {}),
+  }).where(and(eq(iotOtaTasks.id, taskId), eq(iotOtaTasks.status, 'running')));
+}
+
+// ─── 设备侧协议 ───────────────────────────────────────────────────────────────
+/** 设备待升级载荷（WS 上线补推 / 心跳响应捎带）；无活跃任务返回 null，取到即标 notified */
+export async function getPendingOtaPayload(device: IotDeviceRow): Promise<IotOtaPayload | null> {
+  const [row] = await db.select({ td: iotOtaTaskDevices, task: iotOtaTasks, firmware: iotFirmwares })
+    .from(iotOtaTaskDevices)
+    .innerJoin(iotOtaTasks, eq(iotOtaTaskDevices.taskId, iotOtaTasks.id))
+    .innerJoin(iotFirmwares, eq(iotOtaTasks.firmwareId, iotFirmwares.id))
+    .where(and(
+      eq(iotOtaTaskDevices.deviceId, device.id),
+      inArray(iotOtaTaskDevices.status, ['pending', 'notified']),
+      eq(iotOtaTasks.status, 'running'),
+    ))
+    .orderBy(desc(iotOtaTaskDevices.id))
+    .limit(1);
+  if (!row) return null;
+  if (row.td.status === 'pending') {
+    await db.update(iotOtaTaskDevices)
+      .set({ status: 'notified', notifiedAt: new Date() })
+      .where(and(eq(iotOtaTaskDevices.id, row.td.id), eq(iotOtaTaskDevices.status, 'pending')));
+  }
+  return buildOtaPayload(row.task.id, row.firmware);
+}
+
+/** 设备回报进度（ingest / WS 帧共用）：downloading/installing 更新进度，succeeded/failed 收敛 */
+export async function reportIotOtaProgress(device: IotDeviceRow, input: IotOtaProgressInput): Promise<void> {
+  const terminal = input.status === 'succeeded' || input.status === 'failed';
+  const [row] = await db.update(iotOtaTaskDevices)
+    .set({
+      status: input.status,
+      progress: input.status === 'succeeded' ? 100 : (input.progress ?? 0),
+      errorMsg: input.status === 'failed' ? (input.errorMsg ?? '设备升级失败') : null,
+      ...(terminal ? { finishedAt: new Date() } : {}),
+    })
+    .where(and(
+      eq(iotOtaTaskDevices.taskId, input.taskId),
+      eq(iotOtaTaskDevices.deviceId, device.id),
+      inArray(iotOtaTaskDevices.status, ['pending', 'notified', 'downloading', 'installing']),
+    ))
+    .returning({ id: iotOtaTaskDevices.id });
+  if (!row) throw new HTTPException(404, { message: '升级任务不存在或已结束' });
+  if (terminal) await convergeOtaTask(input.taskId);
+}
+
+/** 固件版本上报确认：touchDevice 检测到版本变更时调用（与影子收敛同一语义） */
+export async function confirmIotOtaByVersion(deviceId: number, version: string): Promise<void> {
+  const rows = await db.select({ td: iotOtaTaskDevices })
+    .from(iotOtaTaskDevices)
+    .innerJoin(iotOtaTasks, eq(iotOtaTaskDevices.taskId, iotOtaTasks.id))
+    .where(and(
+      eq(iotOtaTaskDevices.deviceId, deviceId),
+      inArray(iotOtaTaskDevices.status, ['pending', 'notified', 'downloading', 'installing']),
+      eq(iotOtaTasks.status, 'running'),
+      eq(iotOtaTasks.firmwareVersion, version),
+    ));
+  for (const { td } of rows) {
+    await db.update(iotOtaTaskDevices)
+      .set({ status: 'succeeded', progress: 100, finishedAt: new Date() })
+      .where(eq(iotOtaTaskDevices.id, td.id));
+    await convergeOtaTask(td.taskId);
+  }
+}
+
+/** 设备下载固件前校验：需持有该任务的活跃升级行，返回固件文件 id */
+export async function ensureOtaDownloadAllowed(device: IotDeviceRow, taskId: number): Promise<string> {
+  const [row] = await db.select({ fileId: iotFirmwares.fileId, tdStatus: iotOtaTaskDevices.status })
+    .from(iotOtaTaskDevices)
+    .innerJoin(iotOtaTasks, eq(iotOtaTaskDevices.taskId, iotOtaTasks.id))
+    .innerJoin(iotFirmwares, eq(iotOtaTasks.firmwareId, iotFirmwares.id))
+    .where(and(
+      eq(iotOtaTaskDevices.taskId, taskId),
+      eq(iotOtaTaskDevices.deviceId, device.id),
+      inArray(iotOtaTaskDevices.status, ['notified', 'downloading', 'installing']),
+      eq(iotOtaTasks.status, 'running'),
+    ))
+    .limit(1);
+  if (!row) throw new HTTPException(403, { message: '无该任务的有效升级授权' });
+  if (!row.fileId) throw new HTTPException(404, { message: '固件文件已被删除' });
+  return row.fileId;
+}
+
+/** 超时收敛（系统周期任务，每分钟）：越期未终态的设备判 failed */
+export async function sweepIotOtaTimeouts(): Promise<string> {
+  const running = await db.select().from(iotOtaTasks).where(eq(iotOtaTasks.status, 'running'));
+  let failed = 0;
+  for (const task of running) {
+    const cutoff = new Date(Date.now() - task.timeoutMinutes * 60_000);
+    const overdue = await db.update(iotOtaTaskDevices)
+      .set({ status: 'failed', errorMsg: `超过 ${task.timeoutMinutes} 分钟未完成`, finishedAt: new Date() })
+      .where(and(
+        eq(iotOtaTaskDevices.taskId, task.id),
+        inArray(iotOtaTaskDevices.status, ['pending', 'notified', 'downloading', 'installing']),
+        lt(iotOtaTaskDevices.createdAt, cutoff),
+      ))
+      .returning({ id: iotOtaTaskDevices.id });
+    if (overdue.length > 0) {
+      failed += overdue.length;
+      await convergeOtaTask(task.id);
+      logger.info(`[iot-ota] 任务 #${task.id} 超时收敛 ${overdue.length} 台设备`);
+    }
+  }
+  return failed > 0 ? `超时判 failed ${failed} 台` : '无超时设备';
+}

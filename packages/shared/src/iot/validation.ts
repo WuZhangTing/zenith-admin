@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import {
   IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_BATCH_DEVICE_MAX,
-  IOT_COMPARE_OPS, IOT_EVENT_BATCH_MAX, IOT_EVENT_LEVELS, IOT_PROPERTY_TYPES,
+  IOT_COMPARE_OPS, IOT_EVENT_BATCH_MAX, IOT_EVENT_LEVELS, IOT_FIRMWARE_VERSION_PATTERN,
+  IOT_OTA_DEFAULT_TIMEOUT_MINUTES, IOT_OTA_PROGRESS_STATUSES, IOT_PROPERTY_TYPES,
   IOT_TELEMETRY_BATCH_MAX, IOT_VALIDATION_MODES,
 } from './constants';
 
@@ -277,3 +278,50 @@ export type IotTelemetryIngestInput = z.infer<typeof iotTelemetryIngestSchema>;
 export type IotEventIngestInput = z.infer<typeof iotEventIngestSchema>;
 
 export type IotCommandAckInput = z.infer<typeof iotCommandAckSchema>;
+
+// ─── 三期：固件与 OTA ─────────────────────────────────────────────────────────
+export const createIotFirmwareSchema = z.object({
+  productId: z.number().int().positive(),
+  version: z.string().min(1, '版本号不能为空').max(32)
+    .regex(IOT_FIRMWARE_VERSION_PATTERN, '版本号需为语义化格式，如 1.2.3 或 1.2.3-beta.1'),
+  fileId: z.string().min(1, '请上传固件文件'),
+  fileName: z.string().min(1).max(255),
+  size: z.number().int().min(0),
+  sha256: z.string().length(64, 'SHA256 需为 64 位十六进制').regex(/^[0-9a-f]+$/i, 'SHA256 需为十六进制'),
+  releaseNotes: z.string().max(4000).nullable().optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+});
+
+/** 版本与文件一经创建不可变更（设备按版本判定升级结果） */
+export const updateIotFirmwareSchema = z.object({
+  releaseNotes: z.string().max(4000).nullable().optional(),
+  status: z.enum(['enabled', 'disabled']).optional(),
+});
+
+export const createIotOtaTaskSchema = z.object({
+  firmwareId: z.number().int().positive(),
+  /** 三选一：显式设备 / 分组 / 产品下全部启用设备 */
+  deviceIds: z.array(z.number().int().positive()).max(IOT_BATCH_DEVICE_MAX).optional(),
+  groupId: z.number().int().positive().optional(),
+  allDevices: z.boolean().optional(),
+  timeoutMinutes: z.number().int().min(5).max(1440).default(IOT_OTA_DEFAULT_TIMEOUT_MINUTES),
+}).refine((v) => (v.deviceIds?.length ?? 0) > 0 || v.groupId !== undefined || v.allDevices === true, {
+  message: '请选择目标设备、分组或全部设备',
+  path: ['deviceIds'],
+});
+
+/** 设备侧 OTA 进度回报（ingest / WS 帧共用） */
+export const iotOtaProgressSchema = z.object({
+  taskId: z.number().int().positive(),
+  status: z.enum(IOT_OTA_PROGRESS_STATUSES),
+  progress: z.number().int().min(0).max(100).optional(),
+  errorMsg: z.string().max(256).optional(),
+});
+
+export type CreateIotFirmwareInput = z.infer<typeof createIotFirmwareSchema>;
+
+export type UpdateIotFirmwareInput = z.infer<typeof updateIotFirmwareSchema>;
+
+export type CreateIotOtaTaskInput = z.infer<typeof createIotOtaTaskSchema>;
+
+export type IotOtaProgressInput = z.infer<typeof iotOtaProgressSchema>;

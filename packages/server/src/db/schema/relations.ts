@@ -63,6 +63,7 @@ import { wikiComments, wikiDocFavorites, wikiDocReadReceipts, wikiDocSubscriptio
 import {
   iotAlarmRules, iotAlarms, iotCommands, iotDeviceEvents, iotDeviceGroupMembers, iotDeviceGroups,
   iotDevices, iotDeviceState, iotProductEvents, iotProductProperties, iotProducts, iotProductServices, iotTelemetry,
+  iotFirmwares, iotOtaTaskDevices, iotOtaTasks, iotTelemetryHourly,
 } from './iot';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
@@ -1763,4 +1764,27 @@ export const iotDeviceGroupsRelations = relations(iotDeviceGroups, ({ one, many 
 export const iotDeviceGroupMembersRelations = relations(iotDeviceGroupMembers, ({ one }) => ({
   group: one(iotDeviceGroups, { fields: [iotDeviceGroupMembers.groupId], references: [iotDeviceGroups.id] }),
   device: one(iotDevices, { fields: [iotDeviceGroupMembers.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotTelemetryHourlyRelations = relations(iotTelemetryHourly, ({ one }) => ({
+  device: one(iotDevices, { fields: [iotTelemetryHourly.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotFirmwaresRelations = relations(iotFirmwares, ({ one, many }) => ({
+  product: one(iotProducts, { fields: [iotFirmwares.productId], references: [iotProducts.id] }),
+  file: one(managedFiles, { fields: [iotFirmwares.fileId], references: [managedFiles.id] }),
+  tenant: one(tenants, { fields: [iotFirmwares.tenantId], references: [tenants.id] }),
+  otaTasks: many(iotOtaTasks),
+}));
+
+export const iotOtaTasksRelations = relations(iotOtaTasks, ({ one, many }) => ({
+  firmware: one(iotFirmwares, { fields: [iotOtaTasks.firmwareId], references: [iotFirmwares.id] }),
+  product: one(iotProducts, { fields: [iotOtaTasks.productId], references: [iotProducts.id] }),
+  tenant: one(tenants, { fields: [iotOtaTasks.tenantId], references: [tenants.id] }),
+  devices: many(iotOtaTaskDevices),
+}));
+
+export const iotOtaTaskDevicesRelations = relations(iotOtaTaskDevices, ({ one }) => ({
+  task: one(iotOtaTasks, { fields: [iotOtaTaskDevices.taskId], references: [iotOtaTasks.id] }),
+  device: one(iotDevices, { fields: [iotOtaTaskDevices.deviceId], references: [iotDevices.id] }),
 }));

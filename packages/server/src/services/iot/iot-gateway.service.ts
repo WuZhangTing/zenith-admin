@@ -6,7 +6,7 @@
  * 多实例部署时指令需经 Redis pub/sub 路由到持有连接的实例，当前部署形态为单实例，留待需要时演进。
  */
 import type { WSContext } from 'hono/ws';
-import type { IotCommandPayload, IotDesiredPayload } from '@zenith/shared/iot';
+import type { IotCommandPayload, IotDesiredPayload, IotOtaPayload } from '@zenith/shared/iot';
 import { IOT_WS_FRAME_TYPES } from '@zenith/shared/iot';
 import logger from '../../lib/logger';
 
@@ -55,6 +55,20 @@ export function pushDesiredToDevice(sn: string, payload: IotDesiredPayload): boo
     return true;
   } catch (err) {
     logger.warn(`[iot-gateway] 期望属性推送失败 sn=${sn}: ${(err as Error).message}`);
+    connections.delete(sn);
+    return false;
+  }
+}
+
+/** 向设备推送 OTA 升级帧；未连接/异常返回 false（离线设备靠心跳捎带） */
+export function pushOtaToDevice(sn: string, payload: IotOtaPayload): boolean {
+  const ws = connections.get(sn);
+  if (!ws) return false;
+  try {
+    ws.send(JSON.stringify({ type: IOT_WS_FRAME_TYPES.otaUpgrade, payload }));
+    return true;
+  } catch (err) {
+    logger.warn(`[iot-gateway] OTA 推送失败 sn=${sn}: ${(err as Error).message}`);
     connections.delete(sn);
     return false;
   }

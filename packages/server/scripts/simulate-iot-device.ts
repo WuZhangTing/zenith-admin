@@ -11,6 +11,7 @@
  * - WS 在线 + 按 report_interval（默认 15s，可被期望属性远程调整）上报温湿度
  * - 收到 command:exec 帧 2s 后回 ACK 成功
  * - 收到 shadow:desired 帧应用期望值并随下一次遥测回报（服务端按键收敛 desired）
+ * - 收到 ota:upgrade 帧模拟下载/安装进度回报，完成后以新版本上报遥测（服务端按版本确认成功）
  * Ctrl+C 断开（管理端在线态随之变为离线）。
  */
 import { createHmac } from 'node:crypto';
@@ -31,6 +32,8 @@ const state: Record<string, number | string | boolean> = {
   report_interval: 15,
   led_enabled: true,
 };
+
+let firmwareVersion = arg('fw', '1.2.0');
 
 function sign(ts: string, body: string): string {
   return createHmac('sha256', SECRET).update(`${SN}\n${ts}\n${body}`).digest('hex');
@@ -60,8 +63,8 @@ let reportTimer: ReturnType<typeof setTimeout> | null = null;
 
 function report() {
   const metrics = buildMetrics();
-  ws.send(JSON.stringify({ type: 'telemetry', payload: { items: [{ metrics }], firmwareVersion: '1.2.0' } }));
-  console.log(`[sim] 📤 上报遥测`, metrics);
+  ws.send(JSON.stringify({ type: 'telemetry', payload: { items: [{ metrics }], firmwareVersion } }));
+  console.log(`[sim] 📤 上报遥测 (fw ${firmwareVersion})`, metrics);
   reportTimer = setTimeout(report, Number(state.report_interval) * 1000);
 }
 
@@ -79,7 +82,11 @@ ws.onopen = () => {
 ws.onmessage = (evt) => {
   const frame = JSON.parse(String(evt.data)) as {
     type: string;
-    payload?: { commandId?: number; service?: string; params?: unknown; version?: number; desired?: Record<string, number | string | boolean> };
+    payload?: {
+      commandId?: number; service?: string; params?: unknown; version?: number | string;
+      desired?: Record<string, number | string | boolean>;
+      taskId?: number; fileName?: string; sha256?: string; downloadPath?: string;
+    };
   };
   if (frame.type === 'command:exec' && frame.payload?.commandId) {
     const { commandId, service, params } = frame.payload;
@@ -98,6 +105,23 @@ ws.onmessage = (evt) => {
     // 立即回报一次，让服务端按键收敛 desired
     if (reportTimer) clearTimeout(reportTimer);
     report();
+  } else if (frame.type === 'ota:upgrade' && frame.payload?.taskId) {
+    const { taskId, version, fileName } = frame.payload;
+    console.log(`[sim] 📥 收到 OTA 升级 任务#${taskId} → v${version}（${fileName}）`);
+    const progress = (status: string, pct?: number, delay = 0) => setTimeout(() => {
+      ws.send(JSON.stringify({ type: 'ota:progress', payload: { taskId, status, ...(pct !== undefined ? { progress: pct } : {}) } }));
+      console.log(`[sim] 📶 OTA ${status}${pct !== undefined ? ` ${pct}%` : ''}`);
+    }, delay);
+    progress('downloading', 30, 1_000);
+    progress('downloading', 80, 3_000);
+    progress('installing', 90, 5_000);
+    // 安装完成：切换版本并立即上报遥测，服务端按版本一致自动确认成功
+    setTimeout(() => {
+      firmwareVersion = String(version);
+      console.log(`[sim] ✅ OTA 安装完成，当前固件 v${firmwareVersion}`);
+      if (reportTimer) clearTimeout(reportTimer);
+      report();
+    }, 7_000);
   } else if (frame.type === 'heartbeat:ack') {
     console.log('[sim] 💓 心跳确认');
   }

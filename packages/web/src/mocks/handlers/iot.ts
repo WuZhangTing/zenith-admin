@@ -6,11 +6,12 @@ import type {
   IotProduct, SendIotCommandInput, SetIotDesiredInput,
 } from '@zenith/shared/iot';
 import {
-  buildMockTelemetry, getNextIotAlarmRuleId, getNextIotCommandId, getNextIotDeviceId,
-  getNextIotGroupId, getNextIotModelItemId, getNextIotProductId,
+  buildMockTelemetry, buildMockTelemetryAgg, getNextIotAlarmRuleId, getNextIotCommandId, getNextIotDeviceId,
+  getNextIotFirmwareId, getNextIotGroupId, getNextIotModelItemId, getNextIotOtaTaskDeviceId,
+  getNextIotOtaTaskId, getNextIotProductId,
   mockIotAlarmRules, mockIotAlarms, mockIotCommands, mockIotDeviceEvents, mockIotDevices,
-  mockIotEvents, mockIotGroups, mockIotProducts, mockIotProperties, mockIotServices,
-  mockIotShadows, withGroupInfo,
+  mockIotEvents, mockIotFirmwares, mockIotGroups, mockIotOtaTaskDevices, mockIotOtaTasks,
+  mockIotProducts, mockIotProperties, mockIotServices, mockIotShadows, withGroupInfo,
 } from '../data/iot';
 import { mockDateTime } from '../utils/date';
 
@@ -42,6 +43,224 @@ function getShadow(deviceId: number) {
 }
 
 export const iotHandlers = [
+  // ─── 总览仪表盘 ──────────────────────────────────────────────────────────────
+  http.get('/api/iot/dashboard', () => {
+    const total = mockIotDevices.filter((d) => d.status === 'enabled').length;
+    const online = mockIotDevices.filter((d) => d.online).length;
+    const firing = mockIotAlarms.filter((a) => a.status === 'firing');
+    const now = Date.now();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const onlineTrend = Array.from({ length: 144 }, (_, i) => {
+      const at = new Date(now - (143 - i) * 600_000);
+      return {
+        time: `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}:00`,
+        total,
+        online: i > 100 ? online : Math.max(0, online - (i % 7 === 0 ? 1 : 0)),
+      };
+    });
+    const alarmTrend = Array.from({ length: 7 }, (_, i) => {
+      const at = new Date(now - (6 - i) * 86_400_000);
+      return {
+        date: `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`,
+        warning: i === 6 ? 1 : (i % 3 === 0 ? 1 : 0),
+        critical: i === 6 ? firing.filter((a) => a.level === 'critical').length : 0,
+      };
+    });
+    return ok({
+      stats: {
+        deviceTotal: total,
+        onlineCount: online,
+        onlineRate: total > 0 ? Math.round((online / total) * 1000) / 10 : 0,
+        telemetryToday: 2880,
+        firingWarning: firing.filter((a) => a.level === 'warning').length,
+        firingCritical: firing.filter((a) => a.level === 'critical').length,
+        pendingDesiredDevices: [...mockIotShadows.values()].filter((s) => Object.keys(s.desired).length > 0).length,
+        productTotal: mockIotProducts.length,
+      },
+      onlineTrend,
+      alarmTrend,
+      productDistribution: mockIotProducts.map((p) => ({
+        name: p.name,
+        value: mockIotDevices.filter((d) => d.productId === p.id).length,
+      })),
+      recentAlarms: [...mockIotAlarms].sort((a, b) => b.id - a.id).slice(0, 5),
+      recentEvents: [...mockIotDeviceEvents].sort((a, b) => b.id - a.id).slice(0, 8).map((e) => ({
+        ...e,
+        deviceName: mockIotDevices.find((d) => d.id === e.deviceId)?.name ?? null,
+      })),
+    });
+  }),
+
+  // ─── 固件包 ──────────────────────────────────────────────────────────────────
+  http.get('/api/iot/firmwares', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') || '';
+    const productId = url.searchParams.get('productId');
+    const status = url.searchParams.get('status') || '';
+    let list = mockIotFirmwares.map((f) => ({
+      ...f,
+      taskCount: mockIotOtaTasks.filter((t) => t.firmwareId === f.id).length,
+    }));
+    if (keyword) list = list.filter((f) => f.version.includes(keyword) || f.fileName.includes(keyword));
+    if (productId) list = list.filter((f) => f.productId === Number(productId));
+    if (status) list = list.filter((f) => f.status === status);
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.post('/api/iot/firmwares', async ({ request }) => {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    const productId = Number(formData.get('productId'));
+    const version = String(formData.get('version') ?? '');
+    const product = mockIotProducts.find((p) => p.id === productId);
+    if (!product) return badRequest('所属产品不存在', { status: 400 });
+    if (!(file instanceof File)) return badRequest('请选择要上传的固件文件', { status: 400 });
+    if (mockIotFirmwares.some((f) => f.productId === productId && f.version === version)) {
+      return badRequest(`产品下已存在版本 ${version}`, { status: 400 });
+    }
+    const now = mockDateTime();
+    const firmware = {
+      id: getNextIotFirmwareId(),
+      productId,
+      productName: product.name,
+      version,
+      fileId: `demo-firmware-file-${Date.now()}`,
+      fileName: file.name,
+      size: file.size,
+      sha256: 'd'.repeat(64),
+      releaseNotes: (formData.get('releaseNotes') as string) || null,
+      status: 'enabled' as const,
+      taskCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockIotFirmwares.push(firmware);
+    return ok(firmware, '上传成功');
+  }),
+  http.put('/api/iot/firmwares/:id', async ({ params, request }) => {
+    const firmware = mockIotFirmwares.find((f) => f.id === Number(params.id));
+    if (!firmware) return notFound('固件不存在', { status: 404 });
+    Object.assign(firmware, await request.json() as object, { updatedAt: mockDateTime() });
+    return ok(firmware, '更新成功');
+  }),
+  http.delete('/api/iot/firmwares/:id', ({ params }) => {
+    const id = Number(params.id);
+    const idx = mockIotFirmwares.findIndex((f) => f.id === id);
+    if (idx === -1) return notFound('固件不存在', { status: 404 });
+    if (mockIotOtaTasks.some((t) => t.firmwareId === id)) return badRequest('该固件存在升级任务，不可删除', { status: 400 });
+    mockIotFirmwares.splice(idx, 1);
+    return ok(null, '删除成功');
+  }),
+
+  // ─── OTA 升级任务 ────────────────────────────────────────────────────────────
+  http.get('/api/iot/ota-tasks', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') || '';
+    const status = url.searchParams.get('status') || '';
+    let list = [...mockIotOtaTasks];
+    if (keyword) list = list.filter((t) => t.title.includes(keyword) || t.firmwareVersion.includes(keyword));
+    if (status) list = list.filter((t) => t.status === status);
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.post('/api/iot/ota-tasks', async ({ request }) => {
+    const body = (await request.json()) as { firmwareId: number; deviceIds?: number[]; groupId?: number; allDevices?: boolean; timeoutMinutes?: number };
+    const firmware = mockIotFirmwares.find((f) => f.id === body.firmwareId);
+    if (!firmware) return notFound('固件不存在', { status: 404 });
+    const ids = new Set<number>(body.deviceIds ?? []);
+    if (body.groupId) {
+      const group = mockIotGroups.find((g) => g.id === body.groupId);
+      for (const id of group?.deviceIds ?? []) ids.add(id);
+    }
+    if (body.allDevices) {
+      for (const d of mockIotDevices.filter((d) => d.productId === firmware.productId)) ids.add(d.id);
+    }
+    const eligible = mockIotDevices.filter((d) =>
+      ids.has(d.id) && d.productId === firmware.productId && d.status === 'enabled' && d.firmwareVersion !== firmware.version);
+    if (eligible.length === 0) return badRequest('没有可升级的目标设备（需属于该固件产品、启用且版本不同）', { status: 400 });
+    const now = mockDateTime();
+    const task = {
+      id: getNextIotOtaTaskId(),
+      title: `升级到 v${firmware.version}（${eligible.length} 台）`,
+      firmwareId: firmware.id,
+      productId: firmware.productId,
+      productName: firmware.productName ?? null,
+      firmwareVersion: firmware.version,
+      status: 'running' as const,
+      timeoutMinutes: body.timeoutMinutes ?? 30,
+      totalCount: eligible.length,
+      succeededCount: 0,
+      failedCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    mockIotOtaTasks.push(task);
+    for (const d of eligible) {
+      mockIotOtaTaskDevices.push({
+        id: getNextIotOtaTaskDeviceId(),
+        taskId: task.id,
+        deviceId: d.id,
+        deviceName: d.name,
+        deviceSn: d.sn,
+        status: d.online ? 'notified' : 'pending',
+        progress: 0,
+        fromVersion: d.firmwareVersion,
+        errorMsg: null,
+        notifiedAt: d.online ? now : null,
+        finishedAt: null,
+      });
+    }
+    return ok(task, '升级任务已创建');
+  }),
+  http.get('/api/iot/ota-tasks/:id/devices', ({ params, request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page')) || 1;
+    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const status = url.searchParams.get('status') || '';
+    let list = mockIotOtaTaskDevices.filter((d) => d.taskId === Number(params.id));
+    // Demo 模式：进行中任务的设备进度随读取推进，最终收敛为成功
+    for (const row of list) {
+      if (row.status === 'notified' || row.status === 'downloading' || row.status === 'installing') {
+        row.progress = Math.min(100, row.progress + 25);
+        if (row.progress < 60) row.status = 'downloading';
+        else if (row.progress < 100) row.status = 'installing';
+        else {
+          row.status = 'succeeded';
+          row.finishedAt = mockDateTime();
+          const task = mockIotOtaTasks.find((t) => t.id === row.taskId);
+          if (task) {
+            task.succeededCount += 1;
+            const active = mockIotOtaTaskDevices.filter((d) =>
+              d.taskId === task.id && ['pending', 'notified', 'downloading', 'installing'].includes(d.status));
+            if (active.length === 0) task.status = 'completed';
+          }
+          const device = mockIotDevices.find((d) => d.id === row.deviceId);
+          const task2 = mockIotOtaTasks.find((t) => t.id === row.taskId);
+          if (device && task2) device.firmwareVersion = task2.firmwareVersion;
+        }
+      }
+    }
+    if (status) list = list.filter((d) => d.status === status);
+    return ok(pageResult([...list].sort((a, b) => b.id - a.id), page, pageSize));
+  }),
+  http.post('/api/iot/ota-tasks/:id/cancel', ({ params }) => {
+    const task = mockIotOtaTasks.find((t) => t.id === Number(params.id));
+    if (!task) return notFound('升级任务不存在', { status: 404 });
+    if (task.status !== 'running') return badRequest('任务已结束，无法取消', { status: 400 });
+    task.status = 'cancelled';
+    for (const d of mockIotOtaTaskDevices.filter((d) => d.taskId === task.id)) {
+      if (['pending', 'notified', 'downloading', 'installing'].includes(d.status)) {
+        d.status = 'cancelled';
+        d.finishedAt = mockDateTime();
+      }
+    }
+    return ok(task, '任务已取消');
+  }),
+  http.get('/api/iot/ota-tasks/:id', ({ params }) => {
+    const task = mockIotOtaTasks.find((t) => t.id === Number(params.id));
+    if (!task) return notFound('升级任务不存在', { status: 404 });
+    return ok(task);
+  }),
+
+
   // ─── 产品 ────────────────────────────────────────────────────────────────────
   http.get('/api/iot/products/all', () =>
     ok(mockIotProducts.filter((p) => p.status === 'enabled').map(productWithCounts))),
@@ -419,6 +638,19 @@ export const iotHandlers = [
   }),
 
   // ─── 设备子资源 ──────────────────────────────────────────────────────────────
+  http.get('/api/iot/devices/import-template', () => badRequest('演示模式不支持下载模板', { status: 400 })),
+  http.post('/api/iot/devices/import', async ({ request }) => {
+    const formData = await request.formData();
+    const file = formData.get('file');
+    if (!(file instanceof File)) return badRequest('请上传文件', { status: 400 });
+    return ok({ total: 2, success: 2, failed: 0, errors: [] }, '导入完成');
+  }),
+  http.get('/api/iot/devices/:id/telemetry/agg', ({ params, request }) => {
+    const url = new URL(request.url);
+    const property = url.searchParams.get('property') ?? '';
+    const days = Number(url.searchParams.get('days')) || 7;
+    return ok(buildMockTelemetryAgg(Number(params.id), property, days));
+  }),
   http.get('/api/iot/devices/:id/telemetry', ({ params, request }) => {
     const url = new URL(request.url);
     const days = Number(url.searchParams.get('days')) || 1;

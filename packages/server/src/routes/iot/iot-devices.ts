@@ -6,10 +6,11 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound,
+  ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound, excelBody, okExcel,
 } from '../../lib/openapi-schemas';
 import {
-  IotCommandDTO, IotDeviceDTO, IotDeviceEventDTO, IotDeviceShadowDTO, IotTelemetryPointDTO,
+  ImportResultDTO, IotCommandDTO, IotDeviceDTO, IotDeviceEventDTO, IotDeviceShadowDTO,
+  IotTelemetryAggPointDTO, IotTelemetryPointDTO,
 } from '../../lib/openapi-dtos';
 import {
   createIotDeviceSchema, updateIotDeviceSchema, sendIotCommandSchema, setIotDesiredSchema,
@@ -18,8 +19,10 @@ import {
 import {
   listIotDevices, getIotDevice, createIotDevice, updateIotDevice, deleteIotDevices,
   resetIotDeviceSecret, clearIotDeviceTelemetry, ensureIotDeviceExists, mapIotDevice,
+  getIotDeviceImportTemplate, importIotDevicesFromFormData,
 } from '../../services/iot/iot-devices.service';
 import { listIotTelemetry, listIotCommands, sendIotCommand } from '../../services/iot/iot-telemetry.service';
+import { listIotTelemetryAgg } from '../../services/iot/iot-rollup.service';
 import { clearIotDesired, getIotDeviceShadow, setIotDesired } from '../../services/iot/iot-shadow.service';
 import { listIotDeviceEvents } from '../../services/iot/iot-events.service';
 
@@ -111,6 +114,29 @@ const telemetryRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listIotTelemetry(id, c.req.valid('query'))), 200);
+  },
+});
+
+// ─── GET /{id}/telemetry/agg — 长窗口小时聚合 ────────────────────────────────
+const telemetryAggRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/telemetry/agg',
+    tags: ['IoT 设备'], summary: '设备遥测小时聚合（长窗口图表：min/max/avg 区间带）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'iot:telemetry:view' })] as const,
+    request: {
+      params: IdParam,
+      query: z.object({
+        property: z.string().min(1).max(64).openapi({ description: '数值属性标识符' }),
+        days: z.coerce.number().int().min(1).max(90).optional().openapi({ description: '时间窗天数，默认 7' }),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...ok(z.array(IotTelemetryAggPointDTO), '聚合点列') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const { property, days } = c.req.valid('query');
+    return c.json(okBody(await listIotTelemetryAgg(id, property, days)), 200);
   },
 });
 
@@ -263,6 +289,43 @@ const listEventsRoute = defineOpenAPIRoute({
   },
 });
 
+// ─── 导入：模板 + 上传 ────────────────────────────────────────────────────────
+const importTemplateRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/import-template',
+    tags: ['IoT 设备'], summary: '下载设备导入模板',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'iot:device:import' })] as const,
+    responses: { ...commonErrorResponses, ...okExcel() },
+  }),
+  handler: async (c) => excelBody(c, await getIotDeviceImportTemplate(), 'iot_device_import_template.xlsx'),
+});
+
+const importDevicesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/import',
+    tags: ['IoT 设备'], summary: '导入设备（Excel，SN 留空自动生成，密钥自动分配）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'iot:device:import',
+      audit: { description: '导入 IoT 设备', module: 'IoT 设备', recordBody: false },
+    })] as const,
+    request: {
+      body: { content: { 'multipart/form-data': { schema: z.object({ file: z.any() }) } }, required: true },
+    },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(ImportResultDTO, 'ok'),
+      400: { content: jsonContent(ErrorResponse), description: '文件无效' },
+    },
+  }),
+  handler: async (c) => {
+    const formData = await c.req.formData();
+    const result = await importIotDevicesFromFormData(formData);
+    return c.json(okBody(result, '导入完成'), 200);
+  },
+});
+
 // ─── POST / — 创建 ────────────────────────────────────────────────────────────
 const createRoute_ = defineOpenAPIRoute({
   route: createRoute({
@@ -336,7 +399,10 @@ const deleteRoute_ = defineOpenAPIRoute({
 iotDevicesRouter.openapiRoutes([
   listRoute,
   batchDeleteRoute,
+  importTemplateRoute,
+  importDevicesRoute,
   getOneRoute,
+  telemetryAggRoute,
   telemetryRoute,
   listCommandsRoute,
   sendCommandRoute,

@@ -1,12 +1,13 @@
 import {
   SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_DEVICE_EVENTS, SEED_IOT_DEVICE_GROUPS,
-  SEED_IOT_DEVICES, SEED_IOT_PRODUCT_EVENTS, SEED_IOT_PRODUCT_PROPERTIES,
+  SEED_IOT_DEVICES, SEED_IOT_FIRMWARES, SEED_IOT_OTA_TASK_DEVICES, SEED_IOT_OTA_TASKS,
+  SEED_IOT_PRODUCT_EVENTS, SEED_IOT_PRODUCT_PROPERTIES,
   SEED_IOT_PRODUCT_SERVICES, SEED_IOT_PRODUCTS,
 } from '@zenith/shared/seed';
 import type {
   IotAlarm, IotAlarmRule, IotCommand, IotDevice, IotDeviceEvent, IotDeviceGroup,
-  IotDeviceShadow, IotProduct, IotProductEvent, IotProductProperty, IotProductService,
-  IotTelemetryPoint,
+  IotDeviceShadow, IotFirmware, IotOtaTask, IotOtaTaskDevice, IotProduct, IotProductEvent,
+  IotProductProperty, IotProductService, IotTelemetryAggPoint, IotTelemetryPoint,
 } from '@zenith/shared/iot';
 import { mockDateTime } from '@/mocks/utils/date';
 import { nextIdFrom } from '@/mocks/utils/handlers';
@@ -126,4 +127,48 @@ export function withGroupInfo(device: IotDevice): IotDevice {
     reported: shadow?.reported ?? null,
     desired: shadow?.desired ?? null,
   };
+}
+
+// ─── 三期：固件 / OTA / 聚合 ──────────────────────────────────────────────────
+export const mockIotFirmwares: IotFirmware[] = SEED_IOT_FIRMWARES.map((f) => ({ ...f }));
+
+export const mockIotOtaTasks: IotOtaTask[] = SEED_IOT_OTA_TASKS.map((t) => ({ ...t }));
+
+export const mockIotOtaTaskDevices: IotOtaTaskDevice[] = SEED_IOT_OTA_TASK_DEVICES.map((d) => ({ ...d }));
+
+let nextFirmwareId = nextIdFrom(mockIotFirmwares);
+export function getNextIotFirmwareId(): number {
+  return nextFirmwareId++;
+}
+
+let nextOtaTaskId = nextIdFrom(mockIotOtaTasks);
+export function getNextIotOtaTaskId(): number {
+  return nextOtaTaskId++;
+}
+
+let nextOtaTaskDeviceId = nextIdFrom(mockIotOtaTaskDevices);
+export function getNextIotOtaTaskDeviceId(): number {
+  return nextOtaTaskDeviceId++;
+}
+
+/** 近 N 天的小时聚合演示曲线（仅 1 号设备的数值属性） */
+export function buildMockTelemetryAgg(deviceId: number, property: string, days: number): IotTelemetryAggPoint[] {
+  if (deviceId !== 1 || (property !== 'temperature' && property !== 'humidity')) return [];
+  const hours = Math.min(days, 90) * 24;
+  const now = Date.now();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return Array.from({ length: hours }, (_, i) => {
+    const at = new Date(now - (hours - 1 - i) * 3600_000);
+    const hour = at.getHours();
+    const phase = Math.sin(((hour - 14) / 24) * Math.PI * 2);
+    const base = property === 'temperature' ? 24 + phase * 3 : 50 - phase * 8;
+    const spread = property === 'temperature' ? 1.2 : 4;
+    return {
+      bucket: `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(hour)}:00:00`,
+      minValue: Math.round((base - spread) * 10) / 10,
+      maxValue: Math.round((base + spread) * 10) / 10,
+      avgValue: Math.round(base * 10) / 10,
+      count: 120,
+    };
+  });
 }

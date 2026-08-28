@@ -1,6 +1,6 @@
 import type {
-  IotAlarm, IotAlarmRule, IotDevice, IotDeviceEvent, IotDeviceGroup,
-  IotProduct, IotProductEvent, IotProductProperty, IotProductService,
+  IotAlarm, IotAlarmRule, IotDevice, IotDeviceEvent, IotDeviceGroup, IotFirmware,
+  IotOtaTask, IotOtaTaskDevice, IotProduct, IotProductEvent, IotProductProperty, IotProductService,
 } from '../iot/types';
 import { SEED_DATE } from './_base';
 
@@ -178,4 +178,31 @@ export const SEED_IOT_DEVICE_EVENTS: IotDeviceEvent[] = [
   { id: 2, deviceId: 1, kind: 'lifecycle', identifier: 'online', name: '设备上线', level: 'info', payload: null, reportedAt: '2024-01-01 00:00:00' },
   { id: 3, deviceId: 1, kind: 'model', identifier: 'high_temperature', name: '高温预警', level: 'warn', payload: { temperature: 36.2 }, reportedAt: '2024-01-01 10:00:00' },
   { id: 4, deviceId: 1, kind: 'lifecycle', identifier: 'offline', name: '设备离线', level: 'warn', payload: null, reportedAt: '2024-01-01 11:55:00' },
+];
+
+/** 固件与升级任务演示数据（仅 MSW mock 使用；DB seed 不种固件——真实流程需上传文件计算 SHA256） */
+export const SEED_IOT_FIRMWARES: IotFirmware[] = [
+  {
+    id: 1, productId: 1, productName: '温湿度传感器 TH-100', version: '2.0.0',
+    fileId: 'demo-firmware-file-0001', fileName: 'th100-v2.0.0.bin', size: 1048576,
+    sha256: 'a'.repeat(64), releaseNotes: '演示固件：优化温度采样精度，修复湿度漂移。',
+    status: 'enabled', taskCount: 1, createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_IOT_OTA_TASKS: IotOtaTask[] = [
+  {
+    id: 1, title: '升级到 v2.0.0（1 台）', firmwareId: 1, productId: 1,
+    productName: '温湿度传感器 TH-100', firmwareVersion: '2.0.0', status: 'running',
+    timeoutMinutes: 30, totalCount: 1, succeededCount: 0, failedCount: 0,
+    createdAt: SEED_DATE, updatedAt: SEED_DATE,
+  },
+];
+
+export const SEED_IOT_OTA_TASK_DEVICES: IotOtaTaskDevice[] = [
+  {
+    id: 1, taskId: 1, deviceId: 1, deviceName: '机房 A-01 温湿度', deviceSn: 'SN-DEMO-TH100-0001',
+    status: 'notified', progress: 0, fromVersion: '1.2.0', errorMsg: null,
+    notifiedAt: SEED_DATE, finishedAt: null,
+  },
 ];

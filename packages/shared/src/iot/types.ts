@@ -1,6 +1,6 @@
 import type {
   IotAccessMode, IotAlarmLevel, IotAlarmRuleType, IotAlarmStatus, IotCommandStatus,
-  IotDeviceEventKind, IotEventLevel, IotPropertyType, IotValidationMode,
+  IotDeviceEventKind, IotEventLevel, IotOtaDeviceStatus, IotOtaTaskStatus, IotPropertyType, IotValidationMode,
 } from './constants';
 
 export type IotMetricValue = number | string | boolean;
@@ -232,4 +232,119 @@ export interface IotDeviceGroup {
   updatedBy?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ─── 遥测聚合（长窗口图表） ───────────────────────────────────────────────────
+export interface IotTelemetryAggPoint {
+  /** 小时桶起点 YYYY-MM-DD HH:mm:ss */
+  bucket: string;
+  minValue: number;
+  maxValue: number;
+  avgValue: number;
+  count: number;
+}
+
+// ─── 固件与 OTA ───────────────────────────────────────────────────────────────
+export interface IotFirmware {
+  id: number;
+  productId: number;
+  productName?: string | null;
+  version: string;
+  fileId: string | null;
+  fileName: string;
+  size: number;
+  sha256: string;
+  releaseNotes: string | null;
+  status: 'enabled' | 'disabled';
+  /** 升级任务数（列表聚合返回） */
+  taskCount?: number;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IotOtaTask {
+  id: number;
+  title: string;
+  firmwareId: number;
+  productId: number;
+  productName?: string | null;
+  firmwareVersion: string;
+  status: IotOtaTaskStatus;
+  timeoutMinutes: number;
+  totalCount: number;
+  succeededCount: number;
+  failedCount: number;
+  createdBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IotOtaTaskDevice {
+  id: number;
+  taskId: number;
+  deviceId: number;
+  deviceName?: string | null;
+  deviceSn?: string | null;
+  online?: boolean;
+  status: IotOtaDeviceStatus;
+  progress: number;
+  fromVersion: string | null;
+  errorMsg: string | null;
+  notifiedAt: string | null;
+  finishedAt: string | null;
+}
+
+/** 设备侧 OTA 升级载荷（WS ota:upgrade 帧 / 心跳响应捎带） */
+export interface IotOtaPayload {
+  taskId: number;
+  version: string;
+  fileName: string;
+  size: number;
+  sha256: string;
+  /** 设备侧带签名参数请求该地址下载固件 */
+  downloadPath: string;
+}
+
+// ─── 总览仪表盘 ───────────────────────────────────────────────────────────────
+export interface IotDashboardStats {
+  deviceTotal: number;
+  onlineCount: number;
+  /** 0-100 */
+  onlineRate: number;
+  telemetryToday: number;
+  firingWarning: number;
+  firingCritical: number;
+  /** 存在待确认期望值的设备数 */
+  pendingDesiredDevices: number;
+  productTotal: number;
+}
+
+export interface IotOnlineTrendPoint {
+  /** YYYY-MM-DD HH:mm:ss */
+  time: string;
+  total: number;
+  online: number;
+}
+
+export interface IotAlarmTrendPoint {
+  /** YYYY-MM-DD */
+  date: string;
+  warning: number;
+  critical: number;
+}
+
+export interface IotProductDistributionItem {
+  name: string;
+  value: number;
+}
+
+export interface IotDashboard {
+  stats: IotDashboardStats;
+  onlineTrend: IotOnlineTrendPoint[];
+  alarmTrend: IotAlarmTrendPoint[];
+  productDistribution: IotProductDistributionItem[];
+  recentAlarms: IotAlarm[];
+  recentEvents: Array<IotDeviceEvent & { deviceName?: string | null }>;
 }

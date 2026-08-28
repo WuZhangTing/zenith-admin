@@ -382,13 +382,40 @@ export async function registerSystemTasks(): Promise<void> {
   });
 
   const { sweepIotOfflineAlarms } = await import('../services/iot/iot-alarms.service');
+  const { sampleIotOnlineSnapshot } = await import('../services/iot/iot-rollup.service');
   await registerSystemRecurringJob({
     name: 'iot-offline-sweep',
     title: 'IoT 设备离线扫描',
     module: 'IoT 设备',
     cronExpression: '* * * * *',
-    description: '每分钟收敛设备持久化在线标记（Redis TTL 对账 + 离线事件打点），并按启用的离线告警规则触发告警。',
+    description: '每分钟收敛设备持久化在线标记（Redis TTL 对账 + 离线事件打点），按启用的离线告警规则触发告警，并顺带落一条在线率快照（仪表盘趋势数据源）。',
     allowManualRun: true,
-    run: sweepIotOfflineAlarms,
+    run: async () => {
+      const result = await sweepIotOfflineAlarms();
+      await sampleIotOnlineSnapshot();
+      return result;
+    },
+  });
+
+  const { rollupIotTelemetryHourly } = await import('../services/iot/iot-rollup.service');
+  await registerSystemRecurringJob({
+    name: 'iot-telemetry-rollup',
+    title: 'IoT 遥测小时聚合',
+    module: 'IoT 设备',
+    cronExpression: '5 * * * *',
+    description: '每小时第 5 分钟重算最近两个小时桶的数值属性聚合（min/max/avg/last），长窗口图表与仪表盘查聚合而非扫明细。',
+    allowManualRun: true,
+    run: rollupIotTelemetryHourly,
+  });
+
+  const { sweepIotOtaTimeouts } = await import('../services/iot/iot-ota.service');
+  await registerSystemRecurringJob({
+    name: 'iot-ota-timeout-sweep',
+    title: 'IoT OTA 超时收敛',
+    module: 'IoT 设备',
+    cronExpression: '* * * * *',
+    description: '每分钟把超过任务超时时长仍未终态的升级设备判为失败，全部终态后任务收敛为已完成。',
+    allowManualRun: true,
+    run: sweepIotOtaTimeouts,
   });
 }

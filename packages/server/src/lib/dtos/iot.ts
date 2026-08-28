@@ -5,6 +5,7 @@ import { z } from '@hono/zod-openapi';
 import {
   IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_ALARM_STATUSES,
   IOT_COMMAND_STATUSES, IOT_COMPARE_OPS, IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS,
+  IOT_OTA_DEVICE_STATUSES, IOT_OTA_TASK_STATUSES,
   IOT_PROPERTY_TYPES, IOT_VALIDATION_MODES,
 } from '@zenith/shared/iot';
 import { auditFields } from './_audit';
@@ -228,3 +229,91 @@ export const IotDeviceGroupDTO = z
     updatedAt: z.string(),
   })
   .openapi('IotDeviceGroup');
+
+export const IotTelemetryAggPointDTO = z
+  .object({
+    bucket: z.string(),
+    minValue: z.number(),
+    maxValue: z.number(),
+    avgValue: z.number(),
+    count: z.number().int(),
+  })
+  .openapi('IotTelemetryAggPoint');
+
+export const IotFirmwareDTO = z
+  .object({
+    id: z.number().int(),
+    productId: z.number().int(),
+    productName: z.string().nullable(),
+    version: z.string(),
+    fileId: z.string().nullable(),
+    fileName: z.string(),
+    size: z.number().int(),
+    sha256: z.string(),
+    releaseNotes: z.string().nullable(),
+    status: z.enum(['enabled', 'disabled']),
+    taskCount: z.number().int(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('IotFirmware');
+
+export const IotOtaTaskDTO = z
+  .object({
+    id: z.number().int(),
+    title: z.string(),
+    firmwareId: z.number().int(),
+    productId: z.number().int(),
+    productName: z.string().nullable(),
+    firmwareVersion: z.string(),
+    status: z.enum(IOT_OTA_TASK_STATUSES),
+    timeoutMinutes: z.number().int(),
+    totalCount: z.number().int(),
+    succeededCount: z.number().int(),
+    failedCount: z.number().int(),
+    createdBy: z.number().int().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('IotOtaTask');
+
+export const IotOtaTaskDeviceDTO = z
+  .object({
+    id: z.number().int(),
+    taskId: z.number().int(),
+    deviceId: z.number().int(),
+    deviceName: z.string().nullable(),
+    deviceSn: z.string().nullable(),
+    online: z.boolean().optional(),
+    status: z.enum(IOT_OTA_DEVICE_STATUSES),
+    progress: z.number().int(),
+    fromVersion: z.string().nullable(),
+    errorMsg: z.string().nullable(),
+    notifiedAt: z.string().nullable(),
+    finishedAt: z.string().nullable(),
+  })
+  .openapi('IotOtaTaskDevice');
+
+export const IotDashboardDTO = z
+  .object({
+    stats: z.object({
+      deviceTotal: z.number().int(),
+      onlineCount: z.number().int(),
+      onlineRate: z.number(),
+      telemetryToday: z.number().int(),
+      firingWarning: z.number().int(),
+      firingCritical: z.number().int(),
+      pendingDesiredDevices: z.number().int(),
+      productTotal: z.number().int(),
+    }),
+    onlineTrend: z.array(z.object({ time: z.string(), total: z.number().int(), online: z.number().int() })),
+    alarmTrend: z.array(z.object({ date: z.string(), warning: z.number().int(), critical: z.number().int() })),
+    productDistribution: z.array(z.object({ name: z.string(), value: z.number().int() })),
+    recentAlarms: z.array(IotAlarmDTO.extend({
+      deviceName: z.string().nullable().optional(),
+      deviceSn: z.string().nullable().optional(),
+    })),
+    recentEvents: z.array(IotDeviceEventDTO.extend({ deviceName: z.string().nullable().optional() })),
+  })
+  .openapi('IotDashboard');

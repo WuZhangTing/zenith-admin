@@ -145,6 +145,13 @@ export async function touchDevice(device: IotDeviceRow, opts?: { firmwareVersion
   } catch (err) {
     logger.warn(`[iot] lastSeenAt 落库失败 deviceId=${device.id}: ${(err as Error).message}`);
   }
+  if (fwChanged) {
+    // 版本上报即 OTA 成功确认（动态引入避免 access→ota→devices→access 环）
+    const { confirmIotOtaByVersion } = await import('./iot-ota.service');
+    await confirmIotOtaByVersion(device.id, opts!.firmwareVersion!).catch((err) => {
+      logger.warn(`[iot] OTA 版本确认失败 deviceId=${device.id}: ${(err as Error).message}`);
+    });
+  }
 }
 
 /** 供批量删除设备前清理实时键（防止残留幽灵在线态） */
