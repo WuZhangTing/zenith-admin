@@ -9,6 +9,7 @@
 | 类型不匹配、共享包找不到、`z.enum` 崩溃 | [类型与共享包](#类型与共享包) |
 | 分页 total、日期筛选、关键字搜索异常 | [数据库查询](#数据库查询) |
 | 403、页面可见但请求被拒 | [权限](#权限) |
+| 外呼流式响应 / SSE 约 5 分钟断开 | [外呼 HTTP](#外呼-http) |
 | 数据不刷新、弹窗数据丢失、重复提示 | [前端缓存与表单](#前端缓存与表单) |
 | MSW 不生效 | [Demo 模式](#demo-模式) |
 | 测试超时、启动缓慢 | [性能](#性能) |
@@ -151,6 +152,28 @@ DTO 漏调 `.openapi('Name')`。用 `npm run dev:server` / `npm run dev:web` 可
 ### 按钮显示了但无权限操作
 
 前端没有用 `hasPermission()` 控制按钮显示。
+
+---
+
+## 外呼 HTTP
+
+### 消费外部 SSE / 流式响应约 5 分钟整点断开（`TypeError: terminated`）
+
+undici（Node 原生 fetch 底层）默认 `bodyTimeout = 300s`，语义是**两次收到 body 字节之间的空闲超时**：
+外部流静默超 5 分钟连接即断。与部署链路的 nginx `proxy_read_timeout 300s`（`docker/nginx.conf`）同值同哲学，
+入站 SSE 静默同样会被 nginx 断开。
+
+按场景处置：
+
+- 上游有心跳（间隔 < 5 分钟，如 LLM 流式 API 的 ping 事件）→ 无需处理，默认即安全
+- 长期消费可能静默的外部流 → 断线重连做主体 + 事件幂等，`bodyTimeout` 保留有限值当死链探测，
+  接入规范见 [backend-patterns.md → 流式 / SSE 消费注意事项](./backend-patterns.md#流式--sse-消费注意事项)
+- 误给流式调用设了 `httpRequest` 的 `timeout` → 它是硬超时，会掐断进行中的流，改回默认 `0`
+
+### 上游明明可用，新请求却立即报「熔断」
+
+http-client 按 host 熔断：连续 5 次失败后 30 秒内新请求直接拒绝（fail fast），30 秒后自动放行探测。
+只拦截新发起的请求，不影响已建立的连接与流。等待冷却结束即可，测试中可用 `resetHttpCircuitBreakers()` 清态。
 
 ---
 

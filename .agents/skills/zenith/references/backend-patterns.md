@@ -337,8 +337,23 @@ try {
 }
 ```
 
-无需调用方关心的内置能力：按 host 熔断（连续 5 次失败开启 30s 冷却）、敏感 Header 日志脱敏、
-完整 pino 结构化日志。详细 API 见 [docs/backend/http-client.md](../../../../docs/backend/http-client.md)。
+无需调用方关心的内置能力：按 host 熔断（连续 5 次失败开启 30s 冷却，仅拦截**新发起**的请求，
+不影响已建立的连接与流）、敏感 Header 日志脱敏、完整 pino 结构化日志。
+详细 API 见 [docs/backend/http-client.md](../../../../docs/backend/http-client.md)。
+
+### 流式 / SSE 消费注意事项
+
+undici（Node 原生 fetch 的底层）默认 `bodyTimeout = 300s`——**两次收到 body 字节之间的空闲超时**，
+不是请求总时长。消费外部 SSE / 流式响应时静默超过 5 分钟连接即断
+（表现为 `TypeError: terminated`）。`headersTimeout` 同为 300s，对流式无影响（响应头即时返回）。
+
+接外部 SSE 的三条原则：
+
+1. **断线重连做主体**（`Last-Event-ID` / 游标续传 + 事件幂等处理），不是兜底——公网中间层
+   （对方 LB、NAT、nginx `proxy_read_timeout`）同样会断静默连接，任何超时调参都替代不了重连
+2. 无自定义 Header 鉴权时优先 `undici` 的 `EventSource`（自动重连内建）；需要 `Authorization`
+   Header 时手写 fetch 重连循环，`bodyTimeout` 设有限值当死链探测，**不要**调成 0 裸挂
+3. `httpRequest` 的 `timeout` 是硬超时（AbortController，会掐断整个流），流式调用保持默认 `0`
 
 ---
 
