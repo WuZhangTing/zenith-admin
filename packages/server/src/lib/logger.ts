@@ -16,7 +16,7 @@
  * （监控告警的 logErrorPerMin / logWarnPerMin；hook 仅在级别启用时触发）。
  */
 import path from 'node:path';
-import { pino, destination, levels, stdSerializers, stdTimeFunctions, type Logger, type LogFn, type TransportTargetOptions } from 'pino';
+import { pino, destination, levels, stdSerializers, type Logger, type LogFn, type TransportTargetOptions } from 'pino';
 import { config } from '../config';
 import { recordLogLevel } from './log-metrics';
 
@@ -39,6 +39,17 @@ const ERROR = levels.values.error;
 
 /** 消息含 printf 插值符时走 pino 原生插值，不做参数归一 */
 const PRINTF_TOKEN_RE = /%[sdjoO]/;
+
+/** 带本地时区偏移的 ISO 8601 时间戳（如 2026-08-28T22:25:41.649+08:00），人读机读两便 */
+function localIsoTime(): string {
+  const now = new Date();
+  const offsetMinutes = -now.getTimezoneOffset();
+  const local = new Date(now.getTime() + offsetMinutes * 60_000).toISOString().slice(0, -1);
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  const offset = `${String(Math.trunc(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
+  return `,"time":"${local}${sign}${offset}"`;
+}
 
 /**
  * logMethod hook：
@@ -98,7 +109,7 @@ const consoleTarget: TransportTargetOptions = config.log.pretty
  */
 const options = {
   level: config.log.level,
-  timestamp: stdTimeFunctions.isoTime,
+  timestamp: localIsoTime,
   // 级别保持 pino 默认的数字形式（10-60，行首第一个键），日志查看器与采集端按数字映射
   serializers: { err: stdSerializers.err, error: stdSerializers.err },
   hooks: { logMethod },
