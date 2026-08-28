@@ -7,7 +7,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import UserSelect from '@/components/UserSelect';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -334,7 +333,26 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
         pagination={buildPagination(total)}
       />
 
-      <AppModal {...modal.modalProps} width={720}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.modalProps.visible}
+        onCancel={modal.modalProps.onCancel}
+        closeOnEsc
+        width={720}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.modalProps.onCancel}>取消</Button>
+            <Button
+              type="primary" theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              确定
+            </Button>
+          </div>
+        )}
+      >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={modal.formKey} {...modal.formProps}>
             {({ formState }) => (
@@ -345,7 +363,7 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
             )}
           </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
     </>
   );
 }
