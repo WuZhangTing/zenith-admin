@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Form, SideSheet, Spin, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Col, Form, Row, SideSheet, Spin, TabPane, Tabs, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
@@ -46,6 +47,17 @@ function parseJsonObject(text: string | undefined, label: string): Record<string
     throw new Error(`invalid ${label}`);
   }
 }
+
+// CronBuilderPopover 内部使用 6 段（含秒）cron；计划任务存标准 5 段，故在边界转换
+const toSixField = (expr: string) => {
+  const e = (expr ?? '').trim();
+  return e.split(/\s+/).length === 5 ? `0 ${e}` : e;
+};
+const toFiveField = (expr: string) => {
+  const e = (expr ?? '').trim();
+  const parts = e.split(/\s+/);
+  return parts.length === 6 ? parts.slice(1).join(' ') : e;
+};
 
 function formatDateValue(v: string | Date | undefined | null): string | null {
   if (!v) return null;
@@ -125,7 +137,7 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
       render: (v: string) => renderEllipsis(v),
     },
     {
-      title: '调度', width: 160,
+      title: '调度', width: 240,
       render: (_: unknown, r: IotSchedule) => (
         <span style={{ whiteSpace: 'nowrap' }}>
           <Tag size="small" color={r.scheduleType === 'cron' ? 'blue' : 'purple'}>{IOT_SCHEDULE_TYPE_LABELS[r.scheduleType]}</Tag>
@@ -236,11 +248,15 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
         pagination={buildPagination(total)}
       />
 
-      <AppModal {...modal.modalProps} width={640}>
+      <AppModal {...modal.modalProps} width={660}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={modal.formKey} {...modal.formProps}>
             {({ formState }) => (
-              <ScheduleFormBody isEdit={modal.isEdit} values={formState.values as Record<string, unknown>} />
+              <ScheduleFormBody
+                isEdit={modal.isEdit}
+                values={formState.values as Record<string, unknown>}
+                onApplyCron={(expr) => modal.formApi.current?.setValue('cronExpression', expr)}
+              />
             )}
           </Form>
         </Spin>
@@ -249,7 +265,11 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
   );
 }
 
-function ScheduleFormBody({ isEdit, values }: Readonly<{ isEdit: boolean; values: Record<string, unknown> }>) {
+function ScheduleFormBody({ isEdit, values, onApplyCron }: Readonly<{
+  isEdit: boolean;
+  values: Record<string, unknown>;
+  onApplyCron: (expr: string) => void;
+}>) {
   const productsQuery = useAllIotProducts();
   const products = productsQuery.data ?? [];
   const groupsQuery = useAllIotGroups();
@@ -270,36 +290,59 @@ function ScheduleFormBody({ isEdit, values }: Readonly<{ isEdit: boolean; values
     <>
       <Form.Input field="name" label="计划名称" placeholder="如：夜间关闭指示灯"
         rules={[{ required: true, message: '计划名称不能为空' }]} />
-      <Form.RadioGroup field="scheduleType" label="调度类型" disabled={isEdit}
-        extraText={isEdit ? '调度类型不可变更' : undefined}>
-        {IOT_SCHEDULE_TYPE_OPTIONS.map((o) => (
-          <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
-        ))}
-      </Form.RadioGroup>
+      <Row gutter={16}>
+        <Col span={12}>
+          <Form.RadioGroup field="scheduleType" label="调度类型" disabled={isEdit}
+            extraText={isEdit ? '调度类型不可变更' : undefined}>
+            {IOT_SCHEDULE_TYPE_OPTIONS.map((o) => (
+              <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
+            ))}
+          </Form.RadioGroup>
+        </Col>
+        <Col span={12}>
+          <Form.RadioGroup field="status" label="状态">
+            {statusItems.map((o) => (
+              <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
+            ))}
+          </Form.RadioGroup>
+        </Col>
+      </Row>
       {scheduleType === 'cron' ? (
-        <Form.Input field="cronExpression" label="cron 表达式" placeholder="分 时 日 月 周，如 0 22 * * *" style={{ width: 260 }}
+        <Form.Input field="cronExpression" label="cron 表达式" placeholder="如 0 22 * * *"
           rules={[{ required: true, message: '请填写 cron 表达式' }]}
-          extraText="五段格式；如 0 22 * * * = 每天 22:00" />
+          extraText="五段格式（分 时 日 月 周），如 0 22 * * * = 每天 22:00"
+          addonAfter={
+            <CronBuilderPopover
+              value={toSixField((values.cronExpression as string | undefined) ?? '')}
+              onApply={(expr) => onApplyCron(toFiveField(expr))}
+            />
+          } />
       ) : (
-        <Form.DatePicker field="runAt" label="执行时刻" type="dateTime" style={{ width: 260 }}
+        <Form.DatePicker field="runAt" label="执行时刻" type="dateTime" style={{ width: '100%' }}
           rules={[{ required: true, message: '请选择执行时刻' }]}
           extraText="到点执行一次后自动停用" />
       )}
-      <Form.Select
-        field="productId" label="所属产品" placeholder="选择产品" style={{ width: '100%' }}
-        disabled={isEdit}
-        extraText={isEdit ? '所属产品不可变更' : undefined}
-        optionList={products.map((p) => ({ value: p.id, label: p.name }))}
-        rules={isEdit ? [] : [{ required: true, message: '请选择所属产品' }]}
-      />
+      <Row gutter={16}>
+        <Col span={12}>
+          <Form.Select
+            field="productId" label="所属产品" placeholder="选择产品" style={{ width: '100%' }}
+            disabled={isEdit}
+            extraText={isEdit ? '所属产品不可变更' : undefined}
+            optionList={products.map((p) => ({ value: p.id, label: p.name }))}
+            rules={isEdit ? [] : [{ required: true, message: '请选择所属产品' }]}
+          />
+        </Col>
+        <Col span={12}>
+          <Form.Select
+            field="deviceId" label="限定设备" placeholder="不限" showClear style={{ width: '100%' }}
+            optionList={devices.map((d) => ({ value: d.id, label: `${d.name}（${d.sn}）` }))}
+          />
+        </Col>
+      </Row>
       <Form.Select
         field="groupId" label="限定分组" placeholder="不限（产品下全部设备）" showClear style={{ width: '100%' }}
         optionList={groups.map((g) => ({ value: g.id, label: g.name }))}
         extraText="目标优先级：设备 > 分组 > 产品全部（上限 500 台）"
-      />
-      <Form.Select
-        field="deviceId" label="限定设备" placeholder="不限" showClear style={{ width: '100%' }}
-        optionList={devices.map((d) => ({ value: d.id, label: `${d.name}（${d.sn}）` }))}
       />
       <Form.RadioGroup field="actionType" label="动作类型" disabled={isEdit}
         extraText={isEdit ? '动作类型不可变更' : undefined}>
@@ -308,25 +351,24 @@ function ScheduleFormBody({ isEdit, values }: Readonly<{ isEdit: boolean; values
         ))}
       </Form.RadioGroup>
       {actionType === 'command' && (
-        <>
-          <Form.Select
-            field="service" label="服务" placeholder="选择物模型服务" style={{ width: '100%' }}
-            optionList={services.map((s) => ({ value: s.identifier, label: `${s.name}（${s.identifier}）` }))}
-            rules={[{ required: true, message: '请选择服务' }]}
-            emptyContent={productId ? '该产品物模型没有服务' : '请先选择产品'}
-          />
-          <Form.Input field="paramsText" label="服务参数" placeholder='JSON 对象（可空），如 {"speed":2}' />
-        </>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Select
+              field="service" label="服务" placeholder="选择物模型服务" style={{ width: '100%' }}
+              optionList={services.map((s) => ({ value: s.identifier, label: `${s.name}（${s.identifier}）` }))}
+              rules={[{ required: true, message: '请选择服务' }]}
+              emptyContent={productId ? '该产品物模型没有服务' : '请先选择产品'}
+            />
+          </Col>
+          <Col span={12}>
+            <Form.Input field="paramsText" label="服务参数" placeholder='JSON 对象（可空），如 {"speed":2}' />
+          </Col>
+        </Row>
       )}
       {actionType === 'desired' && (
         <Form.Input field="desiredText" label="期望属性" placeholder='JSON 对象，如 {"led_enabled":false}'
           rules={[{ required: true, message: '请填写期望属性' }]} />
       )}
-      <Form.RadioGroup field="status" label="状态">
-        {statusItems.map((o) => (
-          <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
-        ))}
-      </Form.RadioGroup>
     </>
   );
 }
