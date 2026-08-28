@@ -1,7 +1,11 @@
 # 前端硬约束（Step 8）
 
-前端层的「必须 / 禁止」清单，与 [constraints.md](./constraints.md)（后端与全局）互补，同一条规则只在一处维护。
-写法模板见 [crud-frontend.md](./crud-frontend.md)、[query-cache.md](./query-cache.md)、[ui-patterns.md](./ui-patterns.md)。
+前端层的「必须 / 禁止」清单，与 [constraints.md](./constraints.md)（后端与全局）互补。
+
+与写法文档的分工（同一内容只在一处维护）：本文只写**规则**——必须 / 禁止、判定依据与豁免清单；
+代码模板、度量数字与组件机理归写法文档（[crud-frontend.md](./crud-frontend.md)、
+[query-cache.md](./query-cache.md)、[ui-patterns.md](./ui-patterns.md)），本文以链接指向，不复述细节。
+两边同时描述同一事实即视为缺陷，发现后收敛到单侧。
 
 | 改动涉及 | 章节 |
 | --- | --- |
@@ -85,13 +89,10 @@
 - **操作列**：一律经 `components/ResponsiveTableActions.tsx` 的 `createOperationColumn` 创建；
   动作只用纯文字 `label`（不加图标），危险操作加 `danger: true`，
   桌面端可用 `desktopInlineKeys` 保留高频动作内联
-- **操作列宽度**：新增 / 修改动作后必须复核 `width`，算法见
-  [ui-patterns.md → 操作列宽度估算](./ui-patterns.md#操作列宽度估算)。
-  速算：按钮宽 = 24 + 文字宽（汉字 14px/字），加 4px 间距，有「更多」再加 22，最后加 32 单元格 padding。
-  内容宽按**能同时出现**的动作算（权限条件取全为真，状态互斥的分支取最大值，不要相加）。
-  **禁止**列宽小于内容宽——单元格无 `overflow: hidden`，不会报错也不会截断，
-  而是吃掉 padding 并挤压相邻固定列。估算超过 280px 时改用 `desktopInlineKeys` 收进「更多」，不要一味加宽。
-  「编辑 / 删除」这一最常见组合统一取 `width: 130`
+- **操作列宽度**：新增 / 修改动作后必须复核 `width`；**禁止**列宽小于内容宽——单元格无
+  `overflow: hidden`，不报错也不截断，而是吃掉 padding 并挤压相邻固定列。
+  度量常量、计算方式、动作过多时的收纳策略与常用组合宽度见
+  [ui-patterns.md → 操作列宽度估算](./ui-patterns.md#操作列宽度估算)
 - **状态列固定**：状态列必须紧靠操作列左侧，并同样 `fixed: 'right'`
 - **列公共工具**：`createdAtColumn` 与 `renderEllipsis` 从 `utils/table-columns` 导入；
   **禁止**内联写 `<Typography.Text ellipsis={{ showTooltip: true }} …>`
@@ -121,8 +122,8 @@
   （经 `useEditModal` 时已由 `formProps` / `modalProps` 提供）；`labelWidth` 与单列 / 双列的选取规则见
   [crud-frontend.md](./crud-frontend.md)
 - **SideSheet 页脚**：Semi 的 `footer` 槽无对齐样式，**禁止**裸 `<Space>` 放按钮（会靠左）；
-  统一包 `justifyContent: 'flex-end'` 的 flex 容器（`gap: 8`），取消在左、主操作在右，
-  完整写法与例外见 [ui-patterns.md → SideSheet 页脚](./ui-patterns.md#sidesheet-页脚)
+  操作按钮一律右对齐，写法、按钮次序与例外见
+  [ui-patterns.md → SideSheet 页脚](./ui-patterns.md#sidesheet-页脚)
 - **枚举标签统一来源**：**禁止**在页面 / 组件 / 导出定义中内联 `{ value, label }` 数组或
   `Record<value, label>` 中文映射。按优先级取：
 
@@ -212,9 +213,9 @@
   同样读取 `syncPageStateToUrl`）；「消费即焚」的一次性激活参数（聊天 `?conv=` 选中即触发
   已读等副作用、列表筛选深链走 `useListDeepLink`）；master 为筛选树的页面（部门 / 分类是
   查询条件而非选中项，入 URL 应使用领域筛选参数，单独评估）
-- **Tabs 自动溢出折叠**：所有 `<Tabs>` 必须带 `collapsible="auto"`——窄容器（抽屉、弹窗、
-  分栏面板）里标签多时会折行或被裁掉，`auto` 只在真放不下时折叠成带箭头的滚动条，
-  宽度充足时渲染与不加时一致，因此**没有「这个页面标签少所以不用加」的例外**。
+- **Tabs 自动溢出折叠**：所有 `<Tabs>` 必须带 `collapsible="auto"`——宽度充足时渲染与不加时一致，
+  仅在真放不下时折叠，因此**没有「这个页面标签少所以不用加」的例外**（溢出判定机理见
+  [ui-patterns.md → 页面级多 Tab 布局](./ui-patterns.md#页面级多-tab-布局)）。
   **禁止**裸写 `collapsible`（等价 `true`，无论宽度是否够都常驻箭头）。
   **不适用**：`tabPosition="left"` / `"right"` 的纵向 Tabs——折叠实现是横向
   `OverflowList`，套到纵向布局上会坏掉
@@ -229,11 +230,13 @@
 - **栅格禁止内联写死列数**：**禁止** `style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}` 或 `'1fr 1fr'`——
   内联样式无法被媒体查询覆盖，窄屏会把内容压到竖排。按场景选：统计卡片 → `StatGrid`；
   图表分栏 → `.chart-grid`；其余固定列数栅格 / 表单多列 / 选择器 → `global.css` 的 `.auto-grid`
-  （`--auto-grid-cols` 不可省，纯 `auto-fit` 会在宽屏多拆一列）。
+  （`--auto-grid-cols` 不可省，变量含义与写法见
+  [ui-patterns.md → 通用自适应栅格](./ui-patterns.md#通用自适应栅格auto-gridglobalcss)）。
   确需保留的 `repeat(auto-*, minmax(Npx, 1fr))` 必须写成 `minmax(min(Npx, 100%), 1fr)`。
   **不适用**：固定像素列的标签 / 值布局、等分小方块缩略图、本身处于固定宽容器内的微指标
 - **抽屉 / 弹窗宽度**：窄屏适配已由 `global.css` 全局兜底，**无需**再写
-  `width={isMobile ? '100%' : 720}`——该判断在所有区间都被全局规则覆盖，是无效代码
+  `width={isMobile ? '100%' : 720}`（断点规则见
+  [ui-patterns.md → 抽屉 / 弹窗宽度](./ui-patterns.md#抽屉--弹窗宽度)）
 - **表面底色按层级取语义变量**：卡片 / 面板底色一律写 `var(--surface-card)`，
   **禁止**直接写 `var(--semi-color-bg-1)`——该变量在 Modal / SideSheet 内会自动提升一档，
   同一组件在页面与弹层中都能与所在表面拉开层次；写死 `bg-1` 则在弹层内与弹层同色、只剩边框。

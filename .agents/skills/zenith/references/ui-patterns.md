@@ -1,7 +1,8 @@
 # 前端布局与展示组件
 
-标准列表页之外的页面结构写法。约束条目见 [constraints-frontend.md → 布局与响应式](./constraints-frontend.md#布局与响应式)，
-标准列表页模板见 [crud-frontend.md](./crud-frontend.md)。
+标准列表页之外的页面结构写法，是代码模板、度量数字与组件机理的**唯一事实源**；
+「必须 / 禁止」与豁免清单归 [constraints-frontend.md](./constraints-frontend.md)，本文不复述规则原文，
+只在各节链接对应约束。标准列表页模板见 [crud-frontend.md](./crud-frontend.md)。
 
 | 需求 | 章节 |
 | --- | --- |
@@ -156,8 +157,8 @@ return (
 />
 ```
 
-**禁止在窄屏自动选中首项。** 双栏下默认选中首项可避免右侧空白，但单栏会直接落到详情，
-根视图反而要点返回才能看到列表。
+**禁止在窄屏自动选中首项。** 完整窄屏契约（返回入口、`onResponsiveChange` 区分）见
+[constraints-frontend.md → 布局与响应式](./constraints-frontend.md#布局与响应式)。
 
 ### 选中项同步到 URL（useUrlSelectionState）
 
@@ -196,9 +197,8 @@ useEffect(() => {
 不分页的数据源（全量列表 / 树）没有详情接口兜底时，仍须等数据落定
 （`query.data && !query.isFetching`）再判目标不存在并清参，避免在途误清。
 
-**上下文相关的 id 用 `useUrlSelectionParams` 复合成组**：栏目 id 只在站点下可解析、
-会话 openid 只在公众号内唯一，单带选中参数会落到 localStorage 恢复的其他上下文而查无此项。
-两参数必须同一实例原子管理（分两个实例会同帧竞写 searchParams 互相覆盖）：
+**上下文相关的 id 用 `useUrlSelectionParams` 复合成组**（何时必须成组、单实例原子管理等硬规则见
+[constraints-frontend.md → 布局与响应式](./constraints-frontend.md#布局与响应式)）：
 
 ```tsx
 const [urlSelection, setUrlSelection] = useUrlSelectionParams(['site', 'channel']);
