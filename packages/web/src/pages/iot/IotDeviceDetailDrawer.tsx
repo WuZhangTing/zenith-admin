@@ -478,7 +478,8 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
             description={'设备侧以 HMAC-SHA256(secret, sn + 时间戳 + 请求体) 签名调用 /api/iot/ingest/*，或携带同款签名参数连接 /api/iot/ws 获得指令与期望属性实时推送。'}
           />
 
-          <Tabs type="line" collapsible="auto">
+          {/* lazyRender：拓扑等重型 Tab 首次激活才挂载（避免在隐藏容器中初始化 ReactFlow 导致 fitView 失效） */}
+          <Tabs type="line" collapsible="auto" lazyRender>
             <TabPane tab="属性状态" itemKey="properties">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
                 <Text type="tertiary" size="small">

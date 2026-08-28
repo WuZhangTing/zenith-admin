@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Background, Controls, MarkerType, Handle, Position, ReactFlowProvider,
-  useNodesState, useEdgesState, useUpdateNodeInternals,
+  useNodesState, useEdgesState, useReactFlow, useUpdateNodeInternals,
   type Node as RFNode, type Edge as RFEdge, type NodeProps,
 } from '@xyflow/react';
 import dagre from 'dagre';
@@ -172,17 +172,22 @@ function IotTopologyGraph({ deviceId, onOpenChild }: Readonly<IotTopologyViewPro
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(laidOutNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>(baseEdges);
   const updateNodeInternals = useUpdateNodeInternals();
+  const { fitView } = useReactFlow();
 
   useEffect(() => {
     setNodes(laidOutNodes);
     setEdges(baseEdges);
   }, [laidOutNodes, baseEdges, setNodes, setEdges]);
 
+  // 挂载/数据变化后重新测量并自适应视野（容器从隐藏 Tab 转可见时 fitView 需重算）
   useEffect(() => {
-    if (!ready) return;
-    const raf = requestAnimationFrame(() => updateNodeInternals(laidOutNodes.map((n) => n.id)));
+    if (!ready || laidOutNodes.length === 0) return;
+    const raf = requestAnimationFrame(() => {
+      updateNodeInternals(laidOutNodes.map((n) => n.id));
+      void fitView({ padding: 0.2, duration: 200 });
+    });
     return () => cancelAnimationFrame(raf);
-  }, [ready, laidOutNodes, updateNodeInternals]);
+  }, [ready, laidOutNodes, updateNodeInternals, fitView]);
 
   if (topologyQuery.isLoading) {
     return <div style={{ padding: '48px 0', textAlign: 'center' }}><Spin size="large" /></div>;
