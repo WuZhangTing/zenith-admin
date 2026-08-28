@@ -10,15 +10,14 @@ import {
   recycleCmsContents, restoreCmsContents, purgeCmsContents, restoreCmsContentToVersion,
   batchMoveCmsContents, batchSetCmsContentFlags, batchAddCmsContentTags, batchTransitionCmsContents,
   duplicateCmsContent, distributeCmsContents, archiveCmsContents, unarchiveCmsContents,
-  checkCmsContentTitle, ensureCmsContentTargetAccess,
+  checkCmsContentTitle,
 } from '../../services/cms/cms-contents.service';
 import { listContentVersions, diffContentVersion } from '../../services/cms/cms-versions.service';
 import { listContentOpLogs } from '../../services/cms/cms-content-op-logs.service';
 import { checkCmsText } from '../../services/cms/cms-word-check.service';
 import { acquireContentEditLock, releaseContentEditLock } from '../../services/cms/cms-edit-lock.service';
 import { createContentPreviewLink } from '../../services/cms/cms-preview.service';
-import { CmsContentVersionDTO, CmsContentVersionDiffDTO, CmsEditLockDTO, CmsPreviewLinkDTO, AsyncTaskDTO, CmsContentOpLogDTO, CmsTextCheckResultDTO } from '../../lib/openapi-dtos';
-import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
+import { CmsContentVersionDTO, CmsContentVersionDiffDTO, CmsEditLockDTO, CmsPreviewLinkDTO, CmsContentOpLogDTO, CmsTextCheckResultDTO } from '../../lib/openapi-dtos';
 import { lockCmsContent, unlockCmsContent } from '../../services/cms/cms-content-lock.service';
 import { describeCmsLink } from '../../services/cms/cms-link.service';
 import { ensureCmsSiteExists, assertSiteAccess } from '../../services/cms/cms-sites.service';
@@ -510,36 +509,6 @@ const distributeRoute = defineOpenAPIRoute({
   },
 });
 
-const importRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/import',
-    tags: ['CMS-内容管理'], summary: '内容 Excel 批量导入（任务中心异步执行）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'cms:content:create', audit: { description: 'CMS 内容批量导入', module: 'CMS内容管理' } })] as const,
-    request: {
-      body: {
-        content: jsonContent(z.object({
-          fileId: z.string().min(1, '请先上传 Excel 文件'),
-          siteId: z.number().int().positive(),
-          channelId: z.number().int().positive(),
-        })),
-        required: true,
-      },
-    },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
-  }),
-  handler: async (c) => {
-    const { fileId, siteId, channelId } = c.req.valid('json');
-    await ensureCmsContentTargetAccess(siteId, channelId);
-    const row = await submitAsyncTask({
-      taskType: 'cms-content-import',
-      payload: { fileId, siteId, channelId },
-      idempotencyKey: `cms-content-import-${fileId}`,
-    });
-    return c.json(okBody(mapAsyncTask(row), '导入任务已提交，可在任务中心查看进度'), 200);
-  },
-});
-
 // ─── 归档（P1）────────────────────────────────────────────────────────────────
 const archiveRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -643,7 +612,7 @@ router.openapiRoutes([
   versionsRoute, restoreVersionRoute, versionDiffRoute,
   editLockAcquireRoute, editLockReleaseRoute, previewLinkRoute,
   batchMoveRoute, batchFlagsRoute, batchTagRoute, batchStatusRoute, duplicateRoute, distributeRoute,
-  importRoute, archiveRoute, unarchiveRoute, opLogsRoute, checkTextRoute,
+  archiveRoute, unarchiveRoute, opLogsRoute, checkTextRoute,
   persistentLockRoute, persistentUnlockRoute,
 ] as const);
 

@@ -24,8 +24,10 @@ export function useImportEntities(enabled = true) {
 export function useSubmitImportJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ entity, fileId }: { entity: string; fileId: string }) =>
-      request.post<AsyncTask>('/api/import-jobs', { entity, fileId }).then(unwrap),
+    mutationFn: ({ entity, fileId, dryRun, context }: {
+      entity: string; fileId: string; dryRun?: boolean; context?: Record<string, unknown>;
+    }) =>
+      request.post<AsyncTask>('/api/import-jobs', { entity, fileId, dryRun, context }).then(unwrap),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: asyncTaskKeys.lists });
     },

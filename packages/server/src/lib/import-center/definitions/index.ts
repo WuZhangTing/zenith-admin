@@ -5,10 +5,14 @@ import { registerImportTaskHandler } from '../handler';
 import { registerMembersImport } from './members';
 import { registerUsersImport } from './users';
 import { registerIotDevicesImport } from './iot-devices';
+import { registerDictItemsImport } from './dict-items';
+import { registerCmsContentsImport } from './cms-contents';
 
 export function registerImportDefinitions(): void {
   registerImportTaskHandler();
   registerMembersImport();
   registerUsersImport();
   registerIotDevicesImport();
+  registerDictItemsImport();
+  registerCmsContentsImport();
 }

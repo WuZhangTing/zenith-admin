@@ -60,9 +60,9 @@ const submitRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '导入任务已提交') },
   }),
   handler: async (c) => {
-    const { entity, fileId } = c.req.valid('json');
-    const row = await submitImportJob(entity, fileId);
-    return c.json(okBody(mapAsyncTask(row), '导入任务已提交，可在任务中心查看进度与行级明细'), 200);
+    const { entity, fileId, dryRun, context } = c.req.valid('json');
+    const row = await submitImportJob(entity, fileId, { dryRun, context });
+    return c.json(okBody(mapAsyncTask(row), dryRun ? '预检任务已提交（不落库）' : '导入任务已提交，可在任务中心查看进度与行级明细'), 200);
   },
 });
 

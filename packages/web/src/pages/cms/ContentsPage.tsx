@@ -1,11 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Tag, Toast, Tooltip, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Upload, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
+import { Button, Input, Tag, Toast, Tooltip, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree/interface';
-import { ChevronDown, FileUp, Image as ImageIcon, Film, Paperclip, FolderTree } from 'lucide-react';
+import { ChevronDown, Image as ImageIcon, Film, Paperclip, FolderTree } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -14,10 +14,10 @@ import { ExportButton } from '@/components/ExportButton';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
-import { useUploadFile } from '@/hooks/queries/files';
+import ImportButton from '@/components/ImportButton';
 import {
   useCmsChannelTree, useCmsContentList, useCmsContentAction, useCmsContentBatch,
-  useAllCmsSites, useAllCmsTags, useCmsContentBatchOps, useCmsContentBatchStatus, useDuplicateCmsContent, useImportCmsContents, cmsContentKeys,
+  useAllCmsSites, useAllCmsTags, useCmsContentBatchOps, useCmsContentBatchStatus, useDuplicateCmsContent, cmsContentKeys,
   useCmsContentPersistentLock,
 } from '@/hooks/queries/cms';
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared/cms';
@@ -109,8 +109,6 @@ export default function ContentsPage() {
   const batchOpsMutation = useCmsContentBatchOps();
   const batchStatusMutation = useCmsContentBatchStatus();
   const duplicateMutation = useDuplicateCmsContent();
-  const uploadMutation = useUploadFile();
-  const importMutation = useImportCmsContents();
   const persistentLockMutation = useCmsContentPersistentLock();
   const { data: allTags } = useAllCmsTags(siteId);
   const moveFormApi = useRef<FormApi | null>(null);
@@ -562,33 +560,19 @@ export default function ContentsPage() {
     </SplitButtonGroup>
   ) : null;
   const renderImportButton = () => hasPermission('cms:content:create') && siteId ? (
-    <Upload
-      action=""
-      accept=".xlsx"
-      limit={1}
-      showUploadList={false}
-      customRequest={async ({ fileInstance, onSuccess, onError }) => {
+    <ImportButton
+      entity="cms.contents"
+      title="CMS 内容"
+      context={{ siteId, channelId }}
+      beforeSubmit={() => {
         if (!channelId) {
           Toast.warning('请先在左侧栏目树选择导入的目标栏目');
-          onError?.({ status: 0 });
-          return;
+          return false;
         }
-        try {
-          const formData = new FormData();
-          formData.append('file', fileInstance);
-          const uploaded = await uploadMutation.mutateAsync({ formData });
-          await importMutation.mutateAsync({ fileId: uploaded.id, siteId, channelId });
-          Toast.success('导入任务已提交，可在顶栏任务托盘查看进度');
-          onSuccess?.({});
-        } catch {
-          onError?.({ status: 0 });
-        }
+        return true;
       }}
-    >
-      <Button icon={<FileUp size={14} />} loading={uploadMutation.isPending || importMutation.isPending}>
-        导入
-      </Button>
-    </Upload>
+      onFinished={() => void queryClient.invalidateQueries({ queryKey: cmsContentKeys.lists })}
+    />
   ) : null;
   const renderExportButton = () => siteId ? (
     <ExportButton

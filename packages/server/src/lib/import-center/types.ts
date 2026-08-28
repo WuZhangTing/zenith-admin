@@ -23,10 +23,17 @@ export interface ImportDefinition<TRow = unknown, TPrepared = unknown> {
   maxRows?: number;
   columns: ImportColumnMeta[];
   /**
+   * 实体上下文参数校验（可选）：需要页面上下文的导入（如 CMS 内容导入的
+   * siteId/channelId）在此声明 zod schema，提交时校验、prepare 时取用。
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  contextSchema?: { parse: (input: unknown) => any };
+  /**
    * 一次性预载上下文：查重集合、外键编码 Map、策略配置等。
    * 在任务开始时调用一次，供 parseRow / insertRow 复用，避免逐行查库。
+   * context 为提交时经 contextSchema 校验后的上下文参数（未声明时为空对象）。
    */
-  prepare(): Promise<TPrepared>;
+  prepare(context: Record<string, unknown>): Promise<TPrepared>;
   /**
    * 校验并归一一行。cells 为按 column.key 取的单元格文本（已 trim）。
    * 校验失败时抛 Error（message 记入该行的失败原因），不影响其他行。

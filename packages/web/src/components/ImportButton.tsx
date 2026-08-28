@@ -23,6 +23,10 @@ interface ImportButtonProps {
   /** 实体名（按钮文案与模板文件名） */
   title: string;
   label?: string;
+  /** 实体上下文参数（如 CMS 内容导入的 siteId/channelId），随任务提交 */
+  context?: Record<string, unknown>;
+  /** 提交前校验（如未选栏目时阻止），返回 false 取消 */
+  beforeSubmit?: () => boolean;
   /** 导入任务终态后回调（成功与否都触发，调用方刷新列表） */
   onFinished?: () => void;
 }
@@ -33,10 +37,11 @@ const ITEM_STATUS_META = {
   skipped: { label: '跳过', color: 'grey' },
 } as const;
 
-export function ImportButton({ entity, title, label = '导入', onFinished }: Readonly<ImportButtonProps>) {
+export function ImportButton({ entity, title, label = '导入', context, beforeSubmit, onFinished }: Readonly<ImportButtonProps>) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [taskId, setTaskId] = useState<number | null>(null);
   const [itemPage, setItemPage] = useState(1);
+  const dryRunRef = useRef(false);
   const finishedNotified = useRef(false);
 
   const uploadMutation = useUploadFile();
@@ -62,15 +67,30 @@ export function ImportButton({ entity, title, label = '导入', onFinished }: Re
   }, [isTerminal, onFinished]);
 
   async function handleFileSelected(file: File) {
+    if (beforeSubmit && !beforeSubmit()) return;
     const formData = new FormData();
     formData.append('file', file);
     const uploaded = await uploadMutation.mutateAsync({ formData });
     const fileId = Array.isArray(uploaded) ? uploaded[0]?.id : (uploaded as { id?: string })?.id;
     if (!fileId) return;
-    const row = await submitMutation.mutateAsync({ entity, fileId });
+    const row = await submitMutation.mutateAsync({ entity, fileId, dryRun: dryRunRef.current, context });
     finishedNotified.current = false;
     setItemPage(1);
     setTaskId(row.id);
+  }
+
+  function pickFile(dryRun: boolean) {
+    dryRunRef.current = dryRun;
+    fileInputRef.current?.click();
+  }
+
+  /** 错误行文件下载（handler 生成，含错误原因列，修正后可回导） */
+  async function downloadErrorFile() {
+    const result = task?.result as { errorFileId?: string | null; errorFileName?: string | null } | null;
+    if (!result?.errorFileId) return;
+    const { getFileAccessUrl } = await import('@/hooks/queries/files');
+    const access = await getFileAccessUrl(result.errorFileId, 'download');
+    globalThis.open(access.url, '_blank');
   }
 
   const itemColumns: ColumnProps<AsyncTaskItem>[] = [
@@ -94,7 +114,7 @@ export function ImportButton({ entity, title, label = '导入', onFinished }: Re
       <input
         ref={fileInputRef}
         type="file"
-        accept=".xlsx"
+        accept=".xlsx,.csv"
         style={{ display: 'none' }}
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -108,7 +128,8 @@ export function ImportButton({ entity, title, label = '导入', onFinished }: Re
         clickToHide
         render={(
           <Dropdown.Menu>
-            <Dropdown.Item onClick={() => fileInputRef.current?.click()}>上传文件导入</Dropdown.Item>
+            <Dropdown.Item onClick={() => pickFile(false)}>上传文件导入</Dropdown.Item>
+            <Dropdown.Item onClick={() => pickFile(true)}>预检文件（仅校验不落库）</Dropdown.Item>
             <Dropdown.Item onClick={() => void downloadImportTemplate(entity, title)}>下载导入模板</Dropdown.Item>
           </Dropdown.Menu>
         )}
@@ -130,29 +151,39 @@ export function ImportButton({ entity, title, label = '导入', onFinished }: Re
         width={640}
         maskClosable={false}
       >
-        {task && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 8 }}>
-            <AsyncTaskProgress task={task} fluid />
-            {task.errorMessage && <Text type="danger" size="small">{task.errorMessage}</Text>}
-            <Table
-              columns={itemColumns}
-              dataSource={itemsQuery.data?.list ?? []}
-              loading={itemsQuery.isFetching && !itemsQuery.data}
-              rowKey="id"
-              size="small"
-              empty="暂无行级明细"
-              pagination={{
-                currentPage: itemPage,
-                pageSize: 8,
-                total: itemsQuery.data?.total ?? 0,
-                onPageChange: setItemPage,
-              }}
-            />
-            <Text type="tertiary" size="small">
-              可关闭本窗口后台运行，稍后在「任务中心」查看进度与全部明细。
-            </Text>
-          </div>
-        )}
+        {task && (() => {
+          const result = task.result as { errorFileId?: string | null; dryRun?: boolean } | null;
+          const isDryRun = Boolean((task.payload as { dryRun?: boolean } | null)?.dryRun);
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 8 }}>
+              {isDryRun && <Text type="warning" size="small">预检模式：仅校验数据，不写入任何记录。</Text>}
+              <AsyncTaskProgress task={task} fluid />
+              {task.errorMessage && <Text type="danger" size="small">{task.errorMessage}</Text>}
+              {isTerminal && result?.errorFileId && (
+                <Button theme="light" type="danger" onClick={() => void downloadErrorFile()}>
+                  下载错误行文件（修正后可重新上传）
+                </Button>
+              )}
+              <Table
+                columns={itemColumns}
+                dataSource={itemsQuery.data?.list ?? []}
+                loading={itemsQuery.isFetching && !itemsQuery.data}
+                rowKey="id"
+                size="small"
+                empty="暂无行级明细"
+                pagination={{
+                  currentPage: itemPage,
+                  pageSize: 8,
+                  total: itemsQuery.data?.total ?? 0,
+                  onPageChange: setItemPage,
+                }}
+              />
+              <Text type="tertiary" size="small">
+                可关闭本窗口后台运行，稍后在「任务中心」查看进度与全部明细。
+              </Text>
+            </div>
+          );
+        })()}
       </Modal>
     </>
   );

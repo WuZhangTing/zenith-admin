@@ -28,20 +28,28 @@ function cellToText(value: unknown): string {
 }
 
 /**
- * 解析上传的 xlsx：按表头文案定位列（顺序无关），返回数据行列表。
+ * 解析上传的导入文件（xlsx / csv，按文件名后缀分流）：
+ * 按表头文案定位列（顺序无关），返回数据行列表。
  * 必需列缺失时抛 400（整个文件拒绝，不进入逐行阶段）。
  */
 export async function parseImportWorkbook(
   buffer: ArrayBuffer,
   columns: ImportColumnMeta[],
   maxRows: number,
+  filename?: string | null,
 ): Promise<ParsedImportRow[]> {
   const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook();
+  const isCsv = /\.csv$/i.test(filename ?? '');
   try {
-    await workbook.xlsx.load(buffer);
+    if (isCsv) {
+      const { Readable } = await import('node:stream');
+      await workbook.csv.read(Readable.from(Buffer.from(buffer)));
+    } else {
+      await workbook.xlsx.load(buffer);
+    }
   } catch {
-    throw new HTTPException(400, { message: '文件不是有效的 xlsx（请使用下载的模板填写）' });
+    throw new HTTPException(400, { message: isCsv ? '文件不是有效的 CSV' : '文件不是有效的 xlsx（请使用下载的模板填写）' });
   }
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new HTTPException(400, { message: 'Excel 文件无工作表' });

@@ -146,7 +146,7 @@ export async function listManagedFiles(query: {
   };
 }
 
-const DEFAULT_ALLOWED_TYPES = 'image/*,video/*,audio/*,application/pdf,text/plain,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/msword,application/vnd.ms-powerpoint';
+const DEFAULT_ALLOWED_TYPES = 'image/*,video/*,audio/*,application/pdf,text/plain,text/csv,application/zip,application/x-zip-compressed,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.ms-excel,application/msword,application/vnd.ms-powerpoint';
 
 /** 校验上传大小是否超过系统配置上限（file_upload_max_size_mb，0 表示不限制） */
 export async function assertUploadSizeAllowed(size: number) {
