@@ -11,6 +11,8 @@ vi.mock('../../db', () => ({ db: {} }));
 vi.mock('../context', () => ({
   currentUser: () => ({ userId: 7, username: 'editor', roles: ['cms_editor'], tenantId: null }),
   runWithCurrentUser: (_user: unknown, fn: () => unknown) => Promise.resolve(fn()),
+  currentTraceId: () => undefined,
+  runWithTraceId: (_traceId: string, fn: () => unknown) => Promise.resolve(fn()),
 }));
 vi.mock('../tenant', () => ({ getCreateTenantId: () => null }));
 vi.mock('../pg-boss-scheduler', () => ({

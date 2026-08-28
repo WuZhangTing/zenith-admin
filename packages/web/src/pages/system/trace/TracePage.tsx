@@ -52,7 +52,7 @@ function TraceLogsPanel({ traceId }: { traceId: string }) {
         <div style={{
           fontFamily: 'var(--zx-font-mono, monospace)', fontSize: 12, lineHeight: '20px',
           maxHeight: 360, overflow: 'auto', background: 'var(--semi-color-fill-0)',
-          borderRadius: 6, padding: '8px 12px', wordBreak: 'break-all',
+          borderRadius: 'var(--semi-border-radius-medium)', padding: '8px 12px', wordBreak: 'break-all',
         }}>
           {lines.map((line, i) => <div key={i}>{line}</div>)}
         </div>
@@ -74,7 +74,7 @@ export default function TracePage() {
   const [detailNode, setDetailNode] = useState<TraceTimelineNode | null>(null);
 
   const timelineQuery = useTraceTimeline(traceId);
-  const nodes = timelineQuery.data?.nodes ?? [];
+  const nodes = useMemo(() => timelineQuery.data?.nodes ?? [], [timelineQuery.data]);
 
   function handleSearch() {
     const next = draft.trim();

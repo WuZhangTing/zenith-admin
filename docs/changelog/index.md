@@ -4,6 +4,34 @@
 
 ---
 
+## v2.0.0 - 2026-08-28
+
+本版本交付**链路追踪查看器**：一枚链路 ID 贯穿一次操作触发的请求、后台作业、领域事件、通知派发与异步任务，管理后台内即可按 ID 拉出完整时间线排障。版本升为 2.0 的原因：请求关联协议做了一次破坏性收敛（移除自造的 `X-Trace-Id` 响应头，统一为标准 `X-Request-Id`）。
+
+### Added
+
+#### 链路追踪查看器（系统管理 → 审计日志）
+
+- **时间线页** `/system/trace`（菜单 2720，`system:trace:view` 权限）：按链路 ID 聚合五类锚点为统一时间线（HTTP 请求 / 后台作业 / 领域事件 / 通知派发含渠道级投递结果 / 异步任务），节点状态归一四态、附耗时，支持 URL `?traceId=` 直达与节点明细抽屉
+- **应用日志联查**：时间线页内折叠面板复用日志文件接口按链路 ID 全文过滤（`system:log:files` 权限可见）
+- **联动入口**：操作日志详情与任务中心详情新增「链路 ID + 查看链路」一键跳转
+- **报障闭环**：接口业务错误 Toast 自动附带可复制的链路 ID，用户报障直接提供 ID 即可按链路定位
+- 聚合接口 `GET /api/trace/{traceId}`：五锚点并行查询、租户隔离、单类节点上限 200
+
+#### 链路贯穿基础设施
+
+- **一枚 ID 设计**：traceId 与 hono requestId 合并（请求中间件直接复用 requestId 建立 AsyncLocalStorage 作用域），`operation_logs.request_id` 天然成为链路键，访问日志 / HTTP 详细日志 / OTel 采集属性零改造对齐
+- **pino 日志全量注入 `reqId`**：mixin 方式为请求作用域之外（worker / 作业 / 任务 / 订阅者）的日志行补齐链路键，与 pino-http 请求内字段同名同值；`traceIdStore` 抽离为零依赖模块避免 logger↔db 循环导入
+- **任务中心接入链路**：`async_tasks` 新增 `trace_id`（迁移 0049），提交时继承请求链路，worker 执行时恢复链路作用域使任务内副作用继续同链
+- 检索索引补齐：`operation_logs.request_id`、`notification_outbox.trace_id`、`async_tasks.trace_id`
+
+### Changed
+
+- **BREAKING**：移除自造的 `X-Trace-Id` 请求/响应头，客户端透传链路 ID 统一使用标准 `X-Request-Id`；CORS 增加 `Access-Control-Expose-Headers: X-Request-Id`
+- workspace 内部依赖声明从 `^1.82.0` 同步为 `^2.0.0`（major 升级下旧区间无法匹配）
+
+---
+
 ## v1.99.0 - 2026-08-28
 
 本版本完成**日志框架从 winston 到 pino 的全面迁移**：NDJSON 结构化落盘、worker 线程输出、官方 pino-http 访问日志；并消除多处热路径串行查询，优化若干界面细节。
