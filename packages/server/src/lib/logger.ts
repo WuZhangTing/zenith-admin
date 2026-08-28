@@ -4,7 +4,7 @@
  * 输出（worker 线程 transport，序列化之外的开销不占主线程）：
  *  - 文件：pino-roll 按天轮转 `logs/app.YYYY-MM-DD.N.log`，保留 LOG_MAX_FILES 份，NDJSON
  *  - 控制台：默认输出 NDJSON 到 stdout（交给容器日志采集）；
- *    LOG_PRETTY=true 时经 pino-pretty 彩色单行输出（本地开发用）
+ *    LOG_CONSOLE_PRETTY=true 时经 pino-pretty 彩色单行输出（本地开发用）
  *
  * 调用约定（`hooks.logMethod` 归一化，两种写法都支持）：
  *  - pino 原生：`logger.info({ userId }, '登录成功')`，新代码优先用这种
