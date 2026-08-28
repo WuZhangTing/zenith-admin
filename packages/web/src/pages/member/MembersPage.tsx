@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Select, Form, Toast, Tag, Spin, Row, Col, Dropdown, Modal, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -12,6 +13,7 @@ import { useListDeepLink } from '@/hooks/useListDeepLink';
 import { UserAvatar } from '@/components/UserAvatar';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
+import ImportButton from '@/components/ImportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -47,6 +49,7 @@ const defaultSearch: SearchParams = { keyword: '', status: '', levelId: undefine
 
 export default function MembersPage() {
   const { hasPermission } = usePermission();
+  const queryClient = useQueryClient();
   const { items: genderItems } = useDictItems('user_gender');
   const pwdFormApi = useRef<FormApi | null>(null);
   const {
@@ -296,6 +299,14 @@ export default function MembersPage() {
     <ExportButton entity="member.members" query={buildExportQuery()} />
   ) : null;
 
+  const renderImportButton = () => hasPermission('member:member:create') ? (
+    <ImportButton
+      entity="member.members"
+      title="会员"
+      onFinished={() => void queryClient.invalidateQueries({ queryKey: memberAdminKeys.memberLists })}
+    />
+  ) : null;
+
   const renderMobileExportActions = () => hasPermission('member:member:list') ? (
     <ExportButton entity="member.members" query={buildExportQuery()} variant="flat" />
   ) : null;
@@ -312,6 +323,7 @@ export default function MembersPage() {
             {renderSearchButton()}
             {renderResetButton()}
             {renderExportButtons()}
+            {renderImportButton()}
             {renderTagsManageButton()}
             {renderCreateButton()}
           </>
