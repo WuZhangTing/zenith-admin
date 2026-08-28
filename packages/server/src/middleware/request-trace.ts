@@ -1,17 +1,16 @@
-import { randomUUID } from 'node:crypto';
 import type { MiddlewareHandler } from 'hono';
 import { runWithTraceId } from '../lib/context';
 
 /**
- * 为每个请求建立链路关联 traceId（贯穿其触发的全部工作流作业/事件 fan-out）。
+ * 为每个请求建立链路关联 traceId（贯穿其触发的全部作业/事件/通知/任务 fan-out）。
  *
- * - 支持客户端通过 `X-Trace-Id` 头透传（≤64 字符），否则生成一枚 UUID；
- * - 回写 `X-Trace-Id` 响应头，便于前端/网关与作业链路对齐；
- * - 用 `runWithTraceId` 包裹 `next()`，使下游 `enqueueJob` / 事件 outbox 自动继承该 traceId。
+ * traceId 与 hono requestId 是**同一枚值**：`requestId()` 中间件已处理 `X-Request-Id`
+ * 透传（一次前端操作的多个请求可共链）、UUID 生成与响应头回写；这里只负责把它装进
+ * AsyncLocalStorage，使下游 `enqueueJob` / 事件 outbox / `submitAsyncTask` /
+ * pino 日志（mixin 注入 reqId 字段）自动继承。
+ *
+ * 必须挂在 `requestId()` 之后。
  */
 export const requestTraceMiddleware: MiddlewareHandler = async (c, next) => {
-  const incoming = c.req.header('x-trace-id');
-  const traceId = incoming && incoming.length > 0 && incoming.length <= 64 ? incoming : randomUUID();
-  c.header('X-Trace-Id', traceId);
-  await runWithTraceId(traceId, () => next());
+  await runWithTraceId(c.get('requestId'), () => next());
 };

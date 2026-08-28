@@ -293,3 +293,29 @@ export function formatMonitorMetricValue(metric: MonitorMetric, value: number): 
     default: return `${value}`;
   }
 }
+
+// ─── 链路追踪 ─────────────────────────────────────────────────────────────────
+/** 时间线节点类型（一次操作的各类留痕锚点） */
+export const TRACE_NODE_KINDS = ['request', 'job', 'event', 'notification', 'task'] as const;
+
+export type TraceNodeKind = (typeof TRACE_NODE_KINDS)[number];
+
+export const TRACE_NODE_KIND_LABELS: Record<TraceNodeKind, string> = {
+  request: 'HTTP 请求',
+  job: '后台作业',
+  event: '领域事件',
+  notification: '通知派发',
+  task: '异步任务',
+};
+
+/** 归一后的节点状态（各锚点表状态收敛为四态） */
+export const TRACE_NODE_STATUSES = ['success', 'failed', 'running', 'pending'] as const;
+
+export type TraceNodeStatus = (typeof TRACE_NODE_STATUSES)[number];
+
+export const TRACE_NODE_STATUS_LABELS: Record<TraceNodeStatus, string> = {
+  success: '成功',
+  failed: '失败',
+  running: '进行中',
+  pending: '待处理',
+};

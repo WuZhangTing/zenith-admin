@@ -447,6 +447,8 @@ export const notificationOutbox = pgTable('notification_outbox', {
   index('notification_outbox_digest_idx').on(t.digestKey, t.scheduledAt).where(sql`${t.digestKey} is not null`),
   index('notification_outbox_event_idx').on(t.eventKey, t.createdAt),
   index('notification_outbox_tenant_idx').on(t.tenantId),
+  // 链路追踪查看器按 trace_id 定位通知锚点
+  index('notification_outbox_trace_idx').on(t.traceId),
 ]);
 
 export type NotificationOutboxRow = typeof notificationOutbox.$inferSelect;

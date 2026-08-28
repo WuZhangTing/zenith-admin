@@ -96,6 +96,8 @@ export const asyncTasks = pgTable('async_tasks', {
   idempotencyKey: varchar('idempotency_key', { length: 128 }),
   /** 执行心跳（progress 更新时刷新），兜底扫描据此回收卡死任务 */
   heartbeatAt: timestamp('heartbeat_at'),
+  /** 链路关联 ID（= 提交请求的 requestId），串起任务与其触发源/后续副作用 */
+  traceId: varchar('trace_id', { length: 64 }),
   tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   startedAt: timestamp('started_at'),
@@ -107,6 +109,7 @@ export const asyncTasks = pgTable('async_tasks', {
   index('async_tasks_status_idx').on(t.status),
   index('async_tasks_created_by_idx').on(t.createdBy),
   index('async_tasks_created_at_idx').on(t.createdAt),
+  index('async_tasks_trace_idx').on(t.traceId),
   // 注：payload / result 的内容检索走 gin_trgm_ops 表达式索引
   // （(payload::text)），表达式 + 操作符类超出 Drizzle 索引 DSL 表达范围，
   // 手写在 drizzle/0004_async_tasks_content_trgm.sql。

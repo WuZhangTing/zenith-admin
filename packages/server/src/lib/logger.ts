@@ -17,6 +17,7 @@
  */
 import path from 'node:path';
 import { pino, destination, levels, stdSerializers, type Logger, type LogFn, type TransportTargetOptions } from 'pino';
+import { currentTraceId } from './trace-context';
 import { config } from '../config';
 import { recordLogLevel } from './log-metrics';
 
@@ -113,6 +114,13 @@ const options = {
   // 级别保持 pino 默认的数字形式（10-60，行首第一个键），日志查看器与采集端按数字映射
   serializers: { err: stdSerializers.err, error: stdSerializers.err },
   hooks: { logMethod },
+  // 链路关联：所有日志行自动带 reqId（= hono requestId = traceId），
+  // 与 pino-http 请求级子 logger 的 reqId 字段同名同值（请求内 child bindings 优先，值相同）；
+  // worker / 作业 / 任务等请求作用域之外的日志由此补齐链路键
+  mixin: () => {
+    const reqId = currentTraceId();
+    return reqId ? { reqId } : {};
+  },
 } satisfies Parameters<typeof pino>[0];
 
 const logger = (process.env.VITEST

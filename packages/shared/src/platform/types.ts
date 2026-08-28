@@ -853,3 +853,25 @@ export interface UploadCertInput {
   certContent: string;
   keyContent: string;
 }
+
+// ─── 链路追踪 ─────────────────────────────────────────────────────────────────
+import type { TraceNodeKind, TraceNodeStatus } from './constants';
+
+/** 链路时间线节点：五类锚点归一后的统一结构 */
+export interface TraceTimelineNode {
+  kind: TraceNodeKind;
+  /** 节点时间（YYYY-MM-DD HH:mm:ss） */
+  ts: string;
+  title: string;
+  status: TraceNodeStatus;
+  durationMs: number | null;
+  /** 源单据 ID（对应锚点表主键） */
+  refId: number;
+  /** kind 专属明细（渠道投递结果 / 作业错误 / 审计摘要等） */
+  detail: Record<string, unknown>;
+}
+
+export interface TraceTimeline {
+  traceId: string;
+  nodes: TraceTimelineNode[];
+}

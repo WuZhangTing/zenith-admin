@@ -18,6 +18,7 @@ import rulesRoutes from './rules';
 import systemConfigsRoutes from './system-configs';
 import licensingRoutes from './licensing';
 import tagsRoutes from './tags';
+import traceRoutes from './trace';
 import userFeedbacksRoutes from './user-feedbacks';
 import { createWsRoute } from './ws';
 
@@ -42,6 +43,7 @@ export default defineRouteDomain({
     ['/api/rules/lists', rulesListsRoutes, { feature: 'rules' }],
     ['/api/rules/scorecards', rulesScorecardsRoutes, { feature: 'rules' }],
     ['/api/tags', tagsRoutes],
+    ['/api/trace', traceRoutes],
     ['/api/rate-limit', rateLimitRoutes],
     ['/api/ws', createWsRoute(upgradeWebSocket)],
     ['/api/health', healthRoutes],
