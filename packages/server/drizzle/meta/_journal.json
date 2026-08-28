@@ -337,6 +337,13 @@
       "when": 1787906627372,
       "tag": "0047_shiny_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1787929125287,
+      "tag": "0048_overrated_captain_america",
+      "breakpoints": true
     }
   ]
 }

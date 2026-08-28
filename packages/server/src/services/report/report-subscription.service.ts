@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, inArray, lte, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, isNotNull, sql } from 'drizzle-orm';
 import { aggregateReportRows } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDashboardSubscriptions, reportDeliveryRuns } from '../../db/schema';
@@ -203,15 +203,29 @@ export async function deleteSubscription(id: number): Promise<void> {
 
 export async function batchSetSubscriptionEnabled(ids: number[], enabled: boolean): Promise<number> {
   if (ids.length === 0) return 0;
-  const rows = await db.query.reportDashboardSubscriptions.findMany({
-    where: reportScopedWhere(reportDashboardSubscriptions, inArray(reportDashboardSubscriptions.id, ids)),
-  });
-  for (const row of rows) {
-    await db.update(reportDashboardSubscriptions).set({
-      enabled,
-      nextRunAt: resolveNextRunAt(row.cron, enabled, row.timezone ?? REPORT_DEFAULT_TIMEZONE),
-    }).where(eq(reportDashboardSubscriptions.id, row.id));
+  const scoped = reportScopedWhere(reportDashboardSubscriptions, inArray(reportDashboardSubscriptions.id, ids));
+  // 停用：所有行取值一致（nextRunAt 恒为 null），单条 UPDATE 原子完成，审计列由 drizzle 自动维护
+  if (!enabled) {
+    const rows = await db.update(reportDashboardSubscriptions)
+      .set({ enabled: false, nextRunAt: null })
+      .where(scoped)
+      .returning({ id: reportDashboardSubscriptions.id });
+    return rows.length;
   }
+  const rows = await db.query.reportDashboardSubscriptions.findMany({ where: scoped });
+  if (rows.length === 0) return 0;
+  // 启用：每行 nextRunAt 由各自 cron/时区决定，单条 UPDATE ... FROM (VALUES ...) 原子写入，替代逐条 UPDATE。
+  // 手写 SQL 不经过 drizzle 的 $onUpdate 与审计 Proxy，updated_at / updated_by 必须显式赋值
+  const user = currentUserOrNull();
+  const values = sql.join(rows.map((row) => sql`(${row.id}::int, ${
+    resolveNextRunAt(row.cron, true, row.timezone ?? REPORT_DEFAULT_TIMEZONE)
+  }::timestamptz)`), sql`, `);
+  await db.execute(sql`
+    update ${reportDashboardSubscriptions} as s
+    set enabled = true, next_run_at = v.next_run_at, updated_at = now(), updated_by = ${user?.userId ?? null}
+    from (values ${values}) as v(id, next_run_at)
+    where s.id = v.id
+  `);
   return rows.length;
 }
 

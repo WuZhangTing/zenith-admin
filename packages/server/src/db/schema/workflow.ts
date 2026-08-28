@@ -129,6 +129,8 @@ export const workflowDefinitions = pgTable('workflow_definitions', {
 }, (t) => [
   // 发起工作台 / 交接扫描 / 自动化均按 (租户, published) 过滤
   index('workflow_definitions_tenant_status_idx').on(t.tenantId, t.status),
+  // 决策表/流/评分卡引用扫描按 flowData @> containment 粗筛（rules.service findWorkflowGatewayUsages）
+  index('workflow_definitions_flow_data_gin_idx').using('gin', t.flowData.op('jsonb_path_ops')),
 ]);
 
 export type WorkflowDefinitionRow = typeof workflowDefinitions.$inferSelect;

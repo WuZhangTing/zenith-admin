@@ -228,13 +228,14 @@ export async function listDecisionTableUsages(id: number): Promise<RuleUsageItem
  * 租户资产只可能被本租户的工作流引用；平台级（null）资产可被任意租户引用，保持全量扫描。
  */
 export async function findWorkflowGatewayUsages(key: string, kind: 'table' | 'scorecard' | 'flow', assetTenantId: number | null): Promise<RuleUsageItem[]> {
-  const pattern = `%"decisionRuleKey":"${escapeLike(key)}"%`;
-  const conds = [sql`${workflowDefinitions.flowData}::text LIKE ${pattern}`];
+  // jsonb @> containment 走 flow_data 的 GIN 索引粗筛（穿透 nodes 数组），替代逐行 ::text LIKE 全表扫描
+  const needle = JSON.stringify({ nodes: [{ data: { decisionRuleKey: key } }] });
+  const conds = [sql`${workflowDefinitions.flowData} @> ${needle}::jsonb`];
   if (assetTenantId != null) conds.push(eq(workflowDefinitions.tenantId, assetTenantId));
   const defs = await db.select({ id: workflowDefinitions.id, name: workflowDefinitions.name, status: workflowDefinitions.status, flowData: workflowDefinitions.flowData })
     .from(workflowDefinitions)
     .where(and(...conds));
-  // LIKE 只做粗筛；kind 与 key 的精确匹配在 JS 侧完成（防止同 key 不同类型资产误报）
+  // containment 只做粗筛；kind 与 key 的精确匹配在 JS 侧完成（防止同 key 不同类型资产误报）
   type GatewayNode = { data?: { type?: string; decisionRuleKey?: string | null; decisionRefKind?: string | null } };
   return defs
     .filter((d) => {

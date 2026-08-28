@@ -1,0 +1,1 @@
+CREATE INDEX "workflow_definitions_flow_data_gin_idx" ON "workflow_definitions" USING gin ("flow_data" jsonb_path_ops);
