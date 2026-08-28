@@ -214,6 +214,8 @@ export interface OperationLog {
   description: string;
   method: string;
   path: string;
+  /** 链路 ID（= 请求的 X-Request-Id），可跳转链路追踪 */
+  requestId?: string | null;
   requestBody: string | null;
   beforeData: string | null;
   afterData: string | null;

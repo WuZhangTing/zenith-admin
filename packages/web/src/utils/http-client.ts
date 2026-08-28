@@ -208,7 +208,8 @@ export class HttpClient {
     try {
       const data: ApiResponse<T> = await res.json();
       if (data.code !== 0 && !silent) {
-        showRequestErrorToast(data.message || '操作失败');
+        // 附上响应头里的链路 ID：用户报障时可直接复制给管理员按链路排查
+        showRequestErrorToast(data.message || '操作失败', res.headers.get('X-Request-Id'));
       }
       return data;
     } catch {

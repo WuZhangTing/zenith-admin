@@ -23,6 +23,7 @@ export const AsyncTaskDTO = z
     createdBy: z.number().int().nullable(),
     createdByName: z.string().nullable(),
     tenantId: z.number().int().nullable(),
+    traceId: z.string().nullable().optional(),
     startedAt: z.string().nullable(),
     completedAt: z.string().nullable(),
     createdAt: z.string(),

@@ -63,6 +63,7 @@ export const OperationLogDTO = z
     description: z.string(),
     method: z.string(),
     path: z.string(),
+    requestId: z.string().nullable().optional(),
     requestBody: z.string().nullable(),
     beforeData: z.string().nullable(),
     afterData: z.string().nullable(),

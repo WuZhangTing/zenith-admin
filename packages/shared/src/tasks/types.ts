@@ -112,6 +112,8 @@ export interface AsyncTask {
   createdBy: number | null;
   createdByName: string | null;
   tenantId: number | null;
+  /** 链路 ID（= 提交请求的 X-Request-Id），可跳转链路追踪 */
+  traceId?: string | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;

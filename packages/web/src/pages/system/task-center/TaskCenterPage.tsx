@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Spin, Switch, TabPane, Tabs, Tag, Toast, Typography, Input } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -93,6 +94,7 @@ function renderJson(value: Record<string, unknown> | null) {
 export default function TaskCenterPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = usePermission();
+  const navigate = useNavigate();
   const canManage = hasPermission('system:async-task:manage');
   const canCleanup = hasPermission('system:async-task:cleanup');
   const canConfig = hasPermission('system:async-task:config');
@@ -672,6 +674,24 @@ export default function TaskCenterPage() {
                 { key: '提交人', value: detailTask.createdByName ?? '-' },
                 { key: '开始时间', value: detailTask.startedAt ? formatDateTime(detailTask.startedAt) : '-' },
                 { key: '完成时间', value: detailTask.completedAt ? formatDateTime(detailTask.completedAt) : '-' },
+                {
+                  key: '链路 ID',
+                  value: detailTask.traceId
+                    ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <Typography.Text copyable size="small">{detailTask.traceId}</Typography.Text>
+                          {hasPermission('system:trace:view') && (
+                            <Button
+                              size="small" theme="borderless" type="primary"
+                              onClick={() => navigate(`/system/trace?traceId=${encodeURIComponent(detailTask.traceId!)}`)}
+                            >
+                              查看链路
+                            </Button>
+                          )}
+                        </span>
+                      )
+                    : '-',
+                },
               ]}
               size="small"
             />

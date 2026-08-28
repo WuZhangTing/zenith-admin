@@ -71,6 +71,8 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2151, parentId: 2150, title: '查看日志', type: 'button', permission: 'system:log:files', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2152, parentId: 2150, title: '下载日志', type: 'button', permission: 'system:log:files:download', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2153, parentId: 2150, title: '删除日志', type: 'button', permission: 'system:log:files:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2720, parentId: 2120, title: '链路追踪', name: 'SystemTrace', path: '/system/trace', component: 'system/trace/TracePage', icon: 'Route', type: 'menu', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2721, parentId: 2720, title: '查询', type: 'button', permission: 'system:trace:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2160, parentId: 2000, title: '公告管理', name: 'SystemAnnouncements', path: '/system/announcements', component: 'system/announcements/AnnouncementsPage', icon: 'Megaphone', type: 'menu', sort: 10, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2161, parentId: 2160, title: '查询', type: 'button', permission: 'system:announcement:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2162, parentId: 2160, title: '新增公告', type: 'button', permission: 'system:announcement:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

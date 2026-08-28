@@ -1,4 +1,5 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Descriptions, JsonViewer, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -8,6 +9,7 @@ import { formatDateTime } from '@/utils/date';
 import './OperationLogsTable.css';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { UserDisplayCell, formatUserLabel } from '@/components/UserDisplay';
+import { usePermission } from '@/hooks/usePermission';
 
 interface OperationLogsTableProps {
   readonly dataSource: OperationLog[];
@@ -104,6 +106,8 @@ export function OperationLogsTable({
 }: OperationLogsTableProps) {
   const [detailLog, setDetailLog] = useState<OperationLog | null>(null);
   const [detailActiveTab, setDetailActiveTab] = useState('basic');
+  const navigate = useNavigate();
+  const { hasPermission } = usePermission();
 
   const columns = useMemo<ColumnProps<OperationLog>[]>(() => [
     { title: 'ID', dataIndex: 'id', width: 70 },
@@ -204,6 +208,27 @@ export function OperationLogsTable({
                     { key: '操作地点', value: detailLog.location ?? '-' },
                     { key: '浏览器', value: detailLog.browser ?? '-', span: 2 },
                     { key: '操作系统', value: detailLog.os ?? '-' },
+                    {
+                      key: '链路 ID',
+                      span: 2,
+                      value: detailLog.requestId
+                        ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <Typography.Text copyable size="small">{detailLog.requestId}</Typography.Text>
+                              {hasPermission('system:trace:view') && (
+                                <Button
+                                  size="small"
+                                  theme="borderless"
+                                  type="primary"
+                                  onClick={() => navigate(`/system/trace?traceId=${encodeURIComponent(detailLog.requestId!)}`)}
+                                >
+                                  查看链路
+                                </Button>
+                              )}
+                            </span>
+                          )
+                        : '-',
+                    },
                   ]}
                   column={2}
                   layout="horizontal"

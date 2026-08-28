@@ -92,10 +92,10 @@ export function createApp() {
   // allowHeaders 留空 = 反射预检请求头（hono 默认），兼容携带自定义头的客户端。
   // Mastra Studio 的请求带 credentials:'include'，通配符 '*' 对凭据模式无效
   // → /api/mastra 单独反射请求 Origin 并允许凭据（该域鉴权走 Bearer + 权限,不依赖 Cookie）
-  app.use('/api/mastra/*', cors({ origin: (origin) => origin, credentials: true }));
+  app.use('/api/mastra/*', cors({ origin: (origin) => origin, credentials: true, exposeHeaders: ['X-Request-Id'] }));
   app.use('*', except(
     (c) => c.req.path.startsWith('/api/mastra'),
-    cors({ origin: config.corsOrigin }),
+    cors({ origin: config.corsOrigin, exposeHeaders: ['X-Request-Id'] }),
   ));
   // CSRF 防护：校验 Origin 头，防止跨站请求伪造
   // ALLOWED_ORIGINS 为空时（开发模式）不限制

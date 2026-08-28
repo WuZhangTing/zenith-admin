@@ -29,6 +29,7 @@ export function mapAsyncTask(row: AsyncTaskRowWithCreator): AsyncTask {
     createdBy: row.createdBy ?? null,
     createdByName: row.createdByUser?.nickname || row.createdByUser?.username || null,
     tenantId: row.tenantId ?? null,
+    traceId: row.traceId ?? null,
     startedAt: formatNullableDateTime(row.startedAt),
     completedAt: formatNullableDateTime(row.completedAt),
     createdAt: formatDateTime(row.createdAt),
