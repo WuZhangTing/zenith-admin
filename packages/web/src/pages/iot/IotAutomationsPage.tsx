@@ -437,7 +437,7 @@ function AutomationFormBody({ isEdit, values }: Readonly<{ isEdit: boolean; valu
 
       <Form.InputNumber field="cooldownSeconds" label="冷却期（秒）" min={0} max={86400} style={{ width: 160 }}
         extraText="同一设备触发后在窗口内不重复执行" />
-      <Form.Input field="decisionRuleKey" label="决策表 Key（可选）" placeholder="规则中心决策表 key" style={{ width: 220 }}
+      <Form.Input field="decisionRuleKey" label="决策表 Key" placeholder="规则中心决策表 key（可选）" style={{ width: 220 }}
         extraText="填写后触发时先经决策表判定，命中才执行动作" />
       <Form.RadioGroup field="status" label="状态">
         {statusItems.map((o) => (
