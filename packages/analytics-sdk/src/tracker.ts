@@ -710,7 +710,10 @@ class Tracker {
       const start = performance.now();
       try {
         const res = await origFetch(...args);
-        record(url, method, res.status, performance.now() - start, false, res.headers.get('X-Request-Id'));
+        // 防御性读取：非标准 Response（测试替身/旧运行时）可能没有 headers
+        let requestId: string | null = null;
+        try { requestId = res.headers?.get?.('X-Request-Id') ?? null; } catch { /* ignore */ }
+        record(url, method, res.status, performance.now() - start, false, requestId);
         return res;
       } catch (err) {
         record(url, method, 0, performance.now() - start, true);

@@ -13,6 +13,8 @@ vi.mock('../context', () => ({
   runWithCurrentUser: (_user: unknown, fn: () => unknown) => Promise.resolve(fn()),
   currentTraceId: () => undefined,
   runWithTraceId: (_traceId: string, fn: () => unknown) => Promise.resolve(fn()),
+  currentParentRef: () => undefined,
+  runWithParentRef: (_ref: string, fn: () => unknown) => Promise.resolve(fn()),
 }));
 vi.mock('../tenant', () => ({ getCreateTenantId: () => null }));
 vi.mock('../pg-boss-scheduler', () => ({
