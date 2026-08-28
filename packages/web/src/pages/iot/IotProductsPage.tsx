@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Form, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -12,10 +13,12 @@ import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
+import { IOT_VALIDATION_MODE_OPTIONS } from '@zenith/shared/iot';
 import type { IotProduct } from '@zenith/shared/iot';
 import {
   iotProductKeys, useDeleteIotProducts, useIotProductList, useSaveIotProduct,
 } from '@/hooks/queries/iot-products';
+import IotThingModelDrawer from './IotThingModelDrawer';
 
 const { Text } = Typography;
 
@@ -29,6 +32,7 @@ const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 export default function IotProductsPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
+  const [modelProduct, setModelProduct] = useState<IotProduct | null>(null);
 
   const {
     page, pageSize, buildPagination,
@@ -50,14 +54,14 @@ export default function IotProductsPage() {
     save: useSaveIotProduct(),
     toValues: (r) => ({
       name: r.name,
-      keyMetrics: r.keyMetrics,
+      validationMode: r.validationMode,
       status: r.status,
       description: r.description ?? '',
     }),
-    defaults: { status: 'enabled' },
+    defaults: { status: 'enabled', validationMode: 'loose' },
     beforeSave: (values) => ({
       name: values.name as string,
-      keyMetrics: (values.keyMetrics as string[] | undefined) ?? [],
+      validationMode: values.validationMode as IotProduct['validationMode'],
       status: values.status as IotProduct['status'],
       description: (values.description as string) || null,
     }),
@@ -72,19 +76,28 @@ export default function IotProductsPage() {
   }
 
   const columns: ColumnProps<IotProduct>[] = [
-    { title: '产品名称', dataIndex: 'name', width: 180 },
     {
-      title: '关键指标', width: 260,
-      render: (_: unknown, r: IotProduct) => r.keyMetrics.length > 0
-        ? (
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {r.keyMetrics.map((m) => <Tag key={m} size="small" color="cyan">{m}</Tag>)}
-            </div>
-          )
-        : EMPTY_PLACEHOLDER,
+      title: '产品名称', dataIndex: 'name', width: 180,
+      render: (v: string) => renderEllipsis(v),
     },
     {
-      title: '描述', dataIndex: 'description', width: 260,
+      title: '物模型', width: 210,
+      render: (_: unknown, r: IotProduct) => (
+        <div style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}>
+          <Tag size="small" color="cyan">属性 {r.propertyCount ?? 0}</Tag>
+          <Tag size="small" color="blue">服务 {r.serviceCount ?? 0}</Tag>
+          <Tag size="small" color="orange">事件 {r.eventCount ?? 0}</Tag>
+        </div>
+      ),
+    },
+    {
+      title: '遥测校验', dataIndex: 'validationMode', width: 90,
+      render: (v: IotProduct['validationMode']) => (
+        <Tag size="small" color={v === 'strict' ? 'red' : 'grey'}>{v === 'strict' ? '严格' : '宽松'}</Tag>
+      ),
+    },
+    {
+      title: '描述', dataIndex: 'description', width: 240,
       render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
     },
     {
@@ -99,8 +112,11 @@ export default function IotProductsPage() {
       ),
     },
     createOperationColumn<IotProduct>({
-      width: 140,
+      width: 190,
       actions: (record) => [
+        {
+          key: 'model', label: '物模型', onClick: () => setModelProduct(record),
+        },
         ...(hasPermission('iot:product:update') ? [{
           key: 'edit', label: '编辑', onClick: () => modal.openEdit(record),
         }] : []),
@@ -111,7 +127,7 @@ export default function IotProductsPage() {
           onClick: () => {
             confirmDelete({
               title: `确定要删除产品「${record.name}」吗？`,
-              content: '删除后不可恢复',
+              content: '删除后不可恢复，物模型定义一并删除',
               onOk: () => handleDelete(record.id),
             });
           },
@@ -179,11 +195,10 @@ export default function IotProductsPage() {
           <Form key={modal.formKey} {...modal.formProps}>
             <Form.Input field="name" label="产品名称" placeholder="如：温湿度传感器"
               rules={[{ required: true, message: '产品名称不能为空' }]} />
-            <Form.TagInput
-              field="keyMetrics" label="关键指标"
-              placeholder="输入指标名后回车，如 temperature"
-              extraText="产品下设备遥测的重点字段，设备列表与图表默认展示这些指标"
-              max={20}
+            <Form.Select
+              field="validationMode" label="遥测校验" style={{ width: '100%' }}
+              optionList={IOT_VALIDATION_MODE_OPTIONS}
+              extraText="宽松：校验已声明属性（不符丢弃该键），未声明键放行；严格：仅接受已声明属性"
             />
             <Form.RadioGroup field="status" label="状态">
               {statusItems.map((o) => (
@@ -194,6 +209,8 @@ export default function IotProductsPage() {
           </Form>
         </Spin>
       </AppModal>
+
+      <IotThingModelDrawer product={modelProduct} onClose={() => setModelProduct(null)} />
     </div>
   );
 }

@@ -1,27 +1,49 @@
 /**
  * IoT 产品 / 设备管理 CRUD。
+ *
+ * 设备列表的属性快照读自 iot_device_state.reported（O(1)），不再扫遥测表。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, count, desc, eq, inArray, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, exists, inArray, type SQL } from 'drizzle-orm';
 import type { CreateIotDeviceInput, CreateIotProductInput, UpdateIotDeviceInput, UpdateIotProductInput } from '@zenith/shared/iot';
 import { db } from '../../db';
-import { iotDevices, iotProducts, iotTelemetry, type IotDeviceRow, type IotProductRow } from '../../db/schema';
+import type { DbExecutor } from '../../db/types';
+import {
+  iotDeviceGroupMembers, iotDeviceGroups, iotDevices, iotDeviceState, iotProductEvents,
+  iotProductProperties, iotProducts, iotProductServices, iotTelemetry,
+  type IotDeviceRow, type IotDeviceStateRow, type IotProductRow,
+} from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { generateDeviceSecret, generateDeviceSn, getOnlineMap } from './iot-access.service';
+import { clearOnlineKeys, generateDeviceSecret, generateDeviceSn, getOnlineMap } from './iot-access.service';
+import { recordIotLifecycleEvent } from './iot-events.service';
+
+/** 批量读取影子（设备列表快照列） */
+async function loadIotStates(deviceIds: number[]): Promise<Map<number, IotDeviceStateRow>> {
+  if (deviceIds.length === 0) return new Map();
+  const rows = await db.select().from(iotDeviceState)
+    .where(inArray(iotDeviceState.deviceId, deviceIds));
+  return new Map(rows.map((r) => [r.deviceId, r]));
+}
 
 // ─── 产品 ─────────────────────────────────────────────────────────────────────
-export function mapIotProduct(row: IotProductRow, deviceCount = 0) {
+export function mapIotProduct(
+  row: IotProductRow,
+  extra?: { deviceCount?: number; propertyCount?: number; serviceCount?: number; eventCount?: number },
+) {
   return {
     id: row.id,
     name: row.name,
-    keyMetrics: row.keyMetrics ?? [],
     description: row.description ?? null,
+    validationMode: row.validationMode,
     status: row.status,
-    deviceCount,
+    deviceCount: extra?.deviceCount ?? 0,
+    propertyCount: extra?.propertyCount ?? 0,
+    serviceCount: extra?.serviceCount ?? 0,
+    eventCount: extra?.eventCount ?? 0,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -45,6 +67,16 @@ function buildProductWhere(q: ListIotProductsQuery & { id?: number }): SQL | und
   );
 }
 
+async function loadCountMap(table: typeof iotDevices | typeof iotProductProperties | typeof iotProductServices | typeof iotProductEvents, productIds: number[]): Promise<Map<number, number>> {
+  if (productIds.length === 0) return new Map();
+  const rows = await db
+    .select({ productId: table.productId, cnt: count() })
+    .from(table)
+    .where(inArray(table.productId, productIds))
+    .groupBy(table.productId);
+  return new Map(rows.map((r) => [r.productId, Number(r.cnt)]));
+}
+
 export async function listIotProducts(q: ListIotProductsQuery) {
   const { page = 1, pageSize = 10 } = q;
   const where = buildProductWhere(q);
@@ -57,15 +89,23 @@ export async function listIotProducts(q: ListIotProductsQuery) {
     ),
   ]);
   const ids = rows.map((r) => r.id);
-  const countRows = ids.length
-    ? await db
-      .select({ productId: iotDevices.productId, cnt: count() })
-      .from(iotDevices)
-      .where(inArray(iotDevices.productId, ids))
-      .groupBy(iotDevices.productId)
-    : [];
-  const countMap = new Map(countRows.map((r) => [r.productId, Number(r.cnt)]));
-  return { list: rows.map((r) => mapIotProduct(r, countMap.get(r.id) ?? 0)), total, page, pageSize };
+  const [deviceCounts, propCounts, svcCounts, evtCounts] = await Promise.all([
+    loadCountMap(iotDevices, ids),
+    loadCountMap(iotProductProperties, ids),
+    loadCountMap(iotProductServices, ids),
+    loadCountMap(iotProductEvents, ids),
+  ]);
+  return {
+    list: rows.map((r) => mapIotProduct(r, {
+      deviceCount: deviceCounts.get(r.id) ?? 0,
+      propertyCount: propCounts.get(r.id) ?? 0,
+      serviceCount: svcCounts.get(r.id) ?? 0,
+      eventCount: evtCounts.get(r.id) ?? 0,
+    })),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 /** 下拉源：与列表共用访问边界（仅启用产品） */
@@ -83,14 +123,26 @@ export async function ensureIotProductExists(id: number): Promise<IotProductRow>
 }
 
 export async function getIotProduct(id: number) {
-  return mapIotProduct(await ensureIotProductExists(id));
+  const row = await ensureIotProductExists(id);
+  const [deviceCounts, propCounts, svcCounts, evtCounts] = await Promise.all([
+    loadCountMap(iotDevices, [id]),
+    loadCountMap(iotProductProperties, [id]),
+    loadCountMap(iotProductServices, [id]),
+    loadCountMap(iotProductEvents, [id]),
+  ]);
+  return mapIotProduct(row, {
+    deviceCount: deviceCounts.get(id) ?? 0,
+    propertyCount: propCounts.get(id) ?? 0,
+    serviceCount: svcCounts.get(id) ?? 0,
+    eventCount: evtCounts.get(id) ?? 0,
+  });
 }
 
 export async function createIotProduct(data: CreateIotProductInput) {
   const [row] = await db.insert(iotProducts).values({
     name: data.name,
-    keyMetrics: data.keyMetrics,
     description: data.description ?? null,
+    validationMode: data.validationMode,
     status: data.status,
     tenantId: getCreateTenantId(currentUser()),
   }).returning();
@@ -100,8 +152,8 @@ export async function createIotProduct(data: CreateIotProductInput) {
 export async function updateIotProduct(id: number, data: UpdateIotProductInput) {
   const [row] = await db.update(iotProducts).set({
     ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.keyMetrics !== undefined ? { keyMetrics: data.keyMetrics } : {}),
     ...(data.description !== undefined ? { description: data.description } : {}),
+    ...(data.validationMode !== undefined ? { validationMode: data.validationMode } : {}),
     ...(data.status !== undefined ? { status: data.status } : {}),
   }).where(buildProductWhere({ id })).returning();
   if (!row) throw new HTTPException(404, { message: '产品不存在' });
@@ -118,7 +170,13 @@ export async function deleteIotProduct(id: number): Promise<void> {
 // ─── 设备 ─────────────────────────────────────────────────────────────────────
 export function mapIotDevice(
   row: IotDeviceRow,
-  extra?: { productName?: string | null; keyMetrics?: string[]; online?: boolean; latestMetrics?: Record<string, number | string | boolean> | null },
+  extra?: {
+    productName?: string | null;
+    online?: boolean;
+    state?: IotDeviceStateRow | null;
+    groupIds?: number[];
+    groupNames?: string[];
+  },
 ) {
   return {
     id: row.id,
@@ -126,14 +184,16 @@ export function mapIotDevice(
     secret: row.secret,
     productId: row.productId,
     productName: extra?.productName ?? null,
-    keyMetrics: extra?.keyMetrics ?? [],
     name: row.name,
     status: row.status,
     online: extra?.online ?? false,
     firmwareVersion: row.firmwareVersion ?? null,
     activatedAt: formatNullableDateTime(row.activatedAt),
     lastSeenAt: formatNullableDateTime(row.lastSeenAt),
-    latestMetrics: extra?.latestMetrics ?? null,
+    reported: extra?.state?.reported ?? null,
+    desired: extra?.state?.desired ?? null,
+    groupIds: extra?.groupIds ?? [],
+    groupNames: extra?.groupNames ?? [],
     remark: row.remark ?? null,
     createdBy: row.createdBy ?? null,
     updatedBy: row.updatedBy ?? null,
@@ -148,6 +208,7 @@ export interface ListIotDevicesQuery {
   keyword?: string;
   status?: 'enabled' | 'disabled';
   productId?: number;
+  groupId?: number;
   startTime?: string;
   endTime?: string;
 }
@@ -158,20 +219,34 @@ function buildDeviceWhere(q: ListIotDevicesQuery & { id?: number }): SQL | undef
     keywordCondition(q.keyword, [iotDevices.sn, iotDevices.name]),
     q.status ? eq(iotDevices.status, q.status) : undefined,
     q.productId ? eq(iotDevices.productId, q.productId) : undefined,
+    q.groupId
+      ? exists(db.select({ one: iotDeviceGroupMembers.deviceId }).from(iotDeviceGroupMembers)
+        .where(and(eq(iotDeviceGroupMembers.deviceId, iotDevices.id), eq(iotDeviceGroupMembers.groupId, q.groupId))))
+      : undefined,
     ...dateRangeConditions(iotDevices.createdAt, q.startTime, q.endTime),
     tenantCondition(iotDevices, currentUser()),
   );
 }
 
-/** 各设备最近一条遥测（DISTINCT ON 快照，用于列表关键指标列） */
-async function loadLatestMetrics(deviceIds: number[]): Promise<Map<number, Record<string, number | string | boolean>>> {
-  if (deviceIds.length === 0) return new Map();
-  const rows = await db
-    .selectDistinctOn([iotTelemetry.deviceId], { deviceId: iotTelemetry.deviceId, metrics: iotTelemetry.metrics })
-    .from(iotTelemetry)
-    .where(inArray(iotTelemetry.deviceId, deviceIds))
-    .orderBy(iotTelemetry.deviceId, desc(iotTelemetry.reportedAt));
-  return new Map(rows.map((r) => [r.deviceId, r.metrics]));
+/** 设备 → 所属分组（id/名称）批量映射 */
+async function loadGroupMap(deviceIds: number[]): Promise<Map<number, { ids: number[]; names: string[] }>> {
+  const map = new Map<number, { ids: number[]; names: string[] }>();
+  if (deviceIds.length === 0) return map;
+  const rows = await db.select({
+    deviceId: iotDeviceGroupMembers.deviceId,
+    groupId: iotDeviceGroupMembers.groupId,
+    groupName: iotDeviceGroups.name,
+  })
+    .from(iotDeviceGroupMembers)
+    .innerJoin(iotDeviceGroups, eq(iotDeviceGroupMembers.groupId, iotDeviceGroups.id))
+    .where(inArray(iotDeviceGroupMembers.deviceId, deviceIds));
+  for (const r of rows) {
+    const entry = map.get(r.deviceId) ?? { ids: [], names: [] };
+    entry.ids.push(r.groupId);
+    entry.names.push(r.groupName);
+    map.set(r.deviceId, entry);
+  }
+  return map;
 }
 
 export async function listIotDevices(q: ListIotDevicesQuery) {
@@ -180,7 +255,7 @@ export async function listIotDevices(q: ListIotDevicesQuery) {
   const [total, rows] = await Promise.all([
     db.$count(iotDevices, where),
     withPagination(
-      db.select({ device: iotDevices, productName: iotProducts.name, keyMetrics: iotProducts.keyMetrics })
+      db.select({ device: iotDevices, productName: iotProducts.name })
         .from(iotDevices)
         .leftJoin(iotProducts, eq(iotDevices.productId, iotProducts.id))
         .where(where)
@@ -191,13 +266,18 @@ export async function listIotDevices(q: ListIotDevicesQuery) {
     ),
   ]);
   const ids = rows.map((r) => r.device.id);
-  const [onlineMap, latestMap] = await Promise.all([getOnlineMap(ids), loadLatestMetrics(ids)]);
+  const [onlineMap, stateMap, groupMap] = await Promise.all([
+    getOnlineMap(ids),
+    loadIotStates(ids),
+    loadGroupMap(ids),
+  ]);
   return {
     list: rows.map((r) => mapIotDevice(r.device, {
       productName: r.productName,
-      keyMetrics: r.keyMetrics ?? [],
       online: onlineMap.get(r.device.id) ?? false,
-      latestMetrics: latestMap.get(r.device.id) ?? null,
+      state: stateMap.get(r.device.id) ?? null,
+      groupIds: groupMap.get(r.device.id)?.ids ?? [],
+      groupNames: groupMap.get(r.device.id)?.names ?? [],
     })),
     total,
     page,
@@ -213,34 +293,57 @@ export async function ensureIotDeviceExists(id: number): Promise<IotDeviceRow> {
 
 export async function getIotDevice(id: number) {
   const device = await ensureIotDeviceExists(id);
-  const [product] = await db.select({ name: iotProducts.name, keyMetrics: iotProducts.keyMetrics })
+  const [product] = await db.select({ name: iotProducts.name })
     .from(iotProducts).where(eq(iotProducts.id, device.productId)).limit(1);
-  const [onlineMap, latestMap] = await Promise.all([
+  const [onlineMap, stateMap, groupMap] = await Promise.all([
     getOnlineMap([device.id]),
-    loadLatestMetrics([device.id]),
+    loadIotStates([device.id]),
+    loadGroupMap([device.id]),
   ]);
   return mapIotDevice(device, {
     productName: product?.name ?? null,
-    keyMetrics: product?.keyMetrics ?? [],
     online: onlineMap.get(device.id) ?? false,
-    latestMetrics: latestMap.get(device.id) ?? null,
+    state: stateMap.get(device.id) ?? null,
+    groupIds: groupMap.get(device.id)?.ids ?? [],
+    groupNames: groupMap.get(device.id)?.names ?? [],
   });
+}
+
+/** 先删后插，原子性更新设备的分组关联 */
+async function setDeviceGroups(executor: DbExecutor, deviceId: number, groupIds: number[]): Promise<void> {
+  await executor.delete(iotDeviceGroupMembers).where(eq(iotDeviceGroupMembers.deviceId, deviceId));
+  if (groupIds.length > 0) {
+    await executor.insert(iotDeviceGroupMembers).values(groupIds.map((groupId) => ({ groupId, deviceId })));
+  }
+}
+
+async function ensureGroupsExist(groupIds: number[] | undefined): Promise<void> {
+  if (!groupIds || groupIds.length === 0) return;
+  const rows = await db.select({ id: iotDeviceGroups.id }).from(iotDeviceGroups)
+    .where(inArray(iotDeviceGroups.id, groupIds));
+  if (rows.length !== new Set(groupIds).size) throw new HTTPException(400, { message: '存在无效的设备分组' });
 }
 
 export async function createIotDevice(data: CreateIotDeviceInput) {
   await ensureIotProductExists(data.productId);
+  await ensureGroupsExist(data.groupIds);
   const sn = data.sn ?? generateDeviceSn();
   try {
-    const [row] = await db.insert(iotDevices).values({
-      sn,
-      secret: generateDeviceSecret(),
-      productId: data.productId,
-      name: data.name,
-      status: data.status,
-      firmwareVersion: data.firmwareVersion ?? null,
-      remark: data.remark ?? null,
-      tenantId: getCreateTenantId(currentUser()),
-    }).returning();
+    const row = await db.transaction(async (tx) => {
+      const [created] = await tx.insert(iotDevices).values({
+        sn,
+        secret: generateDeviceSecret(),
+        productId: data.productId,
+        name: data.name,
+        status: data.status,
+        firmwareVersion: data.firmwareVersion ?? null,
+        remark: data.remark ?? null,
+        tenantId: getCreateTenantId(currentUser()),
+      }).returning();
+      await tx.insert(iotDeviceState).values({ deviceId: created.id });
+      if (data.groupIds?.length) await setDeviceGroups(tx, created.id, data.groupIds);
+      return created;
+    });
     return mapIotDevice(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, `设备 SN "${sn}" 已存在，请更换`);
@@ -250,20 +353,26 @@ export async function createIotDevice(data: CreateIotDeviceInput) {
 
 export async function updateIotDevice(id: number, data: UpdateIotDeviceInput) {
   if (data.productId !== undefined) await ensureIotProductExists(data.productId);
-  const [row] = await db.update(iotDevices).set({
-    ...(data.productId !== undefined ? { productId: data.productId } : {}),
-    ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.status !== undefined ? { status: data.status } : {}),
-    ...(data.firmwareVersion !== undefined ? { firmwareVersion: data.firmwareVersion } : {}),
-    ...(data.remark !== undefined ? { remark: data.remark } : {}),
-  }).where(buildDeviceWhere({ id })).returning();
-  if (!row) throw new HTTPException(404, { message: '设备不存在' });
-  return mapIotDevice(row);
+  await ensureGroupsExist(data.groupIds);
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx.update(iotDevices).set({
+      ...(data.productId !== undefined ? { productId: data.productId } : {}),
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.status !== undefined ? { status: data.status } : {}),
+      ...(data.firmwareVersion !== undefined ? { firmwareVersion: data.firmwareVersion } : {}),
+      ...(data.remark !== undefined ? { remark: data.remark } : {}),
+    }).where(buildDeviceWhere({ id })).returning();
+    if (!updated) throw new HTTPException(404, { message: '设备不存在' });
+    if (data.groupIds !== undefined) await setDeviceGroups(tx, id, data.groupIds);
+    return updated;
+  });
+  return getIotDevice(row.id);
 }
 
 export async function deleteIotDevices(ids: number[]): Promise<number> {
   const where = and(inArray(iotDevices.id, ids), buildDeviceWhere({}));
   const deleted = await db.delete(iotDevices).where(where).returning({ id: iotDevices.id });
+  await clearOnlineKeys(deleted.map((d) => d.id));
   return deleted.length;
 }
 
@@ -274,12 +383,17 @@ export async function resetIotDeviceSecret(id: number) {
     .set({ secret: generateDeviceSecret() })
     .where(buildDeviceWhere({ id }))
     .returning();
+  await recordIotLifecycleEvent(id, 'secret_reset');
   return mapIotDevice(row);
 }
 
-/** 清空设备遥测（重新调试场景） */
+/** 清空设备遥测（重新调试场景）：同步重置影子 reported 快照 */
 export async function clearIotDeviceTelemetry(id: number): Promise<number> {
   await ensureIotDeviceExists(id);
-  const deleted = await db.delete(iotTelemetry).where(eq(iotTelemetry.deviceId, id)).returning({ id: iotTelemetry.id });
+  const deleted = await db.transaction(async (tx) => {
+    const rows = await tx.delete(iotTelemetry).where(eq(iotTelemetry.deviceId, id)).returning({ id: iotTelemetry.id });
+    await tx.update(iotDeviceState).set({ reported: {}, reportedAt: null }).where(eq(iotDeviceState.deviceId, id));
+    return rows;
+  });
   return deleted.length;
 }

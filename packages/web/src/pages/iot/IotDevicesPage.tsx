@@ -1,23 +1,27 @@
 import { useState } from 'react';
-import { Badge, Col, Form, Row, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
-import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useDictItems } from '@/hooks/useDictItems';
 import { confirmDelete } from '@/utils/confirm';
-import type { IotDevice } from '@zenith/shared/iot';
+import { abortSubmit } from '@/lib/abort-submit';
+import type { IotDevice, IotDeviceGroup } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import {
   iotDeviceKeys, useDeleteIotDevices, useIotDeviceList, useSaveIotDevice,
+  useSubmitIotBatchCommand, useSubmitIotBatchDesired,
 } from '@/hooks/queries/iot-devices';
+import { useAllIotGroups, useDeleteIotGroups, useSaveIotGroup } from '@/hooks/queries/iot-groups';
 import IotDeviceDetailDrawer from './IotDeviceDetailDrawer';
 
 const { Text } = Typography;
@@ -26,22 +30,46 @@ interface SearchParams {
   keyword: string;
   status: string;
   productId: number | null;
+  groupId: number | null;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', productId: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: '', productId: null, groupId: null };
 
 function renderMetricValue(v: number | string | boolean): string {
   if (typeof v === 'boolean') return v ? 'on' : 'off';
   return String(v);
 }
 
+/** 解析 JSON 输入；空串返回 null，非法抛出提示 */
+function parseJsonOrAbort(text: string, label: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      Toast.error(`${label} 需为 JSON 对象`);
+      abortSubmit();
+    }
+    return parsed as Record<string, unknown>;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortSubmitError') throw err;
+    Toast.error(`${label} 不是合法 JSON`);
+    abortSubmit();
+  }
+}
+
 export default function IotDevicesPage() {
   const { hasPermission } = usePermission();
   const { items: statusItems } = useDictItems('common_status');
   const [detailDevice, setDetailDevice] = useState<IotDevice | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
+  const [groupsVisible, setGroupsVisible] = useState(false);
+  const [batchKind, setBatchKind] = useState<'command' | 'desired' | null>(null);
 
   const productsQuery = useAllIotProducts();
   const products = productsQuery.data ?? [];
+  const groupsQuery = useAllIotGroups();
+  const groups = groupsQuery.data ?? [];
 
   const {
     page, pageSize, buildPagination,
@@ -55,6 +83,7 @@ export default function IotDevicesPage() {
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
     productId: submittedParams.productId ?? undefined,
+    groupId: submittedParams.groupId ?? undefined,
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -67,9 +96,10 @@ export default function IotDevicesPage() {
       name: r.name,
       firmwareVersion: r.firmwareVersion ?? '',
       status: r.status,
+      groupIds: r.groupIds ?? [],
       remark: r.remark ?? '',
     }),
-    defaults: { status: 'enabled' },
+    defaults: { status: 'enabled', groupIds: [] },
     beforeSave: (values, { isEdit }) => ({
       productId: values.productId as number,
       name: values.name as string,
@@ -77,6 +107,7 @@ export default function IotDevicesPage() {
       ...(isEdit ? {} : { sn: (values.sn as string)?.trim() || undefined }),
       firmwareVersion: (values.firmwareVersion as string) || null,
       status: values.status as IotDevice['status'],
+      groupIds: (values.groupIds as number[] | undefined) ?? [],
       remark: (values.remark as string) || null,
     }),
     labelWidth: 100,
@@ -86,18 +117,84 @@ export default function IotDevicesPage() {
 
   async function handleDelete(ids: number[]) {
     await deleteMutation.mutateAsync(ids);
+    setSelectedRowKeys((keys) => keys.filter((k) => !ids.includes(k)));
     Toast.success('删除成功');
+  }
+
+  // ─── 分组管理 ────────────────────────────────────────────────────────────────
+  const groupModal = useEditModal<IotDeviceGroup, Record<string, unknown>, Partial<IotDeviceGroup>>({
+    entityName: '分组',
+    save: useSaveIotGroup(),
+    toValues: (r) => ({ name: r.name, description: r.description ?? '' }),
+    beforeSave: (values) => ({
+      name: values.name as string,
+      description: (values.description as string) || null,
+    }),
+    labelWidth: 90,
+  });
+  const deleteGroupMutation = useDeleteIotGroups();
+
+  // ─── 批量操作 ────────────────────────────────────────────────────────────────
+  const batchCommandMutation = useSubmitIotBatchCommand();
+  const batchDesiredMutation = useSubmitIotBatchDesired();
+  const [batchFormApi, setBatchFormApi] = useState<FormApi | null>(null);
+
+  async function handleBatchSubmit() {
+    if (!batchFormApi) abortSubmit();
+    let values: Record<string, unknown>;
+    try {
+      values = await batchFormApi.validate() as Record<string, unknown>;
+    } catch {
+      abortSubmit();
+    }
+    if (batchKind === 'command') {
+      await batchCommandMutation.mutateAsync({
+        deviceIds: selectedRowKeys,
+        service: values.service as string,
+        params: parseJsonOrAbort((values.paramsText as string) ?? '', '参数'),
+        ttlSeconds: (values.ttlSeconds as number) || undefined,
+      });
+    } else {
+      const desired = parseJsonOrAbort((values.desiredText as string) ?? '', '期望属性');
+      if (!desired || Object.keys(desired).length === 0) {
+        Toast.error('期望属性不能为空');
+        abortSubmit();
+      }
+      await batchDesiredMutation.mutateAsync({
+        deviceIds: selectedRowKeys,
+        desired: desired as Record<string, number | string | boolean>,
+      });
+    }
+    Toast.success('批量任务已提交，可在顶栏任务托盘查看进度');
+    setBatchKind(null);
+    setSelectedRowKeys([]);
   }
 
   const columns: ColumnProps<IotDevice>[] = [
     {
-      title: 'SN', dataIndex: 'sn', width: 180,
+      title: 'SN', dataIndex: 'sn', width: 190,
       render: (v: string) => <Text copyable size="small" style={{ whiteSpace: 'nowrap' }}>{v}</Text>,
     },
-    { title: '设备名称', dataIndex: 'name', width: 150 },
     {
-      title: '所属产品', dataIndex: 'productName', width: 140,
-      render: (v: string | null) => v ?? EMPTY_PLACEHOLDER,
+      title: '设备名称', dataIndex: 'name', width: 150,
+      render: (v: string) => renderEllipsis(v),
+    },
+    {
+      title: '所属产品', dataIndex: 'productName', width: 170,
+      render: (v: string | null) => renderEllipsis(v),
+    },
+    {
+      title: '分组', width: 130,
+      render: (_: unknown, r: IotDevice) => {
+        const names = r.groupNames ?? [];
+        if (names.length === 0) return EMPTY_PLACEHOLDER;
+        return (
+          <div style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap' }}>
+            <Tag size="small" style={{ maxWidth: 88 }}>{names[0]}</Tag>
+            {names.length > 1 && <Tag size="small">+{names.length - 1}</Tag>}
+          </div>
+        );
+      },
     },
     {
       title: '在线', dataIndex: 'online', width: 80, align: 'center',
@@ -108,17 +205,19 @@ export default function IotDevicesPage() {
       ),
     },
     {
-      title: '最近指标', width: 220,
+      title: '属性快照', width: 300,
       render: (_: unknown, r: IotDevice) => {
-        const entries = Object.entries(r.latestMetrics ?? {});
-        if (entries.length === 0) return EMPTY_PLACEHOLDER;
-        const shown = entries.slice(0, 3);
+        const entries = Object.entries(r.reported ?? {});
+        const pendingDesired = Object.keys(r.desired ?? {}).length;
+        if (entries.length === 0 && pendingDesired === 0) return EMPTY_PLACEHOLDER;
+        const shown = entries.slice(0, 2);
         return (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 4, whiteSpace: 'nowrap', overflow: 'hidden' }}>
             {shown.map(([k, v]) => (
               <Tag key={k} size="small" color="cyan">{k}: {renderMetricValue(v)}</Tag>
             ))}
-            {entries.length > 3 && <Tag size="small">+{entries.length - 3}</Tag>}
+            {entries.length > 2 && <Tag size="small">+{entries.length - 2}</Tag>}
+            {pendingDesired > 0 && <Tag size="small" color="orange">待确认 {pendingDesired}</Tag>}
           </div>
         );
       },
@@ -127,10 +226,7 @@ export default function IotDevicesPage() {
       title: '固件', dataIndex: 'firmwareVersion', width: 90,
       render: (v: string | null) => v ?? EMPTY_PLACEHOLDER,
     },
-    {
-      title: '最后在线', dataIndex: 'lastSeenAt', width: 160,
-      render: (v: string | null) => v ?? EMPTY_PLACEHOLDER,
-    },
+    dateTimeColumn<IotDevice>('最后在线', 'lastSeenAt'),
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (v: IotDevice['status']) => (
@@ -152,13 +248,40 @@ export default function IotDevicesPage() {
           onClick: () => {
             confirmDelete({
               title: `确定要删除设备「${record.name}」吗？`,
-              content: '遥测数据与指令记录将一并清除，不可恢复',
+              content: '遥测数据、事件与指令记录将一并清除，不可恢复',
               onOk: () => handleDelete([record.id]),
             });
           },
         }] : []),
       ],
     }),
+  ];
+
+  const groupColumns: ColumnProps<IotDeviceGroup>[] = [
+    { title: '分组名称', dataIndex: 'name', width: 160 },
+    {
+      title: '描述', dataIndex: 'description',
+      render: (v: string | null) => v ?? EMPTY_PLACEHOLDER,
+    },
+    { title: '设备数', dataIndex: 'deviceCount', width: 80, align: 'right' },
+    {
+      title: '操作', width: 130,
+      render: (_: unknown, r: IotDeviceGroup) => (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button theme="borderless" size="small" onClick={() => groupModal.openEdit(r)}>编辑</Button>
+          <Button theme="borderless" size="small" type="danger" onClick={() => {
+            confirmDelete({
+              title: `确定要删除分组「${r.name}」吗？`,
+              content: '组内设备本身不受影响',
+              onOk: async () => {
+                await deleteGroupMutation.mutateAsync([r.id]);
+                Toast.success('删除成功');
+              },
+            });
+          }}>删除</Button>
+        </div>
+      ),
+    },
   ];
 
   const renderKeywordSearch = () => (
@@ -179,6 +302,15 @@ export default function IotDevicesPage() {
     />
   );
 
+  const renderGroupFilter = () => (
+    <StatusSelect
+      placeholder="全部分组"
+      items={groups.map((g) => ({ value: String(g.id), label: g.name }))}
+      value={draftParams.groupId === null ? '' : String(draftParams.groupId)}
+      onChange={(v) => setDraftParams((p) => ({ ...p, groupId: v ? Number(v) : null }))}
+    />
+  );
+
   const renderStatusFilter = () => (
     <StatusSelect
       items={statusItems}
@@ -190,17 +322,31 @@ export default function IotDevicesPage() {
   const renderCreateButton = () => hasPermission('iot:device:create')
     ? <CreateButton onClick={modal.openCreate}>注册设备</CreateButton> : null;
 
+  const canBatch = hasPermission('iot:device:batch');
+
   return (
     <div className="page-container">
       <SearchToolbar
         primary={<>
           {renderKeywordSearch()}
           {renderProductFilter()}
+          {renderGroupFilter()}
           {renderStatusFilter()}
           <SearchButton onClick={handleSearch} />
           <ResetButton onClick={handleReset} />
+          {canBatch && selectedRowKeys.length > 0 && (
+            <>
+              <Button theme="light" onClick={() => setBatchKind('command')}>批量指令（{selectedRowKeys.length}）</Button>
+              <Button theme="light" onClick={() => setBatchKind('desired')}>批量期望值（{selectedRowKeys.length}）</Button>
+            </>
+          )}
         </>}
-        actions={renderCreateButton()}
+        actions={<>
+          {hasPermission('iot:group:manage') && (
+            <Button theme="light" onClick={() => setGroupsVisible(true)}>分组管理</Button>
+          )}
+          {renderCreateButton()}
+        </>}
         mobilePrimary={<>
           {renderKeywordSearch()}
           <SearchButton onClick={handleSearch} />
@@ -208,8 +354,12 @@ export default function IotDevicesPage() {
         </>}
         mobileFilters={<>
           {renderProductFilter()}
+          {renderGroupFilter()}
           {renderStatusFilter()}
         </>}
+        mobileActions={hasPermission('iot:group:manage')
+          ? <Button theme="borderless" onClick={() => setGroupsVisible(true)}>分组管理</Button>
+          : undefined}
         filterTitle="筛选条件"
         onFilterApply={handleSearch}
         onFilterReset={handleReset}
@@ -226,6 +376,10 @@ export default function IotDevicesPage() {
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(total)}
+        rowSelection={canBatch ? {
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys((keys ?? []) as number[]),
+        } : undefined}
       />
 
       {/* 注册 / 编辑设备 */}
@@ -246,6 +400,10 @@ export default function IotDevicesPage() {
                 rules={[{ validator: (_r, v: string) => !v || /^[0-9A-Za-z-]{4,64}$/.test(v), message: 'SN 为 4-64 位字母、数字或连字符' }]}
               />
             )}
+            <Form.Select
+              field="groupIds" label="所属分组" placeholder="选择分组（可多选）" multiple showClear style={{ width: '100%' }}
+              optionList={groups.map((g) => ({ value: g.id, label: g.name }))}
+            />
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Input field="firmwareVersion" label="固件版本" placeholder="如 1.0.0（选填）" />
@@ -261,6 +419,72 @@ export default function IotDevicesPage() {
             <Form.TextArea field="remark" label="备注" rows={2} placeholder="安装位置等说明（选填）" maxCount={256} />
           </Form>
         </Spin>
+      </AppModal>
+
+      {/* 分组管理 */}
+      <AppModal
+        title="设备分组管理"
+        visible={groupsVisible}
+        onCancel={() => setGroupsVisible(false)}
+        footer={null}
+        width={640}
+        closeOnEsc
+      >
+        <div style={{ marginBottom: 8 }}>
+          <CreateButton onClick={groupModal.openCreate}>新增分组</CreateButton>
+        </div>
+        <Table
+          columns={groupColumns} dataSource={groups} rowKey="id"
+          size="small" pagination={false} loading={groupsQuery.isFetching}
+          empty="暂无分组"
+        />
+        <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
+          设备加入分组：在设备「编辑」表单中选择所属分组；批量操作可按分组圈选目标。
+        </Text>
+      </AppModal>
+
+      <AppModal {...groupModal.modalProps} width={480}>
+        <Form key={groupModal.formKey} {...groupModal.formProps}>
+          <Form.Input field="name" label="分组名称" placeholder="如：机房 A 区"
+            rules={[{ required: true, message: '分组名称不能为空' }]} />
+          <Form.TextArea field="description" label="描述" rows={2} placeholder="选填" maxCount={256} />
+        </Form>
+      </AppModal>
+
+      {/* 批量操作 */}
+      <AppModal
+        title={batchKind === 'command' ? `批量下发指令（${selectedRowKeys.length} 台）` : `批量设置期望属性（${selectedRowKeys.length} 台）`}
+        visible={batchKind !== null}
+        onCancel={() => setBatchKind(null)}
+        onOk={handleBatchSubmit}
+        okButtonProps={{ loading: batchCommandMutation.isPending || batchDesiredMutation.isPending }}
+        width={560}
+        closeOnEsc
+      >
+        <Form
+          key={batchKind ?? 'none'}
+          labelPosition="left"
+          labelWidth={100}
+          getFormApi={(api) => setBatchFormApi(api)}
+        >
+          {batchKind === 'command' ? (
+            <>
+              <Form.Input field="service" label="服务标识符" placeholder="如 reboot"
+                extraText="按各设备产品的物模型校验；未声明该服务的设备将失败并计入行级明细"
+                rules={[
+                  { required: true, message: '服务标识符不能为空' },
+                  { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '需以字母开头' },
+                ]} />
+              <Form.TextArea field="paramsText" label="参数 JSON" rows={3} placeholder='如 {"offset": 1.5}（无参留空）' />
+              <Form.InputNumber field="ttlSeconds" label="超时秒数" min={10} max={86400} placeholder="默认 300" style={{ width: 160 }} />
+            </>
+          ) : (
+            <Form.TextArea field="desiredText" label="期望属性 JSON" rows={4}
+              placeholder='如 {"report_interval": 60, "led_enabled": false}'
+              extraText="仅物模型中声明为「读写」的属性可下发，按各设备产品校验"
+              rules={[{ required: true, message: '期望属性不能为空' }]} />
+          )}
+        </Form>
       </AppModal>
 
       <IotDeviceDetailDrawer device={detailDevice} onClose={() => setDetailDevice(null)} />

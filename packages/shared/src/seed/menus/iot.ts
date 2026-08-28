@@ -20,4 +20,14 @@ export const SEED_MENUS_IOT: Menu[] = [
   { id: 18024, parentId: 18020, title: '删除设备', type: 'button', permission: 'iot:device:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18025, parentId: 18020, title: '遥测查看', type: 'button', permission: 'iot:telemetry:view', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18026, parentId: 18020, title: '指令下发', type: 'button', permission: 'iot:command:send', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18027, parentId: 18020, title: '分组管理', type: 'button', permission: 'iot:group:manage', sort: 6, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18028, parentId: 18020, title: '批量操作', type: 'button', permission: 'iot:device:batch', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 告警中心 ──────────────────────────────────────────────────────────────
+  { id: 18030, parentId: 18000, title: '告警中心', name: 'IotAlarms', path: '/iot/alarms', component: 'iot/IotAlarmsPage', icon: 'BellRing', type: 'menu', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18031, parentId: 18030, title: '查询', type: 'button', permission: 'iot:alarm:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18032, parentId: 18030, title: '处理告警', type: 'button', permission: 'iot:alarm:resolve', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18033, parentId: 18030, title: '新增规则', type: 'button', permission: 'iot:alarm:rule:create', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18034, parentId: 18030, title: '编辑规则', type: 'button', permission: 'iot:alarm:rule:update', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18035, parentId: 18030, title: '删除规则', type: 'button', permission: 'iot:alarm:rule:delete', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

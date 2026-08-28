@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { IotCommand, IotDevice, IotTelemetryPoint, SendIotCommandInput } from '@zenith/shared/iot';
+import type {
+  IotBatchCommandInput, IotBatchDesiredInput, IotCommand, IotDevice, IotDeviceEvent,
+  IotDeviceShadow, IotTelemetryPoint, SendIotCommandInput, SetIotDesiredInput,
+} from '@zenith/shared/iot';
+import type { PaginatedResponse } from '@zenith/shared/core';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
@@ -8,6 +12,7 @@ export interface IotDeviceListParams extends CrudListParams {
   keyword?: string;
   status?: string;
   productId?: number;
+  groupId?: number;
   startTime?: string;
   endTime?: string;
 }
@@ -90,5 +95,93 @@ export function useSendIotCommand() {
     onSuccess: (_saved, { deviceId }) => {
       void qc.invalidateQueries({ queryKey: [...iotCommandKeys.all, deviceId] });
     },
+  });
+}
+
+// ─── 设备影子 ─────────────────────────────────────────────────────────────────
+export const iotShadowKeys = {
+  all: ['iot-shadow'] as const,
+  of: (deviceId: number) => ['iot-shadow', deviceId] as const,
+};
+
+export function useIotDeviceShadow(deviceId: number | null) {
+  return useQuery({
+    queryKey: iotShadowKeys.of(deviceId ?? 0),
+    queryFn: () => request.get<IotDeviceShadow>(`/api/iot/devices/${deviceId}/shadow`).then(unwrap),
+    enabled: deviceId !== null,
+    // 详情面板打开期间轮询：设备回报后 desired 收敛、reported 更新
+    refetchInterval: 10_000,
+  });
+}
+
+/** 设置/清空期望属性：影子、设备详情与列表快照（desired 列）都要刷新 */
+export function useSetIotDesired() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ deviceId, values }: { deviceId: number; values: SetIotDesiredInput }) =>
+      request.put<IotDeviceShadow>(`/api/iot/devices/${deviceId}/shadow/desired`, values).then(unwrap),
+    onSuccess: (saved, { deviceId }) => {
+      qc.setQueryData(iotShadowKeys.of(deviceId), saved);
+      void qc.invalidateQueries({ queryKey: iotDeviceKeys.detail(deviceId) });
+      void qc.invalidateQueries({ queryKey: iotDeviceKeys.lists });
+    },
+  });
+}
+
+export function useClearIotDesired() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (deviceId: number) =>
+      request.delete<IotDeviceShadow>(`/api/iot/devices/${deviceId}/shadow/desired`).then(unwrap),
+    onSuccess: (saved, deviceId) => {
+      qc.setQueryData(iotShadowKeys.of(deviceId), saved);
+      void qc.invalidateQueries({ queryKey: iotDeviceKeys.detail(deviceId) });
+      void qc.invalidateQueries({ queryKey: iotDeviceKeys.lists });
+    },
+  });
+}
+
+// ─── 设备事件流 ───────────────────────────────────────────────────────────────
+export interface IotDeviceEventListParams {
+  page: number;
+  pageSize: number;
+  kind?: string;
+  level?: string;
+}
+
+export const iotDeviceEventKeys = {
+  all: ['iot-device-events'] as const,
+  of: (deviceId: number, params: IotDeviceEventListParams) => ['iot-device-events', deviceId, params] as const,
+};
+
+export function useIotDeviceEvents(deviceId: number | null, params: IotDeviceEventListParams) {
+  return useQuery({
+    queryKey: iotDeviceEventKeys.of(deviceId ?? 0, params),
+    queryFn: () => request.get<PaginatedResponse<IotDeviceEvent>>(
+      `/api/iot/devices/${deviceId}/events${toQueryString(params)}`,
+    ).then(unwrap),
+    enabled: deviceId !== null,
+  });
+}
+
+// ─── 批量操作（任务中心执行，进度走全局 TaskTray，无缓存联动）──────────────────
+export interface SubmittedAsyncTask {
+  id: number;
+  taskType: string;
+  title: string;
+  status: string;
+}
+
+export function useSubmitIotBatchCommand() {
+  return useMutation({
+    mutationFn: (values: IotBatchCommandInput) =>
+      request.post<SubmittedAsyncTask>('/api/iot/batch/commands', values).then(unwrap),
+  });
+}
+
+export function useSubmitIotBatchDesired() {
+  return useMutation({
+    mutationFn: (values: IotBatchDesiredInput) =>
+      request.post<SubmittedAsyncTask>('/api/iot/batch/desired', values).then(unwrap),
   });
 }

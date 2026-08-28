@@ -26,6 +26,7 @@ const EXEMPT: Record<string, string> = {
   member_wallet_transactions: '钱包流水，属于账务数据',
   report_fill_records: '填报业务数据，非日志',
   monitor_alert_rules: '告警规则配置表，非日志',
+  iot_product_events: '物模型事件定义（产品配置），非日志；设备上报的事件流在 iot_device_events，已登记策略',
   terminal_recordings: '终端录屏，按天数与容量双策略回收，含对象存储副作用',
   report_materialization_snapshots: '物化快照，按行内 expires_at 与托管文件一并回收',
   cms_publish_artifacts: '发布产物索引，随发布任务级联回收（cms-publish-build 类型保留期 180 天）',

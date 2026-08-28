@@ -380,4 +380,15 @@ export async function registerSystemTasks(): Promise<void> {
       return `清理了 ${count} 条回收站内容`;
     },
   });
+
+  const { sweepIotOfflineAlarms } = await import('../services/iot/iot-alarms.service');
+  await registerSystemRecurringJob({
+    name: 'iot-offline-sweep',
+    title: 'IoT 设备离线扫描',
+    module: 'IoT 设备',
+    cronExpression: '* * * * *',
+    description: '每分钟收敛设备持久化在线标记（Redis TTL 对账 + 离线事件打点），并按启用的离线告警规则触发告警。',
+    allowManualRun: true,
+    run: sweepIotOfflineAlarms,
+  });
 }

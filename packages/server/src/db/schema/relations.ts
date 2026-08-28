@@ -60,6 +60,10 @@ import {
   cmsTags,
 } from './cms';
 import { wikiComments, wikiDocFavorites, wikiDocReadReceipts, wikiDocSubscriptions, wikiDocTags, wikiDocVersions, wikiDocViews, wikiDocs, wikiReviewRecords, wikiSpaceMembers, wikiSpaces, wikiTags } from './wiki';
+import {
+  iotAlarmRules, iotAlarms, iotCommands, iotDeviceEvents, iotDeviceGroupMembers, iotDeviceGroups,
+  iotDevices, iotDeviceState, iotProductEvents, iotProductProperties, iotProducts, iotProductServices, iotTelemetry,
+} from './iot';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
 export const errorGroupsRelations = relations(errorGroups, ({ many, one }) => ({
@@ -1688,4 +1692,75 @@ export const appReleasesRelations = relations(appReleases, ({ one, many }) => ({
 export const appArtifactsRelations = relations(appArtifacts, ({ one }) => ({
   release: one(appReleases, { fields: [appArtifacts.releaseId], references: [appReleases.id] }),
   file: one(managedFiles, { fields: [appArtifacts.fileId], references: [managedFiles.id] }),
+}));
+
+// ─── IoT 设备管理 ────────────────────────────────────────────────────────────
+export const iotProductsRelations = relations(iotProducts, ({ many, one }) => ({
+  tenant: one(tenants, { fields: [iotProducts.tenantId], references: [tenants.id] }),
+  properties: many(iotProductProperties),
+  services: many(iotProductServices),
+  events: many(iotProductEvents),
+  devices: many(iotDevices),
+  alarmRules: many(iotAlarmRules),
+}));
+
+export const iotProductPropertiesRelations = relations(iotProductProperties, ({ one }) => ({
+  product: one(iotProducts, { fields: [iotProductProperties.productId], references: [iotProducts.id] }),
+}));
+
+export const iotProductServicesRelations = relations(iotProductServices, ({ one }) => ({
+  product: one(iotProducts, { fields: [iotProductServices.productId], references: [iotProducts.id] }),
+}));
+
+export const iotProductEventsRelations = relations(iotProductEvents, ({ one }) => ({
+  product: one(iotProducts, { fields: [iotProductEvents.productId], references: [iotProducts.id] }),
+}));
+
+export const iotDevicesRelations = relations(iotDevices, ({ one, many }) => ({
+  product: one(iotProducts, { fields: [iotDevices.productId], references: [iotProducts.id] }),
+  tenant: one(tenants, { fields: [iotDevices.tenantId], references: [tenants.id] }),
+  state: one(iotDeviceState, { fields: [iotDevices.id], references: [iotDeviceState.deviceId] }),
+  events: many(iotDeviceEvents),
+  telemetry: many(iotTelemetry),
+  commands: many(iotCommands),
+  alarms: many(iotAlarms),
+  groupMembers: many(iotDeviceGroupMembers),
+}));
+
+export const iotDeviceStateRelations = relations(iotDeviceState, ({ one }) => ({
+  device: one(iotDevices, { fields: [iotDeviceState.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotDeviceEventsRelations = relations(iotDeviceEvents, ({ one }) => ({
+  device: one(iotDevices, { fields: [iotDeviceEvents.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotTelemetryRelations = relations(iotTelemetry, ({ one }) => ({
+  device: one(iotDevices, { fields: [iotTelemetry.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotCommandsRelations = relations(iotCommands, ({ one }) => ({
+  device: one(iotDevices, { fields: [iotCommands.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotAlarmRulesRelations = relations(iotAlarmRules, ({ one, many }) => ({
+  product: one(iotProducts, { fields: [iotAlarmRules.productId], references: [iotProducts.id] }),
+  device: one(iotDevices, { fields: [iotAlarmRules.deviceId], references: [iotDevices.id] }),
+  tenant: one(tenants, { fields: [iotAlarmRules.tenantId], references: [tenants.id] }),
+  alarms: many(iotAlarms),
+}));
+
+export const iotAlarmsRelations = relations(iotAlarms, ({ one }) => ({
+  rule: one(iotAlarmRules, { fields: [iotAlarms.ruleId], references: [iotAlarmRules.id] }),
+  device: one(iotDevices, { fields: [iotAlarms.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotDeviceGroupsRelations = relations(iotDeviceGroups, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [iotDeviceGroups.tenantId], references: [tenants.id] }),
+  members: many(iotDeviceGroupMembers),
+}));
+
+export const iotDeviceGroupMembersRelations = relations(iotDeviceGroupMembers, ({ one }) => ({
+  group: one(iotDeviceGroups, { fields: [iotDeviceGroupMembers.groupId], references: [iotDeviceGroups.id] }),
+  device: one(iotDevices, { fields: [iotDeviceGroupMembers.deviceId], references: [iotDevices.id] }),
 }));

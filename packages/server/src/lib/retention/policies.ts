@@ -737,7 +737,16 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     tableName: 'iot_telemetry',
     timeColumn: 'reported_at',
     defaultDays: 90,
-    description: 'IoT 设备上报的原始遥测点位；设备详情图表默认只查询近 90 天窗口，超期数据可安全清理。',
+    description: 'IoT 设备上报的原始遥测点位；设备详情图表默认只查询近 90 天窗口，超期数据可安全清理（最新值快照已物化到设备影子，不受影响）。',
+  },
+  {
+    key: 'iot_device_events',
+    title: 'IoT 设备事件流',
+    module: 'IoT 设备',
+    tableName: 'iot_device_events',
+    timeColumn: 'reported_at',
+    defaultDays: 180,
+    description: 'IoT 设备生命周期事件（上下线/激活/重置密钥）与物模型事件的追加型日志；告警记录独立保存，超期事件可安全清理。',
   },
 ];
 

@@ -1,18 +1,30 @@
 import { useMemo, useState } from 'react';
 import {
-  Banner, Button, Card, Descriptions, Empty, Form, Popconfirm, Radio, RadioGroup,
-  SideSheet, Spin, Table, Tag, Toast, Typography,
+  Banner, Button, Descriptions, Form, Popconfirm, Radio, RadioGroup, Select,
+  SideSheet, Spin, Table, TabPane, Tabs, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
-import { AreaChart, EmptyChart, chartOptions, isEmptyValues, makeAreaSpec, useChartPalette } from '@/components/charts';
+import { AreaChart, EmptyChart, chartOptions, makeAreaSpec, useChartPalette } from '@/components/charts';
+import AppModal from '@/components/AppModal';
 import { usePermission } from '@/hooks/usePermission';
-import { EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn } from '@/utils/table-columns';
+import { confirmDanger } from '@/utils/confirm';
+import { abortSubmit } from '@/lib/abort-submit';
 import {
-  useIotCommands, useIotTelemetry, useResetIotDeviceSecret, useSendIotCommand,
+  IOT_ACCESS_MODE_LABELS, IOT_COMMAND_STATUS_LABELS, IOT_DEVICE_EVENT_KIND_LABELS,
+  IOT_DEVICE_EVENT_KIND_OPTIONS, IOT_EVENT_LEVEL_LABELS, IOT_EVENT_LEVEL_OPTIONS,
+  IOT_PROPERTY_TYPE_LABELS,
+} from '@zenith/shared/iot';
+import type {
+  IotCommand, IotDevice, IotDeviceEvent, IotMetricValue, IotParamDef,
+  IotProductProperty, IotProductService,
+} from '@zenith/shared/iot';
+import {
+  useClearIotDesired, useIotCommands, useIotDeviceEvents, useIotDeviceShadow,
+  useIotTelemetry, useResetIotDeviceSecret, useSendIotCommand, useSetIotDesired,
 } from '@/hooks/queries/iot-devices';
-import { IOT_COMMAND_STATUS_LABELS } from '@zenith/shared/iot';
-import type { IotCommand, IotDevice } from '@zenith/shared/iot';
+import { useIotThingModel } from '@/hooks/queries/iot-products';
 
 const { Text } = Typography;
 
@@ -24,40 +36,173 @@ const COMMAND_STATUS_COLORS = {
   expired: 'orange',
 } as const satisfies Record<IotCommand['status'], string>;
 
+const EVENT_LEVEL_COLORS = { info: 'blue', warn: 'orange', fault: 'red' } as const;
+
+function formatValue(v: IotMetricValue | undefined, unit?: string | null): string {
+  if (v === undefined) return EMPTY_PLACEHOLDER;
+  const text = typeof v === 'boolean' ? (v ? '开' : '关') : String(v);
+  return unit ? `${text} ${unit}` : text;
+}
+
+/** 按参数/属性定义渲染表单字段（number/boolean/enum/string） */
+function DefField({ def }: Readonly<{ def: IotParamDef }>) {
+  const rules = def.required ? [{ required: true, message: `${def.name}不能为空` }] : [];
+  const label = def.unit ? `${def.name}（${def.unit}）` : def.name;
+  switch (def.dataType) {
+    case 'number':
+      return (
+        <Form.InputNumber
+          field={def.identifier} label={label} hideButtons style={{ width: 200 }}
+          min={def.minValue ?? undefined} max={def.maxValue ?? undefined} rules={rules}
+          extraText={def.minValue != null || def.maxValue != null ? `量程 ${def.minValue ?? '-∞'} ~ ${def.maxValue ?? '+∞'}` : undefined}
+        />
+      );
+    case 'boolean':
+      return <Form.Switch field={def.identifier} label={label} checkedText="开" uncheckedText="关" />;
+    case 'enum':
+      return (
+        <Form.Select
+          field={def.identifier} label={label} style={{ width: 200 }} rules={rules}
+          optionList={Object.entries(def.enumOptions ?? {}).map(([value, text]) => ({ value, label: `${text}（${value}）` }))}
+        />
+      );
+    default:
+      return <Form.Input field={def.identifier} label={label} rules={rules} />;
+  }
+}
+
 interface IotDeviceDetailDrawerProps {
   device: IotDevice | null;
   onClose: () => void;
 }
 
-/** 设备详情抽屉：接入凭证 / 遥测曲线 / 指令下发与记录 */
-export default function IotDeviceDetailDrawer({ device, onClose }: IotDeviceDetailDrawerProps) {
+/** 设备详情抽屉：接入凭证 / 属性影子 / 遥测曲线 / 指令 / 事件时间线 */
+export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotDeviceDetailDrawerProps>) {
   const { hasPermission } = usePermission();
   const palette = useChartPalette();
-  const [days, setDays] = useState(1);
-  const [metricKey, setMetricKey] = useState<string | null>(null);
-  const [commandPage, setCommandPage] = useState(1);
-  const [formApi, setFormApi] = useState<FormApi | null>(null);
+  const canCommand = hasPermission('iot:command:send');
 
   const deviceId = device?.id ?? null;
-  const telemetryQuery = useIotTelemetry(hasPermission('iot:telemetry:view') ? deviceId : null, days);
-  const commandsQuery = useIotCommands(hasPermission('iot:command:send') ? deviceId : null, { page: commandPage, pageSize: 5 });
-  const resetSecretMutation = useResetIotDeviceSecret();
-  const sendCommandMutation = useSendIotCommand();
+  const modelQuery = useIotThingModel(device?.productId ?? null);
+  const model = modelQuery.data;
+  const shadowQuery = useIotDeviceShadow(deviceId);
+  const shadow = shadowQuery.data;
 
+  // ─── 属性影子 ────────────────────────────────────────────────────────────────
+  const [desiredTarget, setDesiredTarget] = useState<IotProductProperty | null>(null);
+  const [desiredFormApi, setDesiredFormApi] = useState<FormApi | null>(null);
+  const setDesiredMutation = useSetIotDesired();
+  const clearDesiredMutation = useClearIotDesired();
+
+  async function handleSetDesired() {
+    if (!deviceId || !desiredTarget || !desiredFormApi) abortSubmit();
+    let values: Record<string, unknown>;
+    try {
+      values = await desiredFormApi.validate() as Record<string, unknown>;
+    } catch {
+      abortSubmit();
+    }
+    const value = values[desiredTarget.identifier];
+    if (value === undefined || value === null || value === '') {
+      Toast.error('请填写期望值');
+      abortSubmit();
+    }
+    await setDesiredMutation.mutateAsync({
+      deviceId,
+      values: { desired: { [desiredTarget.identifier]: value as IotMetricValue } },
+    });
+    Toast.success('期望值已下发，设备确认后自动收敛');
+    setDesiredTarget(null);
+  }
+
+  interface PropertyRow {
+    key: string;
+    prop: IotProductProperty | null;
+    identifier: string;
+    reported: IotMetricValue | undefined;
+    desired: IotMetricValue | undefined;
+  }
+
+  const propertyRows: PropertyRow[] = useMemo(() => {
+    const reported = shadow?.reported ?? {};
+    const desired = shadow?.desired ?? {};
+    const rows: PropertyRow[] = (model?.properties ?? []).map((p) => ({
+      key: p.identifier,
+      prop: p,
+      identifier: p.identifier,
+      reported: reported[p.identifier],
+      desired: desired[p.identifier],
+    }));
+    const declared = new Set(rows.map((r) => r.identifier));
+    for (const [k, v] of Object.entries(reported)) {
+      if (!declared.has(k)) rows.push({ key: k, prop: null, identifier: k, reported: v, desired: desired[k] });
+    }
+    return rows;
+  }, [model?.properties, shadow?.reported, shadow?.desired]);
+
+  const propertyColumns: ColumnProps<PropertyRow>[] = [
+    {
+      title: '属性', width: 180,
+      render: (_: unknown, r: PropertyRow) => (
+        <div>
+          <div>{r.prop?.name ?? <Text type="tertiary">未声明</Text>}</div>
+          <Text type="tertiary" size="small" code>{r.identifier}</Text>
+        </div>
+      ),
+    },
+    {
+      title: '类型', width: 110,
+      render: (_: unknown, r: PropertyRow) => r.prop
+        ? (
+            <span>
+              <Tag size="small">{IOT_PROPERTY_TYPE_LABELS[r.prop.dataType]}</Tag>{' '}
+              <Tag size="small" color={r.prop.accessMode === 'rw' ? 'green' : 'grey'}>{IOT_ACCESS_MODE_LABELS[r.prop.accessMode]}</Tag>
+            </span>
+          )
+        : EMPTY_PLACEHOLDER,
+    },
+    {
+      title: '当前值', width: 140,
+      render: (_: unknown, r: PropertyRow) => {
+        if (r.prop?.dataType === 'enum' && typeof r.reported === 'string') {
+          return <Text strong>{r.prop.enumOptions?.[r.reported] ?? r.reported}</Text>;
+        }
+        return <Text strong>{formatValue(r.reported, r.prop?.unit)}</Text>;
+      },
+    },
+    {
+      title: '期望值（待确认）', width: 140,
+      render: (_: unknown, r: PropertyRow) => r.desired !== undefined
+        ? <Tag size="small" color="orange">{formatValue(r.desired, r.prop?.unit)}</Tag>
+        : EMPTY_PLACEHOLDER,
+    },
+    ...(canCommand ? [{
+      title: '操作', width: 90,
+      render: (_: unknown, r: PropertyRow) => r.prop?.accessMode === 'rw'
+        ? <Button theme="borderless" size="small" onClick={() => setDesiredTarget(r.prop)}>下发</Button>
+        : null,
+    }] : []),
+  ];
+
+  // ─── 遥测曲线 ────────────────────────────────────────────────────────────────
+  const [days, setDays] = useState(1);
+  const [metricKey, setMetricKey] = useState<string | null>(null);
+  const telemetryQuery = useIotTelemetry(hasPermission('iot:telemetry:view') ? deviceId : null, days);
   const points = useMemo(() => telemetryQuery.data ?? [], [telemetryQuery.data]);
 
-  // 可绘制指标 = 产品声明的关键指标 ∪ 数据中出现过的数值型指标
+  // 可绘制指标 = 物模型数值属性 ∪ 数据中出现过的数值键
   const metricKeys = useMemo(() => {
-    const keys = new Set<string>(device?.keyMetrics ?? []);
+    const keys = new Set<string>((model?.properties ?? []).filter((p) => p.dataType === 'number').map((p) => p.identifier));
     for (const p of points) {
       for (const [k, v] of Object.entries(p.metrics)) {
         if (typeof v === 'number') keys.add(k);
       }
     }
     return [...keys];
-  }, [device?.keyMetrics, points]);
+  }, [model?.properties, points]);
 
   const activeMetric = metricKey && metricKeys.includes(metricKey) ? metricKey : (metricKeys[0] ?? null);
+  const activeProp = model?.properties.find((p) => p.identifier === activeMetric);
 
   const chartData = useMemo(() => {
     if (!activeMetric) return [];
@@ -69,183 +214,283 @@ export default function IotDeviceDetailDrawer({ device, onClose }: IotDeviceDeta
   const chartSpec = useMemo(() => makeAreaSpec({
     data: chartData,
     xField: 'time',
-    series: [{ field: 'value', name: activeMetric ?? '指标', color: palette.primary }],
+    series: [{
+      field: 'value',
+      name: activeProp ? `${activeProp.name}${activeProp.unit ? `（${activeProp.unit}）` : ''}` : (activeMetric ?? '指标'),
+      color: palette.primary,
+    }],
     palette,
     fillOpacity: 0.16,
     axis: { xLabel: (value) => String(value).slice(5, 16) },
     tooltip: { title: (value) => `时间：${value}` },
-  }), [chartData, activeMetric, palette]);
+  }), [chartData, activeMetric, activeProp, palette]);
 
-  function handleResetSecret() {
-    if (!device) return;
-    resetSecretMutation.mutate(device.id, {
-      onSuccess: () => Toast.success('密钥已重置，请同步更新设备侧配置'),
+  // ─── 指令 ────────────────────────────────────────────────────────────────────
+  const [commandPage, setCommandPage] = useState(1);
+  const [serviceId, setServiceId] = useState<string | null>(null);
+  const [commandFormApi, setCommandFormApi] = useState<FormApi | null>(null);
+  const commandsQuery = useIotCommands(canCommand ? deviceId : null, { page: commandPage, pageSize: 5 });
+  const sendCommandMutation = useSendIotCommand();
+
+  const services = model?.services ?? [];
+  const activeService: IotProductService | undefined = services.find((s) => s.identifier === serviceId) ?? services[0];
+
+  async function doSendCommand(service: IotProductService, params: Record<string, unknown> | null) {
+    if (!deviceId) return;
+    const row = await sendCommandMutation.mutateAsync({
+      deviceId,
+      values: { service: service.identifier, params },
     });
+    Toast.success(row.status === 'delivered' ? '指令已实时送达设备' : '设备离线，指令将在上线后送达');
+    setCommandPage(1);
   }
 
   async function handleSendCommand() {
-    if (!formApi || !device) return;
-    const values = await formApi.validate();
+    if (!activeService) {
+      Toast.error('请选择服务');
+      return;
+    }
     let params: Record<string, unknown> | null = null;
-    const paramsText = (values.params as string | undefined)?.trim();
-    if (paramsText) {
+    if ((activeService.params ?? []).length > 0) {
+      if (!commandFormApi) return;
+      let values: Record<string, unknown>;
       try {
-        params = JSON.parse(paramsText) as Record<string, unknown>;
+        values = await commandFormApi.validate() as Record<string, unknown>;
       } catch {
-        Toast.error('参数不是合法 JSON');
         return;
       }
+      params = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== undefined && v !== null && v !== ''));
     }
-    sendCommandMutation.mutate(
-      {
-        deviceId: device.id,
-        values: {
-          service: values.service as string,
-          params,
-          ttlSeconds: typeof values.ttlSeconds === 'number' ? values.ttlSeconds : undefined,
-        },
-      },
-      {
-        onSuccess: (saved) => {
-          Toast.success(saved.status === 'delivered' ? '指令已实时送达设备' : '设备离线，指令将在上线后送达');
-          formApi.reset();
-          setCommandPage(1);
-        },
-      },
-    );
+    if (activeService.danger) {
+      confirmDanger({
+        title: `确定要下发高危服务「${activeService.name}」吗？`,
+        content: '该服务被标记为高危操作，请确认影响面',
+        onOk: () => doSendCommand(activeService, params),
+      });
+      return;
+    }
+    await doSendCommand(activeService, params);
   }
 
   const commandColumns: ColumnProps<IotCommand>[] = [
     { title: '指令', dataIndex: 'service', width: 130, render: (v: string) => <Text code>{v}</Text> },
     {
       title: '参数', dataIndex: 'params', width: 150,
-      render: (v: IotCommand['params']) => v
-        ? <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 140 }} size="small">{JSON.stringify(v)}</Text>
+      render: (v: Record<string, unknown> | null) => v && Object.keys(v).length > 0
+        ? <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 140 }}>{JSON.stringify(v)}</Text>
         : EMPTY_PLACEHOLDER,
     },
     {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: IotCommand['status'], r: IotCommand) => (
-        <Tag color={COMMAND_STATUS_COLORS[v]} size="small">
-          {IOT_COMMAND_STATUS_LABELS[v]}{v === 'failed' && r.errorMsg ? ` · ${r.errorMsg}` : ''}
+        <Tag size="small" color={COMMAND_STATUS_COLORS[v]}>
+          {IOT_COMMAND_STATUS_LABELS[v]}{v === 'failed' && r.errorMsg ? `：${r.errorMsg}` : ''}
         </Tag>
       ),
     },
-    { title: '下发时间', dataIndex: 'createdAt', width: 150 },
+    dateTimeColumn<IotCommand>('下发时间', 'createdAt'),
+    dateTimeColumn<IotCommand>('回执时间', 'ackedAt'),
+  ];
+
+  // ─── 事件 ────────────────────────────────────────────────────────────────────
+  const [eventPage, setEventPage] = useState(1);
+  const [eventKind, setEventKind] = useState<string>('');
+  const [eventLevel, setEventLevel] = useState<string>('');
+  const eventsQuery = useIotDeviceEvents(deviceId, {
+    page: eventPage,
+    pageSize: 10,
+    kind: eventKind || undefined,
+    level: eventLevel || undefined,
+  });
+
+  const eventColumns: ColumnProps<IotDeviceEvent>[] = [
+    dateTimeColumn<IotDeviceEvent>('时间', 'reportedAt'),
     {
-      title: '回执时间', dataIndex: 'ackedAt', width: 150,
-      render: (v: string | null) => v ?? EMPTY_PLACEHOLDER,
+      title: '类型', dataIndex: 'kind', width: 90,
+      render: (v: IotDeviceEvent['kind']) => (
+        <Tag size="small" color={v === 'lifecycle' ? 'grey' : 'cyan'}>{IOT_DEVICE_EVENT_KIND_LABELS[v]}</Tag>
+      ),
+    },
+    {
+      title: '事件', width: 170,
+      render: (_: unknown, r: IotDeviceEvent) => (
+        <span>{r.name} <Text type="tertiary" size="small" code>{r.identifier}</Text></span>
+      ),
+    },
+    {
+      title: '级别', dataIndex: 'level', width: 80,
+      render: (v: IotDeviceEvent['level']) => (
+        <Tag size="small" color={EVENT_LEVEL_COLORS[v]}>{IOT_EVENT_LEVEL_LABELS[v]}</Tag>
+      ),
+    },
+    {
+      title: '数据', dataIndex: 'payload',
+      render: (v: Record<string, unknown> | null) => v && Object.keys(v).length > 0
+        ? <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{JSON.stringify(v)}</Text>
+        : EMPTY_PLACEHOLDER,
     },
   ];
 
+  // ─── 凭证 ────────────────────────────────────────────────────────────────────
+  const resetSecretMutation = useResetIotDeviceSecret();
+
+  function handleResetSecret() {
+    if (!device) return;
+    void resetSecretMutation.mutateAsync(device.id).then(() => {
+      Toast.success('密钥已重置，请更新设备侧配置');
+    });
+  }
+
+  const maskedSecret = device ? `${device.secret.slice(0, 8)}••••${device.secret.slice(-4)}` : '';
+  const pendingDesiredCount = Object.keys(shadow?.desired ?? {}).length;
+
   return (
     <SideSheet
-      title={device ? `设备详情 · ${device.name}` : '设备详情'}
+      title={`设备详情 · ${device?.name ?? ''}`}
       visible={device !== null}
       onCancel={onClose}
-      width={760}
+      width={820}
       closeOnEsc
+      bodyStyle={{ paddingBottom: 24 }}
     >
-      {/* 抽屉走 portal 渲染，内容层自带 zx-flat-panels 维持统计区无卡片语言 */}
-      <div className="zx-flat-panels">
-        {device && (
-          <>
-            <Card title="接入凭证">
-              <Descriptions
-                align="left"
-                data={[
-                  { key: '设备 SN', value: <Text copyable>{device.sn}</Text> },
-                  {
-                    key: '接入密钥',
-                    value: (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        <Text copyable={{ content: device.secret }}>{`${device.secret.slice(0, 8)}••••${device.secret.slice(-4)}`}</Text>
-                        {hasPermission('iot:device:update') && (
-                          <Popconfirm
-                            title="确认重置密钥？"
-                            content="旧密钥立即失效，设备需换用新密钥重新接入"
-                            onConfirm={handleResetSecret}
-                          >
-                            <Button size="small" loading={resetSecretMutation.isPending}>重置</Button>
-                          </Popconfirm>
-                        )}
-                      </span>
-                    ),
-                  },
-                  { key: '所属产品', value: device.productName ?? EMPTY_PLACEHOLDER },
-                  { key: '固件版本', value: device.firmwareVersion ?? EMPTY_PLACEHOLDER },
-                  { key: '激活时间', value: device.activatedAt ?? '未激活' },
-                  { key: '最后在线', value: device.lastSeenAt ?? EMPTY_PLACEHOLDER },
-                ]}
-              />
-              <Banner
-                fullMode={false} type="info" closeIcon={null} style={{ marginTop: 12 }}
-                description={<Text size="small" type="tertiary">设备侧以 HMAC-SHA256(secret, sn + 时间戳 + 请求体) 签名调用 /api/iot/ingest/*，或携带同款签名参数连接 /api/iot/ws 获得指令实时推送。</Text>}
-              />
-            </Card>
-
-            {hasPermission('iot:telemetry:view') && (
-              <Card
-                title="遥测曲线"
-                style={{ marginTop: 16 }}
-                headerExtraContent={(
-                  <RadioGroup type="button" buttonSize="small" value={days} onChange={(e) => setDays(e.target.value as number)}>
-                    <Radio value={1}>近 24 时</Radio>
-                    <Radio value={7}>近 7 天</Radio>
-                    <Radio value={30}>近 30 天</Radio>
-                  </RadioGroup>
-                )}
-              >
-                <Spin spinning={telemetryQuery.isPending}>
-                  {metricKeys.length > 0 ? (
-                    <>
-                      <RadioGroup
-                        type="button" buttonSize="small" value={activeMetric ?? undefined}
-                        onChange={(e) => setMetricKey(e.target.value as string)}
-                        style={{ marginBottom: 12 }}
+      {device && (
+        <>
+          <Descriptions
+            data={[
+              { key: '设备 SN', value: <Text copyable>{device.sn}</Text> },
+              {
+                key: '接入密钥',
+                value: (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Text copyable={{ content: device.secret }}>{maskedSecret}</Text>
+                    {hasPermission('iot:device:update') && (
+                      <Popconfirm
+                        title="确定要重置接入密钥吗？"
+                        content="旧密钥立即失效，设备需使用新密钥重新签名"
+                        onConfirm={handleResetSecret}
                       >
-                        {metricKeys.map((k) => <Radio key={k} value={k}>{k}</Radio>)}
-                      </RadioGroup>
-                      {isEmptyValues(chartData) ? <EmptyChart height={220} /> : (
-                        <AreaChart {...chartSpec} options={chartOptions} height={220} />
-                      )}
-                    </>
-                  ) : (
-                    <Empty description="暂无遥测数据，设备上报后自动出现" style={{ padding: '24px 0' }} />
-                  )}
-                </Spin>
-              </Card>
-            )}
+                        <Button size="small" theme="borderless" type="danger" loading={resetSecretMutation.isPending}>重置</Button>
+                      </Popconfirm>
+                    )}
+                  </span>
+                ),
+              },
+              { key: '所属产品', value: device.productName ?? EMPTY_PLACEHOLDER },
+              { key: '固件版本', value: device.firmwareVersion ?? EMPTY_PLACEHOLDER },
+              { key: '激活时间', value: device.activatedAt ?? EMPTY_PLACEHOLDER },
+              { key: '最后在线', value: device.lastSeenAt ?? EMPTY_PLACEHOLDER },
+            ]}
+            row
+            size="small"
+          />
+          <Banner
+            type="info" closeIcon={null} style={{ margin: '12px 0' }}
+            description={'设备侧以 HMAC-SHA256(secret, sn + 时间戳 + 请求体) 签名调用 /api/iot/ingest/*，或携带同款签名参数连接 /api/iot/ws 获得指令与期望属性实时推送。'}
+          />
 
-            {hasPermission('iot:command:send') && (
-              <Card title="指令下发" style={{ marginTop: 16 }}>
-                <Form
-                  layout="horizontal"
-                  labelPosition="inset"
-                  getFormApi={setFormApi}
-                  onSubmit={() => void handleSendCommand()}
-                  style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end' }}
-                >
-                  <Form.Input
-                    field="service" label="指令" placeholder="如 reboot / set_interval"
-                    style={{ width: 200 }} rules={[{ required: true, message: '指令名不能为空' }]}
-                  />
-                  <Form.Input field="params" label="参数 JSON" placeholder='如 {"interval":60}（选填）' style={{ width: 230 }} />
-                  <Form.InputNumber field="ttlSeconds" label="超时秒" placeholder="300" min={10} max={86400} style={{ width: 130 }} />
-                  <Button theme="solid" htmlType="submit" loading={sendCommandMutation.isPending}>下发</Button>
-                </Form>
-                <Text size="small" type="tertiary" style={{ display: 'block', marginTop: 8 }}>
+          <Tabs type="line" collapsible="auto">
+            <TabPane tab="属性状态" itemKey="properties">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0' }}>
+                <Text type="tertiary" size="small">
+                  reported 为设备最新上报快照；期望值下发后待设备回报一致自动收敛{shadow?.desiredAt ? `（最近下发 ${shadow.desiredAt}）` : ''}
+                </Text>
+                {canCommand && pendingDesiredCount > 0 && (
+                  <Popconfirm
+                    title="清空全部未确认的期望值？"
+                    content="设备将不再收到这些期望变更"
+                    onConfirm={() => {
+                      if (deviceId) {
+                        void clearDesiredMutation.mutateAsync(deviceId).then(() => Toast.success('期望值已清空'));
+                      }
+                    }}
+                  >
+                    <Button size="small" type="warning" theme="light">清空期望值（{pendingDesiredCount}）</Button>
+                  </Popconfirm>
+                )}
+              </div>
+              <Table
+                columns={propertyColumns}
+                dataSource={propertyRows}
+                rowKey="key"
+                size="small"
+                pagination={false}
+                loading={shadowQuery.isPending || modelQuery.isPending}
+                empty="物模型未声明属性，且暂无上报数据"
+              />
+            </TabPane>
+
+            <TabPane tab="遥测曲线" itemKey="telemetry">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0', flexWrap: 'wrap', gap: 8 }}>
+                <RadioGroup type="button" buttonSize="small" value={days} onChange={(e) => setDays(e.target.value as number)}>
+                  <Radio value={1}>近 24 时</Radio>
+                  <Radio value={7}>近 7 天</Radio>
+                  <Radio value={30}>近 30 天</Radio>
+                </RadioGroup>
+                <RadioGroup type="button" buttonSize="small" value={activeMetric ?? ''} onChange={(e) => setMetricKey(e.target.value as string)}>
+                  {metricKeys.map((k) => {
+                    const prop = model?.properties.find((p) => p.identifier === k);
+                    return <Radio key={k} value={k}>{prop?.name ?? k}</Radio>;
+                  })}
+                </RadioGroup>
+              </div>
+              <Spin spinning={telemetryQuery.isFetching}>
+                {chartData.length > 0
+                  ? <AreaChart {...chartSpec} options={chartOptions} height={260} />
+                  : <EmptyChart height={260} text="时间窗内暂无数值遥测" />}
+              </Spin>
+            </TabPane>
+
+            {canCommand && (
+              <TabPane tab="指令下发" itemKey="commands">
+                {services.length === 0 ? (
+                  <Banner type="warning" closeIcon={null} style={{ margin: '8px 0' }}
+                    description="产品物模型尚未声明服务；请先在产品管理的「物模型」中定义服务。" />
+                ) : (
+                  <div style={{ margin: '8px 0', padding: 12, background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: (activeService?.params?.length ?? 0) > 0 ? 8 : 0 }}>
+                      <Select
+                        value={activeService?.identifier}
+                        onChange={(v) => setServiceId(v as string)}
+                        style={{ width: 260 }}
+                        optionList={services.map((s) => ({
+                          value: s.identifier,
+                          label: `${s.name}（${s.identifier}）${s.danger ? ' ⚠' : ''}`,
+                        }))}
+                      />
+                      <Button
+                        theme="solid"
+                        type={activeService?.danger ? 'danger' : 'primary'}
+                        loading={sendCommandMutation.isPending}
+                        onClick={() => void handleSendCommand()}
+                      >
+                        下发
+                      </Button>
+                    </div>
+                    {activeService?.description && (
+                      <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 4 }}>{activeService.description}</Text>
+                    )}
+                    {(activeService?.params?.length ?? 0) > 0 && (
+                      <Form
+                        key={activeService!.identifier}
+                        labelPosition="left"
+                        labelWidth={130}
+                        getFormApi={(api) => setCommandFormApi(api)}
+                      >
+                        {activeService!.params.map((p) => <DefField key={p.identifier} def={p} />)}
+                      </Form>
+                    )}
+                  </div>
+                )}
+                <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 8 }}>
                   设备 WS 在线时即时推送；离线设备在上线或心跳时补收，超时未回执自动标记「已超时」。
                 </Text>
-
                 <Table
                   columns={commandColumns}
                   dataSource={commandsQuery.data?.list ?? []}
-                  loading={commandsQuery.isFetching}
                   rowKey="id"
                   size="small"
+                  loading={commandsQuery.isFetching}
                   empty="暂无指令记录"
-                  style={{ marginTop: 12 }}
                   pagination={{
                     currentPage: commandPage,
                     pageSize: 5,
@@ -253,11 +498,80 @@ export default function IotDeviceDetailDrawer({ device, onClose }: IotDeviceDeta
                     onPageChange: setCommandPage,
                   }}
                 />
-              </Card>
+              </TabPane>
             )}
-          </>
-        )}
-      </div>
+
+            <TabPane tab="事件" itemKey="events">
+              <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
+                <Select
+                  placeholder="全部类型" showClear style={{ width: 140 }}
+                  value={eventKind || undefined}
+                  onChange={(v) => { setEventKind((v as string) ?? ''); setEventPage(1); }}
+                  optionList={IOT_DEVICE_EVENT_KIND_OPTIONS}
+                />
+                <Select
+                  placeholder="全部级别" showClear style={{ width: 140 }}
+                  value={eventLevel || undefined}
+                  onChange={(v) => { setEventLevel((v as string) ?? ''); setEventPage(1); }}
+                  optionList={IOT_EVENT_LEVEL_OPTIONS}
+                />
+              </div>
+              <Table
+                columns={eventColumns}
+                dataSource={eventsQuery.data?.list ?? []}
+                rowKey="id"
+                size="small"
+                loading={eventsQuery.isFetching}
+                empty="暂无设备事件"
+                pagination={{
+                  currentPage: eventPage,
+                  pageSize: 10,
+                  total: eventsQuery.data?.total ?? 0,
+                  onPageChange: setEventPage,
+                }}
+              />
+            </TabPane>
+          </Tabs>
+
+          {/* 单属性期望值下发 */}
+          <AppModal
+            title={desiredTarget ? `下发期望值 · ${desiredTarget.name}` : ''}
+            visible={desiredTarget !== null}
+            onCancel={() => setDesiredTarget(null)}
+            onOk={handleSetDesired}
+            okButtonProps={{ loading: setDesiredMutation.isPending }}
+            width={480}
+            closeOnEsc
+          >
+            {desiredTarget && (
+              <Form
+                key={desiredTarget.identifier}
+                labelPosition="left"
+                labelWidth={130}
+                getFormApi={(api) => setDesiredFormApi(api)}
+                initValues={{
+                  [desiredTarget.identifier]:
+                    shadow?.desired?.[desiredTarget.identifier] ?? shadow?.reported?.[desiredTarget.identifier],
+                }}
+              >
+                <DefField def={{
+                  identifier: desiredTarget.identifier,
+                  name: desiredTarget.name,
+                  dataType: desiredTarget.dataType,
+                  required: true,
+                  unit: desiredTarget.unit,
+                  minValue: desiredTarget.minValue,
+                  maxValue: desiredTarget.maxValue,
+                  enumOptions: desiredTarget.enumOptions,
+                }} />
+                <Text type="tertiary" size="small">
+                  WS 在线即时推送；HTTP 设备下次心跳时收到。设备回报一致后该期望值自动清除。
+                </Text>
+              </Form>
+            )}
+          </AppModal>
+        </>
+      )}
     </SideSheet>
   );
 }

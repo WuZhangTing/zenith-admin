@@ -1,18 +1,22 @@
 /**
  * IoT 在线状态与设备接入鉴权。
  *
- * - 在线态 = Redis TTL 键存活（心跳/上报续期，WS 断开主动删除）；不入库，避免写放大
+ * - 实时在线态 = Redis TTL 键存活（心跳/上报续期，WS 断开主动删除）
+ * - 持久化在线标记 = iot_device_state.online，仅在上下线转变时更新，
+ *   供事件打点与离线告警判定（HTTP 心跳设备的离线转变由周期扫描收敛）
  * - 一机一密 HMAC 签名：sign = HMAC-SHA256(secret, `${sn}\n${ts}\n${body}`) 的 hex，
  *   时间窗 ±300s 防重放；WS 握手 body 为空串
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { IOT_ONLINE_TTL_SECONDS, IOT_SIGN_MAX_SKEW_SECONDS } from '@zenith/shared/iot';
 import { db } from '../../db';
-import { iotDevices, type IotDeviceRow } from '../../db/schema';
+import { iotDevices, iotDeviceState, type IotDeviceRow } from '../../db/schema';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
+import { recordIotLifecycleEvent } from './iot-events.service';
+import { resolveIotOfflineAlarms } from './iot-alarms.service';
 
 const ONLINE_PREFIX = 'iot:online:';
 /** lastSeenAt 落库节流（秒）：心跳高频，只在超过该间隔时才 UPDATE */
@@ -50,19 +54,35 @@ export async function authenticateDevice(sn: string | undefined, ts: string | un
 }
 
 // ─── 在线状态 ─────────────────────────────────────────────────────────────────
-export async function markDeviceOnline(deviceId: number): Promise<void> {
+/** 续期在线 TTL；返回是否发生「离线 → 在线」转变 */
+export async function markDeviceOnline(deviceId: number): Promise<boolean> {
   try {
-    await redis.setex(`${ONLINE_PREFIX}${deviceId}`, IOT_ONLINE_TTL_SECONDS, '1');
+    const pipeline = redis.pipeline();
+    pipeline.exists(`${ONLINE_PREFIX}${deviceId}`);
+    pipeline.setex(`${ONLINE_PREFIX}${deviceId}`, IOT_ONLINE_TTL_SECONDS, '1');
+    const results = await pipeline.exec();
+    return results?.[0]?.[1] !== 1;
   } catch (err) {
     logger.warn(`[iot] 在线态写入失败 deviceId=${deviceId}: ${(err as Error).message}`);
+    return false;
   }
 }
 
+/** WS 断开即离线：删实时键 + 持久化标记转离线（HTTP 心跳设备的键会被其心跳重建） */
 export async function markDeviceOffline(deviceId: number): Promise<void> {
   try {
     await redis.del(`${ONLINE_PREFIX}${deviceId}`);
   } catch {
     // TTL 到期自然离线
+  }
+  try {
+    const [changed] = await db.update(iotDeviceState)
+      .set({ online: false })
+      .where(and(eq(iotDeviceState.deviceId, deviceId), eq(iotDeviceState.online, true)))
+      .returning({ deviceId: iotDeviceState.deviceId });
+    if (changed) await recordIotLifecycleEvent(deviceId, 'offline');
+  } catch (err) {
+    logger.warn(`[iot] 离线标记更新失败 deviceId=${deviceId}: ${(err as Error).message}`);
   }
 }
 
@@ -89,18 +109,32 @@ export async function getOnlineMap(deviceIds: number[]): Promise<Map<number, boo
   return map;
 }
 
+/** 「离线 → 在线」转变处理：持久化标记、事件打点（首次触达补激活）、恢复离线告警 */
+async function handleOnlineTransition(device: IotDeviceRow): Promise<void> {
+  await db.insert(iotDeviceState)
+    .values({ deviceId: device.id, online: true })
+    .onConflictDoUpdate({ target: iotDeviceState.deviceId, set: { online: true } });
+  if (!device.activatedAt) await recordIotLifecycleEvent(device.id, 'activated');
+  await recordIotLifecycleEvent(device.id, 'online');
+  await resolveIotOfflineAlarms(device.id);
+}
+
 /**
  * 心跳/上报触达：续在线 TTL + 节流落库 lastSeenAt（首次触达补 activatedAt）。
  * 高频路径绕过 $onUpdate/审计 Proxy 的常规 update，走原生 SQL。
  */
 export async function touchDevice(device: IotDeviceRow, opts?: { firmwareVersion?: string }): Promise<void> {
-  await markDeviceOnline(device.id);
+  const cameOnline = await markDeviceOnline(device.id);
+  if (cameOnline) {
+    await handleOnlineTransition(device).catch((err) => {
+      logger.warn(`[iot] 上线转变处理失败 deviceId=${device.id}: ${(err as Error).message}`);
+    });
+  }
   const now = Date.now();
   const stale = !device.lastSeenAt || now - device.lastSeenAt.getTime() > LAST_SEEN_FLUSH_SECONDS * 1000;
   const fwChanged = opts?.firmwareVersion && opts.firmwareVersion !== device.firmwareVersion;
   if (!stale && !fwChanged) return;
   try {
-    const { sql } = await import('drizzle-orm');
     await db.execute(sql`
       UPDATE iot_devices SET
         last_seen_at = now(),
@@ -112,3 +146,14 @@ export async function touchDevice(device: IotDeviceRow, opts?: { firmwareVersion
     logger.warn(`[iot] lastSeenAt 落库失败 deviceId=${device.id}: ${(err as Error).message}`);
   }
 }
+
+/** 供批量删除设备前清理实时键（防止残留幽灵在线态） */
+export async function clearOnlineKeys(deviceIds: number[]): Promise<void> {
+  if (deviceIds.length === 0) return;
+  try {
+    await redis.del(...deviceIds.map((id) => `${ONLINE_PREFIX}${id}`));
+  } catch {
+    // TTL 自然过期
+  }
+}
+

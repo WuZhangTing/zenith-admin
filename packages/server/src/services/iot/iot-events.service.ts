@@ -1,0 +1,111 @@
+/**
+ * IoT 设备事件流：生命周期事件（系统打点）+ 物模型事件（设备上报）。
+ *
+ * 追加型日志；物模型事件入库时按产品事件定义解析级别与展示名，
+ * 并触发事件类告警规则判定。
+ */
+import { and, desc, eq } from 'drizzle-orm';
+import type { IotEventIngestInput } from '@zenith/shared/iot';
+import { IOT_LIFECYCLE_EVENTS, type IotDeviceEventKind, type IotEventLevel, type IotLifecycleEventId } from '@zenith/shared/iot';
+import { db } from '../../db';
+import { iotDeviceEvents, type IotDeviceEventRow, type IotDeviceRow } from '../../db/schema';
+import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
+import logger from '../../lib/logger';
+import { loadThingModel } from './iot-model.service';
+import { evaluateIotEventRules } from './iot-alarms.service';
+
+export function mapIotDeviceEvent(row: IotDeviceEventRow) {
+  return {
+    id: row.id,
+    deviceId: row.deviceId,
+    kind: row.kind,
+    identifier: row.identifier,
+    name: row.name,
+    level: row.level,
+    payload: row.payload ?? null,
+    reportedAt: formatDateTime(row.reportedAt),
+  };
+}
+
+/** 系统生命周期打点（上线/离线/激活/密钥重置）；失败仅记日志，不阻断主流程 */
+export async function recordIotLifecycleEvent(
+  deviceId: number,
+  identifier: IotLifecycleEventId,
+  payload?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await db.insert(iotDeviceEvents).values({
+      deviceId,
+      kind: 'lifecycle',
+      identifier,
+      name: IOT_LIFECYCLE_EVENTS[identifier],
+      level: identifier === 'offline' ? 'warn' : 'info',
+      payload: payload ?? null,
+    });
+  } catch (err) {
+    logger.warn(`[iot] 生命周期事件写入失败 deviceId=${deviceId} event=${identifier}: ${(err as Error).message}`);
+  }
+}
+
+/** 设备上报物模型事件（ingest / WS 帧共用）：解析定义 → 入库 → 告警判定 */
+export async function ingestIotDeviceEvents(device: IotDeviceRow, input: IotEventIngestInput): Promise<number> {
+  const model = await loadThingModel(device.productId);
+  const defs = new Map(model.events.map((e) => [e.identifier, e]));
+  const rows = input.items.map((item) => {
+    const def = defs.get(item.identifier);
+    return {
+      deviceId: device.id,
+      kind: 'model' as const,
+      identifier: item.identifier,
+      name: def?.name ?? item.identifier,
+      level: def?.level ?? 'info',
+      payload: item.payload ?? null,
+      reportedAt: (item.reportedAt ? parseDateTimeInput(item.reportedAt) : null) ?? new Date(),
+    };
+  });
+  await db.insert(iotDeviceEvents).values(rows);
+  // 事件类告警：仅对模型内已声明的事件判定
+  for (const item of input.items) {
+    if (!defs.has(item.identifier)) continue;
+    await evaluateIotEventRules(device, item.identifier, item.payload ?? null).catch((err) => {
+      logger.warn(`[iot] 事件告警判定失败 deviceId=${device.id} event=${item.identifier}: ${(err as Error).message}`);
+    });
+  }
+  return rows.length;
+}
+
+export interface ListDeviceEventsQuery {
+  page?: number;
+  pageSize?: number;
+  kind?: IotDeviceEventKind;
+  level?: IotEventLevel;
+}
+
+export async function listIotDeviceEvents(deviceId: number, q: ListDeviceEventsQuery) {
+  const { page = 1, pageSize = 10 } = q;
+  const where = buildWhere(
+    eq(iotDeviceEvents.deviceId, deviceId),
+    q.kind ? eq(iotDeviceEvents.kind, q.kind) : undefined,
+    q.level ? eq(iotDeviceEvents.level, q.level) : undefined,
+  );
+  const [total, rows] = await Promise.all([
+    db.$count(iotDeviceEvents, where),
+    withPagination(
+      db.select().from(iotDeviceEvents).where(where)
+        .orderBy(desc(iotDeviceEvents.reportedAt), desc(iotDeviceEvents.id)).$dynamic(),
+      page,
+      pageSize,
+    ),
+  ]);
+  return { list: rows.map(mapIotDeviceEvent), total, page, pageSize };
+}
+
+/** 保留最近事件的辅助查询（设备详情时间线首屏） */
+export async function listRecentIotDeviceEvents(deviceId: number, limit = 20) {
+  const rows = await db.select().from(iotDeviceEvents)
+    .where(and(eq(iotDeviceEvents.deviceId, deviceId)))
+    .orderBy(desc(iotDeviceEvents.reportedAt), desc(iotDeviceEvents.id))
+    .limit(limit);
+  return rows.map(mapIotDeviceEvent);
+}

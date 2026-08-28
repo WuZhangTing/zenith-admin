@@ -41,6 +41,8 @@ export async function registerBackgroundWorkers(): Promise<void> {
     registerCmsTaskHandlers(); // CMS 全站静态化 / 检索索引重建 / 死链检测
     const { registerBroadcastTaskHandlers } = await import('../services/messaging/broadcast-tasks');
     registerBroadcastTaskHandlers(); // 运营群发分批派发
+    const { registerIotBatchTaskHandlers } = await import('../services/iot/iot-batch-tasks');
+    registerIotBatchTaskHandlers(); // IoT 批量指令 / 批量期望属性
     const { reloadCmsSearchDict } = await import('../services/cms/cms-search.service');
     await reloadCmsSearchDict(); // CMS 检索自定义词典（DB → jieba）
     // AI 评测已迁移至 Mastra Datasets/Experiments(自带异步执行),不再挂任务中心

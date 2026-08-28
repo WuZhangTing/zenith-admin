@@ -9,10 +9,12 @@ import { HTTPException } from 'hono/http-exception';
 import type { z } from 'zod';
 import {
   IOT_SN_HEADER, IOT_TIMESTAMP_HEADER, IOT_SIGN_HEADER,
-  iotTelemetryIngestSchema, iotCommandAckSchema,
+  iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
 } from '@zenith/shared/iot';
 import { authenticateDevice, touchDevice } from '../../services/iot/iot-access.service';
 import { ingestTelemetry, pullPendingCommands, ackIotCommand } from '../../services/iot/iot-telemetry.service';
+import { ingestIotDeviceEvents } from '../../services/iot/iot-events.service';
+import { getIotDesiredPayload } from '../../services/iot/iot-shadow.service';
 import { okBody } from '../../lib/openapi-schemas';
 import type { IotDeviceRow } from '../../db/schema';
 
@@ -52,7 +54,15 @@ ingestRouter.post('/telemetry', async (c) => {
   return c.json(okBody({ accepted: count }));
 });
 
-/** POST /heartbeat — 心跳（body 可为空对象），响应携带待执行指令，轮询设备无需单独拉取 */
+/** POST /events — 批量上报设备事件（按物模型解析级别，触发事件类告警） */
+ingestRouter.post('/events', async (c) => {
+  const { device, data } = await authAndParse(c, iotEventIngestSchema);
+  const count = await ingestIotDeviceEvents(device, data);
+  await touchDevice(device);
+  return c.json(okBody({ accepted: count }));
+});
+
+/** POST /heartbeat — 心跳（body 可为空对象），响应携带待执行指令与期望属性，轮询设备无需单独拉取 */
 ingestRouter.post('/heartbeat', async (c) => {
   const rawBody = await c.req.text();
   const device = await authenticateDevice(
@@ -62,8 +72,11 @@ ingestRouter.post('/heartbeat', async (c) => {
     rawBody,
   );
   await touchDevice(device);
-  const commands = await pullPendingCommands(device);
-  return c.json(okBody({ commands }));
+  const [commands, desired] = await Promise.all([
+    pullPendingCommands(device),
+    getIotDesiredPayload(device),
+  ]);
+  return c.json(okBody({ commands, desired }));
 });
 
 /** POST /commands/:commandId/ack — 指令执行回执 */

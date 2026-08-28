@@ -387,6 +387,31 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     content: '部署授权已失效：{{reason}}。required 模式下增值功能将进入受限状态，请尽快处理。',
   },
 
+  // ─── IoT 设备 ───────────────────────────────────────────────────────────────
+  // 告警接收人由规则显式指定（notifyUserIds），必达语义同系统监控告警。
+  'iot.alarm.triggered': {
+    group: 'iot',
+    label: 'IoT 设备告警触发',
+    severity: 'critical',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email', 'webhook', 'push'],
+    mandatory: true,
+    bypassQuietHours: true,
+    vars: eventVars<{ ruleName: string; deviceName: string; sn: string; levelText: string; message: string }>(),
+    title: '[IoT{{levelText}}] {{ruleName}}',
+    content: '设备「{{deviceName}}」（SN: {{sn}}）触发告警：{{message}}',
+  },
+  'iot.alarm.resolved': {
+    group: 'iot',
+    label: 'IoT 设备告警恢复',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email', 'webhook'],
+    vars: eventVars<{ ruleName: string; deviceName: string; sn: string; message: string }>(),
+    title: '[IoT 恢复] {{ruleName}}',
+    content: '设备「{{deviceName}}」（SN: {{sn}}）告警已恢复：{{message}}',
+  },
+
   // ─── 开放平台 ───────────────────────────────────────────────────────────────
   'open-platform.app.review_requested': {
     group: 'open-platform',

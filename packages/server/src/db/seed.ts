@@ -15,8 +15,14 @@ import { SEED_MARKETING_CAMPAIGNS, SEED_MARKETING_PRIZES } from '@zenith/shared/
 import { marketingCampaigns, marketingPrizes } from './schema';
 import { SEED_ANALYTICS_SEGMENTS } from '@zenith/shared/seed';
 import { analyticsUserSegments } from './schema';
-import { SEED_IOT_PRODUCTS, SEED_IOT_DEVICES } from '@zenith/shared/seed';
-import { iotProducts, iotDevices, iotTelemetry } from './schema';
+import {
+  SEED_IOT_PRODUCTS, SEED_IOT_DEVICES, SEED_IOT_PRODUCT_PROPERTIES, SEED_IOT_PRODUCT_SERVICES,
+  SEED_IOT_PRODUCT_EVENTS, SEED_IOT_DEVICE_GROUPS, SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_DEVICE_EVENTS,
+} from '@zenith/shared/seed';
+import {
+  iotProducts, iotDevices, iotTelemetry, iotProductProperties, iotProductServices, iotProductEvents,
+  iotDeviceGroups, iotDeviceGroupMembers, iotAlarmRules, iotAlarms, iotDeviceEvents, iotDeviceState,
+} from './schema';
 import { buildSearchVector } from '../services/cms/cms-search.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
@@ -1374,11 +1380,33 @@ async function seedRest() {
 
   // ─── IoT 设备管理 ────────────────────────────────────────────────────────────
   await db.insert(iotProducts).values(
-    SEED_IOT_PRODUCTS.map(({ id, name, keyMetrics, description, status }) => ({
-      id, name, keyMetrics, description, status,
+    SEED_IOT_PRODUCTS.map(({ id, name, description, validationMode, status }) => ({
+      id, name, description, validationMode, status,
     })),
   ).onConflictDoNothing({ target: iotProducts.id });
   await db.execute(sql`SELECT setval('iot_products_id_seq', GREATEST((SELECT MAX(id) FROM iot_products), 1))`);
+
+  // 物模型三元组
+  await db.insert(iotProductProperties).values(
+    SEED_IOT_PRODUCT_PROPERTIES.map(({ id, productId, identifier, name, dataType, accessMode, unit, minValue, maxValue, enumOptions, featured, sort, description }) => ({
+      id, productId, identifier, name, dataType, accessMode, unit, minValue, maxValue, enumOptions, featured, sort, description,
+    })),
+  ).onConflictDoNothing({ target: iotProductProperties.id });
+  await db.execute(sql`SELECT setval('iot_product_properties_id_seq', GREATEST((SELECT MAX(id) FROM iot_product_properties), 1))`);
+
+  await db.insert(iotProductServices).values(
+    SEED_IOT_PRODUCT_SERVICES.map(({ id, productId, identifier, name, params, danger, sort, description }) => ({
+      id, productId, identifier, name, params, danger, sort, description,
+    })),
+  ).onConflictDoNothing({ target: iotProductServices.id });
+  await db.execute(sql`SELECT setval('iot_product_services_id_seq', GREATEST((SELECT MAX(id) FROM iot_product_services), 1))`);
+
+  await db.insert(iotProductEvents).values(
+    SEED_IOT_PRODUCT_EVENTS.map(({ id, productId, identifier, name, level, params, sort, description }) => ({
+      id, productId, identifier, name, level, params, sort, description,
+    })),
+  ).onConflictDoNothing({ target: iotProductEvents.id });
+  await db.execute(sql`SELECT setval('iot_product_events_id_seq', GREATEST((SELECT MAX(id) FROM iot_product_events), 1))`);
 
   const insertedIotDevices = await db.insert(iotDevices).values(
     SEED_IOT_DEVICES.map(({ id, sn, secret, productId, name, status, firmwareVersion, activatedAt, lastSeenAt, remark }) => ({
@@ -1389,6 +1417,52 @@ async function seedRest() {
     })),
   ).onConflictDoNothing({ target: iotDevices.id }).returning({ id: iotDevices.id });
   await db.execute(sql`SELECT setval('iot_devices_id_seq', GREATEST((SELECT MAX(id) FROM iot_devices), 1))`);
+
+  // 设备影子：reported 快照与初始离线标记（已存在的不覆盖）
+  await db.insert(iotDeviceState).values(
+    SEED_IOT_DEVICES.map((d) => ({
+      deviceId: d.id,
+      reported: d.reported ?? {},
+      reportedAt: d.lastSeenAt ? new Date(d.lastSeenAt) : null,
+      desired: d.desired ?? {},
+      online: false,
+    })),
+  ).onConflictDoNothing({ target: iotDeviceState.deviceId });
+
+  // 设备分组与成员
+  await db.insert(iotDeviceGroups).values(
+    SEED_IOT_DEVICE_GROUPS.map(({ id, name, description }) => ({ id, name, description })),
+  ).onConflictDoNothing({ target: iotDeviceGroups.id });
+  await db.execute(sql`SELECT setval('iot_device_groups_id_seq', GREATEST((SELECT MAX(id) FROM iot_device_groups), 1))`);
+  await db.insert(iotDeviceGroupMembers).values(
+    SEED_IOT_DEVICE_GROUPS.flatMap((g) => (g.deviceIds ?? []).map((deviceId) => ({ groupId: g.id, deviceId }))),
+  ).onConflictDoNothing();
+
+  // 告警规则与演示告警记录
+  await db.insert(iotAlarmRules).values(
+    SEED_IOT_ALARM_RULES.map(({ id, name, productId, deviceId, ruleType, propertyIdentifier, operator, threshold, consecutiveCount, offlineMinutes, eventIdentifier, level, notifyUserIds, status }) => ({
+      id, name, productId, deviceId, ruleType, propertyIdentifier, operator, threshold,
+      consecutiveCount, offlineMinutes, eventIdentifier, level, notifyUserIds, status,
+    })),
+  ).onConflictDoNothing({ target: iotAlarmRules.id });
+  await db.execute(sql`SELECT setval('iot_alarm_rules_id_seq', GREATEST((SELECT MAX(id) FROM iot_alarm_rules), 1))`);
+
+  await db.insert(iotAlarms).values(
+    SEED_IOT_ALARMS.map(({ id, ruleId, ruleName, deviceId, ruleType, level, status, message, context, firedAt, resolvedAt }) => ({
+      id, ruleId, ruleName, deviceId, ruleType, level, status, message, context,
+      firedAt: new Date(firedAt),
+      resolvedAt: resolvedAt ? new Date(resolvedAt) : null,
+    })),
+  ).onConflictDoNothing({ target: iotAlarms.id });
+  await db.execute(sql`SELECT setval('iot_alarms_id_seq', GREATEST((SELECT MAX(id) FROM iot_alarms), 1))`);
+
+  // 设备事件流
+  await db.insert(iotDeviceEvents).values(
+    SEED_IOT_DEVICE_EVENTS.map(({ id, deviceId, kind, identifier, name, level, payload, reportedAt }) => ({
+      id, deviceId, kind, identifier, name, level, payload, reportedAt: new Date(reportedAt),
+    })),
+  ).onConflictDoNothing({ target: iotDeviceEvents.id });
+  await db.execute(sql`SELECT setval('iot_device_events_id_seq', GREATEST((SELECT MAX(id) FROM iot_device_events), 1))`);
 
   // 首次 seed 时为 1 号演示设备生成近 24 小时遥测曲线（半小时一点，温度日周期 + 湿度反相）
   if (insertedIotDevices.some((d) => d.id === 1)) {
@@ -1408,7 +1482,7 @@ async function seedRest() {
     });
     await db.insert(iotTelemetry).values(points);
   }
-  logger.info('  ✔ IoT products/devices seeded (onConflictDoNothing)');
+  logger.info('  ✔ IoT products/devices/model/alarms seeded (onConflictDoNothing)');
 
 }
 

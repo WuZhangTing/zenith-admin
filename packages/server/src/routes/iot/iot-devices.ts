@@ -8,13 +8,20 @@ import {
   ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound,
 } from '../../lib/openapi-schemas';
-import { IotCommandDTO, IotDeviceDTO, IotTelemetryPointDTO } from '../../lib/openapi-dtos';
-import { createIotDeviceSchema, updateIotDeviceSchema, sendIotCommandSchema } from '@zenith/shared/iot';
+import {
+  IotCommandDTO, IotDeviceDTO, IotDeviceEventDTO, IotDeviceShadowDTO, IotTelemetryPointDTO,
+} from '../../lib/openapi-dtos';
+import {
+  createIotDeviceSchema, updateIotDeviceSchema, sendIotCommandSchema, setIotDesiredSchema,
+  IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS,
+} from '@zenith/shared/iot';
 import {
   listIotDevices, getIotDevice, createIotDevice, updateIotDevice, deleteIotDevices,
   resetIotDeviceSecret, clearIotDeviceTelemetry, ensureIotDeviceExists, mapIotDevice,
 } from '../../services/iot/iot-devices.service';
 import { listIotTelemetry, listIotCommands, sendIotCommand } from '../../services/iot/iot-telemetry.service';
+import { clearIotDesired, getIotDeviceShadow, setIotDesired } from '../../services/iot/iot-shadow.service';
+import { listIotDeviceEvents } from '../../services/iot/iot-events.service';
 
 const iotDevicesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -30,6 +37,7 @@ const listRoute = defineOpenAPIRoute({
         keyword: z.string().optional(),
         status: z.enum(['enabled', 'disabled']).optional(),
         productId: z.coerce.number().int().positive().optional(),
+        groupId: z.coerce.number().int().positive().optional(),
         startTime: dateRangeBound('创建时间起'),
         endTime: dateRangeBound('创建时间止'),
       }),
@@ -180,6 +188,81 @@ const clearTelemetryRoute = defineOpenAPIRoute({
   },
 });
 
+// ─── 影子与事件 ───────────────────────────────────────────────────────────────
+const getShadowRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/shadow',
+    tags: ['IoT 设备'], summary: '设备影子（reported / desired / 在线标记）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'iot:device:list' })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(IotDeviceShadowDTO, '设备影子') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await getIotDeviceShadow(id)), 200);
+  },
+});
+
+const setDesiredRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'put', path: '/{id}/shadow/desired',
+    tags: ['IoT 设备'], summary: '设置期望属性（rw 属性，按物模型校验；WS 在线即时推送）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'iot:command:send',
+      audit: { description: '设置 IoT 期望属性', module: 'IoT 设备' },
+    })] as const,
+    request: { params: IdParam, body: { content: jsonContent(setIotDesiredSchema), required: true } },
+    responses: { ...commonErrorResponses, ...ok(IotDeviceShadowDTO, '已设置') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const row = await setIotDesired(id, c.req.valid('json'));
+    return c.json(okBody(row, '期望属性已下发，设备确认后自动收敛'), 200);
+  },
+});
+
+const clearDesiredRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'delete', path: '/{id}/shadow/desired',
+    tags: ['IoT 设备'], summary: '清空期望属性（放弃未确认的下发）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'iot:command:send',
+      audit: { description: '清空 IoT 期望属性', module: 'IoT 设备' },
+    })] as const,
+    request: { params: IdParam },
+    responses: { ...commonErrorResponses, ...ok(IotDeviceShadowDTO, '已清空') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    return c.json(okBody(await clearIotDesired(id), '期望属性已清空'), 200);
+  },
+});
+
+const listEventsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/events',
+    tags: ['IoT 设备'], summary: '设备事件流（生命周期 + 物模型事件，倒序）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'iot:device:list' })] as const,
+    request: {
+      params: IdParam,
+      query: PaginationQuery.extend({
+        kind: z.enum(IOT_DEVICE_EVENT_KINDS).optional(),
+        level: z.enum(IOT_EVENT_LEVELS).optional(),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...okPaginated(IotDeviceEventDTO, '事件流') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await ensureIotDeviceExists(id);
+    return c.json(okBody(await listIotDeviceEvents(id, c.req.valid('query'))), 200);
+  },
+});
+
 // ─── POST / — 创建 ────────────────────────────────────────────────────────────
 const createRoute_ = defineOpenAPIRoute({
   route: createRoute({
@@ -259,6 +342,10 @@ iotDevicesRouter.openapiRoutes([
   sendCommandRoute,
   resetSecretRoute,
   clearTelemetryRoute,
+  getShadowRoute,
+  setDesiredRoute,
+  clearDesiredRoute,
+  listEventsRoute,
   createRoute_,
   updateRoute_,
   deleteRoute_,

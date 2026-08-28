@@ -247,6 +247,7 @@ export const NOTIFICATION_EVENT_GROUPS = [
   'analytics',
   'messaging',
   'growth',
+  'iot',
 ] as const;
 
 export type NotificationEventGroup = (typeof NOTIFICATION_EVENT_GROUPS)[number];
@@ -264,6 +265,7 @@ export const NOTIFICATION_EVENT_GROUP_LABELS: Record<NotificationEventGroup, str
   analytics: '数据分析',
   messaging: '通知中心',
   growth: '运营中心',
+  iot: 'IoT 设备',
 };
 
 export const NOTIFICATION_EVENT_GROUP_OPTIONS: Array<{ value: NotificationEventGroup; label: string }> =
