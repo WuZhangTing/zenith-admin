@@ -1,13 +1,11 @@
 import { eq, and, ne, isNull, inArray, like, type SQL } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
-import { createRequire } from 'node:module';
-import type ExcelJS from 'exceljs';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, menus } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { reserveTenantSeats, getTenantUserLimit } from '../../lib/tenant-quota';
+import { reserveTenantSeats } from '../../lib/tenant-quota';
 import { enabledGroupRolesWith, extractEnabledGroupRoles } from '../../lib/user-group-access';
 import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
@@ -26,10 +24,6 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { applyEntityMasking } from '../platform/data-mask.service';
 import logger from '../../lib/logger';
-
-// 惰性加载：exceljs 模块图大（实测 ~2.4s），仅在用户导入/模板下载时加载
-const require = createRequire(import.meta.url);
-const loadExcelJS = () => require('exceljs') as typeof import('exceljs');
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 
@@ -628,151 +622,6 @@ export async function exportUsersAsCsv(): Promise<{ stream: ReadableStream; file
     list,
   );
   return { stream, filename: 'users.csv' };
-}
-
-export async function getUserImportTemplate(): Promise<ArrayBuffer> {
-  const workbook = new (loadExcelJS().Workbook)();
-  const sheet = workbook.addWorksheet('用户导入模板');
-  sheet.columns = [
-    { header: '用户名*', key: 'username', width: 16 },
-    { header: '昵称*', key: 'nickname', width: 16 },
-    { header: '邮箱', key: 'email', width: 24 },
-    { header: '密码*', key: 'password', width: 16 },
-    { header: '部门编码', key: 'departmentCode', width: 18 },
-    { header: '岗位编码(逗号分隔)', key: 'positionCodes', width: 22 },
-    { header: '角色编码(逗号分隔)', key: 'roleCodes', width: 22 },
-    { header: '状态(enabled/disabled)', key: 'status', width: 24 },
-  ];
-  const headerRow = sheet.getRow(1);
-  headerRow.font = { bold: true };
-  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8E8E8' } };
-  sheet.addRow({
-    username: 'zhangsan', nickname: '张三', email: 'zhangsan@example.com',
-    password: '请修改为强密码', departmentCode: 'technology', positionCodes: 'engineer',
-    roleCodes: 'normal_user', status: 'enabled',
-  });
-  return workbook.xlsx.writeBuffer();
-}
-
-export interface ImportUsersResult {
-  total: number; success: number; failed: number;
-  errors: Array<{ row: number; message: string }>;
-}
-
-function getImportFile(formData: FormData): File {
-  const file = formData.get('file');
-  if (!file || typeof (file as File).arrayBuffer !== 'function') throw new HTTPException(400, { message: '请上传文件' });
-  return file as File;
-}
-
-export async function importUsersFromFormData(formData: FormData): Promise<ImportUsersResult> {
-  return importUsers(getImportFile(formData));
-}
-
-export async function importUsers(file: File): Promise<ImportUsersResult> {
-  const user = currentUser();
-  const arrayBuffer = await file.arrayBuffer();
-  const workbook = new (loadExcelJS().Workbook)();
-  await workbook.xlsx.load(arrayBuffer);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) throw new HTTPException(400, { message: '文件格式无效或工作表为空' });
-
-  const policy = await getPasswordPolicy();
-  const errors: Array<{ row: number; message: string }> = [];
-  let success = 0;
-  const importedUserIds: number[] = [];
-  const getCellText = (row: ExcelJS.Row, col: number) => {
-    const cell = row.getCell(col);
-    return cell.text?.toString().trim() ?? '';
-  };
-  const dataRows: ExcelJS.Row[] = [];
-  sheet.eachRow((row, rowNum) => { if (rowNum > 1) dataRows.push(row); });
-
-  const [allDepts, allRoles, allPositions, existingUsersList] = await Promise.all([
-    db.select({ id: departments.id, code: departments.code }).from(departments).where(tenantCondition(departments, user)),
-    db.select({ id: roles.id, code: roles.code }).from(roles).where(tenantCondition(roles, user)),
-    db.select({ id: positions.id, code: positions.code }).from(positions).where(tenantCondition(positions, user)),
-    db.select({ username: users.username, email: users.email }).from(users).where(tenantCondition(users, user)),
-  ]);
-  const deptCodeMap = new Map(allDepts.map((d) => [d.code, d.id]));
-  const roleCodeMap = new Map(allRoles.map((r) => [r.code, r.id]));
-  const positionCodeMap = new Map(allPositions.map((p) => [p.code, p.id]));
-  const existingUsernames = new Set(existingUsersList.map((u) => u.username));
-  const existingEmails = new Set(existingUsersList.map((u) => u.email).filter((e): e is string => !!e));
-
-  // 多租户：租户用户数上限。existingUsersList.length 即当前租户用户数，success 为本批已插入数。
-  const importTenantId = getCreateTenantId(user);
-  const tenantUserLimit = await getTenantUserLimit(importTenantId);
-
-  for (const row of dataRows) {
-    const rowNum = row.number;
-    const username = getCellText(row, 1);
-    const nickname = getCellText(row, 2);
-    const email = getCellText(row, 3);
-    const password = getCellText(row, 4);
-    const departmentCode = getCellText(row, 5);
-    const positionCodesRaw = getCellText(row, 6);
-    const roleCodesRaw = getCellText(row, 7);
-    const statusRaw = getCellText(row, 8);
-
-    if (!username || !nickname || !password) { errors.push({ row: rowNum, message: '用户名、昵称、密码为必填项' }); continue; }
-    const policyError = validatePassword(password, policy);
-    if (policyError) { errors.push({ row: rowNum, message: policyError }); continue; }
-    if (existingUsernames.has(username) || (email && existingEmails.has(email))) {
-      errors.push({ row: rowNum, message: `用户名或邮箱已存在: ${username} / ${email}` }); continue;
-    }
-    let departmentId: number | null = null;
-    if (departmentCode) {
-      const deptId = deptCodeMap.get(departmentCode);
-      if (!deptId) { errors.push({ row: rowNum, message: `部门编码不存在: ${departmentCode}` }); continue; }
-      departmentId = deptId;
-    }
-    const roleCodes = roleCodesRaw ? roleCodesRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
-    let roleIds: number[] = [];
-    if (roleCodes.length > 0) {
-      const missing = roleCodes.filter((code) => !roleCodeMap.has(code));
-      if (missing.length > 0) { errors.push({ row: rowNum, message: `角色编码不存在: ${missing.join(', ')}` }); continue; }
-      roleIds = roleCodes.map((code) => roleCodeMap.get(code)).filter((x): x is number => x !== undefined);
-    }
-    const positionCodes = positionCodesRaw ? positionCodesRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
-    let positionIds: number[] = [];
-    if (positionCodes.length > 0) {
-      const missing = positionCodes.filter((code) => !positionCodeMap.has(code));
-      if (missing.length > 0) { errors.push({ row: rowNum, message: `岗位编码不存在: ${missing.join(', ')}` }); continue; }
-      positionIds = positionCodes.map((code) => positionCodeMap.get(code)).filter((x): x is number => x !== undefined);
-    }
-    let status: 'enabled' | 'disabled' = 'enabled';
-    if (statusRaw) {
-      const normalized = statusRaw.trim().toLowerCase();
-      if (normalized === 'enabled' || normalized === 'disabled') status = normalized;
-      else { errors.push({ row: rowNum, message: `状态值无效: ${statusRaw}（仅支持 enabled/disabled 或留空）` }); continue; }
-    }
-    if (tenantUserLimit != null && existingUsersList.length + success >= tenantUserLimit) {
-      errors.push({ row: rowNum, message: `超出租户用户数上限（${tenantUserLimit}），后续行已跳过` }); continue;
-    }
-    // 安全要求：每行独立 bcrypt.hash（独立 salt）——禁止按相同密码复用哈希，
-    // 否则 DB 泄露时可通过哈希串相等直接识别共享密码的账号
-    const hashedPassword = await bcrypt.hash(password, 10);
-    try {
-      await db.transaction(async (tx) => {
-        await reserveTenantSeats(tx, importTenantId);
-        const [newUser] = await tx.insert(users).values({
-          username, nickname, email: email || null, password: hashedPassword,
-          departmentId, status, tenantId: getCreateTenantId(user),
-        }).returning();
-        if (roleIds.length > 0) await setUserRoles(tx, newUser.id, roleIds);
-        if (positionIds.length > 0) await setUserPositions(tx, newUser.id, positionIds);
-        importedUserIds.push(newUser.id);
-      });
-      existingUsernames.add(username);
-      if (email) existingEmails.add(email);
-      success++;
-    } catch (e: unknown) {
-      errors.push({ row: rowNum, message: `插入失败: ${e instanceof Error ? e.message : '未知错误'}` });
-    }
-  }
-  if (importedUserIds.length > 0) syncUserDynamicMembershipsSafe(importedUserIds, '批量导入用户');
-  return { total: dataRows.length, success, failed: errors.length, errors };
 }
 
 // ─── 用户级菜单权限 ────────────────────────────────────────────────────────────

@@ -6,10 +6,10 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound, excelBody, okExcel,
+  ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound,
 } from '../../lib/openapi-schemas';
 import {
-  ImportResultDTO, IotCommandDTO, IotDeviceDTO, IotDeviceEventDTO, IotDeviceLogDTO, IotDeviceShadowDTO,
+  IotCommandDTO, IotDeviceDTO, IotDeviceEventDTO, IotDeviceLogDTO, IotDeviceShadowDTO,
   IotTelemetryAggPointDTO, IotTelemetryPointDTO, IotTopologyDTO,
 } from '../../lib/openapi-dtos';
 import {
@@ -19,7 +19,6 @@ import {
 import {
   listIotDevices, getIotDevice, createIotDevice, updateIotDevice, deleteIotDevices,
   resetIotDeviceSecret, clearIotDeviceTelemetry, ensureIotDeviceExists, mapIotDevice,
-  getIotDeviceImportTemplate, importIotDevicesFromFormData,
 } from '../../services/iot/iot-devices.service';
 import { listIotTelemetry, listIotCommands, sendIotCommand } from '../../services/iot/iot-telemetry.service';
 import { listIotTelemetryAgg } from '../../services/iot/iot-rollup.service';
@@ -293,43 +292,6 @@ const listEventsRoute = defineOpenAPIRoute({
   },
 });
 
-// ─── 导入：模板 + 上传 ────────────────────────────────────────────────────────
-const importTemplateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/import-template',
-    tags: ['IoT 设备'], summary: '下载设备导入模板',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'iot:device:import' })] as const,
-    responses: { ...commonErrorResponses, ...okExcel() },
-  }),
-  handler: async (c) => excelBody(c, await getIotDeviceImportTemplate(), 'iot_device_import_template.xlsx'),
-});
-
-const importDevicesRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/import',
-    tags: ['IoT 设备'], summary: '导入设备（Excel，SN 留空自动生成，密钥自动分配）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'iot:device:import',
-      audit: { description: '导入 IoT 设备', module: 'IoT 设备', recordBody: false },
-    })] as const,
-    request: {
-      body: { content: { 'multipart/form-data': { schema: z.object({ file: z.any() }) } }, required: true },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ImportResultDTO, 'ok'),
-      400: { content: jsonContent(ErrorResponse), description: '文件无效' },
-    },
-  }),
-  handler: async (c) => {
-    const formData = await c.req.formData();
-    const result = await importIotDevicesFromFormData(formData);
-    return c.json(okBody(result, '导入完成'), 200);
-  },
-});
-
 // ─── POST / — 创建 ────────────────────────────────────────────────────────────
 const createRoute_ = defineOpenAPIRoute({
   route: createRoute({
@@ -448,8 +410,6 @@ const listLogsRoute = defineOpenAPIRoute({
 iotDevicesRouter.openapiRoutes([
   listRoute,
   batchDeleteRoute,
-  importTemplateRoute,
-  importDevicesRoute,
   getOneRoute,
   telemetryAggRoute,
   telemetryRoute,

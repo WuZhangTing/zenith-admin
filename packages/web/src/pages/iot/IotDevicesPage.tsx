@@ -9,6 +9,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import ExportButton from '@/components/ExportButton';
+import ImportButton from '@/components/ImportButton';
 import AppModal from '@/components/AppModal';
 import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -22,8 +23,8 @@ import type { IotDevice, IotDeviceGroup } from '@zenith/shared/iot';
 import { IOT_NODE_TYPE_OPTIONS } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import {
-  iotDeviceKeys, useDeleteIotDevices, useImportIotDevices, useIotDeviceList, useSaveIotDevice,
-  useSubmitIotBatchCommand, useSubmitIotBatchDesired, type IotDeviceImportResult,
+  iotDeviceKeys, useDeleteIotDevices, useIotDeviceList, useSaveIotDevice,
+  useSubmitIotBatchCommand, useSubmitIotBatchDesired,
 } from '@/hooks/queries/iot-devices';
 import { useAllIotGroups, useDeleteIotGroups, useSaveIotGroup } from '@/hooks/queries/iot-groups';
 import IotDeviceDetailDrawer from './IotDeviceDetailDrawer';
@@ -70,10 +71,6 @@ export default function IotDevicesPage() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
   const [groupsVisible, setGroupsVisible] = useState(false);
   const [batchKind, setBatchKind] = useState<'command' | 'desired' | null>(null);
-  const [importVisible, setImportVisible] = useState(false);
-  const [importResult, setImportResult] = useState<IotDeviceImportResult | null>(null);
-  const importFileRef = useRef<File | null>(null);
-  const importMutation = useImportIotDevices();
 
   const productsQuery = useAllIotProducts();
   const products = productsQuery.data ?? [];
@@ -156,26 +153,6 @@ export default function IotDevicesPage() {
     labelWidth: 90,
   });
   const deleteGroupMutation = useDeleteIotGroups();
-
-  // ─── Excel 导入 ──────────────────────────────────────────────────────────────
-  async function handleImportTemplate() {
-    try {
-      await request.download('/api/iot/devices/import-template', 'iot_device_import_template.xlsx');
-    } catch {
-      Toast.error('模板下载失败');
-    }
-  }
-
-  async function handleImportSubmit() {
-    if (!importFileRef.current) {
-      Toast.warning('请先选择文件');
-      abortSubmit();
-    }
-    const formData = new FormData();
-    formData.append('file', importFileRef.current);
-    const result = await importMutation.mutateAsync({ formData });
-    setImportResult(result);
-  }
 
   // ─── 批量操作 ────────────────────────────────────────────────────────────────
   const batchCommandMutation = useSubmitIotBatchCommand();
@@ -419,7 +396,7 @@ export default function IotDevicesPage() {
         </>}
         actions={<>
           {hasPermission('iot:device:import') && (
-            <Button theme="light" icon={<FileUp size={14} />} onClick={() => { setImportVisible(true); setImportResult(null); importFileRef.current = null; }}>导入</Button>
+            <ImportButton entity="iot.devices" title="IoT 设备" onFinished={() => void listQuery.refetch()} />
           )}
           <ExportButton entity="iot.devices" query={buildExportQuery()} />
           {hasPermission('iot:group:manage') && (
@@ -440,7 +417,7 @@ export default function IotDevicesPage() {
         </>}
         mobileActions={<>
           {hasPermission('iot:device:import') && (
-            <Button theme="borderless" onClick={() => { setImportVisible(true); setImportResult(null); importFileRef.current = null; }}>导入设备</Button>
+            <ImportButton entity="iot.devices" title="IoT 设备" label="导入设备" onFinished={() => void listQuery.refetch()} />
           )}
           <ExportButton entity="iot.devices" query={buildExportQuery()} variant="flat" />
           {hasPermission('iot:group:manage') && (
@@ -607,58 +584,7 @@ export default function IotDevicesPage() {
         </Form>
       </AppModal>
 
-      {/* 导入设备 */}
-      <AppModal
-        title="导入设备"
-        visible={importVisible}
-        onCancel={() => setImportVisible(false)}
-        onOk={importResult ? () => setImportVisible(false) : handleImportSubmit}
-        okText={importResult ? '关闭' : '开始导入'}
-        okButtonProps={{ loading: importMutation.isPending }}
-        width={560}
-        closeOnEsc
-      >
-        {importResult ? (
-          <div>
-            <Text>
-              导入完成：共 {importResult.total} 行，成功 <Text type="success" strong>{importResult.success}</Text>，
-              失败 <Text type={importResult.failed > 0 ? 'danger' : 'tertiary'} strong>{importResult.failed}</Text>
-            </Text>
-            {importResult.errors.length > 0 && (
-              <Table
-                style={{ marginTop: 12 }}
-                columns={[
-                  { title: '行号', dataIndex: 'row', width: 70 },
-                  { title: '错误原因', dataIndex: 'message' },
-                ]}
-                dataSource={importResult.errors}
-                rowKey="row"
-                size="small"
-                pagination={false}
-              />
-            )}
-          </div>
-        ) : (
-          <div style={{ padding: '8px 0' }}>
-            <div style={{ marginBottom: 12 }}>
-              <Button type="tertiary" icon={<Download size={14} />} onClick={handleImportTemplate}>下载导入模板</Button>
-              <Text type="tertiary" size="small" style={{ marginLeft: 8 }}>请先下载模板，按格式填写后上传；SN 留空自动生成</Text>
-            </div>
-            <Upload
-              accept=".xlsx,.xls"
-              limit={1}
-              action=""
-              beforeUpload={({ file }) => {
-                importFileRef.current = file.fileInstance ?? null;
-                return false;
-              }}
-              onRemove={() => { importFileRef.current = null; }}
-            >
-              <Button icon={<FileUp size={14} />}>选择文件</Button>
-            </Upload>
-          </div>
-        )}
-      </AppModal>
+      {/* 导入设备走通用 ImportButton（导入中心 definition iot.devices） */}
 
       <IotDeviceDetailDrawer device={detailDevice} onClose={() => setDetailDevice(null)} />
     </div>

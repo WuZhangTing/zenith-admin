@@ -16,13 +16,6 @@ export interface UserListParams {
   endTime?: string;
 }
 
-export interface ImportUsersResult {
-  total: number;
-  success: number;
-  failed: number;
-  errors: Array<{ row: number; message: string }>;
-}
-
 export interface UserDataPermission {
   userDataScope: string | null;
   deptScopeIds: number[];
@@ -204,16 +197,6 @@ export function useAssignUserRoles() {
       // 角色决定可见菜单
       void qc.invalidateQueries({ queryKey: userKeys.effectivePermissions(id) });
     },
-  });
-}
-
-export function useImportUsers() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
-      request.postForm<ImportUsersResult>('/api/users/import', formData, { onProgress }).then(unwrap),
-    // 批量导入会新增未知数量的用户，无法逐条定位，全域失效并注明理由
-    onSuccess: () => qc.invalidateQueries({ queryKey: userKeys.all }),
   });
 }
 

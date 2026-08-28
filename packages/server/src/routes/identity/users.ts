@@ -1,12 +1,12 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, excelBody, jsonContent, ok, okBody, okExcel, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { AlertRecipientUserDTO, UserDTO, ImportResultDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../../lib/openapi-dtos';
+import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { AlertRecipientUserDTO, UserDTO, UserMenuPermissionsDTO, UserDataPermissionDTO, UserEffectivePermissionsDTO } from '../../lib/openapi-dtos';
 import {
   listAlertRecipientUsers, listAllUsers, listUsers, createUser, batchDeleteUsers, batchUpdateUserStatus, batchResetUsersPassword,
   updateUser, deleteUser, updateUserPassword, unlockUserById,
-  getUserImportTemplate, importUsersFromFormData, getUserBeforeAudit, getUsersBeforeAudit,
+  getUserBeforeAudit, getUsersBeforeAudit,
   getUser,
   getUserMenuPermissions, assignUserMenus,
   getUserDataPermission, updateUserDataPermission, getUserEffectivePermissions,
@@ -153,37 +153,6 @@ const batchStatusUsersRoute = defineOpenAPIRoute({
     if (before.length > 0) setAuditBeforeData(c, before);
     await batchUpdateUserStatus(ids, status);
     return c.json(okBody(null, '状态已更新'), 200);
-  },
-});
-
-const importTemplateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/import-template', tags: ['Users'], summary: '下载导入模板',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:import' })] as const,
-    responses: { ...commonErrorResponses, ...okExcel() },
-  }),
-  handler: async (c) => excelBody(c, await getUserImportTemplate(), 'user_import_template.xlsx'),
-});
-
-const importUsersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/import', tags: ['Users'], summary: '导入用户',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:user:import', audit: { description: '导入用户', module: '用户管理' } })] as const,
-    request: {
-      body: { content: { 'multipart/form-data': { schema: z.object({ file: z.any() }) } }, required: true },
-    },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(ImportResultDTO, 'ok'),
-      400: { content: jsonContent(ErrorResponse), description: '文件无效' },
-    },
-  }),
-  handler: async (c) => {
-    const formData = await c.req.formData();
-    const result = await importUsersFromFormData(formData);
-    return c.json(okBody(result, '导入完成'), 200);
   },
 });
 
@@ -437,7 +406,7 @@ const getUserEffectivePermissionsRoute = defineOpenAPIRoute({
 
 usersRouter.openapiRoutes([
   getAlertRecipientUsersRoute, getAllUsersRoute, listUsersRoute, createUserRoute, batchDeleteUsersRoute, batchStatusUsersRoute, batchResetPasswordRoute,
-  importTemplateRoute, importUsersRoute, updateUserPasswordRoute, unlockUserRoute,
+  updateUserPasswordRoute, unlockUserRoute,
   getOneUserRoute, updateUserRoute, deleteUserRoute,
   getUserMenusRoute, assignUserMenusRoute,
   assignUserRolesRoute,

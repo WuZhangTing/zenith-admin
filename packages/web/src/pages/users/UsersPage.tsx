@@ -26,6 +26,7 @@ import { UserMenuPermissionModal } from './UserMenuPermissionModal';
 import { UserDataScopeModal } from './UserDataScopeModal';
 import { UserAvatarModal } from './UserAvatarModal';
 import ExportButton from '@/components/ExportButton';
+import ImportButton from '@/components/ImportButton';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useFlatDepartments } from '@/hooks/queries/departments';
 import { useAllPositions } from '@/hooks/queries/positions';
@@ -37,7 +38,6 @@ import {
   useBatchUserPassword,
   useBatchUserStatus,
   useDeleteUser,
-  useImportUsers,
   useKickUserSessions,
   useResetUserPassword,
   useSaveUser,
@@ -108,18 +108,8 @@ export default function UsersPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { items: genderItems } = useDictItems('user_gender');
   const [selectedRowKeys, setSelectedRowKeys] = useState<number[]>([]);
-  const [importModalVisible, setImportModalVisible] = useState(false);
   const [deptTreeExpandedKeys, setDeptTreeExpandedKeys] = useState<string[]>([]);
 
-  interface ImportResult {
-    total: number;
-    success: number;
-    failed: number;
-    errors: Array<{ row: number; message: string }>;
-  }
-
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const importFileRef = useRef<File | null>(null);
   const allRolesQuery = useAllRoles();
   const allDepartmentsQuery = useFlatDepartments();
   const allPositionsQuery = useAllPositions();
@@ -143,7 +133,6 @@ export default function UsersPage() {
   const total = data?.total ?? 0;
   const saveMutation = useSaveUser();
   const resetPasswordMutation = useResetUserPassword();
-  const importUsersMutation = useImportUsers();
   const deleteMutation = useDeleteUser();
   const unlockMutation = useUnlockUser();
   const batchDeleteMutation = useBatchDeleteUsers();
@@ -354,38 +343,9 @@ export default function UsersPage() {
       : {}),
   }), [submittedParams]);
 
-  const handleImportTemplate = async () => {
-    try {
-      await request.download('/api/users/import-template', 'user_import_template.xlsx');
-    } catch {
-      Toast.error('模板下载失败');
-    }
-  };
-
-  const handleImportSubmit = async () => {
-    if (!importFileRef.current) {
-      Toast.warning('请先选择文件');
-      return;
-    }
-    const formData = new FormData();
-    formData.append('file', importFileRef.current);
-    try {
-      const result = await importUsersMutation.mutateAsync({ formData });
-      setImportResult(result);
-    } catch {
-      // request 层已提示错误
-    }
-  };
-
   const openCreate = modal.openCreate;
   const openEdit = modal.openEdit;
   const openPassword = passwordModal.openEdit;
-
-  const openImport = () => {
-    setImportModalVisible(true);
-    setImportResult(null);
-    importFileRef.current = null;
-  };
 
   const { mutateAsync: deleteUser } = deleteMutation;
   const handleDelete = useCallback(async (id: number) => {
@@ -720,7 +680,11 @@ export default function UsersPage() {
   );
 
   const renderImportButton = () => hasPermission('system:user:import') ? (
-    <Button type="primary" icon={<FileUp size={14} />} onClick={openImport}>导入</Button>
+    <ImportButton
+      entity="identity.users"
+      title="用户"
+      onFinished={() => void refetchUserList()}
+    />
   ) : null;
 
   const renderCreateButton = () => hasPermission('system:user:create') ? (
@@ -985,66 +949,6 @@ export default function UsersPage() {
             rules={[{ required: true, message: '请确认新密码' }]}
           />
         </Form>
-      </AppModal>
-
-      <AppModal
-        title="批量导入用户"
-        visible={importModalVisible}
-        onCancel={() => setImportModalVisible(false)}
-        footer={
-          importResult ? (
-            <Button onClick={() => setImportModalVisible(false)}>关闭</Button>
-          ) : (
-            <Space>
-              <Button onClick={() => setImportModalVisible(false)}>取消</Button>
-              <Button type="primary" loading={importUsersMutation.isPending} onClick={handleImportSubmit}>开始导入</Button>
-            </Space>
-          )
-        }
-        width={560}
-      >
-        {importResult ? (
-          <div>
-            <div style={{ marginBottom: 12 }}>
-              <Space>
-                <Tag color="green">成功: {importResult.success}</Tag>
-                <Tag color="red">失败: {importResult.failed}</Tag>
-                <Tag color="grey">共: {importResult.total}</Tag>
-              </Space>
-            </div>
-            {importResult.errors.length > 0 && (
-              <Table
-                size="small"
-                columns={[
-                  { title: '行号', dataIndex: 'row', width: 80, align: 'right' },
-                  { title: '错误信息', dataIndex: 'message' },
-                ]}
-                dataSource={importResult.errors}
-                pagination={false}
-                rowKey="row"
-              />
-            )}
-          </div>
-        ) : (
-          <div style={{ padding: '16px 0' }}>
-            <div style={{ marginBottom: 12 }}>
-              <Button type="tertiary" icon={<Download size={14} />} onClick={handleImportTemplate}>下载导入模板</Button>
-              <Typography.Text type="tertiary" style={{ marginLeft: 8, fontSize: 12 }}>请先下载模板，按格式填写后上传</Typography.Text>
-            </div>
-            <Upload
-              accept=".xlsx,.xls"
-              limit={1}
-              action=""
-              beforeUpload={({ file }) => {
-                importFileRef.current = file.fileInstance ?? null;
-                return false;
-              }}
-              onRemove={() => { importFileRef.current = null; }}
-            >
-              <Button icon={<FileUp size={14} />}>选择文件</Button>
-            </Upload>
-          </div>
-        )}
       </AppModal>
 
       {/* 批量修改密码 */}

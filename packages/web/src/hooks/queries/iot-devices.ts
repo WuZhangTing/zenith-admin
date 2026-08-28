@@ -183,25 +183,6 @@ export function useIotTelemetryAgg(deviceId: number | null, property: string | n
   });
 }
 
-// ─── Excel 导入 ───────────────────────────────────────────────────────────────
-export interface IotDeviceImportResult {
-  total: number;
-  success: number;
-  failed: number;
-  errors: Array<{ row: number; message: string }>;
-}
-
-export function useImportIotDevices() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
-      request.postForm<IotDeviceImportResult>('/api/iot/devices/import', formData, { onProgress }).then(unwrap),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: iotDeviceKeys.lists });
-    },
-  });
-}
-
 // ─── 批量操作（任务中心执行，进度走全局 TaskTray，无缓存联动）──────────────────
 export interface SubmittedAsyncTask {
   id: number;

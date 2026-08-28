@@ -55,22 +55,6 @@ export const UserDTO = z
   })
   .openapi('User');
 
-export const ImportResultDTO = z
-  .object({
-    total: z.number().int().openapi({ example: 100 }),
-    success: z.number().int().openapi({ example: 95 }),
-    failed: z.number().int().openapi({ example: 5 }),
-    errors: z
-      .array(
-        z.object({
-          row: z.number().int(),
-          message: z.string(),
-        }),
-      )
-      .optional(),
-  })
-  .openapi('UserImportResult');
-
 const dataScopeValues = ['all', 'custom', 'dept_only', 'dept', 'self'] as const;
 
 export const UserMenuPermissionsDTO = z
