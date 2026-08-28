@@ -83,6 +83,17 @@ describe('log level detection', () => {
     expect(detectLogLevel('plain line without level')).toBeNull();
   });
 
+  it('detects levels from NDJSON app-log lines by the leading numeric level key', () => {
+    expect(detectLogLevel('{"level":30,"time":"2026-08-28T13:19:18.123Z","msg":"ready"}')).toBe('info');
+    expect(detectLogLevel('{"level":50,"time":"2026-08-28T13:19:18.123Z","err":{"type":"Error"}}')).toBe('error');
+    expect(detectLogLevel('{"level":40,"msg":"slow query"}')).toBe('warn');
+    expect(detectLogLevel('{"level":60,"msg":"oom"}')).toBe('error');
+    expect(detectLogLevel('{"level":10,"msg":"enter"}')).toBe('debug');
+    expect(detectLogLevel('{"level":20,"msg":"detail"}')).toBe('debug');
+    // level 键不在行首（消息内容里出现同形串）不误判为该级别
+    expect(detectLogLevel('{"time":"2026-08-28","msg":"saw \\"level\\":50 in payload"}')).toBeNull();
+  });
+
   it('lets continuation lines inherit the previous level', () => {
     expect(computeEffectiveLevels([
       'no level yet',

@@ -60,9 +60,10 @@ const envSchema = z.object({
   /** Webhook 回调允许的私网/本机主机（逗号分隔，支持 host、*.suffix、CIDR）。开发环境用于本地联调 */
   OPEN_WEBHOOK_ALLOWED_HOSTS: z.string().default(''),
   OPEN_API_INTERNAL_BASE_URL: z.string().default(''),
-  LOG_LEVEL: z.string().default('info'),
+  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   LOG_DIR: z.string().default('logs'),
-  LOG_MAX_FILES: z.string().default('30d'),
+  /** 轮转日志文件保留份数（按天轮转，1 份 = 1 天） */
+  LOG_MAX_FILES: z.coerce.number().int().min(1).default(30),
   // HTTP 入站日志
   HTTP_LOG_INCOMING_ENABLED: boolStr('false'),
   HTTP_LOG_INCOMING_LEVEL: httpLogLevelEnum.default('access'),

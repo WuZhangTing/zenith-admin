@@ -16,7 +16,7 @@ import type { SonicBoom } from 'sonic-boom';
 import pinoRoll from 'pino-roll';
 import type { HttpLogLevel, HttpLogFormat, HttpLogMethod } from '../config';
 import { config } from '../config';
-import appLogger, { resolveLogMaxFiles } from './logger';
+import appLogger from './logger';
 import { formatDateTime } from './datetime';
 import { redactBody } from './sanitize';
 
@@ -195,7 +195,7 @@ function getHttpTrafficStream(): Promise<SonicBoom> {
     dateFormat: 'yyyy-MM-dd',
     extension: '.log',
     mkdir: true,
-    limit: { count: resolveLogMaxFiles(config.log.maxFiles), removeOtherLogFiles: true },
+    limit: { count: config.log.maxFiles, removeOtherLogFiles: true },
   });
   return _httpTrafficStream;
 }

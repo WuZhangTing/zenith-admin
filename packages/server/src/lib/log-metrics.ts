@@ -1,5 +1,5 @@
 /**
- * 日志级别计数指标源：在 lib/logger 门面写入点计数，供监控告警评估器取数。
+ * 日志级别计数指标源：在 logger 的 logMethod hook 写入点计数，供监控告警评估器取数。
  *
  * 不扫描日志文件——零 I/O、零解析，也不用管轮转与归档；
  * 与 metricsSampler 的 qps / errorRate 同属进程内口径。
@@ -52,7 +52,7 @@ class LogLevelCounter {
 
 const counter = new LogLevelCounter();
 
-/** 供 logger 门面在写入点调用的计数入口：只累加内存计数，永不抛错阻塞日志链路 */
+/** 供 logger 的 logMethod hook 在写入点调用的计数入口：只累加内存计数，永不抛错阻塞日志链路 */
 export function recordLogLevel(level: string): void {
   try {
     counter.record(level);

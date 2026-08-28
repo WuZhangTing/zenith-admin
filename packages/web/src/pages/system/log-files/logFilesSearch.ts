@@ -74,6 +74,11 @@ export function buildSearchIndex(lines: string[], pattern: RegExp | string | nul
   return { matches, lineRanges };
 }
 
+/** NDJSON 行（应用日志）：pino 的数字级别固定是行首第一个键（10=trace … 60=fatal） */
+const NDJSON_LEVEL_RE = /^\{"level":(10|20|30|40|50|60)\b/;
+const NDJSON_LEVEL_MAP: Record<string, LogLevel> = {
+  10: 'debug', 20: 'debug', 30: 'info', 40: 'warn', 50: 'error', 60: 'error',
+};
 const BRACKET_LEVEL_RE = /\[(error|fatal|warn|warning|info|debug|trace)\]/i;
 const WORD_LEVEL_RE = /\b(ERROR|FATAL|WARN|WARNING|INFO|DEBUG|TRACE)\b/;
 
@@ -85,8 +90,13 @@ function normalizeLevel(raw: string): LogLevel {
   return 'info';
 }
 
-/** 检测单行日志级别：优先匹配 [level] 标记，回退到全大写级别单词 */
+/**
+ * 检测单行日志级别：
+ * NDJSON 行首数字 level 键（应用日志）→ [level] 标记 → 全大写级别单词（http-traffic 等文本日志）
+ */
 export function detectLogLevel(line: string): LogLevel | null {
+  const ndjson = NDJSON_LEVEL_RE.exec(line);
+  if (ndjson) return NDJSON_LEVEL_MAP[ndjson[1]];
   const bracket = BRACKET_LEVEL_RE.exec(line);
   if (bracket) return normalizeLevel(bracket[1]);
   const word = WORD_LEVEL_RE.exec(line);

@@ -11,7 +11,6 @@
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
-import { logger as honoLogger } from 'hono/logger';
 import { timing } from 'hono/timing';
 import { httpInstrumentationMiddleware } from '@hono/otel';
 import { prometheus } from '@hono/prometheus';
@@ -26,7 +25,9 @@ import { contextStorage } from 'hono/context-storage';
 import { csrf } from 'hono/csrf';
 import { swaggerUI } from '@hono/swagger-ui';
 import { Registry } from 'prom-client';
-import stripAnsi from 'strip-ansi';
+import { pinoHttp, type HttpLogger } from 'pino-http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { Logger } from 'pino';
 import { config } from './config';
 import logger from './lib/logger';
 import { errBody } from './lib/openapi-schemas';
@@ -42,6 +43,13 @@ import { authMiddleware } from './middleware/auth';
 import { guard } from './middleware/guard';
 import { ROUTE_DOMAINS } from './routes';
 import { licenseFeatureGate } from './lib/licensing';
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    /** pino-http 注入的请求级子 logger（绑定 reqId）；测试 app.request() 场景下不存在 */
+    logger?: Logger;
+  }
+}
 
 export function createApp() {
   const app = new OpenAPIHono();
@@ -115,7 +123,37 @@ export function createApp() {
       }),
     ),
   );
-  app.use('*', honoLogger((msg) => logger.info(stripAnsi(msg))));
+  // ─── 访问日志（pino-http，官方 Hono 集成方式）────────────────────────────────
+  // 桥接到 @hono/node-server 暴露的裸 req/res；测试中 app.request() 无 Node socket，
+  // c.env.incoming 不存在时跳过（访问日志本就属于服务器运行时）。
+  // 基础设施路径不记访问日志；5xx 记 error（计入 logErrorPerMin），其余 info。
+  const ACCESS_LOG_IGNORE_PREFIXES = ['/api/health', '/api/metrics', '/api/ws'];
+  const accessLog: HttpLogger = pinoHttp({
+    logger,
+    autoLogging: {
+      ignore: (req) => ACCESS_LOG_IGNORE_PREFIXES.some((p) => (req.url ?? '').startsWith(p)),
+    },
+    customLogLevel: (_req, res) => (res.statusCode >= 500 ? 'error' : 'info'),
+    customSuccessMessage: (req, res, responseTime) =>
+      `${req.method} ${req.url} ${res.statusCode} ${responseTime}ms`,
+    customErrorMessage: (req, res) => `${req.method} ${req.url} ${res.statusCode}`,
+    // 精简序列化：访问行只留 reqId（quietReqLogger 绑定）+ 方法/路径/状态码/耗时，
+    // 不倾倒 req/res 对象与 headers（敏感且冗长）
+    serializers: {
+      req: () => undefined,
+      res: () => undefined,
+    },
+    quietReqLogger: true,
+  });
+  app.use('*', async (c, next) => {
+    const env = c.env as { incoming?: IncomingMessage & { id?: string }; outgoing?: ServerResponse } | undefined;
+    if (env?.incoming && env.outgoing) {
+      env.incoming.id = c.get('requestId'); // 复用 hono requestId 作为访问日志关联 ID
+      accessLog(env.incoming, env.outgoing);
+      c.set('logger', env.incoming.log);    // 请求级子 logger，handler 内 c.get('logger') 可用
+    }
+    await next();
+  });
   // HTTP 流量详细日志（对标 Logbook），默认关闭，通过 HTTP_LOG_INCOMING_ENABLED=true 启用
   app.use('*', httpLoggerMiddleware);
   if (config.serverTimingEnabled) {

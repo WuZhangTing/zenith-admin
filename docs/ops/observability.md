@@ -34,7 +34,7 @@ SSE 首帧推送完整 `metrics`、全量 `series` 和 `ws` 指标；后续采�
 
 ## 日志级别频率指标
 
-日志 ERROR / WARN 频率在 logger 门面写入点由 `lib/log-metrics.ts` 计数，不扫描日志文件。实现特性：
+日志 ERROR / WARN 频率在 logger 的 logMethod hook 写入点由 `lib/log-metrics.ts` 计数，不扫描日志文件。实现特性：
 
 - 不依赖文件 I/O，不受日志轮转影响；
 - 按 epoch 分钟分桶保留近 5 个桶，读写时惰性淘汰；

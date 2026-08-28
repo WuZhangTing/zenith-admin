@@ -1,99 +1,108 @@
 /**
- * 应用主日志（pino）：彩色控制台输出 + 按天轮转的本地文件（pretty 单行文本，不压缩）。
+ * 应用主日志：原生 pino 实例（NDJSON 结构化输出）。
  *
- * 门面签名 `logger.info(message, meta?)`，调用点无需感知 pino 的参数约定：
- *  - meta 为 Error 时记入 `err` 字段（经 std serializer 带堆栈输出）
- *  - meta 为普通对象时作为结构化字段合并
- *  - 其他类型记入 `meta` 字段
+ * 输出（worker 线程 transport，序列化之外的开销不占主线程）：
+ *  - 文件：pino-roll 按天轮转 `logs/app.YYYY-MM-DD.N.log`，保留 LOG_MAX_FILES 份，NDJSON
+ *  - 控制台：生产环境输出 NDJSON 到 stdout（交给容器日志采集）；
+ *    非生产环境经 pino-pretty 彩色单行输出
  *
- * warn / error 写入点同步计入 log-metrics 计数器
- * （监控告警的 logErrorPerMin / logWarnPerMin）。
+ * 调用约定（`hooks.logMethod` 归一化，两种写法都支持）：
+ *  - pino 原生：`logger.info({ userId }, '登录成功')`，新代码优先用这种
+ *  - 消息在前：`logger.info('登录成功', meta)` —— meta 为 Error 记入 `err`（带堆栈），
+ *    普通对象作为结构化字段合并，其余类型记入 `meta` 字段
+ *  - 请求级子 logger：`logger.child({ requestId })` 原生可用
+ *
+ * warn / error / fatal 在 logMethod hook 写入点计入 log-metrics 计数器
+ * （监控告警的 logErrorPerMin / logWarnPerMin；hook 仅在级别启用时触发）。
  */
 import path from 'node:path';
-import { pino, multistream, stdSerializers, type Level, type StreamEntry } from 'pino';
-import pretty from 'pino-pretty';
-import pinoRoll from 'pino-roll';
+import { pino, destination, levels, stdSerializers, stdTimeFunctions, type Logger, type LogFn, type TransportTargetOptions } from 'pino';
 import { config } from '../config';
 import { recordLogLevel } from './log-metrics';
 
-/** LOG_LEVEL 常见别名到 pino 级别的容错映射 */
-const LEVEL_ALIASES: Record<string, Level> = {
-  http: 'debug',
-  verbose: 'debug',
-  silly: 'trace',
-};
-const PINO_LEVELS = new Set<string>(['fatal', 'error', 'warn', 'info', 'debug', 'trace']);
-
-function resolveLevel(raw: string): Level {
-  const lower = raw.toLowerCase();
-  if (PINO_LEVELS.has(lower)) return lower as Level;
-  return LEVEL_ALIASES[lower] ?? 'info';
+/**
+ * 级别方法同时接受两种写法（由 logMethod hook 归一化）：
+ *  - pino 原生：`(mergingObject, message?)`
+ *  - 消息在前：`(message, meta?)`（meta 只允许一个；多参 printf 请用原生写法）
+ */
+interface AppLogFn {
+  <T extends object>(obj: T, msg?: string, ...args: unknown[]): void;
+  (msg: string, meta?: unknown): void;
+  (obj: unknown, msg?: string): void;
 }
+type LevelMethod = 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+/** 原生 pino Logger，级别方法放宽为双写法签名；child() 返回原生严格签名的 Logger */
+export type AppLogger = Omit<Logger, LevelMethod> & Record<LevelMethod, AppLogFn>;
 
-/** 取 LOG_MAX_FILES 的前导数字作为轮转文件保留份数（'30' 与 '30d' 均解析为 30） */
-export function resolveLogMaxFiles(raw: string): number {
-  const parsed = Number.parseInt(raw, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
-}
+const WARN = levels.values.warn;
+const ERROR = levels.values.error;
 
-const level = resolveLevel(config.log.level);
+/** 消息含 printf 插值符时走 pino 原生插值，不做参数归一 */
+const PRINTF_TOKEN_RE = /%[sdjoO]/;
 
-/** 控制台与文件共用的 pretty 选项：本地时间戳 + 单行输出（便于 tail / grep / ops 日志查看器） */
-const PRETTY_BASE = {
-  translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-  ignore: 'pid,hostname',
-  singleLine: true,
-} as const;
+/**
+ * logMethod hook：
+ * 1. warn 及以上写入点计数（fatal 归入 error 桶）
+ * 2. 将「消息在前」的两参调用翻转为 pino 原生的 `(mergingObject, message)`
+ *    （官方文档 hooks.logMethod 示例即参数翻转用法）
+ */
+function logMethod(this: Logger, args: Parameters<LogFn>, method: LogFn, level: number): void {
+  if (level >= ERROR) recordLogLevel('error');
+  else if (level >= WARN) recordLogLevel('warn');
 
-/** 按天轮转的应用日志文件：logs/app.YYYY-MM-DD.N.log，保留份数按 LOG_MAX_FILES */
-const fileDestination = await pinoRoll({
-  file: path.join(config.log.dir, 'app'),
-  frequency: 'daily',
-  dateFormat: 'yyyy-MM-dd',
-  extension: '.log',
-  mkdir: true,
-  limit: { count: resolveLogMaxFiles(config.log.maxFiles), removeOtherLogFiles: true },
-});
-
-const streams: StreamEntry[] = [
-  { level, stream: pretty({ ...PRETTY_BASE, colorize: true, sync: true }) },
-  { level, stream: pretty({ ...PRETTY_BASE, colorize: false, destination: fileDestination }) },
-];
-
-const pinoLogger = pino(
-  {
-    level,
-    base: undefined,
-    serializers: { err: stdSerializers.err, error: stdSerializers.err },
-  },
-  multistream(streams),
-);
-
-type FacadeLevel = 'error' | 'warn' | 'info' | 'debug';
-
-/** 将门面 meta 参数转换为 pino 的合并对象 */
-function toMergeObject(meta: unknown): object {
-  if (meta instanceof Error) return { err: meta };
-  if (typeof meta === 'object' && meta !== null) return meta;
-  return { meta };
-}
-
-function dispatch(levelName: FacadeLevel, message: unknown, meta?: unknown): void {
-  if ((levelName === 'error' || levelName === 'warn') && pinoLogger.isLevelEnabled(levelName)) {
-    recordLogLevel(levelName);
-  }
-  if (meta === undefined) {
-    pinoLogger[levelName](message); // 字符串走 msg，Error / 对象由 pino 序列化
+  const [first, second, ...rest] = args as unknown[];
+  if (typeof first === 'string' && second !== undefined && rest.length === 0 && !PRINTF_TOKEN_RE.test(first)) {
+    const merge = second instanceof Error
+      ? { err: second }
+      : typeof second === 'object' && second !== null
+        ? second
+        : { meta: second };
+    (method as (obj: object, msg: string) => void).call(this, merge, first);
     return;
   }
-  pinoLogger[levelName](toMergeObject(meta), typeof message === 'string' ? message : String(message));
+  method.apply(this, args);
 }
 
-const logger = {
-  error: (message: unknown, meta?: unknown): void => dispatch('error', message, meta),
-  warn: (message: unknown, meta?: unknown): void => dispatch('warn', message, meta),
-  info: (message: unknown, meta?: unknown): void => dispatch('info', message, meta),
-  debug: (message: unknown, meta?: unknown): void => dispatch('debug', message, meta),
+const fileTarget: TransportTargetOptions = {
+  target: 'pino-roll',
+  options: {
+    file: path.join(config.log.dir, 'app'),
+    frequency: 'daily',
+    dateFormat: 'yyyy-MM-dd',
+    extension: '.log',
+    mkdir: true,
+    limit: { count: config.log.maxFiles, removeOtherLogFiles: true },
+  },
 };
+
+const consoleTarget: TransportTargetOptions = process.env.NODE_ENV === 'production'
+  ? { target: 'pino/file', options: { destination: 1 } }
+  : {
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+        ignore: 'pid,hostname',
+        singleLine: true,
+      },
+    };
+
+/**
+ * 测试进程（vitest）直写 stdout，不启用 worker transport：
+ * 每个测试进程各起 worker 线程并发写同一日志文件既无意义，
+ * 又会在进程 teardown 时产生 thread-stream 竞态导致偶发 unhandled error。
+ */
+const options = {
+  level: config.log.level,
+  timestamp: stdTimeFunctions.isoTime,
+  // 级别保持 pino 默认的数字形式（10-60，行首第一个键），日志查看器与采集端按数字映射
+  serializers: { err: stdSerializers.err, error: stdSerializers.err },
+  hooks: { logMethod },
+} satisfies Parameters<typeof pino>[0];
+
+const logger = (process.env.VITEST
+  ? pino(options, destination({ dest: 1, sync: true }))
+  : pino({ ...options, transport: { targets: [fileTarget, consoleTarget] } })
+) as unknown as AppLogger;
 
 export default logger;
