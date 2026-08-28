@@ -340,10 +340,10 @@ export default function PositionsPage() {
         onCancel={() => setMemberSheetVisible(false)}
         width={720}
         footer={
-          <Space>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => setMemberSheetVisible(false)}>取消</Button>
             <Button type="primary" disabled={!membersQuery.isSuccess} loading={assignMembersMutation.isPending} onClick={handleSaveMembers}>保存</Button>
-          </Space>
+          </div>
         }
       >
         {allUsers.length === 0 ? (

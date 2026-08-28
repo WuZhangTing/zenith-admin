@@ -128,10 +128,10 @@ export function ChannelMenuDrawer({ channelId, channelName, visible, readOnly = 
       width={620}
       placement="right"
       footer={!readOnly && (
-        <Space>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <Button onClick={onClose}>取消</Button>
           <Button type="primary" theme="solid" loading={saveMenusMutation.isPending} onClick={() => void handleSave()}>保存</Button>
-        </Space>
+        </div>
       )}
     >
       <Text type="tertiary" size="small">最多 3 个一级菜单，每个一级菜单下最多 5 个二级菜单。</Text>

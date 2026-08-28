@@ -350,6 +350,28 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 固定 `width={860}` 的 SideSheet 在 390px 下同样满宽，加 `isMobile` 判断是无效代码。
 
+### SideSheet 页脚
+
+Semi 的 `footer` 槽**不带任何对齐样式**——裸 `<Space>` 会让按钮靠左。带操作按钮的页脚
+统一右对齐：
+
+```tsx
+footer={(
+  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+    <Button type="tertiary" onClick={onClose}>取消</Button>
+    <Button type="primary" theme="solid" loading={saving} onClick={handleSave}>确定</Button>
+  </div>
+)}
+```
+
+- **按钮次序**：次要动作（取消 / 关闭）在左，主操作在右且必须 `theme="solid"`
+- **左侧需要独立次要动作**（如「测试连接」）时用 `justifyContent: 'space-between'`，
+  左右各一组；工作流域直接用 `components/workflow/WorkflowSideSheet.tsx` 的
+  `footerLeft` / `footerRight` 两段式，**禁止**在工作流抽屉里重新手写 footer 布局
+- 纯展示抽屉传 `footer={null}` 或不传，不放孤立的「关闭」主按钮
+- 复用 `useEditModal` 提交时，按钮直接消费 `modalProps.onOk` 与
+  `modalProps.okButtonProps` 的 `loading` / `disabled`，不要另建提交状态
+
 ---
 
 ## 操作列宽度估算

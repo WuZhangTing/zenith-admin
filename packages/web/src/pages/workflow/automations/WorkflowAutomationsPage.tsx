@@ -566,7 +566,7 @@ export default function WorkflowAutomationsPage() {
         closeOnEsc
         bodyStyle={{ paddingBottom: 16 }}
         footer={(
-          <Space>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={automationModal.modalProps.onCancel}>取消</Button>
             <Button
               theme="solid"
@@ -577,7 +577,7 @@ export default function WorkflowAutomationsPage() {
             >
               {automationModal.isEdit ? '保存' : '创建'}
             </Button>
-          </Space>
+          </div>
         )}
       >
         <Spin spinning={automationModal.detailLoading} wrapperClassName="modal-spin-wrapper">

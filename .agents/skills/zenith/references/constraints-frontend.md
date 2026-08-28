@@ -120,6 +120,9 @@
 - **弹窗表单**：`Form` 必须 `labelPosition="left"`，所有 `Modal` 必须 `closeOnEsc`
   （经 `useEditModal` 时已由 `formProps` / `modalProps` 提供）；`labelWidth` 与单列 / 双列的选取规则见
   [crud-frontend.md](./crud-frontend.md)
+- **SideSheet 页脚**：Semi 的 `footer` 槽无对齐样式，**禁止**裸 `<Space>` 放按钮（会靠左）；
+  统一包 `justifyContent: 'flex-end'` 的 flex 容器（`gap: 8`），取消在左、主操作在右，
+  完整写法与例外见 [ui-patterns.md → SideSheet 页脚](./ui-patterns.md#sidesheet-页脚)
 - **枚举标签统一来源**：**禁止**在页面 / 组件 / 导出定义中内联 `{ value, label }` 数组或
   `Record<value, label>` 中文映射。按优先级取：
 

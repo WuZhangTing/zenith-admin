@@ -392,7 +392,7 @@ export default function UserGroupsPage() {
         width={520}
         closeOnEsc
         footer={
-          <Space>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={groupModal.modalProps.onCancel}>取消</Button>
             <Button
               theme="solid"
@@ -403,7 +403,7 @@ export default function UserGroupsPage() {
             >
               确定
             </Button>
-          </Space>
+          </div>
         }
       >
         <Spin spinning={groupModal.detailLoading}>
@@ -529,7 +529,7 @@ export default function UserGroupsPage() {
         width={720}
         footer={
           memberGroup?.memberMode === 'dynamic' ? (
-            <Space>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <Button onClick={() => setMemberSheetVisible(false)}>关闭</Button>
               {hasPermission('system:user-groups:assign') && (
                 <Button
@@ -544,12 +544,12 @@ export default function UserGroupsPage() {
                   立即同步
                 </Button>
               )}
-            </Space>
+            </div>
           ) : (
-            <Space>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <Button onClick={() => setMemberSheetVisible(false)}>取消</Button>
               <Button type="primary" disabled={!membersQuery.isSuccess} loading={assignMembersMutation.isPending} onClick={handleSaveMembers}>保存</Button>
-            </Space>
+            </div>
           )
         }
       >

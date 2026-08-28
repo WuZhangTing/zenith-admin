@@ -468,7 +468,7 @@ export default function WorkflowEventSubscriptionsPage() {
         closeOnEsc
         bodyStyle={{ paddingBottom: 16 }}
         footer={(
-          <Space>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={eventSubscriptionModal.modalProps.onCancel}>取消</Button>
             <Button
               theme="solid"
@@ -479,7 +479,7 @@ export default function WorkflowEventSubscriptionsPage() {
             >
               {eventSubscriptionModal.isEdit ? '保存' : '创建'}
             </Button>
-          </Space>
+          </div>
         )}
       >
         <Spin spinning={eventSubscriptionModal.detailLoading} wrapperClassName="modal-spin-wrapper">

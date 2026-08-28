@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Select, Space, Modal, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
+import { Button, Select, Modal, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
 import type { Role, Department } from '@zenith/shared/identity';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -432,10 +432,10 @@ export default function RolesPage() {
         onCancel={() => setUserModalVisible(false)}
         width={720}
         footer={
-          <Space>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => setUserModalVisible(false)}>取消</Button>
             <Button type="primary" disabled={!roleUsersQuery.isSuccess || !allUsersQuery.isSuccess} loading={assignUsersMutation.isPending} onClick={handleAssignUsers}>保存</Button>
-          </Space>
+          </div>
         }
       >
         {allUsersQuery.isFetching || roleUsersQuery.isFetching ? (

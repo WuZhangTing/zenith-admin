@@ -456,7 +456,7 @@ export default function FillRecordsPage() {
         width={680}
         onCancel={() => setDetailId(undefined)}
         footer={detail ? (
-          <Space>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             {detail.workflowInstanceId && (
               <Button onClick={() => navigate(`/workflow/instance/${detail.workflowInstanceId}`)}>查看工作流</Button>
             )}
@@ -475,7 +475,7 @@ export default function FillRecordsPage() {
                 }}>通过</Button>
               </>
             )}
-          </Space>
+          </div>
         ) : null}
       >
         {detailQuery.isLoading ? <Spin /> : detailQuery.isError ? (
