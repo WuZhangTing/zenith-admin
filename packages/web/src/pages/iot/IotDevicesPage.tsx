@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Typography, Upload } from '@douyinfe/semi-ui';
+import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Tooltip, Typography, Upload } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { Download, FileUp } from 'lucide-react';
@@ -227,16 +227,16 @@ export default function IotDevicesPage() {
       render: (v: string | null) => renderEllipsis(v),
     },
     {
-      title: '形态', dataIndex: 'nodeType', width: 110,
+      title: '形态', dataIndex: 'nodeType', width: 100,
       render: (v: IotDevice['nodeType'], r: IotDevice) => {
         if (v === 'gateway') {
           return <Tag size="small" color="indigo">网关{(r.subDeviceCount ?? 0) > 0 ? ` · ${r.subDeviceCount}` : ''}</Tag>;
         }
         if (v === 'sub') {
           return (
-            <Tag size="small" color="light-blue">
-              子设备{r.gatewayName ? ` · ${r.gatewayName}` : ''}
-            </Tag>
+            <Tooltip content={r.gatewayName ? `所属网关：${r.gatewayName}` : undefined}>
+              <Tag size="small" color="light-blue">子设备</Tag>
+            </Tooltip>
           );
         }
         return <Text size="small" type="tertiary">直连</Text>;

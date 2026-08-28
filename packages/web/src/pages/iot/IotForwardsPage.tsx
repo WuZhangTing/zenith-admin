@@ -148,7 +148,7 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
       ),
     },
     createOperationColumn<IotForwardRule>({
-      width: 160,
+      width: 230,
       actions: (record) => [
         { key: 'logs', label: '投递日志', onClick: () => onShowLogs(record) },
         ...(hasPermission('iot:forward:update') ? [{
