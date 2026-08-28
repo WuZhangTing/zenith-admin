@@ -27,6 +27,7 @@ import redis from '../../lib/redis';
 import logger from '../../lib/logger';
 import { openEventBus } from '../../lib/open-event-bus';
 import { notify } from '../messaging/notification-outbox.service';
+import { dispatchIotForward } from './iot-forward.service';
 import { loadThingModel } from './iot-model.service';
 
 // ─── 规则映射与 CRUD ─────────────────────────────────────────────────────────
@@ -262,12 +263,18 @@ export async function resolveIotAlarm(id: number) {
     .where(and(eq(iotAlarms.id, id), eq(iotAlarms.status, 'firing')))
     .returning();
   if (!row) throw new HTTPException(404, { message: '告警不存在或已恢复' });
-  const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name })
+  const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name, productId: iotDevices.productId })
     .from(iotDevices).where(eq(iotDevices.id, row.deviceId)).limit(1);
   openEventBus.emit({
     type: 'iot.alarm.resolved',
     data: { alarmId: row.id, ruleName: row.ruleName, deviceId: row.deviceId, sn: device?.sn ?? null, deviceName: device?.name ?? null, message: '管理员手动处理', resolvedBy: 'manual' },
   });
+  if (device) {
+    dispatchIotForward('alarm', { id: row.deviceId, sn: device.sn, productId: device.productId }, {
+      alarmId: row.id, action: 'resolved', ruleName: row.ruleName, deviceId: row.deviceId,
+      sn: device.sn, deviceName: device.name, message: '管理员手动处理', resolvedBy: 'manual',
+    });
+  }
   return mapIotAlarm(row);
 }
 
@@ -309,7 +316,7 @@ function compareValue(value: number, op: IotCompareOp, threshold: number): boole
 /** 触发告警：活跃唯一索引去重，仅真正新建时通知 */
 async function fireIotAlarm(
   rule: IotAlarmRuleRow,
-  device: Pick<IotDeviceRow, 'id' | 'name' | 'sn' | 'tenantId'>,
+  device: Pick<IotDeviceRow, 'id' | 'name' | 'sn' | 'tenantId' | 'productId'>,
   message: string,
   context: Record<string, unknown>,
 ): Promise<void> {
@@ -328,13 +335,17 @@ async function fireIotAlarm(
     type: 'iot.alarm.triggered',
     data: { alarmId: inserted.id, ruleName: rule.name, ruleType: rule.ruleType, level: rule.level, deviceId: device.id, sn: device.sn, deviceName: device.name, message },
   });
+  dispatchIotForward('alarm', device, {
+    alarmId: inserted.id, action: 'triggered', ruleName: rule.name, ruleType: rule.ruleType,
+    level: rule.level, deviceId: device.id, sn: device.sn, deviceName: device.name, message,
+  });
   await notifyAlarm('iot.alarm.triggered', rule, device, message, inserted.id);
 }
 
 /** 自动恢复（阈值回落 / 设备上线）：存在活跃告警才动作 */
 async function autoResolveIotAlarm(
   rule: IotAlarmRuleRow,
-  device: Pick<IotDeviceRow, 'id' | 'name' | 'sn' | 'tenantId'>,
+  device: Pick<IotDeviceRow, 'id' | 'name' | 'sn' | 'tenantId' | 'productId'>,
   message: string,
 ): Promise<void> {
   const [resolved] = await db.update(iotAlarms)
@@ -349,6 +360,10 @@ async function autoResolveIotAlarm(
   openEventBus.emit({
     type: 'iot.alarm.resolved',
     data: { alarmId: resolved.id, ruleName: rule.name, deviceId: device.id, sn: device.sn, deviceName: device.name, message, resolvedBy: 'auto' },
+  });
+  dispatchIotForward('alarm', device, {
+    alarmId: resolved.id, action: 'resolved', ruleName: rule.name, deviceId: device.id,
+    sn: device.sn, deviceName: device.name, message, resolvedBy: 'auto',
   });
   await notifyAlarm('iot.alarm.resolved', rule, device, message, resolved.id);
 }

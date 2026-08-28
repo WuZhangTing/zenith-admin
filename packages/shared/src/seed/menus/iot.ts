@@ -48,4 +48,15 @@ export const SEED_MENUS_IOT: Menu[] = [
   { id: 18062, parentId: 18060, title: '新增联动', type: 'button', permission: 'iot:automation:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18063, parentId: 18060, title: '编辑联动', type: 'button', permission: 'iot:automation:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 18064, parentId: 18060, title: '删除联动', type: 'button', permission: 'iot:automation:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 数据流转 ──────────────────────────────────────────────────────────────
+  { id: 18070, parentId: 18000, title: '数据流转', name: 'IotForwards', path: '/iot/forwards', component: 'iot/IotForwardsPage', icon: 'Share2', type: 'menu', sort: 6, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18071, parentId: 18070, title: '查询', type: 'button', permission: 'iot:forward:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18072, parentId: 18070, title: '新增规则', type: 'button', permission: 'iot:forward:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18073, parentId: 18070, title: '编辑规则', type: 'button', permission: 'iot:forward:update', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18074, parentId: 18070, title: '删除规则', type: 'button', permission: 'iot:forward:delete', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+
+  // ─── 设备地图 ──────────────────────────────────────────────────────────────
+  { id: 18080, parentId: 18000, title: '设备地图', name: 'IotMap', path: '/iot/map', component: 'iot/IotMapPage', icon: 'MapPin', type: 'menu', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18081, parentId: 18080, title: '查询', type: 'button', permission: 'iot:device:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];

@@ -1,6 +1,7 @@
 import type {
   IotAccessMode, IotAlarmLevel, IotAlarmRuleType, IotAlarmStatus, IotAutomationActionType,
   IotAutomationTarget, IotAutomationTrigger, IotCommandStatus, IotDeviceEventKind, IotEventLevel,
+  IotForwardSource, IotLogLevel, IotNodeType,
   IotOtaDeviceStatus, IotOtaTaskStatus, IotPropertyType, IotValidationMode,
 } from './constants';
 
@@ -50,6 +51,8 @@ export interface IotProductProperty {
   maxValue: number | null;
   enumOptions: Record<string, string> | null;
   featured: boolean;
+  /** 遥测异常检测开关（数值型属性；3σ 基线判定） */
+  anomalyEnabled: boolean;
   sort: number;
   description: string | null;
   createdAt: string;
@@ -99,6 +102,17 @@ export interface IotDevice {
   productName?: string | null;
   name: string;
   status: 'enabled' | 'disabled';
+  /** 设备形态：direct 直连 / gateway 网关 / sub 子设备 */
+  nodeType: IotNodeType;
+  /** 子设备所属网关（仅 nodeType = sub） */
+  gatewayId: number | null;
+  gatewayName?: string | null;
+  /** 网关的子设备数（列表聚合返回） */
+  subDeviceCount?: number;
+  /** 地理位置（设备地图） */
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
   /** 实时在线态（Redis TTL 键，运行态字段） */
   online: boolean;
   firmwareVersion: string | null;
@@ -399,4 +413,69 @@ export interface IotAutomationRun {
   results: Array<{ type: string; target?: string; success: boolean; message?: string }>;
   success: boolean;
   createdAt: string;
+}
+
+// ─── 五期：网关拓扑 ───────────────────────────────────────────────────────────
+export interface IotTopologyChild {
+  id: number;
+  sn: string;
+  name: string;
+  status: 'enabled' | 'disabled';
+  online: boolean;
+  /** 活跃告警数（拓扑节点红点） */
+  firingAlarmCount: number;
+  lastSeenAt: string | null;
+}
+
+export interface IotDeviceTopology {
+  gateway: { id: number; sn: string; name: string; online: boolean };
+  children: IotTopologyChild[];
+}
+
+// ─── 五期：数据流转 ───────────────────────────────────────────────────────────
+export interface IotForwardRule {
+  id: number;
+  name: string;
+  source: IotForwardSource;
+  productId: number | null;
+  productName?: string | null;
+  groupId: number | null;
+  groupName?: string | null;
+  url: string;
+  /** 是否配置了签名密钥（密钥本体不回显） */
+  hasSecret: boolean;
+  headers: Record<string, string> | null;
+  status: 'enabled' | 'disabled';
+  consecutiveFailures: number;
+  autoDisabledAt: string | null;
+  /** 近 24h 投递数（列表聚合返回） */
+  recentDeliveryCount?: number;
+  createdBy?: number | null;
+  updatedBy?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IotForwardLog {
+  id: number;
+  ruleId: number;
+  ruleName: string;
+  source: IotForwardSource;
+  deviceId: number | null;
+  payload: Record<string, unknown>;
+  status: 'succeeded' | 'failed';
+  responseStatus: number | null;
+  errorMessage: string | null;
+  durationMs: number | null;
+  createdAt: string;
+}
+
+// ─── 五期：设备日志 ───────────────────────────────────────────────────────────
+export interface IotDeviceLog {
+  id: number;
+  deviceId: number;
+  level: IotLogLevel;
+  tag: string | null;
+  content: string;
+  reportedAt: string;
 }

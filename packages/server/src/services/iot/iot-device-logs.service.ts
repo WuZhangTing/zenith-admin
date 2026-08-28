@@ -1,0 +1,70 @@
+/**
+ * IoT 设备日志通道：设备上报运行日志（追加型，保留策略裁剪）。
+ */
+import { count, desc, eq, gte, lte, ilike, type SQL } from 'drizzle-orm';
+import type { IotLogIngestInput, IotLogLevel } from '@zenith/shared/iot';
+import { db } from '../../db';
+import { iotDeviceLogs, type IotDeviceLogRow, type IotDeviceRow } from '../../db/schema';
+import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
+
+export function mapIotDeviceLog(row: IotDeviceLogRow) {
+  return {
+    id: row.id,
+    deviceId: row.deviceId,
+    level: row.level,
+    tag: row.tag ?? null,
+    content: row.content,
+    reportedAt: formatDateTime(row.reportedAt),
+  };
+}
+
+/** 设备侧批量上报（HTTP ingest 与 WS log 帧共用） */
+export async function ingestIotDeviceLogs(device: IotDeviceRow, input: IotLogIngestInput): Promise<number> {
+  const rows = input.items.map((item) => ({
+    deviceId: device.id,
+    level: item.level,
+    tag: item.tag ?? null,
+    content: item.content,
+    reportedAt: (item.reportedAt ? parseDateTimeInput(item.reportedAt) : null) ?? new Date(),
+  }));
+  if (rows.length > 0) await db.insert(iotDeviceLogs).values(rows);
+  return rows.length;
+}
+
+export interface ListDeviceLogsQuery {
+  page?: number;
+  pageSize?: number;
+  level?: IotLogLevel;
+  keyword?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export async function listIotDeviceLogs(deviceId: number, q: ListDeviceLogsQuery) {
+  const { page = 1, pageSize = 20 } = q;
+  const conditions: (SQL | undefined)[] = [
+    eq(iotDeviceLogs.deviceId, deviceId),
+    q.level ? eq(iotDeviceLogs.level, q.level) : undefined,
+    q.keyword ? ilike(iotDeviceLogs.content, `%${q.keyword}%`) : undefined,
+  ];
+  const start = q.startTime ? parseDateTimeInput(q.startTime) : null;
+  const end = q.endTime ? parseDateTimeInput(q.endTime) : null;
+  if (start) conditions.push(gte(iotDeviceLogs.reportedAt, start));
+  if (end) conditions.push(lte(iotDeviceLogs.reportedAt, end));
+  const where = buildWhere(...conditions);
+  const [countRows, rows] = await Promise.all([
+    db.select({ value: count() }).from(iotDeviceLogs).where(where),
+    withPagination(
+      db.select().from(iotDeviceLogs).where(where).orderBy(desc(iotDeviceLogs.id)).$dynamic(),
+      page,
+      pageSize,
+    ),
+  ]);
+  return {
+    list: rows.map(mapIotDeviceLog),
+    total: Number(countRows[0]?.value ?? 0),
+    page,
+    pageSize,
+  };
+}

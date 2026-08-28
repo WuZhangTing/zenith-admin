@@ -19,10 +19,16 @@
  * - iot_online_snapshots        在线率采样（离线扫描任务顺带落点，仪表盘在线趋势）
  * - iot_firmwares               固件包（产品维度版本 + 托管文件 + sha256）
  * - iot_ota_tasks (+devices)    OTA 升级任务与单设备状态机（notified→downloading→installing→succeeded/failed）
+ *
+ * 五期（规模接入与智能运维）：
+ * - iot_devices.node_type/gateway_id  设备形态：直连 / 网关 / 子设备（网关代理接入）
+ * - iot_forward_rules / iot_forward_logs  数据流转：遥测/事件/告警/生命周期 → HTTP 推送 + 投递留痕
+ * - iot_device_logs             设备日志通道（设备上报运行日志，保留期裁剪）
+ * - iot_product_properties.anomaly_enabled  遥测异常检测开关（3σ 基线判定）
  */
 import {
   pgTable, pgEnum, serial, bigserial, varchar, timestamp, integer, text, jsonb, boolean,
-  doublePrecision, bigint, uuid, index, uniqueIndex, primaryKey,
+  doublePrecision, bigint, uuid, index, uniqueIndex, primaryKey, type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { statusEnum } from './common';
@@ -40,7 +46,7 @@ export const iotEventLevelEnum = pgEnum('iot_event_level', ['info', 'warn', 'fau
 
 export const iotValidationModeEnum = pgEnum('iot_validation_mode', ['loose', 'strict']);
 
-export const iotDeviceEventKindEnum = pgEnum('iot_device_event_kind', ['lifecycle', 'model']);
+export const iotDeviceEventKindEnum = pgEnum('iot_device_event_kind', ['lifecycle', 'model', 'anomaly']);
 
 export const iotAlarmRuleTypeEnum = pgEnum('iot_alarm_rule_type', ['threshold', 'offline', 'event']);
 
@@ -49,6 +55,14 @@ export const iotCompareOpEnum = pgEnum('iot_compare_op', ['gt', 'gte', 'lt', 'lt
 export const iotAlarmLevelEnum = pgEnum('iot_alarm_level', ['warning', 'critical']);
 
 export const iotAlarmStatusEnum = pgEnum('iot_alarm_status', ['firing', 'resolved']);
+
+export const iotNodeTypeEnum = pgEnum('iot_node_type', ['direct', 'gateway', 'sub']);
+
+export const iotForwardSourceEnum = pgEnum('iot_forward_source', ['telemetry', 'event', 'alarm', 'lifecycle']);
+
+export const iotForwardStatusEnum = pgEnum('iot_forward_status', ['succeeded', 'failed']);
+
+export const iotLogLevelEnum = pgEnum('iot_log_level', ['debug', 'info', 'warn', 'error']);
 
 // ─── 产品与物模型 ─────────────────────────────────────────────────────────────
 export const iotProducts = pgTable('iot_products', {
@@ -99,6 +113,8 @@ export const iotProductProperties = pgTable('iot_product_properties', {
   enumOptions: jsonb('enum_options').$type<Record<string, string>>(),
   /** 关键属性：设备列表快照列与遥测图表默认展示 */
   featured:    boolean('featured').notNull().default(false),
+  /** 遥测异常检测：按近 7 天小时聚合基线做 3σ 偏离判定（仅数值型属性生效） */
+  anomalyEnabled: boolean('anomaly_enabled').notNull().default(false),
   sort:        integer('sort').notNull().default(0),
   description: varchar('description', { length: 256 }),
   ...auditColumns(),
@@ -165,6 +181,14 @@ export const iotDevices = pgTable('iot_devices', {
   productId:       integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'restrict' }),
   name:            varchar('name', { length: 128 }).notNull(),
   status:          statusEnum('status').notNull().default('enabled'),
+  /** 设备形态：direct 直连；gateway 网关（可代理子设备）；sub 子设备（经网关接入，免密） */
+  nodeType:        iotNodeTypeEnum('node_type').notNull().default('direct'),
+  /** 子设备所属网关（仅 node_type = sub 时有值） */
+  gatewayId:       integer('gateway_id').references((): AnyPgColumn => iotDevices.id, { onDelete: 'restrict' }),
+  /** 地理位置（设备地图；手填或导入） */
+  latitude:        doublePrecision('latitude'),
+  longitude:       doublePrecision('longitude'),
+  address:         varchar('address', { length: 256 }),
   firmwareVersion: varchar('firmware_version', { length: 32 }),
   /** 首次上线时间（激活标记） */
   activatedAt:     timestamp('activated_at'),
@@ -178,6 +202,7 @@ export const iotDevices = pgTable('iot_devices', {
 }, (t) => [
   index('idx_iot_devices_product').on(t.productId),
   index('idx_iot_devices_tenant').on(t.tenantId),
+  index('idx_iot_devices_gateway').on(t.gatewayId),
 ]);
 
 export type IotDeviceRow = typeof iotDevices.$inferSelect;
@@ -545,3 +570,71 @@ export const iotAutomationRuns = pgTable('iot_automation_runs', {
 ]);
 
 export type IotAutomationRunRow = typeof iotAutomationRuns.$inferSelect;
+
+// ─── 五期：数据流转 ───────────────────────────────────────────────────────────
+export const iotForwardRules = pgTable('iot_forward_rules', {
+  id:                  serial('id').primaryKey(),
+  name:                varchar('name', { length: 128 }).notNull(),
+  /** 数据源：telemetry 遥测 / event 设备事件 / alarm 告警 / lifecycle 生命周期 */
+  source:              iotForwardSourceEnum('source').notNull(),
+  /** 过滤：产品（空 = 全部产品） */
+  productId:           integer('product_id').references(() => iotProducts.id, { onDelete: 'cascade' }),
+  /** 过滤：设备分组（空 = 不限分组） */
+  groupId:             integer('group_id').references(() => iotDeviceGroups.id, { onDelete: 'set null' }),
+  /** 目的地：HTTP POST 地址（经开放平台同款出站防护） */
+  url:                 varchar('url', { length: 512 }).notNull(),
+  /** HMAC-SHA256 签名密钥（可空 = 不签名；签名头 X-Iot-Signature = hex(hmac(secret, body))） */
+  secret:              varchar('secret', { length: 128 }),
+  /** 自定义请求头 */
+  headers:             jsonb('headers').$type<Record<string, string>>(),
+  status:              statusEnum('status').notNull().default('enabled'),
+  /** 连续投递失败计数；达到阈值自动停用（autoDisabledAt 置位） */
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  autoDisabledAt:      timestamp('auto_disabled_at'),
+  tenantId:            integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  ...auditColumns(),
+  createdAt:           timestamp('created_at').defaultNow().notNull(),
+  updatedAt:           timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  index('idx_iot_forward_rules_source').on(t.source),
+  index('idx_iot_forward_rules_tenant').on(t.tenantId),
+]);
+
+export type IotForwardRuleRow = typeof iotForwardRules.$inferSelect;
+
+/** 流转投递日志：追加型（保留策略裁剪） */
+export const iotForwardLogs = pgTable('iot_forward_logs', {
+  id:             bigserial('id', { mode: 'number' }).primaryKey(),
+  ruleId:         integer('rule_id').notNull().references(() => iotForwardRules.id, { onDelete: 'cascade' }),
+  /** 规则名快照 */
+  ruleName:       varchar('rule_name', { length: 128 }).notNull(),
+  source:         iotForwardSourceEnum('source').notNull(),
+  deviceId:       integer('device_id'),
+  payload:        jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  status:         iotForwardStatusEnum('status').notNull(),
+  responseStatus: integer('response_status'),
+  errorMessage:   varchar('error_message', { length: 512 }),
+  durationMs:     integer('duration_ms'),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_iot_forward_logs_rule').on(t.ruleId, t.createdAt),
+]);
+
+export type IotForwardLogRow = typeof iotForwardLogs.$inferSelect;
+
+// ─── 五期：设备日志通道 ───────────────────────────────────────────────────────
+export const iotDeviceLogs = pgTable('iot_device_logs', {
+  id:         bigserial('id', { mode: 'number' }).primaryKey(),
+  deviceId:   integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  level:      iotLogLevelEnum('level').notNull().default('info'),
+  /** 模块/标签（设备侧自定义，如 net / sensor / ota） */
+  tag:        varchar('tag', { length: 64 }),
+  content:    varchar('content', { length: 1024 }).notNull(),
+  reportedAt: timestamp('reported_at').notNull(),
+  createdAt:  timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('idx_iot_device_logs_device').on(t.deviceId, t.reportedAt),
+  index('idx_iot_device_logs_level').on(t.deviceId, t.level),
+]);
+
+export type IotDeviceLogRow = typeof iotDeviceLogs.$inferSelect;

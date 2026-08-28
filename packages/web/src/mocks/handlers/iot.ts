@@ -1,16 +1,16 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, paginate, pageResult } from '@/mocks/utils/handlers';
 import type {
-  CreateIotAlarmRuleInput, CreateIotAutomationInput, CreateIotDeviceGroupInput, CreateIotEventInput, CreateIotPropertyInput,
-  CreateIotServiceInput, ImportIotTslInput, IotBatchCommandInput, IotDevice, IotMetricValue,
+  CreateIotAlarmRuleInput, CreateIotAutomationInput, CreateIotDeviceGroupInput, CreateIotEventInput, CreateIotForwardRuleInput, CreateIotPropertyInput,
+  CreateIotServiceInput, ImportIotTslInput, IotBatchCommandInput, IotDevice, IotForwardRule, IotMetricValue,
   IotProduct, SendIotCommandInput, SetIotDesiredInput,
 } from '@zenith/shared/iot';
 import {
   buildMockTelemetry, buildMockTelemetryAgg, getNextIotAlarmRuleId, getNextIotAutomationId, getNextIotCommandId, getNextIotDeviceId,
-  getNextIotFirmwareId, getNextIotGroupId, getNextIotModelItemId, getNextIotOtaTaskDeviceId,
+  getNextIotFirmwareId, getNextIotForwardRuleId, getNextIotGroupId, getNextIotModelItemId, getNextIotOtaTaskDeviceId,
   getNextIotOtaTaskId, getNextIotProductId,
-  mockIotAlarmRules, mockIotAlarms, mockIotAutomationRuns, mockIotAutomations, mockIotCommands, mockIotDeviceEvents, mockIotDevices,
-  mockIotEvents, mockIotFirmwares, mockIotGroups, mockIotOtaTaskDevices, mockIotOtaTasks,
+  mockIotAlarmRules, mockIotAlarms, mockIotAutomationRuns, mockIotAutomations, mockIotCommands, mockIotDeviceEvents, mockIotDeviceLogs, mockIotDevices,
+  mockIotEvents, mockIotFirmwares, mockIotForwardLogs, mockIotForwardRules, mockIotGroups, mockIotOtaTaskDevices, mockIotOtaTasks,
   mockIotProducts, mockIotProperties, mockIotServices, mockIotShadows, withGroupInfo,
 } from '../data/iot';
 import { mockDateTime } from '../utils/date';
@@ -319,7 +319,7 @@ export const iotHandlers = [
         id: getNextIotModelItemId(), productId, identifier: p.identifier, name: p.name,
         dataType: p.dataType, accessMode: p.accessMode ?? 'r', unit: p.unit ?? null,
         minValue: p.minValue ?? null, maxValue: p.maxValue ?? null, enumOptions: p.enumOptions ?? null,
-        featured: p.featured ?? false, sort: p.sort ?? 0, description: p.description ?? null,
+        featured: p.featured ?? false, anomalyEnabled: false, sort: p.sort ?? 0, description: p.description ?? null,
         createdAt: now, updatedAt: now,
       });
     }
@@ -354,7 +354,7 @@ export const iotHandlers = [
       id: getNextIotModelItemId(), productId, identifier: body.identifier, name: body.name,
       dataType: body.dataType, accessMode: body.accessMode ?? 'r', unit: body.unit ?? null,
       minValue: body.minValue ?? null, maxValue: body.maxValue ?? null, enumOptions: body.enumOptions ?? null,
-      featured: body.featured ?? false, sort: body.sort ?? 0, description: body.description ?? null,
+      featured: body.featured ?? false, anomalyEnabled: body.anomalyEnabled ?? false, sort: body.sort ?? 0, description: body.description ?? null,
       createdAt: now, updatedAt: now,
     };
     mockIotProperties.push(row);
@@ -691,6 +691,83 @@ export const iotHandlers = [
     return ok(null, '删除成功');
   }),
 
+  // ─── 数据流转（/logs 静态段先于 /:id）───────────────────────────────────────
+  http.get('/api/iot/forward-rules/logs', ({ request }) => {
+    const url = new URL(request.url);
+    const ruleId = url.searchParams.get('ruleId');
+    const status = url.searchParams.get('status');
+    let list = [...mockIotForwardLogs];
+    if (ruleId) list = list.filter((l) => l.ruleId === Number(ruleId));
+    if (status) list = list.filter((l) => l.status === status);
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.get('/api/iot/forward-rules', ({ request }) => {
+    const url = new URL(request.url);
+    const keyword = url.searchParams.get('keyword') || '';
+    const source = url.searchParams.get('source') || '';
+    const status = url.searchParams.get('status') || '';
+    let list = [...mockIotForwardRules];
+    if (keyword) list = list.filter((r) => r.name.includes(keyword));
+    if (source) list = list.filter((r) => r.source === source);
+    if (status) list = list.filter((r) => r.status === status);
+    return ok(paginate(list.sort((a, b) => b.id - a.id), url));
+  }),
+  http.post('/api/iot/forward-rules', async ({ request }) => {
+    const body = (await request.json()) as CreateIotForwardRuleInput;
+    const product = body.productId ? mockIotProducts.find((p) => p.id === body.productId) : null;
+    const group = body.groupId ? mockIotGroups.find((g) => g.id === body.groupId) : null;
+    const rule: IotForwardRule = {
+      id: getNextIotForwardRuleId(),
+      name: body.name,
+      source: body.source,
+      productId: body.productId ?? null,
+      productName: product?.name ?? null,
+      groupId: body.groupId ?? null,
+      groupName: group?.name ?? null,
+      url: body.url,
+      hasSecret: !!body.secret,
+      headers: body.headers ?? null,
+      status: body.status ?? 'enabled',
+      consecutiveFailures: 0,
+      autoDisabledAt: null,
+      recentDeliveryCount: 0,
+      createdAt: mockDateTime(),
+      updatedAt: mockDateTime(),
+    };
+    mockIotForwardRules.push(rule);
+    return ok(rule, '创建成功');
+  }),
+  http.put('/api/iot/forward-rules/:id', async ({ params, request }) => {
+    const rule = mockIotForwardRules.find((r) => r.id === Number(params.id));
+    if (!rule) return notFound('流转规则不存在', { status: 404 });
+    const body = (await request.json()) as Partial<CreateIotForwardRuleInput>;
+    if (body.name !== undefined) rule.name = body.name;
+    if (body.productId !== undefined) {
+      rule.productId = body.productId ?? null;
+      rule.productName = body.productId ? (mockIotProducts.find((p) => p.id === body.productId)?.name ?? null) : null;
+    }
+    if (body.groupId !== undefined) {
+      rule.groupId = body.groupId ?? null;
+      rule.groupName = body.groupId ? (mockIotGroups.find((g) => g.id === body.groupId)?.name ?? null) : null;
+    }
+    if (body.url !== undefined) rule.url = body.url;
+    if (body.secret !== undefined && body.secret) rule.hasSecret = true;
+    if (body.headers !== undefined) rule.headers = body.headers ?? null;
+    if (body.status !== undefined) {
+      rule.status = body.status;
+      rule.consecutiveFailures = 0;
+      rule.autoDisabledAt = null;
+    }
+    rule.updatedAt = mockDateTime();
+    return ok(rule, '更新成功');
+  }),
+  http.delete('/api/iot/forward-rules/:id', ({ params }) => {
+    const idx = mockIotForwardRules.findIndex((r) => r.id === Number(params.id));
+    if (idx < 0) return notFound('流转规则不存在', { status: 404 });
+    mockIotForwardRules.splice(idx, 1);
+    return ok(null, '删除成功');
+  }),
+
   // ─── 设备（静态段 batch 先于 /:id）──────────────────────────────────────────
   http.delete('/api/iot/devices/batch', async ({ request }) => {
     const { ids } = (await request.json()) as { ids: number[] };
@@ -779,6 +856,31 @@ export const iotHandlers = [
     if (level) list = list.filter((e) => e.level === level);
     return ok(pageResult([...list].sort((a, b) => b.id - a.id), page, pageSize));
   }),
+  http.get('/api/iot/devices/:id/logs', ({ params, request }) => {
+    const url = new URL(request.url);
+    const page = Number(url.searchParams.get('page')) || 1;
+    const pageSize = Number(url.searchParams.get('pageSize')) || 10;
+    const level = url.searchParams.get('level') || '';
+    const keyword = url.searchParams.get('keyword') || '';
+    let list = mockIotDeviceLogs.filter((l) => l.deviceId === Number(params.id));
+    if (level) list = list.filter((l) => l.level === level);
+    if (keyword) list = list.filter((l) => l.content.includes(keyword));
+    return ok(pageResult([...list].sort((a, b) => b.id - a.id), page, pageSize));
+  }),
+  http.get('/api/iot/devices/:id/topology', ({ params }) => {
+    const gateway = mockIotDevices.find((d) => d.id === Number(params.id));
+    if (!gateway) return notFound('设备不存在', { status: 404 });
+    if (gateway.nodeType !== 'gateway') return badRequest('该设备不是网关，无拓扑视图', { status: 400 });
+    const children = mockIotDevices.filter((d) => d.gatewayId === gateway.id);
+    return ok({
+      gateway: { id: gateway.id, sn: gateway.sn, name: gateway.name, online: gateway.online },
+      children: children.map((c) => ({
+        id: c.id, sn: c.sn, name: c.name, status: c.status, online: c.online,
+        firingAlarmCount: mockIotAlarms.filter((a) => a.deviceId === c.id && a.status === 'firing').length,
+        lastSeenAt: c.lastSeenAt,
+      })),
+    });
+  }),
   http.get('/api/iot/devices/:id/commands', ({ params, request }) => {
     const url = new URL(request.url);
     const page = Number(url.searchParams.get('page')) || 1;
@@ -840,6 +942,14 @@ export const iotHandlers = [
       productName: product.name,
       name: body.name ?? '',
       status: body.status ?? 'enabled',
+      nodeType: body.nodeType ?? 'direct',
+      gatewayId: body.nodeType === 'sub' ? (body.gatewayId ?? null) : null,
+      gatewayName: body.nodeType === 'sub' && body.gatewayId
+        ? (mockIotDevices.find((d) => d.id === body.gatewayId)?.name ?? null)
+        : null,
+      latitude: body.latitude ?? null,
+      longitude: body.longitude ?? null,
+      address: body.address ?? null,
       online: false,
       firmwareVersion: body.firmwareVersion ?? null,
       activatedAt: null,

@@ -17,7 +17,8 @@ import { Hono } from 'hono';
 import type { UpgradeWebSocket } from 'hono/ws';
 import { z } from 'zod';
 import {
-  IOT_WS_FRAME_TYPES, iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema, iotOtaProgressSchema,
+  IOT_WS_FRAME_TYPES, iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
+  iotGatewayBatchSchema, iotGatewayEventSchema, iotLogIngestSchema, iotOtaProgressSchema,
 } from '@zenith/shared/iot';
 import type { IotDeviceRow } from '../../db/schema';
 import { authenticateDevice, markDeviceOnline, markDeviceOffline, touchDevice } from '../../services/iot/iot-access.service';
@@ -25,6 +26,8 @@ import {
   ingestTelemetry, ackIotCommand, getPendingCommandPayloads, markCommandsDelivered,
 } from '../../services/iot/iot-telemetry.service';
 import { ingestIotDeviceEvents } from '../../services/iot/iot-events.service';
+import { ingestIotDeviceLogs } from '../../services/iot/iot-device-logs.service';
+import { ingestGatewayBatch, ingestGatewayEvent } from '../../services/iot/iot-topology.service';
 import { getIotDesiredPayload } from '../../services/iot/iot-shadow.service';
 import { getPendingOtaPayload, reportIotOtaProgress } from '../../services/iot/iot-ota.service';
 import { registerDeviceConnection, removeDeviceConnection } from '../../services/iot/iot-gateway.service';
@@ -95,6 +98,21 @@ export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
               case IOT_WS_FRAME_TYPES.event: {
                 const parsed = iotEventIngestSchema.safeParse(frame.payload);
                 if (parsed.success) await ingestIotDeviceEvents(device, parsed.data);
+                break;
+              }
+              case IOT_WS_FRAME_TYPES.log: {
+                const parsed = iotLogIngestSchema.safeParse(frame.payload);
+                if (parsed.success) await ingestIotDeviceLogs(device, parsed.data);
+                break;
+              }
+              case IOT_WS_FRAME_TYPES.gatewayBatch: {
+                const parsed = iotGatewayBatchSchema.safeParse(frame.payload);
+                if (parsed.success) await ingestGatewayBatch(device, parsed.data);
+                break;
+              }
+              case IOT_WS_FRAME_TYPES.gatewayEvent: {
+                const parsed = iotGatewayEventSchema.safeParse(frame.payload);
+                if (parsed.success) await ingestGatewayEvent(device, parsed.data);
                 break;
               }
               case IOT_WS_FRAME_TYPES.otaProgress: {

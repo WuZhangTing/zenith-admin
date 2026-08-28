@@ -6,6 +6,7 @@ import {
   IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_ALARM_STATUSES,
   IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_TARGETS, IOT_AUTOMATION_TRIGGERS,
   IOT_COMMAND_STATUSES, IOT_COMPARE_OPS, IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS,
+  IOT_FORWARD_SOURCES, IOT_LOG_LEVELS, IOT_NODE_TYPES,
   IOT_OTA_DEVICE_STATUSES, IOT_OTA_TASK_STATUSES,
   IOT_PROPERTY_TYPES, IOT_VALIDATION_MODES,
 } from '@zenith/shared/iot';
@@ -54,6 +55,7 @@ export const IotProductPropertyDTO = z
     maxValue: z.number().nullable(),
     enumOptions: z.record(z.string(), z.string()).nullable(),
     featured: z.boolean(),
+    anomalyEnabled: z.boolean(),
     sort: z.number().int(),
     description: z.string().nullable(),
     createdAt: z.string(),
@@ -108,6 +110,13 @@ export const IotDeviceDTO = z
     productName: z.string().nullable(),
     name: z.string(),
     status: z.enum(['enabled', 'disabled']),
+    nodeType: z.enum(IOT_NODE_TYPES),
+    gatewayId: z.number().int().nullable(),
+    gatewayName: z.string().nullable().optional(),
+    subDeviceCount: z.number().int().optional(),
+    latitude: z.number().nullable(),
+    longitude: z.number().nullable(),
+    address: z.string().nullable(),
     online: z.boolean(),
     firmwareVersion: z.string().nullable(),
     activatedAt: z.string().nullable(),
@@ -402,3 +411,73 @@ export const OpenIotDeviceDetailDTO = OpenIotDeviceDTO
     }),
   })
   .openapi('OpenIotDeviceDetail');
+
+// ─── 五期：网关拓扑 / 数据流转 / 设备日志 ─────────────────────────────────────
+export const IotTopologyDTO = z
+  .object({
+    gateway: z.object({
+      id: z.number().int(),
+      sn: z.string(),
+      name: z.string(),
+      online: z.boolean(),
+    }),
+    children: z.array(z.object({
+      id: z.number().int(),
+      sn: z.string(),
+      name: z.string(),
+      status: z.enum(['enabled', 'disabled']),
+      online: z.boolean(),
+      firingAlarmCount: z.number().int(),
+      lastSeenAt: z.string().nullable(),
+    })),
+  })
+  .openapi('IotTopology');
+
+export const IotForwardRuleDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    source: z.enum(IOT_FORWARD_SOURCES),
+    productId: z.number().int().nullable(),
+    productName: z.string().nullable(),
+    groupId: z.number().int().nullable(),
+    groupName: z.string().nullable(),
+    url: z.string(),
+    hasSecret: z.boolean(),
+    headers: z.record(z.string(), z.string()).nullable(),
+    status: z.enum(['enabled', 'disabled']),
+    consecutiveFailures: z.number().int(),
+    autoDisabledAt: z.string().nullable(),
+    recentDeliveryCount: z.number().int(),
+    ...auditFields,
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('IotForwardRule');
+
+export const IotForwardLogDTO = z
+  .object({
+    id: z.number().int(),
+    ruleId: z.number().int(),
+    ruleName: z.string(),
+    source: z.enum(IOT_FORWARD_SOURCES),
+    deviceId: z.number().int().nullable(),
+    payload: z.record(z.string(), z.unknown()),
+    status: z.enum(['succeeded', 'failed']),
+    responseStatus: z.number().int().nullable(),
+    errorMessage: z.string().nullable(),
+    durationMs: z.number().int().nullable(),
+    createdAt: z.string(),
+  })
+  .openapi('IotForwardLog');
+
+export const IotDeviceLogDTO = z
+  .object({
+    id: z.number().int(),
+    deviceId: z.number().int(),
+    level: z.enum(IOT_LOG_LEVELS),
+    tag: z.string().nullable(),
+    content: z.string(),
+    reportedAt: z.string(),
+  })
+  .openapi('IotDeviceLog');

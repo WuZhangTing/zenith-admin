@@ -17,6 +17,7 @@ import {
 } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { invalidateAnomalyBaselines } from './iot-anomaly.service';
 
 /** 轻量存在性校验（无租户条件；管理端路由的访问边界由 devices 服务的 ensureIotProductExists 把守） */
 async function ensureProductRow(productId: number): Promise<void> {
@@ -39,6 +40,7 @@ export function mapIotProperty(row: IotProductPropertyRow) {
     maxValue: row.maxValue ?? null,
     enumOptions: row.enumOptions ?? null,
     featured: row.featured,
+    anomalyEnabled: row.anomalyEnabled,
     sort: row.sort,
     description: row.description ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -89,6 +91,7 @@ const modelCache = new Map<number, { model: ThingModelRuntime; expiresAt: number
 
 export function invalidateThingModelCache(productId: number): void {
   modelCache.delete(productId);
+  invalidateAnomalyBaselines(productId);
 }
 
 /** 设备接入热路径使用：属性/服务/事件全量（带进程内 TTL 缓存） */
@@ -134,6 +137,7 @@ export async function createIotProperty(productId: number, data: CreateIotProper
       maxValue: data.maxValue ?? null,
       enumOptions: data.enumOptions ?? null,
       featured: data.featured,
+      anomalyEnabled: data.anomalyEnabled,
       sort: data.sort,
       description: data.description ?? null,
     }).returning();
@@ -164,6 +168,7 @@ export async function updateIotProperty(productId: number, propertyId: number, d
     ...(data.maxValue !== undefined ? { maxValue: data.maxValue } : {}),
     ...(data.enumOptions !== undefined ? { enumOptions: data.enumOptions } : {}),
     ...(data.featured !== undefined ? { featured: data.featured } : {}),
+    ...(data.anomalyEnabled !== undefined ? { anomalyEnabled: data.anomalyEnabled } : {}),
     ...(data.sort !== undefined ? { sort: data.sort } : {}),
     ...(data.description !== undefined ? { description: data.description } : {}),
   }).where(eq(iotProductProperties.id, propertyId)).returning();

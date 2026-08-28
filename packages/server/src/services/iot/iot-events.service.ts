@@ -16,6 +16,7 @@ import { openEventBus } from '../../lib/open-event-bus';
 import { loadThingModel } from './iot-model.service';
 import { evaluateIotEventRules } from './iot-alarms.service';
 import { evaluateIotAutomationsOnEvent, evaluateIotAutomationsOnLifecycle } from './iot-automations.service';
+import { dispatchIotForward } from './iot-forward.service';
 import { pushIotRealtime } from './iot-realtime';
 
 export function mapIotDeviceEvent(row: IotDeviceEventRow) {
@@ -56,14 +57,21 @@ export async function recordIotLifecycleEvent(
   } catch (err) {
     logger.warn(`[iot] 生命周期事件写入失败 deviceId=${deviceId} event=${identifier}: ${(err as Error).message}`);
   }
+  // 数据流转：生命周期源（fire-and-forget，取设备行做过滤匹配）
+  const [deviceRow] = await db.select({ id: iotDevices.id, sn: iotDevices.sn, name: iotDevices.name, productId: iotDevices.productId })
+    .from(iotDevices).where(eq(iotDevices.id, deviceId)).limit(1);
+  if (deviceRow) {
+    dispatchIotForward('lifecycle', deviceRow, {
+      deviceId, sn: deviceRow.sn, name: deviceRow.name, event: identifier,
+      label: IOT_LIFECYCLE_EVENTS[identifier], reportedAt: formatDateTime(new Date()),
+    });
+  }
   // 上线/离线：场景联动 + 开放平台 Webhook（失败不阻断打点方）
   if (identifier === 'online' || identifier === 'offline') {
-    const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name })
-      .from(iotDevices).where(eq(iotDevices.id, deviceId)).limit(1);
-    if (device) {
+    if (deviceRow) {
       openEventBus.emit({
         type: `iot.device.${identifier}`,
-        data: { deviceId, sn: device.sn, name: device.name },
+        data: { deviceId, sn: deviceRow.sn, name: deviceRow.name },
       });
     }
     await evaluateIotAutomationsOnLifecycle(deviceId, identifier).catch((err) => {
@@ -96,6 +104,11 @@ export async function ingestIotDeviceEvents(device: IotDeviceRow, input: IotEven
         deviceId: device.id, kind: 'model', identifier: row.identifier, name: row.name,
         level: row.level, reportedAt: formatDateTime(row.reportedAt),
       },
+    });
+    // 数据流转（fire-and-forget）
+    dispatchIotForward('event', device, {
+      deviceId: device.id, sn: device.sn, kind: 'model', identifier: row.identifier,
+      name: row.name, level: row.level, payload: row.payload, reportedAt: formatDateTime(row.reportedAt),
     });
   }
   // 事件类告警与场景联动：仅对模型内已声明的事件判定

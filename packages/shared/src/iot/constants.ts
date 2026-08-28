@@ -67,13 +67,14 @@ export const IOT_VALIDATION_MODE_LABELS: Record<IotValidationMode, string> = {
 export const IOT_VALIDATION_MODE_OPTIONS = createLabelOptions(IOT_VALIDATION_MODES, IOT_VALIDATION_MODE_LABELS);
 
 // ─── 设备事件流 ───────────────────────────────────────────────────────────────
-export const IOT_DEVICE_EVENT_KINDS = ['lifecycle', 'model'] as const;
+export const IOT_DEVICE_EVENT_KINDS = ['lifecycle', 'model', 'anomaly'] as const;
 
 export type IotDeviceEventKind = (typeof IOT_DEVICE_EVENT_KINDS)[number];
 
 export const IOT_DEVICE_EVENT_KIND_LABELS: Record<IotDeviceEventKind, string> = {
   lifecycle: '生命周期',
   model: '设备事件',
+  anomaly: '异常检测',
 };
 
 export const IOT_DEVICE_EVENT_KIND_OPTIONS = createLabelOptions(IOT_DEVICE_EVENT_KINDS, IOT_DEVICE_EVENT_KIND_LABELS);
@@ -171,6 +172,12 @@ export const IOT_WS_FRAME_TYPES = {
   telemetry: 'telemetry',
   event: 'event',
   commandAck: 'command:ack',
+  /** 设备 → 服务端：批量上报运行日志 */
+  log: 'log',
+  /** 网关 → 服务端：代理子设备批量遥测 */
+  gatewayBatch: 'gateway:batch',
+  /** 网关 → 服务端：代理子设备事件 */
+  gatewayEvent: 'gateway:event',
   /** 服务端 → 设备 */
   commandExec: 'command:exec',
   heartbeatAck: 'heartbeat:ack',
@@ -267,3 +274,66 @@ export const IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS = 60;
 
 /** 单条联动最大动作数 */
 export const IOT_AUTOMATION_ACTION_MAX = 5;
+
+// ─── 五期：设备形态（网关与子设备）───────────────────────────────────────────
+export const IOT_NODE_TYPES = ['direct', 'gateway', 'sub'] as const;
+
+export type IotNodeType = (typeof IOT_NODE_TYPES)[number];
+
+export const IOT_NODE_TYPE_LABELS: Record<IotNodeType, string> = {
+  direct: '直连设备',
+  gateway: '网关',
+  sub: '子设备',
+};
+
+export const IOT_NODE_TYPE_OPTIONS = createLabelOptions(IOT_NODE_TYPES, IOT_NODE_TYPE_LABELS);
+
+/** 网关单帧代理上报的子设备条目上限 */
+export const IOT_GATEWAY_BATCH_MAX = 100;
+
+// ─── 五期：数据流转 ───────────────────────────────────────────────────────────
+export const IOT_FORWARD_SOURCES = ['telemetry', 'event', 'alarm', 'lifecycle'] as const;
+
+export type IotForwardSource = (typeof IOT_FORWARD_SOURCES)[number];
+
+export const IOT_FORWARD_SOURCE_LABELS: Record<IotForwardSource, string> = {
+  telemetry: '遥测数据',
+  event: '设备事件',
+  alarm: '告警',
+  lifecycle: '生命周期',
+};
+
+export const IOT_FORWARD_SOURCE_OPTIONS = createLabelOptions(IOT_FORWARD_SOURCES, IOT_FORWARD_SOURCE_LABELS);
+
+/** 连续投递失败达到该次数后规则自动停用 */
+export const IOT_FORWARD_AUTO_DISABLE_THRESHOLD = 10;
+
+// ─── 五期：设备日志 ───────────────────────────────────────────────────────────
+export const IOT_LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;
+
+export type IotLogLevel = (typeof IOT_LOG_LEVELS)[number];
+
+export const IOT_LOG_LEVEL_LABELS: Record<IotLogLevel, string> = {
+  debug: '调试',
+  info: '信息',
+  warn: '警告',
+  error: '错误',
+};
+
+export const IOT_LOG_LEVEL_OPTIONS = createLabelOptions(IOT_LOG_LEVELS, IOT_LOG_LEVEL_LABELS);
+
+/** 设备日志单帧条目上限 */
+export const IOT_LOG_BATCH_MAX = 100;
+
+// ─── 五期：遥测异常检测 ───────────────────────────────────────────────────────
+/** 基线窗口：近 N 天小时聚合 */
+export const IOT_ANOMALY_BASELINE_DAYS = 7;
+
+/** 偏离倍数：|value - mean| > N × std 判定异常 */
+export const IOT_ANOMALY_SIGMA = 3;
+
+/** 同一设备 × 属性的异常事件去抖窗口（秒） */
+export const IOT_ANOMALY_DEBOUNCE_SECONDS = 600;
+
+/** 基线最少样本数（小时桶数），不足则不判定 */
+export const IOT_ANOMALY_MIN_SAMPLES = 24;

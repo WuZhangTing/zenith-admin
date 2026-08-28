@@ -130,6 +130,10 @@ export async function touchDevice(device: IotDeviceRow, opts?: { firmwareVersion
       logger.warn(`[iot] 上线转变处理失败 deviceId=${device.id}: ${(err as Error).message}`);
     });
   }
+  // 网关触达顺带维持在线子设备的 TTL（只续期已在线的，不把离线子设备拉上线）
+  if (device.nodeType === 'gateway') {
+    void refreshGatewaySubTtl(device.id);
+  }
   const now = Date.now();
   const stale = !device.lastSeenAt || now - device.lastSeenAt.getTime() > LAST_SEEN_FLUSH_SECONDS * 1000;
   const fwChanged = opts?.firmwareVersion && opts.firmwareVersion !== device.firmwareVersion;
@@ -161,6 +165,33 @@ export async function clearOnlineKeys(deviceIds: number[]): Promise<void> {
     await redis.del(...deviceIds.map((id) => `${ONLINE_PREFIX}${id}`));
   } catch {
     // TTL 自然过期
+  }
+}
+
+// ─── 网关子设备 TTL 维持 ──────────────────────────────────────────────────────
+const SUB_IDS_CACHE_TTL_MS = 30_000;
+
+const gatewaySubIdsCache = new Map<number, { ids: number[]; expiresAt: number }>();
+
+/** 网关触达时续期在线子设备（SET XX：仅已存在的键，30s 子设备清单缓存） */
+async function refreshGatewaySubTtl(gatewayId: number): Promise<void> {
+  try {
+    const now = Date.now();
+    let cached = gatewaySubIdsCache.get(gatewayId);
+    if (!cached || cached.expiresAt <= now) {
+      const rows = await db.select({ id: iotDevices.id }).from(iotDevices)
+        .where(and(eq(iotDevices.gatewayId, gatewayId), eq(iotDevices.status, 'enabled')));
+      cached = { ids: rows.map((r) => r.id), expiresAt: now + SUB_IDS_CACHE_TTL_MS };
+      gatewaySubIdsCache.set(gatewayId, cached);
+    }
+    if (cached.ids.length === 0) return;
+    const pipeline = redis.pipeline();
+    for (const id of cached.ids) {
+      pipeline.set(`${ONLINE_PREFIX}${id}`, '1', 'EX', IOT_ONLINE_TTL_SECONDS, 'XX');
+    }
+    await pipeline.exec();
+  } catch (err) {
+    logger.warn(`[iot] 网关子设备续期失败 gatewayId=${gatewayId}: ${(err as Error).message}`);
   }
 }
 

@@ -9,12 +9,12 @@ import {
   ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound, excelBody, okExcel,
 } from '../../lib/openapi-schemas';
 import {
-  ImportResultDTO, IotCommandDTO, IotDeviceDTO, IotDeviceEventDTO, IotDeviceShadowDTO,
-  IotTelemetryAggPointDTO, IotTelemetryPointDTO,
+  ImportResultDTO, IotCommandDTO, IotDeviceDTO, IotDeviceEventDTO, IotDeviceLogDTO, IotDeviceShadowDTO,
+  IotTelemetryAggPointDTO, IotTelemetryPointDTO, IotTopologyDTO,
 } from '../../lib/openapi-dtos';
 import {
   createIotDeviceSchema, updateIotDeviceSchema, sendIotCommandSchema, setIotDesiredSchema,
-  IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS,
+  IOT_DEVICE_EVENT_KINDS, IOT_EVENT_LEVELS, IOT_LOG_LEVELS, IOT_NODE_TYPES,
 } from '@zenith/shared/iot';
 import {
   listIotDevices, getIotDevice, createIotDevice, updateIotDevice, deleteIotDevices,
@@ -25,6 +25,8 @@ import { listIotTelemetry, listIotCommands, sendIotCommand } from '../../service
 import { listIotTelemetryAgg } from '../../services/iot/iot-rollup.service';
 import { clearIotDesired, getIotDeviceShadow, setIotDesired } from '../../services/iot/iot-shadow.service';
 import { listIotDeviceEvents } from '../../services/iot/iot-events.service';
+import { listIotDeviceLogs } from '../../services/iot/iot-device-logs.service';
+import { getIotDeviceTopology } from '../../services/iot/iot-topology.service';
 
 const iotDevicesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -41,6 +43,8 @@ const listRoute = defineOpenAPIRoute({
         status: z.enum(['enabled', 'disabled']).optional(),
         productId: z.coerce.number().int().positive().optional(),
         groupId: z.coerce.number().int().positive().optional(),
+        nodeType: z.enum(IOT_NODE_TYPES).optional(),
+        gatewayId: z.coerce.number().int().positive().optional(),
         startTime: dateRangeBound('创建时间起'),
         endTime: dateRangeBound('创建时间止'),
       }),
@@ -396,6 +400,51 @@ const deleteRoute_ = defineOpenAPIRoute({
   },
 });
 
+// ─── 五期：拓扑与设备日志 ─────────────────────────────────────────────────────
+const topologyRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/topology',
+    tags: ['IoT 设备'], summary: '网关拓扑（子设备 + 在线态 + 活跃告警数）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'iot:device:list' })] as const,
+    request: { params: IdParam },
+    responses: {
+      ...commonErrorResponses,
+      ...ok(IotTopologyDTO, '拓扑'),
+      404: { content: jsonContent(ErrorResponse), description: '设备不存在' },
+    },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    const device = await ensureIotDeviceExists(id);
+    return c.json(okBody(await getIotDeviceTopology(device)), 200);
+  },
+});
+
+const listLogsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/{id}/logs',
+    tags: ['IoT 设备'], summary: '设备运行日志（级别/关键字筛选，倒序）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'iot:device:list' })] as const,
+    request: {
+      params: IdParam,
+      query: PaginationQuery.extend({
+        level: z.enum(IOT_LOG_LEVELS).optional(),
+        keyword: z.string().optional(),
+        startTime: dateRangeBound('上报时间起'),
+        endTime: dateRangeBound('上报时间止'),
+      }),
+    },
+    responses: { ...commonErrorResponses, ...okPaginated(IotDeviceLogDTO, '设备日志') },
+  }),
+  handler: async (c) => {
+    const { id } = c.req.valid('param');
+    await ensureIotDeviceExists(id);
+    return c.json(okBody(await listIotDeviceLogs(id, c.req.valid('query'))), 200);
+  },
+});
+
 iotDevicesRouter.openapiRoutes([
   listRoute,
   batchDeleteRoute,
@@ -412,6 +461,8 @@ iotDevicesRouter.openapiRoutes([
   setDesiredRoute,
   clearDesiredRoute,
   listEventsRoute,
+  topologyRoute,
+  listLogsRoute,
   createRoute_,
   updateRoute_,
   deleteRoute_,

@@ -131,10 +131,11 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
       maxValue: r.maxValue,
       enumText: enumOptionsToText(r.enumOptions),
       featured: r.featured,
+      anomalyEnabled: r.anomalyEnabled,
       sort: r.sort,
       description: r.description ?? '',
     }),
-    defaults: { dataType: 'number', accessMode: 'r', featured: false, sort: 0 },
+    defaults: { dataType: 'number', accessMode: 'r', featured: false, anomalyEnabled: false, sort: 0 },
     beforeSave: (values, ctx) => ({
       ...(ctx.isEdit ? {} : { identifier: values.identifier as string }),
       name: values.name as string,
@@ -145,6 +146,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
       maxValue: values.maxValue ?? null,
       enumOptions: values.dataType === 'enum' ? textToEnumOptions(values.enumText as string) : null,
       featured: Boolean(values.featured),
+      anomalyEnabled: values.dataType === 'number' ? Boolean(values.anomalyEnabled) : false,
       sort: (values.sort as number) ?? 0,
       description: (values.description as string) || null,
     }),
@@ -284,6 +286,10 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
     {
       title: '关键属性', dataIndex: 'featured', width: 90,
       render: (v: boolean) => v ? <Tag size="small" color="cyan">是</Tag> : EMPTY_PLACEHOLDER,
+    },
+    {
+      title: '异常检测', dataIndex: 'anomalyEnabled', width: 90,
+      render: (v: boolean) => v ? <Tag size="small" color="purple">开启</Tag> : EMPTY_PLACEHOLDER,
     },
     ...(canEdit ? [{
       title: '操作', width: 120, fixed: 'right' as const,
@@ -456,6 +462,10 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
               )}
               <Form.Switch field="featured" label="关键属性" checkedText="是" uncheckedText="否"
                 extraText="设备列表快照列与遥测图表默认展示" />
+              {formState.values?.dataType === 'number' && (
+                <Form.Switch field="anomalyEnabled" label="异常检测" checkedText="开" uncheckedText="关"
+                  extraText="按近 7 天小时聚合基线做 3σ 偏离判定，异常记入设备事件流" />
+              )}
               <Form.InputNumber field="sort" label="排序" min={0} style={{ width: 120 }} />
               <Form.Input field="description" label="描述" placeholder="选填" />
             </>

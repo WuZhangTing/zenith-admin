@@ -4,6 +4,7 @@ import {
   IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS, IOT_AUTOMATION_TARGETS,
   IOT_AUTOMATION_TRIGGERS, IOT_BATCH_DEVICE_MAX,
   IOT_COMPARE_OPS, IOT_EVENT_BATCH_MAX, IOT_EVENT_LEVELS, IOT_FIRMWARE_VERSION_PATTERN,
+  IOT_FORWARD_SOURCES, IOT_GATEWAY_BATCH_MAX, IOT_LOG_BATCH_MAX, IOT_LOG_LEVELS, IOT_NODE_TYPES,
   IOT_OTA_DEFAULT_TIMEOUT_MINUTES, IOT_OTA_PROGRESS_STATUSES, IOT_PROPERTY_TYPES,
   IOT_TELEMETRY_BATCH_MAX, IOT_VALIDATION_MODES,
 } from './constants';
@@ -45,6 +46,8 @@ export const createIotPropertySchema = z.object({
   maxValue: z.number().nullable().optional(),
   enumOptions: z.record(z.string().min(1).max(64), z.string().min(1).max(64)).nullable().optional(),
   featured: z.boolean().default(false),
+  /** 遥测异常检测（仅数值型属性生效） */
+  anomalyEnabled: z.boolean().default(false),
   sort: z.number().int().min(0).max(9999).default(0),
   description: z.string().max(256).nullable().optional(),
 }).superRefine((val, ctx) => {
@@ -66,6 +69,7 @@ export const updateIotPropertySchema = z.object({
   maxValue: z.number().nullable().optional(),
   enumOptions: z.record(z.string().min(1).max(64), z.string().min(1).max(64)).nullable().optional(),
   featured: z.boolean().optional(),
+  anomalyEnabled: z.boolean().optional(),
   sort: z.number().int().min(0).max(9999).optional(),
   description: z.string().max(256).nullable().optional(),
 });
@@ -102,19 +106,40 @@ export const importIotTslSchema = z.object({
 });
 
 // ─── 设备 ─────────────────────────────────────────────────────────────────────
-export const createIotDeviceSchema = z.object({
+const iotDeviceBaseSchema = z.object({
   productId: z.number().int().positive(),
   name: z.string().min(1, '设备名称不能为空').max(128),
   /** 留空自动生成；仅字母数字与连字符 */
   sn: z.string().min(4).max(64).regex(/^[0-9A-Za-z-]+$/, 'SN 仅支持字母、数字、连字符').optional(),
+  /** 设备形态：sub 必须指定 gatewayId */
+  nodeType: z.enum(IOT_NODE_TYPES).default('direct'),
+  gatewayId: z.number().int().positive().nullable().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  address: z.string().max(256).nullable().optional(),
   firmwareVersion: z.string().max(32).nullable().optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).nullable().optional(),
   groupIds: z.array(z.number().int().positive()).max(50).optional(),
 });
 
+/** 形态/位置一致性（拓扑归属的存在性与防环由服务端校验） */
+function refineIotDevice(v: { nodeType?: string; gatewayId?: number | null; latitude?: number | null; longitude?: number | null }, ctx: z.RefinementCtx) {
+  if (v.nodeType === 'sub' && !v.gatewayId) {
+    ctx.addIssue({ code: 'custom', path: ['gatewayId'], message: '子设备必须指定所属网关' });
+  }
+  if (v.nodeType && v.nodeType !== 'sub' && v.gatewayId) {
+    ctx.addIssue({ code: 'custom', path: ['gatewayId'], message: '仅子设备可指定所属网关' });
+  }
+  if ((v.latitude == null) !== (v.longitude == null)) {
+    ctx.addIssue({ code: 'custom', path: ['longitude'], message: '经纬度需成对填写' });
+  }
+}
+
+export const createIotDeviceSchema = iotDeviceBaseSchema.superRefine(refineIotDevice);
+
 /** SN 一经接入不可变更 */
-export const updateIotDeviceSchema = createIotDeviceSchema.omit({ sn: true }).partial();
+export const updateIotDeviceSchema = iotDeviceBaseSchema.omit({ sn: true }).partial().superRefine(refineIotDevice);
 
 // ─── 指令与期望属性 ───────────────────────────────────────────────────────────
 export const sendIotCommandSchema = z.object({
@@ -402,3 +427,57 @@ export const updateIotAutomationSchema = z.object({
 export type CreateIotAutomationInput = z.infer<typeof createIotAutomationSchema>;
 
 export type UpdateIotAutomationInput = z.infer<typeof updateIotAutomationSchema>;
+
+// ─── 五期：网关代理接入 ───────────────────────────────────────────────────────
+/** 网关批量代理子设备遥测（网关身份鉴权，子设备免密） */
+export const iotGatewayBatchSchema = z.object({
+  items: z.array(z.object({
+    subSn: z.string().min(4).max(64),
+    metrics: z.record(z.string().min(1).max(64), z.union([z.number(), z.string().max(256), z.boolean()])),
+    reportedAt: z.string().max(32).optional(),
+  })).min(1).max(IOT_GATEWAY_BATCH_MAX),
+});
+
+export type IotGatewayBatchInput = z.infer<typeof iotGatewayBatchSchema>;
+
+/** 网关代理子设备事件 */
+export const iotGatewayEventSchema = z.object({
+  subSn: z.string().min(4).max(64),
+  identifier: identifierSchema,
+  payload: z.record(z.string(), z.unknown()).nullable().optional(),
+  reportedAt: z.string().max(32).optional(),
+});
+
+export type IotGatewayEventInput = z.infer<typeof iotGatewayEventSchema>;
+
+// ─── 五期：设备日志上报 ───────────────────────────────────────────────────────
+export const iotLogIngestSchema = z.object({
+  items: z.array(z.object({
+    level: z.enum(IOT_LOG_LEVELS).default('info'),
+    tag: z.string().max(64).optional(),
+    content: z.string().min(1).max(1024),
+    reportedAt: z.string().max(32).optional(),
+  })).min(1).max(IOT_LOG_BATCH_MAX),
+});
+
+export type IotLogIngestInput = z.infer<typeof iotLogIngestSchema>;
+
+// ─── 五期：数据流转规则 ───────────────────────────────────────────────────────
+export const createIotForwardRuleSchema = z.object({
+  name: z.string().min(1, '规则名称不能为空').max(128),
+  source: z.enum(IOT_FORWARD_SOURCES),
+  productId: z.number().int().positive().nullable().optional(),
+  groupId: z.number().int().positive().nullable().optional(),
+  url: z.string().url('目的地需为合法 URL').max(512),
+  /** 置空 = 不签名；创建/更新时明文提交，列表不回显 */
+  secret: z.string().min(8, '签名密钥至少 8 位').max(128).nullable().optional(),
+  headers: z.record(z.string().min(1).max(64), z.string().max(256)).nullable().optional(),
+  status: z.enum(['enabled', 'disabled']).default('enabled'),
+});
+
+export type CreateIotForwardRuleInput = z.infer<typeof createIotForwardRuleSchema>;
+
+/** source 创建后不可变更 */
+export const updateIotForwardRuleSchema = createIotForwardRuleSchema.omit({ source: true }).partial();
+
+export type UpdateIotForwardRuleInput = z.infer<typeof updateIotForwardRuleSchema>;

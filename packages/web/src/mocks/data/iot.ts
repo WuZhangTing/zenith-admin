@@ -1,13 +1,15 @@
 import {
   SEED_IOT_ALARM_RULES, SEED_IOT_ALARMS, SEED_IOT_AUTOMATION_RUNS, SEED_IOT_AUTOMATIONS,
-  SEED_IOT_DEVICE_EVENTS, SEED_IOT_DEVICE_GROUPS,
-  SEED_IOT_DEVICES, SEED_IOT_FIRMWARES, SEED_IOT_OTA_TASK_DEVICES, SEED_IOT_OTA_TASKS,
+  SEED_IOT_DEVICE_EVENTS, SEED_IOT_DEVICE_GROUPS, SEED_IOT_DEVICE_LOGS,
+  SEED_IOT_DEVICES, SEED_IOT_FIRMWARES, SEED_IOT_FORWARD_LOGS, SEED_IOT_FORWARD_RULES,
+  SEED_IOT_OTA_TASK_DEVICES, SEED_IOT_OTA_TASKS,
   SEED_IOT_PRODUCT_EVENTS, SEED_IOT_PRODUCT_PROPERTIES,
   SEED_IOT_PRODUCT_SERVICES, SEED_IOT_PRODUCTS,
 } from '@zenith/shared/seed';
 import type {
   IotAlarm, IotAlarmRule, IotAutomation, IotAutomationRun, IotCommand, IotDevice, IotDeviceEvent, IotDeviceGroup,
-  IotDeviceShadow, IotFirmware, IotOtaTask, IotOtaTaskDevice, IotProduct, IotProductEvent,
+  IotDeviceLog, IotDeviceShadow, IotFirmware, IotForwardLog, IotForwardRule, IotOtaTask, IotOtaTaskDevice,
+  IotProduct, IotProductEvent,
   IotProductProperty, IotProductService, IotTelemetryAggPoint, IotTelemetryPoint,
 } from '@zenith/shared/iot';
 import { mockDateTime } from '@/mocks/utils/date';
@@ -164,6 +166,18 @@ let nextAutomationId = nextIdFrom(mockIotAutomations);
 export function getNextIotAutomationId(): number {
   return nextAutomationId++;
 }
+
+// ─── 五期：数据流转 / 设备日志 ────────────────────────────────────────────────
+export const mockIotForwardRules: IotForwardRule[] = SEED_IOT_FORWARD_RULES.map((r) => ({ ...r }));
+
+export const mockIotForwardLogs: IotForwardLog[] = SEED_IOT_FORWARD_LOGS.map((l) => ({ ...l }));
+
+let nextForwardRuleId = nextIdFrom(mockIotForwardRules);
+export function getNextIotForwardRuleId(): number {
+  return nextForwardRuleId++;
+}
+
+export const mockIotDeviceLogs: IotDeviceLog[] = SEED_IOT_DEVICE_LOGS.map((l) => ({ ...l }));
 
 /** 近 N 天的小时聚合演示曲线（仅 1 号设备的数值属性） */
 export function buildMockTelemetryAgg(deviceId: number, property: string, days: number): IotTelemetryAggPoint[] {

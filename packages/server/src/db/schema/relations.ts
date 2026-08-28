@@ -64,6 +64,7 @@ import {
   iotAlarmRules, iotAlarms, iotCommands, iotDeviceEvents, iotDeviceGroupMembers, iotDeviceGroups,
   iotDevices, iotDeviceState, iotProductEvents, iotProductProperties, iotProducts, iotProductServices, iotTelemetry,
   iotFirmwares, iotOtaTaskDevices, iotOtaTasks, iotTelemetryHourly, iotAutomationRuns, iotAutomations,
+  iotForwardRules, iotForwardLogs, iotDeviceLogs,
 } from './iot';
 
 // ─── 关联关系 ────────────────────────────────────────────────────────────────
@@ -1799,4 +1800,19 @@ export const iotAutomationsRelations = relations(iotAutomations, ({ one, many })
 export const iotAutomationRunsRelations = relations(iotAutomationRuns, ({ one }) => ({
   automation: one(iotAutomations, { fields: [iotAutomationRuns.automationId], references: [iotAutomations.id] }),
   device: one(iotDevices, { fields: [iotAutomationRuns.deviceId], references: [iotDevices.id] }),
+}));
+
+export const iotForwardRulesRelations = relations(iotForwardRules, ({ one, many }) => ({
+  product: one(iotProducts, { fields: [iotForwardRules.productId], references: [iotProducts.id] }),
+  group: one(iotDeviceGroups, { fields: [iotForwardRules.groupId], references: [iotDeviceGroups.id] }),
+  tenant: one(tenants, { fields: [iotForwardRules.tenantId], references: [tenants.id] }),
+  logs: many(iotForwardLogs),
+}));
+
+export const iotForwardLogsRelations = relations(iotForwardLogs, ({ one }) => ({
+  rule: one(iotForwardRules, { fields: [iotForwardLogs.ruleId], references: [iotForwardRules.id] }),
+}));
+
+export const iotDeviceLogsRelations = relations(iotDeviceLogs, ({ one }) => ({
+  device: one(iotDevices, { fields: [iotDeviceLogs.deviceId], references: [iotDevices.id] }),
 }));

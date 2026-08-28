@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   IotBatchCommandInput, IotBatchDesiredInput, IotCommand, IotDevice, IotDeviceEvent,
-  IotDeviceShadow, IotTelemetryAggPoint, IotTelemetryPoint, SendIotCommandInput, SetIotDesiredInput,
+  IotDeviceLog, IotDeviceShadow, IotDeviceTopology, IotTelemetryAggPoint, IotTelemetryPoint,
+  SendIotCommandInput, SetIotDesiredInput,
 } from '@zenith/shared/iot';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import { request } from '@/utils/request';
@@ -13,6 +14,8 @@ export interface IotDeviceListParams extends CrudListParams {
   status?: string;
   productId?: number;
   groupId?: number;
+  nodeType?: string;
+  gatewayId?: number;
   startTime?: string;
   endTime?: string;
 }
@@ -218,5 +221,39 @@ export function useSubmitIotBatchDesired() {
   return useMutation({
     mutationFn: (values: IotBatchDesiredInput) =>
       request.post<SubmittedAsyncTask>('/api/iot/batch/desired', values).then(unwrap),
+  });
+}
+
+// ─── 五期：网关拓扑 / 设备日志 ────────────────────────────────────────────────
+export const iotTopologyKeys = {
+  of: (deviceId: number) => ['iot-topology', deviceId] as const,
+};
+
+export function useIotDeviceTopology(deviceId: number | null, enabled = true) {
+  return useQuery({
+    queryKey: iotTopologyKeys.of(deviceId ?? 0),
+    queryFn: () => request.get<IotDeviceTopology>(`/api/iot/devices/${deviceId}/topology`).then(unwrap),
+    enabled: enabled && deviceId !== null,
+  });
+}
+
+export interface IotDeviceLogListParams {
+  page?: number;
+  pageSize?: number;
+  level?: string;
+  keyword?: string;
+}
+
+export const iotDeviceLogKeys = {
+  of: (deviceId: number, params: IotDeviceLogListParams) => ['iot-device-logs', deviceId, params] as const,
+};
+
+export function useIotDeviceLogs(deviceId: number | null, params: IotDeviceLogListParams, enabled = true) {
+  return useQuery({
+    queryKey: iotDeviceLogKeys.of(deviceId ?? 0, params),
+    queryFn: () => request.get<PaginatedResponse<IotDeviceLog>>(
+      `/api/iot/devices/${deviceId}/logs${toQueryString(params)}`,
+    ).then(unwrap),
+    enabled: enabled && deviceId !== null,
   });
 }

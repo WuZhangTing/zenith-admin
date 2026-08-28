@@ -19,6 +19,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 import { request } from '@/utils/request';
 import type { IotDevice, IotDeviceGroup } from '@zenith/shared/iot';
+import { IOT_NODE_TYPE_OPTIONS } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import {
   iotDeviceKeys, useDeleteIotDevices, useImportIotDevices, useIotDeviceList, useSaveIotDevice,
@@ -34,9 +35,10 @@ interface SearchParams {
   status: string;
   productId: number | null;
   groupId: number | null;
+  nodeType: string;
 }
 
-const defaultSearchParams: SearchParams = { keyword: '', status: '', productId: null, groupId: null };
+const defaultSearchParams: SearchParams = { keyword: '', status: '', productId: null, groupId: null, nodeType: '' };
 
 function renderMetricValue(v: number | string | boolean): string {
   if (typeof v === 'boolean') return v ? 'on' : 'off';
@@ -77,6 +79,9 @@ export default function IotDevicesPage() {
   const products = productsQuery.data ?? [];
   const groupsQuery = useAllIotGroups();
   const groups = groupsQuery.data ?? [];
+  // 网关设备清单（子设备表单「所属网关」选项）
+  const gatewaysQuery = useIotDeviceList({ page: 1, pageSize: 100, nodeType: 'gateway' });
+  const gatewayOptions = (gatewaysQuery.data?.list ?? []).map((d) => ({ value: d.id, label: `${d.name}（${d.sn}）` }));
 
   const {
     page, pageSize, buildPagination,
@@ -91,6 +96,7 @@ export default function IotDevicesPage() {
     status: submittedParams.status || undefined,
     productId: submittedParams.productId ?? undefined,
     groupId: submittedParams.groupId ?? undefined,
+    nodeType: submittedParams.nodeType || undefined,
   });
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -101,17 +107,27 @@ export default function IotDevicesPage() {
     toValues: (r) => ({
       productId: r.productId,
       name: r.name,
+      nodeType: r.nodeType,
+      gatewayId: r.gatewayId,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      address: r.address ?? '',
       firmwareVersion: r.firmwareVersion ?? '',
       status: r.status,
       groupIds: r.groupIds ?? [],
       remark: r.remark ?? '',
     }),
-    defaults: { status: 'enabled', groupIds: [] },
+    defaults: { status: 'enabled', nodeType: 'direct', groupIds: [] },
     beforeSave: (values, { isEdit }) => ({
       productId: values.productId as number,
       name: values.name as string,
       // SN 仅创建时可指定，编辑不可变更
       ...(isEdit ? {} : { sn: (values.sn as string)?.trim() || undefined }),
+      nodeType: values.nodeType as IotDevice['nodeType'],
+      gatewayId: values.nodeType === 'sub' ? ((values.gatewayId as number | undefined) ?? null) : null,
+      latitude: (values.latitude as number | undefined) ?? null,
+      longitude: (values.longitude as number | undefined) ?? null,
+      address: (values.address as string) || null,
       firmwareVersion: (values.firmwareVersion as string) || null,
       status: values.status as IotDevice['status'],
       groupIds: (values.groupIds as number[] | undefined) ?? [],
@@ -209,6 +225,22 @@ export default function IotDevicesPage() {
     {
       title: '所属产品', dataIndex: 'productName', width: 170,
       render: (v: string | null) => renderEllipsis(v),
+    },
+    {
+      title: '形态', dataIndex: 'nodeType', width: 110,
+      render: (v: IotDevice['nodeType'], r: IotDevice) => {
+        if (v === 'gateway') {
+          return <Tag size="small" color="indigo">网关{(r.subDeviceCount ?? 0) > 0 ? ` · ${r.subDeviceCount}` : ''}</Tag>;
+        }
+        if (v === 'sub') {
+          return (
+            <Tag size="small" color="light-blue">
+              子设备{r.gatewayName ? ` · ${r.gatewayName}` : ''}
+            </Tag>
+          );
+        }
+        return <Text size="small" type="tertiary">直连</Text>;
+      },
     },
     {
       title: '分组', width: 130,
@@ -338,6 +370,15 @@ export default function IotDevicesPage() {
     />
   );
 
+  const renderNodeTypeFilter = () => (
+    <StatusSelect
+      placeholder="全部形态"
+      items={IOT_NODE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      value={draftParams.nodeType}
+      onChange={(v) => setDraftParams((p) => ({ ...p, nodeType: v }))}
+    />
+  );
+
   const renderStatusFilter = () => (
     <StatusSelect
       items={statusItems}
@@ -365,6 +406,7 @@ export default function IotDevicesPage() {
           {renderKeywordSearch()}
           {renderProductFilter()}
           {renderGroupFilter()}
+          {renderNodeTypeFilter()}
           {renderStatusFilter()}
           <SearchButton onClick={handleSearch} />
           <ResetButton onClick={handleReset} />
@@ -393,6 +435,7 @@ export default function IotDevicesPage() {
         mobileFilters={<>
           {renderProductFilter()}
           {renderGroupFilter()}
+          {renderNodeTypeFilter()}
           {renderStatusFilter()}
         </>}
         mobileActions={<>
@@ -430,37 +473,70 @@ export default function IotDevicesPage() {
       <AppModal {...modal.modalProps} width={560}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={modal.formKey} {...modal.formProps}>
-            <Form.Select
-              field="productId" label="所属产品" placeholder="选择产品" style={{ width: '100%' }}
-              optionList={products.map((p) => ({ value: p.id, label: p.name }))}
-              rules={[{ required: true, message: '请选择所属产品' }]}
-            />
-            <Form.Input field="name" label="设备名称" placeholder="如：机房 A-01 温湿度"
-              rules={[{ required: true, message: '设备名称不能为空' }]} />
-            {!modal.editing && (
-              <Form.Input
-                field="sn" label="设备 SN" placeholder="留空自动生成"
-                extraText="仅字母、数字、连字符；一经接入不可变更"
-                rules={[{ validator: (_r, v: string) => !v || /^[0-9A-Za-z-]{4,64}$/.test(v), message: 'SN 为 4-64 位字母、数字或连字符' }]}
-              />
-            )}
-            <Form.Select
-              field="groupIds" label="所属分组" placeholder="选择分组（可多选）" multiple showClear style={{ width: '100%' }}
-              optionList={groups.map((g) => ({ value: g.id, label: g.name }))}
-            />
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Input field="firmwareVersion" label="固件版本" placeholder="如 1.0.0（选填）" />
-              </Col>
-              <Col span={12}>
-                <Form.RadioGroup field="status" label="状态">
-                  {statusItems.map((o) => (
-                    <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
-                  ))}
-                </Form.RadioGroup>
-              </Col>
-            </Row>
-            <Form.TextArea field="remark" label="备注" rows={2} placeholder="安装位置等说明（选填）" maxCount={256} />
+            {({ formState }) => {
+              const nodeType = (formState.values as Record<string, unknown>).nodeType as string | undefined;
+              return (
+                <>
+                  <Form.Select
+                    field="productId" label="所属产品" placeholder="选择产品" style={{ width: '100%' }}
+                    optionList={products.map((p) => ({ value: p.id, label: p.name }))}
+                    rules={[{ required: true, message: '请选择所属产品' }]}
+                  />
+                  <Form.Input field="name" label="设备名称" placeholder="如：机房 A-01 温湿度"
+                    rules={[{ required: true, message: '设备名称不能为空' }]} />
+                  {!modal.editing && (
+                    <Form.Input
+                      field="sn" label="设备 SN" placeholder="留空自动生成"
+                      extraText="仅字母、数字、连字符；一经接入不可变更"
+                      rules={[{ validator: (_r, v: string) => !v || /^[0-9A-Za-z-]{4,64}$/.test(v), message: 'SN 为 4-64 位字母、数字或连字符' }]}
+                    />
+                  )}
+                  <Form.RadioGroup field="nodeType" label="设备形态"
+                    extraText={nodeType === 'gateway' ? '网关可代理子设备接入（gateway:batch 帧）' : nodeType === 'sub' ? '子设备经网关代理接入，无需自己的连接与密钥' : undefined}>
+                    {IOT_NODE_TYPE_OPTIONS.map((o) => (
+                      <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
+                    ))}
+                  </Form.RadioGroup>
+                  {nodeType === 'sub' && (
+                    <Form.Select
+                      field="gatewayId" label="所属网关" placeholder="选择网关设备" style={{ width: '100%' }}
+                      optionList={gatewayOptions}
+                      rules={[{ required: true, message: '子设备必须指定所属网关' }]}
+                      emptyContent="暂无网关设备（先注册形态为「网关」的设备）"
+                    />
+                  )}
+                  <Form.Select
+                    field="groupIds" label="所属分组" placeholder="选择分组（可多选）" multiple showClear style={{ width: '100%' }}
+                    optionList={groups.map((g) => ({ value: g.id, label: g.name }))}
+                  />
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.InputNumber field="latitude" label="纬度" hideButtons style={{ width: '100%' }}
+                        min={-90} max={90} placeholder="如 39.9087（选填）" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.InputNumber field="longitude" label="经度" hideButtons style={{ width: '100%' }}
+                        min={-180} max={180} placeholder="如 116.3975（选填）" />
+                    </Col>
+                  </Row>
+                  <Form.Input field="address" label="安装地址" placeholder="如：北京市东城区 A 栋机房（选填）"
+                    extraText="填写经纬度后设备将出现在「设备地图」中" />
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="firmwareVersion" label="固件版本" placeholder="如 1.0.0（选填）" />
+                    </Col>
+                    <Col span={12}>
+                      <Form.RadioGroup field="status" label="状态">
+                        {statusItems.map((o) => (
+                          <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
+                        ))}
+                      </Form.RadioGroup>
+                    </Col>
+                  </Row>
+                  <Form.TextArea field="remark" label="备注" rows={2} placeholder="安装位置等说明（选填）" maxCount={256} />
+                </>
+              );
+            }}
           </Form>
         </Spin>
       </AppModal>

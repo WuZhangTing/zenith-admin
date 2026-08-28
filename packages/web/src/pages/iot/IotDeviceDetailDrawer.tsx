@@ -15,19 +15,20 @@ import { abortSubmit } from '@/lib/abort-submit';
 import {
   IOT_ACCESS_MODE_LABELS, IOT_COMMAND_STATUS_LABELS, IOT_DEVICE_EVENT_KIND_LABELS,
   IOT_DEVICE_EVENT_KIND_OPTIONS, IOT_EVENT_LEVEL_LABELS, IOT_EVENT_LEVEL_OPTIONS,
-  IOT_PROPERTY_TYPE_LABELS,
+  IOT_LOG_LEVEL_LABELS, IOT_LOG_LEVEL_OPTIONS, IOT_PROPERTY_TYPE_LABELS,
 } from '@zenith/shared/iot';
 import type {
-  IotCommand, IotDevice, IotDeviceEvent, IotDeviceShadow, IotMetricValue, IotParamDef,
+  IotCommand, IotDevice, IotDeviceEvent, IotDeviceLog, IotDeviceShadow, IotMetricValue, IotParamDef,
   IotProductProperty, IotProductService,
 } from '@zenith/shared/iot';
 import {
   iotDeviceEventKeys, iotShadowKeys, iotTelemetryKeys,
-  useClearIotDesired, useIotCommands, useIotDeviceEvents, useIotDeviceShadow,
+  useClearIotDesired, useIotCommands, useIotDeviceEvents, useIotDeviceLogs, useIotDeviceShadow,
   useIotTelemetry, useIotTelemetryAgg, useResetIotDeviceSecret, useSendIotCommand, useSetIotDesired,
 } from '@/hooks/queries/iot-devices';
 import { useIotThingModel } from '@/hooks/queries/iot-products';
 import { useWebSocket, useWsConnected } from '@/hooks/useWebSocket';
+import IotTopologyView from './IotTopologyView';
 
 const { Text } = Typography;
 
@@ -40,6 +41,10 @@ const COMMAND_STATUS_COLORS = {
 } as const satisfies Record<IotCommand['status'], string>;
 
 const EVENT_LEVEL_COLORS = { info: 'blue', warn: 'orange', fault: 'red' } as const;
+
+const EVENT_KIND_COLORS = { lifecycle: 'grey', model: 'cyan', anomaly: 'purple' } as const;
+
+const LOG_LEVEL_COLORS = { debug: 'grey', info: 'blue', warn: 'orange', error: 'red' } as const;
 
 function formatValue(v: IotMetricValue | undefined, unit?: string | null): string {
   if (v === undefined) return EMPTY_PLACEHOLDER;
@@ -357,7 +362,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
     {
       title: '类型', dataIndex: 'kind', width: 90,
       render: (v: IotDeviceEvent['kind']) => (
-        <Tag size="small" color={v === 'lifecycle' ? 'grey' : 'cyan'}>{IOT_DEVICE_EVENT_KIND_LABELS[v]}</Tag>
+        <Tag size="small" color={EVENT_KIND_COLORS[v]}>{IOT_DEVICE_EVENT_KIND_LABELS[v]}</Tag>
       ),
     },
     {
@@ -377,6 +382,35 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
       render: (v: Record<string, unknown> | null) => v && Object.keys(v).length > 0
         ? <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{JSON.stringify(v)}</Text>
         : EMPTY_PLACEHOLDER,
+    },
+  ];
+
+  // ─── 设备日志（五期）─────────────────────────────────────────────────────────
+  const [logPage, setLogPage] = useState(1);
+  const [logLevel, setLogLevel] = useState<string>('');
+  const logsQuery = useIotDeviceLogs(deviceId, {
+    page: logPage,
+    pageSize: 10,
+    level: logLevel || undefined,
+  });
+
+  const logColumns: ColumnProps<IotDeviceLog>[] = [
+    dateTimeColumn<IotDeviceLog>('时间', 'reportedAt'),
+    {
+      title: '级别', dataIndex: 'level', width: 80,
+      render: (v: IotDeviceLog['level']) => (
+        <Tag size="small" color={LOG_LEVEL_COLORS[v]}>{IOT_LOG_LEVEL_LABELS[v]}</Tag>
+      ),
+    },
+    {
+      title: '模块', dataIndex: 'tag', width: 100,
+      render: (v: string | null) => v ? <Text size="small" code>{v}</Text> : EMPTY_PLACEHOLDER,
+    },
+    {
+      title: '内容', dataIndex: 'content',
+      render: (v: string) => (
+        <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 380, fontFamily: 'var(--semi-font-family-mono, monospace)' }}>{v}</Text>
+      ),
     },
   ];
 
@@ -594,6 +628,39 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
                 }}
               />
             </TabPane>
+
+            <TabPane tab="设备日志" itemKey="logs">
+              <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
+                <Select
+                  placeholder="全部级别" showClear style={{ width: 140 }}
+                  value={logLevel || undefined}
+                  onChange={(v) => { setLogLevel((v as string) ?? ''); setLogPage(1); }}
+                  optionList={IOT_LOG_LEVEL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                />
+              </div>
+              <Table
+                columns={logColumns}
+                dataSource={logsQuery.data?.list ?? []}
+                rowKey="id"
+                size="small"
+                loading={logsQuery.isFetching}
+                empty="暂无设备日志（设备侧通过 log 帧 / POST /api/iot/ingest/logs 上报）"
+                pagination={{
+                  currentPage: logPage,
+                  pageSize: 10,
+                  total: logsQuery.data?.total ?? 0,
+                  onPageChange: setLogPage,
+                }}
+              />
+            </TabPane>
+
+            {device.nodeType === 'gateway' && (
+              <TabPane tab={`拓扑（${device.subDeviceCount ?? 0}）`} itemKey="topology">
+                <div style={{ marginTop: 8 }}>
+                  <IotTopologyView deviceId={device.id} />
+                </div>
+              </TabPane>
+            )}
           </Tabs>
 
           {/* 单属性期望值下发 */}

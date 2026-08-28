@@ -6,6 +6,7 @@ import iotGroupsRoutes from './iot-groups';
 import iotBatchRoutes from './batch';
 import { iotAlarmsRouter, iotAlarmRulesRouter } from './iot-alarms';
 import { iotAutomationsRouter } from './iot-automations';
+import { iotForwardRulesRouter } from './iot-forwards';
 import { iotDashboardRouter, iotFirmwaresRouter, iotOtaTasksRouter } from './iot-ota';
 import ingestRoutes from './ingest';
 import { createIotWsRoute } from './ws';
@@ -21,6 +22,7 @@ export default defineRouteDomain({
     ['/api/iot/alarms', iotAlarmsRouter],
     ['/api/iot/alarm-rules', iotAlarmRulesRouter],
     ['/api/iot/automations', iotAutomationsRouter],
+    ['/api/iot/forward-rules', iotForwardRulesRouter],
     ['/api/iot/firmwares', iotFirmwaresRouter],
     ['/api/iot/ota-tasks', iotOtaTasksRouter],
     // 设备侧接入通道（HMAC 鉴权，无管理端 token）

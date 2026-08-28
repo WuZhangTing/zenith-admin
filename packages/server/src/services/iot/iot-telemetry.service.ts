@@ -28,6 +28,8 @@ import { loadThingModel } from './iot-model.service';
 import { mergeIotReported } from './iot-shadow.service';
 import { evaluateIotThresholdRules } from './iot-alarms.service';
 import { evaluateIotAutomationsOnTelemetry } from './iot-automations.service';
+import { evaluateIotAnomalies } from './iot-anomaly.service';
+import { dispatchIotForward } from './iot-forward.service';
 import { pushIotRealtime } from './iot-realtime';
 
 // ─── 遥测 ─────────────────────────────────────────────────────────────────────
@@ -118,6 +120,12 @@ export async function ingestTelemetry(device: IotDeviceRow, input: IotTelemetryI
         logger.warn(`[iot] 场景联动判定失败 deviceId=${device.id}: ${(err as Error).message}`);
       });
     }
+    // 遥测异常检测（3σ 基线；失败静默、去抖在服务内）
+    await evaluateIotAnomalies(device, merged);
+    // 数据流转（fire-and-forget，按最新合并快照推一帧）
+    dispatchIotForward('telemetry', device, {
+      deviceId: device.id, sn: device.sn, metrics: merged, reportedAt: formatDateTime(latestAt),
+    });
   }
   await touchDevice(device, { firmwareVersion: input.firmwareVersion });
   return rows.length;

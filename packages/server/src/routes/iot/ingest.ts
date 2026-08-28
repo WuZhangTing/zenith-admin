@@ -9,11 +9,14 @@ import { HTTPException } from 'hono/http-exception';
 import type { z } from 'zod';
 import {
   IOT_SN_HEADER, IOT_TIMESTAMP_HEADER, IOT_SIGN_HEADER,
-  iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema, iotOtaProgressSchema,
+  iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
+  iotGatewayBatchSchema, iotGatewayEventSchema, iotLogIngestSchema, iotOtaProgressSchema,
 } from '@zenith/shared/iot';
 import { authenticateDevice, touchDevice } from '../../services/iot/iot-access.service';
 import { ingestTelemetry, pullPendingCommands, ackIotCommand } from '../../services/iot/iot-telemetry.service';
 import { ingestIotDeviceEvents } from '../../services/iot/iot-events.service';
+import { ingestIotDeviceLogs } from '../../services/iot/iot-device-logs.service';
+import { ingestGatewayBatch, ingestGatewayEvent } from '../../services/iot/iot-topology.service';
 import { getIotDesiredPayload } from '../../services/iot/iot-shadow.service';
 import { ensureOtaDownloadAllowed, getPendingOtaPayload, reportIotOtaProgress } from '../../services/iot/iot-ota.service';
 import { getFileAccessUrl } from '../../services/files/files.service';
@@ -62,6 +65,30 @@ ingestRouter.post('/events', async (c) => {
   const count = await ingestIotDeviceEvents(device, data);
   await touchDevice(device);
   return c.json(okBody({ accepted: count }));
+});
+
+/** POST /logs — 批量上报设备运行日志 */
+ingestRouter.post('/logs', async (c) => {
+  const { device, data } = await authAndParse(c, iotLogIngestSchema);
+  const count = await ingestIotDeviceLogs(device, data);
+  await touchDevice(device);
+  return c.json(okBody({ accepted: count }));
+});
+
+/** POST /gateway/telemetry — 网关批量代理子设备遥测（网关身份签名，子设备免密） */
+ingestRouter.post('/gateway/telemetry', async (c) => {
+  const { device, data } = await authAndParse(c, iotGatewayBatchSchema);
+  const result = await ingestGatewayBatch(device, data);
+  await touchDevice(device);
+  return c.json(okBody(result));
+});
+
+/** POST /gateway/events — 网关代理子设备事件 */
+ingestRouter.post('/gateway/events', async (c) => {
+  const { device, data } = await authAndParse(c, iotGatewayEventSchema);
+  const accepted = await ingestGatewayEvent(device, data);
+  await touchDevice(device);
+  return c.json(okBody({ accepted: accepted ? 1 : 0, rejected: accepted ? 0 : 1 }));
 });
 
 /** POST /heartbeat — 心跳（body 可为空对象），响应携带待执行指令、期望属性与待升级固件 */

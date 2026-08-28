@@ -775,6 +775,24 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     defaultDays: 90,
     description: 'IoT 场景联动的执行留痕（触发上下文与动作结果）；联动列表的近 24h 触发计数只查最近窗口，超期记录可安全清理。',
   },
+  {
+    key: 'iot_forward_logs',
+    title: 'IoT 数据流转投递日志',
+    module: 'IoT 设备',
+    tableName: 'iot_forward_logs',
+    timeColumn: 'created_at',
+    defaultDays: 30,
+    description: 'IoT 数据流转的逐条投递留痕（载荷/响应码/耗时）；规则列表的近 24h 投递数只查最近窗口，超期日志可安全清理。',
+  },
+  {
+    key: 'iot_device_logs',
+    title: 'IoT 设备运行日志',
+    module: 'IoT 设备',
+    tableName: 'iot_device_logs',
+    timeColumn: 'reported_at',
+    defaultDays: 30,
+    description: 'IoT 设备上报的运行日志（调试/诊断用途）；追加型高频写入，超期日志可安全清理。',
+  },
 ];
 
 export function findPolicy(key: string): RetentionPolicyDefinition | undefined {
