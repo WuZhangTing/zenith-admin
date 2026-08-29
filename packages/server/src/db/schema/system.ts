@@ -253,6 +253,8 @@ export const userFeedbacks = pgTable('user_feedbacks', {
   content:      varchar('content', { length: 1000 }),
   /** 提交时所在页面路由，便于定位问题来源 */
   pagePath:     varchar('page_path', { length: 200 }),
+  /** 提交时活跃的会话回放 ID（反馈联动：管理员可直接回看用户操作现场） */
+  replayId:     varchar('replay_id', { length: 36 }),
   status:       userFeedbackStatusEnum('status').notNull().default('pending'),
   handleRemark: varchar('handle_remark', { length: 500 }),
   handledBy:    integer('handled_by').references(() => users.id, { onDelete: 'set null' }),

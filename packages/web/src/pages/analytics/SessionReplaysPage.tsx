@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Descriptions, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Descriptions, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import type { ReplaySession, ReplayTriggerType } from '@zenith/shared/analytics';
@@ -27,9 +27,10 @@ interface SearchParams {
   triggerType: string;
   source: string;
   keyword: string;
+  hasError: boolean;
 }
 
-const defaultSearchParams: SearchParams = { status: '', triggerType: '', source: '', keyword: '' };
+const defaultSearchParams: SearchParams = { status: '', triggerType: '', source: '', keyword: '', hasError: false };
 const EMPTY_LIST: ReplaySession[] = [];
 
 const STATUS_META = {
@@ -92,6 +93,7 @@ export default function SessionReplaysPage() {
     triggerType: submittedParams.triggerType || undefined,
     source: submittedParams.source || undefined,
     keyword: submittedParams.keyword || undefined,
+    hasError: submittedParams.hasError || undefined,
   });
   const list = listQuery.data?.list ?? EMPTY_LIST;
   const total = listQuery.data?.total ?? 0;
@@ -211,6 +213,12 @@ export default function SessionReplaysPage() {
           onSearch={handleSearch}
           width={220}
         />
+        <Checkbox
+          checked={draftParams.hasError}
+          onChange={(e) => setDraftParams((prev) => ({ ...prev, hasError: Boolean(e.target.checked) }))}
+        >
+          仅看有错误
+        </Checkbox>
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {selectedRowKeys.length > 0 && (
@@ -263,7 +271,7 @@ export default function SessionReplaysPage() {
               })}
             </Space>
 
-            <ReplayPlayer replayId={detail.id} segments={detail.segments} />
+            <ReplayPlayer replayId={detail.id} segments={detail.segments} errors={detail.errors} startedAt={detail.startedAt} />
 
             {detail.errors.length > 0 && (
               <div>

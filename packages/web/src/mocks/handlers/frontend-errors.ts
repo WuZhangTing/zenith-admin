@@ -74,6 +74,7 @@ function buildEvents(groupId: number, n: number): ErrorEvent[] {
     appId: 'admin',
     environment: 'production' as const,
     memberId: null,
+    replayId: i === 0 ? '11111111-1111-4111-8111-111111111111' : null,
     createdAt: mockDateTimeOffset(-i * 3600000),
   }));
 }

@@ -13,7 +13,7 @@ import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { addBreadcrumb } from './breadcrumbs';
 import { configureErrorReporting, configureErrorReporterRuntime, reportError } from './error-reporter';
 import { analyticsRequestHeaders } from './http';
-import { applyReplayConfig, configureReplayRuntime, stopReplay } from './replay';
+import { applyReplayConfig, configureReplayRuntime, notifyReplayTrigger, stopReplay } from './replay';
 import type { AnalyticsRuntimeBaseConfig } from './runtime-config';
 
 const FLUSH_INTERVAL_MS = 15_000;
@@ -645,6 +645,8 @@ class Tracker {
           properties: { clicks: RAGE_CLICK_THRESHOLD, windowMs: RAGE_CLICK_WINDOW_MS },
         });
         addBreadcrumb({ type: 'custom', message: `rage click: ${label || key}`, level: 'warning' });
+        // 暴躁点击是强挫败信号：触发回放缓冲上传（buffer→streaming）
+        notifyReplayTrigger('rage_click', key.slice(0, 128));
       }
     } else {
       this.rageState = { key, count: 1, lastTs: now };

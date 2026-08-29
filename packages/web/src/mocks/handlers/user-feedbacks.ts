@@ -34,6 +34,7 @@ export const userFeedbacksHandlers = [
       category?: UserFeedbackCategory;
       content?: string | null;
       pagePath?: string | null;
+      replayId?: string | null;
     };
     const now = mockDateTime();
     const newFeedback: UserFeedback = {
@@ -44,6 +45,7 @@ export const userFeedbacksHandlers = [
       category: body.category ?? 'suggestion',
       content: body.content?.trim() || null,
       pagePath: body.pagePath ?? null,
+      replayId: body.replayId ?? null,
       status: 'pending',
       handleRemark: null,
       handledBy: null,

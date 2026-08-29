@@ -631,6 +631,8 @@ export interface UserFeedback {
   content: string | null;
   /** 提交时所在页面路由 */
   pagePath: string | null;
+  /** 提交时活跃的会话回放 ID（反馈联动） */
+  replayId: string | null;
   status: UserFeedbackStatus;
   handleRemark: string | null;
   handledBy: number | null;

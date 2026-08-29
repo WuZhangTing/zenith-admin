@@ -159,6 +159,11 @@ export default function FeedbacksPage() {
       width: 130,
       desktopInlineKeys: ['handle', 'delete'],
       actions: (record) => [
+        ...(record.replayId && hasPermission('monitor:replay:list') ? [{
+          key: 'replay',
+          label: '查看回放',
+          onClick: () => navigate(`/analytics/replays?replay=${encodeURIComponent(record.replayId!)}`),
+        }] : []),
         ...(hasPermission('system:feedback:handle') ? [{
           key: 'handle',
           label: '处理',

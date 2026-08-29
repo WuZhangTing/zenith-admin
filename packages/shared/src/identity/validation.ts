@@ -429,6 +429,8 @@ export const createUserFeedbackSchema = z.object({
   category: z.enum(['suggestion', 'bug', 'ux', 'other']).default('suggestion'),
   content: z.string().max(1000, '反馈内容不能超过 1000 字').nullable().optional(),
   pagePath: z.string().max(200).nullable().optional(),
+  /** 提交时活跃的会话回放 ID（SDK 联动附带） */
+  replayId: z.string().uuid().nullable().optional(),
 }).refine((v) => v.score != null || (v.content != null && v.content.trim() !== ''), {
   message: '评分与反馈内容至少填写一项',
   path: ['content'],

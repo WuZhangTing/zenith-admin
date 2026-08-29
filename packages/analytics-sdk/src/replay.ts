@@ -57,6 +57,7 @@ type Phase = 'idle' | 'buffering' | 'streaming';
 
 let phase: Phase = 'idle';
 let stopRecording: (() => void) | null = null;
+let addCustomEventFn: ((tag: string, payload: unknown) => void) | null = null;
 let replayId: string | null = null;
 let replaySessionId = '';
 let startedAtMs = 0;
@@ -147,6 +148,9 @@ async function startRecording(mode: 'buffer' | 'stream', sessionId: string, init
     ({ record } = await import('rrweb'));
   } catch { return; }
   if (!activeConfig?.trackReplay) return; // 异步加载期间配置可能已关闭
+  addCustomEventFn = (tag, payload) => {
+    try { record.addCustomEvent(tag, payload); } catch { /* ignore */ }
+  };
 
   replaySessionId = sessionId;
   replayId = uuid();
@@ -215,6 +219,17 @@ export function notifyReplayTrigger(type: ReplayTriggerType, refId?: string): st
 /** 手动开始持续录制（如反馈联动场景）；buffer 模式下等价触发 manual */
 export function startManualReplay(): string | null {
   return notifyReplayTrigger('manual');
+}
+
+/**
+ * 向录制流写入自定义事件（rrweb EventType.Custom）：
+ * 行为面包屑（导航/点击/HTTP/console）经此进入回放时间轴，播放器据此渲染打点。
+ */
+export function addReplayCustomEvent(tag: string, payload: unknown): void {
+  try {
+    if (phase === 'idle') return;
+    addCustomEventFn?.(tag, payload);
+  } catch { /* ignore */ }
 }
 
 function startFlushLoop(): void {
@@ -325,6 +340,7 @@ async function teardown(sendFinal: boolean): Promise<void> {
     stopRecording?.();
   } catch { /* ignore */ } finally {
     stopRecording = null;
+    addCustomEventFn = null;
     phase = 'idle';
     replayId = null;
     bufferWindows = [];

@@ -34,6 +34,8 @@ export interface SubmitFeedbackValues {
   category: UserFeedbackCategory;
   content?: string | null;
   pagePath?: string | null;
+  /** 提交时活跃的会话回放 ID（SDK 联动） */
+  replayId?: string | null;
 }
 
 /** 提交意见反馈（所有登录用户可用） */

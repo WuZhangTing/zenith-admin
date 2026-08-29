@@ -12,6 +12,7 @@ export const UserFeedbackDTO = z
     category: z.enum(['suggestion', 'bug', 'ux', 'other']),
     content: z.string().nullable().openapi({ example: '希望增加深色模式的自动切换' }),
     pagePath: z.string().nullable().openapi({ example: '/system/users' }),
+    replayId: z.string().nullable(),
     status: z.enum(['pending', 'processing', 'resolved', 'ignored']),
     handleRemark: z.string().nullable(),
     handledBy: z.number().int().nullable(),

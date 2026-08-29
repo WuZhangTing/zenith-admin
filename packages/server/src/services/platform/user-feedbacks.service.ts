@@ -26,6 +26,7 @@ export function mapUserFeedback(row: UserFeedbackWithUsers) {
     category: row.category,
     content: row.content ?? null,
     pagePath: row.pagePath ?? null,
+    replayId: row.replayId ?? null,
     status: row.status,
     handleRemark: row.handleRemark ?? null,
     handledBy: row.handledBy ?? null,
@@ -47,6 +48,7 @@ export interface CreateUserFeedbackData {
   category: UserFeedbackCategory;
   content?: string | null;
   pagePath?: string | null;
+  replayId?: string | null;
 }
 
 export async function createUserFeedback(data: CreateUserFeedbackData) {
@@ -57,6 +59,7 @@ export async function createUserFeedback(data: CreateUserFeedbackData) {
     category: data.category,
     content: data.content?.trim() || null,
     pagePath: data.pagePath ?? null,
+    replayId: data.replayId ?? null,
   }).returning();
   return mapUserFeedback(created);
 }
