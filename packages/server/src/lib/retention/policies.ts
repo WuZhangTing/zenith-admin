@@ -334,6 +334,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '页面点击热力聚合的坐标事实表（与回放会话解耦，回放删除后热力仍可累计分析）。',
   },
   {
+    key: 'replay_access_logs',
+    title: '回放访问审计',
+    module: '数据分析',
+    tableName: 'replay_access_logs',
+    timeColumn: 'created_at',
+    defaultDays: 180,
+    description: '回放查看行为的合规留痕（谁在什么时候查看了谁的操作录像）。',
+  },
+  {
     key: 'analytics_event_quality_daily',
     title: '埋点质量日聚合',
     module: '数据分析',

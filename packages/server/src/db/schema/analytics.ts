@@ -704,6 +704,28 @@ export const replayClickPoints = pgTable('replay_click_points', {
 
 export type ReplayClickPointRow = typeof replayClickPoints.$inferSelect;
 
+// 回放访问审计：谁在什么时候查看了谁的操作录像（合规留痕，读操作专表）
+export const replayAccessLogs = pgTable('replay_access_logs', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  replayId: varchar('replay_id', { length: 36 }).notNull(),
+  /** 回放归属（被查看用户的展示名，冗余存储避免回放删除后审计失联） */
+  replayOwner: varchar('replay_owner', { length: 64 }),
+  userId: integer('user_id').notNull(),
+  username: varchar('username', { length: 64 }),
+  /** view=打开详情（含实时旁观，10 分钟去重） */
+  action: varchar('action', { length: 16 }).notNull().default('view'),
+  ip: varchar('ip', { length: 64 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('replay_access_logs_replay_idx').on(t.replayId),
+  index('replay_access_logs_user_idx').on(t.userId),
+  index('replay_access_logs_created_idx').on(t.createdAt),
+  index('replay_access_logs_tenant_idx').on(t.tenantId),
+]);
+
+export type ReplayAccessLogRow = typeof replayAccessLogs.$inferSelect;
+
 // ─── 行为中心阶段 1：分群成员物化快照（系统派生，定时任务重算）─────────────────
 export const analyticsSegmentMembers = pgTable('analytics_segment_members', {
   id: serial('id').primaryKey(),

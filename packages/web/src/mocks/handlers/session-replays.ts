@@ -80,6 +80,12 @@ export const sessionReplaysHandlers = [
     ],
     total: 67,
   })),
+  http.get('/api/session-replays/access-logs', ({ request }) => {
+    const url = new URL(request.url);
+    return ok(paginate([
+      { id: 1, replayId: '11111111-1111-4111-8111-111111111111', replayOwner: '管理员', userId: 1, username: '管理员', action: 'view', ip: '127.0.0.1', createdAt: mockDateTimeOffset(-1800_000) },
+    ], url));
+  }),
   http.get('/api/session-replays', ({ request }) => {
     const url = new URL(request.url);
     return ok(paginate(sessions, url));

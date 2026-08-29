@@ -58,6 +58,27 @@ export function useClickHeatmap(pagePath: string, days: number, enabled = true) 
   });
 }
 
+export interface ReplayAccessLog {
+  id: number;
+  replayId: string;
+  replayOwner: string | null;
+  userId: number;
+  username: string | null;
+  action: string;
+  ip: string | null;
+  createdAt: string;
+}
+
+/** 回放访问审计（manage 权限） */
+export function useReplayAccessLogs(params: { page: number; pageSize: number; keyword?: string }, enabled = true) {
+  return useQuery({
+    queryKey: ['session-replays', 'access-logs', params] as const,
+    queryFn: () => request.get<PaginatedResponse<ReplayAccessLog>>(`/api/session-replays/access-logs${toQueryString(params)}`).then(unwrap),
+    placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
 export function useReplayList(params: ReplayListParams) {
   return useQuery({
     queryKey: replayKeys.list(params),

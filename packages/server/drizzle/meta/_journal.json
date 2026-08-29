@@ -421,6 +421,13 @@
       "when": 1788023537492,
       "tag": "0059_classy_edwin_jarvis",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788046354960,
+      "tag": "0060_tranquil_metal_master",
+      "breakpoints": true
     }
   ]
 }

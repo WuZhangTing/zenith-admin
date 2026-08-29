@@ -11,8 +11,9 @@ import {
 import { ReplaySessionDTO, ReplaySessionDetailDTO } from '../../lib/openapi-dtos';
 import {
   ingestReplaySegment, listReplaySessions, getReplaySessionDetail, getReplaySegmentData, deleteReplaySessions,
-  getReplayStorageStats, listHeatmapPages, getClickHeatmap, REPLAY_SEGMENT_MAX_BYTES,
+  getReplayStorageStats, listHeatmapPages, getClickHeatmap, listReplayAccessLogs, REPLAY_SEGMENT_MAX_BYTES,
 } from '../../services/analytics/session-replays.service';
+import { getClientIp } from '../../lib/request-helpers';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -144,7 +145,41 @@ const detailRoute = defineOpenAPIRoute({
     request: { params: IdParamStr },
     responses: { ...ok(ReplaySessionDetailDTO, '回放详情'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await getReplaySessionDetail(c.req.valid('param').id)), 200),
+  handler: async (c) => c.json(okBody(await getReplaySessionDetail(c.req.valid('param').id, getClientIp(c))), 200),
+});
+
+const AccessLogDTO = z
+  .object({
+    id: z.number().int(),
+    replayId: z.string(),
+    replayOwner: z.string().nullable(),
+    userId: z.number().int(),
+    username: z.string().nullable(),
+    action: z.string(),
+    ip: z.string().nullable(),
+    createdAt: z.string(),
+  })
+  .openapi('ReplayAccessLog');
+
+const accessLogsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/access-logs', tags: ['SessionReplays'], summary: '回放访问审计（谁查看了谁的录像）', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'monitor:replay:manage' })] as const,
+    request: {
+      query: PaginationQuery.extend({
+        replayId: z.string().uuid().optional(),
+        keyword: z.string().optional(),
+      }),
+    },
+    responses: { ...okPaginated(AccessLogDTO, '审计列表'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const q = c.req.valid('query');
+    return c.json(okBody(await listReplayAccessLogs({
+      page: q.page, pageSize: q.pageSize,
+      replayId: q.replayId, keyword: q.keyword || undefined,
+    })), 200);
+  },
 });
 
 const segmentDataRoute = defineOpenAPIRoute({
@@ -182,6 +217,6 @@ const batchDeleteRoute = defineOpenAPIRoute({
   },
 });
 
-r.openapiRoutes([ingestRoute, listRoute, statsRoute, heatmapPagesRoute, heatmapRoute, batchDeleteRoute, detailRoute, segmentDataRoute] as const);
+r.openapiRoutes([ingestRoute, listRoute, statsRoute, heatmapPagesRoute, heatmapRoute, accessLogsRoute, batchDeleteRoute, detailRoute, segmentDataRoute] as const);
 
 export default r;

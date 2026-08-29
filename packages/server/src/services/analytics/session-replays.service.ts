@@ -12,7 +12,7 @@ import { and, eq, desc, sql, inArray, isNull, lt, gte } from 'drizzle-orm';
 import { gzipSync } from 'node:zlib';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { replaySessions, replaySegments, replayClickPoints, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
+import { replaySessions, replaySegments, replayClickPoints, replayAccessLogs, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
 import type { ReplaySessionRow, ReplaySegmentRow } from '../../db/schema';
 import type { ReplaySegmentMetaInput } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
@@ -195,12 +195,10 @@ export async function ingestReplaySegment(meta: ReplaySegmentMetaInput, data: Bu
         })
         .where(eq(replaySessions.id, meta.replayId));
       // 页面点击热力事实表（与会话解耦，best-effort）
-      if (meta.clickPoints.length > 0) {
+      const heatPoints = meta.clickPoints.filter((p) => p.path).slice(0, 100);
+      if (heatPoints.length > 0) {
         await tx.insert(replayClickPoints).values(
-          meta.clickPoints
-            .filter((p) => p.path)
-            .slice(0, 100)
-            .map((p) => ({ tenantId, pagePath: p.path, xPct: p.x, yPct: p.y, source: platform.source })),
+          heatPoints.map((p) => ({ tenantId, pagePath: p.path, xPct: p.x, yPct: p.y, source: platform.source })),
         ).onConflictDoNothing();
       }
       bumpUsageCache(tenantId, data.byteLength);
@@ -362,6 +360,69 @@ export async function getClickHeatmap(pagePath: string, days: number) {
   return { points: rows, total };
 }
 
+// ─── 访问审计（合规留痕）──────────────────────────────────────────────────────
+/**
+ * 记录回放查看行为（best-effort 异步，不阻塞查看）。
+ * 同一用户对同一回放 10 分钟内去重——实时旁观的 3s 轮询不会刷屏审计。
+ */
+export function recordReplayAccess(replay: { id: string; tenantId: number | null; username: string | null; memberId: number | null }, ip: string | null): void {
+  const user = currentUserOrNull();
+  if (!user) return;
+  void (async () => {
+    const cutoff = new Date(Date.now() - 10 * 60_000);
+    const [recent] = await db
+      .select({ id: replayAccessLogs.id })
+      .from(replayAccessLogs)
+      .where(and(
+        eq(replayAccessLogs.replayId, replay.id),
+        eq(replayAccessLogs.userId, user.userId),
+        gte(replayAccessLogs.createdAt, cutoff),
+      ))
+      .limit(1);
+    if (recent) return;
+    await db.insert(replayAccessLogs).values({
+      tenantId: replay.tenantId,
+      replayId: replay.id,
+      replayOwner: replay.username ?? (replay.memberId ? `会员#${replay.memberId}` : '匿名'),
+      userId: user.userId,
+      username: user.username ?? null,
+      action: 'view',
+      ip,
+    });
+  })().catch(() => { /* 审计留痕失败不影响查看 */ });
+}
+
+export async function listReplayAccessLogs(query: { page: number; pageSize: number; replayId?: string; keyword?: string }) {
+  const conditions = [
+    query.replayId ? eq(replayAccessLogs.replayId, query.replayId) : undefined,
+    query.keyword
+      ? sql`(${replayAccessLogs.username} ILIKE ${`%${query.keyword}%`} OR ${replayAccessLogs.replayOwner} ILIKE ${`%${query.keyword}%`} OR ${replayAccessLogs.replayId} = ${query.keyword})`
+      : undefined,
+  ];
+  const where = mergeWhere(tenantScope(replayAccessLogs), and(...conditions.filter(Boolean)));
+  const [rows, [{ total }]] = await Promise.all([
+    db.select().from(replayAccessLogs).where(where)
+      .orderBy(desc(replayAccessLogs.createdAt))
+      .limit(query.pageSize).offset(pageOffset(query.page, query.pageSize)),
+    db.select({ total: sql<number>`count(*)::int` }).from(replayAccessLogs).where(where),
+  ]);
+  return {
+    list: rows.map((r) => ({
+      id: r.id,
+      replayId: r.replayId,
+      replayOwner: r.replayOwner,
+      userId: r.userId,
+      username: r.username,
+      action: r.action,
+      ip: r.ip,
+      createdAt: formatDateTime(r.createdAt),
+    })),
+    total,
+    page: query.page,
+    pageSize: query.pageSize,
+  };
+}
+
 /** 错误上报到达时回填回放会话的错误计数（错误服务调用） */
 export async function bumpReplayErrorCount(replayId: string): Promise<void> {
   await db
@@ -416,10 +477,12 @@ export async function listReplaySessions(query: ReplayListQuery) {
   return { list: rows.map(mapReplaySession), total, page: query.page, pageSize: query.pageSize };
 }
 
-export async function getReplaySessionDetail(id: string) {
+export async function getReplaySessionDetail(id: string, accessIp?: string | null) {
   const where = mergeWhere(tenantScope(replaySessions), eq(replaySessions.id, id));
   const [row] = await db.select().from(replaySessions).where(where).limit(1);
   if (!row) throw new HTTPException(404, { message: '回放会话不存在' });
+  // 合规留痕：谁查看了这条录像（best-effort，10 分钟去重覆盖 live 轮询）
+  recordReplayAccess({ id: row.id, tenantId: row.tenantId, username: row.username, memberId: row.memberId }, accessIp ?? null);
 
   const endBound = row.endedAt ?? row.lastActivityAt;
   const [segments, errors, perfRows, siblingRows] = await Promise.all([

@@ -11,6 +11,7 @@ import type { ReplaySession, ReplayTriggerType } from '@zenith/shared/analytics'
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ReplayPlayer from '@/components/ReplayPlayer';
 import ReplayHeatmapTab from './ReplayHeatmapTab';
+import ReplayAccessLogsTab from './ReplayAccessLogsTab';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -20,6 +21,7 @@ import { formatBytesMb } from '@/utils/format';
 import { confirmDelete } from '@/utils/confirm';
 import { exportReplayHtml } from '@/utils/replay-export';
 import { useListSearch } from '@/hooks/useListSearch';
+import { usePermission } from '@/hooks/usePermission';
 import { StatCard, StatGrid } from '@/components/charts';
 import { replayKeys, useBatchDeleteReplays, useReplayDetail, useReplayList, useReplayStorageStats } from '@/hooks/queries/session-replays';
 
@@ -83,6 +85,7 @@ function formatDuration(ms: number): string {
 
 export default function SessionReplaysPage() {
   const navigate = useNavigate();
+  const { hasPermission } = usePermission();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     page, pageSize, buildPagination,
@@ -295,6 +298,11 @@ export default function SessionReplaysPage() {
         <TabPane tab="点击热力" itemKey="heatmap">
           <ReplayHeatmapTab />
         </TabPane>
+        {hasPermission('monitor:replay:manage') && (
+          <TabPane tab="访问审计" itemKey="audit">
+            <ReplayAccessLogsTab onOpenReplay={setDetailId} />
+          </TabPane>
+        )}
       </Tabs>
 
       <SideSheet
