@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Card, Empty, List, Space, Spin, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Card, Empty, List, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   Activity, Container, Cpu, FileText, Flame, Globe, HardDrive as DiskIcon,
   Lock, MemoryStick, Monitor, Network, Settings, Shield, TerminalSquare, Wifi,
 } from 'lucide-react';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { RefreshButton } from '@/components/toolbar-controls';
+import PageLoading from '@/components/PageLoading';
 import { formatBytesGb } from '@/utils/format';
 import { useOpsOverview, type OpsOverview, type OpsOverviewSection } from '@/hooks/queries/ops-overview';
 
@@ -158,13 +159,15 @@ export default function OpsOverviewPage() {
   const capabilityRows = useMemo(() => (data ? buildCapabilityRows(data) : []), [data]);
 
   if (!data) {
-    return (
-      <div className="page-container" style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}>
-        {overviewQuery.isError
-          ? <Empty title="概览加载失败" description={(overviewQuery.error as Error | null)?.message} />
-          : <Spin size="large" />}
-      </div>
-    );
+    if (overviewQuery.isError) {
+      return (
+        <div className="page-container" style={{ display: 'flex', justifyContent: 'center', paddingTop: 120 }}>
+          <Empty title="概览加载失败" description={(overviewQuery.error as Error | null)?.message} />
+        </div>
+      );
+    }
+    // 统一页面加载形态:跟随偏好设置(loadingStyle),并在内容区居中
+    return <PageLoading inline />;
   }
 
   const host = data.host.data;
