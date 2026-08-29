@@ -181,7 +181,7 @@ Docker 构建会自动执行该步骤。手动部署时需先 `npm run build`，
 | Swagger UI | `GET /api/docs` |
 | OpenAPI JSON | `GET /api/openapi.json` |
 | Prometheus | `GET /metrics` |
-| OpenTelemetry | `OTEL_ENABLED=true` 或配置 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `OTEL_EXPORTER_OTLP_ENDPOINT` |
+| OpenTelemetry | `OTEL_ENABLED=true` 或配置 `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` / `OTEL_EXPORTER_OTLP_ENDPOINT`。启用后自动插桩入站 HTTP（每请求 span）与出站 fetch（undici），日志行追加 `trace_id` / `span_id` 便于 APM 关联；停机时自动 flush 未导出的 span |
 
 `/metrics` 默认无鉴权，生产环境应只向内网、VPN 或采集器开放。
 

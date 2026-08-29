@@ -17,6 +17,7 @@
  */
 import path from 'node:path';
 import { pino, destination, levels, stdSerializers, type Logger, type LogFn, type TransportTargetOptions } from 'pino';
+import { trace, isSpanContextValid } from '@opentelemetry/api';
 import { currentTraceId } from './trace-context';
 import { config } from '../config';
 import { recordLogLevel } from './log-metrics';
@@ -116,10 +117,20 @@ const options = {
   hooks: { logMethod },
   // 链路关联：所有日志行自动带 reqId（= hono requestId = traceId），
   // 与 pino-http 请求级子 logger 的 reqId 字段同名同值（请求内 child bindings 优先，值相同）；
-  // worker / 作业 / 任务等请求作用域之外的日志由此补齐链路键
+  // worker / 作业 / 任务等请求作用域之外的日志由此补齐链路键。
+  // OTel 启用时追加 trace_id / span_id（W3C 十六进制格式），使外部 APM（Grafana / Datadog 等）
+  // 能从日志行直接跳转到对应 trace；@opentelemetry/api 是纯 API 包，无 SDK 依赖，静态导入无负担
   mixin: () => {
     const reqId = currentTraceId();
-    return reqId ? { reqId } : {};
+    const fields: Record<string, string> = reqId ? { reqId } : {};
+    if (config.otel.enabled) {
+      const spanContext = trace.getActiveSpan()?.spanContext();
+      if (spanContext && isSpanContextValid(spanContext)) {
+        fields.trace_id = spanContext.traceId;
+        fields.span_id = spanContext.spanId;
+      }
+    }
+    return fields;
   },
 } satisfies Parameters<typeof pino>[0];
 

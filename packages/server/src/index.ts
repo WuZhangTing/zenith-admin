@@ -19,7 +19,7 @@ import logger from './lib/logger';
 import { metricsSampler } from './lib/metrics-sampler';
 import { stopAllJobs } from './lib/pg-boss-scheduler';
 import { closeRedis } from './lib/redis';
-import { initTelemetry } from './lib/telemetry';
+import { initTelemetry, shutdownTelemetry } from './lib/telemetry';
 import { bootstrapRateLimitRules } from './middleware/rate-limit';
 import { registerOpenWebhookSubscriber } from './services/open-platform/app-webhooks.service';
 
@@ -87,6 +87,10 @@ async function shutdown(signal: NodeJS.Signals) {
   await Promise.race([closeServer, timeout]);
   try {
     metricsSampler.stop();
+    // flush OTel span 缓冲：BatchSpanProcessor 按批发送（默认 ~5s 一批），不 flush 则每次停机
+    // 固定丢失最后一批未导出的 span。放在清理链前部：监听已关闭、span 已完整，且导出走
+    // 独立 HTTP 出口，不依赖后续 DB/Redis；未启用 OTel 时为 no-op
+    await withTimeout('shutdownTelemetry', shutdownTelemetry(), 5_000);
     await withTimeout('stopAllJobs', Promise.resolve(stopAllJobs()), 5_000);
     // 结束全部终端会话：避免留下孤儿 PTY 进程与永远停留在 active 的记录
     const { endAllSessions } = await import('./lib/terminal-session-registry');
