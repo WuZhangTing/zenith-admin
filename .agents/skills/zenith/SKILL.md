@@ -37,7 +37,7 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 | [backend-patterns.md](./references/backend-patterns.md) | 数据权限、多租户、审计 diff、附件、外呼 HTTP、重依赖懒加载 | 用到对应能力时 |
 | [query-cache.md](./references/query-cache.md) | 前端数据获取架构、缓存一致性契约、query key 结构 | 写域 hooks / 定失效策略时 |
 | [crud-frontend.md](./references/crud-frontend.md) | Step 8 域 hooks 与列表页模板 | 写前端时 |
-| [ui-patterns.md](./references/ui-patterns.md) | 多 Tab、左右分栏、平铺列表、统计卡、栅格、虚拟化表格 | 页面结构超出标准列表页时 |
+| [ui-patterns.md](./references/ui-patterns.md) | 多 Tab、左右分栏、平铺列表、List 分页、统计卡、栅格、虚拟化表格 | 页面结构超出标准列表页时 |
 | [seed-config.md](./references/seed-config.md) | Step 9-10 菜单权限与种子数据 | 配菜单 / 种子时 |
 | [crud-mock.md](./references/crud-mock.md) | Step 11 MSW Mock 模板 | 需要 Demo 模式时 |
 | [async-tasks.md](./references/async-tasks.md) | 任务中心接入与选型对照 | 大数据量、长耗时或需进度 / 重试 / 取消时 |

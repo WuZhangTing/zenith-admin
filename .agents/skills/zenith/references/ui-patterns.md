@@ -9,6 +9,7 @@
 | 页面最外层是多个业务 Tab | [页面级多 Tab 布局](#页面级多-tab-布局) |
 | 左侧列表 / 筛选树 + 右侧详情 | [左右分栏（MasterDetailLayout）](#左右分栏masterdetaillayout) |
 | 左侧是平铺列表（分类 / 文件 / 分组） | [左侧平铺列表（NavListPanel）](#左侧平铺列表navlistpanel) |
+| 页面主体用 List 渲染分页数据 | [List 列表页分页（ListPagination）](#list-列表页分页listpagination) |
 | 指标卡、图表分栏、卡片栅格、表单多列 | [统计卡片与自适应栅格](#统计卡片与自适应栅格) |
 | 给操作列定 `width` | [操作列宽度估算](#操作列宽度估算) |
 | 列表数据量 > 500 条 | [虚拟化表格](#虚拟化表格) |
@@ -245,6 +246,43 @@ onClose:  () => { setLocalSiteId(siteId); setUrlSelection({ site: null, channel:
   `meta`（底部元信息）、`extra`（hover 显示的操作区，`extraAlwaysVisible` 让其常驻）
 - extra 含多个操作时用 `Dropdown`（`trigger="click"` + `clickToHide`）+ `MoreHorizontal` 按钮包裹
 - meta 区域**禁止**使用 `<Tag color="...">` 内联标签（会渲染颜色指示器色块），改用 styled span
+
+---
+
+## List 列表页分页（ListPagination）
+
+页面主体用 Semi `List` 渲染分页数据（收件箱、公告等消息流形态）时，分页条用
+`components/ListPagination.tsx`，与 `ConfigurableTable`（Semi Table 内置分页）的形态对齐。
+约束与豁免清单见 [constraints-frontend.md → 搜索栏与表格](./constraints-frontend.md#搜索栏与表格)。
+
+```tsx
+const { page, pageSize, setPage, buildPagination } = usePagination();
+const pagination = buildPagination(total);
+
+<List dataSource={list} renderItem={...} />
+<ListPagination pagination={pagination} />
+
+// 翻页需附带副作用（清勾选等）时包装回调再传入：
+<ListPagination
+  pagination={{
+    ...pagination,
+    onPageChange: (p) => { pagination.onPageChange(p); setSelectedIds([]); },
+    onPageSizeChange: (s) => { pagination.onPageSizeChange(s); setSelectedIds([]); },
+  }}
+/>
+```
+
+机理与形态：
+
+- 独立 `<Pagination>` 的 `showTotal` 只显示「总页数：N」，**没有条数信息**；
+  「显示第 x 条-第 y 条，共 z 条」是 Semi Table 内置分页（`TablePagination`）拼装的 `pageText`，
+  独立组件拿不到。`ListPagination` 在分页器左侧补齐同款文案（14px、`--semi-color-text-2`），
+  布局与 `.semi-table-pagination-outer` 一致（两端对齐）
+- 移动端与 `ConfigurableTable` 的移动端分页同策略：隐藏条数信息、总页数与每页条数选择器，
+  分页器右对齐并用小尺寸；组件内部已用 `useIsMobile` 处理，页面无需再分支
+- 入参就是 `usePagination().buildPagination(total)` 返回的 `PaginationConfig`，
+  `pageSizeOpts` 固定 `TABLE_PAGE_SIZE_OPTIONS`，与表格一致
+- 列表为空时页面通常整体切换到 `Empty`，分页条随之不渲染，无需在组件外再判 `total > 0`
 
 ---
 
