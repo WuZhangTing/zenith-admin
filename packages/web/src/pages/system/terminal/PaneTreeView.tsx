@@ -90,6 +90,7 @@ export default function PaneTreeView({
             <TerminalTab
               sessionId={leaf.stableSessionId}
               active={sessionActive}
+              focused={focused}
               shell={leaf.shell ?? ''}
               label={leaf.title}
               cwd={leaf.cwd}

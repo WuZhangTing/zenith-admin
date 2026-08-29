@@ -27,15 +27,6 @@ export interface OpsHostSnapshot {
   redisOk: boolean;
 }
 
-export interface OpsAlertEventBrief {
-  id: number;
-  ruleName: string;
-  metric: string;
-  level: string;
-  message: string;
-  triggeredAt: string | null;
-}
-
 export interface OpsOverview {
   host: OpsOverviewSection<OpsHostSnapshot>;
   docker: OpsOverviewSection<{ total: number; running: number; stopped: number }>;
@@ -45,7 +36,6 @@ export interface OpsOverview {
   nginx: OpsOverviewSection<{ version: string | null; running: boolean; siteCount: number; enabledCount: number }>;
   terminals: OpsOverviewSection<{ active: number }>;
   ports: OpsOverviewSection<{ listening: number }>;
-  alerts: OpsOverviewSection<{ firing: number; events: OpsAlertEventBrief[] }>;
   generatedAt: string;
 }
 

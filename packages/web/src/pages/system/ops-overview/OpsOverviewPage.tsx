@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Banner, Card, Empty, List, Space, Spin, Tag, Typography } from '@douyinfe/semi-ui';
 import {
-  Activity, BellRing, Container, Cpu, FileText, Flame, Globe, HardDrive as DiskIcon,
+  Activity, Container, Cpu, FileText, Flame, Globe, HardDrive as DiskIcon,
   Lock, MemoryStick, Monitor, Network, Settings, Shield, TerminalSquare, Wifi,
 } from 'lucide-react';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
@@ -168,7 +168,6 @@ export default function OpsOverviewPage() {
   }
 
   const host = data.host.data;
-  const firing = data.alerts.data?.firing ?? 0;
   const failedServices = data.services.data?.failed ?? 0;
   const sslRisk = (data.ssl.data?.expiring ?? 0) + (data.ssl.data?.expired ?? 0);
 
@@ -219,13 +218,6 @@ export default function OpsOverviewPage() {
           onClick={() => navigate('/system/monitor')}
         />
         <StatCard
-          title="告警中"
-          value={data.alerts.available ? firing : '—'}
-          icon={<BellRing size={19} />}
-          accent={firing > 0 ? DANGER : SUCCESS}
-          onClick={() => navigate('/alerts/events')}
-        />
-        <StatCard
           title="失败服务"
           value={data.services.available ? failedServices : '—'}
           icon={<Flame size={19} />}
@@ -254,74 +246,32 @@ export default function OpsOverviewPage() {
         />
       </StatGrid>
 
-      <div className="chart-grid chart-grid--aside">
-        <Card title="组件状态" bodyStyle={{ padding: '4px 16px 12px' }}>
-          <List
-            dataSource={capabilityRows}
-            renderItem={(row) => (
-              <List.Item
-                main={(
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => navigate(row.path)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(row.path); }}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'pointer', gap: 12 }}
-                  >
-                    <Space>
-                      {row.icon}
-                      <Text strong>{row.label}</Text>
-                    </Space>
-                    {row.section.available
-                      ? row.render()
-                      : <Text type="tertiary" size="small">{row.section.reason ?? '不可用'}</Text>}
-                  </div>
-                )}
-              />
-            )}
-          />
-        </Card>
-        <Card
-          title={(
-            <Space>
-              <BellRing size={16} />
-              <span>告警中事件</span>
-              {firing > 0 && <Tag color="red">{firing}</Tag>}
-            </Space>
-          )}
-          bodyStyle={{ padding: '4px 16px 12px' }}
-        >
-          {!data.alerts.available && <Text type="tertiary">{data.alerts.reason}</Text>}
-          {data.alerts.available && (data.alerts.data?.events.length ?? 0) === 0 && (
-            <Empty title="当前没有告警中事件" style={{ padding: '24px 0' }} />
-          )}
-          {data.alerts.available && (data.alerts.data?.events.length ?? 0) > 0 && (
-            <List
-              dataSource={data.alerts.data?.events ?? []}
-              renderItem={(evt) => (
-                <List.Item
-                  main={(
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => navigate('/alerts/events')}
-                      onKeyDown={(e) => { if (e.key === 'Enter') navigate('/alerts/events'); }}
-                      style={{ cursor: 'pointer', width: '100%' }}
-                    >
-                      <Space>
-                        <Tag color={evt.level === 'critical' ? 'red' : 'orange'} size="small">{evt.level}</Tag>
-                        <Text strong>{evt.ruleName}</Text>
-                        <Text type="tertiary" size="small">{evt.triggeredAt}</Text>
-                      </Space>
-                      <div><Text type="secondary" size="small">{evt.message}</Text></div>
-                    </div>
-                  )}
-                />
+      <Card title="组件状态" bodyStyle={{ padding: '4px 16px 12px' }}>
+        <List
+          dataSource={capabilityRows}
+          renderItem={(row) => (
+            <List.Item
+              main={(
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(row.path)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') navigate(row.path); }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'pointer', gap: 12 }}
+                >
+                  <Space>
+                    {row.icon}
+                    <Text strong>{row.label}</Text>
+                  </Space>
+                  {row.section.available
+                    ? row.render()
+                    : <Text type="tertiary" size="small">{row.section.reason ?? '不可用'}</Text>}
+                </div>
               )}
             />
           )}
-        </Card>
-      </div>
+        />
+      </Card>
 
       <Card title="快捷入口" bodyStyle={{ padding: '12px 16px 16px' }}>
         <Space wrap>

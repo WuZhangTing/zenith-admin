@@ -26,6 +26,8 @@ import '@xterm/xterm/css/xterm.css';
 interface TerminalTabProps {
   readonly sessionId: string;
   readonly active: boolean;
+  /** 是否为当前聚焦面板(多分屏时仅聚焦面板获得键盘焦点);缺省视为 true */
+  readonly focused?: boolean;
   readonly shell: string;
   readonly label?: string;
   readonly cwd?: string;
@@ -39,7 +41,7 @@ interface TerminalTabProps {
   readonly onOpenTerminalAt?: (cwd: string) => void;
 }
 
-export default function TerminalTab({ sessionId, active, shell, label, cwd, serverSessionId, onServerSessionId, onTitleChange, onOpenTerminalAt }: TerminalTabProps) {
+export default function TerminalTab({ sessionId, active, focused, shell, label, cwd, serverSessionId, onServerSessionId, onTitleChange, onOpenTerminalAt }: TerminalTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const { isDark } = useThemeController();
@@ -217,6 +219,8 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, serv
           }
           return true;
         });
+        // 挂载即接管键盘焦点(光标恢复闪烁);attach 前 focus 无效,须在此补偿
+        if (shouldFocusRef.current) terminalSessionStore.focus(sessionId);
       }
     };
     void setupSession();
@@ -228,6 +232,14 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, serv
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // 激活且为聚焦面板时接管键盘焦点(多分屏仅聚焦面板,避免互抢)
+  const shouldFocus = active && (focused ?? true);
+  const shouldFocusRef = useRef(shouldFocus);
+  shouldFocusRef.current = shouldFocus;
+  useEffect(() => {
+    if (shouldFocus) terminalSessionStore.focus(sessionId);
+  }, [shouldFocus, sessionId]);
 
   // 服务端下发会话标识 → 冒泡给页面持久化进布局，刷新后据此重连。
   // 用 ref 解耦回调引用:父组件内联箭头每次渲染变引用,若作为 effect 依赖,

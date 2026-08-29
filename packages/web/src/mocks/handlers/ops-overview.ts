@@ -36,19 +36,6 @@ export const opsOverviewHandlers = [
       nginx: section({ version: '1.24.0', running: true, siteCount: 3, enabledCount: 2 }),
       terminals: section({ active: 2 }),
       ports: section({ listening: 18 }),
-      alerts: section({
-        firing: 1,
-        events: [
-          {
-            id: 1,
-            ruleName: 'systemd 服务失败告警',
-            metric: 'cpu_usage',
-            level: 'warning',
-            message: 'CPU 使用率持续超过 75%',
-            triggeredAt: mockDateTime(),
-          },
-        ],
-      }),
       generatedAt: mockDateTime(),
     })),
 ];

@@ -6,7 +6,6 @@
  * 各分区数据复用对应领域服务的既有函数,不重复实现采集逻辑。
  */
 import { getMonitorStatus } from '../platform/monitor.service';
-import { listEvents } from '../platform/monitor-alert.service';
 import { listContainers } from './docker.service';
 import { isSystemdAvailable, listServices } from './systemd.service';
 import { listSslCertificates } from './ssl-certificates.service';
@@ -166,35 +165,6 @@ export interface PortsSnapshot {
   listening: number;
 }
 
-export interface AlertEventBrief {
-  id: number;
-  ruleName: string;
-  metric: string;
-  level: string;
-  message: string;
-  triggeredAt: string | null;
-}
-
-export interface AlertsSnapshot {
-  firing: number;
-  events: AlertEventBrief[];
-}
-
-async function probeAlerts(): Promise<AlertsSnapshot> {
-  const { list, total } = await listEvents({ page: 1, pageSize: 5, status: 'firing' });
-  return {
-    firing: total,
-    events: list.map((e) => ({
-      id: e.id,
-      ruleName: e.ruleName,
-      metric: e.metric,
-      level: e.level,
-      message: e.message,
-      triggeredAt: e.triggeredAt ?? null,
-    })),
-  };
-}
-
 export interface OpsOverview {
   host: OpsOverviewSection<HostSnapshot>;
   docker: OpsOverviewSection<DockerSnapshot>;
@@ -204,12 +174,11 @@ export interface OpsOverview {
   nginx: OpsOverviewSection<NginxSnapshot>;
   terminals: OpsOverviewSection<TerminalsSnapshot>;
   ports: OpsOverviewSection<PortsSnapshot>;
-  alerts: OpsOverviewSection<AlertsSnapshot>;
   generatedAt: string;
 }
 
 export async function getOpsOverview(): Promise<OpsOverview> {
-  const [host, docker, services, ssl, firewall, nginx, terminals, ports, alerts] = await Promise.all([
+  const [host, docker, services, ssl, firewall, nginx, terminals, ports] = await Promise.all([
     section(probeHost, HOST_SECTION_TIMEOUT_MS),
     section(probeDocker),
     section(probeServices),
@@ -218,10 +187,9 @@ export async function getOpsOverview(): Promise<OpsOverview> {
     section(probeNginx),
     section(async () => ({ active: listTerminalSessions({ page: 1, pageSize: 1 }).total })),
     section(async () => ({ listening: (await getListeningPorts()).length })),
-    section(probeAlerts),
   ]);
   return {
-    host, docker, services, ssl, firewall, nginx, terminals, ports, alerts,
+    host, docker, services, ssl, firewall, nginx, terminals, ports,
     generatedAt: formatDateTime(new Date()),
   };
 }
