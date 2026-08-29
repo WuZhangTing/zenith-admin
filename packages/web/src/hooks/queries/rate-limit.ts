@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RateLimitAlgorithm, RateLimitKeyType, RateLimitMode, RateLimitMountSource } from '@zenith/shared/platform';
 import { config } from '@/config';
 import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
+import { unwrap, LOOKUP_STALE_TIME } from '@/lib/query';
 
 export type { RateLimitAlgorithm, RateLimitKeyType, RateLimitMode, RateLimitMountSource };
 
@@ -97,6 +97,8 @@ export function useRateLimitStats() {
 export function useRateLimitApiPaths() {
   return useQuery({
     queryKey: rateLimitKeys.apiPaths,
+    // OpenAPI 路径集在部署内不变，长缓存避免反复拉取 260kB 文档
+    staleTime: LOOKUP_STALE_TIME,
     queryFn: async () => {
       // openapi.json 返回原始 OpenAPI 文档（非 ApiResponse 信封），不走 request；但仍需拼接 API 基址
       const res = await fetch(`${config.apiBaseUrl}/api/openapi.json`);

@@ -17,6 +17,7 @@ import { WebSocketServer } from 'ws';
 import { createApp } from './app';
 import { registerEventSubscribers } from './bootstrap/subscribers';
 import { registerBackgroundWorkers } from './bootstrap/workers';
+import { warmupOpenApiDoc } from './bootstrap/openapi-warmup';
 import { config } from './config';
 import { closeDb } from './db';
 import logger from './lib/logger';
@@ -60,6 +61,9 @@ logger.info(`Server running at http://localhost:${config.port}`);
 
 // 启动后异步加载限流规则到内存（失败时使用代码内默认规则）
 void bootstrapRateLimitRules();
+
+// OpenAPI 文档预热：worker 线程生成（~10s CPU），主线程零阻塞
+warmupOpenApiDoc();
 
 let shuttingDown = false;
 

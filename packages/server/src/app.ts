@@ -43,6 +43,7 @@ import { authMiddleware } from './middleware/auth';
 import { guard } from './middleware/guard';
 import { ROUTE_DOMAINS } from './routes';
 import { licenseFeatureGate } from './lib/licensing';
+import { getCachedOpenApiDoc, setCachedOpenApiDoc } from './lib/openapi-doc-cache';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -245,7 +246,7 @@ export function createApp() {
     bearerFormat: 'JWT',
     description: '登录后获取的 accessToken，格式：`Bearer <token>`',
   });
-  app.doc31('/api/openapi.json', (c) => ({
+  const openApiDocConfig = {
     openapi: '3.1.0',
     info: {
       title: 'Zenith Admin API',
@@ -256,10 +257,29 @@ export function createApp() {
         '所有接口的成功响应格式为 `{ code: 0, message: "success", data: T }`，' +
         '失败时 `code` 为非零值。',
     },
-    servers: [{ url: new URL(c.req.url).origin, description: '当前服务器' }],
+    servers: [{ url: '/', description: '当前服务器' }],
     // 全局默认安全方案，公开接口通过 security: [] 单独覆盖
     security: [{ BearerAuth: [] }],
-  }));
+  };
+  // 文档生成是 ~10s 的同步 CPU 工作（产物 ~4.5MB），禁止每请求重建（会卡死事件循环）。
+  // 生成一次后进程内缓存（含 gzip 预压缩字节）；预热由 bootstrap/openapi-warmup.ts
+  // 在 worker 线程完成，预热完成前的首个请求走懒生成兜底。
+  const buildOpenApiDocJson = () => JSON.stringify(app.getOpenAPI31Document(openApiDocConfig));
+  app.get('/api/openapi.json', (c) => {
+    let doc = getCachedOpenApiDoc();
+    if (!doc) {
+      setCachedOpenApiDoc(buildOpenApiDocJson());
+      doc = getCachedOpenApiDoc() as NonNullable<typeof doc>;
+    }
+    // 直接吐预压缩字节，跳过压缩中间件对 4.5MB 的每请求 gzip
+    if (c.req.header('accept-encoding')?.includes('gzip')) {
+      return c.body(doc.gzip.slice().buffer as ArrayBuffer, 200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Encoding': 'gzip',
+      });
+    }
+    return c.body(doc.json, 200, { 'Content-Type': 'application/json; charset=utf-8' });
+  });
   app.get('/api/docs', swaggerUI({ url: '/api/openapi.json' }));
 
   // ─── 兜底挂载：必须晚于全部 API 路由与文档路由 ───────────────────────────
@@ -283,5 +303,5 @@ export function createApp() {
     return c.json(errBody('服务器内部错误', 500), 500);
   });
 
-  return { app };
+  return { app, buildOpenApiDocJson };
 }

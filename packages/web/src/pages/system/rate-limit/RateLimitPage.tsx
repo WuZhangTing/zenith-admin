@@ -37,7 +37,6 @@ import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useEditModal } from '@/hooks/useEditModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { KeywordInput } from '@/components/search-filters';
@@ -740,10 +739,26 @@ export default function RateLimitPage() {
         )}
       </Modal>
 
-      <AppModal
-        {...editModal.modalProps}
-        okText={editModal.editing ? '保存（立即生效）' : '创建（立即生效）'}
-        width={560}
+      <SideSheet
+        title={editModal.modalProps.title}
+        visible={editModal.modalProps.visible}
+        onCancel={editModal.modalProps.onCancel}
+        closeOnEsc
+        width={680}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={editModal.modalProps.onCancel}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={editModal.modalProps.okButtonProps.loading}
+              disabled={editModal.modalProps.okButtonProps.disabled}
+              onClick={() => void editModal.modalProps.onOk()}
+            >
+              {editModal.editing ? '保存（立即生效）' : '创建（立即生效）'}
+            </Button>
+          </div>
+        )}
       >
         <Form key={editModal.formKey} {...editModal.formProps}>
           {!editModal.editing && (
@@ -827,7 +842,7 @@ export default function RateLimitPage() {
           <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
           <Form.Switch field="enabled" label="启用" />
         </Form>
-      </AppModal>
+      </SideSheet>
     </div>
   );
 }
