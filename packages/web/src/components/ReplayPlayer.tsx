@@ -8,7 +8,7 @@
  * - 点击热点：本次会话点击坐标叠加半透明热点层（近似视口位置）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Empty, Spin, Switch, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Empty, Spin, Switch, TabPane, Tabs, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ReplaySegmentMeta, ReplaySessionDetail } from '@zenith/shared/analytics';
 import { fetchReplaySegmentEvents } from '@/hooks/queries/session-replays';
 
@@ -31,22 +31,34 @@ interface RrwebPlayerInstance {
   pause?: () => void;
   goto?: (offsetMs: number, play?: boolean) => void;
   addEvent?: (event: unknown) => void;
+  addEventListener?: (event: string, handler: (params: unknown) => unknown) => void;
 }
 
 export interface ReplayMarker {
   /** 相对回放起点的偏移（ms） */
   offsetMs: number;
-  kind: 'error' | 'navigation' | 'signal';
+  kind: 'error' | 'navigation' | 'signal' | 'perf';
   label: string;
 }
 
 interface ClickPoint { xPct: number; yPct: number }
+
+/** 网络面板行（http 面包屑提取） */
+interface NetworkRow {
+  offsetMs: number;
+  message: string;
+  status?: number;
+  durationMs?: number;
+  failed: boolean;
+}
 
 interface ReplayPlayerProps {
   replayId: string;
   segments: ReplaySegmentMeta[];
   /** 关联错误（服务端时钟，转偏移标注） */
   errors?: ReplaySessionDetail['errors'];
+  /** 回放期间 Web Vitals（服务端时钟，转偏移标注） */
+  perfEvents?: ReplaySessionDetail['perfEvents'];
   /** 回放起点（formatDateTime 字符串，错误偏移计算基准） */
   startedAt?: string;
   /** 实时旁观：recording 会话追流（调用方轮询详情刷新 segments） */
@@ -59,7 +71,26 @@ const MARKER_STYLE: Record<ReplayMarker['kind'], { color: string; label: string 
   error: { color: 'var(--semi-color-danger)', label: '错误' },
   navigation: { color: 'var(--semi-color-primary)', label: '页面跳转' },
   signal: { color: 'var(--semi-color-warning)', label: '行为信号' },
+  perf: { color: 'var(--semi-color-violet)', label: '性能指标' },
 };
+
+/** 从 rrweb 事件流提取网络请求（http 面包屑） */
+function extractNetworkRows(events: RrwebEventLite[], baseTs: number): NetworkRow[] {
+  const rows: NetworkRow[] = [];
+  for (const e of events) {
+    if (e.type !== EVENT_CUSTOM || e.data?.tag !== 'breadcrumb') continue;
+    const crumb = e.data.payload as { type?: string; message?: string; data?: { status?: number; durationMs?: number } } | undefined;
+    if (crumb?.type !== 'http' || !crumb.message) continue;
+    rows.push({
+      offsetMs: Math.max(0, e.timestamp - baseTs),
+      message: crumb.message,
+      status: crumb.data?.status,
+      durationMs: crumb.data?.durationMs,
+      failed: crumb.message.includes('ERR') || (crumb.data?.status ?? 0) >= 400,
+    });
+  }
+  return rows;
+}
 
 /** 从 rrweb 事件流提取时间轴打点（自定义面包屑事件） */
 function extractMarkers(events: RrwebEventLite[], baseTs: number): ReplayMarker[] {
@@ -118,7 +149,7 @@ function formatOffset(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export default function ReplayPlayer({ replayId, segments, errors, startedAt, live = false, width }: Readonly<ReplayPlayerProps>) {
+export default function ReplayPlayer({ replayId, segments, errors, perfEvents, startedAt, live = false, width }: Readonly<ReplayPlayerProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<RrwebPlayerInstance | null>(null);
   /** 已加载的最大 seq（live 增量追流游标） */
@@ -130,28 +161,56 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, li
   const [timeline, setTimeline] = useState<{ baseTs: number; durationMs: number; markers: ReplayMarker[] } | null>(null);
   const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
   const [showHeat, setShowHeat] = useState(false);
+  const [networkRows, setNetworkRows] = useState<NetworkRow[]>([]);
+  /** 播放进度（ms），驱动 DevTools 面板行高亮 */
+  const [currentTime, setCurrentTime] = useState(0);
+
+  /** 服务端时钟事件（错误/性能）转回放偏移 */
+  const toOffset = useMemo(() => {
+    if (!startedAt || !timeline) return null;
+    const base = new Date(startedAt.replace(' ', 'T')).getTime();
+    if (!Number.isFinite(base)) return null;
+    return (at: string) => {
+      const ts = new Date(at.replace(' ', 'T')).getTime();
+      return Number.isFinite(ts) ? Math.min(Math.max(0, ts - base), timeline.durationMs) : null;
+    };
+  }, [startedAt, timeline]);
 
   const errorMarkers = useMemo<ReplayMarker[]>(() => {
-    if (!errors?.length || !startedAt || !timeline) return [];
-    const base = new Date(startedAt.replace(' ', 'T')).getTime();
-    if (!Number.isFinite(base)) return [];
+    if (!errors?.length || !toOffset) return [];
     const markers: ReplayMarker[] = [];
     for (const e of errors) {
-      const at = new Date(e.createdAt.replace(' ', 'T')).getTime();
-      if (!Number.isFinite(at)) continue;
-      markers.push({
-        offsetMs: Math.min(Math.max(0, at - base), timeline.durationMs),
-        kind: 'error',
-        label: `${e.errorType}: ${e.message.slice(0, 120)}`,
-      });
+      const offsetMs = toOffset(e.createdAt);
+      if (offsetMs === null) continue;
+      markers.push({ offsetMs, kind: 'error', label: `${e.errorType}: ${e.message.slice(0, 120)}` });
     }
     return markers;
-  }, [errors, startedAt, timeline]);
+  }, [errors, toOffset]);
+
+  const perfMarkers = useMemo<ReplayMarker[]>(() => {
+    if (!perfEvents?.length || !toOffset) return [];
+    const markers: ReplayMarker[] = [];
+    for (const p of perfEvents) {
+      const offsetMs = toOffset(p.createdAt);
+      if (offsetMs === null) continue;
+      markers.push({ offsetMs, kind: 'perf', label: `${p.metricName}: ${p.metricName === 'CLS' ? p.metricValue.toFixed(3) : Math.round(p.metricValue) + 'ms'}` });
+    }
+    return markers;
+  }, [perfEvents, toOffset]);
 
   const allMarkers = useMemo(
-    () => [...(timeline?.markers ?? []), ...errorMarkers].sort((a, b) => a.offsetMs - b.offsetMs),
-    [timeline, errorMarkers],
+    () => [...(timeline?.markers ?? []), ...errorMarkers, ...perfMarkers].sort((a, b) => a.offsetMs - b.offsetMs),
+    [timeline, errorMarkers, perfMarkers],
   );
+
+  /** Console 面板行 = 关联错误（含 console_error/js_error 等全部类型）按偏移排序 */
+  const consoleRows = useMemo(() => {
+    if (!errors?.length || !toOffset) return [];
+    return errors
+      .map((e) => ({ ...e, offsetMs: toOffset(e.createdAt) }))
+      .filter((e): e is typeof e & { offsetMs: number } => e.offsetMs !== null)
+      .sort((a, b) => a.offsetMs - b.offsetMs);
+  }, [errors, toOffset]);
 
   // 初始化：加载当前全部分片并创建播放器（live 模式 liveMode 初始化）
   useEffect(() => {
@@ -163,6 +222,8 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, li
       setError(null);
       setTimeline(null);
       setClickPoints([]);
+      setNetworkRows([]);
+      setCurrentTime(0);
       try {
         const [{ default: Player }] = await Promise.all([
           import('rrweb-player'),
@@ -202,7 +263,13 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, li
             markers: extractMarkers(events, baseTs),
           });
           setClickPoints(extractClickPoints(events));
+          setNetworkRows(extractNetworkRows(events, baseTs));
         }
+        // 播放进度事件：驱动 DevTools 面板当前行高亮
+        playerRef.current?.addEventListener?.('ui-update-current-time', (params) => {
+          const payload = (params as { payload?: number })?.payload;
+          if (typeof payload === 'number') setCurrentTime(payload);
+        });
         setLoading(false);
       } catch {
         if (!cancelled) {
@@ -328,7 +395,7 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, li
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
-                    {(['error', 'navigation', 'signal'] as const).map((kind) => (
+                    {(['error', 'navigation', 'signal', 'perf'] as const).map((kind) => (
                       allMarkers.some((m) => m.kind === kind) && (
                         <Text key={kind} type="tertiary" size="small">
                           <span style={{
@@ -342,6 +409,55 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, li
                     <Text type="quaternary" size="small">点击打点跳转到对应时刻</Text>
                   </div>
                 </div>
+              )}
+              {!live && (networkRows.length > 0 || consoleRows.length > 0) && (
+                <Tabs type="line" size="small" style={{ marginTop: 12 }} lazyRender>
+                  <TabPane tab={`网络（${networkRows.length}）`} itemKey="network">
+                    <div style={{ maxHeight: 220, overflowY: 'auto' }} role="list" aria-label="回放期间的网络请求">
+                      {networkRows.map((row, i) => {
+                        const isCurrent = row.offsetMs <= currentTime && (networkRows[i + 1]?.offsetMs ?? Infinity) > currentTime;
+                        return (
+                          <button
+                            key={`${row.offsetMs}-${i}`}
+                            type="button"
+                            onClick={() => playerRef.current?.goto?.(row.offsetMs, false)}
+                            className="zx-replay-devtools-row"
+                            style={isCurrent ? { background: 'var(--semi-color-fill-0)' } : undefined}
+                          >
+                            <Text type="quaternary" size="small" style={{ width: 44, flexShrink: 0 }}>{formatOffset(row.offsetMs)}</Text>
+                            <Text type={row.failed ? 'danger' : 'secondary'} size="small" ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>
+                              {row.message}
+                            </Text>
+                            {row.durationMs !== undefined && (
+                              <Text type={row.durationMs > 2000 ? 'warning' : 'quaternary'} size="small" style={{ flexShrink: 0 }}>{Math.round(row.durationMs)}ms</Text>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </TabPane>
+                  <TabPane tab={`错误控制台（${consoleRows.length}）`} itemKey="console">
+                    <div style={{ maxHeight: 220, overflowY: 'auto' }} role="list" aria-label="回放期间的错误">
+                      {consoleRows.length === 0
+                        ? <Text type="quaternary" size="small" style={{ padding: 8, display: 'block' }}>本次回放没有错误</Text>
+                        : consoleRows.map((row) => (
+                          <button
+                            key={row.id}
+                            type="button"
+                            onClick={() => playerRef.current?.goto?.(row.offsetMs, false)}
+                            className="zx-replay-devtools-row"
+                            style={row.offsetMs <= currentTime ? { background: 'var(--semi-color-fill-0)' } : undefined}
+                          >
+                            <Text type="quaternary" size="small" style={{ width: 44, flexShrink: 0 }}>{formatOffset(row.offsetMs)}</Text>
+                            <Tag size="small" color={row.level === 'fatal' || row.level === 'error' ? 'red' : 'orange'} style={{ flexShrink: 0 }}>{row.errorType}</Tag>
+                            <Text type="danger" size="small" ellipsis={{ showTooltip: true }} style={{ flex: 1, minWidth: 0 }}>
+                              {row.message}
+                            </Text>
+                          </button>
+                        ))}
+                    </div>
+                  </TabPane>
+                </Tabs>
               )}
             </>
           )}

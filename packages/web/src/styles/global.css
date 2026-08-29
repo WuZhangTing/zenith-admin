@@ -1016,3 +1016,17 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
 /* Slider 在 flex 行内自适应占满（Semi Slider 不透传 style，默认 fit-content 塌陷） */
 .zx-slider-row { display: flex; align-items: center; gap: 16px; max-width: 520px; }
 .zx-slider-row .semi-slider { width: 100%; flex: 1; }
+
+/* 会话回放 DevTools 面板行 */
+.zx-replay-devtools-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.zx-replay-devtools-row:hover { background: var(--semi-color-fill-1); }

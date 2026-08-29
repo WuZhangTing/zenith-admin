@@ -32,6 +32,8 @@ export const ReplaySessionDTO = z
     errorCount: z.number().int(),
     pageCount: z.number().int(),
     clickCount: z.number().int(),
+    pagePaths: z.array(z.string()),
+    clickLabels: z.array(z.string()),
     entryPageUrl: z.string().nullable(),
     source: z.enum(ANALYTICS_EVENT_SOURCES),
     appId: z.string(),
@@ -70,6 +72,19 @@ export const ReplaySessionDetailDTO = ReplaySessionDTO
       level: z.string(),
       message: z.string(),
       createdAt: z.string(),
+    })),
+    perfEvents: z.array(z.object({
+      metricName: z.string(),
+      metricValue: z.number(),
+      createdAt: z.string(),
+    })),
+    siblings: z.array(z.object({
+      id: z.string(),
+      status: z.enum(['recording', 'completed', 'expired']),
+      startedAt: z.string(),
+      durationMs: z.number().int(),
+      errorCount: z.number().int(),
+      entryPageUrl: z.string().nullable(),
     })),
   })
   .openapi('ReplaySessionDetail');

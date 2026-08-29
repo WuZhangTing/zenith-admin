@@ -13,6 +13,8 @@ export interface ReplayListParams {
   keyword?: string;
   hasError?: boolean;
   source?: string;
+  pagePath?: string;
+  clickLabel?: string;
 }
 
 export const replayKeys = {

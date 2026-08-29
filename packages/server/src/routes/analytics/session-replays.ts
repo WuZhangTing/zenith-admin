@@ -72,6 +72,8 @@ const listRoute = defineOpenAPIRoute({
         keyword: z.string().optional(),
         hasError: z.coerce.boolean().optional(),
         source: z.enum(['web_admin', 'web_member']).or(z.literal('')).optional(),
+        pagePath: z.string().max(256).optional(),
+        clickLabel: z.string().max(64).optional(),
       }),
     },
     responses: { ...okPaginated(ReplaySessionDTO, '回放列表'), ...commonErrorResponses },
@@ -83,6 +85,7 @@ const listRoute = defineOpenAPIRoute({
       status: q.status || undefined, mode: q.mode || undefined,
       triggerType: q.triggerType || undefined, keyword: q.keyword || undefined,
       hasError: q.hasError, source: q.source || undefined,
+      pagePath: q.pagePath || undefined, clickLabel: q.clickLabel || undefined,
     })), 200);
   },
 });

@@ -633,6 +633,9 @@ export const replaySessions = pgTable('replay_sessions', {
   errorCount: integer('error_count').notNull().default(0),
   pageCount: integer('page_count').notNull().default(0),
   clickCount: integer('click_count').notNull().default(0),
+  // 内容检索索引：访问页面路径 / 点击元素文案（分片到达时去重合并，上限 40/60）
+  pagePaths: jsonb('page_paths').$type<string[]>().notNull().default([]),
+  clickLabels: jsonb('click_labels').$type<string[]>().notNull().default([]),
   entryPageUrl: varchar('entry_page_url', { length: 512 }),
   source: analyticsEventSourceEnum('source').notNull().default('web_admin'),
   appId: varchar('app_id', { length: 64 }).notNull().default('admin'),

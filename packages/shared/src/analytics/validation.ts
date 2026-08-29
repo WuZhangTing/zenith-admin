@@ -344,6 +344,15 @@ export const replaySegmentMetaSchema = z.object({
   /** 分片内翻页/点击计数（会话行聚合） */
   pageCount: z.number().int().min(0).default(0),
   clickCount: z.number().int().min(0).default(0),
+  /** 分片内访问页面路径与点击元素文案（检索索引，会话行去重合并） */
+  pagePaths: z.array(z.string().max(256)).max(20).default([]),
+  clickLabels: z.array(z.string().max(64)).max(30).default([]),
+  /** 归一化点击坐标（按页面路径分组，热力聚合） */
+  clickPoints: z.array(z.object({
+    path: z.string().max(256),
+    x: z.number().int().min(0).max(100),
+    y: z.number().int().min(0).max(100),
+  })).max(100).default([]),
   /** 会话是否随本分片收尾（unload 终包标记） */
   final: z.boolean().default(false),
   entryPageUrl: z.string().max(512).optional(),

@@ -243,19 +243,62 @@ async function gzipJson(events: RrwebEvent[]): Promise<Blob> {
   return new Response(stream).blob();
 }
 
-function countStats(events: RrwebEvent[]): { pages: number; clicks: number; hasFullSnapshot: boolean } {
+interface SegmentStats {
+  pages: number;
+  clicks: number;
+  hasFullSnapshot: boolean;
+  /** 分片内访问的页面路径（去重，检索索引用） */
+  pagePaths: string[];
+  /** 分片内点击的元素文案（面包屑提取，去重，检索索引用） */
+  clickLabels: string[];
+  /** 归一化点击坐标（按当时页面路径分组，热力聚合用） */
+  clickPoints: Array<{ path: string; x: number; y: number }>;
+}
+
+function countStats(events: RrwebEvent[]): SegmentStats {
   let pages = 0;
   let clicks = 0;
   let hasFullSnapshot = false;
+  const pagePaths = new Set<string>();
+  const clickLabels = new Set<string>();
+  const clickPoints: Array<{ path: string; x: number; y: number }> = [];
+  let currentPath = '';
+  let viewportW = 0;
+  let viewportH = 0;
   for (const e of events) {
-    if (e.type === EVENT_META) pages += 1;
-    else if (e.type === EVENT_FULL_SNAPSHOT) hasFullSnapshot = true;
-    else if (e.type === EVENT_INCREMENTAL) {
-      const d = e.data as { source?: number; type?: number } | undefined;
-      if (d?.source === INCREMENTAL_SOURCE_MOUSE_INTERACTION && d?.type === MOUSE_INTERACTION_CLICK) clicks += 1;
+    if (e.type === EVENT_META) {
+      pages += 1;
+      const d = e.data as { href?: string; width?: number; height?: number } | undefined;
+      if (d?.width && d?.height) { viewportW = d.width; viewportH = d.height; }
+      if (d?.href) {
+        try {
+          currentPath = new URL(d.href).pathname.slice(0, 256);
+          if (pagePaths.size < 20) pagePaths.add(currentPath);
+        } catch { /* ignore */ }
+      }
+    } else if (e.type === EVENT_FULL_SNAPSHOT) {
+      hasFullSnapshot = true;
+    } else if (e.type === EVENT_INCREMENTAL) {
+      const d = e.data as { source?: number; type?: number; x?: number; y?: number } | undefined;
+      if (d?.source === INCREMENTAL_SOURCE_MOUSE_INTERACTION && d?.type === MOUSE_INTERACTION_CLICK) {
+        clicks += 1;
+        if (clickPoints.length < 100 && viewportW > 0 && viewportH > 0 && typeof d.x === 'number' && typeof d.y === 'number') {
+          clickPoints.push({
+            path: currentPath,
+            x: Math.min(100, Math.max(0, Math.round((d.x / viewportW) * 100))),
+            y: Math.min(100, Math.max(0, Math.round((d.y / viewportH) * 100))),
+          });
+        }
+      }
+    } else if (e.type === 5) {
+      // 点击面包屑（自定义事件）：语义化元素文案
+      const d = e.data as { tag?: string; payload?: { type?: string; message?: string } } | undefined;
+      if (d?.tag === 'breadcrumb' && d.payload?.type === 'click' && d.payload.message && clickLabels.size < 30) {
+        clickLabels.add(d.payload.message.slice(0, 64));
+      }
     }
   }
-  return { pages, clicks, hasFullSnapshot };
+  return { pages, clicks, hasFullSnapshot, pagePaths: [...pagePaths], clickLabels: [...clickLabels], clickPoints };
 }
 
 /** 串行 flush（uploading 链）：分片按 seq 有序到达，避免并发交错 */
@@ -293,6 +336,9 @@ async function uploadSegment(events: RrwebEvent[], segmentSeq: number, final: bo
       hasFullSnapshot: stats.hasFullSnapshot,
       pageCount: stats.pages,
       clickCount: stats.clicks,
+      pagePaths: stats.pagePaths,
+      clickLabels: stats.clickLabels,
+      clickPoints: stats.clickPoints,
       final,
       entryPageUrl,
       sdkVersion: runtime.sdkVersion,

@@ -12,7 +12,7 @@ import { and, eq, desc, sql, inArray, isNull, lt, gte } from 'drizzle-orm';
 import { gzipSync } from 'node:zlib';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { replaySessions, replaySegments, errorEvents, analyticsSettings } from '../../db/schema';
+import { replaySessions, replaySegments, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
 import type { ReplaySessionRow, ReplaySegmentRow } from '../../db/schema';
 import type { ReplaySegmentMetaInput } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
@@ -55,6 +55,8 @@ export function mapReplaySession(row: ReplaySessionRow) {
     errorCount: row.errorCount,
     pageCount: row.pageCount,
     clickCount: row.clickCount,
+    pagePaths: row.pagePaths ?? [],
+    clickLabels: row.clickLabels ?? [],
     entryPageUrl: row.entryPageUrl,
     source: row.source,
     appId: row.appId,
@@ -183,6 +185,13 @@ export async function ingestReplaySegment(meta: ReplaySegmentMetaInput, data: Bu
           totalBytes: sql`${replaySessions.totalBytes} + ${data.byteLength}`,
           pageCount: sql`${replaySessions.pageCount} + ${meta.pageCount}`,
           clickCount: sql`${replaySessions.clickCount} + ${meta.clickCount}`,
+          // 检索索引去重合并（SQL 侧 DISTINCT，JS 侧上限截断）
+          ...(meta.pagePaths.length > 0 ? {
+            pagePaths: sql`(SELECT COALESCE(jsonb_agg(DISTINCT p), '[]'::jsonb) FROM (SELECT jsonb_array_elements_text(${replaySessions.pagePaths} || ${JSON.stringify(meta.pagePaths.slice(0, 20))}::jsonb) AS p LIMIT 40) t)`,
+          } : {}),
+          ...(meta.clickLabels.length > 0 ? {
+            clickLabels: sql`(SELECT COALESCE(jsonb_agg(DISTINCT c), '[]'::jsonb) FROM (SELECT jsonb_array_elements_text(${replaySessions.clickLabels} || ${JSON.stringify(meta.clickLabels.slice(0, 30))}::jsonb) AS c LIMIT 60) t)`,
+          } : {}),
         })
         .where(eq(replaySessions.id, meta.replayId));
       bumpUsageCache(tenantId, data.byteLength);
@@ -327,6 +336,10 @@ export interface ReplayListQuery {
   keyword?: string;
   hasError?: boolean;
   source?: string;
+  /** 内容检索：访问过的页面路径（模糊） */
+  pagePath?: string;
+  /** 内容检索：点击过的元素文案（模糊） */
+  clickLabel?: string;
 }
 
 export async function listReplaySessions(query: ReplayListQuery) {
@@ -337,6 +350,13 @@ export async function listReplaySessions(query: ReplayListQuery) {
     query.hasError ? gte(replaySessions.errorCount, 1) : undefined,
     // triggers jsonb 数组按类型匹配（@> 走 GIN 语义，量级可控走 seq scan 亦可）
     query.triggerType ? sql`${replaySessions.triggers} @> ${JSON.stringify([{ type: query.triggerType }])}::jsonb` : undefined,
+    // 内容检索：jsonb 数组元素模糊匹配（回放行数有限，EXISTS 子查询足够快）
+    query.pagePath
+      ? sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(${replaySessions.pagePaths}) p WHERE p ILIKE ${`%${query.pagePath}%`})`
+      : undefined,
+    query.clickLabel
+      ? sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(${replaySessions.clickLabels}) c WHERE c ILIKE ${`%${query.clickLabel}%`})`
+      : undefined,
     query.keyword
       ? sql`(${replaySessions.username} ILIKE ${`%${query.keyword}%`} OR ${replaySessions.entryPageUrl} ILIKE ${`%${query.keyword}%`} OR ${replaySessions.id} = ${query.keyword} OR ${replaySessions.sessionId} = ${query.keyword})`
       : undefined,
@@ -357,7 +377,8 @@ export async function getReplaySessionDetail(id: string) {
   const [row] = await db.select().from(replaySessions).where(where).limit(1);
   if (!row) throw new HTTPException(404, { message: '回放会话不存在' });
 
-  const [segments, errors] = await Promise.all([
+  const endBound = row.endedAt ?? row.lastActivityAt;
+  const [segments, errors, perfRows, siblingRows] = await Promise.all([
     db.select({
       id: replaySegments.id,
       replayId: replaySegments.replayId,
@@ -382,12 +403,49 @@ export async function getReplaySessionDetail(id: string) {
       .where(eq(errorEvents.replayId, id))
       .orderBy(errorEvents.createdAt)
       .limit(100),
+    // 回放期间的 Web Vitals（同 tracker 会话 + 时间窗，时间轴性能标记）
+    db.select({
+      metricName: userEvents.metricName,
+      metricValue: userEvents.metricValue,
+      createdAt: userEvents.createdAt,
+    }).from(userEvents)
+      .where(and(
+        eq(userEvents.sessionId, row.sessionId),
+        eq(userEvents.eventType, 'perf'),
+        gte(userEvents.createdAt, row.startedAt),
+        lt(userEvents.createdAt, new Date(endBound.getTime() + 60_000)),
+      ))
+      .orderBy(userEvents.createdAt)
+      .limit(50),
+    // 同一浏览器会话的其它回放片段（旅程拼接）
+    db.select({
+      id: replaySessions.id,
+      status: replaySessions.status,
+      startedAt: replaySessions.startedAt,
+      durationMs: replaySessions.durationMs,
+      errorCount: replaySessions.errorCount,
+      entryPageUrl: replaySessions.entryPageUrl,
+    }).from(replaySessions)
+      .where(mergeWhere(tenantScope(replaySessions), and(eq(replaySessions.sessionId, row.sessionId), sql`${replaySessions.id} != ${id}`)))
+      .orderBy(replaySessions.startedAt)
+      .limit(20),
   ]);
 
   return {
     ...mapReplaySession(row),
     segments: segments.map(mapSegmentMeta),
     errors: errors.map((e) => ({ ...e, createdAt: formatDateTime(e.createdAt) })),
+    perfEvents: perfRows
+      .filter((p) => p.metricName != null && p.metricValue != null)
+      .map((p) => ({ metricName: p.metricName!, metricValue: p.metricValue!, createdAt: formatDateTime(p.createdAt) })),
+    siblings: siblingRows.map((s) => ({
+      id: s.id,
+      status: s.status,
+      startedAt: formatDateTime(s.startedAt),
+      durationMs: s.durationMs,
+      errorCount: s.errorCount,
+      entryPageUrl: s.entryPageUrl,
+    })),
   };
 }
 

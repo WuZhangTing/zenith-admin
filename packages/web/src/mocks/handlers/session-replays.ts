@@ -19,6 +19,8 @@ const sessions: ReplaySession[] = [
     errorCount: 2,
     pageCount: 3,
     clickCount: 14,
+    pagePaths: ['/orders', '/orders/detail'],
+    clickLabels: ['查询', '导出', '提交订单'],
     entryPageUrl: 'https://demo.zenith.local/orders',
     source: 'web_admin',
     appId: 'admin',
@@ -47,6 +49,8 @@ const sessions: ReplaySession[] = [
     errorCount: 0,
     pageCount: 8,
     clickCount: 42,
+    pagePaths: ['/dashboard', '/member/points'],
+    clickLabels: ['签到', '兑换'],
     entryPageUrl: 'https://demo.zenith.local/dashboard',
     source: 'web_member',
     appId: 'member',
@@ -66,6 +70,16 @@ export const sessionReplaysHandlers = [
   http.get('/api/session-replays/stats', () => ok({
     totalBytes: 2_254_000, totalCount: 2, todayBytes: 384_000, todayCount: 1, quotaMb: 4096, usagePercent: 1,
   })),
+  http.get('/api/session-replays/heatmap/pages', () => ok(['/orders', '/dashboard'])),
+  http.get('/api/session-replays/heatmap', () => ok({
+    points: [
+      { x: 20, y: 15, count: 12 },
+      { x: 48, y: 32, count: 30 },
+      { x: 80, y: 12, count: 7 },
+      { x: 52, y: 60, count: 18 },
+    ],
+    total: 67,
+  })),
   http.get('/api/session-replays', ({ request }) => {
     const url = new URL(request.url);
     return ok(paginate(sessions, url));
@@ -79,6 +93,11 @@ export const sessionReplaysHandlers = [
       errors: found.errorCount > 0
         ? [{ id: 9001, groupId: 1, errorType: 'js_error', level: 'error', message: "TypeError: Cannot read properties of undefined (reading 'status')", createdAt: found.triggers[0]?.at ?? found.startedAt }]
         : [],
+      perfEvents: [
+        { metricName: 'LCP', metricValue: 1830, createdAt: found.startedAt },
+        { metricName: 'INP', metricValue: 120, createdAt: found.startedAt },
+      ],
+      siblings: [],
     };
     return ok(detail);
   }),

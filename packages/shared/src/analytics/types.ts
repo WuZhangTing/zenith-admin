@@ -201,6 +201,10 @@ export interface ReplaySession {
   errorCount: number;
   pageCount: number;
   clickCount: number;
+  /** 访问过的页面路径（去重索引，内容检索用） */
+  pagePaths: string[];
+  /** 点击过的元素文案（去重索引，内容检索用） */
+  clickLabels: string[];
   entryPageUrl: string | null;
   source: AnalyticsEventSource;
   appId: string;
@@ -230,6 +234,10 @@ export interface ReplaySegmentMeta {
 export interface ReplaySessionDetail extends ReplaySession {
   segments: ReplaySegmentMeta[];
   errors: Array<Pick<ErrorEvent, 'id' | 'groupId' | 'errorType' | 'level' | 'message' | 'createdAt'>>;
+  /** 回放期间的 Web Vitals 性能事件（时间轴标注） */
+  perfEvents: Array<{ metricName: string; metricValue: number; createdAt: string }>;
+  /** 同一浏览器会话的其它回放片段（旅程拼接） */
+  siblings: Array<Pick<ReplaySession, 'id' | 'status' | 'startedAt' | 'durationMs' | 'errorCount' | 'entryPageUrl'>>;
 }
 
 /** 回放存储统计（容量看板与配额治理） */

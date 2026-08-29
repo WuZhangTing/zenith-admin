@@ -29,9 +29,11 @@ interface SearchParams {
   source: string;
   keyword: string;
   hasError: boolean;
+  pagePath: string;
+  clickLabel: string;
 }
 
-const defaultSearchParams: SearchParams = { status: '', triggerType: '', source: '', keyword: '', hasError: false };
+const defaultSearchParams: SearchParams = { status: '', triggerType: '', source: '', keyword: '', hasError: false, pagePath: '', clickLabel: '' };
 const EMPTY_LIST: ReplaySession[] = [];
 
 const STATUS_META = {
@@ -96,6 +98,8 @@ export default function SessionReplaysPage() {
     source: submittedParams.source || undefined,
     keyword: submittedParams.keyword || undefined,
     hasError: submittedParams.hasError || undefined,
+    pagePath: submittedParams.pagePath || undefined,
+    clickLabel: submittedParams.clickLabel || undefined,
   });
   const list = listQuery.data?.list ?? EMPTY_LIST;
   const total = listQuery.data?.total ?? 0;
@@ -235,7 +239,21 @@ export default function SessionReplaysPage() {
           value={draftParams.keyword}
           onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
           onSearch={handleSearch}
-          width={220}
+          width={200}
+        />
+        <KeywordInput
+          placeholder="访问过的页面路径"
+          value={draftParams.pagePath}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, pagePath: value }))}
+          onSearch={handleSearch}
+          width={170}
+        />
+        <KeywordInput
+          placeholder="点击过的内容"
+          value={draftParams.clickLabel}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, clickLabel: value }))}
+          onSearch={handleSearch}
+          width={150}
         />
         <Checkbox
           checked={draftParams.hasError}
@@ -295,10 +313,34 @@ export default function SessionReplaysPage() {
               })}
             </Space>
 
+            {detail.siblings.length > 0 && (
+              <div>
+                <Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 6 }}>
+                  本次浏览器会话共 {detail.siblings.length + 1} 段录像（旅程拼接，点击切换）
+                </Text>
+                <Space wrap>
+                  {[...detail.siblings, { id: detail.id, startedAt: detail.startedAt, durationMs: detail.durationMs, errorCount: detail.errorCount, status: detail.status, entryPageUrl: detail.entryPageUrl }]
+                    .sort((a, b) => a.startedAt.localeCompare(b.startedAt))
+                    .map((seg, i) => (
+                      <Tag
+                        key={seg.id}
+                        size="small"
+                        color={seg.id === detail.id ? 'blue' : 'grey'}
+                        style={seg.id === detail.id ? undefined : { cursor: 'pointer' }}
+                        onClick={seg.id === detail.id ? undefined : () => setDetailId(seg.id)}
+                      >
+                        片段{i + 1} · {seg.startedAt.slice(11, 19)} · {formatDuration(seg.durationMs)}{seg.errorCount > 0 ? ` · ${seg.errorCount} 错误` : ''}
+                      </Tag>
+                    ))}
+                </Space>
+              </div>
+            )}
+
             <ReplayPlayer
               replayId={detail.id}
               segments={detail.segments}
               errors={detail.errors}
+              perfEvents={detail.perfEvents}
               startedAt={detail.startedAt}
               live={detail.status === 'recording'}
             />
