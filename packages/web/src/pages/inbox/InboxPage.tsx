@@ -2,10 +2,9 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppModal } from '@/components/AppModal';
 import {
-  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, Popconfirm, Spin, Typography, List, Checkbox, Pagination,
+  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, Popconfirm, Spin, Typography, List, Checkbox,
 } from '@douyinfe/semi-ui';
-import { usePagination, TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
-import { useIsMobile } from '@/hooks/useMediaQuery';
+import { usePagination } from '@/hooks/usePagination';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
@@ -13,6 +12,7 @@ import type { InAppMessage } from '@zenith/shared/messaging';
 import { formatDateTime } from '@/utils/date';
 import { RefreshButton } from '@/components/toolbar-controls';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import { ListPagination } from '@/components/ListPagination';
 import {
   inboxKeys,
   useBatchDeleteInboxMessages,
@@ -44,7 +44,6 @@ const { Text } = Typography;
 
 export default function InboxPage() {
   const queryClient = useQueryClient();
-  const isMobile = useIsMobile();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [activeTab, setActiveTab] = useUrlTabState(['all', 'unread', 'read'] as const, 'all');
 
@@ -236,25 +235,19 @@ export default function InboxPage() {
               </List.Item>
             )}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-            <Pagination
-              currentPage={pagination.currentPage}
-              pageSize={pagination.pageSize}
-              total={pagination.total}
-              pageSizeOpts={TABLE_PAGE_SIZE_OPTIONS}
-              showSizeChanger={!isMobile}
-              showTotal={!isMobile}
-              size={isMobile ? 'small' : 'default'}
-              onPageChange={(p) => {
+          <ListPagination
+            pagination={{
+              ...pagination,
+              onPageChange: (p) => {
                 pagination.onPageChange(p);
                 setSelectedIds([]);
-              }}
-              onPageSizeChange={(size) => {
+              },
+              onPageSizeChange: (size) => {
                 pagination.onPageSizeChange(size);
                 setSelectedIds([]);
-              }}
-            />
-          </div>
+              },
+            }}
+          />
         </>
       )}
     </>

@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, List, Pagination, Typography,
+  Button, Tag, Space, Tabs, TabPane, Toast, Empty, Badge, List, Typography,
 } from '@douyinfe/semi-ui';
-import { usePagination, TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
-import { useIsMobile } from '@/hooks/useMediaQuery';
+import { usePagination } from '@/hooks/usePagination';
 import { IllustrationIdle, IllustrationIdleDark } from '@douyinfe/semi-illustrations';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { CheckCheck } from 'lucide-react';
@@ -12,6 +11,7 @@ import { formatDateTime } from '@/utils/date';
 import { RefreshButton } from '@/components/toolbar-controls';
 import AnnouncementDetailModal from '@/components/AnnouncementDetailModal';
 import { SearchToolbar } from '@/components/SearchToolbar';
+import { ListPagination } from '@/components/ListPagination';
 import {
   announcementKeys,
   type MyAnnouncement,
@@ -46,7 +46,6 @@ const PRIORITY_LABEL: Record<string, string> = {
 
 export default function AnnouncementsPage() {
   const queryClient = useQueryClient();
-  const isMobile = useIsMobile();
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [activeTab, setActiveTab] = useUrlTabState(['all', 'unread', 'read'] as const, 'all');
 
@@ -184,19 +183,7 @@ export default function AnnouncementsPage() {
                 );
               }}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-              <Pagination
-                currentPage={pagination.currentPage}
-                pageSize={pagination.pageSize}
-                total={pagination.total}
-                pageSizeOpts={TABLE_PAGE_SIZE_OPTIONS}
-                showSizeChanger={!isMobile}
-                showTotal={!isMobile}
-                size={isMobile ? 'small' : 'default'}
-                onPageChange={pagination.onPageChange}
-                onPageSizeChange={pagination.onPageSizeChange}
-              />
-            </div>
+            <ListPagination pagination={pagination} />
           </>
         )}
       </>
