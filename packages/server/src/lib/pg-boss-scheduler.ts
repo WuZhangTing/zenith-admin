@@ -611,6 +611,12 @@ handlerRegistry.set('cleanupTerminalRecordings', async () => {
   return `清理终端录屏：按保留天数删除 ${r.deletedByAge} 条、按容量删除 ${r.deletedBySize} 条，释放约 ${(r.freedBytes / 1024 / 1024).toFixed(2)} MB`;
 });
 
+handlerRegistry.set('sslCertificateInspection', async () => {
+  const { inspectExpiringSslCertificates } = await import('../services/ops/ssl-certificates.service');
+  const r = await inspectExpiringSslCertificates();
+  return `SSL 证书巡检：即将过期 ${r.expiring} 张、已过期 ${r.expired} 张${r.notified ? '，已通知管理员' : ''}`;
+});
+
 handlerRegistry.set('closeExpiredPaymentOrders', async () => {
   const { closeExpiredOrders } = await import('../services/payment/payment-reconciliation.service');
   const count = await closeExpiredOrders();

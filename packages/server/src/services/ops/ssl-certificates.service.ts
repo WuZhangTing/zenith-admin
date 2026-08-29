@@ -2,16 +2,17 @@ import { execFile } from 'node:child_process';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { and, desc, eq, like, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { GenerateSelfSignedCertInput } from '@zenith/shared/member';
 import type { UploadCertInput } from '@zenith/shared/platform';
 import { db } from '../../db';
-import { sslCertificates } from '../../db/schema';
+import { sslCertificates, users } from '../../db/schema';
 import type { SslCertificateRow } from '../../db/schema';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { formatDate, formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { notify } from '../messaging/notification-outbox.service';
 
 const execFileAsync = promisify(execFile);
 const PEM_CERT_HEADER = '-----BEGIN CERTIFICATE-----';
@@ -389,4 +390,38 @@ export async function getSslCertificateDownload(id: number, kind: DownloadKind) 
     content: payload,
     contentType: kind === 'cert' ? 'application/x-x509-ca-cert' : 'application/x-pem-file',
   };
+}
+
+/**
+ * SSL 证书到期巡检(每日 cron):即将过期 / 已过期证书汇总通知平台管理员。
+ * dedupeKey 按天幂等,任务重跑不会重复打扰。
+ */
+export async function inspectExpiringSslCertificates(): Promise<{ expiring: number; expired: number; notified: boolean }> {
+  const { list } = await listSslCertificates({ page: 1, pageSize: 500 });
+  const expiring = list.filter((c) => c.status === 'expiring');
+  const expired = list.filter((c) => c.status === 'expired');
+  if (expiring.length === 0 && expired.length === 0) {
+    return { expiring: 0, expired: 0, notified: false };
+  }
+
+  const [admin] = await db.select({ id: users.id }).from(users)
+    .where(and(eq(users.username, 'admin'), isNull(users.tenantId))).limit(1);
+  if (!admin) return { expiring: expiring.length, expired: expired.length, notified: false };
+
+  const parts: string[] = [];
+  if (expired.length > 0) {
+    parts.push(`已过期 ${expired.length} 张:${expired.slice(0, 5).map((c) => c.domain).join('、')}${expired.length > 5 ? ' 等' : ''}`);
+  }
+  if (expiring.length > 0) {
+    parts.push(`30 天内到期 ${expiring.length} 张:${expiring.slice(0, 5).map((c) => `${c.domain}(剩 ${c.daysRemaining} 天)`).join('、')}${expiring.length > 5 ? ' 等' : ''}`);
+  }
+
+  const queued = await notify('ops.ssl.cert_expiring', {
+    recipients: [{ type: 'user', id: admin.id }],
+    vars: { detail: parts.join(';') },
+    tenantId: null,
+    link: '/system/ssl-certificates',
+    dedupeKey: `ssl-cert-expiring:${formatDate(new Date())}`,
+  });
+  return { expiring: expiring.length, expired: expired.length, notified: queued !== null };
 }

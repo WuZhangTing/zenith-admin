@@ -39,15 +39,16 @@
 
 | 页面 | 路径 | 组件 | 权限 |
 | --- | --- | --- | --- |
+| 运维概览 | `/system/ops-overview` | `system/ops-overview/OpsOverviewPage` | `system:ops:overview` |
 | Web 终端 | `/system/terminal` | `system/terminal/TerminalPage` | `system:terminal:execute` |
 | 终端录屏 | `/system/terminal/recordings` | `system/terminal/TerminalRecordingsPage` | `system:terminal:execute` |
-| 文件管理器 | `/system/file-manager` | `system/file-manager/FileManagerPage` | `system:terminal:execute` |
+| 文件管理器 | `/system/file-manager` | `system/file-manager/FileManagerPage` | `system:file:use`(终端权限可兼容访问) |
 | 进程管理 | `/system/processes` | `system/processes/ProcessesPage` | `system:process:view` |
-| 端口监听 | `/system/ports` | `system/ports/PortsPage` | `system:process:view` |
-| Docker | `/system/docker` | `system/docker/DockerPage` | `system:process:view` |
-| 网络诊断 | `/system/network-diag` | `system/network-diag/NetworkDiagPage` | `system:process:view` |
-| 服务管理 | `/system/services` | `system/services/ServicesPage` | `system:process:view` |
-| 日志查看器 | `/system/log-viewer` | `system/log-viewer/LogViewerPage` | `system:process:view` |
+| 端口监听 | `/system/ports` | `system/ports/PortsPage` | `system:port:view` |
+| Docker | `/system/docker` | `system/docker/DockerPage` | `system:docker:view` |
+| 网络诊断 | `/system/network-diag` | `system/network-diag/NetworkDiagPage` | `system:network:diag` |
+| 服务管理 | `/system/services` | `system/services/ServicesPage` | `system:service:view` |
+| 日志查看器 | `/system/log-viewer` | `system/log-viewer/LogViewerPage` | `system:log:view` |
 | 终端会话 | `/system/terminal/sessions` | `system/terminal/TerminalSessionsPage` | `system:terminal:monitor` |
 | 防火墙管理 | `/system/firewall` | `system/firewall/FirewallPage` | `system:firewall:view` |
 | Nginx 站点 | `/system/nginx-sites` | `system/nginx-sites/NginxSitesPage` | `system:nginx:view` |
@@ -64,7 +65,7 @@
 | 告警规则 | `/alerts/rules` | `alerts/rules/AlertRulesPage` | `alert:rule:list` |
 | 告警事件 | `/alerts/events` | `alerts/events/AlertEventsPage` | `alert:event:list` |
 
-按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-backup:create`、`system:db-backup:delete`、`system:cache:update`、`system:cache:delete`、`system:retention:edit`、`system:retention:run`、`system:app-release:create`、`system:app-release:update`、`system:app-release:delete`、`system:app-release:publish`、`alert:rule:create`、`alert:rule:update`、`alert:rule:delete`、`alert:rule:test`、`alert:event:handle`、`alert:event:export`。
+按钮级权限包括 `system:process:kill`、`system:process:priority`、`system:docker:manage`、`system:service:manage`、`system:terminal:monitor`、`system:log:files:download`、`system:log:files:delete`、`system:firewall:manage`、`system:nginx:manage`、`system:nginx:reload`、`system:ssl:create`、`system:ssl:delete`、`system:db-admin:query`、`system:db-admin:export`、`system:db-admin:write`、`system:db-admin:maintain`、`system:db-admin:terminal`、`system:db-backup:create`、`system:db-backup:delete`、`system:cache:update`、`system:cache:delete`、`system:retention:edit`、`system:retention:run`、`system:app-release:create`、`system:app-release:update`、`system:app-release:delete`、`system:app-release:publish`、`alert:rule:create`、`alert:rule:update`、`alert:rule:delete`、`alert:rule:test`、`alert:event:handle`、`alert:event:export`。
 
 ## 核心数据表
 

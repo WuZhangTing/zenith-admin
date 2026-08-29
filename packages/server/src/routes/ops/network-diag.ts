@@ -2,15 +2,17 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { stream } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
+import { guard } from '../../middleware/guard';
 import {
   validationHook, ok, commonErrorResponses, okBody,
 } from '../../lib/openapi-schemas';
 import { spawnNetDiag, runNslookup, checkPort, validateHost, resolveDns, reverseDns, httpProbe, getInterfaces, type NetDiagType, type DnsRecordType } from '../../services/ops/network-diag.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+const DIAG_PERM = 'system:network:diag';
 
 // ─── 流式路由：ping / traceroute（不走 OpenAPI，因为 stream() 返回值不兼容 OpenAPI 类型系统）────
-router.get('/stream', authMiddleware, async (c) => {
+router.get('/stream', authMiddleware, guard({ permission: DIAG_PERM }), async (c) => {
   const type = c.req.query('type') as NetDiagType;
   const host = c.req.query('host') ?? '';
 
@@ -43,7 +45,7 @@ router.get('/stream', authMiddleware, async (c) => {
 const nslookupRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/nslookup', summary: 'DNS 查询', tags: ['NetworkDiag'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: DIAG_PERM })] as const,
     request: { query: z.object({ host: z.string().min(1).max(253) }) },
     responses: { ...commonErrorResponses, ...ok(z.object({ output: z.string() }), 'DNS 查询结果') },
   }),
@@ -57,7 +59,7 @@ const nslookupRoute = defineOpenAPIRoute({
 const portCheckRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/port-check', summary: 'TCP 端口检测', tags: ['NetworkDiag'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: DIAG_PERM })] as const,
     request: {
       body: {
         content: {
@@ -87,7 +89,7 @@ const portCheckRoute = defineOpenAPIRoute({
 const dnsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/dns', summary: 'DNS 记录解析（A/AAAA/MX/TXT/NS/CNAME/SOA）', tags: ['NetworkDiag'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: DIAG_PERM })] as const,
     request: { query: z.object({ host: z.string().min(1).max(253), type: z.enum(['A', 'AAAA', 'MX', 'TXT', 'NS', 'CNAME', 'SOA']).default('A') }) },
     responses: { ...commonErrorResponses, ...ok(z.object({ type: z.string(), records: z.array(z.string()) }), 'DNS 记录') },
   }),
@@ -102,7 +104,7 @@ const dnsRoute = defineOpenAPIRoute({
 const reverseRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/reverse', summary: '反向 DNS（PTR）', tags: ['NetworkDiag'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: DIAG_PERM })] as const,
     request: { query: z.object({ ip: z.string().min(1).max(45) }) },
     responses: { ...commonErrorResponses, ...ok(z.object({ hostnames: z.array(z.string()) }), '反查结果') },
   }),
@@ -115,7 +117,7 @@ const reverseRoute = defineOpenAPIRoute({
 const httpProbeRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/http-probe', summary: 'HTTP(S) 探测', tags: ['NetworkDiag'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: DIAG_PERM })] as const,
     request: { body: { content: { 'application/json': { schema: z.object({ url: z.string().url().max(2048) }) } }, required: true } },
     responses: {
       ...commonErrorResponses,
@@ -136,7 +138,7 @@ const httpProbeRoute = defineOpenAPIRoute({
 const interfacesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/interfaces', summary: '本机网卡信息', tags: ['NetworkDiag'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: DIAG_PERM })] as const,
     request: {},
     responses: {
       ...commonErrorResponses,

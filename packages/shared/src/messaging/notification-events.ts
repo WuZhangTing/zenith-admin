@@ -339,6 +339,16 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '[错误告警] {{ruleName}}',
     content: '{{detail}}',
   },
+  'ops.ssl.cert_expiring': {
+    group: 'ops',
+    label: 'SSL 证书到期提醒',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ detail: string }>(),
+    title: 'SSL 证书到期提醒',
+    content: '{{detail}}，请及时更换证书。',
+  },
   'ops.scheduler.job_failed': {
     group: 'ops',
     label: '定时任务执行失败',

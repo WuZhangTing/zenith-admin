@@ -27,7 +27,7 @@ const listRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/', tags: ['Ports'], summary: '获取监听端口列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:process:view' })] as const,
+    middleware: [authMiddleware, guard({ permission: 'system:port:view' })] as const,
     responses: { ...commonErrorResponses, ...ok(PortEntryDTO.array(), '端口列表') },
   }),
   handler: async (c) => {

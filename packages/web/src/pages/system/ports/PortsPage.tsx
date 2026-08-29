@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tag, Select, Space, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -23,6 +24,7 @@ const REFRESH_OPTIONS = [
 ];
 
 export default function PortsPage() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const canKill = hasPermission('system:process:kill');
   const [keyword, setKeyword] = useState('');
@@ -60,9 +62,15 @@ export default function PortsPage() {
     { title: 'PID', dataIndex: 'pid', width: 80, render: (v: number | null) => v ?? '—' },
     { title: '进程名', dataIndex: 'processName', render: (v: string | null) => v ?? '—' },
     createOperationColumn<PortEntry>({
-      width: 90,
+      width: 160,
       emptyContent: <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
       actions: (record) => [
+        {
+          key: 'process',
+          label: '查看进程',
+          hidden: !record.pid,
+          onClick: () => navigate(`/system/processes?pid=${record.pid}`),
+        },
         {
           key: 'kill',
           label: '结束进程',

@@ -19,6 +19,8 @@ export interface NginxSite {
   listenPort: number | null;
   root: string | null;
   sslEnabled: boolean;
+  accessLog: string | null;
+  errorLog: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }

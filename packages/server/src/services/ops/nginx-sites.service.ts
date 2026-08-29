@@ -9,7 +9,7 @@ const execFileAsync = promisify(execFile);
 const isWindows = process.platform === 'win32';
 const isMac = process.platform === 'darwin';
 
-const MOCK_INFO = {
+const UNSUPPORTED_INFO = {
   installed: false,
   version: null,
   configPath: null,
@@ -18,52 +18,12 @@ const MOCK_INFO = {
   runningStatus: 'unknown' as const,
 };
 
-const MOCK_SITES = [
-  {
-    name: 'default',
-    enabled: true,
-    configPath: '/etc/nginx/sites-available/default',
-    serverName: '_',
-    listenPort: 80,
-    root: '/var/www/html',
-    sslEnabled: false,
-    createdAt: '2024-01-01 00:00:00',
-    updatedAt: '2024-01-01 00:00:00',
-  },
-  {
-    name: 'example.com',
-    enabled: true,
-    configPath: '/etc/nginx/sites-available/example.com',
-    serverName: 'example.com www.example.com',
-    listenPort: 443,
-    root: '/var/www/example.com',
-    sslEnabled: true,
-    createdAt: '2024-03-15 10:00:00',
-    updatedAt: '2024-03-15 10:00:00',
-  },
-  {
-    name: 'api.example.com',
-    enabled: false,
-    configPath: '/etc/nginx/sites-available/api.example.com',
-    serverName: 'api.example.com',
-    listenPort: 80,
-    root: null,
-    sslEnabled: false,
-    createdAt: '2024-05-01 08:00:00',
-    updatedAt: '2024-05-01 08:00:00',
-  },
-];
-
-const MOCK_CONFIG = `server {
-    listen 80;
-    server_name example.com;
-    root /var/www/html;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ =404;
-    }
-}`;
+/** Nginx 站点管理依赖类 Unix 目录布局与 nginx CLI;Windows 平台直接声明不支持 */
+function assertNginxPlatformSupported(): void {
+  if (isWindows) {
+    throw new HTTPException(400, { message: '当前平台不支持 Nginx 站点管理(仅 Linux / macOS)' });
+  }
+}
 
 export interface NginxInfoData {
   installed: boolean;
@@ -82,6 +42,9 @@ export interface NginxSiteData {
   listenPort: number | null;
   root: string | null;
   sslEnabled: boolean;
+  /** 配置中显式声明的访问 / 错误日志路径(未声明为 null),供日志查看器深链 */
+  accessLog: string | null;
+  errorLog: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -107,6 +70,8 @@ interface ParsedSiteConfig {
   listenPort: number | null;
   root: string | null;
   sslEnabled: boolean;
+  accessLog: string | null;
+  errorLog: string | null;
 }
 
 interface NginxDetectionResult {
@@ -240,7 +205,11 @@ function parseSiteConfig(content: string): ParsedSiteConfig {
   const sslEnabled = /listen\s+[^;]*\bssl\b/i.test(content)
     || /ssl\s+on\s*;/i.test(content)
     || /ssl_certificate\s+/i.test(content);
-  return { serverName, listenPort, root, sslEnabled };
+  // 日志指令取第一个路径参数;值为 off / syslog 等非文件目标时不提供深链
+  const accessLogRaw = content.match(/access_log\s+([^;\s]+)/i)?.[1] ?? null;
+  const errorLogRaw = content.match(/error_log\s+([^;\s]+)/i)?.[1] ?? null;
+  const toLogPath = (raw: string | null) => (raw && raw !== 'off' && raw.startsWith('/') ? raw : null);
+  return { serverName, listenPort, root, sslEnabled, accessLog: toLogPath(accessLogRaw), errorLog: toLogPath(errorLogRaw) };
 }
 
 function generateSiteConfig(input: CreateNginxSiteInput): string {
@@ -308,6 +277,8 @@ async function buildSiteData(name: string, enabled: boolean, configPath: string)
     listenPort: parsed.listenPort,
     root: parsed.root,
     sslEnabled: parsed.sslEnabled,
+    accessLog: parsed.accessLog,
+    errorLog: parsed.errorLog,
     createdAt: times.createdAt,
     updatedAt: times.updatedAt,
   };
@@ -340,7 +311,7 @@ async function ensureNginxInstalled(): Promise<void> {
 }
 
 export async function getNginxInfo(): Promise<NginxInfoData> {
-  if (isWindows) return MOCK_INFO;
+  if (isWindows) return UNSUPPORTED_INFO;
 
   const detected = await detectNginx();
   const layout = await resolveNginxLayout();
@@ -366,7 +337,8 @@ export async function getNginxInfo(): Promise<NginxInfoData> {
 }
 
 export async function listNginxSites(): Promise<NginxSiteData[]> {
-  if (isWindows) return MOCK_SITES;
+  // Windows 不支持:返回空列表而非模拟站点,避免生产环境误导
+  if (isWindows) return [];
 
   const layout = await resolveNginxLayout();
   if (!layout.sitesAvailable) return [];
@@ -409,17 +381,11 @@ export async function listNginxSites(): Promise<NginxSiteData[]> {
 
 export async function getNginxSiteDetail(name: string): Promise<NginxSiteDetailData> {
   validateSiteName(name);
-  if (isWindows) {
-    const site = MOCK_SITES.find((item) => item.name === name);
-    if (!site) throw new HTTPException(404, { message: '站点不存在' });
-    return { ...site, content: MOCK_CONFIG };
-  }
+  assertNginxPlatformSupported();
 
   const layout = await resolveNginxLayout();
   if (layout.mode === 'mock') {
-    const site = MOCK_SITES.find((item) => item.name === name);
-    if (!site) throw new HTTPException(404, { message: '站点不存在' });
-    return { ...site, content: MOCK_CONFIG };
+    throw new HTTPException(400, { message: '当前平台不支持 Nginx 站点管理(仅 Linux / macOS)' });
   }
 
   if (layout.mode === 'symlink') {
@@ -435,7 +401,7 @@ export async function getNginxSiteDetail(name: string): Promise<NginxSiteDetailD
 
 export async function createNginxSite(input: CreateNginxSiteInput): Promise<void> {
   validateSiteName(input.name);
-  if (isWindows) return;
+  assertNginxPlatformSupported();
 
   await ensureNginxInstalled();
   const layout = await resolveNginxLayout();
@@ -462,7 +428,7 @@ export async function createNginxSite(input: CreateNginxSiteInput): Promise<void
 
 export async function updateNginxSiteContent(name: string, content: string): Promise<void> {
   validateSiteName(name);
-  if (isWindows) return;
+  assertNginxPlatformSupported();
 
   const layout = await resolveNginxLayout();
   if (layout.mode === 'symlink') {
@@ -477,7 +443,7 @@ export async function updateNginxSiteContent(name: string, content: string): Pro
 
 export async function deleteNginxSite(name: string): Promise<void> {
   validateSiteName(name);
-  if (isWindows) return;
+  assertNginxPlatformSupported();
 
   const layout = await resolveNginxLayout();
   if (layout.mode === 'symlink') {
@@ -495,7 +461,7 @@ export async function deleteNginxSite(name: string): Promise<void> {
 
 export async function enableNginxSite(name: string): Promise<void> {
   validateSiteName(name);
-  if (isWindows) return;
+  assertNginxPlatformSupported();
 
   const layout = await resolveNginxLayout();
   if (layout.mode === 'symlink') {
@@ -515,7 +481,7 @@ export async function enableNginxSite(name: string): Promise<void> {
 
 export async function disableNginxSite(name: string): Promise<void> {
   validateSiteName(name);
-  if (isWindows) return;
+  assertNginxPlatformSupported();
 
   const layout = await resolveNginxLayout();
   if (layout.mode === 'symlink') {
@@ -531,7 +497,7 @@ export async function disableNginxSite(name: string): Promise<void> {
 
 export async function testNginxConfig(): Promise<{ success: boolean; output: string }> {
   if (isWindows) {
-    return { success: true, output: 'mock: nginx 未安装，已跳过本地配置检测' };
+    return { success: false, output: '当前平台不支持 Nginx 站点管理(仅 Linux / macOS)' };
   }
 
   await ensureNginxInstalled();
@@ -548,7 +514,7 @@ export async function testNginxConfig(): Promise<{ success: boolean; output: str
 }
 
 export async function reloadNginx(): Promise<void> {
-  if (isWindows) return;
+  assertNginxPlatformSupported();
   await ensureNginxInstalled();
   await execFileAsync('nginx', ['-s', 'reload'], { timeout: 30000 });
 }

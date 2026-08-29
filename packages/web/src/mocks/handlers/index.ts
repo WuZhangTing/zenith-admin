@@ -30,6 +30,7 @@ import { oauthHandlers } from './oauth';
 import { oauthConfigHandlers } from './oauth-config';
 import { dbBackupsHandlers } from './db-backups';
 import { dbAdminHandlers } from './db-admin';
+import { opsOverviewHandlers } from './ops-overview';
 import { apiTokensHandlers } from './api-tokens';
 import { tenantsHandlers } from './tenants';
 import { tenantPackagesHandlers } from './tenant-packages';
@@ -170,6 +171,7 @@ export const handlers = [
   ...oauthConfigHandlers,
   ...dbBackupsHandlers,
   ...dbAdminHandlers,
+  ...opsOverviewHandlers,
   ...apiTokensHandlers,
   ...tenantsHandlers,
   ...tenantPackagesHandlers,

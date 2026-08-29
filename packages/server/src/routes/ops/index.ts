@@ -12,6 +12,7 @@ import logViewerRoutes from './log-viewer';
 import maintenanceRoutes from './maintenance';
 import networkDiagRoutes from './network-diag';
 import nginxSitesRoutes from './nginx-sites';
+import opsOverviewRoutes from './ops-overview';
 import portsRoutes from './ports';
 import processesRoutes from './processes';
 import retentionRoutes from './retention';
@@ -46,6 +47,7 @@ export default defineRouteDomain({
     ['/api/systemd', systemdRoutes, { feature: 'ops' }],
     ['/api/log-viewer', logViewerRoutes, { feature: 'ops' }],
     ['/api/nginx-sites', nginxSitesRoutes, { feature: 'ops' }],
+    ['/api/ops-overview', opsOverviewRoutes, { feature: 'ops' }],
     ['/api/log-files', logFilesRoutes, { feature: 'ops' }],
     ['/api/retention-policies', retentionRoutes, { feature: 'ops' }],
     ['/api/app-releases', appReleasesRoutes],

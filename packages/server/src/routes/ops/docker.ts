@@ -36,7 +36,8 @@ import {
 } from '../../services/ops/docker.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-const PERM = 'system:process:view';
+const VIEW_PERM = 'system:docker:view';
+const MANAGE_PERM = 'system:docker:manage';
 
 const ContainerDTO = z.object({
   id: z.string(),
@@ -63,7 +64,7 @@ const listRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/', tags: ['Docker'], summary: '容器列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     responses: { ...commonErrorResponses, ...ok(ContainerDTO.array(), '容器列表') },
   }),
   handler: async (c) => {
@@ -80,7 +81,7 @@ const startRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/:id/start', tags: ['Docker'], summary: '启动容器',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '启动 Docker 容器', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '启动 Docker 容器', module: '系统运维' } })] as const,
     request: { params: ContainerIdParam },
     responses: { ...commonErrorResponses, ...okMsg('启动成功') },
   }),
@@ -94,7 +95,7 @@ const stopRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/:id/stop', tags: ['Docker'], summary: '停止容器',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '停止 Docker 容器', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '停止 Docker 容器', module: '系统运维' } })] as const,
     request: { params: ContainerIdParam },
     responses: { ...commonErrorResponses, ...okMsg('停止成功') },
   }),
@@ -108,7 +109,7 @@ const restartRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/:id/restart', tags: ['Docker'], summary: '重启容器',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '重启 Docker 容器', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '重启 Docker 容器', module: '系统运维' } })] as const,
     request: { params: ContainerIdParam },
     responses: { ...commonErrorResponses, ...okMsg('重启成功') },
   }),
@@ -122,7 +123,7 @@ const logsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:id/logs', tags: ['Docker'], summary: '获取容器日志',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     request: {
       params: ContainerIdParam,
       query: z.object({ tail: z.coerce.number().int().min(10).max(5000).default(200) }),
@@ -141,7 +142,7 @@ const statsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:id/stats', tags: ['Docker'], summary: '获取容器资源占用',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     request: { params: ContainerIdParam },
     responses: { ...commonErrorResponses, ...ok(z.object({ cpuPercent: z.number(), memUsage: z.number(), memLimit: z.number() }), '资源占用') },
   }),
@@ -155,7 +156,7 @@ const inspectRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:id/inspect', tags: ['Docker'], summary: '容器详情（docker inspect）',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     request: { params: ContainerIdParam },
     responses: { ...commonErrorResponses, ...ok(z.record(z.string(), z.unknown()), '容器详情') },
   }),
@@ -180,7 +181,7 @@ const listImagesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/images', tags: ['Docker'], summary: '镜像列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     responses: { ...commonErrorResponses, ...ok(ImageDTO.array(), '镜像列表') },
   }),
   handler: async (c) => {
@@ -197,7 +198,7 @@ const removeImageRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/images/:id', tags: ['Docker'], summary: '删除镜像',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '删除 Docker 镜像', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '删除 Docker 镜像', module: '系统运维' } })] as const,
     request: { params: z.object({ id: z.string().min(1) }) },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
@@ -211,7 +212,7 @@ const pullImageRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/images/pull', tags: ['Docker'], summary: '拉取镜像',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '拉取 Docker 镜像', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '拉取 Docker 镜像', module: '系统运维' } })] as const,
     request: { body: { content: { 'application/json': { schema: z.object({ repoTag: z.string().min(1) }) } }, required: true } },
     responses: { ...commonErrorResponses, ...okMsg('拉取成功') },
   }),
@@ -239,7 +240,7 @@ const listNetworksRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/networks', tags: ['Docker'], summary: '网络列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     responses: { ...commonErrorResponses, ...ok(NetworkDTO.array(), '网络列表') },
   }),
   handler: async (c) => {
@@ -256,7 +257,7 @@ const removeNetworkRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/networks/:id', tags: ['Docker'], summary: '删除网络',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '删除 Docker 网络', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '删除 Docker 网络', module: '系统运维' } })] as const,
     request: { params: z.object({ id: z.string().min(1) }) },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
@@ -270,7 +271,7 @@ const createNetworkRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/networks', tags: ['Docker'], summary: '创建网络',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '创建 Docker 网络', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '创建 Docker 网络', module: '系统运维' } })] as const,
     request: {
       body: {
         content: {
@@ -309,7 +310,7 @@ const listVolumesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/volumes', tags: ['Docker'], summary: '存储卷列表',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     responses: { ...commonErrorResponses, ...ok(VolumeDTO.array(), '存储卷列表') },
   }),
   handler: async (c) => {
@@ -326,7 +327,7 @@ const removeVolumeRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/volumes/:name', tags: ['Docker'], summary: '删除存储卷',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '删除 Docker 存储卷', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '删除 Docker 存储卷', module: '系统运维' } })] as const,
     request: { params: z.object({ name: z.string().min(1) }) },
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
@@ -340,7 +341,7 @@ const createVolumeRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/volumes', tags: ['Docker'], summary: '创建存储卷',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '创建 Docker 存储卷', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '创建 Docker 存储卷', module: '系统运维' } })] as const,
     request: {
       body: {
         content: {
@@ -367,7 +368,7 @@ const listContainerFilesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:id/files', summary: '列出容器内目录', tags: ['Docker'],
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     request: {
       params: z.object({ id: z.string() }),
       query: z.object({ path: z.string().optional() }),
@@ -393,7 +394,7 @@ const readContainerFileRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:id/files/content', summary: '读取容器内文件', tags: ['Docker'],
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM })] as const,
+    middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
     request: {
       params: z.object({ id: z.string() }),
       query: z.object({ path: z.string() }),
@@ -423,7 +424,7 @@ const pruneContainersRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/prune/containers', summary: '清理已停止容器', tags: ['Docker'],
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '清理已停止 Docker 容器', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '清理已停止 Docker 容器', module: '系统运维' } })] as const,
     responses: { ...commonErrorResponses, ...ok(PruneResultDTO, '清理结果') },
   }),
   handler: async (c) => c.json(okBody(await pruneContainers(), '清理完成'), 200),
@@ -433,7 +434,7 @@ const pruneImagesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/prune/images', summary: '清理镜像（悬空/全部未用）', tags: ['Docker'],
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '清理 Docker 镜像', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '清理 Docker 镜像', module: '系统运维' } })] as const,
     request: { query: z.object({ all: z.enum(['true', 'false']).optional() }) },
     responses: { ...commonErrorResponses, ...ok(PruneResultDTO, '清理结果') },
   }),
@@ -447,7 +448,7 @@ const pruneNetworksRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/prune/networks', summary: '清理未使用网络', tags: ['Docker'],
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '清理 Docker 网络', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '清理 Docker 网络', module: '系统运维' } })] as const,
     responses: { ...commonErrorResponses, ...ok(PruneResultDTO, '清理结果') },
   }),
   handler: async (c) => c.json(okBody(await pruneNetworks(), '清理完成'), 200),
@@ -457,7 +458,7 @@ const pruneVolumesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/prune/volumes', summary: '清理未使用存储卷', tags: ['Docker'],
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '清理 Docker 存储卷', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: '清理 Docker 存储卷', module: '系统运维' } })] as const,
     responses: { ...commonErrorResponses, ...ok(PruneResultDTO, '清理结果') },
   }),
   handler: async (c) => c.json(okBody(await pruneVolumes(), '清理完成'), 200),
@@ -467,7 +468,7 @@ const pruneSystemRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/prune/system', summary: '系统清理（容器+悬空镜像+网络）', tags: ['Docker'],
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: PERM, audit: { description: 'Docker 系统清理', module: '系统运维' } })] as const,
+    middleware: [authMiddleware, guard({ permission: MANAGE_PERM, audit: { description: 'Docker 系统清理', module: '系统运维' } })] as const,
     responses: { ...commonErrorResponses, ...ok(PruneResultDTO, '清理结果') },
   }),
   handler: async (c) => c.json(okBody(await pruneSystem(), '清理完成'), 200),

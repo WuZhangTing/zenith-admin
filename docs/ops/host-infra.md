@@ -1,8 +1,15 @@
 # 主机与中间件
 
-本页描述系统运维目录下的主机运行态、中间件、网络、日志、Web 服务配置、证书和维护模式。
+本页描述系统运维目录下的运维概览、主机运行态、中间件、网络、日志、Web 服务配置、证书和维护模式。
 
 ---
+
+## 运维概览
+
+「运维概览」（`/system/ops-overview`）是系统运维目录首页，权限码 `system:ops:overview`。
+`GET /api/ops-overview` 一次请求并行聚合各能力面的健康快照：主机 CPU / 内存 / 磁盘与 PG / Redis 连通性（复用服务监控采集）、Docker 容器运行状态、systemd 失败单元数、SSL 证书到期风险、防火墙与 Nginx 状态、活动终端会话数、监听端口数、告警中事件。每个分区独立容错（`available` / `reason`），单项探测失败或超时（8 秒）不影响整体响应。
+
+前端以健康卡片矩阵展示（异常标红、点击直达对应页面），附组件状态列表、告警中事件与全部运维页面快捷入口。
 
 ## 进程管理
 
@@ -22,7 +29,7 @@
 
 ## 端口监听
 
-「端口监听」（`/system/ports`）调用 `/api/ports` 获取监听端口列表，查看权限复用 `system:process:view`，结束占用进程使用 `system:process:kill`。
+「端口监听」（`/system/ports`）调用 `/api/ports` 获取监听端口列表，查看权限为 `system:port:view`，结束占用进程使用 `system:process:kill`。操作列提供「查看进程」深链（跳转进程管理页并按 PID 定位）。
 
 端口采集方式：Linux / macOS 优先使用 `ss -tlnp`，回退到 `netstat -tlnp`；Windows 使用 `netstat -ano`。返回协议、本地地址、本地端口、状态、PID、进程名和服务名。服务名由内置常见端口映射识别，例如 `22 → SSH`、`80 → HTTP`、`443 → HTTPS`、`5432 → PostgreSQL`、`6379 → Redis`、`5173 → Vite`、`3300 → Zenith-API`。
 
@@ -53,7 +60,7 @@
 
 ## 网络诊断
 
-「网络诊断」（`/system/network-diag`）接口前缀为 `/api/network-diag`，所有接口需要登录态。
+「网络诊断」（`/system/network-diag`）接口前缀为 `/api/network-diag`，全部接口使用权限码 `system:network:diag`。
 
 | 能力 | 接口 | 实现 |
 | --- | --- | --- |
@@ -70,7 +77,7 @@
 
 ## systemd 服务管理
 
-「服务管理」（`/system/services`）面向 Linux systemd 环境，接口前缀为 `/api/systemd`，所有接口需要登录态。页面先调用 `GET /api/systemd/check` 检查 `systemctl --version` 是否可用；不可用时展示提示。
+「服务管理」（`/system/services`）面向 Linux systemd 环境，接口前缀为 `/api/systemd`，查看（列表 / 详情 / 日志）用 `system:service:view`，服务启停等控制操作用 `system:service:manage`。页面先调用 `GET /api/systemd/check` 检查 `systemctl --version` 是否可用；不可用时展示提示。
 
 服务列表来自 `systemctl list-units --type=service --all --no-pager --plain --no-legend`，返回服务名、描述、加载状态、活动状态和子状态。后端列表会移除 `.service` 后缀，控制接口调用时再拼接 `.service`。
 
@@ -93,7 +100,7 @@
 
 ### 日志查看器
 
-「日志查看器」（`/system/log-viewer`）面向任意绝对路径日志文件，接口前缀为 `/api/log-viewer`：
+「日志查看器」（`/system/log-viewer`）面向任意绝对路径日志文件，接口前缀为 `/api/log-viewer`，权限码 `system:log:view`。支持 `?path=` 深链直接加载指定文件（Nginx 站点页的「访问日志 / 错误日志」由此跳入）：
 
 | 接口 | 说明 |
 | --- | --- |
@@ -125,7 +132,7 @@
 
 「防火墙管理」（`/system/firewall`）接口前缀为 `/api/firewall`，查看用 `system:firewall:view`，规则管理与启停用 `system:firewall:manage`。
 
-- 服务端按 `ufw → firewalld → iptables` 顺序自动探测防火墙后端，返回类型与版本；Windows 平台返回模拟数据、写操作为空操作。
+- 服务端按 `ufw → firewalld → iptables` 顺序自动探测防火墙后端，返回类型与版本；Windows 等无受支持后端的平台返回 `type: 'unknown'`，前端按不可用降级展示。
 - `GET /api/firewall` 返回防火墙状态，`GET /api/firewall/rules` 返回规则列表。
 - `POST /api/firewall/rules` 添加规则、`DELETE /api/firewall/rules/{id}` 删除规则，入参端口、来源、目标与备注先清洗再拼接命令。
 - `POST /api/firewall/enable`、`POST /api/firewall/disable` 启停防火墙。
@@ -134,9 +141,9 @@
 
 「Nginx 站点」（`/system/nginx-sites`）接口前缀为 `/api/nginx-sites`。权限码：`system:nginx:view`（查看）、`system:nginx:manage`（建站 / 编辑 / 删除 / 启停）、`system:nginx:reload`（重载）。
 
-- `GET /api/nginx-sites/info` 返回 Nginx 安装状态、版本、配置目录与 `systemctl is-active` 运行状态；Windows 返回模拟数据。
+- `GET /api/nginx-sites/info` 返回 Nginx 安装状态、版本、配置目录与 `systemctl is-active` 运行状态；Windows 平台不支持（`installed: false`，站点列表为空、写操作返回 400）。
 - 自动适配 `sites-available` + `sites-enabled` 软链模式，或 `conf.d` / `servers` 单目录模式。
-- 站点列表解析每个配置的 `server_name`、监听端口、根目录与是否启用 SSL；详情返回完整配置内容。
+- 站点列表解析每个配置的 `server_name`、监听端口、根目录、是否启用 SSL 以及 `access_log` / `error_log` 路径（供日志查看器深链）；详情返回完整配置内容。
 - `POST /api/nginx-sites` 按模板生成 server 块；`PUT /api/nginx-sites/:name` 直接保存配置文件内容。
 - `POST /api/nginx-sites/test` 执行 `nginx -t`；`POST /api/nginx-sites/reload` 重载 Nginx。
 - 站点增删改与启停记录审计，包含前后配置快照。
@@ -151,6 +158,7 @@
 - 列表支持按名称 / 域名关键字与类型（`self_signed` / `uploaded` / `letsencrypt`）筛选。
 - `GET /:id/download?kind=cert|key` 下载证书或私钥文件；删除证书时连同证书目录一并删除。
 - 生成与上传接口开启审计但 `recordBody:false`，避免私钥进入审计日志。
+- 定时任务 `sslCertificateInspection` 每天 9 点巡检：存在已过期或 30 天内到期的证书时，经通知中心事件 `ops.ssl.cert_expiring` 汇总通知平台管理员（按天幂等，任务重跑不重复打扰）。
 
 ## 维护模式
 

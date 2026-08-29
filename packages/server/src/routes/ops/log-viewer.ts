@@ -2,15 +2,17 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { stream } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
+import { guard } from '../../middleware/guard';
 import {
   validationHook, ok, commonErrorResponses, okBody,
 } from '../../lib/openapi-schemas';
 import { readLastLines, spawnTailFollow, validateLogPath, openLogForDownload } from '../../services/ops/log-viewer.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+const LOG_PERM = 'system:log:view';
 
 // ─── 流式路由：tail -f ───────────────────────────────────────────────────────
-router.get('/stream', authMiddleware, async (c) => {
+router.get('/stream', authMiddleware, guard({ permission: LOG_PERM }), async (c) => {
   const filePath = c.req.query('path') ?? '';
   if (!filePath) {
     return c.json({ code: 400, message: '参数 path 不能为空', data: null }, 400);
@@ -36,7 +38,7 @@ router.get('/stream', authMiddleware, async (c) => {
 });
 
 // ─── 下载日志文件 ────────────────────────────────────────────────────────────
-router.get('/download', authMiddleware, async (c) => {
+router.get('/download', authMiddleware, guard({ permission: LOG_PERM }), async (c) => {
   const filePath = c.req.query('path') ?? '';
   if (!filePath) {
     return c.json({ code: 400, message: '参数 path 不能为空', data: null }, 400);
@@ -68,7 +70,7 @@ router.get('/download', authMiddleware, async (c) => {
 const contentRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/content', summary: '读取日志文件末尾内容', tags: ['LogViewer'],
-    middleware: [authMiddleware] as const,
+    middleware: [authMiddleware, guard({ permission: LOG_PERM })] as const,
     request: {
       query: z.object({
         path: z.string().min(1),

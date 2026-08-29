@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Button,
   Tag,
@@ -137,6 +138,7 @@ function groupByCompose(containers: ContainerInfo[]): (ContainerInfo & { childre
 // ─── Containers Tab ───────────────────────────────────────────────────────────
 
 function ContainersTab() {
+  const navigate = useNavigate();
   const [keyword, setKeyword] = useState('');
   const [logsContainer, setLogsContainer] = useState<ContainerInfo | null>(null);
   const [logs, setLogs] = useState('');
@@ -322,6 +324,12 @@ function ContainersTab() {
             key: 'logs',
             label: '日志',
             onClick: () => { void openLogs(record); },
+          },
+          {
+            key: 'terminal',
+            label: '打开终端',
+            hidden: !isRunning,
+            onClick: () => navigate(`/system/terminal?open=${encodeURIComponent(`docker-exec:${record.shortId}:sh`)}&title=${encodeURIComponent(`docker: ${record.names[0] ?? record.shortId}`)}`),
           },
           {
             key: 'restart',

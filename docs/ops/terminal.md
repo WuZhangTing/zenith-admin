@@ -117,7 +117,7 @@ SFTP 功能复用 SSH 配置档案，接口前缀为 `/api/ssh-sftp/:profileId`�
 
 ## 本机文件管理器
 
-「文件管理器」（`/system/file-manager`）接口前缀为 `/api/terminal-files`，使用 `system:terminal:execute` 权限，面向服务器本机文件系统。
+「文件管理器」（`/system/file-manager`）接口前缀为 `/api/terminal-files`，权限码为 `system:file:use`（Web 终端页的文件树 / shell 探测复用同组接口，持有 `system:terminal:execute` 亦可访问），面向服务器本机文件系统。
 
 | 能力 | 接口 |
 | --- | --- |

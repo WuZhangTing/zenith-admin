@@ -34,7 +34,8 @@ import {
  */
 const terminalFilesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const TERMINAL_PERM = 'system:terminal:execute';
+/** 文件管理器独立权限;Web 终端页的文件树 / shell 探测复用终端权限,满足其一即可 */
+const TERMINAL_PERM = ['system:file:use', 'system:terminal:execute'];
 
 const rootInfoRoute = defineOpenAPIRoute({
   route: createRoute({

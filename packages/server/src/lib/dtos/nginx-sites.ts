@@ -17,6 +17,8 @@ export const NginxSiteDTO = z.object({
   listenPort: z.number().nullable(),
   root: z.string().nullable(),
   sslEnabled: z.boolean(),
+  accessLog: z.string().nullable(),
+  errorLog: z.string().nullable(),
   createdAt: z.string().nullable(),
   updatedAt: z.string().nullable(),
 }).openapi('NginxSite');

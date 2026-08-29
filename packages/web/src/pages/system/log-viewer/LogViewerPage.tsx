@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Button, Input, Tag, Typography, Select, Switch,
@@ -133,6 +134,15 @@ export default function LogViewerPage() {
   const queryClient = useQueryClient();
   const [filePath, setFilePath] = useState('');
   const [submittedPath, setSubmittedPath] = useState('');
+  // 深链:?path= 直接加载指定日志(Nginx 站点页等跳入),消费后清空参数
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const p = searchParams.get('path');
+    if (!p) return;
+    setFilePath(p);
+    setSubmittedPath(p);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [keyword, setKeyword] = useState('');
   const [filterOnly, setFilterOnly] = useState(false);
   const [levelFilter, setLevelFilter] = useState<string>('');

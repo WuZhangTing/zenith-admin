@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Button, Typography, Space, Dropdown, Tooltip, Modal } from '@douyinfe/semi-ui';
 import { Plus, TerminalSquare, ChevronDown, ChevronLeft, ChevronRight, X, PanelLeft, Settings, Server, Package } from 'lucide-react';
 import { Icon } from '@iconify/react';
@@ -198,6 +199,30 @@ export default function TerminalPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shells.length, sessions.length]);
 
+  // 深链:其他运维页跳转打开指定终端。
+  // ?open=docker-exec:<id>:sh / ssh:<profileId> 立即打开;
+  // 普通 shell 或仅 ?cwd= 需等 shells 白名单就绪。消费后清空参数避免刷新重复开。
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkDoneRef = useRef(false);
+  useEffect(() => {
+    if (IS_DEMO || deepLinkDoneRef.current) return;
+    const open = searchParams.get('open');
+    const cwd = searchParams.get('cwd') ?? undefined;
+    if (!open && !cwd) return;
+    if (open && (open.startsWith('docker-exec:') || open.startsWith('ssh:'))) {
+      const title = searchParams.get('title') ?? open;
+      const leaf = createLeaf({ kind: 'terminal', shell: open, title });
+      const tabId = nextTabId();
+      setSessions((prev) => [...prev, { id: tabId, root: leaf, activePaneId: leaf.id }]);
+      setActiveId(tabId);
+    } else {
+      if (shells.length === 0) return;
+      addTerminal(open ?? undefined, cwd);
+    }
+    deepLinkDoneRef.current = true;
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, shells.length, addTerminal]);
+
   // 持久化 Tab/分屏布局，刷新后可恢复（终端面板由 stableSessionId 重连存活的 PTY）
   useEffect(() => {
     if (IS_DEMO) return;
@@ -304,9 +329,18 @@ export default function TerminalPage() {
 
   /** 记录服务端分配的会话标识，随布局持久化，刷新后可重连到存活进程 */
   const handleServerSessionId = useCallback((tabId: string, paneId: string, serverSessionId: string) => {
-    setSessions((prev) =>
-      prev.map((s) => (s.id === tabId ? { ...s, root: updateLeafServerSessionId(s.root, paneId, serverSessionId) } : s)),
-    );
+    setSessions((prev) => {
+      // 标识未变化时返回原 state,React bail out——阻断「补发回调 → setState → 重渲染」循环
+      let changed = false;
+      const next = prev.map((s) => {
+        if (s.id !== tabId) return s;
+        const root = updateLeafServerSessionId(s.root, paneId, serverSessionId);
+        if (root === s.root) return s;
+        changed = true;
+        return { ...s, root };
+      });
+      return changed ? next : prev;
+    });
   }, []);
 
   const handleSshConnect = (profile: SshProfile) => {

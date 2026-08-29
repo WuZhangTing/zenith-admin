@@ -815,6 +815,7 @@ exports[`路由表快照 > 完整路由表保持不变 1`] = `
   "GET /api/openapi.json",
   "GET /api/operation-logs",
   "GET /api/operation-logs/stats",
+  "GET /api/ops-overview",
   "GET /api/payment/accounts",
   "GET /api/payment/accounts/check",
   "GET /api/payment/apps",

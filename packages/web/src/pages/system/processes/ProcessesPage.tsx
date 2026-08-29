@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Button, Descriptions, Form, InputNumber,
-  Select, Spin, Tag, Toast, Typography,
+  Select, Space, Spin, Tag, Toast, Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
@@ -85,6 +86,15 @@ export default function ProcessesPage() {
 
   // ─── 搜索状态 ──────────────────────────────────────────────────────────
   const [keyword, setKeyword] = useState('');
+  const navigate = useNavigate();
+  // 深链:?pid= 直接定位到指定进程(端口页「查看进程」跳入),消费后清空参数
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const pid = searchParams.get('pid');
+    if (!pid) return;
+    setKeyword(pid);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [filterStatus, setFilterStatus] = useState<string>('');
 
   // ─── 详情弹窗 ──────────────────────────────────────────────────────────
@@ -574,7 +584,18 @@ export default function ProcessesPage() {
                 ...(detailProcess.cwd ? [{
                   key: '工作目录',
                   span: 2,
-                  value: <Typography.Text copyable style={{ wordBreak: 'break-all' }}>{detailProcess.cwd}</Typography.Text>,
+                  value: (
+                    <Space>
+                      <Typography.Text copyable style={{ wordBreak: 'break-all' }}>{detailProcess.cwd}</Typography.Text>
+                      <Button
+                        size="small"
+                        theme="borderless"
+                        onClick={() => navigate(`/system/terminal?cwd=${encodeURIComponent(detailProcess.cwd as string)}`)}
+                      >
+                        在终端打开
+                      </Button>
+                    </Space>
+                  ),
                 }] : []),
               ]}
             />

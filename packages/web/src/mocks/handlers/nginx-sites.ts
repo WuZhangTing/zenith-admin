@@ -19,14 +19,16 @@ interface MockNginxSite {
   listenPort: number | null;
   root: string | null;
   sslEnabled: boolean;
+  accessLog: string | null;
+  errorLog: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
 
 const mockSites: MockNginxSite[] = [
-  { name: 'default', enabled: true, configPath: '/etc/nginx/sites-available/default', serverName: '_', listenPort: 80, root: '/var/www/html', sslEnabled: false, createdAt: '2024-01-01 00:00:00', updatedAt: '2024-01-01 00:00:00' },
-  { name: 'example.com', enabled: true, configPath: '/etc/nginx/sites-available/example.com', serverName: 'example.com www.example.com', listenPort: 443, root: '/var/www/example.com', sslEnabled: true, createdAt: '2024-03-15 10:00:00', updatedAt: '2024-03-15 10:00:00' },
-  { name: 'api.example.com', enabled: false, configPath: '/etc/nginx/sites-available/api.example.com', serverName: 'api.example.com', listenPort: 80, root: null, sslEnabled: false, createdAt: '2024-05-01 08:00:00', updatedAt: '2024-05-01 08:00:00' },
+  { name: 'default', enabled: true, configPath: '/etc/nginx/sites-available/default', serverName: '_', listenPort: 80, root: '/var/www/html', sslEnabled: false, accessLog: '/var/log/nginx/access.log', errorLog: '/var/log/nginx/error.log', createdAt: '2024-01-01 00:00:00', updatedAt: '2024-01-01 00:00:00' },
+  { name: 'example.com', enabled: true, configPath: '/etc/nginx/sites-available/example.com', serverName: 'example.com www.example.com', listenPort: 443, root: '/var/www/example.com', sslEnabled: true, accessLog: '/var/log/nginx/example.com.access.log', errorLog: '/var/log/nginx/example.com.error.log', createdAt: '2024-03-15 10:00:00', updatedAt: '2024-03-15 10:00:00' },
+  { name: 'api.example.com', enabled: false, configPath: '/etc/nginx/sites-available/api.example.com', serverName: 'api.example.com', listenPort: 80, root: null, sslEnabled: false, accessLog: null, errorLog: null, createdAt: '2024-05-01 08:00:00', updatedAt: '2024-05-01 08:00:00' },
 ];
 
 const mockConfig = `server {
@@ -58,6 +60,8 @@ export const nginxSitesHandlers = [
       listenPort: body.listenPort ?? 80,
       root: body.root ?? null,
       sslEnabled: !!body.sslEnabled,
+      accessLog: null,
+      errorLog: null,
       createdAt: mockDateTime(),
       updatedAt: mockDateTime(),
     });

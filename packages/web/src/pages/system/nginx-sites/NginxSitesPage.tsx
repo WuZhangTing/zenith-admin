@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Banner, Button, Col, Form, Radio, Row, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CheckCircle, RefreshCw } from 'lucide-react';
@@ -41,6 +42,7 @@ interface CreateNginxSiteModalRecord {
 }
 
 export default function NginxSitesPage() {
+  const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canManage = hasPermission('system:nginx:manage');
@@ -150,11 +152,30 @@ export default function NginxSitesPage() {
     },
     createOperationColumn<NginxSite>({
       width: 220,
+      desktopInlineKeys: ['edit', 'toggle'],
       actions: (record) => [
         {
           key: 'edit',
           label: '查看/编辑',
           onClick: () => { openEditor(record.name); },
+        },
+        {
+          key: 'accessLog',
+          label: '访问日志',
+          hidden: !record.accessLog,
+          onClick: () => navigate(`/system/log-viewer?path=${encodeURIComponent(record.accessLog as string)}`),
+        },
+        {
+          key: 'errorLog',
+          label: '错误日志',
+          hidden: !record.errorLog,
+          onClick: () => navigate(`/system/log-viewer?path=${encodeURIComponent(record.errorLog as string)}`),
+        },
+        {
+          key: 'ssl',
+          label: 'SSL 证书',
+          hidden: !record.sslEnabled,
+          onClick: () => navigate('/system/ssl-certificates'),
         },
         {
           key: 'toggle',
@@ -188,7 +209,7 @@ export default function NginxSitesPage() {
           type="warning"
           closeIcon={null}
           style={{ marginBottom: 16 }}
-          description="当前环境未检测到已安装的 Nginx。Windows 开发环境下接口会返回 mock 数据，写操作也会以模拟模式执行。"
+          description="当前环境未检测到可用的 Nginx(Windows 平台不支持 Nginx 站点管理)。"
         />
       )}
 
