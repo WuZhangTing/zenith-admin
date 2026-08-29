@@ -109,12 +109,12 @@ export function updateLeafTitle(root: PaneNode, paneId: string, newTitle: string
 /** 记录服务端分配的会话标识，返回新树；持久化后刷新可重连到存活进程。 */
 export function updateLeafServerSessionId(root: PaneNode, paneId: string, serverSessionId: string): PaneNode {
   if (root.type === 'leaf') {
-    return root.id === paneId ? { ...root, serverSessionId } : root;
+    // 幂等:标识未变化时返回原引用,让上层 setState 可以 bail out(防重渲染循环)
+    if (root.id !== paneId || root.serverSessionId === serverSessionId) return root;
+    return { ...root, serverSessionId };
   }
-  return {
-    ...root,
-    children: root.children.map((c) => updateLeafServerSessionId(c, paneId, serverSessionId)),
-  };
+  const children = root.children.map((c) => updateLeafServerSessionId(c, paneId, serverSessionId));
+  return children.every((c, i) => c === root.children[i]) ? root : { ...root, children };
 }
 
 /**

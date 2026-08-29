@@ -229,12 +229,15 @@ export default function TerminalTab({ sessionId, active, shell, label, cwd, serv
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // 服务端下发会话标识 → 冒泡给页面持久化进布局，刷新后据此重连
+  // 服务端下发会话标识 → 冒泡给页面持久化进布局，刷新后据此重连。
+  // 用 ref 解耦回调引用:父组件内联箭头每次渲染变引用,若作为 effect 依赖,
+  // 会与 onSessionIdAssigned 的同步补发形成 setState 死循环(Maximum update depth)。
+  const onServerSessionIdCbRef = useRef(onServerSessionId);
+  onServerSessionIdCbRef.current = onServerSessionId;
   useEffect(() => {
-    if (!onServerSessionId) return;
-    terminalSessionStore.onSessionIdAssigned(sessionId, onServerSessionId);
+    terminalSessionStore.onSessionIdAssigned(sessionId, (sid) => onServerSessionIdCbRef.current?.(sid));
     return () => terminalSessionStore.offSessionIdAssigned(sessionId);
-  }, [sessionId, onServerSessionId]);
+  }, [sessionId]);
 
   // OSC 7：CWD 变化 → 更新 Tab 标题
   useEffect(() => {
