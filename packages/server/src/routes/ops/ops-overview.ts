@@ -14,7 +14,10 @@ const overviewRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'system:ops:overview' })] as const,
     responses: { ...commonErrorResponses, ...ok(OpsOverviewDTO, '运维概览') },
   }),
-  handler: async (c) => c.json(okBody(await getOpsOverview()), 200),
+  handler: async (c) => {
+    const user = c.get('user');
+    return c.json(okBody(await getOpsOverview(user.tenantId == null)), 200);
+  },
 });
 
 router.openapiRoutes([overviewRoute] as const);

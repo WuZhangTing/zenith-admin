@@ -36,6 +36,20 @@ export interface OpsOverview {
   nginx: OpsOverviewSection<{ version: string | null; running: boolean; siteCount: number; enabledCount: number }>;
   terminals: OpsOverviewSection<{ active: number }>;
   ports: OpsOverviewSection<{ listening: number }>;
+  hosts: OpsOverviewSection<Array<{
+    id: number;
+    name: string;
+    address: string;
+    status: string;
+    snapshot: {
+      cpuCores: number | null;
+      load1: number | null;
+      memUsagePercent: number | null;
+      diskUsagePercent: number | null;
+    } | null;
+    probedAt: string | null;
+    probeError: string | null;
+  }>>;
   generatedAt: string;
 }
 

@@ -1,0 +1,49 @@
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, text, jsonb, boolean, index } from 'drizzle-orm/pg-core';
+import { OPS_HOST_AUTH_TYPES, OPS_HOST_STATUSES } from '@zenith/shared/ops';
+import type { OpsHostSnapshot } from '@zenith/shared/ops';
+import { auditColumns } from './core';
+
+// ─── 运维主机注册表（多主机管理）───────────────────────────────────────────────
+/**
+ * 平台级共享的远程主机连接配置（区别于 ssh_profiles:那是用户私有的终端书签）。
+ *
+ * - 凭据经 lib/secret-crypto 加密存储,接口只回传有无标识;
+ * - host_key_fingerprint 实现 TOFU:首连记录 SSH host key 指纹,
+ *   后续连接不匹配即拒绝(防中间人);
+ * - snapshot 为探测 cron 的时点快照(非时序),概览矩阵直接读缓存;
+ * - 平台级资源:不挂 tenant_id,仅平台侧管理端可见。
+ */
+export const opsHostAuthTypeEnum = pgEnum('ops_host_auth_type', OPS_HOST_AUTH_TYPES);
+
+export const opsHostStatusEnum = pgEnum('ops_host_status', OPS_HOST_STATUSES);
+
+export const opsHosts = pgTable('ops_hosts', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 64 }).notNull().unique(),
+  host: varchar('host', { length: 255 }).notNull(),
+  port: integer('port').notNull().default(22),
+  username: varchar('username', { length: 64 }).notNull(),
+  authType: opsHostAuthTypeEnum('auth_type').notNull().default('password'),
+  passwordEncrypted: text('password_encrypted'),
+  keyContentEncrypted: text('key_content_encrypted'),
+  keyPassphraseEncrypted: text('key_passphrase_encrypted'),
+  /** 连接端点/凭据配置修订号；连接握手在接受前必须确认未发生变化。 */
+  connectionVersion: integer('connection_version').notNull().default(0),
+  /** SSH host key SHA256 指纹(base64);null = 尚未首连 */
+  hostKeyFingerprint: varchar('host_key_fingerprint', { length: 64 }),
+  status: opsHostStatusEnum('status').notNull().default('unknown'),
+  snapshot: jsonb('snapshot').$type<OpsHostSnapshot>(),
+  probedAt: timestamp('probed_at'),
+  probeError: text('probe_error'),
+  enabled: boolean('enabled').notNull().default(true),
+  remark: varchar('remark', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  ...auditColumns(),
+}, (t) => [
+  index('ops_hosts_enabled_idx').on(t.enabled, t.status),
+]);
+
+export type OpsHostRow = typeof opsHosts.$inferSelect;
+
+export type NewOpsHost = typeof opsHosts.$inferInsert;

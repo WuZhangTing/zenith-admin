@@ -82,10 +82,11 @@ export const terminalKeys = {
   recordingDetail: (id: number | undefined) => ['terminal', 'recordings', 'detail', id] as const,
 };
 
-export function useSshProfiles() {
+export function useSshProfiles(enabled = true) {
   return useQuery({
     queryKey: terminalKeys.sshProfiles,
     queryFn: () => request.get<SshProfile[]>('/api/ssh-profiles').then(unwrap),
+    enabled,
   });
 }
 

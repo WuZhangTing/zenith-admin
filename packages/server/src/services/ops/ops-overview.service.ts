@@ -14,6 +14,7 @@ import { getNginxInfo, listNginxSites } from './nginx-sites.service';
 import { getListeningPorts } from './ports.service';
 import { listTerminalSessions } from './terminal-sessions.service';
 import { formatDateTime } from '../../lib/datetime';
+import { listOpsHosts } from './hosts.service';
 
 export interface OpsOverviewSection<T> {
   available: boolean;
@@ -165,6 +166,21 @@ export interface PortsSnapshot {
   listening: number;
 }
 
+export interface HostMatrixItem {
+  id: number;
+  name: string;
+  address: string;
+  status: string;
+  snapshot: {
+    cpuCores: number | null;
+    load1: number | null;
+    memUsagePercent: number | null;
+    diskUsagePercent: number | null;
+  } | null;
+  probedAt: string | null;
+  probeError: string | null;
+}
+
 export interface OpsOverview {
   host: OpsOverviewSection<HostSnapshot>;
   docker: OpsOverviewSection<DockerSnapshot>;
@@ -174,11 +190,12 @@ export interface OpsOverview {
   nginx: OpsOverviewSection<NginxSnapshot>;
   terminals: OpsOverviewSection<TerminalsSnapshot>;
   ports: OpsOverviewSection<PortsSnapshot>;
+  hosts: OpsOverviewSection<HostMatrixItem[]>;
   generatedAt: string;
 }
 
-export async function getOpsOverview(): Promise<OpsOverview> {
-  const [host, docker, services, ssl, firewall, nginx, terminals, ports] = await Promise.all([
+export async function getOpsOverview(includeRemoteHosts = true): Promise<OpsOverview> {
+  const [host, docker, services, ssl, firewall, nginx, terminals, ports, hosts] = await Promise.all([
     section(probeHost, HOST_SECTION_TIMEOUT_MS),
     section(probeDocker),
     section(probeServices),
@@ -187,9 +204,29 @@ export async function getOpsOverview(): Promise<OpsOverview> {
     section(probeNginx),
     section(async () => ({ active: listTerminalSessions({ page: 1, pageSize: 1 }).total })),
     section(async () => ({ listening: (await getListeningPorts()).length })),
+    includeRemoteHosts ? section(async () => (await listOpsHosts())
+      .filter((item) => item.enabled)
+      .map((item) => ({
+        id: item.id,
+        name: item.name,
+        address: `${item.username}@${item.host}:${item.port}`,
+        status: item.status,
+        snapshot: item.snapshot ? {
+          cpuCores: item.snapshot.cpuCores,
+          load1: item.snapshot.load1,
+          memUsagePercent: item.snapshot.memUsagePercent,
+          diskUsagePercent: item.snapshot.diskUsagePercent,
+        } : null,
+        probedAt: item.probedAt,
+        probeError: item.probeError,
+      }))) : Promise.resolve({
+        available: false,
+        reason: '远程主机仅平台侧可见',
+        data: null,
+      }),
   ]);
   return {
-    host, docker, services, ssl, firewall, nginx, terminals, ports,
+    host, docker, services, ssl, firewall, nginx, terminals, ports, hosts,
     generatedAt: formatDateTime(new Date()),
   };
 }

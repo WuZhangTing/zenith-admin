@@ -10,6 +10,8 @@ import { useKillPortProcess, usePortList, type PortEntry } from '@/hooks/queries
 import { ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
+import { HostSelector } from '@/components/HostSelector';
+import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
 
 function localDisplay(entry: PortEntry): string {
   const addr = entry.localAddress === '0.0.0.0' || entry.localAddress === '::' || entry.localAddress === '*' ? '*' : entry.localAddress;
@@ -17,20 +19,21 @@ function localDisplay(entry: PortEntry): string {
 }
 
 const REFRESH_OPTIONS = [
-  { label: '手动刷新', value: 0 },
-  { label: '5 秒', value: 5000 },
-  { label: '10 秒', value: 10000 },
-  { label: '30 秒', value: 30000 },
+  { label: '自动刷新：关闭', value: 0 },
+  { label: '自动刷新：5 秒', value: 5000 },
+  { label: '自动刷新：10 秒', value: 10000 },
+  { label: '自动刷新：30 秒', value: 30000 },
 ];
 
 export default function PortsPage() {
   const navigate = useNavigate();
   const { hasPermission } = usePermission();
   const canKill = hasPermission('system:process:kill');
+  const [hostId, setHostId] = useOpsHostSelection();
   const [keyword, setKeyword] = useState('');
   const [protocol, setProtocol] = useState<string>('');
   const [refreshInterval, setRefreshInterval] = useState(0);
-  const listQuery = usePortList(refreshInterval > 0 ? refreshInterval : false);
+  const listQuery = usePortList(refreshInterval > 0 ? refreshInterval : false, hostId);
   const all = listQuery.data ?? [];
   const killMutation = useKillPortProcess();
   const killingPid = killMutation.isPending ? (killMutation.variables ?? null) : null;
@@ -38,7 +41,7 @@ export default function PortsPage() {
   const handleReset = () => { setKeyword(''); setProtocol(''); void listQuery.refetch(); };
 
   async function handleKill(pid: number) {
-    await killMutation.mutateAsync(pid);
+    await killMutation.mutateAsync({ pid, hostId });
     Toast.success('进程已结束');
   }
 
@@ -69,7 +72,9 @@ export default function PortsPage() {
           key: 'process',
           label: '查看进程',
           hidden: !record.pid,
-          onClick: () => navigate(`/system/processes?pid=${record.pid}`),
+          onClick: () => navigate(
+            `/system/processes?pid=${record.pid}${hostId == null ? '' : `&hostId=${hostId}`}`,
+          ),
         },
         {
           key: 'kill',
@@ -94,22 +99,26 @@ export default function PortsPage() {
       <SearchToolbar
         primary={(
           <>
+            <HostSelector value={hostId} onChange={setHostId} />
             <KeywordInput placeholder="搜索端口/进程/服务/地址" value={keyword} onChange={setKeyword} width={240} />
             <Select placeholder="全部协议" value={protocol || undefined} onChange={(v) => setProtocol((v as string) ?? '')} showClear style={{ width: 120 }}
               optionList={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]} />
-            <Select prefix="自动刷新" value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 150 }} optionList={REFRESH_OPTIONS} />
+            <Select value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 180 }} optionList={REFRESH_OPTIONS} />
             <ResetButton onClick={handleReset} />
             <Space style={{ color: 'var(--semi-color-text-2)', fontSize: 12 }}>共 {data.length} 个监听端口</Space>
           </>
         )}
         mobilePrimary={(
-          <KeywordInput placeholder="搜索端口/进程/服务/地址" value={keyword} onChange={setKeyword} width={240} />
+          <>
+            <HostSelector value={hostId} onChange={setHostId} />
+            <KeywordInput placeholder="搜索端口/进程/服务/地址" value={keyword} onChange={setKeyword} width={240} />
+          </>
         )}
         mobileFilters={(
           <>
             <Select placeholder="全部协议" value={protocol || undefined} onChange={(v) => setProtocol((v as string) ?? '')} showClear style={{ width: 120 }}
               optionList={[{ label: 'TCP', value: 'tcp' }, { label: 'UDP', value: 'udp' }]} />
-            <Select prefix="自动刷新" value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 150 }} optionList={REFRESH_OPTIONS} />
+            <Select value={refreshInterval} onChange={(v) => setRefreshInterval(v as number)} style={{ width: 180 }} optionList={REFRESH_OPTIONS} />
           </>
         )}
         mobileActions={<ResetButton onClick={handleReset} />}

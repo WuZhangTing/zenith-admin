@@ -58,6 +58,8 @@ export interface TerminalSession {
   /** 会话归属租户，监控 / 接管 / 终止均按此隔离 */
   readonly tenantId: number | null;
   readonly kind: TerminalKind;
+  /** 连接目标：本地 shell id / ssh:<profileId> / host:<opsHostId> / docker-exec:* / db-psql */
+  readonly target: string;
   /** 展示标签：本地为 shell 名，SSH 为 user@host，Docker 为容器名 */
   label: string;
   readonly clientIp: string;
@@ -100,6 +102,7 @@ export interface RegisterSessionInput {
   username: string;
   tenantId: number | null;
   kind: TerminalKind;
+  target?: string;
   label: string;
   clientIp: string;
 }
@@ -121,6 +124,7 @@ export function registerSession(input: RegisterSessionInput): TerminalSession | 
     username: input.username,
     tenantId: input.tenantId,
     kind: input.kind,
+    target: input.target ?? '',
     label: input.label,
     clientIp: input.clientIp,
     startedAt: now,
@@ -338,5 +342,12 @@ export function snapshotSessions(): TerminalSession[] {
 export function endAllSessions(reason: TerminalEndReason): void {
   for (const sessionId of [...sessions.keys()]) {
     endSession(sessionId, reason);
+  }
+}
+
+/** 结束指定连接目标的全部会话（主机配置变更 / 删除时避免旧凭据会话继续存活）。 */
+export function endSessionsByTarget(target: string, reason: TerminalEndReason): void {
+  for (const session of [...sessions.values()]) {
+    if (session.target === target) endSession(session.sessionId, reason);
   }
 }

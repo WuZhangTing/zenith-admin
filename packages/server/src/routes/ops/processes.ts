@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { streamSSE } from 'hono/streaming';
+import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -7,12 +8,14 @@ import {
   jsonContent, okBody,
 } from '../../lib/openapi-schemas';
 import { ProcessInfoDTO, ProcessListResponseDTO } from '../../lib/openapi-dtos';
+import { assertRemoteHostAccess } from '../../lib/host-access';
 import {
   listProcesses, getProcessDetail, killProcess, setProcessPriority,
 } from '../../services/ops/processes.service';
 import { killProcessSchema, setProcessPrioritySchema } from '@zenith/shared/ops';
 
 const processesRouter = new OpenAPIHono({ defaultHook: validationHook });
+const HostQuery = z.object({ hostId: z.coerce.number().int().positive().optional() });
 
 /** pid 路径参数 */
 const PidParam = z.object({
@@ -30,9 +33,14 @@ const listRoute = defineOpenAPIRoute({
     tags: ['进程管理'], summary: '获取进程列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:process:view' })] as const,
+    request: { query: HostQuery },
     responses: { ...commonErrorResponses, ...ok(ProcessListResponseDTO, '进程列表') },
   }),
-  handler: async (c) => c.json(okBody(await listProcesses()), 200),
+  handler: async (c) => {
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
+    return c.json(okBody(await listProcesses(hostId)), 200);
+  },
 });
 
 // ─── GET /:pid — 进程详情 ─────────────────────────────────────────────────
@@ -42,12 +50,14 @@ const detailRoute = defineOpenAPIRoute({
     tags: ['进程管理'], summary: '获取进程详情',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'system:process:view' })] as const,
-    request: { params: PidParam },
+    request: { params: PidParam, query: HostQuery },
     responses: { ...commonErrorResponses, ...ok(ProcessInfoDTO, '进程详情') },
   }),
   handler: async (c) => {
     const { pid } = c.req.valid('param');
-    return c.json(okBody(await getProcessDetail(pid)), 200);
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
+    return c.json(okBody(await getProcessDetail(pid, hostId)), 200);
   },
 });
 
@@ -63,20 +73,23 @@ const killRoute = defineOpenAPIRoute({
     })] as const,
     request: {
       params: PidParam,
+      query: HostQuery,
       body: { content: jsonContent(killProcessSchema), required: false },
     },
     responses: { ...commonErrorResponses, ...okMsg('已发送结束信号') },
   }),
   handler: async (c) => {
     const { pid } = c.req.valid('param');
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
     let signal = 'SIGTERM';
     try {
       const body = await c.req.json<{ signal?: string }>();
       if (body?.signal) signal = body.signal;
     } catch { /* body is optional */ }
-    setAuditBeforeData(c, await getProcessDetail(pid));
-    await killProcess(pid, signal);
-    setAuditAfterData(c, { pid, signal, killed: true });
+    setAuditBeforeData(c, await getProcessDetail(pid, hostId));
+    await killProcess(pid, signal, hostId);
+    setAuditAfterData(c, { pid, signal, hostId: hostId ?? null, killed: true });
     return c.json(okBody(null, '已发送结束信号'), 200);
   },
 });
@@ -93,16 +106,19 @@ const priorityRoute = defineOpenAPIRoute({
     })] as const,
     request: {
       params: PidParam,
+      query: HostQuery,
       body: { content: jsonContent(setProcessPrioritySchema), required: true },
     },
     responses: { ...commonErrorResponses, ...okMsg('优先级已调整') },
   }),
   handler: async (c) => {
     const { pid } = c.req.valid('param');
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
     const input = c.req.valid('json');
-    setAuditBeforeData(c, await getProcessDetail(pid));
-    await setProcessPriority(pid, input);
-    setAuditAfterData(c, await getProcessDetail(pid));
+    setAuditBeforeData(c, await getProcessDetail(pid, hostId));
+    await setProcessPriority(pid, input, hostId);
+    setAuditAfterData(c, await getProcessDetail(pid, hostId));
     return c.json(okBody(null, '优先级已调整'), 200);
   },
 });
@@ -112,15 +128,21 @@ processesRouter.get(
   '/stream',
   authMiddleware,
   guard({ permission: 'system:process:view' }),
-  (c) =>
-    streamSSE(c, async (stream) => {
+  async (c) => {
+    const rawHostId = c.req.query('hostId');
+    const hostId = rawHostId ? Number(rawHostId) : undefined;
+    if (rawHostId && (!Number.isInteger(hostId) || (hostId ?? 0) <= 0)) {
+      throw new HTTPException(400, { message: '无效的 hostId' });
+    }
+    await assertRemoteHostAccess(c, hostId);
+    return streamSSE(c, async (stream) => {
       // 立即发送 ping 以确保 HTTP 响应头（200 + text/event-stream）即刻送达客户端
       // （@hono/node-server 在第一次写入时才真正刷新响应头）
       await stream.writeSSE({ data: '', event: 'ping' });
 
       // 首帧：推送完整列表
       try {
-        const data = await listProcesses();
+        const data = await listProcesses(hostId);
         await stream.writeSSE({ data: JSON.stringify(data), event: 'processes' });
       } catch { /* ignore */ }
 
@@ -130,7 +152,7 @@ processesRouter.get(
         if (pending) return;
         pending = true;
         try {
-          const data = await listProcesses();
+          const data = await listProcesses(hostId);
           await stream.writeSSE({ data: JSON.stringify(data), event: 'processes' });
         } catch { /* ignore */ } finally {
           pending = false;
@@ -153,7 +175,8 @@ processesRouter.get(
         if (c.req.raw.signal.aborted) { cleanup(); resolve(); return; }
         c.req.raw.signal.addEventListener('abort', () => { cleanup(); resolve(); });
       });
-    }),
+    });
+  },
 );
 
 // ─── 注册 OpenAPI 路由（/stream 已单独注册）──────────────────────────────────

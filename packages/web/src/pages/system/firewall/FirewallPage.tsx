@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Button, Form, Space, Tag, Toast } from '@douyinfe/semi-ui';
+import { useMemo, useState } from 'react';
+import { Banner, Button, Form, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { RefreshCw, Shield, ShieldOff } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -21,6 +21,9 @@ import {
 import { CreateButton, ResetButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { HostSelector } from '@/components/HostSelector';
+import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 const RULE_TYPE_CONFIG: Record<FirewallRule['type'], { label: string; color: 'green' | 'red' | 'orange' }> = {
   allow: { label: '允许', color: 'green' },
@@ -52,22 +55,15 @@ interface FirewallRuleModalRecord {
   id: number;
 }
 
-function FieldBlock({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
-  return (
-    <div style={{ minWidth: 140 }}>
-      <div style={{ marginBottom: 6, color: 'var(--semi-color-text-2)', fontSize: 12 }}>{label}</div>
-      <div style={{ fontSize: 14 }}>{children}</div>
-    </div>
-  );
-}
-
 export default function FirewallPage() {
   const { hasPermission } = usePermission();
   const canManage = hasPermission('system:firewall:manage');
+  const [hostId, setHostId] = useOpsHostSelection();
+  const canManageCurrent = canManage && hostId == null;
 
   const [keyword, setKeyword] = useState('');
-  const statusQuery = useFirewallStatus();
-  const rulesQuery = useFirewallRules();
+  const statusQuery = useFirewallStatus(hostId);
+  const rulesQuery = useFirewallRules(hostId);
   const addRuleMutation = useAddFirewallRule();
   const deleteRuleMutation = useDeleteFirewallRule();
   const toggleFirewallMutation = useToggleFirewall();
@@ -162,7 +158,7 @@ export default function FirewallPage() {
           label: '删除',
           danger: true,
           loading: deleteRuleMutation.isPending && deleteRuleMutation.variables === record.id,
-          hidden: !canManage,
+          hidden: !canManageCurrent,
           onClick: () => {
             confirmDelete({
               title: '确定要删除该规则吗？',
@@ -187,38 +183,38 @@ export default function FirewallPage() {
 
   return (
     <div className="page-container">
-      <div
-        style={{
-          marginBottom: 16,
-          padding: 16,
-          border: '1px solid var(--semi-color-border)',
-          borderRadius: 'var(--semi-border-radius-medium)',
-          background: 'var(--surface-card)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <Space wrap align="start" spacing={24}>
-            <FieldBlock label="防火墙类型">
-              <Tag color="cyan" size="large" type="light">{STATUS_TYPE_LABELS[currentStatus.type]}</Tag>
-            </FieldBlock>
-            <FieldBlock label="运行状态">
-              <Tag color={currentStatus.enabled ? 'green' : 'grey'} size="large">{currentStatus.enabled ? '已启用' : '已关闭'}</Tag>
-            </FieldBlock>
-            <FieldBlock label="版本">{currentStatus.version ?? '—'}</FieldBlock>
-            <FieldBlock label="默认入站">{currentStatus.defaultIncoming ?? '—'}</FieldBlock>
-            <FieldBlock label="默认出站">{currentStatus.defaultOutgoing ?? '—'}</FieldBlock>
-          </Space>
-          <Space>
-            <Button icon={<RefreshCw size={14} />} loading={statusQuery.isFetching || rulesQuery.isFetching} onClick={() => void fetchAll()}>刷新</Button>
-            {canManage && (
-              currentStatus.enabled ? (
-                <Button type="danger" icon={<ShieldOff size={14} />} loading={toggleFirewallMutation.isPending} onClick={() => void handleToggle(false)}>禁用</Button>
-              ) : (
-                <Button type="primary" icon={<Shield size={14} />} loading={toggleFirewallMutation.isPending} onClick={() => void handleToggle(true)}>启用</Button>
-              )
-            )}
-          </Space>
-        </div>
+      {hostId != null && (
+        <Banner
+          type="info"
+          fullMode={false}
+          closeIcon={null}
+          description="远端防火墙仅提供只读状态与规则查看，禁止远程变更以避免误封 SSH 恢复通道。"
+          style={{ marginBottom: 12 }}
+        />
+      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <HostSelector value={hostId} onChange={setHostId} />
+        <Button icon={<RefreshCw size={14} />} loading={statusQuery.isFetching || rulesQuery.isFetching} onClick={() => void fetchAll()}>刷新</Button>
+        {canManageCurrent && (
+          currentStatus.enabled ? (
+            <Button type="danger" icon={<ShieldOff size={14} />} loading={toggleFirewallMutation.isPending} onClick={() => void handleToggle(false)}>禁用</Button>
+          ) : (
+            <Button type="primary" icon={<Shield size={14} />} loading={toggleFirewallMutation.isPending} onClick={() => void handleToggle(true)}>启用</Button>
+          )
+        )}
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <StatGrid minItemWidth={170}>
+          <StatCard title="防火墙类型" value={STATUS_TYPE_LABELS[currentStatus.type]} />
+          <StatCard
+            title="运行状态"
+            value={currentStatus.enabled ? '已启用' : '已关闭'}
+            accent={currentStatus.enabled ? 'var(--semi-color-success)' : 'var(--semi-color-text-2)'}
+          />
+          <StatCard title="版本" value={currentStatus.version ?? '—'} />
+          <StatCard title="默认入站" value={currentStatus.defaultIncoming ?? '—'} />
+          <StatCard title="默认出站" value={currentStatus.defaultOutgoing ?? '—'} />
+        </StatGrid>
       </div>
 
       <SearchToolbar
@@ -227,13 +223,13 @@ export default function FirewallPage() {
             <KeywordInput placeholder="搜索端口/来源/目标/备注" value={keyword} onChange={setKeyword} width={240} />
             <ResetButton onClick={() => { setKeyword(''); void fetchAll(); }} />
             <Button icon={<RefreshCw size={14} />} loading={rulesQuery.isFetching} onClick={() => void fetchAll()}>刷新</Button>
-            {canManage && <CreateButton onClick={ruleModal.openCreate}>新增规则</CreateButton>}
+            {canManageCurrent && <CreateButton onClick={ruleModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索端口/来源/目标/备注" value={keyword} onChange={setKeyword} width={240} />
-            {canManage && <CreateButton onClick={ruleModal.openCreate}>新增规则</CreateButton>}
+            {canManageCurrent && <CreateButton onClick={ruleModal.openCreate}>新增规则</CreateButton>}
           </>
         )}
         mobileActions={(

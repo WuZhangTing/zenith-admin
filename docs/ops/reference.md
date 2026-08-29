@@ -12,6 +12,8 @@
 | 会话监控 | `GET /api/ws/terminal-monitor` |
 | SSH 配置 | `/api/ssh-profiles` |
 | SFTP | `/api/ssh-sftp/:profileId` |
+| 运维主机 | `/api/ops-hosts` |
+| 运维主机文件 | `/api/host-files/:hostId` |
 | 本机文件 | `/api/terminal-files` |
 | 终端录屏 | `/api/terminal-recordings` |
 | 终端会话 | `/api/terminal-sessions` |
@@ -40,6 +42,7 @@
 | 页面 | 路径 | 组件 | 权限 |
 | --- | --- | --- | --- |
 | 运维概览 | `/system/ops-overview` | `system/ops-overview/OpsOverviewPage` | `system:ops:overview` |
+| 主机管理 | `/system/hosts` | `system/hosts/HostsPage` | `system:host:view`、`system:host:manage`、`system:host:use` |
 | Web 终端 | `/system/terminal` | `system/terminal/TerminalPage` | `system:terminal:execute` |
 | 终端录屏 | `/system/terminal/recordings` | `system/terminal/TerminalRecordingsPage` | `system:terminal:execute` |
 | 文件管理器 | `/system/file-manager` | `system/file-manager/FileManagerPage` | `system:file:use`(终端权限可兼容访问) |
@@ -87,4 +90,3 @@
 | `app_releases` | 应用版本 |
 | `app_artifacts` | 发布制品 |
 | `app_release_events` | 升级事件流水 |
-

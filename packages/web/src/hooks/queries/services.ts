@@ -15,17 +15,21 @@ export type ServiceAction = 'start' | 'stop' | 'restart' | 'enable' | 'disable' 
 export const serviceKeys = {
   all: ['services'] as const,
   lists: ['services', 'list'] as const,
-  list: () => ['services', 'list'] as const,
-  logs: (name: string | undefined) => ['services', 'logs', name] as const,
+  list: (hostId: number | null) => ['services', 'list', hostId] as const,
+  logs: (name: string | undefined, hostId: number | null) => ['services', 'logs', hostId, name] as const,
 };
 
-export function useServiceList() {
+function hostQuery(hostId: number | null): string {
+  return hostId == null ? '' : `?hostId=${hostId}`;
+}
+
+export function useServiceList(hostId: number | null = null) {
   return useQuery({
-    queryKey: serviceKeys.list(),
+    queryKey: serviceKeys.list(hostId),
     queryFn: async () => {
-      const check = await request.get<{ available: boolean }>('/api/systemd/check', { silent: true }).then(unwrap);
+      const check = await request.get<{ available: boolean }>(`/api/systemd/check${hostQuery(hostId)}`, { silent: true }).then(unwrap);
       if (!check.available) return { available: false, services: [] as ServiceInfo[] };
-      const services = await request.get<ServiceInfo[]>('/api/systemd/').then(unwrap);
+      const services = await request.get<ServiceInfo[]>(`/api/systemd/${hostQuery(hostId)}`).then(unwrap);
       return { available: true, services };
     },
   });
@@ -34,14 +38,15 @@ export function useServiceList() {
 export function useServiceAction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, action }: { name: string; action: ServiceAction }) =>
-      request.post<null>(`/api/systemd/${name}/${action}`, {}).then(unwrap),
+    mutationFn: ({ name, action, hostId = null }: { name: string; action: ServiceAction; hostId?: number | null }) =>
+      request.post<null>(`/api/systemd/${name}/${action}${hostQuery(hostId)}`, {}).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: serviceKeys.all }),
   });
 }
 
 export function useServiceLogs() {
   return useMutation({
-    mutationFn: (name: string) => request.get<{ logs: string }>(`/api/systemd/${name}/logs`).then(unwrap),
+    mutationFn: ({ name, hostId = null }: { name: string; hostId?: number | null }) =>
+      request.get<{ logs: string }>(`/api/systemd/${name}/logs${hostQuery(hostId)}`).then(unwrap),
   });
 }

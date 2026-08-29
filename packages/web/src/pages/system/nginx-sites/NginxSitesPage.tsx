@@ -27,6 +27,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 
 const { Text } = Typography;
 
@@ -213,34 +214,27 @@ export default function NginxSitesPage() {
         />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--surface-card)' }}>
-          <Text type="secondary" size="small">安装状态</Text>
-          <div style={{ marginTop: 8 }}><Tag color={info?.installed ? 'green' : 'grey'}>{info?.installed ? '已安装' : '未安装'}</Tag></div>
-        </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--surface-card)' }}>
-          <Text type="secondary" size="small">运行状态</Text>
-          <div style={{ marginTop: 8 }}><Tag color={runningTag.color}>{runningTag.text}</Tag></div>
-        </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--surface-card)' }}>
-          <Text type="secondary" size="small">版本</Text>
-          <div style={{ marginTop: 8 }}><Text>{info?.version ?? '—'}</Text></div>
-        </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--surface-card)' }}>
-          <Text type="secondary" size="small">配置路径</Text>
-          <div style={{ marginTop: 8 }}><Typography.Text style={{ wordBreak: 'break-all' }}>{info?.configPath ?? '—'}</Typography.Text></div>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--surface-card)' }}>
-          <Text type="secondary" size="small">sites-available / conf.d</Text>
-          <div style={{ marginTop: 8 }}><Typography.Text style={{ wordBreak: 'break-all' }}>{info?.sitesAvailable ?? '—'}</Typography.Text></div>
-        </div>
-        <div style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 16, background: 'var(--surface-card)' }}>
-          <Text type="secondary" size="small">sites-enabled</Text>
-          <div style={{ marginTop: 8 }}><Typography.Text style={{ wordBreak: 'break-all' }}>{info?.sitesEnabled ?? '—'}</Typography.Text></div>
-        </div>
+      <div style={{ marginBottom: 16 }}>
+        <StatGrid minItemWidth={210}>
+          <StatCard
+            title="安装状态"
+            value={info?.installed ? '已安装' : '未安装'}
+            accent={info?.installed ? 'var(--semi-color-success)' : 'var(--semi-color-text-2)'}
+          />
+          <StatCard
+            title="运行状态"
+            value={runningTag.text}
+            accent={runningTag.color === 'green'
+              ? 'var(--semi-color-success)'
+              : runningTag.color === 'red'
+                ? 'var(--semi-color-danger)'
+                : 'var(--semi-color-text-2)'}
+          />
+          <StatCard title="版本" value={info?.version ?? '—'} />
+          <StatCard title="主配置" value={info?.configPath ? '已发现' : '—'} sub={info?.configPath ?? undefined} />
+          <StatCard title="站点配置目录" value={info?.sitesAvailable ? '已发现' : '—'} sub={info?.sitesAvailable ?? undefined} />
+          <StatCard title="启用目录" value={info?.sitesEnabled ? '已发现' : '—'} sub={info?.sitesEnabled ?? undefined} />
+        </StatGrid>
       </div>
 
       <SearchToolbar

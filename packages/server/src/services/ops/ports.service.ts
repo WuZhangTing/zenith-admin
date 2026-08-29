@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as os from 'node:os';
+import { resolveExecutor } from '../../lib/host-exec';
 
 const execFileAsync = promisify(execFile);
 
@@ -40,7 +41,22 @@ function serviceNameForPort(port: number): string | null {
  * Linux/macOS：使用 `ss -tlnp` 或回退到 `netstat -tlnp`。
  * Windows：使用 `netstat -ano`。
  */
-export async function getListeningPorts(): Promise<PortEntry[]> {
+export async function getListeningPorts(hostId?: number | null): Promise<PortEntry[]> {
+  if (hostId != null) {
+    const executor = await resolveExecutor(hostId);
+    let entries: PortEntry[];
+    try {
+      entries = parseSsOutput((await executor.exec('ss', ['-tulnp'], { timeoutMs: 5000 })).stdout);
+    } catch {
+      try {
+        entries = parseNetstatOutput((await executor.exec('netstat', ['-tlnp'], { timeoutMs: 5000 })).stdout);
+      } catch {
+        entries = [];
+      }
+    }
+    for (const entry of entries) entry.serviceName = serviceNameForPort(entry.localPort);
+    return entries;
+  }
   const platform = os.platform();
   const entries = platform === 'win32' ? await getPortsWindows() : await getPortsUnix();
   for (const e of entries) e.serviceName = serviceNameForPort(e.localPort);
@@ -50,7 +66,7 @@ export async function getListeningPorts(): Promise<PortEntry[]> {
 async function getPortsUnix(): Promise<PortEntry[]> {
   try {
     // 优先使用 ss（更现代，性能更好）
-    const { stdout } = await execFileAsync('ss', ['-tlnp'], { timeout: 5000 });
+    const { stdout } = await execFileAsync('ss', ['-tulnp'], { timeout: 5000 });
     return parseSsOutput(stdout);
   } catch {
     // 回退到 netstat
@@ -73,13 +89,13 @@ async function getPortsWindows(): Promise<PortEntry[]> {
 }
 
 /** 解析 `ss -tlnp` 输出 */
-function parseSsOutput(output: string): PortEntry[] {
+export function parseSsOutput(output: string): PortEntry[] {
   const entries: PortEntry[] = [];
   const lines = output.split('\n').slice(1); // 跳过标题行
   for (const line of lines) {
     const parts = line.trim().split(/\s+/);
     if (parts.length < 5) continue;
-    const [proto, , , local] = parts;
+    const [proto, state, , , local] = parts;
     if (!proto || (!proto.startsWith('tcp') && !proto.startsWith('udp'))) continue;
     const colonIdx = local.lastIndexOf(':');
     if (colonIdx < 0) continue;
@@ -96,13 +112,13 @@ function parseSsOutput(output: string): PortEntry[] {
       if (nameMatch) processName = nameMatch[1];
       if (pidMatch) pid = Number.parseInt(pidMatch[1], 10);
     }
-    entries.push({ protocol: proto.replace(/\d$/, ''), localAddress: localAddr, localPort, state: 'LISTEN', pid, processName, serviceName: null });
+    entries.push({ protocol: proto.replace(/\d$/, ''), localAddress: localAddr, localPort, state: state || 'LISTEN', pid, processName, serviceName: null });
   }
   return entries;
 }
 
 /** 解析 `netstat -tlnp` 输出（Linux） */
-function parseNetstatOutput(output: string): PortEntry[] {
+export function parseNetstatOutput(output: string): PortEntry[] {
   const entries: PortEntry[] = [];
   const lines = output.split('\n').slice(2); // 跳过两行标题
   for (const line of lines) {

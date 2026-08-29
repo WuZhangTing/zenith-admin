@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { localExecutor, resolveExecutor, type HostExecutor } from '../../lib/host-exec';
 
 const execFileAsync = promisify(execFile);
 const EXEC_OPTIONS = { timeout: 5000, maxBuffer: 1024 * 1024 } as const;
@@ -54,32 +55,34 @@ function isWindows(): boolean {
   return os.platform() === 'win32';
 }
 
-async function execCommand(file: string, args: string[]): Promise<string | null> {
+async function execCommand(file: string, args: string[], executor: HostExecutor = localExecutor): Promise<string | null> {
   try {
-    const { stdout, stderr } = await execFileAsync(file, args, EXEC_OPTIONS);
+    const { stdout, stderr } = executor.isRemote
+      ? await executor.exec(file, args, { timeoutMs: EXEC_OPTIONS.timeout, maxBuffer: EXEC_OPTIONS.maxBuffer })
+      : await execFileAsync(file, args, EXEC_OPTIONS);
     return [stdout, stderr].filter(Boolean).join('\n').trim();
   } catch {
     return null;
   }
 }
 
-async function detectVersion(file: string, args: string[], pattern: RegExp): Promise<string | null> {
-  const output = await execCommand(file, args);
+async function detectVersion(file: string, args: string[], pattern: RegExp, executor: HostExecutor = localExecutor): Promise<string | null> {
+  const output = await execCommand(file, args, executor);
   if (!output) return null;
   const match = pattern.exec(output);
   return match?.[1] ?? output.split(/\s+/).find(Boolean) ?? null;
 }
 
-async function detectFirewall(): Promise<{ type: FirewallType; version: string | null }> {
-  if (isWindows()) return { type: 'unknown', version: null };
+async function detectFirewall(executor: HostExecutor = localExecutor): Promise<{ type: FirewallType; version: string | null }> {
+  if (!executor.isRemote && isWindows()) return { type: 'unknown', version: null };
 
-  const ufwVersion = await detectVersion('ufw', ['version'], /ufw\s+([\w.-]+)/i);
+  const ufwVersion = await detectVersion('ufw', ['version'], /ufw\s+([\w.-]+)/i, executor);
   if (ufwVersion) return { type: 'ufw', version: ufwVersion };
 
-  const firewalldVersion = await detectVersion('firewall-cmd', ['--version'], /([\d.]+)/);
+  const firewalldVersion = await detectVersion('firewall-cmd', ['--version'], /([\d.]+)/, executor);
   if (firewalldVersion) return { type: 'firewalld', version: firewalldVersion };
 
-  const iptablesVersion = await detectVersion('iptables', ['--version'], /v([\d.]+)/i);
+  const iptablesVersion = await detectVersion('iptables', ['--version'], /v([\d.]+)/i, executor);
   if (iptablesVersion) return { type: 'iptables', version: iptablesVersion };
 
   return { type: 'unknown', version: null };
@@ -137,8 +140,8 @@ function parseUfwDefault(output: string, key: 'incoming' | 'outgoing'): string |
   return match?.[1]?.toLowerCase() ?? null;
 }
 
-async function getUfwStatus(version: string | null): Promise<FirewallStatus> {
-  const output = await execCommand('ufw', ['status', 'verbose']);
+async function getUfwStatus(version: string | null, executor: HostExecutor = localExecutor): Promise<FirewallStatus> {
+  const output = await execCommand('ufw', ['status', 'verbose'], executor);
   if (!output) return UNKNOWN_STATUS;
 
   return {
@@ -150,8 +153,8 @@ async function getUfwStatus(version: string | null): Promise<FirewallStatus> {
   };
 }
 
-async function listUfwRules(): Promise<{ type: FirewallType; rules: FirewallRule[] }> {
-  const output = await execCommand('ufw', ['status', 'numbered']);
+async function listUfwRules(executor: HostExecutor = localExecutor): Promise<{ type: FirewallType; rules: FirewallRule[] }> {
+  const output = await execCommand('ufw', ['status', 'numbered'], executor);
   if (!output) return { type: 'unknown', rules: [] };
   if (/status:\s+inactive/i.test(output)) return { type: 'ufw', rules: [] };
 
@@ -181,11 +184,11 @@ async function listUfwRules(): Promise<{ type: FirewallType; rules: FirewallRule
   return { type: 'ufw', rules };
 }
 
-async function getFirewalldStatus(version: string | null): Promise<FirewallStatus> {
-  const state = await execCommand('firewall-cmd', ['--state']);
+async function getFirewalldStatus(version: string | null, executor: HostExecutor = localExecutor): Promise<FirewallStatus> {
+  const state = await execCommand('firewall-cmd', ['--state'], executor);
   if (!state) return UNKNOWN_STATUS;
 
-  const listAll = await execCommand('firewall-cmd', ['--list-all']);
+  const listAll = await execCommand('firewall-cmd', ['--list-all'], executor);
   const targetMatch = listAll ? /target:\s*(\S+)/i.exec(listAll) : null;
 
   return {
@@ -217,12 +220,12 @@ function parseFirewalldRichRule(raw: string, index: number): FirewallRule {
   };
 }
 
-async function listFirewalldRules(): Promise<{ type: FirewallType; rules: FirewallRule[] }> {
-  const status = await execCommand('firewall-cmd', ['--state']);
+async function listFirewalldRules(executor: HostExecutor = localExecutor): Promise<{ type: FirewallType; rules: FirewallRule[] }> {
+  const status = await execCommand('firewall-cmd', ['--state'], executor);
   if (!status) return { type: 'unknown', rules: [] };
   if (!/running/i.test(status)) return { type: 'firewalld', rules: [] };
 
-  const output = await execCommand('firewall-cmd', ['--list-all']);
+  const output = await execCommand('firewall-cmd', ['--list-all'], executor);
   if (!output) return { type: 'unknown', rules: [] };
 
   const rules: FirewallRule[] = [];
@@ -283,8 +286,8 @@ function parseIptablesPolicies(output: string): Pick<FirewallStatus, 'defaultInc
   };
 }
 
-async function getIptablesStatus(version: string | null): Promise<FirewallStatus> {
-  const output = await execCommand('iptables', ['-L', '-n', '--line-numbers']);
+async function getIptablesStatus(version: string | null, executor: HostExecutor = localExecutor): Promise<FirewallStatus> {
+  const output = await execCommand('iptables', ['-L', '-n', '--line-numbers'], executor);
   if (!output) return UNKNOWN_STATUS;
 
   const policies = parseIptablesPolicies(output);
@@ -297,8 +300,8 @@ async function getIptablesStatus(version: string | null): Promise<FirewallStatus
   };
 }
 
-async function listIptablesRules(): Promise<{ type: FirewallType; rules: FirewallRule[] }> {
-  const output = await execCommand('iptables', ['-L', '-n', '--line-numbers']);
+async function listIptablesRules(executor: HostExecutor = localExecutor): Promise<{ type: FirewallType; rules: FirewallRule[] }> {
+  const output = await execCommand('iptables', ['-L', '-n', '--line-numbers'], executor);
   if (!output) return { type: 'unknown', rules: [] };
 
   const rules: FirewallRule[] = [];
@@ -442,33 +445,35 @@ async function setIptablesEnabled(enabled: boolean): Promise<void> {
   await execCommand('iptables', ['-F']);
 }
 
-export async function getFirewallStatus(): Promise<FirewallStatus> {
-  if (isWindows()) return WINDOWS_STATUS;
+export async function getFirewallStatus(hostId?: number | null): Promise<FirewallStatus> {
+  const executor = await resolveExecutor(hostId);
+  if (!executor.isRemote && isWindows()) return WINDOWS_STATUS;
 
-  const detected = await detectFirewall();
+  const detected = await detectFirewall(executor);
   switch (detected.type) {
     case 'ufw':
-      return getUfwStatus(detected.version);
+      return getUfwStatus(detected.version, executor);
     case 'firewalld':
-      return getFirewalldStatus(detected.version);
+      return getFirewalldStatus(detected.version, executor);
     case 'iptables':
-      return getIptablesStatus(detected.version);
+      return getIptablesStatus(detected.version, executor);
     default:
       return UNKNOWN_STATUS;
   }
 }
 
-export async function listFirewallRules(): Promise<{ type: FirewallStatus['type']; rules: FirewallRule[] }> {
-  if (isWindows()) return { type: 'unknown', rules: [] };
+export async function listFirewallRules(hostId?: number | null): Promise<{ type: FirewallStatus['type']; rules: FirewallRule[] }> {
+  const executor = await resolveExecutor(hostId);
+  if (!executor.isRemote && isWindows()) return { type: 'unknown', rules: [] };
 
-  const detected = await detectFirewall();
+  const detected = await detectFirewall(executor);
   switch (detected.type) {
     case 'ufw':
-      return listUfwRules();
+      return listUfwRules(executor);
     case 'firewalld':
-      return listFirewalldRules();
+      return listFirewalldRules(executor);
     case 'iptables':
-      return listIptablesRules();
+      return listIptablesRules(executor);
     default:
       return { type: 'unknown', rules: [] };
   }

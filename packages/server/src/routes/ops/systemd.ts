@@ -9,10 +9,12 @@ import {
 import {
   isSystemdAvailable, listServices, controlService, getServiceLogs, tailServiceLogs, getServiceDetail,
 } from '../../services/ops/systemd.service';
+import { assertRemoteHostAccess } from '../../lib/host-access';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const VIEW_PERM = 'system:service:view';
 const MANAGE_PERM = 'system:service:manage';
+const HostQuery = z.object({ hostId: z.coerce.number().int().positive().optional() });
 
 /** 验证服务名：只允许合法字符，防止命令注入 */
 function validateServiceName(name: string): void {
@@ -22,20 +24,41 @@ function validateServiceName(name: string): void {
 // ─── 流式路由：实时日志 ────────────────────────────────────────────────────────
 router.get('/:name/logs/stream', authMiddleware, guard({ permission: VIEW_PERM }), async (c) => {
   const name = c.req.param('name');
-  try { validateServiceName(name); } catch {
-    return c.json({ code: 400, message: '非法服务名称', data: null }, 400);
+  validateServiceName(name);
+  const rawHostId = c.req.query('hostId');
+  const hostId = rawHostId ? Number(rawHostId) : undefined;
+  if (rawHostId && (!Number.isInteger(hostId) || (hostId ?? 0) <= 0)) {
+    throw new HTTPException(400, { message: '无效的 hostId' });
   }
-
-  const { kill, lines } = tailServiceLogs(name);
+  await assertRemoteHostAccess(c, hostId);
 
   return stream(c, async (s) => {
-    s.onAbort(() => kill());
+    let finish!: () => void;
+    const done = new Promise<void>((resolve) => { finish = resolve; });
+    let aborted = false;
+    let handle: { kill: () => void } | null = null;
+    let writes = Promise.resolve();
+    s.onAbort(() => {
+      aborted = true;
+      handle?.kill();
+      finish();
+    });
+    handle = await tailServiceLogs(
+      name,
+      (chunk) => {
+        writes = writes
+          .then(async () => { await s.write(chunk); })
+          .catch(() => { handle?.kill(); finish(); });
+      },
+      () => { void writes.finally(finish); },
+      hostId,
+    );
+    if (aborted) handle.kill();
     try {
-      for await (const chunk of lines) {
-        await s.write((chunk as Buffer).toString());
-      }
-    } catch { /* client disconnected */ } finally {
-      kill();
+      await done;
+      await writes;
+    } finally {
+      handle.kill();
     }
   });
 });
@@ -51,11 +74,13 @@ const checkRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/check', summary: '检查 systemd 可用性', tags: ['Systemd'],
     middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
-    request: {},
+    request: { query: HostQuery },
     responses: { ...commonErrorResponses, ...ok(z.object({ available: z.boolean() }), 'systemd 可用性') },
   }),
   handler: async (c) => {
-    const available = await isSystemdAvailable();
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
+    const available = await isSystemdAvailable(hostId);
     return c.json(okBody({ available }), 200);
   },
 });
@@ -64,11 +89,13 @@ const listRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/', summary: '列出 systemd 服务', tags: ['Systemd'],
     middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
-    request: {},
+    request: { query: HostQuery },
     responses: { ...commonErrorResponses, ...ok(z.array(ServiceDTO), '服务列表') },
   }),
   handler: async (c) => {
-    const services = await listServices();
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
+    const services = await listServices(hostId);
     return c.json(okBody(services), 200);
   },
 });
@@ -82,14 +109,17 @@ const controlRoute = defineOpenAPIRoute({
     })] as const,
     request: {
       params: z.object({ name: z.string(), action: z.enum(['start', 'stop', 'restart', 'reload', 'enable', 'disable', 'mask', 'unmask']) }),
+      query: HostQuery,
     },
     responses: { ...commonErrorResponses, ...okMsg('操作成功') },
   }),
   handler: async (c) => {
     const { name, action } = c.req.valid('param');
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
     validateServiceName(name);
-    setAuditBeforeData(c, { name, detail: await getServiceDetail(name) });
-    await controlService(name, action);
+    setAuditBeforeData(c, { name, hostId: hostId ?? null, detail: await getServiceDetail(name, hostId) });
+    await controlService(name, action, hostId);
     return c.json(okBody(null, '操作成功'), 200);
   },
 });
@@ -98,13 +128,15 @@ const detailRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:name/detail', summary: '获取服务详情', tags: ['Systemd'],
     middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
-    request: { params: z.object({ name: z.string() }) },
+    request: { params: z.object({ name: z.string() }), query: HostQuery },
     responses: { ...commonErrorResponses, ...ok(z.record(z.string(), z.string()), '服务详情') },
   }),
   handler: async (c) => {
     const { name } = c.req.valid('param');
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
     validateServiceName(name);
-    const detail = await getServiceDetail(name);
+    const detail = await getServiceDetail(name, hostId);
     return c.json(okBody(detail), 200);
   },
 });
@@ -113,13 +145,15 @@ const logsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/:name/logs', summary: '获取服务近期日志', tags: ['Systemd'],
     middleware: [authMiddleware, guard({ permission: VIEW_PERM })] as const,
-    request: { params: z.object({ name: z.string() }) },
+    request: { params: z.object({ name: z.string() }), query: HostQuery },
     responses: { ...commonErrorResponses, ...ok(z.object({ logs: z.string() }), '服务日志') },
   }),
   handler: async (c) => {
     const { name } = c.req.valid('param');
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
     validateServiceName(name);
-    const logs = await getServiceLogs(name, 200);
+    const logs = await getServiceLogs(name, 200, hostId);
     return c.json(okBody({ logs }), 200);
   },
 });

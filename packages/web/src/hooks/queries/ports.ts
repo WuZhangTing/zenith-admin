@@ -15,13 +15,17 @@ export interface PortEntry {
 export const portKeys = {
   all: ['ports'] as const,
   lists: ['ports', 'list'] as const,
-  list: () => ['ports', 'list'] as const,
+  list: (hostId: number | null) => ['ports', 'list', hostId] as const,
 };
 
-export function usePortList(refetchInterval: number | false) {
+function hostQuery(hostId: number | null): string {
+  return hostId == null ? '' : `?hostId=${hostId}`;
+}
+
+export function usePortList(refetchInterval: number | false, hostId: number | null = null) {
   return useQuery({
-    queryKey: portKeys.list(),
-    queryFn: () => request.get<PortEntry[]>('/api/ports', { silent: true }).then(unwrap),
+    queryKey: portKeys.list(hostId),
+    queryFn: () => request.get<PortEntry[]>(`/api/ports${hostQuery(hostId)}`, { silent: true }).then(unwrap),
     refetchInterval,
   });
 }
@@ -29,7 +33,8 @@ export function usePortList(refetchInterval: number | false) {
 export function useKillPortProcess() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (pid: number) => request.delete<null>(`/api/ports/${pid}`).then(unwrap),
+    mutationFn: ({ pid, hostId = null }: { pid: number; hostId?: number | null }) =>
+      request.delete<null>(`/api/ports/${pid}${hostQuery(hostId)}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: portKeys.all }),
   });
 }

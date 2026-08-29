@@ -5,6 +5,7 @@ import { toQueryString, unwrap } from '@/lib/query';
 export interface LogViewerContentParams {
   path: string;
   lines: number;
+  hostId?: number;
 }
 
 export const logViewerKeys = {

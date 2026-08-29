@@ -617,6 +617,12 @@ handlerRegistry.set('sslCertificateInspection', async () => {
   return `SSL 证书巡检：即将过期 ${r.expiring} 张、已过期 ${r.expired} 张${r.notified ? '，已通知管理员' : ''}`;
 });
 
+handlerRegistry.set('probeOpsHosts', async () => {
+  const { probeAllOpsHosts } = await import('../services/ops/hosts.service');
+  const r = await probeAllOpsHosts();
+  return `运维主机探测：共 ${r.total} 台，在线 ${r.online}、离线 ${r.offline}`;
+});
+
 handlerRegistry.set('closeExpiredPaymentOrders', async () => {
   const { closeExpiredOrders } = await import('../services/payment/payment-reconciliation.service');
   const count = await closeExpiredOrders();

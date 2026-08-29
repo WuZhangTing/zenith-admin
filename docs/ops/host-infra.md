@@ -7,9 +7,25 @@
 ## 运维概览
 
 「运维概览」（`/system/ops-overview`）是系统运维目录首页，权限码 `system:ops:overview`。
-`GET /api/ops-overview` 一次请求并行聚合各能力面的健康快照：主机 CPU / 内存 / 磁盘与 PG / Redis 连通性（复用服务监控采集）、Docker 容器运行状态、systemd 失败单元数、SSL 证书到期风险、防火墙与 Nginx 状态、活动终端会话数、监听端口数。每个分区独立容错（`available` / `reason`），单项探测失败或超时（8 秒，主机快照 20 秒）不影响整体响应。
+`GET /api/ops-overview` 一次请求并行聚合各能力面的健康快照：本机 CPU / 内存 / 磁盘与 PG / Redis 连通性（复用服务监控采集）、Docker 容器运行状态、systemd 失败单元数、SSL 证书到期风险、防火墙与 Nginx 状态、活动终端会话数、监听端口数，以及远程主机探测快照矩阵。每个分区独立容错（`available` / `reason`），单项探测失败或超时（8 秒，主机快照 20 秒）不影响整体响应。
 
 前端以健康卡片矩阵展示（异常标红、点击直达对应页面），附组件状态列表与全部运维页面快捷入口。
+
+## 多主机管理
+
+「主机管理」（`/system/hosts`）是二期多主机运维基座，接口前缀 `/api/ops-hosts`。它是平台级共享资源，不挂租户；租户账号不可见。权限分为：
+
+| 权限码 | 说明 |
+| --- | --- |
+| `system:host:view` | 查看主机列表、详情和资源快照 |
+| `system:host:manage` | 新增、编辑、删除、测试连接、重置 host key 指纹 |
+| `system:host:use` | 在进程、端口、服务、日志、文件、防火墙和终端页面操作远程主机 |
+
+主机认证支持密码和私钥内容，不支持依赖服务端本地状态的 `key_path` / `ssh-agent`。凭据由 `secret-crypto` 使用 AES-256-GCM 加密存储，接口只返回 `hasPassword` / `hasKeyContent`。可从当前用户的 SSH 配置一键导入平台主机。
+
+统一执行层 `lib/host-exec.ts` 提供本机 `execFile` 与 SSH 两种执行器。业务层只能传命令与 argv 数组；SSH 侧通过 POSIX 单引号编码拼接，禁止裸命令字符串。SSH 连接按主机池化（最多 6 个并发通道、空闲 2 分钟回收）。主机 key 使用 TOFU：首连记录 SHA256 指纹，后续不匹配拒绝连接；管理员确认主机合法重装后可显式重置指纹。
+
+定时任务 `probeOpsHosts` 每 5 分钟并发探测启用主机（并发 5），一次 SSH 往返采集内核、系统版本、uptime、CPU 核数/负载、内存与根磁盘快照，写入 `ops_hosts.snapshot`。这是时点快照而非远程时序监控；概览矩阵读取缓存并显示采集时间。
 
 ## 进程管理
 
@@ -21,7 +37,7 @@
 | `system:process:kill` | 结束进程 |
 | `system:process:priority` | 调整进程优先级 |
 
-后端 `/api/processes` 根据运行平台采集进程：Linux / macOS 使用 `ps`，Linux 详情补充 `/proc/:pid/environ` 与 `/proc/:pid/cwd`；Windows 使用 PowerShell `Get-Process` 和 `Win32_Process`。监听端口按 PID 缓存 15 秒并合并到进程列表。
+后端 `/api/processes` 根据运行平台采集本机进程：Linux / macOS 使用 `ps`，Linux 详情补充 `/proc/:pid/environ` 与 `/proc/:pid/cwd`；Windows 使用 PowerShell `Get-Process` 和 `Win32_Process`。传 `hostId` 时通过统一 SSH 执行层采集远程 Linux 进程，支持详情、结束与调整 nice；远端列表使用 5 秒轮询，本机继续使用 SSE。
 
 实时列表通过 `GET /api/processes/stream` 以 SSE 推送，首帧返回完整列表，之后每 3 秒刷新一次，并每 30 秒发送心跳。页面支持关键字与状态筛选、详情弹窗、结束进程和优先级调整。
 
@@ -29,13 +45,13 @@
 
 ## 端口监听
 
-「端口监听」（`/system/ports`）调用 `/api/ports` 获取监听端口列表，查看权限为 `system:port:view`，结束占用进程使用 `system:process:kill`。操作列提供「查看进程」深链（跳转进程管理页并按 PID 定位）。
+「端口监听」（`/system/ports`）调用 `/api/ports` 获取监听端口列表，查看权限为 `system:port:view`，结束占用进程使用 `system:process:kill`。传 `hostId` 时执行远端 `ss -tulnp`（回退 `netstat`）；「查看进程」深链同时携带主机上下文。
 
-端口采集方式：Linux / macOS 优先使用 `ss -tlnp`，回退到 `netstat -tlnp`；Windows 使用 `netstat -ano`。返回协议、本地地址、本地端口、状态、PID、进程名和服务名。服务名由内置常见端口映射识别，例如 `22 → SSH`、`80 → HTTP`、`443 → HTTPS`、`5432 → PostgreSQL`、`6379 → Redis`、`5173 → Vite`、`3300 → Zenith-API`。
+端口采集方式：Linux / macOS 优先使用 `ss -tulnp`，回退到 `netstat -tlnp`；Windows 使用 `netstat -ano`。返回协议、本地地址、本地端口、状态、PID、进程名和服务名。
 
 ## Docker 管理
 
-「Docker」（`/system/docker`）接口前缀为 `/api/docker`，主要复用 `system:process:view` 权限，并在启停、删除、创建、拉取、清理等操作中写入审计日志。服务端通过 Dockerode 连接 Docker Engine。
+「Docker」（`/system/docker`）接口前缀为 `/api/docker`，查看使用 `system:docker:view`，写操作使用 `system:docker:manage` 并记录审计。服务端通过 Dockerode 连接本机 Docker Engine；二期不支持远程 Docker（避免 `dockerode ssh://` 每请求建连产生连接风暴）。
 
 ### 容器
 
@@ -79,6 +95,8 @@
 
 「服务管理」（`/system/services`）面向 Linux systemd 环境，接口前缀为 `/api/systemd`，查看（列表 / 详情 / 日志）用 `system:service:view`，服务启停等控制操作用 `system:service:manage`。页面先调用 `GET /api/systemd/check` 检查 `systemctl --version` 是否可用；不可用时展示提示。
 
+传 `hostId` 时通过 SSH 在远端执行 `systemctl` / `journalctl`，支持服务列表、控制、详情、近期日志与实时日志；非 systemd 远端主机诚实降级。
+
 服务列表来自 `systemctl list-units --type=service --all --no-pager --plain --no-legend`，返回服务名、描述、加载状态、活动状态和子状态。后端列表会移除 `.service` 后缀，控制接口调用时再拼接 `.service`。
 
 | 操作 | 接口 |
@@ -100,7 +118,7 @@
 
 ### 日志查看器
 
-「日志查看器」（`/system/log-viewer`）面向任意绝对路径日志文件，接口前缀为 `/api/log-viewer`，权限码 `system:log:view`。支持 `?path=` 深链直接加载指定文件（Nginx 站点页的「访问日志 / 错误日志」由此跳入）：
+「日志查看器」（`/system/log-viewer`）面向任意绝对路径日志文件，接口前缀为 `/api/log-viewer`，权限码 `system:log:view`。传 `hostId` 时读取远端日志：末尾内容用 SSH `tail`，实时追踪用 SSH 流式通道，下载用 SFTP 可读流（100 MB 上限，不把完整文件读入内存）。支持 `?path=` / `?hostId=` 深链。
 
 | 接口 | 说明 |
 | --- | --- |
@@ -133,6 +151,8 @@
 「防火墙管理」（`/system/firewall`）接口前缀为 `/api/firewall`，查看用 `system:firewall:view`，规则管理与启停用 `system:firewall:manage`。
 
 - 服务端按 `ufw → firewalld → iptables` 顺序自动探测防火墙后端，返回类型与版本；Windows 等无受支持后端的平台返回 `type: 'unknown'`，前端按不可用降级展示。
+- 传 `hostId` 时可查看远端防火墙状态与规则；远端写操作在前后端均被禁止，避免误封 SSH 恢复通道。
+- 远端探测需要 SSH 用户有读取对应防火墙状态的权限；`ufw` / `iptables` 在非 root 账号下可能返回不可用，页面按能力降级展示。
 - `GET /api/firewall` 返回防火墙状态，`GET /api/firewall/rules` 返回规则列表。
 - `POST /api/firewall/rules` 添加规则、`DELETE /api/firewall/rules/{id}` 删除规则，入参端口、来源、目标与备注先清洗再拼接命令。
 - `POST /api/firewall/enable`、`POST /api/firewall/disable` 启停防火墙。

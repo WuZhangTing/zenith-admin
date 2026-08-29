@@ -38,6 +38,7 @@ import {
   recordTerminalSessionFailure,
 } from '../../services/ops/terminal-sessions.service';
 import { parseDbTerminalShellType, resolveDbPsqlLaunch } from '../../services/ops/db-admin-terminal.service';
+import { getHostSshConnectionOptions, shellQuoteArg } from '../../lib/host-exec';
 
 /** 终端会话监控权限码 */
 const MONITOR_PERMISSION = 'system:terminal:monitor';
@@ -76,6 +77,22 @@ type DockerExecShell = {
   shellName: 'bash' | 'sh';
   shellPath: '/bin/bash' | '/bin/sh';
 };
+
+function parseManagedHostId(type: string | undefined): number | null {
+  const match = /^host:([1-9]\d*)$/.exec(type ?? '');
+  if (!match) return null;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
+function requiredPermissionsForTarget(target: string | undefined): string[] {
+  const dbMode = parseDbTerminalShellType(target);
+  if (dbMode) {
+    return ['system:db-admin:terminal', ...(dbMode === 'rw' ? ['system:db-admin:write'] : [])];
+  }
+  if (parseManagedHostId(target) != null) return ['system:terminal:execute', 'system:host:use'];
+  return ['system:terminal:execute'];
+}
 
 function parseDockerExecShell(type: string | undefined): DockerExecShell | null {
   if (!type?.startsWith('docker-exec:')) return null;
@@ -166,18 +183,20 @@ type SshShellParams = {
   /** 输出投递：登记完成前先缓存，避免首屏丢字 */
   emit: (data: string) => void;
   envVars?: Record<string, string>;
+  initialCommand?: string;
 };
 
 function handleSshShell(
   stream: import('ssh2').ClientChannel,
   conn: import('ssh2').Client,
-  { getSession: getSess, emit, envVars }: SshShellParams,
+  { getSession: getSess, emit, envVars, initialCommand }: SshShellParams,
   resolve: (t: TerminalProcess) => void,
   _reject: (e: Error) => void,
 ): void {
   for (const [k, v] of Object.entries(envVars ?? {})) {
     stream.write(`export ${k}=${JSON.stringify(v)}\r`);
   }
+  if (initialCommand) stream.write(`${initialCommand}\r`);
   const onData = (data: Buffer) => { emit(data.toString('utf8')); };
   stream.on('data', onData);
   stream.stderr.on('data', onData);
@@ -234,6 +253,42 @@ async function createSshProcess(
   return { process, label };
 }
 
+/** 平台运维主机交互 Shell：连接参数与 TOFU host key 校验复用 host-exec。 */
+async function createManagedHostProcess(
+  hostId: number,
+  getSess: () => TerminalSession | null,
+  emit: (data: string) => void,
+  cwd?: string,
+): Promise<{ process: TerminalProcess; label: string }> {
+  const target = await getHostSshConnectionOptions(hostId);
+  const process = await new Promise<TerminalProcess>((resolve, reject) => {
+    const conn = new SshClient();
+    conn.on('ready', () => {
+      void target.ensureFingerprintRecorded().then(() => target.assertCurrent()).then(() => {
+        conn.shell({ term: 'xterm-256color', cols: 80, rows: 24 }, (err, channel) => {
+          if (err) { conn.end(); reject(err); return; }
+          handleSshShell(channel, conn, {
+            getSession: getSess,
+            emit,
+            initialCommand: cwd?.startsWith('/') ? `cd -- ${shellQuoteArg(cwd)}` : undefined,
+          }, resolve, reject);
+        });
+      }).catch((err) => {
+        conn.end();
+        reject(err);
+      });
+    });
+    conn.on('error', (err) => {
+      const mismatch = target.fingerprintMismatch();
+      reject(mismatch
+        ? new Error(`SSH host key 指纹不匹配（当前 ${mismatch.observed}，预期 ${mismatch.expected}）`)
+        : err);
+    });
+    conn.connect(target.config);
+  });
+  return { process, label: `主机:${target.label}` };
+}
+
 export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  const wsApp = new Hono();
 
   wsApp.get(
@@ -278,16 +333,25 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
           }
 
           // 权限校验：普通终端要求 system:terminal:execute；
-          // 数据库终端要求 system:db-admin:terminal，读写模式额外要求 system:db-admin:write。
+          // 数据库终端要求 system:db-admin:terminal；平台主机终端额外要求 system:host:use。
           const requestedDbMode = parseDbTerminalShellType(shellType);
+          const managedHostRequest = shellType?.startsWith('host:') ?? false;
+          const requestedHostId = parseManagedHostId(shellType);
+          if (!sessionId && managedHostRequest && requestedHostId == null) {
+            ws.close(4000, 'Invalid managed host');
+            return;
+          }
+          if (!sessionId && requestedHostId != null && payload.tenantId != null) {
+            ws.close(4003, 'Managed hosts are platform-only');
+            return;
+          }
           const isSA = isSuperAdmin(payload);
+          let userPermissions: string[] | null = null;
           if (!isSA) {
-            const required = requestedDbMode
-              ? ['system:db-admin:terminal', ...(requestedDbMode === 'rw' ? ['system:db-admin:write'] : [])]
-              : ['system:terminal:execute'];
             try {
-              const perms = await getUserPermissions(payload.userId);
-              if (!required.every((p) => perms.includes(p))) {
+              userPermissions = await getUserPermissions(payload.userId);
+              // 新建按请求目标校验；重连必须等拿到服务端会话后按 existing.target 校验。
+              if (!sessionId && !requiredPermissionsForTarget(shellType).every((p) => userPermissions!.includes(p))) {
                 ws.close(4003, 'Forbidden');
                 return;
               }
@@ -324,6 +388,15 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               ws.close(4004, 'Session not found');
               return;
             }
+            // 重连的全部权限只取服务端保存的 target，完全忽略客户端可篡改的 shell 查询参数。
+            if (!isSA && !requiredPermissionsForTarget(existing.target).every((p) => userPermissions?.includes(p))) {
+              ws.close(4003, 'Forbidden');
+              return;
+            }
+            if (existing.target.startsWith('host:') && payload.tenantId != null) {
+              ws.close(4003, 'Managed hosts are platform-only');
+              return;
+            }
             reattachClient(existing, ws);
             ownedSession.current = existing;
             ownWs = ws;
@@ -342,11 +415,12 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
             return;
           }
 
-          // ── 创建新终端进程（本地 PTY / SSH / Docker / 数据库 psql） ──
+          // ── 创建新终端进程（本地 PTY / 用户 SSH / 平台主机 / Docker / 数据库 psql） ──
           const isSsh = shellType?.startsWith('ssh:');
           const isDocker = shellType?.startsWith('docker-exec:');
           const isDb = requestedDbMode !== null;
-          const kind: TerminalKind = isSsh ? 'ssh' : isDocker ? 'docker' : isDb ? 'db' : 'local';
+          const canonicalTarget = requestedHostId != null ? `host:${requestedHostId}` : (shellType ?? '');
+          const kind: TerminalKind = (isSsh || requestedHostId != null) ? 'ssh' : isDocker ? 'docker' : isDb ? 'db' : 'local';
           const clientIp = getClientIp(c);
 
           let termProcess: TerminalProcess;
@@ -365,7 +439,16 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
             try { currentSession.currentWs?.send(JSON.stringify({ type: 'terminal:output', data })); } catch { /* ignore */ }
           };
           try {
-            if (isSsh) {
+            if (requestedHostId != null) {
+              const host = await createManagedHostProcess(
+                requestedHostId,
+                () => ownedSession.current,
+                emitOutput,
+                cwdParam,
+              );
+              termProcess = host.process;
+              label = host.label;
+            } else if (isSsh) {
               // ── SSH 连接 ──
               const profileId = Number(shellType!.slice(4));
               if (!profileId) throw new Error('无效的 SSH 配置 ID');
@@ -434,7 +517,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               userId: payload.userId,
               tenantId: payload.tenantId ?? null,
               kind,
-              target: shellType ?? '',
+              target: canonicalTarget,
               label: shellType ?? '',
               clientIp,
             });
@@ -452,6 +535,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
             username: payload.username,
             tenantId: payload.tenantId ?? null,
             kind,
+            target: canonicalTarget,
             label,
             clientIp,
           });
@@ -467,7 +551,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
             userId: payload.userId,
             tenantId: payload.tenantId ?? null,
             kind,
-            target: shellType ?? '',
+            target: canonicalTarget,
             label,
             clientIp,
           });

@@ -1,6 +1,6 @@
 # 终端与文件
 
-本页描述 Web 终端、SSH 配置、终端会话监控、终端录屏、远程 SFTP 与本机文件管理器。
+本页描述 Web 终端、SSH 配置、平台运维主机终端、终端会话监控、终端录屏、本机与远程文件管理。
 
 ---
 
@@ -24,6 +24,7 @@ Web 终端入口为「系统运维 → Web 终端」（`/system/terminal`），�
 | `local` | 本机 PTY，shell 来源于 `/api/terminal-files/shells` 探测结果 |
 | `ssh` | 使用 `ssh_profiles` 中的连接配置建立 SSH shell |
 | `docker` | 通过 `docker exec -it` 进入容器内 `/bin/sh` |
+| `ssh`（`host:<id>`） | 连接平台运维主机；额外要求 `system:host:use`，复用主机 TOFU 指纹校验 |
 
 ### 终端交互
 
@@ -54,7 +55,7 @@ Web 终端入口为「系统运维 → Web 终端」（`/system/terminal`），�
 
 ### 多分屏与工作区
 
-`TerminalPage` 使用 pane tree 管理布局，支持多 Tab、水平 / 垂直分屏、分屏尺寸调整、面板关闭、焦点切换、本机文件树、SSH 配置、SFTP 浏览、Docker 容器浏览侧栏，以及终端内 Ctrl / Command + F 搜索。
+`TerminalPage` 使用 pane tree 管理布局，支持多 Tab、多分屏、本机 Shell、用户 SSH 配置、平台运维主机、Docker exec、断线重连与搜索。「选择 Shell 类型」菜单同时列出已启用的平台主机。平台主机会话以 `target=host:<id>` 留痕；主机连接配置或凭据变更时主动结束旧会话。
 
 ## SSH 配置档案
 
@@ -118,6 +119,8 @@ SFTP 功能复用 SSH 配置档案，接口前缀为 `/api/ssh-sftp/:profileId`�
 ## 本机文件管理器
 
 「文件管理器」（`/system/file-manager`）接口前缀为 `/api/terminal-files`，权限码为 `system:file:use`（Web 终端页的文件树 / shell 探测复用同组接口，持有 `system:terminal:execute` 亦可访问），面向服务器本机文件系统。
+
+二期在同一页面加入 HostSelector。选择平台主机后改用 `/api/host-files/:hostId`：基于统一 SSH 连接池的 SFTP 通道提供浏览、文本读写（5 MB 上限与 ETag 冲突检测）、新建、重命名/移动、递归删除、chmod、上传和流式下载。远端模式不提供本机的压缩/解压、递归搜索、校验和与目录大小统计。
 
 | 能力 | 接口 |
 | --- | --- |

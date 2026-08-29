@@ -1,15 +1,17 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Banner, Card, Empty, List, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Card, Empty, List, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import {
   Activity, Container, Cpu, FileText, Flame, Globe, HardDrive as DiskIcon,
-  Lock, MemoryStick, Monitor, Network, Settings, Shield, TerminalSquare, Wifi,
+  Lock, MemoryStick, Monitor, Network, Server, Settings, Shield, TerminalSquare, Wifi,
 } from 'lucide-react';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { RefreshButton } from '@/components/toolbar-controls';
 import PageLoading from '@/components/PageLoading';
 import { formatBytesGb } from '@/utils/format';
 import { useOpsOverview, type OpsOverview, type OpsOverviewSection } from '@/hooks/queries/ops-overview';
+import ConfigurableTable from '@/components/ConfigurableTable';
+import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 
 const { Text } = Typography;
 
@@ -41,6 +43,8 @@ interface CapabilityRow {
   section: OpsOverviewSection<unknown>;
   render: () => React.ReactNode;
 }
+
+type HostMatrixItem = NonNullable<OpsOverview['hosts']['data']>[number];
 
 function buildCapabilityRows(data: OpsOverview): CapabilityRow[] {
   return [
@@ -149,6 +153,7 @@ const QUICK_ENTRIES = [
   { icon: <Globe size={14} />, label: 'Nginx 站点', path: '/system/nginx-sites' },
   { icon: <Lock size={14} />, label: 'SSL 证书', path: '/system/ssl-certificates' },
   { icon: <Activity size={14} />, label: '服务监控', path: '/system/monitor' },
+  { icon: <Server size={14} />, label: '主机管理', path: '/system/hosts' },
 ];
 
 export default function OpsOverviewPage() {
@@ -171,6 +176,7 @@ export default function OpsOverviewPage() {
   }
 
   const host = data.host.data;
+  const remoteHosts = data.hosts.data ?? [];
   const failedServices = data.services.data?.failed ?? 0;
   const sslRisk = (data.ssl.data?.expiring ?? 0) + (data.ssl.data?.expired ?? 0);
 
@@ -273,6 +279,65 @@ export default function OpsOverviewPage() {
               )}
             />
           )}
+        />
+      </Card>
+
+      <Card
+        title={(
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>远程主机健康矩阵</span>
+            <Button theme="borderless" onClick={() => navigate('/system/hosts')}>主机管理</Button>
+          </div>
+        )}
+        bodyStyle={{ padding: '4px 0 12px' }}
+      >
+        <ConfigurableTable
+          bordered
+          rowKey="id"
+          pagination={false}
+          dataSource={remoteHosts}
+          columns={[
+            { title: '主机', dataIndex: 'name', width: 150 },
+            { title: '连接地址', dataIndex: 'address', width: 220 },
+            {
+              title: '状态',
+              dataIndex: 'status',
+              width: 100,
+              render: (value: string) => (
+                <Tag color={value === 'online' ? 'green' : value === 'offline' ? 'red' : 'grey'}>
+                  {value === 'online' ? '在线' : value === 'offline' ? '离线' : '未探测'}
+                </Tag>
+              ),
+            },
+            {
+              title: 'CPU / 负载',
+              width: 130,
+              render: (_value: unknown, record: HostMatrixItem) =>
+                record.snapshot ? `${record.snapshot.cpuCores ?? '—'} 核 / ${record.snapshot.load1 ?? '—'}` : '—',
+            },
+            {
+              title: '内存',
+              width: 100,
+              render: (_value: unknown, record: HostMatrixItem) =>
+                record.snapshot?.memUsagePercent == null ? '—' : `${record.snapshot.memUsagePercent}%`,
+            },
+            {
+              title: '磁盘',
+              width: 100,
+              render: (_value: unknown, record: HostMatrixItem) =>
+                record.snapshot?.diskUsagePercent == null ? '—' : `${record.snapshot.diskUsagePercent}%`,
+            },
+            {
+              title: '最近采集',
+              dataIndex: 'probedAt',
+              width: 180,
+              render: (value: string | null, record: HostMatrixItem) =>
+                value ?? record.probeError ?? '从未探测',
+            },
+          ] satisfies ColumnProps<HostMatrixItem>[]}
+          onRefresh={() => void overviewQuery.refetch()}
+          refreshLoading={overviewQuery.isFetching}
+          empty={data.hosts.available ? '尚未配置远程主机' : (data.hosts.reason ?? '主机矩阵不可用')}
         />
       </Card>
 

@@ -224,6 +224,11 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   // 运维概览用 2595/2596:段内 10 倍数槽位已满,2550/2560 是告警中心迁出时的保留位(permission-audit 测试封禁复用)
   { id: 2595, parentId: 2440, title: '运维概览', name: 'SystemOpsOverview', path: '/system/ops-overview', component: 'system/ops-overview/OpsOverviewPage', icon: 'LayoutDashboard', type: 'menu', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2596, parentId: 2595, title: '查询', type: 'button', permission: 'system:ops:overview', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  // 主机管理用 2597 + 按钮 2598/2599/2604(段内 10 倍数槽位与 2600-2603 已占用)
+  { id: 2597, parentId: 2440, title: '主机管理', name: 'SystemOpsHosts', path: '/system/hosts', component: 'system/hosts/HostsPage', icon: 'Server', type: 'menu', sort: 14, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2598, parentId: 2597, title: '查询', type: 'button', permission: 'system:host:view', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2599, parentId: 2597, title: '管理主机', type: 'button', permission: 'system:host:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2604, parentId: 2597, title: '远程操作', type: 'button', permission: 'system:host:use', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2450, parentId: 2440, title: 'Web 终端', name: 'SystemTerminal', path: '/system/terminal', component: 'system/terminal/TerminalPage', icon: 'TerminalSquare', type: 'menu', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2451, parentId: 2450, title: '执行终端', type: 'button', permission: 'system:terminal:execute', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2540, parentId: 2440, title: '终端会话', name: 'SystemTerminalSessions', path: '/system/terminal/sessions', component: 'system/terminal/TerminalSessionsPage', icon: 'Monitor', type: 'menu', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

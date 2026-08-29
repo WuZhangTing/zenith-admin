@@ -7,6 +7,8 @@ import dbAdminRoutes from './db-admin';
 import dbBackupsRoutes from './db-backups';
 import dockerRoutes from './docker';
 import firewallRoutes from './firewall';
+import hostFilesRoutes from './host-files';
+import hostsRoutes from './hosts';
 import logFilesRoutes from './log-files';
 import logViewerRoutes from './log-viewer';
 import maintenanceRoutes from './maintenance';
@@ -48,6 +50,8 @@ export default defineRouteDomain({
     ['/api/log-viewer', logViewerRoutes, { feature: 'ops' }],
     ['/api/nginx-sites', nginxSitesRoutes, { feature: 'ops' }],
     ['/api/ops-overview', opsOverviewRoutes, { feature: 'ops' }],
+    ['/api/ops-hosts', hostsRoutes, { feature: 'ops' }],
+    ['/api/host-files', hostFilesRoutes, { feature: 'ops' }],
     ['/api/log-files', logFilesRoutes, { feature: 'ops' }],
     ['/api/retention-policies', retentionRoutes, { feature: 'ops' }],
     ['/api/app-releases', appReleasesRoutes],

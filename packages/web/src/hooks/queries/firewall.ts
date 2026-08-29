@@ -39,22 +39,26 @@ export interface AddFirewallRuleFormValues {
 
 export const firewallKeys = {
   all: ['firewall'] as const,
-  status: ['firewall', 'status'] as const,
+  status: (hostId: number | null) => ['firewall', 'status', hostId] as const,
   lists: ['firewall', 'rules'] as const,
-  list: () => ['firewall', 'rules'] as const,
+  list: (hostId: number | null) => ['firewall', 'rules', hostId] as const,
 };
 
-export function useFirewallStatus() {
+function hostQuery(hostId: number | null): string {
+  return hostId == null ? '' : `?hostId=${hostId}`;
+}
+
+export function useFirewallStatus(hostId: number | null = null) {
   return useQuery({
-    queryKey: firewallKeys.status,
-    queryFn: () => request.get<FirewallStatus>('/api/firewall', { silent: true }).then(unwrap),
+    queryKey: firewallKeys.status(hostId),
+    queryFn: () => request.get<FirewallStatus>(`/api/firewall${hostQuery(hostId)}`, { silent: true }).then(unwrap),
   });
 }
 
-export function useFirewallRules() {
+export function useFirewallRules(hostId: number | null = null) {
   return useQuery({
-    queryKey: firewallKeys.list(),
-    queryFn: () => request.get<FirewallRuleList>('/api/firewall/rules', { silent: true }).then(unwrap),
+    queryKey: firewallKeys.list(hostId),
+    queryFn: () => request.get<FirewallRuleList>(`/api/firewall/rules${hostQuery(hostId)}`, { silent: true }).then(unwrap),
   });
 }
 

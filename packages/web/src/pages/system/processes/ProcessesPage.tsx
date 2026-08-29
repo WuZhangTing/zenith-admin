@@ -6,7 +6,7 @@ import {
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import {
-  Activity, RefreshCw, Search, X,
+  Activity, RefreshCw,
 } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -20,8 +20,11 @@ import { TOKEN_KEY } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { ProcessInfo, ProcessListResponse } from '@zenith/shared/ops';
-import { useKillProcess, useProcessDetail, useSetProcessPriority } from '@/hooks/queries/processes';
+import { useKillProcess, useProcessDetail, useProcessList, useSetProcessPriority } from '@/hooks/queries/processes';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { HostSelector } from '@/components/HostSelector';
+import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
+import { KeywordInput } from '@/components/search-filters';
 
 // 自定义进程表格 CSS
 const processesTableStyle = '';
@@ -89,12 +92,20 @@ export default function ProcessesPage() {
   const navigate = useNavigate();
   // 深链:?pid= 直接定位到指定进程(端口页「查看进程」跳入),消费后清空参数
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialHostId = (() => {
+    const value = Number(searchParams.get('hostId'));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  })();
+  // 带 pid 的深链若未显式给 hostId，语义是本机进程；不能继承上次远端选择。
+  const [hostId, setHostId] = useOpsHostSelection(
+    searchParams.has('hostId') ? initialHostId : searchParams.has('pid') ? null : undefined,
+  );
   useEffect(() => {
     const pid = searchParams.get('pid');
     if (!pid) return;
     setKeyword(pid);
-    setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams]);
+    setSearchParams(hostId == null ? {} : { hostId: String(hostId) }, { replace: true });
+  }, [searchParams, setSearchParams, hostId]);
   const [filterStatus, setFilterStatus] = useState<string>('');
 
   // ─── 详情弹窗 ──────────────────────────────────────────────────────────
@@ -106,13 +117,14 @@ export default function ProcessesPage() {
   const [killTarget, setKillTarget] = useState<ProcessInfo | null>(null);
   const [killSignal, setKillSignal] = useState('SIGTERM');
 
-  const detailQuery = useProcessDetail(detailProcess?.pid, detailVisible);
+  const remoteListQuery = useProcessList(hostId, hostId != null);
+  const detailQuery = useProcessDetail(detailProcess?.pid, detailVisible, hostId);
   const killMutation = useKillProcess();
   const priorityMutation = useSetProcessPriority();
   const priorityModal = useEditModal<PriorityRecord, Record<string, unknown>>({
     save: {
       mutateAsync: async ({ id, values }) => {
-        await priorityMutation.mutateAsync({ pid: id ?? 0, values });
+        await priorityMutation.mutateAsync({ pid: id ?? 0, values, hostId });
         return { id: id ?? 0, pid: id ?? 0, name: '' };
       },
       isPending: priorityMutation.isPending,
@@ -123,6 +135,14 @@ export default function ProcessesPage() {
     successMessage: () => '优先级已调整',
     labelWidth: 100,
   });
+  const handleHostChange = useCallback((nextHostId: number | null) => {
+    sseAbortRef.current?.abort();
+    setHostId(nextHostId);
+    setProcesses([]);
+    setDetailVisible(false);
+    setDetailProcess(null);
+    setSearchParams(nextHostId == null ? {} : { hostId: String(nextHostId) }, { replace: true });
+  }, [setHostId, setSearchParams]);
 
   // ─── 虚拟表格高度（Semi UI 要求数字型 scroll.y）──────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
@@ -222,10 +242,24 @@ export default function ProcessesPage() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    connectSse();
+    if (hostId == null) {
+      setLoading(true);
+      connectSse();
+    } else {
+      sseAbortRef.current?.abort();
+      setSseStatus('idle');
+      setLoading(remoteListQuery.isPending);
+    }
     return () => sseAbortRef.current?.abort();
-  }, [connectSse]);
+  }, [connectSse, hostId, remoteListQuery.isPending]);
+
+  useEffect(() => {
+    if (hostId == null || !remoteListQuery.data) return;
+    setProcesses(remoteListQuery.data.processes);
+    setPlatform(remoteListQuery.data.platform);
+    setLastUpdated(new Date());
+    setLoading(false);
+  }, [hostId, remoteListQuery.data]);
 
   useEffect(() => {
     if (detailVisible && detailQuery.data) setDetailProcess(detailQuery.data);
@@ -240,7 +274,7 @@ export default function ProcessesPage() {
   // ─── 结束进程 ──────────────────────────────────────────────────────────
   async function confirmKill() {
     if (!killTarget) return;
-    await killMutation.mutateAsync({ pid: killTarget.pid, signal: killSignal });
+    await killMutation.mutateAsync({ pid: killTarget.pid, signal: killSignal, hostId });
     Toast.success(`已向进程 ${killTarget.name}（PID: ${killTarget.pid}）发送 ${killSignal}`);
     setKillVisible(false);
     setKillTarget(null);
@@ -381,28 +415,16 @@ export default function ProcessesPage() {
       <SearchToolbar
         primary={(
           <>
-            {/* 搜索框 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6,
-              border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
-              padding: '0 8px', background: 'var(--surface-card)', width: 240 }}>
-              <Search size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
-              <input
-                style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1,
-                  fontSize: 14, color: 'inherit', padding: '5px 0' }}
-                placeholder="搜索进程名、用户、PID..."
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-              />
-              {keyword && (
-                <button
-                  style={{ border: 'none', background: 'transparent', cursor: 'pointer',
-                    color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', padding: 0 }}
-                  onClick={() => setKeyword('')}
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
+            <HostSelector
+              value={hostId}
+              onChange={handleHostChange}
+            />
+            <KeywordInput
+              placeholder="搜索进程名、用户、PID..."
+              value={keyword}
+              onChange={setKeyword}
+              width={240}
+            />
             {/* 状态筛选 */}
             <Select
               placeholder="全部状态"
@@ -416,8 +438,15 @@ export default function ProcessesPage() {
             <Button
               type="tertiary"
               icon={<RefreshCw size={14} />}
-              onClick={() => { sseAbortRef.current?.abort(); connectSse(); }}
-              loading={sseStatus === 'connecting'}
+              onClick={() => {
+                if (hostId == null) {
+                  sseAbortRef.current?.abort();
+                  connectSse();
+                } else {
+                  void remoteListQuery.refetch();
+                }
+              }}
+              loading={hostId == null ? sseStatus === 'connecting' : remoteListQuery.isFetching}
             >
               刷新
             </Button>
@@ -425,10 +454,10 @@ export default function ProcessesPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
               <span style={{
                 width: 8, height: 8, borderRadius: '50%',
-                background: sseIndicator.color,
-                boxShadow: sseStatus === 'open' ? '0 0 0 2px color-mix(in srgb, var(--semi-color-success) 25%, transparent)' : undefined,
+                background: hostId == null ? sseIndicator.color : 'var(--semi-color-info)',
+                boxShadow: hostId == null && sseStatus === 'open' ? '0 0 0 2px color-mix(in srgb, var(--semi-color-success) 25%, transparent)' : undefined,
               }} />
-              <Typography.Text type="tertiary" size="small">{sseIndicator.text}</Typography.Text>
+              <Typography.Text type="tertiary" size="small">{hostId == null ? sseIndicator.text : '5 秒轮询'}</Typography.Text>
               {lastUpdated && (
                 <Typography.Text type="tertiary" size="small">
                   · {formatDateTime(lastUpdated)}
@@ -447,29 +476,17 @@ export default function ProcessesPage() {
             )}
           </>
         )}
-        actions={<ExportButton entity="system.processes" query={buildExportQuery()} />}
+        actions={hostId == null ? <ExportButton entity="system.processes" query={buildExportQuery()} /> : undefined}
         mobilePrimary={(
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6,
-            border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)',
-            padding: '0 8px', background: 'var(--surface-card)', width: 240 }}>
-            <Search size={14} style={{ color: 'var(--semi-color-text-2)', flexShrink: 0 }} />
-            <input
-              style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1,
-                fontSize: 14, color: 'inherit', padding: '5px 0' }}
+          <>
+            <HostSelector value={hostId} onChange={handleHostChange} />
+            <KeywordInput
               placeholder="搜索进程名、用户、PID..."
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={setKeyword}
+              width={240}
             />
-            {keyword && (
-              <button
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer',
-                  color: 'var(--semi-color-text-2)', display: 'flex', alignItems: 'center', padding: 0 }}
-                onClick={() => setKeyword('')}
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
+          </>
         )}
         mobileFilters={(
           <Select
@@ -486,12 +503,19 @@ export default function ProcessesPage() {
             <Button
               type="tertiary"
               icon={<RefreshCw size={14} />}
-              onClick={() => { sseAbortRef.current?.abort(); connectSse(); }}
-              loading={sseStatus === 'connecting'}
+              onClick={() => {
+                if (hostId == null) {
+                  sseAbortRef.current?.abort();
+                  connectSse();
+                } else {
+                  void remoteListQuery.refetch();
+                }
+              }}
+              loading={hostId == null ? sseStatus === 'connecting' : remoteListQuery.isFetching}
             >
               刷新
             </Button>
-            <ExportButton entity="system.processes" query={buildExportQuery()} variant="flat" />
+            {hostId == null && <ExportButton entity="system.processes" query={buildExportQuery()} variant="flat" />}
           </>
         )}
         filterTitle="进程筛选"
@@ -518,8 +542,15 @@ export default function ProcessesPage() {
         size="small"
         empty="暂无进程数据"
         pagination={false}
-        onRefresh={() => { sseAbortRef.current?.abort(); connectSse(); }}
-        refreshLoading={sseStatus === 'connecting'}
+        onRefresh={() => {
+          if (hostId == null) {
+            sseAbortRef.current?.abort();
+            connectSse();
+          } else {
+            void remoteListQuery.refetch();
+          }
+        }}
+        refreshLoading={hostId == null ? sseStatus === 'connecting' : remoteListQuery.isFetching}
       />
       </div>
 
@@ -590,7 +621,11 @@ export default function ProcessesPage() {
                       <Button
                         size="small"
                         theme="borderless"
-                        onClick={() => navigate(`/system/terminal?cwd=${encodeURIComponent(detailProcess.cwd as string)}`)}
+                        onClick={() => navigate(
+                          hostId == null
+                            ? `/system/terminal?cwd=${encodeURIComponent(detailProcess.cwd as string)}`
+                            : `/system/terminal?open=${encodeURIComponent(`host:${hostId}`)}&cwd=${encodeURIComponent(detailProcess.cwd as string)}`,
+                        )}
                       >
                         在终端打开
                       </Button>

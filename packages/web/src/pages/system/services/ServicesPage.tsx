@@ -9,6 +9,9 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { KeywordInput } from '@/components/search-filters';
 import { useServiceAction, useServiceList, useServiceLogs, type ServiceAction, type ServiceInfo } from '@/hooks/queries/services';
+import { HostSelector } from '@/components/HostSelector';
+import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
+import { usePermission } from '@/hooks/usePermission';
 const ACTION_MSG: Record<ServiceAction, string> = {
   start: '已启动', stop: '已停止', restart: '已重启', enable: '已设为开机自启', disable: '已取消开机自启', mask: '已屏蔽', unmask: '已取消屏蔽',
 };
@@ -37,6 +40,9 @@ async function fetchStream(
 }
 
 export default function ServicesPage() {
+  const { hasPermission } = usePermission();
+  const canManage = hasPermission('system:service:manage');
+  const [hostId, setHostId] = useOpsHostSelection();
   const [keyword, setKeyword] = useState('');
   const [stateFilter, setStateFilter] = useState<string>('');
   const [logsService, setLogsService] = useState<ServiceInfo | null>(null);
@@ -44,11 +50,18 @@ export default function ServicesPage() {
   const [logsFollowing, setLogsFollowing] = useState(false);
   const logsAbortRef = useRef<AbortController | null>(null);
   const logsPreRef = useRef<HTMLPreElement>(null);
-  const listQuery = useServiceList();
+  const listQuery = useServiceList(hostId);
   const services = listQuery.data?.services ?? [];
   const available = listQuery.data?.available ?? null;
   const actionMutation = useServiceAction();
   const logsMutation = useServiceLogs();
+  const handleHostChange = (next: number | null) => {
+    logsAbortRef.current?.abort();
+    setLogsService(null);
+    setLogs('');
+    setLogsFollowing(false);
+    setHostId(next);
+  };
 
   // 自动滚到底部
   useEffect(() => {
@@ -60,7 +73,7 @@ export default function ServicesPage() {
   useEffect(() => () => { logsAbortRef.current?.abort(); }, []);
 
   const handleAction = async (name: string, action: ServiceAction) => {
-    await actionMutation.mutateAsync({ name, action });
+    await actionMutation.mutateAsync({ name, action, hostId });
     Toast.success({ content: ACTION_MSG[action], duration: 2 });
   };
 
@@ -69,7 +82,7 @@ export default function ServicesPage() {
     setLogsService(svc);
     setLogs('');
     setLogsFollowing(false);
-    const res = await logsMutation.mutateAsync(svc.name);
+    const res = await logsMutation.mutateAsync({ name: svc.name, hostId });
     setLogs(res.logs);
   };
 
@@ -91,7 +104,7 @@ export default function ServicesPage() {
       const abort = new AbortController();
       logsAbortRef.current = abort;
       void fetchStream(
-        `/api/systemd/${logsService.name}/logs/stream`,
+        `/api/systemd/${logsService.name}/logs/stream${hostId == null ? '' : `?hostId=${hostId}`}`,
         (text) => setLogs((prev) => prev + text),
         abort.signal,
       ).catch(() => { /* disconnected */ }).finally(() => { setLogsFollowing(false); });
@@ -146,12 +159,14 @@ export default function ServicesPage() {
             label: isActive ? '停止' : '启动',
             danger: isActive,
             loading: busy,
+            hidden: !canManage,
             onClick: () => { void handleAction(record.name, isActive ? 'stop' : 'start'); },
           },
           {
             key: 'restart',
             label: '重启',
             loading: busy,
+            hidden: !canManage,
             onClick: () => { void handleAction(record.name, 'restart'); },
           },
           {
@@ -162,11 +177,13 @@ export default function ServicesPage() {
           {
             key: 'enable',
             label: '设为开机自启',
+            hidden: !canManage,
             onClick: () => { void handleAction(record.name, 'enable'); },
           },
           {
             key: 'disable',
             label: '取消开机自启',
+            hidden: !canManage,
             onClick: () => { void handleAction(record.name, 'disable'); },
           },
           {
@@ -174,11 +191,13 @@ export default function ServicesPage() {
             label: '屏蔽服务',
             danger: true,
             dividerBefore: true,
+            hidden: !canManage,
             onClick: () => { void handleAction(record.name, 'mask'); },
           },
           {
             key: 'unmask',
             label: '取消屏蔽',
+            hidden: !canManage,
             onClick: () => { void handleAction(record.name, 'unmask'); },
           },
         ];
@@ -188,10 +207,13 @@ export default function ServicesPage() {
 
   if (available === false) {
     return (
-      <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="page-container">
+        <HostSelector value={hostId} onChange={setHostId} />
         <Empty
           title="systemd 不可用"
-          description="当前系统不支持 systemd，此功能仅在 Linux 系统（systemd 可用）下生效。"
+          description={hostId == null
+            ? '当前系统不支持 systemd，此功能仅在 Linux 系统（systemd 可用）下生效。'
+            : '所选远端主机不支持 systemd，或当前账号无 systemctl 权限。'}
           style={{ padding: '80px 0' }}
         />
       </div>
@@ -203,6 +225,7 @@ export default function ServicesPage() {
       <SearchToolbar
         primary={(
           <>
+            <HostSelector value={hostId} onChange={handleHostChange} />
             <KeywordInput placeholder="搜索服务名 / 描述" value={keyword} onChange={setKeyword} width={240} />
             <Select placeholder="全部状态" value={stateFilter || undefined} onChange={(v) => setStateFilter((v as string) ?? '')} showClear style={{ width: 130 }}
               optionList={[
@@ -221,6 +244,7 @@ export default function ServicesPage() {
         )}
         mobilePrimary={(
           <>
+            <HostSelector value={hostId} onChange={handleHostChange} />
             <KeywordInput placeholder="搜索服务名 / 描述" value={keyword} onChange={setKeyword} width={240} />
             <Button type="tertiary" icon={<RefreshCw size={14} />} onClick={() => void listQuery.refetch()}>刷新</Button>
           </>

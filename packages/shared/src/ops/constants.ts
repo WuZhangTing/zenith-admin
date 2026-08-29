@@ -146,3 +146,27 @@ export type AppClientReportableEventType = (typeof APP_CLIENT_REPORTABLE_EVENT_T
 
 /** semver 校验（允许预发布 / 构建元数据后缀，如 1.2.3-beta.1） */
 export const APP_SEMVER_RE = /^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/;
+
+// ─── 运维主机（多主机管理）──────────────────────────────────────────────────────
+
+/**
+ * 主机认证方式。平台级共享资源刻意不支持 key_path / agent——
+ * 两者依赖服务器本地文件与 ssh-agent 进程状态,在多实例部署下语义不成立。
+ */
+export const OPS_HOST_AUTH_TYPES = ['password', 'key_content'] as const;
+export type OpsHostAuthType = (typeof OPS_HOST_AUTH_TYPES)[number];
+
+export const OPS_HOST_AUTH_TYPE_LABELS: Record<OpsHostAuthType, string> = {
+  password: '密码',
+  key_content: '私钥内容',
+};
+
+/** 主机探测状态:unknown = 尚未探测过 */
+export const OPS_HOST_STATUSES = ['unknown', 'online', 'offline'] as const;
+export type OpsHostStatus = (typeof OPS_HOST_STATUSES)[number];
+
+export const OPS_HOST_STATUS_LABELS: Record<OpsHostStatus, string> = {
+  unknown: '未探测',
+  online: '在线',
+  offline: '离线',
+};

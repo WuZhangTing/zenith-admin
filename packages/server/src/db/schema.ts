@@ -28,6 +28,7 @@ export * from './schema/payment';
 export * from './schema/ai';
 export * from './schema/open-platform';
 export * from './schema/terminal';
+export * from './schema/ops-hosts';
 export * from './schema/member';
 export * from './schema/monitor';
 export * from './schema/app-releases';

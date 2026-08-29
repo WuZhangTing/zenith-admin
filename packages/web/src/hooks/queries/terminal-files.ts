@@ -83,6 +83,10 @@ export const terminalFileKeys = {
   sftpBrowsePrefix: (profileId: number) => ['terminal-files', 'browse', 'sftp', profileId] as const,
   sftpBrowse: (profileId: number, path: string) => ['terminal-files', 'browse', 'sftp', profileId, path] as const,
   sftpContent: (profileId: string, path: string) => ['terminal-files', 'content', 'sftp', profileId, path] as const,
+  hostHome: (hostId: number) => ['terminal-files', 'host-home', hostId] as const,
+  hostBrowsePrefix: (hostId: number) => ['terminal-files', 'browse', 'host', hostId] as const,
+  hostBrowse: (hostId: number, path: string) => ['terminal-files', 'browse', 'host', hostId, path] as const,
+  hostContent: (hostId: number, path: string) => ['terminal-files', 'content', 'host', hostId, path] as const,
   dockerBrowsePrefix: (containerId: string) => ['terminal-files', 'browse', 'docker', containerId] as const,
   dockerBrowse: (containerId: string, path: string) => ['terminal-files', 'browse', 'docker', containerId, path] as const,
   dockerContent: (containerId: string, path: string) => ['terminal-files', 'content', 'docker', containerId, path] as const,
@@ -107,6 +111,72 @@ export const sftpBrowseQueryOptions = (profileId: number, path: string, options?
   queryKey: terminalFileKeys.sftpBrowse(profileId, path),
   queryFn: () => request.get<SftpListing>(`/api/ssh-sftp/${profileId}/list?path=${encodeURIComponent(path)}`, { silent: options?.silent }).then(unwrap),
 });
+
+export const hostBrowseQueryOptions = (hostId: number, path: string, options?: { silent?: boolean }) => ({
+  queryKey: terminalFileKeys.hostBrowse(hostId, path),
+  queryFn: () => request.get<SftpListing>(`/api/host-files/${hostId}/list?path=${encodeURIComponent(path)}`, { silent: options?.silent }).then(unwrap),
+});
+
+export function useHostFileHome(hostId: number) {
+  return useQuery({
+    queryKey: terminalFileKeys.hostHome(hostId),
+    queryFn: () => request.get<{ home: string }>(`/api/host-files/${hostId}/home`).then(unwrap),
+  });
+}
+
+export function useHostFileList(hostId: number, path: string, enabled = true) {
+  return useQuery({
+    ...hostBrowseQueryOptions(hostId, path),
+    enabled: enabled && path !== '',
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useHostFileContent(hostId: number, path: string, enabled = true) {
+  return useQuery({
+    queryKey: terminalFileKeys.hostContent(hostId, path),
+    queryFn: () => request.get<FileContent>(`/api/host-files/${hostId}/content?path=${encodeURIComponent(path)}`).then(unwrap),
+    enabled: enabled && path !== '',
+  });
+}
+
+export function useHostFileMutation(hostId: number) {
+  const qc = useQueryClient();
+  const api = `/api/host-files/${hostId}`;
+  return useMutation({
+    mutationFn: async (
+      op:
+        | { kind: 'delete'; path: string }
+        | { kind: 'rename'; from: string; to: string }
+        | { kind: 'create'; path: string; type: 'dir' | 'file' }
+        | { kind: 'chmod'; path: string; mode: number }
+        | { kind: 'write'; path: string; content: string; baseEtag?: string },
+    ) => {
+      if (op.kind === 'delete') return request.delete<null>(`${api}/entry?path=${encodeURIComponent(op.path)}`).then(unwrap);
+      if (op.kind === 'rename') return request.post<SftpEntry>(`${api}/rename`, { from: op.from, to: op.to }).then(unwrap);
+      if (op.kind === 'chmod') return request.post<null>(`${api}/chmod`, { path: op.path, mode: op.mode }).then(unwrap);
+      if (op.kind === 'write') {
+        return request.put<SftpEntry>(`${api}/content`, {
+          path: op.path, content: op.content, baseEtag: op.baseEtag,
+        }).then(unwrap);
+      }
+      return request.post<SftpEntry>(`${api}/create`, { path: op.path, type: op.type }).then(unwrap);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: terminalFileKeys.hostBrowsePrefix(hostId) });
+      void qc.invalidateQueries({ queryKey: ['terminal-files', 'content', 'host', hostId] });
+    },
+  });
+}
+
+export function useHostFileUpload(hostId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
+      request.postForm<SftpEntry>(`/api/host-files/${hostId}/upload`, formData, { onProgress }).then(unwrap),
+    onSuccess: () => qc.invalidateQueries({ queryKey: terminalFileKeys.hostBrowsePrefix(hostId) }),
+  });
+}
 
 export const dockerBrowseQueryOptions = (containerId: string, path: string, options?: { silent?: boolean }) => ({
   queryKey: terminalFileKeys.dockerBrowse(containerId, path),

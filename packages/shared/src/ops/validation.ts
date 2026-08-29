@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { partialForUpdate } from '../core/validation';
 import {
   APP_ARCHES,
+  OPS_HOST_AUTH_TYPES,
   APP_CLIENT_REPORTABLE_EVENT_TYPES,
   APP_PLATFORMS,
   APP_RELEASE_CHANNELS,
@@ -151,3 +152,25 @@ export const bindPushDeviceSchema = z.object({
 
 export type BindPushDeviceInput = z.infer<typeof bindPushDeviceSchema>;
 
+
+// ─── 运维主机（多主机管理）──────────────────────────────────────────────────────
+export const createOpsHostSchema = z.object({
+  name: z.string().min(1, '名称不能为空').max(64),
+  host: z.string().min(1, '主机地址不能为空').max(255)
+    .regex(/^[a-zA-Z0-9._:-]+$/, '主机地址只允许字母、数字、点、冒号、下划线和连字符'),
+  port: z.number().int().min(1).max(65535).default(22),
+  username: z.string().min(1, '用户名不能为空').max(64),
+  authType: z.enum(OPS_HOST_AUTH_TYPES),
+  /** 创建 / 更新时提交明文,服务端加密存储;更新时留空表示不修改 */
+  password: z.string().max(512).optional(),
+  keyContent: z.string().max(16384).optional(),
+  keyPassphrase: z.string().max(512).optional(),
+  enabled: z.boolean().default(true),
+  remark: z.string().max(500).optional(),
+});
+
+export const updateOpsHostSchema = partialForUpdate(createOpsHostSchema);
+
+export type CreateOpsHostInput = z.infer<typeof createOpsHostSchema>;
+
+export type UpdateOpsHostInput = z.infer<typeof updateOpsHostSchema>;

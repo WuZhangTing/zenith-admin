@@ -4,6 +4,7 @@ import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
+import { localExecutor, resolveExecutor, type HostExecutor } from '../../lib/host-exec';
 import type { ProcessInfo, ProcessListResponse, ProcessNetConn, SetProcessPriorityInput } from '@zenith/shared/ops';
 
 const execFileAsync = promisify(execFile);
@@ -91,37 +92,42 @@ function mapUnixState(stat: string): string {
   }
 }
 
-async function listProcessesUnix(): Promise<ProcessInfo[]> {
+/** 解析 POSIX ps 输出；导出供多主机解析单测复用 */
+export function parseUnixProcessList(stdout: string): ProcessInfo[] {
+  const lines = stdout.split('\n').filter((s) => s.trim().length > 0);
+  const result: ProcessInfo[] = [];
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 10) continue;
+    const [pidStr, ppidStr, user, stat, cpuStr, memStr, rssStr, nlwpStr, niStr, ...nameParts] = parts;
+    const pid = Number.parseInt(pidStr, 10);
+    if (Number.isNaN(pid) || pid <= 0) continue;
+    result.push({
+      pid,
+      ppid: Number.parseInt(ppidStr, 10) || 0,
+      user: user || '',
+      name: nameParts.join(' ') || pidStr,
+      status: mapUnixState(stat),
+      cpu: Number.parseFloat(cpuStr) || 0,
+      memoryPercent: Number.parseFloat(memStr) || 0,
+      memory: (Number.parseInt(rssStr, 10) || 0) * 1024,
+      startTime: null,
+      command: nameParts.join(' ') || '',
+      threads: Number.parseInt(nlwpStr, 10) || 1,
+      nice: Number.parseInt(niStr, 10),
+      priorityClass: null,
+      ports: null,
+      connections: null,
+    });
+  }
+  return result;
+}
+
+async function listProcessesUnix(executor: HostExecutor = localExecutor): Promise<ProcessInfo[]> {
   const fields = 'pid=,ppid=,user=,stat=,%cpu=,%mem=,rss=,nlwp=,ni=,comm=';
   try {
-    const { stdout } = await execFileAsync('ps', ['-ax', '-o', fields], { maxBuffer: MAX_BUFFER });
-    const lines = stdout.split('\n').filter((s) => s.trim().length > 0);
-    const result: ProcessInfo[] = [];
-    for (const line of lines) {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length < 10) continue;
-      const [pidStr, ppidStr, user, stat, cpuStr, memStr, rssStr, nlwpStr, niStr, ...nameParts] = parts;
-      const pid = Number.parseInt(pidStr, 10);
-      if (Number.isNaN(pid) || pid <= 0) continue;
-      result.push({
-        pid,
-        ppid: Number.parseInt(ppidStr, 10) || 0,
-        user: user || '',
-        name: nameParts.join(' ') || pidStr,
-        status: mapUnixState(stat),
-        cpu: Number.parseFloat(cpuStr) || 0,
-        memoryPercent: Number.parseFloat(memStr) || 0,
-        memory: (Number.parseInt(rssStr, 10) || 0) * 1024,
-        startTime: null,
-        command: nameParts.join(' ') || '',
-        threads: Number.parseInt(nlwpStr, 10) || 1,
-        nice: Number.parseInt(niStr, 10),
-        priorityClass: null,
-        ports: null,
-        connections: null,
-      });
-    }
-    return result;
+    const { stdout } = await executor.exec('ps', ['-ax', '-o', fields], { maxBuffer: MAX_BUFFER });
+    return parseUnixProcessList(stdout);
   } catch (err) {
     throw new HTTPException(500, { message: `获取进程列表失败: ${String(err)}` });
   }
@@ -185,8 +191,38 @@ else { "[" + ($result | ConvertTo-Json -Depth 1 -Compress) + "]" }
   }
 }
 
-export async function listProcesses(): Promise<ProcessListResponse> {
+async function fetchRemotePortsByPid(executor: HostExecutor): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  try {
+    const { stdout } = await executor.exec('ss', ['-tlnpH'], { maxBuffer: 4 * 1024 * 1024 });
+    for (const line of stdout.split('\n')) {
+      const portMatch = line.match(/:(\d+)\s/);
+      const pidMatch = line.match(/pid=(\d+)/);
+      if (!portMatch || !pidMatch) continue;
+      const pid = Number(pidMatch[1]);
+      const port = portMatch[1];
+      const existing = map.get(pid);
+      if (!existing?.split(', ').includes(port)) {
+        map.set(pid, existing ? `${existing}, ${port}` : port);
+      }
+    }
+  } catch { /* ss 不可用或无权限时不阻断进程列表 */ }
+  return map;
+}
+
+export async function listProcesses(hostId?: number | null): Promise<ProcessListResponse> {
   const timestamp = formatDateTime(new Date());
+  if (hostId != null) {
+    const executor = await resolveExecutor(hostId);
+    const [processes, portsMap] = await Promise.all([
+      listProcessesUnix(executor),
+      fetchRemotePortsByPid(executor),
+    ]);
+    for (const processItem of processes) {
+      processItem.ports = portsMap.get(processItem.pid) ?? null;
+    }
+    return { platform: 'linux', processes, total: processes.length, timestamp };
+  }
   const [processes, portsMap] = await Promise.all([
     PLATFORM === 'win32' ? listProcessesWindows() : listProcessesUnix(),
     getPortsByPid(),
@@ -249,6 +285,60 @@ async function getProcessDetailUnix(pid: number): Promise<ProcessInfo> {
     if (err instanceof HTTPException) throw err;
     throw new HTTPException(500, { message: `获取进程详情失败: ${String(err)}` });
   }
+}
+
+async function getRemoteProcessDetail(pid: number, executor: HostExecutor): Promise<ProcessInfo> {
+  const fields = 'pid=,ppid=,user=,stat=,%cpu=,%mem=,rss=,nlwp=,ni=,comm=';
+  const [main, started, command, cwd, envRaw, connectionsRaw] = await Promise.allSettled([
+    executor.exec('ps', ['-p', String(pid), '-o', fields]),
+    executor.exec('ps', ['-p', String(pid), '-o', 'lstart=']),
+    executor.exec('ps', ['-p', String(pid), '-o', 'command=']),
+    executor.exec('readlink', ['-f', `/proc/${pid}/cwd`]),
+    executor.exec('cat', [`/proc/${pid}/environ`]),
+    executor.exec('ss', ['-ntp']),
+  ]);
+  if (main.status === 'rejected') {
+    throw new HTTPException(404, { message: `进程 ${pid} 不存在或无权限访问` });
+  }
+  const processItem = parseUnixProcessList(main.value.stdout)[0];
+  if (!processItem) throw new HTTPException(404, { message: `进程 ${pid} 不存在` });
+
+  if (started.status === 'fulfilled') {
+    const date = new Date(started.value.stdout.trim());
+    if (!Number.isNaN(date.getTime())) processItem.startTime = formatDateTime(date);
+  }
+  if (command.status === 'fulfilled') processItem.command = command.value.stdout.trim() || processItem.command;
+  processItem.cwd = cwd.status === 'fulfilled' ? cwd.value.stdout.trim() || null : null;
+  if (envRaw.status === 'fulfilled') {
+    const env: Record<string, string> = {};
+    for (const pair of envRaw.value.stdout.split('\0')) {
+      const index = pair.indexOf('=');
+      if (index > 0) env[pair.slice(0, index)] = pair.slice(index + 1);
+    }
+    processItem.env = Object.keys(env).length > 0 ? env : null;
+  } else {
+    processItem.env = null;
+  }
+  if (connectionsRaw.status === 'fulfilled') {
+    const connections: ProcessNetConn[] = [];
+    for (const line of connectionsRaw.value.stdout.split('\n').slice(1)) {
+      if (![...line.matchAll(/pid=(\d+)/g)].some((match) => Number(match[1]) === pid)) continue;
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 5) continue;
+      const local = parts[3] ?? '';
+      const remote = parts[4] ?? '';
+      connections.push({
+        localAddr: local,
+        localPort: Number(local.split(':').pop()) || 0,
+        remoteAddr: remote,
+        remotePort: Number(remote.split(':').pop()) || 0,
+        state: parts[0] ?? '',
+        protocol: 'tcp',
+      });
+    }
+    processItem.connections = connections;
+  }
+  return processItem;
 }
 
 /** 读取进程的工作目录与环境变量（仅 Linux /proc；无权限时返回 null） */
@@ -391,8 +481,8 @@ async function getConnectionsByPid(pid: number): Promise<ProcessNetConn[] | null
         const parts = line.trim().split(/\s+/);
         if (parts.length < 5) continue;
         const state = parts[0] ?? '';
-        const local = parts[4] ?? '';
-        const remote = parts[5] ?? '';
+        const local = parts[3] ?? '';
+        const remote = parts[4] ?? '';
         const localPort = Number((local).split(':').pop()) || 0;
         const remotePort = Number((remote).split(':').pop()) || 0;
         conns.push({ localAddr: local, localPort, remoteAddr: remote, remotePort, state, protocol: 'tcp' });
@@ -402,12 +492,24 @@ async function getConnectionsByPid(pid: number): Promise<ProcessNetConn[] | null
   } catch { return null; }
 }
 
-export async function getProcessDetail(pid: number): Promise<ProcessInfo> {
+export async function getProcessDetail(pid: number, hostId?: number | null): Promise<ProcessInfo> {
+  if (hostId != null) return getRemoteProcessDetail(pid, await resolveExecutor(hostId));
   return PLATFORM === 'win32' ? getProcessDetailWindows(pid) : getProcessDetailUnix(pid);
 }
 
-export async function killProcess(pid: number, signal: string): Promise<void> {
+export async function killProcess(pid: number, signal: string, hostId?: number | null): Promise<void> {
   const VALID_SIGNALS = ['SIGTERM', 'SIGKILL', 'SIGINT', 'SIGHUP'];
+  if (!VALID_SIGNALS.includes(signal)) {
+    throw new HTTPException(400, { message: `不支持的信号: ${signal}` });
+  }
+  if (hostId != null) {
+    try {
+      await (await resolveExecutor(hostId)).exec('kill', [`-${signal}`, String(pid)]);
+      return;
+    } catch (err) {
+      throw new HTTPException(400, { message: `结束远端进程 ${pid} 失败: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
   if (PLATFORM === 'win32') {
     try {
       await execFileAsync('powershell', [
@@ -419,9 +521,6 @@ export async function killProcess(pid: number, signal: string): Promise<void> {
     }
     return;
   }
-  if (!VALID_SIGNALS.includes(signal)) {
-    throw new HTTPException(400, { message: `不支持的信号: ${signal}` });
-  }
   try {
     process.kill(pid, signal as NodeJS.Signals);
   } catch (err: unknown) {
@@ -432,7 +531,18 @@ export async function killProcess(pid: number, signal: string): Promise<void> {
   }
 }
 
-export async function setProcessPriority(pid: number, input: SetProcessPriorityInput): Promise<void> {
+export async function setProcessPriority(pid: number, input: SetProcessPriorityInput, hostId?: number | null): Promise<void> {
+  if (hostId != null) {
+    if (input.nice === undefined) {
+      throw new HTTPException(400, { message: '远端 Linux 主机需要提供 nice 参数（-20 到 19）' });
+    }
+    try {
+      await (await resolveExecutor(hostId)).exec('renice', ['-n', String(input.nice), '-p', String(pid)]);
+      return;
+    } catch (err) {
+      throw new HTTPException(400, { message: `调整远端进程 ${pid} 优先级失败: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  }
   if (PLATFORM === 'win32') {
     if (input.priorityClass === undefined) {
       throw new HTTPException(400, { message: 'Windows 下需要提供 priorityClass 参数' });

@@ -46,6 +46,20 @@ export const OpsOverviewDTO = z
     })),
     terminals: sectionOf(z.object({ active: z.number() })),
     ports: sectionOf(z.object({ listening: z.number() })),
+    hosts: sectionOf(z.array(z.object({
+      id: z.number(),
+      name: z.string(),
+      address: z.string(),
+      status: z.string(),
+      snapshot: z.object({
+        cpuCores: z.number().nullable(),
+        load1: z.number().nullable(),
+        memUsagePercent: z.number().nullable(),
+        diskUsagePercent: z.number().nullable(),
+      }).nullable(),
+      probedAt: z.string().nullable(),
+      probeError: z.string().nullable(),
+    }))),
     generatedAt: z.string(),
   })
   .openapi('OpsOverview');

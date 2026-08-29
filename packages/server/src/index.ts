@@ -97,6 +97,8 @@ async function shutdown(signal: NodeJS.Signals) {
     const { stopTerminalSessionReaper } = await import('./services/ops/terminal-sessions.service');
     stopTerminalSessionReaper();
     endAllSessions('server_shutdown');
+    const { closeAllHostConnections } = await import('./lib/host-exec');
+    closeAllHostConnections();
     await withTimeout('closeDb', closeDb(), 5_000);
     await withTimeout('closeRedis', closeRedis(), 5_000);
     logger.info('Server shutdown complete');

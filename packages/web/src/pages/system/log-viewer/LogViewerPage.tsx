@@ -9,6 +9,8 @@ import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { request } from '@/utils/request';
 import { logViewerKeys, useLogViewerContent } from '@/hooks/queries/log-viewer';
+import { HostSelector } from '@/components/HostSelector';
+import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
 
 // ─── ANSI 颜色解析器 ────────────────────────────────────────────────────────
 const ANSI_FG = ['#3c3c3c','#c0392b','#27ae60','#d4ac0d','#2980b9','#8e44ad','#17a589','#bdc3c7'];
@@ -136,13 +138,22 @@ export default function LogViewerPage() {
   const [submittedPath, setSubmittedPath] = useState('');
   // 深链:?path= 直接加载指定日志(Nginx 站点页等跳入),消费后清空参数
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialHostId = (() => {
+    const value = Number(searchParams.get('hostId'));
+    return Number.isInteger(value) && value > 0 ? value : null;
+  })();
+  // 显式 ?path= 且无 hostId 的站内深链（如本机 Nginx 日志）必须落本机，
+  // 不能被上一次持久化的远端主机选择污染。
+  const [hostId, setHostId] = useOpsHostSelection(
+    searchParams.has('hostId') ? initialHostId : searchParams.has('path') ? null : undefined,
+  );
   useEffect(() => {
     const p = searchParams.get('path');
     if (!p) return;
     setFilePath(p);
     setSubmittedPath(p);
-    setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams]);
+    setSearchParams(hostId == null ? {} : { hostId: String(hostId) }, { replace: true });
+  }, [searchParams, setSearchParams, hostId]);
   const [keyword, setKeyword] = useState('');
   const [filterOnly, setFilterOnly] = useState(false);
   const [levelFilter, setLevelFilter] = useState<string>('');
@@ -151,7 +162,8 @@ export default function LogViewerPage() {
   const [following, setFollowing] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const contentQuery = useLogViewerContent({ path: submittedPath, lines: 500 }, !!submittedPath && !following);
+  const contentParams = { path: submittedPath, lines: 500, ...(hostId == null ? {} : { hostId }) };
+  const contentQuery = useLogViewerContent(contentParams, !!submittedPath && !following);
 
 
   // 追踪模式下自动滚到底部
@@ -177,12 +189,14 @@ export default function LogViewerPage() {
     abortRef.current = null;
     setFollowing(false);
     if (path === submittedPath) {
-      void queryClient.invalidateQueries({ queryKey: logViewerKeys.content({ path, lines: 500 }) });
+      void queryClient.invalidateQueries({
+        queryKey: logViewerKeys.content({ path, lines: 500, ...(hostId == null ? {} : { hostId }) }),
+      });
       void contentQuery.refetch();
       return;
     }
     setSubmittedPath(path);
-  }, [contentQuery, filePath, queryClient, submittedPath]);
+  }, [contentQuery, filePath, queryClient, submittedPath, hostId]);
 
   const startFollow = useCallback(() => {
     if (!filePath.trim()) return;
@@ -190,11 +204,11 @@ export default function LogViewerPage() {
     const abort = new AbortController();
     abortRef.current = abort;
     setFollowing(true);
-    const url = `/api/log-viewer/stream?path=${encodeURIComponent(filePath.trim())}`;
+    const url = `/api/log-viewer/stream?path=${encodeURIComponent(filePath.trim())}${hostId == null ? '' : `&hostId=${hostId}`}`;
     void fetchStream(url, (text) => setContent((prev) => prev + text), abort.signal)
       .catch(() => { /* abort = ok */ })
       .finally(() => setFollowing(false));
-  }, [filePath]);
+  }, [filePath, hostId]);
 
   const stopFollow = useCallback(() => {
     abortRef.current?.abort();
@@ -208,11 +222,14 @@ export default function LogViewerPage() {
     setDownloading(true);
     try {
       const name = filePath.trim().split('/').pop() ?? 'log.txt';
-      await request.download(`/api/log-viewer/download?path=${encodeURIComponent(filePath.trim())}`, name);
+      await request.download(
+        `/api/log-viewer/download?path=${encodeURIComponent(filePath.trim())}${hostId == null ? '' : `&hostId=${hostId}`}`,
+        name,
+      );
     } finally {
       setDownloading(false);
     }
-  }, [filePath]);
+  }, [filePath, hostId]);
 
   // 按关键词过滤行（在去除 ANSI 码的文本上匹配）+ 级别过滤 + 级别检测
   const displayLines = useMemo(() => {
@@ -229,6 +246,16 @@ export default function LogViewerPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <FileText size={18} style={{ color: 'var(--semi-color-primary)' }} />
         <Typography.Title heading={6} style={{ margin: 0 }}>日志查看器</Typography.Title>
+        <HostSelector
+          value={hostId}
+          onChange={(next) => {
+            abortRef.current?.abort();
+            setFollowing(false);
+            setHostId(next);
+            setSubmittedPath('');
+            setContent('');
+          }}
+        />
       </div>
 
       {/* 文件路径区 */}

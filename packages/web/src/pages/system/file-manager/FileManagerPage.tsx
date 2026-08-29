@@ -6,8 +6,8 @@
  * （`services/ops/terminal-files.service.ts`），DB 中没有任何记录，`FsEntry`
  * 携带的是 permissions / uid / gid 这类 POSIX 元数据。
  *
- * 权限码刻意复用 `system:terminal:execute` 而非 `system:file:*`——浏览与编辑宿主机
- * 文件系统在能力上等价于 shell 访问，必须与 Web 终端同级授权。
+ * 权限码为 `system:file:use`；Web 终端内部文件树持有 terminal:execute 时仍可复用本机接口。
+ * 二期新增 HostSelector：本机维持完整功能，远端 Linux 通过平台主机 SFTP 提供核心文件操作。
  *
  * ⚠️ 勿与 `pages/system/files/FilesPage.tsx` 混淆：那是应用内的**托管文件库**
  * （业务附件），走 `/api/files/*` + 存储抽象层（local/OSS/S3/COS），每个文件在
@@ -47,8 +47,11 @@ import FmEditorSheet from './components/FmEditorSheet';
 import FmConflictModal from './components/FmConflictModal';
 import FolderPickerModal from './components/FolderPickerModal';
 import './FileManagerPage.css';
+import { HostSelector } from '@/components/HostSelector';
+import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
+import { RemoteHostFiles } from './RemoteHostFiles';
 
-export default function FileManagerPage() {
+function LocalFileManagerPage() {
   // ── 视图状态 ──────────────────────────────────────────────────────────────
   const [keyword, setKeyword] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -244,6 +247,7 @@ export default function FileManagerPage() {
         </div>
       );
     }
+
     if (viewMode === 'grid') {
       return (
         <VirtualGrid
@@ -256,6 +260,7 @@ export default function FileManagerPage() {
         />
       );
     }
+
     return (
       <FmListView
         entries={filteredEntries}
@@ -505,5 +510,17 @@ export default function FileManagerPage() {
         </>
       }
     />
+  );
+}
+
+export default function FileManagerPage() {
+  const [hostId, setHostId] = useOpsHostSelection();
+  return (
+    <div className="page-container" style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <HostSelector value={hostId} onChange={setHostId} />
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {hostId == null ? <LocalFileManagerPage /> : <RemoteHostFiles key={hostId} hostId={hostId} />}
+      </div>
+    </div>
   );
 }

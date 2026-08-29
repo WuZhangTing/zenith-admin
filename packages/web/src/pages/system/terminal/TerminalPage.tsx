@@ -15,6 +15,8 @@ import { TOKEN_KEY } from '@zenith/shared/core';
 import { getFileIcon, getShellIcon } from '@/utils/fileIcons';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import { terminalSessionStore } from './terminalSessionStore';
+import { useOpsHosts } from '@/hooks/queries/ops-hosts';
+import { usePermission } from '@/hooks/usePermission';
 import {
   closePane,
   collectLeaves,
@@ -132,6 +134,10 @@ function DemoNotice() {
 
 export default function TerminalPage() {
   const { terminal, setTerminalPref } = useTerminalPreferences();
+  const { hasPermission } = usePermission();
+  const canUseRemoteHosts = hasPermission('system:host:use');
+  const opsHostsQuery = useOpsHosts(canUseRemoteHosts);
+  const opsHosts = (opsHostsQuery.data ?? []).filter((host) => host.enabled);
   const tabPosition = terminal.tabPosition ?? 'top';
   const tabCollapsed = terminal.tabCollapsed ?? false;
   // 刷新恢复：首次渲染时从 localStorage 还原布局（并抬高 id 计数器）
@@ -209,9 +215,9 @@ export default function TerminalPage() {
     const open = searchParams.get('open');
     const cwd = searchParams.get('cwd') ?? undefined;
     if (!open && !cwd) return;
-    if (open && (open.startsWith('docker-exec:') || open.startsWith('ssh:'))) {
+    if (open && (open.startsWith('docker-exec:') || open.startsWith('ssh:') || open.startsWith('host:'))) {
       const title = searchParams.get('title') ?? open;
-      const leaf = createLeaf({ kind: 'terminal', shell: open, title });
+      const leaf = createLeaf({ kind: 'terminal', shell: open, cwd, title });
       const tabId = nextTabId();
       setSessions((prev) => [...prev, { id: tabId, root: leaf, activePaneId: leaf.id }]);
       setActiveId(tabId);
@@ -364,6 +370,13 @@ export default function TerminalPage() {
 
   const handleDockerAttach = (shellId: string, title: string) => {
     const leaf = createLeaf({ kind: 'terminal', shell: shellId, title });
+    const tabId = nextTabId();
+    setSessions((prev) => [...prev, { id: tabId, root: leaf, activePaneId: leaf.id }]);
+    setActiveId(tabId);
+  };
+
+  const handleHostConnect = (hostId: number, title: string) => {
+    const leaf = createLeaf({ kind: 'terminal', shell: `host:${hostId}`, title: `主机: ${title}` });
     const tabId = nextTabId();
     setSessions((prev) => [...prev, { id: tabId, root: leaf, activePaneId: leaf.id }]);
     setActiveId(tabId);
@@ -542,6 +555,21 @@ export default function TerminalPage() {
             {sh.label}
           </Dropdown.Item>
         ))
+      )}
+      {opsHosts.length > 0 && (
+        <>
+          <Dropdown.Divider />
+          <Dropdown.Title>运维主机</Dropdown.Title>
+          {opsHosts.map((host) => (
+            <Dropdown.Item
+              key={`host:${host.id}`}
+              icon={<Server size={14} />}
+              onClick={() => handleHostConnect(host.id, host.name)}
+            >
+              {host.name} ({host.username}@{host.host})
+            </Dropdown.Item>
+          ))}
+        </>
       )}
     </Dropdown.Menu>
   );

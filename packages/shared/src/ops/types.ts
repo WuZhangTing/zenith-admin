@@ -4,6 +4,8 @@ import type {
   AppPlatform,
   AppReleaseChannel,
   AppReleaseStatus,
+  OpsHostAuthType,
+  OpsHostStatus,
 } from './constants';
 
 /** Terminal WebSocket 消息（独立端点 /api/ws/terminal） */
@@ -286,3 +288,47 @@ export interface ClientDevice {
   lastActiveAt: string;
 }
 
+
+// ─── 运维主机（多主机管理）──────────────────────────────────────────────────────
+
+/** 主机探测快照:探测 cron 时点采集,概览矩阵与主机管理页展示 */
+export interface OpsHostSnapshot {
+  /** uname -sr */
+  kernel: string | null;
+  /** /etc/os-release PRETTY_NAME */
+  osName: string | null;
+  uptimeSeconds: number | null;
+  cpuCores: number | null;
+  load1: number | null;
+  memTotalBytes: number | null;
+  memUsedBytes: number | null;
+  memUsagePercent: number | null;
+  /** 根分区 */
+  diskTotalBytes: number | null;
+  diskUsedBytes: number | null;
+  diskUsagePercent: number | null;
+}
+
+export interface OpsHost {
+  id: number;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: OpsHostAuthType;
+  /** 凭据只回传有无,不回传内容 */
+  hasPassword: boolean;
+  hasKeyContent: boolean;
+  hasKeyPassphrase: boolean;
+  /** SSH host key 指纹(SHA256 base64);首连 TOFU 记录,后续不匹配拒连 */
+  hostKeyFingerprint: string | null;
+  status: OpsHostStatus;
+  snapshot: OpsHostSnapshot | null;
+  probedAt: string | null;
+  /** 最近一次探测失败原因 */
+  probeError: string | null;
+  enabled: boolean;
+  remark: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
