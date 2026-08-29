@@ -23,6 +23,7 @@ import {
   useMarkAllInboxMessagesRead,
   useMarkInboxMessageRead,
 } from '@/hooks/queries/inbox';
+import { useMyInAppMessageUnreadCount } from '@/hooks/queries/in-app-messages';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const TYPE_COLOR: Record<string, TagColor> = {
@@ -120,7 +121,7 @@ export default function InboxPage() {
     setPage(1);
   };
 
-  const unreadCount = list.filter((n) => !n.isRead).length;
+  const unreadCount = useMyInAppMessageUnreadCount().data ?? 0;
   const allSelected = list.length > 0 && list.every((n) => selectedIds.includes(n.id));
 
   const toggleSelect = (id: number, checked: boolean) => {
@@ -269,7 +270,7 @@ export default function InboxPage() {
           tab={
             <Space spacing={4}>
               <span>未读</span>
-              {activeTab === 'all' && unreadCount > 0 && (
+              {unreadCount > 0 && (
                 <Tag color="red" size="small">{unreadCount}</Tag>
               )}
             </Space>
