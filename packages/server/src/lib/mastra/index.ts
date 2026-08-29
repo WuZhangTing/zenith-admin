@@ -186,7 +186,7 @@ async function buildMastra(): Promise<Mastra> {
     getMastraVector(),
   ]);
   const { Observability, MastraStorageExporter, SensitiveDataFilter } = await import('@mastra/observability');
-  const { PinoLogger } = await import('@mastra/loggers');
+  const { ZenithMastraLogger } = await import('./logger');
 
   const chatAgent = new Agent({
     id: 'zenith-chat',
@@ -215,10 +215,10 @@ async function buildMastra(): Promise<Mastra> {
     agents: { 'zenith-chat': chatAgent },
     storage: storage as never,
     vectors: { default: vector as never },
-    // Mastra 包装该 logger:同时写控制台与 observability 存储(mastra_log_events)。
-    // 两个 level 独立:控制台 info 保持干净;观测存储收 debug 全量
-    // (聊天链路的 Mastra 内部日志均为 debug 级),Studio /logs 页据此可查
-    logger: new PinoLogger({ name: 'zenith-ai', level: 'info' }),
+    // 系统 pino 适配器(见 ./logger):原生日志统一进主日志体系(文件轮转/告警计数/reqId),
+    // 按系统级别(默认 info)输出;observability 导出独立于该级别,
+    // 观测存储收 debug 全量(聊天链路的 Mastra 内部日志均为 debug 级),Studio /logs 页据此可查
+    logger: new ZenithMastraLogger(),
     observability: new Observability({
       configs: {
         default: {
