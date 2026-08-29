@@ -144,8 +144,11 @@ const baseItems = [
   '统一响应结构',
 ]
 
-const laneSpeeds = [22, 26, 24]
+// 每车道滚动速度（px/s）。速度与条目数解耦：
+// 之前固定时长（秒）时，移动端合并为单车道后滚动距离翻倍，速度也随之翻倍
+const laneSpeeds = [100, 86, 93]
 const laneOffsets = [0, 14, 28]
+const ITEM_STEP = 46
 
 const laneCount = ref(3)
 
@@ -166,9 +169,27 @@ const viewportRef = ref<HTMLElement | null>(null)
 const laneRefs = ref<HTMLElement[]>([])
 const lineRefs = ref<HTMLElement[][]>([])
 
+interface LaneRuntime {
+  laneIndex: number
+  lines: HTMLElement[]
+  setters: ((props: { y: number; scale: number; opacity: number }) => void)[]
+  baseYs: number[]
+  visible: boolean[]
+  proxy: { shift: number }
+  laneHeight: number
+  itemHeight: number
+  singleLength: number
+  totalLength: number
+}
+
 let ctx: gsap.Context | null = null
 let tweens: gsap.core.Tween[] = []
+let laneRuntimes: LaneRuntime[] = []
 let resizeObserver: ResizeObserver | null = null
+let intersectionObserver: IntersectionObserver | null = null
+let reducedMotionQuery: MediaQueryList | null = null
+let inView = true
+const hoverPausedLanes = new Set<number>()
 
 const setLaneRef = (el: Element | null, laneIndex: number) => {
   if (!el) return
@@ -183,38 +204,45 @@ const setLineRef = (el: Element | null, laneIndex: number, lineIndex: number) =>
   lineRefs.value[laneIndex][lineIndex] = el as HTMLElement
 }
 
-const updateLaneVisualState = (laneIndex: number) => {
-  const lane = laneRefs.value[laneIndex]
-  const lines = lineRefs.value[laneIndex]
-  if (!lane || lines.length === 0) return
-
-  const laneRect = lane.getBoundingClientRect()
-  const centerY = laneRect.top + laneRect.height / 2
-  const maxDistance = laneRect.height / 2
-
-  for (const el of lines) {
-    const rect = el.getBoundingClientRect()
-    const lineCenter = rect.top + rect.height / 2
-    const distance = Math.abs(lineCenter - centerY)
-    const ratio = Math.min(distance / maxDistance, 1)
-
-    const scale = 1.15 - ratio * 0.43
-    const opacity = 0.98 - ratio * 0.52
-    const blur = ratio * 1.9
-
-    gsap.set(el, {
-      scale,
-      opacity,
-      filter: `blur(${blur}px)`,
-      transformOrigin: '50% 50%',
-    })
+// 纯数学推导每行位置与视觉状态，避免每帧 getBoundingClientRect 强制布局；
+// 视口外的行只在进出边界时写一次样式，滚动中逐帧更新的仅是可见的少数行
+const renderLane = (runtime: LaneRuntime, force = false) => {
+  const { lines, setters, baseYs, visible, proxy, laneHeight, itemHeight, singleLength, totalLength } = runtime
+  const centerY = laneHeight / 2
+  for (let i = 0; i < lines.length; i += 1) {
+    const y = ((baseYs[i] + proxy.shift + totalLength) % totalLength) - singleLength
+    const inBand = y > -itemHeight && y < laneHeight
+    if (inBand) {
+      const ratio = Math.min(Math.abs(y + itemHeight / 2 - centerY) / centerY, 1)
+      setters[i]({ y, scale: 1.15 - ratio * 0.43, opacity: 0.98 - ratio * 0.52 })
+      visible[i] = true
+    } else if (force || visible[i]) {
+      setters[i]({ y, scale: 0.72, opacity: 0 })
+      visible[i] = false
+    }
   }
 }
 
-const updateAllLanesVisualState = () => {
-  for (let laneIndex = 0; laneIndex < laneCount.value; laneIndex += 1) {
-    updateLaneVisualState(laneIndex)
+const remeasureLanes = () => {
+  for (const runtime of laneRuntimes) {
+    if (!runtime) continue
+    const lane = laneRefs.value[runtime.laneIndex]
+    if (!lane) continue
+    runtime.laneHeight = lane.clientHeight
+    runtime.itemHeight = runtime.lines[0]?.offsetHeight || runtime.itemHeight
+    renderLane(runtime, true)
   }
+}
+
+const applyPlayState = () => {
+  tweens.forEach((tween, laneIndex) => {
+    if (!tween) return
+    if (inView && !hoverPausedLanes.has(laneIndex)) {
+      tween.resume()
+    } else {
+      tween.pause()
+    }
+  })
 }
 
 const resolveLaneCount = (width: number) => {
@@ -227,7 +255,7 @@ const resolveLaneCount = (width: number) => {
 const updateLaneCountByWidth = (width: number) => {
   const next = resolveLaneCount(width)
   if (next === laneCount.value) {
-    updateAllLanesVisualState()
+    remeasureLanes()
     return
   }
 
@@ -235,11 +263,13 @@ const updateLaneCountByWidth = (width: number) => {
 }
 
 const pauseLane = (laneIndex: number) => {
-  tweens[laneIndex]?.pause()
+  hoverPausedLanes.add(laneIndex)
+  applyPlayState()
 }
 
 const resumeLane = (laneIndex: number) => {
-  tweens[laneIndex]?.resume()
+  hoverPausedLanes.delete(laneIndex)
+  applyPlayState()
 }
 
 const router = useRouter()
@@ -253,45 +283,56 @@ const initAnimation = () => {
   if (!viewport) return
 
   ctx?.revert()
-  ctx = gsap.context(() => {
-    tweens.forEach((tween) => tween.kill())
-    tweens = []
+  tweens.forEach((tween) => tween.kill())
+  tweens = []
+  laneRuntimes = []
 
+  ctx = gsap.context(() => {
     lineRefs.value = Array.from({ length: laneCount.value }, (_unused, laneIndex) => lineRefs.value[laneIndex] ?? [])
 
     for (let laneIndex = 0; laneIndex < laneCount.value; laneIndex += 1) {
+      const lane = laneRefs.value[laneIndex]
       const lines = lineRefs.value[laneIndex]
       const sourceLength = laneItems.value[laneIndex]?.length ?? 0
-      if (!lines || lines.length === 0 || sourceLength === 0) continue
+      if (!lane || !lines || lines.length === 0 || sourceLength === 0) continue
 
-      const step = 46
-      const singleLength = step * sourceLength
-      const totalLength = singleLength * 2
+      const singleLength = ITEM_STEP * sourceLength
+      const offset = laneOffsets[laneIndex % laneOffsets.length]
 
-      gsap.set(lines, {
-        y: (lineIndex) => lineIndex * step - singleLength + laneOffsets[laneIndex % laneOffsets.length],
-        willChange: 'transform, filter, opacity',
-      })
+      const runtime: LaneRuntime = {
+        laneIndex,
+        lines,
+        setters: lines.map((el) => {
+          const style = el.style
+          return ({ y, scale, opacity }) => {
+            style.transform = `translate3d(0, ${y}px, 0) scale(${scale})`
+            style.opacity = String(opacity)
+          }
+        }),
+        baseYs: lines.map((_el, lineIndex) => lineIndex * ITEM_STEP + offset),
+        visible: lines.map(() => false),
+        proxy: { shift: 0 },
+        laneHeight: lane.clientHeight,
+        itemHeight: lines[0]?.offsetHeight || 20,
+        singleLength,
+        totalLength: singleLength * 2,
+      }
 
-      updateLaneVisualState(laneIndex)
+      laneRuntimes[laneIndex] = runtime
+      renderLane(runtime, true)
 
-      const laneTween = gsap.to(lines, {
-        y: `+=${singleLength}`,
-        duration: laneSpeeds[laneIndex % laneSpeeds.length],
+      const speed = laneSpeeds[laneIndex % laneSpeeds.length]
+      tweens[laneIndex] = gsap.to(runtime.proxy, {
+        shift: singleLength,
+        duration: singleLength / speed,
         ease: 'none',
         repeat: -1,
-        modifiers: {
-          y: (value) => {
-            const y = Number.parseFloat(value)
-            const wrapped = ((y + totalLength) % totalLength) - singleLength
-            return `${wrapped}px`
-          },
-        },
-        onUpdate: () => updateLaneVisualState(laneIndex),
+        paused: true,
+        onUpdate: () => renderLane(runtime),
       })
-
-      tweens[laneIndex] = laneTween
     }
+
+    applyPlayState()
   }, viewport)
 }
 
@@ -301,9 +342,23 @@ onMounted(async () => {
   const viewport = viewportRef.value
   if (!viewport) return
 
+  reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+
   updateLaneCountByWidth(viewport.clientWidth)
   await nextTick()
-  initAnimation()
+
+  if (!reducedMotionQuery.matches) {
+    initAnimation()
+
+    // 离开视口时暂停滚动，避免首页其他区域滚动时后台空转
+    intersectionObserver = new IntersectionObserver((entries) => {
+      const first = entries[0]
+      if (!first) return
+      inView = first.isIntersecting
+      applyPlayState()
+    })
+    intersectionObserver.observe(viewport)
+  }
 
   resizeObserver = new ResizeObserver((entries) => {
     const first = entries[0]
@@ -311,21 +366,27 @@ onMounted(async () => {
     updateLaneCountByWidth(first.contentRect.width)
   })
   resizeObserver.observe(viewport)
-
-  window.addEventListener('resize', updateAllLanesVisualState)
 })
 
 watch(laneCount, async () => {
+  laneRefs.value = []
+  lineRefs.value = []
   await nextTick()
-  initAnimation()
+  if (!reducedMotionQuery?.matches) {
+    initAnimation()
+  }
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
-  window.removeEventListener('resize', updateAllLanesVisualState)
+  intersectionObserver?.disconnect()
+  intersectionObserver = null
+  reducedMotionQuery = null
+  hoverPausedLanes.clear()
   tweens.forEach((tween) => tween.kill())
   tweens = []
+  laneRuntimes = []
   ctx?.revert()
   ctx = null
 })
@@ -396,6 +457,7 @@ onBeforeUnmount(() => {
   height: 300px;
   border-radius: 10px;
   background: color-mix(in srgb, var(--vp-c-bg-soft) 85%, var(--vp-c-bg));
+  contain: layout paint;
 }
 
 .dark .zn-feature-flow__lane {
