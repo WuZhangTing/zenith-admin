@@ -4,6 +4,30 @@
 
 ---
 
+## v2.4.0 - 2026-08-29
+
+**数据导入中心二期**：补齐「导入 → 改错 → 再导」体验闭环，实体扩编至五个。
+
+### Added
+
+#### 数据导入中心 · 体验闭环
+
+- **错误行回导**：存在失败行时自动生成错误行 Excel（原数据 + 红字「错误原因」列）存入文件中心，进度弹窗一键下载，修正后可直接重新上传
+- **导入预检（dry-run）**：「预检文件」入口仅逐行校验不落库，输出同款行级报告与错误文件；预检可反复执行不受幂等限制
+- **CSV 支持**：上传解析兼容 .csv（模板仍为 xlsx）；文件上传 MIME 白名单补充 `text/csv`
+- **上下文参数**：Definition 支持 `contextSchema` 声明页面上下文（提交与执行双重校验），支撑 CMS 内容等需要站点/栏目上下文的导入
+- **实体扩编**：新增字典项（`platform.dict-items`）；CMS 内容导入收编为 `cms.contents` definition，与其余实体共享全部导入中心能力
+
+### Changed
+
+- **BREAKING**：CMS 内容旧导入接口 `POST /api/cms/contents/import` 下线，统一走 `/api/import-jobs`（内容页导入按钮已同步切换，需先选定站点与栏目）
+
+### Removed
+
+- cms-tasks 私有任务 `cms-content-import` 与前端 `useImportCmsContents` hook
+
+---
+
 ## v2.3.0 - 2026-08-29
 
 **数据导入中心一期**：与导出中心对偶的统一导入框架，收口全站散落的 Excel 导入轮子。
