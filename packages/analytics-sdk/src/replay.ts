@@ -71,7 +71,7 @@ let pending: RrwebEvent[] = [];
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 let uploading = Promise.resolve();
 let lifecycleBound = false;
-let activeConfig: Pick<AnalyticsPublicConfig, 'trackReplay' | 'replaySessionSampleRate' | 'replayOnError' | 'replayMaskAllText' | 'replayBlockSelector' | 'maskInputs'> | null = null;
+let activeConfig: (Pick<AnalyticsPublicConfig, 'trackReplay' | 'replaySessionSampleRate' | 'replayOnError' | 'replayMaskAllText' | 'replayBlockSelector' | 'maskInputs'> & { consent: boolean }) | null = null;
 
 function uuid(): string {
   try { return crypto.randomUUID(); } catch {
@@ -105,12 +105,14 @@ export function applyReplayConfig(config: AnalyticsPublicConfig, sessionId: stri
       replayMaskAllText: config.replayMaskAllText,
       replayBlockSelector: config.replayBlockSelector,
       maskInputs: config.maskInputs,
+      // consent 纳入快照：会员端「同意采集」授予后（false→true）必须穿透短路重新评估
+      consent: runtime.consentProvider(),
     };
     const unchanged = activeConfig && JSON.stringify(activeConfig) === JSON.stringify(next);
     if (unchanged) return;
     activeConfig = next;
 
-    if (!config.enabled || !config.trackReplay || !runtime.consentProvider()) {
+    if (!config.enabled || !config.trackReplay || !next.consent) {
       void teardown(false);
       return;
     }

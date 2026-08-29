@@ -9,6 +9,7 @@
  */
 import { useCallback, useSyncExternalStore } from 'react';
 import { MEMBER_ANALYTICS_CONSENT_KEY, MEMBER_ANALYTICS_CONSENT_VERSION } from '@zenith/shared/member';
+import { reloadTrackerConfig } from '@/utils/tracker';
 import { formatDateTimeForApi } from '@/utils/date';
 
 export type MemberAnalyticsConsentStatus = 'unknown' | 'accepted' | 'rejected';
@@ -68,6 +69,8 @@ function persist(status: 'accepted' | 'rejected'): void {
     localStorage.setItem(MEMBER_ANALYTICS_CONSENT_KEY, JSON.stringify(record));
   } catch { /* storage 不可用（隐私模式等），静默忽略 */ }
   emitChange();
+  // 同意状态变化立即重放采集配置（含会话回放启停），不等 60s 兜底轮询
+  try { reloadTrackerConfig(); } catch { /* SDK 未初始化时忽略 */ }
 }
 
 /** 同步读取当前是否已同意采集（供 tracker/error-reporter 的 consentProvider 使用）。 */
