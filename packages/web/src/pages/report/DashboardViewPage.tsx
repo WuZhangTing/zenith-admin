@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Avatar, Banner, Button, Empty, SideSheet, Space, Spin, TextArea, Toast, Typography, Tag } from '@douyinfe/semi-ui';
+import PageLoading from '@/components/PageLoading';
 import { ArrowLeft, RotateCcw, PencilRuler, Maximize, Image, MessageSquare, Send, Trash2, CheckCircle2, CornerDownRight } from 'lucide-react';
 import { toPng } from 'html-to-image';
 import './report-grid.css';
@@ -231,7 +232,7 @@ export default function DashboardViewPage() {
     }
   }
 
-  if (dashboardQuery.isFetching && !dashboard) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spin size="large" /></div>;
+  if (dashboardQuery.isFetching && !dashboard) return <PageLoading inline />;
 
   const canvasState = (w: ReportWidget) => getData(w);
   const mobileFilter = (

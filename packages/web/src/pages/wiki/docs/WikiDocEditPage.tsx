@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDebouncer } from '@tanstack/react-pacer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Banner, Button, Checkbox, Input, Modal, Select, Space, Spin, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Checkbox, Input, Modal, Select, Space, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { ArrowLeft, Eye, EyeOff, Save, Send } from 'lucide-react';
 import MarkdownPreviewPanel from '@/components/MarkdownPreviewPanel';
+import PageLoading from '@/components/PageLoading';
 import FileAttachment, { type AttachmentItem } from '@/components/FileAttachment';
 import { ApiError } from '@/lib/query';
 import './WikiDocEditPage.css';
@@ -313,7 +314,7 @@ export default function WikiDocEditPage() {
       {/* 编辑器主体（高度链：page-container--stretch → wiki-editor-body → textarea） */}
       <div className="wiki-editor-body">
         {loading ? (
-          <div className="wiki-editor-loading"><Spin size="large" /></div>
+          <div className="wiki-editor-loading"><PageLoading inline /></div>
         ) : (
           <>
             <TextArea

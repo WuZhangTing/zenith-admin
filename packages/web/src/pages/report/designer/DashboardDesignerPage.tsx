@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDebouncer } from '@tanstack/react-pacer';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Input, Select, Spin, Toast, Typography, Empty, Tooltip, Form, Space, Modal } from '@douyinfe/semi-ui';
+import { Button, Input, Select, Toast, Typography, Empty, Tooltip, Form, Space, Modal } from '@douyinfe/semi-ui';
+import PageLoading from '@/components/PageLoading';
 import { Save, ArrowLeft, Eye, Trash2, Copy, Undo2, Redo2, SlidersHorizontal, LayoutGrid, Monitor, Settings2, Images } from 'lucide-react';
 import RGL, { WidthProvider, type Layout } from 'react-grid-layout/legacy';
 import { Rnd } from 'react-rnd';
@@ -337,7 +338,7 @@ export default function DashboardDesignerPage() {
     return cols.map((c) => ({ value: c, label: c }));
   }, [selectedWidget, selectedDataset, getData]);
 
-  if ((!!dashboardId && dashboardQuery.isPending) || datasetsQuery.isPending || dashboardsQuery.isPending || metricsQuery.isPending) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spin size="large" /></div>;
+  if ((!!dashboardId && dashboardQuery.isPending) || datasetsQuery.isPending || dashboardsQuery.isPending || metricsQuery.isPending) return <PageLoading inline />;
 
   const renderWidgetCard = (w: ReportWidget, opts?: { drag?: boolean }) => {
     const ds = getData(w);

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { Form, Button, Toast, Space, Spin, Typography, Divider, Input } from '@douyinfe/semi-ui';
+import { Form, Button, Toast, Space, Typography, Divider, Input } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
+import PageLoading from '@/components/PageLoading';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Save, Send, Mail } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
@@ -44,11 +45,7 @@ export default function EmailConfigPage() {
   };
 
   if (configQuery.isFetching && !config) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <PageLoading inline />;
   }
 
   return (

@@ -3,7 +3,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
-import { Button, Divider, Modal, RadioGroup, Radio, Spin, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Divider, Modal, RadioGroup, Radio, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import PageLoading from '@/components/PageLoading';
 import { ArrowLeft, Check, Download, Eye, History, Minus, Play, Plus, Redo2, RotateCcw, Save, Send, Stethoscope, TriangleAlert, Undo2, Upload } from 'lucide-react';
 import type { WorkflowDefinition, WorkflowDefinitionSnapshot, WorkflowFlowData, WorkflowFormField, WorkflowFormType, WorkflowCustomFormConfig } from '@zenith/shared/workflow';
 import { WORKFLOW_FORM_TYPES, WORKFLOW_FORM_TYPE_LABELS, resolveApproverDedupMode } from '@zenith/shared/workflow';
@@ -778,11 +779,7 @@ export default function WorkflowDesignerPage({
   const publishing = publishMutation.isPending || healthCheckMutation.isPending;
 
   if (pageLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <PageLoading inline />;
   }
 
   return (

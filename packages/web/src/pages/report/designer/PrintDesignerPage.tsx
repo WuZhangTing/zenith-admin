@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Button, Divider, Empty, Input, InputNumber, Modal, Select, Space, Spin, Switch, Tabs, Tag, TextArea, Toast, Tooltip, Typography,
+  Button, Divider, Empty, Input, InputNumber, Modal, Select, Space, Switch, Tabs, Tag, TextArea, Toast, Tooltip, Typography,
 } from '@douyinfe/semi-ui';
+import PageLoading from '@/components/PageLoading';
 import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
 import type { IWorkbookData } from '@univerjs/presets';
 import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
@@ -643,7 +644,7 @@ export default function PrintDesignerPage() {
   }
 
   if ((!!templateId && templateQuery.isPending) || datasetsQuery.isPending) {
-    return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><Spin size="large" /></div>;
+    return <PageLoading inline />;
   }
 
   return (

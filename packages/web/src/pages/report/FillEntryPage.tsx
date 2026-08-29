@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Banner, Button, Descriptions, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import PageLoading from '@/components/PageLoading';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ArrowLeft, Save, Send } from 'lucide-react';
 import { REPORT_FILL_RECORD_STATUS_LABELS } from '@zenith/shared/report';
@@ -124,7 +125,7 @@ export default function FillEntryPage() {
   }
 
   if (lookupQuery.isLoading || (recordId && detailQuery.isLoading)) {
-    return <div className="page-container fill-entry-loading"><Spin size="large" /></div>;
+    return <PageLoading inline />;
   }
 
   const queryError = recordId ? detailQuery.error : lookupQuery.error;

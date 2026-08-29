@@ -1,4 +1,5 @@
-import { Banner, Button, Descriptions, Empty, Popconfirm, Space, Spin, Table, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Descriptions, Empty, Popconfirm, Space, Table, Tabs, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import PageLoading from '@/components/PageLoading';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useState } from 'react';
 import { Copy, KeyRound, ShieldCheck, Upload } from 'lucide-react';
@@ -43,7 +44,7 @@ function OverviewTab() {
   const deactivateMutation = useDeactivateLicense();
   const data = statusQuery.data;
 
-  if (statusQuery.isLoading) return <Spin spinning style={{ width: '100%', minHeight: 200 }} />;
+  if (statusQuery.isLoading) return <PageLoading inline />;
   if (!data) return <Empty title="加载失败" description="无法获取 License 状态" style={{ paddingTop: 48 }} />;
 
   const { installation, license, effective, usingTestKey } = data;

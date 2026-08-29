@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Form, Button, Toast, Space, Spin, Typography, Divider, Tabs, TabPane } from '@douyinfe/semi-ui';
+import { Form, Button, Toast, Space, Typography, Divider, Tabs, TabPane } from '@douyinfe/semi-ui';
+import PageLoading from '@/components/PageLoading';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Save } from 'lucide-react';
 import { Icon } from '@iconify/react';
@@ -63,11 +64,7 @@ export default function OAuthConfigPage() {
   };
 
   if (configsQuery.isFetching) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <PageLoading inline />;
   }
 
   return (

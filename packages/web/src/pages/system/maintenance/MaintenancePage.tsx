@@ -4,7 +4,6 @@ import {
   Button,
   Form,
   Modal,
-  Spin,
   Tag,
   Toast,
   Typography,
@@ -15,6 +14,7 @@ import { Wrench, Power, PowerOff, RefreshCw } from 'lucide-react';
 import type { MaintenanceLog } from '@zenith/shared/platform';
 import { useQueryClient } from '@tanstack/react-query';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import PageLoading from '@/components/PageLoading';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -102,11 +102,7 @@ export default function MaintenancePage() {
   };
 
   if (statusQuery.isFetching && !status) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
-        <Spin size="large" />
-      </div>
-    );
+    return <PageLoading inline />;
   }
 
   const isEnabled = status?.enabled ?? false;
