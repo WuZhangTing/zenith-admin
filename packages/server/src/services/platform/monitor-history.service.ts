@@ -48,7 +48,9 @@ async function getInfraMetricSnapshot(): Promise<InfraMetricSnapshot> {
     load1: Math.round(load1 * 100) / 100,
     procCpu: sample?.procCpu ?? 0,
     heap: sample?.heap ?? 0,
-    loopLag: sample?.loopLagMean ?? 0,
+    // 告警口径用窗口 max 而非 mean/p99：10s 窗口约 500 个采样点，一次 300ms 阻塞
+    // 只占 0.2%，mean 与 p99 都会把它彻底稀释（冒烟实测 p99 无感），只有峰值能暴露
+    loopLag: sample?.loopLagMax ?? 0,
     qps: sample?.qps ?? 0,
     errorRate: sample?.errorRate ?? 0,
     netRxBps: sample?.netRxBps ?? 0,

@@ -35,6 +35,7 @@ const entities: ExportEntityMeta[] = [
     execution: {
       mode: 'sync',
       syncMaxRows: 3000,
+      maxRows: 50000,
       forceAsyncWhenSensitive: false,
       forceAsyncWhenRaw: false,
       syncModeOverridesAsyncPolicies: true,
@@ -56,6 +57,7 @@ const entities: ExportEntityMeta[] = [
     execution: {
       mode: 'auto',
       syncMaxRows: 800,
+      maxRows: 50000,
       forceAsyncWhenSensitive: false,
       forceAsyncWhenRaw: false,
       syncModeOverridesAsyncPolicies: false,
@@ -82,6 +84,7 @@ const entities: ExportEntityMeta[] = [
     execution: {
       mode: 'sync',
       syncMaxRows: 5000,
+      maxRows: 50000,
       forceAsyncWhenSensitive: false,
       forceAsyncWhenRaw: false,
       syncModeOverridesAsyncPolicies: true,
@@ -105,6 +108,7 @@ const entities: ExportEntityMeta[] = [
     execution: {
       mode: 'sync',
       syncMaxRows: 5000,
+      maxRows: 50000,
       forceAsyncWhenSensitive: false,
       forceAsyncWhenRaw: false,
       syncModeOverridesAsyncPolicies: true,
@@ -130,6 +134,7 @@ const entities: ExportEntityMeta[] = [
     execution: {
       mode: 'sync',
       syncMaxRows: 5000,
+      maxRows: 50000,
       forceAsyncWhenSensitive: false,
       forceAsyncWhenRaw: false,
       syncModeOverridesAsyncPolicies: true,

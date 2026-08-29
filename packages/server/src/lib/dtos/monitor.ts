@@ -178,6 +178,7 @@ export const MonitorTimeseriesDTO = z
         heap: z.number(),
         loopLagMean: z.number(),
         loopLagP99: z.number(),
+        loopLagMax: z.number().optional(),
         qps: z.number(),
         errorRate: z.number(),
         netRxBps: z.number().optional(),

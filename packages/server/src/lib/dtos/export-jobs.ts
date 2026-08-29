@@ -31,6 +31,7 @@ export const ExportEntityMetaDTO = z
     execution: z.object({
       mode: ExportJobRequestModeDTO,
       syncMaxRows: z.number().int(),
+      maxRows: z.number().int(),
       forceAsyncWhenSensitive: z.boolean(),
       forceAsyncWhenRaw: z.boolean(),
       syncModeOverridesAsyncPolicies: z.boolean(),

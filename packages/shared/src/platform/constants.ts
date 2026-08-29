@@ -211,7 +211,7 @@ export const MONITOR_METRIC_META: Record<MonitorMetric, MonitorMetricMeta> = {
   load1: { label: '系统负载(1m)', group: 'infra', unit: 'number', scope: 'global', description: '1 分钟平均负载' },
   procCpu: { label: '进程 CPU', group: 'infra', unit: 'percent', scope: 'global', description: 'Node 进程自身 CPU 占用' },
   heap: { label: '堆内存使用率', group: 'infra', unit: 'percent', scope: 'global', description: 'V8 堆内存使用率' },
-  loopLag: { label: '事件循环延迟', group: 'infra', unit: 'ms', scope: 'global', description: '事件循环平均延迟' },
+  loopLag: { label: '事件循环延迟', group: 'infra', unit: 'ms', scope: 'global', description: '近一个采样周期（约 10s）内事件循环延迟峰值（max），对同步阻塞尖峰敏感' },
   qps: { label: '请求 QPS', group: 'infra', unit: 'number', scope: 'global', description: 'HTTP 每秒请求数' },
   errorRate: { label: 'HTTP 错误率', group: 'infra', unit: 'percent', scope: 'global', description: 'HTTP 5xx 占比' },
   netRxBps: { label: '网络下行', group: 'infra', unit: 'bps', scope: 'global', description: '网卡接收速率' },

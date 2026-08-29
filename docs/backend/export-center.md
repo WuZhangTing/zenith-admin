@@ -12,6 +12,7 @@
 - **CSV 限制**：CSV 只输出表格叶子列，不承载合并单元格、样式和复杂布局；非 `table` 模式请求 CSV 返回 400。
 - **默认脱敏**：创建任务时 `raw` 默认 `false`，即 `masked=true`；明文导出必须显式传 `raw=true` 并通过对应权限校验。
 - **同步 / 异步执行**：实体 `execution` 策略默认 `mode: 'sync'`、`syncMaxRows: 5000`。`auto` 根据 `countRows()` 结果分流；异步任务进入 pg-boss `export-jobs` 队列，由 `registerExportJobWorker()` 消费。
+- **行数绝对上限**：`execution.maxRows`（默认 50000，sync/async 通用）。提交时按 `countRows()` 超限直接 400；`countRows` 不准或恒为 0 的定义由 writer 渲染循环兜底中止（xlsx 与 CSV 均生效），防止无界行数进入 `writeBuffer()` 终局序列化 / CSV 全量累积阻塞事件循环。
 - **元信息**：Excel 默认写入隐藏工作表「导出信息」，表格导出默认写标题行和元信息行；`watermark=false` 时跳过这些元信息。
 - **结果管理**：所有导出都会生成 `export_jobs` 记录；成功后通过 `saveGeneratedManagedFile()` 写入 `managed_files`，并回写 `fileId`、`fileSize`、真实 `rowCount`。
 - **完成通知**：异步导出完成或失败时通过通知中心事件 `platform.export.finished` 通知创建人；同步导出直接返回结果，不发送完成通知。

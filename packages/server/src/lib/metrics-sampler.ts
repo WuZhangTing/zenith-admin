@@ -32,6 +32,8 @@ export interface MetricsSample {
   loopLagMean: number;
   /** Event loop 延迟 P99（毫秒） */
   loopLagP99: number;
+  /** Event loop 延迟窗口峰值（毫秒）：告警口径——单次同步阻塞只有 max 能暴露 */
+  loopLagMax: number;
   /** 1 秒级 QPS（最近 1s 的请求数） */
   qps: number;
   /** 错误率（0-100，最近窗口内 status>=400 占比） */
@@ -379,6 +381,10 @@ class MetricsSampler {
       : 0;
 
     const elStats = this.eventLoopStats();
+    // 窗口化：读完即重置直方图，使每帧 mean/p99 反映「自上一帧以来（约 10s）」的
+    // 事件循环延迟，而不是进程启动以来的累计口径——累计口径下短暂阻塞永远被历史
+    // 稀释，loopLag 告警规则的「持续 N 分钟超阈」评估毫无意义
+    this.elDelay.reset();
     const httpWindow = this.http.windowStats();
 
     const sample: MetricsSample = {
@@ -389,6 +395,7 @@ class MetricsSampler {
       heap: heapPercent,
       loopLagMean: elStats.meanMs,
       loopLagP99: elStats.p99Ms,
+      loopLagMax: elStats.maxMs,
       qps: httpWindow.qps,
       errorRate: httpWindow.errorRate,
       netRxBps: totalRxBps,
@@ -449,7 +456,7 @@ class MetricsSampler {
     return this.series.toArray();
   }
 
-  /** Event loop 延迟统计（基于持续直方图） */
+  /** Event loop 延迟统计（窗口直方图：每帧采样后重置，反映最近一个采样周期） */
   eventLoopStats(): EventLoopStats {
     const h = this.elDelay;
     const ns = 1e6;
@@ -461,11 +468,6 @@ class MetricsSampler {
       maxMs: Math.round((h.max / ns) * 100) / 100,
       stddevMs: Math.round((h.stddev / ns) * 100) / 100,
     };
-  }
-
-  /** 重置 Event loop 直方图（可选，调用方决定是否周期性 reset） */
-  resetEventLoop(): void {
-    this.elDelay.reset();
   }
 
   gcStats(): GcStats {

@@ -198,7 +198,7 @@ const baseStatus = {
 
 function buildSeries(): Array<{
   t: number; cpu: number; mem: number; procCpu: number; heap: number;
-  loopLagMean: number; loopLagP99: number; qps: number; errorRate: number;
+  loopLagMean: number; loopLagP99: number; loopLagMax: number; qps: number; errorRate: number;
   netRxBps: number; netTxBps: number; diskReadBps: number; diskWriteBps: number;
   dbConnections: number; redisMemBytes: number; redisHitRate: number;
 }> {
@@ -215,6 +215,7 @@ function buildSeries(): Array<{
       heap: 60 + Math.round(wave * 5),
       loopLagMean: 0.4 + Math.random() * 0.3,
       loopLagP99: 1 + Math.random() * 1.5,
+      loopLagMax: 3 + Math.random() * 6,
       qps: Math.max(0, Math.round(8 + wave * 4 + Math.random() * 3)),
       errorRate: Math.max(0, +(Math.random() * 1.2).toFixed(2)),
       netRxBps: Math.max(0, Math.round(1_200_000 + wave * 600_000 + Math.random() * 300_000)),
@@ -359,6 +360,7 @@ export const monitorHandlers = [
             heap: 60 + Math.round(wave * 5),
             loopLagMean: 0.4 + Math.random() * 0.3,
             loopLagP99: 1 + Math.random() * 1.5,
+            loopLagMax: 3 + Math.random() * 6,
             qps: qpsVal,
             errorRate: Math.max(0, +(Math.random() * 1.2).toFixed(2)),
             netRxBps: Math.max(0, Math.round(1_200_000 + wave * 600_000 + Math.random() * 300_000)),

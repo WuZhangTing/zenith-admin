@@ -30,6 +30,7 @@ export function registerZenithMetrics(registry: Registry): void {
   gauge('zenith_heap_usage_percent', 'Node heap usage percent (0-100)', () => latest()?.heap ?? 0);
   gauge('zenith_event_loop_lag_mean_ms', 'Event loop delay mean (ms)', () => latest()?.loopLagMean ?? 0);
   gauge('zenith_event_loop_lag_p99_ms', 'Event loop delay p99 (ms)', () => latest()?.loopLagP99 ?? 0);
+  gauge('zenith_event_loop_lag_max_ms', 'Event loop delay window max (ms)', () => latest()?.loopLagMax ?? 0);
 
   // ── 网络 / 磁盘吞吐 ──
   gauge('zenith_net_rx_bytes_per_second', 'Aggregate network receive throughput (B/s)', () => latest()?.netRxBps ?? 0);

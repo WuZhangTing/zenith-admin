@@ -710,6 +710,7 @@ export const SEED_MONITOR_ALERT_RULES: Array<{
   { id: 2, name: '内存使用率过高',        metric: 'memory',                    operator: 'gte', threshold: 90,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
   { id: 3, name: '磁盘空间不足',          metric: 'disk',                      operator: 'gte', threshold: 90,  durationMinutes: 0,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 120, enabled: true },
   { id: 4, name: 'HTTP 错误率异常',       metric: 'errorRate',                 operator: 'gte', threshold: 5,   durationMinutes: 3,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
+  { id: 17, name: '事件循环阻塞',         metric: 'loopLag',                   operator: 'gte', threshold: 200, durationMinutes: 3,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
   { id: 15, name: '日志错误频率异常',     metric: 'logErrorPerMin',            operator: 'gte', threshold: 10,  durationMinutes: 3,  level: 'critical', channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
   { id: 16, name: '日志警告频率异常',     metric: 'logWarnPerMin',             operator: 'gte', threshold: 30,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 60, enabled: true },
   // 流程引擎

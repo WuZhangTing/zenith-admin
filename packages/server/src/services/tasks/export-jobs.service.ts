@@ -206,6 +206,7 @@ async function renderJobFile(row: typeof exportJobs.$inferSelect, definition: An
     createdByName: null,
     exportedAt: new Date(),
     maskRules,
+    rowLimit: normalizeExecution(definition).maxRows,
   };
   return runWithCurrentUser(creator, async () => {
     if (definition.renderFile) {
@@ -339,6 +340,12 @@ export async function createExportJob(input: CreateExportJobInput) {
   const selectedColumns = input.columns?.length ? [...new Set(input.columns)] : null;
   const sensitive = definitionHasSensitiveColumns(definition, selectedColumns);
   const rowCount = await definition.countRows((input.query ?? {}) as Record<string, unknown>, user);
+  // 行数绝对上限（sync/async 通用）：exceljs 终局序列化与 CSV 全量累积都是主线程
+  // 连续 CPU/内存段，提交时快速失败;countRows 不准的定义由 writer 渲染兜底再拦一道
+  const { maxRows } = normalizeExecution(definition);
+  if (maxRows > 0 && rowCount > maxRows) {
+    throw new HTTPException(400, { message: `导出数据 ${rowCount} 行，超过上限 ${maxRows} 行，请收窄筛选条件或分批导出` });
+  }
   const executionMode = resolveExecutionMode(input.executionMode, rowCount, sensitive, raw, definition);
   const filename = buildFilename(definition, 0, format);
   const [job] = await runAsUser(user.userId, () =>

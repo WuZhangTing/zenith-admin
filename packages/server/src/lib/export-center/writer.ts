@@ -190,7 +190,12 @@ async function writeTableSheet(
 
   const filterHeaderRow = headerStartRow + headerDepth - 1;
   let rowIndex = filterHeaderRow;
+  let written = 0;
   for await (const sourceRow of rows) {
+    // 渲染兜底：countRows 不准或恒为 0 的定义在此拦截，防止无界行数进入终局序列化
+    if (ctx.rowLimit && ctx.rowLimit > 0 && ++written > ctx.rowLimit) {
+      throw new Error(`导出行数超过上限 ${ctx.rowLimit} 行，请收窄筛选条件或分批导出`);
+    }
     const values = leaves.map((column) => formatExportCell(column, sourceRow, ctx));
     const excelRow = sheet.insertRow(++rowIndex, values);
     leaves.forEach((column, index) => {
@@ -234,7 +239,11 @@ export async function renderExportCsv(
   }
   const columns = leafColumns(selectedColumns(await resolveDefinitionColumns(definition, ctx), ctx.selectedColumns));
   const lines = [columns.map((column) => csvEscapeCell(column.header)).join(',')];
+  let written = 0;
   for await (const row of rows) {
+    if (ctx.rowLimit && ctx.rowLimit > 0 && ++written > ctx.rowLimit) {
+      throw new Error(`导出行数超过上限 ${ctx.rowLimit} 行，请收窄筛选条件或分批导出`);
+    }
     lines.push(columns.map((column) => csvEscapeCell(formatExportCell(column, row, ctx))).join(','));
   }
   return Buffer.from('\uFEFF' + lines.join('\n') + '\n', 'utf-8');

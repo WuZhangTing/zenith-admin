@@ -12,6 +12,13 @@ export type ExportColumnType = 'string' | 'number' | 'datetime' | 'date' | 'enum
 export interface ExportExecutionPolicy {
   mode: ExportRequestMode;
   syncMaxRows: number;
+  /**
+   * 导出行数绝对上限（sync / async 通用）。exceljs `writeBuffer()` 对整本 workbook 的
+   * 终局序列化是主线程连续 CPU 段，CSV 也是全量内存累积——上限封住无界输入。
+   * 提交时按 `countRows()` 快速失败；countRows 不准或恒为 0 的 legacy 定义由
+   * writer 渲染循环的行数兜底拦截（ExportRuntimeContext.rowLimit）。
+   */
+  maxRows: number;
   forceAsyncWhenSensitive: boolean;
   forceAsyncWhenRaw: boolean;
   syncModeOverridesAsyncPolicies: boolean;
@@ -99,6 +106,8 @@ export interface ExportRuntimeContext<TQuery extends Record<string, unknown> = R
    * 未命中规则的敏感列按字段名回退到内置脱敏类型。
    */
   maskRules?: Map<string, ExportMaskRule> | null;
+  /** 渲染阶段行数兜底上限（来自执行策略 maxRows）；写入行数超过即中止任务 */
+  rowLimit?: number | null;
 }
 
 export interface ExportRenderedFile {
@@ -149,6 +158,7 @@ export type AnyExportDefinition = ExportDefinition<Record<string, unknown>, Reco
 export const DEFAULT_EXPORT_EXECUTION: ExportExecutionPolicy = {
   mode: 'sync',
   syncMaxRows: 5000,
+  maxRows: 50_000,
   forceAsyncWhenSensitive: false,
   forceAsyncWhenRaw: false,
   syncModeOverridesAsyncPolicies: true,

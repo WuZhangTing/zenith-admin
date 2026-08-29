@@ -26,6 +26,8 @@ export interface ExportEntityMeta {
   execution: {
     mode: ExportJobRequestMode;
     syncMaxRows: number;
+    /** 导出行数绝对上限（sync/async 通用），超出时提交被拒绝 */
+    maxRows: number;
     forceAsyncWhenSensitive: boolean;
     forceAsyncWhenRaw: boolean;
     syncModeOverridesAsyncPolicies: boolean;
