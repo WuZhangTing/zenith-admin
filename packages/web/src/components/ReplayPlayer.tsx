@@ -1,26 +1,36 @@
 /**
- * 会话回放播放器：rrweb-player 惰性加载（独立 chunk），
- * 拉取全部分片拼接事件后一次性初始化（错误触发的回放通常 1-10 个分片）。
+ * 会话回放播放器：rrweb-player 惰性加载（独立 chunk）。
  *
- * 时间轴标注：错误（红）/ 页面跳转（蓝）/ 暴躁点击等自定义信号（橙）
- * 渲染在播放器下方的标注条上，点击打点 seek 到对应时刻。
- * 三期实时追流场景改用增量 addEvent 数据源，本组件接口保持不变。
+ * 三种能力：
+ * - 回放：拉取全部分片拼接事件流一次性初始化；
+ * - 时间轴标注：错误（红）/ 页面跳转（蓝）/ 行为信号（橙）打点，点击 seek；
+ * - 实时旁观（live）：recording 会话以 liveMode 初始化，新分片增量 addEvent 追流；
+ * - 点击热点：本次会话点击坐标叠加半透明热点层（近似视口位置）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Empty, Spin, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Empty, Spin, Switch, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ReplaySegmentMeta, ReplaySessionDetail } from '@zenith/shared/analytics';
 import { fetchReplaySegmentEvents } from '@/hooks/queries/session-replays';
 
 const { Text } = Typography;
 
+const EVENT_INCREMENTAL = 3;
+const EVENT_META = 4;
 const EVENT_CUSTOM = 5;
+const INCREMENTAL_SOURCE_MOUSE_INTERACTION = 2;
+const MOUSE_INTERACTION_CLICK = 2;
 
-interface RrwebEventLite { type: number; timestamp: number; data?: { tag?: string; payload?: unknown } }
+interface RrwebEventLite {
+  type: number;
+  timestamp: number;
+  data?: { tag?: string; payload?: unknown; source?: number; type?: number; x?: number; y?: number; width?: number; height?: number };
+}
 
 interface RrwebPlayerInstance {
   $destroy?: () => void;
   pause?: () => void;
   goto?: (offsetMs: number, play?: boolean) => void;
+  addEvent?: (event: unknown) => void;
 }
 
 export interface ReplayMarker {
@@ -30,6 +40,8 @@ export interface ReplayMarker {
   label: string;
 }
 
+interface ClickPoint { xPct: number; yPct: number }
+
 interface ReplayPlayerProps {
   replayId: string;
   segments: ReplaySegmentMeta[];
@@ -37,6 +49,8 @@ interface ReplayPlayerProps {
   errors?: ReplaySessionDetail['errors'];
   /** 回放起点（formatDateTime 字符串，错误偏移计算基准） */
   startedAt?: string;
+  /** 实时旁观：recording 会话追流（调用方轮询详情刷新 segments） */
+  live?: boolean;
   /** 播放器宽度（px），默认自适应容器 */
   width?: number;
 }
@@ -64,17 +78,48 @@ function extractMarkers(events: RrwebEventLite[], baseTs: number): ReplayMarker[
   return markers;
 }
 
+/** 提取点击坐标并按录制视口归一化为百分比（近似视口位置） */
+function extractClickPoints(events: RrwebEventLite[]): ClickPoint[] {
+  const points: ClickPoint[] = [];
+  let viewportW = 0;
+  let viewportH = 0;
+  for (const e of events) {
+    if (e.type === EVENT_META && e.data?.width && e.data?.height) {
+      viewportW = e.data.width;
+      viewportH = e.data.height;
+    } else if (
+      e.type === EVENT_INCREMENTAL
+      && e.data?.source === INCREMENTAL_SOURCE_MOUSE_INTERACTION
+      && e.data?.type === MOUSE_INTERACTION_CLICK
+      && viewportW > 0 && viewportH > 0
+      && typeof e.data.x === 'number' && typeof e.data.y === 'number'
+    ) {
+      points.push({
+        xPct: Math.min(100, Math.max(0, (e.data.x / viewportW) * 100)),
+        yPct: Math.min(100, Math.max(0, (e.data.y / viewportH) * 100)),
+      });
+    }
+  }
+  return points;
+}
+
 function formatOffset(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-export default function ReplayPlayer({ replayId, segments, errors, startedAt, width }: Readonly<ReplayPlayerProps>) {
+export default function ReplayPlayer({ replayId, segments, errors, startedAt, live = false, width }: Readonly<ReplayPlayerProps>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<RrwebPlayerInstance | null>(null);
+  /** 已加载的最大 seq（live 增量追流游标） */
+  const loadedSeqRef = useRef(-1);
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<{ baseTs: number; durationMs: number; markers: ReplayMarker[] } | null>(null);
+  const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
+  const [showHeat, setShowHeat] = useState(false);
 
   const errorMarkers = useMemo<ReplayMarker[]>(() => {
     if (!errors?.length || !startedAt || !timeline) return [];
@@ -98,23 +143,26 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, wi
     [timeline, errorMarkers],
   );
 
+  // 初始化：加载当前全部分片并创建播放器（live 模式 liveMode 初始化）
   useEffect(() => {
     let cancelled = false;
+    loadedSeqRef.current = -1;
 
-    async function load() {
+    async function init() {
       setLoading(true);
       setError(null);
       setTimeline(null);
+      setClickPoints([]);
       try {
         const [{ default: Player }] = await Promise.all([
           import('rrweb-player'),
           import('rrweb-player/dist/style.css'),
         ]);
-        // 分片按 seq 有序拼接为完整事件流
-        const chunks = await Promise.all(segments.map((seg) => fetchReplaySegmentEvents(replayId, seg.seq)));
+        const initialSegments = segmentsRef.current;
+        const chunks = await Promise.all(initialSegments.map((seg) => fetchReplaySegmentEvents(replayId, seg.seq)));
         if (cancelled) return;
         const events = chunks.flat() as RrwebEventLite[];
-        if (events.length < 2) {
+        if (events.length < 2 && !live) {
           setError('回放事件不足，无法播放');
           setLoading(false);
           return;
@@ -129,17 +177,22 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, wi
             events: events as never[],
             width: w,
             height: Math.round(w * 0.62),
-            autoPlay: false,
-            showController: true,
-            skipInactive: true,
+            autoPlay: live,
+            showController: !live,
+            skipInactive: !live,
+            liveMode: live,
           },
         }) as unknown as RrwebPlayerInstance;
-        const baseTs = events[0].timestamp;
-        setTimeline({
-          baseTs,
-          durationMs: Math.max(1, events[events.length - 1].timestamp - baseTs),
-          markers: extractMarkers(events, baseTs),
-        });
+        loadedSeqRef.current = initialSegments.length > 0 ? Math.max(...initialSegments.map((s) => s.seq)) : -1;
+        if (events.length >= 2) {
+          const baseTs = events[0].timestamp;
+          setTimeline({
+            baseTs,
+            durationMs: Math.max(1, events[events.length - 1].timestamp - baseTs),
+            markers: extractMarkers(events, baseTs),
+          });
+          setClickPoints(extractClickPoints(events));
+        }
         setLoading(false);
       } catch {
         if (!cancelled) {
@@ -149,7 +202,7 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, wi
       }
     }
 
-    void load();
+    void init();
     return () => {
       cancelled = true;
       try {
@@ -158,25 +211,86 @@ export default function ReplayPlayer({ replayId, segments, errors, startedAt, wi
       } catch { /* ignore */ }
       playerRef.current = null;
     };
-  }, [replayId, segments, width]);
+    // segments 增量由下方 live effect 处理，避免轮询刷新导致播放器整体重建
+  }, [replayId, live, width]);
 
-  if (segments.length === 0) {
+  // live 追流：segments 更新时增量拉取新 seq 分片 addEvent
+  useEffect(() => {
+    if (!live || !playerRef.current?.addEvent) return;
+    const fresh = segments.filter((s) => s.seq > loadedSeqRef.current);
+    if (fresh.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const seg of fresh.toSorted((a, b) => a.seq - b.seq)) {
+        const events = await fetchReplaySegmentEvents(replayId, seg.seq);
+        if (cancelled) return;
+        for (const e of events) playerRef.current?.addEvent?.(e);
+        loadedSeqRef.current = Math.max(loadedSeqRef.current, seg.seq);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [live, segments, replayId]);
+
+  if (segments.length === 0 && !live) {
     return <Empty title="暂无回放数据" description="该会话还没有已上传的录制分片" style={{ padding: '32px 0' }} />;
   }
 
   return (
-    <Spin spinning={loading} tip="回放加载中…">
+    <Spin spinning={loading} tip={live ? '接入实时画面…' : '回放加载中…'}>
       <div style={{ minHeight: 320 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          {live && (
+            <Tag color="red" size="small">
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentcolor', animation: 'zx-live-pulse 1.2s infinite' }} />
+                实时旁观
+              </span>
+            </Tag>
+          )}
+          {!live && clickPoints.length > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+              <Text type="tertiary" size="small">点击热点（{clickPoints.length}）</Text>
+              <Switch size="small" checked={showHeat} onChange={setShowHeat} aria-label="切换点击热点显示" />
+            </span>
+          )}
+        </div>
         {error
           ? <Text type="danger">{error}</Text>
           : (
             <>
-              <div ref={containerRef} className="zx-replay-player" style={{ display: 'flex', justifyContent: 'center' }} />
-              {timeline && allMarkers.length > 0 && (
+              <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                <div ref={containerRef} className="zx-replay-player" />
+                {showHeat && !live && (
+                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden="true">
+                    {clickPoints.map((p, i) => (
+                      <span
+                        key={`${p.xPct}-${p.yPct}-${i}`}
+                        style={{
+                          position: 'absolute',
+                          left: `${p.xPct}%`,
+                          top: `${p.yPct}%`,
+                          width: 22,
+                          height: 22,
+                          marginLeft: -11,
+                          marginTop: -11,
+                          borderRadius: '50%',
+                          background: 'radial-gradient(circle, rgba(255,77,79,0.55) 0%, rgba(255,77,79,0.18) 55%, transparent 75%)',
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+              {showHeat && !live && (
+                <Text type="quaternary" size="small" style={{ display: 'block', marginTop: 4 }}>
+                  热点为视口相对位置的近似还原，页面滚动时可能存在偏移
+                </Text>
+              )}
+              {timeline && allMarkers.length > 0 && !live && (
                 <div style={{ margin: '12px 4px 0' }}>
                   <div
                     style={{
-                      position: 'relative', height: 18, borderRadius: 4,
+                      position: 'relative', height: 18, borderRadius: 'var(--semi-border-radius-small)',
                       background: 'var(--semi-color-fill-0)',
                     }}
                     aria-label="回放事件标注条"

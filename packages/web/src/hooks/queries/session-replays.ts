@@ -35,6 +35,8 @@ export function useReplayDetail(id: string | null, enabled = true) {
     queryKey: replayKeys.detail(id ?? ''),
     queryFn: () => request.get<ReplaySessionDetail>(`/api/session-replays/${id}`).then(unwrap),
     enabled: enabled && id !== null,
+    // recording 会话自动追流：3s 轮询拿新分片清单，终态停止
+    refetchInterval: (query) => (query.state.data?.status === 'recording' ? 3000 : false),
   });
 }
 

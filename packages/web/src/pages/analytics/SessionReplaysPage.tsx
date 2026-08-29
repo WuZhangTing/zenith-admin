@@ -3,7 +3,7 @@
  * 支持 ?replay={id} 直达（错误监控「查看回放」跳转入口）。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, Checkbox, Descriptions, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
@@ -77,6 +77,7 @@ function formatDuration(ms: number): string {
 }
 
 export default function SessionReplaysPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     page, pageSize, buildPagination,
@@ -271,18 +272,32 @@ export default function SessionReplaysPage() {
               })}
             </Space>
 
-            <ReplayPlayer replayId={detail.id} segments={detail.segments} errors={detail.errors} startedAt={detail.startedAt} />
+            <ReplayPlayer
+              replayId={detail.id}
+              segments={detail.segments}
+              errors={detail.errors}
+              startedAt={detail.startedAt}
+              live={detail.status === 'recording'}
+            />
 
             {detail.errors.length > 0 && (
               <div>
                 <Text strong style={{ display: 'block', marginBottom: 8 }}>关联错误（{detail.errors.length}）</Text>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {detail.errors.map((e) => (
-                    <Text key={e.id} type="danger" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
+                    <Text
+                      key={e.id}
+                      type="danger"
+                      size="small"
+                      ellipsis={{ showTooltip: true }}
+                      style={{ maxWidth: '100%', cursor: 'pointer' }}
+                      onClick={() => navigate(`/analytics/errors?issue=${e.groupId}`)}
+                    >
                       [{e.createdAt.slice(11, 19)}] {e.errorType}: {e.message}
                     </Text>
                   ))}
                 </div>
+                <Text type="quaternary" size="small">点击错误跳转错误监控 Issue 详情</Text>
               </div>
             )}
             <Text type="tertiary" size="small">

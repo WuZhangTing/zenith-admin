@@ -1006,3 +1006,9 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   animation: none;
   mix-blend-mode: normal;
 }
+
+/* 会话回放：实时旁观指示灯呼吸动画 */
+@keyframes zx-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
