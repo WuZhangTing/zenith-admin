@@ -1,6 +1,6 @@
 # 架构与数据模型
 
-## 数据表（21 张）
+## 数据表（23 张）
 
 ### 行为采集与分析
 
@@ -37,11 +37,18 @@
 | 表 | 说明 |
 |----|------|
 | `error_groups` | 错误分组（Issue，`fingerprint` 全局唯一索引，状态 / 指派 / 备注） |
-| `error_events` | 单次错误事件（堆栈 / 面包屑 / 上下文 / 解析后 UA / HTTP 详情） |
+| `error_events` | 单次错误事件（堆栈 / 面包屑 / 上下文 / 解析后 UA / HTTP 详情 / 回放关联 `replay_id`） |
 | `error_group_identities` | 错误分组影响身份去重表（`groupId` + `identity` 主键），用于增量维护 `affectedUsers` |
 | `error_alert_rules` | 错误告警规则（条件、阈值、时间窗口、渠道、收件人、`lastTriggeredAt` 去抖） |
 | `error_alert_logs` | 告警触发历史（规则快照、命中详情、投递渠道） |
 | `source_maps` | 上传的 Source Map（堆栈还原，`release` + 文件名 replace 语义） |
+
+### 会话回放
+
+| 表 | 说明 |
+|----|------|
+| `replay_sessions` | 回放会话（客户端 UUID 主键幂等、录制模式 / 状态机 `recording→completed/expired`、触发器 JSONB 数组、聚合列：分片数 / 字节 / 错误 / 翻页 / 点击、平台与身份字段） |
+| `replay_segments` | 录像分片（`(replayId, seq)` 唯一重传幂等、rrweb 事件 gzip 后 bytea 直存、时间范围与全量快照标记；随会话级联删除） |
 
 > 修改这些表后需 `npm run db:generate && npm run db:migrate`，并在 `packages/shared/src/seed/{业务域}.ts` 同步菜单/权限。
 
@@ -56,6 +63,7 @@
 | `analytics-experiments.ts` | `/api/analytics` | A/B 实验 CRUD、状态流转、报告、公开分流端点 |
 | `analytics-campaigns.ts` | `/api/analytics` | 分群触达活动 CRUD 与执行 |
 | `frontend-errors.ts` | `/api/frontend-errors` | 错误上报、Issue 管理、Source Map、告警规则与触发历史 |
+| `session-replays.ts` | `/api/session-replays` | 回放分片 ingest、列表 / 详情 / 分片拉流 / 存储统计 / 批量删除 |
 | `dashboard.ts` | `/api/dashboard` | 首页工作台的统计卡片与图表（仅登录校验，不属于分析权限体系） |
 
 ### Service（`services/analytics/`）
@@ -86,8 +94,9 @@
 | `analytics-profile.service.ts` | 用户画像 upsert 公共 helper |
 | `analytics-server-events.service.ts` | 服务端权威事件写入（`trackServerEvent`） |
 | `analytics-server-event-subscribers.ts` | 支付 / 工作流事件总线 → 权威事件桥接 |
-| `frontend-errors.service.ts` | 错误上报（指纹分组 / 回归重开）、Issue 查询与管理、Source Map |
+| `frontend-errors.service.ts` | 错误上报（指纹分组 / 回归重开 / 回放计数回填）、Issue 查询与管理、Source Map |
 | `error-alert.service.ts` | 告警规则 CRUD、评估（定时 + 实时）、去抖、渠道分发、触发日志 |
+| `session-replays.service.ts` | 回放分片 ingest（upsert 会话 + 幂等分片 + 聚合累加）、查询 / 拉流、存储配额治理（滚动淘汰 / 硬顶熔断）、僵尸会话收尾、容量统计与告警指标 |
 | `dashboard.service.ts` | 首页工作台统计 |
 
 ### 公共库与 DTO
@@ -99,7 +108,7 @@
 
 ### 关键实现要点
 
-- 采集 / 错误上报 / 实验分流三个公开端点使用 `optionalAuthMiddleware`，支持匿名上报，分别受 `analytics-ingest` / `error-report` / `analytics-ingest` IP 限流保护；其余端点均在 `authMiddleware` + `guard()` 之后。
+- 采集 / 错误上报 / 实验分流 / 回放分片四个公开端点使用 `optionalAuthMiddleware`，支持匿名上报，分别受 `analytics-ingest` / `error-report` / `analytics-ingest` / `replay-ingest` IP 限流保护；其余端点均在 `authMiddleware` + `guard()` 之后。
 - UA 解析复用 `ua-parser-js`，IP → 地域复用离线库 `node-ip2region`，无需外部服务。
 - 行为事件、会话、画像在同一事务中写入；错误 Issue 与错误事件写入亦在事务中完成；SDK 事件通过 `eventId` 唯一索引实现重试幂等（`ON CONFLICT DO NOTHING`）。
 - 生产环境建议配置 `REQUEST_BODY_LIMIT=23068672`（22MiB）：可容纳 20MB Source Map 与 JSON 包装开销，同时给匿名采集入口设置全局请求体上限。
@@ -108,15 +117,16 @@
 ## 数据链路
 
 ```text
-tracker.ts / error-reporter.ts（@zenith/analytics-sdk）
-  ↓ POST /api/analytics/events 或 POST /api/frontend-errors
-routes/analytics/analytics.ts / frontend-errors.ts
+tracker.ts / error-reporter.ts / replay.ts（@zenith/analytics-sdk）
+  ↓ POST /api/analytics/events 或 POST /api/frontend-errors 或 POST /api/session-replays/segments
+routes/analytics/analytics.ts / frontend-errors.ts / session-replays.ts
   ↓ 站点 siteKey 解析（匿名）→ 来源白名单校验
   ↓ Tracking Plan 治理（屏蔽 / 租户覆盖 / 严格模式，质量问题落 analytics_event_quality_daily）
   ↓ 事务写入：user_events（eventId 幂等）→ 站点日配额消费（Redis）→ analytics_sessions → analytics_user_profiles
   ↓ $identify best-effort：analytics_identity_map → 历史匿名事件 / 会话 / 画像合并
+  ↓ 回放分片：配额检查（滚动淘汰 / 硬顶）→ upsert replay_sessions → replay_segments（bytea）→ 聚合累加
   ↓ WebSocket analytics:ingest 节流广播（5s），前端实时 Tab 收到后刷新
-user_events / analytics_sessions / analytics_user_profiles / error_groups / error_events / error_group_identities
+user_events / analytics_sessions / analytics_user_profiles / error_groups / error_events / replay_sessions / replay_segments
   ↓ 查询接口实时聚合，定时任务维护 analytics_daily_rollup 与保留清理
 packages/web/src/pages/analytics/*
 
@@ -142,11 +152,12 @@ user_events（source='server'，不创建 analytics_sessions）
 | Handler | 频率 | 作用 |
 |---------|------|------|
 | `analyticsRollupDaily` | 每日 01:00 | 重建最近 2 个完整自然日的每日聚合（整体 + 维度） |
-| `analyticsRetention` | 每日 02:00 | 按每个租户各自的保留策略清理过期埋点 / 会话 / 错误 / 埋点质量日聚合 |
+| `data-retention`（系统任务） | 每日 03:00 | 平台统一数据保留清理：逐租户按 `retentionDays` / `errorRetentionDays` / `replayRetentionDays` 清理过期埋点、会话、错误、埋点质量日聚合与会话回放（回收空错误分组、录像分片级联删除） |
 | `analyticsSegmentRefresh` | 每日 03:30 | 重算全部启用中的用户分群成员快照（单个分群失败不阻塞整批） |
 | `evaluateErrorAlerts` | 每 5 分钟 | 评估错误告警规则并通知（`new_error` 条件另有错误上报时的实时评估） |
+| `finalizeStaleReplays` | 每 5 分钟 | 把断流超 10 分钟的 `recording` 回放会话标记为已超时（标签页被杀等场景收尾） |
 
-注册于 `lib/pg-boss-scheduler.ts`，种子数据见 `packages/shared/src/seed/platform.ts` 的 `SEED_CRON_JOBS`。
+注册于 `lib/pg-boss-scheduler.ts` 与 `lib/system-tasks.registry.ts`，种子数据见 `packages/shared/src/seed/platform.ts` 的 `SEED_CRON_JOBS`。
 
 ### 任务中心异步任务（`analytics-tasks.ts`）
 
@@ -168,10 +179,12 @@ user_events（source='server'，不创建 analytics_sessions）
 | `monitor:error:manage` | 处理 / 删除错误、上传与删除 Source Map、清除错误数据 |
 | `monitor:alert:list` | 查看告警规则与触发历史 |
 | `monitor:alert:manage` | 管理告警规则、测试发送 |
+| `monitor:replay:list` | 查看会话回放（列表 / 详情 / 播放 / 存储统计） |
+| `monitor:replay:manage` | 删除回放 |
 
 ## 多租户隔离
 
-- 行为事件、会话、画像、分群、实验、触达、错误分组、错误事件、Source Map 与告警规则按 `tenantId` 隔离；分析查询和存在性校验使用 `tenantScope()`。
+- 行为事件、会话、画像、分群、实验、触达、错误分组、错误事件、Source Map、告警规则与会话回放按 `tenantId` 隔离；分析查询和存在性校验使用 `tenantScope()`。
 - 登录态 SDK 配置与 IP 匿名化策略按当前租户读取；匿名请求按站点 `siteKey` 解析归属租户，无站点时使用平台级（`tenantId=null`）默认配置。
 - 数据保留任务逐租户执行，未配置的租户使用埋点 180 天、错误 90 天默认值。
 - 错误指纹含 `tenantId` 因子，不同租户的相同错误分属不同 Issue。

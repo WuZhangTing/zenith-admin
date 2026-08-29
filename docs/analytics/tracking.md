@@ -21,6 +21,7 @@ SDK 不直接读取 Vite 环境变量。Web 适配层在初始化时注入 `apiB
 | Web Vitals | 自动采集 `LCP` / `INP` / `CLS` / `FCP` / `TTFB`，上报为 `perf` 事件（`eventName=$web_vitals`） |
 | API 监控 | 拦截 `fetch` / `XHR`，记录慢请求（>2s）与 4xx/5xx，上报 `api_request`；5xx / 网络失败额外转为 `http_error` 错误上报 |
 | 白屏检测 | 启动 6 秒后检查 `rootSelector` 对应根节点是否有可见内容；无内容时上报 `white_screen` |
+| 会话回放 | `trackReplay` 开启后按需加载 rrweb 录制器：错误触发模式平时仅内存缓冲，报错/暴躁点击/手动触发时上传错误前约 60s 现场并继续录制；亦可按采样率全程录制。详见 [会话回放](./session-replay) |
 
 ### 声明式埋点（data-track）
 
@@ -60,6 +61,7 @@ SDK 从 `@zenith/analytics-sdk` 导出 tracker、error-reporter 与 breadcrumbs 
 | `reportError(type, message, options?)` | 手动错误上报；`crash` 用于业务严重崩溃 |
 | `configureErrorReporterRuntime(next)` / `configureErrorReporting(policy)` / `getRelease()` | 独立使用错误上报器时配置运行时、同步采集开关并读取 release |
 | `addBreadcrumb(b)` / `getBreadcrumbs()` / `clearBreadcrumbs()` | 管理错误面包屑环形缓冲 |
+| `startManualReplay()` / `getActiveReplayId()` / `stopReplay()` / `configureReplayRuntime(next)` | 会话回放：手动开始持续录制（返回回放 ID）、读取当前活跃回放 ID、停止并送出终包、独立配置回放运行时 |
 
 需要**语义化业务事件**（如转化、关键操作）时，显式调用：
 
@@ -121,6 +123,7 @@ SDK 启动时拉取 `GET /api/analytics/config`（匿名可带 `X-Analytics-Site
 - `blacklistPaths`：路径黑名单（命中则不采集）
 - `respectDnt`：是否尊重浏览器 Do Not Track
 - `sessionTimeoutMinutes`：会话闲置超时
+- `trackReplay` / `replayOnError` / `replaySessionSampleRate` / `replayMaskAllText` / `replayBlockSelector`：会话回放开关、错误触发、全程采样率与打码策略（详见 [会话回放](./session-replay)）
 
 错误忽略规则 `errorIgnorePatterns` 保存在采集设置中，由服务端错误上报入口按正则匹配 `message` 后丢弃，不属于 `/analytics/config` 下发给 SDK 的公开配置。
 

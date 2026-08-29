@@ -10,7 +10,7 @@
 | 写路径 | `POST /api/analytics/events` 批量采集（单批最多 100 条）+ 服务端权威语义事件 `trackServerEvent()`；落库前经 Tracking Plan 治理（内存缓存 60s）与站点来源白名单校验；写入 `user_events` 时使用 `eventId` 唯一索引和 `ON CONFLICT DO NOTHING` 幂等；`$identify` 通过 `analytics_identity_map` 做匿名身份合并 |
 | 事务边界 | HTTP 批量采集在事务中写入事件、消费站点日配额（Redis 计数，超限回滚）、更新 `analytics_sessions`、upsert 用户画像；服务端事件在事务中写入事件、upsert 用户画像，不创建会话；错误上报在事务中 upsert `error_groups`、写 `error_events` 并增量维护 `error_group_identities` |
 | 读路径 | 行为分析接口按时间范围实时聚合；趋势查询优先读 `analytics_daily_rollup` 的 overall 行，当天或缺失日期回退 `user_events`；数据聚合页直接展示 rollup；报表中心通过内置主库数据源复用行为数据集 |
-| 保留策略 | `analyticsRetention` 每日 02:00 执行，逐租户读取 `analytics_settings.retentionDays` / `errorRetentionDays`，清理过期事件、会话、错误事件、埋点质量日聚合和空错误分组 |
+| 保留策略 | 系统任务 `data-retention` 每日 03:00 执行统一数据保留策略，逐租户读取 `analytics_settings.retentionDays` / `errorRetentionDays` / `replayRetentionDays`，清理过期事件、会话、错误事件、埋点质量日聚合、空错误分组与会话回放 |
 | 观测手段 | 系统监控 `/api/monitor` 暴露全局 HTTP QPS / P95 / 错误率；数据库监控读取 `pg_stat_statements` Top 慢查询（需启用扩展）；埋点质量看板暴露拒收类问题（`origin_rejected` / `quota_exceeded`）。当前没有按单个分析接口持久化的 p95 明细表 |
 
 ## 架构演进触发条件
@@ -130,6 +130,20 @@ CREATE INDEX user_events_2026_07_created_brin
 - 需要处理至少一次投递、重复消费、乱序到达和回填重放；`eventId` 仍作为跨存储幂等键。
 - OLAP SQL 方言、时间函数、JSON 查询与 PostgreSQL 不完全一致，报表中心数据集和分析接口需维护查询语义差异。
 
+## 会话回放存储治理
+
+回放录像是分析域单行体积最大的数据（rrweb 事件流 gzip 后约 100–300KB/分钟），量级估算与治理机制：
+
+```text
+日均 1000 会话 × 1% 全程采样 × 平均 10 分钟 ≈ 20 MB/天
+× 30 天保留 ≈ 600 MB 稳态             ← 低采样率长期安全
+错误触发模式只为出错会话付费，通常远低于此
+```
+
+三层防线（详见 [会话回放 · 存储与配额治理](./session-replay#存储与配额治理)）：保留期让总量收敛为「日增量 × 保留天数」的稳态；存储配额超限滚动淘汰（无错误回放最旧优先）；硬顶熔断拒收纯采样分片。配套 `replayStorageMb` 告警指标与回放中心容量看板。
+
+若单表体积仍成为瓶颈（如 `replay_segments` 超过数百 GB），演进方向为分片外置对象存储（S3/OSS，DB 仅存元数据），该改造只影响 `session-replays.service.ts` 的存取两处，协议与播放器无需变化。
+
 ## 暂不立项能力
 
 ### 可视化圈选埋点
@@ -138,14 +152,4 @@ CREATE INDEX user_events_2026_07_created_brin
 |------|------|
 | 暂不立项 | 圈选依赖 CSS 选择器 / DOM 路径，Semi Design 组件升级、布局调整、文案变化都会造成版本漂移 |
 | 替代方案 | 当前 `data-track` / `elementKey` 声明式埋点已覆盖稳定元素标识，自动点击采集可补足普通交互热度 |
-| 重新评估 | 非研发角色需要独立配置关键转化事件，且一个季度内出现多次“发版等待埋点”的阻塞时再评估 |
-
-### Session Replay
-
-| 结论 | 理由 |
-|------|------|
-| 暂不立项 | 回放数据量远高于事件流，存储、检索、回放链路会显著抬高成本 |
-| 隐私合规 | `maskInputs` 只能处理输入值，不足以覆盖页面文本、表格数据、附件预览等回放场景的敏感信息 |
-| 运维成本 | 自建 rrweb 需要录制采样、资源裁剪、版本兼容、回放播放器与数据脱敏审计 |
-| 替代方案 | 用户时间线、错误面包屑、页面停留、点击分布已能覆盖轻量行为回溯 |
-| 重新评估 | 客服/风控/故障排查明确需要“像素级复盘”，且已完成敏感页面分级与回放脱敏策略后再评估 |
+| 重新评估 | 非研发角色需要独立配置关键转化事件，且一个季度内出现多次"发版等待埋点"的阻塞时再评估 |

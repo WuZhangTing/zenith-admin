@@ -79,6 +79,14 @@
 | `errorIgnorePatterns` | 错误忽略规则，正则数组；命中错误 `message` 的前端错误上报在服务端丢弃 |
 | `retentionDays` / `errorRetentionDays` | 埋点 / 错误数据保留天数（1–3650） |
 | `sessionTimeoutMinutes` | 会话闲置超时（1–1440 分钟） |
+| `trackReplay` | 会话回放总开关（开启后 SDK 按需加载 rrweb） |
+| `replayOnError` | 错误触发回放（报错时上传错误前约 60s 缓冲现场） |
+| `replaySessionSampleRate` | 全程录制采样率 0–1 |
+| `replayMaskAllText` / `replayBlockSelector` | 回放打码全部文本 / 屏蔽元素选择器 |
+| `replayRetentionDays` | 回放保留天数 |
+| `replayStorageQuotaMb` | 回放存储配额（MB，0=不限；超限滚动淘汰旧回放，超 120% 拒收采样录制） |
+
+会话回放各配置的行为详见 [会话回放](./session-replay)。
 
 登录用户读取当前租户配置；匿名 SDK 按站点 `siteKey` 读取站点租户配置，无站点时使用平台级默认配置。
 
@@ -86,7 +94,7 @@
 
 ## 数据保留策略
 
-定时任务 `analyticsRetention`（每日 02:00）逐租户读取 `retentionDays` / `errorRetentionDays`，分别清理各租户过期埋点、会话、错误数据与埋点质量日聚合（`analytics_event_quality_daily`，跟随 `retentionDays`），并删除已无事件的空错误分组。没有配置记录的租户使用 180 / 90 天默认值。
+分析域全部 append-only 表已登记进平台统一的**数据保留策略**（系统管理 → 数据保留，系统任务 `data-retention` 每日 03:00 执行）：埋点事件与会话跟随 `retentionDays`（默认 180 天）、错误事件跟随 `errorRetentionDays`（默认 90 天，清理后回收空错误分组）、会话回放跟随 `replayRetentionDays`（默认 30 天，录像分片级联删除）、埋点质量日聚合跟随 `retentionDays`。三项天数均逐租户读取采集设置，未配置的租户使用默认值；数据保留页可预览待清理行数并手动执行。
 
 ## 用户分群
 
