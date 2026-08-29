@@ -52,6 +52,8 @@ interface TabBarItemProps {
   readonly faved: boolean;
   readonly showIcon: boolean;
   readonly iconName?: string;
+  /** 悬浮提示：完整菜单路径（如「系统设置 / 运维管理 / 接口限流」），缺省退回页签标题 */
+  readonly hoverTitle?: string;
   readonly isContentFullscreen: boolean;
   readonly innerRef?: React.Ref<HTMLDivElement>;
 }
@@ -70,7 +72,7 @@ interface TabBarItemProps {
 function TabBarItemInner({
   tab, actions, isActive, isEntering, isExiting, isDragging, isDragOver,
   hasClosableLeft, hasClosableRight, hasClosableOthers, hasAnyClosable,
-  favMenuId, faved, showIcon, iconName, isContentFullscreen, innerRef,
+  favMenuId, faved, showIcon, iconName, hoverTitle, isContentFullscreen, innerRef,
 }: TabBarItemProps) {
   // 首次右键后置 true 并保持，避免反复构建 / 卸载菜单
   const [menuReady, setMenuReady] = useState(false);
@@ -140,7 +142,7 @@ function TabBarItemInner({
         {showIcon && iconName && (
           <span className="admin-tab-item__icon">{renderLucideIcon(iconName, 14)}</span>
         )}
-        <span className="admin-tab-item__text" title={tab.title}>{tab.title}</span>
+        <span className="admin-tab-item__text" title={hoverTitle ?? tab.title}>{tab.title}</span>
         {tab.pinned && (
           <span className="admin-tab-item__pin"><Pin size={10} /></span>
         )}

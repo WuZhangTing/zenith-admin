@@ -569,6 +569,29 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   }, [showTabFavorites, flatMenus, tabs]);
   const pageCacheEnabled = preferences.enableTabs && (preferences.enablePageCache ?? true) && keepAlivePaths.size > 0;
 
+  // 页签悬浮提示：完整菜单路径（如「系统设置 / 运维管理 / 接口限流」）。
+  // 动态参数路径（/workflow/designer/1）按最长前缀回退，未命中菜单时退回页签标题。
+  const tabHoverTitles = useMemo(() => {
+    const entries = flatMenus.map((m) => ({
+      path: m.path,
+      label: m.breadcrumb.length > 0 ? `${m.breadcrumb.join(' / ')} / ${m.title}` : m.title,
+    }));
+    const byPath = new Map(entries.map((m) => [m.path, m.label]));
+    return tabs.map((t) => {
+      const exact = byPath.get(t.key);
+      if (exact) return exact;
+      let best: string | undefined;
+      let bestLength = -1;
+      for (const m of entries) {
+        if (m.path.length > bestLength && t.key.startsWith(`${m.path}/`)) {
+          best = m.label;
+          bestLength = m.path.length;
+        }
+      }
+      return best ?? t.title;
+    });
+  }, [flatMenus, tabs]);
+
   const recentMenus = recents
     .map((id) => flatMenus.find((m) => m.id === id))
     .filter((menu): menu is FlatMenuItem => Boolean(menu));
@@ -900,6 +923,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
                       faved={favMenuId !== null && isFavorite(favMenuId)}
                       showIcon={!!preferences.showTabIcon}
                       iconName={tab.icon ?? resolveIcon(tab.key)}
+                      hoverTitle={tabHoverTitles[tabIndex]}
                       isContentFullscreen={isContentFullscreen}
                       innerRef={tab.key === activeKey ? activeTabRef : undefined}
                     />
