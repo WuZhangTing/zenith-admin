@@ -49,7 +49,7 @@
   按 key 分组的定时器集合（如 typing 每用户过期）属专用逻辑，不强制迁移
 - **前沿节流**（立即执行 + 冷却窗口内丢弃）显式传 `{ leading: true, trailing: false }`；
   Pacer hooks 卸载时自动 cancel，**禁止**再写 timer ref + 卸载清理样板
-- **Pacer 仅限 web 端**：服务端限流走 `hono-rate-limiter` + Redis 等既有设施（进程内存节流在多实例下失效），
+- **Pacer 仅限 web 端**：服务端限流走自研 Redis 限流中间件（`middleware/rate-limit.ts`）等既有设施（进程内存节流在多实例下失效），
   `analytics-sdk` 保持零依赖，两者**禁止**引入 Pacer
 
 ## 缓存与 query key

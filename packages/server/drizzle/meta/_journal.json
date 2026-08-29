@@ -379,6 +379,13 @@
       "when": 1788004617385,
       "tag": "0053_tired_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788006114894,
+      "tag": "0054_bored_husk",
+      "breakpoints": true
     }
   ]
 }

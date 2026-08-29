@@ -62,7 +62,6 @@
 		"exceljs": "^4.4.0",
 		"file-type": "^22.0.2",
 		"hono": "^4.13.3",
-		"hono-rate-limiter": "^0.5.3",
 		"ioredis": "^6.0.0",
 		"ip-range-check": "^0.2.1",
 		"jsep": "^1.4.0",

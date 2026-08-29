@@ -24,14 +24,19 @@ import {
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
+/** pathBoundRateLimit 只挂载在 /api/*，非 /api/ 前缀的 pattern 永远不会匹配 */
+const pathPatternSchema = z.string().max(256).refine((p) => p.startsWith('/api/'), '绑定路径必须以 /api/ 开头');
+
 const UpdateRuleBody = z.object({
   windowMs: z.number().int().min(1000).optional(),
   limit: z.number().int().min(1).optional(),
   keyType: z.enum(['ip', 'user', 'ip_path']).optional(),
   enabled: z.boolean().optional(),
+  mode: z.enum(['enforce', 'monitor']).optional(),
+  priority: z.number().int().min(0).max(9999).optional(),
   description: z.string().nullable().optional(),
   blockedMessage: z.string().nullable().optional(),
-  pathPatterns: z.array(z.string().max(256)).max(50).optional(),
+  pathPatterns: z.array(pathPatternSchema).max(50).optional(),
 });
 
 const CreateRuleBody = z.object({
@@ -41,8 +46,10 @@ const CreateRuleBody = z.object({
   limit: z.number().int().min(1),
   keyType: z.enum(['ip', 'user', 'ip_path']),
   enabled: z.boolean(),
+  mode: z.enum(['enforce', 'monitor']).optional(),
+  priority: z.number().int().min(0).max(9999).optional(),
   blockedMessage: z.string().max(255).nullable().optional(),
-  pathPatterns: z.array(z.string().max(256)).max(50).optional(),
+  pathPatterns: z.array(pathPatternSchema).max(50).optional(),
 });
 
 const UnblockBody = z.object({

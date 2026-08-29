@@ -11,6 +11,7 @@ import {
   listRuleConfigs,
   refreshRateLimitRules,
   unblockRateLimitKey,
+  getMountSource,
   PREDEFINED_NAMES,
   type RuleConfig,
   type RecentBlockRecord,
@@ -27,9 +28,15 @@ function mapRule(row: RateLimitRuleRow) {
     limit: row.limit,
     keyType: row.keyType,
     enabled: row.enabled,
+    mode: row.mode,
+    algorithm: row.algorithm,
+    allowlist: row.allowlist ?? [],
+    priority: row.priority,
+    alertThreshold: row.alertThreshold,
     blockedMessage: row.blockedMessage,
     pathPatterns: row.pathPatterns ?? [],
     predefined: PREDEFINED_NAMES.has(row.name),
+    mountSource: getMountSource(row.name, row.pathPatterns ?? []),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -49,6 +56,11 @@ export async function listRateLimitRules() {
           limit: r.limit,
           keyType: r.keyType,
           enabled: r.enabled,
+          mode: r.mode,
+          algorithm: r.algorithm,
+          allowlist: r.allowlist,
+          priority: r.priority,
+          alertThreshold: r.alertThreshold,
           blockedMessage: r.blockedMessage,
           // 路径绑定是规则配置的一部分：漏掉会导致重启后 DB 行覆盖代码默认值，
           // 仅靠 pathPatterns 生效的公开端点限流（report_public_share 等）静默失效
@@ -72,6 +84,8 @@ export interface UpdateRateLimitRuleInput {
   limit?: number;
   keyType?: 'ip' | 'user' | 'ip_path';
   enabled?: boolean;
+  mode?: 'enforce' | 'monitor';
+  priority?: number;
   description?: string | null;
   blockedMessage?: string | null;
   pathPatterns?: string[];
@@ -84,6 +98,8 @@ export interface CreateRateLimitRuleInput {
   limit: number;
   keyType: 'ip' | 'user' | 'ip_path';
   enabled: boolean;
+  mode?: 'enforce' | 'monitor';
+  priority?: number;
   blockedMessage?: string | null;
   pathPatterns?: string[];
 }
@@ -98,6 +114,8 @@ export async function updateRateLimitRule(id: number, patch: UpdateRateLimitRule
       ...(patch.limit === undefined ? {} : { limit: patch.limit }),
       ...(patch.keyType === undefined ? {} : { keyType: patch.keyType }),
       ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
+      ...(patch.mode === undefined ? {} : { mode: patch.mode }),
+      ...(patch.priority === undefined ? {} : { priority: patch.priority }),
       ...(patch.description === undefined ? {} : { description: patch.description }),
       ...(patch.blockedMessage === undefined ? {} : { blockedMessage: patch.blockedMessage }),
       ...(patch.pathPatterns === undefined ? {} : { pathPatterns: patch.pathPatterns }),
@@ -120,6 +138,8 @@ export async function createRateLimitRule(input: CreateRateLimitRuleInput) {
       limit: input.limit,
       keyType: input.keyType,
       enabled: input.enabled,
+      mode: input.mode ?? 'enforce',
+      priority: input.priority ?? 0,
       blockedMessage: input.blockedMessage ?? null,
       pathPatterns: input.pathPatterns ?? [],
     })
@@ -146,6 +166,7 @@ interface RecentBlock {
   at: string;
   key: string;
   path: string;
+  monitored: boolean;
 }
 
 async function readRecent(name: string): Promise<RecentBlock[]> {
@@ -159,6 +180,7 @@ async function readRecent(name: string): Promise<RecentBlock[]> {
         at: formatDateTime(new Date(record.ts)),
         key: record.key,
         path: record.path,
+        monitored: record.monitored === true,
       });
     } catch {
       /* skip malformed entry */
@@ -210,6 +232,7 @@ export async function getRateLimitStats() {
         limit: cfg.limit,
         keyType: cfg.keyType,
         enabled: cfg.enabled,
+        mode: cfg.mode,
         hitCount: hit,
         blockedCount: blocked,
         blockRate: hit > 0 ? Math.round((blocked / hit) * 10000) / 100 : 0,

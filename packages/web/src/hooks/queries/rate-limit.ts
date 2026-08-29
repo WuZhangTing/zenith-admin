@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { RateLimitAlgorithm, RateLimitKeyType, RateLimitMode, RateLimitMountSource } from '@zenith/shared/platform';
 import { config } from '@/config';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 
-export type RateLimitKeyType = 'ip' | 'user' | 'ip_path';
+export type { RateLimitAlgorithm, RateLimitKeyType, RateLimitMode, RateLimitMountSource };
 
 export interface RateLimitRule {
   id: number;
@@ -13,10 +14,17 @@ export interface RateLimitRule {
   limit: number;
   keyType: RateLimitKeyType;
   enabled: boolean;
+  mode: RateLimitMode;
+  algorithm: RateLimitAlgorithm;
+  allowlist: string[];
+  priority: number;
+  alertThreshold: number | null;
   blockedMessage: string | null;
   pathPatterns: string[];
   /** 是否内置规则（不可删除，由服务端下发） */
   predefined: boolean;
+  /** 挂载来源：code=代码挂载；path=路径绑定；none=未生效（死规则） */
+  mountSource: RateLimitMountSource;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +33,8 @@ export interface RecentBlock {
   at: string;
   key: string;
   path: string;
+  /** 观察模式命中：只记数未实际拦截 */
+  monitored: boolean;
 }
 
 export interface RateLimitStatItem {
@@ -34,6 +44,7 @@ export interface RateLimitStatItem {
   limit: number;
   keyType: string;
   enabled: boolean;
+  mode: RateLimitMode;
   hitCount: number;
   blockedCount: number;
   blockRate: number;
@@ -47,20 +58,24 @@ export interface RateLimitStats {
 
 export const rateLimitKeys = {
   all: ['rate-limit'] as const,
-  dashboard: ['rate-limit', 'dashboard'] as const,
+  rules: ['rate-limit', 'rules'] as const,
+  stats: ['rate-limit', 'stats'] as const,
   apiPaths: ['rate-limit', 'api-paths'] as const,
 };
 
-export function useRateLimitDashboard() {
+/** 规则配置：仅管理操作后失效，不随统计轮询刷新 */
+export function useRateLimitRules() {
   return useQuery({
-    queryKey: rateLimitKeys.dashboard,
-    queryFn: async () => {
-      const [rules, stats] = await Promise.all([
-        request.get<RateLimitRule[]>('/api/rate-limit/rules').then(unwrap),
-        request.get<RateLimitStats>('/api/rate-limit/stats').then(unwrap),
-      ]);
-      return { rules, stats };
-    },
+    queryKey: rateLimitKeys.rules,
+    queryFn: () => request.get<RateLimitRule[]>('/api/rate-limit/rules').then(unwrap),
+  });
+}
+
+/** 统计数据：30 秒轮询 */
+export function useRateLimitStats() {
+  return useQuery({
+    queryKey: rateLimitKeys.stats,
+    queryFn: () => request.get<RateLimitStats>('/api/rate-limit/stats').then(unwrap),
     refetchInterval: 30 * 1000,
   });
 }
@@ -88,7 +103,11 @@ export function useSaveRateLimitRule() {
         ? request.post<RateLimitRule>('/api/rate-limit/rules', values)
         : request.patch<RateLimitRule>(`/api/rate-limit/rules/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: rateLimitKeys.all }),
+    // 统计接口的规则元信息（enabled/mode/窗口）派生自规则配置，两者都需失效
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.rules });
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.stats });
+    },
   });
 }
 
@@ -96,16 +115,25 @@ export function useDeleteRateLimitRule() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.delete<null>(`/api/rate-limit/rules/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: rateLimitKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.rules });
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.stats });
+    },
   });
 }
 
+/** 解封返回服务端结果消息（成功 / 未找到活跃计数窗口），由调用方展示 */
 export function useUnblockRateLimitKey() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, key }: { name: string; key: string }) =>
-      request.post<null>('/api/rate-limit/unblock', { name, key }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: rateLimitKeys.all }),
+    mutationFn: async ({ name, key }: { name: string; key: string }) => {
+      const res = await request.post<null>('/api/rate-limit/unblock', { name, key });
+      unwrap(res);
+      return res.message;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.stats });
+    },
   });
 }
 
@@ -113,6 +141,8 @@ export function useResetRateLimitStats() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (name: string) => request.post<null>('/api/rate-limit/reset-stats', { name }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: rateLimitKeys.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.stats });
+    },
   });
 }

@@ -20,6 +20,68 @@ export const FILE_OBJECT_ACL_SUPPORT: Partial<Record<(typeof FILE_STORAGE_PROVID
 /** 文件访问 URL 策略：proxy=服务端代理（兜底）；public=永久公开直链；presigned=临时签名直链 */
 export const FILE_URL_STRATEGIES = ['proxy', 'public', 'presigned'] as const;
 
+// ─── 接口限流 ─────────────────────────────────────────────────────────────────
+
+export const RATE_LIMIT_KEY_TYPES = ['ip', 'user', 'ip_path'] as const;
+export type RateLimitKeyType = (typeof RATE_LIMIT_KEY_TYPES)[number];
+
+export const RATE_LIMIT_KEY_TYPE_LABELS: Record<RateLimitKeyType, string> = {
+  ip: 'IP 地址',
+  user: '登录用户',
+  ip_path: 'IP + 路径',
+};
+
+export const RATE_LIMIT_KEY_TYPE_OPTIONS: Array<{ value: RateLimitKeyType; label: string }> =
+  createLabelOptions(RATE_LIMIT_KEY_TYPES, RATE_LIMIT_KEY_TYPE_LABELS);
+
+/** enforce=超限拦截；monitor=观察模式（超限只记数不拦截，用于新规则安全调参） */
+export const RATE_LIMIT_MODES = ['enforce', 'monitor'] as const;
+export type RateLimitMode = (typeof RATE_LIMIT_MODES)[number];
+
+export const RATE_LIMIT_MODE_LABELS: Record<RateLimitMode, string> = {
+  enforce: '拦截',
+  monitor: '观察',
+};
+
+export const RATE_LIMIT_MODE_OPTIONS: Array<{ value: RateLimitMode; label: string }> =
+  createLabelOptions(RATE_LIMIT_MODES, RATE_LIMIT_MODE_LABELS);
+
+/** fixed_window=固定窗口计数；sliding_window=两桶加权滑动窗口（消除窗口边界突刺） */
+export const RATE_LIMIT_ALGORITHMS = ['fixed_window', 'sliding_window'] as const;
+export type RateLimitAlgorithm = (typeof RATE_LIMIT_ALGORITHMS)[number];
+
+export const RATE_LIMIT_ALGORITHM_LABELS: Record<RateLimitAlgorithm, string> = {
+  fixed_window: '固定窗口',
+  sliding_window: '滑动窗口',
+};
+
+export const RATE_LIMIT_ALGORITHM_OPTIONS: Array<{ value: RateLimitAlgorithm; label: string }> =
+  createLabelOptions(RATE_LIMIT_ALGORITHMS, RATE_LIMIT_ALGORITHM_LABELS);
+
+/** 限流窗口时长的表单输入单位（表单输入 值 × 单位 → windowMs） */
+export const RATE_LIMIT_WINDOW_UNITS = ['second', 'minute', 'hour'] as const;
+export type RateLimitWindowUnit = (typeof RATE_LIMIT_WINDOW_UNITS)[number];
+
+export const RATE_LIMIT_WINDOW_UNIT_LABELS: Record<RateLimitWindowUnit, string> = {
+  second: '秒',
+  minute: '分钟',
+  hour: '小时',
+};
+
+export const RATE_LIMIT_WINDOW_UNIT_OPTIONS: Array<{ value: RateLimitWindowUnit; label: string }> =
+  createLabelOptions(RATE_LIMIT_WINDOW_UNITS, RATE_LIMIT_WINDOW_UNIT_LABELS);
+
+/** 规则挂载来源：code=代码挂载；path=路径绑定；code_path=两者皆有；none=未生效（死规则） */
+export const RATE_LIMIT_MOUNT_SOURCES = ['code', 'path', 'code_path', 'none'] as const;
+export type RateLimitMountSource = (typeof RATE_LIMIT_MOUNT_SOURCES)[number];
+
+export const RATE_LIMIT_MOUNT_SOURCE_LABELS: Record<RateLimitMountSource, string> = {
+  code: '代码挂载',
+  path: '路径绑定',
+  code_path: '代码+路径',
+  none: '未生效',
+};
+
 export const FILE_URL_STRATEGY_LABELS: Record<(typeof FILE_URL_STRATEGIES)[number], string> = {
   proxy: '服务端代理',
   public: '公开直链',

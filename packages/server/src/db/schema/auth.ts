@@ -157,6 +157,12 @@ export type NewLoginRiskEvent = typeof loginRiskEvents.$inferInsert;
 // ─── 限流规则 ─────────────────────────────────────────────────────────────────
 export const rateLimitKeyTypeEnum = pgEnum('rate_limit_key_type', ['ip', 'user', 'ip_path']);
 
+/** enforce = 超限拦截；monitor = 观察模式，超限只记数不拦截（用于新规则安全调参） */
+export const rateLimitModeEnum = pgEnum('rate_limit_mode', ['enforce', 'monitor']);
+
+/** fixed_window = 固定窗口计数；sliding_window = 两桶加权滑动窗口（消除窗口边界突刺） */
+export const rateLimitAlgorithmEnum = pgEnum('rate_limit_algorithm', ['fixed_window', 'sliding_window']);
+
 export const rateLimitRules = pgTable('rate_limit_rules', {
   id: serial('id').primaryKey(),
   name: varchar('name', { length: 64 }).notNull().unique(),
@@ -165,6 +171,14 @@ export const rateLimitRules = pgTable('rate_limit_rules', {
   limit: integer('limit').notNull(),
   keyType: rateLimitKeyTypeEnum('key_type').default('ip').notNull(),
   enabled: boolean('enabled').default(true).notNull(),
+  mode: rateLimitModeEnum('mode').default('enforce').notNull(),
+  algorithm: rateLimitAlgorithmEnum('algorithm').default('fixed_window').notNull(),
+  /** 豁免名单：IP、CIDR（如 10.0.0.0/8）或 `u:{userId}`，命中者跳过计数与拦截 */
+  allowlist: text('allowlist').array().notNull().default([]),
+  /** 路径绑定优先级：多条规则的 pathPatterns 命中同一路径时取值大者，替代 Map 插入序 */
+  priority: integer('priority').default(0).notNull(),
+  /** 小时拦截数告警阈值：达到即通知平台管理员；null = 不告警 */
+  alertThreshold: integer('alert_threshold'),
   blockedMessage: varchar('blocked_message', { length: 255 }),
   pathPatterns: text('path_patterns').array().notNull().default([]),
   ...auditColumns(),
