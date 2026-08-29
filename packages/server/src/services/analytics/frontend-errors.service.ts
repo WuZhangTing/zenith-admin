@@ -11,7 +11,7 @@ import { mergeWhere, escapeLike } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, computeErrorFingerprint, startOfDaysAgo, clampDays, clampLimit, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
-import { symbolicateStack } from '../../lib/source-map-symbolicate';
+import { clearSymbolicateCache, symbolicateStack } from '../../lib/source-map-symbolicate';
 import { evaluateAlertsForError } from './error-alert.service';
 import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service';
 import { recordQualityIssue } from './analytics-governance.service';
@@ -308,10 +308,16 @@ export async function getGroupDetail(id: number) {
   const latest = recent[0];
   if (latest?.stack && latest.release) {
     const maps = await db
-      .select({ fileName: sourceMaps.fileName, content: sourceMaps.content })
+      .select({ id: sourceMaps.id, updatedAt: sourceMaps.updatedAt, fileName: sourceMaps.fileName, content: sourceMaps.content })
       .from(sourceMaps)
       .where(mergeWhere(eq(sourceMaps.release, latest.release), tenantScope(sourceMaps)));
-    if (maps.length > 0) symbolicatedStack = await symbolicateStack(latest.stack, maps);
+    if (maps.length > 0) {
+      symbolicatedStack = await symbolicateStack(
+        latest.stack,
+        // 缓存键含 id+updatedAt：replace（先删后插）产生新 id，旧缓存自然失效
+        maps.map((m) => ({ fileName: m.fileName, content: m.content, cacheKey: `${m.id}:${m.updatedAt.getTime()}` })),
+      );
+    }
   }
 
   // 趋势补轴
@@ -453,6 +459,7 @@ export async function uploadSourceMap(input: SourceMapUploadInput) {
   // replace 语义：先删后插
   await db.delete(sourceMaps).where(mergeWhere(and(eq(sourceMaps.release, input.release), eq(sourceMaps.fileName, input.fileName)), tenantScope(sourceMaps)));
   const [row] = await db.insert(sourceMaps).values({ tenantId, release: input.release, fileName: input.fileName, content: input.content, size: input.content.length }).returning();
+  clearSymbolicateCache();
   return { id: row.id, release: row.release, fileName: row.fileName, size: row.size, createdAt: formatDateTime(row.createdAt), updatedAt: formatDateTime(row.updatedAt) };
 }
 
@@ -475,4 +482,5 @@ export async function deleteSourceMap(id: number) {
   const [row] = await db.select({ id: sourceMaps.id }).from(sourceMaps).where(where).limit(1);
   if (!row) throw new HTTPException(404, { message: 'Source Map 不存在' });
   await db.delete(sourceMaps).where(where);
+  clearSymbolicateCache();
 }
