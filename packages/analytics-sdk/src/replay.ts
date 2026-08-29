@@ -265,7 +265,11 @@ function flushPending(final: boolean): Promise<void> {
   pending = [];
   const currentSeq = seq;
   seq += 1;
-  uploading = uploading.then(() => uploadSegment(events, currentSeq, final)).catch(() => { /* ignore */ });
+  if (final) {
+    // 终包旁路串行链：pagehide 下不等待前序分片的异步 gzip，立即 keepalive 发出
+    return uploadSegment(events, currentSeq, true);
+  }
+  uploading = uploading.then(() => uploadSegment(events, currentSeq, false)).catch(() => { /* ignore */ });
   return uploading;
 }
 
@@ -299,7 +303,21 @@ async function uploadSegment(events: RrwebEvent[], segmentSeq: number, final: bo
     // 首分片带 mode 真实起始形态（服务端 upsert 只在 insert 时取 mode）
     if (segmentSeq === 0) meta.mode = (triggers.some((t) => t.type === 'sampled') ? 'stream' : 'buffer') as 'stream';
 
-    const blob = await gzipJson(events);
+    // final 包（pagehide 场景）：CompressionStream 异步在页面冻结前无法完成，
+    // 改发原始 JSON（服务端按 gzip magic 检测并兜底压缩），确保 keepalive 送达；
+    // keepalive 有 64KB body 上限，超限时从头部丢弃事件保住最后现场
+    let blob: Blob;
+    if (final) {
+      let payload = JSON.stringify(events);
+      let trimmed = events;
+      while (payload.length > 60_000 && trimmed.length > 1) {
+        trimmed = trimmed.slice(Math.ceil(trimmed.length / 4));
+        payload = JSON.stringify(trimmed);
+      }
+      blob = new Blob([payload], { type: 'application/json' });
+    } else {
+      blob = await gzipJson(events);
+    }
     const form = new FormData();
     form.append('meta', JSON.stringify(meta));
     form.append('data', blob, 'segment.json.gz');

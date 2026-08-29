@@ -78,26 +78,36 @@ function extractMarkers(events: RrwebEventLite[], baseTs: number): ReplayMarker[
   return markers;
 }
 
-/** 提取点击坐标并按录制视口归一化为百分比（近似视口位置） */
+/** 提取点击坐标并按录制视口归一化为百分比（近似视口位置）。
+ * viewport 未知时先暂存，遇到首个 Meta 后回填（缓冲窗口常以 FullSnapshot 开头，Meta 在其后）。 */
 function extractClickPoints(events: RrwebEventLite[]): ClickPoint[] {
   const points: ClickPoint[] = [];
+  const pendingRaw: Array<{ x: number; y: number }> = [];
   let viewportW = 0;
   let viewportH = 0;
+  const push = (x: number, y: number) => {
+    points.push({
+      xPct: Math.min(100, Math.max(0, (x / viewportW) * 100)),
+      yPct: Math.min(100, Math.max(0, (y / viewportH) * 100)),
+    });
+  };
   for (const e of events) {
     if (e.type === EVENT_META && e.data?.width && e.data?.height) {
       viewportW = e.data.width;
       viewportH = e.data.height;
+      // 回填 viewport 已知前的暂存点击（视口通常稳定）
+      while (pendingRaw.length > 0) {
+        const p = pendingRaw.shift()!;
+        push(p.x, p.y);
+      }
     } else if (
       e.type === EVENT_INCREMENTAL
       && e.data?.source === INCREMENTAL_SOURCE_MOUSE_INTERACTION
       && e.data?.type === MOUSE_INTERACTION_CLICK
-      && viewportW > 0 && viewportH > 0
       && typeof e.data.x === 'number' && typeof e.data.y === 'number'
     ) {
-      points.push({
-        xPct: Math.min(100, Math.max(0, (e.data.x / viewportW) * 100)),
-        yPct: Math.min(100, Math.max(0, (e.data.y / viewportH) * 100)),
-      });
+      if (viewportW > 0 && viewportH > 0) push(e.data.x, e.data.y);
+      else pendingRaw.push({ x: e.data.x, y: e.data.y });
     }
   }
   return points;

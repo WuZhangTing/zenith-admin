@@ -151,14 +151,21 @@ export default function SessionReplaysPage() {
     { title: '翻页', dataIndex: 'pageCount', width: 70, align: 'right' },
     { title: '点击', dataIndex: 'clickCount', width: 70, align: 'right' },
     {
-      title: '体积', dataIndex: 'totalBytes', width: 90, align: 'right',
+      title: '体积', dataIndex: 'totalBytes', width: 110, align: 'right',
       render: (v: number) => formatBytesMb(v),
     },
     {
       title: '来源', dataIndex: 'source', width: 100,
       render: (v: string) => v === 'web_member' ? '会员前台' : '管理后台',
     },
-    { title: '浏览器', width: 110, render: (_: unknown, r: ReplaySession) => [r.browser, r.os].filter(Boolean).join(' / ') || '—' },
+    {
+      title: '浏览器', width: 170,
+      render: (_: unknown, r: ReplaySession) => (
+        <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }} size="small">
+          {[r.browser, r.os].filter(Boolean).join(' / ') || '—'}
+        </Text>
+      ),
+    },
     {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: ReplaySession['status']) => {
@@ -244,7 +251,7 @@ export default function SessionReplaysPage() {
         }}
         size="small"
         empty="暂无回放记录。开启「数据分析设置 → 会话回放」后，报错现场将自动录制。"
-        scroll={{ x: 1500 }}
+        scroll={{ x: 1660 }}
       />
 
       <SideSheet

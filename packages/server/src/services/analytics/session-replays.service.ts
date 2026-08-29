@@ -9,6 +9,7 @@
  *   lastActivityAt 为服务端时钟（僵尸收尾判定不信任客户端）。
  */
 import { and, eq, desc, sql, inArray, lt, gte } from 'drizzle-orm';
+import { gzipSync } from 'node:zlib';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { replaySessions, replaySegments, errorEvents } from '../../db/schema';
@@ -85,6 +86,8 @@ export async function ingestReplaySegment(meta: ReplaySegmentMetaInput, data: Bu
   if (data.byteLength === 0) throw new HTTPException(400, { message: '分片数据为空' });
   if (data.byteLength > REPLAY_SEGMENT_MAX_BYTES) throw new HTTPException(400, { message: '分片超出大小上限' });
   if (meta.toTs < meta.fromTs) throw new HTTPException(400, { message: '分片时间范围非法' });
+  // 终包（pagehide）为规避页面冻结发原始 JSON：按 gzip magic 检测，存储侧统一为 gz
+  if (!(data[0] === 0x1f && data[1] === 0x8b)) data = gzipSync(data);
 
   const user = currentUserOrNull();
   const member = user ? undefined : currentMemberOrNull();
