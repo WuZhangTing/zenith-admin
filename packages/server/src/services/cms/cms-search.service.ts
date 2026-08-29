@@ -1,6 +1,6 @@
 import { sql, and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import { Jieba } from '@node-rs/jieba';
-import { dict } from '@node-rs/jieba/dict';
+import { dict } from '@node-rs/jieba/dict.js';
 import { db } from '../../db';
 import { cmsContents, cmsChannels, cmsSearchWords } from '../../db/schema';
 import { formatNullableDateTime } from '../../lib/datetime';

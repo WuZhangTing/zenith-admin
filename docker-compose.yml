@@ -37,15 +37,15 @@ services:
     image: redis:7-alpine
     container_name: zenith-redis
     restart: unless-stopped
-    # Enable password auth and AOF persistence when REDIS_PASSWORD is set
+    # Enable password auth and AOF persistence when REDIS_PASSWORD is set.
+    # $$VAR escapes compose interpolation so the container shell expands it;
+    # double quotes (not single) are required for that expansion to happen.
     command: >
-      sh -c "
-        if [ -n '$$REDIS_PASSWORD' ]; then
-          redis-server --requirepass $$REDIS_PASSWORD --appendonly yes --appendfsync everysec
-        else
-          redis-server --appendonly yes --appendfsync everysec
-        fi
-      "
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+               exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --appendfsync everysec;
+             else
+               exec redis-server --appendonly yes --appendfsync everysec;
+             fi'
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
     volumes:
@@ -54,13 +54,11 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: >
-        sh -c "
-          if [ -n '$$REDIS_PASSWORD' ]; then
-            redis-cli -a $$REDIS_PASSWORD ping
-          else
-            redis-cli ping
-          fi
-        "
+        sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+                 redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping;
+               else
+                 redis-cli ping;
+               fi'
       interval: 10s
       timeout: 5s
       retries: 5

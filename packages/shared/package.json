@@ -5,7 +5,7 @@
 	"type": "module",
 	"sideEffects": false,
 	"scripts": {
-		"build": "tsc",
+		"build": "tsc && tsc-alias --resolve-full-paths",
 		"lint": "eslint src",
 		"lint:fix": "eslint src --fix"
 	},
@@ -43,5 +43,8 @@
 	"dependencies": {
 		"dayjs": "^1.11.23",
 		"zod": "^4.4.3"
+	},
+	"devDependencies": {
+		"tsc-alias": "^1.9.2"
 	}
 }

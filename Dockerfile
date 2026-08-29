@@ -21,7 +21,7 @@ RUN npm ci
 
 # Copy source code
 COPY tsconfig.base.json ./
-COPY docker/build-studio.mjs ./docker/
+COPY docker/build-studio.mjs docker/patch-shared-exports.mjs ./docker/
 COPY packages/shared ./packages/shared
 COPY packages/analytics-sdk ./packages/analytics-sdk
 COPY packages/server ./packages/server
@@ -39,14 +39,9 @@ RUN node docker/build-studio.mjs packages/web/dist/studio
 
 # Patch shared package.json so Node.js can resolve @zenith/shared at runtime.
 # The source package.json exports TypeScript files (for tsx dev), which plain
-# Node.js cannot execute. After the build, we switch exports to the compiled dist.
-RUN node -e "\
-  var fs = require('fs'); \
-  var p = JSON.parse(fs.readFileSync('packages/shared/package.json', 'utf8')); \
-  p.main = './dist/index.js'; \
-  p.exports = { '.': './dist/index.js', './*': './dist/*.js' }; \
-  fs.writeFileSync('packages/shared/package.json', JSON.stringify(p, null, 2)); \
-"
+# Node.js cannot execute. After the build, we switch exports to the compiled dist
+# (directory entries like "./analytics" map to "./dist/analytics/index.js").
+RUN node docker/patch-shared-exports.mjs packages/shared
 
 # ─── Stage 2: Server production image ────────────────────────────────────────
 FROM node:24-alpine AS server

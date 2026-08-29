@@ -6,8 +6,8 @@
  * 现有 `from './cms-render.service'` 的导入无需改动。
  */
 import dayjs from 'dayjs';
-import timezone from 'dayjs/plugin/timezone';
-import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone.js';
+import utc from 'dayjs/plugin/utc.js';
 import { cmsCustomPagePath } from '@zenith/shared/cms';
 import type { CmsChannelDetailPathRule } from '@zenith/shared/cms';
 import { APP_TIME_ZONE } from '../../lib/datetime';

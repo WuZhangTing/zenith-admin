@@ -23,6 +23,11 @@ docker compose exec api node dist/db/seed.js
 docker compose ps
 ```
 
+::: tip 宿主机端口冲突
+Compose 默认映射 `80`（Web）、`3300`（API）、`5432`（PostgreSQL）、`6379`（Redis）。
+如宿主机已有服务占用，在 `.env` 中通过 `WEB_PORT` / `API_PORT` / `POSTGRES_PORT` / `REDIS_PORT` 改为空闲端口即可，容器间内部通信不受影响。
+:::
+
 访问地址：
 
 | 服务 | 默认地址 |
@@ -55,11 +60,18 @@ redis    ─┤──→ api (Node.js :3300) ──→ web (Nginx :80)
 
 | 阶段 | 基础镜像 | 行为 |
 | --- | --- | --- |
-| `builder` | `node:24-alpine` | 安装全量依赖，构建 shared、analytics-sdk、server、web，并执行 `docker/build-studio.mjs` |
+| `builder` | `node:24-alpine` | 安装全量依赖，构建 shared、analytics-sdk、server、web，执行 `docker/build-studio.mjs`，最后用 `docker/patch-shared-exports.mjs` 把 `@zenith/shared` 的 exports 指向编译产物 |
 | `server` | `node:24-alpine` | 安装生产依赖，复制 server dist、Drizzle 迁移与 shared dist，写入 entrypoint |
 | `web` | `nginx:1.27-alpine` | 复制 `packages/web/dist` 与 `docker/nginx.conf` |
 
 `node-pty` 在 Linux 下需要编译，构建阶段安装 `python3 make g++`；server 阶段保留 `libstdc++` 并移除编译工具链。
+
+::: details 为什么产物可以用纯 Node 运行？
+源码中的相对导入不带扩展名（依赖 tsx / Vite 解析），而 Node.js 原生 ESM 要求显式 `.js` 扩展名。
+shared 与 server 的 `build` 脚本在 `tsc` 之后运行 `tsc-alias --resolve-full-paths`，把 dist 中的相对导入改写为完整路径；
+`docker/patch-shared-exports.mjs` 再把 `@zenith/shared` 的 `exports` 从 `./src/*.ts` 机械改写为 `./dist/*.js`。
+两步之后 `node dist/db/migrate.js`、`node dist/index.js` 与 `node dist/db/seed.js` 均可脱离 tsx 直接运行。
+:::
 
 ## 环境变量
 
@@ -68,8 +80,9 @@ redis    ─┤──→ api (Node.js :3300) ──→ web (Nginx :80)
 | `JWT_SECRET` | `change-me-to-a-strong-random-secret` | JWT 签名密钥，生产必须修改 |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL 密码 |
 | `POSTGRES_PORT` | `5432` | PostgreSQL 宿主机映射端口 |
-| `REDIS_PASSWORD` | 空 | Redis 密码；设置后 Redis 启用 `requirepass` |
+| `REDIS_PASSWORD` | 空 | Redis 密码；设置后 Redis 启用 `requirepass`，healthcheck 自动带上认证 |
 | `REDIS_URL` | `redis://redis:6379` | API 使用的 Redis URL，可覆盖为外部 Redis |
+| `REDIS_PORT` | `6379` | Redis 宿主机映射端口 |
 | `WEB_PORT` | `80` | Nginx 对外端口 |
 | `API_PORT` | `3300` | API 对外端口 |
 | `ALLOWED_ORIGINS` | 空 | CSRF 允许来源 |

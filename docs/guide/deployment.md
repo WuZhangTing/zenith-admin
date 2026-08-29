@@ -82,6 +82,18 @@ cd packages/server
 npx tsx src/index.ts
 ```
 
+也可以运行编译产物（与 Docker 镜像同一条链路，无需 tsx）：
+
+```bash
+npm run build -w @zenith/shared && npm run build -w @zenith/server
+node docker/patch-shared-exports.mjs   # 把 @zenith/shared 的 exports 指向 dist（部署机执行）
+npm start -w @zenith/server            # migrate + node dist/index.js
+```
+
+::: warning
+`patch-shared-exports.mjs` 会就地修改 `packages/shared/package.json`。开发机执行后 tsx / Vite 将改为消费 dist，请用 `git checkout packages/shared/package.json` 还原；仅建议在部署机或 CI 产物目录中执行。
+:::
+
 使用 PM2 管理进程时在仓库根目录执行：
 
 ```bash

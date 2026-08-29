@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import dayjs from 'dayjs';
-import timezone from 'dayjs/plugin/timezone';
-import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone.js';
+import utc from 'dayjs/plugin/utc.js';
 import { APP_TIME_ZONE, formatDateTime } from '../../lib/datetime';
 import { contentArchiveDir, contentUrl } from './cms-urls';
 
