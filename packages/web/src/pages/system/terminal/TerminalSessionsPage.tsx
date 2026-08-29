@@ -27,10 +27,11 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger } from '@/utils/confirm';
 
-const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' | 'cyan' }> = {
+const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' | 'cyan' | 'purple' }> = {
   local: { label: '本地', color: 'blue' },
   ssh: { label: 'SSH', color: 'green' },
   docker: { label: 'Docker', color: 'cyan' },
+  db: { label: '数据库', color: 'purple' },
 };
 
 function buildMonitorWsUrl(sessionId: string, takeover: boolean): string {
@@ -225,6 +226,7 @@ export default function TerminalSessionsPage() {
               <Select.Option value="local">本地</Select.Option>
               <Select.Option value="ssh">SSH</Select.Option>
               <Select.Option value="docker">Docker</Select.Option>
+              <Select.Option value="db">数据库</Select.Option>
             </Select>
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />

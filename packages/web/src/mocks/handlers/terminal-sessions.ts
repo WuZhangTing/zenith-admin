@@ -1,8 +1,9 @@
 import { http } from 'msw';
+import type { TerminalSessionKind } from '@zenith/shared/ops';
 import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
 import { mockDateTimeOffset } from '@/mocks/utils/date';
 
-type Kind = 'local' | 'ssh' | 'docker';
+type Kind = TerminalSessionKind;
 
 interface MockTerminalSession {
   sessionId: string;

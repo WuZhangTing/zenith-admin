@@ -133,6 +133,7 @@ export default function DbAdminPage() {
   const canExport = hasPermission('system:db-admin:export');
   const canWrite = hasPermission('system:db-admin:write');
   const canMaintain = hasPermission('system:db-admin:maintain');
+  const canTerminal = hasPermission('system:db-admin:terminal');
   const { isDark } = useThemeController();
   const monacoTheme = isDark ? 'vs-dark' : 'light';
 
@@ -1318,6 +1319,8 @@ export default function DbAdminPage() {
                   structureColumnsCache={structureColumnsCacheRef}
                   canQuery={canQuery}
                   canExport={canExport}
+                  canTerminal={canTerminal}
+                  canWrite={canWrite}
                   monacoTheme={monacoTheme}
                 />
               </Suspense>

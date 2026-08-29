@@ -25,6 +25,8 @@ const envSchema = z.object({
   DATABASE_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(20),
   DATABASE_CONNECT_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(10),
   DATABASE_SSL: boolStr('false'),
+  /** psql 可执行文件路径；留空时按 PATH 查找，用于数据库管理页的 psql 终端 */
+  PSQL_PATH: z.string().default(''),
   MULTI_TENANT_MODE: boolStr('false'),
   /** License 执行模式：off = 不检查（默认，开发/演示零感知）；warn = 全功能可用但记录并提示；required = 强制校验 */
   LICENSE_MODE: z.enum(['off', 'warn', 'required']).default('off'),
@@ -171,6 +173,8 @@ export const config = {
     connectTimeoutSeconds: env.DATABASE_CONNECT_TIMEOUT_SECONDS,
     ssl: env.DATABASE_SSL,
   },
+  /** 数据库管理页 psql 终端：可执行文件路径覆盖（留空按 PATH 查找） */
+  psqlPath: env.PSQL_PATH || undefined,
   multiTenantMode: env.MULTI_TENANT_MODE,
   licenseMode: env.LICENSE_MODE,
   licenseIssuerPublicKey: env.LICENSE_ISSUER_PUBLIC_KEY,

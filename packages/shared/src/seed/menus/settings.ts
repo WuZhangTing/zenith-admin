@@ -186,6 +186,7 @@ export const SEED_MENUS_SETTINGS: Menu[] = [
   { id: 2373, parentId: 2370, title: '导出结果', type: 'button', permission: 'system:db-admin:export', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2374, parentId: 2370, title: '修改数据', type: 'button', permission: 'system:db-admin:write', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2375, parentId: 2370, title: '运维操作', type: 'button', permission: 'system:db-admin:maintain', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 2376, parentId: 2370, title: '数据库终端', type: 'button', permission: 'system:db-admin:terminal', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2380, parentId: 2000, title: 'Webhook 机器人', name: 'SystemChatBots', path: '/system/chat-bots', component: 'system/chat-bots/ChatBotsPage', icon: 'Bot', type: 'menu', sort: 16, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2381, parentId: 2380, title: '查询', type: 'button', permission: 'chat:bot:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 2382, parentId: 2380, title: '新增机器人', type: 'button', permission: 'chat:bot:create', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

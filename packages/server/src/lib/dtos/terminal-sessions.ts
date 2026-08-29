@@ -2,6 +2,7 @@
  * 终端会话监控 DTO
  */
 import { z } from '@hono/zod-openapi';
+import { TERMINAL_SESSION_KINDS } from '@zenith/shared/ops';
 
 /** 活动终端会话（管理员监控视图） */
 export const TerminalSessionDTO = z
@@ -9,8 +10,8 @@ export const TerminalSessionDTO = z
     sessionId: z.string(),
     userId: z.number().int(),
     username: z.string(),
-    /** 会话类型：本地 / SSH / Docker */
-    kind: z.enum(['local', 'ssh', 'docker']),
+    /** 会话类型：本地 / SSH / Docker / 数据库 */
+    kind: z.enum(TERMINAL_SESSION_KINDS),
     /** 展示标签：本地为 shell 名，SSH 为 user@host，Docker 为容器名 */
     label: z.string(),
     clientIp: z.string(),

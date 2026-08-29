@@ -31,6 +31,7 @@ import {
   DbAdminSchemaDriftDTO,
   DbAdminOpResultDTO,
   DbAdminImportResultDTO,
+  DbAdminTerminalAvailabilityDTO,
 } from '../../lib/openapi-dtos';
 import {
   listTables,
@@ -76,6 +77,7 @@ import {
   getSchemaDrift,
   type MaintenanceAction,
 } from '../../services/ops/db-admin-ops.service';
+import { getDbTerminalAvailability } from '../../services/ops/db-admin-terminal.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -806,6 +808,16 @@ const schemaDriftRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await getSchemaDrift()), 200),
 });
 
+const terminalAvailabilityRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/terminal-availability', tags: ['DbAdmin'], summary: '数据库终端（psql）可用性',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:db-admin:terminal' })] as const,
+    responses: { ...commonErrorResponses, ...ok(DbAdminTerminalAvailabilityDTO, '数据库终端可用性') },
+  }),
+  handler: async (c) => c.json(okBody(await getDbTerminalAvailability()), 200),
+});
+
 router.openapiRoutes([
   activityRoute,
   cancelBackendRoute,
@@ -816,6 +828,7 @@ router.openapiRoutes([
   indexHealthRoute,
   objectsRoute,
   schemaDriftRoute,
+  terminalAvailabilityRoute,
 ] as const);
 
 export default router;

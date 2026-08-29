@@ -676,6 +676,15 @@ class TerminalSessionStore {
     return true;
   }
 
+  /** 向终端进程注入输入（等价于用户键入；数据库终端快捷命令使用） */
+  sendInput(sessionId: string, data: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.ws.readyState !== WebSocket.OPEN) return;
+    session.recording?.events.push([(Date.now() - (session.recording?.startTime ?? 0)) / 1000, 'i', data]);
+    session.ws.send(JSON.stringify({ type: 'terminal:input', data }));
+    session.term.focus();
+  }
+
   /** 全选终端缓冲区 */
   selectAll(sessionId: string): void {
     const session = this.sessions.get(sessionId);

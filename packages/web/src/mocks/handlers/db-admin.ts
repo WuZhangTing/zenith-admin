@@ -327,6 +327,10 @@ function runMockQuery(sqlText: string): {
 
 // ─── Handlers ───────────────────────────────────────────────────────────────────
 export const dbAdminHandlers = [
+  // 数据库终端可用性（Demo 模式无真实服务端，统一不可用）
+  http.get(`${API}/api/db-admin/terminal-availability`, () =>
+    ok({ available: false, version: null, reason: 'Demo 模式不支持数据库终端（psql 会话需真实服务端）' })),
+
   // 表列表
   http.get(`${API}/api/db-admin/tables`, () => {
     return ok(tables.map((t) => {

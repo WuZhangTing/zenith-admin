@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
+import type { TerminalSessionKind } from '@zenith/shared/ops';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -23,7 +24,7 @@ export interface SshProfile {
   createdAt: string;
   updatedAt: string;
 }
-export type TerminalKind = 'local' | 'ssh' | 'docker';
+export type TerminalKind = TerminalSessionKind;
 export interface TerminalSessionItem {
   sessionId: string;
   userId: number;

@@ -37,6 +37,7 @@ import {
   persistNewTerminalSession,
   recordTerminalSessionFailure,
 } from '../../services/ops/terminal-sessions.service';
+import { parseDbTerminalShellType, resolveDbPsqlLaunch } from '../../services/ops/db-admin-terminal.service';
 
 /** 终端会话监控权限码 */
 const MONITOR_PERMISSION = 'system:terminal:monitor';
@@ -95,7 +96,17 @@ function parseDockerExecShell(type: string | undefined): DockerExecShell | null 
  * shell 列表由 listShells() 按当前平台动态探测；前端传入的 id 必须在白名单内，
  * 否则回退到平台默认 shell，避免任意可执行文件注入。
  */
-async function resolveShell(type: string | undefined): Promise<{ file: string; args: string[] }> {
+async function resolveShell(type: string | undefined): Promise<{
+  file: string;
+  args: string[];
+  /** 追加到 PTY 的环境变量（如 psql 凭据） */
+  env?: Record<string, string>;
+  /** 预置会话展示标签（数据库终端使用） */
+  label?: string;
+}> {
+  // 数据库管理页 psql 终端 — 连接参数由服务端从自身配置构造
+  const dbMode = parseDbTerminalShellType(type);
+  if (dbMode) return resolveDbPsqlLaunch(dbMode);
   // docker exec 进容器 — 不在 shell 白名单内，提前处理
   if (type?.startsWith('docker-exec:')) {
     const dockerShell = parseDockerExecShell(type);
@@ -266,12 +277,17 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
             } catch { /* Redis 不可用时放行 */ }
           }
 
-          // 权限校验：超管 或 拥有 system:terminal:execute
+          // 权限校验：普通终端要求 system:terminal:execute；
+          // 数据库终端要求 system:db-admin:terminal，读写模式额外要求 system:db-admin:write。
+          const requestedDbMode = parseDbTerminalShellType(shellType);
           const isSA = isSuperAdmin(payload);
           if (!isSA) {
+            const required = requestedDbMode
+              ? ['system:db-admin:terminal', ...(requestedDbMode === 'rw' ? ['system:db-admin:write'] : [])]
+              : ['system:terminal:execute'];
             try {
               const perms = await getUserPermissions(payload.userId);
-              if (!perms.includes('system:terminal:execute')) {
+              if (!required.every((p) => perms.includes(p))) {
                 ws.close(4003, 'Forbidden');
                 return;
               }
@@ -326,10 +342,11 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
             return;
           }
 
-          // ── 创建新终端进程（本地 PTY / SSH / Docker） ──
+          // ── 创建新终端进程（本地 PTY / SSH / Docker / 数据库 psql） ──
           const isSsh = shellType?.startsWith('ssh:');
           const isDocker = shellType?.startsWith('docker-exec:');
-          const kind: TerminalKind = isSsh ? 'ssh' : isDocker ? 'docker' : 'local';
+          const isDb = requestedDbMode !== null;
+          const kind: TerminalKind = isSsh ? 'ssh' : isDocker ? 'docker' : isDb ? 'db' : 'local';
           const clientIp = getClientIp(c);
 
           let termProcess: TerminalProcess;
@@ -356,10 +373,12 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               termProcess = ssh.process;
               label = ssh.label;
             } else {
-              // ── 本地 PTY / Docker exec ──
-              const { file: shellFile, args: shellArgs } = await resolveShell(shellType);
+              // ── 本地 PTY / Docker exec / 数据库 psql ──
+              const { file: shellFile, args: shellArgs, env: shellEnv, label: shellLabel } = await resolveShell(shellType);
               const isWsl = shellType?.startsWith('wsl:');
-              if (isDocker) {
+              if (isDb) {
+                label = shellLabel ?? 'psql';
+              } else if (isDocker) {
                 const dockerShell = parseDockerExecShell(shellType);
                 label = dockerShell
                   ? `docker:${dockerShell.containerId.slice(0, 12)}:${dockerShell.shellName}`
@@ -372,7 +391,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
               // 解析工作目录：优先使用前端传入的 cwd（须为已存在目录），否则回退用户主目录
               // WSL 会话使用 Windows 用户主目录作为 cwd（让 WSL 在自身 home 启动；传 Windows 路径给 wsl.exe 是安全的）
               let cwd = os.homedir() || process.cwd();
-              if (!isWsl && cwdParam) {
+              if (!isWsl && !isDb && cwdParam) {
                 try {
                   // 单次异步 stat 即可判定存在性与目录类型，避免 existsSync+statSync 双重同步调用
                   if ((await fs.promises.stat(cwdParam)).isDirectory()) {
@@ -380,14 +399,14 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
                   }
                 } catch { /* 无效路径回退默认 */ }
               }
-              initialCwd = isWsl || isDocker ? undefined : cwd;
+              initialCwd = isWsl || isDocker || isDb ? undefined : cwd;
 
               const ptyProcess = pty.spawn(shellFile, shellArgs, {
                 name: 'xterm-256color',
                 cols: 80,
                 rows: 24,
                 cwd,
-                env: process.env,
+                env: shellEnv ? { ...process.env, ...shellEnv } : process.env,
               });
 
               ptyProcess.onData((data) => { emitOutput(data); });

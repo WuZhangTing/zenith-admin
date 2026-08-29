@@ -215,6 +215,7 @@ export const dbAdminKeys = {
   indexHealth: ['db-admin', 'index-health'] as const,
   schemaDrift: ['db-admin', 'schema-drift'] as const,
   favorites: ['db-admin', 'query-favorites'] as const,
+  terminalAvailability: ['db-admin', 'terminal-availability'] as const,
 };
 
 export function useDbAdminOverview() {
@@ -228,6 +229,22 @@ export function useDbAdminTables() {
   return useQuery({
     queryKey: dbAdminKeys.tables,
     queryFn: () => request.get<DbAdminTableItem[]>('/api/db-admin/tables').then(unwrap),
+  });
+}
+
+export interface DbAdminTerminalAvailability {
+  available: boolean;
+  version: string | null;
+  reason: string | null;
+}
+
+/** 数据库终端（psql）可用性；服务端环境探测结果，短期内视为静态 */
+export function useDbAdminTerminalAvailability(enabled: boolean) {
+  return useQuery({
+    queryKey: dbAdminKeys.terminalAvailability,
+    queryFn: () => request.get<DbAdminTerminalAvailability>('/api/db-admin/terminal-availability').then(unwrap),
+    enabled,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

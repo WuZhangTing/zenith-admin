@@ -20,13 +20,14 @@ export const TERMINAL_SESSION_STATE_LABELS: Record<TerminalSessionState, string>
 };
 
 /** 终端会话运行目标类型 */
-export const TERMINAL_SESSION_KINDS = ['local', 'ssh', 'docker'] as const;
+export const TERMINAL_SESSION_KINDS = ['local', 'ssh', 'docker', 'db'] as const;
 export type TerminalSessionKind = (typeof TERMINAL_SESSION_KINDS)[number];
 
 export const TERMINAL_SESSION_KIND_LABELS: Record<TerminalSessionKind, string> = {
   local: '本地',
   ssh: 'SSH',
   docker: 'Docker',
+  db: '数据库',
 };
 
 /** 会话结束原因；落库用于事后追溯"这个会话是怎么没的" */

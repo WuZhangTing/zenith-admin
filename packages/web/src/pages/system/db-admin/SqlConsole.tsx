@@ -7,7 +7,7 @@ import {
 } from '@douyinfe/semi-ui';
 import {
   Play, Eye, Download, Plus, X, Bookmark, BookmarkPlus, ArrowRight, Pencil, Trash2,
-  Sparkles, Copy, Code, Ban, BarChart3, ChevronDown,
+  Sparkles, Copy, Code, Ban, BarChart3, ChevronDown, SquareTerminal,
 } from 'lucide-react';
 import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import Editor from '@monaco-editor/react';
@@ -18,8 +18,11 @@ import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { AppModal } from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
+import { confirmDanger } from '@/utils/confirm';
 import { DataGrid, CellDetailDrawer, type CellPos, type DataGridColumn, type DataGridHandle } from '@/components/data-grid';
 import { formatDateTime } from '@/utils/date';
+import { terminalSessionStore } from '../terminal/terminalSessionStore';
+import { DbTerminalPane, type DbTerminalShell } from './DbTerminalPane';
 import { ExplainView } from './ExplainView';
 import { ResultChart } from './ResultChart';
 import { rowsToJson, rowsToMarkdown } from './result-format';
@@ -28,6 +31,7 @@ import {
   useDbAdminCancelQuery,
   useDbAdminExecuteQuery,
   useDbAdminExplain,
+  useDbAdminTerminalAvailability,
   useDbQueryFavorites,
   useDeleteDbQueryFavorite,
   useSaveDbQueryFavorite,
@@ -54,12 +58,18 @@ interface ConsoleTableRef {
 
 interface ConsoleTab {
   id: number;
+  /** query = Monaco 查询标签；terminal = 内嵌 psql 终端标签 */
+  type: 'query' | 'terminal';
   title: string;
   sql: string;
   result: DbAdminQueryResult | null;
   error: string | null;
   /** 产生当前结果的 SQL（服务端分页翻页时复用） */
   executedSql: string | null;
+  /** 终端标签：终端会话 store 的面板句柄 */
+  paneId?: string;
+  /** 终端标签：shell 标识（决定只读 / 读写） */
+  shell?: DbTerminalShell;
 }
 
 export interface SqlConsoleHandle {
@@ -71,6 +81,10 @@ interface SqlConsoleProps {
   structureColumnsCache: React.RefObject<Map<string, string[]>>;
   canQuery: boolean;
   canExport: boolean;
+  /** system:db-admin:terminal — 数据库终端入口 */
+  canTerminal: boolean;
+  /** system:db-admin:write — 读写终端额外要求 */
+  canWrite: boolean;
   monacoTheme: string;
 }
 
@@ -88,10 +102,10 @@ let completionColumns: Map<string, string[]> = new Map();
 let completionDisposable: { dispose: () => void } | null = null;
 
 export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function SqlConsole(props, ref) {
-  const { tables, structureColumnsCache, canQuery, canExport, monacoTheme } = props;
+  const { tables, structureColumnsCache, canQuery, canExport, canTerminal, canWrite, monacoTheme } = props;
 
   const [tabs, setTabs] = useState<ConsoleTab[]>([
-    { id: 1, title: '查询 1', sql: DEFAULT_SQL, result: null, error: null, executedSql: null },
+    { id: 1, type: 'query', title: '查询 1', sql: DEFAULT_SQL, result: null, error: null, executedSql: null },
   ]);
   const [activeId, setActiveId] = useState(1);
   const nextIdRef = useRef(2);
@@ -124,6 +138,12 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   const explainLoading = explainMutation.isPending;
   const favLoading = favoritesQuery.isFetching;
   const favorites = favoritesQuery.data ?? [];
+  // 终端可用性探测（服务端 psql 环境；无权限时不请求）
+  const terminalAvailability = useDbAdminTerminalAvailability(canTerminal).data;
+  const terminalReady = terminalAvailability?.available === true;
+  const terminalDisabledReason = terminalAvailability
+    ? terminalAvailability.reason ?? undefined
+    : '正在检测服务端 psql 环境…';
   const saveFavoriteModal = useEditModal<DbQueryFavorite, FavoriteFormValues, { name: string; sql: string; description?: string; tags: string[] }>({
     save: saveFavoriteMutation,
     defaults: () => ({ name: formatDateTime(new Date()) }),
@@ -151,14 +171,45 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
 
   const addTab = useCallback((sql = DEFAULT_SQL, title?: string) => {
     const id = nextIdRef.current++;
-    setTabs((prev) => [...prev, { id, title: title ?? `查询 ${id}`, sql, result: null, error: null, executedSql: null }]);
+    setTabs((prev) => [...prev, { id, type: 'query', title: title ?? `查询 ${id}`, sql, result: null, error: null, executedSql: null }]);
     setActiveId(id);
     return id;
   }, []);
 
+  const addTerminalTab = useCallback((mode: 'ro' | 'rw') => {
+    const id = nextIdRef.current++;
+    const paneId = `db-admin-term-${genQueryId()}`;
+    setTabs((prev) => [...prev, {
+      id,
+      type: 'terminal',
+      title: `终端 ${id} · ${mode === 'ro' ? '只读' : '读写'}`,
+      sql: '',
+      result: null,
+      error: null,
+      executedSql: null,
+      paneId,
+      shell: mode === 'ro' ? 'db-psql' : 'db-psql:rw',
+    }]);
+    setActiveId(id);
+  }, []);
+
+  const openRwTerminal = useCallback(() => {
+    confirmDanger({
+      title: '打开读写数据库终端',
+      content: '读写终端直接以服务连接账号执行任意 SQL（含 DML / DDL），操作立即生效且不可撤销。会话全程录制审计，确认打开？',
+      okText: '打开读写终端',
+      onOk: () => addTerminalTab('rw'),
+    });
+  }, [addTerminalTab]);
+
   const closeTab = useCallback((id: number) => {
     setTabs((prev) => {
       if (prev.length === 1) return prev;
+      const closing = prev.find((t) => t.id === id);
+      // 终端标签关闭 = 结束 psql 会话（标记后由 TerminalTab 卸载时销毁）
+      if (closing?.type === 'terminal' && closing.paneId) {
+        terminalSessionStore.markForDestruction(closing.paneId);
+      }
       const idx = prev.findIndex((t) => t.id === id);
       const next = prev.filter((t) => t.id !== id);
       if (id === activeId) {
@@ -169,16 +220,28 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
     });
   }, [activeId]);
 
+  // 离开页面（组件卸载）时结束所有 psql 会话，避免孤儿连接挂在隐藏根上
+  const terminalPaneIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    terminalPaneIdsRef.current = tabs
+      .filter((t) => t.type === 'terminal' && t.paneId)
+      .map((t) => t.paneId as string);
+  }, [tabs]);
+  useEffect(() => () => {
+    for (const paneId of terminalPaneIdsRef.current) terminalSessionStore.destroy(paneId);
+  }, []);
+
   useImperativeHandle(ref, () => ({
     loadSql: (sqlText: string, opts?: { newTab?: boolean }) => {
-      if (opts?.newTab) {
+      // 活动标签是终端时不能就地替换 SQL，落到新查询标签
+      if (opts?.newTab || activeTab.type === 'terminal') {
         addTab(sqlText);
       } else {
         setTabs((prev) => prev.map((t) => (t.id === activeId ? { ...t, sql: sqlText } : t)));
         editorRef.current?.setValue(sqlText);
       }
     },
-  }), [activeId, addTab]);
+  }), [activeId, activeTab.type, addTab]);
 
   const runPage = useCallback(async (sqlText: string, page: number, resetView: boolean) => {
     const queryId = genQueryId();
@@ -344,7 +407,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
                 color: active ? 'var(--semi-color-primary)' : 'var(--semi-color-text-1)',
               }}
             >
-              <Code size={13} />
+              {t.type === 'terminal' ? <SquareTerminal size={13} /> : <Code size={13} />}
               <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
               {tabs.length > 1 && (
                 <X
@@ -356,11 +419,60 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
             </div>
           );
         })}
-        <Tooltip content="新建查询标签">
-          <Button size="small" theme="borderless" icon={<Plus size={14} />} onClick={() => addTab()} />
-        </Tooltip>
+        {canTerminal ? (
+          <Dropdown
+            trigger="click"
+            render={(
+              <Dropdown.Menu>
+                <Dropdown.Item icon={<Code size={14} />} onClick={() => addTab()}>新建查询</Dropdown.Item>
+                <Dropdown.Item
+                  icon={<SquareTerminal size={14} />}
+                  disabled={!terminalReady}
+                  onClick={() => addTerminalTab('ro')}
+                >
+                  <Tooltip content={terminalReady ? undefined : terminalDisabledReason}>
+                    <span>数据库终端（只读）</span>
+                  </Tooltip>
+                </Dropdown.Item>
+                {canWrite && (
+                  <Dropdown.Item
+                    icon={<SquareTerminal size={14} />}
+                    type="danger"
+                    disabled={!terminalReady}
+                    onClick={openRwTerminal}
+                  >
+                    <Tooltip content={terminalReady ? undefined : terminalDisabledReason}>
+                      <span>数据库终端（读写）</span>
+                    </Tooltip>
+                  </Dropdown.Item>
+                )}
+              </Dropdown.Menu>
+            )}
+          >
+            <Button size="small" theme="borderless" icon={<Plus size={14} />} />
+          </Dropdown>
+        ) : (
+          <Tooltip content="新建查询标签">
+            <Button size="small" theme="borderless" icon={<Plus size={14} />} onClick={() => addTab()} />
+          </Tooltip>
+        )}
       </div>
 
+      {/* 终端标签内容：常驻挂载保持会话，仅切换可见性 */}
+      {tabs.filter((t) => t.type === 'terminal' && t.paneId).map((t) => (
+        <div
+          key={t.paneId}
+          style={{
+            display: t.id === activeId ? 'flex' : 'none',
+            flexDirection: 'column', flex: 1, minHeight: 420,
+          }}
+        >
+          <DbTerminalPane paneId={t.paneId as string} shell={t.shell as DbTerminalShell} active={t.id === activeId} />
+        </div>
+      ))}
+
+      {/* 查询标签内容：终端激活时整体隐藏（display:contents 不引入额外布局层） */}
+      <div style={{ display: activeTab.type === 'query' ? 'contents' : 'none' }}>
       <div style={{ width: '100%', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', overflow: 'hidden' }}>
         <Editor
           key="db-admin-sql-editor"
@@ -553,6 +665,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
           )}
         </div>
       )}
+      </div>
 
       {/* EXPLAIN 结果 */}
       <AppModal

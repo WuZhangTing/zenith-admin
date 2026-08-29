@@ -15,6 +15,7 @@
 | `system:db-admin:export` | 表数据与查询结果导出 |
 | `system:db-admin:write` | 行级插入 / 更新 / 删除、批量变更、导入、TRUNCATE |
 | `system:db-admin:maintain` | 活动连接取消 / 终止、表维护、物化视图刷新 |
+| `system:db-admin:terminal` | SQL 控制台内嵌 psql 终端（读写模式额外要求 `system:db-admin:write`） |
 
 ### 安全边界
 
@@ -29,6 +30,7 @@
 - **总览与对象**：数据库版本、大小、连接数等总览（`GET /overview`）；序列、函数、触发器、枚举、扩展清单（`GET /objects`）。
 - **表浏览与行编辑**：表列表、表结构、分页行数据（支持原生 WHERE 过滤与排序）；插入、更新、删除行；`POST /batch-mutate` 在单事务中批量插入、更新、删除；`POST /truncate` 截断表。
 - **SQL 查询台**：执行只读 SQL（分页返回）、`POST /query/cancel` 取消执行中的查询、`POST /explain` 查看执行计划；查询历史与 SQL 收藏夹 CRUD。
+- **psql 终端**：SQL 控制台标签栏可新建「数据库终端」，经 Web 终端基建（`/api/ws/terminal?shell=db-psql`，读写为 `db-psql:rw`）在服务端启动 psql 会话；连接参数由服务端从 `DATABASE_URL` 构造、凭据经环境变量注入 PTY，不下发前端。只读模式以 `PGOPTIONS` 设置 `default_transaction_read_only=on`（防误操作默认值，非权限边界）。会话以 `kind='db'` 落库，复用终端会话的录制审计、断线重连、配额与管理员旁观 / 接管。`GET /terminal-availability` 探测服务端 psql 客户端（可用 `PSQL_PATH` 环境变量指定路径）；Demo 模式不可用。
 - **导入导出**：`POST /tables/{schema}/{name}/import` 批量导入 CSV / JSON；`GET .../export.csv`、`GET .../export.sql` 导出表数据；`POST /query/export.csv`、`POST /query/export.json` 导出查询结果。
 - **ER 图**：`GET /er-diagram` 返回所有外键关系，`GET /er-schema` 返回表、列与外键完整模式。
 - **健康与维护**：`GET /index-health` 索引健康；`GET /maintenance/tables` 表维护统计；`POST .../maintenance` 执行 VACUUM / ANALYZE / REINDEX；`POST .../refresh` 刷新物化视图。

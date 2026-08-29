@@ -309,3 +309,12 @@ export const DbAdminSchemaDriftDTO = z
 export const DbAdminOpResultDTO = z
   .object({ ok: z.boolean() })
   .openapi('DbAdminOpResult');
+
+// ─── 数据库终端（psql）─────────────────────────────────────────────────────────
+export const DbAdminTerminalAvailabilityDTO = z
+  .object({
+    available: z.boolean(),
+    version: z.string().nullable(),
+    reason: z.string().nullable(),
+  })
+  .openapi('DbAdminTerminalAvailability');

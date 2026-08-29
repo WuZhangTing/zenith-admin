@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { TERMINAL_SESSION_KINDS } from '@zenith/shared/ops';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import {
@@ -37,7 +38,7 @@ const listRoute = defineOpenAPIRoute({
     request: {
       query: PaginationQuery.extend({
         keyword: z.string().optional(),
-        kind: z.enum(['local', 'ssh', 'docker']).optional(),
+        kind: z.enum(TERMINAL_SESSION_KINDS).optional(),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(TerminalSessionDTO, '活动会话列表') },
