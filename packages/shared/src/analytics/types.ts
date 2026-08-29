@@ -163,7 +163,73 @@ export interface ErrorEvent {
   environment: AnalyticsEnvironment;
   /** 会员身份（前台错误上报），与 userId（后台管理员）互斥 */
   memberId: number | null;
+  /** 报错时刻活跃的回放会话 ID（SDK 注入，精确关联） */
+  replayId: string | null;
   createdAt: string;
+}
+
+// ─── 会话回放 ─────────────────────────────────────────────────────────────────
+/** 回放采集起始模式：buffer=错误触发前仅内存缓冲；stream=会话开始即持续上传 */
+export type ReplayMode = 'buffer' | 'stream';
+
+/** 回放会话状态：recording=进行中（可追流）；completed=已收尾；expired=异常超时收尾 */
+export type ReplayStatus = 'recording' | 'completed' | 'expired';
+
+/** 回放触发器类型（可扩展：二期 rage_click/white_screen，三期反馈联动等） */
+export type ReplayTriggerType = 'error' | 'sampled' | 'manual' | 'rage_click' | 'white_screen';
+
+export interface ReplayTrigger {
+  type: ReplayTriggerType;
+  /** 触发时刻（客户端 ISO 时间） */
+  at: string;
+  /** 关联业务标识（如错误 fingerprint / 反馈 ID） */
+  refId?: string;
+}
+
+export interface ReplaySession {
+  id: string;
+  sessionId: string;
+  mode: ReplayMode;
+  status: ReplayStatus;
+  triggers: ReplayTrigger[];
+  startedAt: string;
+  lastActivityAt: string;
+  endedAt: string | null;
+  durationMs: number;
+  segmentCount: number;
+  totalBytes: number;
+  errorCount: number;
+  pageCount: number;
+  clickCount: number;
+  entryPageUrl: string | null;
+  source: AnalyticsEventSource;
+  appId: string;
+  environment: AnalyticsEnvironment;
+  userId: number | null;
+  username: string | null;
+  memberId: number | null;
+  browser: string | null;
+  os: string | null;
+  deviceType: AnalyticsDeviceType | null;
+  sdkVersion: string | null;
+  createdAt: string;
+}
+
+export interface ReplaySegmentMeta {
+  id: number;
+  replayId: string;
+  seq: number;
+  fromTs: string;
+  toTs: string;
+  byteSize: number;
+  eventCount: number;
+  hasFullSnapshot: boolean;
+}
+
+/** 回放详情：会话 + 分片清单 + 关联错误（时间轴标注与跳转用） */
+export interface ReplaySessionDetail extends ReplaySession {
+  segments: ReplaySegmentMeta[];
+  errors: Array<Pick<ErrorEvent, 'id' | 'groupId' | 'errorType' | 'level' | 'message' | 'createdAt'>>;
 }
 
 export interface ErrorBreadcrumb {
@@ -296,6 +362,18 @@ export interface AnalyticsSettings {
   retentionDays: number;
   errorRetentionDays: number;
   sessionTimeoutMinutes: number;
+  /** 会话回放总开关 */
+  trackReplay: boolean;
+  /** 全程录制采样率（0-1）：命中的会话从进入即持续录制 */
+  replaySessionSampleRate: number;
+  /** 错误触发回放：报错时上传错误前的缓冲现场并继续录制 */
+  replayOnError: boolean;
+  /** 回放打码所有文本（默认仅打码输入框） */
+  replayMaskAllText: boolean;
+  /** 回放屏蔽元素的 CSS 选择器（命中元素整块不录制） */
+  replayBlockSelector: string;
+  /** 回放数据保留天数 */
+  replayRetentionDays: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -313,6 +391,16 @@ export interface AnalyticsPublicConfig {
   respectDnt: boolean;
   blacklistPaths: string[];
   sessionTimeoutMinutes: number;
+  /** 会话回放总开关（关闭时 SDK 不加载 rrweb） */
+  trackReplay: boolean;
+  /** 全程录制采样率（0-1） */
+  replaySessionSampleRate: number;
+  /** 错误触发回放 */
+  replayOnError: boolean;
+  /** 回放打码所有文本 */
+  replayMaskAllText: boolean;
+  /** 回放屏蔽元素选择器 */
+  replayBlockSelector: string;
   siteId?: number;
   appId?: string;
 }

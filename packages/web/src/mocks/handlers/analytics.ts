@@ -149,13 +149,16 @@ let mockSettings: AnalyticsSettings = {
   id: 1, enabled: true, sampleRate: 1, trackPageviews: true, trackClicks: true, trackPerformance: true,
   trackErrors: true, trackApi: true, maskInputs: true, respectDnt: false, anonymizeIp: false, blacklistPaths: ['/login'],
   errorIgnorePatterns: ['Invalid DOM property'],
-  retentionDays: 180, errorRetentionDays: 90, sessionTimeoutMinutes: 30, createdAt: mockDateTimeOffset(-60 * 86400000), updatedAt: mockDateTime(),
+  retentionDays: 180, errorRetentionDays: 90, sessionTimeoutMinutes: 30,
+  trackReplay: false, replaySessionSampleRate: 0, replayOnError: true, replayMaskAllText: false, replayBlockSelector: '', replayRetentionDays: 30,
+  createdAt: mockDateTimeOffset(-60 * 86400000), updatedAt: mockDateTime(),
 };
 
 const PUBLIC_CONFIG: AnalyticsPublicConfig = {
   enabled: true, sampleRate: 1, trackPageviews: true, trackClicks: true, trackPerformance: true,
   trackErrors: true, trackApi: true, maskInputs: true, respectDnt: false, blacklistPaths: ['/login'],
   sessionTimeoutMinutes: 30,
+  trackReplay: false, replaySessionSampleRate: 0, replayOnError: true, replayMaskAllText: false, replayBlockSelector: '',
 };
 
 function buildEvents(count: number): EventListItem[] {

@@ -16,6 +16,7 @@ import { evaluateAlertsForError } from './error-alert.service';
 import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service';
 import { recordQualityIssue } from './analytics-governance.service';
 import { isErrorIgnored } from './analytics-settings.service';
+import { bumpReplayErrorCount } from './session-replays.service';
 import logger from '../../lib/logger';
 
 export interface ErrorReqCtx { ip: string; ua: string; siteKey?: string | null; origin?: string | null }
@@ -78,6 +79,7 @@ export function mapEvent(row: ErrorEventRow) {
     appId: row.appId,
     environment: row.environment,
     memberId: row.memberId,
+    replayId: row.replayId,
     createdAt: formatDateTime(row.createdAt),
   };
 }
@@ -118,6 +120,7 @@ export async function reportError(input: {
   source?: AnalyticsEventSource;
   appId?: string;
   environment?: AnalyticsEnvironment;
+  replayId?: string;
 }, reqCtx: ErrorReqCtx): Promise<void> {
   const user = currentUserOrNull();
   // 管理员 / 会员身份互斥：单次请求只会经过其中一种认证中间件
@@ -191,6 +194,7 @@ export async function reportError(input: {
       appId: platform.appId,
       environment: platform.environment,
       memberId: member?.memberId ?? null,
+      replayId: input.replayId ?? null,
     });
 
     // 影响用户数 O(1) 增量维护：身份首次出现在该分组时 +1（替代旧的详情页 COUNT(DISTINCT) 懒回写）
@@ -220,6 +224,11 @@ export async function reportError(input: {
   // 实时告警联动（best-effort，不阻塞上报响应）；count===1 表示本次新建分组
   void evaluateAlertsForError({ tenantId, errorType: input.errorType, level, isNewGroup: group.count === 1 })
     .catch(() => { /* cron 保底，评估失败不影响上报 */ });
+
+  // 回放会话错误计数回填（best-effort：回放会话可能尚未创建，首分片稍后才到）
+  if (input.replayId) {
+    void bumpReplayErrorCount(input.replayId).catch(() => { /* 回放未落地时静默 */ });
+  }
 }
 
 // ─── 分组列表 ─────────────────────────────────────────────────────────────────

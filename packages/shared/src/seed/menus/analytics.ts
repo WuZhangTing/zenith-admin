@@ -15,6 +15,9 @@ export const SEED_MENUS_ANALYTICS: Menu[] = [
   { id: 7032, parentId: 7030, title: '清除错误', type: 'button', permission: 'monitor:error:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 7033, parentId: 7030, title: '告警查看', type: 'button', permission: 'monitor:alert:list', sort: 2, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 7034, parentId: 7030, title: '告警管理', type: 'button', permission: 'monitor:alert:manage', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 7040, parentId: 7000, title: '会话回放', name: 'SessionReplays', path: '/analytics/replays', component: 'analytics/SessionReplaysPage', icon: 'Video', type: 'menu', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 7041, parentId: 7040, title: '查询', type: 'button', permission: 'monitor:replay:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 7042, parentId: 7040, title: '删除', type: 'button', permission: 'monitor:replay:manage', sort: 1, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
 
   // ─── 支付中心（8000 段）
 ];

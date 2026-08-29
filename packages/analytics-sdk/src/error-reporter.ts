@@ -6,6 +6,7 @@ import { TOKEN_KEY } from '@zenith/shared/core';
 import type { FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
 import { getBreadcrumbs } from './breadcrumbs';
 import { analyticsRequestHeaders } from './http';
+import { getActiveReplayId, notifyReplayTrigger } from './replay';
 import type { AnalyticsRuntimeBaseConfig } from './runtime-config';
 
 const SESSION_KEY = 'zenith_tracker_sid';
@@ -85,6 +86,9 @@ export function reportError(errorType: FrontendErrorType, message: string, optio
 
     const sessionId = sessionStorage.getItem(runtimeSessionKey()) ?? undefined;
 
+    // 回放联动：触发缓冲上传（buffer→streaming）并取回放会话 ID 精确关联
+    const replayId = notifyReplayTrigger('error', errorType) ?? getActiveReplayId() ?? undefined;
+
     const payload = {
       errorType,
       level: options?.level,
@@ -96,6 +100,7 @@ export function reportError(errorType: FrontendErrorType, message: string, optio
       pageUrl: globalThis.location.href.slice(0, 512),
       release: getRelease(),
       sessionId,
+      replayId,
       breadcrumbs: getBreadcrumbs(),
       context: options?.context,
       httpStatus: options?.httpStatus,

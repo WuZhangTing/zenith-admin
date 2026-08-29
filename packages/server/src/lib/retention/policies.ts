@@ -21,6 +21,15 @@ async function analyticsErrorRetention(): Promise<TenantRetentionDays> {
   return new Map(rows.map((row) => [row.tenantId, row.days]));
 }
 
+/** 会话回放：各租户在「数据分析设置」中自定义的回放保留天数 */
+async function analyticsReplayRetention(): Promise<TenantRetentionDays> {
+  const rows = await db.select({
+    tenantId: analyticsSettings.tenantId,
+    days: analyticsSettings.replayRetentionDays,
+  }).from(analyticsSettings);
+  return new Map(rows.map((row) => [row.tenantId, row.days]));
+}
+
 /**
  * 全库数据保留策略声明（SSOT）。
  *
@@ -303,6 +312,17 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
       await purgeOrphanErrorGroups();
     },
     description: '前端 JS 异常上报明细；各租户可单独指定错误保留天数。清理后同步回收无引用的错误分组。',
+  },
+  {
+    key: 'replay_sessions',
+    title: '会话回放',
+    module: '数据分析',
+    tableName: 'replay_sessions',
+    timeColumn: 'started_at',
+    defaultDays: 30,
+    batchSize: 200,
+    perTenant: analyticsReplayRetention,
+    description: '会话回放录像（rrweb 分片随会话级联删除）；单行体积大，保留期不宜过长。',
   },
   {
     key: 'analytics_event_quality_daily',

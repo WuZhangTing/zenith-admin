@@ -28,6 +28,12 @@ export function mapSettings(row: AnalyticsSettingsRow) {
     retentionDays: row.retentionDays,
     errorRetentionDays: row.errorRetentionDays,
     sessionTimeoutMinutes: row.sessionTimeoutMinutes,
+    trackReplay: row.trackReplay,
+    replaySessionSampleRate: row.replaySessionSampleRate,
+    replayOnError: row.replayOnError,
+    replayMaskAllText: row.replayMaskAllText,
+    replayBlockSelector: row.replayBlockSelector,
+    replayRetentionDays: row.replayRetentionDays,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -64,6 +70,12 @@ export async function updateSettings(input: UpdateAnalyticsSettingsInput) {
       ...(input.retentionDays !== undefined ? { retentionDays: input.retentionDays } : {}),
       ...(input.errorRetentionDays !== undefined ? { errorRetentionDays: input.errorRetentionDays } : {}),
       ...(input.sessionTimeoutMinutes !== undefined ? { sessionTimeoutMinutes: input.sessionTimeoutMinutes } : {}),
+      ...(input.trackReplay !== undefined ? { trackReplay: input.trackReplay } : {}),
+      ...(input.replaySessionSampleRate !== undefined ? { replaySessionSampleRate: input.replaySessionSampleRate } : {}),
+      ...(input.replayOnError !== undefined ? { replayOnError: input.replayOnError } : {}),
+      ...(input.replayMaskAllText !== undefined ? { replayMaskAllText: input.replayMaskAllText } : {}),
+      ...(input.replayBlockSelector !== undefined ? { replayBlockSelector: input.replayBlockSelector } : {}),
+      ...(input.replayRetentionDays !== undefined ? { replayRetentionDays: input.replayRetentionDays } : {}),
     })
     .where(eq(analyticsSettings.id, current.id))
     .returning();
@@ -85,6 +97,11 @@ const DEFAULT_PUBLIC_CONFIG: AnalyticsPublicConfig = {
   respectDnt: false,
   blacklistPaths: [],
   sessionTimeoutMinutes: 30,
+  trackReplay: false,
+  replaySessionSampleRate: 0,
+  replayOnError: true,
+  replayMaskAllText: false,
+  replayBlockSelector: '',
 };
 
 function settingsTenantWhere(tenantId: number | null) {
@@ -151,6 +168,11 @@ export async function getPublicConfig(siteKey?: string | null): Promise<Analytic
     respectDnt: r.respectDnt,
     blacklistPaths: r.blacklistPaths ?? [],
     sessionTimeoutMinutes: r.sessionTimeoutMinutes,
+    trackReplay: r.trackReplay,
+    replaySessionSampleRate: r.replaySessionSampleRate,
+    replayOnError: r.replayOnError,
+    replayMaskAllText: r.replayMaskAllText,
+    replayBlockSelector: r.replayBlockSelector,
     ...(site ? { siteId: site.id, appId: site.appId } : {}),
   };
 }

@@ -311,7 +311,48 @@ export const updateAnalyticsSettingsSchema = z.object({
   retentionDays: z.number().int().min(1).max(3650).optional(),
   errorRetentionDays: z.number().int().min(1).max(3650).optional(),
   sessionTimeoutMinutes: z.number().int().min(1).max(1440).optional(),
+  trackReplay: z.boolean().optional(),
+  replaySessionSampleRate: z.number().min(0).max(1).optional(),
+  replayOnError: z.boolean().optional(),
+  replayMaskAllText: z.boolean().optional(),
+  replayBlockSelector: z.string().max(256).optional(),
+  replayRetentionDays: z.number().int().min(1).max(3650).optional(),
 });
+
+// ─── 会话回放 ─────────────────────────────────────────────────────────────────
+/** 回放分片上报 meta（multipart 的 meta 字段，与二进制 gz 数据同包提交） */
+export const replaySegmentMetaSchema = z.object({
+  /** 回放会话 ID（客户端生成 UUID，首分片 upsert 会话） */
+  replayId: z.string().uuid(),
+  /** tracker 会话 ID */
+  sessionId: z.string().min(1).max(36),
+  seq: z.number().int().min(0).max(600),
+  mode: z.enum(['buffer', 'stream']),
+  triggers: z.array(z.object({
+    type: z.enum(['error', 'sampled', 'manual', 'rage_click', 'white_screen']),
+    at: z.string(),
+    refId: z.string().max(128).optional(),
+  })).max(50),
+  /** 会话起点（客户端毫秒时间戳） */
+  startedAt: z.number(),
+  /** 分片时间范围（客户端毫秒时间戳） */
+  fromTs: z.number(),
+  toTs: z.number(),
+  eventCount: z.number().int().min(0),
+  hasFullSnapshot: z.boolean(),
+  /** 分片内翻页/点击计数（会话行聚合） */
+  pageCount: z.number().int().min(0).default(0),
+  clickCount: z.number().int().min(0).default(0),
+  /** 会话是否随本分片收尾（unload 终包标记） */
+  final: z.boolean().default(false),
+  entryPageUrl: z.string().max(512).optional(),
+  sdkVersion: z.string().max(32).optional(),
+  source: z.enum(ANALYTICS_EVENT_SOURCES).optional(),
+  appId: z.string().min(1).max(64).optional(),
+  environment: z.enum(ANALYTICS_ENVIRONMENTS).optional(),
+});
+
+export type ReplaySegmentMetaInput = z.infer<typeof replaySegmentMetaSchema>;
 
 // ─── 阶段 2：统一对比轴（breakdown 维度 / 群组对比）──────────────────────────
 export const analyticsBreakdownDimensionSchema = z.enum(ANALYTICS_BREAKDOWN_DIMENSIONS);

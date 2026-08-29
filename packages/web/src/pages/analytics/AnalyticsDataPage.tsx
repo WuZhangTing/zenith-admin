@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabPane, Select, Button, Toast, Form, Switch, Slider, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Select, Button, Toast, Form, Switch, Slider, Input, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { Trash2, ChevronDown } from 'lucide-react';
@@ -729,6 +729,59 @@ export default function AnalyticsDataPage() {
               style={{ width: 180 }}
             />
           </Form.Slot>
+          <Form.Slot label="会话回放">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Switch checked={settings.trackReplay} onChange={(checked) => updateSettings('trackReplay', checked)} />
+              <Typography.Text type="tertiary" size="small">开启后 SDK 按需加载 rrweb 录制器（关闭时零开销）</Typography.Text>
+            </div>
+          </Form.Slot>
+          {settings.trackReplay && (
+            <>
+              <Form.Slot label="错误触发回放">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Switch checked={settings.replayOnError} onChange={(checked) => updateSettings('replayOnError', checked)} />
+                  <Typography.Text type="tertiary" size="small">报错时上传错误前约 60s 缓冲现场并继续录制</Typography.Text>
+                </div>
+              </Form.Slot>
+              <Form.Slot label="全程录制采样率">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, maxWidth: 520 }}>
+                  <Slider
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={settings.replaySessionSampleRate}
+                    onChange={(value) => {
+                      if (typeof value === 'number') updateSettings('replaySessionSampleRate', Number(value.toFixed(2)));
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <Typography.Text strong>{Math.round(settings.replaySessionSampleRate * 100)}%</Typography.Text>
+                </div>
+              </Form.Slot>
+              <Form.Slot label="回放打码所有文本">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Switch checked={settings.replayMaskAllText} onChange={(checked) => updateSettings('replayMaskAllText', checked)} />
+                  <Typography.Text type="tertiary" size="small">输入框始终打码；开启后页面全部文本一并脱敏</Typography.Text>
+                </div>
+              </Form.Slot>
+              <Form.Slot label="回放屏蔽选择器">
+                <Input
+                  value={settings.replayBlockSelector}
+                  placeholder="CSS 选择器，如 .sensitive-area（命中元素整块不录制）"
+                  onChange={(value) => updateSettings('replayBlockSelector', value)}
+                  style={{ width: 520 }}
+                />
+              </Form.Slot>
+              <Form.Slot label="回放保留天数">
+                <InputNumber
+                  min={1}
+                  value={settings.replayRetentionDays}
+                  onChange={(value) => updateSettings('replayRetentionDays', numberValue(value, settings.replayRetentionDays))}
+                  style={{ width: 180 }}
+                />
+              </Form.Slot>
+            </>
+          )}
           <Form.Slot label=" ">
             <Button type="primary" loading={saveSettingsMutation.isPending} onClick={() => void handleSaveSettings()}>保存</Button>
           </Form.Slot>

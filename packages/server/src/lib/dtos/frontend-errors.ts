@@ -61,6 +61,8 @@ export const ErrorReportInputDTO = z
     source: sourceEnum.optional(),
     appId: z.string().min(1).max(64).optional(),
     environment: environmentEnum.optional(),
+    /** 报错时刻活跃的回放会话 ID（SDK 注入） */
+    replayId: z.string().uuid().optional(),
   })
   .openapi('ErrorReportInput');
 
@@ -120,6 +122,7 @@ export const ErrorEventDTO = z
     appId: z.string(),
     environment: environmentEnum,
     memberId: z.number().int().nullable(),
+    replayId: z.string().nullable(),
     createdAt: z.string(),
   })
   .openapi('ErrorEvent');

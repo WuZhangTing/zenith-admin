@@ -611,6 +611,12 @@ handlerRegistry.set('cleanupTerminalRecordings', async () => {
   return `清理终端录屏：按保留天数删除 ${r.deletedByAge} 条、按容量删除 ${r.deletedBySize} 条，释放约 ${(r.freedBytes / 1024 / 1024).toFixed(2)} MB`;
 });
 
+handlerRegistry.set('finalizeStaleReplays', async () => {
+  const { finalizeStaleReplays } = await import('../services/analytics/session-replays.service');
+  const count = await finalizeStaleReplays();
+  return `收尾闲置回放会话 ${count} 个`;
+});
+
 handlerRegistry.set('sslCertificateInspection', async () => {
   const { inspectExpiringSslCertificates } = await import('../services/ops/ssl-certificates.service');
   const r = await inspectExpiringSslCertificates();

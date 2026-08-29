@@ -13,6 +13,7 @@ import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { addBreadcrumb } from './breadcrumbs';
 import { configureErrorReporting, configureErrorReporterRuntime, reportError } from './error-reporter';
 import { analyticsRequestHeaders } from './http';
+import { applyReplayConfig, configureReplayRuntime, stopReplay } from './replay';
 import type { AnalyticsRuntimeBaseConfig } from './runtime-config';
 
 const FLUSH_INTERVAL_MS = 15_000;
@@ -66,6 +67,11 @@ const DEFAULT_CONFIG: AnalyticsPublicConfig = {
   respectDnt: false,
   blacklistPaths: [],
   sessionTimeoutMinutes: DEFAULT_SESSION_IDLE_MINUTES,
+  trackReplay: false,
+  replaySessionSampleRate: 0,
+  replayOnError: true,
+  replayMaskAllText: false,
+  replayBlockSelector: '',
 };
 
 type PendingEvent = Omit<TrackEventInput, 'sessionId' | 'anonymousId' | 'distinctId'>;
@@ -105,6 +111,16 @@ export function configureTracker(next: Partial<TrackerRuntimeConfig>): void {
   runtime = { ...runtime, ...next };
   if (shouldClearExperiments) tracker.clearExperimentCache();
   configureErrorReporterRuntime({
+    apiBase: runtime.apiBase,
+    tokenKey: runtime.tokenKey,
+    source: runtime.source,
+    appId: runtime.appId,
+    environment: runtime.environment,
+    sdkVersion: runtime.sdkVersion,
+    consentProvider: runtime.consentProvider,
+    siteKey: runtime.siteKey,
+  });
+  configureReplayRuntime({
     apiBase: runtime.apiBase,
     tokenKey: runtime.tokenKey,
     source: runtime.source,
@@ -253,6 +269,7 @@ class Tracker {
     this.flush(token, false);
     this.flushQueueSnapshot(token);
     this.discardPendingIdentityData();
+    void stopReplay();
   }
 
   clearExperimentCache(): void {
@@ -368,6 +385,8 @@ class Tracker {
       trackErrors: this.config.trackErrors,
       respectDnt: this.config.respectDnt,
     });
+    // 会话回放跟随远程配置启停（rrweb 惰性加载，关闭时零开销）
+    applyReplayConfig(this.config, this.getSessionId());
     this.configLoaded = true;
     this.drainPreBuffer();
   }

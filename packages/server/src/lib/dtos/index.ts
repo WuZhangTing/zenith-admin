@@ -57,6 +57,7 @@ export * from './ssh-profiles';
 export * from './ssh-sftp';
 export * from './terminal-sessions';
 export * from './frontend-errors';
+export * from './session-replays';
 export * from './payment';
 export * from './member';
 export * from './mp';

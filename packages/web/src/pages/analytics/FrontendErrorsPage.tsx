@@ -319,6 +319,23 @@ function TraceJumpButton({ context }: Readonly<{ context: unknown }>) {
   );
 }
 
+/** 「查看会话回放」跳转按钮（事件携带 replayId 时展示） */
+function ReplayJumpButton({ replayId }: Readonly<{ replayId: string | null }>) {
+  const navigate = useNavigate();
+  const { hasPermission } = usePermission();
+  if (!replayId || !hasPermission('monitor:replay:list')) return null;
+  return (
+    <Button
+      size="small"
+      theme="borderless"
+      type="primary"
+      onClick={() => navigate(`/analytics/replays?replay=${encodeURIComponent(replayId)}`)}
+    >
+      查看会话回放
+    </Button>
+  );
+}
+
 /** 表格内嵌迷你趋势曲线（近 7 日发生次数） */
 function TrendSparkline({ data }: Readonly<{ data?: number[] }>) {
   if (!data || data.length < 2 || data.every((v) => v === 0)) {
@@ -1370,7 +1387,7 @@ export default function FrontendErrorsPage() {
                           { key: '会话', value: event.sessionId || '–' },
                         ]}
                       />
-                      <Title heading={6} style={{ margin: '12px 0 8px' }}>Context <TraceJumpButton context={event.context} /></Title>
+                      <Title heading={6} style={{ margin: '12px 0 8px' }}>Context <TraceJumpButton context={event.context} /><ReplayJumpButton replayId={event.replayId} /></Title>
                       <TextBlock maxHeight={180}>{safeJson(event.context)}</TextBlock>
                       <Title heading={6} style={{ margin: '12px 0 8px' }}>Breadcrumbs</Title>
                       <BreadcrumbTimeline breadcrumbs={event.breadcrumbs} />
@@ -1411,7 +1428,7 @@ export default function FrontendErrorsPage() {
               <TextBlock>{eventDetail.stack || '暂无堆栈'}</TextBlock>
               <Title heading={6}>Breadcrumbs</Title>
               <BreadcrumbTimeline breadcrumbs={eventDetail.breadcrumbs} />
-              <Title heading={6}>Context <TraceJumpButton context={eventDetail.context} /></Title>
+              <Title heading={6}>Context <TraceJumpButton context={eventDetail.context} /><ReplayJumpButton replayId={eventDetail.replayId} /></Title>
               <TextBlock>{safeJson(eventDetail.context)}</TextBlock>
             </Space>
           </div>

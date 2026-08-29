@@ -5,6 +5,7 @@ import analyticsRoutes from './analytics';
 import analyticsSitesRoutes from './analytics-sites';
 import dashboardRoutes from './dashboard';
 import frontendErrorsRoutes from './frontend-errors';
+import sessionReplaysRoutes from './session-replays';
 
 export default defineRouteDomain({
   name: 'analytics',
@@ -14,6 +15,7 @@ export default defineRouteDomain({
     ['/api/analytics', analyticsCampaignsRoutes, { feature: 'analytics' }],
     ['/api/analytics', analyticsExperimentsRoutes, { feature: 'analytics' }],
     ['/api/frontend-errors', frontendErrorsRoutes],
+    ['/api/session-replays', sessionReplaysRoutes],
     ['/api/dashboard', dashboardRoutes],
   ],
 });

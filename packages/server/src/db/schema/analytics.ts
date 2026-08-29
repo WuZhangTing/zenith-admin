@@ -1,6 +1,6 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, text, uniqueIndex, index, jsonb, smallint, real, date, uuid, primaryKey, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, serial, varchar, timestamp, pgEnum, integer, bigint, boolean, text, uniqueIndex, index, jsonb, smallint, real, date, uuid, primaryKey, customType, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import type { AnalyticsEnvironment, AnalyticsEventPropertyDef, AnalyticsExperimentVariant, AnalyticsSegmentRule } from '@zenith/shared/analytics';
+import type { AnalyticsEnvironment, AnalyticsEventPropertyDef, AnalyticsExperimentVariant, AnalyticsSegmentRule, ReplayTrigger } from '@zenith/shared/analytics';
 import { auditColumns, tenants, users } from './core';
 import { members } from './member';
 
@@ -257,6 +257,13 @@ export const analyticsSettings = pgTable('analytics_settings', {
   retentionDays: integer('retention_days').notNull().default(180),
   errorRetentionDays: integer('error_retention_days').notNull().default(90),
   sessionTimeoutMinutes: integer('session_timeout_minutes').notNull().default(30),
+  // ─── 会话回放 ───────────────────────────────────────────────────────────────
+  trackReplay: boolean('track_replay').notNull().default(false),
+  replaySessionSampleRate: real('replay_session_sample_rate').notNull().default(0),
+  replayOnError: boolean('replay_on_error').notNull().default(true),
+  replayMaskAllText: boolean('replay_mask_all_text').notNull().default(false),
+  replayBlockSelector: varchar('replay_block_selector', { length: 256 }).notNull().default(''),
+  replayRetentionDays: integer('replay_retention_days').notNull().default(30),
   ...auditColumns(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
@@ -348,6 +355,8 @@ export const errorEvents = pgTable('error_events', {
   appId: varchar('app_id', { length: 64 }).notNull().default('admin'),
   environment: varchar('environment', { length: 32 }).notNull().default('production').$type<AnalyticsEnvironment>(),
   memberId: integer('member_id').references((): AnyPgColumn => members.id, { onDelete: 'set null' }),
+  // 报错时刻活跃的回放会话 ID（SDK 注入）：精确关联回放现场，无需时间窗模糊匹配
+  replayId: varchar('replay_id', { length: 36 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index('error_events_group_idx').on(t.groupId),
@@ -357,6 +366,8 @@ export const errorEvents = pgTable('error_events', {
   index('error_events_member_idx').on(t.memberId),
   // 分组详情「最近事件 / 影响用户」查询路径
   index('error_events_group_created_idx').on(t.groupId, t.createdAt),
+  // 回放详情反查关联错误
+  index('error_events_replay_idx').on(t.replayId),
 ]);
 
 export type ErrorEventRow = typeof errorEvents.$inferSelect;
@@ -590,6 +601,84 @@ export const analyticsUserSegments = pgTable('analytics_user_segments', {
 export type AnalyticsUserSegmentRow = typeof analyticsUserSegments.$inferSelect;
 
 export type NewAnalyticsUserSegment = typeof analyticsUserSegments.$inferInsert;
+
+// ─── 会话回放 ─────────────────────────────────────────────────────────────────
+export const replayModeEnum = pgEnum('replay_mode', ['buffer', 'stream']);
+
+export const replayStatusEnum = pgEnum('replay_status', ['recording', 'completed', 'expired']);
+
+/** rrweb 分片二进制（gzip 后 JSON），bytea 直存：删除与元数据事务一致，无文件孤儿 */
+const bytea = customType<{ data: Buffer }>({
+  dataType() { return 'bytea'; },
+});
+
+// 回放会话：id 为客户端生成 UUID（幂等重试锚点），首分片到达时 upsert
+export const replaySessions = pgTable('replay_sessions', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  sessionId: varchar('session_id', { length: 36 }).notNull(),
+  mode: replayModeEnum('mode').notNull(),
+  status: replayStatusEnum('status').notNull().default('recording'),
+  triggers: jsonb('triggers').$type<ReplayTrigger[]>().notNull().default([]),
+  // 起止均为客户端时钟（与 rrweb 事件时间戳同源，播放器偏移计算一致）
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  // 服务端时钟：僵尸会话收尾判定（客户端时钟不可信）
+  lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).notNull().defaultNow(),
+  durationMs: integer('duration_ms').notNull().default(0),
+  segmentCount: integer('segment_count').notNull().default(0),
+  totalBytes: bigint('total_bytes', { mode: 'number' }).notNull().default(0),
+  errorCount: integer('error_count').notNull().default(0),
+  pageCount: integer('page_count').notNull().default(0),
+  clickCount: integer('click_count').notNull().default(0),
+  entryPageUrl: varchar('entry_page_url', { length: 512 }),
+  source: analyticsEventSourceEnum('source').notNull().default('web_admin'),
+  appId: varchar('app_id', { length: 64 }).notNull().default('admin'),
+  environment: varchar('environment', { length: 32 }).notNull().default('production').$type<AnalyticsEnvironment>(),
+  userId: integer('user_id'),
+  username: varchar('username', { length: 64 }),
+  memberId: integer('member_id').references((): AnyPgColumn => members.id, { onDelete: 'set null' }),
+  browser: varchar('browser', { length: 48 }),
+  os: varchar('os', { length: 48 }),
+  deviceType: analyticsDeviceTypeEnum('device_type'),
+  sdkVersion: varchar('sdk_version', { length: 32 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (t) => [
+  index('replay_sessions_session_idx').on(t.sessionId),
+  index('replay_sessions_started_idx').on(t.startedAt),
+  // 僵尸收尾扫描路径：status='recording' AND last_activity_at < cutoff
+  index('replay_sessions_status_activity_idx').on(t.status, t.lastActivityAt),
+  index('replay_sessions_tenant_idx').on(t.tenantId),
+  index('replay_sessions_user_idx').on(t.userId),
+  index('replay_sessions_member_idx').on(t.memberId),
+]);
+
+export type ReplaySessionRow = typeof replaySessions.$inferSelect;
+
+export type NewReplaySession = typeof replaySessions.$inferInsert;
+
+export const replaySegments = pgTable('replay_segments', {
+  id: serial('id').primaryKey(),
+  replayId: varchar('replay_id', { length: 36 }).notNull()
+    .references(() => replaySessions.id, { onDelete: 'cascade' }),
+  seq: integer('seq').notNull(),
+  data: bytea('data').notNull(),
+  fromTs: timestamp('from_ts', { withTimezone: true }).notNull(),
+  toTs: timestamp('to_ts', { withTimezone: true }).notNull(),
+  byteSize: integer('byte_size').notNull(),
+  eventCount: integer('event_count').notNull().default(0),
+  // 含 rrweb 全量快照的分片可作为播放起点（seek 优化）
+  hasFullSnapshot: boolean('has_full_snapshot').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  // (replayId, seq) 唯一：分片重传幂等
+  uniqueIndex('replay_segments_replay_seq_uq').on(t.replayId, t.seq),
+]);
+
+export type ReplaySegmentRow = typeof replaySegments.$inferSelect;
+
+export type NewReplaySegment = typeof replaySegments.$inferInsert;
 
 // ─── 行为中心阶段 1：分群成员物化快照（系统派生，定时任务重算）─────────────────
 export const analyticsSegmentMembers = pgTable('analytics_segment_members', {
