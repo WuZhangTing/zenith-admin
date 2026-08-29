@@ -19,6 +19,7 @@ import {
   useMarkMyAnnouncementRead,
   useMyAnnouncementDetail,
   useMyAnnouncementList,
+  useMyAnnouncementUnreadCount,
 } from '@/hooks/queries/announcements';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -70,7 +71,8 @@ export default function AnnouncementsPage() {
 
   useEffect(() => {
     const handler = () => {
-      void queryClient.invalidateQueries({ queryKey: announcementKeys.myLists });
+      // WS 公告事件影响列表、未读数与铃铛气泡，整个 my 前缀一起失效
+      void queryClient.invalidateQueries({ queryKey: announcementKeys.my });
     };
     globalThis.addEventListener('announcement:refresh', handler);
     return () => globalThis.removeEventListener('announcement:refresh', handler);
@@ -105,7 +107,7 @@ export default function AnnouncementsPage() {
     setPage(1);
   };
 
-  const unreadCount = list.filter((n) => !n.isRead).length;
+  const unreadCount = useMyAnnouncementUnreadCount().data ?? 0;
 
   const renderMarkAllReadButton = (tab: AnnouncementTab) => {
     if (tab === 'read') return null;
@@ -211,7 +213,7 @@ export default function AnnouncementsPage() {
           tab={
             <Space spacing={4}>
               <span>未读公告</span>
-              {activeTab === 'all' && unreadCount > 0 && (
+              {unreadCount > 0 && (
                 <Tag color="red" size="small">{unreadCount}</Tag>
               )}
             </Space>
