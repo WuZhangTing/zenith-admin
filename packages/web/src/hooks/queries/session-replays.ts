@@ -34,6 +34,30 @@ export function useReplayStorageStats() {
   });
 }
 
+/** 有点击热力数据的页面清单 */
+export function useHeatmapPages(days: number, enabled = true) {
+  return useQuery({
+    queryKey: ['session-replays', 'heatmap-pages', days] as const,
+    queryFn: () => request.get<string[]>(`/api/session-replays/heatmap/pages?days=${days}`).then(unwrap),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export interface HeatmapData {
+  points: Array<{ x: number; y: number; count: number }>;
+  total: number;
+}
+
+/** 页面点击热力聚合 */
+export function useClickHeatmap(pagePath: string, days: number, enabled = true) {
+  return useQuery({
+    queryKey: ['session-replays', 'heatmap', pagePath, days] as const,
+    queryFn: () => request.get<HeatmapData>(`/api/session-replays/heatmap?pagePath=${encodeURIComponent(pagePath)}&days=${days}`).then(unwrap),
+    enabled: enabled && pagePath !== '',
+  });
+}
+
 export function useReplayList(params: ReplayListParams) {
   return useQuery({
     queryKey: replayKeys.list(params),

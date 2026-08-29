@@ -1,15 +1,16 @@
 /**
- * 会话回放中心：回放会话列表 + 详情侧栏（播放器 / 触发器 / 关联错误）。
- * 支持 ?replay={id} 直达（错误监控「查看回放」跳转入口）。
+ * 会话回放中心：回放列表（详情侧栏：播放器/触发器/关联错误/旅程拼接/导出）
+ * 与页面点击热力两个 Tab。支持 ?replay={id} 深链直达。
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Checkbox, Descriptions, Select, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Checkbox, Descriptions, Select, SideSheet, Space, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Trash2 } from 'lucide-react';
+import { Download, Trash2 } from 'lucide-react';
 import type { ReplaySession, ReplayTriggerType } from '@zenith/shared/analytics';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ReplayPlayer from '@/components/ReplayPlayer';
+import ReplayHeatmapTab from './ReplayHeatmapTab';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -17,6 +18,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { formatBytesMb } from '@/utils/format';
 import { confirmDelete } from '@/utils/confirm';
+import { exportReplayHtml } from '@/utils/replay-export';
 import { useListSearch } from '@/hooks/useListSearch';
 import { StatCard, StatGrid } from '@/components/charts';
 import { replayKeys, useBatchDeleteReplays, useReplayDetail, useReplayList, useReplayStorageStats } from '@/hooks/queries/session-replays';
@@ -212,7 +214,9 @@ export default function SessionReplaysPage() {
           <StatCard title="回放总数" value={stats.totalCount} sub="按保留天数自动清理" />
         </StatGrid>
       )}
-      <SearchToolbar>
+      <Tabs type="line" lazyRender>
+        <TabPane tab="回放列表" itemKey="list">
+          <SearchToolbar>
         <Select
           placeholder="状态"
           value={draftParams.status || undefined}
@@ -268,25 +272,30 @@ export default function SessionReplaysPage() {
             批量删除 ({selectedRowKeys.length})
           </Button>
         )}
-      </SearchToolbar>
+          </SearchToolbar>
 
-      <ConfigurableTable
-        bordered
-        columns={columns}
-        dataSource={list}
-        loading={listQuery.isFetching && !listQuery.data}
-        onRefresh={() => void listQuery.refetch()}
-        refreshLoading={listQuery.isFetching}
-        pagination={buildPagination(total)}
-        rowKey="id"
-        rowSelection={{
-          selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys((keys ?? []) as string[]),
-        }}
-        size="small"
-        empty="暂无回放记录。开启「数据分析设置 → 会话回放」后，报错现场将自动录制。"
-        scroll={{ x: 1660 }}
-      />
+          <ConfigurableTable
+            bordered
+            columns={columns}
+            dataSource={list}
+            loading={listQuery.isFetching && !listQuery.data}
+            onRefresh={() => void listQuery.refetch()}
+            refreshLoading={listQuery.isFetching}
+            pagination={buildPagination(total)}
+            rowKey="id"
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys((keys ?? []) as string[]),
+            }}
+            size="small"
+            empty="暂无回放记录。开启「数据分析设置 → 会话回放」后，报错现场将自动录制。"
+            scroll={{ x: 1660 }}
+          />
+        </TabPane>
+        <TabPane tab="点击热力" itemKey="heatmap">
+          <ReplayHeatmapTab />
+        </TabPane>
+      </Tabs>
 
       <SideSheet
         title="会话回放"
@@ -306,6 +315,14 @@ export default function SessionReplaysPage() {
                 { key: '环境', value: `${detail.browser ?? '?'} / ${detail.os ?? '?'}` },
               ]}
             />
+            <div>
+              <Button
+                icon={<Download size={14} />}
+                onClick={() => void exportReplayHtml(detail.id, detail.username ?? detail.entryPageUrl ?? detail.id.slice(0, 8), detail.segments)}
+              >
+                导出 HTML（自包含，可离线播放）
+              </Button>
+            </div>
             <Space wrap>
               {detail.triggers.map((t, i) => {
                 const meta = TRIGGER_META[t.type] ?? { label: t.type, color: 'grey' };

@@ -12,7 +12,7 @@ import { and, eq, desc, sql, inArray, isNull, lt, gte } from 'drizzle-orm';
 import { gzipSync } from 'node:zlib';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { replaySessions, replaySegments, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
+import { replaySessions, replaySegments, replayClickPoints, errorEvents, analyticsSettings, userEvents } from '../../db/schema';
 import type { ReplaySessionRow, ReplaySegmentRow } from '../../db/schema';
 import type { ReplaySegmentMetaInput } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
@@ -194,6 +194,15 @@ export async function ingestReplaySegment(meta: ReplaySegmentMetaInput, data: Bu
           } : {}),
         })
         .where(eq(replaySessions.id, meta.replayId));
+      // 页面点击热力事实表（与会话解耦，best-effort）
+      if (meta.clickPoints.length > 0) {
+        await tx.insert(replayClickPoints).values(
+          meta.clickPoints
+            .filter((p) => p.path)
+            .slice(0, 100)
+            .map((p) => ({ tenantId, pagePath: p.path, xPct: p.x, yPct: p.y, source: platform.source })),
+        ).onConflictDoNothing();
+      }
       bumpUsageCache(tenantId, data.byteLength);
     }
   });
@@ -316,6 +325,41 @@ export async function getReplayStorageMbMetric(): Promise<number> {
     .select({ bytes: sql<number>`COALESCE(SUM(${replaySessions.totalBytes}), 0)::bigint` })
     .from(replaySessions);
   return Math.round(Number(row?.bytes ?? 0) / 1024 / 1024);
+}
+
+// ─── 页面点击热力（五期）──────────────────────────────────────────────────────
+/** 有点击数据的页面路径清单（热力页下拉） */
+export async function listHeatmapPages(days: number): Promise<string[]> {
+  const cutoff = new Date(Date.now() - days * 86_400_000);
+  const rows = await db
+    .selectDistinct({ pagePath: replayClickPoints.pagePath })
+    .from(replayClickPoints)
+    .where(mergeWhere(tenantScope(replayClickPoints), gte(replayClickPoints.createdAt, cutoff)))
+    .orderBy(replayClickPoints.pagePath)
+    .limit(200);
+  return rows.map((r) => r.pagePath);
+}
+
+/** 页面点击热力聚合：坐标按 2% 网格聚合计数 */
+export async function getClickHeatmap(pagePath: string, days: number) {
+  const cutoff = new Date(Date.now() - days * 86_400_000);
+  const where = mergeWhere(
+    tenantScope(replayClickPoints),
+    and(eq(replayClickPoints.pagePath, pagePath), gte(replayClickPoints.createdAt, cutoff)),
+  );
+  const rows = await db
+    .select({
+      x: sql<number>`(${replayClickPoints.xPct} / 2 * 2)::int`,
+      y: sql<number>`(${replayClickPoints.yPct} / 2 * 2)::int`,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(replayClickPoints)
+    .where(where)
+    .groupBy(sql`1, 2`)
+    .orderBy(sql`3 DESC`)
+    .limit(2000);
+  const total = rows.reduce((sum, r) => sum + r.count, 0);
+  return { points: rows, total };
 }
 
 /** 错误上报到达时回填回放会话的错误计数（错误服务调用） */

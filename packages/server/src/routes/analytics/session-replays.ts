@@ -11,7 +11,7 @@ import {
 import { ReplaySessionDTO, ReplaySessionDetailDTO } from '../../lib/openapi-dtos';
 import {
   ingestReplaySegment, listReplaySessions, getReplaySessionDetail, getReplaySegmentData, deleteReplaySessions,
-  getReplayStorageStats, REPLAY_SEGMENT_MAX_BYTES,
+  getReplayStorageStats, listHeatmapPages, getClickHeatmap, REPLAY_SEGMENT_MAX_BYTES,
 } from '../../services/analytics/session-replays.service';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
@@ -112,6 +112,31 @@ const statsRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await getReplayStorageStats()), 200),
 });
 
+const HeatmapPointDTO = z.object({ x: z.number().int(), y: z.number().int(), count: z.number().int() });
+
+const heatmapPagesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/heatmap/pages', tags: ['SessionReplays'], summary: '有点击热力数据的页面清单', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'monitor:replay:list' })] as const,
+    request: { query: z.object({ days: z.coerce.number().int().min(1).max(90).optional().default(30) }) },
+    responses: { ...ok(z.array(z.string()), '页面清单'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await listHeatmapPages(c.req.valid('query').days)), 200),
+});
+
+const heatmapRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/heatmap', tags: ['SessionReplays'], summary: '页面点击热力聚合（2% 网格）', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'monitor:replay:list' })] as const,
+    request: { query: z.object({ pagePath: z.string().min(1).max(256), days: z.coerce.number().int().min(1).max(90).optional().default(30) }) },
+    responses: { ...ok(z.object({ points: z.array(HeatmapPointDTO), total: z.number().int() }), '热力数据'), ...commonErrorResponses },
+  }),
+  handler: async (c) => {
+    const q = c.req.valid('query');
+    return c.json(okBody(await getClickHeatmap(q.pagePath, q.days)), 200);
+  },
+});
+
 const detailRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{id}', tags: ['SessionReplays'], summary: '回放会话详情（含分片清单与关联错误）', security: [{ BearerAuth: [] }],
@@ -157,6 +182,6 @@ const batchDeleteRoute = defineOpenAPIRoute({
   },
 });
 
-r.openapiRoutes([ingestRoute, listRoute, statsRoute, batchDeleteRoute, detailRoute, segmentDataRoute] as const);
+r.openapiRoutes([ingestRoute, listRoute, statsRoute, heatmapPagesRoute, heatmapRoute, batchDeleteRoute, detailRoute, segmentDataRoute] as const);
 
 export default r;

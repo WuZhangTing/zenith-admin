@@ -414,6 +414,13 @@
       "when": 1788022634298,
       "tag": "0058_tough_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1788023537492,
+      "tag": "0059_classy_edwin_jarvis",
+      "breakpoints": true
     }
   ]
 }

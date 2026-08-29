@@ -685,6 +685,25 @@ export type ReplaySegmentRow = typeof replaySegments.$inferSelect;
 
 export type NewReplaySegment = typeof replaySegments.$inferInsert;
 
+// 点击坐标聚合（页面级热力图）：与回放会话解耦的独立事实表，
+// 回放删除不影响热力累计，保留期独立（数据保留策略 90 天）
+export const replayClickPoints = pgTable('replay_click_points', {
+  id: serial('id').primaryKey(),
+  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  pagePath: varchar('page_path', { length: 256 }).notNull(),
+  /** 视口归一化坐标（0-100 百分比） */
+  xPct: smallint('x_pct').notNull(),
+  yPct: smallint('y_pct').notNull(),
+  source: analyticsEventSourceEnum('source').notNull().default('web_admin'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('replay_click_points_page_idx').on(t.pagePath),
+  index('replay_click_points_created_idx').on(t.createdAt),
+  index('replay_click_points_tenant_idx').on(t.tenantId),
+]);
+
+export type ReplayClickPointRow = typeof replayClickPoints.$inferSelect;
+
 // ─── 行为中心阶段 1：分群成员物化快照（系统派生，定时任务重算）─────────────────
 export const analyticsSegmentMembers = pgTable('analytics_segment_members', {
   id: serial('id').primaryKey(),

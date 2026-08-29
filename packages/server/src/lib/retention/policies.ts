@@ -325,6 +325,15 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '会话回放录像（rrweb 分片随会话级联删除）；单行体积大，保留期不宜过长。',
   },
   {
+    key: 'replay_click_points',
+    title: '回放点击热力',
+    module: '数据分析',
+    tableName: 'replay_click_points',
+    timeColumn: 'created_at',
+    defaultDays: 90,
+    description: '页面点击热力聚合的坐标事实表（与回放会话解耦，回放删除后热力仍可累计分析）。',
+  },
+  {
     key: 'analytics_event_quality_daily',
     title: '埋点质量日聚合',
     module: '数据分析',
