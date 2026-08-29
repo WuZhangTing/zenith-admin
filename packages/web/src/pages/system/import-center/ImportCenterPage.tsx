@@ -1,19 +1,37 @@
 /**
- * 数据导入中心：可导入实体卡片墙 + 导入历史（任务中心 data-import 过滤视图）。
+ * 数据导入中心：导入历史列表（任务中心 data-import 过滤视图）+「新建导入」统一入口。
+ * 与导出中心页对偶：筛选工具栏 + 表格为主体，实体选择收进新建弹窗。
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Card, Col, Empty, Row, Spin, Table, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Select, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { FileSpreadsheet } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { AsyncTask, ImportEntityMeta } from '@zenith/shared/tasks';
-import ImportButton from '@/components/ImportButton';
+import { ImportProgressModal } from '@/components/ImportButton';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
-import { usePagination } from '@/hooks/usePagination';
+import ConfigurableTable from '@/components/ConfigurableTable';
+import { SearchToolbar } from '@/components/SearchToolbar';
+import { KeywordInput } from '@/components/search-filters';
+import { ResetButton, SearchButton } from '@/components/toolbar-controls';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
+import { dateTimeColumn } from '@/utils/table-columns';
+import { useListSearch } from '@/hooks/useListSearch';
 import { useImportEntities } from '@/hooks/queries/import-jobs';
 import { asyncTaskKeys, useAsyncTaskList } from '@/hooks/queries/async-tasks';
+import NewImportModal from './NewImportModal';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
+
+interface SearchParams {
+  entity: string;
+  status: string;
+  keyword: string;
+}
+
+const defaultSearchParams: SearchParams = { entity: '', status: '', keyword: '' };
+const EMPTY_ENTITIES: ImportEntityMeta[] = [];
+const EMPTY_TASKS: AsyncTask[] = [];
 
 const TASK_STATUS_META = {
   pending: { label: '排队中', color: 'grey' },
@@ -23,17 +41,57 @@ const TASK_STATUS_META = {
   cancelled: { label: '已取消', color: 'grey' },
 } as const satisfies Record<AsyncTask['status'], { label: string; color: string }>;
 
+const statusOptions = [
+  { value: '', label: '全部状态' },
+  { value: 'pending', label: '排队中' },
+  { value: 'running', label: '执行中' },
+  { value: 'success', label: '成功' },
+  { value: 'failed', label: '失败' },
+  { value: 'cancelled', label: '已取消' },
+];
+
+/** 从任务 payload 提取实体标识与预检标记 */
+function parsePayload(task: AsyncTask): { entity: string | null; dryRun: boolean } {
+  const payload = task.payload as { entity?: string; dryRun?: boolean } | null;
+  return { entity: payload?.entity ?? null, dryRun: Boolean(payload?.dryRun) };
+}
+
 export default function ImportCenterPage() {
   const qc = useQueryClient();
-  const entitiesQuery = useImportEntities();
-  const entities = useMemo(() => entitiesQuery.data ?? [], [entitiesQuery.data]);
-  const { page, pageSize, buildPagination } = usePagination();
+  const {
+    page, pageSize, buildPagination,
+    draftParams, setDraftParams, submittedParams,
+    handleSearch, handleReset,
+  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: asyncTaskKeys.lists });
 
-  const listQuery = useAsyncTaskList({ page, pageSize, taskType: 'data-import' });
-  const list = listQuery.data?.list ?? [];
+  const [newImportVisible, setNewImportVisible] = useState(false);
+  const [hasActiveTask, setHasActiveTask] = useState(false);
+  /** 进度弹窗当前查看的任务（新提交或历史行「查看明细」） */
+  const [progressTask, setProgressTask] = useState<{ id: number; title: string } | null>(null);
+
+  const entitiesQuery = useImportEntities();
+  const entities = entitiesQuery.data ?? EMPTY_ENTITIES;
+  const entityMap = useMemo(() => new Map(entities.map((e) => [e.entity, e])), [entities]);
+
+  const listQuery = useAsyncTaskList(
+    {
+      page, pageSize, taskType: 'data-import',
+      status: submittedParams.status || undefined,
+      keyword: submittedParams.keyword || undefined,
+      // 实体标识存于任务 payload，走内容匹配筛选
+      content: submittedParams.entity || undefined,
+    },
+    // 有进行中的任务时轮询列表（渲染期重新求值，任务终态后自动停止）
+    { refetchInterval: hasActiveTask ? 3000 : false },
+  );
+  const list = listQuery.data?.list ?? EMPTY_TASKS;
   const total = listQuery.data?.total ?? 0;
 
-  const grouped = useMemo(() => {
+  useEffect(() => {
+    setHasActiveTask(list.some((t) => t.status === 'pending' || t.status === 'running'));
+  }, [list]);
+
+  const entityOptions = useMemo(() => {
     const byModule = new Map<string, ImportEntityMeta[]>();
     for (const e of entities) {
       const group = byModule.get(e.module) ?? [];
@@ -45,7 +103,21 @@ export default function ImportCenterPage() {
 
   const columns: ColumnProps<AsyncTask>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '任务', dataIndex: 'title', width: 260, ellipsis: true },
+    { title: '任务', dataIndex: 'title', width: 280, ellipsis: { showTitle: false }, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Text> },
+    {
+      title: '实体', width: 110,
+      render: (_: unknown, r: AsyncTask) => {
+        const { entity } = parsePayload(r);
+        if (!entity) return '—';
+        return entityMap.get(entity)?.title ?? entity;
+      },
+    },
+    {
+      title: '模式', width: 80,
+      render: (_: unknown, r: AsyncTask) => parsePayload(r).dryRun
+        ? <Tag size="small" color="orange">预检</Tag>
+        : <Tag size="small" color="light-blue">导入</Tag>,
+    },
     {
       title: '状态', dataIndex: 'status', width: 90,
       render: (v: AsyncTask['status']) => {
@@ -58,69 +130,96 @@ export default function ImportCenterPage() {
       render: (_: unknown, r: AsyncTask) => <AsyncTaskProgress task={r} noteDisplay="tooltip" />,
     },
     { title: '提交人', dataIndex: 'createdByName', width: 110, render: (v: string | null) => v ?? '—' },
-    { title: '提交时间', dataIndex: 'createdAt', width: 160 },
+    dateTimeColumn('提交时间', 'createdAt'),
+    createOperationColumn<AsyncTask>({
+      width: 110,
+      desktopInlineKeys: ['detail'],
+      actions: (record) => [
+        {
+          key: 'detail',
+          label: '查看明细',
+          onClick: () => {
+            const { entity } = parsePayload(record);
+            setProgressTask({ id: record.id, title: entityMap.get(entity ?? '')?.title ?? '数据' });
+          },
+        },
+      ],
+    }),
   ];
 
   return (
-    <div className="page-container zx-flat-panels">
-      <Banner
-        fullMode={false} type="info" closeIcon={null} style={{ marginBottom: 16 }}
-        description="下载模板 → 填写数据 → 上传提交。任务异步执行，逐行校验并给出行级成败明细；失败行修正后可重新上传。"
-      />
+    <div className="page-container">
+      <SearchToolbar>
+        <Select
+          placeholder="导入实体"
+          value={draftParams.entity || undefined}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, entity: (value as string) ?? '' }))}
+          style={{ width: 160 }}
+          showClear
+        >
+          {entityOptions.map(([module, items]) => (
+            <Select.OptGroup key={module} label={module}>
+              {items.map((e) => <Select.Option key={e.entity} value={e.entity}>{e.title}</Select.Option>)}
+            </Select.OptGroup>
+          ))}
+        </Select>
+        <Select
+          placeholder="状态"
+          value={draftParams.status || undefined}
+          optionList={statusOptions}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, status: (value as string) ?? '' }))}
+          style={{ width: 130 }}
+        />
+        <KeywordInput
+          placeholder="搜索任务名/文件名"
+          value={draftParams.keyword}
+          onChange={(value) => setDraftParams((prev) => ({ ...prev, keyword: value }))}
+          onSearch={handleSearch}
+          width={220}
+        />
+        <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={handleReset} />
+        <Button
+          type="primary"
+          theme="solid"
+          icon={<Plus size={14} />}
+          onClick={() => setNewImportVisible(true)}
+        >
+          新建导入
+        </Button>
+      </SearchToolbar>
 
-      <Spin spinning={entitiesQuery.isPending}>
-        {entities.length === 0 && entitiesQuery.isFetched ? (
-          <Empty title="暂无可导入的实体" description="没有任何导入权限，请联系管理员" style={{ padding: '32px 0' }} />
-        ) : (
-          grouped.map(([module, items]) => (
-            <div key={module} style={{ marginBottom: 20 }}>
-              <Title heading={6} style={{ marginBottom: 12 }}>{module}</Title>
-              <Row gutter={[16, 16]}>
-                {items.map((entity) => (
-                  <Col key={entity.entity} span={8} xs={24} sm={12} lg={8}>
-                    <Card
-                      title={(
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                          <FileSpreadsheet size={16} />
-                          {entity.title}
-                        </span>
-                      )}
-                      headerExtraContent={(
-                        <ImportButton
-                          entity={entity.entity}
-                          title={entity.title}
-                          onFinished={() => void qc.invalidateQueries({ queryKey: asyncTaskKeys.lists })}
-                        />
-                      )}
-                    >
-                      <Text type="tertiary" size="small" style={{ display: 'block', minHeight: 40 }}>
-                        {entity.description ?? `批量导入${entity.title}数据`}
-                      </Text>
-                      <Text type="quaternary" size="small">
-                        {entity.columns.length} 个字段 · 单次最多 {entity.maxRows} 行
-                      </Text>
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </div>
-          ))
-        )}
-      </Spin>
-
-      <Title heading={6} style={{ margin: '8px 0 12px' }}>导入历史</Title>
-      <Table
+      <ConfigurableTable
+        bordered
         columns={columns}
         dataSource={list}
-        loading={listQuery.isFetching}
+        loading={listQuery.isFetching && !listQuery.data}
+        onRefresh={() => void listQuery.refetch()}
+        refreshLoading={listQuery.isFetching}
+        pagination={buildPagination(total)}
         rowKey="id"
         size="small"
-        empty="暂无导入记录"
-        pagination={buildPagination(total)}
+        empty="暂无导入记录，点击「新建导入」开始"
+        scroll={{ x: 1200 }}
       />
-      <Text type="tertiary" size="small" style={{ display: 'block', marginTop: 8 }}>
-        行级明细请到「任务中心」查看对应任务。
-      </Text>
+
+      <NewImportModal
+        visible={newImportVisible}
+        entities={entities}
+        entitiesLoading={entitiesQuery.isPending}
+        onClose={() => setNewImportVisible(false)}
+        onSubmitted={(taskId, title) => {
+          setNewImportVisible(false);
+          setProgressTask({ id: taskId, title });
+        }}
+      />
+
+      <ImportProgressModal
+        taskId={progressTask?.id ?? null}
+        title={progressTask?.title ?? '数据'}
+        onClose={() => setProgressTask(null)}
+        onFinished={() => void qc.invalidateQueries({ queryKey: asyncTaskKeys.lists })}
+      />
     </div>
   );
 }

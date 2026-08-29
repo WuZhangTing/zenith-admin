@@ -10,6 +10,7 @@ const entities: ImportEntityMeta[] = [
     module: '会员中心',
     description: '批量导入前台会员账号，自动初始化积分与钱包账户；手机号/邮箱/用户名全局唯一',
     maxRows: 10000,
+    requiresContext: false,
     columns: [
       { key: 'nickname', header: '昵称', required: true, example: '张三' },
       { key: 'phone', header: '手机号', example: '13800001111' },
@@ -27,6 +28,7 @@ const entities: ImportEntityMeta[] = [
     module: '用户管理',
     description: '批量导入后台用户，支持部门/岗位/角色编码关联；密码按平台密码策略校验',
     maxRows: 10000,
+    requiresContext: false,
     columns: [
       { key: 'username', header: '用户名', required: true },
       { key: 'nickname', header: '昵称', required: true },
@@ -44,6 +46,7 @@ const entities: ImportEntityMeta[] = [
     module: 'IoT 设备',
     description: '批量注册设备：SN 留空自动生成，接入密钥自动分配',
     maxRows: 10000,
+    requiresContext: false,
     columns: [
       { key: 'name', header: '设备名称', required: true },
       { key: 'productName', header: '产品名称', required: true },
@@ -60,6 +63,7 @@ const entities: ImportEntityMeta[] = [
     module: '系统设置',
     description: '按字典编码批量补充字典项，同字典内项值唯一',
     maxRows: 10000,
+    requiresContext: false,
     columns: [
       { key: 'dictCode', header: '字典编码', required: true },
       { key: 'label', header: '项标签', required: true },
@@ -67,6 +71,19 @@ const entities: ImportEntityMeta[] = [
       { key: 'sort', header: '排序' },
       { key: 'status', header: '状态', enumValues: ['enabled', 'disabled'] },
       { key: 'remark', header: '备注' },
+    ],
+  },
+  {
+    entity: 'cms.contents',
+    title: 'CMS 内容',
+    module: 'CMS内容管理',
+    description: '需在 CMS 内容管理页选择站点/栏目后导入，逐行创建草稿内容',
+    maxRows: 10000,
+    requiresContext: true,
+    columns: [
+      { key: 'title', header: '标题', required: true },
+      { key: 'summary', header: '摘要' },
+      { key: 'body', header: '正文' },
     ],
   },
 ];

@@ -231,5 +231,7 @@ export interface ImportEntityMeta {
   description: string | null;
   /** 单文件最大数据行数 */
   maxRows: number;
+  /** 是否需要页面上下文（如 CMS 内容的 siteId/channelId），需到业务页面发起导入 */
+  requiresContext: boolean;
   columns: ImportColumnMeta[];
 }

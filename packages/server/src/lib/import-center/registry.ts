@@ -32,6 +32,7 @@ export async function listImportEntities(): Promise<ImportEntityMeta[]> {
       module: def.module,
       description: def.description ?? null,
       maxRows: def.maxRows ?? DEFAULT_MAX_ROWS,
+      requiresContext: def.contextSchema != null,
       columns: def.columns,
     });
   }
