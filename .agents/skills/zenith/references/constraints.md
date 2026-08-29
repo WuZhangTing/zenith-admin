@@ -201,3 +201,13 @@ server 启动时加载全部路由 / 服务模块图，任何模块顶层静态 
 - **`mandatory: true` 仅限账号安全与告警必达**；`availableChannels` 不得列出无投递支撑的渠道
 - **Webhook 收件人只能是 `external`**（它是地址不是人）；配置开关翻译为 `channelPolicy`，
   渠道参数（短信模板 / 邮件主题）放 `channelOptions`，禁止业务侧自行分发渠道
+
+### 进程级错误兜底
+
+- **fire-and-forget 必须自带 catch**：`void promise.catch((err) => logger.error(...))`；
+  **禁止**裸悬空 Promise——unhandledRejection 会触发进程级 fatal 兜底并 exit(1)
+- **禁止在 uncaughtException / unhandledRejection 后继续运行**：进程级兜底
+  （`lib/fatal-handlers.ts`，index.ts 第一条 import 自装）只负责崩溃可观测
+  （stderr + 崩溃哨兵 + 尽力 flush 日志/遥测）后 exit(1)；崩溃告警由下次启动补投
+  （`services/platform/crash-report.service`），恢复语义靠 outbox 补投与启动 reconcile，
+  **不得**在业务代码中自行注册这两个 process 事件

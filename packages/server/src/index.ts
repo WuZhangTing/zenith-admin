@@ -8,6 +8,10 @@
  * 此前这三件事全挤在本文件里（776 行 / 296 个 import / 236 个 app.route），
  * 任何域新增端点都要改这唯一的公共文件，且 app 无法脱离 serve() 被构造。
  */
+// ⚠ 必须是第一条 import：本模块只依赖 Node 内置模块并在 import 时自装
+// uncaughtException / unhandledRejection 兜底，后续模块图（config / 路由 / 服务）
+// 在加载阶段抛错同样会被兜住。详见 lib/fatal-handlers.ts。
+import { isFatalShutdownInProgress } from './lib/fatal-handlers';
 import { serve } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import { createApp } from './app';
@@ -109,9 +113,16 @@ async function shutdown(signal: NodeJS.Signals) {
   }
 }
 
-// 重复收到信号（如连续 Ctrl+C）时立即强退，不再等待清理
-process.on('SIGINT', () => { if (shuttingDown) process.exit(130); void shutdown('SIGINT'); });
-process.on('SIGTERM', () => { if (shuttingDown) process.exit(143); void shutdown('SIGTERM'); });
+// 重复收到信号（如连续 Ctrl+C）或 fatal 兜底处理期间收到信号时立即强退，
+// 不进入优雅停机路径——fatal 与 graceful 两条清理链并发会互相踩踏
+process.on('SIGINT', () => { if (shuttingDown || isFatalShutdownInProgress()) process.exit(130); void shutdown('SIGINT'); });
+process.on('SIGTERM', () => { if (shuttingDown || isFatalShutdownInProgress()) process.exit(143); void shutdown('SIGTERM'); });
 
 await registerBackgroundWorkers();
 registerEventSubscribers();
+
+// 崩溃哨兵补投：上一次进程异常退出（uncaughtException / unhandledRejection）的告警
+// 由本次健康进程读取哨兵后经通知中心补发；失败保留哨兵下次重试，绝不阻断启动
+void import('./services/platform/crash-report.service')
+  .then((m) => m.replayCrashSentinelsOnStartup())
+  .catch((err) => logger.error('[crash-report] 崩溃哨兵补投模块加载失败', err));

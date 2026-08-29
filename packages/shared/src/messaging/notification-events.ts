@@ -339,6 +339,20 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '[错误告警] {{ruleName}}',
     content: '{{detail}}',
   },
+  'ops.server.crashed': {
+    group: 'ops',
+    label: '服务进程崩溃重启',
+    severity: 'critical',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    mandatory: true,
+    bypassQuietHours: true,
+    // 由重启后的进程读崩溃哨兵补投（crash-report.service），按哨兵文件 dedupeKey 幂等；
+    // 告警必达，不配 rateLimit——单次启动的补投量已由服务侧上限约束
+    vars: eventVars<{ kind: string; message: string; crashedAt: string; pid: number; uptimeSec: number }>(),
+    title: '[系统] 服务进程崩溃后已自动重启',
+    content: '服务进程于 {{crashedAt}} 异常退出（{{kind}}：{{message}}，pid {{pid}}，已运行 {{uptimeSec}} 秒），现已自动重启。请前往「日志查看器」排查崩溃原因。',
+  },
   'ops.ssl.cert_expiring': {
     group: 'ops',
     label: 'SSL 证书到期提醒',
