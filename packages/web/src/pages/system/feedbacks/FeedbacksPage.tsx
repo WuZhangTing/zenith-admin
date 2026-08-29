@@ -156,8 +156,8 @@ export default function FeedbacksPage() {
       },
     },
     createOperationColumn<UserFeedback>({
-      width: 130,
-      desktopInlineKeys: ['handle', 'delete'],
+      width: 240,
+      desktopInlineKeys: ['replay', 'handle', 'delete'],
       actions: (record) => [
         ...(record.replayId && hasPermission('monitor:replay:list') ? [{
           key: 'replay',
