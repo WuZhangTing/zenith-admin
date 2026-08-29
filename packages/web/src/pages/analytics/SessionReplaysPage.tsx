@@ -18,7 +18,8 @@ import { dateTimeColumn } from '@/utils/table-columns';
 import { formatBytesMb } from '@/utils/format';
 import { confirmDelete } from '@/utils/confirm';
 import { useListSearch } from '@/hooks/useListSearch';
-import { replayKeys, useBatchDeleteReplays, useReplayDetail, useReplayList } from '@/hooks/queries/session-replays';
+import { StatCard, StatGrid } from '@/components/charts';
+import { replayKeys, useBatchDeleteReplays, useReplayDetail, useReplayList, useReplayStorageStats } from '@/hooks/queries/session-replays';
 
 const { Text } = Typography;
 
@@ -102,6 +103,8 @@ export default function SessionReplaysPage() {
   const detailQuery = useReplayDetail(detailId, detailId !== null);
   const detail = detailQuery.data ?? null;
   const batchDeleteMutation = useBatchDeleteReplays();
+  const statsQuery = useReplayStorageStats();
+  const stats = statsQuery.data ?? null;
 
   // ?replay={id} 直达（错误监控跳转）
   useEffect(() => {
@@ -192,6 +195,19 @@ export default function SessionReplaysPage() {
 
   return (
     <div className="page-container">
+      {stats && (
+        <StatGrid style={{ marginBottom: 16 }}>
+          <StatCard title="存储占用" value={formatBytesMb(stats.totalBytes)} sub={stats.quotaMb > 0 ? `配额 ${stats.quotaMb} MB` : '未设配额'} />
+          <StatCard
+            title="配额使用率"
+            value={stats.quotaMb > 0 ? `${stats.usagePercent}%` : '—'}
+            accent={stats.usagePercent >= 90 ? 'var(--semi-color-danger)' : stats.usagePercent >= 75 ? 'var(--semi-color-warning)' : undefined}
+            sub={stats.usagePercent >= 100 ? '滚动淘汰进行中（旧的无错误回放优先清退）' : stats.usagePercent >= 90 ? '接近配额，即将触发滚动淘汰' : '低于水位线'}
+          />
+          <StatCard title="今日新增" value={formatBytesMb(stats.todayBytes)} sub={`${stats.todayCount} 个会话`} />
+          <StatCard title="回放总数" value={stats.totalCount} sub="按保留天数自动清理" />
+        </StatGrid>
+      )}
       <SearchToolbar>
         <Select
           placeholder="状态"

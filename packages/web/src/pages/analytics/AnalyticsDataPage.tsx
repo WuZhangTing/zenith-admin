@@ -778,6 +778,21 @@ export default function AnalyticsDataPage() {
                   style={{ width: 180 }}
                 />
               </Form.Slot>
+              <Form.Slot label="回放存储配额">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <InputNumber
+                    min={0}
+                    step={512}
+                    value={settings.replayStorageQuotaMb}
+                    onChange={(value) => updateSettings('replayStorageQuotaMb', numberValue(value, settings.replayStorageQuotaMb))}
+                    style={{ width: 180 }}
+                    suffix="MB"
+                  />
+                  <Typography.Text type="tertiary" size="small">
+                    超配额自动滚动淘汰最旧回放（无错误的优先）；超 120% 时暂停采样录制（错误现场不受限）；0 = 不限制
+                  </Typography.Text>
+                </div>
+              </Form.Slot>
             </>
           )}
           <Form.Slot label=" ">

@@ -264,6 +264,8 @@ export const analyticsSettings = pgTable('analytics_settings', {
   replayMaskAllText: boolean('replay_mask_all_text').notNull().default(false),
   replayBlockSelector: varchar('replay_block_selector', { length: 256 }).notNull().default(''),
   replayRetentionDays: integer('replay_retention_days').notNull().default(30),
+  // 回放存储配额（MB，0=不限制）：超限滚动淘汰旧回放（无错误优先），超硬顶（120%）拒收采样录制
+  replayStorageQuotaMb: integer('replay_storage_quota_mb').notNull().default(4096),
   ...auditColumns(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

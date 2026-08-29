@@ -153,7 +153,7 @@ export const REGION_LEVEL_LABELS = {
 // ─── 系统监控告警指标 ─────────────────────────────────────────────────────────
 
 /** 指标分组：决定告警规则表单里下拉的分组顺序 */
-export const MONITOR_METRIC_GROUPS = ['infra', 'workflow', 'payment', 'openPlatform'] as const;
+export const MONITOR_METRIC_GROUPS = ['infra', 'workflow', 'payment', 'openPlatform', 'analytics'] as const;
 
 export type MonitorMetricGroup = (typeof MONITOR_METRIC_GROUPS)[number];
 
@@ -162,6 +162,7 @@ export const MONITOR_METRIC_GROUP_LABELS: Record<MonitorMetricGroup, string> = {
   workflow: '流程引擎',
   payment: '支付',
   openPlatform: '开放平台',
+  analytics: '数据分析',
 };
 
 /** 指标单位：决定阈值输入提示与数值格式化口径 */
@@ -199,6 +200,8 @@ export const MONITOR_METRICS = [
   'paymentFailureRate', 'paymentStuckPaying', 'paymentReconDiff', 'paymentEventBacklog', 'paymentWebhookFailureRate',
   // 开放平台
   'openApiErrorRate', 'openApiAppErrorRate', 'openWebhookFailureRate', 'openWebhookDisabledSubs',
+  // 数据分析
+  'replayStorageMb',
 ] as const;
 
 export type MonitorMetric = (typeof MONITOR_METRICS)[number];
@@ -237,6 +240,8 @@ export const MONITOR_METRIC_META: Record<MonitorMetric, MonitorMetricMeta> = {
   openApiAppErrorRate: { label: '单应用最高错误率', group: 'openPlatform', unit: 'percent', scope: 'global', description: '近 60 分钟按应用统计的最高错误率（仅统计调用量 ≥ 20 次的应用，避免小样本噪声）' },
   openWebhookFailureRate: { label: '应用 Webhook 失败率', group: 'openPlatform', unit: 'percent', scope: 'global', description: '近 60 分钟应用事件 Webhook 投递失败占比' },
   openWebhookDisabledSubs: { label: '自动停用订阅数', group: 'openPlatform', unit: 'count', scope: 'global', description: '因连续投递失败被自动停用的应用 Webhook 订阅数' },
+
+  replayStorageMb: { label: '回放存储占用', group: 'analytics', unit: 'number', scope: 'global', description: '会话回放录像的当前总占用（MB）；建议阈值设为配额的 75%~90%，在滚动淘汰触发前收到预警' },
 };
 
 export const MONITOR_METRIC_LABELS: Record<MonitorMetric, string> = Object.fromEntries(

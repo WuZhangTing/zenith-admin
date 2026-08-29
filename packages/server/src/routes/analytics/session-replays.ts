@@ -11,7 +11,7 @@ import {
 import { ReplaySessionDTO, ReplaySessionDetailDTO } from '../../lib/openapi-dtos';
 import {
   ingestReplaySegment, listReplaySessions, getReplaySessionDetail, getReplaySegmentData, deleteReplaySessions,
-  REPLAY_SEGMENT_MAX_BYTES,
+  getReplayStorageStats, REPLAY_SEGMENT_MAX_BYTES,
 } from '../../services/analytics/session-replays.service';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
@@ -89,6 +89,26 @@ const listRoute = defineOpenAPIRoute({
 
 const IdParamStr = z.object({ id: z.string().uuid() });
 
+const ReplayStorageStatsDTO = z
+  .object({
+    totalBytes: z.number(),
+    totalCount: z.number().int(),
+    todayBytes: z.number(),
+    todayCount: z.number().int(),
+    quotaMb: z.number().int(),
+    usagePercent: z.number(),
+  })
+  .openapi('ReplayStorageStats');
+
+const statsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/stats', tags: ['SessionReplays'], summary: '回放存储统计（容量看板）', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'monitor:replay:list' })] as const,
+    responses: { ...ok(ReplayStorageStatsDTO, '存储统计'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await getReplayStorageStats()), 200),
+});
+
 const detailRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{id}', tags: ['SessionReplays'], summary: '回放会话详情（含分片清单与关联错误）', security: [{ BearerAuth: [] }],
@@ -134,6 +154,6 @@ const batchDeleteRoute = defineOpenAPIRoute({
   },
 });
 
-r.openapiRoutes([ingestRoute, listRoute, batchDeleteRoute, detailRoute, segmentDataRoute] as const);
+r.openapiRoutes([ingestRoute, listRoute, statsRoute, batchDeleteRoute, detailRoute, segmentDataRoute] as const);
 
 export default r;

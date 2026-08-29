@@ -317,6 +317,7 @@ export const updateAnalyticsSettingsSchema = z.object({
   replayMaskAllText: z.boolean().optional(),
   replayBlockSelector: z.string().max(256).optional(),
   replayRetentionDays: z.number().int().min(1).max(3650).optional(),
+  replayStorageQuotaMb: z.number().int().min(0).max(1_048_576).optional(),
 });
 
 // ─── 会话回放 ─────────────────────────────────────────────────────────────────

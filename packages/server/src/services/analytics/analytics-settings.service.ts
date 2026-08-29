@@ -34,6 +34,7 @@ export function mapSettings(row: AnalyticsSettingsRow) {
     replayMaskAllText: row.replayMaskAllText,
     replayBlockSelector: row.replayBlockSelector,
     replayRetentionDays: row.replayRetentionDays,
+    replayStorageQuotaMb: row.replayStorageQuotaMb,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -76,6 +77,7 @@ export async function updateSettings(input: UpdateAnalyticsSettingsInput) {
       ...(input.replayMaskAllText !== undefined ? { replayMaskAllText: input.replayMaskAllText } : {}),
       ...(input.replayBlockSelector !== undefined ? { replayBlockSelector: input.replayBlockSelector } : {}),
       ...(input.replayRetentionDays !== undefined ? { replayRetentionDays: input.replayRetentionDays } : {}),
+      ...(input.replayStorageQuotaMb !== undefined ? { replayStorageQuotaMb: input.replayStorageQuotaMb } : {}),
     })
     .where(eq(analyticsSettings.id, current.id))
     .returning();

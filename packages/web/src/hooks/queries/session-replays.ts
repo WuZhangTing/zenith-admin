@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { ReplaySession, ReplaySessionDetail } from '@zenith/shared/analytics';
+import type { ReplaySession, ReplaySessionDetail, ReplayStorageStats } from '@zenith/shared/analytics';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -20,7 +20,17 @@ export const replayKeys = {
   lists: ['session-replays', 'list'] as const,
   list: (params: ReplayListParams) => ['session-replays', 'list', params] as const,
   detail: (id: string) => ['session-replays', 'detail', id] as const,
+  stats: ['session-replays', 'stats'] as const,
 };
+
+/** 存储统计（容量看板） */
+export function useReplayStorageStats() {
+  return useQuery({
+    queryKey: replayKeys.stats,
+    queryFn: () => request.get<ReplayStorageStats>('/api/session-replays/stats', { silent: true }).then(unwrap),
+    staleTime: 30_000,
+  });
+}
 
 export function useReplayList(params: ReplayListParams) {
   return useQuery({

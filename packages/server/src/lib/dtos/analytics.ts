@@ -673,6 +673,7 @@ export const AnalyticsSettingsDTO = z
     replayMaskAllText: z.boolean(),
     replayBlockSelector: z.string(),
     replayRetentionDays: z.number().int(),
+    replayStorageQuotaMb: z.number().int(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })

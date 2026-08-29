@@ -150,7 +150,7 @@ let mockSettings: AnalyticsSettings = {
   trackErrors: true, trackApi: true, maskInputs: true, respectDnt: false, anonymizeIp: false, blacklistPaths: ['/login'],
   errorIgnorePatterns: ['Invalid DOM property'],
   retentionDays: 180, errorRetentionDays: 90, sessionTimeoutMinutes: 30,
-  trackReplay: false, replaySessionSampleRate: 0, replayOnError: true, replayMaskAllText: false, replayBlockSelector: '', replayRetentionDays: 30,
+  trackReplay: false, replaySessionSampleRate: 0, replayOnError: true, replayMaskAllText: false, replayBlockSelector: '', replayRetentionDays: 30, replayStorageQuotaMb: 4096,
   createdAt: mockDateTimeOffset(-60 * 86400000), updatedAt: mockDateTime(),
 };
 

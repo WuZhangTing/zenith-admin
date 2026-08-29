@@ -63,6 +63,9 @@ const sessions: ReplaySession[] = [
 ];
 
 export const sessionReplaysHandlers = [
+  http.get('/api/session-replays/stats', () => ok({
+    totalBytes: 2_254_000, totalCount: 2, todayBytes: 384_000, todayCount: 1, quotaMb: 4096, usagePercent: 1,
+  })),
   http.get('/api/session-replays', ({ request }) => {
     const url = new URL(request.url);
     return ok(paginate(sessions, url));

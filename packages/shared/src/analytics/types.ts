@@ -232,6 +232,22 @@ export interface ReplaySessionDetail extends ReplaySession {
   errors: Array<Pick<ErrorEvent, 'id' | 'groupId' | 'errorType' | 'level' | 'message' | 'createdAt'>>;
 }
 
+/** 回放存储统计（容量看板与配额治理） */
+export interface ReplayStorageStats {
+  /** 当前总占用（字节） */
+  totalBytes: number;
+  /** 回放会话总数 */
+  totalCount: number;
+  /** 今日新增（字节） */
+  todayBytes: number;
+  /** 今日新增会话数 */
+  todayCount: number;
+  /** 配额（MB，0=不限制） */
+  quotaMb: number;
+  /** 配额使用率（%，无配额时为 0） */
+  usagePercent: number;
+}
+
 export interface ErrorBreadcrumb {
   type: 'navigation' | 'click' | 'http' | 'console' | 'custom';
   message: string;
@@ -374,6 +390,8 @@ export interface AnalyticsSettings {
   replayBlockSelector: string;
   /** 回放数据保留天数 */
   replayRetentionDays: number;
+  /** 回放存储配额（MB，0=不限制）：超限滚动淘汰旧回放，超硬顶拒收采样录制 */
+  replayStorageQuotaMb: number;
   createdAt: string;
   updatedAt: string;
 }

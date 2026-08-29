@@ -756,6 +756,7 @@ export const SEED_MONITOR_ALERT_RULES: Array<{
   { id: 12, name: '开放 API 错误率异常',  metric: 'openApiErrorRate',          operator: 'gte', threshold: 10,  durationMinutes: 5,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 30, enabled: true },
   { id: 13, name: '单应用错误率异常',     metric: 'openApiAppErrorRate',       operator: 'gte', threshold: 50,  durationMinutes: 10, level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 60, enabled: true },
   { id: 14, name: '应用订阅被自动停用',   metric: 'openWebhookDisabledSubs',   operator: 'gte', threshold: 1,   durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 720, enabled: true },
+  { id: 18, name: '回放存储接近配额',     metric: 'replayStorageMb',           operator: 'gte', threshold: 3277, durationMinutes: 0,  level: 'warning',  channels: ['inapp'], recipientUserIds: [1], recipientEmails: [], silenceMinutes: 720, enabled: true },
 ];
 
 // ─── 意见反馈初始数据 ─────────────────────────────────────────────────────────

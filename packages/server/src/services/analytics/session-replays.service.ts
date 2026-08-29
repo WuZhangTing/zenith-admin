@@ -8,11 +8,11 @@
  * - startedAt/fromTs/toTs 为客户端时钟（与 rrweb 事件时间戳同源），
  *   lastActivityAt 为服务端时钟（僵尸收尾判定不信任客户端）。
  */
-import { and, eq, desc, sql, inArray, lt, gte } from 'drizzle-orm';
+import { and, eq, desc, sql, inArray, isNull, lt, gte } from 'drizzle-orm';
 import { gzipSync } from 'node:zlib';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { replaySessions, replaySegments, errorEvents } from '../../db/schema';
+import { replaySessions, replaySegments, errorEvents, analyticsSettings } from '../../db/schema';
 import type { ReplaySessionRow, ReplaySegmentRow } from '../../db/schema';
 import type { ReplaySegmentMetaInput } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
@@ -30,6 +30,12 @@ export const REPLAY_SEGMENT_MAX_BYTES = 2 * 1024 * 1024;
 const REPLAY_MAX_SEGMENTS = 600;
 /** recording 会话无活动超时（服务端收尾判定） */
 const REPLAY_STALE_MINUTES = 10;
+/** 用量缓存 TTL：配额是软限制，30s 精度足够，避免每分片 SUM */
+const USAGE_CACHE_TTL_MS = 30_000;
+/** 滚动淘汰目标水位（清到配额的 90%，滞回防抖动） */
+const QUOTA_LOW_WATERMARK = 0.9;
+/** 硬顶：清理跟不上时拒收采样录制（错误触发不受限） */
+const QUOTA_HARD_LIMIT = 1.2;
 
 export interface ReplayReqCtx { ua: string; siteKey?: string | null; origin?: string | null }
 
@@ -104,6 +110,16 @@ export async function ingestReplaySegment(meta: ReplaySegmentMetaInput, data: Bu
   const toTs = new Date(meta.toTs);
   const durationMs = Math.max(0, meta.toTs - meta.startedAt);
 
+  // 配额治理：超配额触发异步滚动淘汰（不阻塞本次上报）；超硬顶拒收纯采样录制（错误现场永远收）
+  const quotaBytes = await getReplayQuotaBytes(tenantId);
+  if (quotaBytes > 0) {
+    const usage = await getReplayUsageBytes(tenantId);
+    if (usage >= quotaBytes * QUOTA_HARD_LIMIT && !meta.triggers.some((t) => t.type !== 'sampled')) {
+      return; // 静默丢弃：SDK 无需感知，避免重试风暴
+    }
+    if (usage >= quotaBytes) void enforceReplayQuota(tenantId, quotaBytes).catch(() => { /* 下一分片再触发 */ });
+  }
+
   await db.transaction(async (tx) => {
     const [session] = await tx
       .insert(replaySessions)
@@ -169,8 +185,128 @@ export async function ingestReplaySegment(meta: ReplaySegmentMetaInput, data: Bu
           clickCount: sql`${replaySessions.clickCount} + ${meta.clickCount}`,
         })
         .where(eq(replaySessions.id, meta.replayId));
+      bumpUsageCache(tenantId, data.byteLength);
     }
   });
+}
+
+// ─── 存储配额治理（滚动淘汰 + 硬顶熔断）───────────────────────────────────────
+/** 用量进程内缓存：30s TTL + ingest 增量累加，配额为软限制无需强一致 */
+const usageCache = new Map<number, { at: number; bytes: number }>();
+const evictingTenants = new Set<number>();
+
+function usageCacheKey(tenantId: number | null): number {
+  return tenantId ?? 0;
+}
+
+function bumpUsageCache(tenantId: number | null, delta: number): void {
+  const entry = usageCache.get(usageCacheKey(tenantId));
+  if (entry) entry.bytes += delta;
+}
+
+async function getReplayQuotaBytes(tenantId: number | null): Promise<number> {
+  const [row] = await db
+    .select({ quotaMb: analyticsSettings.replayStorageQuotaMb })
+    .from(analyticsSettings)
+    .where(tenantId === null ? isNull(analyticsSettings.tenantId) : eq(analyticsSettings.tenantId, tenantId))
+    .limit(1);
+  return (row?.quotaMb ?? 4096) * 1024 * 1024;
+}
+
+/** 当前租户回放总占用（字节），30s 缓存 */
+export async function getReplayUsageBytes(tenantId: number | null): Promise<number> {
+  const key = usageCacheKey(tenantId);
+  const cached = usageCache.get(key);
+  if (cached && Date.now() - cached.at < USAGE_CACHE_TTL_MS) return cached.bytes;
+  const scope = tenantId === null ? isNull(replaySessions.tenantId) : eq(replaySessions.tenantId, tenantId);
+  const [row] = await db
+    .select({ bytes: sql<number>`COALESCE(SUM(${replaySessions.totalBytes}), 0)::bigint` })
+    .from(replaySessions)
+    .where(scope);
+  const bytes = Number(row?.bytes ?? 0);
+  usageCache.set(key, { at: Date.now(), bytes });
+  return bytes;
+}
+
+/**
+ * 滚动淘汰到低水位（配额 90%）：价值分级——先删无错误回放（最旧优先），
+ * 再删有错误回放（最旧优先，保护还在排查中的现场尽量靠后）。
+ * 进程内互斥防止并发重复淘汰；多实例下重复执行也幂等无害。
+ */
+export async function enforceReplayQuota(tenantId: number | null, quotaBytes: number): Promise<number> {
+  const key = usageCacheKey(tenantId);
+  if (evictingTenants.has(key)) return 0;
+  evictingTenants.add(key);
+  try {
+    const target = quotaBytes * QUOTA_LOW_WATERMARK;
+    const scope = tenantId === null ? isNull(replaySessions.tenantId) : eq(replaySessions.tenantId, tenantId);
+    let deleted = 0;
+    // 两梯队：无错误（价值低）→ 全部剩余；录制中的活跃会话不淘汰
+    for (const tier of [eq(replaySessions.errorCount, 0), undefined]) {
+      for (let i = 0; i < 50; i++) {
+        if ((await getReplayUsageBytesFresh(tenantId)) <= target) return deleted;
+        const victims = await db
+          .select({ id: replaySessions.id })
+          .from(replaySessions)
+          .where(and(scope, tier, sql`${replaySessions.status} != 'recording'`))
+          .orderBy(replaySessions.startedAt)
+          .limit(20);
+        if (victims.length === 0) break;
+        const rows = await db
+          .delete(replaySessions)
+          .where(inArray(replaySessions.id, victims.map((v) => v.id)))
+          .returning({ bytes: replaySessions.totalBytes });
+        deleted += rows.length;
+        usageCache.delete(key);
+        if (rows.length === 0) break;
+      }
+    }
+    return deleted;
+  } finally {
+    evictingTenants.delete(key);
+  }
+}
+
+/** 绕过缓存的实时用量（淘汰循环内部使用） */
+async function getReplayUsageBytesFresh(tenantId: number | null): Promise<number> {
+  usageCache.delete(usageCacheKey(tenantId));
+  return getReplayUsageBytes(tenantId);
+}
+
+/** 存储统计（容量看板）：总量 / 今日新增 / 配额使用率 */
+export async function getReplayStorageStats() {
+  const where = tenantScope(replaySessions);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const [[totals], [today], quotaBytes] = await Promise.all([
+    db.select({
+      bytes: sql<number>`COALESCE(SUM(${replaySessions.totalBytes}), 0)::bigint`,
+      count: sql<number>`count(*)::int`,
+    }).from(replaySessions).where(where),
+    db.select({
+      bytes: sql<number>`COALESCE(SUM(${replaySessions.totalBytes}), 0)::bigint`,
+      count: sql<number>`count(*)::int`,
+    }).from(replaySessions).where(mergeWhere(where, gte(replaySessions.createdAt, todayStart))),
+    getReplayQuotaBytes(currentUserOrNull() ? getCreateTenantId(currentUserOrNull()!) : null),
+  ]);
+  const totalBytes = Number(totals?.bytes ?? 0);
+  const quotaMb = Math.round(quotaBytes / 1024 / 1024);
+  return {
+    totalBytes,
+    totalCount: totals?.count ?? 0,
+    todayBytes: Number(today?.bytes ?? 0),
+    todayCount: today?.count ?? 0,
+    quotaMb,
+    usagePercent: quotaMb > 0 ? Math.round((totalBytes / quotaBytes) * 100) : 0,
+  };
+}
+
+/** 监控告警指标：回放存储占用（MB，平台级口径） */
+export async function getReplayStorageMbMetric(): Promise<number> {
+  const [row] = await db
+    .select({ bytes: sql<number>`COALESCE(SUM(${replaySessions.totalBytes}), 0)::bigint` })
+    .from(replaySessions);
+  return Math.round(Number(row?.bytes ?? 0) / 1024 / 1024);
 }
 
 /** 错误上报到达时回填回放会话的错误计数（错误服务调用） */
