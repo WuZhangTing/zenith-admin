@@ -114,7 +114,7 @@ export async function recordLoginLog(params: LoginLogParams) {
 }
 
 // ─── 以下为下沉后的登录/注册/会话业务逻辑 ─────────────────────────────────────
-import bcrypt from 'bcryptjs';
+import { hashPassword, verifyPassword } from '../../lib/password';
 import { randomBytes } from 'node:crypto';
 import { config } from '../../config';
 import { sendMail } from '../../lib/email';
@@ -243,7 +243,7 @@ export async function login(input: LoginInput) {
     await recordLoginLog({ ip: input.ip, ua: input.ua, username: input.username, status: 'fail', message: '账号已被禁用', userId: user.id, tenantId });
     throw new HTTPException(403, { message: '账号已被禁用' });
   }
-  const valid = await bcrypt.compare(input.password, user.password);
+  const valid = await verifyPassword(input.password, user.password);
   if (!valid) {
     await Promise.all([
       recordLoginLog({ ip: input.ip, ua: input.ua, username: input.username, status: 'fail', message: '用户名或密码错误', userId: user.id, tenantId }),
@@ -304,7 +304,7 @@ export async function register(input: RegisterInput) {
   if (usernameRow) throw new HTTPException(400, { message: '用户名已存在' });
   if (emailRow) throw new HTTPException(400, { message: '邮箱已被注册' });
 
-  const hashed = await bcrypt.hash(input.password, 10);
+  const hashed = await hashPassword(input.password);
   const user = await db.transaction(async (tx) => {
     // 席位校验与插入同事务（License 席位对自助注册同样生效）
     await reserveTenantSeats(tx, null);
@@ -529,12 +529,12 @@ export async function changeMyPassword(oldPassword: string, newPassword: string)
   const userId = currentUser().userId;
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) throw new HTTPException(404, { message: '用户不存在' });
-  const valid = await bcrypt.compare(oldPassword, user.password);
+  const valid = await verifyPassword(oldPassword, user.password);
   if (!valid) throw new HTTPException(400, { message: '原密码错误' });
   const policy = await getPasswordPolicy();
   const passwordError = validatePassword(newPassword, policy);
   if (passwordError) throw new HTTPException(400, { message: passwordError });
-  const hashed = await bcrypt.hash(newPassword, 10);
+  const hashed = await hashPassword(newPassword);
   await db.update(users).set({ password: hashed, passwordUpdatedAt: new Date() }).where(eq(users.id, userId));
 }
 
@@ -679,7 +679,7 @@ export async function resetPassword(token: string, newPassword: string) {
   const policy = await getPasswordPolicy();
   const passwordError = validatePassword(newPassword, policy);
   if (passwordError) throw new HTTPException(400, { message: passwordError });
-  const hashed = await bcrypt.hash(newPassword, 10);
+  const hashed = await hashPassword(newPassword);
   await db.transaction(async (tx) => {
     await tx.update(users).set({ password: hashed }).where(eq(users.id, record.userId));
     await tx.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, record.id));
@@ -690,6 +690,6 @@ export async function verifyMyPassword(password: string) {
   const userId = currentUser().userId;
   const [user] = await db.select({ password: users.password }).from(users).where(eq(users.id, userId)).limit(1);
   if (!user) throw new HTTPException(404, { message: '用户不存在' });
-  const valid = await bcrypt.compare(password, user.password);
+  const valid = await verifyPassword(password, user.password);
   if (!valid) throw new HTTPException(401, { message: '密码错误' });
 }

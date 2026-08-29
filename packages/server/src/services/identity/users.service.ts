@@ -1,5 +1,5 @@
 import { eq, and, ne, isNull, inArray, like, type SQL } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../../lib/password';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { users, userRoles, roles, departments, positions, userPositions, userMenus, userDeptScopes, menus } from '../../db/schema';
@@ -347,7 +347,7 @@ export async function createUser(data: CreateUserInput) {
   if (dupUsername.length > 0) throw new HTTPException(400, { message: '用户名已存在' });
   if (dupEmail.length > 0) throw new HTTPException(400, { message: '邮箱已存在' });
   if (dupPhone.length > 0) throw new HTTPException(400, { message: '手机号已存在' });
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await hashPassword(password);
   try {
     const created = await db.transaction(async (tx) => {
       // 席位校验必须与插入同事务（advisory lock 串行化，消灭 check-then-insert 竞态）
@@ -550,7 +550,7 @@ export async function batchResetUsersPassword(ids: number[], password: string) {
   if (policyError) throw new HTTPException(400, { message: policyError });
   const tc = tenantCondition(users, user);
   await ensureNoProtectedAdminInIds(validIds, '修改密码');
-  const hashed = await bcrypt.hash(password, 10);
+  const hashed = await hashPassword(password);
   await db.update(users).set({ password: hashed }).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
 }
 
@@ -559,7 +559,7 @@ export async function updateUserPassword(id: number, password: string) {
   const policy = await getPasswordPolicy();
   const policyError = validatePassword(password, policy);
   if (policyError) throw new HTTPException(400, { message: policyError });
-  const hashed = await bcrypt.hash(password, 10);
+  const hashed = await hashPassword(password);
   await db.update(users).set({ password: hashed }).where(eq(users.id, id));
 }
 

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../../lib/password';
 import { Client, InvalidCredentialsError, type Entry } from 'ldapts';
 import { SAML, ValidateInResponseTo, type CacheItem, type CacheProvider, type Profile } from '@node-saml/node-saml';
 import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
@@ -793,7 +793,7 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
   if (!external.email) throw new HTTPException(400, { message: '企业身份源未返回邮箱，无法自动创建账号' });
   const email = external.email;
 
-  const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+  const password = await hashPassword(crypto.randomBytes(32).toString('hex'));
   const createdUser = await db.transaction(async (tx) => {
     await reserveTenantSeats(tx, provider.tenantId ?? null);
     const [created] = await tx.insert(users).values({
@@ -865,7 +865,7 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
   }
 
   if (!provider.jitEnabled || !external.email) return 'skipped';
-  const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+  const password = await hashPassword(crypto.randomBytes(32).toString('hex'));
   const jitCreated = await db.transaction(async (tx) => {
     await reserveTenantSeats(tx, provider.tenantId ?? null);
     const [created] = await tx.insert(users).values({

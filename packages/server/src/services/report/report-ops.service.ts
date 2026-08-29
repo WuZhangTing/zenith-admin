@@ -3,7 +3,7 @@
  */
 import { HTTPException } from 'hono/http-exception';
 import { and, asc, count, desc, eq, inArray, ilike, lt, max, or, sql } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
+import { hashPassword, verifyPassword } from '../../lib/password';
 import { createHash, randomBytes } from 'node:crypto';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
@@ -483,7 +483,7 @@ export async function createShare(dashboardId: number, input: CreateReportShareI
   assertPublicDashboardProjection((dashboard.publishedSnapshot.widgets ?? []) as ReportWidget[]);
   const token = randomBytes(24).toString('hex');
   const tokenHash = createHash('sha256').update(token).digest('hex');
-  const passwordHash = input.password ? await bcrypt.hash(input.password, 10) : null;
+  const passwordHash = input.password ? await hashPassword(input.password) : null;
   const expireAt = input.expireAt === undefined
     ? new Date(Date.now() + DEFAULT_SHARE_TTL_DAYS * 24 * 60 * 60 * 1000)
     : parseShareExpireAt(input.expireAt);
@@ -518,7 +518,7 @@ export async function ensureShareExists(id: number): Promise<ReportDashboardShar
 export async function updateShare(id: number, input: UpdateReportShareInput): Promise<ReportDashboardShare> {
   const share = await ensureShareExists(id);
   await ensureReportResourceAccess('dashboard', share.dashboardId, 'editor');
-  const passwordHash = input.password === undefined ? undefined : (input.password ? await bcrypt.hash(input.password, 10) : null);
+  const passwordHash = input.password === undefined ? undefined : (input.password ? await hashPassword(input.password) : null);
   const expireAt = parseShareExpireAt(input.expireAt);
   const [row] = await db.update(reportDashboardShares).set({
     enabled: input.enabled,
@@ -753,7 +753,7 @@ export async function createPublicAccessSession(
 ): Promise<ReportPublicAccessSession> {
   const share = await findShareByToken(token);
   if (share.passwordHash) {
-    if (!password || !(await bcrypt.compare(password, share.passwordHash))) {
+    if (!password || !(await verifyPassword(password, share.passwordHash))) {
       logShareAccess(share, 'access', false);
       throw new HTTPException(401, { message: '访问密码错误' });
     }

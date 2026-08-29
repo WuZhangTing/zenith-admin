@@ -2,7 +2,7 @@
  * 会员后台管理服务：会员 CRUD / 启禁 / 重置密码 / 导出。
  * 复用 member-auth.service 的 mapMember / ensureMemberExists。
  */
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../../lib/password';
 import { and, asc, desc, eq, gte, lte, inArray, ilike, isNull, or, count, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -163,7 +163,7 @@ export interface AdminCreateMemberInput {
 }
 
 export async function createMember(input: AdminCreateMemberInput) {
-  const hashed = input.password ? await bcrypt.hash(input.password, 10) : null;
+  const hashed = input.password ? await hashPassword(input.password) : null;
   const member = await db.transaction(async (tx) => {
     // 未显式指定等级时按成长值 0 匹配初始等级（阈值 ≤0 的最高档），
     // 避免新会员出现"无等级"空档；与 applyGrowthDeltaInTx 的定级口径一致
@@ -268,7 +268,7 @@ export async function deleteMember(id: number) {
 
 export async function resetMemberPasswordByAdmin(id: number, newPassword: string) {
   await ensureMemberExists(id);
-  const hashed = await bcrypt.hash(newPassword, 10);
+  const hashed = await hashPassword(newPassword);
   await db.update(members).set({ password: hashed }).where(eq(members.id, id));
   await forceLogoutAllByMember(id);
 }

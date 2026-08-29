@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../../lib/password';
 import crypto from 'node:crypto';
 import { db } from '../../db';
 import {
@@ -276,7 +276,7 @@ export async function createScimUser(source: DirectorySyncSourceRow, payload: Re
     });
     await applyUserPatch(userId, source, input);
   } else {
-    const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+    const password = await hashPassword(crypto.randomBytes(32).toString('hex'));
     try {
       userId = await db.transaction(async (tx) => {
         await reserveTenantSeats(tx, source.tenantId);

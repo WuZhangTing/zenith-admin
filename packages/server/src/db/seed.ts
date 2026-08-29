@@ -1,6 +1,6 @@
 import { db } from './index';
 import { wikiSpaces, wikiSpaceMembers, wikiTags, wikiTemplates, wikiDocs, wikiDocVersions, wikiDocTags, wikiComments, users, menus, roles, roleMenus, userRoles, dicts, dictItems, fileStorageConfigs, departments, positions, userPositions, systemConfigs, cronJobs, rateLimitRules, regions, tenants, tenantPackages, tenantPackageFeatures, emailTemplates, smsConfigs, smsTemplates, inAppTemplates, tags, dataMaskConfigs, monitorAlertRules, clientApps, memberLevels, memberTags, members, memberPointAccounts, memberPointTransactions, memberWallets, coupons, memberCoupons, checkinRules, checkinSettings, checkinMilestones, workflowForms, workflowDataSources, workflowConnectors, workflowTemplates, workflowDefinitions, aiPromptTemplates, paymentMethodConfigs, paymentDeductPlans, mpAccounts, mpTags, mpFans, mpMessages, mpAutoReplies, mpMenus, mpMaterials, mpDrafts, mpMessageTemplates, mpBroadcasts, mpQrcodes, mpKfAccounts, mpKfSessions, mpKfSessionEvents, mpKfRoutingConfigs, mpConditionalMenus, channels, channelQuickReplies, reportDatasources, reportDatasets, reportDashboards, apiScopes, ratePlans, reportPrintTemplates, ruleDecisionTables, ruleDecisionFlows, ruleLists, ruleListItems, ruleScorecards, reportFolders, reportEnvironments, reportMetrics, reportDqRules, reportQueryQuotas, reportSlaRules, reportAssetTemplates, reportFillTemplates, analyticsEventMeta, analyticsSites, asyncTaskItems, asyncTasks, cmsSites, cmsSiteInheritances, cmsModels, cmsModelFields, cmsChannels, cmsDistributionRules, cmsContents, cmsTags, cmsContentTags, cmsContentChannels, cmsContentRelations, cmsContentVersions, cmsFriendLinkGroups, cmsFriendLinks, cmsAdSlots, cmsAds, cmsAdEvents, cmsForms, cmsSensitiveWords, cmsErrorProneWords, cmsLinkWords, cmsComments, cmsSiteUsers, cmsChannelUsers, cmsInteractions, cmsInteractionQuestions, cmsInteractionResponses, cmsInteractionAnswers, cmsMemberSubscriptions, cmsResources, cmsResourceFolders, cmsResourceRefs, cmsSearchWords, cmsHotwordGroups, cmsHotwords, cmsCollectRules, cmsCollectItems, cmsWidgets, cmsWidgetRefs, cmsWidgetSourceRefs, cmsPages, cmsPageBlockAcls, cmsPublishArtifacts } from './schema';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../lib/password';
 import { and, eq, isNull, inArray, sql } from 'drizzle-orm';
 import { createRequire } from 'node:module';
 import logger from '../lib/logger';
@@ -56,7 +56,7 @@ async function seed() {
     .where(and(eq(users.username, 'admin'), isNull(users.tenantId)))
     .limit(1);
   if (existingAdmin.length === 0) {
-    const hashedPassword = await bcrypt.hash('123456', 10);
+    const hashedPassword = await hashPassword('123456');
     await db.insert(users).values({
       username: 'admin',
       nickname: '管理员',
@@ -239,7 +239,7 @@ async function seedRest() {
       username: SEED_CMS_EDITOR_USER.username,
       nickname: SEED_CMS_EDITOR_USER.nickname,
       email: SEED_CMS_EDITOR_USER.email,
-      password: await bcrypt.hash(SEED_CMS_EDITOR_USER.password, 10),
+      password: await hashPassword(SEED_CMS_EDITOR_USER.password),
       departmentId: SEED_CMS_EDITOR_USER.departmentId,
       status: 'enabled',
     }).returning({ id: users.id });
@@ -785,7 +785,7 @@ async function seedRest() {
   // ── 演示会员（手机号 13800138000 / 密码 123456）────────────────────────
   const existingDemoMember = await db.select({ id: members.id }).from(members).where(eq(members.phone, '13800138000')).limit(1);
   if (existingDemoMember.length === 0) {
-    const memberPwd = await bcrypt.hash('123456', 10);
+    const memberPwd = await hashPassword('123456');
     const [normalLevel] = await db.select({ id: memberLevels.id }).from(memberLevels).where(eq(memberLevels.level, 1)).limit(1);
     const [demoMember] = await db.insert(members).values({
       phone: '13800138000',

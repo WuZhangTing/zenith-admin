@@ -3,7 +3,7 @@
  * 校验/落库逻辑与后台创建用户一致：密码策略、部门/岗位/角色编码解析、
  * 租户席位上限、逐行独立 bcrypt、动态用户组收尾同步。
  */
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../../password';
 import { db } from '../../../db';
 import { departments, positions, roles, users } from '../../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../../lib/tenant';
@@ -114,7 +114,7 @@ export function registerUsersImport(): void {
         throw new Error(`超出租户用户数上限（${prepared.tenantUserLimit}）`);
       }
       // 安全要求：每行独立 bcrypt（独立 salt），禁止相同密码复用哈希
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await hashPassword(password);
       return { username, nickname, email: email || null, hashedPassword, departmentId, roleIds, positionIds, status };
     },
     async insertRow(row, prepared) {

@@ -1,7 +1,7 @@
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray, isNull, lte } from 'drizzle-orm';
 import { CronExpressionParser } from 'cron-parser';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../../lib/password';
 import crypto from 'node:crypto';
 import { db } from '../../db';
 import {
@@ -511,7 +511,7 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
             const ext = plan.ext!;
             let username = (resolveMapped(ext, 'username') ?? ext.username).slice(0, 32);
             if (usedUsernames.has(username)) username = `${username.slice(0, 24)}_${ext.externalId.slice(0, 6)}`.slice(0, 32);
-            const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
+            const password = await hashPassword(crypto.randomBytes(32).toString('hex'));
             await db.transaction(async (tx) => {
               await reserveTenantSeats(tx, source.tenantId);
               const [created] = await tx.insert(users).values({

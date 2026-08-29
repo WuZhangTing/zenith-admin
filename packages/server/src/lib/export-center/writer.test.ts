@@ -74,4 +74,48 @@ describe('导出行数兜底上限（ExportRuntimeContext.rowLimit）', () => {
     const buffer = await renderExportCsv(definition, rowsOf(8), ctx('csv', null));
     expect(buffer.toString('utf-8')).toContain('row-8');
   });
+
+  it('流式 xlsx：多级表头 + 水印产物可读回（合并/冻结/隐藏元信息表完整）', async () => {
+    const nested = {
+      ...definition,
+      styles: undefined,
+      columns: [
+        { key: 'id', header: 'ID', type: 'number' as const },
+        {
+          header: '联系方式',
+          children: [
+            { key: 'name', header: '名称' },
+            { key: 'code', header: '编码' },
+          ],
+        },
+      ],
+    } as unknown as AnyExportDefinition;
+    async function* nestedRows(): AsyncGenerator<Record<string, unknown>> {
+      yield { id: 1, name: '甲', code: 'A-1' };
+      yield { id: 2, name: '乙', code: 'B-2' };
+    }
+    const context = { ...ctx('xlsx', 100), watermark: true };
+    const buffer = await renderExportWorkbook(nested, nestedRows(), context);
+
+    const { createRequire } = await import('node:module');
+    const ExcelJS = createRequire(import.meta.url)('exceljs') as typeof import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+
+    const sheet = workbook.getWorksheet('测试导出')!;
+    // 水印 2 行 + 表头 2 行，数据从第 5 行开始
+    expect(sheet.getCell(1, 1).value).toBe('测试导出');
+    expect(sheet.getCell(3, 1).value).toBe('ID');
+    expect(sheet.getCell(3, 2).value).toBe('联系方式');
+    expect(sheet.getCell(4, 2).value).toBe('名称');
+    expect(sheet.getCell(4, 3).value).toBe('编码');
+    expect(sheet.getCell(5, 2).value).toBe('甲');
+    expect(sheet.getCell(6, 3).value).toBe('B-2');
+    // 冻结表头视图
+    expect(sheet.views?.[0]?.ySplit).toBe(4);
+    // 隐藏的导出信息表
+    const meta = workbook.getWorksheet('导出信息')!;
+    expect(meta.state).toBe('hidden');
+    expect(meta.getCell(1, 1).value).toBe('任务 ID');
+  });
 });

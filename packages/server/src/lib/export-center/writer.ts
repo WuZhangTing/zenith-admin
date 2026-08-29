@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { PassThrough } from 'node:stream';
 import type ExcelJS from 'exceljs';
 import { csvEscapeCell } from '../excel-export';
 import { formatDateTime } from '../datetime';
@@ -123,11 +124,82 @@ function selectedColumns<TRow extends Record<string, unknown>>(
   return filter(columns);
 }
 
-function appendMetadataSheet(workbook: ExcelJS.Workbook, ctx: ExportRuntimeContext) {
+async function writeTableSheetStreaming(
+  workbook: ExcelJS.stream.xlsx.WorkbookWriter,
+  definition: AnyExportDefinition,
+  rows: AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>,
+  ctx: ExportRuntimeContext,
+) {
+  const columns = selectedColumns(await resolveDefinitionColumns(definition, ctx), ctx.selectedColumns);
+  const leaves = leafColumns(columns);
+  const styles = { ...DEFAULT_STYLES, ...definition.styles };
+  const headerDepth = maxDepth(columns);
+  const titleRows = ctx.watermark ? 2 : 0;
+  const filterHeaderRow = titleRows + headerDepth;
+
+  const sheet = workbook.addWorksheet(definition.sheetName ?? definition.moduleName, {
+    views: [{ state: 'frozen', ySplit: filterHeaderRow }],
+  });
+  sheet.columns = leaves.map((column) => ({ width: column.width ?? 18 }));
+
+  // 表头区（标题 / 元信息 / 多级表头）：流式 writer 中行一旦 commit 便不可再改，
+  // 先整体构建、赋值与合并完成后再按序 commit
+  const headRows = Array.from({ length: filterHeaderRow }, () => sheet.addRow([]));
+  if (ctx.watermark) {
+    const lastCol = Math.max(leaves.length, 1);
+    const titleCell = headRows[0].getCell(1);
+    titleCell.value = definition.filenamePrefix;
+    applyCellStyle(titleCell, styles.title);
+    sheet.mergeCells(1, 1, 1, lastCol);
+    const metaCell = headRows[1].getCell(1);
+    metaCell.value = `导出人：${ctx.createdByName ?? ctx.currentUser.username}    导出时间：${formatDateTime(ctx.exportedAt)}    任务号：${ctx.jobId}`;
+    applyCellStyle(metaCell, styles.meta);
+    sheet.mergeCells(2, 1, 2, lastCol);
+  }
+  for (const header of buildHeaderCells(columns, headerDepth)) {
+    const row = titleRows + header.row;
+    const cell = headRows[row - 1].getCell(header.col);
+    cell.value = header.column.header;
+    applyCellStyle(cell, mergeStyle(styles.header, header.column.headerStyle));
+    if (header.rowSpan > 1 || header.colSpan > 1) {
+      sheet.mergeCells(row, header.col, row + header.rowSpan - 1, header.col + header.colSpan - 1);
+    }
+  }
+  for (const row of headRows) row.commit();
+
+  // 数据区：逐行 addRow + commit，行 XML 增量序列化，CPU 随分页取数循环摊开，
+  // 不再有 writeBuffer() 对整本 workbook 的终局连续序列化段
+  const bodyStyles = leaves.map((column) => mergeStyle(styles.body, column.style));
+  let rowIndex = filterHeaderRow;
+  let written = 0;
+  for await (const sourceRow of rows) {
+    // 渲染兜底：countRows 不准或恒为 0 的定义在此拦截，防止无界行数
+    if (ctx.rowLimit && ctx.rowLimit > 0 && ++written > ctx.rowLimit) {
+      throw new Error(`导出行数超过上限 ${ctx.rowLimit} 行，请收窄筛选条件或分批导出`);
+    }
+    const excelRow = sheet.addRow(leaves.map((column) => formatExportCell(column, sourceRow, ctx)));
+    rowIndex++;
+    leaves.forEach((_column, index) => applyCellStyle(excelRow.getCell(index + 1), bodyStyles[index]));
+    excelRow.commit();
+  }
+
+  sheet.autoFilter = {
+    from: { row: filterHeaderRow, column: 1 },
+    to: { row: rowIndex, column: Math.max(leaves.length, 1) },
+  };
+  sheet.commit();
+}
+
+function appendMetadataSheetStreaming(workbook: ExcelJS.stream.xlsx.WorkbookWriter, ctx: ExportRuntimeContext) {
   if (!ctx.watermark) return;
   const sheet = workbook.addWorksheet('导出信息', { state: 'hidden' });
   sheet.columns = [{ width: 18 }, { width: 80 }];
-  const rows = [
+  for (const row of metadataRows(ctx)) sheet.addRow(row).commit();
+  sheet.commit();
+}
+
+function metadataRows(ctx: ExportRuntimeContext): Array<Array<string | number>> {
+  return [
     ['任务 ID', ctx.jobId],
     ['导出实体', ctx.entity],
     ['业务模块', ctx.moduleName],
@@ -142,73 +214,13 @@ function appendMetadataSheet(workbook: ExcelJS.Workbook, ctx: ExportRuntimeConte
     ['筛选条件', JSON.stringify(ctx.query)],
     ['字段', ctx.selectedColumns?.join(', ') ?? '全部字段'],
   ];
-  for (const row of rows) sheet.addRow(row);
 }
 
-async function writeTableSheet(
-  workbook: ExcelJS.Workbook,
-  definition: AnyExportDefinition,
-  rows: AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>,
-  ctx: ExportRuntimeContext,
-) {
-  const columns = selectedColumns(await resolveDefinitionColumns(definition, ctx), ctx.selectedColumns);
-  const leaves = leafColumns(columns);
-  const sheet = workbook.addWorksheet(definition.sheetName ?? definition.moduleName);
-  const styles = { ...DEFAULT_STYLES, ...definition.styles };
-  const headerDepth = maxDepth(columns);
-  const titleRows = ctx.watermark ? 2 : 0;
-  let headerStartRow = titleRows + 1;
-
-  if (ctx.watermark) {
-    const lastCol = Math.max(leaves.length, 1);
-    sheet.mergeCells(1, 1, 1, lastCol);
-    const titleCell = sheet.getCell(1, 1);
-    titleCell.value = definition.filenamePrefix;
-    applyCellStyle(titleCell, styles.title);
-    sheet.mergeCells(2, 1, 2, lastCol);
-    const metaCell = sheet.getCell(2, 1);
-    metaCell.value = `导出人：${ctx.createdByName ?? ctx.currentUser.username}    导出时间：${formatDateTime(ctx.exportedAt)}    任务号：${ctx.jobId}`;
-    applyCellStyle(metaCell, styles.meta);
-    headerStartRow = 3;
-  }
-
-  const headerCells = buildHeaderCells(columns, headerDepth);
-  for (const header of headerCells) {
-    const row = headerStartRow + header.row - 1;
-    const col = header.col;
-    const cell = sheet.getCell(row, col);
-    cell.value = header.column.header;
-    applyCellStyle(cell, mergeStyle(styles.header, header.column.headerStyle));
-    if (header.rowSpan > 1 || header.colSpan > 1) {
-      sheet.mergeCells(row, col, row + header.rowSpan - 1, col + header.colSpan - 1);
-    }
-  }
-
-  leaves.forEach((column, index) => {
-    sheet.getColumn(index + 1).width = column.width ?? 18;
-  });
-
-  const filterHeaderRow = headerStartRow + headerDepth - 1;
-  let rowIndex = filterHeaderRow;
-  let written = 0;
-  for await (const sourceRow of rows) {
-    // 渲染兜底：countRows 不准或恒为 0 的定义在此拦截，防止无界行数进入终局序列化
-    if (ctx.rowLimit && ctx.rowLimit > 0 && ++written > ctx.rowLimit) {
-      throw new Error(`导出行数超过上限 ${ctx.rowLimit} 行，请收窄筛选条件或分批导出`);
-    }
-    const values = leaves.map((column) => formatExportCell(column, sourceRow, ctx));
-    const excelRow = sheet.insertRow(++rowIndex, values);
-    leaves.forEach((column, index) => {
-      const cell = excelRow.getCell(index + 1);
-      applyCellStyle(cell, mergeStyle(styles.body, column.style));
-    });
-  }
-
-  sheet.views = [{ state: 'frozen', ySplit: filterHeaderRow }];
-  sheet.autoFilter = {
-    from: { row: filterHeaderRow, column: 1 },
-    to: { row: rowIndex, column: Math.max(leaves.length, 1) },
-  };
+function appendMetadataSheet(workbook: ExcelJS.Workbook, ctx: ExportRuntimeContext) {
+  if (!ctx.watermark) return;
+  const sheet = workbook.addWorksheet('导出信息', { state: 'hidden' });
+  sheet.columns = [{ width: 18 }, { width: 80 }];
+  for (const row of metadataRows(ctx)) sheet.addRow(row);
 }
 
 export async function renderExportWorkbook(
@@ -216,17 +228,38 @@ export async function renderExportWorkbook(
   rows: AsyncIterable<Record<string, unknown>> | Iterable<Record<string, unknown>>,
   ctx: ExportRuntimeContext,
 ): Promise<Buffer> {
-  const workbook = new (loadExcelJS().Workbook)();
+  // custom：定义方直接操作内存 Workbook（报表打印等自带单元格/字节预算），保留 Buffer 路径
+  if (definition.renderMode === 'custom' && definition.renderWorkbook) {
+    const workbook = new (loadExcelJS().Workbook)();
+    workbook.creator = 'Zenith Admin';
+    workbook.created = ctx.exportedAt;
+    await definition.renderWorkbook(workbook, ctx);
+    appendMetadataSheet(workbook, ctx);
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
+  }
+  // table：流式 WorkbookWriter 逐行 commit 增量序列化，消除 writeBuffer() 的
+  // 整本终局序列化连续 CPU 段与全量 worksheet 对象图驻留
+  const passThrough = new PassThrough();
+  const chunks: Buffer[] = [];
+  passThrough.on('data', (chunk: Buffer) => chunks.push(chunk));
+  const streamDone = new Promise<void>((resolve, reject) => {
+    passThrough.on('end', resolve);
+    passThrough.on('error', reject);
+  });
+  const workbook = new (loadExcelJS().stream.xlsx.WorkbookWriter)({ stream: passThrough, useStyles: true });
   workbook.creator = 'Zenith Admin';
   workbook.created = ctx.exportedAt;
-  if (definition.renderMode === 'custom' && definition.renderWorkbook) {
-    await definition.renderWorkbook(workbook, ctx);
-  } else {
-    await writeTableSheet(workbook, definition, rows, ctx);
+  try {
+    await writeTableSheetStreaming(workbook, definition, rows, ctx);
+    appendMetadataSheetStreaming(workbook, ctx);
+    await workbook.commit();
+    await streamDone;
+    return Buffer.concat(chunks);
+  } catch (err) {
+    passThrough.destroy();
+    throw err;
   }
-  appendMetadataSheet(workbook, ctx);
-  const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer);
 }
 
 export async function renderExportCsv(

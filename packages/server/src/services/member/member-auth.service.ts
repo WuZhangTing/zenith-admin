@@ -1,11 +1,11 @@
 /**
  * 会员认证服务（前台用户体系，与管理员 auth.service 隔离）。
  *
- * - 密码使用 bcryptjs hash(10)
+ * - 密码经 lib/password 统一入口 hash(10)（优先 @node-rs/bcrypt 原生实现）
  * - Token 复用 lib/jwt 的 signToken/verifyToken（仅 payload 不同：带 type='member'）
  * - 注册时在事务内初始化积分账户 + 钱包账户
  */
-import bcrypt from 'bcryptjs';
+import { hashPassword, verifyPassword } from '../../lib/password';
 import { and, asc, eq, isNull, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -206,7 +206,7 @@ export async function registerMember(input: MemberRegisterServiceInput): Promise
 
   await ensureIdentifiersAvailable({ username, phone, email });
 
-  const hashed = password ? await bcrypt.hash(password, 10) : null;
+  const hashed = password ? await hashPassword(password) : null;
   const finalNickname = nickname || phone || username || email?.split('@')[0] || '会员';
   const levelId = await getDefaultLevelId();
 
@@ -301,7 +301,7 @@ export async function loginMember(input: MemberLoginServiceInput): Promise<Membe
       await recordMemberLoginFailure(account);
       throw new HTTPException(400, { message: '账号或密码错误' });
     }
-    const valid = await bcrypt.compare(input.password, member.password);
+    const valid = await verifyPassword(input.password, member.password);
     if (!valid) {
       recordMemberLoginLog({ memberId: member.id, ip: input.ip, ua: input.ua, status: 'fail', message: '账号或密码错误' });
       await recordMemberLoginFailure(account);
@@ -446,10 +446,10 @@ export async function changeMyMemberPassword(input: MemberChangePasswordInput): 
   // 已设密码时需校验原密码
   if (member.password) {
     if (!input.oldPassword) throw new HTTPException(400, { message: '请输入原密码' });
-    const valid = await bcrypt.compare(input.oldPassword, member.password);
+    const valid = await verifyPassword(input.oldPassword, member.password);
     if (!valid) throw new HTTPException(400, { message: '原密码错误' });
   }
-  const hashed = await bcrypt.hash(input.newPassword, 10);
+  const hashed = await hashPassword(input.newPassword);
   await db.update(members).set({ password: hashed }).where(eq(members.id, memberId));
 }
 
@@ -460,7 +460,7 @@ export async function resetMemberPassword(input: MemberResetPasswordInput): Prom
   const [member] = await db.select().from(members)
     .where(and(eq(members.phone, input.phone), isNull(members.deletedAt))).limit(1);
   if (!member) throw new HTTPException(400, { message: '该手机号未注册' });
-  const hashed = await bcrypt.hash(input.newPassword, 10);
+  const hashed = await hashPassword(input.newPassword);
   await db.update(members).set({ password: hashed }).where(eq(members.id, member.id));
   // 重置密码后踢下线所有会话
   await forceLogoutAllByMember(member.id);
@@ -479,7 +479,7 @@ export async function deactivateMyAccount(input: { password?: string; smsCode?: 
 
   if (member.password) {
     if (!input.password) throw new HTTPException(400, { message: '请输入登录密码确认注销' });
-    const valid = await bcrypt.compare(input.password, member.password);
+    const valid = await verifyPassword(input.password, member.password);
     if (!valid) throw new HTTPException(400, { message: '密码错误' });
   } else {
     if (!member.phone) throw new HTTPException(400, { message: '账户未绑定手机号，请联系客服注销' });

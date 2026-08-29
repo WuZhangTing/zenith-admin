@@ -1,6 +1,6 @@
 import { eq, like, and, ne, desc, count, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '../../lib/password';
 import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { db } from '../../db';
@@ -210,7 +210,7 @@ export async function createTenant(data: CreateTenantInput) {
 
     // 2) 管理员账号并绑定角色
     const email = adminEmail || `${adminUsername}@${row.code}.tenant`;
-    const hashed = await bcrypt.hash(initialPassword!, 10);
+    const hashed = await hashPassword(initialPassword!);
     await reserveTenantSeats(tx, row.id);
     const [adminUser] = await tx.insert(users).values({
       username: adminUsername,
