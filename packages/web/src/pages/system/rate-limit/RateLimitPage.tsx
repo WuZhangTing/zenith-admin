@@ -5,6 +5,8 @@ import {
   Divider,
   Form,
   Modal,
+  Radio,
+  RadioGroup,
   Select,
   SideSheet,
   Space,
@@ -44,6 +46,7 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { DataBar } from '@/components/data-viz/DataBar';
 import {
   type RateLimitRule,
   useBanRateLimitKey,
@@ -102,6 +105,7 @@ interface RuleFormValues {
   algorithm: RateLimitAlgorithm;
   allowlist: string[];
   priority: number;
+  alertThreshold: number | null;
   blockedMessage: string | null;
   pathPatterns: string[];
 }
@@ -141,6 +145,8 @@ export default function RateLimitPage() {
 
   const [detailRuleName, setDetailRuleName] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  /** 详情抽屉趋势范围：24h 小时级 / 30d 天级 */
+  const [trendRange, setTrendRange] = useState<'hourly' | 'daily'>('hourly');
   /** 封禁弹窗目标（来自拦截记录行）；null = 关闭 */
   const [banTarget, setBanTarget] = useState<{ rule: string; key: string } | null>(null);
   const [banDuration, setBanDuration] = useState<number>(3600);
@@ -156,7 +162,7 @@ export default function RateLimitPage() {
     defaults: {
       description: null, windowValue: 1, windowUnit: 'minute', limit: 30, keyType: 'ip',
       enabled: true, mode: 'enforce', algorithm: 'fixed_window', allowlist: [], priority: 0,
-      blockedMessage: null, pathPatterns: [],
+      alertThreshold: null, blockedMessage: null, pathPatterns: [],
     },
     toValues: (rule) => ({
       ...splitWindow(rule.windowMs),
@@ -168,6 +174,7 @@ export default function RateLimitPage() {
       algorithm: rule.algorithm,
       allowlist: rule.allowlist ?? [],
       priority: rule.priority,
+      alertThreshold: rule.alertThreshold,
       blockedMessage: rule.blockedMessage,
       pathPatterns: rule.pathPatterns ?? [],
     }),
@@ -177,6 +184,8 @@ export default function RateLimitPage() {
         // name 仅新增时提交；更新接口不接受改名
         ...(ctx.isEdit ? {} : { name }),
         ...rest,
+        // InputNumber 清空后为 undefined，统一落为 null（= 不告警）
+        alertThreshold: rest.alertThreshold ?? null,
         windowMs: windowValue * WINDOW_UNIT_MS[windowUnit],
       };
     },
@@ -436,8 +445,8 @@ export default function RateLimitPage() {
 
   const detailChartSpec = detailStat
     ? makeLineSpec({
-        data: detailStat.hourlySeries,
-        xField: 'hour',
+        data: trendRange === 'hourly' ? detailStat.hourlySeries : detailStat.dailySeries,
+        xField: trendRange === 'hourly' ? 'hour' : 'day',
         series: [
           { field: 'hits', name: '命中', color: '#3b82f6' },
           { field: 'blocked', name: '拦截', color: '#ef4444' },
@@ -608,6 +617,7 @@ export default function RateLimitPage() {
               <InfoBlock label="计数维度" value={RATE_LIMIT_KEY_TYPE_LABELS[detailRule.keyType]} />
               <InfoBlock label="算法" value={RATE_LIMIT_ALGORITHM_LABELS[detailRule.algorithm]} />
               <InfoBlock label="路径优先级" value={String(detailRule.priority)} />
+              <InfoBlock label="告警阈值" value={detailRule.alertThreshold === null ? '不告警' : `${detailRule.alertThreshold} 次/小时`} />
               <InfoBlock label="拦截提示" value={detailRule.blockedMessage ?? '默认提示'} />
             </div>
             {detailRule.allowlist.length > 0 && (
@@ -627,17 +637,53 @@ export default function RateLimitPage() {
               </div>
             )}
 
-            <Divider align="left" style={{ margin: '20px 0 12px' }}>近 24 小时趋势</Divider>
+            <Divider align="left" style={{ margin: '20px 0 12px' }}>拦截趋势</Divider>
             {detailChartSpec && detailStat ? (
               <>
-                <Space spacing={8} style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <RadioGroup
+                    type="button"
+                    buttonSize="small"
+                    value={trendRange}
+                    onChange={(e) => setTrendRange(e.target.value as 'hourly' | 'daily')}
+                  >
+                    <Radio value="hourly">近 24 小时</Radio>
+                    <Radio value="daily">近 30 天</Radio>
+                  </RadioGroup>
                   <Tag size="small" color="blue">累计命中 {detailStat.hitCount.toLocaleString()}</Tag>
                   <Tag size="small" color="red">累计拦截 {detailStat.blockedCount.toLocaleString()}</Tag>
                   <Tag size="small">拦截率 {detailStat.blockRate}%</Tag>
-                </Space>
+                </div>
                 <LineChart {...detailChartSpec} options={chartOptions} height={220} />
               </>
             ) : <Text type="tertiary">暂无统计数据</Text>}
+
+            <Divider align="left" style={{ margin: '20px 0 12px' }}>今日 Top 拦截来源</Divider>
+            {detailStat && detailStat.topSources.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {detailStat.topSources.map((source) => {
+                  const maxCount = detailStat.topSources[0]?.count ?? 1;
+                  return (
+                    <div key={source.key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <Text copyable style={{ width: 220, flexShrink: 0 }} ellipsis={{ showTooltip: true }}>{source.key}</Text>
+                      <DataBar value={source.count} max={maxCount} color="var(--semi-color-danger)" style={{ flex: 1 }} />
+                      <Text strong style={{ width: 56, textAlign: 'right', flexShrink: 0 }}>{source.count.toLocaleString()}</Text>
+                      {canManage && (
+                        <Button
+                          size="small"
+                          theme="borderless"
+                          type="danger"
+                          onClick={() => {
+                            setBanDuration(3600);
+                            setBanTarget({ rule: detailRule.name, key: source.key });
+                          }}
+                        >封禁</Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <Text type="tertiary">今日暂无拦截来源</Text>}
 
             <Divider align="left" style={{ margin: '20px 0 12px' }}>该规则最近拦截</Divider>
             <ConfigurableTable
@@ -769,6 +815,14 @@ export default function RateLimitPage() {
             label="白名单"
             placeholder="IP、CIDR（10.0.0.0/8）或 u:用户ID，回车添加"
             extraText="命中白名单的请求直接放行且不计数；用于内部探活、回调源与办公网豁免"
+          />
+          <Form.InputNumber
+            field="alertThreshold"
+            label="告警阈值"
+            min={1}
+            style={{ width: '100%' }}
+            placeholder="留空不告警"
+            extraText="单小时拦截数达到该值时通知平台管理员（同一小时只告警一次）"
           />
           <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
           <Form.Switch field="enabled" label="启用" />

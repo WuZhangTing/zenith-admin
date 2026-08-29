@@ -52,6 +52,15 @@ export const RateLimitStatItemDTO = z
       hits: z.number().int(),
       blocked: z.number().int(),
     })),
+    dailySeries: z.array(z.object({
+      day: z.string(),
+      hits: z.number().int(),
+      blocked: z.number().int(),
+    })).openapi({ description: '近 30 天按日序列' }),
+    topSources: z.array(z.object({
+      key: z.string(),
+      count: z.number(),
+    })).openapi({ description: '今日 Top 拦截来源（按计数身份聚合）' }),
   })
   .openapi('RateLimitStatItem');
 

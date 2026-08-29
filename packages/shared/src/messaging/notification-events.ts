@@ -375,6 +375,18 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     title: '定时任务执行失败',
     content: '任务「{{jobName}}」执行失败：{{errorMessage}}',
   },
+  'ops.rate_limit.spike': {
+    group: 'ops',
+    label: '接口限流拦截突增',
+    description: '某条限流规则的小时拦截数达到其配置的告警阈值',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email', 'webhook'],
+    // 派发侧按 规则+小时 携带 dedupeKey，同一小时只告警一次，无需再配 rateLimit
+    vars: eventVars<{ ruleName: string; blockedCount: number; threshold: number; hour: string }>(),
+    title: '[限流告警] {{ruleName}} 拦截突增',
+    content: '限流规则「{{ruleName}}」在 {{hour}} 时段已拦截 {{blockedCount}} 次，达到告警阈值 {{threshold}}。请在「系统设置 → 接口限流」检查是否为攻击流量或阈值配置过严。',
+  },
   'ops.scheduler.task_alert': {
     group: 'ops',
     label: '系统调度任务告警',

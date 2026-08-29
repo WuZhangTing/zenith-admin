@@ -126,6 +126,21 @@ export const rateLimitHandlers = [
           blocked: r.enabled ? Math.floor(Math.random() * 5) : 0,
         };
       });
+      const dayStart = new Date();
+      dayStart.setHours(0, 0, 0, 0);
+      const dailySeries = Array.from({ length: 30 }, (_, i) => {
+        const t = new Date(dayStart.getTime() - (29 - i) * 24 * 3600 * 1000);
+        const mm = String(t.getMonth() + 1).padStart(2, '0');
+        const dd = String(t.getDate()).padStart(2, '0');
+        return {
+          day: `${mm}-${dd}`,
+          hits: r.enabled ? Math.floor(Math.random() * 8000) + 500 : 0,
+          blocked: r.enabled ? Math.floor(Math.random() * 40) : 0,
+        };
+      });
+      const topSources = s.blocked > 0
+        ? s.recent.slice(0, 5).map((b, i) => ({ key: b.key, count: Math.max(1, s.blocked - i) }))
+        : [];
       return {
         name: r.name,
         description: r.description,
@@ -139,6 +154,8 @@ export const rateLimitHandlers = [
         blockRate: s.hit > 0 ? Math.round((s.blocked / s.hit) * 10000) / 100 : 0,
         recentBlocks: s.recent,
         hourlySeries,
+        dailySeries,
+        topSources,
       };
     });
     return ok({ items }, 'success');

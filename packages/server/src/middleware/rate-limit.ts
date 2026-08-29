@@ -57,9 +57,16 @@ const RL_BAN_PREFIX = `${config.redis.keyPrefix}rlban:`;
 const STATS_PREFIX = `${config.redis.keyPrefix}rlstats:`;
 const STATS_TTL = 7 * 24 * 60 * 60;
 const HOURLY_TTL = 25 * 60 * 60;
+/** 按日序列（30d 趋势）与按日 Top 来源的保留期 */
+const DAILY_TTL = 32 * 24 * 60 * 60;
+const TOP_TTL = 7 * 24 * 60 * 60;
 
 function currentHourKey(): string {
   return dayjs().format('YYYY-MM-DD HH');
+}
+
+function currentDayKey(): string {
+  return dayjs().format('YYYY-MM-DD');
 }
 
 /**
@@ -168,19 +175,21 @@ async function slidingWindowHit(counterKey: string, banKey: string, windowMs: nu
   return { count: weighted, resetMs: windowMs - elapsed };
 }
 
-/** 拦截统计（fire-and-forget）：blocked 计数 + 最近记录 + 小时序列 */
+/** 拦截统计（fire-and-forget）：blocked 计数 + 最近记录 + 小时/日序列 + Top 来源 + 突增告警 */
 function recordBlockedStats(rule: RuleConfig, c: Context, identity: string, banned = false): void {
   void (async () => {
     try {
       const blockedKey = `${STATS_PREFIX}${rule.name}:blocked`;
       const recentKey = `${STATS_PREFIX}${rule.name}:recent`;
       const hourlyBlockedKey = `${STATS_PREFIX}${rule.name}:hourly:blocked`;
+      const dailyBlockedKey = `${STATS_PREFIX}${rule.name}:daily:blocked`;
+      const topKey = `${STATS_PREFIX}${rule.name}:top:${currentDayKey()}`;
       const ts = Date.now();
       const hk = currentHourKey();
       const record: RecentBlockRecord = { ts, key: identity, path: c.req.path };
       if (banned) record.banned = true;
       else if (rule.mode === 'monitor') record.monitored = true;
-      await redis
+      const results = await redis
         .multi()
         .incr(blockedKey)
         .expire(blockedKey, STATS_TTL)
@@ -189,7 +198,26 @@ function recordBlockedStats(rule: RuleConfig, c: Context, identity: string, bann
         .expire(recentKey, STATS_TTL)
         .hincrby(hourlyBlockedKey, hk, 1)
         .expire(hourlyBlockedKey, HOURLY_TTL)
+        .hincrby(dailyBlockedKey, currentDayKey(), 1)
+        .expire(dailyBlockedKey, DAILY_TTL)
+        .zincrby(topKey, 1, identity)
+        .expire(topKey, TOP_TTL)
         .exec();
+      // 突增告警：小时拦截数达到阈值时通知（去重在 alert service 内做）。
+      // exec 结果按链式顺序排列，索引 5 = hourlyBlockedKey 的 hincrby 返回值
+      if (rule.alertThreshold !== null && rule.alertThreshold > 0 && results) {
+        const hourlyBlocked = Number(results[5]?.[1] ?? 0);
+        if (hourlyBlocked >= rule.alertThreshold) {
+          void import('../services/platform/rate-limit-alert.service')
+            .then((m) => m.maybeSendRateLimitSpikeAlert({
+              ruleName: rule.name,
+              threshold: rule.alertThreshold as number,
+              blockedCount: hourlyBlocked,
+              hourKey: hk,
+            }))
+            .catch(() => {});
+        }
+      }
     } catch (err) {
       reportStatsFailure('blocked', err);
     }
@@ -206,12 +234,15 @@ function recordHitStats(name: string): void {
       const k = `${STATS_PREFIX}${name}:hit`;
       const hk = currentHourKey();
       const hourlyHitsKey = `${STATS_PREFIX}${name}:hourly:hits`;
+      const dailyHitsKey = `${STATS_PREFIX}${name}:daily:hits`;
       await redis
         .multi()
         .incr(k)
         .expire(k, STATS_TTL)
         .hincrby(hourlyHitsKey, hk, 1)
         .expire(hourlyHitsKey, HOURLY_TTL)
+        .hincrby(dailyHitsKey, currentDayKey(), 1)
+        .expire(dailyHitsKey, DAILY_TTL)
         .exec();
     } catch (err) {
       reportStatsFailure('hit', err);

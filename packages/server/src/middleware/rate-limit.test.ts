@@ -35,13 +35,22 @@ vi.mock('../db', () => ({
   db: { select: () => ({ from: () => Promise.resolve(dbRows) }) },
 }));
 
+// 突增告警 service（中间件动态 import，vi.mock 同样拦截动态导入）
+vi.mock('../services/platform/rate-limit-alert.service', () => ({
+  maybeSendRateLimitSpikeAlert: vi.fn(() => Promise.resolve()),
+}));
+
 import { currentUser } from '../lib/context';
+import { maybeSendRateLimitSpikeAlert } from '../services/platform/rate-limit-alert.service';
 
 // ─── 带状态的 Redis 假实现 ─────────────────────────────────────────────────────
 interface CounterState { count: number; expiresAt: number }
 const counters = new Map<string, CounterState>();
 const zsets = new Map<string, string[]>();
 const bans = new Map<string, number>(); // key → expiresAt
+const kvNums = new Map<string, number>(); // 统计计数器（incr）
+const hashes = new Map<string, Map<string, number>>(); // 小时/日序列（hincrby）
+const zscores = new Map<string, Map<string, number>>(); // Top 来源（zincrby）
 let evalFails = false;
 
 function banTtl(key: string): number {
@@ -88,18 +97,56 @@ const redisMock = {
     return Promise.resolve([count, state ? state.expiresAt - Date.now() : windowMs]);
   }),
   multi: vi.fn(() => {
+    // 有状态的 pipeline 模拟：exec 按链式顺序返回 [err, result]，
+    // 突增告警依赖 hincrby 的返回值（当前小时拦截数）
+    const ops: Array<() => unknown> = [];
     const chain = {
-      incr: () => chain,
-      expire: () => chain,
-      hincrby: () => chain,
-      zremrangebyrank: () => chain,
-      zadd: (key: string, _score: number, member: string) => {
-        const list = zsets.get(key) ?? [];
-        list.push(member);
-        zsets.set(key, list);
+      incr: (key: string) => {
+        ops.push(() => {
+          const next = (kvNums.get(key) ?? 0) + 1;
+          kvNums.set(key, next);
+          return next;
+        });
         return chain;
       },
-      exec: () => Promise.resolve([]),
+      expire: () => {
+        ops.push(() => 1);
+        return chain;
+      },
+      hincrby: (key: string, field: string, delta: number) => {
+        ops.push(() => {
+          const hash = hashes.get(key) ?? new Map<string, number>();
+          const next = (hash.get(field) ?? 0) + delta;
+          hash.set(field, next);
+          hashes.set(key, hash);
+          return next;
+        });
+        return chain;
+      },
+      zincrby: (key: string, delta: number, member: string) => {
+        ops.push(() => {
+          const scores = zscores.get(key) ?? new Map<string, number>();
+          const next = (scores.get(member) ?? 0) + delta;
+          scores.set(member, next);
+          zscores.set(key, scores);
+          return String(next);
+        });
+        return chain;
+      },
+      zremrangebyrank: () => {
+        ops.push(() => 0);
+        return chain;
+      },
+      zadd: (key: string, _score: number, member: string) => {
+        ops.push(() => {
+          const list = zsets.get(key) ?? [];
+          list.push(member);
+          zsets.set(key, list);
+          return 1;
+        });
+        return chain;
+      },
+      exec: () => Promise.resolve(ops.map((op) => [null, op()] as [null, unknown])),
     };
     return chain;
   }),
@@ -180,6 +227,9 @@ beforeEach(async () => {
   counters.clear();
   zsets.clear();
   bans.clear();
+  kvNums.clear();
+  hashes.clear();
+  zscores.clear();
   evalFails = false;
   vi.clearAllMocks();
   await loadRules();
@@ -422,6 +472,45 @@ describe('手动封禁', () => {
     expect(list[0].key).toBe('u:3');
     expect(list[0].ttlMs).toBeGreaterThan(0);
     expect(list[1].key).toBe('10.0.0.9');
+  });
+});
+
+describe('Top 来源与突增告警', () => {
+  it('拦截时累积当日 Top 来源计数', async () => {
+    await loadRules(ruleRow({ name: 't_top', limit: 1 }));
+    const app = new Hono();
+    app.get('/api/t', namedRateLimit('t_top'), (c) => c.json({ ok: true }));
+    for (let i = 0; i < 4; i++) await app.request('/api/t');
+    await flushAsync();
+
+    const topKey = [...zscores.keys()].find((k) => k.includes('t_top:top:'));
+    expect(topKey).toBeDefined();
+    expect(zscores.get(topKey as string)?.get('127.0.0.1')).toBe(3); // 4 发中 3 发被拦截
+  });
+
+  it('小时拦截数达到 alertThreshold 时触发告警派发', async () => {
+    await loadRules(ruleRow({ name: 't_alert', limit: 1, alertThreshold: 2 }));
+    const app = new Hono();
+    app.get('/api/t', namedRateLimit('t_alert'), (c) => c.json({ ok: true }));
+    for (let i = 0; i < 4; i++) await app.request('/api/t'); // 拦截 3 次 → 第 2 次起达阈值
+    await flushAsync();
+    await flushAsync(); // 动态 import 多一跳微任务
+
+    expect(maybeSendRateLimitSpikeAlert).toHaveBeenCalled();
+    const call = vi.mocked(maybeSendRateLimitSpikeAlert).mock.calls[0][0];
+    expect(call.ruleName).toBe('t_alert');
+    expect(call.threshold).toBe(2);
+    expect(call.blockedCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('未配置 alertThreshold 时不触发告警', async () => {
+    await loadRules(ruleRow({ name: 't_no_alert', limit: 1 }));
+    const app = new Hono();
+    app.get('/api/t', namedRateLimit('t_no_alert'), (c) => c.json({ ok: true }));
+    for (let i = 0; i < 4; i++) await app.request('/api/t');
+    await flushAsync();
+    await flushAsync();
+    expect(maybeSendRateLimitSpikeAlert).not.toHaveBeenCalled();
   });
 });
 

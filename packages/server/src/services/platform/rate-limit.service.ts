@@ -91,6 +91,7 @@ export interface UpdateRateLimitRuleInput {
   algorithm?: 'fixed_window' | 'sliding_window';
   allowlist?: string[];
   priority?: number;
+  alertThreshold?: number | null;
   description?: string | null;
   blockedMessage?: string | null;
   pathPatterns?: string[];
@@ -107,6 +108,7 @@ export interface CreateRateLimitRuleInput {
   algorithm?: 'fixed_window' | 'sliding_window';
   allowlist?: string[];
   priority?: number;
+  alertThreshold?: number | null;
   blockedMessage?: string | null;
   pathPatterns?: string[];
 }
@@ -125,6 +127,7 @@ export async function updateRateLimitRule(id: number, patch: UpdateRateLimitRule
       ...(patch.algorithm === undefined ? {} : { algorithm: patch.algorithm }),
       ...(patch.allowlist === undefined ? {} : { allowlist: patch.allowlist }),
       ...(patch.priority === undefined ? {} : { priority: patch.priority }),
+      ...(patch.alertThreshold === undefined ? {} : { alertThreshold: patch.alertThreshold }),
       ...(patch.description === undefined ? {} : { description: patch.description }),
       ...(patch.blockedMessage === undefined ? {} : { blockedMessage: patch.blockedMessage }),
       ...(patch.pathPatterns === undefined ? {} : { pathPatterns: patch.pathPatterns }),
@@ -151,6 +154,7 @@ export async function createRateLimitRule(input: CreateRateLimitRuleInput) {
       algorithm: input.algorithm ?? 'fixed_window',
       allowlist: input.allowlist ?? [],
       priority: input.priority ?? 0,
+      alertThreshold: input.alertThreshold ?? null,
       blockedMessage: input.blockedMessage ?? null,
       pathPatterns: input.pathPatterns ?? [],
     })
@@ -227,16 +231,58 @@ async function readHourlySeries(name: string): Promise<HourlyPoint[]> {
   return series;
 }
 
-/** 聚合所有规则的统计数据（命中/拦截/最近拦截） */
+interface DailyPoint {
+  day: string;
+  hits: number;
+  blocked: number;
+}
+
+async function readDailySeries(name: string): Promise<DailyPoint[]> {
+  const [hitsMap, blockedMap] = await Promise.all([
+    redis.hgetall(`${STATS_PREFIX}${name}:daily:hits`),
+    redis.hgetall(`${STATS_PREFIX}${name}:daily:blocked`),
+  ]);
+  const today = dayjs().startOf('day');
+  const series: DailyPoint[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const t = today.subtract(i, 'day');
+    const dk = t.format('YYYY-MM-DD');
+    series.push({
+      day: t.format('MM-DD'),
+      hits: Number(hitsMap[dk] ?? 0) || 0,
+      blocked: Number(blockedMap[dk] ?? 0) || 0,
+    });
+  }
+  return series;
+}
+
+interface TopSource {
+  key: string;
+  count: number;
+}
+
+/** 今日 Top-N 拦截来源（按日 zincrby 聚合） */
+async function readTopSources(name: string, limit = 10): Promise<TopSource[]> {
+  const raw = await redis.zrevrange(`${STATS_PREFIX}${name}:top:${dayjs().format('YYYY-MM-DD')}`, 0, limit - 1, 'WITHSCORES');
+  const items: TopSource[] = [];
+  for (let i = 0; i < raw.length; i += 2) {
+    items.push({ key: raw[i], count: Number(raw[i + 1]) || 0 });
+  }
+  return items;
+}
+
+/** 聚合所有规则的统计数据（命中/拦截/最近拦截/趋势/Top 来源） */
 export async function getRateLimitStats() {
   const cfgs: RuleConfig[] = listRuleConfigs();
   const items = await Promise.all(
     cfgs.map(async (cfg) => {
-      const [hit, blocked, recent, hourlySeries] = await Promise.all([
+      const [hit, blocked, recent, hourlySeries, dailySeries, topSources] = await Promise.all([
         readNumber(`${STATS_PREFIX}${cfg.name}:hit`),
         readNumber(`${STATS_PREFIX}${cfg.name}:blocked`),
         readRecent(cfg.name),
         readHourlySeries(cfg.name),
+        readDailySeries(cfg.name),
+        readTopSources(cfg.name),
       ]);
       return {
         name: cfg.name,
@@ -251,6 +297,8 @@ export async function getRateLimitStats() {
         blockRate: hit > 0 ? Math.round((blocked / hit) * 10000) / 100 : 0,
         recentBlocks: recent,
         hourlySeries,
+        dailySeries,
+        topSources,
       };
     }),
   );

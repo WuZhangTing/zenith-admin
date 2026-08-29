@@ -42,6 +42,7 @@ const UpdateRuleBody = z.object({
   algorithm: z.enum(['fixed_window', 'sliding_window']).optional(),
   allowlist: allowlistSchema.optional(),
   priority: z.number().int().min(0).max(9999).optional(),
+  alertThreshold: z.number().int().min(1).max(1_000_000).nullable().optional(),
   description: z.string().nullable().optional(),
   blockedMessage: z.string().nullable().optional(),
   pathPatterns: z.array(pathPatternSchema).max(50).optional(),
@@ -58,6 +59,7 @@ const CreateRuleBody = z.object({
   algorithm: z.enum(['fixed_window', 'sliding_window']).optional(),
   allowlist: allowlistSchema.optional(),
   priority: z.number().int().min(0).max(9999).optional(),
+  alertThreshold: z.number().int().min(1).max(1_000_000).nullable().optional(),
   blockedMessage: z.string().max(255).nullable().optional(),
   pathPatterns: z.array(pathPatternSchema).max(50).optional(),
 });

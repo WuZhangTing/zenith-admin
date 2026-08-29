@@ -52,6 +52,10 @@ export interface RateLimitStatItem {
   blockRate: number;
   recentBlocks: RecentBlock[];
   hourlySeries: { hour: string; hits: number; blocked: number }[];
+  /** 近 30 天按日序列 */
+  dailySeries: { day: string; hits: number; blocked: number }[];
+  /** 今日 Top 拦截来源 */
+  topSources: { key: string; count: number }[];
 }
 
 export interface RateLimitStats {
