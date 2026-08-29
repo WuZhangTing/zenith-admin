@@ -160,8 +160,8 @@ const unblock = defineOpenAPIRoute({
   }),
   handler: async (c) => {
     const { name, key } = c.req.valid('json');
-    await unblockRateLimit(name, key);
-    return c.json(okBody(null, '解封成功'), 200);
+    const { unblocked } = await unblockRateLimit(name, key);
+    return c.json(okBody(null, unblocked ? '解封成功' : '未找到活跃计数窗口（可能已过期或已解封）'), 200);
   },
 });
 

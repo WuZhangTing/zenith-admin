@@ -15,6 +15,7 @@ export const RateLimitRuleDTO = z
     enabled: z.boolean(),
     blockedMessage: z.string().nullable(),
     pathPatterns: z.array(z.string()),
+    predefined: z.boolean().openapi({ description: '是否内置规则（不可删除）' }),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),

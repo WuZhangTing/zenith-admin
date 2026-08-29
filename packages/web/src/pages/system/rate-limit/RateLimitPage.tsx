@@ -58,8 +58,6 @@ interface CreateForm {
   pathPatterns: string[];
 }
 
-const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'report_public_share', 'chat_send']);
-
 const KEY_TYPE_OPTIONS = [
   { label: 'IP 地址', value: 'ip' },
   { label: '登录用户', value: 'user' },
@@ -174,7 +172,7 @@ export default function RateLimitPage() {
                 canManage && (
                   <Space>
                     <Button size="small" theme="borderless" onClick={() => editModal.openEdit(rule)}>编辑</Button>
-                    {!PREDEFINED_NAMES.has(rule.name) && (
+                    {!rule.predefined && (
                       <Popconfirm title="确定删除该自定义规则？" onConfirm={() => handleDelete(rule.id)}>
                         <Button size="small" theme="borderless" type="danger">删除</Button>
                       </Popconfirm>

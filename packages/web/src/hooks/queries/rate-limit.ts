@@ -15,6 +15,8 @@ export interface RateLimitRule {
   enabled: boolean;
   blockedMessage: string | null;
   pathPatterns: string[];
+  /** 是否内置规则（不可删除，由服务端下发） */
+  predefined: boolean;
   createdAt: string;
   updatedAt: string;
 }

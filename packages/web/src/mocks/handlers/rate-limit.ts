@@ -12,15 +12,16 @@ interface MockRule {
   enabled: boolean;
   blockedMessage: string | null;
   pathPatterns: string[];
+  predefined: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 const rules: MockRule[] = [
-  { id: 1, name: 'auth',      description: '登录接口限流',          windowMs: 3 * 60 * 1000,     limit: 20, keyType: 'ip', enabled: false,  blockedMessage: '登录尝试过于频繁，请 3 分钟后再试',  pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
-  { id: 2, name: 'captcha',   description: '验证码接口限流',        windowMs: 60 * 1000,         limit: 30, keyType: 'ip', enabled: true,  blockedMessage: '验证码请求过于频繁，请稍后再试',     pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
-  { id: 3, name: 'sensitive', description: '敏感操作（注册/重置）限流', windowMs: 60 * 60 * 1000, limit: 5,  keyType: 'ip', enabled: false, blockedMessage: '操作过于频繁，请 1 小时后重试',     pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
-  { id: 4, name: 'chat_send', description: '聊天消息发送限流（按用户）', windowMs: 60 * 1000,      limit: 60, keyType: 'user', enabled: true, blockedMessage: '消息发送过于频繁，请稍后再试',    pathPatterns: [],  createdAt: mockDateTime(), updatedAt: mockDateTime() },
+  { id: 1, name: 'auth',      description: '登录接口限流',          windowMs: 3 * 60 * 1000,     limit: 20, keyType: 'ip', enabled: false,  blockedMessage: '登录尝试过于频繁，请 3 分钟后再试',  pathPatterns: [],  predefined: true, createdAt: mockDateTime(), updatedAt: mockDateTime() },
+  { id: 2, name: 'captcha',   description: '验证码接口限流',        windowMs: 60 * 1000,         limit: 30, keyType: 'ip', enabled: true,  blockedMessage: '验证码请求过于频繁，请稍后再试',     pathPatterns: [],  predefined: true, createdAt: mockDateTime(), updatedAt: mockDateTime() },
+  { id: 3, name: 'sensitive', description: '敏感操作（注册/重置）限流', windowMs: 60 * 60 * 1000, limit: 5,  keyType: 'ip', enabled: false, blockedMessage: '操作过于频繁，请 1 小时后重试',     pathPatterns: [],  predefined: true, createdAt: mockDateTime(), updatedAt: mockDateTime() },
+  { id: 4, name: 'chat_send', description: '聊天消息发送限流（按用户）', windowMs: 60 * 1000,      limit: 60, keyType: 'user', enabled: true, blockedMessage: '消息发送过于频繁，请稍后再试',    pathPatterns: [],  predefined: true, createdAt: mockDateTime(), updatedAt: mockDateTime() },
 ];
 
 const stats = {
@@ -52,10 +53,10 @@ export const rateLimitHandlers = [
   }),
 
   http.post('/api/rate-limit/rules', async ({ request }) => {
-    const body = await request.json() as Omit<MockRule, 'id' | 'createdAt' | 'updatedAt'>;
+    const body = await request.json() as Omit<MockRule, 'id' | 'predefined' | 'createdAt' | 'updatedAt'>;
     const existing = rules.find((r) => r.name === body.name);
     if (existing) return badRequest(`规则名称 "${body.name}" 已存在`, { status: 400 });
-    const newRule: MockRule = { ...body, id: rules.length + 1, createdAt: mockDateTime(), updatedAt: mockDateTime() };
+    const newRule: MockRule = { ...body, id: rules.length + 1, predefined: false, createdAt: mockDateTime(), updatedAt: mockDateTime() };
     rules.push(newRule);
     return ok(newRule, '规则已创建');
   }),
@@ -64,7 +65,7 @@ export const rateLimitHandlers = [
     const id = Number(params.id);
     const idx = rules.findIndex((r) => r.id === id);
     if (idx === -1) return notFound('规则不存在', { status: 404 });
-    if (['auth', 'captcha', 'sensitive', 'chat_send'].includes(rules[idx].name)) {
+    if (rules[idx].predefined) {
       return badRequest('内置规则不可删除', { status: 400 });
     }
     rules.splice(idx, 1);

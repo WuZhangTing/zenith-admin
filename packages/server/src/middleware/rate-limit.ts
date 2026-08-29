@@ -100,43 +100,55 @@ function reportStatsFailure(scope: string, err: unknown): void {
   logger.warn(`[rate-limit] ${scope} stats write failed (${suppressed} occurrence(s) in the last minute)`, err);
 }
 
-function makeKeyGen(rule: RuleConfig): (c: Context) => string {
+/**
+ * 计数身份生成器：返回不含规则名前缀的身份标识（IP / `u:{userId}` / `ip|path`）。
+ * Redis 计数键由 buildLimiter 统一拼接 `{name}|{identity}` 做规则级隔离；
+ * 统计与解封均使用裸身份，前后端不再各自拆前缀。
+ */
+function makeIdentityGen(rule: RuleConfig): (c: Context) => string {
   if (rule.keyType === 'user') {
     return (c) => {
       try {
         const u = currentUser();
-        return `${rule.name}|${u?.userId ? `u:${u.userId}` : getClientIp(c)}`;
+        return u?.userId ? `u:${u.userId}` : getClientIp(c);
       } catch {
-        return `${rule.name}|${getClientIp(c)}`;
+        return getClientIp(c);
       }
     };
   }
   if (rule.keyType === 'ip_path') {
-    return (c) => `${rule.name}|${getClientIp(c)}|${c.req.path}`;
+    return (c) => `${getClientIp(c)}|${c.req.path}`;
   }
-  return (c) => `${rule.name}|${getClientIp(c)}`;
+  return (c) => getClientIp(c);
+}
+
+/** 最近拦截记录的 zset member 结构（JSON 序列化，字段可含任意分隔符） */
+export interface RecentBlockRecord {
+  ts: number;
+  key: string;
+  path: string;
 }
 
 function buildLimiter(rule: RuleConfig): MiddlewareHandler {
-  const keyGen = makeKeyGen(rule);
+  const identityGen = makeIdentityGen(rule);
   return rateLimiter({
     windowMs: rule.windowMs,
     limit: rule.limit,
-    keyGenerator: keyGen,
+    keyGenerator: (c) => `${rule.name}|${identityGen(c)}`,
     store: rateLimitStore,
     handler: async (c) => {
-      const key = keyGen(c);
       try {
         const blockedKey = `${STATS_PREFIX}${rule.name}:blocked`;
         const recentKey = `${STATS_PREFIX}${rule.name}:recent`;
         const hourlyBlockedKey = `${STATS_PREFIX}${rule.name}:hourly:blocked`;
         const ts = Date.now();
         const hk = currentHourKey();
+        const record: RecentBlockRecord = { ts, key: identityGen(c), path: c.req.path };
         await redis
           .multi()
           .incr(blockedKey)
           .expire(blockedKey, STATS_TTL)
-          .zadd(recentKey, ts, `${ts}|${key}|${c.req.path}`)
+          .zadd(recentKey, ts, JSON.stringify(record))
           .zremrangebyrank(recentKey, 0, -201)
           .expire(recentKey, STATS_TTL)
           .hincrby(hourlyBlockedKey, hk, 1)
@@ -161,30 +173,59 @@ function rebuildAll(): void {
 }
 rebuildAll();
 
+/**
+ * 命中统计（fire-and-forget）：统计只服务于限流看板，其失败不应拖慢或中断被保护的接口。
+ * 限流判定本身由调用方的 limiter 同步完成，不受影响。
+ */
+function recordHitStats(name: string): void {
+  void (async () => {
+    try {
+      const k = `${STATS_PREFIX}${name}:hit`;
+      const hk = currentHourKey();
+      const hourlyHitsKey = `${STATS_PREFIX}${name}:hourly:hits`;
+      await redis
+        .multi()
+        .incr(k)
+        .expire(k, STATS_TTL)
+        .hincrby(hourlyHitsKey, hk, 1)
+        .expire(hourlyHitsKey, HOURLY_TTL)
+        .exec();
+    } catch (err) {
+      reportStatsFailure('hit', err);
+    }
+  })();
+}
+
+/**
+ * 同一请求内的规则去重标记：一条规则可能同时通过路由级 named 中间件与
+ * 全局 pathBoundRateLimit（管理页可给任意规则配 pathPatterns）命中同一请求，
+ * 不去重会对同一计数窗口 +2，实际限额减半。谁先应用谁生效，后者跳过。
+ */
+const APPLIED_VAR = 'rateLimitApplied';
+
+function alreadyApplied(c: Context, name: string): boolean {
+  const applied = c.get(APPLIED_VAR) as Set<string> | undefined;
+  return applied?.has(name) ?? false;
+}
+
+function markApplied(c: Context, name: string): void {
+  let applied = c.get(APPLIED_VAR) as Set<string> | undefined;
+  if (!applied) {
+    applied = new Set();
+    c.set(APPLIED_VAR, applied);
+  }
+  applied.add(name);
+}
+
 function makeNamed(name: RateLimitName): MiddlewareHandler {
   return async (c, next) => {
     const rule = ruleCache.get(name);
     if (!rule?.enabled) return next();
-    // 命中统计不阻塞请求：统计只服务于限流看板，其失败不应拖慢或中断被保护的接口。
-    // 限流判定本身仍由下方 limiter 同步完成，不受影响。
-    void (async () => {
-      try {
-        const k = `${STATS_PREFIX}${name}:hit`;
-        const hk = currentHourKey();
-        const hourlyHitsKey = `${STATS_PREFIX}${name}:hourly:hits`;
-        await redis
-          .multi()
-          .incr(k)
-          .expire(k, STATS_TTL)
-          .hincrby(hourlyHitsKey, hk, 1)
-          .expire(hourlyHitsKey, HOURLY_TTL)
-          .exec();
-      } catch (err) {
-        reportStatsFailure('hit', err);
-      }
-    })();
+    if (alreadyApplied(c, name)) return next();
     const limiter = compiledLimiters.get(name);
     if (!limiter) return next();
+    markApplied(c, name);
+    recordHitStats(name);
     return limiter(c, next);
   };
 }
@@ -194,7 +235,7 @@ export const captchaRateLimit: MiddlewareHandler = makeNamed('captcha');
 export const sensitiveRateLimit: MiddlewareHandler = makeNamed('sensitive');
 
 /** 内置规则名称集合（不可删除） */
-export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'report_public_share', 'workflow_public_callback', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view']);
+export const PREDEFINED_NAMES = new Set(['auth', 'captcha', 'sensitive', 'analytics-ingest', 'error-report', 'report_public_share', 'workflow_public_callback', 'push_public_callback', 'chat_send', 'chatbi_ask', 'report_chatbi_write', 'report_fill_write', 'ai_chat_send', 'ai_share_view']);
 
 /** 通过规则名称动态应用限流（支持自定义规则） */
 export function namedRateLimit(name: string): MiddlewareHandler {
@@ -213,8 +254,13 @@ export const pathBoundRateLimit: MiddlewareHandler = async (c, next) => {
       return path === pattern;
     });
     if (matched) {
+      if (alreadyApplied(c, rule.name)) return next();
       const limiter = compiledLimiters.get(rule.name);
-      if (limiter) return limiter(c, next);
+      if (limiter) {
+        markApplied(c, rule.name);
+        recordHitStats(rule.name);
+        return limiter(c, next);
+      }
     }
   }
   return next();
@@ -256,13 +302,26 @@ export function listRuleConfigs(): RuleConfig[] {
   return [...ruleCache.values()];
 }
 
-/** 解封某个 key（清除该 key 在 rate-limit Redis 中的计数窗口） */
+/**
+ * 解封某个 key（清除该 key 在 rate-limit Redis 中的计数窗口）。
+ *
+ * `key` 为不含规则名前缀的计数身份（IP / `u:{userId}` / `ip|path`，
+ * 与统计接口 recentBlocks 返回的 key 字段一致）；Redis 计数键为
+ * `{name}|{identity}`（见 buildLimiter 的 keyGenerator），这里负责补回前缀。
+ * 同时从最近拦截记录中移除该身份的条目。
+ */
 export async function unblockRateLimitKey(name: string, key: string): Promise<boolean> {
-  const n = await redis.del(`${RL_PREFIX}${key}`);
+  const n = await redis.del(`${RL_PREFIX}${name}|${key}`);
   try {
     const recentKey = `${STATS_PREFIX}${name}:recent`;
     const members = await redis.zrange(recentKey, '0', '-1');
-    const toRemove = members.filter((m) => m.split('|')[1] === key);
+    const toRemove = members.filter((m) => {
+      try {
+        return (JSON.parse(m) as RecentBlockRecord).key === key;
+      } catch {
+        return false;
+      }
+    });
     if (toRemove.length > 0) await redis.zrem(recentKey, ...toRemove);
   } catch {
     /* ignore */

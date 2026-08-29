@@ -13,6 +13,7 @@ import {
   unblockRateLimitKey,
   PREDEFINED_NAMES,
   type RuleConfig,
+  type RecentBlockRecord,
 } from '../../middleware/rate-limit';
 
 const STATS_PREFIX = `${config.redis.keyPrefix}rlstats:`;
@@ -28,6 +29,7 @@ function mapRule(row: RateLimitRuleRow) {
     enabled: row.enabled,
     blockedMessage: row.blockedMessage,
     pathPatterns: row.pathPatterns ?? [],
+    predefined: PREDEFINED_NAMES.has(row.name),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -48,6 +50,9 @@ export async function listRateLimitRules() {
           keyType: r.keyType,
           enabled: r.enabled,
           blockedMessage: r.blockedMessage,
+          // 路径绑定是规则配置的一部分：漏掉会导致重启后 DB 行覆盖代码默认值，
+          // 仅靠 pathPatterns 生效的公开端点限流（report_public_share 等）静默失效
+          pathPatterns: r.pathPatterns,
         })),
       );
       rows = await db.select().from(rateLimitRules);
@@ -145,14 +150,21 @@ interface RecentBlock {
 
 async function readRecent(name: string): Promise<RecentBlock[]> {
   const raw = await redis.zrevrange(`${STATS_PREFIX}${name}:recent`, 0, 99);
-  return raw.map((item) => {
-    const [ts, key, path = ''] = item.split('|');
-    return {
-      at: formatDateTime(new Date(Number(ts) || 0)),
-      key: key ?? '',
-      path,
-    };
-  });
+  const items: RecentBlock[] = [];
+  for (const member of raw) {
+    // member 为 JSON（见 middleware RecentBlockRecord）；无法解析的条目直接丢弃
+    try {
+      const record = JSON.parse(member) as RecentBlockRecord;
+      items.push({
+        at: formatDateTime(new Date(record.ts)),
+        key: record.key,
+        path: record.path,
+      });
+    } catch {
+      /* skip malformed entry */
+    }
+  }
+  return items;
 }
 
 interface HourlyPoint {
