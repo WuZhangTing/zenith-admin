@@ -643,16 +643,15 @@ export default function AnalyticsDataPage() {
             <Switch checked={settings.enabled} onChange={(checked) => updateSettings('enabled', checked)} />
           </Form.Slot>
           <Form.Slot label="采样率">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, maxWidth: 520 }}>
+            <div className="zx-slider-row">
               <Slider
                 min={0}
                 max={1}
                 step={0.05}
                 value={settings.sampleRate}
                 onChange={(value) => {
-                  if (typeof value === 'number') updateSettings('sampleRate', Number(value.toFixed(2)));
+                  if (typeof value === 'number' && Number.isFinite(value)) updateSettings('sampleRate', Number(value.toFixed(2)));
                 }}
-                style={{ flex: 1 }}
               />
               <Typography.Text strong>{Math.round(settings.sampleRate * 100)}%</Typography.Text>
             </div>
@@ -744,16 +743,15 @@ export default function AnalyticsDataPage() {
                 </div>
               </Form.Slot>
               <Form.Slot label="全程录制采样率">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, maxWidth: 520 }}>
+                <div className="zx-slider-row">
                   <Slider
                     min={0}
                     max={1}
                     step={0.01}
                     value={settings.replaySessionSampleRate}
                     onChange={(value) => {
-                      if (typeof value === 'number') updateSettings('replaySessionSampleRate', Number(value.toFixed(2)));
+                      if (typeof value === 'number' && Number.isFinite(value)) updateSettings('replaySessionSampleRate', Number(value.toFixed(2)));
                     }}
-                    style={{ flex: 1 }}
                   />
                   <Typography.Text strong>{Math.round(settings.replaySessionSampleRate * 100)}%</Typography.Text>
                 </div>

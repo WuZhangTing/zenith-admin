@@ -1012,3 +1012,7 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+
+/* Slider 在 flex 行内自适应占满（Semi Slider 不透传 style，默认 fit-content 塌陷） */
+.zx-slider-row { display: flex; align-items: center; gap: 16px; max-width: 520px; }
+.zx-slider-row .semi-slider { width: 100%; flex: 1; }
