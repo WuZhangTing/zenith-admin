@@ -45,6 +45,7 @@ export const RateLimitStatItemDTO = z
       key: z.string(),
       path: z.string(),
       monitored: z.boolean().openapi({ description: '观察模式命中：只记数未实际拦截' }),
+      banned: z.boolean().openapi({ description: '手动封禁命中' }),
     })),
     hourlySeries: z.array(z.object({
       hour: z.string(),
@@ -59,3 +60,12 @@ export const RateLimitStatsDTO = z
     items: z.array(RateLimitStatItemDTO),
   })
   .openapi('RateLimitStats');
+
+export const RateLimitBanDTO = z
+  .object({
+    name: z.string().openapi({ description: '规则名' }),
+    key: z.string().openapi({ description: '被封禁的计数身份（IP / u:{userId} / ip|path）' }),
+    expiresAt: z.string().openapi({ description: '封禁到期时间' }),
+    remainingSeconds: z.number().int().openapi({ description: '剩余秒数' }),
+  })
+  .openapi('RateLimitBan');

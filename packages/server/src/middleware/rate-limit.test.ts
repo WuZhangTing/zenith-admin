@@ -35,24 +35,57 @@ vi.mock('../db', () => ({
   db: { select: () => ({ from: () => Promise.resolve(dbRows) }) },
 }));
 
+import { currentUser } from '../lib/context';
+
 // ─── 带状态的 Redis 假实现 ─────────────────────────────────────────────────────
 interface CounterState { count: number; expiresAt: number }
 const counters = new Map<string, CounterState>();
 const zsets = new Map<string, string[]>();
+const bans = new Map<string, number>(); // key → expiresAt
 let evalFails = false;
 
+function banTtl(key: string): number {
+  const expiresAt = bans.get(key);
+  if (expiresAt === undefined) return -2;
+  const ttl = expiresAt - Date.now();
+  if (ttl <= 0) {
+    bans.delete(key);
+    return -2;
+  }
+  return ttl;
+}
+
+function incrCounter(key: string, windowMs: number): number {
+  const now = Date.now();
+  let state = counters.get(key);
+  if (!state || state.expiresAt <= now) {
+    state = { count: 0, expiresAt: now + windowMs };
+    counters.set(key, state);
+  }
+  state.count += 1;
+  return state.count;
+}
+
 const redisMock = {
-  eval: vi.fn((script: string, _numKeys: number, key: string, windowMsArg: string) => {
+  eval: vi.fn((_script: string, numKeys: number, ...args: string[]) => {
     if (evalFails) return Promise.reject(new Error('redis down'));
-    const windowMs = Number(windowMsArg);
-    const now = Date.now();
-    let state = counters.get(key);
-    if (!state || state.expiresAt <= now) {
-      state = { count: 0, expiresAt: now + windowMs };
-      counters.set(key, state);
+    const keys = args.slice(0, numKeys);
+    const windowMs = Number(args[numKeys]);
+    if (numKeys === 3) {
+      // 滑动窗口脚本：[currBucket, prevBucket, banKey]
+      const ttl = banTtl(keys[2]);
+      if (ttl > 0) return Promise.resolve([-1, ttl]);
+      const curr = incrCounter(keys[0], windowMs * 2);
+      const prevState = counters.get(keys[1]);
+      const prev = prevState && prevState.expiresAt > Date.now() ? prevState.count : 0;
+      return Promise.resolve([curr, prev]);
     }
-    state.count += 1;
-    return Promise.resolve([state.count, state.expiresAt - now]);
+    // 固定窗口脚本：[counterKey, banKey]
+    const ttl = banTtl(keys[1]);
+    if (ttl > 0) return Promise.resolve([-1, ttl]);
+    const count = incrCounter(keys[0], windowMs);
+    const state = counters.get(keys[0]);
+    return Promise.resolve([count, state ? state.expiresAt - Date.now() : windowMs]);
   }),
   multi: vi.fn(() => {
     const chain = {
@@ -70,9 +103,23 @@ const redisMock = {
     };
     return chain;
   }),
-  del: vi.fn((key: string) => {
-    const existed = counters.delete(key);
-    return Promise.resolve(existed ? 1 : 0);
+  set: vi.fn((key: string, _value: string, _px: string, ms: number) => {
+    bans.set(key, Date.now() + ms);
+    return Promise.resolve('OK');
+  }),
+  pttl: vi.fn((key: string) => Promise.resolve(banTtl(key))),
+  scan: vi.fn((_cursor: string, _match: string, pattern: string) => {
+    const prefix = pattern.replace(/\*$/, '');
+    const keys = [...bans.keys()].filter((k) => k.startsWith(prefix) && banTtl(k) > 0);
+    return Promise.resolve(['0', keys]);
+  }),
+  del: vi.fn((...keys: string[]) => {
+    let n = 0;
+    for (const key of keys) {
+      if (counters.delete(key)) n += 1;
+      if (bans.delete(key)) n += 1;
+    }
+    return Promise.resolve(n);
   }),
   zrange: vi.fn((key: string) => Promise.resolve(zsets.get(key) ?? [])),
   zrem: vi.fn((key: string, ...members: string[]) => {
@@ -89,6 +136,9 @@ const {
   pathBoundRateLimit,
   refreshRateLimitRules,
   unblockRateLimitKey,
+  banRateLimitKey,
+  unbanRateLimitKey,
+  listRateLimitBans,
   listRuleConfigs,
   getMountSource,
   PREDEFINED_NAMES,
@@ -129,6 +179,7 @@ const flushAsync = () => new Promise((r) => setImmediate(r));
 beforeEach(async () => {
   counters.clear();
   zsets.clear();
+  bans.clear();
   evalFails = false;
   vi.clearAllMocks();
   await loadRules();
@@ -270,6 +321,107 @@ describe('解封', () => {
 
   it('无活跃计数时返回 false', async () => {
     expect(await unblockRateLimitKey('t_unblock', '10.0.0.1')).toBe(false);
+  });
+});
+
+describe('滑动窗口', () => {
+  it('上一窗口计数按剩余占比加权，消除边界突刺', async () => {
+    vi.useFakeTimers();
+    try {
+      const windowMs = 1000;
+      // 固定到窗口正中：elapsed=500ms → 上一桶权重 0.5
+      vi.setSystemTime(1_000_000_000_500);
+      const bucket = Math.floor(Date.now() / windowMs);
+      await loadRules(ruleRow({ name: 't_slide', limit: 2, windowMs, algorithm: 'sliding_window' }));
+      // 预置上一桶计数 2（等效于上一窗口末尾的突发）
+      counters.set(`test:rl:t_slide|127.0.0.1:${bucket - 1}`, { count: 2, expiresAt: Date.now() + windowMs });
+
+      const app = new Hono();
+      app.get('/api/t', namedRateLimit('t_slide'), (c) => c.json({ ok: true }));
+
+      // 加权计数 = 1 + 2×0.5 = 2 ≤ 2 → 放行
+      expect((await app.request('/api/t')).status).toBe(200);
+      // 加权计数 = 2 + 2×0.5 = 3 > 2 → 拦截（固定窗口此时会放行，形成 2× 突刺）
+      expect((await app.request('/api/t')).status).toBe(429);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('白名单豁免', () => {
+  it('IP 命中白名单：放行且不计数', async () => {
+    await loadRules(ruleRow({ name: 't_allow', limit: 1, allowlist: ['127.0.0.1'] }));
+    const app = new Hono();
+    app.get('/api/t', namedRateLimit('t_allow'), (c) => c.json({ ok: true }));
+    for (let i = 0; i < 5; i++) {
+      expect((await app.request('/api/t')).status).toBe(200);
+    }
+    expect(redisMock.eval).not.toHaveBeenCalled();
+  });
+
+  it('CIDR 网段命中白名单', async () => {
+    await loadRules(ruleRow({ name: 't_cidr', limit: 1, allowlist: ['127.0.0.0/8'] }));
+    const app = new Hono();
+    app.get('/api/t', namedRateLimit('t_cidr'), (c) => c.json({ ok: true }));
+    expect((await app.request('/api/t')).status).toBe(200);
+    expect((await app.request('/api/t')).status).toBe(200);
+    expect(redisMock.eval).not.toHaveBeenCalled();
+  });
+
+  it('u:{userId} 命中白名单（登录用户豁免）', async () => {
+    vi.mocked(currentUser).mockReturnValue({ userId: 7 } as ReturnType<typeof currentUser>);
+    try {
+      await loadRules(ruleRow({ name: 't_user_allow', limit: 1, keyType: 'user', allowlist: ['u:7'] }));
+      const app = new Hono();
+      app.get('/api/t', namedRateLimit('t_user_allow'), (c) => c.json({ ok: true }));
+      expect((await app.request('/api/t')).status).toBe(200);
+      expect((await app.request('/api/t')).status).toBe(200);
+      expect(redisMock.eval).not.toHaveBeenCalled();
+    } finally {
+      vi.mocked(currentUser).mockReturnValue(undefined);
+    }
+  });
+
+  it('非法白名单条目被忽略，不影响其余条目', async () => {
+    await loadRules(ruleRow({ name: 't_bad_allow', limit: 1, allowlist: ['not-an-ip!!', '127.0.0.1'] }));
+    const app = new Hono();
+    app.get('/api/t', namedRateLimit('t_bad_allow'), (c) => c.json({ ok: true }));
+    expect((await app.request('/api/t')).status).toBe(200);
+    expect(redisMock.eval).not.toHaveBeenCalled();
+  });
+});
+
+describe('手动封禁', () => {
+  it('封禁期内一律 429（含未超限流量与观察模式），解除后恢复', async () => {
+    await loadRules(ruleRow({ name: 't_ban', limit: 100, mode: 'monitor' }));
+    const app = new Hono();
+    app.get('/api/t', namedRateLimit('t_ban'), (c) => c.json({ ok: true }));
+
+    expect((await app.request('/api/t')).status).toBe(200);
+
+    await banRateLimitKey('t_ban', '127.0.0.1', 600);
+    const banned = await app.request('/api/t');
+    expect(banned.status).toBe(429);
+    expect(Number(banned.headers.get('Retry-After'))).toBeGreaterThan(0);
+    await flushAsync();
+    const recent = zsets.get('test:rlstats:t_ban:recent') ?? [];
+    const record = JSON.parse(recent[recent.length - 1]) as { banned?: boolean };
+    expect(record.banned).toBe(true);
+
+    expect(await unbanRateLimitKey('t_ban', '127.0.0.1')).toBe(true);
+    expect((await app.request('/api/t')).status).toBe(200);
+  });
+
+  it('活跃封禁列表返回剩余 TTL', async () => {
+    await banRateLimitKey('t_ban', '10.0.0.9', 600);
+    await banRateLimitKey('auth', 'u:3', 60);
+    const list = await listRateLimitBans();
+    expect(list.length).toBe(2);
+    expect(list[0].name).toBe('auth'); // TTL 升序
+    expect(list[0].key).toBe('u:3');
+    expect(list[0].ttlMs).toBeGreaterThan(0);
+    expect(list[1].key).toBe('10.0.0.9');
   });
 });
 

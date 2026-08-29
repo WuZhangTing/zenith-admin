@@ -33,24 +33,30 @@ const rules: MockRule[] = [
   { ...RULE_BASE, id: 5, name: 'report_public_share', description: '报表公开分享访问限流', windowMs: 60 * 1000, limit: 120, keyType: 'ip', enabled: true, mode: 'monitor', blockedMessage: '访问过于频繁，请稍后再试', pathPatterns: ['/api/report/public/*'], predefined: true, mountSource: 'path', createdAt: mockDateTime(), updatedAt: mockDateTime() },
 ];
 
-interface MockRecent { at: string; key: string; path: string; monitored: boolean }
+interface MockRecent { at: string; key: string; path: string; monitored: boolean; banned: boolean }
 
 const stats: Record<string, { hit: number; blocked: number; recent: MockRecent[] }> = {
   auth:      { hit: 8421, blocked: 12, recent: [
-    { at: mockDateTimeOffset(-5 * 60 * 1000),  key: '203.0.113.42',  path: '/api/auth/login', monitored: false },
-    { at: mockDateTimeOffset(-22 * 60 * 1000), key: '198.51.100.7',  path: '/api/auth/login', monitored: false },
+    { at: mockDateTimeOffset(-5 * 60 * 1000),  key: '203.0.113.42',  path: '/api/auth/login', monitored: false, banned: false },
+    { at: mockDateTimeOffset(-22 * 60 * 1000), key: '198.51.100.7',  path: '/api/auth/login', monitored: false, banned: true },
   ] },
   captcha:   { hit: 12034, blocked: 3, recent: [
-    { at: mockDateTimeOffset(-1 * 60 * 60 * 1000), key: '192.0.2.55', path: '/api/auth/captcha', monitored: false },
+    { at: mockDateTimeOffset(-1 * 60 * 60 * 1000), key: '192.0.2.55', path: '/api/auth/captcha', monitored: false, banned: false },
   ] },
   sensitive: { hit: 187, blocked: 0, recent: [] },
   chat_send: { hit: 4560, blocked: 1, recent: [
-    { at: mockDateTimeOffset(-40 * 60 * 1000), key: 'u:2', path: '/api/chat/conversations/1/messages', monitored: false },
+    { at: mockDateTimeOffset(-40 * 60 * 1000), key: 'u:2', path: '/api/chat/conversations/1/messages', monitored: false, banned: false },
   ] },
   report_public_share: { hit: 960, blocked: 4, recent: [
-    { at: mockDateTimeOffset(-12 * 60 * 1000), key: '198.51.100.23', path: '/api/report/public/abc', monitored: true },
+    { at: mockDateTimeOffset(-12 * 60 * 1000), key: '198.51.100.23', path: '/api/report/public/abc', monitored: true, banned: false },
   ] },
 };
+
+interface MockBan { name: string; key: string; expiresAt: string; remainingSeconds: number }
+
+const activeBans: MockBan[] = [
+  { name: 'auth', key: '198.51.100.7', expiresAt: mockDateTimeOffset(3600 * 1000), remainingSeconds: 3600 },
+];
 
 function mountSourceOf(rule: MockRule): MockRule['mountSource'] {
   const code = rule.mountSource === 'code' || rule.mountSource === 'code_path';
@@ -151,5 +157,23 @@ export const rateLimitHandlers = [
     const bucket = stats[name];
     if (bucket) { bucket.hit = 0; bucket.blocked = 0; bucket.recent = []; }
     return ok(null, '统计已清空');
+  }),
+
+  http.get('/api/rate-limit/bans', () => ok(activeBans, 'success')),
+
+  http.post('/api/rate-limit/ban', async ({ request }) => {
+    const { name, key, durationSeconds } = await request.json() as { name: string; key: string; durationSeconds: number };
+    const existing = activeBans.findIndex((b) => b.name === name && b.key === key);
+    if (existing >= 0) activeBans.splice(existing, 1);
+    activeBans.push({ name, key, expiresAt: mockDateTimeOffset(durationSeconds * 1000), remainingSeconds: durationSeconds });
+    return ok(null, '封禁成功');
+  }),
+
+  http.post('/api/rate-limit/unban', async ({ request }) => {
+    const { name, key } = await request.json() as { name: string; key: string };
+    const idx = activeBans.findIndex((b) => b.name === name && b.key === key);
+    const had = idx >= 0;
+    if (had) activeBans.splice(idx, 1);
+    return ok(null, had ? '已解除封禁' : '封禁不存在或已过期');
   }),
 ];

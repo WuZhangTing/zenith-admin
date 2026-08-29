@@ -35,6 +35,8 @@ export interface RecentBlock {
   path: string;
   /** 观察模式命中：只记数未实际拦截 */
   monitored: boolean;
+  /** 手动封禁命中 */
+  banned: boolean;
 }
 
 export interface RateLimitStatItem {
@@ -60,8 +62,16 @@ export const rateLimitKeys = {
   all: ['rate-limit'] as const,
   rules: ['rate-limit', 'rules'] as const,
   stats: ['rate-limit', 'stats'] as const,
+  bans: ['rate-limit', 'bans'] as const,
   apiPaths: ['rate-limit', 'api-paths'] as const,
 };
+
+export interface RateLimitBan {
+  name: string;
+  key: string;
+  expiresAt: string;
+  remainingSeconds: number;
+}
 
 /** 规则配置：仅管理操作后失效，不随统计轮询刷新 */
 export function useRateLimitRules() {
@@ -143,6 +153,41 @@ export function useResetRateLimitStats() {
     mutationFn: (name: string) => request.post<null>('/api/rate-limit/reset-stats', { name }).then(unwrap),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: rateLimitKeys.stats });
+    },
+  });
+}
+
+/** 活跃封禁列表：30 秒轮询（TTL 持续变化） */
+export function useRateLimitBans() {
+  return useQuery({
+    queryKey: rateLimitKeys.bans,
+    queryFn: () => request.get<RateLimitBan[]>('/api/rate-limit/bans').then(unwrap),
+    refetchInterval: 30 * 1000,
+  });
+}
+
+export function useBanRateLimitKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, key, durationSeconds }: { name: string; key: string; durationSeconds: number }) =>
+      request.post<null>('/api/rate-limit/ban', { name, key, durationSeconds }).then(unwrap),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.bans });
+    },
+  });
+}
+
+/** 解除封禁返回服务端结果消息（成功 / 封禁不存在），由调用方展示 */
+export function useUnbanRateLimitKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, key }: { name: string; key: string }) => {
+      const res = await request.post<null>('/api/rate-limit/unban', { name, key });
+      unwrap(res);
+      return res.message;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: rateLimitKeys.bans });
     },
   });
 }

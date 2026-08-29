@@ -11,6 +11,9 @@ import {
   listRuleConfigs,
   refreshRateLimitRules,
   unblockRateLimitKey,
+  banRateLimitKey,
+  unbanRateLimitKey,
+  listRateLimitBans,
   getMountSource,
   PREDEFINED_NAMES,
   type RuleConfig,
@@ -85,6 +88,8 @@ export interface UpdateRateLimitRuleInput {
   keyType?: 'ip' | 'user' | 'ip_path';
   enabled?: boolean;
   mode?: 'enforce' | 'monitor';
+  algorithm?: 'fixed_window' | 'sliding_window';
+  allowlist?: string[];
   priority?: number;
   description?: string | null;
   blockedMessage?: string | null;
@@ -99,6 +104,8 @@ export interface CreateRateLimitRuleInput {
   keyType: 'ip' | 'user' | 'ip_path';
   enabled: boolean;
   mode?: 'enforce' | 'monitor';
+  algorithm?: 'fixed_window' | 'sliding_window';
+  allowlist?: string[];
   priority?: number;
   blockedMessage?: string | null;
   pathPatterns?: string[];
@@ -115,6 +122,8 @@ export async function updateRateLimitRule(id: number, patch: UpdateRateLimitRule
       ...(patch.keyType === undefined ? {} : { keyType: patch.keyType }),
       ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
       ...(patch.mode === undefined ? {} : { mode: patch.mode }),
+      ...(patch.algorithm === undefined ? {} : { algorithm: patch.algorithm }),
+      ...(patch.allowlist === undefined ? {} : { allowlist: patch.allowlist }),
       ...(patch.priority === undefined ? {} : { priority: patch.priority }),
       ...(patch.description === undefined ? {} : { description: patch.description }),
       ...(patch.blockedMessage === undefined ? {} : { blockedMessage: patch.blockedMessage }),
@@ -139,6 +148,8 @@ export async function createRateLimitRule(input: CreateRateLimitRuleInput) {
       keyType: input.keyType,
       enabled: input.enabled,
       mode: input.mode ?? 'enforce',
+      algorithm: input.algorithm ?? 'fixed_window',
+      allowlist: input.allowlist ?? [],
       priority: input.priority ?? 0,
       blockedMessage: input.blockedMessage ?? null,
       pathPatterns: input.pathPatterns ?? [],
@@ -167,6 +178,7 @@ interface RecentBlock {
   key: string;
   path: string;
   monitored: boolean;
+  banned: boolean;
 }
 
 async function readRecent(name: string): Promise<RecentBlock[]> {
@@ -181,6 +193,7 @@ async function readRecent(name: string): Promise<RecentBlock[]> {
         key: record.key,
         path: record.path,
         monitored: record.monitored === true,
+        banned: record.banned === true,
       });
     } catch {
       /* skip malformed entry */
@@ -261,4 +274,36 @@ export async function resetRateLimitStats(name: string) {
     `${STATS_PREFIX}${name}:hourly:blocked`,
   );
   return { reset: true };
+}
+
+// ─── 手动封禁 ─────────────────────────────────────────────────────────────────
+
+function ensureRuleExists(name: string): void {
+  if (!listRuleConfigs().some((r) => r.name === name)) {
+    throw new HTTPException(404, { message: `规则 ${name} 不存在` });
+  }
+}
+
+/** 手动封禁：封禁期内该身份在此规则下的请求一律 429（无视限额与观察模式） */
+export async function banRateLimit(name: string, key: string, durationSeconds: number) {
+  ensureRuleExists(name);
+  await banRateLimitKey(name, key, durationSeconds);
+  return { banned: true };
+}
+
+export async function unbanRateLimit(name: string, key: string) {
+  const ok = await unbanRateLimitKey(name, key);
+  return { unbanned: ok };
+}
+
+/** 活跃封禁列表（带到期时间） */
+export async function listRateLimitActiveBans() {
+  const bans = await listRateLimitBans();
+  const now = Date.now();
+  return bans.map((b) => ({
+    name: b.name,
+    key: b.key,
+    expiresAt: formatDateTime(new Date(now + b.ttlMs)),
+    remainingSeconds: Math.max(1, Math.ceil(b.ttlMs / 1000)),
+  }));
 }

@@ -4,6 +4,7 @@ import {
   Button,
   Divider,
   Form,
+  Modal,
   Select,
   SideSheet,
   Space,
@@ -14,15 +15,18 @@ import {
   Toast,
   Typography,
 } from '@douyinfe/semi-ui';
-import { AlertTriangle, Eye, Gauge, ShieldOff, Zap } from 'lucide-react';
+import { AlertTriangle, Ban, Eye, Gauge, ShieldOff, Zap } from 'lucide-react';
 import {
   RATE_LIMIT_ALGORITHM_LABELS,
+  RATE_LIMIT_ALGORITHM_OPTIONS,
+  RATE_LIMIT_BAN_DURATION_OPTIONS,
   RATE_LIMIT_KEY_TYPE_LABELS,
   RATE_LIMIT_KEY_TYPE_OPTIONS,
   RATE_LIMIT_MODE_LABELS,
   RATE_LIMIT_MODE_OPTIONS,
   RATE_LIMIT_MOUNT_SOURCE_LABELS,
   RATE_LIMIT_WINDOW_UNIT_OPTIONS,
+  type RateLimitAlgorithm,
   type RateLimitMode,
   type RateLimitMountSource,
   type RateLimitWindowUnit,
@@ -42,12 +46,15 @@ import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import {
   type RateLimitRule,
+  useBanRateLimitKey,
   useDeleteRateLimitRule,
   useRateLimitApiPaths,
+  useRateLimitBans,
   useRateLimitRules,
   useRateLimitStats,
   useResetRateLimitStats,
   useSaveRateLimitRule,
+  useUnbanRateLimitKey,
   useUnblockRateLimitKey,
 } from '@/hooks/queries/rate-limit';
 
@@ -92,6 +99,8 @@ interface RuleFormValues {
   keyType: RateLimitRule['keyType'];
   enabled: boolean;
   mode: RateLimitMode;
+  algorithm: RateLimitAlgorithm;
+  allowlist: string[];
   priority: number;
   blockedMessage: string | null;
   pathPatterns: string[];
@@ -104,6 +113,7 @@ interface BlockRow {
   key: string;
   path: string;
   monitored: boolean;
+  banned: boolean;
 }
 
 export default function RateLimitPage() {
@@ -111,15 +121,18 @@ export default function RateLimitPage() {
   const canManage = hasPermission('system:rate-limit:manage');
   const navigate = useNavigate();
   const palette = useChartPalette();
-  const [activeTab, setActiveTab] = useUrlTabState(['rules', 'blocks'] as const, 'rules');
+  const [activeTab, setActiveTab] = useUrlTabState(['rules', 'blocks', 'bans'] as const, 'rules');
 
   const rulesQuery = useRateLimitRules();
   const statsQuery = useRateLimitStats();
+  const bansQuery = useRateLimitBans();
   const apiPathsQuery = useRateLimitApiPaths();
   const saveMutation = useSaveRateLimitRule();
   const deleteMutation = useDeleteRateLimitRule();
   const unblockMutation = useUnblockRateLimitKey();
   const resetStatsMutation = useResetRateLimitStats();
+  const banMutation = useBanRateLimitKey();
+  const unbanMutation = useUnbanRateLimitKey();
 
   const rules = useMemo(() => rulesQuery.data ?? [], [rulesQuery.data]);
   const statItems = useMemo(() => statsQuery.data?.items ?? [], [statsQuery.data]);
@@ -128,6 +141,9 @@ export default function RateLimitPage() {
 
   const [detailRuleName, setDetailRuleName] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<number | null>(null);
+  /** 封禁弹窗目标（来自拦截记录行）；null = 关闭 */
+  const [banTarget, setBanTarget] = useState<{ rule: string; key: string } | null>(null);
+  const [banDuration, setBanDuration] = useState<number>(3600);
 
   // 拦截记录 Tab 的客户端筛选（数据已随统计全量加载，无需回源）
   const [blockRuleFilter, setBlockRuleFilter] = useState<string>('all');
@@ -139,7 +155,8 @@ export default function RateLimitPage() {
     save: saveMutation,
     defaults: {
       description: null, windowValue: 1, windowUnit: 'minute', limit: 30, keyType: 'ip',
-      enabled: true, mode: 'enforce', priority: 0, blockedMessage: null, pathPatterns: [],
+      enabled: true, mode: 'enforce', algorithm: 'fixed_window', allowlist: [], priority: 0,
+      blockedMessage: null, pathPatterns: [],
     },
     toValues: (rule) => ({
       ...splitWindow(rule.windowMs),
@@ -148,6 +165,8 @@ export default function RateLimitPage() {
       keyType: rule.keyType,
       enabled: rule.enabled,
       mode: rule.mode,
+      algorithm: rule.algorithm,
+      allowlist: rule.allowlist ?? [],
       priority: rule.priority,
       blockedMessage: rule.blockedMessage,
       pathPatterns: rule.pathPatterns ?? [],
@@ -202,6 +221,18 @@ export default function RateLimitPage() {
     Toast.info(message);
   };
 
+  const handleBanConfirm = async () => {
+    if (!banTarget) return;
+    await banMutation.mutateAsync({ name: banTarget.rule, key: banTarget.key, durationSeconds: banDuration });
+    Toast.success(`已封禁 ${banTarget.key}`);
+    setBanTarget(null);
+  };
+
+  const handleUnban = async (name: string, key: string) => {
+    const message = await unbanMutation.mutateAsync({ name, key });
+    Toast.info(message);
+  };
+
   const refreshAll = () => {
     void rulesQuery.refetch();
     void statsQuery.refetch();
@@ -238,6 +269,7 @@ export default function RateLimitPage() {
         key: b.key,
         path: b.path,
         monitored: b.monitored,
+        banned: b.banned,
       })),
     );
     return rows.sort((a, b) => b.at.localeCompare(a.at));
@@ -247,8 +279,9 @@ export default function RateLimitPage() {
     const kw = blockKeyword.trim().toLowerCase();
     return blockRows.filter((row) => {
       if (blockRuleFilter !== 'all' && row.rule !== blockRuleFilter) return false;
-      if (blockTypeFilter === 'enforce' && row.monitored) return false;
+      if (blockTypeFilter === 'enforce' && (row.monitored || row.banned)) return false;
       if (blockTypeFilter === 'monitor' && !row.monitored) return false;
+      if (blockTypeFilter === 'banned' && !row.banned) return false;
       if (kw && !row.key.toLowerCase().includes(kw) && !row.path.toLowerCase().includes(kw)) return false;
       return true;
     });
@@ -263,6 +296,11 @@ export default function RateLimitPage() {
       : <Tag size="small" color="blue">{RATE_LIMIT_MODE_LABELS.enforce}</Tag>
   );
 
+  const blockTypeTag = (row: { monitored: boolean; banned: boolean }) => {
+    if (row.banned) return <Tag size="small" color="red">封禁</Tag>;
+    return modeTag(row.monitored ? 'monitor' : 'enforce');
+  };
+
   const mountSourceTag = (source: RateLimitMountSource) => (
     <Tag size="small" color={MOUNT_SOURCE_TAG_COLOR[source]}>
       {source === 'none' && <AlertTriangle size={12} style={{ verticalAlign: -2, marginRight: 4 }} />}
@@ -275,6 +313,17 @@ export default function RateLimitPage() {
     label: '解封',
     hidden: !canManage,
     onClick: () => void handleUnblock(rule, key),
+  });
+
+  const banAction = (rule: string, key: string) => ({
+    key: 'ban',
+    label: '封禁',
+    danger: true,
+    hidden: !canManage,
+    onClick: () => {
+      setBanDuration(3600);
+      setBanTarget({ rule, key });
+    },
   });
 
   const rulesColumns = [
@@ -376,12 +425,12 @@ export default function RateLimitPage() {
       dataIndex: 'monitored',
       width: 90,
       fixed: 'right' as const,
-      render: (monitored: boolean) => modeTag(monitored ? 'monitor' : 'enforce'),
+      render: (_: boolean, row: BlockRow) => blockTypeTag(row),
     },
     createOperationColumn<BlockRow>({
-      width: 90,
+      width: 130,
       emptyContent: <span style={{ color: 'var(--semi-color-text-3)' }}>{EMPTY_PLACEHOLDER}</span>,
-      actions: (row) => [unblockAction(row.rule, row.key)],
+      actions: (row) => [unblockAction(row.rule, row.key), banAction(row.rule, row.key)],
     }),
   ];
 
@@ -458,6 +507,7 @@ export default function RateLimitPage() {
                     { value: 'all', label: '全部类型' },
                     { value: 'enforce', label: RATE_LIMIT_MODE_LABELS.enforce },
                     { value: 'monitor', label: RATE_LIMIT_MODE_LABELS.monitor },
+                    { value: 'banned', label: '封禁' },
                   ]}
                   style={{ width: 130 }}
                   aria-label="按类型筛选"
@@ -481,6 +531,53 @@ export default function RateLimitPage() {
             refreshLoading={statsQuery.isFetching}
             dataSource={filteredBlockRows}
             columns={blockColumns}
+            pagination={{ pageSize: 20 }}
+          />
+        </TabPane>
+
+        <TabPane tab="封禁列表" itemKey="bans">
+          <SearchToolbar
+            primary={(
+              <>
+                <Text type="tertiary" style={{ fontSize: 13 }}>
+                  手动封禁的身份在封禁期内一律拦截（无视限额与观察模式），到期自动解除。
+                </Text>
+                <RefreshButton onClick={() => void bansQuery.refetch()} loading={bansQuery.isFetching} />
+              </>
+            )}
+            mobilePrimary={(
+              <RefreshButton onClick={() => void bansQuery.refetch()} loading={bansQuery.isFetching} />
+            )}
+          />
+          <ConfigurableTable
+            bordered
+            rowKey={(b: { name: string; key: string } | undefined) => `${b?.name}|${b?.key}`}
+            loading={bansQuery.isLoading}
+            onRefresh={() => void bansQuery.refetch()}
+            refreshLoading={bansQuery.isFetching}
+            dataSource={bansQuery.data ?? []}
+            columns={[
+              { title: '规则', dataIndex: 'name', width: 200, render: (v: string) => <Tag color="blue" size="small">{v}</Tag> },
+              { title: '被封禁 Key', dataIndex: 'key', render: (v: string) => <Text copyable>{v}</Text> },
+              dateTimeColumn('到期时间', 'expiresAt'),
+              {
+                title: '剩余',
+                dataIndex: 'remainingSeconds',
+                width: 110,
+                render: (v: number) => formatWindow(v * 1000),
+              },
+              createOperationColumn<{ name: string; key: string; expiresAt: string; remainingSeconds: number }>({
+                width: 110,
+                emptyContent: <span style={{ color: 'var(--semi-color-text-3)' }}>{EMPTY_PLACEHOLDER}</span>,
+                actions: (row) => [{
+                  key: 'unban',
+                  label: '解除封禁',
+                  danger: true,
+                  hidden: !canManage,
+                  onClick: () => void handleUnban(row.name, row.key),
+                }],
+              }),
+            ]}
             pagination={{ pageSize: 20 }}
           />
         </TabPane>
@@ -513,6 +610,14 @@ export default function RateLimitPage() {
               <InfoBlock label="路径优先级" value={String(detailRule.priority)} />
               <InfoBlock label="拦截提示" value={detailRule.blockedMessage ?? '默认提示'} />
             </div>
+            {detailRule.allowlist.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <Text type="tertiary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>白名单</Text>
+                <Space wrap spacing={4}>
+                  {detailRule.allowlist.map((entry) => <Tag key={entry} size="small" color="green">{entry}</Tag>)}
+                </Space>
+              </div>
+            )}
             {detailRule.pathPatterns.length > 0 && (
               <div style={{ marginTop: 12 }}>
                 <Text type="tertiary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>绑定路径</Text>
@@ -547,12 +652,12 @@ export default function RateLimitPage() {
                 { title: 'Key', dataIndex: 'key', render: (v: string) => <Text copyable>{v}</Text> },
                 {
                   title: '类型', dataIndex: 'monitored', width: 80,
-                  render: (monitored: boolean) => modeTag(monitored ? 'monitor' : 'enforce'),
+                  render: (_: boolean, row: BlockRow) => blockTypeTag(row),
                 },
                 createOperationColumn<BlockRow>({
-                  width: 90,
+                  width: 130,
                   emptyContent: <span style={{ color: 'var(--semi-color-text-3)' }}>{EMPTY_PLACEHOLDER}</span>,
-                  actions: (row) => [unblockAction(row.rule, row.key)],
+                  actions: (row) => [unblockAction(row.rule, row.key), banAction(row.rule, row.key)],
                 }),
               ]}
               pagination={{ pageSize: 10 }}
@@ -560,6 +665,34 @@ export default function RateLimitPage() {
           </div>
         )}
       </SideSheet>
+
+      <Modal
+        title={banTarget ? `封禁 ${banTarget.key}` : ''}
+        visible={!!banTarget}
+        onCancel={() => setBanTarget(null)}
+        onOk={() => void handleBanConfirm()}
+        okText="封禁"
+        okButtonProps={{ type: 'danger', theme: 'solid', loading: banMutation.isPending }}
+        closeOnEsc
+        width={420}
+      >
+        {banTarget && (
+          <Space vertical align="start" spacing={12} style={{ width: '100%' }}>
+            <Text>
+              封禁期内该身份在规则 <Tag size="small" color="blue">{banTarget.rule}</Tag> 下的请求一律拦截，
+              无视限额与观察模式；到期自动解除，也可在封禁列表中提前解除。
+            </Text>
+            <Select
+              value={banDuration}
+              onChange={(v) => setBanDuration(v as number)}
+              optionList={RATE_LIMIT_BAN_DURATION_OPTIONS}
+              style={{ width: 200 }}
+              aria-label="封禁时长"
+              prefix={<Ban size={14} />}
+            />
+          </Space>
+        )}
+      </Modal>
 
       <AppModal
         {...editModal.modalProps}
@@ -585,6 +718,13 @@ export default function RateLimitPage() {
             optionList={RATE_LIMIT_MODE_OPTIONS}
             style={{ width: '100%' }}
             extraText="观察模式下超限只记录统计不实际拦截，用于新规则上线前安全调参"
+          />
+          <Form.Select
+            field="algorithm"
+            label="限流算法"
+            optionList={RATE_LIMIT_ALGORITHM_OPTIONS}
+            style={{ width: '100%' }}
+            extraText="滑动窗口消除固定窗口在边界处最多 2× 限额的突刺，适合 auth / 支付等敏感规则"
           />
           <div style={{ display: 'flex', gap: 8 }}>
             <Form.InputNumber field="windowValue" label="时间窗口" min={1} style={{ width: '100%' }} rules={[{ required: true, message: '请输入窗口时长' }]} fieldStyle={{ flex: 1 }} />
@@ -623,6 +763,12 @@ export default function RateLimitPage() {
             max={9999}
             style={{ width: '100%' }}
             extraText="多条规则的绑定路径命中同一请求时应用优先级大者；仅路径绑定时生效"
+          />
+          <Form.TagInput
+            field="allowlist"
+            label="白名单"
+            placeholder="IP、CIDR（10.0.0.0/8）或 u:用户ID，回车添加"
+            extraText="命中白名单的请求直接放行且不计数；用于内部探活、回调源与办公网豁免"
           />
           <Form.Input field="blockedMessage" label="拦截提示文案" placeholder="为空使用默认提示" />
           <Form.Switch field="enabled" label="启用" />

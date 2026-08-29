@@ -82,6 +82,14 @@ export const RATE_LIMIT_MOUNT_SOURCE_LABELS: Record<RateLimitMountSource, string
   none: '未生效',
 };
 
+/** 手动封禁时长预设（秒） */
+export const RATE_LIMIT_BAN_DURATION_OPTIONS: Array<{ value: number; label: string }> = [
+  { value: 600, label: '10 分钟' },
+  { value: 3600, label: '1 小时' },
+  { value: 24 * 3600, label: '24 小时' },
+  { value: 7 * 24 * 3600, label: '7 天' },
+];
+
 export const FILE_URL_STRATEGY_LABELS: Record<(typeof FILE_URL_STRATEGIES)[number], string> = {
   proxy: '服务端代理',
   public: '公开直链',

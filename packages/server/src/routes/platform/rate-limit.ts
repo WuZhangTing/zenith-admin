@@ -10,7 +10,7 @@ import {
   IdParam,
   okBody,
 } from '../../lib/openapi-schemas';
-import { RateLimitRuleDTO, RateLimitStatsDTO } from '../../lib/openapi-dtos';
+import { RateLimitBanDTO, RateLimitRuleDTO, RateLimitStatsDTO } from '../../lib/openapi-dtos';
 import {
   listRateLimitRules,
   updateRateLimitRule,
@@ -20,6 +20,9 @@ import {
   unblockRateLimit,
   resetRateLimitStats,
   getRateLimitRuleBeforeAudit,
+  banRateLimit,
+  unbanRateLimit,
+  listRateLimitActiveBans,
 } from '../../services/platform/rate-limit.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -27,12 +30,17 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 /** pathBoundRateLimit 只挂载在 /api/*，非 /api/ 前缀的 pattern 永远不会匹配 */
 const pathPatternSchema = z.string().max(256).refine((p) => p.startsWith('/api/'), '绑定路径必须以 /api/ 开头');
 
+/** 白名单条目：IP / CIDR / u:{userId}；合法性在中间件运行期宽容处理，这里只做长度约束 */
+const allowlistSchema = z.array(z.string().min(1).max(128)).max(100);
+
 const UpdateRuleBody = z.object({
   windowMs: z.number().int().min(1000).optional(),
   limit: z.number().int().min(1).optional(),
   keyType: z.enum(['ip', 'user', 'ip_path']).optional(),
   enabled: z.boolean().optional(),
   mode: z.enum(['enforce', 'monitor']).optional(),
+  algorithm: z.enum(['fixed_window', 'sliding_window']).optional(),
+  allowlist: allowlistSchema.optional(),
   priority: z.number().int().min(0).max(9999).optional(),
   description: z.string().nullable().optional(),
   blockedMessage: z.string().nullable().optional(),
@@ -47,6 +55,8 @@ const CreateRuleBody = z.object({
   keyType: z.enum(['ip', 'user', 'ip_path']),
   enabled: z.boolean(),
   mode: z.enum(['enforce', 'monitor']).optional(),
+  algorithm: z.enum(['fixed_window', 'sliding_window']).optional(),
+  allowlist: allowlistSchema.optional(),
   priority: z.number().int().min(0).max(9999).optional(),
   blockedMessage: z.string().max(255).nullable().optional(),
   pathPatterns: z.array(pathPatternSchema).max(50).optional(),
@@ -193,6 +203,72 @@ const resetStats = defineOpenAPIRoute({
   },
 });
 
-router.openapiRoutes([listRules, createRule, patchRule, deleteRule, getStats, unblock, resetStats] as const);
+const BanBody = z.object({
+  name: z.string().min(1),
+  key: z.string().min(1).max(256),
+  durationSeconds: z.number().int().min(60).max(30 * 24 * 3600),
+});
+
+const UnbanBody = z.object({
+  name: z.string().min(1),
+  key: z.string().min(1).max(256),
+});
+
+const banKey = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post',
+    path: '/ban',
+    tags: ['RateLimit'],
+    summary: '手动封禁指定 key（封禁期内一律 429，无视限额与观察模式）',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:rate-limit:manage',
+      audit: { description: '手动封禁限流 key', module: '接口限流' },
+    })] as const,
+    request: { body: { content: jsonContent(BanBody), required: true } },
+    responses: { ...commonErrorResponses, ...okMsg('封禁成功') },
+  }),
+  handler: async (c) => {
+    const { name, key, durationSeconds } = c.req.valid('json');
+    await banRateLimit(name, key, durationSeconds);
+    return c.json(okBody(null, '封禁成功'), 200);
+  },
+});
+
+const unbanKey = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post',
+    path: '/unban',
+    tags: ['RateLimit'],
+    summary: '解除手动封禁',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({
+      permission: 'system:rate-limit:manage',
+      audit: { description: '解除限流封禁', module: '接口限流' },
+    })] as const,
+    request: { body: { content: jsonContent(UnbanBody), required: true } },
+    responses: { ...commonErrorResponses, ...okMsg('已解除封禁') },
+  }),
+  handler: async (c) => {
+    const { name, key } = c.req.valid('json');
+    const { unbanned } = await unbanRateLimit(name, key);
+    return c.json(okBody(null, unbanned ? '已解除封禁' : '封禁不存在或已过期'), 200);
+  },
+});
+
+const listBans = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get',
+    path: '/bans',
+    tags: ['RateLimit'],
+    summary: '活跃封禁列表',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'system:rate-limit:view' })] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(RateLimitBanDTO), '活跃封禁') },
+  }),
+  handler: async (c) => c.json(okBody(await listRateLimitActiveBans()), 200),
+});
+
+router.openapiRoutes([listRules, createRule, patchRule, deleteRule, getStats, unblock, resetStats, banKey, unbanKey, listBans] as const);
 
 export default router;
