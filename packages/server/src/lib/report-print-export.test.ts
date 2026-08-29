@@ -120,6 +120,8 @@ describe('report-print-export', () => {
     await expect(renderPrintResultToDocx(oversized)).rejects.toThrow('图片总大小超过');
   });
 
+  // 60s 超时：发布流程四路并行下 pdfkit 惰性加载与转译资源被抢，默认 5s 会被压穿
+  // （单独跑 ~1s 即过；参照 app.contract/app.routes 的放宽先例）
   it('PDF 对超宽合并单元格和长文本进行页面内裁剪', async () => {
     const pdfResult = renderPrintContent('PDF overflow', {
       grid: {
@@ -134,5 +136,5 @@ describe('report-print-export', () => {
     const buffer = await renderPrintResultToPdf(pdfResult);
     expect(buffer.subarray(0, 4).toString()).toBe('%PDF');
     expect(buffer.length).toBeGreaterThan(500);
-  });
+  }, 60_000);
 });
