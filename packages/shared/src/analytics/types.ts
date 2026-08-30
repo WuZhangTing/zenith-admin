@@ -470,6 +470,20 @@ export interface AnalyticsEventMeta {
   updatedAt: string;
 }
 
+/** 事件字典下游引用项 */
+export interface AnalyticsEventMetaReferenceItem {
+  id: number;
+  name: string;
+}
+
+/** 事件字典下游影响面：屏蔽 / 删除 / 改契约前展示，防止静默断数据 */
+export interface AnalyticsEventMetaReferences {
+  savedReports: AnalyticsEventMetaReferenceItem[];
+  segments: AnalyticsEventMetaReferenceItem[];
+  experiments: AnalyticsEventMetaReferenceItem[];
+  total: number;
+}
+
 // ─── 行为分析（聚合结果）──────────────────────────────────────────────────────
 export interface AnalyticsOverview {
   pv: number;

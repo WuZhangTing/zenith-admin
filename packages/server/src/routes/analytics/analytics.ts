@@ -13,6 +13,7 @@ import {
   UserTimelineDTO, PerfStatsDTO, RealtimeStatsDTO,
   EventListItemDTO, EventDetailDTO, AnalyticsEventMetaDTO, CreateAnalyticsEventMetaDTO,
   UpdateAnalyticsEventMetaDTO, AnalyticsSettingsDTO, UpdateAnalyticsSettingsDTO, AnalyticsRollupSummaryDTO,
+  AnalyticsEventMetaReferencesDTO,
   SessionTimelineDTO, AnalyticsSavedReportDTO, CreateAnalyticsSavedReportDTO,
   AnalyticsEventOverrideDTO, CreateAnalyticsEventOverrideDTO, UpdateAnalyticsEventOverrideDTO,
   AnalyticsQualityQueryResultDTO, AnalyticsDebugEventDTO,
@@ -36,7 +37,7 @@ import {
   listSegments, getSegmentDetail, ensureSegmentExists, createSegment, updateSegment, deleteSegment, listSegmentMembers,
 } from '../../services/analytics/analytics-segments.service';
 import { getPublicConfig, getSettings, updateSettings } from '../../services/analytics/analytics-settings.service';
-import { listEventMeta, createEventMeta, updateEventMeta, deleteEventMeta } from '../../services/analytics/analytics-event-meta.service';
+import { listEventMeta, createEventMeta, updateEventMeta, deleteEventMeta, getEventMetaReferences } from '../../services/analytics/analytics-event-meta.service';
 import { getRollupSummary } from '../../services/analytics/analytics-rollup.service';
 import { listSavedReports, createSavedReport, deleteSavedReport } from '../../services/analytics/analytics-reports.service';
 import {
@@ -429,6 +430,16 @@ const metaDeleteRoute = defineOpenAPIRoute({
   },
 });
 
+const metaReferencesRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/event-meta/references', tags: ['Analytics'], summary: '事件字典下游引用（漏斗报表 / 分群 / 实验）', security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const,
+    request: { query: z.object({ eventName: z.string().min(1).max(128) }) },
+    responses: { ...ok(AnalyticsEventMetaReferencesDTO, '下游引用'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await getEventMetaReferences(c.req.valid('query').eventName)), 200),
+});
+
 // ─── 租户级事件启停覆盖 ───────────────────────────────────────────────────────
 const overrideListRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -645,7 +656,7 @@ r.openapiRoutes([
   sessionsRoute, funnelRoute, retentionRoute, acquisitionRoute, drillUsersRoute, eventQueryRoute, pathRoute, userTimelineRoute, sessionTimelineRoute, perfRoute,
   reportListRoute, reportCreateRoute, reportDeleteRoute,
   eventListRoute, eventDetailRoute, cleanRoute,
-  metaListRoute, metaCreateRoute, metaUpdateRoute, metaDeleteRoute,
+  metaListRoute, metaCreateRoute, metaUpdateRoute, metaDeleteRoute, metaReferencesRoute,
   overrideListRoute, overrideCreateRoute, overrideUpdateRoute, overrideDeleteRoute,
   qualityRoute, debugEventsRoute,
   settingsGetRoute, settingsUpdateRoute,

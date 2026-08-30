@@ -653,6 +653,16 @@ export const CreateAnalyticsEventMetaDTO = analyticsEventMetaInputDTO
   .openapi('CreateAnalyticsEventMeta');
 export const UpdateAnalyticsEventMetaDTO = analyticsEventMetaInputDTO.partial().openapi('UpdateAnalyticsEventMeta');
 
+const eventMetaReferenceItemDTO = z.object({ id: z.number().int(), name: z.string() });
+export const AnalyticsEventMetaReferencesDTO = z
+  .object({
+    savedReports: z.array(eventMetaReferenceItemDTO),
+    segments: z.array(eventMetaReferenceItemDTO),
+    experiments: z.array(eventMetaReferenceItemDTO),
+    total: z.number().int(),
+  })
+  .openapi('AnalyticsEventMetaReferences');
+
 
 // ─── 采集设置 ─────────────────────────────────────────────────────────────────
 export const AnalyticsSettingsDTO = z

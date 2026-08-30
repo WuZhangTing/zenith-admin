@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AnalyticsAcquisitionDimension, AnalyticsAcquisitionResult, AnalyticsAttributionModel, AnalyticsComparison, AnalyticsDebugEvent, AnalyticsDrillContext, AnalyticsDrillUsersResult, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
+import type { AnalyticsAcquisitionDimension, AnalyticsAcquisitionResult, AnalyticsAttributionModel, AnalyticsComparison, AnalyticsDebugEvent, AnalyticsDrillContext, AnalyticsDrillUsersResult, AnalyticsExperiment, AnalyticsExperimentReport, AnalyticsEventMeta, AnalyticsEventMetaReferences, AnalyticsEventOverride, AnalyticsEventOverrideStatus, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsOverview, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSettings, AnalyticsUserSegment, AnalyticsSite, ErrorAlertRule, ErrorAlertLog, ErrorEvent, ErrorGroup, ErrorOverview, FunnelQuery, FunnelResult, HeatmapData, HeatmapPageListItem, PageStats, PathResult, RealtimeStats, RetentionResult, AnalyticsSavedReport, TrendSeries, FeatureStats } from '@zenith/shared/analytics';
 
 /** 下钻请求体：分析上下文 + 图表坐标 + 分页 */
 export interface AnalyticsDrillUsersInput {
@@ -167,6 +167,7 @@ export const analyticsKeys = {
     eventDetail: (id: number | undefined) => ['analytics', 'data', 'event-detail', id] as const,
     metaLists: ['analytics', 'data', 'meta'] as const,
     meta: (params: AnalyticsMetaParams) => ['analytics', 'data', 'meta', params] as const,
+    metaReferences: (eventName: string) => ['analytics', 'data', 'meta-references', eventName] as const,
     rollup: (days: number) => ['analytics', 'data', 'rollup', days] as const,
     settings: ['analytics', 'data', 'settings'] as const,
     overridesLists: ['analytics', 'data', 'overrides'] as const,
@@ -411,6 +412,22 @@ export function useAnalyticsEventMeta(params: AnalyticsMetaParams) {
     queryKey: analyticsKeys.data.meta(params),
     queryFn: () => request.get<PaginatedResponse<AnalyticsEventMeta>>(`/api/analytics/event-meta${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** 事件字典下游引用查询配置：hook 与删除确认的 fetchQuery 共用，避免两份 queryFn */
+export function eventMetaReferencesQueryOptions(eventName: string) {
+  return {
+    queryKey: analyticsKeys.data.metaReferences(eventName),
+    queryFn: () => request.get<AnalyticsEventMetaReferences>(`/api/analytics/event-meta/references?eventName=${encodeURIComponent(eventName)}`).then(unwrap),
+    staleTime: 30_000,
+  };
+}
+
+export function useEventMetaReferences(eventName: string | undefined, enabled = true) {
+  return useQuery({
+    ...eventMetaReferencesQueryOptions(eventName ?? ''),
+    enabled: enabled && !!eventName,
   });
 }
 

@@ -1,6 +1,6 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, pageParams, pageResult, paginate, nextIdFrom } from '@/mocks/utils/handlers';
-import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric, AnalyticsRetentionPeriodType, AnalyticsComparison, AnalyticsDrillUser, AnalyticsDrillUsersResult, AnalyticsAcquisitionResult, AnalyticsAcquisitionDimension, AnalyticsAttributionModel } from '@zenith/shared/analytics';
+import type { PageStats, FeatureStats, HeatmapData, HeatmapPageListItem, AnalyticsOverview, TrendSeries, RealtimeStats, FunnelResult, RetentionResult, PathResult, PerfStats, EventListItem, EventDetail, AnalyticsEventMeta, AnalyticsEventMetaReferences, AnalyticsSettings, AnalyticsPublicConfig, AnalyticsRollupItem, AnalyticsSavedReport, AnalyticsEventOverride, AnalyticsQualityDaily, AnalyticsQualityIssueType, AnalyticsQualityQueryResult, AnalyticsDebugEvent, AnalyticsUserSegment, AnalyticsSegmentMember, AnalyticsSegmentCampaign, AnalyticsSite, AnalyticsExperiment, AnalyticsExperimentAssignment, AnalyticsExperimentReport, AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryRow, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric, AnalyticsRetentionPeriodType, AnalyticsComparison, AnalyticsDrillUser, AnalyticsDrillUsersResult, AnalyticsAcquisitionResult, AnalyticsAcquisitionDimension, AnalyticsAttributionModel } from '@zenith/shared/analytics';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { UserStats, UserTimeline, UserBehaviorEventType } from '@zenith/shared/identity';
 import type { SessionListItem, SessionTimeline } from '@zenith/shared/platform';
@@ -859,6 +859,24 @@ export const analyticsHandlers = [
   http.delete('/api/analytics/event-meta/:id', ({ params }) => {
     mockEventMeta = mockEventMeta.filter((m) => m.id !== Number(params.id));
     return ok(null, '删除成功');
+  }),
+  // 事件字典下游引用：漏斗报表 steps / 分群 conditions / 实验 metricEventName 的实时匹配
+  http.get('/api/analytics/event-meta/references', ({ request }) => {
+    const eventName = new URL(request.url).searchParams.get('eventName') ?? '';
+    const savedReports = mockSavedReports
+      .filter((r) => Array.isArray((r.config as { steps?: Array<{ eventName?: string }> }).steps)
+        && ((r.config as { steps: Array<{ eventName?: string }> }).steps).some((s) => s.eventName === eventName))
+      .map((r) => ({ id: r.id, name: r.name }));
+    const segments = mockSegments
+      .filter((s) => s.rules.conditions.some((cond) => 'eventName' in cond && cond.eventName === eventName))
+      .map((s) => ({ id: s.id, name: s.name }));
+    const experiments = mockExperiments
+      .filter((e) => e.metricEventName === eventName)
+      .map((e) => ({ id: e.id, name: e.name }));
+    return ok<AnalyticsEventMetaReferences>({
+      savedReports, segments, experiments,
+      total: savedReports.length + segments.length + experiments.length,
+    });
   }),
 
   // 租户覆盖（Tracking Plan 租户级启停）

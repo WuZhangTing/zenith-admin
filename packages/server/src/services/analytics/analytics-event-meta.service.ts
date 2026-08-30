@@ -1,7 +1,7 @@
 import { and, eq, like, desc, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { analyticsEventMeta, users } from '../../db/schema';
+import { analyticsEventMeta, analyticsSavedReports, analyticsUserSegments, analyticsExperiments, users } from '../../db/schema';
 import type { AnalyticsEventMetaRow } from '../../db/schema';
 import type { TrackEventInput, CreateAnalyticsEventMetaInput, UpdateAnalyticsEventMetaInput } from '@zenith/shared/analytics';
 import { mergeWhere, escapeLike } from '../../lib/where-helpers';
@@ -9,7 +9,7 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
-import { isPlatformAdmin } from '../../lib/tenant';
+import { isPlatformAdmin, tenantScope } from '../../lib/tenant';
 import { invalidateGovernanceCache } from './analytics-governance.service';
 
 export function mapEventMeta(row: AnalyticsEventMetaRow) {
@@ -153,4 +153,32 @@ export async function deleteEventMeta(id: number) {
   ensureBlockedStatusPermission(current.status, null);
   await db.delete(analyticsEventMeta).where(eq(analyticsEventMeta.id, id));
   invalidateGovernanceCache();
+}
+
+// ─── 下游影响分析（屏蔽 / 删除 / 改契约前的引用面）────────────────────────────
+/**
+ * 实时查询事件名在漏斗报表 / 分群规则 / A/B 实验中的引用。
+ * 不维护引用登记表：三表均为小表，JSONB 包含匹配即可，避免第二份事实。
+ * 租户管理员只看到本租户引用，平台管理员看全部（tenantScope 语义）。
+ */
+export async function getEventMetaReferences(eventName: string) {
+  const elementMatch = JSON.stringify([{ eventName }]);
+  const [savedReports, segments, experiments] = await Promise.all([
+    db.select({ id: analyticsSavedReports.id, name: analyticsSavedReports.name })
+      .from(analyticsSavedReports)
+      .where(mergeWhere(sql`${analyticsSavedReports.config}->'steps' @> ${elementMatch}::jsonb`, tenantScope(analyticsSavedReports)))
+      .orderBy(analyticsSavedReports.id)
+      .limit(50),
+    db.select({ id: analyticsUserSegments.id, name: analyticsUserSegments.name })
+      .from(analyticsUserSegments)
+      .where(mergeWhere(sql`${analyticsUserSegments.rules}->'conditions' @> ${elementMatch}::jsonb`, tenantScope(analyticsUserSegments)))
+      .orderBy(analyticsUserSegments.id)
+      .limit(50),
+    db.select({ id: analyticsExperiments.id, name: analyticsExperiments.name })
+      .from(analyticsExperiments)
+      .where(mergeWhere(eq(analyticsExperiments.metricEventName, eventName), tenantScope(analyticsExperiments)))
+      .orderBy(analyticsExperiments.id)
+      .limit(50),
+  ]);
+  return { savedReports, segments, experiments, total: savedReports.length + segments.length + experiments.length };
 }

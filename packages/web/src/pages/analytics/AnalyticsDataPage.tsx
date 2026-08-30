@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Tabs, TabPane, Select, Button, Toast, Form, Switch, Slider, Input, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Select, Button, Toast, Form, Switch, Slider, Input, InputNumber, TagInput, Tag, Typography, SplitButtonGroup, Dropdown, DatePicker, SideSheet, Descriptions, Card, Banner } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TagColor } from '@douyinfe/semi-ui/lib/es/tag';
 import { Trash2, ChevronDown } from 'lucide-react';
@@ -12,6 +12,7 @@ import AppModal from '@/components/AppModal';
 import { formatDateTime, formatDateTimeRangeValuesForApi } from '@/utils/date';
 import {
   analyticsKeys,
+  eventMetaReferencesQueryOptions,
   useAnalyticsEventDetail,
   useAnalyticsEventMeta,
   useAnalyticsEvents,
@@ -19,12 +20,13 @@ import {
   useAnalyticsSettings,
   useCleanAnalyticsEvents,
   useDeleteAnalyticsEventMeta,
+  useEventMetaReferences,
   useFrontendAdminUsers,
   useRebuildAnalyticsRollup,
   useSaveAnalyticsEventMeta,
   useSaveAnalyticsSettings,
 } from '@/hooks/queries/analytics';
-import type { AnalyticsEventMeta, AnalyticsSettings, EventListItem } from '@zenith/shared/analytics';
+import type { AnalyticsEventMeta, AnalyticsEventMetaReferences, AnalyticsSettings, EventListItem } from '@zenith/shared/analytics';
 import { ANALYTICS_DEVICE_TYPE_OPTIONS, ANALYTICS_EVENT_PROPERTY_TYPES, USER_BEHAVIOR_EVENT_TYPE_LABELS } from '@zenith/shared/analytics';
 import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { usePermission } from '@/hooks/usePermission';
@@ -48,6 +50,21 @@ function msToReadable(ms: number | null) {
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
   return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+}
+
+function referencePart(label: string, items: Array<{ name: string }>) {
+  if (items.length === 0) return null;
+  const names = items.slice(0, 3).map((item) => `「${item.name}」`).join('、');
+  return `${items.length} 个${label}（${names}${items.length > 3 ? ' 等' : ''}）`;
+}
+
+/** 下游引用摘要：如「2 个漏斗报表（「注册转化」）、1 个 A/B 实验（「新首页」）」 */
+function referencesSummaryText(refs: AnalyticsEventMetaReferences) {
+  return [
+    referencePart('漏斗报表', refs.savedReports),
+    referencePart('用户分群', refs.segments),
+    referencePart('A/B 实验', refs.experiments),
+  ].filter(Boolean).join('、');
 }
 
 interface AnalyticsRollupItem {
@@ -335,6 +352,7 @@ export default function AnalyticsDataPage() {
   });
   const ownerUsersQuery = useFrontendAdminUsers(activeTab === 'meta' && metaModal.visible);
   const ownerOptions = (ownerUsersQuery.data?.list ?? []).map((u) => ({ value: u.id, label: u.nickname || u.username }));
+  const metaReferencesQuery = useEventMetaReferences(metaModal.editing?.eventName, metaModal.visible);
 
   const handleEventSearch = () => {
     setEventsPage(1);
@@ -401,6 +419,24 @@ export default function AnalyticsDataPage() {
   const handleMetaDelete = async (record: AnalyticsEventMeta) => {
     await deleteMetaMutation.mutateAsync(record.id);
     Toast.success('删除成功');
+  };
+
+  /** 删除前拉取下游引用：有引用时在确认框中警示，引用查询失败不阻断删除入口 */
+  const openMetaDeleteConfirm = async (record: AnalyticsEventMeta) => {
+    const refs = await queryClient
+      .fetchQuery(eventMetaReferencesQueryOptions(record.eventName))
+      .catch(() => null);
+    const summary = refs && refs.total > 0 ? referencesSummaryText(refs) : null;
+    confirmDelete({
+      title: `确定删除事件「${record.eventName}」吗？`,
+      content: summary ? (
+        <Typography.Text type="danger">
+          该事件正被 {summary} 引用，删除后契约与属性 Schema 将丢失，请先确认这些分析是否仍需该事件。
+        </Typography.Text>
+      ) : '删除仅移除字典契约，不影响已采集的事件数据。',
+      okButtonProps: { type: 'danger' },
+      onOk: () => handleMetaDelete(record),
+    });
   };
 
   const handleRollupDaysChange = (value: unknown) => {
@@ -548,11 +584,7 @@ export default function AnalyticsDataPage() {
           label: '删除',
           danger: true,
           onClick: () => {
-            confirmDelete({
-              title: `确定删除事件「${record.eventName}」吗？`,
-              okButtonProps: { type: 'danger' },
-              onOk: () => handleMetaDelete(record),
-            });
+            void openMetaDeleteConfirm(record);
           },
         },
       ],
@@ -1037,6 +1069,21 @@ export default function AnalyticsDataPage() {
           />
 
           <AppModal {...metaModal.modalProps} width={640}>
+            {metaModal.editing && metaReferencesQuery.data && (
+              metaReferencesQuery.data.total > 0 ? (
+                <Banner
+                  fullMode={false}
+                  type="warning"
+                  closeIcon={null}
+                  description={`该事件正被 ${referencesSummaryText(metaReferencesQuery.data)} 引用，屏蔽、重命名或修改契约将直接影响这些分析的取数。`}
+                  style={{ marginBottom: 12 }}
+                />
+              ) : (
+                <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginBottom: 12 }}>
+                  暂无漏斗报表 / 用户分群 / A/B 实验引用该事件。
+                </Typography.Text>
+              )
+            )}
             <Form key={metaModal.formKey} {...metaModal.formProps}>
               <Form.Input field="eventName" label="事件名" placeholder="如 page_view" rules={[{ required: true, message: '请输入事件名' }]} />
               <Form.Input field="displayName" label="显示名" placeholder="可选，如 页面进入" />
