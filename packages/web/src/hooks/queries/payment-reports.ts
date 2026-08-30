@@ -7,6 +7,8 @@ export interface PaymentReportTotals {
   totalGross: number;
   totalFee: number;
   totalRefund: number;
+  /** 分账支出合计（分） */
+  totalSharing: number;
   totalNet: number;
   totalCount: number;
 }
@@ -14,8 +16,8 @@ export interface PaymentReportTotals {
 export interface PaymentReportSummary extends PaymentReportTotals {
   groupBy: PaymentReportGroupBy;
   rows: PaymentReportRow[];
-  /** 环比周期汇总（compare=true 且提供时间范围时返回） */
-  prev?: PaymentReportTotals | null;
+  /** 环比周期（compare=true 且提供时间范围时返回）：汇总 + 逐行 */
+  prev?: (PaymentReportTotals & { rows: PaymentReportRow[] }) | null;
 }
 
 export interface PaymentReportSummaryParams {

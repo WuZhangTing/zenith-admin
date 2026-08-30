@@ -1,0 +1,1 @@
+ALTER TABLE "payment_report_daily" ADD COLUMN "sharing" integer DEFAULT 0 NOT NULL;

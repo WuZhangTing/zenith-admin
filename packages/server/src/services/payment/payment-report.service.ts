@@ -29,6 +29,8 @@ export interface ReportTotals {
   totalGross: number;
   totalFee: number;
   totalRefund: number;
+  /** 分账支出合计（分） */
+  totalSharing: number;
   totalNet: number;
   totalCount: number;
 }
@@ -36,8 +38,8 @@ export interface ReportTotals {
 export interface ReportSummary extends ReportTotals {
   groupBy: PaymentReportGroupBy;
   rows: PaymentReportRow[];
-  /** 环比周期汇总（compare=true 且提供时间范围时返回） */
-  prev?: ReportTotals | null;
+  /** 环比周期（compare=true 且提供时间范围时返回）：汇总 + 逐行（按 key 对齐做行级环比） */
+  prev?: (ReportTotals & { rows: PaymentReportRow[] }) | null;
 }
 
 function labelFor(groupBy: PaymentReportGroupBy, key: string): string {
@@ -50,6 +52,7 @@ interface AggRow {
   gross: number;
   fee: number;
   refund: number;
+  sharing: number;
   count: number;
 }
 
@@ -78,12 +81,13 @@ async function aggregateFromLedger(groupBy: PaymentReportGroupBy, start: Date | 
       // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
       fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
       refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
+      sharing: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'sharing' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       count: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then 1 else 0 end),0)`,
     })
     .from(paymentLedgerEntries)
     .where(where)
     .groupBy(keyExpr);
-  return rows.map((r) => ({ key: r.key, gross: Number(r.gross), fee: Number(r.fee), refund: Number(r.refund), count: Number(r.count) }));
+  return rows.map((r) => ({ key: r.key, gross: Number(r.gross), fee: Number(r.fee), refund: Number(r.refund), sharing: Number(r.sharing), count: Number(r.count) }));
 }
 
 /** 快照聚合（历史整日数据；statDate 为闭区间） */
@@ -103,12 +107,13 @@ async function aggregateFromSnapshot(groupBy: PaymentReportGroupBy, startDate: s
       gross: sql<number>`coalesce(sum(${paymentReportDaily.gross}),0)`,
       fee: sql<number>`coalesce(sum(${paymentReportDaily.fee}),0)`,
       refund: sql<number>`coalesce(sum(${paymentReportDaily.refund}),0)`,
+      sharing: sql<number>`coalesce(sum(${paymentReportDaily.sharing}),0)`,
       count: sql<number>`coalesce(sum(${paymentReportDaily.count}),0)`,
     })
     .from(paymentReportDaily)
     .where(where)
     .groupBy(keyExpr);
-  return rows.map((r) => ({ key: r.key, gross: Number(r.gross), fee: Number(r.fee), refund: Number(r.refund), count: Number(r.count) }));
+  return rows.map((r) => ({ key: r.key, gross: Number(r.gross), fee: Number(r.fee), refund: Number(r.refund), sharing: Number(r.sharing), count: Number(r.count) }));
 }
 
 function mergeAggRows(parts: AggRow[][]): AggRow[] {
@@ -120,6 +125,7 @@ function mergeAggRows(parts: AggRow[][]): AggRow[] {
         exist.gross += r.gross;
         exist.fee += r.fee;
         exist.refund += r.refund;
+        exist.sharing += r.sharing;
         exist.count += r.count;
       } else {
         map.set(r.key, { ...r });
@@ -149,7 +155,31 @@ function toTotals(rows: AggRow[]): ReportTotals {
   const totalGross = rows.reduce((s, r) => s + r.gross, 0);
   const totalFee = rows.reduce((s, r) => s + r.fee, 0);
   const totalRefund = rows.reduce((s, r) => s + r.refund, 0);
-  return { totalGross, totalFee, totalRefund, totalNet: totalGross - totalFee - totalRefund, totalCount: rows.reduce((s, r) => s + r.count, 0) };
+  const totalSharing = rows.reduce((s, r) => s + r.sharing, 0);
+  return {
+    totalGross,
+    totalFee,
+    totalRefund,
+    totalSharing,
+    totalNet: totalGross - totalFee - totalRefund - totalSharing,
+    totalCount: rows.reduce((s, r) => s + r.count, 0),
+  };
+}
+
+function toReportRows(groupBy: PaymentReportGroupBy, agg: AggRow[]): PaymentReportRow[] {
+  return agg
+    // 过滤无意义空分组（key 为空且全零）：历史快照对空维度可能落出全零行，展示层没有价值
+    .filter((r) => r.key !== '' || r.gross !== 0 || r.fee !== 0 || r.refund !== 0 || r.sharing !== 0 || r.count !== 0)
+    .map((r) => ({
+      key: r.key || '未知',
+      label: labelFor(groupBy, r.key),
+      gross: r.gross,
+      fee: r.fee,
+      refund: r.refund,
+      sharing: r.sharing,
+      net: r.gross - r.fee - r.refund - r.sharing,
+      count: r.count,
+    }));
 }
 
 export async function getReportSummary(q: ReportSummaryQuery): Promise<ReportSummary> {
@@ -158,24 +188,13 @@ export async function getReportSummary(q: ReportSummaryQuery): Promise<ReportSum
   const end = parseDateRangeEnd(q.endTime);
 
   const agg = await aggregateReport(groupBy, start, end);
-  const reportRows: PaymentReportRow[] = agg
-    // 过滤无意义空分组（key 为空且全零）：历史快照对空维度可能落出全零行，展示层没有价值
-    .filter((r) => r.key !== '' || r.gross !== 0 || r.fee !== 0 || r.refund !== 0 || r.count !== 0)
-    .map((r) => ({
-      key: r.key || '未知',
-      label: labelFor(groupBy, r.key),
-      gross: r.gross,
-      fee: r.fee,
-      refund: r.refund,
-      net: r.gross - r.fee - r.refund,
-      count: r.count,
-    }));
+  const reportRows = toReportRows(groupBy, agg);
 
-  let prev: ReportTotals | null = null;
+  let prev: (ReportTotals & { rows: PaymentReportRow[] }) | null = null;
   if (q.compare && start && end && end > start) {
     const duration = end.getTime() - start.getTime();
     const prevAgg = await aggregateReport(groupBy, new Date(start.getTime() - duration), new Date(start.getTime() - 1));
-    prev = toTotals(prevAgg);
+    prev = { ...toTotals(prevAgg), rows: toReportRows(groupBy, prevAgg) };
   }
 
   return { groupBy, rows: reportRows, ...toTotals(agg), prev };
@@ -199,6 +218,7 @@ export async function rebuildPaymentReportDaily(days = 2): Promise<number> {
         // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
         fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
         refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
+        sharing: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'sharing' then ${paymentLedgerEntries.amount} else 0 end),0)`,
         count: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then 1 else 0 end),0)`,
         tenantId: paymentLedgerEntries.tenantId,
       })
@@ -214,6 +234,7 @@ export async function rebuildPaymentReportDaily(days = 2): Promise<number> {
           gross: Number(r.gross),
           fee: Number(r.fee),
           refund: Number(r.refund),
+          sharing: Number(r.sharing),
           count: Number(r.count),
           tenantId: r.tenantId,
         })),

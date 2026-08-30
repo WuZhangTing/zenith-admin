@@ -550,6 +550,8 @@ export interface PaymentReportRow {
   gross: number; // 分
   fee: number; // 分
   refund: number; // 分
+  /** 分账支出（分） */
+  sharing: number;
   net: number; // 分
   count: number;
 }

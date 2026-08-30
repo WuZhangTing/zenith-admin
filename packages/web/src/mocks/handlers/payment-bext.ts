@@ -492,7 +492,8 @@ const reportHandlers = [
     }
     const rows: PaymentReportRow[] = [...groups.entries()].map(([key, g]) => {
       const label = groupBy === 'channel' ? (PAYMENT_CHANNEL_LABELS[key as PaymentChannel] ?? key) : key;
-      return { key, label, gross: g.gross, fee: g.fee, refund: g.refund, net: g.gross - g.fee - g.refund, count: g.count };
+      // Mock 简化：分账按 0 计（真实口径见 payment-report.service）
+      return { key, label, gross: g.gross, fee: g.fee, refund: g.refund, sharing: 0, net: g.gross - g.fee - g.refund, count: g.count };
     });
     rows.sort((a, b) => a.key.localeCompare(b.key));
     const summary = {
@@ -501,6 +502,7 @@ const reportHandlers = [
       totalGross: rows.reduce((s, r) => s + r.gross, 0),
       totalFee: rows.reduce((s, r) => s + r.fee, 0),
       totalRefund: rows.reduce((s, r) => s + r.refund, 0),
+      totalSharing: 0,
       totalNet: rows.reduce((s, r) => s + r.net, 0),
       totalCount: rows.reduce((s, r) => s + r.count, 0),
     };
@@ -511,8 +513,10 @@ const reportHandlers = [
         totalGross: Math.round(summary.totalGross * 0.8),
         totalFee: Math.round(summary.totalFee * 0.8),
         totalRefund: Math.round(summary.totalRefund * 0.8),
+        totalSharing: 0,
         totalNet: Math.round(summary.totalNet * 0.8),
         totalCount: Math.round(summary.totalCount * 0.8),
+        rows: rows.map((r) => ({ ...r, gross: Math.round(r.gross * 0.8), fee: Math.round(r.fee * 0.8), refund: Math.round(r.refund * 0.8), net: Math.round(r.net * 0.8), count: Math.round(r.count * 0.8) })),
       } : null,
     });
   }),

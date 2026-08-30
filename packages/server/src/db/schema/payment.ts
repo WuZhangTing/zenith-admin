@@ -677,6 +677,8 @@ export const paymentReportDaily = pgTable('payment_report_daily', {
   gross: integer().notNull().default(0),
   fee: integer().notNull().default(0),
   refund: integer().notNull().default(0),
+  /** 分账支出（分），净额口径 = gross - fee - refund - sharing */
+  sharing: integer().notNull().default(0),
   count: integer().notNull().default(0),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp().defaultNow().notNull(),

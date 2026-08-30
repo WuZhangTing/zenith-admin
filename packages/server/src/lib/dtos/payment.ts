@@ -576,7 +576,8 @@ export const PaymentReportRowDTO = z
     gross: z.number().int().openapi({ description: '成功收款总额（分）' }),
     fee: z.number().int().openapi({ description: '手续费总额（分）' }),
     refund: z.number().int().openapi({ description: '退款总额（分）' }),
-    net: z.number().int().openapi({ description: '净额（分）' }),
+    sharing: z.number().int().openapi({ description: '分账支出总额（分）' }),
+    net: z.number().int().openapi({ description: '净额（分）= 收款 - 手续费 - 退款 - 分账' }),
     count: z.number().int(),
   })
   .openapi('PaymentReportRow');
@@ -588,6 +589,7 @@ export const PaymentReportSummaryDTO = z
     totalGross: z.number().int(),
     totalFee: z.number().int(),
     totalRefund: z.number().int(),
+    totalSharing: z.number().int(),
     totalNet: z.number().int(),
     totalCount: z.number().int(),
     prev: z
@@ -595,12 +597,14 @@ export const PaymentReportSummaryDTO = z
         totalGross: z.number().int(),
         totalFee: z.number().int(),
         totalRefund: z.number().int(),
+        totalSharing: z.number().int(),
         totalNet: z.number().int(),
         totalCount: z.number().int(),
+        rows: z.array(PaymentReportRowDTO),
       })
       .nullable()
       .optional()
-      .openapi({ description: '环比周期汇总（compare=true 且提供时间范围时返回）' }),
+      .openapi({ description: '环比周期（compare=true 且提供时间范围时返回）：汇总 + 逐行' }),
   })
   .openapi('PaymentReportSummary');
 
