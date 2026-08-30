@@ -11,7 +11,6 @@ import { PreferencesProvider } from '@/hooks/PreferencesProvider';
 import { usePreferences } from '@/hooks/usePreferences';
 import { hasPostLoginHome, clearPostLoginHome } from '@/lib/post-login';
 import { ThemeProvider } from '@/providers/ThemeProvider';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useQueryClient } from '@tanstack/react-query';
 import MaintenanceOverlay from '@/components/MaintenanceOverlay';
 import { maintenanceKeys, usePublicMaintenanceStatus } from '@/hooks/queries/maintenance';
@@ -404,7 +403,6 @@ export default function App() {
       )}
     </RouterComponent>
     </PageErrorBoundary>
-    {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </>
   );
 }
