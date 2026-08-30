@@ -4,6 +4,36 @@
 
 ---
 
+## v2.9.0 - 2026-08-30
+
+**依赖底座全量升级 + 迁移基线重建**：39 项依赖升到最新（含 3 组 major），数据库迁移链从 62 个文件压缩为基线 + 扩展两文件。
+
+> ⚠️ **破坏性变更**：迁移基线已重建，旧数据库的 `__drizzle_migrations` 记录与新迁移链不兼容。部署此版本需**重建数据库**（`DROP DATABASE` 后由 `db:migrate + db:seed` 全新建库），不保留历史数据。
+
+### Changed
+
+#### 依赖升级（39 项 → 全部最新）
+
+- **major ×3**：`@file-viewer/*` 2.x → 3.0（12 包）、`maplibre-gl` 5 → 6、`electron` 43 → 44，使用面零改动兼容；同步修正 electron-builder 硬编码的 `electronVersion` 版本漂移
+- **minor/patch**：hono 4.13.5、AWS SDK、TanStack Query 5.102.8、sharp、mysql2、pg-boss、eslint、typescript-eslint、electron-updater 等
+
+#### 数据库迁移基线重建
+
+- 62 个迁移文件压缩为 `0000_baseline.sql`（全量 schema，pg_trgm 前置）+ `0001_extensions.sql`（手写 DDL 收口）
+- trigram 索引全部收进 schema DSL 由 drizzle-kit 生成——包括 `async_tasks.payload/result` 的「表达式 + gin_trgm_ops」形态（drizzle-kit 新版已支持，旧注释「超出表达范围」过时）
+- 手写 DDL 仅剩 pgvector 条件块（条件 DDL + 扩展创建 + 无维度 vector 列不可表达，且该列刻意不进 schema 以兼容无 pgvector 部署）
+- 测试池回退 forks：threads 池的 worker 共享进程级 libuv 线程池，zlib/fs 密集用例在并行争抢下被饿死
+
+#### CI 提速
+
+- 按 lockfile 哈希缓存 node_modules 本体（含 web 的 `.vite/deps` 预打包产物），命中时整跳 Install：端到端 6m31s → 4m53s（-25%）
+
+### Fixed
+
+- hono 4.13.4 修复路由登记缺陷后，`GET /api/analytics/event-meta/references` 恢复在 `app.routes` 登记表中出现（运行时匹配一直正常，仅登记表漏记），路由表快照同步
+
+---
+
 ## v2.8.0 - 2026-08-30
 
 **会话回放收官 + Zod / Drizzle 底座升级**：回放补齐合规审计与热力真实底图；zod 升级 4.5 并全面对齐 v4 最佳实践，数据库层对齐 Drizzle 最佳实践，测试与发布验证大幅提速。
