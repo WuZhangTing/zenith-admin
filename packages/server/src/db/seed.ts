@@ -205,7 +205,8 @@ async function seedRest() {
     status: row.status,
   }));
   if (newDeptRows.length > 0) {
-    await db.insert(departments).values(newDeptRows).onConflictDoNothing();
+    await db.insert(departments).overridingSystemValue().values(newDeptRows).onConflictDoNothing();
+    await db.execute(sql`SELECT setval('departments_id_seq', GREATEST((SELECT MAX(id) FROM departments), 1))`);
     logger.info(`  ✔ Departments seeded — ${newDeptRows.length} new entries`);
   } else {
     logger.info('  ✔ Departments up-to-date');
@@ -225,7 +226,8 @@ async function seedRest() {
     remark: row.remark ?? null,
   }));
   if (newPositionRows.length > 0) {
-    await db.insert(positions).values(newPositionRows).onConflictDoNothing();
+    await db.insert(positions).overridingSystemValue().values(newPositionRows).onConflictDoNothing();
+    await db.execute(sql`SELECT setval('positions_id_seq', GREATEST((SELECT MAX(id) FROM positions), 1))`);
     logger.info(`  ✔ Positions seeded — ${newPositionRows.length} new entries`);
   } else {
     logger.info('  ✔ Positions up-to-date');

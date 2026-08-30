@@ -28,9 +28,10 @@
   （`varchar('user_name')` 一律写成 `varchar()`）；仅当派生名与目标列名不一致时才显式指定。
   做列名反射（结构断言、漂移对比）必须用 `dbColumnName()`（`db/types.ts`），
   **禁止**直接读 `column.name`——未命名列的该属性是驼峰 key 而非真实列名
-- **unique 约束显式命名**：唯一约束一律显式蛇形命名——列级 `.unique('xxxs_order_no_unique')`、
-  表级 `unique('xxxs_tenant_code_unique').on(...)`，**禁止**裸 `.unique()` 依赖派生
-  （会从驼峰 key 派生出混合大小写约束名）
+- **unique 约束命名**：驼峰多词列（`orderNo` 等）的唯一约束**必须**显式蛇形命名——
+  列级 `.unique('xxxs_order_no_unique')`、表级 `unique('xxxs_tenant_code_unique').on(...)`，
+  否则会从驼峰 key 派生出混合大小写约束名；单词列（`code` / `name` / `token`）的裸 `.unique()`
+  派生结果即蛇形，可省略
 - **审计列必加**：业务主表必须展开 `...auditColumns()`。例外（不要加）：纯关联表（`xxx_yyys`）、
   追加型日志（`*_logs`）、临时凭证（`*_tokens`）、IM 消息等「作者天然就是当前用户」的实体
 - **审计字段禁止手写**：`created_by` / `updated_by` 由 `db/index.ts` 的 Proxy 自动写入，

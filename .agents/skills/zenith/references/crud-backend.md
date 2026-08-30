@@ -40,8 +40,8 @@ export type XxxRow = typeof xxxs.$inferSelect;
 export type NewXxx = typeof xxxs.$inferInsert;
 ```
 
-唯一约束必须显式命名（约束名统一蛇形，避免从驼峰 key 派生出混合命名）：
-列级 `.unique('xxxs_order_no_unique')`；表级 `unique('xxxs_tenant_code_unique').on(t.tenantId, t.code)`。
+唯一约束命名：驼峰多词列（`orderNo` 等）必须显式蛇形命名——列级 `.unique('xxxs_order_no_unique')`、
+表级 `unique('xxxs_tenant_code_unique').on(t.tenantId, t.code)`；单词列（`code` / `name`）裸 `.unique()` 即可。
 
 Step 0 确认需要租户隔离时，才按 [backend-patterns.md → 多租户隔离](./backend-patterns.md#多租户隔离tenantscope)
 添加 `tenantId`；基础模板不默认调用租户工具。
