@@ -33,7 +33,15 @@ import { getPendingOtaPayload, reportIotOtaProgress } from '../../services/iot/i
 import { registerDeviceConnection, removeDeviceConnection } from '../../services/iot/iot-gateway.service';
 import logger from '../../lib/logger';
 
-const ackFrameSchema = iotCommandAckSchema.extend({ commandId: z.number().int().positive() });
+// 设备长连接的帧解析是持续热点（遥测/网关批量每秒到达），全部 AOT 预编译换事件循环余量
+// （在 server 使用点编译而非 shared 定义点，避免把 zod 编译器带进 web 包；strict 防未来改动静默退化）
+const telemetryFrameSchema = z.compile(iotTelemetryIngestSchema, { strict: true });
+const eventFrameSchema = z.compile(iotEventIngestSchema, { strict: true });
+const logFrameSchema = z.compile(iotLogIngestSchema, { strict: true });
+const gatewayBatchFrameSchema = z.compile(iotGatewayBatchSchema, { strict: true });
+const gatewayEventFrameSchema = z.compile(iotGatewayEventSchema, { strict: true });
+const otaProgressFrameSchema = z.compile(iotOtaProgressSchema, { strict: true });
+const ackFrameSchema = z.compile(iotCommandAckSchema.extend({ commandId: z.number().int().positive() }), { strict: true });
 
 export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
   const wsApp = new Hono();
@@ -91,32 +99,32 @@ export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
                 break;
               }
               case IOT_WS_FRAME_TYPES.telemetry: {
-                const parsed = iotTelemetryIngestSchema.safeParse(frame.payload);
+                const parsed = telemetryFrameSchema.safeParse(frame.payload);
                 if (parsed.success) await ingestTelemetry(device, parsed.data);
                 break;
               }
               case IOT_WS_FRAME_TYPES.event: {
-                const parsed = iotEventIngestSchema.safeParse(frame.payload);
+                const parsed = eventFrameSchema.safeParse(frame.payload);
                 if (parsed.success) await ingestIotDeviceEvents(device, parsed.data);
                 break;
               }
               case IOT_WS_FRAME_TYPES.log: {
-                const parsed = iotLogIngestSchema.safeParse(frame.payload);
+                const parsed = logFrameSchema.safeParse(frame.payload);
                 if (parsed.success) await ingestIotDeviceLogs(device, parsed.data);
                 break;
               }
               case IOT_WS_FRAME_TYPES.gatewayBatch: {
-                const parsed = iotGatewayBatchSchema.safeParse(frame.payload);
+                const parsed = gatewayBatchFrameSchema.safeParse(frame.payload);
                 if (parsed.success) await ingestGatewayBatch(device, parsed.data);
                 break;
               }
               case IOT_WS_FRAME_TYPES.gatewayEvent: {
-                const parsed = iotGatewayEventSchema.safeParse(frame.payload);
+                const parsed = gatewayEventFrameSchema.safeParse(frame.payload);
                 if (parsed.success) await ingestGatewayEvent(device, parsed.data);
                 break;
               }
               case IOT_WS_FRAME_TYPES.otaProgress: {
-                const parsed = iotOtaProgressSchema.safeParse(frame.payload);
+                const parsed = otaProgressFrameSchema.safeParse(frame.payload);
                 if (parsed.success) await reportIotOtaProgress(device, parsed.data).catch(() => { /* 任务已结束等业务性拒绝，忽略 */ });
                 break;
               }

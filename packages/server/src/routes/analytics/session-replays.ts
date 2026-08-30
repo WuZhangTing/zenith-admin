@@ -17,6 +17,10 @@ import { getClientIp } from '../../lib/request-helpers';
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
 
+// 回放分片为持续流式上报热点，meta 解析走 AOT 预编译换事件循环余量
+// （在 server 使用点编译而非 shared 定义点，避免把 zod 编译器带进 web 包；strict 防未来改动静默退化）
+const compiledReplaySegmentMeta = z.compile(replaySegmentMetaSchema, { strict: true });
+
 // ─── 上报（匿名/登录均可）─────────────────────────────────────────────────────
 const ingestRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -45,7 +49,7 @@ const ingestRoute = defineOpenAPIRoute({
     } catch {
       throw new HTTPException(400, { message: 'meta 不是合法 JSON' });
     }
-    const parsed = replaySegmentMetaSchema.safeParse(meta);
+    const parsed = compiledReplaySegmentMeta.safeParse(meta);
     if (!parsed.success) throw new HTTPException(400, { message: `meta 校验失败：${parsed.error.issues[0]?.message ?? '未知错误'}` });
     const file = body.data;
     if (typeof (file as File)?.arrayBuffer !== 'function') throw new HTTPException(400, { message: '缺少分片数据' });

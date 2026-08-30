@@ -40,8 +40,10 @@ export const ErrorBreadcrumbDTO = z
   })
   .openapi('ErrorBreadcrumb');
 
-export const ErrorReportInputDTO = z
-  .object({
+// 浏览器错误风暴时该入口会被突发打满，AOT 预编译换事件循环余量（strict 防未来改动静默退化）
+export const ErrorReportInputDTO = z.compile(
+  z
+    .object({
     errorType: errorTypeEnum,
     level: levelEnum.optional(),
     message: z.string().min(1).max(2000),
@@ -64,7 +66,9 @@ export const ErrorReportInputDTO = z
     /** 报错时刻活跃的回放会话 ID（SDK 注入） */
     replayId: z.uuid().optional(),
   })
-  .openapi('ErrorReportInput');
+    .openapi('ErrorReportInput'),
+  { strict: true },
+);
 
 // ─── 分组（Issue）────────────────────────────────────────────────────────────
 export const ErrorGroupDTO = z
