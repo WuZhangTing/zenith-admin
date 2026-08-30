@@ -1,6 +1,7 @@
--- pg_trgm 必须先于本文件内的 gin_trgm_ops 索引（wiki_docs 等，由 schema 生成）创建；
--- 重建基线后需保留此前置行（见 docs/backend/database.md「迁移基线」）。
+-- pg_trgm 必须先于本文件内的 gin_trgm_ops 索引（operation_logs / wiki_docs / cms_contents / async_tasks 等）创建；
+-- 重建基线后需保留此前置行（见 docs/backend/database.md「迁移目录」）。
 CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint
+CREATE TYPE "public"."push_provider" AS ENUM('jpush');--> statement-breakpoint
 CREATE TYPE "public"."status" AS ENUM('enabled', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."data_scope" AS ENUM('all', 'custom', 'dept_only', 'dept', 'self');--> statement-breakpoint
 CREATE TYPE "public"."menu_type" AS ENUM('directory', 'menu', 'button');--> statement-breakpoint
@@ -29,7 +30,9 @@ CREATE TYPE "public"."login_risk_level" AS ENUM('low', 'medium', 'high');--> sta
 CREATE TYPE "public"."mfa_factor_status" AS ENUM('pending', 'enabled', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."mfa_factor_type" AS ENUM('totp', 'passkey', 'recovery_code');--> statement-breakpoint
 CREATE TYPE "public"."oauth_provider" AS ENUM('github', 'dingtalk', 'wechat_work', 'feishu');--> statement-breakpoint
+CREATE TYPE "public"."rate_limit_algorithm" AS ENUM('fixed_window', 'sliding_window');--> statement-breakpoint
 CREATE TYPE "public"."rate_limit_key_type" AS ENUM('ip', 'user', 'ip_path');--> statement-breakpoint
+CREATE TYPE "public"."rate_limit_mode" AS ENUM('enforce', 'monitor');--> statement-breakpoint
 CREATE TYPE "public"."identity_provider_status" AS ENUM('enabled', 'disabled');--> statement-breakpoint
 CREATE TYPE "public"."identity_provider_sync_status" AS ENUM('success', 'failed', 'partial');--> statement-breakpoint
 CREATE TYPE "public"."identity_provider_type" AS ENUM('oidc', 'saml', 'ldap', 'ad');--> statement-breakpoint
@@ -38,7 +41,7 @@ CREATE TYPE "public"."directory_sync_run_status" AS ENUM('running', 'success', '
 CREATE TYPE "public"."directory_sync_source_type" AS ENUM('ldap', 'dingtalk', 'wechat_work', 'feishu', 'scim');--> statement-breakpoint
 CREATE TYPE "public"."login_event_type" AS ENUM('login', 'logout');--> statement-breakpoint
 CREATE TYPE "public"."login_status" AS ENUM('success', 'fail');--> statement-breakpoint
-CREATE TYPE "public"."analytics_campaign_channel" AS ENUM('email', 'in_app', 'webhook');--> statement-breakpoint
+CREATE TYPE "public"."analytics_campaign_channel" AS ENUM('email', 'in_app', 'webhook', 'sms');--> statement-breakpoint
 CREATE TYPE "public"."analytics_campaign_status" AS ENUM('draft', 'running', 'completed', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."analytics_device_type" AS ENUM('desktop', 'mobile', 'tablet', 'bot', 'unknown');--> statement-breakpoint
 CREATE TYPE "public"."analytics_event_override_status" AS ENUM('enabled', 'disabled');--> statement-breakpoint
@@ -51,6 +54,8 @@ CREATE TYPE "public"."error_alert_condition" AS ENUM('new_error', 'threshold', '
 CREATE TYPE "public"."error_level" AS ENUM('fatal', 'error', 'warning', 'info');--> statement-breakpoint
 CREATE TYPE "public"."error_status" AS ENUM('unresolved', 'resolved', 'ignored', 'muted');--> statement-breakpoint
 CREATE TYPE "public"."frontend_error_type" AS ENUM('js_error', 'promise_rejection', 'resource_error', 'console_error', 'http_error', 'white_screen', 'crash');--> statement-breakpoint
+CREATE TYPE "public"."replay_mode" AS ENUM('buffer', 'stream');--> statement-breakpoint
+CREATE TYPE "public"."replay_status" AS ENUM('recording', 'completed', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."user_behavior_event_type" AS ENUM('page_view', 'page_leave', 'feature_use', 'area_click', 'custom', 'perf', 'api_request', 'identify');--> statement-breakpoint
 CREATE TYPE "public"."workflow_approve_method" AS ENUM('and', 'or', 'sequential', 'ratio');--> statement-breakpoint
 CREATE TYPE "public"."workflow_automation_trigger" AS ENUM('approved', 'rejected', 'withdrawn', 'created');--> statement-breakpoint
@@ -68,9 +73,11 @@ CREATE TYPE "public"."workflow_task_consult_status" AS ENUM('pending', 'replied'
 CREATE TYPE "public"."workflow_task_status" AS ENUM('pending', 'approved', 'rejected', 'skipped', 'waiting');--> statement-breakpoint
 CREATE TYPE "public"."workflow_task_transfer_action" AS ENUM('transfer', 'delegate', 'reassign', 'handover', 'timeout');--> statement-breakpoint
 CREATE TYPE "public"."workflow_token_status" AS ENUM('active', 'consumed', 'dead');--> statement-breakpoint
+CREATE TYPE "public"."broadcast_audience" AS ENUM('all_users', 'all_members', 'user_ids', 'member_ids');--> statement-breakpoint
+CREATE TYPE "public"."broadcast_status" AS ENUM('draft', 'sending', 'sent', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."email_encryption" AS ENUM('none', 'ssl', 'tls');--> statement-breakpoint
 CREATE TYPE "public"."in_app_message_type" AS ENUM('info', 'success', 'warning', 'error');--> statement-breakpoint
-CREATE TYPE "public"."notification_channel" AS ENUM('inapp', 'email', 'sms', 'webhook', 'chat');--> statement-breakpoint
+CREATE TYPE "public"."notification_channel" AS ENUM('inapp', 'email', 'sms', 'push', 'webhook', 'chat');--> statement-breakpoint
 CREATE TYPE "public"."notification_decision" AS ENUM('sent', 'suppressed', 'deferred', 'deduped', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."notification_digest_mode" AS ENUM('realtime', 'hourly', 'daily');--> statement-breakpoint
 CREATE TYPE "public"."notification_outbox_status" AS ENUM('pending', 'done', 'failed');--> statement-breakpoint
@@ -116,7 +123,7 @@ CREATE TYPE "public"."payment_recon_status" AS ENUM('pending', 'comparing', 'don
 CREATE TYPE "public"."payment_refund_approval_status" AS ENUM('none', 'pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."payment_refund_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_action" AS ENUM('block', 'review');--> statement-breakpoint
-CREATE TYPE "public"."payment_risk_dimension" AS ENUM('blocklist', 'single_limit', 'daily_limit', 'daily_count');--> statement-breakpoint
+CREATE TYPE "public"."payment_risk_dimension" AS ENUM('blocklist', 'single_limit', 'daily_limit', 'daily_count', 'decision');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_review_status" AS ENUM('pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_scope" AS ENUM('global', 'channel', 'bizType');--> statement-breakpoint
 CREATE TYPE "public"."payment_settlement_status" AS ENUM('pending', 'settling', 'settled', 'failed');--> statement-breakpoint
@@ -124,18 +131,18 @@ CREATE TYPE "public"."payment_sharing_order_status" AS ENUM('pending', 'processi
 CREATE TYPE "public"."payment_sharing_receiver_type" AS ENUM('merchant', 'personal');--> statement-breakpoint
 CREATE TYPE "public"."payment_transfer_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_webhook_delivery_status" AS ENUM('pending', 'success', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."ai_agent_status" AS ENUM('private', 'pending', 'published', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."ai_feedback_status" AS ENUM('pending', 'resolved', 'ignored');--> statement-breakpoint
 CREATE TYPE "public"."ai_message_role" AS ENUM('system', 'user', 'assistant');--> statement-breakpoint
 CREATE TYPE "public"."ai_prompt_scope" AS ENUM('system', 'user');--> statement-breakpoint
-CREATE TYPE "public"."ai_provider" AS ENUM('openai_compatible', 'anthropic', 'gemini', 'baidu');--> statement-breakpoint
 CREATE TYPE "public"."app_webhook_delivery_status" AS ENUM('pending', 'success', 'failed', 'retrying');--> statement-breakpoint
 CREATE TYPE "public"."app_webhook_sign_mode" AS ENUM('hmacSha256', 'none');--> statement-breakpoint
 CREATE TYPE "public"."open_app_environment" AS ENUM('production', 'sandbox');--> statement-breakpoint
 CREATE TYPE "public"."open_app_review_status" AS ENUM('draft', 'pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."ssh_auth_type" AS ENUM('password', 'key_path', 'key_content', 'agent');--> statement-breakpoint
-CREATE TYPE "public"."terminal_session_kind" AS ENUM('local', 'ssh', 'docker');--> statement-breakpoint
+CREATE TYPE "public"."terminal_session_kind" AS ENUM('local', 'ssh', 'docker', 'db');--> statement-breakpoint
 CREATE TYPE "public"."terminal_session_state" AS ENUM('active', 'detached', 'terminated', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."ops_host_auth_type" AS ENUM('password', 'key_content');--> statement-breakpoint
+CREATE TYPE "public"."ops_host_status" AS ENUM('unknown', 'online', 'offline');--> statement-breakpoint
 CREATE TYPE "public"."checkin_milestone_reward_type" AS ENUM('points', 'coupon');--> statement-breakpoint
 CREATE TYPE "public"."coupon_template_status" AS ENUM('draft', 'active', 'paused', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."coupon_type" AS ENUM('amount', 'percent');--> statement-breakpoint
@@ -150,9 +157,15 @@ CREATE TYPE "public"."monitor_alert_level" AS ENUM('info', 'warning', 'critical'
 CREATE TYPE "public"."monitor_alert_notify_status" AS ENUM('skipped', 'success', 'partial', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_operator" AS ENUM('gt', 'gte', 'lt', 'lte');--> statement-breakpoint
 CREATE TYPE "public"."monitor_alert_state" AS ENUM('ok', 'firing');--> statement-breakpoint
-CREATE TYPE "public"."monitor_metric" AS ENUM('cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps', 'logErrorPerMin', 'logWarnPerMin', 'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning', 'paymentFailureRate', 'paymentStuckPaying', 'paymentReconDiff', 'paymentEventBacklog', 'paymentWebhookFailureRate', 'openApiErrorRate', 'openApiAppErrorRate', 'openWebhookFailureRate', 'openWebhookDisabledSubs');--> statement-breakpoint
+CREATE TYPE "public"."monitor_metric" AS ENUM('cpu', 'memory', 'disk', 'swap', 'load1', 'procCpu', 'heap', 'loopLag', 'qps', 'errorRate', 'netRxBps', 'netTxBps', 'diskReadBps', 'diskWriteBps', 'logErrorPerMin', 'logWarnPerMin', 'workflowHealth', 'workflowBacklog', 'workflowDeadLetter', 'workflowFailureRate', 'workflowStuckRunning', 'paymentFailureRate', 'paymentStuckPaying', 'paymentReconDiff', 'paymentEventBacklog', 'paymentWebhookFailureRate', 'openApiErrorRate', 'openApiAppErrorRate', 'openWebhookFailureRate', 'openWebhookDisabledSubs', 'replayStorageMb');--> statement-breakpoint
 CREATE TYPE "public"."ssl_cert_status" AS ENUM('valid', 'expiring', 'expired', 'invalid');--> statement-breakpoint
 CREATE TYPE "public"."ssl_cert_type" AS ENUM('self_signed', 'uploaded', 'letsencrypt');--> statement-breakpoint
+CREATE TYPE "public"."app_arch" AS ENUM('x64', 'arm64', 'universal');--> statement-breakpoint
+CREATE TYPE "public"."app_artifact_kind" AS ENUM('installer', 'hotupdate', 'metadata', 'external');--> statement-breakpoint
+CREATE TYPE "public"."app_platform" AS ENUM('windows', 'macos', 'linux', 'android', 'ios', 'web');--> statement-breakpoint
+CREATE TYPE "public"."app_release_channel" AS ENUM('stable', 'beta', 'internal');--> statement-breakpoint
+CREATE TYPE "public"."app_release_event_type" AS ENUM('check', 'download', 'install_success', 'install_fail');--> statement-breakpoint
+CREATE TYPE "public"."app_release_status" AS ENUM('draft', 'published', 'revoked');--> statement-breakpoint
 CREATE TYPE "public"."mp_account_type" AS ENUM('subscribe', 'service', 'test');--> statement-breakpoint
 CREATE TYPE "public"."mp_auto_reply_match" AS ENUM('exact', 'contain', 'regex');--> statement-breakpoint
 CREATE TYPE "public"."mp_auto_reply_type" AS ENUM('subscribe', 'keyword', 'default');--> statement-breakpoint
@@ -243,8 +256,32 @@ CREATE TYPE "public"."wiki_doc_status" AS ENUM('draft', 'pending', 'published', 
 CREATE TYPE "public"."wiki_review_action" AS ENUM('submit', 'approve', 'reject', 'withdraw');--> statement-breakpoint
 CREATE TYPE "public"."wiki_space_member_role" AS ENUM('owner', 'admin', 'editor', 'viewer');--> statement-breakpoint
 CREATE TYPE "public"."wiki_space_visibility" AS ENUM('public', 'private');--> statement-breakpoint
+CREATE TYPE "public"."short_link_redirect_type" AS ENUM('302', '301');--> statement-breakpoint
+CREATE TYPE "public"."marketing_campaign_status" AS ENUM('draft', 'published', 'ended');--> statement-breakpoint
+CREATE TYPE "public"."marketing_campaign_type" AS ENUM('lottery');--> statement-breakpoint
+CREATE TYPE "public"."marketing_grant_status" AS ENUM('none', 'granted', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."marketing_prize_type" AS ENUM('points', 'coupon', 'physical', 'none');--> statement-breakpoint
+CREATE TYPE "public"."iot_access_mode" AS ENUM('r', 'rw');--> statement-breakpoint
+CREATE TYPE "public"."iot_alarm_level" AS ENUM('warning', 'critical');--> statement-breakpoint
+CREATE TYPE "public"."iot_alarm_rule_type" AS ENUM('threshold', 'offline', 'event');--> statement-breakpoint
+CREATE TYPE "public"."iot_alarm_status" AS ENUM('firing', 'acknowledged', 'resolved');--> statement-breakpoint
+CREATE TYPE "public"."iot_automation_trigger" AS ENUM('property', 'event', 'online', 'offline');--> statement-breakpoint
+CREATE TYPE "public"."iot_command_status" AS ENUM('pending', 'delivered', 'acked', 'failed', 'expired');--> statement-breakpoint
+CREATE TYPE "public"."iot_compare_op" AS ENUM('gt', 'gte', 'lt', 'lte', 'eq', 'neq');--> statement-breakpoint
+CREATE TYPE "public"."iot_device_event_kind" AS ENUM('lifecycle', 'model', 'anomaly');--> statement-breakpoint
+CREATE TYPE "public"."iot_event_level" AS ENUM('info', 'warn', 'fault');--> statement-breakpoint
+CREATE TYPE "public"."iot_forward_source" AS ENUM('telemetry', 'event', 'alarm', 'lifecycle');--> statement-breakpoint
+CREATE TYPE "public"."iot_forward_status" AS ENUM('succeeded', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."iot_log_level" AS ENUM('debug', 'info', 'warn', 'error');--> statement-breakpoint
+CREATE TYPE "public"."iot_node_type" AS ENUM('direct', 'gateway', 'sub');--> statement-breakpoint
+CREATE TYPE "public"."iot_ota_device_status" AS ENUM('pending', 'notified', 'downloading', 'installing', 'succeeded', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."iot_ota_task_status" AS ENUM('running', 'paused', 'completed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "public"."iot_property_type" AS ENUM('number', 'string', 'boolean', 'enum');--> statement-breakpoint
+CREATE TYPE "public"."iot_schedule_action" AS ENUM('command', 'desired');--> statement-breakpoint
+CREATE TYPE "public"."iot_schedule_type" AS ENUM('cron', 'once');--> statement-breakpoint
+CREATE TYPE "public"."iot_validation_mode" AS ENUM('loose', 'strict');--> statement-breakpoint
 CREATE TABLE "departments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "departments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"parent_id" integer DEFAULT 0 NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64) NOT NULL,
@@ -263,7 +300,7 @@ CREATE TABLE "departments" (
 );
 --> statement-breakpoint
 CREATE TABLE "menus" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "menus_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"parent_id" integer DEFAULT 0 NOT NULL,
 	"title" varchar(64) NOT NULL,
 	"name" varchar(64),
@@ -287,7 +324,7 @@ CREATE TABLE "menus" (
 );
 --> statement-breakpoint
 CREATE TABLE "positions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "positions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64) NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
@@ -314,7 +351,7 @@ CREATE TABLE "role_menus" (
 );
 --> statement-breakpoint
 CREATE TABLE "roles" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "roles_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64) NOT NULL,
 	"description" varchar(256),
@@ -335,7 +372,7 @@ CREATE TABLE "tenant_package_features" (
 );
 --> statement-breakpoint
 CREATE TABLE "tenant_packages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "tenant_packages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"quotas" jsonb,
@@ -348,7 +385,7 @@ CREATE TABLE "tenant_packages" (
 );
 --> statement-breakpoint
 CREATE TABLE "tenants" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "tenants_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"code" varchar(50) NOT NULL,
 	"logo" varchar(500),
@@ -386,7 +423,7 @@ CREATE TABLE "user_group_roles" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_groups" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_groups_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64) NOT NULL,
 	"description" varchar(256),
@@ -422,7 +459,7 @@ CREATE TABLE "user_roles" (
 );
 --> statement-breakpoint
 CREATE TABLE "users" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "users_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"username" varchar(32) NOT NULL,
 	"nickname" varchar(32) NOT NULL,
 	"email" varchar(128),
@@ -448,7 +485,7 @@ CREATE TABLE "users" (
 );
 --> statement-breakpoint
 CREATE TABLE "license_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "license_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"license_id" integer,
 	"type" varchar(40) NOT NULL,
 	"detail" text,
@@ -456,7 +493,7 @@ CREATE TABLE "license_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "licenses" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "licenses_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"license_id" varchar(64) NOT NULL,
 	"envelope" text NOT NULL,
 	"payload" jsonb NOT NULL,
@@ -476,7 +513,7 @@ CREATE TABLE "licenses" (
 );
 --> statement-breakpoint
 CREATE TABLE "system_installations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "system_installations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"installation_id" varchar(64) NOT NULL,
 	"license_epoch" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -484,7 +521,7 @@ CREATE TABLE "system_installations" (
 );
 --> statement-breakpoint
 CREATE TABLE "business_files" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "business_files_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"business_type" "business_type" NOT NULL,
 	"business_id" integer NOT NULL,
 	"file_id" uuid NOT NULL,
@@ -497,7 +534,7 @@ CREATE TABLE "business_files" (
 );
 --> statement-breakpoint
 CREATE TABLE "file_storage_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "file_storage_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"provider" "file_storage_provider" DEFAULT 'local' NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
@@ -574,7 +611,7 @@ CREATE TABLE "managed_files" (
 );
 --> statement-breakpoint
 CREATE TABLE "upload_chunks" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "upload_chunks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"upload_session_id" integer NOT NULL,
 	"index" integer NOT NULL,
 	"size" integer NOT NULL,
@@ -584,7 +621,7 @@ CREATE TABLE "upload_chunks" (
 );
 --> statement-breakpoint
 CREATE TABLE "upload_sessions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "upload_sessions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"upload_id" varchar(64) NOT NULL,
 	"file_name" varchar(256) NOT NULL,
 	"file_size" bigint NOT NULL,
@@ -607,7 +644,7 @@ CREATE TABLE "upload_sessions" (
 );
 --> statement-breakpoint
 CREATE TABLE "data_mask_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "data_mask_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"entity" varchar(64) NOT NULL,
 	"field" varchar(64) NOT NULL,
 	"label" varchar(64) NOT NULL,
@@ -624,7 +661,7 @@ CREATE TABLE "data_mask_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "async_task_items" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "async_task_items_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"task_id" integer NOT NULL,
 	"item_key" varchar(128) NOT NULL,
 	"label" varchar(256),
@@ -649,7 +686,7 @@ CREATE TABLE "async_task_type_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "async_tasks" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "async_tasks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"task_type" varchar(64) NOT NULL,
 	"title" varchar(128) NOT NULL,
 	"status" "async_task_status" DEFAULT 'pending' NOT NULL,
@@ -667,6 +704,8 @@ CREATE TABLE "async_tasks" (
 	"next_run_at" timestamp,
 	"idempotency_key" varchar(128),
 	"heartbeat_at" timestamp,
+	"trace_id" varchar(64),
+	"parent_ref" varchar(32),
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
@@ -677,7 +716,7 @@ CREATE TABLE "async_tasks" (
 );
 --> statement-breakpoint
 CREATE TABLE "export_job_downloads" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "export_job_downloads_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"job_id" integer NOT NULL,
 	"downloaded_by" integer,
 	"tenant_id" integer,
@@ -687,7 +726,7 @@ CREATE TABLE "export_job_downloads" (
 );
 --> statement-breakpoint
 CREATE TABLE "export_jobs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "export_jobs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"entity" varchar(64) NOT NULL,
 	"module_name" varchar(64) NOT NULL,
 	"format" "export_job_format" NOT NULL,
@@ -719,7 +758,7 @@ CREATE TABLE "export_jobs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cron_job_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cron_job_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"job_id" integer NOT NULL,
 	"job_name" varchar(64) NOT NULL,
 	"execution_count" integer DEFAULT 1 NOT NULL,
@@ -731,7 +770,7 @@ CREATE TABLE "cron_job_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cron_jobs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cron_jobs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"cron_expression" varchar(128) NOT NULL,
 	"handler" varchar(128) NOT NULL,
@@ -753,7 +792,7 @@ CREATE TABLE "cron_jobs" (
 );
 --> statement-breakpoint
 CREATE TABLE "maintenance_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "maintenance_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"message" varchar(512) NOT NULL,
 	"estimated_end_at" timestamp,
 	"started_at" timestamp NOT NULL,
@@ -767,7 +806,7 @@ CREATE TABLE "maintenance_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "maintenance_mode" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "maintenance_mode_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"enabled" boolean DEFAULT false NOT NULL,
 	"message" varchar(512) DEFAULT '系统维护中，请稍后重试' NOT NULL,
 	"estimated_end_at" timestamp,
@@ -777,7 +816,7 @@ CREATE TABLE "maintenance_mode" (
 );
 --> statement-breakpoint
 CREATE TABLE "regions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "regions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"code" varchar(12) NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"level" "region_level" NOT NULL,
@@ -803,7 +842,7 @@ CREATE TABLE "retention_policies" (
 );
 --> statement-breakpoint
 CREATE TABLE "system_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "system_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"config_key" varchar(128) NOT NULL,
 	"config_name" varchar(128) DEFAULT '' NOT NULL,
 	"config_value" varchar(4096) DEFAULT '' NOT NULL,
@@ -833,7 +872,7 @@ CREATE TABLE "system_scheduler_nodes" (
 );
 --> statement-breakpoint
 CREATE TABLE "system_scheduler_runs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "system_scheduler_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"task_name" varchar(128) NOT NULL,
 	"task_title" varchar(128) NOT NULL,
 	"task_type" "system_scheduler_task_type" NOT NULL,
@@ -878,12 +917,13 @@ CREATE TABLE "system_scheduler_task_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_feedbacks" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_feedbacks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"score" integer,
 	"category" "user_feedback_category" DEFAULT 'suggestion' NOT NULL,
 	"content" varchar(1000),
 	"page_path" varchar(200),
+	"replay_id" varchar(36),
 	"status" "user_feedback_status" DEFAULT 'pending' NOT NULL,
 	"handle_remark" varchar(500),
 	"handled_by" integer,
@@ -893,7 +933,7 @@ CREATE TABLE "user_feedbacks" (
 );
 --> statement-breakpoint
 CREATE TABLE "login_risk_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "login_risk_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer,
 	"username" varchar(64) NOT NULL,
 	"tenant_id" integer,
@@ -908,7 +948,7 @@ CREATE TABLE "login_risk_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "oauth_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"provider" "oauth_provider" NOT NULL,
 	"client_id" varchar(256) DEFAULT '' NOT NULL,
 	"client_secret" varchar(512) DEFAULT '' NOT NULL,
@@ -923,7 +963,7 @@ CREATE TABLE "oauth_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "password_reset_tokens" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "password_reset_tokens_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"token" varchar(128) NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
@@ -933,13 +973,18 @@ CREATE TABLE "password_reset_tokens" (
 );
 --> statement-breakpoint
 CREATE TABLE "rate_limit_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rate_limit_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"description" varchar(255),
 	"window_ms" integer NOT NULL,
 	"limit" integer NOT NULL,
 	"key_type" "rate_limit_key_type" DEFAULT 'ip' NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
+	"mode" "rate_limit_mode" DEFAULT 'enforce' NOT NULL,
+	"algorithm" "rate_limit_algorithm" DEFAULT 'fixed_window' NOT NULL,
+	"allowlist" text[] DEFAULT '{}' NOT NULL,
+	"priority" integer DEFAULT 0 NOT NULL,
+	"alert_threshold" integer,
 	"blocked_message" varchar(255),
 	"path_patterns" text[] DEFAULT '{}' NOT NULL,
 	"created_by" integer,
@@ -950,7 +995,7 @@ CREATE TABLE "rate_limit_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_api_tokens" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_api_tokens_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"token_hash" varchar(64),
@@ -965,7 +1010,7 @@ CREATE TABLE "user_api_tokens" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_mfa_factors" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_mfa_factors_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"type" "mfa_factor_type" NOT NULL,
 	"name" varchar(64) NOT NULL,
@@ -979,7 +1024,7 @@ CREATE TABLE "user_mfa_factors" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_oauth_accounts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_oauth_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"provider" "oauth_provider" NOT NULL,
 	"open_id" varchar(128) NOT NULL,
@@ -996,7 +1041,7 @@ CREATE TABLE "user_oauth_accounts" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_trusted_devices" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_trusted_devices_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"device_id_hash" varchar(128) NOT NULL,
 	"device_name" varchar(128),
@@ -1008,7 +1053,7 @@ CREATE TABLE "user_trusted_devices" (
 );
 --> statement-breakpoint
 CREATE TABLE "identity_provider_sync_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "identity_provider_sync_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"provider_id" integer NOT NULL,
 	"status" "identity_provider_sync_status" NOT NULL,
 	"trigger_type" varchar(32) DEFAULT 'manual' NOT NULL,
@@ -1027,7 +1072,7 @@ CREATE TABLE "identity_provider_sync_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "tenant_identity_providers" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "tenant_identity_providers_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(100) NOT NULL,
 	"code" varchar(64) NOT NULL,
@@ -1068,7 +1113,7 @@ CREATE TABLE "tenant_identity_providers" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_identity_accounts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_identity_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"provider_id" integer NOT NULL,
 	"subject" varchar(256) NOT NULL,
@@ -1084,7 +1129,7 @@ CREATE TABLE "user_identity_accounts" (
 );
 --> statement-breakpoint
 CREATE TABLE "directory_sync_conflicts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "directory_sync_conflicts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"source_id" integer NOT NULL,
 	"run_id" integer,
 	"entity_type" varchar(16) NOT NULL,
@@ -1103,7 +1148,7 @@ CREATE TABLE "directory_sync_conflicts" (
 );
 --> statement-breakpoint
 CREATE TABLE "directory_sync_dept_links" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "directory_sync_dept_links_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"source_id" integer NOT NULL,
 	"external_id" varchar(256) NOT NULL,
 	"department_id" integer NOT NULL,
@@ -1114,7 +1159,7 @@ CREATE TABLE "directory_sync_dept_links" (
 );
 --> statement-breakpoint
 CREATE TABLE "directory_sync_run_items" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "directory_sync_run_items_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"run_id" integer NOT NULL,
 	"entity_type" varchar(16) NOT NULL,
 	"external_id" varchar(256) NOT NULL,
@@ -1127,7 +1172,7 @@ CREATE TABLE "directory_sync_run_items" (
 );
 --> statement-breakpoint
 CREATE TABLE "directory_sync_runs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "directory_sync_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"source_id" integer NOT NULL,
 	"trigger_type" varchar(16) DEFAULT 'manual' NOT NULL,
 	"dry_run" boolean DEFAULT false NOT NULL,
@@ -1151,7 +1196,7 @@ CREATE TABLE "directory_sync_runs" (
 );
 --> statement-breakpoint
 CREATE TABLE "directory_sync_sources" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "directory_sync_sources_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"type" "directory_sync_source_type" NOT NULL,
 	"status" "status" DEFAULT 'disabled' NOT NULL,
@@ -1185,7 +1230,7 @@ CREATE TABLE "directory_sync_sources" (
 );
 --> statement-breakpoint
 CREATE TABLE "directory_sync_user_links" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "directory_sync_user_links_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"source_id" integer NOT NULL,
 	"external_id" varchar(256) NOT NULL,
 	"user_id" integer NOT NULL,
@@ -1198,7 +1243,7 @@ CREATE TABLE "directory_sync_user_links" (
 );
 --> statement-breakpoint
 CREATE TABLE "dict_items" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "dict_items_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"dict_id" integer NOT NULL,
 	"parent_id" integer,
 	"label" varchar(64) NOT NULL,
@@ -1215,7 +1260,7 @@ CREATE TABLE "dict_items" (
 );
 --> statement-breakpoint
 CREATE TABLE "dicts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "dicts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64) NOT NULL,
 	"description" varchar(256),
@@ -1229,7 +1274,7 @@ CREATE TABLE "dicts" (
 );
 --> statement-breakpoint
 CREATE TABLE "ip_access_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ip_access_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"ip" varchar(64) NOT NULL,
 	"path" varchar(256) NOT NULL,
 	"method" varchar(16) NOT NULL,
@@ -1239,7 +1284,7 @@ CREATE TABLE "ip_access_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "login_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "login_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer,
 	"username" varchar(64) NOT NULL,
 	"ip" varchar(64),
@@ -1261,7 +1306,7 @@ CREATE TABLE "login_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "operation_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "operation_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer,
 	"username" varchar(32),
 	"module" varchar(64),
@@ -1285,7 +1330,7 @@ CREATE TABLE "operation_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_daily_rollup" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_daily_rollup_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer DEFAULT 0 NOT NULL,
 	"stat_date" date NOT NULL,
 	"metric" varchar(32) NOT NULL,
@@ -1297,7 +1342,7 @@ CREATE TABLE "analytics_daily_rollup" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_event_meta" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_event_meta_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"event_name" varchar(128) NOT NULL,
 	"display_name" varchar(128),
@@ -1319,7 +1364,7 @@ CREATE TABLE "analytics_event_meta" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_event_overrides" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_event_overrides_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer NOT NULL,
 	"event_name" varchar(128) NOT NULL,
 	"status" "analytics_event_override_status" DEFAULT 'enabled' NOT NULL,
@@ -1331,7 +1376,7 @@ CREATE TABLE "analytics_event_overrides" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_event_quality_daily" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_event_quality_daily_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer DEFAULT 0 NOT NULL,
 	"stat_date" date NOT NULL,
 	"event_name" varchar(128) NOT NULL,
@@ -1344,7 +1389,7 @@ CREATE TABLE "analytics_event_quality_daily" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_experiments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_experiments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"exp_key" varchar(64) NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -1362,7 +1407,7 @@ CREATE TABLE "analytics_experiments" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_identity_map" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_identity_map_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"anonymous_id" varchar(64) NOT NULL,
 	"distinct_id" varchar(64) NOT NULL,
@@ -1373,7 +1418,7 @@ CREATE TABLE "analytics_identity_map" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_saved_reports" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_saved_reports_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(128) NOT NULL,
 	"report_type" varchar(32) DEFAULT 'funnel' NOT NULL,
@@ -1385,13 +1430,14 @@ CREATE TABLE "analytics_saved_reports" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_segment_campaigns" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_segment_campaigns_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"segment_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"channel" "analytics_campaign_channel" NOT NULL,
 	"template_id" integer,
 	"webhook_url" varchar(500),
+	"landing_url" varchar(2048),
 	"status" "analytics_campaign_status" DEFAULT 'draft' NOT NULL,
 	"total_count" integer DEFAULT 0 NOT NULL,
 	"sent_count" integer DEFAULT 0 NOT NULL,
@@ -1405,7 +1451,7 @@ CREATE TABLE "analytics_segment_campaigns" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_segment_members" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_segment_members_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"segment_id" integer NOT NULL,
 	"tenant_id" integer,
 	"distinct_id" varchar(64) NOT NULL,
@@ -1416,7 +1462,7 @@ CREATE TABLE "analytics_segment_members" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_sessions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_sessions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"session_id" varchar(36) NOT NULL,
 	"distinct_id" varchar(64),
@@ -1446,7 +1492,7 @@ CREATE TABLE "analytics_sessions" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_settings" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_settings_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"enabled" boolean DEFAULT true NOT NULL,
 	"sample_rate" real DEFAULT 1 NOT NULL,
@@ -1463,6 +1509,13 @@ CREATE TABLE "analytics_settings" (
 	"retention_days" integer DEFAULT 180 NOT NULL,
 	"error_retention_days" integer DEFAULT 90 NOT NULL,
 	"session_timeout_minutes" integer DEFAULT 30 NOT NULL,
+	"track_replay" boolean DEFAULT false NOT NULL,
+	"replay_session_sample_rate" real DEFAULT 0 NOT NULL,
+	"replay_on_error" boolean DEFAULT true NOT NULL,
+	"replay_mask_all_text" boolean DEFAULT false NOT NULL,
+	"replay_block_selector" varchar(256) DEFAULT '' NOT NULL,
+	"replay_retention_days" integer DEFAULT 30 NOT NULL,
+	"replay_storage_quota_mb" integer DEFAULT 4096 NOT NULL,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -1470,7 +1523,7 @@ CREATE TABLE "analytics_settings" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_sites" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_sites_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"site_key" varchar(64) NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -1486,7 +1539,7 @@ CREATE TABLE "analytics_sites" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_user_profiles" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_user_profiles_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"distinct_id" varchar(64) NOT NULL,
 	"identity_type" "analytics_identity_type" DEFAULT 'anonymous' NOT NULL,
@@ -1501,7 +1554,7 @@ CREATE TABLE "analytics_user_profiles" (
 );
 --> statement-breakpoint
 CREATE TABLE "analytics_user_segments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "analytics_user_segments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(128) NOT NULL,
 	"description" text,
@@ -1516,7 +1569,7 @@ CREATE TABLE "analytics_user_segments" (
 );
 --> statement-breakpoint
 CREATE TABLE "error_alert_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "error_alert_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"rule_id" integer,
 	"rule_name" varchar(128) NOT NULL,
@@ -1528,7 +1581,7 @@ CREATE TABLE "error_alert_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "error_alert_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "error_alert_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(128) NOT NULL,
 	"error_type" "frontend_error_type",
@@ -1548,7 +1601,7 @@ CREATE TABLE "error_alert_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "error_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "error_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"group_id" integer NOT NULL,
 	"fingerprint" varchar(64) NOT NULL,
@@ -1578,6 +1631,7 @@ CREATE TABLE "error_events" (
 	"app_id" varchar(64) DEFAULT 'admin' NOT NULL,
 	"environment" varchar(32) DEFAULT 'production' NOT NULL,
 	"member_id" integer,
+	"replay_id" varchar(36),
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -1589,7 +1643,7 @@ CREATE TABLE "error_group_identities" (
 );
 --> statement-breakpoint
 CREATE TABLE "error_groups" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "error_groups_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"fingerprint" varchar(64) NOT NULL,
 	"error_type" "frontend_error_type" NOT NULL,
@@ -1612,8 +1666,76 @@ CREATE TABLE "error_groups" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "replay_access_logs" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "replay_access_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"tenant_id" integer,
+	"replay_id" varchar(36) NOT NULL,
+	"replay_owner" varchar(64),
+	"user_id" integer NOT NULL,
+	"username" varchar(64),
+	"action" varchar(16) DEFAULT 'view' NOT NULL,
+	"ip" varchar(64),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "replay_click_points" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "replay_click_points_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"tenant_id" integer,
+	"page_path" varchar(256) NOT NULL,
+	"x_pct" smallint NOT NULL,
+	"y_pct" smallint NOT NULL,
+	"source" "analytics_event_source" DEFAULT 'web_admin' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "replay_segments" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "replay_segments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"replay_id" varchar(36) NOT NULL,
+	"seq" integer NOT NULL,
+	"data" "bytea" NOT NULL,
+	"from_ts" timestamp with time zone NOT NULL,
+	"to_ts" timestamp with time zone NOT NULL,
+	"byte_size" integer NOT NULL,
+	"event_count" integer DEFAULT 0 NOT NULL,
+	"has_full_snapshot" boolean DEFAULT false NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "replay_sessions" (
+	"id" varchar(36) PRIMARY KEY NOT NULL,
+	"tenant_id" integer,
+	"session_id" varchar(36) NOT NULL,
+	"mode" "replay_mode" NOT NULL,
+	"status" "replay_status" DEFAULT 'recording' NOT NULL,
+	"triggers" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"started_at" timestamp with time zone NOT NULL,
+	"ended_at" timestamp with time zone,
+	"last_activity_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"duration_ms" integer DEFAULT 0 NOT NULL,
+	"segment_count" integer DEFAULT 0 NOT NULL,
+	"total_bytes" bigint DEFAULT 0 NOT NULL,
+	"error_count" integer DEFAULT 0 NOT NULL,
+	"page_count" integer DEFAULT 0 NOT NULL,
+	"click_count" integer DEFAULT 0 NOT NULL,
+	"page_paths" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"click_labels" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"entry_page_url" varchar(512),
+	"source" "analytics_event_source" DEFAULT 'web_admin' NOT NULL,
+	"app_id" varchar(64) DEFAULT 'admin' NOT NULL,
+	"environment" varchar(32) DEFAULT 'production' NOT NULL,
+	"user_id" integer,
+	"username" varchar(64),
+	"member_id" integer,
+	"browser" varchar(48),
+	"os" varchar(48),
+	"device_type" "analytics_device_type",
+	"sdk_version" varchar(32),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "source_maps" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "source_maps_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"release" varchar(64) NOT NULL,
 	"file_name" varchar(256) NOT NULL,
@@ -1626,7 +1748,7 @@ CREATE TABLE "source_maps" (
 );
 --> statement-breakpoint
 CREATE TABLE "user_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"event_id" uuid,
 	"tenant_id" integer,
 	"distinct_id" varchar(64),
@@ -1676,7 +1798,7 @@ CREATE TABLE "user_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "announcement_reads" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "announcement_reads_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"announcement_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
 	"read_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -1684,7 +1806,7 @@ CREATE TABLE "announcement_reads" (
 );
 --> statement-breakpoint
 CREATE TABLE "announcement_recipients" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "announcement_recipients_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"announcement_id" integer NOT NULL,
 	"recipient_type" varchar(16) NOT NULL,
 	"recipient_id" integer NOT NULL,
@@ -1692,7 +1814,7 @@ CREATE TABLE "announcement_recipients" (
 );
 --> statement-breakpoint
 CREATE TABLE "announcements" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "announcements_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"title" varchar(128) NOT NULL,
 	"content" text NOT NULL,
 	"type" varchar(32) DEFAULT 'notice' NOT NULL,
@@ -1709,8 +1831,24 @@ CREATE TABLE "announcements" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "workflow_automation_runs" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_automation_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"rule_id" integer,
+	"rule_name" varchar(128) NOT NULL,
+	"instance_id" integer,
+	"instance_title" varchar(256),
+	"trigger" "workflow_automation_trigger" NOT NULL,
+	"action_index" integer NOT NULL,
+	"action_type" varchar(32) NOT NULL,
+	"status" varchar(16) NOT NULL,
+	"error" varchar(512),
+	"duration_ms" integer,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "workflow_automations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_automations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"definition_id" integer NOT NULL,
 	"name" varchar(128) NOT NULL,
 	"trigger" "workflow_automation_trigger" NOT NULL,
@@ -1725,7 +1863,7 @@ CREATE TABLE "workflow_automations" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_categories" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_categories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64),
 	"icon" varchar(64),
@@ -1741,7 +1879,7 @@ CREATE TABLE "workflow_categories" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_comments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_comments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"instance_id" integer NOT NULL,
 	"task_id" integer,
 	"parent_id" integer,
@@ -1754,7 +1892,7 @@ CREATE TABLE "workflow_comments" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_compensation_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_compensation_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"compensation_id" integer NOT NULL,
 	"action" varchar(16) NOT NULL,
 	"note" text,
@@ -1765,7 +1903,7 @@ CREATE TABLE "workflow_compensation_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_compensations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_compensations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"instance_id" integer NOT NULL,
 	"node_key" varchar(64) NOT NULL,
 	"node_name" varchar(64),
@@ -1783,7 +1921,7 @@ CREATE TABLE "workflow_compensations" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_connector_invocations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_connector_invocations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"connector_id" integer NOT NULL,
 	"source" "workflow_connector_invocation_source" DEFAULT 'manual' NOT NULL,
 	"ok" boolean NOT NULL,
@@ -1796,7 +1934,7 @@ CREATE TABLE "workflow_connector_invocations" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_connectors" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_connectors_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64) NOT NULL,
 	"description" text,
@@ -1821,7 +1959,7 @@ CREATE TABLE "workflow_connectors" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_data_sources" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_data_sources_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"method" varchar(8) DEFAULT 'GET' NOT NULL,
 	"url" varchar(1024) NOT NULL,
@@ -1840,7 +1978,7 @@ CREATE TABLE "workflow_data_sources" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_definition_versions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_definition_versions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"definition_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"name" varchar(64) NOT NULL,
@@ -1857,7 +1995,7 @@ CREATE TABLE "workflow_definition_versions" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_definitions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_definitions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"description" text,
 	"category_id" integer,
@@ -1877,10 +2015,11 @@ CREATE TABLE "workflow_definitions" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_delegations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_delegations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"principal_id" integer NOT NULL,
 	"delegate_id" integer NOT NULL,
 	"definition_id" integer,
+	"mode" varchar(16) DEFAULT 'full' NOT NULL,
 	"reason" varchar(255),
 	"start_at" timestamp with time zone,
 	"end_at" timestamp with time zone,
@@ -1893,7 +2032,7 @@ CREATE TABLE "workflow_delegations" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_engine_health_snapshots" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_engine_health_snapshots_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"health_score" smallint NOT NULL,
 	"severity" varchar(16) DEFAULT 'healthy' NOT NULL,
 	"backlog" integer DEFAULT 0 NOT NULL,
@@ -1905,7 +2044,7 @@ CREATE TABLE "workflow_engine_health_snapshots" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_event_subscriptions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_event_subscriptions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"description" varchar(256),
 	"definition_id" integer,
@@ -1924,7 +2063,7 @@ CREATE TABLE "workflow_event_subscriptions" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_forms" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_forms_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64),
 	"description" text,
@@ -1941,7 +2080,7 @@ CREATE TABLE "workflow_forms" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_instance_migrations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_instance_migrations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"instance_id" integer NOT NULL,
 	"definition_id" integer NOT NULL,
 	"from_version" integer NOT NULL,
@@ -1955,7 +2094,7 @@ CREATE TABLE "workflow_instance_migrations" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_instances" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_instances_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"definition_id" integer NOT NULL,
 	"definition_snapshot" jsonb NOT NULL,
 	"form_snapshot" jsonb,
@@ -1982,7 +2121,7 @@ CREATE TABLE "workflow_instances" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_job_executions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_job_executions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"job_id" integer NOT NULL,
 	"job_type" "workflow_job_type" NOT NULL,
 	"attempt" integer DEFAULT 0 NOT NULL,
@@ -2001,7 +2140,7 @@ CREATE TABLE "workflow_job_executions" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_jobs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_jobs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"job_type" "workflow_job_type" NOT NULL,
 	"status" "workflow_job_status" DEFAULT 'pending' NOT NULL,
 	"instance_id" integer,
@@ -2009,6 +2148,7 @@ CREATE TABLE "workflow_jobs" (
 	"node_key" varchar(64),
 	"idempotency_key" varchar(160),
 	"trace_id" varchar(64),
+	"parent_ref" varchar(32),
 	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"priority" integer DEFAULT 100 NOT NULL,
 	"attempts" integer DEFAULT 0 NOT NULL,
@@ -2027,7 +2167,7 @@ CREATE TABLE "workflow_jobs" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_quick_phrases" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_quick_phrases_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer,
 	"content" varchar(255) NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
@@ -2037,7 +2177,7 @@ CREATE TABLE "workflow_quick_phrases" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_saved_views" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_saved_views_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"page_key" varchar(64) NOT NULL,
 	"name" varchar(64) NOT NULL,
@@ -2050,7 +2190,7 @@ CREATE TABLE "workflow_saved_views" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_schedules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_schedules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"definition_id" integer NOT NULL,
 	"name" varchar(128) NOT NULL,
 	"cron_expression" varchar(64) NOT NULL,
@@ -2071,7 +2211,7 @@ CREATE TABLE "workflow_schedules" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_serial_counters" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_serial_counters_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"definition_id" integer NOT NULL,
 	"period_key" varchar(16) NOT NULL,
 	"seq" integer DEFAULT 0 NOT NULL,
@@ -2079,7 +2219,7 @@ CREATE TABLE "workflow_serial_counters" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_simulation_cases" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_simulation_cases_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"definition_id" integer NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"starter_user_id" integer,
@@ -2094,7 +2234,7 @@ CREATE TABLE "workflow_simulation_cases" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_task_consults" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_task_consults_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"task_id" integer NOT NULL,
 	"instance_id" integer NOT NULL,
 	"inviter_id" integer NOT NULL,
@@ -2108,7 +2248,7 @@ CREATE TABLE "workflow_task_consults" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_task_transfers" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_task_transfers_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"task_id" integer NOT NULL,
 	"instance_id" integer NOT NULL,
 	"from_user_id" integer,
@@ -2121,7 +2261,7 @@ CREATE TABLE "workflow_task_transfers" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_task_urges" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_task_urges_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"task_id" integer NOT NULL,
 	"instance_id" integer NOT NULL,
 	"urger_id" integer,
@@ -2131,7 +2271,7 @@ CREATE TABLE "workflow_task_urges" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_tasks" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_tasks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"instance_id" integer NOT NULL,
 	"node_key" varchar(64) NOT NULL,
 	"node_name" varchar(64) NOT NULL,
@@ -2150,6 +2290,7 @@ CREATE TABLE "workflow_tasks" (
 	"sub_done" integer DEFAULT 0 NOT NULL,
 	"original_assignee_id" integer,
 	"delegated_from_id" integer,
+	"delegation_mode" varchar(16),
 	"sign_type" varchar(8),
 	"return_origin_node_key" varchar(64),
 	"activation_id" varchar(36) NOT NULL,
@@ -2159,7 +2300,7 @@ CREATE TABLE "workflow_tasks" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"code" varchar(64),
 	"description" text,
@@ -2179,7 +2320,7 @@ CREATE TABLE "workflow_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "workflow_tokens" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "workflow_tokens_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"instance_id" integer NOT NULL,
 	"node_key" varchar(64) NOT NULL,
 	"status" "workflow_token_status" DEFAULT 'active' NOT NULL,
@@ -2192,8 +2333,29 @@ CREATE TABLE "workflow_tokens" (
 	"consumed_at" timestamp
 );
 --> statement-breakpoint
+CREATE TABLE "broadcast_campaigns" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "broadcast_campaigns_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"title" varchar(200) NOT NULL,
+	"content" text NOT NULL,
+	"link" varchar(500),
+	"channels" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"audience_type" "broadcast_audience" NOT NULL,
+	"audience_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"status" "broadcast_status" DEFAULT 'draft' NOT NULL,
+	"total_recipients" integer,
+	"enqueued_count" integer DEFAULT 0 NOT NULL,
+	"task_id" integer,
+	"sent_at" timestamp with time zone,
+	"remark" text,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "email_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "email_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"smtp_host" varchar(128) DEFAULT '' NOT NULL,
 	"smtp_port" integer DEFAULT 465 NOT NULL,
 	"smtp_user" varchar(128) DEFAULT '' NOT NULL,
@@ -2209,7 +2371,7 @@ CREATE TABLE "email_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "email_send_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "email_send_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"template_id" integer,
 	"to_email" varchar(256) NOT NULL,
 	"subject" varchar(200) NOT NULL,
@@ -2225,7 +2387,7 @@ CREATE TABLE "email_send_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "email_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "email_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"code" varchar(100) NOT NULL,
 	"subject" varchar(200) NOT NULL,
@@ -2242,7 +2404,7 @@ CREATE TABLE "email_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "in_app_messages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "in_app_messages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"template_id" integer,
 	"user_id" integer NOT NULL,
 	"title" varchar(200) NOT NULL,
@@ -2260,7 +2422,7 @@ CREATE TABLE "in_app_messages" (
 );
 --> statement-breakpoint
 CREATE TABLE "in_app_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "in_app_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"code" varchar(100) NOT NULL,
 	"title" varchar(200) NOT NULL,
@@ -2278,7 +2440,7 @@ CREATE TABLE "in_app_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "notification_dispatches" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "notification_dispatches_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"outbox_id" integer,
 	"event_key" varchar(100) NOT NULL,
 	"recipient_type" "notification_recipient_type" NOT NULL,
@@ -2295,7 +2457,7 @@ CREATE TABLE "notification_dispatches" (
 );
 --> statement-breakpoint
 CREATE TABLE "notification_event_overrides" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "notification_event_overrides_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"event_key" varchar(100) NOT NULL,
 	"channel" "notification_channel" NOT NULL,
@@ -2308,7 +2470,7 @@ CREATE TABLE "notification_event_overrides" (
 );
 --> statement-breakpoint
 CREATE TABLE "notification_outbox" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "notification_outbox_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"event_key" varchar(100) NOT NULL,
 	"recipients" jsonb NOT NULL,
 	"vars" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -2323,12 +2485,13 @@ CREATE TABLE "notification_outbox" (
 	"scheduled_at" timestamp with time zone,
 	"digest_key" varchar(128),
 	"trace_id" varchar(64),
+	"parent_ref" varchar(32),
 	"tenant_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "notification_preferences" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "notification_preferences_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"recipient_type" "notification_recipient_type" NOT NULL,
 	"recipient_id" integer NOT NULL,
 	"event_key" varchar(100) NOT NULL,
@@ -2339,7 +2502,7 @@ CREATE TABLE "notification_preferences" (
 );
 --> statement-breakpoint
 CREATE TABLE "notification_recipient_settings" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "notification_recipient_settings_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"recipient_type" "notification_recipient_type" NOT NULL,
 	"recipient_id" integer NOT NULL,
 	"global_muted" boolean DEFAULT false NOT NULL,
@@ -2352,8 +2515,49 @@ CREATE TABLE "notification_recipient_settings" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "push_configs" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "push_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"app_id" integer NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"provider" "push_provider" DEFAULT 'jpush' NOT NULL,
+	"app_key" varchar(128) DEFAULT '' NOT NULL,
+	"master_secret" varchar(256) DEFAULT '' NOT NULL,
+	"apns_production" boolean DEFAULT false NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"remark" text,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "push_configs_app_unique" UNIQUE("app_id")
+);
+--> statement-breakpoint
+CREATE TABLE "push_send_logs" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "push_send_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"config_id" integer,
+	"app_id" integer,
+	"provider" "push_provider" NOT NULL,
+	"subject_type" varchar(16),
+	"subject_id" integer,
+	"device_count" integer DEFAULT 0 NOT NULL,
+	"title" varchar(200) NOT NULL,
+	"content" text NOT NULL,
+	"link" varchar(500),
+	"event_key" varchar(128),
+	"status" "send_status" DEFAULT 'pending' NOT NULL,
+	"provider_msg_id" varchar(128),
+	"delivery_status" varchar(32),
+	"delivered_at" timestamp with time zone,
+	"clicked_at" timestamp with time zone,
+	"error_msg" text,
+	"source" "send_source" DEFAULT 'system' NOT NULL,
+	"tenant_id" integer,
+	"sent_at" timestamp with time zone,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "sms_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "sms_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"provider" "sms_provider" NOT NULL,
 	"access_key_id" varchar(256) DEFAULT '' NOT NULL,
@@ -2371,7 +2575,7 @@ CREATE TABLE "sms_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "sms_send_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "sms_send_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"config_id" integer,
 	"template_id" integer,
 	"provider" "sms_provider" NOT NULL,
@@ -2391,7 +2595,7 @@ CREATE TABLE "sms_send_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "sms_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "sms_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"code" varchar(100) NOT NULL,
 	"template_code" varchar(100) DEFAULT '' NOT NULL,
@@ -2410,7 +2614,7 @@ CREATE TABLE "sms_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "db_admin_query_history" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "db_admin_query_history_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"sql_text" text NOT NULL,
 	"duration_ms" integer DEFAULT 0 NOT NULL,
@@ -2421,7 +2625,7 @@ CREATE TABLE "db_admin_query_history" (
 );
 --> statement-breakpoint
 CREATE TABLE "db_backups" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "db_backups_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(128) NOT NULL,
 	"type" "backup_type" NOT NULL,
 	"file_id" uuid,
@@ -2439,7 +2643,7 @@ CREATE TABLE "db_backups" (
 );
 --> statement-breakpoint
 CREATE TABLE "db_query_favorites" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "db_query_favorites_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"sql" text NOT NULL,
@@ -2450,7 +2654,7 @@ CREATE TABLE "db_query_favorites" (
 );
 --> statement-breakpoint
 CREATE TABLE "tags" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "tags_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(50) NOT NULL,
 	"color" varchar(20),
 	"group_name" varchar(50),
@@ -2464,25 +2668,20 @@ CREATE TABLE "tags" (
 	CONSTRAINT "tags_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "rule_decision_executions" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"rule_key" varchar(64) NOT NULL,
-	"table_id" integer,
-	"instance_id" integer,
-	"node_key" varchar(64),
-	"source" varchar(16) DEFAULT 'runtime' NOT NULL,
-	"matched" boolean DEFAULT false NOT NULL,
-	"hit_policy" "rule_hit_policy" DEFAULT 'first' NOT NULL,
-	"input" jsonb DEFAULT '{}'::jsonb NOT NULL,
-	"outputs" jsonb DEFAULT '{}'::jsonb NOT NULL,
-	"matched_row_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"created_by" integer,
+CREATE TABLE "rule_asset_versions" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_asset_versions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"ref_kind" varchar(16) NOT NULL,
+	"ref_id" integer NOT NULL,
+	"version" integer NOT NULL,
+	"snapshot" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"published_by" integer,
+	"published_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"tenant_id" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL
+	CONSTRAINT "rule_asset_versions_uniq" UNIQUE("ref_kind","ref_id","version")
 );
 --> statement-breakpoint
 CREATE TABLE "rule_decision_flows" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_decision_flows_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"key" varchar(64) NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"description" text,
@@ -2500,7 +2699,7 @@ CREATE TABLE "rule_decision_flows" (
 );
 --> statement-breakpoint
 CREATE TABLE "rule_decision_table_versions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_decision_table_versions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"table_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"name" varchar(64) NOT NULL,
@@ -2517,7 +2716,7 @@ CREATE TABLE "rule_decision_table_versions" (
 );
 --> statement-breakpoint
 CREATE TABLE "rule_decision_tables" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_decision_tables_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"key" varchar(64) NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"description" text,
@@ -2530,6 +2729,9 @@ CREATE TABLE "rule_decision_tables" (
 	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"published_at" timestamp with time zone,
+	"gray_percent" integer,
+	"gray_dimension" varchar(200),
+	"gray_version" integer,
 	"review_status" varchar(16),
 	"review_requested_by" integer,
 	"review_requested_at" timestamp with time zone,
@@ -2542,11 +2744,31 @@ CREATE TABLE "rule_decision_tables" (
 	CONSTRAINT "rule_decision_tables_key_uniq" UNIQUE("tenant_id","key")
 );
 --> statement-breakpoint
+CREATE TABLE "rule_executions" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_executions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"ref_kind" varchar(16) NOT NULL,
+	"ref_id" integer,
+	"rule_key" varchar(64) NOT NULL,
+	"version" integer,
+	"caller" varchar(64),
+	"biz_ref" varchar(128),
+	"source" varchar(16) DEFAULT 'runtime' NOT NULL,
+	"matched" boolean DEFAULT false NOT NULL,
+	"hit_policy" "rule_hit_policy",
+	"input" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"outputs" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"matched_row_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_by" integer,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "rule_list_items" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_list_items_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"list_id" integer NOT NULL,
 	"value" varchar(128) NOT NULL,
 	"label" varchar(64),
+	"match_mode" varchar(8) DEFAULT 'exact' NOT NULL,
 	"expires_at" timestamp with time zone,
 	"remark" varchar(255),
 	"created_by" integer,
@@ -2555,7 +2777,7 @@ CREATE TABLE "rule_list_items" (
 );
 --> statement-breakpoint
 CREATE TABLE "rule_lists" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_lists_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"key" varchar(64) NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"type" varchar(8) DEFAULT 'black' NOT NULL,
@@ -2569,8 +2791,28 @@ CREATE TABLE "rule_lists" (
 	CONSTRAINT "rule_lists_key_uniq" UNIQUE("tenant_id","key")
 );
 --> statement-breakpoint
+CREATE TABLE "rule_scorecards" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_scorecards_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"key" varchar(64) NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"description" text,
+	"status" "workflow_definition_status" DEFAULT 'draft' NOT NULL,
+	"base_score" integer DEFAULT 0 NOT NULL,
+	"variables" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"grades" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"published_snapshot" jsonb,
+	"version" integer DEFAULT 1 NOT NULL,
+	"published_at" timestamp with time zone,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "rule_scorecards_key_uniq" UNIQUE("tenant_id","key")
+);
+--> statement-breakpoint
 CREATE TABLE "rule_test_cases" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rule_test_cases_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"table_id" integer NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"input" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -2584,7 +2826,7 @@ CREATE TABLE "rule_test_cases" (
 );
 --> statement-breakpoint
 CREATE TABLE "biz_leaves" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "biz_leaves_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"leave_type" varchar(32) NOT NULL,
 	"start_date" timestamp with time zone NOT NULL,
 	"end_date" timestamp with time zone NOT NULL,
@@ -2601,7 +2843,7 @@ CREATE TABLE "biz_leaves" (
 );
 --> statement-breakpoint
 CREATE TABLE "biz_pay_demos" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "biz_pay_demos_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"subject" varchar(128) NOT NULL,
 	"amount" integer NOT NULL,
 	"pay_method" varchar(32),
@@ -2631,7 +2873,7 @@ CREATE TABLE "chat_conversation_members" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_conversations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_conversations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"type" "chat_conversation_type" DEFAULT 'direct' NOT NULL,
 	"name" varchar(64),
 	"announcement" varchar(500),
@@ -2645,7 +2887,7 @@ CREATE TABLE "chat_conversations" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_custom_emojis" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_custom_emojis_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"url" varchar(512) NOT NULL,
 	"file_id" varchar(64),
@@ -2656,7 +2898,7 @@ CREATE TABLE "chat_custom_emojis" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_group_invites" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_group_invites_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"conversation_id" integer NOT NULL,
 	"token" varchar(64) NOT NULL,
 	"created_by" integer,
@@ -2670,7 +2912,7 @@ CREATE TABLE "chat_group_invites" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_group_join_requests" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_group_join_requests_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"conversation_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
 	"invite_id" integer,
@@ -2683,7 +2925,7 @@ CREATE TABLE "chat_group_join_requests" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_message_favorites" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_message_favorites_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"message_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -2691,7 +2933,7 @@ CREATE TABLE "chat_message_favorites" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_message_reactions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_message_reactions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"message_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
 	"emoji" varchar(10) NOT NULL,
@@ -2700,7 +2942,7 @@ CREATE TABLE "chat_message_reactions" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_messages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_messages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"conversation_id" integer NOT NULL,
 	"sender_id" integer,
 	"type" "chat_message_type" DEFAULT 'text' NOT NULL,
@@ -2714,7 +2956,7 @@ CREATE TABLE "chat_messages" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_quick_replies" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_quick_replies_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"content" varchar(500) NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
@@ -2723,7 +2965,7 @@ CREATE TABLE "chat_quick_replies" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_scheduled_messages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_scheduled_messages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"conversation_id" integer NOT NULL,
 	"sender_id" integer NOT NULL,
 	"type" "chat_message_type" DEFAULT 'text' NOT NULL,
@@ -2738,7 +2980,7 @@ CREATE TABLE "chat_scheduled_messages" (
 );
 --> statement-breakpoint
 CREATE TABLE "chat_webhooks" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "chat_webhooks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"avatar" varchar(256),
 	"description" varchar(255),
@@ -2755,7 +2997,7 @@ CREATE TABLE "chat_webhooks" (
 );
 --> statement-breakpoint
 CREATE TABLE "channel_auto_replies" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "channel_auto_replies_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"channel_id" integer NOT NULL,
 	"match_type" "channel_auto_reply_match" DEFAULT 'keyword' NOT NULL,
 	"keyword" varchar(100),
@@ -2788,7 +3030,7 @@ CREATE TABLE "channel_conversations" (
 );
 --> statement-breakpoint
 CREATE TABLE "channel_menus" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "channel_menus_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"channel_id" integer NOT NULL,
 	"parent_id" integer,
 	"name" varchar(32) NOT NULL,
@@ -2807,7 +3049,7 @@ CREATE TABLE "channel_message_targets" (
 );
 --> statement-breakpoint
 CREATE TABLE "channel_message_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "channel_message_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"type" "channel_message_type" DEFAULT 'text' NOT NULL,
 	"title" varchar(200),
@@ -2820,7 +3062,7 @@ CREATE TABLE "channel_message_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "channel_messages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "channel_messages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"channel_id" integer NOT NULL,
 	"audience_type" "channel_audience" DEFAULT 'broadcast' NOT NULL,
 	"type" "channel_message_type" DEFAULT 'text' NOT NULL,
@@ -2838,7 +3080,7 @@ CREATE TABLE "channel_messages" (
 );
 --> statement-breakpoint
 CREATE TABLE "channel_quick_replies" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "channel_quick_replies_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"channel_id" integer,
 	"title" varchar(100) NOT NULL,
 	"content" text NOT NULL,
@@ -2859,7 +3101,7 @@ CREATE TABLE "channel_subscriptions" (
 );
 --> statement-breakpoint
 CREATE TABLE "channels" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "channels_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"code" varchar(64) NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"avatar" varchar(256),
@@ -2876,7 +3118,7 @@ CREATE TABLE "channels" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_accounts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"channel" "payment_channel" NOT NULL,
 	"pending_settle" integer DEFAULT 0 NOT NULL,
 	"available" integer DEFAULT 0 NOT NULL,
@@ -2888,7 +3130,7 @@ CREATE TABLE "payment_accounts" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_apps" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_apps_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"app_key" varchar(64) NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
@@ -2905,7 +3147,7 @@ CREATE TABLE "payment_apps" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_channel_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_channel_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
@@ -2937,7 +3179,7 @@ CREATE TABLE "payment_channel_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_contracts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_contracts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"contract_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"channel_config_id" integer,
@@ -2965,7 +3207,7 @@ CREATE TABLE "payment_contracts" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_deduct_plans" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_deduct_plans_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"period" "payment_deduct_period" DEFAULT 'monthly' NOT NULL,
 	"custom_days" integer,
@@ -2981,7 +3223,7 @@ CREATE TABLE "payment_deduct_plans" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_dispute_replies" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_dispute_replies_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"dispute_id" integer NOT NULL,
 	"author" "payment_dispute_reply_author" DEFAULT 'merchant' NOT NULL,
 	"content" text NOT NULL,
@@ -2990,7 +3232,7 @@ CREATE TABLE "payment_dispute_replies" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_disputes" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_disputes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"dispute_no" varchar(64) NOT NULL,
 	"channel_dispute_no" varchar(128),
 	"channel" "payment_channel" NOT NULL,
@@ -3001,6 +3243,9 @@ CREATE TABLE "payment_disputes" (
 	"content" text NOT NULL,
 	"amount" integer DEFAULT 0 NOT NULL,
 	"status" "payment_dispute_status" DEFAULT 'pending' NOT NULL,
+	"route" varchar(32),
+	"priority" integer,
+	"sla_hours" integer,
 	"deadline" timestamp with time zone,
 	"refund_no" varchar(64),
 	"resolved_at" timestamp with time zone,
@@ -3013,7 +3258,7 @@ CREATE TABLE "payment_disputes" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"type" varchar(32) NOT NULL,
 	"order_no" varchar(64) NOT NULL,
 	"payload" text NOT NULL,
@@ -3026,7 +3271,7 @@ CREATE TABLE "payment_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_fee_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_fee_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"pay_method" "payment_method",
@@ -3045,7 +3290,7 @@ CREATE TABLE "payment_fee_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_ledger_entries" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_ledger_entries_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"entry_no" varchar(64) NOT NULL,
 	"direction" "payment_ledger_direction" NOT NULL,
 	"type" "payment_ledger_type" NOT NULL,
@@ -3061,7 +3306,7 @@ CREATE TABLE "payment_ledger_entries" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_links" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_links_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"link_no" varchar(64) NOT NULL,
 	"token" varchar(64) NOT NULL,
 	"subject" varchar(256) NOT NULL,
@@ -3083,7 +3328,7 @@ CREATE TABLE "payment_links" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_method_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_method_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"method" "payment_method" NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"label" varchar(64) NOT NULL,
@@ -3099,7 +3344,7 @@ CREATE TABLE "payment_method_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_notify_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_notify_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"channel" "payment_channel" NOT NULL,
 	"scene" varchar(16) DEFAULT 'payment' NOT NULL,
 	"order_no" varchar(64),
@@ -3114,7 +3359,7 @@ CREATE TABLE "payment_notify_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_orders" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_orders_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"order_no" varchar(64) NOT NULL,
 	"out_trade_no" varchar(64) NOT NULL,
 	"channel_trade_no" varchar(128),
@@ -3153,7 +3398,7 @@ CREATE TABLE "payment_orders" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_preauths" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_preauths_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"preauth_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"channel_config_id" integer,
@@ -3180,7 +3425,7 @@ CREATE TABLE "payment_preauths" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_recon_batches" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_recon_batches_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"batch_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"bill_date" varchar(10) NOT NULL,
@@ -3201,7 +3446,7 @@ CREATE TABLE "payment_recon_batches" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_recon_items" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_recon_items_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"batch_id" integer NOT NULL,
 	"order_no" varchar(64),
 	"channel_trade_no" varchar(128),
@@ -3219,7 +3464,7 @@ CREATE TABLE "payment_recon_items" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_refunds" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_refunds_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"refund_no" varchar(64) NOT NULL,
 	"out_refund_no" varchar(64) NOT NULL,
 	"order_no" varchar(64) NOT NULL,
@@ -3248,7 +3493,7 @@ CREATE TABLE "payment_refunds" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_report_daily" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_report_daily_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"stat_date" varchar(10) NOT NULL,
 	"channel" varchar(16) DEFAULT '' NOT NULL,
 	"biz_type" varchar(64) DEFAULT '' NOT NULL,
@@ -3261,7 +3506,7 @@ CREATE TABLE "payment_report_daily" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_risk_hits" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_risk_hits_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"rule_id" integer,
 	"rule_name" varchar(64) NOT NULL,
 	"action" "payment_risk_action" NOT NULL,
@@ -3280,7 +3525,7 @@ CREATE TABLE "payment_risk_hits" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_risk_reviews" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_risk_reviews_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"review_no" varchar(64) NOT NULL,
 	"hit_id" integer,
 	"order_no" varchar(64) NOT NULL,
@@ -3302,7 +3547,7 @@ CREATE TABLE "payment_risk_reviews" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_risk_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_risk_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"scope" "payment_risk_scope" DEFAULT 'global' NOT NULL,
 	"channel" "payment_channel",
@@ -3310,8 +3555,8 @@ CREATE TABLE "payment_risk_rules" (
 	"single_limit" integer,
 	"daily_limit" integer,
 	"daily_count_limit" integer,
-	"blocklist" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"allowlist" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"block_list_keys" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"allow_list_keys" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"action" "payment_risk_action" DEFAULT 'block' NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"remark" varchar(256),
@@ -3323,7 +3568,7 @@ CREATE TABLE "payment_risk_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_settlement_batches" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_settlement_batches_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"batch_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
 	"period_start" varchar(10) NOT NULL,
@@ -3345,7 +3590,7 @@ CREATE TABLE "payment_settlement_batches" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_sharing_orders" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_sharing_orders_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"sharing_no" varchar(64) NOT NULL,
 	"order_no" varchar(64) NOT NULL,
 	"receiver_id" integer NOT NULL,
@@ -3364,7 +3609,7 @@ CREATE TABLE "payment_sharing_orders" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_sharing_receivers" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_sharing_receivers_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"receiver_type" "payment_sharing_receiver_type" DEFAULT 'merchant' NOT NULL,
 	"account" varchar(128) NOT NULL,
@@ -3380,7 +3625,7 @@ CREATE TABLE "payment_sharing_receivers" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_transfers" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_transfers_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"transfer_no" varchar(64) NOT NULL,
 	"out_transfer_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
@@ -3407,7 +3652,7 @@ CREATE TABLE "payment_transfers" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_webhook_deliveries" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_webhook_deliveries_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"endpoint_id" integer NOT NULL,
 	"event_type" varchar(32) NOT NULL,
 	"order_no" varchar(64),
@@ -3424,7 +3669,7 @@ CREATE TABLE "payment_webhook_deliveries" (
 );
 --> statement-breakpoint
 CREATE TABLE "payment_webhook_endpoints" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_webhook_endpoints_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"url" varchar(512) NOT NULL,
 	"secret_encrypted" text,
@@ -3440,21 +3685,20 @@ CREATE TABLE "payment_webhook_endpoints" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_agents" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_agents_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"description" varchar(300),
 	"avatar" varchar(20) DEFAULT '🤖' NOT NULL,
-	"system_prompt" text NOT NULL,
+	"instructions" text NOT NULL,
 	"config_id" integer,
 	"model" varchar(100),
-	"temperature" varchar(10),
+	"model_settings" jsonb,
+	"max_steps" integer,
 	"knowledge_base_id" integer,
 	"tools" text[],
 	"opening_message" text,
 	"suggested_questions" text[],
-	"status" "ai_agent_status" DEFAULT 'private' NOT NULL,
-	"cloned_from_id" integer,
 	"usage_count" integer DEFAULT 0 NOT NULL,
 	"is_enabled" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -3462,7 +3706,7 @@ CREATE TABLE "ai_agents" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_arena_votes" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_arena_votes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"question" text NOT NULL,
 	"model_a" varchar(100) NOT NULL,
@@ -3472,7 +3716,7 @@ CREATE TABLE "ai_arena_votes" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_conversations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_conversations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"tenant_id" integer,
 	"title" varchar(200) DEFAULT '新对话' NOT NULL,
@@ -3488,32 +3732,8 @@ CREATE TABLE "ai_conversations" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "ai_eval_runs" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"set_id" integer NOT NULL,
-	"config_id" integer,
-	"model" varchar(100) NOT NULL,
-	"status" varchar(20) DEFAULT 'running' NOT NULL,
-	"results" jsonb,
-	"avg_duration_ms" integer,
-	"total_tokens" integer,
-	"created_by" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "ai_eval_sets" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"name" varchar(100) NOT NULL,
-	"description" varchar(300),
-	"items" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"created_by" integer,
-	"updated_by" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "ai_http_tools" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_http_tools_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(60) NOT NULL,
 	"description" varchar(500) NOT NULL,
 	"method" varchar(10) DEFAULT 'GET' NOT NULL,
@@ -3528,16 +3748,15 @@ CREATE TABLE "ai_http_tools" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_kb_chunks" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_kb_chunks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"kb_id" integer NOT NULL,
 	"doc_id" integer NOT NULL,
 	"content" text NOT NULL,
-	"embedding" real[],
 	"token_count" integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "ai_kb_documents" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_kb_documents_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"kb_id" integer NOT NULL,
 	"name" varchar(200) NOT NULL,
 	"source_url" varchar(500),
@@ -3549,7 +3768,7 @@ CREATE TABLE "ai_kb_documents" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_knowledge_bases" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_knowledge_bases_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"description" varchar(300),
 	"user_id" integer NOT NULL,
@@ -3559,7 +3778,7 @@ CREATE TABLE "ai_knowledge_bases" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_messages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_messages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"conversation_id" integer NOT NULL,
 	"parent_id" integer,
 	"role" "ai_message_role" NOT NULL,
@@ -3576,11 +3795,14 @@ CREATE TABLE "ai_messages" (
 	"feedback_remark" varchar(500),
 	"feedback_handled_at" timestamp,
 	"trace" jsonb,
+	"tool_calls" jsonb,
+	"kb_references" jsonb,
+	"images" jsonb,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "ai_prompt_template_versions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_prompt_template_versions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"template_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -3590,7 +3812,7 @@ CREATE TABLE "ai_prompt_template_versions" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_prompt_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_prompt_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"content" text NOT NULL,
 	"description" varchar(300),
@@ -3608,22 +3830,22 @@ CREATE TABLE "ai_prompt_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_provider_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_provider_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
-	"provider" "ai_provider" DEFAULT 'openai_compatible' NOT NULL,
-	"base_url" varchar(500) NOT NULL,
+	"provider_id" varchar(50) NOT NULL,
+	"base_url" varchar(500),
 	"api_key" varchar(1000) NOT NULL,
-	"model" varchar(100) NOT NULL,
-	"models" text[],
+	"headers" jsonb,
+	"models" text[] NOT NULL,
+	"default_model" varchar(100) NOT NULL,
+	"model_settings" jsonb,
+	"provider_options" jsonb,
+	"fallbacks" jsonb,
 	"capabilities" jsonb,
-	"system_prompt" text,
-	"max_tokens" integer DEFAULT 4096 NOT NULL,
-	"temperature" varchar(10) DEFAULT '0.7' NOT NULL,
 	"price_input_per_m" integer,
 	"price_output_per_m" integer,
 	"is_default" boolean DEFAULT false NOT NULL,
 	"is_enabled" boolean DEFAULT true NOT NULL,
-	"fallback_config_id" integer,
 	"max_concurrent" integer,
 	"created_by" integer,
 	"updated_by" integer,
@@ -3632,7 +3854,7 @@ CREATE TABLE "ai_provider_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "ai_shared_conversations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_shared_conversations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"token" varchar(64) NOT NULL,
 	"conversation_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
@@ -3640,26 +3862,27 @@ CREATE TABLE "ai_shared_conversations" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "ai_user_preferences" (
-	"id" serial PRIMARY KEY NOT NULL,
+CREATE TABLE "ai_user_settings" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ai_user_settings_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
-	"about_me" text,
-	"reply_style" text,
-	"is_enabled" boolean DEFAULT true NOT NULL,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "user_ai_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "user_ai_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"name" varchar(100),
-	"provider" "ai_provider" DEFAULT 'openai_compatible' NOT NULL,
+	"provider_id" varchar(50) DEFAULT 'custom' NOT NULL,
 	"base_url" varchar(500),
 	"api_key" varchar(1000),
-	"model" varchar(100),
-	"temperature" varchar(10),
-	"max_tokens" integer,
+	"headers" jsonb,
+	"models" text[] DEFAULT '{}' NOT NULL,
+	"default_model" varchar(100),
+	"model_settings" jsonb,
+	"provider_options" jsonb,
+	"capabilities" jsonb,
 	"system_prompt" text,
 	"is_enabled" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -3667,7 +3890,7 @@ CREATE TABLE "user_ai_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "api_scopes" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "api_scopes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"code" varchar(64) NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"description" text,
@@ -3681,7 +3904,7 @@ CREATE TABLE "api_scopes" (
 );
 --> statement-breakpoint
 CREATE TABLE "app_webhook_deliveries" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "app_webhook_deliveries_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"subscription_id" integer NOT NULL,
 	"client_id" varchar(64) NOT NULL,
 	"event_type" varchar(64) NOT NULL,
@@ -3702,7 +3925,7 @@ CREATE TABLE "app_webhook_deliveries" (
 );
 --> statement-breakpoint
 CREATE TABLE "app_webhook_subscriptions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "app_webhook_subscriptions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"client_id" varchar(64) NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"url" varchar(512) NOT NULL,
@@ -3723,7 +3946,7 @@ CREATE TABLE "app_webhook_subscriptions" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth2_authorization_codes" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "oauth2_authorization_codes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"code_hash" varchar(64),
 	"client_id" varchar(64) NOT NULL,
 	"user_id" integer NOT NULL,
@@ -3738,7 +3961,7 @@ CREATE TABLE "oauth2_authorization_codes" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth2_clients" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "oauth2_clients_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"client_id" varchar(64) NOT NULL,
 	"client_secret_hash" varchar(128),
 	"client_secret_encrypted" text,
@@ -3782,7 +4005,7 @@ CREATE TABLE "oauth2_token_families" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth2_tokens" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "oauth2_tokens_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"token_type" varchar(20) NOT NULL,
 	"token_hash" varchar(128) NOT NULL,
 	"token_prefix" varchar(20),
@@ -3797,7 +4020,7 @@ CREATE TABLE "oauth2_tokens" (
 );
 --> statement-breakpoint
 CREATE TABLE "oauth2_user_grants" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "oauth2_user_grants_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"client_id" varchar(64) NOT NULL,
 	"scopes" text[] DEFAULT '{}' NOT NULL,
@@ -3807,7 +4030,7 @@ CREATE TABLE "oauth2_user_grants" (
 );
 --> statement-breakpoint
 CREATE TABLE "open_api_call_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "open_api_call_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"client_id" varchar(64) NOT NULL,
 	"app_name" varchar(100),
 	"method" varchar(10) NOT NULL,
@@ -3827,7 +4050,7 @@ CREATE TABLE "open_api_call_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "open_api_call_stats_daily" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "open_api_call_stats_daily_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"stat_date" date NOT NULL,
 	"client_id" varchar(64) NOT NULL,
 	"app_name" varchar(100),
@@ -3844,7 +4067,7 @@ CREATE TABLE "open_api_call_stats_daily" (
 );
 --> statement-breakpoint
 CREATE TABLE "open_quota_alerts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "open_quota_alerts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"client_id" varchar(64) NOT NULL,
 	"dimension" varchar(20) NOT NULL,
 	"period" varchar(16) NOT NULL,
@@ -3863,7 +4086,7 @@ CREATE TABLE "open_quota_alerts" (
 );
 --> statement-breakpoint
 CREATE TABLE "rate_plans" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "rate_plans_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"code" varchar(64) NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"description" text,
@@ -3880,7 +4103,7 @@ CREATE TABLE "rate_plans" (
 );
 --> statement-breakpoint
 CREATE TABLE "ssh_profiles" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ssh_profiles_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"user_id" integer NOT NULL,
 	"name" varchar(128) NOT NULL,
 	"host" varchar(255) NOT NULL,
@@ -3900,7 +4123,7 @@ CREATE TABLE "ssh_profiles" (
 );
 --> statement-breakpoint
 CREATE TABLE "terminal_recordings" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "terminal_recordings_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"title" varchar(256) DEFAULT '' NOT NULL,
 	"user_id" integer NOT NULL,
 	"tenant_id" integer,
@@ -3933,8 +4156,33 @@ CREATE TABLE "terminal_sessions" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "ops_hosts" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ops_hosts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(64) NOT NULL,
+	"host" varchar(255) NOT NULL,
+	"port" integer DEFAULT 22 NOT NULL,
+	"username" varchar(64) NOT NULL,
+	"auth_type" "ops_host_auth_type" DEFAULT 'password' NOT NULL,
+	"password_encrypted" text,
+	"key_content_encrypted" text,
+	"key_passphrase_encrypted" text,
+	"connection_version" integer DEFAULT 0 NOT NULL,
+	"host_key_fingerprint" varchar(64),
+	"status" "ops_host_status" DEFAULT 'unknown' NOT NULL,
+	"snapshot" jsonb,
+	"probed_at" timestamp,
+	"probe_error" text,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"remark" varchar(500),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	CONSTRAINT "ops_hosts_name_unique" UNIQUE("name")
+);
+--> statement-breakpoint
 CREATE TABLE "checkin_milestones" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "checkin_milestones_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"title" varchar(64) NOT NULL,
 	"cumulative_days" integer NOT NULL,
 	"reward_type" "checkin_milestone_reward_type" DEFAULT 'points' NOT NULL,
@@ -3950,7 +4198,7 @@ CREATE TABLE "checkin_milestones" (
 );
 --> statement-breakpoint
 CREATE TABLE "checkin_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "checkin_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"day_number" integer NOT NULL,
 	"points" integer DEFAULT 0 NOT NULL,
 	"experience" integer DEFAULT 0 NOT NULL,
@@ -3963,7 +4211,7 @@ CREATE TABLE "checkin_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "checkin_settings" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "checkin_settings_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"makeup_enabled" boolean DEFAULT true NOT NULL,
 	"makeup_cost_points" integer DEFAULT 20 NOT NULL,
 	"makeup_max_days" integer DEFAULT 7 NOT NULL,
@@ -3973,7 +4221,7 @@ CREATE TABLE "checkin_settings" (
 );
 --> statement-breakpoint
 CREATE TABLE "coupons" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "coupons_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
 	"type" "coupon_type" NOT NULL,
 	"face_value" integer NOT NULL,
@@ -3997,7 +4245,7 @@ CREATE TABLE "coupons" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_checkin_milestone_awards" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_checkin_milestone_awards_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"milestone_id" integer NOT NULL,
 	"cumulative_days" integer NOT NULL,
@@ -4010,7 +4258,7 @@ CREATE TABLE "member_checkin_milestone_awards" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_checkins" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_checkins_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"checkin_date" date NOT NULL,
 	"consecutive_days" integer DEFAULT 1 NOT NULL,
@@ -4023,7 +4271,7 @@ CREATE TABLE "member_checkins" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_coupons" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_coupons_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"coupon_id" integer NOT NULL,
 	"member_id" integer NOT NULL,
 	"code" varchar(32) NOT NULL,
@@ -4039,7 +4287,7 @@ CREATE TABLE "member_coupons" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_levels" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_levels_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(32) NOT NULL,
 	"level" integer DEFAULT 0 NOT NULL,
 	"growth_threshold" integer DEFAULT 0 NOT NULL,
@@ -4057,7 +4305,7 @@ CREATE TABLE "member_levels" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_login_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_login_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer,
 	"ip" varchar(64),
 	"location" varchar(128),
@@ -4070,7 +4318,7 @@ CREATE TABLE "member_login_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_notifications" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_notifications_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"type" varchar(32) NOT NULL,
 	"title" varchar(128) NOT NULL,
@@ -4081,7 +4329,7 @@ CREATE TABLE "member_notifications" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_point_accounts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_point_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"balance" integer DEFAULT 0 NOT NULL,
 	"frozen" integer DEFAULT 0 NOT NULL,
@@ -4093,7 +4341,7 @@ CREATE TABLE "member_point_accounts" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_point_transactions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_point_transactions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"type" "point_tx_type" NOT NULL,
 	"amount" integer NOT NULL,
@@ -4106,7 +4354,7 @@ CREATE TABLE "member_point_transactions" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_tag_bindings" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_tag_bindings_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"tag_id" integer NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -4114,7 +4362,7 @@ CREATE TABLE "member_tag_bindings" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_tags" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_tags_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(32) NOT NULL,
 	"color" varchar(20),
 	"description" varchar(256),
@@ -4128,7 +4376,7 @@ CREATE TABLE "member_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_vip_renewals" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_vip_renewals_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"order_no" varchar(64) NOT NULL,
 	"contract_no" varchar(64),
@@ -4139,7 +4387,7 @@ CREATE TABLE "member_vip_renewals" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_wallet_transactions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_wallet_transactions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"type" "wallet_tx_type" NOT NULL,
 	"amount" integer NOT NULL,
@@ -4153,7 +4401,7 @@ CREATE TABLE "member_wallet_transactions" (
 );
 --> statement-breakpoint
 CREATE TABLE "member_wallets" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "member_wallets_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"balance" integer DEFAULT 0 NOT NULL,
 	"frozen" integer DEFAULT 0 NOT NULL,
@@ -4165,7 +4413,7 @@ CREATE TABLE "member_wallets" (
 );
 --> statement-breakpoint
 CREATE TABLE "members" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "members_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"username" varchar(32),
 	"phone" varchar(20),
 	"email" varchar(128),
@@ -4195,7 +4443,7 @@ CREATE TABLE "members" (
 );
 --> statement-breakpoint
 CREATE TABLE "monitor_alert_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "monitor_alert_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"rule_id" integer,
 	"rule_name" varchar(128) NOT NULL,
@@ -4220,7 +4468,7 @@ CREATE TABLE "monitor_alert_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "monitor_alert_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "monitor_alert_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(128) NOT NULL,
 	"metric" "monitor_metric" NOT NULL,
@@ -4245,7 +4493,7 @@ CREATE TABLE "monitor_alert_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "ssl_certificates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "ssl_certificates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(128) NOT NULL,
 	"domain" varchar(256) NOT NULL,
 	"type" "ssl_cert_type" DEFAULT 'self_signed' NOT NULL,
@@ -4268,7 +4516,7 @@ CREATE TABLE "ssl_certificates" (
 );
 --> statement-breakpoint
 CREATE TABLE "system_metric_samples" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "system_metric_samples_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"sampled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"cpu" real DEFAULT 0 NOT NULL,
 	"memory" real DEFAULT 0 NOT NULL,
@@ -4286,8 +4534,91 @@ CREATE TABLE "system_metric_samples" (
 	"disk_write_bps" real DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "app_artifacts" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "app_artifacts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"release_id" integer NOT NULL,
+	"platform" "app_platform" NOT NULL,
+	"arch" "app_arch" DEFAULT 'x64' NOT NULL,
+	"kind" "app_artifact_kind" DEFAULT 'installer' NOT NULL,
+	"file_id" uuid,
+	"external_url" varchar(500),
+	"file_name" varchar(255) NOT NULL,
+	"size" bigint DEFAULT 0 NOT NULL,
+	"sha256" varchar(64),
+	"download_count" integer DEFAULT 0 NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "app_artifacts_release_filename_unique" UNIQUE("release_id","file_name")
+);
+--> statement-breakpoint
+CREATE TABLE "app_release_events" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "app_release_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"app_id" integer NOT NULL,
+	"release_id" integer,
+	"artifact_id" integer,
+	"event_type" "app_release_event_type" NOT NULL,
+	"channel" "app_release_channel" DEFAULT 'stable' NOT NULL,
+	"platform" "app_platform",
+	"arch" "app_arch",
+	"version" varchar(32),
+	"device_id" varchar(64),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "app_releases" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "app_releases_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"app_id" integer NOT NULL,
+	"channel" "app_release_channel" DEFAULT 'stable' NOT NULL,
+	"version" varchar(32) NOT NULL,
+	"notes" text,
+	"status" "app_release_status" DEFAULT 'draft' NOT NULL,
+	"mandatory" boolean DEFAULT false NOT NULL,
+	"min_version" varchar(32),
+	"rollout_percent" smallint DEFAULT 100 NOT NULL,
+	"published_at" timestamp,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "app_releases_app_channel_version_unique" UNIQUE("app_id","channel","version")
+);
+--> statement-breakpoint
+CREATE TABLE "client_apps" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "client_apps_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"app_key" varchar(64) NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" text,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "client_apps_app_key_unique" UNIQUE("app_key")
+);
+--> statement-breakpoint
+CREATE TABLE "client_devices" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "client_devices_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"device_id" varchar(64) NOT NULL,
+	"app_id" integer NOT NULL,
+	"platform" "app_platform" NOT NULL,
+	"arch" "app_arch",
+	"device_model" varchar(128),
+	"os_version" varchar(64),
+	"app_version" varchar(32),
+	"subject_type" varchar(16),
+	"subject_id" integer,
+	"push_provider" "push_provider",
+	"push_registration_id" varchar(128),
+	"push_enabled" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"last_active_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "client_devices_device_id_unique" UNIQUE("device_id")
+);
+--> statement-breakpoint
 CREATE TABLE "mp_accounts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"account" varchar(100),
 	"app_id" varchar(64) NOT NULL,
@@ -4311,7 +4642,7 @@ CREATE TABLE "mp_accounts" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_auto_replies" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_auto_replies_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"reply_type" "mp_auto_reply_type" NOT NULL,
 	"keyword" varchar(64),
@@ -4331,7 +4662,7 @@ CREATE TABLE "mp_auto_replies" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_broadcasts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_broadcasts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"msg_type" "mp_broadcast_type" DEFAULT 'text' NOT NULL,
 	"target" "mp_broadcast_target" DEFAULT 'all' NOT NULL,
@@ -4351,7 +4682,7 @@ CREATE TABLE "mp_broadcasts" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_conditional_menus" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_conditional_menus_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"name" varchar(64) NOT NULL,
 	"buttons" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -4367,7 +4698,7 @@ CREATE TABLE "mp_conditional_menus" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_drafts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_drafts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"title" varchar(200) NOT NULL,
 	"articles" jsonb DEFAULT '[]'::jsonb NOT NULL,
@@ -4381,7 +4712,7 @@ CREATE TABLE "mp_drafts" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_fans" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_fans_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"openid" varchar(64) NOT NULL,
 	"nickname" varchar(128),
@@ -4406,7 +4737,7 @@ CREATE TABLE "mp_fans" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_kf_accounts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_kf_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"kf_account" varchar(64) NOT NULL,
 	"nickname" varchar(64) NOT NULL,
@@ -4423,7 +4754,7 @@ CREATE TABLE "mp_kf_accounts" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_kf_routing_configs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_kf_routing_configs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"enabled" boolean DEFAULT true NOT NULL,
 	"strategy" "mp_kf_routing_strategy" DEFAULT 'least_active' NOT NULL,
@@ -4440,7 +4771,7 @@ CREATE TABLE "mp_kf_routing_configs" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_kf_session_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_kf_session_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"session_id" integer NOT NULL,
 	"account_id" integer NOT NULL,
 	"type" "mp_kf_session_event_type" NOT NULL,
@@ -4453,7 +4784,7 @@ CREATE TABLE "mp_kf_session_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_kf_sessions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_kf_sessions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"openid" varchar(64) NOT NULL,
 	"kf_id" integer,
@@ -4479,7 +4810,7 @@ CREATE TABLE "mp_kf_sessions" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_materials" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_materials_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"type" "mp_material_type" DEFAULT 'image' NOT NULL,
 	"name" varchar(200) NOT NULL,
@@ -4494,7 +4825,7 @@ CREATE TABLE "mp_materials" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_menus" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_menus_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"buttons" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"status" "mp_menu_status" DEFAULT 'draft' NOT NULL,
@@ -4508,7 +4839,7 @@ CREATE TABLE "mp_menus" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_message_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_message_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"template_id" varchar(128) NOT NULL,
 	"title" varchar(200) NOT NULL,
@@ -4522,7 +4853,7 @@ CREATE TABLE "mp_message_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_messages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_messages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"openid" varchar(64) NOT NULL,
 	"direction" "mp_message_direction" NOT NULL,
@@ -4539,7 +4870,7 @@ CREATE TABLE "mp_messages" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_qrcodes" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_qrcodes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"type" "mp_qrcode_type" DEFAULT 'permanent' NOT NULL,
 	"scene_str" varchar(64) NOT NULL,
@@ -4557,7 +4888,7 @@ CREATE TABLE "mp_qrcodes" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_tags" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_tags_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"wechat_tag_id" integer,
 	"name" varchar(30) NOT NULL,
@@ -4570,7 +4901,7 @@ CREATE TABLE "mp_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_template_send_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_template_send_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"template_id" varchar(128) NOT NULL,
 	"openid" varchar(64) NOT NULL,
@@ -4584,7 +4915,7 @@ CREATE TABLE "mp_template_send_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "mp_unmatched_keywords" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "mp_unmatched_keywords_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"account_id" integer NOT NULL,
 	"keyword" varchar(128) NOT NULL,
 	"count" integer DEFAULT 1 NOT NULL,
@@ -4594,7 +4925,7 @@ CREATE TABLE "mp_unmatched_keywords" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_alert_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_alert_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(64) NOT NULL,
 	"dataset_id" integer,
@@ -4630,7 +4961,7 @@ CREATE TABLE "report_alert_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_categories" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dashboard_categories_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"name" varchar(64) NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
@@ -4643,7 +4974,7 @@ CREATE TABLE "report_dashboard_categories" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_comments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dashboard_comments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"dashboard_id" integer NOT NULL,
 	"widget_id" varchar(64),
 	"parent_id" integer,
@@ -4658,7 +4989,7 @@ CREATE TABLE "report_dashboard_comments" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_embed_tokens" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dashboard_embed_tokens_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"dashboard_id" integer NOT NULL,
 	"token" varchar(64) NOT NULL,
 	"token_encrypted" varchar(256),
@@ -4682,7 +5013,7 @@ CREATE TABLE "report_dashboard_favorites" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_shares" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dashboard_shares_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"dashboard_id" integer NOT NULL,
 	"token" varchar(64) NOT NULL,
 	"token_encrypted" varchar(256),
@@ -4702,7 +5033,7 @@ CREATE TABLE "report_dashboard_shares" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_subscriptions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dashboard_subscriptions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"dashboard_id" integer NOT NULL,
 	"cron" varchar(64) NOT NULL,
@@ -4726,7 +5057,7 @@ CREATE TABLE "report_dashboard_subscriptions" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboard_versions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dashboard_versions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"dashboard_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"snapshot" jsonb NOT NULL,
@@ -4739,7 +5070,7 @@ CREATE TABLE "report_dashboard_versions" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dashboards" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dashboards_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"owner_id" integer,
 	"folder_id" integer,
@@ -4765,7 +5096,7 @@ CREATE TABLE "report_dashboards" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dataset_execution_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dataset_execution_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"dataset_id" integer,
 	"datasource_id" integer,
@@ -4786,7 +5117,7 @@ CREATE TABLE "report_dataset_execution_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_datasets" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_datasets_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"owner_id" integer,
 	"folder_id" integer,
@@ -4809,7 +5140,7 @@ CREATE TABLE "report_datasets" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_datasources" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_datasources_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"owner_id" integer,
 	"folder_id" integer,
@@ -4830,7 +5161,7 @@ CREATE TABLE "report_datasources" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_delivery_attempts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_delivery_attempts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"run_id" integer NOT NULL,
 	"channel" varchar(16) NOT NULL,
@@ -4846,7 +5177,7 @@ CREATE TABLE "report_delivery_attempts" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_delivery_runs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_delivery_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"target_type" "report_delivery_target_type" NOT NULL,
 	"subscription_id" integer,
@@ -4877,7 +5208,7 @@ CREATE TABLE "report_delivery_runs" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_folders" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_folders_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"parent_id" integer,
 	"name" varchar(64) NOT NULL,
@@ -4892,7 +5223,7 @@ CREATE TABLE "report_folders" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_print_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_print_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"owner_id" integer,
 	"folder_id" integer,
@@ -4910,7 +5241,7 @@ CREATE TABLE "report_print_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_share_access_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_share_access_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"share_id" integer NOT NULL,
 	"dashboard_id" integer NOT NULL,
 	"action" varchar(16) NOT NULL,
@@ -4920,7 +5251,7 @@ CREATE TABLE "report_share_access_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_asset_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_asset_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"folder_id" integer,
 	"owner_id" integer,
@@ -4940,7 +5271,7 @@ CREATE TABLE "report_asset_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_asset_usage_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_asset_usage_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"resource_type" "report_resource_type" NOT NULL,
 	"resource_id" integer NOT NULL,
@@ -4955,7 +5286,7 @@ CREATE TABLE "report_asset_usage_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_chatbi_messages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_chatbi_messages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"session_id" integer NOT NULL,
 	"user_id" integer,
@@ -4980,7 +5311,7 @@ CREATE TABLE "report_chatbi_messages" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_chatbi_sessions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_chatbi_sessions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"user_id" integer NOT NULL,
 	"title" varchar(128) NOT NULL,
@@ -4997,7 +5328,7 @@ CREATE TABLE "report_chatbi_sessions" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_deprecation_notices" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_deprecation_notices_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"resource_type" "report_resource_type" NOT NULL,
 	"resource_id" integer NOT NULL,
@@ -5017,7 +5348,7 @@ CREATE TABLE "report_deprecation_notices" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dq_anomalies" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dq_anomalies_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"dataset_id" integer NOT NULL,
 	"rule_id" integer,
@@ -5039,7 +5370,7 @@ CREATE TABLE "report_dq_anomalies" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dq_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dq_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"dataset_id" integer NOT NULL,
 	"name" varchar(128) NOT NULL,
@@ -5059,7 +5390,7 @@ CREATE TABLE "report_dq_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dq_runs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dq_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"rule_id" integer NOT NULL,
 	"dataset_id" integer NOT NULL,
@@ -5082,7 +5413,7 @@ CREATE TABLE "report_dq_runs" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_dq_scores" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_dq_scores_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"dataset_id" integer NOT NULL,
 	"score" double precision NOT NULL,
@@ -5095,7 +5426,7 @@ CREATE TABLE "report_dq_scores" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_environment_promotions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_environment_promotions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"resource_type" "report_resource_type" NOT NULL,
 	"resource_id" integer NOT NULL,
@@ -5119,7 +5450,7 @@ CREATE TABLE "report_environment_promotions" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_environments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_environments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"code" varchar(64) NOT NULL,
 	"name" varchar(128) NOT NULL,
@@ -5136,7 +5467,7 @@ CREATE TABLE "report_environments" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_fill_records" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_fill_records_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"template_id" integer NOT NULL,
 	"submitter_id" integer NOT NULL,
@@ -5165,7 +5496,7 @@ CREATE TABLE "report_fill_records" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_fill_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_fill_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"folder_id" integer,
 	"owner_id" integer,
@@ -5189,7 +5520,7 @@ CREATE TABLE "report_fill_templates" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_materialization_snapshots" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_materialization_snapshots_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"dataset_id" integer NOT NULL,
 	"strategy" "report_materialization_strategy" DEFAULT 'full' NOT NULL,
@@ -5214,7 +5545,7 @@ CREATE TABLE "report_materialization_snapshots" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_metrics" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_metrics_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"folder_id" integer,
 	"owner_id" integer,
@@ -5246,7 +5577,7 @@ CREATE TABLE "report_metrics" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_publish_approvals" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_publish_approvals_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"resource_type" "report_resource_type" NOT NULL,
 	"resource_id" integer NOT NULL,
@@ -5266,7 +5597,7 @@ CREATE TABLE "report_publish_approvals" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_query_cost_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_query_cost_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"user_id" integer,
 	"dataset_id" integer,
@@ -5285,7 +5616,7 @@ CREATE TABLE "report_query_cost_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_query_quotas" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_query_quotas_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"scope" "report_quota_scope" NOT NULL,
 	"user_id" integer,
@@ -5303,7 +5634,7 @@ CREATE TABLE "report_query_quotas" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_resource_acls" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_resource_acls_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"resource_type" "report_resource_type" NOT NULL,
 	"resource_id" integer NOT NULL,
@@ -5320,7 +5651,7 @@ CREATE TABLE "report_resource_acls" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_resource_transfers" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_resource_transfers_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"resource_type" "report_resource_type" NOT NULL,
 	"resource_id" integer NOT NULL,
@@ -5339,7 +5670,7 @@ CREATE TABLE "report_resource_transfers" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_sla_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_sla_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"dataset_id" integer NOT NULL,
 	"name" varchar(128) NOT NULL,
@@ -5364,7 +5695,7 @@ CREATE TABLE "report_sla_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "report_sla_violations" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "report_sla_violations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"tenant_id" integer,
 	"rule_id" integer NOT NULL,
 	"dataset_id" integer NOT NULL,
@@ -5384,7 +5715,7 @@ CREATE TABLE "report_sla_violations" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_ad_events" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_ad_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"ad_id" integer NOT NULL,
 	"slot_id" integer NOT NULL,
@@ -5401,7 +5732,7 @@ CREATE TABLE "cms_ad_events" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_ad_slots" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_ad_slots_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"code" varchar(50) NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -5413,7 +5744,7 @@ CREATE TABLE "cms_ad_slots" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_ad_stats" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_ad_stats_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"ad_id" integer NOT NULL,
 	"stat_date" varchar(10) NOT NULL,
 	"views" integer DEFAULT 0 NOT NULL,
@@ -5421,7 +5752,7 @@ CREATE TABLE "cms_ad_stats" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_ads" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_ads_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"slot_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"image" varchar(500),
@@ -5445,7 +5776,7 @@ CREATE TABLE "cms_channel_users" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_channels" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_channels_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"parent_id" integer DEFAULT 0 NOT NULL,
 	"model_id" integer,
@@ -5476,7 +5807,7 @@ CREATE TABLE "cms_channels" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_collect_items" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_collect_items_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"rule_id" integer NOT NULL,
 	"url" varchar(500) NOT NULL,
 	"title" varchar(255),
@@ -5487,7 +5818,7 @@ CREATE TABLE "cms_collect_items" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_collect_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_collect_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"channel_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -5513,7 +5844,7 @@ CREATE TABLE "cms_collect_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_comments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_comments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"content_id" integer NOT NULL,
 	"parent_id" integer DEFAULT 0 NOT NULL,
@@ -5522,6 +5853,7 @@ CREATE TABLE "cms_comments" (
 	"content" text NOT NULL,
 	"like_count" integer DEFAULT 0 NOT NULL,
 	"status" "cms_comment_status" DEFAULT 'pending' NOT NULL,
+	"risk_flag" varchar(32),
 	"ip" varchar(64),
 	"user_agent" varchar(255),
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -5549,7 +5881,7 @@ CREATE TABLE "cms_content_likes" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_content_op_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_content_op_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"content_id" integer NOT NULL,
 	"action" varchar(30) NOT NULL,
 	"detail" varchar(500),
@@ -5572,14 +5904,14 @@ CREATE TABLE "cms_content_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_content_tombstones" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_content_tombstones_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"content_id" integer NOT NULL,
 	"deleted_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "cms_content_versions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_content_versions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"content_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"title" varchar(255) NOT NULL,
@@ -5591,7 +5923,7 @@ CREATE TABLE "cms_content_versions" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_contents" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_contents_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"channel_id" integer NOT NULL,
 	"model_id" integer,
@@ -5657,7 +5989,7 @@ CREATE TABLE "cms_contents" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_distribution_rules" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_distribution_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"source_site_id" integer NOT NULL,
 	"source_channel_id" integer,
@@ -5679,7 +6011,7 @@ CREATE TABLE "cms_distribution_rules" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_error_prone_words" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_error_prone_words_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"word" varchar(50) NOT NULL,
 	"correction" varchar(50) NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
@@ -5692,7 +6024,7 @@ CREATE TABLE "cms_error_prone_words" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_form_submissions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_form_submissions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"form_id" integer NOT NULL,
 	"data" jsonb NOT NULL,
 	"ip" varchar(64),
@@ -5701,7 +6033,7 @@ CREATE TABLE "cms_form_submissions" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_forms" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_forms_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"code" varchar(50) NOT NULL,
 	"name" varchar(100) NOT NULL,
@@ -5719,7 +6051,7 @@ CREATE TABLE "cms_forms" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_friend_link_groups" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_friend_link_groups_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"code" varchar(50) NOT NULL,
@@ -5733,7 +6065,7 @@ CREATE TABLE "cms_friend_link_groups" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_friend_links" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_friend_links_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"group_id" integer,
 	"name" varchar(100) NOT NULL,
@@ -5749,7 +6081,7 @@ CREATE TABLE "cms_friend_links" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_hotword_groups" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_hotword_groups_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"sort" integer DEFAULT 0 NOT NULL,
@@ -5761,7 +6093,7 @@ CREATE TABLE "cms_hotword_groups" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_hotwords" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_hotwords_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"group_id" integer,
 	"keyword" varchar(100) NOT NULL,
@@ -5774,14 +6106,14 @@ CREATE TABLE "cms_hotwords" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_interaction_answers" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_interaction_answers_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"response_id" integer NOT NULL,
 	"question_id" integer NOT NULL,
 	"value" jsonb NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "cms_interaction_questions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_interaction_questions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"interaction_id" integer NOT NULL,
 	"label" varchar(200) NOT NULL,
 	"type" "cms_interaction_question_type" DEFAULT 'single' NOT NULL,
@@ -5799,7 +6131,7 @@ CREATE TABLE "cms_interaction_questions" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_interaction_responses" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_interaction_responses_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"interaction_id" integer NOT NULL,
 	"member_id" integer,
 	"visitor_hash" varchar(64) NOT NULL,
@@ -5810,7 +6142,7 @@ CREATE TABLE "cms_interaction_responses" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_interactions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_interactions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"code" varchar(50) NOT NULL,
 	"kind" "cms_interaction_kind" NOT NULL,
@@ -5834,7 +6166,7 @@ CREATE TABLE "cms_interactions" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_link_words" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_link_words_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"keyword" varchar(50) NOT NULL,
 	"url" varchar(500) NOT NULL,
@@ -5847,7 +6179,7 @@ CREATE TABLE "cms_link_words" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_member_subscriptions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_member_subscriptions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"site_id" integer NOT NULL,
 	"subject_type" "cms_subscription_subject_type" NOT NULL,
@@ -5862,7 +6194,7 @@ CREATE TABLE "cms_member_subscriptions" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_member_view_history" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_member_view_history_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"member_id" integer NOT NULL,
 	"content_id" integer NOT NULL,
 	"site_id" integer NOT NULL,
@@ -5872,7 +6204,7 @@ CREATE TABLE "cms_member_view_history" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_model_fields" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_model_fields_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"model_id" integer NOT NULL,
 	"name" varchar(50) NOT NULL,
 	"label" varchar(100) NOT NULL,
@@ -5896,7 +6228,7 @@ CREATE TABLE "cms_model_fields" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_models" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_models_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"owner_site_id" integer,
 	"name" varchar(100) NOT NULL,
 	"code" varchar(50) NOT NULL,
@@ -5912,7 +6244,7 @@ CREATE TABLE "cms_models" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_open_app_grants" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_open_app_grants_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"client_id" varchar(64) NOT NULL,
 	"site_id" integer NOT NULL,
 	"channel_ids" integer[] DEFAULT '{}' NOT NULL,
@@ -5926,7 +6258,7 @@ CREATE TABLE "cms_open_app_grants" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_page_block_acls" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_page_block_acls_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"page_id" integer NOT NULL,
 	"block_id" varchar(100) NOT NULL,
 	"subject_type" "cms_page_block_acl_subject_type" NOT NULL,
@@ -5935,7 +6267,7 @@ CREATE TABLE "cms_page_block_acls" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_pages" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_pages_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"slug" varchar(100) NOT NULL,
@@ -5955,7 +6287,7 @@ CREATE TABLE "cms_pages" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_publish_artifacts" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_publish_artifacts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"task_id" integer NOT NULL,
 	"site_id" integer NOT NULL,
 	"target_type" "cms_publish_target_type" NOT NULL,
@@ -5975,7 +6307,7 @@ CREATE TABLE "cms_publish_artifacts" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_push_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_push_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"engine" varchar(20) NOT NULL,
 	"urls" jsonb NOT NULL,
@@ -5986,7 +6318,7 @@ CREATE TABLE "cms_push_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_redirects" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_redirects_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"from_path" varchar(500) NOT NULL,
 	"to_url" varchar(500) NOT NULL,
@@ -6000,7 +6332,7 @@ CREATE TABLE "cms_redirects" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_resource_folders" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_resource_folders_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"parent_id" integer,
 	"name" varchar(100) NOT NULL,
@@ -6012,7 +6344,7 @@ CREATE TABLE "cms_resource_folders" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_resource_refs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_resource_refs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"resource_id" integer NOT NULL,
 	"owner_type" "cms_resource_owner_type" NOT NULL,
@@ -6022,7 +6354,7 @@ CREATE TABLE "cms_resource_refs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_resources" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_resources_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"folder_id" integer,
 	"type" "cms_resource_type" DEFAULT 'image' NOT NULL,
@@ -6043,7 +6375,7 @@ CREATE TABLE "cms_resources" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_search_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_search_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"keyword" varchar(64) NOT NULL,
 	"result_count" integer DEFAULT 0 NOT NULL,
@@ -6053,7 +6385,7 @@ CREATE TABLE "cms_search_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_search_words" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_search_words_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"word" varchar(50) NOT NULL,
 	"type" "cms_search_word_type" DEFAULT 'extension' NOT NULL,
@@ -6068,7 +6400,7 @@ CREATE TABLE "cms_search_words" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_sensitive_words" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_sensitive_words_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"word" varchar(50) NOT NULL,
 	"replace_with" varchar(50),
 	"status" "status" DEFAULT 'enabled' NOT NULL,
@@ -6105,7 +6437,7 @@ CREATE TABLE "cms_site_users" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_sites" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_sites_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"parent_id" integer,
 	"name" varchar(100) NOT NULL,
 	"code" varchar(50) NOT NULL,
@@ -6138,7 +6470,7 @@ CREATE TABLE "cms_sites" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_tags" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_tags_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"name" varchar(50) NOT NULL,
 	"slug" varchar(100) NOT NULL,
@@ -6151,7 +6483,7 @@ CREATE TABLE "cms_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_visit_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_visit_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"path" varchar(500) NOT NULL,
 	"page_kind" varchar(20) DEFAULT 'other' NOT NULL,
@@ -6164,7 +6496,7 @@ CREATE TABLE "cms_visit_logs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_widget_refs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_widget_refs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"widget_id" integer NOT NULL,
 	"owner_type" "cms_widget_ref_owner_type" NOT NULL,
@@ -6177,7 +6509,7 @@ CREATE TABLE "cms_widget_refs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_widget_source_refs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_widget_source_refs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"widget_id" integer NOT NULL,
 	"item_id" varchar(100) NOT NULL,
@@ -6187,7 +6519,7 @@ CREATE TABLE "cms_widget_source_refs" (
 );
 --> statement-breakpoint
 CREATE TABLE "cms_widgets" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "cms_widgets_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"site_id" integer NOT NULL,
 	"name" varchar(100) NOT NULL,
 	"code" varchar(100) NOT NULL,
@@ -6208,7 +6540,7 @@ CREATE TABLE "cms_widgets" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_comments" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_comments_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"doc_id" integer NOT NULL,
 	"parent_id" integer,
 	"content" varchar(1000) NOT NULL,
@@ -6248,7 +6580,7 @@ CREATE TABLE "wiki_doc_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_doc_versions" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_doc_versions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"doc_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"title" varchar(200) NOT NULL,
@@ -6260,14 +6592,14 @@ CREATE TABLE "wiki_doc_versions" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_doc_views" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_doc_views_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"doc_id" integer NOT NULL,
 	"user_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_docs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_docs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"space_id" integer NOT NULL,
 	"parent_id" integer,
 	"title" varchar(200) NOT NULL,
@@ -6296,7 +6628,7 @@ CREATE TABLE "wiki_docs" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_review_records" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_review_records_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"doc_id" integer NOT NULL,
 	"version" integer NOT NULL,
 	"action" "wiki_review_action" NOT NULL,
@@ -6306,7 +6638,7 @@ CREATE TABLE "wiki_review_records" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_search_logs" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_search_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"keyword" varchar(200) NOT NULL,
 	"result_count" integer DEFAULT 0 NOT NULL,
 	"clicked_doc_id" integer,
@@ -6324,7 +6656,7 @@ CREATE TABLE "wiki_space_members" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_spaces" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_spaces_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"description" varchar(300),
 	"icon" varchar(50),
@@ -6340,7 +6672,7 @@ CREATE TABLE "wiki_spaces" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_tags" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_tags_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(50) NOT NULL,
 	"color" varchar(20),
 	"created_by" integer,
@@ -6351,7 +6683,7 @@ CREATE TABLE "wiki_tags" (
 );
 --> statement-breakpoint
 CREATE TABLE "wiki_templates" (
-	"id" serial PRIMARY KEY NOT NULL,
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "wiki_templates_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(100) NOT NULL,
 	"description" varchar(300),
 	"content" text DEFAULT '' NOT NULL,
@@ -6361,6 +6693,515 @@ CREATE TABLE "wiki_templates" (
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "short_link_clicks" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "short_link_clicks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"link_id" integer NOT NULL,
+	"visitor_id" varchar(40),
+	"ip" varchar(64),
+	"country" varchar(64),
+	"province" varchar(64),
+	"city" varchar(64),
+	"device_type" varchar(16),
+	"os" varchar(64),
+	"browser" varchar(64),
+	"referer" varchar(512),
+	"is_bot" boolean DEFAULT false NOT NULL,
+	"clicked_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "short_link_daily_stats" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "short_link_daily_stats_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"link_id" integer NOT NULL,
+	"stat_date" date NOT NULL,
+	"pv" integer DEFAULT 0 NOT NULL,
+	"uv" integer DEFAULT 0 NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "short_links" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "short_links_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"code" varchar(32) NOT NULL,
+	"target_url" text NOT NULL,
+	"title" varchar(128),
+	"redirect_type" "short_link_redirect_type" DEFAULT '302' NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"expires_at" timestamp,
+	"max_visits" integer,
+	"password" varchar(32),
+	"utm_source" varchar(128),
+	"utm_medium" varchar(128),
+	"utm_campaign" varchar(128),
+	"utm_term" varchar(128),
+	"utm_content" varchar(128),
+	"biz_type" varchar(32) DEFAULT 'custom' NOT NULL,
+	"biz_ref" varchar(64),
+	"remark" varchar(256),
+	"total_pv" integer DEFAULT 0 NOT NULL,
+	"last_visit_at" timestamp,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "short_links_code_unique" UNIQUE("code")
+);
+--> statement-breakpoint
+CREATE TABLE "marketing_campaigns" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "marketing_campaigns_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(128) NOT NULL,
+	"type" "marketing_campaign_type" DEFAULT 'lottery' NOT NULL,
+	"status" "marketing_campaign_status" DEFAULT 'draft' NOT NULL,
+	"start_at" timestamp NOT NULL,
+	"end_at" timestamp NOT NULL,
+	"per_member_limit" integer DEFAULT 1 NOT NULL,
+	"daily_per_member_limit" integer,
+	"landing_url" varchar(2048),
+	"description" text,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "marketing_participations" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "marketing_participations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"campaign_id" integer NOT NULL,
+	"member_id" integer NOT NULL,
+	"prize_id" integer,
+	"prize_name" varchar(128),
+	"grant_status" "marketing_grant_status" DEFAULT 'none' NOT NULL,
+	"grant_note" varchar(256),
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "marketing_prizes" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "marketing_prizes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"campaign_id" integer NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"prize_type" "marketing_prize_type" NOT NULL,
+	"points" integer,
+	"coupon_id" integer,
+	"stock" integer DEFAULT 0 NOT NULL,
+	"total_stock" integer DEFAULT 0 NOT NULL,
+	"weight" integer DEFAULT 1 NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_alarm_rules" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_alarm_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(128) NOT NULL,
+	"product_id" integer NOT NULL,
+	"device_id" integer,
+	"rule_type" "iot_alarm_rule_type" NOT NULL,
+	"property_identifier" varchar(64),
+	"operator" "iot_compare_op",
+	"threshold" double precision,
+	"consecutive_count" integer DEFAULT 1 NOT NULL,
+	"offline_minutes" integer,
+	"event_identifier" varchar(64),
+	"level" "iot_alarm_level" DEFAULT 'warning' NOT NULL,
+	"notify_user_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"escalate_after_minutes" integer,
+	"escalate_user_ids" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_alarms" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_alarms_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"rule_id" integer,
+	"rule_name" varchar(128) NOT NULL,
+	"device_id" integer NOT NULL,
+	"rule_type" "iot_alarm_rule_type" NOT NULL,
+	"level" "iot_alarm_level" NOT NULL,
+	"status" "iot_alarm_status" DEFAULT 'firing' NOT NULL,
+	"message" varchar(512) NOT NULL,
+	"context" jsonb,
+	"fired_at" timestamp DEFAULT now() NOT NULL,
+	"acknowledged_at" timestamp,
+	"acknowledged_by" integer,
+	"escalated_at" timestamp,
+	"resolved_at" timestamp,
+	"resolved_by" integer,
+	"resolve_note" varchar(512),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_automation_runs" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_automation_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"automation_id" integer NOT NULL,
+	"automation_name" varchar(128) NOT NULL,
+	"device_id" integer NOT NULL,
+	"trigger_context" jsonb NOT NULL,
+	"results" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"success" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_automations" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_automations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(128) NOT NULL,
+	"product_id" integer NOT NULL,
+	"device_id" integer,
+	"trigger_type" "iot_automation_trigger" NOT NULL,
+	"property_identifier" varchar(64),
+	"operator" "iot_compare_op",
+	"threshold" double precision,
+	"event_identifier" varchar(64),
+	"decision_rule_key" varchar(64),
+	"cooldown_seconds" integer DEFAULT 60 NOT NULL,
+	"actions" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_commands" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_commands_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"device_id" integer NOT NULL,
+	"service" varchar(64) NOT NULL,
+	"params" jsonb,
+	"status" "iot_command_status" DEFAULT 'pending' NOT NULL,
+	"expire_at" timestamp NOT NULL,
+	"sent_at" timestamp,
+	"acked_at" timestamp,
+	"response" jsonb,
+	"error_msg" varchar(256),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_device_events" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_device_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"device_id" integer NOT NULL,
+	"kind" "iot_device_event_kind" NOT NULL,
+	"identifier" varchar(64) NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"level" "iot_event_level" DEFAULT 'info' NOT NULL,
+	"payload" jsonb,
+	"reported_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_device_group_members" (
+	"group_id" integer NOT NULL,
+	"device_id" integer NOT NULL,
+	CONSTRAINT "iot_device_group_members_group_id_device_id_pk" PRIMARY KEY("group_id","device_id")
+);
+--> statement-breakpoint
+CREATE TABLE "iot_device_groups" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_device_groups_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(64) NOT NULL,
+	"description" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_device_logs" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_device_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"device_id" integer NOT NULL,
+	"level" "iot_log_level" DEFAULT 'info' NOT NULL,
+	"tag" varchar(64),
+	"content" varchar(1024) NOT NULL,
+	"reported_at" timestamp NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_device_state" (
+	"device_id" integer PRIMARY KEY NOT NULL,
+	"reported" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"reported_at" timestamp,
+	"desired" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"desired_version" integer DEFAULT 0 NOT NULL,
+	"desired_at" timestamp,
+	"online" boolean DEFAULT false NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_device_whitelist" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_device_whitelist_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"product_id" integer NOT NULL,
+	"sn" varchar(64) NOT NULL,
+	"used" boolean DEFAULT false NOT NULL,
+	"used_at" timestamp,
+	"device_id" integer,
+	"remark" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "iot_device_whitelist_sn_unique" UNIQUE("sn")
+);
+--> statement-breakpoint
+CREATE TABLE "iot_devices" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_devices_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"sn" varchar(64) NOT NULL,
+	"secret" varchar(64) NOT NULL,
+	"product_id" integer NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"node_type" "iot_node_type" DEFAULT 'direct' NOT NULL,
+	"gateway_id" integer,
+	"latitude" double precision,
+	"longitude" double precision,
+	"address" varchar(256),
+	"firmware_version" varchar(32),
+	"activated_at" timestamp,
+	"last_seen_at" timestamp,
+	"remark" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "iot_devices_sn_unique" UNIQUE("sn")
+);
+--> statement-breakpoint
+CREATE TABLE "iot_firmwares" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_firmwares_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"product_id" integer NOT NULL,
+	"version" varchar(32) NOT NULL,
+	"file_id" uuid,
+	"file_name" varchar(255) NOT NULL,
+	"size" bigint DEFAULT 0 NOT NULL,
+	"sha256" varchar(64) NOT NULL,
+	"release_notes" text,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_forward_logs" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_forward_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"rule_id" integer NOT NULL,
+	"rule_name" varchar(128) NOT NULL,
+	"source" "iot_forward_source" NOT NULL,
+	"device_id" integer,
+	"payload" jsonb NOT NULL,
+	"status" "iot_forward_status" NOT NULL,
+	"response_status" integer,
+	"error_message" varchar(512),
+	"duration_ms" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_forward_rules" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_forward_rules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(128) NOT NULL,
+	"source" "iot_forward_source" NOT NULL,
+	"product_id" integer,
+	"group_id" integer,
+	"url" varchar(512) NOT NULL,
+	"secret" varchar(128),
+	"headers" jsonb,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"consecutive_failures" integer DEFAULT 0 NOT NULL,
+	"auto_disabled_at" timestamp,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_maintenance_windows" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_maintenance_windows_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(128) NOT NULL,
+	"product_id" integer,
+	"group_id" integer,
+	"device_id" integer,
+	"start_at" timestamp NOT NULL,
+	"end_at" timestamp NOT NULL,
+	"reason" varchar(256),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_online_snapshots" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_online_snapshots_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"total_count" integer NOT NULL,
+	"online_count" integer NOT NULL,
+	"sampled_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_ota_task_devices" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_ota_task_devices_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"task_id" integer NOT NULL,
+	"device_id" integer NOT NULL,
+	"status" "iot_ota_device_status" DEFAULT 'pending' NOT NULL,
+	"progress" integer DEFAULT 0 NOT NULL,
+	"from_version" varchar(32),
+	"batch_index" integer DEFAULT 1 NOT NULL,
+	"error_msg" varchar(256),
+	"notified_at" timestamp,
+	"finished_at" timestamp,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_ota_tasks" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_ota_tasks_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"title" varchar(128) NOT NULL,
+	"firmware_id" integer NOT NULL,
+	"product_id" integer NOT NULL,
+	"firmware_version" varchar(32) NOT NULL,
+	"status" "iot_ota_task_status" DEFAULT 'running' NOT NULL,
+	"timeout_minutes" integer DEFAULT 30 NOT NULL,
+	"batch_size" integer,
+	"current_batch" integer DEFAULT 1 NOT NULL,
+	"failure_threshold" integer,
+	"total_count" integer DEFAULT 0 NOT NULL,
+	"succeeded_count" integer DEFAULT 0 NOT NULL,
+	"failed_count" integer DEFAULT 0 NOT NULL,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_product_events" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_product_events_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"product_id" integer NOT NULL,
+	"identifier" varchar(64) NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"level" "iot_event_level" DEFAULT 'info' NOT NULL,
+	"params" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"description" varchar(256),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_product_properties" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_product_properties_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"product_id" integer NOT NULL,
+	"identifier" varchar(64) NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"data_type" "iot_property_type" NOT NULL,
+	"access_mode" "iot_access_mode" DEFAULT 'r' NOT NULL,
+	"unit" varchar(16),
+	"min_value" double precision,
+	"max_value" double precision,
+	"enum_options" jsonb,
+	"featured" boolean DEFAULT false NOT NULL,
+	"anomaly_enabled" boolean DEFAULT false NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"description" varchar(256),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_product_services" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_product_services_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"product_id" integer NOT NULL,
+	"identifier" varchar(64) NOT NULL,
+	"name" varchar(64) NOT NULL,
+	"params" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"danger" boolean DEFAULT false NOT NULL,
+	"sort" integer DEFAULT 0 NOT NULL,
+	"description" varchar(256),
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_products" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_products_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(128) NOT NULL,
+	"description" text,
+	"validation_mode" "iot_validation_mode" DEFAULT 'loose' NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"registration_secret" varchar(64),
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_schedule_runs" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_schedule_runs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"schedule_id" integer NOT NULL,
+	"schedule_name" varchar(128) NOT NULL,
+	"device_count" integer DEFAULT 0 NOT NULL,
+	"success_count" integer DEFAULT 0 NOT NULL,
+	"failed_count" integer DEFAULT 0 NOT NULL,
+	"errors" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_schedules" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_schedules_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"name" varchar(128) NOT NULL,
+	"schedule_type" "iot_schedule_type" NOT NULL,
+	"cron_expression" varchar(64),
+	"run_at" timestamp,
+	"product_id" integer NOT NULL,
+	"group_id" integer,
+	"device_id" integer,
+	"action_type" "iot_schedule_action" NOT NULL,
+	"service" varchar(64),
+	"params" jsonb,
+	"desired" jsonb,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"next_run_at" timestamp,
+	"last_run_at" timestamp,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_telemetry" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_telemetry_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"device_id" integer NOT NULL,
+	"metrics" jsonb NOT NULL,
+	"reported_at" timestamp DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "iot_telemetry_hourly" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "iot_telemetry_hourly_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"device_id" integer NOT NULL,
+	"property" varchar(64) NOT NULL,
+	"bucket" timestamp NOT NULL,
+	"min_value" double precision NOT NULL,
+	"max_value" double precision NOT NULL,
+	"avg_value" double precision NOT NULL,
+	"last_value" double precision NOT NULL,
+	"count" integer NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "departments" ADD CONSTRAINT "departments_leader_id_users_id_fk" FOREIGN KEY ("leader_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6526,6 +7367,11 @@ ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_tenant_id_tenants_id_fk"
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_assignee_id_users_id_fk" FOREIGN KEY ("assignee_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "error_groups" ADD CONSTRAINT "error_groups_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "replay_access_logs" ADD CONSTRAINT "replay_access_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "replay_click_points" ADD CONSTRAINT "replay_click_points_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "replay_segments" ADD CONSTRAINT "replay_segments_replay_id_replay_sessions_id_fk" FOREIGN KEY ("replay_id") REFERENCES "public"."replay_sessions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "replay_sessions" ADD CONSTRAINT "replay_sessions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "replay_sessions" ADD CONSTRAINT "replay_sessions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_maps" ADD CONSTRAINT "source_maps_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_maps" ADD CONSTRAINT "source_maps_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "source_maps" ADD CONSTRAINT "source_maps_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6536,6 +7382,9 @@ ALTER TABLE "announcement_recipients" ADD CONSTRAINT "announcement_recipients_an
 ALTER TABLE "announcements" ADD CONSTRAINT "announcements_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "announcements" ADD CONSTRAINT "announcements_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "announcements" ADD CONSTRAINT "announcements_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_automation_runs" ADD CONSTRAINT "workflow_automation_runs_rule_id_workflow_automations_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."workflow_automations"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_automation_runs" ADD CONSTRAINT "workflow_automation_runs_instance_id_workflow_instances_id_fk" FOREIGN KEY ("instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workflow_automation_runs" ADD CONSTRAINT "workflow_automation_runs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_automations" ADD CONSTRAINT "workflow_automations_definition_id_workflow_definitions_id_fk" FOREIGN KEY ("definition_id") REFERENCES "public"."workflow_definitions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_automations" ADD CONSTRAINT "workflow_automations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_automations" ADD CONSTRAINT "workflow_automations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6636,6 +7485,9 @@ ALTER TABLE "workflow_templates" ADD CONSTRAINT "workflow_templates_created_by_u
 ALTER TABLE "workflow_templates" ADD CONSTRAINT "workflow_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_tokens" ADD CONSTRAINT "workflow_tokens_instance_id_workflow_instances_id_fk" FOREIGN KEY ("instance_id") REFERENCES "public"."workflow_instances"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workflow_tokens" ADD CONSTRAINT "workflow_tokens_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "broadcast_campaigns" ADD CONSTRAINT "broadcast_campaigns_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "broadcast_campaigns" ADD CONSTRAINT "broadcast_campaigns_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "broadcast_campaigns" ADD CONSTRAINT "broadcast_campaigns_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_configs" ADD CONSTRAINT "email_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_configs" ADD CONSTRAINT "email_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "email_send_logs" ADD CONSTRAINT "email_send_logs_template_id_email_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."email_templates"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6657,6 +7509,12 @@ ALTER TABLE "notification_event_overrides" ADD CONSTRAINT "notification_event_ov
 ALTER TABLE "notification_event_overrides" ADD CONSTRAINT "notification_event_overrides_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification_event_overrides" ADD CONSTRAINT "notification_event_overrides_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notification_outbox" ADD CONSTRAINT "notification_outbox_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "push_configs" ADD CONSTRAINT "push_configs_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "push_configs" ADD CONSTRAINT "push_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "push_configs" ADD CONSTRAINT "push_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "push_send_logs" ADD CONSTRAINT "push_send_logs_config_id_push_configs_id_fk" FOREIGN KEY ("config_id") REFERENCES "public"."push_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "push_send_logs" ADD CONSTRAINT "push_send_logs_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "push_send_logs" ADD CONSTRAINT "push_send_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sms_configs" ADD CONSTRAINT "sms_configs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sms_configs" ADD CONSTRAINT "sms_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "sms_configs" ADD CONSTRAINT "sms_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6674,8 +7532,8 @@ ALTER TABLE "db_backups" ADD CONSTRAINT "db_backups_updated_by_users_id_fk" FORE
 ALTER TABLE "db_query_favorites" ADD CONSTRAINT "db_query_favorites_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tags" ADD CONSTRAINT "tags_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tags" ADD CONSTRAINT "tags_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rule_decision_executions" ADD CONSTRAINT "rule_decision_executions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "rule_decision_executions" ADD CONSTRAINT "rule_decision_executions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_asset_versions" ADD CONSTRAINT "rule_asset_versions_published_by_users_id_fk" FOREIGN KEY ("published_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_asset_versions" ADD CONSTRAINT "rule_asset_versions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_flows" ADD CONSTRAINT "rule_decision_flows_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_flows" ADD CONSTRAINT "rule_decision_flows_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_flows" ADD CONSTRAINT "rule_decision_flows_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6687,11 +7545,16 @@ ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_review_r
 ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_decision_tables" ADD CONSTRAINT "rule_decision_tables_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_executions" ADD CONSTRAINT "rule_executions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_executions" ADD CONSTRAINT "rule_executions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_list_items" ADD CONSTRAINT "rule_list_items_list_id_rule_lists_id_fk" FOREIGN KEY ("list_id") REFERENCES "public"."rule_lists"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_list_items" ADD CONSTRAINT "rule_list_items_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_lists" ADD CONSTRAINT "rule_lists_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_lists" ADD CONSTRAINT "rule_lists_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_lists" ADD CONSTRAINT "rule_lists_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_scorecards" ADD CONSTRAINT "rule_scorecards_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_scorecards" ADD CONSTRAINT "rule_scorecards_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "rule_scorecards" ADD CONSTRAINT "rule_scorecards_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_test_cases" ADD CONSTRAINT "rule_test_cases_table_id_rule_decision_tables_id_fk" FOREIGN KEY ("table_id") REFERENCES "public"."rule_decision_tables"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_test_cases" ADD CONSTRAINT "rule_test_cases_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "rule_test_cases" ADD CONSTRAINT "rule_test_cases_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6844,10 +7707,6 @@ ALTER TABLE "ai_agents" ADD CONSTRAINT "ai_agents_user_id_users_id_fk" FOREIGN K
 ALTER TABLE "ai_arena_votes" ADD CONSTRAINT "ai_arena_votes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_conversations" ADD CONSTRAINT "ai_conversations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_conversations" ADD CONSTRAINT "ai_conversations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ai_eval_runs" ADD CONSTRAINT "ai_eval_runs_set_id_ai_eval_sets_id_fk" FOREIGN KEY ("set_id") REFERENCES "public"."ai_eval_sets"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ai_eval_runs" ADD CONSTRAINT "ai_eval_runs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ai_eval_sets" ADD CONSTRAINT "ai_eval_sets_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ai_eval_sets" ADD CONSTRAINT "ai_eval_sets_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_http_tools" ADD CONSTRAINT "ai_http_tools_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_http_tools" ADD CONSTRAINT "ai_http_tools_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_kb_chunks" ADD CONSTRAINT "ai_kb_chunks_kb_id_ai_knowledge_bases_id_fk" FOREIGN KEY ("kb_id") REFERENCES "public"."ai_knowledge_bases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -6864,7 +7723,7 @@ ALTER TABLE "ai_provider_configs" ADD CONSTRAINT "ai_provider_configs_created_by
 ALTER TABLE "ai_provider_configs" ADD CONSTRAINT "ai_provider_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_shared_conversations" ADD CONSTRAINT "ai_shared_conversations_conversation_id_ai_conversations_id_fk" FOREIGN KEY ("conversation_id") REFERENCES "public"."ai_conversations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_shared_conversations" ADD CONSTRAINT "ai_shared_conversations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "ai_user_preferences" ADD CONSTRAINT "ai_user_preferences_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ai_user_settings" ADD CONSTRAINT "ai_user_settings_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_ai_configs" ADD CONSTRAINT "user_ai_configs_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_scopes" ADD CONSTRAINT "api_scopes_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_scopes" ADD CONSTRAINT "api_scopes_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6889,6 +7748,8 @@ ALTER TABLE "terminal_recordings" ADD CONSTRAINT "terminal_recordings_user_id_us
 ALTER TABLE "terminal_recordings" ADD CONSTRAINT "terminal_recordings_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "terminal_sessions" ADD CONSTRAINT "terminal_sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "terminal_sessions" ADD CONSTRAINT "terminal_sessions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ops_hosts" ADD CONSTRAINT "ops_hosts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ops_hosts" ADD CONSTRAINT "ops_hosts_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "checkin_milestones" ADD CONSTRAINT "checkin_milestones_coupon_id_coupons_id_fk" FOREIGN KEY ("coupon_id") REFERENCES "public"."coupons"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "checkin_milestones" ADD CONSTRAINT "checkin_milestones_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "checkin_milestones" ADD CONSTRAINT "checkin_milestones_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -6933,6 +7794,19 @@ ALTER TABLE "monitor_alert_rules" ADD CONSTRAINT "monitor_alert_rules_created_by
 ALTER TABLE "monitor_alert_rules" ADD CONSTRAINT "monitor_alert_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ssl_certificates" ADD CONSTRAINT "ssl_certificates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ssl_certificates" ADD CONSTRAINT "ssl_certificates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_artifacts" ADD CONSTRAINT "app_artifacts_release_id_app_releases_id_fk" FOREIGN KEY ("release_id") REFERENCES "public"."app_releases"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_artifacts" ADD CONSTRAINT "app_artifacts_file_id_managed_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."managed_files"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_artifacts" ADD CONSTRAINT "app_artifacts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_artifacts" ADD CONSTRAINT "app_artifacts_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_release_events" ADD CONSTRAINT "app_release_events_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_release_events" ADD CONSTRAINT "app_release_events_release_id_app_releases_id_fk" FOREIGN KEY ("release_id") REFERENCES "public"."app_releases"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_release_events" ADD CONSTRAINT "app_release_events_artifact_id_app_artifacts_id_fk" FOREIGN KEY ("artifact_id") REFERENCES "public"."app_artifacts"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_releases" ADD CONSTRAINT "app_releases_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_releases" ADD CONSTRAINT "app_releases_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_releases" ADD CONSTRAINT "app_releases_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "client_apps" ADD CONSTRAINT "client_apps_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "client_apps" ADD CONSTRAINT "client_apps_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "client_devices" ADD CONSTRAINT "client_devices_app_id_client_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."client_apps"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_accounts" ADD CONSTRAINT "mp_accounts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_accounts" ADD CONSTRAINT "mp_accounts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "mp_accounts" ADD CONSTRAINT "mp_accounts_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -7369,6 +8243,98 @@ ALTER TABLE "wiki_tags" ADD CONSTRAINT "wiki_tags_created_by_users_id_fk" FOREIG
 ALTER TABLE "wiki_tags" ADD CONSTRAINT "wiki_tags_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "wiki_templates" ADD CONSTRAINT "wiki_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "wiki_templates" ADD CONSTRAINT "wiki_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "short_link_clicks" ADD CONSTRAINT "short_link_clicks_link_id_short_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."short_links"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "short_link_daily_stats" ADD CONSTRAINT "short_link_daily_stats_link_id_short_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."short_links"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "short_links" ADD CONSTRAINT "short_links_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "short_links" ADD CONSTRAINT "short_links_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "short_links" ADD CONSTRAINT "short_links_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "marketing_campaigns" ADD CONSTRAINT "marketing_campaigns_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "marketing_campaigns" ADD CONSTRAINT "marketing_campaigns_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "marketing_campaigns" ADD CONSTRAINT "marketing_campaigns_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "marketing_participations" ADD CONSTRAINT "marketing_participations_campaign_id_marketing_campaigns_id_fk" FOREIGN KEY ("campaign_id") REFERENCES "public"."marketing_campaigns"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "marketing_participations" ADD CONSTRAINT "marketing_participations_prize_id_marketing_prizes_id_fk" FOREIGN KEY ("prize_id") REFERENCES "public"."marketing_prizes"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "marketing_prizes" ADD CONSTRAINT "marketing_prizes_campaign_id_marketing_campaigns_id_fk" FOREIGN KEY ("campaign_id") REFERENCES "public"."marketing_campaigns"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "marketing_prizes" ADD CONSTRAINT "marketing_prizes_coupon_id_coupons_id_fk" FOREIGN KEY ("coupon_id") REFERENCES "public"."coupons"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_alarm_rules" ADD CONSTRAINT "iot_alarm_rules_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_alarm_rules" ADD CONSTRAINT "iot_alarm_rules_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_alarm_rules" ADD CONSTRAINT "iot_alarm_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_alarm_rules" ADD CONSTRAINT "iot_alarm_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_alarm_rules" ADD CONSTRAINT "iot_alarm_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_alarms" ADD CONSTRAINT "iot_alarms_rule_id_iot_alarm_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."iot_alarm_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_alarms" ADD CONSTRAINT "iot_alarms_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_automation_runs" ADD CONSTRAINT "iot_automation_runs_automation_id_iot_automations_id_fk" FOREIGN KEY ("automation_id") REFERENCES "public"."iot_automations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_automation_runs" ADD CONSTRAINT "iot_automation_runs_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_automations" ADD CONSTRAINT "iot_automations_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_automations" ADD CONSTRAINT "iot_automations_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_automations" ADD CONSTRAINT "iot_automations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_automations" ADD CONSTRAINT "iot_automations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_automations" ADD CONSTRAINT "iot_automations_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_commands" ADD CONSTRAINT "iot_commands_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_commands" ADD CONSTRAINT "iot_commands_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_commands" ADD CONSTRAINT "iot_commands_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_events" ADD CONSTRAINT "iot_device_events_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_group_members" ADD CONSTRAINT "iot_device_group_members_group_id_iot_device_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."iot_device_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_group_members" ADD CONSTRAINT "iot_device_group_members_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_groups" ADD CONSTRAINT "iot_device_groups_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_groups" ADD CONSTRAINT "iot_device_groups_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_groups" ADD CONSTRAINT "iot_device_groups_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_logs" ADD CONSTRAINT "iot_device_logs_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_state" ADD CONSTRAINT "iot_device_state_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_whitelist" ADD CONSTRAINT "iot_device_whitelist_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_whitelist" ADD CONSTRAINT "iot_device_whitelist_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_whitelist" ADD CONSTRAINT "iot_device_whitelist_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_whitelist" ADD CONSTRAINT "iot_device_whitelist_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_device_whitelist" ADD CONSTRAINT "iot_device_whitelist_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_devices" ADD CONSTRAINT "iot_devices_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_devices" ADD CONSTRAINT "iot_devices_gateway_id_iot_devices_id_fk" FOREIGN KEY ("gateway_id") REFERENCES "public"."iot_devices"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_devices" ADD CONSTRAINT "iot_devices_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_devices" ADD CONSTRAINT "iot_devices_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_devices" ADD CONSTRAINT "iot_devices_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_firmwares" ADD CONSTRAINT "iot_firmwares_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_firmwares" ADD CONSTRAINT "iot_firmwares_file_id_managed_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."managed_files"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_firmwares" ADD CONSTRAINT "iot_firmwares_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_firmwares" ADD CONSTRAINT "iot_firmwares_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_firmwares" ADD CONSTRAINT "iot_firmwares_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_forward_logs" ADD CONSTRAINT "iot_forward_logs_rule_id_iot_forward_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."iot_forward_rules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_forward_rules" ADD CONSTRAINT "iot_forward_rules_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_forward_rules" ADD CONSTRAINT "iot_forward_rules_group_id_iot_device_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."iot_device_groups"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_forward_rules" ADD CONSTRAINT "iot_forward_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_forward_rules" ADD CONSTRAINT "iot_forward_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_forward_rules" ADD CONSTRAINT "iot_forward_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_maintenance_windows" ADD CONSTRAINT "iot_maintenance_windows_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_maintenance_windows" ADD CONSTRAINT "iot_maintenance_windows_group_id_iot_device_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."iot_device_groups"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_maintenance_windows" ADD CONSTRAINT "iot_maintenance_windows_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_maintenance_windows" ADD CONSTRAINT "iot_maintenance_windows_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_maintenance_windows" ADD CONSTRAINT "iot_maintenance_windows_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_maintenance_windows" ADD CONSTRAINT "iot_maintenance_windows_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_ota_task_devices" ADD CONSTRAINT "iot_ota_task_devices_task_id_iot_ota_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."iot_ota_tasks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_ota_task_devices" ADD CONSTRAINT "iot_ota_task_devices_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_ota_tasks" ADD CONSTRAINT "iot_ota_tasks_firmware_id_iot_firmwares_id_fk" FOREIGN KEY ("firmware_id") REFERENCES "public"."iot_firmwares"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_ota_tasks" ADD CONSTRAINT "iot_ota_tasks_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_ota_tasks" ADD CONSTRAINT "iot_ota_tasks_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_ota_tasks" ADD CONSTRAINT "iot_ota_tasks_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_ota_tasks" ADD CONSTRAINT "iot_ota_tasks_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_events" ADD CONSTRAINT "iot_product_events_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_events" ADD CONSTRAINT "iot_product_events_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_events" ADD CONSTRAINT "iot_product_events_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_properties" ADD CONSTRAINT "iot_product_properties_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_properties" ADD CONSTRAINT "iot_product_properties_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_properties" ADD CONSTRAINT "iot_product_properties_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_services" ADD CONSTRAINT "iot_product_services_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_services" ADD CONSTRAINT "iot_product_services_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_product_services" ADD CONSTRAINT "iot_product_services_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_products" ADD CONSTRAINT "iot_products_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_products" ADD CONSTRAINT "iot_products_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_products" ADD CONSTRAINT "iot_products_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_schedule_runs" ADD CONSTRAINT "iot_schedule_runs_schedule_id_iot_schedules_id_fk" FOREIGN KEY ("schedule_id") REFERENCES "public"."iot_schedules"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_schedules" ADD CONSTRAINT "iot_schedules_product_id_iot_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."iot_products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_schedules" ADD CONSTRAINT "iot_schedules_group_id_iot_device_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."iot_device_groups"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_schedules" ADD CONSTRAINT "iot_schedules_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_schedules" ADD CONSTRAINT "iot_schedules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_schedules" ADD CONSTRAINT "iot_schedules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_schedules" ADD CONSTRAINT "iot_schedules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_telemetry" ADD CONSTRAINT "iot_telemetry_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "iot_telemetry_hourly" ADD CONSTRAINT "iot_telemetry_hourly_device_id_iot_devices_id_fk" FOREIGN KEY ("device_id") REFERENCES "public"."iot_devices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "role_dept_scopes_dept_idx" ON "role_dept_scopes" USING btree ("dept_id");--> statement-breakpoint
 CREATE INDEX "role_menus_menu_idx" ON "role_menus" USING btree ("menu_id");--> statement-breakpoint
 CREATE INDEX "user_dept_scopes_dept_idx" ON "user_dept_scopes" USING btree ("dept_id");--> statement-breakpoint
@@ -7390,6 +8356,9 @@ CREATE INDEX "async_tasks_type_idx" ON "async_tasks" USING btree ("task_type");-
 CREATE INDEX "async_tasks_status_idx" ON "async_tasks" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "async_tasks_created_by_idx" ON "async_tasks" USING btree ("created_by");--> statement-breakpoint
 CREATE INDEX "async_tasks_created_at_idx" ON "async_tasks" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "async_tasks_trace_idx" ON "async_tasks" USING btree ("trace_id");--> statement-breakpoint
+CREATE INDEX "async_tasks_payload_trgm_idx" ON "async_tasks" USING gin (("payload"::text) gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "async_tasks_result_trgm_idx" ON "async_tasks" USING gin (("result"::text) gin_trgm_ops);--> statement-breakpoint
 CREATE UNIQUE INDEX "async_tasks_idem_tenant_uq" ON "async_tasks" USING btree ("tenant_id","created_by","task_type","idempotency_key") WHERE "async_tasks"."idempotency_key" is not null and "async_tasks"."tenant_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "async_tasks_idem_platform_uq" ON "async_tasks" USING btree ("created_by","task_type","idempotency_key") WHERE "async_tasks"."idempotency_key" is not null and "async_tasks"."tenant_id" is null;--> statement-breakpoint
 CREATE INDEX "export_job_downloads_tenant_idx" ON "export_job_downloads" USING btree ("tenant_id");--> statement-breakpoint
@@ -7452,6 +8421,10 @@ CREATE INDEX "operation_logs_tenant_idx" ON "operation_logs" USING btree ("tenan
 CREATE INDEX "operation_logs_created_at_idx" ON "operation_logs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "operation_logs_user_idx" ON "operation_logs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "operation_logs_module_idx" ON "operation_logs" USING btree ("module");--> statement-breakpoint
+CREATE INDEX "operation_logs_request_idx" ON "operation_logs" USING btree ("request_id");--> statement-breakpoint
+CREATE INDEX "operation_logs_before_trgm_idx" ON "operation_logs" USING gin ("before_data" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "operation_logs_after_trgm_idx" ON "operation_logs" USING gin ("after_data" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "operation_logs_reqbody_trgm_idx" ON "operation_logs" USING gin ("request_body" gin_trgm_ops);--> statement-breakpoint
 CREATE UNIQUE INDEX "analytics_rollup_uq" ON "analytics_daily_rollup" USING btree ("tenant_id","stat_date","metric","dim_type","dim_value");--> statement-breakpoint
 CREATE INDEX "analytics_rollup_date_idx" ON "analytics_daily_rollup" USING btree ("stat_date");--> statement-breakpoint
 CREATE INDEX "analytics_rollup_metric_idx" ON "analytics_daily_rollup" USING btree ("metric");--> statement-breakpoint
@@ -7503,12 +8476,27 @@ CREATE INDEX "error_events_user_idx" ON "error_events" USING btree ("user_id");-
 CREATE INDEX "error_events_tenant_idx" ON "error_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "error_events_member_idx" ON "error_events" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "error_events_group_created_idx" ON "error_events" USING btree ("group_id","created_at");--> statement-breakpoint
+CREATE INDEX "error_events_replay_idx" ON "error_events" USING btree ("replay_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "error_groups_fingerprint_uq" ON "error_groups" USING btree ("fingerprint");--> statement-breakpoint
 CREATE INDEX "error_groups_status_idx" ON "error_groups" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "error_groups_type_idx" ON "error_groups" USING btree ("error_type");--> statement-breakpoint
 CREATE INDEX "error_groups_last_seen_idx" ON "error_groups" USING btree ("last_seen_at");--> statement-breakpoint
 CREATE INDEX "error_groups_tenant_idx" ON "error_groups" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "error_groups_assignee_idx" ON "error_groups" USING btree ("assignee_id");--> statement-breakpoint
+CREATE INDEX "replay_access_logs_replay_idx" ON "replay_access_logs" USING btree ("replay_id");--> statement-breakpoint
+CREATE INDEX "replay_access_logs_user_idx" ON "replay_access_logs" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "replay_access_logs_created_idx" ON "replay_access_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "replay_access_logs_tenant_idx" ON "replay_access_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "replay_click_points_page_idx" ON "replay_click_points" USING btree ("page_path");--> statement-breakpoint
+CREATE INDEX "replay_click_points_created_idx" ON "replay_click_points" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "replay_click_points_tenant_idx" ON "replay_click_points" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "replay_segments_replay_seq_uq" ON "replay_segments" USING btree ("replay_id","seq");--> statement-breakpoint
+CREATE INDEX "replay_sessions_session_idx" ON "replay_sessions" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX "replay_sessions_started_idx" ON "replay_sessions" USING btree ("started_at");--> statement-breakpoint
+CREATE INDEX "replay_sessions_status_activity_idx" ON "replay_sessions" USING btree ("status","last_activity_at");--> statement-breakpoint
+CREATE INDEX "replay_sessions_tenant_idx" ON "replay_sessions" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "replay_sessions_user_idx" ON "replay_sessions" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "replay_sessions_member_idx" ON "replay_sessions" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "source_maps_release_idx" ON "source_maps" USING btree ("release","file_name");--> statement-breakpoint
 CREATE INDEX "source_maps_tenant_idx" ON "source_maps" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "user_events_event_id_uq" ON "user_events" USING btree ("event_id");--> statement-breakpoint
@@ -7528,6 +8516,9 @@ CREATE INDEX "user_events_perf_metric_idx" ON "user_events" USING btree ("metric
 CREATE INDEX "user_events_properties_gin_idx" ON "user_events" USING gin ("properties");--> statement-breakpoint
 CREATE INDEX "user_events_anon_pending_idx" ON "user_events" USING btree ("anonymous_id") WHERE "user_events"."user_id" IS NULL AND "user_events"."member_id" IS NULL AND "user_events"."anonymous_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "announcements_tenant_idx" ON "announcements" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "workflow_automation_runs_rule_idx" ON "workflow_automation_runs" USING btree ("rule_id");--> statement-breakpoint
+CREATE INDEX "workflow_automation_runs_instance_idx" ON "workflow_automation_runs" USING btree ("instance_id");--> statement-breakpoint
+CREATE INDEX "workflow_automation_runs_created_idx" ON "workflow_automation_runs" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "workflow_automations_definition_idx" ON "workflow_automations" USING btree ("definition_id");--> statement-breakpoint
 CREATE INDEX "workflow_automations_tenant_idx" ON "workflow_automations" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_comments_task_idx" ON "workflow_comments" USING btree ("task_id");--> statement-breakpoint
@@ -7544,6 +8535,7 @@ CREATE INDEX "wf_compensation_status_idx" ON "workflow_compensations" USING btre
 CREATE INDEX "workflow_connector_invocations_conn_idx" ON "workflow_connector_invocations" USING btree ("connector_id","created_at");--> statement-breakpoint
 CREATE INDEX "workflow_definition_versions_tenant_idx" ON "workflow_definition_versions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_definitions_tenant_status_idx" ON "workflow_definitions" USING btree ("tenant_id","status");--> statement-breakpoint
+CREATE INDEX "workflow_definitions_flow_data_gin_idx" ON "workflow_definitions" USING gin ("flow_data" jsonb_path_ops);--> statement-breakpoint
 CREATE INDEX "workflow_delegations_definition_idx" ON "workflow_delegations" USING btree ("definition_id");--> statement-breakpoint
 CREATE INDEX "workflow_delegations_tenant_idx" ON "workflow_delegations" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "workflow_engine_health_snapshots_created_at_idx" ON "workflow_engine_health_snapshots" USING btree ("created_at");--> statement-breakpoint
@@ -7552,7 +8544,7 @@ CREATE INDEX "workflow_event_subscriptions_tenant_idx" ON "workflow_event_subscr
 CREATE INDEX "workflow_instance_migrations_tenant_idx" ON "workflow_instance_migrations" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "wf_inst_migration_idx" ON "workflow_instance_migrations" USING btree ("instance_id");--> statement-breakpoint
 CREATE INDEX "workflow_instances_definition_idx" ON "workflow_instances" USING btree ("definition_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "workflow_instances_biz_key_uniq" ON "workflow_instances" USING btree (coalesce("tenant_id", 0),"biz_type","biz_id") WHERE "workflow_instances"."status" in ('draft', 'running', 'suspended');--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_instances_biz_key_uniq" ON "workflow_instances" USING btree (coalesce("tenant_id", 0),"biz_type","biz_id") WHERE "workflow_instances"."status" in ('draft', 'running', 'suspended', 'returned');--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_instances_parent_task_item_key_idx" ON "workflow_instances" USING btree ("parent_task_id","parent_task_item_key");--> statement-breakpoint
 CREATE INDEX "workflow_instances_tenant_status_idx" ON "workflow_instances" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_instances_initiator_status_idx" ON "workflow_instances" USING btree ("initiator_id","status");--> statement-breakpoint
@@ -7589,6 +8581,8 @@ CREATE INDEX "workflow_tokens_tenant_idx" ON "workflow_tokens" USING btree ("ten
 CREATE INDEX "workflow_tokens_instance_status_idx" ON "workflow_tokens" USING btree ("instance_id","status");--> statement-breakpoint
 CREATE INDEX "workflow_tokens_parent_idx" ON "workflow_tokens" USING btree ("parent_token_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "wf_tokens_active_uniq" ON "workflow_tokens" USING btree ("instance_id","node_key","branch_path") WHERE "workflow_tokens"."status" = 'active';--> statement-breakpoint
+CREATE INDEX "broadcast_campaigns_status_idx" ON "broadcast_campaigns" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "broadcast_campaigns_created_at_idx" ON "broadcast_campaigns" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "email_send_logs_user_idx" ON "email_send_logs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "email_send_logs_tenant_idx" ON "email_send_logs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "email_send_logs_created_at_idx" ON "email_send_logs" USING btree ("created_at");--> statement-breakpoint
@@ -7611,9 +8605,14 @@ CREATE INDEX "notification_outbox_pending_idx" ON "notification_outbox" USING bt
 CREATE INDEX "notification_outbox_digest_idx" ON "notification_outbox" USING btree ("digest_key","scheduled_at") WHERE "notification_outbox"."digest_key" is not null;--> statement-breakpoint
 CREATE INDEX "notification_outbox_event_idx" ON "notification_outbox" USING btree ("event_key","created_at");--> statement-breakpoint
 CREATE INDEX "notification_outbox_tenant_idx" ON "notification_outbox" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "notification_outbox_trace_idx" ON "notification_outbox" USING btree ("trace_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "notification_preferences_uq" ON "notification_preferences" USING btree ("recipient_type","recipient_id","event_key","channel");--> statement-breakpoint
 CREATE INDEX "notification_preferences_recipient_idx" ON "notification_preferences" USING btree ("recipient_type","recipient_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "notification_recipient_settings_uq" ON "notification_recipient_settings" USING btree ("recipient_type","recipient_id");--> statement-breakpoint
+CREATE INDEX "push_send_logs_created_at_idx" ON "push_send_logs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "push_send_logs_status_idx" ON "push_send_logs" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "push_send_logs_subject_idx" ON "push_send_logs" USING btree ("subject_type","subject_id");--> statement-breakpoint
+CREATE INDEX "push_send_logs_provider_msg_id_idx" ON "push_send_logs" USING btree ("provider_msg_id");--> statement-breakpoint
 CREATE INDEX "sms_configs_tenant_idx" ON "sms_configs" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "sms_send_logs_user_idx" ON "sms_send_logs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "sms_send_logs_tenant_idx" ON "sms_send_logs" USING btree ("tenant_id");--> statement-breakpoint
@@ -7623,10 +8622,12 @@ CREATE INDEX "sms_templates_tenant_idx" ON "sms_templates" USING btree ("tenant_
 CREATE INDEX "db_admin_query_history_executed_at_idx" ON "db_admin_query_history" USING btree ("executed_at");--> statement-breakpoint
 CREATE INDEX "db_admin_query_history_user_idx" ON "db_admin_query_history" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "db_query_favorites_user_idx" ON "db_query_favorites" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "rule_decision_executions_tenant_idx" ON "rule_decision_executions" USING btree ("tenant_id");--> statement-breakpoint
-CREATE INDEX "rule_exec_instance_idx" ON "rule_decision_executions" USING btree ("instance_id");--> statement-breakpoint
-CREATE INDEX "rule_exec_table_idx" ON "rule_decision_executions" USING btree ("table_id");--> statement-breakpoint
+CREATE INDEX "rule_asset_versions_tenant_idx" ON "rule_asset_versions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "rule_decision_table_versions_tenant_idx" ON "rule_decision_table_versions" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "rule_executions_tenant_idx" ON "rule_executions" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "rule_executions_ref_idx" ON "rule_executions" USING btree ("ref_kind","ref_id");--> statement-breakpoint
+CREATE INDEX "rule_executions_caller_idx" ON "rule_executions" USING btree ("caller");--> statement-breakpoint
+CREATE INDEX "rule_executions_biz_ref_idx" ON "rule_executions" USING btree ("biz_ref");--> statement-breakpoint
 CREATE INDEX "rule_list_items_list_idx" ON "rule_list_items" USING btree ("list_id");--> statement-breakpoint
 CREATE INDEX "rule_test_cases_tenant_idx" ON "rule_test_cases" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "biz_leaves_tenant_idx" ON "biz_leaves" USING btree ("tenant_id");--> statement-breakpoint
@@ -7672,6 +8673,7 @@ CREATE INDEX "payment_disputes_tenant_idx" ON "payment_disputes" USING btree ("t
 CREATE INDEX "payment_disputes_status_idx" ON "payment_disputes" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_disputes_order_no_idx" ON "payment_disputes" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_disputes_deadline_idx" ON "payment_disputes" USING btree ("deadline");--> statement-breakpoint
+CREATE INDEX "payment_disputes_route_idx" ON "payment_disputes" USING btree ("route");--> statement-breakpoint
 CREATE INDEX "payment_events_tenant_idx" ON "payment_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_events_status_idx" ON "payment_events" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_fee_rules_tenant_idx" ON "payment_fee_rules" USING btree ("tenant_id");--> statement-breakpoint
@@ -7736,8 +8738,6 @@ CREATE INDEX "ai_agents_user_idx" ON "ai_agents" USING btree ("user_id");--> sta
 CREATE INDEX "ai_arena_votes_user_idx" ON "ai_arena_votes" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "ai_conversations_user_idx" ON "ai_conversations" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "ai_conversations_tenant_idx" ON "ai_conversations" USING btree ("tenant_id");--> statement-breakpoint
-CREATE INDEX "ai_eval_runs_created_at_idx" ON "ai_eval_runs" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "ai_eval_runs_set_idx" ON "ai_eval_runs" USING btree ("set_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ai_http_tools_name_uq" ON "ai_http_tools" USING btree ("name");--> statement-breakpoint
 CREATE INDEX "ai_knowledge_bases_user_idx" ON "ai_knowledge_bases" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "ai_messages_conversation_idx" ON "ai_messages" USING btree ("conversation_id","created_at");--> statement-breakpoint
@@ -7746,7 +8746,7 @@ CREATE INDEX "ai_prompt_templates_user_idx" ON "ai_prompt_templates" USING btree
 CREATE INDEX "ai_shared_conversations_conversation_idx" ON "ai_shared_conversations" USING btree ("conversation_id");--> statement-breakpoint
 CREATE INDEX "ai_shared_conversations_user_idx" ON "ai_shared_conversations" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ai_shared_conversations_token_uq" ON "ai_shared_conversations" USING btree ("token");--> statement-breakpoint
-CREATE UNIQUE INDEX "ai_user_preferences_user_id_uq" ON "ai_user_preferences" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_user_settings_user_id_uq" ON "ai_user_settings" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_ai_configs_user_idx" ON "user_ai_configs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_sub_idx" ON "app_webhook_deliveries" USING btree ("subscription_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_client_idx" ON "app_webhook_deliveries" USING btree ("client_id");--> statement-breakpoint
@@ -7775,6 +8775,7 @@ CREATE INDEX "terminal_recordings_tenant_idx" ON "terminal_recordings" USING btr
 CREATE INDEX "terminal_sessions_user_state_idx" ON "terminal_sessions" USING btree ("user_id","state");--> statement-breakpoint
 CREATE INDEX "terminal_sessions_tenant_started_idx" ON "terminal_sessions" USING btree ("tenant_id","started_at");--> statement-breakpoint
 CREATE INDEX "terminal_sessions_node_state_idx" ON "terminal_sessions" USING btree ("node_id","state");--> statement-breakpoint
+CREATE INDEX "ops_hosts_enabled_idx" ON "ops_hosts" USING btree ("enabled","status");--> statement-breakpoint
 CREATE INDEX "coupons_tenant_idx" ON "coupons" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "coupons_status_idx" ON "coupons" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "member_coupons_member_idx" ON "member_coupons" USING btree ("member_id");--> statement-breakpoint
@@ -7810,6 +8811,11 @@ CREATE INDEX "monitor_alert_events_tenant_idx" ON "monitor_alert_events" USING b
 CREATE INDEX "monitor_alert_rules_tenant_idx" ON "monitor_alert_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "monitor_alert_rules_enabled_idx" ON "monitor_alert_rules" USING btree ("enabled");--> statement-breakpoint
 CREATE INDEX "system_metric_samples_at_idx" ON "system_metric_samples" USING btree ("sampled_at");--> statement-breakpoint
+CREATE INDEX "app_artifacts_release_idx" ON "app_artifacts" USING btree ("release_id");--> statement-breakpoint
+CREATE INDEX "app_release_events_app_time_idx" ON "app_release_events" USING btree ("app_id","created_at");--> statement-breakpoint
+CREATE INDEX "client_devices_app_active_idx" ON "client_devices" USING btree ("app_id","last_active_at");--> statement-breakpoint
+CREATE INDEX "client_devices_subject_idx" ON "client_devices" USING btree ("subject_type","subject_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "client_devices_push_reg_unique" ON "client_devices" USING btree ("push_provider","push_registration_id");--> statement-breakpoint
 CREATE INDEX "mp_accounts_tenant_idx" ON "mp_accounts" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_auto_replies_tenant_idx" ON "mp_auto_replies" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "mp_auto_replies_account_type_idx" ON "mp_auto_replies" USING btree ("account_id","reply_type");--> statement-breakpoint
@@ -8026,6 +9032,7 @@ CREATE INDEX "cms_contents_site_channel_idx" ON "cms_contents" USING btree ("sit
 CREATE INDEX "cms_contents_status_idx" ON "cms_contents" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "cms_contents_published_at_idx" ON "cms_contents" USING btree ("published_at");--> statement-breakpoint
 CREATE INDEX "cms_contents_search_idx" ON "cms_contents" USING gin ("search_vector");--> statement-breakpoint
+CREATE INDEX "cms_contents_title_trgm_idx" ON "cms_contents" USING gin ("title" gin_trgm_ops);--> statement-breakpoint
 CREATE INDEX "cms_contents_member_idx" ON "cms_contents" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "cms_contents_mapping_source_idx" ON "cms_contents" USING btree ("mapping_source_id");--> statement-breakpoint
 CREATE INDEX "cms_contents_distribution_source_idx" ON "cms_contents" USING btree ("distribution_rule_id","distribution_source_id");--> statement-breakpoint
@@ -8123,4 +9130,50 @@ CREATE INDEX "wiki_docs_content_trgm_idx" ON "wiki_docs" USING gin ("content" gi
 CREATE INDEX "wiki_review_records_doc_idx" ON "wiki_review_records" USING btree ("doc_id");--> statement-breakpoint
 CREATE INDEX "wiki_review_records_actor_idx" ON "wiki_review_records" USING btree ("actor_id");--> statement-breakpoint
 CREATE INDEX "wiki_search_logs_created_idx" ON "wiki_search_logs" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "wiki_search_logs_keyword_idx" ON "wiki_search_logs" USING btree ("keyword");
+CREATE INDEX "wiki_search_logs_keyword_idx" ON "wiki_search_logs" USING btree ("keyword");--> statement-breakpoint
+CREATE INDEX "idx_short_link_clicks_link_time" ON "short_link_clicks" USING btree ("link_id","clicked_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_short_link_daily_stats_link_date" ON "short_link_daily_stats" USING btree ("link_id","stat_date");--> statement-breakpoint
+CREATE INDEX "idx_short_links_biz" ON "short_links" USING btree ("biz_type","biz_ref");--> statement-breakpoint
+CREATE INDEX "idx_short_links_tenant" ON "short_links" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_marketing_campaigns_status" ON "marketing_campaigns" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_marketing_campaigns_tenant" ON "marketing_campaigns" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_marketing_participations_campaign_member" ON "marketing_participations" USING btree ("campaign_id","member_id");--> statement-breakpoint
+CREATE INDEX "idx_marketing_participations_campaign_time" ON "marketing_participations" USING btree ("campaign_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_marketing_prizes_campaign" ON "marketing_prizes" USING btree ("campaign_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_alarm_rules_product" ON "iot_alarm_rules" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_alarms_device_time" ON "iot_alarms" USING btree ("device_id","fired_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_alarms_status" ON "iot_alarms" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_iot_alarms_active" ON "iot_alarms" USING btree ("rule_id","device_id") WHERE status <> 'resolved';--> statement-breakpoint
+CREATE INDEX "idx_iot_automation_runs_automation" ON "iot_automation_runs" USING btree ("automation_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_automation_runs_device" ON "iot_automation_runs" USING btree ("device_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_automations_product" ON "iot_automations" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_commands_device_time" ON "iot_commands" USING btree ("device_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_commands_status" ON "iot_commands" USING btree ("status");--> statement-breakpoint
+CREATE INDEX "idx_iot_device_events_device_time" ON "iot_device_events" USING btree ("device_id","reported_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_device_groups_tenant" ON "iot_device_groups" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_device_logs_device" ON "iot_device_logs" USING btree ("device_id","reported_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_device_logs_level" ON "iot_device_logs" USING btree ("device_id","level");--> statement-breakpoint
+CREATE INDEX "idx_iot_device_whitelist_product" ON "iot_device_whitelist" USING btree ("product_id","used");--> statement-breakpoint
+CREATE INDEX "idx_iot_devices_product" ON "iot_devices" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_devices_tenant" ON "iot_devices" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_devices_gateway" ON "iot_devices" USING btree ("gateway_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_iot_firmwares_product_version" ON "iot_firmwares" USING btree ("product_id","version");--> statement-breakpoint
+CREATE INDEX "idx_iot_forward_logs_rule" ON "iot_forward_logs" USING btree ("rule_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_forward_rules_source" ON "iot_forward_rules" USING btree ("source");--> statement-breakpoint
+CREATE INDEX "idx_iot_forward_rules_tenant" ON "iot_forward_rules" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_maintenance_windows_time" ON "iot_maintenance_windows" USING btree ("start_at","end_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_online_snapshots_time" ON "iot_online_snapshots" USING btree ("sampled_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_iot_ota_task_devices" ON "iot_ota_task_devices" USING btree ("task_id","device_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_ota_task_devices_device" ON "iot_ota_task_devices" USING btree ("device_id","status");--> statement-breakpoint
+CREATE INDEX "idx_iot_ota_tasks_product" ON "iot_ota_tasks" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_ota_tasks_status" ON "iot_ota_tasks" USING btree ("status");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_iot_product_events_ident" ON "iot_product_events" USING btree ("product_id","identifier");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_iot_product_properties_ident" ON "iot_product_properties" USING btree ("product_id","identifier");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_iot_product_services_ident" ON "iot_product_services" USING btree ("product_id","identifier");--> statement-breakpoint
+CREATE INDEX "idx_iot_products_tenant" ON "iot_products" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_schedule_runs_schedule" ON "iot_schedule_runs" USING btree ("schedule_id","created_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_schedules_next_run" ON "iot_schedules" USING btree ("status","next_run_at");--> statement-breakpoint
+CREATE INDEX "idx_iot_schedules_product" ON "iot_schedules" USING btree ("product_id");--> statement-breakpoint
+CREATE INDEX "idx_iot_telemetry_device_time" ON "iot_telemetry" USING btree ("device_id","reported_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_iot_telemetry_hourly" ON "iot_telemetry_hourly" USING btree ("device_id","property","bucket");--> statement-breakpoint
+CREATE INDEX "idx_iot_telemetry_hourly_bucket" ON "iot_telemetry_hourly" USING btree ("bucket");

@@ -1,1 +1,0 @@
-ALTER TABLE "cms_comments" ADD COLUMN "risk_flag" varchar(32);

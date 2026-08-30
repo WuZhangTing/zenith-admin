@@ -1,1 +1,0 @@
-ALTER TABLE "push_configs" DROP COLUMN "is_default";

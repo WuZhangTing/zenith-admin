@@ -1,1 +1,0 @@
-DROP TABLE "rule_decision_executions" CASCADE;

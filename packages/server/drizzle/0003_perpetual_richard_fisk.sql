@@ -1,1 +1,0 @@
-CREATE INDEX "operation_logs_reqbody_trgm_idx" ON "operation_logs" USING gin ("request_body" gin_trgm_ops);

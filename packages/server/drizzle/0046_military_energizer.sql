@@ -1,1 +1,0 @@
-ALTER TYPE "public"."iot_device_event_kind" ADD VALUE 'anomaly';

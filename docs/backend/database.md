@@ -47,12 +47,13 @@ npm run db:seed
 
 `packages/server/drizzle/` 包含 `0000_baseline.sql`、`0001_extensions.sql` 和后续增量迁移，执行顺序由 `drizzle/meta/_journal.json` 管理。全新数据库执行 `npm run db:migrate` 会按该顺序建库。
 
-`0001_extensions.sql` 维护 Drizzle schema 无法完整表达的扩展 DDL：
+`0001_extensions.sql` 收口维护 Drizzle schema 无法表达的手写 DDL，当前仅一项：
 
-- `pg_trgm` 与相关 trigram 索引；
-- 条件启用 pgvector 的 `ai_kb_chunks.embedding_vec` 列；运行时通过 `hasPgVector()` 探测，不可用时回退 JS 余弦相似度。
+- 条件启用 pgvector 的 `ai_kb_chunks.embedding_vec` 列（条件 DDL、扩展创建与无维度 vector 列均超出 Drizzle 表达范围，且该列刻意不进 schema——无 pgvector 的部署必须照常工作）；运行时通过 `hasPgVector()` 探测，不可用时回退 JS 余弦相似度。
 
-后续 custom migration 也用于表达式 / 操作符类索引等场景，例如 `async_tasks.payload/result` 内容检索的 `gin_trgm_ops` 表达式索引。
+`pg_trgm` 扩展在 `0000_baseline.sql` 顶部创建；trigram 索引（含 `async_tasks.payload/result` 的「表达式 + gin_trgm_ops」形态）已全部收进 schema DSL，由 `drizzle-kit generate` 随基线生成。
+
+后续新增无法表达的 DDL 时，用 `drizzle-kit generate --custom` 建独立迁移；重建基线时将其内容并回 `0001_extensions.sql`。
 
 ### 枚举同步
 

@@ -1,2 +1,0 @@
-ALTER TABLE "replay_sessions" ADD COLUMN "page_paths" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "replay_sessions" ADD COLUMN "click_labels" jsonb DEFAULT '[]'::jsonb NOT NULL;

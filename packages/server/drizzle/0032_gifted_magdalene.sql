@@ -1,1 +1,0 @@
-ALTER TYPE "public"."notification_channel" ADD VALUE 'push' BEFORE 'webhook';

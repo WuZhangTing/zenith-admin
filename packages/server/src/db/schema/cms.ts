@@ -377,6 +377,8 @@ export const cmsContents = pgTable('cms_contents', {
   index('cms_contents_status_idx').on(t.status),
   index('cms_contents_published_at_idx').on(t.publishedAt),
   index('cms_contents_search_idx').using('gin', t.searchVector),
+  // 标题模糊检索(pg_trgm 扩展由迁移基线 0000 顶部创建)
+  index('cms_contents_title_trgm_idx').using('gin', t.title.op('gin_trgm_ops')),
   index('cms_contents_member_idx').on(t.memberId),
   index('cms_contents_mapping_source_idx').on(t.mappingSourceId),
   index('cms_contents_distribution_source_idx').on(t.distributionRuleId, t.distributionSourceId),

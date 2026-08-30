@@ -1,1 +1,0 @@
-ALTER TYPE "public"."terminal_session_kind" ADD VALUE 'db';

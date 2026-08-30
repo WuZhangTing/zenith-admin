@@ -1,1 +1,0 @@
-ALTER TABLE "user_feedbacks" ADD COLUMN "replay_id" varchar(36);
