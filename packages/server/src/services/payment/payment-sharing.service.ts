@@ -23,6 +23,7 @@ import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
+import { recordLedgerEntry } from './payment-ledger.service';
 import { getAdapter } from '../../lib/payment/registry';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
@@ -241,6 +242,20 @@ async function executeSharingAtChannel(
       })
       .where(eq(paymentSharingOrders.id, sharing.id))
       .returning();
+    // 分账成功记资金台账（out/sharing，从待结算划出；sharingNo+type 幂等，重试/重复事件不重复记账）
+    if (status === 'success') {
+      await recordLedgerEntry({
+        direction: 'out',
+        type: 'sharing',
+        amount: sharing.amount,
+        orderNo: order.orderNo,
+        sharingNo: sharing.sharingNo,
+        channel: order.channel,
+        bizType: order.bizType,
+        tenantId: sharing.tenantId,
+        remark: `分账支出（${receiver.name}）`,
+      });
+    }
     return { row: updated };
   } catch (err) {
     logger.error('[payment-sharing] channel dispatch failed', { sharingNo: sharing.sharingNo, orderNo: order.orderNo, err });

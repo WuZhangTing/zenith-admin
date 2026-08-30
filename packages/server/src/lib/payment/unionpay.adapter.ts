@@ -9,9 +9,11 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
 import { httpPost } from '../http-client';
+import { formatDateTime } from '../datetime';
 import logger from '../logger';
 import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem } from './signing';
+import { trySandboxNotify } from './sandbox-notify';
 import type {
   AdapterContext,
   NotifyResult,
@@ -124,7 +126,7 @@ export const unionpayAdapter: PaymentChannelAdapter = {
         channel: 'unionpay',
         payMethod: order.payMethod,
         codeUrl: `https://qr.95516.com/demo/${order.outTradeNo}`,
-        expiredAt: order.expiredAt ? order.expiredAt.toISOString().slice(0, 19).replace('T', ' ') : undefined,
+        expiredAt: order.expiredAt ? formatDateTime(order.expiredAt) : undefined,
       };
     }
     const params: Record<string, string> = {
@@ -215,7 +217,10 @@ export const unionpayAdapter: PaymentChannelAdapter = {
     return { status: status === 'success' ? 'success' : status === 'pending' ? 'processing' : 'failed', channelRefundNo: res.queryId, raw: res };
   },
 
-  async verifyNotify(ctx, rawBody): Promise<NotifyResult> {
+  async verifyNotify(ctx, rawBody, headers): Promise<NotifyResult> {
+    // 沙箱配置 + 协议头：走统一沙箱回调协议（明文 JSON），生产配置不受影响
+    const sandboxResult = trySandboxNotify(ctx, rawBody, headers, { body: 'ok', contentType: 'text/plain', status: 200 });
+    if (sandboxResult) return sandboxResult;
     const params = parseForm(rawBody);
     const valid = verifyUnionpay(ctx, params);
     const ack = { body: valid ? 'ok' : 'failure', contentType: 'text/plain', status: valid ? 200 : 401 };

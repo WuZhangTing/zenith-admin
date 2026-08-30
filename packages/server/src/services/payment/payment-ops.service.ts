@@ -19,8 +19,9 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { buildSandboxPaidNotifyBody, SANDBOX_NOTIFY_HEADER } from '../../lib/payment/sandbox-notify';
 import { processEvent } from './payment-outbox.service';
-import { markOrderPaid, mapOrder, loadOrderConfig } from './payment.service';
+import { handleNotify, mapOrder, loadOrderConfig } from './payment.service';
 import type { PaymentOrder, PaymentOutboxEvent } from '@zenith/shared/payment';
 
 export function mapOutboxEvent(row: PaymentEventRow): PaymentOutboxEvent {
@@ -105,10 +106,12 @@ export async function redispatchEvent(id: number): Promise<PaymentOutboxEvent> {
 }
 
 /**
- * 模拟支付成功（演示/联调）：将待支付订单标记为已支付，触发完整履约链路。
- * 安全限制：仅允许沙箱渠道订单，或非生产环境，避免误操作真实资金。
+ * 模拟支付成功（演示/联调）：构造沙箱回调报文送入 handleNotify，
+ * 与真实渠道回调完全同径（验签 → 回调日志 → 幂等更新 → outbox 事件 → Webhook），
+ * 回调解析层在沙箱环境同样可被验证。
+ * 安全限制：仅沙箱渠道配置可通过沙箱回调协议验签；生产环境显式拒绝非沙箱订单。
  */
-export async function simulateOrderPaid(id: number): Promise<PaymentOrder> {
+export async function simulateOrderPaid(id: number, ip = '127.0.0.1'): Promise<PaymentOrder> {
   const tc = tenantCondition(paymentOrders, currentUser());
   const [order] = await db.select().from(paymentOrders).where(and(eq(paymentOrders.id, id), tc)).limit(1);
   if (!order) throw new HTTPException(404, { message: '支付订单不存在' });
@@ -116,16 +119,18 @@ export async function simulateOrderPaid(id: number): Promise<PaymentOrder> {
     throw new HTTPException(400, { message: '仅待支付/支付中订单可模拟支付' });
   }
   const config = await loadOrderConfig(order);
-  const isSandbox = config?.sandbox ?? false;
-  if (!isSandbox && process.env.NODE_ENV === 'production') {
-    throw new HTTPException(403, { message: '生产环境仅允许对沙箱渠道订单模拟支付' });
+  if (!config?.sandbox) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new HTTPException(403, { message: '生产环境仅允许对沙箱渠道订单模拟支付' });
+    }
+    throw new HTTPException(400, { message: '该订单渠道配置未开启沙箱模式，无法模拟支付（请启用沙箱配置）' });
   }
-  await markOrderPaid(order, {
-    channelTradeNo: `SIM${Date.now()}`,
-    paidAmount: order.amount,
-    paidAt: new Date(),
-    notifyData: JSON.stringify({ simulated: true, operator: currentUser().userId }),
-  });
+  const rawBody = buildSandboxPaidNotifyBody({ outTradeNo: order.outTradeNo, paidAmount: order.amount });
+  const headers = new Headers({ [SANDBOX_NOTIFY_HEADER]: '1', 'content-type': 'application/json' });
+  const { ack } = await handleNotify(order.channel, rawBody, headers, ip);
+  if (ack.status !== 200) {
+    throw new HTTPException(400, { message: `模拟回调未被受理（HTTP ${ack.status}）：${ack.body.slice(0, 120)}` });
+  }
   const [latest] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, id)).limit(1);
   return mapOrder(latest ?? order);
 }

@@ -22,6 +22,7 @@ import {
   listDeliveries,
   getDelivery,
   redeliver,
+  sendTestDelivery,
 } from '../../services/payment/payment-webhook.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -128,11 +129,24 @@ const redeliverRoute = defineOpenAPIRoute({
   },
 });
 
+const testEndpointRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/endpoints/{id}/test', tags: ['支付中心-Webhook'], summary: '发送测试事件（webhook.test）',
+    description: '向端点发送一条 webhook.test 测试事件：走真实 HMAC 签名与 HTTP 投递并落投递日志，用于接入调试验证 URL 连通性与验签实现。',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:webhook:update', audit: { description: '发送 Webhook 测试事件', module: '支付中心' } })] as const,
+    request: { params: IdParam },
+    responses: { ...ok(PaymentWebhookDeliveryDTO, '测试事件已投递'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await sendTestDelivery(c.req.valid('param').id), '测试事件已投递'), 200),
+});
+
 router.openapiRoutes([
   listEndpointsRoute,
   createEndpointRoute,
   listDeliveriesRoute,
   redeliverRoute,
+  testEndpointRoute,
   getEndpointRoute,
   updateEndpointRoute,
   deleteEndpointRoute,

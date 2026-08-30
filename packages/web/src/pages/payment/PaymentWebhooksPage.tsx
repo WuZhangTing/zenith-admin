@@ -13,6 +13,7 @@ import {
   paymentWebhookKeys,
   useDeletePaymentWebhookEndpoints,
   usePaymentWebhookDeliveries,
+  useTestPaymentWebhookEndpoint,
   usePaymentWebhookEndpointDetail,
   usePaymentWebhookEndpoints,
   useRedeliverPaymentWebhookDelivery,
@@ -126,8 +127,10 @@ export default function PaymentWebhooksPage() {
   const toggleEndpointMutation = useSavePaymentWebhookEndpoint();
   const deleteEndpointMutation = useDeletePaymentWebhookEndpoints();
   const redeliverMutation = useRedeliverPaymentWebhookDelivery();
+  const testEndpointMutation = useTestPaymentWebhookEndpoint();
   const togglingId = toggleEndpointMutation.isPending ? (toggleEndpointMutation.variables?.id ?? null) : null;
   const redeliveringId = redeliverMutation.isPending ? (redeliverMutation.variables ?? null) : null;
+  const testingId = testEndpointMutation.isPending ? (testEndpointMutation.variables ?? null) : null;
 
   function handleEndpointSearch() { setEndpointPage(1); setSubmittedEndpointSearch(endpointSearch); void queryClient.invalidateQueries({ queryKey: paymentWebhookKeys.endpointLists }); }
   function handleEndpointReset() { setEndpointSearch(defaultEndpointSearch); setEndpointPage(1); setSubmittedEndpointSearch(defaultEndpointSearch); void queryClient.invalidateQueries({ queryKey: paymentWebhookKeys.endpointLists }); }
@@ -149,6 +152,15 @@ export default function PaymentWebhooksPage() {
     Toast.success('重投成功');
   }
 
+  async function handleTestEndpoint(record: PaymentWebhookEndpoint) {
+    const delivery = await testEndpointMutation.mutateAsync(record.id);
+    if (delivery.status === 'success') {
+      Toast.success(`测试投递成功（HTTP ${delivery.httpStatus ?? '-'}）`);
+    } else {
+      Toast.error(`测试投递失败：${delivery.lastError ?? `HTTP ${delivery.httpStatus ?? '-'}`}`);
+    }
+  }
+
   const endpointColumns: ColumnProps<PaymentWebhookEndpoint>[] = [
     { title: '名称', dataIndex: 'name', width: 160 },
     { title: 'URL', dataIndex: 'url', width: 260, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 240 }}>{v}</Typography.Text> },
@@ -163,9 +175,14 @@ export default function PaymentWebhooksPage() {
       ),
     },
     createOperationColumn<PaymentWebhookEndpoint>({
-      width: 130,
+      width: 170,
       actions: (r) => [
         ...(hasPermission('payment:webhook:update') ? [{
+          key: 'test',
+          label: '测试',
+          loading: testingId === r.id,
+          onClick: () => void handleTestEndpoint(r),
+        }, {
           key: 'edit',
           label: '编辑',
           onClick: () => endpointModal.openEdit(r),

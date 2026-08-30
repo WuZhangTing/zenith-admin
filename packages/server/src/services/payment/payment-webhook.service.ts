@@ -305,6 +305,36 @@ export async function redeliver(id: number): Promise<PaymentWebhookDelivery> {
   return mapDelivery(latest ?? row);
 }
 
+/** 向端点发送一条测试事件（webhook.test）：走真实签名与投递并落投递日志，
+ * 用于接入调试时验证 URL 连通性与签名对接，无需真实触发支付。 */
+export async function sendTestDelivery(endpointId: number): Promise<PaymentWebhookDelivery> {
+  const tc = tenantCondition(paymentWebhookEndpoints, currentUser());
+  const [ep] = await db.select().from(paymentWebhookEndpoints).where(and(eq(paymentWebhookEndpoints.id, endpointId), tc)).limit(1);
+  if (!ep) throw new HTTPException(404, { message: 'Webhook 端点不存在' });
+  const now = Date.now();
+  const testOrderNo = `WHTEST${now}`;
+  const payload = JSON.stringify({
+    type: 'webhook.test',
+    orderNo: testOrderNo,
+    outTradeNo: testOrderNo,
+    bizType: ep.bizType ?? 'webhook_test',
+    bizId: String(ep.id),
+    channel: 'wechat',
+    amount: 1,
+    userId: null,
+    tenantId: ep.tenantId,
+    eventId: `webhook-test-${now}`,
+    occurredAt: formatDateTime(new Date()),
+  });
+  const [delivery] = await db
+    .insert(paymentWebhookDeliveries)
+    .values({ endpointId: ep.id, eventType: 'webhook.test', orderNo: testOrderNo, payload, status: 'pending', tenantId: ep.tenantId })
+    .returning();
+  await sendDelivery(delivery, ep);
+  const [latest] = await db.select().from(paymentWebhookDeliveries).where(eq(paymentWebhookDeliveries.id, delivery.id)).limit(1);
+  return mapDelivery({ ...(latest ?? delivery), endpointName: ep.name });
+}
+
 let registered = false;
 /** 注册 Webhook 事件订阅者（监听全部支付事件并分发到业务方端点）。 */
 export function registerWebhookSubscribers(): void {

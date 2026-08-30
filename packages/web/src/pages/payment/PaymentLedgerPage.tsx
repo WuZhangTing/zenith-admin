@@ -26,7 +26,7 @@ import type { PaymentAccount, PaymentAccountCheckRow, PaymentChannel, PaymentLed
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
-import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, EMPTY_PLACEHOLDER, NO_COLUMN_WIDTH } from '@/utils/table-columns';
 
 const yuan = formatYuan;
 interface SearchParams {
@@ -109,7 +109,14 @@ export default function PaymentLedgerPage() {
     { title: '类型', dataIndex: 'type', width: 100, render: (v: PaymentLedgerType) => PAYMENT_LEDGER_TYPE_LABELS[v] },
     { title: '金额', dataIndex: 'amount', width: 120, align: 'right', render: (v: number, r: PaymentLedgerEntry) => <Typography.Text type={r.direction === 'in' ? 'success' : 'danger'}>{yuan(v)}</Typography.Text> },
     copyableNoColumn('订单号', 'orderNo'),
-    copyableNoColumn('退款单号', 'refundNo'),
+    {
+      // 复合列：退款/分账流水各自的业务单号（同一行至多一个有值）
+      title: '关联单号', dataIndex: 'refundNo', width: NO_COLUMN_WIDTH,
+      render: (_: unknown, r: PaymentLedgerEntry) => {
+        const no = r.refundNo ?? r.sharingNo;
+        return no ? <Typography.Text style={{ whiteSpace: 'nowrap' }} copyable={{ content: no }}>{no}</Typography.Text> : EMPTY_PLACEHOLDER;
+      },
+    },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel | null) => (v ? <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> : '-') },
     { title: '业务类型', dataIndex: 'bizType', width: 120, render: (v: string | null) => v || '-' },
     dateTimeColumn('创建时间', 'createdAt'),

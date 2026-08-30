@@ -62,10 +62,17 @@ function buildTree(rows: Array<CmsResourceFolder & { children?: CmsResourceFolde
 export async function listCmsResourceFolderTree(siteId: number): Promise<CmsResourceFolder[]> {
   await ensureCmsSiteExists(siteId);
   await assertSiteAccess(siteId);
+  // 资源数按目录分组后 LEFT JOIN（sql`` 裸列名不带表限定，禁止模板内跨表比较）
+  const resourceCounts = db
+    .select({ folderId: cmsResources.folderId, cnt: sql<number>`count(*)::int`.as('cnt') })
+    .from(cmsResources)
+    .groupBy(cmsResources.folderId)
+    .as('resource_counts');
   const rows = await db.select({
     folder: cmsResourceFolders,
-    resourceCount: sql<number>`(select count(*)::int from ${cmsResources} where ${cmsResources.folderId} = ${cmsResourceFolders.id})`,
+    resourceCount: sql<number>`coalesce(${resourceCounts.cnt}, 0)`,
   }).from(cmsResourceFolders)
+    .leftJoin(resourceCounts, eq(resourceCounts.folderId, cmsResourceFolders.id))
     .where(eq(cmsResourceFolders.siteId, siteId))
     .orderBy(asc(cmsResourceFolders.sort), asc(cmsResourceFolders.id));
   return buildTree(rows.map(({ folder, resourceCount }) => mapCmsResourceFolder(folder, resourceCount)));

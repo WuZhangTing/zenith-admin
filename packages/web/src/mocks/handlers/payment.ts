@@ -190,7 +190,7 @@ export const paymentHandlers = [
       id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: body.bizType, bizId: body.bizId,
       subject: body.subject, body: null, amount: body.amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2,
       payMethod: body.payMethod, status: 'paying', userId: 1, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
-      paidAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, createdAt: now, updatedAt: now,
+      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, createdAt: now, updatedAt: now,
     };
     mockPaymentOrders.unshift(order);
     const payParams = {

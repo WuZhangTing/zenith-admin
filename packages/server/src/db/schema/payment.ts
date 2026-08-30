@@ -298,7 +298,7 @@ export type NewPaymentWebhookDelivery = typeof paymentWebhookDeliveries.$inferIn
 // ─── 资金流水台账 ─────────────────────────────────────────────────────────────
 export const paymentLedgerDirectionEnum = pgEnum('payment_ledger_direction', ['in', 'out']);
 
-export const paymentLedgerTypeEnum = pgEnum('payment_ledger_type', ['payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer']);
+export const paymentLedgerTypeEnum = pgEnum('payment_ledger_type', ['payment', 'refund', 'fee', 'sharing', 'settlement', 'adjust', 'transfer']);
 
 export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -308,6 +308,7 @@ export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
   amount: integer().notNull(),
   orderNo: varchar({ length: 64 }),
   refundNo: varchar({ length: 64 }),
+  sharingNo: varchar({ length: 64 }),
   channel: paymentChannelEnum(),
   bizType: varchar({ length: 64 }),
   remark: varchar({ length: 256 }),
@@ -319,8 +320,10 @@ export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
   // 记账幂等（DB 层兜底）：
   // - 原始记账（无 refundNo）：同一订单的收款/手续费各至多一条
   // - 退款关联记账（带 refundNo）：同一退款单的退款支出/手续费冲销各至多一条
+  // - 分账记账（带 sharingNo）：同一分账单至多一条分账支出
   uniqueIndex('payment_ledger_order_type_uq').on(t.orderNo, t.type).where(sql`${t.orderNo} is not null and ${t.refundNo} is null and ${t.type} in ('payment', 'fee')`),
   uniqueIndex('payment_ledger_refund_type_uq').on(t.refundNo, t.type).where(sql`${t.refundNo} is not null`),
+  uniqueIndex('payment_ledger_sharing_type_uq').on(t.sharingNo, t.type).where(sql`${t.sharingNo} is not null`),
 ]);
 
 export type PaymentLedgerEntryRow = typeof paymentLedgerEntries.$inferSelect;
@@ -364,6 +367,8 @@ export const paymentSettlementBatches = pgTable('payment_settlement_batches', {
   grossAmount: integer().notNull().default(0),
   feeAmount: integer().notNull().default(0),
   refundAmount: integer().notNull().default(0),
+  /** 账期内分账支出合计（分），净额已扣除 */
+  sharingAmount: integer().notNull().default(0),
   netAmount: integer().notNull().default(0),
   settledAt: timestamp({ withTimezone: true }),
   remark: varchar({ length: 256 }),

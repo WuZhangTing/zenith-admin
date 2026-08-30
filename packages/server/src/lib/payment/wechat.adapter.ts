@@ -11,6 +11,7 @@ import { formatDateTime } from '../datetime';
 import logger from '../logger';
 import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, aesGcmDecrypt, ensurePem } from './signing';
+import { trySandboxNotify } from './sandbox-notify';
 import { getPlatformCert } from './wechat-certs';
 import type {
   AdapterContext,
@@ -290,6 +291,9 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
   },
 
   async verifyNotify(ctx, rawBody, headers): Promise<NotifyResult> {
+    // 沙箱配置 + 协议头：走统一沙箱回调协议（明文 JSON），生产配置不受影响
+    const sandboxResult = trySandboxNotify(ctx, rawBody, headers, { body: JSON.stringify({ code: 'SUCCESS', message: '成功' }), contentType: 'application/json', status: 200 });
+    if (sandboxResult) return sandboxResult;
     const timestamp = headers.get('Wechatpay-Timestamp') ?? '';
     const nonce = headers.get('Wechatpay-Nonce') ?? '';
     const signature = headers.get('Wechatpay-Signature') ?? '';

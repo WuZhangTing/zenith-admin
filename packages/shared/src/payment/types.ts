@@ -54,8 +54,10 @@ export interface PaymentOrder {
   clientIp?: string | null;
   departmentId?: number | null;
   paidAmount?: number | null;
-  feeAmount?: number | null;
-  netAmount?: number | null;
+  /** 手续费（分）；null=未计费（订单未成功或费率任务未执行） */
+  feeAmount: number | null;
+  /** 净额（分）= 实付 - 手续费；null=未计费 */
+  netAmount: number | null;
   /** 优惠前原价（分），null=无优惠 */
   originalAmount?: number | null;
   /** 优惠立减金额（分） */
@@ -165,6 +167,8 @@ export interface PaymentLedgerEntry {
   amount: number;
   orderNo?: string | null;
   refundNo?: string | null;
+  /** 分账单号（type=sharing 时的幂等关联键） */
+  sharingNo?: string | null;
   channel?: PaymentChannel | null;
   bizType?: string | null;
   remark?: string | null;
@@ -219,6 +223,8 @@ export interface PaymentSettlementBatch {
   grossAmount: number; // 分
   feeAmount: number; // 分
   refundAmount: number; // 分
+  /** 账期内分账支出合计（分），净额已扣除 */
+  sharingAmount: number;
   netAmount: number; // 分
   settledAt?: string | null;
   remark?: string | null;

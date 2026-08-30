@@ -1,5 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createPaymentSchema, createRefundSchema } from '@zenith/shared/payment';
+import {
+  createPaymentSchema,
+  createRefundSchema,
+  createPaymentChannelConfigSchema,
+  updatePaymentChannelConfigSchema,
+} from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
@@ -49,34 +54,10 @@ const paymentRouter = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
 const payMethodEnum = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr']);
 
-const channelCreateSchema = z.object({
-  name: z.string().min(1).max(64),
-  channel: channelEnum,
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
-  isDefault: z.boolean().default(false),
-  sandbox: z.boolean().default(false),
-  notifyUrl: z.string().max(512).refine((v) => v === '' || /^https?:\/\/.+/.test(v), { message: '回调地址须为 http(s) 绝对地址' }).optional(),
-  wechatAppId: z.string().max(64).optional(),
-  wechatMchId: z.string().max(64).optional(),
-  wechatApiV3Key: z.string().max(128).optional(),
-  wechatPrivateKey: z.string().optional(),
-  wechatSerialNo: z.string().max(128).optional(),
-  wechatPlatformCert: z.string().optional(),
-  alipayAppId: z.string().max(64).optional(),
-  alipayPrivateKey: z.string().optional(),
-  alipayPublicKey: z.string().optional(),
-  alipaySignType: z.enum(['RSA2', 'RSA']).default('RSA2'),
-  alipayGateway: z.string().max(256).optional(),
-  remark: z.string().max(256).optional(),
-});
-// partial() 不会剥离 default：显式覆盖带默认值字段为纯 optional，
-// 否则部分更新（如仅改 notifyUrl/remark）会把 sandbox/isDefault/status 静默重置
-const channelUpdateSchema = channelCreateSchema.partial().extend({
-  status: z.enum(['enabled', 'disabled']).optional(),
-  isDefault: z.boolean().optional(),
-  sandbox: z.boolean().optional(),
-  alipaySignType: z.enum(['RSA2', 'RSA']).optional(),
-});
+// 渠道配置入参复用 shared 契约（禁止本地重复定义——本地副本曾漏掉全部 unionpay 字段，
+// Zod strip 模式将其静默剥离，云闪付配置写入即丢失）
+const channelCreateSchema = createPaymentChannelConfigSchema;
+const channelUpdateSchema = updatePaymentChannelConfigSchema;
 
 // 下单/退款入参复用 shared 契约（禁止本地重复定义——本地副本曾漏掉 appKey 导致该字段被 Zod 静默剥离）
 const paymentCreateSchema = createPaymentSchema;

@@ -2,6 +2,7 @@
  * 支付中心相关 DTO（密钥字段以 hasXxx 布尔位返回，绝不暴露明文）
  */
 import { z } from '@hono/zod-openapi';
+import { PAYMENT_LEDGER_TYPES } from '@zenith/shared/payment';
 
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
 const payMethodEnum = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr', 'wechat_papay', 'alipay_cycle', 'wechat_preauth', 'alipay_preauth']);
@@ -12,7 +13,7 @@ const reconStatusEnum = z.enum(['pending', 'comparing', 'done', 'failed']);
 const reconResultEnum = z.enum(['matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff']);
 const webhookDeliveryStatusEnum = z.enum(['pending', 'success', 'failed']);
 const ledgerDirectionEnum = z.enum(['in', 'out']);
-const ledgerTypeEnum = z.enum(['payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer']);
+const ledgerTypeEnum = z.enum(PAYMENT_LEDGER_TYPES);
 
 export const PaymentChannelConfigDTO = z
   .object({
@@ -66,8 +67,8 @@ export const PaymentOrderDTO = z
     clientIp: z.string().nullable().optional(),
     departmentId: z.number().int().nullable().optional(),
     paidAmount: z.number().int().nullable().optional(),
-    feeAmount: z.number().int().nullable().optional(),
-    netAmount: z.number().int().nullable().optional(),
+    feeAmount: z.number().int().nullable().openapi({ description: '手续费（分），null=未计费' }),
+    netAmount: z.number().int().nullable().openapi({ description: '净额（分）= 实付 - 手续费，null=未计费' }),
     originalAmount: z.number().int().nullable().optional(),
     discountAmount: z.number().int().nullable().optional(),
     memberCouponId: z.number().int().nullable().optional(),
@@ -265,6 +266,7 @@ export const PaymentLedgerEntryDTO = z
     amount: z.number().int(),
     orderNo: z.string().nullable().optional(),
     refundNo: z.string().nullable().optional(),
+    sharingNo: z.string().nullable().optional(),
     channel: channelEnum.nullable().optional(),
     bizType: z.string().nullable().optional(),
     remark: z.string().nullable().optional(),
@@ -332,6 +334,7 @@ export const PaymentSettlementBatchDTO = z
     grossAmount: z.number().int(),
     feeAmount: z.number().int(),
     refundAmount: z.number().int(),
+    sharingAmount: z.number().int().openapi({ description: '账期内分账支出合计（分），净额已扣除' }),
     netAmount: z.number().int(),
     settledAt: z.string().nullable().optional(),
     remark: z.string().nullable().optional(),

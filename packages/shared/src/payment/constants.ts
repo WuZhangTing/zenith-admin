@@ -128,12 +128,12 @@ export const PAYMENT_LEDGER_DIRECTION_LABELS: Record<PaymentLedgerDirection, str
   in: '收入', out: '支出',
 };
 
-export const PAYMENT_LEDGER_TYPES = ['payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer'] as const;
+export const PAYMENT_LEDGER_TYPES = ['payment', 'refund', 'fee', 'sharing', 'settlement', 'adjust', 'transfer'] as const;
 
 export type PaymentLedgerType = typeof PAYMENT_LEDGER_TYPES[number];
 
 export const PAYMENT_LEDGER_TYPE_LABELS: Record<PaymentLedgerType, string> = {
-  payment: '收款', refund: '退款', fee: '手续费', settlement: '结算', adjust: '调整', transfer: '转账',
+  payment: '收款', refund: '退款', fee: '手续费', sharing: '分账', settlement: '结算', adjust: '调整', transfer: '转账',
 };
 
 // ─── 支付中心扩展 · B 档（费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表）──

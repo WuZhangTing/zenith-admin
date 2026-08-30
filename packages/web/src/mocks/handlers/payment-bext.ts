@@ -56,8 +56,8 @@ const feeHandlers = [
 
 // ─── 结算批次 ─────────────────────────────────────────────────────────────────
 const settlements: PaymentSettlementBatch[] = [
-  { id: 1, batchNo: 'SETTLE1700000000001', channel: 'wechat', periodStart: '2024-01-01', periodEnd: '2024-01-07', status: 'settled', orderCount: 12, grossAmount: 158800, feeAmount: 953, refundAmount: 1900, netAmount: 155947, settledAt: SEED, remark: '首周结算', createdAt: SEED, updatedAt: SEED },
-  { id: 2, batchNo: 'SETTLE1700000000002', channel: 'alipay', periodStart: '2024-01-08', periodEnd: '2024-01-14', status: 'pending', orderCount: 8, grossAmount: 88800, feeAmount: 488, refundAmount: 0, netAmount: 88312, settledAt: null, remark: null, createdAt: SEED, updatedAt: SEED },
+  { id: 1, batchNo: 'SETTLE1700000000001', channel: 'wechat', periodStart: '2024-01-01', periodEnd: '2024-01-07', status: 'settled', orderCount: 12, grossAmount: 158800, feeAmount: 953, refundAmount: 1900, sharingAmount: 0, netAmount: 155947, settledAt: SEED, remark: '首周结算', createdAt: SEED, updatedAt: SEED },
+  { id: 2, batchNo: 'SETTLE1700000000002', channel: 'alipay', periodStart: '2024-01-08', periodEnd: '2024-01-14', status: 'pending', orderCount: 8, grossAmount: 88800, feeAmount: 488, refundAmount: 0, sharingAmount: 0, netAmount: 88312, settledAt: null, remark: null, createdAt: SEED, updatedAt: SEED },
 ];
 let nextSettlementId = 3;
 const TRANSITIONS: Record<PaymentSettlementStatus, PaymentSettlementStatus[]> = { pending: ['settling', 'failed'], settling: ['settled', 'failed'], settled: [], failed: [] };
@@ -89,9 +89,10 @@ const settlementHandlers = [
     const refund = mockPaymentRefunds
       .filter((r) => r.channel === b.channel && r.status === 'success' && r.refundedAt && r.refundedAt.slice(0, 10) >= b.periodStart && r.refundedAt.slice(0, 10) <= b.periodEnd)
       .reduce((s, r) => s + r.refundAmount, 0);
+    // Mock 简化：分账口径按 0 计（真实实现见 payment-settlement.service）
     const item: PaymentSettlementBatch = {
       id: nextSettlementId++, batchNo: `SETTLE${Date.now()}`, channel: b.channel, periodStart: b.periodStart, periodEnd: b.periodEnd,
-      status: 'pending', orderCount: paid.length, grossAmount: gross, feeAmount: fee, refundAmount: refund, netAmount: Math.max(0, gross - fee - refund),
+      status: 'pending', orderCount: paid.length, grossAmount: gross, feeAmount: fee, refundAmount: refund, sharingAmount: 0, netAmount: Math.max(0, gross - fee - refund),
       settledAt: null, remark: b.remark ?? null, createdAt: mockDateTime(), updatedAt: mockDateTime(),
     };
     settlements.push(item);
@@ -290,7 +291,7 @@ const linkHandlers = [
       id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: l.bizType, bizId: l.linkNo,
       subject: l.subject, body: null, amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2,
       payMethod, status: 'paying', userId: null, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
-      paidAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, createdAt: now, updatedAt: now,
+      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, createdAt: now, updatedAt: now,
     });
     const payParams: CreatePaymentResult = {
       orderNo,

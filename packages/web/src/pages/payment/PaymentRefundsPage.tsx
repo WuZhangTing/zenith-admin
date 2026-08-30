@@ -40,6 +40,8 @@ export default function PaymentRefundsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentRefundKeys.lists });
   const [detail, setDetail] = useState<PaymentRefund | null>(null);
+  const [approveTarget, setApproveTarget] = useState<PaymentRefund | null>(null);
+  const [approveRemark, setApproveRemark] = useState('');
   const [rejectTarget, setRejectTarget] = useState<PaymentRefund | null>(null);
   const [rejectRemark, setRejectRemark] = useState('');
 
@@ -61,7 +63,7 @@ export default function PaymentRefundsPage() {
   const approveMutation = useApprovePaymentRefund();
   const rejectMutation = useRejectPaymentRefund();
   const queryingId = queryMutation.isPending ? (queryMutation.variables ?? null) : null;
-  const approvingId = approveMutation.isPending ? (approveMutation.variables ?? null) : null;
+  const approvingId = approveMutation.isPending ? (approveMutation.variables?.id ?? null) : null;
 
   function handleRefundQuery(record: PaymentRefund) {
     queryMutation.mutate(record.id, {
@@ -69,8 +71,13 @@ export default function PaymentRefundsPage() {
     });
   }
 
-  function handleApprove(record: PaymentRefund) {
-    approveMutation.mutate(record.id, { onSuccess: () => Toast.success('已审批通过，退款执行中') });
+  // 审批通过是资金流出操作：与驳回一致走确认弹窗（展示金额并支持审批意见），禁止单击直发
+  function openApprove(record: PaymentRefund) { setApproveTarget(record); setApproveRemark(''); }
+  async function submitApprove() {
+    if (!approveTarget) return;
+    await approveMutation.mutateAsync({ id: approveTarget.id, remark: approveRemark.trim() || undefined });
+    Toast.success('已审批通过，退款执行中');
+    setApproveTarget(null);
   }
 
   function openReject(record: PaymentRefund) { setRejectTarget(record); setRejectRemark(''); }
@@ -114,7 +121,7 @@ export default function PaymentRefundsPage() {
           label: '通过',
           type: 'primary' as const,
           loading: approvingId === r.id,
-          onClick: () => handleApprove(r),
+          onClick: () => openApprove(r),
         }, {
           key: 'reject',
           label: '驳回',
@@ -235,6 +242,19 @@ export default function PaymentRefundsPage() {
               { key: '错误信息', value: refundDetail.errorMessage ?? '-', span: 2 },
             ]}
           />
+        )}
+      </AppModal>
+
+      <AppModal title="审批通过退款" visible={!!approveTarget} onOk={submitApprove} onCancel={() => setApproveTarget(null)} okText="确认通过" okButtonProps={{ loading: approveMutation.isPending }} width={460} closeOnEsc>
+        {approveTarget && (
+          <Form labelPosition="left" labelWidth={90}>
+            <Form.Slot label="退款单号">{approveTarget.refundNo}</Form.Slot>
+            <Form.Slot label="原订单号">{approveTarget.orderNo}</Form.Slot>
+            <Form.Slot label="退款金额"><Typography.Text type="danger">{yuan(approveTarget.refundAmount)}</Typography.Text></Form.Slot>
+            <Form.Slot label="审批意见">
+              <Input value={approveRemark} onChange={setApproveRemark} placeholder="可选" maxLength={256} showClear />
+            </Form.Slot>
+          </Form>
         )}
       </AppModal>
 

@@ -80,6 +80,7 @@ export default function PaymentSettlementsPage() {
     { title: '收款', dataIndex: 'grossAmount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '手续费', dataIndex: 'feeAmount', width: 100, align: 'right', render: (v: number) => yuan(v) },
     { title: '退款', dataIndex: 'refundAmount', width: 100, align: 'right', render: (v: number) => yuan(v) },
+    { title: '分账', dataIndex: 'sharingAmount', width: 100, align: 'right', render: (v: number) => yuan(v ?? 0) },
     { title: '净额', dataIndex: 'netAmount', width: 120, align: 'right', render: (v: number) => <Typography.Text strong type={v < 0 ? 'danger' : 'success'}>{yuan(v)}</Typography.Text> },
     dateTimeColumn('到账时间', 'settledAt'),
     createdAtColumn as ColumnProps<PaymentSettlementBatch>,
@@ -208,7 +209,7 @@ export default function PaymentSettlementsPage() {
             ]}
           />
           <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: 90 }}>将聚合该渠道账期内成功订单，净额 = 收款 - 手续费 - 退款</Typography.Text>
+          <Typography.Text type="tertiary" size="small" style={{ display: 'block', marginLeft: 90 }}>将聚合该渠道账期内成功订单，净额 = 收款 - 手续费 - 退款 - 分账</Typography.Text>
         </Form>
       </AppModal>
     </div>

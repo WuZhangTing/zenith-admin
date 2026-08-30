@@ -40,8 +40,10 @@ export async function insertContentPublishOutbox(
 /** 单条 SQL 重算标签冗余计数（关联子查询，避免逐标签 COUNT 的 N+1 与竞态） */
 export async function recalcTagContentCounts(executor: DbExecutor, tagIds: number[]): Promise<void> {
   if (tagIds.length === 0) return;
+  // 外层列必须经 ${cmsTags}.id 显式表限定——sql`` 渲染裸 Column 不带表名，
+  // 裸写会被内层作用域捕获（cmsContentTags 一旦增加 id 列即静默变成自比较）
   await executor.update(cmsTags)
-    .set({ contentCount: sql<number>`(select count(*)::int from ${cmsContentTags} where ${cmsContentTags.tagId} = ${cmsTags.id})` })
+    .set({ contentCount: sql<number>`(select count(*)::int from ${cmsContentTags} where ${cmsContentTags.tagId} = ${cmsTags}.id)` })
     .where(inArray(cmsTags.id, [...new Set(tagIds)]));
 }
 

@@ -69,8 +69,13 @@ class Request extends HttpClient {
     }
 
     if (res.status === 401) {
-      const refreshed = await this.tryRefreshToken();
-      if (!refreshed) {
+      const outcome = await this.tryRefreshToken();
+      if (outcome === 'transient') {
+        // 瞬时故障（限流/网络抖动）：保留凭证，本次下载失败即可
+        showRequestErrorToast('登录状态刷新暂时不可用，请稍后重试');
+        return null;
+      }
+      if (outcome === 'invalid') {
         this.clearAuthAndRedirect();
         return null;
       }

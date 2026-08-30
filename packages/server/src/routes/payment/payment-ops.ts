@@ -3,6 +3,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { PaginationQuery, validationHook, commonErrorResponses, ok, okPaginated, IdParam, okBody } from '../../lib/openapi-schemas';
 import { PaymentOutboxEventDTO, PaymentOrderDTO, PaymentOpsHealthDTO } from '../../lib/openapi-dtos';
+import { getClientIp } from '../../lib/request-helpers';
 import { getPaymentEvent, getPaymentHealth, listPaymentEvents, redispatchEvent, simulateOrderPaid } from '../../services/payment/payment-ops.service';
 import { getOrderDetail } from '../../services/payment/payment.service';
 
@@ -37,7 +38,7 @@ const redispatchRoute = defineOpenAPIRoute({
 const simulateRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/orders/{id}/simulate-paid', tags: ['支付中心-运营'], summary: '模拟支付成功（演示/联调）',
-    description: '将待支付订单标记为已支付以触发履约链路。仅沙箱渠道或非生产环境可用。',
+    description: '构造沙箱回调报文送入 handleNotify，与真实渠道回调完全同径（验签/回调日志/幂等/事件/Webhook）。仅沙箱渠道配置可用。',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:ops:manage', audit: { description: '模拟支付成功', module: '支付中心' } })] as const,
     request: { params: IdParam },
@@ -46,7 +47,7 @@ const simulateRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await getOrderDetail(id));
-    return c.json(okBody(await simulateOrderPaid(id), '已模拟支付成功'), 200);
+    return c.json(okBody(await simulateOrderPaid(id, getClientIp(c)), '已模拟支付成功'), 200);
   },
 });
 

@@ -10,6 +10,7 @@ import { formatDateTime } from '../datetime';
 import logger from '../logger';
 import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem, type RsaAlgorithm } from './signing';
+import { trySandboxNotify } from './sandbox-notify';
 import type {
   AdapterContext,
   ContractDeductInput,
@@ -294,7 +295,10 @@ export const alipayAdapter: PaymentChannelAdapter = {
     };
   },
 
-  async verifyNotify(ctx, rawBody): Promise<NotifyResult> {
+  async verifyNotify(ctx, rawBody, headers): Promise<NotifyResult> {
+    // 沙箱配置 + 协议头：走统一沙箱回调协议（明文 JSON），生产配置不受影响
+    const sandboxResult = trySandboxNotify(ctx, rawBody, headers, { body: 'success', contentType: 'text/plain', status: 200 });
+    if (sandboxResult) return sandboxResult;
     const params = parseForm(rawBody);
     const sign = params.sign ?? '';
     const signType = params.sign_type ?? 'RSA2';

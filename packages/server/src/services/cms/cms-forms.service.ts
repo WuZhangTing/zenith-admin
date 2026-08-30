@@ -135,13 +135,19 @@ export async function listCmsForms(q: ListCmsFormsQuery) {
   const conditions: SQL[] = [eq(cmsForms.siteId, q.siteId)];
   if (q.keyword) conditions.push(like(cmsForms.name, `%${escapeLike(q.keyword)}%`));
   const where = mergeWhere(and(...conditions));
+  // 提交数按表单分组后 LEFT JOIN（sql`` 裸列名不带表限定，禁止模板内跨表比较）
+  const submissionCounts = db
+    .select({ formId: cmsFormSubmissions.formId, cnt: sql<number>`count(*)::int`.as('cnt') })
+    .from(cmsFormSubmissions)
+    .groupBy(cmsFormSubmissions.formId)
+    .as('submission_counts');
   const [total, rows] = await Promise.all([
     db.$count(cmsForms, where),
     withPagination(
       db.select({
         form: cmsForms,
-        submissionCount: sql<number>`(select count(*)::int from ${cmsFormSubmissions} where ${cmsFormSubmissions.formId} = ${cmsForms.id})`,
-      }).from(cmsForms).where(where).orderBy(asc(cmsForms.id)).$dynamic(),
+        submissionCount: sql<number>`coalesce(${submissionCounts.cnt}, 0)`,
+      }).from(cmsForms).leftJoin(submissionCounts, eq(submissionCounts.formId, cmsForms.id)).where(where).orderBy(asc(cmsForms.id)).$dynamic(),
       q.page,
       q.pageSize,
     ),

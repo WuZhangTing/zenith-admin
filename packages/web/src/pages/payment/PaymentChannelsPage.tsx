@@ -168,7 +168,8 @@ export default function PaymentChannelsPage() {
           danger: true,
           onClick: () => {
             confirmDelete({
-              content: '删除后不可恢复',
+              title: `删除渠道配置「${r.name}」？`,
+              content: '删除后不可恢复；已产生订单或被支付应用绑定的配置无法删除，请改用停用',
               onOk: () => handleDelete(r.id),
             });
           },

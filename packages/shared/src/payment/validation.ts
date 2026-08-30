@@ -8,7 +8,7 @@ export const createPaymentChannelConfigSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   isDefault: z.boolean().default(false),
   sandbox: z.boolean().default(false),
-  notifyUrl: z.string().max(512).optional(),
+  notifyUrl: z.string().max(512).refine((v) => v === '' || /^https?:\/\/.+/.test(v), { message: '回调地址须为 http(s) 绝对地址' }).optional(),
   // 微信（明文入参，service 层加密后入库）
   wechatAppId: z.string().max(64).optional(),
   wechatMchId: z.string().max(64).optional(),

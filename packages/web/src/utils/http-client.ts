@@ -17,6 +17,10 @@ export interface HttpRequestOptions {
   headers?: HeadersInit;
 }
 
+/** 刷新结果三态：refreshed=已换发新 token；invalid=refresh token 确认失效（应登出）；
+ * transient=瞬时失败（限流/服务端错误/网络抖动，不应清除凭证登出用户） */
+type RefreshOutcome = 'refreshed' | 'invalid' | 'transient';
+
 export interface HttpClientConfig {
   baseUrl: string;
   /** localStorage 中 accessToken 的 key */
@@ -54,7 +58,7 @@ export class HttpClient {
   private readonly logoutClearKeys: string[];
   private readonly unauthorizedFallbackMessage: string;
   private readonly handleMaintenance: boolean;
-  private refreshing: Promise<boolean> | null = null;
+  private refreshing: Promise<RefreshOutcome> | null = null;
 
   constructor(config: HttpClientConfig) {
     this.baseUrl = config.baseUrl;
@@ -80,12 +84,12 @@ export class HttpClient {
     return headers;
   }
 
-  protected async tryRefreshToken(): Promise<boolean> {
+  protected async tryRefreshToken(): Promise<RefreshOutcome> {
     if (this.refreshing) return this.refreshing;
 
-    this.refreshing = (async () => {
+    this.refreshing = (async (): Promise<RefreshOutcome> => {
       const refreshToken = localStorage.getItem(this.refreshTokenKey);
-      if (!refreshToken) return false;
+      if (!refreshToken) return 'invalid';
 
       try {
         const res = await fetch(`${this.baseUrl}${this.refreshPath}`, {
@@ -93,15 +97,17 @@ export class HttpClient {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
         });
-        if (!res.ok) return false;
+        // 仅 401/403 表示 refresh token 确认失效；429 限流、5xx 等瞬时故障不得清凭证登出
+        if (res.status === 401 || res.status === 403) return 'invalid';
+        if (!res.ok) return 'transient';
         const data = await res.json();
         if (data.code === 0 && data.data?.accessToken) {
           localStorage.setItem(this.tokenKey, data.data.accessToken);
-          return true;
+          return 'refreshed';
         }
-        return false;
+        return data.code === 401 || data.code === 403 ? 'invalid' : 'transient';
       } catch {
-        return false;
+        return 'transient';
       } finally {
         this.refreshing = null;
       }
@@ -159,8 +165,8 @@ export class HttpClient {
         }
       }
       // Try refresh token before giving up
-      const refreshed = await this.tryRefreshToken();
-      if (refreshed) {
+      const outcome = await this.tryRefreshToken();
+      if (outcome === 'refreshed') {
         // Retry original request with new token
         try {
           res = await doFetch();
@@ -171,9 +177,12 @@ export class HttpClient {
           this.clearAuthAndRedirect();
           abortSubmit('Unauthorized');
         }
-      } else {
+      } else if (outcome === 'invalid') {
         this.clearAuthAndRedirect();
         abortSubmit('Unauthorized');
+      } else {
+        // 瞬时故障（限流/维护/网络抖动）：保留凭证，本次请求按失败返回，用户稍后重试即可
+        return this.fail<T>(silent, '登录状态刷新暂时不可用，请稍后重试', 401);
       }
     }
 

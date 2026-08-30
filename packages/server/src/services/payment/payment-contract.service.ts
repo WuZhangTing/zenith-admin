@@ -139,15 +139,25 @@ export async function listDeductPlans(q: ListDeductPlansQuery) {
   if (q.keyword) conds.push(like(paymentDeductPlans.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(paymentDeductPlans.status, q.status));
   const where = mergeWhere(conds.length ? and(...conds) : undefined, plansTenantCondition());
+  // 有效签约数（signed/paused）按计划分组后 LEFT JOIN。
+  // 禁止在 sql`` 模板里做裸 Column 跨表比较（如 where ${a.planId} = ${b.id}）——
+  // drizzle 渲染裸列名不带表限定，子查询内会自解析成恒真/自比较条件。
+  const contractCounts = db
+    .select({ planId: paymentContracts.planId, cnt: sql<number>`count(*)::int`.as('cnt') })
+    .from(paymentContracts)
+    .where(inArray(paymentContracts.status, ['signed', 'paused']))
+    .groupBy(paymentContracts.planId)
+    .as('contract_counts');
   const [total, rows] = await Promise.all([
     db.$count(paymentDeductPlans, where),
     withPagination(
       db
         .select({
           plan: paymentDeductPlans,
-          contractCount: sql<number>`(select count(*)::int from ${paymentContracts} where ${paymentContracts.planId} = ${paymentDeductPlans.id})`,
+          contractCount: sql<number>`coalesce(${contractCounts.cnt}, 0)`,
         })
         .from(paymentDeductPlans)
+        .leftJoin(contractCounts, eq(contractCounts.planId, paymentDeductPlans.id))
         .where(where)
         .orderBy(desc(paymentDeductPlans.id))
         .$dynamic(),

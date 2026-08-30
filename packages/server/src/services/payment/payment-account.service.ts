@@ -60,6 +60,9 @@ function deltaOf(type: PaymentLedgerType, direction: PaymentLedgerDirection, amo
       return { pendingSettle: direction === 'in' ? amount : -amount };
     case 'refund':
       return { pendingSettle: -amount };
+    case 'sharing':
+      // 分账：从待结算划出给接收方（结算前分走的份额）
+      return { pendingSettle: -amount };
     case 'settlement':
       // 结算划转：待结算 → 可用
       return { pendingSettle: -amount, available: amount };
@@ -132,6 +135,7 @@ async function computeAllFromLedger(): Promise<Map<string, ComputedBalance>> {
       // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
       fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
       refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
+      sharing: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'sharing' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       settlement: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'settlement' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       transfer: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'transfer' then ${paymentLedgerEntries.amount} else 0 end),0)`,
       adjustIn: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'adjust' and ${paymentLedgerEntries.direction} = 'in' then ${paymentLedgerEntries.amount} else 0 end),0)`,
@@ -144,7 +148,7 @@ async function computeAllFromLedger(): Promise<Map<string, ComputedBalance>> {
   for (const agg of rows) {
     if (!agg.channel) continue;
     map.set(dimKey(agg.channel, agg.tenantId ?? null), {
-      pendingSettle: n(agg.payment) - n(agg.fee) - n(agg.refund) - n(agg.settlement),
+      pendingSettle: n(agg.payment) - n(agg.fee) - n(agg.refund) - n(agg.sharing) - n(agg.settlement),
       available: n(agg.settlement) - n(agg.transfer) + n(agg.adjustIn) - n(agg.adjustOut),
     });
   }

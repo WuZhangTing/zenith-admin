@@ -228,6 +228,8 @@ export function mapOrder(row: PaymentOrderRow): PaymentOrder {
     clientIp: row.clientIp ?? null,
     departmentId: row.departmentId ?? null,
     paidAmount: row.paidAmount ?? null,
+    feeAmount: row.feeAmount ?? null,
+    netAmount: row.netAmount ?? null,
     originalAmount: row.originalAmount ?? null,
     discountAmount: row.discountAmount ?? null,
     memberCouponId: row.memberCouponId ?? null,

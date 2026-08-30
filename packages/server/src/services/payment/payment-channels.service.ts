@@ -3,10 +3,10 @@
  * 密钥字段（APIv3 Key / 商户私钥 / 支付宝应用私钥）以 encryptField 加密存储，
  * 响应中绝不返回明文，仅以 hasXxx 布尔位标识是否已配置。
  */
-import { and, asc, desc, eq, like } from 'drizzle-orm';
+import { and, asc, desc, eq, like, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { paymentChannelConfigs, type NewPaymentChannelConfig, type PaymentChannelConfigRow } from '../../db/schema';
+import { paymentApps, paymentChannelConfigs, paymentOrders, type NewPaymentChannelConfig, type PaymentChannelConfigRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
@@ -179,7 +179,26 @@ export async function updateChannelConfig(id: number, input: UpdatePaymentChanne
 }
 
 export async function deleteChannelConfig(id: number): Promise<void> {
-  await ensureChannelConfigExists(id);
+  const existing = await ensureChannelConfigExists(id);
+  // 三道闸：渠道配置被删除后，关联订单将无法退款/查单（密钥随配置一起消失），
+  // 一律引导「停用」而非删除；仅无任何引用的配置可物理删除。
+  if (existing.isDefault) {
+    throw new HTTPException(400, { message: '该配置是当前渠道的默认配置，请先将其他配置设为默认后再删除' });
+  }
+  const [orderCount, [boundApp]] = await Promise.all([
+    db.$count(paymentOrders, eq(paymentOrders.channelConfigId, id)),
+    db
+      .select({ id: paymentApps.id, name: paymentApps.name })
+      .from(paymentApps)
+      .where(or(eq(paymentApps.wechatConfigId, id), eq(paymentApps.alipayConfigId, id), eq(paymentApps.unionpayConfigId, id)))
+      .limit(1),
+  ]);
+  if (orderCount > 0) {
+    throw new HTTPException(400, { message: `该配置已产生 ${orderCount} 笔支付订单，删除后订单将无法退款/查单，请改用停用` });
+  }
+  if (boundApp) {
+    throw new HTTPException(400, { message: `该配置已被支付应用「${boundApp.name}」绑定，请先解除绑定后再删除` });
+  }
   await db.delete(paymentChannelConfigs).where(eq(paymentChannelConfigs.id, id));
 }
 

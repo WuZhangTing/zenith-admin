@@ -443,8 +443,9 @@ export async function importCmsSite(payload: unknown) {
       .filter((r): r is { contentId: number; tagId: number } => !!r.contentId && !!r.tagId);
     if (remappedContentTags.length > 0) {
       await tx.insert(cmsContentTags).values(remappedContentTags).onConflictDoNothing();
+      // 外层列必须经 ${cmsTags}.id 显式表限定（sql`` 裸 Column 不带表名，防内层捕获）
       await tx.update(cmsTags)
-        .set({ contentCount: sql<number>`(select count(*)::int from ${cmsContentTags} where ${cmsContentTags.tagId} = ${cmsTags.id})` })
+        .set({ contentCount: sql<number>`(select count(*)::int from ${cmsContentTags} where ${cmsContentTags.tagId} = ${cmsTags}.id)` })
         .where(eq(cmsTags.siteId, siteId));
     }
     const remappedExtraChannels = ((data.contentChannels ?? []) as PlainRow[])

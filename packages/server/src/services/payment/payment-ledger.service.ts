@@ -29,6 +29,7 @@ export function mapLedgerEntry(row: PaymentLedgerEntryRow): PaymentLedgerEntry {
     amount: row.amount,
     orderNo: row.orderNo ?? null,
     refundNo: row.refundNo ?? null,
+    sharingNo: row.sharingNo ?? null,
     channel: row.channel ?? null,
     bizType: row.bizType ?? null,
     remark: row.remark ?? null,
@@ -42,19 +43,24 @@ export interface RecordLedgerInput {
   amount: number;
   orderNo?: string | null;
   refundNo?: string | null;
+  sharingNo?: string | null;
   channel?: PaymentChannel | null;
   bizType?: string | null;
   remark?: string | null;
   tenantId?: number | null;
 }
 
-/** 记一条资金流水（幂等：带 refundNo 的记账（退款支出/手续费冲销）按 refundNo+type 去重，
+/** 记一条资金流水（幂等：带 sharingNo 的分账记账按 sharingNo+type 去重，
+ * 带 refundNo 的记账（退款支出/手续费冲销）按 refundNo+type 去重，
  * 原始记账（收款/手续费）按 orderNo+type 去重；
  * 先查后插为快路径，并发窗口由部分唯一索引 + ON CONFLICT DO NOTHING 兜底）。
  * 流水真实落库后原子联动商户资金账户快照（payment_accounts）。 */
 export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void> {
   if (input.amount <= 0) return;
-  if (input.refundNo) {
+  if (input.sharingNo) {
+    const exists = await db.$count(paymentLedgerEntries, and(eq(paymentLedgerEntries.sharingNo, input.sharingNo), eq(paymentLedgerEntries.type, input.type)));
+    if (exists > 0) return;
+  } else if (input.refundNo) {
     const exists = await db.$count(paymentLedgerEntries, and(eq(paymentLedgerEntries.refundNo, input.refundNo), eq(paymentLedgerEntries.type, input.type)));
     if (exists > 0) return;
   } else if (input.orderNo) {
@@ -70,6 +76,7 @@ export async function recordLedgerEntry(input: RecordLedgerInput): Promise<void>
       amount: input.amount,
       orderNo: input.orderNo ?? null,
       refundNo: input.refundNo ?? null,
+      sharingNo: input.sharingNo ?? null,
       channel: input.channel ?? null,
       bizType: input.bizType ?? null,
       remark: input.remark ?? null,

@@ -61,3 +61,13 @@ export function useRedeliverPaymentWebhookDelivery() {
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentWebhookKeys.all }),
   });
 }
+
+/** 向端点发送 webhook.test 测试事件（真实签名投递 + 落投递日志） */
+export function useTestPaymentWebhookEndpoint() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => request.post<PaymentWebhookDelivery>(`/api/payment/webhooks/endpoints/${id}/test`, {}).then(unwrap),
+    // 测试会产生一条新投递记录
+    onSuccess: () => qc.invalidateQueries({ queryKey: paymentWebhookKeys.deliveryLists }),
+  });
+}

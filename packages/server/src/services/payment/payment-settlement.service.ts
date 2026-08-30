@@ -1,13 +1,13 @@
 /**
  * 支付结算批次 Service。
- * 按渠道 + 账期聚合成功订单生成结算批次（净额 = 收款 - 手续费 - 退款），
+ * 按渠道 + 账期聚合成功订单生成结算批次（净额 = 收款 - 手续费 - 退款 - 分账），
  * 状态机：生成(pending) → 结算中(settling) → 已结算(settled)/失败(failed)，结算时记资金台账。
  */
 import { and, between, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
-import { paymentOrders, paymentRefunds, paymentSettlementBatches, type PaymentSettlementBatchRow } from '../../db/schema';
+import { paymentOrders, paymentRefunds, paymentSettlementBatches, paymentSharingOrders, type PaymentSettlementBatchRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
@@ -34,6 +34,7 @@ export function mapSettlementBatch(row: PaymentSettlementBatchRow): PaymentSettl
     grossAmount: row.grossAmount,
     feeAmount: row.feeAmount,
     refundAmount: row.refundAmount,
+    sharingAmount: row.sharingAmount,
     netAmount: row.netAmount,
     settledAt: formatNullableDateTime(row.settledAt),
     remark: row.remark ?? null,
@@ -88,6 +89,7 @@ export async function generateSettlement(input: GenerateSettlementInput): Promis
     batchTenantId: getCreateTenantId(user),
     orderWhere: tenantCondition(paymentOrders, user),
     refundWhere: tenantCondition(paymentRefunds, user),
+    sharingWhere: tenantCondition(paymentSharingOrders, user),
   });
 }
 
@@ -98,9 +100,12 @@ interface SettlementScope {
   orderWhere?: SQL;
   /** 退款聚合的租户过滤条件（undefined = 不过滤） */
   refundWhere?: SQL;
+  /** 分账聚合的租户过滤条件（undefined = 不过滤） */
+  sharingWhere?: SQL;
 }
 
-/** 结算批次生成核心：聚合账期内成功订单（gross/fee）与成功退款（refund），net = gross - fee - refund。
+/** 结算批次生成核心：聚合账期内成功订单（gross/fee）、成功退款（refund）与成功分账（sharing），
+ * net = gross - fee - refund - sharing。
  * 不依赖请求上下文，供路由与定时任务复用；唯一索引保证同租户+渠道+账期幂等。 */
 async function generateSettlementScoped(input: GenerateSettlementInput, scope: SettlementScope): Promise<PaymentSettlementBatch> {
   const start = parseDateRangeStart(input.periodStart);
@@ -137,11 +142,28 @@ async function generateSettlementScoped(input: GenerateSettlementInput, scope: S
       ),
     );
 
+  // 分账单不带渠道列，经订单联表按渠道过滤
+  const [sharingAgg] = await db
+    .select({ sharing: sql<number>`coalesce(sum(${paymentSharingOrders.amount}),0)` })
+    .from(paymentSharingOrders)
+    .innerJoin(paymentOrders, eq(paymentOrders.orderNo, paymentSharingOrders.orderNo))
+    .where(
+      mergeWhere(
+        and(
+          eq(paymentOrders.channel, input.channel),
+          eq(paymentSharingOrders.status, 'success'),
+          between(paymentSharingOrders.finishedAt, start, end),
+        ),
+        scope.sharingWhere,
+      ),
+    );
+
   const grossAmount = Number(orderAgg?.gross ?? 0);
   const feeAmount = Number(orderAgg?.fee ?? 0);
   const refundAmount = Number(refundAgg?.refund ?? 0);
+  const sharingAmount = Number(sharingAgg?.sharing ?? 0);
   const unfeeCount = Number(orderAgg?.unfeeCount ?? 0);
-  const rawNetAmount = grossAmount - feeAmount - refundAmount;
+  const rawNetAmount = grossAmount - feeAmount - refundAmount - sharingAmount;
   const netAmount = Math.max(0, rawNetAmount);
   const remark = [
     input.remark,
@@ -162,6 +184,7 @@ async function generateSettlementScoped(input: GenerateSettlementInput, scope: S
         grossAmount,
         feeAmount,
         refundAmount,
+        sharingAmount,
         netAmount,
         remark,
         tenantId: scope.batchTenantId,
@@ -200,10 +223,11 @@ export async function generateDailySettlements(): Promise<{ generated: number; s
   for (const { channel, tenantId } of scopes.values()) {
     const tenantWhereOrders = tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, tenantId);
     const tenantWhereRefunds = tenantId == null ? isNull(paymentRefunds.tenantId) : eq(paymentRefunds.tenantId, tenantId);
+    const tenantWhereSharing = tenantId == null ? isNull(paymentSharingOrders.tenantId) : eq(paymentSharingOrders.tenantId, tenantId);
     try {
       await generateSettlementScoped(
         { channel, periodStart: billDate, periodEnd: billDate, remark: 'T+1 自动结算' },
-        { batchTenantId: tenantId, orderWhere: tenantWhereOrders, refundWhere: tenantWhereRefunds },
+        { batchTenantId: tenantId, orderWhere: tenantWhereOrders, refundWhere: tenantWhereRefunds, sharingWhere: tenantWhereSharing },
       );
       generated++;
     } catch (err) {

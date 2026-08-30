@@ -49,7 +49,8 @@ export function useQueryPaymentRefund() {
 export function useApprovePaymentRefund() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<null>(`/api/payment/refunds/${id}/approve`, {}).then(unwrap),
+    mutationFn: ({ id, remark }: { id: number; remark?: string }) =>
+      request.post<null>(`/api/payment/refunds/${id}/approve`, { remark }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentRefundKeys.all }),
   });
 }

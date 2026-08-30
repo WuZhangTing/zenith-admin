@@ -15,6 +15,13 @@
       "when": 1788068856008,
       "tag": "0001_extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788083219288,
+      "tag": "0002_mean_avengers",
+      "breakpoints": true
     }
   ]
 }

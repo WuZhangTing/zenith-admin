@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { PAYMENT_LEDGER_TYPES } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
@@ -8,7 +9,8 @@ import { listLedgerEntries, getLedgerSummary } from '../../services/payment/paym
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
 const directionEnum = z.enum(['in', 'out']);
-const typeEnum = z.enum(['payment', 'refund', 'fee', 'settlement', 'adjust']);
+// 复用 shared 常量（本地副本曾漏掉 transfer，导致按转账类型筛选被 Zod 拒绝）
+const typeEnum = z.enum(PAYMENT_LEDGER_TYPES);
 
 const ledgerQuery = {
   keyword: z.string().optional(),

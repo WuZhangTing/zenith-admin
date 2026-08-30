@@ -81,11 +81,18 @@ export async function getActiveAds(siteId: number): Promise<Record<string, { id:
 export async function listCmsAdSlots(siteId: number) {
   await ensureCmsSiteExists(siteId);
   await assertSiteAccess(siteId);
+  // 广告数按 slot 分组后 LEFT JOIN（sql`` 裸列名不带表限定，禁止模板内跨表比较）
+  const adCounts = db
+    .select({ slotId: cmsAds.slotId, cnt: sql<number>`count(*)::int`.as('cnt') })
+    .from(cmsAds)
+    .groupBy(cmsAds.slotId)
+    .as('ad_counts');
   const rows = await db.select({
     slot: cmsAdSlots,
-    adCount: sql<number>`(select count(*)::int from ${cmsAds} where ${cmsAds.slotId} = ${cmsAdSlots.id})`,
+    adCount: sql<number>`coalesce(${adCounts.cnt}, 0)`,
   })
     .from(cmsAdSlots)
+    .leftJoin(adCounts, eq(adCounts.slotId, cmsAdSlots.id))
     .where(eq(cmsAdSlots.siteId, siteId))
     .orderBy(asc(cmsAdSlots.id));
   return rows.map((r) => mapCmsAdSlot(r.slot, r.adCount));
