@@ -263,27 +263,39 @@ mock 初始数据应从 `@zenith/shared/seed` 的 `SEED_XXXS` 派生，而非另
 
 ### `npm test` 报超时，但单独跑那几个文件却能通过
 
-vitest 默认 worker 数 = 核数−1，每个 worker 都要独立转译整套 app 的完整模块图。
-核数越多，重复转译的开销越是反超并行收益；装配整个 app 的重用例
-（`app.contract.test.ts` 建 app 并全量探测所有操作、`app.routes.test.ts` 建 app 取路由表）
-本就贴近超时线，被饿死后直接撞破。
+耗时结构的根源是 vitest 的**隔离税**，而不是用例本身慢：`isolate: true` 下每个测试文件
+都在全新 worker 里重新转译 + 重新执行自己那条模块图（22 核实测：server 全量墙钟 89s，
+其中累计 import 492s、真正的断言只有 77s；web 全量 139s，累计 import 551s、断言 58s）。
+装配整个 app 的重用例（`app.contract.test.ts`：一次装配同时喂给契约断言与路由表快照）
+要执行 1400+ 模块，独占跑约 60-90s，本就贴近超时线，CPU 被抢后直接撞破；
+普通秒级用例（exceljs 渲染、Semi 浮层交互）在发布流程四路并行下也会被放大 10-40 倍，
+撞上默认 5s 超时——两包 `testTimeout` 均为 `15_000`。
 
 **据此与真 bug 区分**：失败全是**超时**而非断言失败；单独跑同样的文件能过；
-`Duration` 里 transform 累计远大于墙钟。
+`Duration` 里 transform / import 累计远大于墙钟。
 
 按症状出现的场景调对应旋钮：
 
 | 场景 | 旋钮 |
 | --- | --- |
 | 单独跑 `npm test` 就超时 | 调低 `packages/server/vitest.config.ts` 的 `maxWorkers`（当前 `8`） |
-| 只在发布流程的四路并行下超时 | 放宽该用例超时——它与 lint / build / docs 争抢同一种（转译）资源。`src/app.contract.test.ts` 与 `src/app.routes.test.ts` 的 `beforeAll` / 用例超时当前均为 `480_000` |
+| 只在发布流程的四路并行下超时 | 放宽超时——它与 lint / build / docs 争抢同一种（转译 + CPU）资源。两包全局 `testTimeout` 当前为 `15_000`；`src/app.contract.test.ts` 的 `beforeAll` 为 `480_000` |
+| web 全量明显变慢 | 确认 `packages/web/vitest.config.ts` 的 `deps.optimizer.web` 还在：Semi 的 CJS 里 require CSS，走不了原生加载，esbuild 预打包（缓存于 `node_modules/.vite/deps`）是 288.6s → 139.4s 的来源 |
 
 `maxWorkers` 是**上限**不是目标值，核数少的机器（如 CI 的 4 核 runner）不受影响。
 放宽超时前先确认它属于「慢但有效」——独占跑能过、且失败是超时而非断言失败；
 真卡死（如顶层 await 死锁）仍应快速失败。
 
 > 不要因此把发布流程的四路并行改成串行——单独跑 `npm test`（零外层并发）同样会超时，
-> 外层并行不是根因。见 [release.md → Step 5](./release.md)。
+> 外层并行不是根因。也不要用 `isolate: false` 或 vmThreads 池换速度，
+> 原因见 [release.md → Step 5](./release.md)。
+
+### 测试输出出现真实的 `[Redis] 连接成功` / worker 退出期 unhandled rejection
+
+`lib/redis` 在模块加载时就 `connect()`，任何测试文件传递依赖摸到它就会向本机发真实 TCP。
+由 `packages/server/src/test-setup.ts`（vitest `setupFiles`）全局替换为
+`test-utils/redis-stub.ts` 的内存替身；单个文件仍可用自己的 `vi.mock('../lib/redis', ...)`
+覆盖。若再看到真实连接日志，先确认 setupFiles 配置未被移除。
 
 ### `npm run dev:server` 冷启动明显变慢
 

@@ -196,7 +196,7 @@ import { UserDTO } from '../../lib/openapi-dtos';
 - `routes/index.ts` 的 `ROUTE_DOMAINS` 声明域顺序：`ops → identity → member → platform → files → tasks → analytics → report → messaging → payment → open-platform → workflow → chat → mp → biz-demo → ai → cms → wiki`。
 - `src/app.ts` 的 `createApp()` 按域装配常规 API，再挂载 `/api/mastra/*`，再注册 Swagger 文档和 fallback 路由。
 - CMS 前台 SSR 等兜底路由放在域的 `fallback()` 中，保证晚于全部 API 与文档路由。
-- 全量 method + path 由 `src/app.routes.test.ts` 快照锁定；增删接口需更新该快照。
+- 全量 method + path 由 `src/app.contract.test.ts` 快照锁定；增删接口需更新该快照。
 
 ## 数据删除与批量操作规范
 

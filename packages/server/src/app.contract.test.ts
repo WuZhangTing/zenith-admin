@@ -1,5 +1,5 @@
 /**
- * 路由契约测试——覆盖全部路由文件暴露的所有操作。
+ * 路由契约测试——覆盖全部路由文件暴露的所有操作，并锁定完整路由表快照。
  *
  * 为什么需要这层测试：
  * service 层已有近 200 个单测，但它们测不到路由声明本身。以下缺陷类型只有在
@@ -9,8 +9,21 @@
  *  2. 公开路由漏写 `security: []` —— OpenAPI 文档撒谎，接入方被误导；更糟的是
  *     它污染了「已声明受保护」集合，使真正的漏挂认证淹没在噪声里无法辨识
  *  3. 漏写 `commonErrorResponses` —— 前端拿不到规范的错误契约
+ *  4. 接口被静默删掉 / 误改路径 / 子路由器忘记挂载 —— 由路由表快照锁定，
+ *     契约断言只有 `operations.length > 1500` 这类下界，删单个路由不会触发
  *
- * 本套件把这些不变量固化下来：任何新增路由若违反约定，CI 直接失败并指名到具体操作。
+ * 快照与契约放在同一个文件：两者都需要装配整个 app（转译 + 执行 1400+ 模块的
+ * 完整模块图，是全套件最贵的一步），拆成两个文件会在隔离 worker 里把这笔成本
+ * 原样付两遍（实测每份 50-60s）。
+ *
+ * 快照变更本身不是错误——新增接口就应该更新快照。它的价值在于**强制这件事被看见**：
+ * `npx vitest -u` 之后 diff 会明确显示动了哪些路由。
+ *
+ * **不锁挂载顺序。** 曾有一份「域装配清单」快照试图锁定它，但清单里只存挂载路径，
+ * 而顺序真正有语义的场景恰恰是同一路径被多次挂载（`/api/analytics` ×4、
+ * `/api/ai/conversations` ×3）——此时互换两条挂载得到逐字节相同的清单，
+ * 它防不住自己声称要防的那件事，却让人以为顺序已被保护。已移除，
+ * 顺序改动需人工核对，见 `routes/_kit.ts` 约束 1。
  *
  * 相关约束见 .agents/skills/zenith/references/constraints.md 的 Route 层章节。
  */
@@ -27,6 +40,7 @@ mockServerInfra();
 
 let app: AppLike;
 let operations: RouteOperation[];
+let routes: Array<{ method: string; path: string }>;
 /** 无凭证访问时的实际状态码，按操作 id 索引 */
 const unauthenticatedStatus = new Map<string, number>();
 
@@ -34,6 +48,7 @@ beforeAll(async () => {
   const built = await buildContractApp();
   app = built.app;
   operations = built.operations;
+  routes = built.routes;
 
   // 全量探测一次，后续断言复用结果——对所有操作的进程内请求成本可观，
   // 拆到各 it 里重复发送会让耗时翻倍。
@@ -42,9 +57,28 @@ beforeAll(async () => {
   }
   // 超时放宽到 480 秒：耗时几乎全在 buildContractApp() 转译整套 app，
   // 而发布流程的四路并行（lint / test / build / docs）抢的正是同一种转译资源。
-  // 独占跑约 90 秒，并行下曾贴着 300 秒撞破——属「慢但有效」，不是卡死。
+  // 独占跑约 60-90 秒，并行下曾贴着 300 秒撞破——属「慢但有效」，不是卡死。
   // 见 .agents/skills/zenith/references/troubleshooting.md → 性能
 }, 480_000);
+
+describe('路由表快照', () => {
+  /**
+   * 锁定全部 method + path，捕获误删、误改路径、以及子路由器忘记挂载。
+   * 路由文件没有任何路由级单元测试，这是「接口被静默删掉」的唯一防线。
+   */
+  it('完整路由表保持不变', () => {
+    // routes 含中间件条目（method 为 ALL），只取真正的端点；
+    // 排序保证快照稳定——注册顺序不在本快照的锁定范围内。
+    const table = [...new Set(
+      routes
+        .filter((r) => r.method !== 'ALL')
+        .map((r) => `${r.method} ${r.path}`),
+    )].sort();
+
+    expect(table.length).toBeGreaterThan(1500);
+    expect(table).toMatchSnapshot();
+  });
+});
 
 /** 该操作的成功响应是否为 JSON——文件下载、SSE、渠道回调 ACK 等均不是 */
 function producesJson(op: RouteOperation): boolean {

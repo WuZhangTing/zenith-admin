@@ -27,5 +27,18 @@ export default defineConfig({
     // （rolldown 全量转译）并行时会把 CPU 打满，导致 worker 启动超时。
     // CI 的 4 核 runner 本就只起 3 个 worker，不受影响。
     maxWorkers: 8,
+    // Semi 的 CJS 产物里直接 require CSS，node_modules 无法走原生加载，只能进
+    // vite 管线逐模块转译+执行；隔离模式下每个测试文件的 worker 都要重复执行
+    // 这几千个包装模块。esbuild 预打包把它们压成单一 chunk（缓存在
+    // node_modules/.vite/deps），22 核实测全量从 288.6s 降到 139.4s（累计
+    // import 1306s → 551s），用例行为不变。
+    deps: {
+      optimizer: {
+        web: {
+          enabled: true,
+          include: ['@douyinfe/semi-ui', '@douyinfe/semi-icons', '@douyinfe/semi-illustrations', 'lucide-react'],
+        },
+      },
+    },
   },
 });

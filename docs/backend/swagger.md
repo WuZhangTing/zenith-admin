@@ -65,7 +65,7 @@ OpenAPI Spec 由每个路由文件的 `createRoute(...)` 声明汇总生成。�
 5. 实体响应 DTO 放在 `packages/server/src/lib/dtos/`，通过 `packages/server/src/lib/openapi-dtos.ts` 导入。
 6. 子路由通过 `router.openapiRoutes([... ] as const)` 注册；业务域在 `routes/{domain}/index.ts` 的 `defineRouteDomain` 挂载。
 7. 新增业务域时加入 `routes/index.ts` 的 `ROUTE_DOMAINS`。
-8. 路由表快照由 `packages/server/src/app.routes.test.ts` 维护，OpenAPI 文档可用性由 `packages/server/src/lib/openapi-doc.test.ts` 覆盖。
+8. 路由表快照由 `packages/server/src/app.contract.test.ts` 维护，OpenAPI 文档可用性由 `packages/server/src/lib/openapi-doc.test.ts` 覆盖。
 
 递归 Zod schema 使用项目封装的稳定引用写法，避免 `/api/openapi.json` 展开递归结构时栈溢出。普通 `Hono` 子路由不会自动合并 OpenAPI registry；需要出现在文档中的端点应使用 `OpenAPIHono`。
 

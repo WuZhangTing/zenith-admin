@@ -18,6 +18,7 @@
  * ```
  */
 import { vi } from 'vitest';
+import { createRedisStub } from './redis-stub';
 
 /** OpenAPI 中承载操作的 HTTP 方法 */
 export const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'] as const;
@@ -57,8 +58,8 @@ export interface RouteOperation {
  * 后者会被提升到文件顶部，从辅助模块里调用不会生效。
  */
 export function mockServerInfra(): void {
-  // lib/redis 在模块加载时就 client.connect()，测试环境没有 Redis，
-  // 放任不管会留下重连句柄，导致 vitest 无法退出。
+  // lib/redis 已由全局 setup（src/test-setup.ts）替换为内存替身；这里再注册一次
+  // 是让本模块自洽——契约测试的可运行性不依赖 setupFiles 配置存在与否。
   vi.doMock('../lib/redis', () => ({ default: createRedisStub(), closeRedis: vi.fn() }));
 
   // db 必须一并拦截：maintenanceMiddleware 挂在 '/api/*' 上，每个请求都会
@@ -85,7 +86,7 @@ export function mockServerInfra(): void {
  * 一个「查不到任何数据」的 drizzle 替身。
  *
  * drizzle 的查询构造器是链式且 thenable 的（`db.select().from(t).where(w).limit(1)`
- * 可直接 await），链条形态在 267 个路由文件里千变万化，逐个列举不现实。
+ * 可直接 await），链条形态在 300+ 个路由文件里千变万化，逐个列举不现实。
  * 这里用代理让任意属性访问都返回可继续链式调用的构造器，await 时按**链尾方法名**
  * 决定返回值：`findFirst` 语义上是单行，必须给 `undefined`，给 `[]` 会被调用方
  * 当成「查到了」（空数组是真值），进而走进本不该走的分支。
@@ -115,51 +116,21 @@ function createDbStub(): Record<string, unknown> {
 }
 
 /**
- * 一个「怎么调都返回 null」的 Redis 替身。
- *
- * 用 Proxy 而非逐个列举方法：中间件栈里的限流、幂等、会话、黑名单会用到十几个
- * 不同命令，逐个补是维护负担，漏一个就是一条 unhandled rejection。
+ * 一个「怎么调都返回 null」的 Redis 替身——实现细节见 test-utils/redis-stub.ts。
  */
-function createRedisStub(): Record<string, unknown> {
-  const stub: Record<string, unknown> = {
-    // hono-rate-limiter 的 RedisStore 在构造时立即 SCRIPT LOAD
-    script: vi.fn().mockResolvedValue('stub-sha'),
-    evalsha: vi.fn().mockResolvedValue([1, 1]),
-    keys: vi.fn().mockResolvedValue([]),
-    scan: vi.fn().mockResolvedValue(['0', []]),
-    exists: vi.fn().mockResolvedValue(0),
-    // 幂等中间件用 SET NX 判断是否首次请求，'OK' 表示放行
-    set: vi.fn().mockResolvedValue('OK'),
-    on: vi.fn(),
-    off: vi.fn(),
-    once: vi.fn(),
-    connect: vi.fn().mockResolvedValue(undefined),
-    quit: vi.fn().mockResolvedValue('OK'),
-    disconnect: vi.fn(),
-    pipeline: vi.fn(() => ({ exec: vi.fn().mockResolvedValue([]) })),
-    multi: vi.fn(() => ({ exec: vi.fn().mockResolvedValue([]) })),
-    status: 'ready',
-  };
-
-  return new Proxy(stub, {
-    get(target, prop: string) {
-      if (prop === 'then') return undefined; // 避免被当成 thenable
-      if (!(prop in target)) target[prop] = vi.fn().mockResolvedValue(null);
-      return target[prop];
-    },
-  });
-}
 
 /** 只取契约测试用得到的部分，避免耦合 Hono 的完整泛型签名 */
 export interface AppLike {
   request(url: string, init?: RequestInit): Promise<Response>;
 }
 
-/** 构造完整 app 并取出其 OpenAPI 文档 */
+/** 构造完整 app 并取出其 OpenAPI 文档与运行时路由表 */
 export async function buildContractApp(): Promise<{
   app: AppLike;
   doc: OpenAPIDoc;
   operations: RouteOperation[];
+  /** Hono 运行时路由表（含重复挂载），供路由表快照使用 */
+  routes: Array<{ method: string; path: string }>;
 }> {
   const { createApp } = await import('../app');
   const { app } = createApp();
@@ -168,7 +139,8 @@ export async function buildContractApp(): Promise<{
     throw new Error(`无法取得 OpenAPI 文档，状态码 ${res.status}`);
   }
   const doc = (await res.json()) as OpenAPIDoc;
-  return { app: app as AppLike, doc, operations: listOperations(doc) };
+  const routes = app.routes.map((r) => ({ method: r.method, path: r.path }));
+  return { app: app as AppLike, doc, operations: listOperations(doc), routes };
 }
 
 /** 把 OpenAPI 文档摊平成操作列表，按 id 稳定排序 */

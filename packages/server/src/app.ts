@@ -7,7 +7,7 @@
  * serve()，导致 250 个路由文件里只有 2 个有测试）。
  *
  * 路由不再逐条罗列，而是由 src/routes/index.ts 的 ROUTE_DOMAINS 按域装配，
- * 详见 src/routes/_kit.ts。路由表由 src/app.routes.test.ts 快照锁定。
+ * 详见 src/routes/_kit.ts。路由表由 src/app.contract.test.ts 快照锁定。
  */
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
