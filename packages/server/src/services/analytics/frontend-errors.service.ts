@@ -17,6 +17,7 @@ import { isSiteOriginAllowed, resolveSiteByKey } from './analytics-sites.service
 import { recordQualityIssue } from './analytics-governance.service';
 import { isErrorIgnored } from './analytics-settings.service';
 import { bumpReplayErrorCount } from './session-replays.service';
+import { notify } from '../messaging/notification-outbox.service';
 import logger from '../../lib/logger';
 
 export interface ErrorReqCtx { ip: string; ua: string; siteKey?: string | null; origin?: string | null }
@@ -345,7 +346,7 @@ export async function getGroupDetail(id: number) {
 
 // ─── 处理（更新 Issue）────────────────────────────────────────────────────────
 export async function updateGroup(id: number, input: UpdateErrorGroupInput) {
-  await ensureGroupExists(id);
+  const prev = await ensureGroupExists(id);
   let assigneeName: string | null | undefined;
   if (input.assigneeId !== undefined) {
     if (input.assigneeId === null) assigneeName = null;
@@ -371,6 +372,28 @@ export async function updateGroup(id: number, input: UpdateErrorGroupInput) {
     })
     .where(eq(errorGroups.id, id))
     .returning();
+
+  // 指派变更时通知被指派人（重复指派同一人、自派自不通知）；失败不阻断主流程
+  const operator = currentUserOrNull();
+  if (input.assigneeId != null && input.assigneeId !== prev.assigneeId && input.assigneeId !== operator?.userId) {
+    try {
+      const [op] = operator
+        ? await db.select({ nickname: users.nickname }).from(users).where(eq(users.id, operator.userId)).limit(1)
+        : [];
+      await notify('analytics.error.assigned', {
+        recipients: [{ type: 'user', id: input.assigneeId }],
+        vars: {
+          groupId: id,
+          message: row.message.length > 80 ? `${row.message.slice(0, 80)}…` : row.message,
+          assignerName: op?.nickname || operator?.username || '系统',
+        },
+        link: `/analytics/errors?issue=${id}`,
+        tenantId: row.tenantId ?? null,
+      });
+    } catch (err) {
+      logger.warn('[frontend-errors] 指派通知发送失败', { id, err });
+    }
+  }
   return mapGroup(row);
 }
 

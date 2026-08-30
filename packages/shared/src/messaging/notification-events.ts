@@ -573,6 +573,18 @@ export const NOTIFICATION_EVENTS = defineNotificationEvents({
     content: '「{{moduleName}}」的导出任务{{resultText}}{{detail}}，可前往导出中心查看。',
   },
 
+  // ─── 数据分析 ───────────────────────────────────────────────────────────────
+  'analytics.error.assigned': {
+    group: 'analytics',
+    label: '错误 Issue 指派给我',
+    severity: 'important',
+    defaultChannels: ['inapp'],
+    availableChannels: ['inapp', 'email'],
+    vars: eventVars<{ groupId: number; message: string; assignerName: string }>(),
+    title: '有错误 Issue 指派给你',
+    content: '{{assignerName}} 将错误 Issue「{{message}}」指派给你处理，请前往错误监控查看。',
+  },
+
   // ─── 通知中心元事件 ─────────────────────────────────────────────────────────
   // 摘要邮件本身：由摘要聚合任务触发，不出现在偏好矩阵（用户通过摘要模式控制它）。
   'messaging.digest': {
