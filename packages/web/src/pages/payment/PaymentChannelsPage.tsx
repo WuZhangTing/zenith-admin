@@ -134,7 +134,19 @@ export default function PaymentChannelsPage() {
   const columns: ColumnProps<PaymentChannelConfig>[] = [
     { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '渠道', dataIndex: 'channel', width: 110, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
-    { title: '默认', dataIndex: 'isDefault', width: 80, render: (v: boolean) => (v ? <Tag color="amber">默认</Tag> : '-') },
+    {
+      // 「设为默认」在此列原位操作（非默认行点击即设），操作列因此无需「更多」收纳
+      title: '默认', dataIndex: 'isDefault', width: 120,
+      render: (v: boolean, r: PaymentChannelConfig) => {
+        if (v) return <Tag color="amber">默认</Tag>;
+        if (!hasPermission('payment:channel:update')) return '-';
+        return (
+          <Button size="small" theme="borderless" type="tertiary" loading={defaultingId === r.id} onClick={() => handleSetDefault(r)}>
+            设为默认
+          </Button>
+        );
+      },
+    },
     { title: '沙箱', dataIndex: 'sandbox', width: 80, render: (v: boolean) => (v ? <Tag color="grey">沙箱</Tag> : '-') },
     dateTimeColumn('创建时间', 'createdAt'),
     {
@@ -144,16 +156,9 @@ export default function PaymentChannelsPage() {
       ),
     },
     createOperationColumn<PaymentChannelConfig>({
-      // 编辑/删除内联(108) + 低频「测试/设为默认」收进更多(22)：134 + 32
-      width: 170,
-      desktopInlineKeys: ['edit', 'delete'],
+      // 测试/编辑/删除三个 2 字按钮全内联：164 + 32
+      width: 200,
       actions: (r) => [
-        ...(hasPermission('payment:channel:update') && !r.isDefault ? [{
-          key: 'default',
-          label: '设为默认',
-          loading: defaultingId === r.id,
-          onClick: () => handleSetDefault(r),
-        }] : []),
         ...(hasPermission('payment:channel:update') ? [{
           key: 'test',
           label: '测试',
