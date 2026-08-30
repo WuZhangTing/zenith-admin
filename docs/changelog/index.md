@@ -4,6 +4,45 @@
 
 ---
 
+## v2.8.0 - 2026-08-30
+
+**会话回放收官 + Zod / Drizzle 底座升级**：回放补齐合规审计与热力真实底图；zod 升级 4.5 并全面对齐 v4 最佳实践，数据库层对齐 Drizzle 最佳实践，测试与发布验证大幅提速。
+
+### Added
+
+#### 会话回放收官
+
+- **访问审计**：查看回放详情自动留痕（同人同录像 10 分钟去重、异步不阻塞查看），回放中心新增「访问审计」Tab（manage 权限，时间/操作人/动作/录像归属/回放深链/IP），保留 180 天
+- **热力页面底图**：点击热力自动取最近一条访问该页面的回放，rrweb-player 静态渲染该时刻的真实 DOM 快照作底图、热点叠加其上；无可用回放回落纯网格，支持开关
+
+### Changed
+
+#### Zod 4 底座
+
+- **升级 zod 4.4.3 → 4.5.4**：每 schema 实例内存 7.5KB → 784B（启动构建数千个 DTO schema，RSS 可观下降），safeParse 失败路径快约 7.5 倍
+- **对齐 Zod 4 最佳实践**：39 处废弃字符串格式方法改顶层函数（z.uuid/z.email/…）、39 处 `.strict()`/`.passthrough()` 改 `z.strictObject()`/`z.looseObject()`、校验错误映射按 v4 issue code 重写并生成带字段名的中文提示
+- **热点公开入口 z.compile AOT 预编译**：埋点批量采集解析提速 3.3x、回放分片 meta 10.2x，错误上报与 IoT WS 帧解析同型收益；一律 strict 模式，schema 不可编译则启动即报错
+
+#### Drizzle 底座
+
+- **主键全库改 identity**（379 列 serial → `generatedAlwaysAsIdentity()`），启用 `casing: 'snake_case'` 删除 5131 处显式列名，drizzle-kit 校验零 DDL 偏差
+- **CMS 检索向量写入收口**为唯一入口；新增 `readSnapshot()` 只读快照事务，应用于报表执行统计
+
+#### 测试与发布验证提速
+
+- **web 测试全量 288.6s → 139.4s（-52%）**：esbuild 预打包 Semi 等 CJS 依赖，消除隔离 worker 重复执行几千个包装模块
+- **server 测试全量 108.8s → 89.0s（-18%）**：路由表快照并入契约测试共享一次 app 装配、改用 threads 池、全局 redis 内存替身（测试不再发真实 TCP 连接）
+- **发布四路并行验证墙钟约 6.5 分钟全绿**：两包 `testTimeout` 统一 15s，消除 CPU 争抢下秒级用例的偶发超时
+
+### Fixed
+
+- 查询串布尔参数「筛选否」端到端无法表达（`z.coerce.boolean` 把 `'false'` 强转为 `true`），新增 `queryBool()` 助手替换 15 处路由
+- 会员端同意采集后会话回放不启动
+- 回放分片 clickPoints 全部为空 path 时上报 500
+- identity 迁移后全新建库 seed 因显式 id 报错（补 `overridingSystemValue` 与 setval 续位）
+
+---
+
 ## v2.7.0 - 2026-08-30
 
 **会话回放（四/五期）+ 存储配额治理**：回放从「能看录像」升级为「DevTools 式排障工作台 + 点击洞察」，存储总量纳入滚动淘汰治理。
