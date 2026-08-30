@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { DATE_TIME_PATTERN } from './constants';
 import { jsonByteLength, jsonDepth } from './json-shape';
 

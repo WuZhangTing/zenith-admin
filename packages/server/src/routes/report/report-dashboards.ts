@@ -13,6 +13,7 @@ import {
   okBody,
   okMsg,
   okPaginated,
+  queryBool,
   validationHook,
 } from '../../lib/openapi-schemas';
 import { ReportDashboardDTO, ReportDashboardDataDTO, ReportLookupOptionDTO } from '../../lib/openapi-dtos';
@@ -58,7 +59,7 @@ const ListQuery = PaginationQuery.extend({
   status: z.enum(['enabled', 'disabled']).optional(),
   lifecycleStatus: reportDashboardLifecycleStatusSchema.optional(),
   categoryId: z.coerce.number().int().positive().optional(),
-  favorited: z.coerce.boolean().optional(),
+  favorited: queryBool(),
 });
 
 const ViewQuery = z.object({

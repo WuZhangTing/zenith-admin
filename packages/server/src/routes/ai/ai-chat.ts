@@ -13,7 +13,7 @@ import { getConfigNumber } from '../../lib/system-config';
 import { currentUser } from '../../lib/context';
 import logger from '../../lib/logger';
 import { AI_REASONING_LEVELS } from '@zenith/shared/ai';
-import { z } from 'zod';
+import * as z from 'zod';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

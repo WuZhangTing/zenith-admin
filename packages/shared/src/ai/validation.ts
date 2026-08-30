@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
 import { AI_REASONING_LEVELS, AI_EVAL_SCORER_IDS } from './constants';
 
@@ -172,7 +172,7 @@ export type AddAiKbDocumentInput = z.infer<typeof addAiKbDocumentSchema>;
 
 /** 从 URL 抓取网页正文入库 */
 export const importAiKbUrlSchema = z.object({
-  url: z.string().url('请输入合法的 URL').max(500),
+  url: z.url('请输入合法的 URL').max(500),
   /** 文档名称（留空取页面 title / URL） */
   name: z.string().max(200).optional(),
 });
@@ -217,7 +217,7 @@ export const createAiHttpToolSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9_]{1,59}$/, '工具名仅限小写字母/数字/下划线，字母开头'),
   description: z.string().min(1, '工具描述不能为空').max(500),
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
-  urlTemplate: z.string().url('请输入合法的 URL').max(500),
+  urlTemplate: z.url('请输入合法的 URL').max(500),
   headers: z.record(z.string(), z.string().max(500)).nullable().optional(),
   params: z.array(aiHttpToolParamSchema).max(20).optional(),
   isEnabled: z.boolean().optional(),
@@ -290,16 +290,16 @@ export type ArenaVoteInput = z.infer<typeof arenaVoteSchema>;
 // ─── 用户级 AI 设置 ───────────────────────────────────────────────────────────
 
 /** 用户级 AI 设置写入 schema(深度可选;域内字段逐个合并,未知键拒绝) */
-export const saveAiUserSettingsSchema = z.object({
-  instructions: z.object({
+export const saveAiUserSettingsSchema = z.strictObject({
+  instructions: z.strictObject({
     enabled: z.boolean().optional(),
     aboutMe: z.string().max(2000).nullable().optional(),
     replyStyle: z.string().max(2000).nullable().optional(),
-  }).strict().optional(),
-  memory: z.object({
+  }).optional(),
+  memory: z.strictObject({
     enabled: z.boolean().optional(),
-  }).strict().optional(),
-}).strict();
+  }).optional(),
+});
 
 export type SaveAiUserSettingsInput = z.infer<typeof saveAiUserSettingsSchema>;
 

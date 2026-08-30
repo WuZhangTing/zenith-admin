@@ -118,7 +118,7 @@ const httpProbeRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/http-probe', summary: 'HTTP(S) 探测', tags: ['NetworkDiag'],
     middleware: [authMiddleware, guard({ permission: DIAG_PERM })] as const,
-    request: { body: { content: { 'application/json': { schema: z.object({ url: z.string().url().max(2048) }) } }, required: true } },
+    request: { body: { content: { 'application/json': { schema: z.object({ url: z.url().max(2048) }) } }, required: true } },
     responses: {
       ...commonErrorResponses,
       ...ok(z.object({

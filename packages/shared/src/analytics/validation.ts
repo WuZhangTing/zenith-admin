@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { boundedJsonRecord, dateTimeStringSchema, partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
 import { userBehaviorEventTypeEnum } from '../identity/validation';
 import { ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_COMPARE_MAX_SEGMENTS, ANALYTICS_DRILL_FUNNEL_OUTCOMES, ANALYTICS_DRILL_PAGE_SIZE_MAX, ANALYTICS_DRILL_RETENTION_OUTCOMES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_SOURCES, ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_PROPERTY_KEY_PATTERN, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, SOURCE_MAP_MAX_BYTES, analyticsMetricRequiresProperty } from './constants';
@@ -324,7 +324,7 @@ export const updateAnalyticsSettingsSchema = z.object({
 /** 回放分片上报 meta（multipart 的 meta 字段，与二进制 gz 数据同包提交） */
 export const replaySegmentMetaSchema = z.object({
   /** 回放会话 ID（客户端生成 UUID，首分片 upsert 会话） */
-  replayId: z.string().uuid(),
+  replayId: z.uuid(),
   /** tracker 会话 ID */
   sessionId: z.string().min(1).max(36),
   seq: z.number().int().min(0).max(600),

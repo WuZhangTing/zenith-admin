@@ -45,7 +45,7 @@ const reportRoute = defineOpenAPIRoute({
 const overviewRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/overview', tags: ['FrontendErrors'], summary: '错误概览', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'monitor:error:list' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(1).max(365).optional().default(30) }) },
+    middleware: [authMiddleware, guard({ permission: 'monitor:error:list' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }) },
     responses: { ...ok(ErrorOverviewDTO, '概览'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getErrorOverview(c.req.valid('query').days)), 200),

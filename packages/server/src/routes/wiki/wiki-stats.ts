@@ -17,7 +17,7 @@ import { getWikiOpsStats } from '../../services/wiki/governance.service';
 const statsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const LimitQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(50).optional().default(10)
+  limit: z.coerce.number().int().min(1).max(50).default(10)
     .openapi({ param: { name: 'limit', in: 'query' }, example: 10 }),
 });
 

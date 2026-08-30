@@ -2,7 +2,7 @@
  * CMS 内容批量导入 Definition（收编 cms-tasks 原私有任务 cms-content-import）。
  * 需要页面上下文 siteId/channelId（contextSchema 校验），逐行创建草稿内容。
  */
-import { z } from 'zod';
+import * as z from 'zod';
 import { createCmsContent, ensureCmsContentTargetAccess } from '../../../services/cms/cms-contents.service';
 import { registerImport } from '../registry';
 

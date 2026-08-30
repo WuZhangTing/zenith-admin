@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { memberAuthMiddleware } from '../../middleware/member-auth';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, queryBool, validationHook } from '../../lib/openapi-schemas';
 import {
   MemberPointAccountDTO,
   MemberPointTransactionDTO,
@@ -316,7 +316,7 @@ const notificationsRoute = defineOpenAPIRoute({
     method: 'get', path: '/notifications', tags: ['MemberSelf'], summary: '我的通知列表',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware] as const,
-    request: { query: PaginationQuery.extend({ unreadOnly: z.coerce.boolean().optional() }) },
+    request: { query: PaginationQuery.extend({ unreadOnly: queryBool() }) },
     responses: { ...commonErrorResponses, ...okPaginated(MemberNotificationDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listMyNotifications(c.req.valid('query'))), 200),

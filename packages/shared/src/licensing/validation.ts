@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import {
   LICENSE_AUDIENCE,
   LICENSE_EDITIONS,
@@ -9,12 +9,12 @@ import { dateTimeStringSchema } from '../core/validation';
 // ─── 签名载荷与信封 ───────────────────────────────────────────────────────────
 
 /** ISO 8601 时间戳（License 文档跨系统交换，用 ISO 而非本地格式） */
-const isoDateTime = z.string().datetime({ offset: true });
+const isoDateTime = z.iso.datetime({ offset: true });
 
-export const licensePayloadSchema = z.object({
+export const licensePayloadSchema = z.strictObject({
   licenseId: z.string().min(1).max(64),
   audience: z.literal(LICENSE_AUDIENCE),
-  installationId: z.string().uuid(),
+  installationId: z.uuid(),
   customerId: z.string().min(1).max(64),
   customerName: z.string().min(1).max(128),
   edition: z.enum(LICENSE_EDITIONS),
@@ -29,16 +29,16 @@ export const licensePayloadSchema = z.object({
   expiresAt: isoDateTime,
   graceUntil: isoDateTime,
   maintenanceUntil: isoDateTime.nullable(),
-}).strict();
+});
 
-export const licenseEnvelopeSchema = z.object({
+export const licenseEnvelopeSchema = z.strictObject({
   // version/algorithm 不用 literal：具体值在验签流程中显式检查，给出可读错误而非「结构无效」
   version: z.number().int().positive(),
   algorithm: z.string().min(1).max(32),
   keyId: z.string().min(1).max(64),
   payload: z.string().min(1),
   signature: z.string().min(1),
-}).strict();
+});
 
 /** 激活请求：粘贴 .zenlic 文件内容（JSON 字符串） */
 export const activateLicenseSchema = z.object({
@@ -47,9 +47,9 @@ export const activateLicenseSchema = z.object({
 
 // ─── 套餐功能与配额 ───────────────────────────────────────────────────────────
 
-export const tenantPackageQuotasSchema = z.object({
+export const tenantPackageQuotasSchema = z.strictObject({
   maxUsers: z.number().int().positive().optional().nullable(),
-}).strict();
+});
 
 export const assignTenantPackageFeaturesSchema = z.object({
   features: z.array(z.enum(LICENSE_FEATURES)).default([]),

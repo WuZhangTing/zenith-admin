@@ -2,7 +2,7 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-opena
 import { acknowledgeReportDeliveryRunSchema } from '@zenith/shared/report';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, queryBool, validationHook } from '../../lib/openapi-schemas';
 import { ReportDeliveryRunDTO } from '../../lib/openapi-dtos';
 import { parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { acknowledgeAlertDeliveryRun, listAccessibleDeliveryRuns } from '../../services/report/report-delivery.service';
@@ -26,7 +26,7 @@ const listRoute = defineOpenAPIRoute({
         triggerType: z.enum(['trigger', 'recover', 'manual', 'scheduled']).optional(),
         startAt: dateRangeBound('起始时间'),
         endAt: dateRangeBound('结束时间'),
-        includeAttempts: z.coerce.boolean().optional(),
+        includeAttempts: queryBool(),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(ReportDeliveryRunDTO, '投递执行历史') },

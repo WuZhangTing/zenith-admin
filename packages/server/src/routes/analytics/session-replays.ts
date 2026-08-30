@@ -6,7 +6,7 @@ import { optionalAuthMiddleware } from '../../middleware/optional-auth';
 import { guard } from '../../middleware/guard';
 import { namedRateLimit } from '../../middleware/rate-limit';
 import {
-  validationHook, commonErrorResponses, ok, okMsg, okBody, okPaginated, PaginationQuery, jsonContent, ErrorResponse,
+  validationHook, commonErrorResponses, ok, okMsg, okBody, okPaginated, PaginationQuery, jsonContent, ErrorResponse, queryBool,
 } from '../../lib/openapi-schemas';
 import { ReplaySessionDTO, ReplaySessionDetailDTO } from '../../lib/openapi-dtos';
 import {
@@ -71,7 +71,7 @@ const listRoute = defineOpenAPIRoute({
         mode: z.enum(['buffer', 'stream']).or(z.literal('')).optional(),
         triggerType: z.enum(['error', 'sampled', 'manual', 'rage_click', 'white_screen']).or(z.literal('')).optional(),
         keyword: z.string().optional(),
-        hasError: z.coerce.boolean().optional(),
+        hasError: queryBool(),
         source: z.enum(['web_admin', 'web_member']).or(z.literal('')).optional(),
         pagePath: z.string().max(256).optional(),
         clickLabel: z.string().max(64).optional(),
@@ -91,7 +91,7 @@ const listRoute = defineOpenAPIRoute({
   },
 });
 
-const IdParamStr = z.object({ id: z.string().uuid() });
+const IdParamStr = z.object({ id: z.uuid() });
 
 const ReplayStorageStatsDTO = z
   .object({
@@ -119,7 +119,7 @@ const heatmapPagesRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/heatmap/pages', tags: ['SessionReplays'], summary: '有点击热力数据的页面清单', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'monitor:replay:list' })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(90).optional().default(30) }) },
+    request: { query: z.object({ days: z.coerce.number().int().min(1).max(90).default(30) }) },
     responses: { ...ok(z.array(z.string()), '页面清单'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listHeatmapPages(c.req.valid('query').days)), 200),
@@ -129,7 +129,7 @@ const heatmapRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/heatmap', tags: ['SessionReplays'], summary: '页面点击热力聚合（2% 网格）', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'monitor:replay:list' })] as const,
-    request: { query: z.object({ pagePath: z.string().min(1).max(256), days: z.coerce.number().int().min(1).max(90).optional().default(30) }) },
+    request: { query: z.object({ pagePath: z.string().min(1).max(256), days: z.coerce.number().int().min(1).max(90).default(30) }) },
     responses: { ...ok(z.object({ points: z.array(HeatmapPointDTO), total: z.number().int() }), '热力数据'), ...commonErrorResponses },
   }),
   handler: async (c) => {
@@ -167,7 +167,7 @@ const accessLogsRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'monitor:replay:manage' })] as const,
     request: {
       query: PaginationQuery.extend({
-        replayId: z.string().uuid().optional(),
+        replayId: z.uuid().optional(),
         keyword: z.string().optional(),
       }),
     },
@@ -208,7 +208,7 @@ const batchDeleteRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'delete', path: '/batch', tags: ['SessionReplays'], summary: '批量删除回放会话', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'monitor:replay:manage' })] as const,
-    request: { body: { content: { 'application/json': { schema: z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }) } }, required: true } },
+    request: { body: { content: { 'application/json': { schema: z.object({ ids: z.array(z.uuid()).min(1).max(100) }) } }, required: true } },
     responses: { ...okMsg('删除成功'), ...commonErrorResponses },
   }),
   handler: async (c) => {

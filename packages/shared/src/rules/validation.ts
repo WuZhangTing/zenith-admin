@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
 
 // ─── 规则中心：决策表 ────────────────────────────────────────────────────────────

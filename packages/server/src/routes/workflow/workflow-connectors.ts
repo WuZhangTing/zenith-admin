@@ -21,7 +21,7 @@ const listRoute = defineOpenAPIRoute({
     tags: ['流程连接器'], summary: '连接器列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:connector:list' })] as const,
-    request: { query: PaginationQuery.merge(WorkflowConnectorListQuery) },
+    request: { query: PaginationQuery.extend(WorkflowConnectorListQuery.shape) },
     responses: { ...commonErrorResponses, ...okPaginated(WorkflowConnectorDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listWorkflowConnectors(c.req.valid('query'))), 200),

@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { PaginationQuery, commonErrorResponses, dateRangeBound, ok, okBody, okPaginated, queryBool, validationHook } from '../../lib/openapi-schemas';
 import { ReportDatasetExecutionLogDTO, ReportExecutionStatsDTO, ReportRuntimeGovernanceDTO } from '../../lib/openapi-dtos';
 import { parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { getDatasetExecutionStats, getReportRuntimeGovernance, listDatasetExecutionLogs } from '../../services/report/report-dataset.service';
@@ -22,8 +22,8 @@ const listRoute = defineOpenAPIRoute({
         datasourceId: z.coerce.number().int().positive().optional(),
         dashboardId: z.coerce.number().int().positive().optional(),
         scene: z.string().max(32).optional(),
-        success: z.coerce.boolean().optional(),
-        slow: z.coerce.boolean().optional(),
+        success: queryBool(),
+        slow: queryBool(),
         startAt: dateRangeBound('起始时间'),
         endAt: dateRangeBound('结束时间'),
       }),
@@ -54,7 +54,7 @@ const statsRoute = defineOpenAPIRoute({
         datasourceId: z.coerce.number().int().positive().optional(),
         dashboardId: z.coerce.number().int().positive().optional(),
         scene: z.string().max(32).optional(),
-        success: z.coerce.boolean().optional(),
+        success: queryBool(),
         startAt: dateRangeBound('起始时间'),
         endAt: dateRangeBound('结束时间'),
       }),

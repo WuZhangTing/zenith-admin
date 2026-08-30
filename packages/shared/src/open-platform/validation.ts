@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
 import { isSafeOAuthRedirectUri } from '../identity/constants';
 import { OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENTS } from './constants';

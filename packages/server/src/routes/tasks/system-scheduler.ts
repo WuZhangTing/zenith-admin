@@ -33,8 +33,8 @@ const UpdateTaskConfigBody = z.object({
   alertEnabled: z.boolean(),
   alertChannels: z.array(AlertChannelBody).default(['inapp']),
   alertUserIds: z.array(z.number().int().positive()).default([]),
-  alertEmails: z.array(z.string().email()).default([]),
-  alertWebhookUrl: z.string().url().nullable().optional(),
+  alertEmails: z.array(z.email()).default([]),
+  alertWebhookUrl: z.url().nullable().optional(),
   manualSingleton: z.boolean(),
 });
 const AcknowledgeAlertBody = z.object({

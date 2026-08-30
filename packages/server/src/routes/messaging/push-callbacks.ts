@@ -15,14 +15,14 @@ import { applyPushReceipt } from '../../services/messaging/push-send-logs.servic
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
-const JPushReceiptEvent = z.object({
+const JPushReceiptEvent = z.looseObject({
   msg_id: z.union([z.string(), z.number()]),
   /** received/0=送达,click/opened/1=点击 */
   type: z.union([z.string(), z.number()]).optional(),
   registration_id: z.string().optional(),
   /** 事件发生时间（秒级时间戳） */
   itime: z.number().optional(),
-}).passthrough();
+});
 
 const JPushCallbackBody = z.object({
   appKey: z.string().optional(),

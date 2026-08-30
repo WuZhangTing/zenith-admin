@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { ANALYTICS_CONTEXT_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_SOURCES } from '../analytics/constants';
 import { errorBreadcrumbSchema } from '../analytics/validation';
 import { CMS_WIDGET_RENDERER_KEYS } from '../cms/constants';
@@ -439,7 +439,8 @@ export const reportExecutionStatsQuerySchema = z.object({
   datasourceId: z.coerce.number().int().positive().optional(),
   dashboardId: z.coerce.number().int().positive().optional(),
   scene: z.string().max(32).optional(),
-  success: z.coerce.boolean().optional(),
+  // 查询串布尔:不能用 z.coerce.boolean()('false' 会变 true);空串视为未传
+  success: z.union([z.literal('').transform(() => undefined), z.stringbool()]).optional(),
   startAt: z.string().optional(),
   endAt: z.string().optional(),
 });
@@ -1453,11 +1454,11 @@ export const updateReportMobileDashboardPreferenceSchema = z.object({
 
 export type UpdateReportMobileDashboardPreferenceInput = z.input<typeof updateReportMobileDashboardPreferenceSchema>;
 
-export const saveCmsWidgetSlotSchema = z.object({
+export const saveCmsWidgetSlotSchema = z.strictObject({
   siteId: z.number().int().positive(),
   widgetId: z.number().int().positive().nullable(),
   rendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS).default('list-sidebar'),
   styleProps: z.record(z.string(), z.unknown()).default({}),
-}).strict();
+});
 
 export type SaveCmsWidgetSlotInput = z.input<typeof saveCmsWidgetSlotSchema>;

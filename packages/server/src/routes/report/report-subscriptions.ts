@@ -4,7 +4,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody,
+  ok, okPaginated, okMsg, IdParam, okBody, queryBool,
 } from '../../lib/openapi-schemas';
 import { AsyncTaskDTO, ReportDashboardSubscriptionDTO } from '../../lib/openapi-dtos';
 import {
@@ -20,7 +20,7 @@ const listRoute = defineOpenAPIRoute({
     method: 'get', path: '/', tags: ['报表订阅'], summary: '订阅列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:subscription:list' })] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), dashboardId: z.coerce.number().int().positive().optional(), enabled: z.coerce.boolean().optional() }) },
+    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), dashboardId: z.coerce.number().int().positive().optional(), enabled: queryBool() }) },
     responses: { ...commonErrorResponses, ...okPaginated(ReportDashboardSubscriptionDTO, 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listSubscriptions(c.req.valid('query'))), 200),

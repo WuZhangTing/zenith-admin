@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { chatMessageExtraSchema } from '../chat/validation';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { MP_CUSTOM_MSG_TYPES } from '../mp/constants';
@@ -17,9 +17,9 @@ export const createAnnouncementSchema = z.object({
   publishStatus: z.enum(['draft', 'published', 'recalled', 'scheduled']).default('draft'),
   priority: z.string().min(1).max(32).default('medium'),
   targetType: z.enum(['all', 'specific']).default('all'),
-  recipients: z.array(announcementRecipientSchema).optional().default([]),
+  recipients: z.array(announcementRecipientSchema).default([]),
   publishTime: dateTimeStringSchema.optional().nullable(),
-  fileIds: z.array(z.string().uuid()).optional().default([]),
+  fileIds: z.array(z.uuid()).default([]),
 });
 
 export const updateAnnouncementSchema = z.object({
@@ -31,7 +31,7 @@ export const updateAnnouncementSchema = z.object({
   targetType: z.enum(['all', 'specific']).optional(),
   recipients: z.array(announcementRecipientSchema).optional(),
   publishTime: dateTimeStringSchema.optional().nullable(),
-  fileIds: z.array(z.string().uuid()).optional(),
+  fileIds: z.array(z.uuid()).optional(),
 });
 
 export type CreateAnnouncementInput = z.infer<typeof createAnnouncementSchema>;
@@ -438,7 +438,7 @@ export const createBroadcastSchema = z.object({
   link: z.string().max(500).optional().nullable(),
   channels: z.array(z.enum(BROADCAST_CHANNELS)).min(1, '至少选择一个投递渠道'),
   audienceType: z.enum(BROADCAST_AUDIENCE_TYPES),
-  audienceIds: z.array(z.number().int().positive()).max(10000).optional().default([]),
+  audienceIds: z.array(z.number().int().positive()).max(10000).default([]),
   remark: z.string().max(500).optional().nullable(),
 }).superRefine((val, ctx) => {
   if ((val.audienceType === 'user_ids' || val.audienceType === 'member_ids') && val.audienceIds.length === 0) {

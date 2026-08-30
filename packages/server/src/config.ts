@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { z } from 'zod';
+import * as z from 'zod';
 
 // ─── HTTP Log Types ──────────────────────────────────────────────────────────────────────────────
 
@@ -9,8 +9,9 @@ export type HttpLogMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIO
 
 const httpLogLevelEnum = z.enum(['off', 'access', 'headers', 'body', 'full']);
 const httpLogFormatEnum = z.enum(['text', 'json', 'curl']);
-// 布尔字符串辅助：将 'true'/'false' 字符串转为 boolean，默认值为 'false' 或 'true'
-const boolStr = (def: string) => z.string().default(def).transform(v => v === 'true');
+// 布尔环境变量：基于 z.stringbool（'true'/'1'/'yes'/'on' → true，'false'/'0'/'no'/'off' → false，
+// 大小写不敏感）；空串与缺省回落默认值；其余取值启动即报错（fail-fast，拼写错误不再被静默当 false）
+const envBool = (def: boolean) => z.preprocess((v) => (v === '' ? undefined : v), z.stringbool().default(def));
 
 // ─── Env Schema ───────────────────────────────────────────────────────────────────────────────────
 
@@ -24,15 +25,15 @@ const envSchema = z.object({
   DATABASE_MAX_CONNECTIONS: z.coerce.number().int().positive().default(10),
   DATABASE_IDLE_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(20),
   DATABASE_CONNECT_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(10),
-  DATABASE_SSL: boolStr('false'),
+  DATABASE_SSL: envBool(false),
   /** psql 可执行文件路径；留空时按 PATH 查找，用于数据库管理页的 psql 终端 */
   PSQL_PATH: z.string().default(''),
-  MULTI_TENANT_MODE: boolStr('false'),
+  MULTI_TENANT_MODE: envBool(false),
   /** License 执行模式：off = 不检查（默认，开发/演示零感知）；warn = 全功能可用但记录并提示；required = 强制校验 */
   LICENSE_MODE: z.enum(['off', 'warn', 'required']).default('off'),
   /** License 验签公钥（base64 SPKI DER，Ed25519）。留空时使用内置测试公钥（仅限非生产评估） */
   LICENSE_ISSUER_PUBLIC_KEY: z.string().default(''),
-  SERVER_TIMING_ENABLED: boolStr('false'),
+  SERVER_TIMING_ENABLED: envBool(false),
   REQUEST_BODY_LIMIT: z.coerce.number().int().min(0).default(0),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(0).default(0),
   ALLOWED_ORIGINS: z.string().default(''),
@@ -55,10 +56,10 @@ const envSchema = z.object({
   REDIS_PASSWORD: z.string().optional(),
   REDIS_DB: z.coerce.number().int().min(0).default(0),
   REDIS_KEY_PREFIX: z.string().default('zenith:'),
-  OPEN_RATE_LIMIT_FAIL_CLOSED: boolStr('true'),
+  OPEN_RATE_LIMIT_FAIL_CLOSED: envBool(true),
   OPEN_WEBHOOK_AUTO_DISABLE_FAILURES: z.coerce.number().int().min(1).max(100).default(5),
   OPEN_SECRET_ROTATION_GRACE_HOURS: z.coerce.number().int().min(1).max(720).default(24),
-  OPEN_GATEWAY_REQUIRE_APPROVAL: boolStr('true'),
+  OPEN_GATEWAY_REQUIRE_APPROVAL: envBool(true),
   /** Webhook 回调允许的私网/本机主机（逗号分隔，支持 host、*.suffix、CIDR）。开发环境用于本地联调 */
   OPEN_WEBHOOK_ALLOWED_HOSTS: z.string().default(''),
   OPEN_API_INTERNAL_BASE_URL: z.string().default(''),
@@ -67,15 +68,15 @@ const envSchema = z.object({
   /** 轮转日志文件保留份数（按天轮转，1 份 = 1 天） */
   LOG_MAX_FILES: z.coerce.number().int().min(1).default(30),
   /** 控制台输出 pino-pretty 彩色单行（本地开发用）；默认 NDJSON。日志文件不受影响，始终 NDJSON */
-  LOG_CONSOLE_PRETTY: boolStr('false'),
+  LOG_CONSOLE_PRETTY: envBool(false),
   // HTTP 入站日志
-  HTTP_LOG_INCOMING_ENABLED: boolStr('false'),
+  HTTP_LOG_INCOMING_ENABLED: envBool(false),
   HTTP_LOG_INCOMING_LEVEL: httpLogLevelEnum.default('access'),
   HTTP_LOG_INCOMING_FORMAT: httpLogFormatEnum.default('json'),
   HTTP_LOG_INCOMING_MAX_BODY: z.coerce.number().int().min(0).default(65536),
-  HTTP_LOG_INCOMING_RESPONSE_BODY: boolStr('false'),
+  HTTP_LOG_INCOMING_RESPONSE_BODY: envBool(false),
   HTTP_LOG_INCOMING_EXCLUDE: z.string().default(''),
-  HTTP_LOG_INCOMING_FILE: boolStr('false'),
+  HTTP_LOG_INCOMING_FILE: envBool(false),
   HTTP_LOG_INCOMING_METHOD_GET: httpLogLevelEnum.optional(),
   HTTP_LOG_INCOMING_METHOD_POST: httpLogLevelEnum.optional(),
   HTTP_LOG_INCOMING_METHOD_PUT: httpLogLevelEnum.optional(),
@@ -84,12 +85,12 @@ const envSchema = z.object({
   HTTP_LOG_INCOMING_METHOD_OPTIONS: httpLogLevelEnum.optional(),
   HTTP_LOG_INCOMING_METHOD_HEAD: httpLogLevelEnum.optional(),
   // HTTP 出站日志
-  HTTP_LOG_OUTGOING_ENABLED: boolStr('false'),
+  HTTP_LOG_OUTGOING_ENABLED: envBool(false),
   HTTP_LOG_OUTGOING_LEVEL: httpLogLevelEnum.default('full'),
   HTTP_LOG_OUTGOING_FORMAT: httpLogFormatEnum.default('json'),
   HTTP_LOG_OUTGOING_MAX_BODY: z.coerce.number().int().min(0).default(4096),
-  HTTP_LOG_OUTGOING_RESPONSE_BODY: boolStr('true'),
-  HTTP_LOG_OUTGOING_FILE: boolStr('false'),
+  HTTP_LOG_OUTGOING_RESPONSE_BODY: envBool(true),
+  HTTP_LOG_OUTGOING_FILE: envBool(false),
   HTTP_LOG_OUTGOING_METHOD_GET: httpLogLevelEnum.optional(),
   HTTP_LOG_OUTGOING_METHOD_POST: httpLogLevelEnum.optional(),
   HTTP_LOG_OUTGOING_METHOD_PUT: httpLogLevelEnum.optional(),

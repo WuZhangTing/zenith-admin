@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
-import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, queryBool, validationHook } from '../../lib/openapi-schemas';
 import {
   WorkflowEventSubscriptionDTO,
   WorkflowEventSubscriptionSecretDTO,
@@ -50,7 +50,7 @@ const UpsertBody = z.object({
 const ListQuery = PaginationQuery.extend({
   keyword: z.string().optional(),
   definitionId: z.coerce.number().int().optional(),
-  enabled: z.coerce.boolean().optional(),
+  enabled: queryBool(),
 });
 
 const list = defineOpenAPIRoute({

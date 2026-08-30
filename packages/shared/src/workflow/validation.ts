@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { lazyRecursive, partialForUpdate } from '../core/validation';
 import type { WorkflowFieldVisibilityRuleGroup, WorkflowFormCascaderNode, WorkflowFormField } from './types';
 

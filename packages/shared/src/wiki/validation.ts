@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { WIKI_COMMENT_STATUSES, WIKI_SPACE_MEMBER_ROLES, WIKI_SPACE_VISIBILITIES } from './constants';
 
 // ─── 知识空间 ─────────────────────────────────────────────────────────────────
@@ -37,7 +37,7 @@ export const createWikiDocSchema = z.object({
   summary: z.string().max(500).optional(),
   content: z.string().default(''),
   tagIds: z.array(z.number().int()).default([]),
-  fileIds: z.array(z.string().uuid()).default([]),
+  fileIds: z.array(z.uuid()).default([]),
   requireReadReceipt: z.boolean().default(false),
 });
 
@@ -46,7 +46,7 @@ export const updateWikiDocSchema = z.object({
   summary: z.string().max(500).nullable().optional(),
   content: z.string().optional(),
   tagIds: z.array(z.number().int()).optional(),
-  fileIds: z.array(z.string().uuid()).optional(),
+  fileIds: z.array(z.uuid()).optional(),
   requireReadReceipt: z.boolean().optional(),
   sort: z.number().int().optional(),
   isPinned: z.boolean().optional(),

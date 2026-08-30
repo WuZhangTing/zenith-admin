@@ -21,35 +21,110 @@ export const validationHook: Hook<any, any, any, any> = (result, c) => {
   }
 };
 
-/** Zod 内置英文错误 → 中文提示 */
+/** Zod v4 issue code → 中文兜底文案（具体分支在 describeIssue 里用结构化字段细化） */
 const ZOD_CODE_MESSAGES: Record<string, string> = {
   invalid_type: '类型不正确',
   too_small: '长度或数值小于允许范围',
   too_big: '长度或数值超出允许范围',
   invalid_format: '格式不正确',
-  invalid_enum_value: '不在允许的取值范围内',
-  invalid_union: '格式不符合任一允许的形态',
+  invalid_value: '取值不在允许范围内',
+  not_multiple_of: '不是允许的步进值',
   unrecognized_keys: '包含未知字段',
+  invalid_union: '格式不符合任一允许的形态',
+  invalid_key: '键名不合法',
+  invalid_element: '集合元素不合法',
+  custom: '参数校验未通过',
 };
+
+/** formatZodIssue 关心的 Zod v4 issue 结构化字段（宽松声明，避免耦合内部类型） */
+interface ZodIssueLike {
+  path?: PropertyKey[];
+  message?: string;
+  code?: string;
+  expected?: string;
+  minimum?: number | bigint;
+  maximum?: number | bigint;
+  inclusive?: boolean;
+  origin?: string;
+  format?: string;
+  divisor?: number;
+  keys?: string[];
+  values?: unknown[];
+}
+
+/** 数量语义按 origin 细分：字符串按长度、集合按项数、数字按大小 */
+function describeBound(issue: ZodIssueLike, kind: 'min' | 'max'): string {
+  const bound = kind === 'min' ? issue.minimum : issue.maximum;
+  const generic = ZOD_CODE_MESSAGES[kind === 'min' ? 'too_small' : 'too_big'];
+  if (bound === undefined) return generic;
+  const incl = issue.inclusive !== false;
+  switch (issue.origin) {
+    case 'string':
+      return kind === 'min'
+        ? (incl ? `长度不能少于 ${bound} 个字符` : `长度必须多于 ${bound} 个字符`)
+        : (incl ? `长度不能超过 ${bound} 个字符` : `长度必须少于 ${bound} 个字符`);
+    case 'array':
+    case 'set':
+    case 'map':
+      return kind === 'min' ? `至少需要 ${bound} 项` : `最多允许 ${bound} 项`;
+    case 'number':
+    case 'int':
+    case 'bigint':
+      return kind === 'min'
+        ? (incl ? `不能小于 ${bound}` : `必须大于 ${bound}`)
+        : (incl ? `不能大于 ${bound}` : `必须小于 ${bound}`);
+    default:
+      return generic;
+  }
+}
+
+/** 按 v4 issue code 与结构化字段生成具体中文描述 */
+function describeIssue(issue: ZodIssueLike): string {
+  switch (issue.code) {
+    case 'invalid_type':
+      return issue.expected ? `类型不正确，期望 ${issue.expected}` : ZOD_CODE_MESSAGES.invalid_type;
+    case 'too_small':
+      return describeBound(issue, 'min');
+    case 'too_big':
+      return describeBound(issue, 'max');
+    case 'invalid_format':
+      return issue.format ? `格式不正确（要求 ${issue.format} 格式）` : ZOD_CODE_MESSAGES.invalid_format;
+    case 'invalid_value': {
+      const values = (issue.values ?? []).map((v) => JSON.stringify(v));
+      if (!values.length) return ZOD_CODE_MESSAGES.invalid_value;
+      const shown = values.slice(0, 8).join(' / ') + (values.length > 8 ? ' 等' : '');
+      return `取值不在允许范围内（允许：${shown}）`;
+    }
+    case 'not_multiple_of':
+      return issue.divisor !== undefined ? `必须是 ${issue.divisor} 的倍数` : ZOD_CODE_MESSAGES.not_multiple_of;
+    case 'unrecognized_keys':
+      return issue.keys?.length ? `包含未知字段：${issue.keys.join('、')}` : ZOD_CODE_MESSAGES.unrecognized_keys;
+    default:
+      return ZOD_CODE_MESSAGES[issue.code ?? ''] ?? '参数校验未通过';
+  }
+}
 
 /**
  * 把一条 Zod issue 渲染成可直接展示给用户的文案。
  *
  * schema 中自定义的中文 message 本身就是完整业务语义（例如「刷新令牌模式必须与授权码模式同时启用」），
  * 再拼上 `grantTypes: ` 这样的字段名只会让提示更难读。因此只有 Zod 内置英文消息才需要
- * 补充字段位置并翻译；缺字段时退回通用提示。
+ * 补充字段位置并按 issue 结构化字段翻译；缺字段时退回通用提示。
+ *
+ * 注意：不配置 `z.config(z.locales.zhCN())`——全局 locale 会把内置消息也变成中文，
+ * 使「含中文即业务文案」的判别失效，业务消息与内置消息将无法区分、字段名前缀丢失。
  */
-function formatZodIssue(issue?: { path?: PropertyKey[]; message?: string; code?: string }): string {
+export function formatZodIssue(issue?: ZodIssueLike): string {
   if (!issue) return '请求参数错误';
   const message = issue.message ?? '';
   // 含中文即视为业务自定义文案，直接展示
   if (/[\u4e00-\u9fa5]/.test(message)) return message;
 
   const field = (issue.path ?? []).map(String).filter(Boolean).join('.');
-  const readable = ZOD_CODE_MESSAGES[issue.code ?? ''] ?? '参数校验未通过';
   if (issue.code === 'invalid_type' && /received undefined/i.test(message)) {
     return field ? `缺少必填参数「${field}」` : '缺少必填参数';
   }
+  const readable = describeIssue(issue);
   return field ? `参数「${field}」${readable}` : readable;
 }
 
@@ -99,7 +174,6 @@ export const PaginationQuery = z.object({
     .number()
     .int()
     .min(1)
-    .optional()
     .default(1)
     .openapi({
       param: { name: 'page', in: 'query' },
@@ -111,7 +185,6 @@ export const PaginationQuery = z.object({
     .int()
     .min(1)
     .max(200)
-    .optional()
     .default(10)
     .openapi({
       param: { name: 'pageSize', in: 'query' },
@@ -145,6 +218,24 @@ export function dateRangeBound(description: string) {
     )
     .optional()
     .openapi({ example: '2026-08-01 00:00:00', description });
+}
+
+/**
+ * 查询串布尔参数（`?enabled=true` / `?enabled=false`）。
+ *
+ * **禁止用 `z.coerce.boolean()` 解析查询参数**：其实现是 `Boolean(input)`，
+ * 字符串 `'false'` 会被转成 `true`，「筛选否」永远无法表达。
+ *
+ * 解析规则（基于 z.stringbool，大小写不敏感）：
+ *  - `'true' | '1' | 'yes' | 'on'` → true；`'false' | '0' | 'no' | 'off'` → false
+ *  - 空串视为未传（与前端清空筛选时 toQueryString 的行为对齐）→ undefined
+ *  - 其余取值 → 400
+ */
+export function queryBool(description?: string) {
+  return z
+    .union([z.literal('').transform(() => undefined), z.stringbool()])
+    .optional()
+    .openapi({ type: 'boolean', ...(description ? { description } : {}) });
 }
 
 /** 常用错误响应集合（复制到 responses 里） */

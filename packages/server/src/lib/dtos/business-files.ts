@@ -8,13 +8,13 @@ export const BusinessFileDTO = z
     id: z.number().int(),
     businessType: z.string(),
     businessId: z.number().int(),
-    fileId: z.string().uuid(),
+    fileId: z.uuid(),
     name: z.string().nullable(),
     category: z.string().nullable(),
     sortOrder: z.number().int(),
     // 关联的文件信息
     file: z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       originalName: z.string(),
       size: z.number().int(),
       mimeType: z.string().nullable(),

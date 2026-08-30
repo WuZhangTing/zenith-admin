@@ -20,7 +20,7 @@ const recordingsRouter = new OpenAPIHono({ defaultHook: validationHook });
 const PERM = 'system:terminal:execute';
 
 const CreateRecordingBody = z.object({
-  title: z.string().max(256).optional().default(''),
+  title: z.string().max(256).default(''),
   shell: z.string().max(64).nullable().optional(),
   cols: z.number().int().min(1).max(1000),
   rows: z.number().int().min(1).max(500),

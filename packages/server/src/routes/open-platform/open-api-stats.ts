@@ -49,7 +49,7 @@ const trend = defineOpenAPIRoute({
     summary: '调用趋势（按小时/天聚合）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, viewGuard] as const,
-    request: { query: RangeQuery.extend({ granularity: z.enum(['hour', 'day']).optional().default('day') }) },
+    request: { query: RangeQuery.extend({ granularity: z.enum(['hour', 'day']).default('day') }) },
     responses: { ...commonErrorResponses, ...ok(z.array(OpenApiStatsTrendPointDTO), '调用趋势') },
   }),
   handler: async (c) => {
@@ -66,7 +66,7 @@ const byApp = defineOpenAPIRoute({
     summary: '按应用聚合统计（Top N）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, viewGuard] as const,
-    request: { query: RangeQuery.extend({ limit: z.coerce.number().int().min(1).max(50).optional().default(10) }) },
+    request: { query: RangeQuery.extend({ limit: z.coerce.number().int().min(1).max(50).default(10) }) },
     responses: { ...commonErrorResponses, ...ok(z.array(OpenApiStatsGroupItemDTO), '按应用统计') },
   }),
   handler: async (c) => {
@@ -83,7 +83,7 @@ const byEndpoint = defineOpenAPIRoute({
     summary: '按端点聚合统计（Top N）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, viewGuard] as const,
-    request: { query: RangeQuery.extend({ limit: z.coerce.number().int().min(1).max(50).optional().default(10) }) },
+    request: { query: RangeQuery.extend({ limit: z.coerce.number().int().min(1).max(50).default(10) }) },
     responses: { ...commonErrorResponses, ...ok(z.array(OpenApiStatsGroupItemDTO), '按端点统计') },
   }),
   handler: async (c) => {

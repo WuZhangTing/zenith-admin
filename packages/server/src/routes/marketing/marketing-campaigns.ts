@@ -6,7 +6,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody, dateRangeBound,
+  ok, okPaginated, okMsg, IdParam, okBody, dateRangeBound, queryBool,
 } from '../../lib/openapi-schemas';
 import { MarketingCampaignDTO, MarketingParticipationDTO, MarketingPrizeDTO } from '../../lib/openapi-dtos';
 import {
@@ -254,7 +254,7 @@ const listParticipationsRoute = defineOpenAPIRoute({
       params: CampaignIdParam,
       query: PaginationQuery.extend({
         memberId: z.coerce.number().int().positive().optional(),
-        wonOnly: z.coerce.boolean().optional(),
+        wonOnly: queryBool(),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(MarketingParticipationDTO, '参与记录') },

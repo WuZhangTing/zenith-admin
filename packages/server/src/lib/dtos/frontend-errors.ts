@@ -62,7 +62,7 @@ export const ErrorReportInputDTO = z
     appId: z.string().min(1).max(64).optional(),
     environment: environmentEnum.optional(),
     /** 报错时刻活跃的回放会话 ID（SDK 注入） */
-    replayId: z.string().uuid().optional(),
+    replayId: z.uuid().optional(),
   })
   .openapi('ErrorReportInput');
 

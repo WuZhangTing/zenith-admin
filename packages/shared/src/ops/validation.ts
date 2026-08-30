@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
 import {
   APP_ARCHES,
@@ -103,7 +103,7 @@ export type SetAppReleaseRolloutInput = z.infer<typeof setAppReleaseRolloutSchem
 export const createExternalArtifactSchema = z.object({
   platform: z.enum(APP_PLATFORMS),
   arch: z.enum(APP_ARCHES).default('universal'),
-  externalUrl: z.string().url('必须是合法的 URL').max(500),
+  externalUrl: z.url('必须是合法的 URL').max(500),
   fileName: z.string().min(1, '显示名不能为空').max(255),
 });
 

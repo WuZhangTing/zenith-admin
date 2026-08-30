@@ -15,7 +15,7 @@
  */
 import { Hono } from 'hono';
 import type { UpgradeWebSocket } from 'hono/ws';
-import { z } from 'zod';
+import * as z from 'zod';
 import {
   IOT_WS_FRAME_TYPES, iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
   iotGatewayBatchSchema, iotGatewayEventSchema, iotLogIngestSchema, iotOtaProgressSchema,

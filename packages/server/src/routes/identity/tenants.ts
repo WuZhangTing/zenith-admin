@@ -38,7 +38,7 @@ const createTenantSchema = z.object({
   adminUsername: z.string().min(2).max(64).optional().openapi({ description: '初始管理员用户名；不传则跳过自动初始化' }),
   adminPassword: z.string().min(6).max(64).optional().openapi({ description: '初始管理员密码；不传则自动生成并在响应中一次性返回' }),
   adminNickname: z.string().max(64).optional(),
-  adminEmail: z.string().email().max(128).optional(),
+  adminEmail: z.email().max(128).optional(),
 });
 const updateTenantSchema = createTenantSchema.omit({ adminUsername: true, adminPassword: true, adminNickname: true, adminEmail: true }).partial();
 

@@ -108,7 +108,7 @@ const jobsListRoute = defineOpenAPIRoute({
     summary: '工作流作业账本列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:instance:monitor' })] as const,
-    request: { query: PaginationQuery.merge(WorkflowJobListQuery) },
+    request: { query: PaginationQuery.extend(WorkflowJobListQuery.shape) },
     responses: { ...commonErrorResponses, ...okPaginated(WorkflowJobDTO, '作业账本分页列表') },
   }),
   handler: async (c) => {

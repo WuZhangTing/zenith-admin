@@ -7,7 +7,7 @@ import { replyPaymentDisputeSchema, resolvePaymentDisputeSchema, refundPaymentDi
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
-import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
+import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, queryBool, validationHook } from '../../lib/openapi-schemas';
 import { PaymentDisputeDTO, PaymentDisputeDetailDTO, PaymentDisputeStatsDTO } from '../../lib/openapi-dtos';
 import {
   ensureDispute,
@@ -37,7 +37,7 @@ const listRoute = defineOpenAPIRoute({
         channel: channelEnum.optional(),
         type: disputeTypeEnum.optional(),
         route: z.enum(['urgent', 'manual', 'auto_refund_suggest']).optional(),
-        overdueOnly: z.coerce.boolean().optional(),
+        overdueOnly: queryBool(),
         startTime: dateRangeBound('起始时间'),
         endTime: dateRangeBound('结束时间'),
       }),

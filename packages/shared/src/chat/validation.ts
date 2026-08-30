@@ -1,17 +1,17 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
 
 // ─── 聊天 ─────────────────────────────────────────────────────────────────────
-export const chatLinkPreviewSchema = z.object({
+export const chatLinkPreviewSchema = z.strictObject({
   url: z.url(),
   title: z.string().min(1).max(512),
   description: z.string().max(4000).nullable(),
   siteName: z.string().max(255).nullable(),
   image: z.url().nullable(),
   favicon: z.url().nullable(),
-}).strict();
+});
 
-export const chatAssetMetaSchema = z.object({
+export const chatAssetMetaSchema = z.strictObject({
   kind: z.enum(['image', 'file', 'voice', 'video']),
   name: z.string().min(1).max(512),
   size: z.number().int().nonnegative(),
@@ -21,17 +21,17 @@ export const chatAssetMetaSchema = z.object({
   height: z.number().int().positive().nullable().optional(),
   thumbnailUrl: z.string().max(2048).nullable().optional(),
   duration: z.number().nonnegative().nullable().optional(),
-}).strict();
+});
 
-export const chatMentionSchema = z.object({
+export const chatMentionSchema = z.strictObject({
   userId: z.number().int().positive(),
   nickname: z.string().min(1).max(100),
-}).strict();
+});
 
-export const chatAnnouncementHistorySchema = z.object({
+export const chatAnnouncementHistorySchema = z.strictObject({
   announcement: z.string().max(500).nullable(),
   operatorName: z.string().max(100).nullable(),
-}).strict();
+});
 
 export const chatForwardedItemSchema = z.object({
   senderName: z.string().max(100).nullable(),
@@ -93,7 +93,7 @@ export const chatVoteDataSchema = z.object({
   isClosed: z.boolean(),
 });
 
-export const chatMessageExtraSchema = z.object({
+export const chatMessageExtraSchema = z.strictObject({
   asset: chatAssetMetaSchema.nullable().optional(),
   linkPreview: chatLinkPreviewSchema.nullable().optional(),
   mentions: z.array(chatMentionSchema).max(20).nullable().optional(),
@@ -106,7 +106,7 @@ export const chatMessageExtraSchema = z.object({
   voteData: chatVoteDataSchema.nullable().optional(),
   card: chatCardSchema.nullable().optional(),
   bot: chatBotMetaSchema.nullable().optional(),
-}).strict();
+});
 
 export const editChatMessageSchema = z.object({
   content: z.string().min(1, '消息不能为空').max(4096),

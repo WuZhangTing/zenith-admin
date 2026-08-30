@@ -42,7 +42,7 @@ export const ChatOrgDataDTO = z
   .openapi('ChatOrgData');
 
 export const ChatLinkPreviewDTO = z
-  .object({
+  .strictObject({
     url: z.url(),
     title: z.string(),
     description: z.string().nullable(),
@@ -50,39 +50,39 @@ export const ChatLinkPreviewDTO = z
     image: z.url().nullable(),
     favicon: z.url().nullable(),
   })
-  .strict()
+  
   .openapi('ChatLinkPreview');
 
 export const ChatAssetMetaDTO = z
-  .object({
+  .strictObject({
     kind: z.enum(['image', 'file', 'voice', 'video']),
     name: z.string(),
     size: z.number().int(),
     mimeType: z.string().nullable(),
     extension: z.string().nullable(),
-    fileId: z.string().uuid().nullable().optional(),
+    fileId: z.uuid().nullable().optional(),
     width: z.number().int().nullable().optional(),
     height: z.number().int().nullable().optional(),
     thumbnailUrl: z.string().max(2048).nullable().optional(),
     duration: z.number().nullable().optional(),
   })
-  .strict()
+  
   .openapi('ChatAssetMeta');
 
 export const ChatMentionDTO = z
-  .object({
+  .strictObject({
     userId: z.number().int(),
     nickname: z.string(),
   })
-  .strict()
+  
   .openapi('ChatMention');
 
 export const ChatAnnouncementHistoryDTO = z
-  .object({
+  .strictObject({
     announcement: z.string().nullable(),
     operatorName: z.string().nullable(),
   })
-  .strict()
+  
   .openapi('ChatAnnouncementHistory');
 
 export const ChatForwardedItemDTO = z
@@ -159,7 +159,7 @@ export const ChatVoteDataDTO = z
   .openapi('ChatVoteData');
 
 export const ChatMessageExtraDTO = z
-  .object({
+  .strictObject({
     asset: ChatAssetMetaDTO.nullable().optional(),
     linkPreview: ChatLinkPreviewDTO.nullable().optional(),
     mentions: z.array(ChatMentionDTO).nullable().optional(),
@@ -173,7 +173,7 @@ export const ChatMessageExtraDTO = z
     card: ChatCardDTO.nullable().optional(),
     bot: ChatBotMetaDTO.nullable().optional(),
   })
-  .strict()
+  
   .openapi('ChatMessageExtra');
 
 export const ChatReactionGroupDTO = z

@@ -40,7 +40,11 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 const resourceRefQuery = z.object({
   resourceType: reportResourceTypeSchema,
   resourceId: z.coerce.number().int().positive(),
-  inheritFromFolder: z.coerce.boolean().default(false),
+  // 布尔查询参数不能用 z.coerce.boolean()（'false' 会变 true），此处需带默认值，
+  // 空串预处理为 undefined 后由 stringbool 解析、缺省回落 false
+  inheritFromFolder: z
+    .preprocess((v) => (v === '' ? undefined : v), z.stringbool().default(false))
+    .openapi({ type: 'boolean', default: false }),
 });
 
 const listAclsRoute = defineOpenAPIRoute({

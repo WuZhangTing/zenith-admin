@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { DATE_TIME_PATTERN } from '../core/constants';
 import { CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODES, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_MODES, CMS_FIELD_OPTION_SOURCES, CMS_INTERACTION_CHOICE_QUESTION_TYPES, CMS_INTERACTION_CONDITION_OPS, CMS_INTERACTION_OTHER_VALUE, CMS_INTERACTION_QUESTION_TYPES, CMS_INTERACTION_RATING_MAX_LIMIT, CMS_PUBLISH_TARGET_TYPES, CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SITE_INHERITABLE_FIELDS, CMS_WIDGET_REF_OWNER_TYPES, CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_SOURCE_TYPES, CMS_WIDGET_TYPES } from './constants';
@@ -553,24 +553,24 @@ export const createCmsErrorProneWordSchema = z.object({
 export const updateCmsErrorProneWordSchema = partialForUpdate(createCmsErrorProneWordSchema);
 
 // ─── CMS Stage 4：统一互动问卷 ────────────────────────────────────────────────
-export const cmsInteractionOptionSchema = z.object({
+export const cmsInteractionOptionSchema = z.strictObject({
   id: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/, '选项 id 仅支持字母、数字、下划线和中划线'),
   label: z.string().trim().min(1).max(100),
   value: z.string().trim().min(1).max(100),
-}).strict();
+});
 
-export const cmsInteractionMatrixRowSchema = z.object({
+export const cmsInteractionMatrixRowSchema = z.strictObject({
   id: z.string().trim().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/, '矩阵行 id 仅支持字母、数字、下划线和中划线'),
   label: z.string().trim().min(1).max(100),
-}).strict();
+});
 
-export const cmsInteractionVisibleWhenSchema = z.object({
+export const cmsInteractionVisibleWhenSchema = z.strictObject({
   questionIndex: z.number().int().min(0).max(99),
   op: z.enum(CMS_INTERACTION_CONDITION_OPS).default('any'),
   values: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
-}).strict();
+});
 
-export const cmsInteractionQuestionSchema = z.object({
+export const cmsInteractionQuestionSchema = z.strictObject({
   id: z.number().int().positive().optional(),
   label: z.string().min(1, '题目不能为空').max(200),
   type: z.enum(CMS_INTERACTION_QUESTION_TYPES).default('single'),
@@ -585,7 +585,7 @@ export const cmsInteractionQuestionSchema = z.object({
   matrixRows: z.array(cmsInteractionMatrixRowSchema).max(30).default([]),
   pageNo: z.number().int().min(1).max(50).default(1),
   visibleWhen: cmsInteractionVisibleWhenSchema.nullable().optional(),
-}).strict();
+});
 
 const cmsInteractionBaseSchema = z.object({
   siteId: z.number().int().positive(),
@@ -738,12 +738,12 @@ export const cmsPageBlockDisplayConditionSchema = z.object({
   }
 });
 
-export const cmsPageBlockSchema = z.object({
+export const cmsPageBlockSchema = z.strictObject({
   id: z.string().trim().min(1).max(100),
   type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns', 'widget-ref']),
   props: z.record(z.string(), z.unknown()),
   displayCondition: cmsPageBlockDisplayConditionSchema.optional(),
-}).strict();
+});
 
 /**
  * 搭建页自定义访问路径。
@@ -799,14 +799,14 @@ export const updateCmsPageSchema = z.object({
 
 export const setCmsPageBlockAclSchema = z.object({
   blockIds: z.array(z.string().trim().min(1).max(100)).min(1).max(50),
-  grants: z.array(z.object({
+  grants: z.array(z.strictObject({
     subjectType: z.enum(['user', 'role']),
     subjectId: z.number().int().positive(),
-  }).strict()).max(200),
+  })).max(200),
 });
 
 // ─── CMS 页面部件 ─────────────────────────────────────────────────────────────
-export const cmsWidgetItemSchema = z.object({
+export const cmsWidgetItemSchema = z.strictObject({
   id: z.string().trim().min(1).max(100),
   sourceType: z.enum(CMS_WIDGET_SOURCE_TYPES),
   sourceId: z.number().int().positive().nullable().optional(),
@@ -815,7 +815,7 @@ export const cmsWidgetItemSchema = z.object({
   url: z.string().trim().max(1000).nullable().optional(),
   image: z.string().trim().max(1000).nullable().optional(),
   displayDate: z.string().regex(DATE_TIME_PATTERN, '时间格式应为 YYYY-MM-DD HH:mm:ss').nullable().optional(),
-}).strict().superRefine((value, ctx) => {
+}).superRefine((value, ctx) => {
   if (value.sourceType === 'manual') {
     if (value.sourceId != null) {
       ctx.addIssue({ code: 'custom', path: ['sourceId'], message: '手工条目不能指定来源 ID' });
@@ -828,9 +828,9 @@ export const cmsWidgetItemSchema = z.object({
   }
 });
 
-export const cmsWidgetDataSchema = z.object({
+export const cmsWidgetDataSchema = z.strictObject({
   items: z.array(cmsWidgetItemSchema).max(100),
-}).strict().superRefine((value, ctx) => {
+}).superRefine((value, ctx) => {
   const ids = new Set<string>();
   value.items.forEach((item, index) => {
     if (ids.has(item.id)) {
@@ -855,16 +855,15 @@ export const createCmsWidgetSchema = cmsWidgetEditableSchema.extend({
   defaultRendererKey: z.enum(CMS_WIDGET_RENDERER_KEYS).default('list-sidebar'),
 });
 
-export const updateCmsWidgetSchema = cmsWidgetEditableSchema
-  .omit({ code: true })
-  .partial()
-  .extend({ expectedRevision: z.number().int().positive() })
-  .strict();
+export const updateCmsWidgetSchema = z.strictObject({
+  ...cmsWidgetEditableSchema.omit({ code: true }).partial().shape,
+  expectedRevision: z.number().int().positive(),
+});
 
-export const batchCmsWidgetSchema = z.object({
+export const batchCmsWidgetSchema = z.strictObject({
   ids: z.array(z.number().int().positive()).min(1).max(100),
   action: z.enum(['publish', 'offline', 'delete']),
-}).strict();
+});
 
 export const cmsWidgetRefOwnerTypeSchema = z.enum(CMS_WIDGET_REF_OWNER_TYPES);
 
@@ -1045,7 +1044,7 @@ export const createCmsCollectRuleSchema = z.object({
   siteId: z.number().int().positive(),
   channelId: z.number().int().positive(),
   name: z.string().min(1).max(100),
-  listUrl: z.string().url().max(500),
+  listUrl: z.url().max(500),
   pageStart: z.number().int().min(1).default(1),
   pageEnd: z.number().int().min(1).default(1),
   listSelector: z.string().min(1).max(200),
@@ -1067,7 +1066,7 @@ export const createCmsCollectRuleSchema = z.object({
 export const updateCmsCollectRuleSchema = z.object({
   channelId: z.number().int().positive().optional(),
   name: z.string().min(1).max(100).optional(),
-  listUrl: z.string().url().max(500).optional(),
+  listUrl: z.url().max(500).optional(),
   pageStart: z.number().int().min(1).optional(),
   pageEnd: z.number().int().min(1).optional(),
   listSelector: z.string().min(1).max(200).optional(),

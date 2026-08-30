@@ -6,7 +6,7 @@
  */
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { z } from 'zod';
+import type * as z from 'zod';
 import {
   IOT_SN_HEADER, IOT_TIMESTAMP_HEADER, IOT_SIGN_HEADER,
   iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,

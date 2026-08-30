@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
-import { z } from 'zod';
+import * as z from 'zod';
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, gte, ilike, or, sql } from 'drizzle-orm';
 import { db } from '../../db';
@@ -46,7 +46,7 @@ const CHATBI_HISTORY_COUNT = 12;
 const CHATBI_HISTORY_TOKENS = 6000;
 const CHATBI_MAX_OUTPUT_TOKENS = 4000;
 const SUPPORTED_CHART_TYPES = ['table', 'bar', 'line', 'area', 'pie', 'scatter', 'kpi'] as const;
-const structuredOutputSchema = z.object({
+const structuredOutputSchema = z.strictObject({
   sql: z.string().trim().min(1).max(20_000),
   chart: z.object({
     type: z.enum(SUPPORTED_CHART_TYPES),
@@ -57,7 +57,7 @@ const structuredOutputSchema = z.object({
   }).nullable(),
   title: z.string().trim().min(1).max(128),
   explanation: z.string().trim().min(1).max(4000),
-}).strict();
+});
 
 type StructuredOutput = z.infer<typeof structuredOutputSchema>;
 

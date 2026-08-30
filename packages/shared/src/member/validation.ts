@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 
 /** 会员端签约自动续费 */
 export const memberSignRenewalSchema = z.object({

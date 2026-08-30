@@ -9,7 +9,7 @@ export const DbBackupItemDTO = z
     id: z.number().int(),
     name: z.string(),
     type: z.enum(['pg_dump', 'drizzle_export']),
-    fileId: z.string().uuid().nullable().optional(),
+    fileId: z.uuid().nullable().optional(),
     fileSize: z.number().nullable().optional(),
     status: z.enum(['pending', 'running', 'success', 'failed']),
     tables: z.unknown().nullable().optional(),

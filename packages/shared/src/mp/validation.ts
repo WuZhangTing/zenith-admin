@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { lazyRecursive, partialForUpdate } from '../core/validation';
 import { channelPublishAudienceSchema } from '../messaging/validation';
 import type { MpArticle, MpMenuButton } from './types';

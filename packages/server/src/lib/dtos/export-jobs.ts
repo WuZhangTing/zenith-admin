@@ -55,7 +55,7 @@ export const ExportJobDTO = z
     query: z.record(z.string(), z.unknown()),
     columns: z.array(z.string()).nullable(),
     rowCount: z.number().int().nullable(),
-    fileId: z.string().uuid().nullable(),
+    fileId: z.uuid().nullable(),
     filename: z.string().nullable(),
     fileSize: z.number().int().nullable(),
     raw: z.boolean(),

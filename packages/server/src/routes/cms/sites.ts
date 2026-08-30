@@ -342,7 +342,7 @@ const importSiteRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:site:create', audit: { description: '导入 CMS 站点', module: 'CMS内容管理' } })] as const,
     request: {
-      body: { content: jsonContent(z.object({}).passthrough().openapi({ description: '站点导出包 JSON（GET /cms/sites/{id}/export 的产物）' })), required: true },
+      body: { content: jsonContent(z.looseObject({}).openapi({ description: '站点导出包 JSON（GET /cms/sites/{id}/export 的产物）' })), required: true },
     },
     responses: { ...commonErrorResponses, ...ok(CmsSiteImportResultDTO, '导入结果') },
   }),

@@ -29,7 +29,7 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 const PAYMENT_EVENTS = ['payment.succeeded', 'payment.closed', 'payment.failed', 'refund.succeeded', 'refund.failed'] as const;
 const endpointCreateSchema = z.object({
   name: z.string().min(1).max(64),
-  url: z.string().url().max(512),
+  url: z.url().max(512),
   bizType: z.string().max(64).optional(),
   events: z.array(z.enum(PAYMENT_EVENTS)).optional(),
   status: z.enum(['enabled', 'disabled']).optional(),

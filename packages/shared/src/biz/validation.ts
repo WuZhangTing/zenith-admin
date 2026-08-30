@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
 
 // ── 业务接入示例：请假 ──

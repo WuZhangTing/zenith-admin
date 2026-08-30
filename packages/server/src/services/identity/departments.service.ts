@@ -8,7 +8,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { Department, createDepartmentSchema, updateDepartmentSchema } from '@zenith/shared/identity';
-import type { z } from 'zod';
+import type * as z from 'zod';
 import { getScopeMemberSummaries } from './user-scope.service';
 
 export type CreateDepartmentInput = z.infer<typeof createDepartmentSchema>;

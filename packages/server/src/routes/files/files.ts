@@ -13,11 +13,11 @@ import { readStoredFile } from '../../lib/file-storage';
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
 const FileIdParam = z.object({
-  id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' }, example: '018f6f8a-5f76-7d8c-9a1b-2c3d4e5f6789' }),
+  id: z.uuid().openapi({ param: { name: 'id', in: 'path' }, example: '018f6f8a-5f76-7d8c-9a1b-2c3d4e5f6789' }),
 });
 
 const FileBatchIdsBody = z.object({
-  ids: z.array(z.string().uuid()).min(1),
+  ids: z.array(z.uuid()).min(1),
 });
 
 /**

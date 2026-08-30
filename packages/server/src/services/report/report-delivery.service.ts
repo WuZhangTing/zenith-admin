@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { CronExpressionParser } from 'cron-parser';
-import { z } from 'zod';
+import * as z from 'zod';
 import { db } from '../../db';
 import {
   reportDeliveryAttempts,

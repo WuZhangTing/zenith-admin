@@ -4,7 +4,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody,
+  ok, okPaginated, okMsg, IdParam, okBody, queryBool,
 } from '../../lib/openapi-schemas';
 import { AsyncTaskDTO, ReportAlertRuleDTO } from '../../lib/openapi-dtos';
 import {
@@ -25,7 +25,7 @@ const listRoute = defineOpenAPIRoute({
         keyword: z.string().optional(),
         datasetId: z.coerce.number().int().positive().optional(),
         metricId: z.coerce.number().int().positive().optional(),
-        enabled: z.coerce.boolean().optional(),
+        enabled: queryBool(),
       }),
     },
     responses: { ...commonErrorResponses, ...okPaginated(ReportAlertRuleDTO, 'ok') },

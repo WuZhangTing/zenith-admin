@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import {
   SHORT_LINK_CODE_MAX,
   SHORT_LINK_CODE_MIN,

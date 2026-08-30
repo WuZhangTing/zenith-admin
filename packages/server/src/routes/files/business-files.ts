@@ -39,7 +39,7 @@ const removeRoute = defineOpenAPIRoute({
       audit: { description: '移除业务附件', module: '文件管理' },
     })] as const,
     request: {
-      params: BusinessTypeParam.extend({ fileId: z.string().uuid().openapi({ example: '018f6f8a-5f76-7d8c-9a1b-2c3d4e5f6789' }) }),
+      params: BusinessTypeParam.extend({ fileId: z.uuid().openapi({ example: '018f6f8a-5f76-7d8c-9a1b-2c3d4e5f6789' }) }),
     },
     responses: { ...commonErrorResponses, ...okMsg('移除成功') },
   }),

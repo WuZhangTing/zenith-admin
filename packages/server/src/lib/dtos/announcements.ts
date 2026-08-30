@@ -12,9 +12,9 @@ const AnnouncementRecipientDTO = z.object({
 
 const AnnouncementAttachmentDTO = z.object({
   id: z.number().int(),
-  fileId: z.string().uuid(),
+  fileId: z.uuid(),
   file: z.object({
-    id: z.string().uuid(),
+    id: z.uuid(),
     originalName: z.string(),
     size: z.number().int(),
     mimeType: z.string().nullable(),

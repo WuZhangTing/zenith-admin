@@ -52,7 +52,7 @@ import { ANALYTICS_ROLLUP_REBUILD_TASK_TYPE, ANALYTICS_SEGMENT_MATERIALIZE_TASK_
 
 const r = new OpenAPIHono({ defaultHook: validationHook });
 
-const daysQuery = z.object({ days: z.coerce.number().int().min(1).max(365).optional().default(30) });
+const daysQuery = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) });
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const rangeQuery = daysQuery.extend({ startDate: dateStr.optional(), endDate: dateStr.optional() });
 
@@ -99,7 +99,7 @@ const trendsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/trends', tags: ['Analytics'], summary: 'PV/UV/会话/事件趋势', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: rangeQuery.extend({ compare: z.enum(['true', 'false']).optional().default('false') }) },
+    request: { query: rangeQuery.extend({ compare: z.enum(['true', 'false']).default('false') }) },
     responses: { ...ok(TrendSeriesDTO, '趋势'), ...commonErrorResponses },
   }),
   handler: async (c) => {
@@ -121,7 +121,7 @@ const pageStatsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/page-stats', tags: ['Analytics'], summary: '页面停留统计', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).optional().default(30) }) },
+    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).default(30) }) },
     responses: { ...ok(PageStatsDTO, '页面停留'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getPageStats(c.req.valid('query'))), 200),
@@ -131,7 +131,7 @@ const featureStatsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/feature-stats', tags: ['Analytics'], summary: '功能使用统计', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).optional().default(30), pagePath: z.string().optional() }) },
+    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).default(30), pagePath: z.string().optional() }) },
     responses: { ...ok(FeatureStatsDTO, '功能使用'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getFeatureStats(c.req.valid('query'))), 200),
@@ -145,7 +145,7 @@ const heatmapRoute = defineOpenAPIRoute({
       query: z.object({
         pagePath: z.string().min(1),
         componentArea: z.string().optional(),
-        days: z.coerce.number().int().min(1).max(365).optional().default(30),
+        days: z.coerce.number().int().min(1).max(365).default(30),
         deviceType: z.enum(['desktop', 'mobile', 'tablet', 'bot', 'unknown']).or(z.literal('')).optional(),
         source: z.enum(['web_admin', 'web_member', 'server']).or(z.literal('')).optional(),
       }),
@@ -171,7 +171,7 @@ const userStatsRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/user-stats', tags: ['Analytics'], summary: '用户行为统计', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).optional().default(30) }) },
+    request: { query: PaginationQuery.extend({ days: z.coerce.number().int().min(1).max(365).default(30) }) },
     responses: { ...ok(UserStatsDTO, '用户统计'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getUserStats(c.req.valid('query'))), 200),
@@ -216,11 +216,11 @@ const acquisitionRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
     request: {
       query: z.object({
-        days: z.coerce.number().int().min(1).max(365).optional().default(30),
-        dimension: z.enum(ANALYTICS_ACQUISITION_DIMENSIONS).optional().default('channel'),
-        model: z.enum(ANALYTICS_ATTRIBUTION_MODELS).optional().default('last_touch'),
+        days: z.coerce.number().int().min(1).max(365).default(30),
+        dimension: z.enum(ANALYTICS_ACQUISITION_DIMENSIONS).default('channel'),
+        model: z.enum(ANALYTICS_ATTRIBUTION_MODELS).default('last_touch'),
         conversionEvent: z.string().max(128).optional(),
-        limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+        limit: z.coerce.number().int().min(1).max(50).default(20),
       }),
     },
     responses: { ...ok(AnalyticsAcquisitionResultDTO, '获客报表'), ...commonErrorResponses },
@@ -256,8 +256,8 @@ const pathRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
     request: {
       query: z.object({
-        days: z.coerce.number().int().min(1).max(365).optional().default(30),
-        limit: z.coerce.number().int().min(1).max(100).optional().default(30),
+        days: z.coerce.number().int().min(1).max(365).default(30),
+        limit: z.coerce.number().int().min(1).max(100).default(30),
         startPage: z.string().max(256).optional(),
       }),
     },
@@ -270,7 +270,7 @@ const userTimelineRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/user-timeline', tags: ['Analytics'], summary: '用户行为时间线', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ userId: z.coerce.number().int().optional(), username: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).optional().default(100) }) },
+    request: { query: z.object({ userId: z.coerce.number().int().optional(), username: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).default(100) }) },
     responses: { ...ok(UserTimelineDTO, '时间线'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await getUserTimeline(c.req.valid('query'))), 200),
@@ -280,7 +280,7 @@ const sessionTimelineRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/session-timeline', tags: ['Analytics'], summary: '会话事件时间轴', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ sessionId: z.string().min(1).max(36), limit: z.coerce.number().int().min(1).max(1000).optional().default(300) }) },
+    request: { query: z.object({ sessionId: z.string().min(1).max(36), limit: z.coerce.number().int().min(1).max(1000).default(300) }) },
     responses: { ...ok(SessionTimelineDTO, '会话时间轴'), ...commonErrorResponses },
   }),
   handler: async (c) => {
@@ -294,7 +294,7 @@ const reportListRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/reports', tags: ['Analytics'], summary: '保存的报表列表', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:view' })] as const,
-    request: { query: z.object({ type: z.enum(['funnel']).optional().default('funnel') }) },
+    request: { query: z.object({ type: z.enum(['funnel']).default('funnel') }) },
     responses: { ...ok(z.object({ list: z.array(AnalyticsSavedReportDTO) }), '报表列表'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody({ list: await listSavedReports(c.req.valid('query').type) }), 200),
@@ -524,7 +524,7 @@ const settingsUpdateRoute = defineOpenAPIRoute({
 const rollupGetRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/rollup', tags: ['Analytics'], summary: '每日聚合数据', security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).optional().default(30) }) },
+    middleware: [authMiddleware, guard({ permission: 'analytics:manage' })] as const, request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).default(30) }) },
     responses: { ...ok(AnalyticsRollupSummaryDTO, '聚合数据'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody({ items: await getRollupSummary(c.req.valid('query').days) }), 200),
@@ -534,7 +534,7 @@ const rollupRebuildRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/rollup/rebuild', tags: ['Analytics'], summary: '重建每日聚合', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交重建每日聚合任务' } })] as const,
-    request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).optional().default(30) }) },
+    request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).default(30) }) },
     responses: { ...ok(AsyncTaskDTO, '任务已提交'), ...commonErrorResponses },
   }),
   handler: async (c) => {

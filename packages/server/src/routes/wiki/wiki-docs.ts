@@ -7,7 +7,7 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, okBody,
+  ok, okPaginated, okMsg, IdParam, okBody, queryBool,
 } from '../../lib/openapi-schemas';
 import { WikiDocDTO, WikiDocReadReceiptsDTO, WikiDocTreeNodeDTO, WikiDocVersionDTO, WikiReviewRecordDTO } from '../../lib/openapi-dtos';
 import {
@@ -25,8 +25,8 @@ const DocListQuery = PaginationQuery.extend({
   spaceId: z.coerce.number().int().positive().optional(),
   status: z.enum(WIKI_DOC_STATUSES).optional(),
   tagId: z.coerce.number().int().positive().optional(),
-  mine: z.coerce.boolean().optional(),
-  submitted: z.coerce.boolean().optional(),
+  mine: queryBool(),
+  submitted: queryBool(),
 });
 
 const VersionParam = z.object({

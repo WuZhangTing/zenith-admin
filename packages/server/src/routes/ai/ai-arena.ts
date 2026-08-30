@@ -12,7 +12,7 @@ import { checkSensitiveContent } from '../../lib/ai/content-filter';
 import { getConfigNumber } from '../../lib/system-config';
 import { currentUser } from '../../lib/context';
 import { arenaVoteSchema } from '@zenith/shared/ai';
-import { z } from 'zod';
+import * as z from 'zod';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 

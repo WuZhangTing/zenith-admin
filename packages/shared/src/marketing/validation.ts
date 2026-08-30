@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { MARKETING_PRIZE_TYPES } from './constants';
 
 export const createMarketingCampaignSchema = z.object({

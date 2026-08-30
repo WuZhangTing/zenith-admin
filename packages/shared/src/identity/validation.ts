@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import * as z from 'zod';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { tenantPackageQuotasSchema } from '../licensing/validation';
 import { MP_OAUTH_SCOPES } from '../mp/constants';
@@ -160,13 +160,13 @@ export const updatePositionSchema = partialForUpdate(createPositionSchema);
 // ─── 用户组 Schema ────────────────────────────────────────────────────────
 
 /** 动态组成员规则：dynamic 模式下至少要有一个条件或强制包含名单 */
-export const userGroupMemberRuleSchema = z.object({
+export const userGroupMemberRuleSchema = z.strictObject({
   departmentIds: z.array(z.number().int().positive()).max(200).optional(),
   includeSubDepartments: z.boolean().optional(),
   positionIds: z.array(z.number().int().positive()).max(200).optional(),
   includeUserIds: z.array(z.number().int().positive()).max(500).optional(),
   excludeUserIds: z.array(z.number().int().positive()).max(500).optional(),
-}).strict();
+});
 
 const userGroupBaseSchema = z.object({
   name: z.string().min(1, '用户组名称不能为空').max(64),
@@ -360,7 +360,7 @@ export const createTenantSchema = z.object({
   adminUsername: z.string().min(2, '管理员用户名至少 2 个字符').max(64).optional(),
   adminPassword: z.string().min(6, '管理员密码至少 6 个字符').max(64).optional(),
   adminNickname: z.string().max(64).optional(),
-  adminEmail: z.string().email('管理员邮箱格式不正确').max(128).optional(),
+  adminEmail: z.email('管理员邮箱格式不正确').max(128).optional(),
 });
 
 
@@ -414,7 +414,7 @@ export const userBehaviorEventTypeEnum = z.enum([
 
 export const buildMpOAuthUrlSchema = z.object({
   accountId: z.number().int().positive(),
-  redirectUri: z.string().url('回调地址需为合法 URL').max(1024),
+  redirectUri: z.url('回调地址需为合法 URL').max(1024),
   scope: z.enum(MP_OAUTH_SCOPES).default('snsapi_base'),
   state: z.string().max(128).optional(),
 });
@@ -430,7 +430,7 @@ export const createUserFeedbackSchema = z.object({
   content: z.string().max(1000, '反馈内容不能超过 1000 字').nullable().optional(),
   pagePath: z.string().max(200).nullable().optional(),
   /** 提交时活跃的会话回放 ID（SDK 联动附带） */
-  replayId: z.string().uuid().nullable().optional(),
+  replayId: z.uuid().nullable().optional(),
 }).refine((v) => v.score != null || (v.content != null && v.content.trim() !== ''), {
   message: '评分与反馈内容至少填写一项',
   path: ['content'],

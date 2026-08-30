@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
-import { z } from 'zod';
+import * as z from 'zod';
 import { authMiddleware } from '../../middleware/auth';
 import {
   jsonContent,
