@@ -19,3 +19,5 @@ docs/.vitepress/dist/
 packages/web/public/file-viewer/
 
 .playwright-cli/
+
+.playwright-mcp/
