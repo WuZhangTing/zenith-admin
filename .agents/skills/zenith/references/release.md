@@ -144,11 +144,12 @@ npx concurrently --group --timings --kill-others-on-fail -n lint,test,build,docs
 | `testTimeout: 15_000` | 两个 vitest.config.ts | 四路并行抢满 CPU 时秒级用例被放大 10-40 倍：exceljs 渲染、Semi 浮层交互都实测撞破过默认 5s——**这是"发布验证偶发竞态失败"的头号来源**，并非真死锁 |
 | `480_000` 超时 | `src/app.contract.test.ts` 的 `beforeAll` | 装配整套 app（转译+执行 1400+ 模块）独占跑约 60-90s，四路并行下曾贴 300s，故留足余量；契约与路由表快照共用这一次装配 |
 | `deps.optimizer.web` | `packages/web/vitest.config.ts` | Semi 的 CJS 里 require CSS，只能走 vite 逐模块管线；esbuild 预打包成单 chunk 后 web 全量 288.6s → 139.4s |
-| `pool: 'threads'` + 全局 redis 替身 | `packages/server/vitest.config.ts`、`src/test-setup.ts` | 线程比进程 spawn 便宜（Windows 尤甚）；lib/redis 模块加载即建连，全局替身保证测试不发真实 TCP、worker 退出期没有重连竞态 |
+| 全局 redis 替身 | `packages/server/src/test-setup.ts` | lib/redis 模块加载即建连，全局替身保证测试不发真实 TCP、worker 退出期没有重连竞态 |
 
 > 不要用 `isolate: false` 换测试速度：本套测试重度依赖 per-file `vi.mock`，关闭隔离会产生
 > 跨文件状态泄漏（单跑全绿、混跑必挂），且文件→worker 分配随时序变化、泄漏组合不可复现。
-> vmThreads 池同样禁止——实测 41 个文件因 VM context 链接错误直接崩。
+> vmThreads 池同样禁止——实测 41 个文件因 VM context 链接错误直接崩；threads 池也不要用，
+> 它共享进程级 libuv 线程池，zlib/fs 密集用例在并行下被饿死（原因见 server vitest.config.ts）。
 
 再遇测试超时时：先确认是超时（而非断言失败）且单独跑能过，再按
 [troubleshooting.md → 测试超时](./troubleshooting.md)调对应旋钮。**不要**删掉这里的外层并行——

@@ -7,9 +7,10 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
     // 全局替换模块加载期就建 TCP 连接的 lib/redis，见 src/test-setup.ts
     setupFiles: ['src/test-setup.ts'],
-    // threads 比默认的 forks 略快（Windows 上进程 spawn 明显贵于线程），
-    // 22 核实测 forks 108.7s / threads 101.5s，全部用例行为一致。
-    pool: 'threads',
+    // 保持默认 forks 池，不要换 threads：worker_threads 共享**同一个进程级
+    // libuv 线程池**（默认 4 线程），zlib/fs 密集用例（如 exceljs 导出）在
+    // 四路并行争抢下被饿死——~1s 的用例实测放大到 40s+ 撞破超时；forks 每个
+    // 子进程各有独立线程池。threads 的收益仅 ~7%（108.7s → 101.5s），不值。
     // 每个 worker 都要独立执行整套 app（300+ 路由文件）的模块图，worker 越多重复越多，
     // 到某个点后收益反转：16 核实测默认档（核数-1=15）transform 累计 1432s、墙钟 307s，
     // 且 app.contract（装配 app + 1800 次进程内请求）撞破超时；

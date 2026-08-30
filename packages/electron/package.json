@@ -10,7 +10,7 @@
   },
   "main": "dist/main.js",
   "dependencies": {
-    "electron-updater": "^6.6.2",
+    "electron-updater": "^6.8.9",
     "extract-zip": "^2.0.1"
   },
   "scripts": {
@@ -24,7 +24,7 @@
     "appId": "com.zenith.admin",
     "productName": "Zenith Admin",
     "copyright": "Copyright © 2024",
-    "electronVersion": "43.3.0",
+    "electronVersion": "44.0.0",
     "icon": "../web/public/icons/icon-512.png",
     "directories": {
       "output": "../../dist/electron",
@@ -97,7 +97,7 @@
   "devDependencies": {
     "@typescript/native": "npm:typescript@^7.0.2",
     "concurrently": "^10.0.5",
-    "electron": "43.4.1",
+    "electron": "44.0.0",
     "electron-builder": "^26.15.3",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "wait-on": "^9.1.0"
