@@ -4,6 +4,7 @@ import postgres from 'postgres';
 import { config } from '../config';
 import logger from '../lib/logger';
 import { currentAuditUserId } from '../lib/audit-context';
+import type { DbTransaction } from './types';
 import * as schema from './schema';
 
 class DrizzleLogger implements Logger {
@@ -21,6 +22,7 @@ const client = postgres(config.databaseUrl, {
 
 const rawDb = drizzle(client, {
   schema,
+  casing: 'snake_case',
   logger: config.log.level === 'debug' ? new DrizzleLogger() : false,
 });
 
@@ -99,7 +101,20 @@ function wrapExecutor<T extends object>(executor: T): T {
   });
 }
 
+/** 仅供单元测试验证审计注入行为，业务代码禁止直接调用。 */
+export { wrapExecutor as wrapExecutorForTest };
+
 export const db = wrapExecutor(rawDb);
+
+/**
+ * 只读一致性快照事务（repeatable read + read only）。
+ * 用于「多条查询必须来自同一数据快照」的统计 / 对账 / 汇总场景。
+ * 注意：事务内语句在同一连接上串行执行，Promise.all 不再并行；
+ * 普通分页列表的 count + rows 不要使用本函数，保持并行查询即可。
+ */
+export function readSnapshot<T>(fn: (tx: DbTransaction) => Promise<T>): Promise<T> {
+  return db.transaction(fn, { isolationLevel: 'repeatable read', accessMode: 'read only' });
+}
 
 /** 底层 postgres-js 客户端。仅供需要原生能力（如 cursor 流式读取）的场景使用。 */
 export const pgClient = client;

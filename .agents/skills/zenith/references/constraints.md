@@ -21,6 +21,16 @@
 
 ## Schema 层（Step 1）
 
+- **主键统一 identity**：自增主键一律 `integer().primaryKey().generatedAlwaysAsIdentity()`
+  （大表用 `bigint({ mode: 'number' })` 同理），**禁止** `serial` / `bigserial`；
+  需要显式插入 id 的场景（仅限 seed）必须链式加 `.overridingSystemValue()`
+- **列名自动派生**：drizzle 已配置 `casing: 'snake_case'`，**禁止**写与派生结果一致的显式列名
+  （`varchar('user_name')` 一律写成 `varchar()`）；仅当派生名与目标列名不一致时才显式指定。
+  做列名反射（结构断言、漂移对比）必须用 `dbColumnName()`（`db/types.ts`），
+  **禁止**直接读 `column.name`——未命名列的该属性是驼峰 key 而非真实列名
+- **unique 约束显式命名**：唯一约束一律显式蛇形命名——列级 `.unique('xxxs_order_no_unique')`、
+  表级 `unique('xxxs_tenant_code_unique').on(...)`，**禁止**裸 `.unique()` 依赖派生
+  （会从驼峰 key 派生出混合大小写约束名）
 - **审计列必加**：业务主表必须展开 `...auditColumns()`。例外（不要加）：纯关联表（`xxx_yyys`）、
   追加型日志（`*_logs`）、临时凭证（`*_tokens`）、IM 消息等「作者天然就是当前用户」的实体
 - **审计字段禁止手写**：`created_by` / `updated_by` 由 `db/index.ts` 的 Proxy 自动写入，
@@ -62,6 +72,12 @@
   辅助写函数接受 `executor: DbExecutor` 参数；副作用（WebSocket、邮件）不放入事务
 - **计数查询**：单表计数用 `db.$count(table, where)`，禁止 `db.select({ total: count() })`
 - **并行查询**：分页列表的 count 与 list **必须** `Promise.all` 并行，禁止串行 `await`
+- **只读快照统计**：同一（组）表的多条统计查询要求结果相互一致时（汇总卡片 + 明细榜单、对账）
+  用 `readSnapshot()`（`db/index.ts`，repeatable read + read only）；事务内语句串行执行，
+  普通分页列表的 count + rows **禁止**套快照事务，保持 `Promise.all` 并行
+- **CMS 检索向量**：`cmsContents` 的写入必须经 `contentSearchVector()` /
+  `contentSearchVectorOnUpdate()`（`cms-search.service.ts`）派生 `searchVector`，
+  **禁止**手工拼装 `to_tsvector` 表达式或漏更新可检索字段
 - **RQB 优先**：关联数据查询优先 `db.query.tableName.findMany/findFirst({ with: { ... } })`，
   仅跨表 WHERE 过滤或聚合计数才手写 JOIN
 

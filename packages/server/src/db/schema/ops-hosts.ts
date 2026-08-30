@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, text, jsonb, boolean, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, pgEnum, integer, text, jsonb, boolean, index } from 'drizzle-orm/pg-core';
 import { OPS_HOST_AUTH_TYPES, OPS_HOST_STATUSES } from '@zenith/shared/ops';
 import type { OpsHostSnapshot } from '@zenith/shared/ops';
 import { auditColumns } from './core';
@@ -18,27 +18,27 @@ export const opsHostAuthTypeEnum = pgEnum('ops_host_auth_type', OPS_HOST_AUTH_TY
 export const opsHostStatusEnum = pgEnum('ops_host_status', OPS_HOST_STATUSES);
 
 export const opsHosts = pgTable('ops_hosts', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 64 }).notNull().unique(),
-  host: varchar('host', { length: 255 }).notNull(),
-  port: integer('port').notNull().default(22),
-  username: varchar('username', { length: 64 }).notNull(),
-  authType: opsHostAuthTypeEnum('auth_type').notNull().default('password'),
-  passwordEncrypted: text('password_encrypted'),
-  keyContentEncrypted: text('key_content_encrypted'),
-  keyPassphraseEncrypted: text('key_passphrase_encrypted'),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar({ length: 64 }).notNull().unique(),
+  host: varchar({ length: 255 }).notNull(),
+  port: integer().notNull().default(22),
+  username: varchar({ length: 64 }).notNull(),
+  authType: opsHostAuthTypeEnum().notNull().default('password'),
+  passwordEncrypted: text(),
+  keyContentEncrypted: text(),
+  keyPassphraseEncrypted: text(),
   /** 连接端点/凭据配置修订号；连接握手在接受前必须确认未发生变化。 */
-  connectionVersion: integer('connection_version').notNull().default(0),
+  connectionVersion: integer().notNull().default(0),
   /** SSH host key SHA256 指纹(base64);null = 尚未首连 */
-  hostKeyFingerprint: varchar('host_key_fingerprint', { length: 64 }),
-  status: opsHostStatusEnum('status').notNull().default('unknown'),
-  snapshot: jsonb('snapshot').$type<OpsHostSnapshot>(),
-  probedAt: timestamp('probed_at'),
-  probeError: text('probe_error'),
-  enabled: boolean('enabled').notNull().default(true),
-  remark: varchar('remark', { length: 500 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  hostKeyFingerprint: varchar({ length: 64 }),
+  status: opsHostStatusEnum().notNull().default('unknown'),
+  snapshot: jsonb().$type<OpsHostSnapshot>(),
+  probedAt: timestamp(),
+  probeError: text(),
+  enabled: boolean().notNull().default(true),
+  remark: varchar({ length: 500 }),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
   ...auditColumns(),
 }, (t) => [
   index('ops_hosts_enabled_idx').on(t.enabled, t.status),

@@ -20,23 +20,28 @@ export const xxxStatusEnum = pgEnum('xxx_status', ['enabled', 'disabled']);
 // 复用已有 statusEnum 时无需新建
 
 // ─── 主表 ───────────────────────────────────────────────────────────────
+// 列名由 drizzle 的 casing: 'snake_case' 自动派生（key 驼峰 → 蛇形），不写显式列名；
+// 仅当派生结果与目标列名不一致时（如 wechatApiV3Key → wechat_api_v3_key 的边界情形）才显式指定。
 export const xxxs = pgTable('xxxs', {
-  id:          serial('id').primaryKey(),
-  name:        varchar('name', { length: 64 }).notNull(),
-  description: text('description'),
-  status:      statusEnum('status').notNull().default('enabled'),
+  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:        varchar({ length: 64 }).notNull(),
+  description: text(),
+  status:      statusEnum().notNull().default('enabled'),
   // 可选外键用 set null，关联表用 cascade
-  parentId:    integer('parent_id').references(() => xxxs.id, { onDelete: 'set null' }),
+  parentId:    integer().references(() => xxxs.id, { onDelete: 'set null' }),
   // 审计列：created_by / updated_by → users.id，由 db Proxy 自动写入
   ...auditColumns(),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:   timestamp().defaultNow().notNull(),
+  updatedAt:   timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 // 主表总是导出这两个 infer 类型
 export type XxxRow = typeof xxxs.$inferSelect;
 export type NewXxx = typeof xxxs.$inferInsert;
 ```
+
+唯一约束必须显式命名（约束名统一蛇形，避免从驼峰 key 派生出混合命名）：
+列级 `.unique('xxxs_order_no_unique')`；表级 `unique('xxxs_tenant_code_unique').on(t.tenantId, t.code)`。
 
 Step 0 确认需要租户隔离时，才按 [backend-patterns.md → 多租户隔离](./backend-patterns.md#多租户隔离tenantscope)
 添加 `tenantId`；基础模板不默认调用租户工具。
@@ -45,8 +50,8 @@ Step 0 确认需要租户隔离时，才按 [backend-patterns.md → 多租户�
 
 ```ts
 export const xxxYyys = pgTable('xxx_yyys', {
-  xxxId: integer('xxx_id').notNull().references(() => xxxs.id, { onDelete: 'cascade' }),
-  yyyId: integer('yyy_id').notNull().references(() => yyys.id, { onDelete: 'cascade' }),
+  xxxId: integer().notNull().references(() => xxxs.id, { onDelete: 'cascade' }),
+  yyyId: integer().notNull().references(() => yyys.id, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.xxxId, t.yyyId] })]);
 ```
 

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, text, jsonb, real, uuid as pgUuid, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, pgEnum, integer, text, jsonb, real, uuid as pgUuid, index } from 'drizzle-orm/pg-core';
 import { v7 as uuidv7 } from 'uuid';
 import { TERMINAL_SESSION_KINDS, TERMINAL_SESSION_STATES } from '@zenith/shared/ops';
 import { tenants, users } from './core';
@@ -17,27 +17,27 @@ export const terminalSessionKindEnum = pgEnum('terminal_session_kind', TERMINAL_
 
 export const terminalSessions = pgTable('terminal_sessions', {
   /** 服务端生成的 UUIDv7；客户端无法指定，杜绝按 ID 抢占他人会话 */
-  id: pgUuid('id').primaryKey().$defaultFn(() => uuidv7()),
-  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  kind: terminalSessionKindEnum('kind').notNull(),
+  id: pgUuid().primaryKey().$defaultFn(() => uuidv7()),
+  userId: integer().references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  kind: terminalSessionKindEnum().notNull(),
   /** 连接目标：本地 shell id / ssh:<profileId> / docker-exec:<container>:<shell> */
-  target: varchar('target', { length: 255 }).notNull().default(''),
+  target: varchar({ length: 255 }).notNull().default(''),
   /** 展示标签：本地为 shell 名，SSH 为 user@host:port，Docker 为容器名 */
-  label: varchar('label', { length: 255 }).notNull().default(''),
-  clientIp: varchar('client_ip', { length: 64 }).notNull().default(''),
+  label: varchar({ length: 255 }).notNull().default(''),
+  clientIp: varchar({ length: 64 }).notNull().default(''),
   /** 承载该会话进程的服务实例标识（hostname:port） */
-  nodeId: varchar('node_id', { length: 128 }).notNull(),
-  state: terminalSessionStateEnum('state').notNull().default('active'),
-  cols: integer('cols').notNull().default(80),
-  rows: integer('rows').notNull().default(24),
-  startedAt: timestamp('started_at').defaultNow().notNull(),
-  lastActivityAt: timestamp('last_activity_at').defaultNow().notNull(),
-  endedAt: timestamp('ended_at'),
+  nodeId: varchar({ length: 128 }).notNull(),
+  state: terminalSessionStateEnum().notNull().default('active'),
+  cols: integer().notNull().default(80),
+  rows: integer().notNull().default(24),
+  startedAt: timestamp().defaultNow().notNull(),
+  lastActivityAt: timestamp().defaultNow().notNull(),
+  endedAt: timestamp(),
   /** 结束原因，取值见 @zenith/shared/ops 的 TERMINAL_END_REASONS */
-  endReason: varchar('end_reason', { length: 32 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  endReason: varchar({ length: 32 }),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   // 「我的会话」与配额统计：按用户过滤活动会话
   index('terminal_sessions_user_state_idx').on(t.userId, t.state),
@@ -56,17 +56,17 @@ export type NewTerminalSession = typeof terminalSessions.$inferInsert;
 export type RecordingEvent = [number, 'o' | 'i', string];
 
 export const terminalRecordings = pgTable('terminal_recordings', {
-  id: serial('id').primaryKey(),
-  title: varchar('title', { length: 256 }).notNull().default(''),
-  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
-  shell: varchar('shell', { length: 64 }),
-  cols: integer('cols').notNull().default(80),
-  rows: integer('rows').notNull().default(24),
-  duration: real('duration').notNull().default(0), // 秒
-  events: jsonb('events').$type<RecordingEvent[]>().notNull().default([]),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  title: varchar({ length: 256 }).notNull().default(''),
+  userId: integer().references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  shell: varchar({ length: 64 }),
+  cols: integer().notNull().default(80),
+  rows: integer().notNull().default(24),
+  duration: real().notNull().default(0), // 秒
+  events: jsonb().$type<RecordingEvent[]>().notNull().default([]),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('terminal_recordings_user_idx').on(t.userId), index('terminal_recordings_tenant_idx').on(t.tenantId)]);
 
 export type TerminalRecordingRow = typeof terminalRecordings.$inferSelect;
@@ -78,31 +78,31 @@ export type NewTerminalRecording = typeof terminalRecordings.$inferInsert;
 export const sshAuthTypeEnum = pgEnum('ssh_auth_type', ['password', 'key_path', 'key_content', 'agent']);
 
 export const sshProfiles = pgTable('ssh_profiles', {
-  id: serial('id').primaryKey(),
-  userId: integer('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
-  name: varchar('name', { length: 128 }).notNull(),
-  host: varchar('host', { length: 255 }).notNull(),
-  port: integer('port').notNull().default(22),
-  username: varchar('username', { length: 128 }).notNull(),
-  authType: sshAuthTypeEnum('auth_type').notNull().default('password'),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  userId: integer().references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  name: varchar({ length: 128 }).notNull(),
+  host: varchar({ length: 255 }).notNull(),
+  port: integer().notNull().default(22),
+  username: varchar({ length: 128 }).notNull(),
+  authType: sshAuthTypeEnum().notNull().default('password'),
   /** 加密存储的密码（authType=password 时使用） */
-  passwordEncrypted: text('password_encrypted'),
+  passwordEncrypted: text(),
   /** 服务端私钥文件路径（authType=key_path 时使用，如 ~/.ssh/id_rsa） */
-  keyPath: text('key_path'),
+  keyPath: text(),
   /** 加密存储的私钥内容（authType=key_content 时使用） */
-  keyContentEncrypted: text('key_content_encrypted'),
+  keyContentEncrypted: text(),
   /** 加密存储的私钥口令（authType=key_path|key_content 时可选） */
-  keyPassphraseEncrypted: text('key_passphrase_encrypted'),
+  keyPassphraseEncrypted: text(),
   /** 连接后自动设置的环境变量 */
-  envVars: jsonb('env_vars').$type<Record<string, string>>().notNull().default({}),
+  envVars: jsonb().$type<Record<string, string>>().notNull().default({}),
   /** 所属分组名称（用于在 SSH 连接面板中按分组折叠展示，null 表示未分组） */
-  groupName: varchar('group_name', { length: 128 }),
+  groupName: varchar({ length: 128 }),
   /** 标签数组（用于筛选与标注，如 prod / staging / db） */
-  tags: jsonb('tags').$type<string[]>().notNull().default([]),
+  tags: jsonb().$type<string[]>().notNull().default([]),
   /** 列表排序权重（数字越小越靠前） */
-  orderNum: integer('order_num').notNull().default(0),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  orderNum: integer().notNull().default(0),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('ssh_profiles_user_idx').on(t.userId)]);
 
 export type SshProfileRow = typeof sshProfiles.$inferSelect;

@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsSites, cmsContents, cmsContentTags, cmsContentTombstones, cmsContentVersions, cmsTags, cmsCollectItems } from '../../db/schema';
 import type { CmsContentRow } from '../../db/schema';
-import { buildSearchVector } from './cms-search.service';
+import { contentSearchVector } from './cms-search.service';
 import { assertChannelAccess, assertChannelsAccess } from './cms-channels.service';
 import { logContentOp, logContentOps } from './cms-content-op-logs.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -584,13 +584,7 @@ export async function duplicateCmsContent(id: number, targetChannelId?: number) 
       seoTitle: current.seoTitle,
       seoKeywords: current.seoKeywords,
       seoDescription: current.seoDescription,
-      searchVector: buildSearchVector({
-        siteId: current.siteId,
-        title: `${current.title}（副本）`,
-        seoKeywords: current.seoKeywords,
-        summary: current.summary,
-        body: current.body,
-      }),
+      searchVector: contentSearchVector(current.siteId, { ...current, title: `${current.title}（副本）` }),
     }).returning();
     if (tagRows.length > 0) {
       await tx.insert(cmsContentTags).values(tagRows.map((t) => ({
@@ -671,13 +665,7 @@ export async function distributeCmsContents(ids: number[], targetSiteId: number,
         seoKeywords: current.seoKeywords,
         seoDescription: current.seoDescription,
         // 映射行也按来源正文建检索向量，站内搜索可命中
-        searchVector: buildSearchVector({
-          siteId: targetSiteId,
-          title: current.title,
-          seoKeywords: current.seoKeywords,
-          summary: current.summary,
-          body: current.body,
-        }),
+        searchVector: contentSearchVector(targetSiteId, current),
       }).returning();
       await logContentOp(tx, created.id, 'created', mode === 'mapping' ? `映射自内容 #${current.id}` : `站群分发复制自内容 #${current.id}`);
       await syncCmsResourceRefs(tx, 'content', created.id, created.siteId, created);

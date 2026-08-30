@@ -181,8 +181,9 @@ export interface SearchVectorInput {  siteId?: number;
  * 生成 search_vector 的 SQL 表达式：
  * 标题权重 A，关键词/摘要权重 B，正文与扩展字段权重 C。
  * simple 配置走应用层 jieba 分词；其他配置（如 zhparser 的 chinese_zh）由 PG 直接解析原文。
+ * 仅限本文件内部使用；业务写入一律走 contentSearchVector / contentSearchVectorOnUpdate。
  */
-export function buildSearchVector(input: SearchVectorInput): SQL {
+function buildSearchVector(input: SearchVectorInput): SQL {
   const cfg = sql.raw(`'${TSVECTOR_CONFIG}'`);
   if (usesAppSegmentation()) {
     const a = segmentForIndex(input.title, input.siteId);
@@ -194,6 +195,49 @@ export function buildSearchVector(input: SearchVectorInput): SQL {
   const b = stripHtml([input.seoKeywords ?? '', input.summary ?? ''].join(' '));
   const c = stripHtml([input.body ?? '', ...(input.extendTexts ?? [])].join(' ')).slice(0, 20000);
   return sql`setweight(to_tsvector(${cfg}::regconfig, ${a}), 'A') || setweight(to_tsvector(${cfg}::regconfig, ${b}), 'B') || setweight(to_tsvector(${cfg}::regconfig, ${c}), 'C')`;
+}
+
+/** 内容行中参与检索向量的字段（行、patch 或行片段均可满足该结构） */
+export interface ContentSearchSource {
+  title: string;
+  seoKeywords?: string | null;
+  summary?: string | null;
+  body?: string | null;
+}
+
+/** 从模型扩展字段值中提取可检索的字符串（分发同步 / 种子等无模型上下文的场景） */
+export function extendSearchTexts(extend: Record<string, unknown> | null | undefined): string[] {
+  return Object.values(extend ?? {}).filter((value): value is string => typeof value === 'string');
+}
+
+/**
+ * cms_contents.search_vector 的唯一写入口（新建 / 快照类写入）。
+ * 所有 cmsContents 的 insert 必须经本函数派生检索向量；更新合并场景用
+ * contentSearchVectorOnUpdate。禁止在业务代码中手工拼装 to_tsvector 表达式。
+ */
+export function contentSearchVector(siteId: number, source: ContentSearchSource, extendTexts: string[] = []): SQL {
+  return buildSearchVector({
+    siteId,
+    title: source.title,
+    seoKeywords: source.seoKeywords ?? null,
+    summary: source.summary ?? null,
+    body: source.body ?? null,
+    extendTexts,
+  });
+}
+
+/** 更新场景的唯一写入口：patch 未提供的可检索字段回落当前行的值 */
+export function contentSearchVectorOnUpdate(
+  current: ContentSearchSource & { siteId: number },
+  patch: Partial<ContentSearchSource>,
+  extendTexts: string[] = [],
+): SQL {
+  return contentSearchVector(current.siteId, {
+    title: patch.title ?? current.title,
+    seoKeywords: patch.seoKeywords !== undefined ? patch.seoKeywords : current.seoKeywords,
+    summary: patch.summary !== undefined ? patch.summary : current.summary,
+    body: patch.body !== undefined ? patch.body : current.body,
+  }, extendTexts);
 }
 
 /** Node 侧高亮：将命中 token 用 <mark> 包裹（先 HTML 转义再高亮，防注入） */

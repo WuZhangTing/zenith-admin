@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, primaryKey, text, jsonb, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, pgEnum, integer, boolean, primaryKey, text, jsonb, index } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 
@@ -22,18 +22,18 @@ export const channelAutoReplyKeywordModeEnum = pgEnum('channel_auto_reply_keywor
 export const channelConversationStatusEnum = pgEnum('channel_conversation_status', ['open', 'processing', 'resolved']);
 
 export const channels = pgTable('channels', {
-  id: serial('id').primaryKey(),
-  code: varchar('code', { length: 64 }).notNull().unique(),
-  name: varchar('name', { length: 64 }).notNull(),
-  avatar: varchar('avatar', { length: 256 }),
-  description: varchar('description', { length: 255 }),
-  type: channelTypeEnum('type').notNull().default('system'),
-  builtin: boolean('builtin').notNull().default(false),
-  status: statusEnum('status').notNull().default('enabled'),
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  code: varchar({ length: 64 }).notNull().unique(),
+  name: varchar({ length: 64 }).notNull(),
+  avatar: varchar({ length: 256 }),
+  description: varchar({ length: 255 }),
+  type: channelTypeEnum().notNull().default('system'),
+  builtin: boolean().notNull().default(false),
+  status: statusEnum().notNull().default('enabled'),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('channels_tenant_idx').on(t.tenantId)]);
 
 export type ChannelRow = typeof channels.$inferSelect;
@@ -41,21 +41,21 @@ export type ChannelRow = typeof channels.$inferSelect;
 export type NewChannel = typeof channels.$inferInsert;
 
 export const channelMessages = pgTable('channel_messages', {
-  id: serial('id').primaryKey(),
-  channelId: integer('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  audienceType: channelAudienceEnum('audience_type').notNull().default('broadcast'),
-  type: channelMessageTypeEnum('type').notNull().default('text'),
-  title: varchar('title', { length: 200 }),
-  content: text('content').notNull(),
-  extra: jsonb('extra'),
-  publishedById: integer('published_by_id').references(() => users.id, { onDelete: 'set null' }),
-  direction: channelMessageDirectionEnum('direction').notNull().default('out'),
-  senderUserId: integer('sender_user_id').references(() => users.id, { onDelete: 'set null' }),
-  status: channelMessageStatusEnum('status').notNull().default('sent'),
-  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
-  retractedAt: timestamp('retracted_at', { withTimezone: true }),
-  targetSpec: jsonb('target_spec'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  channelId: integer().notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  audienceType: channelAudienceEnum().notNull().default('broadcast'),
+  type: channelMessageTypeEnum().notNull().default('text'),
+  title: varchar({ length: 200 }),
+  content: text().notNull(),
+  extra: jsonb(),
+  publishedById: integer().references(() => users.id, { onDelete: 'set null' }),
+  direction: channelMessageDirectionEnum().notNull().default('out'),
+  senderUserId: integer().references(() => users.id, { onDelete: 'set null' }),
+  status: channelMessageStatusEnum().notNull().default('sent'),
+  scheduledAt: timestamp({ withTimezone: true }),
+  retractedAt: timestamp({ withTimezone: true }),
+  targetSpec: jsonb(),
+  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index('channel_messages_channel_idx').on(t.channelId)]);
 
 export type ChannelMessageRow = typeof channelMessages.$inferSelect;
@@ -63,67 +63,67 @@ export type ChannelMessageRow = typeof channelMessages.$inferSelect;
 export type NewChannelMessage = typeof channelMessages.$inferInsert;
 
 export const channelSubscriptions = pgTable('channel_subscriptions', {
-  channelId: integer('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  lastReadAt: timestamp('last_read_at', { withTimezone: true }),
-  isMuted: boolean('is_muted').notNull().default(false),
-  subscribedAt: timestamp('subscribed_at').defaultNow().notNull(),
+  channelId: integer().notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lastReadAt: timestamp({ withTimezone: true }),
+  isMuted: boolean().notNull().default(false),
+  subscribedAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('channel_subscriptions_user_idx').on(t.userId), primaryKey({ columns: [t.channelId, t.userId] })]);
 
 export type ChannelSubscriptionRow = typeof channelSubscriptions.$inferSelect;
 
 export const channelMessageTargets = pgTable('channel_message_targets', {
-  messageId: integer('message_id').notNull().references(() => channelMessages.id, { onDelete: 'cascade' }),
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  readAt: timestamp('read_at', { withTimezone: true }),
+  messageId: integer().notNull().references(() => channelMessages.id, { onDelete: 'cascade' }),
+  userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  readAt: timestamp({ withTimezone: true }),
 }, (t) => [index('channel_message_targets_user_idx').on(t.userId), primaryKey({ columns: [t.messageId, t.userId] })]);
 
 export type ChannelMessageTargetRow = typeof channelMessageTargets.$inferSelect;
 
 // ─── Channel 公众号菜单（运营号底部菜单） ──────────────────────────────────────
 export const channelMenus = pgTable('channel_menus', {
-  id: serial('id').primaryKey(),
-  channelId: integer('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  parentId: integer('parent_id'),
-  name: varchar('name', { length: 32 }).notNull(),
-  type: channelMenuTypeEnum('type').notNull().default('click'),
-  value: varchar('value', { length: 500 }),
-  sort: integer('sort').notNull().default(0),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  channelId: integer().notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  parentId: integer(),
+  name: varchar({ length: 32 }).notNull(),
+  type: channelMenuTypeEnum().notNull().default('click'),
+  value: varchar({ length: 500 }),
+  sort: integer().notNull().default(0),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('channel_menus_channel_idx').on(t.channelId)]);
 
 export type ChannelMenuRow = typeof channelMenus.$inferSelect;
 
 // ─── Channel 自动回复规则 ──────────────────────────────────────────────────────
 export const channelAutoReplies = pgTable('channel_auto_replies', {
-  id: serial('id').primaryKey(),
-  channelId: integer('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  matchType: channelAutoReplyMatchEnum('match_type').notNull().default('keyword'),
-  keyword: varchar('keyword', { length: 100 }),
-  keywordMode: channelAutoReplyKeywordModeEnum('keyword_mode').notNull().default('contains'),
-  replyType: channelMessageTypeEnum('reply_type').notNull().default('text'),
-  replyContent: text('reply_content').notNull(),
-  replyExtra: jsonb('reply_extra'),
-  hitCount: integer('hit_count').notNull().default(0),
-  status: statusEnum('status').notNull().default('enabled'),
-  sort: integer('sort').notNull().default(0),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  channelId: integer().notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  matchType: channelAutoReplyMatchEnum().notNull().default('keyword'),
+  keyword: varchar({ length: 100 }),
+  keywordMode: channelAutoReplyKeywordModeEnum().notNull().default('contains'),
+  replyType: channelMessageTypeEnum().notNull().default('text'),
+  replyContent: text().notNull(),
+  replyExtra: jsonb(),
+  hitCount: integer().notNull().default(0),
+  status: statusEnum().notNull().default('enabled'),
+  sort: integer().notNull().default(0),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('channel_auto_replies_channel_idx').on(t.channelId)]);
 
 export type ChannelAutoReplyRow = typeof channelAutoReplies.$inferSelect;
 
 // ─── Channel 客服快捷回复库（D：channelId 为 null 表示全局，所有运营号可用） ────
 export const channelQuickReplies = pgTable('channel_quick_replies', {
-  id: serial('id').primaryKey(),
-  channelId: integer('channel_id').references(() => channels.id, { onDelete: 'cascade' }),
-  title: varchar('title', { length: 100 }).notNull(),
-  content: text('content').notNull(),
-  sort: integer('sort').notNull().default(0),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  channelId: integer().references(() => channels.id, { onDelete: 'cascade' }),
+  title: varchar({ length: 100 }).notNull(),
+  content: text().notNull(),
+  sort: integer().notNull().default(0),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('channel_quick_replies_channel_idx').on(t.channelId)]);
 
 export type ChannelQuickReplyRow = typeof channelQuickReplies.$inferSelect;
@@ -132,18 +132,18 @@ export type NewChannelQuickReply = typeof channelQuickReplies.$inferInsert;
 
 // ─── Channel 客服会话治理（G：状态机 / 指派转接 / 标签；属性表 left join 到消息聚合） ──
 export const channelConversations = pgTable('channel_conversations', {
-  channelId: integer('channel_id').notNull().references(() => channels.id, { onDelete: 'cascade' }),
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  status: channelConversationStatusEnum('status').notNull().default('open'),
-  assigneeId: integer('assignee_id').references(() => users.id, { onDelete: 'set null' }),
-  tags: jsonb('tags').$type<string[]>().notNull().default([]),
-  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-  rating: integer('rating'),
-  ratingComment: text('rating_comment'),
-  ratedAt: timestamp('rated_at', { withTimezone: true }),
+  channelId: integer().notNull().references(() => channels.id, { onDelete: 'cascade' }),
+  userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status: channelConversationStatusEnum().notNull().default('open'),
+  assigneeId: integer().references(() => users.id, { onDelete: 'set null' }),
+  tags: jsonb().$type<string[]>().notNull().default([]),
+  resolvedAt: timestamp({ withTimezone: true }),
+  rating: integer(),
+  ratingComment: text(),
+  ratedAt: timestamp({ withTimezone: true }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('channel_conversations_user_idx').on(t.userId), primaryKey({ columns: [t.channelId, t.userId] })]);
 
 export type ChannelConversationRow = typeof channelConversations.$inferSelect;
@@ -152,15 +152,15 @@ export type NewChannelConversation = typeof channelConversations.$inferInsert;
 
 // ─── Channel 群发消息模板（运营常用群发内容保存复用） ──────────────────────────
 export const channelMessageTemplates = pgTable('channel_message_templates', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 100 }).notNull(),
-  type: channelMessageTypeEnum('type').notNull().default('text'),
-  title: varchar('title', { length: 200 }),
-  content: text('content').notNull().default(''),
-  extra: jsonb('extra'),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar({ length: 100 }).notNull(),
+  type: channelMessageTypeEnum().notNull().default('text'),
+  title: varchar({ length: 200 }),
+  content: text().notNull().default(''),
+  extra: jsonb(),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export type ChannelMessageTemplateRow = typeof channelMessageTemplates.$inferSelect;

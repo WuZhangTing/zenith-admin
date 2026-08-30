@@ -32,10 +32,7 @@
  * - iot_ota_tasks 灰度分批（batch_size/failure_threshold/paused）+ 设备批次号
  * - iot_products.registration_secret + iot_device_whitelist  一型一密动态注册
  */
-import {
-  pgTable, pgEnum, serial, bigserial, varchar, timestamp, integer, text, jsonb, boolean,
-  doublePrecision, bigint, uuid, index, uniqueIndex, primaryKey, type AnyPgColumn,
-} from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, varchar, timestamp, integer, text, jsonb, boolean, doublePrecision, bigint, uuid, index, uniqueIndex, primaryKey, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { statusEnum } from './common';
 import { auditColumns, tenants } from './core';
@@ -76,18 +73,18 @@ export const iotScheduleActionEnum = pgEnum('iot_schedule_action', ['command', '
 
 // ─── 产品与物模型 ─────────────────────────────────────────────────────────────
 export const iotProducts = pgTable('iot_products', {
-  id:             serial('id').primaryKey(),
-  name:           varchar('name', { length: 128 }).notNull(),
-  description:    text('description'),
+  id:             integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:           varchar({ length: 128 }).notNull(),
+  description:    text(),
   /** 遥测校验模式：loose = 已声明属性校验类型/量程（不符丢弃该键）、未声明键放行；strict = 仅接受已声明属性 */
-  validationMode: iotValidationModeEnum('validation_mode').notNull().default('loose'),
-  status:         statusEnum('status').notNull().default('enabled'),
+  validationMode: iotValidationModeEnum().notNull().default('loose'),
+  status:         statusEnum().notNull().default('enabled'),
   /** 一型一密动态注册密钥（null = 关闭动态注册；设备用它签名换取设备密钥自动建档） */
-  registrationSecret: varchar('registration_secret', { length: 64 }),
-  tenantId:       integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  registrationSecret: varchar({ length: 64 }),
+  tenantId:       integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:      timestamp('created_at').defaultNow().notNull(),
-  updatedAt:      timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:      timestamp().defaultNow().notNull(),
+  updatedAt:      timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_products_tenant').on(t.tenantId),
 ]);
@@ -110,28 +107,28 @@ export interface IotParamDef {
 }
 
 export const iotProductProperties = pgTable('iot_product_properties', {
-  id:          serial('id').primaryKey(),
-  productId:   integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  productId:   integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 属性标识符（遥测/影子的键名） */
-  identifier:  varchar('identifier', { length: 64 }).notNull(),
-  name:        varchar('name', { length: 64 }).notNull(),
-  dataType:    iotPropertyTypeEnum('data_type').notNull(),
+  identifier:  varchar({ length: 64 }).notNull(),
+  name:        varchar({ length: 64 }).notNull(),
+  dataType:    iotPropertyTypeEnum().notNull(),
   /** r = 只读（设备上报），rw = 可写（管理端可下发期望值） */
-  accessMode:  iotAccessModeEnum('access_mode').notNull().default('r'),
-  unit:        varchar('unit', { length: 16 }),
-  minValue:    doublePrecision('min_value'),
-  maxValue:    doublePrecision('max_value'),
+  accessMode:  iotAccessModeEnum().notNull().default('r'),
+  unit:        varchar({ length: 16 }),
+  minValue:    doublePrecision(),
+  maxValue:    doublePrecision(),
   /** enum 类型的取值映射：{ 值: 显示名 } */
-  enumOptions: jsonb('enum_options').$type<Record<string, string>>(),
+  enumOptions: jsonb().$type<Record<string, string>>(),
   /** 关键属性：设备列表快照列与遥测图表默认展示 */
-  featured:    boolean('featured').notNull().default(false),
+  featured:    boolean().notNull().default(false),
   /** 遥测异常检测：按近 7 天小时聚合基线做 3σ 偏离判定（仅数值型属性生效） */
-  anomalyEnabled: boolean('anomaly_enabled').notNull().default(false),
-  sort:        integer('sort').notNull().default(0),
-  description: varchar('description', { length: 256 }),
+  anomalyEnabled: boolean().notNull().default(false),
+  sort:        integer().notNull().default(0),
+  description: varchar({ length: 256 }),
   ...auditColumns(),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:   timestamp().defaultNow().notNull(),
+  updatedAt:   timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   uniqueIndex('uq_iot_product_properties_ident').on(t.productId, t.identifier),
 ]);
@@ -141,19 +138,19 @@ export type IotProductPropertyRow = typeof iotProductProperties.$inferSelect;
 export type NewIotProductProperty = typeof iotProductProperties.$inferInsert;
 
 export const iotProductServices = pgTable('iot_product_services', {
-  id:          serial('id').primaryKey(),
-  productId:   integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
-  identifier:  varchar('identifier', { length: 64 }).notNull(),
-  name:        varchar('name', { length: 64 }).notNull(),
+  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  productId:   integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  identifier:  varchar({ length: 64 }).notNull(),
+  name:        varchar({ length: 64 }).notNull(),
   /** 参数定义列表（下发时按此校验并渲染表单） */
-  params:      jsonb('params').$type<IotParamDef[]>().notNull().default([]),
+  params:      jsonb().$type<IotParamDef[]>().notNull().default([]),
   /** 高危服务：前端下发前二次确认 */
-  danger:      boolean('danger').notNull().default(false),
-  sort:        integer('sort').notNull().default(0),
-  description: varchar('description', { length: 256 }),
+  danger:      boolean().notNull().default(false),
+  sort:        integer().notNull().default(0),
+  description: varchar({ length: 256 }),
   ...auditColumns(),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:   timestamp().defaultNow().notNull(),
+  updatedAt:   timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   uniqueIndex('uq_iot_product_services_ident').on(t.productId, t.identifier),
 ]);
@@ -163,18 +160,18 @@ export type IotProductServiceRow = typeof iotProductServices.$inferSelect;
 export type NewIotProductService = typeof iotProductServices.$inferInsert;
 
 export const iotProductEvents = pgTable('iot_product_events', {
-  id:          serial('id').primaryKey(),
-  productId:   integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
-  identifier:  varchar('identifier', { length: 64 }).notNull(),
-  name:        varchar('name', { length: 64 }).notNull(),
-  level:       iotEventLevelEnum('level').notNull().default('info'),
+  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  productId:   integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  identifier:  varchar({ length: 64 }).notNull(),
+  name:        varchar({ length: 64 }).notNull(),
+  level:       iotEventLevelEnum().notNull().default('info'),
   /** 事件携带参数定义 */
-  params:      jsonb('params').$type<IotParamDef[]>().notNull().default([]),
-  sort:        integer('sort').notNull().default(0),
-  description: varchar('description', { length: 256 }),
+  params:      jsonb().$type<IotParamDef[]>().notNull().default([]),
+  sort:        integer().notNull().default(0),
+  description: varchar({ length: 256 }),
   ...auditColumns(),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:   timestamp().defaultNow().notNull(),
+  updatedAt:   timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   uniqueIndex('uq_iot_product_events_ident').on(t.productId, t.identifier),
 ]);
@@ -185,32 +182,32 @@ export type NewIotProductEvent = typeof iotProductEvents.$inferInsert;
 
 // ─── 设备 ─────────────────────────────────────────────────────────────────────
 export const iotDevices = pgTable('iot_devices', {
-  id:              serial('id').primaryKey(),
+  id:              integer().primaryKey().generatedAlwaysAsIdentity(),
   /** 设备序列号，全局唯一（接入寻址标识） */
-  sn:              varchar('sn', { length: 64 }).notNull().unique(),
+  sn:              varchar({ length: 64 }).notNull().unique(),
   /** 一机一密：HMAC 签名密钥（管理端可见可重置） */
-  secret:          varchar('secret', { length: 64 }).notNull(),
-  productId:       integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'restrict' }),
-  name:            varchar('name', { length: 128 }).notNull(),
-  status:          statusEnum('status').notNull().default('enabled'),
+  secret:          varchar({ length: 64 }).notNull(),
+  productId:       integer().notNull().references(() => iotProducts.id, { onDelete: 'restrict' }),
+  name:            varchar({ length: 128 }).notNull(),
+  status:          statusEnum().notNull().default('enabled'),
   /** 设备形态：direct 直连；gateway 网关（可代理子设备）；sub 子设备（经网关接入，免密） */
-  nodeType:        iotNodeTypeEnum('node_type').notNull().default('direct'),
+  nodeType:        iotNodeTypeEnum().notNull().default('direct'),
   /** 子设备所属网关（仅 node_type = sub 时有值） */
-  gatewayId:       integer('gateway_id').references((): AnyPgColumn => iotDevices.id, { onDelete: 'restrict' }),
+  gatewayId:       integer().references((): AnyPgColumn => iotDevices.id, { onDelete: 'restrict' }),
   /** 地理位置（设备地图；手填或导入） */
-  latitude:        doublePrecision('latitude'),
-  longitude:       doublePrecision('longitude'),
-  address:         varchar('address', { length: 256 }),
-  firmwareVersion: varchar('firmware_version', { length: 32 }),
+  latitude:        doublePrecision(),
+  longitude:       doublePrecision(),
+  address:         varchar({ length: 256 }),
+  firmwareVersion: varchar({ length: 32 }),
   /** 首次上线时间（激活标记） */
-  activatedAt:     timestamp('activated_at'),
+  activatedAt:     timestamp(),
   /** 最近心跳/上报落库时间（节流更新，实时在线态在 Redis） */
-  lastSeenAt:      timestamp('last_seen_at'),
-  remark:          varchar('remark', { length: 256 }),
-  tenantId:        integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  lastSeenAt:      timestamp(),
+  remark:          varchar({ length: 256 }),
+  tenantId:        integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:       timestamp('created_at').defaultNow().notNull(),
-  updatedAt:       timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:       timestamp().defaultNow().notNull(),
+  updatedAt:       timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_devices_product').on(t.productId),
   index('idx_iot_devices_tenant').on(t.tenantId),
@@ -230,15 +227,15 @@ export type IotMetricValue = number | string | boolean;
  * online   = 持久化在线标记（仅在上下线转变时更新，供事件打点与离线告警判定；实时态仍以 Redis 为准）。
  */
 export const iotDeviceState = pgTable('iot_device_state', {
-  deviceId:       integer('device_id').primaryKey().references(() => iotDevices.id, { onDelete: 'cascade' }),
-  reported:       jsonb('reported').$type<Record<string, IotMetricValue>>().notNull().default({}),
-  reportedAt:     timestamp('reported_at'),
-  desired:        jsonb('desired').$type<Record<string, IotMetricValue>>().notNull().default({}),
+  deviceId:       integer().primaryKey().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  reported:       jsonb().$type<Record<string, IotMetricValue>>().notNull().default({}),
+  reportedAt:     timestamp(),
+  desired:        jsonb().$type<Record<string, IotMetricValue>>().notNull().default({}),
   /** desired 每次变更 +1，随 WS 帧/心跳响应下发，设备侧幂等 */
-  desiredVersion: integer('desired_version').notNull().default(0),
-  desiredAt:      timestamp('desired_at'),
-  online:         boolean('online').notNull().default(false),
-  updatedAt:      timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  desiredVersion: integer().notNull().default(0),
+  desiredAt:      timestamp(),
+  online:         boolean().notNull().default(false),
+  updatedAt:      timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export type IotDeviceStateRow = typeof iotDeviceState.$inferSelect;
@@ -247,18 +244,18 @@ export type NewIotDeviceState = typeof iotDeviceState.$inferInsert;
 
 /** 统一事件流：追加型日志（生命周期 + 物模型事件），不加审计列 */
 export const iotDeviceEvents = pgTable('iot_device_events', {
-  id:         bigserial('id', { mode: 'number' }).primaryKey(),
-  deviceId:   integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  id:         bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  deviceId:   integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
   /** lifecycle = 系统生命周期事件；model = 设备按物模型上报的事件 */
-  kind:       iotDeviceEventKindEnum('kind').notNull(),
+  kind:       iotDeviceEventKindEnum().notNull(),
   /** lifecycle: online/offline/activated/secret_reset；model: 物模型事件 identifier */
-  identifier: varchar('identifier', { length: 64 }).notNull(),
+  identifier: varchar({ length: 64 }).notNull(),
   /** 展示名（写入时冗余，避免模型改名后历史错位） */
-  name:       varchar('name', { length: 64 }).notNull(),
-  level:      iotEventLevelEnum('level').notNull().default('info'),
-  payload:    jsonb('payload').$type<Record<string, unknown>>(),
-  reportedAt: timestamp('reported_at').defaultNow().notNull(),
-  createdAt:  timestamp('created_at').defaultNow().notNull(),
+  name:       varchar({ length: 64 }).notNull(),
+  level:      iotEventLevelEnum().notNull().default('info'),
+  payload:    jsonb().$type<Record<string, unknown>>(),
+  reportedAt: timestamp().defaultNow().notNull(),
+  createdAt:  timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_device_events_device_time').on(t.deviceId, t.reportedAt),
 ]);
@@ -269,13 +266,13 @@ export type NewIotDeviceEvent = typeof iotDeviceEvents.$inferInsert;
 
 // ─── 遥测与指令 ───────────────────────────────────────────────────────────────
 export const iotTelemetry = pgTable('iot_telemetry', {
-  id:         bigserial('id', { mode: 'number' }).primaryKey(),
-  deviceId:   integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  id:         bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  deviceId:   integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
   /** 属性值袋：{ temperature: 23.5, humidity: 61, door: 'open' }（按产品物模型校验） */
-  metrics:    jsonb('metrics').$type<Record<string, IotMetricValue>>().notNull(),
+  metrics:    jsonb().$type<Record<string, IotMetricValue>>().notNull(),
   /** 业务发生时间（设备侧可传，缺省取服务器时间） */
-  reportedAt: timestamp('reported_at').defaultNow().notNull(),
-  createdAt:  timestamp('created_at').defaultNow().notNull(),
+  reportedAt: timestamp().defaultNow().notNull(),
+  createdAt:  timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_telemetry_device_time').on(t.deviceId, t.reportedAt),
 ]);
@@ -285,21 +282,21 @@ export type IotTelemetryRow = typeof iotTelemetry.$inferSelect;
 export type NewIotTelemetry = typeof iotTelemetry.$inferInsert;
 
 export const iotCommands = pgTable('iot_commands', {
-  id:        serial('id').primaryKey(),
-  deviceId:  integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  id:        integer().primaryKey().generatedAlwaysAsIdentity(),
+  deviceId:  integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
   /** 服务标识符（物模型 services.identifier） */
-  service:   varchar('service', { length: 64 }).notNull(),
-  params:    jsonb('params').$type<Record<string, unknown>>(),
-  status:    iotCommandStatusEnum('status').notNull().default('pending'),
+  service:   varchar({ length: 64 }).notNull(),
+  params:    jsonb().$type<Record<string, unknown>>(),
+  status:    iotCommandStatusEnum().notNull().default('pending'),
   /** 超时期限：pending/delivered 越过此时刻按 expired 处理（查询时惰性刷新） */
-  expireAt:  timestamp('expire_at').notNull(),
-  sentAt:    timestamp('sent_at'),
-  ackedAt:   timestamp('acked_at'),
-  response:  jsonb('response').$type<Record<string, unknown>>(),
-  errorMsg:  varchar('error_msg', { length: 256 }),
+  expireAt:  timestamp().notNull(),
+  sentAt:    timestamp(),
+  ackedAt:   timestamp(),
+  response:  jsonb().$type<Record<string, unknown>>(),
+  errorMsg:  varchar({ length: 256 }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_commands_device_time').on(t.deviceId, t.createdAt),
   index('idx_iot_commands_status').on(t.status),
@@ -311,34 +308,34 @@ export type NewIotCommand = typeof iotCommands.$inferInsert;
 
 // ─── 告警 ─────────────────────────────────────────────────────────────────────
 export const iotAlarmRules = pgTable('iot_alarm_rules', {
-  id:                 serial('id').primaryKey(),
-  name:               varchar('name', { length: 128 }).notNull(),
-  productId:          integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  id:                 integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:               varchar({ length: 128 }).notNull(),
+  productId:          integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 空 = 产品下全部设备；指定则仅对该设备生效 */
-  deviceId:           integer('device_id').references(() => iotDevices.id, { onDelete: 'cascade' }),
-  ruleType:           iotAlarmRuleTypeEnum('rule_type').notNull(),
+  deviceId:           integer().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  ruleType:           iotAlarmRuleTypeEnum().notNull(),
   /** threshold：监控的属性 identifier */
-  propertyIdentifier: varchar('property_identifier', { length: 64 }),
-  operator:           iotCompareOpEnum('operator'),
-  threshold:          doublePrecision('threshold'),
+  propertyIdentifier: varchar({ length: 64 }),
+  operator:           iotCompareOpEnum(),
+  threshold:          doublePrecision(),
   /** threshold：连续 N 个点满足才触发（抖动抑制） */
-  consecutiveCount:   integer('consecutive_count').notNull().default(1),
+  consecutiveCount:   integer().notNull().default(1),
   /** offline：离线超过 N 分钟触发 */
-  offlineMinutes:     integer('offline_minutes'),
+  offlineMinutes:     integer(),
   /** event：匹配的物模型事件 identifier */
-  eventIdentifier:    varchar('event_identifier', { length: 64 }),
-  level:              iotAlarmLevelEnum('level').notNull().default('warning'),
+  eventIdentifier:    varchar({ length: 64 }),
+  level:              iotAlarmLevelEnum().notNull().default('warning'),
   /** 告警通知接收人（管理端用户 id） */
-  notifyUserIds:      jsonb('notify_user_ids').$type<number[]>().notNull().default([]),
+  notifyUserIds:      jsonb().$type<number[]>().notNull().default([]),
   /** 升级策略：触发后 N 分钟内未认领/未恢复 → 升级通知（null = 不升级） */
-  escalateAfterMinutes: integer('escalate_after_minutes'),
+  escalateAfterMinutes: integer(),
   /** 升级通知接收人（如值班主管） */
-  escalateUserIds:    jsonb('escalate_user_ids').$type<number[]>().notNull().default([]),
-  status:             statusEnum('status').notNull().default('enabled'),
-  tenantId:           integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  escalateUserIds:    jsonb().$type<number[]>().notNull().default([]),
+  status:             statusEnum().notNull().default('enabled'),
+  tenantId:           integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:          timestamp('created_at').defaultNow().notNull(),
-  updatedAt:          timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:          timestamp().defaultNow().notNull(),
+  updatedAt:          timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_alarm_rules_product').on(t.productId),
 ]);
@@ -348,30 +345,30 @@ export type IotAlarmRuleRow = typeof iotAlarmRules.$inferSelect;
 export type NewIotAlarmRule = typeof iotAlarmRules.$inferInsert;
 
 export const iotAlarms = pgTable('iot_alarms', {
-  id:         serial('id').primaryKey(),
+  id:         integer().primaryKey().generatedAlwaysAsIdentity(),
   /** 规则删除后记录保留（ruleName 冗余展示） */
-  ruleId:     integer('rule_id').references(() => iotAlarmRules.id, { onDelete: 'set null' }),
-  ruleName:   varchar('rule_name', { length: 128 }).notNull(),
-  deviceId:   integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
-  ruleType:   iotAlarmRuleTypeEnum('rule_type').notNull(),
-  level:      iotAlarmLevelEnum('level').notNull(),
-  status:     iotAlarmStatusEnum('status').notNull().default('firing'),
-  message:    varchar('message', { length: 512 }).notNull(),
+  ruleId:     integer().references(() => iotAlarmRules.id, { onDelete: 'set null' }),
+  ruleName:   varchar({ length: 128 }).notNull(),
+  deviceId:   integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  ruleType:   iotAlarmRuleTypeEnum().notNull(),
+  level:      iotAlarmLevelEnum().notNull(),
+  status:     iotAlarmStatusEnum().notNull().default('firing'),
+  message:    varchar({ length: 512 }).notNull(),
   /** 触发上下文：{ value, threshold, offlineMinutes, eventPayload… } */
-  context:    jsonb('context').$type<Record<string, unknown>>(),
-  firedAt:    timestamp('fired_at').defaultNow().notNull(),
+  context:    jsonb().$type<Record<string, unknown>>(),
+  firedAt:    timestamp().defaultNow().notNull(),
   /** 认领（acknowledged）：处理人接手，升级计时停止 */
-  acknowledgedAt: timestamp('acknowledged_at'),
-  acknowledgedBy: integer('acknowledged_by'),
+  acknowledgedAt: timestamp(),
+  acknowledgedBy: integer(),
   /** 升级通知已发出（每条告警至多升级一次） */
-  escalatedAt: timestamp('escalated_at'),
-  resolvedAt: timestamp('resolved_at'),
+  escalatedAt: timestamp(),
+  resolvedAt: timestamp(),
   /** resolved 来源：auto = 恢复判定，manual = 管理员处理 */
-  resolvedBy: integer('resolved_by'),
+  resolvedBy: integer(),
   /** 处理备注（手动 resolve 时填写） */
-  resolveNote: varchar('resolve_note', { length: 512 }),
-  createdAt:  timestamp('created_at').defaultNow().notNull(),
-  updatedAt:  timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  resolveNote: varchar({ length: 512 }),
+  createdAt:  timestamp().defaultNow().notNull(),
+  updatedAt:  timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_alarms_device_time').on(t.deviceId, t.firedAt),
   index('idx_iot_alarms_status').on(t.status),
@@ -385,13 +382,13 @@ export type NewIotAlarm = typeof iotAlarms.$inferInsert;
 
 // ─── 设备分组 ─────────────────────────────────────────────────────────────────
 export const iotDeviceGroups = pgTable('iot_device_groups', {
-  id:          serial('id').primaryKey(),
-  name:        varchar('name', { length: 64 }).notNull(),
-  description: varchar('description', { length: 256 }),
-  tenantId:    integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:        varchar({ length: 64 }).notNull(),
+  description: varchar({ length: 256 }),
+  tenantId:    integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:   timestamp().defaultNow().notNull(),
+  updatedAt:   timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_device_groups_tenant').on(t.tenantId),
 ]);
@@ -401,8 +398,8 @@ export type IotDeviceGroupRow = typeof iotDeviceGroups.$inferSelect;
 export type NewIotDeviceGroup = typeof iotDeviceGroups.$inferInsert;
 
 export const iotDeviceGroupMembers = pgTable('iot_device_group_members', {
-  groupId:  integer('group_id').notNull().references(() => iotDeviceGroups.id, { onDelete: 'cascade' }),
-  deviceId: integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  groupId:  integer().notNull().references(() => iotDeviceGroups.id, { onDelete: 'cascade' }),
+  deviceId: integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.groupId, t.deviceId] })]);
 
 export type IotDeviceGroupMemberRow = typeof iotDeviceGroupMembers.$inferSelect;
@@ -410,17 +407,17 @@ export type IotDeviceGroupMemberRow = typeof iotDeviceGroupMembers.$inferSelect;
 // ─── 三期：遥测聚合与在线快照 ─────────────────────────────────────────────────
 /** 遥测小时聚合：数值属性按 (设备, 属性, 小时桶) 物化 min/max/avg/last，长窗口图表与仪表盘数据源 */
 export const iotTelemetryHourly = pgTable('iot_telemetry_hourly', {
-  id:        bigserial('id', { mode: 'number' }).primaryKey(),
-  deviceId:  integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
-  property:  varchar('property', { length: 64 }).notNull(),
+  id:        bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  deviceId:  integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  property:  varchar({ length: 64 }).notNull(),
   /** 小时桶起点（date_trunc('hour', reported_at)） */
-  bucket:    timestamp('bucket').notNull(),
-  minValue:  doublePrecision('min_value').notNull(),
-  maxValue:  doublePrecision('max_value').notNull(),
-  avgValue:  doublePrecision('avg_value').notNull(),
-  lastValue: doublePrecision('last_value').notNull(),
-  count:     integer('count').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  bucket:    timestamp().notNull(),
+  minValue:  doublePrecision().notNull(),
+  maxValue:  doublePrecision().notNull(),
+  avgValue:  doublePrecision().notNull(),
+  lastValue: doublePrecision().notNull(),
+  count:     integer().notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('uq_iot_telemetry_hourly').on(t.deviceId, t.property, t.bucket),
   index('idx_iot_telemetry_hourly_bucket').on(t.bucket),
@@ -432,10 +429,10 @@ export type NewIotTelemetryHourly = typeof iotTelemetryHourly.$inferInsert;
 
 /** 在线率采样：离线扫描任务每分钟顺带落点（仪表盘在线趋势） */
 export const iotOnlineSnapshots = pgTable('iot_online_snapshots', {
-  id:          serial('id').primaryKey(),
-  totalCount:  integer('total_count').notNull(),
-  onlineCount: integer('online_count').notNull(),
-  sampledAt:   timestamp('sampled_at').defaultNow().notNull(),
+  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  totalCount:  integer().notNull(),
+  onlineCount: integer().notNull(),
+  sampledAt:   timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_online_snapshots_time').on(t.sampledAt),
 ]);
@@ -450,21 +447,21 @@ export const iotOtaDeviceStatusEnum = pgEnum('iot_ota_device_status', [
 ]);
 
 export const iotFirmwares = pgTable('iot_firmwares', {
-  id:           serial('id').primaryKey(),
-  productId:    integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  id:           integer().primaryKey().generatedAlwaysAsIdentity(),
+  productId:    integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 语义化版本（同产品唯一），设备上报一致即判定升级成功 */
-  version:      varchar('version', { length: 32 }).notNull(),
+  version:      varchar({ length: 32 }).notNull(),
   /** 托管文件；文件被删时置空以保留固件记录（不可再下发） */
-  fileId:       uuid('file_id').references(() => managedFiles.id, { onDelete: 'set null' }),
-  fileName:     varchar('file_name', { length: 255 }).notNull(),
-  size:         bigint('size', { mode: 'number' }).notNull().default(0),
-  sha256:       varchar('sha256', { length: 64 }).notNull(),
-  releaseNotes: text('release_notes'),
-  status:       statusEnum('status').notNull().default('enabled'),
-  tenantId:     integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  fileId:       uuid().references(() => managedFiles.id, { onDelete: 'set null' }),
+  fileName:     varchar({ length: 255 }).notNull(),
+  size:         bigint({ mode: 'number' }).notNull().default(0),
+  sha256:       varchar({ length: 64 }).notNull(),
+  releaseNotes: text(),
+  status:       statusEnum().notNull().default('enabled'),
+  tenantId:     integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:    timestamp('created_at').defaultNow().notNull(),
-  updatedAt:    timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:    timestamp().defaultNow().notNull(),
+  updatedAt:    timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   uniqueIndex('uq_iot_firmwares_product_version').on(t.productId, t.version),
 ]);
@@ -474,28 +471,28 @@ export type IotFirmwareRow = typeof iotFirmwares.$inferSelect;
 export type NewIotFirmware = typeof iotFirmwares.$inferInsert;
 
 export const iotOtaTasks = pgTable('iot_ota_tasks', {
-  id:              serial('id').primaryKey(),
-  title:           varchar('title', { length: 128 }).notNull(),
+  id:              integer().primaryKey().generatedAlwaysAsIdentity(),
+  title:           varchar({ length: 128 }).notNull(),
   /** 固件存在升级任务时禁止删除（restrict），保证任务明细可追溯 */
-  firmwareId:      integer('firmware_id').notNull().references(() => iotFirmwares.id, { onDelete: 'restrict' }),
-  productId:       integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
-  firmwareVersion: varchar('firmware_version', { length: 32 }).notNull(),
-  status:          iotOtaTaskStatusEnum('status').notNull().default('running'),
+  firmwareId:      integer().notNull().references(() => iotFirmwares.id, { onDelete: 'restrict' }),
+  productId:       integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  firmwareVersion: varchar({ length: 32 }).notNull(),
+  status:          iotOtaTaskStatusEnum().notNull().default('running'),
   /** 单设备超时（分钟）：越期未终态的设备判 failed，全部终态后任务收敛为 completed */
-  timeoutMinutes:  integer('timeout_minutes').notNull().default(30),
+  timeoutMinutes:  integer().notNull().default(30),
   /** 灰度批次大小：null = 全量一批；否则首批 N 台，放量后逐批推进 */
-  batchSize:       integer('batch_size'),
+  batchSize:       integer(),
   /** 当前已放量到的批次号（从 1 开始） */
-  currentBatch:    integer('current_batch').notNull().default(1),
+  currentBatch:    integer().notNull().default(1),
   /** 失败率熔断阈值（百分比，1-100）：当前批失败占比达到即自动暂停；null = 不熔断 */
-  failureThreshold: integer('failure_threshold'),
-  totalCount:      integer('total_count').notNull().default(0),
-  succeededCount:  integer('succeeded_count').notNull().default(0),
-  failedCount:     integer('failed_count').notNull().default(0),
-  tenantId:        integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  failureThreshold: integer(),
+  totalCount:      integer().notNull().default(0),
+  succeededCount:  integer().notNull().default(0),
+  failedCount:     integer().notNull().default(0),
+  tenantId:        integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:       timestamp('created_at').defaultNow().notNull(),
-  updatedAt:       timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:       timestamp().defaultNow().notNull(),
+  updatedAt:       timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_ota_tasks_product').on(t.productId),
   index('idx_iot_ota_tasks_status').on(t.status),
@@ -506,21 +503,21 @@ export type IotOtaTaskRow = typeof iotOtaTasks.$inferSelect;
 export type NewIotOtaTask = typeof iotOtaTasks.$inferInsert;
 
 export const iotOtaTaskDevices = pgTable('iot_ota_task_devices', {
-  id:          serial('id').primaryKey(),
-  taskId:      integer('task_id').notNull().references(() => iotOtaTasks.id, { onDelete: 'cascade' }),
-  deviceId:    integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
-  status:      iotOtaDeviceStatusEnum('status').notNull().default('pending'),
+  id:          integer().primaryKey().generatedAlwaysAsIdentity(),
+  taskId:      integer().notNull().references(() => iotOtaTasks.id, { onDelete: 'cascade' }),
+  deviceId:    integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  status:      iotOtaDeviceStatusEnum().notNull().default('pending'),
   /** 下载/安装进度（0-100，设备 ota:progress 帧回报） */
-  progress:    integer('progress').notNull().default(0),
+  progress:    integer().notNull().default(0),
   /** 升级前固件版本快照 */
-  fromVersion: varchar('from_version', { length: 32 }),
+  fromVersion: varchar({ length: 32 }),
   /** 灰度批次号（从 1 开始；全量任务恒为 1） */
-  batchIndex:  integer('batch_index').notNull().default(1),
-  errorMsg:    varchar('error_msg', { length: 256 }),
-  notifiedAt:  timestamp('notified_at'),
-  finishedAt:  timestamp('finished_at'),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  batchIndex:  integer().notNull().default(1),
+  errorMsg:    varchar({ length: 256 }),
+  notifiedAt:  timestamp(),
+  finishedAt:  timestamp(),
+  createdAt:   timestamp().defaultNow().notNull(),
+  updatedAt:   timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   uniqueIndex('uq_iot_ota_task_devices').on(t.taskId, t.deviceId),
   index('idx_iot_ota_task_devices_device').on(t.deviceId, t.status),
@@ -553,28 +550,28 @@ export interface IotAutomationActionDef {
 }
 
 export const iotAutomations = pgTable('iot_automations', {
-  id:                 serial('id').primaryKey(),
-  name:               varchar('name', { length: 128 }).notNull(),
-  productId:          integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  id:                 integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:               varchar({ length: 128 }).notNull(),
+  productId:          integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 空 = 产品下全部设备触发；指定则仅该设备 */
-  deviceId:           integer('device_id').references(() => iotDevices.id, { onDelete: 'cascade' }),
-  triggerType:        iotAutomationTriggerEnum('trigger_type').notNull(),
+  deviceId:           integer().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  triggerType:        iotAutomationTriggerEnum().notNull(),
   /** property 触发：属性 + 比较符 + 阈值 */
-  propertyIdentifier: varchar('property_identifier', { length: 64 }),
-  operator:           iotCompareOpEnum('operator'),
-  threshold:          doublePrecision('threshold'),
+  propertyIdentifier: varchar({ length: 64 }),
+  operator:           iotCompareOpEnum(),
+  threshold:          doublePrecision(),
   /** event 触发：物模型事件标识符 */
-  eventIdentifier:    varchar('event_identifier', { length: 64 }),
+  eventIdentifier:    varchar({ length: 64 }),
   /** 可选：规则中心决策表二次判定（按 key 软引用，命中任意行才执行动作） */
-  decisionRuleKey:    varchar('decision_rule_key', { length: 64 }),
+  decisionRuleKey:    varchar({ length: 64 }),
   /** 冷却期（秒）：同一联动 × 同一触发设备在窗口内不重复执行 */
-  cooldownSeconds:    integer('cooldown_seconds').notNull().default(60),
-  actions:            jsonb('actions').$type<IotAutomationActionDef[]>().notNull().default([]),
-  status:             statusEnum('status').notNull().default('enabled'),
-  tenantId:           integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  cooldownSeconds:    integer().notNull().default(60),
+  actions:            jsonb().$type<IotAutomationActionDef[]>().notNull().default([]),
+  status:             statusEnum().notNull().default('enabled'),
+  tenantId:           integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:          timestamp('created_at').defaultNow().notNull(),
-  updatedAt:          timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:          timestamp().defaultNow().notNull(),
+  updatedAt:          timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_automations_product').on(t.productId),
 ]);
@@ -585,16 +582,16 @@ export type NewIotAutomation = typeof iotAutomations.$inferInsert;
 
 /** 联动执行留痕：追加型日志（触发上下文 + 逐动作结果） */
 export const iotAutomationRuns = pgTable('iot_automation_runs', {
-  id:             bigserial('id', { mode: 'number' }).primaryKey(),
-  automationId:   integer('automation_id').notNull().references(() => iotAutomations.id, { onDelete: 'cascade' }),
+  id:             bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  automationId:   integer().notNull().references(() => iotAutomations.id, { onDelete: 'cascade' }),
   /** 名称快照（联动改名后历史不漂移） */
-  automationName: varchar('automation_name', { length: 128 }).notNull(),
-  deviceId:       integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
-  triggerContext: jsonb('trigger_context').$type<Record<string, unknown>>().notNull(),
+  automationName: varchar({ length: 128 }).notNull(),
+  deviceId:       integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  triggerContext: jsonb().$type<Record<string, unknown>>().notNull(),
   /** 逐动作结果：[{ type, target?, success, message? }] */
-  results:        jsonb('results').$type<Array<{ type: string; target?: string; success: boolean; message?: string }>>().notNull().default([]),
-  success:        boolean('success').notNull().default(true),
-  createdAt:      timestamp('created_at').defaultNow().notNull(),
+  results:        jsonb().$type<Array<{ type: string; target?: string; success: boolean; message?: string }>>().notNull().default([]),
+  success:        boolean().notNull().default(true),
+  createdAt:      timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_automation_runs_automation').on(t.automationId, t.createdAt),
   index('idx_iot_automation_runs_device').on(t.deviceId, t.createdAt),
@@ -604,28 +601,28 @@ export type IotAutomationRunRow = typeof iotAutomationRuns.$inferSelect;
 
 // ─── 五期：数据流转 ───────────────────────────────────────────────────────────
 export const iotForwardRules = pgTable('iot_forward_rules', {
-  id:                  serial('id').primaryKey(),
-  name:                varchar('name', { length: 128 }).notNull(),
+  id:                  integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:                varchar({ length: 128 }).notNull(),
   /** 数据源：telemetry 遥测 / event 设备事件 / alarm 告警 / lifecycle 生命周期 */
-  source:              iotForwardSourceEnum('source').notNull(),
+  source:              iotForwardSourceEnum().notNull(),
   /** 过滤：产品（空 = 全部产品） */
-  productId:           integer('product_id').references(() => iotProducts.id, { onDelete: 'cascade' }),
+  productId:           integer().references(() => iotProducts.id, { onDelete: 'cascade' }),
   /** 过滤：设备分组（空 = 不限分组） */
-  groupId:             integer('group_id').references(() => iotDeviceGroups.id, { onDelete: 'set null' }),
+  groupId:             integer().references(() => iotDeviceGroups.id, { onDelete: 'set null' }),
   /** 目的地：HTTP POST 地址（经开放平台同款出站防护） */
-  url:                 varchar('url', { length: 512 }).notNull(),
+  url:                 varchar({ length: 512 }).notNull(),
   /** HMAC-SHA256 签名密钥（可空 = 不签名；签名头 X-Iot-Signature = hex(hmac(secret, body))） */
-  secret:              varchar('secret', { length: 128 }),
+  secret:              varchar({ length: 128 }),
   /** 自定义请求头 */
-  headers:             jsonb('headers').$type<Record<string, string>>(),
-  status:              statusEnum('status').notNull().default('enabled'),
+  headers:             jsonb().$type<Record<string, string>>(),
+  status:              statusEnum().notNull().default('enabled'),
   /** 连续投递失败计数；达到阈值自动停用（autoDisabledAt 置位） */
-  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
-  autoDisabledAt:      timestamp('auto_disabled_at'),
-  tenantId:            integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  consecutiveFailures: integer().notNull().default(0),
+  autoDisabledAt:      timestamp(),
+  tenantId:            integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:           timestamp('created_at').defaultNow().notNull(),
-  updatedAt:           timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:           timestamp().defaultNow().notNull(),
+  updatedAt:           timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_forward_rules_source').on(t.source),
   index('idx_iot_forward_rules_tenant').on(t.tenantId),
@@ -635,18 +632,18 @@ export type IotForwardRuleRow = typeof iotForwardRules.$inferSelect;
 
 /** 流转投递日志：追加型（保留策略裁剪） */
 export const iotForwardLogs = pgTable('iot_forward_logs', {
-  id:             bigserial('id', { mode: 'number' }).primaryKey(),
-  ruleId:         integer('rule_id').notNull().references(() => iotForwardRules.id, { onDelete: 'cascade' }),
+  id:             bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  ruleId:         integer().notNull().references(() => iotForwardRules.id, { onDelete: 'cascade' }),
   /** 规则名快照 */
-  ruleName:       varchar('rule_name', { length: 128 }).notNull(),
-  source:         iotForwardSourceEnum('source').notNull(),
-  deviceId:       integer('device_id'),
-  payload:        jsonb('payload').$type<Record<string, unknown>>().notNull(),
-  status:         iotForwardStatusEnum('status').notNull(),
-  responseStatus: integer('response_status'),
-  errorMessage:   varchar('error_message', { length: 512 }),
-  durationMs:     integer('duration_ms'),
-  createdAt:      timestamp('created_at').defaultNow().notNull(),
+  ruleName:       varchar({ length: 128 }).notNull(),
+  source:         iotForwardSourceEnum().notNull(),
+  deviceId:       integer(),
+  payload:        jsonb().$type<Record<string, unknown>>().notNull(),
+  status:         iotForwardStatusEnum().notNull(),
+  responseStatus: integer(),
+  errorMessage:   varchar({ length: 512 }),
+  durationMs:     integer(),
+  createdAt:      timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_forward_logs_rule').on(t.ruleId, t.createdAt),
 ]);
@@ -655,14 +652,14 @@ export type IotForwardLogRow = typeof iotForwardLogs.$inferSelect;
 
 // ─── 五期：设备日志通道 ───────────────────────────────────────────────────────
 export const iotDeviceLogs = pgTable('iot_device_logs', {
-  id:         bigserial('id', { mode: 'number' }).primaryKey(),
-  deviceId:   integer('device_id').notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
-  level:      iotLogLevelEnum('level').notNull().default('info'),
+  id:         bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  deviceId:   integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  level:      iotLogLevelEnum().notNull().default('info'),
   /** 模块/标签（设备侧自定义，如 net / sensor / ota） */
-  tag:        varchar('tag', { length: 64 }),
-  content:    varchar('content', { length: 1024 }).notNull(),
-  reportedAt: timestamp('reported_at').notNull(),
-  createdAt:  timestamp('created_at').defaultNow().notNull(),
+  tag:        varchar({ length: 64 }),
+  content:    varchar({ length: 1024 }).notNull(),
+  reportedAt: timestamp().notNull(),
+  createdAt:  timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_device_logs_device').on(t.deviceId, t.reportedAt),
   index('idx_iot_device_logs_level').on(t.deviceId, t.level),
@@ -673,19 +670,19 @@ export type IotDeviceLogRow = typeof iotDeviceLogs.$inferSelect;
 // ─── 六期：维护窗口 ───────────────────────────────────────────────────────────
 /** 计划性维护静默：窗口内命中的告警仍记录但不派发通知/升级 */
 export const iotMaintenanceWindows = pgTable('iot_maintenance_windows', {
-  id:        serial('id').primaryKey(),
-  name:      varchar('name', { length: 128 }).notNull(),
+  id:        integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:      varchar({ length: 128 }).notNull(),
   /** 作用范围（三者至少其一；同时填写取并集语义按设备命中判断） */
-  productId: integer('product_id').references(() => iotProducts.id, { onDelete: 'cascade' }),
-  groupId:   integer('group_id').references(() => iotDeviceGroups.id, { onDelete: 'cascade' }),
-  deviceId:  integer('device_id').references(() => iotDevices.id, { onDelete: 'cascade' }),
-  startAt:   timestamp('start_at').notNull(),
-  endAt:     timestamp('end_at').notNull(),
-  reason:    varchar('reason', { length: 256 }),
-  tenantId:  integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  productId: integer().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  groupId:   integer().references(() => iotDeviceGroups.id, { onDelete: 'cascade' }),
+  deviceId:  integer().references(() => iotDevices.id, { onDelete: 'cascade' }),
+  startAt:   timestamp().notNull(),
+  endAt:     timestamp().notNull(),
+  reason:    varchar({ length: 256 }),
+  tenantId:  integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_maintenance_windows_time').on(t.startAt, t.endAt),
 ]);
@@ -695,30 +692,30 @@ export type IotMaintenanceWindowRow = typeof iotMaintenanceWindows.$inferSelect;
 // ─── 六期：设备计划任务 ───────────────────────────────────────────────────────
 /** 时间驱动的自动化（与场景联动的事件驱动互补）：cron/一次性定时下发指令或期望属性 */
 export const iotSchedules = pgTable('iot_schedules', {
-  id:             serial('id').primaryKey(),
-  name:           varchar('name', { length: 128 }).notNull(),
-  scheduleType:   iotScheduleTypeEnum('schedule_type').notNull(),
+  id:             integer().primaryKey().generatedAlwaysAsIdentity(),
+  name:           varchar({ length: 128 }).notNull(),
+  scheduleType:   iotScheduleTypeEnum().notNull(),
   /** cron 型：五段 cron 表达式（分 时 日 月 周） */
-  cronExpression: varchar('cron_expression', { length: 64 }),
+  cronExpression: varchar({ length: 64 }),
   /** once 型：执行时刻 */
-  runAt:          timestamp('run_at'),
+  runAt:          timestamp(),
   /** 目标圈选：product 全量 / group 分组 / device 单台 */
-  productId:      integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
-  groupId:        integer('group_id').references(() => iotDeviceGroups.id, { onDelete: 'set null' }),
-  deviceId:       integer('device_id').references(() => iotDevices.id, { onDelete: 'cascade' }),
+  productId:      integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  groupId:        integer().references(() => iotDeviceGroups.id, { onDelete: 'set null' }),
+  deviceId:       integer().references(() => iotDevices.id, { onDelete: 'cascade' }),
   /** 动作：command 服务调用 / desired 期望属性 */
-  actionType:     iotScheduleActionEnum('action_type').notNull(),
-  service:        varchar('service', { length: 64 }),
-  params:         jsonb('params').$type<Record<string, unknown>>(),
-  desired:        jsonb('desired').$type<Record<string, number | string | boolean>>(),
-  status:         statusEnum('status').notNull().default('enabled'),
+  actionType:     iotScheduleActionEnum().notNull(),
+  service:        varchar({ length: 64 }),
+  params:         jsonb().$type<Record<string, unknown>>(),
+  desired:        jsonb().$type<Record<string, number | string | boolean>>(),
+  status:         statusEnum().notNull().default('enabled'),
   /** 调度游标：下次应执行时刻（分钟级扫描按此判定到期；once 执行后置空并停用） */
-  nextRunAt:      timestamp('next_run_at'),
-  lastRunAt:      timestamp('last_run_at'),
-  tenantId:       integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  nextRunAt:      timestamp(),
+  lastRunAt:      timestamp(),
+  tenantId:       integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt:      timestamp('created_at').defaultNow().notNull(),
-  updatedAt:      timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt:      timestamp().defaultNow().notNull(),
+  updatedAt:      timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_schedules_next_run').on(t.status, t.nextRunAt),
   index('idx_iot_schedules_product').on(t.productId),
@@ -728,15 +725,15 @@ export type IotScheduleRow = typeof iotSchedules.$inferSelect;
 
 /** 计划执行留痕：追加型（保留策略裁剪） */
 export const iotScheduleRuns = pgTable('iot_schedule_runs', {
-  id:           bigserial('id', { mode: 'number' }).primaryKey(),
-  scheduleId:   integer('schedule_id').notNull().references(() => iotSchedules.id, { onDelete: 'cascade' }),
-  scheduleName: varchar('schedule_name', { length: 128 }).notNull(),
-  deviceCount:  integer('device_count').notNull().default(0),
-  successCount: integer('success_count').notNull().default(0),
-  failedCount:  integer('failed_count').notNull().default(0),
+  id:           bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+  scheduleId:   integer().notNull().references(() => iotSchedules.id, { onDelete: 'cascade' }),
+  scheduleName: varchar({ length: 128 }).notNull(),
+  deviceCount:  integer().notNull().default(0),
+  successCount: integer().notNull().default(0),
+  failedCount:  integer().notNull().default(0),
   /** 失败明细（截断保留前 20 条）：[{ deviceId, sn, error }] */
-  errors:       jsonb('errors').$type<Array<{ deviceId: number; sn: string; error: string }>>().notNull().default([]),
-  createdAt:    timestamp('created_at').defaultNow().notNull(),
+  errors:       jsonb().$type<Array<{ deviceId: number; sn: string; error: string }>>().notNull().default([]),
+  createdAt:    timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_schedule_runs_schedule').on(t.scheduleId, t.createdAt),
 ]);
@@ -746,19 +743,19 @@ export type IotScheduleRunRow = typeof iotScheduleRuns.$inferSelect;
 // ─── 六期：动态注册白名单 ─────────────────────────────────────────────────────
 /** 一型一密预注册：SN 白名单（设备首连以产品注册密钥签名，命中白名单即自动建档换取设备密钥） */
 export const iotDeviceWhitelist = pgTable('iot_device_whitelist', {
-  id:        serial('id').primaryKey(),
-  productId: integer('product_id').notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
-  sn:        varchar('sn', { length: 64 }).notNull().unique(),
+  id:        integer().primaryKey().generatedAlwaysAsIdentity(),
+  productId: integer().notNull().references(() => iotProducts.id, { onDelete: 'cascade' }),
+  sn:        varchar({ length: 64 }).notNull().unique(),
   /** 已使用：注册成功后置位（一次性凭证语义） */
-  used:      boolean('used').notNull().default(false),
-  usedAt:    timestamp('used_at'),
+  used:      boolean().notNull().default(false),
+  usedAt:    timestamp(),
   /** 注册产生的设备 id（追溯） */
-  deviceId:  integer('device_id').references(() => iotDevices.id, { onDelete: 'set null' }),
-  remark:    varchar('remark', { length: 256 }),
-  tenantId:  integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  deviceId:  integer().references(() => iotDevices.id, { onDelete: 'set null' }),
+  remark:    varchar({ length: 256 }),
+  tenantId:  integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('idx_iot_device_whitelist_product').on(t.productId, t.used),
 ]);

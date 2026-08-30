@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { readFile } from 'node:fs/promises';
 import { cmsAdEvents } from '../../db/schema';
+import { dbColumnName } from '../../db/types';
 import {
   cmsAdEventDedupeKey,
   normalizeCmsAdClickUrl,
@@ -30,11 +31,11 @@ describe('CMS Stage4 ad event policy', () => {
 
   it('stores hashes instead of plaintext IP and has retention-friendly indexes', () => {
     const config = getTableConfig(cmsAdEvents);
-    const names = config.columns.map((column) => column.name);
+    const names = config.columns.map((column) => dbColumnName(column));
     expect(names).toContain('ip_hash');
     expect(names).toContain('visitor_hash');
     expect(names).not.toContain('ip');
-    const foreignKeyColumns = config.foreignKeys.flatMap((key) => key.reference().columns.map((column) => column.name));
+    const foreignKeyColumns = config.foreignKeys.flatMap((key) => key.reference().columns.map((column) => dbColumnName(column)));
     expect(foreignKeyColumns).not.toContain('ad_id');
     expect(foreignKeyColumns).not.toContain('slot_id');
     expect(config.indexes.map((item) => item.config.name)).toEqual(expect.arrayContaining([

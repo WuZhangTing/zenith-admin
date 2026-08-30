@@ -49,7 +49,7 @@ import {
 } from './cms-distribution-policy';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
 import { adoptCmsResourcesIntoSite, canonicalizeCmsResourceFields, syncCmsResourceRefs } from './cms-resource-refs.service';
-import { buildSearchVector } from './cms-search.service';
+import { contentSearchVector, extendSearchTexts } from './cms-search.service';
 import {
   getContentBodyExtendRaw,
   offlineCmsContent,
@@ -307,14 +307,7 @@ async function createMaterializedContent(
       distributionRuleId: rule.id,
       distributionSourceId: source.id,
       distributionSourceVersion: source.version,
-      searchVector: buildSearchVector({
-        siteId: rule.targetSiteId,
-        title: source.title,
-        seoKeywords: source.seoKeywords,
-        summary: source.summary,
-        body,
-        extendTexts: Object.values(extend).filter((value): value is string => typeof value === 'string'),
-      }),
+      searchVector: contentSearchVector(rule.targetSiteId, { ...source, body }, extendSearchTexts(extend)),
     }).returning();
     await logContentOp(tx, rows[0].id, 'created', `分发规则 #${rule.id} 从内容 #${source.id} 创建草稿`);
     await syncCmsResourceRefs(tx, 'content', rows[0].id, rows[0].siteId, rows[0]);
@@ -352,14 +345,7 @@ async function synchronizeExisting(
       distributionRuleId: rule.id,
       distributionSourceId: source.id,
       distributionSourceVersion: source.version,
-      searchVector: buildSearchVector({
-        siteId: rule.targetSiteId,
-        title: source.title,
-        seoKeywords: source.seoKeywords,
-        summary: source.summary,
-        body,
-        extendTexts: Object.values(extend).filter((value): value is string => typeof value === 'string'),
-      }),
+      searchVector: contentSearchVector(rule.targetSiteId, { ...source, body }, extendSearchTexts(extend)),
     }).where(eq(cmsContents.id, target.id)).returning();
     await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
     return row;
@@ -475,14 +461,7 @@ async function detachStaleMapping(
       mappingSourceId: null,
       distributionSourceVersion: source?.version ?? target.distributionSourceVersion,
       version: sql`${cmsContents.version} + 1`,
-      searchVector: buildSearchVector({
-        siteId: target.siteId,
-        title: target.title,
-        seoKeywords: target.seoKeywords,
-        summary: target.summary,
-        body,
-        extendTexts: Object.values(extend).filter((value): value is string => typeof value === 'string'),
-      }),
+      searchVector: contentSearchVector(target.siteId, { ...target, body }, extendSearchTexts(extend)),
     }).where(and(eq(cmsContents.id, target.id), isNull(cmsContents.lockedAt))).returning();
     if (row) await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
     return row;

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core';
 import * as cmsSchema from './schema/cms';
 import { cmsDistributionRules, cmsSiteInheritances, cmsSites } from './schema/cms';
+import { dbColumnName } from './types';
 
 function cmsTables(): { name: string; table: PgTable }[] {
   const tables: { name: string; table: PgTable }[] = [];
@@ -37,25 +38,25 @@ describe('global CMS schema', () => {
       'cms_theme_deployments',
     ]));
     for (const { name, table } of tables) {
-      const tenantColumn = getTableConfig(table).columns.find((column) => column.name === 'tenant_id');
+      const tenantColumn = getTableConfig(table).columns.find((column) => dbColumnName(column) === 'tenant_id');
       expect(tenantColumn, `${name} must not expose tenant_id`).toBeUndefined();
     }
   });
 
   it('enforces globally unique site codes and at most one global default site', () => {
     const config = getTableConfig(cmsSites);
-    expect(config.columns.find((column) => column.name === 'code')?.isUnique).toBe(true);
+    expect(config.columns.find((column) => dbColumnName(column) === 'code')?.isUnique).toBe(true);
     const defaultIndex = config.indexes.find((item) => item.config.name === 'cms_sites_default_uq');
     expect(defaultIndex?.config.unique).toBe(true);
     expect(defaultIndex?.config.where).toBeDefined();
-    expect(config.columns.find((column) => column.name === 'template_refs_revision')?.notNull).toBe(true);
-    expect(config.columns.find((column) => column.name === 'parent_id')).toBeDefined();
+    expect(config.columns.find((column) => dbColumnName(column) === 'template_refs_revision')?.notNull).toBe(true);
+    expect(config.columns.find((column) => dbColumnName(column) === 'parent_id')).toBeDefined();
     expect(config.indexes.find((item) => item.config.name === 'cms_sites_parent_idx')).toBeDefined();
   });
 
   it('stores explicit per-field inheritance and governed distribution without a CMS tenant', () => {
     const inheritance = getTableConfig(cmsSiteInheritances);
-    expect(inheritance.columns.map((column) => column.name)).toEqual(expect.arrayContaining([
+    expect(inheritance.columns.map((column) => dbColumnName(column))).toEqual(expect.arrayContaining([
       'seo_title',
       'static_mode',
       'review_mode',
@@ -66,7 +67,7 @@ describe('global CMS schema', () => {
       'templates',
     ]));
     const distribution = getTableConfig(cmsDistributionRules);
-    expect(distribution.columns.find((column) => column.name === 'tenant_id')).toBeUndefined();
+    expect(distribution.columns.find((column) => dbColumnName(column) === 'tenant_id')).toBeUndefined();
     expect(distribution.indexes.map((index) => index.config.name)).toEqual(expect.arrayContaining([
       'cms_distribution_rules_source_idx',
       'cms_distribution_rules_target_idx',

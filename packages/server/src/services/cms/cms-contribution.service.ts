@@ -10,7 +10,7 @@ import type { CmsContentRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { withPagination } from '../../lib/where-helpers';
 import { currentMemberId } from '../../lib/member-context';
-import { buildSearchVector } from './cms-search.service';
+import { contentSearchVector } from './cms-search.service';
 import { submitCmsContent } from './cms-contents.service';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
 import { assertCmsContentUnlocked } from './cms-content-lock.service';
@@ -143,7 +143,7 @@ export async function createContribution(input: ContributionInput) {
       source: CONTRIBUTION_SOURCE,
       status: 'draft',
       memberId,
-      searchVector: buildSearchVector({ siteId: input.siteId, title: input.title, summary: input.summary ?? null, body, seoKeywords: null, extendTexts: [] }),
+      searchVector: contentSearchVector(input.siteId, { title: input.title, summary: input.summary ?? null, body }),
     }).returning();
     await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
     return row;
@@ -169,7 +169,7 @@ export async function updateMyContribution(id: number, input: Omit<ContributionI
       title: input.title,
       summary: input.summary ?? null,
       body: canonical.body,
-      searchVector: buildSearchVector({ siteId: row.siteId, title: input.title, summary: input.summary ?? null, body, seoKeywords: null, extendTexts: [] }),
+      searchVector: contentSearchVector(row.siteId, { title: input.title, summary: input.summary ?? null, body }),
     }).where(and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt))).returning();
     if (updated) await syncCmsResourceRefs(tx, 'content', updated.id, updated.siteId, updated);
   });

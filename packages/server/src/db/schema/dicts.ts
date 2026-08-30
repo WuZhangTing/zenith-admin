@@ -1,18 +1,18 @@
-import { pgTable, serial, varchar, timestamp, integer, unique, uniqueIndex, jsonb, type AnyPgColumn, index } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, integer, unique, uniqueIndex, jsonb, type AnyPgColumn, index } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns, tenants } from './core';
 
 // ─── 字典表 ───────────────────────────────────────────────────────────────────
 export const dicts = pgTable('dicts', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 64 }).notNull(),
-  code: varchar('code', { length: 64 }).notNull(),
-  description: varchar('description', { length: 256 }),
-  status: statusEnum('status').notNull().default('enabled'),
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar({ length: 64 }).notNull(),
+  code: varchar({ length: 64 }).notNull(),
+  description: varchar({ length: 256 }),
+  status: statusEnum().notNull().default('enabled'),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [unique('dicts_tenant_code_unique').on(t.tenantId, t.code)]);
 
 export type DictRow = typeof dicts.$inferSelect;
@@ -21,19 +21,19 @@ export type NewDict = typeof dicts.$inferInsert;
 
 // ─── 字典项表 ─────────────────────────────────────────────────────────────────
 export const dictItems = pgTable('dict_items', {
-  id: serial('id').primaryKey(),
-  dictId: integer('dict_id').notNull().references(() => dicts.id, { onDelete: 'cascade' }),
-  parentId: integer('parent_id').references((): AnyPgColumn => dictItems.id, { onDelete: 'cascade' }),
-  label: varchar('label', { length: 64 }).notNull(),
-  value: varchar('value', { length: 64 }).notNull(),
-  color: varchar('color', { length: 32 }),
-  sort: integer('sort').notNull().default(0),
-  status: statusEnum('status').notNull().default('enabled'),
-  remark: varchar('remark', { length: 256 }),
-  metadata: jsonb('metadata'),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  dictId: integer().notNull().references(() => dicts.id, { onDelete: 'cascade' }),
+  parentId: integer().references((): AnyPgColumn => dictItems.id, { onDelete: 'cascade' }),
+  label: varchar({ length: 64 }).notNull(),
+  value: varchar({ length: 64 }).notNull(),
+  color: varchar({ length: 32 }),
+  sort: integer().notNull().default(0),
+  status: statusEnum().notNull().default('enabled'),
+  remark: varchar({ length: 256 }),
+  metadata: jsonb(),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (table) => [index('dict_items_parent_idx').on(table.parentId), 
   uniqueIndex('dict_items_dict_id_value_unique').on(table.dictId, table.value),
 ]);

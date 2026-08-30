@@ -6,7 +6,7 @@ import type { CmsContentRow, CmsSiteRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { parseDateTimeInput } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { buildSearchVector } from './cms-search.service';
+import { contentSearchVector, contentSearchVectorOnUpdate } from './cms-search.service';
 import { listCmsModelFields } from './cms-models.service';
 import { assertChannelAccess, assertChannelsAccess } from './cms-channels.service';
 import { snapshotContentVersion, restoreContentVersion } from './cms-versions.service';
@@ -297,14 +297,7 @@ export async function createCmsContent(data: CreateCmsContentInput) {
           coverImage: rest.coverImage,
           attachments: rest.attachments,
         }),
-        searchVector: buildSearchVector({
-          siteId: data.siteId,
-          title: rest.title,
-          seoKeywords: rest.seoKeywords,
-          summary: rest.summary,
-          body: rest.body,
-          extendTexts,
-        }),
+        searchVector: contentSearchVector(data.siteId, rest, extendTexts),
       }).returning();
       await setContentTags(tx, created.id, data.siteId, tagIds);
       await setContentExtraChannels(tx, created.id, data.siteId, created.channelId, extraChannelIds);
@@ -413,14 +406,7 @@ export async function updateCmsContent(
         }),
         // 映射内容正文在来源行，保持自身检索向量不动（分发时已按来源快照写入）
         ...(current.mappingSourceId ? {} : {
-          searchVector: buildSearchVector({
-            siteId: current.siteId,
-            title: rest.title ?? current.title,
-            seoKeywords: rest.seoKeywords !== undefined ? rest.seoKeywords : current.seoKeywords,
-            summary: rest.summary !== undefined ? rest.summary : current.summary,
-            body: rest.body !== undefined ? rest.body : current.body,
-            extendTexts,
-          }),
+          searchVector: contentSearchVectorOnUpdate(current, rest, extendTexts),
         }),
       }).where(versionGuard).returning();
       if (!updated) {

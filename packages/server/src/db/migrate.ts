@@ -19,7 +19,7 @@ import * as schema from './schema';
 const MIGRATIONS_FOLDER = './drizzle';
 
 const client = postgres(config.databaseUrl, { max: 1 });
-const db = drizzle(client, { schema });
+const db = drizzle(client, { schema, casing: 'snake_case' });
 
 try {
   logger.info('Running migrations...');

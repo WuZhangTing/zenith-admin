@@ -23,7 +23,7 @@ Step 1-7 主链路之外、按需接入的后端能力。约束条目见 [constr
 ```ts
 export const xxxs = pgTable('xxxs', {
   // ...其他字段
-  departmentId: integer('department_id').references(() => departments.id),
+  departmentId: integer().references(() => departments.id),
 });
 ```
 
@@ -81,7 +81,7 @@ await db.insert(xxxs).values({ ...data, departmentId: creator?.departmentId ?? n
 // Step 1：Schema
 export const xxxs = pgTable('xxxs', {
   // ...其他字段
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
 });
 ```
 

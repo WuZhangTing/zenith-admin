@@ -4,7 +4,7 @@
  */
 import dayjs from 'dayjs';
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
-import { db } from '../../db';
+import { db, readSnapshot } from '../../db';
 import { reportDatasetExecutionLogs, reportDatasets, reportDatasources, users } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
@@ -153,8 +153,10 @@ export async function getDatasetExecutionStats(query: {
   const where = conds.length ? and(...conds) : undefined;
   const trendStart = query.startAt ?? dayjs().subtract(7, 'day').toDate();
   const trendEnd = query.endAt ?? new Date();
-  const [aggRows, slowRows, series] = await Promise.all([
-   db.select({
+  // 汇总与慢查询 Top 来自同一张日志表，必须取同一数据快照，否则并发写入下
+  // 「总数 / 成功率」与「慢查询榜单」互相矛盾；成本趋势走独立预聚合，无需入快照。
+  const [aggRows, slowRows] = await readSnapshot((tx) => Promise.all([
+   tx.select({
      total: sql<number>`count(*)::int`,
      successCount: sql<number>`sum(case when ${reportDatasetExecutionLogs.success} then 1 else 0 end)::int`,
      avgDurationMs: sql<number | null>`round(avg(${reportDatasetExecutionLogs.durationMs}))::int`,
@@ -163,7 +165,7 @@ export async function getDatasetExecutionStats(query: {
      slowCount: sql<number>`sum(case when ${reportDatasetExecutionLogs.slow} then 1 else 0 end)::int`,
      truncatedCount: sql<number>`sum(case when ${reportDatasetExecutionLogs.truncated} then 1 else 0 end)::int`,
    }).from(reportDatasetExecutionLogs).where(where),
-   db.select({
+   tx.select({
      datasetId: reportDatasetExecutionLogs.datasetId,
      datasetName: reportDatasets.name,
      datasourceId: reportDatasetExecutionLogs.datasourceId,
@@ -180,14 +182,14 @@ export async function getDatasetExecutionStats(query: {
      .groupBy(reportDatasetExecutionLogs.datasetId, reportDatasets.name, reportDatasetExecutionLogs.datasourceId, reportDatasources.name, reportDatasetExecutionLogs.scene)
      .orderBy(desc(sql`max(${reportDatasetExecutionLogs.durationMs})`))
      .limit(10),
-    getReportQueryCostTrend({
-     datasetId: query.datasetId,
-     datasourceId: query.datasourceId,
-     start: formatDateTime(trendStart),
-     end: formatDateTime(trendEnd),
-     bucket: dayjs(trendEnd).diff(trendStart, 'hour', true) <= 48 ? 'hour' : 'day',
-    }),
-  ]);
+  ]));
+  const series = await getReportQueryCostTrend({
+    datasetId: query.datasetId,
+    datasourceId: query.datasourceId,
+    start: formatDateTime(trendStart),
+    end: formatDateTime(trendEnd),
+    bucket: dayjs(trendEnd).diff(trendStart, 'hour', true) <= 48 ? 'hour' : 'day',
+  });
   const agg = aggRows[0] ?? {
    total: 0, successCount: 0, avgDurationMs: 0, p95DurationMs: 0, cacheHitCount: 0, slowCount: 0, truncatedCount: 0,
   };

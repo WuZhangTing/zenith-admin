@@ -12,6 +12,7 @@ import { getTableConfig, PgTable } from 'drizzle-orm/pg-core';
 import { is } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db, pgClient } from '../../db';
+import { dbColumnName } from '../../db/types';
 import * as schema from '../../db/schema';
 import { formatNullableDateTime } from '../../lib/datetime';
 import { assertIdent, quoteIdent } from './db-admin.service';
@@ -462,7 +463,7 @@ function collectExpectedTables(): ExpectedTable[] {
       schema: cfg.schema ?? 'public',
       name: cfg.name,
       columns: cfg.columns.map((c) => ({
-        name: c.name,
+        name: dbColumnName(c),
         type: canonicalType(c.getSQLType()),
         notNull: c.notNull,
       })),

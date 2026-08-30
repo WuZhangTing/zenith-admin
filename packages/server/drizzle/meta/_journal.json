@@ -428,6 +428,13 @@
       "when": 1788046354960,
       "tag": "0060_tranquil_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788053354203,
+      "tag": "0061_faithful_toad_men",
+      "breakpoints": true
     }
   ]
 }

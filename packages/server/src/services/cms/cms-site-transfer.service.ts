@@ -9,7 +9,7 @@ import {
   cmsWidgetRefs, cmsWidgets,
 } from '../../db/schema';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
-import { buildSearchVector } from './cms-search.service';
+import { contentSearchVector } from './cms-search.service';
 import { ensureCmsSiteExists, assertSiteAccess, invalidateSiteCache } from './cms-sites.service';
 import { isCmsPlatformAdmin } from './cms-access';
 import { normalizeNewCmsSiteSettings, redactCmsSiteSettings } from './cms-site-settings';
@@ -418,8 +418,7 @@ export async function importCmsSite(payload: unknown) {
         seoDescription: str(c.seoDescription),
         socialImageAlt: str(c.socialImageAlt),
         twitterCreator: str(c.twitterCreator),
-        searchVector: buildSearchVector({
-          siteId,
+        searchVector: contentSearchVector(siteId, {
           title,
           seoKeywords: str(c.seoKeywords),
           summary: str(c.summary),

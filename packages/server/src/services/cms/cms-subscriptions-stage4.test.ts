@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { cmsMemberSubscriptions } from '../../db/schema';
+import { dbColumnName } from '../../db/types';
 import { normalizeCmsAuthorKey } from './cms-subscriptions.service';
 
 describe('CMS Stage4 subscriptions', () => {
@@ -15,7 +16,7 @@ describe('CMS Stage4 subscriptions', () => {
     const config = getTableConfig(cmsMemberSubscriptions);
     const unique = config.indexes.find((item) => item.config.name === 'cms_member_subscriptions_subject_uq');
     expect(unique?.config.unique).toBe(true);
-    expect(config.columns.map((column) => column.name)).toEqual(expect.arrayContaining([
+    expect(config.columns.map((column) => dbColumnName(column))).toEqual(expect.arrayContaining([
       'active',
       'points_awarded_at',
       'notification_enabled',

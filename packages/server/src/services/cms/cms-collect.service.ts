@@ -13,7 +13,7 @@ import { registerTaskHandler } from '../../lib/task-center';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { buildManagedFileProxyUrl } from '../../lib/file-storage';
-import { buildSearchVector } from './cms-search.service';
+import { contentSearchVector } from './cms-search.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { assertChannelAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { hasPermission } from '../../lib/context';
@@ -393,7 +393,7 @@ export function registerCmsCollectTaskHandler(): void {
               body: canonical.body,
               source: '采集',
               status: 'draft',
-              searchVector: buildSearchVector({ siteId: rule.siteId, title: article.title, summary: article.summary, body: bodyHtml, seoKeywords: null, extendTexts: [] }),
+              searchVector: contentSearchVector(rule.siteId, { title: article.title, summary: article.summary, body: bodyHtml }),
             }).returning();
             await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
             return row;

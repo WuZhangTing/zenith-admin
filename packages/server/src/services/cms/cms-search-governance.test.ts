@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { createCmsSearchWordSchema } from '@zenith/shared/cms';
 import { SEED_CMS_SEARCH_WORDS } from '@zenith/shared/seed';
 import { loadCmsExtensionWords, normalizeCmsSearchDictionaryWord } from './cms-search-dictionary';
-import { filterCmsSearchTokens } from './cms-search.service';
+import {
+  contentSearchVector,
+  contentSearchVectorOnUpdate,
+  extendSearchTexts,
+  filterCmsSearchTokens,
+} from './cms-search.service';
 
 describe('CMS site search governance', () => {
   it('filters stop words and normalizes duplicate query/index tokens', () => {
@@ -38,5 +44,47 @@ describe('CMS site search governance', () => {
     expect(loaded).toBe(1);
     expect(loadDict).toHaveBeenCalledTimes(2);
     expect(onError).toHaveBeenCalledOnce();
+  });
+});
+
+describe('contentSearchVector（search_vector 唯一写入口）', () => {
+  const dialect = new PgDialect();
+  const toQuery = (expr: import('drizzle-orm').SQL) => dialect.sqlToQuery(expr);
+
+  it('builds weighted A/B/C tsvector expression with segmented and HTML-stripped params', () => {
+    const { sql: text, params } = toQuery(contentSearchVector(1, {
+      title: 'Zenith平台',
+      seoKeywords: '后台',
+      summary: '管理系统',
+      body: '<p>内容检索</p>',
+    }));
+    expect(text).toContain("setweight(to_tsvector('simple'::regconfig, $1), 'A')");
+    expect(text).toContain("'B'");
+    expect(text).toContain("'C'");
+    expect(params).toHaveLength(3);
+    expect(String(params[0])).toContain('zenith');
+    expect(String(params[2])).not.toContain('<p>');
+    expect(String(params[2])).toContain('检索');
+  });
+
+  it('appends extendTexts into the weight-C segment', () => {
+    const withExtend = toQuery(contentSearchVector(1, { title: '标题' }, ['扩展字段值']));
+    expect(String(withExtend.params[2])).toContain('扩展');
+  });
+
+  it('contentSearchVectorOnUpdate falls back to current values for fields absent in patch', () => {
+    const current = { siteId: 1, title: '原标题', seoKeywords: '原词', summary: '原摘要', body: '原正文' };
+    const untouched = toQuery(contentSearchVectorOnUpdate(current, {}));
+    const baseline = toQuery(contentSearchVector(1, current));
+    expect(untouched.params).toEqual(baseline.params);
+
+    const patched = toQuery(contentSearchVectorOnUpdate(current, { title: '新标题', seoKeywords: null }));
+    const expected = toQuery(contentSearchVector(1, { ...current, title: '新标题', seoKeywords: null }));
+    expect(patched.params).toEqual(expected.params);
+  });
+
+  it('extendSearchTexts keeps only string values', () => {
+    expect(extendSearchTexts({ a: '文本', b: 1, c: null, d: ['x'] })).toEqual(['文本']);
+    expect(extendSearchTexts(null)).toEqual([]);
   });
 });

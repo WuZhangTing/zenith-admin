@@ -42,18 +42,18 @@ sequenceDiagram
 export const bizPayDemoStatusEnum = pgEnum('biz_pay_demo_status', ['pending', 'paying', 'paid', 'closed']);
 
 export const bizPayDemos = pgTable('biz_pay_demos', {
-  id: serial('id').primaryKey(),
-  subject: varchar('subject', { length: 128 }).notNull(),
-  amount: integer('amount').notNull(),
-  payMethod: varchar('pay_method', { length: 32 }),
-  status: bizPayDemoStatusEnum('status').notNull().default('pending'),
-  paymentOrderNo: varchar('payment_order_no', { length: 64 }),
-  paidAt: timestamp('paid_at', { withTimezone: true }),
-  fulfillRemark: varchar('fulfill_remark', { length: 255 }),
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  subject: varchar({ length: 128 }).notNull(),
+  amount: integer().notNull(),
+  payMethod: varchar({ length: 32 }),
+  status: bizPayDemoStatusEnum().notNull().default('pending'),
+  paymentOrderNo: varchar({ length: 64 }),
+  paidAt: timestamp({ withTimezone: true }),
+  fulfillRemark: varchar({ length: 255 }),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 ```
 

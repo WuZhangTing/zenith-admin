@@ -7,6 +7,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { toCamelCase } from 'drizzle-orm/casing';
 import { RETENTION_POLICIES } from './policies';
 
 const SCHEMA_DIR = join(import.meta.dirname, '../../db/schema');
@@ -101,8 +102,11 @@ describe('数据保留策略声明', () => {
       .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
       .map((entry) => readFileSync(join(SCHEMA_DIR, entry.name), 'utf8'))
       .join('\n');
+    // 列名由 casing: 'snake_case' 从驼峰 key 派生：schema 源码中既可能出现显式蛇形列名
+    // （派生不一致的边界情形），也可能只出现驼峰属性 key，两者任一命中即视为存在
     const badColumns = RETENTION_POLICIES
-      .filter((policy) => !schemaText.includes(`'${policy.timeColumn}'`))
+      .filter((policy) => !schemaText.includes(`'${policy.timeColumn}'`)
+        && !new RegExp(`\\b${toCamelCase(policy.timeColumn)}:`).test(schemaText))
       .map((policy) => `${policy.key}.${policy.timeColumn}`);
     expect(badColumns, `以下策略的时间列在 schema 中不存在：${badColumns.join(', ')}`).toEqual([]);
   });

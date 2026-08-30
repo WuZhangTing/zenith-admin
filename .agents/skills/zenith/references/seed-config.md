@@ -140,15 +140,16 @@ export const SEED_XXXS: Xxx[] = [
 ```ts
 import { ..., SEED_XXXS } from '@zenith/shared/seed';
 
-// seedRest() 函数末尾追加：
-await db.insert(xxxs).values(
+// seedRest() 函数末尾追加：显式插入 id 的表必须加 .overridingSystemValue()
+// （主键是 GENERATED ALWAYS AS IDENTITY，未声明覆盖时 PG 会拒绝显式 id）
+await db.insert(xxxs).overridingSystemValue().values(
   SEED_XXXS.map(({ id, name, description, status }) => ({ id, name, description, status })),
 ).onConflictDoNothing({ target: xxxs.id });
 await db.execute(sql`SELECT setval('xxxs_id_seq', GREATEST((SELECT MAX(id) FROM xxxs), 1))`);
 logger.info('  ✔ Xxxs seeded (onConflictDoNothing)');
 ```
 
-- **不需要 `setval`** 的情况：不插入显式 `id`（完全使用 DB 自增）
+- **不需要 `setval` 与 `overridingSystemValue`** 的情况：不插入显式 `id`（完全使用 DB 自增）
 - **不需要 shared 常量**的情况：seed 数据与 mock 无关（管理员密码、china-division 地区数据等），
   可直接写在 seed.ts
 

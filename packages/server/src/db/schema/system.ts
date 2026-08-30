@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, timestamp, pgEnum, integer, boolean, unique, text, index, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, text, index, jsonb, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 
@@ -12,16 +12,16 @@ export const systemSchedulerTriggerTypeEnum = pgEnum('system_scheduler_trigger_t
 export const configTypeEnum = pgEnum('config_type', ['string', 'number', 'boolean', 'json']);
 
 export const systemConfigs = pgTable('system_configs', {
-  id: serial('id').primaryKey(),
-  configKey: varchar('config_key', { length: 128 }).notNull(),
-  configName: varchar('config_name', { length: 128 }).notNull().default(''),
-  configValue: varchar('config_value', { length: 4096 }).notNull().default(''),
-  configType: configTypeEnum('config_type').notNull().default('string'),
-  description: varchar('description', { length: 256 }).notNull().default(''),
-  tenantId: integer('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  configKey: varchar({ length: 128 }).notNull(),
+  configName: varchar({ length: 128 }).notNull().default(''),
+  configValue: varchar({ length: 4096 }).notNull().default(''),
+  configType: configTypeEnum().notNull().default('string'),
+  description: varchar({ length: 256 }).notNull().default(''),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [unique('system_configs_tenant_key_unique').on(t.tenantId, t.configKey)]);
 
 export type SystemConfigRow = typeof systemConfigs.$inferSelect;
@@ -32,25 +32,25 @@ export type NewSystemConfig = typeof systemConfigs.$inferInsert;
 export const cronRunStatusEnum = pgEnum('cron_run_status', ['success', 'fail', 'running']);
 
 export const cronJobs = pgTable('cron_jobs', {
-  id: serial('id').primaryKey(),
-  name: varchar('name', { length: 64 }).notNull().unique(),
-  cronExpression: varchar('cron_expression', { length: 128 }).notNull(),
-  handler: varchar('handler', { length: 128 }).notNull(),
-  params: text('params'),
-  status: statusEnum('status').notNull().default('disabled'),
-  description: varchar('description', { length: 256 }).notNull().default(''),
-  retryCount: integer('retry_count').notNull().default(0),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar({ length: 64 }).notNull().unique(),
+  cronExpression: varchar({ length: 128 }).notNull(),
+  handler: varchar({ length: 128 }).notNull(),
+  params: text(),
+  status: statusEnum().notNull().default('disabled'),
+  description: varchar({ length: 256 }).notNull().default(''),
+  retryCount: integer().notNull().default(0),
   /** 重试间隔，单位：秒 */
-  retryInterval: integer('retry_interval').notNull().default(0),
+  retryInterval: integer().notNull().default(0),
   /** 是否启用指数退避重试（每次翻倍延迟） */
-  retryBackoff: boolean('retry_backoff').notNull().default(false),
-  monitorTimeout: integer('monitor_timeout'),
-  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
-  lastRunStatus: cronRunStatusEnum('last_run_status'),
-  lastRunMessage: varchar('last_run_message', { length: 1024 }),
+  retryBackoff: boolean().notNull().default(false),
+  monitorTimeout: integer(),
+  lastRunAt: timestamp({ withTimezone: true }),
+  lastRunStatus: cronRunStatusEnum(),
+  lastRunMessage: varchar({ length: 1024 }),
   ...auditColumns(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export type CronJobRow = typeof cronJobs.$inferSelect;
@@ -59,15 +59,15 @@ export type NewCronJob = typeof cronJobs.$inferInsert;
 
 // ─── 定时任务执行日志表 ────────────────────────────────────────────────────────
 export const cronJobLogs = pgTable('cron_job_logs', {
-  id:             serial('id').primaryKey(),
-  jobId:          integer('job_id').notNull().references(() => cronJobs.id, { onDelete: 'cascade' }),
-  jobName:        varchar('job_name', { length: 64 }).notNull(),
-  executionCount: integer('execution_count').notNull().default(1),
-  startedAt:      timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
-  endedAt:        timestamp('ended_at', { withTimezone: true }),
-  durationMs:     integer('duration_ms'),
-  status:         cronRunStatusEnum('status').notNull().default('running'),
-  output:         text('output'),
+  id:             integer().primaryKey().generatedAlwaysAsIdentity(),
+  jobId:          integer().notNull().references(() => cronJobs.id, { onDelete: 'cascade' }),
+  jobName:        varchar({ length: 64 }).notNull(),
+  executionCount: integer().notNull().default(1),
+  startedAt:      timestamp({ withTimezone: true }).defaultNow().notNull(),
+  endedAt:        timestamp({ withTimezone: true }),
+  durationMs:     integer(),
+  status:         cronRunStatusEnum().notNull().default('running'),
+  output:         text(),
 }, (t) => [
   index('cron_job_logs_started_at_idx').on(t.startedAt),
   index('cron_job_logs_job_idx').on(t.jobId),
@@ -79,31 +79,31 @@ export type NewCronJobLog = typeof cronJobLogs.$inferInsert;
 
 // ─── 系统调度运行日志表（启动时注册的系统级任务 / 队列 Worker）─────────────────────
 export const systemSchedulerRuns = pgTable('system_scheduler_runs', {
-  id: serial('id').primaryKey(),
-  taskName: varchar('task_name', { length: 128 }).notNull(),
-  taskTitle: varchar('task_title', { length: 128 }).notNull(),
-  taskType: systemSchedulerTaskTypeEnum('task_type').notNull(),
-  module: varchar('module', { length: 64 }).notNull().default('系统'),
-  triggerType: systemSchedulerTriggerTypeEnum('trigger_type').notNull(),
-  status: systemSchedulerRunStatusEnum('status').notNull().default('running'),
-  jobId: varchar('job_id', { length: 128 }),
-  nodeId: varchar('node_id', { length: 128 }),
-  nodeHostname: varchar('node_hostname', { length: 128 }),
-  nodePid: integer('node_pid'),
-  triggeredBy: integer('triggered_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
-  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
-  endedAt: timestamp('ended_at', { withTimezone: true }),
-  durationMs: integer('duration_ms'),
-  resultMessage: text('result_message'),
-  errorMessage: text('error_message'),
-  alertedAt: timestamp('alerted_at', { withTimezone: true }),
-  alertMessage: text('alert_message'),
-  alertSentAt: timestamp('alert_sent_at', { withTimezone: true }),
-  alertChannels: jsonb('alert_channels').$type<Array<'inapp' | 'email' | 'webhook'>>().notNull().default([]),
-  alertAckAt: timestamp('alert_ack_at', { withTimezone: true }),
-  alertAckBy: integer('alert_ack_by').references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
-  alertAckNote: text('alert_ack_note'),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  taskName: varchar({ length: 128 }).notNull(),
+  taskTitle: varchar({ length: 128 }).notNull(),
+  taskType: systemSchedulerTaskTypeEnum().notNull(),
+  module: varchar({ length: 64 }).notNull().default('系统'),
+  triggerType: systemSchedulerTriggerTypeEnum().notNull(),
+  status: systemSchedulerRunStatusEnum().notNull().default('running'),
+  jobId: varchar({ length: 128 }),
+  nodeId: varchar({ length: 128 }),
+  nodeHostname: varchar({ length: 128 }),
+  nodePid: integer(),
+  triggeredBy: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  startedAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+  endedAt: timestamp({ withTimezone: true }),
+  durationMs: integer(),
+  resultMessage: text(),
+  errorMessage: text(),
+  alertedAt: timestamp({ withTimezone: true }),
+  alertMessage: text(),
+  alertSentAt: timestamp({ withTimezone: true }),
+  alertChannels: jsonb().$type<Array<'inapp' | 'email' | 'webhook'>>().notNull().default([]),
+  alertAckAt: timestamp({ withTimezone: true }),
+  alertAckBy: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  alertAckNote: text(),
+  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   index('system_scheduler_runs_task_idx').on(t.taskName),
   index('system_scheduler_runs_status_idx').on(t.status),
@@ -118,20 +118,20 @@ export type NewSystemSchedulerRun = typeof systemSchedulerRuns.$inferInsert;
 
 // ─── 系统调度任务配置表（启动时注册任务的运行策略）───────────────────────────────
 export const systemSchedulerTaskConfigs = pgTable('system_scheduler_task_configs', {
-  taskName: varchar('task_name', { length: 128 }).primaryKey(),
-  enabled: boolean('enabled').notNull().default(true),
-  logRetentionDays: integer('log_retention_days').notNull().default(30),
-  logRetentionRuns: integer('log_retention_runs').notNull().default(1000),
-  timeoutMs: integer('timeout_ms'),
-  failureAlertThreshold: integer('failure_alert_threshold').notNull().default(1),
-  alertEnabled: boolean('alert_enabled').notNull().default(true),
-  alertChannels: jsonb('alert_channels').$type<Array<'inapp' | 'email' | 'webhook'>>().notNull().default(['inapp']),
-  alertUserIds: jsonb('alert_user_ids').$type<number[]>().notNull().default([]),
-  alertEmails: jsonb('alert_emails').$type<string[]>().notNull().default([]),
-  alertWebhookUrl: varchar('alert_webhook_url', { length: 512 }),
-  manualSingleton: boolean('manual_singleton').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
+  taskName: varchar({ length: 128 }).primaryKey(),
+  enabled: boolean().notNull().default(true),
+  logRetentionDays: integer().notNull().default(30),
+  logRetentionRuns: integer().notNull().default(1000),
+  timeoutMs: integer(),
+  failureAlertThreshold: integer().notNull().default(1),
+  alertEnabled: boolean().notNull().default(true),
+  alertChannels: jsonb().$type<Array<'inapp' | 'email' | 'webhook'>>().notNull().default(['inapp']),
+  alertUserIds: jsonb().$type<number[]>().notNull().default([]),
+  alertEmails: jsonb().$type<string[]>().notNull().default([]),
+  alertWebhookUrl: varchar({ length: 512 }),
+  manualSingleton: boolean().notNull().default(true),
+  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp({ withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export type SystemSchedulerTaskConfigRow = typeof systemSchedulerTaskConfigs.$inferSelect;
@@ -140,18 +140,18 @@ export type NewSystemSchedulerTaskConfig = typeof systemSchedulerTaskConfigs.$in
 
 // ─── 系统调度节点心跳表 ───────────────────────────────────────────────────────
 export const systemSchedulerNodes = pgTable('system_scheduler_nodes', {
-  nodeId: varchar('node_id', { length: 128 }).primaryKey(),
-  hostname: varchar('hostname', { length: 128 }).notNull(),
-  pid: integer('pid').notNull(),
-  version: varchar('version', { length: 64 }),
-  startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
-  lastHeartbeatAt: timestamp('last_heartbeat_at', { withTimezone: true }).notNull(),
-  registeredTaskCount: integer('registered_task_count').notNull().default(0),
-  runningJobCount: integer('running_job_count').notNull().default(0),
-  active: boolean('active').notNull().default(true),
-  metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
+  nodeId: varchar({ length: 128 }).primaryKey(),
+  hostname: varchar({ length: 128 }).notNull(),
+  pid: integer().notNull(),
+  version: varchar({ length: 64 }),
+  startedAt: timestamp({ withTimezone: true }).notNull(),
+  lastHeartbeatAt: timestamp({ withTimezone: true }).notNull(),
+  registeredTaskCount: integer().notNull().default(0),
+  runningJobCount: integer().notNull().default(0),
+  active: boolean().notNull().default(true),
+  metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp({ withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('system_scheduler_nodes_active_idx').on(t.active),
   index('system_scheduler_nodes_last_heartbeat_idx').on(t.lastHeartbeatAt),
@@ -166,16 +166,16 @@ export type NewSystemSchedulerNode = typeof systemSchedulerNodes.$inferInsert;
 // 管理员可调的运行期覆盖值与上次执行结果。启动注册时对已存在行不回写默认值，
 // 因此管理员在后台改过的配置不会被重启覆盖。
 export const retentionPolicies = pgTable('retention_policies', {
-  policyKey: varchar('policy_key', { length: 128 }).primaryKey(),
-  enabled: boolean('enabled').notNull().default(true),
+  policyKey: varchar({ length: 128 }).primaryKey(),
+  enabled: boolean().notNull().default(true),
   /** 保留天数；0 表示不清理 */
-  retentionDays: integer('retention_days').notNull(),
+  retentionDays: integer().notNull(),
   /** 单批删除行数上限 */
-  batchSize: integer('batch_size').notNull().default(5000),
-  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
-  lastDeleted: integer('last_deleted').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
+  batchSize: integer().notNull().default(5000),
+  lastRunAt: timestamp({ withTimezone: true }),
+  lastDeleted: integer().notNull().default(0),
+  createdAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp({ withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export type RetentionPolicyRow = typeof retentionPolicies.$inferSelect;
@@ -186,16 +186,16 @@ export type NewRetentionPolicy = typeof retentionPolicies.$inferInsert;
 export const regionLevelEnum = pgEnum('region_level', ['province', 'city', 'county']);
 
 export const regions = pgTable('regions', {
-  id:         serial('id').primaryKey(),
-  code:       varchar('code', { length: 12 }).notNull().unique(),
-  name:       varchar('name', { length: 64 }).notNull(),
-  level:      regionLevelEnum('level').notNull(),
-  parentCode: varchar('parent_code', { length: 12 }),
-  sort:       integer('sort').notNull().default(0),
-  status:     statusEnum('status').notNull().default('enabled'),
+  id:         integer().primaryKey().generatedAlwaysAsIdentity(),
+  code:       varchar({ length: 12 }).notNull().unique(),
+  name:       varchar({ length: 64 }).notNull(),
+  level:      regionLevelEnum().notNull(),
+  parentCode: varchar({ length: 12 }),
+  sort:       integer().notNull().default(0),
+  status:     statusEnum().notNull().default('enabled'),
   ...auditColumns(),
-  createdAt:  timestamp('created_at').defaultNow().notNull(),
-  updatedAt:  timestamp('updated_at').defaultNow().notNull(),
+  createdAt:  timestamp().defaultNow().notNull(),
+  updatedAt:  timestamp().defaultNow().notNull(),
 });
 
 export type RegionRow = typeof regions.$inferSelect;
@@ -204,13 +204,13 @@ export type NewRegion = typeof regions.$inferInsert;
 
 // ─── 维护模式（单例，id 固定为 1）───────────────────────────────────────────
 export const maintenanceMode = pgTable('maintenance_mode', {
-  id: serial('id').primaryKey(),
-  enabled: boolean('enabled').notNull().default(false),
-  message: varchar('message', { length: 512 }).notNull().default('系统维护中，请稍后重试'),
-  estimatedEndAt: timestamp('estimated_end_at'),
-  startedAt: timestamp('started_at'),
-  startedByName: varchar('started_by_name', { length: 64 }),
-  updatedAt: timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  enabled: boolean().notNull().default(false),
+  message: varchar({ length: 512 }).notNull().default('系统维护中，请稍后重试'),
+  estimatedEndAt: timestamp(),
+  startedAt: timestamp(),
+  startedByName: varchar({ length: 64 }),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export type MaintenanceModeRow = typeof maintenanceMode.$inferSelect;
@@ -219,17 +219,17 @@ export type NewMaintenanceMode = typeof maintenanceMode.$inferInsert;
 
 // ─── 维护记录（每次「开启→关闭」为一条维护时段）─────────────────────────────
 export const maintenanceLogs = pgTable('maintenance_logs', {
-  id: serial('id').primaryKey(),
-  message: varchar('message', { length: 512 }).notNull(),
-  estimatedEndAt: timestamp('estimated_end_at'),
-  startedAt: timestamp('started_at').notNull(),
-  startedById: integer('started_by_id'),
-  startedByName: varchar('started_by_name', { length: 64 }),
-  endedAt: timestamp('ended_at'),
-  endedById: integer('ended_by_id'),
-  endedByName: varchar('ended_by_name', { length: 64 }),
-  durationSeconds: integer('duration_seconds'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  message: varchar({ length: 512 }).notNull(),
+  estimatedEndAt: timestamp(),
+  startedAt: timestamp().notNull(),
+  startedById: integer(),
+  startedByName: varchar({ length: 64 }),
+  endedAt: timestamp(),
+  endedById: integer(),
+  endedByName: varchar({ length: 64 }),
+  durationSeconds: integer(),
+  createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [
   index('maintenance_logs_started_at_idx').on(t.startedAt),
   index('maintenance_logs_ended_at_idx').on(t.endedAt),
@@ -245,22 +245,22 @@ export const userFeedbackCategoryEnum = pgEnum('user_feedback_category', ['sugge
 export const userFeedbackStatusEnum = pgEnum('user_feedback_status', ['pending', 'processing', 'resolved', 'ignored']);
 
 export const userFeedbacks = pgTable('user_feedbacks', {
-  id:           serial('id').primaryKey(),
-  userId:       integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id:           integer().primaryKey().generatedAlwaysAsIdentity(),
+  userId:       integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   /** 满意度评分 1-5，可空（评分与内容至少其一） */
-  score:        integer('score'),
-  category:     userFeedbackCategoryEnum('category').notNull().default('suggestion'),
-  content:      varchar('content', { length: 1000 }),
+  score:        integer(),
+  category:     userFeedbackCategoryEnum().notNull().default('suggestion'),
+  content:      varchar({ length: 1000 }),
   /** 提交时所在页面路由，便于定位问题来源 */
-  pagePath:     varchar('page_path', { length: 200 }),
+  pagePath:     varchar({ length: 200 }),
   /** 提交时活跃的会话回放 ID（反馈联动：管理员可直接回看用户操作现场） */
-  replayId:     varchar('replay_id', { length: 36 }),
-  status:       userFeedbackStatusEnum('status').notNull().default('pending'),
-  handleRemark: varchar('handle_remark', { length: 500 }),
-  handledBy:    integer('handled_by').references(() => users.id, { onDelete: 'set null' }),
-  handledAt:    timestamp('handled_at'),
-  createdAt:    timestamp('created_at').defaultNow().notNull(),
-  updatedAt:    timestamp('updated_at').defaultNow().$onUpdate(() => new Date()).notNull(),
+  replayId:     varchar({ length: 36 }),
+  status:       userFeedbackStatusEnum().notNull().default('pending'),
+  handleRemark: varchar({ length: 500 }),
+  handledBy:    integer().references(() => users.id, { onDelete: 'set null' }),
+  handledAt:    timestamp(),
+  createdAt:    timestamp().defaultNow().notNull(),
+  updatedAt:    timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
   index('user_feedbacks_status_idx').on(t.status),
   index('user_feedbacks_user_idx').on(t.userId),
