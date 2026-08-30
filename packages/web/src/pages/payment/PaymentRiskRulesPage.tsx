@@ -8,7 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -202,7 +202,7 @@ export default function PaymentRiskRulesPage() {
   }
 
   const columns: ColumnProps<PaymentRiskRule>[] = [
-    { title: '名称', dataIndex: 'name', width: 220 },
+    { title: '名称', dataIndex: 'name', width: 220, render: renderEllipsis },
     { title: '作用域', dataIndex: 'scope', width: 100, render: (v: PaymentRiskScope) => PAYMENT_RISK_SCOPE_LABELS[v] },
     { title: '范围', dataIndex: 'channel', width: 150, render: (_: unknown, r: PaymentRiskRule) => {
       const text = r.scope === 'channel' ? (r.channel ? PAYMENT_CHANNEL_LABELS[r.channel] : '-') : r.scope === 'bizType' ? (r.bizType || '-') : '全局';
@@ -222,7 +222,7 @@ export default function PaymentRiskRulesPage() {
       ),
     },
     createOperationColumn<PaymentRiskRule>({
-      width: 130,
+      width: 140,
       actions: (r) => [
         ...(hasPermission('payment:risk:update') ? [{
           key: 'edit',
@@ -245,7 +245,7 @@ export default function PaymentRiskRulesPage() {
   ];
 
   const hitColumns: ColumnProps<PaymentRiskHit>[] = [
-    { title: '命中规则', dataIndex: 'ruleName', width: 140 },
+    { title: '命中规则', dataIndex: 'ruleName', width: 200, render: renderEllipsis },
     { title: '动作', dataIndex: 'action', width: 90, render: (v: PaymentRiskAction) => (v === 'review' ? <Tag color="orange">送审</Tag> : <Tag color="red">拦截</Tag>) },
     { title: '命中维度', dataIndex: 'dimension', width: 110, render: (v: PaymentRiskDimension) => PAYMENT_RISK_DIMENSION_LABELS[v] },
     { title: '命中详情', dataIndex: 'dimensionValue', width: 180, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v || '-'}</Typography.Text> },
@@ -253,7 +253,7 @@ export default function PaymentRiskRulesPage() {
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '金额', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => yuan(v) },
     copyableNoColumn('订单号', 'orderNo'),
-    { title: 'IP', dataIndex: 'clientIp', width: 120, render: (v: string | null) => v || '-' },
+    { title: 'IP', dataIndex: 'clientIp', width: 150, render: renderEllipsis },
     dateTimeColumn('命中时间', 'createdAt', { fixed: 'right' }),
   ];
 
@@ -269,7 +269,7 @@ export default function PaymentRiskRulesPage() {
     createdAtColumn as ColumnProps<PaymentRiskReview>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentRiskReviewStatus) => <Tag color={REVIEW_STATUS_COLOR[v]}>{PAYMENT_RISK_REVIEW_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentRiskReview>({
-      width: 130,
+      width: 140,
       actions: (r) => (canReview && r.status === 'pending' ? [{
         key: 'approve',
         label: '放行',

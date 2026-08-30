@@ -13,8 +13,8 @@ import {
   StatCard,
   StatGrid,
 } from '@/components/charts';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
-import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentMethod, PaymentOrderStatus } from '@zenith/shared/payment';
 import { usePaymentStats, usePaymentTrend } from '@/hooks/queries/payment-stats';
 
 const yuan = formatYuan;
@@ -58,6 +58,19 @@ export default function PaymentStatsPanel() {
     value: s.count,
     fill: STATUS_COLORS[s.status] ?? '#6b7280',
   }));
+  const payMethodData = (stats?.byPayMethod ?? [])
+    .filter((m) => m.amount > 0 || m.count > 0)
+    .map((m) => ({
+      name: PAYMENT_METHOD_LABELS[m.payMethod as PaymentMethod] ?? m.payMethod,
+      amount: m.amount,
+      count: m.count,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+  const bizTypeData = (stats?.byBizType ?? []).map((b) => ({
+    name: b.bizType || '（未标记）',
+    value: b.amount,
+    count: b.count,
+  }));
   const trendData = trend.map((p) => ({
     date: p.date.slice(5),
     amount: Number((p.amount / 100).toFixed(2)),
@@ -96,6 +109,31 @@ export default function PaymentStatsPanel() {
     valueUnit: '单',
   }), [palette, statusData]);
 
+  const payMethodSpec = useMemo(() => makeBarSpec({
+    data: payMethodData,
+    xField: 'name',
+    series: [{ field: 'amount', name: '成功金额', color: '#3b82f6' }],
+    palette,
+    tooltip: { value: (v) => yuan(Number(v)) },
+  }), [palette, payMethodData]);
+
+  const bizTypeSpec = useMemo(() => makePieSpec({
+    data: bizTypeData,
+    categoryField: 'name',
+    valueField: 'value',
+    donut: true,
+    palette,
+    valueFormatter: (v) => yuan(Number(v)),
+  }), [bizTypeData, palette]);
+
+  const countTrendSpec = useMemo(() => makeBarSpec({
+    data: trendData,
+    xField: 'date',
+    series: [{ field: 'count', name: '成功笔数', color: '#8b5cf6' }],
+    palette,
+    tooltip: { value: (v) => `${v} 笔` },
+  }), [palette, trendData]);
+
   return (
     <Spin spinning={statsQuery.isFetching || trendQuery.isFetching}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -118,16 +156,34 @@ export default function PaymentStatsPanel() {
           <AreaChart {...trendSpec} options={chartOptions} height={280} />
         </div>
 
-        {/* 渠道金额分布 + 订单状态分布 */}
+        {/* 渠道金额分布 + 支付方式金额分布 */}
         <div className="chart-grid">
           <div className="zx-panel">
             <div style={sectionTitleStyle}>渠道成功金额分布</div>
             <BarChart {...channelSpec} options={chartOptions} height={240} />
           </div>
           <div className="zx-panel">
+            <div style={sectionTitleStyle}>支付方式成功金额分布</div>
+            <BarChart {...payMethodSpec} options={chartOptions} height={240} />
+          </div>
+        </div>
+
+        {/* 订单状态分布 + 业务类型金额分布 */}
+        <div className="chart-grid">
+          <div className="zx-panel">
             <div style={sectionTitleStyle}>订单状态分布</div>
             <PieChart {...statusSpec} options={chartOptions} height={240} />
           </div>
+          <div className="zx-panel">
+            <div style={sectionTitleStyle}>业务类型成功金额 TOP 10</div>
+            <PieChart {...bizTypeSpec} options={chartOptions} height={240} />
+          </div>
+        </div>
+
+        {/* 成功笔数趋势 */}
+        <div className="zx-panel">
+          <div style={sectionTitleStyle}>成功笔数趋势</div>
+          <BarChart {...countTrendSpec} options={chartOptions} height={220} />
         </div>
       </div>
     </Spin>

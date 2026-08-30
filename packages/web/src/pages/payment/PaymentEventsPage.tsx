@@ -1,6 +1,8 @@
-import { Col, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
+// 直接引组件文件而非 charts 桶文件：后者会连带引入 ~2MB 的 vchart，本页无图表
+import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { JsonBlock } from '@/components/JsonBlock';
@@ -71,7 +73,7 @@ export default function PaymentEventsPage() {
     dateTimeColumn('处理时间', 'processedAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentOutboxEvent['status']) => <Tag color={EVENT_STATUS_COLOR[v]}>{EVENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentOutboxEvent>({
-      width: 80,
+      width: 90,
       actions: (r) => [
         ...(r.status !== 'done' && hasPermission('payment:ops:manage') ? [{
           key: 'redispatch',
@@ -85,7 +87,8 @@ export default function PaymentEventsPage() {
 
   /** 行内展开：完整错误信息与事件载荷 */
   const renderExpanded = (r?: PaymentOutboxEvent) => (r ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+    // flex: 1 + minWidth: 0：Semi 展开行容器是 flex row，不声明会被收缩成内容最小宽
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0', flex: 1, minWidth: 0 }}>
       {r.lastError && (
         <div>
           <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>最近错误</Typography.Text>
@@ -120,25 +123,15 @@ export default function PaymentEventsPage() {
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
+  // 与订单统计等页面统一的无边框统计形态（StatGrid/StatCard）
   const renderHealthCards = () => (
-    <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
+    <StatGrid minItemWidth={148} style={{ marginBottom: 12 }}>
       {HEALTH_LABELS.map(([key, label]) => {
         const value = health?.[key] ?? 0;
         const danger = (key === 'outboxFailed' || key === 'webhookFailed24h') && value > 0;
-        return (
-          <Col key={key} xs={12} sm={8} xl={3}>
-            <div style={{ background: 'var(--surface-card)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: '12px 14px' }}>
-              <Typography.Text type="tertiary" size="small">{label}</Typography.Text>
-              <div style={{ marginTop: 6 }}>
-                <Typography.Text strong type={danger ? 'danger' : undefined} style={{ fontSize: 22, lineHeight: '28px' }}>
-                  {value}
-                </Typography.Text>
-              </div>
-            </div>
-          </Col>
-        );
+        return <StatCard key={key} title={label} value={value} accent={danger ? 'var(--semi-color-danger)' : undefined} />;
       })}
-    </Row>
+    </StatGrid>
   );
 
   return (

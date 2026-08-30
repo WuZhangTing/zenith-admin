@@ -164,6 +164,8 @@ export const PaymentStatsDTO = z
     avgAmount: z.number().openapi({ description: '成功订单笔均金额（分）' }),
     byChannel: z.array(z.object({ channel: z.string(), count: z.number(), amount: z.number() })),
     byStatus: z.array(z.object({ status: z.string(), count: z.number() })),
+    byPayMethod: z.array(z.object({ payMethod: z.string(), count: z.number(), amount: z.number() })).openapi({ description: '按支付方式分布（amount=成功口径金额）' }),
+    byBizType: z.array(z.object({ bizType: z.string(), count: z.number(), amount: z.number() })).openapi({ description: '按业务类型成功金额 TOP 10' }),
   })
   .openapi('PaymentStats');
 

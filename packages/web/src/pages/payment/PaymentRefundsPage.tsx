@@ -103,7 +103,9 @@ export default function PaymentRefundsPage() {
     },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentRefundStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentRefund>({
-      width: 200,
+      // 详情内联(52) + 查单/通过/驳回收进更多(22)：78 + 32
+      width: 110,
+      desktopInlineKeys: ['detail'],
       actions: (r) => [
         {
           key: 'detail',

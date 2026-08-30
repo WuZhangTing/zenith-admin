@@ -20,7 +20,8 @@ export async function getPaymentStats(): Promise<PaymentStats> {
   todayStart.setHours(0, 0, 0, 0);
 
   const PAID_STATUSES = ['success', 'refunding', 'refunded'] as const;
-  const [totals, todayRow, byStatusRows, byChannelRows, refundTotal] = await Promise.all([
+  const paidAmountExpr = sql<number>`coalesce(sum(case when ${paymentOrders.status} in ('success','refunding','refunded') then ${paymentOrders.amount} else 0 end),0)`;
+  const [totals, todayRow, byStatusRows, byChannelRows, byPayMethodRows, byBizTypeRows, refundTotal] = await Promise.all([
     db
       .select({
         totalAmount: sql<number>`coalesce(sum(case when ${paymentOrders.status} in ('success','refunding','refunded') then ${paymentOrders.amount} else 0 end),0)`,
@@ -41,11 +42,31 @@ export async function getPaymentStats(): Promise<PaymentStats> {
       .select({
         channel: paymentOrders.channel,
         count: sql<number>`count(*)`,
-        amount: sql<number>`coalesce(sum(case when ${paymentOrders.status} in ('success','refunding','refunded') then ${paymentOrders.amount} else 0 end),0)`,
+        amount: paidAmountExpr,
       })
       .from(paymentOrders)
       .where(tc)
       .groupBy(paymentOrders.channel),
+    db
+      .select({
+        payMethod: paymentOrders.payMethod,
+        count: sql<number>`count(*)`,
+        amount: paidAmountExpr,
+      })
+      .from(paymentOrders)
+      .where(tc)
+      .groupBy(paymentOrders.payMethod),
+    db
+      .select({
+        bizType: paymentOrders.bizType,
+        count: sql<number>`count(*) filter (where ${paymentOrders.status} in ('success','refunding','refunded'))`,
+        amount: paidAmountExpr,
+      })
+      .from(paymentOrders)
+      .where(tc)
+      .groupBy(paymentOrders.bizType)
+      .orderBy(sql`3 desc`)
+      .limit(10),
     db
       .select({
         amount: sql<number>`coalesce(sum(${paymentRefunds.refundAmount}),0)`,
@@ -73,6 +94,8 @@ export async function getPaymentStats(): Promise<PaymentStats> {
     avgAmount: successCount > 0 ? Math.round(totalAmount / successCount) : 0,
     byChannel: byChannelRows.map((r) => ({ channel: r.channel, count: Number(r.count), amount: Number(r.amount) })),
     byStatus: byStatusRows.map((r) => ({ status: r.status, count: Number(r.count) })),
+    byPayMethod: byPayMethodRows.map((r) => ({ payMethod: r.payMethod, count: Number(r.count), amount: Number(r.amount) })),
+    byBizType: byBizTypeRows.map((r) => ({ bizType: r.bizType, count: Number(r.count), amount: Number(r.amount) })),
   };
 }
 

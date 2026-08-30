@@ -6,7 +6,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import {
@@ -106,7 +106,7 @@ export default function PaymentFeeRulesPage() {
   }
 
   const columns: ColumnProps<PaymentFeeRule>[] = [
-    { title: '名称', dataIndex: 'name', width: 160 },
+    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '全部') },
     { title: '费率', dataIndex: 'rateBps', width: 90, align: 'right', render: (v: number) => `${(v / 100).toFixed(2)}%` },
@@ -121,7 +121,7 @@ export default function PaymentFeeRulesPage() {
       ),
     },
     createOperationColumn<PaymentFeeRule>({
-      width: 130,
+      width: 140,
       actions: (r) => [
         ...(hasPermission('payment:fee:update') ? [{
           key: 'edit',

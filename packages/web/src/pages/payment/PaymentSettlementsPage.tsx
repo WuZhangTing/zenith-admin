@@ -86,7 +86,8 @@ export default function PaymentSettlementsPage() {
     createdAtColumn as ColumnProps<PaymentSettlementBatch>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSettlementStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_SETTLEMENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSettlementBatch>({
-      width: 180,
+      // 标记到账/标记失败两个 4 字按钮同现(settling)：164 + 32
+      width: 200,
       emptyContent: <Typography.Text type="tertiary">—</Typography.Text>,
       actions: (r) => {
         if (!canSettle || r.status === 'settled' || r.status === 'failed') return [];

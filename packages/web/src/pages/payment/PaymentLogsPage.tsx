@@ -11,7 +11,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
-import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
 interface SearchParams { keyword: string; channel: string; scene: string; signatureValid: string; timeRange: [Date, Date] | null; }
@@ -49,13 +49,14 @@ export default function PaymentLogsPage() {  const {
     { title: '验签', dataIndex: 'signatureValid', width: 90, render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? '通过' : '失败'}</Tag> },
     { title: '结果', dataIndex: 'result', width: 120, render: (v: string | null) => v || '-' },
     { title: '说明', dataIndex: 'message', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v || '-'}</Typography.Text> },
-    { title: 'IP', dataIndex: 'ip', width: 140, render: (v: string | null) => v || '-' },
+    { title: 'IP', dataIndex: 'ip', width: 150, render: renderEllipsis },
     dateTimeColumn('时间', 'createdAt'),
   ];
 
   /** 行内展开：请求头与原始 Body（无内容的行不可展开） */
   const renderExpanded = (r?: PaymentNotifyLog) => (r ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+    // flex: 1 + minWidth: 0：Semi 展开行容器是 flex row，不声明会被收缩成内容最小宽
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0', flex: 1, minWidth: 0 }}>
       {r.headers && (
         <div>
           <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>请求头</Typography.Text>

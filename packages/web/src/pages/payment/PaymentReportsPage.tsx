@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { Banner, Checkbox, Select, Spin } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { BarChart, chartOptions, makeBarSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
+import { BarChart, PieChart, chartOptions, makeBarSpec, makePieSpec, useChartPalette, StatCard, StatGrid } from '@/components/charts';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTimeRangeForApi } from '@/utils/date';
@@ -45,7 +45,13 @@ export default function PaymentReportsPage() {
   const loading = summaryQuery.isFetching;
 
   const chartData = useMemo(
-    () => (summary?.rows ?? []).map((r) => ({ name: r.label, 收款: Number((r.gross / 100).toFixed(2)), 净额: Number((r.net / 100).toFixed(2)) })),
+    () => (summary?.rows ?? []).map((r) => ({
+      name: r.label,
+      收款: Number((r.gross / 100).toFixed(2)),
+      退款: Number((r.refund / 100).toFixed(2)),
+      净额: Number((r.net / 100).toFixed(2)),
+      count: r.count,
+    })),
     [summary?.rows],
   );
   const barSpec = useMemo(
@@ -55,6 +61,7 @@ export default function PaymentReportsPage() {
         xField: 'name',
         series: [
           { field: '收款', name: '收款', color: '#10b981' },
+          { field: '退款', name: '退款', color: '#f97316' },
           { field: '净额', name: '净额', color: '#3b82f6' },
         ],
         palette,
@@ -63,6 +70,34 @@ export default function PaymentReportsPage() {
       }),
     [chartData, palette],
   );
+  const netPieSpec = useMemo(
+    () =>
+      makePieSpec({
+        data: chartData.filter((d) => d.净额 > 0).map((d) => ({ name: d.name, value: d.净额 })),
+        categoryField: 'name',
+        valueField: 'value',
+        donut: true,
+        palette,
+        valueFormatter: (v) => `¥${v}`,
+      }),
+    [chartData, palette],
+  );
+  const countBarSpec = useMemo(
+    () =>
+      makeBarSpec({
+        data: chartData,
+        xField: 'name',
+        series: [{ field: 'count', name: '成功笔数', color: '#8b5cf6' }],
+        palette,
+        tooltip: { value: (v) => `${v} 笔` },
+      }),
+    [chartData, palette],
+  );
+
+  // 衍生指标（分转元前先算比率，避免精度损耗）
+  const avgTicket = summary && summary.totalCount > 0 ? Math.round(summary.totalGross / summary.totalCount) : null;
+  const refundRatio = summary && summary.totalGross > 0 ? (summary.totalRefund / summary.totalGross) * 100 : null;
+  const feeRatio = summary && summary.totalGross > 0 ? (summary.totalFee / summary.totalGross) * 100 : null;
 
   const columns: ColumnProps<PaymentReportRow>[] = [
     { title: PAYMENT_REPORT_GROUP_BY_LABELS[summary?.groupBy ?? 'bizType'], dataIndex: 'label', width: 160 },
@@ -71,6 +106,8 @@ export default function PaymentReportsPage() {
     { title: '退款', dataIndex: 'refund', width: 120, align: 'right', render: (v: number) => yuan(v) },
     { title: '净额', dataIndex: 'net', width: 130, align: 'right', render: (v: number) => yuan(v) },
     { title: '成功笔数', dataIndex: 'count', width: 100, align: 'right' },
+    { title: '笔均', dataIndex: 'avg', width: 110, align: 'right', render: (_: unknown, r: PaymentReportRow) => (r.count > 0 ? yuan(Math.round(r.gross / r.count)) : '—') },
+    { title: '退款率', dataIndex: 'refundRate', width: 100, align: 'right', render: (_: unknown, r: PaymentReportRow) => (r.gross > 0 ? `${((r.refund / r.gross) * 100).toFixed(1)}%` : '—') },
   ];
 
   const renderGroupByFilter = () => (
@@ -144,11 +181,25 @@ export default function PaymentReportsPage() {
             <StatCard title="退款总额" value={summary ? yuan(summary.totalRefund) : '—'} accent="var(--semi-color-warning)" deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalRefund, prev.totalRefund) : null} />
             <StatCard title="净额" value={summary ? yuan(summary.totalNet) : '—'} accent="var(--semi-color-primary)" deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalNet, prev.totalNet) : null} />
             <StatCard title="成功笔数" value={summary?.totalCount ?? '—'} deltaLabel="环比" deltaFormat="ratio" delta={summary && prev ? calcDelta(summary.totalCount, prev.totalCount) : null} />
+            <StatCard title="客单价" value={avgTicket != null ? yuan(avgTicket) : '—'} sub="收款总额 / 成功笔数" />
+            <StatCard title="退款率" value={refundRatio != null ? `${refundRatio.toFixed(1)}%` : '—'} accent={refundRatio != null && refundRatio > 20 ? 'var(--semi-color-danger)' : undefined} sub="退款 / 收款" />
+            <StatCard title="费率成本" value={feeRatio != null ? `${feeRatio.toFixed(2)}%` : '—'} sub="手续费 / 收款" />
           </StatGrid>
 
           <div className="zx-panel">
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>收款 / 净额分布</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>收款 / 退款 / 净额分布</div>
             <BarChart {...barSpec} options={chartOptions} height={300} />
+          </div>
+
+          <div className="chart-grid">
+            <div className="zx-panel">
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>净额占比</div>
+              <PieChart {...netPieSpec} options={chartOptions} height={240} />
+            </div>
+            <div className="zx-panel">
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>成功笔数分布</div>
+              <BarChart {...countBarSpec} options={chartOptions} height={240} />
+            </div>
           </div>
 
           <ConfigurableTable

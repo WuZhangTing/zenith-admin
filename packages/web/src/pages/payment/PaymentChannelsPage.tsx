@@ -23,7 +23,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 interface SearchParams {
   keyword: string;
@@ -132,7 +132,7 @@ export default function PaymentChannelsPage() {
   }
 
   const columns: ColumnProps<PaymentChannelConfig>[] = [
-    { title: '名称', dataIndex: 'name', width: 180 },
+    { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '渠道', dataIndex: 'channel', width: 110, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '默认', dataIndex: 'isDefault', width: 80, render: (v: boolean) => (v ? <Tag color="amber">默认</Tag> : '-') },
     { title: '沙箱', dataIndex: 'sandbox', width: 80, render: (v: boolean) => (v ? <Tag color="grey">沙箱</Tag> : '-') },
@@ -144,7 +144,9 @@ export default function PaymentChannelsPage() {
       ),
     },
     createOperationColumn<PaymentChannelConfig>({
-      width: 280,
+      // 编辑/删除内联(108) + 低频「测试/设为默认」收进更多(22)：134 + 32
+      width: 170,
+      desktopInlineKeys: ['edit', 'delete'],
       actions: (r) => [
         ...(hasPermission('payment:channel:update') && !r.isDefault ? [{
           key: 'default',

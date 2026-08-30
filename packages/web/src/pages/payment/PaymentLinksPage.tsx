@@ -10,7 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { formatDateTimeForApi } from '@/utils/date';
-import { createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
@@ -164,7 +164,7 @@ export default function PaymentLinksPage() {
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number | null) => yuan(v) },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '用户选择') },
-    { title: '业务类型', dataIndex: 'bizType', width: 120 },
+    { title: '业务类型', dataIndex: 'bizType', width: 140, render: renderEllipsis },
     { title: '已用/上限', dataIndex: 'usedCount', width: 110, align: 'right', render: (_: unknown, r: PaymentLink) => `${r.usedCount} / ${r.maxUses ?? '∞'}` },
     dateTimeColumn('失效时间', 'expiredAt', { empty: '永久' }),
     createdAtColumn as ColumnProps<PaymentLink>,

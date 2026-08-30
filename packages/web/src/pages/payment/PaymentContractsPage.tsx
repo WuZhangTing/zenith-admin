@@ -9,7 +9,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ExportButton from '@/components/ExportButton';
-import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
@@ -210,7 +210,8 @@ export default function PaymentContractsPage() {
     createdAtColumn as ColumnProps<PaymentContract>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentContractStatus) => <Tag color={CONTRACT_STATUS_COLOR[v]}>{PAYMENT_CONTRACT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentContract>({
-      width: 180,
+      // 补扣/暂停/解约三个 2 字按钮同现(signed)：164 + 32
+      width: 200,
       actions: (r) => (canManage ? [
         ...(r.status === 'signed' ? [{
           key: 'deduct',
@@ -245,16 +246,16 @@ export default function PaymentContractsPage() {
   ];
 
   const planColumns: ColumnProps<PaymentDeductPlan>[] = [
-    { title: '计划名称', dataIndex: 'name', width: 180 },
+    { title: '计划名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '扣款周期', dataIndex: 'period', width: 120, render: (_: unknown, p) => describePlanPeriod(p) },
     { title: '每期金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
-    { title: '失败重试上限', dataIndex: 'maxRetries', width: 110 },
+    { title: '重试上限', dataIndex: 'maxRetries', width: 100 },
     { title: '签约数', dataIndex: 'contractCount', width: 90, align: 'right', render: (v: number | undefined) => v ?? 0 },
-    { title: '备注', dataIndex: 'remark', width: 200, render: (v: string | null) => v || '-' },
+    { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
     createdAtColumn as ColumnProps<PaymentDeductPlan>,
     { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: (v: 'enabled' | 'disabled') => (v === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">停用</Tag>) },
     createOperationColumn<PaymentDeductPlan>({
-      width: 130,
+      width: 140,
       actions: (p) => (canPlan ? [{
         key: 'edit',
         label: '编辑',

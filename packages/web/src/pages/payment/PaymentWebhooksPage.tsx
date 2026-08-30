@@ -25,7 +25,7 @@ import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -162,7 +162,7 @@ export default function PaymentWebhooksPage() {
   }
 
   const endpointColumns: ColumnProps<PaymentWebhookEndpoint>[] = [
-    { title: '名称', dataIndex: 'name', width: 160 },
+    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: 'URL', dataIndex: 'url', width: 260, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 240 }}>{v}</Typography.Text> },
     { title: '业务类型', dataIndex: 'bizType', width: 120, render: (v: string | null) => v || '全部' },
     { title: '事件', dataIndex: 'events', width: 260, render: (v: string[]) => (v.length ? <Space wrap>{v.map((e) => <Tag key={e} color="blue">{EVENT_OPTIONS.find((o) => o.value === e)?.label ?? e}</Tag>)}</Space> : '全部事件') },
@@ -175,7 +175,8 @@ export default function PaymentWebhooksPage() {
       ),
     },
     createOperationColumn<PaymentWebhookEndpoint>({
-      width: 170,
+      // 测试/编辑/删除三个 2 字按钮：164 + 32
+      width: 200,
       actions: (r) => [
         ...(hasPermission('payment:webhook:update') ? [{
           key: 'test',
@@ -204,7 +205,7 @@ export default function PaymentWebhooksPage() {
 
   const deliveryColumns: ColumnProps<PaymentWebhookDelivery>[] = [
     { title: 'ID', dataIndex: 'id', width: 80 },
-    { title: '端点', dataIndex: 'endpointName', width: 160, render: (v: string | null) => v || '-' },
+    { title: '端点', dataIndex: 'endpointName', width: 160, render: renderEllipsis },
     { title: '事件类型', dataIndex: 'eventType', width: 160 },
     copyableNoColumn('订单号', 'orderNo'),
     { title: '次数', dataIndex: 'attempts', width: 80, align: 'right' },
@@ -212,7 +213,7 @@ export default function PaymentWebhooksPage() {
     dateTimeColumn('创建时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentWebhookDelivery['status']) => <Tag color={DELIVERY_STATUS_COLOR[v]}>{PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentWebhookDelivery>({
-      width: 80,
+      width: 90,
       actions: (r) => [
         ...(r.status !== 'success' ? [{
           key: 'redeliver',
@@ -226,7 +227,9 @@ export default function PaymentWebhooksPage() {
 
   /** 行内展开：投递 Payload / 响应体 / 最近错误 */
   const renderDeliveryExpanded = (r?: PaymentWebhookDelivery) => (r ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0' }}>
+    // flex: 1 + minWidth: 0：Semi 展开行容器（semi-table-expand-inner）是 flex row，
+    // 不声明会被收缩成内容最小宽，JsonViewer 只剩一条窄缝
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0', flex: 1, minWidth: 0 }}>
       <div>
         <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>Payload</Typography.Text>
         <JsonBlock value={formatRaw(r.payload)} />

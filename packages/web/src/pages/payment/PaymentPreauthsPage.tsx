@@ -133,7 +133,8 @@ export default function PaymentPreauthsPage() {
     createdAtColumn as ColumnProps<PaymentPreauth>,
     { title: '状态', dataIndex: 'status', width: 95, fixed: 'right', render: (v: PaymentPreauthStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_PREAUTH_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentPreauth>({
-      width: 130,
+      // 转支付(66) + 解冻(52) 同现：122 + 32
+      width: 160,
       actions: (r) => (canManage && r.status === 'frozen' ? [{
         key: 'capture',
         label: '转支付',

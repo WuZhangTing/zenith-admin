@@ -33,6 +33,21 @@ export const paymentHandlers = [
       .filter((c) => c.count > 0);
     const statusMap = new Map<string, number>();
     for (const o of mockPaymentOrders) statusMap.set(o.status, (statusMap.get(o.status) ?? 0) + 1);
+    const byPayMethodMap = new Map<string, { count: number; amount: number }>();
+    for (const o of mockPaymentOrders) {
+      const cur = byPayMethodMap.get(o.payMethod) ?? { count: 0, amount: 0 };
+      cur.count += 1;
+      if (isPaid(o.status)) cur.amount += o.amount;
+      byPayMethodMap.set(o.payMethod, cur);
+    }
+    const byBizTypeMap = new Map<string, { count: number; amount: number }>();
+    for (const o of mockPaymentOrders) {
+      if (!isPaid(o.status)) continue;
+      const cur = byBizTypeMap.get(o.bizType) ?? { count: 0, amount: 0 };
+      cur.count += 1;
+      cur.amount += o.amount;
+      byBizTypeMap.set(o.bizType, cur);
+    }
     const round1 = (n: number) => Math.round(n * 10) / 10;
     return ok({
       totalAmount,
@@ -47,6 +62,8 @@ export const paymentHandlers = [
       avgAmount: successCount > 0 ? Math.round(totalAmount / successCount) : 0,
       byChannel,
       byStatus: [...statusMap].map(([status, count]) => ({ status, count })),
+      byPayMethod: [...byPayMethodMap].map(([payMethod, v]) => ({ payMethod, ...v })),
+      byBizType: [...byBizTypeMap].map(([bizType, v]) => ({ bizType, ...v })).sort((a, b) => b.amount - a.amount).slice(0, 10),
     });
   }),
 

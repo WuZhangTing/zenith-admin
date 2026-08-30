@@ -35,7 +35,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { compactQuery } from '@/lib/query';
-import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -214,10 +214,10 @@ export default function PaymentOrdersPage() {
 
   const columns: ColumnProps<PaymentOrder>[] = [
     copyableNoColumn('订单号', 'orderNo'),
-    { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => v || '-' },
+    { title: '标题', dataIndex: 'subject', width: 240, render: renderEllipsis },
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
-    { title: '方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
+    { title: '方式', dataIndex: 'payMethod', width: 150, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
     { title: '业务类型', dataIndex: 'bizType', width: 160, render: (v: string) => v || '-' },
     dateTimeColumn('支付时间', 'paidAt'),
     dateTimeColumn('创建时间', 'createdAt'),
@@ -226,7 +226,9 @@ export default function PaymentOrdersPage() {
       render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_ORDER_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<PaymentOrder>({
-      width: 280,
+      // 详情/退款内联(108) + 查单/模拟支付/关闭收进更多(22)：134 + 32
+      width: 170,
+      desktopInlineKeys: ['detail', 'refund'],
       actions: (r) => [
         {
           key: 'detail',

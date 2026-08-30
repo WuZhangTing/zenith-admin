@@ -594,6 +594,10 @@ export interface PaymentStats {
   avgAmount: number;
   byChannel: { channel: string; count: number; amount: number }[];
   byStatus: { status: string; count: number }[];
+  /** 按支付方式分布（count=全部订单数，amount=成功口径金额） */
+  byPayMethod: { payMethod: string; count: number; amount: number }[];
+  /** 按业务类型成功金额 TOP 10 */
+  byBizType: { bizType: string; count: number; amount: number }[];
 }
 
 /** 收款趋势单点（按天） */

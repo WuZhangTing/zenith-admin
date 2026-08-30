@@ -185,7 +185,7 @@ export default function PaymentReconPage() {
     dateTimeColumn('创建时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentReconStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_RECON_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentReconBatch>({
-      width: 130,
+      width: 140,
       actions: (r) => [
         {
           key: 'items',

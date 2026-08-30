@@ -9,7 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useAllPaymentChannelConfigsLookup } from '@/hooks/queries/payment-channels';
 import { paymentAppKeys, useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
-import { createdAtColumn } from '@/utils/table-columns';
+import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -96,16 +96,16 @@ export default function PaymentAppsPage() {
   }
 
   const columns: ColumnProps<PaymentApp>[] = [
-    { title: '应用名称', dataIndex: 'name', width: 180 },
+    { title: '应用名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: 'appKey', dataIndex: 'appKey', width: 180, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
-    { title: '微信配置', dataIndex: 'wechatConfigName', width: 160, render: (v: string | null) => v || '-' },
-    { title: '支付宝配置', dataIndex: 'alipayConfigName', width: 160, render: (v: string | null) => v || '-' },
-    { title: '云闪付配置', dataIndex: 'unionpayConfigName', width: 160, render: (v: string | null) => v || '-' },
+    { title: '微信配置', dataIndex: 'wechatConfigName', width: 160, render: renderEllipsis },
+    { title: '支付宝配置', dataIndex: 'alipayConfigName', width: 160, render: renderEllipsis },
+    { title: '云闪付配置', dataIndex: 'unionpayConfigName', width: 160, render: renderEllipsis },
     { title: '备注', dataIndex: 'remark', width: 180, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v || '-'}</Typography.Text> },
     createdAtColumn as ColumnProps<PaymentApp>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentApp['status']) => <Tag color={STATUS_COLOR[v]}>{STATUS_LABEL[v]}</Tag> },
     createOperationColumn<PaymentApp>({
-      width: 130,
+      width: 140,
       actions: (r) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => modal.openEdit(r) },
         {

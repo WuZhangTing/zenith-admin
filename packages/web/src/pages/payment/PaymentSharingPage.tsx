@@ -8,7 +8,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -141,7 +141,7 @@ export default function PaymentSharingPage() {
   }
 
   const receiverColumns: ColumnProps<PaymentSharingReceiver>[] = [
-    { title: '名称', dataIndex: 'name', width: 160 },
+    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '类型', dataIndex: 'receiverType', width: 90, render: (v: PaymentSharingReceiverType) => PAYMENT_SHARING_RECEIVER_TYPE_LABELS[v] },
     { title: '账号', dataIndex: 'account', width: 200, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} copyable={{ content: v }} style={{ maxWidth: 180 }}>{v}</Typography.Text> },
     { title: '默认比例', dataIndex: 'ratioBps', width: 110, align: 'right', render: (v: number | null) => (v == null ? '-' : `${(v / 100).toFixed(2)}%`) },
@@ -152,7 +152,7 @@ export default function PaymentSharingPage() {
       render: (_: unknown, r: PaymentSharingReceiver) => <Switch checked={r.status === 'enabled'} loading={togglingId === r.id} disabled={!canManage} size="small" onChange={(c) => void handleReceiverToggle(r, c)} />,
     },
     createOperationColumn<PaymentSharingReceiver>({
-      width: 130,
+      width: 140,
       actions: (r) => [
         ...(canManage ? [{
           key: 'edit',
@@ -176,7 +176,7 @@ export default function PaymentSharingPage() {
   const orderColumns: ColumnProps<PaymentSharingOrder>[] = [
     copyableNoColumn('分账单号', 'sharingNo'),
     copyableNoColumn('订单号', 'orderNo'),
-    { title: '接收方', dataIndex: 'receiverName', width: 140, render: (v: string | null) => v || '-' },
+    { title: '接收方', dataIndex: 'receiverName', width: 150, render: renderEllipsis },
     { title: '分账金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     copyableNoColumn('渠道分账号', 'channelSharingNo', { width: 300 }),
     dateTimeColumn('完成时间', 'finishedAt'),

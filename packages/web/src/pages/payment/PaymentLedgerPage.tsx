@@ -26,7 +26,7 @@ import type { PaymentAccount, PaymentAccountCheckRow, PaymentChannel, PaymentLed
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
-import { copyableNoColumn, dateTimeColumn, EMPTY_PLACEHOLDER, NO_COLUMN_WIDTH } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, EMPTY_PLACEHOLDER, NO_COLUMN_WIDTH, renderEllipsis } from '@/utils/table-columns';
 
 const yuan = formatYuan;
 interface SearchParams {
@@ -118,7 +118,7 @@ export default function PaymentLedgerPage() {
       },
     },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel | null) => (v ? <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> : '-') },
-    { title: '业务类型', dataIndex: 'bizType', width: 120, render: (v: string | null) => v || '-' },
+    { title: '业务类型', dataIndex: 'bizType', width: 140, render: renderEllipsis },
     dateTimeColumn('创建时间', 'createdAt'),
   ];
 
