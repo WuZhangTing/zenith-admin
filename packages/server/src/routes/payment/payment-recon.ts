@@ -113,7 +113,7 @@ const autoRoute = defineOpenAPIRoute({
 const handleItemRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'patch', path: '/items/{id}/handle', tags: ['支付中心-对账'], summary: '处理对账差异（调账/挂账/忽略）',
-    description: '将待处理差异流转为已调账/挂账/已忽略；处理原因必填，选择「已调账」时按差异金额原子写入双分录凭证。',
+    description: '将待处理差异流转为已调账/挂账/已忽略；处理原因必填。仅由真实渠道适配器下载的账单允许选择「已调账」并原子写入双分录凭证，人工上传和沙箱模拟账单只能挂账或忽略。',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:recon:handle', audit: { description: '处理支付对账差异', module: '支付中心' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(handlePaymentReconItemSchema), required: true } },

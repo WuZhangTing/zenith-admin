@@ -29,7 +29,7 @@ import { assertPaymentEngineConfig } from './payment-channel-config-resolver';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import logger from '../../lib/logger';
 import type { SQL } from 'drizzle-orm';
-import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared/payment';
+import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconSource, PaymentReconStatus } from '@zenith/shared/payment';
 
 function genNo(prefix: string): string {
   return `${prefix}${Date.now()}${randomInt(1000, 9999)}`;
@@ -44,6 +44,7 @@ export function mapReconBatch(row: PaymentReconBatchRow): PaymentReconBatch {
     channelConfigId: row.channelConfigId,
     currency: row.currency,
     billDate: row.billDate,
+    source: row.source,
     status: row.status,
     localCount: row.localCount,
     localAmount: row.localAmount,
@@ -237,7 +238,7 @@ export async function createReconBatch(input: CreateReconInput): Promise<Payment
   await ensureReconConfig(input.channelConfigId, input.channel, tenantId);
   const appId = await resolveReconApplication(input.channelConfigId, input.channel, tenantId, input.applicationId);
   if (appId !== input.applicationId) throw new HTTPException(400, { message: '支付应用与商户配置绑定关系无效' });
-  return createReconBatchScoped(input, { tenantId, orderWhere });
+  return createReconBatchScoped(input, { tenantId, orderWhere }, 'manual_upload');
 }
 
 interface ReconScope {
@@ -248,7 +249,11 @@ interface ReconScope {
 }
 
 /** 对账核心：解析渠道账单 + 拉本地订单 + 逐笔比对 + 落库统计。不依赖请求上下文，供路由与定时任务复用。 */
-async function createReconBatchScoped(input: CreateReconInput, scope: ReconScope): Promise<PaymentReconBatch> {
+async function createReconBatchScoped(
+  input: CreateReconInput,
+  scope: ReconScope,
+  source: PaymentReconSource,
+): Promise<PaymentReconBatch> {
   const channelRecords = parseChannelBill(input.billText);
   const localRows = await loadLocalPaidRowsScoped(input.channel, input.applicationId, input.channelConfigId, input.currency, input.billDate, scope.orderWhere);
 
@@ -297,6 +302,7 @@ async function createReconBatchScoped(input: CreateReconInput, scope: ReconScope
         channelConfigId: input.channelConfigId,
         currency: input.currency,
         billDate: input.billDate,
+        source,
         status: 'done',
         localCount: localMap.size,
         localAmount,
@@ -330,20 +336,27 @@ export async function deleteReconBatch(id: number): Promise<void> {
 
 // ─── 差异处理流 ───────────────────────────────────────────────────────────────
 
-/** 按差异类型推导调账方向与金额：金额不一致按差额；渠道单边按渠道金额入账；本地单边按本地金额出账。 */
-export function computeAdjustment(item: Pick<PaymentReconItemRow, 'result' | 'localAmount' | 'channelAmount'>): { direction: 'in' | 'out'; amount: number } | null {
+type ReconAdjustment = { direction: 'in' | 'out'; amount: number };
+
+/** 按本地可验证的差异推导调账方向与金额；渠道单边不能仅凭通用账单明细直接形成入账结论。 */
+export function computeAdjustment(item: Pick<PaymentReconItemRow, 'result' | 'localAmount' | 'channelAmount'>): ReconAdjustment | null {
   if (item.result === 'amount_diff' && item.localAmount != null && item.channelAmount != null) {
     const delta = item.channelAmount - item.localAmount;
     if (delta === 0) return null;
     return { direction: delta > 0 ? 'in' : 'out', amount: Math.abs(delta) };
   }
-  if (item.result === 'channel_only' && item.channelAmount != null && item.channelAmount > 0) {
-    return { direction: 'in', amount: item.channelAmount };
-  }
   if (item.result === 'local_only' && item.localAmount != null && item.localAmount > 0) {
     return { direction: 'out', amount: item.localAmount };
   }
   return null;
+}
+
+/** 渠道下载账单已经过商户配置绑定与渠道适配器认证，可在人工确认后处理渠道单边入账。 */
+function computeProviderAdjustment(item: Pick<PaymentReconItemRow, 'result' | 'localAmount' | 'channelAmount'>): ReconAdjustment | null {
+  if (item.result === 'channel_only' && item.channelAmount != null && item.channelAmount > 0) {
+    return { direction: 'in', amount: item.channelAmount };
+  }
+  return computeAdjustment(item);
 }
 
 /** 处理对账差异项：pending → adjusted/suspended/ignored（条件更新防重复处理）。
@@ -364,14 +377,10 @@ export async function handleReconItem(itemId: number, input: HandlePaymentReconI
       .limit(1);
     if (!batch) throw new HTTPException(404, { message: '对账批次不存在' });
     if (item.handleStatus == null) throw new HTTPException(400, { message: '该明细比对一致，无需处理' });
-    if (item.result === 'channel_only' && input.action === 'adjusted') {
-      // A CSV row alone is not proof that funds belong to this merchant scope.
-      // Keep channel-only rows in suspense until a trusted provider reference
-      // or a separately approved adjustment is available; never credit
-      // merchant_available directly from an uploaded file.
-      throw new HTTPException(409, { message: '渠道单边明细只能先挂账或忽略，核验后再通过受控资金调整入账' });
+    if (input.action === 'adjusted' && batch.source !== 'provider_download') {
+      throw new HTTPException(409, { message: '仅渠道下载账单可直接调账；人工上传和沙箱模拟账单只能挂账或忽略' });
     }
-    const adjustment = input.action === 'adjusted' ? computeAdjustment(item) : null;
+    const adjustment = input.action === 'adjusted' ? computeProviderAdjustment(item) : null;
     if (input.action === 'adjusted' && !adjustment) {
       throw new HTTPException(400, { message: '该差异缺少可调账金额，请选择挂账或忽略' });
     }
@@ -390,7 +399,7 @@ export async function handleReconItem(itemId: number, input: HandlePaymentReconI
         operatorId: user.userId,
         sourceType: 'recon.adjust',
         sourceId: String(item.id),
-          description: `对账调账（批次 ${batch.batchNo}）：${input.remark}`,
+        description: `对账调账（批次 ${batch.batchNo}）：${input.remark}`,
         appId: batch.appId,
         channelConfigId: batch.channelConfigId,
         currency: batch.currency,
@@ -497,7 +506,8 @@ export async function autoReconcile(input: {
   await resolveReconApplication(input.channelConfigId, input.channel, scope.tenantId, input.applicationId);
 
   let billText: string;
-  let source: string;
+  let source: PaymentReconSource;
+  let sourceRemark: string;
   if (config.sandbox) {
     // The local bill generator still observes the global payment engine gate.
     assertPaymentEngineConfig(config);
@@ -505,7 +515,8 @@ export async function autoReconcile(input: {
     const lines = ['订单号,渠道交易号,金额(分),状态'];
     for (const r of rows) lines.push(`${r.orderNo},${r.channelTradeNo ?? ''},${r.paidAmount ?? r.amount},SUCCESS`);
     billText = lines.join('\n');
-    source = '自动对账（沙箱模拟账单）';
+    source = 'sandbox_generated';
+    sourceRemark = '自动对账（沙箱模拟账单）';
   } else {
     // Never let a production-marked config bypass the effective environment
     // check when the process is running in sandbox/off mode.
@@ -513,9 +524,10 @@ export async function autoReconcile(input: {
     const adapter = getAdapter(input.channel);
     if (!adapter.downloadBill) throw new HTTPException(400, { message: `渠道 ${input.channel} 暂不支持自动拉取账单，请手动上传` });
     billText = await adapter.downloadBill(buildAdapterContext(config), input.billDate);
-    source = '自动对账（渠道账单）';
+    source = 'provider_download';
+    sourceRemark = '自动对账（渠道下载账单）';
   }
-  return createReconBatchScoped({ ...input, remark: source, billText }, scope);
+  return createReconBatchScoped({ ...input, remark: sourceRemark, billText }, scope, source);
 }
 
 /** 路由入口：按当前登录用户租户口径自动对账。 */

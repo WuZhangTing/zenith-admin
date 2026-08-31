@@ -1,5 +1,5 @@
 import type { EntityStatus } from '../core/types';
-import type { PaymentCashierMethod, PaymentCashierSessionStatus, PaymentCashierUseSlotStatus, PaymentChannel, PaymentContractStatus, PaymentDeductPeriod, PaymentDisputeStatus, PaymentDisputeType, PaymentFundReservationStatus, PaymentLedgerAccountCode, PaymentLedgerNormalBalance, PaymentLinkStatus, PaymentMethod, PaymentOrderStatus, PaymentPreauthStatus, PaymentReconHandleStatus, PaymentReconResult, PaymentReconStatus, PaymentRefundApprovalStatus, PaymentRefundStatus, PaymentRiskAction, PaymentRiskDimension, PaymentRiskReviewStatus, PaymentRiskScope, PaymentSettlementStatus, PaymentSharingOrderStatus, PaymentSharingReceiverType, PaymentSharingReversalStatus, PaymentTransferApprovalStatus, PaymentTransferStatus } from './constants';
+import type { PaymentCashierMethod, PaymentCashierSessionStatus, PaymentCashierUseSlotStatus, PaymentChannel, PaymentContractStatus, PaymentDeductPeriod, PaymentDisputeStatus, PaymentDisputeType, PaymentFundReservationStatus, PaymentLedgerAccountCode, PaymentLedgerNormalBalance, PaymentLinkStatus, PaymentMethod, PaymentOrderStatus, PaymentPreauthStatus, PaymentReconHandleStatus, PaymentReconResult, PaymentReconSource, PaymentReconStatus, PaymentRefundApprovalStatus, PaymentRefundStatus, PaymentRiskAction, PaymentRiskDimension, PaymentRiskReviewStatus, PaymentRiskScope, PaymentSettlementStatus, PaymentSharingOrderStatus, PaymentSharingReceiverType, PaymentSharingReversalStatus, PaymentTransferApprovalStatus, PaymentTransferStatus } from './constants';
 
 // ─── 支付中心 ────────────────────────────────────────────────────────
 export interface PaymentChannelConfig {
@@ -116,6 +116,7 @@ export interface PaymentReconBatch {
   channelConfigId: number;
   currency: string;
   billDate: string;
+  source: PaymentReconSource;
   status: PaymentReconStatus;
   localCount: number;
   localAmount: number;

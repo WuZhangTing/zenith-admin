@@ -112,7 +112,8 @@
 - 手动上传 CSV 创建批次；
 - 自动拉取调用 `POST /api/payment/recon/auto`，微信支持账单下载，沙箱生成模拟账单；
 - 示例账单接口为 `GET /api/payment/recon/sample-bill`；
-- 差异项可处理为已调账、挂账或忽略，已调账自动写 `type=adjust` 台账。
+- 批次记录 `manual_upload`、`sandbox_generated`、`provider_download` 三种服务端派生来源；
+- 人工上传和沙箱模拟账单只能挂账归档或忽略，只有渠道适配器下载的账单可在人工核验后直接调账并写双分录凭证。
 
 ### 风控中心
 

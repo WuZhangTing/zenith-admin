@@ -243,6 +243,8 @@ export const paymentReconResultEnum = pgEnum('payment_recon_result', ['matched',
 
 export const paymentReconHandleStatusEnum = pgEnum('payment_recon_handle_status', ['pending', 'adjusted', 'suspended', 'ignored']);
 
+export const paymentReconSourceEnum = pgEnum('payment_recon_source', ['manual_upload', 'sandbox_generated', 'provider_download']);
+
 export const paymentReconBatches = pgTable('payment_recon_batches', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   batchNo: varchar({ length: 64 }).notNull().unique('payment_recon_batches_batch_no_unique'),
@@ -251,6 +253,7 @@ export const paymentReconBatches = pgTable('payment_recon_batches', {
   channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
   currency: varchar({ length: 8 }).notNull().default('CNY'),
   billDate: varchar({ length: 10 }).notNull(),
+  source: paymentReconSourceEnum().notNull().default('manual_upload'),
   status: paymentReconStatusEnum().notNull().default('pending'),
   localCount: integer().notNull().default(0),
   localAmount: integer().notNull().default(0),

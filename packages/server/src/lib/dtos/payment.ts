@@ -2,7 +2,7 @@
  * 支付中心相关 DTO（密钥字段以 hasXxx 布尔位返回，绝不暴露明文）
  */
 import { z } from '@hono/zod-openapi';
-import { PAYMENT_REPORT_GROUP_BYS } from '@zenith/shared/payment';
+import { PAYMENT_RECON_SOURCES, PAYMENT_REPORT_GROUP_BYS } from '@zenith/shared/payment';
 
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
 const payMethodEnum = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr', 'wechat_papay', 'alipay_cycle', 'wechat_preauth', 'alipay_preauth']);
@@ -11,6 +11,7 @@ const refundStatusEnum = z.enum(['pending', 'processing', 'unknown', 'success', 
 const refundApprovalEnum = z.enum(['none', 'pending', 'approved', 'rejected']);
 const reconStatusEnum = z.enum(['pending', 'comparing', 'done', 'failed']);
 const reconResultEnum = z.enum(['matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff']);
+const reconSourceEnum = z.enum(PAYMENT_RECON_SOURCES);
 
 export const PaymentChannelConfigDTO = z
   .object({
@@ -215,6 +216,7 @@ export const PaymentReconBatchDTO = z
     channelConfigId: z.number().int(),
     currency: z.string(),
     billDate: z.string(),
+    source: reconSourceEnum,
     status: reconStatusEnum,
     localCount: z.number().int(),
     localAmount: z.number().int(),

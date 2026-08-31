@@ -1,0 +1,2 @@
+CREATE TYPE "public"."payment_recon_source" AS ENUM('manual_upload', 'sandbox_generated', 'provider_download');--> statement-breakpoint
+ALTER TABLE "payment_recon_batches" ADD COLUMN "source" "payment_recon_source" DEFAULT 'manual_upload' NOT NULL;

@@ -1,8 +1,8 @@
 import { http } from 'msw';
 import { PAYMENT_MOCK_SEED_TIME, mockPaymentChannels, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mockDateTime } from '@/mocks/utils/date';
-import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
-import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentOutboxEvent } from '@zenith/shared/payment';
+import { ok, badRequest, conflict, notFound, paginate } from '@/mocks/utils/handlers';
+import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentReconSource, PaymentOutboxEvent } from '@zenith/shared/payment';
 import { recordMockSystemJournal } from './payment-journals';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
@@ -11,7 +11,7 @@ const yuanToCent = (n: number) => Math.round(n);
 
 // ─── 对账中心 ───────────────────────────────────────────────────────────────
 const reconBatches: PaymentReconBatch[] = [
-  { id: 1, batchNo: 'RECON1700000000001', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', billDate: '2024-01-01', status: 'done', localCount: 3, localAmount: 16800, channelCount: 3, channelAmount: 16700, matchedCount: 2, diffCount: 1, remark: '演示批次', createdAt: SEED, updatedAt: SEED },
+  { id: 1, batchNo: 'RECON1700000000001', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', billDate: '2024-01-01', source: 'manual_upload', status: 'done', localCount: 3, localAmount: 16800, channelCount: 3, channelAmount: 16700, matchedCount: 2, diffCount: 1, remark: '演示批次', createdAt: SEED, updatedAt: SEED },
 ];
 const reconItemsByBatch: Record<number, PaymentReconItem[]> = {
   1: [
@@ -34,7 +34,7 @@ function sampleBill(channel: PaymentChannel): string {
 }
 
 /** 解析账单并与本地订单比对，生成批次 + 明细（供手动上传与自动拉取两个入口复用）。 */
-function createBatchFromBill(applicationId: number, channel: PaymentChannel, channelConfigId: number, currency: string, billDate: string, billText: string, remark: string | null): PaymentReconBatch {
+function createBatchFromBill(applicationId: number, channel: PaymentChannel, channelConfigId: number, currency: string, billDate: string, billText: string, remark: string | null, source: PaymentReconSource): PaymentReconBatch {
   const channelRecords = new Map<string, { amount: number; tradeNo?: string }>();
   for (const raw of billText.split(/\r?\n/)) {
     const line = raw.trim();
@@ -68,7 +68,7 @@ function createBatchFromBill(applicationId: number, channel: PaymentChannel, cha
   const batch: PaymentReconBatch = {
     id: nextBatchId, batchNo: `RECON${Date.now()}`, channel,
     appId: applicationId,
-    channelConfigId, currency, billDate, status: 'done',
+    channelConfigId, currency, billDate, source, status: 'done',
     localCount: localMap.size, localAmount, channelCount: channelRecords.size, channelAmount,
     matchedCount: matched, diffCount: items.length - matched, remark, createdAt: mockDateTime(), updatedAt: mockDateTime(),
   };
@@ -96,7 +96,7 @@ const reconHandlers = [
     if (!config) return badRequest('所选商户配置不存在或未启用');
     const appHasConfig = mockPaymentOrders.some((order) => order.appId === body.applicationId && order.channelConfigId === body.channelConfigId);
     if (!appHasConfig) return badRequest('支付应用未绑定所选商户配置');
-    const batch = createBatchFromBill(body.applicationId, body.channel, body.channelConfigId, body.currency ?? 'CNY', body.billDate, body.billText, body.remark ?? null);
+    const batch = createBatchFromBill(body.applicationId, body.channel, body.channelConfigId, body.currency ?? 'CNY', body.billDate, body.billText, body.remark ?? null, 'manual_upload');
     return ok(batch, '对账完成');
   }),
   http.post('/api/payment/recon/auto', async ({ request }) => {
@@ -106,7 +106,7 @@ const reconHandlers = [
     if (!config) return badRequest('该渠道没有启用的商户配置');
     const applicationId = mockPaymentOrders.find((order) => order.channelConfigId === config.id)?.appId;
     if (!applicationId) return badRequest('该商户配置没有可用支付应用');
-    const batch = createBatchFromBill(applicationId, body.channel, config.id, 'CNY', body.billDate, sampleBill(body.channel), '自动对账（沙箱模拟账单）');
+    const batch = createBatchFromBill(applicationId, body.channel, config.id, 'CNY', body.billDate, sampleBill(body.channel), '自动对账（沙箱模拟账单）', 'sandbox_generated');
     return ok(batch, '对账完成');
   }),
   http.get('/api/payment/recon/batches/:id', ({ params }) => {
@@ -128,7 +128,16 @@ const reconHandlers = [
       const item = items.find((i) => i.id === Number(params.id));
       if (item) {
         if (item.handleStatus !== 'pending') return badRequest('该差异已被处理，请刷新后查看');
-        if (body.action === 'adjusted' && (item.localAmount == null || item.channelAmount == null)) {
+        const batch = reconBatches.find((candidate) => candidate.id === item.batchId);
+        if (body.action === 'adjusted' && batch?.source !== 'provider_download') {
+          return conflict('仅渠道下载账单可直接调账；人工上传和沙箱模拟账单只能挂账或忽略', { status: 409 });
+        }
+        const hasAdjustmentAmount = item.result === 'channel_only'
+          ? item.channelAmount != null && item.channelAmount > 0
+          : item.result === 'local_only'
+            ? item.localAmount != null && item.localAmount > 0
+            : item.result === 'amount_diff' && item.localAmount != null && item.channelAmount != null && item.localAmount !== item.channelAmount;
+        if (body.action === 'adjusted' && !hasAdjustmentAmount) {
           return badRequest('该差异无法计算明确调账金额，请选择挂账或忽略');
         }
         item.handleStatus = body.action;

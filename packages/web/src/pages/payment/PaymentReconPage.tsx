@@ -24,8 +24,8 @@ import {
 } from '@/hooks/queries/payment-recon';
 import { usePaymentChannelOperationLookup } from '@/hooks/queries/payment-channels';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_RECON_HANDLE_STATUS_LABELS, PAYMENT_RECON_RESULT_LABELS, PAYMENT_RECON_STATUS_LABELS } from '@zenith/shared/payment';
-import type { PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_RECON_HANDLE_STATUS_LABELS, PAYMENT_RECON_RESULT_LABELS, PAYMENT_RECON_SOURCE_LABELS, PAYMENT_RECON_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconSource, PaymentReconStatus } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
 import { copyableNoColumn, dateColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -34,10 +34,14 @@ import { abortSubmit } from '@/lib/abort-submit';
 const STATUS_COLOR = { pending: 'grey', comparing: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentReconStatus, string>;
 const RESULT_COLOR = { matched: 'green', local_only: 'amber', channel_only: 'orange', amount_diff: 'red', status_diff: 'red' } as const satisfies Record<PaymentReconResult, string>;
 const HANDLE_COLOR = { pending: 'amber', adjusted: 'green', suspended: 'orange', ignored: 'grey' } as const satisfies Record<PaymentReconHandleStatus, string>;
-const HANDLE_ACTION_OPTIONS = [
-  { value: 'adjusted', label: '已调账（生成平衡的双分录凭证）' },
-  { value: 'suspended', label: '挂账（暂缓处理，保留差异）' },
-  { value: 'ignored', label: '忽略（确认无需处理）' },
+const SOURCE_COLOR = { manual_upload: 'orange', sandbox_generated: 'grey', provider_download: 'green' } as const satisfies Record<PaymentReconSource, string>;
+const NON_FINANCIAL_HANDLE_ACTION_OPTIONS = [
+  { value: 'suspended' as const, label: '挂账归档（终态，不自动入账）' },
+  { value: 'ignored' as const, label: '忽略（确认无需处理）' },
+];
+const PROVIDER_HANDLE_ACTION_OPTIONS = [
+  { value: 'adjusted' as const, label: '已调账（生成平衡的双分录凭证）' },
+  ...NON_FINANCIAL_HANDLE_ACTION_OPTIONS,
 ];
 const yuan = formatYuan;
 
@@ -67,6 +71,7 @@ export default function PaymentReconPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentReconKeys.lists });
 
   const [detailBatch, setDetailBatch] = useState<PaymentReconBatch | null>(null);
+  const canAdjustDetailBatch = detailBatch?.source === 'provider_download';
   const [itemResult, setItemResult] = useState('');
   const [itemHandleStatus, setItemHandleStatus] = useState('');
   const {
@@ -185,10 +190,13 @@ export default function PaymentReconPage() {
   };
   const handleModal = useEditModal<PaymentReconItem, HandleFormValues>({
     save: handleSaveMutation,
-    defaults: { action: 'adjusted', remark: '' },
+    defaults: { action: 'suspended', remark: '' },
+    toValues: () => ({ action: 'suspended', remark: '' }),
     successMessage: () => '差异已处理',
     labelWidth: 100,
   });
+  const canAdjustSelectedItem = canAdjustDetailBatch && handleModal.editing?.result !== 'status_diff';
+  const handleActionOptions = canAdjustSelectedItem ? PROVIDER_HANDLE_ACTION_OPTIONS : NON_FINANCIAL_HANDLE_ACTION_OPTIONS;
 
   async function handleSampleBill() {
     const values = (createModal.formApi.current?.getValues() ?? {}) as Partial<ReconFormValues>;
@@ -239,6 +247,7 @@ export default function PaymentReconPage() {
     },
     { title: '币种', dataIndex: 'currency', width: 80 },
     dateColumn('账单日期', 'billDate'),
+    { title: '账单来源', dataIndex: 'source', width: 130, render: (v: PaymentReconSource) => <Tag color={SOURCE_COLOR[v]}>{PAYMENT_RECON_SOURCE_LABELS[v]}</Tag> },
     { title: '本地笔数/金额', dataIndex: 'localCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.localCount} / ${yuan(r.localAmount)}` },
     { title: '渠道笔数/金额', dataIndex: 'channelCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.channelCount} / ${yuan(r.channelAmount)}` },
     { title: '匹配数', dataIndex: 'matchedCount', width: 90, align: 'right' },
@@ -365,7 +374,7 @@ export default function PaymentReconPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={data} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
-        scroll={{ x: 1730 }}
+        scroll={{ x: 1860 }}
       />
 
       <AppModal {...createModal.modalProps} title="新建对账" width={720}>
@@ -426,7 +435,14 @@ export default function PaymentReconPage() {
 
       <AppModal {...handleModal.modalProps} title={`处理差异${handleModal.editing?.orderNo ? `（${handleModal.editing.orderNo}）` : ''}`} width={520}>
         <Form key={handleModal.formKey} {...handleModal.formProps}>
-          <Form.Select field="action" label="处理方式" style={{ width: '100%' }} optionList={HANDLE_ACTION_OPTIONS} rules={[{ required: true, message: '请选择处理方式' }]} />
+          <Typography.Paragraph type="tertiary" size="small" style={{ marginBottom: 12 }}>
+            {canAdjustSelectedItem
+              ? '渠道下载账单可在人工核验后直接调账；该操作会立即生成资金凭证。'
+              : canAdjustDetailBatch
+                ? '该差异没有可自动计算的调账金额，只能挂账归档或忽略。'
+                : '人工上传或沙箱模拟账单仅用于差异核验，不允许自动入账；挂账为终态，请在备注中记录人工核验依据。'}
+          </Typography.Paragraph>
+          <Form.Select field="action" label="处理方式" style={{ width: '100%' }} optionList={handleActionOptions} rules={[{ required: true, message: '请选择处理方式' }]} />
           <Form.TextArea
             field="remark"
             label="处理备注"

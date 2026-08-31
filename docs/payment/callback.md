@@ -106,6 +106,7 @@ POST /api/public/payment/notify/{channel}    # channel: wechat | alipay | unionp
 | 示例账单 | `GET /api/payment/recon/sample-bill` | 生成示例 CSV 便于联调 |
 
 支付宝与云闪付适配器未实现 `downloadBill`，对账以手动上传或沙箱模拟账单为准。
+批次来源由服务端固定为 `manual_upload`、`sandbox_generated` 或 `provider_download`，客户端不能指定或覆盖。
 
 ### 比对结果与差异处理
 
@@ -113,8 +114,10 @@ POST /api/public/payment/notify/{channel}    # channel: wechat | alipay | unionp
 
 差异处理状态：
 
-- `adjusted`：根据差异类型推导调账方向与金额，写入 `manual.recon.adjustment` 双分录凭证；
-- `suspended`：挂账待查；
+- `adjusted`：仅渠道适配器下载的账单可选，根据差异类型推导调账方向与金额并原子写入 `recon.adjust` 双分录凭证；
+- `suspended`：终态挂账归档，不自动入账；
 - `ignored`：确认无需处理。
+
+人工上传和沙箱模拟账单属于不可信资金证据，只能进入 `suspended` 或 `ignored`，不能通过差异处理接口改变 `merchant_available`。
 
 处理接口为 `PATCH /api/payment/recon/items/{id}/handle`，记录处理人、处理时间与备注。

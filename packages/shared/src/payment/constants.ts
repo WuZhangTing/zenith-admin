@@ -98,6 +98,16 @@ export const PAYMENT_RECON_STATUS_LABELS: Record<PaymentReconStatus, string> = {
   pending: '待对账', comparing: '比对中', done: '已完成', failed: '失败',
 };
 
+export const PAYMENT_RECON_SOURCES = ['manual_upload', 'sandbox_generated', 'provider_download'] as const;
+
+export type PaymentReconSource = typeof PAYMENT_RECON_SOURCES[number];
+
+export const PAYMENT_RECON_SOURCE_LABELS: Record<PaymentReconSource, string> = {
+  manual_upload: '人工上传账单',
+  sandbox_generated: '沙箱模拟账单',
+  provider_download: '渠道下载账单',
+};
+
 export const PAYMENT_RECON_RESULTS = ['matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff'] as const;
 
 export type PaymentReconResult = typeof PAYMENT_RECON_RESULTS[number];
