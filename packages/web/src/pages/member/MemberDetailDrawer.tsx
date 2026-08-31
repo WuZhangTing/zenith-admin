@@ -98,11 +98,11 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
             <div style={{ marginBottom: 20 }}>
               <Divider align="left" style={{ margin: '12px 0 10px' }}>基本信息</Divider>
               <Descriptions
-                align="plain"
                 layout="horizontal"
                 column={2}
                 size="small"
                 data={[
+                  { key: '用户名', value: m?.username ?? '—' },
                   { key: '手机', value: m?.phone ?? '—' },
                   { key: '邮箱', value: <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>{m?.email ?? '—'}</Text> },
                   { key: '注册来源', value: m?.registerSource ?? '—' },
