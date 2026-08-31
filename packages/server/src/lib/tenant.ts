@@ -22,19 +22,22 @@ export function getEffectiveTenantId(user: JwtPayload): number | null {
 
 /**
  * Return the concrete tenant scope for data operations.
- * `undefined` is intentionally distinct from `null`: undefined means a
- * platform super-admin has not selected a tenant and may read across tenants;
- * null means the explicit tenant-less/global scope.
+ *
+ * Platform super-admins use both an omitted `viewingTenantId` (fresh login)
+ * and an explicit `null` (the switch-tenant endpoint's "platform view") to
+ * mean "all tenants"; both therefore return `undefined`. A concrete number
+ * means that tenant view. For non-platform users, `null` remains the explicit
+ * tenant-less/global scope.
  */
 export function getTenantScopeId(user: JwtPayload): number | null | undefined {
   if (!config.multiTenantMode) return undefined;
-  if (isPlatformAdmin(user) && user.viewingTenantId === undefined) return undefined;
-  return user.viewingTenantId ?? user.tenantId ?? null;
+  if (isPlatformAdmin(user)) return user.viewingTenantId ?? undefined;
+  return user.tenantId ?? null;
 }
 
-/** Write operations must never silently choose the global scope for an
- * unscoped platform administrator. The caller may pass an explicit override
- * for scheduled jobs or other trusted system flows. */
+/** Write operations must never silently choose the global scope for a platform
+ * administrator in the all-tenant platform view. The caller may pass an
+ * explicit override for scheduled jobs or other trusted system flows. */
 export function requireTenantScopeId(user: JwtPayload): number | null {
   const scope = getTenantScopeId(user);
   if (scope === undefined && config.multiTenantMode) {

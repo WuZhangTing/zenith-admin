@@ -42,17 +42,20 @@ export async function getUserRoles(userId: number) {
 // ─── 签发 AccessToken + RefreshToken ─────────────────────────────────────────
 
 export async function issueTokens(
-  user: { id: number; username: string; tenantId?: number | null },
+  user: { id: number; username: string; tenantId?: number | null; viewingTenantId?: number | null },
   roleCodes: string[],
 ) {
   const tokenId = generateTokenId();
   const tenantId = user.tenantId ?? null;
+  const viewingTenantClaim = user.viewingTenantId !== undefined
+    ? { viewingTenantId: user.viewingTenantId }
+    : {};
   const accessToken = await signToken<JwtPayload>(
-    { userId: user.id, username: user.username, roles: roleCodes, tenantId, jti: tokenId },
+    { userId: user.id, username: user.username, roles: roleCodes, tenantId, ...viewingTenantClaim, jti: tokenId },
     '2h',
   );
   const refreshToken = await signToken(
-    { userId: user.id, username: user.username, type: 'refresh', tenantId, jti: tokenId },
+    { userId: user.id, username: user.username, type: 'refresh', tenantId, ...viewingTenantClaim, jti: tokenId },
     '30d',
   );
   return { accessToken, refreshToken, tokenId };
@@ -333,9 +336,16 @@ export async function verifyMfaLogin(challengeId: string, code: string, remember
 }
 
 export async function refreshAccessToken(token: string, clientInfo?: { ip: string; ua: string }) {
-  let payload;
+  let payload: {
+    userId: number;
+    username: string;
+    type?: string;
+    jti?: string;
+    tenantId?: number | null;
+    viewingTenantId?: number | null;
+  };
   try {
-    payload = await verifyToken<{ userId: number; username: string; type?: string; jti?: string; tenantId?: number | null }>(token);
+    payload = await verifyToken<typeof payload>(token);
   } catch {
     throw new HTTPException(401, { message: 'refresh token 已过期' });
   }
@@ -353,7 +363,14 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
   const tokenId = payload.jti ?? generateTokenId();
   const userRoleList = await getUserRoles(payload.userId);
   const accessToken = await signToken<JwtPayload>(
-    { userId: payload.userId, username: payload.username, roles: userRoleList.map((r) => r.code), tenantId: payload.tenantId ?? null, jti: tokenId },
+    {
+      userId: payload.userId,
+      username: payload.username,
+      roles: userRoleList.map((r) => r.code),
+      tenantId: payload.tenantId ?? null,
+      ...(payload.viewingTenantId !== undefined ? { viewingTenantId: payload.viewingTenantId } : {}),
+      jti: tokenId,
+    },
     '2h',
   );
   // 若 Redis 中无此 session（Redis 重启或 TTL 过期），重新注册以保持在线用户列表准确
@@ -402,7 +419,7 @@ export async function logoutSession(clientInfo?: { ip: string; ua: string }) {
  * 因此以 refresh token 校验身份后按其 jti 移除会话，语义与 logoutSession 一致。
  */
 export async function logoutByRefreshToken(token: string, clientInfo?: { ip: string; ua: string }) {
-  let payload: { userId: number; username: string; type?: string; jti?: string; tenantId?: number | null };
+  let payload: { userId: number; username: string; type?: string; jti?: string; tenantId?: number | null; viewingTenantId?: number | null };
   try {
     payload = await verifyToken(token);
   } catch {

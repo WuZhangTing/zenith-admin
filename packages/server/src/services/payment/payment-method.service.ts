@@ -6,9 +6,10 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { paymentMethodConfigs, type PaymentMethodConfigRow } from '../../db/schema';
+import { config } from '../../config';
 import { formatDateTime } from '../../lib/datetime';
 import { currentUser } from '../../lib/context';
-import { tenantCondition } from '../../lib/tenant';
+import { getTenantScopeId } from '../../lib/tenant';
 import type { UpdatePaymentMethodConfigInput } from '@zenith/shared/payment';
 import type { PaymentMethod, PaymentMethodConfig } from '@zenith/shared/payment';
 
@@ -26,11 +27,30 @@ export function mapMethodConfig(row: PaymentMethodConfigRow): PaymentMethodConfi
   };
 }
 
+/**
+ * Payment methods are an effective configuration, not a cross-tenant catalog.
+ * A platform administrator in the unscoped platform view sees the global
+ * defaults; once a tenant view is selected only that tenant's overrides are
+ * returned. This keeps one row per method and prevents an ambiguous edit.
+ */
+function methodConfigTenantCondition() {
+  // Even when multi-tenant mode is disabled, a database may contain tenant
+  // overrides created while it was enabled. The single-tenant runtime must
+  // use the global defaults only instead of rendering every historical row.
+  if (!config.multiTenantMode) return isNull(paymentMethodConfigs.tenantId);
+  const user = currentUser();
+  const scope = getTenantScopeId(user);
+  if (scope === undefined) {
+    return isNull(paymentMethodConfigs.tenantId);
+  }
+  return scope === null ? isNull(paymentMethodConfigs.tenantId) : eq(paymentMethodConfigs.tenantId, scope);
+}
+
 export async function listMethodConfigs(): Promise<PaymentMethodConfig[]> {
   const rows = await db
     .select()
     .from(paymentMethodConfigs)
-    .where(tenantCondition(paymentMethodConfigs, currentUser()))
+    .where(methodConfigTenantCondition())
     .orderBy(asc(paymentMethodConfigs.sort), asc(paymentMethodConfigs.id));
   return rows.map(mapMethodConfig);
 }
@@ -39,7 +59,7 @@ export async function listEnabledMethodConfigs(): Promise<PaymentMethodConfig[]>
   const rows = await db
     .select()
     .from(paymentMethodConfigs)
-    .where(and(eq(paymentMethodConfigs.enabled, true), tenantCondition(paymentMethodConfigs, currentUser())))
+    .where(and(eq(paymentMethodConfigs.enabled, true), methodConfigTenantCondition()))
     .orderBy(asc(paymentMethodConfigs.sort), asc(paymentMethodConfigs.id));
   return rows.map(mapMethodConfig);
 }
@@ -48,7 +68,7 @@ async function ensureMethodConfig(id: number): Promise<PaymentMethodConfigRow> {
   const [row] = await db
     .select()
     .from(paymentMethodConfigs)
-    .where(and(eq(paymentMethodConfigs.id, id), tenantCondition(paymentMethodConfigs, currentUser())))
+    .where(and(eq(paymentMethodConfigs.id, id), methodConfigTenantCondition()))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '支付方式配置不存在' });
   return row;
@@ -68,7 +88,7 @@ export async function updateMethodConfig(id: number, input: UpdatePaymentMethodC
   const [row] = await db
     .update(paymentMethodConfigs)
     .set(set)
-    .where(and(eq(paymentMethodConfigs.id, id), tenantCondition(paymentMethodConfigs, currentUser())))
+    .where(and(eq(paymentMethodConfigs.id, id), methodConfigTenantCondition()))
     .returning();
   return mapMethodConfig(row);
 }
