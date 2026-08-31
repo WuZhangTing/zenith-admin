@@ -89,7 +89,10 @@ export async function createCashierSession(input: {
       .where(and(
         eq(paymentCashierSessions.linkId, link.id),
         eq(paymentCashierSessions.useSlotStatus, 'reserved'),
-        inArray(paymentCashierSessions.status, ['ready', 'creating', 'awaiting', 'processing', 'unknown']),
+        // Do not release a slot for an in-flight/unknown provider call. The
+        // payment may still settle after the session expiry and must retain
+        // its reserved usage until the authoritative event arrives.
+        inArray(paymentCashierSessions.status, ['ready', 'creating', 'awaiting']),
         lte(paymentCashierSessions.expiresAt, new Date()),
       ))
       .returning({ id: paymentCashierSessions.id });
@@ -134,7 +137,23 @@ async function setTerminalSessionState(input: {
   expectedVersion?: number;
   allowedStatuses?: PaymentCashierSessionStatus[];
 }): Promise<PaymentCashierSessionRow> {
+  const [candidate] = await db
+    .select({ linkId: paymentCashierSessions.linkId })
+    .from(paymentCashierSessions)
+    .where(eq(paymentCashierSessions.id, input.id))
+    .limit(1);
+  if (!candidate) throw new HTTPException(404, { message: '收银台会话不存在' });
+
   return db.transaction(async (tx) => {
+    // All link/session transactions lock the parent link first. Keeping one
+    // order prevents expiry/failure and payment-success redemption from
+    // deadlocking each other under concurrent provider callbacks.
+    await tx
+      .select({ id: paymentLinks.id })
+      .from(paymentLinks)
+      .where(eq(paymentLinks.id, candidate.linkId))
+      .for('update')
+      .limit(1);
     const [session] = await tx
       .select()
       .from(paymentCashierSessions)
@@ -183,7 +202,9 @@ export async function releaseExpiredCashierUseSlots(linkId: number): Promise<num
       .where(and(
         eq(paymentCashierSessions.linkId, linkId),
         eq(paymentCashierSessions.useSlotStatus, 'reserved'),
-        inArray(paymentCashierSessions.status, ['ready', 'creating', 'awaiting', 'processing', 'unknown']),
+        // In-flight/unknown provider calls retain their reserved slot until an
+        // authoritative success/failure event arrives.
+        inArray(paymentCashierSessions.status, ['ready', 'creating', 'awaiting']),
         lte(paymentCashierSessions.expiresAt, new Date()),
       ))
       .returning({ id: paymentCashierSessions.id });
@@ -270,7 +291,9 @@ export async function bindCashierSessionAfterCreateFailure(input: {
 
 async function updateSessionFromOrder(session: PaymentCashierSessionRow, order: PaymentOrderRow): Promise<PaymentCashierSessionRow> {
   let status = sessionStatusFromOrder(order);
-  if (!['succeeded', 'failed'].includes(status) && session.expiresAt <= new Date()) status = 'expired';
+  const providerOutcomeUncertain = status === 'processing' || status === 'unknown'
+    || session.status === 'processing' || session.status === 'unknown';
+  if (!['succeeded', 'failed'].includes(status) && !providerOutcomeUncertain && session.expiresAt <= new Date()) status = 'expired';
   if (status === 'failed' || status === 'expired') {
     return setTerminalSessionState({
       id: session.id,
@@ -322,6 +345,8 @@ export async function getPublicCashierSession(linkToken: string, sessionToken: s
           appId: order.appId,
           tenantId: order.tenantId,
         });
+        const [latest] = await db.select().from(paymentCashierSessions).where(eq(paymentCashierSessions.id, session.id)).limit(1);
+        if (latest) session = latest;
       }
     }
     return mapCashierSession(session);

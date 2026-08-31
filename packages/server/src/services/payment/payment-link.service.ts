@@ -17,6 +17,7 @@ import { bindCashierSession, bindCashierSessionAfterCreateFailure, buildCashierS
 import type { CreatePaymentLinkInput, UpdatePaymentLinkInput } from '@zenith/shared/payment';
 import type { PaymentCashierSession, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentCashierMethod } from '@zenith/shared/payment';
 import { assertEffectiveCashierMethod, listEffectiveCashierMethods } from './payment-cashier-capability.service';
+import logger from '../../lib/logger';
 
 const PUBLIC_LINK_PAY_METHOD_LIST = ['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap', 'unionpay_qr'] as const satisfies readonly PaymentCashierMethod[];
 const PUBLIC_LINK_PAY_METHODS = new Set<PaymentCashierMethod>(PUBLIC_LINK_PAY_METHOD_LIST);
@@ -215,6 +216,22 @@ export async function updateLink(id: number, input: UpdatePaymentLinkInput): Pro
     const tc = tenantCondition(paymentLinks, currentUser());
     const [locked] = await tx.select().from(paymentLinks).where(and(eq(paymentLinks.id, id), tc)).for('update').limit(1);
     if (!locked) throw new HTTPException(404, { message: '支付链接不存在' });
+    const identityChanged = (input.bizType !== undefined && input.bizType !== locked.bizType)
+      || (input.amount !== undefined && (input.amount ?? null) !== (locked.amount ?? null))
+      || (input.payMethod !== undefined && (input.payMethod ?? null) !== (locked.payMethod ?? null));
+    if (identityChanged) {
+      const sessionCount = await tx.$count(paymentCashierSessions, eq(paymentCashierSessions.linkId, id));
+      const orderTenant = locked.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, locked.tenantId);
+      const orderCount = await tx.$count(paymentOrders, and(
+        eq(paymentOrders.appId, locked.appId),
+        eq(paymentOrders.bizType, locked.bizType),
+        like(paymentOrders.bizId, `${locked.linkNo}:%`),
+        orderTenant,
+      ));
+      if (sessionCount > 0 || orderCount > 0) {
+        throw new HTTPException(409, { message: '链接已有收银台会话或支付订单，业务类型、金额和支付方式不可再修改' });
+      }
+    }
     const nextMaxUses = input.maxUses !== undefined ? input.maxUses : locked.maxUses;
     if (nextMaxUses != null && nextMaxUses < locked.usedCount + locked.reservedCount) {
       throw new HTTPException(400, { message: '使用上限不能小于已核销次数与有效预占次数之和' });
@@ -404,9 +421,10 @@ export async function recordPaymentLinkRedemption(event: {
   const exactTenant = tenantId == null ? isNull(paymentLinks.tenantId) : eq(paymentLinks.tenantId, tenantId);
   return db.transaction(async (tx) => {
     const [link] = await tx
-      .select({ id: paymentLinks.id })
+      .select({ id: paymentLinks.id, maxUses: paymentLinks.maxUses, usedCount: paymentLinks.usedCount })
       .from(paymentLinks)
       .where(and(eq(paymentLinks.linkNo, linkNo), eq(paymentLinks.bizType, event.bizType), eq(paymentLinks.appId, appId), exactTenant))
+      .for('update')
       .limit(1);
     if (!link) return false;
     const [session] = await tx
@@ -432,6 +450,18 @@ export async function recordPaymentLinkRedemption(event: {
       .onConflictDoNothing({ target: paymentLinkRedemptions.orderNo })
       .returning({ id: paymentLinkRedemptions.id });
     if (!inserted) return false;
+    // A released uncertain session should be rare after the expiry guard. If
+    // it still races with another success, preserve the authoritative
+    // successful redemption and close admission for future sessions rather
+    // than dropping the event silently.
+    if (link.maxUses != null && link.usedCount >= link.maxUses) {
+      logger.warn('[payment-link] delayed success exceeded usage limit after slot release', {
+        linkId: link.id,
+        orderNo: event.orderNo,
+        usedCount: link.usedCount,
+        maxUses: link.maxUses,
+      });
+    }
     await tx.update(paymentLinks).set({
       usedCount: sql`${paymentLinks.usedCount} + 1`,
       ...(session.useSlotStatus === 'reserved'
