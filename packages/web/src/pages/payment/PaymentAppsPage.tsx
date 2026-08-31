@@ -10,7 +10,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { useAllPaymentChannelConfigsLookup } from '@/hooks/queries/payment-channels';
 import { paymentAppKeys, useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
 import { useOpenAppOptions } from '@/hooks/queries/open-platform';
-import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -123,7 +123,7 @@ export default function PaymentAppsPage() {
   const columns: ColumnProps<PaymentApp>[] = [
     { title: '应用名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '开放客户端', dataIndex: 'openClientName', width: 180, render: renderEllipsis },
-    { title: 'Client ID', dataIndex: 'openClientKey', width: 260, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
+    copyableNoColumn('Client ID', 'openClientKey', { width: 260 }),
     { title: '环境', dataIndex: 'environment', width: 90, render: (v: PaymentApp['environment']) => <Tag color={v === 'sandbox' ? 'orange' : 'blue'}>{v === 'sandbox' ? '沙箱' : '生产'}</Tag> },
     { title: '微信配置', dataIndex: 'wechatConfigName', width: 160, render: renderEllipsis },
     { title: '支付宝配置', dataIndex: 'alipayConfigName', width: 160, render: renderEllipsis },
