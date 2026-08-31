@@ -738,7 +738,7 @@ export default function PaymentLedgerPage() {
         </Form>
       </AppModal>
 
-      <AppModal {...reservationModal.modalProps} title="新建资金预占" width={620}>
+      <AppModal {...reservationModal.modalProps} title="新建资金预占" width={720}>
         <Form key={reservationModal.formKey} {...reservationModal.formProps}>
           <Form.Select field="accountId" label="账本账户" style={{ width: '100%' }} optionList={accountOptions} filter rules={[{ required: true, message: '请选择账本账户' }]} />
           <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
