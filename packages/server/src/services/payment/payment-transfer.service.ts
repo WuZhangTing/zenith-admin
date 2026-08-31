@@ -36,7 +36,7 @@ import type {
   PaymentTransferApprovalStatus,
   PaymentTransferStatus,
 } from '@zenith/shared/payment';
-import { resolvePaymentChannelConfig } from './payment-channel-config-resolver';
+import { assertPaymentEngineConfig, resolvePaymentChannelConfig } from './payment-channel-config-resolver';
 import { resolveApplicationChannelConfig } from './payment-apps.service';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
@@ -507,15 +507,23 @@ export async function rejectTransfer(id: number, input: ApprovePaymentTransferIn
 /** 主动查询渠道转账结果并同步本地状态（processing 单的兜底纠偏）。 */
 export async function syncTransferStatus(id: number): Promise<PaymentTransfer> {
   const row = await ensureTransfer(id);
-  if (row.status === 'success' || row.status === 'pending') return mapTransfer(row);
+  // Explicit failures are terminal. Querying them again could resurrect a
+  // deliberately rejected transfer after its reservation was released.
+  if (!['processing', 'unknown'].includes(row.status)) return mapTransfer(row);
   const config = row.channelConfigId
-    ? (await db.select().from(paymentChannelConfigs).where(eq(paymentChannelConfigs.id, row.channelConfigId)).limit(1))[0]
+    ? (await db.select().from(paymentChannelConfigs).where(and(
+      eq(paymentChannelConfigs.id, row.channelConfigId),
+      eq(paymentChannelConfigs.channel, row.channel),
+      row.tenantId == null ? isNull(paymentChannelConfigs.tenantId) : eq(paymentChannelConfigs.tenantId, row.tenantId),
+    )).limit(1))[0]
     : undefined;
   if (!config) return mapTransfer(row);
   const adapter = getAdapter(row.channel);
   if (!adapter.queryTransfer) return mapTransfer(row);
   let res;
   try {
+    assertPaymentEngineConfig(config);
+    await assertEffectivePaymentOperation({ configRow: config, operation: 'transfer.query', currency: row.currency, recovery: true });
     res = await adapter.queryTransfer(buildAdapterContext(config), { outTransferNo: row.outTransferNo });
   } catch (err) {
     logger.warn('[payment-transfer] query failed', { transferNo: row.transferNo, err });
@@ -588,7 +596,15 @@ export async function syncProcessingTransfers(): Promise<{ scanned: number; fini
   let finished = 0;
   for (const row of rows) {
     const config = row.channelConfigId != null ? configById.get(row.channelConfigId) : undefined;
-    if (!config) continue;
+    if (!config || config.channel !== row.channel || (config.tenantId ?? null) !== (row.tenantId ?? null)) {
+      logger.warn('[payment-transfer] skipped query with mismatched channel scope', {
+        transferNo: row.transferNo,
+        channelConfigId: row.channelConfigId,
+        channel: row.channel,
+        tenantId: row.tenantId ?? null,
+      });
+      continue;
+    }
     const adapter = getAdapter(row.channel);
     try {
       if (row.status === 'pending' && row.approvalStatus === 'approved') {
@@ -598,6 +614,8 @@ export async function syncProcessingTransfers(): Promise<{ scanned: number; fini
         continue;
       }
       if (!adapter.queryTransfer) continue;
+      assertPaymentEngineConfig(config);
+      await assertEffectivePaymentOperation({ configRow: config, operation: 'transfer.query', currency: row.currency, recovery: true });
       const res = await adapter.queryTransfer(buildAdapterContext(config), { outTransferNo: row.outTransferNo });
       if (res.status === 'processing') continue;
       if (res.status === 'success') {

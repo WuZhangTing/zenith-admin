@@ -25,6 +25,8 @@ import { formatDate, formatDateTime, formatNullableDateTime, parseDateTimeInput 
 import { postSystemJournalWithin } from './payment-journal.service';
 import { buildAdapterContext } from './payment.service';
 import { getAdapter } from '../../lib/payment/registry';
+import { assertPaymentEngineConfig } from './payment-channel-config-resolver';
+import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import logger from '../../lib/logger';
 import type { SQL } from 'drizzle-orm';
 import type { HandlePaymentReconItemInput, PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared/payment';
@@ -481,12 +483,17 @@ export async function autoReconcile(input: {
   let billText: string;
   let source: string;
   if (config.sandbox) {
+    // The local bill generator still observes the global payment engine gate.
+    assertPaymentEngineConfig(config);
     const rows = await loadLocalPaidRowsScoped(input.channel, input.applicationId, config.id, input.currency, input.billDate, scope.orderWhere);
     const lines = ['订单号,渠道交易号,金额(分),状态'];
     for (const r of rows) lines.push(`${r.orderNo},${r.channelTradeNo ?? ''},${r.paidAmount ?? r.amount},SUCCESS`);
     billText = lines.join('\n');
     source = '自动对账（沙箱模拟账单）';
   } else {
+    // Never let a production-marked config bypass the effective environment
+    // check when the process is running in sandbox/off mode.
+    await assertEffectivePaymentOperation({ configRow: config, operation: 'bill.download', currency: input.currency });
     const adapter = getAdapter(input.channel);
     if (!adapter.downloadBill) throw new HTTPException(400, { message: `渠道 ${input.channel} 暂不支持自动拉取账单，请手动上传` });
     billText = await adapter.downloadBill(buildAdapterContext(config), input.billDate);

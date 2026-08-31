@@ -1598,14 +1598,22 @@ export async function testChannelConnectivity(
 ): Promise<{ success: boolean; message: string; latencyMs: number }> {
   const { ensureChannelConfigExists } = await import('./payment-channels.service');
   const channelConfig = await ensureChannelConfigExists(id);
+  try {
+    // Connectivity probes exercise the provider's query path. Reuse the same
+    // effective capability gate as real payment operations so engine
+    // sandbox/off modes can never reach a live adapter by mistake.
+    await assertEffectivePaymentOperation({
+      configRow: channelConfig,
+      operation: 'payment.query',
+      currency: 'CNY',
+    });
+  } catch (err) {
+    const message = err instanceof HTTPException ? err.message : String(err);
+    return { success: false, message: `连通性测试被支付能力策略阻止：${message}`, latencyMs: 0 };
+  }
   // 沙箱渠道全链路为模拟实现，不外呼真实渠道；直接判定可用，避免「渠道可用但测试报凭据缺失」的矛盾
   if (channelConfig.sandbox) {
     return { success: true, message: '沙箱模式：跳过真实渠道探测（所有支付操作走模拟实现）', latencyMs: 0 };
-  }
-  // 全局沙箱是外呼总闸：即使误建了 sandbox=false 的配置，也不能借助
-  // “连通性测试”触发生产凭据探测或向第三方发送请求。
-  if (config.payment.engineMode === 'sandbox' || config.payment.engineMode === 'off') {
-    return { success: false, message: `当前支付引擎为${config.payment.engineMode === 'off' ? '关闭' : '沙箱'}模式，禁止探测生产渠道配置`, latencyMs: 0 };
   }
   const adapter = getAdapter(channelConfig.channel as PaymentChannel);
   if (!adapter.testConnectivity) {

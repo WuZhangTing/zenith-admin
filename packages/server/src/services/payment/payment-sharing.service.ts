@@ -30,6 +30,8 @@ import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
 import { HttpClientError } from '../../lib/http-client';
 import type { CreatePaymentSharingReceiverInput, UpdatePaymentSharingReceiverInput, PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver } from '@zenith/shared/payment';
+import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
+import { assertPaymentEngineConfig } from './payment-channel-config-resolver';
 
 /** 单笔分账渠道调用次数上限（首次 + 重试） */
 const MAX_SHARING_ATTEMPTS = 3;
@@ -284,6 +286,11 @@ async function executeSharingAtChannel(
   try {
     const config = await loadOrderConfig(order);
     if (!config) throw new HTTPException(400, { message: '支付渠道配置不存在，无法分账' });
+    await assertEffectivePaymentOperation({
+      configRow: config,
+      operation: 'profit-sharing.create',
+      currency: order.currency,
+    });
     const adapter = getAdapter(order.channel);
     if (!adapter.profitShare) throw new HTTPException(400, { message: `渠道 ${order.channel} 暂不支持分账` });
     const res = await adapter.profitShare(buildAdapterContext(config), order, {
@@ -483,6 +490,13 @@ export async function syncProcessingSharingOrders(): Promise<{ scanned: number; 
     const adapter = getAdapter(order.channel);
     if (!adapter.queryProfitShare) continue;
     try {
+      assertPaymentEngineConfig(config);
+      await assertEffectivePaymentOperation({
+        configRow: config,
+        operation: 'profit-sharing.query',
+        currency: order.currency,
+        recovery: true,
+      });
       const res = await adapter.queryProfitShare(buildAdapterContext(config), order, sharing.sharingNo);
       if (res.status === 'processing') continue;
       if (res.status === 'success') await recordSharingJournal(sharing, order);
