@@ -34,7 +34,7 @@ import { isPgUniqueViolation } from '../../lib/db-errors';
 import { getAdapter } from '../../lib/payment';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import { recordEvent, processEvent } from './payment-outbox.service';
-import { buildAdapterContext, markOrderPaid } from './payment.service';
+import { buildAdapterContext, markOrderPaid, syncOrderStatus } from './payment.service';
 import { resolveApplicationChannelConfig } from './payment-apps.service';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import { pageOffset } from '../../lib/pagination';
@@ -48,8 +48,13 @@ function genContractNo(): string {
   return `CT${Date.now()}${randomInt(1000, 9999)}`;
 }
 
-function genDeductOrderNo(): string {
-  return `DED${Date.now()}${randomInt(1000, 9999)}`;
+/**
+ * A deduction order is the durable idempotency key for one contract period.
+ * It must remain stable across process crashes and retries; a random order
+ * number would allow the same period to be charged twice after a timeout.
+ */
+function genDeductOrderNo(contractId: number, sequence: number): string {
+  return `DED${contractId}-${sequence}`;
 }
 
 /** 按计划周期从基准时间推进一期（monthly 用自然月，避免固定 30 天漂移） */
@@ -709,41 +714,130 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
   const adapter = getAdapter(row.channel);
   if (!adapter.deductContract) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${row.channel}/contract.deduct` });
 
-  const orderNo = genDeductOrderNo();
   let order: PaymentOrderRow;
   let claimedContract: PaymentContractRow;
+  let shouldCallProvider: boolean;
   try {
-    ({ order, contract: claimedContract } = await db.transaction(async (tx) => {
+    ({ order, contract: claimedContract, shouldCallProvider } = await db.transaction(async (tx) => {
+      // Lock and re-read the contract so the period sequence is allocated from
+      // the latest committed success count, even when cron and a manual retry
+      // race each other.
+      const [lockedContract] = await tx
+        .select()
+        .from(paymentContracts)
+        .where(and(
+          eq(paymentContracts.id, row.id),
+          eq(paymentContracts.appId, row.appId),
+          eq(paymentContracts.currency, row.currency),
+          row.tenantId == null ? isNull(paymentContracts.tenantId) : eq(paymentContracts.tenantId, row.tenantId),
+        ))
+        .for('update')
+        .limit(1);
+      if (!lockedContract || lockedContract.status !== 'signed' || !lockedContract.channelContractNo) {
+        throw new HTTPException(409, { message: '协议状态已变化，请刷新后重试' });
+      }
+      const sequence = lockedContract.totalDeductCount + 1;
+      const stableOrderNo = genDeductOrderNo(lockedContract.id, sequence);
+      const orderTenant = lockedContract.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, lockedContract.tenantId);
+      let [existingOrder] = await tx
+        .select()
+        .from(paymentOrders)
+        .where(and(
+          eq(paymentOrders.orderNo, stableOrderNo),
+          eq(paymentOrders.appId, lockedContract.appId),
+          orderTenant,
+        ))
+        .for('update')
+        .limit(1);
+      if (existingOrder) {
+        const sameScope = existingOrder.bizType === lockedContract.bizType
+          && existingOrder.bizId === lockedContract.bizId
+          && existingOrder.amount === plan.amount
+          && existingOrder.currency === lockedContract.currency
+          && existingOrder.channel === lockedContract.channel
+          && existingOrder.channelConfigId === contractConfig.id
+          && existingOrder.payMethod === payMethod;
+        if (!sameScope) throw new HTTPException(409, { message: '扣款幂等订单作用域不一致，请联系管理员' });
+
+        // A definitively failed local attempt may be retried with the same
+        // provider idempotency key. Pending/paying/unknown orders are never
+        // sent again: query/recovery must decide their outcome first.
+        if (existingOrder.status === 'failed') {
+          const [retryOrder] = await tx.update(paymentOrders).set({
+            status: 'pending',
+            channelTradeNo: null,
+            paidAmount: null,
+            feeAmount: null,
+            netAmount: null,
+            paidAt: null,
+            errorMessage: null,
+            version: sql`${paymentOrders.version} + 1`,
+          }).where(and(eq(paymentOrders.id, existingOrder.id), eq(paymentOrders.status, 'failed'))).returning();
+          existingOrder = retryOrder ?? existingOrder;
+          const [contract] = await tx.update(paymentContracts).set({ lastOrderNo: stableOrderNo, version: sql`${paymentContracts.version} + 1` })
+            .where(and(eq(paymentContracts.id, lockedContract.id), eq(paymentContracts.version, lockedContract.version), eq(paymentContracts.status, 'signed'))).returning();
+          if (!contract) throw new HTTPException(409, { message: '协议状态已变化，请刷新后重试' });
+          return { order: existingOrder, contract, shouldCallProvider: true };
+        }
+        return { order: existingOrder, contract: lockedContract, shouldCallProvider: false };
+      }
+
       const [createdOrder] = await tx.insert(paymentOrders).values({
-        orderNo,
-        outTradeNo: orderNo,
-        bizType: row.bizType,
-        bizId: row.bizId,
-        subject: `${plan.name}（第 ${row.totalDeductCount + 1} 期代扣）`,
-        body: `签约协议 ${row.contractNo}`,
+        orderNo: stableOrderNo,
+        outTradeNo: stableOrderNo,
+        bizType: lockedContract.bizType,
+        bizId: lockedContract.bizId,
+        subject: `${plan.name}（第 ${sequence} 期代扣）`,
+        body: `签约协议 ${lockedContract.contractNo}`,
         amount: plan.amount,
-        currency: row.currency,
-        channel: row.channel,
+        currency: lockedContract.currency,
+        channel: lockedContract.channel,
         channelConfigId: contractConfig.id,
-        appId: row.appId,
+        appId: lockedContract.appId,
         payMethod,
         status: 'pending',
         expiredAt: dayjs().add(30, 'minute').toDate(),
-        tenantId: row.tenantId,
+        tenantId: lockedContract.tenantId,
       }).returning();
-      const [contract] = await tx.update(paymentContracts).set({ lastOrderNo: orderNo, version: sql`${paymentContracts.version} + 1` })
-        .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'signed'))).returning();
+      const [contract] = await tx.update(paymentContracts).set({ lastOrderNo: stableOrderNo, version: sql`${paymentContracts.version} + 1` })
+        .where(and(eq(paymentContracts.id, lockedContract.id), eq(paymentContracts.version, lockedContract.version), eq(paymentContracts.status, 'signed'))).returning();
       if (!contract) throw new HTTPException(409, { message: '协议状态已变化，请刷新后重试' });
-      return { order: createdOrder, contract };
+      return { order: createdOrder, contract, shouldCallProvider: true };
     }));
   } catch (err) {
     if (isPgUniqueViolation(err)) throw new HTTPException(400, { message: '该协议存在处理中的扣款订单，请稍后重试' });
     throw err;
   }
 
+  if (!shouldCallProvider) {
+    let resolved = order;
+    if (['pending', 'paying', 'unknown'].includes(order.status)) {
+      try {
+        resolved = await syncOrderStatus(order);
+      } catch (err) {
+        logger.warn('[payment-contract] existing deduction query failed', { orderNo: order.orderNo, err });
+      }
+    }
+    if (['success', 'refunding', 'refunded'].includes(resolved.status)) {
+      try {
+        await advanceContractOnPaid({ orderNo: resolved.orderNo, bizType: claimedContract.bizType, bizId: claimedContract.bizId });
+      } catch (err) {
+        // The durable payment event subscriber will retry contract advancement;
+        // never turn an already-paid order into an unknown outcome.
+        logger.error('[payment-contract] existing success advancement failed', { orderNo: resolved.orderNo, err });
+      }
+      return { orderNo: resolved.orderNo, deductStatus: 'success' };
+    }
+    if (resolved.status === 'failed' || resolved.status === 'closed') {
+      return { orderNo: resolved.orderNo, deductStatus: 'failed', failReason: resolved.errorMessage ?? '扣款订单已失败' };
+    }
+    return { orderNo: resolved.orderNo, deductStatus: 'processing', failReason: '已有扣款订单正在处理，等待渠道查单收敛' };
+  }
+
+  const orderNo = order.orderNo;
   try {
     const res = await adapter.deductContract(buildAdapterContext(contractConfig), {
-      channelContractNo: row.channelContractNo,
+      channelContractNo: claimedContract.channelContractNo!,
       outTradeNo: orderNo,
       amount: plan.amount,
       subject: `${plan.name} 周期扣款`,
@@ -754,7 +848,13 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
       // resilience. Advance the contract in this request as well so a
       // successful first deduction is reflected in the returned DTO; the
       // subscriber remains idempotent and safely replays the same transition.
-      await advanceContractOnPaid({ orderNo, bizType: row.bizType, bizId: row.bizId });
+      try {
+        await advanceContractOnPaid({ orderNo, bizType: claimedContract.bizType, bizId: claimedContract.bizId });
+      } catch (err) {
+        // markOrderPaid already committed the authoritative payment state.
+        // Let the durable payment event subscriber retry the schedule update.
+        logger.error('[payment-contract] paid deduction advancement failed', { orderNo, err });
+      }
       return { orderNo, deductStatus: 'success' };
     }
     if (res.status === 'processing') {
@@ -816,41 +916,49 @@ export async function advanceContractOnPaid(event: { orderNo: string; bizType: s
     .from(paymentOrders)
     .where(eq(paymentOrders.orderNo, event.orderNo))
     .limit(1);
-  if (!order || order.status !== 'success' || !order.paidAt) return;
+  // A success event may be replayed after the order has entered refunding or
+  // refunded. The paid timestamp remains the authoritative deduction fact;
+  // accepting those terminal follow-up states lets recovery finish the
+  // contract schedule without issuing another charge.
+  const paidAt = order?.paidAt;
+  if (!order || !['success', 'refunding', 'refunded'].includes(order.status) || !paidAt) return;
   // 仅代扣单推进排期（同业务的普通支付单，如手动购买，不影响协议周期）
   if (order.payMethod !== 'wechat_papay' && order.payMethod !== 'alipay_cycle') return;
-  const [row] = await db.select().from(paymentContracts).where(and(
-    eq(paymentContracts.bizType, event.bizType),
-    eq(paymentContracts.bizId, event.bizId),
-    eq(paymentContracts.appId, order.appId),
-    eq(paymentContracts.currency, order.currency),
-    order.tenantId == null ? isNull(paymentContracts.tenantId) : eq(paymentContracts.tenantId, order.tenantId),
-    eq(paymentContracts.status, 'signed'),
-  )).limit(1);
-  if (!row) return;
-  const plan = await db.query.paymentDeductPlans.findFirst({ where: and(
-    eq(paymentDeductPlans.id, row.planId),
-    row.tenantId == null ? isNull(paymentDeductPlans.tenantId) : eq(paymentDeductPlans.tenantId, row.tenantId),
-  ) });
-  if (!plan) return;
-  const next = advancePeriod(new Date(), plan);
-  await db
-    .update(paymentContracts)
-    .set({
+  if (order.bizType !== event.bizType || order.bizId !== event.bizId) return;
+  const paidAmount = order.paidAmount ?? order.amount;
+  await db.transaction(async (tx) => {
+    // A row lock serializes different successful periods for the same
+    // contract. The idempotency guard below then makes outbox replays no-ops.
+    const [row] = await tx.select().from(paymentContracts).where(and(
+      eq(paymentContracts.bizType, event.bizType),
+      eq(paymentContracts.bizId, event.bizId),
+      eq(paymentContracts.appId, order.appId),
+      eq(paymentContracts.currency, order.currency),
+      eq(paymentContracts.lastOrderNo, event.orderNo),
+      order.tenantId == null ? isNull(paymentContracts.tenantId) : eq(paymentContracts.tenantId, order.tenantId),
+      inArray(paymentContracts.status, ['signed', 'paused', 'terminated']),
+    )).for('update').limit(1);
+    if (!row) return;
+    const plan = await tx.query.paymentDeductPlans.findFirst({ where: and(
+      eq(paymentDeductPlans.id, row.planId),
+      row.tenantId == null ? isNull(paymentDeductPlans.tenantId) : eq(paymentDeductPlans.tenantId, row.tenantId),
+    ) });
+    if (!plan || plan.amount !== paidAmount) return;
+    if (row.lastDeductAt && row.lastDeductAt >= paidAt) return;
+    const next = row.status === 'signed' ? advancePeriod(paidAt, plan) : null;
+    await tx.update(paymentContracts).set({
       nextDeductAt: next,
-      lastDeductAt: order.paidAt,
+      lastDeductAt: paidAt,
       failCount: 0,
       totalDeductCount: sql`${paymentContracts.totalDeductCount} + 1`,
       version: sql`${paymentContracts.version} + 1`,
-    })
-    .where(
-      and(
-        eq(paymentContracts.id, row.id),
-        eq(paymentContracts.version, row.version),
-        eq(paymentContracts.status, 'signed'),
-        or(isNull(paymentContracts.lastDeductAt), lt(paymentContracts.lastDeductAt, order.paidAt)),
-      ),
-    );
+    }).where(and(
+      eq(paymentContracts.id, row.id),
+      eq(paymentContracts.version, row.version),
+      inArray(paymentContracts.status, ['signed', 'paused', 'terminated']),
+      or(isNull(paymentContracts.lastDeductAt), lt(paymentContracts.lastDeductAt, paidAt)),
+    ));
+  });
 }
 
 let contractSubscribersRegistered = false;

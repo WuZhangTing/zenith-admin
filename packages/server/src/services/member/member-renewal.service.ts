@@ -5,7 +5,7 @@
  * 扣款成功事件（payment.succeeded）订阅者幂等延长 members.vipExpireAt，
  * 幂等键为 member_vip_renewals.orderNo 唯一约束 + 事务级咨询锁（与钱包充值同模式）。
  */
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { members, memberVipRenewals, paymentApps, paymentContracts, paymentDeductPlans, paymentOrders, type MemberVipRenewalRow } from '../../db/schema';
@@ -149,7 +149,10 @@ export async function extendVipOnRenewal(event: { bizId: string; orderNo: string
     return;
   }
   const extended = await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`vip-renewal:${event.orderNo}`}))`);
+    // Serialize all successful renewals for the same member, not only
+    // duplicate delivery of one order. The row lock makes the expiry read and
+    // write atomic even when two different orders settle concurrently.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`vip-renewal-member:${memberId}`}))`);
     const [exist] = await tx.select({ id: memberVipRenewals.id }).from(memberVipRenewals).where(eq(memberVipRenewals.orderNo, event.orderNo)).limit(1);
     if (exist) return false;
 
@@ -168,11 +171,12 @@ export async function extendVipOnRenewal(event: { bizId: string; orderNo: string
       return false;
     }
 
-    const [member] = await tx.select({ vipExpireAt: members.vipExpireAt }).from(members).where(and(
+    const [member] = await tx.select({ vipExpireAt: members.vipExpireAt, status: members.status, deletedAt: members.deletedAt }).from(members).where(and(
       eq(members.id, memberId),
+      isNull(members.deletedAt),
       order.tenantId == null ? sql`${members.tenantId} is null` : eq(members.tenantId, order.tenantId),
-    )).limit(1);
-    if (!member) {
+    )).for('update').limit(1);
+    if (!member || member.status === 'banned') {
       logger.warn('[MemberRenewal] 会员不存在，跳过延期', { memberId, orderNo: event.orderNo });
       return false;
     }
