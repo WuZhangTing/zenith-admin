@@ -227,7 +227,13 @@ async function raiseGrowthToLevelThreshold(ids: number[], levelId: number): Prom
 }
 
 export async function updateMember(id: number, input: AdminUpdateMemberInput) {
-  await ensureMemberExists(id);
+  const current = await ensureMemberExists(id);
+  // 禁止把最后一个登录凭证清空（与创建时「至少一个凭证」同一条规则）
+  const nextPhone = input.phone !== undefined ? input.phone : current.phone;
+  const nextEmail = input.email !== undefined ? input.email : current.email;
+  if (!current.username && !nextPhone && !nextEmail) {
+    throw new HTTPException(400, { message: '用户名、手机号、邮箱至少保留一个，否则该会员将无法登录' });
+  }
   const patch: Record<string, unknown> = {};
   if (input.nickname !== undefined) patch.nickname = input.nickname;
   if (input.phone !== undefined) patch.phone = input.phone;

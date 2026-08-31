@@ -38,7 +38,9 @@ const createMemberSchema = z.object({
   status: statusEnum.optional(),
   levelId: z.number().int().positive().nullable().optional(),
   remark: z.string().max(256).nullable().optional(),
-});
+})
+  // 与前台注册契约（memberRegisterSchema）同一条业务规则：无任何登录凭证的会员无法登录也无法找回
+  .refine((d) => !!(d.username || d.phone || d.email), { message: '用户名、手机号、邮箱至少填写一个' });
 const updateMemberSchema = z.object({
   nickname: z.string().min(1).max(32).optional(),
   phone: z.string().regex(phoneRegex).nullable().optional(),

@@ -117,6 +117,16 @@ export default function MembersPage() {
     save: saveMutation,
     defaults: { status: 'active' as const },
     toValues: (record) => ({ nickname: record.nickname, phone: record.phone, email: record.email, gender: record.gender, levelId: record.levelId, status: record.status, remark: record.remark }),
+    beforeSave: (values, ctx) => {
+      // 与前台注册契约一致：无任何登录凭证的会员无法登录也无法找回密码
+      const username = ctx.editing?.username ?? (values as { username?: string }).username;
+      const { phone, email } = values as { phone?: string | null; email?: string | null };
+      if (!username?.toString().trim() && !phone?.toString().trim() && !email?.toString().trim()) {
+        Toast.warning('用户名、手机号、邮箱至少填写一个，否则该会员将无法登录');
+        abortSubmit('validation');
+      }
+      return values;
+    },
   });
   const editing = memberModal.editing;
 
@@ -382,9 +392,9 @@ export default function MembersPage() {
         <Form key={memberModal.formKey} {...memberModal.formProps}>
           <Row gutter={16}>
             <Col span={12}><Form.Input field="nickname" label="昵称" placeholder="请输入昵称" rules={[{ required: true, message: '请输入昵称' }]} /></Col>
-            <Col span={12}><Form.Input field="username" label="用户名" placeholder="选填" disabled={!!editing} /></Col>
-            <Col span={12}><Form.Input field="phone" label="手机号" placeholder="选填" /></Col>
-            <Col span={12}><Form.Input field="email" label="邮箱" placeholder="选填" /></Col>
+            <Col span={12}><Form.Input field="username" label="用户名" placeholder="用户名/手机号/邮箱至少填一个" disabled={!!editing} /></Col>
+            <Col span={12}><Form.Input field="phone" label="手机号" placeholder="用户名/手机号/邮箱至少填一个" /></Col>
+            <Col span={12}><Form.Input field="email" label="邮箱" placeholder="用户名/手机号/邮箱至少填一个" /></Col>
             {!editing && <Col span={12}><Form.Input field="password" label="密码" type="password" placeholder="选填，留空则无密码" /></Col>}
             <Col span={12}>
               <Form.Select field="levelId" label="会员等级" placeholder="请选择" style={{ width: '100%' }} showClear
