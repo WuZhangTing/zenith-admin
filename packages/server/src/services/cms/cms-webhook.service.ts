@@ -31,9 +31,6 @@ import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 
 export const CMS_WEBHOOK_EMIT_TASK = 'cms-webhook-emit';
 
-/** 站点级 Webhook 托管订阅的固定 clientId（不对应真实开放应用） */
-const INTERNAL_CLIENT_PREFIX = 'cms-site:';
-
 const SYSTEM_ACTOR = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null };
 
 interface CmsWebhookPayload {
@@ -171,10 +168,8 @@ export async function syncCmsSiteWebhookSubscription(siteId: number): Promise<vo
   const settings = (site?.settings ?? {}) as Record<string, unknown>;
   const url = typeof settings.webhookUrl === 'string' ? settings.webhookUrl.trim() : '';
   const secret = typeof settings.webhookSecret === 'string' ? settings.webhookSecret : '';
-  const clientId = `${INTERNAL_CLIENT_PREFIX}${siteId}`;
-
   const [existing] = await db.select().from(appWebhookSubscriptions)
-    .where(and(eq(appWebhookSubscriptions.clientId, clientId), eq(appWebhookSubscriptions.internal, true)))
+    .where(and(eq(appWebhookSubscriptions.cmsSiteId, siteId), eq(appWebhookSubscriptions.internal, true)))
     .limit(1);
 
   const enabled = Boolean(url) && (url.startsWith('http://') || url.startsWith('https://'));
@@ -184,7 +179,8 @@ export async function syncCmsSiteWebhookSubscription(siteId: number): Promise<vo
   }
 
   const values = {
-    clientId,
+    clientId: null,
+    tenantId: null,
     name: `站点 #${siteId} Webhook`,
     url,
     secretEncrypted: secret ? encryptField(secret) : null,

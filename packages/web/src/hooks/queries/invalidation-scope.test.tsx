@@ -32,7 +32,7 @@ import {
   useUpdateDeductPlan,
 } from './payment-contracts';
 
-const CONTRACT_PARAMS = { page: 1, pageSize: 10 };
+const CONTRACT_PARAMS = { applicationId: 1, page: 1, pageSize: 10 };
 
 beforeEach(() => {
   api.reset();
@@ -124,7 +124,7 @@ describe('payment-contracts 扣款计划下拉源与协议状态互不牵连', (
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.terminate.mutateAsync(3);
+    await hook.result.current.terminate.mutateAsync({ id: 3, applicationId: 1 });
     await waitFor(() => expect(api.countOf('GET', '/api/payment/contracts')).toBe(1));
 
     expect(fetches.countOf(paymentContractKeys.planOptions)).toBe(0);

@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { CreatePaymentResult, PaymentOrder, PaymentRefund } from '@zenith/shared/payment';
+import type { CreatePaymentResult, PaymentOrder, PaymentRefund, PaymentRefundStatus } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 import { paymentRefundKeys } from './payment-refunds';
@@ -21,6 +21,7 @@ export interface PaymentOrderListParams {
 }
 
 export interface CreatePaymentOrderValues {
+  applicationId: number;
   bizType: string;
   bizId: string;
   subject: string;
@@ -33,6 +34,12 @@ export interface CreateRefundValues {
   orderNo: string;
   refundAmount: number;
   reason?: string;
+  idempotencyKey: string;
+}
+
+export interface CreatePaymentRefundResult {
+  refundNo: string;
+  status: PaymentRefundStatus;
 }
 
 export const paymentOrderKeys = {
@@ -128,7 +135,10 @@ export function useClosePaymentOrder() {
 export function useCreatePaymentRefund() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: CreateRefundValues) => request.post<PaymentRefund>('/api/payment/refunds', values).then(unwrap),
+    mutationFn: ({ idempotencyKey, ...values }: CreateRefundValues) =>
+      request
+        .post<CreatePaymentRefundResult>('/api/payment/refunds', values, { headers: { 'X-Idempotency-Key': idempotencyKey } })
+        .then(unwrap),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: paymentOrderKeys.all });
       void qc.invalidateQueries({ queryKey: paymentRefundKeys.all });

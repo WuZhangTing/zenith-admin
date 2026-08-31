@@ -1,6 +1,7 @@
-import { bigint, boolean, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, varchar, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { bigint, boolean, check, date, index, integer, jsonb, pgEnum, pgTable, text, timestamp, unique, varchar, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { statusEnum } from './common';
-import { auditColumns, users } from './core';
+import { auditColumns, tenants, users } from './core';
 import { cmsSites } from './cms';
 
 export const openAppEnvironmentEnum = pgEnum('open_app_environment', ['production', 'sandbox']);
@@ -49,10 +50,12 @@ export const oauth2Clients = pgTable('oauth2_clients', {
   status: statusEnum().notNull().default('enabled'),
   /** 应用归属用户 */
   ownerId: integer().references((): AnyPgColumn => users.id, { onDelete: 'set null' }),
+  /** 外部调用的租户权威来源，不接受请求参数覆盖。 */
+  tenantId: integer().references((): AnyPgColumn => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-});
+}, (t) => [index('oauth2_clients_tenant_idx').on(t.tenantId)]);
 
 export type OAuth2ClientRow = typeof oauth2Clients.$inferSelect;
 
@@ -66,7 +69,7 @@ export const oauth2AuthorizationCodes = pgTable('oauth2_authorization_codes', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   /** 授权码 SHA-256 摘要；旧版明文授权码在迁移时全部失效 */
   codeHash: varchar({ length: 64 }).unique('oauth2_authorization_codes_code_hash_unique'),
-  clientId: varchar({ length: 64 }).notNull(),
+  clientId: varchar({ length: 64 }).notNull().references(() => oauth2Clients.clientId, { onDelete: 'cascade' }),
   userId: integer().notNull().references(() => users.id, { onDelete: 'cascade' }),
   redirectUri: text().notNull(),
   scopes: text().array().notNull().default([]),
@@ -265,8 +268,8 @@ export const appWebhookDeliveryStatusEnum = pgEnum('app_webhook_delivery_status'
 /** 开发者应用的 Webhook 订阅 */
 export const appWebhookSubscriptions = pgTable('app_webhook_subscriptions', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  /** 所属应用 AppKey（= oauth2_clients.client_id） */
-  clientId: varchar({ length: 64 }).notNull(),
+  /** 所属应用 AppKey；内部 CMS 订阅为 null，外部订阅必须引用 OAuth2 客户端。 */
+  clientId: varchar({ length: 64 }).references(() => oauth2Clients.clientId, { onDelete: 'cascade' }),
   name: varchar({ length: 100 }).notNull(),
   url: varchar({ length: 512 }).notNull(),
   /** HMAC 签名密钥密文（AES-256-GCM）；仅创建/重置时明文返回一次 */
@@ -289,12 +292,18 @@ export const appWebhookSubscriptions = pgTable('app_webhook_subscriptions', {
   lastDeliveryAt: timestamp({ withTimezone: true }),
   consecutiveFailures: integer().notNull().default(0),
   autoDisabledAt: timestamp({ withTimezone: true }),
+  /** 外部订阅与 OAuth2 客户端保持同一租户；内部 CMS 订阅为平台级 null。 */
+  tenantId: integer().references((): AnyPgColumn => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [
-  index('app_webhook_subscriptions_client_idx').on(t.clientId),
+  index('app_webhook_subscriptions_tenant_client_idx').on(t.tenantId, t.clientId),
   index('app_webhook_subscriptions_cms_site_idx').on(t.cmsSiteId),
+  check(
+    'app_webhook_subscriptions_identity_check',
+    sql`((${t.internal} = true and ${t.clientId} is null) or (${t.internal} = false and ${t.clientId} is not null))`,
+  ),
 ]);
 
 export type AppWebhookSubscriptionRow = typeof appWebhookSubscriptions.$inferSelect;
@@ -305,7 +314,9 @@ export type NewAppWebhookSubscription = typeof appWebhookSubscriptions.$inferIns
 export const appWebhookDeliveries = pgTable('app_webhook_deliveries', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   subscriptionId: integer().notNull().references(() => appWebhookSubscriptions.id, { onDelete: 'cascade' }),
-  clientId: varchar({ length: 64 }).notNull(),
+  /** 外部投递的 OAuth2 client_id；内部 CMS 投递为 null。 */
+  clientId: varchar({ length: 64 }),
+  tenantId: integer().references((): AnyPgColumn => tenants.id, { onDelete: 'cascade' }),
   eventType: varchar({ length: 64 }).notNull(),
   eventId: varchar({ length: 64 }).notNull(),
   payload: jsonb(),
@@ -323,7 +334,7 @@ export const appWebhookDeliveries = pgTable('app_webhook_deliveries', {
 }, (t) => [
   unique('app_webhook_deliveries_subscription_event_unique').on(t.subscriptionId, t.eventId),
   index('app_webhook_deliveries_sub_idx').on(t.subscriptionId),
-  index('app_webhook_deliveries_client_idx').on(t.clientId),
+  index('app_webhook_deliveries_tenant_client_idx').on(t.tenantId, t.clientId),
   index('app_webhook_deliveries_status_idx').on(t.status),
   index('app_webhook_deliveries_next_retry_idx').on(t.nextRetryAt),
   index('app_webhook_deliveries_created_idx').on(t.createdAt),

@@ -27,6 +27,7 @@ export const createBizPayDemoSchema = z.object({
 
 /** 发起支付（选择支付方式，微信 JSAPI 需 openId） */
 export const payBizPayDemoSchema = z.object({
+  applicationId: z.number().int().positive(),
   payMethod: z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr']),
   openId: z.string().max(128).optional(),
 });

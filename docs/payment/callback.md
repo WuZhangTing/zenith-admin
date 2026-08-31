@@ -1,6 +1,6 @@
 # 异步通知与对账
 
-本页覆盖支付结果可靠送达链路：渠道回调 → 订单状态机 → 事件 Outbox → 业务订阅者 / Webhook 投递，以及查单补偿、定时任务与对账中心。
+本页覆盖支付结果可靠送达链路：渠道回调 → 订单状态机 → 事件 Outbox → 业务订阅者 / Open Platform Webhook 投递，以及查单补偿、定时任务与对账中心。
 
 ## 渠道异步通知
 
@@ -63,7 +63,7 @@ POST /api/public/payment/notify/{channel}    # channel: wechat | alipay | unionp
 - handler 抛错时 `attempts + 1`，未达 5 次保持 `pending`，达到上限置 `failed`；
 - 「支付事件」页可调用 `POST /api/payment/ops/events/{id}/redispatch` 将死信重置并重投。
 
-业务订阅者与 Webhook 接收方都必须按 `orderNo`、`refundNo` 或业务键幂等。
+业务订阅者与 Open Platform Webhook 接收方都必须按 `eventId`、`orderNo`、`refundNo` 或业务键幂等。
 
 ## 查单补偿
 
@@ -90,21 +90,8 @@ POST /api/public/payment/notify/{channel}    # channel: wechat | alipay | unionp
 | `generateDailySettlements` | 每日 01:10 | T+1 生成昨日渠道 × 租户结算批次 |
 | `syncPaymentTransfers` | 每 5 分钟 | 同步处理中转账单 |
 | `autoPaymentRecon` | 每日 02:00 | 拉取昨日渠道账单自动对账 |
-| `rebuildPaymentReportDaily` | 每日 00:20 | 重建近 2 天财务报表日切快照 |
 | `executeDueDeductions` | 每分钟 | 执行到期签约代扣 |
 | `syncPaymentDisputes` | 每 5 分钟 | 拉取/生成交易投诉工单 |
-
-`retryPaymentWebhooks` 已注册为 handler，Webhook 失败重试由投递记录 `nextRetryAt` 驱动，可在定时任务中心配置排期。
-
-## 业务方 Webhook 投递
-
-后台「Webhook」页管理跨系统事件投递：
-
-- 端点表：`payment_webhook_endpoints`；投递日志表：`payment_webhook_deliveries`。
-- 订阅事件：5 类支付/退款事件，可按 `bizType` 过滤。
-- 签名头：`X-Payment-Signature`，算法为 HMAC-SHA256，密钥加密存储。
-- 重试：指数退避 `min(60s × 2^attempts, 1h)`，最多 5 次。
-- 手动重投：`POST /api/payment/webhooks/deliveries/{id}/redeliver`。
 
 ## 对账中心
 
@@ -126,7 +113,7 @@ POST /api/public/payment/notify/{channel}    # channel: wechat | alipay | unionp
 
 差异处理状态：
 
-- `adjusted`：根据差异类型推导调账方向与金额，写入 `payment_ledger_entries` 的 `type=adjust` 流水；
+- `adjusted`：根据差异类型推导调账方向与金额，写入 `manual.recon.adjustment` 双分录凭证；
 - `suspended`：挂账待查；
 - `ignored`：确认无需处理。
 

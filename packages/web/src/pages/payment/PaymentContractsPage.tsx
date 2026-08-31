@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
@@ -14,6 +14,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
+import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import {
   paymentContractKeys,
   useAllDeductPlans,
@@ -25,6 +26,7 @@ import {
   usePausePaymentContract,
   usePaymentContractList,
   useResumePaymentContract,
+  useRecoverPaymentContract,
   useTerminatePaymentContract,
   useUpdateDeductPlan,
 } from '@/hooks/queries/payment-contracts';
@@ -36,7 +38,7 @@ import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
-const CONTRACT_STATUS_COLOR = { pending: 'grey', signed: 'green', paused: 'orange', terminated: 'red' } as const satisfies Record<PaymentContractStatus, string>;
+const CONTRACT_STATUS_COLOR = { pending: 'grey', unknown: 'orange', signed: 'green', paused: 'orange', terminated: 'red', failed: 'red' } as const satisfies Record<PaymentContractStatus, string>;
 const contractStatusOptions = Object.entries(PAYMENT_CONTRACT_STATUS_LABELS).map(([value, label]) => ({ value, label }));
 const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
 const DEDUCT_METHOD_OPTIONS = [
@@ -46,7 +48,7 @@ const DEDUCT_METHOD_OPTIONS = [
 
 interface PlanFormValues { name: string; period: PaymentDeductPeriod; customDays?: number; amountYuan: number; maxRetries: number; status?: 'enabled' | 'disabled'; remark?: string; }
 interface PlanPayload { name: string; period: PaymentDeductPeriod; customDays: number | null; amount: number; maxRetries: number; status?: 'enabled' | 'disabled'; remark?: string; }
-interface ContractFormValues { planId: number; payMethod: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow?: boolean; }
+interface ContractFormValues { applicationId: number; planId: number; payMethod: string; currency: 'CNY'; signerAccount: string; signerName?: string; remark?: string; firstDeductNow?: boolean; }
 
 function describePlanPeriod(p: Pick<PaymentDeductPlan, 'period' | 'customDays'>): string {
   return p.period === 'custom' ? `每 ${p.customDays ?? '-'} 天` : PAYMENT_DEDUCT_PERIOD_LABELS[p.period];
@@ -65,7 +67,7 @@ export default function PaymentContractsPage() {
 
   // ── 签约协议 ──
   const {
-    page: cPage, pageSize: cPageSize, buildPagination: buildCPagination,
+    page: cPage, pageSize: cPageSize, setPage: setCPage, buildPagination: buildCPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch({ defaults: defaultSearchParams, listKey: paymentContractKeys.lists });
@@ -75,14 +77,26 @@ export default function PaymentContractsPage() {
   const [planKeyword, setPlanKeyword] = useState('');
   const [submittedPlanKeyword, setSubmittedPlanKeyword] = useState('');
   const [planPeriod, setPlanPeriod] = useState<PaymentDeductPeriod>('monthly');
+  const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
+  const [contractAppId, setContractAppId] = useState<number | null>(null);
+
+  const appsQuery = usePaymentAppList({ page: 1, pageSize: 100, status: 'enabled' });
+  const paymentApps = useMemo(() => appsQuery.data?.list ?? [], [appsQuery.data?.list]);
+  const appById = useMemo(() => new Map(paymentApps.map((app) => [app.id, app])), [paymentApps]);
+  const appOptions = useMemo(
+    () => paymentApps.map((app) => ({ value: app.id, label: `${app.name} · ${app.environment === 'sandbox' ? '沙箱' : '生产'}` })),
+    [paymentApps],
+  );
+  const effectiveContractAppId = contractAppId ?? paymentApps[0]?.id;
 
   const contractQuery = usePaymentContractList({
+    applicationId: effectiveContractAppId ?? 0,
     page: cPage,
     pageSize: cPageSize,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
     channel: submittedParams.channel || undefined,
-  });
+  }, effectiveContractAppId != null);
   const contracts = contractQuery.data?.list ?? [];
   const contractTotal = contractQuery.data?.total ?? 0;
   const planQuery = useDeductPlanList({ page: pPage, pageSize: pPageSize, keyword: submittedPlanKeyword || undefined });
@@ -90,30 +104,38 @@ export default function PaymentContractsPage() {
   const planTotal = planQuery.data?.total ?? 0;
   const allPlansQuery = useAllDeductPlans();
   const allPlans = allPlansQuery.data ?? [];
+  const deductMethodOptions = useMemo(() => {
+    const app = selectedAppId == null ? null : appById.get(selectedAppId);
+    return DEDUCT_METHOD_OPTIONS.filter((option) => option.value === 'wechat_papay' ? app?.wechatConfigId != null : app?.alipayConfigId != null);
+  }, [appById, selectedAppId]);
 
   const createContractMutation = useCreatePaymentContract();
   const terminateMutation = useTerminatePaymentContract();
   const pauseMutation = usePausePaymentContract();
   const resumeMutation = useResumePaymentContract();
   const deductMutation = useDeductPaymentContract();
+  const recoverMutation = useRecoverPaymentContract();
   const createPlanMutation = useCreateDeductPlan();
   const updatePlanMutation = useUpdateDeductPlan();
   const deletePlanMutation = useDeleteDeductPlan();
 
   const contractSaveMutation = {
-    mutateAsync: async ({ values }: { id?: number; values: { planId: number; payMethod: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean } }) => {
+    mutateAsync: async ({ values }: { id?: number; values: { applicationId: number; planId: number; payMethod: string; currency: 'CNY'; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean } }) => {
       const res = await createContractMutation.mutateAsync(values);
       latestContractResult.current = res;
+      setContractAppId(res.contract.appId);
       return res.contract;
     },
     isPending: createContractMutation.isPending,
   };
-  const signModal = useEditModal<PaymentContract, ContractFormValues, { planId: number; payMethod: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean }>({
+  const signModal = useEditModal<PaymentContract, ContractFormValues, { applicationId: number; planId: number; payMethod: string; currency: 'CNY'; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean }>({
     save: contractSaveMutation,
     defaults: { firstDeductNow: true },
     beforeSave: (values) => ({
+      applicationId: values.applicationId,
       planId: values.planId,
       payMethod: values.payMethod,
+      currency: values.currency,
       signerAccount: values.signerAccount,
       signerName: values.signerName || undefined,
       remark: values.remark || undefined,
@@ -130,26 +152,31 @@ export default function PaymentContractsPage() {
 
   // ── 协议操作 ──
 
-  async function handleTerminate(id: number) {
-    await terminateMutation.mutateAsync(id);
+  async function handleTerminate(record: PaymentContract) {
+    await terminateMutation.mutateAsync({ id: record.id, applicationId: record.appId });
     Toast.success('已解约');
   }
 
-  async function handlePause(id: number) {
-    await pauseMutation.mutateAsync(id);
+  async function handlePause(record: PaymentContract) {
+    await pauseMutation.mutateAsync({ id: record.id, applicationId: record.appId });
     Toast.success('已暂停扣款');
   }
 
-  async function handleResume(id: number) {
-    await resumeMutation.mutateAsync(id);
+  async function handleResume(record: PaymentContract) {
+    await resumeMutation.mutateAsync({ id: record.id, applicationId: record.appId });
     Toast.success('已恢复，将尽快执行补扣');
   }
 
-  async function handleDeduct(id: number) {
-    const res = await deductMutation.mutateAsync(id);
+  async function handleDeduct(record: PaymentContract) {
+    const res = await deductMutation.mutateAsync({ id: record.id, applicationId: record.appId });
     if (res.deductStatus === 'success') Toast.success(`扣款成功（订单 ${res.orderNo}）`);
     else if (res.deductStatus === 'processing') Toast.info('渠道受理中，稍后自动同步结果');
     else Toast.error(`扣款失败：${res.failReason ?? '未知原因'}`);
+  }
+
+  async function handleRecover(record: PaymentContract) {
+    const result = await recoverMutation.mutateAsync({ id: record.id, applicationId: record.appId });
+    Toast.info(`查询完成：${PAYMENT_CONTRACT_STATUS_LABELS[result.status]}`);
   }
 
   const planSaveMutation = {
@@ -195,6 +222,7 @@ export default function PaymentContractsPage() {
   // ── 列定义 ──
   const contractColumns: ColumnProps<PaymentContract>[] = [
     copyableNoColumn('协议号', 'contractNo'),
+    { title: '支付应用', dataIndex: 'appId', width: 160, render: (value: number) => appById.get(value)?.name ?? `应用 #${value}` },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '扣款计划', dataIndex: 'planName', width: 200, render: (v: string | null, r) => {
       const text = v ? `${v}（${r.planPeriod ? describePlanPeriod({ period: r.planPeriod, customDays: null }) : '-'}）` : '-';
@@ -205,6 +233,7 @@ export default function PaymentContractsPage() {
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '已扣期数', dataIndex: 'totalDeductCount', width: 90, align: 'right' },
     { title: '连续失败', dataIndex: 'failCount', width: 90, align: 'right', render: (v: number) => (v > 0 ? <Tag color="red">{v} 次</Tag> : '0') },
+    { title: '币种/版本', width: 100, render: (_: unknown, record: PaymentContract) => `${record.currency} · v${record.version}` },
     dateTimeColumn('下次扣款', 'nextDeductAt'),
     dateTimeColumn('上次扣款', 'lastDeductAt'),
     createdAtColumn as ColumnProps<PaymentContract>,
@@ -217,29 +246,35 @@ export default function PaymentContractsPage() {
           key: 'deduct',
           label: '补扣',
           onClick: () => {
-            Modal.confirm({ title: '立即执行一期扣款？', content: `将按计划金额 ${r.planAmount != null ? yuan(r.planAmount) : ''} 发起代扣`, onOk: () => handleDeduct(r.id) });
+            Modal.confirm({ title: '立即执行一期扣款？', content: `将按计划金额 ${r.planAmount != null ? yuan(r.planAmount) : ''} 发起代扣`, onOk: () => handleDeduct(r) });
           },
         }, {
           key: 'pause',
           label: '暂停',
           onClick: () => {
-            Modal.confirm({ title: '暂停自动扣款？', content: '暂停后可随时恢复', onOk: () => handlePause(r.id) });
+            Modal.confirm({ title: '暂停自动扣款？', content: '暂停后可随时恢复', onOk: () => handlePause(r) });
           },
         }] : []),
         ...(r.status === 'paused' ? [{
           key: 'resume',
           label: '恢复',
           onClick: () => {
-            Modal.confirm({ title: '恢复自动扣款？', content: '恢复后将尽快执行补扣', onOk: () => handleResume(r.id) });
+            Modal.confirm({ title: '恢复自动扣款？', content: '恢复后将尽快执行补扣', onOk: () => handleResume(r) });
           },
         }] : []),
-        ...(r.status !== 'terminated' ? [{
+        ...(r.status === 'signed' || r.status === 'paused' ? [{
           key: 'terminate',
           label: '解约',
           danger: true,
           onClick: () => {
-            Modal.confirm({ title: '确定要解约吗？', content: '解约后停止扣款，且不可恢复', onOk: () => handleTerminate(r.id) });
+            Modal.confirm({ title: '确定要解约吗？', content: '解约后停止扣款，且不可恢复', onOk: () => handleTerminate(r) });
           },
+        }] : []),
+        ...(r.status === 'pending' || r.status === 'unknown' ? [{
+          key: 'recover',
+          label: '查单恢复',
+          loading: recoverMutation.isPending && recoverMutation.variables?.id === r.id,
+          onClick: () => { void handleRecover(r); },
         }] : []),
       ] : []),
     }),
@@ -285,6 +320,7 @@ export default function PaymentContractsPage() {
   };
 
   const exportQuery = {
+    applicationId: effectiveContractAppId,
     keyword: submittedParams.keyword || undefined,
     status: submittedParams.status || undefined,
     channel: submittedParams.channel || undefined,
@@ -293,16 +329,30 @@ export default function PaymentContractsPage() {
   const renderKeywordSearch = () => (
     <KeywordInput placeholder="协议号/签约账号/业务ID..." value={draftParams.keyword} onChange={(v) => setDraftParams((p) => ({ ...p, keyword: v }))} onSearch={handleSearch} />
   );
+  const renderAppFilter = () => (
+    <Select
+      placeholder="支付应用"
+      value={effectiveContractAppId}
+      onChange={(value) => {
+        setContractAppId(value as number);
+        setCPage(1);
+      }}
+      optionList={appOptions}
+      filter
+      loading={appsQuery.isFetching}
+      style={{ width: 180 }}
+    />
+  );
   const renderStatusFilter = () => (
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={contractStatusOptions} />
   );
   const renderChannelFilter = () => (
     <Select placeholder="全部渠道" value={draftParams.channel || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, channel: (v as string) ?? '' }))} showClear style={{ width: 120 }} optionList={channelOptions} />
   );
-  const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
+  const renderSearchButton = () => <SearchButton onClick={handleSearch} disabled={effectiveContractAppId == null} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateContract = () => canManage ? (
-    <CreateButton onClick={signModal.openCreate}>新增签约</CreateButton>
+    <CreateButton onClick={() => { setSelectedAppId(null); signModal.openCreate(); }}>新增签约</CreateButton>
   ) : null;
   const renderExportButtons = () => <ExportButton entity="payment.contracts" query={exportQuery} />;
 
@@ -323,8 +373,10 @@ export default function PaymentContractsPage() {
             primary={(
               <>
                 {renderKeywordSearch()}
+                {renderAppFilter()}
                 {renderStatusFilter()}
                 {renderChannelFilter()}
+                {renderAppFilter()}
                 {renderSearchButton()}
                 {renderResetButton()}
                 {renderExportButtons()}
@@ -350,7 +402,7 @@ export default function PaymentContractsPage() {
             mobileActions={<ExportButton entity="payment.contracts" query={exportQuery} variant="flat" />}
           />
           <ConfigurableTable
-            bordered columns={contractColumns} dataSource={contracts} loading={contractQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
+            bordered columns={contractColumns} dataSource={contracts} loading={appsQuery.isFetching || contractQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void contractQuery.refetch()} refreshLoading={contractQuery.isFetching} pagination={buildCPagination(contractTotal)}
           />
         </TabPane>
@@ -394,10 +446,13 @@ export default function PaymentContractsPage() {
       </AppModal>
 
       <AppModal {...signModal.modalProps} title="新增签约（演示/测试）" width={520}>
-        <Form key={signModal.formKey} {...signModal.formProps} initValues={{ ...signModal.formProps.initValues, payMethod: 'wechat_papay' }}>
+        <Form key={signModal.formKey} {...signModal.formProps} initValues={{ ...signModal.formProps.initValues, currency: 'CNY' }}>
+          <Form.Select field="applicationId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter loading={appsQuery.isFetching}
+            onChange={(value) => { setSelectedAppId((value as number | undefined) ?? null); signModal.formApi.current?.setValue('payMethod', undefined); }} rules={[{ required: true, message: '请选择支付应用' }]} />
           <Form.Select field="planId" label="扣款计划" style={{ width: '100%' }} rules={[{ required: true, message: '请选择扣款计划' }]}
             optionList={allPlans.map((p) => ({ value: p.id, label: `${p.name}（${describePlanPeriod(p)} ${yuan(p.amount)}）` }))} />
-          <Form.Select field="payMethod" label="代扣方式" style={{ width: '100%' }} optionList={DEDUCT_METHOD_OPTIONS} rules={[{ required: true, message: '请选择代扣方式' }]} />
+          <Form.Select field="payMethod" label="代扣方式" style={{ width: '100%' }} optionList={deductMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择代扣方式' }]} />
+          <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={[{ value: 'CNY', label: 'CNY · 人民币' }]} disabled rules={[{ required: true, message: '请选择币种' }]} />
           <Form.Input field="signerAccount" label="签约账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '签约账号不能为空' }]} />
           <Form.Input field="signerName" label="签约人" placeholder="可选" />
           <Form.Switch field="firstDeductNow" label="立即首扣" extraText="签约成功后立即执行首期扣款（沙箱渠道即时成功）" />

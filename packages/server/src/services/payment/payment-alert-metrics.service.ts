@@ -4,9 +4,17 @@
  * 全部为轻量计数 / 比率查询，随评估周期（默认 30 秒）执行，因此只走带索引的状态列 + 时间窗口，
  * 不做任何跨表大范围扫描。指标口径与阈值含义见 `@zenith/shared/platform` 的 MONITOR_METRIC_META。
  */
-import { eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, like, lte, or } from 'drizzle-orm';
 import { db } from '../../db';
-import { paymentOrders, paymentEvents, paymentReconItems, paymentReconBatches, paymentWebhookDeliveries } from '../../db/schema';
+import {
+  appWebhookDeliveries,
+  oauth2Clients,
+  paymentApps,
+  paymentEvents,
+  paymentOrders,
+  paymentReconBatches,
+  paymentReconItems,
+} from '../../db/schema';
 import { buildWhere } from '../../lib/where-helpers';
 import { metricTenantFilter, ratePercent } from '../../lib/alert-metrics';
 
@@ -46,7 +54,15 @@ export async function getPaymentAlertMetrics(tenantId: number | null): Promise<P
 
   const orderTenant = metricTenantFilter(paymentOrders.tenantId, tenantId);
   const eventTenant = metricTenantFilter(paymentEvents.tenantId, tenantId);
-  const deliveryTenant = metricTenantFilter(paymentWebhookDeliveries.tenantId, tenantId);
+  const paymentClientIds = db
+    .select({ clientId: oauth2Clients.clientId })
+    .from(paymentApps)
+    .innerJoin(oauth2Clients, eq(oauth2Clients.id, paymentApps.openClientId))
+    .where(metricTenantFilter(paymentApps.tenantId, tenantId));
+  const paymentWebhook = and(
+    inArray(appWebhookDeliveries.clientId, paymentClientIds),
+    or(like(appWebhookDeliveries.eventType, 'payment.%'), like(appWebhookDeliveries.eventType, 'refund.%')),
+  );
   // 对账明细表不带 tenantId，租户归属在批次上，用子查询收敛到该租户的批次
   const reconBatchTenant = tenantId == null
     ? undefined
@@ -67,8 +83,8 @@ export async function getPaymentAlertMetrics(tenantId: number | null): Promise<P
     db.$count(paymentEvents, buildWhere(eq(paymentEvents.status, 'pending'), lte(paymentEvents.createdAt, backlogCutoff), eventTenant)),
     // 重试耗尽置 failed：已彻底未送达，必须人工介入
     db.$count(paymentEvents, buildWhere(eq(paymentEvents.status, 'failed'), eventTenant)),
-    db.$count(paymentWebhookDeliveries, buildWhere(eq(paymentWebhookDeliveries.status, 'success'), gte(paymentWebhookDeliveries.updatedAt, recentCutoff), deliveryTenant)),
-    db.$count(paymentWebhookDeliveries, buildWhere(eq(paymentWebhookDeliveries.status, 'failed'), gte(paymentWebhookDeliveries.updatedAt, recentCutoff), deliveryTenant)),
+    db.$count(appWebhookDeliveries, buildWhere(eq(appWebhookDeliveries.status, 'success'), gte(appWebhookDeliveries.createdAt, recentCutoff), paymentWebhook)),
+    db.$count(appWebhookDeliveries, buildWhere(eq(appWebhookDeliveries.status, 'failed'), gte(appWebhookDeliveries.createdAt, recentCutoff), paymentWebhook)),
   ]);
 
   return {

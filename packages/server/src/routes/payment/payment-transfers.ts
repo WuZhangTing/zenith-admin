@@ -1,9 +1,9 @@
 /**
  * 转账/代付管理路由（/api/payment/transfers）。
- * 发起转账（微信零钱 / 支付宝账户）、查单同步、失败重试（仅渠道未受理）、列表与汇总。
+ * 发起转账（微信零钱 / 支付宝账户）、四眼审批、查单同步、列表与汇总。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { createPaymentTransferSchema } from '@zenith/shared/payment';
+import { approvePaymentTransferSchema, createPaymentTransferSchema } from '@zenith/shared/payment';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
@@ -11,16 +11,24 @@ import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonCon
 import { PaymentTransferDTO, PaymentTransferSummaryDTO } from '../../lib/openapi-dtos';
 import {
   createTransfer,
+  approveTransfer,
   getTransfer,
   getTransferSummary,
   listTransfers,
-  retryTransfer,
+  rejectTransfer,
   syncTransferStatus,
 } from '../../services/payment/payment-transfer.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
-const transferStatusEnum = z.enum(['pending', 'processing', 'success', 'failed']);
+const transferStatusEnum = z.enum(['pending', 'processing', 'unknown', 'success', 'failed']);
+const transferApprovalStatusEnum = z.enum(['none', 'pending', 'approved', 'rejected']);
+const idempotencyHeaders = z.object({
+  'x-idempotency-key': z.string().trim().min(8).max(128).openapi({
+    param: { name: 'X-Idempotency-Key', in: 'header' },
+    example: 'transfer-01JABCDEF1234567890',
+  }),
+});
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -32,6 +40,7 @@ const listRoute = defineOpenAPIRoute({
         keyword: z.string().optional(),
         channel: channelEnum.optional(),
         status: transferStatusEnum.optional(),
+        approvalStatus: transferApprovalStatusEnum.optional(),
         startTime: dateRangeBound('起始时间'),
         endTime: dateRangeBound('结束时间'),
       }),
@@ -66,17 +75,56 @@ const detailRoute = defineOpenAPIRoute({
 const createTransferRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/', tags: ['支付中心-转账'], summary: '发起转账（微信零钱 / 支付宝账户）',
-    description: '落单后同步调渠道执行；渠道失败时单据置为 failed（渠道未受理可在列表重试）。资金流出接口，挂幂等防重复提交。',
+    description: '低于审批阈值时落单后同步调渠道执行；达到阈值时仅冻结资金并等待四眼审批，审批前不会调用渠道。资金流出接口，使用业务幂等键防止重复提交。',
     security: [{ BearerAuth: [] }],
     middleware: [
       authMiddleware,
       guard({ permission: 'payment:transfer:create', audit: { description: '发起转账', module: '支付中心' } }),
       idempotencyGuard({ ttlSeconds: 15 }),
     ] as const,
-    request: { body: { content: jsonContent(createPaymentTransferSchema), required: true } },
+    request: { headers: idempotencyHeaders, body: { content: jsonContent(createPaymentTransferSchema), required: true } },
     responses: { ...ok(PaymentTransferDTO, '转账已受理'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await createTransfer(c.req.valid('json')), '转账已受理'), 200),
+  handler: async (c) => c.json(okBody(await createTransfer({
+    ...c.req.valid('json'),
+    idempotencyKey: c.req.valid('header')['x-idempotency-key'],
+  }), '转账已受理'), 200),
+});
+
+const approveRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/approve', tags: ['支付中心-转账'], summary: '审批通过待审批转账',
+    description: '申请人与审批人必须为不同用户。审批状态通过 CAS 抢占，只有审批成功的一方会触发渠道转账。',
+    security: [{ BearerAuth: [] }],
+    middleware: [
+      authMiddleware,
+      guard({ permission: 'payment:transfer:approve', audit: { description: '审批通过转账', module: '支付中心' } }),
+    ] as const,
+    request: { params: IdParam, body: { content: jsonContent(approvePaymentTransferSchema), required: true } },
+    responses: { ...ok(PaymentTransferDTO, '转账审批通过并已受理'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await approveTransfer(
+    c.req.valid('param').id,
+    c.req.valid('json'),
+  ), '转账审批通过并已受理'), 200),
+});
+
+const rejectRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/reject', tags: ['支付中心-转账'], summary: '驳回待审批转账',
+    description: '驳回转账并在同一事务内释放对应的资金预占。',
+    security: [{ BearerAuth: [] }],
+    middleware: [
+      authMiddleware,
+      guard({ permission: 'payment:transfer:approve', audit: { description: '驳回转账', module: '支付中心' } }),
+    ] as const,
+    request: { params: IdParam, body: { content: jsonContent(approvePaymentTransferSchema), required: true } },
+    responses: { ...ok(PaymentTransferDTO, '转账已驳回'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await rejectTransfer(
+    c.req.valid('param').id,
+    c.req.valid('json'),
+  ), '转账已驳回'), 200),
 });
 
 const queryRoute = defineOpenAPIRoute({
@@ -90,21 +138,14 @@ const queryRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await syncTransferStatus(c.req.valid('param').id), '查单完成'), 200),
 });
 
-const retryRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/{id}/retry', tags: ['支付中心-转账'], summary: '重试失败转账（仅渠道未受理的失败单）',
-    security: [{ BearerAuth: [] }],
-    middleware: [
-      authMiddleware,
-      guard({ permission: 'payment:transfer:create', audit: { description: '重试转账', module: '支付中心' } }),
-      idempotencyGuard({ ttlSeconds: 15 }),
-    ] as const,
-    request: { params: IdParam },
-    responses: { ...ok(PaymentTransferDTO, '重试完成'), ...commonErrorResponses },
-  }),
-  handler: async (c) => c.json(okBody(await retryTransfer(c.req.valid('param').id), '重试完成'), 200),
-});
-
-router.openapiRoutes([listRoute, summaryRoute, detailRoute, createTransferRoute, queryRoute, retryRoute] as const);
+router.openapiRoutes([
+  listRoute,
+  summaryRoute,
+  detailRoute,
+  createTransferRoute,
+  approveRoute,
+  rejectRoute,
+  queryRoute,
+] as const);
 
 export default router;

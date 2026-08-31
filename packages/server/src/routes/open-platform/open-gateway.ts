@@ -16,6 +16,7 @@ import { openGatewayAuth, openApiMetering, openRateLimit } from '../../middlewar
 import { decide } from '../../services/platform/rules-runtime.service';
 import openCmsRoutes, { OPEN_CMS_ENDPOINTS } from './open-cms';
 import openIotRoutes, { OPEN_IOT_ENDPOINTS } from './open-iot';
+import openPaymentRoutes, { OPEN_PAYMENT_ENDPOINTS } from './open-payment';
 
 /**
  * 必须是 OpenAPIHono 而非普通 Hono：`OpenAPIHono.route()` 只在**父子都是 OpenAPIHono**
@@ -32,6 +33,9 @@ router.route('/v1', openCmsRoutes);
 
 // IoT 设备查询与控制端点（同上）
 router.route('/v1', openIotRoutes);
+
+// 支付开放端点（身份、计量和限流继续复用同一网关）。
+router.route('/v1', openPaymentRoutes);
 
 /** scope 校验：记录本次所需 scope；以 principal 的有效 scope 为准（令牌级而非应用级） */
 function hasScope(c: Context, scope: string): boolean {
@@ -182,4 +186,5 @@ export const OPEN_GATEWAY_ENDPOINTS: Array<{
   { method: 'GET', path: '/api/open/v1/short-links/{code}/stats', summary: '短链访问统计（汇总与趋势）', scope: 'data:read' },
   ...OPEN_CMS_ENDPOINTS.map((item) => ({ ...item, scope: null })),
   ...OPEN_IOT_ENDPOINTS,
+  ...OPEN_PAYMENT_ENDPOINTS,
 ];

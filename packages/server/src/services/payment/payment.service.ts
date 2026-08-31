@@ -7,13 +7,15 @@
  */
 import { and, desc, eq, gte, inArray, isNull, like, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { randomInt } from 'node:crypto';
+import { createHash, randomInt } from 'node:crypto';
 import { db } from '../../db';
 import {
   paymentChannelConfigs,
+  paymentApps,
   paymentNotifyLogs,
   paymentOrders,
   paymentRefunds,
+  paymentSharingOrders,
   users,
   type PaymentChannelConfigRow,
   type PaymentNotifyLogRow,
@@ -39,8 +41,10 @@ import { recordEvent, processEvent } from './payment-outbox.service';
 import { assertMethodEnabled } from './payment-method.service';
 import { assertNoPendingRiskReview, evaluateRisk, recordRiskHit, suspendOrderForReview, type RiskCheckInput } from './payment-risk.service';
 import { lockCouponForPayment, releaseCouponForPayment, type CouponLockResult } from './payment-coupon.service';
-import { resolveAppChannelConfig } from './payment-apps.service';
-import { resolvePaymentChannelConfig } from './payment-channel-config-resolver';
+import { resolveApplicationChannelConfig } from './payment-apps.service';
+import { assertPaymentEngineConfig, resolvePaymentChannelConfig } from './payment-channel-config-resolver';
+import type { DbExecutor } from '../../db/types';
+import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
 
@@ -54,7 +58,7 @@ function errMessage(err: unknown): string {
 
 function resolveNotifyUrl(channel: PaymentChannel, config: PaymentChannelConfigRow): string {
   const base = (config.notifyUrl || process.env.PAYMENT_NOTIFY_BASE_URL || process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
-  return `${base}/api/public/payment/notify/${channel}`;
+  return `${base}/api/public/payment/notify/${channel}/${config.callbackToken}`;
 }
 
 /**
@@ -77,6 +81,7 @@ export function buildAdapterContext(config: PaymentChannelConfigRow): AdapterCon
     wechatPrivateKey: decryptField(config.wechatPrivateKeyEncrypted) ?? undefined,
     alipayPrivateKey: decryptField(config.alipayPrivateKeyEncrypted) ?? undefined,
     unionpayPrivateKey: decryptField(config.unionpayPrivateKeyEncrypted) ?? undefined,
+    sandboxNotifySecret: decryptField(config.sandboxNotifySecretEncrypted) ?? undefined,
   };
   return { config, secrets, notifyUrl: resolveNotifyUrl(config.channel, config) };
 }
@@ -86,16 +91,35 @@ async function resolveChannelConfig(channel: PaymentChannel, channelConfigId?: n
   return resolvePaymentChannelConfig({ channel, channelConfigId, scope: tc });
 }
 
-/** 根据订单加载其渠道配置（不做租户过滤，供 cron/回调使用） */
+async function assertPaymentOperation(
+  configRow: PaymentChannelConfigRow,
+  operation: Parameters<typeof assertEffectivePaymentOperation>[0]['operation'],
+  payMethod?: PaymentOrderRow['payMethod'],
+  currency = 'CNY',
+  options?: { recovery?: boolean },
+): Promise<void> {
+  await assertEffectivePaymentOperation({
+    configRow,
+    operation,
+    method: payMethod,
+    currency,
+    recovery: options?.recovery,
+  });
+}
+
+/** 根据订单快照精确加载渠道配置，禁止按渠道回退到其他商户账户。 */
 export async function loadOrderConfig(order: PaymentOrderRow): Promise<PaymentChannelConfigRow | null> {
-  if (order.channelConfigId) {
-    const [row] = await db.select().from(paymentChannelConfigs).where(eq(paymentChannelConfigs.id, order.channelConfigId)).limit(1);
-    if (row) return row;
-  }
+  const tenantScope = order.tenantId == null
+    ? isNull(paymentChannelConfigs.tenantId)
+    : eq(paymentChannelConfigs.tenantId, order.tenantId);
   const [row] = await db
     .select()
     .from(paymentChannelConfigs)
-    .where(and(eq(paymentChannelConfigs.channel, order.channel), eq(paymentChannelConfigs.status, 'enabled')))
+    .where(and(
+      eq(paymentChannelConfigs.id, order.channelConfigId),
+      eq(paymentChannelConfigs.channel, order.channel),
+      tenantScope,
+    ))
     .limit(1);
   return row ?? null;
 }
@@ -107,15 +131,13 @@ export type OrderConfigResolver = (order: PaymentOrderRow) => Promise<PaymentCha
  * 批量任务专用的渠道配置解析器：一批订单通常只落在少数几份配置上，
  * 逐单调用 `loadOrderConfig` 会把同一份配置反复查回来。
  *
- * 缓存键取 `channelConfigId + channel`——两者共同决定 `loadOrderConfig` 的结果
- * （configId 查不到时会回退到按 channel 找启用配置），只用其一会让
- * 「同一个失效 configId、不同 channel」的订单互相串到对方的配置上。
+ * 缓存键取 `channelConfigId + channel + tenantId`，三者共同构成订单绑定的商户身份。
  * 每个任务实例独立 new，不跨任务复用，避免长驻缓存读到过期配置。
  */
 export function createOrderConfigResolver(): OrderConfigResolver {
   const cache = new Map<string, Promise<PaymentChannelConfigRow | null>>();
   return (order) => {
-    const key = `${order.channelConfigId ?? ''}|${order.channel}`;
+    const key = `${order.channelConfigId}|${order.channel}|${order.tenantId ?? 'global'}`;
     const cached = cache.get(key);
     if (cached) return cached;
     const pending = loadOrderConfig(order);
@@ -158,7 +180,12 @@ function buildEventPayload(type: PaymentEventType, order: PaymentOrderRow, extra
     bizType: order.bizType,
     bizId: order.bizId,
     channel: order.channel,
-    amount: order.amount,
+    channelConfigId: order.channelConfigId,
+    payMethod: order.payMethod,
+    appId: order.appId,
+    currency: order.currency,
+    amount: order.paidAmount ?? order.amount,
+    originalAmount: order.originalAmount ?? null,
     userId: order.userId,
     tenantId: order.tenantId,
     refundNo: extra?.refundNo,
@@ -168,20 +195,57 @@ function buildEventPayload(type: PaymentEventType, order: PaymentOrderRow, extra
 
 function enqueuePaymentEvent(eventId: number | null): void {
   if (eventId == null) return;
-  setImmediate(() => { void processEvent(eventId); });
+  setImmediate(() => {
+    void processEvent(eventId).catch((err) => logger.error('[payment] process event failed', { eventId, err: errMessage(err) }));
+  });
 }
 
 async function markOrderClosed(order: PaymentOrderRow): Promise<void> {
   const eventId = await db.transaction(async (tx) => {
     const updated = await tx
       .update(paymentOrders)
-      .set({ status: 'closed' })
-      .where(and(eq(paymentOrders.id, order.id), or(eq(paymentOrders.status, 'pending'), eq(paymentOrders.status, 'paying'))))
-      .returning({ id: paymentOrders.id });
+      .set({ status: 'closed', version: sql`${paymentOrders.version} + 1` })
+      .where(and(
+        eq(paymentOrders.id, order.id),
+        eq(paymentOrders.version, order.version),
+        inArray(paymentOrders.status, ['pending', 'paying', 'unknown']),
+      ))
+      .returning();
     if (updated.length === 0) return null;
-    return recordEvent(tx, { type: 'payment.closed', orderNo: order.orderNo, tenantId: order.tenantId, payload: buildEventPayload('payment.closed', order) });
+    const finalOrder = updated[0];
+    return recordEvent(tx, { type: 'payment.closed', orderNo: finalOrder.orderNo, tenantId: finalOrder.tenantId, payload: buildEventPayload('payment.closed', finalOrder) });
   });
   enqueuePaymentEvent(eventId);
+}
+
+async function recomputeOrderRefundState(executor: DbExecutor, orderId: number): Promise<PaymentOrderStatus> {
+  await executor.execute(sql`SELECT id FROM payment_orders WHERE id = ${orderId} FOR UPDATE`);
+  const [order] = await executor
+    .select({ amount: paymentOrders.amount, status: paymentOrders.status })
+    .from(paymentOrders)
+    .where(eq(paymentOrders.id, orderId))
+    .limit(1);
+  if (!order) throw new HTTPException(404, { message: '原支付订单不存在' });
+  const refunds = await executor
+    .select({ amount: paymentRefunds.refundAmount, status: paymentRefunds.status })
+    .from(paymentRefunds)
+    .where(eq(paymentRefunds.orderId, orderId));
+  const hasActive = refunds.some((item) => ['pending', 'processing', 'unknown'].includes(item.status));
+  const successTotal = refunds
+    .filter((item) => item.status === 'success')
+    .reduce((sum, item) => sum + BigInt(item.amount), 0n);
+  const nextStatus: PaymentOrderStatus = hasActive
+    ? 'refunding'
+    : successTotal >= BigInt(order.amount)
+      ? 'refunded'
+      : 'success';
+  if (order.status !== nextStatus) {
+    await executor
+      .update(paymentOrders)
+      .set({ status: nextStatus, version: sql`${paymentOrders.version} + 1` })
+      .where(and(eq(paymentOrders.id, orderId), inArray(paymentOrders.status, ['success', 'refunding', 'refunded'])));
+  }
+  return nextStatus;
 }
 
 async function markRefundFailed(order: PaymentOrderRow, refund: Pick<PaymentRefundRow, 'id' | 'refundNo' | 'refundAmount'>, message?: string): Promise<void> {
@@ -190,11 +254,11 @@ async function markRefundFailed(order: PaymentOrderRow, refund: Pick<PaymentRefu
   const eventId = await db.transaction(async (tx) => {
     const updated = await tx
       .update(paymentRefunds)
-      .set(setValues)
+      .set({ ...setValues, version: sql`${paymentRefunds.version} + 1` })
       .where(and(eq(paymentRefunds.id, refund.id), notInArray(paymentRefunds.status, ['success', 'failed'])))
       .returning({ id: paymentRefunds.id });
-    await tx.update(paymentOrders).set({ status: 'success' }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, 'refunding')));
     if (updated.length === 0) return null;
+    await recomputeOrderRefundState(tx, order.id);
     return recordEvent(tx, {
       type: 'refund.failed',
       orderNo: order.orderNo,
@@ -220,7 +284,8 @@ export function mapOrder(row: PaymentOrderRow): PaymentOrder {
     amount: row.amount,
     currency: row.currency,
     channel: row.channel,
-    channelConfigId: row.channelConfigId ?? null,
+    channelConfigId: row.channelConfigId,
+    appId: row.appId,
     payMethod: row.payMethod,
     status: row.status,
     userId: row.userId ?? null,
@@ -235,7 +300,9 @@ export function mapOrder(row: PaymentOrderRow): PaymentOrder {
     memberCouponId: row.memberCouponId ?? null,
     paidAt: formatNullableDateTime(row.paidAt),
     expiredAt: formatNullableDateTime(row.expiredAt),
+    returnUrl: row.returnUrl ?? null,
     errorMessage: row.errorMessage ?? null,
+    version: row.version,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -247,7 +314,7 @@ export function mapRefund(row: PaymentRefundRow): PaymentRefund {
     refundNo: row.refundNo,
     outRefundNo: row.outRefundNo,
     orderNo: row.orderNo,
-    orderId: row.orderId ?? null,
+    orderId: row.orderId,
     channelRefundNo: row.channelRefundNo ?? null,
     channel: row.channel,
     refundAmount: row.refundAmount,
@@ -262,6 +329,7 @@ export function mapRefund(row: PaymentRefundRow): PaymentRefund {
     operatorId: row.operatorId ?? null,
     refundedAt: formatNullableDateTime(row.refundedAt),
     errorMessage: row.errorMessage ?? null,
+    version: row.version,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
@@ -271,9 +339,16 @@ export function mapNotifyLog(row: PaymentNotifyLogRow): PaymentNotifyLog {
   return {
     id: row.id,
     channel: row.channel,
+    channelConfigId: row.channelConfigId,
+    appId: row.appId ?? null,
+    providerEventId: row.providerEventId ?? null,
     scene: row.scene,
     orderNo: row.orderNo ?? null,
     signatureValid: row.signatureValid,
+    merchantId: row.merchantId ?? null,
+    providerAppId: row.providerAppId ?? null,
+    paidAmount: row.paidAmount ?? null,
+    currency: row.currency ?? null,
     result: row.result ?? null,
     message: row.message ?? null,
     ip: row.ip ?? null,
@@ -288,20 +363,87 @@ export function mapNotifyLog(row: PaymentNotifyLogRow): PaymentNotifyLog {
 interface InternalCreatePaymentInput extends CreatePaymentInput {
   clientIp?: string;
   tenantId?: number | null;
+  idempotencyKey?: string;
+  /** 服务端构造的同步回跳地址，仅允许与 PAYMENT_CASHIER_BASE_URL 同源。 */
+  returnUrl?: string;
   /** 支付立减：使用的会员券 id（须与 couponMemberId 成对传入，由会员侧业务入口组装） */
   memberCouponId?: number;
   /** 券归属会员 id（锁券校验归属，防串用他人券） */
   couponMemberId?: number;
 }
 
-/** 查找同业务单（bizType+bizId）的活跃订单（pending/paying），与部分唯一索引 payment_orders_active_biz_uq 对应 */
-async function findActiveBizOrder(bizType: string, bizId: string): Promise<PaymentOrderRow | null> {
+interface PaymentOrderScope {
+  tenantId: number | null;
+  appId: number | null;
+  currency: string;
+}
+
+function orderScopeConditions(scope: PaymentOrderScope) {
+  return [
+    scope.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, scope.tenantId),
+    scope.appId == null ? isNull(paymentOrders.appId) : eq(paymentOrders.appId, scope.appId),
+    eq(paymentOrders.currency, scope.currency),
+  ];
+}
+
+function hashPaymentRequest(input: InternalCreatePaymentInput, scope: PaymentOrderScope, channelConfigId: number, userId: number | null): string {
+  return createHash('sha256').update(JSON.stringify({
+    tenantId: scope.tenantId,
+    appId: scope.appId,
+    channelConfigId,
+    bizType: input.bizType,
+    bizId: input.bizId,
+    subject: input.subject.trim(),
+    body: input.body?.trim() || null,
+    amount: input.amount,
+    currency: scope.currency,
+    payMethod: input.payMethod,
+    openId: input.openId?.trim() || null,
+    userId,
+    expireMinutes: input.expireMinutes ?? 30,
+    memberCouponId: input.memberCouponId ?? null,
+    couponMemberId: input.couponMemberId ?? null,
+    returnUrl: input.returnUrl ?? null,
+  })).digest('hex');
+}
+
+/** 查找同租户、应用、币种和业务单的活跃订单，与 payment_orders_active_biz_uq 对应。 */
+async function findActiveBizOrder(input: InternalCreatePaymentInput, scope: PaymentOrderScope): Promise<PaymentOrderRow | null> {
   const [row] = await db
     .select()
     .from(paymentOrders)
-    .where(and(eq(paymentOrders.bizType, bizType), eq(paymentOrders.bizId, bizId), inArray(paymentOrders.status, ['pending', 'paying'])))
+    .where(and(
+      ...orderScopeConditions(scope),
+      eq(paymentOrders.bizType, input.bizType),
+      eq(paymentOrders.bizId, input.bizId),
+      inArray(paymentOrders.status, ['pending', 'paying', 'unknown']),
+    ))
     .limit(1);
   return row ?? null;
+}
+
+async function findIdempotentOrder(key: string, scope: PaymentOrderScope): Promise<PaymentOrderRow | null> {
+  const [row] = await db
+    .select()
+    .from(paymentOrders)
+    .where(and(...orderScopeConditions(scope), eq(paymentOrders.idempotencyKey, key)))
+    .limit(1);
+  return row ?? null;
+}
+
+async function markOrderUnknown(order: PaymentOrderRow, error: unknown): Promise<void> {
+  await db
+    .update(paymentOrders)
+    .set({
+      status: 'unknown',
+      errorMessage: `渠道结果待确认：${errMessage(error)}`.slice(0, 500),
+      version: sql`${paymentOrders.version} + 1`,
+    })
+    .where(and(
+      eq(paymentOrders.id, order.id),
+      eq(paymentOrders.version, order.version),
+      inArray(paymentOrders.status, ['pending', 'paying']),
+    ));
 }
 
 /**
@@ -309,12 +451,20 @@ async function findActiveBizOrder(bizType: string, bizId: string): Promise<Payme
  * 金额/支付方式变化或已过期时，先主动查单防边界支付，再关闭旧单放行新建。
  * 返回 null 表示无可复用订单（调用方继续新建流程）。
  */
-async function reuseActiveBizOrder(input: InternalCreatePaymentInput): Promise<{ orderNo: string; payParams: CreatePaymentResult } | null> {
-  const existing = await findActiveBizOrder(input.bizType, input.bizId);
+async function reuseActiveBizOrder(input: InternalCreatePaymentInput, scope: PaymentOrderScope): Promise<{ orderNo: string; payParams: CreatePaymentResult } | null> {
+  let existing = await findActiveBizOrder(input, scope);
   if (!existing) return null;
 
+  if (existing.status === 'unknown') {
+    existing = await syncOrderStatus(existing);
+    if (existing.status === 'unknown') {
+      throw new HTTPException(409, { message: `该业务单渠道结果待确认，请先查单（订单号 ${existing.orderNo}）` });
+    }
+  }
+
   const expired = existing.expiredAt != null && existing.expiredAt.getTime() <= Date.now();
-  const reusable = !expired && existing.amount === input.amount && existing.payMethod === input.payMethod;
+  const requestHash = hashPaymentRequest(input, scope, existing.channelConfigId, input.userId ?? currentUserOrNull()?.userId ?? null);
+  const reusable = !expired && existing.requestHash === requestHash;
 
   if (!reusable) {
     // 参数已变化或旧单过期：先同步渠道状态（防止用户恰好已扫码支付），再清场
@@ -322,14 +472,18 @@ async function reuseActiveBizOrder(input: InternalCreatePaymentInput): Promise<{
     if (synced.status === 'success' || synced.status === 'refunding' || synced.status === 'refunded') {
       throw new HTTPException(400, { message: `该业务单已支付成功，请勿重复下单（订单号 ${existing.orderNo}）` });
     }
+    if (synced.status === 'unknown') {
+      throw new HTTPException(409, { message: `该业务单渠道结果待确认，请先查单（订单号 ${existing.orderNo}）` });
+    }
     if (synced.status === 'pending' || synced.status === 'paying') {
       const config = await loadOrderConfig(existing);
-      if (config) {
-        try {
-          await getAdapter(existing.channel).closePayment(buildAdapterContext(config), existing);
-        } catch (err) {
-          logger.warn('[payment] close stale biz order failed', { orderNo: existing.orderNo, err: errMessage(err) });
-        }
+      if (!config) throw new HTTPException(409, { message: '原订单绑定的商户配置不可用，无法安全关闭' });
+      assertPaymentEngineConfig(config);
+      try {
+        await getAdapter(existing.channel).closePayment(buildAdapterContext(config), existing);
+      } catch (err) {
+        await markOrderUnknown(existing, err);
+        throw new HTTPException(409, { message: `原订单关单结果待确认，禁止创建新订单（订单号 ${existing.orderNo}）` });
       }
       await markOrderClosed(existing);
     }
@@ -338,11 +492,16 @@ async function reuseActiveBizOrder(input: InternalCreatePaymentInput): Promise<{
 
   const config = await loadOrderConfig(existing);
   if (!config) return null;
+  assertPaymentEngineConfig(config);
+  await assertPaymentOperation(config, 'payment.create', existing.payMethod, existing.currency);
   try {
     const ctx = buildAdapterContext(config);
     assertNotifyUrl(ctx.notifyUrl, config.sandbox);
     const payParams = await getAdapter(existing.channel).createPayment(ctx, existing);
-    await db.update(paymentOrders).set({ status: 'paying' }).where(and(eq(paymentOrders.id, existing.id), eq(paymentOrders.status, 'pending')));
+    await db
+      .update(paymentOrders)
+      .set({ status: 'paying', errorMessage: null, version: sql`${paymentOrders.version} + 1` })
+      .where(and(eq(paymentOrders.id, existing.id), eq(paymentOrders.version, existing.version), eq(paymentOrders.status, 'pending')));
     logger.info('[payment] reuse active biz order', { orderNo: existing.orderNo, bizType: input.bizType, bizId: input.bizId });
     return { orderNo: existing.orderNo, payParams };
   } catch (err) {
@@ -351,29 +510,50 @@ async function reuseActiveBizOrder(input: InternalCreatePaymentInput): Promise<{
     if (synced.status === 'success' || synced.status === 'refunding' || synced.status === 'refunded') {
       throw new HTTPException(400, { message: `该业务单已支付成功，请勿重复下单（订单号 ${existing.orderNo}）` });
     }
-    throw err;
+    await markOrderUnknown(existing, err);
+    throw new HTTPException(409, { message: `支付请求结果待确认，请勿重复下单（订单号 ${existing.orderNo}）` });
+  }
+}
+
+function assertInternalReturnUrl(returnUrl?: string): void {
+  if (!returnUrl) return;
+  if (returnUrl.length > 512) throw new HTTPException(400, { message: '支付回跳地址过长' });
+  let target: URL;
+  let cashierBase: URL;
+  try {
+    target = new URL(returnUrl);
+    cashierBase = new URL(config.payment.cashierBaseUrl);
+  } catch {
+    throw new HTTPException(400, { message: '支付回跳地址格式不正确' });
+  }
+  if (target.origin !== cashierBase.origin) {
+    throw new HTTPException(400, { message: '支付回跳地址必须与收银台配置同源' });
   }
 }
 
 export async function createPayment(input: InternalCreatePaymentInput): Promise<{ orderNo: string; payParams: CreatePaymentResult }> {
+  assertInternalReturnUrl(input.returnUrl);
   const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
   if (input.payMethod === 'wechat_jsapi' && !input.openId?.trim()) {
     throw new HTTPException(400, { message: '微信 JSAPI 支付必须提供 OpenID' });
   }
-  // App 维度：按 appKey 路由到应用绑定的渠道配置（优先于 channelConfigId）
-  let appId: number | null = null;
-  let channelConfigId = input.channelConfigId;
-  if (input.appKey) {
-    const resolved = await resolveAppChannelConfig(input.appKey, channel);
-    appId = resolved.appId;
-    channelConfigId = resolved.channelConfigId;
+  const user = currentUserOrNull();
+  let tenantId = input.tenantId !== undefined ? input.tenantId : user ? getCreateTenantId(user) : null;
+  // App 维度：只接受内部可信 applicationId；开放 API 从已验签 principal 注入后再进入门面。
+  const resolved = await resolveApplicationChannelConfig(input.applicationId, channel, tenantId);
+  const appId = resolved.appId;
+  const channelConfigId = resolved.channelConfigId;
+  tenantId = resolved.tenantId;
+  const currency = input.currency ?? 'CNY';
+  const scope: PaymentOrderScope = { tenantId, appId, currency };
+  const config = await resolveChannelConfig(channel, channelConfigId, tenantId);
+  if ((config.tenantId ?? null) !== tenantId) {
+    throw new HTTPException(400, { message: '支付应用、商户配置与订单租户不一致' });
   }
-  const config = await resolveChannelConfig(channel, channelConfigId, input.tenantId);
+  await assertPaymentOperation(config, 'payment.create', input.payMethod, currency);
   // 回调地址前置校验（fail-fast）：在订单落库前发现配置缺失，避免每次尝试都留下 failed 脏订单
   assertNotifyUrl(resolveNotifyUrl(channel, config), config.sandbox);
 
-  const user = currentUserOrNull();
-  const tenantId = input.tenantId !== undefined ? input.tenantId : user ? getCreateTenantId(user) : null;
   let departmentId: number | null = null;
   if (user) {
     const [creator] = await db.select({ departmentId: users.departmentId }).from(users).where(eq(users.id, user.userId)).limit(1);
@@ -382,13 +562,32 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
   const userId = input.userId ?? user?.userId ?? null;
 
   // ── B 档：支付方式启停校验 ────────────────────────────────────────────────────
-  await assertMethodEnabled(input.payMethod);
+  await assertMethodEnabled(input.payMethod, tenantId);
 
   // ── 风控人工审核前置：同业务单存在待审核记录时禁止重复下单 ─────────────────────
-  await assertNoPendingRiskReview(input.bizType, input.bizId);
+  await assertNoPendingRiskReview({
+    bizType: input.bizType,
+    bizId: input.bizId,
+    tenantId,
+    appId,
+    currency,
+  });
 
   // ── 业务幂等：同业务单存在活跃订单时直接复用（不重复风控/落单）──────────────────
-  const reused = await reuseActiveBizOrder(input);
+  const idempotencyKey = input.idempotencyKey?.trim().slice(0, 128) || null;
+  const requestHash = hashPaymentRequest(input, scope, config.id, userId);
+  if (idempotencyKey) {
+    const existing = await findIdempotentOrder(idempotencyKey, scope);
+    if (existing) {
+      if (existing.requestHash !== requestHash) {
+        throw new HTTPException(409, { message: '同一幂等键对应的支付参数不一致' });
+      }
+      const replayed = await reuseActiveBizOrder(input, scope);
+      if (replayed) return replayed;
+      throw new HTTPException(409, { message: `该幂等请求已处理（订单号 ${existing.orderNo}，状态 ${existing.status}）` });
+    }
+  }
+  const reused = await reuseActiveBizOrder(input, scope);
   if (reused) return reused;
 
   // ── B 档：风控评估（仅对真正新建的订单）：block=拦截留痕，review=落单挂起人工审核 ──
@@ -435,7 +634,7 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
         originalAmount: coupon ? input.amount : null,
         discountAmount: coupon ? coupon.discount : null,
         memberCouponId: coupon ? coupon.memberCouponId : null,
-        currency: 'CNY',
+        currency,
         channel,
         channelConfigId: config.id,
         appId,
@@ -446,7 +645,10 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
         clientIp: input.clientIp ?? null,
         departmentId,
         expiredAt,
+        returnUrl: input.returnUrl ?? null,
         tenantId,
+        idempotencyKey,
+        requestHash,
       })
       .returning();
   } catch (err) {
@@ -454,7 +656,13 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
     if (coupon) await releaseCouponForPayment(coupon.memberCouponId);
     // 并发下单撞 payment_orders_active_biz_uq：复用对方刚创建的活跃单
     if (isPgUniqueViolation(err)) {
-      const raced = await reuseActiveBizOrder(input);
+      if (idempotencyKey) {
+        const duplicate = await findIdempotentOrder(idempotencyKey, scope);
+        if (duplicate && duplicate.requestHash !== requestHash) {
+          throw new HTTPException(409, { message: '同一幂等键对应的支付参数不一致' });
+        }
+      }
+      const raced = await reuseActiveBizOrder(input, scope);
       if (raced) return raced;
       throw new HTTPException(400, { message: '该业务单存在处理中的支付订单，请稍后重试' });
     }
@@ -470,21 +678,14 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
   try {
     const ctx = buildAdapterContext(config);
     const payParams = await getAdapter(channel).createPayment(ctx, orderRow);
-    await db.update(paymentOrders).set({ status: 'paying' }).where(and(eq(paymentOrders.id, orderRow.id), eq(paymentOrders.status, 'pending')));
+    await db
+      .update(paymentOrders)
+      .set({ status: 'paying', version: sql`${paymentOrders.version} + 1` })
+      .where(and(eq(paymentOrders.id, orderRow.id), eq(paymentOrders.version, orderRow.version), eq(paymentOrders.status, 'pending')));
     return { orderNo, payParams };
   } catch (err) {
-    // 状态护栏：仅未进入终态/成功链路的订单可置 failed，防止渠道慢响应期间已被回调标记成功的订单被覆盖
-    const eventId = await db.transaction(async (tx) => {
-      const failed = await tx
-        .update(paymentOrders)
-        .set({ status: 'failed', errorMessage: errMessage(err).slice(0, 500) })
-        .where(and(eq(paymentOrders.id, orderRow.id), inArray(paymentOrders.status, ['pending', 'paying'])))
-        .returning({ id: paymentOrders.id });
-      if (failed.length === 0) return null;
-      return recordEvent(tx, { type: 'payment.failed', orderNo: orderRow.orderNo, tenantId: orderRow.tenantId, payload: buildEventPayload('payment.failed', orderRow) });
-    });
-    enqueuePaymentEvent(eventId);
-    throw err;
+    await markOrderUnknown(orderRow, err);
+    throw new HTTPException(502, { message: `支付请求结果待确认，请通过订单号 ${orderNo} 查单` });
   }
 }
 
@@ -494,6 +695,10 @@ export async function markOrderPaid(
   order: PaymentOrderRow,
   info: { channelTradeNo?: string; paidAmount?: number; paidAt?: Date; notifyData?: string },
 ): Promise<boolean> {
+  const paidAmount = info.paidAmount ?? order.amount;
+  if (paidAmount !== order.amount) {
+    throw new HTTPException(409, { message: `支付金额不一致：订单 ${order.amount} 分，渠道 ${paidAmount} 分` });
+  }
   // 原子条件更新 + outbox 事件同事务持久化：确保「标记成功 + 可靠发事件」exactly-once，
   // 即使进程在发事件前崩溃，cron 也会从 outbox 补投，杜绝漏履约。
   const eventId = await db.transaction(async (tx) => {
@@ -502,18 +707,112 @@ export async function markOrderPaid(
       .set({
         status: 'success',
         channelTradeNo: info.channelTradeNo ?? order.channelTradeNo,
-        paidAmount: info.paidAmount ?? order.amount,
+        paidAmount,
         paidAt: info.paidAt ?? new Date(),
         notifyData: info.notifyData ?? order.notifyData,
+        errorMessage: null,
+        version: sql`${paymentOrders.version} + 1`,
       })
-      .where(and(eq(paymentOrders.id, order.id), notInArray(paymentOrders.status, ['success', 'refunding', 'refunded'])))
-      .returning({ id: paymentOrders.id });
+      .where(and(
+        eq(paymentOrders.id, order.id),
+        eq(paymentOrders.version, order.version),
+        inArray(paymentOrders.status, ['pending', 'paying', 'unknown']),
+      ))
+      .returning();
     if (updated.length === 0) return null; // 已被并发处理，幂等跳过
-    return recordEvent(tx, { type: 'payment.succeeded', orderNo: order.orderNo, tenantId: order.tenantId, payload: buildEventPayload('payment.succeeded', order) });
+    const finalOrder = updated[0];
+    return recordEvent(tx, { type: 'payment.succeeded', orderNo: finalOrder.orderNo, tenantId: finalOrder.tenantId, payload: buildEventPayload('payment.succeeded', finalOrder) });
   });
   if (eventId == null) return false;
-  setImmediate(() => { void processEvent(eventId); }); // 低延迟即时投递；崩溃由 cron 兜底
+  enqueuePaymentEvent(eventId);
   return true;
+}
+
+class ProviderResultMismatchError extends Error {
+  constructor(readonly code: string, message: string) {
+    super(message);
+    this.name = 'ProviderResultMismatchError';
+  }
+}
+
+type ProviderIdentityResult = Pick<NotifyResult, 'merchantId' | 'providerAppId' | 'paidAmount' | 'currency'>;
+
+function expectedProviderIdentity(configRow: PaymentChannelConfigRow): { merchantId: string; providerAppId?: string } {
+  const sandboxMerchantId = `sandbox-merchant-${configRow.id}`;
+  const sandboxAppId = `sandbox-app-${configRow.id}`;
+  if (configRow.channel === 'wechat') {
+    return {
+      merchantId: configRow.wechatMchId || (configRow.sandbox ? sandboxMerchantId : ''),
+      providerAppId: configRow.wechatAppId || (configRow.sandbox ? sandboxAppId : ''),
+    };
+  }
+  if (configRow.channel === 'alipay') {
+    return {
+      merchantId: configRow.alipaySellerId || (configRow.sandbox ? sandboxMerchantId : ''),
+      providerAppId: configRow.alipayAppId || (configRow.sandbox ? sandboxAppId : ''),
+    };
+  }
+  return { merchantId: configRow.unionpayMerId || (configRow.sandbox ? sandboxMerchantId : '') };
+}
+
+async function assertProviderResultMatchesOrder(
+  configRow: PaymentChannelConfigRow,
+  order: PaymentOrderRow,
+  result: ProviderIdentityResult,
+  expectedAmount?: number,
+): Promise<void> {
+  if (order.channelConfigId !== configRow.id || (order.tenantId ?? null) !== (configRow.tenantId ?? null)) {
+    throw new ProviderResultMismatchError('CONFIG_MISMATCH', '回调商户配置或租户与订单不一致');
+  }
+  if (order.appId != null) {
+    const tenantScope = order.tenantId == null ? isNull(paymentApps.tenantId) : eq(paymentApps.tenantId, order.tenantId);
+    const [app] = await db
+      .select({ id: paymentApps.id })
+      .from(paymentApps)
+      .where(and(eq(paymentApps.id, order.appId), tenantScope))
+      .limit(1);
+    if (!app) throw new ProviderResultMismatchError('APPLICATION_MISMATCH', '订单归属支付应用不存在或租户不一致');
+  }
+
+  const expected = expectedProviderIdentity(configRow);
+  if (!expected.merchantId || !result.merchantId || result.merchantId !== expected.merchantId) {
+    throw new ProviderResultMismatchError('MERCHANT_MISMATCH', '渠道商户身份与订单绑定配置不一致');
+  }
+  if (expected.providerAppId && result.providerAppId !== expected.providerAppId) {
+    throw new ProviderResultMismatchError('PROVIDER_APP_MISMATCH', '渠道应用身份与订单绑定配置不一致');
+  }
+  if (expectedAmount !== undefined) {
+    if (result.paidAmount == null || result.paidAmount !== expectedAmount) {
+      throw new ProviderResultMismatchError('AMOUNT_MISMATCH', `渠道金额与预期金额不一致（预期 ${expectedAmount} 分）`);
+    }
+    if (!result.currency || result.currency.toUpperCase() !== order.currency.toUpperCase()) {
+      throw new ProviderResultMismatchError('CURRENCY_MISMATCH', `渠道币种与订单币种不一致（订单 ${order.currency}）`);
+    }
+  }
+}
+
+async function markOrderFailedAfterQuery(order: PaymentOrderRow): Promise<PaymentOrderRow> {
+  const result = await db.transaction(async (tx) => {
+    const [failed] = await tx
+      .update(paymentOrders)
+      .set({ status: 'failed', errorMessage: '渠道查单确认支付失败', version: sql`${paymentOrders.version} + 1` })
+      .where(and(
+        eq(paymentOrders.id, order.id),
+        eq(paymentOrders.version, order.version),
+        inArray(paymentOrders.status, ['pending', 'paying', 'unknown']),
+      ))
+      .returning();
+    if (!failed) return { row: order, eventId: null };
+    const eventId = await recordEvent(tx, {
+      type: 'payment.failed',
+      orderNo: failed.orderNo,
+      tenantId: failed.tenantId,
+      payload: buildEventPayload('payment.failed', failed),
+    });
+    return { row: failed, eventId };
+  });
+  enqueuePaymentEvent(result.eventId);
+  return result.row;
 }
 
 /** 主动查单并同步本地状态（回调兜底，供查单接口与对账任务复用） */
@@ -521,6 +820,8 @@ export async function syncOrderStatus(order: PaymentOrderRow, resolveConfig: Ord
   if (order.status === 'success' || order.status === 'closed' || order.status === 'refunded') return order;
   const config = await resolveConfig(order);
   if (!config) return order;
+  assertPaymentEngineConfig(config, { recovery: true });
+  await assertPaymentOperation(config, 'payment.query', order.payMethod, order.currency, { recovery: true });
   let res;
   try {
     res = await getAdapter(order.channel).queryPayment(buildAdapterContext(config), order);
@@ -529,14 +830,47 @@ export async function syncOrderStatus(order: PaymentOrderRow, resolveConfig: Ord
     return order;
   }
   if (res.status === 'success') {
+    await assertProviderResultMatchesOrder(config, order, res, order.amount);
     await markOrderPaid(order, { channelTradeNo: res.channelTradeNo, paidAmount: res.paidAmount, paidAt: res.paidAt });
-    return { ...order, status: 'success' };
+    return (await db.select().from(paymentOrders).where(eq(paymentOrders.id, order.id)).limit(1))[0] ?? order;
   }
   if (res.status === 'closed') {
     await markOrderClosed(order);
-    return { ...order, status: 'closed' };
+    return (await db.select().from(paymentOrders).where(eq(paymentOrders.id, order.id)).limit(1))[0] ?? order;
+  }
+  if (res.status === 'failed') {
+    return markOrderFailedAfterQuery(order);
+  }
+  if (order.status === 'unknown') {
+    const [pending] = await db
+      .update(paymentOrders)
+      .set({ status: 'paying', errorMessage: null, version: sql`${paymentOrders.version} + 1` })
+      .where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.version, order.version), eq(paymentOrders.status, 'unknown')))
+      .returning();
+    return pending ?? order;
   }
   return order;
+}
+
+/** 定时过期任务的安全关单入口：查单与关单均明确成功后才落本地 closed + Outbox。 */
+export async function closeExpiredOrderSafely(
+  order: PaymentOrderRow,
+  resolveConfig: OrderConfigResolver = loadOrderConfig,
+): Promise<boolean> {
+  const synced = await syncOrderStatus(order, resolveConfig);
+  if (synced.status !== 'pending' && synced.status !== 'paying') return false;
+  const config = await resolveConfig(synced);
+  if (!config) throw new HTTPException(409, { message: '订单绑定的商户配置不可用，无法安全关单' });
+  assertPaymentEngineConfig(config, { recovery: true });
+  await assertPaymentOperation(config, 'payment.close', synced.payMethod, synced.currency, { recovery: true });
+  try {
+    await getAdapter(synced.channel).closePayment(buildAdapterContext(config), synced);
+  } catch (err) {
+    await markOrderUnknown(synced, err);
+    throw new HTTPException(409, { message: '渠道关单结果待确认，本地订单保持未终结' });
+  }
+  await markOrderClosed(synced);
+  return true;
 }
 
 // ─── 查单 / 关单（门面，供业务模块按 orderNo 调用）─────────────────────────────
@@ -547,17 +881,20 @@ export async function queryPayment(orderNo: string): Promise<PaymentOrder> {
 }
 
 export async function closePayment(orderNo: string): Promise<void> {
-  const order = await getOrderRowByNo(orderNo);
+  let order = await getOrderRowByNo(orderNo);
+  if (order.status === 'unknown') order = await syncOrderStatus(order);
   if (order.status !== 'pending' && order.status !== 'paying') {
     throw new HTTPException(400, { message: '当前订单状态无法关闭' });
   }
   const config = await loadOrderConfig(order);
-  if (config) {
-    try {
-      await getAdapter(order.channel).closePayment(buildAdapterContext(config), order);
-    } catch (err) {
-      logger.warn('[payment] close failed', { orderNo, err: errMessage(err) });
-    }
+  if (!config) throw new HTTPException(409, { message: '订单绑定的商户配置不可用，无法安全关单' });
+  assertPaymentEngineConfig(config);
+  await assertPaymentOperation(config, 'payment.close', order.payMethod, order.currency);
+  try {
+    await getAdapter(order.channel).closePayment(buildAdapterContext(config), order);
+  } catch (err) {
+    await markOrderUnknown(order, err);
+    throw new HTTPException(409, { message: '渠道关单结果待确认，请先查单' });
   }
   await markOrderClosed(order);
 }
@@ -585,26 +922,16 @@ async function settleRefundSuccess(
     if (patch.notifyData !== undefined) setValues.notifyData = patch.notifyData;
     const claimed = await tx
       .update(paymentRefunds)
-      .set(setValues)
+      .set({ ...setValues, version: sql`${paymentRefunds.version} + 1` })
       .where(and(eq(paymentRefunds.id, refund.id), ne(paymentRefunds.status, 'success')))
       .returning({ id: paymentRefunds.id });
     if (claimed.length === 0) return null; // 已被并发处理，幂等跳过
 
-    const rows = await tx
-      .select({ amount: paymentRefunds.refundAmount, status: paymentRefunds.status })
-      .from(paymentRefunds)
-      .where(eq(paymentRefunds.orderId, order.id));
-    const successTotal = rows.filter((r) => r.status === 'success').reduce((s, r) => s + BigInt(r.amount), 0n);
-    const newStatus: PaymentOrderStatus = successTotal >= BigInt(order.amount) ? 'refunded' : 'success';
-    // 状态护栏：仅 success/refunding 参与流转，避免覆盖 closed/failed 等无关状态
-    await tx
-      .update(paymentOrders)
-      .set({ status: newStatus })
-      .where(and(eq(paymentOrders.id, order.id), inArray(paymentOrders.status, ['success', 'refunding'])));
+    await recomputeOrderRefundState(tx, order.id);
     return recordEvent(tx, { type: 'refund.succeeded', orderNo: order.orderNo, tenantId: order.tenantId, payload: buildEventPayload('refund.succeeded', order, { refundNo: refund.refundNo, refundAmount: refund.refundAmount }) });
   });
   if (eventId == null) return false;
-  setImmediate(() => { void processEvent(eventId); });
+  enqueuePaymentEvent(eventId);
   return true;
 }
 
@@ -614,6 +941,8 @@ async function executeChannelRefund(
   refundRow: PaymentRefundRow,
   config: PaymentChannelConfigRow,
 ): Promise<{ refundNo: string; status: string }> {
+  assertPaymentEngineConfig(config);
+  await assertPaymentOperation(config, 'refund.create', order.payMethod, order.currency);
   try {
     const ctx = buildAdapterContext(config);
     assertNotifyUrl(ctx.notifyUrl, config.sandbox);
@@ -628,13 +957,31 @@ async function executeChannelRefund(
     } else {
       await db
         .update(paymentRefunds)
-        .set({ status: res.status, channelRefundNo: res.channelRefundNo ?? null, refundedAt: null })
+        .set({ status: res.status, channelRefundNo: res.channelRefundNo ?? null, refundedAt: null, version: sql`${paymentRefunds.version} + 1` })
         .where(and(eq(paymentRefunds.id, refundRow.id), inArray(paymentRefunds.status, ['pending', 'processing'])));
     }
     return { refundNo: refundRow.refundNo, status: res.status };
   } catch (err) {
-    await markRefundFailed(order, refundRow, errMessage(err));
-    throw err;
+    const [unknownRefund] = await db
+      .update(paymentRefunds)
+      .set({
+        status: 'unknown',
+        errorMessage: `渠道结果待确认：${errMessage(err)}`.slice(0, 500),
+        version: sql`${paymentRefunds.version} + 1`,
+      })
+      .where(and(
+        eq(paymentRefunds.id, refundRow.id),
+        eq(paymentRefunds.version, refundRow.version),
+        inArray(paymentRefunds.status, ['pending', 'processing']),
+      ))
+      .returning({ status: paymentRefunds.status });
+    if (unknownRefund) return { refundNo: refundRow.refundNo, status: unknownRefund.status };
+    const [latest] = await db
+      .select({ status: paymentRefunds.status })
+      .from(paymentRefunds)
+      .where(eq(paymentRefunds.id, refundRow.id))
+      .limit(1);
+    return { refundNo: refundRow.refundNo, status: latest?.status ?? 'unknown' };
   }
 }
 
@@ -650,13 +997,64 @@ async function refundApprovalThreshold(): Promise<number> {
   return Number.isFinite(v) && v > 0 ? Math.trunc(v) : 0;
 }
 
-export async function refund(input: CreateRefundInput & { operatorId?: number }): Promise<{ refundNo: string; status: string }> {
+function hashRefundRequest(input: CreateRefundInput): string {
+  return createHash('sha256').update(JSON.stringify({
+    orderNo: input.orderNo,
+    refundAmount: input.refundAmount,
+    reason: input.reason?.trim() || null,
+  })).digest('hex');
+}
+
+async function findIdempotentRefund(order: PaymentOrderRow, idempotencyKey: string): Promise<PaymentRefundRow | null> {
+  const exactTenant = order.tenantId == null ? isNull(paymentRefunds.tenantId) : eq(paymentRefunds.tenantId, order.tenantId);
+  const [row] = await db
+    .select()
+    .from(paymentRefunds)
+    .where(and(
+      eq(paymentRefunds.orderId, order.id),
+      eq(paymentRefunds.idempotencyKey, idempotencyKey),
+      exactTenant,
+    ))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function refund(input: CreateRefundInput & { idempotencyKey: string; operatorId?: number }): Promise<{ refundNo: string; status: string }> {
   const order = await getOrderRowByNo(input.orderNo);
   if (order.status !== 'success' && order.status !== 'refunding') {
     throw new HTTPException(400, { message: '订单未支付成功，无法退款' });
   }
   const config = await loadOrderConfig(order);
   if (!config) throw new HTTPException(400, { message: '支付渠道配置不存在，无法退款' });
+  const activeSharingCount = await db.$count(
+    paymentSharingOrders,
+    and(
+      eq(paymentSharingOrders.orderNo, order.orderNo),
+      inArray(paymentSharingOrders.status, ['processing', 'success']),
+      order.tenantId == null ? isNull(paymentSharingOrders.tenantId) : eq(paymentSharingOrders.tenantId, order.tenantId),
+    ),
+  );
+  if (activeSharingCount > 0) {
+    throw new HTTPException(409, { message: '订单存在已受理分账，请先完成分账回退后再退款' });
+  }
+
+  const idempotencyKey = input.idempotencyKey.trim();
+  if (!idempotencyKey) throw new HTTPException(400, { message: '退款请求必须提供 Idempotency-Key' });
+  const requestHash = hashRefundRequest(input);
+  const existingIdempotent = await findIdempotentRefund(order, idempotencyKey);
+  if (existingIdempotent) {
+    if (existingIdempotent.requestHash !== requestHash) {
+      throw new HTTPException(409, { message: '同一 Idempotency-Key 不可用于不同退款请求' });
+    }
+    return { refundNo: existingIdempotent.refundNo, status: existingIdempotent.status };
+  }
+
+  // Reject deterministic configuration/capability failures before creating a
+  // refund row. Otherwise the row would reserve the order's refundable amount
+  // and leave the order in `refunding` even though no provider call occurred.
+  assertPaymentEngineConfig(config);
+  await assertPaymentOperation(config, 'refund.create', order.payMethod, order.currency);
+  assertNotifyUrl(buildAdapterContext(config).notifyUrl, config.sandbox);
 
   const refundNo = genNo('REF');
   const operatorId = input.operatorId ?? currentUserOrNull()?.userId ?? null;
@@ -664,8 +1062,24 @@ export async function refund(input: CreateRefundInput & { operatorId?: number })
   const needApproval = threshold > 0 && input.refundAmount >= threshold;
 
   // ── 原子校验 + 插入（事务内 SELECT FOR UPDATE 防并发超退） ──────────────────
-  const refundRow = await db.transaction(async (tx) => {
+  const refundResult = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT id FROM payment_orders WHERE id = ${order.id} FOR UPDATE`);
+    const exactTenant = order.tenantId == null ? isNull(paymentRefunds.tenantId) : eq(paymentRefunds.tenantId, order.tenantId);
+    const [raced] = await tx
+      .select()
+      .from(paymentRefunds)
+      .where(and(
+        eq(paymentRefunds.orderId, order.id),
+        eq(paymentRefunds.idempotencyKey, idempotencyKey),
+        exactTenant,
+      ))
+      .limit(1);
+    if (raced) {
+      if (raced.requestHash !== requestHash) {
+        throw new HTTPException(409, { message: '同一 Idempotency-Key 不可用于不同退款请求' });
+      }
+      return { row: raced, reused: true };
+    }
     const existing = await tx
       .select({ amount: paymentRefunds.refundAmount, status: paymentRefunds.status })
       .from(paymentRefunds)
@@ -685,17 +1099,22 @@ export async function refund(input: CreateRefundInput & { operatorId?: number })
         refundAmount: input.refundAmount,
         totalAmount: order.amount,
         reason: input.reason ?? null,
-        status: 'pending',
+        status: needApproval ? 'pending' : 'processing',
         approvalStatus: needApproval ? 'pending' : 'none',
         appliedById: operatorId,
         operatorId,
+        idempotencyKey,
+        requestHash,
         tenantId: order.tenantId,
       })
       .returning();
-    // 待审批退款不立即占用订单状态，避免长时间挂在 refunding；免审批才置 refunding（护栏：仅 success 可流转）
-    if (!needApproval) await tx.update(paymentOrders).set({ status: 'refunding' }).where(and(eq(paymentOrders.id, order.id), inArray(paymentOrders.status, ['success', 'refunding'])));
-    return row;
+    // 退款申请一经落库即占用可退额度，订单状态统一由全部退款操作重算。
+    await recomputeOrderRefundState(tx, order.id);
+    return { row, reused: false };
   });
+
+  const refundRow = refundResult.row;
+  if (refundResult.reused) return { refundNo: refundRow.refundNo, status: refundRow.status };
 
   if (needApproval) return { refundNo, status: 'pending' };
   return executeChannelRefund(order, refundRow, config);
@@ -713,12 +1132,24 @@ export async function approveRefund(id: number, remark?: string): Promise<{ refu
   const config = await loadOrderConfig(order);
   if (!config) throw new HTTPException(400, { message: '支付渠道配置不存在，无法退款' });
 
-  await db
+  const [approved] = await db
     .update(paymentRefunds)
-    .set({ approvalStatus: 'approved', approverId: user.userId, approvedAt: new Date(), approvalRemark: remark ?? null })
-    .where(eq(paymentRefunds.id, id));
-  await db.update(paymentOrders).set({ status: 'refunding' }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, 'success')));
-  return executeChannelRefund(order, { ...refundRow, approvalStatus: 'approved' }, config);
+    .set({
+      approvalStatus: 'approved',
+      status: 'processing',
+      approverId: user.userId,
+      approvedAt: new Date(),
+      approvalRemark: remark ?? null,
+      version: sql`${paymentRefunds.version} + 1`,
+    })
+    .where(and(eq(paymentRefunds.id, id), eq(paymentRefunds.version, refundRow.version), eq(paymentRefunds.approvalStatus, 'pending')))
+    .returning();
+  if (!approved) throw new HTTPException(409, { message: '退款审批状态已变化，请刷新后重试' });
+  await db
+    .update(paymentOrders)
+    .set({ status: 'refunding', version: sql`${paymentOrders.version} + 1` })
+    .where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.status, 'success')));
+  return executeChannelRefund(order, approved, config);
 }
 
 /** 驳回待审批退款单（退款单置失败，订单不变）。 */
@@ -733,10 +1164,11 @@ export async function rejectRefund(id: number, remark: string): Promise<void> {
   const eventId = await db.transaction(async (tx) => {
     const updated = await tx
       .update(paymentRefunds)
-      .set({ approvalStatus: 'rejected', approverId: user.userId, approvedAt: new Date(), approvalRemark: remark, status: 'failed', errorMessage: '退款审批被驳回' })
-      .where(and(eq(paymentRefunds.id, id), eq(paymentRefunds.approvalStatus, 'pending')))
+      .set({ approvalStatus: 'rejected', approverId: user.userId, approvedAt: new Date(), approvalRemark: remark, status: 'failed', errorMessage: '退款审批被驳回', version: sql`${paymentRefunds.version} + 1` })
+      .where(and(eq(paymentRefunds.id, id), eq(paymentRefunds.version, refundRow.version), eq(paymentRefunds.approvalStatus, 'pending')))
       .returning({ id: paymentRefunds.id });
     if (updated.length === 0) return null;
+    await recomputeOrderRefundState(tx, order.id);
     return recordEvent(tx, {
       type: 'refund.failed',
       orderNo: order.orderNo,
@@ -757,53 +1189,59 @@ function serializeHeaders(headers: Headers): string {
   return JSON.stringify(obj);
 }
 
-async function applyNotify(channel: PaymentChannel, result: NotifyResult): Promise<void> {
+async function applyNotify(
+  configRow: PaymentChannelConfigRow,
+  result: NotifyResult,
+): Promise<{ orderNo: string; appId: number | null }> {
   if (result.scene === 'refund') {
-    if (!result.outRefundNo) return;
+    if (!result.outRefundNo) throw new ProviderResultMismatchError('REFUND_NO_MISSING', '退款回调缺少商户退款单号');
     const [refundRow] = await db.select().from(paymentRefunds).where(eq(paymentRefunds.outRefundNo, result.outRefundNo)).limit(1);
-    if (!refundRow) return;
+    if (!refundRow) throw new ProviderResultMismatchError('REFUND_NOT_FOUND', '退款回调未匹配到本地退款单');
+    const order = refundRow.orderId
+      ? (await db.select().from(paymentOrders).where(and(
+        eq(paymentOrders.id, refundRow.orderId),
+        eq(paymentOrders.channelConfigId, configRow.id),
+      )).limit(1))[0]
+      : undefined;
+    if (!order) throw new ProviderResultMismatchError('ORDER_NOT_FOUND', '退款回调未匹配到绑定该商户配置的订单');
+    await assertProviderResultMatchesOrder(
+      configRow,
+      order,
+      result,
+      result.tradeStatus === 'refunded' ? refundRow.refundAmount : undefined,
+    );
     if (result.tradeStatus === 'refunded') {
-      const order = refundRow.orderId
-        ? (await db.select().from(paymentOrders).where(eq(paymentOrders.id, refundRow.orderId)).limit(1))[0]
-        : undefined;
-      if (order) {
-        // 单事务收口：退款单置 success + 订单状态流转 + refund.succeeded 事件（并发回调下恰好执行一次）
-        await settleRefundSuccess(order, refundRow, {
-          channelRefundNo: result.channelRefundNo ?? refundRow.channelRefundNo,
-          refundedAt: result.paidAt ?? new Date(),
-          notifyData: result.raw ? JSON.stringify(result.raw).slice(0, 8000) : null,
-        });
-      } else {
-        // 无关联订单（异常数据）：仅幂等更新退款单自身
-        await db
-          .update(paymentRefunds)
-          .set({
-            status: 'success',
-            refundedAt: result.paidAt ?? new Date(),
-            channelRefundNo: result.channelRefundNo ?? refundRow.channelRefundNo,
-            notifyData: result.raw ? JSON.stringify(result.raw).slice(0, 8000) : null,
-          })
-          .where(and(eq(paymentRefunds.id, refundRow.id), ne(paymentRefunds.status, 'success')));
-      }
-    } else {
-      if (refundRow.orderId) {
-        const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.id, refundRow.orderId)).limit(1);
-        if (order) await markRefundFailed(order, refundRow, '渠道退款回调失败');
-      } else {
-        await db.update(paymentRefunds).set({ status: 'failed' }).where(and(eq(paymentRefunds.id, refundRow.id), notInArray(paymentRefunds.status, ['success', 'failed'])));
-      }
+      await settleRefundSuccess(order, refundRow, {
+        channelRefundNo: result.channelRefundNo ?? refundRow.channelRefundNo,
+        refundedAt: result.paidAt ?? new Date(),
+        notifyData: result.raw ? JSON.stringify(result.raw).slice(0, 8000) : null,
+      });
+    } else if (result.tradeStatus === 'failed') {
+      await markRefundFailed(order, refundRow, '渠道退款回调确认失败');
     }
-    return;
+    return { orderNo: order.orderNo, appId: order.appId ?? null };
   }
 
-  if (!result.outTradeNo) return;
+  if (!result.outTradeNo) throw new ProviderResultMismatchError('ORDER_NO_MISSING', '支付回调缺少商户订单号');
   const [order] = await db
     .select()
     .from(paymentOrders)
-    .where(and(eq(paymentOrders.outTradeNo, result.outTradeNo), eq(paymentOrders.channel, channel)))
+    .where(and(
+      eq(paymentOrders.outTradeNo, result.outTradeNo),
+      eq(paymentOrders.channel, configRow.channel),
+      eq(paymentOrders.channelConfigId, configRow.id),
+    ))
     .limit(1);
-  if (!order) return;
-  if (order.status === 'success' || order.status === 'refunded' || order.status === 'refunding') return; // 幂等
+  if (!order) throw new ProviderResultMismatchError('ORDER_NOT_FOUND', '支付回调未匹配到绑定该商户配置的订单');
+  await assertProviderResultMatchesOrder(
+    configRow,
+    order,
+    result,
+    result.tradeStatus === 'success' ? order.amount : undefined,
+  );
+  if (order.status === 'success' || order.status === 'refunded' || order.status === 'refunding') {
+    return { orderNo: order.orderNo, appId: order.appId ?? null };
+  }
   if (result.tradeStatus === 'success') {
     await markOrderPaid(order, {
       channelTradeNo: result.channelTradeNo,
@@ -813,7 +1251,10 @@ async function applyNotify(channel: PaymentChannel, result: NotifyResult): Promi
     });
   } else if (result.tradeStatus === 'closed') {
     await markOrderClosed(order);
+  } else if (result.tradeStatus === 'failed') {
+    await markOrderFailedAfterQuery(order);
   }
+  return { orderNo: order.orderNo, appId: order.appId ?? null };
 }
 
 /** 业务处理失败时的渠道失败应答：渠道将按各自重试策略再次通知（与验签失败的安全拒绝区分开）。 */
@@ -824,54 +1265,97 @@ function buildFailureAck(channel: PaymentChannel): NotifyResult['ack'] {
   return { body: 'failure', contentType: 'text/plain', status: 200 };
 }
 
-/** 处理渠道异步回调：遍历该渠道启用配置逐个验签，成功后处理业务并落日志，返回需回写渠道的 ACK */
+/** 处理渠道异步回调：callbackToken 精确绑定单一配置，验签与业务校验后再推进订单状态。 */
 export async function handleNotify(
   channel: PaymentChannel,
+  callbackToken: string,
   rawBody: string,
   headers: Headers,
   ip: string,
 ): Promise<{ ack: NotifyResult['ack'] }> {
-  const configs = await db
+  const [configRow] = await db
     .select()
     .from(paymentChannelConfigs)
-    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.status, 'enabled')));
-
-  let chosen: { result: NotifyResult; config: PaymentChannelConfigRow } | null = null;
-  let lastResult: NotifyResult | null = null;
-  for (const cfg of configs) {
-    const result = await getAdapter(channel).verifyNotify(buildAdapterContext(cfg), rawBody, headers);
-    lastResult = result;
-    if (result.valid) {
-      chosen = { result, config: cfg };
-      break;
-    }
-  }
-
-  const effective = chosen?.result ?? lastResult;
-  await db.insert(paymentNotifyLogs).values({
-    channel,
-    scene: effective?.scene ?? 'payment',
-    orderNo: effective?.outTradeNo ?? null,
-    rawBody: rawBody.slice(0, 8000),
-    headers: serializeHeaders(headers).slice(0, 2000),
-    signatureValid: effective?.valid ?? false,
-    result: effective?.valid ? effective.tradeStatus : 'invalid_sign',
-    message: effective?.message ?? null,
-    ip,
-    tenantId: chosen?.config.tenantId ?? null,
-  });
-
-  if (!chosen) {
-    return { ack: effective?.ack ?? { body: 'failure', contentType: 'text/plain', status: 401 } };
+    .where(and(
+      eq(paymentChannelConfigs.channel, channel),
+      eq(paymentChannelConfigs.callbackToken, callbackToken),
+    ))
+    .limit(1);
+  if (!configRow) {
+    return { ack: { body: 'failure', contentType: 'text/plain', status: 401 } };
   }
   try {
-    await applyNotify(channel, chosen.result);
+    assertPaymentEngineConfig(configRow, { recovery: true });
   } catch (err) {
-    // 验签已通过但本地落库失败：返回失败 ACK 让渠道重发通知（幂等保护已就位），避免静默吞错后只能依赖查单兜底
-    logger.error('[payment] apply notify failed', { channel, err: errMessage(err) });
+    logger.warn('[payment] callback rejected by engine mode', { channel, configId: configRow.id, err: errMessage(err) });
     return { ack: buildFailureAck(channel) };
   }
-  return { ack: chosen.result.ack };
+
+  const result = await getAdapter(channel).verifyNotify(buildAdapterContext(configRow), rawBody, headers);
+
+  const [insertedLog] = await db.insert(paymentNotifyLogs).values({
+    channel,
+    channelConfigId: configRow.id,
+    providerEventId: result.providerEventId ?? null,
+    scene: result.scene,
+    orderNo: result.outTradeNo ?? result.outRefundNo ?? null,
+    rawBody: rawBody.slice(0, 8000),
+    headers: serializeHeaders(headers).slice(0, 2000),
+    signatureValid: result.valid,
+    merchantId: result.merchantId ?? null,
+    providerAppId: result.providerAppId ?? null,
+    paidAmount: result.paidAmount ?? null,
+    currency: result.currency ?? null,
+    result: result.valid ? `verified:${result.tradeStatus}` : 'invalid_sign',
+    message: result.message ?? null,
+    ip,
+    tenantId: configRow.tenantId ?? null,
+  }).onConflictDoNothing().returning({ id: paymentNotifyLogs.id });
+
+  let notifyLogId = insertedLog?.id ?? null;
+  if (notifyLogId == null && result.providerEventId) {
+    const [existingLog] = await db
+      .select({ id: paymentNotifyLogs.id })
+      .from(paymentNotifyLogs)
+      .where(and(
+        eq(paymentNotifyLogs.channelConfigId, configRow.id),
+        eq(paymentNotifyLogs.providerEventId, result.providerEventId),
+      ))
+      .limit(1);
+    notifyLogId = existingLog?.id ?? null;
+  }
+
+  if (!result.valid) return { ack: result.ack };
+  try {
+    const applied = await applyNotify(configRow, result);
+    if (notifyLogId != null) {
+      await db
+        .update(paymentNotifyLogs)
+        .set({ orderNo: applied.orderNo, appId: applied.appId, result: `processed:${result.tradeStatus}` })
+        .where(eq(paymentNotifyLogs.id, notifyLogId));
+    }
+  } catch (err) {
+    if (err instanceof ProviderResultMismatchError) {
+      if (notifyLogId != null) {
+        await db
+          .update(paymentNotifyLogs)
+          .set({ result: `rejected:${err.code}`, message: err.message.slice(0, 500) })
+          .where(eq(paymentNotifyLogs.id, notifyLogId));
+      }
+      logger.warn('[payment] provider callback rejected', { channel, configId: configRow.id, code: err.code, err: err.message });
+      return { ack: result.ack };
+    }
+    // 验签已通过但本地落库失败：返回失败 ACK 让渠道重发通知（幂等保护已就位），避免静默吞错后只能依赖查单兜底
+    logger.error('[payment] apply notify failed', { channel, err: errMessage(err) });
+    if (notifyLogId != null) {
+      await db
+        .update(paymentNotifyLogs)
+        .set({ result: 'processing_failed', message: errMessage(err).slice(0, 500) })
+        .where(eq(paymentNotifyLogs.id, notifyLogId));
+    }
+    return { ack: buildFailureAck(channel) };
+  }
+  return { ack: result.ack };
 }
 
 // ─── 后台查询接口 ───────────────────────────────────────────────────────────────
@@ -965,7 +1449,7 @@ export interface ListRefundsQuery {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  status?: 'pending' | 'processing' | 'success' | 'failed';
+  status?: 'pending' | 'processing' | 'unknown' | 'success' | 'failed';
   approvalStatus?: 'none' | 'pending' | 'approved' | 'rejected';
   channel?: PaymentChannel;
   startTime?: string;
@@ -1001,37 +1485,64 @@ export async function getRefundDetail(id: number): Promise<PaymentRefund> {
   return mapRefund(row);
 }
 
-/** 主动向渠道查询退款状态并同步本地（供后台「退款查单」与对账复用） */
-export async function refreshRefundById(id: number): Promise<PaymentRefund> {
-  const tc = tenantCondition(paymentRefunds, currentUser());
-  const [refundRow] = await db.select().from(paymentRefunds).where(and(eq(paymentRefunds.id, id), tc)).limit(1);
-  if (!refundRow) throw new HTTPException(404, { message: '退款记录不存在' });
-  if (refundRow.status === 'success') return mapRefund(refundRow);
-
-  const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, refundRow.orderNo)).limit(1);
-  if (!order) throw new HTTPException(404, { message: '原支付订单不存在' });
-  const config = await loadOrderConfig(order);
-  if (!config) throw new HTTPException(400, { message: '支付渠道配置不存在，无法查单' });
-
-  let res;
-  try {
-    res = await getAdapter(refundRow.channel).queryRefund(buildAdapterContext(config), refundRow, order);
-  } catch (err) {
-    logger.warn('[payment] query refund failed', { refundNo: refundRow.refundNo, err: errMessage(err) });
-    throw new HTTPException(502, { message: `退款查单失败：${errMessage(err)}` });
-  }
+/** 已持久化退款单的查单收敛入口，供人工查询与后台 unknown 扫描复用。 */
+export async function syncRefundStatus(
+  refundRow: PaymentRefundRow,
+  order: PaymentOrderRow,
+  config: PaymentChannelConfigRow,
+): Promise<PaymentRefundRow> {
+  if (refundRow.status === 'success' || refundRow.status === 'failed') return refundRow;
+  assertPaymentEngineConfig(config, { recovery: true });
+  await assertPaymentOperation(config, 'refund.query', order.payMethod, order.currency, { recovery: true });
+  const res = await getAdapter(refundRow.channel).queryRefund(buildAdapterContext(config), refundRow, order);
 
   if (res.status === 'success') {
     // 单事务收口：退款单置 success + 订单状态流转 + refund.succeeded 事件原子持久化
     await settleRefundSuccess(order, refundRow, { channelRefundNo: res.channelRefundNo ?? refundRow.channelRefundNo, refundedAt: res.refundedAt ?? new Date() });
   } else if (res.status === 'failed') {
     await markRefundFailed(order, refundRow, '渠道退款查单失败');
-  } else if (res.channelRefundNo && res.channelRefundNo !== refundRow.channelRefundNo) {
-    await db.update(paymentRefunds).set({ channelRefundNo: res.channelRefundNo }).where(eq(paymentRefunds.id, refundRow.id));
+  } else {
+    await db
+      .update(paymentRefunds)
+      .set({
+        status: 'processing',
+        channelRefundNo: res.channelRefundNo ?? refundRow.channelRefundNo,
+        errorMessage: null,
+        version: sql`${paymentRefunds.version} + 1`,
+      })
+      .where(and(
+        eq(paymentRefunds.id, refundRow.id),
+        eq(paymentRefunds.version, refundRow.version),
+        inArray(paymentRefunds.status, ['pending', 'processing', 'unknown']),
+      ));
   }
 
   const [latest] = await db.select().from(paymentRefunds).where(eq(paymentRefunds.id, refundRow.id)).limit(1);
-  return mapRefund(latest ?? refundRow);
+  return latest ?? refundRow;
+}
+
+/** 主动向渠道查询退款状态并同步本地（供后台「退款查单」）。 */
+export async function refreshRefundById(id: number): Promise<PaymentRefund> {
+  const tc = tenantCondition(paymentRefunds, currentUser());
+  const [refundRow] = await db.select().from(paymentRefunds).where(and(eq(paymentRefunds.id, id), tc)).limit(1);
+  if (!refundRow) throw new HTTPException(404, { message: '退款记录不存在' });
+  if (refundRow.status === 'success' || refundRow.status === 'failed') return mapRefund(refundRow);
+
+  const exactTenant = refundRow.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, refundRow.tenantId);
+  const [order] = await db
+    .select()
+    .from(paymentOrders)
+    .where(and(eq(paymentOrders.orderNo, refundRow.orderNo), exactTenant))
+    .limit(1);
+  if (!order) throw new HTTPException(404, { message: '原支付订单不存在' });
+  const config = await loadOrderConfig(order);
+  if (!config) throw new HTTPException(400, { message: '支付渠道配置不存在，无法查单' });
+  try {
+    return mapRefund(await syncRefundStatus(refundRow, order, config));
+  } catch (err) {
+    logger.warn('[payment] query refund failed', { refundNo: refundRow.refundNo, err: errMessage(err) });
+    throw new HTTPException(502, { message: `退款查单失败：${errMessage(err)}` });
+  }
 }
 
 export interface ListNotifyLogsQuery {
@@ -1071,7 +1582,7 @@ export async function listNotifyLogs(q: ListNotifyLogsQuery) {
  */
 export function calcLockedRefundAmount(refunds: Array<{ amount: number; status: string }>): number {
   return refunds
-    .filter((r) => r.status === 'pending' || r.status === 'processing' || r.status === 'success')
+    .filter((r) => r.status === 'pending' || r.status === 'processing' || r.status === 'unknown' || r.status === 'success')
     .reduce((s, r) => s + r.amount, 0);
 }
 
@@ -1086,16 +1597,21 @@ export async function testChannelConnectivity(
   id: number,
 ): Promise<{ success: boolean; message: string; latencyMs: number }> {
   const { ensureChannelConfigExists } = await import('./payment-channels.service');
-  const config = await ensureChannelConfigExists(id);
+  const channelConfig = await ensureChannelConfigExists(id);
   // 沙箱渠道全链路为模拟实现，不外呼真实渠道；直接判定可用，避免「渠道可用但测试报凭据缺失」的矛盾
-  if (config.sandbox) {
+  if (channelConfig.sandbox) {
     return { success: true, message: '沙箱模式：跳过真实渠道探测（所有支付操作走模拟实现）', latencyMs: 0 };
   }
-  const adapter = getAdapter(config.channel as PaymentChannel);
-  if (!adapter.testConnectivity) {
-    return { success: false, message: `渠道 ${config.channel} 暂不支持连通性测试`, latencyMs: 0 };
+  // 全局沙箱是外呼总闸：即使误建了 sandbox=false 的配置，也不能借助
+  // “连通性测试”触发生产凭据探测或向第三方发送请求。
+  if (config.payment.engineMode === 'sandbox' || config.payment.engineMode === 'off') {
+    return { success: false, message: `当前支付引擎为${config.payment.engineMode === 'off' ? '关闭' : '沙箱'}模式，禁止探测生产渠道配置`, latencyMs: 0 };
   }
-  const ctx = buildAdapterContext(config);
+  const adapter = getAdapter(channelConfig.channel as PaymentChannel);
+  if (!adapter.testConnectivity) {
+    return { success: false, message: `渠道 ${channelConfig.channel} 暂不支持连通性测试`, latencyMs: 0 };
+  }
+  const ctx = buildAdapterContext(channelConfig);
   const start = Date.now();
   try {
     await adapter.testConnectivity(ctx);

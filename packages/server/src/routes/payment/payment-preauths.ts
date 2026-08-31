@@ -14,12 +14,14 @@ import {
   createPreauth,
   ensurePreauth,
   listPreauths,
+  recoverPreauth,
   releasePreauth,
 } from '../../services/payment/payment-preauth.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
-const preauthStatusEnum = z.enum(['pending', 'frozen', 'captured', 'released', 'failed']);
+const preauthStatusEnum = z.enum(['pending', 'unknown', 'frozen', 'captured', 'released', 'failed']);
+const ApplicationQuery = z.object({ applicationId: z.coerce.number().int().positive() });
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -28,6 +30,7 @@ const listRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'payment:preauth:list' })] as const,
     request: {
       query: PaginationQuery.extend({
+        applicationId: z.coerce.number().int().positive(),
         keyword: z.string().optional(),
         status: preauthStatusEnum.optional(),
         channel: channelEnum.optional(),
@@ -66,14 +69,15 @@ const captureRoute = defineOpenAPIRoute({
       guard({ permission: 'payment:preauth:manage', audit: { description: '预授权转支付', module: '支付中心' } }),
       idempotencyGuard({ ttlSeconds: 10 }),
     ] as const,
-    request: { params: IdParam, body: { content: jsonContent(capturePaymentPreauthSchema), required: false } },
+    request: { params: IdParam, query: ApplicationQuery, body: { content: jsonContent(capturePaymentPreauthSchema), required: false } },
     responses: { ...ok(PaymentPreauthDTO, '转支付完成'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await ensurePreauth(id));
+    const { applicationId } = c.req.valid('query');
+    setAuditBeforeData(c, await ensurePreauth(id, applicationId));
     const body = (c.req.valid('json') ?? {}) as { captureAmount?: number; remark?: string };
-    return c.json(okBody(await capturePreauth(id, body), '转支付完成'), 200);
+    return c.json(okBody(await capturePreauth(id, applicationId, body), '转支付完成'), 200);
   },
 });
 
@@ -86,16 +90,29 @@ const releaseRoute = defineOpenAPIRoute({
       guard({ permission: 'payment:preauth:manage', audit: { description: '预授权解冻', module: '支付中心' } }),
       idempotencyGuard({ ttlSeconds: 10 }),
     ] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, query: ApplicationQuery },
     responses: { ...ok(PaymentPreauthDTO, '已解冻'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    setAuditBeforeData(c, await ensurePreauth(id));
-    return c.json(okBody(await releasePreauth(c.req.valid('param').id), '已解冻'), 200);
+    const { applicationId } = c.req.valid('query');
+    setAuditBeforeData(c, await ensurePreauth(id, applicationId));
+    return c.json(okBody(await releasePreauth(id, applicationId), '已解冻'), 200);
   },
 });
 
-router.openapiRoutes([listRoute, createPreauthRoute, captureRoute, releaseRoute] as const);
+const recoverRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/{id}/recover', tags: ['支付中心-预授权'], summary: '查询并恢复未知预授权状态',
+    description: '仅当渠道适配器明确声明 preauth.query 能力时收敛；否则保持原状态并记录原因。',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:preauth:manage', audit: { description: '查询恢复预授权', module: '支付中心' } })] as const,
+    request: { params: IdParam, query: ApplicationQuery },
+    responses: { ...ok(PaymentPreauthDTO, '查询完成'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await recoverPreauth(c.req.valid('param').id, c.req.valid('query').applicationId), '查询完成'), 200),
+});
+
+router.openapiRoutes([listRoute, createPreauthRoute, captureRoute, releaseRoute, recoverRoute] as const);
 
 export default router;

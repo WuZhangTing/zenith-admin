@@ -287,10 +287,11 @@ export async function resolveIotAlarm(id: number, note?: string | null) {
     .where(and(eq(iotAlarms.id, id), inArray(iotAlarms.status, ['firing', 'acknowledged'])))
     .returning();
   if (!row) throw new HTTPException(404, { message: '告警不存在或已恢复' });
-  const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name, productId: iotDevices.productId })
+  const [device] = await db.select({ sn: iotDevices.sn, name: iotDevices.name, productId: iotDevices.productId, tenantId: iotDevices.tenantId })
     .from(iotDevices).where(eq(iotDevices.id, row.deviceId)).limit(1);
   openEventBus.emit({
     type: 'iot.alarm.resolved',
+    tenantId: device?.tenantId ?? null,
     data: { alarmId: row.id, ruleName: row.ruleName, deviceId: row.deviceId, sn: device?.sn ?? null, deviceName: device?.name ?? null, message: '管理员手动处理', resolvedBy: 'manual' },
   });
   if (device) {
@@ -357,6 +358,7 @@ async function fireIotAlarm(
   if (!inserted) return;
   openEventBus.emit({
     type: 'iot.alarm.triggered',
+    tenantId: device.tenantId ?? null,
     data: { alarmId: inserted.id, ruleName: rule.name, ruleType: rule.ruleType, level: rule.level, deviceId: device.id, sn: device.sn, deviceName: device.name, message },
   });
   dispatchIotForward('alarm', device, {
@@ -383,6 +385,7 @@ async function autoResolveIotAlarm(
   if (!resolved) return;
   openEventBus.emit({
     type: 'iot.alarm.resolved',
+    tenantId: device.tenantId ?? null,
     data: { alarmId: resolved.id, ruleName: rule.name, deviceId: device.id, sn: device.sn, deviceName: device.name, message, resolvedBy: 'auto' },
   });
   dispatchIotForward('alarm', device, {

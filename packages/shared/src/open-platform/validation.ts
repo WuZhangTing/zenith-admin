@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
 import { isSafeOAuthRedirectUri } from '../identity/constants';
-import { OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENTS } from './constants';
+import { OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENTS, OPEN_WEBHOOK_EVENTS } from './constants';
 
 const ipOrCidrSchema = z.string().min(2).max(64).regex(
   /^((\d{1,3}\.){3}\d{1,3}|[0-9a-fA-F:]+)(\/\d{1,3})?$/,
@@ -125,17 +125,56 @@ export const openSignatureVerifySchema = z.object({
 export type OpenSignatureVerifyInput = z.input<typeof openSignatureVerifySchema>;
 
 // ─── 开放平台：Webhook 订阅 ───────────────────────────────────────────────────
+const webhookHeadersSchema = z.record(z.string(), z.string()).superRefine((headers, ctx) => {
+  for (const key of Object.keys(headers)) {
+    const normalized = key.trim().toLowerCase();
+    if (normalized === 'content-type' || normalized.startsWith('x-zenith-')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [key],
+        message: '自定义请求头不能覆盖 Content-Type 或 X-Zenith-* 保留头',
+      });
+    }
+  }
+});
+
+const sensitiveWebhookEvents = new Set<string>([
+  'payment.succeeded',
+  'payment.closed',
+  'payment.failed',
+  'refund.succeeded',
+  'refund.failed',
+]);
+
+function requireSensitiveWebhookSignature(
+  value: { events?: readonly string[]; signMode?: 'hmacSha256' | 'none' },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.events?.some((event) => sensitiveWebhookEvents.has(event)) && value.signMode === 'none') {
+    ctx.addIssue({ code: 'custom', path: ['signMode'], message: '支付与退款事件必须使用 HMAC-SHA256 签名' });
+  }
+}
+
 export const createAppWebhookSchema = z.object({
   clientId: z.string().min(1, '请选择所属应用'),
   name: z.string().min(1, '名称不能为空').max(100),
   url: z.string().regex(/^https?:\/\/.+/, 'URL 必须以 http(s):// 开头').max(512),
-  events: z.array(z.string()).default([]),
+  events: z.array(z.enum(OPEN_WEBHOOK_EVENTS)).default([]),
   signMode: z.enum(['hmacSha256', 'none']).default('hmacSha256'),
-  headers: z.record(z.string(), z.string()).optional(),
+  headers: webhookHeadersSchema.optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
-});
+}).superRefine(requireSensitiveWebhookSignature);
 
-export const updateAppWebhookSchema = partialForUpdate(createAppWebhookSchema).omit({ clientId: true });
+const updateAppWebhookFieldsSchema = z.object({
+  name: z.string().min(1, '名称不能为空').max(100).optional(),
+  url: z.string().regex(/^https?:\/\/.+/, 'URL 必须以 http(s):// 开头').max(512).optional(),
+  events: z.array(z.enum(OPEN_WEBHOOK_EVENTS)).optional(),
+  signMode: z.enum(['hmacSha256', 'none']).optional(),
+  headers: webhookHeadersSchema.optional(),
+  status: z.enum(['enabled', 'disabled']).optional(),
+}).superRefine(requireSensitiveWebhookSignature);
+
+export const updateAppWebhookSchema = updateAppWebhookFieldsSchema;
 
 export type CreateAppWebhookInput = z.input<typeof createAppWebhookSchema>;
 

@@ -12,12 +12,14 @@ import { and, desc, eq, gte, inArray, lt, lte, notInArray, sql } from 'drizzle-o
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import dayjs from 'dayjs';
+import { config } from '../../config';
 import { db } from '../../db';
 import {
   paymentChannelConfigs,
   paymentDisputeReplies,
   paymentDisputes,
   paymentOrders,
+  paymentRefunds,
   type PaymentDisputeReplyRow,
   type PaymentDisputeRow,
 } from '../../db/schema';
@@ -145,7 +147,7 @@ export async function getDisputeDetail(id: number): Promise<PaymentDisputeDetail
   const [order] = await db
     .select({ orderNo: paymentOrders.orderNo, subject: paymentOrders.subject, amount: paymentOrders.amount, status: paymentOrders.status, paidAt: paymentOrders.paidAt })
     .from(paymentOrders)
-    .where(eq(paymentOrders.orderNo, row.orderNo))
+    .where(and(eq(paymentOrders.orderNo, row.orderNo), row.tenantId == null ? sql`${paymentOrders.tenantId} is null` : eq(paymentOrders.tenantId, row.tenantId)))
     .limit(1);
   return {
     ...mapDispute(row),
@@ -158,12 +160,13 @@ export async function getDisputeDetail(id: number): Promise<PaymentDisputeDetail
 
 export async function getDisputeStats(): Promise<PaymentDisputeStats> {
   const tc = disputesTenantCondition();
+  const orderTenant = tenantCondition(paymentOrders, currentUser());
   const since30d = dayjs().subtract(30, 'day').toDate();
   const [open, overdue, last30dCount, last30dOrders, resolvedRows] = await Promise.all([
     db.$count(paymentDisputes, mergeWhere(inArray(paymentDisputes.status, OPEN_STATUSES), tc)),
     db.$count(paymentDisputes, mergeWhere(and(inArray(paymentDisputes.status, OPEN_STATUSES), lt(paymentDisputes.deadline, new Date())), tc)),
     db.$count(paymentDisputes, mergeWhere(gte(paymentDisputes.createdAt, since30d), tc)),
-    db.$count(paymentOrders, and(inArray(paymentOrders.status, ['success', 'refunding', 'refunded']), gte(paymentOrders.createdAt, since30d))),
+    db.$count(paymentOrders, mergeWhere(and(inArray(paymentOrders.status, ['success', 'refunding', 'refunded']), gte(paymentOrders.createdAt, since30d)), orderTenant)),
     db
       .select({ avgHours: sql<number>`coalesce(avg(extract(epoch from (${paymentDisputes.resolvedAt} - ${paymentDisputes.createdAt})) / 3600), 0)` })
       .from(paymentDisputes)
@@ -189,6 +192,7 @@ export async function triageDispute(row: PaymentDisputeRow): Promise<void> {
     ? await db.$count(paymentDisputes, and(
       eq(paymentDisputes.complainant, complainant),
       gte(paymentDisputes.createdAt, dayjs().subtract(90, 'day').toDate()),
+      row.tenantId == null ? sql`${paymentDisputes.tenantId} is null` : eq(paymentDisputes.tenantId, row.tenantId),
     ))
     : 0;
   const decision = await decide(
@@ -242,25 +246,61 @@ export async function resolveDispute(id: number, remark?: string): Promise<Payme
   return getDisputeDetail(id);
 }
 
-/** 投诉退款：复用支付中心退款（含大额审批链路），退款单号回填工单并完结 */
+/** 投诉退款：复用支付中心退款（含大额审批链路），退款真正成功前工单保持处理中。 */
 export async function refundDispute(id: number, input: RefundPaymentDisputeInput): Promise<PaymentDisputeDetail> {
   const row = await ensureDispute(id);
   if (!OPEN_STATUSES.includes(row.status)) throw new HTTPException(400, { message: '工单已完结' });
-  if (row.refundNo) throw new HTTPException(400, { message: `该工单已发起退款（${row.refundNo}）` });
+  if (row.refundNo) {
+    const [existingRefund] = await db
+      .select({ status: paymentRefunds.status })
+      .from(paymentRefunds)
+      .where(and(
+        eq(paymentRefunds.refundNo, row.refundNo),
+        row.tenantId == null ? sql`${paymentRefunds.tenantId} is null` : eq(paymentRefunds.tenantId, row.tenantId),
+      ))
+      .limit(1);
+    if (existingRefund?.status !== 'failed') {
+      throw new HTTPException(400, { message: `该工单已有退款处理中（${row.refundNo}）` });
+    }
+  }
   const refundAmount = input.refundAmount ?? row.amount;
   if (refundAmount <= 0) throw new HTTPException(400, { message: '退款金额必须大于 0' });
   const res = await refund({
     orderNo: row.orderNo,
     refundAmount,
     reason: input.reason ?? `交易投诉退款（${row.disputeNo}）`,
+    idempotencyKey: `dispute:${row.disputeNo}:${refundAmount}`,
     operatorId: currentUser().userId,
   });
   await appendReply(id, 'system', `已发起退款 ${res.refundNo}（${(refundAmount / 100).toFixed(2)} 元，状态：${res.status}）`, currentUser().userId);
   await db
     .update(paymentDisputes)
-    .set({ refundNo: res.refundNo, status: 'refunded', resolvedAt: new Date() })
+    .set({ refundNo: res.refundNo, status: 'processing', resolvedAt: null })
     .where(and(eq(paymentDisputes.id, id), inArray(paymentDisputes.status, OPEN_STATUSES)));
+  if (res.status === 'success') await completeDisputeRefund(res.refundNo);
   return getDisputeDetail(id);
+}
+
+/** 退款成功事件的唯一终结入口；CAS 保证重复事件不会重复写时间线。 */
+export async function completeDisputeRefund(refundNo: string): Promise<void> {
+  const [updated] = await db
+    .update(paymentDisputes)
+    .set({ status: 'refunded', resolvedAt: new Date() })
+    .where(and(eq(paymentDisputes.refundNo, refundNo), inArray(paymentDisputes.status, OPEN_STATUSES)))
+    .returning({ id: paymentDisputes.id });
+  if (!updated) return;
+  await appendReply(updated.id, 'system', `退款 ${refundNo} 已成功，投诉工单自动完结`);
+}
+
+/** 退款失败仅追加说明并保持工单开放，允许人工核实后再次发起。 */
+export async function recordDisputeRefundFailure(refundNo: string): Promise<void> {
+  const [row] = await db
+    .select({ id: paymentDisputes.id })
+    .from(paymentDisputes)
+    .where(and(eq(paymentDisputes.refundNo, refundNo), inArray(paymentDisputes.status, OPEN_STATUSES)))
+    .limit(1);
+  if (!row) return;
+  await appendReply(row.id, 'system', `退款 ${refundNo} 未成功，工单保持处理中`);
 }
 
 // ─── 渠道拉单（cron / 手动模拟）──────────────────────────────────────────────
@@ -313,6 +353,7 @@ async function createMockDispute(order: { orderNo: string; channel: PaymentChann
  * 返回新增工单数。
  */
 export async function syncPaymentDisputes(): Promise<number> {
+  if (config.payment.engineMode !== 'sandbox') return 0;
   if (process.env.PAYMENT_MOCK_DISPUTES !== 'true') return 0;
   const openCount = await db.$count(paymentDisputes, inArray(paymentDisputes.status, OPEN_STATUSES));
   if (openCount >= SYNC_MAX_OPEN) return 0;
@@ -347,7 +388,10 @@ export async function syncPaymentDisputes(): Promise<number> {
 
 /** 手动模拟一条投诉（演示/联调）：可指定订单号，否则取最近一笔成功订单 */
 export async function simulateDispute(orderNo?: string): Promise<PaymentDispute> {
-  let order: { orderNo: string; channel: PaymentChannel; amount: number; openId: string | null; tenantId: number | null } | undefined;
+  if (config.payment.engineMode !== 'sandbox') {
+    throw new HTTPException(403, { message: '模拟投诉仅在支付沙箱模式开放' });
+  }
+  let order: { orderNo: string; channel: PaymentChannel; amount: number; openId: string | null; tenantId: number | null; sandbox: boolean } | undefined;
   const base = db
     .select({
       orderNo: paymentOrders.orderNo,
@@ -355,16 +399,25 @@ export async function simulateDispute(orderNo?: string): Promise<PaymentDispute>
       amount: paymentOrders.amount,
       openId: paymentOrders.openId,
       tenantId: paymentOrders.tenantId,
+      sandbox: paymentChannelConfigs.sandbox,
     })
-    .from(paymentOrders);
+    .from(paymentOrders)
+    .innerJoin(paymentChannelConfigs, eq(paymentChannelConfigs.id, paymentOrders.channelConfigId));
+  const orderTenant = tenantCondition(paymentOrders, currentUser());
+  const disputeTenant = tenantCondition(paymentDisputes, currentUser());
   if (orderNo) {
-    [order] = await base.where(eq(paymentOrders.orderNo, orderNo)).limit(1);
+    [order] = await base.where(mergeWhere(eq(paymentOrders.orderNo, orderNo), orderTenant)).limit(1);
     if (!order) throw new HTTPException(404, { message: '支付订单不存在' });
-    const dup = await db.$count(paymentDisputes, and(eq(paymentDisputes.orderNo, orderNo), inArray(paymentDisputes.status, OPEN_STATUSES)));
+    if (!order.sandbox) throw new HTTPException(400, { message: '仅沙箱商户订单可模拟投诉' });
+    const dup = await db.$count(paymentDisputes, mergeWhere(and(eq(paymentDisputes.orderNo, orderNo), inArray(paymentDisputes.status, OPEN_STATUSES)), disputeTenant));
     if (dup > 0) throw new HTTPException(400, { message: '该订单已存在未完结投诉' });
   } else {
     [order] = await base
-      .where(and(eq(paymentOrders.status, 'success'), sql`not exists (select 1 from ${paymentDisputes} where ${paymentDisputes.orderNo} = ${paymentOrders.orderNo})`))
+      .where(mergeWhere(and(
+        eq(paymentOrders.status, 'success'),
+        eq(paymentChannelConfigs.sandbox, true),
+        sql`not exists (select 1 from ${paymentDisputes} where ${paymentDisputes.orderNo} = ${paymentOrders.orderNo})`,
+      ), orderTenant))
       .orderBy(desc(paymentOrders.id))
       .limit(1);
     if (!order) throw new HTTPException(400, { message: '没有可用于模拟投诉的成功订单' });

@@ -10,6 +10,7 @@ export interface PaymentTransferListParams {
   keyword?: string;
   channel?: string;
   status?: string;
+  approvalStatus?: string;
 }
 
 export interface PaymentTransferSummary {
@@ -17,6 +18,19 @@ export interface PaymentTransferSummary {
   successCount: number;
   processingCount: number;
   failedCount: number;
+}
+
+export interface CreatePaymentTransferValues {
+  applicationId: number;
+  channel: string;
+  currency: 'CNY';
+  receiverAccount: string;
+  receiverName?: string;
+  amount: number;
+  remark: string;
+  bizType?: string;
+  bizId?: string;
+  idempotencyKey: string;
 }
 
 export const paymentTransferKeys = {
@@ -46,9 +60,14 @@ export function usePaymentTransferSummary(enabled = true) {
 export function useCreatePaymentTransfer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: { channel: string; receiverAccount: string; receiverName?: string; amount: number; remark?: string }) =>
-      request.post<PaymentTransfer>('/api/payment/transfers', values).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentTransferKeys.all }),
+    mutationFn: ({ idempotencyKey, ...values }: CreatePaymentTransferValues) =>
+      request.post<PaymentTransfer>('/api/payment/transfers', values, { headers: { 'X-Idempotency-Key': idempotencyKey } }).then(unwrap),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.lists }),
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.summary }),
+      ]);
+    },
   });
 }
 
@@ -56,14 +75,42 @@ export function useQueryPaymentTransfer() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => request.post<PaymentTransfer>(`/api/payment/transfers/${id}/query`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentTransferKeys.all }),
+    onSuccess: async (transfer) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.lists }),
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.summary }),
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.detail(transfer.id) }),
+      ]);
+    },
   });
 }
 
-export function useRetryPaymentTransfer() {
+export function useApprovePaymentTransfer() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<PaymentTransfer>(`/api/payment/transfers/${id}/retry`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: paymentTransferKeys.all }),
+    mutationFn: ({ id, remark }: { id: number; remark: string }) =>
+      request.post<PaymentTransfer>(`/api/payment/transfers/${id}/approve`, { remark }).then(unwrap),
+    onSuccess: async (transfer) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.lists }),
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.summary }),
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.detail(transfer.id) }),
+      ]);
+    },
+  });
+}
+
+export function useRejectPaymentTransfer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, remark }: { id: number; remark: string }) =>
+      request.post<PaymentTransfer>(`/api/payment/transfers/${id}/reject`, { remark }).then(unwrap),
+    onSuccess: async (transfer) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.lists }),
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.summary }),
+        qc.invalidateQueries({ queryKey: paymentTransferKeys.detail(transfer.id) }),
+      ]);
+    },
   });
 }

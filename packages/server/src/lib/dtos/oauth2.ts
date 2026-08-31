@@ -30,6 +30,7 @@ export const OAuth2ClientListItemDTO = z
     previousSecretExpiresAt: z.string().nullable(),
     status: z.enum(['enabled', 'disabled']),
     ownerId: z.number().int().nullable(),
+    tenantId: z.number().int().nullable(),
     ...auditFields,
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -54,8 +55,13 @@ export const OAuth2ClientSecretDTO = z
 
 export const OAuth2AppOptionDTO = z
   .object({
+    id: z.number().int(),
     clientId: z.string(),
     name: z.string(),
+    environment: z.enum(['production', 'sandbox']),
+    reviewStatus: z.enum(['draft', 'pending', 'approved', 'rejected']),
+    isPublic: z.boolean(),
+    signEnabled: z.boolean(),
   })
   .openapi('OAuth2AppOption');
 

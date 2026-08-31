@@ -1,5 +1,5 @@
 import type { EntityStatus } from '../core/types';
-import type { PaymentChannel, PaymentMethod, PaymentOrderStatus } from '../payment/constants';
+import type { PaymentCashierMethod, PaymentChannel, PaymentDeductMethod, PaymentMethod, PaymentOrderStatus } from '../payment/constants';
 import type { PaymentContract } from '../payment/types';
 import type { CouponTemplateStatus, CouponType, CouponValidType, MemberCouponStatus, MemberStatus, PointTxType, WalletTxType } from './constants';
 
@@ -35,6 +35,13 @@ export interface MemberRecharge {
   expiredAt: string | null;
   errorMessage: string | null;
   createdAt: string;
+}
+
+export interface MemberPaymentApplicationOption {
+  id: number;
+  name: string;
+  cashierMethods: Array<{ method: PaymentCashierMethod; label: string; icon: string | null }>;
+  deductMethods: Array<{ method: PaymentDeductMethod; label: string }>;
 }
 
 export interface MemberStatsOverview {

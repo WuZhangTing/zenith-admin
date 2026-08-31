@@ -40,6 +40,7 @@ import { APP_TIME_ZONE } from '../lib/datetime';
 /** 网关调用主体：两条鉴权通道归一后的统一结果 */
 export interface OpenPrincipal {
   app: OpenApiAppContext;
+  tenantId: number | null;
   /** 鉴权通道：bearer = OAuth2 令牌；signature = AppKey + HMAC */
   channel: 'bearer' | 'signature';
   /** 用户授权令牌对应的用户；client_credentials 与签名通道为 null */
@@ -150,7 +151,7 @@ export const openGatewayAuth: MiddlewareHandler = async (c, next) => {
     if (usable) return c.json(errBody(usable.message, usable.status), usable.status);
     // 有效 scope = 令牌授予 ∩ 应用允许（应用被收窄权限后，存量令牌同步降权）
     const scopes = resolved.scopes.filter((s) => app.allowedScopes.includes(s));
-    principal = { app, channel: 'bearer', userId: resolved.userId, scopes };
+    principal = { app, tenantId: app.tenantId, channel: 'bearer', userId: resolved.userId, scopes };
   } else if (appKey) {
     // ── 通道 B：AppKey + HMAC 签名（签名强制）──
     const app = await getOpenApiApp(appKey);
@@ -162,7 +163,7 @@ export const openGatewayAuth: MiddlewareHandler = async (c, next) => {
     }
     const sigErr = await verifySignature(c, app);
     if (sigErr) return c.json(errBody(sigErr.message, 401), 401);
-    principal = { app, channel: 'signature', userId: null, scopes: [...app.allowedScopes] };
+    principal = { app, tenantId: app.tenantId, channel: 'signature', userId: null, scopes: [...app.allowedScopes] };
   } else {
     return c.json(errBody(`缺少鉴权信息：请提供 Authorization: Bearer 令牌，或 ${H.appKey} 与签名请求头`, 401), 401);
   }
@@ -170,6 +171,25 @@ export const openGatewayAuth: MiddlewareHandler = async (c, next) => {
   c.set('openPrincipal', principal);
   c.set('openApp', principal.app);
   c.header('X-Zenith-Environment', principal.app.environment);
+  await next();
+};
+
+/** 开放子路由统一 Scope 门禁，同时记录计量维度。 */
+export function requireOpenScope(scope: string): MiddlewareHandler {
+  return async (c, next) => {
+    c.set('openScope', scope);
+    if (!c.get('openPrincipal')?.scopes.includes(scope)) {
+      return c.json(errBody(`应用未授权 scope：${scope}`, 403), 403);
+    }
+    await next();
+  };
+}
+
+/** 资金写接口只接受 AppKey + HMAC 通道，拒绝普通 OAuth Bearer。 */
+export const requireOpenSignatureChannel: MiddlewareHandler = async (c, next) => {
+  if (c.get('openPrincipal')?.channel !== 'signature') {
+    return c.json(errBody('支付写接口必须使用 AppKey + HMAC 签名通道', 403), 403);
+  }
   await next();
 };
 
@@ -219,7 +239,8 @@ async function emitQuotaExceeded(
 export const openRateLimit: MiddlewareHandler = async (c, next) => {
   const app = c.get('openApp');
   if (!app) return next();
-  if (app.environment === 'sandbox') return next();
+  const isPaymentRequest = new URL(c.req.url).pathname.startsWith('/api/open/v1/payments');
+  if (app.environment === 'sandbox' && !isPaymentRequest) return next();
 
   const plan = app.ratePlanId ? await getRatePlanRowById(app.ratePlanId) : await getDefaultRatePlanRow();
   if (!plan || plan.status !== 'enabled') return next();

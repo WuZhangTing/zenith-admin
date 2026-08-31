@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Banner, Button, Form, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SendHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -9,39 +9,65 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
+import { useAuth } from '@/hooks/useAuth';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
+import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import {
   paymentTransferKeys,
+  useApprovePaymentTransfer,
   useCreatePaymentTransfer,
   usePaymentTransferList,
   usePaymentTransferSummary,
   useQueryPaymentTransfer,
-  useRetryPaymentTransfer,
+  useRejectPaymentTransfer,
+  type CreatePaymentTransferValues,
 } from '@/hooks/queries/payment-transfers';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_TRANSFER_STATUS_LABELS } from '@zenith/shared/payment';
-import type { PaymentChannel, PaymentTransfer, PaymentTransferStatus } from '@zenith/shared/payment';
+import {
+  PAYMENT_CHANNEL_LABELS,
+  PAYMENT_CHANNEL_OPTIONS,
+  PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS,
+  PAYMENT_TRANSFER_STATUS_LABELS,
+} from '@zenith/shared/payment';
+import type {
+  PaymentChannel,
+  PaymentTransfer,
+  PaymentTransferApprovalStatus,
+  PaymentTransferStatus,
+} from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
 const yuan = formatYuan;
-const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentTransferStatus, string>;
+const STATUS_COLOR = { pending: 'grey', processing: 'blue', unknown: 'orange', success: 'green', failed: 'red' } as const satisfies Record<PaymentTransferStatus, string>;
+const APPROVAL_COLOR = { none: 'grey', pending: 'orange', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentTransferApprovalStatus, string>;
 
-interface SearchParams { keyword: string; channel: string; status: string; }
-const defaultSearch: SearchParams = { keyword: '', channel: '', status: '' };
+interface SearchParams { keyword: string; channel: string; status: string; approvalStatus: string; }
+const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', approvalStatus: '' };
 
 interface TransferFormValues {
+  applicationId: number;
   channel: PaymentChannel;
+  currency: 'CNY';
   receiverAccount: string;
   receiverName?: string;
   amountYuan: number;
-  remark?: string;
+  remark: string;
+  bizType?: string;
+  bizId?: string;
 }
 
 export default function PaymentTransfersPage() {
+  const { user } = useAuth();
   const { hasPermission } = usePermission();
   const canCreate = hasPermission('payment:transfer:create');
   const latestTransfer = useRef<PaymentTransfer | null>(null);
+  const transferIdempotencyKey = useRef<string | null>(null);
+  const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
+  const [approveTarget, setApproveTarget] = useState<PaymentTransfer | null>(null);
+  const [approveRemark, setApproveRemark] = useState('');
+  const [rejectTarget, setRejectTarget] = useState<PaymentTransfer | null>(null);
+  const [rejectRemark, setRejectRemark] = useState('');
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -54,36 +80,60 @@ export default function PaymentTransfersPage() {
     keyword: submittedParams.keyword || undefined,
     channel: submittedParams.channel || undefined,
     status: submittedParams.status || undefined,
+    approvalStatus: submittedParams.approvalStatus || undefined,
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
   const summaryQuery = usePaymentTransferSummary();
   const summary = summaryQuery.data ?? null;
+  const appsQuery = usePaymentAppList({ page: 1, pageSize: 100, status: 'enabled' });
+  const paymentApps = useMemo(() => appsQuery.data?.list ?? [], [appsQuery.data?.list]);
+  const appById = useMemo(() => new Map(paymentApps.map((app) => [app.id, app])), [paymentApps]);
+  const appOptions = useMemo(
+    () => paymentApps.map((app) => ({ value: app.id, label: `${app.name} · ${app.environment === 'sandbox' ? '沙箱' : '生产'}` })),
+    [paymentApps],
+  );
+  const createChannelOptions = useMemo(() => {
+    const app = selectedAppId == null ? null : appById.get(selectedAppId);
+    return [
+      ...(app?.wechatConfigId ? [{ value: 'wechat', label: '微信支付（零钱）' }] : []),
+      ...(app?.alipayConfigId ? [{ value: 'alipay', label: '支付宝（账户）' }] : []),
+      ...(app?.unionpayConfigId ? [{ value: 'unionpay', label: '云闪付' }] : []),
+    ];
+  }, [appById, selectedAppId]);
   const createMutation = useCreatePaymentTransfer();
   const queryMutation = useQueryPaymentTransfer();
-  const retryMutation = useRetryPaymentTransfer();
+  const approveMutation = useApprovePaymentTransfer();
+  const rejectMutation = useRejectPaymentTransfer();
 
   const transferSaveMutation = {
-    mutateAsync: async ({ values }: { id?: number; values: { channel: string; receiverAccount: string; receiverName?: string; amount: number; remark?: string } }) => {
+    mutateAsync: async ({ values }: { id?: number; values: CreatePaymentTransferValues }) => {
       const transfer = await createMutation.mutateAsync(values);
       latestTransfer.current = transfer;
+      transferIdempotencyKey.current = null;
       return transfer;
     },
     isPending: createMutation.isPending,
   };
-  const transferModal = useEditModal<PaymentTransfer, TransferFormValues, { channel: string; receiverAccount: string; receiverName?: string; amount: number; remark?: string }>({
+  const transferModal = useEditModal<PaymentTransfer, TransferFormValues, CreatePaymentTransferValues>({
     save: transferSaveMutation,
-    defaults: { channel: 'wechat' },
+    defaults: { currency: 'CNY' },
     beforeSave: (values) => ({
+      applicationId: values.applicationId,
       channel: values.channel,
+      currency: values.currency,
       receiverAccount: values.receiverAccount,
       receiverName: values.receiverName || undefined,
       amount: Math.round(values.amountYuan * 100),
-      remark: values.remark || undefined,
+      remark: values.remark.trim(),
+      bizType: values.bizType || undefined,
+      bizId: values.bizId || undefined,
+      idempotencyKey: transferIdempotencyKey.current ?? (transferIdempotencyKey.current = crypto.randomUUID()),
     }),
     successMessage: () => {
       const transfer = latestTransfer.current;
-      if (transfer?.status === 'failed') return `渠道转账失败：${transfer.failReason ?? '未知原因'}，可在列表中重试`;
+      if (transfer?.status === 'failed') return `渠道转账失败：${transfer.failReason ?? '未知原因'}，请重新发起转账`;
+      if (transfer?.approvalStatus === 'pending') return '转账申请已提交，资金已预占并等待审批';
       return transfer?.status === 'success' ? '转账成功' : '转账已受理，处理中';
     },
     labelWidth: 110,
@@ -94,44 +144,81 @@ export default function PaymentTransfersPage() {
     Toast.info(`当前状态：${PAYMENT_TRANSFER_STATUS_LABELS[t.status]}`);
   }
 
-  async function handleRetry(id: number) {
-    const t = await retryMutation.mutateAsync(id);
-    if (t.status === 'failed') Toast.error(`重试仍失败：${t.failReason ?? '未知原因'}`);
-    else Toast.success(t.status === 'success' ? '转账成功' : '已重新受理');
+  function openApprove(record: PaymentTransfer) {
+    setApproveTarget(record);
+    setApproveRemark('');
+  }
+
+  async function submitApprove() {
+    if (!approveTarget) return;
+    const remark = approveRemark.trim();
+    if (!remark) { Toast.warning('请填写审批意见'); return; }
+    const transfer = await approveMutation.mutateAsync({ id: approveTarget.id, remark });
+    Toast.success(transfer.status === 'success' ? '审批通过，转账已成功' : '审批通过，转账已提交渠道处理');
+    setApproveTarget(null);
+  }
+
+  function openReject(record: PaymentTransfer) {
+    setRejectTarget(record);
+    setRejectRemark('');
+  }
+
+  async function submitReject() {
+    if (!rejectTarget) return;
+    const remark = rejectRemark.trim();
+    if (!remark) { Toast.warning('请填写驳回原因'); return; }
+    await rejectMutation.mutateAsync({ id: rejectTarget.id, remark });
+    Toast.success('转账已驳回，资金预占已释放');
+    setRejectTarget(null);
   }
 
   const columns: ColumnProps<PaymentTransfer>[] = [
     copyableNoColumn('转账单号', 'transferNo'),
+    { title: '支付应用', dataIndex: 'appId', width: 160, render: (value: number) => appById.get(value)?.name ?? `应用 #${value}` },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '收款账号', dataIndex: 'receiverAccount', width: 180, render: (v: string, r: PaymentTransfer) => (
       <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{r.receiverName ? `${r.receiverName}（${v}）` : v}</Typography.Text>
     ) },
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => <Typography.Text type="danger">{yuan(v)}</Typography.Text> },
+    copyableNoColumn('资金预占 ID', 'fundReservationId', { width: 130 }),
     copyableNoColumn('渠道单号', 'channelTransferNo', { width: 300 }),
     { title: '失败原因', dataIndex: 'failReason', width: 180, render: (v: string | null) => (v ? <Typography.Text type="danger" ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
+    { title: '审批意见', dataIndex: 'approvalRemark', width: 180, render: (v: string | null) => (v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> : '-') },
     { title: '备注', dataIndex: 'remark', width: 140, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v || '-'}</Typography.Text> },
     { title: '操作人', dataIndex: 'operatorName', width: 110, render: renderEllipsis },
+    { title: '币种/版本', width: 100, render: (_: unknown, record: PaymentTransfer) => `${record.currency} · v${record.version}` },
     dateTimeColumn('完成时间', 'finishedAt'),
     createdAtColumn as ColumnProps<PaymentTransfer>,
+    {
+      title: '审批', dataIndex: 'approvalStatus', width: 100, fixed: 'right',
+      render: (v: PaymentTransferApprovalStatus) => (v === 'none'
+        ? <Typography.Text type="tertiary">-</Typography.Text>
+        : <Tag color={APPROVAL_COLOR[v]}>{PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS[v]}</Tag>),
+    },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: PaymentTransferStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_TRANSFER_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentTransfer>({
       width: 140,
+      desktopInlineKeys: ['approve'],
       actions: (r) => [
-        ...(r.status === 'processing' || r.status === 'failed' ? [{
+        ...(r.status === 'processing' || r.status === 'unknown' ? [{
           key: 'query',
           label: '查单',
           onClick: () => void handleQuery(r.id),
         }] : []),
-        ...(canCreate && r.status === 'failed' && !r.channelTransferNo && r.attempts < 3 ? [{
-          key: 'retry',
-          label: '重试',
-          onClick: () => {
-            Modal.confirm({
-              title: '确认重试转账？',
-              content: `将向 ${r.receiverAccount} 重新发起 ${yuan(r.amount)} 转账`,
-              onOk: () => handleRetry(r.id),
-            });
-          },
+        ...(r.approvalStatus === 'pending' && hasPermission('payment:transfer:approve') ? [{
+          key: 'approve',
+          label: '通过',
+          type: 'primary' as const,
+          loading: approveMutation.isPending && approveMutation.variables?.id === r.id,
+          disabled: r.appliedById != null && r.appliedById === user?.id,
+          disabledReason: '转账申请人与审批人必须为不同用户',
+          onClick: () => openApprove(r),
+        }, {
+          key: 'reject',
+          label: '驳回',
+          danger: true,
+          loading: rejectMutation.isPending && rejectMutation.variables?.id === r.id,
+          onClick: () => openReject(r),
         }] : []),
       ],
     }),
@@ -148,10 +235,14 @@ export default function PaymentTransfersPage() {
     <Select placeholder="全部状态" value={draftParams.status || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
       showClear style={{ width: 120 }} optionList={Object.entries(PAYMENT_TRANSFER_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
   );
+  const renderApprovalFilter = () => (
+    <Select placeholder="审批状态" value={draftParams.approvalStatus || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))}
+      showClear style={{ width: 120 }} optionList={Object.entries(PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
+  );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => canCreate ? (
-    <Button type="primary" icon={<SendHorizontal size={14} />} onClick={transferModal.openCreate}>发起转账</Button>
+    <Button type="primary" icon={<SendHorizontal size={14} />} onClick={() => { setSelectedAppId(null); transferIdempotencyKey.current = crypto.randomUUID(); transferModal.openCreate(); }}>发起转账</Button>
   ) : null;
 
   const summaryText = summary
@@ -166,6 +257,7 @@ export default function PaymentTransfersPage() {
             {renderKeywordSearch()}
             {renderChannelFilter()}
             {renderStatusFilter()}
+            {renderApprovalFilter()}
             {renderSearchButton()}
             {renderResetButton()}
             {renderCreateButton()}
@@ -182,6 +274,7 @@ export default function PaymentTransfersPage() {
           <>
             {renderChannelFilter()}
             {renderStatusFilter()}
+            {renderApprovalFilter()}
           </>
         )}
         filterTitle="转账单筛选"
@@ -200,17 +293,88 @@ export default function PaymentTransfersPage() {
         onRefresh={() => { void listQuery.refetch(); void summaryQuery.refetch(); }} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
       />
 
-      <AppModal {...transferModal.modalProps} title="发起转账" width={560}>
+      <AppModal
+        {...transferModal.modalProps}
+        title="发起转账"
+        width={560}
+        onCancel={() => {
+          if (createMutation.isPending) return;
+          transferIdempotencyKey.current = null;
+          transferModal.modalProps.onCancel?.();
+        }}
+      >
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="资金流出操作：微信渠道收款账号为用户 openid（转入零钱），支付宝渠道为登录账号。沙箱渠道为模拟转账。" />
         <Form key={transferModal.formKey} {...transferModal.formProps}>
+          <Form.Select field="applicationId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter loading={appsQuery.isFetching}
+            onChange={(value) => { setSelectedAppId((value as number | undefined) ?? null); transferModal.formApi.current?.setValue('channel', undefined); }} rules={[{ required: true, message: '请选择支付应用' }]} />
           <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
-            optionList={[{ value: 'wechat', label: '微信支付（零钱）' }, { value: 'alipay', label: '支付宝（账户）' }]} rules={[{ required: true, message: '请选择渠道' }]} />
+            optionList={createChannelOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择渠道' }]} />
+          <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={[{ value: 'CNY', label: 'CNY · 人民币' }]} disabled rules={[{ required: true, message: '请选择币种' }]} />
           <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />
           <Form.Input field="receiverName" label="收款人姓名" placeholder="可选（支付宝大额建议填写校验）" />
           <Form.InputNumber field="amountYuan" label="转账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入转账金额' }]} />
-          <Form.TextArea field="remark" label="转账备注" autosize rows={1} placeholder="可选，将展示给收款方" />
+          <Form.Input field="bizType" label="业务类型" placeholder="可选" />
+          <Form.Input field="bizId" label="业务单号" placeholder="可选" />
+          <Form.TextArea
+            field="remark"
+            label="转账原因"
+            autosize
+            rows={2}
+            maxCount={256}
+            placeholder="请填写资金用途和转账依据"
+            rules={[
+              { required: true, message: '请填写转账原因' },
+              { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '转账原因不能只包含空格' },
+            ]}
+          />
         </Form>
+      </AppModal>
+
+      <AppModal
+        title="审批通过转账"
+        visible={!!approveTarget}
+        onOk={submitApprove}
+        onCancel={() => { if (!approveMutation.isPending) setApproveTarget(null); }}
+        okText="确认通过并转账"
+        okButtonProps={{ loading: approveMutation.isPending }}
+        width={480}
+        closeOnEsc
+      >
+        {approveTarget && (
+          <Form labelPosition="left" labelWidth={92}>
+            <Form.Slot label="转账单号">{approveTarget.transferNo}</Form.Slot>
+            <Form.Slot label="收款账号">{approveTarget.receiverName ? `${approveTarget.receiverName}（${approveTarget.receiverAccount}）` : approveTarget.receiverAccount}</Form.Slot>
+            <Form.Slot label="转账金额"><Typography.Text type="danger" strong>{yuan(approveTarget.amount)}</Typography.Text></Form.Slot>
+            <Form.Slot label="申请原因">{approveTarget.remark || '-'}</Form.Slot>
+            <Form.Slot label="审批意见">
+              <Input value={approveRemark} onChange={setApproveRemark} placeholder="请填写审批依据（必填）" maxLength={256} showClear />
+            </Form.Slot>
+          </Form>
+        )}
+      </AppModal>
+
+      <AppModal
+        title="驳回转账"
+        visible={!!rejectTarget}
+        onOk={submitReject}
+        onCancel={() => { if (!rejectMutation.isPending) setRejectTarget(null); }}
+        okText="确认驳回"
+        okButtonProps={{ loading: rejectMutation.isPending, type: 'danger' }}
+        width={480}
+        closeOnEsc
+      >
+        {rejectTarget && (
+          <Form labelPosition="left" labelWidth={92}>
+            <Form.Slot label="转账单号">{rejectTarget.transferNo}</Form.Slot>
+            <Form.Slot label="收款账号">{rejectTarget.receiverName ? `${rejectTarget.receiverName}（${rejectTarget.receiverAccount}）` : rejectTarget.receiverAccount}</Form.Slot>
+            <Form.Slot label="转账金额"><Typography.Text type="danger" strong>{yuan(rejectTarget.amount)}</Typography.Text></Form.Slot>
+            <Form.Slot label="申请原因">{rejectTarget.remark || '-'}</Form.Slot>
+            <Form.Slot label="驳回原因">
+              <Input value={rejectRemark} onChange={setRejectRemark} placeholder="请填写驳回原因（必填）" maxLength={256} showClear />
+            </Form.Slot>
+          </Form>
+        )}
       </AppModal>
     </div>
   );

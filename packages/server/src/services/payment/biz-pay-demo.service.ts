@@ -14,7 +14,7 @@
  *   保证业务侧与支付中心数据一致；
  * - 尚未发起支付时（无支付订单），仅执行本地履约演示业务闭环（不存在支付订单，无一致性问题）。
  */
-import { and, desc, eq, inArray, like } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
 import type { PaymentMethod, PaymentCashierMethod, CreatePaymentResult } from '@zenith/shared/payment';
@@ -112,7 +112,7 @@ export async function deleteBizPayDemo(id: number): Promise<void> {
  */
 export async function payBizPayDemo(
   id: number,
-  input: { payMethod: PaymentCashierMethod; openId?: string },
+  input: { applicationId: number; payMethod: PaymentCashierMethod; openId?: string },
   clientIp?: string,
 ): Promise<{ demo: BizPayDemo; payParams: CreatePaymentResult }> {
   const row = await getOwnRow(id);
@@ -126,6 +126,8 @@ export async function payBizPayDemo(
       bizId: String(row.id),
       subject: row.subject,
       amount: row.amount,
+      currency: 'CNY',
+      applicationId: input.applicationId,
       payMethod: input.payMethod,
       openId: input.openId,
       expireMinutes: 30,
@@ -136,7 +138,7 @@ export async function payBizPayDemo(
   } catch (err) {
     const msg = err instanceof HTTPException ? err.message : (err as Error)?.message ?? '未知错误';
     throw new HTTPException(400, {
-      message: `发起支付失败（${msg}）。提示：未配置可用的默认支付渠道时，可直接点击「模拟支付成功」演示完整履约闭环。`,
+      message: `发起支付失败（${msg}）`,
     });
   }
 
@@ -151,23 +153,25 @@ export async function payBizPayDemo(
  * 模拟支付成功（演示专用）。
  * 已存在支付订单时走支付中心完整模拟链路（与订单页「模拟支付」同一入口），
  * 由 payment.succeeded 事件订阅器完成履约；markBizPayDemoPaid 幂等兜底保证本次请求内即时可见。
- * 无支付订单时仅本地履约（业务演示，不涉及支付中心数据）。
+ * 没有支付订单时拒绝模拟，避免业务状态绕过支付事实来源。
  */
 export async function simulateBizPayDemoPaid(id: number): Promise<BizPayDemo> {
   const row = await getOwnRow(id);
   if (row.status === 'paid') return mapBizPayDemo(row);
   if (row.status === 'closed') throw new HTTPException(400, { message: '已关闭的示例单无法支付' });
-
-  if (row.paymentOrderNo) {
-    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, row.paymentOrderNo)).limit(1);
-    if (order && (order.status === 'pending' || order.status === 'paying')) {
-      const { simulateOrderPaid } = await import('./payment-ops.service');
-      await simulateOrderPaid(order.id);
-    }
+  if (!row.paymentOrderNo) {
+    throw new HTTPException(400, { message: '请先通过支付应用创建支付订单，再模拟沙箱回调' });
   }
-  // 幂等兜底：订阅器异步履约可能尚未执行，此处直接履约保证响应内状态即时一致（重复投递只生效一次）
-  const orderNo = row.paymentOrderNo ?? `PAYDEMO${Date.now()}${row.id}`;
-  await markBizPayDemoPaid({ bizId: String(row.id), orderNo, amount: row.amount });
+  const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, row.paymentOrderNo)).limit(1);
+  if (!order) throw new HTTPException(409, { message: '关联支付订单不存在' });
+  if (order.status === 'pending' || order.status === 'paying') {
+    const { simulateOrderPaid } = await import('./payment-ops.service');
+    await simulateOrderPaid(order.id);
+  } else if (order.status !== 'success') {
+    throw new HTTPException(400, { message: `当前支付订单状态 ${order.status} 不可模拟成功` });
+  }
+  // 幂等兜底：订阅器异步履约可能尚未执行，此处复用同一履约函数保证响应内即时可见。
+  await markBizPayDemoPaid({ bizId: String(row.id), orderNo: order.orderNo, amount: row.amount });
   return getBizPayDemo(id);
 }
 
@@ -176,12 +180,28 @@ export async function simulateBizPayDemoPaid(id: number): Promise<BizPayDemo> {
  * 由订阅器在请求上下文之外调用，故不依赖 currentUser；按主键 + 状态条件保证幂等，
  * 仅当订单处于待支付/支付中（pending/paying）时才履约，重复投递（at-least-once）只生效一次。
  */
-export async function markBizPayDemoPaid(event: { bizId: string; orderNo: string; amount: number }): Promise<void> {
+export async function markBizPayDemoPaid(event: { bizId: string; orderNo: string; amount: number; appId?: number | null; tenantId?: number | null }): Promise<void> {
   const demoId = Number(event.bizId);
   if (!Number.isInteger(demoId) || demoId <= 0) {
     logger.warn('[biz-pay-demo] 履约 bizId 非法', { bizId: event.bizId });
     return;
   }
+  if (event.appId == null) return;
+  const tenantScope = event.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, event.tenantId);
+  const [order] = await db
+    .select({ id: paymentOrders.id, amount: paymentOrders.amount, paidAmount: paymentOrders.paidAmount })
+    .from(paymentOrders)
+    .where(and(
+      eq(paymentOrders.orderNo, event.orderNo),
+      eq(paymentOrders.bizType, BIZ_PAY_DEMO_TYPE),
+      eq(paymentOrders.bizId, String(demoId)),
+      eq(paymentOrders.appId, event.appId),
+      eq(paymentOrders.status, 'success'),
+      tenantScope,
+    ))
+    .limit(1);
+  if (!order || (order.amount !== event.amount && order.paidAmount !== event.amount)) return;
+  const demoTenant = event.tenantId == null ? isNull(bizPayDemos.tenantId) : eq(bizPayDemos.tenantId, event.tenantId);
   const updated = await db.update(bizPayDemos)
     .set({
       status: 'paid',
@@ -189,7 +209,7 @@ export async function markBizPayDemoPaid(event: { bizId: string; orderNo: string
       paymentOrderNo: event.orderNo,
       fulfillRemark: '支付成功，已自动发放示例权益（演示履约）',
     })
-    .where(and(eq(bizPayDemos.id, demoId), inArray(bizPayDemos.status, ['pending', 'paying'])))
+    .where(and(eq(bizPayDemos.id, demoId), inArray(bizPayDemos.status, ['pending', 'paying']), demoTenant))
     .returning({ id: bizPayDemos.id });
 
   if (updated.length === 0) return; // 已履约 / 已关闭 / 不存在，幂等跳过

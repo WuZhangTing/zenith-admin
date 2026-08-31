@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm';
 import { statusEnum } from './common';
 import { auditColumns, tenants, users } from './core';
 import { loginStatusEnum } from './logs';
-import { paymentOrders } from './payment';
 
 // ─── 会员相关枚举（三端同步：pgEnum / TS union / Zod enum）───────────────────
 export const memberStatusEnum = pgEnum('member_status', ['active', 'inactive', 'banned']);
@@ -228,14 +227,16 @@ export const memberWalletTransactions = pgTable('member_wallet_transactions', {
   balanceAfter: integer().notNull(),
   bizType: varchar({ length: 64 }),
   bizId: varchar({ length: 128 }),
-  /** 充值时关联的支付订单 */
-  paymentOrderId: integer().references(() => paymentOrders.id, { onDelete: 'set null' }),
+  /** 充值履约引用的不可变支付意图号与事件 ID；不直接外键依赖支付内部表。 */
+  paymentIntentNo: varchar({ length: 64 }),
+  paymentEventId: varchar({ length: 128 }),
   remark: varchar({ length: 256 }),
   operatorId: integer().references(() => users.id, { onDelete: 'set null' }),
   createdAt: timestamp().defaultNow().notNull(),
 }, (t) => [index('member_wallet_transactions_operator_idx').on(t.operatorId), 
   index('member_wallet_tx_member_idx').on(t.memberId),
   index('member_wallet_tx_biz_idx').on(t.bizType, t.bizId),
+  uniqueIndex('member_wallet_tx_payment_event_uq').on(t.paymentEventId).where(sql`${t.paymentEventId} is not null`),
 ]);
 
 export type MemberWalletTransactionRow = typeof memberWalletTransactions.$inferSelect;

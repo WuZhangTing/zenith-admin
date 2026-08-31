@@ -1,7 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { PaymentChannelConfig } from '@zenith/shared/payment';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { PaymentChannelConfig, PaymentChannelConfigLookup } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
+import { LOOKUP_STALE_TIME, unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
 export interface PaymentChannelListParams extends CrudListParams {
@@ -16,6 +16,11 @@ export interface PaymentChannelTestResult {
   latencyMs: number;
 }
 
+export const paymentChannelOperationLookupKeys = {
+  all: ['payment-channel-operation-lookup'] as const,
+  list: () => ['payment-channel-operation-lookup', 'list'] as const,
+};
+
 const crud = createCrudQueries<PaymentChannelConfig, PaymentChannelListParams, Record<string, unknown>>({
   resource: 'payment-channels',
   path: '/api/payment/channels',
@@ -26,7 +31,9 @@ const crud = createCrudQueries<PaymentChannelConfig, PaymentChannelListParams, R
   // isDefault 全域唯一：保存时设为默认会连带清掉原默认渠道，其它渠道的详情缓存一并失效
   onSaved: (qc, saved) => {
     if (saved.isDefault) void qc.invalidateQueries({ queryKey: ['payment-channels', 'detail'] });
+    void qc.invalidateQueries({ queryKey: paymentChannelOperationLookupKeys.all });
   },
+  onDeleted: (qc) => void qc.invalidateQueries({ queryKey: paymentChannelOperationLookupKeys.all }),
 });
 
 export const paymentChannelKeys = crud.keys;
@@ -36,6 +43,16 @@ export const usePaymentChannelDetail = crud.useDetail;
 export const useSavePaymentChannel = crud.useSave;
 export const useDeletePaymentChannels = crud.useDelete;
 export const useAllPaymentChannelConfigsLookup = crud.useLookup;
+
+/** 资金运营页面专用最小下拉源：仅含当前租户启用的商户配置。 */
+export function usePaymentChannelOperationLookup(enabled = true) {
+  return useQuery({
+    queryKey: paymentChannelOperationLookupKeys.list(),
+    queryFn: () => request.get<PaymentChannelConfigLookup[]>('/api/payment/channels/operation-lookup').then(unwrap),
+    staleTime: LOOKUP_STALE_TIME,
+    enabled,
+  });
+}
 
 export function useTestPaymentChannel() {
   return useMutation({

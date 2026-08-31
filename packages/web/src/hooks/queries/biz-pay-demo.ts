@@ -59,9 +59,9 @@ export function useCreateBizPayDemo() {
 export function usePayBizPayDemo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payMethod }: { id: number; payMethod: PaymentMethod }) =>
+    mutationFn: ({ id, applicationId, payMethod }: { id: number; applicationId: number; payMethod: PaymentMethod }) =>
       request
-        .post<{ demo: BizPayDemo; payParams: CreatePaymentResult }>(`/api/biz/pay-demos/${id}/pay`, { payMethod })
+        .post<{ demo: BizPayDemo; payParams: CreatePaymentResult }>(`/api/biz/pay-demos/${id}/pay`, { applicationId, payMethod })
         .then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: bizPayDemoKeys.all }),
   });

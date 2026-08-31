@@ -6,12 +6,13 @@
  * 确定性分账单号（SHR{orderNo}R{receiverId}）+ 唯一索引保证事件重复投递幂等；
  * 渠道调用失败的分账单由 cron retryFailedSharingOrders 兜底重试（上限 3 次）。
  */
-import { and, desc, eq, inArray, isNull, like, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, like, lt, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
 import {
   paymentOrders,
+  paymentRefunds,
   paymentSharingOrders,
   paymentSharingReceivers,
   type PaymentOrderRow,
@@ -23,10 +24,11 @@ import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
-import { recordLedgerEntry } from './payment-ledger.service';
+import { postSystemJournal } from './payment-journal.service';
 import { getAdapter } from '../../lib/payment/registry';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
+import { HttpClientError } from '../../lib/http-client';
 import type { CreatePaymentSharingReceiverInput, UpdatePaymentSharingReceiverInput, PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver } from '@zenith/shared/payment';
 
 /** 单笔分账渠道调用次数上限（首次 + 重试） */
@@ -34,6 +36,30 @@ const MAX_SHARING_ATTEMPTS = 3;
 
 function genNo(): string {
   return `SHR${Date.now()}${randomInt(1000, 9999)}`;
+}
+
+async function recordSharingJournal(
+  sharing: PaymentSharingOrderRow,
+  order: PaymentOrderRow,
+  receiverName?: string,
+): Promise<void> {
+  const amount = sharing.amount.toString();
+  await postSystemJournal({
+    tenantId: sharing.tenantId ?? null,
+    operatorId: null,
+    sourceType: 'payment.sharing',
+    sourceId: sharing.sharingNo,
+    description: receiverName
+      ? `支付分账（${receiverName}） ${sharing.sharingNo}`
+      : `支付分账 ${sharing.sharingNo}`,
+    appId: order.appId,
+    channelConfigId: order.channelConfigId,
+    currency: order.currency,
+    lines: [
+      { accountCode: 'merchant_available', debitAmount: amount, memo: '扣减商户可用余额' },
+      { accountCode: 'provider_clearing', creditAmount: amount, memo: '渠道分账清算' },
+    ],
+  });
 }
 
 // ─── 接收方映射 + CRUD ────────────────────────────────────────────────────────
@@ -62,6 +88,7 @@ export function mapSharingOrder(row: PaymentSharingOrderRow & { receiverName?: s
     amount: row.amount,
     status: row.status,
     channelSharingNo: row.channelSharingNo ?? null,
+    version: row.version,
     finishedAt: formatNullableDateTime(row.finishedAt),
     remark: row.remark ?? null,
     createdAt: formatDateTime(row.createdAt),
@@ -176,37 +203,70 @@ export interface DispatchSharingInput {
   remark?: string;
 }
 
+async function createReservedSharing(input: {
+  orderNo: string;
+  receiver: PaymentSharingReceiverRow;
+  amount?: number;
+  sharingNo: string;
+  remark?: string | null;
+}): Promise<{ order: PaymentOrderRow; sharing: PaymentSharingOrderRow }> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM payment_orders WHERE order_no = ${input.orderNo} FOR UPDATE`);
+    const [order] = await tx.select().from(paymentOrders).where(eq(paymentOrders.orderNo, input.orderNo)).limit(1);
+    if (!order) throw new HTTPException(404, { message: '支付订单不存在' });
+    if (!['success', 'refunding'].includes(order.status)) {
+      throw new HTTPException(400, { message: '只有已支付且未全额退款的订单可发起分账' });
+    }
+    if ((order.tenantId ?? null) !== (input.receiver.tenantId ?? null)) {
+      throw new HTTPException(400, { message: '分账接收方与支付订单不属于同一租户' });
+    }
+
+    const paid = order.paidAmount ?? order.amount;
+    const amount = input.amount ?? (input.receiver.ratioBps != null
+      ? Math.round((paid * input.receiver.ratioBps) / 10000)
+      : 0);
+    if (amount <= 0) throw new HTTPException(400, { message: '分账金额必须大于 0' });
+
+    // 分账与退款分别聚合，避免两个一对多 JOIN 形成笛卡尔积而放大累计金额。
+    const [sharingAgg] = await tx.select({ total: sql<number>`coalesce(sum(${paymentSharingOrders.amount}),0)` })
+      .from(paymentSharingOrders)
+      .where(and(eq(paymentSharingOrders.orderNo, order.orderNo), inArray(paymentSharingOrders.status, ['pending', 'processing', 'success'])));
+    const [refundAgg] = await tx.select({ total: sql<number>`coalesce(sum(${paymentRefunds.refundAmount}),0)` })
+      .from(paymentRefunds)
+      .where(and(eq(paymentRefunds.orderId, order.id), inArray(paymentRefunds.status, ['pending', 'processing', 'unknown', 'success'])));
+    const available = paid - Number(sharingAgg?.total ?? 0) - Number(refundAgg?.total ?? 0);
+    if (amount > available) {
+      throw new HTTPException(400, { message: `分账金额超过可分配余额（剩余 ${Math.max(0, available)} 分）` });
+    }
+
+    const [sharing] = await tx
+      .insert(paymentSharingOrders)
+      .values({
+        sharingNo: input.sharingNo,
+        orderNo: order.orderNo,
+        receiverId: input.receiver.id,
+        amount,
+        status: 'processing',
+        remark: input.remark ?? null,
+        tenantId: order.tenantId,
+      })
+      .returning();
+    return { order, sharing };
+  });
+}
+
 /** 发起单笔分账：校验订单已支付 + 接收方启用 → 创建分账单(processing) → 调渠道 → 落状态。 */
 export async function dispatchSharing(input: DispatchSharingInput): Promise<PaymentSharingOrder> {
-  const user = currentUser();
-  const orderTc = tenantCondition(paymentOrders, user);
-  const [order] = await db.select().from(paymentOrders).where(and(eq(paymentOrders.orderNo, input.orderNo), orderTc)).limit(1);
-  if (!order) throw new HTTPException(404, { message: '支付订单不存在' });
-  if (!['success', 'refunding', 'refunded'].includes(order.status)) {
-    throw new HTTPException(400, { message: '仅支付成功的订单可发起分账' });
-  }
   const receiver = await ensureReceiver(input.receiverId);
   if (receiver.status !== 'enabled') throw new HTTPException(400, { message: '分账接收方已停用' });
-
-  const paid = order.paidAmount ?? order.amount;
-  const amount = input.amount ?? (receiver.ratioBps != null ? Math.round((paid * receiver.ratioBps) / 10000) : 0);
-  if (amount <= 0) throw new HTTPException(400, { message: '分账金额必须大于 0' });
-  if (amount > paid) throw new HTTPException(400, { message: '分账金额不能超过订单实付金额' });
-
-  const [created] = await db
-    .insert(paymentSharingOrders)
-    .values({
-      sharingNo: genNo(),
-      orderNo: order.orderNo,
-      receiverId: receiver.id,
-      amount,
-      status: 'processing',
-      remark: input.remark ?? null,
-      tenantId: order.tenantId,
-    })
-    .returning();
-
-  const updated = await executeSharingAtChannel(created, order, receiver);
+  const { order, sharing } = await createReservedSharing({
+    orderNo: input.orderNo,
+    receiver,
+    amount: input.amount,
+    sharingNo: genNo(),
+    remark: input.remark,
+  });
+  const updated = await executeSharingAtChannel(sharing, order, receiver);
   if (updated.row.status === 'failed') {
     if (updated.error instanceof HTTPException) throw updated.error;
     throw new HTTPException(502, { message: '渠道分账请求失败，可在分账列表中重试' });
@@ -220,6 +280,7 @@ async function executeSharingAtChannel(
   order: PaymentOrderRow,
   receiver: PaymentSharingReceiverRow,
 ): Promise<{ row: PaymentSharingOrderRow; error?: unknown }> {
+  let providerAccepted = false;
   try {
     const config = await loadOrderConfig(order);
     if (!config) throw new HTTPException(400, { message: '支付渠道配置不存在，无法分账' });
@@ -232,38 +293,73 @@ async function executeSharingAtChannel(
       receiverType: receiver.receiverType,
     }, sharing.sharingNo);
     const status: PaymentSharingOrderStatus = res.status === 'success' ? 'success' : res.status === 'failed' ? 'failed' : 'processing';
+    providerAccepted = status !== 'failed' || res.channelSharingNo != null;
+    if (status === 'success') {
+      try {
+        // 先记账再落成功状态；记账失败时保持 processing，由查单路径重试收敛。
+        await recordSharingJournal(sharing, order, receiver.name);
+      } catch (accountingError) {
+        logger.error('[payment-sharing] journal posting failed', { sharingNo: sharing.sharingNo, err: accountingError });
+        const [pending] = await db
+          .update(paymentSharingOrders)
+          .set({
+            status: 'processing',
+            channelSharingNo: res.channelSharingNo ?? sharing.channelSharingNo,
+            attempts: sharing.attempts + 1,
+            version: sql`${paymentSharingOrders.version} + 1`,
+            finishedAt: null,
+          })
+          .where(and(
+            eq(paymentSharingOrders.id, sharing.id),
+            eq(paymentSharingOrders.version, sharing.version),
+            inArray(paymentSharingOrders.status, ['processing', 'failed']),
+          ))
+          .returning();
+        const latest = pending ?? (await db.select().from(paymentSharingOrders).where(eq(paymentSharingOrders.id, sharing.id)).limit(1))[0];
+        return { row: latest ?? sharing, error: accountingError };
+      }
+    }
     const [updated] = await db
       .update(paymentSharingOrders)
       .set({
         status,
         channelSharingNo: res.channelSharingNo ?? null,
         attempts: sharing.attempts + 1,
+        version: sql`${paymentSharingOrders.version} + 1`,
         finishedAt: status === 'success' || status === 'failed' ? new Date() : null,
       })
-      .where(eq(paymentSharingOrders.id, sharing.id))
+      .where(and(
+        eq(paymentSharingOrders.id, sharing.id),
+        eq(paymentSharingOrders.version, sharing.version),
+        inArray(paymentSharingOrders.status, ['processing', 'failed']),
+      ))
       .returning();
-    // 分账成功记资金台账（out/sharing，从待结算划出；sharingNo+type 幂等，重试/重复事件不重复记账）
-    if (status === 'success') {
-      await recordLedgerEntry({
-        direction: 'out',
-        type: 'sharing',
-        amount: sharing.amount,
-        orderNo: order.orderNo,
-        sharingNo: sharing.sharingNo,
-        channel: order.channel,
-        bizType: order.bizType,
-        tenantId: sharing.tenantId,
-        remark: `分账支出（${receiver.name}）`,
-      });
+    if (!updated) {
+      const [latest] = await db.select().from(paymentSharingOrders).where(eq(paymentSharingOrders.id, sharing.id)).limit(1);
+      return { row: latest ?? sharing };
     }
     return { row: updated };
   } catch (err) {
     logger.error('[payment-sharing] channel dispatch failed', { sharingNo: sharing.sharingNo, orderNo: order.orderNo, err });
+    const resultUnknown = providerAccepted || (err instanceof HttpClientError && err.status === 0);
     const [updated] = await db
       .update(paymentSharingOrders)
-      .set({ status: 'failed', attempts: sharing.attempts + 1, finishedAt: new Date() })
-      .where(eq(paymentSharingOrders.id, sharing.id))
+      .set({
+        status: resultUnknown ? 'processing' : 'failed',
+        attempts: sharing.attempts + 1,
+        version: sql`${paymentSharingOrders.version} + 1`,
+        finishedAt: resultUnknown ? null : new Date(),
+      })
+      .where(and(
+        eq(paymentSharingOrders.id, sharing.id),
+        eq(paymentSharingOrders.version, sharing.version),
+        inArray(paymentSharingOrders.status, ['processing', 'failed']),
+      ))
       .returning();
+    if (!updated) {
+      const [latest] = await db.select().from(paymentSharingOrders).where(eq(paymentSharingOrders.id, sharing.id)).limit(1);
+      return { row: latest ?? sharing, error: err };
+    }
     return { row: updated, error: err };
   }
 }
@@ -285,40 +381,27 @@ export async function autoShareOrder(orderNo: string): Promise<void> {
 
   const tenantCond = order.tenantId == null
     ? isNull(paymentSharingReceivers.tenantId)
-    : or(eq(paymentSharingReceivers.tenantId, order.tenantId), isNull(paymentSharingReceivers.tenantId));
+    : eq(paymentSharingReceivers.tenantId, order.tenantId);
   const receivers = await db
     .select()
     .from(paymentSharingReceivers)
     .where(and(eq(paymentSharingReceivers.status, 'enabled'), eq(paymentSharingReceivers.autoShare, true), tenantCond));
   if (receivers.length === 0) return;
 
-  const paid = order.paidAmount ?? order.amount;
-  let allocated = 0;
   for (const receiver of receivers) {
     if (receiver.ratioBps == null || receiver.ratioBps <= 0) continue;
-    const amount = Math.round((paid * receiver.ratioBps) / 10000);
-    if (amount <= 0) continue;
-    if (allocated + amount > paid) {
-      logger.warn('[payment-sharing] auto share skipped: total ratio exceeds paid amount', { orderNo, receiverId: receiver.id });
-      continue;
-    }
-    allocated += amount;
-
-    const [created] = await db
-      .insert(paymentSharingOrders)
-      .values({
-        sharingNo: autoSharingNo(order.orderNo, receiver.id),
+    try {
+      const reserved = await createReservedSharing({
         orderNo: order.orderNo,
-        receiverId: receiver.id,
-        amount,
-        status: 'processing',
+        receiver,
+        sharingNo: autoSharingNo(order.orderNo, receiver.id),
         remark: '自动分账',
-        tenantId: order.tenantId,
-      })
-      .onConflictDoNothing({ target: paymentSharingOrders.sharingNo })
-      .returning();
-    if (!created) continue; // 已建过（事件重复投递），由重试 cron 兜底失败单
-    await executeSharingAtChannel(created, order, receiver);
+      });
+      await executeSharingAtChannel(reserved.sharing, reserved.order, receiver);
+    } catch (err) {
+      // 确定性 sharingNo 的唯一冲突代表事件重放；余额不足等业务错误记录后跳过。
+      logger.warn('[payment-sharing] auto share skipped', { orderNo, receiverId: receiver.id, err });
+    }
   }
 }
 
@@ -402,15 +485,22 @@ export async function syncProcessingSharingOrders(): Promise<{ scanned: number; 
     try {
       const res = await adapter.queryProfitShare(buildAdapterContext(config), order, sharing.sharingNo);
       if (res.status === 'processing') continue;
-      await db
+      if (res.status === 'success') await recordSharingJournal(sharing, order);
+      const [updated] = await db
         .update(paymentSharingOrders)
         .set({
           status: res.status,
           channelSharingNo: res.channelSharingNo ?? sharing.channelSharingNo,
           finishedAt: res.finishedAt ?? new Date(),
+          version: sql`${paymentSharingOrders.version} + 1`,
         })
-        .where(and(eq(paymentSharingOrders.id, sharing.id), eq(paymentSharingOrders.status, 'processing')));
-      finished++;
+        .where(and(
+          eq(paymentSharingOrders.id, sharing.id),
+          eq(paymentSharingOrders.version, sharing.version),
+          eq(paymentSharingOrders.status, 'processing'),
+        ))
+        .returning({ id: paymentSharingOrders.id });
+      if (updated) finished++;
     } catch (err) {
       logger.warn('[payment-sharing] query profit share failed', { sharingNo: sharing.sharingNo, err });
     }

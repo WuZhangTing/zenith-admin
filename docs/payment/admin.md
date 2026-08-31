@@ -1,6 +1,6 @@
 # 后台管理页面
 
-支付中心在后台「支付中心」目录下共 **20 个页面**，页面组件位于 `packages/web/src/pages/payment/`。权限码清单见[安全设计](./security.md#权限与数据权限)。
+支付中心在后台「支付中心」目录下共 **19 个页面**，页面组件位于 `packages/web/src/pages/payment/`。权限码清单见[安全设计](./security.md#权限与数据权限)。跨系统事件订阅统一在 Open Platform 管理，不再在支付中心重复维护 Webhook 页面。
 
 ## 页面一览
 
@@ -11,20 +11,19 @@
 | 交易 | 退款记录 | `/payment/refunds` | 退款查询、退款状态同步、大额退款审批 |
 | 交易 | 支付方式 | `/payment/methods` | 收银台支付方式启停、排序与展示配置 |
 | 交易 | 回调日志 | `/payment/logs` | 渠道回调报文、请求头、验签结果与处理结果查询 |
-| 资金 | 资金台账 | `/payment/ledger` | 资金流水、账户快照、快照核对/重建、人工调账 |
+| 资金 | 资金台账 | `/payment/ledger` | 双分录账户、资金凭证、冲正与资金预占 |
 | 资金 | 费率管理 | `/payment/fee-rules` | 手续费费率规则 CRUD |
 | 资金 | 结算管理 | `/payment/settlements` | 结算批次生成、状态流转与结算确认 |
 | 资金 | 分账管理 | `/payment/sharing` | 分账接收方、分账单、渠道派发与失败重试 |
-| 资金 | 转账管理 | `/payment/transfers` | 转账/代付发起、查单、重试 |
-| 资金 | 财务报表 | `/payment/reports` | KPI 汇总、分组报表、环比、日切快照 |
+| 资金 | 转账管理 | `/payment/transfers` | 转账/代付发起、四眼审批、查单与结果收敛 |
+| 资金 | 财务报表 | `/payment/reports` | KPI 汇总、按应用/商户账户/币种/渠道分组报表与环比 |
 | 对账风控 | 对账中心 | `/payment/recon` | 账单上传/自动拉取、差异处理 |
 | 对账风控 | 风控中心 | `/payment/risk-rules` | 风控规则、拦截记录、人工审核队列 |
 | 对账风控 | 交易投诉 | `/payment/disputes` | 投诉列表、智能分流、时间线、回复/完结/退款 |
 | 进阶交易 | 签约代扣 | `/payment/contracts` | 扣款计划、签约协议、暂停/恢复/解约、手动补扣 |
 | 进阶交易 | 预授权 | `/payment/preauths` | 冻结、转支付、解冻 |
 | 生态 | 支付链接 | `/payment/links` | 免开发收款链接、公开收银台、token 轮换 |
-| 生态 | 应用管理 | `/payment/apps` | `appKey` 与三渠道配置绑定 |
-| 生态 | Webhook | `/payment/webhooks` | 业务方 Webhook 端点与投递日志 |
+| 生态 | 应用管理 | `/payment/apps` | OAuth2 client 与三渠道配置绑定 |
 | 可观测 | 支付事件 | `/payment/events` | Outbox 事件查询、重派、链路健康指标 |
 
 ## 交易
@@ -67,23 +66,23 @@
 
 ### 资金台账
 
-- 查询 `payment_ledger_entries`，支持收入/支出/净额/笔数汇总；
-- 渠道资金账户面板展示 `pendingSettle`、`available`、`frozen`；
-- 「核对」比对账户快照与流水重算值；「重建」从流水重算账户快照；
-- 「人工调账」写 `type=adjust` 台账并更新可用余额。
+- 查询 `payment_ledger_accounts`、`payment_journals` 与 `payment_fund_reservations`；
+- 所有凭证强制借贷平衡，且按应用、商户配置、币种和租户隔离；
+- 已过账凭证不可编辑，只能通过带原因的反向凭证冲正；
+- 转账等资金流出操作先创建 reservation，成功核销、明确失败或驳回释放，版本号用于并发控制。
 
 ### 费率管理
 
 - 费率规则按渠道与支付方式匹配，`payMethod` 精确匹配优先，再按 `priority` 降序；
 - 公式：`fee = clamp(amount × rateBps / 10000 + fixedFee, minFee, maxFee)`；
-- 支付成功后自动回写订单手续费/净额并写 `type=fee` 台账；退款成功后按比例冲销手续费。
+- 支付成功后自动回写订单手续费/净额并写双分录手续费凭证；退款成功后按比例冲销手续费。
 
 ### 结算管理
 
 - 手动生成或由 `generateDailySettlements` 生成 T+1 结算批次；
 - 净额 = 收款 − 手续费 − 退款 − 分账；含未计费订单时备注提示；净额为负按 0 结算并备注；
 - 同租户 + 渠道 + 账期唯一约束保证幂等；
-- 标记结算后写 `type=settlement` 台账，并将账户快照从待结算划转到可用。
+- 标记结算后写结算双分录凭证，并将对应的 merchant_available 凭证行原子归集到结算批次。
 
 ### 分账管理
 
@@ -94,16 +93,17 @@
 
 ### 转账管理
 
-- 支持微信零钱与支付宝账户转账，写接口带幂等保护；
-- 行操作包含查单与重试；重试仅对渠道未受理、尝试次数小于 3 的失败单开放；
-- `syncPaymentTransfers` 定时同步处理中转账，成功写 `type=transfer` 台账。
+- 支持微信零钱与支付宝账户转账，写接口必须携带幂等键；
+- 达到审批阈值的申请只冻结资金，不调用渠道；申请人与审批人必须不同，审批通过后才提交渠道；
+- 明确失败释放 reservation，未知结果保留 reservation 并只能通过查单收敛，禁止原单重发；
+- `syncPaymentTransfers` 定时恢复已审批未执行单并同步处理中/未知单。
 
 ### 财务报表
 
 - 汇总收款、手续费、退款、净额、笔数；
-- 支持按 `bizType`、`channel`、`day` 分组；
+- 支持按 `day`、`application`、`merchantAccount`、`currency`、`channel` 分组；
 - `compare=true` 时返回上一等长周期对比；
-- 历史整日使用 `payment_report_daily` 快照，今日数据实时聚合。
+- 所有日期范围统一实时聚合 Journal，避免日切快照与凭证事实漂移。
 
 ## 对账与风控
 
@@ -156,22 +156,16 @@
 
 ### 支付链接
 
-- 后台接口：`/api/payment/links`；公开接口：`/api/public/payment/link/{token}`、`/{token}/pay`、`/{token}/orders/{orderNo}/status`；
+- 后台接口：`/api/payment/links`；公开接口：`/api/public/payment/link/{token}`、`/{token}/pay`、`/{token}/sessions/{sessionToken}`；
 - 支持固定金额或用户填写金额、固定支付方式或聚合方式、最大使用次数、过期时间；
 - 公开收银台按 UA 推荐支付方式；
 - 「轮换 token」使旧链接失效。
 
 ### 应用管理
 
-- 每个应用有唯一 `appKey`；
+- 每个应用绑定一个 OAuth2 client；开放 API 使用客户端凭证与 HMAC 签名，不接受外部伪造应用 ID；
 - 可分别绑定微信、支付宝、云闪付渠道配置；
-- 下单传 `appKey` 时优先路由到应用绑定配置，订单记录 `appId`。
-
-### Webhook
-
-- 端点配置：URL、签名密钥、事件类型、可选 `bizType`；
-- 投递日志：HTTP 状态、响应摘要、失败原因、尝试次数、下次重试时间；
-- 支持手动重投。
+- 下单由服务端根据已认证的 OAuth2 client 路由到应用绑定配置，订单记录 `appId`。
 
 ## 可观测
 
@@ -179,7 +173,7 @@
 
 - 查询 `payment_events`，支持查看 payload、错误信息与处理时间；
 - failed 死信可重派；
-- 健康指标接口 `GET /api/payment/ops/health` 返回 Outbox 积压/死信、Webhook 待投/失败、处理中分账/转账、待处理对账差异。
+- 健康指标接口 `GET /api/payment/ops/health` 返回 Outbox 积压/死信、Open Platform Webhook 待投/失败、处理中分账/转账、待处理对账差异。
 
 ## 统计接口
 
@@ -187,5 +181,5 @@
 | --- | --- |
 | `GET /api/payment/stats` | 订单概览：累计/今日收款与笔数、成功率、退款汇总、状态分布 |
 | `GET /api/payment/trend?days=N` | 近 N 天收款趋势 |
-| `GET /api/payment/reports/summary` | 财务报表汇总；支持 `groupBy=bizType/channel/day` 与 `compare=true` |
+| `GET /api/payment/reports/summary` | 财务报表汇总；支持 `groupBy=day/application/merchantAccount/currency/channel` 与 `compare=true` |
 | `GET /api/payment/ops/health` | 支付链路健康指标 |

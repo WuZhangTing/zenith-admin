@@ -138,7 +138,8 @@ export const OpenSignatureAlgorithmDTO = z
 export const AppWebhookSubscriptionDTO = z
   .object({
     id: z.number().int(),
-    clientId: z.string(),
+    clientId: z.string().nullable(),
+    tenantId: z.number().int().nullable(),
     name: z.string(),
     url: z.string(),
     signMode: z.enum(['hmacSha256', 'none']),
@@ -165,7 +166,8 @@ export const AppWebhookDeliveryDTO = z
   .object({
     id: z.number().int(),
     subscriptionId: z.number().int(),
-    clientId: z.string(),
+    clientId: z.string().nullable(),
+    tenantId: z.number().int().nullable(),
     eventType: z.string(),
     eventId: z.string(),
     status: z.enum(['pending', 'success', 'failed', 'retrying']),

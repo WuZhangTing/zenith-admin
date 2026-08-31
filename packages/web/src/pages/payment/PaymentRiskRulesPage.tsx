@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Form, Modal, Select, Space, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Form, Select, Space, Switch, Tabs, TabPane, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -58,12 +58,18 @@ interface RiskFormValues {
   remark?: string;
 }
 
+type ReviewDecision = 'approve' | 'reject';
+
 export default function PaymentRiskRulesPage() {
   const { items: statusItems } = useDictItems('common_status');
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canReview = hasPermission('payment:risk:review');
+  const canReadRuleLists = hasPermission('rule:list:list');
   const [activeTab, setActiveTab] = useUrlTabState(['rules', 'hits', 'reviews'] as const, 'rules');
+  const [reviewTarget, setReviewTarget] = useState<PaymentRiskReview | null>(null);
+  const [reviewDecision, setReviewDecision] = useState<ReviewDecision | null>(null);
+  const [reviewRemark, setReviewRemark] = useState('');
 
   // ── 规则 ──
   const {
@@ -120,7 +126,7 @@ export default function PaymentRiskRulesPage() {
   const togglingId = toggleMutation.isPending ? (toggleMutation.variables?.id ?? null) : null;
 
   // 名单库下拉源（黑名单字段可选 black/grey，白名单字段仅 white）
-  const ruleListsQuery = useRuleListList({ page: 1, pageSize: 100 });
+  const ruleListsQuery = useRuleListList({ page: 1, pageSize: 100 }, canReadRuleLists);
   const allRuleLists = ruleListsQuery.data?.list ?? [];
   const blockListOptions = allRuleLists.filter((l) => l.type !== 'white').map((l) => ({ value: l.key, label: `${l.name}（${l.key}）` }));
   const allowListOptions = allRuleLists.filter((l) => l.type === 'white').map((l) => ({ value: l.key, label: `${l.name}（${l.key}）` }));
@@ -148,7 +154,7 @@ export default function PaymentRiskRulesPage() {
       status: record.status,
       remark: record.remark ?? '',
     }),
-    beforeSave: (values) => ({
+    beforeSave: (values, { editing }) => ({
       name: values.name,
       scope: values.scope,
       channel: values.scope === 'channel' ? values.channel : undefined,
@@ -156,8 +162,8 @@ export default function PaymentRiskRulesPage() {
       singleLimit: values.singleYuan != null ? Math.round(values.singleYuan * 100) : undefined,
       dailyLimit: values.dailyYuan != null ? Math.round(values.dailyYuan * 100) : undefined,
       dailyCountLimit: values.dailyCountLimit ?? undefined,
-      blockListKeys: values.blockListKeys ?? [],
-      allowListKeys: values.allowListKeys ?? [],
+      blockListKeys: canReadRuleLists ? (values.blockListKeys ?? []) : (editing?.blockListKeys ?? []),
+      allowListKeys: canReadRuleLists ? (values.allowListKeys ?? []) : (editing?.allowListKeys ?? []),
       action: values.action ?? 'block',
       status: values.status,
       remark: values.remark || undefined,
@@ -178,27 +184,33 @@ export default function PaymentRiskRulesPage() {
     Toast.success('删除成功');
   }
 
-  function handleApprove(r: PaymentRiskReview) {
-    Modal.confirm({
-      title: '放行该交易？',
-      content: `审核单 ${r.reviewNo}（${yuan(r.amount)}），放行后用户重新发起支付即可继续`,
-      onOk: async () => {
-        await approveMutation.mutateAsync({ id: r.id });
-        Toast.success('已放行');
-      },
-    });
+  function openReviewDecision(r: PaymentRiskReview, decision: ReviewDecision) {
+    setReviewTarget(r);
+    setReviewDecision(decision);
+    setReviewRemark('');
   }
 
-  function handleReject(r: PaymentRiskReview) {
-    Modal.confirm({
-      title: '拒绝该交易？',
-      content: `审核单 ${r.reviewNo}（${yuan(r.amount)}），拒绝后挂起订单将被关闭`,
-      okButtonProps: { type: 'danger' },
-      onOk: async () => {
-        await rejectMutation.mutateAsync({ id: r.id });
-        Toast.success('已拒绝');
-      },
-    });
+  function closeReviewDecision() {
+    setReviewTarget(null);
+    setReviewDecision(null);
+    setReviewRemark('');
+  }
+
+  async function submitReviewDecision() {
+    if (!reviewTarget || !reviewDecision) return;
+    const remark = reviewRemark.trim();
+    if (!remark) {
+      Toast.warning('请填写审核意见');
+      return;
+    }
+    if (reviewDecision === 'approve') {
+      await approveMutation.mutateAsync({ id: reviewTarget.id, remark });
+      Toast.success('已放行');
+    } else {
+      await rejectMutation.mutateAsync({ id: reviewTarget.id, remark });
+      Toast.success('已拒绝');
+    }
+    closeReviewDecision();
   }
 
   const columns: ColumnProps<PaymentRiskRule>[] = [
@@ -265,6 +277,7 @@ export default function PaymentRiskRulesPage() {
     { title: '金额', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => yuan(v) },
     { title: '触发原因', dataIndex: 'reason', width: 220, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v}</Typography.Text> },
     { title: '审核人', dataIndex: 'reviewerName', width: 100, render: (v: string | null) => v || '-' },
+    { title: '审核意见', dataIndex: 'reviewRemark', width: 220, render: renderEllipsis },
     dateTimeColumn('审核时间', 'reviewedAt'),
     createdAtColumn as ColumnProps<PaymentRiskReview>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentRiskReviewStatus) => <Tag color={REVIEW_STATUS_COLOR[v]}>{PAYMENT_RISK_REVIEW_STATUS_LABELS[v]}</Tag> },
@@ -273,12 +286,12 @@ export default function PaymentRiskRulesPage() {
       actions: (r) => (canReview && r.status === 'pending' ? [{
         key: 'approve',
         label: '放行',
-        onClick: () => handleApprove(r),
+        onClick: () => openReviewDecision(r, 'approve'),
       }, {
         key: 'reject',
         label: '拒绝',
         danger: true,
-        onClick: () => handleReject(r),
+        onClick: () => openReviewDecision(r, 'reject'),
       }] : []),
     }),
   ];
@@ -404,6 +417,7 @@ export default function PaymentRiskRulesPage() {
           <ConfigurableTable
             bordered columns={reviewColumns} dataSource={reviews} loading={reviewQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void reviewQuery.refetch()} refreshLoading={reviewQuery.isFetching} pagination={buildRPagination(reviewTotal)}
+            scroll={{ x: 2100 }}
           />
         </TabPane>
       </Tabs>
@@ -429,19 +443,64 @@ export default function PaymentRiskRulesPage() {
             <Form.InputNumber field="dailyYuan" label="当日累计(元)" min={0} step={0.01} precision={2} style={{ width: '100%' }} placeholder="可选" />
           </div>
           <Form.InputNumber field="dailyCountLimit" label="当日笔数" min={0} step={1} precision={0} style={{ width: '100%' }} placeholder="可选" />
-          <Form.Select
-            field="blockListKeys" label="黑名单" multiple filter showClear style={{ width: '100%' }}
-            placeholder="选择规则中心名单库（黑/灰名单）" optionList={blockListOptions}
-          />
-          <Form.Select
-            field="allowListKeys" label="白名单" multiple filter showClear style={{ width: '100%' }}
-            placeholder="选择规则中心名单库（白名单）" optionList={allowListOptions}
-          />
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>
-            名单引用自规则中心名单库（条目、过期与批量导入在<Typography.Text link={{ href: '/rules/lists' }} size="small">名单库</Typography.Text>统一管理）；黑名单命中执行规则动作，白名单命中跳过本规则全部检查
-          </Typography.Text>
+          {canReadRuleLists ? (
+            <>
+              <Form.Select
+                field="blockListKeys" label="黑名单" multiple filter showClear style={{ width: '100%' }}
+                placeholder="选择规则中心名单库（黑/灰名单）" optionList={blockListOptions}
+              />
+              <Form.Select
+                field="allowListKeys" label="白名单" multiple filter showClear style={{ width: '100%' }}
+                placeholder="选择规则中心名单库（白名单）" optionList={allowListOptions}
+              />
+              <Typography.Text type="tertiary" size="small" style={{ display: 'block', margin: '-8px 0 8px 100px' }}>
+                名单引用自规则中心名单库（条目、过期与批量导入在<Typography.Text link={{ href: '/rules/lists' }} size="small">名单库</Typography.Text>统一管理）；黑名单命中执行规则动作，白名单命中跳过本规则全部检查
+              </Typography.Text>
+            </>
+          ) : (
+            <Banner
+              type="warning"
+              closeIcon={null}
+              style={{ marginBottom: 12 }}
+              description="当前账号无规则中心名单库查看权限，不能选择或修改名单引用；编辑时将保留原有名单配置。"
+            />
+          )}
           <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
         </Form>
+      </AppModal>
+
+      <AppModal
+        title={reviewDecision === 'reject' ? '拒绝风险审核' : '放行风险审核'}
+        visible={!!reviewTarget}
+        onCancel={closeReviewDecision}
+        onOk={submitReviewDecision}
+        okText={reviewDecision === 'reject' ? '确认拒绝' : '确认放行'}
+        okButtonProps={{
+          loading: approveMutation.isPending || rejectMutation.isPending,
+          ...(reviewDecision === 'reject' ? { type: 'danger' as const, theme: 'solid' as const } : {}),
+        }}
+        width={520}
+        closeOnEsc
+      >
+        {reviewTarget && (
+          <Form labelPosition="left" labelWidth={100}>
+            <Form.Slot label="审核单号">{reviewTarget.reviewNo}</Form.Slot>
+            <Form.Slot label="交易金额"><Typography.Text type="danger">{yuan(reviewTarget.amount)}</Typography.Text></Form.Slot>
+            <Form.Slot label="处理影响">
+              {reviewDecision === 'reject' ? '拒绝后挂起订单将被关闭' : '放行后用户可重新发起支付'}
+            </Form.Slot>
+            <Form.Slot label="审核意见">
+              <TextArea
+                value={reviewRemark}
+                onChange={setReviewRemark}
+                autosize
+                rows={3}
+                maxCount={256}
+                placeholder="请填写判断依据和处理意见（必填）"
+              />
+            </Form.Slot>
+          </Form>
+        )}
       </AppModal>
     </div>
   );

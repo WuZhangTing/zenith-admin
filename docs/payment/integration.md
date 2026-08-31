@@ -15,7 +15,7 @@ const { orderNo, payParams } = await createPayment({
   payMethod: 'wechat_native',
   openId,                    // wechat_jsapi 必填
   userId,
-  appKey,                    // 可选：按应用绑定配置路由
+  applicationId,             // 内部应用路由；开放 API 不由调用方传入
   channelConfigId,           // 可选：显式指定渠道配置
   expireMinutes: 30,
   clientIp,
@@ -33,7 +33,7 @@ const { refundNo, status } = await refund({ orderNo, refundAmount: 500, reason: 
 | 环节 | 行为 |
 | --- | --- |
 | 支付方式校验 | 统一下单仅接受 `PAYMENT_CASHIER_METHODS`；`payment_method_configs` 禁用的方式拒绝下单 |
-| 渠道路由 | `payMethod → channel`；`appKey` 优先按应用路由，其次 `channelConfigId`，最后默认配置 |
+| 渠道路由 | `payMethod → channel`；服务端按 OAuth2 client 绑定应用路由，再解析商户配置 |
 | 风控前置 | `payment_risk` 决策表优先裁决；未裁决时执行原生规则；`block` 拦截，`review` 挂起订单进入人工审核 |
 | 业务防重 | 同一 `bizType + bizId` 的 pending/paying 订单可复用；参数变化时先查单再关闭旧单；`payment_orders_active_biz_uq` 兜底并发 |
 | 优惠券立减 | 会员侧可传 `memberCouponId + couponMemberId`：下单冻结券，实付金额至少 1 分，订单记录原价与优惠 |
@@ -111,10 +111,10 @@ paymentEventBus.on('payment.succeeded', async (e) => {
 
 订阅者在 `packages/server/src/bootstrap/subscribers.ts` 注册。Outbox 为至少一次送达，handler 抛错会触发重试；失败死信可在「支付事件」页重派。
 
-## WebSocket 与业务方 Webhook
+## WebSocket 与 Open Platform Webhook
 
 - 订单归属用户会收到站内 WebSocket 推送：`payment:success`、`payment:closed`、`payment:failed`、`payment:refunded`、`payment:refund-failed`。
-- 跨系统接入可配置「Webhook」端点接收上述事件，签名与重试见[异步通知与对账](./callback.md#业务方-webhook-投递)。
+- 跨系统接入在 Open Platform 创建应用订阅接收上述事件，签名、重放窗口与重试由统一应用 Webhook 投递层负责。
 
 ## 进阶交易能力
 

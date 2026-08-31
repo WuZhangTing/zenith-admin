@@ -12,6 +12,7 @@ import { httpGet } from '../http-client';
 import { rsaSign, aesGcmDecrypt, ensurePem } from './signing';
 import logger from '../logger';
 import type { AdapterContext } from './types';
+import { providerHttpOptions } from './provider-http';
 
 const WECHAT_BASE = 'https://api.mch.weixin.qq.com';
 const CERT_TTL_MS = 12 * 60 * 60 * 1000; // 12 小时
@@ -54,6 +55,7 @@ async function fetchCertificates(ctx: AdapterContext): Promise<Map<string, strin
   if (!auth || !apiV3Key) return certs;
 
   const resp = await httpGet(`${WECHAT_BASE}${urlPath}`, {
+    ...providerHttpOptions(),
     headers: { Authorization: auth, Accept: 'application/json', 'User-Agent': 'zenith-admin' },
   });
   const text = await resp.text();

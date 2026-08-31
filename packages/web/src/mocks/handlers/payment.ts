@@ -9,10 +9,21 @@ import {
   mockPaymentLogs,
 } from '@/mocks/data/payment';
 import { mockDateTime, mockDateTimeOffset, mockDate } from '@/mocks/utils/date';
-import { ok, notFound, paginate } from '@/mocks/utils/handlers';
+import { badRequest, conflict, ok, notFound, paginate } from '@/mocks/utils/handlers';
 import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 import type { PaymentChannelConfig, PaymentMethod, PaymentOrder, PaymentRefund } from '@zenith/shared/payment';
 import { recordMockPaymentSucceeded, recordMockRefundSucceeded } from './payment-ext';
+
+interface MockRefundIdempotencyRecord {
+  requestHash: string;
+  result: { refundNo: string; status: PaymentRefund['status'] };
+}
+
+const refundIdempotencyRecords = new Map<string, MockRefundIdempotencyRecord>();
+
+function refundRequestHash(values: { refundAmount: number; reason?: string }): string {
+  return JSON.stringify({ refundAmount: values.refundAmount, reason: values.reason?.trim() || null });
+}
 
 export const paymentHandlers = [
   // ── 统计 ──
@@ -86,6 +97,11 @@ export const paymentHandlers = [
 
   // ── 渠道配置 ──
   http.get('/api/payment/channels/all', () => ok(mockPaymentChannels)),
+  http.get('/api/payment/channels/operation-lookup', () => ok(
+    mockPaymentChannels
+      .filter((config) => config.status === 'enabled')
+      .map(({ id, name, channel, sandbox }) => ({ id, name, channel, sandbox })),
+  )),
   http.get('/api/payment/channels', ({ request }) => {
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') ?? '';
@@ -199,15 +215,19 @@ export const paymentHandlers = [
     return ok(paginate(filtered, url));
   }),
   http.post('/api/payment/orders', async ({ request }) => {
-    const body = (await request.json()) as { bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string };
+    const body = (await request.json()) as { applicationId: number; bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string };
     const channel = PAYMENT_METHOD_CHANNEL[body.payMethod];
+    const expectedConfigId = body.applicationId === 3 ? 2 : body.applicationId === 1 || body.applicationId === 2 ? 1 : null;
+    if (!expectedConfigId || mockPaymentChannels.find((config) => config.id === expectedConfigId)?.channel !== channel) {
+      return badRequest('支付应用未绑定所选支付方式对应的商户配置');
+    }
     const orderNo = `PAY${Date.now()}`;
     const now = mockDateTime();
     const order: PaymentOrder = {
       id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: body.bizType, bizId: body.bizId,
-      subject: body.subject, body: null, amount: body.amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2,
+      subject: body.subject, body: null, amount: body.amount, currency: 'CNY', channel, channelConfigId: expectedConfigId, appId: body.applicationId,
       payMethod: body.payMethod, status: 'paying', userId: 1, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
-      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, createdAt: now, updatedAt: now,
+      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, version: 0, createdAt: now, updatedAt: now,
     };
     mockPaymentOrders.unshift(order);
     const payParams = {
@@ -240,6 +260,7 @@ export const paymentHandlers = [
       o.status = 'success';
       o.paidAmount = o.amount;
       o.paidAt = mockDateTime();
+      o.version += 1;
       o.updatedAt = mockDateTime();
       recordMockPaymentSucceeded(o);
     }
@@ -249,27 +270,42 @@ export const paymentHandlers = [
     const o = mockPaymentOrders.find((x) => x.id === Number(params.id));
     if (!o) return notFound('不存在');
     o.status = 'closed';
+    o.version += 1;
     o.updatedAt = mockDateTime();
     return ok(null, '订单已关闭');
   }),
 
   // ── 退款 ──
   http.post('/api/payment/refunds', async ({ request }) => {
+    const idempotencyKey = request.headers.get('X-Idempotency-Key')?.trim();
+    if (!idempotencyKey) return badRequest('退款请求必须提供 X-Idempotency-Key', { status: 400 });
     const body = (await request.json()) as { orderNo: string; refundAmount: number; reason?: string };
     const order = mockPaymentOrders.find((o) => o.orderNo === body.orderNo);
     if (!order) return notFound('订单不存在');
+    const cacheKey = `${order.orderNo}:${idempotencyKey}`;
+    const requestHash = refundRequestHash(body);
+    const existing = refundIdempotencyRecords.get(cacheKey);
+    if (existing) {
+      if (existing.requestHash !== requestHash) {
+        return conflict('该幂等键已用于不同的退款请求', { status: 409 });
+      }
+      return ok(existing.result, '退款已发起');
+    }
     const refundNo = `REF${Date.now()}`;
     const now = mockDateTime();
     const refund: PaymentRefund = {
       id: getNextPaymentRefundId(), refundNo, outRefundNo: refundNo, orderNo: order.orderNo, orderId: order.id, channelRefundNo: `5000${Date.now()}`,
       channel: order.channel, refundAmount: body.refundAmount, totalAmount: order.amount, reason: body.reason ?? null, status: 'success', approvalStatus: 'none',
-      operatorId: 1, refundedAt: now, errorMessage: null, createdAt: now, updatedAt: now,
+      operatorId: 1, refundedAt: now, errorMessage: null, version: 0, createdAt: now, updatedAt: now,
     };
     mockPaymentRefunds.unshift(refund);
     order.status = body.refundAmount >= order.amount ? 'refunded' : 'success';
+    order.version += 1;
     order.updatedAt = now;
     recordMockRefundSucceeded(refund);
-    return ok({ refundNo, status: 'success' }, '退款已发起');
+    const result = { refundNo, status: refund.status };
+    refundIdempotencyRecords.set(cacheKey, { requestHash, result });
+    return ok(result, '退款已发起');
   }),
   http.get('/api/payment/refunds', ({ request }) => {
     const url = new URL(request.url);
@@ -295,9 +331,13 @@ export const paymentHandlers = [
     if (r.status === 'processing' || r.status === 'pending') {
       r.status = 'success';
       r.refundedAt = mockDateTime();
+      r.version += 1;
       r.updatedAt = mockDateTime();
       const order = mockPaymentOrders.find((o) => o.orderNo === r.orderNo);
-      if (order) order.status = r.refundAmount >= order.amount ? 'refunded' : 'success';
+      if (order) {
+        order.status = r.refundAmount >= order.amount ? 'refunded' : 'success';
+        order.version += 1;
+      }
       recordMockRefundSucceeded(r);
     }
     return ok(r, '已同步');

@@ -1,21 +1,24 @@
 /**
  * 支付财务报表 Service。
- * 基于资金台账（payment_ledger_entries）按业务类型/渠道/日聚合，
- * 输出每组的收款(gross)/手续费(fee)/退款(refund)/净额(net)/成功笔数(count)。
  *
- * 性能：历史日期走日切快照表 payment_report_daily（cron rebuildPaymentReportDaily 预聚合），
- * 仅当日数据实时聚合台账后合并，避免大表全量扫描；支持环比（对比上一等长周期）。
+ * Journal 是唯一资金事实来源：报表只聚合已过账凭证及其双分录行，不再读取旧单边台账或日切快照。
+ * 金额口径由 sourceType + 标准科目 + 借贷方向共同确定，避免把同一凭证的两侧重复计入。
  */
-import { and, gte, lte, sql, type SQL } from 'drizzle-orm';
-import { db } from '../../db';
-import { paymentLedgerEntries, paymentReportDaily } from '../../db/schema';
-import { currentUser } from '../../lib/context';
-import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
-import { formatDate, parseDateRangeEnd, parseDateRangeStart, parseDateTimeInput } from '../../lib/datetime';
-import logger from '../../lib/logger';
+import { and, eq, gte, isNull, lte, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { PAYMENT_CHANNEL_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
+import { readSnapshot } from '../../db';
+import {
+  paymentApps,
+  paymentChannelConfigs,
+  paymentJournalLines,
+  paymentJournals,
+  paymentLedgerAccounts,
+} from '../../db/schema';
+import type { DbExecutor } from '../../db/types';
+import { currentUser } from '../../lib/context';
+import { getTenantScopeId } from '../../lib/tenant';
+import { APP_TIME_ZONE, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 
 export interface ReportSummaryQuery {
   groupBy?: PaymentReportGroupBy;
@@ -29,7 +32,7 @@ export interface ReportTotals {
   totalGross: number;
   totalFee: number;
   totalRefund: number;
-  /** 分账支出合计（分） */
+  /** 净分账支出（分账减分账冲正，分） */
   totalSharing: number;
   totalNet: number;
   totalCount: number;
@@ -42,13 +45,9 @@ export interface ReportSummary extends ReportTotals {
   prev?: (ReportTotals & { rows: PaymentReportRow[] }) | null;
 }
 
-function labelFor(groupBy: PaymentReportGroupBy, key: string): string {
-  if (groupBy === 'channel') return PAYMENT_CHANNEL_LABELS[key as PaymentChannel] ?? (key || '未知');
-  return key || '未知';
-}
-
 interface AggRow {
   key: string;
+  label: string;
   gross: number;
   fee: number;
   refund: number;
@@ -56,192 +55,217 @@ interface AggRow {
   count: number;
 }
 
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+interface RawAggRow {
+  key: string;
+  label: string;
+  gross: string;
+  fee: string;
+  refund: string;
+  sharing: string;
+  count: number;
 }
 
-/** 实时聚合台账（仅用于当日或快照未覆盖的窗口） */
-async function aggregateFromLedger(groupBy: PaymentReportGroupBy, start: Date | null, end: Date | null): Promise<AggRow[]> {
-  const conds: SQL[] = [];
-  if (start) conds.push(gte(paymentLedgerEntries.createdAt, start));
-  if (end) conds.push(lte(paymentLedgerEntries.createdAt, end));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentLedgerEntries, currentUser()));
-  const keyExpr =
-    groupBy === 'channel'
-      ? sql<string>`coalesce(${paymentLedgerEntries.channel}::text, '')`
-      : groupBy === 'bizType'
-        ? sql<string>`coalesce(${paymentLedgerEntries.bizType}, '')`
-        : sql<string>`to_char(${paymentLedgerEntries.createdAt}, 'YYYY-MM-DD')`;
-  const rows = await db
+function toSafeMinorNumber(value: string, label: string): number {
+  const parsed = BigInt(value);
+  if (parsed > BigInt(Number.MAX_SAFE_INTEGER) || parsed < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new Error(`${label} 超出报表安全精度范围，请按更小时间范围查询`);
+  }
+  return Number(parsed);
+}
+
+interface DimensionExpressions {
+  key: SQL<string>;
+  label: SQL<string>;
+}
+
+function exactTenantCondition(column: SQLWrapper, tenantId: number | null | undefined): SQL | undefined {
+  // `undefined` means a platform super-admin is viewing all tenants. `null`
+  // remains the explicit global (tenant-less) scope.
+  if (tenantId === undefined) return undefined;
+  return tenantId === null ? isNull(column) : eq(column, tenantId);
+}
+
+function dimensionExpressions(groupBy: PaymentReportGroupBy): DimensionExpressions {
+  switch (groupBy) {
+    case 'application':
+      return {
+        key: sql<string>`${paymentJournals.appId}::text`,
+        label: sql<string>`${paymentApps.name}`,
+      };
+    case 'merchantAccount':
+      return {
+        key: sql<string>`${paymentJournals.channelConfigId}::text`,
+        label: sql<string>`${paymentChannelConfigs.name}`,
+      };
+    case 'currency':
+      return {
+        key: sql<string>`${paymentJournals.currency}`,
+        label: sql<string>`${paymentJournals.currency}`,
+      };
+    case 'channel':
+      return {
+        key: sql<string>`${paymentChannelConfigs.channel}::text`,
+        label: sql<string>`${paymentChannelConfigs.channel}::text`,
+      };
+    case 'day':
+      return {
+        key: sql<string>`to_char(timezone(${APP_TIME_ZONE}, ${paymentJournals.postedAt}), 'YYYY-MM-DD')`,
+        label: sql<string>`to_char(timezone(${APP_TIME_ZONE}, ${paymentJournals.postedAt}), 'YYYY-MM-DD')`,
+      };
+  }
+}
+
+function labelFor(groupBy: PaymentReportGroupBy, key: string, label: string): string {
+  if (groupBy === 'channel') return PAYMENT_CHANNEL_LABELS[key as PaymentChannel] ?? (label || key || '未知');
+  return label || key || '未知';
+}
+
+/**
+ * 从双分录按指定维度聚合。维度表只提供名称/渠道元数据，所有金额均来自 Journal 与标准科目行。
+ */
+async function aggregateFromJournals(
+  executor: DbExecutor,
+  groupBy: PaymentReportGroupBy,
+  start: Date | null,
+  end: Date | null,
+  tenantId: number | null | undefined,
+): Promise<AggRow[]> {
+  const { key, label } = dimensionExpressions(groupBy);
+  // PostgreSQL treats parameterized copies of the same `timezone()` expression
+  // as different group keys. For the day dimension select and group by one
+  // canonical expression only; the row label is the key itself.
+  const selectLabel = groupBy === 'day' ? sql<string>`'day'` : label;
+  const conditions: (SQL | undefined)[] = [
+    exactTenantCondition(paymentJournals.tenantId, tenantId),
+    start ? gte(paymentJournals.postedAt, start) : undefined,
+    end ? lte(paymentJournals.postedAt, end) : undefined,
+  ];
+  const rows: RawAggRow[] = await executor
     .select({
-      key: keyExpr,
-      gross: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-      // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
-      fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
-      refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-      sharing: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'sharing' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-      count: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then 1 else 0 end),0)`,
+      key,
+      label: selectLabel,
+      gross: sql<string>`coalesce(sum(case
+        when ${paymentJournals.sourceType} = 'payment.capture'
+          and ${paymentLedgerAccounts.code} = 'provider_clearing'
+        then ${paymentJournalLines.debitAmount}
+        when ${paymentJournals.sourceType} = 'payment.preauth.capture'
+          and ${paymentLedgerAccounts.code} = 'merchant_available'
+        then ${paymentJournalLines.creditAmount}
+        else 0 end), 0)::text`,
+      fee: sql<string>`coalesce(sum(case
+        when ${paymentJournals.sourceType} = 'payment.fee'
+          and ${paymentLedgerAccounts.code} = 'platform_fee'
+        then ${paymentJournalLines.creditAmount}
+        when ${paymentJournals.sourceType} = 'payment.fee_refund'
+          and ${paymentLedgerAccounts.code} = 'platform_fee'
+        then -${paymentJournalLines.debitAmount}
+        else 0 end), 0)::text`,
+      refund: sql<string>`coalesce(sum(case
+        when ${paymentJournals.sourceType} = 'payment.refund'
+          and ${paymentLedgerAccounts.code} = 'provider_clearing'
+        then ${paymentJournalLines.creditAmount} else 0 end), 0)::text`,
+      sharing: sql<string>`coalesce(sum(case
+        when ${paymentJournals.sourceType} = 'payment.sharing'
+          and ${paymentLedgerAccounts.code} = 'merchant_available'
+        then ${paymentJournalLines.debitAmount}
+        when ${paymentJournals.sourceType} = 'payment.sharing_reversal'
+          and ${paymentLedgerAccounts.code} = 'merchant_available'
+        then -${paymentJournalLines.creditAmount}
+        else 0 end), 0)::text`,
+      count: sql<number>`count(distinct case
+        when ${paymentJournals.sourceType} in ('payment.capture', 'payment.preauth.capture')
+          and ${paymentLedgerAccounts.code} in ('provider_clearing', 'merchant_available')
+          and (${paymentJournalLines.debitAmount} > 0 or ${paymentJournalLines.creditAmount} > 0)
+        then ${paymentJournals.id} end)::int`,
     })
-    .from(paymentLedgerEntries)
-    .where(where)
-    .groupBy(keyExpr);
-  return rows.map((r) => ({ key: r.key, gross: Number(r.gross), fee: Number(r.fee), refund: Number(r.refund), sharing: Number(r.sharing), count: Number(r.count) }));
-}
+    .from(paymentJournals)
+    .innerJoin(paymentJournalLines, eq(paymentJournalLines.journalId, paymentJournals.id))
+    .innerJoin(paymentLedgerAccounts, and(
+      eq(paymentLedgerAccounts.id, paymentJournalLines.accountId),
+      eq(paymentLedgerAccounts.appId, paymentJournals.appId),
+      eq(paymentLedgerAccounts.channelConfigId, paymentJournals.channelConfigId),
+      eq(paymentLedgerAccounts.currency, paymentJournals.currency),
+      exactTenantCondition(paymentLedgerAccounts.tenantId, tenantId),
+    ))
+    .innerJoin(paymentApps, and(
+      eq(paymentApps.id, paymentJournals.appId),
+      exactTenantCondition(paymentApps.tenantId, tenantId),
+    ))
+    .innerJoin(paymentChannelConfigs, and(
+      eq(paymentChannelConfigs.id, paymentJournals.channelConfigId),
+      exactTenantCondition(paymentChannelConfigs.tenantId, tenantId),
+    ))
+    .where(and(...conditions))
+    .groupBy(...(groupBy === 'day' ? [sql`1`] : [key, label]));
 
-/** 快照聚合（历史整日数据；statDate 为闭区间） */
-async function aggregateFromSnapshot(groupBy: PaymentReportGroupBy, startDate: string | null, endDate: string): Promise<AggRow[]> {
-  const conds: SQL[] = [lte(paymentReportDaily.statDate, endDate)];
-  if (startDate) conds.push(gte(paymentReportDaily.statDate, startDate));
-  const where = mergeWhere(and(...conds), tenantCondition(paymentReportDaily, currentUser()));
-  const keyExpr =
-    groupBy === 'channel'
-      ? paymentReportDaily.channel
-      : groupBy === 'bizType'
-        ? paymentReportDaily.bizType
-        : paymentReportDaily.statDate;
-  const rows = await db
-    .select({
-      key: sql<string>`${keyExpr}`,
-      gross: sql<number>`coalesce(sum(${paymentReportDaily.gross}),0)`,
-      fee: sql<number>`coalesce(sum(${paymentReportDaily.fee}),0)`,
-      refund: sql<number>`coalesce(sum(${paymentReportDaily.refund}),0)`,
-      sharing: sql<number>`coalesce(sum(${paymentReportDaily.sharing}),0)`,
-      count: sql<number>`coalesce(sum(${paymentReportDaily.count}),0)`,
-    })
-    .from(paymentReportDaily)
-    .where(where)
-    .groupBy(keyExpr);
-  return rows.map((r) => ({ key: r.key, gross: Number(r.gross), fee: Number(r.fee), refund: Number(r.refund), sharing: Number(r.sharing), count: Number(r.count) }));
-}
-
-function mergeAggRows(parts: AggRow[][]): AggRow[] {
-  const map = new Map<string, AggRow>();
-  for (const rows of parts) {
-    for (const r of rows) {
-      const exist = map.get(r.key);
-      if (exist) {
-        exist.gross += r.gross;
-        exist.fee += r.fee;
-        exist.refund += r.refund;
-        exist.sharing += r.sharing;
-        exist.count += r.count;
-      } else {
-        map.set(r.key, { ...r });
-      }
-    }
-  }
-  return [...map.values()].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-}
-
-/** 聚合指定窗口：历史整日走快照，今日部分实时聚合台账后合并。 */
-async function aggregateReport(groupBy: PaymentReportGroupBy, start: Date | null, end: Date | null): Promise<AggRow[]> {
-  const todayStart = startOfToday();
-  const parts: AggRow[][] = [];
-  if (!start || start < todayStart) {
-    const histEndDate = end && end < todayStart ? formatDate(end) : formatDate(new Date(todayStart.getTime() - 1));
-    const histStartDate = start ? formatDate(start) : null;
-    parts.push(await aggregateFromSnapshot(groupBy, histStartDate, histEndDate));
-  }
-  if (!end || end >= todayStart) {
-    const rtStart = start && start > todayStart ? start : todayStart;
-    parts.push(await aggregateFromLedger(groupBy, rtStart, end));
-  }
-  return mergeAggRows(parts);
+  return rows
+    .map((row) => ({
+      key: row.key,
+      label: labelFor(groupBy, row.key, groupBy === 'day' ? row.key : row.label),
+      gross: toSafeMinorNumber(row.gross, '收款金额'),
+      fee: toSafeMinorNumber(row.fee, '手续费'),
+      refund: toSafeMinorNumber(row.refund, '退款金额'),
+      sharing: toSafeMinorNumber(row.sharing, '分账金额'),
+      count: Number(row.count),
+    }))
+    .filter((row) => row.gross !== 0 || row.fee !== 0 || row.refund !== 0 || row.sharing !== 0 || row.count !== 0)
+    .sort((a, b) => a.key.localeCompare(b.key));
 }
 
 function toTotals(rows: AggRow[]): ReportTotals {
-  const totalGross = rows.reduce((s, r) => s + r.gross, 0);
-  const totalFee = rows.reduce((s, r) => s + r.fee, 0);
-  const totalRefund = rows.reduce((s, r) => s + r.refund, 0);
-  const totalSharing = rows.reduce((s, r) => s + r.sharing, 0);
+  const totalGross = rows.reduce((sum, row) => sum + row.gross, 0);
+  const totalFee = rows.reduce((sum, row) => sum + row.fee, 0);
+  const totalRefund = rows.reduce((sum, row) => sum + row.refund, 0);
+  const totalSharing = rows.reduce((sum, row) => sum + row.sharing, 0);
   return {
     totalGross,
     totalFee,
     totalRefund,
     totalSharing,
     totalNet: totalGross - totalFee - totalRefund - totalSharing,
-    totalCount: rows.reduce((s, r) => s + r.count, 0),
+    totalCount: rows.reduce((sum, row) => sum + row.count, 0),
   };
 }
 
-function toReportRows(groupBy: PaymentReportGroupBy, agg: AggRow[]): PaymentReportRow[] {
-  return agg
-    // 过滤无意义空分组（key 为空且全零）：历史快照对空维度可能落出全零行，展示层没有价值
-    .filter((r) => r.key !== '' || r.gross !== 0 || r.fee !== 0 || r.refund !== 0 || r.sharing !== 0 || r.count !== 0)
-    .map((r) => ({
-      key: r.key || '未知',
-      label: labelFor(groupBy, r.key),
-      gross: r.gross,
-      fee: r.fee,
-      refund: r.refund,
-      sharing: r.sharing,
-      net: r.gross - r.fee - r.refund - r.sharing,
-      count: r.count,
-    }));
+function toReportRows(rows: AggRow[]): PaymentReportRow[] {
+  return rows.map((row) => ({
+    key: row.key,
+    label: row.label,
+    gross: row.gross,
+    fee: row.fee,
+    refund: row.refund,
+    sharing: row.sharing,
+    net: row.gross - row.fee - row.refund - row.sharing,
+    count: row.count,
+  }));
 }
 
 export async function getReportSummary(q: ReportSummaryQuery): Promise<ReportSummary> {
-  const groupBy: PaymentReportGroupBy = q.groupBy ?? 'bizType';
+  const groupBy: PaymentReportGroupBy = q.groupBy ?? 'day';
   const start = parseDateRangeStart(q.startTime);
   const end = parseDateRangeEnd(q.endTime);
+  const tenantId = getTenantScopeId(currentUser());
 
-  const agg = await aggregateReport(groupBy, start, end);
-  const reportRows = toReportRows(groupBy, agg);
-
-  let prev: (ReportTotals & { rows: PaymentReportRow[] }) | null = null;
-  if (q.compare && start && end && end > start) {
-    const duration = end.getTime() - start.getTime();
-    const prevAgg = await aggregateReport(groupBy, new Date(start.getTime() - duration), new Date(start.getTime() - 1));
-    prev = { ...toTotals(prevAgg), rows: toReportRows(groupBy, prevAgg) };
-  }
-
-  return { groupBy, rows: reportRows, ...toTotals(agg), prev };
-}
-
-/** Cron：重建近 N 天（含今天）的日切快照。delete + insert-select 原子重建，天然幂等。 */
-export async function rebuildPaymentReportDaily(days = 2): Promise<number> {
-  const n = Math.max(1, Math.min(days, 365));
-  const sinceDate = formatDate(new Date(startOfToday().getTime() - (n - 1) * 24 * 60 * 60 * 1000));
-  const since = parseDateTimeInput(`${sinceDate} 00:00:00`);
-  if (!since) return 0;
-  let inserted = 0;
-  await db.transaction(async (tx) => {
-    await tx.delete(paymentReportDaily).where(gte(paymentReportDaily.statDate, sinceDate));
-    const rows = await tx
-      .select({
-        statDate: sql<string>`to_char(${paymentLedgerEntries.createdAt}, 'YYYY-MM-DD')`,
-        channel: sql<string>`coalesce(${paymentLedgerEntries.channel}::text, '')`,
-        bizType: sql<string>`coalesce(${paymentLedgerEntries.bizType}, '')`,
-        gross: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-        // fee 方向敏感：out=扣收，in=退款冲销（净手续费 = out - in）
-        fee: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'fee' then (case when ${paymentLedgerEntries.direction} = 'in' then -${paymentLedgerEntries.amount} else ${paymentLedgerEntries.amount} end) else 0 end),0)`,
-        refund: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'refund' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-        sharing: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'sharing' then ${paymentLedgerEntries.amount} else 0 end),0)`,
-        count: sql<number>`coalesce(sum(case when ${paymentLedgerEntries.type} = 'payment' then 1 else 0 end),0)`,
-        tenantId: paymentLedgerEntries.tenantId,
-      })
-      .from(paymentLedgerEntries)
-      .where(gte(paymentLedgerEntries.createdAt, since))
-      .groupBy(sql`1, 2, 3`, paymentLedgerEntries.tenantId);
-    if (rows.length > 0) {
-      await tx.insert(paymentReportDaily).values(
-        rows.map((r) => ({
-          statDate: r.statDate,
-          channel: r.channel,
-          bizType: r.bizType,
-          gross: Number(r.gross),
-          fee: Number(r.fee),
-          refund: Number(r.refund),
-          sharing: Number(r.sharing),
-          count: Number(r.count),
-          tenantId: r.tenantId,
-        })),
+  return readSnapshot(async (tx) => {
+    const aggregate = await aggregateFromJournals(tx, groupBy, start, end, tenantId);
+    let prev: (ReportTotals & { rows: PaymentReportRow[] }) | null = null;
+    if (q.compare && start && end && end >= start) {
+      const periodMs = end.getTime() - start.getTime() + 1;
+      const previous = await aggregateFromJournals(
+        tx,
+        groupBy,
+        new Date(start.getTime() - periodMs),
+        new Date(start.getTime() - 1),
+        tenantId,
       );
-      inserted = rows.length;
+      prev = { ...toTotals(previous), rows: toReportRows(previous) };
     }
+
+    return {
+      groupBy,
+      rows: toReportRows(aggregate),
+      ...toTotals(aggregate),
+      prev,
+    };
   });
-  logger.info('[payment-report] daily snapshot rebuilt', { days: n, rows: inserted });
-  return inserted;
 }

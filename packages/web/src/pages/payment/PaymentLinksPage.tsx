@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { downloadBlob } from '@/utils/download';
 import { Button, Form, Input, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
@@ -13,9 +13,11 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
-import type { PaymentLink, PaymentLinkStatus, PaymentMethod } from '@zenith/shared/payment';
-import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink } from '@/hooks/queries/payment-links';
+import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentApp, PaymentCashierMethod, PaymentChannel, PaymentLink, PaymentLinkStatus } from '@zenith/shared/payment';
+import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink, type PaymentLinkSaveValues } from '@/hooks/queries/payment-links';
+import { usePaymentAppList } from '@/hooks/queries/payment-apps';
+import { usePaymentCapabilities } from '@/hooks/queries/payment-capabilities';
 import { useEnsureShortLink } from '@/hooks/queries/short-links';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -23,8 +25,17 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
-const methodOptions = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
 const LINK_STATUS_COLOR = { active: 'green', disabled: 'grey', expired: 'red' } as const satisfies Record<PaymentLinkStatus, string>;
+
+function isCashierMethod(value: PaymentLink['payMethod']): value is PaymentCashierMethod {
+  return value != null && (PAYMENT_CASHIER_METHODS as readonly string[]).includes(value);
+}
+
+function paymentAppConfigId(app: PaymentApp, channel: PaymentChannel): number | null | undefined {
+  if (channel === 'wechat') return app.wechatConfigId;
+  if (channel === 'alipay') return app.alipayConfigId;
+  return app.unionpayConfigId;
+}
 
 function publicUrl(token: string): string {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -33,13 +44,14 @@ function publicUrl(token: string): string {
   return `${window.location.origin}${base}${publicPath}`;
 }
 
-interface SearchParams { keyword: string; status: string; }
+interface SearchParams { keyword: string; status: PaymentLinkStatus | ''; }
 const defaultSearch: SearchParams = { keyword: '', status: '' };
 
 interface LinkFormValues {
+  applicationId: number;
   subject: string;
   amountYuan?: number;
-  payMethod?: PaymentMethod;
+  payMethod?: PaymentCashierMethod;
   bizType: string;
   maxUses?: number;
   expiredAt?: Date;
@@ -57,6 +69,7 @@ export default function PaymentLinksPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: paymentLinkKeys.lists });
 
   const [qrLink, setQrLink] = useState<PaymentLink | null>(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<number>();
   // 当前收款码弹窗对应的短链地址；切换目标链接时重置
   const [payShortUrl, setPayShortUrl] = useState<string | null>(null);
   const ensureShortLinkMutation = useEnsureShortLink();
@@ -68,23 +81,70 @@ export default function PaymentLinksPage() {
     status: submittedParams.status || undefined,
   });
   const data = listQuery.data ?? null;
+  const appLookupQuery = usePaymentAppList({ page: 1, pageSize: 100, status: 'enabled' });
+  const appOptions = useMemo(
+    () => (appLookupQuery.data?.list ?? []).map((app) => ({ value: app.id, label: `${app.name} · ${app.openClientName}` })),
+    [appLookupQuery.data?.list],
+  );
+  const appNameById = useMemo(
+    () => new Map((appLookupQuery.data?.list ?? []).map((app) => [app.id, app.name])),
+    [appLookupQuery.data?.list],
+  );
+  const paymentApps = useMemo(() => appLookupQuery.data?.list ?? [], [appLookupQuery.data?.list]);
+  const selectedPaymentApp = paymentApps.find((app) => app.id === selectedApplicationId);
+  const canReadCapabilities = hasPermission('payment:channel:list');
+  const capabilitiesQuery = usePaymentCapabilities(
+    { operation: 'payment.create', currency: 'CNY' },
+    canReadCapabilities,
+  );
+  const methodOptions = useMemo(() => {
+    if (!selectedPaymentApp) return [];
+    if (capabilitiesQuery.data) {
+      const appEnvironment = selectedPaymentApp.environment === 'sandbox' ? 'sandbox' : 'live';
+      const boundConfigIds = new Set(
+        (['wechat', 'alipay', 'unionpay'] as const)
+          .map((channel) => paymentAppConfigId(selectedPaymentApp, channel))
+          .filter((id): id is number => id != null),
+      );
+      const supportedMethods = new Set<PaymentCashierMethod>();
+      for (const config of capabilitiesQuery.data.configs) {
+        if (!boundConfigIds.has(config.channelConfigId) || config.environment !== appEnvironment) continue;
+        for (const capability of config.capabilities) {
+          if (capability.supported && capability.paymentMethod && isCashierMethod(capability.paymentMethod)) {
+            supportedMethods.add(capability.paymentMethod);
+          }
+        }
+      }
+      return PAYMENT_CASHIER_METHODS
+        .filter((method) => supportedMethods.has(method))
+        .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
+    }
+    if (!canReadCapabilities || capabilitiesQuery.isError) {
+      return PAYMENT_CASHIER_METHODS
+        .filter((method) => paymentAppConfigId(selectedPaymentApp, PAYMENT_METHOD_CHANNEL[method]) != null)
+        .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
+    }
+    return [];
+  }, [canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, selectedPaymentApp]);
   const saveMutation = useSavePaymentLink();
-  const modal = useEditModal<PaymentLink, LinkFormValues, Partial<PaymentLink>>({
+  const modal = useEditModal<PaymentLink, LinkFormValues, PaymentLinkSaveValues>({
     entityName: '支付链接',
     save: saveMutation,
     useDetail: usePaymentLinkDetail,
     defaults: { bizType: 'general', status: 'active' },
     toValues: (record) => ({
+      applicationId: record.appId,
       subject: record.subject,
       amountYuan: record.amount != null ? record.amount / 100 : undefined,
-      payMethod: record.payMethod ?? undefined,
+      payMethod: isCashierMethod(record.payMethod) ? record.payMethod : undefined,
       bizType: record.bizType,
       maxUses: record.maxUses ?? undefined,
       expiredAt: record.expiredAt ? new Date(record.expiredAt) : undefined,
       status: record.status === 'disabled' ? 'disabled' : 'active',
       remark: record.remark ?? '',
     }),
-    beforeSave: (values) => ({
+    beforeSave: (values, { isEdit }) => ({
+      ...(!isEdit ? { applicationId: values.applicationId } : {}),
       subject: values.subject,
       amount: values.amountYuan != null ? Math.round(values.amountYuan * 100) : undefined,
       payMethod: values.payMethod || undefined,
@@ -96,6 +156,16 @@ export default function PaymentLinksPage() {
     }),
     labelWidth: 100,
   });
+
+  function openCreate() {
+    setSelectedApplicationId(undefined);
+    modal.openCreate();
+  }
+
+  function openEdit(record: PaymentLink) {
+    setSelectedApplicationId(record.appId);
+    modal.openEdit(record);
+  }
   const toggleMutation = useSavePaymentLink();
   const deleteMutation = useDeletePaymentLinks();
   const rotateTokenMutation = useRotatePaymentLinkToken();
@@ -162,10 +232,11 @@ export default function PaymentLinksPage() {
 
   const columns: ColumnProps<PaymentLink>[] = [
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
+    { title: '支付应用', dataIndex: 'appId', width: 160, render: (v: number) => appNameById.get(v) ?? `应用 #${v}` },
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number | null) => yuan(v) },
-    { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '用户选择') },
+    { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentCashierMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '用户选择') },
     { title: '业务类型', dataIndex: 'bizType', width: 140, render: renderEllipsis },
-    { title: '已用/上限', dataIndex: 'usedCount', width: 110, align: 'right', render: (_: unknown, r: PaymentLink) => `${r.usedCount} / ${r.maxUses ?? '∞'}` },
+    { title: '已用/预占/上限', dataIndex: 'usedCount', width: 150, align: 'right', render: (_: unknown, r: PaymentLink) => `${r.usedCount} / ${r.reservedCount} / ${r.maxUses ?? '∞'}` },
     dateTimeColumn('失效时间', 'expiredAt', { empty: '永久' }),
     createdAtColumn as ColumnProps<PaymentLink>,
     {
@@ -195,7 +266,7 @@ export default function PaymentLinksPage() {
         ...(hasPermission('payment:link:update') ? [{
           key: 'edit',
           label: '编辑',
-          onClick: () => modal.openEdit(r),
+          onClick: () => openEdit(r),
         }, {
           key: 'rotate-token',
           label: '重置链接',
@@ -231,17 +302,17 @@ export default function PaymentLinksPage() {
     <Select
       placeholder="全部状态"
       value={draftParams.status || undefined}
-      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as string) ?? '' }))}
+      onChange={(v) => setDraftParams((p) => ({ ...p, status: (v as PaymentLinkStatus | undefined) ?? '' }))}
       showClear
       style={{ width: 120 }}
-      optionList={[{ value: 'active', label: '生效中' }, { value: 'disabled', label: '已停用' }]}
+      optionList={Object.entries(PAYMENT_LINK_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
     />
   );
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:link:create') ? (
-    <CreateButton onClick={modal.openCreate} />
+    <CreateButton onClick={openCreate} />
   ) : null;
 
   return (
@@ -272,14 +343,40 @@ export default function PaymentLinksPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
+        scroll={{ x: 1680 }}
       />
 
       <AppModal {...modal.modalProps} width={700}>
         <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="subject" label="标题" placeholder="如：会员年费收款" rules={[{ required: true, message: '标题不能为空' }]} />
+          {modal.isEdit ? (
+            <Form.Slot label="支付应用">{modal.editing ? (appNameById.get(modal.editing.appId) ?? `应用 #${modal.editing.appId}`) : '-'}</Form.Slot>
+          ) : (
+            <Form.Select
+              field="applicationId"
+              label="支付应用"
+              style={{ width: '100%' }}
+              optionList={appOptions}
+              filter
+              loading={appLookupQuery.isFetching}
+              onChange={(value) => {
+                setSelectedApplicationId(value as number | undefined);
+                modal.formApi.current?.setValue('payMethod', undefined);
+              }}
+              rules={[{ required: true, message: '请选择支付应用' }]}
+            />
+          )}
           <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
             <Form.InputNumber field="amountYuan" label="金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} placeholder="留空=由用户填写" />
-            <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={methodOptions} showClear placeholder="留空=用户选择" />
+            <Form.Select
+              field="payMethod"
+              label="支付方式"
+              style={{ width: '100%' }}
+              optionList={methodOptions}
+              showClear
+              disabled={!selectedPaymentApp || methodOptions.length === 0}
+              placeholder={selectedPaymentApp ? (methodOptions.length > 0 ? '留空=用户选择' : '该应用暂无可用收银台方式') : '请先选择支付应用'}
+            />
           </div>
           <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
             <Form.Input field="bizType" label="业务类型" placeholder="如：general" rules={[{ required: true, message: '业务类型不能为空' }]} />

@@ -1,7 +1,7 @@
 /**
  * 支付异步回调（公开端点，无需登录，由微信/支付宝服务器调用）。
  *
- * POST /api/public/payment/notify/{channel}
+ * POST /api/public/payment/notify/{channel}/{callbackToken}
  *
  * 处理流程见 payment.service.handleNotify：读取原始 body → 逐个启用配置验签 →
  * 幂等更新订单/退款 → 落回调日志 → 发支付事件，并返回渠道要求的 ACK（微信 JSON、支付宝纯文本）。
@@ -15,12 +15,13 @@ const router = new OpenAPIHono({ defaultHook: validationHook });
 
 const NotifyParam = z.object({
   channel: z.enum(['wechat', 'alipay', 'unionpay']).openapi({ param: { name: 'channel', in: 'path' }, example: 'wechat' }),
+  callbackToken: z.string().min(32).max(64).openapi({ param: { name: 'callbackToken', in: 'path' }, example: 'nondiscoverable-callback-token' }),
 });
 
 const notifyRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post',
-    path: '/{channel}',
+    path: '/{channel}/{callbackToken}',
     tags: ['支付回调（公开）'],
     summary: '支付异步回调（公开，无需登录，由微信/支付宝服务器调用）',
     security: [],
@@ -28,16 +29,17 @@ const notifyRoute = defineOpenAPIRoute({
     request: { params: NotifyParam },
     responses: {
       200: { description: '回调处理 ACK（渠道要求的纯文本或 JSON）', content: { 'text/plain': { schema: z.string() } } },
+      400: { description: '回调报文不合法 ACK', content: { 'text/plain': { schema: z.string() } } },
       401: { description: '验签失败 ACK', content: { 'text/plain': { schema: z.string() } } },
       500: { description: '业务处理失败 ACK（渠道将按其重试策略重发通知）', content: { 'text/plain': { schema: z.string() } } },
     },
   }),
   handler: async (c) => {
-    const { channel } = c.req.valid('param');
+    const { channel, callbackToken } = c.req.valid('param');
     const rawBody = await c.req.raw.clone().text();
     const ip = getClientIp(c);
-    const { ack } = await handleNotify(channel, rawBody, c.req.raw.headers, ip);
-    return c.text(ack.body, ack.status as 200 | 401 | 500);
+    const { ack } = await handleNotify(channel, callbackToken, rawBody, c.req.raw.headers, ip);
+    return c.text(ack.body, ack.status as 200 | 400 | 401 | 500);
   },
 });
 

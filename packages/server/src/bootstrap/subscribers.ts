@@ -18,10 +18,10 @@ import { registerBizPayDemoSubscribers } from '../services/payment/biz-pay-demo-
 import { registerContractSubscribers } from '../services/payment/payment-contract.service';
 import { registerCouponPaymentSubscribers } from '../services/payment/payment-coupon.service';
 import { registerFeeSubscribers } from '../services/payment/payment-fee.service';
-import { registerLedgerSubscribers } from '../services/payment/payment-ledger.service';
+import { registerPaymentJournalSubscribers } from '../services/payment/payment-journal-subscribers.service';
 import { registerSharingSubscribers } from '../services/payment/payment-sharing.service';
 import { registerPaymentSubscribers } from '../services/payment/payment-subscribers';
-import { registerWebhookSubscribers } from '../services/payment/payment-webhook.service';
+import { registerPaymentOpenWebhookBridge } from '../services/payment/payment-open-webhook-bridge.service';
 import { registerWorkflowAutomationSubscribers } from '../services/workflow/workflow-automations.service';
 
 export function registerEventSubscribers(): void {
@@ -35,11 +35,11 @@ export function registerEventSubscribers(): void {
   registerPaymentSubscribers();
   registerContractSubscribers();
   registerCouponPaymentSubscribers();
-  registerWebhookSubscribers();
+  registerPaymentOpenWebhookBridge();
   registerBizLeaveSubscribers();
   registerBizPayDemoSubscribers();
   registerCmsWorkflowSubscribers(); // CMS 内容工作流审核（通过→发布+静态化，驳回/撤回→回写状态）
-  registerLedgerSubscribers();
+  registerPaymentJournalSubscribers();
   registerFeeSubscribers();
   registerSharingSubscribers();
   registerAnalyticsServerEventSubscribers();

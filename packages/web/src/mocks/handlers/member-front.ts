@@ -1,5 +1,5 @@
 import { http } from 'msw';
-import { ok, notFound } from '@/mocks/utils/handlers';
+import { badRequest, ok, notFound } from '@/mocks/utils/handlers';
 import {
   mockMembers,
   mockMemberPointAccount,
@@ -65,8 +65,23 @@ export const memberFrontHandlers = [
   // ── 自助：钱包 ────────────────────────────────────────────────────────────
   http.get('/api/member/wallet', () => ok(mockMemberWallet)),
   http.get('/api/member/wallet/transactions', () => paginated(mockMemberWalletTxs)),
+  http.get('/api/member/payment-options', () => ok([
+    {
+      id: 1,
+      name: '演示微信支付应用',
+      cashierMethods: [{ method: 'wechat_h5', label: '微信支付', icon: null }, { method: 'wechat_native', label: '微信扫码', icon: null }],
+      deductMethods: [{ method: 'wechat_papay', label: '微信委托代扣' }],
+    },
+    {
+      id: 3,
+      name: '演示支付宝支付应用',
+      cashierMethods: [{ method: 'alipay_wap', label: '支付宝', icon: null }],
+      deductMethods: [{ method: 'alipay_cycle', label: '支付宝周期扣款' }],
+    },
+  ])),
   http.post('/api/member/wallet/recharge', async ({ request }) => {
-    const body = (await request.json()) as { amount: number; payMethod: string };
+    const body = (await request.json()) as { applicationId: number; amount: number; payMethod: string };
+    if (!body.applicationId) return badRequest('请选择支付应用');
     return ok({
       orderNo: `MOCK${Date.now()}`,
       payMethod: body.payMethod,

@@ -1,7 +1,7 @@
 /**
  * 开放平台域告警指标源：供监控告警评估器（monitor-alert）实时采集的派生指标。
  *
- * 开放平台的调用日志、Webhook 订阅与投递记录均不带 tenantId（开放平台是平台级能力），
+ * 开放平台调用日志是平台级数据；Webhook 指标只统计外部订阅，排除 CMS 内部订阅，
  * 因此这组指标恒为平台级口径，不随规则所属租户变化——对应 MONITOR_METRIC_META 中的 scope: 'global'。
  *
  * 注：单应用配额耗尽已由 `open-quota-alerts.service.ts` 按 80% / 95% 双阈值实时预警并直达应用负责人，
@@ -56,9 +56,19 @@ export async function getOpenPlatformAlertMetrics(): Promise<OpenPlatformAlertMe
     db.$count(openApiCallLogs, gte(openApiCallLogs.createdAt, recentCutoff)),
     db.$count(openApiCallLogs, and(gte(openApiCallLogs.createdAt, recentCutoff), eq(openApiCallLogs.success, false))),
     getWorstAppErrorRate(recentCutoff),
-    db.$count(appWebhookDeliveries, and(gte(appWebhookDeliveries.createdAt, recentCutoff), eq(appWebhookDeliveries.status, 'success'))),
-    db.$count(appWebhookDeliveries, and(gte(appWebhookDeliveries.createdAt, recentCutoff), eq(appWebhookDeliveries.status, 'failed'))),
-    db.$count(appWebhookSubscriptions, isNotNull(appWebhookSubscriptions.autoDisabledAt)),
+    db.$count(appWebhookDeliveries, and(
+      gte(appWebhookDeliveries.createdAt, recentCutoff),
+      eq(appWebhookDeliveries.status, 'success'),
+      isNotNull(appWebhookDeliveries.clientId),
+      sql`exists (select 1 from ${appWebhookSubscriptions} s where s.id = ${appWebhookDeliveries.subscriptionId} and s.internal = false)`,
+    )),
+    db.$count(appWebhookDeliveries, and(
+      gte(appWebhookDeliveries.createdAt, recentCutoff),
+      eq(appWebhookDeliveries.status, 'failed'),
+      isNotNull(appWebhookDeliveries.clientId),
+      sql`exists (select 1 from ${appWebhookSubscriptions} s where s.id = ${appWebhookDeliveries.subscriptionId} and s.internal = false)`,
+    )),
+    db.$count(appWebhookSubscriptions, and(isNotNull(appWebhookSubscriptions.autoDisabledAt), eq(appWebhookSubscriptions.internal, false))),
   ]);
 
   return {

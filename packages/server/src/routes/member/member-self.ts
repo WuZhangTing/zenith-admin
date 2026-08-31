@@ -19,6 +19,7 @@ import {
   MemberNotificationDTO,
   MemberBenefitsDTO,
   MemberInviteSummaryDTO,
+  MemberPaymentApplicationOptionDTO,
 } from '../../lib/openapi-dtos';
 import { currentMemberId } from '../../lib/member-context';
 import { getClientInfo } from '../../lib/request-helpers';
@@ -35,20 +36,15 @@ import { memberLoginLogs } from '../../db/schema';
 import { desc, eq } from 'drizzle-orm';
 import { formatDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
+import { memberRechargeSchema } from '@zenith/shared/member';
+import { listMemberPaymentOptions } from '../../services/member/member-payment-options.service';
 
 const memberSelf = new OpenAPIHono({ defaultHook: validationHook });
 
 const pointTypeEnum = z.enum(['earn', 'redeem', 'expire', 'adjust', 'refund']);
 const walletTypeEnum = z.enum(['recharge', 'consume', 'refund', 'adjust']);
 const memberCouponStatusEnum = z.enum(['unused', 'used', 'expired', 'frozen']);
-const payMethodEnum = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr']);
 
-const rechargeSchema = z.object({
-  amount: z.number().int().positive('充值金额必须大于 0'),
-  payMethod: payMethodEnum,
-  /** 充值满减：使用的会员券 id（可选） */
-  memberCouponId: z.number().int().positive().optional(),
-});
 const receiveCouponSchema = z.object({ couponId: z.number().int().positive() });
 const checkinResultSchema = z.object({
   consecutiveDays: z.number().int(),
@@ -91,6 +87,16 @@ const walletRoute = defineOpenAPIRoute({
   handler: async (c) => c.json(okBody(await getMyWallet()), 200),
 });
 
+const paymentOptionsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/payment-options', tags: ['MemberSelf'], summary: '会员可用支付应用与方式',
+    security: [{ BearerAuth: [] }],
+    middleware: [memberAuthMiddleware] as const,
+    responses: { ...commonErrorResponses, ...ok(z.array(MemberPaymentApplicationOptionDTO), '支付选项') },
+  }),
+  handler: async (c) => c.json(okBody(await listMemberPaymentOptions()), 200),
+});
+
 // ─── GET /wallet/transactions — 钱包流水 ─────────────────────────────────────
 const walletTxRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -109,13 +115,13 @@ const rechargeRoute = defineOpenAPIRoute({
     method: 'post', path: '/wallet/recharge', tags: ['MemberSelf'], summary: '发起钱包充值',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware, idempotencyGuard({ ttlSeconds: 10 })] as const,
-    request: { body: { content: jsonContent(rechargeSchema), required: true } },
+    request: { body: { content: jsonContent(memberRechargeSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(MemberWalletRechargeResultDTO, '已创建充值订单') },
   }),
   handler: async (c) => {
-    const { amount, payMethod, memberCouponId } = c.req.valid('json');
+    const { applicationId, amount, payMethod, memberCouponId } = c.req.valid('json');
     const { ip } = getClientInfo(c);
-    const result = await rechargeWallet(currentMemberId(), amount, payMethod, ip, memberCouponId);
+    const result = await rechargeWallet(currentMemberId(), applicationId, amount, payMethod, ip, memberCouponId);
     return c.json(okBody(result, '已创建充值订单'), 200);
   },
 });
@@ -374,6 +380,7 @@ memberSelf.openapiRoutes([
   pointAccountRoute,
   pointTxRoute,
   walletRoute,
+  paymentOptionsRoute,
   walletTxRoute,
   rechargeRoute,
   levelsRoute,

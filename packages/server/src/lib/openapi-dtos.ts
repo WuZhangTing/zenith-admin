@@ -30,3 +30,4 @@
  *   - dtos/messages.ts       消息模板
  */
 export * from './dtos';
+export * from './dtos/payment-capabilities';

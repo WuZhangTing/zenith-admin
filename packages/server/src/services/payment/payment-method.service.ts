@@ -1,13 +1,14 @@
 /**
  * 支付方式管理 Service。
- * 维护可用支付方式（启停/排序/名称/图标），下单时校验方式是否启用（无配置=放行，向后兼容）。
- * 支付方式配置全局唯一（method 唯一约束），不区分租户。
+ * 维护租户级可用支付方式（启停/排序/名称/图标），下单时 fail-closed 校验。
  */
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { paymentMethodConfigs, type PaymentMethodConfigRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
+import { currentUser } from '../../lib/context';
+import { tenantCondition } from '../../lib/tenant';
 import type { UpdatePaymentMethodConfigInput } from '@zenith/shared/payment';
 import type { PaymentMethod, PaymentMethodConfig } from '@zenith/shared/payment';
 
@@ -26,7 +27,11 @@ export function mapMethodConfig(row: PaymentMethodConfigRow): PaymentMethodConfi
 }
 
 export async function listMethodConfigs(): Promise<PaymentMethodConfig[]> {
-  const rows = await db.select().from(paymentMethodConfigs).orderBy(asc(paymentMethodConfigs.sort), asc(paymentMethodConfigs.id));
+  const rows = await db
+    .select()
+    .from(paymentMethodConfigs)
+    .where(tenantCondition(paymentMethodConfigs, currentUser()))
+    .orderBy(asc(paymentMethodConfigs.sort), asc(paymentMethodConfigs.id));
   return rows.map(mapMethodConfig);
 }
 
@@ -34,13 +39,17 @@ export async function listEnabledMethodConfigs(): Promise<PaymentMethodConfig[]>
   const rows = await db
     .select()
     .from(paymentMethodConfigs)
-    .where(eq(paymentMethodConfigs.enabled, true))
+    .where(and(eq(paymentMethodConfigs.enabled, true), tenantCondition(paymentMethodConfigs, currentUser())))
     .orderBy(asc(paymentMethodConfigs.sort), asc(paymentMethodConfigs.id));
   return rows.map(mapMethodConfig);
 }
 
 async function ensureMethodConfig(id: number): Promise<PaymentMethodConfigRow> {
-  const [row] = await db.select().from(paymentMethodConfigs).where(eq(paymentMethodConfigs.id, id)).limit(1);
+  const [row] = await db
+    .select()
+    .from(paymentMethodConfigs)
+    .where(and(eq(paymentMethodConfigs.id, id), tenantCondition(paymentMethodConfigs, currentUser())))
+    .limit(1);
   if (!row) throw new HTTPException(404, { message: '支付方式配置不存在' });
   return row;
 }
@@ -56,14 +65,24 @@ export async function updateMethodConfig(id: number, input: UpdatePaymentMethodC
   if (input.icon !== undefined) set.icon = input.icon || null;
   if (input.enabled !== undefined) set.enabled = input.enabled;
   if (input.sort !== undefined) set.sort = input.sort;
-  const [row] = await db.update(paymentMethodConfigs).set(set).where(eq(paymentMethodConfigs.id, id)).returning();
+  const [row] = await db
+    .update(paymentMethodConfigs)
+    .set(set)
+    .where(and(eq(paymentMethodConfigs.id, id), tenantCondition(paymentMethodConfigs, currentUser())))
+    .returning();
   return mapMethodConfig(row);
 }
 
-/** 下单校验：方式被显式停用则拦截；未配置该方式则放行（向后兼容）。 */
-export async function assertMethodEnabled(method: PaymentMethod): Promise<void> {
-  const [row] = await db.select({ enabled: paymentMethodConfigs.enabled, label: paymentMethodConfigs.label }).from(paymentMethodConfigs).where(eq(paymentMethodConfigs.method, method)).limit(1);
-  if (row && !row.enabled) {
+/** 下单校验：配置缺失或停用均拒绝。 */
+export async function assertMethodEnabled(method: PaymentMethod, tenantId: number | null): Promise<void> {
+  const exactTenant = tenantId == null ? isNull(paymentMethodConfigs.tenantId) : eq(paymentMethodConfigs.tenantId, tenantId);
+  const [row] = await db
+    .select({ enabled: paymentMethodConfigs.enabled, label: paymentMethodConfigs.label })
+    .from(paymentMethodConfigs)
+    .where(and(eq(paymentMethodConfigs.method, method), exactTenant))
+    .limit(1);
+  if (!row) throw new HTTPException(400, { message: `支付方式 ${method} 未配置` });
+  if (!row.enabled) {
     throw new HTTPException(400, { message: `支付方式「${row.label}」已停用` });
   }
 }

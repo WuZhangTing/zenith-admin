@@ -7,7 +7,7 @@ type ClientEntry = OAuth2Client;
 
 let nextId = 1;
 
-const mockClients: ClientEntry[] = [
+export const mockOAuth2Clients: ClientEntry[] = [
   {
     id: nextId++,
     clientId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
@@ -86,7 +86,35 @@ const mockClients: ClientEntry[] = [
     createdAt: '2024-06-03 08:00:00',
     updatedAt: '2024-06-03 08:00:00',
   },
+  {
+    id: nextId++,
+    clientId: 'sandbox-pay-1234-5678-9abc-def012345678',
+    clientSecretPrefix: 'oas_sandboxpay...',
+    name: '沙箱支付服务',
+    description: '用于支付宝沙箱支付演示',
+    logoUrl: null,
+    redirectUris: [],
+    allowedScopes: ['payment:intent:create', 'payment:intent:read'],
+    grantTypes: ['client_credentials'],
+    isPublic: false,
+    ratePlanId: 1,
+    signEnabled: true,
+    ipAllowlist: [],
+    environment: 'sandbox',
+    reviewStatus: 'approved',
+    reviewComment: null,
+    submittedAt: '2024-06-03 10:00:00',
+    reviewedAt: '2024-06-03 11:00:00',
+    reviewedBy: 1,
+    previousSecretExpiresAt: null,
+    status: 'enabled',
+    ownerId: 1,
+    createdAt: '2024-06-03 10:00:00',
+    updatedAt: '2024-06-03 11:00:00',
+  },
 ];
+
+const mockClients = mockOAuth2Clients;
 
 const BASE = '/api/oauth2/clients';
 
@@ -98,7 +126,7 @@ export const oauth2AppsHandlers = [
     const environment = url.searchParams.get('environment');
     const reviewStatus = url.searchParams.get('reviewStatus');
     const { page, pageSize } = pageParams(url, 20);
-    const filtered = mockClients.filter((client) =>
+    const filtered = mockOAuth2Clients.filter((client) =>
       (!keyword || client.name.includes(keyword))
       && (!environment || client.environment === environment)
       && (!reviewStatus || client.reviewStatus === reviewStatus),
@@ -109,7 +137,15 @@ export const oauth2AppsHandlers = [
 
   // 应用选项（供 Webhook/SDK 下拉）
   http.get(`${BASE}/options`, () => {
-    return ok(mockClients.filter((c) => c.status === 'enabled').map((c) => ({ clientId: c.clientId, name: c.name })), 'success');
+    return ok(mockOAuth2Clients.filter((c) => c.status === 'enabled').map((c) => ({
+      id: c.id,
+      clientId: c.clientId,
+      name: c.name,
+      environment: c.environment,
+      reviewStatus: c.reviewStatus,
+      isPublic: c.isPublic,
+      signEnabled: Boolean(c.signEnabled),
+    })), 'success');
   }),
 
   // 我的已授权应用（用户自助）

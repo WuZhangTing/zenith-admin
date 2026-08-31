@@ -1,6 +1,6 @@
 # 支付中心总览
 
-支付中心是平台级统一支付网关：业务模块调用统一门面完成下单、查询、关单、退款、进阶交易与结果订阅，微信支付 / 支付宝 / 云闪付差异由适配器层封装。支付域同时提供资金台账、手续费、结算、分账、转账、对账、风控、交易投诉、签约代扣、预授权、支付链接、应用路由与业务方 Webhook。
+支付中心是平台级统一支付网关：业务模块调用统一门面完成下单、查询、关单、退款、进阶交易与结果订阅，微信支付 / 支付宝 / 云闪付差异由适配器层封装。支付域同时提供双分录资金凭证、手续费、结算、分账、转账、对账、风控、交易投诉、签约代扣、预授权、支付链接、应用路由与 Open Platform Webhook。
 
 ## 文档导航
 
@@ -9,9 +9,9 @@
 | [渠道适配与配置](./channels.md) | 适配器接口、三渠道能力矩阵、渠道配置、应用路由与新增渠道步骤 |
 | [业务接入](./integration.md) | 统一门面、HTTP API、事件订阅、幂等、金额与进阶交易接入 |
 | [业务接入实战示例](./integration-example.md) | 以 `biz_pay_demo` 为例走读下单、支付成功履约与演示接口 |
-| [异步通知与对账](./callback.md) | 渠道回调、Outbox、查单补偿、定时任务、业务方 Webhook、对账中心 |
+| [异步通知与对账](./callback.md) | 渠道回调、Outbox、查单补偿、定时任务、Open Platform Webhook、对账中心 |
 | [安全设计](./security.md) | 验签、密钥、幂等、资金一致性、规则中心风控、投诉分流、权限与审计 |
-| [后台管理页面](./admin.md) | `/payment/*` 下 20 个后台页面的功能清单与操作说明 |
+| [后台管理页面](./admin.md) | `/payment/*` 下 19 个后台页面的功能清单与操作说明 |
 
 ## 能力总览
 
@@ -23,7 +23,7 @@
         │
         ├─ 业务幂等：bizType + bizId 活跃单复用，HTTP 写接口 15s 幂等窗口
         ├─ 支付方式启停：payment_method_configs 控制收银台可用方式
-        ├─ 应用路由：appKey → payment_apps 绑定的渠道配置
+        ├─ 应用路由：OAuth2 client → payment_apps 绑定的渠道配置
         ├─ 支付风控：L2 规则中心 payment_risk 决策表 → L1 原生限额/名单规则
         └─ 优惠券立减：下单冻结，支付成功核销，关闭/失败释放
         │
@@ -38,7 +38,7 @@
         │
         ├─ 业务订阅者（进程内，至少一次送达）
         ├─ 资金台账 / 手续费 / 分账 / 签约扣款排期等内置订阅者
-        └─ 业务方 Webhook（HMAC 签名 + 指数退避）
+        └─ Open Platform Webhook（HMAC 签名 + 指数退避）
         │
         ▼
 结算批次 / 账户快照 / 财务报表 / 对账中心 / 投诉处理
@@ -53,9 +53,9 @@
 | 风控 | 规则中心 `payment_risk` 决策表优先裁决；原生规则提供名单、单笔、单日金额、单日笔数校验 |
 | 投诉 | `dispute_triage` 决策表分流，投诉回复/完结/退款，SLA 收紧与时间线留痕 |
 | 进阶交易 | 签约代扣、预授权、支付链接公开收银台、应用维度渠道路由 |
-| 可观测 | 回调日志、Outbox 事件、Webhook 投递日志、支付链路健康指标、财务报表快照 |
+| 可观测 | 回调日志、Outbox 事件、Open Platform Webhook 投递日志、支付链路健康指标 |
 
-后台共 **20 个管理页面**，入口与操作见[后台管理页面](./admin.md)。
+后台共 **19 个管理页面**，入口与操作见[后台管理页面](./admin.md)。
 
 ## 关键工程决策
 
@@ -84,14 +84,14 @@
 | `payment_notify_logs` | 渠道回调日志；记录原始报文、请求头、验签结果、来源 IP 与处理结果 |
 | `payment_events` | 支付事件 Outbox；`pending` / `done` / `failed`，最多 5 次投递 |
 
-关键索引：`payment_orders_channel_out_trade_no_uq`、`payment_orders_active_biz_uq`、`payment_ledger_order_type_uq`、`payment_ledger_refund_type_uq`。
+关键索引：`payment_orders_channel_out_trade_no_uq`、`payment_orders_active_biz_uq`、`payment_journals_source_scope_uq`、`payment_fund_reservations_source_uq`。
 
 ### 资金运营
 
 | 表 | 职责 |
 | --- | --- |
-| `payment_ledger_entries` | 资金流水：`direction` × `type`（payment/refund/fee/settlement/adjust/transfer） |
-| `payment_accounts` | 渠道 × 租户账户快照：待结算、可用、冻结 |
+| `payment_ledger_accounts` / `payment_journals` / `payment_journal_lines` | 按应用 × 商户配置 × 币种隔离的不可变双分录账户与凭证 |
+| `payment_fund_reservations` | 转账等资金流出操作的并发安全预占、核销与释放 |
 | `payment_fee_rules` | 手续费规则：渠道、支付方式、万分比、固定费、上下限、优先级 |
 | `payment_settlement_batches` | 结算批次：按渠道与账期聚合，结算确认后写台账并划转账户快照 |
 | `payment_transfers` | 转账/代付单；渠道幂等键 `(channel, out_transfer_no)` |
@@ -114,10 +114,9 @@
 | `payment_deduct_plans` / `payment_contracts` | 周期扣款计划与签约协议 |
 | `payment_preauths` | 预授权单：冻结、转支付、解冻 |
 | `payment_links` | 支付链接：公开 token 收银台，一码多付 |
-| `payment_apps` | 应用维度路由：`appKey` 绑定三渠道配置 |
+| `payment_apps` | 应用维度路由：绑定 OAuth2 client 与三渠道配置 |
 | `payment_method_configs` | 收银台支付方式启停、排序与展示配置 |
-| `payment_webhook_endpoints` / `payment_webhook_deliveries` | 业务方 Webhook 端点与投递日志 |
-| `payment_report_daily` | 财务报表日切快照 |
+| `app_webhook_subscriptions` / `app_webhook_deliveries` | Open Platform 应用事件订阅与投递日志 |
 
 ## 订单状态机
 

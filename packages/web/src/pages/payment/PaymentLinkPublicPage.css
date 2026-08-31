@@ -1,0 +1,318 @@
+.payment-cashier {
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: var(--semi-color-text-0);
+  background: var(--color-content-bg);
+}
+
+.payment-cashier__inner {
+  width: min(100%, 580px);
+  margin-inline: auto;
+  padding-inline: 20px;
+  box-sizing: border-box;
+}
+
+.payment-cashier__header {
+  border-bottom: 1px solid var(--semi-color-border);
+  background: var(--surface-card);
+}
+
+.payment-cashier__header-inner {
+  padding-top: 22px;
+  padding-bottom: 22px;
+}
+
+.payment-cashier__security-title {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-bottom: 10px;
+  color: var(--semi-color-text-2);
+  font-size: 13px;
+}
+
+.payment-cashier__security-title svg {
+  color: var(--semi-color-success);
+}
+
+.payment-cashier__subject {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+
+.payment-cashier__summary {
+  border-bottom: 1px solid var(--semi-color-border);
+  background: var(--surface-card);
+}
+
+.payment-cashier__summary .payment-cashier__inner {
+  padding-top: 24px;
+  padding-bottom: 22px;
+}
+
+.payment-cashier__amount-block {
+  text-align: center;
+}
+
+.payment-cashier__amount {
+  min-height: 46px;
+  margin-top: 4px;
+  color: var(--semi-color-text-0);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 46px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.payment-cashier__limits {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.payment-cashier__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 20px 0 0;
+  border-top: 1px solid var(--semi-color-border);
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.payment-cashier__meta > div {
+  min-width: 0;
+  padding: 12px 0;
+}
+
+.payment-cashier__meta > div:nth-child(3) {
+  padding-left: 18px;
+  border-left: 1px solid var(--semi-color-border);
+}
+
+.payment-cashier__meta-order {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.payment-cashier__meta dt {
+  margin: 0 0 4px;
+  color: var(--semi-color-text-2);
+  font-size: 12px;
+}
+
+.payment-cashier__meta-order dt {
+  flex: none;
+  margin: 0;
+}
+
+.payment-cashier__meta dd {
+  min-width: 0;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.payment-cashier__status,
+.payment-cashier__secure,
+.payment-cashier__insecure {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.payment-cashier__status::before {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--semi-color-text-2);
+  content: '';
+}
+
+.payment-cashier__status--success::before,
+.payment-cashier__secure {
+  color: var(--semi-color-success);
+}
+
+.payment-cashier__status--success::before {
+  background: var(--semi-color-success);
+}
+
+.payment-cashier__status--processing::before {
+  background: var(--semi-color-primary);
+}
+
+.payment-cashier__status--danger::before,
+.payment-cashier__insecure {
+  color: var(--semi-color-danger);
+}
+
+.payment-cashier__status--danger::before {
+  background: var(--semi-color-danger);
+}
+
+.payment-cashier__status--pending::before {
+  background: var(--semi-color-warning);
+}
+
+.payment-cashier__operation .payment-cashier__inner {
+  padding-top: 24px;
+  padding-bottom: 32px;
+}
+
+.payment-cashier__spin,
+.payment-cashier__spin > .semi-spin-children {
+  width: 100%;
+}
+
+.payment-cashier__stage {
+  display: flex;
+  width: 100%;
+  min-height: 410px;
+  align-items: center;
+  justify-content: center;
+}
+
+.payment-cashier__state,
+.payment-cashier__paying,
+.payment-cashier__form {
+  width: 100%;
+}
+
+.payment-cashier__state,
+.payment-cashier__paying {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.payment-cashier__state {
+  gap: 10px;
+}
+
+.payment-cashier__state .semi-typography,
+.payment-cashier__paying .semi-typography,
+.payment-cashier__form > .semi-typography {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.payment-cashier__state-icon {
+  margin-bottom: 4px;
+  color: var(--semi-color-text-2);
+}
+
+.payment-cashier__state-icon--success {
+  color: var(--semi-color-success);
+}
+
+.payment-cashier__state-icon--danger {
+  color: var(--semi-color-danger);
+}
+
+.payment-cashier__form > .semi-typography {
+  margin-bottom: 20px;
+}
+
+.payment-cashier__banner {
+  margin-bottom: 16px;
+}
+
+.payment-cashier__paying {
+  gap: 12px;
+}
+
+.payment-cashier__countdown {
+  min-height: 20px;
+  color: var(--semi-color-warning);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.payment-cashier__qr-frame {
+  display: grid;
+  width: 244px;
+  height: 244px;
+  place-items: center;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  background: #fff;
+}
+
+.payment-cashier__qr {
+  display: block;
+  width: 220px;
+  height: 220px;
+}
+
+.payment-cashier__app-order {
+  width: 100%;
+  max-height: 112px;
+  margin: 0;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.payment-cashier__waiting {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  min-height: 24px;
+}
+
+@media (max-width: 600px) {
+  .payment-cashier__inner {
+    padding-inline: 16px;
+  }
+
+  .payment-cashier__header-inner {
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+
+  .payment-cashier__subject {
+    font-size: 22px;
+    line-height: 30px;
+  }
+
+  .payment-cashier__summary .payment-cashier__inner {
+    padding-top: 20px;
+    padding-bottom: 18px;
+  }
+
+  .payment-cashier__amount {
+    font-size: 32px;
+  }
+
+  .payment-cashier__operation .payment-cashier__inner {
+    padding-top: 18px;
+    padding-bottom: 24px;
+  }
+
+  .payment-cashier__stage {
+    min-height: 380px;
+  }
+
+  .payment-cashier__qr-frame {
+    width: min(244px, 100%);
+    aspect-ratio: 1;
+    height: auto;
+  }
+
+  .payment-cashier__qr {
+    width: min(220px, 100%);
+    height: auto;
+    aspect-ratio: 1;
+  }
+}

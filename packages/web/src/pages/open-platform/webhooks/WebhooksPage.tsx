@@ -34,8 +34,16 @@ const { Text, Paragraph } = Typography;
 
 const SIGN_MODE_OPTIONS = [
   { value: 'hmacSha256', label: 'HMAC-SHA256（推荐）' },
-  { value: 'none', label: '不签名' },
+  { value: 'none', label: '不签名（仅非支付事件）' },
 ];
+
+const SENSITIVE_EVENTS = new Set([
+  'payment.succeeded',
+  'payment.closed',
+  'payment.failed',
+  'refund.succeeded',
+  'refund.failed',
+]);
 
 const DELIVERY_STATUS_COLOR: Record<string, 'blue' | 'green' | 'red' | 'orange'> = { pending: 'blue', success: 'green', failed: 'red', retrying: 'orange' };
 
@@ -70,6 +78,7 @@ export default function WebhooksPage() {
 
   const [secretModal, setSecretModal] = useState(false);
   const [oneTimeSecret, setOneTimeSecret] = useState('');
+  const [formEvents, setFormEvents] = useState<string[]>([]);
 
   // 投递日志抽屉
   const [drawerSub, setDrawerSub] = useState<AppWebhookSubscription | null>(null);
@@ -104,7 +113,7 @@ export default function WebhooksPage() {
     save: saveMutation,
     defaults: { events: [], signMode: 'hmacSha256', status: 'enabled' },
     toValues: (record) => ({
-      clientId: record.clientId,
+      clientId: record.clientId ?? '',
       name: record.name,
       url: record.url,
       events: record.events,
@@ -112,15 +121,37 @@ export default function WebhooksPage() {
       headersText: record.headers ? JSON.stringify(record.headers, null, 2) : '',
       status: record.status,
     }),
-    beforeSave: (values, { isEdit }) => {
+    beforeSave: (values, { isEdit, editing }) => {
       let headers: Record<string, string> | undefined;
       if (values.headersText && values.headersText.trim()) {
         try {
-          headers = JSON.parse(values.headersText) as Record<string, string>;
+          const parsed = JSON.parse(values.headersText) as unknown;
+          if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object'
+            || Object.values(parsed).some((value) => typeof value !== 'string')) {
+            throw new Error('invalid headers');
+          }
+          headers = parsed as Record<string, string>;
         } catch {
-          Toast.error('自定义请求头不是合法的 JSON');
+          Toast.error('自定义请求头必须是值均为字符串的 JSON 对象');
           abortSubmit();
         }
+      }
+      const reservedHeader = Object.keys(headers ?? {}).find((key) => {
+        const normalized = key.trim().toLowerCase();
+        return normalized === 'content-type' || normalized.startsWith('x-zenith-');
+      });
+      if (reservedHeader) {
+        Toast.error(`自定义请求头不能覆盖保留头：${reservedHeader}`);
+        abortSubmit();
+      }
+      const hasSensitiveEvent = values.events.some((event) => SENSITIVE_EVENTS.has(event));
+      if (hasSensitiveEvent && values.signMode !== 'hmacSha256') {
+        Toast.error('支付与退款事件必须使用 HMAC-SHA256 签名');
+        abortSubmit();
+      }
+      if (isEdit && values.signMode === 'hmacSha256' && !editing?.hasSecret) {
+        Toast.error('请先关闭弹窗并使用“重置密钥”生成 HMAC 密钥');
+        abortSubmit();
       }
       const payload = { clientId: values.clientId, name: values.name, url: values.url, events: values.events, signMode: values.signMode, headers, status: values.status };
       if (!isEdit) return payload;
@@ -134,6 +165,16 @@ export default function WebhooksPage() {
     },
     labelWidth: 100,
   });
+
+  function openCreate() {
+    setFormEvents([]);
+    modal.openCreate();
+  }
+
+  function openEdit(record: AppWebhookSubscription) {
+    setFormEvents(record.events);
+    modal.openEdit(record);
+  }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -169,14 +210,14 @@ export default function WebhooksPage() {
   const columns: ColumnProps<AppWebhookSubscription>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name', width: 150 },
-    { title: '所属应用', dataIndex: 'clientId', width: 200, render: (v: string) => <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 190 }}>{appOptions.find((a) => a.clientId === v)?.name ?? v}</Text> },
+    { title: '所属应用', dataIndex: 'clientId', width: 200, render: (v: string | null) => <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 190 }}>{v ? (appOptions.find((a) => a.clientId === v)?.name ?? v) : '系统内部'}</Text> },
     { title: '回调地址', dataIndex: 'url', width: 240, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{v}</Text> },
     {
       title: '订阅事件',
       dataIndex: 'events',
       width: 200,
       render: (v: string[]) => v.length === 0
-        ? <Tag size="small" color="grey">全部事件</Tag>
+        ? <Tag size="small" color="grey">全部非支付事件</Tag>
         : (
           <TagGroup
             maxTagCount={2}
@@ -200,10 +241,10 @@ export default function WebhooksPage() {
       desktopInlineKeys: ['deliveries', 'edit'],
       actions: (record) => [
         { key: 'deliveries', label: '投递日志', onClick: () => openDeliveries(record) },
-        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
+        { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => openEdit(record) },
         { key: 'test', label: '测试', hidden: !canManage, onClick: () => void handleTest(record.id) },
         {
-          key: 'regenerate', label: '重置密钥', hidden: !canManage || record.signMode !== 'hmacSha256',
+          key: 'regenerate', label: '重置密钥', hidden: !canManage,
           onClick: () => {
             confirmDanger({ title: '重置签名密钥？旧密钥将立即失效', onOk: () => handleRegenerate(record.id) });
           },
@@ -262,14 +303,14 @@ export default function WebhooksPage() {
             <Select placeholder="状态" value={draftParams.status} onChange={(v) => setDraftParams({ ...draftParams, status: v as 'enabled' | 'disabled' })} optionList={STATUS_OPTIONS} showClear style={{ width: 110 }} />
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
-            {canManage && <CreateButton onClick={modal.openCreate} />}
+            {canManage && <CreateButton onClick={openCreate} />}
           </>
         )}
         mobilePrimary={(
           <>
             <KeywordInput placeholder="搜索名称 / URL" value={draftParams.keyword} onChange={(v) => setDraftParams({ ...draftParams, keyword: v })} onSearch={handleSearch} width={200} />
             <SearchButton onClick={handleSearch} />
-            {canManage && <CreateButton onClick={modal.openCreate} />}
+            {canManage && <CreateButton onClick={openCreate} />}
           </>
         )}
         mobileActions={<ResetButton onClick={handleReset} />}
@@ -299,8 +340,24 @@ export default function WebhooksPage() {
           <Form.Select field="clientId" label="所属应用" disabled={modal.isEdit} style={{ width: '100%' }} filter optionList={appOptions.map((a) => ({ value: a.clientId, label: a.name }))} rules={[{ required: true, message: '请选择所属应用' }]} />
           <Form.Input field="name" label="名称" placeholder="如 订单回调" rules={[{ required: true, message: '名称不能为空' }]} />
           <Form.Input field="url" label="回调地址" placeholder="https://your-app.com/webhook" rules={[{ required: true, message: '请输入回调地址' }]} />
-          <Form.Select field="events" label="订阅事件" multiple style={{ width: '100%' }} placeholder="留空表示订阅全部事件" optionList={eventOptions.map((e) => ({ value: e.code, label: e.label }))} />
-          <Form.Select field="signMode" label="签名方式" style={{ width: '100%' }} optionList={SIGN_MODE_OPTIONS} rules={[{ required: true, message: '请选择签名方式' }]} />
+          <Form.Select
+            field="events"
+            label="订阅事件"
+            multiple
+            style={{ width: '100%' }}
+            placeholder="留空表示订阅全部非支付事件"
+            optionList={eventOptions.map((e) => ({ value: e.code, label: e.label }))}
+            onChange={(value) => {
+              const events = (value as string[] | undefined) ?? [];
+              setFormEvents(events);
+              if (events.some((event) => SENSITIVE_EVENTS.has(event))) {
+                modal.formApi.current?.setValue('signMode', 'hmacSha256');
+              }
+            }}
+          />
+          <Form.Select field="signMode" label="签名方式" style={{ width: '100%' }} optionList={SIGN_MODE_OPTIONS}
+            disabled={formEvents.some((event) => SENSITIVE_EVENTS.has(event))}
+            rules={[{ required: true, message: '请选择签名方式' }]} />
           <Form.TextArea field="headersText" label="自定义请求头" placeholder='JSON 格式，如 {"X-Custom":"abc"}（可选）' rows={2} />
           <Form.Select field="status" label="状态" style={{ width: '100%' }} optionList={STATUS_OPTIONS} rules={[{ required: true, message: '请选择状态' }]} />
         </Form>

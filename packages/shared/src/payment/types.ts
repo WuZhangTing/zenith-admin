@@ -1,5 +1,5 @@
 import type { EntityStatus } from '../core/types';
-import type { PaymentChannel, PaymentContractStatus, PaymentDeductPeriod, PaymentDisputeStatus, PaymentDisputeType, PaymentLedgerDirection, PaymentLedgerType, PaymentLinkStatus, PaymentMethod, PaymentOrderStatus, PaymentPreauthStatus, PaymentReconHandleStatus, PaymentReconResult, PaymentReconStatus, PaymentRefundApprovalStatus, PaymentRefundStatus, PaymentRiskAction, PaymentRiskDimension, PaymentRiskReviewStatus, PaymentRiskScope, PaymentSettlementStatus, PaymentSharingOrderStatus, PaymentSharingReceiverType, PaymentTransferStatus, PaymentWebhookDeliveryStatus } from './constants';
+import type { PaymentCashierMethod, PaymentCashierSessionStatus, PaymentCashierUseSlotStatus, PaymentChannel, PaymentContractStatus, PaymentDeductPeriod, PaymentDisputeStatus, PaymentDisputeType, PaymentFundReservationStatus, PaymentLedgerAccountCode, PaymentLedgerNormalBalance, PaymentLinkStatus, PaymentMethod, PaymentOrderStatus, PaymentPreauthStatus, PaymentReconHandleStatus, PaymentReconResult, PaymentReconStatus, PaymentRefundApprovalStatus, PaymentRefundStatus, PaymentRiskAction, PaymentRiskDimension, PaymentRiskReviewStatus, PaymentRiskScope, PaymentSettlementStatus, PaymentSharingOrderStatus, PaymentSharingReceiverType, PaymentSharingReversalStatus, PaymentTransferApprovalStatus, PaymentTransferStatus } from './constants';
 
 // ─── 支付中心 ────────────────────────────────────────────────────────
 export interface PaymentChannelConfig {
@@ -19,6 +19,7 @@ export interface PaymentChannelConfig {
   hasWechatPrivateKey?: boolean;
   // 支付宝
   alipayAppId?: string | null;
+  alipaySellerId?: string | null;
   alipayPublicKey?: string | null;
   alipaySignType?: string | null;
   alipayGateway?: string | null;
@@ -34,6 +35,14 @@ export interface PaymentChannelConfig {
   updatedAt: string;
 }
 
+/** 资金运营页面使用的最小商户配置下拉项，不暴露凭证及网关元数据。 */
+export interface PaymentChannelConfigLookup {
+  id: number;
+  name: string;
+  channel: PaymentChannel;
+  sandbox: boolean;
+}
+
 export interface PaymentOrder {
   id: number;
   orderNo: string;
@@ -46,7 +55,8 @@ export interface PaymentOrder {
   amount: number; // 分
   currency: string;
   channel: PaymentChannel;
-  channelConfigId?: number | null;
+  channelConfigId: number;
+  appId: number;
   payMethod: PaymentMethod;
   status: PaymentOrderStatus;
   userId?: number | null;
@@ -66,7 +76,9 @@ export interface PaymentOrder {
   memberCouponId?: number | null;
   paidAt?: string | null;
   expiredAt?: string | null;
+  returnUrl?: string | null;
   errorMessage?: string | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,7 +88,7 @@ export interface PaymentRefund {
   refundNo: string;
   outRefundNo: string;
   orderNo: string;
-  orderId?: number | null;
+  orderId: number;
   channelRefundNo?: string | null;
   channel: PaymentChannel;
   refundAmount: number; // 分
@@ -91,6 +103,7 @@ export interface PaymentRefund {
   operatorId?: number | null;
   refundedAt?: string | null;
   errorMessage?: string | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -99,6 +112,9 @@ export interface PaymentReconBatch {
   id: number;
   batchNo: string;
   channel: PaymentChannel;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
   billDate: string;
   status: PaymentReconStatus;
   localCount: number;
@@ -128,58 +144,6 @@ export interface PaymentReconItem {
   handledAt?: string | null;
   remark?: string | null;
   createdAt: string;
-}
-
-export interface PaymentWebhookEndpoint {
-  id: number;
-  name: string;
-  url: string;
-  bizType?: string | null;
-  events: string[];
-  status: 'enabled' | 'disabled';
-  hasSecret?: boolean;
-  remark?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PaymentWebhookDelivery {
-  id: number;
-  endpointId: number;
-  endpointName?: string | null;
-  eventType: string;
-  orderNo?: string | null;
-  payload?: string | null;
-  status: PaymentWebhookDeliveryStatus;
-  attempts: number;
-  httpStatus?: number | null;
-  responseBody?: string | null;
-  lastError?: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PaymentLedgerEntry {
-  id: number;
-  entryNo: string;
-  direction: PaymentLedgerDirection;
-  type: PaymentLedgerType;
-  amount: number;
-  orderNo?: string | null;
-  refundNo?: string | null;
-  /** 分账单号（type=sharing 时的幂等关联键） */
-  sharingNo?: string | null;
-  channel?: PaymentChannel | null;
-  bizType?: string | null;
-  remark?: string | null;
-  createdAt: string;
-}
-
-export interface PaymentLedgerSummary {
-  inAmount: number;
-  outAmount: number;
-  netAmount: number;
-  count: number;
 }
 
 export interface PaymentOutboxEvent {
@@ -216,6 +180,9 @@ export interface PaymentSettlementBatch {
   id: number;
   batchNo: string;
   channel: PaymentChannel;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
   periodStart: string;
   periodEnd: string;
   status: PaymentSettlementStatus;
@@ -227,9 +194,23 @@ export interface PaymentSettlementBatch {
   sharingAmount: number;
   netAmount: number; // 分
   settledAt?: string | null;
+  failureReason?: string | null;
+  payoutReference?: string | null;
+  version: number;
   remark?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PaymentSettlementItem {
+  id: number;
+  batchId: number;
+  journalLineId: number;
+  amount: string;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+  createdAt: string;
 }
 
 export interface PaymentSharingReceiver {
@@ -255,8 +236,28 @@ export interface PaymentSharingOrder {
   amount: number; // 分
   status: PaymentSharingOrderStatus;
   channelSharingNo?: string | null;
+  version: number;
   finishedAt?: string | null;
   remark?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentSharingReversal {
+  id: number;
+  reversalNo: string;
+  sharingOrderId: number;
+  sharingNo: string;
+  orderNo: string;
+  amount: number;
+  status: PaymentSharingReversalStatus;
+  channelReversalNo?: string | null;
+  reason: string;
+  attempts: number;
+  queryAttempts: number;
+  version: number;
+  errorMessage?: string | null;
+  finishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -266,14 +267,24 @@ export interface PaymentTransfer {
   transferNo: string;
   outTransferNo: string;
   channel: PaymentChannel;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
   receiverAccount: string;
   receiverName?: string | null;
   amount: number; // 分
   remark?: string | null;
   status: PaymentTransferStatus;
+  approvalStatus: PaymentTransferApprovalStatus;
+  appliedById?: number | null;
+  approverId?: number | null;
+  approvedAt?: string | null;
+  approvalRemark?: string | null;
   channelTransferNo?: string | null;
   failReason?: string | null;
   attempts: number;
+  fundReservationId: number;
+  version: number;
   bizType?: string | null;
   bizId?: string | null;
   finishedAt?: string | null;
@@ -285,7 +296,10 @@ export interface PaymentTransfer {
 export interface PaymentApp {
   id: number;
   name: string;
-  appKey: string;
+  openClientId: number;
+  openClientKey: string;
+  openClientName: string;
+  environment: 'production' | 'sandbox';
   status: 'enabled' | 'disabled';
   wechatConfigId?: number | null;
   wechatConfigName?: string | null;
@@ -296,6 +310,59 @@ export interface PaymentApp {
   remark?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface OpenPaymentIntent {
+  orderNo: string;
+  bizType: string;
+  bizId: string;
+  subject: string;
+  amount: number;
+  currency: string;
+  channel: PaymentChannel;
+  payMethod: PaymentMethod;
+  status: PaymentOrderStatus;
+  paidAmount: number | null;
+  paidAt: string | null;
+  expiredAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OpenPaymentIntentCreated {
+  intent: OpenPaymentIntent;
+  payParams: CreatePaymentResult;
+}
+
+export interface OpenPaymentRefund {
+  refundNo: string;
+  orderNo: string;
+  refundAmount: number;
+  status: PaymentRefundStatus;
+  approvalStatus: PaymentRefundApprovalStatus;
+  refundedAt: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OpenPaymentCapability {
+  channel: PaymentChannel;
+  operation: string;
+  paymentMethod: PaymentMethod | null;
+  currency: string;
+  execution: 'redirect' | 'synchronous' | 'asynchronous' | 'local' | null;
+  limits: { maxAmount: number | null; receiverNameRequiredAtOrAbove: number | null } | null;
+  supported: boolean;
+  reasonCode: string | null;
+  reason: string | null;
+}
+
+export interface OpenPaymentApplicationCapabilities {
+  clientId: string;
+  environment: 'production' | 'sandbox';
+  capabilities: OpenPaymentCapability[];
 }
 
 export interface PaymentDeductPlan {
@@ -317,7 +384,9 @@ export interface PaymentContract {
   id: number;
   contractNo: string;
   channel: PaymentChannel;
-  channelConfigId?: number | null;
+  channelConfigId: number;
+  appId: number;
+  currency: string;
   planId: number;
   planName?: string | null;
   planPeriod?: PaymentDeductPeriod | null;
@@ -325,6 +394,9 @@ export interface PaymentContract {
   signerAccount: string;
   signerName?: string | null;
   status: PaymentContractStatus;
+  unknownOperation?: 'sign' | 'terminate' | null;
+  version: number;
+  errorMessage?: string | null;
   channelContractNo?: string | null;
   bizType: string;
   bizId: string;
@@ -399,12 +471,14 @@ export interface PaymentLink {
   id: number;
   linkNo: string;
   token: string;
+  appId: number;
   subject: string;
   amount?: number | null; // 分，null=用户填写
   payMethod?: PaymentMethod | null;
   bizType: string;
   maxUses?: number | null;
   usedCount: number;
+  reservedCount: number;
   expiredAt?: string | null;
   status: PaymentLinkStatus;
   remark?: string | null;
@@ -420,8 +494,33 @@ export interface PaymentLinkPublic {
   payMethod?: PaymentMethod | null;
   bizType: string;
   status: PaymentLinkStatus;
+  unavailableReason?: 'disabled' | 'expired' | 'usage_limit' | null;
   expiredAt?: string | null;
   remainingUses?: number | null;
+  availableMethods: Array<{
+    method: PaymentCashierMethod;
+    label: string;
+    icon?: string | null;
+  }>;
+}
+
+/** 公开收银台会话：用于第三方跳转、刷新和回跳后的状态恢复。 */
+export interface PaymentCashierSession {
+  sessionToken: string;
+  linkId: number;
+  appId: number;
+  orderNo?: string | null;
+  payMethod: PaymentCashierMethod;
+  amount: number;
+  status: PaymentCashierSessionStatus;
+  useSlotStatus: PaymentCashierUseSlotStatus;
+  payParams?: CreatePaymentResult | null;
+  returnUrl: string;
+  errorMessage?: string | null;
+  expiresAt: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PaymentRiskRule {
@@ -471,9 +570,11 @@ export interface PaymentRiskReview {
   hitId?: number | null;
   orderNo: string;
   channel: PaymentChannel;
+  appId: number;
   bizType: string;
   bizId: string;
   amount: number; // 分
+  currency: string;
   reason: string;
   status: PaymentRiskReviewStatus;
   reviewerName?: string | null;
@@ -483,37 +584,14 @@ export interface PaymentRiskReview {
   updatedAt: string;
 }
 
-/** 商户资金账户（渠道维度余额快照） */
-export interface PaymentAccount {
-  id: number;
-  channel: PaymentChannel;
-  pendingSettle: number; // 分，待结算
-  available: number; // 分，可用
-  frozen: number; // 分，冻结
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** 余额核对结果（快照 vs 流水聚合） */
-export interface PaymentAccountCheckRow {
-  channel: PaymentChannel;
-  pendingSettleSnapshot: number;
-  pendingSettleComputed: number;
-  availableSnapshot: number;
-  availableComputed: number;
-  /** 冻结余额快照（口径：进行中预授权冻结金额之和） */
-  frozenSnapshot: number;
-  frozenComputed: number;
-  match: boolean;
-}
-
 /** 预授权单（资金冻结/解冻/转支付） */
 export interface PaymentPreauth {
   id: number;
   preauthNo: string;
   channel: PaymentChannel;
-  channelConfigId?: number | null;
+  channelConfigId: number;
+  appId: number;
+  currency: string;
   channelPreauthNo?: string | null;
   bizType: string;
   bizId: string;
@@ -523,6 +601,8 @@ export interface PaymentPreauth {
   capturedAmount?: number | null; // 分
   captureOrderNo?: string | null;
   status: PaymentPreauthStatus;
+  unknownOperation?: 'freeze' | 'capture' | 'release' | null;
+  version: number;
   errorMessage?: string | null;
   frozenAt?: string | null;
   finishedAt?: string | null;
@@ -559,9 +639,16 @@ export interface PaymentReportRow {
 export interface PaymentNotifyLog {
   id: number;
   channel: PaymentChannel;
+  channelConfigId: number;
+  appId?: number | null;
+  providerEventId?: string | null;
   scene: string;
   orderNo?: string | null;
   signatureValid: boolean;
+  merchantId?: string | null;
+  providerAppId?: string | null;
+  paidAmount?: number | null;
+  currency?: string | null;
   result?: string | null;
   message?: string | null;
   ip?: string | null;
@@ -630,4 +717,70 @@ export interface CreatePaymentResult {
   /** APP 支付：客户端调起字符串 */
   appOrderStr?: string;
   expiredAt?: string;
+}
+
+export interface PaymentLedgerAccount {
+  id: number;
+  accountNo: string;
+  name: string;
+  code: PaymentLedgerAccountCode;
+  normalBalance: PaymentLedgerNormalBalance;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+  status: 'enabled' | 'disabled';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentJournalLine {
+  id: number;
+  lineNo: number;
+  accountId: number;
+  accountNo: string;
+  accountName: string;
+  debitAmount: string;
+  creditAmount: string;
+  memo?: string | null;
+}
+
+export interface PaymentJournal {
+  id: number;
+  journalNo: string;
+  sourceType: string;
+  sourceId: string;
+  description: string;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+  reversalOfJournalId?: number | null;
+  operatorId?: number | null;
+  postedAt: string;
+  createdAt: string;
+  lines: PaymentJournalLine[];
+}
+
+export interface PaymentFundReservation {
+  id: number;
+  reservationNo: string;
+  accountId: number;
+  sourceType: string;
+  sourceId: string;
+  amount: string;
+  status: PaymentFundReservationStatus;
+  version: number;
+  reason?: string | null;
+  finalizationReason?: string | null;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+  expiresAt?: string | null;
+  finalizedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentActiveReservationAmount {
+  accountId: number;
+  amount: string;
 }

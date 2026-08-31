@@ -21,6 +21,7 @@ import {
   listContracts,
   listDeductPlans,
   pauseContract,
+  recoverContract,
   resumeContract,
   terminateContract,
   updateDeductPlan,
@@ -28,7 +29,8 @@ import {
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
-const contractStatusEnum = z.enum(['pending', 'signed', 'paused', 'terminated']);
+const contractStatusEnum = z.enum(['pending', 'unknown', 'signed', 'paused', 'terminated', 'failed']);
+const ApplicationQuery = z.object({ applicationId: z.coerce.number().int().positive() });
 
 const SignResultDTO = z
   .object({
@@ -122,6 +124,7 @@ const listContractsRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'payment:contract:list' })] as const,
     request: {
       query: PaginationQuery.extend({
+        applicationId: z.coerce.number().int().positive(),
         keyword: z.string().optional(),
         status: contractStatusEnum.optional(),
         channel: channelEnum.optional(),
@@ -141,10 +144,10 @@ const contractDetailRoute = defineOpenAPIRoute({
     method: 'get', path: '/contracts/{id}', tags: ['支付中心-签约代扣'], summary: '签约协议详情',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:contract:list' })] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, query: ApplicationQuery },
     responses: { ...ok(PaymentContractDTO, '协议详情'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await getContract(c.req.valid('param').id)), 200),
+  handler: async (c) => c.json(okBody(await getContract(c.req.valid('param').id, c.req.valid('query').applicationId)), 200),
 });
 
 const createContractRoute = defineOpenAPIRoute({
@@ -168,11 +171,11 @@ const terminateRoute = defineOpenAPIRoute({
     method: 'post', path: '/contracts/{id}/terminate', tags: ['支付中心-签约代扣'], summary: '解约',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '解约签约协议', module: '支付中心' } })] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, query: ApplicationQuery },
     responses: { ...ok(PaymentContractDTO, '解约成功'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const row = await ensureContract(c.req.valid('param').id);
+    const row = await ensureContract(c.req.valid('param').id, c.req.valid('query').applicationId);
     setAuditBeforeData(c, row);
     return c.json(okBody(await terminateContract(row), '解约成功'), 200);
   },
@@ -183,10 +186,10 @@ const pauseRoute = defineOpenAPIRoute({
     method: 'post', path: '/contracts/{id}/pause', tags: ['支付中心-签约代扣'], summary: '暂停扣款',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '暂停签约协议', module: '支付中心' } })] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, query: ApplicationQuery },
     responses: { ...ok(PaymentContractDTO, '已暂停'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await pauseContract(c.req.valid('param').id), '已暂停'), 200),
+  handler: async (c) => c.json(okBody(await pauseContract(c.req.valid('param').id, c.req.valid('query').applicationId), '已暂停'), 200),
 });
 
 const resumeRoute = defineOpenAPIRoute({
@@ -194,10 +197,10 @@ const resumeRoute = defineOpenAPIRoute({
     method: 'post', path: '/contracts/{id}/resume', tags: ['支付中心-签约代扣'], summary: '恢复扣款（重置失败计数并尽快补扣）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '恢复签约协议', module: '支付中心' } })] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, query: ApplicationQuery },
     responses: { ...ok(PaymentContractDTO, '已恢复'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await resumeContract(c.req.valid('param').id), '已恢复'), 200),
+  handler: async (c) => c.json(okBody(await resumeContract(c.req.valid('param').id, c.req.valid('query').applicationId), '已恢复'), 200),
 });
 
 const deductNowRoute = defineOpenAPIRoute({
@@ -210,15 +213,27 @@ const deductNowRoute = defineOpenAPIRoute({
       guard({ permission: 'payment:contract:manage', audit: { description: '手动补扣', module: '支付中心' } }),
       idempotencyGuard({ ttlSeconds: 10 }),
     ] as const,
-    request: { params: IdParam },
+    request: { params: IdParam, query: ApplicationQuery },
     responses: { ...ok(PaymentDeductResultDTO, '扣款执行完成'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await deductContractById(c.req.valid('param').id), '扣款执行完成'), 200),
+  handler: async (c) => c.json(okBody(await deductContractById(c.req.valid('param').id, c.req.valid('query').applicationId), '扣款执行完成'), 200),
+});
+
+const recoverContractRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'post', path: '/contracts/{id}/recover', tags: ['支付中心-签约代扣'], summary: '查询并恢复未知协议状态',
+    description: '仅当渠道适配器明确声明 contract.query 能力时收敛；否则保持原状态并记录原因。',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: 'payment:contract:manage', audit: { description: '查询恢复签约协议', module: '支付中心' } })] as const,
+    request: { params: IdParam, query: ApplicationQuery },
+    responses: { ...ok(PaymentContractDTO, '查询完成'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await recoverContract(c.req.valid('param').id, c.req.valid('query').applicationId), '查询完成'), 200),
 });
 
 router.openapiRoutes([
   listPlansRoute, allPlansRoute, createPlanRoute, updatePlanRoute, deletePlanRoute,
-  listContractsRoute, contractDetailRoute, createContractRoute, terminateRoute, pauseRoute, resumeRoute, deductNowRoute,
+  listContractsRoute, contractDetailRoute, createContractRoute, terminateRoute, pauseRoute, resumeRoute, deductNowRoute, recoverContractRoute,
 ] as const);
 
 export default router;

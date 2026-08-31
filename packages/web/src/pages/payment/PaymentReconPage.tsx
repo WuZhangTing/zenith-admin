@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { Button, Form, Select, SideSheet, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -22,17 +22,20 @@ import {
   usePaymentReconItems,
   usePaymentReconSampleBill,
 } from '@/hooks/queries/payment-recon';
+import { usePaymentChannelOperationLookup } from '@/hooks/queries/payment-channels';
+import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_RECON_HANDLE_STATUS_LABELS, PAYMENT_RECON_RESULT_LABELS, PAYMENT_RECON_STATUS_LABELS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconStatus } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
-import { copyableNoColumn, dateColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const STATUS_COLOR = { pending: 'grey', comparing: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentReconStatus, string>;
 const RESULT_COLOR = { matched: 'green', local_only: 'amber', channel_only: 'orange', amount_diff: 'red', status_diff: 'red' } as const satisfies Record<PaymentReconResult, string>;
 const HANDLE_COLOR = { pending: 'amber', adjusted: 'green', suspended: 'orange', ignored: 'grey' } as const satisfies Record<PaymentReconHandleStatus, string>;
 const HANDLE_ACTION_OPTIONS = [
-  { value: 'adjusted', label: '已调账（差额自动记入资金台账）' },
+  { value: 'adjusted', label: '已调账（生成平衡的双分录凭证）' },
   { value: 'suspended', label: '挂账（暂缓处理，保留差异）' },
   { value: 'ignored', label: '忽略（确认无需处理）' },
 ];
@@ -42,18 +45,21 @@ interface SearchParams { channel: string; status: string; }
 const defaultSearch: SearchParams = { channel: '', status: '' };
 
 interface ReconFormValues {
-  channel: PaymentChannel;
+  applicationId: number;
+  channelConfigId: number;
+  currency: 'CNY';
   billDate: Date | string;
   billText: string;
   remark?: string;
 }
-interface AutoReconFormValues { channel: PaymentChannel; billDate: Date | string; }
-interface HandleFormValues { action: 'adjusted' | 'suspended' | 'ignored'; remark?: string; }
+interface AutoReconFormValues { channel: string; applicationId?: number; channelConfigId?: number; currency?: 'CNY'; billDate: Date | string; }
+interface HandleFormValues { action: 'adjusted' | 'suspended' | 'ignored'; remark: string; }
 
 export default function PaymentReconPage() {
   const { hasPermission } = usePermission();
   const canHandle = hasPermission('payment:recon:handle');
   const latestAutoBatch = useRef<PaymentReconBatch | null>(null);
+  const [selectedAppId, setSelectedAppId] = useState<number | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -78,6 +84,34 @@ export default function PaymentReconPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
+  const channelConfigsQuery = usePaymentChannelOperationLookup();
+  const operationChannelConfigs = useMemo(() => channelConfigsQuery.data ?? [], [channelConfigsQuery.data]);
+  const appLookupQuery = usePaymentAppList({ page: 1, pageSize: 100, status: 'enabled' });
+  const paymentApps = useMemo(() => appLookupQuery.data?.list ?? [], [appLookupQuery.data?.list]);
+  const appById = useMemo(() => new Map(paymentApps.map((app) => [app.id, app])), [paymentApps]);
+  const appOptions = useMemo(
+    () => paymentApps.map((app) => ({ value: app.id, label: `${app.name} · ${app.environment === 'sandbox' ? '沙箱' : '生产'}` })),
+    [paymentApps],
+  );
+  const channelConfigById = useMemo(
+    () => new Map(operationChannelConfigs.map((config) => [config.id, config])),
+    [operationChannelConfigs],
+  );
+  const merchantConfigOptions = useMemo(
+    () => {
+      const app = selectedAppId == null ? null : appById.get(selectedAppId);
+      const boundConfigIds = new Set([app?.wechatConfigId, app?.alipayConfigId, app?.unionpayConfigId].filter((id): id is number => id != null));
+      return operationChannelConfigs.filter((config) => boundConfigIds.has(config.id)).map((config) => ({
+      value: config.id,
+      label: `${config.name} · ${PAYMENT_CHANNEL_LABELS[config.channel]} · ${config.sandbox ? '沙箱' : '生产'}`,
+      }));
+    },
+    [appById, operationChannelConfigs, selectedAppId],
+  );
+  const autoOptions = useMemo(() => operationChannelConfigs
+    .flatMap((config) => paymentApps
+      .filter((app) => [app.wechatConfigId, app.alipayConfigId, app.unionpayConfigId].includes(config.id))
+      .map((app) => ({ value: `${app.id}:${config.id}`, label: `${app.name} · ${config.name} · ${PAYMENT_CHANNEL_LABELS[config.channel]}`, applicationId: app.id, channelConfigId: config.id, channel: config.channel }))), [paymentApps, operationChannelConfigs]);
   const itemsQuery = usePaymentReconItems({
     batchId: detailBatch?.id,
     page: itemPage,
@@ -94,33 +128,48 @@ export default function PaymentReconPage() {
   const autoMutation = useAutoPaymentRecon();
 
   const createSaveMutation = {
-    mutateAsync: ({ values }: { id?: number; values: { channel: string; billDate: string; billText: string; remark?: string } }) => createMutation.mutateAsync(values),
+    mutateAsync: ({ values }: { id?: number; values: { applicationId: number; channel: string; channelConfigId: number; currency: 'CNY'; billDate: string; billText: string; remark?: string } }) => createMutation.mutateAsync(values),
     isPending: createMutation.isPending,
   };
-  const createModal = useEditModal<PaymentReconBatch, ReconFormValues, { channel: string; billDate: string; billText: string; remark?: string }>({
+  const createModal = useEditModal<PaymentReconBatch, ReconFormValues, { applicationId: number; channel: string; channelConfigId: number; currency: 'CNY'; billDate: string; billText: string; remark?: string }>({
     save: createSaveMutation,
-    defaults: { channel: 'wechat' },
-    beforeSave: (values) => ({
-      channel: values.channel,
-      billDate: formatDateForApi(values.billDate),
-      billText: values.billText,
-      remark: values.remark,
-    }),
+    defaults: { currency: 'CNY' },
+    beforeSave: (values) => {
+      const config = channelConfigById.get(values.channelConfigId);
+      const app = appById.get(values.applicationId);
+      const appConfigIds = [app?.wechatConfigId, app?.alipayConfigId, app?.unionpayConfigId];
+      if (!app || !config || !appConfigIds.includes(config.id)) {
+        Toast.error('所选支付应用未绑定该商户配置，请重新选择');
+        abortSubmit('validation');
+      }
+      return {
+        applicationId: app.id,
+        channel: config.channel,
+        channelConfigId: config.id,
+        currency: values.currency,
+        billDate: formatDateForApi(values.billDate),
+        billText: values.billText,
+        remark: values.remark?.trim() || undefined,
+      };
+    },
     successMessage: () => '创建成功',
     labelWidth: 100,
   });
   const autoSaveMutation = {
-    mutateAsync: async ({ values }: { id?: number; values: { channel: string; billDate: string } }) => {
+    mutateAsync: async ({ values }: { id?: number; values: { applicationId: number; channel: string; channelConfigId: number; currency: string; billDate: string } }) => {
       const batch = await autoMutation.mutateAsync(values);
       latestAutoBatch.current = batch;
       return batch;
     },
     isPending: autoMutation.isPending,
   };
-  const autoModal = useEditModal<PaymentReconBatch, AutoReconFormValues, { channel: string; billDate: string }>({
+  const autoModal = useEditModal<PaymentReconBatch, AutoReconFormValues, { applicationId: number; channel: string; channelConfigId: number; currency: string; billDate: string }>({
     save: autoSaveMutation,
-    defaults: { channel: 'wechat' },
-    beforeSave: (values) => ({ channel: values.channel, billDate: formatDateForApi(values.billDate) }),
+    beforeSave: (values) => {
+      const selected = autoOptions.find((option) => option.value === values.channel);
+      if (!selected) { Toast.warning('请选择支付应用和商户配置'); abortSubmit('validation'); }
+      return { applicationId: selected.applicationId, channel: selected.channel, channelConfigId: selected.channelConfigId, currency: 'CNY', billDate: formatDateForApi(values.billDate) };
+    },
     successMessage: () => {
       const batch = latestAutoBatch.current;
       return `对账完成：匹配 ${batch?.matchedCount ?? 0} 笔，差异 ${batch?.diffCount ?? 0} 笔`;
@@ -130,24 +179,25 @@ export default function PaymentReconPage() {
   const handleSaveMutation = {
     mutateAsync: ({ id, values }: { id?: number; values: HandleFormValues }) => {
       if (id == null) throw new Error('缺少记录 ID，请刷新后重试');
-      return handleItemMutation.mutateAsync({ id, values: { action: values.action, remark: values.remark || undefined } });
+      return handleItemMutation.mutateAsync({ id, values: { action: values.action, remark: values.remark.trim() } });
     },
     isPending: handleItemMutation.isPending,
   };
   const handleModal = useEditModal<PaymentReconItem, HandleFormValues>({
     save: handleSaveMutation,
-    defaults: { action: 'adjusted' },
+    defaults: { action: 'adjusted', remark: '' },
     successMessage: () => '差异已处理',
     labelWidth: 100,
   });
 
   async function handleSampleBill() {
     const values = (createModal.formApi.current?.getValues() ?? {}) as Partial<ReconFormValues>;
-    if (!values.channel || !values.billDate) {
-      Toast.warning('请先选择渠道和账单日期');
+    const config = values.channelConfigId ? channelConfigById.get(values.channelConfigId) : undefined;
+    if (!values.applicationId || !config || !values.billDate) {
+      Toast.warning('请先选择支付应用、商户配置和账单日期');
       return;
     }
-    const data = await sampleBillMutation.mutateAsync({ channel: values.channel, billDate: formatDateForApi(values.billDate) });
+    const data = await sampleBillMutation.mutateAsync({ applicationId: values.applicationId, channel: config.channel, channelConfigId: config.id, currency: 'CNY', billDate: formatDateForApi(values.billDate) });
     createModal.formApi.current?.setValue('billText', data.billText);
     Toast.success('模拟账单已生成');
   }
@@ -164,6 +214,11 @@ export default function PaymentReconPage() {
     setItemPage(1);
   }
 
+  function openCreate() {
+    setSelectedAppId(null);
+    createModal.openCreate();
+  }
+
   function handleItemResultChange(value: string) {
     setItemResult(value);
     setItemPage(1);
@@ -176,7 +231,13 @@ export default function PaymentReconPage() {
 
   const columns: ColumnProps<PaymentReconBatch>[] = [
     copyableNoColumn('批次号', 'batchNo'),
+    { title: '支付应用', dataIndex: 'appId', width: 160, render: (v: number) => appById.get(v)?.name ?? `应用 #${v}` },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
+    {
+      title: '商户配置', dataIndex: 'channelConfigId', width: 180,
+      render: (v: number) => channelConfigById.get(v)?.name ?? `配置 #${v}`,
+    },
+    { title: '币种', dataIndex: 'currency', width: 80 },
     dateColumn('账单日期', 'billDate'),
     { title: '本地笔数/金额', dataIndex: 'localCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.localCount} / ${yuan(r.localAmount)}` },
     { title: '渠道笔数/金额', dataIndex: 'channelCount', width: 150, align: 'right', render: (_: unknown, r: PaymentReconBatch) => `${r.channelCount} / ${yuan(r.channelAmount)}` },
@@ -225,7 +286,8 @@ export default function PaymentReconPage() {
         return r.handleRemark ? <Typography.Text ellipsis={{ showTooltip: { opts: { content: r.handleRemark } } }}>{tag}</Typography.Text> : tag;
       },
     },
-    { title: '备注', dataIndex: 'remark', width: 150, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v || '-'}</Typography.Text> },
+    { title: '原始备注', dataIndex: 'remark', width: 150, render: renderEllipsis },
+    { title: '处理备注', dataIndex: 'handleRemark', width: 200, render: renderEllipsis },
     createOperationColumn<PaymentReconItem>({
       width: 90,
       actions: (r) => [
@@ -263,7 +325,7 @@ export default function PaymentReconPage() {
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
   const renderCreateButton = () => hasPermission('payment:recon:create') ? (
-    <CreateButton onClick={createModal.openCreate}>新建对账</CreateButton>
+    <CreateButton onClick={openCreate}>新建对账</CreateButton>
   ) : null;
   const renderAutoButton = () => hasPermission('payment:recon:create') ? (
     <Button type="primary" icon={<CloudDownload size={14} />} onClick={autoModal.openCreate}>自动拉取</Button>
@@ -303,11 +365,33 @@ export default function PaymentReconPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={data} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
+        scroll={{ x: 1730 }}
       />
 
       <AppModal {...createModal.modalProps} title="新建对账" width={720}>
         <Form key={createModal.formKey} {...createModal.formProps}>
-          <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true, message: '请选择渠道' }]} />
+          <Form.Select
+            field="applicationId"
+            label="支付应用"
+            style={{ width: '100%' }}
+            optionList={appOptions}
+            filter
+            loading={appLookupQuery.isFetching}
+            onChange={(value) => {
+              setSelectedAppId((value as number | undefined) ?? null);
+              createModal.formApi.current?.setValue('channelConfigId', undefined);
+            }}
+            rules={[{ required: true, message: '请选择启用的支付应用' }]}
+          />
+          <Form.Select
+            field="channelConfigId"
+            label="商户配置"
+            style={{ width: '100%' }}
+            optionList={merchantConfigOptions}
+            loading={channelConfigsQuery.isFetching}
+            rules={[{ required: true, message: '请选择启用的商户配置' }]}
+          />
+          <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={[{ value: 'CNY', label: 'CNY · 人民币' }]} disabled rules={[{ required: true, message: '请选择币种' }]} />
           <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
           <Button type="tertiary" loading={sampleBillMutation.isPending} onClick={handleSampleBill} style={{ marginLeft: 100, marginBottom: 12 }}>生成模拟账单</Button>
           <Form.TextArea field="billText" label="账单内容" rows={8} placeholder="订单号,渠道交易号,金额(分),状态" rules={[{ required: true, message: '请输入账单内容' }]} />
@@ -327,13 +411,14 @@ export default function PaymentReconPage() {
           <ConfigurableTable
             bordered columns={itemColumns} dataSource={itemsData} loading={itemsQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void itemsQuery.refetch()} refreshLoading={itemsQuery.isFetching} pagination={buildItemPagination(itemsTotal)}
+            scroll={{ x: 1640 }}
           />
         </Spin>
       </SideSheet>
 
       <AppModal {...autoModal.modalProps} title="自动拉取渠道账单对账" width={480}>
         <Form key={autoModal.formKey} {...autoModal.formProps}>
-          <Form.Select field="channel" label="渠道" style={{ width: '100%' }} optionList={PAYMENT_CHANNEL_OPTIONS} rules={[{ required: true, message: '请选择渠道' }]} />
+            <Form.Select field="channel" label="应用与商户配置" style={{ width: '100%' }} optionList={autoOptions} loading={channelConfigsQuery.isFetching || appLookupQuery.isFetching} rules={[{ required: true, message: '请选择应用与商户配置' }]} />
           <Form.DatePicker field="billDate" label="账单日期" type="date" style={{ width: '100%' }} rules={[{ required: true, message: '请选择账单日期' }]} />
           <Typography.Text type="tertiary" size="small">沙箱渠道生成模拟账单演示闭环；生产微信渠道自动下载交易账单，支付宝暂需手动上传。</Typography.Text>
         </Form>
@@ -342,7 +427,18 @@ export default function PaymentReconPage() {
       <AppModal {...handleModal.modalProps} title={`处理差异${handleModal.editing?.orderNo ? `（${handleModal.editing.orderNo}）` : ''}`} width={520}>
         <Form key={handleModal.formKey} {...handleModal.formProps}>
           <Form.Select field="action" label="处理方式" style={{ width: '100%' }} optionList={HANDLE_ACTION_OPTIONS} rules={[{ required: true, message: '请选择处理方式' }]} />
-          <Form.TextArea field="remark" label="处理备注" autosize rows={2} placeholder="可选，如：渠道账单延迟，已人工核实" />
+          <Form.TextArea
+            field="remark"
+            label="处理备注"
+            autosize
+            rows={2}
+            maxCount={256}
+            placeholder="请填写核实过程和处理依据"
+            rules={[
+              { required: true, message: '请填写处理备注' },
+              { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '处理备注不能只包含空格' },
+            ]}
+          />
         </Form>
       </AppModal>
     </div>

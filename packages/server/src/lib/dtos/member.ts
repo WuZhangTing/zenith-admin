@@ -69,6 +69,17 @@ export const MemberOptionDTO = z
   })
   .openapi('MemberOption');
 
+export const MemberPaymentApplicationOptionDTO = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  cashierMethods: z.array(z.object({
+    method: z.string(),
+    label: z.string(),
+    icon: z.string().nullable(),
+  })),
+  deductMethods: z.array(z.object({ method: z.string(), label: z.string() })),
+}).openapi('MemberPaymentApplicationOption');
+
 export const MemberTokenDTO = z
   .object({
     accessToken: z.string(),
@@ -250,7 +261,7 @@ export const MemberRechargeDTO = z
     amount: z.number().int(),
     channel: z.enum(['wechat', 'alipay', 'unionpay']),
     payMethod: z.string(),
-    status: z.enum(['pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed']),
+    status: z.enum(['pending', 'paying', 'unknown', 'success', 'closed', 'refunding', 'refunded', 'failed']),
     paidAmount: z.number().int().nullable(),
     paidAt: z.string().nullable(),
     expiredAt: z.string().nullable(),

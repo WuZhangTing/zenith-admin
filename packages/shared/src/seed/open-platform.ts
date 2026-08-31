@@ -17,6 +17,10 @@ export const SEED_API_SCOPES: ApiScope[] = [
   { id: 12, code: 'rules:evaluate', name: '规则求值',         description: '调用规则中心统一求值（决策表/决策流/评分卡/名单，仅已发布资产）', scopeGroup: 'data', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 13, code: 'iot:read',      name: '读取 IoT 设备',    description: '读取 IoT 设备列表、详情与设备影子', scopeGroup: 'iot', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14, code: 'iot:write',     name: '控制 IoT 设备',    description: '下发服务调用指令与期望属性', scopeGroup: 'iot', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 15, code: 'payment:intent:create', name: '创建支付意图', description: '通过开放支付 API 创建支付意图', scopeGroup: 'payment', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 16, code: 'payment:intent:read', name: '读取支付意图', description: '读取本应用支付意图与有效支付能力', scopeGroup: 'payment', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 17, code: 'payment:refund:create', name: '创建退款', description: '为本应用支付意图发起退款', scopeGroup: 'payment', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 18, code: 'payment:refund:read', name: '读取退款', description: '读取本应用退款状态', scopeGroup: 'payment', status: 'enabled', createdAt: SEED_DATE, updatedAt: SEED_DATE },
 ];
 
 // ─── 开放平台：限流套餐 ───────────────────────────────────────────────────────

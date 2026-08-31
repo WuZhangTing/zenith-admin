@@ -77,7 +77,7 @@ export function usePaymentRiskReviewList(params: PaymentRiskReviewListParams) {
 export function useApprovePaymentRiskReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, remark }: { id: number; remark?: string }) =>
+    mutationFn: ({ id, remark }: { id: number; remark: string }) =>
       request.post<PaymentRiskReview>(`/api/payment/risk/reviews/${id}/approve`, { remark }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentRiskKeys.all }),
   });
@@ -86,7 +86,7 @@ export function useApprovePaymentRiskReview() {
 export function useRejectPaymentRiskReview() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, remark }: { id: number; remark?: string }) =>
+    mutationFn: ({ id, remark }: { id: number; remark: string }) =>
       request.post<PaymentRiskReview>(`/api/payment/risk/reviews/${id}/reject`, { remark }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentRiskKeys.all }),
   });

@@ -8,6 +8,8 @@ import { paymentOrders, members } from '../../db/schema';
 import { dateRangeConditions, escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { currentUserOrNull } from '../../lib/context';
+import { tenantCondition } from '../../lib/tenant';
 import { WALLET_RECHARGE_BIZ_TYPE } from './member-wallet.service';
 import type { PaymentChannel, PaymentOrderStatus } from '@zenith/shared/payment';
 
@@ -66,6 +68,16 @@ function mapRecharge(r: RechargeRow) {
 
 export function buildRechargeWhere(q: Omit<MemberRechargeQuery, 'page' | 'pageSize'>): SQL | undefined {
   const conds: SQL[] = [eq(paymentOrders.bizType, WALLET_RECHARGE_BIZ_TYPE)];
+  const adminUser = currentUserOrNull();
+  if (adminUser) {
+    // Keep both sides of the join in the active tenant scope. Filtering only
+    // payment_orders would still expose a mismatched member name if legacy
+    // rows ever contain an inconsistent member reference.
+    const orderScope = tenantCondition(paymentOrders, adminUser);
+    const memberScope = tenantCondition(members, adminUser);
+    if (orderScope) conds.push(orderScope);
+    if (memberScope) conds.push(memberScope);
+  }
   if (q.keyword) {
     const kw = `%${escapeLike(q.keyword)}%`;
     const orCond = or(

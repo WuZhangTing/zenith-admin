@@ -1,46 +1,55 @@
-/**
- * 预授权 Service（资金冻结/解冻/转支付，押金类场景：酒店/租车/共享）。
- *
- * 状态机：pending →(渠道冻结) frozen →(转支付) captured / (解冻) released；冻结失败 → failed。
- * 转支付落 payment_orders（payMethod=wechat_preauth/alipay_preauth）并走 markOrderPaid
- * 完整履约链（台账/费率/账户/Webhook），剩余冻结资金渠道侧自动解冻。
- * 资金账户联动：冻结成功 account.frozen += 冻结额；转支付/解冻 -= 冻结额（快照口径 =
- * 进行中预授权冻结金额之和，checkAccounts 一并核对）。
- */
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
+/** 支付预授权：应用/商户精确作用域、CAS 状态机与 unknown 查单恢复。 */
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import type { SQL, SQLWrapper } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import { randomInt } from 'node:crypto';
 import { db } from '../../db';
 import {
-  paymentAccounts,
   paymentChannelConfigs,
   paymentOrders,
   paymentPreauths,
+  type PaymentChannelConfigRow,
   type PaymentOrderRow,
   type PaymentPreauthRow,
 } from '../../db/schema';
+import type { DbExecutor } from '../../db/types';
 import { currentUser, currentUserOrNull } from '../../lib/context';
+import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
+import type { PaymentEvent } from '../../lib/payment-event-bus';
+import { getAdapter } from '../../lib/payment';
+import logger from '../../lib/logger';
+import { pageOffset } from '../../lib/pagination';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { keywordCondition, mergeWhere } from '../../lib/where-helpers';
-import { pageOffset } from '../../lib/pagination';
-import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
-import { getAdapter } from '../../lib/payment/registry';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import type {
+  CapturePaymentPreauthInput,
+  CreatePaymentPreauthInput,
+  PaymentChannel,
+  PaymentPreauth,
+  PaymentPreauthStatus,
+} from '@zenith/shared/payment';
+import { resolveApplicationChannelConfig } from './payment-apps.service';
+import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
+import { postSystemJournalWithin } from './payment-journal.service';
+import { recordEvent, processEvent } from './payment-outbox.service';
 import { buildAdapterContext, markOrderPaid } from './payment.service';
-import { ensureAccount } from './payment-account.service';
-import logger from '../../lib/logger';
-import type { CapturePaymentPreauthInput, CreatePaymentPreauthInput, PaymentChannel, PaymentPreauth, PaymentPreauthStatus } from '@zenith/shared/payment';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 
 function genNo(): string {
-  return `PRE${Date.now()}${randomInt(1000, 9999)}`;
+  return `PRE${Date.now()}${Math.floor(1000 + Math.random() * 9000)}`;
 }
 
-export function mapPreauth(row: PaymentPreauthRow & { operator?: { nickname: string | null } | null }): PaymentPreauth {
+function exactTenant(column: SQLWrapper, tenantId: number | null): SQL {
+  return tenantId == null ? sql`${column} is null` : sql`${column} = ${tenantId}`;
+}
+
+export function mapPreauth(row: PaymentPreauthRow & { operatorName?: string | null }): PaymentPreauth {
   return {
     id: row.id,
     preauthNo: row.preauthNo,
     channel: row.channel,
-    channelConfigId: row.channelConfigId ?? null,
+    channelConfigId: row.channelConfigId,
+    appId: row.appId,
+    currency: row.currency,
     channelPreauthNo: row.channelPreauthNo ?? null,
     bizType: row.bizType,
     bizId: row.bizId,
@@ -50,49 +59,96 @@ export function mapPreauth(row: PaymentPreauthRow & { operator?: { nickname: str
     capturedAmount: row.capturedAmount ?? null,
     captureOrderNo: row.captureOrderNo ?? null,
     status: row.status,
+    unknownOperation: row.unknownOperation ?? null,
+    version: row.version,
     errorMessage: row.errorMessage ?? null,
     frozenAt: formatNullableDateTime(row.frozenAt),
     finishedAt: formatNullableDateTime(row.finishedAt),
     remark: row.remark ?? null,
-    operatorName: row.operator?.nickname ?? null,
+    operatorName: row.operatorName ?? null,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
   };
 }
 
-/** 账户冻结余额原子增减（联动失败仅告警，快照可由 check 发现并人工修正） */
-async function applyFrozenDelta(channel: PaymentChannel, tenantId: number | null, delta: number): Promise<void> {
-  try {
-    const account = await ensureAccount(channel, tenantId);
-    await db
-      .update(paymentAccounts)
-      .set({ frozen: sql`${paymentAccounts.frozen} + ${delta}`, version: sql`${paymentAccounts.version} + 1` })
-      .where(eq(paymentAccounts.id, account.id));
-  } catch (err) {
-    logger.error('[payment-preauth] apply frozen delta failed', { channel, delta, err: err instanceof Error ? err.message : err });
-  }
+function postPreauthJournal(
+  executor: DbExecutor,
+  row: PaymentPreauthRow,
+  operation: 'freeze' | 'release',
+): Promise<number> {
+  const amount = row.frozenAmount.toString();
+  const freeze = operation === 'freeze';
+  return postSystemJournalWithin(executor, {
+    tenantId: row.tenantId,
+    operatorId: row.operatorId,
+    sourceType: `payment.preauth.${operation}`,
+    sourceId: row.preauthNo,
+    description: `${freeze ? '预授权冻结' : '预授权解冻'} ${row.preauthNo}`,
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
+    lines: freeze
+      ? [
+          { accountCode: 'provider_clearing', debitAmount: amount, memo: '渠道冻结应收增加' },
+          { accountCode: 'merchant_frozen', creditAmount: amount, memo: '预授权冻结负债增加' },
+        ]
+      : [
+          { accountCode: 'merchant_frozen', debitAmount: amount, memo: '预授权冻结负债减少' },
+          { accountCode: 'provider_clearing', creditAmount: amount, memo: '渠道冻结应收减少' },
+        ],
+  });
 }
 
-async function resolvePreauthConfig(channel: PaymentChannel, channelConfigId?: number | null) {
-  if (channelConfigId) {
-    const [row] = await db.select().from(paymentChannelConfigs).where(eq(paymentChannelConfigs.id, channelConfigId)).limit(1);
-    if (!row) throw new HTTPException(404, { message: '支付渠道配置不存在' });
-    return row;
-  }
-  const [row] = await db
+function postPreauthRemainderRelease(
+  executor: DbExecutor,
+  row: PaymentPreauthRow,
+  amount: number,
+): Promise<number> {
+  const value = amount.toString();
+  return postSystemJournalWithin(executor, {
+    tenantId: row.tenantId,
+    operatorId: row.operatorId,
+    sourceType: 'payment.preauth.release-remainder',
+    sourceId: row.preauthNo,
+    description: `预授权捕获后释放余款 ${row.preauthNo}`,
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
+    lines: [
+      { accountCode: 'merchant_frozen', debitAmount: value, memo: '剩余预授权冻结负债减少' },
+      { accountCode: 'provider_clearing', creditAmount: value, memo: '剩余渠道冻结应收减少' },
+    ],
+  });
+}
+
+async function loadBoundConfig(row: Pick<PaymentPreauthRow, 'channelConfigId' | 'channel' | 'tenantId'>): Promise<PaymentChannelConfigRow> {
+  const [config] = await db
     .select()
     .from(paymentChannelConfigs)
-    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.isDefault, true), eq(paymentChannelConfigs.status, 'enabled')))
+    .where(and(
+      eq(paymentChannelConfigs.id, row.channelConfigId),
+      eq(paymentChannelConfigs.channel, row.channel),
+      exactTenant(paymentChannelConfigs.tenantId, row.tenantId),
+    ))
     .limit(1);
-  if (!row) throw new HTTPException(400, { message: `未配置默认${PAYMENT_CHANNEL_LABELS[channel]}支付渠道` });
-  return row;
+  if (!config) throw new HTTPException(409, { message: '预授权绑定的商户配置不存在或作用域不一致' });
+  return config;
 }
 
-// ─── 查询 ─────────────────────────────────────────────────────────────────────
+async function assertPreauthOperation(
+  config: PaymentChannelConfigRow,
+  operation: 'preauth.freeze' | 'preauth.capture' | 'preauth.release' | 'preauth.query',
+  payMethod: 'wechat_preauth' | 'alipay_preauth',
+  currency: string,
+  recovery = false,
+) {
+  return assertEffectivePaymentOperation({ configRow: config, operation, method: operation === 'preauth.query' ? undefined : payMethod, currency, recovery });
+}
 
 export interface ListPreauthsQuery {
   page?: number;
   pageSize?: number;
+  applicationId: number;
   keyword?: string;
   status?: PaymentPreauthStatus;
   channel?: PaymentChannel;
@@ -108,15 +164,17 @@ function preauthsTenantCondition() {
 export async function listPreauths(q: ListPreauthsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
-  const conds = [];
-  conds.push(keywordCondition(q.keyword, [paymentPreauths.preauthNo, paymentPreauths.payerAccount, paymentPreauths.subject]));
+  const conds: Array<SQL | undefined> = [
+    eq(paymentPreauths.appId, q.applicationId),
+    keywordCondition(q.keyword, [paymentPreauths.preauthNo, paymentPreauths.payerAccount, paymentPreauths.subject]),
+  ];
   if (q.status) conds.push(eq(paymentPreauths.status, q.status));
   if (q.channel) conds.push(eq(paymentPreauths.channel, q.channel));
   const start = parseDateRangeStart(q.startTime);
   const end = parseDateRangeEnd(q.endTime);
   if (start) conds.push(gte(paymentPreauths.createdAt, start));
   if (end) conds.push(lte(paymentPreauths.createdAt, end));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, preauthsTenantCondition());
+  const where = mergeWhere(and(...conds), preauthsTenantCondition());
   const [total, rows] = await Promise.all([
     db.$count(paymentPreauths, where),
     db.query.paymentPreauths.findMany({
@@ -127,169 +185,279 @@ export async function listPreauths(q: ListPreauthsQuery) {
       offset: pageOffset(page, pageSize),
     }),
   ]);
-  return { list: rows.map(mapPreauth), total, page, pageSize };
+  return { list: rows.map((row) => mapPreauth({ ...row, operatorName: row.operator?.nickname ?? null })), total, page, pageSize };
 }
 
-export async function ensurePreauth(id: number): Promise<PaymentPreauthRow> {
-  const [row] = await db.select().from(paymentPreauths).where(and(eq(paymentPreauths.id, id), preauthsTenantCondition())).limit(1);
+export async function ensurePreauth(id: number, applicationId: number): Promise<PaymentPreauthRow> {
+  const [row] = await db.select().from(paymentPreauths).where(and(
+    eq(paymentPreauths.id, id),
+    eq(paymentPreauths.appId, applicationId),
+    preauthsTenantCondition(),
+  )).limit(1);
   if (!row) throw new HTTPException(404, { message: '预授权单不存在' });
   return row;
 }
 
-// ─── 冻结 / 转支付 / 解冻 ─────────────────────────────────────────────────────
-
-/** 发起预授权冻结（沙箱渠道即时冻结成功；渠道失败置 failed 可重新发起） */
-export async function createPreauth(input: CreatePaymentPreauthInput): Promise<PaymentPreauth> {
-  const user = currentUser();
-  const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
-  const config = await resolvePreauthConfig(channel, input.channelConfigId);
-  const adapter = getAdapter(channel);
-  if (!adapter.preauthFreeze) throw new HTTPException(400, { message: `渠道 ${channel} 暂不支持预授权` });
-
-  const preauthNo = genNo();
-  const bizType = input.bizType?.trim() || 'admin_preauth';
-  const [row] = await db
-    .insert(paymentPreauths)
-    .values({
-      preauthNo,
-      channel,
-      channelConfigId: config.id,
-      bizType,
-      bizId: preauthNo,
-      subject: input.subject,
-      payerAccount: input.payerAccount,
-      frozenAmount: input.frozenAmount,
-      status: 'pending',
-      remark: input.remark ?? null,
-      operatorId: user.userId,
-      tenantId: getCreateTenantId(user),
-    })
-    .returning();
-
-  try {
-    const res = await adapter.preauthFreeze(buildAdapterContext(config), {
-      outPreauthNo: preauthNo,
-      payerAccount: input.payerAccount,
-      amount: input.frozenAmount,
-      subject: input.subject,
-    });
-    if (res.status === 'frozen') {
-      const [updated] = await db
-        .update(paymentPreauths)
-        .set({ status: 'frozen', channelPreauthNo: res.channelPreauthNo ?? null, frozenAt: new Date() })
-        .where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.status, 'pending')))
-        .returning();
-      await applyFrozenDelta(channel, row.tenantId, input.frozenAmount);
-      return mapPreauth(updated ?? row);
-    }
-    // 真实渠道异步授权：保持 pending（本期沙箱恒为 frozen）
-    const [updated] = await db
-      .update(paymentPreauths)
-      .set({ channelPreauthNo: res.channelPreauthNo ?? null })
-      .where(eq(paymentPreauths.id, row.id))
+async function markOrderFailed(order: PaymentOrderRow, reason: string): Promise<void> {
+  const eventId = await db.transaction(async (tx) => {
+    const [failed] = await tx
+      .update(paymentOrders)
+      .set({ status: 'failed', errorMessage: reason.slice(0, 500), version: sql`${paymentOrders.version} + 1` })
+      .where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.version, order.version), inArray(paymentOrders.status, ['pending', 'paying', 'unknown'])))
       .returning();
-    return mapPreauth(updated ?? row);
-  } catch (err) {
-    const reason = (err instanceof Error ? err.message : '渠道冻结请求失败').slice(0, 500);
-    const [updated] = await db
-      .update(paymentPreauths)
-      .set({ status: 'failed', errorMessage: reason, finishedAt: new Date() })
-      .where(eq(paymentPreauths.id, row.id))
-      .returning();
-    logger.warn('[payment-preauth] freeze failed', { preauthNo, reason });
-    return mapPreauth(updated ?? row);
+    if (!failed) return null;
+    const payload: Omit<PaymentEvent, 'eventId' | 'occurredAt'> = {
+      type: 'payment.failed', orderNo: failed.orderNo, outTradeNo: failed.outTradeNo,
+      bizType: failed.bizType, bizId: failed.bizId, channel: failed.channel,
+      channelConfigId: failed.channelConfigId, appId: failed.appId, currency: failed.currency,
+      amount: failed.amount, userId: failed.userId, tenantId: failed.tenantId,
+    };
+    return recordEvent(tx, { type: 'payment.failed', orderNo: failed.orderNo, tenantId: failed.tenantId, payload });
+  });
+  if (eventId != null) {
+    setImmediate(() => { void processEvent(eventId).catch((err) => logger.error('[payment-preauth] process failure event failed', { eventId, err })); });
   }
 }
 
-/**
- * 转支付：冻结资金转正式交易（金额 ≤ 冻结额，剩余渠道侧自动解冻）。
- * 生成支付订单并走 markOrderPaid 完整履约链（台账/费率/账户/Webhook）。
- */
-export async function capturePreauth(id: number, input: CapturePaymentPreauthInput): Promise<PaymentPreauth> {
-  const row = await ensurePreauth(id);
+export async function createPreauth(input: CreatePaymentPreauthInput): Promise<PaymentPreauth> {
+  const user = currentUser();
+  const tenantId = getCreateTenantId(user);
+  const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
+  const application = await resolveApplicationChannelConfig(input.applicationId, channel, tenantId);
+  const [config] = await db.select().from(paymentChannelConfigs).where(and(
+    eq(paymentChannelConfigs.id, application.channelConfigId), exactTenant(paymentChannelConfigs.tenantId, tenantId),
+  )).limit(1);
+  if (!config) throw new HTTPException(400, { message: '支付应用绑定的商户配置不存在' });
+  await assertPreauthOperation(config, 'preauth.freeze', input.payMethod, input.currency);
+  const adapter = getAdapter(channel);
+  if (!adapter.preauthFreeze) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${channel}/preauth.freeze` });
+
+  const preauthNo = genNo();
+  const [row] = await db.insert(paymentPreauths).values({
+    preauthNo, channel, channelConfigId: config.id, appId: application.appId, currency: input.currency,
+    bizType: input.bizType?.trim() || 'admin_preauth', bizId: input.bizId, subject: input.subject,
+    payerAccount: input.payerAccount, frozenAmount: input.frozenAmount, status: 'pending', unknownOperation: 'freeze',
+    remark: input.remark ?? null, operatorId: user.userId, tenantId,
+  }).returning();
+  try {
+    const result = await adapter.preauthFreeze(buildAdapterContext(config), {
+      outPreauthNo: preauthNo, payerAccount: input.payerAccount, amount: input.frozenAmount, subject: input.subject,
+    });
+    if (result.status === 'frozen') {
+      const updated = await db.transaction(async (tx) => {
+        const [frozen] = await tx.update(paymentPreauths).set({
+          status: 'frozen', unknownOperation: null, channelPreauthNo: result.channelPreauthNo ?? null,
+          frozenAt: new Date(), errorMessage: null, version: sql`${paymentPreauths.version} + 1`,
+        }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'pending'))).returning();
+        if (!frozen) return null;
+        await postPreauthJournal(tx, frozen, 'freeze');
+        return frozen;
+      });
+      return mapPreauth(updated ?? row);
+    }
+    const [pending] = await db.update(paymentPreauths).set({
+      channelPreauthNo: result.channelPreauthNo ?? null, version: sql`${paymentPreauths.version} + 1`,
+    }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'pending'))).returning();
+    return mapPreauth(pending ?? row);
+  } catch (err) {
+    const reason = (err instanceof Error ? err.message : '渠道冻结结果待确认').slice(0, 500);
+    const [unknown] = await db.update(paymentPreauths).set({
+      status: 'unknown', unknownOperation: 'freeze', errorMessage: reason, version: sql`${paymentPreauths.version} + 1`,
+    }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'pending'))).returning();
+    return mapPreauth(unknown ?? row);
+  }
+}
+
+async function restoreAfterFailure(row: PaymentPreauthRow, reason: string): Promise<PaymentPreauthRow> {
+  const target: PaymentPreauthStatus = row.unknownOperation === 'freeze' ? 'failed' : 'frozen';
+  const [updated] = await db.update(paymentPreauths).set({
+    status: target, unknownOperation: null, errorMessage: reason.slice(0, 500),
+    capturedAmount: target === 'frozen' ? null : row.capturedAmount,
+    finishedAt: target === 'failed' ? new Date() : null, version: sql`${paymentPreauths.version} + 1`,
+  }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), inArray(paymentPreauths.status, ['pending', 'unknown']))).returning();
+  return updated ?? row;
+}
+
+export async function capturePreauth(id: number, applicationId: number, input: CapturePaymentPreauthInput): Promise<PaymentPreauth> {
+  const row = await ensurePreauth(id, applicationId);
   if (row.status !== 'frozen') throw new HTTPException(400, { message: '仅已冻结的预授权可转支付' });
   if (!row.channelPreauthNo) throw new HTTPException(400, { message: '预授权缺少渠道授权单号' });
   const captureAmount = input.captureAmount ?? row.frozenAmount;
   if (captureAmount > row.frozenAmount) throw new HTTPException(400, { message: '转支付金额不能超过冻结金额' });
-
-  const config = await resolvePreauthConfig(row.channel, row.channelConfigId);
-  const adapter = getAdapter(row.channel);
-  if (!adapter.preauthCapture) throw new HTTPException(400, { message: `渠道 ${row.channel} 暂不支持预授权转支付` });
-
-  // 并发防护：先占用 captured 流转（原子条件更新），渠道失败再回滚为 frozen
-  const [claimed] = await db
-    .update(paymentPreauths)
-    .set({ status: 'captured', capturedAmount: captureAmount, finishedAt: new Date() })
-    .where(and(eq(paymentPreauths.id, id), eq(paymentPreauths.status, 'frozen')))
-    .returning();
-  if (!claimed) throw new HTTPException(400, { message: '预授权状态已变化，请刷新后重试' });
-
-  const orderNo = genNo().replace('PRE', 'PAC');
+  const config = await loadBoundConfig(row);
   const payMethod = row.channel === 'wechat' ? ('wechat_preauth' as const) : ('alipay_preauth' as const);
+  await assertPreauthOperation(config, 'preauth.capture', payMethod, row.currency);
+  const adapter = getAdapter(row.channel);
+  if (!adapter.preauthCapture) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${row.channel}/preauth.capture` });
+
+  const orderNo = `PAC${row.preauthNo.slice(3)}V${row.version + 1}`.slice(0, 64);
+  const [claimed] = await db.update(paymentPreauths).set({
+    status: 'unknown', unknownOperation: 'capture', capturedAmount: captureAmount, captureOrderNo: orderNo,
+    errorMessage: null, version: sql`${paymentPreauths.version} + 1`,
+  }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'frozen'))).returning();
+  if (!claimed) throw new HTTPException(409, { message: '预授权状态已变化，请刷新后重试' });
+
   let order: PaymentOrderRow;
   try {
-    [order] = await db
-      .insert(paymentOrders)
-      .values({
-        orderNo,
-        outTradeNo: orderNo,
-        bizType: row.bizType,
-        bizId: row.bizId,
-        subject: `${row.subject}（预授权转支付）`,
-        body: `预授权单 ${row.preauthNo}`,
-        amount: captureAmount,
-        currency: 'CNY',
-        channel: row.channel,
-        channelConfigId: config.id,
-        payMethod,
-        status: 'pending',
-        openId: row.payerAccount,
-        tenantId: row.tenantId,
-      })
-      .returning();
-    const res = await adapter.preauthCapture(buildAdapterContext(config), {
-      channelPreauthNo: row.channelPreauthNo,
-      outPreauthNo: row.preauthNo,
-      outTradeNo: orderNo,
-      captureAmount,
-      subject: row.subject,
-    });
-    if (res.status !== 'success') throw new HTTPException(400, { message: res.failReason ?? '渠道转支付失败' });
-    await markOrderPaid(order, { channelTradeNo: res.channelTradeNo, paidAmount: captureAmount, paidAt: new Date() });
+    [order] = await db.insert(paymentOrders).values({
+      orderNo, outTradeNo: orderNo, bizType: row.bizType, bizId: row.bizId,
+      subject: `${row.subject}（预授权转支付）`, body: `预授权单 ${row.preauthNo}`,
+      amount: captureAmount, currency: row.currency, channel: row.channel, channelConfigId: row.channelConfigId,
+      appId: row.appId, payMethod, status: 'pending', openId: row.payerAccount, tenantId: row.tenantId,
+    }).returning();
   } catch (err) {
-    // 回滚状态占用并标记失败原因（订单若已落库置 failed 由渠道失败路径处理；此处直接关闭）
-    await db
-      .update(paymentPreauths)
-      .set({ status: 'frozen', capturedAmount: null, finishedAt: null, errorMessage: (err instanceof Error ? err.message : '转支付失败').slice(0, 500) })
-      .where(and(eq(paymentPreauths.id, id), eq(paymentPreauths.status, 'captured')));
-    await db.update(paymentOrders).set({ status: 'closed', errorMessage: '预授权转支付失败' }).where(and(eq(paymentOrders.orderNo, orderNo), eq(paymentOrders.status, 'pending')));
+    await db.update(paymentPreauths).set({
+      status: 'frozen', unknownOperation: null, capturedAmount: null,
+      errorMessage: (err instanceof Error ? err.message : '创建捕获订单失败').slice(0, 500),
+      version: sql`${paymentPreauths.version} + 1`,
+    }).where(and(eq(paymentPreauths.id, claimed.id), eq(paymentPreauths.version, claimed.version), eq(paymentPreauths.status, 'unknown')));
     throw err;
   }
 
-  const [final] = await db
-    .update(paymentPreauths)
-    .set({ captureOrderNo: orderNo })
-    .where(eq(paymentPreauths.id, id))
-    .returning();
-  await applyFrozenDelta(row.channel, row.tenantId, -row.frozenAmount);
-  return mapPreauth(final ?? claimed);
+  try {
+    const result = await adapter.preauthCapture(buildAdapterContext(config), {
+      channelPreauthNo: row.channelPreauthNo, outPreauthNo: row.preauthNo, outTradeNo: orderNo,
+      captureAmount, subject: row.subject,
+    });
+    if (result.status === 'success') {
+      await markOrderPaid(order, { channelTradeNo: result.channelTradeNo, paidAmount: captureAmount, paidAt: new Date() });
+      const captured = await db.transaction(async (tx) => {
+        const [finalized] = await tx.update(paymentPreauths).set({
+          status: 'captured', unknownOperation: null, errorMessage: null, finishedAt: new Date(),
+          version: sql`${paymentPreauths.version} + 1`,
+        }).where(and(eq(paymentPreauths.id, claimed.id), eq(paymentPreauths.version, claimed.version), eq(paymentPreauths.status, 'unknown'), eq(paymentPreauths.unknownOperation, 'capture'))).returning();
+        if (!finalized) return null;
+        const remainder = finalized.frozenAmount - captureAmount;
+        if (remainder > 0) await postPreauthRemainderRelease(tx, finalized, remainder);
+        return finalized;
+      });
+      return mapPreauth(captured ?? claimed);
+    }
+    await markOrderFailed(order, result.failReason ?? '渠道预授权捕获失败');
+    return mapPreauth(await restoreAfterFailure(claimed, result.failReason ?? '渠道预授权捕获失败'));
+  } catch (err) {
+    await db.update(paymentOrders).set({
+      status: 'unknown', errorMessage: (err instanceof Error ? err.message : '渠道捕获结果待确认').slice(0, 500),
+      version: sql`${paymentOrders.version} + 1`,
+    }).where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.version, order.version), inArray(paymentOrders.status, ['pending', 'paying'])));
+    const [unknown] = await db.update(paymentPreauths).set({
+      errorMessage: (err instanceof Error ? err.message : '渠道捕获结果待确认').slice(0, 500),
+      version: sql`${paymentPreauths.version} + 1`,
+    }).where(and(eq(paymentPreauths.id, claimed.id), eq(paymentPreauths.version, claimed.version), eq(paymentPreauths.status, 'unknown'))).returning();
+    return mapPreauth(unknown ?? claimed);
+  }
 }
 
-/** 解冻：全额释放冻结资金（frozen → released） */
-export async function releasePreauth(id: number): Promise<PaymentPreauth> {
-  const row = await ensurePreauth(id);
+export async function releasePreauth(id: number, applicationId: number): Promise<PaymentPreauth> {
+  const row = await ensurePreauth(id, applicationId);
   if (row.status !== 'frozen') throw new HTTPException(400, { message: '仅已冻结的预授权可解冻' });
-  const config = await resolvePreauthConfig(row.channel, row.channelConfigId);
+  const config = await loadBoundConfig(row);
+  const payMethod = row.channel === 'wechat' ? ('wechat_preauth' as const) : ('alipay_preauth' as const);
+  await assertPreauthOperation(config, 'preauth.release', payMethod, row.currency);
   const adapter = getAdapter(row.channel);
-  if (adapter.preauthRelease) {
+  if (!adapter.preauthRelease) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${row.channel}/preauth.release` });
+  const [claimed] = await db.update(paymentPreauths).set({
+    status: 'unknown', unknownOperation: 'release', errorMessage: null, version: sql`${paymentPreauths.version} + 1`,
+  }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'frozen'))).returning();
+  if (!claimed) throw new HTTPException(409, { message: '预授权状态已变化，请刷新后重试' });
+  try {
     await adapter.preauthRelease(buildAdapterContext(config), { outPreauthNo: row.preauthNo, channelPreauthNo: row.channelPreauthNo ?? undefined });
+    const released = await db.transaction(async (tx) => {
+      const [finalized] = await tx.update(paymentPreauths).set({
+        status: 'released', unknownOperation: null, errorMessage: null, finishedAt: new Date(), version: sql`${paymentPreauths.version} + 1`,
+      }).where(and(eq(paymentPreauths.id, claimed.id), eq(paymentPreauths.version, claimed.version), eq(paymentPreauths.status, 'unknown'), eq(paymentPreauths.unknownOperation, 'release'))).returning();
+      if (!finalized) return null;
+      await postPreauthJournal(tx, finalized, 'release');
+      return finalized;
+    });
+    return mapPreauth(released ?? claimed);
+  } catch (err) {
+    const [unknown] = await db.update(paymentPreauths).set({
+      errorMessage: (err instanceof Error ? err.message : '渠道解冻结果待确认').slice(0, 500), version: sql`${paymentPreauths.version} + 1`,
+    }).where(and(eq(paymentPreauths.id, claimed.id), eq(paymentPreauths.version, claimed.version), eq(paymentPreauths.status, 'unknown'))).returning();
+    return mapPreauth(unknown ?? claimed);
   }
-  const [updated] = await db
-    .update(paymentPreauths)
-    .set({ status: 'released', finishedAt: new Date() })
-    .where(and(eq(paymentPreauths.id, id), eq(paymentPreauths.status, 'frozen')))
-    .returning();
-  if (!updated) throw new HTTPException(400, { message: '预授权状态已变化，请刷新后重试' });
-  await applyFrozenDelta(row.channel, row.tenantId, -row.frozenAmount);
-  return mapPreauth(updated);
+}
+
+export async function recoverPreauth(id: number, applicationId: number): Promise<PaymentPreauth> {
+  const row = await ensurePreauth(id, applicationId);
+  if (row.status !== 'unknown' && row.status !== 'pending') return mapPreauth(row);
+  const operation = row.unknownOperation ?? 'freeze';
+  const config = await loadBoundConfig(row);
+  const payMethod = row.channel === 'wechat' ? ('wechat_preauth' as const) : ('alipay_preauth' as const);
+  try {
+    await assertPreauthOperation(config, 'preauth.query', payMethod, row.currency, true);
+  } catch (err) {
+    const [unchanged] = await db.update(paymentPreauths).set({
+      errorMessage: (err instanceof Error ? err.message : '渠道未提供预授权查询能力').slice(0, 500),
+      version: sql`${paymentPreauths.version} + 1`,
+    }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), inArray(paymentPreauths.status, ['pending', 'unknown']))).returning();
+    return mapPreauth(unchanged ?? row);
+  }
+  const adapter = getAdapter(row.channel);
+  if (!adapter.queryPreauth) {
+    const [unchanged] = await db.update(paymentPreauths).set({ errorMessage: 'CAPABILITY_UNSUPPORTED: 渠道未实现预授权查单', version: sql`${paymentPreauths.version} + 1` })
+      .where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version))).returning();
+    return mapPreauth(unchanged ?? row);
+  }
+  let result;
+  try {
+    result = await adapter.queryPreauth(buildAdapterContext(config), {
+      outPreauthNo: row.preauthNo, channelPreauthNo: row.channelPreauthNo ?? undefined, operation,
+      outTradeNo: row.captureOrderNo ?? undefined,
+      amount: operation === 'capture' ? (row.capturedAmount ?? row.frozenAmount) : row.frozenAmount,
+    });
+  } catch (err) {
+    const [unchanged] = await db.update(paymentPreauths).set({ errorMessage: (err instanceof Error ? err.message : '预授权查单失败').slice(0, 500), version: sql`${paymentPreauths.version} + 1` })
+      .where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version))).returning();
+    return mapPreauth(unchanged ?? row);
+  }
+  if (result.status === 'pending') return mapPreauth(row);
+  if (result.status === 'failed') return mapPreauth(await restoreAfterFailure(row, result.failReason ?? '渠道确认操作失败'));
+  if (operation === 'freeze' && result.status === 'frozen') {
+    const frozen = await db.transaction(async (tx) => {
+      const [finalized] = await tx.update(paymentPreauths).set({
+        status: 'frozen', unknownOperation: null, channelPreauthNo: result.channelPreauthNo ?? row.channelPreauthNo,
+        frozenAt: new Date(), errorMessage: null, version: sql`${paymentPreauths.version} + 1`,
+      }).where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), inArray(paymentPreauths.status, ['pending', 'unknown']))).returning();
+      if (!finalized) return null;
+      await postPreauthJournal(tx, finalized, 'freeze');
+      return finalized;
+    });
+    return mapPreauth(frozen ?? row);
+  }
+  if (operation === 'release' && result.status === 'released') {
+    const released = await db.transaction(async (tx) => {
+      const [finalized] = await tx.update(paymentPreauths).set({ status: 'released', unknownOperation: null, errorMessage: null, finishedAt: new Date(), version: sql`${paymentPreauths.version} + 1` })
+        .where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'unknown'))).returning();
+      if (!finalized) return null;
+      await postPreauthJournal(tx, finalized, 'release');
+      return finalized;
+    });
+    return mapPreauth(released ?? row);
+  }
+  if (operation === 'capture' && result.status === 'captured' && row.captureOrderNo) {
+    const [order] = await db.select().from(paymentOrders).where(and(
+      eq(paymentOrders.orderNo, row.captureOrderNo), eq(paymentOrders.appId, row.appId), exactTenant(paymentOrders.tenantId, row.tenantId),
+    )).limit(1);
+    if (!order) {
+      const [unchanged] = await db.update(paymentPreauths).set({ errorMessage: '渠道确认捕获成功，但本地捕获订单缺失', version: sql`${paymentPreauths.version} + 1` })
+        .where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version))).returning();
+      return mapPreauth(unchanged ?? row);
+    }
+    await markOrderPaid(order, { channelTradeNo: result.channelTradeNo, paidAmount: row.capturedAmount ?? row.frozenAmount, paidAt: new Date() });
+    const captured = await db.transaction(async (tx) => {
+      const [finalized] = await tx.update(paymentPreauths).set({ status: 'captured', unknownOperation: null, channelPreauthNo: result.channelPreauthNo ?? row.channelPreauthNo, errorMessage: null, finishedAt: new Date(), version: sql`${paymentPreauths.version} + 1` })
+        .where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version), eq(paymentPreauths.status, 'unknown'))).returning();
+      if (!finalized) return null;
+      const capturedAmount = finalized.capturedAmount ?? finalized.frozenAmount;
+      const remainder = finalized.frozenAmount - capturedAmount;
+      if (remainder > 0) await postPreauthRemainderRelease(tx, finalized, remainder);
+      return finalized;
+    });
+    return mapPreauth(captured ?? row);
+  }
+  const [unchanged] = await db.update(paymentPreauths).set({ errorMessage: `渠道返回状态 ${result.status} 与待恢复操作 ${operation} 不一致`, version: sql`${paymentPreauths.version} + 1` })
+    .where(and(eq(paymentPreauths.id, row.id), eq(paymentPreauths.version, row.version))).returning();
+  return mapPreauth(unchanged ?? row);
 }

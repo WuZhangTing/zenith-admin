@@ -19,6 +19,16 @@ export interface PaymentReconItemListParams {
   handleStatus?: string;
 }
 
+export interface CreatePaymentReconBatchValues {
+  applicationId: number;
+  channel: string;
+  channelConfigId: number;
+  currency: 'CNY';
+  billDate: string;
+  billText: string;
+  remark?: string;
+}
+
 export const paymentReconKeys = {
   all: ['payment-recon'] as const,
   lists: ['payment-recon', 'list'] as const,
@@ -47,7 +57,7 @@ export function usePaymentReconItems(params: PaymentReconItemListParams, enabled
 
 export function usePaymentReconSampleBill() {
   return useMutation({
-    mutationFn: (params: { channel: string; billDate: string }) =>
+    mutationFn: (params: { applicationId: number; channel: string; channelConfigId: number; currency: string; billDate: string }) =>
       request.get<{ billText: string }>(`/api/payment/recon/sample-bill${toQueryString(params)}`).then(unwrap),
   });
 }
@@ -55,7 +65,7 @@ export function usePaymentReconSampleBill() {
 export function useCreatePaymentReconBatch() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: { channel: string; billDate: string; billText: string; remark?: string }) =>
+    mutationFn: (values: CreatePaymentReconBatchValues) =>
       request.post<PaymentReconBatch>('/api/payment/recon/batches', values).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentReconKeys.all }),
   });
@@ -64,7 +74,7 @@ export function useCreatePaymentReconBatch() {
 export function useAutoPaymentRecon() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: { channel: string; billDate: string }) =>
+    mutationFn: (values: { applicationId: number; channel: string; channelConfigId: number; currency: string; billDate: string }) =>
       request.post<PaymentReconBatch>('/api/payment/recon/auto', values).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentReconKeys.all }),
   });
@@ -81,7 +91,7 @@ export function useDeletePaymentReconBatch() {
 export function useHandlePaymentReconItem() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, values }: { id: number; values: { action: 'adjusted' | 'suspended' | 'ignored'; remark?: string } }) =>
+    mutationFn: ({ id, values }: { id: number; values: { action: 'adjusted' | 'suspended' | 'ignored'; remark: string } }) =>
       request.patch<PaymentReconItem>(`/api/payment/recon/items/${id}/handle`, values).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: paymentReconKeys.all }),
   });

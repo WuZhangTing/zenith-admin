@@ -5,12 +5,13 @@
  * 差异处理流：差异项创建时置 handleStatus=pending，人工处理流转为 已调账/挂账/已忽略。
  * 自动对账：sandbox 渠道用本地订单生成模拟账单（演示闭环），真实渠道调 adapter.downloadBill 拉取渠道账单。
  */
-import { and, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
 import {
   paymentChannelConfigs,
+  paymentApps,
   paymentOrders,
   paymentReconBatches,
   paymentReconItems,
@@ -18,10 +19,10 @@ import {
   type PaymentReconItemRow,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDate, formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
-import { recordLedgerEntry } from './payment-ledger.service';
+import { postSystemJournalWithin } from './payment-journal.service';
 import { buildAdapterContext } from './payment.service';
 import { getAdapter } from '../../lib/payment/registry';
 import logger from '../../lib/logger';
@@ -37,6 +38,9 @@ export function mapReconBatch(row: PaymentReconBatchRow): PaymentReconBatch {
     id: row.id,
     batchNo: row.batchNo,
     channel: row.channel,
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
     billDate: row.billDate,
     status: row.status,
     localCount: row.localCount,
@@ -105,7 +109,31 @@ export function parseChannelBill(text: string): ChannelRecord[] {
   return out;
 }
 
-async function loadLocalPaidRowsScoped(channel: PaymentChannel, billDate: string, orderWhere?: SQL) {
+function normalizeReconStatus(status: string | null | undefined): 'success' | 'refunded' | 'closed' | 'failed' | 'processing' | null {
+  switch (status?.trim().toLowerCase()) {
+    case 'success':
+    case 'succeeded':
+    case 'paid':
+    case 'refunding':
+      return 'success';
+    case 'refund':
+    case 'refunded':
+      return 'refunded';
+    case 'closed':
+      return 'closed';
+    case 'failed':
+      return 'failed';
+    case 'processing':
+    case 'paying':
+    case 'unknown':
+    case 'pending':
+      return 'processing';
+    default:
+      return null;
+  }
+}
+
+async function loadLocalPaidRowsScoped(channel: PaymentChannel, appId: number, channelConfigId: number, currency: string, billDate: string, orderWhere?: SQL) {
   const start = parseDateTimeInput(`${billDate} 00:00:00`);
   const end = parseDateTimeInput(`${billDate} 23:59:59`);
   return db
@@ -121,6 +149,9 @@ async function loadLocalPaidRowsScoped(channel: PaymentChannel, billDate: string
       mergeWhere(
         and(
           eq(paymentOrders.channel, channel),
+          eq(paymentOrders.appId, appId),
+          eq(paymentOrders.channelConfigId, channelConfigId),
+          eq(paymentOrders.currency, currency),
           inArray(paymentOrders.status, ['success', 'refunding', 'refunded']),
           start ? gte(paymentOrders.paidAt, start) : undefined,
           end ? lte(paymentOrders.paidAt, end) : undefined,
@@ -128,10 +159,6 @@ async function loadLocalPaidRowsScoped(channel: PaymentChannel, billDate: string
         orderWhere,
       ),
     );
-}
-
-async function loadLocalPaidRows(channel: PaymentChannel, billDate: string) {
-  return loadLocalPaidRowsScoped(channel, billDate, tenantCondition(paymentOrders, currentUser()));
 }
 
 export interface ListReconBatchesQuery {
@@ -185,7 +212,10 @@ export async function listReconItems(batchId: number, q: ListReconItemsQuery) {
 }
 
 export interface CreateReconInput {
+  applicationId: number;
   channel: PaymentChannel;
+  channelConfigId: number;
+  currency: string;
   billDate: string;
   billText: string;
   remark?: string;
@@ -194,7 +224,12 @@ export interface CreateReconInput {
 /** 创建对账批次（路由入口）：按当前登录用户租户口径。 */
 export async function createReconBatch(input: CreateReconInput): Promise<PaymentReconBatch> {
   const user = currentUser();
-  return createReconBatchScoped(input, { tenantId: getCreateTenantId(user), orderWhere: tenantCondition(paymentOrders, user) });
+  const tenantId = requireTenantScopeId(user);
+  const orderWhere = tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, tenantId);
+  await ensureReconConfig(input.channelConfigId, input.channel, tenantId);
+  const appId = await resolveReconApplication(input.channelConfigId, input.channel, tenantId, input.applicationId);
+  if (appId !== input.applicationId) throw new HTTPException(400, { message: '支付应用与商户配置绑定关系无效' });
+  return createReconBatchScoped(input, { tenantId, orderWhere });
 }
 
 interface ReconScope {
@@ -207,7 +242,7 @@ interface ReconScope {
 /** 对账核心：解析渠道账单 + 拉本地订单 + 逐笔比对 + 落库统计。不依赖请求上下文，供路由与定时任务复用。 */
 async function createReconBatchScoped(input: CreateReconInput, scope: ReconScope): Promise<PaymentReconBatch> {
   const channelRecords = parseChannelBill(input.billText);
-  const localRows = await loadLocalPaidRowsScoped(input.channel, input.billDate, scope.orderWhere);
+  const localRows = await loadLocalPaidRowsScoped(input.channel, input.applicationId, input.channelConfigId, input.currency, input.billDate, scope.orderWhere);
 
   const localMap = new Map(localRows.map((r) => [r.orderNo, { amount: r.paidAmount ?? r.amount, status: r.status, channelTradeNo: r.channelTradeNo }]));
   const channelMap = new Map(channelRecords.map((r) => [r.orderNo, r]));
@@ -222,7 +257,10 @@ async function createReconBatchScoped(input: CreateReconInput, scope: ReconScope
     if (local) localAmount += local.amount;
     if (ch) channelAmount += ch.amount;
     let result: PaymentReconResult;
-    if (local && ch) result = local.amount === ch.amount ? 'matched' : 'amount_diff';
+    if (local && ch) {
+      if (local.amount !== ch.amount) result = 'amount_diff';
+      else result = normalizeReconStatus(local.status) === normalizeReconStatus(ch.status) ? 'matched' : 'status_diff';
+    }
     else if (local) result = 'local_only';
     else result = 'channel_only';
     if (result === 'matched') matched++;
@@ -247,6 +285,9 @@ async function createReconBatchScoped(input: CreateReconInput, scope: ReconScope
       .values({
         batchNo,
         channel: input.channel,
+        appId: input.applicationId,
+        channelConfigId: input.channelConfigId,
+        currency: input.currency,
         billDate: input.billDate,
         status: 'done',
         localCount: localMap.size,
@@ -291,43 +332,85 @@ export function computeAdjustment(item: Pick<PaymentReconItemRow, 'result' | 'lo
 }
 
 /** 处理对账差异项：pending → adjusted/suspended/ignored（条件更新防重复处理）。
- * 选择「已调账」时按差异金额自动记一条资金台账（type=adjust），完成资金闭环。 */
+ * 选择「已调账」时将状态流转和双分录凭证放在同一事务内，避免出现已处理但未记账。 */
 export async function handleReconItem(itemId: number, input: HandlePaymentReconItemInput): Promise<PaymentReconItem> {
   const user = currentUser();
-  const [item] = await db.select().from(paymentReconItems).where(eq(paymentReconItems.id, itemId)).limit(1);
-  if (!item) throw new HTTPException(404, { message: '对账明细不存在' });
-  const tc = tenantCondition(paymentReconBatches, user);
-  const [batch] = await db.select().from(paymentReconBatches).where(and(eq(paymentReconBatches.id, item.batchId), tc)).limit(1);
-  if (!batch) throw new HTTPException(404, { message: '对账批次不存在' });
-  if (item.handleStatus == null) throw new HTTPException(400, { message: '该明细比对一致，无需处理' });
+  return db.transaction(async (tx) => {
+    const [item] = await tx.select().from(paymentReconItems).where(eq(paymentReconItems.id, itemId)).limit(1);
+    if (!item) throw new HTTPException(404, { message: '对账明细不存在' });
+    const tc = tenantCondition(paymentReconBatches, user);
+    const [batch] = await tx
+      .select()
+      .from(paymentReconBatches)
+      .where(and(eq(paymentReconBatches.id, item.batchId), tc))
+      .limit(1);
+    if (!batch) throw new HTTPException(404, { message: '对账批次不存在' });
+    if (item.handleStatus == null) throw new HTTPException(400, { message: '该明细比对一致，无需处理' });
+    if (item.result === 'channel_only' && input.action === 'adjusted') {
+      // A CSV row alone is not proof that funds belong to this merchant scope.
+      // Keep channel-only rows in suspense until a trusted provider reference
+      // or a separately approved adjustment is available; never credit
+      // merchant_available directly from an uploaded file.
+      throw new HTTPException(409, { message: '渠道单边明细只能先挂账或忽略，核验后再通过受控资金调整入账' });
+    }
+    const adjustment = input.action === 'adjusted' ? computeAdjustment(item) : null;
+    if (input.action === 'adjusted' && !adjustment) {
+      throw new HTTPException(400, { message: '该差异缺少可调账金额，请选择挂账或忽略' });
+    }
 
-  const [updated] = await db
-    .update(paymentReconItems)
-    .set({ handleStatus: input.action, handleRemark: input.remark ?? null, handledAt: new Date(), handledById: user.userId })
-    .where(and(eq(paymentReconItems.id, itemId), eq(paymentReconItems.handleStatus, 'pending')))
-    .returning();
-  if (!updated) throw new HTTPException(400, { message: '该差异已被处理，请刷新后查看' });
+    const [updated] = await tx
+      .update(paymentReconItems)
+      .set({ handleStatus: input.action, handleRemark: input.remark ?? null, handledAt: new Date(), handledById: user.userId })
+      .where(and(eq(paymentReconItems.id, itemId), eq(paymentReconItems.handleStatus, 'pending')))
+      .returning();
+    if (!updated) throw new HTTPException(400, { message: '该差异已被处理，请刷新后查看' });
 
-  if (input.action === 'adjusted') {
-    const adj = computeAdjustment(item);
-    if (adj) {
-      await recordLedgerEntry({
-        direction: adj.direction,
-        type: 'adjust',
-        amount: adj.amount,
-        orderNo: item.orderNo,
-        channel: batch.channel,
-        tenantId: batch.tenantId,
-        remark: `对账调账（批次 ${batch.batchNo}）${input.remark ? `：${input.remark}` : ''}`,
+    if (adjustment) {
+      const amount = adjustment.amount.toString();
+      await postSystemJournalWithin(tx, {
+        tenantId: batch.tenantId ?? null,
+        operatorId: user.userId,
+        sourceType: 'recon.adjust',
+        sourceId: String(item.id),
+          description: `对账调账（批次 ${batch.batchNo}）：${input.remark}`,
+        appId: batch.appId,
+        channelConfigId: batch.channelConfigId,
+        currency: batch.currency,
+        lines: adjustment.direction === 'in'
+          ? [
+            { accountCode: 'suspense', debitAmount: amount, memo: '冲减待查资金' },
+            { accountCode: 'merchant_available', creditAmount: amount, memo: '增加商户可用余额' },
+          ]
+          : [
+            { accountCode: 'merchant_available', debitAmount: amount, memo: '扣减商户可用余额' },
+            { accountCode: 'suspense', creditAmount: amount, memo: '增加待查资金' },
+          ],
       });
     }
-  }
-  return mapReconItem(updated);
+    return mapReconItem(updated);
+  });
 }
 
 /** Demo/演示：用本地订单生成一份带表头的模拟渠道账单 CSV（金额取实付）。 */
-export async function generateSampleBill(channel: PaymentChannel, billDate: string): Promise<string> {
-  const rows = await loadLocalPaidRows(channel, billDate);
+export async function generateSampleBill(input: {
+  applicationId: number;
+  channel: PaymentChannel;
+  channelConfigId: number;
+  currency: string;
+  billDate: string;
+}): Promise<string> {
+  const tenantId = requireTenantScopeId(currentUser());
+  await ensureReconConfig(input.channelConfigId, input.channel, tenantId);
+  await resolveReconApplication(input.channelConfigId, input.channel, tenantId, input.applicationId);
+  const exactTenant = tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, tenantId);
+  const rows = await loadLocalPaidRowsScoped(
+    input.channel,
+    input.applicationId,
+    input.channelConfigId,
+    input.currency,
+    input.billDate,
+    exactTenant,
+  );
   const lines = ['订单号,渠道交易号,金额(分),状态'];
   for (const r of rows) {
     lines.push(`${r.orderNo},${r.channelTradeNo ?? ''},${r.paidAmount ?? r.amount},SUCCESS`);
@@ -337,71 +420,135 @@ export async function generateSampleBill(channel: PaymentChannel, billDate: stri
 
 // ─── 自动对账（拉取渠道账单）──────────────────────────────────────────────────
 
-async function resolveReconConfig(channel: PaymentChannel) {
-  const [preferred] = await db
+async function ensureReconConfig(id: number, channel: PaymentChannel, tenantId: number | null) {
+  const exactTenant = tenantId == null
+    ? isNull(paymentChannelConfigs.tenantId)
+    : eq(paymentChannelConfigs.tenantId, tenantId);
+  const [configRow] = await db
     .select()
     .from(paymentChannelConfigs)
-    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.status, 'enabled'), eq(paymentChannelConfigs.isDefault, true)))
+    .where(and(
+      eq(paymentChannelConfigs.id, id),
+      eq(paymentChannelConfigs.channel, channel),
+      eq(paymentChannelConfigs.status, 'enabled'),
+      exactTenant,
+    ))
     .limit(1);
-  if (preferred) return preferred;
-  const [anyEnabled] = await db
-    .select()
-    .from(paymentChannelConfigs)
-    .where(and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.status, 'enabled')))
-    .limit(1);
-  return anyEnabled ?? null;
+  if (!configRow) throw new HTTPException(400, { message: '所选商户配置不存在、未启用或不属于当前租户' });
+  return configRow;
+}
+
+async function resolveReconApplication(
+  channelConfigId: number,
+  channel: PaymentChannel,
+  tenantId: number | null,
+  expectedAppId?: number,
+): Promise<number> {
+  const exactTenant = tenantId == null ? isNull(paymentApps.tenantId) : eq(paymentApps.tenantId, tenantId);
+  const channelBinding = channel === 'wechat'
+    ? eq(paymentApps.wechatConfigId, channelConfigId)
+    : channel === 'alipay'
+      ? eq(paymentApps.alipayConfigId, channelConfigId)
+      : eq(paymentApps.unionpayConfigId, channelConfigId);
+  const rows = await db
+    .select({ id: paymentApps.id })
+    .from(paymentApps)
+    .where(and(
+      eq(paymentApps.status, 'enabled'),
+      exactTenant,
+      channelBinding,
+      expectedAppId ? eq(paymentApps.id, expectedAppId) : undefined,
+    ));
+  if (rows.length === 0) throw new HTTPException(400, { message: '没有支付应用绑定所选商户配置' });
+  if (rows.length > 1 && expectedAppId === undefined) {
+    throw new HTTPException(400, { message: '多个支付应用绑定该商户配置，请明确指定 applicationId' });
+  }
+  return rows[0].id;
 }
 
 /** 自动拉取渠道账单并对账：sandbox 渠道用本地订单生成模拟账单（演示可闭环），
  * 真实渠道调 adapter.downloadBill（微信 tradebill；支付宝暂不支持自动拉取）。 */
-export async function autoReconcile(channel: PaymentChannel, billDate: string, scope: ReconScope): Promise<PaymentReconBatch> {
-  const config = await resolveReconConfig(channel);
-  if (!config) throw new HTTPException(400, { message: `渠道 ${channel} 无启用配置，无法自动对账` });
+export async function autoReconcile(input: {
+  applicationId: number;
+  channel: PaymentChannel;
+  channelConfigId: number;
+  currency: string;
+  billDate: string;
+}, scope: ReconScope): Promise<PaymentReconBatch> {
+  const config = await ensureReconConfig(input.channelConfigId, input.channel, scope.tenantId);
+  await resolveReconApplication(input.channelConfigId, input.channel, scope.tenantId, input.applicationId);
 
   let billText: string;
   let source: string;
   if (config.sandbox) {
-    const rows = await loadLocalPaidRowsScoped(channel, billDate, scope.orderWhere);
+    const rows = await loadLocalPaidRowsScoped(input.channel, input.applicationId, config.id, input.currency, input.billDate, scope.orderWhere);
     const lines = ['订单号,渠道交易号,金额(分),状态'];
     for (const r of rows) lines.push(`${r.orderNo},${r.channelTradeNo ?? ''},${r.paidAmount ?? r.amount},SUCCESS`);
     billText = lines.join('\n');
     source = '自动对账（沙箱模拟账单）';
   } else {
-    const adapter = getAdapter(channel);
-    if (!adapter.downloadBill) throw new HTTPException(400, { message: `渠道 ${channel} 暂不支持自动拉取账单，请手动上传` });
-    billText = await adapter.downloadBill(buildAdapterContext(config), billDate);
+    const adapter = getAdapter(input.channel);
+    if (!adapter.downloadBill) throw new HTTPException(400, { message: `渠道 ${input.channel} 暂不支持自动拉取账单，请手动上传` });
+    billText = await adapter.downloadBill(buildAdapterContext(config), input.billDate);
     source = '自动对账（渠道账单）';
   }
-  return createReconBatchScoped({ channel, billDate, billText, remark: source }, scope);
+  return createReconBatchScoped({ ...input, remark: source, billText }, scope);
 }
 
 /** 路由入口：按当前登录用户租户口径自动对账。 */
-export async function autoReconcileForCurrentUser(channel: PaymentChannel, billDate: string): Promise<PaymentReconBatch> {
+export async function autoReconcileForCurrentUser(input: {
+  applicationId: number;
+  channel: PaymentChannel;
+  channelConfigId: number;
+  currency: string;
+  billDate: string;
+}): Promise<PaymentReconBatch> {
   const user = currentUser();
-  return autoReconcile(channel, billDate, { tenantId: getCreateTenantId(user), orderWhere: tenantCondition(paymentOrders, user) });
+  const tenantId = requireTenantScopeId(user);
+  const orderWhere = tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, tenantId);
+  return autoReconcile(input, { tenantId, orderWhere });
 }
 
-/** Cron：为昨日账期按渠道自动对账（全局口径）。当日已存在该渠道账期批次则跳过，避免重复。 */
+/** Cron：为昨日账期按租户与渠道自动对账；每个租户只使用自己的默认商户配置。 */
 export async function autoReconcileYesterday(): Promise<{ generated: number; skipped: number }> {
   const billDate = formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
   let generated = 0;
   let skipped = 0;
-  for (const channel of ['wechat', 'alipay'] as const) {
-    const config = await resolveReconConfig(channel);
-    if (!config) {
-      skipped++;
-      continue;
-    }
+  const routes = await db
+    .select({
+      config: paymentChannelConfigs,
+      applicationId: paymentApps.id,
+    })
+    .from(paymentApps)
+    .innerJoin(paymentChannelConfigs, or(
+      eq(paymentApps.wechatConfigId, paymentChannelConfigs.id),
+      eq(paymentApps.alipayConfigId, paymentChannelConfigs.id),
+      eq(paymentApps.unionpayConfigId, paymentChannelConfigs.id),
+    ))
+    .where(and(
+      inArray(paymentChannelConfigs.channel, ['wechat', 'alipay']),
+      eq(paymentChannelConfigs.status, 'enabled'),
+      eq(paymentApps.status, 'enabled'),
+    ));
+  for (const { config, applicationId } of routes) {
+    const { channel, tenantId } = config;
+    const batchTenant = tenantId == null ? isNull(paymentReconBatches.tenantId) : eq(paymentReconBatches.tenantId, tenantId);
     const exists = await db.$count(
       paymentReconBatches,
-      and(eq(paymentReconBatches.channel, channel), eq(paymentReconBatches.billDate, billDate), isNull(paymentReconBatches.tenantId)),
+      and(
+        eq(paymentReconBatches.channelConfigId, config.id),
+        eq(paymentReconBatches.appId, applicationId),
+        eq(paymentReconBatches.billDate, billDate),
+        batchTenant,
+      ),
     );
     if (exists > 0) {
       skipped++;
       continue;
     }
     try {
-      await autoReconcile(channel, billDate, { tenantId: null });
+      const orderWhere = tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, tenantId);
+      await autoReconcile({ applicationId, channel, channelConfigId: config.id, currency: 'CNY', billDate }, { tenantId, orderWhere });
       generated++;
     } catch (err) {
       skipped++;

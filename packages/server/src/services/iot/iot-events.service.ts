@@ -58,7 +58,7 @@ export async function recordIotLifecycleEvent(
     logger.warn(`[iot] 生命周期事件写入失败 deviceId=${deviceId} event=${identifier}: ${(err as Error).message}`);
   }
   // 数据流转：生命周期源（fire-and-forget，取设备行做过滤匹配）
-  const [deviceRow] = await db.select({ id: iotDevices.id, sn: iotDevices.sn, name: iotDevices.name, productId: iotDevices.productId })
+  const [deviceRow] = await db.select({ id: iotDevices.id, sn: iotDevices.sn, name: iotDevices.name, productId: iotDevices.productId, tenantId: iotDevices.tenantId })
     .from(iotDevices).where(eq(iotDevices.id, deviceId)).limit(1);
   if (deviceRow) {
     dispatchIotForward('lifecycle', deviceRow, {
@@ -71,6 +71,7 @@ export async function recordIotLifecycleEvent(
     if (deviceRow) {
       openEventBus.emit({
         type: `iot.device.${identifier}`,
+        tenantId: deviceRow.tenantId ?? null,
         data: { deviceId, sn: deviceRow.sn, name: deviceRow.name },
       });
     }

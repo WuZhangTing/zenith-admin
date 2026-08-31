@@ -16,7 +16,7 @@ export function registerBizPayDemoSubscribers(): void {
 
   paymentEventBus.on('payment.succeeded', (e) => {
     if (e.bizType !== BIZ_PAY_DEMO_TYPE) return;
-    return markBizPayDemoPaid({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount }).catch((err) => {
+    return markBizPayDemoPaid({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount, appId: e.appId, tenantId: e.tenantId }).catch((err) => {
       logger.error('[biz-pay-demo] 支付成功履约失败', { orderNo: e.orderNo, err });
       throw err;
     });

@@ -187,7 +187,7 @@ function WebhooksTab({ clientId }: Readonly<{ clientId: string }>) {
   const columns: ColumnProps<AppWebhookSubscription>[] = [
     { title: '名称', dataIndex: 'name', width: 180 },
     { title: '回调地址', dataIndex: 'url' },
-    { title: '事件', dataIndex: 'events', render: (values: string[]) => values.length ? `${values.length} 个事件` : '全部事件' },
+    { title: '事件', dataIndex: 'events', render: (values: string[]) => values.length ? `${values.length} 个事件` : '全部非支付事件' },
     { title: '连续失败', dataIndex: 'consecutiveFailures', width: 100 },
     dateTimeColumn('最近投递', 'lastDeliveryAt'),
     {

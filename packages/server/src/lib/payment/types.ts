@@ -5,7 +5,7 @@
  * 门面层（payment.service）通过 registry 拿到对应 adapter 调用，
  * 完全不感知渠道差异与签名细节。
  */
-import type { CreatePaymentResult, PaymentChannel } from '@zenith/shared/payment';
+import type { CreatePaymentResult, PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
 import type { PaymentChannelConfigRow, PaymentOrderRow, PaymentRefundRow } from '../../db/schema';
 
 /** 已解密的渠道敏感凭据（仅在内存中存在，绝不落库/出参） */
@@ -14,6 +14,8 @@ export interface DecryptedSecrets {
   wechatPrivateKey?: string;
   alipayPrivateKey?: string;
   unionpayPrivateKey?: string;
+  /** 每份沙箱商户配置独立的回调签名密钥。 */
+  sandboxNotifySecret?: string;
 }
 
 /** 适配器上下文：持有完整渠道配置 + 已解密凭据 + 回调地址 */
@@ -27,6 +29,14 @@ export interface AdapterContext {
 export interface PaymentQueryResult {
   status: 'pending' | 'success' | 'closed' | 'failed';
   channelTradeNo?: string;
+  /** 渠道事件/流水标识，供 Inbox 去重。 */
+  providerEventId?: string;
+  /** 渠道返回的商户身份，必须与订单绑定的商户配置核对。 */
+  merchantId?: string;
+  /** 渠道返回的应用身份。 */
+  providerAppId?: string;
+  /** ISO 4217 币种。 */
+  currency?: string;
   /** 实付金额（分） */
   paidAmount?: number;
   paidAt?: Date;
@@ -71,6 +81,28 @@ export interface ProfitShareQueryResult {
   channelSharingNo?: string;
   finishedAt?: Date;
   raw?: unknown;
+}
+
+export interface ProfitShareReverseInput {
+  /** 原分账商户单号。 */
+  outSharingNo: string;
+  /** 原渠道分账单号。 */
+  channelSharingNo?: string;
+  /** 冲正商户单号，渠道幂等键。 */
+  outReversalNo: string;
+  amount: number;
+  reason: string;
+}
+
+export interface ProfitShareReverseResult {
+  channelReversalNo?: string;
+  status: 'processing' | 'success' | 'failed';
+  failReason?: string;
+  raw?: unknown;
+}
+
+export interface ProfitShareReverseQueryResult extends ProfitShareReverseResult {
+  finishedAt?: Date;
 }
 
 /** 转账/代付入参（渠道无关的标准化字段） */
@@ -121,6 +153,19 @@ export interface ContractSignResult {
   channelContractNo?: string;
   /** sandbox 即时 signed；真实渠道异步签约时为 pending */
   status: 'pending' | 'signed';
+  raw?: unknown;
+}
+
+export interface ContractQueryInput {
+  outContractNo: string;
+  channelContractNo?: string;
+  operation: 'sign' | 'terminate';
+}
+
+export interface ContractQueryResult {
+  status: 'pending' | 'signed' | 'terminated' | 'failed';
+  channelContractNo?: string;
+  failReason?: string;
   raw?: unknown;
 }
 
@@ -179,6 +224,22 @@ export interface PreauthCaptureResult {
   raw?: unknown;
 }
 
+export interface PreauthQueryInput {
+  outPreauthNo: string;
+  channelPreauthNo?: string;
+  operation: 'freeze' | 'capture' | 'release';
+  outTradeNo?: string;
+  amount: number;
+}
+
+export interface PreauthQueryResult {
+  status: 'pending' | 'frozen' | 'captured' | 'released' | 'failed';
+  channelPreauthNo?: string;
+  channelTradeNo?: string;
+  failReason?: string;
+  raw?: unknown;
+}
+
 /** 回调验签 + 解析后的标准化结果 */
 export interface NotifyResult {
   /** 验签是否通过 */
@@ -189,6 +250,14 @@ export interface NotifyResult {
   outTradeNo?: string;
   /** 渠道交易号 */
   channelTradeNo?: string;
+  /** 渠道通知唯一标识，供 Inbox 防重放。 */
+  providerEventId?: string;
+  /** 渠道报文中的商户身份。 */
+  merchantId?: string;
+  /** 渠道报文中的应用身份。 */
+  providerAppId?: string;
+  /** ISO 4217 币种。 */
+  currency?: string;
   /** 商户退款单号（退款通知时） */
   outRefundNo?: string;
   channelRefundNo?: string;
@@ -203,8 +272,59 @@ export interface NotifyResult {
   raw?: unknown;
 }
 
+export type PaymentProviderEnvironment = 'sandbox' | 'live';
+
+export type PaymentProviderOperation =
+  | 'payment.create'
+  | 'payment.query'
+  | 'payment.close'
+  | 'refund.create'
+  | 'refund.query'
+  | 'notification.verify'
+  | 'profit-sharing.create'
+  | 'profit-sharing.query'
+  | 'profit-sharing.reverse'
+  | 'transfer.create'
+  | 'transfer.query'
+  | 'contract.sign'
+  | 'contract.query'
+  | 'contract.terminate'
+  | 'contract.deduct'
+  | 'preauth.freeze'
+  | 'preauth.query'
+  | 'preauth.capture'
+  | 'preauth.release'
+  | 'bill.download';
+
+export type PaymentProviderExecution = 'redirect' | 'synchronous' | 'asynchronous' | 'local';
+
+/** 渠道适配器实际可执行的单项能力，不表示渠道理论上提供但本系统尚未实现的产品。 */
+export interface PaymentProviderCapability {
+  operation: PaymentProviderOperation;
+  environments: readonly PaymentProviderEnvironment[];
+  paymentMethods?: readonly PaymentMethod[];
+  currencies: readonly string[];
+  execution: PaymentProviderExecution;
+  /** 非沙箱环境执行该操作所需的配置字段。 */
+  requiredConfigFields: readonly string[];
+  limits?: Readonly<{
+    maxAmount?: number;
+    receiverNameRequiredAtOrAbove?: number;
+  }>;
+}
+
+export interface PaymentProviderManifest {
+  channel: PaymentChannel;
+  displayName: string;
+  /** 沙箱全链路统一需要的配置级回调密钥。 */
+  sandboxRequiredConfigFields: readonly string[];
+  capabilities: readonly PaymentProviderCapability[];
+}
+
 export interface PaymentChannelAdapter {
   readonly channel: PaymentChannel;
+  /** 机器可读的真实实现能力，前后端不得再根据可选方法或静态枚举猜测。 */
+  readonly manifest: PaymentProviderManifest;
   /** 下单：返回前端可直接使用的支付参数（二维码 / 跳转链接 / JSAPI 参数 / APP 调起串） */
   createPayment(ctx: AdapterContext, order: PaymentOrderRow): Promise<CreatePaymentResult>;
   /** 主动查询支付状态（回调兜底） */
@@ -226,6 +346,10 @@ export interface PaymentChannelAdapter {
   profitShare?(ctx: AdapterContext, order: PaymentOrderRow, receiver: ProfitShareReceiver, outSharingNo: string): Promise<ProfitShareResult>;
   /** 查询分账结果（可选，用于同步 processing 分账单） */
   queryProfitShare?(ctx: AdapterContext, order: PaymentOrderRow, outSharingNo: string): Promise<ProfitShareQueryResult>;
+  /** 分账冲正；outReversalNo 是渠道幂等键。 */
+  reverseProfitShare?(ctx: AdapterContext, order: PaymentOrderRow, input: ProfitShareReverseInput): Promise<ProfitShareReverseResult>;
+  /** 查询分账冲正结果；unknown/processing 只能经此接口收敛。 */
+  queryProfitShareReverse?(ctx: AdapterContext, order: PaymentOrderRow, input: ProfitShareReverseInput): Promise<ProfitShareReverseQueryResult>;
   /**
    * 转账/代付（可选）：微信商家转账到零钱、支付宝单笔转账。
    * `sandbox=true` 时为模拟实现（即时成功）。
@@ -238,12 +362,16 @@ export interface PaymentChannelAdapter {
    * `sandbox=true` 时为模拟实现（即时签约成功）；真实渠道需商户开通对应产品权限。
    */
   signContract?(ctx: AdapterContext, input: ContractSignInput): Promise<ContractSignResult>;
+  /** 查询签约或解约结果；unknown 只能通过此接口收敛。 */
+  queryContract?(ctx: AdapterContext, input: ContractQueryInput): Promise<ContractQueryResult>;
   /** 签约代扣：解约（可选）。`sandbox=true` 时为模拟实现（即时解约）。 */
   terminateContract?(ctx: AdapterContext, input: Pick<ContractSignInput, 'outContractNo'> & { channelContractNo?: string }): Promise<void>;
   /** 签约代扣：按协议发起单期扣款（可选，服务端发起，无用户交互）。`sandbox=true` 时即时成功。 */
   deductContract?(ctx: AdapterContext, input: ContractDeductInput): Promise<ContractDeductResult>;
   /** 预授权：冻结资金（可选）。`sandbox=true` 时即时冻结成功；真实渠道需开通资金授权产品权限。 */
   preauthFreeze?(ctx: AdapterContext, input: PreauthFreezeInput): Promise<PreauthFreezeResult>;
+  /** 查询冻结/捕获/释放结果；unknown 只能通过此接口收敛。 */
+  queryPreauth?(ctx: AdapterContext, input: PreauthQueryInput): Promise<PreauthQueryResult>;
   /** 预授权：转支付（可选）。冻结资金转正式交易，剩余部分渠道侧自动解冻。 */
   preauthCapture?(ctx: AdapterContext, input: PreauthCaptureInput): Promise<PreauthCaptureResult>;
   /** 预授权：解冻（可选）。 */

@@ -11,7 +11,7 @@ import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Info } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
 import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
 import type { CreatePaymentResult, PaymentMethod } from '@zenith/shared/payment';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -33,6 +33,8 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
+import { getPaymentQrInstruction } from '@/utils/payment';
+import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -43,7 +45,7 @@ const STATUS_MAP: Record<BizPayDemoStatus, { text: string; color: TagColor }> = 
   closed: { text: '已关闭', color: 'orange' },
 };
 
-const PAY_METHOD_OPTIONS = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
+const PAY_METHOD_OPTIONS = PAYMENT_CASHIER_METHODS.map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
 
@@ -62,6 +64,7 @@ const payDemoBannerStyle: CSSProperties = {
 
 const SNIPPET_BACKEND_PAY = `// 后端 · 发起支付：调用统一支付门面 createPayment（services/biz-pay-demo.service.ts）
 const { orderNo, payParams } = await createPayment({
+  applicationId,             // 显式绑定支付应用，不做唯一应用猜测
   bizType: 'biz_pay_demo',   // 业务类型标识（订阅器据此路由）
   bizId: String(demo.id),    // 业务方主键（履约时回填状态）
   subject: demo.subject,
@@ -87,7 +90,7 @@ await db.update(bizPayDemos)
   .where(and(eq(bizPayDemos.id, Number(bizId)), eq(bizPayDemos.status, 'paying')));`;
 
 const SNIPPET_FRONTEND = `// 前端 · 发起支付并展示二维码（pages/biz/pay-demo/PayDemoPage.tsx）
-const res = await request.post(\`/api/biz/pay-demos/\${id}/pay\`, { payMethod: 'wechat_native' });
+const res = await request.post(\`/api/biz/pay-demos/\${id}/pay\`, { applicationId, payMethod: 'wechat_native' });
 const { payParams } = res.data;                 // { orderNo, codeUrl?, payUrl?, ... }
 
 // 微信 native：渲染二维码供用户扫码
@@ -121,6 +124,18 @@ export default function PayDemoPage() {
   const payFormApi = useRef<FormApi | null>(null);
 
   const [payResult, setPayResult] = useState<CreatePaymentResult | null>(null);
+  const [payResultMethod, setPayResultMethod] = useState<PaymentMethod | null>(null);
+  const [selectedPayAppId, setSelectedPayAppId] = useState<number | undefined>(undefined);
+  const appQuery = usePaymentAppList({ page: 1, pageSize: 100, status: 'enabled' });
+  const appOptions = (appQuery.data?.list ?? []).map((app) => ({ value: app.id, label: app.name }));
+  const selectedAppId = selectedPayAppId ?? appOptions[0]?.value;
+  const selectedApp = (appQuery.data?.list ?? []).find((app) => app.id === selectedAppId) ?? appQuery.data?.list?.[0];
+  const allowedConfigIds = new Set([selectedApp?.wechatConfigId, selectedApp?.alipayConfigId, selectedApp?.unionpayConfigId].filter((value): value is number => value != null));
+  const payMethodOptions = PAY_METHOD_OPTIONS.filter((option) => {
+    const channel = PAYMENT_METHOD_CHANNEL[option.value as PaymentMethod];
+    const configId = channel === 'wechat' ? selectedApp?.wechatConfigId : channel === 'alipay' ? selectedApp?.alipayConfigId : selectedApp?.unionpayConfigId;
+    return configId != null && allowedConfigIds.has(configId);
+  });
 
   const listQuery = useBizPayDemoList({
     page,
@@ -149,14 +164,20 @@ export default function PayDemoPage() {
 
   const openPay = (record: BizPayDemo) => {
     setPayTarget(record);
-    setTimeout(() => payFormApi.current?.setValues({ payMethod: 'wechat_native' }), 0);
+    setSelectedPayAppId(appOptions[0]?.value);
+    setTimeout(() => payFormApi.current?.setValues({ applicationId: appOptions[0]?.value, payMethod: undefined }), 0);
   };
 
   const handlePay = async () => {
     if (!payTarget || !payFormApi.current) return;
     let values: Record<string, unknown>;
     try { values = await payFormApi.current.validate() as Record<string, unknown>; } catch { abortSubmit('validation'); }
-    const data = await payMutation.mutateAsync({ id: payTarget.id, payMethod: values.payMethod as PaymentMethod });
+    const data = await payMutation.mutateAsync({
+      id: payTarget.id,
+      applicationId: Number(values.applicationId),
+      payMethod: values.payMethod as PaymentMethod,
+    });
+    setPayResultMethod(values.payMethod as PaymentMethod);
     setPayTarget(null);
     setPayResult(data.payParams);
   };
@@ -172,7 +193,7 @@ export default function PayDemoPage() {
   };
 
   const columns: ColumnProps<BizPayDemo>[] = [
-    { title: '示例事项', dataIndex: 'subject', minWidth: 160 },
+    { title: '示例事项', dataIndex: 'subject', width: 220 },
     { title: '金额', dataIndex: 'amount', width: 120, align: 'right', render: (v: number) => yuan(v) },
     {
       title: '支付方式', dataIndex: 'payMethod', width: 130,
@@ -207,7 +228,7 @@ export default function PayDemoPage() {
           key: 'pay',
           label: '发起支付',
           type: 'primary',
-          hidden: record.status === 'paid' || record.status === 'closed',
+          hidden: record.status !== 'paying',
           onClick: () => openPay(record),
         },
         {
@@ -218,7 +239,7 @@ export default function PayDemoPage() {
           onClick: () => {
             Modal.confirm({
               title: '模拟支付成功？',
-              content: '触发后端履约（执行与真实支付成功相同的履约逻辑，演示用）',
+              content: '将向该支付单发送沙箱成功回调。',
               onOk: () => handleSimulate(record),
             });
           },
@@ -301,6 +322,7 @@ export default function PayDemoPage() {
         pagination={buildPagination(total)}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
+        scroll={{ x: 1230 }}
       />
 
       <Collapse style={{ marginTop: 16 }}>
@@ -337,22 +359,20 @@ export default function PayDemoPage() {
         closeOnEsc
         width={480}
       >
-        <Form getFormApi={(api) => { payFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ payMethod: 'wechat_native' }}>
-          <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={PAY_METHOD_OPTIONS} rules={[{ required: true, message: '请选择支付方式' }]} />
+        <Form getFormApi={(api) => { payFormApi.current = api; }} labelPosition="left" labelWidth={90} initValues={{ applicationId: appOptions[0]?.value, payMethod: 'wechat_native' }}>
+          <Form.Select field="applicationId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter loading={appQuery.isFetching} onChange={(value) => { setSelectedPayAppId(value as number); payFormApi.current?.setValue('payMethod', undefined); }} rules={[{ required: true, message: '请选择支付应用' }]} />
+          <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={payMethodOptions} rules={[{ required: true, message: '请选择当前应用支持的支付方式' }]} />
         </Form>
-        <Typography.Text type="tertiary" size="small">
-          将调用统一支付门面 createPayment 下单。未配置可用默认渠道时此处会失败，可改用列表中的「模拟支付成功」。
-        </Typography.Text>
       </AppModal>
 
-      <Modal title="支付下单结果" visible={!!payResult} onCancel={() => setPayResult(null)} footer={null} width={420} closeOnEsc>
+      <Modal title="支付下单结果" visible={!!payResult} onCancel={() => { setPayResult(null); setPayResultMethod(null); }} footer={null} width={420} closeOnEsc>
         {payResult && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ marginBottom: 8 }}>订单号：{payResult.orderNo}</div>
             {payResult.codeUrl && (
               <>
                 <QRCodeSVG value={payResult.codeUrl} size={200} style={{ margin: '12px auto', display: 'block' }} />
-                <Typography.Text type="tertiary">请使用微信扫码支付</Typography.Text>
+                <Typography.Text type="tertiary">{getPaymentQrInstruction(payResultMethod)}</Typography.Text>
               </>
             )}
             {payResult.payUrl && (

@@ -1,5 +1,6 @@
 import type { SQL } from 'drizzle-orm';
 import { eq, isNull } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
 import { config } from '../config';
 import type { JwtPayload } from '../middleware/auth';
 
@@ -17,6 +18,29 @@ export function getEffectiveTenantId(user: JwtPayload): number | null {
     return user.viewingTenantId;
   }
   return user.tenantId;
+}
+
+/**
+ * Return the concrete tenant scope for data operations.
+ * `undefined` is intentionally distinct from `null`: undefined means a
+ * platform super-admin has not selected a tenant and may read across tenants;
+ * null means the explicit tenant-less/global scope.
+ */
+export function getTenantScopeId(user: JwtPayload): number | null | undefined {
+  if (!config.multiTenantMode) return undefined;
+  if (isPlatformAdmin(user) && user.viewingTenantId === undefined) return undefined;
+  return user.viewingTenantId ?? user.tenantId ?? null;
+}
+
+/** Write operations must never silently choose the global scope for an
+ * unscoped platform administrator. The caller may pass an explicit override
+ * for scheduled jobs or other trusted system flows. */
+export function requireTenantScopeId(user: JwtPayload): number | null {
+  const scope = getTenantScopeId(user);
+  if (scope === undefined && config.multiTenantMode) {
+    throw new HTTPException(400, { message: '请先选择租户视角后再执行该资金操作' });
+  }
+  return scope ?? null;
 }
 
 /**

@@ -26,6 +26,7 @@ export interface OAuth2Client {
   previousSecretExpiresAt?: string | null;
   status: 'enabled' | 'disabled';
   ownerId?: number | null;
+  tenantId?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -210,7 +211,8 @@ export interface OpenSignatureResult {
 /** 应用级 Webhook 订阅 */
 export interface AppWebhookSubscription {
   id: number;
-  clientId: string;
+  clientId: string | null;
+  tenantId: number | null;
   name: string;
   url: string;
   signMode: 'hmacSha256' | 'none';
@@ -239,7 +241,8 @@ export interface AppWebhookSubscriptionCreated extends AppWebhookSubscription {
 export interface AppWebhookDelivery {
   id: number;
   subscriptionId: number;
-  clientId: string;
+  clientId: string | null;
+  tenantId: number | null;
   eventType: string;
   eventId: string;
   status: 'pending' | 'success' | 'failed' | 'retrying';

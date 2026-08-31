@@ -5,20 +5,21 @@
  * - rechargeWallet() 发起充值：调用支付中心 createPayment（bizType='member_recharge'）
  * - creditWalletOnRecharge() 由支付成功事件触发入账，按支付单号幂等
  */
-import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { memberWallets, memberWalletTransactions, paymentOrders } from '../../db/schema';
+import { memberWallets, memberWalletTransactions, members, paymentOrders } from '../../db/schema';
 import type { MemberWalletRow, MemberWalletTransactionRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { currentMemberId } from '../../lib/member-context';
+import { currentMemberId, currentMemberOrNull } from '../../lib/member-context';
+import { currentUserOrNull } from '../../lib/context';
+import { tenantCondition } from '../../lib/tenant';
 import { withOptimisticRetry, OptimisticLockError } from '../../lib/optimistic';
 import { pageOffset } from '../../lib/pagination';
 import { buildWhere } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { createPayment } from '../payment/payment.service';
-import { ensureMemberExists } from './member-auth.service';
 import { memberReferenceCondition } from './member-query-helpers';
 import type { WalletTxType } from '@zenith/shared/member';
 import type { PaymentCashierMethod } from '@zenith/shared/payment';
@@ -52,15 +53,44 @@ export function mapWalletTransaction(row: MemberWalletTransactionRow, memberName
   };
 }
 
+/** Admin wallet APIs must resolve the member through the active tenant scope.
+ * Member-facing calls run without an admin user and intentionally remain
+ * scoped by the member token instead. */
+function adminMemberScope(): SQL | undefined {
+  const user = currentUserOrNull();
+  return user ? tenantCondition(members, user) : undefined;
+}
+
+async function ensureWalletMember(memberId: number): Promise<void> {
+  const [member] = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.id, memberId), isNull(members.deletedAt), adminMemberScope()))
+    .limit(1);
+  if (!member) throw new HTTPException(404, { message: '会员不存在' });
+}
+
 // ─── 账户 ─────────────────────────────────────────────────────────────────────
 export async function ensureWallet(memberId: number): Promise<MemberWalletRow> {
-  const [w] = await db.select().from(memberWallets).where(eq(memberWallets.memberId, memberId)).limit(1);
-  if (w) return w;
+  await ensureWalletMember(memberId);
+  const [w] = await db
+    .select({ wallet: memberWallets })
+    .from(memberWallets)
+    .innerJoin(members, eq(members.id, memberWallets.memberId))
+    .where(and(eq(memberWallets.memberId, memberId), isNull(members.deletedAt), adminMemberScope()))
+    .limit(1);
+  if (w) return w.wallet;
   // 兜底按需创建；并发首建时 onConflictDoNothing 容忍撞唯一索引，回读胜者行
   const [created] = await db.insert(memberWallets).values({ memberId }).onConflictDoNothing().returning();
   if (created) return created;
-  const [existing] = await db.select().from(memberWallets).where(eq(memberWallets.memberId, memberId)).limit(1);
-  return existing;
+  const [existing] = await db
+    .select({ wallet: memberWallets })
+    .from(memberWallets)
+    .innerJoin(members, eq(members.id, memberWallets.memberId))
+    .where(and(eq(memberWallets.memberId, memberId), isNull(members.deletedAt), adminMemberScope()))
+    .limit(1);
+  if (!existing) throw new HTTPException(500, { message: '钱包创建后无法读取' });
+  return existing.wallet;
 }
 
 export async function getWallet(memberId: number) {
@@ -68,9 +98,15 @@ export async function getWallet(memberId: number) {
 }
 
 export async function getWalletBeforeAudit(memberId: number) {
-  const [wallet] = await db.select().from(memberWallets).where(eq(memberWallets.memberId, memberId)).limit(1);
+  await ensureWalletMember(memberId);
+  const [wallet] = await db
+    .select({ wallet: memberWallets })
+    .from(memberWallets)
+    .innerJoin(members, eq(members.id, memberWallets.memberId))
+    .where(and(eq(memberWallets.memberId, memberId), isNull(members.deletedAt), adminMemberScope()))
+    .limit(1);
   if (!wallet) throw new HTTPException(404, { message: '钱包不存在' });
-  return mapWallet(wallet);
+  return mapWallet(wallet.wallet);
 }
 
 export async function getMyWallet() {
@@ -85,7 +121,8 @@ export interface ChangeWalletInput {
   amount: number;
   bizType?: string;
   bizId?: string;
-  paymentOrderId?: number;
+  paymentIntentNo?: string;
+  paymentEventId?: string;
   remark?: string;
   operatorId?: number;
 }
@@ -141,7 +178,8 @@ async function applyWalletChange(tx: DbTransaction, input: ChangeWalletInput): P
     balanceAfter: newBalance,
     bizType: input.bizType ?? null,
     bizId: input.bizId ?? null,
-    paymentOrderId: input.paymentOrderId ?? null,
+    paymentIntentNo: input.paymentIntentNo ?? null,
+    paymentEventId: input.paymentEventId ?? null,
     remark: input.remark ?? null,
     operatorId: input.operatorId ?? null,
   });
@@ -161,7 +199,7 @@ export function consumeWallet(memberId: number, amount: number, opts?: { bizType
 
 /** 退款入账（amount 取正）；后台入口需保证会员存在且未删除 */
 export async function refundWallet(memberId: number, amount: number, opts?: { bizType?: string; bizId?: string; remark?: string; operatorId?: number }) {
-  await ensureMemberExists(memberId);
+  await ensureWalletMember(memberId);
   const w = await changeWallet({ memberId, type: 'refund', amount: Math.abs(amount), ...opts });
   const { createMemberNotification } = await import('./member-notifications.service');
   await createMemberNotification({
@@ -175,7 +213,7 @@ export async function refundWallet(memberId: number, amount: number, opts?: { bi
 
 /** 后台手动调整（delta 可正可负）；校验会员存在且未删除，并发站内通知 */
 export async function adjustWallet(memberId: number, delta: number, operatorId: number, remark?: string) {
-  await ensureMemberExists(memberId);
+  await ensureWalletMember(memberId);
   const w = await changeWallet({ memberId, type: 'adjust', amount: delta, bizType: 'admin_adjust', remark, operatorId });
   const { createMemberNotification } = await import('./member-notifications.service');
   await createMemberNotification({
@@ -188,7 +226,7 @@ export async function adjustWallet(memberId: number, delta: number, operatorId: 
 }
 
 // ─── 充值（接入支付中心）──────────────────────────────────────────────────────
-export async function rechargeWallet(memberId: number, amount: number, payMethod: PaymentCashierMethod, clientIp?: string, memberCouponId?: number) {
+export async function rechargeWallet(memberId: number, applicationId: number, amount: number, payMethod: PaymentCashierMethod, clientIp?: string, memberCouponId?: number) {
   if (amount <= 0) throw new HTTPException(400, { message: '充值金额必须大于 0' });
   await ensureWallet(memberId);
   const { payParams } = await createPayment({
@@ -196,7 +234,11 @@ export async function rechargeWallet(memberId: number, amount: number, payMethod
     bizId: String(memberId),
     subject: '会员钱包充值',
     amount,
+    currency: 'CNY',
+    applicationId,
+    userId: memberId,
     payMethod,
+    tenantId: currentMemberOrNull()?.tenantId ?? null,
     expireMinutes: 30,
     clientIp,
     // 充值满减：实付=充值额-立减，到账按原充值额（平台补贴），券由支付事件核销/释放
@@ -208,10 +250,41 @@ export async function rechargeWallet(memberId: number, amount: number, payMethod
 
 /** 支付成功事件触发钱包入账（按支付单号幂等，防重投重复入账）。
  * 事务级咨询锁串行化同一支付单的并发重投；幂等检查与入账同一事务提交，杜绝双入账。 */
-export async function creditWalletOnRecharge(event: { bizId: string; orderNo: string; amount: number }): Promise<void> {
+export async function creditWalletOnRecharge(event: { eventId: string; bizId: string; orderNo: string; amount: number; originalAmount?: number | null; appId?: number | null; tenantId?: number | null }): Promise<void> {
   const memberId = Number(event.bizId);
   if (!Number.isInteger(memberId) || memberId <= 0) {
     logger.warn('[MemberWallet] 充值入账 bizId 非法', { bizId: event.bizId });
+    return;
+  }
+  if (event.appId == null) {
+    logger.warn('[MemberWallet] 充值事件缺少支付应用', { orderNo: event.orderNo });
+    return;
+  }
+  const tenantScope = event.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, event.tenantId);
+  const [order] = await db
+    .select({ id: paymentOrders.id, amount: paymentOrders.amount, paidAmount: paymentOrders.paidAmount, userId: paymentOrders.userId })
+    .from(paymentOrders)
+    .where(and(
+      eq(paymentOrders.orderNo, event.orderNo),
+      eq(paymentOrders.bizType, WALLET_RECHARGE_BIZ_TYPE),
+      eq(paymentOrders.bizId, event.bizId),
+      eq(paymentOrders.appId, event.appId),
+      eq(paymentOrders.status, 'success'),
+      tenantScope,
+    ))
+    .limit(1);
+  if (!order || order.userId == null || (order.amount !== event.amount && order.paidAmount !== event.amount)) {
+    logger.warn('[MemberWallet] 充值事件与支付订单不匹配', { orderNo: event.orderNo, bizId: event.bizId });
+    return;
+  }
+  const memberTenantScope = event.tenantId == null ? isNull(members.tenantId) : eq(members.tenantId, event.tenantId);
+  const [member] = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.id, memberId), memberTenantScope))
+    .limit(1);
+  if (!member || member.id !== order.userId) {
+    logger.warn('[MemberWallet] 充值事件会员归属不匹配', { orderNo: event.orderNo, memberId });
     return;
   }
   await ensureWallet(memberId);
@@ -227,21 +300,17 @@ export async function creditWalletOnRecharge(event: { bizId: string; orderNo: st
         .limit(1);
       if (exist) return false;
 
-      const [order] = await tx
-        .select({ id: paymentOrders.id, originalAmount: paymentOrders.originalAmount })
-        .from(paymentOrders)
-        .where(eq(paymentOrders.orderNo, event.orderNo))
-        .limit(1);
       // 充值满减用券时实付为立减后金额，到账按优惠前原充值额（平台补贴优惠差额）
-      const creditAmount = order?.originalAmount ?? event.amount;
+      const creditAmount = event.originalAmount ?? event.amount;
       await applyWalletChange(tx, {
         memberId,
         type: 'recharge',
         amount: creditAmount,
         bizType: WALLET_RECHARGE_BIZ_TYPE,
         bizId: event.orderNo,
-        paymentOrderId: order?.id,
-        remark: order?.originalAmount != null ? '钱包充值到账（含充值满减补贴）' : '钱包充值到账',
+        paymentIntentNo: event.orderNo,
+        paymentEventId: event.eventId,
+        remark: event.originalAmount != null ? '钱包充值到账（含充值满减补贴）' : '钱包充值到账',
       });
       return true;
     }),
@@ -266,7 +335,13 @@ export function buildWalletTxWhere(q: { memberId?: number; memberKeyword?: strin
 }
 
 export async function listWalletTransactions(q: ListWalletTxQuery) {
-  const where = buildWalletTxWhere(q);
+  const scopedMemberIds = adminMemberScope()
+    ? inArray(
+      memberWalletTransactions.memberId,
+      db.select({ id: members.id }).from(members).where(and(isNull(members.deletedAt), adminMemberScope())),
+    )
+    : undefined;
+  const where = buildWhere(buildWalletTxWhere(q), scopedMemberIds);
 
   const [total, rows] = await Promise.all([
     db.$count(memberWalletTransactions, where),

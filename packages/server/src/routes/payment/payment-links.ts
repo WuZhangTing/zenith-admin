@@ -18,7 +18,7 @@ const listRoute = defineOpenAPIRoute({
     method: 'get', path: '/', tags: ['支付中心-支付链接'], summary: '支付链接列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:link:list' })] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.enum(['active', 'disabled']).optional() }) },
+    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), status: z.enum(['active', 'disabled', 'expired']).optional() }) },
     responses: { ...okPaginated(PaymentLinkDTO, '支付链接列表'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listLinks(c.req.valid('query'))), 200),

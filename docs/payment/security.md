@@ -16,8 +16,8 @@
 | 大额误退 | 退款审批阈值链路 |
 | 欺诈交易 | `payment_risk` 决策表 + 原生名单/限额规则双层裁决 |
 | 投诉处理不一致 | `dispute_triage` 分流建议、SLA 收紧、时间线留痕；资金动作仍需人工确认 |
-| 越权操作 | 20 个支付页面权限码、服务端 `guard()`、数据权限与租户隔离 |
-| 争议无凭据 | 回调日志、风控命中、规则执行记录、投诉时间线、Webhook 投递日志 |
+| 越权操作 | 19 个支付页面权限码、服务端 `guard()`、数据权限与租户隔离 |
+| 争议无凭据 | 回调日志、风控命中、规则执行记录、投诉时间线、Open Platform Webhook 投递日志 |
 
 ## 密钥与证书存储
 
@@ -59,16 +59,16 @@ POST /api/public/payment/notify/{channel}
 | 业务订单 | 同一 `bizType + bizId` 的 pending/paying 订单复用；`payment_orders_active_biz_uq` 兜底 |
 | 渠道单号 | `out_trade_no`、`out_refund_no`、`out_transfer_no`、确定性分账单号作为渠道侧幂等键 |
 | 事件 | `payment_events` at-least-once；订阅者用条件更新或业务唯一键幂等 |
-| 记账 | `payment_ledger_order_type_uq`、`payment_ledger_refund_type_uq` 兜底重复流水 |
+| 记账 | Journal 来源作用域唯一键、借贷平衡约束与 reservation 版本 CAS 兜底重复过账与并发超支 |
 
 ## 资金一致性
 
 - 金额全链路使用整数分。
 - 退款在事务内锁定订单并计算可退余额，审批中的退款不占用订单 `refunding` 状态。
-- 支付成功后内置订阅者写收款台账、计算手续费、回写 `feeAmount` / `netAmount`。
-- `refund.succeeded` 订阅者写退款支出台账，并按退款比例冲销手续费；全额退款末笔补差以消除舍入残差。
+- 支付成功后内置订阅者写收款双分录凭证、计算手续费、回写 `feeAmount` / `netAmount`。
+- `refund.succeeded` 订阅者写退款双分录凭证，并按退款比例冲销手续费；全额退款末笔补差以消除舍入残差。
 - 订单 `feeAmount` 保持下单/成功时手续费快照；资金事实以台账流水为准。
-- `payment_accounts` 随台账流水原子更新待结算/可用余额，冻结余额与预授权状态联动；「资金台账」页提供快照核对与重建。
+- Journal 是资金唯一事实来源；账户、凭证和 reservation 按应用/商户配置/币种隔离，所有资金流出通过版本化 reservation 防并发超支。
 - 结算确认写 `type=settlement` 台账，将待结算划转到可用余额。
 - 投诉退款复用统一退款链路与审批阈值，不由分流规则直接执行资金动作。
 
@@ -138,8 +138,8 @@ decide({ kind: 'table', key: 'dispute_triage' }, facts, { caller: 'payment.dispu
 | 退款记录 | `payment:refund:list / approve` |
 | 回调日志 | `payment:log:list` |
 | 对账中心 | `payment:recon:list / create / delete / handle` |
-| 资金台账 | `payment:ledger:list`、`payment:account:adjust` |
-| Webhook | `payment:webhook:list / create / update / delete` |
+| 资金凭证与预占 | `payment:ledger:list`、`payment:ledger:post`、`payment:ledger:reverse`、`payment:ledger:reserve` |
+| Open Platform Webhook | `open-platform:webhook:list / manage` |
 | 支付事件 | `payment:ops:manage` |
 | 费率管理 | `payment:fee:list / create / update / delete` |
 | 结算管理 | `payment:settlement:list / generate / settle` |

@@ -64,7 +64,8 @@ export const bizPayDemoHandlers = [
     const demo = mockBizPayDemos.find((d) => d.id === Number(params.id));
     if (!demo) return notFound('示例单不存在');
     if (demo.status === 'paid') return badRequest('该示例单已支付，无需重复发起');
-    const body = await request.json() as { payMethod: PaymentMethod };
+    const body = await request.json() as { applicationId: number; payMethod: PaymentMethod };
+    if (!body.applicationId) return badRequest('请选择支付应用');
     const payMethod = body.payMethod;
     const channel = channelOf(payMethod);
     const orderNo = `PAYDEMO${Date.now()}${demo.id}`;
@@ -87,11 +88,11 @@ export const bizPayDemoHandlers = [
   http.post('/api/biz/pay-demos/:id/simulate-paid', ({ params }) => {
     const demo = mockBizPayDemos.find((d) => d.id === Number(params.id));
     if (!demo) return notFound('示例单不存在');
+    if (!demo.paymentOrderNo) return badRequest('请先创建支付订单');
     if (demo.status !== 'paid') {
       const now = mockDateTime();
       demo.status = 'paid';
       demo.paidAt = now;
-      demo.paymentOrderNo = demo.paymentOrderNo ?? `PAYDEMO${Date.now()}${demo.id}`;
       demo.fulfillRemark = '支付成功，已自动发放示例权益（演示履约）';
       demo.updatedAt = now;
     }

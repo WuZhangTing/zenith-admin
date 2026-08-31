@@ -1,0 +1,894 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
+import type { SQL, SQLWrapper } from 'drizzle-orm';
+import { HTTPException } from 'hono/http-exception';
+import type {
+  CreatePaymentFundReservationInput,
+  CreatePaymentLedgerAccountInput,
+  PaymentActiveReservationAmount,
+  PaymentFundReservation,
+  PaymentFundReservationStatus,
+  PaymentJournal,
+  PaymentJournalLine,
+  PaymentLedgerAccount,
+  PaymentLedgerAccountCode,
+  PostPaymentJournalInput,
+  TransitionPaymentFundReservationInput,
+} from '@zenith/shared/payment';
+import { db } from '../../db';
+import {
+  paymentApps,
+  paymentChannelConfigs,
+  paymentFundReservations,
+  paymentJournalLines,
+  paymentJournals,
+  paymentLedgerAccounts,
+  type PaymentFundReservationRow,
+  type PaymentJournalRow,
+  type PaymentLedgerAccountRow,
+} from '../../db/schema';
+import type { DbExecutor } from '../../db/types';
+import { runAsUser } from '../../lib/audit-context';
+import { currentUser } from '../../lib/context';
+import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+
+export interface PaymentMoneyScope {
+  tenantId: number | null;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+}
+
+interface JournalActor {
+  tenantId: number | null;
+  operatorId: number | null;
+}
+
+const STANDARD_LEDGER_ACCOUNTS: Record<PaymentLedgerAccountCode, {
+  name: string;
+  normalBalance: 'debit' | 'credit';
+}> = {
+  provider_clearing: { name: '渠道清算', normalBalance: 'debit' },
+  merchant_pending: { name: '商户待结算', normalBalance: 'credit' },
+  merchant_available: { name: '商户可用', normalBalance: 'credit' },
+  merchant_frozen: { name: '商户冻结', normalBalance: 'credit' },
+  platform_fee: { name: '平台手续费', normalBalance: 'credit' },
+  refund_payable: { name: '退款应付', normalBalance: 'credit' },
+  sharing_payable: { name: '分账应付', normalBalance: 'credit' },
+  payout_payable: { name: '出款应付', normalBalance: 'credit' },
+  suspense: { name: '待查资金', normalBalance: 'credit' },
+};
+
+function exactTenantCondition(column: SQLWrapper, tenantId: number | null): SQL {
+  return tenantId == null ? sql`${column} is null` : sql`${column} = ${tenantId}`;
+}
+
+function mapLedgerAccount(row: PaymentLedgerAccountRow): PaymentLedgerAccount {
+  return {
+    id: row.id,
+    accountNo: row.accountNo,
+    name: row.name,
+    code: row.code,
+    normalBalance: row.normalBalance,
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
+    status: row.status,
+    createdAt: formatDateTime(row.createdAt),
+    updatedAt: formatDateTime(row.updatedAt),
+  };
+}
+
+function mapFundReservation(row: PaymentFundReservationRow): PaymentFundReservation {
+  return {
+    id: row.id,
+    reservationNo: row.reservationNo,
+    accountId: row.accountId,
+    sourceType: row.sourceType,
+    sourceId: row.sourceId,
+    amount: row.amount.toString(),
+    status: row.status,
+    version: row.version,
+    reason: row.reason ?? null,
+    finalizationReason: row.finalizationReason ?? null,
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
+    expiresAt: formatNullableDateTime(row.expiresAt),
+    finalizedAt: formatNullableDateTime(row.finalizedAt),
+    createdAt: formatDateTime(row.createdAt),
+    updatedAt: formatDateTime(row.updatedAt),
+  };
+}
+
+async function assertScopeOwnership(executor: DbExecutor, scope: PaymentMoneyScope): Promise<void> {
+  const tenantScopeForApp = scope.tenantId == null ? isNull(paymentApps.tenantId) : eq(paymentApps.tenantId, scope.tenantId);
+  const tenantScopeForConfig = scope.tenantId == null ? isNull(paymentChannelConfigs.tenantId) : eq(paymentChannelConfigs.tenantId, scope.tenantId);
+  const [app] = await executor
+    .select({
+      id: paymentApps.id,
+      wechatConfigId: paymentApps.wechatConfigId,
+      alipayConfigId: paymentApps.alipayConfigId,
+      unionpayConfigId: paymentApps.unionpayConfigId,
+    })
+    .from(paymentApps)
+    .where(and(eq(paymentApps.id, scope.appId), tenantScopeForApp))
+    .limit(1);
+  const [channelConfig] = await executor
+    .select({ id: paymentChannelConfigs.id, channel: paymentChannelConfigs.channel })
+    .from(paymentChannelConfigs)
+    .where(and(eq(paymentChannelConfigs.id, scope.channelConfigId), tenantScopeForConfig))
+    .limit(1);
+  if (!app) throw new HTTPException(400, { message: '账务作用域中的支付应用不存在或租户不一致' });
+  if (!channelConfig) throw new HTTPException(400, { message: '账务作用域中的商户配置不存在或租户不一致' });
+  const boundConfigId = channelConfig.channel === 'wechat'
+    ? app.wechatConfigId
+    : channelConfig.channel === 'alipay'
+      ? app.alipayConfigId
+      : app.unionpayConfigId;
+  if (boundConfigId !== channelConfig.id) {
+    throw new HTTPException(400, { message: '账务作用域中的商户配置未绑定到所选支付应用' });
+  }
+}
+
+function accountScopeMatches(account: PaymentLedgerAccountRow, scope: PaymentMoneyScope): boolean {
+  return (account.tenantId ?? null) === scope.tenantId
+    && account.appId === scope.appId
+    && account.channelConfigId === scope.channelConfigId
+    && account.currency === scope.currency;
+}
+
+export interface ListLedgerAccountsQuery {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  appId?: number;
+  channelConfigId?: number;
+  currency?: string;
+  status?: 'enabled' | 'disabled';
+}
+
+export async function listLedgerAccounts(q: ListLedgerAccountsQuery) {
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? 20;
+  const conditions = [keywordCondition(q.keyword, [paymentLedgerAccounts.accountNo, paymentLedgerAccounts.name])];
+  if (q.appId) conditions.push(eq(paymentLedgerAccounts.appId, q.appId));
+  if (q.channelConfigId) conditions.push(eq(paymentLedgerAccounts.channelConfigId, q.channelConfigId));
+  if (q.currency) conditions.push(eq(paymentLedgerAccounts.currency, q.currency));
+  if (q.status) conditions.push(eq(paymentLedgerAccounts.status, q.status));
+  const where = mergeWhere(and(...conditions), tenantCondition(paymentLedgerAccounts, currentUser()));
+  const [total, rows] = await Promise.all([
+    db.$count(paymentLedgerAccounts, where),
+    withPagination(db.select().from(paymentLedgerAccounts).where(where).orderBy(desc(paymentLedgerAccounts.id)).$dynamic(), page, pageSize),
+  ]);
+  return { list: rows.map(mapLedgerAccount), total, page, pageSize };
+}
+
+export async function createLedgerAccount(input: CreatePaymentLedgerAccountInput): Promise<PaymentLedgerAccount> {
+  const user = currentUser();
+  const scope: PaymentMoneyScope = {
+    tenantId: getCreateTenantId(user),
+    appId: input.appId,
+    channelConfigId: input.channelConfigId,
+    currency: input.currency,
+  };
+  await assertScopeOwnership(db, scope);
+  try {
+    const [row] = await db.insert(paymentLedgerAccounts).values({
+      accountNo: `PLA${randomUUID().replaceAll('-', '')}`,
+      name: input.name,
+      code: input.code,
+      normalBalance: STANDARD_LEDGER_ACCOUNTS[input.code].normalBalance,
+      appId: scope.appId,
+      channelConfigId: scope.channelConfigId,
+      currency: scope.currency,
+      status: 'enabled',
+      tenantId: scope.tenantId,
+    }).returning();
+    return mapLedgerAccount(row);
+  } catch (err) {
+    rethrowPgUniqueViolation(err, '同一账务作用域下该科目已存在');
+  }
+}
+
+interface JournalLineWithAccount {
+  journalId: number;
+  id: number;
+  lineNo: number;
+  accountId: number;
+  accountNo: string;
+  accountName: string;
+  debitAmount: bigint;
+  creditAmount: bigint;
+  memo: string | null;
+}
+
+async function loadJournalLines(journalIds: number[]): Promise<Map<number, PaymentJournalLine[]>> {
+  if (journalIds.length === 0) return new Map();
+  const rows: JournalLineWithAccount[] = await db
+    .select({
+      journalId: paymentJournalLines.journalId,
+      id: paymentJournalLines.id,
+      lineNo: paymentJournalLines.lineNo,
+      accountId: paymentJournalLines.accountId,
+      accountNo: paymentLedgerAccounts.accountNo,
+      accountName: paymentLedgerAccounts.name,
+      debitAmount: paymentJournalLines.debitAmount,
+      creditAmount: paymentJournalLines.creditAmount,
+      memo: paymentJournalLines.memo,
+    })
+    .from(paymentJournalLines)
+    .innerJoin(paymentLedgerAccounts, eq(paymentLedgerAccounts.id, paymentJournalLines.accountId))
+    .where(inArray(paymentJournalLines.journalId, journalIds))
+    .orderBy(paymentJournalLines.journalId, paymentJournalLines.lineNo);
+  const grouped = new Map<number, PaymentJournalLine[]>();
+  for (const row of rows) {
+    const lines = grouped.get(row.journalId) ?? [];
+    lines.push({
+      id: row.id,
+      lineNo: row.lineNo,
+      accountId: row.accountId,
+      accountNo: row.accountNo,
+      accountName: row.accountName,
+      debitAmount: row.debitAmount.toString(),
+      creditAmount: row.creditAmount.toString(),
+      memo: row.memo ?? null,
+    });
+    grouped.set(row.journalId, lines);
+  }
+  return grouped;
+}
+
+function mapJournal(row: PaymentJournalRow, lines: PaymentJournalLine[]): PaymentJournal {
+  return {
+    id: row.id,
+    journalNo: row.journalNo,
+    sourceType: row.sourceType,
+    sourceId: row.sourceId,
+    description: row.description,
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
+    reversalOfJournalId: row.reversalOfJournalId ?? null,
+    operatorId: row.operatorId ?? null,
+    postedAt: formatDateTime(row.postedAt),
+    createdAt: formatDateTime(row.createdAt),
+    lines,
+  };
+}
+
+async function getJournalRow(id: number): Promise<PaymentJournalRow> {
+  const [row] = await db
+    .select()
+    .from(paymentJournals)
+    .where(and(eq(paymentJournals.id, id), tenantCondition(paymentJournals, currentUser())))
+    .limit(1);
+  if (!row) throw new HTTPException(404, { message: '资金凭证不存在' });
+  return row;
+}
+
+export async function getJournal(id: number): Promise<PaymentJournal> {
+  const row = await getJournalRow(id);
+  const lines = await loadJournalLines([row.id]);
+  return mapJournal(row, lines.get(row.id) ?? []);
+}
+
+export interface ListJournalsQuery {
+  page?: number;
+  pageSize?: number;
+  sourceType?: string;
+  appId?: number;
+  channelConfigId?: number;
+  currency?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export async function listJournals(q: ListJournalsQuery) {
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? 20;
+  const conditions = [...dateRangeConditions(paymentJournals.postedAt, q.startTime, q.endTime)];
+  if (q.sourceType) conditions.push(eq(paymentJournals.sourceType, q.sourceType));
+  if (q.appId) conditions.push(eq(paymentJournals.appId, q.appId));
+  if (q.channelConfigId) conditions.push(eq(paymentJournals.channelConfigId, q.channelConfigId));
+  if (q.currency) conditions.push(eq(paymentJournals.currency, q.currency));
+  const where = mergeWhere(and(...conditions), tenantCondition(paymentJournals, currentUser()));
+  const [total, rows] = await Promise.all([
+    db.$count(paymentJournals, where),
+    withPagination(db.select().from(paymentJournals).where(where).orderBy(desc(paymentJournals.id)).$dynamic(), page, pageSize),
+  ]);
+  const lines = await loadJournalLines(rows.map((row) => row.id));
+  return { list: rows.map((row) => mapJournal(row, lines.get(row.id) ?? [])), total, page, pageSize };
+}
+
+function journalRequestHash(input: PostPaymentJournalInput, reversalOfJournalId: number | null): string {
+  return createHash('sha256').update(JSON.stringify({
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    description: input.description,
+    appId: input.appId,
+    channelConfigId: input.channelConfigId,
+    currency: input.currency,
+    reversalOfJournalId,
+    lines: input.lines.map((line) => ({
+      accountId: line.accountId,
+      debitAmount: line.debitAmount,
+      creditAmount: line.creditAmount,
+      memo: line.memo ?? null,
+    })),
+  })).digest('hex');
+}
+
+function journalSourceWhere(scope: PaymentMoneyScope, sourceType: string, sourceId: string) {
+  return and(
+    exactTenantCondition(paymentJournals.tenantId, scope.tenantId),
+    eq(paymentJournals.appId, scope.appId),
+    eq(paymentJournals.channelConfigId, scope.channelConfigId),
+    eq(paymentJournals.currency, scope.currency),
+    eq(paymentJournals.sourceType, sourceType),
+    eq(paymentJournals.sourceId, sourceId),
+  );
+}
+
+async function getJournalForTenant(id: number, tenantId: number | null): Promise<PaymentJournal> {
+  const [row] = await db
+    .select()
+    .from(paymentJournals)
+    .where(and(eq(paymentJournals.id, id), exactTenantCondition(paymentJournals.tenantId, tenantId)))
+    .limit(1);
+  if (!row) throw new HTTPException(404, { message: '资金凭证不存在' });
+  const lines = await loadJournalLines([row.id]);
+  return mapJournal(row, lines.get(row.id) ?? []);
+}
+
+async function postJournalInternal(
+  input: PostPaymentJournalInput,
+  reversalOfJournalId: number | null,
+  actor: JournalActor,
+): Promise<PaymentJournal> {
+  const scope: PaymentMoneyScope = {
+    tenantId: actor.tenantId,
+    appId: input.appId,
+    channelConfigId: input.channelConfigId,
+    currency: input.currency,
+  };
+  const normalized = input.lines.map((line, index) => ({
+    lineNo: index + 1,
+    accountId: line.accountId,
+    debitAmount: BigInt(line.debitAmount),
+    creditAmount: BigInt(line.creditAmount),
+    memo: line.memo ?? null,
+  }));
+  const debitTotal = normalized.reduce((total, line) => total + line.debitAmount, 0n);
+  const creditTotal = normalized.reduce((total, line) => total + line.creditAmount, 0n);
+  if (debitTotal <= 0n || debitTotal !== creditTotal) {
+    throw new HTTPException(400, { message: '资金凭证借贷金额必须相等且大于 0' });
+  }
+  const requestHash = journalRequestHash(input, reversalOfJournalId);
+
+  let journalId: number;
+  try {
+    journalId = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select({ id: paymentJournals.id, requestHash: paymentJournals.requestHash })
+        .from(paymentJournals)
+        .where(journalSourceWhere(scope, input.sourceType, input.sourceId))
+        .limit(1);
+      if (existing) {
+        if (existing.requestHash !== requestHash) throw new HTTPException(409, { message: '同一凭证来源对应的内容不一致' });
+        return existing.id;
+      }
+
+      await assertScopeOwnership(tx, scope);
+      const accountIds = [...new Set(normalized.map((line) => line.accountId))];
+      const accounts = await tx.select().from(paymentLedgerAccounts).where(inArray(paymentLedgerAccounts.id, accountIds));
+      if (accounts.length !== accountIds.length) throw new HTTPException(400, { message: '资金凭证包含不存在的账本账户' });
+      for (const account of accounts) {
+        if (account.status !== 'enabled') throw new HTTPException(400, { message: `账本账户 ${account.accountNo} 已停用` });
+        if (!accountScopeMatches(account, scope)) throw new HTTPException(400, { message: `账本账户 ${account.accountNo} 与凭证作用域不一致` });
+      }
+
+      const [journal] = await tx.insert(paymentJournals).values({
+        journalNo: `JRN${randomUUID().replaceAll('-', '')}`,
+        sourceType: input.sourceType,
+        sourceId: input.sourceId,
+        requestHash,
+        description: input.description,
+        appId: scope.appId,
+        channelConfigId: scope.channelConfigId,
+        currency: scope.currency,
+        reversalOfJournalId,
+        operatorId: actor.operatorId,
+        tenantId: scope.tenantId,
+      }).returning({ id: paymentJournals.id });
+      await tx.insert(paymentJournalLines).values(normalized.map((line) => ({ ...line, journalId: journal.id })));
+      return journal.id;
+    });
+  } catch (err) {
+    if (!isPgUniqueViolation(err)) throw err;
+    const [existing] = await db
+      .select({ id: paymentJournals.id, requestHash: paymentJournals.requestHash })
+      .from(paymentJournals)
+      .where(journalSourceWhere(scope, input.sourceType, input.sourceId))
+      .limit(1);
+    if (!existing || existing.requestHash !== requestHash) {
+      throw new HTTPException(409, { message: '资金凭证幂等冲突' });
+    }
+    journalId = existing.id;
+  }
+  return getJournalForTenant(journalId, scope.tenantId);
+}
+
+export function postJournal(input: PostPaymentJournalInput): Promise<PaymentJournal> {
+  if (!input.sourceType.startsWith('manual.')) {
+    throw new HTTPException(400, { message: '人工凭证来源类型必须以 manual. 开头' });
+  }
+  const user = currentUser();
+  return postJournalInternal(input, null, {
+    tenantId: getCreateTenantId(user),
+    operatorId: user.userId,
+  });
+}
+
+function standardAccountNo(scope: PaymentMoneyScope, code: PaymentLedgerAccountCode): string {
+  const digest = createHash('sha256')
+    .update(`${scope.tenantId ?? 0}:${scope.appId}:${scope.channelConfigId}:${scope.currency}:${code}`)
+    .digest('hex')
+    .slice(0, 32)
+    .toUpperCase();
+  return `PLA${digest}`;
+}
+
+async function ensureStandardLedgerAccountsInternal(
+  executor: DbExecutor,
+  scope: PaymentMoneyScope,
+  codes: readonly PaymentLedgerAccountCode[],
+): Promise<Map<PaymentLedgerAccountCode, PaymentLedgerAccountRow>> {
+  const uniqueCodes = [...new Set(codes)];
+  if (uniqueCodes.length === 0) return new Map();
+  await assertScopeOwnership(executor, scope);
+  await executor
+    .insert(paymentLedgerAccounts)
+    .values(uniqueCodes.map((code) => ({
+      accountNo: standardAccountNo(scope, code),
+      name: STANDARD_LEDGER_ACCOUNTS[code].name,
+      code,
+      normalBalance: STANDARD_LEDGER_ACCOUNTS[code].normalBalance,
+      appId: scope.appId,
+      channelConfigId: scope.channelConfigId,
+      currency: scope.currency,
+      status: 'enabled' as const,
+      tenantId: scope.tenantId,
+    })))
+    .onConflictDoNothing();
+  const rows = await executor
+    .select()
+    .from(paymentLedgerAccounts)
+    .where(and(
+      exactTenantCondition(paymentLedgerAccounts.tenantId, scope.tenantId),
+      eq(paymentLedgerAccounts.appId, scope.appId),
+      eq(paymentLedgerAccounts.channelConfigId, scope.channelConfigId),
+      eq(paymentLedgerAccounts.currency, scope.currency),
+      inArray(paymentLedgerAccounts.code, uniqueCodes),
+    ));
+  const accountByCode = new Map(rows.map((row) => [row.code, row]));
+  for (const code of uniqueCodes) {
+    const account = accountByCode.get(code);
+    if (!account) throw new HTTPException(409, { message: `标准账本账户 ${code} 创建失败` });
+    if (account.status !== 'enabled') throw new HTTPException(409, { message: `标准账本账户 ${code} 已停用` });
+  }
+  return accountByCode;
+}
+
+/** 为资金业务显式作用域取得标准账户；不依赖 HTTP/currentUser 上下文。 */
+export async function ensureSystemLedgerAccount(
+  scope: PaymentMoneyScope,
+  code: PaymentLedgerAccountCode,
+): Promise<PaymentLedgerAccountRow> {
+  return db.transaction(async (tx) => {
+    const accounts = await ensureStandardLedgerAccountsInternal(tx, scope, [code]);
+    return accounts.get(code)!;
+  });
+}
+
+export interface PostSystemPaymentJournalInput {
+  tenantId: number | null;
+  operatorId: number | null;
+  sourceType: string;
+  sourceId: string;
+  description: string;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+  lines: Array<{
+    accountCode: PaymentLedgerAccountCode;
+    debitAmount?: string;
+    creditAmount?: string;
+    memo?: string;
+  }>;
+}
+
+async function postSystemJournalWithExecutor(
+  executor: DbExecutor,
+  input: PostSystemPaymentJournalInput,
+): Promise<number> {
+  const scope: PaymentMoneyScope = {
+    tenantId: input.tenantId,
+    appId: input.appId,
+    channelConfigId: input.channelConfigId,
+    currency: input.currency,
+  };
+  const accounts = await ensureStandardLedgerAccountsInternal(
+    executor,
+    scope,
+    input.lines.map((line) => line.accountCode),
+  );
+  const journalInput: PostPaymentJournalInput = {
+    sourceType: input.sourceType,
+    sourceId: input.sourceId,
+    description: input.description,
+    appId: input.appId,
+    channelConfigId: input.channelConfigId,
+    currency: input.currency,
+    lines: input.lines.map((line) => ({
+      accountId: accounts.get(line.accountCode)!.id,
+      debitAmount: line.debitAmount ?? '0',
+      creditAmount: line.creditAmount ?? '0',
+      memo: line.memo,
+    })),
+  };
+  const normalized = journalInput.lines.map((line, index) => ({
+    lineNo: index + 1,
+    accountId: line.accountId,
+    debitAmount: BigInt(line.debitAmount),
+    creditAmount: BigInt(line.creditAmount),
+    memo: line.memo ?? null,
+  }));
+  const debitTotal = normalized.reduce((total, line) => total + line.debitAmount, 0n);
+  const creditTotal = normalized.reduce((total, line) => total + line.creditAmount, 0n);
+  if (debitTotal <= 0n || debitTotal !== creditTotal) {
+    throw new HTTPException(400, { message: '资金凭证借贷金额必须相等且大于 0' });
+  }
+  const requestHash = journalRequestHash(journalInput, null);
+  const [existing] = await executor
+    .select({ id: paymentJournals.id, requestHash: paymentJournals.requestHash })
+    .from(paymentJournals)
+    .where(journalSourceWhere(scope, input.sourceType, input.sourceId))
+    .limit(1);
+  if (existing) {
+    if (existing.requestHash !== requestHash) throw new HTTPException(409, { message: '同一凭证来源对应的内容不一致' });
+    return existing.id;
+  }
+  // Idempotency must win before any balance check. A retry after a crash may
+  // legitimately see the already-posted journal while the current balance has
+  // since changed; re-running the debit guard would incorrectly reject it.
+  const availableAccount = accounts.get('merchant_available');
+  const availableDebit = availableAccount
+    ? normalized
+      .filter((line) => line.accountId === availableAccount.id)
+      .reduce((total, line) => total + line.debitAmount, 0n)
+    : 0n;
+  if (availableAccount && availableDebit > 0n) {
+    await assertMerchantAvailableDebit(executor, scope, availableAccount.id, availableDebit, input.sourceType, input.sourceId);
+  }
+  const [journal] = await executor
+    .insert(paymentJournals)
+    .values({
+      journalNo: `JRN${randomUUID().replaceAll('-', '')}`,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      requestHash,
+      description: input.description,
+      appId: input.appId,
+      channelConfigId: input.channelConfigId,
+      currency: input.currency,
+      reversalOfJournalId: null,
+      operatorId: input.operatorId,
+      tenantId: input.tenantId,
+    })
+    .onConflictDoNothing()
+    .returning({ id: paymentJournals.id });
+  if (!journal) {
+    const [raced] = await executor
+      .select({ id: paymentJournals.id, requestHash: paymentJournals.requestHash })
+      .from(paymentJournals)
+      .where(journalSourceWhere(scope, input.sourceType, input.sourceId))
+      .limit(1);
+    if (!raced || raced.requestHash !== requestHash) throw new HTTPException(409, { message: '资金凭证幂等冲突' });
+    return raced.id;
+  }
+  await executor.insert(paymentJournalLines).values(normalized.map((line) => ({ ...line, journalId: journal.id })));
+  return journal.id;
+}
+
+/**
+ * 在同一事务内锁定可用账户并校验余额。转账有自己的 active reservation，
+ * 该 reservation 会从普通可用余额中扣除，但允许由同一 transfer source 消费。
+ */
+async function assertMerchantAvailableDebit(
+  executor: DbExecutor,
+  scope: PaymentMoneyScope,
+  accountId: number,
+  debitAmount: bigint,
+  sourceType: string,
+  sourceId: string,
+): Promise<void> {
+  await executor.execute(sql`SELECT id FROM payment_ledger_accounts WHERE id = ${accountId} FOR UPDATE`);
+  const [balance] = await executor
+    .select({ amount: sql<string>`coalesce(sum(${paymentJournalLines.creditAmount} - ${paymentJournalLines.debitAmount}), 0)::text` })
+    .from(paymentJournalLines)
+    .where(eq(paymentJournalLines.accountId, accountId));
+  const reservationConditions = [
+    eq(paymentFundReservations.accountId, accountId),
+    eq(paymentFundReservations.status, 'active'),
+    or(isNull(paymentFundReservations.expiresAt), gt(paymentFundReservations.expiresAt, new Date())),
+    exactTenantCondition(paymentFundReservations.tenantId, scope.tenantId),
+  ];
+  if (sourceType === 'payment.transfer') {
+    reservationConditions.push(sql`not (${paymentFundReservations.sourceType} = 'payment.transfer' and ${paymentFundReservations.sourceId} = ${sourceId})`);
+    const [own] = await executor
+      .select({ amount: paymentFundReservations.amount })
+      .from(paymentFundReservations)
+      .where(and(
+        eq(paymentFundReservations.accountId, accountId),
+        eq(paymentFundReservations.sourceType, 'payment.transfer'),
+        eq(paymentFundReservations.sourceId, sourceId),
+        eq(paymentFundReservations.status, 'active'),
+        exactTenantCondition(paymentFundReservations.tenantId, scope.tenantId),
+      ))
+      .limit(1);
+    const ownTransferReservation = own?.amount ?? 0n;
+    if (ownTransferReservation < debitAmount) {
+      throw new HTTPException(409, { message: '转账资金预占不足，拒绝过账' });
+    }
+  }
+  const [reserved] = await executor
+    .select({ amount: sql<string>`coalesce(sum(${paymentFundReservations.amount}), 0)::text` })
+    .from(paymentFundReservations)
+    .where(and(...reservationConditions));
+  const available = BigInt(balance?.amount ?? '0') - BigInt(reserved?.amount ?? '0');
+  if (available < debitAmount) {
+    throw new HTTPException(409, { message: `商户可用余额不足，拒绝过账（可用 ${available.toString()} 分）` });
+  }
+}
+
+/** 在调用方事务内过账，供“业务终态 + Journal”原子提交。 */
+export function postSystemJournalWithin(
+  executor: DbExecutor,
+  input: PostSystemPaymentJournalInput,
+): Promise<number> {
+  const work = () => postSystemJournalWithExecutor(executor, input);
+  return input.operatorId == null ? work() : runAsUser(input.operatorId, work);
+}
+
+/**
+ * 供回调、Outbox 与定时查单使用的显式作用域记账入口。
+ * 不读取 HTTP 上下文，标准科目与 Journal 在同一事务中幂等创建。
+ */
+export async function postSystemJournal(input: PostSystemPaymentJournalInput): Promise<PaymentJournal> {
+  const journalId = await db.transaction((tx) => postSystemJournalWithin(tx, input));
+  return getJournalForTenant(journalId, input.tenantId);
+}
+
+export async function reverseJournal(id: number, reason: string): Promise<PaymentJournal> {
+  const user = currentUser();
+  const original = await getJournalRow(id);
+  if (original.reversalOfJournalId != null) throw new HTTPException(400, { message: '冲正凭证不能再次冲正' });
+  if (!original.sourceType.startsWith('manual.')) {
+    throw new HTTPException(400, { message: '系统业务凭证必须通过对应业务流程冲回，不能在总账中直接冲正' });
+  }
+  const [existingReversal] = await db
+    .select({ id: paymentJournals.id })
+    .from(paymentJournals)
+    .where(and(eq(paymentJournals.reversalOfJournalId, original.id), tenantCondition(paymentJournals, currentUser())))
+    .limit(1);
+  if (existingReversal) return getJournal(existingReversal.id);
+  const lineMap = await loadJournalLines([original.id]);
+  const lines = lineMap.get(original.id) ?? [];
+  if (lines.length === 0) throw new HTTPException(409, { message: '原凭证没有可冲正的分录行' });
+  return postJournalInternal({
+    sourceType: 'journal.reversal',
+    sourceId: original.journalNo,
+    description: `冲正 ${original.journalNo}：${reason}`,
+    appId: original.appId,
+    channelConfigId: original.channelConfigId,
+    currency: original.currency,
+    lines: lines.map((line) => ({
+      accountId: line.accountId,
+      debitAmount: line.creditAmount,
+      creditAmount: line.debitAmount,
+      memo: `冲正：${line.memo ?? original.description}`,
+    })),
+  }, original.id, {
+    tenantId: getCreateTenantId(user),
+    operatorId: user.userId,
+  });
+}
+
+async function getReservationRow(id: number): Promise<PaymentFundReservationRow> {
+  const [row] = await db
+    .select()
+    .from(paymentFundReservations)
+    .where(and(eq(paymentFundReservations.id, id), tenantCondition(paymentFundReservations, currentUser())))
+    .limit(1);
+  if (!row) throw new HTTPException(404, { message: '资金预占不存在' });
+  return row;
+}
+
+export interface ListFundReservationsQuery {
+  page?: number;
+  pageSize?: number;
+  accountId?: number;
+  status?: PaymentFundReservationStatus;
+  sourceType?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export async function listFundReservations(q: ListFundReservationsQuery) {
+  const page = q.page ?? 1;
+  const pageSize = q.pageSize ?? 20;
+  const conditions = [...dateRangeConditions(paymentFundReservations.createdAt, q.startTime, q.endTime)];
+  if (q.accountId) conditions.push(eq(paymentFundReservations.accountId, q.accountId));
+  if (q.status) conditions.push(eq(paymentFundReservations.status, q.status));
+  if (q.sourceType) conditions.push(eq(paymentFundReservations.sourceType, q.sourceType));
+  const where = mergeWhere(and(...conditions), tenantCondition(paymentFundReservations, currentUser()));
+  const [total, rows] = await Promise.all([
+    db.$count(paymentFundReservations, where),
+    withPagination(db.select().from(paymentFundReservations).where(where).orderBy(desc(paymentFundReservations.id)).$dynamic(), page, pageSize),
+  ]);
+  return { list: rows.map(mapFundReservation), total, page, pageSize };
+}
+
+export async function createFundReservation(input: CreatePaymentFundReservationInput): Promise<PaymentFundReservation> {
+  if (!input.sourceType.startsWith('manual.')) {
+    throw new HTTPException(400, { message: '人工预占来源类型必须以 manual. 开头' });
+  }
+  const user = currentUser();
+  const tenantId = getCreateTenantId(user);
+  const expiresAt = input.expiresAt ? parseDateTimeInput(input.expiresAt) : null;
+  if (input.expiresAt && !expiresAt) throw new HTTPException(400, { message: '预占到期时间格式不正确' });
+  if (expiresAt && expiresAt <= new Date()) throw new HTTPException(400, { message: '预占到期时间必须晚于当前时间' });
+  const amount = BigInt(input.amount);
+  return db.transaction(async (tx) => {
+    const [account] = await tx
+      .select()
+      .from(paymentLedgerAccounts)
+      .where(and(eq(paymentLedgerAccounts.id, input.accountId), exactTenantCondition(paymentLedgerAccounts.tenantId, tenantId)))
+      .for('update')
+      .limit(1);
+    if (!account) throw new HTTPException(404, { message: '账本账户不存在' });
+    if (account.status !== 'enabled') throw new HTTPException(400, { message: '账本账户已停用' });
+    if (account.code !== 'merchant_available' || account.normalBalance !== 'credit') {
+      throw new HTTPException(400, { message: '资金预占只能作用于商户可用账户' });
+    }
+    const scope: PaymentMoneyScope = {
+      tenantId,
+      appId: account.appId,
+      channelConfigId: account.channelConfigId,
+      currency: account.currency,
+    };
+    await assertScopeOwnership(tx, scope);
+    const sourceWhere = and(
+      exactTenantCondition(paymentFundReservations.tenantId, scope.tenantId),
+      eq(paymentFundReservations.appId, scope.appId),
+      eq(paymentFundReservations.channelConfigId, scope.channelConfigId),
+      eq(paymentFundReservations.currency, scope.currency),
+      eq(paymentFundReservations.sourceType, input.sourceType),
+      eq(paymentFundReservations.sourceId, input.sourceId),
+    );
+    const [prior] = await tx.select().from(paymentFundReservations).where(sourceWhere).limit(1);
+    if (prior) {
+      if (
+        prior.accountId !== account.id
+        || prior.amount !== amount
+        || prior.reason !== input.reason
+        || prior.expiresAt?.getTime() !== expiresAt?.getTime()
+      ) {
+        throw new HTTPException(409, { message: '同一预占来源对应的参数不一致' });
+      }
+      return mapFundReservation(prior);
+    }
+
+    const now = new Date();
+    const [balance] = await tx
+      .select({ amount: sql<string>`coalesce(sum(${paymentJournalLines.creditAmount} - ${paymentJournalLines.debitAmount}), 0)::text` })
+      .from(paymentJournalLines)
+      .where(eq(paymentJournalLines.accountId, account.id));
+    const [reserved] = await tx
+      .select({ amount: sql<string>`coalesce(sum(${paymentFundReservations.amount}), 0)::text` })
+      .from(paymentFundReservations)
+      .where(and(
+        eq(paymentFundReservations.accountId, account.id),
+        eq(paymentFundReservations.status, 'active'),
+        or(isNull(paymentFundReservations.expiresAt), gt(paymentFundReservations.expiresAt, now)),
+      ));
+    const available = BigInt(balance?.amount ?? '0') - BigInt(reserved?.amount ?? '0');
+    if (available < amount) {
+      throw new HTTPException(400, { message: `商户可用余额不足（可预占 ${available.toString()}）` });
+    }
+
+    const [row] = await tx.insert(paymentFundReservations).values({
+      reservationNo: `RSV${randomUUID().replaceAll('-', '')}`,
+      accountId: account.id,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      amount,
+      reason: input.reason ?? null,
+      appId: scope.appId,
+      channelConfigId: scope.channelConfigId,
+      currency: scope.currency,
+      tenantId: scope.tenantId,
+      expiresAt,
+    }).onConflictDoNothing().returning();
+    if (row) return mapFundReservation(row);
+    const [raced] = await tx.select().from(paymentFundReservations).where(sourceWhere).limit(1);
+    if (!raced || raced.accountId !== account.id || raced.amount !== amount || raced.reason !== input.reason) {
+      throw new HTTPException(409, { message: '资金预占幂等冲突' });
+    }
+    return mapFundReservation(raced);
+  });
+}
+
+async function finalizeFundReservation(
+  id: number,
+  target: 'captured' | 'released',
+  input: TransitionPaymentFundReservationInput,
+): Promise<PaymentFundReservation> {
+  const row = await getReservationRow(id);
+  if (row.status === target) return mapFundReservation(row);
+  if (row.status !== 'active') throw new HTTPException(409, { message: `资金预占已处于 ${row.status} 状态` });
+  if (row.expiresAt && row.expiresAt <= new Date()) {
+    await db
+      .update(paymentFundReservations)
+      .set({ status: 'expired', finalizedAt: new Date(), finalizationReason: '预占已到期', version: sql`${paymentFundReservations.version} + 1` })
+      .where(and(eq(paymentFundReservations.id, row.id), eq(paymentFundReservations.version, input.version), eq(paymentFundReservations.status, 'active')));
+    throw new HTTPException(409, { message: '资金预占已过期' });
+  }
+  const [updated] = await db
+    .update(paymentFundReservations)
+    .set({
+      status: target,
+      finalizedAt: new Date(),
+      finalizationReason: input.reason ?? null,
+      version: sql`${paymentFundReservations.version} + 1`,
+    })
+    .where(and(
+      eq(paymentFundReservations.id, row.id),
+      eq(paymentFundReservations.version, input.version),
+      eq(paymentFundReservations.status, 'active'),
+    ))
+    .returning();
+  if (!updated) throw new HTTPException(409, { message: '资金预占版本已变化，请刷新后重试' });
+  return mapFundReservation(updated);
+}
+
+export function captureFundReservation(id: number, input: TransitionPaymentFundReservationInput) {
+  return finalizeFundReservation(id, 'captured', input);
+}
+
+export function releaseFundReservation(id: number, input: TransitionPaymentFundReservationInput) {
+  return finalizeFundReservation(id, 'released', input);
+}
+
+export async function getActiveReservationAmount(accountId: number): Promise<PaymentActiveReservationAmount> {
+  const account = await db
+    .select({ id: paymentLedgerAccounts.id })
+    .from(paymentLedgerAccounts)
+    .where(and(eq(paymentLedgerAccounts.id, accountId), tenantCondition(paymentLedgerAccounts, currentUser())))
+    .limit(1);
+  if (!account[0]) throw new HTTPException(404, { message: '账本账户不存在' });
+  const [row] = await db
+    .select({ amount: sql<string>`coalesce(sum(${paymentFundReservations.amount}), 0)::text` })
+    .from(paymentFundReservations)
+    .where(and(
+      eq(paymentFundReservations.accountId, accountId),
+      eq(paymentFundReservations.status, 'active'),
+      or(isNull(paymentFundReservations.expiresAt), gt(paymentFundReservations.expiresAt, new Date())),
+      tenantCondition(paymentFundReservations, currentUser()),
+    ));
+  return { accountId, amount: row?.amount ?? '0' };
+}

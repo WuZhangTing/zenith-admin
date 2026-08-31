@@ -121,6 +121,7 @@ import { frontendErrorsHandlers } from './frontend-errors';
 import { sessionReplaysHandlers } from './session-replays';
 import { paymentHandlers } from './payment';
 import { paymentExtHandlers } from './payment-ext';
+import { paymentJournalHandlers } from './payment-journals';
 import { paymentBExtHandlers } from './payment-bext';
 import { paymentContractHandlers } from './payment-contracts';
 import { paymentDisputeHandlers } from './payment-disputes';
@@ -248,6 +249,7 @@ export const handlers = [
   ...sessionReplaysHandlers,
   ...paymentHandlers,
   ...paymentExtHandlers,
+  ...paymentJournalHandlers,
   ...paymentBExtHandlers,
   ...paymentContractHandlers,
   ...paymentDisputeHandlers,

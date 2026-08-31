@@ -65,14 +65,13 @@ const approveRoute = defineOpenAPIRoute({
     method: 'post', path: '/reviews/{id}/approve', tags: ['支付中心-风控'], summary: '审核放行（挂起订单可继续支付）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:risk:review', audit: { description: '风控审核放行', module: '支付中心' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(handlePaymentRiskReviewSchema), required: false } },
+    request: { params: IdParam, body: { content: jsonContent(handlePaymentRiskReviewSchema), required: true } },
     responses: { ...ok(PaymentRiskReviewDTO, '已放行'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await reviewBefore(id));
-    const body = (c.req.valid('json') ?? {}) as { remark?: string };
-    return c.json(okBody(await approveRiskReview(id, body.remark), '已放行'), 200);
+    return c.json(okBody(await approveRiskReview(id, c.req.valid('json').remark), '已放行'), 200);
   },
 });
 
@@ -81,14 +80,13 @@ const rejectRoute = defineOpenAPIRoute({
     method: 'post', path: '/reviews/{id}/reject', tags: ['支付中心-风控'], summary: '审核拒绝（关闭挂起订单）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:risk:review', audit: { description: '风控审核拒绝', module: '支付中心' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(handlePaymentRiskReviewSchema), required: false } },
+    request: { params: IdParam, body: { content: jsonContent(handlePaymentRiskReviewSchema), required: true } },
     responses: { ...ok(PaymentRiskReviewDTO, '已拒绝'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await reviewBefore(id));
-    const body = (c.req.valid('json') ?? {}) as { remark?: string };
-    return c.json(okBody(await rejectRiskReview(id, body.remark), '已拒绝'), 200);
+    return c.json(okBody(await rejectRiskReview(id, c.req.valid('json').remark), '已拒绝'), 200);
   },
 });
 

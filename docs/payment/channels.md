@@ -84,11 +84,11 @@ export interface PaymentChannelAdapter {
 
 统一下单通过 `resolveChannelConfig` 解析配置：
 
-1. `appKey`：按 `payment_apps` 绑定的渠道配置路由；
+1. OAuth2 client：按 `payment_apps` 绑定的渠道配置路由；
 2. `channelConfigId`：显式指定渠道配置；
 3. 默认配置：该渠道 `isDefault=true` 且 `status=enabled` 的配置。
 
-同时传入 `appKey` 与 `channelConfigId` 时，`appKey` 路由优先。渠道回调由 `handleNotify` 遍历该渠道所有启用配置逐个验签，任一配置通过即处理。
+应用路由由服务端从已认证的 OAuth2 client 推导，调用方不能覆盖租户或商户配置。渠道回调由 `handleNotify` 遍历该渠道所有启用配置逐个验签，任一配置通过即处理。
 
 ## 公开回调地址
 

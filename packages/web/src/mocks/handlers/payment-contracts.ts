@@ -19,6 +19,12 @@ function planOf(contract: PaymentContract): PaymentDeductPlan | undefined {
   return mockDeductPlans.find((p) => p.id === contract.planId);
 }
 
+function contractScope(applicationId: number, payMethod: PaymentDeductMethod) {
+  if ((applicationId === 1 || applicationId === 2) && payMethod === 'wechat_papay') return { appId: applicationId, channelConfigId: 1 };
+  if (applicationId === 3 && payMethod === 'alipay_cycle') return { appId: applicationId, channelConfigId: 2 };
+  return null;
+}
+
 /** 模拟执行一期扣款（沙箱永远成功）：推进排期 + 追加会员续费记录 */
 function simulateDeduct(contract: PaymentContract): { orderNo: string; deductStatus: 'success' } {
   const plan = planOf(contract);
@@ -28,6 +34,7 @@ function simulateDeduct(contract: PaymentContract): { orderNo: string; deductSta
   contract.lastDeductAt = now;
   contract.failCount = 0;
   contract.totalDeductCount += 1;
+  contract.version += 1;
   contract.nextDeductAt = advance(plan?.period ?? 'monthly', plan?.customDays);
   contract.updatedAt = now;
   if (contract.bizType === DEMO_MEMBER_BIZ.bizType) {
@@ -100,31 +107,39 @@ const planHandlers = [
 const contractHandlers = [
   http.get('/api/payment/contracts', ({ request }) => {
     const url = new URL(request.url);
+    const applicationId = Number(url.searchParams.get('applicationId'));
+    if (!applicationId) return badRequest('请选择支付应用');
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
     const channel = url.searchParams.get('channel') ?? '';
-    const filtered = mockPaymentContracts.filter((c) =>
+    const filtered = mockPaymentContracts.filter((c) => c.appId === applicationId &&
       (!keyword || c.contractNo.includes(keyword) || c.signerAccount.includes(keyword) || c.bizId.includes(keyword)) &&
       (!status || c.status === status) &&
       (!channel || c.channel === channel),
     );
     return ok(paginate([...filtered].sort((a, b) => b.id - a.id), url));
   }),
-  http.get('/api/payment/contracts/:id', ({ params }) => {
-    const c = mockPaymentContracts.find((x) => x.id === Number(params.id));
+  http.get('/api/payment/contracts/:id', ({ params, request }) => {
+    const applicationId = Number(new URL(request.url).searchParams.get('applicationId'));
+    if (!applicationId) return badRequest('请选择支付应用');
+    const c = mockPaymentContracts.find((x) => x.id === Number(params.id) && x.appId === applicationId);
     return c ? ok(c) : notFound('签约协议不存在');
   }),
   http.post('/api/payment/contracts', async ({ request }) => {
-    const b = (await request.json()) as { planId: number; payMethod: PaymentDeductMethod; signerAccount: string; signerName?: string; remark?: string; firstDeductNow?: boolean };
+    const b = (await request.json()) as { applicationId: number; planId: number; payMethod: PaymentDeductMethod; currency?: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow?: boolean };
     const plan = mockDeductPlans.find((p) => p.id === b.planId);
     if (!plan) return notFound('扣款计划不存在');
     if (plan.status !== 'enabled') return badRequest('扣款计划已停用');
+    const scope = contractScope(b.applicationId, b.payMethod);
+    if (!scope) return badRequest('支付应用未绑定所选代扣方式对应的商户配置');
     const now = mockDateTime();
     const contract: PaymentContract = {
       id: getNextContractId(),
       contractNo: `CT${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`,
       channel: PAYMENT_METHOD_CHANNEL[b.payMethod],
-      channelConfigId: null,
+      channelConfigId: scope.channelConfigId,
+      appId: scope.appId,
+      currency: b.currency ?? 'CNY',
       planId: plan.id,
       planName: plan.name,
       planPeriod: plan.period,
@@ -132,6 +147,9 @@ const contractHandlers = [
       signerAccount: b.signerAccount,
       signerName: b.signerName ?? null,
       status: 'signed',
+      unknownOperation: null,
+      version: 0,
+      errorMessage: null,
       channelContractNo: `${b.payMethod === 'wechat_papay' ? 'WXCT' : 'ALICT'}${Date.now()}`,
       bizType: 'admin_contract',
       bizId: `ADM${Date.now()}`,
@@ -151,40 +169,73 @@ const contractHandlers = [
     if (b.firstDeductNow !== false) firstDeduct = simulateDeduct(contract);
     return ok({ contract, firstDeduct }, '签约完成');
   }),
-  http.post('/api/payment/contracts/:id/terminate', ({ params }) => {
-    const c = mockPaymentContracts.find((x) => x.id === Number(params.id));
+  http.post('/api/payment/contracts/:id/terminate', ({ params, request }) => {
+    const applicationId = Number(new URL(request.url).searchParams.get('applicationId'));
+    if (!applicationId) return badRequest('请选择支付应用');
+    const c = mockPaymentContracts.find((x) => x.id === Number(params.id) && x.appId === applicationId);
     if (!c) return notFound('签约协议不存在');
-    if (c.status === 'terminated') return badRequest('协议已解约');
+    if (c.status !== 'signed' && c.status !== 'paused') return badRequest('只有已签约或已暂停协议可解约');
     c.status = 'terminated';
+    c.unknownOperation = null;
+    c.version += 1;
     c.terminatedAt = mockDateTime();
     c.nextDeductAt = null;
     c.updatedAt = mockDateTime();
     return ok(c, '解约成功');
   }),
-  http.post('/api/payment/contracts/:id/pause', ({ params }) => {
-    const c = mockPaymentContracts.find((x) => x.id === Number(params.id));
+  http.post('/api/payment/contracts/:id/pause', ({ params, request }) => {
+    const applicationId = Number(new URL(request.url).searchParams.get('applicationId'));
+    if (!applicationId) return badRequest('请选择支付应用');
+    const c = mockPaymentContracts.find((x) => x.id === Number(params.id) && x.appId === applicationId);
     if (!c) return notFound('签约协议不存在');
     if (c.status !== 'signed') return badRequest('仅已签约协议可暂停');
     c.status = 'paused';
+    c.version += 1;
     c.updatedAt = mockDateTime();
     return ok(c, '已暂停');
   }),
-  http.post('/api/payment/contracts/:id/resume', ({ params }) => {
-    const c = mockPaymentContracts.find((x) => x.id === Number(params.id));
+  http.post('/api/payment/contracts/:id/resume', ({ params, request }) => {
+    const applicationId = Number(new URL(request.url).searchParams.get('applicationId'));
+    if (!applicationId) return badRequest('请选择支付应用');
+    const c = mockPaymentContracts.find((x) => x.id === Number(params.id) && x.appId === applicationId);
     if (!c) return notFound('签约协议不存在');
     if (c.status !== 'paused') return badRequest('仅已暂停协议可恢复');
     c.status = 'signed';
+    c.version += 1;
     c.failCount = 0;
     c.nextDeductAt = mockDateTime();
     c.updatedAt = mockDateTime();
     return ok(c, '已恢复');
   }),
-  http.post('/api/payment/contracts/:id/deduct', ({ params }) => {
-    const c = mockPaymentContracts.find((x) => x.id === Number(params.id));
+  http.post('/api/payment/contracts/:id/deduct', ({ params, request }) => {
+    const applicationId = Number(new URL(request.url).searchParams.get('applicationId'));
+    if (!applicationId) return badRequest('请选择支付应用');
+    const c = mockPaymentContracts.find((x) => x.id === Number(params.id) && x.appId === applicationId);
     if (!c) return notFound('签约协议不存在');
     if (c.status !== 'signed') return badRequest('仅已签约协议可执行扣款');
     const result = simulateDeduct(c);
     return ok({ ...result, contract: c }, '扣款执行完成');
+  }),
+  http.post('/api/payment/contracts/:id/recover', ({ params, request }) => {
+    const applicationId = Number(new URL(request.url).searchParams.get('applicationId'));
+    if (!applicationId) return badRequest('请选择支付应用');
+    const c = mockPaymentContracts.find((x) => x.id === Number(params.id) && x.appId === applicationId);
+    if (!c) return notFound('签约协议不存在');
+    if (c.status !== 'pending' && c.status !== 'unknown') return ok(c, '查询完成');
+    const operation = c.unknownOperation ?? 'sign';
+    c.status = operation === 'terminate' ? 'terminated' : 'signed';
+    c.unknownOperation = null;
+    c.errorMessage = null;
+    c.version += 1;
+    c.updatedAt = mockDateTime();
+    if (c.status === 'signed') {
+      c.signedAt ??= c.updatedAt;
+      c.nextDeductAt ??= advance(c.planPeriod ?? 'monthly', null);
+    } else {
+      c.terminatedAt = c.updatedAt;
+      c.nextDeductAt = null;
+    }
+    return ok(c, '查询完成');
   }),
 ];
 
@@ -201,14 +252,17 @@ function memberVipExpireAt(): string | null {
 }
 
 const memberRenewalHandlers = [
-  http.get('/api/member/renewal/plans', () =>
-    ok(mockDeductPlans.filter((p) => p.status === 'enabled').map((p) => ({ id: p.id, name: p.name, period: p.period, customDays: p.customDays ?? null, amount: p.amount, remark: p.remark ?? null }))),
-  ),
-  http.get('/api/member/renewal', () =>
-    ok({ vipExpireAt: memberVipExpireAt(), contract: findMemberContract() ?? null, renewals: mockVipRenewals.slice(0, 20) }),
-  ),
+  http.get('/api/member/renewal/plans', ({ request }) => {
+    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
+    return ok(mockDeductPlans.filter((p) => p.status === 'enabled').map((p) => ({ id: p.id, name: p.name, period: p.period, customDays: p.customDays ?? null, amount: p.amount, remark: p.remark ?? null })));
+  }),
+  http.get('/api/member/renewal', ({ request }) => {
+    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
+    return ok({ vipExpireAt: memberVipExpireAt(), contract: findMemberContract() ?? null, renewals: mockVipRenewals.slice(0, 20) });
+  }),
   http.post('/api/member/renewal/sign', async ({ request }) => {
-    const b = (await request.json()) as { planId: number; payMethod?: PaymentDeductMethod };
+    const b = (await request.json()) as { applicationId: number; planId: number; payMethod?: PaymentDeductMethod };
+    if (!b.applicationId) return badRequest('请选择支付应用');
     if (findMemberContract()) return badRequest('该业务已存在生效中的签约协议');
     const plan = mockDeductPlans.find((p) => p.id === b.planId);
     if (!plan) return notFound('扣款计划不存在');
@@ -218,7 +272,9 @@ const memberRenewalHandlers = [
       id: getNextContractId(),
       contractNo: `CT${Date.now()}${Math.floor(Math.random() * 9000 + 1000)}`,
       channel: PAYMENT_METHOD_CHANNEL[payMethod],
-      channelConfigId: null,
+      channelConfigId: payMethod === 'wechat_papay' ? 1 : 2,
+      appId: payMethod === 'wechat_papay' ? 1 : 3,
+      currency: 'CNY',
       planId: plan.id,
       planName: plan.name,
       planPeriod: plan.period,
@@ -226,6 +282,9 @@ const memberRenewalHandlers = [
       signerAccount: '13800138000',
       signerName: '演示会员',
       status: 'signed',
+      unknownOperation: null,
+      version: 0,
+      errorMessage: null,
       channelContractNo: `${payMethod === 'wechat_papay' ? 'WXCT' : 'ALICT'}${Date.now()}`,
       bizType: DEMO_MEMBER_BIZ.bizType,
       bizId: DEMO_MEMBER_BIZ.bizId,
@@ -244,15 +303,18 @@ const memberRenewalHandlers = [
     const firstDeduct = simulateDeduct(contract);
     return ok({ contract, firstDeduct }, '签约完成');
   }),
-  http.post('/api/member/renewal/terminate', () => {
+  http.post('/api/member/renewal/terminate', ({ request }) => {
+    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
     const c = findMemberContract();
     if (!c) return notFound('未开通自动续费');
     c.status = 'terminated';
+    c.version += 1;
     c.terminatedAt = mockDateTime();
     c.nextDeductAt = null;
     return ok(null, '已关闭自动续费');
   }),
-  http.post('/api/member/renewal/deduct', () => {
+  http.post('/api/member/renewal/deduct', ({ request }) => {
+    if (!new URL(request.url).searchParams.get('applicationId')) return badRequest('请选择支付应用');
     const c = findMemberContract();
     if (!c) return notFound('未开通自动续费');
     if (c.status !== 'signed') return badRequest('协议未生效，无法扣款');

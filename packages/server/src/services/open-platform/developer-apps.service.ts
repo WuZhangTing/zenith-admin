@@ -5,6 +5,7 @@ import { db } from '../../db';
 import { oauth2Clients, roles, userRoles, users } from '../../db/schema';
 import { config } from '../../config';
 import { currentUser } from '../../lib/context';
+import { tenantCondition } from '../../lib/tenant';
 import { APP_TIME_ZONE, formatDateTime } from '../../lib/datetime';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
@@ -25,6 +26,7 @@ async function ensureOwnedApp(id: number) {
   const [row] = await db.select().from(oauth2Clients).where(and(
     eq(oauth2Clients.id, id),
     eq(oauth2Clients.ownerId, user.userId),
+    tenantCondition(oauth2Clients, user),
   )).limit(1);
   if (!row) throw new HTTPException(404, { message: '应用不存在或不属于当前用户' });
   return row;
@@ -95,6 +97,7 @@ export async function submitMyOAuth2ClientForReview(id: number) {
   }).where(and(
     eq(oauth2Clients.id, id),
     eq(oauth2Clients.ownerId, user.userId),
+    tenantCondition(oauth2Clients, user),
     inArray(oauth2Clients.reviewStatus, ['draft', 'rejected']),
   )).returning();
   if (!updated) throw new HTTPException(409, { message: '应用状态已变化，请刷新后重试' });
@@ -165,7 +168,7 @@ export async function notifyAppReviewResult(id: number): Promise<void> {
     ownerId: oauth2Clients.ownerId,
     reviewStatus: oauth2Clients.reviewStatus,
     reviewComment: oauth2Clients.reviewComment,
-    tenantId: users.tenantId,
+    tenantId: oauth2Clients.tenantId,
   }).from(oauth2Clients)
     .leftJoin(users, eq(oauth2Clients.ownerId, users.id))
     .where(eq(oauth2Clients.id, id))

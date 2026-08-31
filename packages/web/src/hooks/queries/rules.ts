@@ -341,11 +341,12 @@ export interface RuleListItemsParams {
   keyword?: string;
 }
 
-export function useRuleListList(params: RuleListListParams) {
+export function useRuleListList(params: RuleListListParams, enabled = true) {
   return useQuery({
     queryKey: ruleKeys.ruleLists.list(params),
     queryFn: () => request.get<PaginatedResponse<RuleList>>(`/api/rules/lists${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 

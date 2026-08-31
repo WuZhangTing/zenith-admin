@@ -1,7 +1,9 @@
-import { pgTable, varchar, timestamp, pgEnum, integer, boolean, unique, uniqueIndex, text, index, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, varchar, timestamp, pgEnum, integer, bigint, boolean, unique, uniqueIndex, text, index, jsonb, check, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { statusEnum } from './common';
 import { auditColumns, departments, tenants, users } from './core';
+import { oauth2Clients } from './open-platform';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 支付中心（Payment Center）
@@ -19,11 +21,11 @@ export const paymentMethodEnum = pgEnum('payment_method', [
 ]);
 
 export const paymentOrderStatusEnum = pgEnum('payment_order_status', [
-  'pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed',
+  'pending', 'paying', 'unknown', 'success', 'closed', 'refunding', 'refunded', 'failed',
 ]);
 
 export const paymentRefundStatusEnum = pgEnum('payment_refund_status', [
-  'pending', 'processing', 'success', 'failed',
+  'pending', 'processing', 'unknown', 'success', 'failed',
 ]);
 
 export const paymentRefundApprovalStatusEnum = pgEnum('payment_refund_approval_status', [
@@ -38,6 +40,8 @@ export const paymentChannelConfigs = pgTable('payment_channel_configs', {
   status: statusEnum().notNull().default('enabled'),
   isDefault: boolean().notNull().default(false),
   sandbox: boolean().notNull().default(false),
+  callbackToken: varchar({ length: 64 }).notNull().unique('payment_channel_configs_callback_token_unique'),
+  sandboxNotifySecretEncrypted: text().notNull(),
   notifyUrl: varchar({ length: 512 }),
   // 微信支付 v3
   wechatAppId: varchar({ length: 64 }),
@@ -48,6 +52,7 @@ export const paymentChannelConfigs = pgTable('payment_channel_configs', {
   wechatPlatformCert: text(),
   // 支付宝
   alipayAppId: varchar({ length: 64 }),
+  alipaySellerId: varchar({ length: 64 }),
   alipayPrivateKeyEncrypted: text(),
   alipayPublicKey: text(),
   alipaySignType: varchar({ length: 16 }).default('RSA2'),
@@ -63,7 +68,15 @@ export const paymentChannelConfigs = pgTable('payment_channel_configs', {
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_channel_configs_tenant_idx').on(t.tenantId)]);
+}, (t) => [
+  index('payment_channel_configs_tenant_idx').on(t.tenantId),
+  uniqueIndex('payment_channel_configs_default_tenant_channel_uq')
+    .on(t.tenantId, t.channel)
+    .where(sql`${t.isDefault} = true and ${t.tenantId} is not null`),
+  uniqueIndex('payment_channel_configs_default_global_channel_uq')
+    .on(t.channel)
+    .where(sql`${t.isDefault} = true and ${t.tenantId} is null`),
+]);
 
 export type PaymentChannelConfigRow = typeof paymentChannelConfigs.$inferSelect;
 
@@ -82,9 +95,9 @@ export const paymentOrders = pgTable('payment_orders', {
   amount: integer().notNull(),
   currency: varchar({ length: 8 }).notNull().default('CNY'),
   channel: paymentChannelEnum().notNull(),
-  channelConfigId: integer().references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
-  /** 下单归属应用（App 维度，可空 = 未按应用下单） */
-  appId: integer().references(() => paymentApps.id, { onDelete: 'set null' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  /** 下单归属应用。支付业务事实必须有明确应用作用域。 */
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
   payMethod: paymentMethodEnum().notNull(),
   status: paymentOrderStatusEnum().notNull().default('pending'),
   userId: integer().references(() => users.id, { onDelete: 'set null' }),
@@ -102,18 +115,27 @@ export const paymentOrders = pgTable('payment_orders', {
   memberCouponId: integer(),
   paidAt: timestamp({ withTimezone: true }),
   expiredAt: timestamp({ withTimezone: true }),
+  returnUrl: varchar({ length: 512 }),
   notifyData: text(),
   errorMessage: varchar({ length: 512 }),
+  idempotencyKey: varchar({ length: 128 }),
+  requestHash: varchar({ length: 64 }),
+  version: integer().notNull().default(0),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('payment_orders_user_idx').on(t.userId), index('payment_orders_tenant_idx').on(t.tenantId), 
-  unique('payment_orders_channel_out_trade_no_uq').on(t.channel, t.outTradeNo),
+  unique('payment_orders_config_out_trade_no_uq').on(t.channelConfigId, t.outTradeNo),
   // 业务幂等：同一业务单（bizType+bizId）最多存在一笔进行中订单（pending/paying），
   // 并发下单时唯一冲突由 createPayment 捕获后复用已有活跃单
-  uniqueIndex('payment_orders_active_biz_uq').on(t.bizType, t.bizId).where(sql`${t.status} in ('pending', 'paying')`),
-  index('payment_orders_biz_idx').on(t.bizType, t.bizId),
+  uniqueIndex('payment_orders_active_biz_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, sql`coalesce(${t.appId}, 0)`, t.bizType, t.bizId, t.currency)
+    .where(sql`${t.status} in ('pending', 'paying', 'unknown')`),
+  uniqueIndex('payment_orders_idempotency_scope_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, sql`coalesce(${t.appId}, 0)`, t.idempotencyKey)
+    .where(sql`${t.idempotencyKey} is not null`),
+  index('payment_orders_biz_idx').on(t.tenantId, t.appId, t.bizType, t.bizId, t.currency),
   index('payment_orders_status_idx').on(t.status),
   index('payment_orders_expired_idx').on(t.expiredAt),
 ]);
@@ -128,7 +150,7 @@ export const paymentRefunds = pgTable('payment_refunds', {
   refundNo: varchar({ length: 64 }).notNull().unique('payment_refunds_refund_no_unique'),
   outRefundNo: varchar({ length: 64 }).notNull(),
   orderNo: varchar({ length: 64 }).notNull(),
-  orderId: integer().references(() => paymentOrders.id, { onDelete: 'cascade' }),
+  orderId: integer().notNull().references(() => paymentOrders.id, { onDelete: 'restrict' }),
   channelRefundNo: varchar({ length: 128 }),
   channel: paymentChannelEnum().notNull(),
   refundAmount: integer().notNull(),
@@ -144,6 +166,9 @@ export const paymentRefunds = pgTable('payment_refunds', {
   refundedAt: timestamp({ withTimezone: true }),
   notifyData: text(),
   errorMessage: varchar({ length: 512 }),
+  idempotencyKey: varchar({ length: 128 }),
+  requestHash: varchar({ length: 64 }),
+  version: integer().notNull().default(0),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
@@ -151,6 +176,9 @@ export const paymentRefunds = pgTable('payment_refunds', {
 }, (t) => [index('payment_refunds_order_idx').on(t.orderId), index('payment_refunds_operator_idx').on(t.operatorId), index('payment_refunds_tenant_idx').on(t.tenantId), 
   index('payment_refunds_order_no_idx').on(t.orderNo),
   index('payment_refunds_status_idx').on(t.status),
+  uniqueIndex('payment_refunds_idempotency_scope_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.orderId, t.idempotencyKey)
+    .where(sql`${t.idempotencyKey} is not null`),
 ]);
 
 export type PaymentRefundRow = typeof paymentRefunds.$inferSelect;
@@ -161,17 +189,26 @@ export type NewPaymentRefund = typeof paymentRefunds.$inferInsert;
 export const paymentNotifyLogs = pgTable('payment_notify_logs', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   channel: paymentChannelEnum().notNull(),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  appId: integer().references(() => paymentApps.id, { onDelete: 'set null' }),
+  providerEventId: varchar({ length: 128 }),
   scene: varchar({ length: 16 }).notNull().default('payment'),
   orderNo: varchar({ length: 64 }),
   rawBody: text(),
   headers: text(),
   signatureValid: boolean().notNull().default(false),
+  merchantId: varchar({ length: 128 }),
+  providerAppId: varchar({ length: 128 }),
+  paidAmount: integer(),
+  currency: varchar({ length: 8 }),
   result: varchar({ length: 32 }),
   message: varchar({ length: 512 }),
   ip: varchar({ length: 64 }),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   createdAt: timestamp().defaultNow().notNull(),
-}, (t) => [index('payment_notify_logs_tenant_idx').on(t.tenantId), 
+}, (t) => [index('payment_notify_logs_tenant_idx').on(t.tenantId),
+  index('payment_notify_logs_config_idx').on(t.channelConfigId),
+  uniqueIndex('payment_notify_logs_provider_event_uq').on(t.channelConfigId, t.providerEventId).where(sql`${t.providerEventId} is not null`),
   index('payment_notify_logs_order_no_idx').on(t.orderNo),
 ]);
 
@@ -210,6 +247,9 @@ export const paymentReconBatches = pgTable('payment_recon_batches', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   batchNo: varchar({ length: 64 }).notNull().unique('payment_recon_batches_batch_no_unique'),
   channel: paymentChannelEnum().notNull(),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull().default('CNY'),
   billDate: varchar({ length: 10 }).notNull(),
   status: paymentReconStatusEnum().notNull().default('pending'),
   localCount: integer().notNull().default(0),
@@ -223,7 +263,12 @@ export const paymentReconBatches = pgTable('payment_recon_batches', {
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_recon_batches_tenant_idx').on(t.tenantId), index('payment_recon_batches_date_idx').on(t.billDate)]);
+}, (t) => [
+  index('payment_recon_batches_tenant_idx').on(t.tenantId),
+  index('payment_recon_batches_date_idx').on(t.billDate),
+  index('payment_recon_batches_app_idx').on(t.appId),
+  uniqueIndex('payment_recon_scope_date_uq').on(sql`coalesce(${t.tenantId}, 0)`, t.appId, t.channelConfigId, t.currency, t.billDate),
+]);
 
 export type PaymentReconBatchRow = typeof paymentReconBatches.$inferSelect;
 
@@ -251,84 +296,6 @@ export const paymentReconItems = pgTable('payment_recon_items', {
 export type PaymentReconItemRow = typeof paymentReconItems.$inferSelect;
 
 export type NewPaymentReconItem = typeof paymentReconItems.$inferInsert;
-
-// ─── 业务方 Webhook ───────────────────────────────────────────────────────────
-export const paymentWebhookDeliveryStatusEnum = pgEnum('payment_webhook_delivery_status', ['pending', 'success', 'failed']);
-
-export const paymentWebhookEndpoints = pgTable('payment_webhook_endpoints', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  name: varchar({ length: 64 }).notNull(),
-  url: varchar({ length: 512 }).notNull(),
-  secretEncrypted: text(),
-  bizType: varchar({ length: 64 }),
-  events: jsonb().$type<string[]>().default([]).notNull(),
-  status: statusEnum().notNull().default('enabled'),
-  remark: varchar({ length: 256 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
-  ...auditColumns(),
-  createdAt: timestamp().defaultNow().notNull(),
-  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_webhook_endpoints_tenant_idx').on(t.tenantId)]);
-
-export type PaymentWebhookEndpointRow = typeof paymentWebhookEndpoints.$inferSelect;
-
-export type NewPaymentWebhookEndpoint = typeof paymentWebhookEndpoints.$inferInsert;
-
-export const paymentWebhookDeliveries = pgTable('payment_webhook_deliveries', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  endpointId: integer().notNull().references(() => paymentWebhookEndpoints.id, { onDelete: 'cascade' }),
-  eventType: varchar({ length: 32 }).notNull(),
-  orderNo: varchar({ length: 64 }),
-  payload: text().notNull(),
-  status: paymentWebhookDeliveryStatusEnum().notNull().default('pending'),
-  attempts: integer().notNull().default(0),
-  httpStatus: integer(),
-  responseBody: varchar({ length: 1024 }),
-  lastError: varchar({ length: 512 }),
-  nextRetryAt: timestamp({ withTimezone: true }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
-  createdAt: timestamp().defaultNow().notNull(),
-  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_webhook_deliveries_tenant_idx').on(t.tenantId), index('payment_webhook_deliveries_endpoint_idx').on(t.endpointId), index('payment_webhook_deliveries_status_idx').on(t.status)]);
-
-export type PaymentWebhookDeliveryRow = typeof paymentWebhookDeliveries.$inferSelect;
-
-export type NewPaymentWebhookDelivery = typeof paymentWebhookDeliveries.$inferInsert;
-
-// ─── 资金流水台账 ─────────────────────────────────────────────────────────────
-export const paymentLedgerDirectionEnum = pgEnum('payment_ledger_direction', ['in', 'out']);
-
-export const paymentLedgerTypeEnum = pgEnum('payment_ledger_type', ['payment', 'refund', 'fee', 'sharing', 'settlement', 'adjust', 'transfer']);
-
-export const paymentLedgerEntries = pgTable('payment_ledger_entries', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  entryNo: varchar({ length: 64 }).notNull().unique('payment_ledger_entries_entry_no_unique'),
-  direction: paymentLedgerDirectionEnum().notNull(),
-  type: paymentLedgerTypeEnum().notNull(),
-  amount: integer().notNull(),
-  orderNo: varchar({ length: 64 }),
-  refundNo: varchar({ length: 64 }),
-  sharingNo: varchar({ length: 64 }),
-  channel: paymentChannelEnum(),
-  bizType: varchar({ length: 64 }),
-  remark: varchar({ length: 256 }),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
-  createdAt: timestamp().defaultNow().notNull(),
-}, (t) => [index('payment_ledger_entries_tenant_idx').on(t.tenantId), 
-  index('payment_ledger_order_idx').on(t.orderNo),
-  index('payment_ledger_type_idx').on(t.type),
-  // 记账幂等（DB 层兜底）：
-  // - 原始记账（无 refundNo）：同一订单的收款/手续费各至多一条
-  // - 退款关联记账（带 refundNo）：同一退款单的退款支出/手续费冲销各至多一条
-  // - 分账记账（带 sharingNo）：同一分账单至多一条分账支出
-  uniqueIndex('payment_ledger_order_type_uq').on(t.orderNo, t.type).where(sql`${t.orderNo} is not null and ${t.refundNo} is null and ${t.type} in ('payment', 'fee')`),
-  uniqueIndex('payment_ledger_refund_type_uq').on(t.refundNo, t.type).where(sql`${t.refundNo} is not null`),
-  uniqueIndex('payment_ledger_sharing_type_uq').on(t.sharingNo, t.type).where(sql`${t.sharingNo} is not null`),
-]);
-
-export type PaymentLedgerEntryRow = typeof paymentLedgerEntries.$inferSelect;
-
-export type NewPaymentLedgerEntry = typeof paymentLedgerEntries.$inferInsert;
 
 // ─── 手续费/费率规则 ─────────────────────────────────────────────────────────
 export const paymentFeeRules = pgTable('payment_fee_rules', {
@@ -360,6 +327,9 @@ export const paymentSettlementBatches = pgTable('payment_settlement_batches', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   batchNo: varchar({ length: 64 }).notNull().unique('payment_settlement_batches_batch_no_unique'),
   channel: paymentChannelEnum().notNull(),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull().default('CNY'),
   periodStart: varchar({ length: 10 }).notNull(),
   periodEnd: varchar({ length: 10 }).notNull(),
   status: paymentSettlementStatusEnum().notNull().default('pending'),
@@ -371,16 +341,20 @@ export const paymentSettlementBatches = pgTable('payment_settlement_batches', {
   sharingAmount: integer().notNull().default(0),
   netAmount: integer().notNull().default(0),
   settledAt: timestamp({ withTimezone: true }),
+  failureReason: varchar({ length: 512 }),
+  payoutReference: varchar({ length: 128 }),
+  version: integer().notNull().default(0),
   remark: varchar({ length: 256 }),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('payment_settlement_batches_tenant_idx').on(t.tenantId), 
+  index('payment_settlement_batches_app_idx').on(t.appId),
   index('payment_settlement_batches_status_idx').on(t.status),
   // 结算幂等：同租户+渠道+账期至多生成一个批次（tenantId 为 NULL 时按全局口径去重）
-  uniqueIndex('payment_settlement_period_uq').on(t.channel, t.periodStart, t.periodEnd, t.tenantId).where(sql`${t.tenantId} is not null`),
-  uniqueIndex('payment_settlement_period_global_uq').on(t.channel, t.periodStart, t.periodEnd).where(sql`${t.tenantId} is null`),
+  uniqueIndex('payment_settlement_period_uq').on(t.appId, t.channelConfigId, t.currency, t.periodStart, t.periodEnd, t.tenantId).where(sql`${t.tenantId} is not null`),
+  uniqueIndex('payment_settlement_period_global_uq').on(t.appId, t.channelConfigId, t.currency, t.periodStart, t.periodEnd).where(sql`${t.tenantId} is null`),
 ]);
 
 export type PaymentSettlementBatchRow = typeof paymentSettlementBatches.$inferSelect;
@@ -390,7 +364,9 @@ export type NewPaymentSettlementBatch = typeof paymentSettlementBatches.$inferIn
 // ─── 分账接收方 + 分账单 ─────────────────────────────────────────────────────
 export const paymentSharingReceiverTypeEnum = pgEnum('payment_sharing_receiver_type', ['merchant', 'personal']);
 
-export const paymentSharingOrderStatusEnum = pgEnum('payment_sharing_order_status', ['pending', 'processing', 'success', 'failed']);
+export const paymentSharingOrderStatusEnum = pgEnum('payment_sharing_order_status', ['pending', 'processing', 'success', 'failed', 'reversed']);
+
+export const paymentSharingReversalStatusEnum = pgEnum('payment_sharing_reversal_status', ['processing', 'unknown', 'success', 'failed']);
 
 export const paymentSharingReceivers = pgTable('payment_sharing_receivers', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -416,12 +392,13 @@ export const paymentSharingOrders = pgTable('payment_sharing_orders', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   sharingNo: varchar({ length: 64 }).notNull().unique('payment_sharing_orders_sharing_no_unique'),
   orderNo: varchar({ length: 64 }).notNull(),
-  receiverId: integer().notNull().references(() => paymentSharingReceivers.id, { onDelete: 'cascade' }),
+  receiverId: integer().notNull().references(() => paymentSharingReceivers.id, { onDelete: 'restrict' }),
   amount: integer().notNull(),
   status: paymentSharingOrderStatusEnum().notNull().default('pending'),
   channelSharingNo: varchar({ length: 128 }),
   /** 渠道分账已尝试次数（失败重试用，达上限后不再自动重试） */
   attempts: integer().notNull().default(0),
+  version: integer().notNull().default(0),
   finishedAt: timestamp({ withTimezone: true }),
   remark: varchar({ length: 256 }),
   tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
@@ -434,6 +411,37 @@ export type PaymentSharingOrderRow = typeof paymentSharingOrders.$inferSelect;
 
 export type NewPaymentSharingOrder = typeof paymentSharingOrders.$inferInsert;
 
+/** 分账冲正：一笔成功分账最多一条冲正操作；unknown 只允许查单收敛，禁止重新发起。 */
+export const paymentSharingReversals = pgTable('payment_sharing_reversals', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  reversalNo: varchar({ length: 64 }).notNull().unique('payment_sharing_reversals_reversal_no_unique'),
+  sharingOrderId: integer().notNull().references(() => paymentSharingOrders.id, { onDelete: 'restrict' }),
+  amount: integer().notNull(),
+  status: paymentSharingReversalStatusEnum().notNull().default('processing'),
+  channelReversalNo: varchar({ length: 128 }),
+  idempotencyKey: varchar({ length: 128 }).notNull(),
+  requestHash: varchar({ length: 64 }).notNull(),
+  reason: varchar({ length: 256 }).notNull(),
+  attempts: integer().notNull().default(0),
+  queryAttempts: integer().notNull().default(0),
+  version: integer().notNull().default(0),
+  errorMessage: varchar({ length: 512 }),
+  finishedAt: timestamp({ withTimezone: true }),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'restrict' }),
+  ...auditColumns(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  unique('payment_sharing_reversals_sharing_order_unique').on(t.sharingOrderId),
+  uniqueIndex('payment_sharing_reversals_idempotency_scope_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.sharingOrderId, t.idempotencyKey),
+  index('payment_sharing_reversals_tenant_status_idx').on(t.tenantId, t.status),
+]);
+
+export type PaymentSharingReversalRow = typeof paymentSharingReversals.$inferSelect;
+
+export type NewPaymentSharingReversal = typeof paymentSharingReversals.$inferInsert;
+
 // ─── 支付链接/收款码 ─────────────────────────────────────────────────────────
 export const paymentLinkStatusEnum = pgEnum('payment_link_status', ['active', 'disabled', 'expired']);
 
@@ -441,12 +449,14 @@ export const paymentLinks = pgTable('payment_links', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   linkNo: varchar({ length: 64 }).notNull().unique('payment_links_link_no_unique'),
   token: varchar({ length: 64 }).notNull().unique(),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
   subject: varchar({ length: 256 }).notNull(),
   amount: integer(),
   payMethod: paymentMethodEnum(),
   bizType: varchar({ length: 64 }).notNull(),
   maxUses: integer(),
   usedCount: integer().notNull().default(0),
+  reservedCount: integer().notNull().default(0),
   expiredAt: timestamp({ withTimezone: true }),
   status: paymentLinkStatusEnum().notNull().default('active'),
   remark: varchar({ length: 256 }),
@@ -454,11 +464,76 @@ export const paymentLinks = pgTable('payment_links', {
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_links_tenant_idx').on(t.tenantId)]);
+}, (t) => [index('payment_links_tenant_idx').on(t.tenantId), index('payment_links_app_idx').on(t.appId)]);
 
 export type PaymentLinkRow = typeof paymentLinks.$inferSelect;
 
 export type NewPaymentLink = typeof paymentLinks.$inferInsert;
+
+/** 支付链接成功核销记录：仅 payment.succeeded 后追加，orderNo 唯一保证重复事件不重复计数。 */
+export const paymentLinkRedemptions = pgTable('payment_link_redemptions', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  linkId: integer().notNull().references(() => paymentLinks.id, { onDelete: 'cascade' }),
+  orderNo: varchar({ length: 64 }).notNull().unique('payment_link_redemptions_order_no_unique'),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  redeemedAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index('payment_link_redemptions_link_idx').on(t.linkId),
+  index('payment_link_redemptions_tenant_idx').on(t.tenantId),
+]);
+
+export type PaymentLinkRedemptionRow = typeof paymentLinkRedemptions.$inferSelect;
+
+export type NewPaymentLinkRedemption = typeof paymentLinkRedemptions.$inferInsert;
+
+export const paymentCashierSessionStatusEnum = pgEnum('payment_cashier_session_status', [
+  'ready',
+  'creating',
+  'awaiting',
+  'processing',
+  'unknown',
+  'succeeded',
+  'failed',
+  'expired',
+]);
+
+export const paymentCashierUseSlotStatusEnum = pgEnum('payment_cashier_use_slot_status', [
+  'none',
+  'reserved',
+  'consumed',
+  'released',
+]);
+
+/** 公开收银台会话：保存第三方跳转前后的订单与支付参数，token 不可枚举。 */
+export const paymentCashierSessions = pgTable('payment_cashier_sessions', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  sessionToken: varchar({ length: 64 }).notNull().unique('payment_cashier_sessions_session_token_unique'),
+  linkId: integer().notNull().references(() => paymentLinks.id, { onDelete: 'restrict' }),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  orderNo: varchar({ length: 64 }),
+  payMethod: paymentMethodEnum().notNull(),
+  amount: integer().notNull(),
+  status: paymentCashierSessionStatusEnum().notNull().default('ready'),
+  useSlotStatus: paymentCashierUseSlotStatusEnum().notNull().default('none'),
+  payParams: jsonb().$type<CreatePaymentResult>(),
+  returnUrl: varchar({ length: 512 }).notNull(),
+  errorMessage: varchar({ length: 512 }),
+  expiresAt: timestamp({ withTimezone: true }).notNull(),
+  version: integer().notNull().default(0),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('payment_cashier_sessions_order_no_unique').on(t.orderNo).where(sql`${t.orderNo} is not null`),
+  index('payment_cashier_sessions_link_idx').on(t.linkId),
+  index('payment_cashier_sessions_link_slot_idx').on(t.linkId, t.useSlotStatus, t.expiresAt),
+  index('payment_cashier_sessions_status_expiry_idx').on(t.status, t.expiresAt),
+  index('payment_cashier_sessions_tenant_idx').on(t.tenantId),
+]);
+
+export type PaymentCashierSessionRow = typeof paymentCashierSessions.$inferSelect;
+
+export type NewPaymentCashierSession = typeof paymentCashierSessions.$inferInsert;
 
 // ─── 风控限额规则 ─────────────────────────────────────────────────────────────
 export const paymentRiskScopeEnum = pgEnum('payment_risk_scope', ['global', 'channel', 'bizType']);
@@ -536,9 +611,11 @@ export const paymentRiskReviews = pgTable('payment_risk_reviews', {
   /** 被挂起的支付订单号 */
   orderNo: varchar({ length: 64 }).notNull(),
   channel: paymentChannelEnum().notNull(),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
   bizType: varchar({ length: 64 }).notNull(),
   bizId: varchar({ length: 128 }).notNull(),
   amount: integer().notNull(),
+  currency: varchar({ length: 8 }).notNull().default('CNY'),
   /** 触发原因（命中规则与维度描述） */
   reason: varchar({ length: 256 }).notNull(),
   status: paymentRiskReviewStatusEnum().notNull().default('pending'),
@@ -550,8 +627,10 @@ export const paymentRiskReviews = pgTable('payment_risk_reviews', {
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('payment_risk_reviews_tenant_idx').on(t.tenantId), 
-  // 同一订单最多一条待审核记录
-  uniqueIndex('payment_risk_reviews_pending_order_uq').on(t.orderNo).where(sql`${t.status} = 'pending'`),
+  uniqueIndex('payment_risk_reviews_pending_biz_scope_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, sql`coalesce(${t.appId}, 0)`, t.bizType, t.bizId, t.currency)
+    .where(sql`${t.status} = 'pending'`),
+  index('payment_risk_reviews_order_no_idx').on(t.orderNo),
   index('payment_risk_reviews_status_idx').on(t.status),
   index('payment_risk_reviews_biz_idx').on(t.bizType, t.bizId),
 ]);
@@ -560,39 +639,18 @@ export type PaymentRiskReviewRow = typeof paymentRiskReviews.$inferSelect;
 
 export type NewPaymentRiskReview = typeof paymentRiskReviews.$inferInsert;
 
-// ─── 商户资金账户（渠道×租户快照：待结算/可用/冻结，随台账流水原子联动）────────
-export const paymentAccounts = pgTable('payment_accounts', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  channel: paymentChannelEnum().notNull(),
-  /** 待结算余额（分，支付净额入账，结算划转后转可用；退款可能使其为负） */
-  pendingSettle: integer().notNull().default(0),
-  /** 可用余额（分，结算到账后可用于转账/代付） */
-  available: integer().notNull().default(0),
-  /** 冻结余额（分，预留给预授权/风险冻结场景） */
-  frozen: integer().notNull().default(0),
-  /** 变更版本号（每次联动 +1，审计用；余额更新为原子自增，天然并发安全） */
-  version: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
-  createdAt: timestamp().defaultNow().notNull(),
-  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_accounts_tenant_idx').on(t.tenantId), 
-  // channel×tenant 唯一（tenant 为 null 的全局账户单独约束，PG unique 对 null 不生效）
-  uniqueIndex('payment_accounts_channel_tenant_uq').on(t.channel, t.tenantId).where(sql`${t.tenantId} is not null`),
-  uniqueIndex('payment_accounts_channel_global_uq').on(t.channel).where(sql`${t.tenantId} is null`),
-]);
-
-export type PaymentAccountRow = typeof paymentAccounts.$inferSelect;
-
-export type NewPaymentAccount = typeof paymentAccounts.$inferInsert;
-
 // ─── 预授权（资金冻结/解冻/转支付：押金类场景）───────────────────────────────
-export const paymentPreauthStatusEnum = pgEnum('payment_preauth_status', ['pending', 'frozen', 'captured', 'released', 'failed']);
+export const paymentPreauthStatusEnum = pgEnum('payment_preauth_status', ['pending', 'unknown', 'frozen', 'captured', 'released', 'failed']);
+
+export const paymentPreauthOperationEnum = pgEnum('payment_preauth_operation', ['freeze', 'capture', 'release']);
 
 export const paymentPreauths = pgTable('payment_preauths', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   preauthNo: varchar({ length: 64 }).notNull().unique('payment_preauths_preauth_no_unique'),
   channel: paymentChannelEnum().notNull(),
-  channelConfigId: integer().references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull().default('CNY'),
   /** 渠道资金授权订单号（冻结成功后回填） */
   channelPreauthNo: varchar({ length: 128 }),
   bizType: varchar({ length: 64 }).notNull(),
@@ -607,6 +665,8 @@ export const paymentPreauths = pgTable('payment_preauths', {
   /** 转支付生成的支付订单号 */
   captureOrderNo: varchar({ length: 64 }),
   status: paymentPreauthStatusEnum().notNull().default('pending'),
+  unknownOperation: paymentPreauthOperationEnum(),
+  version: integer().notNull().default(0),
   errorMessage: varchar({ length: 512 }),
   frozenAt: timestamp({ withTimezone: true }),
   /** 终态时间（captured / released / failed） */
@@ -619,9 +679,11 @@ export const paymentPreauths = pgTable('payment_preauths', {
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('payment_preauths_operator_idx').on(t.operatorId), index('payment_preauths_tenant_idx').on(t.tenantId), 
   // 同一业务单最多一笔进行中预授权（发起中/冻结中）
-  uniqueIndex('payment_preauths_active_biz_uq').on(t.bizType, t.bizId).where(sql`${t.status} in ('pending', 'frozen')`),
+  uniqueIndex('payment_preauths_active_biz_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.appId, t.bizType, t.bizId, t.currency)
+    .where(sql`${t.status} in ('pending', 'unknown', 'frozen')`),
   index('payment_preauths_status_idx').on(t.status),
-  index('payment_preauths_biz_idx').on(t.bizType, t.bizId),
+  index('payment_preauths_biz_idx').on(t.tenantId, t.appId, t.bizType, t.bizId, t.currency),
 ]);
 
 export type PaymentPreauthRow = typeof paymentPreauths.$inferSelect;
@@ -629,7 +691,8 @@ export type PaymentPreauthRow = typeof paymentPreauths.$inferSelect;
 export type NewPaymentPreauth = typeof paymentPreauths.$inferInsert;
 
 // ─── 转账/代付单 ─────────────────────────────────────────────────────────────
-export const paymentTransferStatusEnum = pgEnum('payment_transfer_status', ['pending', 'processing', 'success', 'failed']);
+export const paymentTransferStatusEnum = pgEnum('payment_transfer_status', ['pending', 'processing', 'unknown', 'success', 'failed']);
+export const paymentTransferApprovalStatusEnum = pgEnum('payment_transfer_approval_status', ['none', 'pending', 'approved', 'rejected']);
 
 export const paymentTransfers = pgTable('payment_transfers', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -637,17 +700,28 @@ export const paymentTransfers = pgTable('payment_transfers', {
   /** 商户转账单号（渠道幂等键，与 transferNo 相同值单独存列便于对账） */
   outTransferNo: varchar({ length: 64 }).notNull(),
   channel: paymentChannelEnum().notNull(),
-  channelConfigId: integer().references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull().default('CNY'),
   /** 收款账号（微信 openid / 支付宝登录账号） */
   receiverAccount: varchar({ length: 128 }).notNull(),
   receiverName: varchar({ length: 64 }),
   amount: integer().notNull(),
   remark: varchar({ length: 256 }),
   status: paymentTransferStatusEnum().notNull().default('pending'),
+  approvalStatus: paymentTransferApprovalStatusEnum().notNull().default('none'),
+  appliedById: integer().references(() => users.id, { onDelete: 'set null' }),
+  approverId: integer().references(() => users.id, { onDelete: 'set null' }),
+  approvedAt: timestamp({ withTimezone: true }),
+  approvalRemark: varchar({ length: 256 }),
   channelTransferNo: varchar({ length: 128 }),
   failReason: varchar({ length: 512 }),
   /** 渠道调用已尝试次数（仅渠道未受理的失败单可人工重试） */
   attempts: integer().notNull().default(0),
+  idempotencyKey: varchar({ length: 128 }).notNull(),
+  requestHash: varchar({ length: 64 }).notNull(),
+  fundReservationId: integer().notNull().references((): AnyPgColumn => paymentFundReservations.id, { onDelete: 'restrict' }),
+  version: integer().notNull().default(0),
   bizType: varchar({ length: 64 }),
   bizId: varchar({ length: 128 }),
   finishedAt: timestamp({ withTimezone: true }),
@@ -657,7 +731,8 @@ export const paymentTransfers = pgTable('payment_transfers', {
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('payment_transfers_operator_idx').on(t.operatorId), index('payment_transfers_tenant_idx').on(t.tenantId), 
-  unique('payment_transfers_channel_out_no_uq').on(t.channel, t.outTransferNo),
+  unique('payment_transfers_config_out_no_uq').on(t.channelConfigId, t.outTransferNo),
+  uniqueIndex('payment_transfers_idempotency_scope_uq').on(sql`coalesce(${t.tenantId}, 0)`, t.appId, t.idempotencyKey),
   index('payment_transfers_status_idx').on(t.status),
   index('payment_transfers_biz_idx').on(t.bizType, t.bizId),
 ]);
@@ -666,32 +741,11 @@ export type PaymentTransferRow = typeof paymentTransfers.$inferSelect;
 
 export type NewPaymentTransfer = typeof paymentTransfers.$inferInsert;
 
-// ─── 财务报表日切快照（预聚合，降大表实时聚合压力）───────────────────────────
-export const paymentReportDaily = pgTable('payment_report_daily', {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  statDate: varchar({ length: 10 }).notNull(),
-  /** 渠道（文本冗余存储，'' = 未知） */
-  channel: varchar({ length: 16 }).notNull().default(''),
-  /** 业务类型（'' = 未知） */
-  bizType: varchar({ length: 64 }).notNull().default(''),
-  gross: integer().notNull().default(0),
-  fee: integer().notNull().default(0),
-  refund: integer().notNull().default(0),
-  /** 分账支出（分），净额口径 = gross - fee - refund - sharing */
-  sharing: integer().notNull().default(0),
-  count: integer().notNull().default(0),
-  tenantId: integer().references(() => tenants.id, { onDelete: 'cascade' }),
-  createdAt: timestamp().defaultNow().notNull(),
-}, (t) => [index('payment_report_daily_tenant_idx').on(t.tenantId), index('payment_report_daily_date_idx').on(t.statDate)]);
-
-export type PaymentReportDailyRow = typeof paymentReportDaily.$inferSelect;
-
-// ─── 支付应用（App 维度：业务方按 appKey 下单，路由到该应用绑定的渠道配置）────
+// ─── 支付应用（开放平台客户端的一对一支付路由画像）────────────────────────────
 export const paymentApps = pgTable('payment_apps', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   name: varchar({ length: 64 }).notNull(),
-  /** 业务方下单标识（createPayment 入参 appKey） */
-  appKey: varchar({ length: 64 }).notNull().unique('payment_apps_app_key_unique'),
+  openClientId: integer().notNull().references(() => oauth2Clients.id, { onDelete: 'restrict' }),
   status: statusEnum().notNull().default('enabled'),
   wechatConfigId: integer().references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
   alipayConfigId: integer().references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
@@ -701,7 +755,10 @@ export const paymentApps = pgTable('payment_apps', {
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_apps_tenant_idx').on(t.tenantId)]);
+}, (t) => [
+  index('payment_apps_tenant_idx').on(t.tenantId),
+  unique('payment_apps_open_client_unique').on(t.openClientId),
+]);
 
 export type PaymentAppRow = typeof paymentApps.$inferSelect;
 
@@ -709,7 +766,7 @@ export type NewPaymentApp = typeof paymentApps.$inferInsert;
 
 // ─── 支付方式配置 ─────────────────────────────────────────────────────────────
 export const paymentMethodConfigs = pgTable('payment_method_configs', {  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  method: paymentMethodEnum().notNull().unique(),
+  method: paymentMethodEnum().notNull(),
   channel: paymentChannelEnum().notNull(),
   label: varchar({ length: 64 }).notNull(),
   icon: varchar({ length: 128 }),
@@ -719,7 +776,10 @@ export const paymentMethodConfigs = pgTable('payment_method_configs', {  id: int
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
-}, (t) => [index('payment_method_configs_tenant_idx').on(t.tenantId)]);
+}, (t) => [
+  index('payment_method_configs_tenant_idx').on(t.tenantId),
+  uniqueIndex('payment_method_configs_tenant_method_uq').on(sql`coalesce(${t.tenantId}, 0)`, t.method),
+]);
 
 export type PaymentMethodConfigRow = typeof paymentMethodConfigs.$inferSelect;
 
@@ -751,18 +811,25 @@ export type PaymentDeductPlanRow = typeof paymentDeductPlans.$inferSelect;
 export type NewPaymentDeductPlan = typeof paymentDeductPlans.$inferInsert;
 
 // ─── 签约代扣协议（微信委托代扣 / 支付宝周期扣款）────────────────────────────
-export const paymentContractStatusEnum = pgEnum('payment_contract_status', ['pending', 'signed', 'paused', 'terminated']);
+export const paymentContractStatusEnum = pgEnum('payment_contract_status', ['pending', 'unknown', 'signed', 'paused', 'terminated', 'failed']);
+
+export const paymentContractOperationEnum = pgEnum('payment_contract_operation', ['sign', 'terminate']);
 
 export const paymentContracts = pgTable('payment_contracts', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   contractNo: varchar({ length: 64 }).notNull().unique('payment_contracts_contract_no_unique'),
   channel: paymentChannelEnum().notNull(),
-  channelConfigId: integer().references(() => paymentChannelConfigs.id, { onDelete: 'set null' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull().default('CNY'),
   planId: integer().notNull().references(() => paymentDeductPlans.id, { onDelete: 'restrict' }),
   /** 签约账号（微信 openid / 支付宝账号 / 会员标识） */
   signerAccount: varchar({ length: 128 }).notNull(),
   signerName: varchar({ length: 64 }),
   status: paymentContractStatusEnum().notNull().default('pending'),
+  unknownOperation: paymentContractOperationEnum(),
+  version: integer().notNull().default(0),
+  errorMessage: varchar({ length: 512 }),
   /** 渠道协议号（签约成功后回填） */
   channelContractNo: varchar({ length: 128 }),
   bizType: varchar({ length: 64 }).notNull(),
@@ -785,10 +852,15 @@ export const paymentContracts = pgTable('payment_contracts', {
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
 }, (t) => [index('payment_contracts_tenant_idx').on(t.tenantId), 
   // 同一业务单（bizType+bizId）最多一份未终止协议，防止重复签约
-  uniqueIndex('payment_contracts_active_biz_uq').on(t.bizType, t.bizId).where(sql`${t.status} in ('pending', 'signed', 'paused')`),
+  uniqueIndex('payment_contracts_active_biz_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.appId, t.bizType, t.bizId, t.currency)
+    .where(sql`${t.status} in ('pending', 'unknown', 'signed', 'paused')`),
+  uniqueIndex('payment_contracts_member_renewal_active_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.bizType, t.bizId, t.currency)
+    .where(sql`${t.bizType} = 'member_renewal' and ${t.status} in ('pending', 'unknown', 'signed', 'paused')`),
   index('payment_contracts_status_idx').on(t.status),
   index('payment_contracts_next_deduct_idx').on(t.nextDeductAt),
-  index('payment_contracts_biz_idx').on(t.bizType, t.bizId),
+  index('payment_contracts_biz_idx').on(t.tenantId, t.appId, t.bizType, t.bizId, t.currency),
 ]);
 
 export type PaymentContractRow = typeof paymentContracts.$inferSelect;
@@ -860,6 +932,159 @@ export const paymentDisputeReplies = pgTable('payment_dispute_replies', {
 export type PaymentDisputeReplyRow = typeof paymentDisputeReplies.$inferSelect;
 
 export type NewPaymentDisputeReply = typeof paymentDisputeReplies.$inferInsert;
+
+// ─── 最终资金内核：不可变双分录、资金预占与结算逐笔归属 ───────────────────────
+
+export const paymentLedgerAccountCodeEnum = pgEnum('payment_ledger_account_code', [
+  'provider_clearing',
+  'merchant_pending',
+  'merchant_available',
+  'merchant_frozen',
+  'platform_fee',
+  'refund_payable',
+  'sharing_payable',
+  'payout_payable',
+  'suspense',
+]);
+
+export const paymentLedgerNormalBalanceEnum = pgEnum('payment_ledger_normal_balance', ['debit', 'credit']);
+
+export const paymentLedgerAccounts = pgTable('payment_ledger_accounts', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  accountNo: varchar({ length: 64 }).notNull().unique('payment_ledger_accounts_account_no_unique'),
+  name: varchar({ length: 128 }).notNull(),
+  code: paymentLedgerAccountCodeEnum().notNull(),
+  normalBalance: paymentLedgerNormalBalanceEnum().notNull(),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull(),
+  status: statusEnum().notNull().default('enabled'),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'restrict' }),
+  ...auditColumns(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('payment_ledger_accounts_scope_code_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.appId, t.channelConfigId, t.currency, t.code),
+  index('payment_ledger_accounts_scope_idx').on(t.tenantId, t.appId, t.channelConfigId, t.currency),
+]);
+
+export type PaymentLedgerAccountRow = typeof paymentLedgerAccounts.$inferSelect;
+
+export type NewPaymentLedgerAccount = typeof paymentLedgerAccounts.$inferInsert;
+
+/** 已过账凭证只追加不修改；冲正通过 reversalOfJournalId 指向原凭证。 */
+export const paymentJournals = pgTable('payment_journals', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  journalNo: varchar({ length: 64 }).notNull().unique('payment_journals_journal_no_unique'),
+  sourceType: varchar({ length: 64 }).notNull(),
+  sourceId: varchar({ length: 128 }).notNull(),
+  requestHash: varchar({ length: 64 }).notNull(),
+  description: varchar({ length: 512 }).notNull(),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull(),
+  reversalOfJournalId: integer().references((): AnyPgColumn => paymentJournals.id, { onDelete: 'restrict' }),
+  operatorId: integer().references(() => users.id, { onDelete: 'set null' }),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'restrict' }),
+  postedAt: timestamp({ withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('payment_journals_source_scope_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.appId, t.channelConfigId, t.currency, t.sourceType, t.sourceId),
+  uniqueIndex('payment_journals_reversal_once_uq')
+    .on(t.reversalOfJournalId)
+    .where(sql`${t.reversalOfJournalId} is not null`),
+  index('payment_journals_scope_posted_idx').on(t.tenantId, t.appId, t.channelConfigId, t.currency, t.postedAt),
+]);
+
+export type PaymentJournalRow = typeof paymentJournals.$inferSelect;
+
+export type NewPaymentJournal = typeof paymentJournals.$inferInsert;
+
+export const paymentJournalLines = pgTable('payment_journal_lines', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  journalId: integer().notNull().references(() => paymentJournals.id, { onDelete: 'restrict' }),
+  lineNo: integer().notNull(),
+  accountId: integer().notNull().references(() => paymentLedgerAccounts.id, { onDelete: 'restrict' }),
+  debitAmount: bigint({ mode: 'bigint' }).notNull().default(sql`0`),
+  creditAmount: bigint({ mode: 'bigint' }).notNull().default(sql`0`),
+  memo: varchar({ length: 256 }),
+  createdAt: timestamp().defaultNow().notNull(),
+}, (t) => [
+  unique('payment_journal_lines_journal_line_unique').on(t.journalId, t.lineNo),
+  index('payment_journal_lines_account_idx').on(t.accountId),
+  check(
+    'payment_journal_lines_single_side_check',
+    sql`((${t.debitAmount} > 0 and ${t.creditAmount} = 0) or (${t.creditAmount} > 0 and ${t.debitAmount} = 0))`,
+  ),
+]);
+
+export type PaymentJournalLineRow = typeof paymentJournalLines.$inferSelect;
+
+export type NewPaymentJournalLine = typeof paymentJournalLines.$inferInsert;
+
+export const paymentFundReservationStatusEnum = pgEnum('payment_fund_reservation_status', [
+  'active',
+  'captured',
+  'released',
+  'expired',
+]);
+
+export const paymentFundReservations = pgTable('payment_fund_reservations', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  reservationNo: varchar({ length: 64 }).notNull().unique('payment_fund_reservations_reservation_no_unique'),
+  accountId: integer().notNull().references(() => paymentLedgerAccounts.id, { onDelete: 'restrict' }),
+  sourceType: varchar({ length: 64 }).notNull(),
+  sourceId: varchar({ length: 128 }).notNull(),
+  amount: bigint({ mode: 'bigint' }).notNull(),
+  status: paymentFundReservationStatusEnum().notNull().default('active'),
+  version: integer().notNull().default(0),
+  reason: varchar({ length: 256 }),
+  finalizationReason: varchar({ length: 256 }),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull(),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'restrict' }),
+  expiresAt: timestamp({ withTimezone: true }),
+  finalizedAt: timestamp({ withTimezone: true }),
+  ...auditColumns(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),
+}, (t) => [
+  uniqueIndex('payment_fund_reservations_source_scope_uq')
+    .on(sql`coalesce(${t.tenantId}, 0)`, t.appId, t.channelConfigId, t.currency, t.sourceType, t.sourceId),
+  index('payment_fund_reservations_active_account_idx').on(t.accountId, t.status, t.expiresAt),
+  index('payment_fund_reservations_scope_idx').on(t.tenantId, t.appId, t.channelConfigId, t.currency),
+  check('payment_fund_reservations_amount_positive_check', sql`${t.amount} > 0`),
+]);
+
+export type PaymentFundReservationRow = typeof paymentFundReservations.$inferSelect;
+
+export type NewPaymentFundReservation = typeof paymentFundReservations.$inferInsert;
+
+/** 结算批次逐笔认领 Journal Line；amount 为该行对可结算净额的带符号贡献。 */
+export const paymentSettlementItems = pgTable('payment_settlement_items', {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  batchId: integer().notNull().references(() => paymentSettlementBatches.id, { onDelete: 'restrict' }),
+  journalLineId: integer().notNull().references(() => paymentJournalLines.id, { onDelete: 'restrict' }),
+  amount: bigint({ mode: 'bigint' }).notNull(),
+  appId: integer().notNull().references(() => paymentApps.id, { onDelete: 'restrict' }),
+  channelConfigId: integer().notNull().references(() => paymentChannelConfigs.id, { onDelete: 'restrict' }),
+  currency: varchar({ length: 8 }).notNull(),
+  tenantId: integer().references(() => tenants.id, { onDelete: 'restrict' }),
+  createdAt: timestamp().defaultNow().notNull(),
+}, (t) => [
+  unique('payment_settlement_items_journal_line_unique').on(t.journalLineId),
+  unique('payment_settlement_items_batch_line_unique').on(t.batchId, t.journalLineId),
+  index('payment_settlement_items_batch_idx').on(t.batchId),
+  index('payment_settlement_items_scope_idx').on(t.tenantId, t.appId, t.channelConfigId, t.currency),
+  check('payment_settlement_items_amount_nonzero_check', sql`${t.amount} <> 0`),
+]);
+
+export type PaymentSettlementItemRow = typeof paymentSettlementItems.$inferSelect;
+
+export type NewPaymentSettlementItem = typeof paymentSettlementItems.$inferInsert;
 
 // ─── 关系声明（Drizzle Relational Query API）──────────────────────────────────
 // 声明后可使用 db.query.xxx.findMany({ with: { ... } }) 进行关联查询

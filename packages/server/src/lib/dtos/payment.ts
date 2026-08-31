@@ -2,18 +2,15 @@
  * 支付中心相关 DTO（密钥字段以 hasXxx 布尔位返回，绝不暴露明文）
  */
 import { z } from '@hono/zod-openapi';
-import { PAYMENT_LEDGER_TYPES } from '@zenith/shared/payment';
+import { PAYMENT_REPORT_GROUP_BYS } from '@zenith/shared/payment';
 
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
 const payMethodEnum = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr', 'wechat_papay', 'alipay_cycle', 'wechat_preauth', 'alipay_preauth']);
-const orderStatusEnum = z.enum(['pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed']);
-const refundStatusEnum = z.enum(['pending', 'processing', 'success', 'failed']);
+const orderStatusEnum = z.enum(['pending', 'paying', 'unknown', 'success', 'closed', 'refunding', 'refunded', 'failed']);
+const refundStatusEnum = z.enum(['pending', 'processing', 'unknown', 'success', 'failed']);
 const refundApprovalEnum = z.enum(['none', 'pending', 'approved', 'rejected']);
 const reconStatusEnum = z.enum(['pending', 'comparing', 'done', 'failed']);
 const reconResultEnum = z.enum(['matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff']);
-const webhookDeliveryStatusEnum = z.enum(['pending', 'success', 'failed']);
-const ledgerDirectionEnum = z.enum(['in', 'out']);
-const ledgerTypeEnum = z.enum(PAYMENT_LEDGER_TYPES);
 
 export const PaymentChannelConfigDTO = z
   .object({
@@ -31,6 +28,7 @@ export const PaymentChannelConfigDTO = z
     hasWechatApiV3Key: z.boolean().optional(),
     hasWechatPrivateKey: z.boolean().optional(),
     alipayAppId: z.string().nullable().optional(),
+    alipaySellerId: z.string().nullable().optional(),
     alipayPublicKey: z.string().nullable().optional(),
     alipaySignType: z.string().nullable().optional(),
     alipayGateway: z.string().nullable().optional(),
@@ -46,6 +44,15 @@ export const PaymentChannelConfigDTO = z
   })
   .openapi('PaymentChannelConfig');
 
+export const PaymentChannelConfigLookupDTO = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    channel: channelEnum,
+    sandbox: z.boolean(),
+  })
+  .openapi('PaymentChannelConfigLookup');
+
 export const PaymentOrderDTO = z
   .object({
     id: z.number().int(),
@@ -59,7 +66,8 @@ export const PaymentOrderDTO = z
     amount: z.number().int().openapi({ description: '金额（分）', example: 9900 }),
     currency: z.string(),
     channel: channelEnum,
-    channelConfigId: z.number().int().nullable().optional(),
+    channelConfigId: z.number().int(),
+    appId: z.number().int(),
     payMethod: payMethodEnum,
     status: orderStatusEnum,
     userId: z.number().int().nullable().optional(),
@@ -74,7 +82,9 @@ export const PaymentOrderDTO = z
     memberCouponId: z.number().int().nullable().optional(),
     paidAt: z.string().nullable().optional(),
     expiredAt: z.string().nullable().optional(),
+    returnUrl: z.string().nullable().optional(),
     errorMessage: z.string().nullable().optional(),
+    version: z.number().int().nonnegative(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -86,7 +96,7 @@ export const PaymentRefundDTO = z
     refundNo: z.string(),
     outRefundNo: z.string(),
     orderNo: z.string(),
-    orderId: z.number().int().nullable().optional(),
+    orderId: z.number().int(),
     channelRefundNo: z.string().nullable().optional(),
     channel: channelEnum,
     refundAmount: z.number().int().openapi({ description: '退款金额（分）' }),
@@ -101,6 +111,7 @@ export const PaymentRefundDTO = z
     operatorId: z.number().int().nullable().optional(),
     refundedAt: z.string().nullable().optional(),
     errorMessage: z.string().nullable().optional(),
+    version: z.number().int().nonnegative(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
@@ -110,9 +121,16 @@ export const PaymentNotifyLogDTO = z
   .object({
     id: z.number().int(),
     channel: channelEnum,
+    channelConfigId: z.number().int(),
+    appId: z.number().int().nullable().optional(),
+    providerEventId: z.string().nullable().optional(),
     scene: z.string(),
     orderNo: z.string().nullable().optional(),
     signatureValid: z.boolean(),
+    merchantId: z.string().nullable().optional(),
+    providerAppId: z.string().nullable().optional(),
+    paidAmount: z.number().int().nullable().optional(),
+    currency: z.string().nullable().optional(),
     result: z.string().nullable().optional(),
     message: z.string().nullable().optional(),
     ip: z.string().nullable().optional(),
@@ -193,6 +211,9 @@ export const PaymentReconBatchDTO = z
     id: z.number().int(),
     batchNo: z.string(),
     channel: channelEnum,
+    appId: z.number().int(),
+    channelConfigId: z.number().int(),
+    currency: z.string(),
     billDate: z.string(),
     status: reconStatusEnum,
     localCount: z.number().int(),
@@ -226,65 +247,6 @@ export const PaymentReconItemDTO = z
   })
   .openapi('PaymentReconItem');
 
-export const PaymentWebhookEndpointDTO = z
-  .object({
-    id: z.number().int(),
-    name: z.string(),
-    url: z.string(),
-    bizType: z.string().nullable().optional(),
-    events: z.array(z.string()),
-    status: z.enum(['enabled', 'disabled']),
-    hasSecret: z.boolean().optional(),
-    remark: z.string().nullable().optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .openapi('PaymentWebhookEndpoint');
-
-export const PaymentWebhookDeliveryDTO = z
-  .object({
-    id: z.number().int(),
-    endpointId: z.number().int(),
-    endpointName: z.string().nullable().optional(),
-    eventType: z.string(),
-    orderNo: z.string().nullable().optional(),
-    payload: z.string().nullable().optional(),
-    status: webhookDeliveryStatusEnum,
-    attempts: z.number().int(),
-    httpStatus: z.number().int().nullable().optional(),
-    responseBody: z.string().nullable().optional(),
-    lastError: z.string().nullable().optional(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .openapi('PaymentWebhookDelivery');
-
-export const PaymentLedgerEntryDTO = z
-  .object({
-    id: z.number().int(),
-    entryNo: z.string(),
-    direction: ledgerDirectionEnum,
-    type: ledgerTypeEnum,
-    amount: z.number().int(),
-    orderNo: z.string().nullable().optional(),
-    refundNo: z.string().nullable().optional(),
-    sharingNo: z.string().nullable().optional(),
-    channel: channelEnum.nullable().optional(),
-    bizType: z.string().nullable().optional(),
-    remark: z.string().nullable().optional(),
-    createdAt: z.string(),
-  })
-  .openapi('PaymentLedgerEntry');
-
-export const PaymentLedgerSummaryDTO = z
-  .object({
-    inAmount: z.number().int(),
-    outAmount: z.number().int(),
-    netAmount: z.number().int(),
-    count: z.number().int(),
-  })
-  .openapi('PaymentLedgerSummary');
-
 export const PaymentOutboxEventDTO = z
   .object({
     id: z.number().int(),
@@ -302,7 +264,8 @@ export const PaymentOutboxEventDTO = z
 // ─── B 档：费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表 ────────────────
 const settlementStatusEnum = z.enum(['pending', 'settling', 'settled', 'failed']);
 const sharingReceiverTypeEnum = z.enum(['merchant', 'personal']);
-const sharingOrderStatusEnum = z.enum(['pending', 'processing', 'success', 'failed']);
+const sharingOrderStatusEnum = z.enum(['pending', 'processing', 'success', 'failed', 'reversed']);
+const sharingReversalStatusEnum = z.enum(['processing', 'unknown', 'success', 'failed']);
 const linkStatusEnum = z.enum(['active', 'disabled', 'expired']);
 const riskScopeEnum = z.enum(['global', 'channel', 'bizType']);
 
@@ -329,6 +292,8 @@ export const PaymentSettlementBatchDTO = z
     id: z.number().int(),
     batchNo: z.string(),
     channel: channelEnum,
+    channelConfigId: z.number().int(),
+    currency: z.string(),
     periodStart: z.string(),
     periodEnd: z.string(),
     status: settlementStatusEnum,
@@ -339,11 +304,27 @@ export const PaymentSettlementBatchDTO = z
     sharingAmount: z.number().int().openapi({ description: '账期内分账支出合计（分），净额已扣除' }),
     netAmount: z.number().int(),
     settledAt: z.string().nullable().optional(),
+    failureReason: z.string().nullable().optional(),
+    payoutReference: z.string().nullable().optional(),
+    version: z.number().int().nonnegative(),
     remark: z.string().nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })
   .openapi('PaymentSettlementBatch');
+
+export const PaymentSettlementItemDTO = z
+  .object({
+    id: z.number().int(),
+    batchId: z.number().int(),
+    journalLineId: z.number().int(),
+    amount: z.string().regex(/^-?\d+$/),
+    appId: z.number().int(),
+    channelConfigId: z.number().int(),
+    currency: z.string(),
+    createdAt: z.string(),
+  })
+  .openapi('PaymentSettlementItem');
 
 export const PaymentSharingReceiverDTO = z
   .object({
@@ -370,6 +351,7 @@ export const PaymentSharingOrderDTO = z
     amount: z.number().int(),
     status: sharingOrderStatusEnum,
     channelSharingNo: z.string().nullable().optional(),
+    version: z.number().int().nonnegative(),
     finishedAt: z.string().nullable().optional(),
     remark: z.string().nullable().optional(),
     createdAt: z.string(),
@@ -377,20 +359,51 @@ export const PaymentSharingOrderDTO = z
   })
   .openapi('PaymentSharingOrder');
 
+export const PaymentSharingReversalDTO = z
+  .object({
+    id: z.number().int(),
+    reversalNo: z.string(),
+    sharingOrderId: z.number().int(),
+    sharingNo: z.string(),
+    orderNo: z.string(),
+    amount: z.number().int(),
+    status: sharingReversalStatusEnum,
+    channelReversalNo: z.string().nullable().optional(),
+    reason: z.string(),
+    attempts: z.number().int().nonnegative(),
+    queryAttempts: z.number().int().nonnegative(),
+    version: z.number().int().nonnegative(),
+    errorMessage: z.string().nullable().optional(),
+    finishedAt: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentSharingReversal');
+
 export const PaymentTransferDTO = z
   .object({
     id: z.number().int(),
     transferNo: z.string(),
     outTransferNo: z.string(),
     channel: channelEnum,
+    appId: z.number().int(),
+    channelConfigId: z.number().int(),
+    currency: z.string(),
     receiverAccount: z.string(),
     receiverName: z.string().nullable().optional(),
     amount: z.number().int(),
     remark: z.string().nullable().optional(),
-    status: z.enum(['pending', 'processing', 'success', 'failed']),
+    status: z.enum(['pending', 'processing', 'unknown', 'success', 'failed']),
+    approvalStatus: z.enum(['none', 'pending', 'approved', 'rejected']),
+    appliedById: z.number().int().nullable().optional(),
+    approverId: z.number().int().nullable().optional(),
+    approvedAt: z.string().nullable().optional(),
+    approvalRemark: z.string().nullable().optional(),
     channelTransferNo: z.string().nullable().optional(),
     failReason: z.string().nullable().optional(),
     attempts: z.number().int(),
+    fundReservationId: z.number().int(),
+    version: z.number().int().nonnegative(),
     bizType: z.string().nullable().optional(),
     bizId: z.string().nullable().optional(),
     finishedAt: z.string().nullable().optional(),
@@ -414,12 +427,14 @@ export const PaymentLinkDTO = z
     id: z.number().int(),
     linkNo: z.string(),
     token: z.string(),
+    appId: z.number().int(),
     subject: z.string(),
     amount: z.number().int().nullable().optional(),
     payMethod: payMethodEnum.nullable().optional(),
     bizType: z.string(),
     maxUses: z.number().int().nullable().optional(),
     usedCount: z.number().int(),
+    reservedCount: z.number().int().nonnegative(),
     expiredAt: z.string().nullable().optional(),
     status: linkStatusEnum,
     remark: z.string().nullable().optional(),
@@ -436,10 +451,36 @@ export const PaymentLinkPublicDTO = z
     payMethod: payMethodEnum.nullable().optional(),
     bizType: z.string(),
     status: linkStatusEnum,
+    unavailableReason: z.enum(['disabled', 'expired', 'usage_limit']).nullable().optional(),
     expiredAt: z.string().nullable().optional(),
     remainingUses: z.number().int().nullable().optional(),
+    availableMethods: z.array(z.object({
+      method: payMethodEnum,
+      label: z.string(),
+      icon: z.string().nullable().optional(),
+    })),
   })
   .openapi('PaymentLinkPublic');
+
+export const PaymentCashierSessionDTO = z
+  .object({
+    sessionToken: z.string(),
+    linkId: z.number().int(),
+    appId: z.number().int(),
+    orderNo: z.string().nullable().optional(),
+    payMethod: payMethodEnum,
+    amount: z.number().int(),
+    status: z.enum(['ready', 'creating', 'awaiting', 'processing', 'unknown', 'succeeded', 'failed', 'expired']),
+    useSlotStatus: z.enum(['none', 'reserved', 'consumed', 'released']),
+    payParams: CreatePaymentResultDTO.nullable().optional(),
+    returnUrl: z.string(),
+    errorMessage: z.string().nullable().optional(),
+    expiresAt: z.string(),
+    version: z.number().int().nonnegative(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi('PaymentCashierSession');
 
 export const PaymentRiskRuleDTO = z
   .object({
@@ -491,9 +532,11 @@ export const PaymentRiskReviewDTO = z
     hitId: z.number().int().nullable().optional(),
     orderNo: z.string(),
     channel: channelEnum,
+    appId: z.number().int(),
     bizType: z.string(),
     bizId: z.string(),
     amount: z.number().int(),
+    currency: z.string(),
     reason: z.string(),
     status: z.enum(['pending', 'approved', 'rejected']),
     reviewerName: z.string().nullable().optional(),
@@ -504,38 +547,14 @@ export const PaymentRiskReviewDTO = z
   })
   .openapi('PaymentRiskReview');
 
-export const PaymentAccountDTO = z
-  .object({
-    id: z.number().int(),
-    channel: channelEnum,
-    pendingSettle: z.number().int(),
-    available: z.number().int(),
-    frozen: z.number().int(),
-    version: z.number().int(),
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .openapi('PaymentAccount');
-
-export const PaymentAccountCheckDTO = z
-  .object({
-    channel: channelEnum,
-    pendingSettleSnapshot: z.number().int(),
-    pendingSettleComputed: z.number().int(),
-    availableSnapshot: z.number().int(),
-    availableComputed: z.number().int(),
-    frozenSnapshot: z.number().int(),
-    frozenComputed: z.number().int(),
-    match: z.boolean(),
-  })
-  .openapi('PaymentAccountCheck');
-
 export const PaymentPreauthDTO = z
   .object({
     id: z.number().int(),
     preauthNo: z.string(),
     channel: channelEnum,
-    channelConfigId: z.number().int().nullable().optional(),
+    channelConfigId: z.number().int(),
+    appId: z.number().int(),
+    currency: z.string(),
     channelPreauthNo: z.string().nullable().optional(),
     bizType: z.string(),
     bizId: z.string(),
@@ -544,7 +563,9 @@ export const PaymentPreauthDTO = z
     frozenAmount: z.number().int(),
     capturedAmount: z.number().int().nullable().optional(),
     captureOrderNo: z.string().nullable().optional(),
-    status: z.enum(['pending', 'frozen', 'captured', 'released', 'failed']),
+    status: z.enum(['pending', 'unknown', 'frozen', 'captured', 'released', 'failed']),
+    unknownOperation: z.enum(['freeze', 'capture', 'release']).nullable().optional(),
+    version: z.number().int().nonnegative(),
     errorMessage: z.string().nullable().optional(),
     frozenAt: z.string().nullable().optional(),
     finishedAt: z.string().nullable().optional(),
@@ -584,7 +605,7 @@ export const PaymentReportRowDTO = z
 
 export const PaymentReportSummaryDTO = z
   .object({
-    groupBy: z.enum(['bizType', 'channel', 'day']),
+    groupBy: z.enum(PAYMENT_REPORT_GROUP_BYS),
     rows: z.array(PaymentReportRowDTO),
     totalGross: z.number().int(),
     totalFee: z.number().int(),
@@ -624,7 +645,10 @@ export const PaymentAppDTO = z
   .object({
     id: z.number().int(),
     name: z.string(),
-    appKey: z.string(),
+    openClientId: z.number().int(),
+    openClientKey: z.string(),
+    openClientName: z.string(),
+    environment: z.enum(['production', 'sandbox']),
     status: z.enum(['enabled', 'disabled']),
     wechatConfigId: z.number().int().nullable().optional(),
     wechatConfigName: z.string().nullable().optional(),
@@ -640,7 +664,7 @@ export const PaymentAppDTO = z
 
 // ─── 签约代扣（周期扣款/订阅）────────────────────────────────────────────────
 const deductPeriodEnum = z.enum(['daily', 'weekly', 'monthly', 'custom']);
-const contractStatusEnum = z.enum(['pending', 'signed', 'paused', 'terminated']);
+const contractStatusEnum = z.enum(['pending', 'unknown', 'signed', 'paused', 'terminated', 'failed']);
 
 export const PaymentDeductPlanDTO = z
   .object({
@@ -663,7 +687,9 @@ export const PaymentContractDTO = z
     id: z.number().int(),
     contractNo: z.string(),
     channel: channelEnum,
-    channelConfigId: z.number().int().nullable().optional(),
+    channelConfigId: z.number().int(),
+    appId: z.number().int(),
+    currency: z.string(),
     planId: z.number().int(),
     planName: z.string().nullable().optional(),
     planPeriod: deductPeriodEnum.nullable().optional(),
@@ -671,6 +697,9 @@ export const PaymentContractDTO = z
     signerAccount: z.string(),
     signerName: z.string().nullable().optional(),
     status: contractStatusEnum,
+    unknownOperation: z.enum(['sign', 'terminate']).nullable().optional(),
+    version: z.number().int().nonnegative(),
+    errorMessage: z.string().nullable().optional(),
     channelContractNo: z.string().nullable().optional(),
     bizType: z.string(),
     bizId: z.string(),

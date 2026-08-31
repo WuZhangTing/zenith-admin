@@ -361,10 +361,11 @@ async function convergeOtaTask(taskId: number): Promise<void> {
     failedCount,
     ...(active === 0 ? { status: 'completed' as const } : {}),
   }).where(and(eq(iotOtaTasks.id, taskId), inArray(iotOtaTasks.status, ['running', 'paused'])))
-    .returning({ id: iotOtaTasks.id, status: iotOtaTasks.status, title: iotOtaTasks.title, firmwareVersion: iotOtaTasks.firmwareVersion, succeededCount: iotOtaTasks.succeededCount, failedCount: iotOtaTasks.failedCount, totalCount: iotOtaTasks.totalCount });
+    .returning({ id: iotOtaTasks.id, status: iotOtaTasks.status, title: iotOtaTasks.title, firmwareVersion: iotOtaTasks.firmwareVersion, succeededCount: iotOtaTasks.succeededCount, failedCount: iotOtaTasks.failedCount, totalCount: iotOtaTasks.totalCount, tenantId: iotOtaTasks.tenantId });
   if (updated && updated.status === 'completed') {
     openEventBus.emit({
       type: 'iot.ota.task_completed',
+      tenantId: updated.tenantId ?? null,
       data: {
         taskId: updated.id, title: updated.title, firmwareVersion: updated.firmwareVersion,
         totalCount: updated.totalCount, succeededCount: updated.succeededCount, failedCount: updated.failedCount,

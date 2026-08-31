@@ -146,7 +146,7 @@ const { payParams } = res.data;
 
 ## 5. 模拟支付成功
 
-示例模块提供演示接口：直接调用与订阅器相同的 `markBizPayDemoPaid`，不派发全局支付事件，避免影响台账、手续费与 Webhook。
+示例模块提供演示接口：直接调用与订阅器相同的 `markBizPayDemoPaid`，不派发全局支付事件，避免影响正式 Journal、手续费与 Open Platform Webhook。
 
 ```ts
 export async function simulateBizPayDemoPaid(id: number) {
@@ -168,4 +168,4 @@ export async function simulateBizPayDemoPaid(id: number) {
 4. 按需订阅 `payment.closed`、`payment.failed`、`refund.succeeded`、`refund.failed`。
 5. 金额全链路使用整数分。
 6. 在 `registerEventSubscribers()` 注册订阅者。
-7. 涉及跨系统通知时配置业务方 Webhook；涉及外部公开收款时优先使用支付链接。
+7. 涉及跨系统通知时在 Open Platform 配置应用 Webhook 订阅；涉及外部公开收款时优先使用支付链接。

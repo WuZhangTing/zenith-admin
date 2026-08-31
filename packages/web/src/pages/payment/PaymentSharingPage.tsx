@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Select, Switch, Tabs, TabPane, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Form, Select, SideSheet, Spin, Switch, Tabs, TabPane, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -17,22 +17,27 @@ import {
   useCreatePaymentSharingOrder,
   useDeletePaymentSharingReceivers,
   useEnabledPaymentSharingReceivers,
+  usePaymentSharingReversals,
+  usePaymentSharingReversalDetail,
   usePaymentSharingOrders,
   usePaymentSharingReceivers,
+  useQueryPaymentSharingReversal,
+  useReversePaymentSharingOrder,
   useSavePaymentSharingReceiver,
 } from '@/hooks/queries/payment-sharing';
-import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABELS } from '@zenith/shared/payment';
-import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType } from '@zenith/shared/payment';
+import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABELS, PAYMENT_SHARING_REVERSAL_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType, PaymentSharingReversal, PaymentSharingReversalStatus } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
 const receiverTypeOptions = Object.entries(PAYMENT_SHARING_RECEIVER_TYPE_LABELS).map(([value, label]) => ({ value, label }));
-const ORDER_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentSharingOrderStatus, string>;
+const ORDER_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red', reversed: 'orange' } as const satisfies Record<PaymentSharingOrderStatus, string>;
+const REVERSAL_STATUS_COLOR = { processing: 'blue', unknown: 'orange', success: 'green', failed: 'red' } as const satisfies Record<PaymentSharingReversalStatus, string>;
 
 interface ReceiverFormValues { name: string; receiverType: PaymentSharingReceiverType; account: string; ratioPercent?: number; autoShare?: boolean; status?: 'enabled' | 'disabled'; remark?: string; }
 interface DispatchFormValues { orderNo: string; receiverId: number; amountYuan?: number; remark?: string; }
@@ -43,7 +48,7 @@ export default function PaymentSharingPage() {
   const queryClient = useQueryClient();
   const canManage = hasPermission('payment:sharing:manage');
   const canDispatch = hasPermission('payment:sharing:dispatch');
-  const [activeTab, setActiveTab] = useUrlTabState(['receivers', 'orders'] as const, 'receivers');
+  const [activeTab, setActiveTab] = useUrlTabState(['receivers', 'orders', 'reversals'] as const, 'receivers');
 
   // ── 接收方 ──
   const { page: rPage, pageSize: rPageSize, setPage: setRPage, buildPagination: buildRPagination } = usePagination();
@@ -54,6 +59,14 @@ export default function PaymentSharingPage() {
   const [orderKeyword, setOrderKeyword] = useState('');
   const [orderStatus, setOrderStatus] = useState('');
   const [submittedOrderParams, setSubmittedOrderParams] = useState({ keyword: '', status: '' });
+  // ── 冲正记录 ──
+  const { page: vPage, pageSize: vPageSize, setPage: setVPage, buildPagination: buildVPagination } = usePagination();
+  const [reversalStatus, setReversalStatus] = useState('');
+  const [submittedReversalStatus, setSubmittedReversalStatus] = useState('');
+  const [reverseTarget, setReverseTarget] = useState<PaymentSharingOrder | null>(null);
+  const [reverseReason, setReverseReason] = useState('');
+  const [reverseIdempotencyKey, setReverseIdempotencyKey] = useState('');
+  const [reversalDetailTarget, setReversalDetailTarget] = useState<PaymentSharingReversal | null>(null);
 
   const receiverQuery = usePaymentSharingReceivers({
     page: rPage,
@@ -70,10 +83,21 @@ export default function PaymentSharingPage() {
   });
   const orderData = orderQuery.data?.list ?? [];
   const orderTotal = orderQuery.data?.total ?? 0;
+  const reversalQuery = usePaymentSharingReversals({
+    page: vPage,
+    pageSize: vPageSize,
+    status: submittedReversalStatus || undefined,
+  });
+  const reversalData = reversalQuery.data?.list ?? [];
+  const reversalTotal = reversalQuery.data?.total ?? 0;
+  const reversalDetailQuery = usePaymentSharingReversalDetail(reversalDetailTarget?.id, !!reversalDetailTarget);
+  const reversalDetail = reversalDetailTarget ? (reversalDetailQuery.data ?? reversalDetailTarget) : null;
   const saveReceiverMutation = useSavePaymentSharingReceiver();
   const toggleReceiverMutation = useSavePaymentSharingReceiver();
   const deleteReceiverMutation = useDeletePaymentSharingReceivers();
   const createOrderMutation = useCreatePaymentSharingOrder();
+  const reverseOrderMutation = useReversePaymentSharingOrder();
+  const queryReversalMutation = useQueryPaymentSharingReversal();
   const togglingId = toggleReceiverMutation.isPending ? (toggleReceiverMutation.variables?.id ?? null) : null;
 
   const receiverModal = useEditModal<PaymentSharingReceiver, ReceiverFormValues, Partial<PaymentSharingReceiver>>({
@@ -140,6 +164,47 @@ export default function PaymentSharingPage() {
     dispatchModal.openCreate();
   }
 
+  function openReverse(order: PaymentSharingOrder) {
+    setReverseTarget(order);
+    setReverseReason('');
+    setReverseIdempotencyKey(crypto.randomUUID());
+  }
+
+  function closeReverse() {
+    if (reverseOrderMutation.isPending) return;
+    setReverseTarget(null);
+    setReverseReason('');
+    setReverseIdempotencyKey('');
+  }
+
+  function submitReverse() {
+    if (!reverseTarget || !reverseIdempotencyKey) return;
+    const reason = reverseReason.trim();
+    if (!reason) {
+      Toast.warning('请填写冲正原因');
+      return;
+    }
+    confirmDanger({
+      title: `确认冲正分账单 ${reverseTarget.sharingNo}？`,
+      content: '冲正提交后将由渠道异步处理，请通过冲正记录确认最终结果。',
+      onOk: async () => {
+        await reverseOrderMutation.mutateAsync({ sharingOrderId: reverseTarget.id, idempotencyKey: reverseIdempotencyKey, reason });
+        Toast.success('冲正已受理');
+        setReverseTarget(null);
+        setReverseReason('');
+        setReverseIdempotencyKey('');
+        setActiveTab('reversals');
+      },
+    });
+  }
+
+  async function handleQueryReversal(record: PaymentSharingReversal) {
+    const result = await queryReversalMutation.mutateAsync(record.id);
+    if (result.status === 'success') Toast.success('查单完成，冲正已成功');
+    else if (result.status === 'failed') Toast.warning('查单完成，冲正已失败');
+    else Toast.info('查单完成，渠道结果仍待确认');
+  }
+
   const receiverColumns: ColumnProps<PaymentSharingReceiver>[] = [
     { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '类型', dataIndex: 'receiverType', width: 90, render: (v: PaymentSharingReceiverType) => PAYMENT_SHARING_RECEIVER_TYPE_LABELS[v] },
@@ -179,9 +244,46 @@ export default function PaymentSharingPage() {
     { title: '接收方', dataIndex: 'receiverName', width: 150, render: renderEllipsis },
     { title: '分账金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     copyableNoColumn('渠道分账号', 'channelSharingNo', { width: 300 }),
+    { title: '版本', dataIndex: 'version', width: 70, align: 'right', render: (v: number) => `v${v}` },
     dateTimeColumn('完成时间', 'finishedAt'),
     createdAtColumn as ColumnProps<PaymentSharingOrder>,
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSharingOrderStatus) => <Tag color={ORDER_STATUS_COLOR[v]}>{PAYMENT_SHARING_ORDER_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentSharingOrderStatus) => <Tag color={ORDER_STATUS_COLOR[v]}>{PAYMENT_SHARING_ORDER_STATUS_LABELS[v]}</Tag> },
+    createOperationColumn<PaymentSharingOrder>({
+      width: 90,
+      actions: (record) => canDispatch && record.status === 'success' ? [{
+        key: 'reverse',
+        label: '冲正',
+        danger: true,
+        onClick: () => openReverse(record),
+      }] : [],
+    }),
+  ];
+
+  const reversalColumns: ColumnProps<PaymentSharingReversal>[] = [
+    copyableNoColumn('冲正单号', 'reversalNo', { width: 210 }),
+    copyableNoColumn('分账单号', 'sharingNo', { width: 210 }),
+    copyableNoColumn('订单号', 'orderNo', { width: 210 }),
+    { title: '冲正金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
+    { title: '原因', dataIndex: 'reason', width: 220, render: renderEllipsis },
+    copyableNoColumn('渠道冲正单号', 'channelReversalNo', { width: 220 }),
+    { title: '尝试/查单', width: 100, align: 'right', render: (_: unknown, record: PaymentSharingReversal) => `${record.attempts} / ${record.queryAttempts}` },
+    { title: '版本', dataIndex: 'version', width: 70, align: 'right', render: (v: number) => `v${v}` },
+    { title: '失败原因', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
+    dateTimeColumn('完成时间', 'finishedAt'),
+    createdAtColumn as ColumnProps<PaymentSharingReversal>,
+    { title: '状态', dataIndex: 'status', width: 110, render: (v: PaymentSharingReversalStatus) => <Tag color={REVERSAL_STATUS_COLOR[v]}>{PAYMENT_SHARING_REVERSAL_STATUS_LABELS[v]}</Tag> },
+    createOperationColumn<PaymentSharingReversal>({
+      width: 140,
+      actions: (record) => [
+        { key: 'detail', label: '详情', onClick: () => setReversalDetailTarget(record) },
+        ...(canDispatch && (record.status === 'processing' || record.status === 'unknown') ? [{
+          key: 'query',
+          label: '查单',
+          loading: queryReversalMutation.isPending && queryReversalMutation.variables === record.id,
+          onClick: () => { void handleQueryReversal(record); },
+        }] : []),
+      ],
+    }),
   ];
 
   const handleReceiverSearch = () => {
@@ -206,6 +308,17 @@ export default function PaymentSharingPage() {
     setOPage(1);
     setSubmittedOrderParams({ keyword: '', status: '' });
     void queryClient.invalidateQueries({ queryKey: paymentSharingKeys.orderLists });
+  };
+  const handleReversalSearch = () => {
+    setVPage(1);
+    setSubmittedReversalStatus(reversalStatus);
+    void queryClient.invalidateQueries({ queryKey: paymentSharingKeys.reversalLists });
+  };
+  const handleReversalReset = () => {
+    setReversalStatus('');
+    setVPage(1);
+    setSubmittedReversalStatus('');
+    void queryClient.invalidateQueries({ queryKey: paymentSharingKeys.reversalLists });
   };
 
   const renderReceiverKeywordSearch = () => (
@@ -235,10 +348,20 @@ export default function PaymentSharingPage() {
   const renderDispatchButton = () => canDispatch ? (
     <Button type="primary" icon={<Plus size={14} />} onClick={openDispatch}>发起分账</Button>
   ) : null;
+  const renderReversalStatusFilter = () => (
+    <Select
+      placeholder="全部状态"
+      value={reversalStatus || undefined}
+      onChange={(v) => setReversalStatus((v as string) ?? '')}
+      showClear
+      style={{ width: 140 }}
+      optionList={Object.entries(PAYMENT_SHARING_REVERSAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+    />
+  );
 
   return (
     <div className="page-container page-tabs-page">
-      <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as 'receivers' | 'orders')} type="line" lazyRender keepDOM={false}>
+      <Tabs collapsible="auto" activeKey={activeTab} onChange={(k) => setActiveTab(k as 'receivers' | 'orders' | 'reversals')} type="line" lazyRender keepDOM={false}>
         <TabPane tab="分账接收方" itemKey="receivers">
           <SearchToolbar
             primary={(
@@ -260,6 +383,7 @@ export default function PaymentSharingPage() {
           <ConfigurableTable
             bordered columns={receiverColumns} dataSource={receiverData} loading={receiverQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void receiverQuery.refetch()} refreshLoading={receiverQuery.isFetching} pagination={buildRPagination(receiverTotal)}
+            scroll={{ x: 1120 }}
           />
         </TabPane>
         <TabPane tab="分账单" itemKey="orders">
@@ -288,6 +412,28 @@ export default function PaymentSharingPage() {
           <ConfigurableTable
             bordered columns={orderColumns} dataSource={orderData} loading={orderQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void orderQuery.refetch()} refreshLoading={orderQuery.isFetching} pagination={buildOPagination(orderTotal)}
+            scroll={{ x: 1710 }}
+          />
+        </TabPane>
+        <TabPane tab="冲正记录" itemKey="reversals">
+          <SearchToolbar
+            primary={(
+              <>
+                {renderReversalStatusFilter()}
+                <SearchButton onClick={handleReversalSearch} />
+                <ResetButton onClick={handleReversalReset} />
+              </>
+            )}
+            mobilePrimary={<SearchButton onClick={handleReversalSearch} />}
+            mobileFilters={renderReversalStatusFilter()}
+            filterTitle="冲正记录筛选"
+            onFilterApply={handleReversalSearch}
+            onFilterReset={handleReversalReset}
+          />
+          <ConfigurableTable
+            bordered columns={reversalColumns} dataSource={reversalData} loading={reversalQuery.isFetching} rowKey="id" size="small" empty="暂无冲正记录"
+            onRefresh={() => void reversalQuery.refetch()} refreshLoading={reversalQuery.isFetching} pagination={buildVPagination(reversalTotal)}
+            scroll={{ x: 2100 }}
           />
         </TabPane>
       </Tabs>
@@ -313,6 +459,59 @@ export default function PaymentSharingPage() {
           <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
         </Form>
       </AppModal>
+
+      <AppModal
+        title="发起分账冲正"
+        visible={!!reverseTarget}
+        onCancel={closeReverse}
+        onOk={submitReverse}
+        okText="继续确认"
+        okButtonProps={{ type: 'danger', theme: 'solid', loading: reverseOrderMutation.isPending }}
+        width={520}
+        closeOnEsc
+      >
+        {reverseTarget && (
+          <Form labelPosition="left" labelWidth={100}>
+            <Form.Slot label="分账单号">{reverseTarget.sharingNo}</Form.Slot>
+            <Form.Slot label="冲正金额">{yuan(reverseTarget.amount)}</Form.Slot>
+            <Form.Slot label="当前版本">v{reverseTarget.version}</Form.Slot>
+            <Form.Slot label="冲正原因">
+              <TextArea value={reverseReason} onChange={setReverseReason} maxCount={256} autosize rows={3} placeholder="请填写冲正依据（必填）" />
+            </Form.Slot>
+          </Form>
+        )}
+      </AppModal>
+
+      <SideSheet
+        title={reversalDetail ? `分账冲正 · ${reversalDetail.reversalNo}` : '分账冲正详情'}
+        visible={!!reversalDetailTarget}
+        onCancel={() => setReversalDetailTarget(null)}
+        width={680}
+        closeOnEsc
+      >
+        <Spin spinning={reversalDetailQuery.isFetching}>
+          {reversalDetail && (
+            <Descriptions
+              align="plain"
+              layout="horizontal"
+              column={2}
+              data={[
+                { key: '冲正单号', value: reversalDetail.reversalNo, span: 2 },
+                { key: '分账单号', value: reversalDetail.sharingNo },
+                { key: '订单号', value: reversalDetail.orderNo },
+                { key: '冲正金额', value: yuan(reversalDetail.amount) },
+                { key: '状态', value: PAYMENT_SHARING_REVERSAL_STATUS_LABELS[reversalDetail.status] },
+                { key: '渠道冲正单号', value: reversalDetail.channelReversalNo ?? '-' },
+                { key: '版本', value: `v${reversalDetail.version}` },
+                { key: '尝试/查单', value: `${reversalDetail.attempts} / ${reversalDetail.queryAttempts}` },
+                { key: '完成时间', value: reversalDetail.finishedAt ?? '-' },
+                { key: '冲正原因', value: reversalDetail.reason, span: 2 },
+                { key: '失败原因', value: reversalDetail.errorMessage ?? '-', span: 2 },
+              ]}
+            />
+          )}
+        </Spin>
+      </SideSheet>
     </div>
   );
 }

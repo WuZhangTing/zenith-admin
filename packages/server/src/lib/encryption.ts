@@ -3,7 +3,7 @@
  * 用于在数据库中安全存储 SSH 密码、私钥等敏感字段。
  *
  * 加密密钥由环境变量 `FIELD_ENCRYPTION_KEY`（32 字节 hex 字符串）提供；
- * 若未配置，则回退到 `JWT_SECRET` 派生密钥，保证开发环境也能运行。
+ * 生产环境必须显式配置，开发环境才允许从 JWT_SECRET 派生临时密钥。
  */
 import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
 
@@ -12,9 +12,18 @@ const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
 function getKey(): Buffer {
-  const raw = process.env.FIELD_ENCRYPTION_KEY ?? process.env.JWT_SECRET ?? 'zenith-default-dev-key-not-for-production';
-  // 统一 SHA-256 派生出 32 字节密钥，兼容任意长度的环境变量
-  return createHash('sha256').update(raw).digest();
+  const configured = process.env.FIELD_ENCRYPTION_KEY?.trim();
+  if (configured) {
+    if (!/^[0-9a-fA-F]{64}$/.test(configured)) {
+      throw new Error('FIELD_ENCRYPTION_KEY must be a 64-character hexadecimal value');
+    }
+    return Buffer.from(configured, 'hex');
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FIELD_ENCRYPTION_KEY is required in production');
+  }
+  const developmentSeed = process.env.JWT_SECRET ?? 'zenith-default-dev-key-not-for-production';
+  return createHash('sha256').update(developmentSeed).digest();
 }
 
 /**

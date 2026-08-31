@@ -4,7 +4,7 @@ import { Coins, Wallet, Ticket, Crown, Repeat } from 'lucide-react';
 import { useMemberAuth } from '../../hooks/useMemberAuth';
 import { MemberPage } from '../../components/MemberPage';
 import { formatYuan } from '../../utils/format';
-import { useMemberCouponList, useMemberPointAccount, useMemberWallet, useMyRenewal } from '../../hooks/queries';
+import { useMemberCouponList, useMemberPointAccount, useMemberWallet } from '../../hooks/queries';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -12,11 +12,10 @@ export default function HomePage() {
   const pointsQuery = useMemberPointAccount();
   const walletQuery = useMemberWallet();
   const couponQuery = useMemberCouponList({ status: 'unused', page: 1, pageSize: 1 });
-  const renewalQuery = useMyRenewal();
   const points = pointsQuery.data?.balance ?? null;
   const wallet = walletQuery.data?.balance ?? null;
   const couponCount = couponQuery.data?.total ?? null;
-  const vipExpireAt = renewalQuery.data?.vipExpireAt ?? null;
+  const vipExpireAt = member?.vipExpireAt ?? null;
 
   return (
     <MemberPage title="会员概览">

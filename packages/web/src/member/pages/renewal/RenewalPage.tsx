@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { Button, Modal, Spin, Tag, Toast } from '@douyinfe/semi-ui';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Modal, Select, Spin, Tag, Toast } from '@douyinfe/semi-ui';
 import { BadgeCheck, CalendarClock, Repeat, ShieldCheck } from 'lucide-react';
 import { MemberPage } from '../../components/MemberPage';
 import { formatYuan } from '../../utils/format';
-import { useMyRenewal, useRenewalPlans, useRenewNow, useSignRenewal, useTerminateRenewal } from '../../hooks/queries';
+import { useMemberPaymentOptions, useMyRenewal, useRenewalPlans, useRenewNow, useSignRenewal, useTerminateRenewal } from '../../hooks/queries';
 import { PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS } from '@zenith/shared/payment';
 import type { PaymentDeductPlan } from '@zenith/shared/payment';
 
@@ -20,8 +20,18 @@ const cardStyle: React.CSSProperties = {
 };
 
 export default function RenewalPage() {
-  const renewalQuery = useMyRenewal();
-  const plansQuery = useRenewalPlans();
+  const paymentOptionsQuery = useMemberPaymentOptions();
+  const paymentOptions = useMemo(() => paymentOptionsQuery.data ?? [], [paymentOptionsQuery.data]);
+  const [applicationId, setApplicationId] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (applicationId == null) {
+      setApplicationId(paymentOptions.find((option) => option.deductMethods.length > 0)?.id);
+    }
+  }, [applicationId, paymentOptions]);
+  const selectedApplication = paymentOptions.find((option) => option.id === applicationId);
+  const deductMethods = selectedApplication?.deductMethods ?? [];
+  const renewalQuery = useMyRenewal(applicationId);
+  const plansQuery = useRenewalPlans(applicationId);
   const signMutation = useSignRenewal();
   const terminateMutation = useTerminateRenewal();
   const renewNowMutation = useRenewNow();
@@ -40,7 +50,9 @@ export default function RenewalPage() {
       onOk: async () => {
         setSigningPlanId(plan.id);
         try {
-          const res = await signMutation.mutateAsync({ planId: plan.id, payMethod: 'wechat_papay' });
+          const payMethod = deductMethods[0]?.method;
+          if (!applicationId || !payMethod) throw new Error('当前没有可用的自动续费方式');
+          const res = await signMutation.mutateAsync({ applicationId, planId: plan.id, payMethod });
           if (res.firstDeduct?.deductStatus === 'success') Toast.success('开通成功，首期已扣款');
           else if (res.firstDeduct?.deductStatus === 'failed') Toast.warning(`开通成功，首期扣款失败：${res.firstDeduct.failReason ?? '稍后将自动重试'}`);
           else Toast.success('开通成功');
@@ -58,7 +70,8 @@ export default function RenewalPage() {
       okText: '确认关闭',
       okButtonProps: { type: 'danger' },
       onOk: async () => {
-        await terminateMutation.mutateAsync();
+        if (applicationId == null) return;
+        await terminateMutation.mutateAsync(applicationId);
         Toast.success('已关闭自动续费');
       },
     });
@@ -69,7 +82,8 @@ export default function RenewalPage() {
       title: '立即续费一期？',
       content: contract?.planAmount != null ? `将立即扣款 ${formatYuan(contract.planAmount)} 并顺延有效期` : '将按签约计划立即扣款一期',
       onOk: async () => {
-        const res = await renewNowMutation.mutateAsync();
+        if (applicationId == null) return;
+        const res = await renewNowMutation.mutateAsync(applicationId);
         if (res.deductStatus === 'success') Toast.success('续费成功');
         else if (res.deductStatus === 'processing') Toast.info('扣款受理中，稍后自动到账');
         else Toast.error(`续费失败：${res.failReason ?? '请稍后再试'}`);
@@ -87,6 +101,18 @@ export default function RenewalPage() {
 
   return (
     <MemberPage title="自动续费">
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ color: 'var(--m-text-secondary)', fontSize: 13 }}>支付应用</span>
+        <Select
+          value={applicationId}
+          placeholder="请选择支付应用"
+          loading={paymentOptionsQuery.isFetching}
+          optionList={paymentOptions.filter((option) => option.deductMethods.length > 0).map((option) => ({ value: option.id, label: option.name }))}
+          onChange={(value) => setApplicationId(value as number)}
+          style={{ width: 240 }}
+        />
+        {selectedApplication && deductMethods.length > 0 && <span style={{ color: 'var(--m-text-secondary)', fontSize: 12 }}>可用方式：{deductMethods.map((method) => method.label).join('、')}</span>}
+      </div>
       {/* VIP 状态卡 */}
       <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: 'var(--m-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

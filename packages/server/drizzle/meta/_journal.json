@@ -29,6 +29,20 @@
       "when": 1788087729588,
       "tag": "0003_young_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788127729608,
+      "tag": "0004_yellow_marvel_zombies",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788130200000,
+      "tag": "0005_payment_active_unknown",
+      "breakpoints": true
     }
   ]
 }

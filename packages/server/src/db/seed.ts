@@ -578,18 +578,18 @@ async function seedRest() {
   logger.info('  ✔ AI prompt templates seeded (onConflictDoNothing)');
 
   // ─── 支付方式配置（数据来源：@zenith/shared SEED_PAYMENT_METHOD_CONFIGS）─────────
-  await db.insert(paymentMethodConfigs).overridingSystemValue().values(
-    SEED_PAYMENT_METHOD_CONFIGS.map(({ id, method, channel, label, icon, enabled, sort }) => ({
-      id,
+  const paymentTenantIds = [null, ...(await db.select({ id: tenants.id }).from(tenants)).map((row) => row.id)];
+  await db.insert(paymentMethodConfigs).values(
+    paymentTenantIds.flatMap((tenantId) => SEED_PAYMENT_METHOD_CONFIGS.map(({ method, channel, label, icon, enabled, sort }) => ({
       method: method as PaymentMethod,
       channel: channel as PaymentChannel,
       label,
       icon,
       enabled,
       sort,
-    })),
+      tenantId,
+    }))),
   ).onConflictDoNothing();
-  await db.execute(sql`SELECT setval('payment_method_configs_id_seq', GREATEST((SELECT MAX(id) FROM payment_method_configs), 1))`);
   logger.info('  ✔ Payment method configs seeded (onConflictDoNothing)');
 
   // ─── 扣款计划（数据来源：@zenith/shared SEED_PAYMENT_DEDUCT_PLANS）──────────────

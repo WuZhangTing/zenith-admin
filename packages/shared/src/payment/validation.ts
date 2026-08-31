@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import { partialForUpdate } from '../core/validation';
+import { PAYMENT_FUND_RESERVATION_STATUSES, PAYMENT_LEDGER_ACCOUNT_CODES, PAYMENT_METHOD_CHANNEL } from './constants';
 
 // ─── 支付中心 ────────────────────────────────────────────────────────
 export const createPaymentChannelConfigSchema = z.object({
@@ -18,6 +19,7 @@ export const createPaymentChannelConfigSchema = z.object({
   wechatPlatformCert: z.string().optional(),
   // 支付宝
   alipayAppId: z.string().max(64).optional(),
+  alipaySellerId: z.string().max(64).optional(),
   alipayPrivateKey: z.string().optional(),
   alipayPublicKey: z.string().optional(),
   alipaySignType: z.enum(['RSA2', 'RSA']).default('RSA2'),
@@ -47,10 +49,10 @@ export const createPaymentSchema = z.object({
   subject: z.string().min(1).max(256),
   body: z.string().max(512).optional(),
   amount: z.number().int().positive('金额必须大于 0'), // 分
+  currency: z.literal('CNY').default('CNY'),
   payMethod: z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr']),
-  channelConfigId: z.number().int().positive().optional(),
-  /** 按应用下单：路由到该应用绑定的渠道配置（与 channelConfigId 互斥，appKey 优先） */
-  appKey: z.string().max(64).optional(),
+  /** 支付业务必须显式绑定应用；开放 API 在进入此契约前由已验签 principal 注入。 */
+  applicationId: z.number().int().positive(),
   openId: z.string().max(128).optional(),
   userId: z.number().int().positive().optional(),
   expireMinutes: z.number().int().positive().max(1440).default(30),
@@ -71,6 +73,46 @@ export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
 export type CreateRefundInput = z.infer<typeof createRefundSchema>;
 
+export const createPaymentReconBatchSchema = z.object({
+  applicationId: z.number().int().positive(),
+  channel: z.enum(['wechat', 'alipay', 'unionpay']),
+  channelConfigId: z.number().int().positive(),
+  currency: z.literal('CNY').default('CNY'),
+  billDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '账单日期须为 YYYY-MM-DD'),
+  billText: z.string().min(1).max(2_000_000),
+  remark: z.string().max(256).optional(),
+});
+
+export type CreatePaymentReconBatchInput = z.infer<typeof createPaymentReconBatchSchema>;
+
+const paymentPeriodDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '账期须为 YYYY-MM-DD');
+
+export const createPaymentSettlementSchema = z.object({
+  applicationId: z.number().int().positive(),
+  channelConfigId: z.number().int().positive(),
+  currency: z.literal('CNY').default('CNY'),
+  periodStart: paymentPeriodDate,
+  periodEnd: paymentPeriodDate,
+  remark: z.string().max(256).optional(),
+});
+
+export const transitionPaymentSettlementSchema = z.object({
+  status: z.enum(['settling', 'settled', 'failed']),
+  failureReason: z.string().trim().min(1).max(512).optional(),
+  payoutReference: z.string().trim().min(1).max(128).optional(),
+}).superRefine((value, ctx) => {
+  if (value.status === 'failed' && !value.failureReason) {
+    ctx.addIssue({ code: 'custom', path: ['failureReason'], message: '标记结算失败时必须填写失败原因' });
+  }
+  if (value.status === 'settled' && !value.payoutReference) {
+    ctx.addIssue({ code: 'custom', path: ['payoutReference'], message: '确认结算到账时必须填写出款参考号' });
+  }
+});
+
+export type CreatePaymentSettlementInput = z.infer<typeof createPaymentSettlementSchema>;
+
+export type TransitionPaymentSettlementInput = z.infer<typeof transitionPaymentSettlementSchema>;
+
 // ─── 支付中心扩展 · B 档（费率 / 分账 / 支付链接 / 风控 / 支付方式）──────────────
 const paymentChannelZ = z.enum(['wechat', 'alipay', 'unionpay']);
 
@@ -88,6 +130,10 @@ export const createPaymentFeeRuleSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   priority: z.number().int().min(0).max(9999).default(0),
   remark: z.string().max(256).optional(),
+}).superRefine((value, ctx) => {
+  if (value.payMethod && PAYMENT_METHOD_CHANNEL[value.payMethod] !== value.channel) {
+    ctx.addIssue({ code: 'custom', path: ['payMethod'], message: '支付方式与支付渠道不匹配' });
+  }
 });
 
 export const updatePaymentFeeRuleSchema = partialForUpdate(createPaymentFeeRuleSchema);
@@ -105,28 +151,39 @@ export const createPaymentSharingReceiverSchema = z.object({
 
 export const updatePaymentSharingReceiverSchema = partialForUpdate(createPaymentSharingReceiverSchema);
 
+export const createPaymentSharingReversalSchema = z.object({
+  reason: z.string().trim().min(1, '冲正原因不能为空').max(256),
+});
+
+export type CreatePaymentSharingReversalInput = z.infer<typeof createPaymentSharingReversalSchema>;
+
 /** 对账差异处理 */
 export const handlePaymentReconItemSchema = z.object({
   action: z.enum(['adjusted', 'suspended', 'ignored']),
-  remark: z.string().max(256).optional(),
+  remark: z.string().trim().min(1, '处理原因不能为空').max(256),
 });
 
 /** 转账/代付 */
 export const createPaymentTransferSchema = z.object({
+  applicationId: z.number().int().positive(),
   channel: paymentChannelZ,
-  channelConfigId: z.number().int().positive().optional(),
+  currency: z.literal('CNY').default('CNY'),
   receiverAccount: z.string().min(1).max(128),
   receiverName: z.string().max(64).optional(),
   amount: z.number().int().positive('转账金额必须大于 0'), // 分
-  remark: z.string().max(256).optional(),
+  remark: z.string().trim().min(1, '转账原因不能为空').max(256),
   bizType: z.string().max(64).optional(),
   bizId: z.string().max(128).optional(),
+});
+
+export const approvePaymentTransferSchema = z.object({
+  remark: z.string().trim().min(1, '审批意见不能为空').max(256),
 });
 
 /** 支付应用（App 维度） */
 export const createPaymentAppSchema = z.object({
   name: z.string().min(1).max(64),
-  appKey: z.string().min(3).max(64).regex(/^[a-zA-Z0-9_-]+$/, 'appKey 仅允许字母/数字/下划线/中划线'),
+  openClientId: z.number().int().positive(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   wechatConfigId: z.number().int().positive().nullable().optional(),
   alipayConfigId: z.number().int().positive().nullable().optional(),
@@ -134,10 +191,19 @@ export const createPaymentAppSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 
-export const updatePaymentAppSchema = partialForUpdate(createPaymentAppSchema);
+export const updatePaymentAppSchema = partialForUpdate(createPaymentAppSchema).omit({ openClientId: true });
+
+/** 开放支付 API：应用、租户与商户路由全部由已验签 principal 推导。 */
+export const createOpenPaymentIntentSchema = createPaymentSchema.omit({
+  applicationId: true,
+  userId: true,
+});
+
+export const createOpenPaymentRefundSchema = createRefundSchema;
 
 /** 支付链接 */
 export const createPaymentLinkSchema = z.object({
+  applicationId: z.number().int().positive(),
   subject: z.string().min(1).max(256),
   amount: z.number().int().positive().optional(), // 分，留空=用户填写
   payMethod: paymentMethodZ.optional(),
@@ -148,7 +214,7 @@ export const createPaymentLinkSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 
-export const updatePaymentLinkSchema = partialForUpdate(createPaymentLinkSchema);
+export const updatePaymentLinkSchema = partialForUpdate(createPaymentLinkSchema).omit({ applicationId: true });
 
 /** 风控限额规则 */
 export const createPaymentRiskRuleSchema = z.object({
@@ -177,29 +243,22 @@ export const updatePaymentRiskRuleSchema = partialForUpdate(createPaymentRiskRul
 
 /** 人工审核处理 */
 export const handlePaymentRiskReviewSchema = z.object({
-  remark: z.string().max(256).optional(),
+  remark: z.string().trim().min(1, '审核意见不能为空').max(256),
 });
 
 export type HandlePaymentRiskReviewInput = z.infer<typeof handlePaymentRiskReviewSchema>;
 
 /** 资金账户人工调账（走台账 adjust 流水联动可用余额） */
-export const adjustPaymentAccountSchema = z.object({
-  channel: paymentChannelZ,
-  direction: z.enum(['in', 'out']),
-  amount: z.number().int().positive('调账金额必须大于 0'), // 分
-  remark: z.string().max(200).optional(),
-});
-
-export type AdjustPaymentAccountInput = z.infer<typeof adjustPaymentAccountSchema>;
-
 // ─── 预授权（资金冻结/解冻/转支付）───────────────────────────────────────────
 export const createPaymentPreauthSchema = z.object({
+  applicationId: z.number().int().positive(),
   payMethod: z.enum(['wechat_preauth', 'alipay_preauth']),
-  channelConfigId: z.number().int().positive().optional(),
+  currency: z.literal('CNY').default('CNY'),
   payerAccount: z.string().min(1, '付款人账号不能为空').max(128),
   subject: z.string().min(1, '冻结事由不能为空').max(256),
   frozenAmount: z.number().int().positive('冻结金额必须大于 0'), // 分
   bizType: z.string().max(64).optional(),
+  bizId: z.string().min(1, '业务单号不能为空').max(128),
   remark: z.string().max(256).optional(),
 });
 
@@ -248,9 +307,10 @@ export const updatePaymentDeductPlanSchema = z.object({
 
 /** 管理端创建签约协议（演示/测试用，sandbox 渠道即时签约生效） */
 export const createPaymentContractSchema = z.object({
+  applicationId: z.number().int().positive(),
   planId: z.number().int().positive(),
   payMethod: z.enum(['wechat_papay', 'alipay_cycle']),
-  channelConfigId: z.number().int().positive().optional(),
+  currency: z.literal('CNY').default('CNY'),
   signerAccount: z.string().min(1, '签约账号不能为空').max(128),
   signerName: z.string().max(64).optional(),
   remark: z.string().max(256).optional(),
@@ -287,6 +347,85 @@ export type ResolvePaymentDisputeInput = z.infer<typeof resolvePaymentDisputeSch
 
 export type RefundPaymentDisputeInput = z.infer<typeof refundPaymentDisputeSchema>;
 
+// ─── 最终资金内核：双分录与资金预占 ──────────────────────────────────
+const PAYMENT_BIGINT_MAX = 9_223_372_036_854_775_807n;
+
+export const paymentAmountStringSchema = z.string()
+  .regex(/^[1-9]\d*$/, '金额必须是正整数十进制字符串')
+  .max(19, '金额超出支持范围')
+  .refine((value) => BigInt(value) <= PAYMENT_BIGINT_MAX, '金额超出 bigint 支持范围');
+
+const paymentZeroAmountStringSchema = z.string()
+  .regex(/^(0|[1-9]\d*)$/, '金额必须是规范的非负整数十进制字符串')
+  .max(19, '金额超出支持范围')
+  .refine((value) => BigInt(value) <= PAYMENT_BIGINT_MAX, '金额超出 bigint 支持范围');
+
+const paymentCurrencySchema = z.string().regex(/^[A-Z]{3}$/, '币种必须是三位大写 ISO 4217 代码');
+const manualMoneySourceTypeSchema = z.string()
+  .trim()
+  .min(1)
+  .max(64)
+  .regex(/^manual\.[a-z0-9._-]+$/, '人工资金来源类型必须以 manual. 开头');
+
+export const createPaymentLedgerAccountSchema = z.object({
+  name: z.string().trim().min(1).max(128),
+  code: z.enum(PAYMENT_LEDGER_ACCOUNT_CODES),
+  appId: z.number().int().positive(),
+  channelConfigId: z.number().int().positive(),
+  currency: paymentCurrencySchema,
+});
+
+export const postPaymentJournalSchema = z.object({
+  sourceType: manualMoneySourceTypeSchema,
+  sourceId: z.string().trim().min(1).max(128),
+  description: z.string().trim().min(1).max(512),
+  appId: z.number().int().positive(),
+  channelConfigId: z.number().int().positive(),
+  currency: paymentCurrencySchema,
+  lines: z.array(z.object({
+    accountId: z.number().int().positive(),
+    debitAmount: paymentZeroAmountStringSchema.default('0'),
+    creditAmount: paymentZeroAmountStringSchema.default('0'),
+    memo: z.string().trim().max(256).optional(),
+  }).superRefine((line, ctx) => {
+    const debit = BigInt(line.debitAmount);
+    const credit = BigInt(line.creditAmount);
+    if ((debit > 0n) === (credit > 0n)) {
+      ctx.addIssue({ code: 'custom', message: '每条分录必须且只能填写借方或贷方金额' });
+    }
+  })).min(2).max(100),
+});
+
+export const reversePaymentJournalSchema = z.object({
+  reason: z.string().trim().min(1, '冲正原因不能为空').max(512),
+});
+
+export const createPaymentFundReservationSchema = z.object({
+  accountId: z.number().int().positive(),
+  sourceType: manualMoneySourceTypeSchema,
+  sourceId: z.string().trim().min(1).max(128),
+  amount: paymentAmountStringSchema,
+  reason: z.string().trim().min(1, '预占原因不能为空').max(256),
+  expiresAt: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, '时间格式应为 YYYY-MM-DD HH:mm:ss').optional(),
+});
+
+export const transitionPaymentFundReservationSchema = z.object({
+  version: z.number().int().nonnegative(),
+  reason: z.string().trim().min(1, '处理原因不能为空').max(256),
+});
+
+export const paymentFundReservationStatusSchema = z.enum(PAYMENT_FUND_RESERVATION_STATUSES);
+
+export type CreatePaymentLedgerAccountInput = z.infer<typeof createPaymentLedgerAccountSchema>;
+
+export type PostPaymentJournalInput = z.infer<typeof postPaymentJournalSchema>;
+
+export type ReversePaymentJournalInput = z.infer<typeof reversePaymentJournalSchema>;
+
+export type CreatePaymentFundReservationInput = z.infer<typeof createPaymentFundReservationSchema>;
+
+export type TransitionPaymentFundReservationInput = z.infer<typeof transitionPaymentFundReservationSchema>;
+
 export type CreatePaymentFeeRuleInput = z.infer<typeof createPaymentFeeRuleSchema>;
 
 export type UpdatePaymentFeeRuleInput = z.infer<typeof updatePaymentFeeRuleSchema>;
@@ -299,9 +438,15 @@ export type HandlePaymentReconItemInput = z.infer<typeof handlePaymentReconItemS
 
 export type CreatePaymentTransferInput = z.infer<typeof createPaymentTransferSchema>;
 
+export type ApprovePaymentTransferInput = z.infer<typeof approvePaymentTransferSchema>;
+
 export type CreatePaymentAppInput = z.infer<typeof createPaymentAppSchema>;
 
 export type UpdatePaymentAppInput = z.infer<typeof updatePaymentAppSchema>;
+
+export type CreateOpenPaymentIntentInput = z.infer<typeof createOpenPaymentIntentSchema>;
+
+export type CreateOpenPaymentRefundInput = z.infer<typeof createOpenPaymentRefundSchema>;
 
 export type CreatePaymentLinkInput = z.infer<typeof createPaymentLinkSchema>;
 

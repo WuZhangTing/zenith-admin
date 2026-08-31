@@ -1,8 +1,9 @@
 import { http } from 'msw';
-import { PAYMENT_MOCK_SEED_TIME, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
+import { PAYMENT_MOCK_SEED_TIME, mockPaymentChannels, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mockDateTime } from '@/mocks/utils/date';
 import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
-import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentWebhookEndpoint, PaymentWebhookDelivery, PaymentLedgerEntry, PaymentOutboxEvent } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentReconBatch, PaymentReconItem, PaymentReconResult, PaymentOutboxEvent } from '@zenith/shared/payment';
+import { recordMockSystemJournal } from './payment-journals';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
 
@@ -10,7 +11,7 @@ const yuanToCent = (n: number) => Math.round(n);
 
 // ─── 对账中心 ───────────────────────────────────────────────────────────────
 const reconBatches: PaymentReconBatch[] = [
-  { id: 1, batchNo: 'RECON1700000000001', channel: 'wechat', billDate: '2024-01-01', status: 'done', localCount: 3, localAmount: 16800, channelCount: 3, channelAmount: 16700, matchedCount: 2, diffCount: 1, remark: '演示批次', createdAt: SEED, updatedAt: SEED },
+  { id: 1, batchNo: 'RECON1700000000001', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', billDate: '2024-01-01', status: 'done', localCount: 3, localAmount: 16800, channelCount: 3, channelAmount: 16700, matchedCount: 2, diffCount: 1, remark: '演示批次', createdAt: SEED, updatedAt: SEED },
 ];
 const reconItemsByBatch: Record<number, PaymentReconItem[]> = {
   1: [
@@ -33,7 +34,7 @@ function sampleBill(channel: PaymentChannel): string {
 }
 
 /** 解析账单并与本地订单比对，生成批次 + 明细（供手动上传与自动拉取两个入口复用）。 */
-function createBatchFromBill(channel: PaymentChannel, billDate: string, billText: string, remark: string | null): PaymentReconBatch {
+function createBatchFromBill(applicationId: number, channel: PaymentChannel, channelConfigId: number, currency: string, billDate: string, billText: string, remark: string | null): PaymentReconBatch {
   const channelRecords = new Map<string, { amount: number; tradeNo?: string }>();
   for (const raw of billText.split(/\r?\n/)) {
     const line = raw.trim();
@@ -45,7 +46,7 @@ function createBatchFromBill(channel: PaymentChannel, billDate: string, billText
   }
   const localMap = new Map(
     mockPaymentOrders
-      .filter((o) => o.channel === channel && (o.status === 'success' || o.status === 'refunding' || o.status === 'refunded'))
+      .filter((o) => o.appId === applicationId && o.channel === channel && o.channelConfigId === channelConfigId && o.currency === currency && (o.status === 'success' || o.status === 'refunding' || o.status === 'refunded'))
       .map((o) => [o.orderNo, { amount: o.paidAmount ?? o.amount, status: o.status, tradeNo: o.channelTradeNo }]),
   );
   const items: PaymentReconItem[] = [];
@@ -65,7 +66,9 @@ function createBatchFromBill(channel: PaymentChannel, billDate: string, billText
     items.push({ id: nextItemId++, batchId: nextBatchId, orderNo, channelTradeNo: ch?.tradeNo ?? local?.tradeNo ?? null, localAmount: local?.amount ?? null, channelAmount: ch?.amount ?? null, localStatus: local?.status ?? null, channelStatus: ch ? 'SUCCESS' : null, result, handleStatus: result === 'matched' ? null : 'pending', handleRemark: null, handledAt: null, remark: null, createdAt: mockDateTime() });
   }
   const batch: PaymentReconBatch = {
-    id: nextBatchId, batchNo: `RECON${Date.now()}`, channel, billDate, status: 'done',
+    id: nextBatchId, batchNo: `RECON${Date.now()}`, channel,
+    appId: applicationId,
+    channelConfigId, currency, billDate, status: 'done',
     localCount: localMap.size, localAmount, channelCount: channelRecords.size, channelAmount,
     matchedCount: matched, diffCount: items.length - matched, remark, createdAt: mockDateTime(), updatedAt: mockDateTime(),
   };
@@ -88,13 +91,22 @@ const reconHandlers = [
     return ok({ billText: sampleBill((url.searchParams.get('channel') as PaymentChannel) ?? 'wechat') });
   }),
   http.post('/api/payment/recon/batches', async ({ request }) => {
-    const body = (await request.json()) as { channel: PaymentChannel; billDate: string; billText: string; remark?: string };
-    const batch = createBatchFromBill(body.channel, body.billDate, body.billText, body.remark ?? null);
+    const body = (await request.json()) as { applicationId: number; channel: PaymentChannel; channelConfigId: number; currency?: string; billDate: string; billText: string; remark?: string };
+    const config = mockPaymentChannels.find((item) => item.id === body.channelConfigId && item.channel === body.channel && item.status === 'enabled');
+    if (!config) return badRequest('所选商户配置不存在或未启用');
+    const appHasConfig = mockPaymentOrders.some((order) => order.appId === body.applicationId && order.channelConfigId === body.channelConfigId);
+    if (!appHasConfig) return badRequest('支付应用未绑定所选商户配置');
+    const batch = createBatchFromBill(body.applicationId, body.channel, body.channelConfigId, body.currency ?? 'CNY', body.billDate, body.billText, body.remark ?? null);
     return ok(batch, '对账完成');
   }),
   http.post('/api/payment/recon/auto', async ({ request }) => {
     const body = (await request.json()) as { channel: PaymentChannel; billDate: string };
-    const batch = createBatchFromBill(body.channel, body.billDate, sampleBill(body.channel), '自动对账（沙箱模拟账单）');
+    const config = mockPaymentChannels.find((item) => item.channel === body.channel && item.status === 'enabled' && item.isDefault)
+      ?? mockPaymentChannels.find((item) => item.channel === body.channel && item.status === 'enabled');
+    if (!config) return badRequest('该渠道没有启用的商户配置');
+    const applicationId = mockPaymentOrders.find((order) => order.channelConfigId === config.id)?.appId;
+    if (!applicationId) return badRequest('该商户配置没有可用支付应用');
+    const batch = createBatchFromBill(applicationId, body.channel, config.id, 'CNY', body.billDate, sampleBill(body.channel), '自动对账（沙箱模拟账单）');
     return ok(batch, '对账完成');
   }),
   http.get('/api/payment/recon/batches/:id', ({ params }) => {
@@ -110,12 +122,17 @@ const reconHandlers = [
   }),
   http.patch('/api/payment/recon/items/:id/handle', async ({ params, request }) => {
     const body = (await request.json()) as { action: 'adjusted' | 'suspended' | 'ignored'; remark?: string };
+    const remark = body.remark?.trim() ?? '';
+    if (!remark) return badRequest('处理备注不能为空');
     for (const items of Object.values(reconItemsByBatch)) {
       const item = items.find((i) => i.id === Number(params.id));
       if (item) {
         if (item.handleStatus !== 'pending') return badRequest('该差异已被处理，请刷新后查看');
+        if (body.action === 'adjusted' && (item.localAmount == null || item.channelAmount == null)) {
+          return badRequest('该差异无法计算明确调账金额，请选择挂账或忽略');
+        }
         item.handleStatus = body.action;
-        item.handleRemark = body.remark ?? null;
+        item.handleRemark = remark;
         item.handledAt = mockDateTime();
         return ok(item, '处理成功');
       }
@@ -131,133 +148,6 @@ const reconHandlers = [
   }),
 ];
 
-// ─── 业务方 Webhook ───────────────────────────────────────────────────────────
-const endpoints: PaymentWebhookEndpoint[] = [
-  { id: 1, name: '会员系统回调', url: 'https://biz.demo.dev/api/payment/callback', bizType: 'membership', events: ['payment.succeeded', 'refund.succeeded'], status: 'enabled', hasSecret: true, remark: '演示端点', createdAt: SEED, updatedAt: SEED },
-  { id: 2, name: '订单系统回调', url: 'https://order.demo.dev/hooks/pay', bizType: null, events: [], status: 'enabled', hasSecret: false, remark: '全事件全业务', createdAt: SEED, updatedAt: SEED },
-];
-let nextEndpointId = 3;
-const deliveries: PaymentWebhookDelivery[] = [
-  { id: 1, endpointId: 1, endpointName: '会员系统回调', eventType: 'payment.succeeded', orderNo: 'PAY1700000000001', payload: '{"type":"payment.succeeded","orderNo":"PAY1700000000001","amount":9900}', status: 'success', attempts: 1, httpStatus: 200, responseBody: 'OK', lastError: null, createdAt: SEED, updatedAt: SEED },
-  { id: 2, endpointId: 1, endpointName: '会员系统回调', eventType: 'refund.succeeded', orderNo: 'PAY1700000000003', payload: '{"type":"refund.succeeded","orderNo":"PAY1700000000003"}', status: 'failed', attempts: 3, httpStatus: 500, responseBody: 'Internal Error', lastError: 'HTTP 500', createdAt: SEED, updatedAt: SEED },
-];
-let nextDeliveryId = 3;
-
-const webhookHandlers = [
-  http.get('/api/payment/webhooks/endpoints', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const status = url.searchParams.get('status') ?? '';
-    const filtered = endpoints.filter((e) => (!keyword || e.name.includes(keyword)) && (!status || e.status === status));
-    return ok(paginate(filtered, url));
-  }),
-  http.post('/api/payment/webhooks/endpoints', async ({ request }) => {
-    const b = (await request.json()) as Partial<PaymentWebhookEndpoint> & { secret?: string };
-    const now = mockDateTime();
-    const item: PaymentWebhookEndpoint = { id: nextEndpointId++, name: b.name ?? '', url: b.url ?? '', bizType: b.bizType ?? null, events: b.events ?? [], status: b.status ?? 'enabled', hasSecret: Boolean(b.secret), remark: b.remark ?? null, createdAt: now, updatedAt: now };
-    endpoints.push(item);
-    return ok(item, '创建成功');
-  }),
-  http.get('/api/payment/webhooks/deliveries', ({ request }) => {
-    const url = new URL(request.url);
-    const status = url.searchParams.get('status') ?? '';
-    const endpointId = url.searchParams.get('endpointId') ?? '';
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const filtered = deliveries.filter((d) => (!status || d.status === status) && (!endpointId || d.endpointId === Number(endpointId)) && (!keyword || (d.orderNo ?? '').includes(keyword)));
-    return ok(paginate([...filtered].reverse(), url));
-  }),
-  http.post('/api/payment/webhooks/deliveries/:id/redeliver', ({ params }) => {
-    const d = deliveries.find((x) => x.id === Number(params.id));
-    if (!d) return notFound('投递记录不存在');
-    d.status = 'success';
-    d.attempts += 1;
-    d.httpStatus = 200;
-    d.responseBody = 'OK';
-    d.lastError = null;
-    d.updatedAt = mockDateTime();
-    return ok(d, '已重投');
-  }),
-  http.get('/api/payment/webhooks/endpoints/:id', ({ params }) => {
-    const e = endpoints.find((x) => x.id === Number(params.id));
-    return e ? ok(e) : notFound('Webhook 端点不存在');
-  }),
-  http.put('/api/payment/webhooks/endpoints/:id', async ({ params, request }) => {
-    const e = endpoints.find((x) => x.id === Number(params.id));
-    if (!e) return notFound('Webhook 端点不存在');
-    const b = (await request.json()) as Partial<PaymentWebhookEndpoint> & { secret?: string };
-    Object.assign(e, { name: b.name ?? e.name, url: b.url ?? e.url, bizType: b.bizType ?? e.bizType, events: b.events ?? e.events, status: b.status ?? e.status, remark: b.remark ?? e.remark, hasSecret: b.secret ? true : e.hasSecret, updatedAt: mockDateTime() });
-    return ok(e, '更新成功');
-  }),
-  http.delete('/api/payment/webhooks/endpoints/:id', ({ params }) => {
-    const i = endpoints.findIndex((x) => x.id === Number(params.id));
-    if (i === -1) return notFound('Webhook 端点不存在');
-    endpoints.splice(i, 1);
-    return ok(null, '删除成功');
-  }),
-];
-
-// ─── 资金流水台账 ─────────────────────────────────────────────────────────────
-const ledgerEntries: PaymentLedgerEntry[] = [
-  { id: 1, entryNo: 'LED1700000000001', direction: 'in', type: 'payment', amount: 9900, orderNo: 'PAY1700000000001', refundNo: null, channel: 'wechat', bizType: 'membership', remark: '支付收款', createdAt: SEED },
-  { id: 2, entryNo: 'LED1700000000002', direction: 'in', type: 'payment', amount: 1900, orderNo: 'PAY1700000000003', refundNo: null, channel: 'wechat', bizType: 'membership', remark: '支付收款', createdAt: SEED },
-  { id: 3, entryNo: 'LED1700000000003', direction: 'out', type: 'refund', amount: 1900, orderNo: 'PAY1700000000003', refundNo: 'REF1700000000003', channel: 'wechat', bizType: 'membership', remark: '退款支出', createdAt: SEED },
-];
-let nextLedgerId = 4;
-
-function filterLedger(url: URL) {
-  const keyword = url.searchParams.get('keyword') ?? '';
-  const direction = url.searchParams.get('direction') ?? '';
-  const type = url.searchParams.get('type') ?? '';
-  const channel = url.searchParams.get('channel') ?? '';
-  return ledgerEntries.filter((e) => (!keyword || (e.orderNo ?? '').includes(keyword)) && (!direction || e.direction === direction) && (!type || e.type === type) && (!channel || e.channel === channel));
-}
-
-const ledgerHandlers = [
-  http.get('/api/payment/ledger/entries', ({ request }) => ok(paginate([...filterLedger(new URL(request.url))].reverse(), new URL(request.url)))),
-  http.get('/api/payment/ledger/summary', ({ request }) => {
-    const list = filterLedger(new URL(request.url));
-    const inAmount = list.filter((e) => e.direction === 'in').reduce((s, e) => s + e.amount, 0);
-    const outAmount = list.filter((e) => e.direction === 'out').reduce((s, e) => s + e.amount, 0);
-    return ok({ inAmount, outAmount, netAmount: inAmount - outAmount, count: list.length });
-  }),
-];
-
-// ─── 商户资金账户（快照 = 流水聚合，演示恒一致）──────────────────────────────
-function computeAccountFromLedger(channel: string) {
-  const list = ledgerEntries.filter((e) => e.channel === channel);
-  const sum = (type: string, direction?: string) =>
-    list.filter((e) => e.type === type && (!direction || e.direction === direction)).reduce((s, e) => s + e.amount, 0);
-  return {
-    pendingSettle: sum('payment') - sum('fee') - sum('refund') - sum('settlement'),
-    available: sum('settlement') - sum('transfer') + sum('adjust', 'in') - sum('adjust', 'out'),
-  };
-}
-
-function mockAccounts() {
-  const channels = [...new Set(ledgerEntries.map((e) => e.channel).filter((c): c is PaymentChannel => !!c))];
-  return channels.map((channel, i) => {
-    const computed = computeAccountFromLedger(channel);
-    return { id: i + 1, channel, pendingSettle: computed.pendingSettle, available: computed.available, frozen: 0, version: ledgerEntries.length, createdAt: SEED, updatedAt: mockDateTime() };
-  });
-}
-
-const accountHandlers = [
-  http.get('/api/payment/accounts', () => ok(mockAccounts())),
-  http.get('/api/payment/accounts/check', () =>
-    ok(mockAccounts().map((a) => {
-      const computed = computeAccountFromLedger(a.channel);
-      return { channel: a.channel, pendingSettleSnapshot: a.pendingSettle, pendingSettleComputed: computed.pendingSettle, availableSnapshot: a.available, availableComputed: computed.available, match: true };
-    })),
-  ),
-  http.post('/api/payment/accounts/rebuild', () => ok({ accounts: mockAccounts().length }, '重建完成')),
-  http.post('/api/payment/accounts/adjust', async ({ request }) => {
-    const b = (await request.json()) as { channel: PaymentChannel; direction: 'in' | 'out'; amount: number; remark?: string };
-    recordMockLedgerEntry({ direction: b.direction, type: 'adjust', amount: b.amount, orderNo: null, refundNo: null, channel: b.channel, bizType: null, remark: `人工调账${b.remark ? `：${b.remark}` : ''}` });
-    const account = mockAccounts().find((a) => a.channel === b.channel);
-    return ok(account ?? mockAccounts()[0], '调账成功');
-  }),
-];
-
 // ─── 支付事件（Outbox / 运营排障）────────────────────────────────────────────
 const outboxEvents: PaymentOutboxEvent[] = [
   { id: 1, type: 'payment.succeeded', orderNo: 'PAY1700000000001', status: 'done', attempts: 1, lastError: null, createdAt: SEED, processedAt: SEED },
@@ -268,40 +158,10 @@ let nextEventId = 4;
 
 type MockPaymentEventType = 'payment.succeeded' | 'refund.succeeded' | 'payment.closed' | 'payment.failed' | 'refund.failed';
 
-function recordMockWebhookDeliveries(eventType: MockPaymentEventType, orderNo: string, bizType: string, payload: Record<string, unknown>) {
-  const now = mockDateTime();
-  for (const endpoint of endpoints) {
-    if (endpoint.status !== 'enabled') continue;
-    if (endpoint.bizType && endpoint.bizType !== bizType) continue;
-    if (endpoint.events.length > 0 && !endpoint.events.includes(eventType)) continue;
-    deliveries.unshift({
-      id: nextDeliveryId++,
-      endpointId: endpoint.id,
-      endpointName: endpoint.name,
-      eventType,
-      orderNo,
-      payload: JSON.stringify(payload),
-      status: 'success',
-      attempts: 1,
-      httpStatus: 200,
-      responseBody: 'OK',
-      lastError: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-  }
-}
-
 function recordMockOutboxEvent(eventType: MockPaymentEventType, orderNo: string) {
   if (outboxEvents.some((e) => e.type === eventType && e.orderNo === orderNo)) return;
   const now = mockDateTime();
   outboxEvents.unshift({ id: nextEventId++, type: eventType, orderNo, status: 'done', attempts: 1, lastError: null, createdAt: now, processedAt: now });
-}
-
-export function recordMockLedgerEntry(input: Omit<PaymentLedgerEntry, 'id' | 'entryNo' | 'createdAt'>) {
-  if (input.type === 'refund' && input.refundNo && ledgerEntries.some((e) => e.type === 'refund' && e.refundNo === input.refundNo)) return;
-  if (input.orderNo && ledgerEntries.some((e) => e.type === input.type && e.orderNo === input.orderNo)) return;
-  ledgerEntries.unshift({ id: nextLedgerId++, entryNo: `LED${Date.now()}${nextLedgerId}`, createdAt: mockDateTime(), ...input });
 }
 
 export function recordMockPaymentSucceeded(order: typeof mockPaymentOrders[number]) {
@@ -309,18 +169,51 @@ export function recordMockPaymentSucceeded(order: typeof mockPaymentOrders[numbe
   const fee = Math.min(Math.round(amount * 0.006), amount);
   order.feeAmount = fee;
   order.netAmount = amount - fee;
-  recordMockLedgerEntry({ direction: 'in', type: 'payment', amount, orderNo: order.orderNo, refundNo: null, channel: order.channel, bizType: order.bizType, remark: '支付收款' });
-  if (fee > 0) recordMockLedgerEntry({ direction: 'out', type: 'fee', amount: fee, orderNo: order.orderNo, refundNo: null, channel: order.channel, bizType: order.bizType, remark: '手续费（演示费率）' });
+  recordMockSystemJournal({
+    sourceType: 'payment.capture',
+    sourceId: order.orderNo,
+    description: `支付收款 ${order.orderNo}`,
+    appId: order.appId,
+    channelConfigId: order.channelConfigId,
+    currency: order.currency,
+    lines: [
+      { accountCode: 'provider_clearing', debitAmount: String(amount), memo: '渠道应收增加' },
+      { accountCode: 'merchant_available', creditAmount: String(amount), memo: '商户可用余额增加' },
+    ],
+  });
+  if (fee > 0) {
+    recordMockSystemJournal({
+      sourceType: 'payment.fee',
+      sourceId: order.orderNo,
+      description: `支付手续费 ${order.orderNo}`,
+      appId: order.appId,
+      channelConfigId: order.channelConfigId,
+      currency: order.currency,
+      lines: [
+        { accountCode: 'merchant_available', debitAmount: String(fee), memo: '扣减商户可用余额' },
+        { accountCode: 'platform_fee', creditAmount: String(fee), memo: '确认平台手续费' },
+      ],
+    });
+  }
   recordMockOutboxEvent('payment.succeeded', order.orderNo);
-  recordMockWebhookDeliveries('payment.succeeded', order.orderNo, order.bizType, { type: 'payment.succeeded', orderNo: order.orderNo, amount });
 }
 
 export function recordMockRefundSucceeded(refund: typeof mockPaymentRefunds[number]) {
   const order = mockPaymentOrders.find((o) => o.orderNo === refund.orderNo);
   if (!order) return;
-  recordMockLedgerEntry({ direction: 'out', type: 'refund', amount: refund.refundAmount, orderNo: refund.orderNo, refundNo: refund.refundNo, channel: refund.channel, bizType: order.bizType, remark: '退款支出' });
+  recordMockSystemJournal({
+    sourceType: 'payment.refund',
+    sourceId: refund.refundNo,
+    description: `支付退款 ${refund.refundNo}`,
+    appId: order.appId,
+    channelConfigId: order.channelConfigId,
+    currency: order.currency,
+    lines: [
+      { accountCode: 'merchant_available', debitAmount: String(refund.refundAmount), memo: '商户可用余额减少' },
+      { accountCode: 'provider_clearing', creditAmount: String(refund.refundAmount), memo: '渠道应收减少' },
+    ],
+  });
   recordMockOutboxEvent('refund.succeeded', refund.orderNo);
-  recordMockWebhookDeliveries('refund.succeeded', refund.orderNo, order.bizType, { type: 'refund.succeeded', orderNo: refund.orderNo, refundNo: refund.refundNo, refundAmount: refund.refundAmount });
 }
 
 const opsHandlers = [
@@ -364,6 +257,7 @@ const opsHandlers = [
     o.status = 'success';
     o.paidAmount = o.amount;
     o.paidAt = mockDateTime();
+    o.version += 1;
     o.updatedAt = mockDateTime();
     recordMockPaymentSucceeded(o);
     return ok(o, '已模拟支付成功');
@@ -381,9 +275,13 @@ const refundApprovalHandlers = [
     r.approvedAt = mockDateTime();
     r.status = 'success';
     r.refundedAt = mockDateTime();
+    r.version += 1;
     r.updatedAt = mockDateTime();
     const order = mockPaymentOrders.find((o) => o.orderNo === r.orderNo);
-    if (order) order.status = r.refundAmount >= order.amount ? 'refunded' : 'success';
+    if (order) {
+      order.status = r.refundAmount >= order.amount ? 'refunded' : 'success';
+      order.version += 1;
+    }
     recordMockRefundSucceeded(r);
     return ok({ refundNo: r.refundNo, status: 'success' }, '已审批通过');
   }),
@@ -398,6 +296,7 @@ const refundApprovalHandlers = [
     r.approvalRemark = body.remark ?? null;
     r.status = 'failed';
     r.errorMessage = '退款审批被驳回';
+    r.version += 1;
     r.updatedAt = mockDateTime();
     return ok(null, '已驳回');
   }),
@@ -405,9 +304,6 @@ const refundApprovalHandlers = [
 
 export const paymentExtHandlers = [
   ...reconHandlers,
-  ...webhookHandlers,
-  ...ledgerHandlers,
-  ...accountHandlers,
   ...opsHandlers,
   ...refundApprovalHandlers,
 ];

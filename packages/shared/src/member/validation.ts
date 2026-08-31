@@ -1,7 +1,18 @@
 import * as z from 'zod';
 
+export const memberRechargeSchema = z.object({
+  applicationId: z.number().int().positive(),
+  amount: z.number().int().positive('充值金额必须大于 0'),
+  payMethod: z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr']),
+  memberCouponId: z.number().int().positive().optional(),
+});
+
+export type MemberRechargeInput = z.infer<typeof memberRechargeSchema>;
+
 /** 会员端签约自动续费 */
 export const memberSignRenewalSchema = z.object({
+  applicationId: z.number().int().positive(),
+  currency: z.literal('CNY').default('CNY'),
   planId: z.number().int().positive(),
   payMethod: z.enum(['wechat_papay', 'alipay_cycle']).default('wechat_papay'),
 });

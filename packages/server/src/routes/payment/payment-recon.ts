@@ -23,7 +23,7 @@ import {
   handleReconItem,
   autoReconcileForCurrentUser,
 } from '../../services/payment/payment-recon.service';
-import { handlePaymentReconItemSchema } from '@zenith/shared/payment';
+import { createPaymentReconBatchSchema, handlePaymentReconItemSchema } from '@zenith/shared/payment';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 const channelEnum = z.enum(['wechat', 'alipay', 'unionpay']);
@@ -50,14 +50,7 @@ const createBatchRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'payment:recon:create', audit: { description: '创建支付对账批次', module: '支付中心', recordBody: false } })] as const,
     request: {
       body: {
-        content: jsonContent(
-          z.object({
-            channel: channelEnum,
-            billDate,
-            billText: z.string().min(1).max(2_000_000),
-            remark: z.string().max(256).optional(),
-          }),
-        ),
+        content: jsonContent(createPaymentReconBatchSchema),
         required: true,
       },
     },
@@ -72,12 +65,12 @@ const sampleRoute = defineOpenAPIRoute({
     description: '基于本地订单生成一份 CSV 渠道账单，用于演示对账或作为账单格式模板。',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:recon:create' })] as const,
-    request: { query: z.object({ channel: channelEnum, billDate }) },
+    request: { query: z.object({ applicationId: z.coerce.number().int().positive(), channel: channelEnum, channelConfigId: z.coerce.number().int().positive(), currency: z.string().regex(/^[A-Z]{3}$/).default('CNY'), billDate }) },
     responses: { ...ok(z.object({ billText: z.string() }).openapi('PaymentReconSampleBill'), '模拟账单'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const { channel, billDate: date } = c.req.valid('query');
-    return c.json(okBody({ billText: await generateSampleBill(channel, date) }), 200);
+    const { applicationId, channel, channelConfigId, currency, billDate: date } = c.req.valid('query');
+    return c.json(okBody({ billText: await generateSampleBill({ applicationId, channel, channelConfigId, currency, billDate: date }) }), 200);
   },
 });
 
@@ -109,19 +102,18 @@ const autoRoute = defineOpenAPIRoute({
     description: '沙箱渠道用本地订单生成模拟账单（演示闭环）；生产渠道调用渠道账单下载 API（微信交易账单；支付宝暂不支持需手动上传）。',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:recon:create', audit: { description: '自动拉取渠道账单对账', module: '支付中心' } })] as const,
-    request: { body: { content: jsonContent(z.object({ channel: channelEnum, billDate })), required: true } },
+    request: { body: { content: jsonContent(z.object({ applicationId: z.number().int().positive(), channel: channelEnum, channelConfigId: z.number().int().positive(), currency: z.string().regex(/^[A-Z]{3}$/).default('CNY'), billDate })), required: true } },
     responses: { ...ok(PaymentReconBatchDTO, '对账完成'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const { channel, billDate: date } = c.req.valid('json');
-    return c.json(okBody(await autoReconcileForCurrentUser(channel, date), '对账完成'), 200);
+    return c.json(okBody(await autoReconcileForCurrentUser(c.req.valid('json')), '对账完成'), 200);
   },
 });
 
 const handleItemRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'patch', path: '/items/{id}/handle', tags: ['支付中心-对账'], summary: '处理对账差异（调账/挂账/忽略）',
-    description: '将待处理差异流转为已调账/挂账/已忽略；选择「已调账」时按差异金额自动记入资金台账（type=adjust）。',
+    description: '将待处理差异流转为已调账/挂账/已忽略；处理原因必填，选择「已调账」时按差异金额原子写入双分录凭证。',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'payment:recon:handle', audit: { description: '处理支付对账差异', module: '支付中心' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(handlePaymentReconItemSchema), required: true } },

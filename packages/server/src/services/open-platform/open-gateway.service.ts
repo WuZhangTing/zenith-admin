@@ -6,6 +6,7 @@ import { decryptField } from '../../lib/encryption';
 
 export interface OpenApiAppContext {
   id: number;
+  tenantId: number | null;
   clientId: string;
   name: string;
   allowedScopes: string[];
@@ -24,6 +25,7 @@ export async function getOpenApiApp(clientId: string): Promise<OpenApiAppContext
   const [row] = await db
     .select({
       id: oauth2Clients.id,
+      tenantId: oauth2Clients.tenantId,
       clientId: oauth2Clients.clientId,
       name: oauth2Clients.name,
       allowedScopes: oauth2Clients.allowedScopes,
@@ -43,6 +45,7 @@ export async function getOpenApiApp(clientId: string): Promise<OpenApiAppContext
   if (!row) return null;
   return {
     id: row.id,
+    tenantId: row.tenantId ?? null,
     clientId: row.clientId,
     name: row.name,
     allowedScopes: row.allowedScopes ?? [],

@@ -11,6 +11,25 @@ let nextSubId = nextIdFrom(subs);
 let nextDeliveryId = nextIdFrom(deliveries);
 const BASE = '/api/app-webhooks';
 const randomSecret = () => `whsec_${Array.from({ length: 48 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+const sensitiveEvents = new Set(['payment.succeeded', 'payment.closed', 'payment.failed', 'refund.succeeded', 'refund.failed']);
+
+function policyError(input: {
+  events?: string[];
+  signMode?: AppWebhookSubscription['signMode'];
+  headers?: Record<string, string> | null;
+  hasSecret?: boolean;
+}): string | null {
+  const reservedHeader = Object.keys(input.headers ?? {}).find((key) => {
+    const normalized = key.trim().toLowerCase();
+    return normalized === 'content-type' || normalized.startsWith('x-zenith-');
+  });
+  if (reservedHeader) return `自定义请求头不能覆盖保留头：${reservedHeader}`;
+  if ((input.events ?? []).some((event) => sensitiveEvents.has(event)) && input.signMode !== 'hmacSha256') {
+    return '支付与退款事件必须使用 HMAC-SHA256 签名';
+  }
+  if (input.signMode === 'hmacSha256' && !input.hasSecret) return 'HMAC 签名密钥不可用，请先重置 Webhook 密钥';
+  return null;
+}
 
 export const appWebhooksHandlers = [
   http.get(`${BASE}/events`, () => ok(OPEN_WEBHOOK_EVENTS.map((code) => ({ code, label: OPEN_WEBHOOK_EVENT_LABELS[code] ?? code })), 'success')),
@@ -24,6 +43,8 @@ export const appWebhooksHandlers = [
     const { page, pageSize } = pageParams(url);
     let filtered = [...deliveries].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     if (subscriptionId) filtered = filtered.filter((d) => d.subscriptionId === Number(subscriptionId));
+    const clientId = url.searchParams.get('clientId');
+    if (clientId) filtered = filtered.filter((d) => d.clientId === clientId);
     if (status) filtered = filtered.filter((d) => d.status === status);
     if (eventType) filtered = filtered.filter((d) => d.eventType === eventType);
     const start = (page - 1) * pageSize;
@@ -80,11 +101,16 @@ export const appWebhooksHandlers = [
   http.post(BASE, async ({ request }) => {
     const body = (await request.json()) as Partial<AppWebhookSubscription>;
     const signMode = body.signMode ?? 'hmacSha256';
+    const invalidEvent = (body.events ?? []).find((event) => !(OPEN_WEBHOOK_EVENTS as readonly string[]).includes(event));
+    if (invalidEvent) return badRequest(`不支持的 Webhook 事件：${invalidEvent}`, { status: 400 });
     const secret = signMode === 'hmacSha256' ? randomSecret() : '';
+    const error = policyError({ events: body.events ?? [], signMode, headers: body.headers, hasSecret: Boolean(secret) });
+    if (error) return badRequest(error, { status: 400 });
     const now = mockDateTime();
     const created: AppWebhookSubscription = {
       id: nextSubId++,
       clientId: body.clientId ?? '',
+      tenantId: null,
       name: body.name ?? '',
       url: body.url ?? '',
       signMode,
@@ -112,7 +138,22 @@ export const appWebhooksHandlers = [
     const idx = subs.findIndex((s) => s.id === Number(params.id));
     if (idx === -1) return notFound('Webhook 订阅不存在', { status: 404 });
     const body = (await request.json()) as Partial<AppWebhookSubscription>;
+    const signMode = body.signMode ?? subs[idx].signMode;
+    const invalidEvent = (body.events ?? subs[idx].events).find((event) => !(OPEN_WEBHOOK_EVENTS as readonly string[]).includes(event));
+    if (invalidEvent) return badRequest(`不支持的 Webhook 事件：${invalidEvent}`, { status: 400 });
+    const hasSecret = signMode === 'hmacSha256' && subs[idx].hasSecret;
+    const error = policyError({
+      events: body.events ?? subs[idx].events,
+      signMode,
+      headers: body.headers ?? subs[idx].headers,
+      hasSecret,
+    });
+    if (error) return badRequest(error, { status: 400 });
     subs[idx] = { ...subs[idx], ...body, clientId: subs[idx].clientId, updatedAt: mockDateTime() };
+    if (body.signMode === 'none') {
+      subs[idx].hasSecret = false;
+      subs[idx].secretMasked = null;
+    }
     return ok(subs[idx], '更新成功');
   }),
 
@@ -131,6 +172,7 @@ export const appWebhooksHandlers = [
     const now = mockDateTime();
     const delivery: AppWebhookDelivery = {
       id: nextDeliveryId++, subscriptionId: sub.id, clientId: sub.clientId,
+      tenantId: sub.tenantId,
       eventType: 'app.test', eventId: `evt-test-${Date.now()}`, status: 'success', attempt: 1,
       requestUrl: sub.url, responseStatus: 200, responseBody: '{"received":true}', errorMessage: null,
       durationMs: 35, nextRetryAt: null, finishedAt: now, createdAt: now,

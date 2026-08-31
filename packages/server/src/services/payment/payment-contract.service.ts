@@ -11,7 +11,7 @@
  * 次日重试，达到计划 maxRetries 自动暂停。
  * 资金安全：payment_orders 活跃业务单唯一索引保证同协议同一时刻至多一笔进行中扣款单。
  */
-import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import dayjs from 'dayjs';
@@ -26,22 +26,23 @@ import {
   type PaymentDeductPlanRow,
   type PaymentOrderRow,
 } from '../../db/schema';
-import { config } from '../../config';
 import { currentUserOrNull } from '../../lib/context';
-import { tenantCondition } from '../../lib/tenant';
+import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { isPgUniqueViolation } from '../../lib/db-errors';
-import { getAdapter } from '../../lib/payment/registry';
+import { getAdapter } from '../../lib/payment';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import { recordEvent, processEvent } from './payment-outbox.service';
 import { buildAdapterContext, markOrderPaid } from './payment.service';
+import { resolveApplicationChannelConfig } from './payment-apps.service';
+import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import { pageOffset } from '../../lib/pagination';
 import logger from '../../lib/logger';
 import type { CreatePaymentContractInput, CreatePaymentDeductPlanInput, PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductMethod, PaymentDeductPlan, UpdatePaymentDeductPlanInput } from '@zenith/shared/payment';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 
-const ACTIVE_CONTRACT_STATUSES: PaymentContractStatus[] = ['pending', 'signed', 'paused'];
+const ACTIVE_CONTRACT_STATUSES: PaymentContractStatus[] = ['pending', 'unknown', 'signed', 'paused'];
 
 function genContractNo(): string {
   return `CT${Date.now()}${randomInt(1000, 9999)}`;
@@ -94,7 +95,9 @@ export function mapContract(row: PaymentContractRow & { plan?: Pick<PaymentDeduc
     id: row.id,
     contractNo: row.contractNo,
     channel: row.channel,
-    channelConfigId: row.channelConfigId ?? null,
+    channelConfigId: row.channelConfigId,
+    appId: row.appId,
+    currency: row.currency,
     planId: row.planId,
     planName: row.plan?.name ?? null,
     planPeriod: row.plan?.period ?? null,
@@ -102,6 +105,9 @@ export function mapContract(row: PaymentContractRow & { plan?: Pick<PaymentDeduc
     signerAccount: row.signerAccount,
     signerName: row.signerName ?? null,
     status: row.status,
+    unknownOperation: row.unknownOperation ?? null,
+    version: row.version,
+    errorMessage: row.errorMessage ?? null,
     channelContractNo: row.channelContractNo ?? null,
     bizType: row.bizType,
     bizId: row.bizId,
@@ -169,11 +175,14 @@ export async function listDeductPlans(q: ListDeductPlansQuery) {
 }
 
 /** 全量启用中的扣款计划（下拉/前台可选） */
-export async function allDeductPlans(): Promise<PaymentDeductPlan[]> {
+export async function allDeductPlans(scope?: { tenantId: number | null }): Promise<PaymentDeductPlan[]> {
+  const exactScope = scope
+    ? (scope.tenantId == null ? isNull(paymentDeductPlans.tenantId) : eq(paymentDeductPlans.tenantId, scope.tenantId))
+    : plansTenantCondition();
   const rows = await db
     .select()
     .from(paymentDeductPlans)
-    .where(mergeWhere(eq(paymentDeductPlans.status, 'enabled'), plansTenantCondition()))
+    .where(mergeWhere(eq(paymentDeductPlans.status, 'enabled'), exactScope))
     .orderBy(paymentDeductPlans.id);
   return rows.map((r) => mapDeductPlan(r));
 }
@@ -196,7 +205,7 @@ export async function createDeductPlan(input: CreatePaymentDeductPlanInput): Pro
       maxRetries: input.maxRetries,
       status: input.status,
       remark: input.remark ?? null,
-      tenantId: user?.tenantId ?? null,
+      tenantId: user ? getCreateTenantId(user) : null,
     })
     .returning();
   return mapDeductPlan(row);
@@ -234,6 +243,7 @@ export async function deleteDeductPlan(id: number): Promise<void> {
 export interface ListContractsQuery {
   page?: number;
   pageSize?: number;
+  applicationId: number;
   keyword?: string;
   status?: PaymentContractStatus;
   channel?: PaymentChannel;
@@ -249,7 +259,7 @@ function contractsTenantCondition() {
 }
 
 export async function buildContractsWhere(q: ListContractsQuery) {
-  const conds = [];
+  const conds: Array<SQL | undefined> = [eq(paymentContracts.appId, q.applicationId)];
   conds.push(keywordCondition(q.keyword, [paymentContracts.contractNo, paymentContracts.signerAccount, paymentContracts.bizId]));
   if (q.status) conds.push(eq(paymentContracts.status, q.status));
   if (q.channel) conds.push(eq(paymentContracts.channel, q.channel));
@@ -279,64 +289,75 @@ export async function listContracts(q: ListContractsQuery) {
   return { list: rows.map(mapContract), total, page, pageSize };
 }
 
-export async function ensureContract(id: number): Promise<PaymentContractRow> {
-  const [row] = await db.select().from(paymentContracts).where(and(eq(paymentContracts.id, id), contractsTenantCondition())).limit(1);
+export async function ensureContract(id: number, applicationId: number): Promise<PaymentContractRow> {
+  const [row] = await db.select().from(paymentContracts).where(and(
+    eq(paymentContracts.id, id),
+    eq(paymentContracts.appId, applicationId),
+    contractsTenantCondition(),
+  )).limit(1);
   if (!row) throw new HTTPException(404, { message: '签约协议不存在' });
   return row;
 }
 
-export async function getContract(id: number): Promise<PaymentContract> {
+export async function getContract(id: number, applicationId: number): Promise<PaymentContract> {
   const row = await db.query.paymentContracts.findFirst({
-    where: mergeWhere(eq(paymentContracts.id, id), contractsTenantCondition()),
+    where: mergeWhere(and(eq(paymentContracts.id, id), eq(paymentContracts.appId, applicationId)), contractsTenantCondition()),
     with: { plan: { columns: { name: true, period: true, amount: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '签约协议不存在' });
   return mapContract(row);
 }
 
-/** 查询业务单的活跃协议（会员续费等业务入口用，不带管理端租户条件） */
-export async function findActiveContractByBiz(bizType: string, bizId: string): Promise<PaymentContractRow | null> {
+/** 查询业务单的活跃协议，调用方必须提供完整租户/应用/币种作用域。 */
+export async function findActiveContractByBiz(input: {
+  bizType: string;
+  bizId: string;
+  tenantId: number | null;
+  applicationId: number;
+  currency: string;
+}): Promise<PaymentContractRow | null> {
   const [row] = await db
     .select()
     .from(paymentContracts)
-    .where(and(eq(paymentContracts.bizType, bizType), eq(paymentContracts.bizId, bizId), inArray(paymentContracts.status, ACTIVE_CONTRACT_STATUSES)))
+    .where(and(
+      eq(paymentContracts.bizType, input.bizType),
+      eq(paymentContracts.bizId, input.bizId),
+      eq(paymentContracts.appId, input.applicationId),
+      eq(paymentContracts.currency, input.currency),
+      input.tenantId == null ? isNull(paymentContracts.tenantId) : eq(paymentContracts.tenantId, input.tenantId),
+      inArray(paymentContracts.status, ACTIVE_CONTRACT_STATUSES),
+    ))
     .limit(1);
   return row ?? null;
 }
 
-// ─── 渠道配置解析（不依赖管理员上下文，可在会员/cron 场景使用）────────────────
-
-function channelConfigTenantCondition(tenantId: number | null | undefined) {
-  if (tenantId === undefined || !config.multiTenantMode) return undefined;
-  return tenantId === null ? isNull(paymentChannelConfigs.tenantId) : eq(paymentChannelConfigs.tenantId, tenantId);
+async function loadContractConfig(row: Pick<PaymentContractRow, 'channel' | 'channelConfigId' | 'tenantId'>): Promise<PaymentChannelConfigRow> {
+  const [config] = await db.select().from(paymentChannelConfigs).where(and(
+    eq(paymentChannelConfigs.id, row.channelConfigId),
+    eq(paymentChannelConfigs.channel, row.channel),
+    row.tenantId == null ? isNull(paymentChannelConfigs.tenantId) : eq(paymentChannelConfigs.tenantId, row.tenantId),
+  )).limit(1);
+  if (!config) throw new HTTPException(409, { message: '协议绑定的商户配置不存在或作用域不一致' });
+  return config;
 }
 
-async function resolveContractConfig(channel: PaymentChannel, channelConfigId?: number | null, tenantId?: number | null): Promise<PaymentChannelConfigRow> {
-  if (channelConfigId) {
-    const [row] = await db.select().from(paymentChannelConfigs).where(eq(paymentChannelConfigs.id, channelConfigId)).limit(1);
-    if (!row) throw new HTTPException(404, { message: '支付渠道配置不存在' });
-    return row;
-  }
-  const [row] = await db
-    .select()
-    .from(paymentChannelConfigs)
-    .where(
-      mergeWhere(
-        and(eq(paymentChannelConfigs.channel, channel), eq(paymentChannelConfigs.isDefault, true), eq(paymentChannelConfigs.status, 'enabled')),
-        channelConfigTenantCondition(tenantId),
-      ),
-    )
-    .limit(1);
-  if (!row) throw new HTTPException(400, { message: `未配置默认${PAYMENT_CHANNEL_LABELS[channel]}支付渠道` });
-  return row;
+async function assertContractOperation(
+  config: PaymentChannelConfigRow,
+  operation: 'contract.sign' | 'contract.query' | 'contract.terminate' | 'contract.deduct',
+  method: PaymentDeductMethod,
+  currency: string,
+  recovery = false,
+) {
+  return assertEffectivePaymentOperation({ configRow: config, operation, method: operation === 'contract.query' ? undefined : method, currency, recovery });
 }
 
 // ─── 签约 / 解约 / 暂停 / 恢复 ────────────────────────────────────────────────
 
 export interface SignContractInput {
+  applicationId: number;
   planId: number;
   payMethod: PaymentDeductMethod;
-  channelConfigId?: number;
+  currency: string;
   signerAccount: string;
   signerName?: string;
   bizType: string;
@@ -354,17 +375,35 @@ export interface SignContractResult {
 
 /** 创建协议并调渠道签约（sandbox 即时生效）；可选立即首扣。业务入口（管理端/会员端）共用。 */
 export async function signContract(input: SignContractInput): Promise<SignContractResult> {
-  const plan = await db.query.paymentDeductPlans.findFirst({ where: eq(paymentDeductPlans.id, input.planId) });
+  const user = currentUserOrNull();
+  const tenantId = input.tenantId !== undefined ? input.tenantId : user ? getCreateTenantId(user) : null;
+  const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
+  const application = await resolveApplicationChannelConfig(input.applicationId, channel, tenantId);
+  const [contractConfig] = await db.select().from(paymentChannelConfigs).where(and(
+    eq(paymentChannelConfigs.id, application.channelConfigId),
+    tenantId == null ? isNull(paymentChannelConfigs.tenantId) : eq(paymentChannelConfigs.tenantId, tenantId),
+  )).limit(1);
+  if (!contractConfig) throw new HTTPException(400, { message: '支付应用绑定的商户配置不存在' });
+  await assertContractOperation(contractConfig, 'contract.sign', input.payMethod, input.currency);
+  const adapter = getAdapter(channel);
+  if (!adapter.signContract) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${channel}/contract.sign` });
+
+  const plan = await db.query.paymentDeductPlans.findFirst({
+    where: and(
+      eq(paymentDeductPlans.id, input.planId),
+      tenantId == null ? isNull(paymentDeductPlans.tenantId) : eq(paymentDeductPlans.tenantId, tenantId),
+    ),
+  });
   if (!plan) throw new HTTPException(404, { message: '扣款计划不存在' });
   if (plan.status !== 'enabled') throw new HTTPException(400, { message: '扣款计划已停用' });
-
-  const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
-  const existing = await findActiveContractByBiz(input.bizType, input.bizId);
+  const existing = await findActiveContractByBiz({
+    bizType: input.bizType,
+    bizId: input.bizId,
+    tenantId,
+    applicationId: application.appId,
+    currency: input.currency,
+  });
   if (existing) throw new HTTPException(400, { message: `该业务已存在生效中的签约协议（${existing.contractNo}）` });
-
-  const contractConfig = await resolveContractConfig(channel, input.channelConfigId, input.tenantId);
-  const adapter = getAdapter(channel);
-  if (!adapter.signContract) throw new HTTPException(400, { message: `渠道 ${channel} 暂不支持签约代扣` });
 
   const contractNo = genContractNo();
   let row: PaymentContractRow;
@@ -375,14 +414,17 @@ export async function signContract(input: SignContractInput): Promise<SignContra
         contractNo,
         channel,
         channelConfigId: contractConfig.id,
+        appId: application.appId,
+        currency: input.currency,
         planId: plan.id,
         signerAccount: input.signerAccount,
         signerName: input.signerName ?? null,
         status: 'pending',
+        unknownOperation: 'sign',
         bizType: input.bizType,
         bizId: input.bizId,
         remark: input.remark ?? null,
-        tenantId: input.tenantId ?? null,
+        tenantId,
       })
       .returning();
   } catch (err) {
@@ -399,29 +441,44 @@ export async function signContract(input: SignContractInput): Promise<SignContra
       period: plan.period,
     });
     if (res.status === 'signed') {
-      [row] = await db
+      const [signed] = await db
         .update(paymentContracts)
         .set({
           status: 'signed',
+          unknownOperation: null,
           channelContractNo: res.channelContractNo ?? null,
           signedAt: new Date(),
+          errorMessage: null,
+          version: sql`${paymentContracts.version} + 1`,
           // 首扣立即执行时排期为当下；否则从签约时间推进一个周期
           nextDeductAt: input.firstDeductNow ? new Date() : advancePeriod(new Date(), plan),
         })
-        .where(eq(paymentContracts.id, row.id))
+        .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'pending')))
         .returning();
+      if (signed) row = signed;
+      else row = await ensureContractByNo(row);
+    } else {
+      const [pending] = await db.update(paymentContracts).set({
+        channelContractNo: res.channelContractNo ?? null,
+        version: sql`${paymentContracts.version} + 1`,
+      }).where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'pending'))).returning();
+      if (pending) row = pending;
     }
   } catch (err) {
-    // 渠道签约失败：协议尚无任何资金记录，直接清除占位，避免阻塞重新签约
-    await db.delete(paymentContracts).where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.status, 'pending')));
-    throw err;
+    const [unknown] = await db.update(paymentContracts).set({
+      status: 'unknown',
+      unknownOperation: 'sign',
+      errorMessage: (err instanceof Error ? err.message : '渠道签约结果待确认').slice(0, 500),
+      version: sql`${paymentContracts.version} + 1`,
+    }).where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'pending'))).returning();
+    if (unknown) row = unknown;
   }
 
   let firstDeduct: DeductResult | null = null;
   if (input.firstDeductNow && row.status === 'signed') {
     try {
       firstDeduct = await executeDeduction(row);
-      row = await ensureContractByNo(row.contractNo);
+      row = await ensureContractByNo(row);
     } catch (err) {
       logger.warn('[payment-contract] first deduct failed', { contractNo: row.contractNo, err: err instanceof Error ? err.message : err });
     }
@@ -429,8 +486,13 @@ export async function signContract(input: SignContractInput): Promise<SignContra
   return { contract: mapContract({ ...row, plan }), firstDeduct };
 }
 
-async function ensureContractByNo(contractNo: string): Promise<PaymentContractRow> {
-  const [row] = await db.select().from(paymentContracts).where(eq(paymentContracts.contractNo, contractNo)).limit(1);
+async function ensureContractByNo(scope: Pick<PaymentContractRow, 'contractNo' | 'appId' | 'currency' | 'tenantId'>): Promise<PaymentContractRow> {
+  const [row] = await db.select().from(paymentContracts).where(and(
+    eq(paymentContracts.contractNo, scope.contractNo),
+    eq(paymentContracts.appId, scope.appId),
+    eq(paymentContracts.currency, scope.currency),
+    scope.tenantId == null ? isNull(paymentContracts.tenantId) : eq(paymentContracts.tenantId, scope.tenantId),
+  )).limit(1);
   if (!row) throw new HTTPException(404, { message: '签约协议不存在' });
   return row;
 }
@@ -440,15 +502,16 @@ export async function adminCreateContract(input: CreatePaymentContractInput): Pr
   const user = currentUserOrNull();
   const bizId = `ADM${Date.now()}${randomInt(100, 999)}`;
   return signContract({
+    applicationId: input.applicationId,
     planId: input.planId,
     payMethod: input.payMethod,
-    channelConfigId: input.channelConfigId,
+    currency: input.currency,
     signerAccount: input.signerAccount,
     signerName: input.signerName,
     bizType: 'admin_contract',
     bizId,
     remark: input.remark,
-    tenantId: user?.tenantId ?? null,
+    tenantId: user ? getCreateTenantId(user) : null,
     firstDeductNow: input.firstDeductNow,
   });
 }
@@ -456,40 +519,120 @@ export async function adminCreateContract(input: CreatePaymentContractInput): Pr
 /** 解约（渠道解约成功后本地终态；pending/signed/paused 均可解约） */
 export async function terminateContract(row: PaymentContractRow): Promise<PaymentContract> {
   if (row.status === 'terminated') throw new HTTPException(400, { message: '协议已解约' });
-  const contractConfig = await resolveContractConfig(row.channel, row.channelConfigId, row.tenantId);
+  if (row.status !== 'signed' && row.status !== 'paused') throw new HTTPException(400, { message: '只有已签约或已暂停协议可解约' });
+  const contractConfig = await loadContractConfig(row);
+  const method = row.channel === 'wechat' ? ('wechat_papay' as const) : ('alipay_cycle' as const);
+  await assertContractOperation(contractConfig, 'contract.terminate', method, row.currency);
   const adapter = getAdapter(row.channel);
-  if (adapter.terminateContract) {
+  if (!adapter.terminateContract) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${row.channel}/contract.terminate` });
+  const [claimed] = await db.update(paymentContracts).set({
+    status: 'unknown', unknownOperation: 'terminate', errorMessage: null, version: sql`${paymentContracts.version} + 1`,
+  }).where(and(
+    eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), inArray(paymentContracts.status, ['signed', 'paused']),
+  )).returning();
+  if (!claimed) throw new HTTPException(409, { message: '协议状态已变化，请刷新后重试' });
+  try {
     await adapter.terminateContract(buildAdapterContext(contractConfig), {
       outContractNo: row.contractNo,
       channelContractNo: row.channelContractNo ?? undefined,
     });
+    const [updated] = await db.update(paymentContracts).set({
+      status: 'terminated', unknownOperation: null, terminatedAt: new Date(), nextDeductAt: null,
+      errorMessage: null, version: sql`${paymentContracts.version} + 1`,
+    }).where(and(eq(paymentContracts.id, claimed.id), eq(paymentContracts.version, claimed.version), eq(paymentContracts.status, 'unknown'), eq(paymentContracts.unknownOperation, 'terminate'))).returning();
+    return mapContract(updated ?? claimed);
+  } catch (err) {
+    const [unknown] = await db.update(paymentContracts).set({
+      errorMessage: (err instanceof Error ? err.message : '渠道解约结果待确认').slice(0, 500),
+      version: sql`${paymentContracts.version} + 1`,
+    }).where(and(eq(paymentContracts.id, claimed.id), eq(paymentContracts.version, claimed.version), eq(paymentContracts.status, 'unknown'))).returning();
+    return mapContract(unknown ?? claimed);
   }
-  const [updated] = await db
-    .update(paymentContracts)
-    .set({ status: 'terminated', terminatedAt: new Date(), nextDeductAt: null })
-    .where(eq(paymentContracts.id, row.id))
-    .returning();
-  return mapContract(updated);
 }
 
-export async function pauseContract(id: number): Promise<PaymentContract> {
-  const row = await ensureContract(id);
+export async function pauseContract(id: number, applicationId: number): Promise<PaymentContract> {
+  const row = await ensureContract(id, applicationId);
   if (row.status !== 'signed') throw new HTTPException(400, { message: '仅已签约协议可暂停' });
-  const [updated] = await db.update(paymentContracts).set({ status: 'paused' }).where(and(eq(paymentContracts.id, id), eq(paymentContracts.status, 'signed'))).returning();
+  const [updated] = await db.update(paymentContracts).set({ status: 'paused', version: sql`${paymentContracts.version} + 1` }).where(and(eq(paymentContracts.id, id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'signed'))).returning();
   if (!updated) throw new HTTPException(400, { message: '协议状态已变化，请刷新后重试' });
   return mapContract(updated);
 }
 
-export async function resumeContract(id: number): Promise<PaymentContract> {
-  const row = await ensureContract(id);
+export async function resumeContract(id: number, applicationId: number): Promise<PaymentContract> {
+  const row = await ensureContract(id, applicationId);
   if (row.status !== 'paused') throw new HTTPException(400, { message: '仅已暂停协议可恢复' });
   const [updated] = await db
     .update(paymentContracts)
-    .set({ status: 'signed', failCount: 0, nextDeductAt: new Date() })
-    .where(and(eq(paymentContracts.id, id), eq(paymentContracts.status, 'paused')))
+    .set({ status: 'signed', failCount: 0, nextDeductAt: new Date(), version: sql`${paymentContracts.version} + 1` })
+    .where(and(eq(paymentContracts.id, id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'paused')))
     .returning();
   if (!updated) throw new HTTPException(400, { message: '协议状态已变化，请刷新后重试' });
   return mapContract(updated);
+}
+
+export async function recoverContract(id: number, applicationId: number): Promise<PaymentContract> {
+  const row = await ensureContract(id, applicationId);
+  if (row.status !== 'pending' && row.status !== 'unknown') return getContract(id, applicationId);
+  const operation = row.unknownOperation ?? 'sign';
+  const config = await loadContractConfig(row);
+  const method = row.channel === 'wechat' ? ('wechat_papay' as const) : ('alipay_cycle' as const);
+  try {
+    await assertContractOperation(config, 'contract.query', method, row.currency, true);
+  } catch (err) {
+    const [unchanged] = await db.update(paymentContracts).set({
+      errorMessage: (err instanceof Error ? err.message : '渠道未提供协议查询能力').slice(0, 500),
+      version: sql`${paymentContracts.version} + 1`,
+    }).where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), inArray(paymentContracts.status, ['pending', 'unknown']))).returning();
+    return mapContract(unchanged ?? row);
+  }
+  const adapter = getAdapter(row.channel);
+  if (!adapter.queryContract) {
+    const [unchanged] = await db.update(paymentContracts).set({ errorMessage: 'CAPABILITY_UNSUPPORTED: 渠道未实现协议查单', version: sql`${paymentContracts.version} + 1` })
+      .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version))).returning();
+    return mapContract(unchanged ?? row);
+  }
+  let result;
+  try {
+    result = await adapter.queryContract(buildAdapterContext(config), {
+      outContractNo: row.contractNo,
+      channelContractNo: row.channelContractNo ?? undefined,
+      operation,
+    });
+  } catch (err) {
+    const [unchanged] = await db.update(paymentContracts).set({ errorMessage: (err instanceof Error ? err.message : '协议查单失败').slice(0, 500), version: sql`${paymentContracts.version} + 1` })
+      .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version))).returning();
+    return mapContract(unchanged ?? row);
+  }
+  if (result.status === 'pending') return mapContract(row);
+  if (result.status === 'signed' && operation === 'sign') {
+    const plan = await db.query.paymentDeductPlans.findFirst({ where: and(
+      eq(paymentDeductPlans.id, row.planId),
+      row.tenantId == null ? isNull(paymentDeductPlans.tenantId) : eq(paymentDeductPlans.tenantId, row.tenantId),
+    ) });
+    const [signed] = await db.update(paymentContracts).set({
+      status: 'signed', unknownOperation: null, channelContractNo: result.channelContractNo ?? row.channelContractNo,
+      signedAt: new Date(), nextDeductAt: plan ? advancePeriod(new Date(), plan) : null,
+      errorMessage: null, version: sql`${paymentContracts.version} + 1`,
+    }).where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), inArray(paymentContracts.status, ['pending', 'unknown']))).returning();
+    return mapContract(signed ?? row);
+  }
+  if (result.status === 'terminated' && operation === 'terminate') {
+    const [terminated] = await db.update(paymentContracts).set({
+      status: 'terminated', unknownOperation: null, terminatedAt: new Date(), nextDeductAt: null,
+      errorMessage: null, version: sql`${paymentContracts.version} + 1`,
+    }).where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'unknown'))).returning();
+    return mapContract(terminated ?? row);
+  }
+  if (result.status === 'failed') {
+    const [failed] = await db.update(paymentContracts).set({
+      status: 'failed', unknownOperation: null, errorMessage: result.failReason?.slice(0, 500) ?? '渠道确认协议操作失败',
+      nextDeductAt: null, version: sql`${paymentContracts.version} + 1`,
+    }).where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), inArray(paymentContracts.status, ['pending', 'unknown']))).returning();
+    return mapContract(failed ?? row);
+  }
+  const [unchanged] = await db.update(paymentContracts).set({ errorMessage: `渠道返回状态 ${result.status} 与待恢复操作 ${operation} 不一致`, version: sql`${paymentContracts.version} + 1` })
+    .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version))).returning();
+  return mapContract(unchanged ?? row);
 }
 
 // ─── 扣款执行 ─────────────────────────────────────────────────────────────────
@@ -508,16 +651,19 @@ async function recordDeductFailure(row: PaymentContractRow, plan: PaymentDeductP
     .update(paymentContracts)
     .set({
       failCount,
+      version: sql`${paymentContracts.version} + 1`,
       ...(paused ? { status: 'paused' as const, nextDeductAt: null } : { nextDeductAt: dayjs().add(1, 'day').toDate() }),
     })
-    .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.status, 'signed')));
+    .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'signed')));
   logger.warn('[payment-contract] deduct failed', { contractNo: row.contractNo, failCount, paused, reason });
 }
 
 /** 扣款失败订单落终态 + 可靠发 payment.failed 事件（与 createPayment 失败分支同模式） */
 async function markDeductOrderFailed(order: PaymentOrderRow, reason: string): Promise<void> {
   const eventId = await db.transaction(async (tx) => {
-    await tx.update(paymentOrders).set({ status: 'failed', errorMessage: reason.slice(0, 500) }).where(eq(paymentOrders.id, order.id));
+    const [failed] = await tx.update(paymentOrders).set({ status: 'failed', errorMessage: reason.slice(0, 500), version: sql`${paymentOrders.version} + 1` })
+      .where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.version, order.version), inArray(paymentOrders.status, ['pending', 'paying', 'unknown']))).returning();
+    if (!failed) return null;
     return recordEvent(tx, {
       type: 'payment.failed',
       orderNo: order.orderNo,
@@ -529,13 +675,16 @@ async function markDeductOrderFailed(order: PaymentOrderRow, reason: string): Pr
         bizType: order.bizType,
         bizId: order.bizId,
         channel: order.channel,
+        channelConfigId: order.channelConfigId,
+        appId: order.appId,
+        currency: order.currency,
         amount: order.amount,
         userId: order.userId,
         tenantId: order.tenantId,
       },
     });
   });
-  setImmediate(() => { void processEvent(eventId); });
+  if (eventId != null) setImmediate(() => { void processEvent(eventId).catch((err) => logger.error('[payment-contract] process failure event failed', { eventId, err })); });
 }
 
 /**
@@ -543,23 +692,29 @@ async function markDeductOrderFailed(order: PaymentOrderRow, reason: string): Pr
  * 并发安全：payment_orders 活跃业务单唯一索引兜底，同协议并发扣款仅一笔能落单。
  */
 export async function executeDeduction(input: PaymentContractRow): Promise<DeductResult> {
-  const row = await ensureContractByNo(input.contractNo);
+  const row = await ensureContractByNo(input);
   if (row.status !== 'signed') throw new HTTPException(400, { message: '仅已签约协议可执行扣款' });
   if (!row.channelContractNo) throw new HTTPException(400, { message: '协议缺少渠道协议号，无法扣款' });
-  const plan = await db.query.paymentDeductPlans.findFirst({ where: eq(paymentDeductPlans.id, row.planId) });
+  const plan = await db.query.paymentDeductPlans.findFirst({ where: and(
+    eq(paymentDeductPlans.id, row.planId),
+    row.tenantId == null ? isNull(paymentDeductPlans.tenantId) : eq(paymentDeductPlans.tenantId, row.tenantId),
+  ) });
   if (!plan) throw new HTTPException(404, { message: '扣款计划不存在' });
 
-  const contractConfig = await resolveContractConfig(row.channel, row.channelConfigId, row.tenantId);
+  const contractConfig = await loadContractConfig(row);
+  const applicationRoute = await resolveApplicationChannelConfig(row.appId, row.channel, row.tenantId ?? null);
+  if (applicationRoute.channelConfigId !== contractConfig.id) throw new HTTPException(409, { message: '签约协议商户配置与支付应用路由不一致' });
+  const payMethod = row.channel === 'wechat' ? ('wechat_papay' as const) : ('alipay_cycle' as const);
+  await assertContractOperation(contractConfig, 'contract.deduct', payMethod, row.currency);
   const adapter = getAdapter(row.channel);
-  if (!adapter.deductContract) throw new HTTPException(400, { message: `渠道 ${row.channel} 暂不支持代扣` });
+  if (!adapter.deductContract) throw new HTTPException(400, { message: `CAPABILITY_UNSUPPORTED: ${row.channel}/contract.deduct` });
 
   const orderNo = genDeductOrderNo();
-  const payMethod = row.channel === 'wechat' ? ('wechat_papay' as const) : ('alipay_cycle' as const);
   let order: PaymentOrderRow;
+  let claimedContract: PaymentContractRow;
   try {
-    [order] = await db
-      .insert(paymentOrders)
-      .values({
+    ({ order, contract: claimedContract } = await db.transaction(async (tx) => {
+      const [createdOrder] = await tx.insert(paymentOrders).values({
         orderNo,
         outTradeNo: orderNo,
         bizType: row.bizType,
@@ -567,22 +722,24 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
         subject: `${plan.name}（第 ${row.totalDeductCount + 1} 期代扣）`,
         body: `签约协议 ${row.contractNo}`,
         amount: plan.amount,
-        currency: 'CNY',
+        currency: row.currency,
         channel: row.channel,
         channelConfigId: contractConfig.id,
+        appId: row.appId,
         payMethod,
         status: 'pending',
         expiredAt: dayjs().add(30, 'minute').toDate(),
         tenantId: row.tenantId,
-      })
-      .returning();
+      }).returning();
+      const [contract] = await tx.update(paymentContracts).set({ lastOrderNo: orderNo, version: sql`${paymentContracts.version} + 1` })
+        .where(and(eq(paymentContracts.id, row.id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'signed'))).returning();
+      if (!contract) throw new HTTPException(409, { message: '协议状态已变化，请刷新后重试' });
+      return { order: createdOrder, contract };
+    }));
   } catch (err) {
     if (isPgUniqueViolation(err)) throw new HTTPException(400, { message: '该协议存在处理中的扣款订单，请稍后重试' });
     throw err;
   }
-
-  // 先记录本期订单号，成功事件订阅者按 lastOrderNo 幂等推进排期
-  await db.update(paymentContracts).set({ lastOrderNo: orderNo }).where(eq(paymentContracts.id, row.id));
 
   try {
     const res = await adapter.deductContract(buildAdapterContext(contractConfig), {
@@ -593,30 +750,36 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
     });
     if (res.status === 'success') {
       await markOrderPaid(order, { channelTradeNo: res.channelTradeNo, paidAmount: plan.amount, paidAt: new Date() });
+      // The outbox subscriber is intentionally asynchronous for crash
+      // resilience. Advance the contract in this request as well so a
+      // successful first deduction is reflected in the returned DTO; the
+      // subscriber remains idempotent and safely replays the same transition.
+      await advanceContractOnPaid({ orderNo, bizType: row.bizType, bizId: row.bizId });
       return { orderNo, deductStatus: 'success' };
     }
     if (res.status === 'processing') {
       // 渠道受理中：置 paying，由 paymentReconciliation cron 查单收敛，成功事件推进排期
-      await db.update(paymentOrders).set({ status: 'paying', channelTradeNo: res.channelTradeNo ?? null }).where(eq(paymentOrders.id, order.id));
+      await db.update(paymentOrders).set({ status: 'paying', channelTradeNo: res.channelTradeNo ?? null, version: sql`${paymentOrders.version} + 1` })
+        .where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.version, order.version), eq(paymentOrders.status, 'pending')));
       return { orderNo, deductStatus: 'processing' };
     }
     const reason = res.failReason ?? '渠道扣款失败';
     await markDeductOrderFailed(order, reason);
-    await recordDeductFailure(row, plan, reason);
+    await recordDeductFailure(claimedContract, plan, reason);
     return { orderNo, deductStatus: 'failed', failReason: reason };
   } catch (err) {
     const reason = (err instanceof Error ? err.message : '渠道扣款请求失败').slice(0, 500);
-    await markDeductOrderFailed(order, reason);
-    await recordDeductFailure(row, plan, reason);
-    return { orderNo, deductStatus: 'failed', failReason: reason };
+    await db.update(paymentOrders).set({ status: 'unknown', errorMessage: reason, version: sql`${paymentOrders.version} + 1` })
+      .where(and(eq(paymentOrders.id, order.id), eq(paymentOrders.version, order.version), inArray(paymentOrders.status, ['pending', 'paying'])));
+    return { orderNo, deductStatus: 'processing', failReason: `渠道结果待确认：${reason}` };
   }
 }
 
 /** 管理端按协议 id 手动补扣 */
-export async function deductContractById(id: number): Promise<DeductResult & { contract: PaymentContract }> {
-  const row = await ensureContract(id);
+export async function deductContractById(id: number, applicationId: number): Promise<DeductResult & { contract: PaymentContract }> {
+  const row = await ensureContract(id, applicationId);
   const result = await executeDeduction(row);
-  return { ...result, contract: await getContract(id) };
+  return { ...result, contract: await getContract(id, applicationId) };
 }
 
 /** Cron：扫描到期协议执行扣款，返回处理条数 */
@@ -648,21 +811,27 @@ export async function executeDueDeductions(): Promise<number> {
  * outbox 重投 / 查单补单 / 运营模拟支付多路径安全。
  */
 export async function advanceContractOnPaid(event: { orderNo: string; bizType: string; bizId: string }): Promise<void> {
-  const [row] = await db
-    .select()
-    .from(paymentContracts)
-    .where(and(eq(paymentContracts.bizType, event.bizType), eq(paymentContracts.bizId, event.bizId), eq(paymentContracts.status, 'signed')))
-    .limit(1);
-  if (!row) return;
   const [order] = await db
-    .select({ paidAt: paymentOrders.paidAt, status: paymentOrders.status, payMethod: paymentOrders.payMethod })
+    .select()
     .from(paymentOrders)
     .where(eq(paymentOrders.orderNo, event.orderNo))
     .limit(1);
   if (!order || order.status !== 'success' || !order.paidAt) return;
   // 仅代扣单推进排期（同业务的普通支付单，如手动购买，不影响协议周期）
   if (order.payMethod !== 'wechat_papay' && order.payMethod !== 'alipay_cycle') return;
-  const plan = await db.query.paymentDeductPlans.findFirst({ where: eq(paymentDeductPlans.id, row.planId) });
+  const [row] = await db.select().from(paymentContracts).where(and(
+    eq(paymentContracts.bizType, event.bizType),
+    eq(paymentContracts.bizId, event.bizId),
+    eq(paymentContracts.appId, order.appId),
+    eq(paymentContracts.currency, order.currency),
+    order.tenantId == null ? isNull(paymentContracts.tenantId) : eq(paymentContracts.tenantId, order.tenantId),
+    eq(paymentContracts.status, 'signed'),
+  )).limit(1);
+  if (!row) return;
+  const plan = await db.query.paymentDeductPlans.findFirst({ where: and(
+    eq(paymentDeductPlans.id, row.planId),
+    row.tenantId == null ? isNull(paymentDeductPlans.tenantId) : eq(paymentDeductPlans.tenantId, row.tenantId),
+  ) });
   if (!plan) return;
   const next = advancePeriod(new Date(), plan);
   await db
@@ -672,10 +841,12 @@ export async function advanceContractOnPaid(event: { orderNo: string; bizType: s
       lastDeductAt: order.paidAt,
       failCount: 0,
       totalDeductCount: sql`${paymentContracts.totalDeductCount} + 1`,
+      version: sql`${paymentContracts.version} + 1`,
     })
     .where(
       and(
         eq(paymentContracts.id, row.id),
+        eq(paymentContracts.version, row.version),
         eq(paymentContracts.status, 'signed'),
         or(isNull(paymentContracts.lastDeductAt), lt(paymentContracts.lastDeductAt, order.paidAt)),
       ),

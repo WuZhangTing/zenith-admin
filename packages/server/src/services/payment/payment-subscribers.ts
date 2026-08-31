@@ -8,6 +8,9 @@ import logger from '../../lib/logger';
 import { creditWalletOnRecharge, WALLET_RECHARGE_BIZ_TYPE } from '../member/member-wallet.service';
 import { extendVipOnRenewal } from '../member/member-renewal.service';
 import { MEMBER_RENEWAL_BIZ_TYPE } from '@zenith/shared/member';
+import { completeDisputeRefund, recordDisputeRefundFailure } from './payment-dispute.service';
+import { recordPaymentLinkRedemption } from './payment-link.service';
+import { updateCashierSessionFromPaymentEvent } from './payment-cashier-session.service';
 
 let registered = false;
 
@@ -24,6 +27,11 @@ export function registerPaymentSubscribers(): void {
     });
   });
 
+  paymentEventBus.on('payment.succeeded', async (e) => {
+    await updateCashierSessionFromPaymentEvent(e, 'succeeded');
+    await recordPaymentLinkRedemption(e);
+  });
+
   paymentEventBus.on('payment.closed', (e) => {
     logger.info('[payment] payment.closed', { orderNo: e.orderNo, bizType: e.bizType, bizId: e.bizId });
     const userId = e.userId;
@@ -32,6 +40,8 @@ export function registerPaymentSubscribers(): void {
       sendToUser(userId, { type: 'payment:closed', payload: { orderNo: e.orderNo, bizType: e.bizType, bizId: e.bizId } });
     });
   });
+
+  paymentEventBus.on('payment.closed', (e) => updateCashierSessionFromPaymentEvent(e, 'failed'));
 
   paymentEventBus.on('payment.failed', (e) => {
     logger.info('[payment] payment.failed', { orderNo: e.orderNo, bizType: e.bizType, bizId: e.bizId });
@@ -42,22 +52,28 @@ export function registerPaymentSubscribers(): void {
     });
   });
 
-  paymentEventBus.on('refund.succeeded', (e) => {
+  paymentEventBus.on('payment.failed', (e) => updateCashierSessionFromPaymentEvent(e, 'failed'));
+
+  paymentEventBus.on('refund.succeeded', async (e) => {
     logger.info('[payment] refund.succeeded', { orderNo: e.orderNo, refundNo: e.refundNo });
     const userId = e.userId;
     const refundNo = e.refundNo;
-    if (!userId || !refundNo) return;
+    if (!refundNo) return;
+    await completeDisputeRefund(refundNo);
+    if (!userId) return;
     const refundAmount = e.refundAmount ?? 0;
     setImmediate(() => {
       sendToUser(userId, { type: 'payment:refunded', payload: { orderNo: e.orderNo, refundNo, refundAmount } });
     });
   });
 
-  paymentEventBus.on('refund.failed', (e) => {
+  paymentEventBus.on('refund.failed', async (e) => {
     logger.info('[payment] refund.failed', { orderNo: e.orderNo, refundNo: e.refundNo });
     const userId = e.userId;
     const refundNo = e.refundNo;
-    if (!userId || !refundNo) return;
+    if (!refundNo) return;
+    await recordDisputeRefundFailure(refundNo);
+    if (!userId) return;
     const refundAmount = e.refundAmount ?? 0;
     setImmediate(() => {
       sendToUser(userId, { type: 'payment:refund-failed', payload: { orderNo: e.orderNo, refundNo, refundAmount } });
@@ -67,7 +83,15 @@ export function registerPaymentSubscribers(): void {
   // 会员钱包充值到账（bizType=member_recharge，由 member-wallet 幂等入账）
   paymentEventBus.on('payment.succeeded', (e) => {
     if (e.bizType !== WALLET_RECHARGE_BIZ_TYPE) return;
-    return creditWalletOnRecharge({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount }).catch((err) => {
+    return creditWalletOnRecharge({
+      eventId: e.eventId,
+      bizId: e.bizId,
+      orderNo: e.orderNo,
+      amount: e.amount,
+      originalAmount: e.originalAmount,
+      appId: e.appId,
+      tenantId: e.tenantId,
+    }).catch((err) => {
       logger.error('[member] 钱包充值入账失败', { orderNo: e.orderNo, err });
       throw err;
     });
@@ -76,7 +100,7 @@ export function registerPaymentSubscribers(): void {
   // 会员自动续费扣款到账（bizType=member_renewal，按订单号幂等延长 VIP 有效期）
   paymentEventBus.on('payment.succeeded', (e) => {
     if (e.bizType !== MEMBER_RENEWAL_BIZ_TYPE) return;
-    return extendVipOnRenewal({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount }).catch((err) => {
+    return extendVipOnRenewal({ bizId: e.bizId, orderNo: e.orderNo, amount: e.amount, appId: e.appId, tenantId: e.tenantId }).catch((err) => {
       logger.error('[member] VIP 续费延期失败', { orderNo: e.orderNo, err });
       throw err;
     });

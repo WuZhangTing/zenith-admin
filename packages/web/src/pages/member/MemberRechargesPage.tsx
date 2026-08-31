@@ -28,7 +28,7 @@ const statusOptions = (Object.keys(PAYMENT_ORDER_STATUS_LABELS) as PaymentOrderS
 const channelOptions = (Object.keys(PAYMENT_CHANNEL_LABELS) as PaymentChannel[]).map((v) => ({ value: v, label: PAYMENT_CHANNEL_LABELS[v] }));
 
 const STATUS_COLORS: Record<PaymentOrderStatus, string> = {
-  pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'orange', refunded: 'orange', failed: 'red',
+  pending: 'grey', paying: 'blue', unknown: 'amber', success: 'green', closed: 'grey', refunding: 'orange', refunded: 'orange', failed: 'red',
 };
 
 export default function MemberRechargesPage() {

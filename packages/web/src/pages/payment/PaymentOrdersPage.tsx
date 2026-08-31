@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatYuan, getPaymentQrInstruction, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
 import { useQueryClient } from '@tanstack/react-query';
 import { Banner, Button, Divider, Form, Input, InputNumber, Select, SideSheet, Tabs, TabPane, Toast, Tag, Timeline, Typography, Modal, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -15,8 +15,8 @@ import { AppModal } from '@/components/AppModal';
 import PaymentStatsPanel from './PaymentStatsPanel';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS, PAYMENT_REFUND_STATUS_LABELS } from '@zenith/shared/payment';
-import type { PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, PaymentRefund, PaymentRefundStatus, CreatePaymentResult, PaymentStats } from '@zenith/shared/payment';
+import { createPaymentSchema, PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS, PAYMENT_REFUND_STATUS_LABELS } from '@zenith/shared/payment';
+import type { PaymentApp, PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, PaymentRefund, PaymentRefundStatus, CreatePaymentResult, PaymentStats } from '@zenith/shared/payment';
 import {
   paymentOrderKeys,
   useClosePaymentOrder,
@@ -28,6 +28,7 @@ import {
   usePaymentOrderRefunds,
   useQueryPaymentOrder,
   useSimulatePaymentOrderPaid,
+  type CreatePaymentRefundResult,
 } from '@/hooks/queries/payment-orders';
 import { usePaymentStats } from '@/hooks/queries/payment-stats';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -37,13 +38,23 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
+import { usePaymentAppList } from '@/hooks/queries/payment-apps';
+import { usePaymentCapabilities } from '@/hooks/queries/payment-capabilities';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const STATUS_COLOR = {
   pending: 'grey', paying: 'blue', success: 'green', closed: 'grey', refunding: 'amber', refunded: 'orange', failed: 'red',
+  unknown: 'amber',
 } as const satisfies Record<PaymentOrderStatus, string>;
-const REFUND_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentRefundStatus, string>;
+const REFUND_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red', unknown: 'amber' } as const satisfies Record<PaymentRefundStatus, string>;
 const yuan = formatYuan;
+const PAYMENT_CREATE_METHODS = createPaymentSchema.shape.payMethod.options;
+
+function paymentAppConfigId(app: PaymentApp, channel: PaymentChannel): number | null {
+  if (channel === 'wechat') return app.wechatConfigId ?? null;
+  if (channel === 'alipay') return app.alipayConfigId ?? null;
+  return app.unionpayConfigId ?? null;
+}
 
 interface SearchParams {
   keyword: string;
@@ -56,14 +67,35 @@ interface SearchParams {
   timeRange: [Date, Date] | null;
 }
 const defaultSearch: SearchParams = { keyword: '', channel: '', status: '', payMethod: '', bizType: '', minAmount: null, maxAmount: null, timeRange: null };
-interface ManualOrderFormValues { subject: string; amount: number; bizType: string; bizId: string; payMethod: PaymentMethod; openId?: string; }
-interface ManualOrderRecord { id: number; orderNo: string; payParams: CreatePaymentResult; }
+interface ManualOrderFormValues { applicationId: number; subject: string; amount: number; bizType: string; bizId: string; payMethod: PaymentMethod; openId?: string; }
+interface ManualOrderRecord { id: number; orderNo: string; payParams: CreatePaymentResult; payMethod: PaymentMethod; }
 interface RefundFormValues { amountYuan: number; reason?: string; }
 
 export default function PaymentOrdersPage() {
   const { hasPermission } = usePermission();
   const queryClient = useQueryClient();
   const canViewRefunds = hasPermission('payment:refund:list') || hasPermission('payment:order:refund');
+  const canReadCapabilities = hasPermission('payment:channel:list');
+
+  const appsQuery = usePaymentAppList({ page: 1, pageSize: 100 });
+  const paymentApps = useMemo(() => appsQuery.data?.list ?? [], [appsQuery.data?.list]);
+  const appNameById = useMemo(
+    () => new Map(paymentApps.map((app) => [app.id, app.name])),
+    [paymentApps],
+  );
+  const enabledAppOptions = useMemo(
+    () => paymentApps
+      .filter((app) => app.status === 'enabled')
+      .map((app) => ({
+        value: app.id,
+        label: `${app.name}（${app.environment === 'sandbox' ? '沙箱' : '生产'}）`,
+      })),
+    [paymentApps],
+  );
+  const capabilitiesQuery = usePaymentCapabilities(
+    { operation: 'payment.create', currency: 'CNY' },
+    canReadCapabilities,
+  );
 
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
   const {
@@ -76,6 +108,42 @@ export default function PaymentOrdersPage() {
   const [refundCheckTarget, setRefundCheckTarget] = useState<PaymentOrder | null>(null);
   const [refundedAmount, setRefundedAmount] = useState(0); // 已锁定退款总额（分）
   const [payResult, setPayResult] = useState<CreatePaymentResult | null>(null);
+  const [payResultMethod, setPayResultMethod] = useState<PaymentMethod | null>(null);
+  const [selectedApplicationId, setSelectedApplicationId] = useState<number>();
+  const latestRefundResult = useRef<CreatePaymentRefundResult | null>(null);
+  const refundIdempotencyKey = useRef<string | null>(null);
+
+  const selectedPaymentApp = paymentApps.find((app) => app.id === selectedApplicationId);
+  const paymentMethodOptions = useMemo(() => {
+    if (!selectedPaymentApp) return [];
+
+    const appEnvironment = selectedPaymentApp.environment === 'sandbox' ? 'sandbox' : 'live';
+    if (capabilitiesQuery.data) {
+      const boundConfigIds = new Set(
+        (['wechat', 'alipay', 'unionpay'] as const)
+          .map((channel) => paymentAppConfigId(selectedPaymentApp, channel))
+          .filter((id): id is number => id != null),
+      );
+      const supportedMethods = new Set<PaymentMethod>();
+      for (const config of capabilitiesQuery.data.configs) {
+        if (!boundConfigIds.has(config.channelConfigId) || config.environment !== appEnvironment) continue;
+        for (const capability of config.capabilities) {
+          if (capability.supported && capability.paymentMethod) supportedMethods.add(capability.paymentMethod);
+        }
+      }
+      return PAYMENT_CREATE_METHODS
+        .filter((method) => supportedMethods.has(method))
+        .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
+    }
+
+    // 无渠道能力查询权限或能力接口暂时不可用时，退化为应用已绑定渠道；服务端下单仍会做最终能力校验。
+    if (!canReadCapabilities || capabilitiesQuery.isError) {
+      return PAYMENT_CREATE_METHODS
+        .filter((method) => paymentAppConfigId(selectedPaymentApp, PAYMENT_METHOD_CHANNEL[method]) != null)
+        .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
+    }
+    return [];
+  }, [canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, selectedPaymentApp]);
 
   function buildQuery(active: SearchParams): Record<string, string | number> {
     return compactQuery({
@@ -106,42 +174,59 @@ export default function PaymentOrdersPage() {
   const createRefundMutation = useCreatePaymentRefund();
   const payStatusQuery = usePaymentOrderByNo(payResult?.orderNo, !!payResult?.orderNo);
   const refundSaveMutation = {
-    mutateAsync: async ({ values }: { id?: number; values: { orderNo: string; refundAmount: number; reason?: string } }) => {
-      await createRefundMutation.mutateAsync(values);
+    mutateAsync: async ({ values }: { id?: number; values: { orderNo: string; refundAmount: number; reason?: string; idempotencyKey: string } }) => {
+      latestRefundResult.current = null;
+      latestRefundResult.current = await createRefundMutation.mutateAsync(values);
       return { id: 0 } as PaymentOrder;
     },
     isPending: createRefundMutation.isPending,
   };
-  const refundModal = useEditModal<PaymentOrder, RefundFormValues, { orderNo: string; refundAmount: number; reason?: string }>({
+  const refundModal = useEditModal<PaymentOrder, RefundFormValues, { orderNo: string; refundAmount: number; reason?: string; idempotencyKey: string }>({
     save: refundSaveMutation,
     toValues: (order) => ({ amountYuan: (order.amount - refundedAmount) / 100 }),
     beforeSave: (values, { editing }) => {
       if (!editing) abortSubmit('validation');
+      if (!refundIdempotencyKey.current) {
+        Toast.error('退款请求标识已失效，请关闭弹窗后重新发起');
+        abortSubmit('validation');
+      }
       return {
         orderNo: editing.orderNo,
         refundAmount: Math.round(values.amountYuan * 100),
-        reason: values.reason,
+        reason: values.reason?.trim(),
+        idempotencyKey: refundIdempotencyKey.current,
       };
     },
-    successMessage: () => '退款已发起',
+    successMessage: () => null,
+    onSaved: () => {
+      const result = latestRefundResult.current;
+      if (result?.status === 'pending') Toast.info('退款申请已提交，等待审批');
+      else if (result?.status === 'success') Toast.success('退款已完成');
+      else if (result?.status === 'processing') Toast.info('退款已提交渠道处理');
+      else if (result?.status === 'unknown') Toast.warning('退款结果待确认，系统将继续查单');
+      else if (result?.status === 'failed') Toast.error('退款渠道执行失败，请在退款记录查看原因');
+      else Toast.success('退款申请已创建');
+      refundIdempotencyKey.current = null;
+    },
   });
   const openRefundEdit = refundModal.openEdit;
   const orderSaveMutation = {
-    mutateAsync: async ({ values }: { id?: number; values: { bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string } }) => {
+    mutateAsync: async ({ values }: { id?: number; values: { applicationId: number; bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string } }) => {
       const res = await createOrderMutation.mutateAsync(values);
-      return { id: 0, orderNo: res.orderNo, payParams: res.payParams };
+      return { id: 0, orderNo: res.orderNo, payParams: res.payParams, payMethod: values.payMethod };
     },
     isPending: createOrderMutation.isPending,
   };
-  const createOrderModal = useEditModal<ManualOrderRecord, ManualOrderFormValues, { bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string }>({
+  const createOrderModal = useEditModal<ManualOrderRecord, ManualOrderFormValues, { applicationId: number; bizType: string; bizId: string; subject: string; amount: number; payMethod: PaymentMethod; openId?: string }>({
     save: orderSaveMutation,
-    defaults: { payMethod: 'wechat_native', amount: 1 },
+    defaults: { amount: 1 },
     beforeSave: (values) => {
       if (values.payMethod === 'wechat_jsapi' && !values.openId?.trim()) {
         Toast.error('微信 JSAPI 支付需要填写 OpenID');
         abortSubmit('validation');
       }
       return {
+        applicationId: values.applicationId,
         bizType: values.bizType,
         bizId: values.bizId,
         subject: values.subject,
@@ -150,7 +235,10 @@ export default function PaymentOrdersPage() {
         openId: values.openId?.trim() || undefined,
       };
     },
-    onSaved: (saved) => setPayResult(saved.payParams),
+    onSaved: (saved) => {
+      setPayResultMethod(saved.payMethod);
+      setPayResult(saved.payParams);
+    },
     successMessage: () => '下单成功',
   });
 
@@ -161,10 +249,12 @@ export default function PaymentOrdersPage() {
     if (status === 'success') {
       Toast.success('支付成功！');
       setPayResult(null);
+      setPayResultMethod(null);
       void queryClient.invalidateQueries({ queryKey: paymentOrderKeys.all });
     } else if (status === 'failed' || status === 'closed') {
       Toast.error(`支付${status === 'closed' ? '已关闭' : '失败'}`);
       setPayResult(null);
+      setPayResultMethod(null);
     }
   }, [payResult, payStatusQuery.data, queryClient]);
 
@@ -181,6 +271,7 @@ export default function PaymentOrdersPage() {
       return;
     }
     setRefundedAmount(locked);
+    refundIdempotencyKey.current = crypto.randomUUID();
     openRefundEdit(refundCheckTarget);
     setRefundCheckTarget(null);
   }, [canViewRefunds, refundCheckQuery.data, refundCheckQuery.isFetching, refundCheckTarget, openRefundEdit]);
@@ -215,6 +306,7 @@ export default function PaymentOrdersPage() {
   const columns: ColumnProps<PaymentOrder>[] = [
     copyableNoColumn('订单号', 'orderNo'),
     { title: '标题', dataIndex: 'subject', width: 240, render: renderEllipsis },
+    { title: '支付应用', dataIndex: 'appId', width: 160, render: (value: number) => appNameById.get(value) ?? `应用 #${value}` },
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '方式', dataIndex: 'payMethod', width: 150, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
@@ -344,8 +436,12 @@ export default function PaymentOrdersPage() {
 
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
+  const openCreateOrder = () => {
+    setSelectedApplicationId(undefined);
+    createOrderModal.openCreate();
+  };
   const renderCreateButton = () => hasPermission('payment:order:create') ? (
-    <Button type="primary" icon={<Plus size={14} />} onClick={createOrderModal.openCreate}>手动下单</Button>
+    <Button type="primary" icon={<Plus size={14} />} onClick={openCreateOrder}>手动下单</Button>
   ) : null;
   const renderExportButtons = () => <ExportButton entity="payment.orders" query={buildQuery(submittedParams)} />;
   const renderMobileExportActions = () => <ExportButton entity="payment.orders" query={buildQuery(submittedParams)} variant="flat" />;
@@ -473,6 +569,7 @@ export default function PaymentOrdersPage() {
                 column={2}
                 size="small"
                 data={[
+                  { key: '支付应用', value: appNameById.get(detailOrder.appId) ?? `应用 #${detailOrder.appId}` },
                   { key: '渠道', value: PAYMENT_CHANNEL_LABELS[detailOrder.channel] },
                   { key: '方式', value: PAYMENT_METHOD_LABELS[detailOrder.payMethod] },
                   { key: '业务类型', value: detailOrder.bizType },
@@ -531,7 +628,16 @@ export default function PaymentOrdersPage() {
         )}
       </SideSheet>
 
-      <AppModal {...refundModal.modalProps} title="发起退款" okButtonProps={{ ...refundModal.modalProps.okButtonProps, type: 'danger' }} width={480}>
+      <AppModal
+        {...refundModal.modalProps}
+        title="发起退款"
+        onCancel={() => {
+          refundIdempotencyKey.current = null;
+          refundModal.close();
+        }}
+        okButtonProps={{ ...refundModal.modalProps.okButtonProps, type: 'danger' }}
+        width={480}
+      >
         {refundModal.editing && (
           <Form key={refundModal.formKey} {...refundModal.formProps}>
             <Form.Slot label="订单号">{refundModal.editing.orderNo}</Form.Slot>
@@ -539,30 +645,78 @@ export default function PaymentOrdersPage() {
             {refundedAmount > 0 && <Form.Slot label="已退金额"><Typography.Text type="warning">{yuan(refundedAmount)}</Typography.Text></Form.Slot>}
             <Form.Slot label="剩余可退"><Typography.Text type="success">{yuan(refundModal.editing.amount - refundedAmount)}</Typography.Text></Form.Slot>
             <Form.InputNumber field="amountYuan" label="退款金额(元)" min={0.01} max={(refundModal.editing.amount - refundedAmount) / 100} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入退款金额' }]} />
-            <Form.TextArea field="reason" label="退款原因" autosize rows={2} maxCount={256} placeholder="可选" />
+            <Form.TextArea
+              field="reason"
+              label="退款原因"
+              autosize
+              rows={2}
+              maxCount={256}
+              placeholder="请填写退款背景和依据"
+              rules={[
+                { required: true, message: '请填写退款原因' },
+                { validator: (_rule: unknown, value: unknown) => Boolean(String(value ?? '').trim()), message: '退款原因不能只包含空格' },
+              ]}
+            />
           </Form>
         )}
       </AppModal>
 
       <AppModal {...createOrderModal.modalProps} title="手动下单" width={520}>
         <Form key={createOrderModal.formKey} {...createOrderModal.formProps}>
+          <Form.Select
+            field="applicationId"
+            label="支付应用"
+            placeholder="请选择启用的支付应用"
+            style={{ width: '100%' }}
+            optionList={enabledAppOptions}
+            loading={appsQuery.isFetching}
+            filter
+            onChange={(value) => {
+              setSelectedApplicationId(value as number | undefined);
+              createOrderModal.formApi.current?.setValue('payMethod', undefined);
+            }}
+            rules={[{ required: true, message: '请选择支付应用' }]}
+          />
+          {selectedPaymentApp && (!canReadCapabilities || capabilitiesQuery.isError) && (
+            <Banner
+              type="warning"
+              closeIcon={null}
+              description="暂时无法读取渠道实时能力，支付方式按应用已绑定渠道展示，提交时仍由服务端校验。"
+            />
+          )}
+          {selectedPaymentApp && capabilitiesQuery.data && paymentMethodOptions.length === 0 && (
+            <Banner
+              type="warning"
+              closeIcon={null}
+              description="该应用当前没有可用的支付下单能力，请先检查支付应用与商户渠道配置。"
+            />
+          )}
           <Form.Input field="subject" label="商品标题" placeholder="如 会员充值" rules={[{ required: true, message: '请输入标题' }]} />
           <Form.InputNumber field="amount" label="金额(元)" min={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入金额' }]} />
-          <Form.Select field="payMethod" label="支付方式" style={{ width: '100%' }} optionList={Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }))} rules={[{ required: true }]} />
+          <Form.Select
+            field="payMethod"
+            label="支付方式"
+            placeholder={selectedPaymentApp ? '请选择应用支持的支付方式' : '请先选择支付应用'}
+            style={{ width: '100%' }}
+            optionList={paymentMethodOptions}
+            loading={canReadCapabilities && capabilitiesQuery.isFetching}
+            disabled={!selectedPaymentApp || (canReadCapabilities && capabilitiesQuery.isFetching) || paymentMethodOptions.length === 0}
+            rules={[{ required: true, message: '请选择支付方式' }]}
+          />
           <Form.Input field="bizType" label="业务类型" placeholder="如 membership" rules={[{ required: true, message: '请输入业务类型' }]} />
           <Form.Input field="bizId" label="业务ID" placeholder="业务方订单ID" rules={[{ required: true, message: '请输入业务ID' }]} />
           <Form.Input field="openId" label="OpenID" placeholder="仅微信 JSAPI 需要" />
         </Form>
       </AppModal>
 
-      <AppModal title="支付下单结果" visible={!!payResult} onCancel={() => setPayResult(null)} footer={null} width={420} closeOnEsc>
+      <AppModal title="支付下单结果" visible={!!payResult} onCancel={() => { setPayResult(null); setPayResultMethod(null); }} footer={null} width={420} closeOnEsc>
         {payResult && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ marginBottom: 8 }}>订单号：{payResult.orderNo}</div>
             {payResult.codeUrl && (
               <>
                 <QRCodeSVG value={payResult.codeUrl} size={200} style={{ margin: '12px auto', display: 'block' }} />
-                <Typography.Text type="tertiary">请使用微信扫码支付</Typography.Text>
+                <Typography.Text type="tertiary">{getPaymentQrInstruction(payResultMethod)}</Typography.Text>
               </>
             )}
             {payResult.payUrl && (

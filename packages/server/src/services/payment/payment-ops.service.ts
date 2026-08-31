@@ -3,25 +3,28 @@
  * Outbox 事件查看与手动重投、模拟支付成功回调（演示/联调用），
  * 帮助运营快速排障与复现支付履约链路。
  */
-import { and, desc, eq, gte, like } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, like, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
+  appWebhookDeliveries,
+  oauth2Clients,
+  paymentApps,
   paymentEvents,
   paymentOrders,
+  paymentReconBatches,
   paymentReconItems,
   paymentSharingOrders,
   paymentTransfers,
-  paymentWebhookDeliveries,
   type PaymentEventRow,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { buildSandboxPaidNotifyBody, SANDBOX_NOTIFY_HEADER } from '../../lib/payment/sandbox-notify';
+import { buildSandboxNotifyRequest } from '../../lib/payment/sandbox-notify';
 import { processEvent } from './payment-outbox.service';
-import { handleNotify, mapOrder, loadOrderConfig } from './payment.service';
+import { buildAdapterContext, handleNotify, mapOrder, loadOrderConfig } from './payment.service';
 import type { PaymentOrder, PaymentOutboxEvent } from '@zenith/shared/payment';
 
 export function mapOutboxEvent(row: PaymentEventRow): PaymentOutboxEvent {
@@ -52,14 +55,31 @@ export interface PaymentHealth {
  * orderNo 天然贯穿订单→事件→Webhook 投递，可作为排障 trace 键。 */
 export async function getPaymentHealth(): Promise<PaymentHealth> {
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const user = currentUser();
+  const eventTenant = tenantCondition(paymentEvents, user);
+  const sharingTenant = tenantCondition(paymentSharingOrders, user);
+  const transferTenant = tenantCondition(paymentTransfers, user);
+  const reconBatchTenant = tenantCondition(paymentReconBatches, user);
+  const paymentClientIds = db
+    .select({ clientId: oauth2Clients.clientId })
+    .from(paymentApps)
+    .innerJoin(oauth2Clients, eq(oauth2Clients.id, paymentApps.openClientId))
+    .where(tenantCondition(paymentApps, user));
+  const paymentWebhook = and(
+    inArray(appWebhookDeliveries.clientId, paymentClientIds),
+    or(like(appWebhookDeliveries.eventType, 'payment.%'), like(appWebhookDeliveries.eventType, 'refund.%')),
+  );
+  const reconTenant = reconBatchTenant
+    ? inArray(paymentReconItems.batchId, db.select({ id: paymentReconBatches.id }).from(paymentReconBatches).where(reconBatchTenant))
+    : undefined;
   const [outboxPending, outboxFailed, webhookPending, webhookFailed24h, sharingProcessing, transferProcessing, reconPendingDiff] = await Promise.all([
-    db.$count(paymentEvents, eq(paymentEvents.status, 'pending')),
-    db.$count(paymentEvents, eq(paymentEvents.status, 'failed')),
-    db.$count(paymentWebhookDeliveries, eq(paymentWebhookDeliveries.status, 'pending')),
-    db.$count(paymentWebhookDeliveries, and(eq(paymentWebhookDeliveries.status, 'failed'), gte(paymentWebhookDeliveries.updatedAt, since24h))),
-    db.$count(paymentSharingOrders, eq(paymentSharingOrders.status, 'processing')),
-    db.$count(paymentTransfers, eq(paymentTransfers.status, 'processing')),
-    db.$count(paymentReconItems, eq(paymentReconItems.handleStatus, 'pending')),
+    db.$count(paymentEvents, mergeWhere(eq(paymentEvents.status, 'pending'), eventTenant)),
+    db.$count(paymentEvents, mergeWhere(eq(paymentEvents.status, 'failed'), eventTenant)),
+    db.$count(appWebhookDeliveries, and(paymentWebhook, inArray(appWebhookDeliveries.status, ['pending', 'retrying']))),
+    db.$count(appWebhookDeliveries, and(paymentWebhook, eq(appWebhookDeliveries.status, 'failed'), gte(appWebhookDeliveries.createdAt, since24h))),
+    db.$count(paymentSharingOrders, mergeWhere(eq(paymentSharingOrders.status, 'processing'), sharingTenant)),
+    db.$count(paymentTransfers, mergeWhere(inArray(paymentTransfers.status, ['processing', 'unknown']), transferTenant)),
+    db.$count(paymentReconItems, mergeWhere(eq(paymentReconItems.handleStatus, 'pending'), reconTenant)),
   ]);
   return { outboxPending, outboxFailed, webhookPending, webhookFailed24h, sharingProcessing, transferProcessing, reconPendingDiff };
 }
@@ -125,9 +145,33 @@ export async function simulateOrderPaid(id: number, ip = '127.0.0.1'): Promise<P
     }
     throw new HTTPException(400, { message: '该订单渠道配置未开启沙箱模式，无法模拟支付（请启用沙箱配置）' });
   }
-  const rawBody = buildSandboxPaidNotifyBody({ outTradeNo: order.outTradeNo, paidAmount: order.amount });
-  const headers = new Headers({ [SANDBOX_NOTIFY_HEADER]: '1', 'content-type': 'application/json' });
-  const { ack } = await handleNotify(order.channel, rawBody, headers, ip);
+  const ctx = buildAdapterContext(config);
+  const secret = ctx.secrets.sandboxNotifySecret;
+  if (!secret) throw new HTTPException(400, { message: '沙箱回调密钥不可用，请重新创建沙箱商户配置' });
+  const merchantId = order.channel === 'wechat'
+    ? config.wechatMchId || `sandbox-merchant-${config.id}`
+    : order.channel === 'alipay'
+      ? config.alipaySellerId || `sandbox-merchant-${config.id}`
+      : config.unionpayMerId || `sandbox-merchant-${config.id}`;
+  const providerAppId = order.channel === 'wechat'
+    ? config.wechatAppId || `sandbox-app-${config.id}`
+    : order.channel === 'alipay'
+      ? config.alipayAppId || `sandbox-app-${config.id}`
+      : undefined;
+  const { body, headers } = buildSandboxNotifyRequest({
+    secret,
+    channelConfigId: config.id,
+    scene: 'payment',
+    outTradeNo: order.outTradeNo,
+    channelTradeNo: `SIM${Date.now()}`,
+    tradeStatus: 'success',
+    paidAmount: order.amount,
+    currency: order.currency,
+    merchantId,
+    providerAppId,
+    paidAt: formatDateTime(new Date()),
+  });
+  const { ack } = await handleNotify(order.channel, config.callbackToken, body, headers, ip);
   if (ack.status !== 200) {
     throw new HTTPException(400, { message: `模拟回调未被受理（HTTP ${ack.status}）：${ack.body.slice(0, 120)}` });
   }

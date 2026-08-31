@@ -24,6 +24,7 @@ import {
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { recordEvent, processEvent } from './payment-outbox.service';
@@ -419,6 +420,8 @@ function mapRiskReview(row: PaymentRiskReviewRow & { reviewer?: { nickname: stri
     hitId: row.hitId ?? null,
     orderNo: row.orderNo,
     channel: row.channel,
+    appId: row.appId,
+    currency: row.currency,
     bizType: row.bizType,
     bizId: row.bizId,
     amount: row.amount,
@@ -433,11 +436,24 @@ function mapRiskReview(row: PaymentRiskReviewRow & { reviewer?: { nickname: stri
 }
 
 /** 下单前置校验：同业务单存在待审核记录时禁止重复下单（等待审核结论） */
-export async function assertNoPendingRiskReview(bizType: string, bizId: string): Promise<void> {
+export async function assertNoPendingRiskReview(input: {
+  bizType: string;
+  bizId: string;
+  tenantId: number | null;
+  appId: number | null;
+  currency: string;
+}): Promise<void> {
   const [row] = await db
     .select({ reviewNo: paymentRiskReviews.reviewNo })
     .from(paymentRiskReviews)
-    .where(and(eq(paymentRiskReviews.bizType, bizType), eq(paymentRiskReviews.bizId, bizId), eq(paymentRiskReviews.status, 'pending')))
+    .where(and(
+      eq(paymentRiskReviews.bizType, input.bizType),
+      eq(paymentRiskReviews.bizId, input.bizId),
+      input.tenantId == null ? isNull(paymentRiskReviews.tenantId) : eq(paymentRiskReviews.tenantId, input.tenantId),
+      input.appId == null ? isNull(paymentRiskReviews.appId) : eq(paymentRiskReviews.appId, input.appId),
+      eq(paymentRiskReviews.currency, input.currency),
+      eq(paymentRiskReviews.status, 'pending'),
+    ))
     .limit(1);
   if (row) throw new HTTPException(400, { message: `该交易正在风控人工审核中（审核单 ${row.reviewNo}），请等待审核结果` });
 }
@@ -455,6 +471,8 @@ export async function suspendOrderForReview(order: PaymentOrderRow, decision: Ex
       bizType: order.bizType,
       bizId: order.bizId,
       amount: order.amount,
+      appId: order.appId,
+      currency: order.currency,
       reason: `${decision.message}；${decision.dimensionValue}`.slice(0, 256),
       status: 'pending',
       tenantId: order.tenantId,
@@ -502,7 +520,11 @@ async function ensureRiskReview(id: number): Promise<PaymentRiskReviewRow> {
 
 /** 审计 before 数据（路由层用，不存在时返回 undefined 不抛错） */
 export async function findRiskReviewById(id: number): Promise<PaymentRiskReviewRow | undefined> {
-  const [row] = await db.select().from(paymentRiskReviews).where(eq(paymentRiskReviews.id, id)).limit(1);
+  const [row] = await db
+    .select()
+    .from(paymentRiskReviews)
+    .where(and(eq(paymentRiskReviews.id, id), tenantCondition(paymentRiskReviews, currentUser())))
+    .limit(1);
   return row;
 }
 
@@ -511,59 +533,81 @@ export async function findRiskReviewById(id: number): Promise<PaymentRiskReviewR
  * 用户重新发起支付时业务幂等复用该订单继续调渠道（审核单已非 pending，不再拦截）。
  */
 export async function approveRiskReview(id: number, remark?: string): Promise<PaymentRiskReview> {
+  if (!remark?.trim()) throw new HTTPException(400, { message: '审核意见不能为空' });
   const row = await ensureRiskReview(id);
   if (row.status !== 'pending') throw new HTTPException(400, { message: '该审核单已处理' });
   const [updated] = await db
     .update(paymentRiskReviews)
-    .set({ status: 'approved', reviewerId: currentUser().userId, reviewedAt: new Date(), reviewRemark: remark ?? null })
+    .set({ status: 'approved', reviewerId: currentUser().userId, reviewedAt: new Date(), reviewRemark: remark.trim() })
     .where(and(eq(paymentRiskReviews.id, id), eq(paymentRiskReviews.status, 'pending')))
     .returning();
   if (!updated) throw new HTTPException(400, { message: '该审核单已被并发处理' });
   await db
     .update(paymentOrders)
     .set({ expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000) })
-    .where(and(eq(paymentOrders.orderNo, row.orderNo), inArray(paymentOrders.status, ['pending', 'paying'])));
+    .where(and(
+      eq(paymentOrders.orderNo, row.orderNo),
+      row.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, row.tenantId),
+      inArray(paymentOrders.status, ['pending', 'paying']),
+    ));
   return mapRiskReview(updated);
 }
 
 /** 审核拒绝：审核单置 rejected 并本地关闭挂起订单（渠道侧从未下单，无需渠道关单） */
 export async function rejectRiskReview(id: number, remark?: string): Promise<PaymentRiskReview> {
+  if (!remark?.trim()) throw new HTTPException(400, { message: '审核意见不能为空' });
   const row = await ensureRiskReview(id);
   if (row.status !== 'pending') throw new HTTPException(400, { message: '该审核单已处理' });
-  const [updated] = await db
-    .update(paymentRiskReviews)
-    .set({ status: 'rejected', reviewerId: currentUser().userId, reviewedAt: new Date(), reviewRemark: remark ?? null })
-    .where(and(eq(paymentRiskReviews.id, id), eq(paymentRiskReviews.status, 'pending')))
-    .returning();
-  if (!updated) throw new HTTPException(400, { message: '该审核单已被并发处理' });
-
-  const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, row.orderNo)).limit(1);
-  if (order && (order.status === 'pending' || order.status === 'paying')) {
-    const eventId = await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(paymentRiskReviews)
+      .set({ status: 'rejected', reviewerId: currentUser().userId, reviewedAt: new Date(), reviewRemark: remark.trim() })
+      .where(and(eq(paymentRiskReviews.id, id), eq(paymentRiskReviews.status, 'pending')))
+      .returning();
+    if (!updated) throw new HTTPException(409, { message: '该审核单已被并发处理' });
+    const [order] = await tx
+      .select()
+      .from(paymentOrders)
+      .where(and(
+        eq(paymentOrders.orderNo, row.orderNo),
+        row.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, row.tenantId),
+      ))
+      .limit(1);
+    let eventId: number | null = null;
+    if (order && (order.status === 'pending' || order.status === 'paying')) {
       const closed = await tx
         .update(paymentOrders)
-        .set({ status: 'closed', errorMessage: '风控审核拒绝' })
+        .set({ status: 'closed', errorMessage: '风控审核拒绝', version: sql`${paymentOrders.version} + 1` })
         .where(and(eq(paymentOrders.id, order.id), inArray(paymentOrders.status, ['pending', 'paying'])))
         .returning({ id: paymentOrders.id });
-      if (closed.length === 0) return null;
-      return recordEvent(tx, {
-        type: 'payment.closed',
-        orderNo: order.orderNo,
-        tenantId: order.tenantId,
-        payload: {
+      if (closed.length > 0) {
+        eventId = await recordEvent(tx, {
           type: 'payment.closed',
           orderNo: order.orderNo,
-          outTradeNo: order.outTradeNo,
-          bizType: order.bizType,
-          bizId: order.bizId,
-          channel: order.channel,
-          amount: order.amount,
-          userId: order.userId,
           tenantId: order.tenantId,
-        },
-      });
+          payload: {
+            type: 'payment.closed',
+            orderNo: order.orderNo,
+            outTradeNo: order.outTradeNo,
+            bizType: order.bizType,
+            bizId: order.bizId,
+            channel: order.channel,
+            channelConfigId: order.channelConfigId,
+            appId: order.appId,
+            currency: order.currency,
+            amount: order.amount,
+            userId: order.userId,
+            tenantId: order.tenantId,
+          },
+        });
+      }
+    }
+    return { updated, eventId };
+  });
+  if (result.eventId != null) {
+    setImmediate(() => {
+      void processEvent(result.eventId!).catch((err) => logger.error('[payment-risk] process event failed', { eventId: result.eventId, err }));
     });
-    if (eventId != null) setImmediate(() => { void processEvent(eventId); });
   }
-  return mapRiskReview(updated);
+  return mapRiskReview(result.updated);
 }

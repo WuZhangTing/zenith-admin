@@ -1,13 +1,34 @@
 import { http } from 'msw';
 import { PAYMENT_MOCK_SEED_TIME, getNextPaymentOrderId, mockPaymentChannels, mockPaymentOrders, mockPaymentRefunds } from '@/mocks/data/payment';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
-import { ok, notFound, badRequest, paginate } from '@/mocks/utils/handlers';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
+import { ok, notFound, badRequest, conflict, forbidden, paginate } from '@/mocks/utils/handlers';
+import { PAYMENT_CASHIER_METHODS, PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 import { SEED_PAYMENT_METHOD_CONFIGS } from '@zenith/shared/seed';
-import { recordMockLedgerEntry, recordMockPaymentSucceeded } from './payment-ext';
-import type { CreatePaymentResult, PaymentChannel, PaymentApp, PaymentFeeRule, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentMethodConfig, PaymentReportGroupBy, PaymentReportRow, PaymentRiskRule, PaymentSettlementBatch, PaymentSettlementStatus, PaymentSharingOrder, PaymentSharingReceiver, PaymentTransfer } from '@zenith/shared/payment';
+import { recordMockPaymentSucceeded } from './payment-ext';
+import { recordMockSystemJournal } from './payment-journals';
+import { mockOAuth2Clients } from './oauth2-apps';
+import type { CreatePaymentResult, PaymentCashierMethod, PaymentCashierSession, PaymentChannel, PaymentApp, PaymentFeeRule, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentMethodConfig, PaymentReportGroupBy, PaymentReportRow, PaymentRiskRule, PaymentSettlementBatch, PaymentSettlementItem, PaymentSettlementStatus, PaymentSharingOrder, PaymentSharingReceiver, PaymentSharingReversal, PaymentTransfer } from '@zenith/shared/payment';
 
 const SEED = PAYMENT_MOCK_SEED_TIME;
+const methodConfigs: PaymentMethodConfig[] = SEED_PAYMENT_METHOD_CONFIGS.map((m) => ({
+  id: m.id, method: m.method as PaymentMethod, channel: m.channel as PaymentChannel, label: m.label, icon: m.icon, enabled: m.enabled, sort: m.sort, createdAt: SEED, updatedAt: SEED,
+}));
+const cashierMethodSet = new Set<PaymentMethod>(PAYMENT_CASHIER_METHODS);
+
+function getMockLinkAvailableMethods(link: PaymentLink): PaymentLinkPublic['availableMethods'] {
+  const app = apps.find((item) => item.id === link.appId && item.status === 'enabled');
+  if (!app) return [];
+  const boundConfigIds = new Set([app.wechatConfigId, app.alipayConfigId, app.unionpayConfigId].filter((id): id is number => id != null));
+  const enabledChannels = new Set(
+    mockPaymentChannels
+      .filter((config) => boundConfigIds.has(config.id) && config.status === 'enabled' && config.sandbox === (app.environment === 'sandbox'))
+      .map((config) => config.channel),
+  );
+  return methodConfigs
+    .filter((config) => config.enabled && enabledChannels.has(config.channel) && cashierMethodSet.has(config.method) && (!link.payMethod || config.method === link.payMethod))
+    .sort((a, b) => a.sort - b.sort)
+    .map((config) => ({ method: config.method as PaymentCashierMethod, label: config.label, icon: config.icon ?? null }));
+}
 
 // ─── 费率规则 ─────────────────────────────────────────────────────────────────
 const feeRules: PaymentFeeRule[] = [
@@ -56,10 +77,26 @@ const feeHandlers = [
 
 // ─── 结算批次 ─────────────────────────────────────────────────────────────────
 const settlements: PaymentSettlementBatch[] = [
-  { id: 1, batchNo: 'SETTLE1700000000001', channel: 'wechat', periodStart: '2024-01-01', periodEnd: '2024-01-07', status: 'settled', orderCount: 12, grossAmount: 158800, feeAmount: 953, refundAmount: 1900, sharingAmount: 0, netAmount: 155947, settledAt: SEED, remark: '首周结算', createdAt: SEED, updatedAt: SEED },
-  { id: 2, batchNo: 'SETTLE1700000000002', channel: 'alipay', periodStart: '2024-01-08', periodEnd: '2024-01-14', status: 'pending', orderCount: 8, grossAmount: 88800, feeAmount: 488, refundAmount: 0, sharingAmount: 0, netAmount: 88312, settledAt: null, remark: null, createdAt: SEED, updatedAt: SEED },
+  { id: 1, batchNo: 'SETTLE1700000000001', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', periodStart: '2024-01-01', periodEnd: '2024-01-07', status: 'settled', orderCount: 12, grossAmount: 158800, feeAmount: 953, refundAmount: 1900, sharingAmount: 0, netAmount: 155947, settledAt: SEED, failureReason: null, payoutReference: 'MOCK-PAYOUT-001', version: 1, remark: '首周结算', createdAt: SEED, updatedAt: SEED },
+  { id: 2, batchNo: 'SETTLE1700000000002', channel: 'alipay', appId: 3, channelConfigId: 2, currency: 'CNY', periodStart: '2024-01-08', periodEnd: '2024-01-14', status: 'pending', orderCount: 8, grossAmount: 88800, feeAmount: 488, refundAmount: 0, sharingAmount: 0, netAmount: 88312, settledAt: null, failureReason: null, payoutReference: null, version: 0, remark: null, createdAt: SEED, updatedAt: SEED },
 ];
 let nextSettlementId = 3;
+interface MockSettlementLine {
+  id: number;
+  journalLineId: number;
+  amount: string;
+  appId: number;
+  channelConfigId: number;
+  currency: string;
+  postedDate: string;
+  batchId: number | null;
+  createdAt: string;
+}
+const mockSettlementLines: MockSettlementLine[] = [
+  { id: 1, journalLineId: 10001, amount: '155947', appId: 1, channelConfigId: 1, currency: 'CNY', postedDate: '2024-01-03', batchId: 1, createdAt: SEED },
+  { id: 2, journalLineId: 10002, amount: '88312', appId: 3, channelConfigId: 2, currency: 'CNY', postedDate: '2024-01-10', batchId: 2, createdAt: SEED },
+  { id: 3, journalLineId: 10003, amount: '1900', appId: 1, channelConfigId: 1, currency: 'CNY', postedDate: '2024-01-15', batchId: null, createdAt: SEED },
+];
 const TRANSITIONS: Record<PaymentSettlementStatus, PaymentSettlementStatus[]> = { pending: ['settling', 'failed'], settling: ['settled', 'failed'], settled: [], failed: [] };
 
 const settlementHandlers = [
@@ -70,44 +107,78 @@ const settlementHandlers = [
     const filtered = settlements.filter((s) => (!channel || s.channel === channel) && (!status || s.status === status));
     return ok(paginate([...filtered].reverse(), url));
   }),
+  http.get('/api/payment/settlements/:id/items', ({ params }) => {
+    const batchId = Number(params.id);
+    if (!settlements.some((batch) => batch.id === batchId)) return notFound('结算批次不存在');
+    const items: PaymentSettlementItem[] = mockSettlementLines
+      .filter((line) => line.batchId === batchId)
+      .map((line) => ({
+        id: line.id,
+        batchId,
+        journalLineId: line.journalLineId,
+        amount: line.amount,
+        appId: line.appId,
+        channelConfigId: line.channelConfigId,
+        currency: line.currency,
+        createdAt: line.createdAt,
+      }));
+    return ok(items);
+  }),
   http.get('/api/payment/settlements/:id', ({ params }) => {
     const s = settlements.find((x) => x.id === Number(params.id));
     return s ? ok(s) : notFound('结算批次不存在');
   }),
   http.post('/api/payment/settlements/generate', async ({ request }) => {
-    const b = (await request.json()) as { channel: PaymentChannel; periodStart: string; periodEnd: string; remark?: string };
-    const paid = mockPaymentOrders.filter(
-      (o) =>
-        o.channel === b.channel &&
-        (o.status === 'success' || o.status === 'refunding' || o.status === 'refunded') &&
-        !!o.paidAt &&
-        o.paidAt.slice(0, 10) >= b.periodStart &&
-        o.paidAt.slice(0, 10) <= b.periodEnd,
-    );
-    const gross = paid.reduce((s, o) => s + (o.paidAmount ?? o.amount), 0);
-    const fee = paid.reduce((s, o) => s + (o.feeAmount ?? Math.round((o.paidAmount ?? o.amount) * 0.006)), 0);
-    const refund = mockPaymentRefunds
-      .filter((r) => r.channel === b.channel && r.status === 'success' && r.refundedAt && r.refundedAt.slice(0, 10) >= b.periodStart && r.refundedAt.slice(0, 10) <= b.periodEnd)
-      .reduce((s, r) => s + r.refundAmount, 0);
-    // Mock 简化：分账口径按 0 计（真实实现见 payment-settlement.service）
+    const b = (await request.json()) as { applicationId: number; channelConfigId: number; currency: string; periodStart: string; periodEnd: string; remark?: string };
+    const config = mockPaymentChannels.find((item) => item.id === b.channelConfigId && item.status === 'enabled');
+    const app = apps.find((item) => item.id === b.applicationId && item.status === 'enabled');
+    const appConfigIds = [app?.wechatConfigId, app?.alipayConfigId, app?.unionpayConfigId];
+    if (!config || !app || !appConfigIds.includes(config.id)) return badRequest('支付应用或商户配置不存在、未启用或未绑定');
+    const availableLines = mockSettlementLines.filter((line) =>
+      line.batchId == null
+      && line.appId === b.applicationId
+      && line.channelConfigId === b.channelConfigId
+      && line.currency === b.currency
+      && line.postedDate >= b.periodStart
+      && line.postedDate <= b.periodEnd);
+    if (availableLines.length === 0) return badRequest('该账期没有未结算的可用资金分录');
+    const netBigInt = availableLines.reduce((sum, line) => sum + BigInt(line.amount), 0n);
+    if (netBigInt <= 0n || netBigInt > BigInt(Number.MAX_SAFE_INTEGER)) return badRequest('该账期可结算净额无效');
+    const netAmount = Number(netBigInt);
+    const batchId = nextSettlementId++;
+    const now = mockDateTime();
     const item: PaymentSettlementBatch = {
-      id: nextSettlementId++, batchNo: `SETTLE${Date.now()}`, channel: b.channel, periodStart: b.periodStart, periodEnd: b.periodEnd,
-      status: 'pending', orderCount: paid.length, grossAmount: gross, feeAmount: fee, refundAmount: refund, sharingAmount: 0, netAmount: Math.max(0, gross - fee - refund),
-      settledAt: null, remark: b.remark ?? null, createdAt: mockDateTime(), updatedAt: mockDateTime(),
+      id: batchId, batchNo: `SETTLE${Date.now()}`, channel: config.channel, appId: b.applicationId, channelConfigId: b.channelConfigId, currency: b.currency,
+      periodStart: b.periodStart, periodEnd: b.periodEnd,
+      status: 'pending', orderCount: availableLines.length, grossAmount: netAmount, feeAmount: 0, refundAmount: 0, sharingAmount: 0, netAmount,
+      settledAt: null, failureReason: null, payoutReference: null, version: 0, remark: b.remark ?? null, createdAt: now, updatedAt: now,
     };
+    availableLines.forEach((line) => {
+      line.batchId = batchId;
+      line.createdAt = now;
+    });
     settlements.push(item);
     return ok(item, '生成成功');
   }),
   http.post('/api/payment/settlements/:id/status', async ({ params, request }) => {
     const s = settlements.find((x) => x.id === Number(params.id));
     if (!s) return notFound('结算批次不存在');
-    const { status } = (await request.json()) as { status: PaymentSettlementStatus };
+    const { status, failureReason, payoutReference } = (await request.json()) as {
+      status: PaymentSettlementStatus;
+      failureReason?: string;
+      payoutReference?: string;
+    };
     if (!TRANSITIONS[s.status].includes(status)) return badRequest(`不允许从「${s.status}」流转到「${status}」`);
+    if (status === 'failed' && !failureReason?.trim()) return badRequest('标记结算失败时必须填写失败原因');
+    if (status === 'settled' && !payoutReference?.trim()) return badRequest('确认结算到账时必须填写出款或到账参考号');
     s.status = status;
+    s.failureReason = status === 'failed' ? failureReason!.trim() : null;
     if (status === 'settled') {
       s.settledAt = mockDateTime();
-      recordMockLedgerEntry({ direction: 'out', type: 'settlement', amount: s.netAmount, orderNo: null, refundNo: null, channel: s.channel, bizType: null, remark: `结算批次 ${s.batchNo} 到账` });
+      s.payoutReference = payoutReference!.trim();
+      recordMockSystemJournal({ sourceType: 'settlement.paid', sourceId: s.batchNo, description: `结算批次 ${s.batchNo} 到账`, appId: s.appId, channelConfigId: s.channelConfigId, currency: s.currency, lines: [{ accountCode: 'payout_payable', debitAmount: String(s.netAmount), memo: '结算出款应付清偿' }, { accountCode: 'provider_clearing', creditAmount: String(s.netAmount), memo: '渠道清算资金减少' }] });
     }
+    s.version += 1;
     s.updatedAt = mockDateTime();
     return ok(s, '操作成功');
   }),
@@ -115,6 +186,9 @@ const settlementHandlers = [
     const i = settlements.findIndex((x) => x.id === Number(params.id));
     if (i === -1) return notFound('结算批次不存在');
     if (settlements[i].status === 'settling') return badRequest('结算中批次不可删除');
+    mockSettlementLines.forEach((line) => {
+      if (line.batchId === settlements[i].id) line.batchId = null;
+    });
     settlements.splice(i, 1);
     return ok(null, '删除成功');
   }),
@@ -127,9 +201,18 @@ const receivers: PaymentSharingReceiver[] = [
 ];
 let nextReceiverId = 3;
 const sharingOrders: PaymentSharingOrder[] = [
-  { id: 1, sharingNo: 'SHR1700000000001', orderNo: 'PAY1700000000001', receiverId: 1, receiverName: '合作商户 A', amount: 990, status: 'success', channelSharingNo: 'WXSHARE202401010001', finishedAt: SEED, remark: null, createdAt: SEED, updatedAt: SEED },
+  { id: 1, sharingNo: 'SHR1700000000001', orderNo: 'PAY1700000000001', receiverId: 1, receiverName: '合作商户 A', amount: 990, status: 'success', channelSharingNo: 'WXSHARE202401010001', version: 0, finishedAt: SEED, remark: null, createdAt: SEED, updatedAt: SEED },
 ];
 let nextSharingOrderId = 2;
+const sharingReversals: PaymentSharingReversal[] = [
+  {
+    id: 1, reversalNo: 'SHRR1700000000001', sharingOrderId: 1, sharingNo: 'SHR1700000000001', orderNo: 'PAY1700000000001',
+    amount: 990, status: 'failed', channelReversalNo: null, reason: '演示冲正失败记录', attempts: 1, queryAttempts: 1,
+    version: 1, errorMessage: '渠道返回原分账单状态不可冲正', finishedAt: SEED, createdAt: SEED, updatedAt: SEED,
+  },
+];
+let nextSharingReversalId = 2;
+const sharingReversalIdempotency = new Map<string, { requestHash: string; reversalId: number }>();
 
 const sharingHandlers = [
   http.get('/api/payment/sharing/receivers', ({ request }) => {
@@ -188,25 +271,91 @@ const sharingHandlers = [
     const now = mockDateTime();
     const item: PaymentSharingOrder = {
       id: nextSharingOrderId++, sharingNo: `SHR${Date.now()}`, orderNo: b.orderNo, receiverId: receiver.id, receiverName: receiver.name,
-      amount, status: 'success', channelSharingNo: `WXSHARE${Date.now()}`, finishedAt: now, remark: b.remark ?? null, createdAt: now, updatedAt: now,
+      amount, status: 'success', channelSharingNo: `WXSHARE${Date.now()}`, version: 0, finishedAt: now, remark: b.remark ?? null, createdAt: now, updatedAt: now,
     };
     sharingOrders.push(item);
     return ok(item, '分账已发起');
+  }),
+  http.get('/api/payment/sharing/reversals', ({ request }) => {
+    const url = new URL(request.url);
+    const sharingOrderId = Number(url.searchParams.get('sharingOrderId')) || undefined;
+    const status = url.searchParams.get('status') ?? '';
+    const startTime = url.searchParams.get('startTime') ?? '';
+    const endTime = url.searchParams.get('endTime') ?? '';
+    const filtered = sharingReversals.filter((record) =>
+      (!sharingOrderId || record.sharingOrderId === sharingOrderId)
+      && (!status || record.status === status)
+      && (!startTime || record.createdAt >= startTime)
+      && (!endTime || record.createdAt <= endTime));
+    return ok(paginate([...filtered].reverse(), url));
+  }),
+  http.get('/api/payment/sharing/reversals/:id', ({ params }) => {
+    const reversal = sharingReversals.find((record) => record.id === Number(params.id));
+    return reversal ? ok(reversal) : notFound('分账冲正单不存在');
+  }),
+  http.post('/api/payment/sharing/orders/:id/reverse', async ({ params, request }) => {
+    const sharingOrderId = Number(params.id);
+    const sharingOrder = sharingOrders.find((record) => record.id === sharingOrderId);
+    if (!sharingOrder) return notFound('分账单不存在', { status: 404 });
+    if (sharingOrder.status !== 'success') return badRequest('仅分账成功的分账单可冲正', { status: 400 });
+    const idempotencyKey = request.headers.get('X-Idempotency-Key')?.trim() ?? '';
+    if (idempotencyKey.length < 8) return badRequest('X-Idempotency-Key 不能为空且至少 8 位', { status: 400 });
+    const body = (await request.json()) as { reason?: string };
+    const reason = body.reason?.trim() ?? '';
+    if (!reason) return badRequest('冲正原因不能为空', { status: 400 });
+    const requestHash = JSON.stringify({ sharingOrderId, reason });
+    const mapKey = `${sharingOrderId}:${idempotencyKey}`;
+    const previous = sharingReversalIdempotency.get(mapKey);
+    if (previous) {
+      if (previous.requestHash !== requestHash) return conflict('同一幂等键不能用于不同冲正请求', { status: 409 });
+      const existing = sharingReversals.find((record) => record.id === previous.reversalId);
+      return existing ? ok(existing, '冲正已受理') : conflict('幂等记录对应的冲正单不存在', { status: 409 });
+    }
+    const now = mockDateTime();
+    const reversal: PaymentSharingReversal = {
+      id: nextSharingReversalId++, reversalNo: `SHRR${Date.now()}`, sharingOrderId, sharingNo: sharingOrder.sharingNo,
+      orderNo: sharingOrder.orderNo, amount: sharingOrder.amount, status: 'processing', channelReversalNo: null, reason,
+      attempts: 1, queryAttempts: 0, version: 0, errorMessage: null, finishedAt: null, createdAt: now, updatedAt: now,
+    };
+    sharingReversals.push(reversal);
+    sharingReversalIdempotency.set(mapKey, { requestHash, reversalId: reversal.id });
+    return ok(reversal, '冲正已受理');
+  }),
+  http.post('/api/payment/sharing/reversals/:id/query', ({ params }) => {
+    const reversal = sharingReversals.find((record) => record.id === Number(params.id));
+    if (!reversal) return notFound('分账冲正单不存在', { status: 404 });
+    reversal.queryAttempts += 1;
+    reversal.version += 1;
+    reversal.updatedAt = mockDateTime();
+    if (reversal.status === 'processing' || reversal.status === 'unknown') {
+      reversal.status = 'success';
+      reversal.channelReversalNo = `WXSHRR${Date.now()}`;
+      reversal.errorMessage = null;
+      reversal.finishedAt = reversal.updatedAt;
+      const sharingOrder = sharingOrders.find((record) => record.id === reversal.sharingOrderId);
+      if (sharingOrder) {
+        sharingOrder.status = 'reversed';
+        sharingOrder.version += 1;
+        sharingOrder.updatedAt = reversal.updatedAt;
+      }
+    }
+    return ok(reversal, '查单完成');
   }),
 ];
 
 // ─── 支付链接 ─────────────────────────────────────────────────────────────────
 const links: PaymentLink[] = [
-  { id: 1, linkNo: 'LINK1700000000001', token: 'demotoken0000000000000000000001', subject: '会员年费收款', amount: 9900, payMethod: 'wechat_native', bizType: 'membership', maxUses: null, usedCount: 3, expiredAt: null, status: 'active', remark: '演示固定金额链接', createdAt: SEED, updatedAt: SEED },
-  { id: 2, linkNo: 'LINK1700000000002', token: 'demotoken0000000000000000000002', subject: '自由打赏', amount: null, payMethod: null, bizType: 'general', maxUses: 100, usedCount: 12, expiredAt: null, status: 'active', remark: '用户自填金额', createdAt: SEED, updatedAt: SEED },
+  { id: 1, linkNo: 'LINK1700000000001', token: 'demotoken0000000000000000000001', appId: 1, subject: '会员年费收款', amount: 9900, payMethod: 'wechat_native', bizType: 'membership', maxUses: null, usedCount: 3, reservedCount: 0, expiredAt: null, status: 'active', remark: '演示固定金额链接', createdAt: SEED, updatedAt: SEED },
+  { id: 2, linkNo: 'LINK1700000000002', token: 'demotoken0000000000000000000002', appId: 2, subject: '自由打赏', amount: null, payMethod: null, bizType: 'general', maxUses: 100, usedCount: 12, reservedCount: 0, expiredAt: null, status: 'active', remark: '用户自填金额', createdAt: SEED, updatedAt: SEED },
 ];
 let nextLinkId = 3;
 let nextLinkToken = 3;
+const cashierSessions = new Map<string, PaymentCashierSession>();
 
 function computeLinkStatus(l: PaymentLink): PaymentLinkStatus {
   if (l.status === 'disabled') return 'disabled';
   if (l.expiredAt && new Date(l.expiredAt).getTime() < Date.now()) return 'expired';
-  if (l.maxUses != null && l.usedCount >= l.maxUses) return 'expired';
+  if (l.maxUses != null && l.usedCount + l.reservedCount >= l.maxUses) return 'expired';
   return 'active';
 }
 
@@ -215,7 +364,7 @@ const linkHandlers = [
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
-    const filtered = links.filter((l) => (!keyword || l.subject.includes(keyword)) && (!status || l.status === status));
+    const filtered = links.filter((l) => (!keyword || l.subject.includes(keyword)) && (!status || computeLinkStatus(l) === status));
     return ok(paginate([...filtered].reverse().map((l) => ({ ...l, status: computeLinkStatus(l) })), url));
   }),
   http.get('/api/payment/links/:id', ({ params }) => {
@@ -223,14 +372,19 @@ const linkHandlers = [
     return l ? ok({ ...l, status: computeLinkStatus(l) }) : notFound('支付链接不存在');
   }),
   http.post('/api/payment/links', async ({ request }) => {
-    const b = (await request.json()) as Partial<PaymentLink>;
+    const b = (await request.json()) as Partial<PaymentLink> & { applicationId?: number };
+    const app = apps.find((item) => item.id === b.applicationId && item.status === 'enabled');
+    if (!app) return badRequest('支付应用不存在或已停用');
     const now = mockDateTime();
     const item: PaymentLink = {
       id: nextLinkId++, linkNo: `LINK${Date.now()}`, token: `demotoken${String(nextLinkToken++).padStart(23, '0')}`,
-      subject: b.subject ?? '', amount: b.amount ?? null, payMethod: (b.payMethod as PaymentMethod) ?? null, bizType: b.bizType ?? 'general',
-      maxUses: b.maxUses ?? null, usedCount: 0, expiredAt: b.expiredAt ?? null, status: b.status === 'disabled' ? 'disabled' : 'active',
+      appId: app.id, subject: b.subject ?? '', amount: b.amount ?? null, payMethod: (b.payMethod as PaymentMethod) ?? null, bizType: b.bizType ?? 'general',
+      maxUses: b.maxUses ?? null, usedCount: 0, reservedCount: 0, expiredAt: b.expiredAt ?? null, status: b.status === 'disabled' ? 'disabled' : 'active',
       remark: b.remark ?? null, createdAt: now, updatedAt: now,
     };
+    if (getMockLinkAvailableMethods(item).length === 0) {
+      return badRequest(item.payMethod ? '所选固定支付方式当前不可用' : '支付应用当前没有可用的公开收银台支付方式');
+    }
     links.push(item);
     return ok(item, '创建成功');
   }),
@@ -238,7 +392,14 @@ const linkHandlers = [
     const l = links.find((x) => x.id === Number(params.id));
     if (!l) return notFound('支付链接不存在');
     const b = (await request.json()) as Partial<PaymentLink>;
-    Object.assign(l, b, { updatedAt: mockDateTime() });
+    const next = { ...l, ...b, updatedAt: mockDateTime() };
+    if (next.maxUses != null && next.maxUses < next.usedCount + next.reservedCount) {
+      return badRequest('使用上限不能小于已核销次数与有效预占次数之和');
+    }
+    if (getMockLinkAvailableMethods(next).length === 0) {
+      return badRequest(next.payMethod ? '所选固定支付方式当前不可用' : '支付应用当前没有可用的公开收银台支付方式');
+    }
+    Object.assign(l, next);
     return ok({ ...l, status: computeLinkStatus(l) }, '更新成功');
   }),
   http.post('/api/payment/links/:id/rotate-token', ({ params }) => {
@@ -265,7 +426,8 @@ const linkHandlers = [
       bizType: l.bizType,
       status: computeLinkStatus(l),
       expiredAt: l.expiredAt,
-      remainingUses: l.maxUses != null ? Math.max(0, l.maxUses - l.usedCount) : null,
+      remainingUses: l.maxUses != null ? Math.max(0, l.maxUses - l.usedCount - l.reservedCount) : null,
+      availableMethods: getMockLinkAvailableMethods(l),
     };
     return ok(data);
   }),
@@ -280,18 +442,21 @@ const linkHandlers = [
     if (!amount || amount <= 0) return badRequest('请输入有效的支付金额');
     const payMethod = l.payMethod ?? body.payMethod;
     if (!payMethod) return badRequest('请选择支付方式');
-    if (!['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap'].includes(payMethod)) return badRequest('该支付方式暂不支持在公开收款页发起');
-    if (l.maxUses != null && l.usedCount >= l.maxUses) return badRequest('该支付链接已过期或已达使用上限');
-    l.usedCount += 1;
-    l.updatedAt = mockDateTime();
+    if (!getMockLinkAvailableMethods(l).some((item) => item.method === payMethod)) return badRequest('该支付方式当前未启用或不属于此收款链接');
+    if (l.maxUses != null && l.usedCount + l.reservedCount >= l.maxUses) return badRequest('该支付链接已过期或已达使用上限');
     const channel = PAYMENT_METHOD_CHANNEL[payMethod];
+    const sessionToken = `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
     const orderNo = `PAY${Date.now()}`;
     const now = mockDateTime();
+    const expiresAt = mockDateTimeOffset(30 * 60 * 1000);
+    const consumesUseSlot = l.maxUses != null;
+    if (consumesUseSlot) l.reservedCount += 1;
+    l.updatedAt = mockDateTime();
     mockPaymentOrders.unshift({
-      id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: l.bizType, bizId: l.linkNo,
-      subject: l.subject, body: null, amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2,
+      id: getNextPaymentOrderId(), orderNo, outTradeNo: orderNo, channelTradeNo: null, bizType: l.bizType, bizId: `${l.linkNo}:${sessionToken}`,
+      subject: l.subject, body: null, amount, currency: 'CNY', channel, channelConfigId: channel === 'wechat' ? 1 : 2, appId: l.appId,
       payMethod, status: 'paying', userId: null, openId: body.openId ?? null, clientIp: '127.0.0.1', departmentId: null,
-      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: mockDateTimeOffset(30 * 60 * 1000), errorMessage: null, createdAt: now, updatedAt: now,
+      paidAmount: null, feeAmount: null, netAmount: null, paidAt: null, expiredAt: expiresAt, errorMessage: null, version: 0, createdAt: now, updatedAt: now,
     });
     const payParams: CreatePaymentResult = {
       orderNo,
@@ -299,41 +464,102 @@ const linkHandlers = [
       payMethod,
       codeUrl: channel === 'wechat' ? `weixin://wxpay/bizpayurl?pr=${orderNo}` : undefined,
       payUrl: channel === 'alipay' ? `https://openapi.alipaydev.com/gateway.do?out_trade_no=${orderNo}` : undefined,
-      expiredAt: mockDateTimeOffset(30 * 60 * 1000),
+      expiredAt: expiresAt,
     };
-    return ok({ orderNo, payParams }, '下单成功');
+    const returnUrl = new URL(`/public/payment/link/${encodeURIComponent(l.token)}`, request.url);
+    returnUrl.searchParams.set('session', sessionToken);
+    const session: PaymentCashierSession = {
+      sessionToken,
+      linkId: l.id,
+      appId: l.appId,
+      orderNo,
+      payMethod: payMethod as PaymentCashierMethod,
+      amount,
+      status: 'processing',
+      useSlotStatus: consumesUseSlot ? 'reserved' : 'none',
+      payParams,
+      returnUrl: returnUrl.toString(),
+      errorMessage: null,
+      expiresAt,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    };
+    cashierSessions.set(sessionToken, session);
+    return ok(session, '收银台会话已创建');
   }),
-  // 收银台订单状态轮询（演示：下单 ~15 秒后自动变为支付成功）
-  http.get('/api/public/payment/link/:token/orders/:orderNo/status', ({ params }) => {
-    const order = mockPaymentOrders.find((o) => o.orderNo === String(params.orderNo));
-    if (!order) return notFound('订单不存在');
-    if (order.status === 'paying' && Date.now() - new Date(order.createdAt).getTime() > 15000) {
+  http.get('/api/public/payment/link/:token/sessions/:sessionToken', ({ params }) => {
+    const link = links.find((item) => item.token === String(params.token));
+    const session = cashierSessions.get(String(params.sessionToken));
+    if (!link || !session || session.linkId !== link.id) return notFound('收银台会话不存在或已失效');
+    const previousStatus = session.status;
+    const previousError = session.errorMessage ?? null;
+    const order = session.orderNo ? mockPaymentOrders.find((item) => item.orderNo === session.orderNo && item.appId === session.appId) : undefined;
+    if (order?.status === 'paying' && Date.now() - new Date(order.createdAt.replace(' ', 'T')).getTime() > 15000) {
       order.status = 'success';
       order.paidAmount = order.amount;
       order.paidAt = mockDateTime();
+      order.version += 1;
       order.updatedAt = mockDateTime();
       recordMockPaymentSucceededFromLink(order);
     }
-    return ok({ status: order.status, paidAt: order.paidAt });
+    if (order?.status === 'success' || order?.status === 'refunding' || order?.status === 'refunded') {
+      session.status = 'succeeded';
+      if (session.useSlotStatus === 'reserved') {
+        link.reservedCount = Math.max(0, link.reservedCount - 1);
+        link.usedCount += 1;
+        session.useSlotStatus = 'consumed';
+        link.updatedAt = mockDateTime();
+      }
+    }
+    else if (order?.status === 'failed' || order?.status === 'closed') {
+      session.status = 'failed';
+      if (session.useSlotStatus === 'reserved') {
+        link.reservedCount = Math.max(0, link.reservedCount - 1);
+        session.useSlotStatus = 'released';
+        link.updatedAt = mockDateTime();
+      }
+    }
+    else if (order?.status === 'unknown') session.status = 'unknown';
+    else if (new Date(session.expiresAt.replace(' ', 'T')).getTime() <= Date.now()) {
+      session.status = 'expired';
+      if (session.useSlotStatus === 'reserved') {
+        link.reservedCount = Math.max(0, link.reservedCount - 1);
+        session.useSlotStatus = 'released';
+        link.updatedAt = mockDateTime();
+      }
+    }
+    else if (order?.status === 'paying') session.status = 'processing';
+    session.errorMessage = order?.errorMessage ?? null;
+    if (session.status !== previousStatus || session.errorMessage !== previousError) {
+      session.version += 1;
+      session.updatedAt = mockDateTime();
+    }
+    return ok({ ...session });
   }),
 ];
 
-/** 收银台演示支付成功：走统一 mock 履约（台账/事件/Webhook） */
+/** 收银台演示支付成功：走统一 mock 履约（Journal / 事件 / Open Platform Webhook）。 */
 function recordMockPaymentSucceededFromLink(order: (typeof mockPaymentOrders)[number]) {
   recordMockPaymentSucceeded(order);
 }
 
 // ─── 支付应用（App 维度）───────────────────────────────────────────────────────
 const apps: PaymentApp[] = [
-  { id: 1, name: '官网商城', appKey: 'web-mall', status: 'enabled', wechatConfigId: 1, wechatConfigName: '微信主配置', alipayConfigId: 2, alipayConfigName: '支付宝主配置', unionpayConfigId: null, unionpayConfigName: null, remark: '官网下单应用', createdAt: SEED, updatedAt: SEED },
-  { id: 2, name: 'App 客户端', appKey: 'mobile-app', status: 'enabled', wechatConfigId: null, wechatConfigName: null, alipayConfigId: null, alipayConfigName: null, unionpayConfigId: null, unionpayConfigName: null, remark: null, createdAt: SEED, updatedAt: SEED },
+  { id: 1, name: '官网商城', openClientId: 1, openClientKey: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', openClientName: '示例应用（授权码模式）', environment: 'production', status: 'enabled', wechatConfigId: 1, wechatConfigName: '微信主配置', alipayConfigId: null, alipayConfigName: null, unionpayConfigId: null, unionpayConfigName: null, remark: '官网下单应用', createdAt: SEED, updatedAt: SEED },
+  { id: 2, name: '内部支付服务', openClientId: 2, openClientKey: 'f0e1d2c3-b4a5-6789-0abc-de1234567891', openClientName: '内部服务（客户端凭证）', environment: 'production', status: 'enabled', wechatConfigId: 1, wechatConfigName: '微信主配置', alipayConfigId: null, alipayConfigName: null, unionpayConfigId: null, unionpayConfigName: null, remark: null, createdAt: SEED, updatedAt: SEED },
+  { id: 3, name: '沙箱收银台', openClientId: 4, openClientKey: 'sandbox-pay-1234-5678-9abc-def012345678', openClientName: '沙箱支付服务', environment: 'sandbox', status: 'enabled', wechatConfigId: null, wechatConfigName: null, alipayConfigId: 2, alipayConfigName: '支付宝主商户', unionpayConfigId: null, unionpayConfigName: null, remark: '支付宝沙箱演示应用', createdAt: SEED, updatedAt: SEED },
 ];
-let nextAppId = 3;
+let nextAppId = 4;
 
 function fillPaymentAppConfigNames(app: PaymentApp) {
+  const openClient = mockOAuth2Clients.find((client) => client.id === app.openClientId);
   const wechat = app.wechatConfigId ? mockPaymentChannels.find((c) => c.id === app.wechatConfigId) : null;
   const alipay = app.alipayConfigId ? mockPaymentChannels.find((c) => c.id === app.alipayConfigId) : null;
   const unionpay = app.unionpayConfigId ? mockPaymentChannels.find((c) => c.id === app.unionpayConfigId) : null;
+  app.openClientKey = openClient?.clientId ?? app.openClientKey;
+  app.openClientName = openClient?.name ?? app.openClientName;
+  app.environment = openClient?.environment ?? app.environment;
   app.wechatConfigName = app.wechatConfigName ?? wechat?.name ?? null;
   app.alipayConfigName = app.alipayConfigName ?? alipay?.name ?? null;
   app.unionpayConfigName = app.unionpayConfigName ?? unionpay?.name ?? null;
@@ -348,7 +574,7 @@ const appHandlers = [
     const url = new URL(request.url);
     const keyword = url.searchParams.get('keyword') ?? '';
     const status = url.searchParams.get('status') ?? '';
-    const filtered = apps.filter((a) => (!keyword || a.name.includes(keyword) || a.appKey.includes(keyword)) && (!status || a.status === status));
+    const filtered = apps.filter((a) => (!keyword || a.name.includes(keyword) || a.openClientKey.includes(keyword) || a.openClientName.includes(keyword)) && (!status || a.status === status));
     return ok(paginate([...filtered].reverse().map((a) => fillPaymentAppConfigNames({ ...a })), url));
   }),
   http.get('/api/payment/apps/:id', ({ params }) => {
@@ -357,9 +583,14 @@ const appHandlers = [
   }),
   http.post('/api/payment/apps', async ({ request }) => {
     const b = (await request.json()) as Partial<PaymentApp>;
+    const openClient = mockOAuth2Clients.find((client) => client.id === b.openClientId);
+    if (!openClient || openClient.status !== 'enabled' || openClient.reviewStatus !== 'approved' || openClient.isPublic || !openClient.signEnabled) {
+      return badRequest('所选开放客户端不可用于支付接入');
+    }
     const now = mockDateTime();
     const item: PaymentApp = {
-      id: nextAppId++, name: b.name ?? '', appKey: b.appKey ?? '', status: b.status ?? 'enabled',
+      id: nextAppId++, name: b.name ?? '', openClientId: openClient.id, openClientKey: openClient.clientId,
+      openClientName: openClient.name, environment: openClient.environment, status: b.status ?? 'enabled',
       wechatConfigId: b.wechatConfigId ?? null, wechatConfigName: null,
       alipayConfigId: b.alipayConfigId ?? null, alipayConfigName: null,
       unionpayConfigId: b.unionpayConfigId ?? null, unionpayConfigName: null,
@@ -372,7 +603,13 @@ const appHandlers = [
     const app = apps.find((x) => x.id === Number(params.id));
     if (!app) return notFound('支付应用不存在');
     const b = (await request.json()) as Partial<PaymentApp>;
-    Object.assign(app, b, {
+    Object.assign(app, {
+      name: b.name ?? app.name,
+      status: b.status ?? app.status,
+      wechatConfigId: b.wechatConfigId !== undefined ? b.wechatConfigId : app.wechatConfigId,
+      alipayConfigId: b.alipayConfigId !== undefined ? b.alipayConfigId : app.alipayConfigId,
+      unionpayConfigId: b.unionpayConfigId !== undefined ? b.unionpayConfigId : app.unionpayConfigId,
+      remark: b.remark !== undefined ? b.remark : app.remark,
       wechatConfigName: null,
       alipayConfigName: null,
       unionpayConfigName: null,
@@ -436,10 +673,6 @@ const riskHandlers = [
 ];
 
 // ─── 支付方式配置 ─────────────────────────────────────────────────────────────
-const methodConfigs: PaymentMethodConfig[] = SEED_PAYMENT_METHOD_CONFIGS.map((m) => ({
-  id: m.id, method: m.method as PaymentMethod, channel: m.channel as PaymentChannel, label: m.label, icon: m.icon, enabled: m.enabled, sort: m.sort, createdAt: SEED, updatedAt: SEED,
-}));
-
 const methodHandlers = [
   http.get('/api/payment/methods/enabled', () => ok(methodConfigs.filter((m) => m.enabled).sort((a, b) => a.sort - b.sort))),
   http.get('/api/payment/methods', () => ok([...methodConfigs].sort((a, b) => a.sort - b.sort))),
@@ -460,17 +693,24 @@ const methodHandlers = [
 const reportHandlers = [
   http.get('/api/payment/reports/summary', ({ request }) => {
     const url = new URL(request.url);
-    const groupBy = (url.searchParams.get('groupBy') as PaymentReportGroupBy) ?? 'bizType';
+    const groupBy = (url.searchParams.get('groupBy') as PaymentReportGroupBy) ?? 'day';
     const startTime = url.searchParams.get('startTime');
     const endTime = url.searchParams.get('endTime');
     const paid = mockPaymentOrders.filter((o) => o.status === 'success' || o.status === 'refunding' || o.status === 'refunded');
     const groups = new Map<string, { gross: number; fee: number; refund: number; count: number }>();
     const orderGroup = new Map<string, string>();
+    const dimensionKey = (order: (typeof mockPaymentOrders)[number], eventTime: string) => {
+      if (groupBy === 'application') return String(order.appId);
+      if (groupBy === 'merchantAccount') return String(order.channelConfigId);
+      if (groupBy === 'currency') return order.currency;
+      if (groupBy === 'channel') return order.channel;
+      return eventTime.slice(0, 10);
+    };
     for (const o of paid) {
       const paidTime = o.paidAt ?? o.createdAt;
       if (startTime && paidTime < startTime) continue;
       if (endTime && paidTime > endTime) continue;
-      const key = groupBy === 'channel' ? o.channel : groupBy === 'day' ? (o.paidAt ?? o.createdAt).slice(0, 10) : o.bizType;
+      const key = dimensionKey(o, paidTime);
       orderGroup.set(o.orderNo, key);
       const g = groups.get(key) ?? { gross: 0, fee: 0, refund: 0, count: 0 };
       g.gross += o.paidAmount ?? o.amount;
@@ -485,13 +725,19 @@ const reportHandlers = [
       const refundedAt = refund.refundedAt ?? refund.createdAt;
       if (startTime && refundedAt < startTime) continue;
       if (endTime && refundedAt > endTime) continue;
-      const key = orderGroup.get(order.orderNo) ?? (groupBy === 'channel' ? order.channel : groupBy === 'day' ? refundedAt.slice(0, 10) : order.bizType);
+      const key = orderGroup.get(order.orderNo) ?? dimensionKey(order, refundedAt);
       const g = groups.get(key) ?? { gross: 0, fee: 0, refund: 0, count: 0 };
       g.refund += refund.refundAmount;
       groups.set(key, g);
     }
     const rows: PaymentReportRow[] = [...groups.entries()].map(([key, g]) => {
-      const label = groupBy === 'channel' ? (PAYMENT_CHANNEL_LABELS[key as PaymentChannel] ?? key) : key;
+      const label = groupBy === 'channel'
+        ? (PAYMENT_CHANNEL_LABELS[key as PaymentChannel] ?? key)
+        : groupBy === 'application'
+          ? (apps.find((app) => String(app.id) === key)?.name ?? `应用 #${key}`)
+          : groupBy === 'merchantAccount'
+            ? (mockPaymentChannels.find((config) => String(config.id) === key)?.name ?? `配置 #${key}`)
+            : key;
       // Mock 简化：分账按 0 计（真实口径见 payment-report.service）
       return { key, label, gross: g.gross, fee: g.fee, refund: g.refund, sharing: 0, net: g.gross - g.fee - g.refund, count: g.count };
     });
@@ -524,11 +770,13 @@ const reportHandlers = [
 
 // ─── 转账/代付 ────────────────────────────────────────────────────────────────
 const transfers: PaymentTransfer[] = [
-  { id: 1, transferNo: 'TRF1700000000001', outTransferNo: 'TRF1700000000001', channel: 'wechat', receiverAccount: 'oDEMO_openid_001', receiverName: '张三', amount: 5000, remark: '活动奖励发放', status: 'success', channelTransferNo: 'WXTRF202401010001', failReason: null, attempts: 1, bizType: 'activity_reward', bizId: 'ACT-1', finishedAt: SEED, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
-  { id: 2, transferNo: 'TRF1700000000002', outTransferNo: 'TRF1700000000002', channel: 'alipay', receiverAccount: 'demo@alipay.com', receiverName: null, amount: 12000, remark: '供应商结算', status: 'processing', channelTransferNo: 'ALITRF202401010002', failReason: null, attempts: 1, bizType: null, bizId: null, finishedAt: null, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
-  { id: 3, transferNo: 'TRF1700000000003', outTransferNo: 'TRF1700000000003', channel: 'wechat', receiverAccount: 'oDEMO_openid_003', receiverName: null, amount: 800, remark: '红包补发', status: 'failed', channelTransferNo: null, failReason: '收款账号不存在', attempts: 1, bizType: null, bizId: null, finishedAt: SEED, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
+  { id: 1, transferNo: 'TRF1700000000001', outTransferNo: 'TRF1700000000001', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', receiverAccount: 'oDEMO_openid_001', receiverName: '张三', amount: 5000, remark: '活动奖励发放', status: 'success', approvalStatus: 'none', appliedById: 1, approverId: null, approvedAt: null, approvalRemark: null, channelTransferNo: 'WXTRF202401010001', failReason: null, attempts: 1, fundReservationId: 20001, version: 1, bizType: 'activity_reward', bizId: 'ACT-1', finishedAt: SEED, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
+  { id: 2, transferNo: 'TRF1700000000002', outTransferNo: 'TRF1700000000002', channel: 'alipay', appId: 3, channelConfigId: 2, currency: 'CNY', receiverAccount: 'demo@alipay.com', receiverName: null, amount: 12000, remark: '供应商结算', status: 'processing', approvalStatus: 'none', appliedById: 1, approverId: null, approvedAt: null, approvalRemark: null, channelTransferNo: 'ALITRF202401010002', failReason: null, attempts: 1, fundReservationId: 20002, version: 0, bizType: null, bizId: null, finishedAt: null, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
+  { id: 3, transferNo: 'TRF1700000000003', outTransferNo: 'TRF1700000000003', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', receiverAccount: 'oDEMO_openid_003', receiverName: null, amount: 800, remark: '红包补发', status: 'failed', approvalStatus: 'none', appliedById: 1, approverId: null, approvedAt: null, approvalRemark: null, channelTransferNo: null, failReason: '收款账号不存在', attempts: 1, fundReservationId: 20003, version: 1, bizType: null, bizId: null, finishedAt: SEED, operatorName: '管理员', createdAt: SEED, updatedAt: SEED },
+  { id: 4, transferNo: 'TRF1700000000004', outTransferNo: 'TRF1700000000004', channel: 'wechat', appId: 1, channelConfigId: 1, currency: 'CNY', receiverAccount: 'oDEMO_openid_004', receiverName: '李四', amount: 180000, remark: '市场活动大额奖励', status: 'pending', approvalStatus: 'pending', appliedById: 2, approverId: null, approvedAt: null, approvalRemark: null, channelTransferNo: null, failReason: null, attempts: 0, fundReservationId: 20004, version: 0, bizType: 'activity_reward', bizId: 'ACT-4', finishedAt: null, operatorName: '财务经办', createdAt: SEED, updatedAt: SEED },
 ];
-let nextTransferId = 4;
+let nextTransferId = 5;
+const transferIdempotency = new Map<string, { requestHash: string; transferId: number }>();
 
 const transferHandlers = [
   http.get('/api/payment/transfers/summary', () => {
@@ -536,7 +784,7 @@ const transferHandlers = [
     return ok({
       totalAmount: success.reduce((s, t) => s + t.amount, 0),
       successCount: success.length,
-      processingCount: transfers.filter((t) => t.status === 'processing').length,
+      processingCount: transfers.filter((t) => t.status === 'processing' || t.status === 'unknown').length,
       failedCount: transfers.filter((t) => t.status === 'failed').length,
     });
   }),
@@ -545,11 +793,13 @@ const transferHandlers = [
     const keyword = url.searchParams.get('keyword') ?? '';
     const channel = url.searchParams.get('channel') ?? '';
     const status = url.searchParams.get('status') ?? '';
+    const approvalStatus = url.searchParams.get('approvalStatus') ?? '';
     const filtered = transfers.filter(
       (t) =>
         (!keyword || t.transferNo.includes(keyword) || t.receiverAccount.includes(keyword)) &&
         (!channel || t.channel === channel) &&
-        (!status || t.status === status),
+        (!status || t.status === status) &&
+        (!approvalStatus || t.approvalStatus === approvalStatus),
     );
     return ok(paginate([...filtered].reverse(), url));
   }),
@@ -558,43 +808,102 @@ const transferHandlers = [
     return t ? ok(t) : notFound('转账单不存在');
   }),
   http.post('/api/payment/transfers', async ({ request }) => {
-    const b = (await request.json()) as { channel: PaymentChannel; receiverAccount: string; receiverName?: string; amount: number; remark?: string };
+    const b = (await request.json()) as { applicationId: number; channel: PaymentChannel; currency?: string; receiverAccount: string; receiverName?: string; amount: number; remark?: string; bizType?: string; bizId?: string };
+    const idempotencyKey = request.headers.get('X-Idempotency-Key')?.trim() ?? '';
+    if (idempotencyKey.length < 8) return badRequest('X-Idempotency-Key 不能为空且至少 8 位', { status: 400 });
+    const remark = b.remark?.trim() ?? '';
+    if (!remark) return badRequest('转账原因不能为空', { status: 400 });
+    const requestHash = JSON.stringify({
+      applicationId: b.applicationId,
+      channel: b.channel,
+      currency: b.currency ?? 'CNY',
+      receiverAccount: b.receiverAccount,
+      receiverName: b.receiverName ?? null,
+      amount: b.amount,
+      remark,
+      bizType: b.bizType ?? null,
+      bizId: b.bizId ?? null,
+    });
+    const mapKey = `${b.applicationId}:${idempotencyKey}`;
+    const previous = transferIdempotency.get(mapKey);
+    if (previous) {
+      if (previous.requestHash !== requestHash) return conflict('同一幂等键不能用于不同转账请求', { status: 409 });
+      const existing = transfers.find((transfer) => transfer.id === previous.transferId);
+      return existing ? ok(existing, '转账已受理') : conflict('幂等记录对应的转账单不存在', { status: 409 });
+    }
+    const app = apps.find((item) => item.id === b.applicationId && item.status === 'enabled');
+    const channelConfigId = b.channel === 'wechat' ? app?.wechatConfigId : b.channel === 'alipay' ? app?.alipayConfigId : app?.unionpayConfigId;
+    if (!app || !channelConfigId) return badRequest('支付应用未绑定所选转账渠道');
     const now = mockDateTime();
     const no = `TRF${Date.now()}`;
+    const transferId = nextTransferId++;
+    const needsApproval = b.amount >= 100_000;
     const item: PaymentTransfer = {
-      id: nextTransferId++, transferNo: no, outTransferNo: no, channel: b.channel, receiverAccount: b.receiverAccount,
-      receiverName: b.receiverName ?? null, amount: b.amount, remark: b.remark ?? null, status: 'success',
-      channelTransferNo: `${b.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`, failReason: null, attempts: 1,
-      bizType: null, bizId: null, finishedAt: now, operatorName: '管理员', createdAt: now, updatedAt: now,
+      id: transferId, transferNo: no, outTransferNo: no, channel: b.channel, appId: app.id, channelConfigId, currency: b.currency ?? 'CNY', receiverAccount: b.receiverAccount,
+      receiverName: b.receiverName ?? null, amount: b.amount, remark, status: needsApproval ? 'pending' : 'success',
+      approvalStatus: needsApproval ? 'pending' : 'none', appliedById: 1, approverId: null, approvedAt: null, approvalRemark: null,
+      channelTransferNo: needsApproval ? null : `${b.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`, failReason: null, attempts: needsApproval ? 0 : 1,
+      fundReservationId: 20000 + transferId, version: 0, bizType: b.bizType ?? null, bizId: b.bizId ?? null, finishedAt: needsApproval ? null : now, operatorName: '管理员', createdAt: now, updatedAt: now,
     };
     transfers.push(item);
-    recordMockLedgerEntry({ direction: 'out', type: 'transfer', amount: item.amount, orderNo: item.transferNo, refundNo: null, channel: item.channel, bizType: item.bizType, remark: `转账支出（${item.receiverAccount}）` });
-    return ok(item, '转账已受理');
+    transferIdempotency.set(mapKey, { requestHash, transferId: item.id });
+    if (!needsApproval) {
+      recordMockSystemJournal({ sourceType: 'payment.transfer', sourceId: item.transferNo, description: `转账出款 ${item.transferNo}`, appId: item.appId, channelConfigId: item.channelConfigId, currency: item.currency, lines: [{ accountCode: 'merchant_available', debitAmount: String(item.amount), memo: '扣减商户可用余额' }, { accountCode: 'provider_clearing', creditAmount: String(item.amount), memo: '渠道出款清算' }] });
+    }
+    return ok(item, needsApproval ? '转账申请已提交，等待审批' : '转账已受理');
+  }),
+  http.post('/api/payment/transfers/:id/approve', async ({ params, request }) => {
+    const t = transfers.find((x) => x.id === Number(params.id));
+    if (!t) return notFound('转账单不存在');
+    const body = (await request.json()) as { remark?: string };
+    const remark = body.remark?.trim() ?? '';
+    if (!remark) return badRequest('审批意见不能为空');
+    if (t.status !== 'pending' || t.approvalStatus !== 'pending') return badRequest('该转账单无需审批或已处理');
+    if (t.appliedById === 1) return forbidden('转账申请人与审批人必须为不同用户');
+    const now = mockDateTime();
+    t.approvalStatus = 'approved';
+    t.approverId = 1;
+    t.approvedAt = now;
+    t.approvalRemark = remark;
+    t.status = 'success';
+    t.attempts = 1;
+    t.channelTransferNo = `${t.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`;
+    t.finishedAt = now;
+    t.updatedAt = now;
+    t.version += 2;
+    recordMockSystemJournal({ sourceType: 'payment.transfer', sourceId: t.transferNo, description: `转账出款 ${t.transferNo}`, appId: t.appId, channelConfigId: t.channelConfigId, currency: t.currency, lines: [{ accountCode: 'merchant_available', debitAmount: String(t.amount), memo: '扣减商户可用余额' }, { accountCode: 'provider_clearing', creditAmount: String(t.amount), memo: '渠道出款清算' }] });
+    return ok(t, '转账审批通过并已受理');
+  }),
+  http.post('/api/payment/transfers/:id/reject', async ({ params, request }) => {
+    const t = transfers.find((x) => x.id === Number(params.id));
+    if (!t) return notFound('转账单不存在');
+    const body = (await request.json()) as { remark?: string };
+    const remark = body.remark?.trim() ?? '';
+    if (!remark) return badRequest('审批意见不能为空');
+    if (t.status !== 'pending' || t.approvalStatus !== 'pending') return badRequest('该转账单无需审批或已处理');
+    const now = mockDateTime();
+    t.approvalStatus = 'rejected';
+    t.approverId = 1;
+    t.approvedAt = now;
+    t.approvalRemark = remark;
+    t.status = 'failed';
+    t.failReason = '转账审批被驳回';
+    t.finishedAt = now;
+    t.updatedAt = now;
+    t.version += 1;
+    return ok(t, '转账已驳回');
   }),
   http.post('/api/payment/transfers/:id/query', ({ params }) => {
     const t = transfers.find((x) => x.id === Number(params.id));
     if (!t) return notFound('转账单不存在');
     if (t.status === 'processing') {
       t.status = 'success';
+      t.version += 1;
       t.finishedAt = mockDateTime();
       t.updatedAt = mockDateTime();
-      recordMockLedgerEntry({ direction: 'out', type: 'transfer', amount: t.amount, orderNo: t.transferNo, refundNo: null, channel: t.channel, bizType: t.bizType ?? null, remark: `转账支出（${t.receiverAccount}）` });
+      recordMockSystemJournal({ sourceType: 'payment.transfer', sourceId: t.transferNo, description: `转账出款 ${t.transferNo}`, appId: t.appId, channelConfigId: t.channelConfigId, currency: t.currency, lines: [{ accountCode: 'merchant_available', debitAmount: String(t.amount), memo: '扣减商户可用余额' }, { accountCode: 'provider_clearing', creditAmount: String(t.amount), memo: '渠道出款清算' }] });
     }
     return ok(t, '查单完成');
-  }),
-  http.post('/api/payment/transfers/:id/retry', ({ params }) => {
-    const t = transfers.find((x) => x.id === Number(params.id));
-    if (!t) return notFound('转账单不存在');
-    if (t.status !== 'failed') return badRequest('仅失败的转账单可重试');
-    if (t.channelTransferNo) return badRequest('渠道已受理该转账单，请通过「查单」同步结果');
-    t.status = 'success';
-    t.channelTransferNo = `${t.channel === 'wechat' ? 'WXTRF' : 'ALITRF'}${Date.now()}`;
-    t.failReason = null;
-    t.attempts += 1;
-    t.finishedAt = mockDateTime();
-    t.updatedAt = mockDateTime();
-    recordMockLedgerEntry({ direction: 'out', type: 'transfer', amount: t.amount, orderNo: t.transferNo, refundNo: null, channel: t.channel, bizType: t.bizType ?? null, remark: `转账支出（${t.receiverAccount}）` });
-    return ok(t, '重试完成');
   }),
 ];
 

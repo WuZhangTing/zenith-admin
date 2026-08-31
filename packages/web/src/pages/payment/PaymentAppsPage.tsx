@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Banner, Form, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -9,6 +9,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useAllPaymentChannelConfigsLookup } from '@/hooks/queries/payment-channels';
 import { paymentAppKeys, useDeletePaymentApp, usePaymentAppList, useSavePaymentApp } from '@/hooks/queries/payment-apps';
+import { useOpenAppOptions } from '@/hooks/queries/open-platform';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import type { PaymentApp, PaymentChannel, PaymentChannelConfig } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -24,7 +25,7 @@ const STATUS_LABEL = { enabled: '启用', disabled: '停用' } as const satisfie
 
 interface AppFormValues {
   name: string;
-  appKey: string;
+  openClientId: number;
   status: PaymentApp['status'];
   wechatConfigId?: number | null;
   alipayConfigId?: number | null;
@@ -32,9 +33,9 @@ interface AppFormValues {
   remark?: string;
 }
 
-function channelOptions(configs: PaymentChannelConfig[], channel: PaymentChannel) {
+function channelOptions(configs: PaymentChannelConfig[], channel: PaymentChannel, environment: PaymentApp['environment'] | null) {
   return configs
-    .filter((item) => item.channel === channel)
+    .filter((item) => item.channel === channel && item.status === 'enabled' && environment != null && item.sandbox === (environment === 'sandbox'))
     .map((item) => ({ value: item.id, label: item.name }));
 }
 
@@ -43,6 +44,7 @@ export default function PaymentAppsPage() {
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
   const canManage = hasPermission('payment:app:manage');
+  const [environmentWatch, setEnvironmentWatch] = useState<PaymentApp['environment'] | null>(null);
   const {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
@@ -61,16 +63,16 @@ export default function PaymentAppsPage() {
     defaults: { status: 'enabled' },
     toValues: (record) => ({
       name: record.name,
-      appKey: record.appKey,
+      openClientId: record.openClientId,
       status: record.status,
       wechatConfigId: record.wechatConfigId ?? null,
       alipayConfigId: record.alipayConfigId ?? null,
       unionpayConfigId: record.unionpayConfigId ?? null,
       remark: record.remark ?? '',
     }),
-    beforeSave: (values) => ({
+    beforeSave: (values, { isEdit }) => ({
       name: values.name,
-      appKey: values.appKey,
+      ...(!isEdit ? { openClientId: values.openClientId } : {}),
       status: values.status,
       wechatConfigId: values.wechatConfigId ?? null,
       alipayConfigId: values.alipayConfigId ?? null,
@@ -80,15 +82,38 @@ export default function PaymentAppsPage() {
     labelWidth: 110,
   });
   const channelLookupQuery = useAllPaymentChannelConfigsLookup(modal.visible);
+  const openClientQuery = useOpenAppOptions({ enabled: modal.visible && !modal.isEdit });
   const deleteMutation = useDeletePaymentApp();
+  const eligibleOpenClients = useMemo(
+    () => (openClientQuery.data ?? []).filter((client) => client.reviewStatus === 'approved' && !client.isPublic && client.signEnabled),
+    [openClientQuery.data],
+  );
+  const openClientOptions = useMemo(
+    () => eligibleOpenClients.map((client) => ({
+      value: client.id,
+      label: `${client.name} · ${client.clientId} · ${client.environment === 'sandbox' ? '沙箱' : '生产'}`,
+    })),
+    [eligibleOpenClients],
+  );
+  const openClientById = useMemo(() => new Map(eligibleOpenClients.map((client) => [client.id, client])), [eligibleOpenClients]);
   const channelSelectOptions = useMemo(() => {
     const configs = channelLookupQuery.data ?? [];
     return {
-      wechat: channelOptions(configs, 'wechat'),
-      alipay: channelOptions(configs, 'alipay'),
-      unionpay: channelOptions(configs, 'unionpay'),
+      wechat: channelOptions(configs, 'wechat', environmentWatch),
+      alipay: channelOptions(configs, 'alipay', environmentWatch),
+      unionpay: channelOptions(configs, 'unionpay', environmentWatch),
     };
-  }, [channelLookupQuery.data]);
+  }, [channelLookupQuery.data, environmentWatch]);
+
+  function openCreate() {
+    setEnvironmentWatch(null);
+    modal.openCreate();
+  }
+
+  function openEdit(record: PaymentApp) {
+    setEnvironmentWatch(record.environment);
+    modal.openEdit(record);
+  }
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync([id]);
@@ -97,7 +122,9 @@ export default function PaymentAppsPage() {
 
   const columns: ColumnProps<PaymentApp>[] = [
     { title: '应用名称', dataIndex: 'name', width: 180, render: renderEllipsis },
-    { title: 'appKey', dataIndex: 'appKey', width: 180, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
+    { title: '开放客户端', dataIndex: 'openClientName', width: 180, render: renderEllipsis },
+    { title: 'Client ID', dataIndex: 'openClientKey', width: 260, render: (v: string) => <Typography.Text copyable={{ content: v }}>{v}</Typography.Text> },
+    { title: '环境', dataIndex: 'environment', width: 90, render: (v: PaymentApp['environment']) => <Tag color={v === 'sandbox' ? 'orange' : 'blue'}>{v === 'sandbox' ? '沙箱' : '生产'}</Tag> },
     { title: '微信配置', dataIndex: 'wechatConfigName', width: 160, render: renderEllipsis },
     { title: '支付宝配置', dataIndex: 'alipayConfigName', width: 160, render: renderEllipsis },
     { title: '云闪付配置', dataIndex: 'unionpayConfigName', width: 160, render: renderEllipsis },
@@ -107,7 +134,7 @@ export default function PaymentAppsPage() {
     createOperationColumn<PaymentApp>({
       width: 140,
       actions: (r) => canManage ? [
-        { key: 'edit', label: '编辑', onClick: () => modal.openEdit(r) },
+        { key: 'edit', label: '编辑', onClick: () => openEdit(r) },
         {
           key: 'delete',
           label: '删除',
@@ -132,12 +159,12 @@ export default function PaymentAppsPage() {
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;
-  const renderCreateButton = () => canManage ? <CreateButton onClick={modal.openCreate} /> : null;
+  const renderCreateButton = () => canManage ? <CreateButton onClick={openCreate} /> : null;
 
   return (
     <div className="page-container">
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }}
-        description="业务方下单时携带 appKey，支付中心自动路由到该应用绑定的渠道配置" />
+        description="支付应用绑定已审核的 Open OAuth 客户端，并按客户端环境路由同环境商户配置" />
       <SearchToolbar
         primary={(
           <>
@@ -164,12 +191,31 @@ export default function PaymentAppsPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={listQuery.data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(listQuery.data?.total ?? 0)}
+        scroll={{ x: 1760 }}
       />
 
       <AppModal {...modal.modalProps} width={620}>
         <Form key={modal.formKey} {...modal.formProps}>
           <Form.Input field="name" label="应用名称" placeholder="如：官网商城" rules={[{ required: true, message: '应用名称不能为空' }]} />
-          <Form.Input field="appKey" label="appKey" placeholder="如：web-mall" disabled={modal.isEdit} rules={[{ required: true, message: 'appKey 不能为空' }]} />
+          {modal.isEdit ? (
+            <Form.Slot label="开放客户端">
+              {modal.editing ? `${modal.editing.openClientName} · ${modal.editing.openClientKey}` : '-'}
+            </Form.Slot>
+          ) : (
+            <Form.Select
+              field="openClientId"
+              label="开放客户端"
+              style={{ width: '100%' }}
+              optionList={openClientOptions}
+              filter
+              loading={openClientQuery.isFetching}
+              onChange={(value) => {
+                setEnvironmentWatch(openClientById.get(value as number)?.environment ?? null);
+                modal.formApi.current?.setValues({ wechatConfigId: null, alipayConfigId: null, unionpayConfigId: null });
+              }}
+              rules={[{ required: true, message: '请选择已审核的开放客户端' }]}
+            />
+          )}
           <Form.Select field="wechatConfigId" label="微信配置" style={{ width: '100%' }} optionList={channelSelectOptions.wechat} showClear placeholder="可选" />
           <Form.Select field="alipayConfigId" label="支付宝配置" style={{ width: '100%' }} optionList={channelSelectOptions.alipay} showClear placeholder="可选" />
           <Form.Select field="unionpayConfigId" label="云闪付配置" style={{ width: '100%' }} optionList={channelSelectOptions.unionpay} showClear placeholder="可选" />

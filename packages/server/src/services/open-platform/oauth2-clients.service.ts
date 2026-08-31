@@ -14,6 +14,7 @@ import {
   users,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
+import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -21,7 +22,7 @@ import { pageOffset } from '../../lib/pagination';
 import { encryptField, decryptField } from '../../lib/encryption';
 import type { CreateOAuth2ClientInput, UpdateOAuth2ClientInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
-import { escapeLike } from '../../lib/where-helpers';
+import { escapeLike, mergeWhere } from '../../lib/where-helpers';
 
 // ─── 辅助：生成 & 哈希 client_secret ────────────────────────────────────────
 
@@ -56,6 +57,7 @@ function mapClientRow(row: typeof oauth2Clients.$inferSelect) {
     previousSecretExpiresAt: formatNullableDateTime(row.previousSecretExpiresAt),
     status: row.status,
     ownerId: row.ownerId,
+    tenantId: row.tenantId,
     createdBy: row.createdBy,
     updatedBy: row.updatedBy,
     createdAt: formatDateTime(row.createdAt),
@@ -93,7 +95,10 @@ export async function listOAuth2Clients(opts: {
   if (ownerId !== undefined) conditions.push(eq(oauth2Clients.ownerId, ownerId));
   if (environment) conditions.push(eq(oauth2Clients.environment, environment));
   if (reviewStatus) conditions.push(eq(oauth2Clients.reviewStatus, reviewStatus));
-  const where = conditions.length ? and(...conditions) : undefined;
+  const where = mergeWhere(
+    conditions.length ? and(...conditions) : undefined,
+    tenantCondition(oauth2Clients, currentUser()),
+  );
   const [list, total] = await Promise.all([
     db.select().from(oauth2Clients)
       .where(where)
@@ -194,6 +199,7 @@ export async function createOAuth2Client(
       reviewedAt: options.reviewStatus === 'draft' ? null : new Date(),
       reviewedBy: options.reviewStatus === 'draft' ? null : user.userId,
       ownerId: user.userId,
+      tenantId: getCreateTenantId(user),
     }).returning();
 
     return { ...mapClientRow(row), clientSecret: secretRaw ?? '' };
@@ -204,7 +210,10 @@ export async function createOAuth2Client(
 }
 
 export async function getOAuth2Client(id: number) {
-  const [row] = await db.select().from(oauth2Clients).where(eq(oauth2Clients.id, id));
+  const [row] = await db
+    .select()
+    .from(oauth2Clients)
+    .where(and(eq(oauth2Clients.id, id), tenantCondition(oauth2Clients, currentUser())));
   if (!row) throw new HTTPException(404, { message: 'OAuth2 应用不存在' });
   return mapClientRow(row);
 }
@@ -221,11 +230,19 @@ export async function getOAuth2ClientByClientId(clientId: string) {
 /** 启用应用的轻量选项列表（供 Webhook/SDK 等下拉选择，仅需登录） */
 export async function listAppOptions() {
   const rows = await db
-    .select({ clientId: oauth2Clients.clientId, name: oauth2Clients.name })
+    .select({
+      id: oauth2Clients.id,
+      clientId: oauth2Clients.clientId,
+      name: oauth2Clients.name,
+      environment: oauth2Clients.environment,
+      reviewStatus: oauth2Clients.reviewStatus,
+      isPublic: oauth2Clients.isPublic,
+      signEnabled: oauth2Clients.signEnabled,
+    })
     .from(oauth2Clients)
-    .where(eq(oauth2Clients.status, 'enabled'))
+    .where(and(eq(oauth2Clients.status, 'enabled'), tenantCondition(oauth2Clients, currentUser())))
     .orderBy(oauth2Clients.name);
-  return rows.map((r) => ({ clientId: r.clientId, name: r.name }));
+  return rows;
 }
 
 export async function updateOAuth2Client(
@@ -238,6 +255,7 @@ export async function updateOAuth2Client(
     allowedReviewStatuses?: Array<'draft' | 'pending' | 'approved' | 'rejected'>;
   } = {},
 ) {
+  const user = currentUser();
   const shouldRevokeTokens = Boolean(
     options.revokeTokens
     || input.status === 'disabled'
@@ -250,7 +268,7 @@ export async function updateOAuth2Client(
   try {
     return await db.transaction(async (executor) => {
       const [locked] = await executor.select().from(oauth2Clients)
-        .where(eq(oauth2Clients.id, id))
+        .where(and(eq(oauth2Clients.id, id), tenantCondition(oauth2Clients, user)))
         .for('update')
         .limit(1);
       if (!locked) throw new HTTPException(404, { message: 'OAuth2 应用不存在' });
@@ -261,7 +279,7 @@ export async function updateOAuth2Client(
         signEnabled: input.signEnabled ?? locked.signEnabled,
         ipAllowlist: input.ipAllowlist ?? locked.ipAllowlist,
       });
-      const updateConditions = [eq(oauth2Clients.id, id)];
+      const updateConditions = [eq(oauth2Clients.id, id), tenantCondition(oauth2Clients, user)];
       if (options.ownerId !== undefined) updateConditions.push(eq(oauth2Clients.ownerId, options.ownerId));
       if (options.allowedReviewStatuses?.length) {
         updateConditions.push(inArray(oauth2Clients.reviewStatus, options.allowedReviewStatuses));
@@ -322,15 +340,16 @@ export async function deleteOAuth2Client(
     allowedReviewStatuses?: Array<'draft' | 'pending' | 'approved' | 'rejected'>;
   } = {},
 ) {
+  const user = currentUser();
   const existing = await getOAuth2Client(id);
   await db.transaction(async (tx) => {
     await tx.select({ id: oauth2Clients.id }).from(oauth2Clients)
-      .where(eq(oauth2Clients.id, id))
+      .where(and(eq(oauth2Clients.id, id), tenantCondition(oauth2Clients, user)))
       .for('update')
       .limit(1);
 
     // 先删主行：ownerId / reviewStatus 条件不满足时直接失败，避免误删他人应用的从属数据
-    const deleteConditions = [eq(oauth2Clients.id, id)];
+    const deleteConditions = [eq(oauth2Clients.id, id), tenantCondition(oauth2Clients, user)];
     if (options.ownerId !== undefined) deleteConditions.push(eq(oauth2Clients.ownerId, options.ownerId));
     if (options.allowedReviewStatuses?.length) {
       deleteConditions.push(inArray(oauth2Clients.reviewStatus, options.allowedReviewStatuses));
@@ -361,9 +380,10 @@ export async function deleteOAuth2Client(
 }
 
 export async function regenerateOAuth2ClientSecret(id: number) {
+  const user = currentUser();
   return db.transaction(async (tx) => {
     const [row] = await tx.select().from(oauth2Clients)
-      .where(eq(oauth2Clients.id, id))
+      .where(and(eq(oauth2Clients.id, id), tenantCondition(oauth2Clients, user)))
       .for('update')
       .limit(1);
     if (!row) throw new HTTPException(404, { message: 'OAuth2 应用不存在' });
@@ -426,6 +446,7 @@ export async function reviewOAuth2Client(
     }).where(and(
       eq(oauth2Clients.id, id),
       eq(oauth2Clients.reviewStatus, 'pending'),
+      tenantCondition(oauth2Clients, user),
     )).returning();
     if (!row) throw new HTTPException(400, { message: '仅待审核应用可执行审核操作' });
     if (input.action === 'reject') {
@@ -444,7 +465,21 @@ export async function reviewOAuth2Client(
 
 // ─── 令牌管理 ─────────────────────────────────────────────────────────────────
 
+async function ensureScopedClientByClientId(clientId: string) {
+  const [row] = await db
+    .select({ clientId: oauth2Clients.clientId })
+    .from(oauth2Clients)
+    .where(and(
+      eq(oauth2Clients.clientId, clientId),
+      tenantCondition(oauth2Clients, currentUser()),
+    ))
+    .limit(1);
+  if (!row) throw new HTTPException(404, { message: 'OAuth2 应用不存在' });
+  return row;
+}
+
 export async function listClientTokens(clientId: string, opts: { page: number; pageSize: number }) {
+  await ensureScopedClientByClientId(clientId);
   const { page, pageSize } = opts;
   const where = eq(oauth2Tokens.clientId, clientId);
   const [list, total] = await Promise.all([
@@ -474,6 +509,7 @@ export async function listClientTokens(clientId: string, opts: { page: number; p
 }
 
 export async function listClientGrants(clientId: string, opts: { page: number; pageSize: number }) {
+  await ensureScopedClientByClientId(clientId);
   const { page, pageSize } = opts;
   const where = eq(oauth2UserGrants.clientId, clientId);
   const [rows, total] = await Promise.all([
@@ -511,11 +547,19 @@ export async function listClientGrants(clientId: string, opts: { page: number; p
 export async function getOAuth2TokenBeforeAudit(id: number) {
   const [row] = await db.select().from(oauth2Tokens).where(eq(oauth2Tokens.id, id));
   if (!row) throw new HTTPException(404, { message: '令牌不存在' });
+  await ensureScopedClientByClientId(row.clientId);
   return mapTokenAuditRow(row);
 }
 
 export async function revokeToken(id: number) {
-  const result = await db.update(oauth2Tokens).set({ revoked: true }).where(eq(oauth2Tokens.id, id)).returning();
+  const [token] = await db.select({ clientId: oauth2Tokens.clientId }).from(oauth2Tokens).where(eq(oauth2Tokens.id, id)).limit(1);
+  if (!token) throw new HTTPException(404, { message: '令牌不存在' });
+  await ensureScopedClientByClientId(token.clientId);
+  const result = await db
+    .update(oauth2Tokens)
+    .set({ revoked: true })
+    .where(and(eq(oauth2Tokens.id, id), eq(oauth2Tokens.clientId, token.clientId)))
+    .returning();
   if (result.length === 0) throw new HTTPException(404, { message: '令牌不存在' });
 }
 

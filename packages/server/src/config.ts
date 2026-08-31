@@ -63,6 +63,14 @@ const envSchema = z.object({
   /** Webhook 回调允许的私网/本机主机（逗号分隔，支持 host、*.suffix、CIDR）。开发环境用于本地联调 */
   OPEN_WEBHOOK_ALLOWED_HOSTS: z.string().default(''),
   OPEN_API_INTERNAL_BASE_URL: z.string().default(''),
+  /** 支付引擎运行模式：默认只允许沙箱，真实渠道必须显式开启。 */
+  PAYMENT_ENGINE_MODE: z.enum(['off', 'sandbox', 'live']).default('sandbox'),
+  /** 公开收银台前端基地址，用于构造第三方支付同步回跳地址。 */
+  PAYMENT_CASHIER_BASE_URL: z.url().default('http://localhost:5373'),
+  /** 支付业务 Webhook 允许访问的私网/本机目标，语义同开放平台 Webhook allowlist。 */
+  PAYMENT_WEBHOOK_ALLOWED_HOSTS: z.string().default(''),
+  /** 单次支付渠道 HTTP 调用硬超时。资金写请求超时后进入 unknown，由查单收敛。 */
+  PAYMENT_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   LOG_DIR: z.string().default('logs'),
   /** 轮转日志文件保留份数（按天轮转，1 份 = 1 天） */
@@ -215,6 +223,12 @@ export const config = {
     gatewayRequireApproval: env.OPEN_GATEWAY_REQUIRE_APPROVAL,
     webhookAllowedHosts: env.OPEN_WEBHOOK_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean),
     internalBaseUrl: env.OPEN_API_INTERNAL_BASE_URL || `http://127.0.0.1:${env.PORT}`,
+  },
+  payment: {
+    engineMode: env.PAYMENT_ENGINE_MODE,
+    cashierBaseUrl: env.PAYMENT_CASHIER_BASE_URL.replace(/\/+$/, ''),
+    webhookAllowedHosts: env.PAYMENT_WEBHOOK_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean),
+    providerTimeoutMs: env.PAYMENT_PROVIDER_TIMEOUT_MS,
   },
   log: {
     level: env.LOG_LEVEL,

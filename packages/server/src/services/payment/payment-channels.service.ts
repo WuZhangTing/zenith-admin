@@ -5,14 +5,28 @@
  */
 import { and, asc, desc, eq, like, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
+import { randomBytes } from 'node:crypto';
 import { db } from '../../db';
-import { paymentApps, paymentChannelConfigs, paymentOrders, type NewPaymentChannelConfig, type PaymentChannelConfigRow } from '../../db/schema';
+import {
+  paymentApps,
+  paymentChannelConfigs,
+  paymentContracts,
+  paymentJournals,
+  paymentLedgerAccounts,
+  paymentOrders,
+  paymentPreauths,
+  paymentReconBatches,
+  paymentSettlementBatches,
+  paymentTransfers,
+  type NewPaymentChannelConfig,
+  type PaymentChannelConfigRow,
+} from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { encryptField } from '../../lib/encryption';
 import { formatDateTime } from '../../lib/datetime';
-import type { CreatePaymentChannelConfigInput, PaymentChannel, PaymentChannelConfig, UpdatePaymentChannelConfigInput } from '@zenith/shared/payment';
+import type { CreatePaymentChannelConfigInput, PaymentChannel, PaymentChannelConfig, PaymentChannelConfigLookup, UpdatePaymentChannelConfigInput } from '@zenith/shared/payment';
 
 export function mapChannelConfig(row: PaymentChannelConfigRow): PaymentChannelConfig {
   return {
@@ -30,6 +44,7 @@ export function mapChannelConfig(row: PaymentChannelConfigRow): PaymentChannelCo
     hasWechatApiV3Key: Boolean(row.wechatApiV3KeyEncrypted),
     hasWechatPrivateKey: Boolean(row.wechatPrivateKeyEncrypted),
     alipayAppId: row.alipayAppId ?? null,
+    alipaySellerId: row.alipaySellerId ?? null,
     alipayPublicKey: row.alipayPublicKey ?? null,
     alipaySignType: row.alipaySignType ?? null,
     alipayGateway: row.alipayGateway ?? null,
@@ -57,6 +72,24 @@ export async function listAllChannelConfigs() {
   const tc = tenantCondition(paymentChannelConfigs, currentUser());
   const rows = await db.select().from(paymentChannelConfigs).where(tc).orderBy(asc(paymentChannelConfigs.id));
   return rows.map(mapChannelConfig);
+}
+
+/** 对账/结算等资金运营页面的最小下拉源，仅返回当前租户启用的商户配置。 */
+export async function listChannelConfigLookup(): Promise<PaymentChannelConfigLookup[]> {
+  const rows = await db
+    .select({
+      id: paymentChannelConfigs.id,
+      name: paymentChannelConfigs.name,
+      channel: paymentChannelConfigs.channel,
+      sandbox: paymentChannelConfigs.sandbox,
+    })
+    .from(paymentChannelConfigs)
+    .where(and(
+      eq(paymentChannelConfigs.status, 'enabled'),
+      tenantCondition(paymentChannelConfigs, currentUser()),
+    ))
+    .orderBy(asc(paymentChannelConfigs.channel), asc(paymentChannelConfigs.name));
+  return rows;
 }
 
 export async function listChannelConfigs(q: ListChannelConfigsQuery) {
@@ -98,6 +131,8 @@ export async function createChannelConfig(input: CreatePaymentChannelConfigInput
     status: input.status ?? 'enabled',
     isDefault: input.isDefault ?? false,
     sandbox: input.sandbox ?? false,
+    callbackToken: randomBytes(24).toString('base64url'),
+    sandboxNotifySecretEncrypted: encryptField(randomBytes(32).toString('base64url'))!,
     notifyUrl: input.notifyUrl ?? null,
     wechatAppId: input.wechatAppId ?? null,
     wechatMchId: input.wechatMchId ?? null,
@@ -106,6 +141,7 @@ export async function createChannelConfig(input: CreatePaymentChannelConfigInput
     wechatSerialNo: input.wechatSerialNo ?? null,
     wechatPlatformCert: input.wechatPlatformCert ?? null,
     alipayAppId: input.alipayAppId ?? null,
+    alipaySellerId: input.alipaySellerId ?? null,
     alipayPrivateKeyEncrypted: input.alipayPrivateKey ? encryptField(input.alipayPrivateKey) : null,
     alipayPublicKey: input.alipayPublicKey ?? null,
     alipaySignType: input.alipaySignType ?? 'RSA2',
@@ -130,9 +166,50 @@ export async function createChannelConfig(input: CreatePaymentChannelConfigInput
   });
 }
 
+async function countChannelConfigReferences(id: number): Promise<number> {
+  const counts = await Promise.all([
+    db.$count(paymentOrders, eq(paymentOrders.channelConfigId, id)),
+    db.$count(paymentContracts, eq(paymentContracts.channelConfigId, id)),
+    db.$count(paymentPreauths, eq(paymentPreauths.channelConfigId, id)),
+    db.$count(paymentTransfers, eq(paymentTransfers.channelConfigId, id)),
+    db.$count(paymentJournals, eq(paymentJournals.channelConfigId, id)),
+    db.$count(paymentLedgerAccounts, eq(paymentLedgerAccounts.channelConfigId, id)),
+    db.$count(paymentReconBatches, eq(paymentReconBatches.channelConfigId, id)),
+    db.$count(paymentSettlementBatches, eq(paymentSettlementBatches.channelConfigId, id)),
+  ]);
+  return counts.reduce((total, count) => total + count, 0);
+}
+
 export async function updateChannelConfig(id: number, input: UpdatePaymentChannelConfigInput): Promise<PaymentChannelConfig> {
   const user = currentUser();
   const existing = await ensureChannelConfigExists(id);
+  const referenceCount = await countChannelConfigReferences(id);
+  const immutableIdentityChanged = referenceCount > 0 && (
+    (input.channel !== undefined && input.channel !== existing.channel)
+    || (input.sandbox !== undefined && input.sandbox !== existing.sandbox)
+    || (input.wechatAppId !== undefined && input.wechatAppId !== existing.wechatAppId)
+    || (input.wechatMchId !== undefined && input.wechatMchId !== existing.wechatMchId)
+    || input.wechatApiV3Key !== undefined
+    || input.wechatPrivateKey !== undefined
+    || (input.wechatSerialNo !== undefined && input.wechatSerialNo !== existing.wechatSerialNo)
+    || (input.wechatPlatformCert !== undefined && input.wechatPlatformCert !== existing.wechatPlatformCert)
+    || (input.alipayAppId !== undefined && input.alipayAppId !== existing.alipayAppId)
+    || (input.alipaySellerId !== undefined && input.alipaySellerId !== existing.alipaySellerId)
+    || input.alipayPrivateKey !== undefined
+    || (input.alipayPublicKey !== undefined && input.alipayPublicKey !== existing.alipayPublicKey)
+    || (input.alipaySignType !== undefined && input.alipaySignType !== existing.alipaySignType)
+    || (input.alipayGateway !== undefined && input.alipayGateway !== existing.alipayGateway)
+    || (input.unionpayMerId !== undefined && input.unionpayMerId !== existing.unionpayMerId)
+    || input.unionpayPrivateKey !== undefined
+    || (input.unionpayCertId !== undefined && input.unionpayCertId !== existing.unionpayCertId)
+    || (input.unionpayPublicKey !== undefined && input.unionpayPublicKey !== existing.unionpayPublicKey)
+    || (input.unionpayGateway !== undefined && input.unionpayGateway !== existing.unionpayGateway)
+  );
+  if (immutableIdentityChanged) {
+    throw new HTTPException(400, {
+      message: `该商户配置已被 ${referenceCount} 条交易或账务记录引用，身份或凭证不可原地修改；请新建配置并切换应用路由`,
+    });
+  }
   const set: Partial<NewPaymentChannelConfig> = {};
   if (input.name !== undefined) set.name = input.name;
   if (input.channel !== undefined) set.channel = input.channel;
@@ -145,6 +222,7 @@ export async function updateChannelConfig(id: number, input: UpdatePaymentChanne
   if (input.wechatSerialNo !== undefined) set.wechatSerialNo = input.wechatSerialNo;
   if (input.wechatPlatformCert !== undefined) set.wechatPlatformCert = input.wechatPlatformCert;
   if (input.alipayAppId !== undefined) set.alipayAppId = input.alipayAppId;
+  if (input.alipaySellerId !== undefined) set.alipaySellerId = input.alipaySellerId;
   if (input.alipayPublicKey !== undefined) set.alipayPublicKey = input.alipayPublicKey;
   if (input.alipaySignType !== undefined) set.alipaySignType = input.alipaySignType;
   if (input.alipayGateway !== undefined) set.alipayGateway = input.alipayGateway;
@@ -185,16 +263,16 @@ export async function deleteChannelConfig(id: number): Promise<void> {
   if (existing.isDefault) {
     throw new HTTPException(400, { message: '该配置是当前渠道的默认配置，请先将其他配置设为默认后再删除' });
   }
-  const [orderCount, [boundApp]] = await Promise.all([
-    db.$count(paymentOrders, eq(paymentOrders.channelConfigId, id)),
+  const [referenceCount, [boundApp]] = await Promise.all([
+    countChannelConfigReferences(id),
     db
       .select({ id: paymentApps.id, name: paymentApps.name })
       .from(paymentApps)
       .where(or(eq(paymentApps.wechatConfigId, id), eq(paymentApps.alipayConfigId, id), eq(paymentApps.unionpayConfigId, id)))
       .limit(1),
   ]);
-  if (orderCount > 0) {
-    throw new HTTPException(400, { message: `该配置已产生 ${orderCount} 笔支付订单，删除后订单将无法退款/查单，请改用停用` });
+  if (referenceCount > 0) {
+    throw new HTTPException(400, { message: `该配置已被 ${referenceCount} 条交易或账务记录引用，删除后将无法恢复或审计，请改用停用` });
   }
   if (boundApp) {
     throw new HTTPException(400, { message: `该配置已被支付应用「${boundApp.name}」绑定，请先解除绑定后再删除` });

@@ -19,13 +19,33 @@ export function initPaymentAdapters(): void {
   initialized = true;
 }
 
-export { getAdapter, hasAdapter, registerAdapter } from './registry';
+export {
+  assertProviderCapability,
+  findProviderCapability,
+  getAdapter,
+  getProviderManifest,
+  hasAdapter,
+  listProviderManifests,
+  registerAdapter,
+  supportsProviderCapability,
+} from './registry';
 export type {
   AdapterContext,
   DecryptedSecrets,
+  ContractQueryInput,
+  ContractQueryResult,
   NotifyResult,
   PaymentChannelAdapter,
   PaymentQueryResult,
+  PreauthQueryInput,
+  PreauthQueryResult,
+  PaymentProviderCapability,
+  PaymentProviderEnvironment,
+  PaymentProviderManifest,
+  PaymentProviderOperation,
+  ProfitShareReverseInput,
+  ProfitShareReverseQueryResult,
+  ProfitShareReverseResult,
   RefundQueryResult,
   RefundResult,
 } from './types';

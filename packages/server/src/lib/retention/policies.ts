@@ -381,15 +381,6 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     description: '支付领域事件投递记录。',
   },
   {
-    key: 'payment_webhook_deliveries',
-    title: '支付 Webhook 投递',
-    module: '支付中心',
-    tableName: 'payment_webhook_deliveries',
-    timeColumn: 'created_at',
-    defaultDays: 180,
-    description: '向业务方推送支付事件的投递结果。',
-  },
-  {
     key: 'payment_risk_hits',
     title: '支付风控命中',
     module: '支付中心',

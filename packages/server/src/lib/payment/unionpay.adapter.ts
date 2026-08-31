@@ -14,6 +14,8 @@ import logger from '../logger';
 import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem } from './signing';
 import { trySandboxNotify } from './sandbox-notify';
+import { UNIONPAY_PROVIDER_MANIFEST } from './capabilities';
+import { assertApprovedProviderGateway, providerHttpOptions } from './provider-http';
 import type {
   AdapterContext,
   NotifyResult,
@@ -31,8 +33,8 @@ function requireField<T>(v: T | null | undefined, name: string): T {
   return v;
 }
 
-function txnTime(): string {
-  const d = new Date();
+function txnTime(value: Date = new Date()): string {
+  const d = value;
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
@@ -88,19 +90,38 @@ function encodeForm(params: Record<string, string>): string {
 }
 
 async function unionpayRequest(ctx: AdapterContext, gateway: string, params: Record<string, string>): Promise<Record<string, string>> {
+  requireField(ctx.config.unionpayPublicKey, '验签公钥');
   params.signature = signUnionpay(ctx, params);
-  const url = ctx.config.unionpayGateway ? ctx.config.unionpayGateway.replace(/backTransReq\.do$/, gateway.split('/').pop() ?? '') : gateway;
-  const resp = await httpPost(url, encodeForm(params), { headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' } });
+  const configuredUrl = ctx.config.unionpayGateway
+    ? ctx.config.unionpayGateway.replace(/backTransReq\.do$/, gateway.split('/').pop() ?? '')
+    : gateway;
+  const url = assertApprovedProviderGateway(configuredUrl, 'unionpay');
+  const resp = await httpPost(url, encodeForm(params), {
+    ...providerHttpOptions(),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
+  });
   const text = await resp.text();
   if (!resp.ok) {
     logger.warn('[unionpay] api error', { status: resp.status, body: text.slice(0, 500) });
     throw new HTTPException(502, { message: `云闪付接口错误(${resp.status})` });
   }
   const res = parseForm(text);
+  if (!verifyUnionpay(ctx, res)) {
+    logger.warn('[unionpay] response signature invalid', { url, respCode: res.respCode });
+    throw new HTTPException(502, { message: '云闪付同步响应验签失败' });
+  }
+  const expectedMerchantId = requireField(ctx.config.unionpayMerId, '商户号(merId)');
+  if (!res.merId || res.merId !== expectedMerchantId) {
+    throw new HTTPException(502, { message: '云闪付同步响应商户号不匹配' });
+  }
   if (res.respCode && res.respCode !== '00' && res.respCode !== '03') {
     throw new HTTPException(400, { message: `云闪付错误(${res.respCode})：${res.respMsg ?? '未知错误'}` });
   }
   return res;
+}
+
+function unionpayCurrency(currencyCode: string | undefined): string | undefined {
+  return currencyCode === '156' ? 'CNY' : undefined;
 }
 
 function mapUnionpayStatus(respCode: string | undefined, origRespCode: string | undefined): PaymentQueryResult['status'] {
@@ -112,6 +133,7 @@ function mapUnionpayStatus(respCode: string | undefined, origRespCode: string | 
 
 export const unionpayAdapter: PaymentChannelAdapter = {
   channel: 'unionpay',
+  manifest: UNIONPAY_PROVIDER_MANIFEST,
 
   async createPayment(ctx, order): Promise<CreatePaymentResult> {
     if (order.payMethod !== 'unionpay_qr') {
@@ -149,7 +171,11 @@ export const unionpayAdapter: PaymentChannelAdapter = {
   async queryPayment(ctx, order): Promise<PaymentQueryResult> {
     if (ctx.config.sandbox) {
       await Promise.resolve();
-      return { status: 'pending' }; // 沙箱订单由「模拟支付成功」运维入口推进
+      return {
+        status: 'pending',
+        merchantId: ctx.config.unionpayMerId ?? undefined,
+        currency: order.currency || 'CNY',
+      }; // 沙箱订单由「模拟支付成功」运维入口推进
     }
     const params: Record<string, string> = {
       ...baseParams(ctx),
@@ -157,7 +183,7 @@ export const unionpayAdapter: PaymentChannelAdapter = {
       txnSubType: '00',
       bizType: '000000',
       orderId: order.outTradeNo,
-      txnTime: order.createdAt ? txnTime() : txnTime(),
+      txnTime: txnTime(order.createdAt),
       queryId: '',
     };
     delete params.queryId;
@@ -165,15 +191,16 @@ export const unionpayAdapter: PaymentChannelAdapter = {
     return {
       status: mapUnionpayStatus(res.respCode, res.origRespCode),
       channelTradeNo: res.queryId,
+      providerEventId: res.queryId,
+      merchantId: res.merId,
+      currency: unionpayCurrency(res.currencyCode),
       paidAmount: res.txnAmt ? Number(res.txnAmt) : undefined,
       raw: res,
     };
   },
 
-  async closePayment(_ctx, order): Promise<void> {
-    // 银联二维码无预支付关单接口：本地状态机关闭即可（申码有效期由渠道侧控制）
-    logger.info('[unionpay] closePayment noop (local close only)', { orderNo: order.orderNo });
-    await Promise.resolve();
+  async closePayment(): Promise<void> {
+    throw new HTTPException(400, { message: '云闪付二维码不支持渠道关单，不能声明为已关闭渠道订单' });
   },
 
   async refund(ctx, order, refund): Promise<RefundResult> {
@@ -190,7 +217,7 @@ export const unionpayAdapter: PaymentChannelAdapter = {
       channelType: '08',
       orderId: refund.outRefundNo,
       origQryId: requireField(order.channelTradeNo, '原交易流水号(channelTradeNo)'),
-      txnTime: txnTime(),
+      txnTime: txnTime(refund.createdAt),
       txnAmt: String(refund.refundAmount),
       backUrl: ctx.notifyUrl,
     };
@@ -227,14 +254,29 @@ export const unionpayAdapter: PaymentChannelAdapter = {
     if (!valid) return { valid: false, scene: 'payment', tradeStatus: 'unknown', ack, message: '云闪付回调验签失败' };
     // txnType 04 = 退货通知；01 = 消费通知
     const isRefund = params.txnType === '04';
+    const merchantId = params.merId;
+    if (!merchantId || merchantId !== ctx.config.unionpayMerId) {
+      return { valid: false, scene: isRefund ? 'refund' : 'payment', tradeStatus: 'unknown', ack: { ...ack, body: 'failure', status: 401 }, message: '云闪付回调商户号不匹配' };
+    }
+    const currency = unionpayCurrency(params.currencyCode);
+    if (!currency) {
+      return { valid: false, scene: isRefund ? 'refund' : 'payment', tradeStatus: 'unknown', ack: { ...ack, body: 'failure', status: 400 }, message: '云闪付回调币种缺失或不支持' };
+    }
+    if (!params.queryId) {
+      return { valid: false, scene: isRefund ? 'refund' : 'payment', tradeStatus: 'unknown', ack: { ...ack, body: 'failure', status: 400 }, message: '云闪付回调缺少渠道流水号' };
+    }
     if (isRefund) {
       return {
         valid: true,
         scene: 'refund',
         ack,
+        providerEventId: params.queryId,
+        merchantId,
+        currency,
         outRefundNo: params.orderId,
         channelRefundNo: params.queryId,
         tradeStatus: params.respCode === '00' ? 'refunded' : 'failed',
+        paidAmount: params.txnAmt ? Number(params.txnAmt) : undefined,
         raw: params,
       };
     }
@@ -242,6 +284,9 @@ export const unionpayAdapter: PaymentChannelAdapter = {
       valid: true,
       scene: 'payment',
       ack,
+      providerEventId: params.queryId,
+      merchantId,
+      currency,
       outTradeNo: params.orderId,
       channelTradeNo: params.queryId,
       tradeStatus: params.respCode === '00' ? 'success' : 'failed',

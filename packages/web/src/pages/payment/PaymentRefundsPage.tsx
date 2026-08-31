@@ -25,7 +25,7 @@ import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { compactQuery } from '@/lib/query';
 import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 
-const STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red' } as const satisfies Record<PaymentRefundStatus, string>;
+const STATUS_COLOR = { pending: 'grey', processing: 'blue', unknown: 'amber', success: 'green', failed: 'red' } as const satisfies Record<PaymentRefundStatus, string>;
 const APPROVAL_COLOR = { none: 'grey', pending: 'amber', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRefundApprovalStatus, string>;
 const yuan = formatYuan;
 
@@ -112,7 +112,7 @@ export default function PaymentRefundsPage() {
           label: '详情',
           onClick: () => setDetail(r),
         },
-        ...((r.status === 'processing' || r.status === 'pending') && r.approvalStatus !== 'pending' ? [{
+        ...((r.status === 'processing' || r.status === 'pending' || r.status === 'unknown') && r.approvalStatus !== 'pending' ? [{
           key: 'query',
           label: '查单',
           loading: queryingId === r.id,

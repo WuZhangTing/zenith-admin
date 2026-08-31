@@ -15,11 +15,11 @@ export const PAYMENT_METHODS = [
 
 export type PaymentMethod = typeof PAYMENT_METHODS[number];
 
-export const PAYMENT_ORDER_STATUSES = ['pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed'] as const;
+export const PAYMENT_ORDER_STATUSES = ['pending', 'paying', 'unknown', 'success', 'closed', 'refunding', 'refunded', 'failed'] as const;
 
 export type PaymentOrderStatus = typeof PAYMENT_ORDER_STATUSES[number];
 
-export const PAYMENT_REFUND_STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
+export const PAYMENT_REFUND_STATUSES = ['pending', 'processing', 'unknown', 'success', 'failed'] as const;
 
 export type PaymentRefundStatus = typeof PAYMENT_REFUND_STATUSES[number];
 
@@ -65,6 +65,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export const PAYMENT_ORDER_STATUS_LABELS: Record<PaymentOrderStatus, string> = {
   pending: '待支付',
   paying: '支付中',
+  unknown: '结果待确认',
   success: '支付成功',
   closed: '已关闭',
   refunding: '退款中',
@@ -75,6 +76,7 @@ export const PAYMENT_ORDER_STATUS_LABELS: Record<PaymentOrderStatus, string> = {
 export const PAYMENT_REFUND_STATUS_LABELS: Record<PaymentRefundStatus, string> = {
   pending: '待处理',
   processing: '退款中',
+  unknown: '结果待确认',
   success: '退款成功',
   failed: '退款失败',
 };
@@ -112,30 +114,6 @@ export const PAYMENT_RECON_HANDLE_STATUS_LABELS: Record<PaymentReconHandleStatus
   pending: '待处理', adjusted: '已调账', suspended: '挂账', ignored: '已忽略',
 };
 
-export const PAYMENT_WEBHOOK_DELIVERY_STATUSES = ['pending', 'success', 'failed'] as const;
-
-export type PaymentWebhookDeliveryStatus = typeof PAYMENT_WEBHOOK_DELIVERY_STATUSES[number];
-
-export const PAYMENT_WEBHOOK_DELIVERY_STATUS_LABELS: Record<PaymentWebhookDeliveryStatus, string> = {
-  pending: '待投递', success: '成功', failed: '失败',
-};
-
-export const PAYMENT_LEDGER_DIRECTIONS = ['in', 'out'] as const;
-
-export type PaymentLedgerDirection = typeof PAYMENT_LEDGER_DIRECTIONS[number];
-
-export const PAYMENT_LEDGER_DIRECTION_LABELS: Record<PaymentLedgerDirection, string> = {
-  in: '收入', out: '支出',
-};
-
-export const PAYMENT_LEDGER_TYPES = ['payment', 'refund', 'fee', 'sharing', 'settlement', 'adjust', 'transfer'] as const;
-
-export type PaymentLedgerType = typeof PAYMENT_LEDGER_TYPES[number];
-
-export const PAYMENT_LEDGER_TYPE_LABELS: Record<PaymentLedgerType, string> = {
-  payment: '收款', refund: '退款', fee: '手续费', sharing: '分账', settlement: '结算', adjust: '调整', transfer: '转账',
-};
-
 // ─── 支付中心扩展 · B 档（费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表）──
 export const PAYMENT_SETTLEMENT_STATUSES = ['pending', 'settling', 'settled', 'failed'] as const;
 
@@ -153,12 +131,20 @@ export const PAYMENT_SHARING_RECEIVER_TYPE_LABELS: Record<PaymentSharingReceiver
   merchant: '商户', personal: '个人',
 };
 
-export const PAYMENT_SHARING_ORDER_STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
+export const PAYMENT_SHARING_ORDER_STATUSES = ['pending', 'processing', 'success', 'failed', 'reversed'] as const;
 
 export type PaymentSharingOrderStatus = typeof PAYMENT_SHARING_ORDER_STATUSES[number];
 
 export const PAYMENT_SHARING_ORDER_STATUS_LABELS: Record<PaymentSharingOrderStatus, string> = {
-  pending: '待分账', processing: '分账中', success: '分账成功', failed: '分账失败',
+  pending: '待分账', processing: '分账中', success: '分账成功', failed: '分账失败', reversed: '已冲正',
+};
+
+export const PAYMENT_SHARING_REVERSAL_STATUSES = ['processing', 'unknown', 'success', 'failed'] as const;
+
+export type PaymentSharingReversalStatus = typeof PAYMENT_SHARING_REVERSAL_STATUSES[number];
+
+export const PAYMENT_SHARING_REVERSAL_STATUS_LABELS: Record<PaymentSharingReversalStatus, string> = {
+  processing: '冲正中', unknown: '结果待确认', success: '冲正成功', failed: '冲正失败',
 };
 
 export const PAYMENT_LINK_STATUSES = ['active', 'disabled', 'expired'] as const;
@@ -168,6 +154,34 @@ export type PaymentLinkStatus = typeof PAYMENT_LINK_STATUSES[number];
 export const PAYMENT_LINK_STATUS_LABELS: Record<PaymentLinkStatus, string> = {
   active: '生效中', disabled: '已停用', expired: '已过期',
 };
+
+export const PAYMENT_CASHIER_SESSION_STATUSES = [
+  'ready',
+  'creating',
+  'awaiting',
+  'processing',
+  'unknown',
+  'succeeded',
+  'failed',
+  'expired',
+] as const;
+
+export type PaymentCashierSessionStatus = typeof PAYMENT_CASHIER_SESSION_STATUSES[number];
+
+export const PAYMENT_CASHIER_SESSION_STATUS_LABELS: Record<PaymentCashierSessionStatus, string> = {
+  ready: '待创建支付',
+  creating: '创建支付中',
+  awaiting: '等待支付',
+  processing: '支付处理中',
+  unknown: '结果待确认',
+  succeeded: '支付成功',
+  failed: '支付失败',
+  expired: '会话已过期',
+};
+
+export const PAYMENT_CASHIER_USE_SLOT_STATUSES = ['none', 'reserved', 'consumed', 'released'] as const;
+
+export type PaymentCashierUseSlotStatus = typeof PAYMENT_CASHIER_USE_SLOT_STATUSES[number];
 
 export const PAYMENT_RISK_SCOPES = ['global', 'channel', 'bizType'] as const;
 
@@ -201,20 +215,26 @@ export const PAYMENT_RISK_REVIEW_STATUS_LABELS: Record<PaymentRiskReviewStatus, 
   pending: '待审核', approved: '已放行', rejected: '已拒绝',
 };
 
-export const PAYMENT_TRANSFER_STATUSES = ['pending', 'processing', 'success', 'failed'] as const;
+export const PAYMENT_TRANSFER_STATUSES = ['pending', 'processing', 'unknown', 'success', 'failed'] as const;
 
 export type PaymentTransferStatus = typeof PAYMENT_TRANSFER_STATUSES[number];
 
 export const PAYMENT_TRANSFER_STATUS_LABELS: Record<PaymentTransferStatus, string> = {
-  pending: '待发起', processing: '处理中', success: '转账成功', failed: '转账失败',
+  pending: '待发起', processing: '处理中', unknown: '结果待确认', success: '转账成功', failed: '转账失败',
 };
 
-export const PAYMENT_REPORT_GROUP_BYS = ['bizType', 'channel', 'day'] as const;
+export const PAYMENT_TRANSFER_APPROVAL_STATUSES = ['none', 'pending', 'approved', 'rejected'] as const;
+export type PaymentTransferApprovalStatus = typeof PAYMENT_TRANSFER_APPROVAL_STATUSES[number];
+export const PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS: Record<PaymentTransferApprovalStatus, string> = {
+  none: '无需审批', pending: '待审批', approved: '已通过', rejected: '已驳回',
+};
+
+export const PAYMENT_REPORT_GROUP_BYS = ['day', 'application', 'merchantAccount', 'currency', 'channel'] as const;
 
 export type PaymentReportGroupBy = typeof PAYMENT_REPORT_GROUP_BYS[number];
 
 export const PAYMENT_REPORT_GROUP_BY_LABELS: Record<PaymentReportGroupBy, string> = {
-  bizType: '业务类型', channel: '支付渠道', day: '按日',
+  day: '按日', application: '支付应用', merchantAccount: '商户账户', currency: '币种', channel: '支付渠道',
 };
 
 // ─── 支付中心扩展 · 签约代扣（周期扣款/订阅）───────────────────────────
@@ -229,12 +249,12 @@ export const PAYMENT_DEDUCT_PERIOD_LABELS: Record<PaymentDeductPeriod, string> =
 export const PAYMENT_DEDUCT_PERIOD_OPTIONS: Array<{ value: PaymentDeductPeriod; label: string }> =
   createLabelOptions(PAYMENT_DEDUCT_PERIODS, PAYMENT_DEDUCT_PERIOD_LABELS);
 
-export const PAYMENT_CONTRACT_STATUSES = ['pending', 'signed', 'paused', 'terminated'] as const;
+export const PAYMENT_CONTRACT_STATUSES = ['pending', 'unknown', 'signed', 'paused', 'terminated', 'failed'] as const;
 
 export type PaymentContractStatus = typeof PAYMENT_CONTRACT_STATUSES[number];
 
 export const PAYMENT_CONTRACT_STATUS_LABELS: Record<PaymentContractStatus, string> = {
-  pending: '签约中', signed: '已签约', paused: '已暂停', terminated: '已解约',
+  pending: '签约中', unknown: '结果待确认', signed: '已签约', paused: '已暂停', terminated: '已解约', failed: '签约失败',
 };
 
 /** 支持签约代扣的支付方式（服务端发起扣款，无用户交互） */
@@ -287,12 +307,12 @@ export const PAYMENT_DISPUTE_ROUTE_OPTIONS: Array<{ value: PaymentDisputeRoute; 
   createLabelOptions(PAYMENT_DISPUTE_ROUTES, PAYMENT_DISPUTE_ROUTE_LABELS);
 
 // ─── 支付中心扩展 · 预授权（资金冻结/解冻/转支付）────────────────────
-export const PAYMENT_PREAUTH_STATUSES = ['pending', 'frozen', 'captured', 'released', 'failed'] as const;
+export const PAYMENT_PREAUTH_STATUSES = ['pending', 'unknown', 'frozen', 'captured', 'released', 'failed'] as const;
 
 export type PaymentPreauthStatus = typeof PAYMENT_PREAUTH_STATUSES[number];
 
 export const PAYMENT_PREAUTH_STATUS_LABELS: Record<PaymentPreauthStatus, string> = {
-  pending: '冻结中', frozen: '已冻结', captured: '已转支付', released: '已解冻', failed: '冻结失败',
+  pending: '冻结中', unknown: '结果待确认', frozen: '已冻结', captured: '已转支付', released: '已解冻', failed: '冻结失败',
 };
 
 export const PAYMENT_PREAUTH_STATUS_OPTIONS: Array<{ value: PaymentPreauthStatus; label: string }> =
@@ -302,3 +322,38 @@ export const PAYMENT_PREAUTH_STATUS_OPTIONS: Array<{ value: PaymentPreauthStatus
 export const PAYMENT_PREAUTH_METHODS = ['wechat_preauth', 'alipay_preauth'] as const satisfies readonly PaymentMethod[];
 
 export type PaymentPreauthMethod = typeof PAYMENT_PREAUTH_METHODS[number];
+
+// ─── 最终资金内核：双分录账户与预占 ──────────────────────────────────
+export const PAYMENT_LEDGER_ACCOUNT_CODES = [
+  'provider_clearing',
+  'merchant_pending',
+  'merchant_available',
+  'merchant_frozen',
+  'platform_fee',
+  'refund_payable',
+  'sharing_payable',
+  'payout_payable',
+  'suspense',
+] as const;
+
+export type PaymentLedgerAccountCode = typeof PAYMENT_LEDGER_ACCOUNT_CODES[number];
+
+export const PAYMENT_LEDGER_ACCOUNT_CODE_LABELS: Record<PaymentLedgerAccountCode, string> = {
+  provider_clearing: '渠道清算',
+  merchant_pending: '商户待结算',
+  merchant_available: '商户可用',
+  merchant_frozen: '商户冻结',
+  platform_fee: '平台手续费',
+  refund_payable: '退款应付',
+  sharing_payable: '分账应付',
+  payout_payable: '出款应付',
+  suspense: '待查资金',
+};
+
+export const PAYMENT_LEDGER_NORMAL_BALANCES = ['debit', 'credit'] as const;
+
+export type PaymentLedgerNormalBalance = typeof PAYMENT_LEDGER_NORMAL_BALANCES[number];
+
+export const PAYMENT_FUND_RESERVATION_STATUSES = ['active', 'captured', 'released', 'expired'] as const;
+
+export type PaymentFundReservationStatus = typeof PAYMENT_FUND_RESERVATION_STATUSES[number];

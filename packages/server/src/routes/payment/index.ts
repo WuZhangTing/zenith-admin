@@ -1,11 +1,11 @@
 import { defineRouteDomain } from '../_kit';
 import bizPayDemoRoutes from './biz-pay-demo';
-import paymentAccountRoutes from './payment-accounts';
 import paymentAppRoutes from './payment-apps';
 import paymentContractRoutes from './payment-contracts';
+import paymentCapabilityRoutes from './payment-capabilities';
 import paymentDisputeRoutes from './payment-disputes';
 import paymentFeeRoutes from './payment-fee';
-import paymentLedgerRoutes from './payment-ledger';
+import paymentJournalRoutes from './payment-journals';
 import paymentLinkPublicRoutes from './payment-link-public';
 import paymentLinkRoutes from './payment-links';
 import paymentMethodRoutes from './payment-methods';
@@ -20,15 +20,14 @@ import paymentRoutes from './payment';
 import paymentSettlementRoutes from './payment-settlements';
 import paymentSharingRoutes from './payment-sharing';
 import paymentTransferRoutes from './payment-transfers';
-import paymentWebhookRoutes from './payment-webhooks';
 
 export default defineRouteDomain({
   name: 'payment',
   mounts: () => [
+    ['/api/payment/capabilities', paymentCapabilityRoutes, { feature: 'payment' }],
     ['/api/payment', paymentRoutes, { feature: 'payment' }],
     ['/api/payment/recon', paymentReconRoutes, { feature: 'payment' }],
-    ['/api/payment/webhooks', paymentWebhookRoutes, { feature: 'payment' }],
-    ['/api/payment/ledger', paymentLedgerRoutes, { feature: 'payment' }],
+    ['/api/payment/journals', paymentJournalRoutes, { feature: 'payment' }],
     ['/api/payment/ops', paymentOpsRoutes, { feature: 'payment' }],
     ['/api/payment/fee-rules', paymentFeeRoutes, { feature: 'payment' }],
     ['/api/payment/settlements', paymentSettlementRoutes, { feature: 'payment' }],
@@ -41,7 +40,6 @@ export default defineRouteDomain({
     ['/api/payment/reports', paymentReportRoutes, { feature: 'payment' }],
     ['/api/payment/disputes', paymentDisputeRoutes, { feature: 'payment' }],
     ['/api/payment/risk', paymentRiskOpsRoutes, { feature: 'payment' }],
-    ['/api/payment/accounts', paymentAccountRoutes, { feature: 'payment' }],
     ['/api/payment/preauths', paymentPreauthRoutes, { feature: 'payment' }],
     ['/api/payment', paymentContractRoutes, { feature: 'payment' }],
     ['/api/public/payment/notify', paymentPublicRoutes],

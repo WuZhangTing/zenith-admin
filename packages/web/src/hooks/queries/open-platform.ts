@@ -111,10 +111,20 @@ export const openPlatformKeys = {
   },
 };
 
+export interface OpenAppOption {
+  id: number;
+  clientId: string;
+  name: string;
+  environment: 'production' | 'sandbox';
+  reviewStatus: 'draft' | 'pending' | 'approved' | 'rejected';
+  isPublic: boolean;
+  signEnabled: boolean;
+}
+
 export function useOpenAppOptions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: openPlatformKeys.appOptions,
-    queryFn: () => request.get<{ clientId: string; name: string }[]>('/api/oauth2/clients/options', { silent: true }).then(unwrap),
+    queryFn: () => request.get<OpenAppOption[]>('/api/oauth2/clients/options', { silent: true }).then(unwrap),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });

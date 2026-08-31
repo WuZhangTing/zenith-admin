@@ -1,24 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreatePaymentResult, PaymentLink, PaymentLinkPublic } from '@zenith/shared/payment';
+import type { CreatePaymentLinkInput, PaymentCashierMethod, PaymentCashierSession, PaymentLink, PaymentLinkPublic, PaymentLinkStatus } from '@zenith/shared/payment';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
 import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
 
 export interface PaymentLinkListParams extends CrudListParams {
   keyword?: string;
-  status?: string;
+  status?: PaymentLinkStatus;
 }
 
 export interface PublicPaymentLinkPayValues {
   token: string;
   amount?: number;
-  payMethod?: string;
+  payMethod?: PaymentCashierMethod;
 }
+
+export type PaymentLinkSaveValues = Partial<Omit<CreatePaymentLinkInput, 'applicationId'>> & { applicationId?: number };
 
 /** 公开收银台视图按 token 缓存，链接内容变更后一并失效（沿用原 .all 粗失效的覆盖面） */
 const PUBLIC_PREFIX = ['payment-links', 'public'] as const;
 
-const crud = createCrudQueries<PaymentLink, PaymentLinkListParams>({
+const crud = createCrudQueries<PaymentLink, PaymentLinkListParams, PaymentLinkSaveValues>({
   resource: 'payment-links',
   path: '/api/payment/links',
   // 服务端未提供 DELETE /batch
@@ -30,6 +32,7 @@ const crud = createCrudQueries<PaymentLink, PaymentLinkListParams>({
 export const paymentLinkKeys = {
   ...crud.keys,
   public: (token: string | undefined) => ['payment-links', 'public', token] as const,
+  publicSession: (token: string | undefined, sessionToken: string | undefined) => ['payment-links', 'public', token, 'sessions', sessionToken] as const,
 };
 
 export const usePaymentLinkList = crud.useList;
@@ -55,29 +58,33 @@ export function usePublicPaymentLink(token: string | undefined) {
 }
 
 export function usePayPublicPaymentLink() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ token, amount, payMethod }: PublicPaymentLinkPayValues) =>
-      request.post<{ orderNo: string; payParams: CreatePaymentResult }>(
+      request.post<PaymentCashierSession>(
         `/api/public/payment/link/${encodeURIComponent(token)}/pay`,
         { amount, payMethod },
         { skipAuth: true, silent: true },
       ).then(unwrap),
+    onSuccess: (session, values) => {
+      qc.setQueryData(paymentLinkKeys.publicSession(values.token, session.sessionToken), session);
+    },
   });
 }
 
-/** 收银台订单状态轮询（下单后每 3s 查询，终态自动停止） */
-export function usePublicLinkOrderStatus(token: string, orderNo: string | undefined) {
+/** 收银台会话恢复与轮询：刷新、第三方回跳均使用同一不可枚举 token。 */
+export function usePublicPaymentCashierSession(token: string, sessionToken: string | undefined) {
   return useQuery({
-    queryKey: ['payment-links', 'public-order-status', token, orderNo] as const,
+    queryKey: paymentLinkKeys.publicSession(token, sessionToken),
     queryFn: () =>
-      request.get<{ status: string; paidAt: string | null }>(
-        `/api/public/payment/link/${encodeURIComponent(token)}/orders/${encodeURIComponent(orderNo ?? '')}/status`,
+      request.get<PaymentCashierSession>(
+        `/api/public/payment/link/${encodeURIComponent(token)}/sessions/${encodeURIComponent(sessionToken ?? '')}`,
         { skipAuth: true, silent: true },
       ).then(unwrap),
-    enabled: !!orderNo,
+    enabled: !!token && !!sessionToken,
     refetchInterval: (query) => {
       const status = query.state.data?.status;
-      return status === 'success' || status === 'closed' || status === 'failed' || status === 'refunded' ? false : 3000;
+      return status === 'succeeded' || status === 'failed' || status === 'expired' ? false : 3000;
     },
   });
 }

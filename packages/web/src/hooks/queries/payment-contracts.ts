@@ -7,6 +7,7 @@ import { toQueryString, unwrap } from '@/lib/query';
 import { paymentOrderKeys } from './payment-orders';
 
 export interface PaymentContractListParams {
+  applicationId: number;
   page: number;
   pageSize: number;
   keyword?: string;
@@ -39,7 +40,7 @@ export const paymentContractKeys = {
   all: ['payment-contracts'] as const,
   lists: ['payment-contracts', 'list'] as const,
   list: (params: PaymentContractListParams) => ['payment-contracts', 'list', params] as const,
-  detail: (id: number | undefined) => ['payment-contracts', 'detail', id] as const,
+  detail: (id: number | undefined, applicationId?: number) => ['payment-contracts', 'detail', id, applicationId] as const,
   planAll: ['payment-contracts', 'plans'] as const,
   planLists: ['payment-contracts', 'plans', 'list'] as const,
   planList: (params: DeductPlanListParams) => ['payment-contracts', 'plans', 'list', params] as const,
@@ -54,26 +55,27 @@ export const paymentContractKeys = {
  * 只触及协议自身：列表与详情。扣款计划（`planLists` / `planOptions`，后者是
  * 新建协议弹窗的下拉源）不随协议状态变化，不应被打回源。
  */
-function invalidateContract(qc: QueryClient, id?: number) {
-  if (id !== undefined) void qc.invalidateQueries({ queryKey: paymentContractKeys.detail(id) });
+function invalidateContract(qc: QueryClient, id?: number, applicationId?: number) {
+  if (id !== undefined) void qc.invalidateQueries({ queryKey: paymentContractKeys.detail(id, applicationId) });
   void qc.invalidateQueries({ queryKey: paymentContractKeys.lists });
 }
 
-export function usePaymentContractList(params: PaymentContractListParams) {
+export function usePaymentContractList(params: PaymentContractListParams, enabled = true) {
   return useQuery({
     queryKey: paymentContractKeys.list(params),
     queryFn: () => request.get<PaginatedResponse<PaymentContract>>(`/api/payment/contracts${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
+    enabled,
   });
 }
 
 export function useCreatePaymentContract() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: { planId: number; payMethod: string; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean }) =>
+    mutationFn: (values: { applicationId: number; planId: number; payMethod: string; currency: 'CNY'; signerAccount: string; signerName?: string; remark?: string; firstDeductNow: boolean }) =>
       request.post<SignContractResult>('/api/payment/contracts', values).then(unwrap),
     onSuccess: (result) => {
-      invalidateContract(qc, result.contract.id);
+      invalidateContract(qc, result.contract.id, result.contract.appId);
       // firstDeductNow 会立即产生一笔支付单
       if (result.firstDeduct) void qc.invalidateQueries({ queryKey: paymentOrderKeys.lists });
     },
@@ -83,36 +85,49 @@ export function useCreatePaymentContract() {
 export function useTerminatePaymentContract() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<PaymentContract>(`/api/payment/contracts/${id}/terminate`).then(unwrap),
-    onSuccess: (_data, id) => invalidateContract(qc, id),
+    mutationFn: ({ id, applicationId }: { id: number; applicationId: number }) =>
+      request.post<PaymentContract>(`/api/payment/contracts/${id}/terminate${toQueryString({ applicationId })}`).then(unwrap),
+    onSuccess: (_data, values) => invalidateContract(qc, values.id, values.applicationId),
   });
 }
 
 export function usePausePaymentContract() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<PaymentContract>(`/api/payment/contracts/${id}/pause`).then(unwrap),
-    onSuccess: (_data, id) => invalidateContract(qc, id),
+    mutationFn: ({ id, applicationId }: { id: number; applicationId: number }) =>
+      request.post<PaymentContract>(`/api/payment/contracts/${id}/pause${toQueryString({ applicationId })}`).then(unwrap),
+    onSuccess: (_data, values) => invalidateContract(qc, values.id, values.applicationId),
   });
 }
 
 export function useResumePaymentContract() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<PaymentContract>(`/api/payment/contracts/${id}/resume`).then(unwrap),
-    onSuccess: (_data, id) => invalidateContract(qc, id),
+    mutationFn: ({ id, applicationId }: { id: number; applicationId: number }) =>
+      request.post<PaymentContract>(`/api/payment/contracts/${id}/resume${toQueryString({ applicationId })}`).then(unwrap),
+    onSuccess: (_data, values) => invalidateContract(qc, values.id, values.applicationId),
   });
 }
 
 export function useDeductPaymentContract() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<DeductResult & { contract: PaymentContract }>(`/api/payment/contracts/${id}/deduct`).then(unwrap),
-    onSuccess: (_data, id) => {
+    mutationFn: ({ id, applicationId }: { id: number; applicationId: number }) =>
+      request.post<DeductResult & { contract: PaymentContract }>(`/api/payment/contracts/${id}/deduct${toQueryString({ applicationId })}`).then(unwrap),
+    onSuccess: (_data, values) => {
       // 扣款会改写 lastDeductAt / nextDeductAt / failCount 并生成一笔支付单
-      invalidateContract(qc, id);
+      invalidateContract(qc, values.id, values.applicationId);
       void qc.invalidateQueries({ queryKey: paymentOrderKeys.lists });
     },
+  });
+}
+
+export function useRecoverPaymentContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, applicationId }: { id: number; applicationId: number }) =>
+      request.post<PaymentContract>(`/api/payment/contracts/${id}/recover${toQueryString({ applicationId })}`).then(unwrap),
+    onSuccess: (_data, values) => invalidateContract(qc, values.id, values.applicationId),
   });
 }
 

@@ -1,6 +1,6 @@
 /**
  * 支付应用（App 维度）管理路由（/api/payment/apps）。
- * 业务方按 appKey 下单，路由到应用绑定的各渠道配置。
+ * 外部身份由开放平台客户端管理，本模块只维护支付渠道路由。
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createPaymentAppSchema, updatePaymentAppSchema } from '@zenith/shared/payment';

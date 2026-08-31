@@ -18,6 +18,7 @@ import {
 } from '../../services/member/member-renewal.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
+const ApplicationQuery = z.object({ applicationId: z.coerce.number().int().positive() });
 
 const SignRenewalResultDTO = z.object({
   contract: PaymentContractDTO,
@@ -42,10 +43,11 @@ const plansRoute = defineOpenAPIRoute({
     method: 'get', path: '/plans', tags: ['MemberSelf'], summary: '可选自动续费计划',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware] as const,
+    request: { query: ApplicationQuery },
     responses: { ...ok(z.array(MemberRenewalPlanDTO), '续费计划列表'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const plans = await listRenewalPlans();
+    const plans = await listRenewalPlans(c.req.valid('query').applicationId, currentMemberId());
     return c.json(okBody(plans.map((p) => ({ id: p.id, name: p.name, period: p.period, customDays: p.customDays ?? null, amount: p.amount, remark: p.remark ?? null }))), 200);
   },
 });
@@ -55,9 +57,10 @@ const myRenewalRoute = defineOpenAPIRoute({
     method: 'get', path: '/', tags: ['MemberSelf'], summary: '我的自动续费状态（VIP 到期/协议/续费记录）',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware] as const,
+    request: { query: ApplicationQuery },
     responses: { ...ok(MemberRenewalInfoDTO, '自动续费状态'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await getMyRenewal(currentMemberId())), 200),
+  handler: async (c) => c.json(okBody(await getMyRenewal(currentMemberId(), c.req.valid('query').applicationId)), 200),
 });
 
 const signRoute = defineOpenAPIRoute({
@@ -76,10 +79,11 @@ const terminateRoute = defineOpenAPIRoute({
     method: 'post', path: '/terminate', tags: ['MemberSelf'], summary: '关闭自动续费（解约）',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware, idempotencyGuard({ ttlSeconds: 10 })] as const,
+    request: { query: ApplicationQuery },
     responses: { ...okMsg('已关闭自动续费'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    await terminateMyRenewal(currentMemberId());
+    await terminateMyRenewal(currentMemberId(), c.req.valid('query').applicationId);
     return c.json(okBody(null, '已关闭自动续费'), 200);
   },
 });
@@ -89,9 +93,10 @@ const deductNowRoute = defineOpenAPIRoute({
     method: 'post', path: '/deduct', tags: ['MemberSelf'], summary: '立即续费一期（手动扣款）',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware, idempotencyGuard({ ttlSeconds: 10 })] as const,
+    request: { query: ApplicationQuery },
     responses: { ...ok(DeductNowResultDTO, '扣款执行完成'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await deductMyRenewalNow(currentMemberId()), '扣款执行完成'), 200),
+  handler: async (c) => c.json(okBody(await deductMyRenewalNow(currentMemberId(), c.req.valid('query').applicationId), '扣款执行完成'), 200),
 });
 
 router.openapiRoutes([plansRoute, myRenewalRoute, signRoute, terminateRoute, deductNowRoute] as const);

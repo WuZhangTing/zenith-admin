@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Modal, Button, Select, Toast, RadioGroup, Radio, InputNumber } from '@douyinfe/semi-ui';
 import { Plus, RefreshCw, Ticket, Wallet } from 'lucide-react';
@@ -7,15 +7,10 @@ import type { MemberCoupon } from '@zenith/shared/member';
 import { MemberPage } from '../../components/MemberPage';
 import { TransactionList } from '../../components/TransactionList';
 import { formatYuan } from '../../utils/format';
-import { memberKeys, useCreateRechargeOrder, useMemberCouponList, useMemberWallet } from '../../hooks/queries';
+import { memberKeys, useCreateRechargeOrder, useMemberCouponList, useMemberPaymentOptions, useMemberWallet } from '../../hooks/queries';
 import { StatGrid } from '@/components/charts/StatCard';
 
 const QUICK_AMOUNTS = [10, 50, 100, 200, 500];
-const PAY_METHODS = [
-  { value: 'wechat_h5', label: '微信支付' },
-  { value: 'alipay_wap', label: '支付宝' },
-];
-
 /** 计算券对当前金额的立减（与后端 payment-coupon.service 口径一致） */
 function couponDiscount(mc: MemberCoupon, amountCents: number): number {
   const c = mc.coupon;
@@ -41,6 +36,9 @@ function StatCard({ label, value }: Readonly<{ label: React.ReactNode; value: Re
 export default function WalletPage() {
   const queryClient = useQueryClient();
   const wallet = useMemberWallet().data ?? null;
+  const paymentOptionsQuery = useMemberPaymentOptions();
+  const paymentOptions = useMemo(() => paymentOptionsQuery.data ?? [], [paymentOptionsQuery.data]);
+  const [applicationId, setApplicationId] = useState<number | undefined>(undefined);
   const rechargeMutation = useCreateRechargeOrder();
   const [modalOpen, setModalOpen] = useState(false);
   const [amount, setAmount] = useState<number>(100);
@@ -56,6 +54,19 @@ export default function WalletPage() {
     [couponQuery.data, amountCents],
   );
   const selectedCoupon = usableCoupons.find((mc) => mc.id === couponId) ?? null;
+  const selectedApplication = paymentOptions.find((option) => option.id === applicationId);
+  const availableMethods = useMemo(() => selectedApplication?.cashierMethods ?? [], [selectedApplication]);
+  useEffect(() => {
+    if (applicationId == null) {
+      const first = paymentOptions.find((option) => option.cashierMethods.length > 0);
+      if (first) {
+        setApplicationId(first.id);
+        setPayMethod(first.cashierMethods[0].method);
+      }
+    } else if (availableMethods.length > 0 && !availableMethods.some((method) => method.method === payMethod)) {
+      setPayMethod(availableMethods[0].method);
+    }
+  }, [applicationId, availableMethods, payMethod, paymentOptions]);
   const discount = selectedCoupon ? couponDiscount(selectedCoupon, amountCents) : 0;
   const payableCents = Math.max(1, amountCents - discount);
 
@@ -64,7 +75,12 @@ export default function WalletPage() {
       Toast.warning('请输入充值金额');
       return;
     }
+    if (applicationId == null || !availableMethods.some((method) => method.method === payMethod)) {
+      Toast.warning('请选择当前应用支持的支付方式');
+      return;
+    }
     const r = await rechargeMutation.mutateAsync({
+      applicationId,
       amount: amountCents,
       payMethod,
       memberCouponId: selectedCoupon?.id,
@@ -193,9 +209,20 @@ export default function WalletPage() {
             实付 <span style={{ color: 'var(--m-primary)', fontWeight: 600 }}>{formatYuan(payableCents)}</span>（到账按充值金额）
           </div>
         )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span style={{ color: 'var(--m-text-secondary)', fontSize: 13, whiteSpace: 'nowrap' }}>支付应用</span>
+          <Select
+            value={applicationId}
+            placeholder="请选择支付应用"
+            loading={paymentOptionsQuery.isFetching}
+            optionList={paymentOptions.filter((option) => option.cashierMethods.length > 0).map((option) => ({ value: option.id, label: option.name }))}
+            onChange={(value) => setApplicationId(value as number)}
+            style={{ flex: 1 }}
+          />
+        </div>
         <RadioGroup value={payMethod} onChange={(e) => setPayMethod(e.target.value)} type="button">
-          {PAY_METHODS.map((p) => (
-            <Radio key={p.value} value={p.value}>
+          {availableMethods.map((p) => (
+            <Radio key={p.method} value={p.method}>
               {p.label}
             </Radio>
           ))}

@@ -659,12 +659,6 @@ handlerRegistry.set('dispatchPaymentEvents', async () => {
   return `补投支付事件 ${count} 条`;
 });
 
-handlerRegistry.set('retryPaymentWebhooks', async () => {
-  const { retryPendingDeliveries } = await import('../services/payment/payment-webhook.service');
-  const count = await retryPendingDeliveries();
-  return `重试支付 Webhook 投递 ${count} 条`;
-});
-
 handlerRegistry.set('dispatchNotifications', async () => {
   const { dispatchPendingNotifications } = await import('../services/messaging/notification-outbox.service');
   const count = await dispatchPendingNotifications();
@@ -700,13 +694,6 @@ handlerRegistry.set('autoPaymentRecon', async () => {
   const { autoReconcileYesterday } = await import('../services/payment/payment-recon.service');
   const r = await autoReconcileYesterday();
   return `自动对账：生成 ${r.generated} 个批次，跳过 ${r.skipped} 个`;
-});
-
-handlerRegistry.set('rebuildPaymentReportDaily', async (params) => {
-  const { rebuildPaymentReportDaily } = await import('../services/payment/payment-report.service');
-  const days = Number(params) || 2;
-  const n = await rebuildPaymentReportDaily(days);
-  return `重建支付报表日切快照 ${n} 条（近 ${days} 天）`;
 });
 
 handlerRegistry.set('analyticsRollupDaily', async (params) => {

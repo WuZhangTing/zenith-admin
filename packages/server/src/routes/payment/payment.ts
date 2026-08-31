@@ -11,6 +11,7 @@ import { idempotencyGuard } from '../../middleware/idempotency';
 import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   PaymentChannelConfigDTO,
+  PaymentChannelConfigLookupDTO,
   PaymentOrderDTO,
   PaymentRefundDTO,
   PaymentNotifyLogDTO,
@@ -23,6 +24,7 @@ import {
 import { getClientIp } from '../../lib/request-helpers';
 import {
   listAllChannelConfigs,
+  listChannelConfigLookup,
   listChannelConfigs,
   getChannelConfig,
   createChannelConfig,
@@ -59,15 +61,21 @@ const payMethodEnum = z.enum(['wechat_native', 'wechat_jsapi', 'wechat_h5', 'ali
 const channelCreateSchema = createPaymentChannelConfigSchema;
 const channelUpdateSchema = updatePaymentChannelConfigSchema;
 
-// 下单/退款入参复用 shared 契约（禁止本地重复定义——本地副本曾漏掉 appKey 导致该字段被 Zod 静默剥离）
+// 下单/退款入参复用 shared 契约，应用路由只接受内部 applicationId。
 const paymentCreateSchema = createPaymentSchema;
 
 const refundCreateSchema = createRefundSchema;
+const idempotencyHeaders = z.object({
+  'x-idempotency-key': z.string().trim().min(8).max(128).openapi({
+    param: { name: 'X-Idempotency-Key', in: 'header' },
+    example: 'refund-01JABCDEF1234567890',
+  }),
+});
 
 const listQuery = PaginationQuery.extend({
   keyword: z.string().optional(),
   channel: channelEnum.optional(),
-  status: z.enum(['pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed']).optional(),
+  status: z.enum(['pending', 'paying', 'unknown', 'success', 'closed', 'refunding', 'refunded', 'failed']).optional(),
   payMethod: payMethodEnum.optional(),
   bizType: z.string().optional(),
   minAmount: z.coerce.number().int().nonnegative().optional(),
@@ -79,7 +87,7 @@ const listQuery = PaginationQuery.extend({
 const refundsQuery = z.object({
   keyword: z.string().optional(),
   channel: channelEnum.optional(),
-  status: z.enum(['pending', 'processing', 'success', 'failed']).optional(),
+  status: z.enum(['pending', 'processing', 'unknown', 'success', 'failed']).optional(),
   approvalStatus: z.enum(['none', 'pending', 'approved', 'rejected']).optional(),
   startTime: dateRangeBound('起始时间'),
   endTime: dateRangeBound('结束时间'),
@@ -104,6 +112,26 @@ const channelsAllRoute = defineOpenAPIRoute({
     responses: { ...ok(z.array(PaymentChannelConfigDTO), '全量渠道'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(await listAllChannelConfigs()), 200),
+});
+
+const channelLookupRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/channels/operation-lookup', tags: ['支付中心'], summary: '资金运营商户配置下拉',
+    security: [{ BearerAuth: [] }],
+    middleware: [authMiddleware, guard({ permission: [
+      'payment:channel:list',
+      'payment:settlement:list',
+      'payment:recon:list',
+      'payment:ledger:list',
+      'payment:ledger:account:create',
+      'payment:ledger:post',
+      'payment:ledger:reverse',
+      'payment:ledger:reserve',
+    ] })] as const,
+    request: {},
+    responses: { ...ok(z.array(PaymentChannelConfigLookupDTO), '启用商户配置'), ...commonErrorResponses },
+  }),
+  handler: async (c) => c.json(okBody(await listChannelConfigLookup()), 200),
 });
 
 const channelsListRoute = defineOpenAPIRoute({
@@ -222,7 +250,11 @@ const orderCreateRoute = defineOpenAPIRoute({
     request: { body: { content: jsonContent(paymentCreateSchema), required: true } },
     responses: { ...ok(CreatePaymentResponseDTO, '下单成功'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await createPayment({ ...c.req.valid('json'), clientIp: getClientIp(c) }), '下单成功'), 200),
+  handler: async (c) => c.json(okBody(await createPayment({
+    ...c.req.valid('json'),
+    clientIp: getClientIp(c),
+    idempotencyKey: c.req.header('x-idempotency-key'),
+  }), '下单成功'), 200),
 });
 
 const orderGetRoute = defineOpenAPIRoute({
@@ -300,10 +332,16 @@ const refundCreateRoute = defineOpenAPIRoute({
     method: 'post', path: '/refunds', tags: ['支付中心'], summary: '发起退款',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, idempotencyGuard({ ttlSeconds: 15, message: '退款处理中，请勿重复提交' }), guard({ permission: 'payment:order:refund', audit: { description: '发起退款', module: '支付中心' } })] as const,
-    request: { body: { content: jsonContent(refundCreateSchema), required: true } },
+    request: {
+      headers: idempotencyHeaders,
+      body: { content: jsonContent(refundCreateSchema), required: true },
+    },
     responses: { ...ok(PaymentRefundResultDTO, '退款已发起'), ...commonErrorResponses },
   }),
-  handler: async (c) => c.json(okBody(await refund(c.req.valid('json')), '退款已发起'), 200),
+  handler: async (c) => c.json(okBody(await refund({
+    ...c.req.valid('json'),
+    idempotencyKey: c.req.valid('header')['x-idempotency-key'],
+  }), '退款已发起'), 200),
 });
 
 const refundsListRoute = defineOpenAPIRoute({
@@ -416,6 +454,7 @@ const trendRoute = defineOpenAPIRoute({
 paymentRouter.openapiRoutes([
   statsRoute,
   trendRoute,
+  channelLookupRoute,
   channelsAllRoute,
   channelsListRoute,
   channelGetRoute,

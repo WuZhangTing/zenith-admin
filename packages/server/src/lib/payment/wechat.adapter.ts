@@ -13,20 +13,30 @@ import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, aesGcmDecrypt, ensurePem } from './signing';
 import { trySandboxNotify } from './sandbox-notify';
 import { getPlatformCert } from './wechat-certs';
+import { WECHAT_PROVIDER_MANIFEST } from './capabilities';
+import { providerHttpOptions } from './provider-http';
+import { buildSignedSandboxOperation } from './sandbox-operation';
 import type {
   AdapterContext,
   ContractDeductInput,
   ContractDeductResult,
+  ContractQueryInput,
+  ContractQueryResult,
   ContractSignInput,
   ContractSignResult,
   PreauthCaptureInput,
   PreauthCaptureResult,
   PreauthFreezeInput,
   PreauthFreezeResult,
+  PreauthQueryInput,
+  PreauthQueryResult,
   NotifyResult,
   PaymentChannelAdapter,
   PaymentQueryResult,
   ProfitShareQueryResult,
+  ProfitShareReverseInput,
+  ProfitShareReverseQueryResult,
+  ProfitShareReverseResult,
   ProfitShareReceiver,
   ProfitShareResult,
   RefundQueryResult,
@@ -73,7 +83,8 @@ async function wechatRequest<T = Record<string, unknown>>(
     'User-Agent': 'zenith-admin',
   };
   const url = `${WECHAT_BASE}${urlPath}`;
-  const resp = method === 'GET' ? await httpGet(url, { headers }) : await httpPost(url, bodyStr, { headers });
+  const requestOptions = { ...providerHttpOptions(), headers };
+  const resp = method === 'GET' ? await httpGet(url, requestOptions) : await httpPost(url, bodyStr, requestOptions);
   const text = await resp.text();
   if (!resp.ok) {
     logger.warn('[wechat-pay] api error', { urlPath, status: resp.status, body: text.slice(0, 500) });
@@ -131,9 +142,11 @@ function mapNotifyTradeStatus(state: string | undefined): NotifyResult['tradeSta
 }
 
 interface WechatTransaction {
+  appid?: string;
+  mchid?: string;
   trade_state?: string;
   transaction_id?: string;
-  amount?: { total?: number; payer_total?: number };
+  amount?: { total?: number; payer_total?: number; currency?: string; payer_currency?: string };
   success_time?: string;
 }
 interface WechatRefund {
@@ -171,8 +184,16 @@ function wechatReceiverType(receiverType: ProfitShareReceiver['receiverType']): 
   return receiverType === 'personal' ? 'PERSONAL_OPENID' : 'MERCHANT_ID';
 }
 
+function appendH5Redirect(payUrl: string, returnUrl: string | null): string {
+  if (!returnUrl) return payUrl;
+  const url = new URL(payUrl);
+  url.searchParams.set('redirect_url', returnUrl);
+  return url.toString();
+}
+
 export const wechatPayAdapter: PaymentChannelAdapter = {
   channel: 'wechat',
+  manifest: WECHAT_PROVIDER_MANIFEST,
 
   async createPayment(ctx, order): Promise<CreatePaymentResult> {
     const expiredAtSandbox = order.expiredAt ? formatDateTime(order.expiredAt) : undefined;
@@ -184,7 +205,7 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
         case 'wechat_native':
           return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, codeUrl: `weixin://wxpay/bizpayurl?pr=${mockNo}`, expiredAt: expiredAtSandbox };
         case 'wechat_h5':
-          return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, payUrl: `https://sandbox.wechatpay.example/h5/${mockNo}`, expiredAt: expiredAtSandbox };
+          return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, payUrl: appendH5Redirect(`https://sandbox.wechatpay.example/h5/${mockNo}`, order.returnUrl), expiredAt: expiredAtSandbox };
         case 'wechat_jsapi':
           return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, jsapiParams: { appId: 'sandbox', timeStamp: String(Math.floor(Date.now() / 1000)), nonceStr: mockNo, package: `prepay_id=${mockNo}`, signType: 'RSA', paySign: 'sandbox' }, expiredAt: expiredAtSandbox };
         default:
@@ -210,7 +231,7 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
       case 'wechat_h5': {
         const body = { ...base, scene_info: { payer_client_ip: order.clientIp || '127.0.0.1', h5_info: { type: 'Wap' } } };
         const res = await wechatRequest<{ h5_url: string }>(ctx, 'POST', '/v3/pay/transactions/h5', body);
-        return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, payUrl: res.h5_url, expiredAt };
+        return { orderNo: order.orderNo, channel: 'wechat', payMethod: order.payMethod, payUrl: appendH5Redirect(res.h5_url, order.returnUrl), expiredAt };
       }
       case 'wechat_jsapi': {
         const openId = requireField(order.openId, 'JSAPI openId');
@@ -233,7 +254,12 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
     if (ctx.config.sandbox) {
       // 沙箱无渠道侧订单：维持本地状态（pending），由运营「模拟支付成功」推进
       await Promise.resolve();
-      return { status: order.status === 'success' ? 'success' : 'pending' };
+      return {
+        status: order.status === 'success' ? 'success' : 'pending',
+        merchantId: ctx.config.wechatMchId ?? undefined,
+        providerAppId: ctx.config.wechatAppId ?? undefined,
+        currency: order.currency || 'CNY',
+      };
     }
     const mchid = requireField(ctx.config.wechatMchId, '商户号');
     const res = await wechatRequest<WechatTransaction>(
@@ -241,9 +267,20 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
       'GET',
       `/v3/pay/transactions/out-trade-no/${order.outTradeNo}?mchid=${mchid}`,
     );
+    if (!res.mchid || res.mchid !== mchid) {
+      throw new HTTPException(502, { message: '微信查单响应商户号不匹配' });
+    }
+    const expectedAppId = requireField(ctx.config.wechatAppId, 'AppId');
+    if (!res.appid || res.appid !== expectedAppId) {
+      throw new HTTPException(502, { message: '微信查单响应 AppId 不匹配' });
+    }
     return {
       status: mapTradeState(res.trade_state),
       channelTradeNo: res.transaction_id,
+      providerEventId: res.transaction_id,
+      merchantId: res.mchid,
+      providerAppId: res.appid,
+      currency: res.amount?.payer_currency ?? res.amount?.currency,
       paidAmount: res.amount?.payer_total ?? res.amount?.total,
       paidAt: res.success_time ? new Date(res.success_time) : undefined,
       raw: res,
@@ -298,6 +335,16 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
     const nonce = headers.get('Wechatpay-Nonce') ?? '';
     const signature = headers.get('Wechatpay-Signature') ?? '';
     const serial = headers.get('Wechatpay-Serial') ?? '';
+    const timestampSeconds = Number(timestamp);
+    if (!Number.isInteger(timestampSeconds) || Math.abs(Math.floor(Date.now() / 1000) - timestampSeconds) > 5 * 60) {
+      return {
+        valid: false,
+        scene: 'payment',
+        tradeStatus: 'unknown',
+        ack: { body: JSON.stringify({ code: 'FAIL', message: '时间戳无效' }), contentType: 'application/json', status: 401 },
+        message: '微信回调时间戳无效或已过期',
+      };
+    }
     const message = `${timestamp}\n${nonce}\n${rawBody}\n`;
     // 优先按回调头 Wechatpay-Serial 选用自动下载的平台证书（应对证书轮换）；回退到手工配置的证书
     let platformCert = '';
@@ -332,22 +379,67 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
     }
 
     const eventType = typeof envelope.event_type === 'string' ? envelope.event_type : '';
+    const merchantId = typeof data.mchid === 'string' ? data.mchid : undefined;
+    const providerAppId = typeof data.appid === 'string' ? data.appid : undefined;
+    const currency = typeof data.amount?.payer_currency === 'string'
+      ? data.amount.payer_currency
+      : typeof data.amount?.currency === 'string'
+        ? data.amount.currency
+        : undefined;
+    const identityValid = merchantId === ctx.config.wechatMchId && providerAppId === ctx.config.wechatAppId;
+    if (!identityValid || !currency) {
+      return {
+        valid: false,
+        scene: eventType.includes('REFUND') ? 'refund' : 'payment',
+        tradeStatus: 'unknown',
+        ack: { body: JSON.stringify({ code: 'FAIL', message: '商户身份不匹配' }), contentType: 'application/json', status: 401 },
+        message: !identityValid ? '微信回调商户号或 AppId 不匹配' : '微信回调缺少币种',
+      };
+    }
+    const providerEventId = typeof envelope.id === 'string' ? envelope.id : undefined;
+    if (!providerEventId) {
+      return {
+        valid: false,
+        scene: eventType.includes('REFUND') ? 'refund' : 'payment',
+        tradeStatus: 'unknown',
+        ack: { body: JSON.stringify({ code: 'FAIL', message: '事件标识缺失' }), contentType: 'application/json', status: 400 },
+        message: '微信回调缺少事件标识',
+      };
+    }
     if (eventType.includes('REFUND')) {
       return {
         valid: true,
         scene: 'refund',
         ack,
+        providerEventId,
+        merchantId,
+        providerAppId,
+        currency,
         outTradeNo: data.out_trade_no,
         outRefundNo: data.out_refund_no,
         channelRefundNo: data.refund_id,
         tradeStatus: data.refund_status === 'SUCCESS' ? 'refunded' : 'failed',
+        paidAmount: typeof data.amount?.refund === 'number' ? data.amount.refund : undefined,
         raw: data,
+      };
+    }
+    if (!eventType.includes('TRANSACTION')) {
+      return {
+        valid: false,
+        scene: 'payment',
+        tradeStatus: 'unknown',
+        ack: { body: JSON.stringify({ code: 'FAIL', message: '事件类型不支持' }), contentType: 'application/json', status: 400 },
+        message: `不支持的微信回调事件：${eventType || 'unknown'}`,
       };
     }
     return {
       valid: true,
       scene: 'payment',
       ack,
+      providerEventId,
+      merchantId,
+      providerAppId,
+      currency,
       outTradeNo: data.out_trade_no,
       channelTradeNo: data.transaction_id,
       tradeStatus: mapNotifyTradeStatus(data.trade_state),
@@ -428,11 +520,47 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
     return { status: mapProfitShareState(res), channelSharingNo: res.order_id, finishedAt: finish ? new Date(finish) : undefined, raw: res };
   },
 
+  async reverseProfitShare(ctx: AdapterContext, order, input: ProfitShareReverseInput): Promise<ProfitShareReverseResult> {
+    if (!ctx.config.sandbox) {
+      throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: wechat/profit-sharing.reverse/live' });
+    }
+    const signed = buildSignedSandboxOperation(ctx, 'WXPSR', 'profit-sharing.reverse', {
+      orderNo: order.orderNo,
+      outSharingNo: input.outSharingNo,
+      channelSharingNo: input.channelSharingNo,
+      outReversalNo: input.outReversalNo,
+      amount: input.amount,
+      reason: input.reason,
+    });
+    logger.info('[wechat-pay] signed sandbox profit-sharing reversal', { outReversalNo: input.outReversalNo, amount: input.amount });
+    await Promise.resolve();
+    return { channelReversalNo: signed.reference, status: 'success', raw: signed.raw };
+  },
+
+  async queryProfitShareReverse(ctx: AdapterContext, order, input: ProfitShareReverseInput): Promise<ProfitShareReverseQueryResult> {
+    if (!ctx.config.sandbox) {
+      throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: wechat/profit-sharing.reverse/live' });
+    }
+    const signed = buildSignedSandboxOperation(ctx, 'WXPSR', 'profit-sharing.reverse', {
+      orderNo: order.orderNo,
+      outSharingNo: input.outSharingNo,
+      channelSharingNo: input.channelSharingNo,
+      outReversalNo: input.outReversalNo,
+      amount: input.amount,
+      reason: input.reason,
+    });
+    await Promise.resolve();
+    return { channelReversalNo: signed.reference, status: 'success', finishedAt: new Date(), raw: signed.raw };
+  },
+
   async transfer(ctx: AdapterContext, input: TransferInput): Promise<TransferResult> {
     if (ctx.config.sandbox) {
       logger.info('[wechat-pay] simulate transfer (sandbox)', { outTransferNo: input.outTransferNo, amount: input.amount });
       await Promise.resolve();
       return { channelTransferNo: `WXTRF${Date.now()}${randomBytes(3).toString('hex')}`, status: 'success' };
+    }
+    if (input.amount >= 200_000) {
+      throw new HTTPException(400, { message: '微信大额转账需要加密传输收款人实名，当前生产适配器尚未实现该能力' });
     }
     const appId = requireField(ctx.config.wechatAppId, 'AppId');
     const remark = (input.remark || '转账').slice(0, 32);
@@ -485,7 +613,10 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
     const u = new URL(downloadUrl);
     const urlPath = `${u.pathname}${u.search}`;
     const authToken = buildAuthToken(ctx, 'GET', urlPath, '');
-    const resp = await httpGet(downloadUrl, { headers: { Authorization: authToken, Accept: '*/*', 'User-Agent': 'zenith-admin' } });
+    const resp = await httpGet(downloadUrl, {
+      ...providerHttpOptions(),
+      headers: { Authorization: authToken, Accept: '*/*', 'User-Agent': 'zenith-admin' },
+    });
     const text = await resp.text();
     if (!resp.ok) throw new HTTPException(502, { message: `微信账单下载失败(${resp.status})` });
     return convertWechatBillToInternalCsv(text);
@@ -495,8 +626,9 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
   async signContract(ctx: AdapterContext, input: ContractSignInput): Promise<ContractSignResult> {
     if (ctx.config.sandbox) {
       logger.info('[wechat-pay] simulate contract sign (sandbox)', { outContractNo: input.outContractNo, plan: input.planName });
+      const signed = buildSignedSandboxOperation(ctx, 'WXCT', 'contract.sign', { outContractNo: input.outContractNo });
       await Promise.resolve();
-      return { channelContractNo: `WXCT${Date.now()}${randomBytes(3).toString('hex')}`, status: 'signed' };
+      return { channelContractNo: signed.reference, status: 'signed', raw: signed.raw };
     }
     throw new HTTPException(400, { message: '微信委托代扣需商户开通产品权限，当前仅支持沙箱渠道签约' });
   },
@@ -508,6 +640,17 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
       return;
     }
     throw new HTTPException(400, { message: '微信委托代扣需商户开通产品权限，当前仅支持沙箱渠道解约' });
+  },
+
+  async queryContract(ctx: AdapterContext, input: ContractQueryInput): Promise<ContractQueryResult> {
+    if (!ctx.config.sandbox) throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: wechat/contract.query/live' });
+    const signed = buildSignedSandboxOperation(ctx, 'WXCT', 'contract.sign', { outContractNo: input.outContractNo });
+    await Promise.resolve();
+    return {
+      status: input.operation === 'terminate' ? 'terminated' : 'signed',
+      channelContractNo: input.channelContractNo ?? signed.reference,
+      raw: signed.raw,
+    };
   },
 
   async deductContract(ctx: AdapterContext, input: ContractDeductInput): Promise<ContractDeductResult> {
@@ -523,8 +666,9 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
   async preauthFreeze(ctx: AdapterContext, input: PreauthFreezeInput): Promise<PreauthFreezeResult> {
     if (ctx.config.sandbox) {
       logger.info('[wechat-pay] simulate preauth freeze (sandbox)', { outPreauthNo: input.outPreauthNo, amount: input.amount });
+      const signed = buildSignedSandboxOperation(ctx, 'WXPA', 'preauth.freeze', { outPreauthNo: input.outPreauthNo });
       await Promise.resolve();
-      return { channelPreauthNo: `WXPA${Date.now()}${randomBytes(3).toString('hex')}`, status: 'frozen' };
+      return { channelPreauthNo: signed.reference, status: 'frozen', raw: signed.raw };
     }
     throw new HTTPException(400, { message: '微信预授权需商户开通资金授权产品权限，当前仅支持沙箱渠道冻结' });
   },
@@ -532,8 +676,9 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
   async preauthCapture(ctx: AdapterContext, input: PreauthCaptureInput): Promise<PreauthCaptureResult> {
     if (ctx.config.sandbox) {
       logger.info('[wechat-pay] simulate preauth capture (sandbox)', { outPreauthNo: input.outPreauthNo, captureAmount: input.captureAmount });
+      const signed = buildSignedSandboxOperation(ctx, 'WXPAC', 'preauth.capture', { outPreauthNo: input.outPreauthNo, outTradeNo: input.outTradeNo });
       await Promise.resolve();
-      return { channelTradeNo: `WXPAC${Date.now()}${randomBytes(3).toString('hex')}`, status: 'success' };
+      return { channelTradeNo: signed.reference, status: 'success', raw: signed.raw };
     }
     throw new HTTPException(400, { message: '微信预授权需商户开通资金授权产品权限，当前仅支持沙箱渠道转支付' });
   },
@@ -545,6 +690,20 @@ export const wechatPayAdapter: PaymentChannelAdapter = {
       return;
     }
     throw new HTTPException(400, { message: '微信预授权需商户开通资金授权产品权限，当前仅支持沙箱渠道解冻' });
+  },
+
+  async queryPreauth(ctx: AdapterContext, input: PreauthQueryInput): Promise<PreauthQueryResult> {
+    if (!ctx.config.sandbox) throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: wechat/preauth.query/live' });
+    if (input.operation === 'capture') {
+      const signed = buildSignedSandboxOperation(ctx, 'WXPAC', 'preauth.capture', { outPreauthNo: input.outPreauthNo, outTradeNo: input.outTradeNo });
+      return { status: 'captured', channelPreauthNo: input.channelPreauthNo, channelTradeNo: signed.reference, raw: signed.raw };
+    }
+    const signed = buildSignedSandboxOperation(ctx, 'WXPA', 'preauth.freeze', { outPreauthNo: input.outPreauthNo });
+    return {
+      status: input.operation === 'release' ? 'released' : 'frozen',
+      channelPreauthNo: input.channelPreauthNo ?? signed.reference,
+      raw: signed.raw,
+    };
   },
 };
 

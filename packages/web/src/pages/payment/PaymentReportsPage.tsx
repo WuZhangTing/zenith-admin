@@ -29,7 +29,9 @@ function calcDelta(cur: number, prev: number | undefined | null): number | null 
 /** 导出当前聚合结果为 CSV（含 BOM，Excel 直接打开不乱码） */
 function exportReportCsv(dimensionTitle: string, rows: PaymentReportRow[]): void {
   const esc = (v: string | number) => {
-    const s = String(v);
+    const raw = String(v);
+    // Excel 会把这些前缀解释为公式；仅处理文本维度，数值列保持可计算格式。
+    const s = typeof v === 'string' && /^[\t\r ]*[=+\-@]/.test(raw) ? `'${raw}` : raw;
     return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
   };
   const toYuan = (cents: number) => (cents / 100).toFixed(2);
@@ -49,7 +51,7 @@ function DeltaText({ cur, prev }: Readonly<{ cur: number; prev: number | undefin
 }
 
 interface SearchParams { groupBy: PaymentReportGroupBy; timeRange: [Date, Date] | null; compare: boolean; }
-const defaultSearch: SearchParams = { groupBy: 'bizType', timeRange: null, compare: false };
+const defaultSearch: SearchParams = { groupBy: 'day', timeRange: null, compare: false };
 
 export default function PaymentReportsPage() {
   const { hasPermission } = usePermission();
@@ -164,7 +166,7 @@ export default function PaymentReportsPage() {
 
   const showCompareCols = Boolean(prev);
   const columns: ColumnProps<PaymentReportRow>[] = [
-    { title: PAYMENT_REPORT_GROUP_BY_LABELS[summary?.groupBy ?? 'bizType'], dataIndex: 'label', width: 160 },
+    { title: PAYMENT_REPORT_GROUP_BY_LABELS[summary?.groupBy ?? 'day'], dataIndex: 'label', width: 160 },
     { title: '收款', dataIndex: 'gross', width: 130, align: 'right', render: (v: number) => yuan(v) },
     { title: '手续费', dataIndex: 'fee', width: 120, align: 'right', render: (v: number) => yuan(v) },
     { title: '退款', dataIndex: 'refund', width: 120, align: 'right', render: (v: number) => yuan(v) },
@@ -179,7 +181,7 @@ export default function PaymentReportsPage() {
     ] : []),
   ];
 
-  const dimensionTitle = PAYMENT_REPORT_GROUP_BY_LABELS[summary?.groupBy ?? 'bizType'];
+  const dimensionTitle = PAYMENT_REPORT_GROUP_BY_LABELS[summary?.groupBy ?? 'day'];
 
   const renderGroupByFilter = () => (
     <Select

@@ -3,30 +3,55 @@
  * 按渠道 + 账期聚合成功订单生成结算批次（净额 = 收款 - 手续费 - 退款 - 分账），
  * 状态机：生成(pending) → 结算中(settling) → 已结算(settled)/失败(failed)，结算时记资金台账。
  */
-import { and, between, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, between, desc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
-import { paymentOrders, paymentRefunds, paymentSettlementBatches, paymentSharingOrders, type PaymentSettlementBatchRow } from '../../db/schema';
+import {
+  paymentApps,
+  paymentChannelConfigs,
+  paymentJournalLines,
+  paymentJournals,
+  paymentLedgerAccounts,
+  paymentSettlementBatches,
+  paymentSettlementItems,
+  type PaymentSettlementBatchRow,
+} from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDate, formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { recordLedgerEntry } from './payment-ledger.service';
+import { postSystemJournalWithin } from './payment-journal.service';
 import logger from '../../lib/logger';
-import type { SQL } from 'drizzle-orm';
-import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementStatus } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementItem, PaymentSettlementStatus } from '@zenith/shared/payment';
 
 function genNo(): string {
   return `SETTLE${Date.now()}${randomInt(1000, 9999)}`;
 }
+
+// Only provider-derived and explicitly approved reconciliation movements are
+// eligible for payout. Manual adjustments, reservations and transfer journals
+// must never be swept into a settlement batch automatically.
+const SETTLEMENT_ELIGIBLE_SOURCE_TYPES = [
+  'payment.capture',
+  'payment.preauth.capture',
+  'payment.fee',
+  'payment.fee_refund',
+  'payment.refund',
+  'payment.sharing',
+  'payment.sharing_reversal',
+  'recon.adjust',
+] as const;
 
 export function mapSettlementBatch(row: PaymentSettlementBatchRow): PaymentSettlementBatch {
   return {
     id: row.id,
     batchNo: row.batchNo,
     channel: row.channel,
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
     periodStart: row.periodStart,
     periodEnd: row.periodEnd,
     status: row.status,
@@ -37,6 +62,9 @@ export function mapSettlementBatch(row: PaymentSettlementBatchRow): PaymentSettl
     sharingAmount: row.sharingAmount,
     netAmount: row.netAmount,
     settledAt: formatNullableDateTime(row.settledAt),
+    failureReason: row.failureReason ?? null,
+    payoutReference: row.payoutReference ?? null,
+    version: row.version,
     remark: row.remark ?? null,
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
@@ -75,160 +103,212 @@ export async function getSettlement(id: number): Promise<PaymentSettlementBatch>
   return mapSettlementBatch(await ensureBatch(id));
 }
 
+export async function listSettlementItems(id: number): Promise<PaymentSettlementItem[]> {
+  await ensureBatch(id);
+  const rows = await db
+    .select()
+    .from(paymentSettlementItems)
+    .where(eq(paymentSettlementItems.batchId, id))
+    .orderBy(paymentSettlementItems.id);
+  return rows.map((row) => ({
+    id: row.id,
+    batchId: row.batchId,
+    journalLineId: row.journalLineId,
+    amount: row.amount.toString(),
+    appId: row.appId,
+    channelConfigId: row.channelConfigId,
+    currency: row.currency,
+    createdAt: formatDateTime(row.createdAt),
+  }));
+}
+
 export interface GenerateSettlementInput {
-  channel: PaymentChannel;
+  applicationId: number;
+  channelConfigId: number;
+  currency?: string;
   periodStart: string;
   periodEnd: string;
   remark?: string;
 }
 
-/** 生成结算批次（路由入口）：按当前登录用户的租户口径聚合。同租户+渠道+账期重复生成时报业务错误。 */
-export async function generateSettlement(input: GenerateSettlementInput): Promise<PaymentSettlementBatch> {
-  const user = currentUser();
-  return generateSettlementScoped(input, {
-    batchTenantId: getCreateTenantId(user),
-    orderWhere: tenantCondition(paymentOrders, user),
-    refundWhere: tenantCondition(paymentRefunds, user),
-    sharingWhere: tenantCondition(paymentSharingOrders, user),
-  });
-}
+/** 生成结算批次：逐条认领 merchant_available 分录的带符号净额贡献，重叠账期也不能重复结算。 */
+export async function generateSettlement(input: GenerateSettlementInput, tenantIdOverride?: number | null): Promise<PaymentSettlementBatch> {
+  const tenantId = tenantIdOverride === undefined ? requireTenantScopeId(currentUser()) : tenantIdOverride;
+  const configTenant = tenantId == null ? isNull(paymentChannelConfigs.tenantId) : eq(paymentChannelConfigs.tenantId, tenantId);
+  const [scope] = await db
+    .select({
+      appId: paymentApps.id,
+      wechatConfigId: paymentApps.wechatConfigId,
+      alipayConfigId: paymentApps.alipayConfigId,
+      unionpayConfigId: paymentApps.unionpayConfigId,
+      channel: paymentChannelConfigs.channel,
+    })
+    .from(paymentApps)
+    .innerJoin(paymentChannelConfigs, eq(paymentChannelConfigs.id, input.channelConfigId))
+    .where(and(
+      eq(paymentApps.id, input.applicationId),
+      eq(paymentApps.status, 'enabled'),
+      eq(paymentChannelConfigs.status, 'enabled'),
+      configTenant,
+      tenantId == null ? isNull(paymentApps.tenantId) : eq(paymentApps.tenantId, tenantId),
+    ))
+    .limit(1);
+  if (!scope) throw new HTTPException(400, { message: '支付应用或商户配置不存在、未启用或不属于当前租户' });
+  const boundConfigId = scope.channel === 'wechat'
+    ? scope.wechatConfigId
+    : scope.channel === 'alipay'
+      ? scope.alipayConfigId
+      : scope.unionpayConfigId;
+  if (boundConfigId !== input.channelConfigId) throw new HTTPException(400, { message: '商户配置未绑定到所选支付应用' });
 
-interface SettlementScope {
-  /** 批次归属租户（落库 tenantId） */
-  batchTenantId: number | null;
-  /** 订单聚合的租户过滤条件（undefined = 不过滤） */
-  orderWhere?: SQL;
-  /** 退款聚合的租户过滤条件（undefined = 不过滤） */
-  refundWhere?: SQL;
-  /** 分账聚合的租户过滤条件（undefined = 不过滤） */
-  sharingWhere?: SQL;
-}
-
-/** 结算批次生成核心：聚合账期内成功订单（gross/fee）、成功退款（refund）与成功分账（sharing），
- * net = gross - fee - refund - sharing。
- * 不依赖请求上下文，供路由与定时任务复用；唯一索引保证同租户+渠道+账期幂等。 */
-async function generateSettlementScoped(input: GenerateSettlementInput, scope: SettlementScope): Promise<PaymentSettlementBatch> {
   const start = parseDateRangeStart(input.periodStart);
   const end = parseDateRangeEnd(input.periodEnd);
   if (!start || !end) throw new HTTPException(400, { message: '账期格式不正确（YYYY-MM-DD）' });
   if (start > end) throw new HTTPException(400, { message: '账期开始不能晚于结束' });
-
-  const [orderAgg] = await db
+  const currency = input.currency ?? 'CNY';
+  const tenantScope = tenantId == null ? isNull(paymentJournals.tenantId) : eq(paymentJournals.tenantId, tenantId);
+  const [earliest] = await db
+    .select({ postedAt: sql<Date>`min(${paymentJournals.postedAt})` })
+    .from(paymentJournalLines)
+    .innerJoin(paymentJournals, eq(paymentJournals.id, paymentJournalLines.journalId))
+    .innerJoin(paymentLedgerAccounts, eq(paymentLedgerAccounts.id, paymentJournalLines.accountId))
+    .leftJoin(paymentSettlementItems, eq(paymentSettlementItems.journalLineId, paymentJournalLines.id))
+    .where(and(
+      isNull(paymentSettlementItems.id),
+      inArray(paymentJournals.sourceType, SETTLEMENT_ELIGIBLE_SOURCE_TYPES),
+      eq(paymentLedgerAccounts.code, 'merchant_available'),
+      eq(paymentJournals.appId, input.applicationId),
+      eq(paymentJournals.channelConfigId, input.channelConfigId),
+      eq(paymentJournals.currency, currency),
+      tenantScope,
+      lte(paymentJournals.postedAt, end),
+    ));
+  if (earliest?.postedAt && start && earliest.postedAt < start) {
+    throw new HTTPException(400, { message: `账期不能跳过更早的未结算资金，请从 ${formatDate(earliest.postedAt)} 开始` });
+  }
+  const lines = await db
     .select({
-      orderCount: sql<number>`count(*)`,
-      gross: sql<number>`coalesce(sum(coalesce(${paymentOrders.paidAmount}, ${paymentOrders.amount})),0)`,
-      fee: sql<number>`coalesce(sum(coalesce(${paymentOrders.feeAmount},0)),0)`,
-      unfeeCount: sql<number>`count(*) filter (where ${paymentOrders.feeAmount} is null)`,
+      lineId: paymentJournalLines.id,
+      debitAmount: paymentJournalLines.debitAmount,
+      creditAmount: paymentJournalLines.creditAmount,
+      sourceType: paymentJournals.sourceType,
+      sourceId: paymentJournals.sourceId,
     })
-    .from(paymentOrders)
-    .where(
-      mergeWhere(
-        and(
-          eq(paymentOrders.channel, input.channel),
-          inArray(paymentOrders.status, ['success', 'refunding', 'refunded']),
-          between(paymentOrders.paidAt, start, end),
-        ),
-        scope.orderWhere,
-      ),
-    );
-
-  const [refundAgg] = await db
-    .select({ refund: sql<number>`coalesce(sum(${paymentRefunds.refundAmount}),0)` })
-    .from(paymentRefunds)
-    .where(
-      mergeWhere(
-        and(eq(paymentRefunds.channel, input.channel), eq(paymentRefunds.status, 'success'), between(paymentRefunds.refundedAt, start, end)),
-        scope.refundWhere,
-      ),
-    );
-
-  // 分账单不带渠道列，经订单联表按渠道过滤
-  const [sharingAgg] = await db
-    .select({ sharing: sql<number>`coalesce(sum(${paymentSharingOrders.amount}),0)` })
-    .from(paymentSharingOrders)
-    .innerJoin(paymentOrders, eq(paymentOrders.orderNo, paymentSharingOrders.orderNo))
-    .where(
-      mergeWhere(
-        and(
-          eq(paymentOrders.channel, input.channel),
-          eq(paymentSharingOrders.status, 'success'),
-          between(paymentSharingOrders.finishedAt, start, end),
-        ),
-        scope.sharingWhere,
-      ),
-    );
-
-  const grossAmount = Number(orderAgg?.gross ?? 0);
-  const feeAmount = Number(orderAgg?.fee ?? 0);
-  const refundAmount = Number(refundAgg?.refund ?? 0);
-  const sharingAmount = Number(sharingAgg?.sharing ?? 0);
-  const unfeeCount = Number(orderAgg?.unfeeCount ?? 0);
-  const rawNetAmount = grossAmount - feeAmount - refundAmount - sharingAmount;
-  const netAmount = Math.max(0, rawNetAmount);
-  const remark = [
-    input.remark,
-    unfeeCount > 0 ? `含 ${unfeeCount} 笔未计费订单（手续费暂按 0 计）` : undefined,
-    rawNetAmount < 0 ? `账期净额为负（${rawNetAmount} 分），本批次按 0 分结算` : undefined,
-  ].filter(Boolean).join('；') || null;
-
+    .from(paymentJournalLines)
+    .innerJoin(paymentJournals, eq(paymentJournals.id, paymentJournalLines.journalId))
+    .innerJoin(paymentLedgerAccounts, eq(paymentLedgerAccounts.id, paymentJournalLines.accountId))
+    .leftJoin(paymentSettlementItems, eq(paymentSettlementItems.journalLineId, paymentJournalLines.id))
+    .where(and(
+      isNull(paymentSettlementItems.id),
+      inArray(paymentJournals.sourceType, SETTLEMENT_ELIGIBLE_SOURCE_TYPES),
+      eq(paymentLedgerAccounts.code, 'merchant_available'),
+      eq(paymentJournals.appId, input.applicationId),
+      eq(paymentJournals.channelConfigId, input.channelConfigId),
+      eq(paymentJournals.currency, currency),
+      tenantScope,
+      between(paymentJournals.postedAt, start, end),
+    ));
+  if (lines.length === 0) throw new HTTPException(400, { message: '该账期没有未结算的可用资金分录' });
+  const signedAmounts = lines.map((line) => line.creditAmount - line.debitAmount);
+  const netBigInt = signedAmounts.reduce((sum, amount) => sum + amount, 0n);
+  if (netBigInt <= 0n) throw new HTTPException(400, { message: '该账期可结算净额不大于 0，请先处理资金差异' });
+  const netAmount = Number(netBigInt);
+  if (!Number.isSafeInteger(netAmount) || netAmount > 2_147_483_647) {
+    throw new HTTPException(400, { message: '结算净额超出当前批次金额上限，请缩小账期' });
+  }
+  const sumBy = (predicate: (line: typeof lines[number]) => bigint): number => {
+    const value = lines.reduce((sum, line) => sum + predicate(line), 0n);
+    const numberValue = Number(value);
+    if (!Number.isSafeInteger(numberValue) || numberValue > 2_147_483_647 || numberValue < -2_147_483_648) {
+      throw new HTTPException(400, { message: '结算汇总超出当前批次金额上限' });
+    }
+    return numberValue;
+  };
+  const grossAmount = sumBy((line) => line.sourceType === 'payment.capture' || line.sourceType === 'payment.preauth.capture' ? line.creditAmount - line.debitAmount : 0n);
+  const feeAmount = sumBy((line) => line.sourceType === 'payment.fee' ? line.debitAmount - line.creditAmount : line.sourceType === 'payment.fee_refund' ? line.creditAmount - line.debitAmount : 0n);
+  const refundAmount = sumBy((line) => line.sourceType === 'payment.refund' ? line.debitAmount - line.creditAmount : 0n);
+  const sharingAmount = sumBy((line) => line.sourceType === 'payment.sharing' ? line.debitAmount - line.creditAmount : line.sourceType === 'payment.sharing_reversal' ? line.creditAmount - line.debitAmount : 0n);
+  const orderCount = new Set(lines.filter((line) => line.sourceType === 'payment.capture' || line.sourceType === 'payment.preauth.capture').map((line) => line.sourceId)).size;
   try {
-    const [row] = await db
-      .insert(paymentSettlementBatches)
-      .values({
+    const row = await db.transaction(async (tx) => {
+      const [batch] = await tx.insert(paymentSettlementBatches).values({
         batchNo: genNo(),
-        channel: input.channel,
+        channel: scope.channel,
+        appId: input.applicationId,
+        channelConfigId: input.channelConfigId,
+        currency,
         periodStart: input.periodStart,
         periodEnd: input.periodEnd,
         status: 'pending',
-        orderCount: Number(orderAgg?.orderCount ?? 0),
+        orderCount,
         grossAmount,
         feeAmount,
         refundAmount,
         sharingAmount,
         netAmount,
-        remark,
-        tenantId: scope.batchTenantId,
-      })
-      .returning();
+        remark: input.remark ?? null,
+        tenantId,
+      }).returning();
+      await tx.insert(paymentSettlementItems).values(lines.map((line, index) => ({
+        batchId: batch.id,
+        journalLineId: line.lineId,
+        amount: signedAmounts[index],
+        appId: input.applicationId,
+        channelConfigId: input.channelConfigId,
+        currency,
+        tenantId,
+      })));
+      return batch;
+    });
     return mapSettlementBatch(row);
   } catch (err) {
-    rethrowPgUniqueViolation(err, '该渠道该账期的结算批次已存在，请勿重复生成');
+    rethrowPgUniqueViolation(err, '结算批次与其他账期包含重复资金分录，请刷新后重试');
   }
 }
 
-/** T+1 定时结算：为昨日账期按「渠道 × 租户」自动生成结算批次（无交易的组合跳过，已生成的幂等跳过）。 */
+/** T+1 定时结算：认领截至昨日的全部未结算分录，负净额自动结转到后续账期。 */
 export async function generateDailySettlements(): Promise<{ generated: number; skipped: number }> {
   const billDate = formatDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  const start = parseDateRangeStart(billDate);
   const end = parseDateRangeEnd(billDate);
-  if (!start || !end) return { generated: 0, skipped: 0 };
+  if (!end) return { generated: 0, skipped: 0 };
 
-  // 昨日有成功交易或成功退款的（渠道, 租户）组合
-  const orderScopes = await db
-    .selectDistinct({ channel: paymentOrders.channel, tenantId: paymentOrders.tenantId })
-    .from(paymentOrders)
-    .where(and(inArray(paymentOrders.status, ['success', 'refunding', 'refunded']), between(paymentOrders.paidAt, start, end)));
-  const refundScopes = await db
-    .selectDistinct({ channel: paymentRefunds.channel, tenantId: paymentRefunds.tenantId })
-    .from(paymentRefunds)
-    .where(and(eq(paymentRefunds.status, 'success'), between(paymentRefunds.refundedAt, start, end)));
-
-  const scopes = new Map<string, { channel: PaymentChannel; tenantId: number | null }>();
-  for (const s of [...orderScopes, ...refundScopes]) {
-    scopes.set(`${s.channel}:${s.tenantId ?? 'null'}`, { channel: s.channel, tenantId: s.tenantId ?? null });
-  }
+  const scopes = await db
+    .select({
+      applicationId: paymentJournals.appId,
+      channelConfigId: paymentJournals.channelConfigId,
+      currency: paymentJournals.currency,
+      tenantId: paymentJournals.tenantId,
+      firstPostedAt: sql<Date>`min(${paymentJournals.postedAt})`,
+    })
+    .from(paymentJournalLines)
+    .innerJoin(paymentJournals, eq(paymentJournals.id, paymentJournalLines.journalId))
+    .innerJoin(paymentLedgerAccounts, eq(paymentLedgerAccounts.id, paymentJournalLines.accountId))
+    .leftJoin(paymentSettlementItems, eq(paymentSettlementItems.journalLineId, paymentJournalLines.id))
+    .where(and(
+      isNull(paymentSettlementItems.id),
+      inArray(paymentJournals.sourceType, SETTLEMENT_ELIGIBLE_SOURCE_TYPES),
+      eq(paymentLedgerAccounts.code, 'merchant_available'),
+      lte(paymentJournals.postedAt, end),
+    ))
+    .groupBy(
+      paymentJournals.appId,
+      paymentJournals.channelConfigId,
+      paymentJournals.currency,
+      paymentJournals.tenantId,
+    );
 
   let generated = 0;
   let skipped = 0;
-  for (const { channel, tenantId } of scopes.values()) {
-    const tenantWhereOrders = tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, tenantId);
-    const tenantWhereRefunds = tenantId == null ? isNull(paymentRefunds.tenantId) : eq(paymentRefunds.tenantId, tenantId);
-    const tenantWhereSharing = tenantId == null ? isNull(paymentSharingOrders.tenantId) : eq(paymentSharingOrders.tenantId, tenantId);
+  for (const { applicationId, channelConfigId, currency, tenantId, firstPostedAt } of scopes) {
     try {
-      await generateSettlementScoped(
-        { channel, periodStart: billDate, periodEnd: billDate, remark: 'T+1 自动结算' },
-        { batchTenantId: tenantId, orderWhere: tenantWhereOrders, refundWhere: tenantWhereRefunds, sharingWhere: tenantWhereSharing },
-      );
+      await generateSettlement({
+        applicationId,
+        channelConfigId,
+        currency,
+        periodStart: formatDate(firstPostedAt),
+        periodEnd: billDate,
+        remark: 'T+1 自动结算',
+      }, tenantId ?? null);
       generated++;
     } catch (err) {
       if (err instanceof HTTPException && err.status === 400) {
@@ -239,46 +319,113 @@ export async function generateDailySettlements(): Promise<{ generated: number; s
         skipped++;
         continue;
       }
-      logger.error('[payment-settlement] auto generate failed', { channel, tenantId, billDate, err });
+      logger.error('[payment-settlement] auto generate failed', { applicationId, channelConfigId, tenantId, billDate, err });
     }
   }
   return { generated, skipped };
 }
 
 const ALLOWED_TRANSITIONS: Record<PaymentSettlementStatus, PaymentSettlementStatus[]> = {
-  pending: ['settling', 'failed'],
+  pending: ['settling'],
   settling: ['settled', 'failed'],
   settled: [],
   failed: [],
 };
 
-/** 状态机流转。结算完成（settled）时记一条资金台账（type=settlement, direction=out）。 */
-export async function transitionSettlement(id: number, target: PaymentSettlementStatus): Promise<PaymentSettlementBatch> {
+/** 状态机流转与双分录同事务提交，避免结算状态和资金凭证分离。 */
+export async function transitionSettlement(
+  id: number,
+  input: { status: PaymentSettlementStatus; failureReason?: string; payoutReference?: string },
+): Promise<PaymentSettlementBatch> {
   const batch = await ensureBatch(id);
+  const target = input.status;
   if (!ALLOWED_TRANSITIONS[batch.status].includes(target)) {
     throw new HTTPException(400, { message: `不允许从「${batch.status}」流转到「${target}」` });
   }
-  const settledAt = target === 'settled' ? new Date() : batch.settledAt;
-  const [row] = await db
-    .update(paymentSettlementBatches)
-    .set({ status: target, settledAt })
-    .where(eq(paymentSettlementBatches.id, id))
-    .returning();
-  if (target === 'settled' && row.netAmount > 0) {
-    await recordLedgerEntry({
-      direction: 'out',
-      type: 'settlement',
-      amount: row.netAmount,
-      channel: row.channel,
-      tenantId: row.tenantId,
-      remark: `结算批次 ${row.batchNo} 到账`,
-    });
+  if (target === 'failed' && !input.failureReason?.trim()) {
+    throw new HTTPException(400, { message: '标记结算失败时必须填写失败原因' });
   }
+  if (target === 'settled' && !input.payoutReference?.trim()) {
+    throw new HTTPException(400, { message: '确认结算到账时必须填写出款或到账参考号' });
+  }
+  const operatorId = currentUser().userId;
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(paymentSettlementBatches)
+      .set({
+        status: target,
+        settledAt: target === 'settled' ? new Date() : batch.settledAt,
+        failureReason: target === 'failed' ? input.failureReason!.trim() : null,
+        payoutReference: target === 'settled' ? input.payoutReference!.trim() : batch.payoutReference,
+        version: sql`${paymentSettlementBatches.version} + 1`,
+      })
+      .where(and(
+        eq(paymentSettlementBatches.id, id),
+        eq(paymentSettlementBatches.status, batch.status),
+        eq(paymentSettlementBatches.version, batch.version),
+      ))
+      .returning();
+    if (!updated) throw new HTTPException(409, { message: '结算批次状态已变化，请刷新后重试' });
+
+    const baseJournal = {
+      tenantId: updated.tenantId ?? null,
+      operatorId,
+      sourceId: updated.batchNo,
+      appId: updated.appId,
+      channelConfigId: updated.channelConfigId,
+      currency: updated.currency,
+    };
+    if (batch.status === 'pending' && target === 'settling') {
+      await postSystemJournalWithin(tx, {
+        ...baseJournal,
+        sourceType: 'settlement.initiated',
+        description: `结算批次 ${updated.batchNo} 开始出款`,
+        lines: [
+          { accountCode: 'merchant_available', debitAmount: String(updated.netAmount), memo: '结算锁定商户可用余额' },
+          { accountCode: 'payout_payable', creditAmount: String(updated.netAmount), memo: '形成结算出款应付' },
+        ],
+      });
+    } else if (batch.status === 'settling' && target === 'settled') {
+      await postSystemJournalWithin(tx, {
+        ...baseJournal,
+        sourceType: 'settlement.paid',
+        description: `结算批次 ${updated.batchNo} 出款完成（${input.payoutReference!.trim()}）`,
+        lines: [
+          { accountCode: 'payout_payable', debitAmount: String(updated.netAmount), memo: '结算出款应付清偿' },
+          { accountCode: 'provider_clearing', creditAmount: String(updated.netAmount), memo: '渠道清算资金减少' },
+        ],
+      });
+    } else if (batch.status === 'settling' && target === 'failed') {
+      await postSystemJournalWithin(tx, {
+        ...baseJournal,
+        sourceType: 'settlement.failed',
+        description: `结算批次 ${updated.batchNo} 出款失败：${input.failureReason!.trim()}`,
+        lines: [
+          { accountCode: 'payout_payable', debitAmount: String(updated.netAmount), memo: '释放结算出款应付' },
+          { accountCode: 'merchant_available', creditAmount: String(updated.netAmount), memo: '恢复商户可用余额' },
+        ],
+      });
+      // 失败批次保留批次审计记录，但释放逐笔认领，使后续结算可重新生成。
+      await tx.delete(paymentSettlementItems).where(eq(paymentSettlementItems.batchId, updated.id));
+    }
+    return updated;
+  });
   return mapSettlementBatch(row);
 }
 
 export async function deleteSettlement(id: number): Promise<void> {
   const batch = await ensureBatch(id);
-  if (batch.status === 'settling') throw new HTTPException(400, { message: '结算中批次不可删除' });
-  await db.delete(paymentSettlementBatches).where(eq(paymentSettlementBatches.id, id));
+  if (batch.status !== 'pending') throw new HTTPException(400, { message: '只有未开始的结算批次可以删除；处理中及终态批次必须保留审计记录' });
+  await db.transaction(async (tx) => {
+    await tx.delete(paymentSettlementItems).where(eq(paymentSettlementItems.batchId, id));
+    const [deleted] = await tx
+      .delete(paymentSettlementBatches)
+      .where(and(
+        eq(paymentSettlementBatches.id, id),
+        eq(paymentSettlementBatches.status, 'pending'),
+        eq(paymentSettlementBatches.version, batch.version),
+      ))
+      .returning({ id: paymentSettlementBatches.id });
+    if (!deleted) throw new HTTPException(409, { message: '结算批次状态已变化，请刷新后重试' });
+  });
 }

@@ -19,6 +19,8 @@ export interface OpenPlatformEvent {
   eventId: string;
   /** 应用域事件的 AppKey（= oauth2_clients.client_id）；站点域事件为 null */
   clientId: string | null;
+  /** 事件所属租户；支付等强隔离事件必须显式携带。 */
+  tenantId?: number | null;
   /** 站点域事件的归属范围，供订阅按站点过滤 */
   scope?: { siteId: number };
   occurredAt: string;
@@ -28,6 +30,7 @@ export interface OpenPlatformEvent {
 export interface OpenEventInput {
   type: string;
   clientId?: string | null;
+  tenantId?: number | null;
   scope?: { siteId: number };
   data?: Record<string, unknown>;
   eventId?: string;
@@ -52,6 +55,7 @@ class OpenEventBus {
     return {
       type: input.type,
       clientId: input.clientId ?? null,
+      ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
       ...(input.scope ? { scope: input.scope } : {}),
       eventId: input.eventId ?? randomUUID(),
       occurredAt: formatDateTime(new Date()),

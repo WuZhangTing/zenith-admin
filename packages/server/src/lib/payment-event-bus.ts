@@ -11,7 +11,7 @@
  */
 import { EventEmitter } from 'node:events';
 import { randomUUID } from 'node:crypto';
-import type { PaymentChannel } from '@zenith/shared/payment';
+import type { PaymentChannel, PaymentMethod } from '@zenith/shared/payment';
 import logger from './logger';
 import { formatDateTime } from './datetime';
 
@@ -31,7 +31,12 @@ export interface PaymentEvent {
   bizType: string;
   bizId: string;
   channel: PaymentChannel;
+  channelConfigId: number;
+  payMethod?: PaymentMethod;
+  appId?: number | null;
+  currency: string;
   amount: number;
+  originalAmount?: number | null;
   /** 退款事件时为退款单号 */
   refundNo?: string;
   refundAmount?: number;

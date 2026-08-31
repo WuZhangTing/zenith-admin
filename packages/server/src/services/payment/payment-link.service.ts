@@ -3,20 +3,23 @@
  * 后台生成可分享的收款链接（固定/用户填写金额，可限次/限时），
  * 公开端点按 token 展示并下单（复用 payment.service.createPayment）。
  */
-import { and, desc, eq, gt, isNull, like, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomBytes, randomInt } from 'node:crypto';
 import { db } from '../../db';
-import { paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
+import { paymentCashierSessions, paymentLinkRedemptions, paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { createPayment } from './payment.service';
+import { bindCashierSession, bindCashierSessionAfterCreateFailure, buildCashierSessionExpiry, createCashierSession, failCashierSession, getPublicCashierSession, releaseExpiredCashierUseSlots } from './payment-cashier-session.service';
 import type { CreatePaymentLinkInput, UpdatePaymentLinkInput } from '@zenith/shared/payment';
-import type { CreatePaymentResult, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentCashierMethod } from '@zenith/shared/payment';
+import type { PaymentCashierSession, PaymentLink, PaymentLinkPublic, PaymentLinkStatus, PaymentMethod, PaymentCashierMethod } from '@zenith/shared/payment';
+import { assertEffectiveCashierMethod, listEffectiveCashierMethods } from './payment-cashier-capability.service';
 
-const PUBLIC_LINK_PAY_METHODS = new Set<PaymentCashierMethod>(['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap', 'unionpay_qr']);
+const PUBLIC_LINK_PAY_METHOD_LIST = ['wechat_native', 'wechat_h5', 'alipay_page', 'alipay_wap', 'unionpay_qr'] as const satisfies readonly PaymentCashierMethod[];
+const PUBLIC_LINK_PAY_METHODS = new Set<PaymentCashierMethod>(PUBLIC_LINK_PAY_METHOD_LIST);
 
 function isPublicLinkPayMethod(method: PaymentMethod): method is PaymentCashierMethod {
   return PUBLIC_LINK_PAY_METHODS.has(method as PaymentCashierMethod);
@@ -33,8 +36,15 @@ function genToken(): string {
 export function computeLinkStatus(row: PaymentLinkRow): PaymentLinkStatus {
   if (row.status === 'disabled') return 'disabled';
   if (row.expiredAt && row.expiredAt.getTime() < Date.now()) return 'expired';
-  if (row.maxUses != null && row.usedCount >= row.maxUses) return 'expired';
+  if (row.maxUses != null && row.usedCount + row.reservedCount >= row.maxUses) return 'expired';
   return 'active';
+}
+
+function computeLinkUnavailableReason(row: PaymentLinkRow): PaymentLinkPublic['unavailableReason'] {
+  if (row.status === 'disabled') return 'disabled';
+  if (row.status === 'expired' || (row.expiredAt && row.expiredAt.getTime() < Date.now())) return 'expired';
+  if (row.maxUses != null && row.usedCount + row.reservedCount >= row.maxUses) return 'usage_limit';
+  return null;
 }
 
 export function mapLink(row: PaymentLinkRow): PaymentLink {
@@ -42,12 +52,14 @@ export function mapLink(row: PaymentLinkRow): PaymentLink {
     id: row.id,
     linkNo: row.linkNo,
     token: row.token,
+    appId: row.appId,
     subject: row.subject,
     amount: row.amount ?? null,
     payMethod: row.payMethod ?? null,
     bizType: row.bizType,
     maxUses: row.maxUses ?? null,
     usedCount: row.usedCount,
+    reservedCount: row.reservedCount,
     expiredAt: formatNullableDateTime(row.expiredAt),
     status: computeLinkStatus(row),
     remark: row.remark ?? null,
@@ -56,7 +68,7 @@ export function mapLink(row: PaymentLinkRow): PaymentLink {
   };
 }
 
-export function mapLinkPublic(row: PaymentLinkRow): PaymentLinkPublic {
+export function mapLinkPublic(row: PaymentLinkRow, availableMethods: PaymentLinkPublic['availableMethods']): PaymentLinkPublic {
   return {
     token: row.token,
     subject: row.subject,
@@ -64,8 +76,10 @@ export function mapLinkPublic(row: PaymentLinkRow): PaymentLinkPublic {
     payMethod: row.payMethod ?? null,
     bizType: row.bizType,
     status: computeLinkStatus(row),
+    unavailableReason: computeLinkUnavailableReason(row),
     expiredAt: formatNullableDateTime(row.expiredAt),
-    remainingUses: row.maxUses != null ? Math.max(0, row.maxUses - row.usedCount) : null,
+    remainingUses: row.maxUses != null ? Math.max(0, row.maxUses - row.usedCount - row.reservedCount) : null,
+    availableMethods,
   };
 }
 
@@ -73,7 +87,7 @@ export interface ListLinksQuery {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  status?: 'active' | 'disabled';
+  status?: PaymentLinkStatus;
 }
 
 export async function listLinks(q: ListLinksQuery) {
@@ -81,7 +95,26 @@ export async function listLinks(q: ListLinksQuery) {
   const pageSize = q.pageSize ?? 10;
   const conds = [];
   if (q.keyword) conds.push(like(paymentLinks.subject, `%${escapeLike(q.keyword)}%`));
-  if (q.status) conds.push(eq(paymentLinks.status, q.status));
+  if (q.status === 'active') {
+    conds.push(and(
+      eq(paymentLinks.status, 'active'),
+      or(isNull(paymentLinks.expiredAt), gt(paymentLinks.expiredAt, new Date())),
+      or(isNull(paymentLinks.maxUses), sql`${paymentLinks.usedCount} + ${paymentLinks.reservedCount} < ${paymentLinks.maxUses}`),
+    ));
+  } else if (q.status === 'expired') {
+    conds.push(or(
+      eq(paymentLinks.status, 'expired'),
+      and(
+        eq(paymentLinks.status, 'active'),
+        or(
+          and(sql`${paymentLinks.expiredAt} is not null`, sql`${paymentLinks.expiredAt} <= now()`),
+          and(sql`${paymentLinks.maxUses} is not null`, sql`${paymentLinks.usedCount} + ${paymentLinks.reservedCount} >= ${paymentLinks.maxUses}`),
+        ),
+      ),
+    ));
+  } else if (q.status === 'disabled') {
+    conds.push(eq(paymentLinks.status, 'disabled'));
+  }
   const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentLinks, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentLinks, where),
@@ -108,12 +141,49 @@ function parseExpiredAt(value?: string): Date | null {
   return d;
 }
 
+async function listLinkCashierMethods(input: {
+  applicationId: number;
+  tenantId: number | null;
+  payMethod?: PaymentMethod | null;
+}): Promise<PaymentLinkPublic['availableMethods']> {
+  if (input.payMethod && !isPublicLinkPayMethod(input.payMethod)) return [];
+  const methods = await listEffectiveCashierMethods({
+    tenantId: input.tenantId,
+    applicationId: input.applicationId,
+    currency: 'CNY',
+    allowedMethods: PUBLIC_LINK_PAY_METHOD_LIST,
+    fixedMethod: input.payMethod as PaymentCashierMethod | null | undefined,
+  });
+  return methods.map(({ method, label, icon }) => ({ method, label, icon }));
+}
+
+async function assertLinkConfigurationAvailable(input: {
+  applicationId: number;
+  tenantId: number | null;
+  payMethod?: PaymentMethod | null;
+}): Promise<void> {
+  if (input.payMethod && !isPublicLinkPayMethod(input.payMethod)) {
+    throw new HTTPException(400, { message: '该支付方式不支持公开收银台' });
+  }
+  const methods = await listLinkCashierMethods(input);
+  if (methods.length === 0) {
+    throw new HTTPException(400, {
+      message: input.payMethod
+        ? `支付应用绑定的商户配置当前不支持支付方式 ${input.payMethod}`
+        : '支付应用当前没有可用的公开收银台支付方式',
+    });
+  }
+}
+
 export async function createLink(input: CreatePaymentLinkInput): Promise<PaymentLink> {
+  const tenantId = getCreateTenantId(currentUser());
+  await assertLinkConfigurationAvailable({ applicationId: input.applicationId, tenantId, payMethod: input.payMethod });
   const [row] = await db
     .insert(paymentLinks)
     .values({
       linkNo: genLinkNo(),
       token: genToken(),
+      appId: input.applicationId,
       subject: input.subject,
       amount: input.amount ?? null,
       payMethod: input.payMethod ?? null,
@@ -122,14 +192,16 @@ export async function createLink(input: CreatePaymentLinkInput): Promise<Payment
       expiredAt: parseExpiredAt(input.expiredAt),
       status: input.status ?? 'active',
       remark: input.remark ?? null,
-      tenantId: getCreateTenantId(currentUser()),
+      tenantId,
     })
     .returning();
   return mapLink(row);
 }
 
 export async function updateLink(id: number, input: UpdatePaymentLinkInput): Promise<PaymentLink> {
-  await ensureLink(id);
+  const existing = await ensureLink(id);
+  const nextMethod = input.payMethod !== undefined ? input.payMethod : existing.payMethod;
+  await assertLinkConfigurationAvailable({ applicationId: existing.appId, tenantId: existing.tenantId ?? null, payMethod: nextMethod });
   const set: Partial<PaymentLinkRow> = {};
   if (input.subject !== undefined) set.subject = input.subject;
   if (input.amount !== undefined) set.amount = input.amount ?? null;
@@ -139,19 +211,54 @@ export async function updateLink(id: number, input: UpdatePaymentLinkInput): Pro
   if (input.expiredAt !== undefined) set.expiredAt = parseExpiredAt(input.expiredAt);
   if (input.status !== undefined) set.status = input.status;
   if (input.remark !== undefined) set.remark = input.remark ?? null;
-  const tc = tenantCondition(paymentLinks, currentUser());
-  const [row] = await db.update(paymentLinks).set(set).where(and(eq(paymentLinks.id, id), tc)).returning();
-  return mapLink(row);
+  return db.transaction(async (tx) => {
+    const tc = tenantCondition(paymentLinks, currentUser());
+    const [locked] = await tx.select().from(paymentLinks).where(and(eq(paymentLinks.id, id), tc)).for('update').limit(1);
+    if (!locked) throw new HTTPException(404, { message: '支付链接不存在' });
+    const nextMaxUses = input.maxUses !== undefined ? input.maxUses : locked.maxUses;
+    if (nextMaxUses != null && nextMaxUses < locked.usedCount + locked.reservedCount) {
+      throw new HTTPException(400, { message: '使用上限不能小于已核销次数与有效预占次数之和' });
+    }
+    const [row] = await tx.update(paymentLinks).set(set).where(eq(paymentLinks.id, id)).returning();
+    return mapLink(row);
+  });
 }
 
 export async function deleteLink(id: number): Promise<void> {
-  await ensureLink(id);
+  const link = await ensureLink(id);
+  const sessionCount = await db.$count(paymentCashierSessions, eq(paymentCashierSessions.linkId, id));
+  if (sessionCount > 0) {
+    throw new HTTPException(400, { message: `该链接已有 ${sessionCount} 个收银台会话，请停用而不是删除` });
+  }
+  const linkedOrderCount = await db.$count(
+    paymentOrders,
+    and(
+      eq(paymentOrders.bizType, link.bizType),
+      like(paymentOrders.bizId, `${link.linkNo}:%`),
+      link.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, link.tenantId),
+    ),
+  );
+  if (linkedOrderCount > 0) {
+    throw new HTTPException(400, { message: `该链接已关联 ${linkedOrderCount} 笔支付订单，请停用而不是删除` });
+  }
+  const redemptionCount = await db.$count(paymentLinkRedemptions, eq(paymentLinkRedemptions.linkId, id));
+  if (redemptionCount > 0) {
+    throw new HTTPException(400, { message: `该链接已有 ${redemptionCount} 笔成功支付，请停用而不是删除` });
+  }
   await db.delete(paymentLinks).where(eq(paymentLinks.id, id));
 }
 
 /** 重置链接 token（安全轮换）：生成新 token，旧分享链接立即失效。 */
 export async function rotateLinkToken(id: number): Promise<PaymentLink> {
   await ensureLink(id);
+  const activeSessionCount = await db.$count(paymentCashierSessions, and(
+    eq(paymentCashierSessions.linkId, id),
+    inArray(paymentCashierSessions.status, ['ready', 'creating', 'awaiting', 'processing', 'unknown']),
+    gt(paymentCashierSessions.expiresAt, new Date()),
+  ));
+  if (activeSessionCount > 0) {
+    throw new HTTPException(400, { message: `该链接仍有 ${activeSessionCount} 个进行中的收银台会话，暂不可轮换 token` });
+  }
   const tc = tenantCondition(paymentLinks, currentUser());
   const [row] = await db.update(paymentLinks).set({ token: genToken() }).where(and(eq(paymentLinks.id, id), tc)).returning();
   return mapLink(row);
@@ -165,21 +272,17 @@ async function getLinkRowByToken(token: string): Promise<PaymentLinkRow> {
 }
 
 export async function getPublicLink(token: string): Promise<PaymentLinkPublic> {
-  return mapLinkPublic(await getLinkRowByToken(token));
-}
-
-/** 公开查询收银台订单状态（轮询用；校验订单归属该链接，防止探测他人订单） */
-export async function getPublicLinkOrderStatus(token: string, orderNo: string): Promise<{ status: string; paidAt: string | null }> {
-  const link = await getLinkRowByToken(token);
-  const [order] = await db
-    .select({ status: paymentOrders.status, paidAt: paymentOrders.paidAt, bizType: paymentOrders.bizType, bizId: paymentOrders.bizId })
-    .from(paymentOrders)
-    .where(eq(paymentOrders.orderNo, orderNo))
-    .limit(1);
-  if (!order || order.bizType !== link.bizType || !order.bizId.startsWith(`${link.linkNo}:`)) {
-    throw new HTTPException(404, { message: '订单不存在' });
+  let row = await getLinkRowByToken(token);
+  if (row.maxUses != null && row.reservedCount > 0) {
+    await releaseExpiredCashierUseSlots(row.id);
+    row = await getLinkRowByToken(token);
   }
-  return { status: order.status, paidAt: formatNullableDateTime(order.paidAt) };
+  const availableMethods = await listLinkCashierMethods({
+    applicationId: row.appId,
+    tenantId: row.tenantId ?? null,
+    payMethod: row.payMethod,
+  });
+  return mapLinkPublic(row, availableMethods);
 }
 
 export interface PayByLinkInput {
@@ -189,9 +292,13 @@ export interface PayByLinkInput {
   clientIp?: string;
 }
 
-/** 公开下单：校验链接有效性 + 解析金额/方式 → createPayment → 原子自增 usedCount。 */
-export async function payByLink(token: string, input: PayByLinkInput): Promise<{ orderNo: string; payParams: CreatePaymentResult }> {
-  const row = await getLinkRowByToken(token);
+/** 公开下单：先持久化 Cashier Session，再创建支付并保存订单与支付参数。 */
+export async function payByLink(token: string, input: PayByLinkInput): Promise<PaymentCashierSession> {
+  let row = await getLinkRowByToken(token);
+  if (row.maxUses != null && row.reservedCount > 0) {
+    await releaseExpiredCashierUseSlots(row.id);
+    row = await getLinkRowByToken(token);
+  }
   const status = computeLinkStatus(row);
   if (status === 'disabled') throw new HTTPException(400, { message: '该支付链接已停用' });
   if (status === 'expired') throw new HTTPException(400, { message: '该支付链接已过期或已达使用上限' });
@@ -206,43 +313,136 @@ export async function payByLink(token: string, input: PayByLinkInput): Promise<{
   if (!isPublicLinkPayMethod(payMethod)) {
     throw new HTTPException(400, { message: '该支付方式暂不支持在公开收款页发起' });
   }
-
-  const [reserved] = await db
-    .update(paymentLinks)
-    .set({ usedCount: sql`${paymentLinks.usedCount} + 1` })
-    .where(
-      and(
-        eq(paymentLinks.id, row.id),
-        eq(paymentLinks.status, 'active'),
-        or(isNull(paymentLinks.expiredAt), gt(paymentLinks.expiredAt, new Date())),
-        row.maxUses != null ? lt(paymentLinks.usedCount, row.maxUses) : undefined,
-      ),
-    )
-    .returning({ id: paymentLinks.id });
-
-  if (!reserved) {
-    throw new HTTPException(400, { message: '该支付链接已过期或已达使用上限' });
-  }
-
+  await assertEffectiveCashierMethod({
+    tenantId: row.tenantId ?? null,
+    applicationId: row.appId,
+    method: payMethod,
+    currency: 'CNY',
+    allowedMethods: PUBLIC_LINK_PAY_METHOD_LIST,
+  });
+  const expiresAt = buildCashierSessionExpiry(row);
+  if (expiresAt <= new Date()) throw new HTTPException(400, { message: '该支付链接已过期' });
+  const session = await createCashierSession({ link: row, linkToken: token, payMethod, amount, expiresAt });
+  const bizId = `${row.linkNo}:${session.sessionToken}`;
+  const expireMinutes = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 60_000));
   try {
-    return await createPayment({
+    const result = await createPayment({
       bizType: row.bizType,
-      // 每次下单生成唯一 bizId（linkNo:随机后缀）：同一链接可由多位付款人并发支付，
-      // 不能共享 bizId，否则会命中下单业务幂等（payment_orders_active_biz_uq）错误复用他人订单
-      bizId: `${row.linkNo}:${randomBytes(8).toString('hex')}`,
+      bizId,
       subject: row.subject,
       amount,
+      currency: 'CNY',
       payMethod,
       openId: input.openId,
-      expireMinutes: 30,
+      expireMinutes,
       clientIp: input.clientIp,
       tenantId: row.tenantId,
+      applicationId: row.appId,
+      idempotencyKey: `cashier:${session.sessionToken}`,
+      returnUrl: session.returnUrl,
     });
+    const [order] = await db.select().from(paymentOrders).where(eq(paymentOrders.orderNo, result.orderNo)).limit(1);
+    if (!order) throw new HTTPException(409, { message: '支付订单创建后无法回读' });
+    const bound = await bindCashierSession({ session, order, payParams: result.payParams });
+    if (order.status === 'success' || order.status === 'refunding' || order.status === 'refunded') {
+      await recordPaymentLinkRedemption({
+        orderNo: order.orderNo,
+        bizType: order.bizType,
+        bizId: order.bizId,
+        appId: order.appId,
+        tenantId: order.tenantId,
+      });
+      return getPublicCashierSession(token, session.sessionToken);
+    }
+    return bound;
   } catch (err) {
-    await db
-      .update(paymentLinks)
-      .set({ usedCount: sql`${paymentLinks.usedCount} - 1` })
-      .where(and(eq(paymentLinks.id, row.id), gt(paymentLinks.usedCount, 0)));
-    throw err;
+    const tenantScope = row.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, row.tenantId);
+    const [order] = await db
+      .select()
+      .from(paymentOrders)
+      .where(and(
+        eq(paymentOrders.appId, row.appId),
+        eq(paymentOrders.bizType, row.bizType),
+        eq(paymentOrders.bizId, bizId),
+        tenantScope,
+      ))
+      .limit(1);
+    if (order) {
+      const bound = await bindCashierSessionAfterCreateFailure({ session, order, error: err });
+      if (order.status === 'success' || order.status === 'refunding' || order.status === 'refunded') {
+        await recordPaymentLinkRedemption({
+          orderNo: order.orderNo,
+          bizType: order.bizType,
+          bizId: order.bizId,
+          appId: order.appId,
+          tenantId: order.tenantId,
+        });
+        return getPublicCashierSession(token, session.sessionToken);
+      }
+      return bound;
+    }
+    return failCashierSession(session, err);
   }
+}
+
+/** 支付成功事件核销链接次数；orderNo 唯一记录保证 Outbox 重放不重复累计。 */
+export async function recordPaymentLinkRedemption(event: {
+  orderNo: string;
+  bizType: string;
+  bizId: string;
+  appId?: number | null;
+  tenantId?: number | null;
+}): Promise<boolean> {
+  if (event.appId == null) return false;
+  const appId = event.appId;
+  const separator = event.bizId.indexOf(':');
+  if (separator <= 0) return false;
+  const linkNo = event.bizId.slice(0, separator);
+  const sessionToken = event.bizId.slice(separator + 1);
+  if (!sessionToken || sessionToken.includes(':')) return false;
+  const tenantId = event.tenantId ?? null;
+  const exactTenant = tenantId == null ? isNull(paymentLinks.tenantId) : eq(paymentLinks.tenantId, tenantId);
+  return db.transaction(async (tx) => {
+    const [link] = await tx
+      .select({ id: paymentLinks.id })
+      .from(paymentLinks)
+      .where(and(eq(paymentLinks.linkNo, linkNo), eq(paymentLinks.bizType, event.bizType), eq(paymentLinks.appId, appId), exactTenant))
+      .limit(1);
+    if (!link) return false;
+    const [session] = await tx
+      .select()
+      .from(paymentCashierSessions)
+      .where(and(
+        eq(paymentCashierSessions.sessionToken, sessionToken),
+        eq(paymentCashierSessions.linkId, link.id),
+        eq(paymentCashierSessions.appId, appId),
+        eq(paymentCashierSessions.orderNo, event.orderNo),
+        tenantId == null ? isNull(paymentCashierSessions.tenantId) : eq(paymentCashierSessions.tenantId, tenantId),
+      ))
+      .for('update')
+      .limit(1);
+    // A session may have been expired and its slot released before a delayed
+    // provider success callback arrives. The order is still the source of
+    // truth, so allow an idempotent redemption for `released` as well. Only a
+    // previously consumed slot is terminal and must be rejected.
+    if (!session || session.useSlotStatus === 'consumed') return false;
+    const [inserted] = await tx
+      .insert(paymentLinkRedemptions)
+      .values({ linkId: link.id, orderNo: event.orderNo, tenantId })
+      .onConflictDoNothing({ target: paymentLinkRedemptions.orderNo })
+      .returning({ id: paymentLinkRedemptions.id });
+    if (!inserted) return false;
+    await tx.update(paymentLinks).set({
+      usedCount: sql`${paymentLinks.usedCount} + 1`,
+      ...(session.useSlotStatus === 'reserved'
+        ? { reservedCount: sql`greatest(${paymentLinks.reservedCount} - 1, 0)` }
+        : {}),
+    }).where(eq(paymentLinks.id, link.id));
+    await tx.update(paymentCashierSessions).set({
+      status: 'succeeded',
+      useSlotStatus: 'consumed',
+      version: sql`${paymentCashierSessions.version} + 1`,
+    }).where(eq(paymentCashierSessions.id, session.id));
+    return true;
+  });
 }

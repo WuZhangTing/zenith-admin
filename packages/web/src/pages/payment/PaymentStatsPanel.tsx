@@ -49,7 +49,7 @@ export default function PaymentStatsPanel() {
 
   const channelData = (stats?.byChannel ?? []).map((c) => ({
     name: PAYMENT_CHANNEL_LABELS[c.channel as PaymentChannel] ?? c.channel,
-    amount: c.amount,
+    amount: Number((c.amount / 100).toFixed(2)),
     count: c.count,
     fill: CHANNEL_COLORS[c.channel] ?? '#6b7280',
   }));
@@ -62,7 +62,7 @@ export default function PaymentStatsPanel() {
     .filter((m) => m.amount > 0 || m.count > 0)
     .map((m) => ({
       name: PAYMENT_METHOD_LABELS[m.payMethod as PaymentMethod] ?? m.payMethod,
-      amount: m.amount,
+      amount: Number((m.amount / 100).toFixed(2)),
       count: m.count,
     }))
     .sort((a, b) => b.amount - a.amount);
@@ -96,7 +96,7 @@ export default function PaymentStatsPanel() {
     series: [{ field: 'amount', name: '成功金额', color: '#10b981' }],
     palette,
     colorByDatum: (d) => String(d?.['fill'] ?? '#6b7280'),
-    tooltip: { value: (v) => yuan(Number(v)) },
+    tooltip: { value: (v) => `¥${Number(v).toFixed(2)}` },
   }), [channelData, palette]);
 
   const statusSpec = useMemo(() => makePieSpec({
@@ -114,7 +114,7 @@ export default function PaymentStatsPanel() {
     xField: 'name',
     series: [{ field: 'amount', name: '成功金额', color: '#3b82f6' }],
     palette,
-    tooltip: { value: (v) => yuan(Number(v)) },
+    tooltip: { value: (v) => `¥${Number(v).toFixed(2)}` },
   }), [palette, payMethodData]);
 
   const bizTypeSpec = useMemo(() => makePieSpec({

@@ -11,20 +11,30 @@ import logger from '../logger';
 import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem, type RsaAlgorithm } from './signing';
 import { trySandboxNotify } from './sandbox-notify';
+import { ALIPAY_PROVIDER_MANIFEST } from './capabilities';
+import { assertApprovedProviderGateway, providerHttpOptions } from './provider-http';
+import { buildSignedSandboxOperation } from './sandbox-operation';
 import type {
   AdapterContext,
   ContractDeductInput,
   ContractDeductResult,
+  ContractQueryInput,
+  ContractQueryResult,
   ContractSignInput,
   ContractSignResult,
   PreauthCaptureInput,
   PreauthCaptureResult,
   PreauthFreezeInput,
   PreauthFreezeResult,
+  PreauthQueryInput,
+  PreauthQueryResult,
   NotifyResult,
   PaymentChannelAdapter,
   PaymentQueryResult,
   ProfitShareReceiver,
+  ProfitShareReverseInput,
+  ProfitShareReverseQueryResult,
+  ProfitShareReverseResult,
   ProfitShareResult,
   RefundQueryResult,
   RefundResult,
@@ -42,7 +52,10 @@ function requireField<T>(v: T | null | undefined, name: string): T {
 }
 
 function resolveGateway(ctx: AdapterContext): string {
-  return ctx.config.alipayGateway || (ctx.config.sandbox ? SANDBOX_GATEWAY : PROD_GATEWAY);
+  return assertApprovedProviderGateway(
+    ctx.config.alipayGateway || (ctx.config.sandbox ? SANDBOX_GATEWAY : PROD_GATEWAY),
+    'alipay',
+  );
 }
 
 function rsaAlgo(signType: string | null | undefined): RsaAlgorithm {
@@ -85,8 +98,13 @@ function encodeQuery(params: Record<string, string>): string {
 }
 
 /** 构造已签名参数集（page/wap 拼成跳转 URL，app 直接用 query 串） */
-function buildSignedParams(ctx: AdapterContext, method: string, bizContent: Record<string, unknown>): Record<string, string> {
-  const params = buildPublicParams(ctx, method);
+function buildSignedParams(
+  ctx: AdapterContext,
+  method: string,
+  bizContent: Record<string, unknown>,
+  extraPublicParams: Record<string, string> = {},
+): Record<string, string> {
+  const params = { ...buildPublicParams(ctx, method), ...extraPublicParams };
   params.biz_content = JSON.stringify(bizContent);
   params.sign = signParams(ctx, params);
   return params;
@@ -113,9 +131,11 @@ async function alipayApiCall(
   bizContent: Record<string, unknown>,
   responseKey: string,
 ): Promise<Record<string, any>> {
+  const respPubKey = ensurePem(requireField(ctx.config.alipayPublicKey, '支付宝公钥'), 'PUBLIC KEY');
   const params = buildSignedParams(ctx, method, bizContent);
   const formBody = encodeQuery(params);
   const resp = await httpPost(resolveGateway(ctx), formBody, {
+    ...providerHttpOptions(),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
   });
   const text = await resp.text();
@@ -123,9 +143,7 @@ async function alipayApiCall(
     logger.warn('[alipay] api error', { method, status: resp.status, body: text.slice(0, 500) });
     throw new HTTPException(502, { message: `支付宝接口错误(${resp.status})` });
   }
-  // 响应验签（仅当已配置支付宝公钥）：防止网关响应被中间人篡改
-  const respPubKey = ctx.config.alipayPublicKey ? ensurePem(ctx.config.alipayPublicKey, 'PUBLIC KEY') : '';
-  if (respPubKey && !verifyAlipayResponse(text, method, respPubKey, rsaAlgo(ctx.config.alipaySignType))) {
+  if (!verifyAlipayResponse(text, method, respPubKey, rsaAlgo(ctx.config.alipaySignType))) {
     logger.warn('[alipay] response signature invalid', { method });
     throw new HTTPException(502, { message: '支付宝响应验签失败' });
   }
@@ -186,6 +204,7 @@ function parseForm(raw: string): Record<string, string> {
 
 export const alipayAdapter: PaymentChannelAdapter = {
   channel: 'alipay',
+  manifest: ALIPAY_PROVIDER_MANIFEST,
 
   async createPayment(ctx, order): Promise<CreatePaymentResult> {
     const expiredAt = order.expiredAt ? formatDateTime(order.expiredAt) : undefined;
@@ -196,13 +215,23 @@ export const alipayAdapter: PaymentChannelAdapter = {
       switch (order.payMethod) {
         case 'alipay_page':
         case 'alipay_wap':
-          return { orderNo: order.orderNo, channel: 'alipay', payMethod: order.payMethod, payUrl: `https://sandbox.alipay.example/pay/${mockNo}`, expiredAt };
+          return {
+            orderNo: order.orderNo,
+            channel: 'alipay',
+            payMethod: order.payMethod,
+            payUrl: order.returnUrl
+              ? `https://sandbox.alipay.example/pay/${mockNo}?return_url=${encodeURIComponent(order.returnUrl)}`
+              : `https://sandbox.alipay.example/pay/${mockNo}`,
+            expiredAt,
+          };
         case 'alipay_app':
           return { orderNo: order.orderNo, channel: 'alipay', payMethod: order.payMethod, appOrderStr: `sandbox_order_str_${mockNo}`, expiredAt };
         default:
           throw new HTTPException(400, { message: `支付宝不支持的支付方式：${order.payMethod}` });
       }
     }
+    requireField(ctx.config.alipayPublicKey, '支付宝公钥');
+    requireField(ctx.config.alipaySellerId, '商户 PID(sellerId)');
     const bizBase: Record<string, unknown> = {
       out_trade_no: order.outTradeNo,
       total_amount: yuan(order.amount),
@@ -213,11 +242,21 @@ export const alipayAdapter: PaymentChannelAdapter = {
     const gateway = resolveGateway(ctx);
     switch (order.payMethod) {
       case 'alipay_page': {
-        const params = buildSignedParams(ctx, 'alipay.trade.page.pay', { ...bizBase, product_code: 'FAST_INSTANT_TRADE_PAY' });
+        const params = buildSignedParams(
+          ctx,
+          'alipay.trade.page.pay',
+          { ...bizBase, product_code: 'FAST_INSTANT_TRADE_PAY' },
+          order.returnUrl ? { return_url: order.returnUrl } : {},
+        );
         return { orderNo: order.orderNo, channel: 'alipay', payMethod: order.payMethod, payUrl: `${gateway}?${encodeQuery(params)}`, expiredAt };
       }
       case 'alipay_wap': {
-        const params = buildSignedParams(ctx, 'alipay.trade.wap.pay', { ...bizBase, product_code: 'QUICK_WAP_WAY' });
+        const params = buildSignedParams(
+          ctx,
+          'alipay.trade.wap.pay',
+          { ...bizBase, product_code: 'QUICK_WAP_WAY' },
+          order.returnUrl ? { return_url: order.returnUrl } : {},
+        );
         return { orderNo: order.orderNo, channel: 'alipay', payMethod: order.payMethod, payUrl: `${gateway}?${encodeQuery(params)}`, expiredAt };
       }
       case 'alipay_app': {
@@ -233,14 +272,34 @@ export const alipayAdapter: PaymentChannelAdapter = {
     if (ctx.config.sandbox) {
       // 沙箱无渠道侧订单：维持本地状态，由运营「模拟支付成功」推进
       await Promise.resolve();
-      return { status: order.status === 'success' ? 'success' : 'pending' };
+      return {
+        status: order.status === 'success' ? 'success' : 'pending',
+        merchantId: ctx.config.alipaySellerId ?? undefined,
+        providerAppId: ctx.config.alipayAppId ?? undefined,
+        currency: order.currency || 'CNY',
+      };
     }
     const res = await alipayApiCall(ctx, 'alipay.trade.query', { out_trade_no: order.outTradeNo }, 'alipay_trade_query_response');
     if (res.code !== '10000') return { status: 'pending', raw: res };
+    if (res.out_trade_no !== order.outTradeNo) {
+      throw new HTTPException(502, { message: '支付宝查单响应商户订单号不匹配' });
+    }
+    const paidAmount = centsFromYuan(res.total_amount);
+    if (paidAmount == null || paidAmount !== order.amount) {
+      throw new HTTPException(502, { message: '支付宝查单响应金额不匹配' });
+    }
+    const currency = String(res.trans_currency ?? res.pay_currency ?? 'CNY').toUpperCase();
+    if (currency !== order.currency.toUpperCase()) {
+      throw new HTTPException(502, { message: '支付宝查单响应币种不匹配' });
+    }
     return {
       status: mapAlipayState(res.trade_status),
       channelTradeNo: res.trade_no,
-      paidAmount: centsFromYuan(res.total_amount),
+      providerEventId: res.trade_no,
+      merchantId: requireField(ctx.config.alipaySellerId, '商户 PID(sellerId)'),
+      providerAppId: requireField(ctx.config.alipayAppId, 'AppId'),
+      currency,
+      paidAmount,
       paidAt: res.send_pay_date ? new Date(res.send_pay_date) : undefined,
       raw: res,
     };
@@ -302,6 +361,7 @@ export const alipayAdapter: PaymentChannelAdapter = {
     const params = parseForm(rawBody);
     const sign = params.sign ?? '';
     const signType = params.sign_type ?? 'RSA2';
+    const configuredSignType = ctx.config.alipaySignType ?? 'RSA2';
     const keys = Object.keys(params)
       .filter((k) => k !== 'sign' && k !== 'sign_type' && params[k] !== '')
       .sort(asciiCompare);
@@ -311,10 +371,28 @@ export const alipayAdapter: PaymentChannelAdapter = {
     const valid = pubKey ? rsaVerify(content, sign, pubKey, algorithm) : false;
     const ack = { body: valid ? 'success' : 'failure', contentType: 'text/plain', status: 200 };
     if (!valid) return { valid: false, scene: 'payment', tradeStatus: 'unknown', ack, message: '支付宝回调验签失败' };
+    if (signType !== configuredSignType) {
+      return { valid: false, scene: 'payment', tradeStatus: 'unknown', ack: { ...ack, body: 'failure' }, message: '支付宝回调签名算法与商户配置不匹配' };
+    }
+    const providerAppId = params.app_id;
+    if (!providerAppId || providerAppId !== ctx.config.alipayAppId) {
+      return { valid: false, scene: 'payment', tradeStatus: 'unknown', ack: { ...ack, body: 'failure' }, message: '支付宝回调 AppId 不匹配' };
+    }
+    const merchantId = params.seller_id;
+    if (!merchantId || merchantId !== ctx.config.alipaySellerId) {
+      return { valid: false, scene: 'payment', tradeStatus: 'unknown', ack: { ...ack, body: 'failure' }, message: '支付宝回调商户 PID 不匹配' };
+    }
+    if (!params.notify_id) {
+      return { valid: false, scene: 'payment', tradeStatus: 'unknown', ack: { ...ack, body: 'failure' }, message: '支付宝回调缺少通知标识' };
+    }
     return {
       valid: true,
       scene: 'payment',
       ack,
+      providerEventId: params.notify_id,
+      merchantId,
+      providerAppId,
+      currency: 'CNY',
       outTradeNo: params.out_trade_no,
       channelTradeNo: params.trade_no,
       tradeStatus: mapAlipayNotifyStatus(params.trade_status),
@@ -338,11 +416,46 @@ export const alipayAdapter: PaymentChannelAdapter = {
     }
   },
 
-  async profitShare(_ctx: AdapterContext, order, receiver: ProfitShareReceiver, _outSharingNo: string): Promise<ProfitShareResult> {
-    // 模拟实现：支付宝「分账请求」(alipay.trade.order.settle) 需签约分账协议并预先绑定分账关系，第一期保持模拟。
+  async profitShare(ctx: AdapterContext, order, receiver: ProfitShareReceiver, _outSharingNo: string): Promise<ProfitShareResult> {
+    if (!ctx.config.sandbox) {
+      throw new HTTPException(400, { message: '支付宝生产分账尚未实现，已拒绝执行，禁止以模拟结果记账' });
+    }
     logger.info('[alipay] simulate profit share', { orderNo: order.orderNo, account: receiver.account, amount: receiver.amount });
     await Promise.resolve();
     return { channelSharingNo: `ALISHARE${Date.now()}${Math.floor(Math.random() * 1e6)}`, status: 'success' };
+  },
+
+  async reverseProfitShare(ctx: AdapterContext, order, input: ProfitShareReverseInput): Promise<ProfitShareReverseResult> {
+    if (!ctx.config.sandbox) {
+      throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: alipay/profit-sharing.reverse/live' });
+    }
+    const signed = buildSignedSandboxOperation(ctx, 'ALIPSR', 'profit-sharing.reverse', {
+      orderNo: order.orderNo,
+      outSharingNo: input.outSharingNo,
+      channelSharingNo: input.channelSharingNo,
+      outReversalNo: input.outReversalNo,
+      amount: input.amount,
+      reason: input.reason,
+    });
+    logger.info('[alipay] signed sandbox profit-sharing reversal', { outReversalNo: input.outReversalNo, amount: input.amount });
+    await Promise.resolve();
+    return { channelReversalNo: signed.reference, status: 'success', raw: signed.raw };
+  },
+
+  async queryProfitShareReverse(ctx: AdapterContext, order, input: ProfitShareReverseInput): Promise<ProfitShareReverseQueryResult> {
+    if (!ctx.config.sandbox) {
+      throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: alipay/profit-sharing.reverse/live' });
+    }
+    const signed = buildSignedSandboxOperation(ctx, 'ALIPSR', 'profit-sharing.reverse', {
+      orderNo: order.orderNo,
+      outSharingNo: input.outSharingNo,
+      channelSharingNo: input.channelSharingNo,
+      outReversalNo: input.outReversalNo,
+      amount: input.amount,
+      reason: input.reason,
+    });
+    await Promise.resolve();
+    return { channelReversalNo: signed.reference, status: 'success', finishedAt: new Date(), raw: signed.raw };
   },
 
   async transfer(ctx: AdapterContext, input: TransferInput): Promise<TransferResult> {
@@ -398,8 +511,9 @@ export const alipayAdapter: PaymentChannelAdapter = {
   async signContract(ctx: AdapterContext, input: ContractSignInput): Promise<ContractSignResult> {
     if (ctx.config.sandbox) {
       logger.info('[alipay] simulate contract sign (sandbox)', { outContractNo: input.outContractNo, plan: input.planName });
+      const signed = buildSignedSandboxOperation(ctx, 'ALICT', 'contract.sign', { outContractNo: input.outContractNo });
       await Promise.resolve();
-      return { channelContractNo: `ALICT${Date.now()}${Math.floor(Math.random() * 1e6)}`, status: 'signed' };
+      return { channelContractNo: signed.reference, status: 'signed', raw: signed.raw };
     }
     throw new HTTPException(400, { message: '支付宝周期扣款需商户开通产品权限，当前仅支持沙箱渠道签约' });
   },
@@ -411,6 +525,17 @@ export const alipayAdapter: PaymentChannelAdapter = {
       return;
     }
     throw new HTTPException(400, { message: '支付宝周期扣款需商户开通产品权限，当前仅支持沙箱渠道解约' });
+  },
+
+  async queryContract(ctx: AdapterContext, input: ContractQueryInput): Promise<ContractQueryResult> {
+    if (!ctx.config.sandbox) throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: alipay/contract.query/live' });
+    const signed = buildSignedSandboxOperation(ctx, 'ALICT', 'contract.sign', { outContractNo: input.outContractNo });
+    await Promise.resolve();
+    return {
+      status: input.operation === 'terminate' ? 'terminated' : 'signed',
+      channelContractNo: input.channelContractNo ?? signed.reference,
+      raw: signed.raw,
+    };
   },
 
   async deductContract(ctx: AdapterContext, input: ContractDeductInput): Promise<ContractDeductResult> {
@@ -426,8 +551,9 @@ export const alipayAdapter: PaymentChannelAdapter = {
   async preauthFreeze(ctx: AdapterContext, input: PreauthFreezeInput): Promise<PreauthFreezeResult> {
     if (ctx.config.sandbox) {
       logger.info('[alipay] simulate preauth freeze (sandbox)', { outPreauthNo: input.outPreauthNo, amount: input.amount });
+      const signed = buildSignedSandboxOperation(ctx, 'ALIPA', 'preauth.freeze', { outPreauthNo: input.outPreauthNo });
       await Promise.resolve();
-      return { channelPreauthNo: `ALIPA${Date.now()}${Math.floor(Math.random() * 1e6)}`, status: 'frozen' };
+      return { channelPreauthNo: signed.reference, status: 'frozen', raw: signed.raw };
     }
     throw new HTTPException(400, { message: '支付宝资金预授权需商户开通产品权限，当前仅支持沙箱渠道冻结' });
   },
@@ -435,8 +561,9 @@ export const alipayAdapter: PaymentChannelAdapter = {
   async preauthCapture(ctx: AdapterContext, input: PreauthCaptureInput): Promise<PreauthCaptureResult> {
     if (ctx.config.sandbox) {
       logger.info('[alipay] simulate preauth capture (sandbox)', { outPreauthNo: input.outPreauthNo, captureAmount: input.captureAmount });
+      const signed = buildSignedSandboxOperation(ctx, 'ALIPAC', 'preauth.capture', { outPreauthNo: input.outPreauthNo, outTradeNo: input.outTradeNo });
       await Promise.resolve();
-      return { channelTradeNo: `ALIPAC${Date.now()}${Math.floor(Math.random() * 1e6)}`, status: 'success' };
+      return { channelTradeNo: signed.reference, status: 'success', raw: signed.raw };
     }
     throw new HTTPException(400, { message: '支付宝资金预授权需商户开通产品权限，当前仅支持沙箱渠道转支付' });
   },
@@ -448,5 +575,19 @@ export const alipayAdapter: PaymentChannelAdapter = {
       return;
     }
     throw new HTTPException(400, { message: '支付宝资金预授权需商户开通产品权限，当前仅支持沙箱渠道解冻' });
+  },
+
+  async queryPreauth(ctx: AdapterContext, input: PreauthQueryInput): Promise<PreauthQueryResult> {
+    if (!ctx.config.sandbox) throw new HTTPException(400, { message: 'CAPABILITY_UNSUPPORTED: alipay/preauth.query/live' });
+    if (input.operation === 'capture') {
+      const signed = buildSignedSandboxOperation(ctx, 'ALIPAC', 'preauth.capture', { outPreauthNo: input.outPreauthNo, outTradeNo: input.outTradeNo });
+      return { status: 'captured', channelPreauthNo: input.channelPreauthNo, channelTradeNo: signed.reference, raw: signed.raw };
+    }
+    const signed = buildSignedSandboxOperation(ctx, 'ALIPA', 'preauth.freeze', { outPreauthNo: input.outPreauthNo });
+    return {
+      status: input.operation === 'release' ? 'released' : 'frozen',
+      channelPreauthNo: input.channelPreauthNo ?? signed.reference,
+      raw: signed.raw,
+    };
   },
 };
