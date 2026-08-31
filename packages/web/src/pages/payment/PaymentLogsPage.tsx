@@ -42,7 +42,7 @@ export default function PaymentLogsPage() {  const {
   const data = listQuery.data ?? null;
 
   const columns: ColumnProps<PaymentNotifyLog>[] = [
-    { title: 'ID', dataIndex: 'id', width: 80 },
+    { title: 'ID', dataIndex: 'id', width: 100 },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '场景', dataIndex: 'scene', width: 100, render: (v: string) => (v === 'refund' ? '退款回调' : '支付回调') },
     copyableNoColumn('订单号', 'orderNo'),
@@ -151,7 +151,6 @@ export default function PaymentLogsPage() {  const {
         bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
         expandedRowRender={renderExpanded}
-        hideExpandedColumn={false}
         rowExpandable={(r) => !!(r && (r.rawBody || r.headers))}
         expandRowByClick
       />
