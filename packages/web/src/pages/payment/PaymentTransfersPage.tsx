@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { formatYuan, PAYMENT_CHANNEL_TAG_COLOR } from '@/utils/payment';
-import { Banner, Button, Form, Input, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { SendHorizontal } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -296,7 +296,7 @@ export default function PaymentTransfersPage() {
       <AppModal
         {...transferModal.modalProps}
         title="发起转账"
-        width={560}
+        width={660}
         onCancel={() => {
           if (createMutation.isPending) return;
           transferIdempotencyKey.current = null;
@@ -306,16 +306,40 @@ export default function PaymentTransfersPage() {
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="资金流出操作：微信渠道收款账号为用户 openid（转入零钱），支付宝渠道为登录账号。沙箱渠道为模拟转账。" />
         <Form key={transferModal.formKey} {...transferModal.formProps}>
-          <Form.Select field="applicationId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter loading={appsQuery.isFetching}
-            onChange={(value) => { setSelectedAppId((value as number | undefined) ?? null); transferModal.formApi.current?.setValue('channel', undefined); }} rules={[{ required: true, message: '请选择支付应用' }]} />
-          <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
-            optionList={createChannelOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择渠道' }]} />
-          <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={[{ value: 'CNY', label: 'CNY · 人民币' }]} disabled rules={[{ required: true, message: '请选择币种' }]} />
-          <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />
-          <Form.Input field="receiverName" label="收款人姓名" placeholder="可选（支付宝大额建议填写校验）" />
-          <Form.InputNumber field="amountYuan" label="转账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入转账金额' }]} />
-          <Form.Input field="bizType" label="业务类型" placeholder="可选" />
-          <Form.Input field="bizId" label="业务单号" placeholder="可选" />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="applicationId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter loading={appsQuery.isFetching}
+                onChange={(value) => { setSelectedAppId((value as number | undefined) ?? null); transferModal.formApi.current?.setValue('channel', undefined); }} rules={[{ required: true, message: '请选择支付应用' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Select field="channel" label="渠道" style={{ width: '100%' }}
+                optionList={createChannelOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择渠道' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={[{ value: 'CNY', label: 'CNY · 人民币' }]} disabled rules={[{ required: true, message: '请选择币种' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber field="amountYuan" label="转账金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入转账金额' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="receiverAccount" label="收款账号" placeholder="微信 openid / 支付宝登录账号" rules={[{ required: true, message: '收款账号不能为空' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="receiverName" label="收款人姓名" placeholder="可选（支付宝大额建议填写校验）" />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="bizType" label="业务类型" placeholder="可选" />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="bizId" label="业务单号" placeholder="可选" />
+            </Col>
+          </Row>
           <Form.TextArea
             field="remark"
             label="转账原因"
