@@ -22,7 +22,7 @@ import {
   type PaymentChannelConfigRow,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { tenantCondition, requireTenantScopeId } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { encryptField } from '../../lib/encryption';
 import { formatDateTime } from '../../lib/datetime';
@@ -125,6 +125,7 @@ export async function getChannelConfig(id: number): Promise<PaymentChannelConfig
 
 export async function createChannelConfig(input: CreatePaymentChannelConfigInput): Promise<PaymentChannelConfig> {
   const user = currentUser();
+  const tenantId = requireTenantScopeId(user);
   const values: NewPaymentChannelConfig = {
     name: input.name,
     channel: input.channel,
@@ -152,7 +153,7 @@ export async function createChannelConfig(input: CreatePaymentChannelConfigInput
     unionpayPublicKey: input.unionpayPublicKey ?? null,
     unionpayGateway: input.unionpayGateway ?? null,
     remark: input.remark ?? null,
-    tenantId: getCreateTenantId(user),
+    tenantId,
   };
   return db.transaction(async (tx) => {
     if (values.isDefault) {
@@ -182,6 +183,7 @@ async function countChannelConfigReferences(id: number): Promise<number> {
 
 export async function updateChannelConfig(id: number, input: UpdatePaymentChannelConfigInput): Promise<PaymentChannelConfig> {
   const user = currentUser();
+  requireTenantScopeId(user);
   const existing = await ensureChannelConfigExists(id);
   const referenceCount = await countChannelConfigReferences(id);
   const immutableIdentityChanged = referenceCount > 0 && (
@@ -257,6 +259,7 @@ export async function updateChannelConfig(id: number, input: UpdatePaymentChanne
 }
 
 export async function deleteChannelConfig(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   const existing = await ensureChannelConfigExists(id);
   // 三道闸：渠道配置被删除后，关联订单将无法退款/查单（密钥随配置一起消失），
   // 一律引导「停用」而非删除；仅无任何引用的配置可物理删除。
@@ -283,6 +286,7 @@ export async function deleteChannelConfig(id: number): Promise<void> {
 /** 将指定渠道配置设为该渠道的默认（同租户同渠道内互斥），并自动启用 */
 export async function setChannelAsDefault(id: number): Promise<PaymentChannelConfig> {
   const user = currentUser();
+  requireTenantScopeId(user);
   const existing = await ensureChannelConfigExists(id);
   return db.transaction(async (tx) => {
     await tx
