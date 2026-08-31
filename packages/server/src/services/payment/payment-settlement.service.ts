@@ -99,6 +99,25 @@ async function ensureBatch(id: number): Promise<PaymentSettlementBatchRow> {
   return row;
 }
 
+function exactSettlementTenantCondition(tenantId: number | null) {
+  return tenantId == null
+    ? isNull(paymentSettlementBatches.tenantId)
+    : eq(paymentSettlementBatches.tenantId, tenantId);
+}
+
+async function ensureWritableBatch(id: number, tenantId: number | null): Promise<PaymentSettlementBatchRow> {
+  const [row] = await db
+    .select()
+    .from(paymentSettlementBatches)
+    .where(and(
+      eq(paymentSettlementBatches.id, id),
+      exactSettlementTenantCondition(tenantId),
+    ))
+    .limit(1);
+  if (!row) throw new HTTPException(404, { message: '结算批次不存在' });
+  return row;
+}
+
 export async function getSettlement(id: number): Promise<PaymentSettlementBatch> {
   return mapSettlementBatch(await ensureBatch(id));
 }
@@ -337,7 +356,9 @@ export async function transitionSettlement(
   id: number,
   input: { status: PaymentSettlementStatus; failureReason?: string; payoutReference?: string },
 ): Promise<PaymentSettlementBatch> {
-  const batch = await ensureBatch(id);
+  const user = currentUser();
+  const tenantId = requireTenantScopeId(user);
+  const batch = await ensureWritableBatch(id, tenantId);
   const target = input.status;
   if (!ALLOWED_TRANSITIONS[batch.status].includes(target)) {
     throw new HTTPException(400, { message: `不允许从「${batch.status}」流转到「${target}」` });
@@ -348,7 +369,7 @@ export async function transitionSettlement(
   if (target === 'settled' && !input.payoutReference?.trim()) {
     throw new HTTPException(400, { message: '确认结算到账时必须填写出款或到账参考号' });
   }
-  const operatorId = currentUser().userId;
+  const operatorId = user.userId;
   const row = await db.transaction(async (tx) => {
     const [updated] = await tx
       .update(paymentSettlementBatches)
@@ -361,6 +382,7 @@ export async function transitionSettlement(
       })
       .where(and(
         eq(paymentSettlementBatches.id, id),
+        exactSettlementTenantCondition(tenantId),
         eq(paymentSettlementBatches.status, batch.status),
         eq(paymentSettlementBatches.version, batch.version),
       ))
@@ -414,7 +436,8 @@ export async function transitionSettlement(
 }
 
 export async function deleteSettlement(id: number): Promise<void> {
-  const batch = await ensureBatch(id);
+  const tenantId = requireTenantScopeId(currentUser());
+  const batch = await ensureWritableBatch(id, tenantId);
   if (batch.status !== 'pending') throw new HTTPException(400, { message: '只有未开始的结算批次可以删除；处理中及终态批次必须保留审计记录' });
   await db.transaction(async (tx) => {
     await tx.delete(paymentSettlementItems).where(eq(paymentSettlementItems.batchId, id));
@@ -422,6 +445,7 @@ export async function deleteSettlement(id: number): Promise<void> {
       .delete(paymentSettlementBatches)
       .where(and(
         eq(paymentSettlementBatches.id, id),
+        exactSettlementTenantCondition(tenantId),
         eq(paymentSettlementBatches.status, 'pending'),
         eq(paymentSettlementBatches.version, batch.version),
       ))

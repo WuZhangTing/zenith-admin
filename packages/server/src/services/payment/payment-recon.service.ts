@@ -191,6 +191,12 @@ export async function getReconBatch(id: number): Promise<PaymentReconBatch> {
   return mapReconBatch(row);
 }
 
+function exactReconBatchTenantCondition(tenantId: number | null): SQL {
+  return tenantId == null
+    ? isNull(paymentReconBatches.tenantId)
+    : eq(paymentReconBatches.tenantId, tenantId);
+}
+
 export interface ListReconItemsQuery {
   page?: number;
   pageSize?: number;
@@ -311,8 +317,15 @@ async function createReconBatchScoped(input: CreateReconInput, scope: ReconScope
 }
 
 export async function deleteReconBatch(id: number): Promise<void> {
-  await getReconBatch(id);
-  await db.delete(paymentReconBatches).where(eq(paymentReconBatches.id, id));
+  const tenantId = requireTenantScopeId(currentUser());
+  const [deleted] = await db
+    .delete(paymentReconBatches)
+    .where(and(
+      eq(paymentReconBatches.id, id),
+      exactReconBatchTenantCondition(tenantId),
+    ))
+    .returning({ id: paymentReconBatches.id });
+  if (!deleted) throw new HTTPException(404, { message: '对账批次不存在' });
 }
 
 // ─── 差异处理流 ───────────────────────────────────────────────────────────────
@@ -337,14 +350,17 @@ export function computeAdjustment(item: Pick<PaymentReconItemRow, 'result' | 'lo
  * 选择「已调账」时将状态流转和双分录凭证放在同一事务内，避免出现已处理但未记账。 */
 export async function handleReconItem(itemId: number, input: HandlePaymentReconItemInput): Promise<PaymentReconItem> {
   const user = currentUser();
+  const tenantId = requireTenantScopeId(user);
   return db.transaction(async (tx) => {
     const [item] = await tx.select().from(paymentReconItems).where(eq(paymentReconItems.id, itemId)).limit(1);
     if (!item) throw new HTTPException(404, { message: '对账明细不存在' });
-    const tc = tenantCondition(paymentReconBatches, user);
     const [batch] = await tx
       .select()
       .from(paymentReconBatches)
-      .where(and(eq(paymentReconBatches.id, item.batchId), tc))
+      .where(and(
+        eq(paymentReconBatches.id, item.batchId),
+        exactReconBatchTenantCondition(tenantId),
+      ))
       .limit(1);
     if (!batch) throw new HTTPException(404, { message: '对账批次不存在' });
     if (item.handleStatus == null) throw new HTTPException(400, { message: '该明细比对一致，无需处理' });
