@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Select, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
+import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS, PAYMENT_WEBHOOK_EVENTS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -10,6 +10,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import {
   openPlatformKeys,
+  paymentWebhookKeys,
   useBatchRetryWebhookDeliveries,
   useDeleteWebhook,
   useOpenAppOptions,
@@ -20,6 +21,7 @@ import {
   useWebhookDeliveries,
   useWebhookEvents,
   useWebhookList,
+  type WebhookApiScope,
 } from '@/hooks/queries/open-platform';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -37,13 +39,7 @@ const SIGN_MODE_OPTIONS = [
   { value: 'none', label: '不签名（仅非支付事件）' },
 ];
 
-const SENSITIVE_EVENTS = new Set([
-  'payment.succeeded',
-  'payment.closed',
-  'payment.failed',
-  'refund.succeeded',
-  'refund.failed',
-]);
+const SENSITIVE_EVENTS = new Set<string>(PAYMENT_WEBHOOK_EVENTS);
 
 const DELIVERY_STATUS_COLOR: Record<string, 'blue' | 'green' | 'red' | 'orange'> = { pending: 'blue', success: 'green', failed: 'red', retrying: 'orange' };
 
@@ -57,11 +53,16 @@ type FormValues = {
   status: 'enabled' | 'disabled';
 };
 
-export default function WebhooksPage() {
+export interface WebhooksPageProps {
+  scope?: WebhookApiScope;
+}
+
+export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPageProps>) {
+  const paymentScope = scope === 'payment';
   const { items: statusItems } = useDictItems('common_status');
   const STATUS_OPTIONS = statusItems.map((i) => ({ value: i.value, label: i.label }));
   const { hasPermission } = usePermission();
-  const canManage = hasPermission('open:webhook:manage');
+  const canManage = hasPermission(paymentScope ? 'payment:webhook:manage' : 'open:webhook:manage');
 
   interface SearchParams { keyword: string; clientId?: string; status?: 'enabled' | 'disabled' }
   const defaultSearchParams: SearchParams = { keyword: '', clientId: undefined, status: undefined };
@@ -69,10 +70,13 @@ export default function WebhooksPage() {
     page, pageSize, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
-  } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: openPlatformKeys.webhooks.lists });
+  } = useListSearch<SearchParams>({
+    defaults: defaultSearchParams,
+    listKey: paymentScope ? paymentWebhookKeys.lists : openPlatformKeys.webhooks.lists,
+  });
 
   const appOptionsQuery = useOpenAppOptions();
-  const eventOptionsQuery = useWebhookEvents();
+  const eventOptionsQuery = useWebhookEvents(scope);
   const appOptions = appOptionsQuery.data ?? [];
   const eventOptions = eventOptionsQuery.data ?? [];
 
@@ -93,7 +97,7 @@ export default function WebhooksPage() {
     keyword: submittedParams.keyword || undefined,
     clientId: submittedParams.clientId,
     status: submittedParams.status,
-  });
+  }, scope);
   const data = listQuery.data ?? null;
   const deliveryQuery = useWebhookDeliveries({
     subscriptionId: drawerSub?.id,
@@ -101,14 +105,14 @@ export default function WebhooksPage() {
     pageSize: 10,
     status: deliveryStatus,
     eventType: deliveryEventType,
-  }, !!drawerSub);
+  }, !!drawerSub, scope);
   const deliveries = deliveryQuery.data ?? null;
-  const saveMutation = useSaveWebhook();
-  const deleteMutation = useDeleteWebhook();
-  const regenerateMutation = useRegenerateWebhookSecret();
-  const testMutation = useTestWebhook();
-  const retryMutation = useRetryWebhookDelivery();
-  const batchRetryMutation = useBatchRetryWebhookDeliveries();
+  const saveMutation = useSaveWebhook(scope);
+  const deleteMutation = useDeleteWebhook(scope);
+  const regenerateMutation = useRegenerateWebhookSecret(scope);
+  const testMutation = useTestWebhook(scope);
+  const retryMutation = useRetryWebhookDelivery(scope);
+  const batchRetryMutation = useBatchRetryWebhookDeliveries(scope);
   const modal = useEditModal<AppWebhookSubscription, FormValues, Partial<Omit<FormValues, 'headersText'>> & { headers?: Record<string, string> }>({
     save: saveMutation,
     defaults: { events: [], signMode: 'hmacSha256', status: 'enabled' },
@@ -142,6 +146,10 @@ export default function WebhooksPage() {
       });
       if (reservedHeader) {
         Toast.error(`自定义请求头不能覆盖保留头：${reservedHeader}`);
+        abortSubmit();
+      }
+      if (paymentScope && values.events.length === 0) {
+        Toast.error('请至少选择一个支付或退款事件');
         abortSubmit();
       }
       const hasSensitiveEvent = values.events.some((event) => SENSITIVE_EVENTS.has(event));
@@ -217,7 +225,7 @@ export default function WebhooksPage() {
       dataIndex: 'events',
       width: 200,
       render: (v: string[]) => v.length === 0
-        ? <Tag size="small" color="grey">全部非支付事件</Tag>
+        ? <Tag size="small" color="grey">{paymentScope ? '未配置' : '全部非支付事件'}</Tag>
         : (
           <TagGroup
             maxTagCount={2}
@@ -326,7 +334,7 @@ export default function WebhooksPage() {
         refreshLoading={listQuery.isFetching}
         rowKey="id"
         size="small"
-        empty="暂无 Webhook 订阅"
+        empty={paymentScope ? '暂无支付 Webhook 订阅' : '暂无 Webhook 订阅'}
         pagination={buildPagination(data?.total ?? 0)}
       />
 
@@ -345,7 +353,7 @@ export default function WebhooksPage() {
             label="订阅事件"
             multiple
             style={{ width: '100%' }}
-            placeholder="留空表示订阅全部非支付事件"
+            placeholder={paymentScope ? '请选择支付或退款事件' : '留空表示订阅全部非支付事件'}
             optionList={eventOptions.map((e) => ({ value: e.code, label: e.label }))}
             onChange={(value) => {
               const events = (value as string[] | undefined) ?? [];
@@ -354,6 +362,7 @@ export default function WebhooksPage() {
                 modal.formApi.current?.setValue('signMode', 'hmacSha256');
               }
             }}
+            rules={paymentScope ? [{ required: true, message: '请至少选择一个支付或退款事件' }] : undefined}
           />
           <Form.Select field="signMode" label="签名方式" style={{ width: '100%' }} optionList={SIGN_MODE_OPTIONS}
             disabled={formEvents.some((event) => SENSITIVE_EVENTS.has(event))}

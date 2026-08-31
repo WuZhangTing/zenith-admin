@@ -97,10 +97,17 @@ export const OPEN_WEBHOOK_DELIVERY_STATUS_LABELS: Record<OpenWebhookDeliveryStat
   retrying: '重试中',
 };
 
+/** 支付域可订阅事件；支付中心 Webhook 视图只允许这些显式事件。 */
+export const PAYMENT_WEBHOOK_EVENTS = [
+  'payment.succeeded', 'payment.closed', 'payment.failed', 'refund.succeeded', 'refund.failed',
+] as const;
+
+export type PaymentWebhookEvent = (typeof PAYMENT_WEBHOOK_EVENTS)[number];
+
 /** 可订阅的开放平台事件类型 */
 export const OPEN_WEBHOOK_EVENTS = [
   'app.test', 'app.call.failed', 'app.quota.warning', 'app.quota.exceeded', 'app.scope.denied',
-  'payment.succeeded', 'payment.closed', 'payment.failed', 'refund.succeeded', 'refund.failed',
+  ...PAYMENT_WEBHOOK_EVENTS,
   'iot.device.online', 'iot.device.offline', 'iot.alarm.triggered', 'iot.alarm.resolved', 'iot.ota.task_completed',
 ] as const;
 

@@ -1,6 +1,6 @@
 # 后台管理页面
 
-支付中心在后台「支付中心」目录下共 **19 个页面**，页面组件位于 `packages/web/src/pages/payment/`。权限码清单见[安全设计](./security.md#权限与数据权限)。跨系统事件订阅统一在 Open Platform 管理，不再在支付中心重复维护 Webhook 页面。
+支付中心在后台「支付中心」目录下共 **20 个页面**，页面组件位于 `packages/web/src/pages/payment/`。权限码清单见[安全设计](./security.md#权限与数据权限)。支付 Webhook 页面复用 Open Platform 的订阅、签名、投递和重试内核，只展示显式的支付/退款事件；开放平台页面继续承载全部应用事件。
 
 ## 页面一览
 

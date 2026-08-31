@@ -1,5 +1,5 @@
 import { randomBytes, createHmac, randomUUID } from 'node:crypto';
-import { eq, and, or, desc, ilike, inArray, isNotNull, isNull, lte, sql, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { eq, and, or, desc, ilike, inArray, isNotNull, isNull, lte, sql, arrayContained, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { db } from '../../db';
 import { appWebhookSubscriptions, appWebhookDeliveries, cmsOpenAppGrants, oauth2Clients, users } from '../../db/schema';
 import type { AppWebhookSubscriptionRow, AppWebhookDeliveryRow } from '../../db/schema';
@@ -12,7 +12,7 @@ import { httpPost, type HttpResponse } from '../../lib/http-client';
 import logger from '../../lib/logger';
 import { openEventBus, type OpenPlatformEvent } from '../../lib/open-event-bus';
 import { mapWithConcurrency } from '../../lib/concurrency';
-import { OPEN_WEBHOOK_SIGNATURE_HEADER, OPEN_WEBHOOK_RETRY_STAGES_MINUTES, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS } from '@zenith/shared/open-platform';
+import { OPEN_WEBHOOK_SIGNATURE_HEADER, OPEN_WEBHOOK_RETRY_STAGES_MINUTES, OPEN_WEBHOOK_EVENTS, OPEN_WEBHOOK_EVENT_LABELS, PAYMENT_WEBHOOK_EVENTS } from '@zenith/shared/open-platform';
 import type { CreateAppWebhookInput, UpdateAppWebhookInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
 import { assertSafeOutboundUrl } from '../../lib/outbound-url';
@@ -24,13 +24,9 @@ const TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BODY_BYTES = 4096;
 const PENDING_RECOVERY_AFTER_MS = 2 * 60_000;
 const RETRY_CONCURRENCY = 10;
-const SENSITIVE_WEBHOOK_EVENTS = new Set<string>([
-  'payment.succeeded',
-  'payment.closed',
-  'payment.failed',
-  'refund.succeeded',
-  'refund.failed',
-]);
+const SENSITIVE_WEBHOOK_EVENTS = new Set<string>(PAYMENT_WEBHOOK_EVENTS);
+
+export type AppWebhookDomain = 'all' | 'payment';
 
 function exactTenant(column: SQLWrapper, tenantId: number | null): SQL {
   return tenantId == null ? sql`${column} is null` : sql`${column} = ${tenantId}`;
@@ -72,7 +68,22 @@ function clientTenantScope(tenantId: number | null): SQL {
   return exactTenant(oauth2Clients.tenantId, tenantId);
 }
 
-function externalSubscriptionScope(tenantId: number | null): SQL {
+function subscriptionDomainScope(domain: AppWebhookDomain): SQL | undefined {
+  if (domain !== 'payment') return undefined;
+  return and(
+    sql`cardinality(${appWebhookSubscriptions.events}) > 0`,
+    arrayContained(appWebhookSubscriptions.events, [...PAYMENT_WEBHOOK_EVENTS]),
+  );
+}
+
+function assertDomainEvents(events: readonly string[], domain: AppWebhookDomain): void {
+  if (domain !== 'payment') return;
+  if (events.length === 0 || events.some((event) => !SENSITIVE_WEBHOOK_EVENTS.has(event))) {
+    throw new HTTPException(400, { message: '支付中心 Webhook 必须显式选择支付或退款事件' });
+  }
+}
+
+function externalSubscriptionScope(tenantId: number | null, domain: AppWebhookDomain = 'all'): SQL {
   const clientIds = db
     .select({ clientId: oauth2Clients.clientId })
     .from(oauth2Clients)
@@ -82,14 +93,15 @@ function externalSubscriptionScope(tenantId: number | null): SQL {
     eq(appWebhookSubscriptions.internal, false),
     isNotNull(appWebhookSubscriptions.clientId),
     inArray(appWebhookSubscriptions.clientId, clientIds),
+    subscriptionDomainScope(domain),
   )!;
 }
 
-function externalDeliveryScope(tenantId: number | null): SQL {
+function externalDeliveryScope(tenantId: number | null, domain: AppWebhookDomain = 'all'): SQL {
   const subscriptionIds = db
     .select({ id: appWebhookSubscriptions.id })
     .from(appWebhookSubscriptions)
-    .where(externalSubscriptionScope(tenantId));
+    .where(externalSubscriptionScope(tenantId, domain));
   return and(
     exactTenant(appWebhookDeliveries.tenantId, tenantId),
     inArray(appWebhookDeliveries.subscriptionId, subscriptionIds),
@@ -97,8 +109,9 @@ function externalDeliveryScope(tenantId: number | null): SQL {
 }
 
 /** 可订阅的事件类型元数据（供订阅界面选择） */
-export function listWebhookEvents() {
-  return OPEN_WEBHOOK_EVENTS.map((code) => ({ code, label: OPEN_WEBHOOK_EVENT_LABELS[code] ?? code }));
+export function listWebhookEvents(domain: AppWebhookDomain = 'all') {
+  const events = domain === 'payment' ? PAYMENT_WEBHOOK_EVENTS : OPEN_WEBHOOK_EVENTS;
+  return events.map((code) => ({ code, label: OPEN_WEBHOOK_EVENT_LABELS[code] ?? code }));
 }
 
 function generateWebhookSecret(): string {
@@ -165,21 +178,29 @@ async function ensureAppExists(clientId: string, tenantId: number | null) {
   return row;
 }
 
-async function getExternalSubscriptionRow(id: number, tenantId = currentTenantId()): Promise<AppWebhookSubscriptionRow> {
+async function getExternalSubscriptionRow(
+  id: number,
+  tenantId = currentTenantId(),
+  domain: AppWebhookDomain = 'all',
+): Promise<AppWebhookSubscriptionRow> {
   const [row] = await db
     .select()
     .from(appWebhookSubscriptions)
-    .where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(tenantId)))
+    .where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(tenantId, domain)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: 'Webhook 订阅不存在' });
   return row;
 }
 
-async function getExternalDeliveryRow(id: number, tenantId = currentTenantId()): Promise<AppWebhookDeliveryRow> {
+async function getExternalDeliveryRow(
+  id: number,
+  tenantId = currentTenantId(),
+  domain: AppWebhookDomain = 'all',
+): Promise<AppWebhookDeliveryRow> {
   const [row] = await db
     .select()
     .from(appWebhookDeliveries)
-    .where(and(eq(appWebhookDeliveries.id, id), externalDeliveryScope(tenantId)))
+    .where(and(eq(appWebhookDeliveries.id, id), externalDeliveryScope(tenantId, domain)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '投递记录不存在' });
   return row;
@@ -193,10 +214,10 @@ export async function listSubscriptions(opts: {
   clientId?: string;
   status?: 'enabled' | 'disabled';
   keyword?: string;
-}) {
+}, domain: AppWebhookDomain = 'all') {
   const { page, pageSize, clientId, status, keyword } = opts;
   const tenantId = currentTenantId();
-  const conds: SQL[] = [externalSubscriptionScope(tenantId)];
+  const conds: SQL[] = [externalSubscriptionScope(tenantId, domain)];
   if (clientId) conds.push(eq(appWebhookSubscriptions.clientId, clientId));
   if (status) conds.push(eq(appWebhookSubscriptions.status, status));
   if (keyword) {
@@ -215,12 +236,12 @@ export async function listSubscriptions(opts: {
   return { list: list.map(mapSubscription), total, page, pageSize };
 }
 
-export async function getSubscription(id: number) {
-  return mapSubscription(await getExternalSubscriptionRow(id));
+export async function getSubscription(id: number, domain: AppWebhookDomain = 'all') {
+  return mapSubscription(await getExternalSubscriptionRow(id, currentTenantId(), domain));
 }
 
-export async function getSubscriptionBeforeAudit(id: number) {
-  return getSubscription(id);
+export async function getSubscriptionBeforeAudit(id: number, domain: AppWebhookDomain = 'all') {
+  return getSubscription(id, domain);
 }
 
 /**
@@ -235,11 +256,13 @@ async function assertWebhookUrlReachable(rawUrl: string): Promise<void> {
   await assertSafeOutboundUrl(rawUrl, config.openPlatform.webhookAllowedHosts);
 }
 
-export async function createSubscription(input: CreateAppWebhookInput) {
+export async function createSubscription(input: CreateAppWebhookInput, domain: AppWebhookDomain = 'all') {
   const tenantId = currentTenantId();
   await ensureAppExists(input.clientId, tenantId);
   await assertWebhookUrlReachable(input.url.trim());
   const signMode = input.signMode ?? 'hmacSha256';
+  const events = input.events ?? [];
+  assertDomainEvents(events, domain);
   let secretRaw = '';
   let secretEncrypted: string | null = null;
   if (signMode === 'hmacSha256') {
@@ -247,7 +270,7 @@ export async function createSubscription(input: CreateAppWebhookInput) {
     secretEncrypted = encryptField(secretRaw);
   }
   assertSubscriptionPolicy({
-    events: input.events ?? [],
+    events,
     signMode,
     hasSecret: Boolean(secretEncrypted),
     headers: input.headers,
@@ -258,7 +281,7 @@ export async function createSubscription(input: CreateAppWebhookInput) {
     url: input.url.trim(),
     secretEncrypted,
     signMode,
-    events: input.events ?? [],
+    events,
     headers: input.headers ?? null,
     status: input.status ?? 'enabled',
     tenantId,
@@ -266,11 +289,12 @@ export async function createSubscription(input: CreateAppWebhookInput) {
   return { ...mapSubscription(row), secret: secretRaw };
 }
 
-export async function updateSubscription(id: number, input: UpdateAppWebhookInput) {
-  const existing = await getExternalSubscriptionRow(id);
+export async function updateSubscription(id: number, input: UpdateAppWebhookInput, domain: AppWebhookDomain = 'all') {
+  const existing = await getExternalSubscriptionRow(id, currentTenantId(), domain);
   if (input.url !== undefined) await assertWebhookUrlReachable(input.url.trim());
   const signMode = input.signMode ?? existing.signMode;
   const events = input.events ?? existing.events;
+  assertDomainEvents(events, domain);
   const headers = input.headers ?? existing.headers;
   const hasSecret = signMode === 'hmacSha256' && Boolean(existing.secretEncrypted);
   assertSubscriptionPolicy({ events, signMode, hasSecret, headers });
@@ -283,25 +307,25 @@ export async function updateSubscription(id: number, input: UpdateAppWebhookInpu
     headers: input.headers,
     status: input.status,
     ...(input.status === 'enabled' ? { autoDisabledAt: null } : {}),
-  }).where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(existing.tenantId ?? null))).returning();
+  }).where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(existing.tenantId ?? null, domain))).returning();
   if (!row) throw new HTTPException(409, { message: 'Webhook 订阅状态已变化，请刷新后重试' });
   return mapSubscription(row);
 }
 
-export async function regenerateSubscriptionSecret(id: number) {
-  const row = await getExternalSubscriptionRow(id);
+export async function regenerateSubscriptionSecret(id: number, domain: AppWebhookDomain = 'all') {
+  const row = await getExternalSubscriptionRow(id, currentTenantId(), domain);
   const secretRaw = generateWebhookSecret();
   await db.update(appWebhookSubscriptions).set({
     secretEncrypted: encryptField(secretRaw),
     signMode: 'hmacSha256',
-  }).where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(row.tenantId ?? null)));
+  }).where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(row.tenantId ?? null, domain)));
   return { id, secret: secretRaw };
 }
 
-export async function deleteSubscription(id: number) {
-  const row = await getExternalSubscriptionRow(id);
+export async function deleteSubscription(id: number, domain: AppWebhookDomain = 'all') {
+  const row = await getExternalSubscriptionRow(id, currentTenantId(), domain);
   const result = await db.delete(appWebhookSubscriptions)
-    .where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(row.tenantId ?? null)))
+    .where(and(eq(appWebhookSubscriptions.id, id), externalSubscriptionScope(row.tenantId ?? null, domain)))
     .returning();
   if (result.length === 0) throw new HTTPException(404, { message: 'Webhook 订阅不存在' });
 }
@@ -315,10 +339,10 @@ export async function listDeliveries(opts: {
   clientId?: string;
   status?: 'pending' | 'success' | 'failed' | 'retrying';
   eventType?: string;
-}) {
+}, domain: AppWebhookDomain = 'all') {
   const { page, pageSize, subscriptionId, clientId, status, eventType } = opts;
   const tenantId = currentTenantId();
-  const conds: SQL[] = [externalDeliveryScope(tenantId)];
+  const conds: SQL[] = [externalDeliveryScope(tenantId, domain)];
   if (subscriptionId) conds.push(eq(appWebhookDeliveries.subscriptionId, subscriptionId));
   if (clientId) conds.push(eq(appWebhookDeliveries.clientId, clientId));
   if (status) conds.push(eq(appWebhookDeliveries.status, status));
@@ -335,13 +359,13 @@ export async function listDeliveries(opts: {
   return { list: list.map(mapDelivery), total, page, pageSize };
 }
 
-export async function getDelivery(id: number) {
-  return mapDelivery(await getExternalDeliveryRow(id));
+export async function getDelivery(id: number, domain: AppWebhookDomain = 'all') {
+  return mapDelivery(await getExternalDeliveryRow(id, currentTenantId(), domain));
 }
 
 /** 手动触发测试投递 */
-export async function testSubscription(id: number) {
-  const sub = await getExternalSubscriptionRow(id);
+export async function testSubscription(id: number, domain: AppWebhookDomain = 'all') {
+  const sub = await getExternalSubscriptionRow(id, currentTenantId(), domain);
   if (!sub.clientId) throw new HTTPException(409, { message: 'Webhook 订阅缺少所属应用' });
   const eventId = randomUUID();
   const delivery = await insertDelivery({
@@ -360,15 +384,15 @@ export async function testSubscription(id: number) {
 }
 
 /** 手动重试一条投递 */
-export async function retryDelivery(id: number) {
-  const row = await getExternalDeliveryRow(id);
+export async function retryDelivery(id: number, domain: AppWebhookDomain = 'all') {
+  const row = await getExternalDeliveryRow(id, currentTenantId(), domain);
   if (row.status !== 'failed') throw new HTTPException(400, { message: '仅最终失败的投递可手动重试' });
   const claimed = await dispatchDelivery(id, row.tenantId ?? null);
   if (!claimed) throw new HTTPException(409, { message: '投递已被其他任务处理，请刷新后重试' });
   return { deliveryId: id };
 }
 
-export async function scheduleBatchRetryDeliveries(ids: number[]) {
+export async function scheduleBatchRetryDeliveries(ids: number[], domain: AppWebhookDomain = 'all') {
   const uniqueIds = [...new Set(ids)];
   if (uniqueIds.length === 0) throw new HTTPException(400, { message: '请选择投递记录' });
   if (uniqueIds.length > 100) throw new HTTPException(400, { message: '单次最多重试 100 条投递记录' });
@@ -383,7 +407,7 @@ export async function scheduleBatchRetryDeliveries(ids: number[]) {
     .where(and(
       inArray(appWebhookDeliveries.id, uniqueIds),
       eq(appWebhookDeliveries.status, 'failed'),
-      externalDeliveryScope(tenantId),
+      externalDeliveryScope(tenantId, domain),
     ))
     .returning({ id: appWebhookDeliveries.id });
   return { scheduled: rows.length };

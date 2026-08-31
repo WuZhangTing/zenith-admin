@@ -140,6 +140,7 @@ decide({ kind: 'table', key: 'dispute_triage' }, facts, { caller: 'payment.dispu
 | 对账中心 | `payment:recon:list / create / delete / handle` |
 | 资金凭证与预占 | `payment:ledger:list`、`payment:ledger:post`、`payment:ledger:reverse`、`payment:ledger:reserve` |
 | Open Platform Webhook | `open-platform:webhook:list / manage` |
+| 支付 Webhook 视图 | `payment:webhook:list / manage` |
 | 支付事件 | `payment:ops:manage` |
 | 费率管理 | `payment:fee:list / create / update / delete` |
 | 结算管理 | `payment:settlement:list / generate / settle` |

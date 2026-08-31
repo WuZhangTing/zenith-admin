@@ -36,6 +36,8 @@ export interface WebhookDeliveryListParams {
   eventType?: string;
 }
 
+export type WebhookApiScope = 'open' | 'payment';
+
 export interface OpenApiStatsRangeParams {
   startTime: string;
   endTime: string;
@@ -110,6 +112,24 @@ export const openPlatformKeys = {
     logs: (params: OpenApiLogListParams) => ['open-platform', 'stats', 'logs', params] as const,
   },
 };
+
+export const paymentWebhookKeys = {
+  all: ['payment-webhooks'] as const,
+  events: ['payment-webhooks', 'events'] as const,
+  lists: ['payment-webhooks', 'list'] as const,
+  list: (params: WebhookListParams) => ['payment-webhooks', 'list', params] as const,
+  deliveriesLists: ['payment-webhooks', 'deliveries'] as const,
+  deliveries: (params: WebhookDeliveryListParams) => ['payment-webhooks', 'deliveries', params] as const,
+};
+
+function webhookBase(scope: WebhookApiScope): string {
+  return scope === 'payment' ? '/api/payment/webhooks' : '/api/app-webhooks';
+}
+
+function invalidateWebhookCaches(qc: ReturnType<typeof useQueryClient>): void {
+  void qc.invalidateQueries({ queryKey: openPlatformKeys.webhooks.all });
+  void qc.invalidateQueries({ queryKey: paymentWebhookKeys.all });
+}
 
 export interface OpenAppOption {
   id: number;
@@ -188,81 +208,85 @@ export function useDeleteRatePlan() {
   });
 }
 
-export function useWebhookEvents(options?: { enabled?: boolean }) {
+export function useWebhookEvents(scope: WebhookApiScope = 'open', options?: { enabled?: boolean }) {
+  const keys = scope === 'payment' ? paymentWebhookKeys : openPlatformKeys.webhooks;
   return useQuery({
-    queryKey: openPlatformKeys.webhooks.events,
-    queryFn: () => request.get<OpenWebhookEventMeta[]>('/api/app-webhooks/events', { silent: true }).then(unwrap),
+    queryKey: keys.events,
+    queryFn: () => request.get<OpenWebhookEventMeta[]>(`${webhookBase(scope)}/events`, { silent: true }).then(unwrap),
     staleTime: LOOKUP_STALE_TIME,
     enabled: options?.enabled ?? true,
   });
 }
 
-export function useWebhookList(params: WebhookListParams) {
+export function useWebhookList(params: WebhookListParams, scope: WebhookApiScope = 'open') {
+  const keys = scope === 'payment' ? paymentWebhookKeys : openPlatformKeys.webhooks;
   return useQuery({
-    queryKey: openPlatformKeys.webhooks.list(params),
-    queryFn: () => request.get<PaginatedResponse<AppWebhookSubscription>>(`/api/app-webhooks${toQueryString(params)}`).then(unwrap),
+    queryKey: keys.list(params),
+    queryFn: () => request.get<PaginatedResponse<AppWebhookSubscription>>(`${webhookBase(scope)}${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
   });
 }
 
-export function useSaveWebhook() {
+export function useSaveWebhook(scope: WebhookApiScope = 'open') {
   const qc = useQueryClient();
+  const base = webhookBase(scope);
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id === undefined
-        ? request.post<AppWebhookSubscriptionCreated>('/api/app-webhooks', values)
-        : request.put<AppWebhookSubscription>(`/api/app-webhooks/${id}`, values)
+        ? request.post<AppWebhookSubscriptionCreated>(base, values)
+        : request.put<AppWebhookSubscription>(`${base}/${id}`, values)
       ).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: openPlatformKeys.webhooks.all }),
+    onSuccess: () => invalidateWebhookCaches(qc),
   });
 }
 
-export function useDeleteWebhook() {
+export function useDeleteWebhook(scope: WebhookApiScope = 'open') {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/app-webhooks/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: openPlatformKeys.webhooks.all }),
+    mutationFn: (id: number) => request.delete<null>(`${webhookBase(scope)}/${id}`).then(unwrap),
+    onSuccess: () => invalidateWebhookCaches(qc),
   });
 }
 
-export function useRegenerateWebhookSecret() {
+export function useRegenerateWebhookSecret(scope: WebhookApiScope = 'open') {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<{ id: number; secret: string }>(`/api/app-webhooks/${id}/regenerate-secret`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: openPlatformKeys.webhooks.all }),
+    mutationFn: (id: number) => request.post<{ id: number; secret: string }>(`${webhookBase(scope)}/${id}/regenerate-secret`).then(unwrap),
+    onSuccess: () => invalidateWebhookCaches(qc),
   });
 }
 
-export function useTestWebhook() {
+export function useTestWebhook(scope: WebhookApiScope = 'open') {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<null>(`/api/app-webhooks/${id}/test`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: openPlatformKeys.webhooks.all }),
+    mutationFn: (id: number) => request.post<null>(`${webhookBase(scope)}/${id}/test`).then(unwrap),
+    onSuccess: () => invalidateWebhookCaches(qc),
   });
 }
 
-export function useWebhookDeliveries(params: WebhookDeliveryListParams, enabled = true) {
+export function useWebhookDeliveries(params: WebhookDeliveryListParams, enabled = true, scope: WebhookApiScope = 'open') {
+  const keys = scope === 'payment' ? paymentWebhookKeys : openPlatformKeys.webhooks;
   return useQuery({
-    queryKey: openPlatformKeys.webhooks.deliveries(params),
-    queryFn: () => request.get<PaginatedResponse<AppWebhookDelivery>>(`/api/app-webhooks/deliveries${toQueryString(params)}`).then(unwrap),
+    queryKey: keys.deliveries(params),
+    queryFn: () => request.get<PaginatedResponse<AppWebhookDelivery>>(`${webhookBase(scope)}/deliveries${toQueryString(params)}`).then(unwrap),
     placeholderData: keepPreviousData,
     enabled,
   });
 }
 
-export function useBatchRetryWebhookDeliveries() {
+export function useBatchRetryWebhookDeliveries(scope: WebhookApiScope = 'open') {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ids: number[]) => request.post<{ scheduled: number }>('/api/app-webhooks/deliveries/batch-retry', { ids }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: openPlatformKeys.webhooks.deliveriesLists }),
+    mutationFn: (ids: number[]) => request.post<{ scheduled: number }>(`${webhookBase(scope)}/deliveries/batch-retry`, { ids }).then(unwrap),
+    onSuccess: () => invalidateWebhookCaches(qc),
   });
 }
 
-export function useRetryWebhookDelivery() {
+export function useRetryWebhookDelivery(scope: WebhookApiScope = 'open') {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.post<null>(`/api/app-webhooks/deliveries/${id}/retry`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: openPlatformKeys.webhooks.deliveriesLists }),
+    mutationFn: (id: number) => request.post<null>(`${webhookBase(scope)}/deliveries/${id}/retry`).then(unwrap),
+    onSuccess: () => invalidateWebhookCaches(qc),
   });
 }
 

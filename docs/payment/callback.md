@@ -65,6 +65,8 @@ POST /api/public/payment/notify/{channel}    # channel: wechat | alipay | unionp
 
 业务订阅者与 Open Platform Webhook 接收方都必须按 `eventId`、`orderNo`、`refundNo` 或业务键幂等。
 
+管理入口分为两个受控视图：`/payment/webhooks` 仅允许支付与退款事件，使用支付中心权限；`/open-platform/webhooks` 管理完整开放事件目录。两者复用同一订阅和投递表，不维护第二套 Webhook 状态机。
+
 ## 查单补偿
 
 | 路径 | 说明 |

@@ -20,6 +20,7 @@ import paymentRoutes from './payment';
 import paymentSettlementRoutes from './payment-settlements';
 import paymentSharingRoutes from './payment-sharing';
 import paymentTransferRoutes from './payment-transfers';
+import paymentWebhookRoutes from './payment-webhooks';
 
 export default defineRouteDomain({
   name: 'payment',
@@ -27,6 +28,7 @@ export default defineRouteDomain({
     ['/api/payment/capabilities', paymentCapabilityRoutes, { feature: 'payment' }],
     ['/api/payment', paymentRoutes, { feature: 'payment' }],
     ['/api/payment/recon', paymentReconRoutes, { feature: 'payment' }],
+    ['/api/payment/webhooks', paymentWebhookRoutes, { feature: 'payment' }],
     ['/api/payment/journals', paymentJournalRoutes, { feature: 'payment' }],
     ['/api/payment/ops', paymentOpsRoutes, { feature: 'payment' }],
     ['/api/payment/fee-rules', paymentFeeRoutes, { feature: 'payment' }],

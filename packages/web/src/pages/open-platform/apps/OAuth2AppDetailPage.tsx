@@ -225,10 +225,10 @@ function WebhooksTab({ clientId }: Readonly<{ clientId: string }>) {
 export default function OAuth2AppDetailPage() {
   const [activeTab, setActiveTab] = useUrlTabState(['overview', 'stats', 'grants', 'tokens', 'webhooks'] as const, 'overview');
   const navigate = useNavigate();
-  const { hasPermission } = usePermission();
+  const { hasPermission, hasAnyPermission } = usePermission();
   const canManage = hasPermission('system:oauth2-apps:manage');
   const canViewStats = hasPermission('open:stats:view');
-  const canViewWebhooks = hasPermission('open:webhook:view');
+  const canViewWebhooks = hasAnyPermission('open:webhook:view', 'open:webhook:manage');
   const id = Number(useParams<{ id: string }>().id);
   const detailQuery = useOAuth2AppDetail(Number.isFinite(id) ? id : undefined);
   const ratePlans = useOAuth2RatePlans().data ?? [];
