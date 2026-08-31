@@ -19,7 +19,7 @@ import {
   type PaymentTransferRow,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { dateRangeConditions, keywordCondition, mergeWhere } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -27,7 +27,7 @@ import { buildAdapterContext } from './payment.service';
 import { ensureSystemLedgerAccount, postSystemJournal } from './payment-journal.service';
 import { getAdapter } from '../../lib/payment/registry';
 import logger from '../../lib/logger';
-import { HttpClientError } from '../../lib/http-client';
+import { isIndeterminateProviderError } from '../../lib/payment/provider-http';
 import type {
   ApprovePaymentTransferInput,
   CreatePaymentTransferInput,
@@ -244,7 +244,7 @@ async function executeTransferAtChannel(row: PaymentTransferRow, config: Payment
   } catch (err) {
     const failReason = (err instanceof Error ? err.message : '渠道转账请求失败').slice(0, 500);
     logger.error('[payment-transfer] channel transfer failed', { transferNo: row.transferNo, err: failReason });
-    const resultUnknown = err instanceof HttpClientError && (err.status === 0 || err.status === 408 || err.status === 429 || err.status >= 500);
+    const resultUnknown = isIndeterminateProviderError(err);
     if (!resultUnknown) await finalizeTransferReservation(claimed, 'released', `渠道明确失败：${failReason}`);
     const [updated] = await db
       .update(paymentTransfers)
@@ -307,7 +307,7 @@ async function executeTransferAtChannel(row: PaymentTransferRow, config: Payment
 /** 发起转账：落单（pending）→ 调渠道 → 状态落地。渠道失败不抛错，返回 failed 单据供列表重试。 */
 export async function createTransfer(input: CreatePaymentTransferInput & { idempotencyKey: string; operatorId?: number }): Promise<PaymentTransfer> {
   const user = currentUser();
-  const tenantId = getCreateTenantId(user);
+  const tenantId = requireTenantScopeId(user);
   const applicationRoute = await resolveApplicationChannelConfig(input.applicationId, input.channel, tenantId);
   const config = await resolvePaymentChannelConfig({
     channel: input.channel,
@@ -400,6 +400,7 @@ export async function createTransfer(input: CreatePaymentTransferInput & { idemp
  */
 export async function approveTransfer(id: number, input: ApprovePaymentTransferInput): Promise<PaymentTransfer> {
   const user = currentUser();
+  requireTenantScopeId(user);
   const row = await ensureTransfer(id);
   if (row.status !== 'pending' || row.approvalStatus !== 'pending') {
     throw new HTTPException(400, { message: '该转账单无需审批或已处理' });
@@ -439,6 +440,7 @@ export async function approveTransfer(id: number, input: ApprovePaymentTransferI
 /** 驳回待审批转账，并在同一事务内释放资金预占。 */
 export async function rejectTransfer(id: number, input: ApprovePaymentTransferInput): Promise<PaymentTransfer> {
   const user = currentUser();
+  requireTenantScopeId(user);
   const tc = tenantCondition(paymentTransfers, user);
   const rejected = await db.transaction(async (tx) => {
     const [row] = await tx
@@ -506,6 +508,7 @@ export async function rejectTransfer(id: number, input: ApprovePaymentTransferIn
 
 /** 主动查询渠道转账结果并同步本地状态（processing 单的兜底纠偏）。 */
 export async function syncTransferStatus(id: number): Promise<PaymentTransfer> {
+  requireTenantScopeId(currentUser());
   const row = await ensureTransfer(id);
   // Explicit failures are terminal. Querying them again could resurrect a
   // deliberately rejected transfer after its reservation was released.

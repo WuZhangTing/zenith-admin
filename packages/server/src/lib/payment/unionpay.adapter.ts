@@ -15,7 +15,12 @@ import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem } from './signing';
 import { trySandboxNotify } from './sandbox-notify';
 import { UNIONPAY_PROVIDER_MANIFEST } from './capabilities';
-import { assertApprovedProviderGateway, providerHttpOptions } from './provider-http';
+import {
+  assertApprovedProviderGateway,
+  providerHttpExceptionStatus,
+  providerHttpOptions,
+  readProviderResponseText,
+} from './provider-http';
 import type {
   AdapterContext,
   NotifyResult,
@@ -100,12 +105,17 @@ async function unionpayRequest(ctx: AdapterContext, gateway: string, params: Rec
     ...providerHttpOptions(),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
   });
-  const text = await resp.text();
+  const text = await readProviderResponseText(resp, '云闪付');
   if (!resp.ok) {
     logger.warn('[unionpay] api error', { status: resp.status, body: text.slice(0, 500) });
-    throw new HTTPException(502, { message: `云闪付接口错误(${resp.status})` });
+    throw new HTTPException(providerHttpExceptionStatus(resp.status), { message: `云闪付接口错误(${resp.status})` });
   }
-  const res = parseForm(text);
+  let res: Record<string, string>;
+  try {
+    res = parseForm(text);
+  } catch {
+    throw new HTTPException(502, { message: '云闪付同步响应解析失败' });
+  }
   if (!verifyUnionpay(ctx, res)) {
     logger.warn('[unionpay] response signature invalid', { url, respCode: res.respCode });
     throw new HTTPException(502, { message: '云闪付同步响应验签失败' });

@@ -20,7 +20,7 @@ import {
   type PaymentSharingReceiverRow,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
@@ -28,7 +28,7 @@ import { postSystemJournal } from './payment-journal.service';
 import { getAdapter } from '../../lib/payment/registry';
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import logger from '../../lib/logger';
-import { HttpClientError } from '../../lib/http-client';
+import { isIndeterminateProviderError } from '../../lib/payment/provider-http';
 import type { CreatePaymentSharingReceiverInput, UpdatePaymentSharingReceiverInput, PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver } from '@zenith/shared/payment';
 import { assertEffectivePaymentOperation } from './payment-capability-evaluator';
 import { assertPaymentEngineConfig } from './payment-channel-config-resolver';
@@ -131,6 +131,7 @@ export async function getReceiver(id: number): Promise<PaymentSharingReceiver> {
 }
 
 export async function createReceiver(input: CreatePaymentSharingReceiverInput): Promise<PaymentSharingReceiver> {
+  const tenantId = requireTenantScopeId(currentUser());
   const [row] = await db
     .insert(paymentSharingReceivers)
     .values({
@@ -141,13 +142,14 @@ export async function createReceiver(input: CreatePaymentSharingReceiverInput): 
       autoShare: input.autoShare ?? false,
       status: input.status ?? 'enabled',
       remark: input.remark ?? null,
-      tenantId: getCreateTenantId(currentUser()),
+      tenantId,
     })
     .returning();
   return mapReceiver(row);
 }
 
 export async function updateReceiver(id: number, input: UpdatePaymentSharingReceiverInput): Promise<PaymentSharingReceiver> {
+  requireTenantScopeId(currentUser());
   await ensureReceiver(id);
   const set: Partial<PaymentSharingReceiverRow> = {};
   if (input.name !== undefined) set.name = input.name;
@@ -163,6 +165,7 @@ export async function updateReceiver(id: number, input: UpdatePaymentSharingRece
 }
 
 export async function deleteReceiver(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   await ensureReceiver(id);
   await db.delete(paymentSharingReceivers).where(eq(paymentSharingReceivers.id, id));
 }
@@ -259,6 +262,7 @@ async function createReservedSharing(input: {
 
 /** 发起单笔分账：校验订单已支付 + 接收方启用 → 创建分账单(processing) → 调渠道 → 落状态。 */
 export async function dispatchSharing(input: DispatchSharingInput): Promise<PaymentSharingOrder> {
+  requireTenantScopeId(currentUser());
   const receiver = await ensureReceiver(input.receiverId);
   if (receiver.status !== 'enabled') throw new HTTPException(400, { message: '分账接收方已停用' });
   const { order, sharing } = await createReservedSharing({
@@ -348,7 +352,7 @@ async function executeSharingAtChannel(
     return { row: updated };
   } catch (err) {
     logger.error('[payment-sharing] channel dispatch failed', { sharingNo: sharing.sharingNo, orderNo: order.orderNo, err });
-    const resultUnknown = providerAccepted || (err instanceof HttpClientError && err.status === 0);
+    const resultUnknown = providerAccepted || isIndeterminateProviderError(err);
     const [updated] = await db
       .update(paymentSharingOrders)
       .set({

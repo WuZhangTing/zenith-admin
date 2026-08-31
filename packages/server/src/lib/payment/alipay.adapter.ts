@@ -12,7 +12,12 @@ import type { CreatePaymentResult } from '@zenith/shared/payment';
 import { rsaSign, rsaVerify, ensurePem, type RsaAlgorithm } from './signing';
 import { trySandboxNotify } from './sandbox-notify';
 import { ALIPAY_PROVIDER_MANIFEST } from './capabilities';
-import { assertApprovedProviderGateway, providerHttpOptions } from './provider-http';
+import {
+  assertApprovedProviderGateway,
+  providerHttpExceptionStatus,
+  providerHttpOptions,
+  readProviderResponseText,
+} from './provider-http';
 import { buildSignedSandboxOperation } from './sandbox-operation';
 import type {
   AdapterContext,
@@ -138,10 +143,10 @@ async function alipayApiCall(
     ...providerHttpOptions(),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
   });
-  const text = await resp.text();
+  const text = await readProviderResponseText(resp, '支付宝');
   if (!resp.ok) {
     logger.warn('[alipay] api error', { method, status: resp.status, body: text.slice(0, 500) });
-    throw new HTTPException(502, { message: `支付宝接口错误(${resp.status})` });
+    throw new HTTPException(providerHttpExceptionStatus(resp.status), { message: `支付宝接口错误(${resp.status})` });
   }
   if (!verifyAlipayResponse(text, method, respPubKey, rsaAlgo(ctx.config.alipaySignType))) {
     logger.warn('[alipay] response signature invalid', { method });

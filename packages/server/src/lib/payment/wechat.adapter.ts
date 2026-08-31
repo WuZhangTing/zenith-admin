@@ -14,7 +14,7 @@ import { rsaSign, rsaVerify, aesGcmDecrypt, ensurePem } from './signing';
 import { trySandboxNotify } from './sandbox-notify';
 import { getPlatformCert } from './wechat-certs';
 import { WECHAT_PROVIDER_MANIFEST } from './capabilities';
-import { providerHttpOptions } from './provider-http';
+import { providerHttpExceptionStatus, providerHttpOptions, readProviderResponseText } from './provider-http';
 import { buildSignedSandboxOperation } from './sandbox-operation';
 import type {
   AdapterContext,
@@ -85,7 +85,7 @@ async function wechatRequest<T = Record<string, unknown>>(
   const url = `${WECHAT_BASE}${urlPath}`;
   const requestOptions = { ...providerHttpOptions(), headers };
   const resp = method === 'GET' ? await httpGet(url, requestOptions) : await httpPost(url, bodyStr, requestOptions);
-  const text = await resp.text();
+  const text = await readProviderResponseText(resp, '微信支付');
   if (!resp.ok) {
     logger.warn('[wechat-pay] api error', { urlPath, status: resp.status, body: text.slice(0, 500) });
     let msg = `微信支付接口错误(${resp.status})`;
@@ -95,9 +95,13 @@ async function wechatRequest<T = Record<string, unknown>>(
     } catch {
       /* ignore parse error */
     }
-    throw new HTTPException(502, { message: msg });
+    throw new HTTPException(providerHttpExceptionStatus(resp.status), { message: msg });
   }
-  return (text ? JSON.parse(text) : {}) as T;
+  try {
+    return (text ? JSON.parse(text) : {}) as T;
+  } catch {
+    throw new HTTPException(502, { message: '微信支付响应解析失败' });
+  }
 }
 
 function buildJsapiParams(ctx: AdapterContext, appId: string, prepayId: string): Record<string, string> {

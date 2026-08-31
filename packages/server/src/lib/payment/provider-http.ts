@@ -1,6 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
 import { config } from '../../config';
-import type { HttpRequestOptions } from '../http-client';
+import { HttpClientError, type HttpRequestOptions, type HttpResponse } from '../http-client';
 
 const OFFICIAL_GATEWAY_HOSTS: Readonly<Record<'alipay' | 'unionpay', ReadonlySet<string>>> = {
   alipay: new Set(['openapi.alipay.com', 'openapi.alipaydev.com']),
@@ -32,4 +32,32 @@ export function providerHttpOptions(): Pick<HttpRequestOptions, 'timeout' | 'ret
     ssrfProtection: true,
     httpLog: { level: 'off' },
   };
+}
+
+/**
+ * Preserve whether a non-2xx provider response is a definitive rejection.
+ * 408/429 and 5xx responses cannot prove that a money-moving request was not accepted.
+ */
+export function providerHttpExceptionStatus(status: number): 400 | 502 {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429 ? 400 : 502;
+}
+
+/** Response body streaming can still fail after fetch has received the headers. */
+export async function readProviderResponseText(response: HttpResponse, providerName: string): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    throw new HTTPException(502, { message: `${providerName}响应读取失败` });
+  }
+}
+
+/** A provider call is indeterminate unless the response clearly rejected the request. */
+export function isIndeterminateProviderError(error: unknown): boolean {
+  if (error instanceof HttpClientError) {
+    return error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+  if (error instanceof HTTPException) {
+    return error.status === 408 || error.status === 429 || error.status >= 500;
+  }
+  return false;
 }
