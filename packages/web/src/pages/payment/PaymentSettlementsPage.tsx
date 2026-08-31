@@ -188,8 +188,9 @@ export default function PaymentSettlementsPage() {
     { title: '版本', dataIndex: 'version', width: 80, align: 'right', render: (v: number) => `v${v}` },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSettlementStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_SETTLEMENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSettlementBatch>({
-      // 标记到账/标记失败两个 4 字按钮同现(settling)：164 + 32
-      width: 200,
+      width: 220,
+      desktopInlineKeys: ['items', 'start', 'settled'],
+      menuAriaLabel: '更多结算操作',
       emptyContent: <Typography.Text type="tertiary">—</Typography.Text>,
       actions: (r) => {
         const detailAction = { key: 'items', label: '资金明细', onClick: () => setDetailBatch(r) };
