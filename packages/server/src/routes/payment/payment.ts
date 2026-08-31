@@ -67,7 +67,7 @@ const paymentCreateSchema = createPaymentSchema;
 const refundCreateSchema = createRefundSchema;
 const idempotencyHeaders = z.object({
   'x-idempotency-key': z.string().trim().min(8).max(128).openapi({
-    param: { name: 'X-Idempotency-Key', in: 'header' },
+    param: { in: 'header' },
     example: 'refund-01JABCDEF1234567890',
   }),
 });

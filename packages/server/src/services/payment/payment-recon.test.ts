@@ -14,8 +14,8 @@ describe('computeAdjustment - 对账差异调账推导', () => {
     expect(computeAdjustment({ result: 'amount_diff', localAmount: 5000, channelAmount: 5000 })).toBeNull();
   });
 
-  it('渠道有本地无 → 按渠道金额入账(in)', () => {
-    expect(computeAdjustment({ result: 'channel_only', localAmount: null, channelAmount: 8800 })).toEqual({ direction: 'in', amount: 8800 });
+  it('渠道有本地无 → 手工路径不产生调账（渠道单边入账仅走渠道下载账单的 provider 路径）', () => {
+    expect(computeAdjustment({ result: 'channel_only', localAmount: null, channelAmount: 8800 })).toBeNull();
   });
 
   it('本地有渠道无 → 按本地金额出账(out)', () => {

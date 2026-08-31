@@ -25,7 +25,7 @@ const transferStatusEnum = z.enum(['pending', 'processing', 'unknown', 'success'
 const transferApprovalStatusEnum = z.enum(['none', 'pending', 'approved', 'rejected']);
 const idempotencyHeaders = z.object({
   'x-idempotency-key': z.string().trim().min(8).max(128).openapi({
-    param: { name: 'X-Idempotency-Key', in: 'header' },
+    param: { in: 'header' },
     example: 'transfer-01JABCDEF1234567890',
   }),
 });
