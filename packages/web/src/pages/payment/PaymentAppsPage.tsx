@@ -211,7 +211,9 @@ export default function PaymentAppsPage() {
               loading={openClientQuery.isFetching}
               onChange={(value) => {
                 setEnvironmentWatch(openClientById.get(value as number)?.environment ?? null);
-                modal.formApi.current?.setValues({ wechatConfigId: null, alipayConfigId: null, unionpayConfigId: null });
+                modal.formApi.current?.setValue('wechatConfigId', null);
+                modal.formApi.current?.setValue('alipayConfigId', null);
+                modal.formApi.current?.setValue('unionpayConfigId', null);
               }}
               rules={[{ required: true, message: '请选择已审核的开放客户端' }]}
             />
