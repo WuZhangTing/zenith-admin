@@ -383,7 +383,8 @@ export default function PaymentLedgerPage() {
       expiresAt: values.expiresAt ? formatDateTimeForApi(values.expiresAt) : undefined,
     }),
     successMessage: () => '资金预占创建成功',
-    labelWidth: 110,
+    // 「金额（最小单位）」8 个字符 + 必填星号，130 星号仍换行
+    labelWidth: 140,
   });
 
   const accountLookupQuery = usePaymentLedgerAccountList(
@@ -721,7 +722,7 @@ export default function PaymentLedgerPage() {
             currency: (values.currency as string | undefined) ?? 'CNY',
           })}
         >
-          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 3 } as CSSProperties}>
+          <div className="auto-grid" style={{ ['--auto-grid-min']: '220px', ['--auto-grid-cols']: 2 } as CSSProperties}>
             <Form.Select field="appId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter rules={[{ required: true, message: '请选择支付应用' }]} />
             <Form.Select field="channelConfigId" label="商户配置" style={{ width: '100%' }} optionList={merchantOptions} filter rules={[{ required: true, message: '请选择商户配置' }]} />
             <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={CURRENCY_OPTIONS} rules={[{ required: true, message: '请选择币种' }]} />
