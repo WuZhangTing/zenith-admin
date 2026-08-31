@@ -44,12 +44,13 @@ const COPY_SUCCESS_TIP = (
 );
 
 /**
- * 业务单号列（订单号 / 退款单号 / 批次号等 genNo 生成的定长编号）：
- * 完整单行展示 + 复制按钮，空值显示 '—'。
+ * 业务单号列（订单号 / 退款单号 / 批次号等定长编号）：
+ * 文本超出列宽时省略并出 tooltip，复制按钮恒定可见，空值显示 '—'。
  *
- * **禁止**给单号列写 `ellipsis + copyable + 固定像素 maxWidth`——Semi Typography
- * 的 ellipsis 是 JS 测量截断，与 copyable 图标组合时测量偏保守，会把列宽足够
- * 容纳的定长单号误截断且不随列宽恢复。定长单号直接完整展示即可。
+ * 实现要点：文本与复制按钮是两个独立节点（flex 布局，按钮 flexShrink: 0）。
+ * **禁止**改回「同一个 Typography.Text 上同时挂 ellipsis + copyable」——Semi
+ * 合并测量偏保守，会把列宽足够容纳的定长单号误截断且不随列宽恢复；
+ * 拆开后文本按真实剩余宽度截断，图标永不溢出，超长单号也无需再为它加宽列。
  *
  * @example
  * copyableNoColumn('订单号', 'orderNo')
@@ -68,8 +69,9 @@ export function copyableNoColumn<RecordType extends Data = Data>(
     render: (v: string | null | undefined) => (v
       ? (
         // stopPropagation：expandRowByClick 的表格里，点复制按钮/选中单号不应触发行展开
-        <span onClick={(e) => e.stopPropagation()}>
-          <Typography.Text style={{ whiteSpace: 'nowrap' }} copyable={{ content: v, successTip: COPY_SUCCESS_TIP }}>{v}</Typography.Text>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }} onClick={(e) => e.stopPropagation()}>
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{v}</Typography.Text>
+          <Typography.Text style={{ flexShrink: 0 }} copyable={{ content: v, successTip: COPY_SUCCESS_TIP }} />
         </span>
       )
       : EMPTY_PLACEHOLDER),

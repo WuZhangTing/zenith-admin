@@ -496,8 +496,7 @@ export default function PaymentLedgerPage() {
   }
 
   const accountColumns: ColumnProps<PaymentLedgerAccount>[] = [
-    // 账户号为 PLA + 32 位十六进制（35 字符），比 genNo 定长单号更长，需加宽
-    copyableNoColumn('账户号', 'accountNo', { width: 380 }),
+    copyableNoColumn('账户号', 'accountNo'),
     { title: '账户名称', dataIndex: 'name', width: 240, render: renderEllipsis },
     { title: '科目', dataIndex: 'code', width: 130, render: (value: PaymentLedgerAccountCode) => PAYMENT_LEDGER_ACCOUNT_CODE_LABELS[value] },
     { title: '余额方向', dataIndex: 'normalBalance', width: 100, render: (value: PaymentLedgerNormalBalance) => NORMAL_BALANCE_LABELS[value] },
@@ -558,7 +557,7 @@ export default function PaymentLedgerPage() {
 
   const journalLineColumns: ColumnProps<PaymentJournalLine>[] = [
     { title: '行号', dataIndex: 'lineNo', width: 70, align: 'right' },
-    copyableNoColumn('账户号', 'accountNo', { width: 380 }),
+    copyableNoColumn('账户号', 'accountNo', { width: 300 }),
     { title: '账户名称', dataIndex: 'accountName', width: 240, render: renderEllipsis },
     { title: '借方', dataIndex: 'debitAmount', width: 130, align: 'right', render: (value: string) => formatMinorAmount(value, detailJournal?.currency) },
     { title: '贷方', dataIndex: 'creditAmount', width: 130, align: 'right', render: (value: string) => formatMinorAmount(value, detailJournal?.currency) },
