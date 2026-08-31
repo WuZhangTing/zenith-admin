@@ -310,7 +310,7 @@ export default function PaymentOrdersPage() {
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '方式', dataIndex: 'payMethod', width: 150, render: (v: PaymentMethod) => PAYMENT_METHOD_LABELS[v] },
-    { title: '业务类型', dataIndex: 'bizType', width: 160, render: (v: string) => v || '-' },
+    { title: '业务类型', dataIndex: 'bizType', width: 240, render: renderEllipsis },
     dateTimeColumn('支付时间', 'paidAt'),
     dateTimeColumn('创建时间', 'createdAt'),
     {

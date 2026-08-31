@@ -13,7 +13,6 @@ import {
   Tag,
   TextArea,
   Toast,
-  Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, RotateCcw, Trash2 } from 'lucide-react';
@@ -496,8 +495,8 @@ export default function PaymentLedgerPage() {
   }
 
   const accountColumns: ColumnProps<PaymentLedgerAccount>[] = [
-    copyableNoColumn('账户号', 'accountNo'),
-    { title: '账户名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '账户号', dataIndex: 'accountNo', width: 320, render: renderEllipsis },
+    { title: '账户名称', dataIndex: 'name', width: 240, render: renderEllipsis },
     { title: '科目', dataIndex: 'code', width: 130, render: (value: PaymentLedgerAccountCode) => PAYMENT_LEDGER_ACCOUNT_CODE_LABELS[value] },
     { title: '余额方向', dataIndex: 'normalBalance', width: 100, render: (value: PaymentLedgerNormalBalance) => NORMAL_BALANCE_LABELS[value] },
     { title: '应用', dataIndex: 'appId', width: 150, render: (value: number) => appNameById.get(value) ?? `应用 #${value}` },
@@ -557,8 +556,8 @@ export default function PaymentLedgerPage() {
 
   const journalLineColumns: ColumnProps<PaymentJournalLine>[] = [
     { title: '行号', dataIndex: 'lineNo', width: 70, align: 'right' },
-    { title: '账户号', dataIndex: 'accountNo', width: 260, render: (value: string) => <Typography.Text copyable={{ content: value }}>{value}</Typography.Text> },
-    { title: '账户名称', dataIndex: 'accountName', width: 180, render: renderEllipsis },
+    { title: '账户号', dataIndex: 'accountNo', width: 320, render: renderEllipsis },
+    { title: '账户名称', dataIndex: 'accountName', width: 240, render: renderEllipsis },
     { title: '借方', dataIndex: 'debitAmount', width: 130, align: 'right', render: (value: string) => formatMinorAmount(value, detailJournal?.currency) },
     { title: '贷方', dataIndex: 'creditAmount', width: 130, align: 'right', render: (value: string) => formatMinorAmount(value, detailJournal?.currency) },
     { title: '摘要', dataIndex: 'memo', width: 220, render: renderEllipsis },
