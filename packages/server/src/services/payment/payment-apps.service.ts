@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { oauth2Clients, paymentApps, paymentChannelConfigs, type PaymentAppRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
@@ -136,7 +136,7 @@ async function assertConfigChannel(
 
 export async function createApp(input: CreatePaymentAppInput): Promise<PaymentApp> {
   const user = currentUser();
-  const tenantId = getCreateTenantId(user);
+  const tenantId = requireTenantScopeId(user);
   const openClient = await ensureOpenClient(input.openClientId);
   if ((openClient.tenantId ?? null) !== tenantId) {
     throw new HTTPException(400, { message: '开放平台应用与支付应用必须属于同一租户' });
@@ -162,6 +162,7 @@ export async function createApp(input: CreatePaymentAppInput): Promise<PaymentAp
 }
 
 export async function updateApp(id: number, input: UpdatePaymentAppInput): Promise<PaymentApp> {
+  requireTenantScopeId(currentUser());
   const existing = await ensureApp(id);
   const openClient = await ensureOpenClient(existing.openClientId);
   const tenantId = existing.tenantId ?? null;
@@ -186,6 +187,7 @@ export async function updateApp(id: number, input: UpdatePaymentAppInput): Promi
 }
 
 export async function deleteApp(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   await ensureApp(id);
   await db.delete(paymentApps).where(and(eq(paymentApps.id, id), tenantCondition(paymentApps, currentUser())));
 }
@@ -207,6 +209,9 @@ export async function resolveApplicationChannelConfig(
   if (app.status !== 'enabled') throw new HTTPException(400, { message: `支付应用已停用：${app.name}` });
   if (!app.openClient || app.openClient.status !== 'enabled' || app.openClient.isPublic || !app.openClient.signEnabled) {
     throw new HTTPException(400, { message: '支付应用绑定的开放平台应用不可用' });
+  }
+  if ((app.openClient.tenantId ?? null) !== (app.tenantId ?? null)) {
+    throw new HTTPException(409, { message: '开放平台应用与支付应用租户不一致，请重新绑定同租户应用' });
   }
   const configId = channel === 'wechat'
     ? app.wechatConfigId
