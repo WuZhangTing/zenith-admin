@@ -64,7 +64,7 @@ export default function PaymentEventsPage() {
   }
 
   const columns: ColumnProps<PaymentOutboxEvent>[] = [
-    { title: 'ID', dataIndex: 'id', width: 80 },
+    { title: 'ID', dataIndex: 'id', width: 100 },
     { title: '事件类型', dataIndex: 'type', width: 180 },
     copyableNoColumn('订单号', 'orderNo'),
     { title: '次数', dataIndex: 'attempts', width: 80, align: 'right' },
@@ -169,7 +169,7 @@ export default function PaymentEventsPage() {
         bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
         expandedRowRender={renderExpanded}
-        hideExpandedColumn={false}
+        expandRowByClick
       />
     </div>
   );
