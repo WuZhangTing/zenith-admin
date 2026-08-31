@@ -60,7 +60,17 @@ export default function PaymentEventsPage() {
   const redispatchingId = redispatchMutation.isPending ? (redispatchMutation.variables ?? null) : null;
 
   function handleRedispatch(record: PaymentOutboxEvent) {
-    redispatchMutation.mutate(record.id, { onSuccess: () => Toast.success('重投成功') });
+    redispatchMutation.mutate(record.id, {
+      onSuccess: (event) => {
+        if (event.status === 'done') {
+          Toast.success('事件重投完成');
+          return;
+        }
+        Toast.warning(event.lastError
+          ? `事件已重新入队，本次投递仍未完成：${event.lastError}`
+          : '事件已重新入队，等待后台继续投递');
+      },
+    });
   }
 
   const columns: ColumnProps<PaymentOutboxEvent>[] = [

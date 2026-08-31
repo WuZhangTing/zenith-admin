@@ -109,11 +109,15 @@ export default function PaymentDisputesPage() {
     }
     Modal.confirm({
       title: '发起投诉退款？',
-      content: `将退款 ${yuan(amount ?? detail.amount)}（大额退款自动进入审批），退款后工单自动完结`,
+      content: `将退款 ${yuan(amount ?? detail.amount)}（大额退款自动进入审批），退款成功后工单自动完结`,
       okButtonProps: { type: 'danger' },
       onOk: async () => {
-        await refundMutation.mutateAsync({ id: detailId, refundAmount: amount });
-        Toast.success('退款已发起');
+        const updated = await refundMutation.mutateAsync({ id: detailId, refundAmount: amount });
+        if (updated.status === 'refunded') {
+          Toast.success('退款成功，投诉工单已完结');
+        } else {
+          Toast.info('退款申请已提交，工单将在退款成功后自动完结');
+        }
       },
     });
   }
