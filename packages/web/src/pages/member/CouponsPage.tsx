@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Select, Form, Toast, Tag, Row, Col, Typography } from '@douyinfe/semi-ui';
+import { Select, Form, Toast, Tag, Row, Col, Typography, SideSheet, Button } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { Coupon, CouponType, CouponTemplateStatus } from '@zenith/shared/member';
@@ -261,7 +261,27 @@ export default function CouponsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small"
         pagination={buildPagination(total)} empty="暂无优惠券" scroll={{ x: 1200 }} />
 
-      <AppModal {...couponModal.modalProps} width={700}>
+      <SideSheet
+        title={couponModal.modalProps.title}
+        visible={couponModal.modalProps.visible}
+        onCancel={couponModal.modalProps.onCancel}
+        width={700}
+        closeOnEsc
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={couponModal.modalProps.onCancel}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={couponModal.modalProps.okButtonProps.loading}
+              disabled={couponModal.modalProps.okButtonProps.disabled}
+              onClick={() => void couponModal.modalProps.onOk()}
+            >
+              确定
+            </Button>
+          </div>
+        )}
+      >
         <Form key={couponModal.formKey} {...couponModal.formProps}
           onValueChange={(values) => { if (values.type) setFormType(values.type as CouponType); if (values.validType) setFormValidType(values.validType as 'fixed' | 'relative'); if (values.status) setFormStatus(values.status as CouponTemplateStatus); }}>
           <Row gutter={16}>
@@ -341,7 +361,7 @@ export default function CouponsPage() {
             </Col>
           </Row>
         </Form>
-      </AppModal>
+      </SideSheet>
 
       <AppModal title={`发放优惠券：${issuing?.name ?? ''}`} visible={issueVisible} width={420}
         onCancel={() => setIssueVisible(false)} onOk={handleIssue}>
