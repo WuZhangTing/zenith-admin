@@ -24,7 +24,7 @@ import {
 } from '../../db/schema';
 import { config } from '../../config';
 import { currentUser, currentUserOrNull } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { getDataScopeCondition } from '../../lib/data-scope';
 import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -538,7 +538,13 @@ export async function createPayment(input: InternalCreatePaymentInput): Promise<
     throw new HTTPException(400, { message: '微信 JSAPI 支付必须提供 OpenID' });
   }
   const user = currentUserOrNull();
-  let tenantId = input.tenantId !== undefined ? input.tenantId : user ? getCreateTenantId(user) : null;
+  let tenantId: number | null;
+  if (input.tenantId !== undefined) {
+    tenantId = input.tenantId;
+  } else {
+    if (!user) throw new HTTPException(500, { message: '内部支付下单必须显式提供租户作用域' });
+    tenantId = requireTenantScopeId(user);
+  }
   // App 维度：只接受内部可信 applicationId；开放 API 从已验签 principal 注入后再进入门面。
   const resolved = await resolveApplicationChannelConfig(input.applicationId, channel, tenantId);
   const appId = resolved.appId;

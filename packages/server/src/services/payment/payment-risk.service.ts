@@ -22,7 +22,7 @@ import {
   type PaymentRiskRuleRow,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
@@ -107,6 +107,7 @@ async function ensureListRefs(blockKeys: string[], allowKeys: string[]): Promise
 }
 
 export async function createRiskRule(input: CreatePaymentRiskRuleInput): Promise<PaymentRiskRule> {
+  const tenantId = requireTenantScopeId(currentUser());
   const scoped = normalizeScopeFields(input);
   if (input.scope === 'channel' && !scoped.channel) throw new HTTPException(400, { message: '按渠道规则需指定渠道' });
   if (input.scope === 'bizType' && !scoped.bizType) throw new HTTPException(400, { message: '按业务类型规则需指定业务类型' });
@@ -126,13 +127,14 @@ export async function createRiskRule(input: CreatePaymentRiskRuleInput): Promise
       action: input.action ?? 'block',
       status: input.status ?? 'enabled',
       remark: input.remark ?? null,
-      tenantId: getCreateTenantId(currentUser()),
+      tenantId,
     })
     .returning();
   return mapRiskRule(row);
 }
 
 export async function updateRiskRule(id: number, input: UpdatePaymentRiskRuleInput): Promise<PaymentRiskRule> {
+  requireTenantScopeId(currentUser());
   const existing = await ensureRiskRule(id);
   const set: Partial<PaymentRiskRuleRow> = {};
   if (input.name !== undefined) set.name = input.name;
@@ -164,6 +166,7 @@ export async function updateRiskRule(id: number, input: UpdatePaymentRiskRuleInp
 }
 
 export async function deleteRiskRule(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   await ensureRiskRule(id);
   await db.delete(paymentRiskRules).where(eq(paymentRiskRules.id, id));
 }
@@ -533,6 +536,7 @@ export async function findRiskReviewById(id: number): Promise<PaymentRiskReviewR
  * 用户重新发起支付时业务幂等复用该订单继续调渠道（审核单已非 pending，不再拦截）。
  */
 export async function approveRiskReview(id: number, remark?: string): Promise<PaymentRiskReview> {
+  requireTenantScopeId(currentUser());
   if (!remark?.trim()) throw new HTTPException(400, { message: '审核意见不能为空' });
   const row = await ensureRiskReview(id);
   if (row.status !== 'pending') throw new HTTPException(400, { message: '该审核单已处理' });
@@ -555,6 +559,7 @@ export async function approveRiskReview(id: number, remark?: string): Promise<Pa
 
 /** 审核拒绝：审核单置 rejected 并本地关闭挂起订单（渠道侧从未下单，无需渠道关单） */
 export async function rejectRiskReview(id: number, remark?: string): Promise<PaymentRiskReview> {
+  requireTenantScopeId(currentUser());
   if (!remark?.trim()) throw new HTTPException(400, { message: '审核意见不能为空' });
   const row = await ensureRiskReview(id);
   if (row.status !== 'pending') throw new HTTPException(400, { message: '该审核单已处理' });

@@ -26,8 +26,8 @@ import {
   type PaymentDeductPlanRow,
   type PaymentOrderRow,
 } from '../../db/schema';
-import { currentUserOrNull } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { currentUser, currentUserOrNull } from '../../lib/context';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { isPgUniqueViolation } from '../../lib/db-errors';
@@ -199,7 +199,7 @@ export async function ensureDeductPlan(id: number): Promise<PaymentDeductPlanRow
 }
 
 export async function createDeductPlan(input: CreatePaymentDeductPlanInput): Promise<PaymentDeductPlan> {
-  const user = currentUserOrNull();
+  const tenantId = requireTenantScopeId(currentUser());
   const [row] = await db
     .insert(paymentDeductPlans)
     .values({
@@ -210,13 +210,14 @@ export async function createDeductPlan(input: CreatePaymentDeductPlanInput): Pro
       maxRetries: input.maxRetries,
       status: input.status,
       remark: input.remark ?? null,
-      tenantId: user ? getCreateTenantId(user) : null,
+      tenantId,
     })
     .returning();
   return mapDeductPlan(row);
 }
 
 export async function updateDeductPlan(id: number, input: UpdatePaymentDeductPlanInput): Promise<PaymentDeductPlan> {
+  requireTenantScopeId(currentUser());
   const before = await ensureDeductPlan(id);
   const period = input.period ?? before.period;
   const [row] = await db
@@ -237,6 +238,7 @@ export async function updateDeductPlan(id: number, input: UpdatePaymentDeductPla
 }
 
 export async function deleteDeductPlan(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   await ensureDeductPlan(id);
   const refs = await db.$count(paymentContracts, eq(paymentContracts.planId, id));
   if (refs > 0) throw new HTTPException(400, { message: `该计划已被 ${refs} 份签约协议引用，无法删除` });
@@ -302,6 +304,12 @@ export async function ensureContract(id: number, applicationId: number): Promise
   )).limit(1);
   if (!row) throw new HTTPException(404, { message: '签约协议不存在' });
   return row;
+}
+
+/** 管理端写操作读取：禁止平台全量视角直接修改任一租户协议。 */
+export async function ensureWritableContract(id: number, applicationId: number): Promise<PaymentContractRow> {
+  requireTenantScopeId(currentUser());
+  return ensureContract(id, applicationId);
 }
 
 export async function getContract(id: number, applicationId: number): Promise<PaymentContract> {
@@ -381,7 +389,13 @@ export interface SignContractResult {
 /** 创建协议并调渠道签约（sandbox 即时生效）；可选立即首扣。业务入口（管理端/会员端）共用。 */
 export async function signContract(input: SignContractInput): Promise<SignContractResult> {
   const user = currentUserOrNull();
-  const tenantId = input.tenantId !== undefined ? input.tenantId : user ? getCreateTenantId(user) : null;
+  let tenantId: number | null;
+  if (input.tenantId !== undefined) {
+    tenantId = input.tenantId;
+  } else {
+    if (!user) throw new HTTPException(500, { message: '内部签约必须显式提供租户作用域' });
+    tenantId = requireTenantScopeId(user);
+  }
   const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
   const application = await resolveApplicationChannelConfig(input.applicationId, channel, tenantId);
   const [contractConfig] = await db.select().from(paymentChannelConfigs).where(and(
@@ -504,7 +518,6 @@ async function ensureContractByNo(scope: Pick<PaymentContractRow, 'contractNo' |
 
 /** 管理端创建签约（演示/测试）：bizType=admin_contract，bizId=协议号自身（不与业务单冲突） */
 export async function adminCreateContract(input: CreatePaymentContractInput): Promise<SignContractResult> {
-  const user = currentUserOrNull();
   const bizId = `ADM${Date.now()}${randomInt(100, 999)}`;
   return signContract({
     applicationId: input.applicationId,
@@ -516,7 +529,7 @@ export async function adminCreateContract(input: CreatePaymentContractInput): Pr
     bizType: 'admin_contract',
     bizId,
     remark: input.remark,
-    tenantId: user ? getCreateTenantId(user) : null,
+    tenantId: requireTenantScopeId(currentUser()),
     firstDeductNow: input.firstDeductNow,
   });
 }
@@ -556,6 +569,7 @@ export async function terminateContract(row: PaymentContractRow): Promise<Paymen
 }
 
 export async function pauseContract(id: number, applicationId: number): Promise<PaymentContract> {
+  requireTenantScopeId(currentUser());
   const row = await ensureContract(id, applicationId);
   if (row.status !== 'signed') throw new HTTPException(400, { message: '仅已签约协议可暂停' });
   const [updated] = await db.update(paymentContracts).set({ status: 'paused', version: sql`${paymentContracts.version} + 1` }).where(and(eq(paymentContracts.id, id), eq(paymentContracts.version, row.version), eq(paymentContracts.status, 'signed'))).returning();
@@ -564,6 +578,7 @@ export async function pauseContract(id: number, applicationId: number): Promise<
 }
 
 export async function resumeContract(id: number, applicationId: number): Promise<PaymentContract> {
+  requireTenantScopeId(currentUser());
   const row = await ensureContract(id, applicationId);
   if (row.status !== 'paused') throw new HTTPException(400, { message: '仅已暂停协议可恢复' });
   const [updated] = await db
@@ -576,6 +591,7 @@ export async function resumeContract(id: number, applicationId: number): Promise
 }
 
 export async function recoverContract(id: number, applicationId: number): Promise<PaymentContract> {
+  requireTenantScopeId(currentUser());
   const row = await ensureContract(id, applicationId);
   if (row.status !== 'pending' && row.status !== 'unknown') return getContract(id, applicationId);
   const operation = row.unknownOperation ?? 'sign';
@@ -877,6 +893,7 @@ export async function executeDeduction(input: PaymentContractRow): Promise<Deduc
 
 /** 管理端按协议 id 手动补扣 */
 export async function deductContractById(id: number, applicationId: number): Promise<DeductResult & { contract: PaymentContract }> {
+  requireTenantScopeId(currentUser());
   const row = await ensureContract(id, applicationId);
   const result = await executeDeduction(row);
   return { ...result, contract: await getContract(id, applicationId) };

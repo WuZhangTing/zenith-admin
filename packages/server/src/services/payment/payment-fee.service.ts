@@ -16,7 +16,7 @@ import {
   type PaymentFeeRuleRow,
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { postSystemJournal, postSystemJournalWithin } from './payment-journal.service';
@@ -93,6 +93,7 @@ function assertFeeMethodChannel(channel: PaymentChannel, payMethod?: PaymentMeth
 }
 
 export async function createFeeRule(input: CreatePaymentFeeRuleInput): Promise<PaymentFeeRule> {
+  const tenantId = requireTenantScopeId(currentUser());
   assertFeeBounds(input.minFee, input.maxFee);
   assertFeeMethodChannel(input.channel, input.payMethod);
   const [row] = await db
@@ -108,13 +109,14 @@ export async function createFeeRule(input: CreatePaymentFeeRuleInput): Promise<P
       status: input.status ?? 'enabled',
       priority: input.priority ?? 0,
       remark: input.remark ?? null,
-      tenantId: getCreateTenantId(currentUser()),
+      tenantId,
     })
     .returning();
   return mapFeeRule(row);
 }
 
 export async function updateFeeRule(id: number, input: UpdatePaymentFeeRuleInput): Promise<PaymentFeeRule> {
+  requireTenantScopeId(currentUser());
   const existing = await ensureFeeRule(id);
   const min = input.minFee !== undefined ? input.minFee : existing.minFee;
   const max = input.maxFee !== undefined ? input.maxFee : existing.maxFee;
@@ -137,6 +139,7 @@ export async function updateFeeRule(id: number, input: UpdatePaymentFeeRuleInput
 }
 
 export async function deleteFeeRule(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   await ensureFeeRule(id);
   await db.delete(paymentFeeRules).where(eq(paymentFeeRules.id, id));
 }

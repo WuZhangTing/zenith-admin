@@ -14,7 +14,7 @@ import {
   createDeductPlan,
   deductContractById,
   deleteDeductPlan,
-  ensureContract,
+  ensureWritableContract,
   ensureDeductPlan,
   getContract,
   allDeductPlans,
@@ -175,7 +175,7 @@ const terminateRoute = defineOpenAPIRoute({
     responses: { ...ok(PaymentContractDTO, '解约成功'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const row = await ensureContract(c.req.valid('param').id, c.req.valid('query').applicationId);
+    const row = await ensureWritableContract(c.req.valid('param').id, c.req.valid('query').applicationId);
     setAuditBeforeData(c, row);
     return c.json(okBody(await terminateContract(row), '解约成功'), 200);
   },

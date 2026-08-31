@@ -32,7 +32,7 @@ import { runAsUser } from '../../lib/audit-context';
 import { currentUser } from '../../lib/context';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 
 export interface PaymentMoneyScope {
@@ -170,7 +170,7 @@ export async function listLedgerAccounts(q: ListLedgerAccountsQuery) {
 export async function createLedgerAccount(input: CreatePaymentLedgerAccountInput): Promise<PaymentLedgerAccount> {
   const user = currentUser();
   const scope: PaymentMoneyScope = {
-    tenantId: getCreateTenantId(user),
+    tenantId: requireTenantScopeId(user),
     appId: input.appId,
     channelConfigId: input.channelConfigId,
     currency: input.currency,
@@ -428,7 +428,7 @@ export function postJournal(input: PostPaymentJournalInput): Promise<PaymentJour
   }
   const user = currentUser();
   return postJournalInternal(input, null, {
-    tenantId: getCreateTenantId(user),
+    tenantId: requireTenantScopeId(user),
     operatorId: user.userId,
   });
 }
@@ -675,6 +675,7 @@ export async function postSystemJournal(input: PostSystemPaymentJournalInput): P
 
 export async function reverseJournal(id: number, reason: string): Promise<PaymentJournal> {
   const user = currentUser();
+  const tenantId = requireTenantScopeId(user);
   const original = await getJournalRow(id);
   if (original.reversalOfJournalId != null) throw new HTTPException(400, { message: '冲正凭证不能再次冲正' });
   if (!original.sourceType.startsWith('manual.')) {
@@ -703,7 +704,7 @@ export async function reverseJournal(id: number, reason: string): Promise<Paymen
       memo: `冲正：${line.memo ?? original.description}`,
     })),
   }, original.id, {
-    tenantId: getCreateTenantId(user),
+    tenantId,
     operatorId: user.userId,
   });
 }
@@ -748,7 +749,7 @@ export async function createFundReservation(input: CreatePaymentFundReservationI
     throw new HTTPException(400, { message: '人工预占来源类型必须以 manual. 开头' });
   }
   const user = currentUser();
-  const tenantId = getCreateTenantId(user);
+  const tenantId = requireTenantScopeId(user);
   const expiresAt = input.expiresAt ? parseDateTimeInput(input.expiresAt) : null;
   if (input.expiresAt && !expiresAt) throw new HTTPException(400, { message: '预占到期时间格式不正确' });
   if (expiresAt && expiresAt <= new Date()) throw new HTTPException(400, { message: '预占到期时间必须晚于当前时间' });
@@ -838,6 +839,7 @@ async function finalizeFundReservation(
   target: 'captured' | 'released',
   input: TransitionPaymentFundReservationInput,
 ): Promise<PaymentFundReservation> {
+  requireTenantScopeId(currentUser());
   const row = await getReservationRow(id);
   if (row.status === target) return mapFundReservation(row);
   if (row.status !== 'active') throw new HTTPException(409, { message: `资金预占已处于 ${row.status} 状态` });

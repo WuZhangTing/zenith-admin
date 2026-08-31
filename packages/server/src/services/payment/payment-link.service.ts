@@ -9,7 +9,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { db } from '../../db';
 import { paymentCashierSessions, paymentLinkRedemptions, paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { createPayment } from './payment.service';
@@ -177,7 +177,7 @@ async function assertLinkConfigurationAvailable(input: {
 }
 
 export async function createLink(input: CreatePaymentLinkInput): Promise<PaymentLink> {
-  const tenantId = getCreateTenantId(currentUser());
+  const tenantId = requireTenantScopeId(currentUser());
   await assertLinkConfigurationAvailable({ applicationId: input.applicationId, tenantId, payMethod: input.payMethod });
   const [row] = await db
     .insert(paymentLinks)
@@ -200,6 +200,7 @@ export async function createLink(input: CreatePaymentLinkInput): Promise<Payment
 }
 
 export async function updateLink(id: number, input: UpdatePaymentLinkInput): Promise<PaymentLink> {
+  requireTenantScopeId(currentUser());
   const existing = await ensureLink(id);
   const nextMethod = input.payMethod !== undefined ? input.payMethod : existing.payMethod;
   await assertLinkConfigurationAvailable({ applicationId: existing.appId, tenantId: existing.tenantId ?? null, payMethod: nextMethod });
@@ -242,6 +243,7 @@ export async function updateLink(id: number, input: UpdatePaymentLinkInput): Pro
 }
 
 export async function deleteLink(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   const link = await ensureLink(id);
   const sessionCount = await db.$count(paymentCashierSessions, eq(paymentCashierSessions.linkId, id));
   if (sessionCount > 0) {
@@ -267,6 +269,7 @@ export async function deleteLink(id: number): Promise<void> {
 
 /** 重置链接 token（安全轮换）：生成新 token，旧分享链接立即失效。 */
 export async function rotateLinkToken(id: number): Promise<PaymentLink> {
+  requireTenantScopeId(currentUser());
   await ensureLink(id);
   const activeSessionCount = await db.$count(paymentCashierSessions, and(
     eq(paymentCashierSessions.linkId, id),

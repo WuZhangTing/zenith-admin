@@ -18,7 +18,7 @@ import type { PaymentEvent } from '../../lib/payment-event-bus';
 import { getAdapter } from '../../lib/payment';
 import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
-import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { keywordCondition, mergeWhere } from '../../lib/where-helpers';
 import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 import type {
@@ -221,7 +221,7 @@ async function markOrderFailed(order: PaymentOrderRow, reason: string): Promise<
 
 export async function createPreauth(input: CreatePaymentPreauthInput): Promise<PaymentPreauth> {
   const user = currentUser();
-  const tenantId = getCreateTenantId(user);
+  const tenantId = requireTenantScopeId(user);
   const channel = PAYMENT_METHOD_CHANNEL[input.payMethod];
   const application = await resolveApplicationChannelConfig(input.applicationId, channel, tenantId);
   const [config] = await db.select().from(paymentChannelConfigs).where(and(
@@ -279,6 +279,7 @@ async function restoreAfterFailure(row: PaymentPreauthRow, reason: string): Prom
 }
 
 export async function capturePreauth(id: number, applicationId: number, input: CapturePaymentPreauthInput): Promise<PaymentPreauth> {
+  requireTenantScopeId(currentUser());
   const row = await ensurePreauth(id, applicationId);
   if (row.status !== 'frozen') throw new HTTPException(400, { message: '仅已冻结的预授权可转支付' });
   if (!row.channelPreauthNo) throw new HTTPException(400, { message: '预授权缺少渠道授权单号' });
@@ -349,6 +350,7 @@ export async function capturePreauth(id: number, applicationId: number, input: C
 }
 
 export async function releasePreauth(id: number, applicationId: number): Promise<PaymentPreauth> {
+  requireTenantScopeId(currentUser());
   const row = await ensurePreauth(id, applicationId);
   if (row.status !== 'frozen') throw new HTTPException(400, { message: '仅已冻结的预授权可解冻' });
   const config = await loadBoundConfig(row);
@@ -380,6 +382,7 @@ export async function releasePreauth(id: number, applicationId: number): Promise
 }
 
 export async function recoverPreauth(id: number, applicationId: number): Promise<PaymentPreauth> {
+  requireTenantScopeId(currentUser());
   const row = await ensurePreauth(id, applicationId);
   if (row.status !== 'unknown' && row.status !== 'pending') return mapPreauth(row);
   const operation = row.unknownOperation ?? 'freeze';

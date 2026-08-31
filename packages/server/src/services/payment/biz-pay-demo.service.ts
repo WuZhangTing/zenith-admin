@@ -22,7 +22,7 @@ import { db } from '../../db';
 import { bizPayDemos, paymentOrders, type BizPayDemoRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
+import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import logger from '../../lib/logger';
@@ -95,12 +95,13 @@ export async function createBizPayDemo(data: { subject: string; amount: number }
     subject: data.subject,
     amount: data.amount,
     status: 'pending',
-    tenantId: getCreateTenantId(user),
+    tenantId: requireTenantScopeId(user),
   }).returning();
   return mapBizPayDemo(row);
 }
 
 export async function deleteBizPayDemo(id: number): Promise<void> {
+  requireTenantScopeId(currentUser());
   const row = await getOwnRow(id);
   if (row.status === 'paid') throw new HTTPException(400, { message: '已支付的示例单不可删除' });
   await db.delete(bizPayDemos).where(eq(bizPayDemos.id, id));
@@ -115,6 +116,7 @@ export async function payBizPayDemo(
   input: { applicationId: number; payMethod: PaymentCashierMethod; openId?: string },
   clientIp?: string,
 ): Promise<{ demo: BizPayDemo; payParams: CreatePaymentResult }> {
+  requireTenantScopeId(currentUser());
   const row = await getOwnRow(id);
   if (row.status === 'paid') throw new HTTPException(400, { message: '该示例单已支付，无需重复发起' });
 
@@ -132,6 +134,7 @@ export async function payBizPayDemo(
       openId: input.openId,
       expireMinutes: 30,
       clientIp,
+      tenantId: row.tenantId,
     });
     orderNo = res.orderNo;
     payParams = res.payParams;
@@ -156,6 +159,7 @@ export async function payBizPayDemo(
  * 没有支付订单时拒绝模拟，避免业务状态绕过支付事实来源。
  */
 export async function simulateBizPayDemoPaid(id: number): Promise<BizPayDemo> {
+  requireTenantScopeId(currentUser());
   const row = await getOwnRow(id);
   if (row.status === 'paid') return mapBizPayDemo(row);
   if (row.status === 'closed') throw new HTTPException(400, { message: '已关闭的示例单无法支付' });
