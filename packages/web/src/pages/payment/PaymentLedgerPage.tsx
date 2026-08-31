@@ -712,7 +712,27 @@ export default function PaymentLedgerPage() {
         </Form>
       </AppModal>
 
-      <AppModal {...journalModal.modalProps} title="新建资金凭证" width={960}>
+      <SideSheet
+        title="新建资金凭证"
+        visible={journalModal.modalProps.visible}
+        onCancel={journalModal.modalProps.onCancel}
+        width={860}
+        closeOnEsc
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={journalModal.modalProps.onCancel}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={journalModal.modalProps.okButtonProps.loading}
+              disabled={journalModal.modalProps.okButtonProps.disabled}
+              onClick={() => void journalModal.modalProps.onOk()}
+            >
+              确定
+            </Button>
+          </div>
+        )}
+      >
         <Form
           key={journalModal.formKey}
           {...journalModal.formProps}
@@ -736,7 +756,7 @@ export default function PaymentLedgerPage() {
             <JournalLinesField accountOptions={scopedAccountOptions} />
           </Form.Slot>
         </Form>
-      </AppModal>
+      </SideSheet>
 
       <AppModal {...reservationModal.modalProps} title="新建资金预占" width={720}>
         <Form key={reservationModal.formKey} {...reservationModal.formProps}>
