@@ -77,6 +77,8 @@ export interface User {
   departmentName?: string | null;
   tenantId?: number | null;
   tenantName?: string | null;
+  /** 平台超管当前查看的租户；null/缺省表示平台视角 */
+  viewingTenantId?: number | null;
   positionIds?: number[];
   positions?: Position[];
   roles: Role[];

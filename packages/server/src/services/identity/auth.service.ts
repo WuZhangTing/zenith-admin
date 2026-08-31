@@ -468,7 +468,8 @@ export async function saveMyFavoriteMenus(menuIds: number[]): Promise<number[]> 
 }
 
 export async function getMyProfile() {
-  const userId = currentUser().userId;
+  const authUser = currentUser();
+  const userId = authUser.userId;
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
     with: {
@@ -514,6 +515,7 @@ export async function getMyProfile() {
       createdAt: formatDateTime(p.createdAt), updatedAt: formatDateTime(p.updatedAt),
     })),
     tenantName,
+    viewingTenantId: authUser.viewingTenantId ?? null,
     roles: userRoleList,
     permissions,
     requirePasswordChange,

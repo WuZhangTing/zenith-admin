@@ -263,7 +263,7 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
 
   // ─── 维护模式横幅（超管提示） ─────────────────────────────────────────
   const { maintenanceBannerEnabled, maintenanceBannerMsg, disablingMaintenance, handleDisableMaintenance } = useMaintenanceBanner(isSuperAdmin);
-  const { tenantList, viewingTenantId, handleSwitchTenant } = useTenantSwitch(isPlatformAdmin);
+  const { tenantList, viewingTenantId, handleSwitchTenant } = useTenantSwitch(isPlatformAdmin, user.viewingTenantId);
 
   // ─── 公告 ──────────────────────────────────────────────────────────────────
   const {

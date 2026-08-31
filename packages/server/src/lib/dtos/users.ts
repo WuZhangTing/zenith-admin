@@ -40,6 +40,7 @@ export const UserDTO = z
     departmentName: z.string().nullable().optional(),
     tenantId: z.number().int().nullable().optional(),
     tenantName: z.string().nullable().optional(),
+    viewingTenantId: z.number().int().nullable().optional(),
     positionIds: z.array(z.number().int()).optional(),
     positions: z.array(PositionDTO).optional(),
     roles: z.array(RoleDTO).optional(),
