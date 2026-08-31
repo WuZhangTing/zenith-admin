@@ -42,10 +42,10 @@ export default function PaymentLogsPage() {  const {
   const data = listQuery.data ?? null;
 
   const columns: ColumnProps<PaymentNotifyLog>[] = [
-    { title: 'ID', dataIndex: 'id', width: 100 },
+    // 订单号置于首列承载展开箭头；内部日志 ID 移入展开详情
+    copyableNoColumn('订单号', 'orderNo', { width: 300 }),
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '场景', dataIndex: 'scene', width: 100, render: (v: string) => (v === 'refund' ? '退款回调' : '支付回调') },
-    copyableNoColumn('订单号', 'orderNo'),
     { title: '验签', dataIndex: 'signatureValid', width: 90, render: (v: boolean) => <Tag color={v ? 'green' : 'red'}>{v ? '通过' : '失败'}</Tag> },
     { title: '结果', dataIndex: 'result', width: 120, render: (v: string | null) => v || '-' },
     { title: '说明', dataIndex: 'message', width: 220, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v || '-'}</Typography.Text> },
@@ -57,6 +57,7 @@ export default function PaymentLogsPage() {  const {
   const renderExpanded = (r?: PaymentNotifyLog) => (r ? (
     // flex: 1 + minWidth: 0：Semi 展开行容器是 flex row，不声明会被收缩成内容最小宽
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0', flex: 1, minWidth: 0 }}>
+      <Typography.Text type="tertiary" size="small">日志 ID：{r.id}</Typography.Text>
       {r.headers && (
         <div>
           <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>请求头</Typography.Text>

@@ -64,9 +64,9 @@ export default function PaymentEventsPage() {
   }
 
   const columns: ColumnProps<PaymentOutboxEvent>[] = [
-    { title: 'ID', dataIndex: 'id', width: 100 },
+    // 订单号置于首列承载展开箭头；内部事件 ID 移入展开详情
+    copyableNoColumn('订单号', 'orderNo', { width: 300 }),
     { title: '事件类型', dataIndex: 'type', width: 180 },
-    copyableNoColumn('订单号', 'orderNo'),
     { title: '次数', dataIndex: 'attempts', width: 80, align: 'right' },
     { title: '错误信息', dataIndex: 'lastError', width: 260, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{v || '-'}</Typography.Text> },
     dateTimeColumn('创建时间', 'createdAt'),
@@ -89,6 +89,7 @@ export default function PaymentEventsPage() {
   const renderExpanded = (r?: PaymentOutboxEvent) => (r ? (
     // flex: 1 + minWidth: 0：Semi 展开行容器是 flex row，不声明会被收缩成内容最小宽
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0', flex: 1, minWidth: 0 }}>
+      <Typography.Text type="tertiary" size="small">事件 ID：{r.id}</Typography.Text>
       {r.lastError && (
         <div>
           <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>最近错误</Typography.Text>
