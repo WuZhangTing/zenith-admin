@@ -1,4 +1,4 @@
-import { SideSheet, Tag, Descriptions, Table, Spin, Avatar, Typography } from '@douyinfe/semi-ui';
+import { SideSheet, Tag, Descriptions, Divider, Table, Spin, Avatar, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import type { MemberPointTransaction, MemberWalletTransaction, MemberLoginLog } from '@zenith/shared/member';
@@ -77,38 +77,42 @@ export function MemberDetailDrawer({ memberId, onClose }: Readonly<Props>) {
       <Spin spinning={overviewQuery.isFetching}>
         {overview && (
           <div style={{ padding: '20px 24px' }}>
-            {/* 会员头像 + 基本信息 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, padding: '16px 20px', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-large)' }}>
-              <Avatar size="large" src={m?.avatar ?? undefined} style={{ flexShrink: 0, background: '#07c160', fontSize: 18 }}>
+            {/* 会员头像 + 昵称：与订单详情一致的无卡片形态 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+              <Avatar size="default" src={m?.avatar ?? undefined} style={{ flexShrink: 0, background: '#07c160' }}>
                 {!m?.avatar && (m?.nickname?.charAt(0) ?? '?')}
               </Avatar>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                  <span style={{ fontSize: 18, fontWeight: 700 }}>{m?.nickname}</span>
-                  <Tag color={STATUS_COLORS[m?.status ?? 'inactive']} size="small">
-                    {MEMBER_STATUS_LABELS[m?.status as keyof typeof MEMBER_STATUS_LABELS]}
-                  </Tag>
-                  {m?.levelName && <Tag color="amber" size="small">{m.levelName}</Tag>}
-                </div>
-                <Descriptions row size="small" data={[
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+                <span style={{ fontSize: 16, fontWeight: 600 }}>{m?.nickname}</span>
+                <Tag color={STATUS_COLORS[m?.status ?? 'inactive']} size="small">
+                  {MEMBER_STATUS_LABELS[m?.status as keyof typeof MEMBER_STATUS_LABELS]}
+                </Tag>
+                {m?.levelName && <Tag color="amber" size="small">{m.levelName}</Tag>}
+                {m?.tags?.map((t) => <Tag key={t.id} size="small" color={(t.color || 'blue') as 'blue'}>{t.name}</Tag>)}
+                {overview.mpFans.map((f) => (
+                  <Tag key={`fan-${f.id}`} size="small" color="lime">公众号粉丝 · {f.nickname || f.openid.slice(0, 8)}</Tag>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <Divider align="left" style={{ margin: '12px 0 10px' }}>基本信息</Divider>
+              <Descriptions
+                align="plain"
+                layout="horizontal"
+                column={2}
+                size="small"
+                data={[
                   { key: '手机', value: m?.phone ?? '—' },
-                  { key: '邮箱', value: <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{m?.email ?? '—'}</Text> },
-                  { key: '注册来源', value: m?.registerSource },
+                  { key: '邮箱', value: <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 220 }}>{m?.email ?? '—'}</Text> },
+                  { key: '注册来源', value: m?.registerSource ?? '—' },
                   { key: '最后登录', value: m?.lastLoginAt ?? '—' },
                   { key: '成长值', value: `${m?.growthValue ?? 0}（经验 ${m?.experience ?? 0}）` },
                   { key: '邀请人', value: overview.inviter ? `${overview.inviter.nickname} #${overview.inviter.id}` : '—' },
                   { key: '邀请码', value: overview.inviteCode ?? '—' },
                   { key: '已邀请', value: `${overview.invitedCount} 人` },
-                ]} />
-                {(m?.tags?.length || overview.mpFans.length > 0) ? (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                    {m?.tags?.map((t) => <Tag key={t.id} size="small" color={(t.color || 'blue') as 'blue'}>{t.name}</Tag>)}
-                    {overview.mpFans.map((f) => (
-                      <Tag key={`fan-${f.id}`} size="small" color="lime">公众号粉丝 · {f.nickname || f.openid.slice(0, 8)}</Tag>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+                ]}
+              />
             </div>
 
             {/* 核心数据卡片：点击跳到对应管理页并按当前会员筛选 */}
