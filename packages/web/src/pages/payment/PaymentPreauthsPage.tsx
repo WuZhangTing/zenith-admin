@@ -224,7 +224,6 @@ export default function PaymentPreauthsPage() {
             {renderAppFilter()}
             {renderStatusFilter()}
             {renderChannelFilter()}
-            {renderAppFilter()}
             {renderSearchButton()}
             {renderResetButton()}
             {renderCreateButton()}

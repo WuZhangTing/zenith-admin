@@ -376,7 +376,6 @@ export default function PaymentContractsPage() {
                 {renderAppFilter()}
                 {renderStatusFilter()}
                 {renderChannelFilter()}
-                {renderAppFilter()}
                 {renderSearchButton()}
                 {renderResetButton()}
                 {renderExportButtons()}
