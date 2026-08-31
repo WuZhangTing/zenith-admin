@@ -8,7 +8,7 @@
 import { and, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { memberWallets, memberWalletTransactions, members, paymentOrders } from '../../db/schema';
+import { memberWallets, memberWalletTransactions, members, paymentOrders, paymentRefunds } from '../../db/schema';
 import type { MemberWalletRow, MemberWalletTransactionRow } from '../../db/schema';
 import type { DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
@@ -125,6 +125,8 @@ export interface ChangeWalletInput {
   paymentEventId?: string;
   remark?: string;
   operatorId?: number;
+  /** Internal refund chargebacks may create a recoverable negative balance. */
+  allowNegative?: boolean;
 }
 
 export interface WalletChangeResult {
@@ -142,9 +144,10 @@ export function computeWalletChange(
   w: { balance: number; totalRecharge: number; totalConsume: number },
   type: WalletTxType,
   amount: number,
+  options?: { allowNegative?: boolean },
 ): WalletChangeResult {
   const newBalance = w.balance + amount;
-  if (newBalance < 0) throw new HTTPException(400, { message: '余额不足' });
+  if (newBalance < 0 && !options?.allowNegative) throw new HTTPException(400, { message: '余额不足' });
   return {
     newBalance,
     newTotalRecharge: type === 'recharge' && amount > 0 ? w.totalRecharge + amount : w.totalRecharge,
@@ -157,7 +160,7 @@ async function applyWalletChange(tx: DbTransaction, input: ChangeWalletInput): P
   const [w] = await tx.select().from(memberWallets).where(eq(memberWallets.memberId, input.memberId)).limit(1);
   if (!w) throw new HTTPException(404, { message: '钱包不存在' });
 
-  const { newBalance, newTotalRecharge, newTotalConsume } = computeWalletChange(w, input.type, input.amount);
+  const { newBalance, newTotalRecharge, newTotalConsume } = computeWalletChange(w, input.type, input.amount, { allowNegative: input.allowNegative });
 
   const updated = await tx
     .update(memberWallets)
@@ -262,7 +265,13 @@ export async function creditWalletOnRecharge(event: { eventId: string; bizId: st
   }
   const tenantScope = event.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, event.tenantId);
   const [order] = await db
-    .select({ id: paymentOrders.id, amount: paymentOrders.amount, paidAmount: paymentOrders.paidAmount, userId: paymentOrders.userId })
+    .select({
+      id: paymentOrders.id,
+      amount: paymentOrders.amount,
+      paidAmount: paymentOrders.paidAmount,
+      originalAmount: paymentOrders.originalAmount,
+      userId: paymentOrders.userId,
+    })
     .from(paymentOrders)
     .where(and(
       eq(paymentOrders.orderNo, event.orderNo),
@@ -273,7 +282,10 @@ export async function creditWalletOnRecharge(event: { eventId: string; bizId: st
       tenantScope,
     ))
     .limit(1);
-  if (!order || order.userId == null || (order.amount !== event.amount && order.paidAmount !== event.amount)) {
+  const expectedPaidAmount = order?.paidAmount ?? order?.amount;
+  const expectedOriginalAmount = order?.originalAmount ?? order?.amount;
+  const eventOriginalAmount = event.originalAmount ?? order?.amount;
+  if (!order || order.userId == null || event.amount !== expectedPaidAmount || eventOriginalAmount !== expectedOriginalAmount) {
     logger.warn('[MemberWallet] 充值事件与支付订单不匹配', { orderNo: event.orderNo, bizId: event.bizId });
     return;
   }
@@ -316,6 +328,82 @@ export async function creditWalletOnRecharge(event: { eventId: string; bizId: st
     }),
   );
   if (credited) logger.info('[MemberWallet] 充值到账', { memberId, orderNo: event.orderNo, amount: event.amount });
+}
+
+/**
+ * 充值订单退款成功后的钱包冲正。
+ * 退款属于支付域的终态事件，不能只退渠道资金而保留会员钱包余额；
+ * 以 refundNo 作为幂等键，并允许余额暂时为负数形成可追收欠款。
+ */
+export async function reverseWalletRechargeOnRefund(event: {
+  eventId: string;
+  orderNo: string;
+  refundNo?: string;
+  refundAmount?: number;
+  appId?: number | null;
+  tenantId?: number | null;
+}): Promise<void> {
+  if (event.appId == null || !event.refundNo || !event.refundAmount || event.refundAmount <= 0) return;
+  const tenantScope = event.tenantId == null ? isNull(paymentOrders.tenantId) : eq(paymentOrders.tenantId, event.tenantId);
+  const [matched] = await db
+    .select({
+      orderNo: paymentOrders.orderNo,
+      userId: paymentOrders.userId,
+      bizType: paymentOrders.bizType,
+      appId: paymentOrders.appId,
+      tenantId: paymentOrders.tenantId,
+      refundAmount: paymentRefunds.refundAmount,
+    })
+    .from(paymentRefunds)
+    .innerJoin(paymentOrders, eq(paymentOrders.id, paymentRefunds.orderId))
+    .where(and(
+      eq(paymentRefunds.refundNo, event.refundNo),
+      eq(paymentRefunds.orderNo, event.orderNo),
+      eq(paymentRefunds.status, 'success'),
+      eq(paymentOrders.appId, event.appId),
+      inArray(paymentOrders.status, ['success', 'refunding', 'refunded']),
+      tenantScope,
+    ))
+    .limit(1);
+  if (!matched || matched.bizType !== WALLET_RECHARGE_BIZ_TYPE || matched.userId == null || matched.refundAmount !== event.refundAmount) {
+    logger.warn('[MemberWallet] 充值退款事件与支付退款单不匹配', { orderNo: event.orderNo, refundNo: event.refundNo });
+    return;
+  }
+  const memberTenantScope = event.tenantId == null ? isNull(members.tenantId) : eq(members.tenantId, event.tenantId);
+  const [member] = await db
+    .select({ id: members.id })
+    .from(members)
+    .where(and(eq(members.id, matched.userId), isNull(members.deletedAt), memberTenantScope))
+    .limit(1);
+  if (!member) {
+    logger.warn('[MemberWallet] 充值退款会员不存在或已删除', { orderNo: event.orderNo, refundNo: event.refundNo, memberId: matched.userId });
+    return;
+  }
+  await ensureWallet(matched.userId);
+  await withOptimisticRetry(() => db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`wallet-refund:${event.refundNo}`}))`);
+    const [existing] = await tx
+      .select({ id: memberWalletTransactions.id })
+      .from(memberWalletTransactions)
+      .where(and(
+        eq(memberWalletTransactions.bizType, 'member_recharge_refund'),
+        eq(memberWalletTransactions.bizId, event.refundNo!),
+      ))
+      .limit(1);
+    if (existing) return;
+    await applyWalletChange(tx, {
+      memberId: matched.userId!,
+      type: 'consume',
+      amount: -Math.abs(event.refundAmount!),
+      bizType: 'member_recharge_refund',
+      bizId: event.refundNo,
+      paymentIntentNo: matched.orderNo,
+      paymentEventId: event.eventId,
+      remark: '会员充值退款冲正（余额不足将形成待追收欠款）',
+      allowNegative: true,
+    });
+  }));
+  logger.info('[MemberWallet] 充值退款冲正完成', { memberId: matched.userId, orderNo: event.orderNo, refundNo: event.refundNo, amount: event.refundAmount });
 }
 
 // ─── 流水查询 ─────────────────────────────────────────────────────────────────

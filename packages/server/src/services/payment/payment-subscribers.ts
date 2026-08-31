@@ -5,7 +5,7 @@
 import { paymentEventBus } from '../../lib/payment-event-bus';
 import { sendToUser } from '../../lib/ws-manager';
 import logger from '../../lib/logger';
-import { creditWalletOnRecharge, WALLET_RECHARGE_BIZ_TYPE } from '../member/member-wallet.service';
+import { creditWalletOnRecharge, reverseWalletRechargeOnRefund, WALLET_RECHARGE_BIZ_TYPE } from '../member/member-wallet.service';
 import { extendVipOnRenewal } from '../member/member-renewal.service';
 import { MEMBER_RENEWAL_BIZ_TYPE } from '@zenith/shared/member';
 import { completeDisputeRefund, recordDisputeRefundFailure } from './payment-dispute.service';
@@ -77,6 +77,23 @@ export function registerPaymentSubscribers(): void {
     const refundAmount = e.refundAmount ?? 0;
     setImmediate(() => {
       sendToUser(userId, { type: 'payment:refund-failed', payload: { orderNo: e.orderNo, refundNo, refundAmount } });
+    });
+  });
+
+  // 会员充值退款必须同步冲正钱包余额；支付退款和钱包流水分别幂等，
+  // 因而事件重投不会重复扣减，且退款先于充值入账时仍能正确收敛。
+  paymentEventBus.on('refund.succeeded', (e) => {
+    if (e.bizType !== WALLET_RECHARGE_BIZ_TYPE) return;
+    return reverseWalletRechargeOnRefund({
+      eventId: e.eventId,
+      orderNo: e.orderNo,
+      refundNo: e.refundNo,
+      refundAmount: e.refundAmount,
+      appId: e.appId,
+      tenantId: e.tenantId,
+    }).catch((err) => {
+      logger.error('[member] 会员充值退款冲正失败', { orderNo: e.orderNo, refundNo: e.refundNo, err });
+      throw err;
     });
   });
 
