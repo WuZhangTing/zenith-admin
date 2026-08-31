@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from 'react';
 import { formatYuan } from '@/utils/payment';
-import { Banner, Button, Form, Input, Modal, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, Modal, Row, Select, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -253,19 +253,43 @@ export default function PaymentPreauthsPage() {
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
       />
 
-      <AppModal {...createModal.modalProps} title="发起预授权冻结" width={520}>
+      <AppModal {...createModal.modalProps} title="发起预授权冻结" width={660}>
         <Banner type="warning" closeIcon={null} style={{ marginBottom: 16 }}
           description="资金冻结操作（押金场景）：冻结成功计入渠道账户冻结余额，可转支付或解冻；沙箱渠道即时生效。" />
         <Form key={createModal.formKey} {...createModal.formProps}>
-          <Form.Select field="applicationId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter loading={appsQuery.isFetching}
-            onChange={(value) => { setSelectedAppId((value as number | undefined) ?? null); createModal.formApi.current?.setValue('payMethod', undefined); }} rules={[{ required: true, message: '请选择支付应用' }]} />
-          <Form.Select field="payMethod" label="预授权方式" style={{ width: '100%' }} optionList={preauthMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择方式' }]} />
-          <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={[{ value: 'CNY', label: 'CNY · 人民币' }]} disabled rules={[{ required: true, message: '请选择币种' }]} />
-          <Form.Input field="payerAccount" label="付款人账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '付款人账号不能为空' }]} />
-          <Form.Input field="subject" label="冻结事由" placeholder="如：民宿押金" rules={[{ required: true, message: '冻结事由不能为空' }]} />
-          <Form.InputNumber field="amountYuan" label="冻结金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入冻结金额' }]} />
-          <Form.Input field="bizType" label="业务类型" placeholder="可选，默认 admin_preauth" />
-          <Form.Input field="bizId" label="业务单号" placeholder="业务侧唯一单号" rules={[{ required: true, message: '请输入业务单号' }]} />
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="applicationId" label="支付应用" style={{ width: '100%' }} optionList={appOptions} filter loading={appsQuery.isFetching}
+                onChange={(value) => { setSelectedAppId((value as number | undefined) ?? null); createModal.formApi.current?.setValue('payMethod', undefined); }} rules={[{ required: true, message: '请选择支付应用' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Select field="payMethod" label="预授权方式" style={{ width: '100%' }} optionList={preauthMethodOptions} disabled={selectedAppId == null} rules={[{ required: true, message: '请选择方式' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Select field="currency" label="币种" style={{ width: '100%' }} optionList={[{ value: 'CNY', label: 'CNY · 人民币' }]} disabled rules={[{ required: true, message: '请选择币种' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.InputNumber field="amountYuan" label="冻结金额(元)" min={0.01} step={0.01} precision={2} style={{ width: '100%' }} rules={[{ required: true, message: '请输入冻结金额' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="payerAccount" label="付款人账号" placeholder="微信 openid / 支付宝账号" rules={[{ required: true, message: '付款人账号不能为空' }]} />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="subject" label="冻结事由" placeholder="如：民宿押金" rules={[{ required: true, message: '冻结事由不能为空' }]} />
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Input field="bizType" label="业务类型" placeholder="可选，默认 admin_preauth" />
+            </Col>
+            <Col span={12}>
+              <Form.Input field="bizId" label="业务单号" placeholder="业务侧唯一单号" rules={[{ required: true, message: '请输入业务单号' }]} />
+            </Col>
+          </Row>
           <Form.TextArea field="remark" label="备注" autosize rows={1} placeholder="可选" />
         </Form>
       </AppModal>
