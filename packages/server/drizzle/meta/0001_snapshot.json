@@ -1,6 +1,6 @@
 {
-  "id": "d2220dd8-9354-4e71-9ed3-72daa6fef6f4",
-  "prevId": "442c6e3d-39fe-474a-b784-d2e6484acbc1",
+  "id": "e4725f32-d3f5-4866-a38c-3fef472090d0",
+  "prevId": "2a9b3d19-e31f-4cbe-b58b-0fbc1ff82f2f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -29805,159 +29805,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.payment_accounts": {
-      "name": "payment_accounts",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "identity": {
-            "name": "payment_accounts_id_seq",
-            "increment": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "startWith": "1",
-            "cache": "1",
-            "cycle": false,
-            "schema": "public",
-            "type": "always"
-          }
-        },
-        "channel": {
-          "name": "channel",
-          "type": "payment_channel",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "pending_settle": {
-          "name": "pending_settle",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "available": {
-          "name": "available",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "frozen": {
-          "name": "frozen",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "payment_accounts_tenant_idx": {
-          "name": "payment_accounts_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "payment_accounts_channel_tenant_uq": {
-          "name": "payment_accounts_channel_tenant_uq",
-          "columns": [
-            {
-              "expression": "channel",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"payment_accounts\".\"tenant_id\" is not null",
-          "concurrently": false
-        },
-        "payment_accounts_channel_global_uq": {
-          "name": "payment_accounts_channel_global_uq",
-          "columns": [
-            {
-              "expression": "channel",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"payment_accounts\".\"tenant_id\" is null",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "payment_accounts_tenant_id_tenants_id_fk": {
-          "name": "payment_accounts_tenant_id_tenants_id_fk",
-          "tableFrom": "payment_accounts",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.payment_apps": {
       "name": "payment_apps",
       "schema": "",
@@ -29985,9 +29832,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "app_key": {
-          "name": "app_key",
-          "type": "varchar(64)",
+        "open_client_id": {
+          "name": "open_client_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -30074,6 +29921,19 @@
         }
       },
       "foreignKeys": {
+        "payment_apps_open_client_id_oauth2_clients_id_fk": {
+          "name": "payment_apps_open_client_id_oauth2_clients_id_fk",
+          "tableFrom": "payment_apps",
+          "columnsFrom": [
+            "open_client_id"
+          ],
+          "tableTo": "oauth2_clients",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
         "payment_apps_wechat_config_id_payment_channel_configs_id_fk": {
           "name": "payment_apps_wechat_config_id_payment_channel_configs_id_fk",
           "tableFrom": "payment_apps",
@@ -30155,10 +30015,287 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "payment_apps_app_key_unique": {
-          "name": "payment_apps_app_key_unique",
+        "payment_apps_open_client_unique": {
+          "name": "payment_apps_open_client_unique",
           "columns": [
-            "app_key"
+            "open_client_id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payment_cashier_sessions": {
+      "name": "payment_cashier_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "payment_cashier_sessions_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "session_token": {
+          "name": "session_token",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_no": {
+          "name": "order_no",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pay_method": {
+          "name": "pay_method",
+          "type": "payment_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "payment_cashier_session_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ready'"
+        },
+        "use_slot_status": {
+          "name": "use_slot_status",
+          "type": "payment_cashier_use_slot_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'none'"
+        },
+        "pay_params": {
+          "name": "pay_params",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "return_url": {
+          "name": "return_url",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_cashier_sessions_order_no_unique": {
+          "name": "payment_cashier_sessions_order_no_unique",
+          "columns": [
+            {
+              "expression": "order_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_cashier_sessions\".\"order_no\" is not null",
+          "concurrently": false
+        },
+        "payment_cashier_sessions_link_idx": {
+          "name": "payment_cashier_sessions_link_idx",
+          "columns": [
+            {
+              "expression": "link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_cashier_sessions_link_slot_idx": {
+          "name": "payment_cashier_sessions_link_slot_idx",
+          "columns": [
+            {
+              "expression": "link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "use_slot_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_cashier_sessions_status_expiry_idx": {
+          "name": "payment_cashier_sessions_status_expiry_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_cashier_sessions_tenant_idx": {
+          "name": "payment_cashier_sessions_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "payment_cashier_sessions_link_id_payment_links_id_fk": {
+          "name": "payment_cashier_sessions_link_id_payment_links_id_fk",
+          "tableFrom": "payment_cashier_sessions",
+          "columnsFrom": [
+            "link_id"
+          ],
+          "tableTo": "payment_links",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_cashier_sessions_app_id_payment_apps_id_fk": {
+          "name": "payment_cashier_sessions_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_cashier_sessions",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_cashier_sessions_tenant_id_tenants_id_fk": {
+          "name": "payment_cashier_sessions_tenant_id_tenants_id_fk",
+          "tableFrom": "payment_cashier_sessions",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payment_cashier_sessions_session_token_unique": {
+          "name": "payment_cashier_sessions_session_token_unique",
+          "columns": [
+            "session_token"
           ],
           "nullsNotDistinct": false
         }
@@ -30223,6 +30360,18 @@
           "notNull": true,
           "default": false
         },
+        "callback_token": {
+          "name": "callback_token",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sandbox_notify_secret_encrypted": {
+          "name": "sandbox_notify_secret_encrypted",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "notify_url": {
           "name": "notify_url",
           "type": "varchar(512)",
@@ -30267,6 +30416,12 @@
         },
         "alipay_app_id": {
           "name": "alipay_app_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alipay_seller_id": {
+          "name": "alipay_seller_id",
           "type": "varchar(64)",
           "primaryKey": false,
           "notNull": false
@@ -30380,6 +30535,44 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "payment_channel_configs_default_tenant_channel_uq": {
+          "name": "payment_channel_configs_default_tenant_channel_uq",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_channel_configs\".\"is_default\" = true and \"payment_channel_configs\".\"tenant_id\" is not null",
+          "concurrently": false
+        },
+        "payment_channel_configs_default_global_channel_uq": {
+          "name": "payment_channel_configs_default_global_channel_uq",
+          "columns": [
+            {
+              "expression": "channel",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_channel_configs\".\"is_default\" = true and \"payment_channel_configs\".\"tenant_id\" is null",
+          "concurrently": false
         }
       },
       "foreignKeys": {
@@ -30424,7 +30617,15 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "payment_channel_configs_callback_token_unique": {
+          "name": "payment_channel_configs_callback_token_unique",
+          "columns": [
+            "callback_token"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -30467,7 +30668,20 @@
           "name": "channel_config_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CNY'"
         },
         "plan_id": {
           "name": "plan_id",
@@ -30494,6 +30708,26 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
+        },
+        "unknown_operation": {
+          "name": "unknown_operation",
+          "type": "payment_contract_operation",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false
         },
         "channel_contract_no": {
           "name": "channel_contract_no",
@@ -30616,6 +30850,18 @@
           "name": "payment_contracts_active_biz_uq",
           "columns": [
             {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "biz_type",
               "isExpression": false,
               "asc": true,
@@ -30626,12 +30872,52 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": true,
           "with": {},
           "method": "btree",
-          "where": "\"payment_contracts\".\"status\" in ('pending', 'signed', 'paused')",
+          "where": "\"payment_contracts\".\"status\" in ('pending', 'unknown', 'signed', 'paused')",
+          "concurrently": false
+        },
+        "payment_contracts_member_renewal_active_uq": {
+          "name": "payment_contracts_member_renewal_active_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biz_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biz_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_contracts\".\"biz_type\" = 'member_renewal' and \"payment_contracts\".\"status\" in ('pending', 'unknown', 'signed', 'paused')",
           "concurrently": false
         },
         "payment_contracts_status_idx": {
@@ -30668,6 +30954,18 @@
           "name": "payment_contracts_biz_idx",
           "columns": [
             {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "biz_type",
               "isExpression": false,
               "asc": true,
@@ -30675,6 +30973,12 @@
             },
             {
               "expression": "biz_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -30698,7 +31002,20 @@
             "id"
           ],
           "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "restrict"
+        },
+        "payment_contracts_app_id_payment_apps_id_fk": {
+          "name": "payment_contracts_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_contracts",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         },
         "payment_contracts_plan_id_payment_deduct_plans_id_fk": {
           "name": "payment_contracts_plan_id_payment_deduct_plans_id_fk",
@@ -31674,8 +31991,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.payment_ledger_entries": {
-      "name": "payment_ledger_entries",
+    "public.payment_fund_reservations": {
+      "name": "payment_fund_reservations",
       "schema": "",
       "columns": {
         "id": {
@@ -31684,7 +32001,7 @@
           "primaryKey": true,
           "notNull": true,
           "identity": {
-            "name": "payment_ledger_entries_id_seq",
+            "name": "payment_fund_reservations_id_seq",
             "increment": "1",
             "minValue": "1",
             "maxValue": "2147483647",
@@ -31695,66 +32012,388 @@
             "type": "always"
           }
         },
-        "entry_no": {
-          "name": "entry_no",
+        "reservation_no": {
+          "name": "reservation_no",
           "type": "varchar(64)",
           "primaryKey": false,
           "notNull": true
         },
-        "direction": {
-          "name": "direction",
-          "type": "payment_ledger_direction",
-          "typeSchema": "public",
+        "account_id": {
+          "name": "account_id",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "type": {
-          "name": "type",
-          "type": "payment_ledger_type",
-          "typeSchema": "public",
+        "source_type": {
+          "name": "source_type",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "varchar(128)",
           "primaryKey": false,
           "notNull": true
         },
         "amount": {
           "name": "amount",
-          "type": "integer",
+          "type": "bigint",
           "primaryKey": false,
           "notNull": true
         },
-        "order_no": {
-          "name": "order_no",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "refund_no": {
-          "name": "refund_no",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "channel": {
-          "name": "channel",
-          "type": "payment_channel",
+        "status": {
+          "name": "status",
+          "type": "payment_fund_reservation_status",
           "typeSchema": "public",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": "'active'"
         },
-        "biz_type": {
-          "name": "biz_type",
-          "type": "varchar(64)",
+        "version": {
+          "name": "version",
+          "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true,
+          "default": 0
         },
-        "remark": {
-          "name": "remark",
+        "reason": {
+          "name": "reason",
           "type": "varchar(256)",
           "primaryKey": false,
           "notNull": false
         },
+        "finalization_reason": {
+          "name": "finalization_reason",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_config_id": {
+          "name": "channel_config_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
         "tenant_id": {
           "name": "tenant_id",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finalized_at": {
+          "name": "finalized_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_fund_reservations_source_scope_uq": {
+          "name": "payment_fund_reservations_source_scope_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_fund_reservations_active_account_idx": {
+          "name": "payment_fund_reservations_active_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_fund_reservations_scope_idx": {
+          "name": "payment_fund_reservations_scope_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "payment_fund_reservations_account_id_payment_ledger_accounts_id_fk": {
+          "name": "payment_fund_reservations_account_id_payment_ledger_accounts_id_fk",
+          "tableFrom": "payment_fund_reservations",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "tableTo": "payment_ledger_accounts",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_fund_reservations_app_id_payment_apps_id_fk": {
+          "name": "payment_fund_reservations_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_fund_reservations",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_fund_reservations_channel_config_id_payment_channel_configs_id_fk": {
+          "name": "payment_fund_reservations_channel_config_id_payment_channel_configs_id_fk",
+          "tableFrom": "payment_fund_reservations",
+          "columnsFrom": [
+            "channel_config_id"
+          ],
+          "tableTo": "payment_channel_configs",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_fund_reservations_tenant_id_tenants_id_fk": {
+          "name": "payment_fund_reservations_tenant_id_tenants_id_fk",
+          "tableFrom": "payment_fund_reservations",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_fund_reservations_created_by_users_id_fk": {
+          "name": "payment_fund_reservations_created_by_users_id_fk",
+          "tableFrom": "payment_fund_reservations",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "payment_fund_reservations_updated_by_users_id_fk": {
+          "name": "payment_fund_reservations_updated_by_users_id_fk",
+          "tableFrom": "payment_fund_reservations",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payment_fund_reservations_reservation_no_unique": {
+          "name": "payment_fund_reservations_reservation_no_unique",
+          "columns": [
+            "reservation_no"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "payment_fund_reservations_amount_positive_check": {
+          "name": "payment_fund_reservations_amount_positive_check",
+          "value": "\"payment_fund_reservations\".\"amount\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payment_journal_lines": {
+      "name": "payment_journal_lines",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "payment_journal_lines_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "journal_id": {
+          "name": "journal_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "line_no": {
+          "name": "line_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "debit_amount": {
+          "name": "debit_amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
+        },
+        "credit_amount": {
+          "name": "credit_amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "0"
+        },
+        "memo": {
+          "name": "memo",
+          "type": "varchar(256)",
           "primaryKey": false,
           "notNull": false
         },
@@ -31767,8 +32406,681 @@
         }
       },
       "indexes": {
-        "payment_ledger_entries_tenant_idx": {
-          "name": "payment_ledger_entries_tenant_idx",
+        "payment_journal_lines_account_idx": {
+          "name": "payment_journal_lines_account_idx",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "payment_journal_lines_journal_id_payment_journals_id_fk": {
+          "name": "payment_journal_lines_journal_id_payment_journals_id_fk",
+          "tableFrom": "payment_journal_lines",
+          "columnsFrom": [
+            "journal_id"
+          ],
+          "tableTo": "payment_journals",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_journal_lines_account_id_payment_ledger_accounts_id_fk": {
+          "name": "payment_journal_lines_account_id_payment_ledger_accounts_id_fk",
+          "tableFrom": "payment_journal_lines",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "tableTo": "payment_ledger_accounts",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payment_journal_lines_journal_line_unique": {
+          "name": "payment_journal_lines_journal_line_unique",
+          "columns": [
+            "journal_id",
+            "line_no"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "payment_journal_lines_single_side_check": {
+          "name": "payment_journal_lines_single_side_check",
+          "value": "((\"payment_journal_lines\".\"debit_amount\" > 0 and \"payment_journal_lines\".\"credit_amount\" = 0) or (\"payment_journal_lines\".\"credit_amount\" > 0 and \"payment_journal_lines\".\"debit_amount\" = 0))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payment_journals": {
+      "name": "payment_journals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "payment_journals_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "journal_no": {
+          "name": "journal_no",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_type": {
+          "name": "source_type",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_id": {
+          "name": "source_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_config_id": {
+          "name": "channel_config_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reversal_of_journal_id": {
+          "name": "reversal_of_journal_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "operator_id": {
+          "name": "operator_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "posted_at": {
+          "name": "posted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_journals_source_scope_uq": {
+          "name": "payment_journals_source_scope_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_journals_reversal_once_uq": {
+          "name": "payment_journals_reversal_once_uq",
+          "columns": [
+            {
+              "expression": "reversal_of_journal_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_journals\".\"reversal_of_journal_id\" is not null",
+          "concurrently": false
+        },
+        "payment_journals_scope_posted_idx": {
+          "name": "payment_journals_scope_posted_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "posted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "payment_journals_app_id_payment_apps_id_fk": {
+          "name": "payment_journals_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_journals",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_journals_channel_config_id_payment_channel_configs_id_fk": {
+          "name": "payment_journals_channel_config_id_payment_channel_configs_id_fk",
+          "tableFrom": "payment_journals",
+          "columnsFrom": [
+            "channel_config_id"
+          ],
+          "tableTo": "payment_channel_configs",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_journals_reversal_of_journal_id_payment_journals_id_fk": {
+          "name": "payment_journals_reversal_of_journal_id_payment_journals_id_fk",
+          "tableFrom": "payment_journals",
+          "columnsFrom": [
+            "reversal_of_journal_id"
+          ],
+          "tableTo": "payment_journals",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_journals_operator_id_users_id_fk": {
+          "name": "payment_journals_operator_id_users_id_fk",
+          "tableFrom": "payment_journals",
+          "columnsFrom": [
+            "operator_id"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "payment_journals_tenant_id_tenants_id_fk": {
+          "name": "payment_journals_tenant_id_tenants_id_fk",
+          "tableFrom": "payment_journals",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payment_journals_journal_no_unique": {
+          "name": "payment_journals_journal_no_unique",
+          "columns": [
+            "journal_no"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payment_ledger_accounts": {
+      "name": "payment_ledger_accounts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "payment_ledger_accounts_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "account_no": {
+          "name": "account_no",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "payment_ledger_account_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "normal_balance": {
+          "name": "normal_balance",
+          "type": "payment_ledger_normal_balance",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_config_id": {
+          "name": "channel_config_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'enabled'"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_ledger_accounts_scope_code_uq": {
+          "name": "payment_ledger_accounts_scope_code_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_ledger_accounts_scope_idx": {
+          "name": "payment_ledger_accounts_scope_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "payment_ledger_accounts_app_id_payment_apps_id_fk": {
+          "name": "payment_ledger_accounts_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_ledger_accounts",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_ledger_accounts_channel_config_id_payment_channel_configs_id_fk": {
+          "name": "payment_ledger_accounts_channel_config_id_payment_channel_configs_id_fk",
+          "tableFrom": "payment_ledger_accounts",
+          "columnsFrom": [
+            "channel_config_id"
+          ],
+          "tableTo": "payment_channel_configs",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_ledger_accounts_tenant_id_tenants_id_fk": {
+          "name": "payment_ledger_accounts_tenant_id_tenants_id_fk",
+          "tableFrom": "payment_ledger_accounts",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_ledger_accounts_created_by_users_id_fk": {
+          "name": "payment_ledger_accounts_created_by_users_id_fk",
+          "tableFrom": "payment_ledger_accounts",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "payment_ledger_accounts_updated_by_users_id_fk": {
+          "name": "payment_ledger_accounts_updated_by_users_id_fk",
+          "tableFrom": "payment_ledger_accounts",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payment_ledger_accounts_account_no_unique": {
+          "name": "payment_ledger_accounts_account_no_unique",
+          "columns": [
+            "account_no"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payment_link_redemptions": {
+      "name": "payment_link_redemptions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "payment_link_redemptions_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "link_id": {
+          "name": "link_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_no": {
+          "name": "order_no",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "redeemed_at": {
+          "name": "redeemed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_link_redemptions_link_idx": {
+          "name": "payment_link_redemptions_link_idx",
+          "columns": [
+            {
+              "expression": "link_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_link_redemptions_tenant_idx": {
+          "name": "payment_link_redemptions_tenant_idx",
           "columns": [
             {
               "expression": "tenant_id",
@@ -31781,86 +33093,25 @@
           "with": {},
           "method": "btree",
           "concurrently": false
-        },
-        "payment_ledger_order_idx": {
-          "name": "payment_ledger_order_idx",
-          "columns": [
-            {
-              "expression": "order_no",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "payment_ledger_type_idx": {
-          "name": "payment_ledger_type_idx",
-          "columns": [
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "payment_ledger_order_type_uq": {
-          "name": "payment_ledger_order_type_uq",
-          "columns": [
-            {
-              "expression": "order_no",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"payment_ledger_entries\".\"order_no\" is not null and \"payment_ledger_entries\".\"refund_no\" is null and \"payment_ledger_entries\".\"type\" in ('payment', 'fee')",
-          "concurrently": false
-        },
-        "payment_ledger_refund_type_uq": {
-          "name": "payment_ledger_refund_type_uq",
-          "columns": [
-            {
-              "expression": "refund_no",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"payment_ledger_entries\".\"refund_no\" is not null",
-          "concurrently": false
         }
       },
       "foreignKeys": {
-        "payment_ledger_entries_tenant_id_tenants_id_fk": {
-          "name": "payment_ledger_entries_tenant_id_tenants_id_fk",
-          "tableFrom": "payment_ledger_entries",
+        "payment_link_redemptions_link_id_payment_links_id_fk": {
+          "name": "payment_link_redemptions_link_id_payment_links_id_fk",
+          "tableFrom": "payment_link_redemptions",
+          "columnsFrom": [
+            "link_id"
+          ],
+          "tableTo": "payment_links",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "payment_link_redemptions_tenant_id_tenants_id_fk": {
+          "name": "payment_link_redemptions_tenant_id_tenants_id_fk",
+          "tableFrom": "payment_link_redemptions",
           "columnsFrom": [
             "tenant_id"
           ],
@@ -31874,10 +33125,10 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "payment_ledger_entries_entry_no_unique": {
-          "name": "payment_ledger_entries_entry_no_unique",
+        "payment_link_redemptions_order_no_unique": {
+          "name": "payment_link_redemptions_order_no_unique",
           "columns": [
-            "entry_no"
+            "order_no"
           ],
           "nullsNotDistinct": false
         }
@@ -31919,6 +33170,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "subject": {
           "name": "subject",
           "type": "varchar(256)",
@@ -31952,6 +33209,13 @@
         },
         "used_count": {
           "name": "used_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "reserved_count": {
+          "name": "reserved_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -32025,9 +33289,37 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "payment_links_app_idx": {
+          "name": "payment_links_app_idx",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {
+        "payment_links_app_id_payment_apps_id_fk": {
+          "name": "payment_links_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_links",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
         "payment_links_tenant_id_tenants_id_fk": {
           "name": "payment_links_tenant_id_tenants_id_fk",
           "tableFrom": "payment_links",
@@ -32198,6 +33490,27 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "payment_method_configs_tenant_method_uq": {
+          "name": "payment_method_configs_tenant_method_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "method",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {
@@ -32242,15 +33555,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "payment_method_configs_method_unique": {
-          "name": "payment_method_configs_method_unique",
-          "columns": [
-            "method"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -32283,6 +33588,24 @@
           "primaryKey": false,
           "notNull": true
         },
+        "channel_config_id": {
+          "name": "channel_config_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_event_id": {
+          "name": "provider_event_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "scene": {
           "name": "scene",
           "type": "varchar(16)",
@@ -32314,6 +33637,30 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "merchant_id": {
+          "name": "merchant_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_app_id": {
+          "name": "provider_app_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paid_amount": {
+          "name": "paid_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": false
         },
         "result": {
           "name": "result",
@@ -32363,6 +33710,43 @@
           "method": "btree",
           "concurrently": false
         },
+        "payment_notify_logs_config_idx": {
+          "name": "payment_notify_logs_config_idx",
+          "columns": [
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_notify_logs_provider_event_uq": {
+          "name": "payment_notify_logs_provider_event_uq",
+          "columns": [
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "provider_event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_notify_logs\".\"provider_event_id\" is not null",
+          "concurrently": false
+        },
         "payment_notify_logs_order_no_idx": {
           "name": "payment_notify_logs_order_no_idx",
           "columns": [
@@ -32380,6 +33764,32 @@
         }
       },
       "foreignKeys": {
+        "payment_notify_logs_channel_config_id_payment_channel_configs_id_fk": {
+          "name": "payment_notify_logs_channel_config_id_payment_channel_configs_id_fk",
+          "tableFrom": "payment_notify_logs",
+          "columnsFrom": [
+            "channel_config_id"
+          ],
+          "tableTo": "payment_channel_configs",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_notify_logs_app_id_payment_apps_id_fk": {
+          "name": "payment_notify_logs_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_notify_logs",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
         "payment_notify_logs_tenant_id_tenants_id_fk": {
           "name": "payment_notify_logs_tenant_id_tenants_id_fk",
           "tableFrom": "payment_notify_logs",
@@ -32487,13 +33897,13 @@
           "name": "channel_config_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "app_id": {
           "name": "app_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "pay_method": {
           "name": "pay_method",
@@ -32582,6 +33992,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "return_url": {
+          "name": "return_url",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "notify_data": {
           "name": "notify_data",
           "type": "text",
@@ -32593,6 +34009,25 @@
           "type": "varchar(512)",
           "primaryKey": false,
           "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "tenant_id": {
           "name": "tenant_id",
@@ -32662,6 +34097,18 @@
           "name": "payment_orders_active_biz_uq",
           "columns": [
             {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"app_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "biz_type",
               "isExpression": false,
               "asc": true,
@@ -32669,6 +34116,12 @@
             },
             {
               "expression": "biz_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -32677,12 +34130,52 @@
           "isUnique": true,
           "with": {},
           "method": "btree",
-          "where": "\"payment_orders\".\"status\" in ('pending', 'paying')",
+          "where": "\"payment_orders\".\"status\" in ('pending', 'paying', 'unknown')",
+          "concurrently": false
+        },
+        "payment_orders_idempotency_scope_uq": {
+          "name": "payment_orders_idempotency_scope_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"app_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_orders\".\"idempotency_key\" is not null",
           "concurrently": false
         },
         "payment_orders_biz_idx": {
           "name": "payment_orders_biz_idx",
           "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "biz_type",
               "isExpression": false,
@@ -32691,6 +34184,12 @@
             },
             {
               "expression": "biz_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -32744,7 +34243,7 @@
             "id"
           ],
           "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "restrict"
         },
         "payment_orders_app_id_payment_apps_id_fk": {
           "name": "payment_orders_app_id_payment_apps_id_fk",
@@ -32757,7 +34256,7 @@
             "id"
           ],
           "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "restrict"
         },
         "payment_orders_user_id_users_id_fk": {
           "name": "payment_orders_user_id_users_id_fk",
@@ -32834,10 +34333,10 @@
           ],
           "nullsNotDistinct": false
         },
-        "payment_orders_channel_out_trade_no_uq": {
-          "name": "payment_orders_channel_out_trade_no_uq",
+        "payment_orders_config_out_trade_no_uq": {
+          "name": "payment_orders_config_out_trade_no_uq",
           "columns": [
-            "channel",
+            "channel_config_id",
             "out_trade_no"
           ],
           "nullsNotDistinct": false
@@ -32885,7 +34384,20 @@
           "name": "channel_config_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CNY'"
         },
         "channel_preauth_no": {
           "name": "channel_preauth_no",
@@ -32942,6 +34454,20 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'pending'"
+        },
+        "unknown_operation": {
+          "name": "unknown_operation",
+          "type": "payment_preauth_operation",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "error_message": {
           "name": "error_message",
@@ -33041,6 +34567,18 @@
           "name": "payment_preauths_active_biz_uq",
           "columns": [
             {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "biz_type",
               "isExpression": false,
               "asc": true,
@@ -33051,12 +34589,18 @@
               "isExpression": false,
               "asc": true,
               "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
             }
           ],
           "isUnique": true,
           "with": {},
           "method": "btree",
-          "where": "\"payment_preauths\".\"status\" in ('pending', 'frozen')",
+          "where": "\"payment_preauths\".\"status\" in ('pending', 'unknown', 'frozen')",
           "concurrently": false
         },
         "payment_preauths_status_idx": {
@@ -33078,6 +34622,18 @@
           "name": "payment_preauths_biz_idx",
           "columns": [
             {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "biz_type",
               "isExpression": false,
               "asc": true,
@@ -33085,6 +34641,12 @@
             },
             {
               "expression": "biz_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -33108,7 +34670,20 @@
             "id"
           ],
           "onUpdate": "no action",
-          "onDelete": "set null"
+          "onDelete": "restrict"
+        },
+        "payment_preauths_app_id_payment_apps_id_fk": {
+          "name": "payment_preauths_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_preauths",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         },
         "payment_preauths_operator_id_users_id_fk": {
           "name": "payment_preauths_operator_id_users_id_fk",
@@ -33211,11 +34786,38 @@
           "primaryKey": false,
           "notNull": true
         },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_config_id": {
+          "name": "channel_config_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CNY'"
+        },
         "bill_date": {
           "name": "bill_date",
           "type": "varchar(10)",
           "primaryKey": false,
           "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "payment_recon_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual_upload'"
         },
         "status": {
           "name": "status",
@@ -33336,9 +34938,89 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "payment_recon_batches_app_idx": {
+          "name": "payment_recon_batches_app_idx",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_recon_scope_date_uq": {
+          "name": "payment_recon_scope_date_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "bill_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
         }
       },
       "foreignKeys": {
+        "payment_recon_batches_app_id_payment_apps_id_fk": {
+          "name": "payment_recon_batches_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_recon_batches",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_recon_batches_channel_config_id_payment_channel_configs_id_fk": {
+          "name": "payment_recon_batches_channel_config_id_payment_channel_configs_id_fk",
+          "tableFrom": "payment_recon_batches",
+          "columnsFrom": [
+            "channel_config_id"
+          ],
+          "tableTo": "payment_channel_configs",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
         "payment_recon_batches_tenant_id_tenants_id_fk": {
           "name": "payment_recon_batches_tenant_id_tenants_id_fk",
           "tableFrom": "payment_recon_batches",
@@ -33596,7 +35278,7 @@
           "name": "order_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "channel_refund_no": {
           "name": "channel_refund_no",
@@ -33692,6 +35374,25 @@
           "type": "varchar(512)",
           "primaryKey": false,
           "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "tenant_id": {
           "name": "tenant_id",
@@ -33801,6 +35502,34 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "payment_refunds_idempotency_scope_uq": {
+          "name": "payment_refunds_idempotency_scope_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"payment_refunds\".\"idempotency_key\" is not null",
+          "concurrently": false
         }
       },
       "foreignKeys": {
@@ -33815,7 +35544,7 @@
             "id"
           ],
           "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "restrict"
         },
         "payment_refunds_applied_by_id_users_id_fk": {
           "name": "payment_refunds_applied_by_id_users_id_fk",
@@ -33906,142 +35635,6 @@
           "nullsNotDistinct": false
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.payment_report_daily": {
-      "name": "payment_report_daily",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "identity": {
-            "name": "payment_report_daily_id_seq",
-            "increment": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "startWith": "1",
-            "cache": "1",
-            "cycle": false,
-            "schema": "public",
-            "type": "always"
-          }
-        },
-        "stat_date": {
-          "name": "stat_date",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "channel": {
-          "name": "channel",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "biz_type": {
-          "name": "biz_type",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "gross": {
-          "name": "gross",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "fee": {
-          "name": "fee",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "refund": {
-          "name": "refund",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "count": {
-          "name": "count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "payment_report_daily_tenant_idx": {
-          "name": "payment_report_daily_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "payment_report_daily_date_idx": {
-          "name": "payment_report_daily_date_idx",
-          "columns": [
-            {
-              "expression": "stat_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "payment_report_daily_tenant_id_tenants_id_fk": {
-          "name": "payment_report_daily_tenant_id_tenants_id_fk",
-          "tableFrom": "payment_report_daily",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -34317,6 +35910,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "biz_type": {
           "name": "biz_type",
           "type": "varchar(64)",
@@ -34334,6 +35933,13 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CNY'"
         },
         "reason": {
           "name": "reason",
@@ -34416,11 +36022,35 @@
           "method": "btree",
           "concurrently": false
         },
-        "payment_risk_reviews_pending_order_uq": {
-          "name": "payment_risk_reviews_pending_order_uq",
+        "payment_risk_reviews_pending_biz_scope_uq": {
+          "name": "payment_risk_reviews_pending_biz_scope_uq",
           "columns": [
             {
-              "expression": "order_no",
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"app_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biz_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biz_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -34430,6 +36060,21 @@
           "with": {},
           "method": "btree",
           "where": "\"payment_risk_reviews\".\"status\" = 'pending'",
+          "concurrently": false
+        },
+        "payment_risk_reviews_order_no_idx": {
+          "name": "payment_risk_reviews_order_no_idx",
+          "columns": [
+            {
+              "expression": "order_no",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
           "concurrently": false
         },
         "payment_risk_reviews_status_idx": {
@@ -34482,6 +36127,19 @@
           ],
           "onUpdate": "no action",
           "onDelete": "set null"
+        },
+        "payment_risk_reviews_app_id_payment_apps_id_fk": {
+          "name": "payment_risk_reviews_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_risk_reviews",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         },
         "payment_risk_reviews_reviewer_id_users_id_fk": {
           "name": "payment_risk_reviews_reviewer_id_users_id_fk",
@@ -34798,6 +36456,25 @@
           "primaryKey": false,
           "notNull": true
         },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_config_id": {
+          "name": "channel_config_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CNY'"
+        },
         "period_start": {
           "name": "period_start",
           "type": "varchar(10)",
@@ -34846,6 +36523,13 @@
           "notNull": true,
           "default": 0
         },
+        "sharing_amount": {
+          "name": "sharing_amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "net_amount": {
           "name": "net_amount",
           "type": "integer",
@@ -34858,6 +36542,25 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "failure_reason": {
+          "name": "failure_reason",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payout_reference": {
+          "name": "payout_reference",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
         },
         "remark": {
           "name": "remark",
@@ -34914,6 +36617,21 @@
           "method": "btree",
           "concurrently": false
         },
+        "payment_settlement_batches_app_idx": {
+          "name": "payment_settlement_batches_app_idx",
+          "columns": [
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
         "payment_settlement_batches_status_idx": {
           "name": "payment_settlement_batches_status_idx",
           "columns": [
@@ -34928,71 +36646,35 @@
           "with": {},
           "method": "btree",
           "concurrently": false
-        },
-        "payment_settlement_period_uq": {
-          "name": "payment_settlement_period_uq",
-          "columns": [
-            {
-              "expression": "channel",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period_end",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"payment_settlement_batches\".\"tenant_id\" is not null",
-          "concurrently": false
-        },
-        "payment_settlement_period_global_uq": {
-          "name": "payment_settlement_period_global_uq",
-          "columns": [
-            {
-              "expression": "channel",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period_start",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period_end",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"payment_settlement_batches\".\"tenant_id\" is null",
-          "concurrently": false
         }
       },
       "foreignKeys": {
+        "payment_settlement_batches_app_id_payment_apps_id_fk": {
+          "name": "payment_settlement_batches_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_settlement_batches",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_settlement_batches_channel_config_id_payment_channel_configs_id_fk": {
+          "name": "payment_settlement_batches_channel_config_id_payment_channel_configs_id_fk",
+          "tableFrom": "payment_settlement_batches",
+          "columnsFrom": [
+            "channel_config_id"
+          ],
+          "tableTo": "payment_channel_configs",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
         "payment_settlement_batches_tenant_id_tenants_id_fk": {
           "name": "payment_settlement_batches_tenant_id_tenants_id_fk",
           "tableFrom": "payment_settlement_batches",
@@ -35045,6 +36727,221 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.payment_settlement_items": {
+      "name": "payment_settlement_items",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "payment_settlement_items_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "batch_id": {
+          "name": "batch_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "journal_line_id": {
+          "name": "journal_line_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_config_id": {
+          "name": "channel_config_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_settlement_items_batch_idx": {
+          "name": "payment_settlement_items_batch_idx",
+          "columns": [
+            {
+              "expression": "batch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_settlement_items_scope_idx": {
+          "name": "payment_settlement_items_scope_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_config_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "currency",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "payment_settlement_items_batch_id_payment_settlement_batches_id_fk": {
+          "name": "payment_settlement_items_batch_id_payment_settlement_batches_id_fk",
+          "tableFrom": "payment_settlement_items",
+          "columnsFrom": [
+            "batch_id"
+          ],
+          "tableTo": "payment_settlement_batches",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_settlement_items_journal_line_id_payment_journal_lines_id_fk": {
+          "name": "payment_settlement_items_journal_line_id_payment_journal_lines_id_fk",
+          "tableFrom": "payment_settlement_items",
+          "columnsFrom": [
+            "journal_line_id"
+          ],
+          "tableTo": "payment_journal_lines",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_settlement_items_app_id_payment_apps_id_fk": {
+          "name": "payment_settlement_items_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_settlement_items",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_settlement_items_channel_config_id_payment_channel_configs_id_fk": {
+          "name": "payment_settlement_items_channel_config_id_payment_channel_configs_id_fk",
+          "tableFrom": "payment_settlement_items",
+          "columnsFrom": [
+            "channel_config_id"
+          ],
+          "tableTo": "payment_channel_configs",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_settlement_items_tenant_id_tenants_id_fk": {
+          "name": "payment_settlement_items_tenant_id_tenants_id_fk",
+          "tableFrom": "payment_settlement_items",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payment_settlement_items_journal_line_unique": {
+          "name": "payment_settlement_items_journal_line_unique",
+          "columns": [
+            "journal_line_id"
+          ],
+          "nullsNotDistinct": false
+        },
+        "payment_settlement_items_batch_line_unique": {
+          "name": "payment_settlement_items_batch_line_unique",
+          "columns": [
+            "batch_id",
+            "journal_line_id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "payment_settlement_items_amount_nonzero_check": {
+          "name": "payment_settlement_items_amount_nonzero_check",
+          "value": "\"payment_settlement_items\".\"amount\" <> 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.payment_sharing_orders": {
@@ -35108,6 +37005,13 @@
         },
         "attempts": {
           "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "version": {
+          "name": "version",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -35217,7 +37121,7 @@
             "id"
           ],
           "onUpdate": "no action",
-          "onDelete": "cascade"
+          "onDelete": "restrict"
         },
         "payment_sharing_orders_tenant_id_tenants_id_fk": {
           "name": "payment_sharing_orders_tenant_id_tenants_id_fk",
@@ -35438,6 +37342,268 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.payment_sharing_reversals": {
+      "name": "payment_sharing_reversals",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "name": "payment_sharing_reversals_id_seq",
+            "increment": "1",
+            "minValue": "1",
+            "maxValue": "2147483647",
+            "startWith": "1",
+            "cache": "1",
+            "cycle": false,
+            "schema": "public",
+            "type": "always"
+          }
+        },
+        "reversal_no": {
+          "name": "reversal_no",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sharing_order_id": {
+          "name": "sharing_order_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "payment_sharing_reversal_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'processing'"
+        },
+        "channel_reversal_no": {
+          "name": "channel_reversal_no",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "query_attempts": {
+          "name": "query_attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_sharing_reversals_idempotency_scope_uq": {
+          "name": "payment_sharing_reversals_idempotency_scope_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sharing_order_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "payment_sharing_reversals_tenant_status_idx": {
+          "name": "payment_sharing_reversals_tenant_status_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "payment_sharing_reversals_sharing_order_id_payment_sharing_orders_id_fk": {
+          "name": "payment_sharing_reversals_sharing_order_id_payment_sharing_orders_id_fk",
+          "tableFrom": "payment_sharing_reversals",
+          "columnsFrom": [
+            "sharing_order_id"
+          ],
+          "tableTo": "payment_sharing_orders",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_sharing_reversals_tenant_id_tenants_id_fk": {
+          "name": "payment_sharing_reversals_tenant_id_tenants_id_fk",
+          "tableFrom": "payment_sharing_reversals",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_sharing_reversals_created_by_users_id_fk": {
+          "name": "payment_sharing_reversals_created_by_users_id_fk",
+          "tableFrom": "payment_sharing_reversals",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "payment_sharing_reversals_updated_by_users_id_fk": {
+          "name": "payment_sharing_reversals_updated_by_users_id_fk",
+          "tableFrom": "payment_sharing_reversals",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "payment_sharing_reversals_reversal_no_unique": {
+          "name": "payment_sharing_reversals_reversal_no_unique",
+          "columns": [
+            "reversal_no"
+          ],
+          "nullsNotDistinct": false
+        },
+        "payment_sharing_reversals_sharing_order_unique": {
+          "name": "payment_sharing_reversals_sharing_order_unique",
+          "columns": [
+            "sharing_order_id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.payment_transfers": {
       "name": "payment_transfers",
       "schema": "",
@@ -35478,11 +37644,24 @@
           "primaryKey": false,
           "notNull": true
         },
+        "app_id": {
+          "name": "app_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
         "channel_config_id": {
           "name": "channel_config_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(8)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CNY'"
         },
         "receiver_account": {
           "name": "receiver_account",
@@ -35516,6 +37695,38 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "approval_status": {
+          "name": "approval_status",
+          "type": "payment_transfer_approval_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'none'"
+        },
+        "applied_by_id": {
+          "name": "applied_by_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approver_id": {
+          "name": "approver_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approval_remark": {
+          "name": "approval_remark",
+          "type": "varchar(256)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "channel_transfer_no": {
           "name": "channel_transfer_no",
           "type": "varchar(128)",
@@ -35530,6 +37741,31 @@
         },
         "attempts": {
           "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fund_reservation_id": {
+          "name": "fund_reservation_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -35623,6 +37859,33 @@
           "method": "btree",
           "concurrently": false
         },
+        "payment_transfers_idempotency_scope_uq": {
+          "name": "payment_transfers_idempotency_scope_uq",
+          "columns": [
+            {
+              "expression": "coalesce(\"tenant_id\", 0)",
+              "isExpression": true,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
         "payment_transfers_status_idx": {
           "name": "payment_transfers_status_idx",
           "columns": [
@@ -35661,6 +37924,19 @@
         }
       },
       "foreignKeys": {
+        "payment_transfers_app_id_payment_apps_id_fk": {
+          "name": "payment_transfers_app_id_payment_apps_id_fk",
+          "tableFrom": "payment_transfers",
+          "columnsFrom": [
+            "app_id"
+          ],
+          "tableTo": "payment_apps",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
         "payment_transfers_channel_config_id_payment_channel_configs_id_fk": {
           "name": "payment_transfers_channel_config_id_payment_channel_configs_id_fk",
           "tableFrom": "payment_transfers",
@@ -35672,7 +37948,46 @@
             "id"
           ],
           "onUpdate": "no action",
+          "onDelete": "restrict"
+        },
+        "payment_transfers_applied_by_id_users_id_fk": {
+          "name": "payment_transfers_applied_by_id_users_id_fk",
+          "tableFrom": "payment_transfers",
+          "columnsFrom": [
+            "applied_by_id"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
           "onDelete": "set null"
+        },
+        "payment_transfers_approver_id_users_id_fk": {
+          "name": "payment_transfers_approver_id_users_id_fk",
+          "tableFrom": "payment_transfers",
+          "columnsFrom": [
+            "approver_id"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "payment_transfers_fund_reservation_id_payment_fund_reservations_id_fk": {
+          "name": "payment_transfers_fund_reservation_id_payment_fund_reservations_id_fk",
+          "tableFrom": "payment_transfers",
+          "columnsFrom": [
+            "fund_reservation_id"
+          ],
+          "tableTo": "payment_fund_reservations",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "restrict"
         },
         "payment_transfers_operator_id_users_id_fk": {
           "name": "payment_transfers_operator_id_users_id_fk",
@@ -35736,364 +38051,15 @@
           ],
           "nullsNotDistinct": false
         },
-        "payment_transfers_channel_out_no_uq": {
-          "name": "payment_transfers_channel_out_no_uq",
+        "payment_transfers_config_out_no_uq": {
+          "name": "payment_transfers_config_out_no_uq",
           "columns": [
-            "channel",
+            "channel_config_id",
             "out_transfer_no"
           ],
           "nullsNotDistinct": false
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.payment_webhook_deliveries": {
-      "name": "payment_webhook_deliveries",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "identity": {
-            "name": "payment_webhook_deliveries_id_seq",
-            "increment": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "startWith": "1",
-            "cache": "1",
-            "cycle": false,
-            "schema": "public",
-            "type": "always"
-          }
-        },
-        "endpoint_id": {
-          "name": "endpoint_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_type": {
-          "name": "event_type",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "order_no": {
-          "name": "order_no",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "payload": {
-          "name": "payload",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "payment_webhook_delivery_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "http_status": {
-          "name": "http_status",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "response_body": {
-          "name": "response_body",
-          "type": "varchar(1024)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_error": {
-          "name": "last_error",
-          "type": "varchar(512)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "next_retry_at": {
-          "name": "next_retry_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "payment_webhook_deliveries_tenant_idx": {
-          "name": "payment_webhook_deliveries_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "payment_webhook_deliveries_endpoint_idx": {
-          "name": "payment_webhook_deliveries_endpoint_idx",
-          "columns": [
-            {
-              "expression": "endpoint_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "payment_webhook_deliveries_status_idx": {
-          "name": "payment_webhook_deliveries_status_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "payment_webhook_deliveries_endpoint_id_payment_webhook_endpoints_id_fk": {
-          "name": "payment_webhook_deliveries_endpoint_id_payment_webhook_endpoints_id_fk",
-          "tableFrom": "payment_webhook_deliveries",
-          "columnsFrom": [
-            "endpoint_id"
-          ],
-          "tableTo": "payment_webhook_endpoints",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
-        "payment_webhook_deliveries_tenant_id_tenants_id_fk": {
-          "name": "payment_webhook_deliveries_tenant_id_tenants_id_fk",
-          "tableFrom": "payment_webhook_deliveries",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.payment_webhook_endpoints": {
-      "name": "payment_webhook_endpoints",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "identity": {
-            "name": "payment_webhook_endpoints_id_seq",
-            "increment": "1",
-            "minValue": "1",
-            "maxValue": "2147483647",
-            "startWith": "1",
-            "cache": "1",
-            "cycle": false,
-            "schema": "public",
-            "type": "always"
-          }
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "varchar(512)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "secret_encrypted": {
-          "name": "secret_encrypted",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "biz_type": {
-          "name": "biz_type",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "events": {
-          "name": "events",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "status": {
-          "name": "status",
-          "type": "status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'enabled'"
-        },
-        "remark": {
-          "name": "remark",
-          "type": "varchar(256)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by": {
-          "name": "updated_by",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "payment_webhook_endpoints_tenant_idx": {
-          "name": "payment_webhook_endpoints_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "payment_webhook_endpoints_tenant_id_tenants_id_fk": {
-          "name": "payment_webhook_endpoints_tenant_id_tenants_id_fk",
-          "tableFrom": "payment_webhook_endpoints",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "tenants",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "cascade"
-        },
-        "payment_webhook_endpoints_created_by_users_id_fk": {
-          "name": "payment_webhook_endpoints_created_by_users_id_fk",
-          "tableFrom": "payment_webhook_endpoints",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "tableTo": "users",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
-        },
-        "payment_webhook_endpoints_updated_by_users_id_fk": {
-          "name": "payment_webhook_endpoints_updated_by_users_id_fk",
-          "tableFrom": "payment_webhook_endpoints",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "tableTo": "users",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -38142,7 +40108,13 @@
           "name": "client_id",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "event_type": {
           "name": "event_type",
@@ -38249,9 +40221,15 @@
           "method": "btree",
           "concurrently": false
         },
-        "app_webhook_deliveries_client_idx": {
-          "name": "app_webhook_deliveries_client_idx",
+        "app_webhook_deliveries_tenant_client_idx": {
+          "name": "app_webhook_deliveries_tenant_client_idx",
           "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "client_id",
               "isExpression": false,
@@ -38323,6 +40301,19 @@
           ],
           "onUpdate": "no action",
           "onDelete": "cascade"
+        },
+        "app_webhook_deliveries_tenant_id_tenants_id_fk": {
+          "name": "app_webhook_deliveries_tenant_id_tenants_id_fk",
+          "tableFrom": "app_webhook_deliveries",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         }
       },
       "compositePrimaryKeys": {},
@@ -38365,7 +40356,7 @@
           "name": "client_id",
           "type": "varchar(64)",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "name": {
           "name": "name",
@@ -38446,6 +40437,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "integer",
@@ -38474,9 +40471,15 @@
         }
       },
       "indexes": {
-        "app_webhook_subscriptions_client_idx": {
-          "name": "app_webhook_subscriptions_client_idx",
+        "app_webhook_subscriptions_tenant_client_idx": {
+          "name": "app_webhook_subscriptions_tenant_client_idx",
           "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
             {
               "expression": "client_id",
               "isExpression": false,
@@ -38506,6 +40509,19 @@
         }
       },
       "foreignKeys": {
+        "app_webhook_subscriptions_client_id_oauth2_clients_client_id_fk": {
+          "name": "app_webhook_subscriptions_client_id_oauth2_clients_client_id_fk",
+          "tableFrom": "app_webhook_subscriptions",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "tableTo": "oauth2_clients",
+          "columnsTo": [
+            "client_id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
         "app_webhook_subscriptions_cms_site_id_cms_sites_id_fk": {
           "name": "app_webhook_subscriptions_cms_site_id_cms_sites_id_fk",
           "tableFrom": "app_webhook_subscriptions",
@@ -38513,6 +40529,19 @@
             "cms_site_id"
           ],
           "tableTo": "cms_sites",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "app_webhook_subscriptions_tenant_id_tenants_id_fk": {
+          "name": "app_webhook_subscriptions_tenant_id_tenants_id_fk",
+          "tableFrom": "app_webhook_subscriptions",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
           "columnsTo": [
             "id"
           ],
@@ -38549,7 +40578,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "app_webhook_subscriptions_identity_check": {
+          "name": "app_webhook_subscriptions_identity_check",
+          "value": "((\"app_webhook_subscriptions\".\"internal\" = true and \"app_webhook_subscriptions\".\"client_id\" is null) or (\"app_webhook_subscriptions\".\"internal\" = false and \"app_webhook_subscriptions\".\"client_id\" is not null))"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.oauth2_authorization_codes": {
@@ -38655,6 +40689,19 @@
         }
       },
       "foreignKeys": {
+        "oauth2_authorization_codes_client_id_oauth2_clients_client_id_fk": {
+          "name": "oauth2_authorization_codes_client_id_oauth2_clients_client_id_fk",
+          "tableFrom": "oauth2_authorization_codes",
+          "columnsFrom": [
+            "client_id"
+          ],
+          "tableTo": "oauth2_clients",
+          "columnsTo": [
+            "client_id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
         "oauth2_authorization_codes_user_id_users_id_fk": {
           "name": "oauth2_authorization_codes_user_id_users_id_fk",
           "tableFrom": "oauth2_authorization_codes",
@@ -38866,6 +40913,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_by": {
           "name": "created_by",
           "type": "integer",
@@ -38893,7 +40946,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "oauth2_clients_tenant_idx": {
+          "name": "oauth2_clients_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
       "foreignKeys": {
         "oauth2_clients_rate_plan_id_rate_plans_id_fk": {
           "name": "oauth2_clients_rate_plan_id_rate_plans_id_fk",
@@ -38933,6 +41002,19 @@
           ],
           "onUpdate": "no action",
           "onDelete": "set null"
+        },
+        "oauth2_clients_tenant_id_tenants_id_fk": {
+          "name": "oauth2_clients_tenant_id_tenants_id_fk",
+          "tableFrom": "oauth2_clients",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "tenants",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
         },
         "oauth2_clients_created_by_users_id_fk": {
           "name": "oauth2_clients_created_by_users_id_fk",
@@ -42856,9 +44938,15 @@
           "primaryKey": false,
           "notNull": false
         },
-        "payment_order_id": {
-          "name": "payment_order_id",
-          "type": "integer",
+        "payment_intent_no": {
+          "name": "payment_intent_no",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_event_id": {
+          "name": "payment_event_id",
+          "type": "varchar(128)",
           "primaryKey": false,
           "notNull": false
         },
@@ -42933,6 +45021,22 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "member_wallet_tx_payment_event_uq": {
+          "name": "member_wallet_tx_payment_event_uq",
+          "columns": [
+            {
+              "expression": "payment_event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"member_wallet_transactions\".\"payment_event_id\" is not null",
+          "concurrently": false
         }
       },
       "foreignKeys": {
@@ -42948,19 +45052,6 @@
           ],
           "onUpdate": "no action",
           "onDelete": "cascade"
-        },
-        "member_wallet_transactions_payment_order_id_payment_orders_id_fk": {
-          "name": "member_wallet_transactions_payment_order_id_payment_orders_id_fk",
-          "tableFrom": "member_wallet_transactions",
-          "columnsFrom": [
-            "payment_order_id"
-          ],
-          "tableTo": "payment_orders",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "set null"
         },
         "member_wallet_transactions_operator_id_users_id_fk": {
           "name": "member_wallet_transactions_operator_id_users_id_fk",
@@ -77666,6 +79757,30 @@
         "business"
       ]
     },
+    "public.payment_cashier_session_status": {
+      "name": "payment_cashier_session_status",
+      "schema": "public",
+      "values": [
+        "ready",
+        "creating",
+        "awaiting",
+        "processing",
+        "unknown",
+        "succeeded",
+        "failed",
+        "expired"
+      ]
+    },
+    "public.payment_cashier_use_slot_status": {
+      "name": "payment_cashier_use_slot_status",
+      "schema": "public",
+      "values": [
+        "none",
+        "reserved",
+        "consumed",
+        "released"
+      ]
+    },
     "public.payment_channel": {
       "name": "payment_channel",
       "schema": "public",
@@ -77675,14 +79790,24 @@
         "unionpay"
       ]
     },
+    "public.payment_contract_operation": {
+      "name": "payment_contract_operation",
+      "schema": "public",
+      "values": [
+        "sign",
+        "terminate"
+      ]
+    },
     "public.payment_contract_status": {
       "name": "payment_contract_status",
       "schema": "public",
       "values": [
         "pending",
+        "unknown",
         "signed",
         "paused",
-        "terminated"
+        "terminated",
+        "failed"
       ]
     },
     "public.payment_deduct_period": {
@@ -77733,24 +79858,37 @@
         "failed"
       ]
     },
-    "public.payment_ledger_direction": {
-      "name": "payment_ledger_direction",
+    "public.payment_fund_reservation_status": {
+      "name": "payment_fund_reservation_status",
       "schema": "public",
       "values": [
-        "in",
-        "out"
+        "active",
+        "captured",
+        "released",
+        "expired"
       ]
     },
-    "public.payment_ledger_type": {
-      "name": "payment_ledger_type",
+    "public.payment_ledger_account_code": {
+      "name": "payment_ledger_account_code",
       "schema": "public",
       "values": [
-        "payment",
-        "refund",
-        "fee",
-        "settlement",
-        "adjust",
-        "transfer"
+        "provider_clearing",
+        "merchant_pending",
+        "merchant_available",
+        "merchant_frozen",
+        "platform_fee",
+        "refund_payable",
+        "sharing_payable",
+        "payout_payable",
+        "suspense"
+      ]
+    },
+    "public.payment_ledger_normal_balance": {
+      "name": "payment_ledger_normal_balance",
+      "schema": "public",
+      "values": [
+        "debit",
+        "credit"
       ]
     },
     "public.payment_link_status": {
@@ -77785,6 +79923,7 @@
       "values": [
         "pending",
         "paying",
+        "unknown",
         "success",
         "closed",
         "refunding",
@@ -77792,11 +79931,21 @@
         "failed"
       ]
     },
+    "public.payment_preauth_operation": {
+      "name": "payment_preauth_operation",
+      "schema": "public",
+      "values": [
+        "freeze",
+        "capture",
+        "release"
+      ]
+    },
     "public.payment_preauth_status": {
       "name": "payment_preauth_status",
       "schema": "public",
       "values": [
         "pending",
+        "unknown",
         "frozen",
         "captured",
         "released",
@@ -77822,6 +79971,15 @@
         "channel_only",
         "amount_diff",
         "status_diff"
+      ]
+    },
+    "public.payment_recon_source": {
+      "name": "payment_recon_source",
+      "schema": "public",
+      "values": [
+        "manual_upload",
+        "sandbox_generated",
+        "provider_download"
       ]
     },
     "public.payment_recon_status": {
@@ -77850,6 +80008,7 @@
       "values": [
         "pending",
         "processing",
+        "unknown",
         "success",
         "failed"
       ]
@@ -77908,7 +80067,8 @@
         "pending",
         "processing",
         "success",
-        "failed"
+        "failed",
+        "reversed"
       ]
     },
     "public.payment_sharing_receiver_type": {
@@ -77919,21 +80079,33 @@
         "personal"
       ]
     },
+    "public.payment_sharing_reversal_status": {
+      "name": "payment_sharing_reversal_status",
+      "schema": "public",
+      "values": [
+        "processing",
+        "unknown",
+        "success",
+        "failed"
+      ]
+    },
+    "public.payment_transfer_approval_status": {
+      "name": "payment_transfer_approval_status",
+      "schema": "public",
+      "values": [
+        "none",
+        "pending",
+        "approved",
+        "rejected"
+      ]
+    },
     "public.payment_transfer_status": {
       "name": "payment_transfer_status",
       "schema": "public",
       "values": [
         "pending",
         "processing",
-        "success",
-        "failed"
-      ]
-    },
-    "public.payment_webhook_delivery_status": {
-      "name": "payment_webhook_delivery_status",
-      "schema": "public",
-      "values": [
-        "pending",
+        "unknown",
         "success",
         "failed"
       ]

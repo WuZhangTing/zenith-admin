@@ -5,64 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1788068852920,
+      "when": 1788189462435,
       "tag": "0000_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1788068856008,
+      "when": 1788189510553,
       "tag": "0001_extensions",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1788083219288,
-      "tag": "0002_mean_avengers",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1788087729588,
-      "tag": "0003_young_killmonger",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1788127729608,
-      "tag": "0004_yellow_marvel_zombies",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1788130200000,
-      "tag": "0005_payment_active_unknown",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1788180883262,
-      "tag": "0006_small_captain_cross",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1788182877753,
-      "tag": "0007_condemned_wrecker",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1788186806349,
-      "tag": "0008_mixed_fallen_one",
       "breakpoints": true
     }
   ]

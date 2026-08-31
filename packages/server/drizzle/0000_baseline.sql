@@ -104,33 +104,40 @@ CREATE TYPE "public"."channel_message_direction" AS ENUM('out', 'in');--> statem
 CREATE TYPE "public"."channel_message_status" AS ENUM('sent', 'draft', 'scheduled');--> statement-breakpoint
 CREATE TYPE "public"."channel_message_type" AS ENUM('text', 'card', 'image', 'news');--> statement-breakpoint
 CREATE TYPE "public"."channel_type" AS ENUM('system', 'business');--> statement-breakpoint
+CREATE TYPE "public"."payment_cashier_session_status" AS ENUM('ready', 'creating', 'awaiting', 'processing', 'unknown', 'succeeded', 'failed', 'expired');--> statement-breakpoint
+CREATE TYPE "public"."payment_cashier_use_slot_status" AS ENUM('none', 'reserved', 'consumed', 'released');--> statement-breakpoint
 CREATE TYPE "public"."payment_channel" AS ENUM('wechat', 'alipay', 'unionpay');--> statement-breakpoint
-CREATE TYPE "public"."payment_contract_status" AS ENUM('pending', 'signed', 'paused', 'terminated');--> statement-breakpoint
+CREATE TYPE "public"."payment_contract_operation" AS ENUM('sign', 'terminate');--> statement-breakpoint
+CREATE TYPE "public"."payment_contract_status" AS ENUM('pending', 'unknown', 'signed', 'paused', 'terminated', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_deduct_period" AS ENUM('daily', 'weekly', 'monthly', 'custom');--> statement-breakpoint
 CREATE TYPE "public"."payment_dispute_reply_author" AS ENUM('merchant', 'user', 'system');--> statement-breakpoint
 CREATE TYPE "public"."payment_dispute_status" AS ENUM('pending', 'processing', 'resolved', 'refunded');--> statement-breakpoint
 CREATE TYPE "public"."payment_dispute_type" AS ENUM('refund_request', 'service_issue', 'fraud_report', 'other');--> statement-breakpoint
 CREATE TYPE "public"."payment_event_status" AS ENUM('pending', 'done', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."payment_ledger_direction" AS ENUM('in', 'out');--> statement-breakpoint
-CREATE TYPE "public"."payment_ledger_type" AS ENUM('payment', 'refund', 'fee', 'settlement', 'adjust', 'transfer');--> statement-breakpoint
+CREATE TYPE "public"."payment_fund_reservation_status" AS ENUM('active', 'captured', 'released', 'expired');--> statement-breakpoint
+CREATE TYPE "public"."payment_ledger_account_code" AS ENUM('provider_clearing', 'merchant_pending', 'merchant_available', 'merchant_frozen', 'platform_fee', 'refund_payable', 'sharing_payable', 'payout_payable', 'suspense');--> statement-breakpoint
+CREATE TYPE "public"."payment_ledger_normal_balance" AS ENUM('debit', 'credit');--> statement-breakpoint
 CREATE TYPE "public"."payment_link_status" AS ENUM('active', 'disabled', 'expired');--> statement-breakpoint
 CREATE TYPE "public"."payment_method" AS ENUM('wechat_native', 'wechat_jsapi', 'wechat_h5', 'alipay_page', 'alipay_wap', 'alipay_app', 'unionpay_qr', 'wechat_papay', 'alipay_cycle', 'wechat_preauth', 'alipay_preauth');--> statement-breakpoint
-CREATE TYPE "public"."payment_order_status" AS ENUM('pending', 'paying', 'success', 'closed', 'refunding', 'refunded', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."payment_preauth_status" AS ENUM('pending', 'frozen', 'captured', 'released', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_order_status" AS ENUM('pending', 'paying', 'unknown', 'success', 'closed', 'refunding', 'refunded', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_preauth_operation" AS ENUM('freeze', 'capture', 'release');--> statement-breakpoint
+CREATE TYPE "public"."payment_preauth_status" AS ENUM('pending', 'unknown', 'frozen', 'captured', 'released', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_recon_handle_status" AS ENUM('pending', 'adjusted', 'suspended', 'ignored');--> statement-breakpoint
 CREATE TYPE "public"."payment_recon_result" AS ENUM('matched', 'local_only', 'channel_only', 'amount_diff', 'status_diff');--> statement-breakpoint
+CREATE TYPE "public"."payment_recon_source" AS ENUM('manual_upload', 'sandbox_generated', 'provider_download');--> statement-breakpoint
 CREATE TYPE "public"."payment_recon_status" AS ENUM('pending', 'comparing', 'done', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_refund_approval_status" AS ENUM('none', 'pending', 'approved', 'rejected');--> statement-breakpoint
-CREATE TYPE "public"."payment_refund_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_refund_status" AS ENUM('pending', 'processing', 'unknown', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_action" AS ENUM('block', 'review');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_dimension" AS ENUM('blocklist', 'single_limit', 'daily_limit', 'daily_count', 'decision');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_review_status" AS ENUM('pending', 'approved', 'rejected');--> statement-breakpoint
 CREATE TYPE "public"."payment_risk_scope" AS ENUM('global', 'channel', 'bizType');--> statement-breakpoint
 CREATE TYPE "public"."payment_settlement_status" AS ENUM('pending', 'settling', 'settled', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."payment_sharing_order_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_sharing_order_status" AS ENUM('pending', 'processing', 'success', 'failed', 'reversed');--> statement-breakpoint
 CREATE TYPE "public"."payment_sharing_receiver_type" AS ENUM('merchant', 'personal');--> statement-breakpoint
-CREATE TYPE "public"."payment_transfer_status" AS ENUM('pending', 'processing', 'success', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."payment_webhook_delivery_status" AS ENUM('pending', 'success', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_sharing_reversal_status" AS ENUM('processing', 'unknown', 'success', 'failed');--> statement-breakpoint
+CREATE TYPE "public"."payment_transfer_approval_status" AS ENUM('none', 'pending', 'approved', 'rejected');--> statement-breakpoint
+CREATE TYPE "public"."payment_transfer_status" AS ENUM('pending', 'processing', 'unknown', 'success', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."ai_feedback_status" AS ENUM('pending', 'resolved', 'ignored');--> statement-breakpoint
 CREATE TYPE "public"."ai_message_role" AS ENUM('system', 'user', 'assistant');--> statement-breakpoint
 CREATE TYPE "public"."ai_prompt_scope" AS ENUM('system', 'user');--> statement-breakpoint
@@ -3117,22 +3124,10 @@ CREATE TABLE "channels" (
 	CONSTRAINT "channels_code_unique" UNIQUE("code")
 );
 --> statement-breakpoint
-CREATE TABLE "payment_accounts" (
-	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"channel" "payment_channel" NOT NULL,
-	"pending_settle" integer DEFAULT 0 NOT NULL,
-	"available" integer DEFAULT 0 NOT NULL,
-	"frozen" integer DEFAULT 0 NOT NULL,
-	"version" integer DEFAULT 0 NOT NULL,
-	"tenant_id" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "payment_apps" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_apps_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"name" varchar(64) NOT NULL,
-	"app_key" varchar(64) NOT NULL,
+	"open_client_id" integer NOT NULL,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"wechat_config_id" integer,
 	"alipay_config_id" integer,
@@ -3143,7 +3138,28 @@ CREATE TABLE "payment_apps" (
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "payment_apps_app_key_unique" UNIQUE("app_key")
+	CONSTRAINT "payment_apps_open_client_unique" UNIQUE("open_client_id")
+);
+--> statement-breakpoint
+CREATE TABLE "payment_cashier_sessions" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_cashier_sessions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"session_token" varchar(64) NOT NULL,
+	"link_id" integer NOT NULL,
+	"app_id" integer NOT NULL,
+	"order_no" varchar(64),
+	"pay_method" "payment_method" NOT NULL,
+	"amount" integer NOT NULL,
+	"status" "payment_cashier_session_status" DEFAULT 'ready' NOT NULL,
+	"use_slot_status" "payment_cashier_use_slot_status" DEFAULT 'none' NOT NULL,
+	"pay_params" jsonb,
+	"return_url" varchar(512) NOT NULL,
+	"error_message" varchar(512),
+	"expires_at" timestamp with time zone NOT NULL,
+	"version" integer DEFAULT 0 NOT NULL,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_cashier_sessions_session_token_unique" UNIQUE("session_token")
 );
 --> statement-breakpoint
 CREATE TABLE "payment_channel_configs" (
@@ -3153,6 +3169,8 @@ CREATE TABLE "payment_channel_configs" (
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"is_default" boolean DEFAULT false NOT NULL,
 	"sandbox" boolean DEFAULT false NOT NULL,
+	"callback_token" varchar(64) NOT NULL,
+	"sandbox_notify_secret_encrypted" text NOT NULL,
 	"notify_url" varchar(512),
 	"wechat_app_id" varchar(64),
 	"wechat_mch_id" varchar(64),
@@ -3161,6 +3179,7 @@ CREATE TABLE "payment_channel_configs" (
 	"wechat_serial_no" varchar(128),
 	"wechat_platform_cert" text,
 	"alipay_app_id" varchar(64),
+	"alipay_seller_id" varchar(64),
 	"alipay_private_key_encrypted" text,
 	"alipay_public_key" text,
 	"alipay_sign_type" varchar(16) DEFAULT 'RSA2',
@@ -3175,18 +3194,24 @@ CREATE TABLE "payment_channel_configs" (
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_channel_configs_callback_token_unique" UNIQUE("callback_token")
 );
 --> statement-breakpoint
 CREATE TABLE "payment_contracts" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_contracts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"contract_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
-	"channel_config_id" integer,
+	"channel_config_id" integer NOT NULL,
+	"app_id" integer NOT NULL,
+	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"plan_id" integer NOT NULL,
 	"signer_account" varchar(128) NOT NULL,
 	"signer_name" varchar(64),
 	"status" "payment_contract_status" DEFAULT 'pending' NOT NULL,
+	"unknown_operation" "payment_contract_operation",
+	"version" integer DEFAULT 0 NOT NULL,
+	"error_message" varchar(512),
 	"channel_contract_no" varchar(128),
 	"biz_type" varchar(64) NOT NULL,
 	"biz_id" varchar(128) NOT NULL,
@@ -3289,32 +3314,101 @@ CREATE TABLE "payment_fee_rules" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "payment_ledger_entries" (
-	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_ledger_entries_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"entry_no" varchar(64) NOT NULL,
-	"direction" "payment_ledger_direction" NOT NULL,
-	"type" "payment_ledger_type" NOT NULL,
-	"amount" integer NOT NULL,
-	"order_no" varchar(64),
-	"refund_no" varchar(64),
-	"channel" "payment_channel",
-	"biz_type" varchar(64),
-	"remark" varchar(256),
+CREATE TABLE "payment_fund_reservations" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_fund_reservations_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"reservation_no" varchar(64) NOT NULL,
+	"account_id" integer NOT NULL,
+	"source_type" varchar(64) NOT NULL,
+	"source_id" varchar(128) NOT NULL,
+	"amount" bigint NOT NULL,
+	"status" "payment_fund_reservation_status" DEFAULT 'active' NOT NULL,
+	"version" integer DEFAULT 0 NOT NULL,
+	"reason" varchar(256),
+	"finalization_reason" varchar(256),
+	"app_id" integer NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"currency" varchar(8) NOT NULL,
 	"tenant_id" integer,
+	"expires_at" timestamp with time zone,
+	"finalized_at" timestamp with time zone,
+	"created_by" integer,
+	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "payment_ledger_entries_entry_no_unique" UNIQUE("entry_no")
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_fund_reservations_reservation_no_unique" UNIQUE("reservation_no"),
+	CONSTRAINT "payment_fund_reservations_amount_positive_check" CHECK ("payment_fund_reservations"."amount" > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "payment_journal_lines" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_journal_lines_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"journal_id" integer NOT NULL,
+	"line_no" integer NOT NULL,
+	"account_id" integer NOT NULL,
+	"debit_amount" bigint DEFAULT 0 NOT NULL,
+	"credit_amount" bigint DEFAULT 0 NOT NULL,
+	"memo" varchar(256),
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_journal_lines_journal_line_unique" UNIQUE("journal_id","line_no"),
+	CONSTRAINT "payment_journal_lines_single_side_check" CHECK ((("payment_journal_lines"."debit_amount" > 0 and "payment_journal_lines"."credit_amount" = 0) or ("payment_journal_lines"."credit_amount" > 0 and "payment_journal_lines"."debit_amount" = 0)))
+);
+--> statement-breakpoint
+CREATE TABLE "payment_journals" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_journals_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"journal_no" varchar(64) NOT NULL,
+	"source_type" varchar(64) NOT NULL,
+	"source_id" varchar(128) NOT NULL,
+	"request_hash" varchar(64) NOT NULL,
+	"description" varchar(512) NOT NULL,
+	"app_id" integer NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"currency" varchar(8) NOT NULL,
+	"reversal_of_journal_id" integer,
+	"operator_id" integer,
+	"tenant_id" integer,
+	"posted_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_journals_journal_no_unique" UNIQUE("journal_no")
+);
+--> statement-breakpoint
+CREATE TABLE "payment_ledger_accounts" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_ledger_accounts_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"account_no" varchar(64) NOT NULL,
+	"name" varchar(128) NOT NULL,
+	"code" "payment_ledger_account_code" NOT NULL,
+	"normal_balance" "payment_ledger_normal_balance" NOT NULL,
+	"app_id" integer NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"currency" varchar(8) NOT NULL,
+	"status" "status" DEFAULT 'enabled' NOT NULL,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_ledger_accounts_account_no_unique" UNIQUE("account_no")
+);
+--> statement-breakpoint
+CREATE TABLE "payment_link_redemptions" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_link_redemptions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"link_id" integer NOT NULL,
+	"order_no" varchar(64) NOT NULL,
+	"tenant_id" integer,
+	"redeemed_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_link_redemptions_order_no_unique" UNIQUE("order_no")
 );
 --> statement-breakpoint
 CREATE TABLE "payment_links" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_links_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"link_no" varchar(64) NOT NULL,
 	"token" varchar(64) NOT NULL,
+	"app_id" integer NOT NULL,
 	"subject" varchar(256) NOT NULL,
 	"amount" integer,
 	"pay_method" "payment_method",
 	"biz_type" varchar(64) NOT NULL,
 	"max_uses" integer,
 	"used_count" integer DEFAULT 0 NOT NULL,
+	"reserved_count" integer DEFAULT 0 NOT NULL,
 	"expired_at" timestamp with time zone,
 	"status" "payment_link_status" DEFAULT 'active' NOT NULL,
 	"remark" varchar(256),
@@ -3339,18 +3433,24 @@ CREATE TABLE "payment_method_configs" (
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "payment_method_configs_method_unique" UNIQUE("method")
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "payment_notify_logs" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_notify_logs_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"channel" "payment_channel" NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"app_id" integer,
+	"provider_event_id" varchar(128),
 	"scene" varchar(16) DEFAULT 'payment' NOT NULL,
 	"order_no" varchar(64),
 	"raw_body" text,
 	"headers" text,
 	"signature_valid" boolean DEFAULT false NOT NULL,
+	"merchant_id" varchar(128),
+	"provider_app_id" varchar(128),
+	"paid_amount" integer,
+	"currency" varchar(8),
 	"result" varchar(32),
 	"message" varchar(512),
 	"ip" varchar(64),
@@ -3370,8 +3470,8 @@ CREATE TABLE "payment_orders" (
 	"amount" integer NOT NULL,
 	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"channel" "payment_channel" NOT NULL,
-	"channel_config_id" integer,
-	"app_id" integer,
+	"channel_config_id" integer NOT NULL,
+	"app_id" integer NOT NULL,
 	"pay_method" "payment_method" NOT NULL,
 	"status" "payment_order_status" DEFAULT 'pending' NOT NULL,
 	"user_id" integer,
@@ -3386,22 +3486,28 @@ CREATE TABLE "payment_orders" (
 	"member_coupon_id" integer,
 	"paid_at" timestamp with time zone,
 	"expired_at" timestamp with time zone,
+	"return_url" varchar(512),
 	"notify_data" text,
 	"error_message" varchar(512),
+	"idempotency_key" varchar(128),
+	"request_hash" varchar(64),
+	"version" integer DEFAULT 0 NOT NULL,
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "payment_orders_order_no_unique" UNIQUE("order_no"),
-	CONSTRAINT "payment_orders_channel_out_trade_no_uq" UNIQUE("channel","out_trade_no")
+	CONSTRAINT "payment_orders_config_out_trade_no_uq" UNIQUE("channel_config_id","out_trade_no")
 );
 --> statement-breakpoint
 CREATE TABLE "payment_preauths" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_preauths_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"preauth_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
-	"channel_config_id" integer,
+	"channel_config_id" integer NOT NULL,
+	"app_id" integer NOT NULL,
+	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"channel_preauth_no" varchar(128),
 	"biz_type" varchar(64) NOT NULL,
 	"biz_id" varchar(128) NOT NULL,
@@ -3411,6 +3517,8 @@ CREATE TABLE "payment_preauths" (
 	"captured_amount" integer,
 	"capture_order_no" varchar(64),
 	"status" "payment_preauth_status" DEFAULT 'pending' NOT NULL,
+	"unknown_operation" "payment_preauth_operation",
+	"version" integer DEFAULT 0 NOT NULL,
 	"error_message" varchar(512),
 	"frozen_at" timestamp with time zone,
 	"finished_at" timestamp with time zone,
@@ -3428,7 +3536,11 @@ CREATE TABLE "payment_recon_batches" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_recon_batches_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"batch_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
+	"app_id" integer NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"bill_date" varchar(10) NOT NULL,
+	"source" "payment_recon_source" DEFAULT 'manual_upload' NOT NULL,
 	"status" "payment_recon_status" DEFAULT 'pending' NOT NULL,
 	"local_count" integer DEFAULT 0 NOT NULL,
 	"local_amount" integer DEFAULT 0 NOT NULL,
@@ -3468,7 +3580,7 @@ CREATE TABLE "payment_refunds" (
 	"refund_no" varchar(64) NOT NULL,
 	"out_refund_no" varchar(64) NOT NULL,
 	"order_no" varchar(64) NOT NULL,
-	"order_id" integer,
+	"order_id" integer NOT NULL,
 	"channel_refund_no" varchar(128),
 	"channel" "payment_channel" NOT NULL,
 	"refund_amount" integer NOT NULL,
@@ -3484,25 +3596,15 @@ CREATE TABLE "payment_refunds" (
 	"refunded_at" timestamp with time zone,
 	"notify_data" text,
 	"error_message" varchar(512),
+	"idempotency_key" varchar(128),
+	"request_hash" varchar(64),
+	"version" integer DEFAULT 0 NOT NULL,
 	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "payment_refunds_refund_no_unique" UNIQUE("refund_no")
-);
---> statement-breakpoint
-CREATE TABLE "payment_report_daily" (
-	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_report_daily_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"stat_date" varchar(10) NOT NULL,
-	"channel" varchar(16) DEFAULT '' NOT NULL,
-	"biz_type" varchar(64) DEFAULT '' NOT NULL,
-	"gross" integer DEFAULT 0 NOT NULL,
-	"fee" integer DEFAULT 0 NOT NULL,
-	"refund" integer DEFAULT 0 NOT NULL,
-	"count" integer DEFAULT 0 NOT NULL,
-	"tenant_id" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "payment_risk_hits" (
@@ -3530,9 +3632,11 @@ CREATE TABLE "payment_risk_reviews" (
 	"hit_id" integer,
 	"order_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
+	"app_id" integer NOT NULL,
 	"biz_type" varchar(64) NOT NULL,
 	"biz_id" varchar(128) NOT NULL,
 	"amount" integer NOT NULL,
+	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"reason" varchar(256) NOT NULL,
 	"status" "payment_risk_review_status" DEFAULT 'pending' NOT NULL,
 	"reviewer_id" integer,
@@ -3571,6 +3675,9 @@ CREATE TABLE "payment_settlement_batches" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_settlement_batches_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"batch_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
+	"app_id" integer NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"period_start" varchar(10) NOT NULL,
 	"period_end" varchar(10) NOT NULL,
 	"status" "payment_settlement_status" DEFAULT 'pending' NOT NULL,
@@ -3578,8 +3685,12 @@ CREATE TABLE "payment_settlement_batches" (
 	"gross_amount" integer DEFAULT 0 NOT NULL,
 	"fee_amount" integer DEFAULT 0 NOT NULL,
 	"refund_amount" integer DEFAULT 0 NOT NULL,
+	"sharing_amount" integer DEFAULT 0 NOT NULL,
 	"net_amount" integer DEFAULT 0 NOT NULL,
 	"settled_at" timestamp with time zone,
+	"failure_reason" varchar(512),
+	"payout_reference" varchar(128),
+	"version" integer DEFAULT 0 NOT NULL,
 	"remark" varchar(256),
 	"tenant_id" integer,
 	"created_by" integer,
@@ -3587,6 +3698,21 @@ CREATE TABLE "payment_settlement_batches" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "payment_settlement_batches_batch_no_unique" UNIQUE("batch_no")
+);
+--> statement-breakpoint
+CREATE TABLE "payment_settlement_items" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_settlement_items_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"batch_id" integer NOT NULL,
+	"journal_line_id" integer NOT NULL,
+	"amount" bigint NOT NULL,
+	"app_id" integer NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"currency" varchar(8) NOT NULL,
+	"tenant_id" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_settlement_items_journal_line_unique" UNIQUE("journal_line_id"),
+	CONSTRAINT "payment_settlement_items_batch_line_unique" UNIQUE("batch_id","journal_line_id"),
+	CONSTRAINT "payment_settlement_items_amount_nonzero_check" CHECK ("payment_settlement_items"."amount" <> 0)
 );
 --> statement-breakpoint
 CREATE TABLE "payment_sharing_orders" (
@@ -3598,6 +3724,7 @@ CREATE TABLE "payment_sharing_orders" (
 	"status" "payment_sharing_order_status" DEFAULT 'pending' NOT NULL,
 	"channel_sharing_no" varchar(128),
 	"attempts" integer DEFAULT 0 NOT NULL,
+	"version" integer DEFAULT 0 NOT NULL,
 	"finished_at" timestamp with time zone,
 	"remark" varchar(256),
 	"tenant_id" integer,
@@ -3624,20 +3751,55 @@ CREATE TABLE "payment_sharing_receivers" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "payment_sharing_reversals" (
+	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_sharing_reversals_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
+	"reversal_no" varchar(64) NOT NULL,
+	"sharing_order_id" integer NOT NULL,
+	"amount" integer NOT NULL,
+	"status" "payment_sharing_reversal_status" DEFAULT 'processing' NOT NULL,
+	"channel_reversal_no" varchar(128),
+	"idempotency_key" varchar(128) NOT NULL,
+	"request_hash" varchar(64) NOT NULL,
+	"reason" varchar(256) NOT NULL,
+	"attempts" integer DEFAULT 0 NOT NULL,
+	"query_attempts" integer DEFAULT 0 NOT NULL,
+	"version" integer DEFAULT 0 NOT NULL,
+	"error_message" varchar(512),
+	"finished_at" timestamp with time zone,
+	"tenant_id" integer,
+	"created_by" integer,
+	"updated_by" integer,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "payment_sharing_reversals_reversal_no_unique" UNIQUE("reversal_no"),
+	CONSTRAINT "payment_sharing_reversals_sharing_order_unique" UNIQUE("sharing_order_id")
+);
+--> statement-breakpoint
 CREATE TABLE "payment_transfers" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_transfers_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"transfer_no" varchar(64) NOT NULL,
 	"out_transfer_no" varchar(64) NOT NULL,
 	"channel" "payment_channel" NOT NULL,
-	"channel_config_id" integer,
+	"app_id" integer NOT NULL,
+	"channel_config_id" integer NOT NULL,
+	"currency" varchar(8) DEFAULT 'CNY' NOT NULL,
 	"receiver_account" varchar(128) NOT NULL,
 	"receiver_name" varchar(64),
 	"amount" integer NOT NULL,
 	"remark" varchar(256),
 	"status" "payment_transfer_status" DEFAULT 'pending' NOT NULL,
+	"approval_status" "payment_transfer_approval_status" DEFAULT 'none' NOT NULL,
+	"applied_by_id" integer,
+	"approver_id" integer,
+	"approved_at" timestamp with time zone,
+	"approval_remark" varchar(256),
 	"channel_transfer_no" varchar(128),
 	"fail_reason" varchar(512),
 	"attempts" integer DEFAULT 0 NOT NULL,
+	"idempotency_key" varchar(128) NOT NULL,
+	"request_hash" varchar(64) NOT NULL,
+	"fund_reservation_id" integer NOT NULL,
+	"version" integer DEFAULT 0 NOT NULL,
 	"biz_type" varchar(64),
 	"biz_id" varchar(128),
 	"finished_at" timestamp with time zone,
@@ -3648,40 +3810,7 @@ CREATE TABLE "payment_transfers" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "payment_transfers_transfer_no_unique" UNIQUE("transfer_no"),
-	CONSTRAINT "payment_transfers_channel_out_no_uq" UNIQUE("channel","out_transfer_no")
-);
---> statement-breakpoint
-CREATE TABLE "payment_webhook_deliveries" (
-	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_webhook_deliveries_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"endpoint_id" integer NOT NULL,
-	"event_type" varchar(32) NOT NULL,
-	"order_no" varchar(64),
-	"payload" text NOT NULL,
-	"status" "payment_webhook_delivery_status" DEFAULT 'pending' NOT NULL,
-	"attempts" integer DEFAULT 0 NOT NULL,
-	"http_status" integer,
-	"response_body" varchar(1024),
-	"last_error" varchar(512),
-	"next_retry_at" timestamp with time zone,
-	"tenant_id" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "payment_webhook_endpoints" (
-	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "payment_webhook_endpoints_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"name" varchar(64) NOT NULL,
-	"url" varchar(512) NOT NULL,
-	"secret_encrypted" text,
-	"biz_type" varchar(64),
-	"events" jsonb DEFAULT '[]'::jsonb NOT NULL,
-	"status" "status" DEFAULT 'enabled' NOT NULL,
-	"remark" varchar(256),
-	"tenant_id" integer,
-	"created_by" integer,
-	"updated_by" integer,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	CONSTRAINT "payment_transfers_config_out_no_uq" UNIQUE("channel_config_id","out_transfer_no")
 );
 --> statement-breakpoint
 CREATE TABLE "ai_agents" (
@@ -3906,7 +4035,8 @@ CREATE TABLE "api_scopes" (
 CREATE TABLE "app_webhook_deliveries" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "app_webhook_deliveries_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
 	"subscription_id" integer NOT NULL,
-	"client_id" varchar(64) NOT NULL,
+	"client_id" varchar(64),
+	"tenant_id" integer,
 	"event_type" varchar(64) NOT NULL,
 	"event_id" varchar(64) NOT NULL,
 	"payload" jsonb,
@@ -3926,7 +4056,7 @@ CREATE TABLE "app_webhook_deliveries" (
 --> statement-breakpoint
 CREATE TABLE "app_webhook_subscriptions" (
 	"id" integer PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "app_webhook_subscriptions_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 2147483647 START WITH 1 CACHE 1),
-	"client_id" varchar(64) NOT NULL,
+	"client_id" varchar(64),
 	"name" varchar(100) NOT NULL,
 	"url" varchar(512) NOT NULL,
 	"secret_encrypted" text,
@@ -3939,10 +4069,12 @@ CREATE TABLE "app_webhook_subscriptions" (
 	"last_delivery_at" timestamp with time zone,
 	"consecutive_failures" integer DEFAULT 0 NOT NULL,
 	"auto_disabled_at" timestamp with time zone,
+	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "app_webhook_subscriptions_identity_check" CHECK ((("app_webhook_subscriptions"."internal" = true and "app_webhook_subscriptions"."client_id" is null) or ("app_webhook_subscriptions"."internal" = false and "app_webhook_subscriptions"."client_id" is not null)))
 );
 --> statement-breakpoint
 CREATE TABLE "oauth2_authorization_codes" (
@@ -3987,6 +4119,7 @@ CREATE TABLE "oauth2_clients" (
 	"reviewed_by" integer,
 	"status" "status" DEFAULT 'enabled' NOT NULL,
 	"owner_id" integer,
+	"tenant_id" integer,
 	"created_by" integer,
 	"updated_by" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -4394,7 +4527,8 @@ CREATE TABLE "member_wallet_transactions" (
 	"balance_after" integer NOT NULL,
 	"biz_type" varchar(64),
 	"biz_id" varchar(128),
-	"payment_order_id" integer,
+	"payment_intent_no" varchar(64),
+	"payment_event_id" varchar(128),
 	"remark" varchar(256),
 	"operator_id" integer,
 	"created_at" timestamp DEFAULT now() NOT NULL
@@ -7612,17 +7746,21 @@ ALTER TABLE "channel_subscriptions" ADD CONSTRAINT "channel_subscriptions_user_i
 ALTER TABLE "channels" ADD CONSTRAINT "channels_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "channels" ADD CONSTRAINT "channels_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "channels" ADD CONSTRAINT "channels_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_accounts" ADD CONSTRAINT "payment_accounts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_open_client_id_oauth2_clients_id_fk" FOREIGN KEY ("open_client_id") REFERENCES "public"."oauth2_clients"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_wechat_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("wechat_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_alipay_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("alipay_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_unionpay_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("unionpay_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_apps" ADD CONSTRAINT "payment_apps_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_cashier_sessions" ADD CONSTRAINT "payment_cashier_sessions_link_id_payment_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."payment_links"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_cashier_sessions" ADD CONSTRAINT "payment_cashier_sessions_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_cashier_sessions" ADD CONSTRAINT "payment_cashier_sessions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_channel_configs" ADD CONSTRAINT "payment_channel_configs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_channel_configs" ADD CONSTRAINT "payment_channel_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_channel_configs" ADD CONSTRAINT "payment_channel_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_plan_id_payment_deduct_plans_id_fk" FOREIGN KEY ("plan_id") REFERENCES "public"."payment_deduct_plans"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_contracts" ADD CONSTRAINT "payment_contracts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -7639,43 +7777,68 @@ ALTER TABLE "payment_events" ADD CONSTRAINT "payment_events_tenant_id_tenants_id
 ALTER TABLE "payment_fee_rules" ADD CONSTRAINT "payment_fee_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_fee_rules" ADD CONSTRAINT "payment_fee_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_fee_rules" ADD CONSTRAINT "payment_fee_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_ledger_entries" ADD CONSTRAINT "payment_ledger_entries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_fund_reservations" ADD CONSTRAINT "payment_fund_reservations_account_id_payment_ledger_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."payment_ledger_accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_fund_reservations" ADD CONSTRAINT "payment_fund_reservations_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_fund_reservations" ADD CONSTRAINT "payment_fund_reservations_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_fund_reservations" ADD CONSTRAINT "payment_fund_reservations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_fund_reservations" ADD CONSTRAINT "payment_fund_reservations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_fund_reservations" ADD CONSTRAINT "payment_fund_reservations_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_journal_lines" ADD CONSTRAINT "payment_journal_lines_journal_id_payment_journals_id_fk" FOREIGN KEY ("journal_id") REFERENCES "public"."payment_journals"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_journal_lines" ADD CONSTRAINT "payment_journal_lines_account_id_payment_ledger_accounts_id_fk" FOREIGN KEY ("account_id") REFERENCES "public"."payment_ledger_accounts"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_journals" ADD CONSTRAINT "payment_journals_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_journals" ADD CONSTRAINT "payment_journals_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_journals" ADD CONSTRAINT "payment_journals_reversal_of_journal_id_payment_journals_id_fk" FOREIGN KEY ("reversal_of_journal_id") REFERENCES "public"."payment_journals"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_journals" ADD CONSTRAINT "payment_journals_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_journals" ADD CONSTRAINT "payment_journals_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_ledger_accounts" ADD CONSTRAINT "payment_ledger_accounts_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_ledger_accounts" ADD CONSTRAINT "payment_ledger_accounts_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_ledger_accounts" ADD CONSTRAINT "payment_ledger_accounts_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_ledger_accounts" ADD CONSTRAINT "payment_ledger_accounts_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_ledger_accounts" ADD CONSTRAINT "payment_ledger_accounts_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_link_redemptions" ADD CONSTRAINT "payment_link_redemptions_link_id_payment_links_id_fk" FOREIGN KEY ("link_id") REFERENCES "public"."payment_links"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_link_redemptions" ADD CONSTRAINT "payment_link_redemptions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_links" ADD CONSTRAINT "payment_links_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_links" ADD CONSTRAINT "payment_links_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_links" ADD CONSTRAINT "payment_links_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_links" ADD CONSTRAINT "payment_links_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_method_configs" ADD CONSTRAINT "payment_method_configs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_method_configs" ADD CONSTRAINT "payment_method_configs_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_method_configs" ADD CONSTRAINT "payment_method_configs_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_notify_logs" ADD CONSTRAINT "payment_notify_logs_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_notify_logs" ADD CONSTRAINT "payment_notify_logs_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_notify_logs" ADD CONSTRAINT "payment_notify_logs_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_department_id_departments_id_fk" FOREIGN KEY ("department_id") REFERENCES "public"."departments"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_orders" ADD CONSTRAINT "payment_orders_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_preauths" ADD CONSTRAINT "payment_preauths_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_batches" ADD CONSTRAINT "payment_recon_batches_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_items" ADD CONSTRAINT "payment_recon_items_batch_id_payment_recon_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."payment_recon_batches"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_recon_items" ADD CONSTRAINT "payment_recon_items_handled_by_id_users_id_fk" FOREIGN KEY ("handled_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_order_id_payment_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."payment_orders"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_order_id_payment_orders_id_fk" FOREIGN KEY ("order_id") REFERENCES "public"."payment_orders"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_applied_by_id_users_id_fk" FOREIGN KEY ("applied_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_approver_id_users_id_fk" FOREIGN KEY ("approver_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_refunds" ADD CONSTRAINT "payment_refunds_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_report_daily" ADD CONSTRAINT "payment_report_daily_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_hits" ADD CONSTRAINT "payment_risk_hits_rule_id_payment_risk_rules_id_fk" FOREIGN KEY ("rule_id") REFERENCES "public"."payment_risk_rules"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_hits" ADD CONSTRAINT "payment_risk_hits_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_hits" ADD CONSTRAINT "payment_risk_hits_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_hit_id_payment_risk_hits_id_fk" FOREIGN KEY ("hit_id") REFERENCES "public"."payment_risk_hits"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_reviewer_id_users_id_fk" FOREIGN KEY ("reviewer_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -7683,26 +7846,36 @@ ALTER TABLE "payment_risk_reviews" ADD CONSTRAINT "payment_risk_reviews_updated_
 ALTER TABLE "payment_risk_rules" ADD CONSTRAINT "payment_risk_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_rules" ADD CONSTRAINT "payment_risk_rules_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_risk_rules" ADD CONSTRAINT "payment_risk_rules_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_settlement_batches" ADD CONSTRAINT "payment_settlement_batches_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_settlement_batches" ADD CONSTRAINT "payment_settlement_batches_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_settlement_batches" ADD CONSTRAINT "payment_settlement_batches_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_settlement_batches" ADD CONSTRAINT "payment_settlement_batches_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_settlement_batches" ADD CONSTRAINT "payment_settlement_batches_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_sharing_orders" ADD CONSTRAINT "payment_sharing_orders_receiver_id_payment_sharing_receivers_id_fk" FOREIGN KEY ("receiver_id") REFERENCES "public"."payment_sharing_receivers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_settlement_items" ADD CONSTRAINT "payment_settlement_items_batch_id_payment_settlement_batches_id_fk" FOREIGN KEY ("batch_id") REFERENCES "public"."payment_settlement_batches"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_settlement_items" ADD CONSTRAINT "payment_settlement_items_journal_line_id_payment_journal_lines_id_fk" FOREIGN KEY ("journal_line_id") REFERENCES "public"."payment_journal_lines"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_settlement_items" ADD CONSTRAINT "payment_settlement_items_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_settlement_items" ADD CONSTRAINT "payment_settlement_items_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_settlement_items" ADD CONSTRAINT "payment_settlement_items_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_sharing_orders" ADD CONSTRAINT "payment_sharing_orders_receiver_id_payment_sharing_receivers_id_fk" FOREIGN KEY ("receiver_id") REFERENCES "public"."payment_sharing_receivers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_orders" ADD CONSTRAINT "payment_sharing_orders_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_orders" ADD CONSTRAINT "payment_sharing_orders_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_orders" ADD CONSTRAINT "payment_sharing_orders_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_receivers" ADD CONSTRAINT "payment_sharing_receivers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_receivers" ADD CONSTRAINT "payment_sharing_receivers_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_sharing_receivers" ADD CONSTRAINT "payment_sharing_receivers_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_sharing_reversals" ADD CONSTRAINT "payment_sharing_reversals_sharing_order_id_payment_sharing_orders_id_fk" FOREIGN KEY ("sharing_order_id") REFERENCES "public"."payment_sharing_orders"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_sharing_reversals" ADD CONSTRAINT "payment_sharing_reversals_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_sharing_reversals" ADD CONSTRAINT "payment_sharing_reversals_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_sharing_reversals" ADD CONSTRAINT "payment_sharing_reversals_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_app_id_payment_apps_id_fk" FOREIGN KEY ("app_id") REFERENCES "public"."payment_apps"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_channel_config_id_payment_channel_configs_id_fk" FOREIGN KEY ("channel_config_id") REFERENCES "public"."payment_channel_configs"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_applied_by_id_users_id_fk" FOREIGN KEY ("applied_by_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_approver_id_users_id_fk" FOREIGN KEY ("approver_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_fund_reservation_id_payment_fund_reservations_id_fk" FOREIGN KEY ("fund_reservation_id") REFERENCES "public"."payment_fund_reservations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "payment_transfers" ADD CONSTRAINT "payment_transfers_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_webhook_deliveries" ADD CONSTRAINT "payment_webhook_deliveries_endpoint_id_payment_webhook_endpoints_id_fk" FOREIGN KEY ("endpoint_id") REFERENCES "public"."payment_webhook_endpoints"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_webhook_deliveries" ADD CONSTRAINT "payment_webhook_deliveries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_webhook_endpoints" ADD CONSTRAINT "payment_webhook_endpoints_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_webhook_endpoints" ADD CONSTRAINT "payment_webhook_endpoints_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payment_webhook_endpoints" ADD CONSTRAINT "payment_webhook_endpoints_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_agents" ADD CONSTRAINT "ai_agents_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_arena_votes" ADD CONSTRAINT "ai_arena_votes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ai_conversations" ADD CONSTRAINT "ai_conversations_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -7728,13 +7901,18 @@ ALTER TABLE "user_ai_configs" ADD CONSTRAINT "user_ai_configs_user_id_users_id_f
 ALTER TABLE "api_scopes" ADD CONSTRAINT "api_scopes_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "api_scopes" ADD CONSTRAINT "api_scopes_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_webhook_deliveries" ADD CONSTRAINT "app_webhook_deliveries_subscription_id_app_webhook_subscriptions_id_fk" FOREIGN KEY ("subscription_id") REFERENCES "public"."app_webhook_subscriptions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_webhook_deliveries" ADD CONSTRAINT "app_webhook_deliveries_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_client_id_oauth2_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth2_clients"("client_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_cms_site_id_cms_sites_id_fk" FOREIGN KEY ("cms_site_id") REFERENCES "public"."cms_sites"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app_webhook_subscriptions" ADD CONSTRAINT "app_webhook_subscriptions_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "oauth2_authorization_codes" ADD CONSTRAINT "oauth2_authorization_codes_client_id_oauth2_clients_client_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."oauth2_clients"("client_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_authorization_codes" ADD CONSTRAINT "oauth2_authorization_codes_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_rate_plan_id_rate_plans_id_fk" FOREIGN KEY ("rate_plan_id") REFERENCES "public"."rate_plans"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_reviewed_by_users_id_fk" FOREIGN KEY ("reviewed_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_owner_id_users_id_fk" FOREIGN KEY ("owner_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_clients" ADD CONSTRAINT "oauth2_clients_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "oauth2_token_families" ADD CONSTRAINT "oauth2_token_families_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -7778,7 +7956,6 @@ ALTER TABLE "member_tags" ADD CONSTRAINT "member_tags_created_by_users_id_fk" FO
 ALTER TABLE "member_tags" ADD CONSTRAINT "member_tags_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_vip_renewals" ADD CONSTRAINT "member_vip_renewals_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_wallet_transactions" ADD CONSTRAINT "member_wallet_transactions_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "member_wallet_transactions" ADD CONSTRAINT "member_wallet_transactions_payment_order_id_payment_orders_id_fk" FOREIGN KEY ("payment_order_id") REFERENCES "public"."payment_orders"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_wallet_transactions" ADD CONSTRAINT "member_wallet_transactions_operator_id_users_id_fk" FOREIGN KEY ("operator_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "member_wallets" ADD CONSTRAINT "member_wallets_member_id_members_id_fk" FOREIGN KEY ("member_id") REFERENCES "public"."members"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "members" ADD CONSTRAINT "members_level_id_member_levels_id_fk" FOREIGN KEY ("level_id") REFERENCES "public"."member_levels"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -8656,16 +8833,21 @@ CREATE INDEX "channel_messages_channel_idx" ON "channel_messages" USING btree ("
 CREATE INDEX "channel_quick_replies_channel_idx" ON "channel_quick_replies" USING btree ("channel_id");--> statement-breakpoint
 CREATE INDEX "channel_subscriptions_user_idx" ON "channel_subscriptions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "channels_tenant_idx" ON "channels" USING btree ("tenant_id");--> statement-breakpoint
-CREATE INDEX "payment_accounts_tenant_idx" ON "payment_accounts" USING btree ("tenant_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_accounts_channel_tenant_uq" ON "payment_accounts" USING btree ("channel","tenant_id") WHERE "payment_accounts"."tenant_id" is not null;--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_accounts_channel_global_uq" ON "payment_accounts" USING btree ("channel") WHERE "payment_accounts"."tenant_id" is null;--> statement-breakpoint
 CREATE INDEX "payment_apps_tenant_idx" ON "payment_apps" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_cashier_sessions_order_no_unique" ON "payment_cashier_sessions" USING btree ("order_no") WHERE "payment_cashier_sessions"."order_no" is not null;--> statement-breakpoint
+CREATE INDEX "payment_cashier_sessions_link_idx" ON "payment_cashier_sessions" USING btree ("link_id");--> statement-breakpoint
+CREATE INDEX "payment_cashier_sessions_link_slot_idx" ON "payment_cashier_sessions" USING btree ("link_id","use_slot_status","expires_at");--> statement-breakpoint
+CREATE INDEX "payment_cashier_sessions_status_expiry_idx" ON "payment_cashier_sessions" USING btree ("status","expires_at");--> statement-breakpoint
+CREATE INDEX "payment_cashier_sessions_tenant_idx" ON "payment_cashier_sessions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_channel_configs_tenant_idx" ON "payment_channel_configs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_channel_configs_default_tenant_channel_uq" ON "payment_channel_configs" USING btree ("tenant_id","channel") WHERE "payment_channel_configs"."is_default" = true and "payment_channel_configs"."tenant_id" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_channel_configs_default_global_channel_uq" ON "payment_channel_configs" USING btree ("channel") WHERE "payment_channel_configs"."is_default" = true and "payment_channel_configs"."tenant_id" is null;--> statement-breakpoint
 CREATE INDEX "payment_contracts_tenant_idx" ON "payment_contracts" USING btree ("tenant_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_contracts_active_biz_uq" ON "payment_contracts" USING btree ("biz_type","biz_id") WHERE "payment_contracts"."status" in ('pending', 'signed', 'paused');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_contracts_active_biz_uq" ON "payment_contracts" USING btree (coalesce("tenant_id", 0),"app_id","biz_type","biz_id","currency") WHERE "payment_contracts"."status" in ('pending', 'unknown', 'signed', 'paused');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_contracts_member_renewal_active_uq" ON "payment_contracts" USING btree (coalesce("tenant_id", 0),"biz_type","biz_id","currency") WHERE "payment_contracts"."biz_type" = 'member_renewal' and "payment_contracts"."status" in ('pending', 'unknown', 'signed', 'paused');--> statement-breakpoint
 CREATE INDEX "payment_contracts_status_idx" ON "payment_contracts" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_contracts_next_deduct_idx" ON "payment_contracts" USING btree ("next_deduct_at");--> statement-breakpoint
-CREATE INDEX "payment_contracts_biz_idx" ON "payment_contracts" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "payment_contracts_biz_idx" ON "payment_contracts" USING btree ("tenant_id","app_id","biz_type","biz_id","currency");--> statement-breakpoint
 CREATE INDEX "payment_deduct_plans_tenant_idx" ON "payment_deduct_plans" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_dispute_replies_operator_idx" ON "payment_dispute_replies" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "payment_dispute_replies_dispute_idx" ON "payment_dispute_replies" USING btree ("dispute_id");--> statement-breakpoint
@@ -8678,62 +8860,75 @@ CREATE INDEX "payment_events_tenant_idx" ON "payment_events" USING btree ("tenan
 CREATE INDEX "payment_events_status_idx" ON "payment_events" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_fee_rules_tenant_idx" ON "payment_fee_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_fee_rules_channel_idx" ON "payment_fee_rules" USING btree ("channel");--> statement-breakpoint
-CREATE INDEX "payment_ledger_entries_tenant_idx" ON "payment_ledger_entries" USING btree ("tenant_id");--> statement-breakpoint
-CREATE INDEX "payment_ledger_order_idx" ON "payment_ledger_entries" USING btree ("order_no");--> statement-breakpoint
-CREATE INDEX "payment_ledger_type_idx" ON "payment_ledger_entries" USING btree ("type");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_ledger_order_type_uq" ON "payment_ledger_entries" USING btree ("order_no","type") WHERE "payment_ledger_entries"."order_no" is not null and "payment_ledger_entries"."refund_no" is null and "payment_ledger_entries"."type" in ('payment', 'fee');--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_ledger_refund_type_uq" ON "payment_ledger_entries" USING btree ("refund_no","type") WHERE "payment_ledger_entries"."refund_no" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_fund_reservations_source_scope_uq" ON "payment_fund_reservations" USING btree (coalesce("tenant_id", 0),"app_id","channel_config_id","currency","source_type","source_id");--> statement-breakpoint
+CREATE INDEX "payment_fund_reservations_active_account_idx" ON "payment_fund_reservations" USING btree ("account_id","status","expires_at");--> statement-breakpoint
+CREATE INDEX "payment_fund_reservations_scope_idx" ON "payment_fund_reservations" USING btree ("tenant_id","app_id","channel_config_id","currency");--> statement-breakpoint
+CREATE INDEX "payment_journal_lines_account_idx" ON "payment_journal_lines" USING btree ("account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_journals_source_scope_uq" ON "payment_journals" USING btree (coalesce("tenant_id", 0),"app_id","channel_config_id","currency","source_type","source_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_journals_reversal_once_uq" ON "payment_journals" USING btree ("reversal_of_journal_id") WHERE "payment_journals"."reversal_of_journal_id" is not null;--> statement-breakpoint
+CREATE INDEX "payment_journals_scope_posted_idx" ON "payment_journals" USING btree ("tenant_id","app_id","channel_config_id","currency","posted_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_ledger_accounts_scope_code_uq" ON "payment_ledger_accounts" USING btree (coalesce("tenant_id", 0),"app_id","channel_config_id","currency","code");--> statement-breakpoint
+CREATE INDEX "payment_ledger_accounts_scope_idx" ON "payment_ledger_accounts" USING btree ("tenant_id","app_id","channel_config_id","currency");--> statement-breakpoint
+CREATE INDEX "payment_link_redemptions_link_idx" ON "payment_link_redemptions" USING btree ("link_id");--> statement-breakpoint
+CREATE INDEX "payment_link_redemptions_tenant_idx" ON "payment_link_redemptions" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_links_tenant_idx" ON "payment_links" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_links_app_idx" ON "payment_links" USING btree ("app_id");--> statement-breakpoint
 CREATE INDEX "payment_method_configs_tenant_idx" ON "payment_method_configs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_method_configs_tenant_method_uq" ON "payment_method_configs" USING btree (coalesce("tenant_id", 0),"method");--> statement-breakpoint
 CREATE INDEX "payment_notify_logs_tenant_idx" ON "payment_notify_logs" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_notify_logs_config_idx" ON "payment_notify_logs" USING btree ("channel_config_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_notify_logs_provider_event_uq" ON "payment_notify_logs" USING btree ("channel_config_id","provider_event_id") WHERE "payment_notify_logs"."provider_event_id" is not null;--> statement-breakpoint
 CREATE INDEX "payment_notify_logs_order_no_idx" ON "payment_notify_logs" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_orders_user_idx" ON "payment_orders" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "payment_orders_tenant_idx" ON "payment_orders" USING btree ("tenant_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_orders_active_biz_uq" ON "payment_orders" USING btree ("biz_type","biz_id") WHERE "payment_orders"."status" in ('pending', 'paying');--> statement-breakpoint
-CREATE INDEX "payment_orders_biz_idx" ON "payment_orders" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_orders_active_biz_uq" ON "payment_orders" USING btree (coalesce("tenant_id", 0),coalesce("app_id", 0),"biz_type","biz_id","currency") WHERE "payment_orders"."status" in ('pending', 'paying', 'unknown');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_orders_idempotency_scope_uq" ON "payment_orders" USING btree (coalesce("tenant_id", 0),coalesce("app_id", 0),"idempotency_key") WHERE "payment_orders"."idempotency_key" is not null;--> statement-breakpoint
+CREATE INDEX "payment_orders_biz_idx" ON "payment_orders" USING btree ("tenant_id","app_id","biz_type","biz_id","currency");--> statement-breakpoint
 CREATE INDEX "payment_orders_status_idx" ON "payment_orders" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_orders_expired_idx" ON "payment_orders" USING btree ("expired_at");--> statement-breakpoint
 CREATE INDEX "payment_preauths_operator_idx" ON "payment_preauths" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "payment_preauths_tenant_idx" ON "payment_preauths" USING btree ("tenant_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_preauths_active_biz_uq" ON "payment_preauths" USING btree ("biz_type","biz_id") WHERE "payment_preauths"."status" in ('pending', 'frozen');--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_preauths_active_biz_uq" ON "payment_preauths" USING btree (coalesce("tenant_id", 0),"app_id","biz_type","biz_id","currency") WHERE "payment_preauths"."status" in ('pending', 'unknown', 'frozen');--> statement-breakpoint
 CREATE INDEX "payment_preauths_status_idx" ON "payment_preauths" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "payment_preauths_biz_idx" ON "payment_preauths" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE INDEX "payment_preauths_biz_idx" ON "payment_preauths" USING btree ("tenant_id","app_id","biz_type","biz_id","currency");--> statement-breakpoint
 CREATE INDEX "payment_recon_batches_tenant_idx" ON "payment_recon_batches" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_recon_batches_date_idx" ON "payment_recon_batches" USING btree ("bill_date");--> statement-breakpoint
+CREATE INDEX "payment_recon_batches_app_idx" ON "payment_recon_batches" USING btree ("app_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_recon_scope_date_uq" ON "payment_recon_batches" USING btree (coalesce("tenant_id", 0),"app_id","channel_config_id","currency","bill_date");--> statement-breakpoint
 CREATE INDEX "payment_recon_items_batch_idx" ON "payment_recon_items" USING btree ("batch_id");--> statement-breakpoint
 CREATE INDEX "payment_refunds_order_idx" ON "payment_refunds" USING btree ("order_id");--> statement-breakpoint
 CREATE INDEX "payment_refunds_operator_idx" ON "payment_refunds" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "payment_refunds_tenant_idx" ON "payment_refunds" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_refunds_order_no_idx" ON "payment_refunds" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_refunds_status_idx" ON "payment_refunds" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "payment_report_daily_tenant_idx" ON "payment_report_daily" USING btree ("tenant_id");--> statement-breakpoint
-CREATE INDEX "payment_report_daily_date_idx" ON "payment_report_daily" USING btree ("stat_date");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_refunds_idempotency_scope_uq" ON "payment_refunds" USING btree (coalesce("tenant_id", 0),"order_id","idempotency_key") WHERE "payment_refunds"."idempotency_key" is not null;--> statement-breakpoint
 CREATE INDEX "payment_risk_hits_user_idx" ON "payment_risk_hits" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_hits_tenant_idx" ON "payment_risk_hits" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_hits_created_idx" ON "payment_risk_hits" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "payment_risk_hits_rule_idx" ON "payment_risk_hits" USING btree ("rule_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_reviews_tenant_idx" ON "payment_risk_reviews" USING btree ("tenant_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_risk_reviews_pending_order_uq" ON "payment_risk_reviews" USING btree ("order_no") WHERE "payment_risk_reviews"."status" = 'pending';--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_risk_reviews_pending_biz_scope_uq" ON "payment_risk_reviews" USING btree (coalesce("tenant_id", 0),coalesce("app_id", 0),"biz_type","biz_id","currency") WHERE "payment_risk_reviews"."status" = 'pending';--> statement-breakpoint
+CREATE INDEX "payment_risk_reviews_order_no_idx" ON "payment_risk_reviews" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_risk_reviews_status_idx" ON "payment_risk_reviews" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_risk_reviews_biz_idx" ON "payment_risk_reviews" USING btree ("biz_type","biz_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_rules_tenant_idx" ON "payment_risk_rules" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_risk_rules_scope_idx" ON "payment_risk_rules" USING btree ("scope");--> statement-breakpoint
 CREATE INDEX "payment_settlement_batches_tenant_idx" ON "payment_settlement_batches" USING btree ("tenant_id");--> statement-breakpoint
+CREATE INDEX "payment_settlement_batches_app_idx" ON "payment_settlement_batches" USING btree ("app_id");--> statement-breakpoint
 CREATE INDEX "payment_settlement_batches_status_idx" ON "payment_settlement_batches" USING btree ("status");--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_settlement_period_uq" ON "payment_settlement_batches" USING btree ("channel","period_start","period_end","tenant_id") WHERE "payment_settlement_batches"."tenant_id" is not null;--> statement-breakpoint
-CREATE UNIQUE INDEX "payment_settlement_period_global_uq" ON "payment_settlement_batches" USING btree ("channel","period_start","period_end") WHERE "payment_settlement_batches"."tenant_id" is null;--> statement-breakpoint
+CREATE INDEX "payment_settlement_items_batch_idx" ON "payment_settlement_items" USING btree ("batch_id");--> statement-breakpoint
+CREATE INDEX "payment_settlement_items_scope_idx" ON "payment_settlement_items" USING btree ("tenant_id","app_id","channel_config_id","currency");--> statement-breakpoint
 CREATE INDEX "payment_sharing_orders_tenant_idx" ON "payment_sharing_orders" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "payment_sharing_orders_order_no_idx" ON "payment_sharing_orders" USING btree ("order_no");--> statement-breakpoint
 CREATE INDEX "payment_sharing_orders_receiver_idx" ON "payment_sharing_orders" USING btree ("receiver_id");--> statement-breakpoint
 CREATE INDEX "payment_sharing_receivers_tenant_idx" ON "payment_sharing_receivers" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_sharing_reversals_idempotency_scope_uq" ON "payment_sharing_reversals" USING btree (coalesce("tenant_id", 0),"sharing_order_id","idempotency_key");--> statement-breakpoint
+CREATE INDEX "payment_sharing_reversals_tenant_status_idx" ON "payment_sharing_reversals" USING btree ("tenant_id","status");--> statement-breakpoint
 CREATE INDEX "payment_transfers_operator_idx" ON "payment_transfers" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "payment_transfers_tenant_idx" ON "payment_transfers" USING btree ("tenant_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_transfers_idempotency_scope_uq" ON "payment_transfers" USING btree (coalesce("tenant_id", 0),"app_id","idempotency_key");--> statement-breakpoint
 CREATE INDEX "payment_transfers_status_idx" ON "payment_transfers" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "payment_transfers_biz_idx" ON "payment_transfers" USING btree ("biz_type","biz_id");--> statement-breakpoint
-CREATE INDEX "payment_webhook_deliveries_tenant_idx" ON "payment_webhook_deliveries" USING btree ("tenant_id");--> statement-breakpoint
-CREATE INDEX "payment_webhook_deliveries_endpoint_idx" ON "payment_webhook_deliveries" USING btree ("endpoint_id");--> statement-breakpoint
-CREATE INDEX "payment_webhook_deliveries_status_idx" ON "payment_webhook_deliveries" USING btree ("status");--> statement-breakpoint
-CREATE INDEX "payment_webhook_endpoints_tenant_idx" ON "payment_webhook_endpoints" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "ai_agents_user_idx" ON "ai_agents" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "ai_arena_votes_user_idx" ON "ai_arena_votes" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "ai_conversations_user_idx" ON "ai_conversations" USING btree ("user_id");--> statement-breakpoint
@@ -8749,13 +8944,14 @@ CREATE UNIQUE INDEX "ai_shared_conversations_token_uq" ON "ai_shared_conversatio
 CREATE UNIQUE INDEX "ai_user_settings_user_id_uq" ON "ai_user_settings" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "user_ai_configs_user_idx" ON "user_ai_configs" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_sub_idx" ON "app_webhook_deliveries" USING btree ("subscription_id");--> statement-breakpoint
-CREATE INDEX "app_webhook_deliveries_client_idx" ON "app_webhook_deliveries" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "app_webhook_deliveries_tenant_client_idx" ON "app_webhook_deliveries" USING btree ("tenant_id","client_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_status_idx" ON "app_webhook_deliveries" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_next_retry_idx" ON "app_webhook_deliveries" USING btree ("next_retry_at");--> statement-breakpoint
 CREATE INDEX "app_webhook_deliveries_created_idx" ON "app_webhook_deliveries" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "app_webhook_subscriptions_client_idx" ON "app_webhook_subscriptions" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "app_webhook_subscriptions_tenant_client_idx" ON "app_webhook_subscriptions" USING btree ("tenant_id","client_id");--> statement-breakpoint
 CREATE INDEX "app_webhook_subscriptions_cms_site_idx" ON "app_webhook_subscriptions" USING btree ("cms_site_id");--> statement-breakpoint
 CREATE INDEX "oauth2_authorization_codes_user_idx" ON "oauth2_authorization_codes" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "oauth2_clients_tenant_idx" ON "oauth2_clients" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "oauth2_token_families_client_idx" ON "oauth2_token_families" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "oauth2_token_families_user_idx" ON "oauth2_token_families" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "oauth2_tokens_user_idx" ON "oauth2_tokens" USING btree ("user_id");--> statement-breakpoint
@@ -8794,6 +8990,7 @@ CREATE INDEX "member_vip_renewals_member_idx" ON "member_vip_renewals" USING btr
 CREATE INDEX "member_wallet_transactions_operator_idx" ON "member_wallet_transactions" USING btree ("operator_id");--> statement-breakpoint
 CREATE INDEX "member_wallet_tx_member_idx" ON "member_wallet_transactions" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "member_wallet_tx_biz_idx" ON "member_wallet_transactions" USING btree ("biz_type","biz_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "member_wallet_tx_payment_event_uq" ON "member_wallet_transactions" USING btree ("payment_event_id") WHERE "member_wallet_transactions"."payment_event_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "member_wallets_member_unique" ON "member_wallets" USING btree ("member_id");--> statement-breakpoint
 CREATE INDEX "members_tenant_idx" ON "members" USING btree ("tenant_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "members_phone_unique" ON "members" USING btree ("phone") WHERE "members"."deleted_at" is null;--> statement-breakpoint
