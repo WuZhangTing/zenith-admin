@@ -131,7 +131,7 @@ export interface GenerateSettlementInput {
   remark?: string;
 }
 
-/** 生成结算批次：逐条认领 merchant_available 分录的带符号净额贡献，重叠账期也不能重复结算。 */
+/** 生成结算批次：逐条认领 merchant_available 分录的带符号净额贡献；同一账期允许增量批次，分录行不可重复认领。 */
 export async function generateSettlement(input: GenerateSettlementInput, tenantIdOverride?: number | null): Promise<PaymentSettlementBatch> {
   const tenantId = tenantIdOverride === undefined ? requireTenantScopeId(currentUser()) : tenantIdOverride;
   const configTenant = tenantId == null ? isNull(paymentChannelConfigs.tenantId) : eq(paymentChannelConfigs.tenantId, tenantId);
@@ -312,7 +312,7 @@ export async function generateDailySettlements(): Promise<{ generated: number; s
       generated++;
     } catch (err) {
       if (err instanceof HTTPException && err.status === 400) {
-        skipped++; // 已生成过（唯一索引幂等）
+        skipped++; // 当前账期没有可认领分录或配置不满足生成条件
         continue;
       }
       if (isPgUniqueViolation(err)) {

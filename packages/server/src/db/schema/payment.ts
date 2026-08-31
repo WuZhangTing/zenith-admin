@@ -352,9 +352,8 @@ export const paymentSettlementBatches = pgTable('payment_settlement_batches', {
 }, (t) => [index('payment_settlement_batches_tenant_idx').on(t.tenantId), 
   index('payment_settlement_batches_app_idx').on(t.appId),
   index('payment_settlement_batches_status_idx').on(t.status),
-  // 结算幂等：同租户+渠道+账期至多生成一个批次（tenantId 为 NULL 时按全局口径去重）
-  uniqueIndex('payment_settlement_period_uq').on(t.appId, t.channelConfigId, t.currency, t.periodStart, t.periodEnd, t.tenantId).where(sql`${t.tenantId} is not null`),
-  uniqueIndex('payment_settlement_period_global_uq').on(t.appId, t.channelConfigId, t.currency, t.periodStart, t.periodEnd).where(sql`${t.tenantId} is null`),
+  // 同一账期可存在多个增量批次；逐笔认领的唯一边界由
+  // payment_settlement_items.journal_line_id 约束，避免新到账资金被旧批次挡住。
 ]);
 
 export type PaymentSettlementBatchRow = typeof paymentSettlementBatches.$inferSelect;

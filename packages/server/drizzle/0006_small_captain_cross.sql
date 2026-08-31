@@ -1,0 +1,4 @@
+DROP INDEX "payment_settlement_period_uq";--> statement-breakpoint
+DROP INDEX "payment_settlement_period_global_uq";--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_settlement_period_uq" ON "payment_settlement_batches" USING btree ("app_id","channel_config_id","currency","period_start","period_end","tenant_id") WHERE "payment_settlement_batches"."tenant_id" is not null and "payment_settlement_batches"."status" <> 'failed';--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_settlement_period_global_uq" ON "payment_settlement_batches" USING btree ("app_id","channel_config_id","currency","period_start","period_end") WHERE "payment_settlement_batches"."tenant_id" is null and "payment_settlement_batches"."status" <> 'failed';
