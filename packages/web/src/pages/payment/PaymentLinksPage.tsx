@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { useMemo, useRef, useState } from 'react';
 import { formatYuan } from '@/utils/payment';
 import { downloadBlob } from '@/utils/download';
-import { Button, Form, Input, Select, Space, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Form, Input, Select, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { QRCodeSVG } from 'qrcode.react';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -240,15 +240,8 @@ export default function PaymentLinksPage() {
     dateTimeColumn('失效时间', 'expiredAt', { empty: '永久' }),
     createdAtColumn as ColumnProps<PaymentLink>,
     {
-      title: '状态', dataIndex: 'status', width: 140, fixed: 'right',
-      render: (_: unknown, r: PaymentLink) => (
-        <Space spacing={4}>
-          <Tag color={LINK_STATUS_COLOR[r.status]}>{PAYMENT_LINK_STATUS_LABELS[r.status]}</Tag>
-          {hasPermission('payment:link:update') && (
-            <Switch checked={r.status !== 'disabled'} loading={togglingId === r.id} size="small" onChange={(c) => handleToggle(r, c)} />
-          )}
-        </Space>
-      ),
+      title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
+      render: (v: PaymentLink['status']) => <Tag color={LINK_STATUS_COLOR[v]}>{PAYMENT_LINK_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<PaymentLink>({
       // 全权限下四个动作内联需 262px；仅保留高频的收款码与编辑，其余进「更多」
@@ -267,6 +260,11 @@ export default function PaymentLinksPage() {
           key: 'edit',
           label: '编辑',
           onClick: () => openEdit(r),
+        }, {
+          key: 'toggle',
+          label: r.status === 'disabled' ? '启用' : '停用',
+          loading: togglingId === r.id,
+          onClick: () => handleToggle(r, r.status === 'disabled'),
         }, {
           key: 'rotate-token',
           label: '重置链接',
