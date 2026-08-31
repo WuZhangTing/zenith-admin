@@ -5,6 +5,7 @@
  */
 import { Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps, Data } from '@douyinfe/semi-ui/lib/es/table';
+import { Check } from 'lucide-react';
 import { formatDate, formatDateTime } from './date';
 
 /** 空值统一占位符，禁止再使用 '-' / '–' 等变体 */
@@ -34,6 +35,15 @@ export function renderEllipsis(v: string | null | undefined): React.ReactNode {
 export const NO_COLUMN_WIDTH = 280;
 
 /**
+ * 复制成功的行内反馈：仅一个对勾图标。
+ * Semi 默认的「✓ 复制成功」文字比复制图标宽得多，会把定宽单元格撑溢出；
+ * 图标反馈与复制图标同宽，原位提示且不打扰（不弹 Toast）。
+ */
+const COPY_SUCCESS_TIP = (
+  <Check size={14} aria-label="复制成功" style={{ color: 'var(--semi-color-success)', verticalAlign: 'text-bottom' }} />
+);
+
+/**
  * 业务单号列（订单号 / 退款单号 / 批次号等 genNo 生成的定长编号）：
  * 完整单行展示 + 复制按钮，空值显示 '—'。
  *
@@ -56,7 +66,12 @@ export function copyableNoColumn<RecordType extends Data = Data>(
     width: NO_COLUMN_WIDTH,
     ...options,
     render: (v: string | null | undefined) => (v
-      ? <Typography.Text style={{ whiteSpace: 'nowrap' }} copyable={{ content: v }}>{v}</Typography.Text>
+      ? (
+        // stopPropagation：expandRowByClick 的表格里，点复制按钮/选中单号不应触发行展开
+        <span onClick={(e) => e.stopPropagation()}>
+          <Typography.Text style={{ whiteSpace: 'nowrap' }} copyable={{ content: v, successTip: COPY_SUCCESS_TIP }}>{v}</Typography.Text>
+        </span>
+      )
       : EMPTY_PLACEHOLDER),
   };
 }
