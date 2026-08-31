@@ -11,7 +11,13 @@ export function registerPaymentOpenWebhookBridge(): void {
   if (registered) return;
   registered = true;
   paymentEventBus.onAny(async (event) => {
-    if (event.appId == null) throw new Error(`Payment event ${event.eventId} has no application scope`);
+    // Payment events without an application scope cannot be routed to an
+    // external Webhook, but that optional integration must never make the
+    // authoritative payment outbox fail or retry indefinitely.
+    if (event.appId == null) {
+      logger.warn('[payment-open-webhook] skipped event without application scope', { eventId: event.eventId, type: event.type });
+      return;
+    }
     const tenantScope = event.tenantId == null ? isNull(paymentApps.tenantId) : eq(paymentApps.tenantId, event.tenantId);
     const [binding] = await db
       .select({ clientId: oauth2Clients.clientId })
@@ -24,7 +30,13 @@ export function registerPaymentOpenWebhookBridge(): void {
         tenantScope,
       ))
       .limit(1);
-    if (!binding) throw new Error(`Payment application ${event.appId} is not bound to an open client`);
+    // An app may be disabled/unbound after the payment was completed. Treat
+    // this as a deliberate no-op; only persistence/transport errors below
+    // should propagate and trigger the payment outbox retry policy.
+    if (!binding) {
+      logger.warn('[payment-open-webhook] skipped event for unbound application', { eventId: event.eventId, appId: event.appId, tenantId: event.tenantId ?? null });
+      return;
+    }
     await openEventBus.emitAndWait({
       type: event.type,
       clientId: binding.clientId,
