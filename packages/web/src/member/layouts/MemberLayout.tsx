@@ -160,7 +160,7 @@ export default function MemberLayout() {
       <Nav
         className="mc-semi-nav"
         mode="vertical"
-        style={{ height: '100vh', position: 'fixed', top: 0, left: 0, width: sidebarWidth, overflowY: 'auto' }}
+        style={{ height: '100vh', position: 'fixed', top: 0, left: 0, width: sidebarWidth }}
         isCollapsed={collapsed}
         selectedKeys={[selectedKey]}
         onSelect={handleSelect}
