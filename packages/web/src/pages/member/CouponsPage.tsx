@@ -177,7 +177,7 @@ export default function CouponsPage() {
     createdAtColumn,
     ...(hasOps ? [
       createOperationColumn<Coupon>({
-        width: 230,
+        width: 260,
         desktopInlineKeys: ['issue', 'toggle', 'edit', 'delete'],
         actions: (record) => [
           { key: 'issue', label: '发券', hidden: !canIssue || record.status !== 'active', onClick: () => openIssue(record) },

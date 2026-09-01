@@ -65,7 +65,7 @@ export default function PortsPage() {
     { title: 'PID', dataIndex: 'pid', width: 80, render: (v: number | null) => v ?? '—' },
     { title: '进程名', dataIndex: 'processName', render: (v: string | null) => v ?? '—' },
     createOperationColumn<PortEntry>({
-      width: 160,
+      width: 200,
       emptyContent: <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
       actions: (record) => [
         {

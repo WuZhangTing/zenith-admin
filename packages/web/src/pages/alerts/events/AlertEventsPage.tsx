@@ -214,8 +214,8 @@ export default function AlertEventsPage() {
       render: (s: string) => s === 'firing' ? <Tag color="red" size="small">告警中</Tag> : <Tag color="green" size="small">已恢复</Tag>,
     },
     createOperationColumn<MonitorAlertEvent>({
-      // 最宽的一行是「标记已处理 + 撤销认领」两个按钮并排，150 装不下会挤成换行
-      width: 210,
+      // 最宽的一行是「查看日志 + 标记已处理 + 撤销认领」三个按钮并排（acknowledged 态）
+      width: 300,
       actions: (record) => [
         {
           key: 'viewLog',

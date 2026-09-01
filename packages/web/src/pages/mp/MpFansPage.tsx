@@ -169,7 +169,7 @@ export default function MpFansPage() {
       ),
     },
     createOperationColumn<MpFan>({
-      width: 240,
+      width: 270,
       desktopInlineKeys: ['edit', 'member', 'blacklist'],
       menuAriaLabel: '粉丝操作',
       actions: (record) => [

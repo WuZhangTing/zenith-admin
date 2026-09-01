@@ -180,7 +180,7 @@ export default function MyAppsPage() {
       render: (value: string) => <Tag size="small" color={value === 'enabled' ? 'green' : 'grey'}>{value === 'enabled' ? '启用' : '禁用'}</Tag>,
     },
     createOperationColumn<OAuth2Client>({
-      width: 220,
+      width: 260,
       desktopInlineKeys: ['edit', 'usage', 'submit'],
       actions: (app) => [
         { key: 'edit', label: '编辑', hidden: app.reviewStatus === 'pending', onClick: () => modal.openEdit(app) },

@@ -237,7 +237,7 @@ export default function FillRecordsPage() {
       render: (value: ReportFillRecordStatus) => recordStatusTag(value),
     },
     createOperationColumn<ReportFillRecord>({
-      width: 170,
+      width: 200,
       desktopInlineKeys: admin ? ['detail', 'review'] : ['detail', 'edit'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setDetailId(record.id) },
