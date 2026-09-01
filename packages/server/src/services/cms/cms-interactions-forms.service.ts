@@ -341,6 +341,12 @@ export async function copyCmsInteraction(id: number) {
           minChoices: question.minChoices,
           maxChoices: question.maxChoices,
           sort: question.sort,
+          allowOther: question.allowOther,
+          otherLabel: question.otherLabel,
+          ratingMax: question.ratingMax,
+          matrixRows: question.matrixRows ?? [],
+          pageNo: question.pageNo,
+          visibleWhen: question.visibleWhen,
         })));
       }
       return row.id;

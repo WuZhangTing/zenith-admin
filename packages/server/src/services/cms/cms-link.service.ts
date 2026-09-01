@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { parseCmsLink } from '@zenith/shared/cms';
 import type { CmsChannelDetailPathRule, CmsLinkEntityType, CmsLinkRef, CmsLinkTarget } from '@zenith/shared/cms';
@@ -82,6 +82,8 @@ async function loadContentTargets(siteId: number, seedIds: Set<number>): Promise
         inArray(cmsContents.id, [...pending]),
         eq(cmsContents.status, 'published'),
         isNull(cmsContents.deletedAt),
+        isNull(cmsContents.archivedAt),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
       ));
     const next = new Set<number>();
     for (const row of rows) {

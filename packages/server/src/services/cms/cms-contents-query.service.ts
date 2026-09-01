@@ -277,6 +277,8 @@ const publishedWhere = (siteId: number) => and(
   eq(cmsContents.siteId, siteId),
   eq(cmsContents.status, 'published'),
   isNull(cmsContents.deletedAt),
+  // 过期内容即使调度 worker 尚未运行也不能继续出现在任何公开查询中。
+  or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
 )!;
 
 /** 栏目下已发布内容分页（含以此为副栏目的内容；归档内容不参与聚合；置顶权重优先，发布时间倒序） */
@@ -478,6 +480,7 @@ export async function listContentTags(contentId: number): Promise<CmsTagRow[]> {
 
 /** 详情页相关文章：手动关联优先（按 sort），不足 limit 时按共同标签自动补齐 */
 export async function listRelatedContents(row: CmsContentRow, limit = 5): Promise<CmsContentRow[]> {
+  const now = new Date();
   const manualRows = await db.query.cmsContentRelations.findMany({
     where: eq(cmsContentRelations.contentId, row.id),
     with: { related: true },
@@ -485,7 +488,7 @@ export async function listRelatedContents(row: CmsContentRow, limit = 5): Promis
   });
   const result = manualRows
     .map((r) => r.related)
-    .filter((c): c is CmsContentRow => !!c && c.status === 'published' && !c.deletedAt && !c.archivedAt)
+    .filter((c): c is CmsContentRow => !!c && c.status === 'published' && !c.deletedAt && !c.archivedAt && (!c.expireAt || c.expireAt > now))
     .slice(0, limit);
   if (result.length < limit) {
     const tagIdsQuery = db.select({ tagId: cmsContentTags.tagId }).from(cmsContentTags).where(and(

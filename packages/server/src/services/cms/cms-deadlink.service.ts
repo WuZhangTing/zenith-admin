@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, gt, isNull, or } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsContents, cmsFriendLinks } from '../../db/schema';
 import { httpRequest } from '../../lib/http-client';
@@ -31,7 +31,13 @@ async function collectSiteLinks(siteId: number): Promise<LinkItem[]> {
   const links: LinkItem[] = [];
   const contents = await db.select({ id: cmsContents.id, title: cmsContents.title, body: cmsContents.body })
     .from(cmsContents)
-    .where(and(eq(cmsContents.siteId, siteId), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt)));
+    .where(and(
+      eq(cmsContents.siteId, siteId),
+      eq(cmsContents.status, 'published'),
+      isNull(cmsContents.deletedAt),
+      isNull(cmsContents.archivedAt),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+    ));
   for (const row of contents) {
     if (!row.body) continue;
     const $ = load(row.body);

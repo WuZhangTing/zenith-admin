@@ -66,6 +66,24 @@ interface ResolvedTarget {
   isPreview: boolean;
 }
 
+/** Decode the request path exactly once and reject ambiguous/path-traversal forms. */
+function decodeCmsRequestPath(pathname: string): string | null {
+  if (/%(?:2f|5c)/i.test(pathname)) return null;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+  if (decoded.includes('\\') || [...decoded].some((char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return code <= 0x1f || code === 0x7f || (code >= 0x202a && code <= 0x202e) || (code >= 0x2066 && code <= 0x2069);
+  })) return null;
+  const segments = decoded.split('/');
+  if (segments.some((segment) => segment === '.' || segment === '..')) return null;
+  return decoded;
+}
+
 async function resolveTarget(host: string | undefined, pathname: string): Promise<ResolvedTarget | null> {
   if (pathname.startsWith(`${CMS_PREVIEW_PREFIX}/`)) {
     const rest = pathname.slice(CMS_PREVIEW_PREFIX.length + 1);
@@ -108,7 +126,8 @@ export function createCmsFrontendRoutes(): Hono {
 
   app.get('*', async (c, next) => {
     const url = new URL(c.req.url);
-    const pathname = decodeURIComponent(url.pathname);
+    const pathname = decodeCmsRequestPath(url.pathname);
+    if (pathname == null) return c.text('请求路径无效', 400);
     // 不接管 API / 指标 / 文档等既有路径（挂载在最后，理论上到不了这里，双保险）
     if (pathname.startsWith('/api/') || pathname === '/api' || pathname === '/metrics') {
       return next();

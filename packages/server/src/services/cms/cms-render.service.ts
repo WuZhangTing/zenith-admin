@@ -1,6 +1,6 @@
 import { createElement, type ComponentType } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { eq, and, desc, isNull, inArray } from 'drizzle-orm';
+import { eq, and, desc, gt, isNull, inArray, or } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsChannels, cmsTags, cmsContentTags, cmsContents, cmsModels, cmsSites } from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow, CmsContentRow, CmsTagRow } from '../../db/schema';
@@ -129,16 +129,28 @@ async function resolveDetailComponent(
 }
 
 // ─── 上下文组装 ───────────────────────────────────────────────────────────────
-function navFromTree(tree: CmsChannel[], baseUrl: string): CmsNavItem[] {
+async function navFromTree(tree: CmsChannel[], baseUrl: string, siteId: number): Promise<CmsNavItem[]> {
+  const rawLinks: string[] = [];
+  const collect = (nodes: CmsChannel[]) => {
+    for (const node of nodes) {
+      if (node.type === 'link' && node.linkUrl) rawLinks.push(node.linkUrl);
+      if (node.children?.length) collect(node.children);
+    }
+  };
+  collect(tree);
+  const resolveLink = await buildCmsLinkResolver(siteId, baseUrl, rawLinks);
   const walk = (nodes: CmsChannel[]): CmsNavItem[] => nodes
     .filter((n) => n.visible)
-    .map((n) => ({
-      id: n.id,
-      name: n.name,
-      url: n.type === 'link' ? (n.linkUrl ?? '#') : channelUrl(baseUrl, n.path),
-      target: n.type === 'link' ? '_blank' as const : '_self' as const,
-      ...(n.children && n.children.length > 0 ? { children: walk(n.children) } : {}),
-    }));
+    .map((n) => {
+      const resolved = n.type === 'link' ? resolveLink(n.linkUrl) : null;
+      return {
+        id: n.id,
+        name: n.name,
+        url: n.type === 'link' ? (resolved?.url ?? '#') : channelUrl(baseUrl, n.path),
+        target: n.type === 'link' ? (resolved?.isExternal ? '_blank' as const : '_self' as const) : '_self' as const,
+        ...(n.children && n.children.length > 0 ? { children: walk(n.children) } : {}),
+      };
+    });
   return walk(tree);
 }
 
@@ -196,6 +208,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
   const analyticsSiteKey = (site.settings as Record<string, unknown> | null)?.analyticsSiteKey;
   // 站点 logo/favicon/主题配置、广告、友链都以素材句柄存储，
   // 整块上下文统一解析一次，避免逐个模板忘记解析而渲染出 cms-res:// 裸串
+  const nav = await navFromTree(tree, baseUrl, site.id);
   return resolveCmsResourcePayload({
     site: {
       id: site.id,
@@ -214,7 +227,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
       themeConfig: resolveThemeConfig(site.theme, site.settings as Record<string, unknown> | null),
     },
     baseUrl,
-    nav: navFromTree(tree, baseUrl),
+    nav,
     ads,
     friendLinks: friendLinks.map((l) => ({ name: l.name, url: l.url, logo: l.logo })),
     friendLinkGroups,
@@ -467,7 +480,13 @@ export async function renderCustomPage(
 }
 
 async function listBlockContents(siteId: number, opts: { channelId?: number; tagSlug?: string; count: number; mode: 'latest' | 'recommend' | 'hot' }): Promise<ResolvedCmsContentRow[]> {
-  const conds = [eq(cmsContents.siteId, siteId), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt)];
+  const conds = [
+    eq(cmsContents.siteId, siteId),
+    eq(cmsContents.status, 'published'),
+    isNull(cmsContents.deletedAt),
+    isNull(cmsContents.archivedAt),
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date()))!,
+  ];
   if (opts.tagSlug) {
     // 标签聚合：跨栏目取同标签内容（专题页典型场景）；标签模式下忽略栏目条件
     conds.push(inArray(
@@ -1074,6 +1093,8 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
       ...(channel ? [eq(cmsContents.channelId, channel.id)] : []),
       eq(cmsContents.status, 'published'),
       isNull(cmsContents.deletedAt),
+      isNull(cmsContents.archivedAt),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
     ))
     .orderBy(desc(cmsContents.publishedAt), desc(cmsContents.id))
     .limit(50), site.id);

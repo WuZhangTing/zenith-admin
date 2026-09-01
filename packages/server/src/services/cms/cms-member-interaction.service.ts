@@ -16,6 +16,9 @@ import { withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { CMS_INTERACTION_POINTS, CMS_INTERACTION_DAILY_LIMITS } from '@zenith/shared/cms';
 import { resolveCmsResourceCovers } from './cms-resource-refs.service';
+import { isCmsContentPubliclyVisible } from './cms-content-state';
+import { contentUrl, type CmsUrlChannel } from './cms-urls';
+import type { CmsChannelDetailPathRule } from '@zenith/shared/cms';
 import type { CmsInteractionState, CmsMemberContentItem, CmsMemberComment } from '@zenith/shared/cms';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import { formatDate } from '../../lib/datetime';
@@ -68,7 +71,7 @@ export function awardContributionPoints(row: Pick<CmsContentRow, 'id' | 'memberI
 // ─── 前置校验 ─────────────────────────────────────────────────────────────────
 async function ensureInteractableContent(contentId: number): Promise<CmsContentRow> {
   const [row] = await db.select().from(cmsContents).where(eq(cmsContents.id, contentId)).limit(1);
-  if (!row || row.deletedAt || row.status !== 'published') {
+  if (!row || !isCmsContentPubliclyVisible(row)) {
     throw new HTTPException(404, { message: '内容不存在或未发布' });
   }
   return row;
@@ -174,16 +177,16 @@ export async function recordMemberView(contentId: number): Promise<void> {
 
 /** 内容行 → 会员中心条目（URL 拼站内详情路径） */
 function toMemberContentItem(
-  content: Pick<CmsContentRow, 'id' | 'title' | 'slug' | 'coverImage' | 'contentType' | 'status' | 'deletedAt'>,
-  channelPath: string | undefined,
+  content: Pick<CmsContentRow, 'id' | 'title' | 'slug' | 'staticPath' | 'publishedAt' | 'createdAt' | 'coverImage' | 'contentType' | 'status' | 'deletedAt' | 'archivedAt' | 'expireAt'>,
+  channel: CmsUrlChannel | undefined,
   extra: { createdAt: Date; updatedAt?: Date; viewCount?: number },
   cover: { coverImage: string | null; coverThumb: string | null },
 ): CmsMemberContentItem {
-  const available = content.status === 'published' && !content.deletedAt && channelPath;
+  const available = isCmsContentPubliclyVisible(content) && channel;
   return {
     contentId: content.id,
     title: content.title,
-    url: available ? `/${channelPath}/${content.slug ?? content.id}.html` : null,
+    url: available ? contentUrl('', channel, content) : null,
     coverThumb: cover.coverThumb ?? cover.coverImage,
     contentType: content.contentType,
     ...(extra.viewCount !== undefined ? { viewCount: extra.viewCount } : {}),
@@ -205,11 +208,14 @@ async function resolveMemberCovers(
   return resolved;
 }
 
-async function loadChannelPaths(channelIds: number[]): Promise<Map<number, string>> {
+async function loadChannelPaths(channelIds: number[]): Promise<Map<number, CmsUrlChannel>> {
   if (channelIds.length === 0) return new Map();
-  const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path })
+  const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule })
     .from(cmsChannels).where(inArray(cmsChannels.id, [...new Set(channelIds)]));
-  return new Map(rows.map((r) => [r.id, r.path]));
+  return new Map(rows.map((r) => [r.id, {
+    path: r.path,
+    detailPathRule: r.detailPathRule as CmsChannelDetailPathRule,
+  }]));
 }
 
 /** 我的收藏（分页，新→旧） */
@@ -299,7 +305,19 @@ export async function listMyComments(page: number, pageSize: number): Promise<Pa
   const [total, rows] = await Promise.all([
     db.$count(cmsComments, where),
     withPagination(
-      db.select({ comment: cmsComments, content: { id: cmsContents.id, title: cmsContents.title, slug: cmsContents.slug, channelId: cmsContents.channelId, status: cmsContents.status, deletedAt: cmsContents.deletedAt } })
+        db.select({ comment: cmsComments, content: {
+          id: cmsContents.id,
+          title: cmsContents.title,
+          slug: cmsContents.slug,
+          staticPath: cmsContents.staticPath,
+          publishedAt: cmsContents.publishedAt,
+          createdAt: cmsContents.createdAt,
+          channelId: cmsContents.channelId,
+          status: cmsContents.status,
+          deletedAt: cmsContents.deletedAt,
+          archivedAt: cmsContents.archivedAt,
+          expireAt: cmsContents.expireAt,
+        } })
         .from(cmsComments)
         .leftJoin(cmsContents, eq(cmsComments.contentId, cmsContents.id))
         .where(where)
@@ -311,13 +329,13 @@ export async function listMyComments(page: number, pageSize: number): Promise<Pa
   const paths = await loadChannelPaths(rows.flatMap((r) => (r.content ? [r.content.channelId] : [])));
   return {
     list: rows.map((r) => {
-      const path = r.content ? paths.get(r.content.channelId) : undefined;
-      const available = r.content && r.content.status === 'published' && !r.content.deletedAt && path;
+      const channel = r.content ? paths.get(r.content.channelId) : undefined;
+      const available = r.content && isCmsContentPubliclyVisible(r.content) && channel;
       return {
         id: r.comment.id,
         contentId: r.comment.contentId,
         contentTitle: r.content?.title ?? null,
-        contentUrl: available ? `/${path}/${r.content!.slug ?? r.content!.id}.html` : null,
+        contentUrl: available ? contentUrl('', channel, r.content!) : null,
         parentId: r.comment.parentId,
         content: r.comment.content,
         likeCount: r.comment.likeCount,

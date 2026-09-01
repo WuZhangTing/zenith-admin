@@ -1,7 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { eq, and, inArray, isNull, asc } from 'drizzle-orm';
+import { eq, and, gt, inArray, isNull, or, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow } from '../../db/schema';
@@ -28,6 +28,7 @@ import { recordCmsPublishArtifact } from './cms-publish-artifact-tracker';
 import { cmsStaticTargetKey, isCmsStaticTargetCompleted } from './cms-static-build-plan';
 import { assertCmsStaticWriteFence } from './cms-site-publish-lock.service';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
+import { isCmsContentPubliclyVisible } from './cms-content-state';
 export {
   CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile, resolveStaticFile, siteStaticDir,
 } from './cms-static-path';
@@ -207,7 +208,13 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
     externalLink: cmsContents.externalLink,
   })
     .from(cmsContents)
-    .where(and(eq(cmsContents.siteId, site.id), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt)))
+    .where(and(
+      eq(cmsContents.siteId, site.id),
+      eq(cmsContents.status, 'published'),
+      isNull(cmsContents.deletedAt),
+      isNull(cmsContents.archivedAt),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+    ))
     .limit(50000);
   for (const row of contents) {
     if (row.externalLink?.trim()) continue;
@@ -334,6 +341,8 @@ async function regenerateChannelPages(
     eq(cmsContents.channelId, channel.id),
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
+    isNull(cmsContents.archivedAt),
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
   ));
   const totalPages = Math.min(Math.max(1, Math.ceil(total / channel.pageSize)), MAX_LIST_PAGES);
   const buildPages = Math.min(totalPages, Math.max(1, pageCap));
@@ -373,7 +382,7 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   const detailPath = contentUrl('', channel, content);
   // 栏目关闭静态化：清掉可能存在的历史产物后不再生成
   const channelDynamic = isChannelDynamic(site, channel);
-  const isVisible = !channelDynamic && content.status === 'published' && !content.deletedAt && !content.externalLink?.trim();
+  const isVisible = !channelDynamic && isCmsContentPubliclyVisible(content) && !content.externalLink?.trim();
   const bodyPages = isVisible ? await countContentBodyPages(content, content.siteId) : 1;
   const pageCap = listPageCap(site);
   const purgePaths: string[] = ['sitemap.xml', 'rss.xml'];
@@ -544,7 +553,13 @@ async function buildSiteStaticInner(
     .orderBy(asc(cmsChannels.id));
   const contents = await db.select({ id: cmsContents.id, slug: cmsContents.slug, staticPath: cmsContents.staticPath, publishedAt: cmsContents.publishedAt, createdAt: cmsContents.createdAt, channelId: cmsContents.channelId, externalLink: cmsContents.externalLink, body: cmsContents.body, extend: cmsContents.extend, mappingSourceId: cmsContents.mappingSourceId })
     .from(cmsContents)
-    .where(and(eq(cmsContents.siteId, siteId), eq(cmsContents.status, 'published'), isNull(cmsContents.deletedAt)))
+    .where(and(
+      eq(cmsContents.siteId, siteId),
+      eq(cmsContents.status, 'published'),
+      isNull(cmsContents.deletedAt),
+      isNull(cmsContents.archivedAt),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+    ))
     .orderBy(asc(cmsContents.id));
 
   const channelMap = new Map(channels.map((c) => [c.id, c]));

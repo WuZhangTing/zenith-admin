@@ -425,6 +425,7 @@ function changedInheritanceFields(data: UpdateCmsSiteInput): CmsSiteInheritableF
   if (data.keywords !== undefined) fields.add('seoKeywords');
   if (data.description !== undefined) fields.add('seoDescription');
   if (data.staticMode !== undefined) fields.add('staticMode');
+  if (data.theme !== undefined) fields.add('theme');
   if (data.settings !== undefined) {
     fields.add('reviewMode');
     fields.add('webhook');

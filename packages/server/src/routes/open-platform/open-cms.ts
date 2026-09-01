@@ -261,7 +261,9 @@ const updateContentRoute = defineOpenAPIRoute({
       params: z.object({ id: z.coerce.number().int().positive() }),
       query: SiteCodeQuery,
       body: {
-        content: jsonContent(ContentWriteBody.partial().extend({
+        // Direct publication is a create-only intent.  Updates use the explicit
+        // `/publish` endpoint so a PATCH cannot smuggle a status transition.
+        content: jsonContent(ContentWriteBody.omit({ publish: true }).partial().extend({
           expectedVersion: z.number().int().positive().optional().openapi({ description: '与当前 version 不一致返回 409' }),
         })),
         required: true,

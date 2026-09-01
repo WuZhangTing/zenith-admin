@@ -29,4 +29,9 @@ describe('CMS admin/member route authentication boundary', () => {
     expect(sitesSource).toContain('currentCmsOpenApiAccess');
     expect(channelsSource).toContain('currentCmsOpenApiAccess');
   });
+
+  it('keeps direct publication as an explicit open API endpoint', async () => {
+    const source = await readFile(new URL('../../routes/open-platform/open-cms.ts', import.meta.url), 'utf8');
+    expect(source).toContain('ContentWriteBody.omit({ publish: true }).partial()');
+  });
 });

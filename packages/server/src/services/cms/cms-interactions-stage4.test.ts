@@ -98,6 +98,13 @@ describe('CMS Stage4 unified interactions', () => {
     expect(theme).toContain('f.reset()');
   });
 
+  it('copies every question presentation and branching property', async () => {
+    const service = await readFile(new URL('./cms-interactions-forms.service.ts', import.meta.url), 'utf8');
+    for (const field of ['allowOther', 'otherLabel', 'ratingMax', 'matrixRows', 'pageNo', 'visibleWhen']) {
+      expect(service).toContain(`${field}: question.${field}`);
+    }
+  });
+
   it('aggregates statistics in SQL instead of pulling answers into memory', async () => {
     const service = await readFile(new URL('./cms-interactions-stats.service.ts', import.meta.url), 'utf8');
     // 旧实现把最多 10 万条 answers 拉进内存做 JS 聚合，超限即静默截断

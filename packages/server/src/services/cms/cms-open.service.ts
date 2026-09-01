@@ -28,6 +28,7 @@ import { resolveCmsContentRows } from './cms-resource-refs.service';
 import { listCmsModelFields } from './cms-models.service';
 import { contentUrl } from './cms-urls';
 import { buildCmsSearchCondition } from './cms-search.service';
+import { isCmsContentPubliclyVisible } from './cms-content-state';
 
 const SORT_COLUMNS = {
   publishedAt: cmsContents.publishedAt,
@@ -48,6 +49,9 @@ function publicWhere(siteId: number): SQL {
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
+    // 与公开 SSR/静态列表保持一致：到期时间是公开可见性的硬条件，
+    // 即使定时下线 worker 尚未执行也不得继续通过 Headless API 暴露。
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
     // 栏目停用即等同前台下线（渲染侧同样按 enabled 解析栏目）。
     // 不加这一条时，「不带 channel 参数」的站级 feed 会把停用栏目的内容连正文一起吐出来，
     // 而显式指定该栏目反而 404 —— 既不一致也是新增的暴露面。
@@ -530,10 +534,11 @@ export async function syncOpenCmsContents(
     (await db.select({ id: cmsChannels.id }).from(cmsChannels)
       .where(and(eq(cmsChannels.siteId, site.id), eq(cmsChannels.status, 'enabled')))).map((row) => row.id),
   );
+  const now = new Date();
   const visible = page
     .map((entry) => entry.row)
     .filter((row): row is CmsContentRow =>
-      !!row && row.status === 'published' && !row.deletedAt && !row.archivedAt
+      !!row && isCmsContentPubliclyVisible(row, now)
       && enabledChannelIds.has(row.channelId));
   const resolved = await resolveCmsContentRows(visible, site.id);
   const opts = await buildMapOptions(site.id, visible, input.includes);

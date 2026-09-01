@@ -1,4 +1,4 @@
-import { sql, and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
+import { sql, and, eq, gt, inArray, isNull, or, type SQL } from 'drizzle-orm';
 import { Jieba } from '@node-rs/jieba';
 import { dict } from '@node-rs/jieba/dict.js';
 import { db } from '../../db';
@@ -346,6 +346,8 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
     eq(cmsContents.siteId, siteId),
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
+    isNull(cmsContents.archivedAt),
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date()))!,
   ];
   if (accessibleChannelIds !== null) {
     baseConditions.push(inArray(cmsContents.channelId, accessibleChannelIds));
