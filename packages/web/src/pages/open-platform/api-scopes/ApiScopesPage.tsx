@@ -4,7 +4,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
 import { API_SCOPE_GROUPS, API_SCOPE_GROUP_LABELS } from '@zenith/shared/open-platform';
 import type { ApiScope } from '@zenith/shared/open-platform';
-import { createdAtColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -95,7 +95,7 @@ export default function ApiScopesPage() {
 
   const columns: ColumnProps<ApiScope>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: 'Scope 编码', dataIndex: 'code', width: 200, render: (v: string) => <Text copyable={{ content: v }}>{v}</Text> },
+    copyableNoColumn('Scope 编码', 'code', { width: 200 }),
     { title: '名称', dataIndex: 'name', width: 160, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Text> },
     {
       title: '分组',

@@ -10,7 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
-import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -131,12 +131,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
       title: '大小', dataIndex: 'size', width: 90, align: 'right',
       render: (v: number) => formatSize(v),
     },
-    {
-      title: 'SHA256', dataIndex: 'sha256', width: 150,
-      render: (v: string) => (
-        <Text copyable={{ content: v }} size="small" code style={{ whiteSpace: 'nowrap' }}>{v.slice(0, 12)}…</Text>
-      ),
-    },
+    copyableNoColumn('SHA256', 'sha256', { width: 150 }),
     { title: '任务数', dataIndex: 'taskCount', width: 80, align: 'right' },
     {
       title: '发布说明', dataIndex: 'releaseNotes', width: 200,

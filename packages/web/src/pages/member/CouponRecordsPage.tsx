@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag, Typography } from '@douyinfe/semi-ui';
+import { Button, Descriptions, Input, InputNumber, Select, Toast, Tag } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ScanLine } from 'lucide-react';
 import type { MemberCoupon, MemberCouponStatus } from '@zenith/shared/member';
@@ -10,7 +10,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
 import { AppModal } from '@/components/AppModal';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '../../utils/table-columns';
 import { memberAdminKeys, useCouponByCode, useCouponRecordList, useRedeemCoupon, useRevokeCouponRecord } from '@/hooks/queries/member-admin';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useListDeepLink } from '@/hooks/useListDeepLink';
@@ -85,7 +85,7 @@ export default function CouponRecordsPage() {
   };
 
   const columns: ColumnProps<MemberCoupon>[] = [
-    { title: '券码', dataIndex: 'code', width: 200, fixed: 'left', render: (v: string) => <Typography.Text copyable={{ content: v }} style={{ fontFamily: 'monospace' }}>{v}</Typography.Text> },
+    copyableNoColumn('券码', 'code', { width: 200, fixed: 'left' }),
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberCoupon) => v || `#${r?.memberId}` },
     { title: '优惠券', dataIndex: 'coupon', width: 160, render: (_: unknown, r: MemberCoupon) => renderEllipsis(r.coupon?.name ?? `#${r.couponId}`) },
     { title: '状态', dataIndex: 'status', width: 100, render: (v: MemberCouponStatus) => <Tag color={STATUS_COLORS[v] as 'blue'}>{MEMBER_COUPON_STATUS_LABELS[v]}</Tag> },

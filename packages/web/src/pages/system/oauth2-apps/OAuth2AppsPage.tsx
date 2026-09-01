@@ -4,7 +4,7 @@ import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, 
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { createdAtColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -204,12 +204,7 @@ export default function OAuth2AppsPage() {
       width: 160,
       render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Text>,
     },
-    {
-      title: 'Client ID',
-      dataIndex: 'clientId',
-      width: 260,
-      render: (v: string) => <Text copyable={{ content: v }}>{v}</Text>,
-    },
+    copyableNoColumn('Client ID', 'clientId', { width: 260 }),
     {
       title: 'Secret 前缀',
       dataIndex: 'clientSecretPrefix',

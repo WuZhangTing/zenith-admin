@@ -10,7 +10,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import ExportButton from '@/components/ExportButton';
 import ImportButton from '@/components/ImportButton';
 import AppModal from '@/components/AppModal';
-import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -189,10 +189,7 @@ export default function IotDevicesPage() {
   }
 
   const columns: ColumnProps<IotDevice>[] = [
-    {
-      title: 'SN', dataIndex: 'sn', width: 190,
-      render: (v: string) => <Text copyable size="small" style={{ whiteSpace: 'nowrap' }}>{v}</Text>,
-    },
+    copyableNoColumn('SN', 'sn', { width: 190 }),
     {
       title: '设备名称', dataIndex: 'name', width: 150,
       render: (v: string) => renderEllipsis(v),

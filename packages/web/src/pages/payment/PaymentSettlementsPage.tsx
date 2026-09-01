@@ -235,10 +235,7 @@ export default function PaymentSettlementsPage() {
   ];
 
   const itemColumns: ColumnProps<PaymentSettlementItem>[] = [
-    {
-      title: '资金凭证行 ID', dataIndex: 'journalLineId', width: 150,
-      render: (value: number) => <Typography.Text copyable={{ content: String(value) }}>{value}</Typography.Text>,
-    },
+    copyableNoColumn('资金凭证行 ID', 'journalLineId', { width: 150 }),
     { title: '认领金额', dataIndex: 'amount', width: 150, align: 'right', render: (value: string, record: PaymentSettlementItem) => formatMinorAmount(value, record.currency) },
     { title: '支付应用', dataIndex: 'appId', width: 160, render: (value: number) => appById.get(value)?.name ?? `应用 #${value}` },
     {

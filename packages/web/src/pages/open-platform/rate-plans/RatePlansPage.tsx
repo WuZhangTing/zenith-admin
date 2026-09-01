@@ -1,7 +1,7 @@
 import { Tag, Form, Toast, Typography, Select, Row, Col, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { RatePlan } from '@zenith/shared/open-platform';
-import { createdAtColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -87,12 +87,7 @@ export default function RatePlansPage() {
         </Space>
       ),
     },
-    {
-      title: '编码',
-      dataIndex: 'code',
-      width: 160,
-      render: (v: string) => <Text copyable={{ content: v }}>{v}</Text>,
-    },
+    copyableNoColumn('编码', 'code', { width: 160 }),
     { title: 'QPS', dataIndex: 'qpsLimit', width: 100, align: 'right', render: (v: number) => (v > 0 ? `${v}/s` : '不限') },
     { title: '每日配额', dataIndex: 'dailyQuota', width: 120, align: 'right', render: fmtQuota },
     { title: '每月配额', dataIndex: 'monthlyQuota', width: 120, align: 'right', render: fmtQuota },

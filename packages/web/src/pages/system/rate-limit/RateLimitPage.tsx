@@ -44,7 +44,7 @@ import { CreateButton, RefreshButton } from '@/components/toolbar-controls';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { DataBar } from '@/components/data-viz/DataBar';
 import {
   type RateLimitRule,
@@ -566,7 +566,7 @@ export default function RateLimitPage() {
             dataSource={bansQuery.data ?? []}
             columns={[
               { title: '规则', dataIndex: 'name', width: 200, render: (v: string) => <Tag color="blue" size="small">{v}</Tag> },
-              { title: '被封禁 Key', dataIndex: 'key', render: (v: string) => <Text copyable>{v}</Text> },
+              copyableNoColumn('被封禁 Key', 'key', { width: undefined }),
               dateTimeColumn('到期时间', 'expiresAt'),
               {
                 title: '剩余',
@@ -694,7 +694,7 @@ export default function RateLimitPage() {
               }))}
               columns={[
                 dateTimeColumn('时间', 'at'),
-                { title: 'Key', dataIndex: 'key', render: (v: string) => <Text copyable>{v}</Text> },
+                copyableNoColumn('Key', 'key', { width: undefined }),
                 {
                   title: '类型', dataIndex: 'monitored', width: 80,
                   render: (_: boolean, row: BlockRow) => blockTypeTag(row),

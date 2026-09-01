@@ -40,7 +40,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
-import { dateColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateColumn, dateTimeColumn } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
 const PAGE_SIZE = 20;
@@ -552,12 +552,7 @@ export default function AnalyticsDataPage() {
   ];
 
   const metaColumns: ColumnProps<AnalyticsEventMeta>[] = [
-    {
-      title: '事件名',
-      dataIndex: 'eventName',
-      width: 200,
-      render: (value: string) => <Typography.Text copyable={{ content: value }} ellipsis={{ showTooltip: true }} style={{ maxWidth: 170 }}>{value}</Typography.Text>,
-    },
+    copyableNoColumn('事件名', 'eventName', { width: 200 }),
     { title: '显示名', dataIndex: 'displayName', width: 150, render: (value: string | null) => (value || <Typography.Text type="tertiary" size="small">未设置</Typography.Text>) },
     { title: '分类', dataIndex: 'category', width: 130, render: (value: string | null) => (value ? (USER_BEHAVIOR_EVENT_TYPE_LABELS[value as UserBehaviorEventType] ?? value) : '–') },
     { title: '触发次数', dataIndex: 'eventCount', width: 100, align: 'right' },

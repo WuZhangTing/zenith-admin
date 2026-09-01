@@ -17,7 +17,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [
@@ -111,7 +111,7 @@ export default function AnalyticsSitesTab() {
 
   const columns: ColumnProps<AnalyticsSite>[] = [
     { title: '名称', dataIndex: 'name', width: 160, fixed: 'left' },
-    { title: 'Site Key', dataIndex: 'siteKey', width: 340, render: (text: string) => <Typography.Text copyable={{ content: text }} code>{text}</Typography.Text> },
+    copyableNoColumn('Site Key', 'siteKey', { width: 340 }),
     { title: 'AppId', dataIndex: 'appId', width: 120, render: (value: string) => <Tag size="small">{value}</Tag> },
     { title: '归属租户', dataIndex: 'tenantName', width: 140, render: (_: unknown, record) => record.tenantName || '平台' },
     { title: '来源白名单', dataIndex: 'allowedOrigins', width: 220, render: (origins: string[] | null) => origins?.length ? <Space wrap>{origins.slice(0, 3).map((o) => <Tag key={o} size="small">{o}</Tag>)}{origins.length > 3 ? <Tag size="small">+{origins.length - 3}</Tag> : null}</Space> : '不限制' },
