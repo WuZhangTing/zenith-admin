@@ -27,6 +27,7 @@ import { assertAllCmsSiteChannelsAccess } from './cms-channels.service';
 import { recordCmsPublishArtifact } from './cms-publish-artifact-tracker';
 import { cmsStaticTargetKey, isCmsStaticTargetCompleted } from './cms-static-build-plan';
 import { assertCmsStaticWriteFence } from './cms-site-publish-lock.service';
+import { invalidateCmsSiteCaches } from './cms-cache.service';
 export {
   CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile, resolveStaticFile, siteStaticDir,
 } from './cms-static-path';
@@ -292,6 +293,8 @@ async function writeRenderedPath(site: CmsSiteRow, relPath: string): Promise<boo
 }
 
 export async function refreshHomeStatic(site: CmsSiteRow): Promise<boolean> {
+  await invalidateCmsSiteCaches(site.id);
+  if (site.staticMode === 'dynamic') return false;
   const { getHomeTakeoverPage } = await import('./cms-pages.service');
   const takeover = await getHomeTakeoverPage(site.id);
   const staticPath = '';
@@ -357,7 +360,11 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   const [content] = await db.select().from(cmsContents).where(eq(cmsContents.id, contentId)).limit(1);
   if (!content) return;
   const site = await resolveEffectiveCmsSiteRow(content.siteId).catch(() => null);
-  if (!site || site.staticMode === 'dynamic') return;
+  if (!site) return;
+  if (site.staticMode === 'dynamic') {
+    await invalidateCmsSiteCaches(site.id);
+    return;
+  }
   const [channel] = await db.select().from(cmsChannels).where(and(
     eq(cmsChannels.id, content.channelId),
   )).limit(1);
@@ -414,7 +421,10 @@ export async function applyCmsContentPublishSnapshot(
     );
   }
   for (const relPath of [...new Set(deletePaths)].sort()) await deleteStaticFile(site.code, relPath);
-  if (site.staticMode === 'dynamic') return;
+  if (site.staticMode === 'dynamic') {
+    await invalidateCmsSiteCaches(site.id);
+    return;
+  }
   if (snapshot.build && current) {
     const [channel] = await db.select().from(cmsChannels).where(eq(cmsChannels.id, snapshot.channelId)).limit(1);
     if (!channel || channel.path !== snapshot.channelPath) {
@@ -455,7 +465,11 @@ export function triggerContentStaticRefresh(contentId: number): void {
  */
 export async function refreshCustomPageStatic(input: { siteId: number; slug: string; isHome: boolean; removed?: boolean; removePath?: string | null }): Promise<void> {
   const site = await resolveEffectiveCmsSiteRow(input.siteId).catch(() => null);
-  if (!site || site.staticMode === 'dynamic') return;
+  if (!site) return;
+  if (site.staticMode === 'dynamic') {
+    await invalidateCmsSiteCaches(site.id);
+    return;
+  }
   const { getPublishedPageBySlug } = await import('./cms-pages.service');
   const pageRow = input.removed ? null : await getPublishedPageBySlug(site.id, input.slug);
   const targetPath = input.removePath?.trim() || (pageRow ? customPagePath(pageRow) : `p/${input.slug}/`);
@@ -483,6 +497,7 @@ export async function refreshChannelStatic(channelId: number): Promise<{ pages: 
   if (!channel) throw new Error(`栏目不存在（id=${channelId}）`);
   const site = await resolveEffectiveCmsSiteRow(channel.siteId).catch(() => null);
   if (!site) throw new Error(`站点不存在（id=${channel.siteId}）`);
+  await invalidateCmsSiteCaches(site.id);
   let pages = 0;
   pages += await regenerateChannelPages(site, channel);
   if (await refreshHomeStatic(site)) pages += 1;
