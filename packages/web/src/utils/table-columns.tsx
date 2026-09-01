@@ -44,7 +44,7 @@ const COPY_SUCCESS_TIP = (
 );
 
 /**
- * 业务单号列（订单号 / 退款单号 / 批次号等定长编号）：
+ * 可复制列（业务单号 / 编码 / Key 等）：
  * 文本超出列宽时省略并出 tooltip，复制按钮恒定可见，空值显示 '—'。
  *
  * 实现要点：文本与复制按钮是两个独立节点（flex 布局，按钮 flexShrink: 0）。
@@ -52,29 +52,44 @@ const COPY_SUCCESS_TIP = (
  * 合并测量偏保守，会把列宽足够容纳的定长单号误截断且不随列宽恢复；
  * 拆开后文本按真实剩余宽度截断，图标永不溢出，超长单号也无需再为它加宽列。
  *
+ * 展示与复制默认都取字段原值；两者需要分离时用 `displayText` / `copyContent`：
+ * 展示紧凑形态复制完整值（短链）、打码展示复制真值（令牌）、拼接派生值（连接地址）。
+ * 转换只产出**纯文本**——单元格里还要放其他节点 / 按钮的复合列不适用本工厂。
+ *
  * @example
  * copyableNoColumn('订单号', 'orderNo')
  * copyableNoColumn('批次号', 'batchNo', { width: 300, fixed: 'left' })
+ * copyableNoColumn('短链', 'code', { displayText: (v) => `/s/${v}`, copyContent: (_, r) => r.shortUrl })
+ * copyableNoColumn('令牌', 'token', { displayText: maskToken })  // 复制仍是原值
  */
 export function copyableNoColumn<RecordType extends Data = Data>(
   title: string,
   dataIndex: string,
-  options?: Pick<ColumnProps<RecordType>, 'width' | 'fixed' | 'sorter'>,
+  options?: Pick<ColumnProps<RecordType>, 'width' | 'fixed' | 'sorter'> & {
+    /** 展示文本转换（打码、加前缀、拼接派生等）；默认展示字段原值 */
+    displayText?: (value: string, record: RecordType) => string;
+    /** 复制内容；默认复制字段**原值**（不是展示文本） */
+    copyContent?: (value: string, record: RecordType) => string;
+  },
 ): ColumnProps<RecordType> {
+  const { displayText, copyContent, ...columnProps } = options ?? {};
   return {
     title,
     dataIndex,
     width: NO_COLUMN_WIDTH,
-    ...options,
-    render: (v: string | null | undefined) => (v
-      ? (
+    ...columnProps,
+    render: (v: string | null | undefined, record: RecordType) => {
+      if (!v) return EMPTY_PLACEHOLDER;
+      const text = displayText ? displayText(v, record) : v;
+      const content = copyContent ? copyContent(v, record) : v;
+      return (
         // stopPropagation：expandRowByClick 的表格里，点复制按钮/选中单号不应触发行展开
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }} onClick={(e) => e.stopPropagation()}>
-          <Typography.Text ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{v}</Typography.Text>
-          <Typography.Text style={{ flexShrink: 0 }} copyable={{ content: v, successTip: COPY_SUCCESS_TIP }} />
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{text}</Typography.Text>
+          <Typography.Text style={{ flexShrink: 0 }} copyable={{ content, successTip: COPY_SUCCESS_TIP }} />
         </span>
-      )
-      : EMPTY_PLACEHOLDER),
+      );
+    },
   };
 }
 

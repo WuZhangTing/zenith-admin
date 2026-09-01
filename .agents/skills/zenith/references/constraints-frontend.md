@@ -112,8 +112,10 @@
   `copyableNoColumn(title, dataIndex, options?)`（省略 tooltip + 恒定复制按钮 + 空值 `—` 已内建），
   **禁止**在列 `render` 里手写 `<Typography.Text copyable …>` 或自拼「文本 + 复制按钮」，
   也**禁止**在同一个 `Typography.Text` 上同时挂 `ellipsis` 与 `copyable`（Semi 合并测量会误截断）。
-  仅以下场景保留自定义 `render`：展示值与复制值不同（打码密钥、短链只展示 code）、
-  值需运行时拼接派生而非 `dataIndex` 直读、复制之外还有其他按钮的复合单元格，
+  展示与复制默认都取字段原值；打码展示、紧凑展示复制完整值、拼接派生值等分离场景传
+  `displayText` / `copyContent`（均为纯文本转换），不要因此退回手写 `render`。
+  仅以下场景保留自定义 `render`：复制之外还有其他节点 / 按钮的复合单元格、
+  复制内容并非本列展示语义（如点击数列附带复制短链）、空值需按业务态区分占位文案的多态列，
   以及非 Semi Table 的原生表格。详情面板 / 弹窗内的 `Descriptions` / `Paragraph` 复制不是列，不适用本条
 - **空值占位统一**：用 `utils/table-columns` 的 `EMPTY_PLACEHOLDER`（`—`），**禁止**混用 `-` / `–`
 - **树形表格展开控制**：用 `children` 渲染树形表格时必须在搜索栏加「全部展开 / 全部折叠」按钮，

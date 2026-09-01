@@ -15,7 +15,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatBytesGb } from '@/utils/format';
 import {
   useDeleteOpsHost,
@@ -135,15 +135,11 @@ export default function HostsPage() {
 
   const columns: ColumnProps<OpsHost>[] = [
     { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis },
-    {
-      title: '连接地址',
+    copyableNoColumn('连接地址', 'host', {
       width: 230,
-      render: (_value: unknown, record) => (
-        <Text copyable style={{ fontFamily: 'var(--semi-font-family-code, monospace)' }}>
-          {record.username}@{record.host}:{record.port}
-        </Text>
-      ),
-    },
+      displayText: (_v, record) => `${record.username}@${record.host}:${record.port}`,
+      copyContent: (_v, record) => `${record.username}@${record.host}:${record.port}`,
+    }),
     {
       title: '认证',
       dataIndex: 'authType',

@@ -12,7 +12,7 @@ import { AppModal } from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
-import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   chatBotKeys,
   useChatBotGroupConversations,
@@ -194,31 +194,15 @@ export default function ChatBotsPage() {
       width: 220,
       render: renderEllipsis,
     },
-    {
-      title: 'Webhook 地址',
-      dataIndex: 'webhookUrl',
+    copyableNoColumn('Webhook 地址', 'webhookUrl', {
       width: 360,
-      render: (_: unknown, row: ChatWebhook) => {
-        const url = getAbsoluteWebhookUrl(row.webhookUrl);
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 260 }}>{url}</Text>
-            <Button theme="borderless" size="small" icon={<Copy size={14} />} onClick={() => void copyText(url)}>复制</Button>
-          </div>
-        );
-      },
-    },
-    {
-      title: '令牌',
-      dataIndex: 'token',
+      displayText: getAbsoluteWebhookUrl,
+      copyContent: getAbsoluteWebhookUrl,
+    }),
+    copyableNoColumn('令牌', 'token', {
       width: 220,
-      render: (token: string) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <Text code ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{maskToken(token)}</Text>
-          <Button theme="borderless" size="small" icon={<Copy size={14} />} onClick={() => void copyText(token)}>复制</Button>
-        </div>
-      ),
-    },
+      displayText: maskToken,
+    }),
     dateTimeColumn('最近使用', 'lastUsedAt'),
     createdAtColumn as ColumnProps<ChatWebhook>,
     {

@@ -10,7 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import AppModal from '@/components/AppModal';
-import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
 import { usePermission } from '@/hooks/usePermission';
@@ -186,14 +186,11 @@ export default function ShortLinksPage() {
   }
 
   const columns: ColumnProps<ShortLink>[] = [
-    {
-      title: '短链', dataIndex: 'code', width: 170,
-      render: (_: unknown, record: ShortLink) => (
-        <Text style={{ whiteSpace: 'nowrap' }} copyable={{ content: record.shortUrl }}>
-          /s/{record.code}
-        </Text>
-      ),
-    },
+    copyableNoColumn('短链', 'code', {
+      width: 170,
+      displayText: (v) => `/s/${v}`,
+      copyContent: (_v, record) => record.shortUrl,
+    }),
     { title: '标题', dataIndex: 'title', width: 160, render: renderEllipsis },
     { title: '目标地址', dataIndex: 'targetUrl', width: 240, render: renderEllipsis },
     {
