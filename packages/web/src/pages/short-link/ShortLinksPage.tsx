@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Col, Collapse, Form, Modal, Row, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Col, Collapse, Form, Modal, Row, SideSheet, Spin, Switch, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { QRCodeSVG } from 'qrcode.react';
 import { Ban, CircleCheck, Trash2 } from 'lucide-react';
@@ -9,7 +9,6 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { DateRangeFilter, KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -353,7 +352,27 @@ export default function ShortLinksPage() {
       />
 
       {/* 新增 / 编辑 */}
-      <AppModal {...modal.modalProps} width={660}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={660}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={modal.formKey} {...modal.formProps}>
             <Form.Input
@@ -441,7 +460,7 @@ export default function ShortLinksPage() {
             <Form.TextArea field="remark" label="备注" placeholder="选填" rows={2} maxCount={256} />
           </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       {/* 二维码 */}
       <Modal

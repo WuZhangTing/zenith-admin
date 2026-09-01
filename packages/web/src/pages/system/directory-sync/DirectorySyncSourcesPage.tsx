@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Divider, Form, Modal, Spin, Switch, Tag, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
+import { Button, Divider, Form, Modal, SideSheet, Spin, Switch, Tag, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import AppModal from '@/components/AppModal';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -340,7 +339,27 @@ export default function DirectorySyncSourcesPage() {
         pagination={buildPagination(total)}
       />
 
-      <AppModal {...modal.modalProps} width={660}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={660}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={modal.formKey} {...modal.formProps}>
             {({ formState }) => {
@@ -515,7 +534,7 @@ export default function DirectorySyncSourcesPage() {
             }}
           </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
     </div>
   );
 }

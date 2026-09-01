@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, Col, Form, Row, Spin, Table, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Badge, Button, Col, Form, Row, SideSheet, Spin, Table, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -442,7 +442,27 @@ export default function IotDevicesPage() {
       />
 
       {/* 注册 / 编辑设备 */}
-      <AppModal {...modal.modalProps} width={560}>
+      <SideSheet
+        title={modal.modalProps.title}
+        visible={modal.visible}
+        onCancel={modal.close}
+        closeOnEsc
+        width={660}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={modal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={modal.modalProps.okButtonProps.loading}
+              disabled={modal.modalProps.okButtonProps.disabled}
+              onClick={() => void modal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
+      >
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={modal.formKey} {...modal.formProps}>
             {({ formState }) => {
@@ -511,7 +531,7 @@ export default function IotDevicesPage() {
             }}
           </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       {/* 分组管理 */}
       <AppModal
