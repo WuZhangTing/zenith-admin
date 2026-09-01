@@ -226,7 +226,7 @@ async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, 
     langAlternates,
     audience: { dynamic: false, member: false },
     assets,
-  });
+  }, site.id);
 }
 
 // ─── 主题样式资产 ─────────────────────────────────────────────────────────────
@@ -424,7 +424,7 @@ export async function renderCustomPage(
   const blocks = await resolveCmsResourcePayload(filterCmsPageBlocksForViewer(
     (pageRow.blocks ?? []) as import('@zenith/shared').CmsPageBlock[],
     { member: opts?.member === true },
-  ));
+  ), site.id);
   // content-list 区块数据预取
   const channelPathMap = await loadChannelPathMap(site.id);
   const hasChannelCodeBlock = blocks.some((b) => b.type === 'content-list' && typeof b.props.channelCode === 'string' && b.props.channelCode);
@@ -486,7 +486,7 @@ async function listBlockContents(siteId: number, opts: { channelId?: number; tag
     .where(and(...conds))
     .orderBy(desc(cmsContents.isTop), desc(cmsContents.publishedAt))
     .limit(opts.count);
-  return resolveCmsContentRows(rows);
+  return resolveCmsContentRows(rows, siteId);
 }
 
 /** Theme API 数据门面的单次渲染配额：防止 load() 写出取数风暴 */
@@ -653,7 +653,7 @@ export async function renderChannelPage(site: CmsSiteRow, baseUrl: string, chann
       ...base,
       channel: toChannelInfo(channel, baseUrl),
       breadcrumbs,
-      contentHtml: await resolveCmsResourcePayload(channel.pageContent ?? ''),
+      contentHtml: await resolveCmsResourcePayload(channel.pageContent ?? '', site.id),
       form: form ? {
         code: form.code,
         name: form.name,
@@ -728,8 +728,8 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
 }
 
 /** 内容正文分页数（静态化生成 _n.html 时用；映射内容透传来源正文） */
-export async function countContentBodyPages(row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>): Promise<number> {
-  const resolved = await resolveContentBodyExtend(row);
+export async function countContentBodyPages(row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>, siteId: number): Promise<number> {
+  const resolved = await resolveContentBodyExtend(row, siteId);
   return splitBodyPages(resolved.body).length;
 }
 
@@ -782,7 +782,7 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
     getEnabledLinkWords(site.id),
     listApprovedComments(row.id),
     listRelatedContents(row),
-    resolveContentBodyExtend(row),
+    resolveContentBodyExtend(row, site.id),
     buildCmsModelFieldValues(row.modelId, (row.extend ?? {}) as Record<string, unknown>),
   ]);
   const related = await buildRelatedLinks(baseUrl, relatedRows);
@@ -839,7 +839,7 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
     .limit(1);
   if (!raw) return renderNotFound(site, baseUrl, `/preview/${contentId}`);
   // 草稿预览同样要把素材句柄还原为真实地址，否则预览页出现 cms-res:// 裸串
-  const row = await resolveCmsContentRow(raw);
+  const row = await resolveCmsContentRow(raw, site.id);
   const [channel] = await db.select().from(cmsChannels).where(eq(cmsChannels.id, row.channelId)).limit(1);
   if (!channel) return renderNotFound(site, baseUrl, `/preview/${contentId}`);
 
@@ -861,7 +861,7 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
     buildBreadcrumbs(site, baseUrl, channel),
     listContentTags(row.id),
     getEnabledLinkWords(site.id),
-    resolveContentBodyExtend(row),
+    resolveContentBodyExtend(row, site.id),
     buildCmsModelFieldValues(row.modelId, (row.extend ?? {}) as Record<string, unknown>),
   ]);
   const previewTemplate = await resolveDetailComponent(site, channel, row.detailTemplate, row.modelId);
@@ -1076,7 +1076,7 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
       isNull(cmsContents.deletedAt),
     ))
     .orderBy(desc(cmsContents.publishedAt), desc(cmsContents.id))
-    .limit(50));
+    .limit(50), site.id);
   const channelPathMap = await loadChannelPathMap(site.id);
   const resolveLink = await buildCmsLinkResolver(site.id, origin, rows.map((r) => r.externalLink));
   const feedTitle = channel ? `${channel.name} - ${site.name}` : (site.title?.trim() || site.name);

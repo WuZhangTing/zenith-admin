@@ -142,7 +142,7 @@ export async function getCmsContent(id: number) {
   const resolved = await resolveCmsContentRow({
     ...row,
     ...(source ? { body: source.body ?? null, extend: source.extend ?? {} } : {}),
-  });
+  }, site.id);
   const urls = buildCmsContentUrls(resolved, {
     siteCode: site.code,
     channelPath: row.channel?.path,
@@ -232,7 +232,7 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
       offset: pageOffset(q.page, q.pageSize),
     }),
   ]);
-  const resolvedRows = await resolveCmsContentRows(rows);
+  const resolvedRows = await resolveCmsContentRows(rows, q.siteId);
   return {
     list: resolvedRows.map((r) => mapCmsContent(r, {
       channelName: r.channel?.name,
@@ -300,7 +300,7 @@ export async function listPublishedContents(siteId: number, channelId: number, p
       pageSize,
     ),
   ]);
-  return { total, rows: await resolveCmsContentRows(rows) };
+  return { total, rows: await resolveCmsContentRows(rows, siteId) };
 }
 
 /** 首页区块：最新 / 推荐 / 热门（归档内容不参与） */
@@ -312,9 +312,9 @@ export async function listHomeContents(siteId: number, limit = 10) {
     db.select().from(cmsContents).where(and(base, eq(cmsContents.isHot, true))).orderBy(desc(cmsContents.viewCount)).limit(limit),
   ]);
   return {
-    latest: await resolveCmsContentRows(latest),
-    recommended: await resolveCmsContentRows(recommended),
-    hot: await resolveCmsContentRows(hot),
+    latest: await resolveCmsContentRows(latest, siteId),
+    recommended: await resolveCmsContentRows(recommended, siteId),
+    hot: await resolveCmsContentRows(hot, siteId),
   };
 }
 
@@ -325,7 +325,7 @@ export async function getPublishedContent(siteId: number, channelId: number, idO
   const [row] = await db.select().from(cmsContents)
     .where(and(publishedWhere(siteId), eq(cmsContents.channelId, channelId), matcher))
     .limit(1);
-  return row ? resolveCmsContentRow(row) : null;
+  return row ? resolveCmsContentRow(row, siteId) : null;
 }
 
 /**
@@ -371,7 +371,7 @@ export async function getPublishedContentById(siteId: number, id: number): Promi
   const [row] = await db.select().from(cmsContents)
     .where(and(publishedWhere(siteId), eq(cmsContents.id, id)))
     .limit(1);
-  return row ? resolveCmsContentRow(row) : null;
+  return row ? resolveCmsContentRow(row, siteId) : null;
 }
 
 /**
@@ -397,9 +397,12 @@ export async function getContentBodyExtendRaw(
  *
  * 输出同时完成素材句柄 → URL 的解析，调用方拿到的即是可直接渲染的正文。
  */
-export async function resolveContentBodyExtend(row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>): Promise<{ body: string | null; extend: Record<string, unknown> }> {
+export async function resolveContentBodyExtend(
+  row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>,
+  siteId: number,
+): Promise<{ body: string | null; extend: Record<string, unknown> }> {
   const raw = await getContentBodyExtendRaw(row);
-  const [resolved] = await resolveCmsContentRows([{ coverImage: null, body: raw.body, extend: raw.extend }]);
+  const [resolved] = await resolveCmsContentRows([{ coverImage: null, body: raw.body, extend: raw.extend }], siteId);
   return { body: resolved.body ?? null, extend: (resolved.extend ?? {}) as Record<string, unknown> };
 }
 
@@ -411,7 +414,10 @@ export async function getAdjacentContents(row: CmsContentRow) {
     db.select().from(cmsContents).where(and(base, lt(cmsContents.publishedAt, anchor))).orderBy(desc(cmsContents.publishedAt)).limit(1),
     db.select().from(cmsContents).where(and(base, gt(cmsContents.publishedAt, anchor))).orderBy(asc(cmsContents.publishedAt)).limit(1),
   ]);
-  return { prev: prevRows[0] ? await resolveCmsContentRow(prevRows[0]) : null, next: nextRows[0] ? await resolveCmsContentRow(nextRows[0]) : null };
+  return {
+    prev: prevRows[0] ? await resolveCmsContentRow(prevRows[0], row.siteId) : null,
+    next: nextRows[0] ? await resolveCmsContentRow(nextRows[0], row.siteId) : null,
+  };
 }
 
 /**
@@ -519,5 +525,5 @@ export async function listPublishedContentsByTag(siteId: number, tagId: number, 
       pageSize,
     ),
   ]);
-  return { total, rows: await resolveCmsContentRows(rows) };
+  return { total, rows: await resolveCmsContentRows(rows, siteId) };
 }

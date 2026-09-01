@@ -145,7 +145,7 @@ export async function listCmsWidgets(params: {
   ]);
   const stats = await referenceStats(rows.map((row) => row.id));
   const list = rows.map((row) => mapCmsWidget(row, stats.get(row.id)));
-  return resolveCmsResourcePayload({ list, total, page: params.page, pageSize: params.pageSize });
+  return resolveCmsResourcePayload({ list, total, page: params.page, pageSize: params.pageSize }, params.siteId);
 }
 
 export async function listPublishedCmsWidgets(siteId: number) {
@@ -156,7 +156,7 @@ export async function listPublishedCmsWidgets(siteId: number) {
     eq(cmsWidgets.status, 'published'),
   )).orderBy(cmsWidgets.name, cmsWidgets.id);
   const stats = await referenceStats(rows.map((row) => row.id));
-  return resolveCmsResourcePayload(rows.map((row) => mapCmsWidget(row, stats.get(row.id))));
+  return resolveCmsResourcePayload(rows.map((row) => mapCmsWidget(row, stats.get(row.id))), siteId);
 }
 
 export async function listCmsWidgetRenderersForSite(siteId: number, type: CmsWidgetRow['type']) {
@@ -175,7 +175,7 @@ export async function getCmsWidget(id: number) {
   const row = await ensureCmsWidgetExists(id);
   await assertSiteAccess(row.siteId);
   const stats = await referenceStats([id]);
-  return resolveCmsResourcePayload(mapCmsWidget(row, stats.get(id)));
+  return resolveCmsResourcePayload(mapCmsWidget(row, stats.get(id)), row.siteId);
 }
 
 async function assertWidgetSources(
@@ -384,7 +384,7 @@ export async function deleteCmsWidget(id: number, options?: { skipAccessCheck?: 
     if (!locked) throw new HTTPException(404, { message: '页面部件不存在' });
     const count = await tx.$count(cmsWidgetRefs, eq(cmsWidgetRefs.widgetId, id));
     if (count > 0) throw new HTTPException(409, { message: `该页面部件仍被 ${count} 个位置引用，请先解除引用` });
-    await deleteCmsResourceRefsForOwner(tx, 'widget', [id]);
+    await deleteCmsResourceRefsForOwner(tx, 'widget', [id], initial.siteId);
     await tx.delete(cmsWidgets).where(eq(cmsWidgets.id, id));
   });
 }
@@ -705,7 +705,7 @@ export async function resolveCmsWidgetPlacements(
   for (const row of rows) {
     const raw = options?.useDraft ? row.draftData : row.publishedData;
     if (!raw) continue;
-    const data = normalizeWidgetData(await resolveCmsResourcePayload(raw));
+    const data = normalizeWidgetData(await resolveCmsResourcePayload(raw, siteId));
     dataByWidget.set(row.id, data);
     for (const item of data.items) {
       if (item.sourceType === 'content' && item.sourceId) contentIds.add(item.sourceId);
@@ -720,7 +720,7 @@ export async function resolveCmsWidgetPlacements(
         isNull(cmsContents.deletedAt),
       ))
     : [];
-  const contents = await resolveCmsContentRows(rawContents);
+  const contents = await resolveCmsContentRows(rawContents, siteId);
   const channelIds = new Set([...directChannelIds, ...contents.map((content) => content.channelId)]);
   const rawChannels = channelIds.size
     ? await db.select().from(cmsChannels).where(and(
@@ -729,7 +729,7 @@ export async function resolveCmsWidgetPlacements(
         eq(cmsChannels.status, 'enabled'),
       ))
     : [];
-  const channels = await resolveCmsResourcePayload(rawChannels);
+  const channels = await resolveCmsResourcePayload(rawChannels, siteId);
   const contentById = new Map(contents.map((content) => [content.id, content]));
   const channelById = new Map(channels.map((channel) => [channel.id, channel]));
   const linkResolver = await buildCmsLinkResolver(

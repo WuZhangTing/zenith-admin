@@ -192,6 +192,19 @@ function toMemberContentItem(
   };
 }
 
+async function resolveMemberCovers(
+  rows: readonly { content: Pick<CmsContentRow, 'siteId' | 'coverImage'> }[],
+): Promise<{ coverImage: string | null; coverThumb: string | null }[]> {
+  const resolved = new Array<{ coverImage: string | null; coverThumb: string | null }>(rows.length);
+  const groups = new Map<number, number[]>();
+  rows.forEach((row, index) => groups.set(row.content.siteId, [...(groups.get(row.content.siteId) ?? []), index]));
+  await Promise.all([...groups].map(async ([siteId, indexes]) => {
+    const covers = await resolveCmsResourceCovers(indexes.map((index) => rows[index].content.coverImage), siteId);
+    indexes.forEach((index, offset) => { resolved[index] = covers[offset]; });
+  }));
+  return resolved;
+}
+
 async function loadChannelPaths(channelIds: number[]): Promise<Map<number, string>> {
   if (channelIds.length === 0) return new Map();
   const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path })
@@ -214,7 +227,7 @@ export async function listMyFavorites(page: number, pageSize: number) {
     }),
   ]);
   const paths = await loadChannelPaths(rows.map((r) => r.content.channelId));
-  const covers = await resolveCmsResourceCovers(rows.map((r) => r.content.coverImage));
+  const covers = await resolveMemberCovers(rows);
   return {
     list: rows.map((r, index) => toMemberContentItem(r.content, paths.get(r.content.channelId), { createdAt: r.createdAt }, covers[index])),
     total, page, pageSize,
@@ -236,7 +249,7 @@ export async function listMyViewHistory(page: number, pageSize: number) {
     }),
   ]);
   const paths = await loadChannelPaths(rows.map((r) => r.content.channelId));
-  const covers = await resolveCmsResourceCovers(rows.map((r) => r.content.coverImage));
+  const covers = await resolveMemberCovers(rows);
   return {
     list: rows.map((r, index) => toMemberContentItem(r.content, paths.get(r.content.channelId), {
       createdAt: r.createdAt, updatedAt: r.updatedAt, viewCount: r.viewCount,

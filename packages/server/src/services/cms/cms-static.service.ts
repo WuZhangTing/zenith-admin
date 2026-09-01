@@ -374,7 +374,7 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   // 栏目关闭静态化：清掉可能存在的历史产物后不再生成
   const channelDynamic = isChannelDynamic(site, channel);
   const isVisible = !channelDynamic && content.status === 'published' && !content.deletedAt && !content.externalLink?.trim();
-  const bodyPages = isVisible ? await countContentBodyPages(content) : 1;
+  const bodyPages = isVisible ? await countContentBodyPages(content, content.siteId) : 1;
   const pageCap = listPageCap(site);
   const purgePaths: string[] = ['sitemap.xml', 'rss.xml'];
   if (isVisible) {
@@ -596,7 +596,7 @@ async function buildSiteStaticInner(
     if (skipCompleted(key)) continue;
     const channel = channelMap.get(row.channelId);
     if (channel && !row.externalLink?.trim() && !isChannelDynamic(site, channel)) {
-      const bodyPages = await countContentBodyPages(row);
+      const bodyPages = await countContentBodyPages(row, siteId);
       for (let p = 1; p <= bodyPages; p++) {
         const ok = await writeRenderedPath(site, contentUrl('', channel, row, p));
         if (ok) pages += 1;

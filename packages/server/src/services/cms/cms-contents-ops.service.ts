@@ -195,10 +195,18 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
     const tagRows = await tx.select({ tagId: cmsContentTags.tagId }).from(cmsContentTags)
       .where(inArray(cmsContentTags.contentId, lockedIds));
     // 版本行随内容级联删除，但引用索引不是外键关系，需显式清理，否则素材永远判不出孤立
-    const versionIds = await tx.select({ id: cmsContentVersions.id }).from(cmsContentVersions)
+    const versionIds = await tx.select({ id: cmsContentVersions.id, contentId: cmsContentVersions.contentId }).from(cmsContentVersions)
       .where(inArray(cmsContentVersions.contentId, lockedIds));
-    await deleteCmsResourceRefsForOwner(tx, 'contentVersion', versionIds.map((row) => row.id));
-    await deleteCmsResourceRefsForOwner(tx, 'content', lockedIds);
+    // Content ids can span multiple sites in a batch; keep ref cleanup scoped
+    // per site so an identical owner id from another site is never touched.
+    for (const siteId of new Set(lockedTargets.map((row) => row.siteId))) {
+      const contentIds = lockedTargets.filter((row) => row.siteId === siteId).map((row) => row.id);
+      const versionIdsForSite = versionIds
+        .filter((version) => contentIds.includes(version.contentId))
+        .map((version) => version.id);
+      await deleteCmsResourceRefsForOwner(tx, 'contentVersion', versionIdsForSite, siteId);
+      await deleteCmsResourceRefsForOwner(tx, 'content', contentIds, siteId);
+    }
     // 墓碑：硬删除后行本身消失，Headless 增量同步只能靠它输出 op=delete，
     // 否则客户端按 updated_at 游标永远拉不到这条变更，本地缓存会残留已删内容
     await tx.insert(cmsContentTombstones)

@@ -160,7 +160,7 @@ export async function listCmsAds(q: ListCmsAdsQuery) {
     withPagination(base.orderBy(asc(cmsAds.sort), asc(cmsAds.id)).$dynamic(), q.page, q.pageSize),
   ]);
   return {
-    list: await resolveCmsResourcePayload(rows.map((r) => mapCmsAd(r.ad, r.slotName))),
+    list: await resolveCmsResourcePayload(rows.map((r) => mapCmsAd(r.ad, r.slotName)), q.siteId),
     total,
     page: q.page,
     pageSize: q.pageSize,
@@ -183,7 +183,7 @@ export async function createCmsAd(data: CreateCmsAdInput) {
     await syncCmsResourceRefs(tx, 'ad', created.id, slot.siteId, created);
     return created;
   });
-  return resolveCmsResourcePayload(mapCmsAd(row, slot.name));
+  return resolveCmsResourcePayload(mapCmsAd(row, slot.name), slot.siteId);
 }
 
 export async function updateCmsAd(id: number, data: UpdateCmsAdInput) {
@@ -205,7 +205,7 @@ export async function updateCmsAd(id: number, data: UpdateCmsAdInput) {
     await syncCmsResourceRefs(tx, 'ad', updated.id, slot.siteId, updated);
     return updated;
   });
-  return resolveCmsResourcePayload(mapCmsAd(row, slot.name));
+  return resolveCmsResourcePayload(mapCmsAd(row, slot.name), slot.siteId);
 }
 
 export async function deleteCmsAd(id: number) {
@@ -214,6 +214,6 @@ export async function deleteCmsAd(id: number) {
   await assertSiteAccess(slot.siteId);
   await db.transaction(async (tx) => {
     await tx.delete(cmsAds).where(eq(cmsAds.id, id));
-    await deleteCmsResourceRefsForOwner(tx, 'ad', [id]);
+    await deleteCmsResourceRefsForOwner(tx, 'ad', [id], slot.siteId);
   });
 }

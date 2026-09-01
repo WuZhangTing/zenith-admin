@@ -152,7 +152,7 @@ export async function listCmsForms(q: ListCmsFormsQuery) {
       q.pageSize,
     ),
   ]);
-  return { list: await resolveCmsResourcePayload(rows.map((r) => mapCmsForm(r.form, r.submissionCount))), total, page: q.page, pageSize: q.pageSize };
+  return { list: await resolveCmsResourcePayload(rows.map((r) => mapCmsForm(r.form, r.submissionCount)), q.siteId), total, page: q.page, pageSize: q.pageSize };
 }
 
 export type FormFieldInput = {
@@ -230,7 +230,7 @@ export async function createCmsForm(data: CreateCmsFormInput) {
       await syncCmsResourceRefs(tx, 'form', created.id, created.siteId, created);
       return created;
     });
-    return resolveCmsResourcePayload(mapCmsForm(row));
+    return resolveCmsResourcePayload(mapCmsForm(row), row.siteId);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下表单标识已存在');
   }
@@ -258,7 +258,7 @@ export async function updateCmsForm(id: number, data: UpdateCmsFormInput) {
       await syncCmsResourceRefs(tx, 'form', updated.id, updated.siteId, updated);
       return updated;
     });
-    return resolveCmsResourcePayload(mapCmsForm(row));
+    return resolveCmsResourcePayload(mapCmsForm(row), row.siteId);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下表单标识已存在');
   }
@@ -269,7 +269,7 @@ export async function deleteCmsForm(id: number) {
   await assertSiteAccess(current.siteId);
   await db.transaction(async (tx) => {
     await tx.delete(cmsForms).where(eq(cmsForms.id, id));
-    await deleteCmsResourceRefsForOwner(tx, 'form', [id]);
+    await deleteCmsResourceRefsForOwner(tx, 'form', [id], current.siteId);
   });
 }
 

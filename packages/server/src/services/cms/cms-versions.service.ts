@@ -71,7 +71,7 @@ export async function snapshotContentVersion(executor: DbExecutor, row: CmsConte
     .orderBy(desc(cmsContentVersions.version))
     .offset(MAX_VERSIONS);
   if (staleIds.length === 0) return;
-  await deleteCmsResourceRefsForOwner(executor, 'contentVersion', staleIds.map((item) => item.id));
+  await deleteCmsResourceRefsForOwner(executor, 'contentVersion', staleIds.map((item) => item.id), row.siteId);
   await executor.delete(cmsContentVersions).where(and(
     inArray(cmsContentVersions.id, staleIds.map((item) => item.id)),
   ));
@@ -92,7 +92,7 @@ export function mapCmsContentVersion(row: CmsContentVersionRow, createdByName?: 
 
 /** 内容的版本列表（新→旧） */
 export async function listContentVersions(contentId: number) {
-  await ensureContentVersionAccess(contentId);
+  const content = await ensureContentVersionAccess(contentId);
   const rows = await db.query.cmsContentVersions.findMany({
     where: and(
       eq(cmsContentVersions.contentId, contentId),
@@ -100,7 +100,7 @@ export async function listContentVersions(contentId: number) {
     with: { createdByUser: { columns: { nickname: true } } },
     orderBy: desc(cmsContentVersions.version),
   });
-  return resolveCmsResourcePayload(rows.map((r) => mapCmsContentVersion(r, r.createdByUser?.nickname)));
+  return resolveCmsResourcePayload(rows.map((r) => mapCmsContentVersion(r, r.createdByUser?.nickname)), content.siteId);
 }
 
 export async function ensureVersionExists(contentId: number, versionId: number): Promise<CmsContentVersionRow> {
@@ -131,7 +131,7 @@ export async function restoreContentVersion(contentId: number, versionId: number
     await snapshotContentVersion(tx, current, `回滚到 v${version.version} 前留档`);
   });
   // 快照里存的是素材句柄，回填到编辑器前解析为真实地址；保存时会再次归一化，可无损往返
-  return resolveCmsResourcePayload(version.snapshot);
+  return resolveCmsResourcePayload(version.snapshot, current.siteId);
 }
 
 // ─── 版本差异对比 ─────────────────────────────────────────────────────────────

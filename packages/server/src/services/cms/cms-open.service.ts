@@ -379,7 +379,7 @@ async function buildMapOptions(
         extend: (source ? source.extend : row.extend) ?? {},
       };
     });
-    const resolvedBodies = await resolveCmsContentRows(raw);
+    const resolvedBodies = await resolveCmsContentRows(raw, siteId);
     opts.bodyExtend = new Map(resolvedBodies.map((row) => [
       row.id,
       { body: row.body ?? null, extend: (row.extend ?? {}) as Record<string, unknown> },
@@ -400,7 +400,7 @@ export async function listOpenCmsContents(site: CmsSiteRow, query: ParsedCmsOpen
     db.select().from(cmsContents).where(baseWhere).orderBy(...order)
       .limit(query.pageSize).offset(pageOffset(query.page, query.pageSize)),
   ]);
-  const resolved = await resolveCmsContentRows(rows);
+  const resolved = await resolveCmsContentRows(rows, site.id);
   const opts = await buildMapOptions(site.id, rows, query.includes);
   return {
     list: resolved.map((row) => pickCmsOpenFields(mapOpenContent(row, opts), query.fields)),
@@ -431,7 +431,7 @@ export async function listOpenCmsContentsByCursor(site: CmsSiteRow, query: Parse
   const hasMore = rows.length > query.pageSize;
   const pageRows = rows.slice(0, query.pageSize);
   const page = pageRows.map((item) => item.row);
-  const resolved = await resolveCmsContentRows(page);
+  const resolved = await resolveCmsContentRows(page, site.id);
   const opts = await buildMapOptions(site.id, page, query.includes);
   const last = pageRows.at(-1);
   const lastValue = last
@@ -454,7 +454,7 @@ export async function getOpenCmsContent(site: CmsSiteRow, idOrSlug: string, quer
   if (!row) throw new HTTPException(404, { message: '内容不存在或未发布' });
   // 详情默认返回正文与扩展字段，无需显式 include
   const includes = new Set([...query.includes, 'body', 'extend', 'tags', 'attachments', 'channel']);
-  const [resolved] = await resolveCmsContentRows([row]);
+  const [resolved] = await resolveCmsContentRows([row], site.id);
   const opts = await buildMapOptions(site.id, [row], includes);
   return pickCmsOpenFields(mapOpenContent(resolved, opts), query.fields);
 }
@@ -535,7 +535,7 @@ export async function syncOpenCmsContents(
     .filter((row): row is CmsContentRow =>
       !!row && row.status === 'published' && !row.deletedAt && !row.archivedAt
       && enabledChannelIds.has(row.channelId));
-  const resolved = await resolveCmsContentRows(visible);
+  const resolved = await resolveCmsContentRows(visible, site.id);
   const opts = await buildMapOptions(site.id, visible, input.includes);
   const byId = new Map(resolved.map((row) => [row.id, row]));
 

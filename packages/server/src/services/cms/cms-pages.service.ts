@@ -64,7 +64,7 @@ export async function getCmsPage(id: number) {
   const [row] = await db.select().from(cmsPages).where(eq(cmsPages.id, id)).limit(1);
   if (!row) throw new HTTPException(404, { message: '页面不存在' });
   await assertSiteAccess(row.siteId);
-  return resolveCmsResourcePayload(mapCmsPage(row, await decorateCmsPageBlocks(row)));
+  return resolveCmsResourcePayload(mapCmsPage(row, await decorateCmsPageBlocks(row)), row.siteId);
 }
 
 const SLUG_RE = /^[a-z0-9-]+$/;
@@ -213,7 +213,7 @@ export async function deleteCmsPage(id: number) {
     const site = await lockCmsSiteForMutation(tx, current.siteId);
     await deleteCmsPageWidgetRefs(tx, [id]);
     await tx.delete(cmsPages).where(eq(cmsPages.id, id));
-    await deleteCmsResourceRefsForOwner(tx, 'page', [id]);
+    await deleteCmsResourceRefsForOwner(tx, 'page', [id], current.siteId);
     const revision = await bumpCmsTemplateRefsRevision(tx, current.siteId);
     const task = await insertCmsSiteRefsRebuildOutbox(
       tx,

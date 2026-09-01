@@ -12,7 +12,7 @@ import { and, eq, inArray, notExists, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
-  cmsAds, cmsChannels, cmsContents, cmsContentVersions, cmsForms,
+  cmsAds, cmsAdSlots, cmsChannels, cmsContents, cmsContentVersions, cmsForms,
   cmsFriendLinks, cmsPages, cmsResourceRefs, cmsResources, cmsSites, cmsWidgets, managedFiles,
 } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
@@ -208,14 +208,24 @@ export async function syncCmsResourceRefs(
   const extracted = extractCmsResourceRefFields(fields);
 
   await executor.delete(cmsResourceRefs)
-    .where(and(eq(cmsResourceRefs.ownerType, ownerType), eq(cmsResourceRefs.ownerId, ownerId)));
+    .where(and(
+      eq(cmsResourceRefs.siteId, siteId),
+      eq(cmsResourceRefs.ownerType, ownerType),
+      eq(cmsResourceRefs.ownerId, ownerId),
+    ));
   if (extracted.length === 0) return;
 
-  // 手工在 HTML 源码里敲出的句柄可能指向不存在的素材，先过滤避免外键冲突
+  // A resource handle is site-local.  Do not allow a caller to register a
+  // foreign-site resource under the current owner, even if the numeric id is
+  // otherwise valid.  Unknown handles remain ignored for repair compatibility.
   const candidateIds = [...new Set(extracted.map((item) => item.resourceId))];
-  const existing = await executor.select({ id: cmsResources.id })
+  const existing = await executor.select({ id: cmsResources.id, siteId: cmsResources.siteId })
     .from(cmsResources).where(inArray(cmsResources.id, candidateIds));
-  const valid = new Set(existing.map((item) => item.id));
+  const foreign = existing.filter((item) => item.siteId !== siteId);
+  if (foreign.length > 0) {
+    throw new HTTPException(400, { message: '素材句柄不属于当前站点' });
+  }
+  const valid = new Set(existing.filter((item) => item.siteId === siteId).map((item) => item.id));
   const values = extracted
     .filter((item) => valid.has(item.resourceId))
     .map((item) => ({ siteId, resourceId: item.resourceId, ownerType, ownerId, field: item.field }));
@@ -228,10 +238,15 @@ export async function deleteCmsResourceRefsForOwner(
   executor: DbExecutor,
   ownerType: CmsResourceOwnerType,
   ownerIds: readonly number[],
+  siteId: number,
 ): Promise<void> {
   if (ownerIds.length === 0) return;
   await executor.delete(cmsResourceRefs)
-    .where(and(eq(cmsResourceRefs.ownerType, ownerType), inArray(cmsResourceRefs.ownerId, [...ownerIds])));
+    .where(and(
+      eq(cmsResourceRefs.siteId, siteId),
+      eq(cmsResourceRefs.ownerType, ownerType),
+      inArray(cmsResourceRefs.ownerId, [...ownerIds]),
+    ));
 }
 
 /**
@@ -252,6 +267,13 @@ export async function adoptCmsResourcesIntoSite<T>(
   const sources = await executor.select().from(cmsResources).where(inArray(cmsResources.id, ids));
   const foreign = sources.filter((row) => row.siteId !== targetSiteId);
   if (foreign.length === 0) return payload;
+
+  // Do not copy a malformed legacy URL into a target site.  The read resolver
+  // also fail-closes, but rejecting here prevents creation of a bad new row.
+  for (const source of foreign) {
+    assertSafeCmsResourceUrl(source.url, `素材 #${source.id} 地址`);
+    if (source.thumbUrl) assertSafeCmsResourceUrl(source.thumbUrl, `素材 #${source.id} 缩略图地址`);
+  }
 
   // 同一素材可能被两条分发同时搬运（advisory lock 只按来源内容 id 加锁），
   // 因此走 insert-on-conflict + 补查，避免撞 (site_id, url) 唯一索引导致整个事务回滚
@@ -298,30 +320,40 @@ interface ResourceTarget {
 
 const CACHE_TTL_MS = 60_000;
 const CACHE_MAX = 5000;
-const cache = new Map<number, { value: ResourceTarget | null; expiresAt: number }>();
+const cache = new Map<string, { value: ResourceTarget | null; expiresAt: number }>();
 
-/** 素材被修改/替换/删除后调用，使缓存立即失效 */
-export function invalidateCmsResourceCache(ids: readonly number[]): void {
-  for (const id of ids) cache.delete(id);
+function resourceCacheKey(siteId: number, resourceId: number): string {
+  return `${siteId}:${resourceId}`;
 }
 
-async function loadResourceTargets(ids: readonly number[]): Promise<Map<number, ResourceTarget | null>> {
+/** 素材被修改/替换/删除后调用，使缓存立即失效 */
+export function invalidateCmsResourceCache(siteId: number, ids: readonly number[]): void {
+  for (const id of ids) cache.delete(resourceCacheKey(siteId, id));
+}
+
+async function loadResourceTargets(siteId: number, ids: readonly number[]): Promise<Map<number, ResourceTarget | null>> {
   const now = Date.now();
   const out = new Map<number, ResourceTarget | null>();
   const missing: number[] = [];
   for (const id of ids) {
-    const hit = cache.get(id);
+    const hit = cache.get(resourceCacheKey(siteId, id));
     if (hit && hit.expiresAt > now) out.set(id, hit.value);
     else missing.push(id);
   }
   if (missing.length > 0) {
     const rows = await db.select({ id: cmsResources.id, url: cmsResources.url, thumbUrl: cmsResources.thumbUrl })
-      .from(cmsResources).where(inArray(cmsResources.id, missing));
-    const found = new Map(rows.map((row) => [row.id, { url: row.url, thumbUrl: row.thumbUrl ?? null }]));
+      .from(cmsResources).where(and(eq(cmsResources.siteId, siteId), inArray(cmsResources.id, missing)));
+    const found = new Map(rows.map((row) => {
+      // Bad legacy URLs must never be interpolated back into already-sanitized
+      // HTML.  Cache the miss so a corrupt row cannot create a hot-loop.
+      const url = isSafeCmsResourceUrl(row.url) ? row.url : null;
+      const thumbUrl = row.thumbUrl && isSafeCmsResourceUrl(row.thumbUrl) ? row.thumbUrl : null;
+      return [row.id, url ? { url, thumbUrl } : null] as const;
+    }));
     if (cache.size > CACHE_MAX) cache.clear();
     for (const id of missing) {
       const value = found.get(id) ?? null;
-      cache.set(id, { value, expiresAt: now + CACHE_TTL_MS });
+      cache.set(resourceCacheKey(siteId, id), { value, expiresAt: now + CACHE_TTL_MS });
       out.set(id, value);
     }
   }
@@ -329,10 +361,10 @@ async function loadResourceTargets(ids: readonly number[]): Promise<Map<number, 
 }
 
 /** 深度解析 payload 中的素材句柄为真实 URL（批量取数，无 N+1） */
-export async function resolveCmsResourcePayload<T>(payload: T): Promise<T> {
+export async function resolveCmsResourcePayload<T>(payload: T, siteId: number): Promise<T> {
   const ids = extractCmsResourceIds(payload);
   if (ids.length === 0) return payload;
-  const targets = await loadResourceTargets(ids);
+  const targets = await loadResourceTargets(siteId, ids);
   return resolveCmsResourceUris(payload, (id) => targets.get(id)?.url ?? null);
 }
 
@@ -344,17 +376,19 @@ export async function resolveCmsResourcePayload<T>(payload: T): Promise<T> {
  */
 export async function resolveCmsResourceCover(
   coverImage: string | null | undefined,
+  siteId: number,
 ): Promise<{ coverImage: string | null; coverThumb: string | null }> {
-  const [resolved] = await resolveCmsResourceCovers([coverImage]);
+  const [resolved] = await resolveCmsResourceCovers([coverImage], siteId);
   return resolved;
 }
 
 /** 批量版本，供列表页避免逐行取数 */
 export async function resolveCmsResourceCovers(
   covers: readonly (string | null | undefined)[],
+  siteId: number,
 ): Promise<{ coverImage: string | null; coverThumb: string | null }[]> {
   const ids = [...new Set(covers.flatMap((cover) => extractCmsResourceIds(cover)))];
-  const targets = ids.length > 0 ? await loadResourceTargets(ids) : new Map<number, ResourceTarget | null>();
+  const targets = ids.length > 0 ? await loadResourceTargets(siteId, ids) : new Map<number, ResourceTarget | null>();
   return covers.map((cover) => resolveCover(cover, targets));
 }
 
@@ -389,12 +423,18 @@ type CmsContentMediaRow = {
  */
 export async function resolveCmsContentRows<T extends CmsContentMediaRow>(
   rows: readonly T[],
+  siteId: number,
 ): Promise<(T & { coverThumb: string | null })[]> {
   if (rows.length === 0) return [];
+  const mismatched = rows.some((row) => {
+    const rowSiteId = (row as T & { siteId?: number }).siteId;
+    return rowSiteId != null && rowSiteId !== siteId;
+  });
+  if (mismatched) throw new HTTPException(400, { message: '素材解析请求包含其他站点内容' });
   const ids = [...new Set(rows.flatMap((row) => extractCmsResourceIds([
     row.coverImage, row.body, row.mediaData, row.extend, row.attachments, row.externalLink, row.sourceUrl,
   ])))];
-  const targets = ids.length > 0 ? await loadResourceTargets(ids) : new Map<number, ResourceTarget | null>();
+  const targets = ids.length > 0 ? await loadResourceTargets(siteId, ids) : new Map<number, ResourceTarget | null>();
   const resolveUri = (id: number) => targets.get(id)?.url ?? null;
   return rows.map((row) => {
     const cover = resolveCover(row.coverImage, targets);
@@ -413,27 +453,33 @@ export async function resolveCmsContentRows<T extends CmsContentMediaRow>(
 }
 
 /** 单行便捷版本 */
-export async function resolveCmsContentRow<T extends CmsContentMediaRow>(row: T): Promise<T & { coverThumb: string | null }> {
-  const [resolved] = await resolveCmsContentRows([row]);
+export async function resolveCmsContentRow<T extends CmsContentMediaRow>(row: T, siteId: number): Promise<T & { coverThumb: string | null }> {
+  const [resolved] = await resolveCmsContentRows([row], siteId);
   return resolved;
 }
 
 // ─── 引用查询 / 孤立判定 ─────────────────────────────────────────────────────
 
 /** 素材是否无任何引用（走引用索引单条查询） */
-export async function isCmsResourceOrphanById(resourceId: number): Promise<boolean> {
-  const count = await db.$count(cmsResourceRefs, eq(cmsResourceRefs.resourceId, resourceId));
+export async function isCmsResourceOrphanById(resourceId: number, siteId: number): Promise<boolean> {
+  const count = await db.$count(cmsResourceRefs, and(
+    eq(cmsResourceRefs.resourceId, resourceId),
+    eq(cmsResourceRefs.siteId, siteId),
+  ));
   return count === 0;
 }
 
 /** 批量统计引用数，供素材列表展示「引用数」列 */
-export async function countCmsResourceRefs(resourceIds: readonly number[]): Promise<Map<number, number>> {
+export async function countCmsResourceRefs(resourceIds: readonly number[], siteId: number): Promise<Map<number, number>> {
   if (resourceIds.length === 0) return new Map();
   const rows = await db.select({
     resourceId: cmsResourceRefs.resourceId,
     count: sql<number>`count(*)::int`,
   }).from(cmsResourceRefs)
-    .where(inArray(cmsResourceRefs.resourceId, [...resourceIds]))
+    .where(and(
+      eq(cmsResourceRefs.siteId, siteId),
+      inArray(cmsResourceRefs.resourceId, [...resourceIds]),
+    ))
     .groupBy(cmsResourceRefs.resourceId);
   return new Map(rows.map((row) => [row.resourceId, row.count]));
 }
@@ -444,19 +490,25 @@ export async function listCmsOrphanResourceIds(siteId: number): Promise<number[]
     eq(cmsResources.siteId, siteId),
     notExists(
       db.select({ one: sql`1` }).from(cmsResourceRefs)
-        .where(eq(cmsResourceRefs.resourceId, cmsResources.id)),
+        .where(and(
+          eq(cmsResourceRefs.resourceId, cmsResources.id),
+          eq(cmsResourceRefs.siteId, siteId),
+        )),
     ),
   )).orderBy(cmsResources.id);
   return rows.map((row) => row.id);
 }
 
 /** 引用明细：索引查出 owner 后按类型补标题 */
-export async function listCmsResourceRefDetails(resourceId: number): Promise<CmsResourceReference[]> {
+export async function listCmsResourceRefDetails(resourceId: number, siteId: number): Promise<CmsResourceReference[]> {
   const refs = await db.select({
     ownerType: cmsResourceRefs.ownerType,
     ownerId: cmsResourceRefs.ownerId,
     field: cmsResourceRefs.field,
-  }).from(cmsResourceRefs).where(eq(cmsResourceRefs.resourceId, resourceId));
+  }).from(cmsResourceRefs).where(and(
+    eq(cmsResourceRefs.resourceId, resourceId),
+    eq(cmsResourceRefs.siteId, siteId),
+  ));
   if (refs.length === 0) return [];
 
   const idsByType = new Map<CmsResourceOwnerType, number[]>();
@@ -465,7 +517,7 @@ export async function listCmsResourceRefDetails(resourceId: number): Promise<Cms
     list.push(ref.ownerId);
     idsByType.set(ref.ownerType, list);
   }
-  const titles = await loadOwnerTitles(idsByType);
+  const titles = await loadOwnerTitles(idsByType, siteId);
   return refs.map((ref) => ({
     kind: ref.ownerType,
     id: ref.ownerId,
@@ -474,7 +526,7 @@ export async function listCmsResourceRefDetails(resourceId: number): Promise<Cms
   }));
 }
 
-async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): Promise<Map<string, string>> {
+async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>, siteId: number): Promise<Map<string, string>> {
   const titles = new Map<string, string>();
   const ids = (type: CmsResourceOwnerType) => [...new Set(idsByType.get(type) ?? [])];
   const put = (type: CmsResourceOwnerType, rows: readonly { id: number; title: string }[]) => {
@@ -493,34 +545,36 @@ async function loadOwnerTitles(idsByType: Map<CmsResourceOwnerType, number[]>): 
 
   const [sites, contents, versions, channels, friendLinks, ads, pages, widgets, forms] = await Promise.all([
     siteIds.length
-      ? db.select({ id: cmsSites.id, title: cmsSites.name }).from(cmsSites).where(inArray(cmsSites.id, siteIds))
+      ? db.select({ id: cmsSites.id, title: cmsSites.name }).from(cmsSites).where(and(eq(cmsSites.id, siteId), inArray(cmsSites.id, siteIds)))
       : [],
     contentIds.length
-      ? db.select({ id: cmsContents.id, title: cmsContents.title }).from(cmsContents).where(inArray(cmsContents.id, contentIds))
+      ? db.select({ id: cmsContents.id, title: cmsContents.title }).from(cmsContents).where(and(eq(cmsContents.siteId, siteId), inArray(cmsContents.id, contentIds)))
       : [],
     versionIds.length
       ? db.select({ id: cmsContentVersions.id, version: cmsContentVersions.version, title: cmsContents.title })
           .from(cmsContentVersions)
           .innerJoin(cmsContents, eq(cmsContentVersions.contentId, cmsContents.id))
-          .where(inArray(cmsContentVersions.id, versionIds))
+          .where(and(eq(cmsContents.siteId, siteId), inArray(cmsContentVersions.id, versionIds)))
       : [],
     channelIds.length
-      ? db.select({ id: cmsChannels.id, title: cmsChannels.name }).from(cmsChannels).where(inArray(cmsChannels.id, channelIds))
+      ? db.select({ id: cmsChannels.id, title: cmsChannels.name }).from(cmsChannels).where(and(eq(cmsChannels.siteId, siteId), inArray(cmsChannels.id, channelIds)))
       : [],
     friendLinkIds.length
-      ? db.select({ id: cmsFriendLinks.id, title: cmsFriendLinks.name }).from(cmsFriendLinks).where(inArray(cmsFriendLinks.id, friendLinkIds))
+      ? db.select({ id: cmsFriendLinks.id, title: cmsFriendLinks.name }).from(cmsFriendLinks).where(and(eq(cmsFriendLinks.siteId, siteId), inArray(cmsFriendLinks.id, friendLinkIds)))
       : [],
     adIds.length
-      ? db.select({ id: cmsAds.id, title: cmsAds.name }).from(cmsAds).where(inArray(cmsAds.id, adIds))
+      ? db.select({ id: cmsAds.id, title: cmsAds.name }).from(cmsAds)
+          .innerJoin(cmsAdSlots, eq(cmsAds.slotId, cmsAdSlots.id))
+          .where(and(eq(cmsAdSlots.siteId, siteId), inArray(cmsAds.id, adIds)))
       : [],
     pageIds.length
-      ? db.select({ id: cmsPages.id, title: cmsPages.name }).from(cmsPages).where(inArray(cmsPages.id, pageIds))
+      ? db.select({ id: cmsPages.id, title: cmsPages.name }).from(cmsPages).where(and(eq(cmsPages.siteId, siteId), inArray(cmsPages.id, pageIds)))
       : [],
     widgetIds.length
-      ? db.select({ id: cmsWidgets.id, title: cmsWidgets.name }).from(cmsWidgets).where(inArray(cmsWidgets.id, widgetIds))
+      ? db.select({ id: cmsWidgets.id, title: cmsWidgets.name }).from(cmsWidgets).where(and(eq(cmsWidgets.siteId, siteId), inArray(cmsWidgets.id, widgetIds)))
       : [],
     formIds.length
-      ? db.select({ id: cmsForms.id, title: cmsForms.name }).from(cmsForms).where(inArray(cmsForms.id, formIds))
+      ? db.select({ id: cmsForms.id, title: cmsForms.name }).from(cmsForms).where(and(eq(cmsForms.siteId, siteId), inArray(cmsForms.id, formIds)))
       : [],
   ]);
 

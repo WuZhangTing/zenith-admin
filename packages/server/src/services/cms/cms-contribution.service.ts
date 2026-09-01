@@ -40,6 +40,17 @@ function mapContribution(row: CmsContentRow, channelName?: string | null) {
   };
 }
 
+async function resolveContributionRows(rows: readonly CmsContentRow[]): Promise<(CmsContentRow & { coverThumb: string | null })[]> {
+  const resolved = new Array<CmsContentRow & { coverThumb: string | null }>(rows.length);
+  const groups = new Map<number, number[]>();
+  rows.forEach((row, index) => groups.set(row.siteId, [...(groups.get(row.siteId) ?? []), index]));
+  await Promise.all([...groups].map(async ([siteId, indexes]) => {
+    const values = await resolveCmsContentRows(indexes.map((index) => rows[index]), siteId);
+    indexes.forEach((index, offset) => { resolved[index] = values[offset]; });
+  }));
+  return resolved;
+}
+
 /** 可投稿站点（启用中）+ 其 list 型栏目 */
 export async function listContributableChannels() {
   const sites = await db.select({ id: cmsSites.id, name: cmsSites.name })
@@ -76,7 +87,7 @@ export async function listMyContributions(params: { page: number; pageSize: numb
       params.page, params.pageSize,
     ),
   ]);
-  const resolved = await resolveCmsContentRows(rows.map((r) => r.content));
+  const resolved = await resolveContributionRows(rows.map((r) => r.content));
   return {
     list: resolved.map((content, index) => mapContribution(content, rows[index].channelName)),
     total, page: params.page, pageSize: params.pageSize,
@@ -97,7 +108,7 @@ export async function getMyContribution(id: number) {
   const [channel] = await db.select({ name: cmsChannels.name }).from(cmsChannels).where(and(
     eq(cmsChannels.id, row.channelId),
   )).limit(1);
-  return mapContribution(await resolveCmsContentRow(row), channel?.name);
+  return mapContribution(await resolveCmsContentRow(row, row.siteId), channel?.name);
 }
 
 async function ensureContributableChannel(siteId: number, channelId: number) {
@@ -188,6 +199,6 @@ export async function deleteMyContribution(id: number) {
     const deleted = await tx.delete(cmsContents)
       .where(and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt)))
       .returning({ id: cmsContents.id });
-    await deleteCmsResourceRefsForOwner(tx, 'content', deleted.map((item) => item.id));
+    await deleteCmsResourceRefsForOwner(tx, 'content', deleted.map((item) => item.id), row.siteId);
   });
 }

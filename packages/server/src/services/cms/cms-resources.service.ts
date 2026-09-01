@@ -91,7 +91,7 @@ export async function listCmsResources(q: ListCmsResourcesQuery) {
       q.page, q.pageSize,
     ),
   ]);
-  const refCounts = await countCmsResourceRefs(rows.map((row) => row.resource.id));
+  const refCounts = await countCmsResourceRefs(rows.map((row) => row.resource.id), q.siteId);
   return {
     list: rows.map((row) => mapCmsResource(row.resource, row.folderName, refCounts.get(row.resource.id) ?? 0)),
     total,
@@ -178,7 +178,7 @@ export async function replaceCmsResource(id: number, file: File) {
     height: uploaded.height,
     mimeType: file.type || null,
   }).where(eq(cmsResources.id, id)).returning();
-  invalidateCmsResourceCache([id]);
+  invalidateCmsResourceCache(current.siteId, [id]);
   // 旧物理文件在素材行改指向后才删除，且仅当没有别的素材行还共用它
   if (current.fileId && current.fileId !== uploaded.fileId) {
     await deleteOrphanedManagedFile(current, [id]);
@@ -199,7 +199,7 @@ export function isCmsResourceOrphan(references: CmsResourceReference[]): boolean
 export async function listCmsResourceReferences(id: number): Promise<CmsResourceReference[]> {
   const res = await ensureResource(id);
   await assertAllCmsSiteChannelsAccess(res.siteId);
-  return listCmsResourceRefDetails(res.id);
+  return listCmsResourceRefDetails(res.id, res.siteId);
 }
 
 export async function moveCmsResources(ids: number[], folderId: number | null): Promise<number> {
@@ -229,10 +229,13 @@ export async function listCmsResourcesAfter(siteId: number, afterId: number, lim
 }
 
 export async function deleteCmsOrphanResource(row: CmsResourceRow): Promise<void> {
-  const refCount = await db.$count(cmsResourceRefs, eq(cmsResourceRefs.resourceId, row.id));
+  const refCount = await db.$count(cmsResourceRefs, and(
+    eq(cmsResourceRefs.resourceId, row.id),
+    eq(cmsResourceRefs.siteId, row.siteId),
+  ));
   if (refCount > 0) throw new HTTPException(409, { message: '素材已产生引用，无法治理删除' });
-  await db.delete(cmsResources).where(eq(cmsResources.id, row.id));
-  invalidateCmsResourceCache([row.id]);
+  await db.delete(cmsResources).where(and(eq(cmsResources.id, row.id), eq(cmsResources.siteId, row.siteId)));
+  invalidateCmsResourceCache(row.siteId, [row.id]);
   await deleteOrphanedManagedFile(row, []);
 }
 
@@ -244,13 +247,19 @@ export async function deleteCmsResources(ids: number[]): Promise<number> {
   for (const siteId of new Set(rows.map((r) => r.siteId))) {
     await assertSiteAccess(siteId);
   }
-  const refCounts = await countCmsResourceRefs(rows.map((row) => row.id));
+  const refCountsBySite = await Promise.all([...new Set(rows.map((row) => row.siteId))].map(async (siteId) => ({
+    siteId,
+    counts: await countCmsResourceRefs(rows.filter((row) => row.siteId === siteId).map((row) => row.id), siteId),
+  })));
+  const refCounts = new Map(refCountsBySite.flatMap(({ counts }) => [...counts.entries()]));
   const blocked = rows.find((row) => (refCounts.get(row.id) ?? 0) > 0);
   if (blocked) {
     throw new HTTPException(400, { message: `素材「${blocked.name}」仍被 ${refCounts.get(blocked.id)} 处引用，请先处理引用后再删除` });
   }
   await db.delete(cmsResources).where(inArray(cmsResources.id, ids));
-  invalidateCmsResourceCache(ids);
+  for (const siteId of new Set(rows.map((row) => row.siteId))) {
+    invalidateCmsResourceCache(siteId, rows.filter((row) => row.siteId === siteId).map((row) => row.id));
+  }
   for (const row of rows) {
     await deleteOrphanedManagedFile(row, []);
   }

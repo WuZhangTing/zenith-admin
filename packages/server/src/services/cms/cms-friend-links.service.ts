@@ -69,7 +69,7 @@ export async function listCmsFriendLinks(q: ListCmsFriendLinksQuery) {
     ),
   ]);
   return {
-    list: await resolveCmsResourcePayload(list.map((row) => mapCmsFriendLink(row.link, row.groupName))),
+    list: await resolveCmsResourcePayload(list.map((row) => mapCmsFriendLink(row.link, row.groupName)), q.siteId),
     total,
     page: q.page,
     pageSize: q.pageSize,
@@ -137,7 +137,7 @@ export async function createCmsFriendLink(data: CreateCmsFriendLinkInput) {
     await syncCmsResourceRefs(tx, 'friendLink', created.id, created.siteId, created);
     return created;
   });
-  return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)));
+  return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)), row.siteId);
 }
 
 export async function updateCmsFriendLink(id: number, data: UpdateCmsFriendLinkInput) {
@@ -154,7 +154,7 @@ export async function updateCmsFriendLink(id: number, data: UpdateCmsFriendLinkI
     await syncCmsResourceRefs(tx, 'friendLink', updated.id, updated.siteId, updated);
     return updated;
   });
-  return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)));
+  return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)), row.siteId);
 }
 
 export async function deleteCmsFriendLink(id: number) {
@@ -165,6 +165,6 @@ export async function deleteCmsFriendLink(id: number) {
       eq(cmsFriendLinks.id, id),
     )).returning();
     if (!row) throw new HTTPException(404, { message: '友情链接不存在' });
-    await deleteCmsResourceRefsForOwner(tx, 'friendLink', [row.id]);
+    await deleteCmsResourceRefsForOwner(tx, 'friendLink', [row.id], current.siteId);
   });
 }

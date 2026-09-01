@@ -285,10 +285,10 @@ export async function getCmsSite(id: number) {
     visible,
   );
   if (!mapped) throw new HTTPException(404, { message: '站点不存在' });
-  if (!mapped.modelId) return resolveCmsResourcePayload(mapped);
+  if (!mapped.modelId) return resolveCmsResourcePayload(mapped, mapped.id);
   const [model] = await db.select({ name: cmsModels.name }).from(cmsModels)
     .where(eq(cmsModels.id, mapped.modelId)).limit(1);
-  return resolveCmsResourcePayload({ ...mapped, modelName: model?.name ?? null });
+  return resolveCmsResourcePayload({ ...mapped, modelName: model?.name ?? null }, mapped.id);
 }
 
 // ─── 列表 ─────────────────────────────────────────────────────────────────────
@@ -327,7 +327,8 @@ export async function listCmsSites(q: ListCmsSitesQuery) {
     db.select().from(cmsSites),
     db.select().from(cmsSiteInheritances),
   ]);
-  return { list: await resolveCmsResourcePayload(mapCmsSiteRows(list, allRows, inheritanceRows, accessible)), total, page, pageSize };
+  const mapped = mapCmsSiteRows(list, allRows, inheritanceRows, accessible);
+  return { list: await Promise.all(mapped.map((row) => resolveCmsResourcePayload(row, row.id))), total, page, pageSize };
 }
 
 /** 全部启用站点（下拉选择/站点切换器用，绑定用户仅见授权站点） */
@@ -343,7 +344,8 @@ export async function listAllCmsSites() {
     db.select().from(cmsSites),
     db.select().from(cmsSiteInheritances),
   ]);
-  return mapCmsSiteRows(rows, allRows, inheritanceRows, accessible);
+  const mapped = mapCmsSiteRows(rows, allRows, inheritanceRows, accessible);
+  return Promise.all(mapped.map((row) => resolveCmsResourcePayload(row, row.id)));
 }
 
 export async function listCmsSiteTree(query: { keyword?: string; status?: 'enabled' | 'disabled' }) {

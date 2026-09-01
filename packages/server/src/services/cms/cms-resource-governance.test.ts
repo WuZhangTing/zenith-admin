@@ -142,4 +142,12 @@ describe('CMS resource governance', () => {
     const refs = await readFile(new URL('./cms-resource-refs.service.ts', import.meta.url), 'utf8');
     expect(refs).toContain('ownsFile: false');
   });
+
+  it('所有资源引用读取与写入都带站点边界', async () => {
+    const refs = await readFile(new URL('./cms-resource-refs.service.ts', import.meta.url), 'utf8');
+    expect(refs).toContain('eq(cmsResourceRefs.siteId, siteId)');
+    expect(refs).toContain('eq(cmsResources.siteId, siteId)');
+    expect(refs).toContain('素材句柄不属于当前站点');
+    expect(refs).toContain('resourceCacheKey(siteId, id)');
+  });
 });

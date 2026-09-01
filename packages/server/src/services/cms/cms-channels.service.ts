@@ -109,7 +109,7 @@ export async function getCmsChannel(id: number) {
     with: { model: { columns: { name: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '栏目不存在' });
-  return resolveCmsResourcePayload(mapCmsChannel(row, row.model?.name));
+  return resolveCmsResourcePayload(mapCmsChannel(row, row.model?.name), current.siteId);
 }
 
 // ─── 查询 ─────────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ export async function listCmsChannelTree(
     with: { model: { columns: { name: true } } },
     orderBy: [asc(cmsChannels.sort), asc(cmsChannels.id)],
   });
-  return resolveCmsResourcePayload(buildChannelTree(rows.map((r) => mapCmsChannel(r, r.model?.name))));
+  return resolveCmsResourcePayload(buildChannelTree(rows.map((r) => mapCmsChannel(r, r.model?.name))), q.siteId);
 }
 
 /** 校验 modelId 有效性（含站群可见性：专属模型仅归属站点可绑定） */
@@ -377,7 +377,7 @@ export async function deleteCmsChannel(id: number) {
     const site = await lockCmsSiteForMutation(tx, current.siteId);
     await assertCmsWidgetSourcesMutable('channel', [id], tx);
     await tx.delete(cmsChannels).where(eq(cmsChannels.id, id));
-    await deleteCmsResourceRefsForOwner(tx, 'channel', [id]);
+    await deleteCmsResourceRefsForOwner(tx, 'channel', [id], current.siteId);
     const revision = await bumpCmsTemplateRefsRevision(tx, current.siteId);
     const task = await insertCmsSiteRefsRebuildOutbox(
       tx,
@@ -479,7 +479,7 @@ export async function mergeCmsChannels(sourceIds: number[], targetId: number): P
     await tx.delete(cmsChannels).where(and(
       inArray(cmsChannels.id, uniqueSources),
     ));
-    await deleteCmsResourceRefsForOwner(tx, 'channel', uniqueSources);
+    await deleteCmsResourceRefsForOwner(tx, 'channel', uniqueSources, target.siteId);
     const revision = await bumpCmsTemplateRefsRevision(tx, target.siteId);
     const task = await insertCmsSiteRefsRebuildOutbox(
       tx,
