@@ -108,6 +108,13 @@
   时间列不承载副文案与装饰：图标 / 等宽字体一律去掉，「清理 N 行」这类附加信息拆成独立列。
   只有时间**区间**（一格渲染起止两个值）与真正的复合列可保留自定义 `render`，
   此时 `width` 也必须取 `DATE_TIME_COLUMN_WIDTH`
+- **可复制列**：列值需要一键复制时一律用 `utils/table-columns` 的
+  `copyableNoColumn(title, dataIndex, options?)`（省略 tooltip + 恒定复制按钮 + 空值 `—` 已内建），
+  **禁止**在列 `render` 里手写 `<Typography.Text copyable …>` 或自拼「文本 + 复制按钮」，
+  也**禁止**在同一个 `Typography.Text` 上同时挂 `ellipsis` 与 `copyable`（Semi 合并测量会误截断）。
+  仅以下场景保留自定义 `render`：展示值与复制值不同（打码密钥、短链只展示 code）、
+  值需运行时拼接派生而非 `dataIndex` 直读、复制之外还有其他按钮的复合单元格，
+  以及非 Semi Table 的原生表格。详情面板 / 弹窗内的 `Descriptions` / `Paragraph` 复制不是列，不适用本条
 - **空值占位统一**：用 `utils/table-columns` 的 `EMPTY_PLACEHOLDER`（`—`），**禁止**混用 `-` / `–`
 - **树形表格展开控制**：用 `children` 渲染树形表格时必须在搜索栏加「全部展开 / 全部折叠」按钮，
   展开态一律用 `hooks/useTreeExpansion.ts`（受控 `expandedRowKeys` + `onExpandedRowsChange` 由它提供）；
