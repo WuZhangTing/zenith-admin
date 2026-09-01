@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrayField, Banner, Button, Form, SideSheet, Spin, Table, Tabs, TabPane, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
+import { ArrayField, Banner, Button, Col, Form, Row, SideSheet, Spin, Table, Tabs, TabPane, Tag, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Download, Plus, Upload } from 'lucide-react';
 import AppModal from '@/components/AppModal';
@@ -437,30 +437,52 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
       </Spin>
 
       {/* 属性编辑弹窗 */}
-      <AppModal {...propertyModal.modalProps} width={560}>
+      <AppModal {...propertyModal.modalProps} width={800}>
         <Form key={dataTypeFormKey} {...propertyModal.formProps}>
           {({ formState }) => (
             <>
-              <Form.Input field="identifier" label="标识符" placeholder="如 temperature"
-                disabled={propertyModal.isEdit}
-                extraText={propertyModal.isEdit ? '标识符一经声明不可变更' : '字母开头，仅字母/数字/下划线'}
-                rules={propertyModal.isEdit ? [] : [
-                  { required: true, message: '标识符不能为空' },
-                  { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '需以字母开头，仅支持字母、数字、下划线' },
-                ]} />
-              <Form.Input field="name" label="名称" placeholder="如 温度"
-                rules={[{ required: true, message: '名称不能为空' }]} />
-              <Form.Select field="dataType" label="数据类型" optionList={IOT_PROPERTY_TYPE_OPTIONS} style={{ width: 200 }} />
-              <Form.RadioGroup field="accessMode" label="读写模式">
-                {IOT_ACCESS_MODE_OPTIONS.map((o) => (
-                  <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
-                ))}
-              </Form.RadioGroup>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Input field="identifier" label="标识符" placeholder="如 temperature"
+                    disabled={propertyModal.isEdit}
+                    extraText={propertyModal.isEdit ? '标识符一经声明不可变更' : '字母开头，仅字母/数字/下划线'}
+                    rules={propertyModal.isEdit ? [] : [
+                      { required: true, message: '标识符不能为空' },
+                      { pattern: /^[a-zA-Z][a-zA-Z0-9_]*$/, message: '需以字母开头，仅支持字母、数字、下划线' },
+                    ]} />
+                </Col>
+                <Col span={12}>
+                  <Form.Input field="name" label="名称" placeholder="如 温度"
+                    rules={[{ required: true, message: '名称不能为空' }]} />
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Select field="dataType" label="数据类型" optionList={IOT_PROPERTY_TYPE_OPTIONS} style={{ width: '100%' }} />
+                </Col>
+                <Col span={12}>
+                  <Form.RadioGroup field="accessMode" label="读写模式">
+                    {IOT_ACCESS_MODE_OPTIONS.map((o) => (
+                      <Form.Radio key={o.value} value={o.value}>{o.label}</Form.Radio>
+                    ))}
+                  </Form.RadioGroup>
+                </Col>
+              </Row>
               {formState.values?.dataType === 'number' && (
                 <>
-                  <Form.Input field="unit" label="单位" placeholder="如 ℃" style={{ width: 120 }} />
-                  <Form.InputNumber field="minValue" label="量程下限" hideButtons style={{ width: 160 }} />
-                  <Form.InputNumber field="maxValue" label="量程上限" hideButtons style={{ width: 160 }} />
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.InputNumber field="minValue" label="量程下限" hideButtons style={{ width: '100%' }} />
+                    </Col>
+                    <Col span={12}>
+                      <Form.InputNumber field="maxValue" label="量程上限" hideButtons style={{ width: '100%' }} />
+                    </Col>
+                  </Row>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Input field="unit" label="单位" placeholder="如 ℃" />
+                    </Col>
+                  </Row>
                 </>
               )}
               {formState.values?.dataType === 'enum' && (
@@ -468,13 +490,19 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
                   placeholder={'每行一个：值=显示名\n如：\nopen=开启\nclosed=关闭'}
                   rules={[{ required: true, message: '枚举类型必须提供取值映射' }]} />
               )}
-              <Form.Switch field="featured" label="关键属性" checkedText="是" uncheckedText="否"
-                extraText="设备列表快照列与遥测图表默认展示" />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Switch field="featured" label="关键属性" checkedText="是" uncheckedText="否"
+                    extraText="设备列表快照列与遥测图表默认展示" />
+                </Col>
+                <Col span={12}>
+                  <Form.InputNumber field="sort" label="排序" min={0} style={{ width: '100%' }} />
+                </Col>
+              </Row>
               {formState.values?.dataType === 'number' && (
                 <Form.Switch field="anomalyEnabled" label="异常检测" checkedText="开" uncheckedText="关"
                   extraText="按近 7 天小时聚合基线做 3σ 偏离判定，异常记入设备事件流" />
               )}
-              <Form.InputNumber field="sort" label="排序" min={0} style={{ width: 120 }} />
               <Form.Input field="description" label="描述" placeholder="选填" />
             </>
           )}
