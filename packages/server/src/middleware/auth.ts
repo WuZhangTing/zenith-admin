@@ -4,11 +4,12 @@ import { jwt, type JwtVariables } from 'hono/jwt';
 import { isTokenBlacklisted, touchSession, registerSession } from '../lib/session-manager';
 import { getClientIp, parseUserAgent } from '../lib/request-helpers';
 import { db } from '../db';
-import { userApiTokens, users } from '../db/schema';
+import { tenants, userApiTokens, users } from '../db/schema';
 import { and, eq, gt, isNull, lt, or } from 'drizzle-orm';
 import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
 import logger from '../lib/logger';
+import { isSuperAdmin } from '../lib/permissions';
 
 export interface JwtPayload {
   userId: number;
@@ -38,6 +39,71 @@ const jwtMiddleware = jwt({
 
 const API_TOKEN_PREFIX = 'zat_';
 const API_TOKEN_LAST_USED_THROTTLE_MS = 5 * 60_000;
+
+type AdminJwtCheck =
+  | { ok: true; payload: JwtPayload }
+  | { ok: false; status: 401 | 403; message: string };
+
+/**
+ * JWT signature verification is not enough for a long-lived access token:
+ * users and tenants can be disabled after issuance.  Re-read the authoritative
+ * rows on every request and reject stale tenant claims before setting `user`.
+ */
+async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJwtCheck> {
+  if (!Number.isInteger(payload.userId) || payload.userId <= 0) {
+    return { ok: false, status: 401, message: '无效的访问令牌' };
+  }
+  const [row] = await db.select({
+    username: users.username,
+    status: users.status,
+    tenantId: users.tenantId,
+    tenantStatus: tenants.status,
+    tenantExpireAt: tenants.expireAt,
+  })
+    .from(users)
+    .leftJoin(tenants, eq(users.tenantId, tenants.id))
+    .where(eq(users.id, payload.userId))
+    .limit(1);
+  if (!row) return { ok: false, status: 401, message: '用户不存在' };
+  if (row.status !== 'enabled') return { ok: false, status: 403, message: '账号已被禁用' };
+
+  const dbTenantId = row.tenantId ?? null;
+  if ((payload.tenantId ?? null) !== dbTenantId) {
+    return { ok: false, status: 401, message: '登录状态已失效，请重新登录' };
+  }
+  if (dbTenantId !== null && (
+    row.tenantStatus !== 'enabled'
+    || (row.tenantExpireAt != null && row.tenantExpireAt <= new Date())
+  )) {
+    return { ok: false, status: 403, message: '租户已被禁用或过期' };
+  }
+
+  // A platform administrator may carry a temporary viewing tenant claim.  It
+  // must be live as well; otherwise an old switched-tenant token survives a
+  // tenant suspension even though the platform account itself is active.
+  if (payload.viewingTenantId != null) {
+    if (!isSuperAdmin(payload) || dbTenantId !== null || !Number.isInteger(payload.viewingTenantId) || payload.viewingTenantId <= 0) {
+      return { ok: false, status: 401, message: '登录状态已失效，请重新登录' };
+    }
+    const [viewingTenant] = await db.select({ status: tenants.status, expireAt: tenants.expireAt })
+      .from(tenants)
+      .where(eq(tenants.id, payload.viewingTenantId))
+      .limit(1);
+    if (!viewingTenant) return { ok: false, status: 403, message: '租户不存在' };
+    if (viewingTenant.status !== 'enabled' || (viewingTenant.expireAt != null && viewingTenant.expireAt <= new Date())) {
+      return { ok: false, status: 403, message: '租户已被禁用或过期' };
+    }
+  }
+
+  return {
+    ok: true,
+    payload: {
+      ...payload,
+      username: row.username,
+      tenantId: dbTenantId,
+    },
+  };
+}
 
 async function authenticateApiToken(rawToken: string): Promise<JwtPayload | null> {
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
@@ -86,7 +152,7 @@ async function authenticateApiToken(rawToken: string): Promise<JwtPayload | null
     if (
       !row.user.tenant
       || row.user.tenant.status !== 'enabled'
-      || (row.user.tenant.expireAt && row.user.tenant.expireAt < new Date())
+      || (row.user.tenant.expireAt && row.user.tenant.expireAt <= new Date())
     ) {
       return null;
     }
@@ -136,9 +202,13 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
     const payload = c.get('jwtPayload') as JwtPayload;
 
     // 安全隔离：拒绝会员 token 访问管理端接口（会员 token 带 type='member'）
-    if ((payload as { type?: string }).type === 'member') {
+    const tokenType = (payload as { type?: string }).type;
+    if (tokenType === 'member' || tokenType === 'refresh' || !Array.isArray(payload.roles)) {
       return c.json(errBody('无效的访问令牌', 401), 401);
     }
+
+    const subject = await checkAdminJwtSubject(payload);
+    if (!subject.ok) return c.json(errBody(subject.message, subject.status), subject.status);
 
     // Blacklist check + session touch are independent Redis ops — run in parallel
     // (each best-effort: Redis errors log a warning and never block the request)
@@ -164,14 +234,14 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
           const ip = getClientIp(c);
           const ua = c.req.header('user-agent') ?? '';
           const { browser, os } = parseUserAgent(ua);
-          const [u] = await db.select({ nickname: users.nickname }).from(users).where(eq(users.id, payload.userId)).limit(1);
+          const [u] = await db.select({ nickname: users.nickname }).from(users).where(eq(users.id, subject.payload.userId)).limit(1);
           if (u) {
             registerSession({
               tokenId: jti,
-              userId: payload.userId,
-              username: payload.username,
+              userId: subject.payload.userId,
+              username: subject.payload.username,
               nickname: u.nickname,
-              tenantId: payload.tenantId ?? null,
+              tenantId: subject.payload.tenantId ?? null,
               ip,
               browser,
               os,
@@ -185,7 +255,7 @@ export const authMiddleware = createMiddleware<AuthEnv>(async (c, next) => {
       }
     }
 
-    c.set('user', payload);
+    c.set('user', subject.payload);
     await next();
   } catch (err) {
     logger.warn('[Auth] JWT verification failed:', err);

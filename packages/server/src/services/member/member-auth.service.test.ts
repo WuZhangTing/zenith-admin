@@ -308,6 +308,37 @@ describe('refreshMemberToken', () => {
     await expect(refreshMemberToken(refreshToken)).rejects.toMatchObject({ status: 403 });
   });
 
+  it('会员所在租户被禁用 → 403，旧 refresh token 不能续签', async () => {
+    const { refreshToken } = await issueMemberTokens({ id: 1, identifier: 'alice', tenantId: 7 });
+    dbMock.select
+      .mockReturnValueOnce(createChain([makeMember({ tenantId: 7 })]))
+      .mockReturnValueOnce(createChain([{ status: 'disabled', expireAt: null }]));
+    await expect(refreshMemberToken(refreshToken)).rejects.toMatchObject({
+      status: 403,
+      message: '租户已被禁用或过期',
+    });
+  });
+
+  it('会员 refresh 的租户声明漂移 → 401', async () => {
+    const { refreshToken } = await issueMemberTokens({ id: 1, identifier: 'alice', tenantId: null });
+    dbMock.select.mockReturnValueOnce(createChain([makeMember({ tenantId: 7 })]));
+    await expect(refreshMemberToken(refreshToken)).rejects.toMatchObject({
+      status: 401,
+      message: '登录状态已失效，请重新登录',
+    });
+  });
+
+  it('会员租户已过期 → 403，旧 refresh token 不能续签', async () => {
+    const { refreshToken } = await issueMemberTokens({ id: 1, identifier: 'alice', tenantId: 7 });
+    dbMock.select
+      .mockReturnValueOnce(createChain([makeMember({ tenantId: 7 })]))
+      .mockReturnValueOnce(createChain([{ status: 'enabled', expireAt: new Date(Date.now() - 1000) }]));
+    await expect(refreshMemberToken(refreshToken)).rejects.toMatchObject({
+      status: 403,
+      message: '租户已被禁用或过期',
+    });
+  });
+
   it('合法 refresh → 签发新 access token（type=member，继承 jti）', async () => {
     const { refreshToken } = await issueMemberTokens({ id: 1, identifier: 'alice' });
     dbMock.select.mockReturnValueOnce(createChain([makeMember()]));

@@ -6,11 +6,11 @@
  */
 import { createMiddleware } from 'hono/factory';
 import { jwt, type JwtVariables } from 'hono/jwt';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { isMemberTokenBlacklisted, touchMemberSession, registerMemberSession } from '../lib/member-session-manager';
 import { getClientIp, parseUserAgent } from '../lib/request-helpers';
 import { db } from '../db';
-import { members } from '../db/schema';
+import { members, tenants } from '../db/schema';
 import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
 import logger from '../lib/logger';
@@ -37,6 +37,52 @@ const jwtMiddleware = jwt({
   alg: 'HS256',
 });
 
+type MemberJwtCheck =
+  | { ok: true; payload: MemberJwtPayload; nickname: string }
+  | { ok: false; status: 401 | 403; message: string };
+
+/** Re-check the member and its tenant on every request; JWT claims are staleable. */
+async function checkMemberJwtSubject(payload: MemberJwtPayload): Promise<MemberJwtCheck> {
+  if (!Number.isInteger(payload.memberId) || payload.memberId <= 0) {
+    return { ok: false, status: 401, message: '无效的会员令牌' };
+  }
+  const [row] = await db.select({
+    id: members.id,
+    nickname: members.nickname,
+    phone: members.phone,
+    username: members.username,
+    email: members.email,
+    status: members.status,
+    tenantId: members.tenantId,
+    tenantStatus: tenants.status,
+    tenantExpireAt: tenants.expireAt,
+  })
+    .from(members)
+    .leftJoin(tenants, eq(members.tenantId, tenants.id))
+    .where(and(eq(members.id, payload.memberId), isNull(members.deletedAt)))
+    .limit(1);
+  if (!row) return { ok: false, status: 401, message: '会员不存在' };
+  if (row.status !== 'active') return { ok: false, status: 403, message: '账号不可用' };
+
+  const dbTenantId = row.tenantId ?? null;
+  if ((payload.tenantId ?? null) !== dbTenantId) {
+    return { ok: false, status: 401, message: '登录状态已失效，请重新登录' };
+  }
+  if (dbTenantId !== null && (
+    row.tenantStatus !== 'enabled'
+    || (row.tenantExpireAt != null && row.tenantExpireAt <= new Date())
+  )) {
+    return { ok: false, status: 403, message: '租户已被禁用或过期' };
+  }
+
+  const identifier = row.phone || row.username || row.email || `member-${row.id}`;
+  return {
+    ok: true,
+    nickname: row.nickname,
+    payload: { ...payload, identifier, tenantId: dbTenantId },
+  };
+}
+
 export const memberAuthMiddleware = createMiddleware<MemberAuthEnv>(async (c, next) => {
   const authorization = c.req.header('Authorization');
   if (!authorization?.startsWith('Bearer ')) {
@@ -51,6 +97,9 @@ export const memberAuthMiddleware = createMiddleware<MemberAuthEnv>(async (c, ne
     if (payload.type !== 'member' || !payload.memberId) {
       return c.json(errBody('无效的会员令牌', 401), 401);
     }
+
+    const subject = await checkMemberJwtSubject(payload);
+    if (!subject.ok) return c.json(errBody(subject.message, subject.status), subject.status);
 
     // 黑名单检查与会话续期相互独立——并行执行（均 best-effort，Redis 故障不阻断请求）
     if (payload.jti) {
@@ -74,14 +123,13 @@ export const memberAuthMiddleware = createMiddleware<MemberAuthEnv>(async (c, ne
           const ip = getClientIp(c);
           const ua = c.req.header('user-agent') ?? '';
           const { browser, os } = parseUserAgent(ua);
-          const [m] = await db.select({ nickname: members.nickname }).from(members).where(eq(members.id, payload.memberId)).limit(1);
-          if (m) {
+          if (subject.nickname) {
             registerMemberSession({
               tokenId: jti,
-              memberId: payload.memberId,
-              identifier: payload.identifier,
-              nickname: m.nickname,
-              tenantId: payload.tenantId ?? null,
+              memberId: subject.payload.memberId,
+              identifier: subject.payload.identifier,
+              nickname: subject.nickname,
+              tenantId: subject.payload.tenantId ?? null,
               ip,
               browser,
               os,
@@ -95,7 +143,7 @@ export const memberAuthMiddleware = createMiddleware<MemberAuthEnv>(async (c, ne
       }
     }
 
-    c.set('member', payload);
+    c.set('member', subject.payload);
     await next();
   } catch (err) {
     logger.warn('[MemberAuth] JWT verification failed:', err);

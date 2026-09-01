@@ -9,7 +9,7 @@ import { hashPassword, verifyPassword } from '../../lib/password';
 import { and, asc, eq, isNull, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { members, memberLevels, memberPointAccounts, memberWallets, memberLoginLogs } from '../../db/schema';
+import { members, memberLevels, memberPointAccounts, memberWallets, memberLoginLogs, tenants } from '../../db/schema';
 import type { MemberRow } from '../../db/schema';
 import { signToken, verifyToken } from '../../lib/jwt';
 import {
@@ -355,7 +355,7 @@ interface MemberRefreshPayload {
   memberId: number;
   identifier: string;
   type: string;
-  tenantId: number | null;
+  tenantId?: number | null;
   jti?: string;
 }
 
@@ -366,20 +366,34 @@ export async function refreshMemberToken(refreshToken: string): Promise<{ access
   } catch {
     throw new HTTPException(401, { message: '无效的刷新令牌' });
   }
-  if (payload.type !== 'member-refresh' || !payload.memberId) {
+  if (payload.type !== 'member-refresh' || !Number.isInteger(payload.memberId) || payload.memberId <= 0) {
     throw new HTTPException(401, { message: '无效的刷新令牌' });
   }
   const [member] = await db.select().from(members)
     .where(and(eq(members.id, payload.memberId), isNull(members.deletedAt))).limit(1);
   if (!member) throw new HTTPException(401, { message: '会员不存在' });
   if (member.status !== 'active') throw new HTTPException(403, { message: '账号不可用' });
+  const dbTenantId = member.tenantId ?? null;
+  if ((payload.tenantId ?? null) !== dbTenantId) {
+    throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
+  }
+  if (dbTenantId !== null) {
+    const [tenant] = await db.select({ status: tenants.status, expireAt: tenants.expireAt })
+      .from(tenants)
+      .where(eq(tenants.id, dbTenantId))
+      .limit(1);
+    if (!tenant) throw new HTTPException(403, { message: '租户不存在' });
+    if (tenant.status !== 'enabled' || (tenant.expireAt != null && tenant.expireAt <= new Date())) {
+      throw new HTTPException(403, { message: '租户已被禁用或过期' });
+    }
+  }
 
   const accessToken = await signToken<MemberJwtPayload>(
     {
       memberId: member.id,
       identifier: memberIdentifier(member),
       type: 'member',
-      tenantId: member.tenantId ?? null,
+      tenantId: dbTenantId,
       jti: payload.jti,
     },
     '2h',

@@ -349,25 +349,58 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
   } catch {
     throw new HTTPException(401, { message: 'refresh token 已过期' });
   }
-  if (payload.type !== 'refresh') throw new HTTPException(401, { message: '无效的 refresh token' });
-  const [u] = await db.select({ status: users.status, nickname: users.nickname }).from(users).where(eq(users.id, payload.userId)).limit(1);
+  if (payload.type !== 'refresh' || !Number.isInteger(payload.userId) || payload.userId <= 0) {
+    throw new HTTPException(401, { message: '无效的 refresh token' });
+  }
+  const [u] = await db.select({
+    status: users.status,
+    nickname: users.nickname,
+    username: users.username,
+    tenantId: users.tenantId,
+    tenantStatus: tenants.status,
+    tenantExpireAt: tenants.expireAt,
+  })
+    .from(users)
+    .leftJoin(tenants, eq(users.tenantId, tenants.id))
+    .where(eq(users.id, payload.userId))
+    .limit(1);
   if (!u) throw new HTTPException(401, { message: '用户不存在' });
-  if (u.status === 'disabled') throw new HTTPException(403, { message: '账号已被禁用' });
-  // 租户被禁用/过期后，refresh 必须同步失效（登录时已校验，此处补齐 30 天续命漏洞）
-  if (config.multiTenantMode && payload.tenantId != null) {
-    const [tenant] = await db.select({ status: tenants.status, expireAt: tenants.expireAt }).from(tenants).where(eq(tenants.id, payload.tenantId)).limit(1);
-    if (!tenant) throw new HTTPException(403, { message: '租户不存在' });
-    if (tenant.status === 'disabled') throw new HTTPException(403, { message: '租户已被禁用' });
-    if (tenant.expireAt && tenant.expireAt < new Date()) throw new HTTPException(403, { message: '租户已过期' });
+  if (u.status !== 'enabled') throw new HTTPException(403, { message: '账号已被禁用' });
+  const dbTenantId = u.tenantId ?? null;
+  if ((payload.tenantId ?? null) !== dbTenantId) {
+    throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
+  }
+  // 租户被禁用/过期后，refresh 必须同步失效（不受 multiTenantMode 开关影响）。
+  if (dbTenantId !== null && (
+    u.tenantStatus !== 'enabled'
+    || (u.tenantExpireAt != null && u.tenantExpireAt <= new Date())
+  )) {
+    throw new HTTPException(403, { message: '租户已被禁用或过期' });
+  }
+  const userRoleList = await getUserRoles(payload.userId);
+  if (payload.viewingTenantId != null) {
+    if (!isSuperAdmin({
+      roles: userRoleList.filter((role) => role.status === 'enabled').map((role) => role.code),
+      tenantId: dbTenantId,
+    }) || dbTenantId !== null || !Number.isInteger(payload.viewingTenantId) || payload.viewingTenantId <= 0) {
+      throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
+    }
+    const [viewingTenant] = await db.select({ status: tenants.status, expireAt: tenants.expireAt })
+      .from(tenants)
+      .where(eq(tenants.id, payload.viewingTenantId))
+      .limit(1);
+    if (!viewingTenant) throw new HTTPException(403, { message: '租户不存在' });
+    if (viewingTenant.status !== 'enabled' || (viewingTenant.expireAt != null && viewingTenant.expireAt <= new Date())) {
+      throw new HTTPException(403, { message: '租户已被禁用或过期' });
+    }
   }
   const tokenId = payload.jti ?? generateTokenId();
-  const userRoleList = await getUserRoles(payload.userId);
   const accessToken = await signToken<JwtPayload>(
     {
       userId: payload.userId,
-      username: payload.username,
+      username: u.username,
       roles: userRoleList.map((r) => r.code),
-      tenantId: payload.tenantId ?? null,
+      tenantId: dbTenantId,
       ...(payload.viewingTenantId !== undefined ? { viewingTenantId: payload.viewingTenantId } : {}),
       jti: tokenId,
     },
@@ -380,9 +413,9 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
     await registerSession({
       tokenId,
       userId: payload.userId,
-      username: payload.username,
+      username: u.username,
       nickname: u.nickname,
-      tenantId: payload.tenantId ?? null,
+      tenantId: dbTenantId,
       ip: clientInfo.ip,
       location: lookupIpLocation(clientInfo.ip),
       browser,
@@ -625,6 +658,8 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
   if (targetTenantId !== null) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, targetTenantId)).limit(1);
     if (!tenant) throw new HTTPException(404, { message: '租户不存在' });
+    if (tenant.status !== 'enabled') throw new HTTPException(403, { message: '租户已被禁用' });
+    if (tenant.expireAt && tenant.expireAt <= new Date()) throw new HTTPException(403, { message: '租户已过期' });
   }
   const tokenId = generateTokenId();
   const newAccessToken = await signToken<JwtPayload>(

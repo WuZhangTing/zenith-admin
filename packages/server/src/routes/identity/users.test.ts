@@ -122,6 +122,29 @@ import usersRoutes from './users';
 const dbMock = vi.mocked(db);
 
 // ─── 工具 ─────────────────────────────────────────────────────────────────────
+// authMiddleware performs a live user/tenant lookup before dispatching a route.
+// Keep a tiny thenable chain so these route tests can focus on users APIs.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createChain(result: unknown[]): any {
+  const chain: Record<string, unknown> = {};
+  for (const method of ['from', 'leftJoin', 'where', 'limit', 'offset', 'orderBy', 'returning', 'set', 'values']) {
+    chain[method] = vi.fn(() => chain);
+  }
+  chain.then = (resolve: (value: unknown) => unknown, reject?: (error: unknown) => unknown) => Promise.resolve(result).then(resolve, reject);
+  return chain;
+}
+
+function activeAdminSubject() {
+  return {
+    id: 1,
+    username: 'admin',
+    status: 'enabled',
+    tenantId: null,
+    tenantStatus: null,
+    tenantExpireAt: null,
+  };
+}
+
 async function makeToken(payload: object = {}) {
   const now = Math.floor(Date.now() / 1000);
   return sign(
@@ -141,6 +164,7 @@ function buildApp() {
 // ─── Setup ───────────────────────────────────────────────────────────────────
 beforeEach(() => {
   vi.clearAllMocks();
+  dbMock.select.mockReturnValue(createChain([activeAdminSubject()]));
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

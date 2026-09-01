@@ -41,6 +41,33 @@ vi.mock('../lib/logger', () => ({
 }));
 
 import { memberAuthMiddleware } from './member-auth';
+import { db } from '../db';
+
+const dbMock = vi.mocked(db);
+
+// Minimal thenable Drizzle chain used by the live member/tenant lookup.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function createChain(result: unknown[]): any {
+  const chain: Record<string, unknown> = {};
+  for (const method of ['from', 'leftJoin', 'where', 'limit']) chain[method] = vi.fn(() => chain);
+  chain.then = (resolve: (value: unknown) => unknown, reject?: (error: unknown) => unknown) => Promise.resolve(result).then(resolve, reject);
+  return chain;
+}
+
+function activeMemberRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    nickname: 'Alice',
+    phone: '13800138000',
+    username: 'alice',
+    email: null,
+    status: 'active',
+    tenantId: null,
+    tenantStatus: null,
+    tenantExpireAt: null,
+    ...overrides,
+  };
+}
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -72,6 +99,7 @@ function buildApp() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  dbMock.select.mockReturnValue(createChain([activeMemberRow()]));
 });
 
 describe('memberAuthMiddleware - token 隔离（安全关键）', () => {
@@ -86,6 +114,50 @@ describe('memberAuthMiddleware - token 隔离（安全关键）', () => {
     const res = await buildApp().request('/protected', { headers: { Authorization: `Bearer ${token}` } });
     expect(res.status).toBe(200);
     expect((await res.json()).data.memberId).toBe(1);
+  });
+
+  it('会员已被封禁 → 403，旧 access token 立即失效', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeMemberRow({ status: 'banned' })]));
+    const token = await makeMemberToken();
+    const res = await buildApp().request('/protected', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toBe('账号不可用');
+  });
+
+  it('会员已删除/不存在 → 401，旧 access token 立即失效', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([]));
+    const token = await makeMemberToken();
+    const res = await buildApp().request('/protected', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toBe('会员不存在');
+  });
+
+  it('会员租户被禁用 → 403，旧 access token 立即失效', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeMemberRow({ tenantId: 7, tenantStatus: 'disabled' })]));
+    const token = await makeMemberToken({ tenantId: 7 });
+    const res = await buildApp().request('/protected', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toBe('租户已被禁用或过期');
+  });
+
+  it('会员租户已过期 → 403，旧 access token 立即失效', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeMemberRow({
+      tenantId: 7,
+      tenantStatus: 'enabled',
+      tenantExpireAt: new Date(Date.now() - 1000),
+    })]));
+    const token = await makeMemberToken({ tenantId: 7 });
+    const res = await buildApp().request('/protected', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toBe('租户已被禁用或过期');
+  });
+
+  it('会员租户声明与数据库不一致 → 401', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeMemberRow({ tenantId: 7, tenantStatus: 'enabled' })]));
+    const token = await makeMemberToken({ tenantId: null });
+    const res = await buildApp().request('/protected', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toBe('登录状态已失效，请重新登录');
   });
 
   it('管理员 token（无 type=member）→ 401 无效的会员令牌（杜绝越权）', async () => {

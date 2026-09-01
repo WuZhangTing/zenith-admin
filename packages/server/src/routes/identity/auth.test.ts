@@ -8,7 +8,7 @@
  *  4. POST /api/auth/login    — 用户名/密码类型错误 → 400
  *  5. GET  /api/auth/me       — 无 Authorization → 401
  *  6. GET  /api/auth/me       — 无效 JWT → 401
- *  7. GET  /api/auth/me       — 有效 JWT + 用户不存在 → 404
+ *  7. GET  /api/auth/me       — 有效 JWT + 用户不存在 → 401（中间件实时校验）
  *  8. GET  /api/auth/me       — 有效 JWT + 用户存在 → 200
  *
  * Mock 策略：
@@ -124,6 +124,7 @@ vi.mock('../../lib/permissions', () => ({
 // ─── Imports（在 mock 声明之后） ──────────────────────────────────────────────
 import { db } from '../../db';
 import authRoutes from './auth';
+import { refreshAccessToken } from '../../services/identity/auth.service';
 
 const dbMock = vi.mocked(db);
 
@@ -140,6 +141,18 @@ function createChain(result: unknown[]): any {
   chain.catch = (fn: (e: unknown) => unknown) => Promise.resolve(result).catch(fn);
   chain.finally = (fn: () => void) => Promise.resolve(result).finally(fn);
   return chain;
+}
+
+function activeAdminSubject(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    username: 'admin',
+    status: 'enabled',
+    tenantId: null,
+    tenantStatus: null,
+    tenantExpireAt: null,
+    ...overrides,
+  };
 }
 
 // ─── 工具：生成测试用 JWT ──────────────────────────────────────────────────────
@@ -171,6 +184,8 @@ function buildApp() {
 // ─── Setup ───────────────────────────────────────────────────────────────────
 beforeEach(() => {
   vi.clearAllMocks();
+  // authMiddleware now performs a live user/tenant lookup for every JWT.
+  dbMock.select.mockReturnValue(createChain([activeAdminSubject()]));
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -267,8 +282,45 @@ describe('GET /api/auth/me - 认证中间件', () => {
     });
     const body = await res.json();
 
-    expect(res.status).toBe(404);
-    expect(body.code).toBe(404);
+    expect(res.status).toBe(401);
+    expect(body.code).toBe(401);
+    expect(body.message).toBe('用户不存在');
+  });
+
+  it('用户被禁用 → 403，旧 access token 立即失效', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ status: 'disabled' })]));
+    const token = await makeToken();
+    const res = await buildApp().request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toBe('账号已被禁用');
+  });
+
+  it('租户被禁用 → 403，旧 access token 立即失效', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ tenantId: 9, tenantStatus: 'disabled' })]));
+    const token = await makeToken({ tenantId: 9 });
+    const res = await buildApp().request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toBe('租户已被禁用或过期');
+  });
+
+  it('租户已过期 → 403，旧 access token 立即失效', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({
+      tenantId: 9,
+      tenantStatus: 'enabled',
+      tenantExpireAt: new Date(Date.now() - 1000),
+    })]));
+    const token = await makeToken({ tenantId: 9 });
+    const res = await buildApp().request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toBe('租户已被禁用或过期');
+  });
+
+  it('JWT 租户声明漂移 → 401', async () => {
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ tenantId: 9, tenantStatus: 'enabled' })]));
+    const token = await makeToken({ tenantId: null });
+    const res = await buildApp().request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toBe('登录状态已失效，请重新登录');
   });
 
   it('有效 JWT + 用户存在 → 200 返回用户信息', async () => {
@@ -302,7 +354,9 @@ describe('GET /api/auth/me - 认证中间件', () => {
       department: null,
     });
     // getMyProfile 末尾查询最近登录日志（db.select），返回空数组即可（prevLogin = null）
-    dbMock.select.mockReturnValueOnce(createChain([]));
+    dbMock.select
+      .mockReturnValueOnce(createChain([activeAdminSubject()]))
+      .mockReturnValueOnce(createChain([]));
 
     const app = buildApp();
     const res = await app.request('/api/auth/me', {
@@ -383,5 +437,35 @@ describe('POST /api/auth/logout-by-refresh - 账号切换器注销停靠账号',
     expect(body.code).toBe(0);
     const { removeSession } = await import('../../lib/session-manager');
     expect(vi.mocked(removeSession)).toHaveBeenCalledWith('parked-jti');
+  });
+});
+
+describe('refreshAccessToken - 实时主体与租户状态', () => {
+  it('管理员已被禁用 → 403，旧 refresh token 不能续签', async () => {
+    const token = await makeToken({ type: 'refresh' });
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ status: 'disabled' })]));
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 403, message: '账号已被禁用' });
+  });
+
+  it('管理员所在租户被禁用 → 403，旧 refresh token 不能续签', async () => {
+    const token = await makeToken({ type: 'refresh', tenantId: 9 });
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ tenantId: 9, tenantStatus: 'disabled' })]));
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 403, message: '租户已被禁用或过期' });
+  });
+
+  it('管理员 refresh 的租户声明漂移 → 401', async () => {
+    const token = await makeToken({ type: 'refresh', tenantId: null });
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ tenantId: 9, tenantStatus: 'enabled' })]));
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 401, message: '登录状态已失效，请重新登录' });
+  });
+
+  it('管理员 refresh 的租户已过期 → 403', async () => {
+    const token = await makeToken({ type: 'refresh', tenantId: 9 });
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({
+      tenantId: 9,
+      tenantStatus: 'enabled',
+      tenantExpireAt: new Date(Date.now() - 1000),
+    })]));
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 403, message: '租户已被禁用或过期' });
   });
 });
