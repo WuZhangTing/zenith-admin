@@ -110,7 +110,7 @@ export default function RetentionPage() {
         dataSource={policies.map((item) => ({ ...item, _rowId: item.key }))}
         pagination={false}
         columns={[
-          { key: 'module', title: '模块', dataIndex: 'module', width: 130 },
+          { key: 'module', title: '模块', dataIndex: 'module', width: 110 },
           {
             key: 'title',
             title: '名称',
@@ -121,9 +121,9 @@ export default function RetentionPage() {
             key: 'tableName',
             title: '数据表',
             dataIndex: 'tableName',
-            width: 320,
+            width: 240,
             render: (tableName: string) => (
-              <Text type="tertiary" size="small" code>{tableName}</Text>
+              <Text type="tertiary" size="small" code ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{tableName}</Text>
             ),
           },
           {
@@ -131,7 +131,7 @@ export default function RetentionPage() {
             title: '保留天数',
             align: 'right',
             dataIndex: 'retentionDays',
-            width: 120,
+            width: 100,
             render: (days: number) => (days > 0
               ? <Tag color="blue">{days} 天</Tag>
               : <Tag color="grey">永久保留</Tag>),
@@ -148,7 +148,7 @@ export default function RetentionPage() {
           {
             key: 'scope',
             title: '清理方式',
-            width: 160,
+            width: 150,
             render: (_: unknown, row: RetentionPolicy) => (
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 {row.perTenant && <Tag size="small" color="violet">按租户</Tag>}
@@ -175,7 +175,7 @@ export default function RetentionPage() {
             key: 'lastDeleted',
             title: '上次清理',
             dataIndex: 'lastDeleted',
-            width: 110,
+            width: 100,
             render: (deleted: number | null, row: RetentionPolicy) => (row.lastRunAt
               ? `${deleted ?? 0} 行`
               : <Text type="tertiary">{EMPTY_PLACEHOLDER}</Text>),

@@ -338,13 +338,13 @@ export default function RateLimitPage() {
     {
       title: '规则',
       dataIndex: 'name',
-      width: 210,
+      width: 230,
       render: (name: string, rule: RateLimitRule) => (
-        <Space spacing={6}>
-          <Text strong>{name}</Text>
-          {rule.predefined && <Tag size="small" color="grey">内置</Tag>}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, maxWidth: '100%' }}>
+          <Text strong ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{name}</Text>
+          {rule.predefined && <Tag size="small" color="grey" style={{ flexShrink: 0 }}>内置</Tag>}
           {rule.mode === 'monitor' && modeTag('monitor')}
-        </Space>
+        </div>
       ),
     },
     {

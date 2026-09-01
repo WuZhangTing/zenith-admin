@@ -5,7 +5,7 @@ import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { LoginLog } from '@zenith/shared/identity';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { UserDisplayCell, formatUserLabel } from '@/components/UserDisplay';
 
 interface LoginLogsTableProps {
@@ -56,7 +56,7 @@ export function LoginLogsTable({
     { title: '事件信息', dataIndex: 'message', width: 160, render: (v: string | null) => v ?? '-' },
     { title: 'IP 地址', dataIndex: 'ip', width: 150, render: (v: string | null) => v ?? '-' },
     { title: '地点', dataIndex: 'location', width: 180, render: (v: string | null) => v ?? '-' },
-    { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => v ?? '-' },
+    { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => renderEllipsis(v ?? '-') },
     { title: '操作系统', dataIndex: 'os', width: 150, render: (v: string | null) => v ?? '-' },
     dateTimeColumn('操作时间', 'createdAt'),
     {

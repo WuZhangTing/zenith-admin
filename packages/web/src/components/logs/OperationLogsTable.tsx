@@ -7,7 +7,7 @@ import type { OperationLog } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { formatDateTime } from '@/utils/date';
 import './OperationLogsTable.css';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { UserDisplayCell, formatUserLabel } from '@/components/UserDisplay';
 import { usePermission } from '@/hooks/usePermission';
 
@@ -119,7 +119,7 @@ export function OperationLogsTable({
     { title: 'IP 地址', dataIndex: 'ip', width: 130, render: (v: string | null) => v ?? '-' },
     { title: '操作地点', dataIndex: 'location', width: 160, render: (v: string | null) => v ?? '-' },
     { title: '操作系统', dataIndex: 'os', width: 130, render: (v: string | null) => v ?? '-' },
-    { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => v ?? '-' },
+    { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => renderEllipsis(v ?? '-') },
     {
       title: '耗时',
       align: 'right',

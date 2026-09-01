@@ -40,7 +40,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
-import { copyableNoColumn, dateColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { JsonBlock } from '@/components/JsonBlock';
 
 const PAGE_SIZE = 20;
@@ -466,22 +466,22 @@ export default function AnalyticsDataPage() {
     {
       title: '事件类型',
       dataIndex: 'eventType',
-      width: 110,
+      width: 100,
       render: (value: string) => <EventTypeTag value={value} />,
     },
-    { title: '用户', dataIndex: 'username', width: 120, render: (value: string | null) => nullableText(value) },
-    { title: '事件名', dataIndex: 'eventName', width: 180, render: (value: string | null) => nullableText(value) },
+    { title: '用户', dataIndex: 'username', width: 110, render: (value: string | null) => nullableText(value) },
+    { title: '事件名', dataIndex: 'eventName', width: 150, render: (value: string | null) => renderEllipsis(value ?? '–') },
     {
       title: '页面',
       dataIndex: 'pagePath',
-      width: 260,
+      width: 220,
       render: (_: unknown, record) => (
         <div>
-          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
             {record.pageTitle || record.pagePath}
           </Typography.Text>
           {record.pageTitle && (
-            <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: 230 }}>
+            <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: '100%' }}>
               {record.pagePath}
             </Typography.Text>
           )}
@@ -491,10 +491,10 @@ export default function AnalyticsDataPage() {
     {
       title: '功能/区域',
       dataIndex: 'elementLabel',
-      width: 220,
+      width: 170,
       render: (_: unknown, record) => (
         <div>
-          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 190 }}>
+          <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
             {record.elementLabel || record.elementKey || '–'}
           </Typography.Text>
           {record.componentArea && (
@@ -508,11 +508,11 @@ export default function AnalyticsDataPage() {
     {
       title: '设备/浏览器',
       dataIndex: 'deviceType',
-      width: 160,
+      width: 140,
       render: (_: unknown, record) => (
         <div>
           <Typography.Text>{nullableText(record.deviceType)}</Typography.Text>
-          <Typography.Text type="tertiary" size="small" style={{ display: 'block' }}>
+          <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: '100%' }}>
             {nullableText(record.browser)}
           </Typography.Text>
         </div>
@@ -521,22 +521,22 @@ export default function AnalyticsDataPage() {
     {
       title: '接口',
       dataIndex: 'apiUrl',
-      width: 240,
+      width: 180,
       render: (_: unknown, record) => {
         if (record.apiUrl == null && record.apiStatus == null) return '–';
         const status = record.apiStatus;
         const color = status == null ? 'grey' : status >= 500 ? 'red' : status >= 400 ? 'orange' : 'green';
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {status != null && <Tag color={color} size="small">{status}</Tag>}
-            <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>
+            {status != null && <Tag color={color} size="small" style={{ flexShrink: 0 }}>{status}</Tag>}
+            <Typography.Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>
               {record.apiUrl ?? '–'}
             </Typography.Text>
           </div>
         );
       },
     },
-    { title: '时长', dataIndex: 'durationMs', width: 100, align: 'right', render: (value: number | null) => msToReadable(value) },
+    { title: '时长', dataIndex: 'durationMs', width: 90, align: 'right', render: (value: number | null) => msToReadable(value) },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<EventListItem>({
       width: 90,

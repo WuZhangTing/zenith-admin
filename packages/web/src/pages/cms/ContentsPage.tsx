@@ -27,7 +27,7 @@ import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidge
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { DATE_TIME_COLUMN_WIDTH, dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -350,7 +350,7 @@ export default function ContentsPage() {
     { title: '浏览', dataIndex: 'viewCount', width: 80, align: 'right' },
     { title: '赞/藏', dataIndex: 'likeCount', width: 90, align: 'right', render: (_: number, record) => `${record.likeCount}/${record.favoriteCount}` },
     {
-      title: '发布时间', dataIndex: 'publishedAt', width: 150,
+      title: '发布时间', dataIndex: 'publishedAt', width: DATE_TIME_COLUMN_WIDTH,
       render: (v: string | null, record) => {
         if (v) return v;
         if (record.status !== 'published' && record.scheduledAt) {

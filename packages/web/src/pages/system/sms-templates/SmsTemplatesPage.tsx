@@ -87,7 +87,7 @@ export default function SmsTemplatesPage() {
   const columns = [
     { title: '模板名称', dataIndex: 'name', width: 160 },
     { title: '模板编码', dataIndex: 'code', width: 180 },
-    { title: '服务商模板号', dataIndex: 'templateCode', width: 160 },
+    { title: '服务商模板号', dataIndex: 'templateCode', width: 180, render: renderEllipsis },
     { title: '签名', dataIndex: 'signName', width: 120, render: (v: string | null) => v || '—' },
     {
       title: '服务商', dataIndex: 'provider', width: 100,

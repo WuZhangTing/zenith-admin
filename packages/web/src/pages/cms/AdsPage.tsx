@@ -23,7 +23,7 @@ import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
-import { dateColumn, dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
+import { dateColumn, dateTimeColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -134,7 +134,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const columns: ColumnProps<CmsAd>[] = [
     { title: '广告名称', dataIndex: 'name', width: 180 },
     { title: '广告位', dataIndex: 'slotName', width: 140 },
-    { title: '跳转地址', dataIndex: 'linkUrl', width: 200, render: (v: string | null) => v ?? '-' },
+    { title: '跳转地址', dataIndex: 'linkUrl', width: 200, render: (v: string | null) => renderEllipsis(v ?? '-') },
     { title: '曝光量', dataIndex: 'viewCount', width: 90, align: 'right' },
     { title: '点击量', dataIndex: 'clickCount', width: 90, align: 'right' },
     {
