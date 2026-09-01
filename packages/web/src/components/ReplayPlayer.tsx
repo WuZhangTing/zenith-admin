@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Empty, Spin, Switch, TabPane, Tabs, Tag, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { IconInfoCircle } from '@douyinfe/semi-icons';
 import type { ReplaySegmentMeta, ReplaySessionDetail } from '@zenith/shared/analytics';
 import { fetchReplaySegmentEvents } from '@/hooks/queries/session-replays';
 
@@ -345,6 +346,9 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
           {!live && clickHeat.points.length > 0 && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
               <Text type="tertiary" size="small">点击热点（{clickHeat.points.length}）</Text>
+              <Tooltip content="热点为视口相对位置的近似还原，页面滚动时可能存在偏移">
+                <IconInfoCircle size="small" style={{ color: 'var(--semi-color-text-2)', cursor: 'help' }} aria-label="点击热点说明" />
+              </Tooltip>
               <Switch size="small" checked={showHeat} onChange={setShowHeat} aria-label="切换点击热点显示" />
             </span>
           )}
@@ -382,11 +386,6 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
                   )}
                 </div>
               </div>
-              {showHeat && !live && (
-                <Text type="quaternary" size="small" style={{ display: 'block', marginTop: 4 }}>
-                  热点为视口相对位置的近似还原，页面滚动时可能存在偏移
-                </Text>
-              )}
               {timeline && allMarkers.length > 0 && !live && (
                 <div style={{ margin: '12px 4px 0' }}>
                   <div
