@@ -242,7 +242,24 @@ async function loadJournalLines(journalIds: number[]): Promise<Map<number, Payme
   return grouped;
 }
 
-function mapJournal(row: PaymentJournalRow, lines: PaymentJournalLine[]): PaymentJournal {
+/**
+ * Return the child reversal journal for each original journal in the result.
+ * Reversal links are stored on the child row, so this reverse lookup must be
+ * performed explicitly for list/detail responses. Keep the caller's tenant
+ * scope on the lookup to avoid exposing a cross-scope relationship.
+ */
+async function loadReversalMap(journalIds: number[], scope?: SQL): Promise<Map<number, number>> {
+  if (journalIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: paymentJournals.id, reversalOfJournalId: paymentJournals.reversalOfJournalId })
+    .from(paymentJournals)
+    .where(and(inArray(paymentJournals.reversalOfJournalId, journalIds), scope));
+  return new Map(
+    rows.flatMap((row) => row.reversalOfJournalId == null ? [] : [[row.reversalOfJournalId, row.id] as const]),
+  );
+}
+
+function mapJournal(row: PaymentJournalRow, lines: PaymentJournalLine[], reversedByJournalId?: number | null): PaymentJournal {
   return {
     id: row.id,
     journalNo: row.journalNo,
@@ -253,6 +270,7 @@ function mapJournal(row: PaymentJournalRow, lines: PaymentJournalLine[]): Paymen
     channelConfigId: row.channelConfigId,
     currency: row.currency,
     reversalOfJournalId: row.reversalOfJournalId ?? null,
+    reversedByJournalId: reversedByJournalId ?? null,
     operatorId: row.operatorId ?? null,
     postedAt: formatDateTime(row.postedAt),
     createdAt: formatDateTime(row.createdAt),
@@ -272,8 +290,12 @@ async function getJournalRow(id: number): Promise<PaymentJournalRow> {
 
 export async function getJournal(id: number): Promise<PaymentJournal> {
   const row = await getJournalRow(id);
-  const lines = await loadJournalLines([row.id]);
-  return mapJournal(row, lines.get(row.id) ?? []);
+  const tenantScope = tenantCondition(paymentJournals, currentUser());
+  const [lines, reversalMap] = await Promise.all([
+    loadJournalLines([row.id]),
+    loadReversalMap([row.id], tenantScope),
+  ]);
+  return mapJournal(row, lines.get(row.id) ?? [], reversalMap.get(row.id));
 }
 
 export interface ListJournalsQuery {
@@ -290,18 +312,29 @@ export interface ListJournalsQuery {
 export async function listJournals(q: ListJournalsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 20;
+  const user = currentUser();
   const conditions = [...dateRangeConditions(paymentJournals.postedAt, q.startTime, q.endTime)];
   if (q.sourceType) conditions.push(eq(paymentJournals.sourceType, q.sourceType));
   if (q.appId) conditions.push(eq(paymentJournals.appId, q.appId));
   if (q.channelConfigId) conditions.push(eq(paymentJournals.channelConfigId, q.channelConfigId));
   if (q.currency) conditions.push(eq(paymentJournals.currency, q.currency));
-  const where = mergeWhere(and(...conditions), tenantCondition(paymentJournals, currentUser()));
+  const tenantScope = tenantCondition(paymentJournals, user);
+  const where = mergeWhere(and(...conditions), tenantScope);
   const [total, rows] = await Promise.all([
     db.$count(paymentJournals, where),
     withPagination(db.select().from(paymentJournals).where(where).orderBy(desc(paymentJournals.id)).$dynamic(), page, pageSize),
   ]);
-  const lines = await loadJournalLines(rows.map((row) => row.id));
-  return { list: rows.map((row) => mapJournal(row, lines.get(row.id) ?? [])), total, page, pageSize };
+  const journalIds = rows.map((row) => row.id);
+  const [lines, reversalMap] = await Promise.all([
+    loadJournalLines(journalIds),
+    loadReversalMap(journalIds, tenantScope),
+  ]);
+  return {
+    list: rows.map((row) => mapJournal(row, lines.get(row.id) ?? [], reversalMap.get(row.id))),
+    total,
+    page,
+    pageSize,
+  };
 }
 
 function journalRequestHash(input: PostPaymentJournalInput, reversalOfJournalId: number | null): string {
@@ -340,8 +373,12 @@ async function getJournalForTenant(id: number, tenantId: number | null): Promise
     .where(and(eq(paymentJournals.id, id), exactTenantCondition(paymentJournals.tenantId, tenantId)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '资金凭证不存在' });
-  const lines = await loadJournalLines([row.id]);
-  return mapJournal(row, lines.get(row.id) ?? []);
+  const tenantScope = exactTenantCondition(paymentJournals.tenantId, tenantId);
+  const [lines, reversalMap] = await Promise.all([
+    loadJournalLines([row.id]),
+    loadReversalMap([row.id], tenantScope),
+  ]);
+  return mapJournal(row, lines.get(row.id) ?? [], reversalMap.get(row.id));
 }
 
 async function postJournalInternal(

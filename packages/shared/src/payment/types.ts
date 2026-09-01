@@ -755,6 +755,8 @@ export interface PaymentJournal {
   channelConfigId: number;
   currency: string;
   reversalOfJournalId?: number | null;
+  /** 原始凭证已被冲正时，指向唯一的子冲正凭证。 */
+  reversedByJournalId?: number | null;
   operatorId?: number | null;
   postedAt: string;
   createdAt: string;

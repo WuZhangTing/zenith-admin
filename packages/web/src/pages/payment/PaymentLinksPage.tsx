@@ -18,6 +18,7 @@ import type { PaymentApp, PaymentCashierMethod, PaymentChannel, PaymentLink, Pay
 import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink, type PaymentLinkSaveValues } from '@/hooks/queries/payment-links';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import { usePaymentCapabilities } from '@/hooks/queries/payment-capabilities';
+import { usePaymentMethodList } from '@/hooks/queries/payment-methods';
 import { useEnsureShortLink } from '@/hooks/queries/short-links';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -97,8 +98,15 @@ export default function PaymentLinksPage() {
     { operation: 'payment.create', currency: 'CNY' },
     canReadCapabilities,
   );
+  const paymentMethodQuery = usePaymentMethodList();
+  const enabledPaymentMethods = useMemo(
+    () => paymentMethodQuery.data
+      ? new Set(paymentMethodQuery.data.filter((config) => config.enabled).map((config) => config.method))
+      : null,
+    [paymentMethodQuery.data],
+  );
   const methodOptions = useMemo(() => {
-    if (!selectedPaymentApp) return [];
+    if (!selectedPaymentApp || !enabledPaymentMethods) return [];
     if (capabilitiesQuery.data) {
       const appEnvironment = selectedPaymentApp.environment === 'sandbox' ? 'sandbox' : 'live';
       const boundConfigIds = new Set(
@@ -116,16 +124,16 @@ export default function PaymentLinksPage() {
         }
       }
       return PAYMENT_CASHIER_METHODS
-        .filter((method) => supportedMethods.has(method))
+        .filter((method) => enabledPaymentMethods.has(method) && supportedMethods.has(method))
         .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
     }
     if (!canReadCapabilities || capabilitiesQuery.isError) {
       return PAYMENT_CASHIER_METHODS
-        .filter((method) => paymentAppConfigId(selectedPaymentApp, PAYMENT_METHOD_CHANNEL[method]) != null)
+        .filter((method) => enabledPaymentMethods.has(method) && paymentAppConfigId(selectedPaymentApp, PAYMENT_METHOD_CHANNEL[method]) != null)
         .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
     }
     return [];
-  }, [canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, selectedPaymentApp]);
+  }, [canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, enabledPaymentMethods, selectedPaymentApp]);
   const saveMutation = useSavePaymentLink();
   const modal = useEditModal<PaymentLink, LinkFormValues, PaymentLinkSaveValues>({
     entityName: '支付链接',

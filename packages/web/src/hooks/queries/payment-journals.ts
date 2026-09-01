@@ -123,9 +123,12 @@ export function useReversePaymentJournal() {
   return useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       request.post<PaymentJournal>(`/api/payment/journals/${id}/reverse`, { reason }).then(unwrap),
-    onSuccess: (journal) => {
+    onSuccess: (journal, values) => {
       queryClient.setQueryData(paymentJournalKeys.detail(journal.id), journal);
-      return queryClient.invalidateQueries({ queryKey: paymentJournalKeys.lists });
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: paymentJournalKeys.detail(values.id) }),
+        queryClient.invalidateQueries({ queryKey: paymentJournalKeys.lists }),
+      ]);
     },
   });
 }

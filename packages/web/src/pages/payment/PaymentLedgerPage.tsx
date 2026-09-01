@@ -520,13 +520,22 @@ export default function PaymentLedgerPage() {
       render: (lines: PaymentJournalLine[], record) => formatMinorAmount(amountTotal(lines, 'debitAmount').toString(), record.currency),
     },
     { title: '分录数', dataIndex: 'lines', width: 90, align: 'right', render: (lines: PaymentJournalLine[]) => lines.length },
-    { title: '凭证类型', dataIndex: 'reversalOfJournalId', width: 100, render: (value: number | null) => (value ? <Tag color="orange">冲正凭证</Tag> : <Tag color="blue">原始凭证</Tag>) },
+    {
+      title: '凭证类型', dataIndex: 'reversalOfJournalId', width: 100,
+      render: (_value: number | null | undefined, record: PaymentJournal) => (
+        record.reversalOfJournalId != null
+          ? <Tag color="orange">冲正凭证</Tag>
+          : record.reversedByJournalId != null
+            ? <Tag color="orange">已冲正</Tag>
+            : <Tag color="blue">原始凭证</Tag>
+      ),
+    },
     dateTimeColumn('过账时间', 'postedAt'),
     createOperationColumn<PaymentJournal>({
       width: 140,
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setJournalDetailTarget(record) },
-        ...(canReverseJournal && record.reversalOfJournalId == null && record.sourceType.startsWith('manual.') ? [{ key: 'reverse', label: '冲正', danger: true, onClick: () => openReverse(record) }] : []),
+        ...(canReverseJournal && record.reversalOfJournalId == null && record.reversedByJournalId == null && record.sourceType.startsWith('manual.') ? [{ key: 'reverse', label: '冲正', danger: true, onClick: () => openReverse(record) }] : []),
       ],
     }),
   ];
@@ -795,7 +804,14 @@ export default function PaymentLedgerPage() {
                 { key: '支付应用', value: appNameById.get(detailJournal.appId) ?? `应用 #${detailJournal.appId}` },
                 { key: '商户配置', value: merchantNameById.get(detailJournal.channelConfigId) ?? `配置 #${detailJournal.channelConfigId}` },
                 { key: '币种', value: detailJournal.currency },
-                { key: '凭证类型', value: detailJournal.reversalOfJournalId ? `冲正凭证（原凭证 #${detailJournal.reversalOfJournalId}）` : '原始凭证' },
+                {
+                  key: '凭证类型',
+                  value: detailJournal.reversalOfJournalId != null
+                    ? `冲正凭证（原凭证 #${detailJournal.reversalOfJournalId}）`
+                    : detailJournal.reversedByJournalId != null
+                      ? `已冲正（冲正凭证 #${detailJournal.reversedByJournalId}）`
+                      : '原始凭证',
+                },
                 { key: '摘要', value: detailJournal.description, span: 2 },
               ]}
             />
@@ -807,7 +823,7 @@ export default function PaymentLedgerPage() {
               </Tag>
             </div>
             <ConfigurableTable bordered columns={journalLineColumns} dataSource={detailJournal.lines} rowKey="id" pagination={false} columnSettings={false} scroll={{ x: 990 }} />
-            {canReverseJournal && detailJournal.reversalOfJournalId == null && (
+            {canReverseJournal && detailJournal.reversalOfJournalId == null && detailJournal.reversedByJournalId == null && (
               <div className="payment-journal-detail__actions">
                 <Button type="danger" icon={<RotateCcw size={15} />} onClick={() => openReverse(detailJournal)}>冲正凭证</Button>
               </div>

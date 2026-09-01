@@ -112,6 +112,7 @@ export function recordMockSystemJournal(input: MockSystemJournalInput): PaymentJ
     channelConfigId: input.channelConfigId,
     currency: input.currency,
     reversalOfJournalId: null,
+    reversedByJournalId: null,
     operatorId: null,
     postedAt: now,
     createdAt: now,
@@ -274,7 +275,7 @@ export const paymentJournalHandlers = [
     const existing = journals.find((journal) => journal.sourceType === body.sourceType && journal.sourceId === body.sourceId && journal.appId === body.appId && journal.channelConfigId === body.channelConfigId && journal.currency === body.currency);
     if (existing) return ok(existing, '过账成功');
     const now = mockDateTime();
-    const journal: PaymentJournal = { id: nextJournalId++, journalNo: `JRNMOCK${String(nextJournalId).padStart(8, '0')}`, sourceType: body.sourceType, sourceId: body.sourceId.trim(), description: body.description.trim(), appId: body.appId, channelConfigId: body.channelConfigId, currency: body.currency, reversalOfJournalId: null, operatorId: 1, postedAt: now, createdAt: now, lines: typedLines };
+    const journal: PaymentJournal = { id: nextJournalId++, journalNo: `JRNMOCK${String(nextJournalId).padStart(8, '0')}`, sourceType: body.sourceType, sourceId: body.sourceId.trim(), description: body.description.trim(), appId: body.appId, channelConfigId: body.channelConfigId, currency: body.currency, reversalOfJournalId: null, reversedByJournalId: null, operatorId: 1, postedAt: now, createdAt: now, lines: typedLines };
     journals.unshift(journal);
     return ok(journal, '过账成功');
   }),
@@ -293,11 +294,13 @@ export const paymentJournalHandlers = [
       sourceId: `reversal:${original.id}`,
       description: `冲正 ${original.journalNo}：${body.reason.trim()}`,
       reversalOfJournalId: original.id,
+      reversedByJournalId: null,
       operatorId: 1,
       postedAt: now,
       createdAt: now,
       lines: original.lines.map((line, index) => ({ ...line, id: nextLineId++, lineNo: index + 1, debitAmount: line.creditAmount, creditAmount: line.debitAmount })),
     };
+    original.reversedByJournalId = reversal.id;
     journals.unshift(reversal);
     return ok(reversal, '冲正成功');
   }),

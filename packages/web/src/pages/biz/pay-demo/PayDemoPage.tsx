@@ -35,6 +35,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { getPaymentQrInstruction } from '@/utils/payment';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
+import { usePaymentMethodList } from '@/hooks/queries/payment-methods';
 
 type TagColor = 'grey' | 'blue' | 'green' | 'orange';
 
@@ -127,11 +128,14 @@ export default function PayDemoPage() {
   const [payResultMethod, setPayResultMethod] = useState<PaymentMethod | null>(null);
   const [selectedPayAppId, setSelectedPayAppId] = useState<number | undefined>(undefined);
   const appQuery = usePaymentAppList({ page: 1, pageSize: 100, status: 'enabled' });
+  const paymentMethodQuery = usePaymentMethodList();
+  const enabledPaymentMethods = new Set(paymentMethodQuery.data?.filter((config) => config.enabled).map((config) => config.method) ?? []);
   const appOptions = (appQuery.data?.list ?? []).map((app) => ({ value: app.id, label: app.name }));
   const selectedAppId = selectedPayAppId ?? appOptions[0]?.value;
   const selectedApp = (appQuery.data?.list ?? []).find((app) => app.id === selectedAppId) ?? appQuery.data?.list?.[0];
   const allowedConfigIds = new Set([selectedApp?.wechatConfigId, selectedApp?.alipayConfigId, selectedApp?.unionpayConfigId].filter((value): value is number => value != null));
   const payMethodOptions = PAY_METHOD_OPTIONS.filter((option) => {
+    if (!paymentMethodQuery.data || !enabledPaymentMethods.has(option.value)) return false;
     const channel = PAYMENT_METHOD_CHANNEL[option.value as PaymentMethod];
     const configId = channel === 'wechat' ? selectedApp?.wechatConfigId : channel === 'alipay' ? selectedApp?.alipayConfigId : selectedApp?.unionpayConfigId;
     return configId != null && allowedConfigIds.has(configId);
@@ -228,13 +232,15 @@ export default function PayDemoPage() {
           key: 'pay',
           label: '发起支付',
           type: 'primary',
-          hidden: record.status !== 'paying',
+          // 新建示例单处于 pending；只有这里创建支付中心订单后才会进入 paying。
+          hidden: record.status !== 'pending',
           onClick: () => openPay(record),
         },
         {
           key: 'simulate',
           label: '模拟支付成功',
-          hidden: record.status === 'paid' || record.status === 'closed',
+          // 只有已创建支付中心订单并进入 paying 后，才允许模拟渠道回调。
+          hidden: record.status !== 'paying',
           loading: simulatingId === record.id,
           onClick: () => {
             Modal.confirm({

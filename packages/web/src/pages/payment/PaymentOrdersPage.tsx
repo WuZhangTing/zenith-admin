@@ -40,6 +40,7 @@ import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-
 import { abortSubmit } from '@/lib/abort-submit';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
 import { usePaymentCapabilities } from '@/hooks/queries/payment-capabilities';
+import { usePaymentMethodList } from '@/hooks/queries/payment-methods';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const STATUS_COLOR = {
@@ -96,6 +97,13 @@ export default function PaymentOrdersPage() {
     { operation: 'payment.create', currency: 'CNY' },
     canReadCapabilities,
   );
+  const paymentMethodQuery = usePaymentMethodList();
+  const enabledPaymentMethods = useMemo(
+    () => paymentMethodQuery.data
+      ? new Set(paymentMethodQuery.data.filter((config) => config.enabled).map((config) => config.method))
+      : null,
+    [paymentMethodQuery.data],
+  );
 
   const [activeTab, setActiveTab] = useUrlTabState(['list', 'stats'] as const, 'list');
   const {
@@ -115,7 +123,7 @@ export default function PaymentOrdersPage() {
 
   const selectedPaymentApp = paymentApps.find((app) => app.id === selectedApplicationId);
   const paymentMethodOptions = useMemo(() => {
-    if (!selectedPaymentApp) return [];
+    if (!selectedPaymentApp || !enabledPaymentMethods) return [];
 
     const appEnvironment = selectedPaymentApp.environment === 'sandbox' ? 'sandbox' : 'live';
     if (capabilitiesQuery.data) {
@@ -132,18 +140,18 @@ export default function PaymentOrdersPage() {
         }
       }
       return PAYMENT_CREATE_METHODS
-        .filter((method) => supportedMethods.has(method))
+        .filter((method) => enabledPaymentMethods.has(method) && supportedMethods.has(method))
         .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
     }
 
     // 无渠道能力查询权限或能力接口暂时不可用时，退化为应用已绑定渠道；服务端下单仍会做最终能力校验。
     if (!canReadCapabilities || capabilitiesQuery.isError) {
       return PAYMENT_CREATE_METHODS
-        .filter((method) => paymentAppConfigId(selectedPaymentApp, PAYMENT_METHOD_CHANNEL[method]) != null)
+        .filter((method) => enabledPaymentMethods.has(method) && paymentAppConfigId(selectedPaymentApp, PAYMENT_METHOD_CHANNEL[method]) != null)
         .map((value) => ({ value, label: PAYMENT_METHOD_LABELS[value] }));
     }
     return [];
-  }, [canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, selectedPaymentApp]);
+  }, [canReadCapabilities, capabilitiesQuery.data, capabilitiesQuery.isError, enabledPaymentMethods, selectedPaymentApp]);
 
   function buildQuery(active: SearchParams): Record<string, string | number> {
     return compactQuery({

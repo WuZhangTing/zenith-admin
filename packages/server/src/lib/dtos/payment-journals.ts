@@ -38,6 +38,7 @@ export const PaymentJournalDTO = z.object({
   channelConfigId: z.number().int(),
   currency: z.string(),
   reversalOfJournalId: z.number().int().nullable().optional(),
+  reversedByJournalId: z.number().int().nullable().optional(),
   operatorId: z.number().int().nullable().optional(),
   postedAt: z.string(),
   createdAt: z.string(),
