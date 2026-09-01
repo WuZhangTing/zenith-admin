@@ -542,7 +542,7 @@ export default function PaymentLedgerPage() {
 
   const reservationColumns: ColumnProps<PaymentFundReservation>[] = [
     copyableNoColumn('预占号', 'reservationNo'),
-    { title: '账本账户', dataIndex: 'accountId', width: 170, render: (value: number) => accountNameById.get(value) ?? `账户 #${value}` },
+    { title: '账本账户', dataIndex: 'accountId', width: 200, render: (value: number) => renderEllipsis(accountNameById.get(value) ?? `账户 #${value}`) },
     { title: '来源类型', dataIndex: 'sourceType', width: 140, render: renderEllipsis },
     { title: '来源标识', dataIndex: 'sourceId', width: 180, render: renderEllipsis },
     { title: '金额', dataIndex: 'amount', width: 130, align: 'right', render: (value: string, record) => formatMinorAmount(value, record.currency) },

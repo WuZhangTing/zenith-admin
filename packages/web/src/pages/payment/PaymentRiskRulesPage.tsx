@@ -276,7 +276,7 @@ export default function PaymentRiskRulesPage() {
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '金额', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => yuan(v) },
     { title: '触发原因', dataIndex: 'reason', width: 220, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v}</Typography.Text> },
-    { title: '审核人', dataIndex: 'reviewerName', width: 100, render: (v: string | null) => v || '-' },
+    { title: '审核人', dataIndex: 'reviewerName', width: 120, render: renderEllipsis },
     { title: '审核意见', dataIndex: 'reviewRemark', width: 220, render: renderEllipsis },
     dateTimeColumn('审核时间', 'reviewedAt'),
     createdAtColumn as ColumnProps<PaymentRiskReview>,
