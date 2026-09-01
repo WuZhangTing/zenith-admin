@@ -15,6 +15,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { ReportSlaRule, ReportSlaType, ReportSlaViolation, ReportSlaViolationStatus } from '@zenith/shared/report';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { FormTimezoneSelect } from '@/components/FormTimezoneSelect';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -65,8 +66,8 @@ export default function GovernanceSlaTab() {
   const evaluateMutation = useEvaluateReportSlaRule();
   const violationMutation = useUpdateReportSlaViolation();
 
-  const ruleModal = useEditModal<ReportSlaRule, Record<string, unknown>>({
-    entityName: 'SLA 规则',
+  const [cronExprValue, setCronExprValue] = useState('');
+  const ruleModal = useEditModal<ReportSlaRule, Record<string, unknown>>({    entityName: 'SLA 规则',
     save: saveMutation,
     defaults: { type: 'freshness', targetValue: 60, windowMinutes: 60, timezone: DEFAULT_TIMEZONE, severity: 'high', channels: [], silenceMins: 60, enabled: true },
     labelWidth: 100,
@@ -81,6 +82,7 @@ export default function GovernanceSlaTab() {
     successMessage: ({ isEdit }) => isEdit ? 'SLA 规则已更新' : 'SLA 规则已创建',
   });
   const openRule = (record?: ReportSlaRule) => {
+    setCronExprValue(record?.cron ? String(record.cron) : '');
     if (record) ruleModal.openEdit(record);
     else ruleModal.openCreate();
   };
@@ -165,7 +167,8 @@ export default function GovernanceSlaTab() {
       <ConfigurableTable bordered rowKey="id" columns={violationColumns} dataSource={violationsQuery.data?.list ?? []} loading={violationsQuery.isFetching} empty={<Empty title="暂无 SLA 违规" />} pagination={buildPagination(violationsQuery.data?.total ?? 0)} onRefresh={() => void violationsQuery.refetch()} refreshLoading={violationsQuery.isFetching} />
 
       <AppModal {...ruleModal.modalProps} width={720}>
-        <Form key={ruleModal.formKey} {...ruleModal.formProps}>
+        <Form key={ruleModal.formKey} {...ruleModal.formProps}
+          onValueChange={(v: Record<string, unknown>) => { if (typeof v.cron === 'string') setCronExprValue(v.cron); }}>
           <Row gutter={16}>
             <Col xs={24} md={12}><Form.Input field="name" label="规则名称" rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.Select field="datasetId" label="数据集" filter style={{ width: '100%' }} optionList={datasetOptions} rules={[{ required: true }]} /></Col>
@@ -174,7 +177,18 @@ export default function GovernanceSlaTab() {
             <Col xs={24} md={12}><Form.InputNumber field="targetValue" label="目标值" min={0} style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="warningValue" label="预警值" min={0} style={{ width: '100%' }} /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="windowMinutes" label="统计窗口" min={1} suffix="分钟" style={{ width: '100%' }} rules={[{ required: true }]} /></Col>
-            <Col xs={24} md={12}><Form.Input field="cron" label="Cron" placeholder="留空仅手动评估" /></Col>
+            <Col xs={24} md={12}>
+              <Form.Input field="cron" label="Cron" placeholder="留空仅手动评估"
+                addonAfter={(
+                  <CronBuilderPopover
+                    value={cronExprValue}
+                    onApply={(expr) => {
+                      ruleModal.formApi.current?.setValue('cron', expr);
+                      setCronExprValue(expr);
+                    }}
+                  />
+                )} />
+            </Col>
             <Col xs={24} md={12}><FormTimezoneSelect /></Col>
             <Col xs={24} md={12}><Form.InputNumber field="silenceMins" label="静默分钟" min={0} style={{ width: '100%' }} /></Col>
           </Row>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Divider, Form, Modal, SideSheet, Spin, Switch, Tag, Toast, Typography, Row, Col } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
@@ -472,7 +473,13 @@ export default function DirectorySyncSourcesPage() {
                     <>
                       <Form.Input field="cronExpression" label="定时表达式"
                         placeholder="如 0 2 * * *（每天 2 点），留空则仅手动同步"
-                        helpText="标准 5 段 cron；由系统调度每分钟扫描到期源" />
+                        helpText="由系统调度每分钟扫描到期源"
+                        addonAfter={(
+                          <CronBuilderPopover
+                            value={(formState.values as { cronExpression?: string }).cronExpression ?? ''}
+                            onApply={(expr) => modal.formApi.current?.setValue('cronExpression', expr)}
+                          />
+                        )} />
                       <Form.TagInput field="scopeConfig.deptExternalIds" label="部门范围"
                         placeholder="外部部门 ID，回车添加；留空同步全部" />
                       <Form.TagInput field="scopeConfig.excludeUserExternalIds" label="排除人员"

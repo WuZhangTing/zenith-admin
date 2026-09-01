@@ -16,6 +16,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { usePagination } from '@/hooks/usePagination';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useAllCmsSites, useCmsChannelTree } from '@/hooks/queries/cms';
+import { CronBuilderPopover } from '@/components/CronBuilderPopover';
 import { useAsyncTaskAction } from '@/hooks/queries/async-tasks';
 import {
   cmsDistributionKeys,
@@ -69,6 +70,7 @@ export default function DistributionPage() {
   const [formSourceSiteId, setFormSourceSiteId] = useState<number>();
   const [formTargetSiteId, setFormTargetSiteId] = useState<number>();
   const [formMode, setFormMode] = useState<string>('copy');
+  const [formCron, setFormCron] = useState('');
   const [detailRunId, setDetailRunId] = useState<number>();
 
   const ruleQuery = useCmsDistributionRuleList({
@@ -146,6 +148,7 @@ export default function DistributionPage() {
     setFormSourceSiteId(undefined);
     setFormTargetSiteId(undefined);
     setFormMode('copy');
+    setFormCron('');
     ruleModal.openCreate();
   };
 
@@ -153,6 +156,7 @@ export default function DistributionPage() {
     setFormSourceSiteId(rule.sourceSiteId);
     setFormTargetSiteId(rule.targetSiteId);
     setFormMode(rule.mode);
+    setFormCron(rule.scheduleCron ?? '');
     ruleModal.openEdit(rule);
   };
 
@@ -578,6 +582,7 @@ export default function DistributionPage() {
             setFormSourceSiteId(sourceSiteId);
             setFormTargetSiteId(targetSiteId);
             setFormMode(String(values.mode ?? 'copy'));
+            setFormCron(String(values.scheduleCron ?? ''));
           }}
         >
           <Form.Section text="基础信息">
@@ -637,6 +642,15 @@ export default function DistributionPage() {
                 label="Cron"
                 placeholder="如 0 2 * * *（Asia/Shanghai）"
                 rules={[{ required: true, message: '定时同步必须配置 Cron' }]}
+                addonAfter={(
+                  <CronBuilderPopover
+                    value={formCron}
+                    onApply={(expr) => {
+                      ruleModal.formApi.current?.setValue('scheduleCron', expr);
+                      setFormCron(expr);
+                    }}
+                  />
+                )}
               />
             ) : null}
           </Form.Section>
