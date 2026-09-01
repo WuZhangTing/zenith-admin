@@ -14,6 +14,7 @@ import { currentUserOrNull } from '../../lib/context';
 import type { CmsContentStatus } from '@zenith/shared/cms';
 import { pageOffset } from '../../lib/pagination';
 import { resolveCmsContentRow, resolveCmsContentRows } from './cms-resource-refs.service';
+import { buildCmsContentUrls } from './cms-urls';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,16 @@ import { resolveCmsContentRow, resolveCmsContentRows } from './cms-resource-refs
  */
 export type ResolvedCmsContentRow = CmsContentRow & { coverThumb: string | null };
 
-export function mapCmsContent(row: CmsContentRow & { coverThumb?: string | null }, extra?: { channelName?: string | null; tags?: CmsTagRow[]; extraChannelIds?: number[]; relatedIds?: number[]; mappingSourceTitle?: string | null; lockedByName?: string | null }) {
+export function mapCmsContent(row: CmsContentRow & { coverThumb?: string | null }, extra?: {
+  channelName?: string | null;
+  tags?: CmsTagRow[];
+  extraChannelIds?: number[];
+  relatedIds?: number[];
+  mappingSourceTitle?: string | null;
+  lockedByName?: string | null;
+  canonicalUrl?: string | null;
+  previewUrl?: string | null;
+}) {
   return {
     id: row.id,
     siteId: row.siteId,
@@ -53,6 +63,8 @@ export function mapCmsContent(row: CmsContentRow & { coverThumb?: string | null 
     externalLink: row.externalLink ?? null,
     detailTemplate: row.detailTemplate ?? null,
     staticPath: row.staticPath ?? null,
+    canonicalUrl: extra?.canonicalUrl ?? null,
+    previewUrl: extra?.previewUrl ?? null,
     isTop: row.isTop,
     topWeight: row.topWeight,
     topExpireAt: formatNullableDateTime(row.topExpireAt),
@@ -111,11 +123,12 @@ export async function ensureCmsContentExists(id: number): Promise<CmsContentRow>
 export async function getCmsContent(id: number) {
   const current = await ensureCmsContentExists(id);
   await assertSiteAccess(current.siteId);
+  const site = await ensureCmsSiteExists(current.siteId);
   await assertChannelAccess(current.channelId);
   const row = await db.query.cmsContents.findFirst({
     where: eq(cmsContents.id, id),
     with: {
-      channel: { columns: { name: true } },
+      channel: { columns: { name: true, path: true, detailPathRule: true } },
       contentTags: { with: { tag: true } },
       extraChannels: { columns: { channelId: true } },
       relatedContents: { columns: { relatedId: true, sort: true } },
@@ -130,8 +143,14 @@ export async function getCmsContent(id: number) {
     ...row,
     ...(source ? { body: source.body ?? null, extend: source.extend ?? {} } : {}),
   });
+  const urls = buildCmsContentUrls(resolved, {
+    siteCode: site.code,
+    channelPath: row.channel?.path,
+    detailPathRule: row.channel?.detailPathRule,
+  });
   return mapCmsContent(resolved, {
     channelName: row.channel?.name,
+    ...urls,
     tags: row.contentTags.map((ct) => ct.tag),
     extraChannelIds: row.extraChannels.map((ec) => ec.channelId),
     relatedIds: [...row.relatedContents].sort((a, b) => a.sort - b.sort).map((r) => r.relatedId),
@@ -161,7 +180,7 @@ export interface ListCmsContentsQuery {
 }
 
 export async function listCmsContents(q: ListCmsContentsQuery) {
-  await ensureCmsSiteExists(q.siteId);
+  const site = await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
   if (q.channelId) await assertChannelAccess(q.channelId);
   const conditions: SQL[] = [
@@ -205,7 +224,7 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
     db.query.cmsContents.findMany({
       where,
       with: {
-        channel: { columns: { name: true } },
+        channel: { columns: { name: true, path: true, detailPathRule: true } },
         lockedByUser: { columns: { nickname: true } },
       },
       orderBy: [desc(cmsContents.isTop), desc(cmsContents.topWeight), desc(cmsContents.id)],
@@ -217,6 +236,11 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
   return {
     list: resolvedRows.map((r) => mapCmsContent(r, {
       channelName: r.channel?.name,
+      ...buildCmsContentUrls(r, {
+        siteCode: site.code,
+        channelPath: r.channel?.path,
+        detailPathRule: r.channel?.detailPathRule,
+      }),
       lockedByName: r.lockedByUser?.nickname ?? null,
     })),
     total,
@@ -302,6 +326,44 @@ export async function getPublishedContent(siteId: number, channelId: number, idO
     .where(and(publishedWhere(siteId), eq(cmsContents.channelId, channelId), matcher))
     .limit(1);
   return row ? resolveCmsContentRow(row) : null;
+}
+
+/**
+ * Resolve a published content by its custom static path.
+ *
+ * The normal detail parser can only infer a content slug/id from a channel
+ * path. A custom path deliberately has no such relationship, so it must be
+ * looked up exactly (including body-page suffixes) before the generic parser
+ * runs. The returned row is intentionally raw; renderDetailPage performs the
+ * same resource resolution as every other detail request.
+ */
+export async function findPublishedContentByStaticPath(
+  siteId: number,
+  rawPath: string,
+): Promise<{ content: CmsContentRow; bodyPage: number } | null> {
+  const path = rawPath.replace(/^\/+|\/+$/g, '');
+  if (!path || !path.endsWith('.html')) return null;
+
+  const find = async (staticPath: string) => {
+    const [row] = await db.select().from(cmsContents).where(and(
+      eq(cmsContents.siteId, siteId),
+      eq(cmsContents.staticPath, staticPath),
+      eq(cmsContents.status, 'published'),
+      isNull(cmsContents.deletedAt),
+    )).limit(1);
+    return row ?? null;
+  };
+
+  const direct = await find(path);
+  if (direct) return direct.externalLink?.trim() ? null : { content: direct, bodyPage: 1 };
+
+  const pageMatch = /^(.*)_(\d+)\.html$/.exec(path);
+  const bodyPage = pageMatch ? Number(pageMatch[2]) : 0;
+  if (!pageMatch || !Number.isInteger(bodyPage) || bodyPage < 2) return null;
+  const base = `${pageMatch[1]}.html`;
+  const content = await find(base);
+  if (!content || content.externalLink?.trim()) return null;
+  return { content, bodyPage };
 }
 
 /** 按 id 取站点内已发布内容（不限栏目；Headless API 用） */

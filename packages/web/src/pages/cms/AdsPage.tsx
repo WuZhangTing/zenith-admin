@@ -234,7 +234,9 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
   const [submitted, setSubmitted] = useState<AdEventSearch>({});
   const [detail, setDetail] = useState<CmsAdEvent | null>(null);
   const slotsQuery = useCmsAdSlots(siteId);
-  const adsQuery = useCmsAdList({ page: 1, pageSize: 1000, siteId: siteId ?? 0 }, !!siteId);
+  // The API caps paginated lists at 200. Keep the lookup request within that
+  // contract; the event table itself remains independently paginated.
+  const adsQuery = useCmsAdList({ page: 1, pageSize: 200, siteId: siteId ?? 0 }, !!siteId);
   const params = {
     page,
     pageSize,

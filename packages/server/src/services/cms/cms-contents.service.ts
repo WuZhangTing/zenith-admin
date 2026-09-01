@@ -9,6 +9,7 @@ export {
   listPublishedContents,
   listHomeContents,
   getPublishedContent,
+  findPublishedContentByStaticPath,
   getPublishedContentById,
   getContentBodyExtendRaw,
   resolveContentBodyExtend,

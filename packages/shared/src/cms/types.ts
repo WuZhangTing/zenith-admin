@@ -527,6 +527,10 @@ export interface CmsContent {
   detailTemplate: string | null;
   /** 自定义静态化相对路径（空 = 按 slug/id 生成） */
   staticPath: string | null;
+  /** 服务端按栏目归档规则计算的规范前台地址（相对当前站点根路径） */
+  canonicalUrl?: string | null;
+  /** 服务端生成的后台预览地址；未发布内容可能为空 */
+  previewUrl?: string | null;
   isTop: boolean;
   /** 置顶权重（数值越大越靠前，isTop=true 时生效） */
   topWeight: number;

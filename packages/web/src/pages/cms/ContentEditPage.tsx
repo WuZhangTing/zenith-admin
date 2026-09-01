@@ -19,7 +19,6 @@ import {
 } from '@/hooks/queries/cms';
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment } from '@zenith/shared/cms';
-import { cmsPreviewUrl } from './CmsSiteSelect';
 import { useCmsLinkPicker } from './CmsLinkInput';
 import './ContentEditPage.css';
 
@@ -363,12 +362,13 @@ export default function ContentEditPage() {
       Toast.info('仅已发布内容支持模板试穿；草稿请先用「预览」生成预览链接查看');
       return;
     }
-    const siteCode = allSites?.find((s) => s.id === siteId)?.code;
-    const channelPath = currentChannel?.path;
-    if (!siteCode || !channelPath) return;
+    if (!detail.previewUrl) {
+      Toast.warning('当前内容暂无可用的预览地址');
+      return;
+    }
     const tpl = (formApi.current?.getValue('detailTemplate') as string | undefined) ?? '';
     const query = tpl ? `?__template=${encodeURIComponent(tpl)}` : '';
-    window.open(`${cmsPreviewUrl(siteCode, `${channelPath}/${detail.slug || detail.id}.html`)}${query}`, '_blank');
+    window.open(`${detail.previewUrl}${query}`, '_blank');
   }
 
   const initValues = detail

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Tag, Toast, Tooltip, Modal, Tabs, TabPane, Tree, TreeSelect, Typography, Dropdown, Form, Select, SplitButtonGroup } from '@douyinfe/semi-ui';
@@ -22,7 +22,7 @@ import {
 } from '@/hooks/queries/cms';
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@zenith/shared/cms';
-import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
+import { CmsSiteSelect } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
@@ -79,7 +79,6 @@ export default function ContentsPage() {
 
   const treeQuery = useCmsChannelTree(siteId);
   const { data: sites } = useAllCmsSites();
-  const currentSite = sites?.find((s) => s.id === siteId);
 
   function handleSiteChange(next: number) {
     setSiteId(next);
@@ -284,22 +283,12 @@ export default function ContentsPage() {
     Toast.success(mode === 'mapping' ? '映射成功（正文将跟随来源内容更新）' : '分发成功（目标站点草稿箱）');
   }
 
-  const channelPathMap = useMemo(() => {
-    const map = new Map<number, string>();
-    const walk = (nodes: CmsChannel[]) => {
-      for (const n of nodes) {
-        map.set(n.id, n.path);
-        if (n.children) walk(n.children);
-      }
-    };
-    walk(treeQuery.data ?? []);
-    return map;
-  }, [treeQuery.data]);
-
   function previewContent(record: CmsContent) {
-    if (!currentSite) return;
-    const chPath = channelPathMap.get(record.channelId) ?? '';
-    window.open(cmsPreviewUrl(currentSite.code, `${chPath}/${record.slug ?? record.id}.html`), '_blank');
+    if (!record.previewUrl) {
+      Toast.warning('当前内容暂无可用的预览地址');
+      return;
+    }
+    window.open(record.previewUrl, '_blank');
   }
 
   const columns: ColumnProps<CmsContent>[] = [

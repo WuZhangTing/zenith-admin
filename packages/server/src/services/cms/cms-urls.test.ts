@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone.js';
 import utc from 'dayjs/plugin/utc.js';
 import { APP_TIME_ZONE, formatDateTime } from '../../lib/datetime';
-import { contentArchiveDir, contentUrl } from './cms-urls';
+import { buildCmsContentUrls, contentArchiveDir, contentUrl } from './cms-urls';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -83,5 +83,31 @@ describe('contentUrl 与归档规则', () => {
 
   it('规则为 none 时与历史行为完全一致', () => {
     expect(contentUrl('', { path: 'news', detailPathRule: 'none' }, content())).toBe('/news/42.html');
+  });
+});
+
+describe('buildCmsContentUrls', () => {
+  const channel = { path: 'news', detailPathRule: 'year' } as const;
+  const base = { id: 42, slug: 'hello', staticPath: null, publishedAt: AT, createdAt: AT };
+
+  it('uses the same archive rule for canonical and preview URLs', () => {
+    expect(buildCmsContentUrls({ ...base, externalLink: null, status: 'published' }, {
+      siteCode: 'main', channelPath: channel.path, detailPathRule: channel.detailPathRule,
+    })).toEqual({
+      canonicalUrl: '/news/2026/hello.html',
+      previewUrl: '/__cms/main/news/2026/hello.html',
+    });
+  });
+
+  it('honours custom static paths', () => {
+    expect(buildCmsContentUrls({ ...base, staticPath: 'topic/special.html', externalLink: null, status: 'published' }, {
+      siteCode: 'main', channelPath: channel.path, detailPathRule: channel.detailPathRule,
+    }).canonicalUrl).toBe('/topic/special.html');
+  });
+
+  it('does not expose an unsigned public-looking URL for drafts', () => {
+    expect(buildCmsContentUrls({ ...base, externalLink: null, status: 'draft' }, {
+      siteCode: 'main', channelPath: channel.path, detailPathRule: channel.detailPathRule,
+    }).previewUrl).toBeNull();
   });
 });

@@ -272,6 +272,8 @@ export const CmsContentDTO = z
     externalLink: z.string().nullable(),
     detailTemplate: z.string().nullable().openapi({ description: '详情模板覆盖（主题变体模板名；空 = 跟随栏目/站点默认）' }),
     staticPath: z.string().nullable().openapi({ description: '自定义静态化相对路径（站内唯一）；空 = 按 slug/id 生成' }),
+    canonicalUrl: z.string().nullable().optional().openapi({ description: '服务端按栏目路径规则计算的规范前台地址（相对站点根路径）' }),
+    previewUrl: z.string().nullable().optional().openapi({ description: '服务端生成的后台预览地址；未发布内容可能为空' }),
     isTop: z.boolean(),
     topWeight: z.number().int().openapi({ description: '置顶权重（数值越大越靠前）' }),
     topExpireAt: z.string().nullable().openapi({ description: '置顶到期时间（到期自动取消置顶；空 = 永久）' }),

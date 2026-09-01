@@ -23,7 +23,7 @@ import { channelUrl, tagUrl, contentUrl, customPageUrl, type CmsUrlChannel } fro
 import { buildCmsLinkResolver, resolveCmsLink, type CmsLinkResolver } from './cms-link.service';
 import {
   listPublishedContents, listHomeContents, getPublishedContent, getAdjacentContents, listContentTags,
-  listPublishedContentsByTag, listRelatedContents, resolveContentBodyExtend, type ResolvedCmsContentRow,
+  listPublishedContentsByTag, listRelatedContents, resolveContentBodyExtend, findPublishedContentByStaticPath, type ResolvedCmsContentRow,
 } from './cms-contents.service';
 import { resolveCmsContentRow, resolveCmsContentRows, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import { listEnabledFriendLinks, listEnabledFriendLinkGroups } from './cms-friend-links.service';
@@ -1152,6 +1152,29 @@ export async function renderSitePath(
     const { getPublishedPageByPath } = await import('./cms-pages.service');
     const pageRow = await getPublishedPageByPath(site.id, cleaned);
     if (pageRow) return renderCustomPage(site, baseUrl, pageRow, { member: viewer?.member });
+  }
+
+  // Custom content paths cannot be recovered from a channel prefix. Resolve
+  // them exactly before trying the conventional `{channel}/{slug}.html`
+  // parser, including the `_N.html` body-page suffix.
+  const customContent = await findPublishedContentByStaticPath(site.id, cleaned);
+  if (customContent) {
+    const [channel] = await db.select().from(cmsChannels).where(and(
+      eq(cmsChannels.id, customContent.content.channelId),
+      eq(cmsChannels.siteId, site.id),
+      eq(cmsChannels.status, 'enabled'),
+    )).limit(1);
+    if (channel) {
+      return renderDetailPage(
+        site,
+        baseUrl,
+        channel,
+        String(customContent.content.slug ?? customContent.content.id),
+        customContent.bodyPage,
+        templateOverride,
+        cleaned,
+      );
+    }
   }
 
   // 前台统一互动问卷页 /interaction/{code}/

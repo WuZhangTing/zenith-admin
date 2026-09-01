@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, lte, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../../db';
 import { asyncTaskItems, asyncTasks } from '../../../db/schema';
 import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../datetime';
@@ -36,6 +36,12 @@ async function conditions(query: Record<string, unknown>): Promise<(SQL | undefi
     siteId: Number.isInteger(siteId) && siteId > 0 ? siteId : undefined,
   });
   const result: (SQL | undefined)[] = [...taskConditions, eq(asyncTaskItems.taskId, asyncTasks.id)];
+  const taskStatus = typeof query.taskStatus === 'string' ? query.taskStatus : undefined;
+  if (taskStatus === 'active') result.push(inArray(asyncTasks.status, ['pending', 'running']));
+  else if (taskStatus === 'terminal') result.push(inArray(asyncTasks.status, ['success', 'failed', 'cancelled']));
+  else if (taskStatus && ['pending', 'running', 'success', 'failed', 'cancelled'].includes(taskStatus)) {
+    result.push(eq(asyncTasks.status, taskStatus as 'pending' | 'running' | 'success' | 'failed' | 'cancelled'));
+  }
   if (Number.isInteger(taskId) && taskId > 0) result.push(eq(asyncTaskItems.taskId, taskId));
   if (typeof query.status === 'string' && ['pending', 'success', 'failed', 'skipped'].includes(query.status)) {
     result.push(eq(asyncTaskItems.status, query.status as 'pending' | 'success' | 'failed' | 'skipped'));

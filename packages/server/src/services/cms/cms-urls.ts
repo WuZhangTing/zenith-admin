@@ -8,8 +8,8 @@
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone.js';
 import utc from 'dayjs/plugin/utc.js';
-import { cmsCustomPagePath } from '@zenith/shared/cms';
-import type { CmsChannelDetailPathRule } from '@zenith/shared/cms';
+import { CMS_PREVIEW_PREFIX, cmsCustomPagePath } from '@zenith/shared/cms';
+import type { CmsChannelDetailPathRule, CmsContentStatus } from '@zenith/shared/cms';
 import { APP_TIME_ZONE } from '../../lib/datetime';
 
 dayjs.extend(utc);
@@ -61,6 +61,40 @@ export interface CmsUrlContent {
   staticPath: string | null;
   publishedAt: Date | null;
   createdAt: Date | null;
+}
+
+export interface CmsContentUrlContext {
+  siteCode?: string | null;
+  channelPath?: string | null;
+  detailPathRule?: CmsChannelDetailPathRule | null;
+}
+
+/**
+ * Compute the canonical site URL and the admin preview URL from the same
+ * channel/content inputs used by the static renderer.
+ *
+ * The preview URL is intentionally emitted only for published internal
+ * content. Drafts must use the signed preview-link endpoint; exposing a
+ * deterministic public-looking draft URL would only lead callers to a 404.
+ */
+export function buildCmsContentUrls(
+  content: Pick<CmsUrlContent, 'id' | 'slug' | 'staticPath' | 'publishedAt' | 'createdAt'>
+    & { externalLink: string | null; status: CmsContentStatus },
+  context: CmsContentUrlContext,
+): { canonicalUrl: string | null; previewUrl: string | null } {
+  const external = content.externalLink?.trim();
+  if (external) return { canonicalUrl: external, previewUrl: external };
+  if (!context.channelPath || !context.detailPathRule) {
+    return { canonicalUrl: null, previewUrl: null };
+  }
+  const canonicalUrl = contentUrl('', {
+    path: context.channelPath,
+    detailPathRule: context.detailPathRule,
+  }, content);
+  const previewUrl = content.status === 'published' && context.siteCode
+    ? `${CMS_PREVIEW_PREFIX}/${context.siteCode}${canonicalUrl}`
+    : null;
+  return { canonicalUrl, previewUrl };
 }
 
 function pad2(n: number): string {

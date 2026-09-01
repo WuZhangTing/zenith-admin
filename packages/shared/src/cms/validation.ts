@@ -294,7 +294,7 @@ export const createCmsContentSchema = z.object({
   detailTemplate: z.string().max(50).nullable().optional(),
   /** 自定义静态化相对路径（站内唯一）；空 = 按 slug/id 生成 */
   staticPath: z.string().trim().max(255)
-    .regex(/^[a-z0-9][a-z0-9\-_/]*\.(html|shtml|htm|json)$/, '静态路径需形如 news/2026/hello.html')
+    .regex(/^[a-z0-9][a-z0-9\-_/]*\.html$/, '静态路径需形如 news/2026/hello.html')
     .refine((v) => !v.includes('..') && !v.includes('//'), '静态路径不能包含 .. 或连续斜杠')
     .nullable().optional(),
   isTop: z.boolean().default(false),

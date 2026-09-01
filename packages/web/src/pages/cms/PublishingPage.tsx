@@ -92,8 +92,12 @@ export default function PublishingPage() {
   const tasks = taskListQuery.data?.list ?? [];
   const artifacts = artifactListQuery.data?.list ?? [];
 
-  const [detailTask, setDetailTask] = useState<CmsPublishingTask | null>(null);
-  const detailQuery = useCmsPublishingDetail(detailTask?.id, detailTask != null);
+  // Keep the id independent from the currently loaded tab. Artifact rows can
+  // point to a task that is not present in the history page cache.
+  const [detailTaskId, setDetailTaskId] = useState<number | null>(null);
+  const openTaskDetail = (taskId: number) => setDetailTaskId(taskId);
+  const closeTaskDetail = () => setDetailTaskId(null);
+  const detailQuery = useCmsPublishingDetail(detailTaskId ?? undefined, detailTaskId != null);
   const actionMutation = useCmsPublishingAction();
   const batchMutation = useBatchCmsPublishingAction();
   const submitMutation = useSubmitCmsPublish();
@@ -188,7 +192,7 @@ export default function PublishingPage() {
       width: 210,
       desktopInlineKeys: ['detail', 'cancel'],
       actions: (record) => [
-        { key: 'detail', label: '详情', onClick: () => setDetailTask(record) },
+        { key: 'detail', label: '详情', onClick: () => openTaskDetail(record.id) },
         { key: 'cancel', label: '取消', danger: true, onClick: () => runAction(record, 'cancel'), hidden: !['pending', 'running'].includes(record.status), disabled: !canManage, disabledReason: '缺少发布管理权限' },
         { key: 'resume', label: '断点恢复', onClick: () => runAction(record, 'resume'), hidden: !['failed', 'cancelled'].includes(record.status), disabled: !canManage, disabledReason: '缺少发布管理权限' },
         { key: 'restart', label: '重新开始', onClick: () => runAction(record, 'restart'), hidden: !['success', 'failed', 'cancelled'].includes(record.status), disabled: !canManage, disabledReason: '缺少发布管理权限' },
@@ -213,11 +217,7 @@ export default function PublishingPage() {
       width: 200,
       actions: (record) => [
         { key: 'error', label: '失败原因', hidden: !record.error, danger: true, onClick: () => { Modal.error({ title: '产物生成失败', content: record.error }); } },
-        { key: 'task', label: '任务详情', onClick: () => {
-          const task = tasks.find((item) => item.id === record.taskId);
-          if (task) setDetailTask(task);
-          else Toast.info('请在任务历史中按任务 ID 查询详情');
-        } },
+        { key: 'task', label: '任务详情', onClick: () => openTaskDetail(record.taskId) },
       ],
     }),
   ];
@@ -257,11 +257,25 @@ export default function PublishingPage() {
     </>
   );
 
-  const actions = (
+  const taskExportQuery = {
+    ...submitted,
+    taskStatus: activeTab === 'queue' ? 'active' : activeTab === 'failed' ? 'failed' : 'terminal',
+  };
+  const artifactExportQuery = submitted as unknown as Record<string, unknown>;
+
+  const taskActions = (
     <>
       {canBuild ? <CreateButton onClick={() => { setSubmitVisible(true); setSubmitForm((prev) => ({ ...prev, siteId: sites[0]?.id })); }}>新建发布</CreateButton> : null}
-      <ExportButton entity="cms.publish-artifacts" label="导出产物" query={submitted as unknown as Record<string, unknown>} />
-      <ExportButton entity="cms.publish-logs" label="导出日志" query={submitted as unknown as Record<string, unknown>} />
+      <ExportButton entity="cms.publish-artifacts" label="导出产物" query={taskExportQuery as unknown as Record<string, unknown>} />
+      <ExportButton entity="cms.publish-logs" label="导出日志" query={taskExportQuery as unknown as Record<string, unknown>} />
+    </>
+  );
+
+  const artifactActions = (
+    <>
+      {canBuild ? <CreateButton onClick={() => { setSubmitVisible(true); setSubmitForm((prev) => ({ ...prev, siteId: sites[0]?.id })); }}>新建发布</CreateButton> : null}
+      <ExportButton entity="cms.publish-artifacts" label="导出产物" query={artifactExportQuery} />
+      <ExportButton entity="cms.publish-logs" label="导出日志" query={artifactExportQuery} />
     </>
   );
 
@@ -270,13 +284,13 @@ export default function PublishingPage() {
       <SearchToolbar
         primary={primary}
         filters={filters}
-        actions={actions}
+        actions={taskActions}
         mobilePrimary={primary}
         mobileActions={(
           <>
             {canBuild ? <Button theme="borderless" type="primary" onClick={() => setSubmitVisible(true)}>新建发布</Button> : null}
-            <ExportButton entity="cms.publish-artifacts" label="导出产物" query={submitted as unknown as Record<string, unknown>} variant="flat" />
-            <ExportButton entity="cms.publish-logs" label="导出日志" query={submitted as unknown as Record<string, unknown>} variant="flat" />
+            <ExportButton entity="cms.publish-artifacts" label="导出产物" query={taskExportQuery as unknown as Record<string, unknown>} variant="flat" />
+            <ExportButton entity="cms.publish-logs" label="导出日志" query={taskExportQuery as unknown as Record<string, unknown>} variant="flat" />
           </>
         )}
         onFilterApply={applySearch}
@@ -286,12 +300,12 @@ export default function PublishingPage() {
       {tab === 'failed' && taskListQuery.data?.list.length === 0 ? <Banner type="success" description="当前筛选范围内没有失败任务。" /> : null}
       <ConfigurableTable
         bordered
-        rowKey="id"
+        rowKey={(record) => String(record.id)}
         columns={taskColumns}
         dataSource={tasks}
         loading={taskListQuery.isFetching}
         pagination={taskPagination.buildPagination(taskListQuery.data?.total ?? 0)}
-        rowSelection={canManage ? { selectedRowKeys: selected, onChange: (keys) => setSelected((keys ?? []).map(Number)) } : undefined}
+        rowSelection={canManage ? { selectedRowKeys: selected.map(String), onChange: (keys) => setSelected((keys ?? []).map(Number)) } : undefined}
         onRefresh={() => void taskListQuery.refetch()}
         refreshLoading={taskListQuery.isFetching}
         scroll={{ x: 1450 }}
@@ -308,16 +322,16 @@ export default function PublishingPage() {
           <SearchToolbar
             primary={primary}
             filters={filters}
-            actions={actions}
+            actions={artifactActions}
             mobilePrimary={primary}
-            mobileActions={actions}
+            mobileActions={artifactActions}
             onFilterApply={applySearch}
             onFilterReset={resetSearch}
           />
           {artifactListQuery.isError ? <Banner type="danger" description="发布产物加载失败，请确认任务/站点权限后刷新重试。" /> : null}
           <ConfigurableTable
             bordered
-            rowKey="id"
+            rowKey={(record) => String(record.id)}
             columns={artifactColumns}
             dataSource={artifacts}
             loading={artifactListQuery.isFetching}
@@ -344,7 +358,7 @@ export default function PublishingPage() {
         </Form>
       </AppModal>
 
-      <SideSheet title={detailTask ? `发布详情 #${detailTask.id}` : '发布详情'} visible={detailTask != null} onCancel={() => setDetailTask(null)} width={760}>
+      <SideSheet title={detailTaskId != null ? `发布详情 #${detailTaskId}` : '发布详情'} visible={detailTaskId != null} onCancel={closeTaskDetail} width={760}>
         {detailQuery.isError ? (
           <Banner type="danger" description="详情加载失败。请确认任务仍存在且你拥有该站点访问权限。" />
         ) : detailQuery.data ? (
