@@ -25,7 +25,7 @@ import { COMMON_STATUS_OPTIONS } from '@zenith/shared/core';
 import type { CmsSearchResult, CmsSearchWord, CmsHotKeyword } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
-import { CreateButton, SearchButton } from '@/components/toolbar-controls';
+import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn, renderEnabledStatusTag } from '@/utils/table-columns';
@@ -40,8 +40,8 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
   const [keyword, setKeyword] = useState('');
   const [page, setPage] = useState(1);
 
-  const searchQuery = useCmsSearchTest({ siteId, keyword, page }, !!keyword);
-  const segmentQuery = useCmsSegmentPreview(siteId, keyword, !!keyword);
+  const searchQuery = useCmsSearchTest({ siteId, keyword, page }, !!keyword && siteId !== undefined);
+  const segmentQuery = useCmsSegmentPreview(siteId, keyword, !!keyword && siteId !== undefined);
   const reindexMutation = useCmsSearchReindex();
   const { tasks, loading: tasksLoading, refresh } = useMyAsyncTasks({ taskTypes: ['cms-search-reindex'] });
 
@@ -89,7 +89,7 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
   return (
     <>
       <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={(v) => { onSiteChange(v); setPage(1); }} width={180} />
+        <CmsSiteSelect value={siteId} onChange={(v) => { onSiteChange(v); setPage(1); setKeyword(''); setDraftKeyword(''); }} width={180} />
         <KeywordInput placeholder="输入关键词测试检索效果..." value={draftKeyword} onChange={setDraftKeyword} onSearch={handleSearch} width={260} />
         <SearchButton onClick={handleSearch}>检索测试</SearchButton>
         {hasPermission('cms:search:manage') ? (
@@ -113,7 +113,7 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
         columns={columns}
         dataSource={list}
         loading={searchQuery.isFetching}
-        rowKey="id"
+        rowKey={(record) => String(record.id)}
         size="small"
         empty={keyword ? '未检索到内容' : '输入关键词开始检索测试'}
         scroll={{ x: 1080 }}
@@ -145,7 +145,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
   const {
     page, pageSize, setPage, buildPagination,
     draftParams, setDraftParams, submittedParams,
-    handleSearch,
+    handleSearch, handleReset,
   } = useListSearch<{ keyword: string }>({ defaults: { keyword: '' }, listKey: cmsSearchWordKeys.lists });
   const [type, setType] = useState<'extension' | 'stop' | undefined>(undefined);
   const [groupName, setGroupName] = useState('');
@@ -204,14 +204,15 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
     <>
       <Banner type="info" closeIcon={null} style={{ marginBottom: 12 }} description="自定义词典用于纠正分词（如品牌名、行业术语）。新增/修改即时对新内容生效；历史内容需在「检索测试」中重建索引。" />
       <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={(value) => { onSiteChange(value); setPage(1); }} width={180} />
+        <CmsSiteSelect value={siteId} onChange={(value) => { onSiteChange(value); setPage(1); setSelectedIds([]); }} width={180} />
         <KeywordInput placeholder="搜索词条..." value={draftParams.keyword} onChange={(v) => setDraftParams({ keyword: v })} onSearch={handleSearch} width={200} />
-        <Select placeholder="词典类型" showClear value={type} onChange={(value) => setType(value as 'extension' | 'stop' | undefined)} style={{ width: 120 }}
+        <Select placeholder="词典类型" showClear value={type} onChange={(value) => { setType(value as 'extension' | 'stop' | undefined); setSelectedIds([]); }} style={{ width: 120 }}
           optionList={CMS_SEARCH_WORD_TYPES.map((value) => ({ value, label: CMS_SEARCH_WORD_TYPE_LABELS[value] }))} />
-        <Input placeholder="分组" value={groupName} onChange={setGroupName} style={{ width: 130 }} />
-        <Select placeholder="状态" showClear value={status} onChange={(value) => setStatus(value as string | undefined)} style={{ width: 110 }}
+        <Input placeholder="分组" value={groupName} onChange={(value) => { setGroupName(value); setSelectedIds([]); }} style={{ width: 130 }} />
+        <Select placeholder="状态" showClear value={status} onChange={(value) => { setStatus(value as string | undefined); setSelectedIds([]); }} style={{ width: 110 }}
           optionList={COMMON_STATUS_OPTIONS} />
         <SearchButton onClick={handleSearch} />
+        <ResetButton onClick={() => { handleReset(); setType(undefined); setGroupName(''); setStatus(undefined); setSelectedIds([]); }} />
         {canManage ? <CreateButton onClick={modal.openCreate}>新增词条</CreateButton> : null}
         {canManage && selectedIds.length > 0 ? (
           <>
@@ -228,7 +229,16 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
                 },
               });
             }}>批量分组</Button>
-            <Button type="danger" onClick={() => void batchMutation.mutateAsync({ action: 'delete', body: { ids: selectedIds } }).then(() => setSelectedIds([]))}>批量删除</Button>
+            <Button type="danger" onClick={() => {
+              Modal.confirm({
+                title: `删除 ${selectedIds.length} 个词条？`,
+                content: '删除后不可恢复。',
+                onOk: async () => {
+                  await batchMutation.mutateAsync({ action: 'delete', body: { ids: selectedIds } });
+                  setSelectedIds([]);
+                },
+              });
+            }}>批量删除</Button>
           </>
         ) : null}
       </SearchToolbar>
@@ -237,12 +247,12 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         columns={columns}
         dataSource={listQuery.data?.list ?? []}
         loading={listQuery.isFetching}
-        rowKey="id"
+        rowKey={(record) => String(record.id)}
         size="small"
         empty="暂无自定义词条"
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        pagination={buildPagination(listQuery.data?.total ?? 0)}
+        pagination={buildPagination(listQuery.data?.total ?? 0, () => setSelectedIds([]))}
         rowSelection={{ selectedRowKeys: selectedIds.map(String), onChange: (keys) => setSelectedIds((keys ?? []).map(Number)) }}
       />
       <AppModal {...modal.modalProps} width={480}>

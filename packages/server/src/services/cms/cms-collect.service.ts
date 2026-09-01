@@ -122,12 +122,19 @@ export interface CollectRuleInput {
   remark?: string | null;
 }
 
+export function validateCmsCollectPageRange(pageStart: number, pageEnd: number): void {
+  if (pageEnd < pageStart) throw new HTTPException(400, { message: '结束页不能小于起始页' });
+}
+
 export async function createCollectRule(input: CollectRuleInput) {
   await ensureCmsSiteExists(input.siteId);
   await assertSiteAccess(input.siteId);
   await assertChannelAccess(input.channelId);
   await assertCollectAutoPublishPermission(input.autoPublish === true);
   await ensureRuleChannel(input.siteId, input.channelId);
+  const pageStart = input.pageStart ?? 1;
+  const pageEnd = input.pageEnd ?? 1;
+  validateCmsCollectPageRange(pageStart, pageEnd);
   const [created] = await db.insert(cmsCollectRules).values({
     ...input,
   }).returning();
@@ -144,6 +151,9 @@ export async function updateCollectRule(id: number, input: Partial<CollectRuleIn
     await assertChannelAccess(input.channelId);
     await ensureRuleChannel(current.siteId, input.channelId);
   }
+  const pageStart = input.pageStart ?? current.pageStart;
+  const pageEnd = input.pageEnd ?? current.pageEnd;
+  validateCmsCollectPageRange(pageStart, pageEnd);
   const { siteId: _ignored, ...rest } = input;
   const [updated] = await db.update(cmsCollectRules).set(rest).where(and(
     eq(cmsCollectRules.id, id),

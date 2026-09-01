@@ -124,13 +124,13 @@ export default function CommentsPage() {
   const tableContent = (
     <>
       <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); }} width={200} />
+        <CmsSiteSelect value={siteId} onChange={(v) => { setSiteId(v); setPage(1); setSelectedIds([]); }} width={200} />
         <Select
           placeholder="评论来源"
           style={{ width: 140 }}
           showClear
           value={source}
-          onChange={(v) => { setSource(v as 'member' | 'guest' | undefined); setPage(1); }}
+          onChange={(v) => { setSource(v as 'member' | 'guest' | undefined); setPage(1); setSelectedIds([]); }}
           optionList={[{ label: '会员评论', value: 'member' }, { label: '游客评论', value: 'guest' }]}
         />
         {batchBar}
@@ -140,13 +140,13 @@ export default function CommentsPage() {
         columns={columns}
         dataSource={listQuery.data?.list ?? []}
         loading={listQuery.isFetching}
-        rowKey="id"
+        rowKey={(record) => String(record.id)}
         size="small"
         empty="暂无评论"
         scroll={{ x: 1320 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        pagination={buildPagination(listQuery.data?.total ?? 0)}
+        pagination={buildPagination(listQuery.data?.total ?? 0, () => setSelectedIds([]))}
         rowSelection={{
           selectedRowKeys: selectedIds.map(String),
           onChange: (keys) => setSelectedIds((keys ?? []).map(Number)),

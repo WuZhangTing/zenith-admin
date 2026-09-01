@@ -90,6 +90,7 @@ export default function SurveysPage() {
   const handleSearch = () => {
     setPage(1);
     setResponsePage(1);
+    setSelectedIds([]);
     setSubmitted(draft);
     void queryClient.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
   };
@@ -100,6 +101,7 @@ export default function SurveysPage() {
     setSubmitted(initialSearch);
     setResponseTimeRange(undefined);
     setResponseInteractionId(undefined);
+    setSelectedIds([]);
     void queryClient.invalidateQueries({ queryKey: cmsInteractionKeys.lists });
   };
 
@@ -224,14 +226,14 @@ export default function SurveysPage() {
 
   const listSearch = (
     <>
-      <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); setResponsePage(1); }} />
+      <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); setResponsePage(1); setSelectedIds([]); setResponseInteractionId(undefined); }} />
       <KeywordInput placeholder="标题/标识" value={draft.keyword} onChange={(value) => setDraft((current) => ({ ...current, keyword: value }))} onSearch={handleSearch} width={200} />
       <Select placeholder="全部类型" showClear value={draft.kind} style={{ width: 130 }}
         optionList={Object.entries(CMS_INTERACTION_KIND_LABELS).map(([value, label]) => ({ value, label }))}
-        onChange={(value) => setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined }))} />
+        onChange={(value) => { setDraft((current) => ({ ...current, kind: value as CmsInteractionKind | undefined })); setSelectedIds([]); }} />
       <Select placeholder="全部状态" showClear value={draft.status} style={{ width: 130 }}
         optionList={Object.entries(CMS_INTERACTION_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
-        onChange={(value) => setDraft((current) => ({ ...current, status: value as CmsInteractionStatus | undefined }))} />
+        onChange={(value) => { setDraft((current) => ({ ...current, status: value as CmsInteractionStatus | undefined })); setSelectedIds([]); }} />
       <SearchButton onClick={handleSearch} />
       <ResetButton onClick={handleReset} />
     </>
@@ -253,7 +255,7 @@ export default function SurveysPage() {
             actions={canManage && siteId ? <CreateButton onClick={openCreate} /> : null}
             mobilePrimary={(
               <>
-                <CmsSiteSelect value={siteId} onChange={setSiteId} />
+                <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); setResponsePage(1); setSelectedIds([]); setResponseInteractionId(undefined); }} />
                 <SearchButton onClick={handleSearch} />
                 {canManage ? <CreateButton onClick={openCreate} /> : null}
               </>
@@ -274,20 +276,20 @@ export default function SurveysPage() {
             columns={listColumns}
             dataSource={listQuery.data?.list ?? []}
             loading={listQuery.isFetching}
-            rowKey="id"
+            rowKey={(record) => String(record.id)}
             empty={siteId ? '暂无互动问卷' : '请先选择站点'}
             scroll={{ x: 1400 }}
-            rowSelection={{ selectedRowKeys: selectedIds, onChange: (keys) => setSelectedIds(keys as number[]) }}
+            rowSelection={{ selectedRowKeys: selectedIds.map(String), onChange: (keys) => setSelectedIds((keys ?? []).map(Number)) }}
             onRefresh={() => void listQuery.refetch()}
             refreshLoading={listQuery.isFetching}
-            pagination={buildPagination(listQuery.data?.total ?? 0)}
+            pagination={buildPagination(listQuery.data?.total ?? 0, () => setSelectedIds([]))}
           />
         </TabPane>
         <TabPane tab="答卷明细" itemKey="responses">
           <SearchToolbar
             primary={(
               <>
-                <CmsSiteSelect value={siteId} onChange={setSiteId} />
+                <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); setResponsePage(1); setSelectedIds([]); setResponseInteractionId(undefined); }} />
                 <Select placeholder="全部互动问卷" showClear value={responseInteractionId} style={{ width: 200 }}
                   filter
                   loading={interactionOptionsQuery.isFetching}
@@ -310,7 +312,7 @@ export default function SurveysPage() {
             columns={responseColumns}
             dataSource={responseQuery.data?.list ?? []}
             loading={responseQuery.isFetching}
-            rowKey="id"
+            rowKey={(record) => String(record.id)}
             empty={siteId ? '暂无答卷' : '请先选择站点'}
             onRefresh={() => void responseQuery.refetch()}
             refreshLoading={responseQuery.isFetching}

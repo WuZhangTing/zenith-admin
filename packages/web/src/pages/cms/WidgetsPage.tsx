@@ -91,12 +91,16 @@ export default function WidgetsPage() {
 
   function handleSearch() {
     resetPage();
+    setSelectedIds([]);
+    setSelectedRecords({});
     setSubmitted({ ...draft, keyword: draft.keyword.trim() });
     void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
   }
 
   function handleReset() {
     resetPage();
+    setSelectedIds([]);
+    setSelectedRecords({});
     setDraft(DEFAULT_SEARCH);
     setSubmitted(DEFAULT_SEARCH);
     void queryClient.invalidateQueries({ queryKey: cmsWidgetKeys.lists });
@@ -253,7 +257,7 @@ export default function WidgetsPage() {
     <Select
       placeholder="全部状态"
       value={draft.status || undefined}
-      onChange={(value) => setDraft((current) => ({ ...current, status: (value as CmsWidgetStatus) ?? '' }))}
+      onChange={(value) => { setDraft((current) => ({ ...current, status: (value as CmsWidgetStatus) ?? '' })); setSelectedIds([]); setSelectedRecords({}); }}
       showClear
       style={{ width: 130 }}
       optionList={Object.entries(CMS_WIDGET_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
@@ -263,7 +267,7 @@ export default function WidgetsPage() {
     <Select
       placeholder="全部类型"
       value={draft.type || undefined}
-      onChange={(value) => setDraft((current) => ({ ...current, type: (value as CmsWidgetType) ?? '' }))}
+      onChange={(value) => { setDraft((current) => ({ ...current, type: (value as CmsWidgetType) ?? '' })); setSelectedIds([]); setSelectedRecords({}); }}
       showClear
       style={{ width: 140 }}
       optionList={Object.entries(CMS_WIDGET_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
@@ -324,12 +328,12 @@ export default function WidgetsPage() {
         columns={columns}
         dataSource={listQuery.data?.list ?? []}
         loading={listQuery.isFetching}
-        rowKey="id"
+        rowKey={(record) => String(record.id)}
         empty={siteId ? '暂无页面部件' : '请先选择站点'}
         scroll={{ x: 1350 }}
-        pagination={buildPagination(listQuery.data?.total ?? 0)}
+        pagination={buildPagination(listQuery.data?.total ?? 0, () => { setSelectedIds([]); setSelectedRecords({}); })}
         rowSelection={{
-          selectedRowKeys: selectedIds,
+          selectedRowKeys: selectedIds.map(String),
           onChange: (keys) => {
             const nextIds = (keys ?? []).map(Number);
             const selected = new Set(nextIds);

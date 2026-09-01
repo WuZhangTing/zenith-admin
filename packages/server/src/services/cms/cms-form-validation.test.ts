@@ -62,4 +62,18 @@ describe('CMS form field validation', () => {
     expect(validateCmsFormFields([definition], { value: 'AB-2026' })).toEqual({ value: 'AB-2026' });
     expect(() => validateCmsFormFields([definition], { value: 'bad' })).toThrow();
   });
+
+  it('rejects duplicate field identifiers before a form can be saved', () => {
+    const result = createCmsFormSchema.safeParse({
+      siteId: 1,
+      code: 'duplicate-fields',
+      name: '重复字段表单',
+      fields: [
+        field({ name: 'email', label: '邮箱' }),
+        field({ name: 'email', label: '备用邮箱' }),
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.issues.some((issue) => issue.path.join('.') === 'fields.1.name')).toBe(true);
+  });
 });

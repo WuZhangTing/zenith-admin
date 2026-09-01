@@ -243,6 +243,7 @@ export default function ResourcesPage() {
   const [keyword, setKeyword] = useState<string | undefined>(undefined);
   const { page, pageSize, setPage, buildPagination } = usePagination();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [renameTarget, setRenameTarget] = useState<CmsResource | null>(null);
   const [cropTarget, setCropTarget] = useState<CmsResource | null>(null);
   const [refsTarget, setRefsTarget] = useState<CmsResource | null>(null);
@@ -287,12 +288,15 @@ export default function ResourcesPage() {
 
   function handleSiteChange(next: number) {
     setSiteId(next);
+    setFolderKey('all');
     setPage(1);
+    setSelectedIds([]);
   }
 
   function handleSearch() {
     setKeyword(keywordDraft.trim() || undefined);
     setPage(1);
+    setSelectedIds([]);
     void qc.invalidateQueries({ queryKey: cmsResourceKeys.lists });
   }
 
@@ -301,6 +305,7 @@ export default function ResourcesPage() {
     setKeyword(undefined);
     setType(undefined);
     setPage(1);
+    setSelectedIds([]);
     void qc.invalidateQueries({ queryKey: cmsResourceKeys.lists });
   }
 
@@ -496,7 +501,7 @@ export default function ResourcesPage() {
                 style={{ width: 130 }}
                 showClear
                 value={type}
-                onChange={(v) => { setType(v as CmsResourceType | undefined); setPage(1); }}
+                onChange={(v) => { setType(v as CmsResourceType | undefined); setPage(1); setSelectedIds([]); }}
                 optionList={CMS_RESOURCE_TYPES.map((t) => ({ label: CMS_RESOURCE_TYPE_LABELS[t], value: t }))}
               />
               <KeywordInput placeholder="搜索素材名称" value={keywordDraft} onChange={setKeywordDraft} onSearch={handleSearch} width={200} />
@@ -511,8 +516,8 @@ export default function ResourcesPage() {
                 <Button type="danger" onClick={() => handleDelete(selectedIds)}>批量删除（{selectedIds.length}）</Button>
               ) : null}
               {selectedIds.length > 0 && canUpdate ? (
-                <Button icon={<Move size={14} />} onClick={() => void moveSelected(folderId && folderId > 0 ? folderId : null)}>
-                  移动到当前目录
+                <Button icon={<Move size={14} />} onClick={() => setMoveModalVisible(true)}>
+                  移动到目录（{selectedIds.length}）
                 </Button>
               ) : null}
             </SearchToolbar>
@@ -523,13 +528,13 @@ export default function ResourcesPage() {
               columns={columns}
               dataSource={listQuery.data?.list ?? []}
               loading={listQuery.isFetching}
-              rowKey="id"
+              rowKey={(record) => String(record.id)}
               size="small"
               empty="暂无素材，请先选择站点后上传"
               scroll={{ x: 1360 }}
               onRefresh={() => void listQuery.refetch()}
               refreshLoading={listQuery.isFetching}
-              pagination={buildPagination(listQuery.data?.total ?? 0)}
+              pagination={buildPagination(listQuery.data?.total ?? 0, () => setSelectedIds([]))}
               rowSelection={{
                 selectedRowKeys: selectedIds.map(String),
                 onChange: (keys) => setSelectedIds((keys ?? []).map(Number)),
@@ -591,6 +596,36 @@ export default function ResourcesPage() {
           </MasterDetailLayout.Body>
         )}
       />
+
+      <Modal
+        visible={moveModalVisible}
+        title={`移动 ${selectedIds.length} 个素材`}
+        onCancel={() => setMoveModalVisible(false)}
+        footer={null}
+        closeOnEsc
+      >
+        <Form
+          labelPosition="left"
+          labelWidth={80}
+          initValues={{ folderId: folderId && folderId > 0 ? folderId : 0 }}
+          onSubmit={async (values: { folderId?: number | string | null }) => {
+            const targetFolderId = Number(values.folderId) > 0 ? Number(values.folderId) : null;
+            await moveSelected(targetFolderId);
+            setMoveModalVisible(false);
+          }}
+        >
+          <Form.TreeSelect
+            field="folderId"
+            label="目标目录"
+            treeData={[{ key: '0', value: 0, label: '根目录', children: foldersToTree(foldersQuery.data ?? []) }]}
+            defaultExpandAll
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+            <Button onClick={() => setMoveModalVisible(false)}>取消</Button>
+            <Button type="primary" htmlType="submit" loading={moveMutation.isPending}>移动</Button>
+          </div>
+        </Form>
+      </Modal>
 
       {/* 重命名/备注 */}
       <AppModal

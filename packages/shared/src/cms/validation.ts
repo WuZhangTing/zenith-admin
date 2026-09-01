@@ -514,11 +514,27 @@ export const cmsFormFieldSchema = z.object({
   }
 });
 
+const cmsFormFieldsSchema = z.array(cmsFormFieldSchema).superRefine((fields, ctx) => {
+  const seen = new Map<string, number>();
+  fields.forEach((field, index) => {
+    const previous = seen.get(field.name);
+    if (previous !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [index, 'name'],
+        message: `字段标识不能重复（已在第 ${previous + 1} 项使用）`,
+      });
+    } else {
+      seen.set(field.name, index);
+    }
+  });
+});
+
 const cmsFormBaseSchema = z.object({
   siteId: z.number().int().positive(),
   code: z.string().min(1, '表单标识不能为空').max(50).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   name: z.string().min(1, '表单名称不能为空').max(100),
-  fields: z.array(cmsFormFieldSchema).min(1, '至少配置一个字段').default([]),
+  fields: cmsFormFieldsSchema.min(1, '至少配置一个字段').default([]),
   successMessage: z.string().max(255).nullable().optional(),
   notifyEmail: z.string().max(255).nullable().optional(),
   captchaProvider: z.enum(['inherit', 'none', 'math', 'turnstile']).default('inherit'),
