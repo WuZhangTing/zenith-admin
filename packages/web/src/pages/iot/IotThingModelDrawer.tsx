@@ -19,8 +19,6 @@ import {
   useIotThingModel, useSaveIotEvent, useSaveIotProperty, useSaveIotService,
 } from '@/hooks/queries/iot-products';
 
-const { Text } = Typography;
-
 const EVENT_LEVEL_COLORS = { info: 'blue', warn: 'orange', fault: 'red' } as const;
 
 /** enumOptions（{值: 显示名}）↔ 文本域「每行 值=显示名」互转 */
@@ -37,6 +35,16 @@ function textToEnumOptions(text: string | undefined): Record<string, string> | n
     .filter((e): e is readonly [string, string] => e !== null && e[0] !== '' && e[1] !== '');
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
+
+/** 标识符列：code 样式 + 超宽省略出 tooltip（禁止换行撑高行） */
+const identifierColumn: ColumnProps = {
+  title: '标识符',
+  dataIndex: 'identifier',
+  width: 180,
+  render: (v: string) => (
+    <Typography.Text code ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Typography.Text>
+  ),
+};
 
 /** 服务/事件的参数列摘要 */
 function renderParamsSummary(params: IotParamDef[]) {
@@ -259,7 +267,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
 
   // ─── 列定义 ─────────────────────────────────────────────────────────────────
   const propertyColumns: ColumnProps<IotProductProperty>[] = [
-    { title: '标识符', dataIndex: 'identifier', width: 140, render: (v: string) => <Text code>{v}</Text> },
+    identifierColumn,
     { title: '名称', dataIndex: 'name', width: 110 },
     {
       title: '类型', dataIndex: 'dataType', width: 80,
@@ -312,7 +320,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
   ];
 
   const serviceColumns: ColumnProps<IotProductService>[] = [
-    { title: '标识符', dataIndex: 'identifier', width: 130, render: (v: string) => <Text code>{v}</Text> },
+    identifierColumn,
     { title: '名称', dataIndex: 'name', width: 110 },
     { title: '参数', render: (_: unknown, r: IotProductService) => renderParamsSummary(r.params) },
     {
@@ -340,7 +348,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
   ];
 
   const eventColumns: ColumnProps<IotProductEvent>[] = [
-    { title: '标识符', dataIndex: 'identifier', width: 140, render: (v: string) => <Text code>{v}</Text> },
+    identifierColumn,
     { title: '名称', dataIndex: 'name', width: 110 },
     {
       title: '级别', dataIndex: 'level', width: 80,
@@ -376,7 +384,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
       title={`物模型 · ${product?.name ?? ''}`}
       visible={product !== null}
       onCancel={onClose}
-      width={880}
+      width={1000}
       closeOnEsc
       bodyStyle={{ paddingBottom: 24 }}
     >
