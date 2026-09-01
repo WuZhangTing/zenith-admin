@@ -43,6 +43,9 @@ export interface ReplayMarker {
 
 interface ClickPoint { xPct: number; yPct: number }
 
+/** 点击热点数据：归一化坐标 + 录制视口（用于计算回放内容区矩形） */
+interface ClickHeatData { points: ClickPoint[]; viewport: { width: number; height: number } | null }
+
 /** 网络面板行（http 面包屑提取） */
 interface NetworkRow {
   offsetMs: number;
@@ -109,11 +112,12 @@ function extractMarkers(events: RrwebEventLite[], baseTs: number): ReplayMarker[
   return markers;
 }
 
-/** 提取点击坐标并按录制视口归一化为百分比（近似视口位置）。
+/** 提取点击坐标并按录制视口归一化为百分比（近似视口位置），同时返回首个录制视口尺寸。
  * viewport 未知时先暂存，遇到首个 Meta 后回填（缓冲窗口常以 FullSnapshot 开头，Meta 在其后）。 */
-function extractClickPoints(events: RrwebEventLite[]): ClickPoint[] {
+function extractClickHeat(events: RrwebEventLite[]): ClickHeatData {
   const points: ClickPoint[] = [];
   const pendingRaw: Array<{ x: number; y: number }> = [];
+  let firstViewport: ClickHeatData['viewport'] = null;
   let viewportW = 0;
   let viewportH = 0;
   const push = (x: number, y: number) => {
@@ -126,6 +130,7 @@ function extractClickPoints(events: RrwebEventLite[]): ClickPoint[] {
     if (e.type === EVENT_META && e.data?.width && e.data?.height) {
       viewportW = e.data.width;
       viewportH = e.data.height;
+      firstViewport ??= { width: viewportW, height: viewportH };
       // 回填 viewport 已知前的暂存点击（视口通常稳定）
       while (pendingRaw.length > 0) {
         const p = pendingRaw.shift()!;
@@ -141,7 +146,7 @@ function extractClickPoints(events: RrwebEventLite[]): ClickPoint[] {
       else pendingRaw.push({ x: e.data.x, y: e.data.y });
     }
   }
-  return points;
+  return { points, viewport: firstViewport };
 }
 
 function formatOffset(ms: number): string {
@@ -159,8 +164,10 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<{ baseTs: number; durationMs: number; markers: ReplayMarker[] } | null>(null);
-  const [clickPoints, setClickPoints] = useState<ClickPoint[]>([]);
+  const [clickHeat, setClickHeat] = useState<ClickHeatData>({ points: [], viewport: null });
   const [showHeat, setShowHeat] = useState(false);
+  /** 播放器画面区尺寸（不含控制条），用于热点层定位 */
+  const [frameSize, setFrameSize] = useState<{ width: number; height: number } | null>(null);
   const [networkRows, setNetworkRows] = useState<NetworkRow[]>([]);
   /** 播放进度（ms），驱动 DevTools 面板行高亮 */
   const [currentTime, setCurrentTime] = useState(0);
@@ -198,6 +205,15 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
     return markers;
   }, [perfEvents, toOffset]);
 
+  /** 热点层矩形：按录制视口等比缩放居中（同 rrweb-player 缩放规则），排除控制条与信箱留白 */
+  const heatRect = useMemo(() => {
+    if (!frameSize || !clickHeat.viewport) return null;
+    const scale = Math.min(frameSize.width / clickHeat.viewport.width, frameSize.height / clickHeat.viewport.height);
+    const w = clickHeat.viewport.width * scale;
+    const h = clickHeat.viewport.height * scale;
+    return { left: (frameSize.width - w) / 2, top: (frameSize.height - h) / 2, width: w, height: h };
+  }, [frameSize, clickHeat.viewport]);
+
   const allMarkers = useMemo(
     () => [...(timeline?.markers ?? []), ...errorMarkers, ...perfMarkers].sort((a, b) => a.offsetMs - b.offsetMs),
     [timeline, errorMarkers, perfMarkers],
@@ -221,7 +237,8 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
       setLoading(true);
       setError(null);
       setTimeline(null);
-      setClickPoints([]);
+      setClickHeat({ points: [], viewport: null });
+      setFrameSize(null);
       setNetworkRows([]);
       setCurrentTime(0);
       try {
@@ -242,12 +259,14 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
         if (!host) return;
         host.innerHTML = '';
         const w = width ?? Math.max(480, host.clientWidth - 16);
+        const h = Math.round(w * 0.62);
+        setFrameSize({ width: w, height: h });
         playerRef.current = new Player({
           target: host,
           props: {
             events: events as never[],
             width: w,
-            height: Math.round(w * 0.62),
+            height: h,
             autoPlay: live,
             showController: !live,
             skipInactive: !live,
@@ -262,8 +281,7 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
             durationMs: Math.max(1, events[events.length - 1].timestamp - baseTs),
             markers: extractMarkers(events, baseTs),
           });
-          setClickPoints(extractClickPoints(events));
-          setNetworkRows(extractNetworkRows(events, baseTs));
+          setClickHeat(extractClickHeat(events));          setNetworkRows(extractNetworkRows(events, baseTs));
         }
         // 播放进度事件：驱动 DevTools 面板当前行高亮
         playerRef.current?.addEventListener?.('ui-update-current-time', (params) => {
@@ -324,9 +342,9 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
               </span>
             </Tag>
           )}
-          {!live && clickPoints.length > 0 && (
+          {!live && clickHeat.points.length > 0 && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
-              <Text type="tertiary" size="small">点击热点（{clickPoints.length}）</Text>
+              <Text type="tertiary" size="small">点击热点（{clickHeat.points.length}）</Text>
               <Switch size="small" checked={showHeat} onChange={setShowHeat} aria-label="切换点击热点显示" />
             </span>
           )}
@@ -335,28 +353,34 @@ export default function ReplayPlayer({ replayId, segments, errors, perfEvents, s
           ? <Text type="danger">{error}</Text>
           : (
             <>
-              <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
-                <div ref={containerRef} className="zx-replay-player" />
-                {showHeat && !live && (
-                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} aria-hidden="true">
-                    {clickPoints.map((p, i) => (
-                      <span
-                        key={`${p.xPct}-${p.yPct}-${i}`}
-                        style={{
-                          position: 'absolute',
-                          left: `${p.xPct}%`,
-                          top: `${p.yPct}%`,
-                          width: 22,
-                          height: 22,
-                          marginLeft: -11,
-                          marginTop: -11,
-                          borderRadius: '50%',
-                          background: 'radial-gradient(circle, rgba(255,77,79,0.55) 0%, rgba(255,77,79,0.18) 55%, transparent 75%)',
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                {/* 相对定位包裹层收敛到播放器自身宽度，热点层锚定回放内容区而非外层容器 */}
+                <div style={{ position: 'relative' }}>
+                  <div ref={containerRef} className="zx-replay-player" />
+                  {showHeat && !live && heatRect && (
+                    <div
+                      style={{ position: 'absolute', ...heatRect, pointerEvents: 'none', overflow: 'hidden' }}
+                      aria-hidden="true"
+                    >
+                      {clickHeat.points.map((p, i) => (
+                        <span
+                          key={`${p.xPct}-${p.yPct}-${i}`}
+                          style={{
+                            position: 'absolute',
+                            left: `${p.xPct}%`,
+                            top: `${p.yPct}%`,
+                            width: 22,
+                            height: 22,
+                            marginLeft: -11,
+                            marginTop: -11,
+                            borderRadius: '50%',
+                            background: 'radial-gradient(circle, rgba(255,77,79,0.55) 0%, rgba(255,77,79,0.18) 55%, transparent 75%)',
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               {showHeat && !live && (
                 <Text type="quaternary" size="small" style={{ display: 'block', marginTop: 4 }}>
