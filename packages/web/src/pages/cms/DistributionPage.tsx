@@ -505,6 +505,7 @@ export default function DistributionPage() {
                 {hasPermission('cms:distribution:export') ? (
                   <ExportButton
                     entity="cms.distribution-runs"
+                    permission="cms:distribution:export"
                     query={{
                       ruleId: runSubmitted.ruleId,
                       siteId: runSubmitted.siteId,
@@ -529,7 +530,7 @@ export default function DistributionPage() {
               </>
             )}
             mobileActions={hasPermission('cms:distribution:export') ? (
-              <ExportButton entity="cms.distribution-runs" query={{
+              <ExportButton entity="cms.distribution-runs" permission="cms:distribution:export" query={{
                 ruleId: runSubmitted.ruleId,
                 siteId: runSubmitted.siteId,
                 status: runSubmitted.status,

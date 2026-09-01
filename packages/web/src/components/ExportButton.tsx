@@ -2,6 +2,7 @@ import { Button, Dropdown, Space, SplitButtonGroup } from '@douyinfe/semi-ui';
 import { ChevronDown, Download } from 'lucide-react';
 import type { ExportJobFormat, ExportJobRequestMode } from '@zenith/shared/tasks';
 import { useExportJobRunner } from '@/hooks/useExportJobRunner';
+import { usePermission } from '@/hooks/usePermission';
 
 interface ExportButtonProps {
   entity: string;
@@ -13,6 +14,8 @@ interface ExportButtonProps {
   watermark?: boolean;
   executionMode?: ExportJobRequestMode;
   variant?: 'primary' | 'flat';
+  /** Optional capability gate; omitted for non-CMS/shared callers. */
+  permission?: string;
 }
 
 export function ExportButton({
@@ -26,8 +29,11 @@ export function ExportButton({
   watermark = true,
   executionMode = 'sync',
   variant = 'primary',
+  permission,
 }: Readonly<ExportButtonProps>) {
   const exportRunner = useExportJobRunner();
+  const { hasPermission } = usePermission();
+  if (permission && !hasPermission(permission)) return null;
   const isFlat = variant === 'flat';
   const buttonTheme = isFlat ? 'borderless' : undefined;
   const rootClassName = `export-button${isFlat ? ' export-button--flat' : ''}`;

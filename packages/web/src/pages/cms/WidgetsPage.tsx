@@ -328,7 +328,7 @@ export default function WidgetsPage() {
         columns={columns}
         dataSource={listQuery.data?.list ?? []}
         loading={listQuery.isFetching}
-        rowKey={(record) => String(record.id)}
+        rowKey={(record) => String(record?.id ?? '')}
         empty={siteId ? '暂无页面部件' : '请先选择站点'}
         scroll={{ x: 1350 }}
         pagination={buildPagination(listQuery.data?.total ?? 0, () => { setSelectedIds([]); setSelectedRecords({}); })}

@@ -113,7 +113,7 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
         columns={columns}
         dataSource={list}
         loading={searchQuery.isFetching}
-        rowKey={(record) => String(record.id)}
+        rowKey={(record) => String(record?.id ?? '')}
         size="small"
         empty={keyword ? '未检索到内容' : '输入关键词开始检索测试'}
         scroll={{ x: 1080 }}
@@ -247,7 +247,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
         columns={columns}
         dataSource={listQuery.data?.list ?? []}
         loading={listQuery.isFetching}
-        rowKey={(record) => String(record.id)}
+        rowKey={(record) => String(record?.id ?? '')}
         size="small"
         empty="暂无自定义词条"
         onRefresh={() => void listQuery.refetch()}

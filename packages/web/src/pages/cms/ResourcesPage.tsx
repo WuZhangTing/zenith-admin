@@ -528,7 +528,7 @@ export default function ResourcesPage() {
               columns={columns}
               dataSource={listQuery.data?.list ?? []}
               loading={listQuery.isFetching}
-              rowKey={(record) => String(record.id)}
+              rowKey={(record) => String(record?.id ?? '')}
               size="small"
               empty="暂无素材，请先选择站点后上传"
               scroll={{ x: 1360 }}
@@ -565,7 +565,7 @@ export default function ResourcesPage() {
               ) : null}
               <DatePicker type="dateTime" value={governanceStart} onChange={(value) => setGovernanceStart(value as Date | undefined)} placeholder="治理开始时间" />
               <DatePicker type="dateTime" value={governanceEnd} onChange={(value) => setGovernanceEnd(value as Date | undefined)} placeholder="治理结束时间" />
-              {siteId ? <ExportButton entity="cms.resource-governance" query={{
+              {siteId ? <ExportButton entity="cms.resource-governance" permission="cms:resource:list" query={{
                 siteId,
                 startTime: governanceStart ? formatDateTimeForApi(governanceStart) : undefined,
                 endTime: governanceEnd ? formatDateTimeForApi(governanceEnd) : undefined,

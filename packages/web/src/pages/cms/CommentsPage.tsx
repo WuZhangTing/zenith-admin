@@ -140,7 +140,7 @@ export default function CommentsPage() {
         columns={columns}
         dataSource={listQuery.data?.list ?? []}
         loading={listQuery.isFetching}
-        rowKey={(record) => String(record.id)}
+        rowKey={(record) => String(record?.id ?? '')}
         size="small"
         empty="暂无评论"
         scroll={{ x: 1320 }}

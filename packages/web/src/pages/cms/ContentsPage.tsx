@@ -569,6 +569,7 @@ export default function ContentsPage() {
   const renderExportButton = () => siteId && hasPermission('cms:content:export') ? (
     <ExportButton
       entity="cms.contents"
+      permission="cms:content:export"
       query={{
         siteId,
         channelId,
@@ -697,7 +698,7 @@ export default function ContentsPage() {
         columns={columns}
         dataSource={list}
         loading={listQuery.isFetching}
-        rowKey={(record) => String(record.id)}
+        rowKey={(record) => String(record?.id ?? '')}
         size="small"
         empty="暂无内容"
         scroll={{ x: 1320 }}

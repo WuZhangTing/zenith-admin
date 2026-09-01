@@ -276,7 +276,7 @@ export default function SurveysPage() {
             columns={listColumns}
             dataSource={listQuery.data?.list ?? []}
             loading={listQuery.isFetching}
-            rowKey={(record) => String(record.id)}
+            rowKey={(record) => String(record?.id ?? '')}
             empty={siteId ? '暂无互动问卷' : '请先选择站点'}
             scroll={{ x: 1400 }}
             rowSelection={{ selectedRowKeys: selectedIds.map(String), onChange: (keys) => setSelectedIds((keys ?? []).map(Number)) }}
@@ -304,7 +304,7 @@ export default function SurveysPage() {
               </>
             )}
             actions={siteId && hasPermission('cms:interaction:export')
-              ? <ExportButton entity="cms.interaction-responses" query={responseExportQuery} />
+              ? <ExportButton entity="cms.interaction-responses" permission="cms:interaction:export" query={responseExportQuery} />
               : null}
           />
           <ConfigurableTable
@@ -312,7 +312,7 @@ export default function SurveysPage() {
             columns={responseColumns}
             dataSource={responseQuery.data?.list ?? []}
             loading={responseQuery.isFetching}
-            rowKey={(record) => String(record.id)}
+            rowKey={(record) => String(record?.id ?? '')}
             empty={siteId ? '暂无答卷' : '请先选择站点'}
             onRefresh={() => void responseQuery.refetch()}
             refreshLoading={responseQuery.isFetching}

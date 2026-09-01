@@ -73,7 +73,7 @@ function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; on
     >
       {form && hasPermission('cms:form:manage') ? (
         <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
-          <ExportButton entity="cms.form-submissions" query={{ formId: form.id }} />
+          <ExportButton entity="cms.form-submissions" permission="cms:form:manage" query={{ formId: form.id }} />
         </div>
       ) : null}
       <ConfigurableTable

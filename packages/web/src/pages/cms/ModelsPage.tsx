@@ -70,7 +70,7 @@ export default function ModelsPage() {
   const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const {
-    page, pageSize, buildPagination,
+    page, pageSize, setPage, buildPagination,
     draftParams, setDraftParams, submittedParams,
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsModelKeys.lists });

@@ -123,7 +123,7 @@ export default function SubscriptionsPage() {
         <TabPane tab="订阅聚合" itemKey="aggregate">
           <SearchToolbar
             primary={primary}
-            actions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" query={exportQuery} label="导出订阅明细" /> : null}
+            actions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" permission="cms:subscription:export" query={exportQuery} label="导出订阅明细" /> : null}
             mobilePrimary={(
               <>
                 <CmsSiteSelect value={siteId} onChange={setSiteId} />
@@ -131,7 +131,7 @@ export default function SubscriptionsPage() {
               </>
             )}
             mobileFilters={filters}
-            mobileActions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" query={exportQuery} variant="flat" /> : null}
+            mobileActions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" permission="cms:subscription:export" query={exportQuery} variant="flat" /> : null}
             filterTitle="订阅筛选"
             onFilterApply={handleSearch}
             onFilterReset={handleReset}
@@ -151,7 +151,7 @@ export default function SubscriptionsPage() {
         <TabPane tab="订阅明细" itemKey="detail">
           <SearchToolbar
             primary={primary}
-            actions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" query={exportQuery} /> : null}
+            actions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" permission="cms:subscription:export" query={exportQuery} /> : null}
             mobilePrimary={(
               <>
                 <CmsSiteSelect value={siteId} onChange={setSiteId} />
@@ -159,7 +159,7 @@ export default function SubscriptionsPage() {
               </>
             )}
             mobileFilters={filters}
-            mobileActions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" query={exportQuery} variant="flat" /> : null}
+            mobileActions={siteId && hasPermission('cms:subscription:export') ? <ExportButton entity="cms.subscriptions" permission="cms:subscription:export" query={exportQuery} variant="flat" /> : null}
             filterTitle="订阅筛选"
             onFilterApply={handleSearch}
             onFilterReset={handleReset}

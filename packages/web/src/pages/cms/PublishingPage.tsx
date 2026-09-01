@@ -119,6 +119,7 @@ export default function PublishingPage() {
     setSubmitted(draft);
     taskPagination.setPage(1);
     artifactPagination.setPage(1);
+    setSelected([]);
     void queryClient.invalidateQueries({ queryKey: cmsPublishingKeys.lists });
     void queryClient.invalidateQueries({ queryKey: cmsPublishingKeys.artifacts });
   };
@@ -128,6 +129,7 @@ export default function PublishingPage() {
     setSubmitted(EMPTY_FILTERS);
     taskPagination.setPage(1);
     artifactPagination.setPage(1);
+    setSelected([]);
     void queryClient.invalidateQueries({ queryKey: cmsPublishingKeys.lists });
     void queryClient.invalidateQueries({ queryKey: cmsPublishingKeys.artifacts });
   };
@@ -266,16 +268,16 @@ export default function PublishingPage() {
   const taskActions = (
     <>
       {canBuild ? <CreateButton onClick={() => { setSubmitVisible(true); setSubmitForm((prev) => ({ ...prev, siteId: sites[0]?.id })); }}>新建发布</CreateButton> : null}
-      <ExportButton entity="cms.publish-artifacts" label="导出产物" query={taskExportQuery as unknown as Record<string, unknown>} />
-      <ExportButton entity="cms.publish-logs" label="导出日志" query={taskExportQuery as unknown as Record<string, unknown>} />
+      <ExportButton entity="cms.publish-artifacts" permission="cms:publish:view" label="导出产物" query={taskExportQuery as unknown as Record<string, unknown>} />
+      <ExportButton entity="cms.publish-logs" permission="cms:publish:view" label="导出日志" query={taskExportQuery as unknown as Record<string, unknown>} />
     </>
   );
 
   const artifactActions = (
     <>
       {canBuild ? <CreateButton onClick={() => { setSubmitVisible(true); setSubmitForm((prev) => ({ ...prev, siteId: sites[0]?.id })); }}>新建发布</CreateButton> : null}
-      <ExportButton entity="cms.publish-artifacts" label="导出产物" query={artifactExportQuery} />
-      <ExportButton entity="cms.publish-logs" label="导出日志" query={artifactExportQuery} />
+      <ExportButton entity="cms.publish-artifacts" permission="cms:publish:view" label="导出产物" query={artifactExportQuery} />
+      <ExportButton entity="cms.publish-logs" permission="cms:publish:view" label="导出日志" query={artifactExportQuery} />
     </>
   );
 
@@ -289,8 +291,8 @@ export default function PublishingPage() {
         mobileActions={(
           <>
             {canBuild ? <Button theme="borderless" type="primary" onClick={() => setSubmitVisible(true)}>新建发布</Button> : null}
-            <ExportButton entity="cms.publish-artifacts" label="导出产物" query={taskExportQuery as unknown as Record<string, unknown>} variant="flat" />
-            <ExportButton entity="cms.publish-logs" label="导出日志" query={taskExportQuery as unknown as Record<string, unknown>} variant="flat" />
+            <ExportButton entity="cms.publish-artifacts" permission="cms:publish:view" label="导出产物" query={taskExportQuery as unknown as Record<string, unknown>} variant="flat" />
+            <ExportButton entity="cms.publish-logs" permission="cms:publish:view" label="导出日志" query={taskExportQuery as unknown as Record<string, unknown>} variant="flat" />
           </>
         )}
         onFilterApply={applySearch}
@@ -300,11 +302,11 @@ export default function PublishingPage() {
       {tab === 'failed' && taskListQuery.data?.list.length === 0 ? <Banner type="success" description="当前筛选范围内没有失败任务。" /> : null}
       <ConfigurableTable
         bordered
-        rowKey={(record) => String(record.id)}
+        rowKey={(record) => String(record?.id ?? '')}
         columns={taskColumns}
         dataSource={tasks}
         loading={taskListQuery.isFetching}
-        pagination={taskPagination.buildPagination(taskListQuery.data?.total ?? 0)}
+        pagination={taskPagination.buildPagination(taskListQuery.data?.total ?? 0, () => setSelected([]))}
         rowSelection={canManage ? { selectedRowKeys: selected.map(String), onChange: (keys) => setSelected((keys ?? []).map(Number)) } : undefined}
         onRefresh={() => void taskListQuery.refetch()}
         refreshLoading={taskListQuery.isFetching}
@@ -331,7 +333,7 @@ export default function PublishingPage() {
           {artifactListQuery.isError ? <Banner type="danger" description="发布产物加载失败，请确认任务/站点权限后刷新重试。" /> : null}
           <ConfigurableTable
             bordered
-            rowKey={(record) => String(record.id)}
+            rowKey={(record) => String(record?.id ?? '')}
             columns={artifactColumns}
             dataSource={artifacts}
             loading={artifactListQuery.isFetching}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Tag, Toast, Tabs, TabPane, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -107,6 +107,10 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const [slotFilter, setSlotFilter] = useState<number | undefined>(undefined);
   const slotsQuery = useCmsAdSlots(siteId);
   const listQuery = useCmsAdList({ page, pageSize, siteId: siteId ?? 0, slotId: slotFilter }, siteId !== undefined);
+  useEffect(() => {
+    setSlotFilter(undefined);
+    setPage(1);
+  }, [setPage, siteId]);
   const saveMutation = useSaveCmsAd();
   const adModal = useEditModal<CmsAd, Record<string, unknown>, Record<string, unknown>>({
     entityName: '广告',
@@ -260,6 +264,15 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
     void queryClient.invalidateQueries({ queryKey: cmsAdEventKeys.lists });
   };
 
+  const handleSiteChange = (value: number | undefined) => {
+    setSiteId(value);
+    setPage(1);
+    // Ad and slot IDs are site-scoped; never carry them into another site.
+    setDraft({});
+    setSubmitted({});
+    setDetail(null);
+  };
+
   const filterFields = (
     <>
       <Select placeholder="全部广告" showClear value={draft.adId} style={{ width: 160 }}
@@ -311,7 +324,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
       <SearchToolbar
         primary={(
           <>
-            <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); }} />
+            <CmsSiteSelect value={siteId} onChange={handleSiteChange} />
             {filterFields}
             <SearchButton onClick={handleSearch} />
             <ResetButton onClick={handleReset} />
@@ -320,7 +333,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
         actions={(
           <>
             {siteId && hasPermission('cms:ad-event:export')
-              ? <ExportButton entity="cms.ad-events" query={exportQuery} />
+              ? <ExportButton entity="cms.ad-events" permission="cms:ad-event:export" query={exportQuery} />
               : null}
             {hasPermission('cms:ad-event:cleanup') ? (
               <Button
@@ -346,13 +359,13 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
         )}
         mobilePrimary={(
           <>
-            <CmsSiteSelect value={siteId} onChange={setSiteId} />
+            <CmsSiteSelect value={siteId} onChange={handleSiteChange} />
             <SearchButton onClick={handleSearch} />
           </>
         )}
         mobileFilters={filterFields}
         mobileActions={siteId && hasPermission('cms:ad-event:export')
-          ? <ExportButton entity="cms.ad-events" query={exportQuery} variant="flat" />
+          ? <ExportButton entity="cms.ad-events" permission="cms:ad-event:export" query={exportQuery} variant="flat" />
           : null}
         filterTitle="广告事件筛选"
         onFilterApply={handleSearch}
