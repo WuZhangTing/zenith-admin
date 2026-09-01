@@ -45,6 +45,7 @@ import { submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
 import { insertContentPublishOutbox, recalcTagContentCounts, ensureChannelForContent } from './cms-contents-internal';
 import { ensureCmsContentExists, getCmsContent, mapCmsContent } from './cms-contents-query.service';
 import { applyCmsModelFieldDefaults, validateCmsModelExtend } from './cms-model-extend';
+import { sanitizeCmsHtml } from './cms-html-sanitizer';
 
 // ─── 写入辅助 ─────────────────────────────────────────────────────────────────
 
@@ -224,7 +225,17 @@ async function applyCmsContentPolicies<T extends CmsContentPolicyInput>(
 
   if (out.title !== undefined) out.title = (await applyWordPolicies(out.title, ops)) as string;
   if (out.summary !== undefined) out.summary = (await applyWordPolicies(out.summary, ops)) ?? null;
-  if (out.body !== undefined) out.body = (await applyWordPolicies(out.body, ops)) ?? null;
+  if (out.body !== undefined) {
+    // Normalize HTML before applying text policies, then sanitize again because
+    // policy replacements operate on strings and must never be able to re-open
+    // an HTML attribute/tag boundary.
+    if (out.body === null) {
+      out.body = null;
+    } else {
+      const safeBody = sanitizeCmsHtml(out.body);
+      out.body = sanitizeCmsHtml((await applyWordPolicies(safeBody, ops)) ?? '');
+    }
+  }
   if (out.attachments !== undefined) out.attachments = normalizeAttachments(out.attachments);
 
   if (ops.autoCoverFromBody) {

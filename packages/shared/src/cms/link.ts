@@ -7,13 +7,14 @@
  * ```
  * entity:channel@news    站内栏目（按栏目标识引用，站点复制/导入后依然有效，推荐）
  * entity:content/123     站内内容（稳定引用，目标改 slug / 换栏目自动跟随）
- * entity:channel/45      站内栏目（按数值 id 引用，历史数据兼容）
+ * entity:channel/45      站内栏目（按数值 id 引用）
  * internal:/news/        手填站内路径
  * https://example.com    站外链接
  * ```
  *
  * 之所以不拆成 `link_type` + `link_target_id` 两列：链接字段天然要同时装内链和外链，
- * 现有大量代码只关心「有没有链接」（有就跳过静态化 / 详情页 302），单列可零改动兼容。
+ * 现有大量代码只关心「有没有链接」（有就跳过静态化 / 详情页 302），单列仍作为持久化载体；
+ * 任何进入该载体的值必须先经过本文件的严格语法校验。
  */
 
 export const CMS_LINK_ENTITY_TYPES = ['content', 'channel'] as const;
@@ -37,17 +38,74 @@ export type CmsLinkRef =
 const ENTITY_LINK_RE = /^entity:(content|channel)\/(\d+)$/;
 const ENTITY_CODE_LINK_RE = /^entity:channel@([a-z0-9-]+)$/;
 const INTERNAL_PREFIX = 'internal:';
+const ENCODED_CONTROL_RE = /%0[0-9a-f]|%1[0-9a-f]|%7f/i;
+const BACKSLASH_RE = /\\/;
+const PATH_TRAVERSAL_RE = /(?:^|\/)(?:\.|\.\.|%2e|%2f|%5c)(?:\/|$)/i;
+const PERCENT_ENCODED_DOT_RE = /%2e/i;
+const PERCENT_ENCODED_SEPARATOR_RE = /%2f|%5c/i;
+const EXTERNAL_PROTOCOL_RE = /^[a-z][a-z0-9+.-]*:/i;
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+
+function hasUnsafeControlOrBidi(value: string): boolean {
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    if (
+      codePoint <= 0x1f
+      || codePoint === 0x7f
+      || codePoint === 0x2028
+      || codePoint === 0x2029
+      || codePoint === 0x200e
+      || codePoint === 0x200f
+      || (codePoint >= 0x202a && codePoint <= 0x202e)
+      || (codePoint >= 0x2066 && codePoint <= 0x2069)
+    ) return true;
+  }
+  return false;
+}
+
+/**
+ * 站内路径只能是相对当前站点的 URL 路径。
+ *
+ * URL 解析器会把反斜杠和编码后的分隔符解释成路径分隔符，
+ * 所以这些值必须在解码前拒绝，而不能依赖 `new URL()` 归一化后再判断。
+ */
+function isSafeInternalPath(path: string): boolean {
+  if (!path.startsWith('/') || path.startsWith('//')) return false;
+  if (hasUnsafeControlOrBidi(path) || BACKSLASH_RE.test(path)) return false;
+  if (PERCENT_ENCODED_DOT_RE.test(path) || PERCENT_ENCODED_SEPARATOR_RE.test(path) || ENCODED_CONTROL_RE.test(path) || PATH_TRAVERSAL_RE.test(path)) return false;
+  return !path.split('?')[0].split('#')[0].split('/').some((segment) => segment === '.' || segment === '..');
+}
+
+/** 严格校验可输出到 href 的站外地址，但保留调用方传入的文本以避免无意改写展示值。 */
+function isSafeExternalUrl(raw: string): boolean {
+  if (!raw || hasUnsafeControlOrBidi(raw) || ENCODED_CONTROL_RE.test(raw) || BACKSLASH_RE.test(raw) || /\s/.test(raw)) return false;
+  if (raw.startsWith('//') || !EXTERNAL_PROTOCOL_RE.test(raw)) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return false;
+  }
+  if (!ALLOWED_EXTERNAL_PROTOCOLS.has(parsed.protocol.toLowerCase())) return false;
+  // Credentials in a link are almost always a phishing/secret-leak mistake and
+  // make redirects and link checks harder to reason about.
+  if (parsed.username || parsed.password) return false;
+  if ((parsed.protocol === 'http:' || parsed.protocol === 'https:') && !parsed.hostname) return false;
+  if (parsed.protocol === 'mailto:' && !parsed.pathname.includes('@')) return false;
+  return true;
+}
 
 /**
  * 解析链接值。
  *
  * - 空值返回 `null`
  * - `entity:` / `internal:` 前缀格式非法时返回 `null`（供 Zod 校验拒绝）
- * - 其余一律视为站外链接原样透传，兼容历史自由文本数据
+ * - 只接受明确允许的外链协议；未知协议、协议相对地址和自由文本返回 `null`
  */
 export function parseCmsLink(raw: string | null | undefined): CmsLinkRef | null {
   const value = raw?.trim();
   if (!value) return null;
+  if (hasUnsafeControlOrBidi(value) || BACKSLASH_RE.test(value)) return null;
 
   const entity = ENTITY_LINK_RE.exec(value);
   if (entity) {
@@ -64,14 +122,14 @@ export function parseCmsLink(raw: string | null | undefined): CmsLinkRef | null 
 
   if (value.startsWith(INTERNAL_PREFIX)) {
     const path = value.slice(INTERNAL_PREFIX.length);
-    return path.startsWith('/') ? { kind: 'internal', path } : null;
+    return isSafeInternalPath(path) ? { kind: 'internal', path } : null;
   }
 
-  // 协议相对地址（//cdn.example.com/x）归为站外，需排在裸路径判断之前
-  if (value.startsWith('//')) return { kind: 'external', url: value };
-  if (value.startsWith('/')) return { kind: 'internal', path: value };
+  // 协议相对地址必须拒绝；否则浏览器会按当前协议加载攻击者域名。
+  if (value.startsWith('//')) return null;
+  if (value.startsWith('/')) return isSafeInternalPath(value) ? { kind: 'internal', path: value } : null;
 
-  return { kind: 'external', url: value };
+  return isSafeExternalUrl(value) ? { kind: 'external', url: value } : null;
 }
 
 /** 构造实体链接：`entity:content/123` */
@@ -81,12 +139,14 @@ export function buildCmsEntityLink(entityType: CmsLinkEntityType, id: number): s
 
 /** 构造栏目标识链接：`entity:channel@news`（站点复制后依然有效，选择器优先产出这种） */
 export function buildCmsChannelCodeLink(code: string): string {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(code)) throw new Error('栏目标识格式无效');
   return `entity:channel@${code}`;
 }
 
 /** 构造站内路径链接：`internal:/news/` */
 export function buildCmsInternalLink(path: string): string {
   const normalized = path.startsWith('/') ? path : `/${path}`;
+  if (!isSafeInternalPath(normalized)) throw new Error('站内路径格式无效');
   return `${INTERNAL_PREFIX}${normalized}`;
 }
 
@@ -137,6 +197,7 @@ export function remapCmsEntityLink(
 ): string | null {
   const value = raw?.trim() || null;
   const ref = parseCmsLink(value);
+  if (value && !ref) return null;
   if (ref?.kind !== 'entity') return value;
   if (ref.code !== null) return value;
   const nextId = remap(ref.entityType, ref.id);

@@ -23,13 +23,40 @@ describe('CMS 链接协议', () => {
     }
   });
 
-  it('把历史自由文本数据无损归类，不破坏既有链接', () => {
-    // 裸相对路径按站内路径处理（资源治理里已有 /files/download.zip 这类存量数据）
+  it('只接受明确的站内路径或外链协议', () => {
+    // 站内路径按站内链接处理
     expect(parseCmsLink('/files/download.zip')).toEqual({ kind: 'internal', path: '/files/download.zip' });
-    // 协议相对地址是站外，必须排在裸路径判断之前
-    expect(parseCmsLink('//cdn.example.com/a.js')).toEqual({ kind: 'external', url: '//cdn.example.com/a.js' });
+    // 协议相对地址不能按外链放行：浏览器会按当前协议加载任意域名
+    expect(parseCmsLink('//cdn.example.com/a.js')).toBeNull();
     expect(parseCmsLink('mailto:hi@example.com')).toEqual({ kind: 'external', url: 'mailto:hi@example.com' });
     expect(parseCmsLink('  ')).toBeNull();
+  });
+
+  it.each([
+    'javascript:alert(1)',
+    'JAVASCRIPT:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'vbscript:msgbox(1)',
+    'ftp://example.com/file',
+    'www.example.com/path',
+    'internal://evil.example/path',
+    'internal:news',
+    '/a/../secret',
+    '/a/%2e%2e/secret',
+    '/a/%2fsecret',
+    '/a/%5csecret',
+    '/a\\b',
+    '/a\u0000b',
+    'https://example.com/a b',
+    'https://user:pass@example.com/private',
+  ])('拒绝危险或含糊的链接 %s', (value) => {
+    expect(parseCmsLink(value)).toBeNull();
+    expect(isValidCmsLink(value)).toBe(false);
+  });
+
+  it('拒绝内部路径中的编码点段和双向控制字符', () => {
+    expect(parseCmsLink('/a/%2E%2E/%E7%A7%98%E5%AF%86')).toBeNull();
+    expect(parseCmsLink(`/a/\u202Etxt`)).toBeNull();
   });
 
   it('前缀正确但格式非法时判为非法，不降级成外链', () => {
@@ -51,15 +78,23 @@ describe('CMS 链接协议', () => {
     expect(isCmsSiteLink('https://a.com')).toBe(false);
   });
 
+  it('构造辅助函数不会生成不安全的链接', () => {
+    expect(() => buildCmsChannelCodeLink('News')).toThrow();
+    expect(() => buildCmsInternalLink('/a/../b')).toThrow();
+    expect(() => buildCmsInternalLink('//evil.example')).toThrow();
+  });
+
   it('站点导入时改写实体 id，映射缺失则置空而非错指同 id 记录', () => {
     const remap = remapCmsEntityLink('entity:content/10', (type, id) => (type === 'content' && id === 10 ? 99 : undefined));
     expect(remap).toBe('entity:content/99');
     // 目标未随包导入 → 置空，绝不能保留旧 id 指向本站不相干的记录
     expect(remapCmsEntityLink('entity:channel/10', () => undefined)).toBeNull();
-    // 非实体链接原样透传
+    // 合法非实体链接原样透传
     expect(remapCmsEntityLink('https://a.com', () => 1)).toBe('https://a.com');
     // 按 code 引用无需重映射，这正是 code 相对 id 的价值
     expect(remapCmsEntityLink('entity:channel@news', () => undefined)).toBe('entity:channel@news');
+    // 非法值不能借 remap 旁路重新进入持久化
+    expect(remapCmsEntityLink('javascript:alert(1)', () => 1)).toBeNull();
   });
 
   it('渲染层解析链接，而非在写入时固化 URL（保证目标改 slug 后自动跟随）', async () => {

@@ -7,6 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import type { CmsBaseContext, CmsBreadcrumb, CmsModelFieldValue, CmsPagination } from './types';
+import { serializeJsonForScript } from '../../lib/json-script';
 
 /** 暗色初始化脚本（head 内先行执行防闪烁）+ 切换按钮事件委托 */
 export const THEME_TOGGLE_SCRIPT = `(function(){try{
@@ -21,7 +22,7 @@ h.setAttribute('data-theme',next);localStorage.setItem('cms_theme',next);});
 /** 行为采集 beacon 脚本（page_view + 详情页浏览计数），仅站点开启统计时注入 */
 export function buildAnalyticsBeacon(analytics: NonNullable<CmsBaseContext['analytics']>): string {
   return `(function(){try{
-var K=${JSON.stringify(analytics.siteKey)};var C=${analytics.contentId ?? 'null'};
+var K=${serializeJsonForScript(analytics.siteKey)};var C=${analytics.contentId ?? 'null'};
 var ls=window.localStorage,ss=window.sessionStorage;
 var aid=ls.getItem('cms_aid')||(Date.now().toString(36)+Math.random().toString(36).slice(2,10));ls.setItem('cms_aid',aid);
 var sid=ss.getItem('cms_sid')||(Date.now().toString(36)+Math.random().toString(36).slice(2,10));ss.setItem('cms_sid',sid);
@@ -80,7 +81,7 @@ export function SeoHead({ ctx, langAlternates = false, children }: SeoHeadProps)
       {site.favicon ? <link rel="icon" href={site.favicon} /> : null}
       <meta name="generator" content="Zenith CMS" />
       {seo.jsonLd ? (
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(seo.jsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonForScript(seo.jsonLd) }} />
       ) : null}
       {assets.cssHref
         ? <link rel="stylesheet" href={assets.cssHref} />
@@ -209,4 +210,3 @@ export function MediaBlock({ content }: {
   }
   return null;
 }
-

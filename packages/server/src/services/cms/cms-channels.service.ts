@@ -22,6 +22,7 @@ import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms
 import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import { assertCmsWidgetChannelVisibilityMutable, assertCmsWidgetSourcesMutable } from './cms-widgets.service';
 import { submitCmsWidgetChannelRefreshSideEffect, submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
+import { sanitizeCmsHtml } from './cms-html-sanitizer';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): CmsChannel {
@@ -76,6 +77,12 @@ export function buildChannelTree(list: CmsChannel[]): CmsChannel[] {
   };
   prune(roots);
   return roots;
+}
+
+/** Sanitize the only HTML-bearing channel field before it reaches persistence. */
+function sanitizeChannelPageContent<T extends { pageContent?: string | null }>(data: T): T {
+  if (data.pageContent === undefined || data.pageContent === null) return data;
+  return { ...data, pageContent: sanitizeCmsHtml(data.pageContent) };
 }
 
 // ─── 前置校验 ─────────────────────────────────────────────────────────────────
@@ -215,6 +222,7 @@ async function resolveChannelCode(
 
 // ─── 创建 ─────────────────────────────────────────────────────────────────────
 export async function createCmsChannel(data: CreateCmsChannelInput) {
+  const safeData = sanitizeChannelPageContent(data);
   await ensureCmsSiteExists(data.siteId);
   await assertSiteAccess(data.siteId);
   await ensureModelValid(data.modelId, data.siteId);
@@ -235,7 +243,7 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
       await assertChannelPathFree(tx, data.siteId, path);
       const code = await resolveChannelCode(tx, data.siteId, data.code, data.slug);
       const [created] = await tx.insert(cmsChannels).values({
-        ...await canonicalizeCmsResourceFields(tx, data.siteId, data, 'channel'),
+        ...await canonicalizeCmsResourceFields(tx, data.siteId, safeData, 'channel'),
         code,
         path,
       }).returning();
@@ -264,6 +272,7 @@ export async function createCmsChannel(data: CreateCmsChannelInput) {
 
 // ─── 更新 ─────────────────────────────────────────────────────────────────────
 export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) {
+  const safeData = sanitizeChannelPageContent(data);
   const current = await ensureCmsChannelExists(id);
   await assertSiteAccess(current.siteId);
   await assertChannelAccess(id);
@@ -318,7 +327,7 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
         ? current.code
         : await resolveChannelCode(tx, current.siteId, data.code, nextSlug, id);
       const [updated] = await tx.update(cmsChannels)
-        .set({ ...await canonicalizeCmsResourceFields(tx, current.siteId, data, 'channel'), code, path })
+        .set({ ...await canonicalizeCmsResourceFields(tx, current.siteId, safeData, 'channel'), code, path })
         .where(and(
           eq(cmsChannels.id, id),
         )).returning();
