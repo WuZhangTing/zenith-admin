@@ -16,7 +16,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
-import { currentUser, hasPermission } from '../../lib/context';
+import { currentCmsOpenApiAccess, currentUser, hasPermission } from '../../lib/context';
 import { CMS_SITE_INHERITABLE_FIELDS, CMS_SITE_MAX_DEPTH } from '@zenith/shared/cms';
 import type { CmsSiteInheritableField, CmsSiteInheritanceFlags, CreateCmsSiteInput, UpdateCmsSiteInput } from '@zenith/shared/cms';
 import type { AsyncTask } from '@zenith/shared/tasks';
@@ -112,6 +112,8 @@ export async function resolveSiteByCode(code: string): Promise<CmsSiteRow | null
 
 /** 当前用户可管理的站点 id 集合；null = 不受限 */
 export async function getAccessibleSiteIds(): Promise<number[] | null> {
+  const openAccess = currentCmsOpenApiAccess();
+  if (openAccess) return [openAccess.siteId];
   const user = currentUser();
   if (isCmsPlatformAdmin(user)) return null;
   const rows = await db.select({ siteId: cmsSiteUsers.siteId }).from(cmsSiteUsers)
@@ -122,6 +124,13 @@ export async function getAccessibleSiteIds(): Promise<number[] | null> {
 /** 站点访问断言：非平台超管没有显式站点绑定时拒绝。 */
 export async function assertSiteAccess(siteId: number): Promise<void> {
   await ensureCmsSiteExists(siteId);
+  const openAccess = currentCmsOpenApiAccess();
+  if (openAccess) {
+    if (openAccess.siteId !== siteId) {
+      throw new HTTPException(403, { message: '开放应用未授权该站点' });
+    }
+    return;
+  }
   const ids = await getAccessibleSiteIds();
   if (ids !== null && !ids.includes(siteId)) {
     throw new HTTPException(403, { message: '无权管理该站点' });
@@ -134,6 +143,13 @@ export async function assertSitesAccess(
   deniedMessage = '站群操作要求对全部目标站点具有显式权限',
 ): Promise<void> {
   const unique = [...new Set(siteIds)];
+  const openAccess = currentCmsOpenApiAccess();
+  if (openAccess) {
+    if (unique.some((id) => id !== openAccess.siteId)) {
+      throw new HTTPException(403, { message: deniedMessage });
+    }
+    return;
+  }
   const accessible = await getAccessibleSiteIds();
   if (accessible === null) return;
   const allowed = new Set(accessible);

@@ -15,7 +15,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsSiteRow } from '../../db/schema';
-import { runWithCurrentUser } from '../../lib/context';
+import { runWithCmsOpenApiAccess, runWithCurrentUser } from '../../lib/context';
 import {
   createCmsContent, getCmsContent, publishCmsContent, recycleCmsContents,
   submitCmsContent, updateCmsContent,
@@ -31,15 +31,29 @@ import {
  * 内容的 `created_by` 会记为系统账号，真实来源通过 `source` 字段标记为「开放应用: {appKey}」，
  * 后台内容列表可据此筛出外部写入的稿件。
  */
-const OPEN_API_ACTOR = { userId: 1, username: 'admin', roles: ['super_admin'] } as const;
+const OPEN_API_ACTOR = { userId: 1, username: 'open-api', roles: [] as string[], tenantId: null };
 
-function withOpenApiActor<T>(fn: () => Promise<T>): Promise<T> {
-  return runWithCurrentUser({
-    userId: OPEN_API_ACTOR.userId,
-    username: OPEN_API_ACTOR.username,
-    roles: [...OPEN_API_ACTOR.roles],
-    tenantId: null,
-  }, fn);
+/**
+ * 以开放应用 principal 执行后台写入管线。
+ *
+ * `runWithCurrentUser` 仅用于兼容审计/创建人等需要用户上下文的旧服务；权限和
+ * 站点/栏目范围由独立的 `CmsOpenApiAccessContext` 决定，故这里绝不能再携带
+ * `super_admin` 角色。
+ */
+function withOpenApiActor<T>(
+  access: CmsOpenWriteAccess,
+  permissions: readonly string[],
+  fn: () => Promise<T>,
+): Promise<T> {
+  return runWithCmsOpenApiAccess({
+    clientId: access.clientId,
+    siteId: access.siteId,
+    channelIds: access.channelIds,
+    permissions,
+  }, () => runWithCurrentUser({
+    ...OPEN_API_ACTOR,
+    roles: [],
+  }, fn));
 }
 
 async function resolveWritableChannel(site: CmsSiteRow, access: CmsOpenWriteAccess, channelCode: string) {
@@ -98,7 +112,10 @@ export async function createOpenCmsContent(
   if (input.publish) await assertCmsOpenPublishAllowed(access, hasPublishScope);
 
   const { channel: _channel, publish, ...rest } = input;
-  return withOpenApiActor(async () => {
+  return withOpenApiActor(access, [
+    'cms:content:create', 'cms:content:update', 'cms:content:submit',
+    ...(publish ? ['cms:content:publish'] : []),
+  ], async () => {
     const created = await createCmsContent({
       ...rest,
       siteId: site.id,
@@ -132,7 +149,7 @@ export async function updateOpenCmsContent(
   await ensureWritableContent(site, access, id);
   const { channel: channelCode, ...rest } = input;
   const channel = channelCode ? await resolveWritableChannel(site, access, channelCode) : null;
-  return withOpenApiActor(async () => {
+  return withOpenApiActor(access, ['cms:content:update'], async () => {
     await updateCmsContent(id, {
       ...rest,
       ...(channel ? { channelId: channel.id } : {}),
@@ -144,7 +161,7 @@ export async function updateOpenCmsContent(
 export async function submitOpenCmsContent(site: CmsSiteRow, clientId: string, id: number) {
   const access = await assertCmsOpenWriteAccess(clientId, site.id);
   await ensureWritableContent(site, access, id);
-  return withOpenApiActor(async () => {
+  return withOpenApiActor(access, ['cms:content:submit'], async () => {
     await submitCmsContent(id, { skipAccessCheck: true });
     return getCmsContent(id);
   });
@@ -159,7 +176,7 @@ export async function publishOpenCmsContent(
   const access = await assertCmsOpenWriteAccess(clientId, site.id);
   await assertCmsOpenPublishAllowed(access, hasPublishScope);
   await ensureWritableContent(site, access, id);
-  return withOpenApiActor(async () => {
+  return withOpenApiActor(access, ['cms:content:publish'], async () => {
     await publishCmsContent(id, { skipAccessCheck: true });
     return getCmsContent(id);
   });
@@ -169,7 +186,7 @@ export async function publishOpenCmsContent(
 export async function recycleOpenCmsContent(site: CmsSiteRow, clientId: string, id: number) {
   const access = await assertCmsOpenWriteAccess(clientId, site.id);
   await ensureWritableContent(site, access, id);
-  return withOpenApiActor(async () => {
+  return withOpenApiActor(access, ['cms:content:delete'], async () => {
     await recycleCmsContents([id]);
   });
 }

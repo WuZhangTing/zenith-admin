@@ -8,7 +8,7 @@ import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { currentUser } from '../../lib/context';
+import { currentCmsOpenApiAccess, currentUser } from '../../lib/context';
 import type { CreateCmsChannelInput, UpdateCmsChannelInput, CmsChannel } from '@zenith/shared/cms';
 import { ensureCmsLinkTargetExists, isCmsLinkToChannel } from './cms-link.service';
 import { assertChannelTemplatesBySite } from './cms-template-refs.service';
@@ -599,6 +599,8 @@ export async function batchCreateCmsChannels(
 
 /** 当前用户可管理的栏目 id 集合；null = 不受限 */
 export async function getAccessibleChannelIds(): Promise<number[] | null> {
+  const openAccess = currentCmsOpenApiAccess();
+  if (openAccess) return openAccess.channelIds.length > 0 ? [...openAccess.channelIds] : null;
   const user = currentUser();
   if (isCmsPlatformAdmin(user)) return null;
   const rows = await db.select({ channelId: cmsChannelUsers.channelId }).from(cmsChannelUsers).where(and(
@@ -611,6 +613,13 @@ export async function getAccessibleChannelIds(): Promise<number[] | null> {
 export async function assertChannelAccess(channelId: number): Promise<void> {
   const channel = await ensureCmsChannelExists(channelId);
   await assertSiteAccess(channel.siteId);
+  const openAccess = currentCmsOpenApiAccess();
+  if (openAccess) {
+    if (openAccess.channelIds.length > 0 && !openAccess.channelIds.includes(channelId)) {
+      throw new HTTPException(403, { message: '开放应用未授权该栏目' });
+    }
+    return;
+  }
   const ids = await getAccessibleChannelIds();
   if (ids !== null && !ids.includes(channelId)) {
     throw new HTTPException(403, { message: '无权管理该栏目下的内容' });
@@ -627,6 +636,16 @@ export async function assertChannelsAccess(channelIds: number[]): Promise<void> 
   }).from(cmsChannels).where(inArray(cmsChannels.id, unique));
   assertCompleteCmsBatch(unique, rows.map((row) => row.id), '栏目');
   await assertSitesAccess(rows.map((row) => row.siteId), '无权管理该站点');
+  const openAccess = currentCmsOpenApiAccess();
+  if (openAccess) {
+    if (rows.some((row) => row.siteId !== openAccess.siteId)) {
+      throw new HTTPException(403, { message: '开放应用未授权该站点' });
+    }
+    if (openAccess.channelIds.length > 0 && unique.some((id) => !openAccess.channelIds.includes(id))) {
+      throw new HTTPException(403, { message: '所选栏目超出开放应用授权范围' });
+    }
+    return;
+  }
   const ids = await getAccessibleChannelIds();
   if (ids === null) return;
   const denied = unique.filter((id) => !ids.includes(id));

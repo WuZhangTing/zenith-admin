@@ -100,6 +100,7 @@ export async function deleteCmsOpenAppGrant(id: number) {
 // ─── 运行时校验（网关写入路径）───────────────────────────────────────────────
 
 export interface CmsOpenWriteAccess {
+  clientId: string;
   siteId: number;
   channelIds: number[];
   canPublish: boolean;
@@ -122,7 +123,7 @@ export async function assertCmsOpenWriteAccess(clientId: string, siteId: number)
   if (!row) {
     throw new HTTPException(403, { message: '应用未被授权写入该站点，请在「站点管理 → 开放授权」中配置' });
   }
-  return { siteId: row.siteId, channelIds: row.channelIds ?? [], canPublish: row.canPublish };
+  return { clientId, siteId: row.siteId, channelIds: row.channelIds ?? [], canPublish: row.canPublish };
 }
 
 /** 栏目白名单校验：授权行 channelIds 为空表示该站点全部栏目 */

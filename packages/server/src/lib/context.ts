@@ -41,6 +41,35 @@ export type AppEnv = AuthEnv;
 
 const userOverrideStore = new AsyncLocalStorage<JwtPayload>();
 
+/**
+ * 开放 API 写入时的请求级授权上下文。
+ *
+ * 开放应用不是后台用户，不能通过伪造 `super_admin` 角色复用后台服务。服务层
+ * 的站点、栏目和权限断言会优先读取这个上下文，因而每一层都保留同一条
+ * `client -> site -> channel -> scope` 授权边界。
+ */
+export interface CmsOpenApiAccessContext {
+  readonly clientId: string;
+  readonly siteId: number;
+  /** 空数组表示该站点全部栏目；非空时仅允许列出的栏目。 */
+  readonly channelIds: readonly number[];
+  /** 已由开放网关收窄后的 CMS 权限，而不是后台用户角色。 */
+  readonly permissions: readonly string[];
+}
+
+const cmsOpenApiAccessStore = new AsyncLocalStorage<CmsOpenApiAccessContext>();
+
+export function currentCmsOpenApiAccess(): CmsOpenApiAccessContext | undefined {
+  return cmsOpenApiAccessStore.getStore();
+}
+
+export function runWithCmsOpenApiAccess<T>(
+  access: CmsOpenApiAccessContext,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  return Promise.resolve(cmsOpenApiAccessStore.run(access, fn));
+}
+
 /** 获取当前请求 Context；脱离请求作用域（例如 worker、定时任务）时会抛出。 */
 export function getCtx() {
   return getContext<AppEnv>();
@@ -120,6 +149,8 @@ export function hasRole(...codes: string[]): boolean {
  * 基于 JWT Payload，无需查询数据库。仅凭角色 code 判定会被租户自建同名角色伪造。
  */
 export function isSuperAdmin(): boolean {
+  // 开放 API 使用独立 principal，即使外层存在后台请求上下文也不能借用超管权限。
+  if (currentCmsOpenApiAccess()) return false;
   const user = currentUser();
   return user.roles.includes('super_admin') && (user.tenantId ?? null) === null;
 }
@@ -311,6 +342,8 @@ export function hasAllRoles(...codes: string[]): boolean {
  * }
  */
 export async function hasPermission(...codes: string[]): Promise<boolean> {
+  const openAccess = currentCmsOpenApiAccess();
+  if (openAccess) return codes.some((code) => openAccess.permissions.includes(code));
   if (isSuperAdmin()) return true;
   const permissions = await getUserPermissions(currentUserId());
   return codes.some((code) => permissions.includes(code));
