@@ -30,7 +30,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
-import { dateTimeColumn } from '@/utils/table-columns';
+import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 const { Text, Paragraph } = Typography;
 
@@ -217,7 +217,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
 
   const columns: ColumnProps<AppWebhookSubscription>[] = [
     { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '名称', dataIndex: 'name', width: 150 },
+    { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '所属应用', dataIndex: 'clientId', width: 200, render: (v: string | null) => <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 190 }}>{v ? (appOptions.find((a) => a.clientId === v)?.name ?? v) : '系统内部'}</Text> },
     { title: '回调地址', dataIndex: 'url', width: 240, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{v}</Text> },
     {
