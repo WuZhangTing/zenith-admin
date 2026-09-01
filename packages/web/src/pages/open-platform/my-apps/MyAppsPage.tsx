@@ -26,7 +26,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
-import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 
 const { Paragraph, Text } = Typography;
 
@@ -152,7 +152,7 @@ export default function MyAppsPage() {
   };
 
   const columns: ColumnProps<OAuth2Client>[] = [
-    { title: '应用名称', dataIndex: 'name', width: 180, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 170 }}>{v}</Text> },
+    { title: '应用名称', dataIndex: 'name', width: 240, render: renderEllipsis },
     copyableNoColumn('Client ID', 'clientId', { width: 270 }),
     {
       title: '环境',
