@@ -12,7 +12,7 @@
 | 域 hooks、弹窗、搜索状态、提交与确认 | [必须复用的公共 hook / 工具](#必须复用的公共-hook--工具) |
 | mutation 失效、query key、下拉源、回填 | [缓存与 query key](#缓存与-query-key) |
 | 搜索栏、筛选控件、表格、List 分页与操作列 | [搜索栏与表格](#搜索栏与表格) |
-| 弹窗表单、枚举标签、上传、时区、进度条、滑块、分割线 | [表单与展示组件](#表单与展示组件) |
+| 弹窗表单、枚举标签、上传、时区、Cron、进度条、滑块、分割线 | [表单与展示组件](#表单与展示组件) |
 | 多 Tab、左右分栏、统计卡、栅格、抽屉宽度、行内成组间距 | [布局与响应式](#布局与响应式) |
 
 ---
@@ -157,6 +157,13 @@
   `field` / `label`，允许留空并回退默认时区时传 `required={false}`。页面内的默认值、提交兜底和比较逻辑
   统一复用 `utils/timezones.ts` 的 `DEFAULT_TIMEZONE`；**禁止**使用 `Form.Input`、自行拼
   `Form.Select optionList`、直接调用 `Intl.supportedValuesOf('timeZone')` 或硬编码 `Asia/Shanghai`
+- **Cron 表达式字段**：**禁止**裸 `Form.Input` 手输——一律在输入框 `addonAfter` 挂
+  `components/CronBuilderPopover.tsx` 可视化构建器：`value` 传当前表达式，`onApply` 用
+  `formApi.setValue` 回填。当前值的取法按表单形态：render-prop 表单直读 `formState.values`；
+  普通表单用局部 state（打开弹窗时初始化 + `onValueChange` 同步 + `onApply` 双写）。
+  构建器输出 6 段（含秒）表达式，服务端 `cron-parser` 5/6 段通吃，直接存储；
+  仅服务端明确只收 5 段的域在调用方边界转换（现存 IotSchedules / WorkflowSchedules 的
+  `toSixField` / `toFiveField` 写法），不要新增段数假设
 - **进度与度量条语义**：前三类**禁止**手写 `width: '${percent}%'` / `scaleX(percent)` 轨道
 
   | 数据性质 | 用 |
