@@ -162,7 +162,7 @@ export default function StatsPage() {
     <div className="page-container page-tabs-page zx-flat-panels">
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
-        <RadioGroup type="button" buttonSize="small" value={days} onChange={(e) => setDays(e.target.value as number)}>
+        <RadioGroup type="button" value={days} onChange={(e) => setDays(e.target.value as number)}>
           <Radio value={7}>近 7 天</Radio>
           <Radio value={30}>近 30 天</Radio>
           <Radio value={90}>近 90 天</Radio>
