@@ -240,7 +240,7 @@ export default function PaymentLinksPage() {
 
   const columns: ColumnProps<PaymentLink>[] = [
     { title: '标题', dataIndex: 'subject', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
-    { title: '支付应用', dataIndex: 'appId', width: 160, render: (v: number) => appNameById.get(v) ?? `应用 #${v}` },
+    { title: '支付应用', dataIndex: 'appId', width: 200, render: (v: number) => renderEllipsis(appNameById.get(v) ?? `应用 #${v}`) },
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number | null) => yuan(v) },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: PaymentCashierMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '用户选择') },
     { title: '业务类型', dataIndex: 'bizType', width: 140, render: renderEllipsis },

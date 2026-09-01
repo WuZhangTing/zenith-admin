@@ -167,11 +167,11 @@ export default function PaymentSettlementsPage() {
 
   const columns: ColumnProps<PaymentSettlementBatch>[] = [
     copyableNoColumn('批次号', 'batchNo'),
-    { title: '支付应用', dataIndex: 'appId', width: 160, render: (v: number) => appById.get(v)?.name ?? `应用 #${v}` },
+    { title: '支付应用', dataIndex: 'appId', width: 200, render: (v: number) => renderEllipsis(appById.get(v)?.name ?? `应用 #${v}`) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     {
-      title: '商户配置', dataIndex: 'channelConfigId', width: 180,
-      render: (v: number) => channelConfigById.get(v)?.name ?? `配置 #${v}`,
+      title: '商户配置', dataIndex: 'channelConfigId', width: 220,
+      render: (v: number) => renderEllipsis(channelConfigById.get(v)?.name ?? `配置 #${v}`),
     },
     { title: '币种', dataIndex: 'currency', width: 80 },
     { title: '账期', dataIndex: 'periodStart', width: 240, render: (_: unknown, r: PaymentSettlementBatch) => <span style={{ whiteSpace: 'nowrap' }}>{r.periodStart} ~ {r.periodEnd}</span> },
@@ -237,10 +237,10 @@ export default function PaymentSettlementsPage() {
   const itemColumns: ColumnProps<PaymentSettlementItem>[] = [
     copyableNoColumn('资金凭证行 ID', 'journalLineId', { width: 150 }),
     { title: '认领金额', dataIndex: 'amount', width: 150, align: 'right', render: (value: string, record: PaymentSettlementItem) => formatMinorAmount(value, record.currency) },
-    { title: '支付应用', dataIndex: 'appId', width: 160, render: (value: number) => appById.get(value)?.name ?? `应用 #${value}` },
+    { title: '支付应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appById.get(value)?.name ?? `应用 #${value}`) },
     {
-      title: '商户配置', dataIndex: 'channelConfigId', width: 180,
-      render: (value: number) => channelConfigById.get(value)?.name ?? `配置 #${value}`,
+      title: '商户配置', dataIndex: 'channelConfigId', width: 220,
+      render: (value: number) => renderEllipsis(channelConfigById.get(value)?.name ?? `配置 #${value}`),
     },
     { title: '币种', dataIndex: 'currency', width: 80 },
     createdAtColumn as ColumnProps<PaymentSettlementItem>,

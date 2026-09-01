@@ -222,7 +222,7 @@ export default function PaymentContractsPage() {
   // ── 列定义 ──
   const contractColumns: ColumnProps<PaymentContract>[] = [
     copyableNoColumn('协议号', 'contractNo'),
-    { title: '支付应用', dataIndex: 'appId', width: 160, render: (value: number) => appById.get(value)?.name ?? `应用 #${value}` },
+    { title: '支付应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appById.get(value)?.name ?? `应用 #${value}`) },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '扣款计划', dataIndex: 'planName', width: 200, render: (v: string | null, r) => {
       const text = v ? `${v}（${r.planPeriod ? describePlanPeriod({ period: r.planPeriod, customDays: null }) : '-'}）` : '-';

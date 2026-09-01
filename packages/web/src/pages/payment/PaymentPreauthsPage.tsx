@@ -7,7 +7,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
-import { copyableNoColumn, createdAtColumn, dateTimeColumn } from '@/utils/table-columns';
+import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -151,7 +151,7 @@ export default function PaymentPreauthsPage() {
 
   const columns: ColumnProps<PaymentPreauth>[] = [
     copyableNoColumn('预授权单号', 'preauthNo'),
-    { title: '支付应用', dataIndex: 'appId', width: 160, render: (value: number) => appById.get(value)?.name ?? `应用 #${value}` },
+    { title: '支付应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appById.get(value)?.name ?? `应用 #${value}`) },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '冻结事由', dataIndex: 'subject', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
     { title: '付款人', dataIndex: 'payerAccount', width: 150, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v}</Typography.Text> },

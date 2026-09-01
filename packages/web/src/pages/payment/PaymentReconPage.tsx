@@ -239,11 +239,11 @@ export default function PaymentReconPage() {
 
   const columns: ColumnProps<PaymentReconBatch>[] = [
     copyableNoColumn('批次号', 'batchNo'),
-    { title: '支付应用', dataIndex: 'appId', width: 160, render: (v: number) => appById.get(v)?.name ?? `应用 #${v}` },
+    { title: '支付应用', dataIndex: 'appId', width: 200, render: (v: number) => renderEllipsis(appById.get(v)?.name ?? `应用 #${v}`) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     {
-      title: '商户配置', dataIndex: 'channelConfigId', width: 180,
-      render: (v: number) => channelConfigById.get(v)?.name ?? `配置 #${v}`,
+      title: '商户配置', dataIndex: 'channelConfigId', width: 220,
+      render: (v: number) => renderEllipsis(channelConfigById.get(v)?.name ?? `配置 #${v}`),
     },
     { title: '币种', dataIndex: 'currency', width: 80 },
     dateColumn('账单日期', 'billDate'),
