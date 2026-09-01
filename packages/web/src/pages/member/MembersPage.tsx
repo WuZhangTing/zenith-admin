@@ -17,7 +17,7 @@ import ImportButton from '@/components/ImportButton';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
+import { createdAtColumn, EMPTY_PLACEHOLDER, renderEllipsis } from '../../utils/table-columns';
 import { MemberDetailDrawer } from './MemberDetailDrawer';
 import { MemberTagsManageModal } from './MemberTagsManageModal';
 import {
@@ -228,15 +228,15 @@ export default function MembersPage() {
         </div>
       ),
     },
-    { title: '用户名', dataIndex: 'username', width: 150, render: (v: string | null) => (v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v}</Typography.Text> : '-') },
-    { title: '手机号', dataIndex: 'phone', width: 130, render: (v: string | null) => v || '-' },
+    { title: '用户名', dataIndex: 'username', width: 150, render: (v: string | null) => (v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v}</Typography.Text> : EMPTY_PLACEHOLDER) },
+    { title: '手机号', dataIndex: 'phone', width: 130, render: (v: string | null) => v || EMPTY_PLACEHOLDER },
     { title: '邮箱', dataIndex: 'email', width: 180, render: renderEllipsis },
-    { title: '等级', dataIndex: 'levelName', width: 100, render: (v: string | null) => (v ? <Tag color="amber">{v}</Tag> : '-') },
+    { title: '等级', dataIndex: 'levelName', width: 100, render: (v: string | null) => (v ? <Tag color="amber">{v}</Tag> : EMPTY_PLACEHOLDER) },
     {
       title: '标签', dataIndex: 'tags', width: 160,
       render: (v?: Member['tags']) => (v && v.length > 0
         ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{v.map((t) => <Tag key={t.id} size="small" color={(t.color || TAG_FALLBACK_COLOR) as 'blue'}>{t.name}</Tag>)}</div>
-        : '-'),
+        : EMPTY_PLACEHOLDER),
     },
     { title: '积分', dataIndex: 'pointBalance', width: 90, align: 'right', render: (v?: number) => v ?? 0 },
     { title: '余额(元)', dataIndex: 'walletBalance', width: 100, align: 'right', render: (v?: number) => ((v ?? 0) / 100).toFixed(2) },

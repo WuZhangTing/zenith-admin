@@ -88,6 +88,7 @@ export const MEMBER_BIZ_TYPE_LABELS: Record<string, string> = {
   points_exchange: '积分兑换',
   points_inactive_expire: '积分过期清理',
   member_recharge: '会员充值',
+  member_recharge_refund: '充值退款冲正',
   member_renewal: '会员续费',
   payment: '支付核销',
   manual_redeem: '手动核销',

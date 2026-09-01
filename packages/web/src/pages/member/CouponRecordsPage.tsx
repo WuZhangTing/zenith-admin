@@ -183,7 +183,7 @@ export default function CouponRecordsPage() {
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small"
-        pagination={buildPagination(total)} empty="暂无领券记录" scroll={{ x: 1100 }} />
+        pagination={buildPagination(total)} empty="暂无领券记录" scroll={{ x: 1230 }} />
 
       {/* 核销券码 Modal */}
       <AppModal title="核销券码" visible={redeemVisible} width={520}
