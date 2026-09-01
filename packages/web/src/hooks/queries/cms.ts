@@ -141,10 +141,11 @@ export const cmsModelKeys = {
   allModels: (siteId?: number) => ['cms-models', 'all', siteId ?? 0] as const,
 };
 
-export function useCmsModelList(params: CmsModelListParams) {
+export function useCmsModelList(params: CmsModelListParams, enabled = true) {
   return useQuery({
     queryKey: cmsModelKeys.list(params),
     queryFn: () => request.get<PaginatedResponse<CmsModel>>(`/api/cms/models${toQueryString(params)}`).then(unwrap),
+    enabled,
     placeholderData: keepPreviousData,
   });
 }
@@ -166,22 +167,22 @@ export function useCmsModelDetail(id: number | undefined, enabled = true) {
   });
 }
 
-export function useSaveCmsModel() {
+export function useSaveCmsModel(siteId?: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
       (id === undefined
         ? request.post<CmsModel>('/api/cms/models', values)
-        : request.put<CmsModel>(`/api/cms/models/${id}`, values)
+        : request.put<CmsModel>(`/api/cms/models/${id}${siteId ? `?siteId=${siteId}` : ''}`, values)
       ).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsModelKeys.all }),
   });
 }
 
-export function useDeleteCmsModel() {
+export function useDeleteCmsModel(siteId?: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/cms/models/${id}`).then(unwrap),
+    mutationFn: (id: number) => request.delete<null>(`/api/cms/models/${id}${siteId ? `?siteId=${siteId}` : ''}`).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: cmsModelKeys.all }),
   });
 }

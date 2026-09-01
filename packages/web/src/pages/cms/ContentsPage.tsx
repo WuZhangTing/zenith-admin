@@ -84,6 +84,7 @@ export default function ContentsPage() {
     setSiteId(next);
     setChannelId(undefined);
     setPage(1);
+    setSelectedIds([]);
   }
 
   const statusFilter: CmsContentStatus | undefined =
@@ -124,6 +125,7 @@ export default function ContentsPage() {
 
   function handleSearch() {
     setPage(1);
+    setSelectedIds([]);
     setSubmittedKeyword(draftKeyword);
     void queryClient.invalidateQueries({ queryKey: cmsContentKeys.lists });
   }
@@ -134,6 +136,7 @@ export default function ContentsPage() {
     setSubmittedKeyword('');
     setChannelId(undefined);
     setContentType(undefined);
+    setSelectedIds([]);
     void queryClient.invalidateQueries({ queryKey: cmsContentKeys.lists });
   }
 
@@ -512,7 +515,7 @@ export default function ContentsPage() {
     <Select
       placeholder="内容形态"
       value={contentType}
-      onChange={(v) => { setContentType(v as CmsContentType | undefined); setPage(1); }}
+      onChange={(v) => { setContentType(v as CmsContentType | undefined); setPage(1); setSelectedIds([]); }}
       showClear
       style={{ width: 130 }}
       optionList={Object.entries(CMS_CONTENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
@@ -563,7 +566,7 @@ export default function ContentsPage() {
       onFinished={() => void queryClient.invalidateQueries({ queryKey: cmsContentKeys.lists })}
     />
   ) : null;
-  const renderExportButton = () => siteId ? (
+  const renderExportButton = () => siteId && hasPermission('cms:content:export') ? (
     <ExportButton
       entity="cms.contents"
       query={{
@@ -694,13 +697,13 @@ export default function ContentsPage() {
         columns={columns}
         dataSource={list}
         loading={listQuery.isFetching}
-        rowKey="id"
+        rowKey={(record) => String(record.id)}
         size="small"
         empty="暂无内容"
         scroll={{ x: 1320 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        pagination={buildPagination(total)}
+        pagination={buildPagination(total, () => setSelectedIds([]))}
         rowSelection={{
           selectedRowKeys: selectedIds.map(String),
           onChange: (keys) => setSelectedIds((keys ?? []).map(Number)),
@@ -814,6 +817,7 @@ export default function ContentsPage() {
           onSelect={(key) => {
             setChannelId(key === 'all' ? undefined : Number(key));
             setPage(1);
+            setSelectedIds([]);
             setShowChannelTree(false);
           }}
           defaultExpandAll

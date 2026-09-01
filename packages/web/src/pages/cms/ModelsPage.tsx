@@ -10,7 +10,7 @@ import { createdAtColumn, renderEllipsis, renderEnabledStatusTag } from '@/utils
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
-import { useCmsModelList, useCmsModelDetail, useSaveCmsModel, useDeleteCmsModel, cmsModelKeys } from '@/hooks/queries/cms';
+import { useCmsModelList, useSaveCmsModel, useDeleteCmsModel, cmsModelKeys } from '@/hooks/queries/cms';
 import { useDictList } from '@/hooks/queries/dicts';
 import { CMS_FIELD_OPTION_SOURCE_LABELS, CMS_FIELD_OPTION_SOURCES, CMS_FIELD_TYPES, CMS_FIELD_TYPES_WITH_OPTIONS, CMS_FIELD_TYPE_LABELS } from '@zenith/shared/cms';
 import type { CmsModel } from '@zenith/shared/cms';
@@ -18,6 +18,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { CmsSiteSelect } from './CmsSiteSelect';
+import { abortSubmit } from '@/lib/abort-submit';
 
 const FIELD_TYPE_OPTIONS = CMS_FIELD_TYPES.map((t) => ({ value: t, label: CMS_FIELD_TYPE_LABELS[t] }));
 const OPTION_SOURCE_OPTIONS = CMS_FIELD_OPTION_SOURCES.map((s) => ({ value: s, label: CMS_FIELD_OPTION_SOURCE_LABELS[s] }));
@@ -74,15 +75,14 @@ export default function ModelsPage() {
     handleSearch, handleReset,
   } = useListSearch<SearchParams>({ defaults: defaultSearch, listKey: cmsModelKeys.lists });
 
-  const listQuery = useCmsModelList({ page, pageSize, keyword: submittedParams.keyword || undefined, siteId });
+  const listQuery = useCmsModelList({ page, pageSize, keyword: submittedParams.keyword || undefined, siteId }, siteId !== undefined);
   const list = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
-  const saveMutation = useSaveCmsModel();
+  const saveMutation = useSaveCmsModel(siteId);
   const modal = useEditModal<CmsModel, Record<string, unknown>, Record<string, unknown>>({
     entityName: '模型',
     save: saveMutation,
-    useDetail: useCmsModelDetail,
     defaults: { status: 'enabled', fields: [], ownerScope: 'site' },
     toValues: (record) => ({
       name: record.name,
@@ -99,10 +99,11 @@ export default function ModelsPage() {
     }),
     beforeSave: (values) => {
       const { ownerScope, ...rest } = values;
+      if (ownerScope !== 'shared' && !siteId) abortSubmit('validation');
       return {
         ...rest,
         // 归属仅创建时生效（更新 schema 已 omit ownerSiteId，服务端自动忽略）
-        ownerSiteId: ownerScope === 'shared' ? null : siteId ?? null,
+        ownerSiteId: ownerScope === 'shared' ? null : siteId!,
         // sort 与 detailSort 均按行序落库：模型编辑器内的顺序即后台表单与详情字段表的顺序
         fields: (((rest.fields as unknown) as Record<string, unknown>[]) ?? []).map((f, i) => {
           // 手工选项：optionsText（每行 值|显示名）→ options 数组；引用字典时选项由服务端解析
@@ -123,7 +124,7 @@ export default function ModelsPage() {
       };
     },
   });
-  const deleteMutation = useDeleteCmsModel();
+  const deleteMutation = useDeleteCmsModel(siteId);
 
   async function handleDelete(id: number) {
     await deleteMutation.mutateAsync(id);
@@ -192,12 +193,12 @@ export default function ModelsPage() {
   return (
     <div className="page-container">
       <SearchToolbar>
-        <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
+        <CmsSiteSelect value={siteId} onChange={(value) => { setSiteId(value); setPage(1); }} width={200} />
         <KeywordInput placeholder="搜索模型名称/标识..." value={draftParams.keyword} onChange={(keyword) => setDraftParams({ keyword })} onSearch={handleSearch} />
         <SearchButton onClick={handleSearch} />
         <ResetButton onClick={handleReset} />
         {hasPermission('cms:model:create') ? (
-          <CreateButton onClick={modal.openCreate} />
+          <CreateButton onClick={modal.openCreate} disabled={!siteId} />
         ) : null}
       </SearchToolbar>
 
@@ -208,7 +209,7 @@ export default function ModelsPage() {
         loading={listQuery.isFetching}
         rowKey="id"
         size="small"
-        empty="暂无内容模型"
+        empty={siteId ? '暂无内容模型' : '请先选择站点'}
         scroll={{ x: 1220 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}

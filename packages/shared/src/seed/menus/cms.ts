@@ -27,6 +27,7 @@ export const SEED_MENUS_CMS: Menu[] = [
   { id: 14045, parentId: 14040, title: '发布内容', type: 'button', permission: 'cms:content:publish', sort: 4, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14046, parentId: 14040, title: '审核内容', type: 'button', permission: 'cms:content:audit', sort: 5, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14047, parentId: 14040, title: '锁定内容', type: 'button', permission: 'cms:content:lock', sort: 6, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
+  { id: 14048, parentId: 14040, title: '导出内容', type: 'button', permission: 'cms:content:export', sort: 7, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14050, parentId: 14040, title: '内容编辑页', name: 'CmsContentEdit', path: '/cms/contents/edit', component: 'cms/ContentEditPage', icon: 'FilePen', type: 'menu', sort: 7, status: 'enabled', visible: false, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14051, parentId: 14050, title: '查询', type: 'button', permission: 'cms:content:list', sort: 0, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },
   { id: 14060, parentId: 14000, title: '素材中心', name: 'CmsResources', path: '/cms/resources', component: 'cms/ResourcesPage', icon: 'Image', type: 'menu', sort: 3, status: 'enabled', visible: true, createdAt: SEED_DATE, updatedAt: SEED_DATE },

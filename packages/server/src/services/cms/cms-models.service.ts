@@ -5,9 +5,11 @@ import { cmsModels, cmsModelFields, cmsChannels, cmsContents, cmsSites, dicts, d
 import type { CmsModelRow, CmsModelFieldRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsModelInput, UpdateCmsModelInput, CmsModelFieldInput } from '@zenith/shared/cms';
+import { assertSiteAccess } from './cms-sites.service';
+import { isCmsPlatformAdmin } from './cms-access';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
@@ -114,7 +116,49 @@ export async function ensureCmsModelExists(id: number): Promise<CmsModelRow> {
   return row;
 }
 
-export async function getCmsModel(id: number) {
+/**
+ * Resolve the caller's model scope.
+ *
+ * A site-scoped request must prove access to that site before any model query
+ * is made.  Only a platform administrator may intentionally omit the scope;
+ * this is the sole global view used by administration tooling.
+ */
+async function resolveCmsModelScope(siteId?: number): Promise<number | null> {
+  if (siteId == null) {
+    if (!isCmsPlatformAdmin()) {
+      throw new HTTPException(400, { message: '普通请求必须指定站点范围' });
+    }
+    return null;
+  }
+  await assertSiteAccess(siteId);
+  return siteId;
+}
+
+/**
+ * Load a model only when it is visible in the requested site scope.
+ * A wrong-site model is reported as 404 so its existence and metadata cannot
+ * be probed by a user who can access another site.
+ */
+async function ensureCmsModelReadable(id: number, siteId?: number): Promise<CmsModelRow> {
+  const row = await ensureCmsModelExists(id);
+  const scope = await resolveCmsModelScope(siteId);
+  if (scope != null && row.ownerSiteId != null && row.ownerSiteId !== scope) {
+    throw new HTTPException(404, { message: '内容模型不存在' });
+  }
+  return row;
+}
+
+/** Mutation policy: shared models affect every site and are platform-owned. */
+async function ensureCmsModelMutable(id: number, siteId?: number): Promise<CmsModelRow> {
+  const row = await ensureCmsModelReadable(id, siteId);
+  if (row.ownerSiteId == null && !isCmsPlatformAdmin()) {
+    throw new HTTPException(403, { message: '平台共享模型仅平台管理员可修改' });
+  }
+  return row;
+}
+
+export async function getCmsModel(id: number, siteId?: number) {
+  await ensureCmsModelReadable(id, siteId);
   const row = await db.query.cmsModels.findFirst({
     where: eq(cmsModels.id, id),
     with: { fields: { orderBy: [asc(cmsModelFields.sort), asc(cmsModelFields.id)] } },
@@ -124,7 +168,18 @@ export async function getCmsModel(id: number) {
 }
 
 /** 获取模型的字段定义（内容编辑动态表单/检索索引用） */
-export async function listCmsModelFields(modelId: number): Promise<CmsModelFieldRow[]> {
+export async function listCmsModelFields(modelId: number, siteId?: number): Promise<CmsModelFieldRow[]> {
+  const row = await ensureCmsModelExists(modelId);
+  if (siteId != null) {
+    await assertSiteAccess(siteId);
+    if (row.ownerSiteId != null && row.ownerSiteId !== siteId) {
+      throw new HTTPException(404, { message: '内容模型不存在' });
+    }
+  } else if (row.ownerSiteId != null) {
+    // Existing server-side render/validation callers do not carry a site id;
+    // derive it from the immutable owner and still enforce the ACL.
+    await assertSiteAccess(row.ownerSiteId);
+  }
   return db.select().from(cmsModelFields)
     .where(eq(cmsModelFields.modelId, modelId))
     .orderBy(asc(cmsModelFields.sort), asc(cmsModelFields.id));
@@ -142,13 +197,14 @@ export interface ListCmsModelsQuery {
 
 /** 站点可见性条件：平台共享（owner 为空）或归属该站点 */
 function modelVisibilityCondition(siteId?: number): SQL | undefined {
-  if (!siteId) return undefined;
+  if (siteId == null) return undefined;
   return or(isNull(cmsModels.ownerSiteId), eq(cmsModels.ownerSiteId, siteId));
 }
 
 export async function listCmsModels(q: ListCmsModelsQuery) {
   const { keyword = '', status, siteId, page, pageSize } = q;
-  const conditions: SQL[] = [];
+  const scope = await resolveCmsModelScope(siteId);
+  const conditions: (SQL | undefined)[] = [];
   if (keyword) {
     const kw = or(
       like(cmsModels.name, `%${escapeLike(keyword)}%`),
@@ -157,10 +213,10 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
     if (kw) conditions.push(kw);
   }
   if (status) conditions.push(eq(cmsModels.status, status));
-  const visibility = modelVisibilityCondition(siteId);
+  const visibility = modelVisibilityCondition(scope ?? undefined);
   if (visibility) conditions.push(visibility);
 
-  const where = mergeWhere(and(...conditions));
+  const where = mergeWhere(buildWhere(...conditions));
   const [total, rows] = await Promise.all([
     db.$count(cmsModels, where),
     withPagination(
@@ -200,8 +256,9 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
  * `siteId` 提供时按站群可见性过滤（平台共享 + 该站点专属）。
  */
 export async function listAllCmsModels(siteId?: number) {
+  const scope = await resolveCmsModelScope(siteId);
   const rows = await db.query.cmsModels.findMany({
-    where: mergeWhere(eq(cmsModels.status, 'enabled'), modelVisibilityCondition(siteId)),
+    where: mergeWhere(eq(cmsModels.status, 'enabled'), modelVisibilityCondition(scope ?? undefined)),
     orderBy: [asc(cmsModels.sort), asc(cmsModels.id)],
     with: { fields: { orderBy: [asc(cmsModelFields.sort), asc(cmsModelFields.id)] } },
   });
@@ -218,6 +275,7 @@ export async function listAllCmsModels(siteId?: number) {
  * 平台共享模型全站可用；专属模型仅归属站点可绑定。
  */
 export async function assertCmsModelUsableBySite(modelId: number, siteId: number): Promise<void> {
+  await assertSiteAccess(siteId);
   const row = await ensureCmsModelExists(modelId);
   if (row.ownerSiteId != null && row.ownerSiteId !== siteId) {
     throw new HTTPException(400, { message: `模型「${row.name}」归属其他站点，当前站点不可绑定` });
@@ -225,8 +283,18 @@ export async function assertCmsModelUsableBySite(modelId: number, siteId: number
 }
 
 /** 模型引用统计：被哪些栏目绑定、多少内容/站点扩展在使用（删除阻断明细与「使用中」列） */
-export async function getCmsModelRefs(id: number) {
-  await ensureCmsModelExists(id);
+export async function getCmsModelRefs(id: number, siteId?: number) {
+  const scope = await resolveCmsModelScope(siteId);
+  await ensureCmsModelReadable(id, scope ?? undefined);
+  const channelWhere = scope == null
+    ? eq(cmsChannels.modelId, id)
+    : and(eq(cmsChannels.modelId, id), eq(cmsChannels.siteId, scope));
+  const contentWhere = scope == null
+    ? eq(cmsContents.modelId, id)
+    : and(eq(cmsContents.modelId, id), eq(cmsContents.siteId, scope));
+  const siteWhere = scope == null
+    ? eq(cmsSites.modelId, id)
+    : and(eq(cmsSites.modelId, id), eq(cmsSites.id, scope));
   const [channels, contentCount, siteExtendCount] = await Promise.all([
     db.select({
       id: cmsChannels.id,
@@ -235,10 +303,10 @@ export async function getCmsModelRefs(id: number) {
       name: cmsChannels.name,
     }).from(cmsChannels)
       .innerJoin(cmsSites, eq(cmsChannels.siteId, cmsSites.id))
-      .where(eq(cmsChannels.modelId, id))
+      .where(channelWhere)
       .orderBy(asc(cmsChannels.siteId), asc(cmsChannels.id)),
-    db.$count(cmsContents, eq(cmsContents.modelId, id)),
-    db.$count(cmsSites, eq(cmsSites.modelId, id)),
+    db.$count(cmsContents, contentWhere),
+    db.$count(cmsSites, siteWhere),
   ]);
   return {
     channels: channels.map((ch) => ({ id: ch.id, siteId: ch.siteId, siteName: ch.siteName, name: ch.name })),
@@ -280,10 +348,13 @@ async function replaceModelFields(executor: DbExecutor, modelId: number, fields:
 // ─── 创建 ─────────────────────────────────────────────────────────────────────
 export async function createCmsModel(data: CreateCmsModelInput) {
   const { fields = [], ...model } = data;
-  // 站点专属模型：创建者必须有该站点数据权限（共享模型仅受 cms:model:create 权限约束）
+  // Shared models affect every site and therefore can only be created by a
+  // platform administrator.
+  if (model.ownerSiteId == null && !isCmsPlatformAdmin()) {
+    throw new HTTPException(403, { message: '平台共享模型仅平台管理员可创建' });
+  }
+  // Site-owned models require an explicit site ACL before insertion.
   if (model.ownerSiteId != null) {
-    const { assertSiteAccess, ensureCmsSiteExists } = await import('./cms-sites.service');
-    await ensureCmsSiteExists(model.ownerSiteId);
     await assertSiteAccess(model.ownerSiteId);
   }
   try {
@@ -292,17 +363,29 @@ export async function createCmsModel(data: CreateCmsModelInput) {
       await replaceModelFields(tx, created.id, fields);
       return created;
     });
-    return getCmsModel(row.id);
+    return getCmsModel(row.id, row.ownerSiteId ?? undefined);
   } catch (err) {
     rethrowPgUniqueViolation(err, '模型标识已存在');
   }
 }
 
 // ─── 更新 ─────────────────────────────────────────────────────────────────────
-export async function updateCmsModel(id: number, data: UpdateCmsModelInput) {
+export async function updateCmsModel(id: number, data: UpdateCmsModelInput, siteId?: number) {
+  const current = await ensureCmsModelMutable(id, siteId);
+  // Keep the service boundary defensive for internal callers that bypass the
+  // shared Zod schema (which omits ownerSiteId from updates).
+  if (Object.prototype.hasOwnProperty.call(data, 'ownerSiteId')) {
+    throw new HTTPException(400, { message: '模型归属站点创建后不可变更' });
+  }
   const { fields, ...model } = data;
   try {
     await db.transaction(async (tx) => {
+      const [locked] = await tx.select().from(cmsModels)
+        .where(eq(cmsModels.id, id)).for('update').limit(1);
+      if (!locked) throw new HTTPException(404, { message: '内容模型不存在' });
+      if (locked.ownerSiteId !== current.ownerSiteId) {
+        throw new HTTPException(409, { message: '内容模型归属已发生变化，请重试' });
+      }
       if (Object.keys(model).length > 0) {
         const [updated] = await tx.update(cmsModels).set(model).where(eq(cmsModels.id, id)).returning();
         if (!updated) throw new HTTPException(404, { message: '内容模型不存在' });
@@ -311,22 +394,42 @@ export async function updateCmsModel(id: number, data: UpdateCmsModelInput) {
         await replaceModelFields(tx, id, fields);
       }
     });
-    return getCmsModel(id);
+    return getCmsModel(id, siteId);
   } catch (err) {
     rethrowPgUniqueViolation(err, '模型标识已存在');
   }
 }
 
 // ─── 删除 ─────────────────────────────────────────────────────────────────────
-export async function deleteCmsModel(id: number) {
-  const row = await ensureCmsModelExists(id);
+export async function deleteCmsModel(id: number, siteId?: number) {
+  const row = await ensureCmsModelMutable(id, siteId);
   if (row.isSystem) throw new HTTPException(400, { message: '系统内置模型不可删除' });
-  const [channelCount, contentCount] = await Promise.all([
-    db.$count(cmsChannels, eq(cmsChannels.modelId, id)),
-    db.$count(cmsContents, eq(cmsContents.modelId, id)),
-  ]);
-  if (channelCount > 0 || contentCount > 0) {
-    throw new HTTPException(400, { message: '该模型已被栏目或内容引用，不可删除' });
-  }
-  await db.delete(cmsModels).where(eq(cmsModels.id, id));
+  const scope = siteId == null ? null : siteId;
+  await db.transaction(async (tx) => {
+    const [locked] = await tx.select().from(cmsModels)
+      .where(eq(cmsModels.id, id)).for('update').limit(1);
+    if (!locked) throw new HTTPException(404, { message: '内容模型不存在' });
+    if (locked.ownerSiteId !== row.ownerSiteId) {
+      throw new HTTPException(409, { message: '内容模型归属已发生变化，请重试' });
+    }
+    if (locked.isSystem) throw new HTTPException(400, { message: '系统内置模型不可删除' });
+    const channelWhere = scope == null
+      ? eq(cmsChannels.modelId, id)
+      : and(eq(cmsChannels.modelId, id), eq(cmsChannels.siteId, scope));
+    const contentWhere = scope == null
+      ? eq(cmsContents.modelId, id)
+      : and(eq(cmsContents.modelId, id), eq(cmsContents.siteId, scope));
+    const siteWhere = scope == null
+      ? eq(cmsSites.modelId, id)
+      : and(eq(cmsSites.modelId, id), eq(cmsSites.id, scope));
+    const [channelCount, contentCount, siteExtendCount] = await Promise.all([
+      tx.$count(cmsChannels, channelWhere),
+      tx.$count(cmsContents, contentWhere),
+      tx.$count(cmsSites, siteWhere),
+    ]);
+    if (channelCount > 0 || contentCount > 0 || siteExtendCount > 0) {
+      throw new HTTPException(400, { message: '该模型已被栏目、内容或站点扩展引用，不可删除' });
+    }
+    await tx.delete(cmsModels).where(eq(cmsModels.id, id));
+  });
 }
