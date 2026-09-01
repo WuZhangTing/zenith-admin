@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select, TextArea } from '@douyinfe/semi-ui';
+import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Checkbox, Spin, Banner, Row, Col, Switch, Select, SideSheet, TextArea } from '@douyinfe/semi-ui';
 import { OAUTH2_GRANT_TYPE_LABELS, OAUTH2_GRANT_TYPES, OAUTH2_SCOPES, OPEN_APP_ENVIRONMENT_LABELS, OPEN_APP_ENVIRONMENTS, OPEN_APP_REVIEW_STATUS_LABELS, OPEN_APP_REVIEW_STATUSES } from '@zenith/shared/open-platform';
 import type { OAuth2Client } from '@zenith/shared/open-platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { createdAtColumn } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
-import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
@@ -400,26 +399,26 @@ export default function OAuth2AppsPage() {
             {canManage && (
               <CreateButton onClick={appModal.openCreate} />
             )}
-            mobileFilters={(
-              <>
-                <Select
-                  placeholder="环境"
-                  value={draftParams.environment}
-                  onChange={(environment) => setDraftParams({ ...draftParams, environment: environment as SearchParams['environment'] })}
-                  optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
-                  showClear
-                  style={{ width: '100%' }}
-                />
-                <Select
-                  placeholder="审核状态"
-                  value={draftParams.reviewStatus}
-                  onChange={(reviewStatus) => setDraftParams({ ...draftParams, reviewStatus: reviewStatus as SearchParams['reviewStatus'] })}
-                  optionList={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
-                  showClear
-                  style={{ width: '100%' }}
-                />
-              </>
-            )}
+          </>
+        )}
+        mobileFilters={(
+          <>
+            <Select
+              placeholder="环境"
+              value={draftParams.environment}
+              onChange={(environment) => setDraftParams({ ...draftParams, environment: environment as SearchParams['environment'] })}
+              optionList={OPEN_APP_ENVIRONMENTS.map((value) => ({ value, label: OPEN_APP_ENVIRONMENT_LABELS[value] }))}
+              showClear
+              style={{ width: '100%' }}
+            />
+            <Select
+              placeholder="审核状态"
+              value={draftParams.reviewStatus}
+              onChange={(reviewStatus) => setDraftParams({ ...draftParams, reviewStatus: reviewStatus as SearchParams['reviewStatus'] })}
+              optionList={OPEN_APP_REVIEW_STATUSES.map((value) => ({ value, label: OPEN_APP_REVIEW_STATUS_LABELS[value] }))}
+              showClear
+              style={{ width: '100%' }}
+            />
           </>
         )}
         mobileActions={<ResetButton onClick={handleReset} />}
@@ -439,10 +438,27 @@ export default function OAuth2AppsPage() {
         pagination={buildPagination(data?.total ?? 0)}
       />
 
-      {/* 新增 / 编辑弹窗 */}
-      <AppModal
-        {...appModal.modalProps}
+      {/* 新增 / 编辑抽屉 */}
+      <SideSheet
+        title={appModal.modalProps.title}
+        visible={appModal.visible}
+        onCancel={appModal.close}
+        closeOnEsc
         width={800}
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button type="tertiary" onClick={appModal.close}>取消</Button>
+            <Button
+              type="primary"
+              theme="solid"
+              loading={appModal.modalProps.okButtonProps.loading}
+              disabled={appModal.modalProps.okButtonProps.disabled}
+              onClick={() => void appModal.modalProps.onOk()}
+            >
+              保存
+            </Button>
+          </div>
+        )}
       >
         <Spin spinning={appModal.detailLoading} wrapperClassName="modal-spin-wrapper">
           <Form key={appModal.formKey} {...appModal.formProps}>
@@ -589,7 +605,7 @@ export default function OAuth2AppsPage() {
             </Row>
           </Form>
         </Spin>
-      </AppModal>
+      </SideSheet>
 
       {/* 一次性 Secret 展示弹窗 */}
       <Modal
