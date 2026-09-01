@@ -78,10 +78,10 @@ export default function ChannelAnalysisPage() {
     <div className="page-container zx-flat-panels">
       <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-          <RadioGroup type="button" buttonSize="small" value={dimension} onChange={(e) => setDimension(e.target.value as ChannelAnalysisDimension)}>
+          <RadioGroup type="button" value={dimension} onChange={(e) => setDimension(e.target.value as ChannelAnalysisDimension)}>
             {CHANNEL_ANALYSIS_DIMENSION_OPTIONS.map((o) => <Radio key={o.value} value={o.value}>{o.label}</Radio>)}
           </RadioGroup>
-          <RadioGroup type="button" buttonSize="small" value={days} onChange={(e) => setDays(e.target.value as number)}>
+          <RadioGroup type="button" value={days} onChange={(e) => setDays(e.target.value as number)}>
             <Radio value={7}>近 7 天</Radio>
             <Radio value={30}>近 30 天</Radio>
             <Radio value={90}>近 90 天</Radio>
