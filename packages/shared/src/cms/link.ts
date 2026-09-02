@@ -168,6 +168,26 @@ export function isValidCmsLink(raw: string | null | undefined): boolean {
   return parseCmsLink(value) !== null;
 }
 
+/** 已可直接写入 href 的地址；entity 引用必须先经服务端 resolver。 */
+export function isDirectCmsHref(raw: string | null | undefined): boolean {
+  const ref = parseCmsLink(raw);
+  return ref?.kind === 'internal' || ref?.kind === 'external';
+}
+
+/** 可直接用于 img/video/audio/source 等资源属性的 URL；不接受 entity/mailto/tel。 */
+export function isValidCmsAssetUrl(raw: string | null | undefined): boolean {
+  const value = raw?.trim();
+  if (!value) return true;
+  if (/^cms-res:\/\/\d+$/.test(value)) {
+    const id = Number(value.slice('cms-res://'.length));
+    return Number.isSafeInteger(id) && id > 0;
+  }
+  const ref = parseCmsLink(value);
+  if (!ref) return false;
+  if (ref.kind === 'internal') return value.startsWith('/');
+  return ref.kind === 'external' && /^https?:$/i.test(new URL(ref.url).protocol);
+}
+
 /** 校验失败提示文案（前后端共用，避免两处各写一份） */
 export const CMS_LINK_FORMAT_MESSAGE =
   '链接格式不合法：请填写 http(s):// 开头的外链、/ 开头的站内路径，或通过选择器选择站内内容/栏目';

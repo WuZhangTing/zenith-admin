@@ -56,6 +56,34 @@ const DEFAULT_SORT: CmsOpenSortRule[] = [
   { field: 'id', direction: 'desc' },
 ];
 
+const DATE_INPUT_RE = /^(?:\d{4}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})$/;
+
+function assertDateInput(value: string | undefined, label: string): void {
+  if (!value) return;
+  if (!DATE_INPUT_RE.test(value)) throw new OpenQueryError(`${label} 格式不正确`);
+  const parts = value.replace(' ', '-').replaceAll(':', '-').split('-').map(Number);
+  const [year, month, day, hour = 0, minute = 0, second = 0] = parts;
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (
+    !Number.isFinite(date.getTime())
+    || date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+    || date.getUTCHours() !== hour
+    || date.getUTCMinutes() !== minute
+    || date.getUTCSeconds() !== second
+  ) throw new OpenQueryError(`${label} 不是有效日期`);
+}
+
+export function parsePositiveInteger(value: string | undefined, fallback: number, label: string, max?: number): number {
+  if (value == null || value === '') return fallback;
+  if (!/^\d+$/.test(value)) throw new OpenQueryError(`${label} 必须是正整数`);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) throw new OpenQueryError(`${label} 必须是正整数`);
+  if (max != null && parsed > max) throw new OpenQueryError(`${label} 不能大于 ${max}`);
+  return parsed;
+}
+
 function splitList(value: string | undefined | null): string[] {
   if (!value) return [];
   return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))];
@@ -118,6 +146,7 @@ export function encodeCmsOpenCursor(cursor: CmsOpenCursor): string {
 
 export function decodeCmsOpenCursor(raw: string | undefined | null): CmsOpenCursor | null {
   if (!raw) return null;
+  if (!/^[A-Za-z0-9_-]+$/.test(raw)) throw new OpenQueryError('cursor 格式不正确');
   let decoded: string;
   try {
     decoded = Buffer.from(raw, 'base64url').toString('utf8');
@@ -155,11 +184,15 @@ export function parseCmsOpenQuery(query: Record<string, string>): ParsedCmsOpenQ
     if (!CONTENT_TYPES.has(type)) throw new OpenQueryError(`不支持的内容形态「${type}」`);
   }
 
-  const pageSize = Math.min(
-    CMS_OPEN_PAGE_SIZE_MAX,
-    Math.max(1, Number(query.pageSize) || 20),
-  );
-  const page = Math.max(1, Number(query.page) || 1);
+  const pageSize = parsePositiveInteger(query.pageSize, 20, 'pageSize', CMS_OPEN_PAGE_SIZE_MAX);
+  const page = parsePositiveInteger(query.page, 1, 'page');
+  const publishedFrom = query.publishedFrom?.trim() || null;
+  const publishedTo = query.publishedTo?.trim() || null;
+  assertDateInput(publishedFrom ?? undefined, 'publishedFrom');
+  assertDateInput(publishedTo ?? undefined, 'publishedTo');
+  if (publishedFrom && publishedTo && publishedFrom > publishedTo) {
+    throw new OpenQueryError('publishedFrom 不能晚于 publishedTo');
+  }
 
   return {
     channels: splitList(query.channel),
@@ -175,8 +208,8 @@ export function parseCmsOpenQuery(query: Record<string, string>): ParsedCmsOpenQ
       isHot: parseBool(query.isHot, 'isHot'),
       isOriginal: parseBool(query.isOriginal, 'isOriginal'),
     },
-    publishedFrom: query.publishedFrom?.trim() || null,
-    publishedTo: query.publishedTo?.trim() || null,
+    publishedFrom,
+    publishedTo,
     extendFilters: parseCmsOpenExtendFilters(query),
     sort: parseCmsOpenSort(query.sort),
     fields: parseCmsOpenFields(query.fields),

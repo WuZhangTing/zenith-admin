@@ -2,7 +2,7 @@ import { and, desc, eq, sql, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
-  cmsContents, cmsContentLikes, cmsContentFavorites, cmsMemberViewHistory, cmsChannels, cmsComments,
+  cmsContents, cmsContentLikes, cmsContentFavorites, cmsMemberViewHistory, cmsChannels, cmsComments, cmsSites,
 } from '../../db/schema';
 import type { CmsContentRow } from '../../db/schema';
 import { config } from '../../config';
@@ -16,12 +16,15 @@ import { withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { CMS_INTERACTION_POINTS, CMS_INTERACTION_DAILY_LIMITS } from '@zenith/shared/cms';
 import { resolveCmsResourceCovers } from './cms-resource-refs.service';
+import { invalidateCmsSiteCaches } from './cms-cache.service';
 import { isCmsContentPubliclyVisible } from './cms-content-state';
 import { contentUrl, type CmsUrlChannel } from './cms-urls';
 import type { CmsChannelDetailPathRule } from '@zenith/shared/cms';
 import type { CmsInteractionState, CmsMemberContentItem, CmsMemberComment } from '@zenith/shared/cms';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import { formatDate } from '../../lib/datetime';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
+import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 
 /** 每位会员保留的浏览历史上限（超出裁剪最旧） */
 const VIEW_HISTORY_LIMIT = 100;
@@ -74,21 +77,26 @@ async function ensureInteractableContent(contentId: number): Promise<CmsContentR
   if (!row || !isCmsContentPubliclyVisible(row)) {
     throw new HTTPException(404, { message: '内容不存在或未发布' });
   }
+  const [site] = await db.select({ id: cmsSites.id, status: cmsSites.status }).from(cmsSites).where(eq(cmsSites.id, row.siteId)).limit(1);
+  const effectiveSite = site ? await resolveEffectiveCmsSite(row.siteId).catch(() => null) : null;
+  const channels = await getEffectivelyEnabledCmsChannelIds(row.siteId);
+  if (!site || site.status !== 'enabled' || !effectiveSite || !effectiveSite.chain.every((item) => item.status === 'enabled') || !channels.has(row.channelId)) {
+    throw new HTTPException(404, { message: '内容不存在或未发布' });
+  }
   return row;
 }
 
 // ─── 点赞 / 收藏 ──────────────────────────────────────────────────────────────
 export async function likeContent(contentId: number): Promise<CmsInteractionState> {
-  const memberId = currentMemberId();
-  await ensureInteractableContent(contentId);
-  const inserted = await db.insert(cmsContentLikes)
+ const memberId = currentMemberId();
+ const content = await ensureInteractableContent(contentId);
+ const inserted = await db.insert(cmsContentLikes)
     .values({ memberId, contentId })
     .onConflictDoNothing()
     .returning({ memberId: cmsContentLikes.memberId });
   if (inserted.length > 0) {
-    await db.update(cmsContents).set({ likeCount: sql`${cmsContents.likeCount} + 1` }).where(and(
-      eq(cmsContents.id, contentId),
-    ));
+    await db.execute(sql`update ${cmsContents} set like_count = like_count + 1 where id = ${contentId}`);
+    await invalidateCmsSiteCaches(content.siteId);
     void awardInteractionPoints(memberId, contentId, 'like');
   }
   return getInteractionState(contentId);
@@ -96,29 +104,27 @@ export async function likeContent(contentId: number): Promise<CmsInteractionStat
 
 export async function unlikeContent(contentId: number): Promise<CmsInteractionState> {
   const memberId = currentMemberId();
-  await ensureInteractableContent(contentId);
+  const content = await ensureInteractableContent(contentId);
   const deleted = await db.delete(cmsContentLikes)
     .where(and(eq(cmsContentLikes.memberId, memberId), eq(cmsContentLikes.contentId, contentId)))
     .returning({ memberId: cmsContentLikes.memberId });
   if (deleted.length > 0) {
-    await db.update(cmsContents)
-      .set({ likeCount: sql`greatest(${cmsContents.likeCount} - 1, 0)` })
-      .where(eq(cmsContents.id, contentId));
+    await db.execute(sql`update ${cmsContents} set like_count = greatest(like_count - 1, 0) where id = ${contentId}`);
+    await invalidateCmsSiteCaches(content.siteId);
   }
   return getInteractionState(contentId);
 }
 
 export async function favoriteContent(contentId: number): Promise<CmsInteractionState> {
   const memberId = currentMemberId();
-  await ensureInteractableContent(contentId);
+  const content = await ensureInteractableContent(contentId);
   const inserted = await db.insert(cmsContentFavorites)
     .values({ memberId, contentId })
     .onConflictDoNothing()
     .returning({ memberId: cmsContentFavorites.memberId });
   if (inserted.length > 0) {
-    await db.update(cmsContents).set({ favoriteCount: sql`${cmsContents.favoriteCount} + 1` }).where(and(
-      eq(cmsContents.id, contentId),
-    ));
+    await db.execute(sql`update ${cmsContents} set favorite_count = favorite_count + 1 where id = ${contentId}`);
+    await invalidateCmsSiteCaches(content.siteId);
     void awardInteractionPoints(memberId, contentId, 'favorite');
   }
   return getInteractionState(contentId);
@@ -126,14 +132,13 @@ export async function favoriteContent(contentId: number): Promise<CmsInteraction
 
 export async function unfavoriteContent(contentId: number): Promise<CmsInteractionState> {
   const memberId = currentMemberId();
-  await ensureInteractableContent(contentId);
+  const content = await ensureInteractableContent(contentId);
   const deleted = await db.delete(cmsContentFavorites)
     .where(and(eq(cmsContentFavorites.memberId, memberId), eq(cmsContentFavorites.contentId, contentId)))
     .returning({ memberId: cmsContentFavorites.memberId });
   if (deleted.length > 0) {
-    await db.update(cmsContents)
-      .set({ favoriteCount: sql`greatest(${cmsContents.favoriteCount} - 1, 0)` })
-      .where(eq(cmsContents.id, contentId));
+    await db.execute(sql`update ${cmsContents} set favorite_count = greatest(favorite_count - 1, 0) where id = ${contentId}`);
+    await invalidateCmsSiteCaches(content.siteId);
   }
   return getInteractionState(contentId);
 }
@@ -210,9 +215,16 @@ async function resolveMemberCovers(
 
 async function loadChannelPaths(channelIds: number[]): Promise<Map<number, CmsUrlChannel>> {
   if (channelIds.length === 0) return new Map();
-  const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule })
+  const rows = await db.select({ id: cmsChannels.id, siteId: cmsChannels.siteId, path: cmsChannels.path, detailPathRule: cmsChannels.detailPathRule })
     .from(cmsChannels).where(inArray(cmsChannels.id, [...new Set(channelIds)]));
-  return new Map(rows.map((r) => [r.id, {
+  const bySite = new Map<number, Set<number>>();
+  for (const siteId of new Set(rows.map((row) => row.siteId))) {
+    const effectiveSite = await resolveEffectiveCmsSite(siteId).catch(() => null);
+    bySite.set(siteId, effectiveSite?.chain.every((site) => site.status === 'enabled')
+      ? await getEffectivelyEnabledCmsChannelIds(siteId)
+      : new Set());
+  }
+  return new Map(rows.filter((row) => bySite.get(row.siteId)?.has(row.id)).map((r) => [r.id, {
     path: r.path,
     detailPathRule: r.detailPathRule as CmsChannelDetailPathRule,
   }]));

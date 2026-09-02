@@ -79,10 +79,12 @@ describe('CMS Stage4 unified interactions', () => {
     const rendered = applyInteractionMarkers(
       '<p>[投票:legacy]</p><p>[问卷:old-survey]</p><p>[互动:current]</p>',
       'main',
+      3,
     );
     expect(rendered).not.toContain('[投票:');
     expect(rendered).not.toContain('[问卷:');
     expect(rendered).toContain('data-code="current"');
+    expect(rendered).toContain('data-site-id="3"');
     expect(() => applyInteractionMarkers('[互动:<malformed>][投票:broken', 'main')).not.toThrow();
   });
 

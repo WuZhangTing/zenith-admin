@@ -247,13 +247,14 @@ export async function* streamCmsInteractionResponses(
 const INTERACTION_MARKER_RE = /(?:<p[^>]*>)?\s*\[互动:([a-z0-9-]+)\]\s*(?:<\/p>)?/gi;
 const LEGACY_INTERACTION_MARKER_RE = /(?:<p[^>]*>)?\s*\[(?:投票|问卷|survey|poll):[^\]\r\n]{1,100}\]\s*(?:<\/p>)?/gi;
 
-export function applyInteractionMarkers(html: string, siteCode: string): string {
+export function applyInteractionMarkers(html: string, siteCode: string, siteId?: number): string {
   if (!html) return html;
   const withoutLegacy = html.replace(LEGACY_INTERACTION_MARKER_RE, '');
   if (!withoutLegacy.includes('[互动:')) return withoutLegacy;
   const safeSiteCode = siteCode.replace(/[^a-z0-9-]/gi, '');
+  const siteIdAttr = Number.isInteger(siteId) && siteId! > 0 ? ` data-site-id="${siteId}"` : '';
   return withoutLegacy.replace(INTERACTION_MARKER_RE, (_match, code: string) =>
-    `<div class="cms-interaction" data-site="${safeSiteCode}" data-code="${code}"></div>`);
+    `<div class="cms-interaction" data-site="${safeSiteCode}"${siteIdAttr} data-code="${code}"></div>`);
 }
 
 export function canExposeCmsInteractionResults(input: {

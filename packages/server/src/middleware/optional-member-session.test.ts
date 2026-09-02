@@ -18,13 +18,27 @@ vi.mock('../lib/member-session-manager', () => ({
 
 vi.mock('../db', () => ({
   db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          limit: async () => mocks.memberEnabled ? [{ id: 7 }] : [],
-        }),
-      }),
-    }),
+    select: () => {
+      const builder = {
+        from: () => builder,
+        leftJoin: () => builder,
+        where: () => builder,
+        limit: async () => mocks.memberEnabled
+          ? [{
+              id: 7,
+              nickname: '会员7',
+              phone: null,
+              username: 'member-7',
+              email: null,
+              status: 'active',
+              tenantId: null,
+              tenantStatus: null,
+              tenantExpireAt: null,
+            }]
+          : [],
+      };
+      return builder;
+    },
   },
 }));
 

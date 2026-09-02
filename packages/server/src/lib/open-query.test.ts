@@ -111,9 +111,18 @@ describe('open-query DSL', () => {
   });
 
   describe('整体解析', () => {
-    it('pageSize 收敛到上限', () => {
-      expect(parseCmsOpenQuery({ pageSize: '9999' }).pageSize).toBe(100);
-      expect(parseCmsOpenQuery({ pageSize: '0' }).pageSize).toBe(20);
+    it('pageSize 严格校验正整数并收敛到上限', () => {
+      expect(() => parseCmsOpenQuery({ pageSize: '9999' })).toThrow(OpenQueryError);
+      expect(() => parseCmsOpenQuery({ pageSize: '0' })).toThrow(OpenQueryError);
+      expect(() => parseCmsOpenQuery({ pageSize: '1.5' })).toThrow(OpenQueryError);
+      expect(() => parseCmsOpenQuery({ page: '-1' })).toThrow(OpenQueryError);
+    });
+
+    it('日期边界必须是有效且有序的日期', () => {
+      expect(parseCmsOpenQuery({ publishedFrom: '2026-02-01', publishedTo: '2026-02-28' }).publishedFrom)
+        .toBe('2026-02-01');
+      expect(() => parseCmsOpenQuery({ publishedFrom: '2026-02-30' })).toThrow(OpenQueryError);
+      expect(() => parseCmsOpenQuery({ publishedFrom: '2026-09-02', publishedTo: '2026-09-01' })).toThrow(OpenQueryError);
     });
 
     it('多值参数按逗号切分并去重', () => {

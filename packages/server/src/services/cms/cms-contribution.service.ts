@@ -12,8 +12,11 @@ import { withPagination } from '../../lib/where-helpers';
 import { currentMemberId } from '../../lib/member-context';
 import { contentSearchVector } from './cms-search.service';
 import { submitCmsContent } from './cms-contents.service';
-import { sanitizeCmsHtml } from './cms-html-sanitizer';
+import { applyCmsContentPolicies } from './cms-contents-write.service';
+import { ensureCmsSiteExists } from './cms-sites.service';
+import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 import { assertCmsContentUnlocked } from './cms-content-lock.service';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import {
   canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, resolveCmsContentRow, resolveCmsContentRows,
   syncCmsResourceRefs,
@@ -63,8 +66,10 @@ export async function listContributableChannels() {
     eq(cmsChannels.type, 'list'),
     eq(cmsChannels.status, 'enabled'),
   )).orderBy(cmsChannels.sort, cmsChannels.id);
+  const effectiveBySite = new Map<number, Set<number>>();
+  for (const site of sites) effectiveBySite.set(site.id, await getEffectivelyEnabledCmsChannelIds(site.id));
   return sites
-    .map((s) => ({ ...s, channels: channels.filter((c) => c.siteId === s.id).map(({ id, name }) => ({ id, name })) }))
+    .map((s) => ({ ...s, channels: channels.filter((c) => c.siteId === s.id && effectiveBySite.get(s.id)?.has(c.id)).map(({ id, name }) => ({ id, name })) }))
     .filter((s) => s.channels.length > 0);
 }
 
@@ -112,15 +117,16 @@ export async function getMyContribution(id: number) {
 }
 
 async function ensureContributableChannel(siteId: number, channelId: number) {
-  const [site] = await db.select({ id: cmsSites.id }).from(cmsSites)
-    .where(and(eq(cmsSites.id, siteId), eq(cmsSites.status, 'enabled'))).limit(1);
-  if (!site) throw new HTTPException(400, { message: '该站点不可投稿' });
+  const effective = await resolveEffectiveCmsSite(siteId).catch(() => null);
+  if (!effective || !effective.chain.every((site) => site.status === 'enabled')) {
+    throw new HTTPException(400, { message: '该站点不可投稿' });
+  }
   const [channel] = await db.select().from(cmsChannels)
     .where(and(
       eq(cmsChannels.id, channelId),
       eq(cmsChannels.siteId, siteId),
     )).limit(1);
-  if (!channel || channel.type !== 'list' || channel.status !== 'enabled') {
+  if (!channel || channel.type !== 'list' || channel.status !== 'enabled' || !(await getEffectivelyEnabledCmsChannelIds(siteId)).has(channel.id)) {
     throw new HTTPException(400, { message: '该栏目不可投稿' });
   }
   return channel;
@@ -138,7 +144,13 @@ export interface ContributionInput {
 export async function createContribution(input: ContributionInput) {
   const memberId = currentMemberId();
   const channel = await ensureContributableChannel(input.siteId, input.channelId);
-  const body = sanitizeCmsHtml(input.body);
+  const site = await ensureCmsSiteExists(input.siteId);
+  const policy = await applyCmsContentPolicies({
+    title: input.title,
+    summary: input.summary ?? null,
+    body: input.body,
+  }, site);
+  const body = policy.body ?? '';
   if (!body.trim()) throw new HTTPException(400, { message: '正文净化后不能为空' });
   const [me] = await db.select({ nickname: members.nickname }).from(members).where(eq(members.id, memberId)).limit(1);
   const created = await db.transaction(async (tx) => {
@@ -147,14 +159,14 @@ export async function createContribution(input: ContributionInput) {
       siteId: input.siteId,
       channelId: input.channelId,
       modelId: channel.modelId ?? null,
-      title: input.title,
-      summary: input.summary ?? null,
+      title: policy.title,
+      summary: policy.summary ?? null,
       body: canonical.body,
       author: me?.nickname ?? `会员${memberId}`,
       source: CONTRIBUTION_SOURCE,
       status: 'draft',
       memberId,
-      searchVector: contentSearchVector(input.siteId, { title: input.title, summary: input.summary ?? null, body }),
+      searchVector: contentSearchVector(input.siteId, { title: policy.title, summary: policy.summary ?? null, body }),
     }).returning();
     await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
     return row;
@@ -171,16 +183,22 @@ export async function updateMyContribution(id: number, input: Omit<ContributionI
     throw new HTTPException(400, { message: '仅草稿或被驳回的投稿可修改' });
   }
   await ensureContributableChannel(row.siteId, input.channelId);
-  const body = sanitizeCmsHtml(input.body);
+  const site = await ensureCmsSiteExists(row.siteId);
+  const policy = await applyCmsContentPolicies({
+    title: input.title,
+    summary: input.summary ?? null,
+    body: input.body,
+  }, site);
+  const body = policy.body ?? '';
   if (!body.trim()) throw new HTTPException(400, { message: '正文净化后不能为空' });
   await db.transaction(async (tx) => {
     const canonical = await canonicalizeCmsResourceFields(tx, row.siteId, { body }, 'content');
     const [updated] = await tx.update(cmsContents).set({
       channelId: input.channelId,
-      title: input.title,
-      summary: input.summary ?? null,
+      title: policy.title,
+      summary: policy.summary ?? null,
       body: canonical.body,
-      searchVector: contentSearchVector(row.siteId, { title: input.title, summary: input.summary ?? null, body }),
+      searchVector: contentSearchVector(row.siteId, { title: policy.title, summary: policy.summary ?? null, body }),
     }).where(and(eq(cmsContents.id, id), isNull(cmsContents.lockedAt))).returning();
     if (updated) await syncCmsResourceRefs(tx, 'content', updated.id, updated.siteId, updated);
   });

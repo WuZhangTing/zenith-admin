@@ -7,12 +7,12 @@
  *
  * 安全约束：只读已发布、未回收、未归档、所属栏目启用中的内容。
  */
-import { and, asc, eq, exists, gt, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
-  cmsChannels, cmsContentChannels, cmsContentRelations, cmsContents, cmsContentTags,
+  cmsChannels, cmsContentChannels, cmsContentRelations, cmsContents, cmsContentTags, cmsModelFields,
   cmsContentTombstones, cmsModels, cmsTags,
 } from '../../db/schema';
 import type { CmsContentRow, CmsSiteRow } from '../../db/schema';
@@ -23,12 +23,14 @@ import {
   encodeCmsOpenCursor, OpenQueryError, pickCmsOpenFields,
   type CmsOpenSortRule, type ParsedCmsOpenQuery,
 } from '../../lib/open-query';
-import { CMS_OPEN_SYNC_PAGE_SIZE_MAX } from '@zenith/shared/cms';
+import { CMS_OPEN_SYNC_PAGE_SIZE_MAX, isValidCmsAssetUrl } from '@zenith/shared/cms';
 import { resolveCmsContentRows } from './cms-resource-refs.service';
-import { listCmsModelFields } from './cms-models.service';
 import { contentUrl } from './cms-urls';
 import { buildCmsSearchCondition } from './cms-search.service';
 import { isCmsContentPubliclyVisible } from './cms-content-state';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
+import { buildCmsLinkResolver } from './cms-link.service';
+import type { CmsLinkResolver } from './cms-link.service';
 
 const SORT_COLUMNS = {
   publishedAt: cmsContents.publishedAt,
@@ -52,15 +54,6 @@ function publicWhere(siteId: number): SQL {
     // 与公开 SSR/静态列表保持一致：到期时间是公开可见性的硬条件，
     // 即使定时下线 worker 尚未执行也不得继续通过 Headless API 暴露。
     or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
-    // 栏目停用即等同前台下线（渲染侧同样按 enabled 解析栏目）。
-    // 不加这一条时，「不带 channel 参数」的站级 feed 会把停用栏目的内容连正文一起吐出来，
-    // 而显式指定该栏目反而 404 —— 既不一致也是新增的暴露面。
-    exists(
-      db.select({ one: sql`1` }).from(cmsChannels).where(and(
-        eq(cmsChannels.id, cmsContents.channelId),
-        eq(cmsChannels.status, 'enabled'),
-      )),
-    ),
   )!;
 }
 
@@ -71,31 +64,37 @@ async function resolveChannelIds(siteId: number, codes: string[]): Promise<numbe
     eq(cmsChannels.status, 'enabled'),
     inArray(cmsChannels.code, codes),
   ));
-  const found = new Set(rows.map((row) => row.code));
+  const enabledIds = await getEffectivelyEnabledCmsChannelIds(siteId);
+  const visibleRows = rows.filter((row) => enabledIds.has(row.id));
+  const found = new Set(visibleRows.map((row) => row.code));
   const missing = codes.filter((code) => !found.has(code));
   if (missing.length > 0) throw new HTTPException(404, { message: `栏目标识不存在：${missing.join(', ')}` });
-  return rows.map((row) => row.id);
+  return visibleRows.map((row) => row.id);
 }
 
 async function resolveChannelPathIds(siteId: number, path: string): Promise<number[]> {
   const normalized = path.replace(/^\/+|\/+$/g, '');
   if (!normalized) return [];
-  const rows = await db.select({ id: cmsChannels.id }).from(cmsChannels).where(and(
+  const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path }).from(cmsChannels).where(and(
     eq(cmsChannels.siteId, siteId),
     eq(cmsChannels.status, 'enabled'),
     or(eq(cmsChannels.path, normalized), sql`${cmsChannels.path} like ${`${escapeLike(normalized)}/%`}`)!,
   ));
-  if (rows.length === 0) throw new HTTPException(404, { message: `栏目路径不存在：${path}` });
-  return rows.map((row) => row.id);
+  const enabledIds = await getEffectivelyEnabledCmsChannelIds(siteId);
+  const visibleRows = rows.filter((row) => enabledIds.has(row.id));
+  if (visibleRows.length === 0) throw new HTTPException(404, { message: `栏目路径不存在：${path}` });
+  return visibleRows.map((row) => row.id);
 }
 
 async function resolveTagIds(siteId: number, slugs: string[]): Promise<number[]> {
   if (slugs.length === 0) return [];
-  const rows = await db.select({ id: cmsTags.id }).from(cmsTags).where(and(
+  const rows = await db.select({ id: cmsTags.id, slug: cmsTags.slug }).from(cmsTags).where(and(
     eq(cmsTags.siteId, siteId),
     inArray(cmsTags.slug, slugs),
   ));
-  if (rows.length === 0) throw new HTTPException(404, { message: `标签不存在：${slugs.join(', ')}` });
+  const found = new Set(rows.map((row) => row.slug));
+  const missing = slugs.filter((slug) => !found.has(slug));
+  if (missing.length > 0) throw new HTTPException(404, { message: `标签不存在：${missing.join(', ')}` });
   return rows.map((row) => row.id);
 }
 
@@ -109,12 +108,15 @@ async function buildExtendConditions(
   filters: { field: string; value: string }[],
 ): Promise<SQL[]> {
   if (filters.length === 0) return [];
-  const models = await db.select({ id: cmsModels.id }).from(cmsModels);
+  const models = await db.select({ id: cmsModels.id }).from(cmsModels).where(or(
+    isNull(cmsModels.ownerSiteId),
+    eq(cmsModels.ownerSiteId, siteId),
+  ));
   const allowed = new Set<string>();
-  for (const model of models) {
-    for (const field of await listCmsModelFields(model.id)) {
-      if (field.searchable) allowed.add(field.name);
-    }
+  if (models.length > 0) {
+    const fields = await db.select({ name: cmsModelFields.name, searchable: cmsModelFields.searchable })
+      .from(cmsModelFields).where(inArray(cmsModelFields.modelId, models.map((model) => model.id)));
+    for (const field of fields) if (field.searchable) allowed.add(field.name);
   }
   return filters.map((filter) => {
     if (!allowed.has(filter.field)) {
@@ -202,11 +204,17 @@ function assertCursorSortable(rules: CmsOpenSortRule[]): void {
 
 async function buildListConditions(site: CmsSiteRow, query: ParsedCmsOpenQuery): Promise<SQL[]> {
   const conditions: SQL[] = [publicWhere(site.id)];
+  const effectivelyEnabledIds = await getEffectivelyEnabledCmsChannelIds(site.id);
+  if (effectivelyEnabledIds.size === 0) {
+    conditions.push(sql`false`);
+  } else {
+    conditions.push(inArray(cmsContents.channelId, [...effectivelyEnabledIds]));
+  }
 
   const channelIds = [
     ...await resolveChannelIds(site.id, query.channels),
     ...(query.channelPath ? await resolveChannelPathIds(site.id, query.channelPath) : []),
-  ];
+  ].filter((id, index, all) => effectivelyEnabledIds.has(id) && all.indexOf(id) === index);
   if (channelIds.length > 0) {
     // 聚合主栏目与副栏目，与前台栏目列表保持一致
     const extraIds = db.select({ contentId: cmsContentChannels.contentId })
@@ -226,7 +234,10 @@ async function buildListConditions(site: CmsSiteRow, query: ParsedCmsOpenQuery):
   }
   if (query.author) conditions.push(eq(cmsContents.author, query.author));
   if (query.modelCode) {
-    const [model] = await db.select({ id: cmsModels.id }).from(cmsModels).where(eq(cmsModels.code, query.modelCode)).limit(1);
+    const [model] = await db.select({ id: cmsModels.id }).from(cmsModels).where(and(
+      eq(cmsModels.code, query.modelCode),
+      or(isNull(cmsModels.ownerSiteId), eq(cmsModels.ownerSiteId, site.id)),
+    )).limit(1);
     if (!model) throw new HTTPException(404, { message: `内容模型「${query.modelCode}」不存在` });
     conditions.push(eq(cmsContents.modelId, model.id));
   }
@@ -259,10 +270,13 @@ interface MapOpenContentOptions {
   tags?: Map<number, { name: string; slug: string }[]>;
   relations?: Map<number, number[]>;
   bodyExtend?: Map<number, { body: string | null; extend: Record<string, unknown> }>;
+  linkResolver: CmsLinkResolver;
 }
 
 function mapOpenContent(row: CmsContentRow & { coverThumb: string | null }, opts: MapOpenContentOptions): CmsOpenContentOutput {
   const channel = opts.channelMap.get(row.channelId);
+  const resolvedExternal = row.externalLink ? opts.linkResolver(row.externalLink) : null;
+  const resolvedSource = row.sourceUrl ? opts.linkResolver(row.sourceUrl) : null;
   const out: Record<string, unknown> = {
     id: row.id,
     siteId: row.siteId,
@@ -280,9 +294,9 @@ function mapOpenContent(row: CmsContentRow & { coverThumb: string | null }, opts
     author: row.author ?? null,
     editor: row.editor ?? null,
     source: row.source ?? null,
-    sourceUrl: row.sourceUrl ?? null,
+    sourceUrl: resolvedSource?.url ?? null,
     isOriginal: row.isOriginal,
-    externalLink: row.externalLink ?? null,
+    externalLink: resolvedExternal?.url ?? null,
     isTop: row.isTop,
     topWeight: row.topWeight,
     isRecommend: row.isRecommend,
@@ -299,13 +313,20 @@ function mapOpenContent(row: CmsContentRow & { coverThumb: string | null }, opts
     seoKeywords: row.seoKeywords ?? null,
     seoDescription: row.seoDescription ?? null,
     publishedAt: formatNullableDateTime(row.publishedAt),
+    expireAt: formatNullableDateTime(row.expireAt),
     createdAt: formatDateTime(row.createdAt),
     updatedAt: formatDateTime(row.updatedAt),
-    url: channel
-      ? contentUrl('', { path: channel.path, detailPathRule: channel.detailPathRule as never }, row)
-      : null,
+    url: row.externalLink
+      ? (resolvedExternal?.url ?? null)
+      : (channel
+        ? contentUrl('', { path: channel.path, detailPathRule: channel.detailPathRule as never }, row)
+        : null),
   };
-  if (opts.includes.has('attachments')) out.attachments = row.attachments ?? [];
+  if (opts.includes.has('attachments')) out.attachments = (Array.isArray(row.attachments) ? row.attachments : []).filter((attachment) => {
+   if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) return false;
+    const url = (attachment as unknown as Record<string, unknown>).url;
+   return typeof url === 'string' && isValidCmsAssetUrl(url);
+  });
   if (opts.includes.has('tags')) out.tags = opts.tags?.get(row.id) ?? [];
   if (opts.includes.has('relations')) out.relations = opts.relations?.get(row.id) ?? [];
   if (opts.includes.has('channel')) {
@@ -313,7 +334,17 @@ function mapOpenContent(row: CmsContentRow & { coverThumb: string | null }, opts
   }
   if (opts.includes.has('body')) out.body = opts.bodyExtend?.get(row.id)?.body ?? null;
   if (opts.includes.has('extend')) out.extend = opts.bodyExtend?.get(row.id)?.extend ?? {};
-  if (row.contentType !== 'article') out.mediaData = row.mediaData ?? {};
+  if (row.contentType !== 'article') {
+    const media = { ...((row.mediaData ?? {}) as Record<string, unknown>) };
+    if (Array.isArray(media.images)) media.images = media.images.filter((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      const value = (item as Record<string, unknown>).url;
+      return typeof value === 'string' && isValidCmsAssetUrl(value);
+    });
+    if (typeof media.mediaUrl === 'string' && !isValidCmsAssetUrl(media.mediaUrl)) delete media.mediaUrl;
+    if (typeof media.poster === 'string' && !isValidCmsAssetUrl(media.poster)) delete media.poster;
+    out.mediaData = media;
+  }
   return out as CmsOpenContentOutput;
 }
 
@@ -326,22 +357,29 @@ async function buildMapOptions(
     id: cmsChannels.id, code: cmsChannels.code, path: cmsChannels.path,
     detailPathRule: cmsChannels.detailPathRule, status: cmsChannels.status,
   }).from(cmsChannels).where(eq(cmsChannels.siteId, siteId));
-  const channelMap = new Map(channels.map((row) => [row.id, { code: row.code, path: row.path, detailPathRule: row.detailPathRule as never }]));
+  const enabledIds = await getEffectivelyEnabledCmsChannelIds(siteId);
+  const channelMap = new Map(channels
+    .filter((row) => enabledIds.has(row.id))
+    .map((row) => [row.id, { code: row.code, path: row.path, detailPathRule: row.detailPathRule as never }]));
 
   const modelIds = [...new Set(rows.map((row) => row.modelId).filter((id): id is number => id != null))];
   const models = modelIds.length > 0
-    ? await db.select({ id: cmsModels.id, code: cmsModels.code }).from(cmsModels).where(inArray(cmsModels.id, modelIds))
+    ? await db.select({ id: cmsModels.id, code: cmsModels.code }).from(cmsModels).where(and(
+        inArray(cmsModels.id, modelIds),
+        or(isNull(cmsModels.ownerSiteId), eq(cmsModels.ownerSiteId, siteId)),
+      ))
     : [];
   const modelMap = new Map(models.map((row) => [row.id, row.code]));
 
   const ids = rows.map((row) => row.id);
-  const opts: MapOpenContentOptions = { channelMap, modelMap, includes };
+  const linkResolver = await buildCmsLinkResolver(siteId, '', rows.flatMap((row) => [row.externalLink, row.sourceUrl]));
+  const opts: MapOpenContentOptions = { channelMap, modelMap, includes, linkResolver };
 
   if (includes.has('tags') && ids.length > 0) {
     const rowsTags = await db.select({ contentId: cmsContentTags.contentId, name: cmsTags.name, slug: cmsTags.slug })
       .from(cmsContentTags)
       .innerJoin(cmsTags, eq(cmsContentTags.tagId, cmsTags.id))
-      .where(inArray(cmsContentTags.contentId, ids));
+      .where(and(inArray(cmsContentTags.contentId, ids), eq(cmsTags.siteId, siteId)));
     const map = new Map<number, { name: string; slug: string }[]>();
     for (const row of rowsTags) {
       const list = map.get(row.contentId) ?? [];
@@ -356,8 +394,20 @@ async function buildMapOptions(
       .from(cmsContentRelations)
       .where(inArray(cmsContentRelations.contentId, ids))
       .orderBy(asc(cmsContentRelations.sort));
+    const relatedIds = [...new Set(rowsRel.map((row) => row.relatedId))];
+    const relatedRows = relatedIds.length > 0
+      ? await db.select().from(cmsContents).where(and(
+          inArray(cmsContents.id, relatedIds),
+          eq(cmsContents.siteId, siteId),
+        ))
+      : [];
+    const effectiveChannels = await getEffectivelyEnabledCmsChannelIds(siteId);
+    const visibleRelatedIds = new Set(relatedRows
+      .filter((row) => isCmsContentPubliclyVisible(row) && effectiveChannels.has(row.channelId))
+      .map((row) => row.id));
     const map = new Map<number, number[]>();
     for (const row of rowsRel) {
+      if (!visibleRelatedIds.has(row.relatedId)) continue;
       const list = map.get(row.contentId) ?? [];
       list.push(row.relatedId);
       map.set(row.contentId, list);
@@ -366,23 +416,14 @@ async function buildMapOptions(
   }
 
   if ((includes.has('body') || includes.has('extend')) && rows.length > 0) {
-    // 映射内容的正文透传来源行：先批量取回全部来源，再整批解析素材句柄。
-    // 逐行 await 会退化成 100~200 次串行往返（resolveCmsContentRows 本就是为批量取数设计的）
-    const sourceIds = [...new Set(rows.map((row) => row.mappingSourceId).filter((id): id is number => id != null))];
-    const sources = sourceIds.length > 0
-      ? await db.select({ id: cmsContents.id, body: cmsContents.body, extend: cmsContents.extend })
-          .from(cmsContents).where(inArray(cmsContents.id, sourceIds))
-      : [];
-    const sourceById = new Map(sources.map((row) => [row.id, row]));
-    const raw = rows.map((row) => {
-      const source = row.mappingSourceId ? sourceById.get(row.mappingSourceId) : null;
-      return {
-        id: row.id,
-        coverImage: null,
-        body: source ? source.body ?? null : row.body ?? null,
-        extend: (source ? source.extend : row.extend) ?? {},
-      };
-    });
+    // Mapping targets are materialized snapshots. The relationship is kept
+    // for governance only and is never dereferenced by the public API.
+    const raw = rows.map((row) => ({
+      id: row.id,
+      coverImage: null,
+      body: row.body ?? null,
+      extend: row.extend ?? {},
+    }));
     const resolvedBodies = await resolveCmsContentRows(raw, siteId);
     opts.bodyExtend = new Map(resolvedBodies.map((row) => [
       row.id,
@@ -454,7 +495,10 @@ export async function listOpenCmsContentsByCursor(site: CmsSiteRow, query: Parse
 export async function getOpenCmsContent(site: CmsSiteRow, idOrSlug: string, query: ParsedCmsOpenQuery) {
   const numericId = /^\d+$/.test(idOrSlug) ? Number(idOrSlug) : null;
   const matcher = numericId !== null ? eq(cmsContents.id, numericId) : eq(cmsContents.slug, idOrSlug);
-  const [row] = await db.select().from(cmsContents).where(and(publicWhere(site.id), matcher)).limit(1);
+  const enabledIds = await getEffectivelyEnabledCmsChannelIds(site.id);
+  const [row] = enabledIds.size > 0
+    ? await db.select().from(cmsContents).where(and(publicWhere(site.id), inArray(cmsContents.channelId, [...enabledIds]), matcher)).limit(1)
+    : [];
   if (!row) throw new HTTPException(404, { message: '内容不存在或未发布' });
   // 详情默认返回正文与扩展字段，无需显式 include
   const includes = new Set([...query.includes, 'body', 'extend', 'tags', 'attachments', 'channel']);
@@ -530,10 +574,7 @@ export async function syncOpenCmsContents(
 
   // 可见性判定与 publicWhere 保持一致：栏目停用等同下线，这类内容以 delete 下发，
   // 否则集成方会一直保留一份在前台已经看不到的内容。
-  const enabledChannelIds = new Set(
-    (await db.select({ id: cmsChannels.id }).from(cmsChannels)
-      .where(and(eq(cmsChannels.siteId, site.id), eq(cmsChannels.status, 'enabled')))).map((row) => row.id),
-  );
+  const enabledChannelIds = await getEffectivelyEnabledCmsChannelIds(site.id);
   const now = new Date();
   const visible = page
     .map((entry) => entry.row)

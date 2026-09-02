@@ -42,7 +42,7 @@ type MemberJwtCheck =
   | { ok: false; status: 401 | 403; message: string };
 
 /** Re-check the member and its tenant on every request; JWT claims are staleable. */
-async function checkMemberJwtSubject(payload: MemberJwtPayload): Promise<MemberJwtCheck> {
+export async function checkMemberJwtSubject(payload: MemberJwtPayload): Promise<MemberJwtCheck> {
   if (!Number.isInteger(payload.memberId) || payload.memberId <= 0) {
     return { ok: false, status: 401, message: '无效的会员令牌' };
   }

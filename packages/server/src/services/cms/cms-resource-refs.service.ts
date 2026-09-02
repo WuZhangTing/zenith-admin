@@ -21,10 +21,11 @@ import {
   extractCmsResourceRefFields, remapCmsResourceUris, resolveCmsResourceUris,
 } from '../../lib/cms-resource-uri';
 import type { CmsResourceOwnerType, CmsResourceReference, CmsResourceType } from '@zenith/shared/cms';
+import { isValidCmsAssetUrl } from '@zenith/shared/cms';
 
 /** 各 owner 承载素材引用的字段清单（值取自 owner 行本身，保证与落库结果一致） */
 export const CMS_RESOURCE_OWNER_FIELDS = {
-  site: ['logo', 'favicon', 'settings'],
+  site: ['logo', 'favicon', 'extend', 'settings'],
   content: ['coverImage', 'body', 'mediaData', 'extend', 'attachments', 'externalLink', 'sourceUrl'],
   contentVersion: ['snapshot'],
   channel: ['image', 'pageContent', 'settings', 'linkUrl'],
@@ -84,7 +85,7 @@ const SAFE_RESOURCE_URL_RE = /^(?:\/(?!\/)[^"'<>\s\\]*|https?:\/\/[^"'<>\s\\]+)$
 
 export function isSafeCmsResourceUrl(url: string | null | undefined): boolean {
   if (url == null || url === '') return true;
-  return url.length <= 500 && SAFE_RESOURCE_URL_RE.test(url);
+  return url.length <= 500 && SAFE_RESOURCE_URL_RE.test(url) && isValidCmsAssetUrl(url);
 }
 
 /** 校验并返回素材地址；非法时抛 400（导入包等不可信来源的唯一拦截点） */
@@ -398,7 +399,7 @@ function resolveCover(
 ): { coverImage: string | null; coverThumb: string | null } {
   if (!cover) return { coverImage: null, coverThumb: null };
   const [id] = extractCmsResourceIds(cover);
-  if (id == null) return { coverImage: cover, coverThumb: null };
+  if (id == null) return { coverImage: isSafeCmsResourceUrl(cover) ? cover : null, coverThumb: null };
   const target = targets.get(id) ?? null;
   if (!target) return { coverImage: null, coverThumb: null };
   return { coverImage: target.url, coverThumb: target.thumbUrl ?? target.url };

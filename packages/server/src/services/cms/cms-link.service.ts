@@ -1,10 +1,11 @@
-import { and, eq, gt, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { parseCmsLink } from '@zenith/shared/cms';
 import type { CmsChannelDetailPathRule, CmsLinkEntityType, CmsLinkRef, CmsLinkTarget } from '@zenith/shared/cms';
 import { db } from '../../db';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import { channelUrl, contentUrl } from './cms-urls';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 
 /**
  * 链接解析 —— 把 `entity:content/123` / `entity:channel/45` / `internal:/x` 解析成真实 URL。
@@ -118,6 +119,7 @@ export async function buildCmsLinkResolver(
 
   if (seedContentIds.size > 0 || seedChannelIds.size > 0 || needChannelCodes) {
     contentMap = await loadContentTargets(siteId, seedContentIds);
+    const effectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(siteId);
     // 内容目标还需其所属栏目的 path；站点栏目量级小，一次全量取回比按需二次查询更省
     const channelRows = await db.select({
       id: cmsChannels.id,
@@ -129,7 +131,11 @@ export async function buildCmsLinkResolver(
       status: cmsChannels.status,
     })
       .from(cmsChannels)
-      .where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.status, 'enabled')));
+      .where(and(
+        eq(cmsChannels.siteId, siteId),
+        eq(cmsChannels.status, 'enabled'),
+        effectiveChannelIds.size > 0 ? inArray(cmsChannels.id, [...effectiveChannelIds]) : sql`false`,
+      ));
     channelMap = new Map(channelRows.map((row) => [row.id, row]));
     channelByCode = new Map(channelRows.map((row) => [row.code, row]));
   }
@@ -205,26 +211,35 @@ export async function describeCmsLink(siteId: number, raw: string | null | undef
       where: and(eq(cmsChannels.code, ref.code), eq(cmsChannels.siteId, siteId)),
       columns: { id: true, name: true },
     });
+    const enabled = target ? await getEffectivelyEnabledCmsChannelIds(siteId) : new Set<number>();
     return {
       kind: 'entity-channel',
       label: target?.name ?? `栏目「${ref.code}」（不存在）`,
       targetId: target?.id ?? null,
       targetCode: ref.code,
-      exists: !!target,
+      exists: !!target && enabled.has(target.id),
     };
   }
 
   if (ref.entityType === 'content') {
     const target = await db.query.cmsContents.findFirst({
-      where: and(eq(cmsContents.id, ref.id), eq(cmsContents.siteId, siteId), isNull(cmsContents.deletedAt)),
-      columns: { id: true, title: true },
+      where: and(
+        eq(cmsContents.id, ref.id),
+        eq(cmsContents.siteId, siteId),
+        eq(cmsContents.status, 'published'),
+        isNull(cmsContents.deletedAt),
+        isNull(cmsContents.archivedAt),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      ),
+      columns: { id: true, title: true, channelId: true },
     });
+    const enabledChannels = target ? await getEffectivelyEnabledCmsChannelIds(siteId) : new Set<number>();
     return {
       kind: 'entity-content',
-      label: target?.title ?? `内容 #${ref.id}（已删除）`,
+      label: target?.title ?? `内容 #${ref.id}（不可公开访问）`,
       targetId: ref.id,
       targetCode: null,
-      exists: !!target,
+      exists: !!target && enabledChannels.has(target.channelId),
     };
   }
 
@@ -232,12 +247,13 @@ export async function describeCmsLink(siteId: number, raw: string | null | undef
     where: and(eq(cmsChannels.id, ref.id), eq(cmsChannels.siteId, siteId)),
     columns: { id: true, name: true },
   });
+  const enabled = target ? await getEffectivelyEnabledCmsChannelIds(siteId) : new Set<number>();
   return {
     kind: 'entity-channel',
-    label: target?.name ?? `栏目 #${ref.id}（已删除）`,
+    label: target?.name ?? `栏目 #${ref.id}（不可公开访问）`,
     targetId: ref.id,
     targetCode: null,
-    exists: !!target,
+    exists: !!target && enabled.has(target.id),
   };
 }
 
@@ -250,16 +266,23 @@ export async function ensureCmsLinkTargetExists(siteId: number, raw: string | nu
       where: and(eq(cmsChannels.code, ref.code), eq(cmsChannels.siteId, siteId), eq(cmsChannels.status, 'enabled')),
       columns: { id: true },
     });
-    if (!target) throw new HTTPException(400, { message: '内部链接指向的栏目不存在或已停用' });
+    if (!target || !(await getEffectivelyEnabledCmsChannelIds(siteId)).has(target.id)) throw new HTTPException(400, { message: '内部链接指向的栏目不存在或已停用' });
     return;
   }
 
   if (ref.entityType === 'content') {
     const target = await db.query.cmsContents.findFirst({
-      where: and(eq(cmsContents.id, ref.id), eq(cmsContents.siteId, siteId), isNull(cmsContents.deletedAt)),
-      columns: { id: true },
+      where: and(
+        eq(cmsContents.id, ref.id),
+        eq(cmsContents.siteId, siteId),
+        eq(cmsContents.status, 'published'),
+        isNull(cmsContents.deletedAt),
+        isNull(cmsContents.archivedAt),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      ),
+      columns: { id: true, channelId: true },
     });
-    if (!target) throw new HTTPException(400, { message: '内部链接指向的内容不存在或已删除' });
+    if (!target || !(await getEffectivelyEnabledCmsChannelIds(siteId)).has(target.channelId)) throw new HTTPException(400, { message: '内部链接只能指向当前站点公开可见的内容' });
     return;
   }
 
@@ -267,7 +290,7 @@ export async function ensureCmsLinkTargetExists(siteId: number, raw: string | nu
     where: and(eq(cmsChannels.id, ref.id), eq(cmsChannels.siteId, siteId), eq(cmsChannels.status, 'enabled')),
     columns: { id: true },
   });
-  if (!target) throw new HTTPException(400, { message: '内部链接指向的栏目不存在或已停用' });
+  if (!target || !(await getEffectivelyEnabledCmsChannelIds(siteId)).has(target.id)) throw new HTTPException(400, { message: '内部链接指向的栏目不存在或已停用' });
 }
 
 /**

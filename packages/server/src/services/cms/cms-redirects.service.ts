@@ -30,7 +30,7 @@ async function isTrustedRedirectTarget(toUrl: string): Promise<boolean> {
 }
 
 /** 创建/更新前校验目标地址，防止配置为任意外域形成钓鱼跳板 */
-async function assertTrustedRedirectTarget(toUrl: string): Promise<void> {
+export async function assertTrustedRedirectTarget(toUrl: string): Promise<void> {
   if (!(await isTrustedRedirectTarget(toUrl))) {
     throw new HTTPException(400, { message: '目标地址仅允许站内路径（/ 开头）或本系统站点域名的完整 URL' });
   }
@@ -40,7 +40,7 @@ async function assertTrustedRedirectTarget(toUrl: string): Promise<void> {
 let redirectCache: { bySite: Map<number, Map<string, CmsRedirectRow>>; loadedAt: number } | null = null;
 const CACHE_TTL_MS = 30_000;
 
-function invalidateRedirectCache() {
+export function invalidateRedirectCache() {
   redirectCache = null;
 }
 

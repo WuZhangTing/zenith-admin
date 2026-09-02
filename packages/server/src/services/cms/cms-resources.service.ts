@@ -17,6 +17,7 @@ import { ensureCmsResourceFolderExists } from './cms-resource-folders.service';
 import {
   countCmsResourceRefs, invalidateCmsResourceCache, listCmsOrphanResourceIds, listCmsResourceRefDetails,
 } from './cms-resource-refs.service';
+import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 
 // 惰性加载：sharp 含原生二进制、模块图大，仅在首次处理图片时加载
 // （require 加载 CJS 构建，其导出即可调用函数，类型对应 d.mts 的 default）
@@ -179,10 +180,9 @@ export async function replaceCmsResource(id: number, file: File) {
     mimeType: file.type || null,
   }).where(eq(cmsResources.id, id)).returning();
   invalidateCmsResourceCache(current.siteId, [id]);
-  // 旧物理文件在素材行改指向后才删除，且仅当没有别的素材行还共用它
-  if (current.fileId && current.fileId !== uploaded.fileId) {
-    await deleteOrphanedManagedFile(current, [id]);
-  }
+  await refreshCmsPublicConfiguration(current.siteId, '素材替换', `resource:${row.id}:${row.updatedAt.getTime()}`);
+  // Old binaries remain until the managed-file orphan cleanup runs. Deleting
+  // them before the new static deployment activates would break existing HTML.
   return mapCmsResource(row);
 }
 

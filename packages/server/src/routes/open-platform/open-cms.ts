@@ -10,12 +10,12 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import type { Context, MiddlewareHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { CMS_OPEN_INCLUDES, CMS_OPEN_PAGE_SIZE_MAX, CMS_OPEN_SORT_FIELDS, CMS_OPEN_SYNC_PAGE_SIZE_MAX } from '@zenith/shared/cms';
+import { CMS_LINK_FORMAT_MESSAGE, CMS_OPEN_INCLUDES, CMS_OPEN_PAGE_SIZE_MAX, CMS_OPEN_SORT_FIELDS, CMS_OPEN_SYNC_PAGE_SIZE_MAX, isValidCmsAssetUrl, isValidCmsLink } from '@zenith/shared/cms';
 import { ErrorResponse, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
   CmsChannelDTO, CmsContentDTO, CmsOpenContentCursorPageDTO, CmsOpenContentDTO, CmsOpenSyncResultDTO,
 } from '../../lib/openapi-dtos';
-import { decodeCmsOpenCursor, OpenQueryError, parseCmsOpenIncludes, parseCmsOpenQuery } from '../../lib/open-query';
+import { decodeCmsOpenCursor, OpenQueryError, parseCmsOpenIncludes, parseCmsOpenQuery, parsePositiveInteger } from '../../lib/open-query';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { listCmsChannelTree } from '../../services/cms/cms-channels.service';
 import { resolveSiteByCode } from '../../services/cms/cms-sites.service';
@@ -77,6 +77,9 @@ function rawQuery(c: Context): Record<string, string> {
 const SiteCodeQuery = z.object({
   siteCode: z.string().min(1).max(50).openapi({ example: 'main', description: '站点标识' }),
 });
+
+const openCmsLink = z.string().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE).nullable().optional();
+const openCmsAsset = z.string().trim().max(500).refine(isValidCmsAssetUrl, CMS_LINK_FORMAT_MESSAGE).nullable().optional();
 
 const ContentListQuery = SiteCodeQuery.extend({
   channel: z.string().max(500).optional().openapi({ example: 'news,notice', description: '栏目标识，逗号分隔多选（聚合主栏目与副栏目）' }),
@@ -177,7 +180,7 @@ const syncRoute = defineOpenAPIRoute({
       return c.json(okBody(await syncOpenCmsContents(site, {
         since: query.since ?? null,
         cursor: decodeCmsOpenCursor(query.cursor),
-        pageSize: Number(query.pageSize) || 100,
+        pageSize: parsePositiveInteger(query.pageSize, 100, 'pageSize', CMS_OPEN_SYNC_PAGE_SIZE_MAX),
         includes: parseCmsOpenIncludes(query.include),
       })), 200);
     } catch (err) {
@@ -218,14 +221,14 @@ const ContentWriteBody = z.object({
   shortTitle: z.string().max(100).nullable().optional(),
   slug: z.string().max(255).nullable().optional(),
   summary: z.string().max(2000).nullable().optional(),
-  coverImage: z.string().max(500).nullable().optional(),
+  coverImage: openCmsAsset,
   author: z.string().max(50).nullable().optional(),
   editor: z.string().max(50).nullable().optional(),
   source: z.string().max(100).nullable().optional(),
-  sourceUrl: z.string().max(500).nullable().optional(),
+  sourceUrl: openCmsLink,
   body: z.string().nullable().optional(),
   extend: z.record(z.string(), z.unknown()).optional(),
-  externalLink: z.string().max(500).nullable().optional(),
+  externalLink: openCmsLink,
   seoTitle: z.string().max(255).nullable().optional(),
   seoKeywords: z.string().max(500).nullable().optional(),
   seoDescription: z.string().max(500).nullable().optional(),

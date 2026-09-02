@@ -39,9 +39,11 @@ import {
   resolveCmsWidgetPlacements,
   resolveCmsWidgetSlotForRender,
 } from './cms-widgets.service';
-import type { CmsChannel, CmsFormField, CmsResolvedWidget, CmsSiteTemplateDefaults } from '@zenith/shared/cms';
-import { CMS_CONTENT_STATUS_LABELS } from '@zenith/shared/cms';
+import type { CmsChannel, CmsFormField, CmsPageBlock, CmsResolvedWidget, CmsSiteTemplateDefaults } from '@zenith/shared/cms';
+import { CMS_CONTENT_STATUS_LABELS, isValidCmsAssetUrl, isValidCmsLink } from '@zenith/shared/cms';
 import { stripCmsPreviewScripts } from './cms-preview';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
+import { sanitizeCmsHtml } from './cms-html-sanitizer';
 
 // ─── URL 规则（站点内相对路径，静态文件名与之一一对应）──────────────────────────
 export { channelUrl, tagUrl, contentUrl, customPageUrl, customPagePath } from './cms-urls';
@@ -199,9 +201,9 @@ export function mergeSeo(site: CmsSiteRow, overrides: Partial<CmsSeo> & { pathFo
 async function buildBaseContext(site: CmsSiteRow, baseUrl: string, seo: CmsSeo, analyticsContentId?: number): Promise<CmsBaseContext> {
   const [tree, friendLinks, friendLinkGroups, ads, langAlternates, assets] = await Promise.all([
     listCmsChannelTree({ siteId: site.id, status: 'enabled' }, { skipAccessCheck: true }),
-    listEnabledFriendLinks(site.id),
-    listEnabledFriendLinkGroups(site.id),
-    getActiveAds(site.id),
+    listEnabledFriendLinks(site.id, baseUrl),
+    listEnabledFriendLinkGroups(site.id, baseUrl),
+    getActiveAds(site.id, baseUrl),
     buildLangAlternates(site),
     resolveThemeAssets(site, baseUrl),
   ]);
@@ -316,7 +318,9 @@ async function buildLangAlternates(site: CmsSiteRow): Promise<CmsBaseContext['la
 function toContentItem(row: CmsContentRow, baseUrl: string, channel: CmsUrlChannel, resolveLink?: CmsLinkResolver, listFieldDefs?: Map<number, CmsListModelFieldDefs>): CmsContentItem {
   const rawLink = row.externalLink?.trim();
   // 链接型内容：解析后指向目标；目标已删除/下线时降级为不可点（避免指向必然 404 的自身详情页）
-  const link = rawLink ? (resolveLink?.(rawLink) ?? { url: rawLink, isExternal: true }) : null;
+  // A resolver miss is a dead/invalid link. Never fall back to the raw value,
+  // because old rows may still contain javascript:/protocol-relative payloads.
+  const link = rawLink ? (resolveLink?.(rawLink) ?? null) : null;
   const media = (row.mediaData ?? {}) as { images?: unknown[]; mediaType?: 'video' | 'audio' };
   return {
     id: row.id,
@@ -372,7 +376,11 @@ async function buildBreadcrumbs(site: CmsSiteRow, baseUrl: string, channel: CmsC
   while (cursor) {
     chain.unshift(cursor);
     if (cursor.parentId === 0) break;
-    const [parent] = await db.select().from(cmsChannels).where(eq(cmsChannels.id, cursor.parentId)).limit(1);
+    const [parent] = await db.select().from(cmsChannels).where(and(
+      eq(cmsChannels.id, cursor.parentId),
+      eq(cmsChannels.siteId, site.id),
+      eq(cmsChannels.status, 'enabled'),
+    )).limit(1);
     cursor = parent ?? null;
   }
   for (const ch of chain) {
@@ -395,7 +403,7 @@ export async function findChannelByPath(siteId: number, path: string): Promise<C
   const [row] = await db.select().from(cmsChannels)
     .where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.path, path), eq(cmsChannels.status, 'enabled')))
     .limit(1);
-  return row ?? null;
+  return row && (await getEffectivelyEnabledCmsChannelIds(siteId)).has(row.id) ? row : null;
 }
 
 /** 归档目录最多占 3 段（date 规则的 年/月/日） */
@@ -434,10 +442,11 @@ export async function renderCustomPage(
     ...await buildBaseContext(site, baseUrl, seo),
     audience: { dynamic: pageRow.requiresDynamic, member: opts?.member === true },
   };
-  const blocks = await resolveCmsResourcePayload(filterCmsPageBlocksForViewer(
+  const resourceResolvedBlocks = await resolveCmsResourcePayload(filterCmsPageBlocksForViewer(
     (pageRow.blocks ?? []) as import('@zenith/shared').CmsPageBlock[],
     { member: opts?.member === true },
   ), site.id);
+  const blocks = await resolveCmsPageBlockUrls(resourceResolvedBlocks, site.id, baseUrl);
   // content-list 区块数据预取
   const channelPathMap = await loadChannelPathMap(site.id);
   const hasChannelCodeBlock = blocks.some((b) => b.type === 'content-list' && typeof b.props.channelCode === 'string' && b.props.channelCode);
@@ -480,12 +489,15 @@ export async function renderCustomPage(
 }
 
 async function listBlockContents(siteId: number, opts: { channelId?: number; tagSlug?: string; count: number; mode: 'latest' | 'recommend' | 'hot' }): Promise<ResolvedCmsContentRow[]> {
+  const effectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(siteId);
+  if (effectiveChannelIds.size === 0 || (opts.channelId != null && !effectiveChannelIds.has(opts.channelId))) return [];
   const conds = [
     eq(cmsContents.siteId, siteId),
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
     or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date()))!,
+    inArray(cmsContents.channelId, [...effectiveChannelIds]),
   ];
   if (opts.tagSlug) {
     // 标签聚合：跨栏目取同标签内容（专题页典型场景）；标签模式下忽略栏目条件
@@ -506,6 +518,42 @@ async function listBlockContents(siteId: number, opts: { channelId?: number; tag
     .orderBy(desc(cmsContents.isTop), desc(cmsContents.publishedAt))
     .limit(opts.count);
   return resolveCmsContentRows(rows, siteId);
+}
+
+function blockUrlKey(key: string): 'asset' | 'link' | null {
+  if (/(?:src|image|poster|logo|icon)$/i.test(key)) return 'asset';
+  if (/(?:url|href|link)$/i.test(key)) return 'link';
+  return null;
+}
+
+async function resolveCmsPageBlockUrls(
+  blocks: CmsPageBlock[],
+  siteId: number,
+  baseUrl: string,
+): Promise<CmsPageBlock[]> {
+  const rawLinks: string[] = [];
+  const walkCollect = (value: unknown, key?: string) => {
+    if (typeof value === 'string' && key && blockUrlKey(key)) {
+      rawLinks.push(value);
+      return;
+    }
+    if (Array.isArray(value)) value.forEach((item) => walkCollect(item, key));
+    else if (value && typeof value === 'object') Object.entries(value as Record<string, unknown>).forEach(([childKey, child]) => walkCollect(child, childKey));
+  };
+  blocks.forEach((block) => walkCollect(block.props));
+  const resolver = await buildCmsLinkResolver(siteId, baseUrl, rawLinks);
+  const mapValue = (value: unknown, key?: string): unknown => {
+    if (typeof value === 'string' && key) {
+      const kind = blockUrlKey(key);
+      if (kind === 'asset') return isValidCmsAssetUrl(value) ? value : '';
+      if (kind === 'link') return isValidCmsLink(value) ? (resolver(value)?.url ?? '') : '';
+      return value;
+    }
+    if (Array.isArray(value)) return value.map((item) => mapValue(item, key));
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([childKey, child]) => [childKey, mapValue(child, childKey)]));
+    return value;
+  };
+  return blocks.map((block) => ({ ...block, props: mapValue(block.props) as Record<string, unknown> }));
 }
 
 /** Theme API 数据门面的单次渲染配额：防止 load() 写出取数风暴 */
@@ -714,8 +762,12 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
     mediaUrl?: string; poster?: string; duration?: string;
   };
   const albumImages = (Array.isArray(media.images) ? media.images : [])
-    .filter((img) => typeof img?.url === 'string' && img.url)
-    .map((img) => ({ url: img.url!, thumb: img.thumb ?? null, caption: img.caption ?? null }));
+    .filter((img) => typeof img?.url === 'string' && !!img.url && isValidCmsAssetUrl(img.url))
+    .map((img) => ({
+      url: img.url!,
+      thumb: typeof img.thumb === 'string' && isValidCmsAssetUrl(img.thumb) ? img.thumb : null,
+      caption: img.caption ?? null,
+    }));
 
   const bodyPages = splitBodyPages(resolvedBody);
   const totalPages = bodyPages.length;
@@ -737,19 +789,22 @@ function buildDetailExtras(row: CmsContentRow, resolvedBody: string | null, base
     totalPages,
     extras: {
       bodyPagination,
-      attachments: row.attachments ?? [],
+      attachments: (Array.isArray(row.attachments) ? row.attachments : []).filter((attachment) => {
+        if (!attachment || typeof attachment !== 'object' || Array.isArray(attachment)) return false;
+        const url = (attachment as unknown as Record<string, unknown>).url;
+        return typeof url === 'string' && isValidCmsAssetUrl(url);
+      }),
       albumImages,
-      mediaUrl: media.mediaUrl ?? null,
-      mediaPoster: media.poster ?? null,
+      mediaUrl: typeof media.mediaUrl === 'string' && isValidCmsAssetUrl(media.mediaUrl) ? media.mediaUrl : null,
+      mediaPoster: typeof media.poster === 'string' && isValidCmsAssetUrl(media.poster) ? media.poster : null,
       mediaDuration: media.duration ?? null,
     },
   };
 }
 
-/** 内容正文分页数（静态化生成 _n.html 时用；映射内容透传来源正文） */
-export async function countContentBodyPages(row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>, siteId: number): Promise<number> {
-  const resolved = await resolveContentBodyExtend(row, siteId);
-  return splitBodyPages(resolved.body).length;
+/** 内容正文分页数（静态化生成 _n.html 时使用目标行的本地快照） */
+export async function countContentBodyPages(row: Pick<CmsContentRow, 'body' | 'extend' | 'mappingSourceId'>, _siteId: number): Promise<number> {
+  return splitBodyPages(row.body).length;
 }
 
 export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channel: CmsChannelRow, idOrSlug: string, bodyPage = 1, templateOverride?: string | null, canonicalGuardPath?: string | null): Promise<RenderResult> {
@@ -804,8 +859,10 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
     resolveContentBodyExtend(row, site.id),
     buildCmsModelFieldValues(row.modelId, (row.extend ?? {}) as Record<string, unknown>),
   ]);
+  const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, [row.externalLink, ...linkWords.map((word) => word.url)]);
+  const safeBody = sanitizeCmsHtml(resolved.body);
   const related = await buildRelatedLinks(baseUrl, relatedRows);
-  const { pageBody, totalPages, extras } = buildDetailExtras(row, resolved.body, baseUrl, channel, bodyPage);
+  const { pageBody, totalPages, extras } = buildDetailExtras(row, safeBody, baseUrl, channel, bodyPage);
   if (bodyPage > totalPages) return renderNotFound(site, baseUrl, `/${channel.path}/${idOrSlug}_${bodyPage}.html`);
   const detailTemplate = await resolveDetailComponent(site, channel, row.detailTemplate, row.modelId, templateOverride);
   const props = {
@@ -813,8 +870,8 @@ export async function renderDetailPage(site: CmsSiteRow, baseUrl: string, channe
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
     content: {
-      ...toContentItem(row, baseUrl, channel),
-      body: applyInteractionMarkers(applyLinkWords(pageBody, linkWords), site.code),
+      ...toContentItem(row, baseUrl, channel, resolveLink),
+      body: applyInteractionMarkers(applyLinkWords(pageBody, linkWords, resolveLink), site.code, row.siteId),
       ...extras,
       extend: resolved.extend,
       modelFields,
@@ -884,15 +941,15 @@ export async function renderContentPreviewPage(site: CmsSiteRow, baseUrl: string
     buildCmsModelFieldValues(row.modelId, (row.extend ?? {}) as Record<string, unknown>),
   ]);
   const previewTemplate = await resolveDetailComponent(site, channel, row.detailTemplate, row.modelId);
-  const { pageBody: previewBody, extras: previewExtras } = buildDetailExtras(row, resolved.body, baseUrl, channel, 1);
-  const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, [row.externalLink]);
+  const { pageBody: previewBody, extras: previewExtras } = buildDetailExtras(row, sanitizeCmsHtml(resolved.body), baseUrl, channel, 1);
+  const resolveLink = await buildCmsLinkResolver(site.id, baseUrl, [row.externalLink, ...linkWords.map((word) => word.url)]);
   const props = {
     ...base,
     channel: toChannelInfo(channel, baseUrl),
     breadcrumbs,
     content: {
       ...toContentItem(row, baseUrl, channel, resolveLink),
-      body: applyInteractionMarkers(applyLinkWords(previewBody, linkWords), site.code),
+      body: applyInteractionMarkers(applyLinkWords(previewBody, linkWords, resolveLink), site.code, row.siteId),
       ...previewExtras,
       extend: resolved.extend,
       modelFields: previewModelFields,
@@ -1014,7 +1071,7 @@ export async function renderInteractionPage(site: CmsSiteRow, baseUrl: string, c
     submit: {
       stateApi: `/api/public/cms/interactions/${site.code}/${interaction.code}`,
       publicSubmitApi: `/api/public/cms/interactions/${site.code}/${interaction.code}/submit`,
-      memberSubmitApi: `/api/member/cms/interactions/${interaction.id}/submit`,
+      memberSubmitApi: `/api/member/cms/interactions/${interaction.id}/submit?siteId=${site.id}`,
     },
   };
   const html = renderDoc(
@@ -1087,6 +1144,10 @@ function rssEscape(s: string): string {
 /** 生成站点或栏目 RSS（最新 50 条已发布内容） */
 export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow | null): Promise<string> {
   const origin = siteOrigin(site) ?? '';
+  const effectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(site.id);
+  if (channel && !effectiveChannelIds.has(channel.id)) {
+    return '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel></channel></rss>';
+  }
   const rows = await resolveCmsContentRows(await db.select().from(cmsContents)
     .where(and(
       eq(cmsContents.siteId, site.id),
@@ -1095,6 +1156,7 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
       isNull(cmsContents.deletedAt),
       isNull(cmsContents.archivedAt),
       or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      inArray(cmsContents.channelId, [...effectiveChannelIds]),
     ))
     .orderBy(desc(cmsContents.publishedAt), desc(cmsContents.id))
     .limit(50), site.id);
@@ -1105,8 +1167,9 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
   const items = rows.map((row) => {
     const rawLink = row.externalLink?.trim();
     const link = rawLink
-      ? (resolveLink(rawLink)?.url ?? rawLink)
+      ? resolveLink(rawLink)?.url
       : `${origin}${contentUrl('', channelPathMap.get(row.channelId) ?? FALLBACK_URL_CHANNEL, row)}`;
+    if (!link) return null;
     return [
       '    <item>',
       `      <title>${rssEscape(row.title)}</title>`,
@@ -1116,7 +1179,7 @@ export async function generateRssXml(site: CmsSiteRow, channel?: CmsChannelRow |
       row.publishedAt ? `      <pubDate>${new Date(row.publishedAt).toUTCString()}</pubDate>` : '',
       '    </item>',
     ].filter(Boolean).join('\n');
-  }).join('\n');
+  }).filter((item): item is string => item !== null).join('\n');
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0">',
@@ -1153,7 +1216,7 @@ export async function renderSitePath(
   // 标签聚合页
   const tagMatch = /^tag\/([^/]+)(?:\/(?:index_(\d+)\.html)?)?$/.exec(cleaned);
   if (tagMatch) {
-    return renderTagPage(site, baseUrl, decodeURIComponent(tagMatch[1]), Number(tagMatch[2] ?? 1));
+    return renderTagPage(site, baseUrl, tagMatch[1], Number(tagMatch[2] ?? 1));
   }
 
   // 可视化搭建页面 /p/{slug}/

@@ -11,6 +11,9 @@ import logger from '../../lib/logger';
 import type { CmsChannelDetailPathRule, CmsSearchResult } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { contentUrl } from './cms-urls';
+import { buildCmsLinkResolver } from './cms-link.service';
+import type { CmsLinkResolver } from './cms-link.service';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { pageOffset } from '../../lib/pagination';
 import { assertAllCmsSiteChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { loadCmsExtensionWords, normalizeCmsSearchDictionaryWord } from './cms-search-dictionary';
@@ -297,18 +300,19 @@ interface SearchRowShape {
   rank: number;
 }
 
-function mapSearchRow(row: SearchRowShape, tokens: string[]): CmsSearchResult {
+function mapSearchRow(row: SearchRowShape, tokens: string[], resolveLink?: CmsLinkResolver): CmsSearchResult {
   const plainSummary = row.summary?.trim() ? stripHtml(row.summary) : stripHtml(row.body).slice(0, 400);
   // 外链形态：搜索结果直接指向外部地址；站内形态必须与静态化/模板共用 contentUrl()，
   // 否则归档目录（detailPathRule）与自定义 staticPath 的内容会得到指向 404 的手拼链接
-  const isExternal = row.contentType === 'link' && !!row.externalLink;
-  const url = isExternal
-    ? row.externalLink!
+  const resolvedLink = row.externalLink ? resolveLink?.(row.externalLink) : null;
+  const isExternal = resolvedLink?.isExternal === true;
+  const url = resolvedLink?.url ?? (row.externalLink
+    ? '#'
     : contentUrl(
         '',
         { path: row.channelPath ?? '', detailPathRule: row.channelDetailPathRule ?? 'none' },
         { id: row.id, slug: row.slug, staticPath: row.staticPath, publishedAt: row.publishedAt, createdAt: row.createdAt },
-      );
+      ));
   return {
     id: row.id,
     siteId: row.siteId,
@@ -348,7 +352,12 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
     or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date()))!,
+    eq(cmsChannels.status, 'enabled'),
+    eq(cmsChannels.siteId, siteId),
   ];
+  const effectivelyEnabledChannelIds = await getEffectivelyEnabledCmsChannelIds(siteId);
+  if (effectivelyEnabledChannelIds.size === 0) return empty;
+  baseConditions.push(inArray(cmsChannels.id, [...effectivelyEnabledChannelIds]));
   if (accessibleChannelIds !== null) {
     baseConditions.push(inArray(cmsContents.channelId, accessibleChannelIds));
   }
@@ -371,10 +380,17 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
     publishedAt: cmsContents.publishedAt,
     createdAt: cmsContents.createdAt,
   };
+  const countMatching = async (where: SQL): Promise<number> => {
+    const [result] = await db.select({ count: sql<number>`count(*)::int` })
+      .from(cmsContents)
+      .innerJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
+      .where(where);
+    return result?.count ?? 0;
+  };
 
   const ftsWhere = and(baseWhere, sql`${cmsContents.searchVector} @@ ${tsquery}`)!;
   const [total, rows] = await Promise.all([
-    db.$count(cmsContents, ftsWhere),
+    countMatching(ftsWhere),
     db.select({ ...selectShape, rank: sql<number>`ts_rank_cd(${cmsContents.searchVector}, ${tsquery})`.as('rank') })
       .from(cmsContents)
       .leftJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
@@ -385,7 +401,8 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
   ]);
 
   if (total > 0) {
-    return { list: rows.map((r) => mapSearchRow(r, tokens)), total, page, pageSize, tokens };
+    const resolveLink = await buildCmsLinkResolver(siteId, '', rows.map((r) => r.externalLink));
+    return { list: rows.map((r) => mapSearchRow(r, tokens, resolveLink)), total, page, pageSize, tokens };
   }
 
   // 回退一（仅应用层分词配置）：截断词/两侧切词不齐时 AND 全命中会整体落空，
@@ -396,7 +413,7 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
       const orTsquery = sql`to_tsquery(${cfg}::regconfig, ${prefixTokens.map((t) => `${t}:*`).join(' | ')})`;
       const orWhere = and(baseWhere, sql`${cmsContents.searchVector} @@ ${orTsquery}`)!;
       const [orTotal, orRows] = await Promise.all([
-        db.$count(cmsContents, orWhere),
+        countMatching(orWhere),
         db.select({ ...selectShape, rank: sql<number>`ts_rank_cd(${cmsContents.searchVector}, ${orTsquery})`.as('rank') })
           .from(cmsContents)
           .leftJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
@@ -406,7 +423,8 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
           .offset(pageOffset(page, pageSize)),
       ]);
       if (orTotal > 0) {
-        return { list: orRows.map((r) => mapSearchRow(r, tokens)), total: orTotal, page, pageSize, tokens };
+        const resolveLink = await buildCmsLinkResolver(siteId, '', orRows.map((r) => r.externalLink));
+        return { list: orRows.map((r) => mapSearchRow(r, tokens, resolveLink)), total: orTotal, page, pageSize, tokens };
       }
     }
   }
@@ -415,7 +433,7 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
   if (keyword.trim().length <= 32) {
     const likeWhere = and(baseWhere, sql`${cmsContents.title} ilike ${'%' + escapeLike(keyword.trim()) + '%'}`)!;
     const [likeTotal, likeRows] = await Promise.all([
-      db.$count(cmsContents, likeWhere),
+      countMatching(likeWhere),
       db.select({ ...selectShape, rank: sql<number>`0`.as('rank') })
         .from(cmsContents)
         .leftJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
@@ -424,7 +442,8 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
         .limit(pageSize)
         .offset(pageOffset(page, pageSize)),
     ]);
-    return { list: likeRows.map((r) => mapSearchRow(r, [keyword.trim()])), total: likeTotal, page, pageSize, tokens };
+    const resolveLink = await buildCmsLinkResolver(siteId, '', likeRows.map((r) => r.externalLink));
+    return { list: likeRows.map((r) => mapSearchRow(r, [keyword.trim()], resolveLink)), total: likeTotal, page, pageSize, tokens };
   }
 
   return empty;

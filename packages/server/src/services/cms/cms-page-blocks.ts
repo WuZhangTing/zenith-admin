@@ -1,4 +1,4 @@
-import { CMS_PAGE_BLOCK_TYPES } from '@zenith/shared/cms';
+import { CMS_PAGE_BLOCK_TYPES, isValidCmsAssetUrl, isValidCmsLink } from '@zenith/shared/cms';
 import type { CmsPageBlock, CmsPageBlockType } from '@zenith/shared/cms';
 import { HTTPException } from 'hono/http-exception';
 import { isDeepStrictEqual } from 'node:util';
@@ -19,6 +19,22 @@ function sanitizeProps(value: unknown, key?: string): unknown {
     );
   }
   return value;
+}
+
+function assertSafeBlockUrls(value: unknown, path: string): void {
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertSafeBlockUrls(item, `${path}[${index}]`));
+    return;
+  }
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    const current = `${path}.${key}`;
+    if (typeof nested === 'string' && /(?:url|src|image)$/i.test(key) && nested.trim() !== ''
+      && !((/(?:src|image|poster|logo|icon)$/i.test(key) ? isValidCmsAssetUrl(nested.trim()) : isValidCmsLink(nested.trim())))) {
+      throw new HTTPException(400, { message: `区块链接字段 ${current} 格式无效` });
+    }
+    if (typeof nested !== 'string') assertSafeBlockUrls(nested, current);
+  }
 }
 
 export function sanitizeCmsPageBlocks(value: unknown): CmsPageBlock[] {
@@ -42,6 +58,7 @@ export function sanitizeCmsPageBlocks(value: unknown): CmsPageBlock[] {
     if (!block.props || typeof block.props !== 'object' || Array.isArray(block.props)) {
       throw new HTTPException(400, { message: `第 ${index + 1} 个页面区块 props 格式无效` });
     }
+    assertSafeBlockUrls(block.props, `第 ${index + 1} 个区块 props`);
     ids.add(id);
     const display = block.displayCondition;
     let displayCondition: CmsPageBlock['displayCondition'];

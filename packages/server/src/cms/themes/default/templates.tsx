@@ -300,7 +300,9 @@ var submitBtn=f.querySelector('.survey-submit');submitBtn.disabled=true;
 var payload={answers:collect(f,state),idempotencyKey:(Date.now().toString(36)+Math.random().toString(36).slice(2))};
 var ci=f.querySelector('[name=captchaId]'),ca=f.querySelector('[name=captchaAnswer]'),ct=f.querySelector('[name="cf-turnstile-response"]');
 if(ci)payload.captchaId=ci.value;if(ca)payload.captchaAnswer=ca.value;if(ct)payload.turnstileToken=ct.value;
-var url=token?'/api/member/cms/interactions/'+i.id+'/submit':'/api/public/cms/interactions/'+box.dataset.site+'/'+box.dataset.code+'/submit';
+var memberUrl=box.dataset.memberSubmitApi;
+if(!memberUrl&&box.dataset.siteId)memberUrl='/api/member/cms/interactions/'+i.id+'/submit?siteId='+encodeURIComponent(box.dataset.siteId);
+var url=token?(memberUrl||'/api/member/cms/interactions/'+i.id+'/submit'):'/api/public/cms/interactions/'+box.dataset.site+'/'+box.dataset.code+'/submit';
 fetch(url,{method:'POST',headers:headers(true),body:JSON.stringify(payload)}).then(function(r){return r.json()}).then(function(r){
 submitBtn.disabled=false;
 if(!r||r.code!==0){setFormError(f,(r&&r.message)||'\\u63d0\\u4ea4\\u5931\\u8d25');resetCaptcha(f,state);return}
@@ -828,7 +830,7 @@ export function InteractionTemplate(ctx: CmsInteractionPageContext) {
         <h1>{interaction.title}</h1>
         {interaction.description ? <p className="survey-desc">{interaction.description}</p> : null}
         {interaction.participantScope === 'member' ? <p className="survey-hint">本互动仅限登录会员参与</p> : null}
-        <div className="cms-interaction" data-site={ctx.site.code} data-code={interaction.code}>
+        <div className="cms-interaction" data-site={ctx.site.code} data-site-id={ctx.site.id} data-code={interaction.code} data-member-submit-api={ctx.submit.memberSubmitApi}>
           <noscript>请启用 JavaScript 后参与互动。</noscript>
         </div>
       </article>

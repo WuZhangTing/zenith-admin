@@ -28,6 +28,8 @@ import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../.
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
+import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 import { isCaptchaEnabled } from './cms-captcha.service';
 import {
   type CmsResolvedCaptchaProvider,
@@ -193,7 +195,9 @@ export async function createCmsInteraction(input: CreateCmsInteractionInput) {
       await replaceInteractionQuestions(tx, row.id, questions);
       return row.id;
     });
-    return getCmsInteraction(id);
+    const created = await getCmsInteraction(id);
+    await refreshCmsPublicConfiguration(created.siteId, '互动问卷创建', `interaction:${created.id}:${created.updatedAt}`);
+    return created;
   } catch (error) {
     rethrowPgUniqueViolation(error, '同站点下互动标识已存在');
   }
@@ -253,7 +257,9 @@ export async function updateCmsInteraction(id: number, input: UpdateCmsInteracti
     }).where(eq(cmsInteractions.id, id));
     if (questions) await replaceInteractionQuestions(tx, id, questions);
   });
-  return getCmsInteraction(id);
+  const updated = await getCmsInteraction(id);
+  await refreshCmsPublicConfiguration(updated.siteId, '互动问卷更新', `interaction:${updated.id}:${updated.updatedAt}`);
+  return updated;
 }
 
 export async function setCmsInteractionStatus(id: number, status: 'draft' | 'published' | 'closed') {
@@ -263,6 +269,7 @@ export async function setCmsInteractionStatus(id: number, status: 'draft' | 'pub
     throw new HTTPException(409, { message: '已有答卷的互动问卷不能退回草稿' });
   }
   const [row] = await db.update(cmsInteractions).set({ status }).where(eq(cmsInteractions.id, id)).returning();
+  await refreshCmsPublicConfiguration(row.siteId, '互动问卷状态更新', `interaction:${row.id}:${row.updatedAt.getTime()}`);
   return mapCmsInteraction(row);
 }
 
@@ -270,6 +277,7 @@ export async function deleteCmsInteraction(id: number): Promise<void> {
   const current = await ensureCmsInteractionExists(id);
   await assertSiteAccess(current.siteId);
   await db.delete(cmsInteractions).where(eq(cmsInteractions.id, id));
+  await refreshCmsPublicConfiguration(current.siteId, '互动问卷删除', `interaction:${current.id}:deleted:${Date.now()}`);
 }
 
 /** 去掉已有的 `-copy` / `-copy-N` 后缀，避免复制副本时无限累加 */
@@ -365,6 +373,8 @@ function isInteractionOpen(row: CmsInteractionRow, now = new Date()): boolean {
 }
 
 export async function getPublicCmsInteractionByCode(siteId: number, code: string) {
+  const effective = await resolveEffectiveCmsSite(siteId).catch(() => null);
+  if (!effective || !effective.chain.every((site) => site.status === 'enabled')) return null;
   const row = await db.query.cmsInteractions.findFirst({
     where: and(
       eq(cmsInteractions.siteId, siteId),
@@ -376,9 +386,15 @@ export async function getPublicCmsInteractionByCode(siteId: number, code: string
   return row ?? null;
 }
 
-export async function getPublicCmsInteractionById(id: number) {
+export async function getPublicCmsInteractionById(id: number, siteId: number) {
+  const effective = await resolveEffectiveCmsSite(siteId).catch(() => null);
+  if (!effective || !effective.chain.every((site) => site.status === 'enabled')) return null;
   const row = await db.query.cmsInteractions.findFirst({
-    where: and(eq(cmsInteractions.id, id), inArray(cmsInteractions.status, ['published', 'closed'])),
+    where: and(
+      eq(cmsInteractions.id, id),
+      eq(cmsInteractions.siteId, siteId),
+      inArray(cmsInteractions.status, ['published', 'closed']),
+    ),
     with: { questions: true },
   });
   return row ?? null;

@@ -372,11 +372,15 @@ const interactionSubmitRoute = defineOpenAPIRoute({
     method: 'post', path: '/interactions/{id}/submit', tags: ['MemberCms'], summary: '会员提交互动问卷',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware, idempotencyGuard({ ttlSeconds: 10 })] as const,
-    request: { params: IdParam, body: { content: jsonContent(submitCmsInteractionSchema), required: true } },
+    request: {
+      params: IdParam,
+      query: z.object({ siteId: z.coerce.number().int().positive() }),
+      body: { content: jsonContent(submitCmsInteractionSchema), required: true },
+    },
     responses: { ...commonErrorResponses, ...ok(CmsInteractionSubmitResultDTO, '提交成功') },
   }),
   handler: async (c) => {
-    const interaction = await getPublicCmsInteractionById(c.req.valid('param').id);
+    const interaction = await getPublicCmsInteractionById(c.req.valid('param').id, c.req.valid('query').siteId);
     if (!interaction) throw new HTTPException(404, { message: '互动问卷不存在' });
     const result = await submitCmsInteraction(interaction, c.req.valid('json'), {
       memberId: currentMemberId(),

@@ -1,0 +1,1 @@
+ALTER TABLE "cms_sites" ADD COLUMN "public_revision" integer DEFAULT 0 NOT NULL;

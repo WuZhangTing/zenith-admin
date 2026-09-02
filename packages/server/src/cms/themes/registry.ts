@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import logger from '../../lib/logger';
 import type { CmsThemeSettingField } from '@zenith/shared/cms';
+import { isDirectCmsHref, isValidCmsAssetUrl } from '@zenith/shared/cms';
 import type { CmsTheme, CmsListContext, CmsDetailContext, CmsTemplateVariant } from './types';
 import type { CmsWidgetRendererKey, CmsWidgetType } from '@zenith/shared/cms';
 import { listCoreCmsWidgetRenderers, resolveCoreCmsWidgetRenderer } from './widgets';
@@ -128,6 +129,10 @@ export function resolveThemeWidgetRenderer(code: string, type: CmsWidgetType, ke
 }
 
 /** 按字段类型宽容解析单个主题参数值；非法值回退 undefined（走默认值） */
+function isThemeLinkField(field: CmsThemeSettingField): boolean {
+  return field.fieldType === 'image' || field.name === 'serviceLinks' || /(?:url|link|logo|favicon|poster|image)$/i.test(field.name);
+}
+
 function parseThemeConfigValue(field: CmsThemeSettingField, raw: unknown): unknown {
   if (raw === undefined || raw === null) return undefined;
   switch (field.fieldType) {
@@ -139,9 +144,18 @@ function parseThemeConfigValue(field: CmsThemeSettingField, raw: unknown): unkno
     }
     case 'select':
       return typeof raw === 'string' && (field.options ?? []).some((o) => o.value === raw) ? raw : undefined;
+    case 'image':
+      return typeof raw === 'string' && isValidCmsAssetUrl(raw) ? raw.trim() : undefined;
     default:
       // text / textarea / color / image：非空字符串
-      return typeof raw === 'string' && raw.trim() !== '' ? raw : undefined;
+      if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+      if (isThemeLinkField(field) && field.name === 'serviceLinks') {
+        return raw.split(/\r?\n/).filter((line) => {
+          const [, url] = line.split('|', 2);
+          return url ? isDirectCmsHref(url.trim()) : false;
+        }).join('\n') || undefined;
+      }
+      return isThemeLinkField(field) ? (isDirectCmsHref(raw) ? raw.trim() : undefined) : raw;
   }
 }
 

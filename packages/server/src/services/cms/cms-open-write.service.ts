@@ -24,6 +24,7 @@ import {
   assertCmsOpenChannelAllowed, assertCmsOpenPublishAllowed, assertCmsOpenWriteAccess,
   type CmsOpenWriteAccess,
 } from './cms-open-grants.service';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 
 /**
  * 开放 API 写入以系统身份执行。
@@ -63,7 +64,9 @@ async function resolveWritableChannel(site: CmsSiteRow, access: CmsOpenWriteAcce
   )).limit(1);
   if (!channel) throw new HTTPException(404, { message: `栏目标识「${channelCode}」不存在` });
   if (channel.type !== 'list') throw new HTTPException(400, { message: '仅列表型栏目可写入内容' });
-  if (channel.status !== 'enabled') throw new HTTPException(400, { message: '栏目已停用' });
+  if (channel.status !== 'enabled' || !(await getEffectivelyEnabledCmsChannelIds(site.id)).has(channel.id)) {
+    throw new HTTPException(400, { message: '栏目已停用或其父级栏目不可用' });
+  }
   assertCmsOpenChannelAllowed(access, channel.id);
   return channel;
 }

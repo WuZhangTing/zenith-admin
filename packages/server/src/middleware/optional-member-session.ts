@@ -1,15 +1,12 @@
 import { createMiddleware } from 'hono/factory';
 import { jwt } from 'hono/jwt';
-import { and, eq, isNull } from 'drizzle-orm';
 import { config } from '../config';
-import { db } from '../db';
-import { members } from '../db/schema';
 import {
   getMemberSession,
   isMemberTokenBlacklisted,
   touchMemberSession,
 } from '../lib/member-session-manager';
-import type { MemberJwtPayload } from './member-auth';
+import { checkMemberJwtSubject, type MemberJwtPayload } from './member-auth';
 import type { AuthEnv } from './auth';
 
 const jwtMiddleware = jwt({
@@ -34,24 +31,20 @@ export const optionalMemberSessionMiddleware = createMiddleware<AuthEnv>(async (
       await next();
       return;
     }
-    const [blacklisted, session] = await Promise.all([
+    const [blacklisted, session, subject] = await Promise.all([
       isMemberTokenBlacklisted(payload.jti),
       getMemberSession(payload.jti),
+      checkMemberJwtSubject(payload),
     ]);
-    if (blacklisted || !session || session.memberId !== payload.memberId) {
+    if (blacklisted || !session || session.memberId !== payload.memberId || !subject.ok) {
       await next();
       return;
     }
-    const [member] = await db.select({ id: members.id }).from(members).where(and(
-      eq(members.id, payload.memberId),
-      eq(members.status, 'active'),
-      isNull(members.deletedAt),
-    )).limit(1);
-    if (!member || !(await touchMemberSession(payload.jti))) {
+    if (!(await touchMemberSession(payload.jti))) {
       await next();
       return;
     }
-    c.set('member', payload);
+    c.set('member', subject.payload);
   } catch {
     // Optional auth intentionally treats all verification and dependency failures as guest.
   }

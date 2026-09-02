@@ -168,6 +168,7 @@ export interface CmsSite {
   effectiveTheme?: string;
   themeRevision: number;
   templateRefsRevision: number;
+  publicRevision: number;
   staticMode: CmsStaticMode;
   effectiveStaticMode?: CmsStaticMode;
   robots: string | null;
@@ -376,6 +377,7 @@ export interface CmsPublishSubmitInput {
   /** 生命周期/引用 fence，仅由可信服务端写入 task payload。 */
   expectedThemeRevision?: number;
   expectedTemplateRefsRevision?: number;
+  expectedPublicRevision?: number;
   contentSnapshots?: CmsContentPublishSnapshot[];
   deletePaths?: string[];
 }

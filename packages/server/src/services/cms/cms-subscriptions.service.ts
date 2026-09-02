@@ -5,6 +5,7 @@ import {
   asc,
   desc,
   eq,
+  gt,
   gte,
   ilike,
   inArray,
@@ -32,6 +33,8 @@ import {
 } from '../../db/schema';
 import type { CmsContentRow, CmsMemberSubscriptionRow } from '../../db/schema';
 import { currentMemberId } from '../../lib/member-context';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
+import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { maskEmail, maskName, maskPhone } from '../../lib/masking';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
@@ -77,7 +80,8 @@ async function resolveSubscriptionSubject(input: CmsSubscriptionSubjectInput): P
       .from(cmsChannels)
       .where(and(eq(cmsChannels.id, input.subjectId!), eq(cmsChannels.status, 'enabled')))
       .limit(1);
-    if (!channel || channel.siteId !== site.id) {
+    const effectiveChannels = await getEffectivelyEnabledCmsChannelIds(site.id);
+    if (!channel || channel.siteId !== site.id || !effectiveChannels.has(channel.id)) {
       throw new HTTPException(404, { message: '栏目不存在或不属于该站点' });
     }
     return {
@@ -90,6 +94,8 @@ async function resolveSubscriptionSubject(input: CmsSubscriptionSubjectInput): P
   }
   const requested = normalizeCmsAuthorKey(input.subjectKey ?? '');
   if (!requested) throw new HTTPException(400, { message: '作者不能为空' });
+  const effectiveChannels = await getEffectivelyEnabledCmsChannelIds(site.id);
+  if (effectiveChannels.size === 0) throw new HTTPException(404, { message: '作者不存在或暂无可订阅内容' });
   const authors = await db.selectDistinct({ author: cmsContents.author }).from(cmsContents)
     .innerJoin(cmsChannels, eq(cmsContents.channelId, cmsChannels.id))
     .innerJoin(cmsSites, eq(cmsContents.siteId, cmsSites.id))
@@ -98,11 +104,13 @@ async function resolveSubscriptionSubject(input: CmsSubscriptionSubjectInput): P
       eq(cmsContents.status, 'published'),
       eq(cmsChannels.status, 'enabled'),
       eq(cmsSites.status, 'enabled'),
+      inArray(cmsContents.channelId, [...effectiveChannels]),
       isNull(cmsContents.deletedAt),
+      isNull(cmsContents.archivedAt),
       isNotNull(cmsContents.author),
       isNotNull(cmsContents.publishedAt),
       lte(cmsContents.publishedAt, new Date()),
-      or(isNull(cmsContents.expireAt), gte(cmsContents.expireAt, new Date())),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
     ));
   const matched = authors.find((row) => row.author && normalizeCmsAuthorKey(row.author) === requested)?.author;
   if (!matched) throw new HTTPException(404, { message: '作者不存在或暂无可订阅内容' });
@@ -452,14 +460,20 @@ export async function getPublicCmsSubscriptionNotificationContent(
       eq(cmsContents.version, contentVersion),
       eq(cmsContents.status, 'published'),
       isNull(cmsContents.deletedAt),
+      isNull(cmsContents.archivedAt),
       isNotNull(cmsContents.publishedAt),
       lte(cmsContents.publishedAt, now),
-      or(isNull(cmsContents.expireAt), gte(cmsContents.expireAt, now)),
+      or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, now)),
       eq(cmsSites.status, 'enabled'),
       eq(cmsChannels.status, 'enabled'),
     ))
     .limit(1);
-  return row?.content ?? null;
+  if (!row) return null;
+  const effectiveSite = await resolveEffectiveCmsSite(row.content.siteId).catch(() => null);
+  const effectiveChannels = await getEffectivelyEnabledCmsChannelIds(row.content.siteId);
+  return effectiveSite?.chain.every((site) => site.status === 'enabled') && effectiveChannels.has(row.content.channelId)
+    ? row.content
+    : null;
 }
 
 export async function listCmsSubscriptionRecipients(

@@ -2,10 +2,34 @@ import * as z from 'zod';
 import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
 import { DATE_TIME_PATTERN } from '../core/constants';
 import { CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODES, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_MODES, CMS_FIELD_OPTION_SOURCES, CMS_INTERACTION_CHOICE_QUESTION_TYPES, CMS_INTERACTION_CONDITION_OPS, CMS_INTERACTION_OTHER_VALUE, CMS_INTERACTION_QUESTION_TYPES, CMS_INTERACTION_RATING_MAX_LIMIT, CMS_PUBLISH_TARGET_TYPES, CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SITE_INHERITABLE_FIELDS, CMS_WIDGET_REF_OWNER_TYPES, CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_SOURCE_TYPES, CMS_WIDGET_TYPES } from './constants';
-import { CMS_LINK_FORMAT_MESSAGE, isValidCmsLink } from './link';
+import { CMS_LINK_FORMAT_MESSAGE, isDirectCmsHref, isValidCmsAssetUrl, isValidCmsLink } from './link';
 
 // ─── CMS 内容管理 Schema ──────────────────────────────────────────────────────
 export const cmsSlugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export const CMS_PAGE_RESERVED_PATH_PREFIXES = [
+  'p', 'tag', 'interaction', 'search', 'preview', 'api', 'assets',
+] as const;
+
+/** 媒体/附件地址：只允许可直接加载的站内路径/http(s)，内部迁移包可暂存素材句柄。 */
+const cmsAssetUrlSchema = z.string().trim().max(500).refine(
+  isValidCmsAssetUrl,
+  CMS_LINK_FORMAT_MESSAGE,
+);
+
+/** 页面跳转/重定向/内链词等链接字段，允许完整的 CMS 链接协议集合。 */
+const cmsLinkUrlSchema = z.string().trim().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE);
+const cmsDirectHrefSchema = z.string().trim().max(500).refine(isDirectCmsHref, CMS_LINK_FORMAT_MESSAGE);
+
+export const cmsStaticPathSchema = z.string().trim().max(255)
+  .regex(/^[a-z0-9][a-z0-9\-_/]*\.html$/, '静态路径需形如 news/2026/hello.html')
+  .refine((v) => !v.includes('..') && !v.includes('//'), '静态路径不能包含 .. 或连续斜杠')
+  .refine((v) => {
+    const first = v.split('/')[0];
+    return !CMS_PAGE_RESERVED_PATH_PREFIXES.includes(first as never)
+      && !['robots.txt', 'sitemap.xml', 'rss.xml', 'index.html'].includes(v);
+  }, '静态路径与系统保留路径冲突')
+  .nullable().optional();
 
 export const cmsSiteInheritanceSchema = z.object({
   seoTitle: z.boolean().default(false),
@@ -222,7 +246,7 @@ export const createCmsChannelSchema = z.object({
   code: z.string().max(50).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线').optional(),
   slug: z.string().min(1, 'URL 标识不能为空').max(100).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线'),
   type: z.enum(['list', 'page', 'link']).default('list'),
-  linkUrl: z.string().max(500).refine(isValidCmsLink, CMS_LINK_FORMAT_MESSAGE).nullable().optional(),
+  linkUrl: cmsLinkUrlSchema.nullable().optional(),
   listTemplate: z.string().max(50).nullable().optional(),
   detailTemplate: z.string().max(50).nullable().optional(),
   /** 静态化模式：inherit = 跟随站点 */
@@ -236,7 +260,7 @@ export const createCmsChannelSchema = z.object({
   seoDescription: z.string().max(500).nullable().optional(),
   socialImageAlt: z.string().max(255).nullable().optional(),
   twitterCreator: z.string().max(100).regex(/^@?[A-Za-z0-9_]{1,50}$/, 'Twitter/X 作者账号格式无效').nullable().optional(),
-  image: z.string().max(500).nullable().optional(),
+  image: cmsAssetUrlSchema.nullable().optional(),
   visible: z.boolean().default(true),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   sort: z.number().int().default(0),
@@ -253,13 +277,13 @@ export const createCmsContentSchema = z.object({
   /** 形态结构化数据：album.images / media.mediaType|mediaUrl|poster|duration */
   mediaData: z.object({
     images: z.array(z.object({
-      url: z.string().min(1).max(500),
-      thumb: z.string().max(500).nullable().optional(),
+      url: cmsAssetUrlSchema.min(1),
+      thumb: cmsAssetUrlSchema.nullable().optional(),
       caption: z.string().max(200).nullable().optional(),
     })).max(100).optional(),
     mediaType: z.enum(['video', 'audio']).optional(),
-    mediaUrl: z.string().max(500).optional(),
-    poster: z.string().max(500).optional(),
+    mediaUrl: cmsAssetUrlSchema.optional(),
+    poster: cmsAssetUrlSchema.optional(),
     duration: z.string().max(20).optional(),
   }).default({}),
   title: z.string().min(1, '标题不能为空').max(255),
@@ -272,18 +296,18 @@ export const createCmsContentSchema = z.object({
   shortTitle: z.string().max(100).nullable().optional(),
   slug: z.string().max(255).regex(cmsSlugRegex, '标识仅支持小写字母、数字、中划线').nullable().optional(),
   summary: z.string().max(2000).nullable().optional(),
-  coverImage: z.string().max(500).nullable().optional(),
+  coverImage: cmsAssetUrlSchema.nullable().optional(),
   author: z.string().max(50).nullable().optional(),
   /** 责任编辑 */
   editor: z.string().max(50).nullable().optional(),
   source: z.string().max(100).nullable().optional(),
-  sourceUrl: z.string().max(500).nullable().optional(),
+  sourceUrl: cmsLinkUrlSchema.nullable().optional(),
   isOriginal: z.boolean().default(false),
   body: z.string().nullable().optional(),
   /** 正文附件列表（前台详情页可下载） */
   attachments: z.array(z.object({
     name: z.string().trim().min(1, '附件名称不能为空').max(200),
-    url: z.string().trim().min(1, '附件地址不能为空').max(500),
+    url: cmsAssetUrlSchema.trim().min(1, '附件地址不能为空'),
     size: z.number().int().min(0).default(0),
     ext: z.string().trim().max(20).default(''),
     sort: z.number().int().default(0),
@@ -293,10 +317,7 @@ export const createCmsContentSchema = z.object({
   /** 详情模板覆盖（主题变体模板名；空 = 跟随栏目/站点默认） */
   detailTemplate: z.string().max(50).nullable().optional(),
   /** 自定义静态化相对路径（站内唯一）；空 = 按 slug/id 生成 */
-  staticPath: z.string().trim().max(255)
-    .regex(/^[a-z0-9][a-z0-9\-_/]*\.html$/, '静态路径需形如 news/2026/hello.html')
-    .refine((v) => !v.includes('..') && !v.includes('//'), '静态路径不能包含 .. 或连续斜杠')
-    .nullable().optional(),
+  staticPath: cmsStaticPathSchema,
   isTop: z.boolean().default(false),
   /** 置顶权重（数值越大越靠前，isTop=true 时生效） */
   topWeight: z.number().int().min(0).max(9999).default(0),
@@ -364,8 +385,8 @@ export const createCmsFriendLinkSchema = z.object({
   siteId: z.number().int().positive(),
   groupId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1, '链接名称不能为空').max(100),
-  url: z.string().min(1, '链接地址不能为空').max(500),
-  logo: z.string().max(500).nullable().optional(),
+  url: cmsDirectHrefSchema.min(1, '链接地址不能为空'),
+  logo: cmsAssetUrlSchema.nullable().optional(),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   sort: z.number().int().default(0),
   remark: z.string().max(500).nullable().optional(),
@@ -446,7 +467,7 @@ export type SubmitCmsPublishInput = z.input<typeof submitCmsPublishSchema>;
 export const createCmsRedirectSchema = z.object({
   siteId: z.number().int().positive(),
   fromPath: z.string().min(1, '来源路径不能为空').max(500).regex(/^\//, '来源路径须以 / 开头'),
-  toUrl: z.string().min(1, '目标地址不能为空').max(500),
+  toUrl: cmsLinkUrlSchema.min(1, '目标地址不能为空'),
   redirectType: z.union([z.literal(301), z.literal(302)]).default(301),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(200).nullable().optional(),
@@ -457,7 +478,7 @@ export const updateCmsRedirectSchema = partialForUpdate(createCmsRedirectSchema)
 export const createCmsLinkWordSchema = z.object({
   siteId: z.number().int().positive(),
   keyword: z.string().min(1, '关键词不能为空').max(50),
-  url: z.string().min(1, '链接地址不能为空').max(500),
+  url: cmsDirectHrefSchema.min(1, '链接地址不能为空'),
   maxReplaces: z.number().int().min(1).max(10).default(1),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
@@ -476,8 +497,8 @@ export const updateCmsAdSlotSchema = partialForUpdate(createCmsAdSlotSchema).omi
 export const createCmsAdSchema = z.object({
   slotId: z.number().int().positive(),
   name: z.string().min(1, '广告名称不能为空').max(100),
-  image: z.string().max(500).nullable().optional(),
-  linkUrl: z.string().max(500).nullable().optional(),
+  image: cmsAssetUrlSchema.nullable().optional(),
+  linkUrl: cmsDirectHrefSchema.nullable().optional(),
   startAt: z.string().nullable().optional(),
   endAt: z.string().nullable().optional(),
   sort: z.number().int().default(0),
@@ -759,6 +780,26 @@ export const cmsPageBlockSchema = z.strictObject({
   type: z.enum(['hero', 'richtext', 'image', 'content-list', 'columns', 'widget-ref']),
   props: z.record(z.string(), z.unknown()),
   displayCondition: cmsPageBlockDisplayConditionSchema.optional(),
+}).superRefine((block, ctx) => {
+  // Keep the block payload extensible, but every conventionally URL-bearing
+  // property must still pass the shared policy before it can reach SSR HTML.
+  const inspect = (value: unknown, path: (string | number)[]) => {
+    if (!value || typeof value !== 'object') return;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => inspect(item, [...path, index]));
+      return;
+    }
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      const nextPath = [...path, key];
+      if (typeof nested === 'string' && /(?:url|src|image)$/i.test(key) && nested.trim() !== ''
+        && !((/(?:src|image|poster|logo|icon)$/i.test(key) ? isValidCmsAssetUrl(nested.trim()) : isValidCmsLink(nested.trim())))) {
+        ctx.addIssue({ code: 'custom', path: nextPath, message: CMS_LINK_FORMAT_MESSAGE });
+      } else {
+        inspect(nested, nextPath);
+      }
+    }
+  };
+  inspect(block.props, ['props']);
 });
 
 /**
@@ -768,10 +809,6 @@ export const cmsPageBlockSchema = z.strictObject({
  * 路由查表三处用同一个 key，避免 `about` / `about/` / `about/index.html` 三写不一致。
  * 保留段在此拦掉，站点内唯一与栏目冲突由 service 层查库校验。
  */
-export const CMS_PAGE_RESERVED_PATH_PREFIXES = [
-  'p', 'tag', 'interaction', 'search', 'preview', 'api', 'assets',
-] as const;
-
 export const cmsPagePathSchema = z.string().trim().max(200)
   .transform((raw) => {
     const cleaned = raw.replace(/^\/+|\/+$/g, '').replace(/\/index\.html$/i, '');
@@ -828,8 +865,8 @@ export const cmsWidgetItemSchema = z.strictObject({
   sourceId: z.number().int().positive().nullable().optional(),
   title: z.string().trim().max(255).nullable().optional(),
   summary: z.string().trim().max(1000).nullable().optional(),
-  url: z.string().trim().max(1000).nullable().optional(),
-  image: z.string().trim().max(1000).nullable().optional(),
+  url: cmsLinkUrlSchema.trim().nullable().optional(),
+  image: cmsAssetUrlSchema.trim().nullable().optional(),
   displayDate: z.string().regex(DATE_TIME_PATTERN, '时间格式应为 YYYY-MM-DD HH:mm:ss').nullable().optional(),
 }).superRefine((value, ctx) => {
   if (value.sourceType === 'manual') {

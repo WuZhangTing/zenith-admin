@@ -85,6 +85,8 @@ export const cmsSites = pgTable('cms_sites', {
   themeRevision: integer().notNull().default(0),
   /** 站点/栏目/内容/页面模板引用修订号；引用写入与主题健康检查的 TOCTOU 屏障。 */
   templateRefsRevision: integer().notNull().default(0),
+  /** 影响公开渲染的数据修订号；发布任务与静态产物 fence 使用。 */
+  publicRevision: integer().notNull().default(0),
   /** 静态化模式：dynamic=纯 SSR；hybrid=miss 渲染并回写静态；static=仅发布时生成 */
   staticMode: cmsStaticModeEnum().notNull().default('hybrid'),
   /** robots.txt 内容（每站点独立） */
@@ -1249,6 +1251,8 @@ export const cmsPublishArtifacts = pgTable('cms_publish_artifacts', {
   url: varchar({ length: 1000 }),
   checksum: varchar({ length: 64 }),
   size: integer(),
+  /** 写入该产物时站点的公开修订号；用于拒绝旧任务晚写的文件。 */
+  publicRevision: integer().notNull().default(0),
   status: cmsPublishArtifactStatusEnum().notNull(),
   error: text(),
   generatedAt: timestamp(),

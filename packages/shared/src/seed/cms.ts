@@ -17,7 +17,7 @@ export const SEED_CMS_SITES: CmsSite[] = [
     title: 'Zenith Admin — 企业级全栈管理系统', keywords: 'Zenith,CMS,后台管理,内容管理',
     description: 'Zenith Admin 是基于 Hono + React + PostgreSQL 的企业级全栈管理系统，内置 CMS 内容管理、多站点与全文检索。',
     logo: null, favicon: null, icp: null, copyright: '© 2024 Zenith Admin', theme: 'default',
-    themeRevision: 0, templateRefsRevision: 0, staticMode: 'hybrid', robots: null, modelId: null, extend: {},
+    themeRevision: 0, templateRefsRevision: 0, publicRevision: 0, staticMode: 'hybrid', robots: null, modelId: null, extend: {},
     settings: {
       auditMode: 'simple',
       webhookUrl: 'https://hooks.example.invalid/cms',
@@ -42,7 +42,7 @@ export const SEED_CMS_SITES: CmsSite[] = [
     id: 2, parentId: 1, name: 'Zenith 技术子站', code: 'tech', domain: null, aliasDomains: [], isDefault: false,
     title: 'Zenith 技术中心', keywords: null, description: null,
     logo: null, favicon: null, icp: null, copyright: '© 2024 Zenith Tech', theme: 'default',
-    themeRevision: 0, templateRefsRevision: 0, staticMode: 'dynamic', robots: null, modelId: null, extend: {},
+    themeRevision: 0, templateRefsRevision: 0, publicRevision: 0, staticMode: 'dynamic', robots: null, modelId: null, extend: {},
     settings: {
       cdnPurgeUrl: 'https://cdn.example.invalid/purge',
       cdnPurgeToken: 'demo-child-token',

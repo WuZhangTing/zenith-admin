@@ -8,6 +8,7 @@ import { formatDateTime } from '../../lib/datetime';
 import { mergeWhere, withPagination } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
+import { invalidateCmsSiteCaches } from './cms-cache.service';
 import { sanitizeUserText } from './cms-sensitive-words.service';
 import { ensureCmsSubmitAllowed } from './cms-submit-guard';
 import { assertSiteAccess, assertSitesAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -15,6 +16,8 @@ import type { CmsCommentStatus } from '@zenith/shared/cms';
 import { alias } from 'drizzle-orm/pg-core';
 import { assertCompleteCmsBatch } from './cms-access';
 import { assertChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
+import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 
 const SUBMIT_RL_PREFIX = `${config.redis.keyPrefix}cms:submit:`;
 const SUBMIT_RL_WINDOW_SECONDS = 60;
@@ -84,9 +87,12 @@ export async function submitCmsComment(input: SubmitCommentInput) {
     [input.ip, input.memberId != null ? String(input.memberId) : null],
     `cms:comment:${input.contentId}`,
   );
-  const [content] = await db.select({ id: cmsContents.id, siteId: cmsContents.siteId, status: cmsContents.status, deletedAt: cmsContents.deletedAt })
+  const [content] = await db.select({ id: cmsContents.id, siteId: cmsContents.siteId, channelId: cmsContents.channelId, status: cmsContents.status, deletedAt: cmsContents.deletedAt, archivedAt: cmsContents.archivedAt, expireAt: cmsContents.expireAt })
     .from(cmsContents).where(eq(cmsContents.id, input.contentId)).limit(1);
-  if (!content || content.status !== 'published' || content.deletedAt) {
+  const effectiveSite = content ? await resolveEffectiveCmsSite(content.siteId).catch(() => null) : null;
+  const effectiveChannels = content ? await getEffectivelyEnabledCmsChannelIds(content.siteId) : new Set<number>();
+  if (!content || content.status !== 'published' || content.deletedAt || content.archivedAt || (content.expireAt && content.expireAt <= new Date())
+    || !effectiveSite || !effectiveSite.chain.every((site) => site.status === 'enabled') || !effectiveChannels.has(content.channelId)) {
     throw new HTTPException(404, { message: '内容不存在或未发布' });
   }
   let parentId = 0;
@@ -120,14 +126,19 @@ export async function submitCmsComment(input: SubmitCommentInput) {
 
 /** 前台匿名点赞：同 IP 对同评论 24h 去重；返回最新点赞数（null = 评论不存在/重复点赞） */
 export async function likeCmsComment(commentId: number, ip: string): Promise<number | null> {
-  const dedupeKey = `${config.redis.keyPrefix}cms:comment-like:${commentId}:${ip}`;
-  const first = await redis.set(dedupeKey, '1', 'EX', 86_400, 'NX').catch(() => 'OK');
-  if (!first) return null;
-  const [row] = await db.update(cmsComments)
-    .set({ likeCount: sql`${cmsComments.likeCount} + 1` })
-    .where(and(eq(cmsComments.id, commentId), eq(cmsComments.status, 'approved')))
-    .returning({ likeCount: cmsComments.likeCount });
-  return row?.likeCount ?? null;
+ const dedupeKey = `${config.redis.keyPrefix}cms:comment-like:${commentId}:${ip}`;
+ const first = await redis.set(dedupeKey, '1', 'EX', 86_400, 'NX').catch(() => 'OK');
+ if (!first) return null;
+  const result = await db.transaction(async (tx) => {
+    const [row] = await tx.update(cmsComments)
+      .set({ likeCount: sql`${cmsComments.likeCount} + 1` })
+      .where(and(eq(cmsComments.id, commentId), eq(cmsComments.status, 'approved')))
+      .returning({ likeCount: cmsComments.likeCount, siteId: cmsComments.siteId, contentId: cmsComments.contentId });
+    if (!row) return null;
+    return row;
+  });
+  if (result) await invalidateCmsSiteCaches(result.siteId);
+  return result?.likeCount ?? null;
 }
 
 /** 前台渲染：内容的已审核评论（旧→新） */
@@ -202,9 +213,12 @@ export async function auditCmsComments(ids: number[], status: 'approved' | 'reje
   const contents = await db.select({ id: cmsContents.id, channelId: cmsContents.channelId }).from(cmsContents).where(and(
     inArray(cmsContents.id, rows.map((row) => row.contentId)),
   ));
-  await assertChannelsAccess(contents.map((content) => content.channelId));
-  await db.update(cmsComments).set({ status }).where(inArray(cmsComments.id, ids));
-  return [...new Set(rows.map((r) => r.contentId))];
+ await assertChannelsAccess(contents.map((content) => content.channelId));
+  await db.transaction(async (tx) => {
+    await tx.update(cmsComments).set({ status }).where(inArray(cmsComments.id, ids));
+    await tx.update(cmsContents).set({ updatedAt: new Date() }).where(inArray(cmsContents.id, contents.map((content) => content.id)));
+  });
+ return [...new Set(rows.map((r) => r.contentId))];
 }
 
 /** 批量删除，返回受影响内容 id */
@@ -217,9 +231,12 @@ export async function deleteCmsComments(ids: number[]): Promise<number[]> {
     cmsContents.id,
     rows.map((row) => row.contentId),
   ));
-  await assertChannelsAccess(contents.map((content) => content.channelId));
-  await db.delete(cmsComments).where(inArray(cmsComments.id, ids));
-  return [...new Set(rows.filter((r) => r.status === 'approved').map((r) => r.contentId))];
+ await assertChannelsAccess(contents.map((content) => content.channelId));
+  await db.transaction(async (tx) => {
+    await tx.delete(cmsComments).where(inArray(cmsComments.id, ids));
+    await tx.update(cmsContents).set({ updatedAt: new Date() }).where(inArray(cmsContents.id, rows.map((row) => row.contentId)));
+  });
+ return [...new Set(rows.filter((r) => r.status === 'approved').map((r) => r.contentId))];
 }
 
 /** 待审核评论数（角标） */
