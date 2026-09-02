@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -26,7 +27,7 @@ const createSchema = z.object({
   sort: z.number().int().optional(),
   description: z.string().max(500).nullable().optional(),
 });
-const updateSchema = createSchema.partial();
+const updateSchema = partialForUpdate(createSchema);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

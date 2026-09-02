@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
@@ -46,7 +47,7 @@ const createCouponSchema = z.object({
   status: couponStatusEnum.optional(),
   description: z.string().max(256).nullable().optional(),
 });
-const updateCouponSchema = createCouponSchema.partial();
+const updateCouponSchema = partialForUpdate(createCouponSchema);
 const issueSchema = z.object({ memberId: z.number().int().positive() });
 
 // ─── GET / — 优惠券模板列表 ──────────────────────────────────────────────────

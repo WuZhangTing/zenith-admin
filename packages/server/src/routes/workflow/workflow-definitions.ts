@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody } from '../../lib/openapi-schemas';
@@ -28,7 +29,7 @@ const createWorkflowDefinitionSchema = z.object({
   customForm: workflowCustomFormConfigSchema.nullable().optional(),
   status: z.enum(['draft', 'published', 'disabled']).default('draft'),
 });
-const updateWorkflowDefinitionSchema = createWorkflowDefinitionSchema.partial();
+const updateWorkflowDefinitionSchema = partialForUpdate(createWorkflowDefinitionSchema);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

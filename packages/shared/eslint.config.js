@@ -46,4 +46,18 @@ export default tseslint.config(
       ],
     },
   },
+  // 部分更新 schema 一律由 partialForUpdate() 派生：Zod 的 .partial() 保留 .default()，
+  // 字段省略时会填入默认值并经服务层 .set({ ...data }) 写库，覆盖从未提交的字段。
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name='partial']",
+          message: '禁止直接调用 .partial()：请改用 partialForUpdate()（core/validation），否则字段省略时会注入 .default() 并覆盖未提交的字段。',
+        },
+      ],
+    },
+  },
 );

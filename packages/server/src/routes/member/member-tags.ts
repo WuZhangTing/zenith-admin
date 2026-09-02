@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -45,7 +46,7 @@ const updateRoute_ = defineOpenAPIRoute({
     method: 'put', path: '/{id}', tags: ['会员标签'], summary: '更新会员标签',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'member:member:update', audit: { description: '更新会员标签', module: '会员标签' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(saveTagSchema.partial()), required: true } },
+    request: { params: IdParam, body: { content: jsonContent(partialForUpdate(saveTagSchema)), required: true } },
     responses: { ...commonErrorResponses, ...ok(MemberTagDTO, '更新成功') },
   }),
   handler: async (c) => {

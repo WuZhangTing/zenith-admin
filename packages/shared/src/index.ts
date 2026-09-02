@@ -9,8 +9,10 @@
  *   import { createPaymentOrderSchema } from '@zenith/shared/payment';
  *   import { SEED_MENUS } from '@zenith/shared/seed';        // 种子数据独立入口
  *
- * 保留本文件的唯一目的：支持需要「全量枚举导出」的元编程场景
- * （如 server/src/lib/update-schema-defaults.test.ts 对所有 update*Schema 的全扫描）。
+ * 保留本文件的唯一目的：支持需要「全量枚举导出」的元编程场景。
+ * 注意：并非所有域都从此处导出——新增域只登记 `package.json` 的 `exports` 子路径即可，
+ * 因此依赖根入口做全量扫描的校验并不可靠；跨域的契约校验应基于装配后的 OpenAPI 文档
+ * （见 server/src/app.contract.test.ts）。
  *
  * 注意：**刻意不导出 './seed'**。种子数据仅供 db/seed.ts 与 MSW mock 使用，
  * 不应进入生产依赖图，请从 '@zenith/shared/seed' 引入。

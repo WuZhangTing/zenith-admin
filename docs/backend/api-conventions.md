@@ -134,6 +134,11 @@ export default xxxRouter;
 - `responses` 展开 `...commonErrorResponses`，并用 `ok()` / `okPaginated()` / `okMsg()` 描述 200 响应。
 - 数值 path 参数用 `IdParam`；自定义 path 参数必须带 `.openapi({ param: { name, in: 'path' } })`。
 - 共享 Zod schema 从 `@zenith/shared/{业务域}` 导入；仅路由私有的一次性 schema 可本地声明。
+- 部分更新（`PUT` / `PATCH`）的请求体 schema 一律用 `partialForUpdate(createXxxSchema)`（`@zenith/shared/core`）派生，
+  它会剥离全部 `.default()` 再置为可选：省略的字段表示「保持不变」。禁止直接调用 `.partial()`（ESLint 封禁），
+  契约测试会拒绝任何请求体属性携带 `default` 的 `PUT` / `PATCH` 操作；全量替换 / upsert 端点需在
+  `src/app.contract.test.ts` 的整体替换例外清单登记理由。
+- 全量集合赋值端点（`PUT /{id}/roles` 等）的集合字段必填，不得 `.default([])`：字段缺失应校验失败而非静默清空。
 
 ## Service 层规范
 

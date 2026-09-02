@@ -26,6 +26,7 @@ export type HttpMethod = (typeof HTTP_METHODS)[number];
 
 export interface OpenAPIOperation {
   security?: unknown[];
+  requestBody?: { content?: Record<string, { schema?: unknown }> };
   responses?: Record<string, { content?: Record<string, { schema?: unknown }> }>;
   summary?: string;
   tags?: string[];
@@ -184,4 +185,44 @@ export async function requestWithoutCredentials(app: AppLike, op: RouteOperation
   } catch {
     return -1;
   }
+}
+
+type JsonSchema = {
+  $ref?: string;
+  allOf?: JsonSchema[];
+  properties?: Record<string, JsonSchema>;
+  default?: unknown;
+};
+
+/** 解析 `#/components/schemas/Name` 引用；非引用原样返回 */
+function resolveSchemaRef(doc: OpenAPIDoc, schema: JsonSchema): JsonSchema {
+  if (!schema.$ref) return schema;
+  const name = schema.$ref.replace('#/components/schemas/', '');
+  return (doc.components?.schemas?.[name] as JsonSchema | undefined) ?? {};
+}
+
+/** 摊平 `$ref` / `allOf` 后的请求体顶层属性表 */
+function collectBodyProperties(doc: OpenAPIDoc, schema: JsonSchema): Record<string, JsonSchema> {
+  const resolved = resolveSchemaRef(doc, schema);
+  const properties: Record<string, JsonSchema> = { ...(resolved.properties ?? {}) };
+  for (const part of resolved.allOf ?? []) {
+    Object.assign(properties, collectBodyProperties(doc, part));
+  }
+  return properties;
+}
+
+/**
+ * 列出某操作 JSON 请求体中声明了 `default` 的顶层属性名。
+ *
+ * Zod 的 `.default()` 会原样生成到 OpenAPI 的 `default`，因此这是「部分更新 schema 是否会
+ * 注入默认值」在契约面的直接观测点。只看顶层属性：嵌套对象作为整体提交，其内部默认值
+ * 属于该对象自身的创建语义。
+ */
+export function listDefaultedBodyProperties(doc: OpenAPIDoc, op: RouteOperation): string[] {
+  const schema = op.operation.requestBody?.content?.['application/json']?.schema as JsonSchema | undefined;
+  if (!schema) return [];
+  return Object.entries(collectBodyProperties(doc, schema))
+    .filter(([, property]) => 'default' in resolveSchemaRef(doc, property))
+    .map(([name]) => name)
+    .sort();
 }

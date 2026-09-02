@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -34,7 +35,7 @@ const createDataMaskConfigSchema = z.object({
   remark:          z.string().max(256).optional(),
 });
 
-const updateDataMaskConfigSchema = createDataMaskConfigSchema.partial();
+const updateDataMaskConfigSchema = partialForUpdate(createDataMaskConfigSchema);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { partialForUpdate } from '../core/validation';
 import {
   SHORT_LINK_CODE_MAX,
   SHORT_LINK_CODE_MIN,
@@ -37,7 +38,7 @@ export const createShortLinkSchema = z.object({
 });
 
 /** code 一经分发不可变更，更新时不允许修改 */
-export const updateShortLinkSchema = createShortLinkSchema.omit({ code: true }).partial();
+export const updateShortLinkSchema = partialForUpdate(createShortLinkSchema.omit({ code: true }));
 
 export const batchUpdateShortLinkStatusSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1, '请选择要操作的记录'),

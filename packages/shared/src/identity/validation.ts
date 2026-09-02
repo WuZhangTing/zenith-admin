@@ -254,17 +254,15 @@ export type UpdateUserGroupInput = z.infer<typeof updateUserGroupSchema>;
 
 // ─── OAuth 配置 Schema ─────────────────────────────────────────────────────
 /**
- * 注意：这是**整体替换**语义（后台配置表单每次提交全部字段，服务端 upsert），
- * 不是部分更新。因此这里的 `.default()` 是有意的兜底——`updateOauthConfig` 把
- * `clientId` / `enabled` 声明为必填并无条件写库。
- * 不要套用 `partialForUpdate`：那会让这两个字段变成可选，与服务层契约冲突。
+ * 整体替换语义：后台配置表单每次提交全部字段，服务端 upsert。
+ * `clientId` / `enabled` 必填；`clientSecret` 省略或传掩码 `******` 时保留库中原值。
  */
 export const updateOauthConfigSchema = z.object({
-  clientId: z.string().max(256).default(''),
-  clientSecret: z.string().max(512).default(''),
+  clientId: z.string().max(256),
+  clientSecret: z.string().max(512).optional(),
   agentId: z.string().max(128).nullable().optional(),
   corpId: z.string().max(128).nullable().optional(),
-  enabled: z.boolean().default(false),
+  enabled: z.boolean(),
 });
 
 

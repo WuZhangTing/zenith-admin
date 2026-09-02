@@ -1267,10 +1267,9 @@ function refineReportDeprecationNotice(
 
 export const createReportDeprecationNoticeSchema = reportDeprecationNoticeSchemaBase.superRefine(refineReportDeprecationNotice);
 
-export const updateReportDeprecationNoticeSchema = reportDeprecationNoticeSchemaBase
-  .omit({ resourceType: true, resourceId: true })
-  .partial()
-  .superRefine(refineReportDeprecationNotice);
+export const updateReportDeprecationNoticeSchema = partialForUpdate(
+  reportDeprecationNoticeSchemaBase.omit({ resourceType: true, resourceId: true }),
+).superRefine(refineReportDeprecationNotice);
 
 export const publishReportDeprecationNoticeSchema = z.object({ publish: z.boolean().default(true) });
 
@@ -1382,9 +1381,7 @@ function refineReportFillTemplate(
 
 export const createReportFillTemplateSchema = reportFillTemplateSchemaBase.superRefine(refineReportFillTemplate);
 
-export const updateReportFillTemplateSchema = reportFillTemplateSchemaBase
-  .omit({ code: true })
-  .partial()
+export const updateReportFillTemplateSchema = partialForUpdate(reportFillTemplateSchemaBase.omit({ code: true }))
   .extend({ expectedRevision: z.number().int().positive() })
   .superRefine(refineReportFillTemplate);
 

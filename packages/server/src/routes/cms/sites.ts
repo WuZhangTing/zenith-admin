@@ -303,7 +303,7 @@ const setSiteUsersRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'cms:site:update', audit: { description: '设置 CMS 站点授权用户', module: 'CMS内容管理' } })] as const,
     request: {
       params: IdParam,
-      body: { content: jsonContent(z.object({ userIds: z.array(z.number().int().positive()).default([]) })), required: true },
+      body: { content: jsonContent(z.object({ userIds: z.array(z.number().int().positive()) })), required: true },
     },
     responses: { ...commonErrorResponses, ...okMsg('保存成功') },
   }),

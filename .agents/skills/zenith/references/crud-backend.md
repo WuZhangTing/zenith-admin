@@ -66,6 +66,8 @@ npm run db:generate && npm run db:migrate
 ## Step 3：共享 Zod Schema（`shared/src/{业务域}/validation.ts`）
 
 ```ts
+import { partialForUpdate } from '../core/validation';
+
 export const createXxxSchema = z.object({
   name:        z.string().min(1, '名称不能为空').max(64),
   description: z.string().max(256).optional(),
@@ -75,12 +77,17 @@ export const createXxxSchema = z.object({
   yyyIds:      z.array(z.number().int()).default([]),   // 多对多
 });
 
-// 标准模式；有不可更改字段时 createXxxSchema.omit({ username: true }).partial()
-export const updateXxxSchema = createXxxSchema.partial();
+// 部分更新一律由 partialForUpdate 派生：剥离全部 .default() 后再 partial，字段省略即「保持不变」
+// 有不可更改字段时 partialForUpdate(createXxxSchema.omit({ username: true }))
+export const updateXxxSchema = partialForUpdate(createXxxSchema);
 
 export type CreateXxxInput = z.infer<typeof createXxxSchema>;
 export type UpdateXxxInput = z.infer<typeof updateXxxSchema>;
 ```
+
+`.default()` 只属于创建语义。禁止直接调用 `.partial()`（ESLint 封禁）：Zod 的 `.partial()` 保留 `.default()`，
+字段省略时会填入默认值并被服务层 `.set({ ...data })` 写库。全量替换 / upsert 端点（如整体保存的配置表单、
+按 key 覆盖的授权记录）可以带默认值，但必须在 `app.contract.test.ts` 的整体替换例外清单登记理由。
 
 特殊操作（如重置密码）单独建 schema。
 

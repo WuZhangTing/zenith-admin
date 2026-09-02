@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -65,7 +66,7 @@ const updateRuleRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'member:checkin:rule:update', audit: { module: '会员签到', description: '更新签到规则' } })] as const,
     request: {
       params: IdParam,
-      body: { content: jsonContent(ruleBody.partial()), required: true },
+      body: { content: jsonContent(partialForUpdate(ruleBody)), required: true },
     },
     responses: { ...commonErrorResponses, ...ok(CheckinRuleDTO, '更新成功') },
   }),

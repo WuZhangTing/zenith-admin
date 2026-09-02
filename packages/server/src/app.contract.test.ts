@@ -32,13 +32,16 @@ import {
   mockServerInfra,
   buildContractApp,
   requestWithoutCredentials,
+  listDefaultedBodyProperties,
   type AppLike,
+  type OpenAPIDoc,
   type RouteOperation,
 } from './test-utils/contract';
 
 mockServerInfra();
 
 let app: AppLike;
+let doc: OpenAPIDoc;
 let operations: RouteOperation[];
 let routes: Array<{ method: string; path: string }>;
 /** 无凭证访问时的实际状态码，按操作 id 索引 */
@@ -47,6 +50,7 @@ const unauthenticatedStatus = new Map<string, number>();
 beforeAll(async () => {
   const built = await buildContractApp();
   app = built.app;
+  doc = built.doc;
   operations = built.operations;
   routes = built.routes;
 
@@ -209,5 +213,53 @@ describe('成功响应契约', () => {
       }
     }
     expect(violations).toEqual([]);
+  });
+});
+
+describe('部分更新契约', () => {
+  /**
+   * PUT / PATCH 的语义是「未提交的字段保持不变」。请求体属性一旦携带 `default`，
+   * Zod 就会在字段省略时填入默认值，服务层 `.set({ ...data })` 随即把从未提交的字段写回库。
+   * update schema 必须经 `partialForUpdate()`（@zenith/shared/core）派生，
+   * 它会剥离全部 `.default()`；直接调用 `.partial()` 已被 ESLint 封禁。
+   *
+   * 这里从装配好的 OpenAPI 文档反向校验，覆盖路由内联 schema、DTO 与全部 shared 域，
+   * 不依赖 schema 声明在哪个文件。
+   */
+
+  /**
+   * 整体替换 / upsert 端点的例外：客户端每次提交完整记录，服务端整体写入（可能新建），
+   * 此时 `default` 是该记录的创建默认值而非对既有字段的静默改写。
+   * 新增例外必须在此登记并写明理由；条目一旦不再命中会被下方断言清理。
+   */
+  const FULL_REPLACE_OPERATIONS = new Map<string, string>([
+    ['PUT /api/broadcasts/{id}', '群发活动编辑复用创建 schema，标题 / 内容 / 渠道 / 受众类型必填'],
+    ['PUT /api/channels/admin/messages/{id}', '草稿 / 定时消息编辑即整体重写消息内容与投递配置'],
+    ['PUT /api/cms/sites/{id}/open-grants', '按 clientId upsert 开放应用授权记录'],
+    ['PUT /api/cms/widgets/slots/{slotKey}', '绑定 / 清空主题插槽，siteId 与 widgetId 必填'],
+    ['PUT /api/email-config', '单例邮件配置表单整体保存（upsert）'],
+    ['PUT /api/marketing/campaigns/{campaignId}/prizes/{prizeId}', '奖品保存与创建共用 schema，名称 / 类型必填'],
+    ['PUT /api/notification-policies/overrides', '按 eventKey + channel upsert 渠道覆盖记录'],
+    ['PUT /api/system-scheduler/tasks/{name}/config', '任务策略表单整体保存，开关 / 保留策略 / 阈值必填'],
+  ]);
+
+  it('PUT / PATCH 请求体的顶层属性不得声明 default', () => {
+    const violations = operations
+      .filter((op) => (op.method === 'put' || op.method === 'patch') && !FULL_REPLACE_OPERATIONS.has(op.id))
+      .map((op) => ({ id: op.id, defaulted: listDefaultedBodyProperties(doc, op) }))
+      .filter((r) => r.defaulted.length > 0)
+      .map((r) => `${r.id}: ${r.defaulted.join(', ')}`);
+
+    expect(violations).toEqual([]);
+  });
+
+  it('整体替换例外清单只保留仍然命中的端点', () => {
+    const byId = new Map(operations.map((op) => [op.id, op]));
+    const stale = [...FULL_REPLACE_OPERATIONS.keys()].filter((id) => {
+      const op = byId.get(id);
+      return !op || listDefaultedBodyProperties(doc, op).length === 0;
+    });
+
+    expect(stale).toEqual([]);
   });
 });

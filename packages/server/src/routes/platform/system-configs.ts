@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { getPasswordPolicy } from '../../lib/password-policy';
@@ -25,7 +26,7 @@ const createSystemConfigSchema = z.object({
   configType: z.enum(configTypeValues).default('string'),
   description: z.string().max(256).default(''),
 });
-const updateSystemConfigSchema = createSystemConfigSchema.partial();
+const updateSystemConfigSchema = partialForUpdate(createSystemConfigSchema);
 
 const publicGetRoute = defineOpenAPIRoute({
   route: createRoute({

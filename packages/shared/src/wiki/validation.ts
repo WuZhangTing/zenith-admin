@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { partialForUpdate } from '../core/validation';
 import { WIKI_COMMENT_STATUSES, WIKI_SPACE_MEMBER_ROLES, WIKI_SPACE_VISIBILITIES } from './constants';
 
 // ─── 知识空间 ─────────────────────────────────────────────────────────────────
@@ -13,7 +14,7 @@ export const createWikiSpaceSchema = z.object({
   aiSyncEnabled: z.boolean().default(false),
 });
 
-export const updateWikiSpaceSchema = createWikiSpaceSchema.partial();
+export const updateWikiSpaceSchema = partialForUpdate(createWikiSpaceSchema);
 
 export type CreateWikiSpaceInput = z.infer<typeof createWikiSpaceSchema>;
 export type UpdateWikiSpaceInput = z.infer<typeof updateWikiSpaceSchema>;
@@ -23,7 +24,7 @@ export const saveWikiSpaceMembersSchema = z.object({
   members: z.array(z.object({
     userId: z.number().int().positive(),
     role: z.enum(WIKI_SPACE_MEMBER_ROLES),
-  })).default([]),
+  })),
 });
 
 export type SaveWikiSpaceMembersInput = z.infer<typeof saveWikiSpaceMembersSchema>;
@@ -93,7 +94,7 @@ export const createWikiTemplateSchema = z.object({
   sort: z.number().int().default(0),
 });
 
-export const updateWikiTemplateSchema = createWikiTemplateSchema.partial();
+export const updateWikiTemplateSchema = partialForUpdate(createWikiTemplateSchema);
 
 export type CreateWikiTemplateInput = z.infer<typeof createWikiTemplateSchema>;
 export type UpdateWikiTemplateInput = z.infer<typeof updateWikiTemplateSchema>;
@@ -103,7 +104,7 @@ export const createWikiTagSchema = z.object({
   color: z.string().max(20).optional(),
 });
 
-export const updateWikiTagSchema = createWikiTagSchema.partial();
+export const updateWikiTagSchema = partialForUpdate(createWikiTagSchema);
 
 export type CreateWikiTagInput = z.infer<typeof createWikiTagSchema>;
 export type UpdateWikiTagInput = z.infer<typeof updateWikiTagSchema>;

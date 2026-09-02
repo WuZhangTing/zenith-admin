@@ -32,6 +32,6 @@ describe('CMS admin/member route authentication boundary', () => {
 
   it('keeps direct publication as an explicit open API endpoint', async () => {
     const source = await readFile(new URL('../../routes/open-platform/open-cms.ts', import.meta.url), 'utf8');
-    expect(source).toContain('ContentWriteBody.omit({ publish: true }).partial()');
+    expect(source).toContain('partialForUpdate(ContentWriteBody.omit({ publish: true }))');
   });
 });

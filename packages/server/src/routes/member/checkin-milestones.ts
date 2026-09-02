@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -68,7 +69,7 @@ const updateMilestoneRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'member:checkin:milestone:update', audit: { module: '会员签到', description: '更新签到里程碑' } })] as const,
     request: {
       params: IdParam,
-      body: { content: jsonContent(milestoneBody.partial()), required: true },
+      body: { content: jsonContent(partialForUpdate(milestoneBody)), required: true },
     },
     responses: { ...commonErrorResponses, ...ok(CheckinMilestoneDTO, '更新成功') },
   }),

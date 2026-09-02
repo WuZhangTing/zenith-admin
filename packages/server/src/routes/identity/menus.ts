@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -37,7 +38,7 @@ const createMenuSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   visible: z.boolean().default(true),
 });
-const updateMenuSchema = createMenuSchema.partial();
+const updateMenuSchema = partialForUpdate(createMenuSchema);
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 const userMenuRoute = defineOpenAPIRoute({

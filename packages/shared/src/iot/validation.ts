@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { partialForUpdate } from '../core/validation';
 import {
   IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_AUTOMATION_ACTION_MAX,
   IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS, IOT_AUTOMATION_TARGETS,
@@ -22,7 +23,7 @@ export const createIotProductSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
-export const updateIotProductSchema = createIotProductSchema.partial();
+export const updateIotProductSchema = partialForUpdate(createIotProductSchema);
 
 // ─── 物模型：参数定义（服务/事件内嵌复用）────────────────────────────────────
 export const iotParamDefSchema = z.object({
@@ -85,7 +86,7 @@ export const createIotServiceSchema = z.object({
   description: z.string().max(256).nullable().optional(),
 });
 
-export const updateIotServiceSchema = createIotServiceSchema.omit({ identifier: true }).partial();
+export const updateIotServiceSchema = partialForUpdate(createIotServiceSchema.omit({ identifier: true }));
 
 // ─── 物模型：事件 ─────────────────────────────────────────────────────────────
 export const createIotEventSchema = z.object({
@@ -97,7 +98,7 @@ export const createIotEventSchema = z.object({
   description: z.string().max(256).nullable().optional(),
 });
 
-export const updateIotEventSchema = createIotEventSchema.omit({ identifier: true }).partial();
+export const updateIotEventSchema = partialForUpdate(createIotEventSchema.omit({ identifier: true }));
 
 // ─── 物模型：TSL 导入（全量替换）────────────────────────────────────────────
 export const importIotTslSchema = z.object({
@@ -140,7 +141,7 @@ function refineIotDevice(v: { nodeType?: string; gatewayId?: number | null; lati
 export const createIotDeviceSchema = iotDeviceBaseSchema.superRefine(refineIotDevice);
 
 /** SN 一经接入不可变更 */
-export const updateIotDeviceSchema = iotDeviceBaseSchema.omit({ sn: true }).partial().superRefine(refineIotDevice);
+export const updateIotDeviceSchema = partialForUpdate(iotDeviceBaseSchema.omit({ sn: true })).superRefine(refineIotDevice);
 
 // ─── 指令与期望属性 ───────────────────────────────────────────────────────────
 export const sendIotCommandSchema = z.object({
@@ -238,7 +239,7 @@ export const createIotDeviceGroupSchema = z.object({
   deviceIds: z.array(z.number().int().positive()).max(IOT_BATCH_DEVICE_MAX).default([]),
 });
 
-export const updateIotDeviceGroupSchema = createIotDeviceGroupSchema.partial();
+export const updateIotDeviceGroupSchema = partialForUpdate(createIotDeviceGroupSchema);
 
 // ─── 设备侧（ingest / WS 帧载荷）──────────────────────────────────────────────
 export const iotTelemetryItemSchema = z.object({
@@ -490,7 +491,7 @@ export const createIotForwardRuleSchema = z.object({
 export type CreateIotForwardRuleInput = z.infer<typeof createIotForwardRuleSchema>;
 
 /** source 创建后不可变更 */
-export const updateIotForwardRuleSchema = createIotForwardRuleSchema.omit({ source: true }).partial();
+export const updateIotForwardRuleSchema = partialForUpdate(createIotForwardRuleSchema.omit({ source: true }));
 
 export type UpdateIotForwardRuleInput = z.infer<typeof updateIotForwardRuleSchema>;
 
@@ -567,8 +568,9 @@ export const createIotScheduleSchema = iotScheduleBaseSchema.superRefine(refineI
 export type CreateIotScheduleInput = z.infer<typeof createIotScheduleSchema>;
 
 /** 产品与动作类型创建后不可变更 */
-export const updateIotScheduleSchema = iotScheduleBaseSchema
-  .omit({ productId: true, actionType: true, scheduleType: true }).partial().superRefine(refineIotSchedule);
+export const updateIotScheduleSchema = partialForUpdate(
+  iotScheduleBaseSchema.omit({ productId: true, actionType: true, scheduleType: true }),
+).superRefine(refineIotSchedule);
 
 export type UpdateIotScheduleInput = z.infer<typeof updateIotScheduleSchema>;
 

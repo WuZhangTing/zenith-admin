@@ -2,7 +2,7 @@
  * 前端错误监控 DTO（Issue 模型）
  */
 import { z } from '@hono/zod-openapi';
-import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
+import { jsonByteLength, jsonDepth, partialForUpdate } from '@zenith/shared/core';
 import { ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CONTEXT_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_SOURCES, SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
 
 const errorTypeEnum = z.enum([
@@ -216,7 +216,7 @@ function validateAlertDelivery(
 export const CreateErrorAlertRuleDTO = errorAlertRuleInputDTO
   .superRefine(validateAlertDelivery)
   .openapi('CreateErrorAlertRule');
-export const UpdateErrorAlertRuleDTO = errorAlertRuleInputDTO.partial().openapi('UpdateErrorAlertRule');
+export const UpdateErrorAlertRuleDTO = partialForUpdate(errorAlertRuleInputDTO).openapi('UpdateErrorAlertRule');
 
 export const ErrorAlertLogDTO = z
   .object({

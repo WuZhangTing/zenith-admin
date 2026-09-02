@@ -58,7 +58,13 @@
   `z.enum()` 在初始化期取到 `undefined` 直接崩溃
 - **新增业务域**：建 `shared/src/{新域}/{types,validation,constants,index}.ts`，
   并在 `shared/package.json` 的 `exports` 登记 `"./{新域}"`；域 `index.ts` **不得**导出 seed
-- **update = create.partial()**：不可更改字段用 `.omit({ field: true })`
+- **update = partialForUpdate(create)**：部分更新 schema 一律用 `partialForUpdate()`（`shared/core/validation`）
+  由 create schema 派生，不可更改字段用 `partialForUpdate(create.omit({ field: true }))`；
+  **禁止**直接调用 `.partial()`（ESLint 封禁）——Zod 的 `.partial()` 保留 `.default()`，字段省略时会填入默认值
+  并被服务层 `.set({ ...data })` 写库，覆盖从未提交的字段。契约层由 `app.contract.test.ts` 兜底：
+  PUT / PATCH 请求体属性不得携带 `default`，全量替换 / upsert 端点须在其例外清单登记理由
+- **全量集合赋值端点**（`PUT /{id}/roles`、`/{id}/members` 等）：集合字段必填（`z.array(...)`），
+  **禁止** `.default([])`——字段缺失应返回 400，而不是静默清空
 
 ## Service 层（Step 5）
 

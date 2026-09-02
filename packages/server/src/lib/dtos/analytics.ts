@@ -2,7 +2,7 @@
  * 数据分析 / 埋点 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { jsonByteLength, jsonDepth } from '@zenith/shared/core';
+import { jsonByteLength, jsonDepth, partialForUpdate } from '@zenith/shared/core';
 import { ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_DRILL_FUNNEL_OUTCOMES, ANALYTICS_DRILL_PAGE_SIZE_MAX, ANALYTICS_DRILL_RETENTION_OUTCOMES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_SOURCES, ANALYTICS_IDENTITY_TYPES, ANALYTICS_PROPERTY_KEY_PATTERN, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_SEGMENT_COMPARE_OPS, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_CAMPAIGN_STATUSES, ANALYTICS_EXPERIMENT_STATUSES } from '@zenith/shared/analytics';
 import { updateAnalyticsSettingsSchema } from '@zenith/shared/analytics';
 
@@ -651,7 +651,7 @@ const analyticsEventMetaInputDTO = z.object({
 
 export const CreateAnalyticsEventMetaDTO = analyticsEventMetaInputDTO
   .openapi('CreateAnalyticsEventMeta');
-export const UpdateAnalyticsEventMetaDTO = analyticsEventMetaInputDTO.partial().openapi('UpdateAnalyticsEventMeta');
+export const UpdateAnalyticsEventMetaDTO = partialForUpdate(analyticsEventMetaInputDTO).openapi('UpdateAnalyticsEventMeta');
 
 const eventMetaReferenceItemDTO = z.object({ id: z.number().int(), name: z.string() });
 export const AnalyticsEventMetaReferencesDTO = z
@@ -875,7 +875,7 @@ export const CreateAnalyticsSiteDTO = z
     remark: z.string().max(500).nullable().optional(),
   })
   .openapi('CreateAnalyticsSite');
-export const UpdateAnalyticsSiteDTO = CreateAnalyticsSiteDTO.partial().openapi('UpdateAnalyticsSite');
+export const UpdateAnalyticsSiteDTO = partialForUpdate(CreateAnalyticsSiteDTO).openapi('UpdateAnalyticsSite');
 
 // ─── 质量日聚合 ───────────────────────────────────────────────────────────────
 export const AnalyticsQualityDailyDTO = z
@@ -964,7 +964,7 @@ export const CreateAnalyticsUserSegmentDTO = z
     status: overrideStatusEnum.default('enabled'),
   })
   .openapi('CreateAnalyticsUserSegment');
-export const UpdateAnalyticsUserSegmentDTO = CreateAnalyticsUserSegmentDTO.partial().openapi('UpdateAnalyticsUserSegment');
+export const UpdateAnalyticsUserSegmentDTO = partialForUpdate(CreateAnalyticsUserSegmentDTO).openapi('UpdateAnalyticsUserSegment');
 
 export const AnalyticsSegmentMemberDTO = z
   .object({
@@ -1035,7 +1035,7 @@ export const CreateAnalyticsCampaignDTO = createAnalyticsCampaignBaseDTO
   .superRefine(refineCampaignDTO)
   .openapi('CreateAnalyticsCampaign');
 
-export const UpdateAnalyticsCampaignDTO = createAnalyticsCampaignBaseDTO.omit({ segmentId: true }).partial().superRefine(refineCampaignDTO).openapi('UpdateAnalyticsCampaign');
+export const UpdateAnalyticsCampaignDTO = partialForUpdate(createAnalyticsCampaignBaseDTO.omit({ segmentId: true })).superRefine(refineCampaignDTO).openapi('UpdateAnalyticsCampaign');
 
 
 // ─── A/B 实验 ─────────────────────────────────────────────────────────────────
@@ -1097,7 +1097,7 @@ const AnalyticsExperimentBaseDTO = z.object({
 });
 
 export const CreateAnalyticsExperimentDTO = AnalyticsExperimentBaseDTO.superRefine(refineExperimentWindowDTO).openapi('CreateAnalyticsExperiment');
-export const UpdateAnalyticsExperimentDTO = AnalyticsExperimentBaseDTO.partial().superRefine(refineExperimentWindowDTO).openapi('UpdateAnalyticsExperiment');
+export const UpdateAnalyticsExperimentDTO = partialForUpdate(AnalyticsExperimentBaseDTO).superRefine(refineExperimentWindowDTO).openapi('UpdateAnalyticsExperiment');
 
 export const AnalyticsExperimentAssignmentDTO = z
   .object({ expKey: z.string(), variantKey: z.string() })

@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -32,8 +33,8 @@ const createTenantPackageSchema = z.object({
   quotas: tenantPackageQuotasSchema.optional(),
   remark: z.string().max(500).optional(),
 });
-const updateTenantPackageSchema = createTenantPackageSchema.partial();
-const assignFeaturesSchema = z.object({ features: z.array(z.enum(LICENSE_FEATURES)).default([]) });
+const updateTenantPackageSchema = partialForUpdate(createTenantPackageSchema);
+const assignFeaturesSchema = z.object({ features: z.array(z.enum(LICENSE_FEATURES)) });
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

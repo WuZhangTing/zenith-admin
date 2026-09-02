@@ -16,25 +16,44 @@ export function lazyRecursive<T extends z.ZodType>(build: () => T) {
 }
 
 
-/** `.default()` 剥离后的字段类型（用于保持 partialForUpdate 的类型推导） */
-type StripDefault<T> = T extends z.ZodDefault<infer Inner> ? Inner : T;
+/**
+ * 剥离 `.default()` / `.prefault()` 后的字段类型。
+ * 穿透 optional / nullable / readonly / pipe 包装并原样保留，只移除默认值层。
+ */
+type StripDefault<T> =
+  T extends z.ZodDefault<infer Inner> ? StripDefault<Inner>
+    : T extends z.ZodPrefault<infer Inner> ? StripDefault<Inner>
+      : T extends z.ZodOptional<infer Inner> ? z.ZodOptional<StripDefault<Inner>>
+        : T extends z.ZodNullable<infer Inner> ? z.ZodNullable<StripDefault<Inner>>
+          : T extends z.ZodReadonly<infer Inner> ? z.ZodReadonly<StripDefault<Inner>>
+            : T extends z.ZodPipe<infer In, infer Out> ? z.ZodPipe<StripDefault<In>, Out>
+              : T;
 
+/** 递归移除字段上任意层级的默认值包装，其余包装（optional / nullable / readonly / pipe）原样重建 */
+function stripDefaults(field: z.ZodType): z.ZodType {
+  // def 上的内层 schema 以 zod/core 的 $ZodType 声明，运行时即 classic ZodType 实例
+  const inner = (schema: z.ZodType) => (schema.def as unknown as { innerType: z.ZodType }).innerType;
+  if (field instanceof z.ZodDefault || field instanceof z.ZodPrefault) return stripDefaults(inner(field));
+  if (field instanceof z.ZodOptional) return z.optional(stripDefaults(inner(field)));
+  if (field instanceof z.ZodNullable) return z.nullable(stripDefaults(inner(field)));
+  if (field instanceof z.ZodReadonly) return z.readonly(stripDefaults(inner(field)));
+  if (field instanceof z.ZodPipe) {
+    const { in: input, out } = field.def as unknown as { in: z.ZodType; out: z.ZodType };
+    return z.pipe(stripDefaults(input), out);
+  }
+  return field;
+}
 
 /**
- * 由 create schema 派生「部分更新」schema：**先剥离 `.default()`，再 `.partial()`**。
+ * 由 create schema 派生「部分更新」schema：先剥离全部 `.default()`，再 `.partial()`。
  *
- * Zod 的 `.partial()` 会**保留** `.default()`，所以 `createXxxSchema.partial()` 在字段省略时
- * 反而会主动填入默认值。服务层普遍用 `.set({ ...data })` 写库，于是一次
- * `PUT { "remark": "x" }` 会静默改写一批根本没提交的字段——实测注入过：
+ * 部分更新的契约是「未提交的字段保持不变」。Zod 的 `.partial()` 会保留 `.default()`
+ * （`ZodOptional` 遇到能接受 undefined 的内层会直接委托），字段省略时仍会填入默认值，
+ * 服务层 `.set({ ...data })` 随即把这些从未提交的字段写回库。因此所有 update schema
+ * 一律经本函数派生，禁止直接调用 `.partial()`（ESLint 已封禁）。
  *
- * - `updateRoleSchema` → `dataScope: 'all'`：把 dept/self 范围的角色提权为全量可见
- * - `updateTenantIdentityProviderSchema` → `status: 'disabled'` + `ldapStartTls: false`：
- *   身份源被停用（登录中断）并把 LDAP 降级为明文
- * - `updateCmsChannelSchema` → `parentId: 0`：栏目被挂回站点根并级联改写子栏目 URL
- * - `updateCmsContentSchema` → `tagIds: []`（JS 里 `[]` 是 truthy）：清空全部标签与关联
- *
- * 默认值只属于**创建**语义：创建时字段缺失需要一个合理初值，更新时字段缺失的语义是
- * 「别动它」。两者不能共用一份 shape。
+ * 默认值只属于创建语义；嵌套在 optional / nullable / pipe 内的默认值同样会被剥离。
+ * 契约层校验见 `app.contract.test.ts`：PUT / PATCH 请求体属性不得携带 `default`。
  */
 export function partialForUpdate<T extends z.ZodObject<z.ZodRawShape>>(
   schema: T,
@@ -42,13 +61,9 @@ export function partialForUpdate<T extends z.ZodObject<z.ZodRawShape>>(
   const shape = schema.shape as Record<string, z.ZodType>;
   const stripped: Record<string, z.ZodType> = {};
   for (const key of Object.keys(shape)) {
-    let field = shape[key];
-    // 循环而非单次：理论上可能出现 .default().default() 的叠加包装
-    while (field instanceof z.ZodDefault) {
-      field = (field as unknown as { def: { innerType: z.ZodType } }).def.innerType;
-    }
-    stripped[key] = field;
+    stripped[key] = stripDefaults(shape[key]);
   }
+  // eslint-disable-next-line no-restricted-syntax -- 唯一合法的 .partial() 调用点：输入已剥离全部默认值
   return z.object(stripped).partial() as unknown as z.ZodObject<{
     [K in keyof T['shape']]: z.ZodOptional<StripDefault<T['shape'][K]>>
   }>;

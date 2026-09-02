@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
@@ -582,7 +583,7 @@ const favoritesCreateBody = z.object({
   tags: z.array(z.string().max(50)).max(10).optional(),
 });
 
-const favoritesUpdateBody = favoritesCreateBody.partial();
+const favoritesUpdateBody = partialForUpdate(favoritesCreateBody);
 
 const listFavoritesRoute = defineOpenAPIRoute({
   route: createRoute({

@@ -2,6 +2,7 @@
  * 服务器监控相关 DTO
  */
 import { z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import {
   MONITOR_ALERT_HANDLE_STATUSES,
   MONITOR_ALERT_LEVELS,
@@ -408,4 +409,4 @@ function validateMonitorAlertDelivery(
 export const CreateMonitorAlertRuleDTO = monitorAlertRuleInputDTO
   .superRefine(validateMonitorAlertDelivery)
   .openapi('CreateMonitorAlertRule');
-export const UpdateMonitorAlertRuleDTO = monitorAlertRuleInputDTO.partial().openapi('UpdateMonitorAlertRule');
+export const UpdateMonitorAlertRuleDTO = partialForUpdate(monitorAlertRuleInputDTO).openapi('UpdateMonitorAlertRule');

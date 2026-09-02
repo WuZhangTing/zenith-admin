@@ -52,10 +52,20 @@ export default tseslint.config(
       ],
     },
   },
-  // 元编程场景豁免：需要对 shared 全量导出做扫描（如所有 update*Schema 的默认值回归测试）
+  // 部分更新 schema 一律由 partialForUpdate()（@zenith/shared/core）派生：Zod 的 .partial()
+  // 保留 .default()，字段省略时会填入默认值并经服务层 .set({ ...data }) 写库，覆盖从未提交的字段。
+  // 契约层校验见 app.contract.test.ts（PUT / PATCH 请求体属性不得携带 default）。
   {
-    files: ['src/lib/update-schema-defaults.test.ts'],
-    rules: { 'no-restricted-imports': 'off' },
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.property.name='partial']",
+          message: '禁止直接调用 .partial()：请改用 partialForUpdate()（@zenith/shared/core），否则字段省略时会注入 .default() 并覆盖未提交的字段。',
+        },
+      ],
+    },
   },
   // 通知渠道收口：业务域一律通过 notify() 发事件通知，不得直接调底层渠道。
   // 绕过统一入口就等于绕过收件人偏好、免打扰、幂等与派发留痕——

@@ -266,7 +266,7 @@ const assignUserRolesRoute = defineOpenAPIRoute({
     request: {
       params: IdParam,
       body: {
-        content: { 'application/json': { schema: z.object({ roleIds: z.array(z.number().int()).default([]) }) } },
+        content: { 'application/json': { schema: z.object({ roleIds: z.array(z.number().int()) }) } },
         required: true,
       },
     },
@@ -313,7 +313,7 @@ const assignUserMenusRoute = defineOpenAPIRoute({
     middleware: [authMiddleware, guard({ permission: 'system:user:assign', audit: { description: '分配用户菜单权限', module: '用户管理' } })] as const,
     request: {
       params: IdParam,
-      body: { content: { 'application/json': { schema: z.object({ menuIds: z.array(z.number().int()).default([]) }) } }, required: true },
+      body: { content: { 'application/json': { schema: z.object({ menuIds: z.array(z.number().int()) }) } }, required: true },
     },
     responses: {
       ...commonErrorResponses,
@@ -361,8 +361,8 @@ const updateUserDataPermissionRoute = defineOpenAPIRoute({
         content: {
           'application/json': {
             schema: z.object({
-              dataScope: z.enum(['all', 'custom', 'dept_only', 'dept', 'self']).nullable().default(null),
-              deptScopeIds: z.array(z.number().int()).default([]),
+              dataScope: z.enum(['all', 'custom', 'dept_only', 'dept', 'self']).nullable(),
+              deptScopeIds: z.array(z.number().int()),
             }),
           },
         },

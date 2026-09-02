@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData, setAuditAfterData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -40,7 +41,9 @@ const createTenantSchema = z.object({
   adminNickname: z.string().max(64).optional(),
   adminEmail: z.email().max(128).optional(),
 });
-const updateTenantSchema = createTenantSchema.omit({ adminUsername: true, adminPassword: true, adminNickname: true, adminEmail: true }).partial();
+const updateTenantSchema = partialForUpdate(
+  createTenantSchema.omit({ adminUsername: true, adminPassword: true, adminNickname: true, adminEmail: true }),
+);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

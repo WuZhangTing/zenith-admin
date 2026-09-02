@@ -14,7 +14,7 @@
 1. **Schema**（Step 1）：在 `db/schema/{业务域}.ts` 的 `xxxs` 表中添加字段
 2. **迁移**（Step 2）：`npm run db:generate && npm run db:migrate`
 3. **Zod Schema**（Step 3）：在 `shared/src/{业务域}/validation.ts` 的 `createXxxSchema` 中添加
-   （`updateXxxSchema` 由 `.partial()` 自动派生）
+   （`updateXxxSchema` 由 `partialForUpdate(createXxxSchema)` 自动派生，新字段的 `.default()` 只作用于创建）
 4. **TS Interface**（Step 4）：在 `shared/src/{业务域}/types.ts` 的 `Xxx` 接口中添加
 5. **DTO**（Step 6）：在 `lib/dtos/xxxs.ts` 的 `XxxDTO` 中添加
 6. **Service**（Step 5）：在 `mapXxx()` 中映射，在 `createXxx()` / `updateXxx()` 中处理写入

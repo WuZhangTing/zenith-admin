@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
@@ -28,7 +29,7 @@ const createPositionSchema = z.object({
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
-const updatePositionSchema = createPositionSchema.partial();
+const updatePositionSchema = partialForUpdate(createPositionSchema);
 const BatchDeleteBody = z.object({ ids: z.array(z.number()) });
 
 const allRoute = defineOpenAPIRoute({

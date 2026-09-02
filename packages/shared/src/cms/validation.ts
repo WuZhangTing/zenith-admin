@@ -117,14 +117,14 @@ export const updateCmsSiteInheritanceSchema = partialForUpdate(cmsSiteInheritanc
   });
 
 /** 站点内容策略（cms_sites.settings 的受控子集，逐项可缺省） */
-export const cmsSiteOpsSettingsSchema = z.object({
+export const cmsSiteOpsSettingsSchema = partialForUpdate(z.object({
   publishedContentEditable: z.boolean(),
   recycleKeepDays: z.number().int().min(0).max(3650),
   maxPageOnContentPublish: z.number().int().min(0).max(1000),
   autoReplaceSensitiveWords: z.boolean(),
   autoReplaceErrorProneWords: z.boolean(),
   autoCoverFromBody: z.boolean(),
-}).partial();
+}));
 
 export type CmsSiteOpsSettingsInput = z.input<typeof cmsSiteOpsSettingsSchema>;
 
@@ -909,7 +909,7 @@ export const createCmsWidgetSchema = cmsWidgetEditableSchema.extend({
 });
 
 export const updateCmsWidgetSchema = z.strictObject({
-  ...cmsWidgetEditableSchema.omit({ code: true }).partial().shape,
+  ...partialForUpdate(cmsWidgetEditableSchema.omit({ code: true })).shape,
   expectedRevision: z.number().int().positive(),
 });
 

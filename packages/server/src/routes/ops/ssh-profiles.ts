@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { currentUser } from '../../lib/context';
@@ -86,7 +87,7 @@ const updateRoute = defineOpenAPIRoute({
     method: 'put', path: '/:id', tags: ['SshProfiles'], summary: '更新 SSH 配置',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: PERM, audit: { description: '更新 SSH 配置', module: 'Web 终端' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(SshProfileBody.partial()), required: true } },
+    request: { params: IdParam, body: { content: jsonContent(partialForUpdate(SshProfileBody)), required: true } },
     responses: { ...commonErrorResponses, ...ok(SshProfileDTO, '更新成功') },
   }),
   handler: async (c) => {

@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { BatchIdsBody, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, queryBool, validationHook } from '../../lib/openapi-schemas';
@@ -106,7 +107,7 @@ const update = defineOpenAPIRoute({
     method: 'put', path: '/{id}', tags: ['WorkflowEventSubscriptions'], summary: '更新事件订阅',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'workflow:event-subscription:edit', audit: { description: '更新事件订阅', module: '工作流管理' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(UpsertBody.partial()), required: true } },
+    request: { params: IdParam, body: { content: jsonContent(partialForUpdate(UpsertBody)), required: true } },
     responses: { ...commonErrorResponses, ...ok(WorkflowEventSubscriptionDTO, '更新成功') },
   }),
   handler: async (c) => {

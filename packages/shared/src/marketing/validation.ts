@@ -1,4 +1,5 @@
 import * as z from 'zod';
+import { partialForUpdate } from '../core/validation';
 import { MARKETING_PRIZE_TYPES } from './constants';
 
 export const createMarketingCampaignSchema = z.object({
@@ -11,7 +12,7 @@ export const createMarketingCampaignSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
 });
 
-export const updateMarketingCampaignSchema = createMarketingCampaignSchema.partial();
+export const updateMarketingCampaignSchema = partialForUpdate(createMarketingCampaignSchema);
 
 export const saveMarketingPrizeSchema = z.object({
   name: z.string().min(1, '奖品名称不能为空').max(128),
