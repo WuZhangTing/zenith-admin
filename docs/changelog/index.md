@@ -4,6 +4,61 @@
 
 ---
 
+## v2.14.0 - 2026-09-03
+
+**表格列宽体系重构 + 登录入口按配置显示**：全站表格改为「单弹性主列 + 其余固定宽」布局，操作列宽度按统一公式重算并把状态特有 / 低频动作收进「更多」，`scroll.x` 全部由组件推导；登录页第三方登录入口只显示后台已启用且凭据完整的 provider；文档站首页重构为模块矩阵落地页。
+
+> ℹ️ 本版无数据库迁移。前端约定变更：列定义新增 `minWidth`（弹性主列专用），`createOperationColumn` 的 `width` 改为必填，页面不再传 `scroll.x`——开发期违反时控制台会给出一次告警。
+
+### Added
+
+#### 表格布局
+
+- 新增 `components/table-flex-columns.ts`：`ConfigurableTable` 按「有且只有一个弹性主列（`minWidth`）+ 其余固定 `width`」解析列布局，`scroll.x` 由各列宽度之和（含勾选 / 展开列各 48px）推导，容器更宽时只有主列吸收剩余空间，操作列等固定列不再被按比例拉宽；虚拟化表格为弹性列计算显式宽度并锁定表头 `<table>` 宽度，纵向滚动条出现 / 消失与 body 重建都会重新度量，表头 / 表体不再错位
+- `ConfigurableTable` 开发期告警：所有列都写了 `width`（兜底挑列）、页面传入 `scroll.x`（被忽略）、操作列内容宽超过列内可用宽（溢出）三类问题各提示一次，指向对应规范
+- `copyableNoColumn(title, key, { flex: true })` 可把可复制编号列声明为弹性主列
+- 新增 `table-flex-columns.test.ts`（12 例）锁定普通 / 虚拟化 / 兜底 / 分组表头等解析行为
+
+#### 登录与第三方账号
+
+- 新增公开接口 `GET /api/auth/oauth/providers`，只返回已启用且凭据完整的 provider key（企业微信另需 corpId）；登录页只渲染返回的入口，接口不可用时整块不显示；个人中心只列已启用的 provider，已绑定但后来停用的仍可解绑
+- `shared/identity` 新增 `OAUTH_PROVIDER_LABELS`，新增 `OAuthProviderIcon` 组件，登录页 / 个人中心 / OAuth 配置页文案与图标定义收口
+
+#### 文档站
+
+- 首页改为 Bento 模块矩阵落地页：Hero → 20 个功能格子（内嵌纯 CSS 微型界面、整卡跳转对应文档）→ 数据条 → 三步启动 → 技术栈 → CTA，支持亮 / 暗色与移动端单列；版本号由 Vite define 从根 `package.json` 注入
+
+### Changed
+
+#### 操作列
+
+- `createOperationColumn` 的 `width` 改为必填，取值统一为「最宽内联组合的内容宽 + 40，向上取整到 10」（编辑 / 删除 150、单个 2 字动作 100、编辑 / 删除 + 更多 180、三个 2 字动作 210）；全站 210 处操作列按此重算
+- 桌面端内联动作不超过 3 个；动作随行状态变化的页面只保留各状态都存在的高频动作内联，状态特有 / 低频动作收进「更多」（告警事件、公告、待审批、用户组、优惠券、公众号群发、事件订阅、终端录制、CMS 资源库、用户分群、补偿工单、意见反馈、目录同步源、报表数据集、CMS 产物 / 评论、频道消息等），「设为默认 / 测试连接 / 重置密钥」类一次性动作统一进「更多」
+- 按 Tab 分状态的列表（CMS 内容 / 评论、填报记录）按 `activeTab` 分别给 `width` 与 `desktopInlineKeys`
+- 操作日志、会话时间轴、埋点站点、工作流 Token / 作业、链路失败、通知策略 7 处手写操作列改用 `createOperationColumn`；作业重试 / 跳过等由 `Popconfirm` 包裹 label 改为 `Modal.confirm` / `confirmDanger`
+- 171 个页面的主文本列 `width` 改为 `minWidth`，菜单 / 地区 / 进程管理去掉手工测量容器宽度的 ResizeObserver；101 处页面手写的 `scroll.x` 删除，`OperationLogsTable` 不再接受 `scroll`
+
+#### 后端
+
+- 登录页 OAuth provider 列表与 `isProviderConfigured` 共用同一判定，顺序固定为 `OAUTH_PROVIDERS` 声明顺序
+
+#### 文档
+
+- skill：`constraints-frontend` 新增弹性主列 / 禁止 `scroll.x` / 操作列内联数与宽度公式约束；`ui-patterns` 的「操作列宽度估算」「虚拟化表格」重写为「表格列宽」「操作列」「虚拟化表格」三节（度量常量以实测为准，「更多」按钮 24）；`crud-frontend` 模板改为 `minWidth` 主列；`module-modification` 加字段 / 加动作时的列宽复核；`troubleshooting` 新增列宽异常症状定位
+- `docs/frontend/components.md` / `ui-conventions.md` 同步弹性主列与操作列规则；`oauth.md` / IAM 文档补登录入口接口与展示规则
+
+### Fixed
+
+- 表格操作列被拉宽到配置值的一到三倍（所有列固定宽 + `table-layout: fixed` 按比例分配余量），共 66 处
+- 菜单 / 地区 / 进程管理虚拟表格横向溢出，以及收起 / 展开侧边栏后表头与行错位
+- A/B 实验操作列「删除」被裁切；邮件 / 短信 / 站内信模板、标签、签到规则、IoT 告警等 14 处操作按钮贴边挤压 padding；14 处操作列明显偏宽（单个「详情」占 200 等）
+- 告警事件操作列按最宽状态配 300px、常见行仅两个按钮留下大片空白；公告定时发布态四个动作超出列宽；存储文件浏览抽屉文件行动作溢出
+- 链路追踪「最近失败」与通知策略事件表为原生 `Table`，操作列随容器被拉宽
+- 登录页 GitHub / 钉钉 / 企业微信 / 飞书入口未配置时仍常显、点击才报「尚未配置」
+- 文档站本地 `docs:dev` 因 fastdom CJS 互操作白屏（显式预构建 mermaid）
+
+---
+
 ## v2.13.0 - 2026-09-02
 
 **内网 HTTP 可用性 + 部分更新语义修正**：管理后台在非安全上下文（`http://内网IP`）下补齐 `crypto.randomUUID` 与剪贴板能力；PUT / PATCH 部分更新统一经 `partialForUpdate` 派生，杜绝省略字段被默认值改写；菜单种子改为只新增不更新，后台对内置菜单的调整不再被重跑 seed 回写。
