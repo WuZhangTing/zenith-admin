@@ -29,6 +29,7 @@ import {
   getAccessibleSiteIds,
 } from './cms-sites.service';
 import { assertCmsDistributionScope } from './cms-distribution-policy';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { ensureRuleAccessible, nextSchedule, normalizedFilters } from './cms-distributions-shared';
 
 async function validateRuleScope(input: {
@@ -52,14 +53,22 @@ async function validateRuleScope(input: {
   if (sourceSite.status !== 'enabled' || targetSite.status !== 'enabled') {
     throw new HTTPException(400, { message: '来源站点与目标站点必须均为启用状态' });
   }
-  if (targetChannel.siteId !== targetSite.id) {
-    throw new HTTPException(400, { message: '目标栏目不属于目标站点' });
+ if (targetChannel.siteId !== targetSite.id) {
+   throw new HTTPException(400, { message: '目标栏目不属于目标站点' });
+ }
+  if (targetChannel.type !== 'list' || targetChannel.status !== 'enabled'
+    || !(await getEffectivelyEnabledCmsChannelIds(targetSite.id)).has(targetChannel.id)) {
+    throw new HTTPException(400, { message: '目标栏目必须是有效启用的列表栏目' });
   }
-  if (input.sourceChannelId != null) {
+ if (input.sourceChannelId != null) {
     const sourceChannel = await ensureCmsChannelExists(input.sourceChannelId);
     await assertChannelAccess(sourceChannel.id);
-    if (sourceChannel.siteId !== sourceSite.id) {
-      throw new HTTPException(400, { message: '来源栏目不属于来源站点' });
+   if (sourceChannel.siteId !== sourceSite.id) {
+     throw new HTTPException(400, { message: '来源栏目不属于来源站点' });
+   }
+    if (sourceChannel.type !== 'list' || sourceChannel.status !== 'enabled'
+      || !(await getEffectivelyEnabledCmsChannelIds(sourceSite.id)).has(sourceChannel.id)) {
+      throw new HTTPException(400, { message: '来源栏目必须是有效启用的列表栏目' });
     }
   }
 }
@@ -182,11 +191,15 @@ export async function createCmsDistributionRule(input: CreateCmsDistributionRule
 
 export async function updateCmsDistributionRule(id: number, input: UpdateCmsDistributionRuleInput) {
   const current = await ensureRuleAccessible(id);
-  if (input.mode && input.mode !== current.mode) {
-    const materialized = await db.$count(cmsContents, eq(cmsContents.distributionRuleId, id));
-    if (materialized > 0) {
-      throw new HTTPException(409, { message: '规则已有物化内容，不能切换分发模式；请新建规则' });
-    }
+  const materialized = await db.$count(cmsContents, eq(cmsContents.distributionRuleId, id));
+  if (materialized > 0 && (
+    (input.mode !== undefined && input.mode !== current.mode)
+    || input.sourceSiteId !== undefined
+    || input.sourceChannelId !== undefined
+    || input.targetSiteId !== undefined
+    || input.targetChannelId !== undefined
+  )) {
+    throw new HTTPException(409, { message: '规则已有物化内容，不能修改来源/目标或模式；请新建规则' });
   }
   const merged = {
     name: input.name ?? current.name,

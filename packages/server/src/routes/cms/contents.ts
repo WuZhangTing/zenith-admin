@@ -486,7 +486,7 @@ const duplicateRoute = defineOpenAPIRoute({
 const distributeRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/distribute',
-    tags: ['CMS-内容管理'], summary: '站群分发（copy=独立复制 / mapping=映射，正文共享来源）',
+    tags: ['CMS-内容管理'], summary: '站群分发（创建可独立编辑的完整快照）',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:distribution:run', audit: { description: 'CMS 内容站群分发', module: 'CMS内容管理' } })] as const,
     request: {
@@ -495,7 +495,6 @@ const distributeRoute = defineOpenAPIRoute({
           ids: z.array(z.number().int()).min(1),
           targetSiteId: z.number().int().positive(),
           targetChannelId: z.number().int().positive(),
-          mode: z.enum(['copy', 'mapping']).default('copy'),
         })),
         required: true,
       },
@@ -503,9 +502,9 @@ const distributeRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('分发成功') },
   }),
   handler: async (c) => {
-    const { ids, targetSiteId, targetChannelId, mode } = c.req.valid('json');
-    const count = await distributeCmsContents(ids, targetSiteId, targetChannelId, mode);
-    return c.json(okBody(null, `已${mode === 'mapping' ? '映射' : '分发'} ${count} 条内容（同站内容自动跳过）`), 200);
+    const { ids, targetSiteId, targetChannelId } = c.req.valid('json');
+    const count = await distributeCmsContents(ids, targetSiteId, targetChannelId);
+    return c.json(okBody(null, `已分发 ${count} 条内容（同站内容自动跳过）`), 200);
   },
 });
 

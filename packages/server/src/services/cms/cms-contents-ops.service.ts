@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsSites, cmsContents, cmsContentTags, cmsContentTombstones, cmsContentVersions, cmsTags, cmsCollectItems } from '../../db/schema';
 import type { CmsContentRow } from '../../db/schema';
-import { contentSearchVector } from './cms-search.service';
+import { contentSearchVector, extendSearchTexts } from './cms-search.service';
 import { assertChannelAccess, assertChannelsAccess } from './cms-channels.service';
 import { logContentOp, logContentOps } from './cms-content-op-logs.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -30,6 +30,8 @@ import { enqueueCmsWebhookEvents, insertCmsContentWebhookOutbox } from './cms-we
 import { insertContentPublishOutbox, recalcTagContentCounts, ensureChannelForContent } from './cms-contents-internal';
 import { ensureCmsContentExists, getCmsContent } from './cms-contents-query.service';
 import { offlineCmsContent, publishCmsContent, rejectCmsContent, submitCmsContent } from './cms-contents-write.service';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
+import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 
 // ─── 回收站 ───────────────────────────────────────────────────────────────────
 async function assertBatchSiteAccess(ids: number[]): Promise<void> {
@@ -167,27 +169,24 @@ export async function purgeCmsContents(ids: number[], options?: { skipAccessChec
     }
     const lockedIds = lockedTargets.map((row) => row.id);
     if (lockedIds.length === 0) return { count: 0, tasks: [] as AsyncTask[], webhookTasks: [] as (AsyncTask | null)[] };
-    // 物化：把被删来源的正文/扩展字段拷回映射行，映射行转为独立内容
-    const mappedRows = await tx.select({ id: cmsContents.id, mappingSourceId: cmsContents.mappingSourceId, lockedAt: cmsContents.lockedAt, lockReason: cmsContents.lockReason })
-      .from(cmsContents).where(inArray(cmsContents.mappingSourceId, lockedIds));
+    // Mapping targets already contain a local snapshot; source purge only
+    // detaches the governance relation and never reads cross-site payloads.
+    const mappedRows = await tx.select({ id: cmsContents.id, siteId: cmsContents.siteId, mappingSourceId: cmsContents.mappingSourceId, lockedAt: cmsContents.lockedAt, lockReason: cmsContents.lockReason })
+     .from(cmsContents).where(inArray(cmsContents.mappingSourceId, lockedIds));
     const lockedMapped = mappedRows.find((row) => row.lockedAt);
     if (lockedMapped) throw new HTTPException(423, { message: `映射内容 #${lockedMapped.id} 已被持久锁定${lockedMapped.lockReason ? `：${lockedMapped.lockReason}` : ''}` });
-    if (mappedRows.length > 0) {
-      const sourceIds = [...new Set(mappedRows.map((m) => m.mappingSourceId!))];
-      const sources = await tx.select({ id: cmsContents.id, body: cmsContents.body, extend: cmsContents.extend })
-        .from(cmsContents).where(inArray(cmsContents.id, sourceIds));
-      const srcById = new Map(sources.map((s) => [s.id, s]));
-      for (const m of mappedRows) {
-        const src = srcById.get(m.mappingSourceId!);
-        const [materialized] = await tx.update(cmsContents)
-          .set({ body: sanitizeCmsHtml(src?.body), extend: src?.extend ?? {}, mappingSourceId: null })
-          .where(eq(cmsContents.id, m.id))
-          .returning();
-        // 物化后正文由本行自己持有，素材引用要从来源转移到映射行，否则来源删除后素材变孤立
-        if (materialized) {
-          await syncCmsResourceRefs(tx, 'content', materialized.id, materialized.siteId, materialized);
-        }
-      }
+    for (const siteId of [...new Set(mappedRows.map((row) => row.siteId))].sort((a, b) => a - b)) {
+      if (!sites.has(siteId)) sites.set(siteId, await lockCmsSiteForMutation(tx, siteId));
+    }
+    const lockedMappingRows = mappedRows.filter((row) => !row.lockedAt);
+    if (lockedMappingRows.length > 0) {
+      await tx.update(cmsContents).set({
+        mappingSourceId: null,
+        distributionRuleId: null,
+        distributionSourceId: null,
+        distributionSourceVersion: null,
+        version: sql`${cmsContents.version} + 1`,
+      }).where(inArray(cmsContents.id, lockedMappingRows.map((row) => row.id)));
     }
     await tx.update(cmsCollectItems)
       .set({ contentId: null })
@@ -452,10 +451,52 @@ export async function batchSetCmsContentFlags(ids: number[], flags: { isTop?: bo
   if (flags.isHot !== undefined) patch.isHot = flags.isHot;
   if (flags.isOriginal !== undefined) patch.isOriginal = flags.isOriginal;
   if (Object.keys(patch).length === 0) return 0;
-  const updated = await db.update(cmsContents).set(patch)
-    .where(and(inArray(cmsContents.id, ids), isNull(cmsContents.deletedAt), isNull(cmsContents.lockedAt)))
-    .returning({ id: cmsContents.id });
-  return updated.length;
+  const initialRows = await db.select({ id: cmsContents.id, siteId: cmsContents.siteId })
+    .from(cmsContents).where(and(inArray(cmsContents.id, ids), isNull(cmsContents.deletedAt), isNull(cmsContents.lockedAt)));
+  assertCompleteCmsBatch(ids, initialRows.map((row) => row.id), '内容');
+  const mutation = await db.transaction(async (tx) => {
+    const sites = new Map<number, typeof cmsSites.$inferSelect>();
+    for (const siteId of [...new Set(initialRows.map((row) => row.siteId))].sort((a, b) => a - b)) {
+      sites.set(siteId, await lockCmsSiteForMutation(tx, siteId));
+    }
+    const initial = await tx.select().from(cmsContents).where(and(
+      inArray(cmsContents.id, ids),
+      isNull(cmsContents.deletedAt),
+      isNull(cmsContents.lockedAt),
+    )).for('update');
+    assertCompleteCmsBatch(ids, initial.map((row) => row.id), '内容');
+    const set: Record<string, unknown> = {
+      ...patch,
+      version: sql`${cmsContents.version} + 1`,
+      updatedAt: new Date(),
+    };
+    if (flags.isTop === false) {
+      set.topWeight = 0;
+      set.topExpireAt = null;
+    }
+    const updated = await tx.update(cmsContents).set(set)
+      .where(and(inArray(cmsContents.id, initial.map((row) => row.id)), isNull(cmsContents.deletedAt), isNull(cmsContents.lockedAt)))
+      .returning();
+    await logContentOps(tx, updated.map((row) => ({ id: row.id })), 'updated', '批量设置内容属性');
+    const now = new Date();
+    const publicSiteIds = new Set(updated
+      .filter((row) => row.status === 'published' && row.deletedAt == null && row.archivedAt == null
+        && (row.expireAt == null || row.expireAt > now))
+      .map((row) => row.siteId));
+    const tasks: AsyncTask[] = [];
+    for (const siteId of [...publicSiteIds].sort((a, b) => a - b)) {
+      tasks.push(await insertCmsSiteRefsRebuildOutbox(
+        tx,
+        sites.get(siteId)!,
+        '内容公开属性批量更新',
+        `site:${siteId}:content-flags:${updated.filter((row) => row.siteId === siteId).map((row) => `${row.id}:${row.version}`).join(',')}`,
+      ));
+    }
+    return { count: updated.length, tasks };
+  });
+  await enqueueCmsPublishOutboxes(mutation.tasks, '内容属性批量更新');
+  submitCmsWidgetSourceRefreshSideEffect('content', ids);
+  return mutation.count;
 }
 
 /** 批量状态操作的动作 → 所需权限（与单条操作一致） */
@@ -510,11 +551,21 @@ export async function batchAddCmsContentTags(ids: number[], tagIds: number[]): P
     id: cmsContents.id,
     siteId: cmsContents.siteId,
   }).from(cmsContents).where(inArray(cmsContents.id, ids));
-  assertCompleteCmsBatch(ids, rows.map((row) => row.id), '内容');
-  await db.transaction(async (tx) => {
+ assertCompleteCmsBatch(ids, rows.map((row) => row.id), '内容');
+ const mutation = await db.transaction(async (tx) => {
+    const sites = new Map<number, typeof cmsSites.$inferSelect>();
+    for (const siteId of [...new Set(rows.map((row) => row.siteId))].sort((a, b) => a - b)) {
+      sites.set(siteId, await lockCmsSiteForMutation(tx, siteId));
+    }
+   const lockedRows = await tx.select().from(cmsContents).where(and(
+     inArray(cmsContents.id, ids),
+     isNull(cmsContents.deletedAt),
+     isNull(cmsContents.lockedAt),
+   )).for('update');
+   assertCompleteCmsBatch(ids, lockedRows.map((row) => row.id), '内容');
     // 合法标签只取决于内容所属站点，批量内容通常同站；一次按站点取回，
     // 替代「每条内容重查一遍同一批标签」
-    const siteIds = [...new Set(rows.map((row) => row.siteId))];
+    const siteIds = [...new Set(lockedRows.map((row) => row.siteId))];
     const tagRows = await tx.select({ id: cmsTags.id, siteId: cmsTags.siteId }).from(cmsTags)
       .where(and(inArray(cmsTags.id, tagIds), inArray(cmsTags.siteId, siteIds)));
     const tagIdsBySite = new Map<number, number[]>();
@@ -527,15 +578,37 @@ export async function batchAddCmsContentTags(ids: number[], tagIds: number[]): P
     for (const siteId of siteIds) {
       assertCompleteCmsBatch(tagIds, tagIdsBySite.get(siteId) ?? [], '标签');
     }
-    const bindings = rows.flatMap((row) => (tagIdsBySite.get(row.siteId) ?? []).map((tagId) => ({ contentId: row.id, tagId })));
+    const bindings = lockedRows.flatMap((row) => (tagIdsBySite.get(row.siteId) ?? []).map((tagId) => ({ contentId: row.id, tagId })));
     // 分片插入：单条语句每行 2 个绑定参数，而 ids / tagIds 在路由 schema 上没有上限，
     // 内容数 × 标签数很容易越过 PG 的 65535 参数上限
     for (let i = 0; i < bindings.length; i += TAG_BINDING_CHUNK) {
       await tx.insert(cmsContentTags).values(bindings.slice(i, i + TAG_BINDING_CHUNK)).onConflictDoNothing();
+   }
+   await recalcTagContentCounts(tx, tagIds);
+    const updated = await tx.update(cmsContents).set({
+      version: sql`${cmsContents.version} + 1`,
+      updatedAt: new Date(),
+    }).where(inArray(cmsContents.id, lockedRows.map((row) => row.id))).returning();
+    await logContentOps(tx, updated.map((row) => ({ id: row.id })), 'updated', '批量追加内容标签');
+    const now = new Date();
+    const publicSiteIds = new Set(updated
+      .filter((row) => row.status === 'published' && row.deletedAt == null && row.archivedAt == null
+        && (row.expireAt == null || row.expireAt > now))
+      .map((row) => row.siteId));
+    const tasks: AsyncTask[] = [];
+    for (const siteId of [...publicSiteIds].sort((a, b) => a - b)) {
+      tasks.push(await insertCmsSiteRefsRebuildOutbox(
+        tx,
+        sites.get(siteId)!,
+        '内容标签批量更新',
+        `site:${siteId}:content-tags:${updated.filter((row) => row.siteId === siteId).map((row) => `${row.id}:${row.version}`).join(',')}`,
+      ));
     }
-    await recalcTagContentCounts(tx, tagIds);
-  });
-  return rows.length;
+    return { count: lockedRows.length, tasks };
+ });
+  await enqueueCmsPublishOutboxes(mutation.tasks, '内容标签批量更新');
+  submitCmsWidgetSourceRefreshSideEffect('content', ids);
+  return mutation.count;
 }
 
 /**
@@ -613,48 +686,68 @@ export async function duplicateCmsContent(id: number, targetChannelId?: number) 
 /**
  * 站群内容分发：把内容分发到目标站点栏目（草稿，标签不跨站复制；事务保证全部成功或回滚）。
  * - copy（独立复制，默认）：完整拷贝正文/扩展字段，分发后独立编辑，仅在操作日志记录来源
- * - mapping（映射）：仅拷贝标题等元数据，正文/扩展字段运行时透传来源内容，源改动即时生效；
- *   映射行禁止独立编辑正文；来源被彻底删除时自动物化为独立内容
+ * - mapping 参数保留为调用层动作名，但无规则的临时分发统一生成可独立编辑的快照；
+ *   需要持续同步时必须使用带 revision/冲突策略的内容分发规则。
  */
-export async function distributeCmsContents(ids: number[], targetSiteId: number, targetChannelId: number, mode: 'copy' | 'mapping' = 'copy'): Promise<number> {
+export async function distributeCmsContents(ids: number[], targetSiteId: number, targetChannelId: number): Promise<number> {
   if (ids.length === 0) return 0;
   if (!(await hasPermission('cms:distribution:run')) || !(await hasPermission('cms:content:create'))) {
     throw new HTTPException(403, { message: '内容分发需要 cms:distribution:run 与 cms:content:create 权限' });
   }
   await assertBatchSiteAccess(ids);
-  await assertSiteAccess(targetSiteId);
-  await assertChannelAccess(targetChannelId);
-  await ensureCmsSiteExists(targetSiteId);
-  const channel = await ensureChannelForContent(targetSiteId, targetChannelId);
-  const rows = await db.select().from(cmsContents).where(inArray(cmsContents.id, ids));
-  assertCompleteCmsBatch(ids, rows.map((row) => row.id), '内容');
-  const disallowed = rows.find((row) => row.status !== 'published' || row.deletedAt || row.archivedAt);
-  if (disallowed) {
-    throw new HTTPException(400, { message: `内容 #${disallowed.id} 不是可分发的已发布内容` });
+ await assertSiteAccess(targetSiteId);
+ await assertChannelAccess(targetChannelId);
+ await ensureCmsSiteExists(targetSiteId);
+  const targetSite = await resolveEffectiveCmsSite(targetSiteId).catch(() => null);
+  if (!targetSite || !targetSite.chain.every((item) => item.status === 'enabled')) {
+    throw new HTTPException(400, { message: '目标站点已停用或父站点不可用' });
   }
+ const channel = await ensureChannelForContent(targetSiteId, targetChannelId);
+  if (!(await getEffectivelyEnabledCmsChannelIds(targetSiteId)).has(channel.id)) {
+    throw new HTTPException(400, { message: '目标栏目已停用或其父级栏目不可用' });
+  }
+ const rows = await db.select().from(cmsContents).where(inArray(cmsContents.id, ids));
+ assertCompleteCmsBatch(ids, rows.map((row) => row.id), '内容');
+  const effectiveSiteIds = new Set<number>();
+  for (const row of rows) effectiveSiteIds.add(row.siteId);
+  const effectiveChannelIds = new Map<number, ReadonlySet<number>>();
+  for (const sourceSiteId of effectiveSiteIds) {
+    const site = await resolveEffectiveCmsSite(sourceSiteId).catch(() => null);
+    if (!site || !site.chain.every((item) => item.status === 'enabled')) {
+      throw new HTTPException(400, { message: '来源站点已停用或父站点不可用' });
+    }
+    effectiveChannelIds.set(sourceSiteId, await getEffectivelyEnabledCmsChannelIds(sourceSiteId));
+  }
+  const disallowed = rows.find((row) => row.status !== 'published' || row.deletedAt || row.archivedAt
+    || (row.expireAt != null && row.expireAt <= new Date())
+    || !effectiveChannelIds.get(row.siteId)?.has(row.channelId));
+ if (disallowed) {
+    throw new HTTPException(400, { message: `内容 #${disallowed.id} 不是来源站点当前有效的已发布内容` });
+ }
   return db.transaction(async (tx) => {
     let copied = 0;
     for (const current of rows) {
       if (current.siteId === targetSiteId) continue; // 同站分发无意义，跳过
-      // 映射的映射仍指向原始来源，避免形成解析链
-      const mappingSourceId = mode === 'mapping' ? (current.mappingSourceId ?? current.id) : null;
+      const mappingSourceId = null;
       // 跨站复制：素材登记到目标站并改写句柄，避免来源站删除后目标站整片断图
-      const media = await adoptCmsResourcesIntoSite(tx, targetSiteId, {
-        coverImage: current.coverImage,
-        mediaData: current.mediaData ?? {},
-        body: mode === 'mapping' ? null : sanitizeCmsHtml(current.body),
-        extend: mode === 'mapping' ? {} : (current.extend ?? {}),
-        externalLink: current.externalLink,
-        sourceUrl: current.sourceUrl,
-      });
-      const [created] = await tx.insert(cmsContents).values({
+     const media = await adoptCmsResourcesIntoSite(tx, targetSiteId, {
+       coverImage: current.coverImage,
+       mediaData: current.mediaData ?? {},
+       body: sanitizeCmsHtml(current.body),
+       extend: current.extend ?? {},
+       externalLink: current.externalLink,
+       sourceUrl: current.sourceUrl,
+        attachments: current.attachments ?? [],
+     });
+     const [created] = await tx.insert(cmsContents).values({
         siteId: targetSiteId,
         channelId: targetChannelId,
         modelId: channel.modelId ?? null,
-        contentType: current.contentType,
-        mediaData: media.mediaData,
-        title: current.title,
-        subTitle: current.subTitle,
+       contentType: current.contentType,
+       mediaData: media.mediaData,
+       title: current.title,
+        titleStyle: current.titleStyle ?? {},
+       subTitle: current.subTitle,
         shortTitle: current.shortTitle,
         slug: null,
         summary: current.summary,
@@ -662,20 +755,31 @@ export async function distributeCmsContents(ids: number[], targetSiteId: number,
         author: current.author,
         editor: current.editor,
         source: current.source,
-        sourceUrl: media.sourceUrl,
-        isOriginal: current.isOriginal,
-        body: media.body,
-        extend: media.extend,
-        externalLink: media.externalLink,
-        mappingSourceId,
+       sourceUrl: media.sourceUrl,
+       isOriginal: current.isOriginal,
+       body: media.body,
+        attachments: media.attachments ?? [],
+       extend: media.extend,
+       externalLink: media.externalLink,
+        detailTemplate: null,
+        staticPath: null,
+        isTop: current.isTop,
+        topWeight: current.topWeight,
+        topExpireAt: current.topExpireAt,
+        isRecommend: current.isRecommend,
+        isHot: current.isHot,
+       mappingSourceId,
         status: 'draft',
         seoTitle: current.seoTitle,
-        seoKeywords: current.seoKeywords,
-        seoDescription: current.seoDescription,
-        // 映射行也按来源正文建检索向量，站内搜索可命中
-        searchVector: contentSearchVector(targetSiteId, current),
+       seoKeywords: current.seoKeywords,
+       seoDescription: current.seoDescription,
+        socialImageAlt: current.socialImageAlt,
+        twitterCreator: current.twitterCreator,
+        expireAt: current.expireAt,
+       // Both copy and mapping rows index the materialized snapshot.
+        searchVector: contentSearchVector(targetSiteId, { ...current, ...media }, extendSearchTexts(media.extend)),
       }).returning();
-      await logContentOp(tx, created.id, 'created', mode === 'mapping' ? `映射自内容 #${current.id}` : `站群分发复制自内容 #${current.id}`);
+      await logContentOp(tx, created.id, 'created', `站群分发复制自内容 #${current.id}`);
       await syncCmsResourceRefs(tx, 'content', created.id, created.siteId, created);
       copied += 1;
     }

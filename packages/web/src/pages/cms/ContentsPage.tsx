@@ -279,11 +279,10 @@ export default function ContentsPage() {
   async function handleDistributeOk() {
     const values = await distributeFormApi.current?.validate().catch(() => null);
     if (!values?.targetSiteId || !values?.targetChannelId) abortSubmit('validation');
-    const mode = (values.mode as 'copy' | 'mapping') ?? 'copy';
-    await batchOpsMutation.mutateAsync({ action: 'distribute', body: { ids: selectedIds, targetSiteId: values.targetSiteId, targetChannelId: values.targetChannelId, mode } });
+    await batchOpsMutation.mutateAsync({ action: 'distribute', body: { ids: selectedIds, targetSiteId: values.targetSiteId, targetChannelId: values.targetChannelId } });
     setSelectedIds([]);
     setDistributeModalVisible(false);
-    Toast.success(mode === 'mapping' ? '映射成功（正文将跟随来源内容更新）' : '分发成功（目标站点草稿箱）');
+    Toast.success('分发成功（已在目标站点草稿箱创建独立快照）');
   }
 
   function previewContent(record: CmsContent) {
@@ -628,6 +627,8 @@ export default function ContentsPage() {
                   <Dropdown.Item onClick={() => void handleBatchFlags({ isRecommend: false }, '取消推荐')}>取消推荐</Dropdown.Item>
                   <Dropdown.Item onClick={() => void handleBatchFlags({ isHot: true }, '设为热门')}>设为热门</Dropdown.Item>
                   <Dropdown.Item onClick={() => void handleBatchFlags({ isHot: false }, '取消热门')}>取消热门</Dropdown.Item>
+                  <Dropdown.Item onClick={() => void handleBatchFlags({ isOriginal: true }, '标记原创')}>标记原创</Dropdown.Item>
+                  <Dropdown.Item onClick={() => void handleBatchFlags({ isOriginal: false }, '取消原创')}>取消原创</Dropdown.Item>
                 </Dropdown.Menu>
               )}
             >
@@ -793,10 +794,6 @@ export default function ContentsPage() {
           <Form.TreeSelect field="targetChannelId" label="目标栏目" style={{ width: '100%' }}
             treeData={channelsToSelectTree(distributeTargetTreeQuery.data ?? [])}
             rules={[{ required: true, message: '请选择目标栏目' }]} />
-          <Form.RadioGroup field="mode" label="分发方式" initValue="copy">
-            <Form.Radio value="copy">独立复制（完整拷贝，分发后独立编辑）</Form.Radio>
-            <Form.Radio value="mapping">映射（正文共享来源内容，源改动自动同步）</Form.Radio>
-          </Form.RadioGroup>
         </Form>
       </AppModal>
     </>

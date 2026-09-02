@@ -14,15 +14,15 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
-import type { CmsDistributionMode, UpdateCmsContentInput } from '@zenith/shared/cms';
-import type { AsyncTaskItem } from '@zenith/shared/tasks';
+import type { AsyncTask, AsyncTaskItem } from '@zenith/shared/tasks';
 import { db } from '../../db';
 import {
   asyncTasks,
-  cmsChannels,
-  cmsContents,
-  cmsDistributionRules,
-  type CmsContentRow,
+ cmsChannels,
+ cmsContents,
+ cmsDistributionRules,
+  cmsSites,
+ type CmsContentRow,
   type CmsDistributionRuleRow,
 } from '../../db/schema';
 import { parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
@@ -42,7 +42,12 @@ import {
   assertChannelAccess,
   ensureCmsChannelExists,
 } from './cms-channels.service';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 import { assertSiteAccess } from './cms-sites.service';
+import { captureCmsContentPublishSnapshot } from './cms-content-publish-snapshot.service';
+import { acquireCmsSitePublishLock, lockCmsSiteForMutation } from './cms-site-publish-lock.service';
+import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
+import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 import {
   cmsDistributionIdempotencyKey,
   decideCmsDistributionConflict,
@@ -51,10 +56,9 @@ import { sanitizeCmsHtml } from './cms-html-sanitizer';
 import { adoptCmsResourcesIntoSite, canonicalizeCmsResourceFields, syncCmsResourceRefs } from './cms-resource-refs.service';
 import { contentSearchVector, extendSearchTexts } from './cms-search.service';
 import {
-  getContentBodyExtendRaw,
-  offlineCmsContent,
-  updateCmsContent,
+getContentBodyExtendRaw,
 } from './cms-contents.service';
+import { insertContentPublishOutbox } from './cms-contents-internal';
 import { assertCmsContentUnlocked } from './cms-content-lock.service';
 import { logContentOp } from './cms-content-op-logs.service';
 import {
@@ -67,12 +71,21 @@ import {
 
 export async function deleteCmsDistributionRule(id: number): Promise<void> {
   await ensureRuleAccessible(id);
-  await db.transaction(async (tx) => {
-    const [rule] = await tx.select().from(cmsDistributionRules)
-      .where(eq(cmsDistributionRules.id, id)).for('update').limit(1);
+  const result = await db.transaction(async (tx) => {
+    const initialRule = await tx.select().from(cmsDistributionRules)
+      .where(eq(cmsDistributionRules.id, id)).limit(1);
+    const rule = initialRule[0];
     if (!rule) throw new HTTPException(404, { message: '分发规则不存在' });
+    await acquireCmsSitePublishLock(tx, rule.targetSiteId);
+    const [lockedRule] = await tx.select().from(cmsDistributionRules)
+      .where(eq(cmsDistributionRules.id, id)).for('update').limit(1);
+    if (!lockedRule) throw new HTTPException(404, { message: '分发规则不存在' });
+    if (lockedRule.targetSiteId !== rule.targetSiteId) throw new HTTPException(409, { message: '分发规则目标站点已变化，请重试' });
+    const [lockedSite] = await tx.select().from(cmsSites)
+      .where(eq(cmsSites.id, rule.targetSiteId)).for('update').limit(1);
+    if (!lockedSite) throw new HTTPException(404, { message: '目标站点不存在' });
     const materialized = await tx.select().from(cmsContents)
-      .where(eq(cmsContents.distributionRuleId, id)).for('update');
+      .where(and(eq(cmsContents.distributionRuleId, id), eq(cmsContents.siteId, rule.targetSiteId))).for('update');
     const lockedMapping = materialized.find((content) => content.mappingSourceId != null && content.lockedAt);
     if (lockedMapping) {
       throw new HTTPException(423, {
@@ -82,27 +95,40 @@ export async function deleteCmsDistributionRule(id: number): Promise<void> {
     const sourceIds = [...new Set(materialized
       .map((content) => content.mappingSourceId)
       .filter((sourceId): sourceId is number => sourceId != null))];
-    const directSources = sourceIds.length
-      ? await tx.select().from(cmsContents).where(inArray(cmsContents.id, sourceIds))
-      : [];
+   const directSources = sourceIds.length
+      ? await tx.select().from(cmsContents).where(and(inArray(cmsContents.id, sourceIds), eq(cmsContents.siteId, rule.sourceSiteId)))
+     : [];
     const originIds = [...new Set(directSources
       .map((source) => source.mappingSourceId)
       .filter((sourceId): sourceId is number => sourceId != null))];
-    const origins = originIds.length
-      ? await tx.select().from(cmsContents).where(inArray(cmsContents.id, originIds))
-      : [];
+   const origins = originIds.length
+      ? await tx.select().from(cmsContents).where(and(inArray(cmsContents.id, originIds), eq(cmsContents.siteId, rule.sourceSiteId)))
+     : [];
     const sourceById = new Map([...directSources, ...origins].map((source) => [source.id, source]));
-    for (const content of materialized) {
-      if (content.mappingSourceId == null) continue;
-      const source = sourceById.get(content.mappingSourceId);
-      const origin = source?.mappingSourceId ? sourceById.get(source.mappingSourceId) : source;
+   for (const content of materialized) {
+      if (content.mappingSourceId == null) {
+        await tx.update(cmsContents).set({
+          distributionRuleId: null,
+          distributionSourceId: null,
+          distributionSourceVersion: null,
+          version: sql`${cmsContents.version} + 1`,
+        }).where(eq(cmsContents.id, content.id));
+        continue;
+      }
+     const source = sourceById.get(content.mappingSourceId);
+     const origin = source?.mappingSourceId ? sourceById.get(source.mappingSourceId) : source;
+      if (source && source.siteId !== rule.sourceSiteId) throw new HTTPException(400, { message: '映射来源站点不匹配，拒绝跨站物化' });
+      if (source?.mappingSourceId && !origin) throw new HTTPException(400, { message: '映射来源链不完整，拒绝跨站物化' });
+      const body = sanitizeCmsHtml(origin?.body ?? content.body);
+      const extend = origin?.extend ?? content.extend ?? {};
+      const adopted = await adoptCmsResourcesIntoSite(tx, content.siteId, { body, extend });
       const [materializedRow] = await tx.update(cmsContents).set({
-        ...await adoptCmsResourcesIntoSite(tx, content.siteId, {
-          body: sanitizeCmsHtml(origin?.body ?? content.body),
-          extend: origin?.extend ?? content.extend ?? {},
-        }),
-        mappingSourceId: null,
-        distributionRuleId: null,
+        ...adopted,
+        searchVector: contentSearchVector(content.siteId, { ...content, ...adopted }, extendSearchTexts(adopted.extend)),
+       mappingSourceId: null,
+       distributionRuleId: null,
+       distributionSourceId: null,
+       distributionSourceVersion: null,
         version: sql`${cmsContents.version} + 1`,
       }).where(eq(cmsContents.id, content.id)).returning();
       // 正文从来源转移到本行，引用索引要跟着搬家，否则来源删除后素材被判为孤立
@@ -111,21 +137,38 @@ export async function deleteCmsDistributionRule(id: number): Promise<void> {
       }
       await logContentOp(tx, content.id, 'updated', `分发规则 #${id} 删除，映射已物化为独立内容`);
     }
-    const [deleted] = await tx.delete(cmsDistributionRules).where(eq(cmsDistributionRules.id, id)).returning();
-    if (!deleted) throw new HTTPException(404, { message: '分发规则不存在' });
-  });
+   const [deleted] = await tx.delete(cmsDistributionRules).where(eq(cmsDistributionRules.id, id)).returning();
+   if (!deleted) throw new HTTPException(404, { message: '分发规则不存在' });
+    const publicRows = materialized.filter((content) => content.status === 'published'
+      && content.deletedAt == null && content.archivedAt == null);
+    const tasks: AsyncTask[] = [];
+    if (publicRows.length > 0) {
+      tasks.push(await insertCmsSiteRefsRebuildOutbox(
+        tx,
+        lockedSite,
+        '分发规则删除后内容物化',
+        `site:${rule.targetSiteId}:distribution-delete:${id}:${lockedSite.publicRevision + 1}`,
+      ));
+    }
+    return { tasks };
+ });
+  if (result.tasks.length > 0) await enqueueCmsPublishOutboxes(result.tasks, '分发规则删除');
 }
 
-function sourceConditions(rule: CmsDistributionRuleRow, afterId?: number): (SQL | undefined)[] {
+async function sourceConditions(rule: CmsDistributionRuleRow, afterId?: number): Promise<(SQL | undefined)[]> {
   const filters = normalizedFilters(rule.filters);
   const conditions: (SQL | undefined)[] = [
     eq(cmsContents.siteId, rule.sourceSiteId),
     eq(cmsContents.status, 'published'),
     isNull(cmsContents.deletedAt),
     isNull(cmsContents.archivedAt),
+    or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+    isNull(cmsContents.mappingSourceId),
     isNull(cmsContents.distributionSourceId),
   ];
   if (rule.sourceChannelId != null) conditions.push(eq(cmsContents.channelId, rule.sourceChannelId));
+  const effectiveChannels = await getEffectivelyEnabledCmsChannelIds(rule.sourceSiteId);
+  conditions.push(effectiveChannels.size > 0 ? inArray(cmsContents.channelId, [...effectiveChannels]) : sql`false`);
   if (filters.contentTypes.length) conditions.push(inArray(cmsContents.contentType, filters.contentTypes));
   conditions.push(keywordCondition(filters.keyword, [cmsContents.title, cmsContents.summary], 'ilike'));
 
@@ -137,13 +180,15 @@ function sourceConditions(rule: CmsDistributionRuleRow, afterId?: number): (SQL 
   return conditions;
 }
 
-function sourceMatchesRule(rule: CmsDistributionRuleRow, source: CmsContentRow): boolean {
+function sourceMatchesRule(rule: CmsDistributionRuleRow, source: CmsContentRow, effectiveChannelIds?: ReadonlySet<number>): boolean {
   const filters = normalizedFilters(rule.filters);
   if (source.status !== 'published' || source.deletedAt || source.archivedAt) return false;
+  if (source.expireAt && source.expireAt <= new Date()) return false;
   if (source.siteId !== rule.sourceSiteId) return false;
+  if (effectiveChannelIds && !effectiveChannelIds.has(source.channelId)) return false;
   if (rule.sourceChannelId != null && source.channelId !== rule.sourceChannelId) return false;
   if (filters.contentTypes.length && !filters.contentTypes.includes(source.contentType)) return false;
-  if (filters.keyword && !`${source.title} ${source.summary ?? ''}`.includes(filters.keyword)) return false;
+  if (filters.keyword && !`${source.title} ${source.summary ?? ''}`.toLocaleLowerCase().includes(filters.keyword.toLocaleLowerCase())) return false;
   const start = parseDateRangeStart(filters.publishedFrom ?? undefined);
   const end = parseDateRangeEnd(filters.publishedTo ?? undefined);
   if (start && (!source.publishedAt || source.publishedAt < start)) return false;
@@ -156,7 +201,7 @@ async function sourceWatermark(rule: CmsDistributionRuleRow): Promise<string> {
     maxId: sql<number>`coalesce(max(${cmsContents.id}), 0)::int`,
     maxVersion: sql<number>`coalesce(max(${cmsContents.version}), 0)::int`,
     count: sql<number>`count(*)::int`,
-  }).from(cmsContents).where(and(...sourceConditions(rule)));
+  }).from(cmsContents).where(and(...await sourceConditions(rule)));
   return `${row?.count ?? 0}-${row?.maxId ?? 0}-${row?.maxVersion ?? 0}`;
 }
 
@@ -210,11 +255,12 @@ export async function submitCmsDistributionRun(
   });
 }
 
-function updatePatch(source: CmsContentRow, body: string, mode: CmsDistributionMode): UpdateCmsContentInput {
+function updatePatch(source: CmsContentRow, body: string): Record<string, unknown> {
   return {
     expectedVersion: undefined,
-    channelId: undefined,
-    title: source.title,
+   channelId: undefined,
+   title: source.title,
+    titleStyle: source.titleStyle ?? {},
     subTitle: source.subTitle,
     shortTitle: source.shortTitle,
     summary: source.summary,
@@ -222,20 +268,23 @@ function updatePatch(source: CmsContentRow, body: string, mode: CmsDistributionM
     author: source.author,
     editor: source.editor,
     source: source.source,
-    sourceUrl: source.sourceUrl,
-    isOriginal: source.isOriginal,
-    mediaData: source.mediaData,
+   sourceUrl: source.sourceUrl,
+   isOriginal: source.isOriginal,
+   mediaData: source.mediaData,
+    attachments: source.attachments ?? [],
     externalLink: source.externalLink,
     detailTemplate: null,
     isTop: false,
     topWeight: 0,
     topExpireAt: null,
     isRecommend: source.isRecommend,
-    isHot: source.isHot,
+   isHot: source.isHot,
+    expireAt: source.expireAt?.toISOString() ?? null,
     seoTitle: source.seoTitle,
     seoKeywords: source.seoKeywords,
     seoDescription: source.seoDescription,
-    ...(mode === 'mapping' ? {} : { body, extend: source.extend ?? {} }),
+    body,
+    extend: source.extend ?? {},
   };
 }
 
@@ -247,6 +296,8 @@ async function createMaterializedContent(
   extend: Record<string, unknown>,
   slug: string | null,
 ) {
+  // Keep the mapping identity for read-only UX and governance, while storing a
+  // complete site-local snapshot so render-time reads never cross sites.
   const mappingSourceId = rule.mode === 'mapping' ? (source.mappingSourceId ?? source.id) : null;
   const [created] = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext('cms-distribution-item'), ${source.id})`);
@@ -260,18 +311,20 @@ async function createMaterializedContent(
     const media = await adoptCmsResourcesIntoSite(tx, rule.targetSiteId, {
       coverImage: source.coverImage,
       mediaData: source.mediaData ?? {},
-      body: rule.mode === 'mapping' ? null : body,
-      extend: rule.mode === 'mapping' ? {} : extend,
-      externalLink: source.externalLink,
-      sourceUrl: source.sourceUrl,
-    });
+     body,
+     extend,
+     externalLink: source.externalLink,
+     sourceUrl: source.sourceUrl,
+      attachments: source.attachments ?? [],
+   });
     const rows = await tx.insert(cmsContents).values({
       siteId: rule.targetSiteId,
       channelId: rule.targetChannelId,
       modelId: targetChannel.modelId ?? null,
       contentType: source.contentType,
-      mediaData: media.mediaData,
-      title: source.title,
+     mediaData: media.mediaData,
+     title: source.title,
+      titleStyle: source.titleStyle ?? {},
       subTitle: source.subTitle,
       shortTitle: source.shortTitle,
       slug,
@@ -281,15 +334,18 @@ async function createMaterializedContent(
       editor: source.editor,
       source: source.source,
       sourceUrl: media.sourceUrl,
-      isOriginal: false,
-      body: media.body,
+     isOriginal: false,
+     body: media.body,
+      attachments: media.attachments ?? [],
       extend: media.extend,
       externalLink: media.externalLink,
-      detailTemplate: null,
-      isTop: false,
-      topWeight: 0,
+     detailTemplate: null,
+     staticPath: null,
+      isTop: source.isTop,
+      topWeight: source.topWeight,
       isRecommend: source.isRecommend,
-      isHot: source.isHot,
+     isHot: source.isHot,
+      topExpireAt: source.topExpireAt,
       hasImage: source.hasImage,
       hasVideo: source.hasVideo,
       hasAttachment: source.hasAttachment,
@@ -302,7 +358,8 @@ async function createMaterializedContent(
       seoKeywords: source.seoKeywords,
       seoDescription: source.seoDescription,
       socialImageAlt: source.socialImageAlt,
-      twitterCreator: source.twitterCreator,
+     twitterCreator: source.twitterCreator,
+      expireAt: source.expireAt,
       mappingSourceId,
       distributionRuleId: rule.id,
       distributionSourceId: source.id,
@@ -324,34 +381,47 @@ async function synchronizeExisting(
   extend: Record<string, unknown>,
 ) {
   assertCmsContentUnlocked(target);
-  // updatePatch 还带着 coverImage / mediaData / externalLink / sourceUrl 四个素材字段，
-  // 它们已是来源站句柄，归一化对句柄是 no-op，因此必须整体跨站登记后再交给 updateCmsContent，
-  // 否则每次同步都会把这些字段回退成来源站句柄，来源站删除时目标站封面与图集集体变空
-  const patch = await adoptCmsResourcesIntoSite(db, rule.targetSiteId, updatePatch(source, body, rule.mode));
-  patch.expectedVersion = target.version;
-  await updateCmsContent(target.id, patch, { suppressDistributionSideEffects: true });
   const mappingSourceId = rule.mode === 'mapping' ? (source.mappingSourceId ?? source.id) : null;
-  const updated = await db.transaction(async (tx) => {
-    const [row] = await tx.update(cmsContents).set({
+  const mutation = await db.transaction(async (tx) => {
+    const site = await lockCmsSiteForMutation(tx, rule.targetSiteId);
+    const [locked] = await tx.select().from(cmsContents)
+      .where(and(eq(cmsContents.id, target.id), eq(cmsContents.siteId, rule.targetSiteId)))
+      .for('update').limit(1);
+    if (!locked || locked.version !== target.version || locked.lockedAt) {
+      throw new HTTPException(409, { message: '目标内容已被其他操作修改或锁定' });
+    }
+    const oldPublish = locked.status === 'published'
+      ? await captureCmsContentPublishSnapshot(tx, locked, { includeExistingArtifacts: true })
+      : null;
+    const adopted = await adoptCmsResourcesIntoSite(tx, rule.targetSiteId, updatePatch(source, body));
+    const canonical = await canonicalizeCmsResourceFields(tx, rule.targetSiteId, adopted, 'content');
+    const { expectedVersion: _expectedVersion, channelId: _channelId, ...contentPatch } = canonical;
+    const [updated] = await tx.update(cmsContents).set({
+      ...contentPatch,
+      titleStyle: source.titleStyle ?? {},
+      attachments: source.attachments ?? [],
+      topExpireAt: source.topExpireAt,
+      expireAt: source.expireAt,
+      modelId: locked.modelId,
       mappingSourceId,
-      // 本次写入会覆盖 updateCmsContent 刚落的 body/extend，因此必须在同一事务内重建引用索引
-      ...(rule.mode === 'mapping'
-        ? { body: null, extend: {} }
-        : await adoptCmsResourcesIntoSite(
-            tx,
-            rule.targetSiteId,
-            await canonicalizeCmsResourceFields(tx, rule.targetSiteId, { body, extend }, 'content'),
-          )),
       distributionRuleId: rule.id,
       distributionSourceId: source.id,
       distributionSourceVersion: source.version,
-      searchVector: contentSearchVector(rule.targetSiteId, { ...source, body }, extendSearchTexts(extend)),
-    }).where(eq(cmsContents.id, target.id)).returning();
-    await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
-    return row;
+      version: sql`${cmsContents.version} + 1`,
+      searchVector: contentSearchVector(rule.targetSiteId, { ...source, ...contentPatch, body }, extendSearchTexts((contentPatch.extend ?? extend) as Record<string, unknown>)),
+    }).where(and(eq(cmsContents.id, locked.id), eq(cmsContents.version, locked.version), isNull(cmsContents.lockedAt))).returning();
+    if (!updated) throw new HTTPException(409, { message: '目标内容已被其他操作修改或锁定' });
+    await syncCmsResourceRefs(tx, 'content', updated.id, updated.siteId, updated);
+    await logContentOp(tx, target.id, 'updated', '分发规则 #' + rule.id + ' 同步来源内容 #' + source.id + ' v' + source.version);
+    const task = oldPublish
+      ? await insertContentPublishOutbox(tx, site, updated, 'distribution-sync', oldPublish.deletePaths, {
+          build: updated.status === 'published' && !updated.deletedAt && !updated.externalLink?.trim(),
+        })
+      : null;
+    return { updated, task };
   });
-  await logContentOp(db, target.id, 'updated', `分发规则 #${rule.id} 同步来源内容 #${source.id} v${source.version}`);
-  return updated;
+  if (mutation.task) await enqueueCmsPublishOutboxes([mutation.task], '分发规则 #' + rule.id + ' 内容同步');
+  return mutation.updated;
 }
 
 interface SyncOneResult {
@@ -365,8 +435,9 @@ async function synchronizeOne(
   source: CmsContentRow,
   targetChannel: typeof cmsChannels.$inferSelect,
 ): Promise<SyncOneResult> {
-  if (source.status !== 'published' || source.deletedAt || source.archivedAt) {
-    return { outcome: 'skipped', targetContentId: null, message: '来源内容已不再满足已发布条件' };
+  const sourceEffectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(rule.sourceSiteId);
+  if (!sourceMatchesRule(rule, source, sourceEffectiveChannelIds)) {
+    return { outcome: 'skipped', targetContentId: null, message: '来源内容已不再满足分发规则' };
   }
   // 分发保留素材句柄：目标站沿用同一素材引用，来源站删除素材时会被删除保护拦下
   const resolved = await getContentBodyExtendRaw(source);
@@ -427,15 +498,19 @@ async function synchronizeOne(
 
 async function mappingTargetsForCheck(rule: CmsDistributionRuleRow, afterTargetId: number) {
   if (rule.mode !== 'mapping') return [];
-  const targets = await db.select().from(cmsContents).where(and(
-    eq(cmsContents.distributionRuleId, rule.id),
-    isNotNull(cmsContents.distributionSourceId),
+ const targets = await db.select().from(cmsContents).where(and(
+   eq(cmsContents.distributionRuleId, rule.id),
+    eq(cmsContents.siteId, rule.targetSiteId),
+   isNotNull(cmsContents.distributionSourceId),
     isNull(cmsContents.deletedAt),
     gt(cmsContents.id, afterTargetId),
   )).orderBy(asc(cmsContents.id)).limit(100);
   if (!targets.length) return [];
-  const sourceIds = [...new Set(targets.map((target) => target.distributionSourceId!))];
-  const sources = await db.select().from(cmsContents).where(inArray(cmsContents.id, sourceIds));
+ const sourceIds = [...new Set(targets.map((target) => target.distributionSourceId!))];
+  const sources = await db.select().from(cmsContents).where(and(
+    inArray(cmsContents.id, sourceIds),
+    eq(cmsContents.siteId, rule.sourceSiteId),
+  ));
   const sourceById = new Map(sources.map((source) => [source.id, source]));
   return targets
     .map((target) => ({ target, source: sourceById.get(target.distributionSourceId!) ?? null }));
@@ -446,34 +521,49 @@ async function detachStaleMapping(
   target: CmsContentRow,
   source: CmsContentRow | null,
 ) {
-  assertCmsContentUnlocked(target);
-  if (target.status === 'published') await offlineCmsContent(target.id);
-  const body = sanitizeCmsHtml(source?.body ?? target.body);
-  const extend = source?.extend ?? target.extend ?? {};
-  const updated = await db.transaction(async (tx) => {
-    const [row] = await tx.update(cmsContents).set({
+  const safeSource = source && source.siteId === rule.sourceSiteId ? source : null;
+  const mutation = await db.transaction(async (tx) => {
+    const site = await lockCmsSiteForMutation(tx, target.siteId);
+    const [locked] = await tx.select().from(cmsContents)
+      .where(and(eq(cmsContents.id, target.id), eq(cmsContents.siteId, target.siteId)))
+      .for('update').limit(1);
+    if (!locked || locked.lockedAt) throw new HTTPException(409, { message: '目标内容锁状态已变化' });
+    const oldPublish = locked.status === 'published'
+      ? await captureCmsContentPublishSnapshot(tx, locked, { includeExistingArtifacts: true })
+      : null;
+    const body = sanitizeCmsHtml(safeSource?.body ?? locked.body);
+    const extend = safeSource?.extend ?? locked.extend ?? {};
+    const adopted = await adoptCmsResourcesIntoSite(
+      tx,
+      target.siteId,
+      await canonicalizeCmsResourceFields(tx, target.siteId, { body, extend }, 'content'),
+    );
+    const [updated] = await tx.update(cmsContents).set({
       // 物化后正文归本行所有，与引用索引一并在事务内落定
-      ...await adoptCmsResourcesIntoSite(
-        tx,
-        target.siteId,
-        await canonicalizeCmsResourceFields(tx, target.siteId, { body, extend }, 'content'),
-      ),
+      ...adopted,
+      status: oldPublish ? 'offline' : locked.status,
       mappingSourceId: null,
-      distributionSourceVersion: source?.version ?? target.distributionSourceVersion,
+      distributionRuleId: null,
+      distributionSourceId: null,
+      distributionSourceVersion: null,
       version: sql`${cmsContents.version} + 1`,
-      searchVector: contentSearchVector(target.siteId, { ...target, body }, extendSearchTexts(extend)),
-    }).where(and(eq(cmsContents.id, target.id), isNull(cmsContents.lockedAt))).returning();
-    if (row) await syncCmsResourceRefs(tx, 'content', row.id, row.siteId, row);
-    return row;
+      searchVector: contentSearchVector(target.siteId, { ...locked, ...adopted, body }, extendSearchTexts(extend)),
+    }).where(and(eq(cmsContents.id, locked.id), eq(cmsContents.version, locked.version), isNull(cmsContents.lockedAt))).returning();
+    if (!updated) throw new HTTPException(409, { message: '目标内容已被其他操作修改' });
+    await syncCmsResourceRefs(tx, 'content', updated.id, updated.siteId, updated);
+    await logContentOp(
+      tx,
+      target.id,
+      oldPublish ? 'offlined' : 'updated',
+      `分发规则 #${rule.id} 来源不再满足已发布条件，已${oldPublish ? '下线并' : ''}物化最后快照`,
+    );
+    const task = oldPublish
+      ? await insertContentPublishOutbox(tx, site, updated, 'distribution-detach', oldPublish.deletePaths, { build: false })
+      : null;
+    return { updated, task };
   });
-  if (!updated) throw new HTTPException(409, { message: '目标内容锁状态已变化' });
-  await logContentOp(
-    db,
-    target.id,
-    'offlined',
-    `分发规则 #${rule.id} 来源不再满足已发布条件，已下线并物化最后快照`,
-  );
-  return updated;
+  if (mutation.task) await enqueueCmsPublishOutboxes([mutation.task], `分发规则 #${rule.id} 映射失效`);
+  return mutation.updated;
 }
 
 async function assertDistributionRuleFence(ruleId: number, expectedRevision: number): Promise<void> {
@@ -531,11 +621,25 @@ export function registerCmsDistributionTaskHandler(): void {
       }
       await assertSiteAccess(rule.sourceSiteId);
       await assertSiteAccess(rule.targetSiteId);
+      const [sourceSite, targetSite] = await Promise.all([
+        resolveEffectiveCmsSite(rule.sourceSiteId).catch(() => null),
+        resolveEffectiveCmsSite(rule.targetSiteId).catch(() => null),
+      ]);
+      if (!sourceSite?.chain.every((site) => site.status === 'enabled')
+        || !targetSite?.chain.every((site) => site.status === 'enabled')) {
+        throw new TaskCancelledError('分发来源或目标站点已停用，任务已取消', { stale: true, ruleId });
+      }
       if (rule.sourceChannelId != null) await assertChannelAccess(rule.sourceChannelId);
       await assertChannelAccess(rule.targetChannelId);
       const targetChannel = await ensureCmsChannelExists(rule.targetChannelId);
-      if (targetChannel.siteId !== rule.targetSiteId) throw new Error('目标栏目范围已失效');
-      const sourceTotal = await db.$count(cmsContents, and(...sourceConditions(rule)));
+      if (targetChannel.siteId !== rule.targetSiteId
+        || targetChannel.type !== 'list'
+        || targetChannel.status !== 'enabled'
+        || !(await getEffectivelyEnabledCmsChannelIds(rule.targetSiteId)).has(targetChannel.id)) {
+        throw new TaskCancelledError('分发目标栏目已停用、失效或不再是列表栏目', { stale: true, ruleId });
+      }
+      const sourceEffectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(rule.sourceSiteId);
+      const sourceTotal = await db.$count(cmsContents, and(...await sourceConditions(rule)));
       let total = sourceTotal;
       let lastSourceId = Number(ctx.checkpoint?.lastSourceId ?? 0);
       let lastTargetId = Number(ctx.checkpoint?.lastTargetId ?? 0);
@@ -547,7 +651,7 @@ export function registerCmsDistributionTaskHandler(): void {
       while (true) {
         await assertDistributionRuleFence(ruleId, expectedRevision);
         const rows = await db.select().from(cmsContents)
-          .where(and(...sourceConditions(rule, lastSourceId)))
+          .where(and(...await sourceConditions(rule, lastSourceId)))
           .orderBy(asc(cmsContents.id))
           .limit(100);
         if (!rows.length) break;
@@ -617,7 +721,7 @@ export function registerCmsDistributionTaskHandler(): void {
             let outcome: 'success' | 'skipped' | 'conflict' | 'failed' = 'skipped';
             let message = '映射来源仍满足规则';
             try {
-              if (!source || !sourceMatchesRule(rule, source)) {
+              if (!source || !sourceMatchesRule(rule, source, sourceEffectiveChannelIds)) {
                 if (target.lockedAt) {
                   outcome = 'conflict';
                   conflicts += 1;
