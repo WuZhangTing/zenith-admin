@@ -7,5 +7,6 @@
 export * from './constants';
 export * from './enum-options';
 export * from './json-shape';
+export * from './random';
 export * from './types';
 export * from './validation';

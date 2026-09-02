@@ -37,7 +37,7 @@ function persist(list: FieldTemplateEntry[]): void {
 
 export function saveFieldTemplate(name: string, field: WorkflowFormField): void {
   const entry: FieldTemplateEntry = {
-    id: globalThis.crypto?.randomUUID?.() ?? `tpl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    id: crypto.randomUUID(),
     name: name.trim(),
     field: structuredClone(field),
     createdAt: new Date().toISOString(),

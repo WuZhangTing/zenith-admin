@@ -1,9 +1,10 @@
-import { Button, Spin, Table, Toast } from '@douyinfe/semi-ui';
+import { Button, Spin, Table } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Copy, Gift, UserPlus, Users } from 'lucide-react';
 import { MemberPage } from '../../components/MemberPage';
 import { useInviteSummary } from '../../hooks/queries';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 function StatBlock({ icon, label, value }: Readonly<{ icon: React.ReactNode; label: string; value: React.ReactNode }>) {
   return (
@@ -25,10 +26,7 @@ export default function InvitePage() {
     ? `${window.location.origin}${window.location.pathname}#/?invite=${summary.inviteCode}`
     : '';
 
-  const copy = async (text: string, tip: string) => {
-    await navigator.clipboard.writeText(text);
-    Toast.success(tip);
-  };
+  const copy = (text: string, tip: string) => copyTextWithToast(text, { success: tip });
 
   const columns: ColumnProps<{ id: number; nickname: string; createdAt: string }>[] = [
     { title: '昵称', dataIndex: 'nickname' },

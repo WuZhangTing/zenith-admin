@@ -23,6 +23,7 @@ import FormTemplateGallery from '../designer/components/FormTemplateGallery';
 import WorkflowFormRenderer from '../designer/components/WorkflowFormRenderer';
 import { useSaveWorkflowForm, useWorkflowFormDetail, workflowFormKeys } from '@/hooks/queries/workflow-forms';
 import { confirmDanger } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 const FieldDependencyGraph = lazy(() => import('../designer/components/FieldDependencyGraph'));
 
@@ -31,7 +32,7 @@ type PreviewState = 'fill' | 'readonly' | 'approval';
 let tplKeyCounter = 0;
 function genFieldKey(type: WorkflowFormFieldType): string {
   tplKeyCounter += 1;
-  const random = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 10);
+  const random = crypto.randomUUID();
   return `${type}_${Date.now()}_${tplKeyCounter}_${random.replace(/-/g, '').slice(0, 8)}`;
 }
 
@@ -310,14 +311,7 @@ export default function WorkflowFormInlineEditor({
 
   const openJson = () => { setJsonDraft(schemaJson); setJsonVisible(true); };
 
-  const copyJson = async () => {
-    try {
-      await navigator.clipboard.writeText(jsonDraft || schemaJson);
-      Toast.success('已复制 JSON');
-    } catch {
-      Toast.error('复制失败，请手动选择复制');
-    }
-  };
+  const copyJson = () => copyTextWithToast(jsonDraft || schemaJson, { success: '已复制 JSON', error: '复制失败，请手动选择复制' });
 
   // 从 JSON 导入字段（结构校验 + 归一化后整体替换，纳入历史可撤销）
   const importJson = () => {

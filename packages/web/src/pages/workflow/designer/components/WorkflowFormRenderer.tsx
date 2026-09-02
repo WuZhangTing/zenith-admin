@@ -16,6 +16,7 @@ import { evalWorkflowFieldRuleGroup as evalRuleGroup, isWorkflowFieldVisible as 
 import { CURRENCY_OPTIONS, toDateFnsToken, dateFormatHasTime, dateFormatHasDay } from '../form-types';
 import { evalFormula } from '../form-formula';
 import { rmbUpper } from '@/utils/rmb';
+import { readClipboardText } from '@/utils/clipboard';
 import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
 import RegionSelect from '@/components/RegionSelect';
@@ -454,11 +455,9 @@ function DetailTableInput({ value, onChange, columns, disabled }: Readonly<Detai
 
   // 从剪贴板粘贴（Excel/表格文本）：行按换行、单元格按制表符拆分，按列顺序追加
   const pasteRows = async () => {
-    let text: string;
-    try {
-      text = await navigator.clipboard.readText();
-    } catch {
-      Toast.error('无法读取剪贴板，请检查浏览器权限');
+    const text = await readClipboardText();
+    if (text === null) {
+      Toast.error('无法读取剪贴板：需 HTTPS 访问并允许剪贴板权限');
       return;
     }
     const lines = text.replace(/\r/g, '').split('\n').filter((l) => l.trim() !== '');

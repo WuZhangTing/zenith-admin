@@ -7,7 +7,7 @@
  */
 import { onCLS, onINP, onLCP, onFCP, onTTFB, type Metric } from 'web-vitals';
 import { ANALYTICS_CONFIG_VERSION_KEY, ANALYTICS_EXPERIMENT_EXPOSURE_EVENT, ANALYTICS_RAGE_CLICK_EVENT } from '@zenith/shared/analytics';
-import { TOKEN_KEY } from '@zenith/shared/core';
+import { TOKEN_KEY, randomUUID } from '@zenith/shared/core';
 import type { TrackEventInput, AnalyticsPublicConfig, AnalyticsExperimentAssignment } from '@zenith/shared/analytics';
 import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { addBreadcrumb } from './breadcrumbs';
@@ -137,19 +137,6 @@ function analyticsHeaders(token: string | null, includeJson = true): Record<stri
   return analyticsRequestHeaders({ token, siteKey: runtime.siteKey, includeJson });
 }
 
-function uuid(): string {
-  try { return crypto.randomUUID(); } catch {
-    const bytes = new Uint8Array(16);
-    try { crypto.getRandomValues(bytes); } catch {
-      for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
-    }
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-}
-
 // maskInputs=true 时对采集文本脱敏：手机号 / 邮箱 / 身份证号
 const SENSITIVE_PATTERNS: RegExp[] = [
   /1[3-9]\d{9}/g,
@@ -208,9 +195,9 @@ class Tracker {
     try {
       const anonymousKey = runtimeStorageKey(ANON_KEY);
       let id = localStorage.getItem(anonymousKey);
-      if (!id) { id = uuid(); localStorage.setItem(anonymousKey, id); }
+      if (!id) { id = randomUUID(); localStorage.setItem(anonymousKey, id); }
       return id;
-    } catch { return uuid(); }
+    } catch { return randomUUID(); }
   }
 
   private getSessionId(): string {
@@ -222,13 +209,13 @@ class Tracker {
       const ts = Number(sessionStorage.getItem(sessionTsKey) || 0);
       let id = sessionStorage.getItem(sessionKey);
       if (!id || now - ts > this.config.sessionTimeoutMinutes * 60_000) {
-        id = uuid();
+        id = randomUUID();
         sessionStorage.setItem(sessionKey, id);
         sessionStorage.removeItem(sampledKey);
       }
       sessionStorage.setItem(sessionTsKey, String(now));
       return id;
-    } catch { return uuid(); }
+    } catch { return randomUUID(); }
   }
 
   private isSampled(): boolean {
@@ -476,7 +463,7 @@ class Tracker {
 
     const enriched: TrackEventInput = {
       ...event,
-      eventId: event.eventId ?? uuid(),
+      eventId: event.eventId ?? randomUUID(),
       sessionId: this.getSessionId(),
       anonymousId: this.getAnonymousId(),
       distinctId: this.distinctId ?? undefined,

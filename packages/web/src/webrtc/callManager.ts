@@ -51,11 +51,6 @@ interface PeerEntry {
 
 const RING_TIMEOUT_MS = 35_000;
 
-function uuid(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return `c-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 class CallManager {
   private self: RtcPeerInfo | null = null;
   private iceServers: RTCIceServer[] | null = null;
@@ -302,7 +297,7 @@ class CallManager {
   // ── 对外动作 ──
   async startDirectCall(target: RtcPeerInfo, conversationId: number, conversationName: string | null, callType: RtcCallType): Promise<void> {
     if (this.snapshot.phase !== 'idle' || !this.self) return;
-    const callId = uuid();
+    const callId = crypto.randomUUID();
     // 先展示呼叫界面再申请设备：getUserMedia 弹权限框期间用户能看到「正在呼叫」而非毫无反馈
     this.emit({
       phase: 'outgoing', callId, conversationId, conversationName, callType, mode: 'p2p',
@@ -332,7 +327,7 @@ class CallManager {
 
   async startGroupCall(conversationId: number, conversationName: string | null, callType: RtcCallType): Promise<void> {
     if (this.snapshot.phase !== 'idle' || !this.self) return;
-    const callId = `g-${conversationId}-${uuid()}`;
+    const callId = `g-${conversationId}-${crypto.randomUUID()}`;
     // 同上：先给出可见的呼叫准备状态
     this.emit({
       phase: 'outgoing', callId, conversationId, conversationName, callType, mode: 'group',

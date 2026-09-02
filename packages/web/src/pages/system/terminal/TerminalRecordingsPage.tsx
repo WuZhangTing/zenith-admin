@@ -24,6 +24,7 @@ import {
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { CLEAR_LOGS_LABELS } from '@/hooks/useClearLogs';
 import { dateTimeColumn } from '@/utils/table-columns';
 
@@ -409,8 +410,7 @@ export default function TerminalRecordingsPage() {
           setPlayRec(record);
         };
         const copyAll = () => {
-          void navigator.clipboard.writeText(cmds.map((c) => c.cmd).join('\n'));
-          Toast.success('已复制全部命令');
+          void copyTextWithToast(cmds.map((c) => c.cmd).join('\n'), { success: '已复制全部命令' });
         };
         return (
           <Modal

@@ -6,7 +6,7 @@ import { Copy } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
 import type { DataGridColumn } from './types';
 import { columnKind, copyValue, displayValue } from './grid-format';
-import { writeClipboard } from './clipboard-format';
+import { copyText } from '@/utils/clipboard';
 import './data-grid.css';
 
 interface CellDetailDrawerProps {
@@ -77,7 +77,7 @@ export function CellDetailDrawer(props: CellDetailDrawerProps) {
   const handleCopy = async () => {
     const kind = columnKind(column?.dataType);
     const text = detail.language === 'json' ? detail.text : copyValue(value, kind);
-    const ok = await writeClipboard(text);
+    const ok = await copyText(text);
     if (ok) Toast.success('已复制');
     else Toast.warning('复制失败');
   };

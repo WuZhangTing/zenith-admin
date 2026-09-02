@@ -1,10 +1,11 @@
 /** 文件属性 SideSheet：基础元数据 + 目录大小按需计算 + 文件校验和（MD5/SHA1/SHA256） */
 import React, { useEffect, useState } from 'react';
-import { Button, Input, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Button, Input, SideSheet, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import { Icon } from '@iconify/react';
 import { useTerminalChecksum, useTerminalDirSize } from '@/hooks/queries/terminal-files';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
 import { formatBytes as formatSize } from '@/utils/format';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { permStringToOctal } from '../fs-utils';
 import type { FsEntry } from '../types';
 
@@ -179,8 +180,7 @@ export default function FmPropsSheet({ entry, onClose, initialChecksumAlgo }: Re
                       size="small"
                       disabled={checksumQuery.isFetching || !checksumQuery.data?.hash}
                       onClick={() => {
-                        void navigator.clipboard?.writeText(checksumQuery.data?.hash ?? '');
-                        Toast.success('已复制');
+                        void copyTextWithToast(checksumQuery.data?.hash ?? '');
                       }}
                     >
                       复制

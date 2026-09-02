@@ -4,6 +4,15 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import pluginQuery from '@tanstack/eslint-plugin-query';
 
+// ── 平台 API 纪律：内网以 http://ip 访问时不是安全上下文，navigator.clipboard 为 undefined，
+//    读写统一走 @/utils/clipboard（写文本可回退 execCommand，读文本 / 写图片由调用方降级）──
+const clipboardRestrictions = [
+  {
+    selector: 'MemberExpression[object.property.name="clipboard"][property.name=/^(writeText|readText)$/]',
+    message: '请使用 @/utils/clipboard 的 copyText / copyTextWithToast / readClipboardText；非安全上下文（HTTP）下 navigator.clipboard 不存在。',
+  },
+];
+
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'public/mockServiceWorker.js'] },
   js.configs.recommended,
@@ -78,6 +87,8 @@ export default [
           ],
         },
       ],
+      // 同名规则在后续 files 更窄的配置块中会被整体覆盖而非合并，Token 纪律块需再带一份 clipboardRestrictions
+      'no-restricted-syntax': ['error', ...clipboardRestrictions],
     },
   },
   {
@@ -88,6 +99,7 @@ export default [
     rules: {
       'no-restricted-syntax': [
         'error',
+        ...clipboardRestrictions,
         {
           selector: 'Property[key.name="borderRadius"][value.type="Literal"][value.value>=2][value.value<=14]',
           message: '内联圆角请使用 var(--semi-border-radius-small/medium/large)，以便跟随「圆角大小」偏好；刻意的造型值请加 eslint-disable 注释并注明理由。',

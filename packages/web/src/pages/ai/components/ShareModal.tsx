@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Input, Select, Space, Toast, Typography } from '@douyinfe/semi-ui';
 import { Copy, Link2Off } from 'lucide-react';
 import AppModal from '@/components/AppModal';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { useConversationShare, useCreateConversationShare, useRevokeConversationShare } from '@/hooks/queries/ai-extras';
 
 const { Text } = Typography;
@@ -27,7 +28,7 @@ export default function ShareModal({ convId, onClose }: ShareModalProps) {
   };
 
   const handleCopy = () => {
-    void navigator.clipboard.writeText(shareUrl).then(() => Toast.success('已复制链接'));
+    void copyTextWithToast(shareUrl, { success: '已复制链接' });
   };
 
   const handleRevoke = async () => {

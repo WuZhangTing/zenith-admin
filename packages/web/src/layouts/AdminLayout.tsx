@@ -4,6 +4,7 @@ import { RouteErrorBoundary } from '@/components/PageErrorBoundary';
 import { BackTop, Divider, SideSheet, Toast } from '@douyinfe/semi-ui';
 import { Expand, Shrink } from 'lucide-react';
 import { ensurePinyin } from '@/utils/pinyin';
+import { copyText } from '@/utils/clipboard';
 import MenuSearchInput, { type FlatMenuItem } from '@/components/MenuSearchInput';
 import type { User, Menu } from '@zenith/shared/identity';
 import type { ThemeMode } from '@/hooks/useTheme';
@@ -480,17 +481,17 @@ export default function AdminLayout({ user, onLogout, menus: menuTree }: AdminLa
   });
 
   const handleCopyTabName = useEventCallback((tab: TabItem) => {
-    void navigator.clipboard.writeText(tab.title);
+    void copyText(tab.title);
   });
 
   const handleCopyTabLink = useEventCallback((tab: TabItem) => {
-    void navigator.clipboard.writeText(`${window.location.origin}${tab.key}`);
+    void copyText(`${window.location.origin}${tab.key}`);
   });
 
   const handleCopyTabBreadcrumb = useEventCallback((tab: TabItem) => {
     const crumbs = findBreadcrumbs(menuTree, tab.key);
     const path = crumbs.length > 0 ? crumbs.map((c) => c.title).join(' / ') : tab.title;
-    void navigator.clipboard.writeText(path);
+    void copyText(path);
   });
 
   const handleOpenTabInNewWindow = useEventCallback((tab: TabItem) => {

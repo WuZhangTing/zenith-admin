@@ -52,6 +52,7 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { RowEditModal } from './RowEditModal';
 import { buildDeleteSql, buildInsertSql, buildUpdateSql, generateCreateTableDdl } from './sql-format';
 import { OverviewPanel, KindTag } from './OverviewPanel';
@@ -418,10 +419,7 @@ export default function DbAdminPage() {
 
   // ─── 表名右侧快捷操作 ─────────────────────────────────────────────────────
   const fullName = (t: TableItem) => (t.schema === 'public' ? t.name : `${t.schema}.${t.name}`);
-  const copyToClipboard = async (text: string, msg: string) => {
-    try { await navigator.clipboard.writeText(text); Toast.success(msg); }
-    catch { Toast.error('复制失败'); }
-  };
+  const copyToClipboard = (text: string, msg: string) => copyTextWithToast(text, { success: msg, error: '复制失败' });
   const handleCopyName = (t: TableItem) => copyToClipboard(fullName(t), `已复制 ${fullName(t)}`);
   const handleCopySelect = (t: TableItem) =>
     copyToClipboard(`SELECT * FROM ${fullName(t)} LIMIT 50;`, '已复制 SELECT 语句');

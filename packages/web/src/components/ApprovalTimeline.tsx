@@ -1,4 +1,4 @@
-import { Space, Tag, Timeline, Typography, Toast } from '@douyinfe/semi-ui';
+import { Space, Tag, Timeline, Typography } from '@douyinfe/semi-ui';
 import { UserAvatar } from '@/components/UserAvatar';
 import FileAttachment from '@/components/FileAttachment';
 import { uploadedFileToAttachment } from '@/components/FileAttachment/utils';
@@ -9,6 +9,7 @@ import { Bot, CheckCircle2, Clock, CornerUpLeft, Flag, Mail, RotateCcw, XCircle,
 import type { WorkflowTask, WorkflowInstanceStatus } from '@zenith/shared/workflow';
 import type { FlowNodeBrief } from '@/components/workflow/workflow-runtime';
 import { formatDateTime, formatDurationBetween } from '@/utils/date';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -373,12 +374,7 @@ function ExternalCallbackUrl({ callbackId }: Readonly<{ callbackId: string }>) {
   const origin = globalThis.window === undefined ? '' : globalThis.window.location.origin;
   const fullUrl = `${origin}${path}`;
   const handleCopy = () => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(fullUrl).then(
-        () => Toast.success('已复制回调地址'),
-        () => Toast.error('复制失败'),
-      );
-    }
+    void copyTextWithToast(fullUrl, { success: '已复制回调地址', error: '复制失败' });
   };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

@@ -24,6 +24,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const { Text } = Typography;
@@ -51,27 +52,6 @@ function getAbsoluteWebhookUrl(webhookUrl: string): string {
 function maskToken(token: string): string {
   if (!token) return '—';
   return `${token.slice(0, 12)}••••`;
-}
-
-async function copyText(text: string) {
-  if (!text) return;
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
-    Toast.success('已复制');
-  } catch {
-    Toast.error('复制失败，请手动复制');
-  }
 }
 
 export default function ChatBotsPage() {
@@ -336,7 +316,7 @@ function SecretLine({ label, value, code }: { readonly label: string; readonly v
       <div style={{ color: 'var(--semi-color-text-2)', fontSize: 13, marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
         <Text code={code} ellipsis={{ showTooltip: true }} style={{ flex: 1 }}>{value}</Text>
-        <Button theme="borderless" size="small" icon={<Copy size={14} />} onClick={() => void copyText(value)}>复制</Button>
+        <Button theme="borderless" size="small" icon={<Copy size={14} />} onClick={() => { if (value) void copyTextWithToast(value); }}>复制</Button>
       </div>
     </div>
   );

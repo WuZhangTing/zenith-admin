@@ -3,6 +3,7 @@ import { Button, Spin, Toast, Typography } from '@douyinfe/semi-ui';
 import { QRCodeSVG } from 'qrcode.react';
 import { Copy } from 'lucide-react';
 import { AppModal } from '@/components/AppModal';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { useChatGroupInvite, useResetChatGroupInvite } from '@/hooks/queries/chat';
 import type { ChatGroupInvite } from '@zenith/shared/chat';
 import { ResetButton } from '@/components/toolbar-controls';
@@ -34,14 +35,10 @@ export function GroupInviteModal({
 
   const url = invite ? inviteUrl(invite.token) : '';
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(`邀请你加入群聊「${groupName}」，打开链接即可加入：${url}`);
-      Toast.success('邀请链接已复制');
-    } catch {
-      Toast.error('复制失败，请手动复制');
-    }
-  };
+  const handleCopy = () => copyTextWithToast(
+    `邀请你加入群聊「${groupName}」，打开链接即可加入：${url}`,
+    { success: '邀请链接已复制', error: '复制失败，请手动复制' },
+  );
 
   const handleReset = async () => {
     try {

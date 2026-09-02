@@ -35,7 +35,8 @@ import {
   selectionReducer,
 } from './useGridSelection';
 import { useGridKeyboard } from './useGridKeyboard';
-import { COPY_CONFIRM_THRESHOLD, snapshotToTsv, writeClipboard } from './clipboard-format';
+import { COPY_CONFIRM_THRESHOLD, snapshotToTsv } from './clipboard-format';
+import { copyText } from '@/utils/clipboard';
 import { CellContent } from './cell-render';
 import { GridStatusBar } from './GridStatusBar';
 import { useGridEditor } from './useGridEditor';
@@ -459,7 +460,7 @@ export const DataGrid = forwardRef<DataGridHandle, DataGridProps>(function DataG
       return false;
     }
     const text = snapshotToTsv({ snapshot: snap, rows: displayRowsRef.current, columns: visibleColumns });
-    const ok = await writeClipboard(text);
+    const ok = await copyText(text);
     if (ok) Toast.success(`已复制 ${snap.cellCount} 个单元格`);
     else Toast.warning('复制失败');
     return ok;

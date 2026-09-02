@@ -19,6 +19,7 @@ import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
+import { copyText } from '@/utils/clipboard';
 import { type TerminalThemeDef, toXtermTheme } from './themes';
 
 export interface SessionCreateOptions {
@@ -300,7 +301,7 @@ class TerminalSessionStore {
     term.onSelectionChange(() => {
       if (!session.copyOnSelect) return;
       const text = term.getSelection();
-      if (text) void navigator.clipboard.writeText(text).catch(() => { /* 忽略权限失败 */ });
+      if (text) void copyText(text);
     });
 
     // OSC 7：Shell 报告当前工作目录（需 Shell 配置，如 bash/zsh PROMPT_COMMAND）
@@ -657,23 +658,12 @@ class TerminalSessionStore {
     return this.sessions.get(sessionId)?.term.getSelection() ?? '';
   }
 
-  /** 复制当前选中文本 */
-  async copySelection(sessionId: string): Promise<boolean> {
-    const text = this.getSelection(sessionId);
-    if (!text) return false;
-    await navigator.clipboard.writeText(text);
-    return true;
-  }
-
-  /** 从剪贴板粘贴到终端 */
-  async pasteFromClipboard(sessionId: string): Promise<boolean> {
+  /** 把文本作为粘贴内容送入终端（剪贴板读取由调用方负责，见 @/utils/clipboard） */
+  paste(sessionId: string, text: string): void {
     const session = this.sessions.get(sessionId);
-    if (!session) return false;
-    const text = await navigator.clipboard.readText();
-    if (!text) return false;
+    if (!session) return;
     session.term.paste(text);
     session.term.focus();
-    return true;
   }
 
   /** 向终端进程注入输入（等价于用户键入；数据库终端快捷命令使用） */

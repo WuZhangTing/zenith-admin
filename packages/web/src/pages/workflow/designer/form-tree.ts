@@ -283,7 +283,7 @@ let cloneCounter = 0;
 /** 生成字段 key（类型前缀 + 时间戳 + 计数 + 随机段） */
 export function generateFieldKey(type: WorkflowFormFieldType): string {
   cloneCounter++;
-  const random = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 10);
+  const random = crypto.randomUUID();
   return `${type}_${Date.now()}_${cloneCounter}_${random.replace(/-/g, '').slice(0, 8)}`;
 }
 

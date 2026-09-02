@@ -19,6 +19,7 @@ import { formatDateTime } from '@/utils/date';
 import { formatFileSize, getFileFullUrl } from '@/utils/file-utils';
 import { buildManagedFileActions } from '@/utils/managed-file-actions';
 import { renderEllipsis } from '@/utils/table-columns';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { usePermission } from '@/hooks/usePermission';
 import { usePagination } from '@/hooks/usePagination';
 import { FilePreviewLayer } from '@/components/FilePreviewLayer';
@@ -123,12 +124,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
   };
 
   const handleCopyUrl = async (file: ManagedFile) => {
-    try {
-      await navigator.clipboard.writeText(getFileFullUrl(file.url));
-      Toast.success('链接已复制');
-    } catch {
-      Toast.error('复制失败，请手动复制');
-    }
+    await copyTextWithToast(getFileFullUrl(file.url), { success: '链接已复制', error: '复制失败，请手动复制' });
   };
 
   const listColumns: ColumnProps<ManagedFile | FolderEntry>[] = [

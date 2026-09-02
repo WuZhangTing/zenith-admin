@@ -25,6 +25,7 @@ import {
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 interface SearchParams {
   keyword: string;
@@ -105,7 +106,7 @@ export default function TenantsPage() {
               size="small"
               theme="borderless"
               style={{ marginLeft: 8 }}
-              onClick={() => { void navigator.clipboard.writeText(admin.password).then(() => Toast.success('已复制')); }}
+              onClick={() => { void copyTextWithToast(admin.password); }}
             >
               复制
             </Button>

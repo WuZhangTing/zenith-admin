@@ -1,8 +1,9 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
-import { Button, Empty, Toast } from '@douyinfe/semi-ui';
+import { Button, Empty } from '@douyinfe/semi-ui';
 import { RefreshCw, Home, Copy } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 // 插图仅在错误态渲染，懒加载使 ~130KB 的 semi-illustrations 不进入入口静态图
 const IllustrationFailure = React.lazy(() =>
@@ -98,10 +99,7 @@ export class PageErrorBoundary extends React.Component<Props, State> {
       error.stack ? `\n堆栈:\n${error.stack}` : '',
       componentStack ? `\n组件栈:${componentStack}` : '',
     ].filter(Boolean).join('\n');
-    navigator.clipboard.writeText(report).then(
-      () => Toast.success('错误信息已复制，可粘贴给开发人员排查'),
-      () => Toast.error('复制失败，请手动选择复制'),
-    );
+    void copyTextWithToast(report, { success: '错误信息已复制，可粘贴给开发人员排查', error: '复制失败，请手动选择复制' });
   };
 
   render() {

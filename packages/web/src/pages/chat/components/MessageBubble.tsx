@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
+import { canWriteClipboardItems, copyText, copyTextWithToast } from '@/utils/clipboard';
 import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared/chat';
 import { getAssetMeta } from '../utils';
 import { UserAvatar } from '@/components/UserAvatar';
@@ -130,20 +131,14 @@ export const MessageBubble = memo(function MessageBubble({
     setInlineEditContent('');
   }, [inlineEditContent, msg, onEdit]);
 
-  const handleCopyText = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(msg.content);
-      Toast.success('文本已复制');
-    } catch {
-      Toast.error('复制失败');
-    }
-  }, [msg.content]);
+  const handleCopyText = useCallback(() => copyTextWithToast(msg.content, { success: '文本已复制', error: '复制失败' }), [msg.content]);
 
   const handleCopyImage = useCallback(async () => {
     try {
-      if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
-        await navigator.clipboard.writeText(msg.content);
-        Toast.success('当前环境不支持写入图片，已复制图片链接');
+      // 图片写入无法回退：非安全上下文（无 Clipboard API）或不支持 ClipboardItem 时退到复制链接
+      if (!canWriteClipboardItems()) {
+        if (await copyText(msg.content)) Toast.success('当前环境不支持写入图片，已复制图片链接');
+        else Toast.error('复制失败');
         return;
       }
       const pngBlob = await imageToPngBlob(msg.content);
@@ -161,7 +156,8 @@ export const MessageBubble = memo(function MessageBubble({
       if (!resp.ok) throw new Error('fetch failed');
       const blob = await resp.blob();
 
-      if (mimeType.startsWith('image/')) {
+      // 富内容写入无法回退：非安全上下文 / 不支持 ClipboardItem 时直接改为下载
+      if (canWriteClipboardItems() && mimeType.startsWith('image/')) {
         const objectUrl = URL.createObjectURL(blob);
         const pngBlob = await imageToPngBlob(objectUrl);
         URL.revokeObjectURL(objectUrl);
@@ -170,7 +166,7 @@ export const MessageBubble = memo(function MessageBubble({
         return;
       }
 
-      if ('ClipboardItem' in globalThis && navigator.clipboard.write) {
+      if (canWriteClipboardItems()) {
         try {
           await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })]);
           Toast.success('文件已复制到剪贴板');

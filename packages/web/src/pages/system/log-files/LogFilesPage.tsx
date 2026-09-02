@@ -19,6 +19,7 @@ import { config } from '@/config';
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { type LogFile, useDeleteLogFile, useLogFileContent, useLogFiles } from '@/hooks/queries/log-files';
 import { confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { buildSearchIndex, compileSearchPattern, computeEffectiveLevels, type LogLevel, type MatchRange, type SearchMatch } from './logFilesSearch';
 import { LogContentView, type LogContentViewHandle } from './LogContentView';
 
@@ -59,28 +60,6 @@ function usePersistentState<T>(key: string, initialValue: T) {
     });
   }, [key]);
   return [value, set] as const;
-}
-
-/** 复制文本：优先 Clipboard API，失败回退隐藏 textarea + execCommand（无剪贴板权限的宿主环境） */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      ta.remove();
-      return ok;
-    } catch {
-      return false;
-    }
-  }
 }
 
 /** 打开 tail SSE 连接；401 时借助统一请求层触发 token 刷新后重试一次 */async function fetchTailStream(fileName: string, signal: AbortSignal): Promise<Response> {
@@ -502,11 +481,7 @@ export default function LogFilesPage() {
       Toast.info('没有可复制的内容');
       return;
     }
-    if (await copyText(source.join('\n'))) {
-      Toast.success(`已复制 ${source.length} 行`);
-    } else {
-      Toast.error('复制失败，请检查浏览器剪贴板权限');
-    }
+    await copyTextWithToast(source.join('\n'), { success: `已复制 ${source.length} 行`, error: '复制失败，请检查浏览器剪贴板权限' });
   };
 
   const handleExportView = () => {

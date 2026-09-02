@@ -27,6 +27,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 interface SearchParams {
   entity: string;
@@ -162,12 +163,7 @@ export default function ExportJobsPage() {
   };
 
   const handleCopyQuery = async (record: ExportJob) => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(record.query ?? {}, null, 2));
-      Toast.success('已复制筛选条件');
-    } catch {
-      Toast.error('复制失败');
-    }
+    await copyTextWithToast(JSON.stringify(record.query ?? {}, null, 2), { success: '已复制筛选条件', error: '复制失败' });
   };
 
   const handleOpenSource = (record: ExportJob) => {

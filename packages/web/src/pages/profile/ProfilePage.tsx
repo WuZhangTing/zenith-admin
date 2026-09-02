@@ -26,6 +26,7 @@ import DictTag from '@/components/DictTag';
 import { LoginLogsTable } from '@/components/logs/LoginLogsTable';
 import { OperationLogsTable } from '@/components/logs/OperationLogsTable';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { copyText } from '@/utils/clipboard';
 import {
   useBeginTotpSetup,
   useChangeProfilePassword,
@@ -341,7 +342,8 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   }
 
   function copyToken(token: string) {
-    void navigator.clipboard.writeText(token).then(() => {
+    void copyText(token).then((ok) => {
+      if (!ok) { Toast.error('复制失败，请手动复制'); return; }
       setTokenCopied(true);
       setTimeout(() => setTokenCopied(false), 2000);
     });

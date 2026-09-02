@@ -7,6 +7,7 @@ import { LICENSE_FEATURE_OPTIONS, LICENSE_STATUS_LABELS, type LicenseEventItem, 
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { useActivateLicense, useDeactivateLicense, useLicenseEvents, useLicensingStatus } from '@/hooks/queries/licensing';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 const { Text, Paragraph } = Typography;
 
@@ -50,10 +51,7 @@ function OverviewTab() {
   const { installation, license, effective, usingTestKey } = data;
   const licensedFeatures = new Set(license?.features ?? []);
 
-  const copyInstallationId = async () => {
-    await navigator.clipboard.writeText(installation.installationId);
-    Toast.success('安装 ID 已复制');
-  };
+  const copyInstallationId = () => copyTextWithToast(installation.installationId, { success: '安装 ID 已复制' });
 
   return (
     <Space vertical align="start" spacing={24} style={{ width: '100%' }}>

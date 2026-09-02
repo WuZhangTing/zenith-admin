@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Select, Input, Toast, Banner, Typography, Card, Tag } from '@douyinfe/semi-ui';
 import { Link2, Copy } from 'lucide-react';
 import { config } from '@/config';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
@@ -42,9 +43,7 @@ export default function MpOAuthPage() {
     setGenUrl(data.url);
   };
 
-  const copy = async (text: string) => {
-    try { await navigator.clipboard.writeText(text); Toast.success('已复制'); } catch { Toast.error('复制失败'); }
-  };
+  const copy = (text: string) => copyTextWithToast(text, { error: '复制失败' });
 
   const renderAccountFilter = () => (
     <MpAccountSwitcher accounts={accounts} value={currentId} onChange={setCurrentId} loading={accountsLoading} />

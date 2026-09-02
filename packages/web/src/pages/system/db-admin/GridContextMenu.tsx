@@ -11,10 +11,10 @@ import {
   snapshotToJson,
   snapshotToMarkdown,
   snapshotToTsv,
-  writeClipboard,
 } from '@/components/data-grid';
 import { buildXlsx, downloadBlob } from '@/components/data-grid/xlsx-write';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
+import { copyText } from '@/utils/clipboard';
 import { buildInsertSql, buildUpdateSql } from './sql-format';
 
 export interface GridMenuState {
@@ -45,7 +45,7 @@ interface GridContextMenuProps {
 }
 
 async function copyAndToast(text: string, msg: string): Promise<void> {
-  const ok = await writeClipboard(text);
+  const ok = await copyText(text);
   if (ok) Toast.success(msg);
   else Toast.warning('复制失败');
 }

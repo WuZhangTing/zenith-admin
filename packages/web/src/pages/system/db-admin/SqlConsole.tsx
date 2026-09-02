@@ -26,7 +26,8 @@ import { DbTerminalPane, type DbTerminalShell } from './DbTerminalPane';
 import { ExplainView } from './ExplainView';
 import { ResultChart } from './ResultChart';
 import { rowsToJson, rowsToMarkdown } from './result-format';
-import { copyToClipboard, isReadOnlySql } from './sql-format';
+import { isReadOnlySql } from './sql-format';
+import { copyTextWithToast } from '@/utils/clipboard';
 import {
   useDbAdminCancelQuery,
   useDbAdminExecuteQuery,
@@ -40,11 +41,6 @@ import {
 
 const PAGE_SIZE = 100;
 const SAVE_FAVORITE_LABEL_WIDTH = 72;
-
-function genQueryId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return `q-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 const { Text } = Typography;
 
@@ -178,7 +174,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
 
   const addTerminalTab = useCallback((mode: 'ro' | 'rw') => {
     const id = nextIdRef.current++;
-    const paneId = `db-admin-term-${genQueryId()}`;
+    const paneId = `db-admin-term-${crypto.randomUUID()}`;
     setTabs((prev) => [...prev, {
       id,
       type: 'terminal',
@@ -244,7 +240,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   }), [activeId, activeTab.type, addTab]);
 
   const runPage = useCallback(async (sqlText: string, page: number, resetView: boolean) => {
-    const queryId = genQueryId();
+    const queryId = crypto.randomUUID();
     setRunningQueryId(queryId);
     if (resetView) { patchActive({ error: null, result: null }); setShowChart(false); }
     try {
@@ -348,9 +344,7 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
     const r = activeTab.result;
     if (!r || r.rows.length === 0) { Toast.warning('无结果可复制'); return; }
     const text = fmt === 'json' ? rowsToJson(r.rows) : rowsToMarkdown(r.columns, r.rows);
-    const ok = await copyToClipboard(text);
-    if (ok) Toast.success(`已复制为 ${fmt === 'json' ? 'JSON' : 'Markdown'}`);
-    else Toast.warning('复制失败');
+    await copyTextWithToast(text, { success: `已复制为 ${fmt === 'json' ? 'JSON' : 'Markdown'}`, error: '复制失败' });
   }, [activeTab.result]);
 
   // ─── 收藏夹 ─────────────────────────────────────────────────────────────────

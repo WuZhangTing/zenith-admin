@@ -82,6 +82,7 @@ import {
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { formatFileSize } from '@/utils/file-utils';
 import { confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
@@ -132,10 +133,7 @@ function copyArtifactLink(release: AppRelease, artifact: AppArtifact) {
   const url = artifact.kind === 'external' && artifact.externalUrl
     ? artifact.externalUrl
     : `${window.location.origin}/api/public/app-releases/${release.appKey}/${release.channel}/${artifact.platform}/${encodeURIComponent(artifact.fileName)}`;
-  void navigator.clipboard.writeText(url).then(
-    () => Toast.success('下载链接已复制'),
-    () => Toast.error('复制失败'),
-  );
+  void copyTextWithToast(url, { success: '下载链接已复制', error: '复制失败' });
 }
 
 // ─── 应用管理对话框（应用是轻量配置，列表 + 行内编辑对话框即可）────────────────

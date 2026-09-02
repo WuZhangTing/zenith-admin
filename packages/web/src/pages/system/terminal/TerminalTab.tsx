@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useThemeController } from '@/providers/theme-controller';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
+import { copyTextWithToast, readClipboardText } from '@/utils/clipboard';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { resolveTheme } from './themes';
 import { terminalSessionStore, type TerminalStatusSnapshot } from './terminalSessionStore';
@@ -120,26 +121,18 @@ export default function TerminalTab({ sessionId, active, focused, shell, label, 
   }, [sessionId]);
 
   const copySelection = useCallback(async () => {
-    try {
-      const copied = await terminalSessionStore.copySelection(sessionId);
-      if (copied) Toast.success('已复制');
-      else Toast.warning('请先选中文本');
-    } catch {
-      Toast.error('复制失败，请检查浏览器剪贴板权限');
-    } finally {
-      setContextMenu(null);
-    }
+    const text = terminalSessionStore.getSelection(sessionId);
+    if (!text) Toast.warning('请先选中文本');
+    else await copyTextWithToast(text, { error: '复制失败，请检查浏览器剪贴板权限' });
+    setContextMenu(null);
   }, [sessionId]);
 
   const pasteFromClipboard = useCallback(async () => {
-    try {
-      const pasted = await terminalSessionStore.pasteFromClipboard(sessionId);
-      if (!pasted) Toast.warning('剪贴板为空');
-    } catch {
-      Toast.error('粘贴失败，请检查浏览器剪贴板权限');
-    } finally {
-      setContextMenu(null);
-    }
+    const text = await readClipboardText();
+    if (text === null) Toast.warning('当前环境无法读取剪贴板，请使用 Ctrl+V 粘贴');
+    else if (!text) Toast.warning('剪贴板为空');
+    else terminalSessionStore.paste(sessionId, text);
+    setContextMenu(null);
   }, [sessionId]);
 
   const selectAll = useCallback(() => {
@@ -164,14 +157,8 @@ export default function TerminalTab({ sessionId, active, focused, shell, label, 
       setContextMenu(null);
       return;
     }
-    try {
-      await navigator.clipboard.writeText(path);
-      Toast.success('已复制当前路径');
-    } catch {
-      Toast.error('复制失败，请检查浏览器剪贴板权限');
-    } finally {
-      setContextMenu(null);
-    }
+    await copyTextWithToast(path, { success: '已复制当前路径', error: '复制失败，请检查浏览器剪贴板权限' });
+    setContextMenu(null);
   }, [cwd, sessionId]);
 
   const openLocalTerminalAtCurrentPath = useCallback(() => {

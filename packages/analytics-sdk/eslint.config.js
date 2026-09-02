@@ -18,6 +18,14 @@ export default [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
+      // SDK 嵌入第三方页面，没有 web 端那样的入口 polyfill：非安全上下文（HTTP）下 crypto.randomUUID 不存在
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'MemberExpression[property.name="randomUUID"]',
+          message: '请使用 @zenith/shared/core 的 randomUUID()；非安全上下文下 crypto.randomUUID 不存在。',
+        },
+      ],
     },
   },
 ];

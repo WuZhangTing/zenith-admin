@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react';
-import { Tabs, TabPane, Select, Input, Typography, Banner, Button, Toast, Space, Card } from '@douyinfe/semi-ui';
+import { Tabs, TabPane, Select, Input, Typography, Banner, Button, Space, Card } from '@douyinfe/semi-ui';
 import { Copy } from 'lucide-react';
 import { config } from '@/config';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { useOpenAppOptions } from '@/hooks/queries/open-platform';
 
 const { Text, Title } = Typography;
 
 function CodeBlock({ code }: { code: string }) {
   const copy = () => {
-    void navigator.clipboard.writeText(code).then(() => Toast.success('已复制'));
+    void copyTextWithToast(code);
   };
   return (
     <div style={{ position: 'relative', marginBottom: 16 }}>

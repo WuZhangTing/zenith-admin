@@ -8,8 +8,8 @@ import { RefreshCw, Activity, Wrench, KeyRound, GitCompare } from 'lucide-react'
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmDanger } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { MetricMeter } from '@/components/data-viz/MetricMeter';
-import { copyToClipboard } from './sql-format';
 import {
   useDbAdminActivity,
   useDbAdminActivityAction,
@@ -255,9 +255,7 @@ function IndexHealthPanel() {
   const loading = indexHealthQuery.isFetching;
 
   const copyDrop = (r: IndexInfoRow) => {
-    void copyToClipboard(`DROP INDEX ${r.schema === 'public' ? '' : `"${r.schema}".`}"${r.index}";`).then((ok) => {
-      if (ok) Toast.success('已复制 DROP INDEX'); else Toast.warning('复制失败');
-    });
+    void copyTextWithToast(`DROP INDEX ${r.schema === 'public' ? '' : `"${r.schema}".`}"${r.index}";`, { success: '已复制 DROP INDEX', error: '复制失败' });
   };
 
   const unusedColumns: ColumnProps<IndexInfoRow>[] = [

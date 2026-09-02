@@ -13,6 +13,7 @@ import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import type { IotWhitelistEntry } from '@zenith/shared/iot';
 import { useAllIotProducts } from '@/hooks/queries/iot-products';
 import {
@@ -88,7 +89,7 @@ export default function IotRegisterPage() {
       ),
       okText: '复制并关闭',
       onOk: () => {
-        void navigator.clipboard.writeText(result.registrationSecret).then(() => Toast.success('已复制'));
+        void copyTextWithToast(result.registrationSecret);
       },
     });
   };

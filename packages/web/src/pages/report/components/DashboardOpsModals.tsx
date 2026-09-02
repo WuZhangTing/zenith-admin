@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { QRCodeSVG } from 'qrcode.react';
 import AppModal from '@/components/AppModal';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
+import { copyTextWithToast } from '@/utils/clipboard';
 import type { ReportDashboardShare } from '@zenith/shared/report';
 import {
   useCreateReportDashboardShare,
@@ -70,8 +71,8 @@ export function ShareModal({ visible, dashboardId, onClose }: Readonly<{ visible
     Toast.success('已删除');
   }
   function urlOf(token: string) { return `${window.location.origin}/public/report/${token}`; }
-  function copy(token: string) { void navigator.clipboard.writeText(urlOf(token)); Toast.success('已复制分享链接'); }
-  function copyIframe(token: string) { void navigator.clipboard.writeText(`<iframe src="${urlOf(token)}" width="100%" height="600" frameborder="0"></iframe>`); Toast.success('已复制 iframe 代码'); }
+  function copy(token: string) { void copyTextWithToast(urlOf(token), { success: '已复制分享链接' }); }
+  function copyIframe(token: string) { void copyTextWithToast(`<iframe src="${urlOf(token)}" width="100%" height="600" frameborder="0"></iframe>`, { success: '已复制 iframe 代码' }); }
 
   return (
     <AppModal title="公开分享" visible={visible} onCancel={onClose} onOk={onClose} okText="完成" width={640} fullscreenable={false}>

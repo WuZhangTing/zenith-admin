@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './PaymentLinkPublicPage.css';
 import { formatYuan, getPaymentQrInstruction } from '@/utils/payment';
+import { copyText } from '@/utils/clipboard';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Form, Space, Spin, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
@@ -169,10 +170,9 @@ export default function PaymentLinkPublicPage() {
   }
 
   async function copyPageUrl() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
+    if (await copyText(window.location.href)) {
       Toast.success('链接已复制，请在浏览器中打开');
-    } catch {
+    } else {
       Toast.info('请通过右上角菜单选择「在浏览器打开」');
     }
   }

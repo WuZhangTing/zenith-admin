@@ -12,7 +12,7 @@
  * - 隐私默认安全：maskAllInputs 恒开，可配 maskAllText / blockSelector；
  * - 任何内部异常静默（监控自身不得拖垮业务应用）。
  */
-import { TOKEN_KEY } from '@zenith/shared/core';
+import { TOKEN_KEY, randomUUID } from '@zenith/shared/core';
 import type { AnalyticsPublicConfig, ReplayTrigger, ReplayTriggerType } from '@zenith/shared/analytics';
 import { analyticsRequestHeaders } from './http';
 import type { AnalyticsRuntimeBaseConfig } from './runtime-config';
@@ -72,19 +72,6 @@ let flushTimer: ReturnType<typeof setInterval> | null = null;
 let uploading = Promise.resolve();
 let lifecycleBound = false;
 let activeConfig: (Pick<AnalyticsPublicConfig, 'trackReplay' | 'replaySessionSampleRate' | 'replayOnError' | 'replayMaskAllText' | 'replayBlockSelector' | 'maskInputs'> & { consent: boolean }) | null = null;
-
-function uuid(): string {
-  try { return crypto.randomUUID(); } catch {
-    const bytes = new Uint8Array(16);
-    try { crypto.getRandomValues(bytes); } catch {
-      for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
-    }
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  }
-}
 
 /** 当前活跃回放会话 ID（error-reporter 上报错误时注入 payload） */
 export function getActiveReplayId(): string | null {
@@ -155,7 +142,7 @@ async function startRecording(mode: 'buffer' | 'stream', sessionId: string, init
   };
 
   replaySessionId = sessionId;
-  replayId = uuid();
+  replayId = randomUUID();
   startedAtMs = Date.now();
   seq = 0;
   triggers = [...initialTriggers];

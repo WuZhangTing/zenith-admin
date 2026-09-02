@@ -77,12 +77,3 @@ export function snapshotToMarkdown(ctx: SnapshotSerializeContext): string {
 
 /** 单元格总数超过该值时应提示确认 */
 export const COPY_CONFIRM_THRESHOLD = 50_000;
-
-export async function writeClipboard(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}

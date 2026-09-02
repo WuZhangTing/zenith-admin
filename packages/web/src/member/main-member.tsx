@@ -1,3 +1,5 @@
+// 平台 API 补齐（非安全上下文），须先于任何业务模块求值
+import '../polyfills';
 // ⚠️ 必须在最顶部导入，在任何 Semi 组件之前（React 19 兼容）
 import '@douyinfe/semi-ui/react19-adapter';
 // Semi 基础样式：构建时豁免了 semi barrel 的副作用标记（见 vite.config.ts treeshake），

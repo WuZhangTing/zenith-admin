@@ -20,7 +20,6 @@ export {
   snapshotToJson,
   snapshotToMarkdown,
   snapshotToTsv,
-  writeClipboard,
 } from './clipboard-format';
 export type { SnapshotSerializeContext } from './clipboard-format';
 export {

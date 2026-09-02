@@ -30,6 +30,7 @@ import { fileKeys, useBatchDeleteFiles, useDeleteFile, useFileDetail, useFileLis
 import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 import './FilesPage.css';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -290,12 +291,7 @@ export default function FilesPage() {
   };
 
   const handleCopyUrl = async (file: ManagedFile) => {
-    try {
-      await navigator.clipboard.writeText(file.directUrl ?? getFileFullUrl(file.url));
-      Toast.success('链接已复制');
-    } catch {
-      Toast.error('复制失败，请手动复制');
-    }
+    await copyTextWithToast(file.directUrl ?? getFileFullUrl(file.url), { success: '链接已复制', error: '复制失败，请手动复制' });
   };
 
   const columns: ColumnProps<ManagedFile>[] = [

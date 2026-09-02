@@ -24,6 +24,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 const yuan = (cents: number | null | undefined) => formatYuan(cents, '用户填写');
 const LINK_STATUS_COLOR = { active: 'green', disabled: 'grey', expired: 'red' } as const satisfies Record<PaymentLinkStatus, string>;
@@ -196,13 +197,8 @@ export default function PaymentLinksPage() {
     Toast.success('token 已重置，旧链接已失效');
   }
 
-  async function copyPublicLink(link: PaymentLink) {
-    try {
-      await navigator.clipboard.writeText(publicUrl(link.token));
-      Toast.success('链接已复制');
-    } catch {
-      Toast.error('复制失败，请手动复制链接');
-    }
+  function copyPublicLink(link: PaymentLink) {
+    return copyTextWithToast(publicUrl(link.token), { success: '链接已复制', error: '复制失败，请手动复制链接' });
   }
 
   async function handleGenerateShortLink() {
@@ -217,14 +213,9 @@ export default function PaymentLinksPage() {
     Toast.success('短链已生成，二维码已切换为短链');
   }
 
-  async function copyShortLink() {
+  function copyShortLink() {
     if (!payShortUrl) return;
-    try {
-      await navigator.clipboard.writeText(payShortUrl);
-      Toast.success('短链已复制');
-    } catch {
-      Toast.error('复制失败，请手动复制链接');
-    }
+    return copyTextWithToast(payShortUrl, { success: '短链已复制', error: '复制失败，请手动复制链接' });
   }
 
   function downloadQrCode() {

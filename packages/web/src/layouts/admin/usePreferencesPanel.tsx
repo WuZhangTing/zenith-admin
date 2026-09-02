@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
 import { pinyinMatch } from '@/utils/pinyin';
+import { copyTextWithToast } from '@/utils/clipboard';
 import { sanitizeImportedPreferences, type UserPreferences } from '@/hooks/usePreferences';
 
 // 偏好设置面板：搜索过滤、分区标题、复制 / 导入偏好
@@ -27,9 +28,7 @@ export function usePreferencesPanel(
   ), [prefsSearch]);
 
   const handleCopyPreferences = useCallback(() => {
-    void navigator.clipboard.writeText(JSON.stringify(preferences, null, 2))
-      .then(() => Toast.success('偏好设置已复制到剪贴板'))
-      .catch(() => Toast.error('复制失败，请重试'));
+    void copyTextWithToast(JSON.stringify(preferences, null, 2), { success: '偏好设置已复制到剪贴板', error: '复制失败，请重试' });
   }, [preferences]);
 
   // ─── 导入偏好 ─────────────────────────────────────────────────────────────

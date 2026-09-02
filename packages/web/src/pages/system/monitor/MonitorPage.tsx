@@ -13,6 +13,7 @@ import { useMonitorHistory, useMonitorSnapshot } from '@/hooks/queries/monitor';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
 import './MonitorPage.css';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { copyTextWithToast } from '@/utils/clipboard';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const { Text } = Typography;
@@ -732,8 +733,7 @@ export default function MonitorPage() {
           icon={<CopyIcon size={12} />}
           aria-label="复制"
           onClick={() => {
-            void navigator.clipboard?.writeText(text);
-            Toast.success('已复制');
+            void copyTextWithToast(text);
           }}
         />
       </div>

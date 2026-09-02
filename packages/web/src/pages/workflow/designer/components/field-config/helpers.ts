@@ -100,7 +100,7 @@ export function createsCascadeCycle(fieldKey: string, sourceKey: string, fields:
 }
 
 export function createLocalFieldKey(type: WorkflowFormFieldType): string {
-  const random = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 10);
+  const random = crypto.randomUUID();
   return `${type}_${Date.now()}_${random.replace(/-/g, '').slice(0, 8)}`;
 }
 
