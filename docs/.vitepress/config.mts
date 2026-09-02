@@ -1,5 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitepress';
 import { withMermaid } from 'vitepress-plugin-mermaid';
+
+const rootPkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8'),
+) as { version: string };
 
 const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? '';
 const isUserOrOrgPagesRepo = repositoryName.endsWith('.github.io');
@@ -18,6 +24,16 @@ export default withMermaid(defineConfig({
   base,
   cleanUrls: true,
   lastUpdated: true,
+  vite: {
+    define: {
+      __ZN_VERSION__: JSON.stringify(rootPkg.version),
+    },
+    optimizeDeps: {
+      // mermaid 由 vitepress-plugin-mermaid 在 node_modules 内部引入，Vite 不会自动发现；
+      // 显式预构建以处理其 CJS 依赖（如 fastdom）的 ESM 互操作
+      include: ['mermaid'],
+    },
+  },
   themeConfig: {
     siteTitle: 'Zenith Admin',
     logo: '/favicon.svg',
