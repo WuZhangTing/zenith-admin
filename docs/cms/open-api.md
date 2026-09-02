@@ -1,7 +1,7 @@
 # 开放能力（Headless API）
 
 CMS 内容可通过开放平台网关以 **Headless** 方式供外部系统消费：读取走查询 DSL 与增量同步，
-写入走受治理的双向接口，变更通过 Webhook 实时外推。本篇只说明 CMS 侧资源语义；应用、签名、限流、配额、Webhook 投递与调试台能力见 [开放平台](/open-platform/)。
+写入走受治理的双向接口，变更通过 Webhook 实时外推。本篇只说明 CMS 侧资源语义；应用、签名、限流、配额、Webhook 投递与调试台能力见 [开放平台](/open-platform/)。每次写请求都会建立独立的开放应用 scope，不能借用后台用户或平台管理员权限。
 
 所有端点使用与后台一致的 `defineOpenAPIRoute` + Zod 定义，因此会进入 Swagger（`/api/docs`），
 客户端可直接由 `openapi.json` 生成 SDK。
@@ -9,7 +9,7 @@ CMS 内容可通过开放平台网关以 **Headless** 方式供外部系统消�
 ## 接入方式
 
 走开放平台标准链路：创建开发者应用 → 授权 scope → HMAC 签名调用（经鉴权/计量/限流三层网关）。
-CMS 开放端点由 `packages\server\src\routes\open-platform\open-cms.ts` 承载并挂载到 `/api/open/v1/cms`；签名规范见 [开放平台](/open-platform/)。
+CMS 开放端点由 `packages/server/src/routes/open-platform/open-cms.ts` 承载并挂载到 `/api/open/v1/cms`；签名规范见 [开放平台](/open-platform/)。
 
 Base：`/api/open/v1/cms`
 
@@ -24,7 +24,7 @@ Base：`/api/open/v1/cms`
 ### 写入授权（fail-closed）
 
 持有 `cms:write` **不等于**能写任意站点。写入前必须在「站点管理 → 操作 → 开放授权」中
-为该应用显式授权站点，并可进一步限定栏目白名单；未授权一律 403。与人类侧的
+为该应用显式授权站点，并可进一步限定栏目白名单；未授权一律 403。授权行 `channelIds=[]` 表示该站点全部栏目，非空时只允许列出的栏目。与人类侧的
 `cms_site_users` / `cms_channel_users` 是同一套 fail-closed 思路。表：`cms_open_app_grants`。
 
 **直接发布需三个条件同时成立**（任一不满足即 403）：
@@ -33,8 +33,7 @@ Base：`/api/open/v1/cms`
 2. 授权行开启「允许直接发布」
 3. 站点编辑 →「内容策略」开启「允许开放 API 直接发布」（默认关闭）
 
-默认关闭是有意的：外部写入的内容一律先落草稿走站点审核管道，与「站点导入包统一降级为草稿」
-是同一条安全约定。
+默认关闭是有意的：外部创建先写入草稿并立即提交审核，最终进入 `pending`；只有三重开关同时满足时才直接发布。站点导入包则统一保留为草稿，由后台显式审核或排期。
 
 ## 只读端点
 
@@ -62,19 +61,21 @@ GET /api/open/v1/cms/contents?siteCode=main&channel=news,notice&sort=-publishedA
 | `keyword` | 全文检索（与站内搜索共用同一分词与 tsquery 构造，结果集一致） |
 | `author` / `model` | 作者精确匹配 / 内容模型标识 |
 | `isTop` `isRecommend` `isHot` `isOriginal` | 布尔筛选（`true`/`false`/`1`/`0`） |
-| `publishedFrom` / `publishedTo` | 发布时间区间（`YYYY-MM-DD HH:mm:ss`） |
+| `publishedFrom` / `publishedTo` | 发布时间闭区间（`YYYY-MM-DD` 或 `YYYY-MM-DD HH:mm:ss`） |
 | `extend.{字段}` | 扩展字段过滤，**仅限模型中标记「纳入检索」的字段** |
 | `sort` | `-publishedAt,-topWeight`，前缀 `-` 为倒序 |
 | `fields` | 字段裁剪，逗号分隔；`id` 始终返回 |
 | `include` | `tags,channel,relations,attachments,body,extend` |
-| `page` / `pageSize` | 页码分页，`pageSize` 上限 100 |
+| `page` / `pageSize` | 页码分页；必须是十进制正整数，`pageSize` 上限 100、缺省 20。`0`、负数、小数、非数字和超过上限均返回 400，不做截断或归一化 |
 
 **白名单 fail-closed**：`sort` / `fields` / `include` / `contentType` 传入白名单之外的取值直接返回 400，
 而不是静默忽略 —— 静默忽略会让调用方误以为过滤生效、拿到比预期更宽的数据集。
 `extend.*` 额外要求字段在内容模型中标记为可检索，避免外部应用通过 JSONB 路径探测未公开字段。
 
-只返回**已发布、未回收、未归档、且所属栏目处于启用状态**的内容。栏目停用等同前台下线：
+只返回**已发布、未回收、未归档、未过期，且主栏目自身及全部祖先栏目有效启用**的内容。栏目或其祖先停用等同前台下线：
 不带 `channel` 参数的站级 feed 与显式指定该栏目的结果保持一致，不会出现「站级能拉到、指定栏目 404」。
+
+站内内容的 `url` 均按服务端栏目归档规则和 `staticPath` 生成；外链型内容的地址经过 CMS link policy 校验后原样返回。调用方不要根据 `channelCode + slug` 自行拼接 URL。
 
 ### 游标翻页（大数据量拉取）
 
@@ -107,10 +108,10 @@ GET /api/open/v1/cms/contents/sync?siteCode=main&since=2026-07-01 00:00:00
 }
 ```
 
-按 `updated_at` keyset 输出变更集，客户端只需持有上次的 `nextCursor` 即可续拉，不必全量重拉。
+按 `updated_at` keyset 输出变更集，客户端只需持有上次的 `nextCursor` 即可续拉，不必全量重拉。`pageSize` 必须是正整数，上限 200、缺省 100；格式错误、超过上限或无效的 `since` 日期时间均返回 400。
 
 - `upsert`：当前公开可见的内容
-- `delete`：不再公开（下线/回收/归档/**所属栏目被停用**）**或已被彻底删除**
+- `delete`：不再公开（下线/回收/归档/过期/**所属栏目或其祖先被停用**）**或已被彻底删除**
 
 彻底删除的行已不在 `cms_contents` 中，靠墓碑表 `cms_content_tombstones` 补齐 —— 否则客户端
 按游标永远拉不到这条变更，本地缓存会残留已删内容。`pageSize` 上限 200。
@@ -121,26 +122,28 @@ GET /api/open/v1/cms/contents/sync?siteCode=main&since=2026-07-01 00:00:00
 GET /api/open/v1/cms/contents/{idOrSlug}?siteCode=main
 ```
 
-支持 id 或 slug。默认返回正文、扩展字段、标签、附件与栏目信息（无需显式 include）；
-映射型内容的正文透传来源内容，与前台详情页共用同一解析函数。
+支持 id 或 slug。默认返回正文、扩展字段、标签、附件与栏目信息（无需显式 include），并返回规范 `url`。映射型内容读取目标站点保存的本地快照，来源变化由异步分发任务同步，不在请求时跨站读取。详情仅返回该站点 `published + 未回收 + 未归档 + 未过期`，且主栏目自身及全部祖先栏目有效启用的内容。
 
 ## 写入端点
 
 | 方法 | 路径 | scope | 说明 |
 |---|---|---|---|
-| `POST` | `/cms/contents` | `cms:write` | 创建内容，默认落草稿并提交审核；`publish: true` 且三重开关全开时直接发布 |
-| `PATCH` | `/cms/contents/{id}` | `cms:write` | 更新；带 `expectedVersion` 时版本不符返回 409 |
+| `POST` | `/cms/contents` | `cms:write` | 创建图文内容，默认落草稿并提交审核；`publish: true` 且三重开关全开时直接发布 |
+| `PATCH` | `/cms/contents/{id}` | `cms:write` | 更新图文基础字段；带 `expectedVersion` 时版本不符返回 409。`publish` 只能用于创建或独立发布端点 |
 | `POST` | `/cms/contents/{id}/submit` | `cms:write` | 提交审核 |
 | `POST` | `/cms/contents/{id}/publish` | `cms:publish` | 直接发布 |
 | `DELETE` | `/cms/contents/{id}` | `cms:write` | 移入回收站（彻底删除仅限后台） |
 
+开放写入当前支持 `channel`、标题/摘要/作者/来源、正文、SEO 字段、`extend` 和外链等图文基础字段；
+不接受 `contentType`、`mediaData`、附件、标签、副栏目、相关文章和排期字段，这些能力走后台 CMS API。
 写入复用后台既有的 `createCmsContent` / `updateCmsContent` 管线，因此**版本快照、操作日志、
 发布 outbox、静态产物、敏感词替换、编辑锁校验、素材句柄归一化与引用索引**全部自动生效，
 开放 API 不另起一套写路径。
 
 - 幂等：创建接口挂 `idempotencyGuard`，可用 `X-Idempotency-Key` 显式控制
-- 来源标记：内容 `source` 记为 `开放应用: {AppKey}`，后台内容列表可据此筛出外部稿件
-- 越权栏目 / 跨站内容一律 404，不泄露存在性
+- 来源标记：未显式提供 `source` 时自动写入 `开放应用: {AppKey}`；后台内容列表可据此筛出外部稿件
+- 跨站或不存在的内容/栏目统一返回 404；缺少应用 scope、站点授权或栏目白名单返回 403，停用或非列表栏目返回 400，不泄露未授权对象的存在性
+- HTML 正文、`externalLink`、`sourceUrl`、`coverImage` 和素材句柄遵守 CMS 的净化、URL policy 与站点隔离：`coverImage` 只接受安全站内绝对路径、http(s) 地址或本站 `cms-res://` 句柄；链接字段按共享协议白名单校验；`javascript:`、协议相对地址、反斜杠或跨站素材句柄均返回 400。开放写入不接受 `mediaData`。
 
 ## Webhook 事件外推
 
@@ -154,11 +157,12 @@ CMS 事件接入开放平台既有的 Webhook 投递管线（`app_webhook_subscr
 | `cms.content.offline` | 手动下线 / 过期自动下线 |
 | `cms.content.recycled` | 移入回收站 |
 | `cms.content.deleted` | 彻底删除 |
+开放事件契约仅包含上表五类内容事件；`cms.comment.created` 与 `cms.form.submitted` 属于保留枚举，评论/表单提交不会产生这两类事件，应用不得依赖其投递。
 
 ### 可靠性
 
 事件在**业务事务内**登记为任务中心 outbox（`cms-webhook-emit`），worker 取出后再 emit 到事件总线：
-事务提交即代表事件不会丢，worker 崩溃由任务中心的 pending 恢复扫描补投。
+正常登记成功时，outbox 与业务事务一起提交；worker 或入队失败由任务中心的 pending 恢复扫描补投。outbox 写入失败只记录日志且不阻断业务事务，调用方必须把 Webhook 视为尽力而为交付并通过监控发现登记失败。
 
 ### 投递范围
 
@@ -174,7 +178,7 @@ CMS 事件是**站点域**事件（无 clientId），只投递给「订阅了该
 
 | code | 说明 |
 |---|---|
-| 400 | 查询 DSL 参数不合法（白名单外的 sort/fields/include、非法游标、不可用的扩展字段） |
+| 400 | 查询 DSL/写入参数不合法（白名单外的 sort/fields/include、非正整数或超过上限的分页值、格式错误的游标/日期、倒置的日期范围、不可用扩展字段或不安全链接） |
 | 401 | AppKey 无效或签名校验失败 |
 | 403 | 未授权 scope，或应用未被授权该站点/栏目，或直接发布三重开关未全开 |
 | 404 | 站点/栏目/标签/内容不存在或未发布 |

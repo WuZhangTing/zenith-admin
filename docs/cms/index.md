@@ -1,6 +1,6 @@
 # CMS 内容管理
 
-Zenith Admin 内置企业级 CMS 内容管理模块，支持**多站点（站群）、内容模型自定义字段、审核工作流、多主题 React SSR 静态化发布、SEO 工具链、PostgreSQL 中文全文检索、评论/表单公开提交风控守卫**，功能对标主流内容管理系统。
+Zenith Admin 内置企业级 CMS 内容管理模块，支持**多站点（站群）、内容模型自定义字段、审核工作流、多主题 React SSR 静态化发布、SEO 工具链、PostgreSQL 中文全文检索、评论/表单公开提交风控守卫**。Server 是 CMS 业务权威边界：站点/栏目/部门数据范围、版本与发布任务、素材归属和公开 URL 都在服务端统一决定。
 
 ## 功能地图
 
@@ -79,9 +79,13 @@ CMS 前台路由（Hono 兜底路由）
    └─ React SSR 渲染（主题注册表 default/docs/gov-portal/magazine/news-portal）→ ETag 协商缓存
 后台管理（React SPA /cms/*）
    └─ /api/cms/* REST 接口（权限 cms:*，站点数据权限 cms_site_users）
+公开交互
+   └─ /api/public/cms/*（评论、表单、互动、广告令牌、浏览计数；无需后台登录）
+会员入口
+   └─ /api/member/cms/*（投稿、点赞、收藏、订阅、会员评论与互动；独立 member token）
 开放平台
    └─ /api/open/v1/cms/*（Headless 双向 API：查询 DSL / 游标翻页 / 增量同步 / 受治理写入，
-      scope cms:read|cms:write|cms:publish，写入需站点级开放授权）
+      scope cms:read|cms:write|cms:publish，写入需站点/栏目级开放授权与独立 open-app scope）
 ```
 
 ## 数据表
@@ -100,7 +104,7 @@ CMS 前台路由（Hono 兜底路由）
 
 统计表：`cms_visit_logs`（前台访问原始日志，90 天保留）/ `cms_ad_stats`（广告曝光/点击日聚合）/ `cms_ad_events`（追加型事件，配置化保留期）/ `cms_search_logs`（搜索日志，90 天保留）
 
-> 访问统计为**服务端响应路径埋点**（静态命中同样统计，无需前端 JS），UV 按 ip+ua 哈希去重，爬虫流量单独归类不计入 PV/UV 卡片；报表基于原始日志实时聚合，原始日志由周期任务保留 90 天。
+> 访问统计为**服务端响应路径埋点**（静态命中同样统计，无需前端 JS），UV 按 ip+ua 哈希去重；趋势、来源和内容排行默认排除 `bot`，设备分布保留 `bot` 作为独立项。报表基于原始日志实时聚合，原始日志由周期任务保留 90 天。
 
 SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_search_words` / `cms_hotword_groups` / `cms_hotwords`（可管理热词分组与词条）/ `cms_collect_rules` / `cms_collect_items`
 
@@ -120,7 +124,7 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 
 ## 权限码
 
-所有权限以 `cms:` 前缀，按资源划分：`cms:dashboard:view`、`cms:site:list|create|update|delete|hierarchy`、`cms:channel:list|create|update|delete`、`cms:content:list|create|update|delete|publish|audit|lock`、`cms:resource:list|upload|update|delete`、`cms:model:list|create|update|delete`、`cms:tag:list|create|update|delete`、`cms:link:list|create|update|delete`、`cms:search:manage`、`cms:seo:manage|push`、`cms:comment:list|audit|delete`、`cms:ad:list|manage`、`cms:ad-event:list|export|export-raw|cleanup`、`cms:form:list|manage`、`cms:sensitive:list|manage`、`cms:collect:list|create|update|delete|run`、`cms:widget:list|create|update|publish|offline|delete|bind`、`cms:page:list|create|update|delete|acl`、`cms:word:list|manage`、`cms:interaction:list|manage|batch|export|export-raw`、`cms:stat:view`、`cms:publish:view|build|manage|group`、`cms:subscription:list|export|export-raw`、`cms:distribution:list|create|update|delete|run|export`。
+所有权限以 `cms:` 前缀，按资源划分：`cms:dashboard:view`、`cms:site:list|create|update|delete|hierarchy`、`cms:channel:list|create|update|delete`、`cms:content:list|create|update|delete|export|publish|audit|lock`、`cms:resource:list|upload|update|delete`、`cms:model:list|create|update|delete`、`cms:tag:list|create|update|delete`、`cms:link:list|create|update|delete`、`cms:search:manage`、`cms:seo:manage|push`、`cms:comment:list|audit|delete`、`cms:ad:list|manage`、`cms:ad-event:list|export|export-raw|cleanup`、`cms:form:list|manage`、`cms:sensitive:list|manage`、`cms:collect:list|create|update|delete|run`、`cms:widget:list|create|update|publish|offline|delete|bind`、`cms:page:list|create|update|delete|acl`、`cms:word:list|manage`、`cms:interaction:list|manage|batch|export|export-raw`、`cms:stat:view`、`cms:publish:view|build|manage|group`、`cms:subscription:list|export|export-raw`、`cms:distribution:list|create|update|delete|run|export`。
 
 站点级数据权限：非平台超管必须在「站点管理 → 授权用户」中显式绑定后才能访问；未绑定时默认拒绝。平台超管可跨站点管理。
 
@@ -129,7 +133,13 @@ SEO 与采集：`cms_redirects` / `cms_link_words` / `cms_push_logs` / `cms_sear
 - **栏目级数据权限**：非平台超管必须在「栏目管理 → 授权用户」中显式绑定后，才可管理对应栏目内容（列表、详情、状态流转与批量操作均按主栏目校验）；未绑定默认拒绝，平台超管不受限。表 `cms_channel_users`。
 - **部门数据权限**：内容创建时快照创建人 `created_by` 与其部门 `dept_id`；内容列表接入系统数据权限（`getDataScopeCondition`），角色数据范围为 本部门/本部门及以下/指定部门/仅本人 时自动过滤。
 - **模型站群归属**：内容模型分「平台共享 / 站点专属」，专属模型仅归属站点可见可绑定，跨站绑定服务端拦截；详见[内容模型](./content-models#站群归属治理)。
-- **站点导入导出**：站点操作菜单「导出」下载整站 JSON 包（站点配置、栏目树、标签、**素材库（文件夹 + 素材登记）**、内容及关联、友链、重定向、内链词、广告位/广告、表单定义、搭建页面；不含运行数据与用户绑定）；工具栏「导入」上传导出包创建为新站点，内部 id 全部重映射（素材先建、再把包内 `cms-res://` 句柄改写为新站素材 id，避免跨站引用来源站素材），站点 code 冲突自动加序号，域名/默认站标记不迁移。为避免导入绕过发布权限，包内内容无论原状态或计划时间均统一导入为草稿，并清除发布时间、计划发布时间与归档状态，需由有 `cms:content:publish` 权限的用户重新发布或排期。接口 `GET /api/cms/sites/{id}/export`、`POST /api/cms/sites/import`。
+- **站点导入导出**：版本 `2` 的整站 JSON 包包含站点配置、模型及字段、栏目树、标签、素材、内容及关联、友链分组、SEO/广告/表单、互动问卷定义与题目、搭建页面、页面部件和主题插槽引用。导入会恢复模型绑定、栏目静态化与详情归档规则、内容 `staticPath`、页面 `path`/首页标记和全部包内实体引用；内容、页面部件和互动问卷统一落为草稿。域名、默认站点标记、父站继承关系、源站用户绑定、主题插槽绑定及分析/Webhook/CDN/推送/验证码密钥等环境绑定不迁移；非平台管理员仅获得按当前操作者权限创建的目标初始访问绑定，并通过 `skipped`/`warnings` 明确返回。导入数据和整站发布 outbox 在同一事务提交，提交后才入队，因此 `static`/`hybrid` 站点不会长期停留在“数据已存在但从未生成产物”的状态。接口 `GET /api/cms/sites/{id}/export`、`POST /api/cms/sites/import`，详细边界见[站群与分发](./site-groups-and-distribution#站点导入导出)。
 - **CDN 刷新**：站点设置「CDN 刷新」配置 purge webhook 地址与令牌后，增量静态化/整站重建完成自动 POST 变更路径（请求体 `{ siteCode, origin, purgeAll, paths, urls }`，配置令牌时通过 `Authorization` 请求头发送），失败仅记日志不影响静态化结果。
 - **多语言站点关联**：站点设置「多语言站点关联」配置本站语言与关联站点（`语言代码=站点标识` 每行一条）后，前台所有页面输出 `<link rel="alternate" hreflang>` 且页头显示语言切换；关联站点 URL 取绑定域名（无域名回退预览路径）。
 - **公开提交名单守卫**：评论与自定义表单提交复用规则中心统一求值门面 `decide()`。`risk_blacklist` 命中直接返回 403，`cms_watchlist` 命中放行但评论写入 `cms_comments.risk_flag = 'watchlist'`，审核队列展示「观察主体」徽标；名单规则的配置与留痕见 [规则中心](/rules/evaluation)。
+
+### 运行时约定
+
+- 所有公开 URL（栏目、内容、搭建页、标签、互动和资源）由服务端 resolver 生成；内容 DTO 返回 `canonicalUrl`/`previewUrl`，主题和管理端不拼接 `channelPath + slug + 扩展名`。
+- HTML 正文、单页正文和富文本区块写入前经过 `sanitizeCmsHtml`；CMS link 字段只接受安全站内路径、`entity:` 引用和 `http(s)`/明确允许的 `mailto`/`tel`。资源句柄按 `siteId` 隔离，跨站句柄拒绝。
+- 内容/栏目/页面/部件等公开语义变更通过发布任务中心异步处理；事务 outbox 提交后先清理站点 Redis 页面和 sitemap/RSS 元数据缓存，再异步生成或删除静态文件。整站/主题快照使用 `publicRevision`，路径级增量任务使用对象版本与路径快照；旧任务不能覆盖更新后的产物。

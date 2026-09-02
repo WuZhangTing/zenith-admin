@@ -2,7 +2,7 @@
 
 前台外观由**主题**决定：主题是仓库内置的 React TSX 模板包（服务端 `renderToStaticMarkup` SSR），在 `packages/server/src/cms/themes/registry.ts` 显式注册，无独立模板表、不做目录扫描。模板作者即开发人员——组件用 TypeScript + JSX 获得类型安全与复用，样式是主题目录下的独立 `styles.css`（见[样式体系](#样式体系)），而不是受限的字符串模板语言。
 
-站点在「站点管理 → 编辑 → 基础信息 → 主题」下拉选择；切换时服务端校验主题已注册并原子递增 `themeRevision`（发布任务以此做过期栅栏），保存后提示重建全站静态页。子站可通过站群继承沿用父站主题（`theme` / `themeConfig` / `templates` 三个继承项独立选择来源，见[站群与分发](./site-groups-and-distribution#显式逐项继承)）。
+站点在「站点管理 → 编辑 → 基础信息 → 主题」下拉选择；保存时服务端校验主题已注册并原子递增 `themeRevision`，同时提交携带 `themeRevision`、`templateRefsRevision` 和 `publicRevision` 的受影响站点重建任务，worker 以三项修订做过期栅栏。子站可通过站群继承沿用父站主题（`theme` / `themeConfig` / `templates` 三个继承项独立选择来源，见[站群与分发](./site-groups-and-distribution#显式逐项继承)）。
 
 ## 内置主题
 
@@ -14,7 +14,7 @@
 | 资讯杂志 | `magazine` | 游戏/科技/数码资讯（暗色） | sticky 毛玻璃顶栏、霓虹发光品牌/徽章、焦点大图区（1 大 + 4 小）、栏目卡片流（hover 上浮+发光描边）、**评分徽章体系**（`ratingField` 参数）、内容形态角标（图集·N/视频/外链）、热门排行侧栏 |
 | 新闻门户 | `news-portal` | 地方融媒体 / 行业资讯（报纸风） | 居中大报头+口号、主色主导航、首页头条区（置顶自动升为大标题+摘要+子链）、多栏新闻区块、热点排行侧栏、新闻详情（来源/记者/责编脚注） |
 
-五套主题共用同一渲染管线与上下文契约，换主题只改 `cms_sites.theme` 一个值，内容数据零改动。所有主题遵循同一套 CSS 变量契约（`--primary` / `--text` / `--text-2` / `--border` / `--bg` / `--bg-2`），站点级主题色（`themePrimary`）对任意主题即配即生效。
+五套主题共用同一渲染管线与上下文契约，换主题只改 `cms_sites.theme` 一个值，内容数据无需改写。所有主题遵循同一套 CSS 变量契约（`--primary` / `--text` / `--text-2` / `--border` / `--bg` / `--bg-2`），站点级主题色（`themePrimary`）对任意主题即配即生效。
 
 ## CmsTheme 接口
 
@@ -44,7 +44,7 @@ export const myTheme: CmsTheme = {
 };
 ```
 
-未注册的主题 code 渲染时回退 `default` 并记一次告警。
+主题 code 必须在注册表中存在；读取到未注册值时渲染回退 `default` 并记一次告警，站点保存和主题选择器会优先拒绝该值。
 
 ## 样式体系
 
@@ -68,7 +68,7 @@ themes/
 | 预览（`/__cms/{code}` 前缀） | `baseUrl` 非空 | 内联 `<style>` | 改主题/参数即时可见，不落盘 |
 | 正式渲染（域名访问 / 静态化产出） | `baseUrl` 为空 | `<link href="/_assets/theme.{hash}.css">` | HTML 体积骤降（列表页约 29KB → 7KB），CSS 一次下载全站缓存复用 |
 
-指纹资产 `_assets/theme.{hash}.css` 写入站点静态目录，`hash` 随最终 CSS 内容变化，响应头 `Cache-Control: public, max-age=31536000, immutable`。前台 `_assets/` 路由在文件缺失时**现场生成自愈**（旧指纹请求返回当前内容但降为 `no-cache`，不污染 immutable 语义）；整站重建的孤儿清扫豁免 `_assets/` 目录。构建产物侧，`npm run build` 后置 `copy-theme-assets` 把主题 CSS 拷入 `dist`。
+指纹资产 `_assets/theme.{hash}.css` 写入站点静态目录，`hash` 随最终 CSS 内容变化，响应头 `Cache-Control: public, max-age=31536000, immutable`。前台 `_assets/` 路由在文件缺失时**现场生成自愈**；请求非当前指纹时返回当前 CSS 并降为 `no-cache`，不污染 immutable 语义。整站重建的孤儿清扫豁免 `_assets/` 目录。构建产物侧，`npm run build` 后置 `copy-theme-assets` 把主题 CSS 拷入 `dist`。
 
 主题源码里**不要**手写 `<style>` 或内联样式字符串——公共组件样式进 `base.css`，主题差异进自己的 `styles.css`。
 
@@ -104,7 +104,7 @@ const HomeTemplate = defineHomeTemplate({
 |------|------|
 | `cms.contents.list({ channelCode?, limit?, recommend?, hot? })` | 按栏目标识取已发布内容，返回 `{ channel, list }`；`channel` 含名称与列表页 URL |
 
-安全边界：同参数调用**去重复用**（memo）、单次渲染 ≤ 20 次取数、`limit` ≤ 100；栏目 code 不存在返回空集而不是抛错——主题参数配错栏目不会打挂首页。`list` 中的条目为标准 `CmsContentItem`（含 `modelFields`），与栏目列表页同构。
+安全边界：同参数调用**去重复用**（memo）、单次渲染 ≤ 20 次取数、`limit` ≤ 100；指定的栏目 code 必须属于当前站点且自身及全部祖先栏目有效启用，不存在或不可用时返回空集而不是抛错。`list` 中的条目为标准 `CmsContentItem`（含 `modelFields`），与栏目列表页同构。无论是否指定栏目，内容均限于有效启用栏目中的 `published + 未回收 + 未归档 + 未过期` 数据。
 
 普通组件形式的首页模板继续可用（上下文自带 `latest` / `recommended` / `hot` 三组全站数据），Theme API 适合需要按栏目分区块的门户/资讯首页。
 
@@ -125,6 +125,7 @@ settingsSchema: [
 - 字段类型：`text` / `textarea` / `color` / `number` / `switch` / `select` / `image`（image 直接对接素材上传）
 - 渲染时经 `resolveThemeConfig` 解析：schema 默认值 ⊕ 已存值按类型宽容解析（非法值回退默认），模板经 `ctx.site.themeConfig` 消费，无需自行处理缺省
 - 通用外观参数（主题色 `themePrimary`、暗色模式 `themeDark`）独立于 schema，全主题一致；主题色与暗色变量覆盖由 `themes/theme-css.ts` 的 `buildThemeOverrides` 装配进最终样式表
+- `image` 值按当前站点的素材句柄解析；`bannerLink`、`serviceLinks` 等文本链接在保存时经过 CMS URL policy 校验，只接受可直接输出的安全站内路径或允许的外部协议（实体引用必须先由选择器解析为最终 href），模板不得把任意协议字符串直接输出到 `href`。
 - 接口：`GET /api/cms/sites/themes/{code}/settings-schema`
 
 各内置主题的专属参数：default（页头电话/首页横幅/栏目区块/热门开关/页脚）、docs（无专属参数）、gov-portal（页头副标题/首页栏目区块/**办事入口**（每行 `名称|链接`）/页脚）、magazine（首页栏目区块/**评分字段**/页脚）、news-portal（报头口号/首页栏目区块/页脚）。
@@ -148,7 +149,7 @@ settingsSchema: [
 
 站点级默认模板在站点编辑「模板与主题」页签配置，支持**按内容模型细分详情模板**；栏目级在栏目编辑「模板配置」区配置。栏目级不提供按模型细分——内容 `model_id` 恒等于其主栏目的 `model_id`，栏目内模型唯一，细分会退化为重复槽位。
 
-**失效引用自愈**：主题升级移除变体后，站点里的历史引用成为死配置。任意一次站点保存都会自动摘除「本次未改动且已失效」的引用（`pruneStaleTemplateDefaults`，记 warn 日志），而本次新提交的失效模板名仍抛 400 附可用清单——保留对拼写错误的即时反馈。全站存量扫描见站点管理页健康检查 Banner（`getSiteTemplateHealth`）。
+**失效引用自愈**：主题注册表中不存在的变体引用在站点保存时自动摘除（`pruneStaleTemplateDefaults`，记 warn 日志）；本次新提交的失效模板名直接返回 400 并附可用清单。全站存量扫描见站点管理页健康检查 Banner（`getSiteTemplateHealth`）。
 
 ## 共享组件（_shared.tsx）
 
@@ -201,10 +202,10 @@ widgetSlots: [{
 
 所有模板的 props 均为强类型上下文（`themes/types.ts`）：
 
-- **`CmsBaseContext`**（全模板共有）：`site`（含 `themeConfig` / `extend` / `settings`）、`nav`（导航树，外链栏目已解析 target）、`ads`、`friendLinks` / `friendLinkGroups`、`baseUrl`、`searchUrl`、`seo`、`analytics`、`langAlternates`、`audience`、`assets`（`cssHref` / `inlineCss` / `darkMode`）
+- **`CmsBaseContext`**（全模板共有）：`site`（含 `themeConfig` / `extend` / `settings`）、`nav`（导航树，节点带 `target`；链接栏目应使用已解析的最终 URL）、`ads`、`friendLinks` / `friendLinkGroups`、`baseUrl`、`searchUrl`、`seo`、`analytics`、`langAlternates`、`audience`、`assets`（`cssHref` / `inlineCss` / `darkMode`）
 - **`CmsHomeContext`**：继承 `CmsBaseContext`，额外提供 `latest` / `recommended` / `hot` 与 `homeSidebar`
 - **`CmsContentItem`**（列表条目）：标题/摘要/封面（`coverThumb` 优先）/形态（`contentType` + `imageCount` / `mediaType`）/属性标记（isTop/isRecommend/isHot）/`modelFields`
 - **`CmsDetailContext`**：`content`（`CmsContentDetail`，含正文、`bodyPagination` 正文分页、`attachments`、`albumImages` / `mediaUrl`、`modelFields`、`tags`、`prev` / `next`）、`related` 相关阅读、`comments`
 - **`CmsListContext` / `CmsTagPageContext` / `CmsSearchContext`**：`items` / `results` + `pagination` + `breadcrumbs`
 
-链接一律使用上下文给出的 URL（`item.url` / `channel.url` 等），由 `contentUrl()` 统一计算——静态化写文件与模板生成链接共用同一函数，归档目录与自定义 `staticPath` 不会算出两套路径。
+链接一律使用上下文给出的最终 URL（`item.url` / `channel.url` 等），由 `contentUrl()` 和 CMS link resolver 统一计算；静态化写文件、搜索、RSS、sitemap 与后台预览共享同一 canonical 规则。模板不应读取 `staticPath` 后自行拼接，也不应把原始 `entity:` / `internal:` 值直接输出到 `href`。

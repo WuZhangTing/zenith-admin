@@ -1,6 +1,6 @@
 # 渲染与静态化
 
-前台页面由 **React SSR**（`renderToStaticMarkup`）渲染，配合三种静态化模式与多层缓存。
+前台页面由 **React SSR**（`renderToStaticMarkup`）渲染，配合三种静态化模式与多层缓存。页面地址、静态文件名、搜索结果和后台预览均以服务端 URL resolver 的结果为准。
 
 ## 站点路由
 
@@ -14,12 +14,12 @@
 |------|-----|
 | 首页 | `/`（可被「页面搭建」isHome 页面接管） |
 | 栏目列表 | `/{channelPath}/`，分页 `/{channelPath}/index_{n}.html` |
-| 内容详情 | `/{channelPath}/{归档目录}{idOrSlug}.html`，正文多页 `/{channelPath}/{归档目录}{idOrSlug}_{n}.html`；内容设了 `staticPath` 时改用该相对路径（分页在扩展名前追加 `_{n}`）。归档目录见「详情页目录归档」 |
+| 内容详情 | `/{channelPath}/{归档目录}{idOrSlug}.html`，正文多页 `/{channelPath}/{归档目录}{idOrSlug}_{n}.html`；内容设了 `.html` 结尾的 `staticPath` 时改用该相对路径（分页在扩展名前追加 `_{n}`）。归档目录见「详情页目录归档」 |
 | 标签聚合 | `/tag/{slug}/` |
 | 搭建页面 | `/p/{slug}/`，或页面自定义的 `path`（如 `/about.html`、`/zh/about/`） |
 | 互动问卷 | `/interaction/{code}/` |
 | 搜索 | `/search?q=`（永远动态） |
-| 草稿预览 | `/preview/{id}?exp=&sig=`（签名校验） |
+| 草稿预览 | `/__cms/{siteCode}/preview/{id}?exp=&sig=`（签名校验） |
 | 主题样式资产 | `/_assets/theme.{hash}.css` |
 | 站点资源 | `/sitemap.xml`、`/robots.txt`、`/rss.xml`、`/{channelPath}/rss.xml` |
 
@@ -29,11 +29,11 @@
 
 | 模式 | 行为 | 适用 |
 |------|------|------|
-| `dynamic` | 纯 SSR + Redis 页面缓存 | 内容高频变化 |
+| `dynamic` | 纯 SSR + Redis 页面缓存；公开内容变更会清理该站点页面与 sitemap/RSS 缓存 | 内容高频变化 |
 | `hybrid`（默认） | 静态文件命中直返；miss 时 SSR 渲染并**回写**静态文件 | 通用推荐 |
-| `static` | 仅发布时生成，miss 不回写 | 高安全静态托管 |
+| `static` | 仅发布任务生成，miss 由当前请求 SSR 兜底且不回写 | 高安全静态托管 |
 
-静态产物：首页、栏目全分页（上限 50 页）、详情页、标签页、搭建页、`sitemap.xml`（5 万条上限）、`robots.txt`、RSS。写入采用 `.tmp` + rename 原子操作。产物统一落在 `{siteCode}/` 单棵树下。dynamic 模式 Redis 页面缓存 key 为 `cms:page:{siteId}:{path}`。
+静态产物：首页、栏目全分页（上限 50 页）、站内详情页、标签页、搭建页、`sitemap.xml`（5 万条上限）、`robots.txt`、RSS。外链栏目和外链型内容只返回解析后的跳转，不生成详情 HTML。写入采用 `.tmp` + rename 原子操作。产物统一落在 `{siteCode}/` 单棵树下。dynamic 模式 Redis 页面缓存 key 绑定当前 cache epoch，形如 `cms:page:{siteId}:{epoch}:{path}`；公开变更先递增 epoch，再清理旧 key，因此并发请求不会读回变更前的缓存。
 
 ### 栏目级静态化开关
 
@@ -45,7 +45,7 @@
 | `dynamic` | 本栏目**不产出**任何静态文件（列表页、详情页均走 SSR），站点其余栏目不受影响 |
 | `hybrid` / `static` | 覆盖站点设置，语义同上表 |
 
-生效点：增量刷新（`refreshContentStatic`）、快照发布（`applyCmsContentPublishSnapshot`）、栏目重建与全量构建（`buildSiteStatic`）。切为 `dynamic` 后，历史产物在下一次内容变更的删除阶段被清理。链接型栏目（`type=link`）本来就不生成静态文件，不展示该选项。
+生效点：增量刷新（`refreshContentStatic`）、快照发布（`applyCmsContentPublishSnapshot`）、栏目重建与全量构建（`buildSiteStatic`）。切换栏目静态模式会提交发布任务；任务按新模式生成或删除对应产物。链接型栏目（`type=link`）本来就不生成静态文件，不展示该选项。
 
 ### 发布时重建页数上限
 
@@ -68,20 +68,20 @@
 
 - 内容自填 `staticPath` **完全绕过**本规则
 - 日期类规则取 `publishedAt`，未发布时回退 `createdAt`；两者都缺失则退化为不归档，不会产生 `undefined` 目录
-- 规则由 `contentUrl()` 统一计算，静态化写文件与模板生成链接共用同一函数，不存在两侧算不一致的可能
+- 规则由 `contentUrl()` 统一计算，静态化写文件与模板生成链接共用同一函数；内容接口额外返回 `canonicalUrl`，后台预览使用 `previewUrl`，调用方不应自行拼接路径
 
-> ⚠️ **改动规则会使旧产物成为孤儿**。栏目保存会触发整站重建，新路径产物即时生成；旧路径下的文件由重建结束时的**孤儿清扫**自动删除（见下），无需手工清理。若需保留旧 URL 可访问，请在「SEO 管理 → 301 重定向」中配置跳转。
+> 改动栏目路径或归档规则会提交整站重建任务。新路径由任务生成，不再归属的产物由完整重建的孤儿清扫删除；需要保留入口时，请在「SEO 管理 → 301 重定向」配置显式跳转。
 
 ### 孤儿产物清扫
 
-静态产物的路径由栏目路径、归档规则、内容 slug/staticPath 等共同决定，任何一项变更都会让旧路径下的文件失去归属。**整站重建结束时会自动清扫这些孤儿**：
+静态产物的路径由栏目路径、归档规则、内容 slug/staticPath 等共同决定，任何一项变更都会使原路径不再归属当前对象。**整站重建结束时会自动清扫这些孤儿**：
 
 - **mark**：构建过程中用 AsyncLocalStorage 收集本次写入的全部相对路径
 - **sweep**：递归遍历站点静态目录，删除不在写入集合中的文件，并自底向上回收空目录
 - 删除走 `deleteStaticFile`，因此同样受发布围栏保护，且每个被删文件都会落一条 `deleted` 产物记录，可在发布中心审计
 - 清扫数量回填任务结果 `prunedArtifacts`
 
-**触发时机**：任意整站重建。栏目改路径/改归档规则、站点改主题等操作本身就会触发整站重建，因此保存后即自愈，无需额外动作。
+**触发时机**：任意完整站点发布任务。栏目改路径/改归档规则、站点改主题等操作会提交整站重建；增量内容任务则使用快照中的 `deletePaths` 精确清理。
 
 **安全边界**：
 
@@ -103,9 +103,17 @@
 - 会员响应使用 `private, no-store` 与 `Vary: Authorization, Cookie`。JWT、JTI 黑名单、Redis 会话或会员状态任一校验失败均保留游客版本。
 - 时间条件在服务端过滤；未到 `startAt` 或已过 `endAt` 的内容不会进入 HTML。为避免静态文件跨越时间边界后泄露，含 dateRange 的页面采用 dynamic；仅纯 `always` 页面进入静态产物。角色/权限/私密字段不属于展示条件 DSL。
 
+### 公开聚合的状态边界
+
+栏目列表、首页、标签页、相关阅读和上一篇/下一篇使用 `published + 未回收 + 未归档 + 未过期` 作为内容条件；内容详情在主栏目自身及全部祖先栏目有效启用且内容已发布、未回收、未过期时按规范 URL 渲染，已归档详情仍可直达但不会进入聚合位。`expireAt` 同时参与请求时的公开可见性判断，并由每分钟周期任务转为 `offline`，因此任务尚未执行前也不会继续公开到期内容。
+
+Theme API 的内容来源按 `published + 未回收 + 未归档 + 未过期` 读取，并始终要求主栏目自身及全部祖先栏目有效启用；指定 `channelCode` 时还要求栏目属于本站。已发布页面部件的 `content` 来源同样使用该有效栏目集合，来源失效时只保留仍可解析的条目；主题作者不得把部件来源当作独立的权限边界。
+
+站点级 sitemap 与站点级/栏目级 RSS 由渲染服务生成并缓存 10 分钟；对每条内容检查其主栏目自身及全部祖先栏目有效启用，栏目级 RSS 另要求请求栏目自身及全部祖先栏目有效启用，并且只收录满足 `published + 未回收 + 未归档 + 未过期` 的站内内容。发布任务会清理对应 Redis 元数据 key；客户端/CDN 仍受其 HTTP 缓存策略与主动 purge 结果约束。
+
 ## 增量刷新
 
-内容发布/更新/下线/回收、评论过审、搭建页保存等操作自动触发**增量静态刷新**（详情页 + 所属栏目全分页 + 首页 + sitemap + RSS），异步执行不阻塞请求。新提交的全量重建统一走任务中心 `cms-publish-build`；`cms-static-build` 仅保留为存量任务兼容类型。
+内容、栏目、页面、部件及其他公开配置的变更（例如内容发布/更新/下线/回收、评论过审、搭建页保存）自动触发**增量静态刷新**（详情页 + 所属栏目全分页 + 首页 + sitemap + RSS），异步执行不阻塞请求；事务 outbox 提交后先清理受影响站点的 Redis 页面和元数据缓存。新提交的全量重建统一走任务中心 `cms-publish-build`，文件生成/删除和 CDN purge 在任务中完成。
 
 ## 缓存分级与协商缓存
 
@@ -118,7 +126,13 @@ SSR 响应按页面类型分级缓存：
 | 栏目列表 | 180s |
 | 其他 | 60s |
 
-所有 HTML 响应附带**弱 ETag**，命中 `If-None-Match` 返回 **304**，CDN 与浏览器可协商缓存。浏览计数经 Redis 缓冲聚合（`cms:viewbuf`），每分钟批量落库，避免高并发行锁排队。
+所有 HTML 响应附带**弱 ETag**，命中 `If-None-Match` 返回 **304**，CDN 与浏览器可协商缓存；响应会标注 `X-Cms-Cache=static|redis|dynamic-audience`。任务提交后服务端 Redis key 会先清理，已缓存的浏览器/CDN 响应仍遵循其 `Cache-Control` 生命周期；配置 CDN purge 后会异步发送受影响路径。浏览计数经 Redis 缓冲聚合（`cms:viewbuf`），每分钟批量落库，避免高并发行锁排队。
+
+### 发布修订与产物新鲜度
+
+整站/主题公开快照任务使用站点 `publicRevision`：任务提交时记录 `themeRevision`、`templateRefsRevision` 和 `publicRevision`，产物记录同一公开修订号；worker 在站点发布锁内复验，过期或失败任务不得写入、删除或覆盖当前修订的产物。首页、标签、sitemap、RSS、robots 等聚合产物按站点公开修订校验。路径级增量产物即使记录提交时的 `publicRevision` 供审计，也不以它作为全站失效条件。
+
+内容、栏目和搭建页面的增量任务使用对象版本、路径快照和引用关系校验，避免一条内容变更使无关页面失效。`hybrid` 命中缺失或过期产物时回退 SSR，并只允许通过写入 fence 的结果回写；`static` 模式的 miss 只做 SSR 兜底，不回写。任务提交是异步边界，不等同于文件已生成；发布中心的任务状态和产物状态是最终完成依据。
 
 ## 主题与模板解析
 
@@ -126,19 +140,19 @@ SSR 响应按页面类型分级缓存：
 
 与渲染管线相关的几个事实：
 
-- 站点切换主题时服务端校验主题已注册并原子递增 `themeRevision`，发布任务以此做**过期栅栏**——执行中发现站点主题/模板已变更即失效退出
+- 站点切换主题时服务端校验主题已注册并原子递增 `themeRevision`；整站/主题发布任务同时携带 `templateRefsRevision` 与 `publicRevision` 做**过期栅栏**，执行中发现任一修订变化即失效退出
 - 模板解析链为 内容/栏目级覆盖 → 站点有效 `defaultTemplates`（经站群继承 resolver）→ 主题默认；主题升级导致的失效模板引用在站点保存时自动摘除（自愈机制见[主题文档](./themes#变体模板与解析链)）
-- 正式渲染输出 `/_assets/theme.{hash}.css` 指纹外链，文件缺失时由前台 `_assets/` 路由现场生成；整站孤儿清扫保留 `_assets/` 目录
+- 正式渲染输出 `/_assets/theme.{hash}.css` 指纹外链，文件缺失时由前台 `_assets/` 路由现场生成；整站孤儿清扫保留 `_assets/` 目录。主题配置中的链接值仍必须遵守 CMS 安全 URL 约定，不能把任意协议字符串传给模板。
 
 ## 页面部件与主题插槽
 
-「页面部件」（`/cms/widgets`，权限 `cms:widget:list|create|update|publish|offline|delete|bind`）是可复用的内容块：在一处维护榜单/推荐位，多个页面位置引用，内容变化时**只定向刷新引用位置**，不触发整站重建。
+「页面部件」（`/cms/widgets`，权限 `cms:widget:list|create|update|publish|offline|delete|bind`）是可复用的内容块：在一处维护榜单/推荐位，多个页面位置引用。部件变更通过任务中心按引用索引刷新受影响页面；需要更新站点级公开修订时同时提交站点发布任务，任务完成前不会暴露半成品。
 
 ### 数据与状态
 
 - 类型目前为 `manual-list`（手工榜单）；条目来源三种：`manual`（手填标题/链接）、`content`（引用站内已发布内容）、`channel`（引用启用中栏目的最新内容，**实时来源**——渲染时动态取数）
 - **草稿/发布双份数据**：编辑改 `draftData`（`draftRevision` 乐观锁，版本不符 409）；「发布」将草稿快照为 `publishedData`，前台只渲染发布快照。状态机 `draft → published → offline`，下线后可再发布
-- 引用校验：条目引用的内容必须已发布、栏目必须启用；反向地，**删除内容 / 停用栏目时若仍被已发布部件引用会被 409 阻断**，需先下线或调整部件
+- 引用校验：条目引用的内容必须已发布、未回收、未归档、未过期，且主栏目自身及全部祖先栏目有效启用；反向地，**删除内容 / 停用栏目时若仍被已发布部件引用会被 409 阻断**，需先下线或调整部件
 - 展示模板（renderer）：`list-sidebar`（侧栏榜单）/ `list-grid`（网格卡片）/ `list-carousel`（轮播），部件设默认模板，引用处可覆盖
 - 表：`cms_widgets` / `cms_widget_refs`（被引用索引，`ownerType: page | theme_slot`）/ `cms_widget_source_refs`（实时来源反向索引）
 
@@ -153,4 +167,4 @@ SSR 响应按页面类型分级缓存：
 
 ### 定向刷新
 
-部件发布/下线（含批量任务 `cms-widget-batch`）自动提交任务中心 `cms-widget-refresh`，按引用索引定向刷新：重建引用页面与相关首页的静态产物、清理对应 Redis 页面缓存（`cms:page:{siteId}:{path}`）、dynamic 站点触发 CDN purge。同站点连续操作按 **5 秒时间桶去抖合并**为一次刷新。`content`/`channel` 实时来源的部件在来源内容发布/更新/下线、栏目变更时同样经 `cms_widget_source_refs` 反查并触发刷新，保证静态页上的榜单不滞后。
+部件发布/下线（含批量任务 `cms-widget-batch`）自动提交任务中心刷新；按引用索引重建受影响页面与相关首页的静态产物，并通过统一站点缓存失效入口递增 cache epoch、清理旧页面 key。关联的整站/主题任务仍由站点 `publicRevision` fence 保护，部件定向任务按页面与来源索引快照校验。连续来源变更按任务幂等键合并，`content`/`channel` 来源经 `cms_widget_source_refs` 反查后只刷新确有引用的站点和页面；任务完成前不覆盖旧的有效产物。

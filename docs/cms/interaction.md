@@ -15,9 +15,9 @@
 - `kind=survey|poll`；题目支持 single / multiple / text / **rating（评分）/ nps / matrix（矩阵）/ date / number**，poll 由服务端约束为**恰好一道单选或多选题**。
 - 题目扩展能力：单选/多选可开「其他 ___」自由填空（答案存 `__other__:自由文本`，统计归入同一桶且原文回传）；矩阵题的行存 `matrix_rows`、列复用 `options`，答案存 `rowId::optionValue`；`page_no` 支持分页问卷；`visible_when`（`{questionIndex, op: any|none, values}`）支持条件显示，**只能依赖排在前面的单选/多选题**，条件未命中的题目服务端不做必答校验也不落库。
 - 参与范围 `anonymous|member`，重复策略 `once_per_member|once_per_ip|multiple`，结果可见性 `always|after_submit|after_close|hidden`，验证码 `inherit|none|math|turnstile`。Turnstile 复用统一 captcha adapter，密钥只写不回显，验证失败或依赖故障均 fail-closed。
-- 前台页 `/interaction/{code}/`，正文嵌入标记 `[互动:code]`；公开提交 `/api/public/cms/interactions/{siteCode}/{code}/submit`，会员提交 `/api/member/cms/interactions/{id}/submit`。
+- 前台页 `/interaction/{code}/`，正文嵌入标记 `[互动:code]`；公开提交 `/api/public/cms/interactions/{siteCode}/{code}/submit`，会员提交 `/api/member/cms/interactions/{id}/submit?siteId={siteId}`。会员接口同时按互动 id、站点 id 和站点祖先链启用状态校验，避免跨站枚举。
 - 前台表单：题目按 `page_no` 分页（进度 + 上一页/下一页），条件显示随选择实时联动；多选的必答与最少/最多选择数、矩阵每行必答、「其他」填空是否为空均在**浏览器侧先校验**并把错误内联渲染到对应题目下（提交失败也不再用 `alert()`）。分页只影响可见性，跨页答案统一提交；提交出错时自动翻回出错那一页。填写内容按站点+标识存 localStorage 草稿，刷新可断点续答，提交成功后自动清除。
-- 答卷写入 `cms_interaction_responses + cms_interaction_answers`，IP 只保存加盐哈希；`repeat_key` 与显式请求幂等键分别有唯一屏障。选择题按参与人数统计，文本题仅管理接口返回，公共状态与提交响应不会包含 `texts`。题目替换与提交共用 interaction 行锁，已有答卷后不能换题——此时用 `POST /api/cms/interactions/{id}/copy` 生成草稿副本（配置与题目全量克隆、标识自动加 `-copy` 后缀去重、答卷数归零）后再改。
+- 答卷写入 `cms_interaction_responses + cms_interaction_answers`，IP 只保存加盐哈希；`repeat_key` 与显式请求幂等键分别有唯一屏障。选择题按参与人数统计，文本题仅管理接口返回，公共状态与提交响应不会包含 `texts`。题目替换与提交共用 interaction 行锁，已有答卷后不能换题——此时用 `POST /api/cms/interactions/{id}/copy` 生成草稿副本；问卷级配置及题目的 `label/type/required/options/minChoices/maxChoices/sort/allowOther/otherLabel/ratingMax/matrixRows/pageNo/visibleWhen` 全量复制，标识自动加 `-copy` 后缀去重、答卷数归零。
 - 答卷明细与导出均关联题目输出可读答案（`answerDetails`：选项 value 反查文案，选项被改名/删除时回退原始 value）；答卷可按具体问卷筛选，选定单份问卷导出时按题目展开为**宽表**（一题一列、表头即题干），跨问卷导出回退为答案 JSON 单列。
 - 批量发布/关闭走任务中心 `cms-interactions-batch-status`，含 checkpoint、行级 items、权限复验、取消与重试；答卷导出实体为 `cms.interaction-responses`，原始导出另需 `cms:interaction:export-raw`。
 - 后台设计器（`pages/cms/interaction/`）为全屏三步弹窗：①基本信息（标题自动生成拼音访问标识）②题目设计（题目/选项/矩阵行均可上下移、题目可复制、选项行内增删或「批量编辑」按行粘贴，可设分页与条件显示，内置满意度/NPS/报名/体验评分/单题投票模板）③参与与展示（Turnstile 收进「高级」折叠，验证码策略切换时才必填）。右侧常驻前台样式预览（≥lg 宽度），按页分组渲染全部题型。`kind=poll` 在 UI 层即收敛为单道选择题、隐藏其他题型与分页，「每位会员一次」在参与范围非仅会员时禁选并自动回退；题目排序/删除后条件引用自动重算，失效即清空；校验错误定位到具体题目卡片与出错步骤，已有答卷时顶部 Banner 提示并锁定题目结构。
@@ -33,7 +33,7 @@
 
 ## 自定义表单
 
-- 表单定义（8 种字段类型：`text` / `textarea` / `select` / `radio` / `email` / `mobile` / `url` / `number` + 必填 + 选项 + 字段级验证规则），前台按栏目 `settings.formCode` 绑定展示，原生 form POST 提交（`POST /api/public/cms/forms/{siteCode}/{formCode}`）
+- 表单定义（8 种字段类型：`text` / `textarea` / `select` / `radio` / `email` / `mobile` / `url` / `number` + 必填 + 选项 + 字段级验证规则）。同一表单内字段 `name` 必须唯一；`select`/`radio` 的提交值必须命中已配置选项，定义阶段应配置至少两个不同 value。前台按栏目 `settings.formCode` 绑定展示，原生 form POST 提交（`POST /api/public/cms/forms/{siteCode}/{formCode}`）
 - 提交防护：IP 限流 + 蜜罐 + 按字段定义校验 + 规则中心名单守卫 + 敏感词；名单主体包含 IP，以及字段类型或字段名匹配 `email|phone|mobile|tel` 的联系方式
 - **通知邮箱**：配置后新提交异步邮件通知（多邮箱逗号分隔）
 - **数据导出**：提交数据抽屉支持导出中心导出（entity `cms.form-submissions`，按表单字段动态生成列）
@@ -42,7 +42,7 @@
 
 - 广告位（模板引用标识）+ 广告（图片/链接/投放时间窗/排序）
 - 页面渲染后先从 `/api/public/cms/ads/tokens/{siteCode}` 领取 5 分钟一次性事件令牌，再上报曝光或启用 `/api/public/cms/ads/{id}/click?token=`。令牌签名绑定 site/ad/page、可信代理解析后的访客指纹、通道和可选会员；伪造 UA、篡改或重放均拒绝，静态页同样在浏览器渲染后领取新令牌。
-- 点击只允许仍在投放且站点仍启用的广告，跳转目标必须是站内相对路径或无凭据的 http/https URL。
+- 点击只允许仍在投放且站点仍启用的广告，广告跳转目标由服务端限制为站内相对路径或无凭据的 http/https URL；友链、内链词、重定向、主题参数、页面区块和页面部件的链接字段均在写入层执行共享 URL policy，拒绝 `javascript:`、`data:`、协议相对地址、反斜杠和其他危险协议。
 - `cms_ad_events` 追加记录 site/ad/slot、impression/click、发生时间、访客/IP 哈希、UA/设备/来源/路径及可选会员。曝光按广告+访客+60 秒桶、点击按 10 秒桶去重。
 - 事件插入、`cms_ads` 计数与 `cms_ad_stats` 日聚合在同一事务中按**实际插入事件**批量更新，保证三者一致；一次曝光请求最多 50 个广告，不逐事件多表重写。
 - 后台 `/cms/ads` 为「广告 / 事件明细 / 统计」页内 Tabs。事件可按完整维度和时间范围筛选，导出实体 `cms.ad-events`；原始导出另需 `cms:ad-event:export-raw`。
@@ -54,7 +54,7 @@
 - 会员 API 全部使用 `memberAuthMiddleware + currentMemberId()`；订阅 upsert、取消留痕、状态查询、通知开关和分页列表均幂等且不接收外部 memberId。只允许启用站点、启用栏目与已发布公开内容中的作者，避免枚举内部对象。
 - 站点页头、栏目页、内容作者旁提供关注按钮；会员中心「我的关注」管理订阅，并直接复用既有签到状态/签到 API。
 - 首次有效订阅奖励复用积分中心，`bizType='cms_interaction'`，`bizId='subscribe:{site}:{type}:{subjectHash}'`，受每日 `subscribe` 上限控制；`points_awarded_at` 永久保留，取消不倒扣、重新关注不重发。
-- 内容发布事务以系统身份写入 `cms-subscription-notify` outbox 任务并固化订阅 cutoff；worker 每批发送前复验站点、栏目、内容版本仍公开，调用既有 `createMemberNotification()`，以内容版本 bizId 去重，不阻塞发布事务。发布者不能查看收件人任务项，也不能取消、恢复或重启内部通知任务。
+- 内容发布事务以系统身份写入 `cms-subscription-notify` outbox 任务并固化订阅 cutoff；worker 每批发送前复验站点及其祖先链、主栏目有效启用、内容版本仍满足 `published + 未回收 + 未归档 + 未过期` 通知查询条件，调用既有 `createMemberNotification()`，以内容版本 bizId 去重，不阻塞发布事务。当前通知匹配站点、主栏目和标准化作者订阅，副栏目订阅不参与收件人计算；发布者不能查看收件人任务项，也不能取消、恢复或重启内部通知任务。
 - 后台 `/cms/subscriptions` 查看聚合与脱敏明细，权限 `cms:subscription:list|export`，导出实体 `cms.subscriptions`，原始导出另需 `cms:subscription:export-raw`。
 
 ## 敏感词
@@ -73,7 +73,7 @@
 
 ## 页面搭建
 
-区块 JSON 装配式页面（默认 `/p/{slug}/`，isHome 可接管站点首页），6 种区块：hero / richtext / image / content-list / columns / **widget-ref**（引用「页面部件」，部件内容变化时定向刷新引用页面，见 [渲染与静态化](./static-and-render#页面部件与主题插槽)）。
+区块 JSON 装配式页面（默认 `/p/{slug}/`，isHome 可接管站点首页），6 种区块：hero / richtext / image / content-list / columns / **widget-ref**（引用「页面部件」，部件内容变化时定向刷新引用页面，见 [渲染与静态化](./static-and-render#页面部件与主题插槽)）。区块 `richtext` HTML 由服务端净化；`hero.image/buttonUrl`、`image.src/linkUrl` 和手工部件 URL 按字段使用素材地址或 CMS link policy（安全站内路径、已解析的 `entity:` 引用或允许的 http(s) 等协议），不能把任意协议字符串写入公开页面。
 
 **content-list 取数**：按栏目（留空取全站）或**按标签跨栏目聚合**（选择站点标签后优先于栏目条件——专题页典型场景，如防汛专题聚合要闻/政策/通知多个栏目的同标签内容），配合取数模式（最新/推荐/热门）与条数（1-20）。
 
@@ -85,7 +85,7 @@
 - SideSheet 底部**内嵌 iframe 实时预览**，保存后自动刷新，可新窗口打开
 - `cms_page_block_acls` 以 `pageId + blockId + user|role + subjectId` 授权。平台超管旁路；无 ACL 时继承页面编辑权限，配置任一 ACL 后 fail-closed。
 - 页面详情返回每个区块的 `canManage/aclConfigured/disabledReason`。页面更新与 ACL 设置先锁站点，再在事务内重读页面和启用角色授权；无权区块内容与其相对顺序必须不变，但允许删除排在其前面的有权区块。新区块仍要求页面编辑权限，设置 ACL 独立要求 `cms:page:acl`。
-- 展示条件仅 `always/guest/member/dateRange`。所有条件区块都由服务端按当前会话与时间过滤，绝不先输出再用 CSS 隐藏；为避免静态产物跨时间边界泄露，当前实现将 guest/member/dateRange 页面统一标记为 dynamic。可选会员认证同时校验 JWT、JTI 黑名单、Redis 会话和会员状态，任一失败按游客。
+- 展示条件仅 `always/guest/member/dateRange`。所有条件区块都由服务端按当前会话与时间过滤，绝不先输出再用 CSS 隐藏；为避免静态产物跨时间边界泄露，含 guest/member/dateRange 条件的页面统一标记为 dynamic。可选会员认证同时校验 JWT、JTI 黑名单、Redis 会话和会员状态，任一失败按游客。
 
 ## 友链
 
