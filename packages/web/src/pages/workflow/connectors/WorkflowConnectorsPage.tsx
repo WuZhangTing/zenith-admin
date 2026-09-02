@@ -217,7 +217,7 @@ export default function WorkflowConnectorsPage() {
   }
 
   const columns: ColumnProps<WorkflowConnector>[] = [
-    { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 140, render: (v: string) => <Typography.Text size="small" type="tertiary">{v}</Typography.Text> },
     { title: '类型', dataIndex: 'type', width: 100, render: (t: WorkflowConnectorType) => <Tag size="small" color={t === 'http' ? 'blue' : 'grey'}>{TYPE_LABEL[t] ?? t}</Tag> },
     { title: '地址', dataIndex: 'config', width: 240, render: (_: unknown, r: WorkflowConnector) => renderEllipsis((r.config as unknown as WorkflowConnectorHttpConfig)?.baseUrl ?? '—') },

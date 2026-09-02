@@ -181,7 +181,7 @@ export default function RuleScorecardsPage() {
     { title: '变量', dataIndex: 'variables', width: 76, align: 'right', render: (v: RuleScorecardVariable[]) => v?.length ?? 0 },
     { title: '等级档', dataIndex: 'grades', width: 84, align: 'right', render: (v: RuleScorecardGrade[]) => v?.length ?? 0 },
     { title: '版本', dataIndex: 'version', width: 70, render: (v: number, r) => (r.publishedAt ? `v${v}` : EMPTY_PLACEHOLDER) },
-    { title: '描述', dataIndex: 'description', width: 220, render: renderEllipsis },
+    { title: '描述', dataIndex: 'description', minWidth: 220, render: renderEllipsis },
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',

@@ -191,7 +191,7 @@ export default function IotDevicesPage() {
   const columns: ColumnProps<IotDevice>[] = [
     copyableNoColumn('SN', 'sn', { width: 190 }),
     {
-      title: '设备名称', dataIndex: 'name', width: 150,
+      title: '设备名称', dataIndex: 'name', minWidth: 150,
       render: (v: string) => renderEllipsis(v),
     },
     {

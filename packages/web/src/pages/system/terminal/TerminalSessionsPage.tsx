@@ -159,7 +159,7 @@ export default function TerminalSessionsPage() {
       title: '类型', dataIndex: 'kind', width: 90,
       render: (k: TerminalKind) => <Tag size="small" color={KIND_META[k].color}>{KIND_META[k].label}</Tag>,
     },
-    { title: '标签 / 主机', dataIndex: 'label', width: 200, render: renderEllipsis },
+    { title: '标签 / 主机', dataIndex: 'label', minWidth: 200, render: renderEllipsis },
     { title: '客户端 IP', dataIndex: 'clientIp', width: 140, render: (v: string) => v || '-' },
     {
       title: '字符网格',

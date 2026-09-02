@@ -115,7 +115,7 @@ export function OperationLogsTable({
     { title: '功能模块', dataIndex: 'module', width: 180, ellipsis: { showTitle: false }, render: (v: string | null) => v ? <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Typography.Text> : '-' },
     { title: '操作描述', dataIndex: 'description', width: 220, ellipsis: true },
     { title: '请求方法', dataIndex: 'method', width: 90, render: (v: string) => <Tag color="blue">{v}</Tag> },
-    { title: '请求路径', dataIndex: 'path', width: 180, ellipsis: true },
+    { title: '请求路径', dataIndex: 'path', minWidth: 180, ellipsis: true },
     { title: 'IP 地址', dataIndex: 'ip', width: 130, render: (v: string | null) => v ?? '-' },
     { title: '操作地点', dataIndex: 'location', width: 160, render: (v: string | null) => v ?? '-' },
     { title: '操作系统', dataIndex: 'os', width: 130, render: (v: string | null) => v ?? '-' },

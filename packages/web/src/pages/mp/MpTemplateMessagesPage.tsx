@@ -122,7 +122,7 @@ export default function MpTemplateMessagesPage() {
   const tplColumns = [
     { title: '模板标题', dataIndex: 'title', width: 180, render: renderEllipsis },
     { title: '模板ID', dataIndex: 'templateId', width: 200, render: renderEllipsis },
-    { title: '内容', dataIndex: 'content', width: 320, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 300, whiteSpace: 'pre-wrap' }}>{v || '—'}</Typography.Text> },
+    { title: '内容', dataIndex: 'content', minWidth: 320, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 300, whiteSpace: 'pre-wrap' }}>{v || '—'}</Typography.Text> },
     createOperationColumn<MpMessageTemplate>({
       width: 140,
       desktopInlineKeys: ['send', 'delete'],

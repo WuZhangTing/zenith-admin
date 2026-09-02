@@ -42,7 +42,6 @@ export default function RegionsPage() {
   } = useListSearch<SearchParams>({ defaults: defaultSearchParams, listKey: regionKeys.trees });
   const [editingLevel, setEditingLevel] = useState<string>('province');
   const [tableHeight, setTableHeight] = useState(500);
-  const [tableWidth, setTableWidth] = useState(0);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
   const { items: statusItems } = useDictItems('common_status');
@@ -87,7 +86,6 @@ export default function RegionsPage() {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setTableHeight(Math.floor(entry.contentRect.height));
-        setTableWidth(Math.floor(entry.contentRect.width));
       }
     });
 
@@ -167,16 +165,11 @@ export default function RegionsPage() {
     );
   }, [toggleStatusMutation]);
 
-  const FIXED_COLS_WIDTH = 140 + 90 + 120 + 70 + 180 + 90 + 160; // 其他列总宽
-  // 地区名列宽度：不动态自适应容器，保持固定最小宽度，这样内容宽度 (total) 能超出容器，使 fixed:right 生效
-  const nameColWidth = Math.max(400, tableWidth - FIXED_COLS_WIDTH);
-  const totalTableWidth = nameColWidth + FIXED_COLS_WIDTH;
-
   const columns: ColumnProps<Region>[] = [
     {
       title: '地区名称',
       dataIndex: 'name',
-      width: nameColWidth,
+      minWidth: 400,
     },
     {
       title: '区划代码',
@@ -352,7 +345,7 @@ export default function RegionsPage() {
         childrenRecordName="children"
         pagination={false}
         virtualized
-        scroll={{ y: tableHeight, x: tableWidth || totalTableWidth }}
+        scroll={{ y: tableHeight }}
       />
       </div>
 

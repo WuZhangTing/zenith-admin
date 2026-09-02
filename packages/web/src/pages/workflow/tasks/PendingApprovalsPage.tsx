@@ -162,7 +162,7 @@ export default function PendingApprovalsPage() {
     {
       title: '申请标题',
       dataIndex: 'title',
-      width: 220,
+      minWidth: 220,
       render: (v: string, record: PendingItem) => (
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>

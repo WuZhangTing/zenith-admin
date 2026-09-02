@@ -220,7 +220,7 @@ export default function ExportJobsPage() {
   const columns: ColumnProps<ExportJob>[] = [
     { title: '任务ID', dataIndex: 'id', width: 90 },
     { title: '模块', dataIndex: 'moduleName', width: 120 },
-    { title: '文件名', dataIndex: 'filename', width: 260, render: renderEllipsis },
+    { title: '文件名', dataIndex: 'filename', minWidth: 260, render: renderEllipsis },
     { title: '格式', dataIndex: 'format', width: 80, render: (value: ExportJobFormat) => value.toUpperCase() },
     { title: '模式', dataIndex: 'executionMode', width: 90, render: (value: string) => (value === 'sync' ? '同步' : '异步') },
     { title: '进度', dataIndex: 'rowCount', width: 120, render: (_: number | null, record: ExportJob) => renderProgress(record) },

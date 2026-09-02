@@ -554,7 +554,7 @@ export default function DataMaskPage() {
               scroll={{ y: 400, x: 1050 }}
               columns={[
                 {
-                  title: '表名', dataIndex: 'tableName', width: 160,
+                  title: '表名', dataIndex: 'tableName', minWidth: 160,
                   render: (v: string) => <Typography.Text code size="small">{v}</Typography.Text>,
                 },
                 {

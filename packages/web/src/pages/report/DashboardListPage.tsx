@@ -190,7 +190,7 @@ export default function DashboardListPage() {
       ),
     },
     {
-      title: '名称', dataIndex: 'name', width: 200,
+      title: '名称', dataIndex: 'name', minWidth: 200,
       render: (v: string, record: ReportDashboard) => (
         <Typography.Text
           link

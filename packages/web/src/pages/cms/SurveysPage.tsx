@@ -131,7 +131,7 @@ export default function SurveysPage() {
   };
 
   const listColumns: ColumnProps<CmsInteraction>[] = [
-    { title: '标题', dataIndex: 'title', width: 240, render: renderEllipsis },
+    { title: '标题', dataIndex: 'title', minWidth: 240, render: renderEllipsis },
     {
       title: '类型', dataIndex: 'kind', width: 90,
       render: (value: CmsInteractionKind) => <Tag size="small">{CMS_INTERACTION_KIND_LABELS[value]}</Tag>,
@@ -212,7 +212,7 @@ export default function SurveysPage() {
     },
     { title: '参与者', dataIndex: 'memberDisplay', width: 140 },
     {
-      title: '作答摘要', dataIndex: 'answerDetails', width: 320,
+      title: '作答摘要', dataIndex: 'answerDetails', minWidth: 320,
       render: (details: CmsInteractionResponse['answerDetails']) =>
         renderEllipsis(details.map((detail) => `${detail.label}：${detail.display}`).join('；') || '-'),
     },

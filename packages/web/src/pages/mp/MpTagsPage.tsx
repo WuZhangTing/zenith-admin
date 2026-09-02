@@ -88,7 +88,7 @@ export default function MpTagsPage() {
   };
 
   const columns = [
-    { title: '标签名称', dataIndex: 'name', width: 200, render: renderEllipsis },
+    { title: '标签名称', dataIndex: 'name', minWidth: 200, render: renderEllipsis },
     { title: '微信标签ID', dataIndex: 'wechatTagId', width: 140, render: (v: number | null) => (v == null ? '— 未同步' : v) },
     { title: '粉丝数', dataIndex: 'fansCount', width: 120, align: 'right' as const },
     createdAtColumn,

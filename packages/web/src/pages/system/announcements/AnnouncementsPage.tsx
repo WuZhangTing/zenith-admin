@@ -527,7 +527,7 @@ export default function AnnouncementsPage() {
 
   const columns: ColumnProps<Announcement>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '标题', dataIndex: 'title', width: 220, render: renderEllipsis },
+    { title: '标题', dataIndex: 'title', minWidth: 220, render: renderEllipsis },
     {
       title: '类型',
       dataIndex: 'type',

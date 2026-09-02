@@ -115,7 +115,7 @@ export default function PromptTemplatesPage() {
     { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
     { title: '分类', dataIndex: 'category', width: 120, render: renderEllipsis },
     { title: '范围', dataIndex: 'scope', width: 100, render: (scope: AiPromptScope) => scopeTag(scope) },
-    { title: '内容', dataIndex: 'content', width: 360, render: renderEllipsis },
+    { title: '内容', dataIndex: 'content', minWidth: 360, render: renderEllipsis },
     { title: '使用次数', dataIndex: 'usageCount', width: 90, align: 'right' },
     { title: '排序', dataIndex: 'sort', width: 80 },
     createdAtColumn as ColumnProps<AiPromptTemplate>,

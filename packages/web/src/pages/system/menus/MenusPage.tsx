@@ -36,7 +36,6 @@ export default function MenusPage() {
   const [pendingKeyword, setPendingKeyword] = useState('');
   const [pendingStatus, setPendingStatus] = useState<string>('');
   const [tableHeight, setTableHeight] = useState(500);
-  const [tableWidth, setTableWidth] = useState(0);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
   const { items: menuTypeItems } = useDictItems('menu_type');
@@ -85,7 +84,6 @@ export default function MenusPage() {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         setTableHeight(Math.floor(entry.contentRect.height));
-        setTableWidth(Math.floor(entry.contentRect.width));
       }
     });
 
@@ -220,16 +218,11 @@ export default function MenusPage() {
     );
   }, [toggleStatusMutation]);
 
-  const FIXED_COLS_WIDTH = 90 + 180 + 250 + 200 + 70 + 180 + 80 + 80 + 200; // 除菜单名称外其他列总宽
-  // 菜单名称列宽度：保持固定最小宽度，使内容总宽可超出容器，让 fixed:right 生效
-  const titleColWidth = Math.max(280, tableWidth - FIXED_COLS_WIDTH);
-  const totalTableWidth = titleColWidth + FIXED_COLS_WIDTH;
-
   const columns: ColumnProps<Menu>[] = [
     {
       title: '菜单名称',
       dataIndex: 'title',
-      width: titleColWidth,
+      minWidth: 280,
       useFullRender: true,
       render: (val, row, _index, options) => {
         const expandIcon = options?.expandIcon;
@@ -429,7 +422,7 @@ export default function MenusPage() {
           onExpandedRowsChange={onExpandedRowsChange}
           childrenRecordName="children"
           virtualized
-          scroll={{ y: tableHeight, x: tableWidth || totalTableWidth }}
+          scroll={{ y: tableHeight }}
         />
       </div>
 

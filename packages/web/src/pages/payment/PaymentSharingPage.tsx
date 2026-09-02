@@ -206,7 +206,7 @@ export default function PaymentSharingPage() {
   }
 
   const receiverColumns: ColumnProps<PaymentSharingReceiver>[] = [
-    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '类型', dataIndex: 'receiverType', width: 90, render: (v: PaymentSharingReceiverType) => PAYMENT_SHARING_RECEIVER_TYPE_LABELS[v] },
     copyableNoColumn('账号', 'account', { width: 200 }),
     { title: '默认比例', dataIndex: 'ratioBps', width: 110, align: 'right', render: (v: number | null) => (v == null ? '-' : `${(v / 100).toFixed(2)}%`) },
@@ -241,7 +241,7 @@ export default function PaymentSharingPage() {
   const orderColumns: ColumnProps<PaymentSharingOrder>[] = [
     copyableNoColumn('分账单号', 'sharingNo'),
     copyableNoColumn('订单号', 'orderNo'),
-    { title: '接收方', dataIndex: 'receiverName', width: 150, render: renderEllipsis },
+    { title: '接收方', dataIndex: 'receiverName', minWidth: 150, render: renderEllipsis },
     { title: '分账金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     copyableNoColumn('渠道分账号', 'channelSharingNo', { width: 300 }),
     { title: '版本', dataIndex: 'version', width: 70, align: 'right', render: (v: number) => `v${v}` },
@@ -264,7 +264,7 @@ export default function PaymentSharingPage() {
     copyableNoColumn('分账单号', 'sharingNo', { width: 210 }),
     copyableNoColumn('订单号', 'orderNo', { width: 210 }),
     { title: '冲正金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
-    { title: '原因', dataIndex: 'reason', width: 220, render: renderEllipsis },
+    { title: '原因', dataIndex: 'reason', minWidth: 220, render: renderEllipsis },
     copyableNoColumn('渠道冲正单号', 'channelReversalNo', { width: 220 }),
     { title: '尝试/查单', width: 100, align: 'right', render: (_: unknown, record: PaymentSharingReversal) => `${record.attempts} / ${record.queryAttempts}` },
     { title: '版本', dataIndex: 'version', width: 70, align: 'right', render: (v: number) => `v${v}` },

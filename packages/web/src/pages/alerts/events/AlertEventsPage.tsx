@@ -186,7 +186,7 @@ export default function AlertEventsPage() {
     },
     { title: '实际值', dataIndex: 'value', width: 110, render: (v: number, r: MonitorAlertEvent) => <b>{formatMonitorMetricValue(r.metric, v)}</b> },
     { title: '级别', dataIndex: 'level', width: 80, render: (v: string) => <Tag color={LEVEL_CONFIG[v]?.color ?? 'grey'} size="small">{LEVEL_CONFIG[v]?.label ?? v}</Tag> },
-    { title: '描述', dataIndex: 'message', width: 280, render: renderEllipsis },
+    { title: '描述', dataIndex: 'message', minWidth: 280, render: renderEllipsis },
     {
       title: '通知状态', dataIndex: 'notifyStatus', width: 120,
       render: (_: unknown, r: MonitorAlertEvent) => {

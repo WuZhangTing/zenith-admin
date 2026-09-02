@@ -60,7 +60,7 @@ export default function MemberRechargesPage() {
     { title: '金额(元)', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => <span style={{ fontWeight: 600 }}>{(v / 100).toFixed(2)}</span> },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] ?? v },
     { title: '支付方式', dataIndex: 'payMethod', width: 130, render: (v: string) => PAYMENT_METHOD_LABELS[v as keyof typeof PAYMENT_METHOD_LABELS] ?? v },
-    { title: '说明', dataIndex: 'subject', width: 160, render: (v: string) => renderEllipsis(v) },
+    { title: '说明', dataIndex: 'subject', minWidth: 160, render: (v: string) => renderEllipsis(v) },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{PAYMENT_ORDER_STATUS_LABELS[v] ?? v}</Tag> },
     dateTimeColumn('支付时间', 'paidAt', { fixed: 'right' }),
     dateTimeColumn('创建时间', 'createdAt', { fixed: 'right' }),

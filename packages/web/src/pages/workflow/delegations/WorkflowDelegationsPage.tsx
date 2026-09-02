@@ -127,7 +127,7 @@ export default function WorkflowDelegationsPage() {
     {
       title: '适用流程',
       dataIndex: 'definitionName',
-      width: 180,
+      minWidth: 180,
       render: (_v: unknown, r: WorkflowDelegation) =>
         r.definitionId == null ? '全部流程' : (r.definitionName ?? `#${r.definitionId}`),
     },

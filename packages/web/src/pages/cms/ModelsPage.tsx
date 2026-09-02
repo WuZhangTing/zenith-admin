@@ -160,7 +160,7 @@ export default function ModelsPage() {
         ? fields.map((f) => <Tag key={f.name} size="small" style={{ marginRight: 4 }}>{f.label}</Tag>)
         : <span style={{ color: 'var(--semi-color-text-2)' }}>无（仅基础字段）</span>),
     },
-    { title: '描述', dataIndex: 'description', width: 220, render: renderEllipsis },
+    { title: '描述', dataIndex: 'description', minWidth: 220, render: renderEllipsis },
     createdAtColumn,
     {
       title: '状态',

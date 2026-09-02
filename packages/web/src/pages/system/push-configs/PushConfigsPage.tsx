@@ -152,7 +152,7 @@ export default function PushConfigsPage() {
       title: 'APNs 环境', dataIndex: 'apnsProduction', width: 120,
       render: (v: boolean) => <Tag color={v ? 'green' : 'grey'} size="small">{v ? '生产' : '开发'}</Tag>,
     },
-    { title: '备注', dataIndex: 'remark', width: 180, render: renderEllipsis },
+    { title: '备注', dataIndex: 'remark', minWidth: 180, render: renderEllipsis },
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',

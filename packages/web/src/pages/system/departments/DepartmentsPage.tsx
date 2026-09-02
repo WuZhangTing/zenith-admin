@@ -214,7 +214,7 @@ export default function DepartmentsPage() {
   }, [toggleStatusMutation]);
 
   const columns: ColumnProps<Department>[] = [
-    { title: '部门名称', dataIndex: 'name', width: 220 },
+    { title: '部门名称', dataIndex: 'name', minWidth: 220 },
     { title: '部门编码', dataIndex: 'code', width: 180, render: renderEllipsis },
     { title: '类别', dataIndex: 'category', width: 90, render: (value: string) => <DictTag dictCode="department_category" value={value} /> },
     { title: '负责人', dataIndex: 'leaderName', width: 120, render: (value) => value || '—' },

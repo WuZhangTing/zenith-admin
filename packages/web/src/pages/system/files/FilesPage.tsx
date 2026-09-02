@@ -298,7 +298,7 @@ export default function FilesPage() {
     {
       title: '文件名',
       dataIndex: 'originalName',
-      width: 220,
+      minWidth: 220,
       ellipsis: { showTitle: false },
       render: (name: string, record: ManagedFile) => (
         <FileNameCell name={name} mimeType={record.mimeType} />

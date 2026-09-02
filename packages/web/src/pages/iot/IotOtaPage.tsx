@@ -134,7 +134,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
     copyableNoColumn('SHA256', 'sha256', { width: 150 }),
     { title: '任务数', dataIndex: 'taskCount', width: 80, align: 'right' },
     {
-      title: '发布说明', dataIndex: 'releaseNotes', width: 200,
+      title: '发布说明', dataIndex: 'releaseNotes', minWidth: 200,
       render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
     },
     createdAtColumn,
@@ -333,7 +333,7 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
   const resumeMutation = useResumeIotOtaTask();
 
   const columns: ColumnProps<IotOtaTask>[] = [
-    { title: '任务', dataIndex: 'title', width: 210, render: (v: string) => renderEllipsis(v) },
+    { title: '任务', dataIndex: 'title', minWidth: 210, render: (v: string) => renderEllipsis(v) },
     { title: '所属产品', dataIndex: 'productName', width: 170, render: (v: string | null) => renderEllipsis(v) },
     {
       title: '目标版本', dataIndex: 'firmwareVersion', width: 100,

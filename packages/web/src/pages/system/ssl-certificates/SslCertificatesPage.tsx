@@ -131,7 +131,7 @@ export default function SslCertificatesPage() {
 
   const columns: ColumnProps<SslCertificateRecord>[] = [
     { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
-    { title: '域名', dataIndex: 'domain', width: 220, render: renderEllipsis },
+    { title: '域名', dataIndex: 'domain', minWidth: 220, render: renderEllipsis },
     {
       title: '类型',
       dataIndex: 'type',

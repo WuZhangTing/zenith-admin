@@ -132,7 +132,7 @@ export default function PaymentChannelsPage() {
   }
 
   const columns: ColumnProps<PaymentChannelConfig>[] = [
-    { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 200, render: renderEllipsis },
     { title: '渠道', dataIndex: 'channel', width: 110, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     {
       // 「设为默认」在此列原位操作（非默认行点击即设），操作列因此无需「更多」收纳

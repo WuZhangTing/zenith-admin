@@ -744,7 +744,7 @@ function SessionsTab() {
 
   const columns: ColumnProps<SessionListItem>[] = [
     { title: '用户', dataIndex: 'username', width: 150, render: (_value, record) => record.username || (record.userId == null ? '匿名访客' : `用户 #${record.userId}`) },
-    { title: '入口页', dataIndex: 'entryPage', width: 200, render: (_value, record) => <Typography.Text ellipsis={{ showTooltip: true }}>{record.entryPage || '–'}</Typography.Text> },
+    { title: '入口页', dataIndex: 'entryPage', minWidth: 200, render: (_value, record) => <Typography.Text ellipsis={{ showTooltip: true }}>{record.entryPage || '–'}</Typography.Text> },
     { title: '出口页', dataIndex: 'exitPage', width: 200, render: (_value, record) => <Typography.Text ellipsis={{ showTooltip: true }}>{record.exitPage || '–'}</Typography.Text> },
     { title: '页数', dataIndex: 'pageCount', width: 90, align: 'right' },
     { title: '事件', dataIndex: 'eventCount', width: 90, align: 'right' },

@@ -153,7 +153,7 @@ export default function ChatBotsPage() {
     {
       title: '名称',
       dataIndex: 'name',
-      width: 220,
+      minWidth: 220,
       ellipsis: { showTitle: false },
       render: (_: unknown, row: ChatWebhook) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>

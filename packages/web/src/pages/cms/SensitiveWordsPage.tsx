@@ -37,7 +37,7 @@ export default function SensitiveWordsPage() {
   const canManage = hasPermission('cms:sensitive:manage');
 
   const columns: ColumnProps<CmsSensitiveWord>[] = [
-    { title: '敏感词', dataIndex: 'word', width: 180 },
+    { title: '敏感词', dataIndex: 'word', minWidth: 180 },
     {
       title: '处理方式',
       dataIndex: 'replaceWith',

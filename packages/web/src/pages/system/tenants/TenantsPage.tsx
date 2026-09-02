@@ -156,7 +156,7 @@ export default function TenantsPage() {
   }
 
   const columns: ColumnProps<Tenant>[] = [
-    { title: '租户名称', dataIndex: 'name', width: 160, render: renderEllipsis },
+    { title: '租户名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     { title: '租户编码', dataIndex: 'code', width: 140, render: renderEllipsis },
     { title: '联系人', dataIndex: 'contactName', width: 120, render: renderEllipsis },
     { title: '联系电话', dataIndex: 'contactPhone', width: 140, render: renderEllipsis },

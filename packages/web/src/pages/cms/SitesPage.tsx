@@ -186,7 +186,7 @@ export default function SitesPage() {
       width: 130,
       render: (_: unknown, record) => CMS_STATIC_MODE_LABELS[record.effectiveStaticMode ?? record.staticMode],
     },
-    { title: 'SEO 标题', dataIndex: 'title', width: 220, render: renderEllipsis },
+    { title: 'SEO 标题', dataIndex: 'title', minWidth: 220, render: renderEllipsis },
     createdAtColumn,
     {
       title: '状态',

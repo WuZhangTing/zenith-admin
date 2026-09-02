@@ -146,7 +146,7 @@ export default function PositionsPage() {
   };
 
   const columns: ColumnProps<Position>[] = [
-    { title: '岗位名称', dataIndex: 'name', width: 200, render: renderEllipsis },
+    { title: '岗位名称', dataIndex: 'name', minWidth: 200, render: renderEllipsis },
     { title: '岗位编码', dataIndex: 'code', width: 180, render: renderEllipsis },
     { title: '排序', dataIndex: 'sort', width: 90 },
     {

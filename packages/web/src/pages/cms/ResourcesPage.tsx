@@ -369,7 +369,7 @@ export default function ResourcesPage() {
         : <div style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--semi-color-text-2)', background: 'var(--semi-color-fill-0)', borderRadius: 'var(--semi-border-radius-medium)' }}><TypeIcon type={record.type} /></div>,
     },
     {
-      title: '名称', dataIndex: 'name', width: 240,
+      title: '名称', dataIndex: 'name', minWidth: 240,
       render: (v: string) => (
         <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 220, display: 'block' }}>{v}</Typography.Text>
       ),

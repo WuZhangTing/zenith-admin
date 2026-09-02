@@ -49,7 +49,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     { title: '广告位名称', dataIndex: 'name', width: 180 },
     { title: '模板引用标识', dataIndex: 'code', width: 160, render: (v: string) => <Tag size="small">{v}</Tag> },
     { title: '投放广告数', dataIndex: 'adCount', width: 110, align: 'right' },
-    { title: '备注', dataIndex: 'remark', width: 220, render: (v: string | null) => v ?? '-' },
+    { title: '备注', dataIndex: 'remark', minWidth: 220, render: (v: string | null) => v ?? '-' },
     createOperationColumn<CmsAdSlot>({
       width: 160,
       desktopInlineKeys: ['edit', 'delete'],
@@ -140,7 +140,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
   const columns: ColumnProps<CmsAd>[] = [
     { title: '广告名称', dataIndex: 'name', width: 180 },
     { title: '广告位', dataIndex: 'slotName', width: 140 },
-    { title: '跳转地址', dataIndex: 'linkUrl', width: 200, render: (v: string | null) => renderEllipsis(v ?? '-') },
+    { title: '跳转地址', dataIndex: 'linkUrl', minWidth: 200, render: (v: string | null) => renderEllipsis(v ?? '-') },
     { title: '曝光量', dataIndex: 'viewCount', width: 90, align: 'right' },
     { title: '点击量', dataIndex: 'clickCount', width: 90, align: 'right' },
     {
@@ -305,7 +305,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
       title: '设备', dataIndex: 'device', width: 100,
       render: (value: CmsAdEvent['device']) => CMS_DEVICE_TYPE_LABELS[value],
     },
-    { title: '页面路径', dataIndex: 'path', width: 220, render: (value: string | null) => value ?? '-' },
+    { title: '页面路径', dataIndex: 'path', minWidth: 220, render: (value: string | null) => value ?? '-' },
     { title: '会员 ID', dataIndex: 'memberId', width: 100, render: (value: number | null) => value ?? '-' },
     createOperationColumn<CmsAdEvent>({
       width: 90,

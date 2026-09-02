@@ -55,7 +55,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 
   const columns: ColumnProps<CmsRedirect>[] = [
     { title: '来源路径', dataIndex: 'fromPath', width: 240 },
-    { title: '目标地址', dataIndex: 'toUrl', width: 260 },
+    { title: '目标地址', dataIndex: 'toUrl', minWidth: 260 },
     { title: '类型', dataIndex: 'redirectType', width: 80, render: (v: number) => <Tag size="small" color={v === 301 ? 'blue' : 'orange'}>{v}</Tag> },
     { title: '备注', dataIndex: 'remark', width: 160, render: (v: string | null) => v ?? '-' },
     {
@@ -147,7 +147,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 
   const columns: ColumnProps<CmsLinkWord>[] = [
     { title: '关键词', dataIndex: 'keyword', width: 160 },
-    { title: '链接地址', dataIndex: 'url', width: 280 },
+    { title: '链接地址', dataIndex: 'url', minWidth: 280 },
     { title: '每篇最多替换', dataIndex: 'maxReplaces', width: 120 },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',

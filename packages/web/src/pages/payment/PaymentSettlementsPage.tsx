@@ -182,7 +182,7 @@ export default function PaymentSettlementsPage() {
     { title: '分账', dataIndex: 'sharingAmount', width: 100, align: 'right', render: (v: number) => yuan(v ?? 0) },
     { title: '净额', dataIndex: 'netAmount', width: 120, align: 'right', render: (v: number) => <Typography.Text strong type={v < 0 ? 'danger' : 'success'}>{yuan(v)}</Typography.Text> },
     { title: '到账参考号', dataIndex: 'payoutReference', width: 180, render: renderEllipsis },
-    { title: '失败原因', dataIndex: 'failureReason', width: 200, render: renderEllipsis },
+    { title: '失败原因', dataIndex: 'failureReason', minWidth: 200, render: renderEllipsis },
     dateTimeColumn('到账时间', 'settledAt'),
     createdAtColumn as ColumnProps<PaymentSettlementBatch>,
     { title: '版本', dataIndex: 'version', width: 80, align: 'right', render: (v: number) => `v${v}` },

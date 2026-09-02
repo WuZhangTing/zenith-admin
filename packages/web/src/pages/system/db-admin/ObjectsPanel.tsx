@@ -52,7 +52,7 @@ export function ObjectsPanel({ active }: Readonly<{ active: boolean }>) {
   ];
 
   const trgColumns: ColumnProps<DbAdminObjects['triggers'][number]>[] = [
-    { title: '触发器', dataIndex: 'name', width: 220, render: (v: string) => <Text strong>{v}</Text> },
+    { title: '触发器', dataIndex: 'name', minWidth: 220, render: (v: string) => <Text strong>{v}</Text> },
     { title: '表', width: 200, render: (_: unknown, r) => fullName(r.schema, r.table) },
     { title: '状态', dataIndex: 'enabled', width: 90, render: (v: boolean) => v ? <Tag size="small" color="green">启用</Tag> : <Tag size="small" color="grey">禁用</Tag> },
     createOperationColumn<DbAdminObjects['triggers'][number]>({

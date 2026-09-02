@@ -367,7 +367,7 @@ export default function UsersPage() {
     {
       title: '用户',
       dataIndex: 'nickname',
-      width: 260,
+      minWidth: 260,
       ellipsis: { showTitle: false },
       render: (_: unknown, record: User) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>

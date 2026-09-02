@@ -780,7 +780,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                       refreshLoading={apiTokensLoading}
                       pagination={false}
                       columns={[
-                        { title: '名称', dataIndex: 'name', width: 150, render: (v: string) => <Text strong>{v}</Text> },
+                        { title: '名称', dataIndex: 'name', minWidth: 150, render: (v: string) => <Text strong>{v}</Text> },
                         { title: 'Token 前缀', dataIndex: 'tokenPrefix', width: 160, render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code> },
                         dateTimeColumn('最后使用', 'lastUsedAt', { empty: '未使用' }),
                         dateTimeColumn('过期时间', 'expiresAt', { empty: '永久有效' }),

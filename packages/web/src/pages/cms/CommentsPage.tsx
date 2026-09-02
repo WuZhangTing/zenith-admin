@@ -67,7 +67,7 @@ export default function CommentsPage() {
     {
       title: '评论内容',
       dataIndex: 'content',
-      width: 300,
+      minWidth: 300,
       render: (v: string, record: CmsComment) => (
         <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 280 }}>
           {record.parentId > 0 && record.parentNickname ? `回复 @${record.parentNickname}：${v}` : v}

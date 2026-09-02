@@ -103,7 +103,7 @@ export default function ImportCenterPage() {
 
   const columns: ColumnProps<AsyncTask>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '任务', dataIndex: 'title', width: 280, ellipsis: { showTitle: false }, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Text> },
+    { title: '任务', dataIndex: 'title', minWidth: 280, ellipsis: { showTitle: false }, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{v}</Text> },
     {
       title: '实体', width: 110,
       render: (_: unknown, r: AsyncTask) => {

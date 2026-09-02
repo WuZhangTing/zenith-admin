@@ -88,7 +88,7 @@ export function GovernanceApprovalTab() {
   };
 
   const columns: ColumnProps<ReportPublishApproval>[] = [
-    { title: '资源', dataIndex: 'resourceName', width: 200, render: (v, r) => renderEllipsis(v || `${reportResourceTypeLabel(r.resourceType)} #${r.resourceId}`) },
+    { title: '资源', dataIndex: 'resourceName', minWidth: 200, render: (v, r) => renderEllipsis(v || `${reportResourceTypeLabel(r.resourceType)} #${r.resourceId}`) },
     { title: '动作', dataIndex: 'action', width: 100 },
     { title: '修订', dataIndex: 'requestedRevision', width: 80 },
     { title: '申请人', dataIndex: 'requestedByName', width: 120, render: (v) => v || '—' },
@@ -179,7 +179,7 @@ export function GovernanceTransferTab() {
     { title: '资源', dataIndex: 'resourceName', width: 200, render: (v, r) => renderEllipsis(v || `${reportResourceTypeLabel(r.resourceType)} #${r.resourceId}`) },
     { title: '原负责人', dataIndex: 'fromOwnerName', width: 130, render: (v) => v || '未分配' },
     { title: '新负责人', dataIndex: 'toOwnerName', width: 130, render: (v, r) => v || `用户 #${r.toOwnerId}` },
-    { title: '原因', dataIndex: 'reason', width: 220, render: renderEllipsis },
+    { title: '原因', dataIndex: 'reason', minWidth: 220, render: renderEllipsis },
     dateTimeColumn('申请时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
     createOperationColumn<ReportResourceTransfer>({

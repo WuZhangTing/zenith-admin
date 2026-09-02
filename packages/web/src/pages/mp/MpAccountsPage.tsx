@@ -122,7 +122,7 @@ export default function MpAccountsPage() {
   };
 
   const columns = [
-    { title: '公众号名称', dataIndex: 'name', width: 160, render: renderEllipsis },
+    { title: '公众号名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     {
       title: '类型', dataIndex: 'type', width: 90,
       render: (v: MpAccountType) => (

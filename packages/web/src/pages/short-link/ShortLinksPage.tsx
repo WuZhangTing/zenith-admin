@@ -191,7 +191,7 @@ export default function ShortLinksPage() {
       copyContent: (_v, record) => record.shortUrl,
     }),
     { title: '标题', dataIndex: 'title', width: 160, render: renderEllipsis },
-    { title: '目标地址', dataIndex: 'targetUrl', width: 240, render: renderEllipsis },
+    { title: '目标地址', dataIndex: 'targetUrl', minWidth: 240, render: renderEllipsis },
     {
       title: '来源', dataIndex: 'bizType', width: 100,
       render: (v: ShortLink['bizType']) => (

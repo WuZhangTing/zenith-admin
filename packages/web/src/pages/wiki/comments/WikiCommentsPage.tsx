@@ -49,7 +49,7 @@ export default function WikiCommentsPage() {
   const removeMutation = useRemoveWikiComment();
 
   const columns: ColumnProps<WikiComment>[] = [
-    { title: '评论内容', dataIndex: 'content', width: 280, render: renderEllipsis },
+    { title: '评论内容', dataIndex: 'content', minWidth: 280, render: renderEllipsis },
     {
       title: '所属文档', dataIndex: 'docTitle', width: 200,
       render: (v: string | null, record: WikiComment) => v ? (

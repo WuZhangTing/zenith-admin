@@ -198,7 +198,7 @@ export default function AssetsPage() {
   };
 
   const catalogColumns: ColumnProps<ReportAssetCatalogItem>[] = [
-    { title: '资产名称', dataIndex: 'name', width: 210, render: renderEllipsis },
+    { title: '资产名称', dataIndex: 'name', minWidth: 210, render: renderEllipsis },
     { title: '类型', dataIndex: 'resourceType', width: 130, render: (v) => resourceTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '负责人', dataIndex: 'ownerName', width: 130, render: (v) => v || '—' },
     { title: '目录', dataIndex: 'folderName', width: 150, render: (v) => v || '—' },
@@ -226,7 +226,7 @@ export default function AssetsPage() {
     }),
   ];
   const templateColumns: ColumnProps<ReportAssetTemplate>[] = [
-    { title: '模板名称', dataIndex: 'name', width: 190, render: renderEllipsis },
+    { title: '模板名称', dataIndex: 'name', minWidth: 190, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 150, render: renderEllipsis },
     { title: '类型', dataIndex: 'type', width: 130, render: (v) => templateTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '负责人', dataIndex: 'ownerName', width: 120, render: (v) => v || '—' },
@@ -252,7 +252,7 @@ export default function AssetsPage() {
     }),
   ];
   const noticeColumns: ColumnProps<ReportDeprecationNotice>[] = [
-    { title: '公告标题', dataIndex: 'title', width: 220, render: renderEllipsis },
+    { title: '公告标题', dataIndex: 'title', minWidth: 220, render: renderEllipsis },
     { title: '资源', width: 150, render: (_v, r) => `${r.resourceType} #${r.resourceId}` },
     dateTimeColumn('生效时间', 'effectiveAt'),
     dateTimeColumn('到期时间', 'expiresAt'),
@@ -283,7 +283,7 @@ export default function AssetsPage() {
     }),
   ];
   const usageColumns: ColumnProps<ReportAssetUsageSummary>[] = [
-    { title: '资源', width: 150, render: (_v, r) => `${r.resourceType} #${r.resourceId}` },
+    { title: '资源', minWidth: 150, render: (_v, r) => `${r.resourceType} #${r.resourceId}` },
     { title: '查看', dataIndex: 'views', width: 90 },
     { title: '查询', dataIndex: 'queries', width: 90 },
     { title: '导出', dataIndex: 'exports', width: 90 },

@@ -370,7 +370,7 @@ export default function FileStorageConfigsPage() {
     {
       title: '配置名称',
       dataIndex: 'name',
-      width: 180,
+      minWidth: 180,
       render: renderEllipsis,
     },
     {

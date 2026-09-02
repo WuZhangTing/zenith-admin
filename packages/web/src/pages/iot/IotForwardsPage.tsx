@@ -102,7 +102,7 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
 
   const columns: ColumnProps<IotForwardRule>[] = [
     {
-      title: '规则名称', dataIndex: 'name', width: 170,
+      title: '规则名称', dataIndex: 'name', minWidth: 170,
       render: (v: string) => renderEllipsis(v),
     },
     {
@@ -327,7 +327,7 @@ function ForwardLogsTab({ filterRule, onClearFilter }: Readonly<{
       render: (v: number | null) => v != null ? `${v}ms` : EMPTY_PLACEHOLDER,
     },
     {
-      title: '错误信息', dataIndex: 'errorMessage', width: 240,
+      title: '错误信息', dataIndex: 'errorMessage', minWidth: 240,
       render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
     },
     {

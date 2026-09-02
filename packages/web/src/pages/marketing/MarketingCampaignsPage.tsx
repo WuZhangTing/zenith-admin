@@ -120,7 +120,7 @@ export default function MarketingCampaignsPage() {
   }
 
   const columns: ColumnProps<MarketingCampaign>[] = [
-    { title: '活动名称', dataIndex: 'name', width: 200 },
+    { title: '活动名称', dataIndex: 'name', minWidth: 200 },
     {
       title: '活动时间', width: 200,
       render: (_: unknown, r: MarketingCampaign) => (

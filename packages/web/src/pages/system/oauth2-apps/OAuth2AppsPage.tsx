@@ -201,7 +201,7 @@ export default function OAuth2AppsPage() {
     {
       title: '应用名称',
       dataIndex: 'name',
-      width: 160,
+      minWidth: 160,
       render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Text>,
     },
     copyableNoColumn('Client ID', 'clientId', { width: 260 }),

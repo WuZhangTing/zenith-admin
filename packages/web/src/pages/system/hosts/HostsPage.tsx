@@ -134,7 +134,7 @@ export default function HostsPage() {
   };
 
   const columns: ColumnProps<OpsHost>[] = [
-    { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     copyableNoColumn('连接地址', 'host', {
       width: 230,
       displayText: (_v, record) => `${record.username}@${record.host}:${record.port}`,

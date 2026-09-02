@@ -151,7 +151,7 @@ export default function MpBroadcastsPage() {
       title: '群发对象', dataIndex: 'target', width: 130,
       render: (v: MpBroadcastTarget, r: MpBroadcast) => (v === 'all' ? '全部粉丝' : `标签：${r.tagId ? (tagMap.get(r.tagId) ?? `#${r.tagId}`) : '—'}`),
     },
-    { title: '内容', dataIndex: 'content', width: 260, render: (_: unknown, r: MpBroadcast) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{summarize(r)}</Typography.Text> },
+    { title: '内容', dataIndex: 'content', minWidth: 260, render: (_: unknown, r: MpBroadcast) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{summarize(r)}</Typography.Text> },
     dateTimeColumn('发送时间', 'sentAt'),
     createdAtColumn,
     {

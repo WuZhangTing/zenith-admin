@@ -177,7 +177,7 @@ export default function PublishingPage() {
       title: '任务', dataIndex: 'title', width: 240,
       render: (_: string, record) => <div><Typography.Text strong>{record.title}</Typography.Text><div><Typography.Text type="tertiary" size="small">{record.taskType}</Typography.Text></div></div>,
     },
-    { title: '站点', dataIndex: 'siteName', width: 140, render: (value: string | null) => value ?? '-' },
+    { title: '站点', dataIndex: 'siteName', minWidth: 140, render: (value: string | null) => value ?? '-' },
     { title: '目标', dataIndex: 'targetType', width: 120, render: (value: CmsPublishTargetType) => CMS_PUBLISH_TARGET_TYPE_LABELS[value] },
     { title: '进度', width: 220, render: (_: unknown, record) => <AsyncTaskProgress task={record} /> },
     { title: '产物', width: 110, render: (_: unknown, record) => record.failedArtifactCount ? <Typography.Text type="danger">{record.artifactCount}（失败 {record.failedArtifactCount}）</Typography.Text> : record.artifactCount },
@@ -206,7 +206,7 @@ export default function PublishingPage() {
   const artifactColumns: ColumnProps<CmsPublishArtifact>[] = [
     { title: '任务ID', dataIndex: 'taskId', width: 100 },
     { title: '目标', dataIndex: 'targetType', width: 120, render: (value: CmsPublishTargetType) => CMS_PUBLISH_TARGET_TYPE_LABELS[value] },
-    { title: '路径', dataIndex: 'path', width: 320, render: renderEllipsis },
+    { title: '路径', dataIndex: 'path', minWidth: 320, render: renderEllipsis },
     { title: 'URL', dataIndex: 'url', width: 320, render: renderEllipsis },
     { title: '大小', dataIndex: 'size', width: 100, align: 'right', render: (value: number | null) => value == null ? '-' : `${value} B` },
     dateTimeColumn('生成时间', 'generatedAt'),

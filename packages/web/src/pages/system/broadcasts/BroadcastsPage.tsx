@@ -163,7 +163,7 @@ export default function BroadcastsPage() {
 
   const columns: ColumnProps<BroadcastCampaign>[] = [
     { title: '标题', dataIndex: 'title', width: 200, render: renderEllipsis },
-    { title: '内容', dataIndex: 'content', width: 240, render: renderEllipsis },
+    { title: '内容', dataIndex: 'content', minWidth: 240, render: renderEllipsis },
     {
       title: '渠道', dataIndex: 'channels', width: 150,
       render: (v: BroadcastChannel[]) => (

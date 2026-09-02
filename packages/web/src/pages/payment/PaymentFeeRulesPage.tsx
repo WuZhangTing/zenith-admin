@@ -106,7 +106,7 @@ export default function PaymentFeeRulesPage() {
   }
 
   const columns: ColumnProps<PaymentFeeRule>[] = [
-    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     { title: '支付方式', dataIndex: 'payMethod', width: 160, render: (v: PaymentMethod | null) => (v ? PAYMENT_METHOD_LABELS[v] : '全部') },
     { title: '费率', dataIndex: 'rateBps', width: 90, align: 'right', render: (v: number) => `${(v / 100).toFixed(2)}%` },

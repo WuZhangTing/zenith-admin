@@ -197,7 +197,7 @@ export default function PayDemoPage() {
   };
 
   const columns: ColumnProps<BizPayDemo>[] = [
-    { title: '示例事项', dataIndex: 'subject', width: 220 },
+    { title: '示例事项', dataIndex: 'subject', minWidth: 220 },
     { title: '金额', dataIndex: 'amount', width: 120, align: 'right', render: (v: number) => yuan(v) },
     {
       title: '支付方式', dataIndex: 'payMethod', width: 130,

@@ -59,6 +59,7 @@ const COPY_SUCCESS_TIP = (
  * @example
  * copyableNoColumn('订单号', 'orderNo')
  * copyableNoColumn('批次号', 'batchNo', { width: 300, fixed: 'left' })
+ * copyableNoColumn('退款单号', 'refundNo', { flex: true })  // 作为表格的弹性主列吸收剩余宽度
  * copyableNoColumn('短链', 'code', { displayText: (v) => `/s/${v}`, copyContent: (_, r) => r.shortUrl })
  * copyableNoColumn('令牌', 'token', { displayText: maskToken })  // 复制仍是原值
  */
@@ -70,13 +71,15 @@ export function copyableNoColumn<RecordType extends Data = Data>(
     displayText?: (value: string, record: RecordType) => string;
     /** 复制内容；默认复制字段**原值**（不是展示文本） */
     copyContent?: (value: string, record: RecordType) => string;
+    /** 作为弹性主列：不设 width、以 NO_COLUMN_WIDTH 为最小宽度（表格没有其他长文本列时使用） */
+    flex?: boolean;
   },
 ): ColumnProps<RecordType> {
-  const { displayText, copyContent, ...columnProps } = options ?? {};
+  const { displayText, copyContent, flex, ...columnProps } = options ?? {};
   return {
     title,
     dataIndex,
-    width: NO_COLUMN_WIDTH,
+    ...(flex ? { minWidth: NO_COLUMN_WIDTH } : { width: NO_COLUMN_WIDTH }),
     ...columnProps,
     render: (v: string | null | undefined, record: RecordType) => {
       if (!v) return EMPTY_PLACEHOLDER;

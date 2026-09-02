@@ -146,7 +146,7 @@ export default function TaskDemoPage() {
 
   const columns: ColumnProps<AsyncTask>[] = [
     { title: '任务ID', dataIndex: 'id', width: 80 },
-    { title: '任务', dataIndex: 'title', width: 210, render: (value: string) => <Typography.Text strong>{value}</Typography.Text> },
+    { title: '任务', dataIndex: 'title', minWidth: 210, render: (value: string) => <Typography.Text strong>{value}</Typography.Text> },
     {
       title: '类型',
       dataIndex: 'taskType',

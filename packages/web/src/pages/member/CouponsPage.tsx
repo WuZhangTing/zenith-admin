@@ -172,7 +172,7 @@ export default function CouponsPage() {
     ) },
     { title: '每人限领', dataIndex: 'perLimit', width: 90, align: 'right', render: (v: number) => (v > 0 ? v : '不限') },
     { title: '兑换积分', dataIndex: 'exchangePoints', width: 90, align: 'right', render: (v?: number) => (v && v > 0 ? v : '-') },
-    { title: '有效期', dataIndex: 'validType', width: 200, render: (_: string, r: Coupon) => <span style={{ fontSize: 12 }}>{renderValid(r)}</span> },
+    { title: '有效期', dataIndex: 'validType', minWidth: 200, render: (_: string, r: Coupon) => <span style={{ fontSize: 12 }}>{renderValid(r)}</span> },
     { title: '状态', dataIndex: 'status', width: 90, render: (v: CouponTemplateStatus) => <Tag color={STATUS_COLORS[v] as 'green'}>{COUPON_TEMPLATE_STATUS_LABELS[v]}</Tag> },
     createdAtColumn,
     ...(hasOps ? [

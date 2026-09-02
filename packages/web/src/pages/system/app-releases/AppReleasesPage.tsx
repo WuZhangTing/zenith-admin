@@ -156,7 +156,7 @@ function AppsManageModal({ visible, onClose }: { visible: boolean; onClose: () =
 
   const columns: ColumnProps<ClientApp>[] = [
     { title: 'appKey', dataIndex: 'appKey', width: 160, render: renderEllipsis },
-    { title: '名称', dataIndex: 'name', width: 150, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 150, render: renderEllipsis },
     { title: '版本数', dataIndex: 'releaseCount', width: 80 },
     {
       title: '最新版本', dataIndex: 'latestVersion', width: 100,
@@ -336,7 +336,7 @@ function ArtifactsSheet({ releaseId, onClose }: { releaseId: number | null; onCl
       title: '类型', dataIndex: 'kind', width: 92,
       render: (v: AppArtifact['kind']) => <Tag color={v === 'metadata' ? 'grey' : 'blue'} size="small">{APP_ARTIFACT_KIND_LABELS[v]}</Tag>,
     },
-    { title: '文件名', dataIndex: 'fileName', width: 220, render: renderEllipsis },
+    { title: '文件名', dataIndex: 'fileName', minWidth: 220, render: renderEllipsis },
     {
       title: '大小', dataIndex: 'size', width: 90,
       render: (v: number, record: AppArtifact) => (record.kind === 'external' ? EMPTY_PLACEHOLDER : formatFileSize(v)),
@@ -589,7 +589,7 @@ function ReleaseManageTab({ active }: { active: boolean }) {
       title: '版本号', dataIndex: 'version', width: 120,
       render: (v: string) => <Text strong>{v}</Text>,
     },
-    { title: '应用', dataIndex: 'appName', width: 140, render: renderEllipsis },
+    { title: '应用', dataIndex: 'appName', minWidth: 140, render: renderEllipsis },
     {
       title: '渠道', dataIndex: 'channel', width: 90,
       render: (v: AppReleaseChannel) => <Tag color={CHANNEL_TAG_COLORS[v]} size="small">{APP_RELEASE_CHANNEL_LABELS[v]}</Tag>,
@@ -967,7 +967,7 @@ function DevicesTab({ active }: { active: boolean }) {
   const canUpdate = hasPermission('system:app-release:update');
 
   const columns: ColumnProps<ClientDevice>[] = [
-    { title: '设备标识', dataIndex: 'deviceId', width: 180, render: renderEllipsis },
+    { title: '设备标识', dataIndex: 'deviceId', minWidth: 180, render: renderEllipsis },
     { title: '应用', dataIndex: 'appName', width: 130, render: renderEllipsis },
     {
       title: '平台', dataIndex: 'platform', width: 100,

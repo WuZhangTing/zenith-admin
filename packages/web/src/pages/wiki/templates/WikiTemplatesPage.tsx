@@ -78,7 +78,7 @@ export default function WikiTemplatesPage() {
 
   const columns: ColumnProps<WikiTemplate>[] = [
     { title: '模板名称', dataIndex: 'name', width: 200, render: renderEllipsis },
-    { title: '描述', dataIndex: 'description', width: 260, render: renderEllipsis },
+    { title: '描述', dataIndex: 'description', minWidth: 260, render: renderEllipsis },
     { title: '排序', dataIndex: 'sort', width: 80 },
     createdAtColumn,
     {

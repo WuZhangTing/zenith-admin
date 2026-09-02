@@ -224,7 +224,7 @@ export default function PaymentContractsPage() {
     copyableNoColumn('协议号', 'contractNo'),
     { title: '支付应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appById.get(value)?.name ?? `应用 #${value}`) },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
-    { title: '扣款计划', dataIndex: 'planName', width: 200, render: (v: string | null, r) => {
+    { title: '扣款计划', dataIndex: 'planName', minWidth: 200, render: (v: string | null, r) => {
       const text = v ? `${v}（${r.planPeriod ? describePlanPeriod({ period: r.planPeriod, customDays: null }) : '-'}）` : '-';
       return <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 180 }}>{text}</Typography.Text>;
     } },
@@ -281,7 +281,7 @@ export default function PaymentContractsPage() {
   ];
 
   const planColumns: ColumnProps<PaymentDeductPlan>[] = [
-    { title: '计划名称', dataIndex: 'name', width: 200, render: renderEllipsis },
+    { title: '计划名称', dataIndex: 'name', minWidth: 200, render: renderEllipsis },
     { title: '扣款周期', dataIndex: 'period', width: 120, render: (_: unknown, p) => describePlanPeriod(p) },
     { title: '每期金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '重试上限', dataIndex: 'maxRetries', width: 100 },

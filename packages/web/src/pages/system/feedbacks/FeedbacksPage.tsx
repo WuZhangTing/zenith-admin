@@ -143,7 +143,7 @@ export default function FeedbacksPage() {
         return <Tag color={o?.color ?? 'grey'}>{o?.label ?? v}</Tag>;
       },
     },
-    { title: '反馈内容', dataIndex: 'content', width: 260, render: (v: string | null) => renderEllipsis(v ?? '—') },
+    { title: '反馈内容', dataIndex: 'content', minWidth: 260, render: (v: string | null) => renderEllipsis(v ?? '—') },
     { title: '来源页面', dataIndex: 'pagePath', width: 150, render: (v: string | null) => renderEllipsis(v ?? '—') },
     { title: '处理人', dataIndex: 'handlerNickname', width: 100, render: (v: string | null) => v ?? '—' },
     { title: '处理备注', dataIndex: 'handleRemark', width: 180, render: (v: string | null) => renderEllipsis(v ?? '—') },

@@ -342,7 +342,7 @@ export default function SystemSchedulerPage() {
     {
       title: '告警',
       dataIndex: 'lastAlertMessage',
-      width: 300,
+      minWidth: 300,
       render: (_: unknown, record) => record.lastAlertMessage
         ? (
           <Space vertical align="start" spacing={2}>
@@ -475,7 +475,7 @@ export default function SystemSchedulerPage() {
     {
       title: '输出',
       dataIndex: 'resultMessage',
-      width: 320,
+      minWidth: 320,
       render: (_: unknown, record) => renderEllipsis(record.errorMessage ?? record.resultMessage),
     },
     createOperationColumn<SystemSchedulerRun>({
@@ -509,7 +509,7 @@ export default function SystemSchedulerPage() {
       ),
     },
     { title: '状态', dataIndex: 'active', width: 120, render: (_: unknown, record) => <Tag color={record.active && !record.stale ? 'green' : 'red'}>{record.active && !record.stale ? '在线' : '离线'}</Tag> },
-    { title: '版本', dataIndex: 'version', width: 140, render: (value: string | null) => value ?? '-' },
+    { title: '版本', dataIndex: 'version', minWidth: 140, render: (value: string | null) => value ?? '-' },
     dateTimeColumn('启动时间', 'startedAt'),
     dateTimeColumn('最近心跳', 'lastHeartbeatAt'),
     { title: '注册任务', dataIndex: 'registeredTaskCount', width: 120, align: 'right' },

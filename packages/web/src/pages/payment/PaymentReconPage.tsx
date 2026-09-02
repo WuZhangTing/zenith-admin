@@ -239,7 +239,7 @@ export default function PaymentReconPage() {
 
   const columns: ColumnProps<PaymentReconBatch>[] = [
     copyableNoColumn('批次号', 'batchNo'),
-    { title: '支付应用', dataIndex: 'appId', width: 200, render: (v: number) => renderEllipsis(appById.get(v)?.name ?? `应用 #${v}`) },
+    { title: '支付应用', dataIndex: 'appId', minWidth: 200, render: (v: number) => renderEllipsis(appById.get(v)?.name ?? `应用 #${v}`) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },
     {
       title: '商户配置', dataIndex: 'channelConfigId', width: 220,
@@ -296,7 +296,7 @@ export default function PaymentReconPage() {
       },
     },
     { title: '原始备注', dataIndex: 'remark', width: 150, render: renderEllipsis },
-    { title: '处理备注', dataIndex: 'handleRemark', width: 200, render: renderEllipsis },
+    { title: '处理备注', dataIndex: 'handleRemark', minWidth: 200, render: renderEllipsis },
     createOperationColumn<PaymentReconItem>({
       width: 90,
       actions: (r) => [

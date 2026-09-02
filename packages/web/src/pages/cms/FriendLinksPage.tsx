@@ -72,7 +72,7 @@ export default function FriendLinksPage() {
     {
       title: '链接地址',
       dataIndex: 'url',
-      width: 300,
+      minWidth: 300,
       render: (v: string) => <a href={v} target="_blank" rel="noopener noreferrer">{v}</a>,
     },
     { title: '排序', dataIndex: 'sort', width: 80 },
@@ -195,7 +195,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
   const deleteMutation = useDeleteCmsFriendLinkGroup();
 
   const columns: ColumnProps<CmsFriendLinkGroup>[] = [
-    { title: '分组名称', dataIndex: 'name', width: 140 },
+    { title: '分组名称', dataIndex: 'name', minWidth: 140 },
     { title: '标识', dataIndex: 'code', width: 120 },
     { title: '友链数', dataIndex: 'linkCount', width: 80, align: 'right' },
     { title: '排序', dataIndex: 'sort', width: 70 },

@@ -96,7 +96,7 @@ export default function MpKfAccountsPage() {
         </Space>
       ),
     },
-    { title: '客服账号', dataIndex: 'kfAccount', width: 220, render: renderEllipsis },
+    { title: '客服账号', dataIndex: 'kfAccount', minWidth: 220, render: renderEllipsis },
     { title: '绑定微信号', dataIndex: 'inviteWx', width: 140, render: (v: string | null) => v || '—' },
     {
       title: '绑定状态', dataIndex: 'inviteStatus', width: 100,

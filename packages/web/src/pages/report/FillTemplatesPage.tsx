@@ -235,7 +235,7 @@ export default function FillTemplatesPage() {
   }
 
   const columns: ColumnProps<ReportFillTemplate>[] = [
-    { title: '模板名称', dataIndex: 'name', width: 190, render: renderEllipsis },
+    { title: '模板名称', dataIndex: 'name', minWidth: 190, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 220, render: renderEllipsis },
     { title: '负责人', dataIndex: 'ownerName', width: 110, render: (value: string | null) => value || '—' },
     { title: '目录', dataIndex: 'folderName', width: 130, render: (value: string | null) => value || '—' },

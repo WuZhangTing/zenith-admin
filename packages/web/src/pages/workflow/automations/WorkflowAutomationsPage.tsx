@@ -420,7 +420,7 @@ export default function WorkflowAutomationsPage() {
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '所属流程', dataIndex: 'definitionName', width: 200,
       render: (_v, r) => r.definitionName ?? `#${r.definitionId}` },
-    { title: '名称', dataIndex: 'name', width: 200 },
+    { title: '名称', dataIndex: 'name', minWidth: 200 },
     {
       title: '触发时机', dataIndex: 'trigger', width: 110,
       render: (v: WorkflowAutomationTrigger) => {

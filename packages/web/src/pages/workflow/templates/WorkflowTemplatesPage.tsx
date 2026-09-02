@@ -130,7 +130,7 @@ export default function WorkflowTemplatesPage() {
     {
       title: '描述',
       dataIndex: 'description',
-      width: 240,
+      minWidth: 240,
       render: renderEllipsis,
     },
     {

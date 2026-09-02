@@ -203,7 +203,7 @@ export default function PrintTemplatesPage() {
 
   const columns: ColumnProps<ReportPrintTemplate>[] = [
     {
-      title: '名称', dataIndex: 'name', width: 200,
+      title: '名称', dataIndex: 'name', minWidth: 200,
       render: (v: string, record: ReportPrintTemplate) => hasPermission('report:print:list') ? (
         <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => void openPreview(record)}>{v}</Typography.Text>
       ) : v,

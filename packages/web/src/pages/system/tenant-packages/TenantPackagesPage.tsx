@@ -135,7 +135,7 @@ export default function TenantPackagesPage() {
       },
     },
     { title: '席位上限', dataIndex: 'quotas', width: 100, align: 'center', render: (q?: { maxUsers?: number } | null) => q?.maxUsers ?? '不限' },
-    { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
+    { title: '备注', dataIndex: 'remark', minWidth: 200, render: renderEllipsis },
     createdAtColumn,
     {
       title: '状态',

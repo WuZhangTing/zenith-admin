@@ -66,7 +66,7 @@ export default function TagsPage() {
   };
 
   const columns: ColumnProps<CmsTag>[] = [
-    { title: '标签名称', dataIndex: 'name', width: 180 },
+    { title: '标签名称', dataIndex: 'name', minWidth: 180 },
     { title: 'URL 标识', dataIndex: 'slug', width: 160 },
     { title: '分组', dataIndex: 'groupName', width: 130, render: (v: string | null) => v ?? '-' },
     { title: '关联内容数', dataIndex: 'contentCount', width: 120, align: 'right' },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePreferences } from '@/hooks/usePreferences';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
@@ -7,10 +7,13 @@ import { RotateCcw, Rows3, Settings, Settings2, Maximize2, Minimize2, RefreshCw 
 import type { ColumnProps, Data, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TableSizePreference } from '@/hooks/usePreferences';
 import { ZENITH_OPERATION_COLUMN_SYMBOL, type ZenithOperationColumnMarker } from './table-column-meta';
+import { resolveFlexColumns, stripFlexColumnProps, type FlexColumnProps } from './table-flex-columns';
 
 type TableRecord = Data;
 type ConfigurableColumn<RecordType extends TableRecord> = Omit<ColumnProps<RecordType>, 'children'> & {
   children?: ConfigurableColumn<RecordType>[];
+  /** 弹性主列的最小宽度：不设 `width` 的列吸收剩余空间，容器过窄时保底该宽度（见 table-flex-columns.ts） */
+  minWidth?: number;
 } & ZenithOperationColumnMarker;
 
 interface ColumnOption {
@@ -66,6 +69,8 @@ interface ConfigurableTableProps<RecordType extends TableRecord = TableRecord> e
 
 const MOBILE_ACTION_COLUMN_WIDTH = 64;
 const STRIPED_ROW_CLASS_NAME = 'configurable-table-row--striped';
+/** 开发期已提示过「未声明弹性列」的表格，避免每次渲染重复告警 */
+const warnedFallbackTables = new Set<string>();
 
 function joinClassNames(...classNames: Array<string | false | null | undefined>): string | undefined {
   const next = classNames.filter(Boolean).join(' ');
@@ -217,7 +222,56 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
 }: Readonly<ConfigurableTableProps<RecordType>>) {
   const { preferences } = usePreferences();
   const isMobile = useIsMobile();
-  const { bordered, className, onRow, size, pagination, ...restTableProps } = tableProps;
+  const {
+    bordered, className, onRow, size, pagination,
+    scroll, rowSelection, expandedRowRender, hideExpandedColumn, sticky, resizable, virtualized, components,
+    ...restTableProps
+  } = tableProps;
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // 虚拟化表格：Semi 把 scroll.x 直接写成 wrapper 宽度（不是最小宽度），要铺满容器就必须量出容器宽度；
+  // body 行宽等于各列之和、纵向滚动条又占在 body 内部，所以各列之和要按 body 的可视宽度（clientWidth）给。
+  // 记「容器宽 − body 可视宽」为 chrome（边框 + 滚动条），容器变化时直接用它推算可视宽，一次渲染到位；
+  // body 观察器只在滚动条出现 / 消失时校正 chrome。
+  const [virtualizedWrapperWidth, setVirtualizedWrapperWidth] = useState(0);
+  const [virtualizedChrome, setVirtualizedChrome] = useState(0);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!virtualized || !el) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = Math.floor(entries[0]?.contentRect.width ?? 0);
+      if (width > 0) setVirtualizedWrapperWidth(width);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [virtualized]);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!virtualized || !root) return;
+    const body = root.querySelector<HTMLElement>('.semi-table-body');
+    if (!body) return;
+    // 同值 setState 会被 React 忽略；只有滚动条出现 / 消失（或边框变化）时才触发第二次渲染
+    const measure = () => setVirtualizedChrome(Math.max(0, Math.floor(root.getBoundingClientRect().width) - body.clientWidth));
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [virtualized, restTableProps.dataSource, restTableProps.expandedRowKeys, scroll?.y]);
+
+  // 虚拟化表格的表头 table：Semi 写成 scroll.x（= wrapper）宽，而 body 行宽是各列之和，纵向滚动条占位使两者不等，
+  // 表头列会被按比例拉伸而与行错位。经 components.header.outer 把表头 table 宽度改成各列之和即可对齐。
+  const headerTableWidthRef = useRef(0);
+  const VirtualizedHeaderTable = useMemo(() => {
+    function HeaderTable({ style, ...rest }: React.TableHTMLAttributes<HTMLTableElement>) {
+      const width = headerTableWidthRef.current;
+      return <table {...rest} style={width > 0 ? { ...style, width } : style} />;
+    }
+    return HeaderTable;
+  }, []);
+  const effectiveComponents = useMemo<TableProps<RecordType>['components']>(() => {
+    if (!virtualized) return components;
+    return { ...components, header: { ...components?.header, outer: VirtualizedHeaderTable } };
+  }, [components, virtualized, VirtualizedHeaderTable]);
 
   const effectivePagination = useMemo(() => {
     if (!pagination || typeof pagination === 'boolean') return pagination;
@@ -310,6 +364,29 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   const tableClassName = joinClassNames(className, effectiveStriped && 'configurable-table__table--striped');
   const effectiveColumns = effectiveColumnSettings ? visibleColumns : responsiveColumns;
 
+  // 弹性主列：按当前可见列求和写入 scroll.x，防止 fixed 布局下操作列被按比例拉宽；
+  // 列宽由用户拖拽（resizable）时 Semi 自行管理宽度，只剥离 minWidth 不介入
+  const resolvedLayout = useMemo(() => {
+    const flexColumns = effectiveColumns as FlexColumnProps<RecordType>[];
+    if (resizable) return { columns: stripFlexColumnProps(flexColumns), scroll, fallbackColumnLabel: null, columnsTotalWidth: 0 };
+    // 首次渲染 chrome 尚未量到时先按整个 wrapper 宽度铺，body 观察器量到后再校正
+    const fill = virtualized && virtualizedWrapperWidth > 0
+      ? { wrapperWidth: virtualizedWrapperWidth, contentWidth: Math.max(0, virtualizedWrapperWidth - virtualizedChrome) }
+      : undefined;
+    return resolveFlexColumns(flexColumns, { scroll, rowSelection, expandedRowRender, hideExpandedColumn, sticky, fill });
+  }, [effectiveColumns, scroll, rowSelection, expandedRowRender, hideExpandedColumn, sticky, resizable, virtualized, virtualizedWrapperWidth, virtualizedChrome]);
+  // 表头 table 在同一次渲染里读取该值（Semi 会随 columns 变化重渲染表头）
+  headerTableWidthRef.current = virtualized && !resizable ? resolvedLayout.columnsTotalWidth : 0;
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !resolvedLayout.fallbackColumnLabel || warnedFallbackTables.has(storageKey)) return;
+    warnedFallbackTables.add(storageKey);
+    console.warn(
+      `[ConfigurableTable] ${storageKey}\n所有列都设置了固定宽度，已自动放开「${resolvedLayout.fallbackColumnLabel}」列吸收剩余空间。`
+      + '请为主列去掉 width、改用 minWidth 显式声明弹性列（constraints-frontend.md → 搜索栏与表格）。',
+    );
+  }, [resolvedLayout.fallbackColumnLabel, storageKey]);
+
   const handleResetColumns = useCallback(() => {
     updateHiddenKeys(() => []);
   }, [updateHiddenKeys]);
@@ -391,7 +468,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   );
 
   return (
-    <div className={`configurable-table${isFullscreen ? ' configurable-table--fullscreen' : ''}`}>
+    <div ref={rootRef} className={`configurable-table${isFullscreen ? ' configurable-table--fullscreen' : ''}`}>
       <div className="configurable-table-actions">
         {onRefresh && (
           <Button
@@ -446,7 +523,15 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
         {...restTableProps}
         bordered={effectiveBordered}
         className={tableClassName}
-        columns={effectiveColumns}
+        columns={resolvedLayout.columns}
+        scroll={resolvedLayout.scroll}
+        rowSelection={rowSelection}
+        expandedRowRender={expandedRowRender}
+        hideExpandedColumn={hideExpandedColumn}
+        sticky={sticky}
+        resizable={resizable}
+        virtualized={virtualized}
+        components={effectiveComponents}
         onRow={effectiveOnRow}
         pagination={effectivePagination}
         size={effectiveSize}

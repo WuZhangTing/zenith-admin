@@ -93,7 +93,7 @@ export default function MpQrcodesPage() {
   };
 
   const columns = [
-    { title: '名称', dataIndex: 'name', width: 160, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Typography.Text> },
+    { title: '名称', dataIndex: 'name', minWidth: 160, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{v}</Typography.Text> },
     { title: '场景值', dataIndex: 'sceneStr', width: 180, render: (v: string) => <Typography.Text code>{v}</Typography.Text> },
     { title: '类型', dataIndex: 'type', width: 90, render: (v: MpQrcodeType) => <Tag color={TYPE_META[v].color} type="light">{TYPE_META[v].label}</Tag> },
     { title: '扫码次数', dataIndex: 'scanCount', width: 100, align: 'center' as const },

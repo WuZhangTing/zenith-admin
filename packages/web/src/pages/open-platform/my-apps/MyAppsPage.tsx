@@ -152,7 +152,7 @@ export default function MyAppsPage() {
   };
 
   const columns: ColumnProps<OAuth2Client>[] = [
-    { title: '应用名称', dataIndex: 'name', width: 240, render: renderEllipsis },
+    { title: '应用名称', dataIndex: 'name', minWidth: 240, render: renderEllipsis },
     copyableNoColumn('Client ID', 'clientId', { width: 270 }),
     {
       title: '环境',

@@ -277,7 +277,7 @@ export default function IdentityProvidersPage() {
   }
 
   const columns: ColumnProps<TenantIdentityProvider>[] = [
-    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 130, render: renderEllipsis },
     { title: '租户', dataIndex: 'tenantName', width: 160, render: (value) => renderEllipsis(value || '平台') },
     {

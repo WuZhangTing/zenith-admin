@@ -214,7 +214,7 @@ export default function PaymentRiskRulesPage() {
   }
 
   const columns: ColumnProps<PaymentRiskRule>[] = [
-    { title: '名称', dataIndex: 'name', width: 220, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 220, render: renderEllipsis },
     { title: '作用域', dataIndex: 'scope', width: 100, render: (v: PaymentRiskScope) => PAYMENT_RISK_SCOPE_LABELS[v] },
     { title: '范围', dataIndex: 'channel', width: 150, render: (_: unknown, r: PaymentRiskRule) => {
       const text = r.scope === 'channel' ? (r.channel ? PAYMENT_CHANNEL_LABELS[r.channel] : '-') : r.scope === 'bizType' ? (r.bizType || '-') : '全局';
@@ -275,7 +275,7 @@ export default function PaymentRiskRulesPage() {
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
     { title: '业务', dataIndex: 'bizType', width: 140, render: (v: string, r) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{`${v}:${r.bizId}`}</Typography.Text> },
     { title: '金额', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => yuan(v) },
-    { title: '触发原因', dataIndex: 'reason', width: 220, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v}</Typography.Text> },
+    { title: '触发原因', dataIndex: 'reason', minWidth: 220, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>{v}</Typography.Text> },
     { title: '审核人', dataIndex: 'reviewerName', width: 120, render: renderEllipsis },
     { title: '审核意见', dataIndex: 'reviewRemark', width: 220, render: renderEllipsis },
     dateTimeColumn('审核时间', 'reviewedAt'),

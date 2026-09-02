@@ -203,7 +203,7 @@ export default function DirectorySyncSourcesPage() {
   }
 
   const columns: ColumnProps<DirectorySyncSource>[] = [
-    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     {
       title: '类型', dataIndex: 'type', width: 110,
       render: (_: unknown, r: DirectorySyncSource) => <Tag color={r.type === 'ldap' ? 'purple' : 'blue'}>{DIRECTORY_SYNC_SOURCE_TYPE_LABELS[r.type]}</Tag>,

@@ -51,7 +51,7 @@ export default function WikiTagsPage() {
 
   const columns: ColumnProps<WikiTag>[] = [
     {
-      title: '标签', dataIndex: 'name', width: 200,
+      title: '标签', dataIndex: 'name', minWidth: 200,
       render: (_: unknown, record: WikiTag) => (
         <Tag style={record.color ? { backgroundColor: record.color, color: '#fff' } : undefined}>{record.name}</Tag>
       ),

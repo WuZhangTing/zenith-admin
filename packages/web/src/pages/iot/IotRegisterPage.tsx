@@ -115,7 +115,7 @@ export default function IotRegisterPage() {
     },
     dateTimeColumn<IotWhitelistEntry>('注册时间', 'usedAt'),
     {
-      title: '备注', dataIndex: 'remark', width: 150,
+      title: '备注', dataIndex: 'remark', minWidth: 150,
       render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
     },
     dateTimeColumn<IotWhitelistEntry>('导入时间', 'createdAt'),

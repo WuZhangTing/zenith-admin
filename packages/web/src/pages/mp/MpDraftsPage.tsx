@@ -99,7 +99,7 @@ export default function MpDraftsPage() {
   };
 
   const columns = [
-    { title: '标题', dataIndex: 'title', width: 220, render: renderEllipsis },
+    { title: '标题', dataIndex: 'title', minWidth: 220, render: renderEllipsis },
     { title: '文章数', dataIndex: 'articles', width: 90, render: (v: MpArticle[]) => `${v?.length ?? 0} 篇` },
     {
       title: '状态', dataIndex: 'status', width: 100,

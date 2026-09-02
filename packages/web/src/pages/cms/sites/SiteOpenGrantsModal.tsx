@@ -95,7 +95,7 @@ export default function SiteOpenGrantsModal({ site, onClose }: Readonly<SiteOpen
           { title: 'AppKey', dataIndex: 'clientId', width: 180 },
           { title: '应用', dataIndex: 'appName', width: 140, render: (v: string | null) => v ?? '-' },
           {
-            title: '可写栏目', dataIndex: 'channelIds', width: 160,
+            title: '可写栏目', dataIndex: 'channelIds', minWidth: 160,
             render: (v: number[]) => (v?.length ? `${v.length} 个栏目` : <Tag size="small" color="blue">全部栏目</Tag>),
           },
           {

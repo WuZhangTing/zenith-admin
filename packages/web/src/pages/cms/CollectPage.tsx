@@ -99,7 +99,7 @@ export default function CollectPage() {
     {
       title: '列表页 URL',
       dataIndex: 'listUrl',
-      width: 260,
+      minWidth: 260,
       render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{v}</Typography.Text>,
     },
     { title: '翻页', width: 90, render: (_: unknown, r) => (r.listUrl.includes('{page}') ? `${r.pageStart}-${r.pageEnd}` : '单页') },

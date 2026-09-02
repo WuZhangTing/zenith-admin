@@ -82,7 +82,7 @@ export default function AiToolsPage() {
     {
       title: '描述',
       dataIndex: 'description',
-      width: 280,
+      minWidth: 280,
       render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 260, fontSize: 13 }}>{v}</Text>,
     },
     { title: '方法', dataIndex: 'method', width: 80, render: (v: string) => <Tag size="small" color={v === 'GET' ? 'blue' : 'orange'}>{v}</Tag> },

@@ -137,7 +137,7 @@ export default function DirectorySyncConflictsPage() {
   const columns: ColumnProps<DirectorySyncConflict>[] = [
     { title: '同步源', dataIndex: 'sourceName', width: 130, render: renderEllipsis },
     {
-      title: '对象', dataIndex: 'name', width: 150,
+      title: '对象', dataIndex: 'name', minWidth: 150,
       render: (_: unknown, r: DirectorySyncConflict) => (
         <div>
           <div>{r.name ?? EMPTY_PLACEHOLDER}</div>

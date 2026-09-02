@@ -227,7 +227,7 @@ export default function AlertRulesPage() {
     {
       title: '触发条件',
       dataIndex: 'metric',
-      width: 320,
+      minWidth: 320,
       render: (_: unknown, r: MonitorAlertRule) => (
         <span>
           <Tag size="small" type="ghost">{METRIC_LABELS[r.metric] ?? r.metric}</Tag>

@@ -120,7 +120,7 @@ function AlarmRecordsTab() {
         : EMPTY_PLACEHOLDER,
     },
     {
-      title: '告警内容', dataIndex: 'message', width: 240,
+      title: '告警内容', dataIndex: 'message', minWidth: 240,
       render: (v: string) => renderEllipsis(v),
     },
     {
@@ -356,7 +356,7 @@ function AlarmRulesTab() {
 
   const columns: ColumnProps<IotAlarmRule>[] = [
     {
-      title: '规则名称', dataIndex: 'name', width: 170,
+      title: '规则名称', dataIndex: 'name', minWidth: 170,
       render: (v: string) => renderEllipsis(v),
     },
     {
@@ -676,7 +676,7 @@ function MaintenanceWindowsTab() {
     dateTimeColumn<IotMaintenanceWindow>('开始时间', 'startAt'),
     dateTimeColumn<IotMaintenanceWindow>('结束时间', 'endAt'),
     {
-      title: '原因', dataIndex: 'reason', width: 200,
+      title: '原因', dataIndex: 'reason', minWidth: 200,
       render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
     },
     createOperationColumn<IotMaintenanceWindow>({

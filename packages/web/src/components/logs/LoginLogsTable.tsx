@@ -53,7 +53,7 @@ export function LoginLogsTable({
       width: 110,
       render: (eventType: LoginLog['eventType']) => <LoginEventTypeTag eventType={eventType} />,
     },
-    { title: '事件信息', dataIndex: 'message', width: 160, render: (v: string | null) => v ?? '-' },
+    { title: '事件信息', dataIndex: 'message', minWidth: 160, render: (v: string | null) => v ?? '-' },
     { title: 'IP 地址', dataIndex: 'ip', width: 150, render: (v: string | null) => v ?? '-' },
     { title: '地点', dataIndex: 'location', width: 180, render: (v: string | null) => v ?? '-' },
     { title: '浏览器', dataIndex: 'browser', width: 150, render: (v: string | null) => renderEllipsis(v ?? '-') },

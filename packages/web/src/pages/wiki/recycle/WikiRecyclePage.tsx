@@ -39,7 +39,7 @@ export default function WikiRecyclePage() {
   const purgeMutation = usePurgeWikiDoc();
 
   const columns: ColumnProps<WikiDoc>[] = [
-    { title: '标题', dataIndex: 'title', width: 240, render: renderEllipsis },
+    { title: '标题', dataIndex: 'title', minWidth: 240, render: renderEllipsis },
     { title: '所属空间', dataIndex: 'spaceName', width: 140, render: renderEllipsis },
     { title: '作者', dataIndex: 'authorName', width: 120, render: (v: string | null) => v ?? '—' },
     dateTimeColumn('删除时间', 'deletedAt'),

@@ -180,7 +180,7 @@ export default function WorkflowSchedulesPage() {
     {
       title: '规则名称',
       dataIndex: 'name',
-      width: 180,
+      minWidth: 180,
     },
     {
       title: '流程',

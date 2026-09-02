@@ -44,7 +44,7 @@ export default function ErrorProneWordsPage() {
       width: 200,
       render: (v: string) => <Tag size="small" color="green">{v}</Tag>,
     },
-    { title: '备注', dataIndex: 'remark', width: 220, render: (v: string | null) => v ?? '-' },
+    { title: '备注', dataIndex: 'remark', minWidth: 220, render: (v: string | null) => v ?? '-' },
     createdAtColumn,
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',

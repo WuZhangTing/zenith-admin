@@ -119,7 +119,7 @@ export default function RuleFlowsPage() {
 
   const columns: ColumnProps<RuleDecisionFlow>[] = [
     { title: 'Key', dataIndex: 'key', width: 240, render: (t: string) => <Text code>{t}</Text> },
-    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '步骤', width: 220, render: (_: unknown, r: RuleDecisionFlow) => (
       <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 200 }}>
         {r.steps.map((s) => s.label || s.tableKey).join(' → ') || '-'}

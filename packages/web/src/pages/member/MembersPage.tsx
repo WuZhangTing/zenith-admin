@@ -217,7 +217,7 @@ export default function MembersPage() {
 
   const columns: ColumnProps<Member>[] = [
     {
-      title: '昵称', dataIndex: 'nickname', width: 180,
+      title: '昵称', dataIndex: 'nickname', minWidth: 180,
       render: (v: string, record: Member) => (
         <div
           style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', minWidth: 0 }}

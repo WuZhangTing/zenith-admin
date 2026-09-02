@@ -185,7 +185,7 @@ export default function FillRecordsPage() {
 
   const createColumns = (admin: boolean): ColumnProps<ReportFillRecord>[] => [
     { title: '记录号', dataIndex: 'id', width: 90, render: (value: number) => `#${value}` },
-    { title: '模板', dataIndex: 'templateName', width: 180, render: (value: string | null, record) => renderEllipsis(value || `模板 #${record.templateId}`) },
+    { title: '模板', dataIndex: 'templateName', minWidth: 180, render: (value: string | null, record) => renderEllipsis(value || `模板 #${record.templateId}`) },
     ...(admin ? [{
       title: '提交人',
       dataIndex: 'submitterName',

@@ -649,7 +649,7 @@ export default function WorkflowMonitorPage() {
       { title: '外部分派', dataIndex: 'externalDispatchStatus', width: 120, render: (v: string | null) => v ?? '—' },
       { title: '触发器状态', dataIndex: 'triggerDispatchStatus', width: 130, render: (v: string | null) => v ?? '—' },
       { title: '尝试', dataIndex: 'triggerAttempt', width: 70, render: (v: number | undefined) => v ?? '—' },
-      { title: '错误', dataIndex: 'triggerLastError', width: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
+      { title: '错误', dataIndex: 'triggerLastError', minWidth: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
     ];
     const triggerColumns: ColumnProps<WorkflowTriggerExecution>[] = [
       { title: 'ID', dataIndex: 'id', width: 70 },
@@ -660,7 +660,7 @@ export default function WorkflowMonitorPage() {
       { title: '尝试', dataIndex: 'attempt', width: 70 },
       { title: 'HTTP', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '—' },
       { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right', render: (v: number | null) => v != null ? `${v}ms` : '—' },
-      { title: '错误', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
+      { title: '错误', dataIndex: 'errorMessage', minWidth: 220, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
       dateTimeColumn('创建时间', 'createdAt'),
     ];
     const outboxColumns: ColumnProps<WorkflowRuntimeOutboxEvent>[] = [
@@ -670,13 +670,13 @@ export default function WorkflowMonitorPage() {
       { title: '状态', dataIndex: 'status', width: 130 },
       { title: '尝试', dataIndex: 'attempts', width: 70 },
       dateTimeColumn('下次重试', 'nextRetryAt'),
-      { title: '错误', dataIndex: 'errorMessage', width: 260, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
+      { title: '错误', dataIndex: 'errorMessage', minWidth: 260, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
       dateTimeColumn('创建时间', 'createdAt'),
     ];
 
     const tokenColumns: ColumnProps<WorkflowExecutionToken>[] = [
       { title: 'ID', dataIndex: 'id', width: 70 },
-      { title: '节点', dataIndex: 'nodeName', width: 150, render: (v: string | null, r) => v ?? r.nodeKey },
+      { title: '节点', dataIndex: 'nodeName', minWidth: 150, render: (v: string | null, r) => v ?? r.nodeKey },
       { title: '状态', dataIndex: 'status', width: 150, render: (v: WorkflowExecutionToken['status'], r) => (
         <Space spacing={4}>
           <Tag size="small" color={v === 'active' ? 'green' : v === 'consumed' ? 'grey' : 'red'}>{{ active: '活动', consumed: '已消费', dead: '已终止' }[v]}</Tag>
@@ -978,7 +978,7 @@ export default function WorkflowMonitorPage() {
     {
       title: '流程名称',
       dataIndex: 'definitionName',
-      width: 160,
+      minWidth: 160,
       render: renderEllipsis,
     },
     {

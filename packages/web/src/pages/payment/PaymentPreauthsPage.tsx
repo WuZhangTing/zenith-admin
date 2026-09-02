@@ -153,7 +153,7 @@ export default function PaymentPreauthsPage() {
     copyableNoColumn('预授权单号', 'preauthNo'),
     { title: '支付应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appById.get(value)?.name ?? `应用 #${value}`) },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: PaymentChannel) => PAYMENT_CHANNEL_LABELS[v] },
-    { title: '冻结事由', dataIndex: 'subject', width: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
+    { title: '冻结事由', dataIndex: 'subject', minWidth: 180, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v}</Typography.Text> },
     { title: '付款人', dataIndex: 'payerAccount', width: 150, render: (v: string) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 130 }}>{v}</Typography.Text> },
     { title: '冻结金额', dataIndex: 'frozenAmount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '转支付金额', dataIndex: 'capturedAmount', width: 110, align: 'right', render: (v: number | null) => (v == null ? '-' : yuan(v)) },

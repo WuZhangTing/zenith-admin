@@ -44,7 +44,7 @@ function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; on
 
   const columns: ColumnProps<CmsFormSubmission>[] = [
     ...fieldColumns,
-    { title: 'IP', dataIndex: 'ip', width: 120, render: (v: string | null) => v ?? '-' },
+    { title: 'IP', dataIndex: 'ip', minWidth: 120, render: (v: string | null) => v ?? '-' },
     dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<CmsFormSubmission>({
       width: 90,
@@ -137,7 +137,7 @@ export default function FormsPage() {
   const canManage = hasPermission('cms:form:manage');
 
   const columns: ColumnProps<CmsForm>[] = [
-    { title: '表单名称', dataIndex: 'name', width: 160 },
+    { title: '表单名称', dataIndex: 'name', minWidth: 160 },
     { title: '标识', dataIndex: 'code', width: 120, render: (v: string) => <Tag size="small">{v}</Tag> },
     {
       title: '字段',

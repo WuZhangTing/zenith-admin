@@ -137,7 +137,7 @@ export default function SubscriptionsPage() {
     { title: '错过策略', dataIndex: 'misfirePolicy', width: 110, render: (value: string) => REPORT_MISFIRE_POLICY_OPTIONS.find((item) => item.value === value)?.label ?? value },
     dateTimeColumn('下次执行', 'nextRunAt'),
     { title: '通道', dataIndex: 'channels', width: 170, render: (ch: string[]) => (ch ?? []).map((c) => <Tag key={c} size="small" color={c === 'email' ? 'blue' : c === 'webhook' ? 'purple' : 'green'} style={{ marginRight: 4 }}>{NOTIFY_CHANNEL_LABELS[c.toLowerCase() as NotifyChannel] ?? c}</Tag>) },
-    { title: '收件邮箱', dataIndex: 'recipients', width: 200, render: renderEllipsis },
+    { title: '收件邮箱', dataIndex: 'recipients', minWidth: 200, render: renderEllipsis },
     dateTimeColumn('上次推送', 'lastRunAt'),
     {
       title: '最近投递',

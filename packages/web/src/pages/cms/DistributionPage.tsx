@@ -211,7 +211,7 @@ export default function DistributionPage() {
   }
 
   const ruleColumns: ColumnProps<CmsDistributionRule>[] = [
-    { title: '规则名称', dataIndex: 'name', width: 190, render: renderEllipsis },
+    { title: '规则名称', dataIndex: 'name', minWidth: 190, render: renderEllipsis },
     {
       title: '来源',
       width: 210,
@@ -299,7 +299,7 @@ export default function DistributionPage() {
   ];
 
   const runColumns: ColumnProps<CmsDistributionRun>[] = [
-    { title: '任务', dataIndex: 'title', width: 240, render: renderEllipsis },
+    { title: '任务', dataIndex: 'title', minWidth: 240, render: renderEllipsis },
     { title: '规则', dataIndex: 'ruleName', width: 180, render: (value: string | null) => value ?? '-' },
     {
       title: '站点范围',

@@ -101,7 +101,7 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
     {
       title: '流程',
       dataIndex: 'definitionName',
-      width: 200,
+      minWidth: 200,
       render: (v: string | null, r) => (
         <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
           {r.serialNo ?? `#${r.instanceId}`} · {v ?? '—'}

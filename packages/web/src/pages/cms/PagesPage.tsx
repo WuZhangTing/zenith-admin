@@ -236,7 +236,7 @@ export default function PagesPage() {
     {
       title: '页面名称',
       dataIndex: 'name',
-      width: 180,
+      minWidth: 180,
       render: (v: string, record) => (
         <span>
           {record.isHome ? <Tag size="small" color="green" style={{ marginRight: 4 }}>首页</Tag> : null}

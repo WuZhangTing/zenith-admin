@@ -46,7 +46,7 @@ export default function MemberLevelsPage() {
   };
 
   const columns: ColumnProps<MemberLevel>[] = [
-    { title: '等级名称', dataIndex: 'name', width: 140, render: renderEllipsis },
+    { title: '等级名称', dataIndex: 'name', minWidth: 140, render: renderEllipsis },
     { title: '等级序号', dataIndex: 'level', width: 90, align: 'right' },
     { title: '成长值门槛', dataIndex: 'growthThreshold', width: 110, align: 'right' },
     { title: '折扣', dataIndex: 'discount', width: 90, align: 'right', render: (v: number) => (v >= 100 ? '无' : `${(v / 10).toFixed(1)}折`) },

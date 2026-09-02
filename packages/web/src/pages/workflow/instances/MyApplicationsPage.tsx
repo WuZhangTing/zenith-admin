@@ -621,7 +621,7 @@ export default function MyApplicationsPage() {
     {
       title: '申请标题',
       dataIndex: 'title',
-      width: 200,
+      minWidth: 200,
       render: (v: string, record: WorkflowInstance) => {
         // 客户端按定义快照 settings.summaryFields + 表单快照计算摘要（列表 DTO 含完整快照）
         const summaryKeys = record.definitionSnapshot?.flowData?.settings?.summaryFields;

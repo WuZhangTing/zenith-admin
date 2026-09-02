@@ -75,7 +75,7 @@ export default function DbBackupsPage() {
 
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
-    { title: '名称', dataIndex: 'name', width: 260 },
+    { title: '名称', dataIndex: 'name', minWidth: 260 },
     {
       title: '类型',
       dataIndex: 'type',

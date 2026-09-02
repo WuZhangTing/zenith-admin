@@ -103,7 +103,7 @@ export default function ApiScopesPage() {
       width: 100,
       render: (v: string) => <Tag size="small" color="blue">{API_SCOPE_GROUP_LABELS[v] ?? v}</Tag>,
     },
-    { title: '描述', dataIndex: 'description', width: 240, render: (v: string | null) => v ? <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{v}</Text> : <Text type="tertiary">—</Text> },
+    { title: '描述', dataIndex: 'description', minWidth: 240, render: (v: string | null) => v ? <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{v}</Text> : <Text type="tertiary">—</Text> },
     {
       title: '被引用',
       align: 'right',

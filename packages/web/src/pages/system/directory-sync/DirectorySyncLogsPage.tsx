@@ -116,7 +116,7 @@ export default function DirectorySyncLogsPage() {
 
   const columns: ColumnProps<DirectorySyncRun>[] = [
     { title: 'ID', dataIndex: 'id', width: 70 },
-    { title: '同步源', dataIndex: 'sourceName', width: 150, render: renderEllipsis },
+    { title: '同步源', dataIndex: 'sourceName', minWidth: 150, render: renderEllipsis },
     {
       title: '触发方式', dataIndex: 'triggerType', width: 90,
       render: (_: unknown, r: DirectorySyncRun) => DIRECTORY_SYNC_TRIGGER_TYPE_LABELS[r.triggerType] ?? r.triggerType,

@@ -287,7 +287,7 @@ export default function WorkflowDefinitionsPage() {
     {
       title: '流程名称',
       dataIndex: 'name',
-      width: 260,
+      minWidth: 260,
       render: renderEllipsis,
     },
     {

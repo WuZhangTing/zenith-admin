@@ -1,13 +1,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Banner, Button, Col, Form, Input, InputNumber, Modal, Popconfirm, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Col, Form, Input, InputNumber, Modal, Row, Select, SideSheet, Space, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus, Trash2 } from 'lucide-react';
 import type { AnalyticsExperiment, AnalyticsExperimentReportVariant, AnalyticsExperimentVariant } from '@zenith/shared/analytics';
 import { DataBar } from '@/components/data-viz/DataBar';
 import { ANALYTICS_EXPERIMENT_STATUS_LABELS, ANALYTICS_EXPERIMENT_STATUS_OPTIONS } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { analyticsKeys, useAnalyticsEventMeta, useCreateExperiment, useDeleteExperiment, useExperimentAction, useExperimentReport, useExperiments, useUpdateExperiment } from '@/hooks/queries/analytics';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
@@ -16,6 +17,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { FormSliderInput } from '@/components/SliderInput';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const PAGE_SIZE = 20;
@@ -182,19 +184,9 @@ export default function AnalyticsExperimentsTab() {
     setVariants((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   };
 
-  const actionButton = (record: AnalyticsExperiment) => {
-    if (record.status === 'running') {
-      return <Button theme="borderless" size="small" loading={pauseMutation.isPending} onClick={() => pauseMutation.mutate(record.id)}>暂停</Button>;
-    }
-    if (record.status === 'draft' || record.status === 'paused') {
-      return <Button theme="borderless" size="small" loading={startMutation.isPending} onClick={() => startMutation.mutate(record.id)}>启动</Button>;
-    }
-    return <Button theme="borderless" size="small" disabled>已完成</Button>;
-  };
-
   const columns: ColumnProps<AnalyticsExperiment>[] = [
     { title: '实验标识', dataIndex: 'expKey', width: 150, fixed: 'left', render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
-    { title: '名称', dataIndex: 'name', width: 180 },
+    { title: '名称', dataIndex: 'name', minWidth: 180 },
     { title: '流量%', dataIndex: 'trafficAllocation', width: 90, render: (value: number) => `${value}%` },
     { title: '变体数', dataIndex: 'variants', width: 90, render: (items: AnalyticsExperimentVariant[]) => items.length },
     { title: '指标事件', dataIndex: 'metricEventName', width: 170, render: (value: string) => <Typography.Text code>{value}</Typography.Text> },
@@ -202,21 +194,28 @@ export default function AnalyticsExperimentsTab() {
     dateTimeColumn('更新时间', 'updatedAt'),
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (value: AnalyticsExperiment['status']) => <Tag color={STATUS_COLOR[value]} size="small">{ANALYTICS_EXPERIMENT_STATUS_LABELS[value]}</Tag> },
-    { title: '操作', dataIndex: 'operation', width: 260, fixed: 'right', render: (_: unknown, record) => (
-      <Space>
-        <Button theme="borderless" size="small" onClick={() => setReporting(record)}>报告</Button>
-        {actionButton(record)}
-        <Button theme="borderless" size="small" disabled={record.status === 'completed'} onClick={() => experimentModal.openEdit(record)}>编辑</Button>
-        {record.status === 'running' || record.status === 'completed' ? null : (
-          <Popconfirm title="确定完成该实验吗？完成后不可继续启动。" onConfirm={() => completeMutation.mutate(record.id)}>
-            <Button theme="borderless" size="small" loading={completeMutation.isPending}>完成</Button>
-          </Popconfirm>
-        )}
-        <Popconfirm title="确定要删除该实验吗？" onConfirm={() => deleteMutation.mutate(record.id)}>
-          <Button theme="borderless" type="danger" size="small" disabled={record.status === 'running'} loading={deleteMutation.isPending}>删除</Button>
-        </Popconfirm>
-      </Space>
-    ) },
+    createOperationColumn<AnalyticsExperiment>({
+      width: 230,
+      // 报告 / 启停 / 编辑 内联（3 × 52 + 22 更多 + 4 × 3 间距 = 200），完成与删除进更多菜单
+      desktopInlineKeys: ['report', 'toggle', 'edit'],
+      actions: (record) => [
+        { key: 'report', label: '报告', onClick: () => setReporting(record) },
+        ...(record.status === 'running'
+          ? [{ key: 'toggle', label: '暂停', loading: pauseMutation.isPending, onClick: () => pauseMutation.mutate(record.id) }]
+          : record.status === 'draft' || record.status === 'paused'
+            ? [{ key: 'toggle', label: '启动', loading: startMutation.isPending, onClick: () => startMutation.mutate(record.id) }]
+            : [{ key: 'toggle', label: '已完成', disabled: true }]),
+        { key: 'edit', label: '编辑', disabled: record.status === 'completed', onClick: () => experimentModal.openEdit(record) },
+        {
+          key: 'complete', label: '完成', hidden: record.status === 'running' || record.status === 'completed',
+          onClick: () => { Modal.confirm({ title: '确定完成该实验吗？', content: '完成后不可继续启动。', onOk: () => completeMutation.mutate(record.id) }); },
+        },
+        {
+          key: 'delete', label: '删除', danger: true, disabled: record.status === 'running', disabledReason: '运行中的实验不能删除',
+          onClick: () => { confirmDelete({ title: '确定要删除该实验吗？', content: '删除后不可恢复', onOk: () => deleteMutation.mutate(record.id) }); },
+        },
+      ],
+    }),
   ];
 
   const reportRows = reportQuery.data?.variants ?? [];

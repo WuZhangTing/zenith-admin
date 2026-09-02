@@ -96,7 +96,7 @@ export default function GovernanceCapacityTab() {
     { title: '日行数', dataIndex: 'dailyRowLimit', width: 130, align: 'right' },
     { title: '日字节', dataIndex: 'dailyByteLimit', width: 140, align: 'right' },
     { title: '日成本', dataIndex: 'dailyCostLimit', width: 110, align: 'right' },
-    { title: '重置时区', dataIndex: 'resetTimezone', width: 150, render: renderEllipsis },
+    { title: '重置时区', dataIndex: 'resetTimezone', minWidth: 150, render: renderEllipsis },
     { title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'grey'}>{v ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportQueryQuota>({
       width: 200,
@@ -123,7 +123,7 @@ export default function GovernanceCapacityTab() {
     }),
   ];
   const costColumns: ColumnProps<ReportQueryCostLog>[] = [
-    { title: '场景', dataIndex: 'scene', width: 130 },
+    { title: '场景', dataIndex: 'scene', minWidth: 130 },
     { title: '用户 ID', dataIndex: 'userId', width: 100, render: (v) => v || '—' },
     { title: '数据集/源', width: 130, render: (_v, r) => r.datasetId ? `数据集 #${r.datasetId}` : r.datasourceId ? `数据源 #${r.datasourceId}` : '—' },
     { title: '排队/执行', width: 140, render: (_v, r) => `${r.queuedMs} / ${r.durationMs} ms` },

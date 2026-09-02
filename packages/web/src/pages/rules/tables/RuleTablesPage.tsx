@@ -759,7 +759,7 @@ export default function RuleTablesPage() {
 
   const columns: ColumnProps<RuleDecisionTable>[] = [
     { title: 'Key', dataIndex: 'key', width: 160, render: (t: string) => <Text code>{t}</Text> },
-    { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 160, render: renderEllipsis },
     { title: '命中策略', dataIndex: 'hitPolicy', width: 110, render: (p: string) => HIT_POLICIES.find((x) => x.value === p)?.label ?? p },
     { title: '规模', width: 120, render: (_: unknown, r: RuleDecisionTable) => <Text type="tertiary" size="small">{r.inputs.length}入/{r.outputs.length}出/{r.rules.length}行</Text> },
     { title: '版本', dataIndex: 'version', width: 70 },

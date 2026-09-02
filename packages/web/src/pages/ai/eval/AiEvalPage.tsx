@@ -452,7 +452,7 @@ export default function AiEvalPage() {
 
   const columns = [
     { title: '名称', dataIndex: 'name', width: 220 },
-    { title: '描述', dataIndex: 'description', width: 260, render: (v: string | null) => v || '—' },
+    { title: '描述', dataIndex: 'description', minWidth: 260, render: (v: string | null) => v || '—' },
     { title: '条目数', dataIndex: 'itemCount', width: 90, align: 'right' as const },
     { title: '版本', dataIndex: 'version', width: 70, align: 'right' as const, render: (v: number) => <Text code>v{v}</Text> },
     dateTimeColumn('更新时间', 'updatedAt'),

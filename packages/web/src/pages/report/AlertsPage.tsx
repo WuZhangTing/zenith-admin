@@ -253,7 +253,7 @@ export default function AlertsPage() {
   }
 
   const columns: ColumnProps<ReportAlertRule>[] = [
-    { title: '名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     {
       title: '来源', dataIndex: 'datasetName', width: 180,
       render: (_: unknown, record) => (
@@ -562,7 +562,7 @@ export default function AlertsPage() {
               title: '确认人', dataIndex: 'acknowledgedByName', width: 120,
               render: (value: string | null) => value || EMPTY_PLACEHOLDER,
             },
-            { title: '错误', dataIndex: 'errorMessage', width: 220, render: renderEllipsis },
+            { title: '错误', dataIndex: 'errorMessage', minWidth: 220, render: renderEllipsis },
             {
               title: '操作',
               dataIndex: 'id',

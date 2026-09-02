@@ -201,7 +201,7 @@ export default function TerminalRecordingsPage() {
     {
       title: '标题',
       dataIndex: 'title',
-      width: 360,
+      minWidth: 360,
       ellipsis: { showTitle: false },
       render: (v: string) => (
         <Typography.Text ellipsis={{ showTooltip: true }} style={{ display: 'block', maxWidth: 340 }}>

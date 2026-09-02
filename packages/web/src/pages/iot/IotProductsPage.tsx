@@ -97,7 +97,7 @@ export default function IotProductsPage() {
       ),
     },
     {
-      title: '描述', dataIndex: 'description', width: 240,
+      title: '描述', dataIndex: 'description', minWidth: 240,
       render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
     },
     {

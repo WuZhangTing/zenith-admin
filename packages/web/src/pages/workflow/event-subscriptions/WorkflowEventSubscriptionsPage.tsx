@@ -276,7 +276,7 @@ export default function WorkflowEventSubscriptionsPage() {
         </Space>
       ),
     },
-    { title: 'URL', dataIndex: 'url', width: 240, ellipsis: { showTitle: true } },
+    { title: 'URL', dataIndex: 'url', minWidth: 240, ellipsis: { showTitle: true } },
     { title: '签名', dataIndex: 'signMode', width: 100,
       render: (v: string) => v === 'hmacSha256' ? <Tag color="green" size="small">HMAC</Tag> : <Tag size="small">无</Tag>,
     },
@@ -339,7 +339,7 @@ export default function WorkflowEventSubscriptionsPage() {
     { title: '次数', dataIndex: 'attempt', width: 70, align: 'right' },
     { title: 'HTTP', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '-' },
     { title: '耗时', dataIndex: 'durationMs', width: 90, align: 'right', render: (v: number | null) => v == null ? '-' : `${v}ms` },
-    { title: '错误', dataIndex: 'errorMessage', width: 220, ellipsis: { showTitle: true } },
+    { title: '错误', dataIndex: 'errorMessage', minWidth: 220, ellipsis: { showTitle: true } },
     dateTimeColumn('时间', 'createdAt'),
     {
       title: '状态', dataIndex: 'status', width: 90, fixed: 'right',

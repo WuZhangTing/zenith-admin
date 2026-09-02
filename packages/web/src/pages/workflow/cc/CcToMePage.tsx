@@ -88,7 +88,7 @@ export default function CcToMePage() {
   };
 
   const columns: ColumnProps<WorkflowInstance>[] = [
-    { title: '申请标题', dataIndex: 'title', width: 200, render: renderEllipsis },
+    { title: '申请标题', dataIndex: 'title', minWidth: 200, render: renderEllipsis },
     { title: '业务编号', dataIndex: 'serialNo', width: 130, render: (v: string | null) => v ?? '—' },
     { title: '流程名称', dataIndex: 'definitionName', width: 160, render: renderEllipsis },
     { title: '发起人', dataIndex: 'initiatorName', width: 120, render: (v: string | null) => v ?? '—' },

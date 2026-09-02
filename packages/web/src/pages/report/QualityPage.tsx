@@ -189,7 +189,7 @@ export default function QualityPage() {
   };
 
   const ruleColumns: ColumnProps<ReportDqRule>[] = [
-    { title: '规则名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '规则名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '数据集', dataIndex: 'datasetName', width: 160, render: renderEllipsis },
     { title: '类型', dataIndex: 'type', width: 120, render: (v) => ruleTypeOptions.find((item) => item.value === v)?.label ?? v },
     { title: '字段', dataIndex: 'field', width: 120, render: renderEllipsis },
@@ -219,7 +219,7 @@ export default function QualityPage() {
     }),
   ];
   const runColumns: ColumnProps<ReportDqRun>[] = [
-    { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number, r) => renderEllipsis(r.ruleName || `#${v}`) },
+    { title: '规则', dataIndex: 'ruleId', minWidth: 150, render: (v: number, r) => renderEllipsis(r.ruleName || `#${v}`) },
     { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => renderEllipsis(r.datasetName || `#${v}`) },
     { title: '触发方式', dataIndex: 'triggerType', width: 110, render: (v: ReportDqRun['triggerType']) => REPORT_DQ_TRIGGER_LABELS[v] ?? v },
     { title: '检查/失败行', width: 140, render: (_v, r) => `${r.checkedRows} / ${r.failedRows}` },
@@ -229,7 +229,7 @@ export default function QualityPage() {
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: ReportDqRunStatus) => <Tag color={runStatusColor[v]}>{dqRunStatusLabel(v)}</Tag> },
   ];
   const anomalyColumns: ColumnProps<ReportDqAnomaly>[] = [
-    { title: '异常', dataIndex: 'title', width: 230, render: renderEllipsis },
+    { title: '异常', dataIndex: 'title', minWidth: 230, render: renderEllipsis },
     { title: '数据集', dataIndex: 'datasetId', width: 150, render: (v: number, r) => renderEllipsis(r.datasetName || `#${v}`) },
     { title: '规则', dataIndex: 'ruleId', width: 150, render: (v: number | null, r) => renderEllipsis(v ? r.ruleName || `#${v}` : null) },
     { title: '严重度', dataIndex: 'severity', width: 90, render: (v: ReportDqAnomaly['severity']) => <Tag color={severityColor[v]}>{severityOptions.find((item) => item.value === v)?.label ?? v}</Tag> },

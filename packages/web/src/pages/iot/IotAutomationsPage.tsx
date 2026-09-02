@@ -203,7 +203,7 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
 
   const columns: ColumnProps<IotAutomation>[] = [
     {
-      title: '联动名称', dataIndex: 'name', width: 170,
+      title: '联动名称', dataIndex: 'name', minWidth: 170,
       render: (v: string) => renderEllipsis(v),
     },
     {
@@ -603,7 +603,7 @@ function AutomationRunsTab({ filterAutomation, onClearFilter }: Readonly<{
   const columns: ColumnProps<IotAutomationRun>[] = [
     dateTimeColumn<IotAutomationRun>('执行时间', 'createdAt'),
     {
-      title: '联动', dataIndex: 'automationName', width: 170,
+      title: '联动', dataIndex: 'automationName', minWidth: 170,
       render: (v: string) => renderEllipsis(v),
     },
     {

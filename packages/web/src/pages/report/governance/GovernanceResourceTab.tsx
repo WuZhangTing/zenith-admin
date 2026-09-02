@@ -96,7 +96,7 @@ export default function GovernanceResourceTab() {
   };
 
   const folderColumns: ColumnProps<ReportFolderTreeNode>[] = [
-    { title: '目录名称', dataIndex: 'name', width: 220, render: renderEllipsis },
+    { title: '目录名称', dataIndex: 'name', minWidth: 220, render: renderEllipsis },
     { title: '资源类型', dataIndex: 'resourceType', width: 130, render: (v) => reportResourceTypeLabel(v as ReportResourceType) },
     { title: '负责人', dataIndex: 'ownerName', width: 130, render: (v) => v || '—' },
     { title: '资源数', dataIndex: 'resourceCount', width: 90, align: 'right', render: (v) => v ?? 0 },
@@ -125,7 +125,7 @@ export default function GovernanceResourceTab() {
     { title: '角色', dataIndex: 'role', width: 100, render: (v) => <Tag>{v}</Tag> },
     { title: '目录继承', dataIndex: 'inheritFromFolder', width: 100, render: (v) => v ? '是' : '否' },
     dateTimeColumn('到期时间', 'expiresAt', { empty: '永久' }),
-    { title: '授权人', dataIndex: 'grantedByName', width: 120, render: (v) => v || '—' },
+    { title: '授权人', dataIndex: 'grantedByName', minWidth: 120, render: (v) => v || '—' },
     createOperationColumn<ReportResourceAcl>({
       width: 90,
       actions: (record) => [{

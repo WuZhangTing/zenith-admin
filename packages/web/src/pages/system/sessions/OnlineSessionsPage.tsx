@@ -79,7 +79,7 @@ export default function OnlineSessionsPage() {
         </Space>
       ),
     },
-    { title: '昵称', dataIndex: 'nickname', width: 140 },
+    { title: '昵称', dataIndex: 'nickname', minWidth: 140 },
     { title: 'IP 地址', dataIndex: 'ip', width: 140 },
     {
       title: '登录地点', dataIndex: 'location', width: 180,

@@ -505,7 +505,7 @@ export default function DatasetsPage() {
 
   const columns: ColumnProps<ReportDataset>[] = [
     {
-      title: '名称', dataIndex: 'name', width: 180,
+      title: '名称', dataIndex: 'name', minWidth: 180,
       render: (v: string, record: ReportDataset) => hasPermission('report:dataset:update') ? (
         <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => openEdit(record)}>{v}</Typography.Text>
       ) : v,

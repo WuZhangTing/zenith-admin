@@ -134,7 +134,7 @@ export default function AIProvidersPage() {
     {
       title: '名称',
       dataIndex: 'name',
-      width: 320,
+      minWidth: 320,
     },
     {
       title: '模型',

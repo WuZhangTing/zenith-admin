@@ -313,7 +313,7 @@ export default function PaymentOrdersPage() {
 
   const columns: ColumnProps<PaymentOrder>[] = [
     copyableNoColumn('订单号', 'orderNo'),
-    { title: '标题', dataIndex: 'subject', width: 240, render: renderEllipsis },
+    { title: '标题', dataIndex: 'subject', minWidth: 240, render: renderEllipsis },
     { title: '支付应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appNameById.get(value) ?? `应用 #${value}`) },
     { title: '金额', dataIndex: 'amount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '渠道', dataIndex: 'channel', width: 100, render: (v: PaymentChannel) => <Tag color={PAYMENT_CHANNEL_TAG_COLOR[v]}>{PAYMENT_CHANNEL_LABELS[v]}</Tag> },

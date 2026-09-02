@@ -167,7 +167,7 @@ export default function WidgetsPage() {
   }
 
   const columns: ColumnProps<CmsWidget>[] = [
-    { title: '部件名称', dataIndex: 'name', width: 190, render: renderEllipsis },
+    { title: '部件名称', dataIndex: 'name', minWidth: 190, render: renderEllipsis },
     { title: '编码', dataIndex: 'code', width: 180, render: renderEllipsis },
     {
       title: '类型',

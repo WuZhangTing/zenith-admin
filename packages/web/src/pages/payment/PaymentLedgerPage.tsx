@@ -497,7 +497,7 @@ export default function PaymentLedgerPage() {
 
   const accountColumns: ColumnProps<PaymentLedgerAccount>[] = [
     copyableNoColumn('账户号', 'accountNo'),
-    { title: '账户名称', dataIndex: 'name', width: 240, render: renderEllipsis },
+    { title: '账户名称', dataIndex: 'name', minWidth: 240, render: renderEllipsis },
     { title: '科目', dataIndex: 'code', width: 130, render: (value: PaymentLedgerAccountCode) => PAYMENT_LEDGER_ACCOUNT_CODE_LABELS[value] },
     { title: '余额方向', dataIndex: 'normalBalance', width: 100, render: (value: PaymentLedgerNormalBalance) => NORMAL_BALANCE_LABELS[value] },
     { title: '应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appNameById.get(value) ?? `应用 #${value}`) },
@@ -511,7 +511,7 @@ export default function PaymentLedgerPage() {
     copyableNoColumn('凭证号', 'journalNo'),
     { title: '来源类型', dataIndex: 'sourceType', width: 150, render: renderEllipsis },
     { title: '来源标识', dataIndex: 'sourceId', width: 180, render: renderEllipsis },
-    { title: '摘要', dataIndex: 'description', width: 220, render: renderEllipsis },
+    { title: '摘要', dataIndex: 'description', minWidth: 220, render: renderEllipsis },
     { title: '应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appNameById.get(value) ?? `应用 #${value}`) },
     { title: '商户配置', dataIndex: 'channelConfigId', width: 220, render: (value: number) => renderEllipsis(merchantNameById.get(value) ?? `配置 #${value}`) },
     { title: '币种', dataIndex: 'currency', width: 80 },
@@ -549,7 +549,7 @@ export default function PaymentLedgerPage() {
     { title: '应用', dataIndex: 'appId', width: 200, render: (value: number) => renderEllipsis(appNameById.get(value) ?? `应用 #${value}`) },
     { title: '商户配置', dataIndex: 'channelConfigId', width: 220, render: (value: number) => renderEllipsis(merchantNameById.get(value) ?? `配置 #${value}`) },
     { title: '币种', dataIndex: 'currency', width: 80 },
-    { title: '创建原因', dataIndex: 'reason', width: 180, render: renderEllipsis },
+    { title: '创建原因', dataIndex: 'reason', minWidth: 180, render: renderEllipsis },
     { title: '处理原因', dataIndex: 'finalizationReason', width: 180, render: renderEllipsis },
     dateTimeColumn('到期时间', 'expiresAt', { empty: '不限' }),
     dateTimeColumn('完成时间', 'finalizedAt'),

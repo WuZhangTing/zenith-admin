@@ -187,7 +187,7 @@ function DictTab({ siteId, onSiteChange }: Readonly<{ siteId: number | undefined
     { title: '类型', dataIndex: 'type', width: 100, render: (value: CmsSearchWord['type']) => CMS_SEARCH_WORD_TYPE_LABELS[value] },
     { title: '分组', dataIndex: 'groupName', width: 130 },
     { title: '词频权重', dataIndex: 'weight', width: 110, align: 'right' },
-    { title: '备注', dataIndex: 'remark', width: 220, render: (v: string | null) => v ?? '-' },
+    { title: '备注', dataIndex: 'remark', minWidth: 220, render: (v: string | null) => v ?? '-' },
     {
       title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: renderEnabledStatusTag,
@@ -308,7 +308,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
 
   const columns: ColumnProps<CmsHotKeyword>[] = [
     { title: '排名', width: 80, render: (_: unknown, __: CmsHotKeyword, index: number) => index + 1 },
-    { title: '关键词', dataIndex: 'keyword', width: 260 },
+    { title: '关键词', dataIndex: 'keyword', minWidth: 260 },
     { title: '分组', dataIndex: 'groupName', width: 140, render: (value: string | null) => value ?? '未分组' },
     { title: '搜索次数', dataIndex: 'count', width: 120, align: 'right' },
     { title: '排序', dataIndex: 'sort', width: 90 },

@@ -145,26 +145,12 @@ export default function ProcessesPage() {
   }, [setHostId, setSearchParams]);
 
   // ─── 虚拟表格高度（Semi UI 要求数字型 scroll.y）──────────────────────────
-  const containerRef = useRef<HTMLDivElement>(null);
   const [tableHeight, setTableHeight] = useState(() => Math.max(200, window.innerHeight - 320));
-  const [tableWidth, setTableWidth] = useState(0);
 
   useEffect(() => {
     const onResize = () => setTableHeight(Math.max(200, window.innerHeight - 320));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  // 用 ResizeObserver 跟踪容器实际宽度，让进程名列弹性填满
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ob = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0;
-      if (w > 0) setTableWidth(w);
-    });
-    ob.observe(el);
-    return () => ob.disconnect();
   }, []);
 
   // ─── 客户端过滤 ────────────────────────────────────────────────────────
@@ -281,15 +267,6 @@ export default function ProcessesPage() {
   }
 
   // ─── 表格列定义 ────────────────────────────────────────────────────────
-  // 固定列宽总和（不含进程名）
-  const FIXED_COLS_WIDTH = 80 + 100 + 90 + 80 + 110 + 90
-    + (platform === 'win32' ? 110 : 70) + 155 + 130
-    + (hasPermission('system:process:priority') ? 230 : 160);
-  // 进程名列最小宽度 160px（不动态自适应容器）
-  // 这样 total = 160 + 1175≈ = 1335px，超出大多数管理页面宽度， fixed:right 自然生效
-  const nameColWidth = Math.max(160, tableWidth > 0 ? tableWidth - FIXED_COLS_WIDTH - 17 : 160);
-  const totalTableWidth = nameColWidth + FIXED_COLS_WIDTH;
-
   const columns: ColumnProps<ProcessInfo>[] = [
     {
       title: 'PID',
@@ -300,7 +277,7 @@ export default function ProcessesPage() {
     {
       title: '进程名',
       dataIndex: 'name',
-      width: nameColWidth, // 动态弹性宽度
+      minWidth: 160,
       render: (name: string) => (
         <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>
           {name}
@@ -529,12 +506,12 @@ export default function ProcessesPage() {
       </div>
 
       {/* 虚拟化表格 */}
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
       <ConfigurableTable
         bordered
         virtualized
         className="processes-table"
-        scroll={{ y: tableHeight, x: tableWidth || totalTableWidth }}
+        scroll={{ y: tableHeight }}
         columns={columns}
         dataSource={filteredProcesses}
         loading={loading && processes.length === 0}

@@ -315,7 +315,7 @@ export default function TaskCenterPage() {
 
   const columns: ColumnProps<AsyncTask>[] = [
     { title: '任务ID', dataIndex: 'id', width: 90 },
-    { title: '任务名称', dataIndex: 'title', width: 220, render: renderEllipsis },
+    { title: '任务名称', dataIndex: 'title', minWidth: 220, render: renderEllipsis },
     { title: '任务类型', dataIndex: 'taskType', width: 200, render: renderEllipsis },
     { title: '模块', dataIndex: 'module', width: 160, render: renderEllipsis },
     { title: '进度', dataIndex: 'processedCount', width: 190, render: (_: number, record: AsyncTask) => <AsyncTaskProgress task={record} noteDisplay="tooltip" /> },
@@ -439,7 +439,7 @@ export default function TaskCenterPage() {
       ),
     },
     { title: '模块', dataIndex: 'module', width: 110, render: (value: string) => value || '—' },
-    { title: '说明', dataIndex: 'description', width: 260, render: renderEllipsis },
+    { title: '说明', dataIndex: 'description', minWidth: 260, render: renderEllipsis },
     {
       title: '累计执行',
       dataIndex: 'stat',

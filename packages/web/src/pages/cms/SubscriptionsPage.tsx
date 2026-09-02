@@ -87,7 +87,7 @@ export default function SubscriptionsPage() {
 
   const detailColumns: ColumnProps<CmsMemberSubscription>[] = [
     { title: '会员', dataIndex: 'memberDisplay', width: 140 },
-    { title: '站点', dataIndex: 'siteName', width: 160 },
+    { title: '站点', dataIndex: 'siteName', minWidth: 160 },
     {
       title: '类型', dataIndex: 'subjectType', width: 90,
       render: (value: CmsSubscriptionSubjectType) => <Tag size="small">{CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS[value]}</Tag>,

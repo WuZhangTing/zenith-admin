@@ -144,7 +144,7 @@ export default function PushSendLogsPage() {
   const columns: ColumnProps<PushSendLog>[] = [
     { title: '应用', dataIndex: 'appName', width: 120, render: renderEllipsis },
     { title: '标题', dataIndex: 'title', width: 200, render: renderEllipsis },
-    { title: '内容', dataIndex: 'content', width: 260, render: renderEllipsis },
+    { title: '内容', dataIndex: 'content', minWidth: 260, render: renderEllipsis },
     {
       title: '事件', dataIndex: 'eventKey', width: 180,
       render: (v: string | null) => (v ? <Text code>{v}</Text> : EMPTY_PLACEHOLDER),

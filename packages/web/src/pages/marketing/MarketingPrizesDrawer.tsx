@@ -79,7 +79,7 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
   }
 
   const columns: ColumnProps<MarketingPrize>[] = [
-    { title: '奖品名称', dataIndex: 'name', width: 160 },
+    { title: '奖品名称', dataIndex: 'name', minWidth: 160 },
     {
       title: '类型', dataIndex: 'prizeType', width: 100,
       render: (v: MarketingPrize['prizeType']) => (

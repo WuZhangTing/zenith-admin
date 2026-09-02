@@ -325,7 +325,7 @@ export default function CronJobsPage() {
         }
       },
     },
-    { title: '描述', dataIndex: 'description', width: 200, render: renderEllipsis },
+    { title: '描述', dataIndex: 'description', minWidth: 200, render: renderEllipsis },
     {
       title: '启用',
       dataIndex: 'status',

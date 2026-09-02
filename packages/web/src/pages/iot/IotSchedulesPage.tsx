@@ -133,7 +133,7 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
 
   const columns: ColumnProps<IotSchedule>[] = [
     {
-      title: '计划名称', dataIndex: 'name', width: 170,
+      title: '计划名称', dataIndex: 'name', minWidth: 170,
       render: (v: string) => renderEllipsis(v),
     },
     {
@@ -393,7 +393,7 @@ function ScheduleRunsTab({ filterSchedule, onClearFilter }: Readonly<{
   const columns: ColumnProps<IotScheduleRun>[] = [
     dateTimeColumn<IotScheduleRun>('执行时间', 'createdAt'),
     {
-      title: '计划', dataIndex: 'scheduleName', width: 200,
+      title: '计划', dataIndex: 'scheduleName', minWidth: 200,
       render: (v: string) => renderEllipsis(v),
     },
     { title: '目标数', dataIndex: 'deviceCount', width: 90, align: 'right' },

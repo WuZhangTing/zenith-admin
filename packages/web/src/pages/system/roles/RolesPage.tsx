@@ -202,7 +202,7 @@ export default function RolesPage() {
   const columns: ColumnProps<Role>[] = [
     { title: '角色名称', dataIndex: 'name', width: 160, render: renderEllipsis },
     { title: '角色编码', dataIndex: 'code', width: 160, render: renderEllipsis },
-    { title: '描述', dataIndex: 'description', width: 200, render: (_v, record) => renderEllipsis(record.description) },
+    { title: '描述', dataIndex: 'description', minWidth: 200, render: (_v, record) => renderEllipsis(record.description) },
     {
       title: '数据权限',
       dataIndex: 'dataScope',

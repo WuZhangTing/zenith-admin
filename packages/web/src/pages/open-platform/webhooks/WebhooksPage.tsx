@@ -219,7 +219,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '名称', dataIndex: 'name', width: 200, render: renderEllipsis },
     { title: '所属应用', dataIndex: 'clientId', width: 200, render: (v: string | null) => <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 190 }}>{v ? (appOptions.find((a) => a.clientId === v)?.name ?? v) : '系统内部'}</Text> },
-    { title: '回调地址', dataIndex: 'url', width: 240, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{v}</Text> },
+    { title: '回调地址', dataIndex: 'url', minWidth: 240, render: (v: string) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 230 }}>{v}</Text> },
     {
       title: '订阅事件',
       dataIndex: 'events',
@@ -269,7 +269,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
 
   const deliveryColumns: ColumnProps<AppWebhookDelivery>[] = [
     dateTimeColumn('时间', 'createdAt'),
-    { title: '事件', dataIndex: 'eventType', width: 130, render: (v: string) => OPEN_WEBHOOK_EVENT_LABELS[v] ?? v },
+    { title: '事件', dataIndex: 'eventType', minWidth: 130, render: (v: string) => OPEN_WEBHOOK_EVENT_LABELS[v] ?? v },
     { title: '尝试', dataIndex: 'attempt', width: 60 },
     { title: '响应码', dataIndex: 'responseStatus', width: 80, render: (v: number | null) => v ?? '—' },
     { title: '耗时', dataIndex: 'durationMs', width: 80, align: 'right', render: (v: number | null) => v != null ? `${v}ms` : '—' },

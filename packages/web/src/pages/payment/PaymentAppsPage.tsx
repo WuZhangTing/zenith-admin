@@ -121,7 +121,7 @@ export default function PaymentAppsPage() {
   }
 
   const columns: ColumnProps<PaymentApp>[] = [
-    { title: '应用名称', dataIndex: 'name', width: 180, render: renderEllipsis },
+    { title: '应用名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '开放客户端', dataIndex: 'openClientName', width: 180, render: renderEllipsis },
     copyableNoColumn('Client ID', 'openClientKey', { width: 260 }),
     { title: '环境', dataIndex: 'environment', width: 90, render: (v: PaymentApp['environment']) => <Tag color={v === 'sandbox' ? 'orange' : 'blue'}>{v === 'sandbox' ? '沙箱' : '生产'}</Tag> },

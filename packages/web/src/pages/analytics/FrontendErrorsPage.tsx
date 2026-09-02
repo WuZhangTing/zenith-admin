@@ -682,7 +682,7 @@ export default function FrontendErrorsPage() {
     {
       title: '错误信息',
       dataIndex: 'message',
-      width: 420,
+      minWidth: 420,
       render: (_value, record) => (
         <Button theme="borderless" size="small" style={{ padding: 0, maxWidth: 380 }} onClick={() => void openGroupDetail(record.id)}>
           <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 360 }}>{record.message}</Text>
@@ -764,7 +764,7 @@ export default function FrontendErrorsPage() {
     {
       title: '信息',
       dataIndex: 'message',
-      width: 360,
+      minWidth: 360,
       render: (value) => <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 330 }}>{String(value)}</Text>,
     },
     { title: '用户', dataIndex: 'username', width: 120, render: (_value, record) => record.username || '匿名' },
@@ -796,7 +796,7 @@ export default function FrontendErrorsPage() {
 
   const sourceMapColumns = useMemo<ColumnProps<SourceMapItem>[]>(() => [
     { title: 'Release', dataIndex: 'release', width: 180 },
-    { title: '文件名', dataIndex: 'fileName', width: 260 },
+    { title: '文件名', dataIndex: 'fileName', minWidth: 260 },
     { title: '大小', dataIndex: 'size', width: 120, align: 'right', render: (value) => formatBytes(Number(value)) },
     dateTimeColumn('上传时间', 'createdAt'),
     createOperationColumn<SourceMapItem>({
@@ -819,7 +819,7 @@ export default function FrontendErrorsPage() {
   ], [deleteSourceMap]);
 
   const alertColumns = useMemo<ColumnProps<ErrorAlertRule>[]>(() => [
-    { title: '名称', dataIndex: 'name', width: 180 },
+    { title: '名称', dataIndex: 'name', minWidth: 180 },
     { title: '条件', dataIndex: 'condition', width: 100, render: (_value, record) => CONDITION_CONFIG[record.condition] },
     { title: '阈值', dataIndex: 'thresholdCount', width: 90, align: 'right' },
     { title: '窗口', dataIndex: 'windowMinutes', width: 110, align: 'right', render: (value) => `${value} 分钟` },

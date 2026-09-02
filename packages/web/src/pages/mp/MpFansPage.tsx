@@ -153,7 +153,7 @@ export default function MpFansPage() {
         )
       ),
     },
-    { title: '备注', dataIndex: 'remark', width: 140, render: (v: string | null) => v || '—' },
+    { title: '备注', dataIndex: 'remark', minWidth: 140, render: (v: string | null) => v || '—' },
     dateTimeColumn('关注时间', 'subscribeTime'),
     {
       title: '会员', dataIndex: 'memberId', width: 90, align: 'center' as const,

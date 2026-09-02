@@ -297,7 +297,7 @@ export default function ContentsPage() {
     {
       title: '标题',
       dataIndex: 'title',
-      width: 320,
+      minWidth: 320,
       render: (v: string, record) => (
         <span>
           {record.isTop ? <Tag size="small" color="blue" style={{ marginRight: 4 }}>{record.topWeight > 0 ? `顶${record.topWeight}` : '顶'}</Tag> : null}

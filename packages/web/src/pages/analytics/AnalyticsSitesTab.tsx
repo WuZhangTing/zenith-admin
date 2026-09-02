@@ -114,7 +114,7 @@ export default function AnalyticsSitesTab() {
     copyableNoColumn('Site Key', 'siteKey', { width: 340 }),
     { title: 'AppId', dataIndex: 'appId', width: 120, render: (value: string) => <Tag size="small">{value}</Tag> },
     { title: '归属租户', dataIndex: 'tenantName', width: 140, render: (_: unknown, record) => record.tenantName || '平台' },
-    { title: '来源白名单', dataIndex: 'allowedOrigins', width: 220, render: (origins: string[] | null) => origins?.length ? <Space wrap>{origins.slice(0, 3).map((o) => <Tag key={o} size="small">{o}</Tag>)}{origins.length > 3 ? <Tag size="small">+{origins.length - 3}</Tag> : null}</Space> : '不限制' },
+    { title: '来源白名单', dataIndex: 'allowedOrigins', minWidth: 220, render: (origins: string[] | null) => origins?.length ? <Space wrap>{origins.slice(0, 3).map((o) => <Tag key={o} size="small">{o}</Tag>)}{origins.length > 3 ? <Tag size="small">+{origins.length - 3}</Tag> : null}</Space> : '不限制' },
     { title: '日配额', dataIndex: 'dailyEventQuota', width: 110, align: 'right', render: (value: number | null) => value ?? '不限' },
     { title: '今日用量', dataIndex: 'todayUsage', width: 140, align: 'right', render: (_: number | null, record) => renderUsage(record) },
     dateTimeColumn('更新时间', 'updatedAt'),

@@ -90,7 +90,7 @@ export default function PaymentRefundsPage() {
   }
 
   const columns: ColumnProps<PaymentRefund>[] = [
-    copyableNoColumn('退款单号', 'refundNo'),
+    copyableNoColumn('退款单号', 'refundNo', { flex: true }),
     copyableNoColumn('原订单号', 'orderNo'),
     { title: '退款金额', dataIndex: 'refundAmount', width: 110, align: 'right', render: (v: number) => yuan(v) },
     { title: '原单金额', dataIndex: 'totalAmount', width: 110, align: 'right', render: (v: number) => yuan(v) },

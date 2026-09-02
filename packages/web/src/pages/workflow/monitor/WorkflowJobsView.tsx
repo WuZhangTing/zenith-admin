@@ -368,7 +368,7 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
     {
       title: '摘要',
       dataIndex: 'summary',
-      width: 180,
+      minWidth: 180,
       render: (_: unknown, record: WorkflowJob) => {
         const text = jobSummaryText(record);
         return text === '—'

@@ -137,7 +137,7 @@ export default function WikiSpacesPage() {
         </Text>
       ),
     },
-    { title: '描述', dataIndex: 'description', width: 220, render: renderEllipsis },
+    { title: '描述', dataIndex: 'description', minWidth: 220, render: renderEllipsis },
     {
       title: '可见性', dataIndex: 'visibility', width: 100,
       render: (v: WikiSpace['visibility']) => WIKI_SPACE_VISIBILITY_LABELS[v],

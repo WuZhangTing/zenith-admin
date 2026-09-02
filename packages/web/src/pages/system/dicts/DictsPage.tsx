@@ -479,7 +479,7 @@ export default function DictsPage() {
     },
     { title: '键值', dataIndex: 'value', width: 160, render: renderEllipsis },
     { title: '排序', dataIndex: 'sort', width: 70, align: 'center' },
-    { title: '备注', dataIndex: 'remark', width: 200, render: renderEllipsis },
+    { title: '备注', dataIndex: 'remark', minWidth: 200, render: renderEllipsis },
     createdAtColumn,
     {
       title: '状态',

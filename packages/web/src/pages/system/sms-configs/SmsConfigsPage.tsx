@@ -101,7 +101,7 @@ export default function SmsConfigsPage() {
   };
 
   const columns = [
-    { title: '名称', dataIndex: 'name', width: 160 },
+    { title: '名称', dataIndex: 'name', minWidth: 160 },
     {
       title: '服务商', dataIndex: 'provider', width: 100,
       render: (v: string) => SMS_PROVIDER_OPTIONS.find((p) => p.value === v)?.label ?? v,

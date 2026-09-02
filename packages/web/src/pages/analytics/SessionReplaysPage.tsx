@@ -143,7 +143,7 @@ export default function SessionReplaysPage() {
       },
     },
     {
-      title: '入口页面', dataIndex: 'entryPageUrl', width: 260, ellipsis: { showTitle: false },
+      title: '入口页面', dataIndex: 'entryPageUrl', minWidth: 260, ellipsis: { showTitle: false },
       render: (v: string | null) => v
         ? <Text ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }} size="small">{v.replace(/^https?:\/\/[^/]+/, '')}</Text>
         : '—',

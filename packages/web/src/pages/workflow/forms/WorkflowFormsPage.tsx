@@ -103,7 +103,7 @@ export default function WorkflowFormsPage() {
     {
       title: '表单名称',
       dataIndex: 'name',
-      width: 220,
+      minWidth: 220,
     },
     {
       title: '标识',

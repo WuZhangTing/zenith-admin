@@ -155,7 +155,7 @@ export default function SystemConfigsPage() {
       width: 80,
       render: (v: string) => <DictTag dictCode="system_config_type" value={v} />,
     },
-    { title: '描述', dataIndex: 'description', width: 300, render: renderEllipsis },
+    { title: '描述', dataIndex: 'description', minWidth: 300, render: renderEllipsis },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<SystemConfig>({
       width: 160,

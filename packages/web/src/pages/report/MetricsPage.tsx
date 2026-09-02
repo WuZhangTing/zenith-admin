@@ -168,7 +168,7 @@ export default function MetricsPage() {
 
   const columns: ColumnProps<ReportMetric>[] = [
     {
-      title: '指标名称', dataIndex: 'name', width: 180,
+      title: '指标名称', dataIndex: 'name', minWidth: 180,
       render: (v: string, record: ReportMetric) => (
         <Typography.Text link ellipsis={{ showTooltip: true }} onClick={() => openPreview(record)}>{v}</Typography.Text>
       ),

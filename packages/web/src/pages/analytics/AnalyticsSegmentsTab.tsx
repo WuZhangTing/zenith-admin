@@ -177,7 +177,7 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
   };
 
   const columns: ColumnProps<AnalyticsSegmentCampaign>[] = [
-    { title: '名称', dataIndex: 'name', width: 160 },
+    { title: '名称', dataIndex: 'name', minWidth: 160 },
     { title: '渠道', dataIndex: 'channel', width: 90, render: (v: AnalyticsSegmentCampaign['channel']) => ANALYTICS_CAMPAIGN_CHANNEL_OPTIONS.find((o) => o.value === v)?.label ?? v },
     { title: '计数', width: 140, render: (_: unknown, r: AnalyticsSegmentCampaign) => `${r.sentCount}/${r.totalCount}（失败 ${r.failedCount}）` },
     {
@@ -358,7 +358,7 @@ export default function AnalyticsSegmentsTab() {
 
   const columns: ColumnProps<AnalyticsUserSegment>[] = useMemo(() => [
     { title: '名称', dataIndex: 'name', width: 180 },
-    { title: '描述', dataIndex: 'description', width: 320, render: (v: string | null) => (v ? renderEllipsis(v) : EMPTY_PLACEHOLDER) },
+    { title: '描述', dataIndex: 'description', minWidth: 320, render: (v: string | null) => (v ? renderEllipsis(v) : EMPTY_PLACEHOLDER) },
     {
       title: '规则',
       dataIndex: 'rules',

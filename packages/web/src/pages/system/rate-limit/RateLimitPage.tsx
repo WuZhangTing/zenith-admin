@@ -565,7 +565,7 @@ export default function RateLimitPage() {
             refreshLoading={bansQuery.isFetching}
             dataSource={bansQuery.data ?? []}
             columns={[
-              { title: '规则', dataIndex: 'name', width: 200, render: (v: string) => <Tag color="blue" size="small">{v}</Tag> },
+              { title: '规则', dataIndex: 'name', minWidth: 200, render: (v: string) => <Tag color="blue" size="small">{v}</Tag> },
               copyableNoColumn('被封禁 Key', 'key', { width: undefined }),
               dateTimeColumn('到期时间', 'expiresAt'),
               {
@@ -694,7 +694,7 @@ export default function RateLimitPage() {
               }))}
               columns={[
                 dateTimeColumn('时间', 'at'),
-                copyableNoColumn('Key', 'key', { width: undefined }),
+                copyableNoColumn('Key', 'key', { flex: true }),
                 {
                   title: '类型', dataIndex: 'monitored', width: 80,
                   render: (_: boolean, row: BlockRow) => blockTypeTag(row),

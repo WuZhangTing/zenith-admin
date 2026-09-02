@@ -103,7 +103,7 @@ function PendingPane() {
   }
 
   const columns: ColumnProps<WikiDoc>[] = [
-    { title: '标题', dataIndex: 'title', width: 240, render: renderEllipsis },
+    { title: '标题', dataIndex: 'title', minWidth: 240, render: renderEllipsis },
     { title: '所属空间', dataIndex: 'spaceName', width: 140, render: renderEllipsis },
     { title: '作者', dataIndex: 'authorName', width: 120, render: (v: string | null) => v ?? '—' },
     { title: '版本', dataIndex: 'currentVersion', width: 80, render: (v: number) => `v${v}` },
@@ -227,7 +227,7 @@ function MySubmissionsPane() {
   const timelineQuery = useWikiDocReviewRecords(timelineDocId, timelineDocId !== undefined);
 
   const columns: ColumnProps<WikiDoc>[] = [
-    { title: '标题', dataIndex: 'title', width: 240, render: renderEllipsis },
+    { title: '标题', dataIndex: 'title', minWidth: 240, render: renderEllipsis },
     { title: '所属空间', dataIndex: 'spaceName', width: 140, render: renderEllipsis },
     {
       title: '状态', dataIndex: 'status', width: 90,
