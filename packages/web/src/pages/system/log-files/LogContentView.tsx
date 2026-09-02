@@ -25,6 +25,10 @@ const activeMarkStyle: CSSProperties = {
   color: 'var(--semi-color-text-0)',
 };
 
+/** sticky 行号列需要不透明底色遮住横向滚过的正文：卡片底色打底，再叠加与滚动容器一致的半透明填充 */
+const GUTTER_FILL_LAYER = 'linear-gradient(var(--semi-color-fill-0), var(--semi-color-fill-0))';
+const GUTTER_ACTIVE_LAYER = 'linear-gradient(var(--semi-color-primary-light-default), var(--semi-color-primary-light-default))';
+
 function renderHighlightedLine(text: string, ranges: MatchRange[] | undefined, activeStart: number | null): ReactNode {
   if (!ranges || ranges.length === 0) return text;
 
@@ -221,6 +225,7 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
               const level = levels[originalIndex];
               const ranges = lineRanges.get(item.index);
               const isActiveLine = item.index === activeLine;
+              const indicator = `3px solid ${isActiveLine ? 'var(--semi-color-primary)' : 'transparent'}`;
               return (
                 <div
                   key={item.key}
@@ -236,8 +241,9 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
                     boxSizing: 'border-box',
                     minWidth: '100%',
                     width: wrap ? '100%' : 'max-content',
-                    padding: '0 16px 0 13px',
-                    borderLeft: isActiveLine ? '3px solid var(--semi-color-primary)' : '3px solid transparent',
+                    // 显示行号时，左缩进与激活指示条挂在 sticky 行号列上，随列一起固定
+                    padding: showLineNumbers ? '0 16px 0 0' : '0 16px 0 13px',
+                    borderLeft: showLineNumbers ? undefined : indicator,
                     background: isActiveLine ? 'var(--semi-color-primary-light-default)' : undefined,
                   }}
                 >
@@ -245,13 +251,20 @@ export const LogContentView = forwardRef<LogContentViewHandle, LogContentViewPro
                     <span
                       aria-hidden="true"
                       style={{
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 1,
                         flexShrink: 0,
+                        boxSizing: 'content-box',
                         width: `${digits}ch`,
-                        marginRight: 12,
+                        padding: '0 12px 0 13px',
+                        borderLeft: indicator,
                         textAlign: 'right',
                         color: 'var(--semi-color-text-2)',
                         userSelect: 'none',
                         whiteSpace: 'pre',
+                        backgroundColor: 'var(--surface-card)',
+                        backgroundImage: isActiveLine ? `${GUTTER_ACTIVE_LAYER}, ${GUTTER_FILL_LAYER}` : GUTTER_FILL_LAYER,
                       }}
                     >
                       {originalIndex + 1}
