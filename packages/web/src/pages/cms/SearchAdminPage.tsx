@@ -76,6 +76,18 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
       render: (v: string) => <span dangerouslySetInnerHTML={{ __html: v }} />,
     },
     { title: '栏目', dataIndex: 'channelName', width: 110 },
+    {
+      title: '访问地址',
+      dataIndex: 'url',
+      width: 300,
+      render: (v: string, record: CmsSearchResult) => (
+        <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 280 }}>
+          <a href={v} target={record.isExternal ? '_blank' : undefined} rel={record.isExternal ? 'noreferrer' : undefined}>
+            {v}
+          </a>
+        </Typography.Text>
+      ),
+    },
     { title: '相关度', dataIndex: 'rank', width: 90, align: 'right', render: (v: number) => v.toFixed(4) },
     dateTimeColumn('发布时间', 'publishedAt'),
   ];

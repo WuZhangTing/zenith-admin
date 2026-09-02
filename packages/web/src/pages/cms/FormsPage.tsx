@@ -308,6 +308,8 @@ export default function FormsPage() {
                 ? <Form.TextArea key={field.name} field={field.name} label={field.label} placeholder={field.errorMessage ?? undefined} />
                 : field.fieldType === 'select'
                 ? <Form.Select key={field.name} field={field.name} label={field.label} optionList={field.options ?? []} />
+                : field.fieldType === 'radio'
+                ? <Form.RadioGroup key={field.name} field={field.name} label={field.label} options={field.options ?? []} />
                 : <Form.Input key={field.name} field={field.name} label={field.label} type={field.fieldType === 'email' ? 'email' : field.fieldType === 'number' ? 'number' : 'text'} />
             ))}
             <Typography.Text type="tertiary">

@@ -121,15 +121,17 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       name: record.name,
       image: record.image ?? '',
       linkUrl: record.linkUrl ?? '',
-      startAt: record.startAt ?? undefined,
-      endAt: record.endAt ?? undefined,
+      startAt: record.startAt ?? null,
+      endAt: record.endAt ?? null,
       sort: record.sort,
       status: record.status,
     }),
     beforeSave: (values) => ({
       ...values,
-      startAt: values.startAt instanceof Date ? formatDateTimeForApi(values.startAt) : values.startAt,
-      endAt: values.endAt instanceof Date ? formatDateTimeForApi(values.endAt) : values.endAt,
+      // DatePicker clearing is an explicit null mutation; undefined would be
+      // omitted by JSON serialization and leave the previous window in place.
+      startAt: values.startAt instanceof Date ? formatDateTimeForApi(values.startAt) : (values.startAt ?? null),
+      endAt: values.endAt instanceof Date ? formatDateTimeForApi(values.endAt) : (values.endAt ?? null),
     }),
   });
   const deleteMutation = useDeleteCmsAd();

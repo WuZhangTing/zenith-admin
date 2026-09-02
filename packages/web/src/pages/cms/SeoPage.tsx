@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Banner, Button, Form, Tag, Toast, Tabs, TabPane, TextArea, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search, Send } from 'lucide-react';
@@ -345,8 +345,15 @@ function DeadlinkTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function SeoPage() {
+  const { hasPermission } = usePermission();
   const [siteId, setSiteId] = useState<number | undefined>(undefined);
   const [activeTab, setActiveTab] = useUrlTabState(['redirects', 'link-words', 'push', 'deadlink'] as const, 'redirects');
+  const canManage = hasPermission('cms:seo:manage');
+  const canPush = hasPermission('cms:seo:push');
+  useEffect(() => {
+    const allowed = [...(canManage ? ['redirects', 'link-words', 'deadlink'] as const : []), ...(canPush ? ['push'] as const : [])];
+    if (!allowed.includes(activeTab as never) && allowed[0]) setActiveTab(allowed[0]);
+  }, [activeTab, canManage, canPush, setActiveTab]);
 
   return (
     <div className="page-container page-tabs-page">
@@ -354,18 +361,18 @@ export default function SeoPage() {
         <CmsSiteSelect value={siteId} onChange={setSiteId} width={200} />
       </SearchToolbar>
       <Tabs collapsible="auto" activeKey={activeTab} onChange={(key) => setActiveTab(key as typeof activeTab)} type="line" lazyRender keepDOM={false}>
-        <TabPane tab="301 重定向" itemKey="redirects">
+        {canManage ? <TabPane tab="301 重定向" itemKey="redirects">
           <RedirectsTab siteId={siteId} />
-        </TabPane>
-        <TabPane tab="内链词" itemKey="link-words">
+        </TabPane> : null}
+        {canManage ? <TabPane tab="内链词" itemKey="link-words">
           <LinkWordsTab siteId={siteId} />
-        </TabPane>
-        <TabPane tab="搜索推送" itemKey="push">
+        </TabPane> : null}
+        {canPush ? <TabPane tab="搜索推送" itemKey="push">
           <PushTab siteId={siteId} />
-        </TabPane>
-        <TabPane tab="死链检测" itemKey="deadlink">
+        </TabPane> : null}
+        {canManage ? <TabPane tab="死链检测" itemKey="deadlink">
           <DeadlinkTab siteId={siteId} />
-        </TabPane>
+        </TabPane> : null}
       </Tabs>
     </div>
   );

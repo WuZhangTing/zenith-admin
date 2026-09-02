@@ -74,7 +74,7 @@ describe('templateDefaults 序列化', () => {
 });
 
 describe('resolveSiteOpsFormValues', () => {
-  it('falls back to CMS_SITE_OPS_DEFAULTS for missing keys（不含 openApiPublishEnabled，该项由授权行管理）', () => {
+  it('falls back to CMS_SITE_OPS_DEFAULTS for missing keys', () => {
     expect(resolveSiteOpsFormValues(null)).toEqual({
       publishedContentEditable: CMS_SITE_OPS_DEFAULTS.publishedContentEditable,
       recycleKeepDays: CMS_SITE_OPS_DEFAULTS.recycleKeepDays,
@@ -82,6 +82,7 @@ describe('resolveSiteOpsFormValues', () => {
       autoReplaceSensitiveWords: CMS_SITE_OPS_DEFAULTS.autoReplaceSensitiveWords,
       autoReplaceErrorProneWords: CMS_SITE_OPS_DEFAULTS.autoReplaceErrorProneWords,
       autoCoverFromBody: CMS_SITE_OPS_DEFAULTS.autoCoverFromBody,
+      openApiPublishEnabled: CMS_SITE_OPS_DEFAULTS.openApiPublishEnabled,
     });
   });
 

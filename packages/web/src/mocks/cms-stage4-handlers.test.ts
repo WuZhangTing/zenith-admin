@@ -105,12 +105,12 @@ describe('CMS Stage 4 MSW handlers', () => {
 
     const interaction = mockCmsInteractions.find((item) => item.id === 2)!;
     interaction.captchaPolicy = 'math';
-    const missingCaptcha = await call('POST', `/api/member/cms/interactions/${interaction.id}/submit`, {
+    const missingCaptcha = await call('POST', `/api/member/cms/interactions/${interaction.id}/submit?siteId=${interaction.siteId}`, {
       answers: { '4': 'page-builder' },
       idempotencyKey: 'stage4-captcha-1',
     });
     expect(missingCaptcha.status).toBe(400);
-    const submitted = await call('POST', `/api/member/cms/interactions/${interaction.id}/submit`, {
+    const submitted = await call('POST', `/api/member/cms/interactions/${interaction.id}/submit?siteId=${interaction.siteId}`, {
       answers: { '4': 'page-builder' },
       captchaAnswer: '2',
       idempotencyKey: 'stage4-captcha-2',

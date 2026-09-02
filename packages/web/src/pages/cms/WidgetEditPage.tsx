@@ -110,7 +110,7 @@ export default function WidgetEditPage() {
     }
   }, [activeId, widget]);
 
-  const channelOptions = flattenChannels(channelTreeQuery.data ?? []).map((channel) => ({
+  const channelOptions = flattenChannels(channelTreeQuery.data ?? []).filter((channel) => channel.type === 'list').map((channel) => ({
     value: channel.id,
     label: channel.name,
   }));
@@ -234,6 +234,7 @@ export default function WidgetEditPage() {
 
   const formKey = widget ? `${widget.id}-${widget.draftRevision}` : 'new';
   const status = widget?.status ?? 'draft';
+  const canEditWidget = hasPermission(activeId ? 'cms:widget:update' : 'cms:widget:create');
 
   return (
     <div className="page-container">
@@ -252,6 +253,7 @@ export default function WidgetEditPage() {
           <Button
             icon={<Eye size={14} />}
             loading={saveMutation.isPending && previewVisible}
+            disabled={!canEditWidget}
             onClick={() => void handlePreview()}
           >
             保存并预览
@@ -259,7 +261,7 @@ export default function WidgetEditPage() {
           <Button
             icon={<Save size={14} />}
             loading={saveMutation.isPending}
-            disabled={!hasPermission(activeId ? 'cms:widget:update' : 'cms:widget:create')}
+            disabled={!canEditWidget}
             onClick={() => void saveWidget()}
           >
             保存草稿
@@ -283,6 +285,7 @@ export default function WidgetEditPage() {
             getFormApi={(api) => { baseFormApi.current = api; }}
             labelPosition="left"
             labelWidth={90}
+            disabled={!canEditWidget}
             initValues={{
               name: widget?.name ?? '',
               code: widget?.code ?? '',
@@ -329,7 +332,7 @@ export default function WidgetEditPage() {
         <Card
           title={`部件条目（${items.length}）`}
           headerExtraContent={(
-            <CreateButton onClick={() => openItem()}>新增条目</CreateButton>
+            <CreateButton disabled={!canEditWidget} onClick={() => openItem()}>新增条目</CreateButton>
           )}
         >
           {items.length === 0 ? (

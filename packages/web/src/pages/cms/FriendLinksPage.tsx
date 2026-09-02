@@ -49,10 +49,16 @@ export default function FriendLinksPage() {
     entityName: '友链',
     save: saveMutation,
     defaults: { sort: 0, status: 'enabled' },
-    toValues: (record) => ({ name: record.name, url: record.url, logo: record.logo ?? '', groupId: record.groupId ?? undefined, sort: record.sort, status: record.status, remark: record.remark ?? '' }),
+    toValues: (record) => ({ name: record.name, url: record.url, logo: record.logo ?? '', groupId: record.groupId ?? null, sort: record.sort, status: record.status, remark: record.remark ?? '' }),
     beforeSave: (values, { isEdit }) => {
       if (!isEdit && !siteId) abortSubmit('validation');
-      return { ...values, ...(!isEdit ? { siteId } : {}) };
+      return {
+        ...values,
+        // Semi's clearable Select yields undefined; retain an explicit null so
+        // the PATCH removes the previous group instead of omitting the field.
+        groupId: values.groupId == null ? null : values.groupId,
+        ...(!isEdit ? { siteId } : {}),
+      };
     },
   });
   const deleteMutation = useDeleteCmsFriendLink();

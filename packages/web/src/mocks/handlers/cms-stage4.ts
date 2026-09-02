@@ -543,6 +543,8 @@ export const cmsStage4Handlers = [
   http.post('/api/member/cms/interactions/:id/submit', async ({ params, request }) => {
     const interaction = mockCmsInteractions.find((item) => item.id === Number(params.id));
     if (!interaction) return notFound('互动问卷不存在', { status: 404 });
+    const siteId = Number(new URL(request.url).searchParams.get('siteId'));
+    if (!Number.isInteger(siteId) || siteId !== interaction.siteId) return notFound('互动问卷不存在', { status: 404 });
     return submitInteraction(interaction, await request.json() as Body, true);
   }),
 
@@ -876,4 +878,3 @@ export function resetMockCmsAdEventTokens(): void {
   adEventTokens.clear();
   adEventDedupe.clear();
 }
-

@@ -635,6 +635,14 @@ export default function SiteEditSheet({ open, site, onClose }: Readonly<SiteEdit
                   </Col>
                 </Row>
               </Form.Section>
+              <Form.Section text="开放 API 发布">
+                <Form.Switch
+                  field="openApiPublishEnabled"
+                  label="允许开放 API 直接发布"
+                  labelWidth={160}
+                  extraText="开启后仍需应用具备 cms:publish scope 且授权行允许直接发布"
+                />
+              </Form.Section>
               <Form.Section text="保存时自动处理">
                 <Row gutter={16}>
                   <Col span={12}>

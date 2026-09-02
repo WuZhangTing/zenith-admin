@@ -237,6 +237,7 @@ export const cmsHandlers = [
       copyright: (body.copyright as string) ?? null,
       theme,
       themeRevision: 0,
+      publicRevision: 0,
       templateRefsRevision: 0,
       staticMode: (body.staticMode as 'dynamic' | 'hybrid' | 'static') ?? 'hybrid',
       robots: (body.robots as string) ?? null,

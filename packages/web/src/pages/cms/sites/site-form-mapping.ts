@@ -76,6 +76,7 @@ export function resolveSiteOpsFormValues(settings: Record<string, unknown> | nul
     autoReplaceSensitiveWords: bool(s.autoReplaceSensitiveWords, CMS_SITE_OPS_DEFAULTS.autoReplaceSensitiveWords),
     autoReplaceErrorProneWords: bool(s.autoReplaceErrorProneWords, CMS_SITE_OPS_DEFAULTS.autoReplaceErrorProneWords),
     autoCoverFromBody: bool(s.autoCoverFromBody, CMS_SITE_OPS_DEFAULTS.autoCoverFromBody),
+    openApiPublishEnabled: bool(s.openApiPublishEnabled, CMS_SITE_OPS_DEFAULTS.openApiPublishEnabled),
   };
 }
 
@@ -182,10 +183,14 @@ export function buildSiteSavePayload({ values, editingRecord, templateDefaults, 
     cdnPurgeUrl, cdnPurgeToken, clearCdnPurgeToken, clearBaiduPushToken, language, langLinksText,
     publishedContentEditable, recycleKeepDays, maxPageOnContentPublish,
     autoReplaceSensitiveWords, autoReplaceErrorProneWords, autoCoverFromBody,
+    openApiPublishEnabled,
     theme: requestedTheme,
     ...rest
   } = merged;
   rest.theme = requestedTheme ?? editingRecord?.theme ?? 'default';
+  // Clearable model Selects emit undefined; make the detach operation explicit
+  // so JSON serialization cannot silently preserve the previous binding.
+  rest.modelId = values.modelId == null || values.modelId === '' ? null : Number(values.modelId);
   const themeChanged = editingRecord !== null && rest.theme !== editingRecord.theme;
   const { h5Enabled: _legacyH5Enabled, h5Domain: _legacyH5Domain, ...prevSettings } = (editingRecord?.settings ?? {}) as Record<string, unknown>;
   rest.settings = {
@@ -222,6 +227,7 @@ export function buildSiteSavePayload({ values, editingRecord, templateDefaults, 
     autoReplaceSensitiveWords: autoReplaceSensitiveWords === true,
     autoReplaceErrorProneWords: autoReplaceErrorProneWords === true,
     autoCoverFromBody: autoCoverFromBody === true,
+    openApiPublishEnabled: openApiPublishEnabled === true,
   };
   // 主题参数变更 + 非纯动态站点 → 保存后提示重新生成静态页
   const prevThemeConfig = JSON.stringify(cleanThemeConfig((prevSettings.themeConfig as Record<string, unknown>) ?? {}));

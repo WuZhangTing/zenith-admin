@@ -71,7 +71,7 @@ function findChannel(nodes: CmsChannel[], id: number | undefined): CmsChannel | 
 }
 
 /** image/file 型模型字段：输入框 + 媒体库选择按钮 */
-function MediaFieldControl({ field }: Readonly<{ field: CmsModelField }>) {
+function MediaFieldControl({ field, canUpload }: Readonly<{ field: CmsModelField; canUpload: boolean }>) {
   const formApi = useFormApi();
   const [pickerVisible, setPickerVisible] = useState(false);
   const rules = field.required ? [{ required: true, message: `请填写${field.label}` }] : undefined;
@@ -83,7 +83,7 @@ function MediaFieldControl({ field }: Readonly<{ field: CmsModelField }>) {
         rules={rules}
         placeholder={field.placeholder ?? '资源 URL（可从媒体库选择）'}
         suffix={(
-          <Button size="small" theme="borderless" icon={<Images size={14} />} onClick={() => setPickerVisible(true)}>媒体库</Button>
+          <Button size="small" theme="borderless" icon={<Images size={14} />} disabled={!canUpload} onClick={() => setPickerVisible(true)}>媒体库</Button>
         )}
       />
       <MediaPickerModal
@@ -135,7 +135,7 @@ function parseFieldDefault(field: CmsModelField): unknown {
 }
 
 /** 按模型字段元数据渲染动态表单控件（值写入 extend.{name}）；applyDefault 仅新建内容时生效 */
-function ModelFieldControl({ field, applyDefault }: Readonly<{ field: CmsModelField; applyDefault?: boolean }>) {
+function ModelFieldControl({ field, applyDefault, canUpload }: Readonly<{ field: CmsModelField; applyDefault?: boolean; canUpload: boolean }>) {
   const f = `extend.${field.name}`;
   // 必填不挂表单 rules：草稿保存必须放行缺失的模型必填（写一半先存是常态），
   // 提审/发布时由服务端按模型定义强校验并给出逐字段错误提示
@@ -171,7 +171,7 @@ function ModelFieldControl({ field, applyDefault }: Readonly<{ field: CmsModelFi
       return <Form.Switch {...common} />;
     case 'image':
     case 'file':
-      return <MediaFieldControl field={field} />;
+      return <MediaFieldControl field={field} canUpload={canUpload} />;
     default:
       return <Form.Input {...common} />;
   }
@@ -240,6 +240,7 @@ export default function ContentEditPage() {
   const previewMutation = useCmsPreviewLink();
   const uploadMediaMutation = useUploadFile();
   const uploadResourceMutation = useUploadCmsResource();
+  const canUploadResources = hasPermission('cms:resource:upload');
 
   // P4 标题查重：失焦时同站查重提示（不阻断保存）
   const lastCheckedTitle = useRef('');
@@ -283,6 +284,8 @@ export default function ContentEditPage() {
   const [checkModalVisible, setCheckModalVisible] = useState(false);
   const isMapped = !!detail?.mappingSourceId;
   const isPersistentlyLocked = !!detail?.lockedAt;
+  const canUpdateContent = id ? hasPermission('cms:content:update') : hasPermission('cms:content:create');
+  const isReadOnly = isPersistentlyLocked || !canUpdateContent;
 
   const linkPicker = useCmsLinkPicker({
     siteId,
@@ -600,7 +603,7 @@ export default function ContentEditPage() {
           {detail ? <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 'normal', color: 'var(--semi-color-text-2)' }}>状态：{CMS_CONTENT_STATUS_LABELS[detail.status]}</span> : null}
           {autoSavedAt ? <span style={{ marginLeft: 12, fontSize: 12, fontWeight: 'normal', color: 'var(--semi-color-text-2)' }}>已自动保存 {autoSavedAt}</span> : null}
         </h3>
-        <Button icon={<Save size={14} />} loading={saveMutation.isPending} disabled={isPersistentlyLocked} onClick={() => void handleSaveDraft()}>保存</Button>
+        <Button icon={<Save size={14} />} loading={saveMutation.isPending} disabled={isReadOnly} onClick={() => void handleSaveDraft()}>保存</Button>
         <Button icon={<SpellCheck size={14} />} loading={checkMutation.isPending} onClick={() => void handleCheckText()}>内容检查</Button>
         <Button icon={<Eye size={14} />} loading={previewMutation.isPending || saveMutation.isPending} onClick={() => void handlePreview()}>预览</Button>
         {id ? (
@@ -610,7 +613,7 @@ export default function ContentEditPage() {
           </>
         ) : null}
         {hasPermission('cms:content:publish') ? (
-          <Button type="primary" icon={<Send size={14} />} loading={actionMutation.isPending} disabled={isPersistentlyLocked} onClick={() => void handleSaveAndPublish()}>保存并发布</Button>
+          <Button type="primary" icon={<Send size={14} />} loading={actionMutation.isPending} disabled={isReadOnly} onClick={() => void handleSaveAndPublish()}>保存并发布</Button>
         ) : null}
       </div>
 
@@ -627,6 +630,15 @@ export default function ContentEditPage() {
         <Banner
           type="danger"
           description={`内容已被持久锁定${detail?.lockedByName ? `（操作人：${detail.lockedByName}）` : ''}${detail?.lockReason ? `：${detail.lockReason}` : ''}。当前仅允许读取、预览和查看历史记录。`}
+          style={{ marginBottom: 12 }}
+          closeIcon={null}
+        />
+      ) : null}
+
+      {!canUpdateContent ? (
+        <Banner
+          type="warning"
+          description="当前账号没有内容编辑权限，本页以只读模式打开。"
           style={{ marginBottom: 12 }}
           closeIcon={null}
         />
@@ -650,7 +662,7 @@ export default function ContentEditPage() {
           key={`${detail?.id ?? 'new'}-${formEpoch}`}
           getFormApi={(api) => { formApi.current = api; }}
           allowEmpty
-          disabled={isPersistentlyLocked}
+          disabled={isReadOnly}
           initValues={initValues}
           onValueChange={(values) => {
             dirtyRef.current = true;
@@ -686,17 +698,18 @@ export default function ContentEditPage() {
                         <Input
                           placeholder="图片说明（可选）"
                           value={img.caption ?? ''}
+                          disabled={isReadOnly}
                           onChange={(v) => {
                             setAlbumImages((list) => list.map((x, xi) => xi === i ? { ...x, caption: v || null } : x));
                             dirtyRef.current = true;
                           }}
                           style={{ flex: 1 }}
                         />
-                        <Button size="small" theme="borderless" disabled={i === 0}
+                        <Button size="small" theme="borderless" disabled={isReadOnly || i === 0}
                           onClick={() => { setAlbumImages((list) => { const next = [...list]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; return next; }); dirtyRef.current = true; }}>上移</Button>
-                        <Button size="small" theme="borderless" disabled={i === albumImages.length - 1}
+                        <Button size="small" theme="borderless" disabled={isReadOnly || i === albumImages.length - 1}
                           onClick={() => { setAlbumImages((list) => { const next = [...list]; [next[i], next[i + 1]] = [next[i + 1], next[i]]; return next; }); dirtyRef.current = true; }}>下移</Button>
-                        <Button size="small" theme="borderless" type="danger"
+                        <Button size="small" theme="borderless" type="danger" disabled={isReadOnly}
                           onClick={() => { setAlbumImages((list) => list.filter((_, xi) => xi !== i)); dirtyRef.current = true; }}>删除</Button>
                       </div>
                     ))}
@@ -707,6 +720,7 @@ export default function ContentEditPage() {
                         multiple
                         limit={20}
                         showUploadList={false}
+                        disabled={isReadOnly || !canUploadResources}
                         customRequest={async ({ fileInstance, onSuccess, onError }) => {
                           if (!siteId) { onError?.({ status: 0 }); return; }
                           try {
@@ -723,7 +737,7 @@ export default function ContentEditPage() {
                       >
                         <Button icon={<ImageUp size={14} />}>上传图片</Button>
                       </Upload>
-                      <Button icon={<Images size={14} />} onClick={() => setAlbumPickerVisible(true)}>媒体库添加</Button>
+                      <Button icon={<Images size={14} />} disabled={isReadOnly || !canUploadResources} onClick={() => setAlbumPickerVisible(true)}>媒体库添加</Button>
                     </div>
                   </div>
                 </Form.Slot>
@@ -749,6 +763,7 @@ export default function ContentEditPage() {
                             accept="video/*,audio/*"
                             limit={1}
                             showUploadList={false}
+                            disabled={isReadOnly || !canUploadResources}
                             customRequest={async ({ fileInstance, onSuccess, onError }) => {
                               try {
                                 const uploaded = await uploadMediaMutation.mutateAsync({ formData: (() => { const fd = new FormData(); fd.append('file', fileInstance); return fd; })() });
@@ -761,7 +776,7 @@ export default function ContentEditPage() {
                               }
                             }}
                           >
-                            <Button size="small" theme="borderless" icon={<ImageUp size={14} />} loading={uploadMediaMutation.isPending}>上传</Button>
+                            <Button size="small" theme="borderless" icon={<ImageUp size={14} />} loading={uploadMediaMutation.isPending} disabled={isReadOnly || !canUploadResources}>上传</Button>
                           </Upload>
                         )}
                       />
@@ -782,10 +797,11 @@ export default function ContentEditPage() {
                       <RichTextEditor
                         value={body}
                         onChange={(v) => { setBody(v); dirtyRef.current = true; }}
+                        readOnly={isReadOnly}
                         height={contentType === 'article' ? 420 : 240}
                         enablePageBreak={contentType === 'article'}
                         placeholder={contentType === 'article' ? '请输入正文内容...' : '图文说明（可选）'}
-                        uploadServer={siteId ? `${appConfig.apiBaseUrl}/api/cms/upload-image?siteId=${siteId}` : undefined}
+                        uploadServer={siteId && canUploadResources ? `${appConfig.apiBaseUrl}/api/cms/upload-image?siteId=${siteId}` : undefined}
                       />
                     </Suspense>
                   )}
@@ -801,7 +817,7 @@ export default function ContentEditPage() {
                           size="small"
                           placeholder="附件显示名称"
                           value={att.name}
-                          disabled={isPersistentlyLocked}
+                          disabled={isReadOnly}
                           onChange={(v) => {
                             setAttachments((list) => list.map((x, xi) => xi === i ? { ...x, name: v } : x));
                             dirtyRef.current = true;
@@ -811,11 +827,11 @@ export default function ContentEditPage() {
                         <Typography.Text type="tertiary" size="small" style={{ flexShrink: 0 }}>
                           {att.size > 0 ? formatAttachmentSize(att.size) : '—'}
                         </Typography.Text>
-                        <Button size="small" theme="borderless" disabled={i === 0 || isPersistentlyLocked}
+                        <Button size="small" theme="borderless" disabled={i === 0 || isReadOnly}
                           onClick={() => { setAttachments((l) => { const n = [...l]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n.map((x, xi) => ({ ...x, sort: xi })); }); dirtyRef.current = true; }}>上移</Button>
-                        <Button size="small" theme="borderless" disabled={i === attachments.length - 1 || isPersistentlyLocked}
+                        <Button size="small" theme="borderless" disabled={i === attachments.length - 1 || isReadOnly}
                           onClick={() => { setAttachments((l) => { const n = [...l]; [n[i], n[i + 1]] = [n[i + 1], n[i]]; return n.map((x, xi) => ({ ...x, sort: xi })); }); dirtyRef.current = true; }}>下移</Button>
-                        <Button size="small" theme="borderless" type="danger" disabled={isPersistentlyLocked}
+                        <Button size="small" theme="borderless" type="danger" disabled={isReadOnly}
                           onClick={() => { setAttachments((l) => l.filter((_, xi) => xi !== i).map((x, xi) => ({ ...x, sort: xi }))); dirtyRef.current = true; }}>删除</Button>
                       </div>
                     ))}
@@ -825,7 +841,7 @@ export default function ContentEditPage() {
                         multiple
                         limit={20}
                         showUploadList={false}
-                        disabled={isPersistentlyLocked}
+                        disabled={isReadOnly || !canUploadResources}
                         customRequest={async ({ fileInstance, onSuccess, onError }) => {
                           if (!siteId) { onError?.({ status: 0 }); return; }
                           try {
@@ -844,7 +860,7 @@ export default function ContentEditPage() {
                           }
                         }}
                       >
-                        <Button icon={<Paperclip size={14} />} loading={uploadResourceMutation.isPending} disabled={isPersistentlyLocked}>上传附件</Button>
+                        <Button icon={<Paperclip size={14} />} loading={uploadResourceMutation.isPending} disabled={isReadOnly || !canUploadResources}>上传附件</Button>
                       </Upload>
                     </div>
                   </div>
@@ -855,7 +871,7 @@ export default function ContentEditPage() {
                   <Row gutter={16}>
                     {modelFields.map((f) => (
                       <Col key={f.name} span={f.fieldType === 'textarea' || f.fieldType === 'richtext' ? 24 : 12}>
-                        <ModelFieldControl field={f} applyDefault={!detail} />
+                        <ModelFieldControl field={f} applyDefault={!detail} canUpload={canUploadResources} />
                       </Col>
                     ))}
                   </Row>
@@ -926,12 +942,13 @@ export default function ContentEditPage() {
                     placeholder="https://... 或从媒体库选择"
                     suffix={(
                       <Space spacing={2}>
-                        <Button size="small" theme="borderless" icon={<Images size={14} />} onClick={() => setCoverPickerVisible(true)}>媒体库</Button>
+                        <Button size="small" theme="borderless" icon={<Images size={14} />} disabled={isReadOnly || !canUploadResources} onClick={() => setCoverPickerVisible(true)}>媒体库</Button>
                         <Upload
                           action=""
                           accept="image/*"
                           limit={1}
                           showUploadList={false}
+                          disabled={isReadOnly || !canUploadResources}
                           customRequest={async ({ fileInstance, onSuccess, onError }) => {
                             if (!siteId) { onError?.({ status: 0 }); return; }
                             try {
@@ -947,7 +964,7 @@ export default function ContentEditPage() {
                             }
                           }}
                         >
-                          <Button size="small" theme="borderless" icon={<ImageUp size={14} />}>上传</Button>
+                          <Button size="small" theme="borderless" icon={<ImageUp size={14} />} disabled={isReadOnly || !canUploadResources}>上传</Button>
                         </Upload>
                       </Space>
                     )}
@@ -1033,7 +1050,7 @@ export default function ContentEditPage() {
                     label="自定义静态路径"
                     size="small"
                     placeholder="留空按栏目 + URL 标识生成"
-                    extraText="站内唯一，形如 news/2026/hello.html，支持 .html/.htm/.shtml/.json"
+                    extraText="站内唯一，形如 news/2026/hello.html，仅支持 .html"
                   />
                   {contentType !== 'link' ? (
                     <>

@@ -39,7 +39,7 @@ function ContentPickerModal({ siteId, visible, onCancel, onSelect, excludeId }: 
   const isMobile = useIsMobile();
   const enabled = visible && siteId !== undefined;
   const listQuery = useCmsContentList(
-    { page, pageSize, siteId: siteId ?? 0, channelId, keyword: keyword || undefined },
+    { page, pageSize, siteId: siteId ?? 0, channelId, keyword: keyword || undefined, status: 'published' },
     enabled,
   );
   const rows = (listQuery.data?.list ?? []).filter((c) => c.id !== excludeId);
