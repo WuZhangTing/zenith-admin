@@ -1,5 +1,5 @@
-import { eq } from 'drizzle-orm';
-import type { OAuthProviderType } from '@zenith/shared/identity';
+import { eq, inArray } from 'drizzle-orm';
+import { OAUTH_PROVIDERS, type OAuthProviderType } from '@zenith/shared/identity';
 import type { OAuthProvider, OAuthProviderConfig } from './types';
 import { GitHubProvider } from './github';
 import { DingTalkProvider } from './dingtalk';
@@ -41,10 +41,22 @@ export async function getOAuthProvider(type: OAuthProviderType): Promise<OAuthPr
   return createProvider(type, cfg);
 }
 
+/** 配置行是否可用于发起登录：已启用且凭据完整（企业微信另需 corpId） */
+function isOauthConfigUsable(row: typeof oauthConfigs.$inferSelect): boolean {
+  if (!row.enabled || !row.clientId || !row.clientSecret) return false;
+  if (row.provider === 'wechat_work' && !row.corpId) return false;
+  return true;
+}
+
 /** 检查 OAuth 提供方是否已在 DB 中配置好必要的凭据且已启用 */
 export async function isProviderConfigured(type: OAuthProviderType): Promise<boolean> {
   const [row] = await db.select().from(oauthConfigs).where(eq(oauthConfigs.provider, type)).limit(1);
-  if (!row || !row.enabled || !row.clientId || !row.clientSecret) return false;
-  if (type === 'wechat_work' && !row.corpId) return false;
-  return true;
+  return !!row && isOauthConfigUsable(row);
+}
+
+/** 当前可发起登录的提供方，按 OAUTH_PROVIDERS 固定顺序返回（登录页 / 账号绑定按此渲染入口） */
+export async function listConfiguredProviders(): Promise<OAuthProviderType[]> {
+  const rows = await db.select().from(oauthConfigs).where(inArray(oauthConfigs.provider, [...OAUTH_PROVIDERS]));
+  const usable = new Set(rows.filter(isOauthConfigUsable).map((row) => row.provider));
+  return OAUTH_PROVIDERS.filter((provider) => usable.has(provider));
 }

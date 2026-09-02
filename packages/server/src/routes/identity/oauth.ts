@@ -1,10 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { ErrorResponse, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okBody } from '../../lib/openapi-schemas';
-import { OAuthAccountDTO, OAuthAuthUrlDTO, LoginResultDTO } from '../../lib/openapi-dtos';
+import { OAuthAccountDTO, OAuthAuthUrlDTO, OAuthEnabledProvidersDTO, LoginResultDTO } from '../../lib/openapi-dtos';
 import { getClientInfo } from '../../lib/request-helpers';
 import {
-  listOAuthAccounts, generateAuthUrl, handleOAuthCallback,
+  listOAuthAccounts, listEnabledOAuthProviders, generateAuthUrl, handleOAuthCallback,
   bindOAuthAccount, unbindOAuthAccount,
 } from '../../services/identity/oauth.service';
 
@@ -18,6 +18,17 @@ const accountsRoute = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...ok(z.array(OAuthAccountDTO), 'ok') },
   }),
   handler: async (c) => c.json(okBody(await listOAuthAccounts()), 200),
+});
+
+// 登录页据此决定是否渲染「其他方式登录」；必须注册在 GET /{provider} 之前，否则被当成 provider="providers"
+const providersRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/providers', tags: ['OAuth'], summary: '已启用的第三方登录提供方',
+    description: '返回已启用且凭据配置完整、可发起登录的提供方 key，不含任何凭据；未配置任何提供方时为空数组',
+    security: [],
+    responses: { ...commonErrorResponses, ...ok(OAuthEnabledProvidersDTO, 'ok') },
+  }),
+  handler: async (c) => c.json(okBody(await listEnabledOAuthProviders()), 200),
 });
 
 const OAuthNeedBindDTO = z.object({
@@ -110,6 +121,6 @@ const unbindRoute = defineOpenAPIRoute({
   },
 });
 
-oauth.openapiRoutes([accountsRoute, authUrlRoute, callbackRoute, bindRoute, unbindRoute] as const);
+oauth.openapiRoutes([accountsRoute, providersRoute, authUrlRoute, callbackRoute, bindRoute, unbindRoute] as const);
 
 export default oauth;

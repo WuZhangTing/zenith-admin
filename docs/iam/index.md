@@ -151,7 +151,7 @@ MFA 当前落库类型包括 `totp`、`passkey`、`recovery_code`，接口实现
 | `oauth_configs` | provider、clientId、clientSecret、agentId、corpId、enabled |
 | `user_oauth_accounts` | 用户与第三方账号绑定，唯一键为 `provider + openId` |
 
-管理配置接口：`GET /api/oauth-config`、`PUT /api/oauth-config/{provider}`。个人 OAuth 接口：`GET /api/auth/oauth/accounts`、`GET /api/auth/oauth/{provider}`、`POST /api/auth/oauth/{provider}/callback`、`POST /api/auth/oauth/bind`、`DELETE /api/auth/oauth/unbind/{provider}`。
+管理配置接口：`GET /api/oauth-config`、`PUT /api/oauth-config/{provider}`。个人 OAuth 接口：`GET /api/auth/oauth/providers`（公开，已启用的 provider 列表）、`GET /api/auth/oauth/accounts`、`GET /api/auth/oauth/{provider}`、`POST /api/auth/oauth/{provider}/callback`、`POST /api/auth/oauth/bind`、`DELETE /api/auth/oauth/unbind/{provider}`。
 
 ### 企业身份源
 

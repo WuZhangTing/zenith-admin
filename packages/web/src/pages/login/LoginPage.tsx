@@ -3,9 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Form, Button, Toast, Typography, Tabs, TabPane, Divider, Spin } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness, Check, ChevronRight } from 'lucide-react';
-import { Icon } from '@iconify/react';
 import dayjs from 'dayjs';
 import { MAX_STORED_ACCOUNTS, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
+import { OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
 import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, TenantIdentityProviderSummary } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
@@ -15,8 +15,9 @@ import { useAuth, type LoginOptions } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/UserAvatar';
 import AppLogo from '@/components/AppLogo';
 import AppModal from '@/components/AppModal';
+import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
 import ForgotPasswordModal from './ForgotPasswordModal';
-import { useEnterpriseProviders, usePublicCaptcha, usePublicSystemConfig } from '@/hooks/queries/auth-public';
+import { useEnterpriseProviders, useOAuthProviders, usePublicCaptcha, usePublicSystemConfig } from '@/hooks/queries/auth-public';
 import { useDebouncedValue } from '@tanstack/react-pacer';
 import './LoginPage.css';
 
@@ -87,12 +88,15 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const directoryFormApi = useRef<FormApi | null>(null);
 
   const enterpriseProvidersQuery = useEnterpriseProviders(debouncedTenantCode);
+  const oauthProvidersQuery = useOAuthProviders();
   const captchaEnabled = captchaQuery.data?.enabled ?? false;
   const captchaId = captchaQuery.data?.captchaId ?? '';
   const captchaSvg = captchaQuery.data?.svg ?? '';
   const allowRegistration = allowRegistrationQuery.data?.configValue === 'true';
   const forgotPasswordEnabled = forgotPasswordQuery.data?.configValue === 'true';
   const enterpriseProviders = enterpriseProvidersQuery.data?.providers ?? [];
+  // 加载中 / 后端不可达 / 未启用任何提供方 → 空数组 → 不渲染「其他方式登录」
+  const oauthProviders = oauthProvidersQuery.data ?? [];
   const fetchCaptcha = () => { void captchaQuery.refetch(); };
 
   const handleLogin = async (values: Record<string, string>) => {
@@ -550,45 +554,27 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
               </div>
             </div>
           )}
-          {!mfaChallenge && <div className="login-oauth">
-            <Divider align="center">
-              <span className="login-oauth-label">其他方式登录</span>
-            </Divider>
-            <div className="login-oauth-list">
-              <button
-                type="button"
-                className="oauth-btn"
-                title="GitHub 登录"
-                onClick={() => handleOAuthLogin('github')}
-              >
-                <Icon icon="simple-icons:github" width="20" height="20" />
-              </button>
-              <button
-                type="button"
-                className="oauth-btn"
-                title="钉钉登录"
-                onClick={() => handleOAuthLogin('dingtalk')}
-              >
-                <Icon icon="ant-design:dingtalk-outlined" width="22" height="22" />
-              </button>
-              <button
-                type="button"
-                className="oauth-btn"
-                title="企业微信登录"
-                onClick={() => handleOAuthLogin('wechat_work')}
-              >
-                <Icon icon="ant-design:wechat-work-filled" width="22" height="22" />
-              </button>
-              <button
-                type="button"
-                className="oauth-btn"
-                title="飞书登录"
-                onClick={() => handleOAuthLogin('feishu')}
-              >
-                <Icon icon="icon-park-outline:lark" width="20" height="20" />
-              </button>
+          {/* OAuth 第三方登录：只渲染后端已启用且配置完整的提供方 */}
+          {!mfaChallenge && oauthProviders.length > 0 && (
+            <div className="login-oauth">
+              <Divider align="center">
+                <span className="login-oauth-label">其他方式登录</span>
+              </Divider>
+              <div className="login-oauth-list">
+                {oauthProviders.map((provider) => (
+                  <button
+                    key={provider}
+                    type="button"
+                    className="oauth-btn"
+                    title={`${OAUTH_PROVIDER_LABELS[provider]} 登录`}
+                    onClick={() => handleOAuthLogin(provider)}
+                  >
+                    <OAuthProviderIcon provider={provider} size={20} />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>}
+          )}
           {import.meta.env.VITE_DEMO_MODE === 'true' && (
             <div className="login-demo-tip">
               <div style={{ marginBottom: 4 }}>

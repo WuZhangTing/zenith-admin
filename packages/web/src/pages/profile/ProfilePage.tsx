@@ -6,9 +6,9 @@ import {
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { UserRound, Shield, Monitor, List, Key, LogOut, Plus, Copy, CheckCircle, Smartphone, ShieldCheck, BellRing } from 'lucide-react';
-import { Icon } from '@iconify/react';
 import { QRCodeSVG } from 'qrcode.react';
 
+import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
 import type { User as UserType, OAuthProviderType, UserSession, UserApiTokenCreated } from '@zenith/shared/identity';
 import type { MfaFactor, TotpSetupResult } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
@@ -16,6 +16,7 @@ import { AppModal } from '@/components/AppModal';
 import { AvatarCropperModal } from '@/components/AvatarCropperModal';
 import { PresetAvatarPickerModal } from '@/components/PresetAvatarPickerModal';
 import { UserAvatar } from '@/components/UserAvatar';
+import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
 import { formatDateTime, formatDateTimeForApi } from '@/utils/date';
 import { type PasswordPolicy } from '@/utils/password-policy';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
@@ -49,6 +50,7 @@ import {
   useVerifyTotpSetup,
 } from '@/hooks/queries/profile';
 import { useMyOAuth2Grants, useRevokeMyOAuth2Grant } from '@/hooks/queries/oauth2-apps';
+import { useOAuthProviders } from '@/hooks/queries/auth-public';
 import type { OAuth2MyGrant } from '@zenith/shared/open-platform';
 import './ProfilePage.css';
 import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
@@ -155,6 +157,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 
   const passwordPolicyQuery = useProfilePasswordPolicy();
   const oauthAccountsQuery = useProfileOauthAccounts(activeSection === 'security');
+  const oauthProvidersQuery = useOAuthProviders(activeSection === 'security');
   const mfaFactorsQuery = useProfileMfaFactors(activeSection === 'security');
   const sessionsQuery = useProfileSessions(activeSection === 'devices');
   const loginLogsQuery = useProfileLoginLogs(
@@ -190,6 +193,11 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 
   const passwordPolicy: PasswordPolicy | null = passwordPolicyQuery.data ?? null;
   const oauthAccounts = oauthAccountsQuery.data ?? [];
+  const enabledOAuthProviders = oauthProvidersQuery.data ?? [];
+  // 可绑定的只有后台已启用的提供方；已绑定但后来被停用的仍列出，允许解绑
+  const visibleOAuthProviders = OAUTH_PROVIDERS.filter(
+    (provider) => enabledOAuthProviders.includes(provider) || oauthAccounts.some((a) => a.provider === provider),
+  );
   const mfaFactors = mfaFactorsQuery.data ?? [];
   const sessions = sessionsQuery.data ?? [];
   const loginLogs = loginLogsQuery.data?.list ?? [];
@@ -217,7 +225,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 
   const profileLoading = updateProfileMutation.isPending;
   const pwdLoading = changePasswordMutation.isPending;
-  const oauthLoading = oauthAccountsQuery.isFetching;
+  const oauthLoading = oauthAccountsQuery.isFetching || oauthProvidersQuery.isFetching;
   const mfaLoading = mfaFactorsQuery.isFetching;
   const sessionsLoading = sessionsQuery.isFetching;
   const kickOthersLoading = kickOthersMutation.isPending;
@@ -371,14 +379,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   }
 
   // ─── 静态配置 ────────────────────────────────────────────────────────────────
-
-  const PROVIDER_INFO: Record<OAuthProviderType, { label: string; icon: React.ReactNode }> = {
-    github: { label: 'GitHub', icon: <Icon icon="simple-icons:github" width="16" height="16" /> },
-    dingtalk: { label: '钉钉', icon: <Icon icon="ant-design:dingtalk-outlined" width="16" height="16" /> },
-    wechat_work: { label: '企业微信', icon: <Icon icon="ant-design:wechat-work-filled" width="16" height="16" /> },
-    feishu: { label: '飞书', icon: <Icon icon="icon-park-outline:lark" width="16" height="16" /> },
-  };
-  const OAUTH_PROVIDERS: OAuthProviderType[] = ['github', 'dingtalk', 'wechat_work', 'feishu'];
 
   return (
     <div className="page-container">
@@ -642,13 +642,16 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                   <Divider margin={28} />
 
                   <div className="section-title">第三方账号绑定</div>
+                  {!oauthLoading && visibleOAuthProviders.length === 0 ? (
+                    <Text type="tertiary">管理员尚未启用任何第三方登录方式</Text>
+                  ) : (
                   <SemiList
                     bordered
                     className="oauth-list"
-                    dataSource={OAUTH_PROVIDERS}
+                    dataSource={visibleOAuthProviders}
                     loading={oauthLoading}
                     renderItem={(provider: OAuthProviderType) => {
-                        const info = PROVIDER_INFO[provider];
+                        const label = OAUTH_PROVIDER_LABELS[provider];
                         const bound = oauthAccounts.find((a) => a.provider === provider);
                         return (
                           <SemiList.Item
@@ -657,12 +660,12 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                             className="oauth-list-item"
                             header={(
                               <span className="oauth-list-icon">
-                              {info.icon}
+                                <OAuthProviderIcon provider={provider} />
                               </span>
                             )}
                             main={(
                               <div className="oauth-list-main">
-                                <Text strong>{info.label}</Text>
+                                <Text strong>{label}</Text>
                                 {bound ? (
                                   <Tag color="green" size="small">已绑定 · {bound.nickname || bound.openId}</Tag>
                                 ) : (
@@ -673,7 +676,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                             extra={bound ? (
                               <Button theme="borderless" type="danger" size="small" onClick={() => {
                                 confirmDanger({
-                                  title: `确定要解绑 ${info.label} 账号吗？`,
+                                  title: `确定要解绑 ${label} 账号吗？`,
                                   onOk: () => handleOAuthUnbind(provider),
                                 });
                               }}>解绑</Button>
@@ -684,6 +687,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                         );
                     }}
                   />
+                  )}
               </div>
             </Tabs.TabPane>
 

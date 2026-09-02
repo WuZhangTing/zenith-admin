@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
-import type { EnterpriseIdentityDiscovery } from '@zenith/shared/identity';
+import type { EnterpriseIdentityDiscovery, OAuthProviderType } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
 
@@ -14,6 +14,7 @@ export const authPublicKeys = {
   captcha: ['auth-public', 'captcha'] as const,
   publicConfig: (key: string) => ['auth-public', 'public-config', key] as const,
   enterpriseProviders: (tenantCode: string) => ['auth-public', 'enterprise-providers', tenantCode] as const,
+  oauthProviders: ['auth-public', 'oauth-providers'] as const,
 };
 
 export function usePublicCaptcha() {
@@ -39,6 +40,22 @@ export function useEnterpriseProviders(tenantCode: string) {
         .then(unwrap)
         .catch(() => ({ tenantCode, providers: [] })),
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * 已启用的第三方登录提供方（公开接口）。
+ * 后端不可达 / 接口异常时按「无可用提供方」处理（返回空数组），登录页据此整块不渲染，而不是渲染出点了就报错的入口。
+ */
+export function useOAuthProviders(enabled = true) {
+  return useQuery({
+    queryKey: authPublicKeys.oauthProviders,
+    queryFn: () =>
+      request
+        .get<OAuthProviderType[]>('/api/auth/oauth/providers', { silent: true })
+        .then(unwrap)
+        .catch((): OAuthProviderType[] => []),
+    enabled,
   });
 }
 

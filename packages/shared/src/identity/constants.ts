@@ -10,6 +10,13 @@ export const OAUTH_PROVIDERS = ['github', 'dingtalk', 'wechat_work', 'feishu'] a
 
 export type OAuthProviderType = (typeof OAUTH_PROVIDERS)[number];
 
+export const OAUTH_PROVIDER_LABELS: Record<OAuthProviderType, string> = {
+  github: 'GitHub',
+  dingtalk: '钉钉',
+  wechat_work: '企业微信',
+  feishu: '飞书',
+};
+
 // ─── 意见反馈 ────────────────────────────────────────────────────────
 export const USER_FEEDBACK_CATEGORY_LABELS: Record<UserFeedbackCategory, string> = {
   suggestion: '功能建议',

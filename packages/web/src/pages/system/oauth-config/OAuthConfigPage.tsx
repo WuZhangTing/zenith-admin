@@ -3,44 +3,19 @@ import { Form, Button, Toast, Space, Typography, Divider, Tabs, TabPane } from '
 import PageLoading from '@/components/PageLoading';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { Save } from 'lucide-react';
-import { Icon } from '@iconify/react';
+import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
 import type { OAuthProviderType } from '@zenith/shared/identity';
+import { OAuthProviderIcon } from '@/components/OAuthProviderIcon';
 import { usePermission } from '@/hooks/usePermission';
 import { useOAuthConfigs, useSaveOAuthConfig } from '@/hooks/queries/oauth-config';
 
 const { Title, Text } = Typography;
 
-interface ProviderMeta {
-  key: OAuthProviderType;
-  label: string;
-  icon: React.ReactNode;
-  extra?: { agentId?: boolean; corpId?: boolean };
-}
-
-const PROVIDERS: ProviderMeta[] = [
-  {
-    key: 'github',
-    label: 'GitHub',
-    icon: <Icon icon="simple-icons:github" width="16" height="16" />,
-  },
-  {
-    key: 'dingtalk',
-    label: '钉钉',
-    icon: <Icon icon="ant-design:dingtalk-outlined" width="16" height="16" />,
-    extra: { agentId: true },
-  },
-  {
-    key: 'wechat_work',
-    label: '企业微信',
-    icon: <Icon icon="ant-design:wechat-work-filled" width="16" height="16" />,
-    extra: { agentId: true, corpId: true },
-  },
-  {
-    key: 'feishu',
-    label: '飞书',
-    icon: <Icon icon="icon-park-outline:lark" width="16" height="16" />,
-  },
-];
+/** 各提供方额外需要的凭据字段（钉钉 Agent ID；企业微信 Agent ID + Corp ID） */
+const EXTRA_FIELDS: Partial<Record<OAuthProviderType, { agentId?: boolean; corpId?: boolean }>> = {
+  dingtalk: { agentId: true },
+  wechat_work: { agentId: true, corpId: true },
+};
 
 export default function OAuthConfigPage() {
   const { hasPermission } = usePermission();
@@ -57,7 +32,7 @@ export default function OAuthConfigPage() {
     try {
       const values = await api.validate();
       await saveMutation.mutateAsync({ provider, values: values as Record<string, unknown> });
-      Toast.success(`${PROVIDERS.find((p) => p.key === provider)?.label} 配置保存成功`);
+      Toast.success(`${OAUTH_PROVIDER_LABELS[provider]} 配置保存成功`);
     } catch {
       // validation failed
     }
@@ -77,23 +52,24 @@ export default function OAuthConfigPage() {
       </div>
 
       <Tabs tabPosition="left" style={{ minHeight: 360 }}>
-        {PROVIDERS.map((meta) => {
-          const cfg = configs.find((c) => c.provider === meta.key);
+        {OAUTH_PROVIDERS.map((provider) => {
+          const cfg = configs.find((c) => c.provider === provider);
+          const extra = EXTRA_FIELDS[provider];
           return (
             <TabPane
-              key={meta.key}
-              itemKey={meta.key}
+              key={provider}
+              itemKey={provider}
               tab={
                 <Space>
-                  {meta.icon}
-                  {meta.label}
+                  <OAuthProviderIcon provider={provider} />
+                  {OAUTH_PROVIDER_LABELS[provider]}
                 </Space>
               }
             >
               <div style={{ maxWidth: 520, paddingLeft: 16 }}>
                 <Form
                   getFormApi={(api) => {
-                    setFormApis((prev) => ({ ...prev, [meta.key]: api }));
+                    setFormApis((prev) => ({ ...prev, [provider]: api }));
                   }}
                   allowEmpty
                   labelPosition="left"
@@ -114,10 +90,10 @@ export default function OAuthConfigPage() {
                     type="password"
                     placeholder="请输入 Client Secret"
                   />
-                  {meta.extra?.agentId && (
+                  {extra?.agentId && (
                     <Form.Input field="agentId" label="Agent ID" placeholder="请输入 Agent ID" />
                   )}
-                  {meta.extra?.corpId && (
+                  {extra?.corpId && (
                     <Form.Input field="corpId" label="Corp ID" placeholder="请输入企业 Corp ID" />
                   )}
                   <Divider margin="12px 0" />
@@ -129,8 +105,8 @@ export default function OAuthConfigPage() {
                     <Button
                       type="primary"
                       icon={<Save size={14} />}
-                      loading={savingProvider === meta.key}
-                      onClick={() => handleSave(meta.key)}
+                      loading={savingProvider === provider}
+                      onClick={() => handleSave(provider)}
                     >
                       保存
                     </Button>

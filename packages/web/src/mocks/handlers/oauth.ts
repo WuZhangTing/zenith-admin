@@ -1,9 +1,15 @@
 import { http } from 'msw';
+import { OAUTH_PROVIDERS } from '@zenith/shared/identity';
 import { ok } from '@/mocks/utils/handlers';
 
 const API = import.meta.env.VITE_API_BASE_URL || '';
 
 export const oauthHandlers = [
+  // 已启用的提供方（演示模式全部开放；须先于 :provider 注册，否则被当成 provider="providers"）
+  http.get(`${API}/api/auth/oauth/providers`, () => {
+    return ok([...OAUTH_PROVIDERS]);
+  }),
+
   // 获取授权链接
   http.get(`${API}/api/auth/oauth/:provider`, ({ params }) => {
     const provider = params.provider as string;

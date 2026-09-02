@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../db';
 import { users, userOauthAccounts } from '../../db/schema';
-import { getOAuthProvider, isProviderConfigured } from '../../lib/oauth';
+import { getOAuthProvider, isProviderConfigured, listConfiguredProviders } from '../../lib/oauth';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { registerSession } from '../../lib/session-manager';
@@ -22,6 +22,11 @@ export async function ensureProviderUsable(provider: string): Promise<OAuthProvi
   if (!isValidOAuthProvider(provider)) throw new HTTPException(400, { message: '不支持的 OAuth 提供方' });
   if (!(await isProviderConfigured(provider))) throw new HTTPException(400, { message: '该 OAuth 提供方尚未配置，请联系管理员' });
   return provider;
+}
+
+/** 已启用且配置完整的提供方（公开接口，登录页据此决定是否渲染第三方登录入口，不含任何凭据） */
+export function listEnabledOAuthProviders(): Promise<OAuthProviderType[]> {
+  return listConfiguredProviders();
 }
 
 export async function listOAuthAccounts() {

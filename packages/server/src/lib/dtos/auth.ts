@@ -2,6 +2,7 @@
  * Auth / OAuth 相关 DTO：登录、验证码、Token、用户画像、OAuth 账号/配置
  */
 import { z } from '@hono/zod-openapi';
+import { OAUTH_PROVIDERS } from '@zenith/shared/identity';
 import { auditFields } from './_audit';
 import { UserDTO } from './users';
 
@@ -77,6 +78,11 @@ export const OAuthAccountDTO = z
 export const OAuthAuthUrlDTO = z
   .object({ authUrl: z.string(), state: z.string() })
   .openapi('OAuthAuthUrl');
+
+/** 已启用且配置完整、可发起登录的提供方 key 列表（公开接口，不含凭据） */
+export const OAuthEnabledProvidersDTO = z
+  .array(z.enum(OAUTH_PROVIDERS))
+  .openapi('OAuthEnabledProviders', { example: ['github', 'feishu'] });
 
 export const UserPreferencesDTO = z
   .record(z.string(), z.unknown())
