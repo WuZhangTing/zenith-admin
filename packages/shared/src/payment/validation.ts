@@ -33,14 +33,7 @@ export const createPaymentChannelConfigSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 
-// partial() 不会剥离 default：显式声明带默认值的字段为纯 optional，
-// 否则部分更新（如仅改 notifyUrl）会把 sandbox/isDefault/status 静默重置为默认值
-export const updatePaymentChannelConfigSchema = partialForUpdate(createPaymentChannelConfigSchema).extend({
-  status: z.enum(['enabled', 'disabled']).optional(),
-  isDefault: z.boolean().optional(),
-  sandbox: z.boolean().optional(),
-  alipaySignType: z.enum(['RSA2', 'RSA']).optional(),
-});
+export const updatePaymentChannelConfigSchema = partialForUpdate(createPaymentChannelConfigSchema);
 
 /** 业务/后台发起支付下单 */
 export const createPaymentSchema = z.object({
@@ -232,14 +225,7 @@ export const createPaymentRiskRuleSchema = z.object({
   remark: z.string().max(256).optional(),
 });
 
-// partial() 不剥离 default，显式覆盖带默认值字段为纯 optional（防部分更新静默重置）
-export const updatePaymentRiskRuleSchema = partialForUpdate(createPaymentRiskRuleSchema).extend({
-  scope: z.enum(['global', 'channel', 'bizType']).optional(),
-  blockListKeys: z.array(z.string().min(1).max(64)).optional(),
-  allowListKeys: z.array(z.string().min(1).max(64)).optional(),
-  action: z.enum(['block', 'review']).optional(),
-  status: z.enum(['enabled', 'disabled']).optional(),
-});
+export const updatePaymentRiskRuleSchema = partialForUpdate(createPaymentRiskRuleSchema);
 
 /** 人工审核处理 */
 export const handlePaymentRiskReviewSchema = z.object({

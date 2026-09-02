@@ -82,30 +82,11 @@ export const createCmsSiteSchema = z.object({
   remark: z.string().max(500).nullable().optional(),
 });
 
-export const updateCmsSiteSchema = z.object({
-  name: createCmsSiteSchema.shape.name.optional(),
-  code: createCmsSiteSchema.shape.code.optional(),
-  domain: createCmsSiteSchema.shape.domain.optional(),
-  aliasDomains: createCmsSiteSchema.shape.aliasDomains.removeDefault().optional(),
-  isDefault: createCmsSiteSchema.shape.isDefault.removeDefault().optional(),
-  title: createCmsSiteSchema.shape.title.optional(),
-  keywords: createCmsSiteSchema.shape.keywords.optional(),
-  description: createCmsSiteSchema.shape.description.optional(),
-  logo: createCmsSiteSchema.shape.logo.optional(),
-  favicon: createCmsSiteSchema.shape.favicon.optional(),
-  icp: createCmsSiteSchema.shape.icp.optional(),
-  copyright: createCmsSiteSchema.shape.copyright.optional(),
-  staticMode: createCmsSiteSchema.shape.staticMode.removeDefault().optional(),
-  /** 主题切换：仅允许内置主题（服务端校验注册表），变更后 bump themeRevision */
-  theme: createCmsSiteSchema.shape.theme.removeDefault().optional(),
-  robots: createCmsSiteSchema.shape.robots.optional(),
-  modelId: createCmsSiteSchema.shape.modelId.optional(),
-  extend: createCmsSiteSchema.shape.extend.removeDefault().optional(),
-  settings: createCmsSiteSchema.shape.settings.removeDefault().optional(),
-  status: createCmsSiteSchema.shape.status.removeDefault().optional(),
-  sort: createCmsSiteSchema.shape.sort.removeDefault().optional(),
-  remark: createCmsSiteSchema.shape.remark.optional(),
-});
+/**
+ * parentId / inheritance 分别经 move / inheritance 专用接口变更，不在通用更新中开放；
+ * theme 切换仅允许内置主题（服务端校验注册表），变更后 bump themeRevision。
+ */
+export const updateCmsSiteSchema = partialForUpdate(createCmsSiteSchema.omit({ parentId: true, inheritance: true }));
 
 export const moveCmsSiteSchema = z.object({
   parentId: z.number().int().positive().nullable(),

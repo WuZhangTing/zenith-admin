@@ -245,7 +245,15 @@ const row = await db.transaction(async (tx) => {
   return created;
 });
 
-// 独立的「分配关联」接口（不改主表）同样用事务保证 delete+insert 原子
+// 更新：updateXxxSchema 经 partialForUpdate 派生，yyyIds 省略即 undefined，表示不改动关联
+const updated = await db.transaction(async (tx) => {
+  const { yyyIds, ...columns } = data;
+  const [row] = await tx.update(xxxs).set(columns).where(eq(xxxs.id, id)).returning();
+  if (yyyIds !== undefined) await setXxxYyys(tx, id, yyyIds);
+  return row;
+});
+
+// 独立的「分配关联」接口（不改主表）：集合字段必填，同样用事务保证 delete+insert 原子
 await db.transaction(async (tx) => {
   await setXxxYyys(tx, id, data.yyyIds);
 });

@@ -79,7 +79,9 @@
 
 1. **Schema**（Step 1）：创建联结表 `xxxYyys`，在 `relations.ts` 添加两侧 relations
 2. **迁移**（Step 2）
-3. **Zod Schema**（Step 3）：添加 `yyyIds: z.array(z.number().int()).default([])`
+3. **Zod Schema**（Step 3）：在 `createXxxSchema` 添加 `yyyIds: z.array(z.number().int()).default([])`
+   （`updateXxxSchema` 经 `partialForUpdate` 派生后该字段无默认值，省略即不改动关联；
+   服务层只在 `yyyIds !== undefined` 时重写联结表）
 4. **Service**（Step 5）：`db.transaction()` 包裹主表写入 + 关联写入；实现
    `setXxxYyys(executor, xxxId, yyyIds)`（先删后插）；RQB 查询用 `with: { xxxYyys: { with: { yyy: true } } }`
 5. **DTO**（Step 6）：添加 `yyys` 嵌套对象与 `yyyIds` 数组
