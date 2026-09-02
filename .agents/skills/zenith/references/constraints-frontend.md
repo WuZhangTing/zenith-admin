@@ -30,6 +30,7 @@
 | 中断表单提交 | `lib/abort-submit.ts` 的 `abortSubmit()`（先给用户提示再调用） | `return`、`throw new Error('多词消息')` | 按钮一直转圈；或多弹一个「操作失败：xxx」并向 `/api/frontend-errors` 灌入假告警 |
 | 破坏性操作确认 | `utils/confirm.ts` 的 `confirmDelete` / `confirmDanger` | `Modal.confirm({ okButtonProps: { type: 'danger', theme: 'solid' } })` | 「确定删除」与「确定提交」渲染成同一个蓝色主按钮 |
 | 防抖 / 节流 | `@tanstack/react-pacer`：值防抖 `useDebouncedValue`，回调防抖 `useDebouncedCallback`（需手动 `cancel` / `flush` 时用 `useDebouncer`），节流 `useThrottledCallback`；`useEffect` 内等非 hook 上下文用 `Debouncer` / `Throttler` 类 | `setTimeout` + `clearTimeout` 手写防抖、`Date.now()` 差值手写节流、timer ref + 卸载清理样板 | 各处 wait / 边沿语义不一致；漏写卸载清理导致组件卸载后仍 setState / 发请求 |
+| 复制 / 读取剪贴板 | `utils/clipboard.ts` 的 `copyText` / `copyTextWithToast` / `readClipboardText` / `canWriteClipboardItems` | 裸调 `navigator.clipboard.writeText` / `readText`（ESLint 已封禁）、自写 textarea + `execCommand` | 内网 `http://ip` 访问不是安全上下文，`navigator.clipboard` 为 undefined，点复制直接 TypeError |
 
 各症状的完整诊断见 [troubleshooting.md](./troubleshooting.md)。
 
@@ -51,6 +52,12 @@
   Pacer hooks 卸载时自动 cancel，**禁止**再写 timer ref + 卸载清理样板
 - **Pacer 仅限 web 端**：服务端限流走自研 Redis 限流中间件（`middleware/rate-limit.ts`）等既有设施（进程内存节流在多实例下失效），
   `analytics-sdk` 保持零依赖，两者**禁止**引入 Pacer
+- **非安全上下文只 polyfill 能等价实现的 API**：`crypto.randomUUID` 由入口 `polyfills.ts` 用
+  `@zenith/shared/core` 的 `uuidV4` 补齐，业务代码直接写 `crypto.randomUUID()`，**禁止**再写
+  `?.randomUUID?.() ?? Math.random()` 之类兜底；`analytics-sdk` 嵌入第三方页面不能改宿主全局，
+  只能调用 `@zenith/shared/core` 的 `randomUUID()`（ESLint 已封禁裸调）。`navigator.clipboard`
+  **禁止** polyfill——残缺对象会误导 `@univerjs/ui` 等库的特征检测，读文本 / 写图片由调用方降级；
+  `getUserMedia`、Service Worker、Notification 无法兜底，需 HTTPS 或浏览器策略 `OverrideSecurityRestrictionsOnInsecureOrigin`
 
 ## 缓存与 query key
 

@@ -66,6 +66,21 @@ describe('copyText', () => {
     expect(document.activeElement).toBe(button);
     button.remove();
   });
+
+  it('回退路径不破坏用户原有的页面选区', async () => {
+    setClipboard(undefined);
+    const p = document.createElement('p');
+    p.textContent = '先选中这段文字再点复制';
+    document.body.appendChild(p);
+    const range = document.createRange();
+    range.selectNodeContents(p);
+    const selection = document.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    await copyText('别的内容');
+    expect(selection.toString()).toBe('先选中这段文字再点复制');
+    p.remove();
+  });
 });
 
 describe('copyTextWithToast', () => {

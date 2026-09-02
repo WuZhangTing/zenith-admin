@@ -12,6 +12,8 @@ import { Toast } from '@douyinfe/semi-ui';
 
 function copyViaExecCommand(text: string): boolean {
   const active = document.activeElement as HTMLElement | null;
+  const selection = document.getSelection();
+  const originalRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
   const textarea = document.createElement('textarea');
   textarea.value = text;
   textarea.readOnly = true; // 避免移动端弹出键盘
@@ -23,7 +25,12 @@ function copyViaExecCommand(text: string): boolean {
   try {
     return document.execCommand('copy');
   } finally {
+    // 还原用户原有的选区与焦点（如终端 / 表格里先选中再点右键复制）
     textarea.remove();
+    if (originalRange && selection) {
+      selection.removeAllRanges();
+      selection.addRange(originalRange);
+    }
     active?.focus?.();
   }
 }
