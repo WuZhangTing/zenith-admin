@@ -5,6 +5,7 @@
  *  - 文件：pino-roll 按天轮转 `logs/app.YYYY-MM-DD.N.log`，保留 LOG_MAX_FILES 份，NDJSON
  *  - 控制台：默认输出 NDJSON 到 stdout（交给容器日志采集）；
  *    LOG_CONSOLE_PRETTY=true 时经 pino-pretty 彩色单行输出（本地开发用）
+ *  - 例外：Windows 终端直接运行时控制台输出留在主线程（见 consoleOnMainThread）
  *
  * 调用约定（`hooks.logMethod` 归一化，两种写法都支持）：
  *  - pino 原生：`logger.info({ userId }, '登录成功')`，新代码优先用这种
@@ -15,12 +16,21 @@
  * warn / error / fatal 在 logMethod hook 写入点计入 log-metrics 计数器
  * （监控告警的 logErrorPerMin / logWarnPerMin；hook 仅在级别启用时触发）。
  */
+import { createRequire } from 'node:module';
 import path from 'node:path';
-import { pino, destination, levels, stdSerializers, type Logger, type LogFn, type TransportTargetOptions } from 'pino';
+import {
+  pino, destination, levels, multistream, stdSerializers, transport,
+  type DestinationStream, type Logger, type LogFn, type TransportTargetOptions,
+} from 'pino';
+import type { PrettyOptions } from 'pino-pretty';
 import { trace, isSpanContextValid } from '@opentelemetry/api';
 import { currentTraceId } from './trace-context';
 import { config } from '../config';
 import { recordLogLevel } from './log-metrics';
+
+// pino-pretty 只在 Windows 终端分支于主线程加载；其余场景由 worker 按 target 名自行解析
+const require = createRequire(import.meta.url);
+const loadPinoPretty = () => require('pino-pretty') as typeof import('pino-pretty');
 
 /**
  * 级别方法同时接受两种写法（由 logMethod hook 归一化）：
@@ -91,18 +101,25 @@ const fileTarget: TransportTargetOptions = {
   },
 };
 
+const prettyOptions: PrettyOptions = {
+  colorize: true,
+  translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
+  ignore: 'pid,hostname',
+  singleLine: true,
+};
+
 const consoleTarget: TransportTargetOptions = config.log.pretty
-  ? {
-      target: 'pino-pretty',
-      level: config.log.level,
-      options: {
-        colorize: true,
-        translateTime: 'SYS:yyyy-mm-dd HH:MM:ss',
-        ignore: 'pid,hostname',
-        singleLine: true,
-      },
-    }
+  ? { target: 'pino-pretty', level: config.log.level, options: prettyOptions }
   : { target: 'pino/file', level: config.log.level, options: { destination: 1 } };
+
+/**
+ * Windows 控制台把写入 fd 1 的字节按当前代码页解码（中文系统为 GBK），worker transport 里
+ * sonic-boom 直写 fd 的 UTF-8 因此显示为乱码（如 "✔" → "鉁?"）；主线程的 process.stdout 是
+ * TTY 流，libuv 经 WriteConsoleW 以 UTF-16 输出，与代码页无关。
+ * 仅 Windows 且 stdout 为终端（本地直接起服务 / 跑脚本）时控制台输出留在主线程，文件仍走 worker；
+ * 管道 / 容器（concurrently、docker logs）下 stdout 不是 TTY，字节由下游按 UTF-8 解码，不受影响。
+ */
+const consoleOnMainThread = process.platform === 'win32' && process.stdout.isTTY === true;
 
 /**
  * 测试进程（vitest）直写 stdout，不启用 worker transport：
@@ -134,9 +151,20 @@ const options = {
   },
 } satisfies Parameters<typeof pino>[0];
 
-const logger = (process.env.VITEST
-  ? pino(options, destination({ dest: 1, sync: true }))
-  : pino({ ...options, transport: { targets: [fileTarget, consoleTarget] } })
-) as unknown as AppLogger;
+function createLogger(): Logger {
+  if (process.env.VITEST) return pino(options, destination({ dest: 1, sync: true }));
+  if (!consoleOnMainThread) return pino({ ...options, transport: { targets: [fileTarget, consoleTarget] } });
+
+  const consoleStream: DestinationStream = config.log.pretty
+    ? loadPinoPretty()({ ...prettyOptions, destination: process.stdout })
+    : process.stdout;
+  // multistream 各路 level 缺省同样是 'info'，必须显式跟随 logger 级别
+  return pino(options, multistream([
+    { level: config.log.level, stream: transport({ targets: [fileTarget] }) },
+    { level: config.log.level, stream: consoleStream },
+  ]));
+}
+
+const logger = createLogger() as unknown as AppLogger;
 
 export default logger;
