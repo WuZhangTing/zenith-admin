@@ -148,7 +148,7 @@ export default function ServicesPage() {
       render: (v: string) => <Tag size="small" color={v === 'loaded' ? 'blue' : 'grey'}>{v}</Tag>,
     },
     createOperationColumn<ServiceInfo>({
-      width: 230,
+      width: 240,
       desktopInlineKeys: ['toggle', 'restart', 'logs'],
       actions: (record) => {
         const busy = actionMutation.isPending && actionMutation.variables?.name === record.name;

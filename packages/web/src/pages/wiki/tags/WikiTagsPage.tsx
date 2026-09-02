@@ -59,7 +59,7 @@ export default function WikiTagsPage() {
     { title: '关联文档数', dataIndex: 'docCount', width: 120, align: 'right' },
     createdAtColumn,
     createOperationColumn<WikiTag>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         ...(hasPermission('wiki:tag:edit') ? [{

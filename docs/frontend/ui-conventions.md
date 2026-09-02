@@ -38,7 +38,9 @@
 - 搜索条件较多时使用 `SearchToolbar` 的结构化 props：`primary`、`filters`、`actions`，并按需覆盖 `mobilePrimary`、`mobileFilters`、`mobileActions`
 - 关键词、状态、时间范围筛选使用 `components/search-filters.tsx`；面板或弹窗内需要自适应宽度的搜索框可直接用 Semi `Input`
 - 表格使用 `<ConfigurableTable bordered ... />`，传 `onRefresh` 与 `refreshLoading`
-- 操作列使用 `createOperationColumn`；动作 label 使用纯文字，危险动作标 `danger: true`
+- 每个表格有且只有一个弹性主列（名称 / 标题列）用 `minWidth` 声明、不写 `width`，其余列写固定 `width`；不写 `scroll.x`，由组件按列宽之和推导
+- 操作列使用 `createOperationColumn`；动作 label 使用纯文字，危险动作标 `danger: true`；桌面端内联动作不超过 3 个，
+  `width` 按最宽内联组合计算（内容宽 + 40，向上取整到 10），状态特有 / 低频动作用 `desktopInlineKeys` 收进「更多」
 - 状态列紧靠操作列左侧并固定在右侧；时间列使用 `dateTimeColumn` / `dateColumn` / `createdAtColumn` / `updatedAtColumn`
 - 空值占位统一使用 `EMPTY_PLACEHOLDER`（`—`）
 

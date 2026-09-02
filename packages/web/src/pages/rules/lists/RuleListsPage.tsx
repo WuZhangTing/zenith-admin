@@ -165,6 +165,7 @@ export default function RuleListsPage() {
     // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (s: string) => <Tag color={s === 'enabled' ? 'green' : 'red'}>{s === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<RuleList>({
+      width: 180,
       desktopInlineKeys: ['items', 'edit'],
       actions: (r) => [
         { key: 'items', label: '条目', hidden: !canManageItems, onClick: () => openItems(r) },

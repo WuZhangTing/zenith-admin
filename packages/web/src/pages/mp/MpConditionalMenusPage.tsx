@@ -169,7 +169,7 @@ export default function MpConditionalMenusPage() {
     { title: '一级按钮数', dataIndex: 'buttons', width: 100, render: (b: MpMenuButton[]) => (b?.length ?? 0) },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right' as const, render: (s: string) => <Tag color={s === 'published' ? 'green' : 'grey'} type="light">{s === 'published' ? '已发布' : '草稿'}</Tag> },
     createOperationColumn<MpConditionalMenu>({
-      width: 180,
+      width: 210,
       desktopInlineKeys: ['edit', 'publish', 'delete'],
       menuAriaLabel: '个性化菜单操作',
       actions: (record) => [
@@ -223,7 +223,7 @@ export default function MpConditionalMenusPage() {
       <Banner type="info" fullMode={false} description="个性化菜单按匹配规则（标签/性别/地区/客户端/语言）向不同人群下发不同菜单；未命中任何个性化菜单的用户将看到默认自定义菜单。" style={{ marginBottom: 12 }} />
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching}
-        columns={columns} dataSource={list} rowKey="id" pagination={buildPagination(list.length)} scroll={{ x: 900 }} />
+        columns={columns} dataSource={list} rowKey="id" pagination={buildPagination(list.length)} />
 
       <AppModal {...modal.modalProps} width={680}>
         <Form key={modal.formKey} {...modal.formProps}>

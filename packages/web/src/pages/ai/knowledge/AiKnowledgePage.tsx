@@ -124,7 +124,7 @@ export default function AiKnowledgePage() {
     },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AiKnowledgeBase>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['docs', 'edit', 'delete'],
       actions: (record) => [
         {
@@ -173,7 +173,7 @@ export default function AiKnowledgePage() {
     { title: '字符数', dataIndex: 'charCount', width: 90, align: 'right' },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<AiKbDocument>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['view', 'delete'],
       actions: (record) => [
         {

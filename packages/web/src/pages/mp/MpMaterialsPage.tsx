@@ -106,7 +106,7 @@ export default function MpMaterialsPage() {
     { title: '大小', dataIndex: 'fileSize', width: 100, align: 'right' as const, render: (v: number | null) => fmtSize(v) },
     createdAtColumn,
     createOperationColumn<MpMaterial>({
-      width: 140,
+      width: 170,
       desktopInlineKeys: ['rename', 'delete'],
       menuAriaLabel: '素材操作',
       actions: (record) => [
@@ -186,7 +186,7 @@ export default function MpMaterialsPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)} scroll={{ x: 1000 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '重命名素材' : '新增素材'} width={520}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">

@@ -281,7 +281,7 @@ export default function DataSourcesPage() {
       ),
     },
     createOperationColumn<ReportDatasource>({
-      width: 200,
+      width: 180,
       desktopInlineKeys: ['health', 'edit'],
       actions: (record) => [
         // 静态数据源是纯容器，无连接可测，不提供「检测」

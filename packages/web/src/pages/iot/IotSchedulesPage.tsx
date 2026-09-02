@@ -172,7 +172,7 @@ function SchedulesTab({ onShowRuns }: Readonly<{ onShowRuns: (schedule: IotSched
       ),
     },
     createOperationColumn<IotSchedule>({
-      width: 230,
+      width: 240,
       actions: (record) => [
         { key: 'runs', label: '执行记录', onClick: () => onShowRuns(record) },
         ...(hasPermission('iot:schedule:update') ? [{
@@ -406,7 +406,7 @@ function ScheduleRunsTab({ filterSchedule, onClearFilter }: Readonly<{
       render: (v: number) => v > 0 ? <Text type="danger">{v}</Text> : EMPTY_PLACEHOLDER,
     },
     createOperationColumn<IotScheduleRun>({
-      width: 80,
+      width: 120,
       actions: (record) => [
         ...(record.errors.length > 0 ? [{
           key: 'detail', label: '失败明细', onClick: () => setDetailRun(record),

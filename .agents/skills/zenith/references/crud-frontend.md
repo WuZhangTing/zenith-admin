@@ -189,8 +189,9 @@ export default function XxxPage() {
   }
 
   // ─── 表格列 ─────────────────────────────────────────────────────────────
+  // 有且只有一个弹性主列（minWidth、不写 width），其余列固定 width；不传 scroll.x
   const columns: ColumnProps<Xxx>[] = [
-    { title: '名称', dataIndex: 'name', width: 200 },
+    { title: '名称', dataIndex: 'name', minWidth: 200 },
     { title: '描述', dataIndex: 'description', width: 260, render: renderEllipsis },
     createdAtColumn,                              // 创建时间预置列（自动格式化）
     {
@@ -207,8 +208,8 @@ export default function XxxPage() {
       ),
     },
     createOperationColumn<Xxx>({
-      width: 160,
-      desktopInlineKeys: ['edit', 'delete'],      // 只把高频动作内联，其余进更多菜单
+      width: 150,                                 // 编辑 / 删除：内容宽 108 + 40 → 150（ui-patterns.md → 操作列）
+      desktopInlineKeys: ['edit', 'delete'],      // 只把高频动作内联（≤ 3 个），其余进更多菜单
       actions: (record) => [
         ...(hasPermission('system:xxx:update') ? [{
           key: 'edit', label: '编辑', onClick: () => modal.openEdit(record),

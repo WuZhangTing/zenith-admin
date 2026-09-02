@@ -326,8 +326,7 @@ export default function PaymentOrdersPage() {
       render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_ORDER_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<PaymentOrder>({
-      // 详情/退款内联(108) + 查单/模拟支付/关闭收进更多(22)：134 + 32
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['detail', 'refund'],
       actions: (r) => [
         {

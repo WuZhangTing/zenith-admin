@@ -132,7 +132,7 @@ export default function ImportCenterPage() {
     { title: '提交人', dataIndex: 'createdByName', width: 110, render: (v: string | null) => v ?? '—' },
     dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<AsyncTask>({
-      width: 110,
+      width: 120,
       desktopInlineKeys: ['detail'],
       actions: (record) => [
         {
@@ -200,7 +200,6 @@ export default function ImportCenterPage() {
         rowKey="id"
         size="small"
         empty="暂无导入记录，点击「新建导入」开始"
-        scroll={{ x: 1200 }}
       />
 
       <NewImportModal

@@ -72,7 +72,7 @@ export default function TagsPage() {
     { title: '关联内容数', dataIndex: 'contentCount', width: 120, align: 'right' },
     createdAtColumn,
     createOperationColumn<CmsTag>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         ...(hasPermission('cms:tag:update') ? [{

@@ -168,8 +168,8 @@ export default function AIProvidersPage() {
       ),
     },
     createOperationColumn<AiProviderConfig>({
-      width: 250,
-      desktopInlineKeys: ['edit', 'set-default', 'delete'],
+      width: 180,
+      desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         {
           key: 'edit',

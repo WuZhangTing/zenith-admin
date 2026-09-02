@@ -98,7 +98,7 @@ export default function SmsSendLogsPage() {
       render: (v: SendStatus) => <StatusTag value={v} />,
     },
     createOperationColumn<SmsSendLog>({
-      width: 90,
+      width: 100,
       actions: (record) => [
         {
           key: 'delete',
@@ -166,8 +166,7 @@ export default function SmsSendLogsPage() {
       />
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)}
-        scroll={{ x: 1400 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...testModal.modalProps} title="测试发送短信" width={520}>
         <Form key={testModal.formKey} {...testModal.formProps}>

@@ -111,7 +111,7 @@ export default function GovernanceEnvironmentTab() {
     dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportEnvironment>({
-      width: 150,
+      width: 120,
       desktopInlineKeys: ['edit'],
       actions: (record) => [
         { key: 'edit', label: '编辑', hidden: !hasPermission('report:environment:update'), onClick: () => openEnvironment(record) },

@@ -242,7 +242,8 @@ export default function TerminalRecordingsPage() {
     },
     dateTimeColumn('录制时间', 'createdAt'),
     createOperationColumn<Recording>({
-      width: 260,
+      desktopInlineKeys: ['play', 'detail', 'delete'],
+      width: 240,
       actions: (record) => [
         {
           key: 'play',

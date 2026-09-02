@@ -173,7 +173,7 @@ export default function DirectorySyncConflictsPage() {
       ),
     },
     createOperationColumn<DirectorySyncConflict>({
-      width: 130,
+      width: 150,
       actions: (record) => record.status !== 'pending' ? [] : [
         ...(hasPermission('system:dirsync-conflict:resolve') ? [{
           key: 'resolve', label: '裁决', onClick: () => openResolve(record),

@@ -8,6 +8,7 @@ import { WORKFLOW_JOB_STATUS_META as JOB_STATUS_META } from './constants';
 import { request } from '@/utils/request';
 import { downloadBlob } from '@/utils/download';
 import { formatDateTime } from '@/utils/date';
+import { confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn, renderEllipsis, EMPTY_PLACEHOLDER } from '@/utils/table-columns';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -412,8 +413,8 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
     },
     dateTimeColumn('创建时间', 'createdAt', { className: 'table-cell-muted' }),
     createOperationColumn<WorkflowJob>({
-      width: 200,
-      desktopInlineKeys: ['detail', 'retry', 'skip'],
+      width: 180,
+      desktopInlineKeys: ['detail', 'retry'],
       actions: (record) => {
         const retryable = record.status === 'failed' || record.status === 'dead' || record.status === 'canceled';
         const skippable = record.status === 'pending' || record.status === 'failed' || record.status === 'dead';
@@ -421,24 +422,18 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
           { key: 'detail', label: '详情', onClick: () => void openDetail(record.id) },
           {
             key: 'retry',
-            label: (
-              <Popconfirm title="确定重新入队该作业？" content="将重置尝试次数并立即排队执行" onConfirm={() => void handleRetry(record.id)}>
-                <span>重试</span>
-              </Popconfirm>
-            ),
+            label: '重试',
             hidden: !canOperate || !retryable,
             loading: actingId === record.id,
+            onClick: () => { Modal.confirm({ title: '确定重新入队该作业？', content: '将重置尝试次数并立即排队执行', onOk: () => void handleRetry(record.id) }); },
           },
           {
             key: 'skip',
-            label: (
-              <Popconfirm title="确定跳过该作业？" content="作业将被标记为已取消，不再执行" onConfirm={() => void handleSkip(record.id)}>
-                <span>跳过</span>
-              </Popconfirm>
-            ),
+            label: '跳过',
             danger: true,
             hidden: !canOperate || !skippable,
             loading: actingId === record.id,
+            onClick: () => { confirmDanger({ title: '确定跳过该作业？', content: '作业将被标记为已取消，不再执行', onOk: () => void handleSkip(record.id) }); },
           },
         ];
       },
@@ -576,7 +571,7 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
         : <Typography.Text size="small" type="tertiary">{EMPTY_PLACEHOLDER}</Typography.Text>,
     },
     createOperationColumn<ClusterTreeRow>({
-      width: 120,
+      width: 180,
       desktopInlineKeys: ['replay', 'detail'],
       actions: (row) => [
         {
@@ -663,7 +658,6 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
         loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        scroll={{ x: 1340 }}
         rowSelection={canOperate ? {
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys((keys ?? []) as number[]),

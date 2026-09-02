@@ -209,7 +209,7 @@ export default function WidgetsPage() {
       ),
     },
     createOperationColumn<CmsWidget>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['edit', 'publish'],
       actions: (record) => [
         {
@@ -330,7 +330,6 @@ export default function WidgetsPage() {
         loading={listQuery.isFetching}
         rowKey={(record) => String(record?.id ?? '')}
         empty={siteId ? '暂无页面部件' : '请先选择站点'}
-        scroll={{ x: 1350 }}
         pagination={buildPagination(listQuery.data?.total ?? 0, () => { setSelectedIds([]); setSelectedRecords({}); })}
         rowSelection={{
           selectedRowKeys: selectedIds.map(String),

@@ -471,8 +471,8 @@ export default function FileStorageConfigsPage() {
       ),
     },
     createOperationColumn<FileStorageConfig>({
-      width: 260,
-      desktopInlineKeys: ['browse', 'default', 'edit'],
+      width: 180,
+      desktopInlineKeys: ['browse', 'edit'],
       actions: (record) => [
         {
           key: 'browse',

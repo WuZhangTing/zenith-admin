@@ -244,8 +244,8 @@ export default function DirectorySyncSourcesPage() {
       ),
     },
     createOperationColumn<DirectorySyncSource>({
-      width: 280,
-      desktopInlineKeys: ['run', 'preview', 'edit'],
+      width: 210,
+      desktopInlineKeys: ['run', 'edit'],
       actions: (record) => [
         ...(record.type !== 'scim' && hasPermission('system:dirsync-source:run') ? [{
           key: 'run', label: '立即同步', onClick: () => handleRun(record, false),

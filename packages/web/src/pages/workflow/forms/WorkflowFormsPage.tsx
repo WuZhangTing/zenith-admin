@@ -150,7 +150,7 @@ export default function WorkflowFormsPage() {
       },
     },
     createOperationColumn<WorkflowForm>({
-      width: 220,
+      width: 210,
       desktopInlineKeys: ['edit', 'duplicate', 'delete'],
       actions: (record) => [
         {

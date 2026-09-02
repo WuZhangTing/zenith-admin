@@ -193,7 +193,7 @@ export default function ChatBotsPage() {
       render: (enabled: boolean) => enabled ? <Tag color="green">启用</Tag> : <Tag color="grey">停用</Tag>,
     },
     createOperationColumn<ChatWebhook>({
-      width: 220,
+      width: 240,
       actions: (row) => [
         {
           key: 'edit',

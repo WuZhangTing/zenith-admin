@@ -259,7 +259,7 @@ export default function DistributionPage() {
         </Tag>,
     },
     createOperationColumn<CmsDistributionRule>({
-      width: 210,
+      width: 180,
       desktopInlineKeys: ['run', 'edit'],
       actions: (rule) => {
         const actions: ResponsiveTableAction[] = [];
@@ -325,7 +325,7 @@ export default function DistributionPage() {
       ),
     },
     createOperationColumn<CmsDistributionRun>({
-      width: 160,
+      width: 120,
       desktopInlineKeys: ['detail'],
       actions: (run) => {
         const actions: ResponsiveTableAction[] = [{
@@ -449,7 +449,6 @@ export default function DistributionPage() {
             dataSource={ruleQuery.data?.list ?? []}
             loading={ruleQuery.isFetching}
             rowKey="id"
-            scroll={{ x: 1450 }}
             pagination={rulePagination.buildPagination(ruleQuery.data?.total ?? 0)}
             onRefresh={() => void ruleQuery.refetch()}
             refreshLoading={ruleQuery.isFetching}
@@ -546,7 +545,6 @@ export default function DistributionPage() {
             dataSource={runQuery.data?.list ?? []}
             loading={runQuery.isFetching}
             rowKey="id"
-            scroll={{ x: 1350 }}
             pagination={runPagination.buildPagination(runQuery.data?.total ?? 0)}
             onRefresh={() => void runQuery.refetch()}
             refreshLoading={runQuery.isFetching}
@@ -697,7 +695,6 @@ export default function DistributionPage() {
               loading={runDetailQuery.isFetching}
               rowKey="id"
               pagination={false}
-              scroll={{ x: 1000 }}
               onRefresh={() => void runDetailQuery.refetch()}
               refreshLoading={runDetailQuery.isFetching}
             />

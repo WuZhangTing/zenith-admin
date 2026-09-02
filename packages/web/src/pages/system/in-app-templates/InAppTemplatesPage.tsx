@@ -107,7 +107,7 @@ export default function InAppTemplatesPage() {
       ),
     },
     createOperationColumn<InAppTemplate>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',
@@ -166,8 +166,7 @@ export default function InAppTemplatesPage() {
       />
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)}
-        scroll={{ x: 1100 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...modal.modalProps} width={720}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">

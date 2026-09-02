@@ -103,7 +103,7 @@ export default function MarketingPrizesDrawer({ campaign, onClose }: MarketingPr
       render: (_: unknown, r: MarketingPrize) => `${r.weight}${totalWeight > 0 ? `（${((r.weight / totalWeight) * 100).toFixed(1)}%）` : ''}`,
     },
     createOperationColumn<MarketingPrize>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canEdit ? [
         { key: 'edit', label: '编辑', onClick: () => { modal.openEdit(record); } },

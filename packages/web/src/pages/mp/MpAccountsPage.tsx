@@ -149,8 +149,8 @@ export default function MpAccountsPage() {
       ),
     },
     createOperationColumn<MpAccount>({
-      width: 300,
-      desktopInlineKeys: ['config', 'default', 'edit'],
+      width: 220,
+      desktopInlineKeys: ['config', 'edit'],
       menuAriaLabel: '公众号账号操作',
       actions: (record) => [
         { key: 'config', label: '服务器配置', onClick: () => setConfigRecord(record) },

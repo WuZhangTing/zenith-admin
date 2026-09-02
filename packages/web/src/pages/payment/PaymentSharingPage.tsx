@@ -217,7 +217,7 @@ export default function PaymentSharingPage() {
       render: (_: unknown, r: PaymentSharingReceiver) => <Switch checked={r.status === 'enabled'} loading={togglingId === r.id} disabled={!canManage} size="small" onChange={(c) => void handleReceiverToggle(r, c)} />,
     },
     createOperationColumn<PaymentSharingReceiver>({
-      width: 140,
+      width: 150,
       actions: (r) => [
         ...(canManage ? [{
           key: 'edit',
@@ -249,7 +249,7 @@ export default function PaymentSharingPage() {
     createdAtColumn as ColumnProps<PaymentSharingOrder>,
     { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentSharingOrderStatus) => <Tag color={ORDER_STATUS_COLOR[v]}>{PAYMENT_SHARING_ORDER_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSharingOrder>({
-      width: 90,
+      width: 100,
       actions: (record) => canDispatch && record.status === 'success' ? [{
         key: 'reverse',
         label: '冲正',
@@ -273,7 +273,8 @@ export default function PaymentSharingPage() {
     createdAtColumn as ColumnProps<PaymentSharingReversal>,
     { title: '状态', dataIndex: 'status', width: 110, render: (v: PaymentSharingReversalStatus) => <Tag color={REVERSAL_STATUS_COLOR[v]}>{PAYMENT_SHARING_REVERSAL_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSharingReversal>({
-      width: 140,
+      width: 120,
+      desktopInlineKeys: ['detail'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setReversalDetailTarget(record) },
         ...(canDispatch && (record.status === 'processing' || record.status === 'unknown') ? [{
@@ -383,7 +384,6 @@ export default function PaymentSharingPage() {
           <ConfigurableTable
             bordered columns={receiverColumns} dataSource={receiverData} loading={receiverQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void receiverQuery.refetch()} refreshLoading={receiverQuery.isFetching} pagination={buildRPagination(receiverTotal)}
-            scroll={{ x: 1120 }}
           />
         </TabPane>
         <TabPane tab="分账单" itemKey="orders">
@@ -412,7 +412,6 @@ export default function PaymentSharingPage() {
           <ConfigurableTable
             bordered columns={orderColumns} dataSource={orderData} loading={orderQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void orderQuery.refetch()} refreshLoading={orderQuery.isFetching} pagination={buildOPagination(orderTotal)}
-            scroll={{ x: 1710 }}
           />
         </TabPane>
         <TabPane tab="冲正记录" itemKey="reversals">
@@ -433,7 +432,6 @@ export default function PaymentSharingPage() {
           <ConfigurableTable
             bordered columns={reversalColumns} dataSource={reversalData} loading={reversalQuery.isFetching} rowKey="id" size="small" empty="暂无冲正记录"
             onRefresh={() => void reversalQuery.refetch()} refreshLoading={reversalQuery.isFetching} pagination={buildVPagination(reversalTotal)}
-            scroll={{ x: 2100 }}
           />
         </TabPane>
       </Tabs>

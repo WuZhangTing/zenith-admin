@@ -202,7 +202,6 @@ export default function CollectPage() {
         dataSource={listQuery.data?.list ?? []}
         rowKey="id"
         loading={listQuery.isFetching}
-        scroll={{ x: 1340 }}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}

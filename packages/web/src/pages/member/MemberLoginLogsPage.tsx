@@ -134,7 +134,6 @@ export default function MemberLoginLogsPage() {
         size="small"
         pagination={buildPagination(total)}
         empty="暂无登录日志"
-        scroll={{ x: 1200 }}
       />
     </div>
   );

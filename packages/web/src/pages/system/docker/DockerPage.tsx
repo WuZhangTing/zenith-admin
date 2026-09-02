@@ -766,7 +766,7 @@ function NetworksTab() {
     { title: '内部网络', dataIndex: 'internal', width: 100, render: (v: boolean) => v ? <Tag size="small" color="orange">内部</Tag> : null },
     dateTimeColumn('创建时间', 'created'),
     createOperationColumn<NetworkInfo>({
-      width: 90,
+      width: 100,
       emptyContent: (record) => SYSTEM_NETWORKS.has(record.name)
         ? <Typography.Text type="tertiary" size="small">系统网络</Typography.Text>
         : undefined,
@@ -881,7 +881,7 @@ function VolumesTab() {
     },
     dateTimeColumn('创建时间', 'created'),
     createOperationColumn<VolumeInfo>({
-      width: 90,
+      width: 100,
       actions: (record) => [
         {
           key: 'delete',

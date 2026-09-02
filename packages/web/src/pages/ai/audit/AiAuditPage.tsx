@@ -133,7 +133,7 @@ export default function AiAuditPage() {
     { title: '模型', dataIndex: 'model', width: 130, render: (v: string | null) => v || '—' },
     dateTimeColumn('时间', 'createdAt', { fixed: 'right' }),
     createOperationColumn<AiFeedbackItem>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['context', 'trace'],
       actions: (record) => [
         { key: 'context', label: '上下文', onClick: () => setContextMsgId(record.id) },

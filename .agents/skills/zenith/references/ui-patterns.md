@@ -11,7 +11,8 @@
 | 左侧是平铺列表（分类 / 文件 / 分组） | [左侧平铺列表（NavListPanel）](#左侧平铺列表navlistpanel) |
 | 页面主体用 List 渲染分页数据 | [List 列表页分页（ListPagination）](#list-列表页分页listpagination) |
 | 指标卡、图表分栏、卡片栅格、表单多列 | [统计卡片与自适应栅格](#统计卡片与自适应栅格) |
-| 给操作列定 `width` | [操作列宽度估算](#操作列宽度估算) |
+| 表格列宽：弹性主列与 `scroll.x` | [表格列宽](#表格列宽) |
+| 给操作列定 `width` / 选内联动作 | [操作列](#操作列) |
 | 列表数据量 > 500 条 | [虚拟化表格](#虚拟化表格) |
 
 ---
@@ -412,92 +413,135 @@ footer={(
 
 ---
 
-## 操作列宽度估算
+## 表格列宽
+
+Semi Table 只要有任一列 `fixed` / `ellipsis`（或设置了 `scroll.y`）就切换到 `table-layout: fixed`，并给
+`<table>` 加 `min-width: 100%`。此时若所有列都写了固定 `width` 且总和小于容器，浏览器会把多余空间按比例
+分给**每一列**——`fixed: 'right'` 的操作列会被拉宽到配置值的一到三倍。规则见
+[constraints-frontend.md → 搜索栏与表格](./constraints-frontend.md#搜索栏与表格)，机理与写法如下。
+
+### 弹性主列
+
+`ConfigurableTable` 的列定义在 `ColumnProps` 之上扩展了 `minWidth`（`components/table-flex-columns.ts`）：
+
+- **有且只有一个**弹性主列：通常是名称 / 标题 / 描述这类长文本列，不写 `width`、写 `minWidth`；
+- 其余列（含时间列、状态列、操作列）一律写固定 `width`；
+- 页面**不写 `scroll.x`**：组件把各列 `width` 与弹性列 `minWidth`（加上勾选列 / 展开列各 48）求和写入
+  `scroll.x`，容器更宽时弹性列吸收全部剩余空间，容器更窄时出现横向滚动而不是把弹性列压到 0。
+  传入的 `scroll.x` 会被忽略并在开发期告警。
+
+```tsx
+const columns: ColumnProps<Xxx>[] = [
+  { title: '名称', dataIndex: 'name', minWidth: 200 },          // 弹性主列：minWidth，不写 width
+  { title: '描述', dataIndex: 'description', width: 260, render: renderEllipsis },
+  createdAtColumn,
+  { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: … },
+  createOperationColumn<Xxx>({ width: 150, actions: … }),
+];
+
+<ConfigurableTable bordered columns={columns} … />           // 不传 scroll.x
+```
+
+`minWidth` 取该列内容的典型宽度（名称类 160–220、路径 / 描述类 240–300）；`copyableNoColumn(title, key, { flex: true })`
+可把可复制编号列声明为弹性主列。所有列都写了 `width` 时组件会按启发式挑一列兜底并在控制台告警，不要依赖兜底。
+
+### 用户可拖拽列宽（resizable）
+
+`resizable` 表格由 Semi 自行管理列宽，组件只剥离 `minWidth` 不介入布局。
+
+---
+
+## 操作列
 
 `createOperationColumn` 的 `width` 是手写数值，与按钮内容无任何关联——加了动作却没同步宽度时
 **不会报错**。单元格没有 `overflow: hidden`，所以症状不是按钮消失，而是先吃掉两侧 padding、
-再挤压相邻的 `fixed: 'right'` 列，很难在开发时被注意到。因此新增或调整动作后必须按下式复核。
+再挤压相邻的 `fixed: 'right'` 列。开发期 `ConfigurableTable` 会在内容宽超过列内可用宽时给出一次控制台告警；
+新增或调整动作后必须按下式复核。
 
 ### 度量常量
 
-均取自 `semi.min.css` 与 `ResponsiveTableActions` 实现，不是经验值：
+均取自 `semi.min.css` 与 `ResponsiveTableActions` 的实际渲染，不是经验值：
 
 | 项 | 值 | 来源 |
 | --- | --- | --- |
 | 文字按钮左右 padding | 12 + 12 = 24 | `.semi-button-size-small` |
 | 按钮字号 | 14px / 600 | 同上 |
-| 「更多」图标按钮 | 4 + 14 + 4 = 22 | `.semi-button-with-icon-only.semi-button-size-small` |
+| 「更多」图标按钮 | 24 | `.semi-button-with-icon-only.semi-button-size-small` |
 | 按钮间距 | 4 | `<Space spacing={4}>` |
 | 单元格左右 padding | 16 + 16 = 32 | `.semi-table-row-cell` |
 
-文字宽度：**汉字 14px/字**（全角即 1em），ASCII 约 7.8px/字。
+文字宽度：**汉字 14px/字**（全角即 1em），ASCII 约 7.8px/字、大写字母约 9px/字。
 
 ### 计算方式
 
 ```text
 按钮宽 = 24 + 文字宽              // 2 字 52、3 字 66、4 字 80、5 字 94
-内容宽 = Σ 按钮宽 + 4 × (按钮数 - 1)
-        （有动作未列入 desktopInlineKeys 时，再加一个 22 的「更多」按钮）
-列宽   = 内容宽 + 32，向上取整到 10
+内容宽 = Σ 内联按钮宽 + 4 × (按钮数 − 1)
+        （有动作可能进「更多」时，再加 4 + 24 的「更多」按钮）
+列宽   = 内容宽 + 40，向上取整到 10   // 40 = 32 单元格 padding + 8 留白
 ```
+
+内容宽按**能同时出现的内联动作**取最大值：
+
+- 权限条件（`hasPermission(...)`）**按全部为真**计算——超管会同时拿到所有动作
+- 状态条件（`status === 'draft'` 与 `status !== 'draft'`）互斥，取各分支的最大值，不要相加
+- `label` 随状态变化（`启用 / 停用`、`发布 / 申请发布`）时按最长文案计
 
 判定口径：
 
 | 关系 | 结论 |
 | --- | --- |
-| 列宽 < 内容宽 | **必然溢出**，禁止 |
-| 内容宽 ≤ 列宽 < 内容宽 + 16 | 偏挤，两侧几乎无留白，应避免 |
-| 列宽 ≥ 内容宽 + 32 | 推荐 |
+| 列宽 < 内容宽 + 32 | **溢出**，禁止 |
+| 列宽 − (内容宽 + 32) > 60 | **过宽**，收窄或把动作收进「更多」 |
 
-### 关键：内容宽要按**能同时出现**的动作算
+### 内联动作的选择
 
-绝大多数动作带 `hidden` 或写成 `...(cond ? [{...}] : [])`，按动作总数计算会严重高估：
-
-- 权限条件（`hasPermission(...)`）**要按全部为真**计算——超管会同时拿到所有动作
-- 状态条件（`status === 'draft'` 与 `status !== 'draft'`）互斥，取各分支的**最大值**，不要相加
-
-### 动作过多时不要一味加宽
-
-估算结果超过约 280px 时，加宽会挤占业务列。改为用 `desktopInlineKeys` 只保留 1–2 个高频动作内联，
-其余进「更多」菜单（危险动作移入后仍是红色，`renderActionMenu` 已映射 `danger`）。
+- 桌面端内联动作**不超过 3 个**（推荐 2 个），其余用 `desktopInlineKeys` 收进「更多」菜单
+  （危险动作移入后仍是红色，`renderActionMenu` 已映射 `danger`）
+- 动作随行状态变化时，内联集合只保留**各状态都存在或宽度相近**的高频动作，状态特有 / 低频动作进「更多」，
+  使各状态行的内容宽接近；不要按最宽的罕见状态配宽，让常见行留下大片空白。
+  例：告警事件的 `认领 / 标记已处理` 内联，`查看日志 / 撤销认领` 进「更多」
+- 「设为默认」「测试连接」「重置密钥」这类一次性 / 低频动作进「更多」
+- 按 Tab 分状态的列表（待审核 / 已通过 / 已拒绝），`width` 与 `desktopInlineKeys` 都可按 `activeTab` 分别给值
+- 动作 `label` 只用纯文字；需要确认时在 `onClick` 里调 `Modal.confirm` / `confirmDelete` / `confirmDanger`，
+  不要把 `Popconfirm` 塞进 `label`
 
 ### 常用组合参考
 
 | 动作 | 内容宽 | 列宽 |
 | --- | --- | --- |
-| 详情 | 52 | 90 |
-| 编辑 / 删除 | 108 | **130**（全项目统一值） |
-| 编辑 / 删除 + 更多 | 134 | 170 |
-| 三个 2 字动作 | 164 | 200 |
-| 四个 2 字动作 | 220 | 260 |
-| 四个 2 字动作 + 更多 | 246 | 280 |
+| 单个 2 字动作（详情 / 删除） | 52 | **100** |
+| 单个 4 字动作 / 2 字 + 更多 | 80 | 120 |
+| 编辑 / 删除 | 108 | **150** |
+| 2 字 + 4 字（查看详情 / 删除） | 136 | 180 |
+| 编辑 / 删除 + 更多 | 136 | **180** |
+| 三个 2 字动作 | 164 | 210 |
+| 2 字 + 4 字 + 更多 | 164 | 210 |
+| 三个 2 字动作 + 更多 | 192 | 240 |
+| 两个 2 字 + 一个 4 字（编辑 / 重置令牌 / 删除） | 192 | 240 |
+| 两个 2 字 + 一个 4 字 + 更多 | 220 | 260 |
 
 ---
 
 ## 虚拟化表格
 
-列表数据量较大（通常 > 500 条，如地区省市县、日志）时为 `ConfigurableTable` 开启 `virtualized`。
-`scroll.y` 是虚拟化生效的**必要条件**。
-
-### 弹性全宽方案（推荐）
-
-让**一列不设 `width`**（通常是名称 / 标题主列），表格自动填满容器。
-`fixed: 'right'` 仅保留操作列，状态列等去掉 `fixed`。
+列表数据量较大（通常 > 500 条，如地区省市县、菜单树、日志）时为 `ConfigurableTable` 开启 `virtualized`。
+`scroll.y` 是虚拟化生效的**必要条件**；列定义仍按[表格列宽](#表格列宽)写：一个弹性主列 `minWidth`、其余固定 `width`、
+不写 `scroll.x`。
 
 ```tsx
 const columns: ColumnProps<Region>[] = [
-  { title: '地区名称', dataIndex: 'name' },              // 不设 width — 弹性列
+  { title: '地区名称', dataIndex: 'name', minWidth: 400 },   // 弹性主列（树形表格含缩进，最小宽度给足）
   { title: '区划代码', dataIndex: 'code', width: 140 },
   { title: '级别',    dataIndex: 'level', width: 90 },
-  // 不加 fixed: 'right'，否则必须设 scroll.x 导致宽度固定
-  { title: '状态',    dataIndex: 'status', width: 90 },
-  createOperationColumn<Region>({ width: 160, actions: (record) => [ … ] }),
+  { title: '状态',    dataIndex: 'status', width: 90, fixed: 'right' },
+  createOperationColumn<Region>({ width: 150, actions: (record) => [ … ] }),
 ];
 
 <ConfigurableTable
   bordered
   virtualized
-  scroll={{ y: 'calc(100vh - 260px)' }}   // 只设 y，不设 x（260px ≈ 顶栏 + 工具栏 + 内边距）
+  scroll={{ y: tableHeight }}          // 只设 y；高度由页面按视口计算
   columns={columns}
   dataSource={list}
   rowKey="id"
@@ -507,14 +551,8 @@ const columns: ColumnProps<Region>[] = [
 />
 ```
 
-### 固定宽度方案
-
-所有列都有显式 `width` 时（含 `fixed: 'right'` 的状态列），必须设 `scroll.x` = 各列宽度之和，
-否则表头与数据行错位；代价是宽屏下表格不填满容器。
-
-```tsx
-<ConfigurableTable virtualized scroll={{ x: 1050, y: 'calc(100vh - 260px)' }} columns={columns} />
-```
+虚拟化模式下 Semi 把 `scroll.x` 直接写成 wrapper 的宽度、body 行宽取各列之和、纵向滚动条又占在 body 内部；
+`ConfigurableTable` 量取容器宽度为弹性列计算显式宽度并锁定表头 `<table>` 宽度，页面不需要也不应再监听容器尺寸。
 
 数据量小（< 200 条）且有复杂自定义渲染器的树形表格（如部门管理）**不建议**开启 `virtualized`；
-菜单管理（880+ 节点）、地区管理等大数据量树形表格已开启。开启后受控 `expandedRowKeys` 仍正常工作。
+菜单管理（880+ 节点）、地区管理、进程管理等大数据量表格已开启。开启后受控 `expandedRowKeys` 仍正常工作。

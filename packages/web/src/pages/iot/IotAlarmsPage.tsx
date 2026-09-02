@@ -140,7 +140,7 @@ function AlarmRecordsTab() {
     dateTimeColumn<IotAlarm>('触发时间', 'firedAt'),
     dateTimeColumn<IotAlarm>('恢复时间', 'resolvedAt'),
     createOperationColumn<IotAlarm>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         ...(hasPermission('iot:alarm:resolve') && record.status === 'firing' ? [{
           key: 'acknowledge', label: '认领',
@@ -403,7 +403,7 @@ function AlarmRulesTab() {
       ),
     },
     createOperationColumn<IotAlarmRule>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         ...(hasPermission('iot:alarm:rule:update') ? [{
           key: 'edit', label: '编辑', onClick: () => modal.openEdit(record),
@@ -680,7 +680,7 @@ function MaintenanceWindowsTab() {
       render: (v: string | null) => v ? renderEllipsis(v) : EMPTY_PLACEHOLDER,
     },
     createOperationColumn<IotMaintenanceWindow>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         ...(hasPermission('iot:alarm:rule:update') ? [{
           key: 'edit', label: '编辑', onClick: () => modal.openEdit(record),

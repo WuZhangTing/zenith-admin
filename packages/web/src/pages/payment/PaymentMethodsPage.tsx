@@ -59,7 +59,7 @@ export default function PaymentMethodsPage() {
       ),
     },
     createOperationColumn<PaymentMethodConfig>({
-      width: 90,
+      width: 100,
       actions: (r) => [
         ...(canUpdate ? [{
           key: 'edit',

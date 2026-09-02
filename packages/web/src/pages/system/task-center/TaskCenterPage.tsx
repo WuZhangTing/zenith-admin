@@ -364,8 +364,9 @@ export default function TaskCenterPage() {
       },
     },
     createOperationColumn<AsyncTask>({
-      width: 150,
-      desktopInlineKeys: ['detail', 'cancel'],
+      // 取消 / 断点恢复 / 重新开始 / 删除 随任务状态出现，统一进更多；行内只保留详情
+      width: 120,
+      desktopInlineKeys: ['detail'],
       actions: (record) => [
         {
           key: 'detail',
@@ -607,7 +608,6 @@ export default function TaskCenterPage() {
             size="small"
             empty="暂无异步任务"
             columnSettingsKey="task-center-tasks"
-            scroll={{ x: 2080 }}
           />
         </TabPane>
 
@@ -634,7 +634,6 @@ export default function TaskCenterPage() {
             size="small"
             empty="暂无注册的任务类型"
             columnSettingsKey="task-center-types"
-            scroll={{ x: 1440 }}
           />
         </TabPane>
 

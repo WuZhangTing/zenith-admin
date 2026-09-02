@@ -29,6 +29,7 @@ import {
   type TreemapNode,
 } from '@/components/charts';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { formatDateTime, formatDateForApi } from '@/utils/date';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -763,15 +764,10 @@ function SessionsTab() {
     { title: '地域', dataIndex: 'region', width: 120, render: (_value, record) => record.region || '–' },
     { title: '跳出', dataIndex: 'isBounce', width: 90, render: (_value, record) => <Tag color={record.isBounce ? 'red' : 'green'}>{record.isBounce ? '是' : '否'}</Tag> },
     dateTimeColumn('开始时间', 'startedAt'),
-    {
-      title: '操作',
-      dataIndex: 'sessionId',
-      width: 90,
-      fixed: 'right',
-      render: (_value, record) => (
-        <Button theme="borderless" size="small" onClick={() => setTimelineSessionId(record.sessionId)}>时间轴</Button>
-      ),
-    },
+    createOperationColumn<SessionListItem>({
+      width: 110,
+      actions: (record) => [{ key: 'timeline', label: '时间轴', onClick: () => setTimelineSessionId(record.sessionId) }],
+    }),
   ];
 
   const renderUsernameSearch = () => (

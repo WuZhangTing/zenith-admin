@@ -9,9 +9,9 @@ import type { ColumnProps, Data, TableProps } from '@douyinfe/semi-ui/lib/es/tab
  * 到配置值的一到三倍。
  *
  * 约定：每个表格有且只有一个**弹性主列**（通常是名称 / 标题 / 描述列）不设 `width`，改用 `minWidth`
- * 声明最小宽度；其余列照常写 `width`。本模块负责：
+ * 声明最小宽度；其余列照常写 `width`；页面不写 `scroll.x`。本模块负责：
  * - 把各列 `width` 与弹性列 `minWidth`（以及 Semi 自动追加的勾选列 / 展开列）求和写入 `scroll.x`，
- *   保证容器过窄时弹性列不会被压到 0，而是出现横向滚动；
+ *   保证容器过窄时弹性列不会被压到 0，而是出现横向滚动；页面传入的 `scroll.x` 被忽略；
  * - 剥离 `minWidth`（Semi 不认识该属性）；
  * - 页面未声明弹性列时按启发式挑一列兜底，并把该列标记出来供开发期告警。
  *
@@ -20,9 +20,9 @@ import type { ColumnProps, Data, TableProps } from '@douyinfe/semi-ui/lib/es/tab
 
 export const FLEX_COLUMN_DEFAULT_MIN_WIDTH = 120;
 
-/** Semi 常量 DEFAULT_WIDTH_COLUMN_SELECTION / DEFAULT_WIDTH_COLUMN_EXPAND */
-const SELECTION_COLUMN_WIDTH = 60;
-const EXPAND_COLUMN_WIDTH = 60;
+/** Semi 通过 `.semi-table-colgroup .semi-table-column-selection / -expand { width: 48px }` 给勾选列与展开列定宽 */
+const SELECTION_COLUMN_WIDTH = 48;
+const EXPAND_COLUMN_WIDTH = 48;
 
 const TEXT_LIKE_KEY_PATTERN = /name|title|subject|desc|remark|content|summary|message|reason|note|comment|body|text|label|url|path|address|keyword/i;
 const NON_TEXT_KEY_PATTERN = /(At|Time|Date|Count|Num|Amount|Id|No)$/;
@@ -63,6 +63,8 @@ export interface ResolvedFlexColumns<RecordType extends Data = Data> {
    * 纵向滚动条占位使两者不等，表头列会被按比例拉伸而与行错位。
    */
   columnsTotalWidth: number;
+  /** 页面传入了 scroll.x 但被列宽之和覆盖（fixed 布局下页面不应手写 scroll.x） */
+  ignoredScrollX: boolean;
 }
 
 function flattenLeaves<RecordType extends Data>(columns: FlexColumnProps<RecordType>[]): FlexColumnProps<RecordType>[] {
@@ -147,7 +149,7 @@ export function resolveFlexColumns<RecordType extends Data = Data>(
 ): ResolvedFlexColumns<RecordType> {
   const { scroll, rowSelection, expandedRowRender, hideExpandedColumn = true, sticky, fill } = options;
   const leaves = flattenLeaves(columns);
-  const passthrough = (): ResolvedFlexColumns<RecordType> => ({ columns: stripFlexColumnProps(columns), scroll, fallbackColumnLabel: null, columnsTotalWidth: 0 });
+  const passthrough = (): ResolvedFlexColumns<RecordType> => ({ columns: stripFlexColumnProps(columns), scroll, fallbackColumnLabel: null, columnsTotalWidth: 0, ignoredScrollX: false });
 
   // 与 Semi getTableLayout / useFixedHeader 判定一致：只有 table-layout: fixed 才会出现按比例拉伸
   const fixedLayout = leaves.some((column) => Boolean(column.fixed) || Boolean(column.ellipsis)) || scroll?.y != null || Boolean(sticky);
@@ -180,7 +182,6 @@ export function resolveFlexColumns<RecordType extends Data = Data>(
   let flexMinTotal = 0;
   for (const minWidth of flexMinWidths.values()) flexMinTotal += minWidth;
 
-  const requestedX = typeof scroll?.x === 'number' ? scroll.x : undefined;
   const minTotal = fixedTotal + flexMinTotal;
   const flexWidths = new Map<FlexColumnProps<RecordType>, number | undefined>();
   let x: number;
@@ -188,19 +189,21 @@ export function resolveFlexColumns<RecordType extends Data = Data>(
   if (fill === undefined) {
     // 普通表格：弹性列不设 width，靠 min-width: 100% 吸收剩余空间；scroll.x 只是各列之和的保底
     for (const column of flexLeaves) flexWidths.set(column, undefined);
-    x = Math.ceil(Math.max(minTotal, requestedX ?? 0));
+    x = Math.ceil(minTotal);
   } else {
     // 虚拟化：wrapper 固定为容器宽度，列宽之和铺满 body 可视宽度；容器过窄时列宽之和大于 wrapper，由 body 横向滚动
     const extraEach = Math.floor(Math.max(0, fill.contentWidth - minTotal) / flexLeaves.length);
     for (const [column, minWidth] of flexMinWidths) flexWidths.set(column, minWidth + extraEach);
     columnsTotalWidth = minTotal + extraEach * flexLeaves.length;
-    x = Math.ceil(Math.max(fill.wrapperWidth, requestedX ?? 0));
+    x = Math.ceil(fill.wrapperWidth);
   }
 
+  // 页面传入的 scroll.x 在 fixed 布局下一律以列宽之和为准（页面不应再手写）
   return {
     columns: rebuild(columns, flexWidths),
     scroll: { ...scroll, x },
     fallbackColumnLabel,
     columnsTotalWidth,
+    ignoredScrollX: scroll?.x !== undefined,
   };
 }

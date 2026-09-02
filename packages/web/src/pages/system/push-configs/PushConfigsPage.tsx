@@ -178,7 +178,7 @@ export default function PushConfigsPage() {
       ),
     },
     createOperationColumn<PushConfig>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['test', 'edit'],
       actions: (record) => [
         ...(hasPermission('system:push:send') ? [{

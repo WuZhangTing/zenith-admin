@@ -916,7 +916,7 @@ export default function DbAdminPage() {
       v ? <Tooltip content={<div style={{ maxWidth: 400 }}>{v}</div>}><Text type="danger">{v.slice(0, 60)}</Text></Tooltip> : '-',
     },
     createOperationColumn<HistoryItem>({
-      width: 160,
+      width: 150,
       actions: (record) => [
         {
           key: 'use',
@@ -1345,7 +1345,6 @@ export default function DbAdminPage() {
               rowKey="id"
               loading={historyLoading}
               size="small"
-              scroll={{ x: 1000 }}
               pagination={{
                 currentPage: historyPage,
                 pageSize: historyPageSize,

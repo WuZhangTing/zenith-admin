@@ -124,7 +124,7 @@ export default function MpTemplateMessagesPage() {
     { title: '模板ID', dataIndex: 'templateId', width: 200, render: renderEllipsis },
     { title: '内容', dataIndex: 'content', minWidth: 320, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 300, whiteSpace: 'pre-wrap' }}>{v || '—'}</Typography.Text> },
     createOperationColumn<MpMessageTemplate>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['send', 'delete'],
       menuAriaLabel: '模板库操作',
       actions: (record) => [
@@ -209,7 +209,7 @@ export default function MpTemplateMessagesPage() {
           />
           <ConfigurableTable bordered loading={templateQuery.isFetching} onRefresh={() => void templateQuery.refetch()} refreshLoading={templateQuery.isFetching}
             columns={tplColumns} dataSource={templates} rowKey="id"
-            pagination={tplPg.buildPagination(tplTotal)} scroll={{ x: 1000 }} />
+            pagination={tplPg.buildPagination(tplTotal)} />
         </TabPane>
         <TabPane tab="发送记录" itemKey="logs">
           <SearchToolbar
@@ -226,7 +226,7 @@ export default function MpTemplateMessagesPage() {
           />
           <ConfigurableTable bordered loading={logQuery.isFetching} onRefresh={() => void logQuery.refetch()} refreshLoading={logQuery.isFetching}
             columns={logColumns} dataSource={logs} rowKey="id"
-            pagination={logPg.buildPagination(logTotal)} scroll={{ x: 1000 }} />
+            pagination={logPg.buildPagination(logTotal)} />
         </TabPane>
       </Tabs>
 

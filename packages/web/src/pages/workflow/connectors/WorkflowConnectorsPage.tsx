@@ -232,7 +232,7 @@ export default function WorkflowConnectorsPage() {
     },
     createOperationColumn<WorkflowConnector>({
       width: 240,
-      desktopInlineKeys: ['test', 'monitor', 'edit', 'delete'],
+      desktopInlineKeys: ['test', 'edit', 'delete'],
       actions: (record) => [
         { key: 'test', label: '测试', hidden: !hasPermission('workflow:connector:test'), onClick: () => openTest(record) },
         { key: 'monitor', label: '监控', hidden: !hasPermission('workflow:connector:list'), onClick: () => openMonitor(record) },

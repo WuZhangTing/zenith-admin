@@ -377,7 +377,8 @@ export default function ContentsPage() {
       ),
     },
     createOperationColumn<CmsContent>({
-      width: 260,
+      // 回收站 / 已归档 Tab 只有两个内联动作 + 更多，默认 Tab 草稿态为 编辑 / 预览 / 提交审核 + 更多
+      width: activeTab === 'recycle' || activeTab === 'archived' ? 210 : 260,
       desktopInlineKeys: activeTab === 'recycle' ? ['restore', 'purge'] : activeTab === 'archived' ? ['unarchive', 'preview'] : ['edit', 'preview', 'submit', 'publish', 'offline'],
       actions: (record) => record.lockedAt
         ? [
@@ -702,7 +703,6 @@ export default function ContentsPage() {
         rowKey={(record) => String(record?.id ?? '')}
         size="small"
         empty="暂无内容"
-        scroll={{ x: 1320 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(total, () => setSelectedIds([]))}

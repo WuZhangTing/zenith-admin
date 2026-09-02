@@ -135,6 +135,7 @@ export default function RuleFlowsPage() {
       </Space>
     ) },
     createOperationColumn<RuleDecisionFlow>({
+      width: 180,
       desktopInlineKeys: ['edit', 'publish'],
       actions: (r) => [
         { key: 'test', label: '测试', onClick: () => { setTestRow(r); setTestResult(null); } },

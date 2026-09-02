@@ -6,7 +6,6 @@ import {
   Input,
   JsonViewer,
   Modal,
-  Popconfirm,
   Select,
   SideSheet,
   Space,
@@ -689,18 +688,19 @@ export default function WorkflowMonitorPage() {
       { title: '作用域', dataIndex: 'scopeKey', width: 180, ellipsis: { showTitle: true }, render: (v: string | null) => v ?? '—' },
       dateTimeColumn('创建', 'createdAt'),
       dateTimeColumn('消费/终止', 'consumedAt'),
-      { title: '操作', dataIndex: 'op', width: 130, fixed: 'right', render: (_: unknown, r: WorkflowExecutionToken) => (
-        <Space>
-          {r.status === 'active' && (
-            <Popconfirm title="跳过该卡死 Token 并推进流程？" onConfirm={() => runTokenOp(r.id, 'skip')}>
-              <Button theme="borderless" size="small">跳过</Button>
-            </Popconfirm>
-          )}
-          <Popconfirm title="从该 Token 节点重放？将清场全部活动 Token 并在该节点重建路径" onConfirm={() => runTokenOp(r.id, 'replay')}>
-            <Button theme="borderless" type="danger" size="small">重放</Button>
-          </Popconfirm>
-        </Space>
-      ) },
+      createOperationColumn<WorkflowExecutionToken>({
+        width: 150,
+        actions: (r) => [
+          {
+            key: 'skip', label: '跳过', hidden: r.status !== 'active',
+            onClick: () => { Modal.confirm({ title: '跳过该卡死 Token 并推进流程？', onOk: () => runTokenOp(r.id, 'skip') }); },
+          },
+          {
+            key: 'replay', label: '重放', danger: true,
+            onClick: () => { confirmDanger({ title: '从该 Token 节点重放？', content: '将清场全部活动 Token 并在该节点重建路径', onOk: () => runTokenOp(r.id, 'replay') }); },
+          },
+        ],
+      }),
     ];
 
     const inst = diagnostics.instance;
@@ -924,13 +924,13 @@ export default function WorkflowMonitorPage() {
             {renderNodes()}
           </TabPane>
           <TabPane tab={`任务 ${diagnostics.tasks.length}`} itemKey="tasks">
-            <ConfigurableTable bordered columns={taskColumns} dataSource={diagnostics.tasks} rowKey="id" pagination={false} scroll={{ x: 1900 }} />
+            <ConfigurableTable bordered columns={taskColumns} dataSource={diagnostics.tasks} rowKey="id" pagination={false} />
           </TabPane>
           <TabPane tab={`触发器 ${diagnostics.triggerExecutions.length}`} itemKey="triggers">
-            <ConfigurableTable bordered columns={triggerColumns} dataSource={diagnostics.triggerExecutions} rowKey="id" pagination={false} scroll={{ x: 1220 }} />
+            <ConfigurableTable bordered columns={triggerColumns} dataSource={diagnostics.triggerExecutions} rowKey="id" pagination={false} />
           </TabPane>
           <TabPane tab={`事件派发 ${diagnostics.outboxEvents.length}`} itemKey="outbox">
-            <ConfigurableTable bordered columns={outboxColumns} dataSource={diagnostics.outboxEvents} rowKey="id" pagination={false} scroll={{ x: 1200 }} />
+            <ConfigurableTable bordered columns={outboxColumns} dataSource={diagnostics.outboxEvents} rowKey="id" pagination={false} />
           </TabPane>
           <TabPane tab={`执行 Token ${diagnostics.tokens.length}`} itemKey="tokens">
             <div style={{ marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -939,7 +939,7 @@ export default function WorkflowMonitorPage() {
               </Typography.Text>
               <Button size="small" icon={<Download size={14} />} onClick={() => exportDiagnosticBundle(diagnostics.instance.id)}>导出诊断包</Button>
             </div>
-            <ConfigurableTable bordered columns={tokenColumns} dataSource={diagnostics.tokens} rowKey="id" pagination={false} scroll={{ x: 1330 }} />
+            <ConfigurableTable bordered columns={tokenColumns} dataSource={diagnostics.tokens} rowKey="id" pagination={false} />
           </TabPane>
           <TabPane tab="流程图" itemKey="graph">
             <div style={{ marginBottom: 10 }}>
@@ -1252,7 +1252,6 @@ export default function WorkflowMonitorPage() {
         loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        scroll={{ x: 1470 }}
         pagination={buildPagination(data?.total ?? 0)}
       />
         </TabPane>

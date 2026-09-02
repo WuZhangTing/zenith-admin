@@ -99,7 +99,7 @@ export default function GovernanceCapacityTab() {
     { title: '重置时区', dataIndex: 'resetTimezone', minWidth: 150, render: renderEllipsis },
     { title: '状态', dataIndex: 'enabled', width: 90, fixed: 'right', render: (v) => <Tag color={v ? 'green' : 'grey'}>{v ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportQueryQuota>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['usage', 'edit'],
       actions: (record) => [
         { key: 'usage', label: '当前用量', onClick: () => setUsageQuota(record) },

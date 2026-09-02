@@ -239,8 +239,7 @@ export default function PaymentContractsPage() {
     createdAtColumn as ColumnProps<PaymentContract>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentContractStatus) => <Tag color={CONTRACT_STATUS_COLOR[v]}>{PAYMENT_CONTRACT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentContract>({
-      // 补扣/暂停/解约三个 2 字按钮同现(signed)：164 + 32
-      width: 200,
+      width: 210,
       actions: (r) => (canManage ? [
         ...(r.status === 'signed' ? [{
           key: 'deduct',
@@ -290,7 +289,7 @@ export default function PaymentContractsPage() {
     createdAtColumn as ColumnProps<PaymentDeductPlan>,
     { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: (v: 'enabled' | 'disabled') => (v === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">停用</Tag>) },
     createOperationColumn<PaymentDeductPlan>({
-      width: 140,
+      width: 150,
       actions: (p) => (canPlan ? [{
         key: 'edit',
         label: '编辑',

@@ -145,7 +145,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
       ),
     },
     createOperationColumn<IotFirmware>({
-      width: 200,
+      width: 150,
       desktopInlineKeys: ['upgrade'],
       actions: (record) => [
         ...(hasPermission('iot:ota:task:create') ? [{
@@ -369,7 +369,7 @@ function OtaTasksTab({ detailTask, onOpenDetail }: Readonly<{
     { title: '超时(分)', dataIndex: 'timeoutMinutes', width: 90, align: 'right' },
     createdAtColumn,
     createOperationColumn<IotOtaTask>({
-      width: 190,
+      width: 120,
       desktopInlineKeys: ['detail'],
       actions: (record) => {
         const canRelease = (record.status === 'running' || record.status === 'paused')

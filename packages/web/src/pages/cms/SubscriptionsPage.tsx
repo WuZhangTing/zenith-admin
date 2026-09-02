@@ -99,7 +99,7 @@ export default function SubscriptionsPage() {
     },
     dateTimeColumn('订阅时间', 'createdAt'),
     createOperationColumn<CmsMemberSubscription>({
-      width: 90,
+      width: 100,
       desktopInlineKeys: ['view'],
       actions: (record) => [{ key: 'view', label: '查看', onClick: () => setDetail(record) }],
     }),
@@ -171,7 +171,6 @@ export default function SubscriptionsPage() {
             loading={listQuery.isFetching}
             rowKey="id"
             empty={siteId ? '暂无订阅明细' : '请先选择站点'}
-            scroll={{ x: 960 }}
             onRefresh={() => void listQuery.refetch()}
             refreshLoading={listQuery.isFetching}
             pagination={buildPagination(listQuery.data?.total ?? 0)}

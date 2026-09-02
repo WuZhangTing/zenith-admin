@@ -244,7 +244,7 @@ function AutomationRulesTab({ onShowRuns }: Readonly<{ onShowRuns: (automation: 
       ),
     },
     createOperationColumn<IotAutomation>({
-      width: 230,
+      width: 240,
       actions: (record) => [
         { key: 'runs', label: '执行记录', onClick: () => onShowRuns(record) },
         ...(hasPermission('iot:automation:update') ? [{
@@ -629,7 +629,7 @@ function AutomationRunsTab({ filterAutomation, onClearFilter }: Readonly<{
       ),
     },
     createOperationColumn<IotAutomationRun>({
-      width: 80,
+      width: 100,
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setDetailRun(record) },
       ],

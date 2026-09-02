@@ -101,7 +101,7 @@ export default function AiToolsPage() {
       render: (v: boolean) => <Tag size="small" color={v ? 'green' : 'grey'}>{v ? '启用' : '禁用'}</Tag>,
     },
     createOperationColumn<AiHttpTool>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },

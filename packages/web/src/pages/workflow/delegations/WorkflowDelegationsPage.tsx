@@ -158,7 +158,7 @@ export default function WorkflowDelegationsPage() {
       render: (_v: unknown, r: WorkflowDelegation) => renderDelegationStatus(r),
     },
     createOperationColumn<WorkflowDelegation>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         {

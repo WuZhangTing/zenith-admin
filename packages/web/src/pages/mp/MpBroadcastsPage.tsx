@@ -163,9 +163,8 @@ export default function MpBroadcastsPage() {
       },
     },
     createOperationColumn<MpBroadcast>({
-      // 未发送且权限齐全时，发送 / 预览 / 编辑 / 删除 同时出现，需 220px
-      width: 260,
-      desktopInlineKeys: ['send', 'preview', 'result', 'edit', 'delete'],
+      width: 240,
+      desktopInlineKeys: ['send', 'preview', 'result', 'edit'],
       menuAriaLabel: '群发操作',
       actions: (record) => [
         {
@@ -245,7 +244,7 @@ export default function MpBroadcastsPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)} scroll={{ x: 1100 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑群发草稿' : '新增群发'} width={600}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">

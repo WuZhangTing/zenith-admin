@@ -104,7 +104,7 @@ export default function GovernanceResourceTab() {
     dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportFolderTreeNode>({
-      width: 150,
+      width: 120,
       desktopInlineKeys: ['edit'],
       actions: (record) => [
         { key: 'edit', label: '编辑', hidden: !hasPermission('report:folder:update'), onClick: () => openFolder(record) },
@@ -127,7 +127,7 @@ export default function GovernanceResourceTab() {
     dateTimeColumn('到期时间', 'expiresAt', { empty: '永久' }),
     { title: '授权人', dataIndex: 'grantedByName', minWidth: 120, render: (v) => v || '—' },
     createOperationColumn<ReportResourceAcl>({
-      width: 90,
+      width: 100,
       actions: (record) => [{
         key: 'revoke', label: '撤销', danger: true, hidden: !hasPermission('report:resource:acl'),
         onClick: () => { confirmDanger({

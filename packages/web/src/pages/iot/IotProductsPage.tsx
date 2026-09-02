@@ -112,7 +112,7 @@ export default function IotProductsPage() {
       ),
     },
     createOperationColumn<IotProduct>({
-      width: 190,
+      width: 220,
       actions: (record) => [
         {
           key: 'model', label: '物模型', onClick: () => setModelProduct(record),

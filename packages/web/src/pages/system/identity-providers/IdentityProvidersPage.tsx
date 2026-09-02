@@ -308,7 +308,7 @@ export default function IdentityProvidersPage() {
       ),
     },
     createOperationColumn<TenantIdentityProvider>({
-      width: 220,
+      width: 240,
       desktopInlineKeys: ['edit', 'test', 'delete'],
       actions: (row) => [
         { key: 'edit', label: '编辑', onClick: () => { void openEdit(row); } },

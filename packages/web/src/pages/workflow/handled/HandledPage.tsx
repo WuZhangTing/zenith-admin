@@ -79,7 +79,7 @@ export default function HandledPage() {
       },
     },
     createOperationColumn<WorkflowInstance>({
-      width: 90,
+      width: 100,
       desktopInlineKeys: ['detail'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => openDetail(record.id) },

@@ -270,8 +270,8 @@ export default function UserGroupsPage() {
       ),
     },
     createOperationColumn<UserGroup>({
-      width: 260,
-      desktopInlineKeys: ['members', 'roles', 'edit', 'delete'],
+      width: 240,
+      desktopInlineKeys: ['members', 'roles', 'edit'],
       actions: (record) => [
         {
           key: 'members',
@@ -376,7 +376,6 @@ export default function UserGroupsPage() {
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         rowKey="id"
-        scroll={{ x: 'max-content' }}
         pagination={buildPagination(total)}
         empty="暂无数据"
         rowSelection={{

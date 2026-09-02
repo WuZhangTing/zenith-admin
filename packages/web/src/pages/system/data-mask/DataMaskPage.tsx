@@ -283,7 +283,7 @@ export default function DataMaskPage() {
       ),
     },
     createOperationColumn<DataMaskConfig>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',
@@ -400,7 +400,6 @@ export default function DataMaskPage() {
         refreshLoading={listQuery.isFetching}
         rowKey="id"
         pagination={buildPagination(total)}
-        scroll={{ x: 'max-content' }}
       />
 
       <AppModal

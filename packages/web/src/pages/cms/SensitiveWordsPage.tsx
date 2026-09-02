@@ -52,7 +52,7 @@ export default function SensitiveWordsPage() {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsSensitiveWord>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },

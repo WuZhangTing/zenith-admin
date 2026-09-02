@@ -104,7 +104,7 @@ export default function MpKfAccountsPage() {
     },
     createdAtColumn,
     createOperationColumn<MpKfAccount>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       menuAriaLabel: '多客服操作',
       actions: (record) => [
@@ -162,7 +162,7 @@ export default function MpKfAccountsPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)} scroll={{ x: 1000 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...modal.modalProps} title={modal.isEdit ? '编辑客服' : '添加客服'} width={520}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">

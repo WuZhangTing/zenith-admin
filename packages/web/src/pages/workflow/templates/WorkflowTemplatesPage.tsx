@@ -148,7 +148,7 @@ export default function WorkflowTemplatesPage() {
     },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<WorkflowTemplate>({
-      width: 240,
+      width: 250,
       desktopInlineKeys: ['clone', 'edit', 'delete'],
       actions: (record) => [
         {

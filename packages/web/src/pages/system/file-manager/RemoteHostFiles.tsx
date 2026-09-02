@@ -114,7 +114,7 @@ export function RemoteHostFiles({ hostId }: Readonly<{ hostId: number }>) {
     { title: '权限', dataIndex: 'permissions', width: 120, render: (value?: string) => value ?? '—' },
     { title: '修改时间', dataIndex: 'mtime', width: 180 },
     createOperationColumn<SftpEntry>({
-      width: 220,
+      width: 180,
       desktopInlineKeys: ['open', 'download'],
       actions: (entry) => [
         { key: 'open', label: entry.type === 'dir' ? '打开' : '编辑', onClick: () => openEntry(entry) },

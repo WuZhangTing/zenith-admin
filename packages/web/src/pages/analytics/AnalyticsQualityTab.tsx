@@ -164,7 +164,7 @@ export default function AnalyticsQualityTab() {
     { title: '原因', dataIndex: 'reason', render: (value: string | null) => value || '–' },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AnalyticsEventOverride>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         { key: 'edit', label: '编辑', onClick: () => overrideModal.openEdit(record) },
@@ -264,7 +264,6 @@ export default function AnalyticsQualityTab() {
               dataSource={overrideList}
               onRefresh={() => void overrideQuery.refetch()}
               refreshLoading={overrideQuery.isFetching}
-              scroll={{ x: 900 }}
               pagination={{
                 currentPage: overridePage,
                 pageSize: overridePageSize,

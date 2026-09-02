@@ -162,7 +162,7 @@ export default function WikiSpacesPage() {
       ),
     },
     createOperationColumn<WikiSpace>({
-      width: 200,
+      width: 180,
       desktopInlineKeys: ['members', 'edit'],
       actions: (record) => [
         ...(hasPermission('wiki:space:grant') ? [{

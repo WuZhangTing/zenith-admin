@@ -170,7 +170,7 @@ export default function ModelsPage() {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsModel>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         ...(hasPermission('cms:model:update') ? [{
@@ -210,7 +210,6 @@ export default function ModelsPage() {
         rowKey="id"
         size="small"
         empty={siteId ? '暂无内容模型' : '请先选择站点'}
-        scroll={{ x: 1220 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(total)}

@@ -190,7 +190,7 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: AnalyticsSegmentCampaign['status']) => <Tag color={v === 'completed' ? 'green' : v === 'failed' ? 'red' : v === 'running' ? 'orange' : 'grey'} size="small">{ANALYTICS_CAMPAIGN_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<AnalyticsSegmentCampaign>({
-      width: 150,
+      width: 120,
       desktopInlineKeys: ['execute'],
       actions: (record) => [
         { key: 'execute', label: '执行', loading: executeCampaign.isPending, disabledReason: record.status === 'running' ? '执行中' : undefined, onClick: async () => { await executeCampaign.mutateAsync(record.id); Toast.success('触达任务已提交'); } },
@@ -230,7 +230,6 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
           dataSource={campaigns}
           onRefresh={() => void campaignsQuery.refetch()}
           refreshLoading={campaignsQuery.isFetching}
-          scroll={{ x: 900 }}
           empty="暂无触达活动"
         />
       </div>
@@ -379,9 +378,8 @@ export default function AnalyticsSegmentsTab() {
     dateTimeColumn('快照时间', 'snapshotAt', { empty: '未物化' }),
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AnalyticsUserSegment>({
-      // 四个内联动作 + 「更多」按钮需 246px
-      width: 280,
-      desktopInlineKeys: ['members', 'campaign', 'materialize', 'edit'],
+      width: 240,
+      desktopInlineKeys: ['members', 'campaign', 'edit'],
       actions: (record) => [
         { key: 'members', label: '成员', onClick: () => { setMembersSegment(record); setMembersPage(1); } },
         { key: 'campaign', label: '触达', onClick: () => setCampaignSegment(record) },
@@ -436,7 +434,6 @@ export default function AnalyticsSegmentsTab() {
         dataSource={segments}
         onRefresh={() => void segmentsQuery.refetch()}
         refreshLoading={segmentsQuery.isFetching}
-        scroll={{ x: 1130 }}
         pagination={{
           currentPage: page,
           pageSize,

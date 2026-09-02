@@ -24,8 +24,9 @@
 - **域 hooks**（Step 8a）：字段进入列表筛选条件时同步更新 `XxxListParams`；
   字段引入了新查询（统计、关联明细）时按 [query-cache.md → key 结构设计](./query-cache.md#key-结构设计)
   挂到合适前缀下，并确认已有 mutation 的 `onSuccess` 覆盖到它
-- **页面**（Step 8b）：`columns` 加列、Modal 的 `<Form>` 加输入组件；需要搜索时在
-  `SearchParams` 与 `SearchToolbar` 中添加
+- **页面**（Step 8b）：`columns` 加列（新列写固定 `width`，弹性主列仍只有一个）、Modal 的 `<Form>` 加输入组件；
+  需要搜索时在 `SearchParams` 与 `SearchToolbar` 中添加；给操作列增删动作后按
+  [ui-patterns.md → 操作列](./ui-patterns.md#操作列) 重算 `width` 并复核内联动作数
 - **回填检查**（Step 8a）：`createCrudQueries` 生成的 `useSave` 统一失效 `detail(id)`、不做回填，
   新增字段无需额外判断。仅当域内**手写**了带回填的 mutation 时，才按
   [query-cache.md → 落地要求](./query-cache.md#落地要求)重新判断新字段是否让写接口响应与详情接口不再同源

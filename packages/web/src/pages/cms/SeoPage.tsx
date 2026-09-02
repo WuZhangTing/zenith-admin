@@ -63,7 +63,7 @@ function RedirectsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsRedirect>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },
@@ -154,7 +154,7 @@ function LinkWordsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsLinkWord>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },

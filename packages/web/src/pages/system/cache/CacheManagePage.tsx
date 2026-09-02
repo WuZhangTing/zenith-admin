@@ -348,7 +348,7 @@ export default function CacheManagePage() {
         ),
     },
     createOperationColumn<CacheItem>({
-      width: 200,
+      width: 210,
       actions: (record) => [
         {
           key: 'view',
@@ -478,7 +478,6 @@ export default function CacheManagePage() {
               } : undefined}
               pagination={{ pageSize }}
               empty="该分类暂无缓存数据"
-              scroll={{ x: 820 }}
             />
           </>
         ) : (

@@ -421,14 +421,10 @@ body[theme-mode='dark'] .semi-json-viewer-view-line {
   background-color: var(--semi-color-fill-1);
 }
 
-/* `scroll={{ x: N }}` 是**固定**宽度而非最小宽度：Semi 会给内层 table 打上
-   `style="width: Npx"`，容器比 N 宽时表格不跟着拉伸，右侧留出一大片空白
-   （告警历史 x=1100，在 1900px 容器上空掉约 800px）。
-
-   min-width: 100% 让两种情形都成立，且不必逐表改 N：
-   - 容器 > N：min-width 生效，表格铺满整行
-   - 容器 < N：内联 width 更大者胜出，横向滚动照旧保留
-   全站 83 张表都走 ConfigurableTable，故在此统一兜底。 */
+/* ConfigurableTable 由各列宽度之和推导 scroll.x，Semi 会把它写成内层 table 的 `style="width: Npx"`。
+   min-width: 100% 保证两种情形都成立：
+   - 容器 > N：表格铺满整行，剩余空间由弹性主列（minWidth 列）吸收
+   - 容器 < N：内联 width 更大者胜出，横向滚动照旧保留 */
 .configurable-table table.semi-table {
   min-width: 100%;
 }

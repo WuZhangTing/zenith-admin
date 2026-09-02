@@ -88,7 +88,8 @@ export default function CommentsPage() {
       render: (v: CmsCommentStatus) => <Tag size="small" color={STATUS_COLORS[v]}>{CMS_COMMENT_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<CmsComment>({
-      width: 190,
+      // 待审核：通过 / 拒绝 / 删除；已拒绝：通过 / 删除；已通过：删除
+      width: activeTab === 'approved' ? 100 : activeTab === 'rejected' ? 150 : 210,
       desktopInlineKeys: ['approve', 'reject', 'delete'],
       actions: (record) => [
         ...(canAudit && record.status !== 'approved' ? [{
@@ -143,7 +144,6 @@ export default function CommentsPage() {
         rowKey={(record) => String(record?.id ?? '')}
         size="small"
         empty="暂无评论"
-        scroll={{ x: 1320 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0, () => setSelectedIds([]))}

@@ -10,7 +10,6 @@ type OperationColumn<RecordType extends OperationColumnRecord> = ColumnProps<Rec
 type InlineActionButtonType = 'primary' | 'secondary' | 'tertiary' | 'warning' | 'danger';
 
 export const OPERATION_COLUMN_KEY = 'operation';
-const DEFAULT_OPERATION_COLUMN_WIDTH = 160;
 
 export interface ResponsiveTableAction {
   key: string;
@@ -34,8 +33,10 @@ interface ResponsiveTableActionsProps {
 
 interface OperationColumnOptions<RecordType extends OperationColumnRecord> {
   actions: (record: RecordType) => ResponsiveTableAction[];
-  width?: number;
+  /** 按 ui-patterns.md → 操作列 的公式取值：最宽内联组合的内容宽 + 40，向上取整到 10 */
+  width: number;
   title?: ReactNode;
+  /** 桌面端内联的动作 key（≤ 3 个），其余进「更多」菜单；省略则全部内联 */
   desktopInlineKeys?: string[];
   menuAriaLabel?: string;
   emptyContent?: ReactNode | ((record: RecordType) => ReactNode);
@@ -163,7 +164,7 @@ export function ResponsiveTableActions({
 
 export function createOperationColumn<RecordType extends OperationColumnRecord>({
   actions,
-  width = DEFAULT_OPERATION_COLUMN_WIDTH,
+  width,
   title = '操作',
   desktopInlineKeys,
   menuAriaLabel,

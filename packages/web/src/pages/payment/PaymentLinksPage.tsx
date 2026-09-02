@@ -243,8 +243,7 @@ export default function PaymentLinksPage() {
       render: (v: PaymentLink['status']) => <Tag color={LINK_STATUS_COLOR[v]}>{PAYMENT_LINK_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<PaymentLink>({
-      // 全权限下四个动作内联需 262px；仅保留高频的收款码与编辑，其余进「更多」
-      width: 180,
+      width: 190,
       desktopInlineKeys: ['qr', 'edit'],
       actions: (r) => [
         {
@@ -340,7 +339,6 @@ export default function PaymentLinksPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(data?.total ?? 0)}
-        scroll={{ x: 1680 }}
       />
 
       <AppModal {...modal.modalProps} width={700}>

@@ -85,7 +85,7 @@ export default function FriendLinksPage() {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsFriendLink>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         ...(hasPermission('cms:link:update') ? [{
@@ -200,7 +200,7 @@ function FriendLinkGroupSheet({ siteId, visible, onClose }: Readonly<{
     { title: '友链数', dataIndex: 'linkCount', width: 80, align: 'right' },
     { title: '排序', dataIndex: 'sort', width: 70 },
     createOperationColumn<CmsFriendLinkGroup>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         { key: 'edit', label: '编辑', hidden: !hasPermission('cms:link:update'), onClick: () => groupModal.openEdit(record) },
         {

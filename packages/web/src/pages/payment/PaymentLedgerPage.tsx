@@ -532,7 +532,8 @@ export default function PaymentLedgerPage() {
     },
     dateTimeColumn('过账时间', 'postedAt'),
     createOperationColumn<PaymentJournal>({
-      width: 140,
+      width: 120,
+      desktopInlineKeys: ['detail'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setJournalDetailTarget(record) },
         ...(canReverseJournal && record.reversalOfJournalId == null && record.reversedByJournalId == null && record.sourceType.startsWith('manual.') ? [{ key: 'reverse', label: '冲正', danger: true, onClick: () => openReverse(record) }] : []),
@@ -556,7 +557,7 @@ export default function PaymentLedgerPage() {
     { title: '版本', dataIndex: 'version', width: 80, align: 'right', render: (value: number) => `v${value}` },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (value: PaymentFundReservationStatus) => <Tag color={RESERVATION_STATUS_COLORS[value]}>{RESERVATION_STATUS_LABELS[value]}</Tag> },
     createOperationColumn<PaymentFundReservation>({
-      width: 140,
+      width: 150,
       actions: (record) => canReserve && record.status === 'active' ? [
         { key: 'capture', label: '核销', onClick: () => openReservationTransition(record, 'capture') },
         { key: 'release', label: '释放', danger: true, onClick: () => openReservationTransition(record, 'release') },
@@ -625,7 +626,7 @@ export default function PaymentLedgerPage() {
           <ConfigurableTable
             bordered columns={accountColumns} dataSource={accountData} loading={accountQuery.isFetching} rowKey="id" empty="暂无账本账户"
             onRefresh={() => void accountQuery.refetch()} refreshLoading={accountQuery.isFetching}
-            pagination={accountSearch.buildPagination(accountQuery.data?.total ?? 0)} scroll={{ x: 1420 }}
+            pagination={accountSearch.buildPagination(accountQuery.data?.total ?? 0)}
           />
         </TabPane>
 
@@ -665,7 +666,7 @@ export default function PaymentLedgerPage() {
           <ConfigurableTable
             bordered columns={journalColumns} dataSource={journalData} loading={journalQuery.isFetching} rowKey="id" empty="暂无资金凭证"
             onRefresh={() => void journalQuery.refetch()} refreshLoading={journalQuery.isFetching}
-            pagination={journalSearch.buildPagination(journalQuery.data?.total ?? 0)} scroll={{ x: 2020 }}
+            pagination={journalSearch.buildPagination(journalQuery.data?.total ?? 0)}
           />
         </TabPane>
 
@@ -703,7 +704,7 @@ export default function PaymentLedgerPage() {
           <ConfigurableTable
             bordered columns={reservationColumns} dataSource={reservationData} loading={reservationQuery.isFetching} rowKey="id" empty="暂无资金预占"
             onRefresh={() => void reservationQuery.refetch()} refreshLoading={reservationQuery.isFetching}
-            pagination={reservationSearch.buildPagination(reservationQuery.data?.total ?? 0)} scroll={{ x: 2540 }}
+            pagination={reservationSearch.buildPagination(reservationQuery.data?.total ?? 0)}
           />
         </TabPane>
       </Tabs>
@@ -822,7 +823,7 @@ export default function PaymentLedgerPage() {
                 {detailDebit > 0n && detailDebit === detailCredit ? '借贷平衡' : '借贷不平'}
               </Tag>
             </div>
-            <ConfigurableTable bordered columns={journalLineColumns} dataSource={detailJournal.lines} rowKey="id" pagination={false} columnSettings={false} scroll={{ x: 990 }} />
+            <ConfigurableTable bordered columns={journalLineColumns} dataSource={detailJournal.lines} rowKey="id" pagination={false} columnSettings={false} />
             {canReverseJournal && detailJournal.reversalOfJournalId == null && detailJournal.reversedByJournalId == null && (
               <div className="payment-journal-detail__actions">
                 <Button type="danger" icon={<RotateCcw size={15} />} onClick={() => openReverse(detailJournal)}>冲正凭证</Button>

@@ -400,7 +400,7 @@ export default function RateLimitPage() {
       ),
     },
     createOperationColumn<RateLimitRule>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['detail', 'edit'],
       actions: (rule) => [
         { key: 'detail', label: '详情', onClick: () => setDetailRuleName(rule.name) },
@@ -436,7 +436,7 @@ export default function RateLimitPage() {
       render: (_: boolean, row: BlockRow) => blockTypeTag(row),
     },
     createOperationColumn<BlockRow>({
-      width: 130,
+      width: 150,
       emptyContent: <span style={{ color: 'var(--semi-color-text-3)' }}>{EMPTY_PLACEHOLDER}</span>,
       actions: (row) => [unblockAction(row.rule, row.key), banAction(row.rule, row.key)],
     }),
@@ -575,7 +575,7 @@ export default function RateLimitPage() {
                 render: (v: number) => formatWindow(v * 1000),
               },
               createOperationColumn<{ name: string; key: string; expiresAt: string; remainingSeconds: number }>({
-                width: 110,
+                width: 120,
                 emptyContent: <span style={{ color: 'var(--semi-color-text-3)' }}>{EMPTY_PLACEHOLDER}</span>,
                 actions: (row) => [{
                   key: 'unban',
@@ -700,7 +700,7 @@ export default function RateLimitPage() {
                   render: (_: boolean, row: BlockRow) => blockTypeTag(row),
                 },
                 createOperationColumn<BlockRow>({
-                  width: 130,
+                  width: 150,
                   emptyContent: <span style={{ color: 'var(--semi-color-text-3)' }}>{EMPTY_PLACEHOLDER}</span>,
                   actions: (row) => [unblockAction(row.rule, row.key), banAction(row.rule, row.key)],
                 }),

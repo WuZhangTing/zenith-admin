@@ -94,7 +94,7 @@ export default function WikiTemplatesPage() {
       ),
     },
     createOperationColumn<WikiTemplate>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         ...(hasPermission('wiki:template:edit') ? [{

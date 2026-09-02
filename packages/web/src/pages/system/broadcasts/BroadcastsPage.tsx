@@ -199,7 +199,7 @@ export default function BroadcastsPage() {
       render: (v: BroadcastStatus) => <Tag color={STATUS_COLORS[v]} size="small">{BROADCAST_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<BroadcastCampaign>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['send', 'edit'],
       actions: (record) => [
         ...(hasPermission('system:broadcast:send') && record.status !== 'sending' && record.status !== 'sent' ? [{

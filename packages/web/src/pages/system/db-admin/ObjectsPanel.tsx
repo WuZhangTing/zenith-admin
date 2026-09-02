@@ -104,12 +104,12 @@ export function ObjectsPanel({ active }: Readonly<{ active: boolean }>) {
           </Collapse.Panel>
           <Collapse.Panel header={sectionHeader(<FunctionSquare size={15} />, '函数 / 存储过程', data.functions.length)} itemKey="fn">
             {data.functions.length === 0 ? <Empty title="无函数" style={{ padding: 16 }} /> : (
-              <ConfigurableTable bordered columns={fnColumns} dataSource={data.functions} rowKey={(r) => (r ? `${r.schema}.${r.name}.${r.args}` : '')} size="small" pagination={{ pageSize: 10 }} scroll={{ x: 'max-content' }} />
+              <ConfigurableTable bordered columns={fnColumns} dataSource={data.functions} rowKey={(r) => (r ? `${r.schema}.${r.name}.${r.args}` : '')} size="small" pagination={{ pageSize: 10 }} />
             )}
           </Collapse.Panel>
           <Collapse.Panel header={sectionHeader(<Zap size={15} />, '触发器', data.triggers.length)} itemKey="trg">
             {data.triggers.length === 0 ? <Empty title="无触发器" style={{ padding: 16 }} /> : (
-              <ConfigurableTable bordered columns={trgColumns} dataSource={data.triggers} rowKey={(r) => (r ? `${r.schema}.${r.table}.${r.name}` : '')} size="small" pagination={{ pageSize: 10 }} scroll={{ x: 'max-content' }} />
+              <ConfigurableTable bordered columns={trgColumns} dataSource={data.triggers} rowKey={(r) => (r ? `${r.schema}.${r.table}.${r.name}` : '')} size="small" pagination={{ pageSize: 10 }} />
             )}
           </Collapse.Panel>
           <Collapse.Panel header={sectionHeader(<Tags size={15} />, '枚举类型', data.enums.length)} itemKey="enum">

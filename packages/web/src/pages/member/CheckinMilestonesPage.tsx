@@ -94,7 +94,7 @@ export default function CheckinMilestonesPage() {
       ),
     },
     createOperationColumn<CheckinMilestone>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         { key: 'edit', label: '编辑', hidden: !hasPermission('member:checkin:milestone:update'), onClick: () => openModal(record) },

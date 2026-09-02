@@ -123,7 +123,7 @@ export default function WorkflowHealthPage() {
     { title: '等待时长', dataIndex: 'ageMinutes', width: 110, align: 'right', render: (v: number) => `${v} 分钟` },
     dateTimeColumn('创建时间', 'createdAt'),
     createOperationColumn<WorkflowHealthIssue>({
-      width: 150,
+      width: 180,
       desktopInlineKeys: ['urge', 'instance'],
       actions: (row) => [
         {

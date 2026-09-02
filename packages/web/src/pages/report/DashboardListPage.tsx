@@ -211,7 +211,7 @@ export default function DashboardListPage() {
     { title: '生命周期', dataIndex: 'lifecycleStatus', width: 90, fixed: 'right', render: (value: ReportDashboard['lifecycleStatus']) => lifecycleTag(value) },
     { title: '状态', dataIndex: 'status', width: 70, fixed: 'right', render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
     createOperationColumn<ReportDashboard>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['design', 'view'],
       actions: (record) => [
         ...(hasPermission('report:dashboard:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/dashboards/${record.id}/design`, { state: { tabTitle: `设计·${record.name}` } }) }] : []),
@@ -350,7 +350,7 @@ export default function DashboardListPage() {
             { title: '引用仪表盘', dataIndex: 'dashboardCount', width: 100, align: 'right', render: (value: number) => value ?? 0 },
             { title: '备注', dataIndex: 'remark', render: renderEllipsis },
             createOperationColumn<(typeof categories)[number]>({
-              width: 160,
+              width: 120,
               desktopInlineKeys: ['edit'],
               actions: (record) => [
                 ...(hasPermission('report:dashboard:update') ? [{ key: 'edit', label: '编辑', onClick: () => categoryModal.openEdit(record) }] : []),

@@ -177,8 +177,8 @@ export default function CouponsPage() {
     createdAtColumn,
     ...(hasOps ? [
       createOperationColumn<Coupon>({
-        width: 260,
-        desktopInlineKeys: ['issue', 'toggle', 'edit', 'delete'],
+        width: 240,
+        desktopInlineKeys: ['issue', 'toggle', 'edit'],
         actions: (record) => [
           { key: 'issue', label: '发券', hidden: !canIssue || record.status !== 'active', onClick: () => openIssue(record) },
           {
@@ -259,7 +259,7 @@ export default function CouponsPage() {
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small"
-        pagination={buildPagination(total)} empty="暂无优惠券" scroll={{ x: 1200 }} />
+        pagination={buildPagination(total)} empty="暂无优惠券" />
 
       <SideSheet
         title={couponModal.modalProps.title}

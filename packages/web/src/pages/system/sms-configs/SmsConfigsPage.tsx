@@ -127,7 +127,8 @@ export default function SmsConfigsPage() {
       ),
     },
     createOperationColumn<SmsConfig>({
-      width: 200,
+      desktopInlineKeys: ['edit', 'delete'],
+      width: 180,
       actions: (record) => [
         {
           key: 'default',
@@ -192,8 +193,7 @@ export default function SmsConfigsPage() {
       />
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)}
-        scroll={{ x: 1300 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...configModal.modalProps} width={720}>
         <Spin spinning={configModal.detailLoading} wrapperClassName="modal-spin-wrapper">

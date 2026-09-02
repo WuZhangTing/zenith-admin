@@ -202,7 +202,7 @@ export default function QualityPage() {
       render: (v: boolean, r) => <Switch size="small" checked={v} disabled={!hasPermission('report:dq:update')} loading={toggleMutation.isPending && toggleMutation.variables === r.id} onChange={() => toggleMutation.mutate(r.id)} />,
     },
     createOperationColumn<ReportDqRule>({
-      width: 190,
+      width: 180,
       desktopInlineKeys: ['run', 'edit'],
       actions: (record) => [
         { key: 'run', label: '执行', hidden: !hasPermission('report:dq:run'), loading: runMutation.isPending && runMutation.variables?.id === record.id, onClick: () => void runRule(record) },

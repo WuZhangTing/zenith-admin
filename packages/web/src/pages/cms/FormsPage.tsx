@@ -47,7 +47,7 @@ function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; on
     { title: 'IP', dataIndex: 'ip', minWidth: 120, render: (v: string | null) => v ?? '-' },
     dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<CmsFormSubmission>({
-      width: 90,
+      width: 100,
       desktopInlineKeys: ['delete'],
       actions: (record) => hasPermission('cms:form:manage') && form ? [{
         key: 'delete', label: '删除', danger: true,
@@ -84,7 +84,6 @@ function SubmissionsSheet({ form, onClose }: Readonly<{ form: CmsForm | null; on
         rowKey="id"
         size="small"
         empty="暂无提交数据"
-        scroll={{ x: Math.max(640, (form?.fields.length ?? 0) * 150 + 390) }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={{
@@ -151,7 +150,7 @@ export default function FormsPage() {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsForm>({
-      width: 250,
+      width: 260,
       desktopInlineKeys: ['data', 'edit', 'delete'],
       actions: (record) => [
         { key: 'data', label: '提交数据', onClick: () => setViewingForm(record) },

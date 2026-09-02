@@ -122,8 +122,8 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
     dateTimeColumn('创建时间', 'createdAt'),
     dateTimeColumn('定时时间', 'scheduledAt'),
     createOperationColumn<ChannelMessage>({
-      // 未发送消息展示 编辑 / 立即发送 / 删除 三个动作，需 192px
-      width: 230,
+      desktopInlineKeys: ['send-now'],
+      width: 150,
       emptyContent: <Typography.Text type="tertiary">—</Typography.Text>,
       actions: (record) => {
         if (!canManage) return [];

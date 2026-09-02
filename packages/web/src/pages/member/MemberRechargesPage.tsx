@@ -156,7 +156,6 @@ export default function MemberRechargesPage() {
         size="small"
         pagination={buildPagination(total)}
         empty="暂无充值记录"
-        scroll={{ x: 1500 }}
       />
     </div>
   );

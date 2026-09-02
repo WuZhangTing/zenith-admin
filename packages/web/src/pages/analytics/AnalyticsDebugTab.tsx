@@ -116,7 +116,6 @@ export default function AnalyticsDebugTab({ active }: Readonly<{ active: boolean
         dataSource={events}
         onRefresh={() => void debugQuery.refetch()}
         refreshLoading={debugQuery.isFetching}
-        scroll={{ x: 1480 }}
         pagination={buildPagination(total)}
         empty="暂无最近事件"
         expandedRowRender={renderExpanded}

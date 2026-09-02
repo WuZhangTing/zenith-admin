@@ -137,7 +137,7 @@ export function ChannelTemplateDrawer({ visible, onClose, onChanged }: Readonly<
     },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<ChannelMessageTemplate>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',

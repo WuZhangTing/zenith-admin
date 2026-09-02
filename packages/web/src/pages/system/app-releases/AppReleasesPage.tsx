@@ -186,7 +186,7 @@ function AppsManageModal({ visible, onClose }: { visible: boolean; onClose: () =
       ),
     },
     createOperationColumn<ClientApp>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         ...(canUpdate ? [{ key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) }] : []),
         ...(hasPermission('system:app-release:delete') ? [{
@@ -343,7 +343,7 @@ function ArtifactsSheet({ releaseId, onClose }: { releaseId: number | null; onCl
     },
     { title: '下载量', dataIndex: 'downloadCount', width: 80 },
     createOperationColumn<AppArtifact>({
-      width: 170,
+      width: 180,
       actions: (record) => [
         {
           key: 'copy', label: '复制链接',
@@ -612,7 +612,7 @@ function ReleaseManageTab({ active }: { active: boolean }) {
       render: (v: AppReleaseStatus) => <Tag color={STATUS_TAG_COLORS[v]} size="small">{APP_RELEASE_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<AppRelease>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['artifacts', 'edit'],
       actions: (record) => [
         { key: 'artifacts', label: '制品', onClick: () => setArtifactReleaseId(record.id) },
@@ -997,7 +997,7 @@ function DevicesTab({ active }: { active: boolean }) {
     dateTimeColumn('最近活跃', 'lastActiveAt'),
     createdAtColumn,
     createOperationColumn<ClientDevice>({
-      width: 150,
+      width: 180,
       actions: (record) => [
         ...(canUpdate && (record.pushRegistrationId || record.subjectType) ? [{
           key: 'unbind', label: '解绑推送',

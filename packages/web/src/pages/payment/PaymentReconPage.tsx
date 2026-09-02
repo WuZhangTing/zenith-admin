@@ -255,7 +255,7 @@ export default function PaymentReconPage() {
     dateTimeColumn('创建时间', 'createdAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentReconStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_RECON_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentReconBatch>({
-      width: 140,
+      width: 150,
       actions: (r) => [
         {
           key: 'items',
@@ -298,7 +298,7 @@ export default function PaymentReconPage() {
     { title: '原始备注', dataIndex: 'remark', width: 150, render: renderEllipsis },
     { title: '处理备注', dataIndex: 'handleRemark', minWidth: 200, render: renderEllipsis },
     createOperationColumn<PaymentReconItem>({
-      width: 90,
+      width: 100,
       actions: (r) => [
         ...(canHandle && r.handleStatus === 'pending' ? [{
           key: 'handle',
@@ -374,7 +374,6 @@ export default function PaymentReconPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={data} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
-        scroll={{ x: 1860 }}
       />
 
       <AppModal {...createModal.modalProps} title="新建对账" width={720}>
@@ -420,7 +419,6 @@ export default function PaymentReconPage() {
           <ConfigurableTable
             bordered columns={itemColumns} dataSource={itemsData} loading={itemsQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void itemsQuery.refetch()} refreshLoading={itemsQuery.isFetching} pagination={buildItemPagination(itemsTotal)}
-            scroll={{ x: 1640 }}
           />
         </Spin>
       </SideSheet>

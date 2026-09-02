@@ -141,7 +141,7 @@ function TokensTab({ clientId, canManage }: Readonly<{ clientId: string; canMana
       render: (revoked: boolean) => <Tag size="small" color={revoked ? 'grey' : 'green'}>{revoked ? '已撤销' : '有效'}</Tag>,
     },
     createOperationColumn<OAuth2Token>({
-      width: 90,
+      width: 100,
       actions: (record) => [{
         key: 'revoke',
         label: '撤销',

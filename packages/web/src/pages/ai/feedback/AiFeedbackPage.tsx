@@ -220,7 +220,7 @@ export default function AiFeedbackPage() {
       render: (v: AiMessage['feedbackStatus']) => renderStatus(v),
     },
     createOperationColumn<AiFeedbackItem>({
-      width: 140,
+      width: 170,
       desktopInlineKeys: ['context', 'handle'],
       actions: (record) => [
         {

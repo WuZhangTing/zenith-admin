@@ -114,7 +114,7 @@ export function ChannelSubscribersDrawer({ channel, visible, onClose }: Readonly
 
   if (canManage && !isSystem) {
     columns.push(createOperationColumn<ChannelSubscriber>({
-      width: 90,
+      width: 100,
       actions: (record) => [
         {
           key: 'remove',

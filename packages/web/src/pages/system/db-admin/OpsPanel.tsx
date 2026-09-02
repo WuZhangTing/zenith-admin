@@ -99,7 +99,7 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   ];
   if (canMaintain) {
     columns.push(createOperationColumn<ActivityConnection>({
-      width: 130,
+      width: 150,
       emptyContent: <Text type="tertiary" size="small">—</Text>,
       actions: (record) => [
         {
@@ -147,7 +147,6 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
         loading={loading}
         size="small"
         pagination={{ pageSize: 50, pageSizeOpts: [50, 100, 200] }}
-        scroll={{ x: 'max-content' }}
       />
     </div>
   );
@@ -192,8 +191,7 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   ];
   if (canMaintain) {
     columns.push(createOperationColumn<TableMaintenance>({
-      // 四个维护动作全内联需 375px；VACUUM 最常用，留在列内，其余进「更多」
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['vacuum'],
       actions: (record) => {
         const key = `${record.schema}.${record.name}`;
@@ -242,7 +240,6 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
         loading={loading}
         size="small"
         pagination={{ pageSize: 20, pageSizeOpts: [20, 50, 100] }}
-        scroll={{ x: 'max-content' }}
       />
     </div>
   );
@@ -270,7 +267,7 @@ function IndexHealthPanel() {
     { title: '大小', dataIndex: 'sizeText', width: 90, align: 'right' },
     { title: '扫描次数', dataIndex: 'scans', width: 90, render: (v: number) => <Tag color="amber" size="small">{v}</Tag> },
     createOperationColumn<IndexInfoRow>({
-      width: 110,
+      width: 140,
       actions: (record) => [
         {
           key: 'copy-drop',
@@ -300,7 +297,7 @@ function IndexHealthPanel() {
               <ConfigurableTable<IndexInfoRow>
                 bordered columns={unusedColumns} dataSource={data.unused}
                 rowKey={(r) => (r ? `${r.schema}.${r.index}` : '')} size="small"
-                pagination={{ pageSize: 10 }} scroll={{ x: 'max-content' }}
+                pagination={{ pageSize: 10 }}
               />
             )}
           </div>

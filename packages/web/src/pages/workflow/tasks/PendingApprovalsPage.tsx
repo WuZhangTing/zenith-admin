@@ -208,8 +208,8 @@ export default function PendingApprovalsPage() {
     },
     dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<PendingItem>({
-      width: 280,
-      desktopInlineKeys: ['detail', 'approve', 'reject', 'consult'],
+      width: 290,
+      desktopInlineKeys: ['detail', 'approve', 'reject'],
       actions: (record) => [
         {
           key: 'detail',

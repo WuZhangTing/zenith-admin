@@ -191,8 +191,9 @@ export default function PublishingPage() {
       },
     },
     createOperationColumn<CmsPublishingTask>({
-      width: 210,
-      desktopInlineKeys: ['detail', 'cancel'],
+      // 取消 / 断点恢复 / 重新开始 / 重建 随任务状态出现，进更多；行内只保留详情
+      width: 120,
+      desktopInlineKeys: ['detail'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => openTaskDetail(record.id) },
         { key: 'cancel', label: '取消', danger: true, onClick: () => runAction(record, 'cancel'), hidden: !['pending', 'running'].includes(record.status), disabled: !canManage, disabledReason: '缺少发布管理权限' },
@@ -215,8 +216,8 @@ export default function PublishingPage() {
       render: (value: CmsPublishArtifactStatus) => <Tag color={value === 'generated' ? 'green' : value === 'failed' ? 'red' : 'grey'}>{CMS_PUBLISH_ARTIFACT_STATUS_LABELS[value]}</Tag>,
     },
     createOperationColumn<CmsPublishArtifact>({
-      // 生成失败时「失败原因」与「任务详情」同时出现，需 164px
-      width: 200,
+      desktopInlineKeys: ['task'],
+      width: 150,
       actions: (record) => [
         { key: 'error', label: '失败原因', hidden: !record.error, danger: true, onClick: () => { Modal.error({ title: '产物生成失败', content: record.error }); } },
         { key: 'task', label: '任务详情', onClick: () => openTaskDetail(record.taskId) },
@@ -310,7 +311,6 @@ export default function PublishingPage() {
         rowSelection={canManage ? { selectedRowKeys: selected.map(String), onChange: (keys) => setSelected((keys ?? []).map(Number)) } : undefined}
         onRefresh={() => void taskListQuery.refetch()}
         refreshLoading={taskListQuery.isFetching}
-        scroll={{ x: 1450 }}
       />
     </>
   );
@@ -340,7 +340,6 @@ export default function PublishingPage() {
             pagination={artifactPagination.buildPagination(artifactListQuery.data?.total ?? 0)}
             onRefresh={() => void artifactListQuery.refetch()}
             refreshLoading={artifactListQuery.isFetching}
-            scroll={{ x: 1250 }}
           />
         </TabPane>
         <TabPane tab="失败" itemKey="failed">{taskPane('failed')}</TabPane>

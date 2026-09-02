@@ -158,7 +158,7 @@ export default function HostsPage() {
       ),
     },
     createOperationColumn<OpsHost>({
-      width: 220,
+      width: 180,
       desktopInlineKeys: ['detail', 'probe'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setDetailId(record.id) },

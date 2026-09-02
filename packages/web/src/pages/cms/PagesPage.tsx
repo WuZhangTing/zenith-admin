@@ -276,7 +276,7 @@ export default function PagesPage() {
       render: (v: string) => (v === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag size="small">停用</Tag>),
     },
     createOperationColumn<CmsPage>({
-      width: 200,
+      width: 180,
       desktopInlineKeys: ['builder', 'preview'],
       actions: (record) => [
         ...(canEditPage || record.blocks.some((block) => block.canManage) ? [{
@@ -331,7 +331,6 @@ export default function PagesPage() {
         dataSource={listQuery.data?.list ?? []}
         rowKey="id"
         loading={listQuery.isFetching}
-        scroll={{ x: 1100 }}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}

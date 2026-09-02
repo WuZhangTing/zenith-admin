@@ -177,7 +177,7 @@ export function ChannelAutoReplyDrawer({ channelId, channelName, visible, onClos
     { title: '状态', dataIndex: 'status', width: 70, render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag> },
     { title: '排序', dataIndex: 'sort', width: 64 },
     createOperationColumn<ChannelAutoReply>({
-      width: 140,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',

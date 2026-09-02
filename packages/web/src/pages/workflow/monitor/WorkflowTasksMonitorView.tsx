@@ -203,7 +203,6 @@ export default function WorkflowTasksMonitorView({ onOpenInstance }: Props) {
         pagination={buildPagination(data?.total ?? 0)}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        scroll={{ x: 2110 }}
       />
     </>
   );

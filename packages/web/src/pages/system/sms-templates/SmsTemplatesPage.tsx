@@ -108,7 +108,7 @@ export default function SmsTemplatesPage() {
       ),
     },
     createOperationColumn<SmsTemplate>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',
@@ -167,8 +167,7 @@ export default function SmsTemplatesPage() {
       />
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)}
-        scroll={{ x: 1300 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...templateModal.modalProps} width={720}>
         <Spin spinning={templateModal.detailLoading} wrapperClassName="modal-spin-wrapper">

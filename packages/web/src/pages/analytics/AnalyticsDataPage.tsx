@@ -539,7 +539,7 @@ export default function AnalyticsDataPage() {
     { title: '时长', dataIndex: 'durationMs', width: 90, align: 'right', render: (value: number | null) => msToReadable(value) },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<EventListItem>({
-      width: 90,
+      width: 100,
       desktopInlineKeys: ['detail'],
       actions: (record) => [
         {
@@ -566,7 +566,7 @@ export default function AnalyticsDataPage() {
       render: (value: AnalyticsEventMeta['status']) => <MetaStatusTag value={value} />,
     },
     createOperationColumn<AnalyticsEventMeta>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         {
@@ -593,7 +593,7 @@ export default function AnalyticsDataPage() {
     { title: '会话', dataIndex: 'sessions', width: 100 },
     { title: '事件', dataIndex: 'events', width: 100 },
     { title: '跳出会话', dataIndex: 'bounceSessions', width: 110 },
-    { title: '总停留', dataIndex: 'totalDwellMs', width: 140, align: 'right', render: (value: number) => msToReadable(value) },
+    { title: '总停留', dataIndex: 'totalDwellMs', minWidth: 140, align: 'right', render: (value: number) => msToReadable(value) },
   ];
 
   const renderEventDetail = () => {
@@ -984,7 +984,6 @@ export default function AnalyticsDataPage() {
             dataSource={events}
             onRefresh={() => void eventsQuery.refetch()}
             refreshLoading={eventsQuery.isFetching}
-            scroll={{ x: 1500 }}
             pagination={{
               currentPage: eventsPage,
               pageSize: eventsPageSize,
@@ -1047,7 +1046,6 @@ export default function AnalyticsDataPage() {
             dataSource={metaList}
             onRefresh={() => void metaQuery.refetch()}
             refreshLoading={metaQuery.isFetching}
-            scroll={{ x: 1120 }}
             pagination={{
               currentPage: metaPage,
               pageSize: metaPageSize,

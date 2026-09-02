@@ -156,8 +156,7 @@ export default function PaymentChannelsPage() {
       ),
     },
     createOperationColumn<PaymentChannelConfig>({
-      // 测试/编辑/删除三个 2 字按钮全内联：164 + 32
-      width: 200,
+      width: 210,
       actions: (r) => [
         ...(hasPermission('payment:channel:update') ? [{
           key: 'test',

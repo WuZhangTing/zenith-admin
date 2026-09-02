@@ -106,7 +106,7 @@ export default function DbBackupsPage() {
       render: (v: BackupStatus) => <Tag color={statusColorMap[v]} size="small">{statusLabelMap[v]}</Tag>,
     },
     createOperationColumn<DbBackup>({
-      width: 120,
+      width: 150,
       actions: (record) => [
         {
           key: 'download',

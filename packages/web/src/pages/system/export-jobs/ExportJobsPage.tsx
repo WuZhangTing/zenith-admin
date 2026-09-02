@@ -269,7 +269,7 @@ export default function ExportJobsPage() {
       },
     },
     createOperationColumn<ExportJob>({
-      width: 220,
+      width: 210,
       desktopInlineKeys: ['download', 'logs'],
       actions: (record) => [
         {
@@ -384,7 +384,6 @@ export default function ExportJobsPage() {
         }}
         size="small"
         empty="暂无导出任务"
-        scroll={{ x: 2150 }}
       />
 
       <SideSheet

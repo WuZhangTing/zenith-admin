@@ -156,7 +156,7 @@ export default function WorkflowDataSourcesPage() {
       ),
     },
     createOperationColumn<WorkflowDataSource>({
-      width: 220,
+      width: 210,
       desktopInlineKeys: ['test', 'edit', 'delete'],
       actions: (record) => [
         { key: 'test', label: '测试', onClick: () => void handleTest(record) },

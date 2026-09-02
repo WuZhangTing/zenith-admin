@@ -120,7 +120,7 @@ export default function IotRegisterPage() {
     },
     dateTimeColumn<IotWhitelistEntry>('导入时间', 'createdAt'),
     createOperationColumn<IotWhitelistEntry>({
-      width: 80,
+      width: 100,
       actions: (record) => [
         ...(canManage && !record.used ? [{
           key: 'delete', label: '删除', danger: true,

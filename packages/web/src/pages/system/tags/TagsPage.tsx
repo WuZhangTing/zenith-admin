@@ -269,7 +269,7 @@ export default function TagsPage() {
       ),
     },
     createOperationColumn<Tag>({
-      width: 130,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',
@@ -386,7 +386,6 @@ export default function TagsPage() {
             : undefined
         }
         pagination={buildPagination(total)}
-        scroll={{ x: 900 }}
       />
 
       <AppModal

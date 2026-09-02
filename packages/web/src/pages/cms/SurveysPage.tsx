@@ -146,7 +146,7 @@ export default function SurveysPage() {
       render: (value: CmsInteractionStatus) => <Tag size="small" color={STATUS_COLORS[value]}>{CMS_INTERACTION_STATUS_LABELS[value]}</Tag>,
     },
     createOperationColumn<CmsInteraction>({
-      width: 260,
+      width: 240,
       desktopInlineKeys: ['results', 'publish', 'close', 'edit'],
       actions: (record) => [
         { key: 'results', label: '结果', onClick: () => setResultsTarget(record) },
@@ -218,7 +218,7 @@ export default function SurveysPage() {
     },
     dateTimeColumn('提交时间', 'createdAt'),
     createOperationColumn<CmsInteractionResponse>({
-      width: 90,
+      width: 100,
       desktopInlineKeys: ['view'],
       actions: (record) => [{ key: 'view', label: '查看', onClick: () => setResponseDetail(record) }],
     }),
@@ -278,7 +278,6 @@ export default function SurveysPage() {
             loading={listQuery.isFetching}
             rowKey={(record) => String(record?.id ?? '')}
             empty={siteId ? '暂无互动问卷' : '请先选择站点'}
-            scroll={{ x: 1400 }}
             rowSelection={{ selectedRowKeys: selectedIds.map(String), onChange: (keys) => setSelectedIds((keys ?? []).map(Number)) }}
             onRefresh={() => void listQuery.refetch()}
             refreshLoading={listQuery.isFetching}

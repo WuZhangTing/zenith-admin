@@ -246,7 +246,7 @@ export default function MembersPage() {
       render: (v: string) => <Tag color={STATUS_COLORS[v]}>{MEMBER_STATUS_LABELS[v as keyof typeof MEMBER_STATUS_LABELS]}</Tag>,
     },
     createOperationColumn<Member>({
-      width: 200,
+      width: 180,
       desktopInlineKeys: ['detail', 'edit'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setDetailMemberId(record.id) },

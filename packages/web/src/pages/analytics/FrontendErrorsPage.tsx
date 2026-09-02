@@ -729,7 +729,7 @@ export default function FrontendErrorsPage() {
       render: (_value, record) => <StatusTag status={record.status} />,
     },
     createOperationColumn<ErrorGroup>({
-      width: 200,
+      width: 220,
       desktopInlineKeys: ['detail', 'resolve'],
       actions: (record) => [
         {
@@ -782,7 +782,7 @@ export default function FrontendErrorsPage() {
     },
     dateTimeColumn('时间', 'createdAt'),
     createOperationColumn<ErrorEvent>({
-      width: 90,
+      width: 100,
       desktopInlineKeys: ['detail'],
       actions: (record) => [
         {
@@ -846,7 +846,7 @@ export default function FrontendErrorsPage() {
       render: (_value, record) => <Switch size="small" checked={record.enabled} onChange={(checked) => void toggleAlert(record, checked)} />,
     },
     createOperationColumn<ErrorAlertRule>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['edit', 'test', 'delete'],
       actions: (record) => [
         {
@@ -1108,7 +1108,6 @@ export default function FrontendErrorsPage() {
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys as number[]),
             }}
-            scroll={{ x: 1700 }}
             empty="暂无错误 Issue"
           />
         </TabPane>
@@ -1209,7 +1208,6 @@ export default function FrontendErrorsPage() {
             refreshLoading={eventsQuery.isFetching}
             pagination={buildEventPagination(events?.total ?? 0)}
             style={{ width: '100%' }}
-            scroll={{ x: '100%' }}
             empty="暂无错误事件"
           />
         </TabPane>
@@ -1241,7 +1239,6 @@ export default function FrontendErrorsPage() {
             onRefresh={() => void sourceMapsQuery.refetch()}
             refreshLoading={sourceMapsQuery.isFetching}
             pagination={buildSourceMapPagination(sourceMaps?.total ?? 0)}
-            scroll={{ x: 900 }}
             empty="暂无 Source Map"
           />
         </TabPane>
@@ -1261,7 +1258,6 @@ export default function FrontendErrorsPage() {
             onRefresh={() => void alertsQuery.refetch()}
             refreshLoading={alertsQuery.isFetching}
             pagination={buildAlertPagination(alerts?.total ?? 0)}
-            scroll={{ x: 1320 }}
             empty="暂无告警规则"
           />
         </TabPane>
@@ -1276,7 +1272,6 @@ export default function FrontendErrorsPage() {
             onRefresh={() => void alertLogsQuery.refetch()}
             refreshLoading={alertLogsQuery.isFetching}
             pagination={buildAlertLogPagination(alertLogs?.total ?? 0)}
-            scroll={{ x: 1100 }}
             empty="暂无告警触发记录"
           />
         </TabPane>

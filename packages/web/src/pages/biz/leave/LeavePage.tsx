@@ -174,8 +174,8 @@ export default function LeavePage() {
       render: (v: string) => { const s = STATUS_MAP[v]; return s ? <Tag color={s.color}>{s.text}</Tag> : <span>{v}</span>; },
     },
     createOperationColumn<BizLeave>({
-      // 五个动作全内联需 360px；保留高频的 编辑 / 流程详情，其余进「更多」
-      width: 200,
+      // 草稿只有「编辑」（流程实例在转回草稿时清空），其余状态只有「流程详情」；低频动作进更多
+      width: 150,
       desktopInlineKeys: ['edit', 'workflow'],
       actions: (record) => [
         {

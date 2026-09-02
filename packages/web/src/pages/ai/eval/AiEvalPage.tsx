@@ -457,7 +457,7 @@ export default function AiEvalPage() {
     { title: '版本', dataIndex: 'version', width: 70, align: 'right' as const, render: (v: number) => <Text code>v{v}</Text> },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<AiEvalDataset>({
-      width: 200,
+      width: 220,
       desktopInlineKeys: ['detail', 'edit'],
       actions: (record) => [
         { key: 'detail', label: '条目与实验', type: 'primary', onClick: () => setDetailDataset(record) },

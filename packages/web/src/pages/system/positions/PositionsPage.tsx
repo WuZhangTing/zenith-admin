@@ -176,7 +176,7 @@ export default function PositionsPage() {
       ),
     },
     createOperationColumn<Position>({
-      width: 220,
+      width: 210,
       actions: (record) => [
         {
           key: 'edit',

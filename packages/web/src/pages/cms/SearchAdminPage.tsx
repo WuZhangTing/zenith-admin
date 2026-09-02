@@ -128,7 +128,6 @@ function SearchTestTab({ siteId, onSiteChange }: Readonly<{ siteId: number | und
         rowKey={(record) => String(record?.id ?? '')}
         size="small"
         empty={keyword ? '未检索到内容' : '输入关键词开始检索测试'}
-        scroll={{ x: 1080 }}
         pagination={{ currentPage: page, pageSize: 10, total, onPageChange: setPage }}
         onRefresh={() => void searchQuery.refetch()}
         refreshLoading={searchQuery.isFetching}
@@ -313,7 +312,7 @@ function HotKeywordsTab({ siteId, onSiteChange }: Readonly<{ siteId: number | un
     { title: '搜索次数', dataIndex: 'count', width: 120, align: 'right' },
     { title: '排序', dataIndex: 'sort', width: 90 },
     createOperationColumn<CmsHotKeyword>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage && record.id ? [{
         key: 'edit',

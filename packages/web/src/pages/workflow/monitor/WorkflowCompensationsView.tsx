@@ -104,8 +104,8 @@ export default function WorkflowCompensationsView() {
     // 固定列必须连续贴在末尾：createdAtColumn 不带 fixed，夹在状态与操作列之间会撕开右侧固定层
     { title: '状态', dataIndex: 'status', width: 84, fixed: 'right', render: (s: string) => <Tag color={STATUS[s]?.color as never}>{STATUS[s]?.text ?? s}</Tag> },
     createOperationColumn<WorkflowCompensation>({
-      // pending 工单且有操作权限时，详情 / 恢复 / 放行 / 终止 四个动作同时出现，需 220px
-      width: 260,
+      desktopInlineKeys: ['detail', 'resume', 'resolve'],
+      width: 240,
       actions: (r) => [
         { key: 'detail', label: '详情', onClick: () => openDetail(r.id) },
         { key: 'resume', label: '恢复', hidden: !canOperate || r.status !== 'pending', onClick: () => doResume(r.id) },

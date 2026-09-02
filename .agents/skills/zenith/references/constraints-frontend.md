@@ -93,13 +93,19 @@
   （危险操作保留 `type="danger"`），导出优先 `ExportButton variant="flat"`
 - **表格样式**：统一 `<ConfigurableTable bordered ... />`；必须传 `onRefresh` 与 `refreshLoading`
   （统一取 `listQuery.isFetching`），否则工具栏不显示刷新按钮
+- **弹性主列**：每个表格**有且只有一个**弹性主列（通常是名称 / 标题 / 描述列）——不写 `width`，
+  改写 `minWidth` 声明最小宽度；其余列一律写固定 `width`。**禁止**页面传 `scroll.x`
+  （`ConfigurableTable` 按各列宽度之和自动推导，传入值会被忽略并在开发期告警）；
+  虚拟化表格只传 `scroll.y`。所有列都写 `width` 时组件会挑一列兜底并告警，不得依赖兜底
 - **操作列**：一律经 `components/ResponsiveTableActions.tsx` 的 `createOperationColumn` 创建；
-  动作只用纯文字 `label`（不加图标），危险操作加 `danger: true`，
-  桌面端可用 `desktopInlineKeys` 保留高频动作内联
-- **操作列宽度**：新增 / 修改动作后必须复核 `width`；**禁止**列宽小于内容宽——单元格无
-  `overflow: hidden`，不报错也不截断，而是吃掉 padding 并挤压相邻固定列。
-  度量常量、计算方式、动作过多时的收纳策略与常用组合宽度见
-  [ui-patterns.md → 操作列宽度估算](./ui-patterns.md#操作列宽度估算)
+  动作只用纯文字 `label`（不加图标、不包 `Popconfirm`，确认走 `Modal.confirm` / `confirmDelete`），
+  危险操作加 `danger: true`；桌面端内联动作**不超过 3 个**，其余用 `desktopInlineKeys` 收进「更多」菜单
+- **操作列宽度**：`width` 必填，取值 = 最宽内联组合的内容宽 + 40，向上取整到 10；新增 / 修改动作后必须复核。
+  **禁止**列宽小于内容宽——单元格无 `overflow: hidden`，不报错也不截断，而是吃掉 padding 并挤压相邻固定列
+  （开发期控制台会告警）。动作随行状态变化时，只把各状态都存在或宽度相近的高频动作留在内联，
+  状态特有 / 低频动作进「更多」，**禁止**按最宽的罕见状态配宽让常见行大片留白；
+  按 Tab 分状态的列表可按 `activeTab` 分别给 `width` / `desktopInlineKeys`。
+  度量常量、计算方式与常用组合宽度见 [ui-patterns.md → 操作列](./ui-patterns.md#操作列)
 - **状态列固定**：状态列必须紧靠操作列左侧，并同样 `fixed: 'right'`
 - **列公共工具**：`createdAtColumn` 与 `renderEllipsis` 从 `utils/table-columns` 导入；
   **禁止**内联写 `<Typography.Text ellipsis={{ showTooltip: true }} …>`

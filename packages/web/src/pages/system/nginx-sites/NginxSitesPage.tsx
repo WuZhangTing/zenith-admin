@@ -152,7 +152,7 @@ export default function NginxSitesPage() {
       render: (value: boolean) => <Tag color={value ? 'green' : 'grey'} size="small">{value ? '启用' : '禁用'}</Tag>,
     },
     createOperationColumn<NginxSite>({
-      width: 220,
+      width: 210,
       desktopInlineKeys: ['edit', 'toggle'],
       actions: (record) => [
         {

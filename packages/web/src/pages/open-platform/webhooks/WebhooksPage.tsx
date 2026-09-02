@@ -245,7 +245,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
       render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '禁用'}</Tag>,
     },
     createOperationColumn<AppWebhookSubscription>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['deliveries', 'edit'],
       actions: (record) => [
         { key: 'deliveries', label: '投递日志', onClick: () => openDeliveries(record) },
@@ -278,7 +278,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
       render: (v: string) => <Tag size="small" color={DELIVERY_STATUS_COLOR[v] ?? 'grey'}>{OPEN_WEBHOOK_DELIVERY_STATUS_LABELS[v as keyof typeof OPEN_WEBHOOK_DELIVERY_STATUS_LABELS] ?? v}</Tag>,
     },
     createOperationColumn<AppWebhookDelivery>({
-      width: 80,
+      width: 100,
       actions: (record) => [
         { key: 'retry', label: '重试', hidden: !canManage || record.status !== 'failed', onClick: () => void retryDelivery(record.id) },
       ],

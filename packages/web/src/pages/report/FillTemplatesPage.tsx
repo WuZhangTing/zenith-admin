@@ -258,7 +258,7 @@ export default function FillTemplatesPage() {
       render: (value: ReportFillTemplate['status']) => templateStatusTag(value),
     },
     createOperationColumn<ReportFillTemplate>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['entry', 'edit'],
       actions: (record) => [
         {
@@ -399,7 +399,6 @@ export default function FillTemplatesPage() {
         dataSource={templates}
         loading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
-        scroll={{ x: 1250 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         columnSettingsKey="report-fill-templates"

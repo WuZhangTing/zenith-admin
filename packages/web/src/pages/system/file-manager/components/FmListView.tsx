@@ -66,7 +66,7 @@ export default function FmListView({
       { title: 'GID', dataIndex: 'gid', width: 70, render: (v?: number) => v ?? '—' },
     ] satisfies ColumnProps<FsEntry>[]),
     createOperationColumn<FsEntry>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['open', 'preview', 'edit'],
       actions: (record) => [
         ...(record.type === 'dir'

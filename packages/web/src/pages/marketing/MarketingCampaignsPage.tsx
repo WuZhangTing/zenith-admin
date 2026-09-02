@@ -150,7 +150,7 @@ export default function MarketingCampaignsPage() {
       ),
     },
     createOperationColumn<MarketingCampaign>({
-      width: 230,
+      width: 240,
       desktopInlineKeys: ['prizes', 'records', 'publish', 'end'],
       actions: (record) => [
         ...(hasPermission('marketing:campaign:list') ? [{

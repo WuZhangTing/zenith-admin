@@ -212,7 +212,7 @@ export default function RegionsPage() {
       ),
     },
     createOperationColumn<Region>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         {

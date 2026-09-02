@@ -93,7 +93,7 @@ export default function MpTagsPage() {
     { title: '粉丝数', dataIndex: 'fansCount', width: 120, align: 'right' as const },
     createdAtColumn,
     createOperationColumn<MpTag>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       menuAriaLabel: '标签操作',
       actions: (record) => [
@@ -151,8 +151,7 @@ export default function MpTagsPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)}
-        scroll={{ x: 800 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...modal.modalProps} width={480}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">

@@ -585,8 +585,8 @@ export default function AnnouncementsPage() {
     dateTimeColumn('发布时间', 'publishTime'),
     createdAtColumn,
     createOperationColumn<Announcement>({
-      width: 230,
-      desktopInlineKeys: ['edit', 'publish', 'delete', 'view', 'recall', 'republish', 'publish-now', 'cancel-schedule'],
+      width: 260,
+      desktopInlineKeys: ['edit', 'publish', 'republish', 'publish-now', 'view', 'recall', 'delete'],
       actions: getAnnouncementActions,
     }),
   ];
@@ -681,7 +681,6 @@ export default function AnnouncementsPage() {
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         rowKey="id"
-        scroll={{ x: 1520 }}
         rowSelection={{
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys(keys as number[]),

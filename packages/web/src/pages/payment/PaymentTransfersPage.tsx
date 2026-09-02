@@ -197,7 +197,7 @@ export default function PaymentTransfersPage() {
     },
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: PaymentTransferStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_TRANSFER_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentTransfer>({
-      width: 140,
+      width: 120,
       desktopInlineKeys: ['approve'],
       actions: (r) => [
         ...(r.status === 'processing' || r.status === 'unknown' ? [{

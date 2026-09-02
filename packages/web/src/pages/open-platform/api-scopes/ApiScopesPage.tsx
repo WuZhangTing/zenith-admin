@@ -124,7 +124,7 @@ export default function ApiScopesPage() {
       render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '禁用'}</Tag>,
     },
     createOperationColumn<ApiScope>({
-      width: 140,
+      width: 150,
       actions: (record) => [
         { key: 'edit', label: '编辑', hidden: !canManage, onClick: () => modal.openEdit(record) },
         {

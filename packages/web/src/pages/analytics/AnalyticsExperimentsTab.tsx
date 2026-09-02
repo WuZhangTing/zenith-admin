@@ -195,8 +195,7 @@ export default function AnalyticsExperimentsTab() {
     // 固定列必须连续贴在两端：状态若夹在中间，会被抽到右侧固定层，原位留下空洞，表头表体错位
     { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (value: AnalyticsExperiment['status']) => <Tag color={STATUS_COLOR[value]} size="small">{ANALYTICS_EXPERIMENT_STATUS_LABELS[value]}</Tag> },
     createOperationColumn<AnalyticsExperiment>({
-      width: 230,
-      // 报告 / 启停 / 编辑 内联（3 × 52 + 22 更多 + 4 × 3 间距 = 200），完成与删除进更多菜单
+      width: 240,
       desktopInlineKeys: ['report', 'toggle', 'edit'],
       actions: (record) => [
         { key: 'report', label: '报告', onClick: () => setReporting(record) },
@@ -204,7 +203,7 @@ export default function AnalyticsExperimentsTab() {
           ? [{ key: 'toggle', label: '暂停', loading: pauseMutation.isPending, onClick: () => pauseMutation.mutate(record.id) }]
           : record.status === 'draft' || record.status === 'paused'
             ? [{ key: 'toggle', label: '启动', loading: startMutation.isPending, onClick: () => startMutation.mutate(record.id) }]
-            : [{ key: 'toggle', label: '已完成', disabled: true }]),
+            : []),
         { key: 'edit', label: '编辑', disabled: record.status === 'completed', onClick: () => experimentModal.openEdit(record) },
         {
           key: 'complete', label: '完成', hidden: record.status === 'running' || record.status === 'completed',
@@ -238,7 +237,7 @@ export default function AnalyticsExperimentsTab() {
 
       <ConfigurableTable
         bordered rowKey="id" loading={listQuery.isFetching} columns={columns} dataSource={list}
-        onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} scroll={{ x: 1500 }} empty="暂无实验"
+        onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} empty="暂无实验"
         pagination={{ currentPage: page, pageSize, total: listQuery.data?.total ?? 0, onPageChange: setPage, onPageSizeChange: (next) => { setPage(1); setPageSize(next); } }}
       />
 

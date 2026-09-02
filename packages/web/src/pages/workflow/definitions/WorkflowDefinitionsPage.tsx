@@ -343,7 +343,7 @@ export default function WorkflowDefinitionsPage() {
       },
     },
     createOperationColumn<WorkflowDefinition>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['design', 'publish', 'disable', 'enable'],
       actions: (record) => {
         const canPublish = record.status === 'draft' && hasPermission('workflow:definition:publish');

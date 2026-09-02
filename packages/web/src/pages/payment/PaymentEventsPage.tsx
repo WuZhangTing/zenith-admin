@@ -83,7 +83,7 @@ export default function PaymentEventsPage() {
     dateTimeColumn('处理时间', 'processedAt'),
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentOutboxEvent['status']) => <Tag color={EVENT_STATUS_COLOR[v]}>{EVENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentOutboxEvent>({
-      width: 90,
+      width: 100,
       actions: (r) => [
         ...(r.status !== 'done' && hasPermission('payment:ops:manage') ? [{
           key: 'redispatch',

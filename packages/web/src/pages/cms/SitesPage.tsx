@@ -360,7 +360,6 @@ export default function SitesPage() {
         rowKey="id"
         size="small"
         empty="暂无站点"
-        scroll={{ x: 1770 }}
         expandedRowKeys={treeView ? expandedRowKeys : undefined}
         onExpandedRowsChange={onExpandedRowsChange}
         onRefresh={() => void (treeView ? treeQuery.refetch() : listQuery.refetch())}

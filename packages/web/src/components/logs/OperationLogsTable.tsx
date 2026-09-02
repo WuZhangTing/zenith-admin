@@ -5,6 +5,7 @@ import AppModal from '@/components/AppModal';
 import type { ColumnProps, TableProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { OperationLog } from '@zenith/shared/platform';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { formatDateTime } from '@/utils/date';
 import './OperationLogsTable.css';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
@@ -15,7 +16,6 @@ interface OperationLogsTableProps {
   readonly dataSource: OperationLog[];
   readonly loading?: boolean;
   readonly pagination?: TableProps<OperationLog>['pagination'];
-  readonly scroll?: TableProps<OperationLog>['scroll'];
   readonly onRefresh?: () => void;
   readonly columnSettings?: boolean;
   readonly columnSettingsKey?: string;
@@ -99,7 +99,6 @@ export function OperationLogsTable({
   dataSource,
   loading,
   pagination,
-  scroll = { x: 1660 },
   onRefresh,
   columnSettings,
   columnSettingsKey,
@@ -138,22 +137,10 @@ export function OperationLogsTable({
         return <Tag color={success ? 'green' : 'red'}>{success ? '成功' : '失败'}</Tag>;
       },
     },
-    {
-      title: '操作',
-      key: 'operation',
-      width: 80,
-      fixed: 'right' as const,
-      render: (_: unknown, record: OperationLog) => (
-        <Button
-          theme="borderless"
-          type="primary"
-          size="small"
-          onClick={() => setDetailLog(record)}
-        >
-          详情
-        </Button>
-      ),
-    },
+    createOperationColumn<OperationLog>({
+      width: 100,
+      actions: (record) => [{ key: 'detail', label: '详情', onClick: () => setDetailLog(record) }],
+    }),
   ], []);
 
   return (
@@ -165,7 +152,6 @@ export function OperationLogsTable({
         loading={loading}
         pagination={pagination}
         rowKey="id"
-        scroll={scroll}
         onRefresh={onRefresh}
         columnSettings={columnSettings}
         columnSettingsKey={columnSettingsKey}

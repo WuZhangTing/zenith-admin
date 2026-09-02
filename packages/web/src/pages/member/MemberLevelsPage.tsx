@@ -61,7 +61,7 @@ export default function MemberLevelsPage() {
       render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag>,
     },
     createOperationColumn<MemberLevel>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         { key: 'edit', label: '编辑', hidden: !hasPermission('member:level:update'), onClick: () => levelModal.openEdit(record) },

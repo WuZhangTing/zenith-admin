@@ -211,7 +211,7 @@ export default function AssetsPage() {
         : <Tag color={v === 'enabled' ? 'green' : v === 'disabled' ? 'grey' : undefined}>{v === 'enabled' ? '启用' : v === 'disabled' ? '停用' : v || '正常'}</Tag>,
     },
     createOperationColumn<ReportAssetCatalogItem>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['impact'],
       actions: (record) => [
         { key: 'impact', label: '使用影响', hidden: !hasPermission('report:asset:usage'), onClick: () => setUsageTarget(record) },
@@ -234,7 +234,7 @@ export default function AssetsPage() {
     dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v) => <Tag color={v === 'enabled' ? 'green' : 'grey'}>{v === 'enabled' ? '启用' : '停用'}</Tag> },
     createOperationColumn<ReportAssetTemplate>({
-      width: 190,
+      width: 180,
       desktopInlineKeys: ['apply', 'edit'],
       actions: (record) => [
         { key: 'apply', label: '应用', hidden: !hasPermission('report:asset-template:apply'), onClick: () => applyTemplate(record) },
@@ -258,7 +258,7 @@ export default function AssetsPage() {
     dateTimeColumn('到期时间', 'expiresAt'),
     { title: '状态', dataIndex: 'publishedAt', width: 100, fixed: 'right', render: (v) => <Tag color={v ? 'orange' : 'grey'}>{v ? '已发布' : '草稿'}</Tag> },
     createOperationColumn<ReportDeprecationNotice>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['publish', 'edit'],
       actions: (record) => [
         {

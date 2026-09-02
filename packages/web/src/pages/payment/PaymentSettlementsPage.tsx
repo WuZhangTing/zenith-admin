@@ -188,7 +188,7 @@ export default function PaymentSettlementsPage() {
     { title: '版本', dataIndex: 'version', width: 80, align: 'right', render: (v: number) => `v${v}` },
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSettlementStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_SETTLEMENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSettlementBatch>({
-      width: 220,
+      width: 240,
       desktopInlineKeys: ['items', 'start', 'settled'],
       menuAriaLabel: '更多结算操作',
       emptyContent: <Typography.Text type="tertiary">—</Typography.Text>,
@@ -306,7 +306,6 @@ export default function PaymentSettlementsPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={data} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(total)}
-        scroll={{ x: 2600 }}
       />
 
       <AppModal {...generateModal.modalProps} title="生成结算批次" width={520}>
@@ -373,7 +372,6 @@ export default function PaymentSettlementsPage() {
               <ConfigurableTable
                 bordered columns={itemColumns} dataSource={itemsQuery.data ?? []} loading={itemsQuery.isFetching} rowKey="id" size="small" empty="暂无已认领资金明细"
                 onRefresh={() => void itemsQuery.refetch()} refreshLoading={itemsQuery.isFetching} pagination={false}
-                scroll={{ x: 980 }}
               />
             </Spin>
           </>

@@ -186,7 +186,7 @@ export default function MetricsPage() {
       render: (value: ReportMetric['lifecycleStatus']) => <Tag color={statusColor[value]}>{statusOptions.find((item) => item.value === value)?.label}</Tag>,
     },
     createOperationColumn<ReportMetric>({
-      width: 190,
+      width: 180,
       desktopInlineKeys: ['preview', 'edit'],
       actions: (record) => [
         { key: 'preview', label: '预览', hidden: !hasPermission('report:metric:evaluate'), onClick: () => openPreview(record) },

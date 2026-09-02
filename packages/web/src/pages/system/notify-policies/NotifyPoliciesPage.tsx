@@ -5,9 +5,9 @@
  * Tab 2 投递日志：每次派发的「收件人 × 渠道」决策与归因，回答「为什么他没收到」。
  */
 import { useMemo } from 'react';
-import { Button, Select, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
+import { Button, Modal, Select, Spin, Switch, Tabs, Tag, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { Lock, RotateCcw, Send, Unlock } from 'lucide-react';
+import { Lock, RotateCcw, Unlock } from 'lucide-react';
 import {
   NOTIFICATION_CHANNEL_LABELS,
   NOTIFICATION_DECISION_LABELS,
@@ -20,6 +20,7 @@ import {
   type NotificationReasonCode,
 } from '@zenith/shared/messaging';
 import ConfigurableTable from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { DateRangeFilter } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -169,44 +170,46 @@ function PolicyEventsTab() {
       ),
     },
     {
-      title: '渠道策略（开关 / 锁定 / 恢复默认）', dataIndex: 'channels',
+      title: '渠道策略（开关 / 锁定 / 恢复默认）', dataIndex: 'channels', minWidth: 420,
       render: (_v, record) => (record ? <ChannelPolicyCell event={record} canSave={canSave} /> : null),
     },
-    ...(canTest ? [{
-      title: '操作', dataIndex: 'key', width: 110,
-      render: (_v: unknown, record: NotificationPolicyEvent) => (
-        <Tooltip content="以当前账号为收件人真实派发一次,模板变量填示例值,结果见「投递日志」">
-          <Button
-            theme="borderless"
-            size="small"
-            icon={<Send size={13} />}
-            loading={testMutation.isPending && testMutation.variables === record.key}
-            disabled={testMutation.isPending}
-            onClick={() => {
+    ...(canTest ? [createOperationColumn<NotificationPolicyEvent>({
+      width: 120,
+      actions: (record) => [{
+        key: 'test',
+        label: '测试触发',
+        loading: testMutation.isPending && testMutation.variables === record.key,
+        disabled: testMutation.isPending,
+        onClick: () => {
+          Modal.confirm({
+            title: `测试触发「${record.label}」？`,
+            content: '以当前账号为收件人真实派发一次，模板变量填示例值，结果见「投递日志」。',
+            onOk: () => {
               testMutation.mutate(record.key, {
-                onSuccess: () => Toast.success('已触发,请在「投递日志」查看派发结果'),
+                onSuccess: () => Toast.success('已触发，请在「投递日志」查看派发结果'),
               });
-            }}
-          >
-            测试触发
-          </Button>
-        </Tooltip>
-      ),
-    } satisfies ColumnProps<NotificationPolicyEvent>] : []),
+            },
+          });
+        },
+      }],
+    })] : []),
   ];
 
   if (eventsQuery.isPending) {
     return <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>;
   }
   return (
-    <Table
+    <ConfigurableTable
       bordered
+      columnSettings={false}
       dataSource={events}
       columns={columns}
       rowKey="key"
       pagination={false}
       size="small"
       empty="暂无事件"
+      onRefresh={() => void eventsQuery.refetch()}
+      refreshLoading={eventsQuery.isFetching}
       groupBy={(record?: NotificationPolicyEvent) => record?.group ?? ''}
       clickGroupedRowToExpand
       defaultExpandAllGroupRows

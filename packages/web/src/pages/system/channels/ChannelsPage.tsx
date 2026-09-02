@@ -130,7 +130,7 @@ export default function ChannelsPage() {
     { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag color={v === 'enabled' ? 'green' : 'grey'} size="small">{v === 'enabled' ? '启用' : '停用'}</Tag> },
     dateTimeColumn('创建时间', 'createdAt'),
     createOperationColumn<ChannelAdmin>({
-      width: 290,
+      width: 260,
       desktopInlineKeys: ['publish', 'messages', 'edit'],
       actions: (record) => [
         {

@@ -237,7 +237,8 @@ export default function FillRecordsPage() {
       render: (value: ReportFillRecordStatus) => recordStatusTag(value),
     },
     createOperationColumn<ReportFillRecord>({
-      width: 200,
+      // 审核管理：详情 / 审核；我的填报：详情 / 编辑（被驳回时为「修改重提」）+ 更多
+      width: admin ? 150 : 210,
       desktopInlineKeys: admin ? ['detail', 'review'] : ['detail', 'edit'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => setDetailId(record.id) },
@@ -362,7 +363,6 @@ export default function FillRecordsPage() {
             dataSource={mineQuery.data?.list ?? []}
             loading={mineQuery.isFetching}
             pagination={minePagination.buildPagination(mineQuery.data?.total ?? 0)}
-            scroll={{ x: 1300 }}
             onRefresh={() => void mineQuery.refetch()}
             refreshLoading={mineQuery.isFetching}
             columnSettingsKey="report-fill-records-mine"
@@ -441,7 +441,6 @@ export default function FillRecordsPage() {
               dataSource={adminQuery.data?.list ?? []}
               loading={adminQuery.isFetching}
               pagination={adminPagination.buildPagination(adminQuery.data?.total ?? 0)}
-              scroll={{ x: 1400 }}
               onRefresh={() => void adminQuery.refetch()}
               refreshLoading={adminQuery.isFetching}
               columnSettingsKey="report-fill-records-admin"

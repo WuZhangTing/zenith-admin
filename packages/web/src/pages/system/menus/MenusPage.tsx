@@ -297,7 +297,7 @@ export default function MenusPage() {
       render: (val: boolean, row: Menu) => row.type === 'button' ? '—' : <DictTag dictCode="menu_visible" value={val ? 'show' : 'hidden'} />,
     },
     createOperationColumn<Menu>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['child', 'edit', 'delete'],
       actions: (row) => [
         {

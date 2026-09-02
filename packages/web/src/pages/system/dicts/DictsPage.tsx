@@ -498,7 +498,7 @@ export default function DictsPage() {
       ),
     },
     createOperationColumn<DictItem>({
-      width: 220,
+      width: 210,
       desktopInlineKeys: ['child', 'edit', 'delete'],
       actions: (row) => [
         {

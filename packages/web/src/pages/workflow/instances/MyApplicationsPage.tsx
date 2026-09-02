@@ -665,8 +665,9 @@ export default function MyApplicationsPage() {
       },
     },
     createOperationColumn<WorkflowInstance>({
-      width: 200,
-      desktopInlineKeys: ['edit-draft', 'submit-draft', 'delete-draft', 'detail', 'resubmit'],
+      // 草稿：编辑 / 提交 + 更多（删除）；已退回：修改重提 / 详情；已驳回：详情 / 重新提交
+      width: 180,
+      desktopInlineKeys: ['edit-draft', 'submit-draft', 'detail', 'resubmit'],
       actions: (record) => [
         {
           key: 'edit-draft',

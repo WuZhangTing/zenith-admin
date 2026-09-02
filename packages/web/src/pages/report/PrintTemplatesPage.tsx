@@ -226,7 +226,7 @@ export default function PrintTemplatesPage() {
       ),
     },
     createOperationColumn<ReportPrintTemplate>({
-      width: 230,
+      width: 240,
       desktopInlineKeys: ['design', 'preview', 'edit'],
       actions: (record) => [
         ...(hasPermission('report:print:update') ? [{ key: 'design', label: '设计', onClick: () => navigate(`/report/print/${record.id}/design`, { state: { tabTitle: `设计·${record.name}` } }) }] : []),

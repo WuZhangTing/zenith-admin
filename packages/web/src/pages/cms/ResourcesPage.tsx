@@ -395,9 +395,8 @@ export default function ResourcesPage() {
     },
     dateTimeColumn('上传时间', 'createdAt'),
     createOperationColumn<CmsResource>({
-      // 五个动作全内联需 276px；裁剪仅图片可用，移入「更多」
-      width: 280,
-      desktopInlineKeys: ['references', 'replace', 'rename', 'delete'],
+      width: 240,
+      desktopInlineKeys: ['references', 'rename', 'delete'],
       actions: (record) => [
         { key: 'references', label: '引用', onClick: () => setRefsTarget(record) },
         ...(canUpdate ? [{
@@ -531,7 +530,6 @@ export default function ResourcesPage() {
               rowKey={(record) => String(record?.id ?? '')}
               size="small"
               empty="暂无素材，请先选择站点后上传"
-              scroll={{ x: 1360 }}
               onRefresh={() => void listQuery.refetch()}
               refreshLoading={listQuery.isFetching}
               pagination={buildPagination(listQuery.data?.total ?? 0, () => setSelectedIds([]))}

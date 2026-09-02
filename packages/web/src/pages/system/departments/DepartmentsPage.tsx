@@ -242,7 +242,7 @@ export default function DepartmentsPage() {
       ),
     },
     createOperationColumn<Department>({
-      width: 160,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',

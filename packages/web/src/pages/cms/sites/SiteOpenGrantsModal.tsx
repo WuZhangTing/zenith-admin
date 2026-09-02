@@ -107,7 +107,7 @@ export default function SiteOpenGrantsModal({ site, onClose }: Readonly<SiteOpen
             render: (v: string) => (v === 'enabled' ? <Tag size="small" color="green">启用</Tag> : <Tag size="small" color="grey">停用</Tag>),
           },
           createOperationColumn<CmsOpenAppGrant>({
-            width: 90,
+            width: 100,
             desktopInlineKeys: ['delete'],
             actions: (record) => [{
               key: 'delete',

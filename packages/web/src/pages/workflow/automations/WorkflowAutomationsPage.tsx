@@ -440,7 +440,7 @@ export default function WorkflowAutomationsPage() {
       render: (v: string) => v === 'enabled' ? <Tag color="green">启用</Tag> : <Tag color="grey">禁用</Tag>,
     },
     createOperationColumn<WorkflowAutomation>({
-      width: 220,
+      width: 240,
       desktopInlineKeys: ['runs', 'edit', 'delete'],
       actions: (record) => [
         {

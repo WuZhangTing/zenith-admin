@@ -156,8 +156,8 @@ export default function FeedbacksPage() {
       },
     },
     createOperationColumn<UserFeedback>({
-      width: 240,
-      desktopInlineKeys: ['replay', 'handle', 'delete'],
+      width: 180,
+      desktopInlineKeys: ['handle', 'delete'],
       actions: (record) => [
         ...(record.replayId && hasPermission('monitor:replay:list') ? [{
           key: 'replay',
@@ -309,7 +309,6 @@ export default function FeedbacksPage() {
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(total)}
-        scroll={{ x: 1440 }}
         rowSelection={{
           selectedRowKeys,
           onChange: (keys) => setSelectedRowKeys((keys ?? []) as number[]),

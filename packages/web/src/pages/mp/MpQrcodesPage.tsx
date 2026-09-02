@@ -173,7 +173,7 @@ export default function MpQrcodesPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)} scroll={{ x: 1000 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...createModal.modalProps} title="生成带参二维码" width={560}>
         <Spin spinning={false} wrapperClassName="modal-spin-wrapper">

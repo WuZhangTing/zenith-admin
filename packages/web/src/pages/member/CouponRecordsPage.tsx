@@ -87,14 +87,14 @@ export default function CouponRecordsPage() {
   const columns: ColumnProps<MemberCoupon>[] = [
     copyableNoColumn('券码', 'code', { width: 200, fixed: 'left' }),
     { title: '会员', dataIndex: 'memberName', width: 140, render: (v?: string, r?: MemberCoupon) => v || `#${r?.memberId}` },
-    { title: '优惠券', dataIndex: 'coupon', width: 160, render: (_: unknown, r: MemberCoupon) => renderEllipsis(r.coupon?.name ?? `#${r.couponId}`) },
+    { title: '优惠券', dataIndex: 'coupon', minWidth: 160, render: (_: unknown, r: MemberCoupon) => renderEllipsis(r.coupon?.name ?? `#${r.couponId}`) },
     { title: '状态', dataIndex: 'status', width: 100, render: (v: MemberCouponStatus) => <Tag color={STATUS_COLORS[v] as 'blue'}>{MEMBER_COUPON_STATUS_LABELS[v]}</Tag> },
     dateTimeColumn('领取时间', 'receivedAt'),
     dateTimeColumn('使用时间', 'usedAt'),
     dateTimeColumn('过期时间', 'expireAt'),
     ...(canRevoke ? [
       createOperationColumn<MemberCoupon>({
-        width: 90,
+        width: 100,
         desktopInlineKeys: ['revoke'],
         actions: (record) => [
           {
@@ -183,7 +183,7 @@ export default function CouponRecordsPage() {
 
       <ConfigurableTable bordered columns={columns} dataSource={data} loading={listQuery.isFetching}
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} rowKey="id" size="small"
-        pagination={buildPagination(total)} empty="暂无领券记录" scroll={{ x: 1230 }} />
+        pagination={buildPagination(total)} empty="暂无领券记录" />
 
       {/* 核销券码 Modal */}
       <AppModal title="核销券码" visible={redeemVisible} width={520}

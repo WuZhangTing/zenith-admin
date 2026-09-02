@@ -395,7 +395,7 @@ export default function SystemSchedulerPage() {
         : <Tag color={record.enabled ? 'green' : 'grey'}>{record.enabled ? '启用' : '停用'}</Tag>,
     },
     createOperationColumn<SystemSchedulerTask>({
-      width: 220,
+      width: 210,
       desktopInlineKeys: ['run', 'logs', 'config'],
       actions: (record) => [
         {
@@ -479,7 +479,7 @@ export default function SystemSchedulerPage() {
       render: (_: unknown, record) => renderEllipsis(record.errorMessage ?? record.resultMessage),
     },
     createOperationColumn<SystemSchedulerRun>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['detail', 'ack'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => void openRunDetail(record) },
@@ -577,7 +577,6 @@ export default function SystemSchedulerPage() {
             dataSource={filteredTasks}
             loading={tasksQuery.isFetching}
             pagination={false}
-            scroll={{ x: 2760 }}
             columnSettingsKey="system-scheduler-tasks"
             onRefresh={() => void tasksQuery.refetch()}
             refreshLoading={tasksQuery.isFetching}
@@ -671,7 +670,6 @@ export default function SystemSchedulerPage() {
             dataSource={runs}
             loading={runsQuery.isFetching}
             pagination={buildPagination(runsTotal)}
-            scroll={{ x: 2220 }}
             columnSettingsKey="system-scheduler-runs"
             onRefresh={() => void runsQuery.refetch()}
             refreshLoading={runsQuery.isFetching}
@@ -690,7 +688,6 @@ export default function SystemSchedulerPage() {
             dataSource={nodes}
             loading={nodesQuery.isFetching}
             pagination={buildNodesPagination(nodesTotal)}
-            scroll={{ x: 1160 }}
             columnSettingsKey="system-scheduler-nodes"
             onRefresh={() => void nodesQuery.refetch()}
             refreshLoading={nodesQuery.isFetching}

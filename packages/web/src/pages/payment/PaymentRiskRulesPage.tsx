@@ -234,7 +234,7 @@ export default function PaymentRiskRulesPage() {
       ),
     },
     createOperationColumn<PaymentRiskRule>({
-      width: 140,
+      width: 150,
       actions: (r) => [
         ...(hasPermission('payment:risk:update') ? [{
           key: 'edit',
@@ -257,7 +257,7 @@ export default function PaymentRiskRulesPage() {
   ];
 
   const hitColumns: ColumnProps<PaymentRiskHit>[] = [
-    { title: '命中规则', dataIndex: 'ruleName', width: 200, render: renderEllipsis },
+    { title: '命中规则', dataIndex: 'ruleName', minWidth: 200, render: renderEllipsis },
     { title: '动作', dataIndex: 'action', width: 90, render: (v: PaymentRiskAction) => (v === 'review' ? <Tag color="orange">送审</Tag> : <Tag color="red">拦截</Tag>) },
     { title: '命中维度', dataIndex: 'dimension', width: 110, render: (v: PaymentRiskDimension) => PAYMENT_RISK_DIMENSION_LABELS[v] },
     { title: '命中详情', dataIndex: 'dimensionValue', width: 180, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 160 }}>{v || '-'}</Typography.Text> },
@@ -282,7 +282,7 @@ export default function PaymentRiskRulesPage() {
     createdAtColumn as ColumnProps<PaymentRiskReview>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentRiskReviewStatus) => <Tag color={REVIEW_STATUS_COLOR[v]}>{PAYMENT_RISK_REVIEW_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentRiskReview>({
-      width: 140,
+      width: 150,
       actions: (r) => (canReview && r.status === 'pending' ? [{
         key: 'approve',
         label: '放行',
@@ -417,7 +417,6 @@ export default function PaymentRiskRulesPage() {
           <ConfigurableTable
             bordered columns={reviewColumns} dataSource={reviews} loading={reviewQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
             onRefresh={() => void reviewQuery.refetch()} refreshLoading={reviewQuery.isFetching} pagination={buildRPagination(reviewTotal)}
-            scroll={{ x: 2100 }}
           />
         </TabPane>
       </Tabs>

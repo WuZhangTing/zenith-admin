@@ -159,7 +159,7 @@ export default function SslCertificatesPage() {
       ),
     },
     createOperationColumn<SslCertificateRecord>({
-      width: 170,
+      width: 180,
       actions: (record) => [
         {
           key: 'detail',

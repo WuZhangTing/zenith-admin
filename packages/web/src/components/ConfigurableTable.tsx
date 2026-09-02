@@ -69,8 +69,14 @@ interface ConfigurableTableProps<RecordType extends TableRecord = TableRecord> e
 
 const MOBILE_ACTION_COLUMN_WIDTH = 64;
 const STRIPED_ROW_CLASS_NAME = 'configurable-table-row--striped';
-/** 开发期已提示过「未声明弹性列」的表格，避免每次渲染重复告警 */
-const warnedFallbackTables = new Set<string>();
+/** 开发期每类布局问题对每个表格只提示一次，避免每次渲染重复告警 */
+const devWarned = new Set<string>();
+
+function warnDevOnce(key: string, message: string) {
+  if (!import.meta.env.DEV || devWarned.has(key)) return;
+  devWarned.add(key);
+  console.warn(`[ConfigurableTable] ${message}`);
+}
 
 function joinClassNames(...classNames: Array<string | false | null | undefined>): string | undefined {
   const next = classNames.filter(Boolean).join(' ');
@@ -248,14 +254,26 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   useEffect(() => {
     const root = rootRef.current;
     if (!virtualized || !root) return;
-    const body = root.querySelector<HTMLElement>('.semi-table-body');
-    if (!body) return;
-    // 同值 setState 会被 React 忽略；只有滚动条出现 / 消失（或边框变化）时才触发第二次渲染
-    const measure = () => setVirtualizedChrome(Math.max(0, Math.floor(root.getBoundingClientRect().width) - body.clientWidth));
+    // 每次都重新查 body：Semi 在 scroll / 数据变化时可能重建 body 元素，缓存引用会指向已卸载节点
+    const measure = () => {
+      const body = root.querySelector<HTMLElement>('.semi-table-body');
+      if (!body) return;
+      // 同值 setState 会被 React 忽略；只有滚动条出现 / 消失（或边框变化）时才触发第二次渲染
+      setVirtualizedChrome(Math.max(0, Math.floor(root.getBoundingClientRect().width) - body.clientWidth));
+    };
     measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(body);
-    return () => observer.disconnect();
+    // 纵向滚动条随虚拟列表内容高度出现 / 消失，body 自身盒子尺寸不变、ResizeObserver 不会触发，
+    // 靠子树变更（行渲染 / 数据到达 / body 重建）驱动重新度量，按帧节流
+    let frame = 0;
+    const mutationObserver = new MutationObserver(() => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => { frame = 0; measure(); });
+    });
+    mutationObserver.observe(root, { childList: true, subtree: true });
+    return () => {
+      mutationObserver.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
   }, [virtualized, restTableProps.dataSource, restTableProps.expandedRowKeys, scroll?.y]);
 
   // 虚拟化表格的表头 table：Semi 写成 scroll.x（= wrapper）宽，而 body 行宽是各列之和，纵向滚动条占位使两者不等，
@@ -368,7 +386,7 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   // 列宽由用户拖拽（resizable）时 Semi 自行管理宽度，只剥离 minWidth 不介入
   const resolvedLayout = useMemo(() => {
     const flexColumns = effectiveColumns as FlexColumnProps<RecordType>[];
-    if (resizable) return { columns: stripFlexColumnProps(flexColumns), scroll, fallbackColumnLabel: null, columnsTotalWidth: 0 };
+    if (resizable) return { columns: stripFlexColumnProps(flexColumns), scroll, fallbackColumnLabel: null, columnsTotalWidth: 0, ignoredScrollX: false };
     // 首次渲染 chrome 尚未量到时先按整个 wrapper 宽度铺，body 观察器量到后再校正
     const fill = virtualized && virtualizedWrapperWidth > 0
       ? { wrapperWidth: virtualizedWrapperWidth, contentWidth: Math.max(0, virtualizedWrapperWidth - virtualizedChrome) }
@@ -379,13 +397,36 @@ export function ConfigurableTable<RecordType extends TableRecord = TableRecord>(
   headerTableWidthRef.current = virtualized && !resizable ? resolvedLayout.columnsTotalWidth : 0;
 
   useEffect(() => {
-    if (!import.meta.env.DEV || !resolvedLayout.fallbackColumnLabel || warnedFallbackTables.has(storageKey)) return;
-    warnedFallbackTables.add(storageKey);
-    console.warn(
-      `[ConfigurableTable] ${storageKey}\n所有列都设置了固定宽度，已自动放开「${resolvedLayout.fallbackColumnLabel}」列吸收剩余空间。`
-      + '请为主列去掉 width、改用 minWidth 显式声明弹性列（constraints-frontend.md → 搜索栏与表格）。',
-    );
-  }, [resolvedLayout.fallbackColumnLabel, storageKey]);
+    if (resolvedLayout.fallbackColumnLabel) {
+      warnDevOnce(`${storageKey}:fallback`, `${storageKey}\n所有列都设置了固定宽度，已自动放开「${resolvedLayout.fallbackColumnLabel}」列吸收剩余空间。`
+        + '请为主列去掉 width、改用 minWidth 显式声明弹性列（constraints-frontend.md → 搜索栏与表格）。');
+    }
+    if (resolvedLayout.ignoredScrollX) {
+      warnDevOnce(`${storageKey}:scroll-x`, `${storageKey}\nscroll.x 由各列宽度之和自动推导，页面传入的 scroll.x 已被忽略，请删除。`);
+    }
+  }, [resolvedLayout.fallbackColumnLabel, resolvedLayout.ignoredScrollX, storageKey]);
+
+  // 开发期校验操作列宽度：单元格无 overflow: hidden，内容超宽不会报错也不会截断，而是吃掉 padding 并挤压相邻固定列
+  useEffect(() => {
+    if (!import.meta.env.DEV || isMobile) return;
+    const root = rootRef.current;
+    if (!root) return;
+    let widest = 0;
+    let cellInner = 0;
+    for (const actions of root.querySelectorAll<HTMLElement>('.semi-table-tbody .responsive-table-actions')) {
+      // 按钮 loading 态会临时插入 spinner 加宽内容，不作为判定依据
+      if (actions.querySelector('.semi-button-loading')) continue;
+      const cell = actions.closest<HTMLElement>('.semi-table-row-cell');
+      if (!cell) continue;
+      const style = getComputedStyle(cell);
+      cellInner = cell.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight);
+      widest = Math.max(widest, actions.getBoundingClientRect().width);
+    }
+    if (widest > cellInner && cellInner > 0) {
+      warnDevOnce(`${storageKey}:operation-overflow:${Math.round(widest)}`, `${storageKey}\n操作列内容宽 ${Math.round(widest)}px 超过列内可用宽 ${Math.round(cellInner)}px，`
+        + '请按 ui-patterns.md → 操作列 的公式复核 width，或用 desktopInlineKeys 收纳低频动作。');
+    }
+  }, [restTableProps.dataSource, resolvedLayout.columns, storageKey, isMobile]);
 
   const handleResetColumns = useCallback(() => {
     updateHiddenKeys(() => []);

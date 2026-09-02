@@ -1,10 +1,11 @@
 
 import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Modal, Popconfirm, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
+import { Form, Modal, Select, Space, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { AnalyticsSite } from '@zenith/shared/analytics';
 import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import {
   analyticsKeys,
@@ -18,6 +19,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { useEditModal } from '@/hooks/useEditModal';
 import { copyableNoColumn, dateTimeColumn } from '@/utils/table-columns';
+import { confirmDelete } from '@/utils/confirm';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [
@@ -119,19 +121,21 @@ export default function AnalyticsSitesTab() {
     { title: '今日用量', dataIndex: 'todayUsage', width: 140, align: 'right', render: (_: number | null, record) => renderUsage(record) },
     dateTimeColumn('更新时间', 'updatedAt'),
     { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (value: AnalyticsSite['status']) => <Tag color={STATUS_META[value].color} size="small">{STATUS_META[value].label}</Tag> },
-    {
-      title: '操作', dataIndex: 'operation', width: 260, fixed: 'right', render: (_: unknown, record) => (
-        <Space>
-          <Button theme="borderless" size="small" onClick={() => siteModal.openEdit(record)}>编辑</Button>
-          <Popconfirm title="确定重新生成 Key？旧 Key 将立即失效。" onConfirm={() => regenerateMutation.mutate(record.id)}>
-            <Button theme="borderless" size="small" loading={regenerateMutation.isPending}>重新生成Key</Button>
-          </Popconfirm>
-          <Popconfirm title="确定要删除该站点吗？" onConfirm={() => deleteMutation.mutate(record.id)}>
-            <Button theme="borderless" type="danger" size="small" loading={deleteMutation.isPending}>删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
+    createOperationColumn<AnalyticsSite>({
+      width: 180,
+      desktopInlineKeys: ['edit', 'delete'],
+      actions: (record) => [
+        { key: 'edit', label: '编辑', onClick: () => siteModal.openEdit(record) },
+        {
+          key: 'regenerate', label: '重新生成 Key', loading: regenerateMutation.isPending,
+          onClick: () => { Modal.confirm({ title: '确定重新生成 Key？', content: '旧 Key 将立即失效。', onOk: () => regenerateMutation.mutate(record.id) }); },
+        },
+        {
+          key: 'delete', label: '删除', danger: true, loading: deleteMutation.isPending,
+          onClick: () => { confirmDelete({ title: '确定要删除该站点吗？', content: '删除后不可恢复', onOk: () => deleteMutation.mutate(record.id) }); },
+        },
+      ],
+    }),
   ];
 
   return (
@@ -152,7 +156,6 @@ export default function AnalyticsSitesTab() {
         dataSource={list}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        scroll={{ x: 1770 }}
         pagination={{
           currentPage: page,
           pageSize,

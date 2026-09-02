@@ -188,7 +188,7 @@ export default function RuleScorecardsPage() {
       render: (v: string) => <Tag color={STATUS_META[v]?.color}>{STATUS_META[v]?.text ?? v}</Tag>,
     },
     createOperationColumn<RuleScorecard>({
-      width: 220,
+      width: 240,
       desktopInlineKeys: ['edit', 'publish', 'test'],
       actions: (r) => [
         { key: 'edit', label: '编辑', hidden: !canEdit, onClick: () => openEdit(r) },

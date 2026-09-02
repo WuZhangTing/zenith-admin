@@ -144,7 +144,7 @@ export default function InAppMessagesPage() {
       render: (v: boolean) => v ? <Tag color="green" type="light">已读</Tag> : <Tag color="orange" type="light">未读</Tag>,
     },
     createOperationColumn<InAppMessage>({
-      width: 160,
+      width: 180,
       actions: (record) => [
         {
           key: 'mark-read',
@@ -210,8 +210,7 @@ export default function InAppMessagesPage() {
       />
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)}
-        scroll={{ x: 1400 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...sendModal.modalProps} title="发送站内信" width={720}>
         <Form key={sendModal.formKey} {...sendModal.formProps}>

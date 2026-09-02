@@ -176,7 +176,7 @@ export default function MpAutoRepliesPage() {
       ),
     },
     createOperationColumn<MpAutoReply>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       menuAriaLabel: '自动回复操作',
       actions: (record) => [
@@ -264,7 +264,7 @@ export default function MpAutoRepliesPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)} scroll={{ x: 1100 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...modal.modalProps} width={640}>
         <Spin spinning={modal.detailLoading} wrapperClassName="modal-spin-wrapper">

@@ -175,7 +175,7 @@ export default function TaskDemoPage() {
       },
     },
     createOperationColumn<AsyncTask>({
-      width: 220,
+      width: 240,
       desktopInlineKeys: ['cancel', 'resume', 'restart'],
       actions: (record) => [
         {
@@ -302,7 +302,6 @@ export default function TaskDemoPage() {
         rowKey="id"
         size="small"
         empty="暂无任务，先在上方提交一个演示任务"
-        scroll={{ x: 1240 }}
       />
 
       <Collapse style={{ marginTop: 16 }}>

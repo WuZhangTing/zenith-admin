@@ -132,7 +132,7 @@ export default function PaymentAppsPage() {
     createdAtColumn as ColumnProps<PaymentApp>,
     { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentApp['status']) => <Tag color={STATUS_COLOR[v]}>{STATUS_LABEL[v]}</Tag> },
     createOperationColumn<PaymentApp>({
-      width: 140,
+      width: 150,
       actions: (r) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => openEdit(r) },
         {
@@ -191,7 +191,6 @@ export default function PaymentAppsPage() {
       <ConfigurableTable
         bordered columns={columns} dataSource={listQuery.data?.list ?? []} loading={listQuery.isFetching} rowKey="id" size="small" empty="暂无数据"
         onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} pagination={buildPagination(listQuery.data?.total ?? 0)}
-        scroll={{ x: 1760 }}
       />
 
       <AppModal {...modal.modalProps} width={620}>

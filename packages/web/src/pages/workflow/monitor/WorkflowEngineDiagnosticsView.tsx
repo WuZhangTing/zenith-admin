@@ -1079,7 +1079,6 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
             rowKey="rowId"
             pagination={false}
             empty="暂无内部队列任务"
-            scroll={{ x: 1540 }}
           />
         </TabPane>
         <TabPane tab={`事件派发 ${data.runtime.outboxEvents.length}`} itemKey="outbox">
@@ -1091,7 +1090,6 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
             rowKey="id"
             pagination={false}
             empty="暂无待处理事件派发"
-            scroll={{ x: 1230 }}
           />
         </TabPane>
         <TabPane tab={`触发器 ${data.runtime.triggerExecutions.length}`} itemKey="triggers">
@@ -1103,7 +1101,6 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
             rowKey="id"
             pagination={false}
             empty="暂无异常触发器执行"
-            scroll={{ x: 1330 }}
           />
         </TabPane>
         <TabPane tab="定义校验" itemKey="definitions">

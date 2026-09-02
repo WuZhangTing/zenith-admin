@@ -75,7 +75,7 @@ export default function CheckinRulesPage() {
     { title: '备注', dataIndex: 'remark', render: renderEllipsis },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<CheckinRule>({
-      width: 130,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => [
         {

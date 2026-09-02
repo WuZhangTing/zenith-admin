@@ -18,7 +18,19 @@
 | `onRefresh` | `() => void` | — | 传入后显示刷新按钮 |
 | `refreshLoading` | `boolean` | `false` | 刷新按钮 loading / 禁用状态 |
 
+列定义在 Semi `ColumnProps` 之上扩展了 `minWidth`：每个表格**有且只有一个弹性主列**（通常是名称 / 标题列）不写 `width`、改写 `minWidth`，
+其余列照常写 `width`。`ConfigurableTable` 按各列宽度之和自动推导 `scroll.x`（页面传入的 `scroll.x` 会被忽略并在开发期告警），
+容器更宽时由弹性主列吸收剩余空间，操作列等固定宽度列不会被拉伸；虚拟化表格（`virtualized` + `scroll.y`）同样适用，
+组件内部负责表头与行的对齐。
+
 ```tsx
+const columns: ColumnProps<User>[] = [
+  { title: '用户名', dataIndex: 'username', minWidth: 200 },   // 弹性主列
+  { title: '邮箱', dataIndex: 'email', width: 220 },
+  createdAtColumn,
+  createOperationColumn<User>({ width: 150, actions: … }),
+];
+
 <ConfigurableTable
   bordered
   columns={columns}
@@ -32,6 +44,7 @@
 ```
 
 `createOperationColumn` 创建的操作列带内部标记，列设置中不可隐藏；移动端宽度固定为 64。
+开发期若操作列内容宽超过列内可用宽，控制台会给出一次告警。
 
 ### ResponsiveTableActions / createOperationColumn
 
@@ -40,17 +53,19 @@
 | 字段 | 说明 |
 | --- | --- |
 | `actions(record)` | 返回动作数组 |
-| `width` | 操作列宽，默认 160；「编辑 / 删除」常用 130 |
+| `width` | 必填。取值 = 最宽内联组合的内容宽 + 40，向上取整到 10（「编辑 / 删除」为 150，单个 2 字动作为 100）；度量常量与常用组合见 skill 的 `ui-patterns.md → 操作列` |
 | `title` | 列标题，默认 `操作` |
-| `desktopInlineKeys` | 桌面端内联展示的动作 key；未传时全部内联 |
+| `desktopInlineKeys` | 桌面端内联展示的动作 key（不超过 3 个），其余进「更多」菜单；未传时全部内联 |
 | `menuAriaLabel` | 更多菜单按钮可访问名称，默认 `更多操作` |
 | `emptyContent` | 没有可见动作时的内容，默认 `—`；可传函数按行计算 |
 
 动作字段：`key`、`label`、`onClick`、`danger`、`type`、`loading`、`disabled`、`disabledReason`、`hidden`、`dividerBefore`。
+动作随行状态变化时，只把各状态都存在或宽度相近的高频动作放进 `desktopInlineKeys`，状态特有 / 低频动作进「更多」，
+避免按最宽状态配宽导致常见行大片留白。
 
 ```tsx
 const operationColumn = createOperationColumn<User>({
-  width: 130,
+  width: 150,
   desktopInlineKeys: ['edit', 'delete'],
   actions: (record) => [
     { key: 'edit', label: '编辑', onClick: () => modal.openEdit(record) },

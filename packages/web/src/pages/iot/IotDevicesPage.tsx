@@ -265,7 +265,7 @@ export default function IotDevicesPage() {
       ),
     },
     createOperationColumn<IotDevice>({
-      width: 170,
+      width: 120,
       desktopInlineKeys: ['detail'],
       actions: (record) => [
         {

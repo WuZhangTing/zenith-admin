@@ -44,7 +44,7 @@ export default function WikiRecyclePage() {
     { title: '作者', dataIndex: 'authorName', width: 120, render: (v: string | null) => v ?? '—' },
     dateTimeColumn('删除时间', 'deletedAt'),
     createOperationColumn<WikiDoc>({
-      width: 160,
+      width: 180,
       desktopInlineKeys: ['restore', 'purge'],
       actions: (record) => [
         ...(hasPermission('wiki:recycle:restore') ? [{

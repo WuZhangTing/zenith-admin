@@ -51,7 +51,7 @@ function SlotsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     { title: '投放广告数', dataIndex: 'adCount', width: 110, align: 'right' },
     { title: '备注', dataIndex: 'remark', minWidth: 220, render: (v: string | null) => v ?? '-' },
     createOperationColumn<CmsAdSlot>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => slotModal.openEdit(record) },
@@ -155,7 +155,7 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
       render: renderEnabledStatusTag,
     },
     createOperationColumn<CmsAd>({
-      width: 160,
+      width: 150,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => canManage ? [
         { key: 'edit', label: '编辑', onClick: () => adModal.openEdit(record) },
@@ -196,7 +196,6 @@ function AdsTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
         rowKey="id"
         size="small"
         empty="暂无广告"
-        scroll={{ x: 1210 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0)}
@@ -308,7 +307,7 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
     { title: '页面路径', dataIndex: 'path', minWidth: 220, render: (value: string | null) => value ?? '-' },
     { title: '会员 ID', dataIndex: 'memberId', width: 100, render: (value: number | null) => value ?? '-' },
     createOperationColumn<CmsAdEvent>({
-      width: 90,
+      width: 100,
       desktopInlineKeys: ['view'],
       actions: (record) => [{ key: 'view', label: '查看', onClick: () => setDetail(record) }],
     }),
@@ -380,7 +379,6 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
         loading={listQuery.isFetching}
         rowKey="id"
         empty={siteId ? '暂无广告事件' : '请先选择站点'}
-        scroll={{ x: 1260 }}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
         pagination={buildPagination(listQuery.data?.total ?? 0)}

@@ -127,7 +127,7 @@ export default function PromptTemplatesPage() {
       render: (enabled: boolean) => statusTag(enabled),
     },
     createOperationColumn<AiPromptTemplate>({
-      width: 180,
+      width: 210,
       desktopInlineKeys: ['edit', 'versions', 'delete'],
       actions: (record) => [
         {

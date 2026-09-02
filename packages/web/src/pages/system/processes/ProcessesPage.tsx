@@ -356,7 +356,7 @@ export default function ProcessesPage() {
         : <span style={{ color: 'var(--semi-color-text-3)' }}>—</span>,
     },
     createOperationColumn<ProcessInfo>({
-      width: hasPermission('system:process:priority') ? 230 : 160,
+      width: hasPermission('system:process:priority') ? 220 : 150,
       actions: (record) => [
         {
           key: 'detail',

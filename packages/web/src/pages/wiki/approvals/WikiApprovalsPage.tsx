@@ -109,7 +109,7 @@ function PendingPane() {
     { title: '版本', dataIndex: 'currentVersion', width: 80, render: (v: number) => `v${v}` },
     updatedAtColumn,
     createOperationColumn<WikiDoc>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['preview', 'approve', 'reject'],
       actions: (record) => [
         { key: 'preview', label: '预览', onClick: () => setPreviewId(record.id) },
@@ -236,7 +236,7 @@ function MySubmissionsPane() {
     { title: '驳回意见', dataIndex: 'rejectReason', width: 220, render: renderEllipsis },
     updatedAtColumn,
     createOperationColumn<WikiDoc>({
-      width: 160,
+      width: 180,
       desktopInlineKeys: ['timeline', 'withdraw'],
       actions: (record) => [
         { key: 'timeline', label: '审核记录', onClick: () => setTimelineDocId(record.id) },

@@ -108,7 +108,7 @@ export default function MpDraftsPage() {
     { title: '微信 MediaID', dataIndex: 'wechatMediaId', width: 200, render: (v: string | null) => v || '—' },
     createdAtColumn,
     createOperationColumn<MpDraft>({
-      width: 200,
+      width: 210,
       desktopInlineKeys: ['edit', 'push', 'delete'],
       menuAriaLabel: '图文草稿操作',
       actions: (record) => [
@@ -161,7 +161,7 @@ export default function MpDraftsPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)} scroll={{ x: 1000 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal title={editingRecord ? '编辑图文' : '新增图文'} visible={modalVisible}
         onOk={handleSubmit} onCancel={() => setModalVisible(false)} confirmLoading={saveMutation.isPending}

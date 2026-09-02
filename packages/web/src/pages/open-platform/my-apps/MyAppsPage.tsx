@@ -180,8 +180,9 @@ export default function MyAppsPage() {
       render: (value: string) => <Tag size="small" color={value === 'enabled' ? 'green' : 'grey'}>{value === 'enabled' ? '启用' : '禁用'}</Tag>,
     },
     createOperationColumn<OAuth2Client>({
-      width: 260,
-      desktopInlineKeys: ['edit', 'usage', 'submit'],
+      // 提交审核 / 在线调试 / 轮换密钥 / 删除 随审核状态出现，进更多；行内保留编辑 / 用量
+      width: 180,
+      desktopInlineKeys: ['edit', 'usage'],
       actions: (app) => [
         { key: 'edit', label: '编辑', hidden: app.reviewStatus === 'pending', onClick: () => modal.openEdit(app) },
         { key: 'usage', label: '用量', onClick: () => setUsageApp(app) },

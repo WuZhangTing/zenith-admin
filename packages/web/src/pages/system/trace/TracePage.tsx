@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Banner, Button, Card, Collapse, Empty, Input, Select, SideSheet, Spin, Table, Tabs, TabPane, Tag, Timeline, Typography,
+  Banner, Button, Card, Collapse, Empty, Input, Select, SideSheet, Spin, Tabs, TabPane, Tag, Timeline, Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Search } from 'lucide-react';
 import type { TraceFailureEntry, TraceNodeKind, TraceNodeStatus, TraceTimelineNode } from '@zenith/shared/platform';
 import { TRACE_NODE_KIND_LABELS, TRACE_NODE_KINDS, TRACE_NODE_STATUS_LABELS } from '@zenith/shared/platform';
+import { ConfigurableTable } from '@/components/ConfigurableTable';
+import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { usePermission } from '@/hooks/usePermission';
 import { useRecentTraceFailures, useTraceTimeline } from '@/hooks/queries/trace';
 import { useLogFiles, useLogFileContent } from '@/hooks/queries/log-files';
@@ -95,14 +97,12 @@ function RecentFailuresPanel({ onView }: { onView: (traceId: string) => void }) 
       render: (v: TraceNodeKind) => <Tag size="small" color={KIND_COLORS[v]}>{TRACE_NODE_KIND_LABELS[v]}</Tag>,
     },
     { title: '标题', dataIndex: 'title', width: 240, render: (v: string) => renderEllipsis(v) },
-    { title: '失败原因', dataIndex: 'error', width: 320, render: (v: string) => renderEllipsis(v) },
+    { title: '失败原因', dataIndex: 'error', minWidth: 320, render: (v: string) => renderEllipsis(v) },
     { title: '发生时间', dataIndex: 'ts', width: 160 },
-    {
-      title: '操作', width: 110, fixed: 'right',
-      render: (_: unknown, r: TraceFailureEntry) => (
-        <Button size="small" theme="borderless" type="primary" onClick={() => onView(r.traceId)}>查看链路</Button>
-      ),
-    },
+    createOperationColumn<TraceFailureEntry>({
+      width: 120,
+      actions: (r) => [{ key: 'view', label: '查看链路', onClick: () => onView(r.traceId) }],
+    }),
   ];
 
   return (
@@ -122,18 +122,15 @@ function RecentFailuresPanel({ onView }: { onView: (traceId: string) => void }) 
           optionList={TRACE_NODE_KINDS.filter((k) => k !== 'event').map((k) => ({ value: k, label: TRACE_NODE_KIND_LABELS[k] }))}
           style={{ width: 140 }}
         />
-        <Button
-          theme="borderless"
-          onClick={() => void failuresQuery.refetch()}
-          loading={failuresQuery.isFetching}
-        >
-          刷新
-        </Button>
       </div>
-      <Table
+      <ConfigurableTable
+        bordered
+        columnSettings={false}
         columns={columns}
         dataSource={list}
         loading={failuresQuery.isFetching}
+        onRefresh={() => void failuresQuery.refetch()}
+        refreshLoading={failuresQuery.isFetching}
         rowKey={(r?: TraceFailureEntry) => `${r?.kind}-${r?.refId}`}
         size="small"
         empty="时间窗内没有失败记录，一切正常 🎉"

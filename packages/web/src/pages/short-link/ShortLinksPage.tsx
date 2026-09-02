@@ -219,7 +219,7 @@ export default function ShortLinksPage() {
       ),
     },
     createOperationColumn<ShortLink>({
-      width: 170,
+      width: 180,
       desktopInlineKeys: ['stats', 'edit'],
       actions: (record) => [
         ...(hasPermission('shortlink:stats:view') ? [{

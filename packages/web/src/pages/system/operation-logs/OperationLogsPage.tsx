@@ -231,7 +231,6 @@ export default function OperationLogsPage() {
             dataSource={data}
             loading={listQuery.isFetching}
             onRefresh={() => void listQuery.refetch()}
-            scroll={{ x: 1660 }}
             pagination={buildPagination(total)}
           />
         </TabPane>

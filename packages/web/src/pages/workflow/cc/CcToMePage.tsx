@@ -110,7 +110,7 @@ export default function CcToMePage() {
       },
     },
     createOperationColumn<WorkflowInstance>({
-      width: 140,
+      width: 150,
       desktopInlineKeys: ['detail', 'forward'],
       actions: (record) => [
         { key: 'detail', label: '详情', onClick: () => openDetail(record) },

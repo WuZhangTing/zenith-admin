@@ -149,7 +149,10 @@ describe('AnalyticsSegmentsTab', () => {
 
   it('submits a materialize task for the segment and shows a task-submitted hint', async () => {
     renderWithPreferences(<AnalyticsSegmentsTab />);
-    fireEvent.click(screen.getByText('重算'));
+    // 重算为低频动作，收在操作列的更多菜单中
+    fireEvent.click(screen.getByLabelText('更多操作'));
+    const materializeItem = await screen.findByText('重算');
+    fireEvent.click(materializeItem);
     await waitFor(() => expect(materializeMutateAsync).toHaveBeenCalledWith(1));
   });
 

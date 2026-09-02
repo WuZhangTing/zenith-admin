@@ -121,7 +121,7 @@ export default function PaymentFeeRulesPage() {
       ),
     },
     createOperationColumn<PaymentFeeRule>({
-      width: 140,
+      width: 150,
       actions: (r) => [
         ...(hasPermission('payment:fee:update') ? [{
           key: 'edit',

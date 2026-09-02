@@ -328,7 +328,6 @@ export default function PayDemoPage() {
         pagination={buildPagination(total)}
         onRefresh={() => void listQuery.refetch()}
         refreshLoading={listQuery.isFetching}
-        scroll={{ x: 1230 }}
       />
 
       <Collapse style={{ marginTop: 16 }}>

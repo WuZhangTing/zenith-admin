@@ -158,7 +158,7 @@ export default function SystemConfigsPage() {
     { title: '描述', dataIndex: 'description', minWidth: 300, render: renderEllipsis },
     dateTimeColumn('更新时间', 'updatedAt'),
     createOperationColumn<SystemConfig>({
-      width: 160,
+      width: 150,
       actions: (record) => [
         {
           key: 'edit',

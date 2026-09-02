@@ -774,6 +774,7 @@ export default function RuleTablesPage() {
       </Space>
     ) },
     createOperationColumn<RuleDecisionTable>({
+      width: 210,
       desktopInlineKeys: ['edit', 'publish'],
       actions: (r) => [
         { key: 'test', label: '测试', onClick: () => openTest(r) },

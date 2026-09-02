@@ -292,7 +292,6 @@ export default function SessionReplaysPage() {
             }}
             size="small"
             empty="暂无回放记录。开启「数据分析设置 → 会话回放」后，报错现场将自动录制。"
-            scroll={{ x: 1660 }}
           />
         </TabPane>
         <TabPane tab="点击热力" itemKey="heatmap">

@@ -462,7 +462,7 @@ export default function UsersPage() {
       ),
     },
     createOperationColumn<User>({
-      width: 200,
+      width: 180,
       desktopInlineKeys: ['edit', 'delete'],
       actions: (record) => {
         const isAdmin = isAdminUser(record);

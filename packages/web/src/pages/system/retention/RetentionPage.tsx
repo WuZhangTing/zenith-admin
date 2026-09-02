@@ -187,7 +187,7 @@ export default function RetentionPage() {
             ellipsis: true,
           },
           createOperationColumn<RetentionPolicy & { _rowId: string }>({
-            width: 170,
+            width: 150,
             desktopInlineKeys: ['edit'],
             actions: (row) => [
               { key: 'edit', label: '编辑策略', hidden: !canEdit, onClick: () => openEdit(row) },

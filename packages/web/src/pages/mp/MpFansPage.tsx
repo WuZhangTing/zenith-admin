@@ -169,7 +169,7 @@ export default function MpFansPage() {
       ),
     },
     createOperationColumn<MpFan>({
-      width: 270,
+      width: 280,
       desktopInlineKeys: ['edit', 'member', 'blacklist'],
       menuAriaLabel: '粉丝操作',
       actions: (record) => [
@@ -282,8 +282,7 @@ export default function MpFansPage() {
       )}
 
       <ConfigurableTable bordered loading={listQuery.isFetching} onRefresh={() => void listQuery.refetch()} refreshLoading={listQuery.isFetching} columns={columns} dataSource={list} rowKey="id"
-        pagination={buildPagination(total)}
-        scroll={{ x: 1320 }} />
+        pagination={buildPagination(total)} />
 
       <AppModal {...fanModal.modalProps} title="编辑粉丝" width={520}>
         <Spin spinning={false} wrapperClassName="modal-spin-wrapper">
