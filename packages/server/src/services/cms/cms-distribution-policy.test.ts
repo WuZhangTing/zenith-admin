@@ -87,13 +87,14 @@ describe('CMS governed distribution policy', () => {
     expect(source).toContain("eq(cmsContents.status, 'published')");
     expect(source).toContain('sanitizeCmsHtml(resolved.body)');
     expect(source).toContain('assertCmsContentUnlocked(target)');
-    expect(source).toContain('updateCmsContent(target.id, patch');
+    expect(source).toContain("eq(cmsContents.version, locked.version), isNull(cmsContents.lockedAt)");
     expect(source).toContain('TaskCancelledError');
     expect(source).toContain('ctx.reportItems');
     expect(source).toContain('distributionSourceVersion');
     expect(source).toContain('cmsDistributionIdempotencyKey');
     expect(source).toContain('detachStaleMapping');
-    expect(source).toContain('offlineCmsContent(target.id)');
+    expect(source).toContain("status: oldPublish ? 'offline' : locked.status");
+    expect(source).toContain("'distribution-detach'");
     expect(source).toContain('不能删除规则并解除映射');
   });
 

@@ -4,6 +4,77 @@
 
 ---
 
+## v2.12.0 - 2026-09-02
+
+**CMS 安全与边界收敛 + 会话主体实时校验**：对照 CMS 全页面巡检结论集中修复存储型 XSS / URL 协议、跨站读取、规范路径分裂、发布缓存一致性、导入导出闭环与前端选中/能力状态问题；管理员与会员令牌每次请求回读账号与租户真实状态。
+
+> ℹ️ 本版新增增量迁移 `0002`/`0003`（`cms_sites`、`cms_publish_artifacts` 增加 `public_revision` 列），部署后执行 `npm run db:migrate` 即可，无需重建数据库。
+
+### Added
+
+#### CMS
+
+- 服务端统一生成内容 `canonicalUrl` / `previewUrl`（按栏目归档规则与自定义静态路径），内容列表预览、发布中心、检索测试（新增「访问地址」列）全部消费同一结果
+- 站点 `publicRevision` 公开修订号：影响公开渲染的写入原子递增，发布任务与静态产物以此 fence 拒绝旧任务晚写；站点配置类变更（互动、模板引用、内链词等）统一走 outbox 触发站点级刷新
+- 内联脚本与 JSON-LD 使用 `serializeJsonForScript` 安全序列化，`</script>` 无法打断脚本
+- 内容批量属性补齐「标记 / 取消原创」；素材移动改为独立「移动到目录」弹窗选择目标，不再借左侧树切换表达目标
+- 导出按钮支持 `permission` 门禁；种子菜单补充 `cms:content:export` 按钮权限
+
+### Changed
+
+#### CMS 安全边界
+
+- URL 策略收紧（shared `link.ts`）：只接受站内绝对路径与 http(s) / mailto / tel 外链；协议相对地址、`javascript:` / `data:` 等未知协议、反斜杠、编码分隔符、控制与双向字符一律拒绝。媒体 / 附件 / 封面 / Logo 字段另用 asset URL schema（仅站内路径、http(s)、`cms-res://`），页面区块 props 中的 URL 类属性递归校验
+- 内容正文与栏目单页写入统一经 `sanitizeCmsHtml`；词库替换只作用于已清洗文本并二次清洗，无法重新打开标签 / 属性边界
+- 内容 `staticPath` 仅支持 `.html`，并拒绝与系统保留路径（`p/`、`tag/`、`search/`、`sitemap.xml` 等）冲突
+- 前台请求路径只解码一次并拒绝 `..`、编码分隔符与控制字符；开放 API 分页 / 日期 / cursor 参数严格校验
+
+#### CMS 站点隔离与授权
+
+- 内容模型 list / all / detail / refs / update / delete 统一要求 `siteId` 并共用同一访问断言，普通操作者无法读取其他站点专属模型
+- 素材引用同步与解析同时限定 `siteId`，跨站 `cms-res://` 句柄拒绝；引用重建补扫页面部件 draft / published 数据
+- 开放 API 写入使用独立 `CmsOpenApiAccessContext` principal（client → site → channel → scope），不再借用后台超管权限
+- 内容导出复用列表查询的可访问栏目与数据范围谓词，不再成为权限旁路
+- 栏目引入 effectiveEnabled（自身与全部父栏目均启用）：前台渲染、聚合、检索、死链、会员互动、订阅与分发规则统一使用；公开可见性单一判定（`isCmsContentPubliclyVisible`）覆盖到期内容
+
+#### CMS 发布与缓存
+
+- 动态站点写入后同样执行 Redis 页面 / sitemap 缓存失效，`staticMode` 只决定是否生成文件；会员点赞 / 收藏同步失效站点缓存
+- `cms-static-build`、`cms-theme-rebuild` 任务类型并入 `cms-publish-build`，发布中心与站点静态化面板只跟踪统一任务
+- 标签、友链、广告、表单、内链词、模板引用等变更统一进入发布 outbox
+
+#### CMS 分发与迁移
+
+- 站群分发移除 `mapping` 共享正文模式，一律生成可独立编辑的完整快照；分发规则已有物化内容时禁止修改来源 / 目标 / 模式，来源与目标栏目必须为有效启用的列表栏目
+- 整站导入导出补齐闭环：站点 modelId / extend、栏目 modelId / staticMode / detailPathRule、标签分组、内容 titleStyle / attachments / staticPath、友链分组、页面 path / requiresDynamic 均可往返；模型按稳定 code 映射并恢复字段定义，实体链接、content-list 区块 channelId、部件引用与素材句柄递归重映射，非法引用拒绝导入
+
+#### 认证
+
+- 管理员与会员 JWT 每次请求回读用户 / 会员状态、租户状态与过期时间：令牌内租户声明与库不一致或租户停用即失效，平台管理员的 viewingTenant 声明同样实时校验；refresh 链路同步收紧且不再受 `multiTenantMode` 开关影响
+
+#### Web 体验
+
+- 内容 / 评论 / 素材 / 检索词典 / 部件 / 互动等表格 rowKey 统一为字符串，勾选态与批量操作对象一致；切站、筛选、翻页自动清空选中
+- 内容编辑页、SEO 页签、导出按钮、附件与媒体库上传按 capability 显示或禁用，无编辑权限时内容编辑页以只读模式打开
+- 广告事件页不再以 `pageSize=1000` 请求越界；切站时清空广告位 / 草稿 / 详情
+- 表单预览 radio 字段渲染为单选组；表单字段标识去重校验；采集分页 `pageEnd >= pageStart` 在 service 层强制
+- 友链分组、广告投放时间清空时显式提交 `null`，不再因 `undefined` 被序列化省略而保留旧值
+- 支付中心、会员中心、开放平台多处不定长列加宽并省略渲染，空值占位统一 `EMPTY_PLACEHOLDER`；钱包 / 积分流水补 `member_recharge_refund` 业务类型映射
+
+#### 文档
+
+- `docs/cms/` 十篇专题按当前实现修订（内容模型、内容管线、互动、开放 API、检索、SEO、站群分发、静态化与渲染、主题）
+
+### Fixed
+
+- 内容列表预览地址手工拼接，导致按栏目归档规则或自定义静态路径的内容打开 404
+- 发布中心「产物」页刷新后「任务详情」依赖历史页缓存而无法查看
+- 互动问卷复制丢失 allowOther / ratingMax / matrixRows / pageNo / visibleWhen 等高级题目字段
+- 分发规则允许把 page / link / 已停用栏目作为来源或目标
+- 分发策略源码断言测试同步快照化实现（`updateCmsContent` / `offlineCmsContent` 已改为事务内版本围栏更新）
+
+---
+
 ## v2.11.0 - 2026-09-01
 
 **支付安全加固 + 全域 UI 一致性治理**：支付写入与执行链路继续收紧租户/状态门禁，恢复 Webhook 管理视图；前端完成列宽审计、可复制列收编、弹窗改抽屉与 Cron 输入统一。
