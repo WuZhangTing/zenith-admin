@@ -23,6 +23,7 @@ function site(input: Partial<CmsSiteRow> & Pick<CmsSiteRow, 'id' | 'name' | 'cod
     theme: 'default',
     themeRevision: 0,
     templateRefsRevision: 0,
+    publicRevision: 0,
     staticMode: 'hybrid',
     robots: null,
     settings: {},

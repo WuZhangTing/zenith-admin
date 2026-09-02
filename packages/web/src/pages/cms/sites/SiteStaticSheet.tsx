@@ -20,10 +20,10 @@ import { cmsPreviewUrl } from '../CmsSiteSelect';
 function SiteStaticPanel({ site, canBuild }: { site: CmsSite; canBuild: boolean }) {
   const buildMutation = useCmsStaticBuild();
   const effectiveConfigQuery = useCmsSiteEffectiveConfig(site.id);
-  const { tasks, loading, refresh } = useMyAsyncTasks({ taskTypes: ['cms-publish-build', 'cms-static-build', 'cms-theme-rebuild'] });
+  const { tasks, loading, refresh } = useMyAsyncTasks({ taskTypes: ['cms-publish-build'] });
   const siteTasks = tasks.filter((t) => {
-    const payload = t.payload as { siteId?: number; siteIds?: number[] };
-    return payload.siteId === site.id || (Array.isArray(payload.siteIds) && payload.siteIds.includes(site.id));
+    const payload = t.payload as { siteId?: number };
+    return payload.siteId === site.id;
   });
 
   async function handleBuild() {

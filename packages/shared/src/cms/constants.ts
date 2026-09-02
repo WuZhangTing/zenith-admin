@@ -182,11 +182,9 @@ export const CMS_PUBLISH_ARTIFACT_STATUS_LABELS: Record<(typeof CMS_PUBLISH_ARTI
   failed: '失败',
 };
 
-/** 发布中心受权投影包含统一任务和 Stage 2 留存任务。 */
+/** 发布中心受权投影只包含统一 CMS 发布任务。 */
 export const CMS_PUBLISH_TASK_TYPES = [
   'cms-publish-build',
-  'cms-static-build',
-  'cms-theme-rebuild',
 ] as const;
 
 export const CMS_CHANNEL_TYPES = ['list', 'page', 'link'] as const;
@@ -296,7 +294,7 @@ export const CMS_OPEN_CONTENT_FIELDS = [
   'isTop', 'topWeight', 'isRecommend', 'isHot', 'hasImage', 'hasVideo', 'hasAttachment',
   'viewCount', 'likeCount', 'favoriteCount', 'sort', 'version',
   'seoTitle', 'seoKeywords', 'seoDescription',
-  'publishedAt', 'createdAt', 'updatedAt', 'url',
+  'publishedAt', 'expireAt', 'createdAt', 'updatedAt', 'url',
   // include 展开项
   'body', 'extend', 'tags', 'channel', 'relations', 'attachments', 'mediaData',
 ] as const;

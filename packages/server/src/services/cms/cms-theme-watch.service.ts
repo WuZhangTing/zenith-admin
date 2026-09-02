@@ -19,12 +19,12 @@ import { db } from '../../db';
 import { systemConfigs } from '../../db/schema';
 import { listThemes } from '../../cms/themes/registry';
 import { submitCmsPublishTask } from './cms-publishing.service';
+import { cmsSiteFencePayload } from './cms-site-publish-lock.service';
 import { runWithCurrentUser } from '../../lib/context';
 import redis from '../../lib/redis';
 import { config } from '../../config';
 import logger from '../../lib/logger';
 import { loadCmsInheritanceState, resolveCmsSiteSnapshot } from './cms-site-inheritance.service';
-import { cmsSiteFencePayload } from './cms-site-publish-lock.service';
 
 const CONFIG_KEY = 'cms:theme:fingerprints';
 const LOCK_KEY = `${config.redis.keyPrefix}cms:theme-rebuild-lock`;

@@ -7,6 +7,7 @@ import { assertCmsPublishFence } from './cms-site-publish-lock.service';
 function executorFor(state: {
   themeRevision: number;
   templateRefsRevision: number;
+  publicRevision: number;
 }): DbExecutor {
   return {
     select: () => ({
@@ -19,6 +20,7 @@ function executorFor(state: {
           theme: 'default',
           themeRevision: state.themeRevision,
           templateRefsRevision: state.templateRefsRevision,
+          publicRevision: state.publicRevision,
           settings: {},
           status: 'enabled',
         }] : [];
@@ -36,7 +38,7 @@ function executorFor(state: {
 
 describe('CMS publish revision fence', () => {
   it('lets only the newest lifecycle task reach the write switch', async () => {
-    const state = { themeRevision: 2, templateRefsRevision: 4 };
+    const state = { themeRevision: 2, templateRefsRevision: 4, publicRevision: 7 };
     const executor = executorFor(state);
     let deployedRevision = 0;
     const run = async (expectedThemeRevision: number) => {
@@ -45,6 +47,7 @@ describe('CMS publish revision fence', () => {
         targetType: 'theme',
         expectedThemeRevision,
         expectedTemplateRefsRevision: 4,
+        expectedPublicRevision: 7,
       });
       deployedRevision = expectedThemeRevision;
     };
@@ -54,12 +57,24 @@ describe('CMS publish revision fence', () => {
   });
 
   it('rejects changed template reference revisions', async () => {
-    const executor = executorFor({ themeRevision: 2, templateRefsRevision: 5 });
+    const executor = executorFor({ themeRevision: 2, templateRefsRevision: 5, publicRevision: 7 });
     await expect(assertCmsPublishFence(executor, {
       siteId: 1,
       targetType: 'site',
       expectedThemeRevision: 2,
       expectedTemplateRefsRevision: 4,
+      expectedPublicRevision: 7,
     })).rejects.toThrow(/templateRefsRevision/);
+  });
+
+  it('rejects a stale public-content revision before writing artifacts', async () => {
+    const executor = executorFor({ themeRevision: 2, templateRefsRevision: 4, publicRevision: 8 });
+    await expect(assertCmsPublishFence(executor, {
+      siteId: 1,
+      targetType: 'site',
+      expectedThemeRevision: 2,
+      expectedTemplateRefsRevision: 4,
+      expectedPublicRevision: 7,
+    })).rejects.toThrow(/publicRevision/);
   });
 });

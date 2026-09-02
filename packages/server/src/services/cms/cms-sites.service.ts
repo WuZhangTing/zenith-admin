@@ -27,10 +27,11 @@ import {
 } from './cms-site-settings';
 import { cmsCdnPurgeHostAllowlist, validateCdnPurgeEndpoint } from './cms-cdn-policy';
 import { isThemeRegistered } from '../../cms/themes/registry';
-import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
+import { acquireCmsSitePublishLock, lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
 import { canonicalizeCmsResourceFields, resolveCmsResourcePayload, syncCmsResourceRefs } from './cms-resource-refs.service';
 import { syncCmsSiteWebhookSubscription } from './cms-webhook.service';
+import { invalidateCmsSiteCaches } from './cms-cache.service';
 import {
   DEFAULT_CMS_SITE_INHERITANCE,
   buildCmsSiteChain,
@@ -234,6 +235,7 @@ export function mapCmsSite(row: CmsSiteRow, meta: CmsSiteMapMeta = {}) {
     effectiveTheme: meta.effectiveTheme,
     themeRevision: row.themeRevision,
     templateRefsRevision: row.templateRefsRevision,
+    publicRevision: row.publicRevision,
     staticMode: row.staticMode,
     effectiveStaticMode: meta.effectiveStaticMode,
     robots: row.robots ?? null,
@@ -436,6 +438,17 @@ function changedInheritanceFields(data: UpdateCmsSiteInput): CmsSiteInheritableF
   return [...fields];
 }
 
+/** Fields whose values are embedded in public HTML, metadata or route lookup. */
+const CMS_PUBLIC_SITE_UPDATE_FIELDS = new Set([
+  'name', 'code', 'domain', 'aliasDomains', 'isDefault',
+  'title', 'keywords', 'description', 'logo', 'favicon', 'icp', 'copyright',
+  'staticMode', 'theme', 'robots', 'modelId', 'extend', 'settings', 'status',
+]);
+
+function changesCmsPublicSiteConfiguration(data: UpdateCmsSiteInput): boolean {
+  return Object.keys(data).some((key) => CMS_PUBLIC_SITE_UPDATE_FIELDS.has(key));
+}
+
 async function insertEffectiveConfigRebuildTasks(
   tx: DbTransaction,
   sourceSiteId: number,
@@ -454,6 +467,7 @@ async function insertEffectiveConfigRebuildTasks(
     .sort((a, b) => a - b);
   const tasks: AsyncTask[] = [];
   for (const siteId of affectedIds) {
+    await acquireCmsSitePublishLock(tx, siteId);
     const [site] = await tx.update(cmsSites).set({
       templateRefsRevision: sql`${cmsSites.templateRefsRevision} + 1`,
     }).where(eq(cmsSites.id, siteId)).returning();
@@ -612,7 +626,8 @@ function pruneStaleCmsTemplateDefaults(
 
 export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
   await assertSiteAccess(id);
-  const current = await ensureCmsSiteExists(id);
+ const current = await ensureCmsSiteExists(id);
+  const previousCode = current.code;
   await ensureSiteModelValid(data.modelId);
   if (data.status === 'disabled' && current.status !== 'disabled') {
     await assertNoEnabledDistributionRules(db, id);
@@ -630,6 +645,7 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
     }
   }
   const changedFields = changedInheritanceFields(data);
+  const publicConfigChanged = changesCmsPublicSiteConfiguration(data);
   if (changedFields.length) {
     const state = await loadCmsInheritanceState();
     const affectedIds = state.sites
@@ -751,10 +767,32 @@ export async function updateCmsSite(id: number, data: UpdateCmsSiteInput) {
         changedFields,
         '站点有效配置更新',
       );
+      // Inheritance changes already create one task per affected site. For
+      // branding, host, robots, status and other site-local public fields,
+      // enqueue a full site rebuild as part of the same transaction. This is
+      // also required when the site is disabled (its old files must be
+      // removed before a later re-enable).
+      const taskSiteIds = new Set(tasks.map((task) => {
+        const value = task.payload?.siteId;
+        return typeof value === 'number' ? value : null;
+      }).filter((value): value is number => value != null));
+      if (publicConfigChanged && !taskSiteIds.has(id)) {
+        tasks.push(await insertCmsSiteRefsRebuildOutbox(
+          tx,
+          updated,
+          '站点公开配置更新',
+          `site:${id}:public-config:${updated.updatedAt.getTime()}`,
+        ));
+      }
+      if (updated.code !== previousCode) {
+        const { clearSiteStatic } = await import('./cms-static.service');
+        await clearSiteStatic(previousCode);
+      }
       return { updated, tasks };
     });
-    invalidateSiteCache();
-    if (row.tasks.length) await enqueueCmsPublishOutboxes(row.tasks, `站点 #${id} 配置更新`);
+   invalidateSiteCache();
+    await invalidateCmsSiteCaches(id);
+   if (row.tasks.length) await enqueueCmsPublishOutboxes(row.tasks, `站点 #${id} 配置更新`);
     // Webhook 配置托管为一条 internal 订阅，站点级回调因此也有重试与投递日志
     await syncCmsSiteWebhookSubscription(id).catch((error) => {
       logger.warn(`[cms-webhook] 站点 #${id} Webhook 订阅同步失败`, error);
@@ -812,6 +850,7 @@ export async function moveCmsSite(id: number, parentId: number | null) {
     }
     const tasks: AsyncTask[] = [];
     for (const siteId of plan.subtreeIds.sort((a, b) => a - b)) {
+      await acquireCmsSitePublishLock(tx, siteId);
       const [site] = await tx.update(cmsSites).set({
         themeRevision: sql`${cmsSites.themeRevision} + 1`,
         templateRefsRevision: sql`${cmsSites.templateRefsRevision} + 1`,
@@ -874,6 +913,7 @@ export async function updateCmsSiteInheritance(
     assertSiteThemeConfig(effective.theme, effective.settings);
     const tasks: AsyncTask[] = [];
     for (const affectedId of affectedSiteIds.sort((a, b) => a - b)) {
+      await acquireCmsSitePublishLock(tx, affectedId);
       const [affected] = await tx.update(cmsSites).set({
         themeRevision: sql`${cmsSites.themeRevision} + 1`,
         templateRefsRevision: sql`${cmsSites.templateRefsRevision} + 1`,
@@ -899,10 +939,11 @@ export async function updateCmsSiteInheritance(
 
 // ─── 删除 ─────────────────────────────────────────────────────────────────────
 export async function deleteCmsSite(id: number) {
-  await assertSiteAccess(id);
-  await db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('cms-site-hierarchy'))`);
-    const [site] = await tx.select().from(cmsSites).where(eq(cmsSites.id, id)).for('update').limit(1);
+ await assertSiteAccess(id);
+ await db.transaction(async (tx) => {
+   await tx.execute(sql`select pg_advisory_xact_lock(hashtext('cms-site-hierarchy'))`);
+    await acquireCmsSitePublishLock(tx, id);
+   const [site] = await tx.select().from(cmsSites).where(eq(cmsSites.id, id)).for('update').limit(1);
     if (!site) throw new HTTPException(404, { message: '站点不存在' });
     const [childCount, channelCount, distributionCount] = await Promise.all([
       tx.$count(cmsSites, eq(cmsSites.parentId, id)),
@@ -915,10 +956,13 @@ export async function deleteCmsSite(id: number) {
     if (childCount > 0) throw new HTTPException(400, { message: `该站点下存在 ${childCount} 个子站点，请先移动或删除子站点` });
     if (distributionCount > 0) throw new HTTPException(400, { message: `该站点被 ${distributionCount} 条分发规则引用，请先删除规则` });
     if (channelCount > 0) throw new HTTPException(400, { message: `该站点下存在 ${channelCount} 个栏目，请先删除栏目` });
-    const [row] = await tx.delete(cmsSites).where(eq(cmsSites.id, id)).returning();
-    if (!row) throw new HTTPException(404, { message: '站点不存在' });
-  });
-  invalidateSiteCache();
+   const [row] = await tx.delete(cmsSites).where(eq(cmsSites.id, id)).returning();
+   if (!row) throw new HTTPException(404, { message: '站点不存在' });
+    const { clearSiteStatic } = await import('./cms-static.service');
+    await clearSiteStatic(row.code);
+ });
+ invalidateSiteCache();
+  await invalidateCmsSiteCaches(id);
 }
 
 // ─── 行为统计开通（P3：关联 analytics_sites，前台注入采集 beacon）───────────────
@@ -942,12 +986,22 @@ export async function enableSiteAnalytics(siteId: number) {
     status: 'enabled',
     remark: `CMS 站点「${site.name}」自动创建`,
   });
-  await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const locked = await lockCmsSiteForMutation(tx, siteId);
-    await tx.update(cmsSites)
+    const [updated] = await tx.update(cmsSites)
       .set({ settings: { ...(locked.settings ?? {}), analyticsSiteKey: analyticsSite.siteKey } })
-      .where(eq(cmsSites.id, siteId));
+      .where(eq(cmsSites.id, siteId)).returning();
+    if (!updated) throw new HTTPException(404, { message: '站点不存在' });
+    const task = await insertCmsSiteRefsRebuildOutbox(
+      tx,
+      updated,
+      '站点统计配置更新',
+      `site:${siteId}:analytics:${analyticsSite.siteKey}`,
+    );
+    return { task };
   });
   invalidateSiteCache();
+  await invalidateCmsSiteCaches(siteId);
+  await enqueueCmsPublishOutboxes([result.task], `站点 #${siteId} 统计配置更新`);
   return { siteKey: analyticsSite.siteKey, created: true };
 }

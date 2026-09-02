@@ -9,8 +9,6 @@ import { CmsPageBlockAclDTO, CmsPageDTO } from '../../lib/openapi-dtos';
 import {
   listCmsPages, getCmsPage, createCmsPage, updateCmsPage, deleteCmsPage,
 } from '../../services/cms/cms-pages.service';
-import { triggerCustomPageStaticRefresh } from '../../services/cms/cms-static.service';
-import { customPagePath } from '../../services/cms/cms-urls';
 import { listCmsPageBlockAcls, setCmsPageBlockAcls } from '../../services/cms/cms-page-acl.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -53,11 +51,7 @@ const createRouteDef = defineOpenAPIRoute({
     request: { body: { content: jsonContent(createCmsPageSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(CmsPageDTO, '创建成功') },
   }),
-  handler: async (c) => {
-    const row = await createCmsPage(c.req.valid('json'));
-    triggerCustomPageStaticRefresh({ siteId: row.siteId, slug: row.slug, isHome: row.isHome });
-    return c.json(okBody(row, '创建成功'), 200);
-  },
+  handler: async (c) => c.json(okBody(await createCmsPage(c.req.valid('json')), '创建成功'), 200),
 });
 
 const updateRouteDef = defineOpenAPIRoute({
@@ -65,7 +59,10 @@ const updateRouteDef = defineOpenAPIRoute({
     method: 'put', path: '/{id}',
     tags: ['CMS-页面搭建'], summary: '更新页面',
     security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'cms:page:list', audit: { description: '更新 CMS 搭建页面', module: 'CMS内容管理' } })] as const,
+    // A page editor may update metadata; block ACL delegates can still reach
+    // the endpoint for block-only changes, with the service enforcing the
+    // per-block capability and immutable ordering rules.
+    middleware: [authMiddleware, guard({ permission: ['cms:page:list', 'cms:page:update'], audit: { description: '更新 CMS 搭建页面', module: 'CMS内容管理' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(updateCmsPageSchema), required: true } },
     responses: { ...commonErrorResponses, ...ok(CmsPageDTO, '更新成功') },
   }),
@@ -74,14 +71,6 @@ const updateRouteDef = defineOpenAPIRoute({
     const before = await getCmsPage(id);
     setAuditBeforeData(c, before);
     const row = await updateCmsPage(id, c.req.valid('json'));
-    // slug 或自定义路径变化时，按变更前的路径移除旧产物
-    if (before.slug !== row.slug || before.path !== row.path) {
-      triggerCustomPageStaticRefresh({
-        siteId: row.siteId, slug: before.slug, isHome: false, removed: true,
-        removePath: customPagePath(before),
-      });
-    }
-    triggerCustomPageStaticRefresh({ siteId: row.siteId, slug: row.slug, isHome: row.isHome || before.isHome });
     return c.json(okBody(row, '更新成功'), 200);
   },
 });
@@ -96,11 +85,7 @@ const deleteRouteDef = defineOpenAPIRoute({
     responses: { ...commonErrorResponses, ...okMsg('删除成功') },
   }),
   handler: async (c) => {
-    const removed = await deleteCmsPage(c.req.valid('param').id);
-    triggerCustomPageStaticRefresh({
-      siteId: removed.siteId, slug: removed.slug, isHome: removed.isHome, removed: true,
-      removePath: customPagePath(removed),
-    });
+    await deleteCmsPage(c.req.valid('param').id);
     return c.json(okBody(null, '删除成功'), 200);
   },
 });

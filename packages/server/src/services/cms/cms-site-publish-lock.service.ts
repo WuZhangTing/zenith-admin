@@ -25,6 +25,15 @@ export async function lockCmsSiteForMutation(tx: DbTransaction, siteId: number):
   return site;
 }
 
+export async function bumpCmsPublicRevision(executor: DbExecutor, siteId: number): Promise<number> {
+  const [site] = await executor.update(cmsSites).set({
+    publicRevision: sql`${cmsSites.publicRevision} + 1`,
+    updatedAt: new Date(),
+  }).where(eq(cmsSites.id, siteId)).returning({ revision: cmsSites.publicRevision });
+  if (!site) throw new Error(`站点 #${siteId} 不存在`);
+  return site.revision;
+}
+
 export async function bumpCmsTemplateRefsRevision(tx: DbTransaction, siteId: number): Promise<number> {
   const [site] = await tx.update(cmsSites)
     .set({ templateRefsRevision: sql`${cmsSites.templateRefsRevision} + 1` })
@@ -38,6 +47,7 @@ export async function cmsSiteFencePayload(_executor: DbExecutor, site: CmsSiteRo
   return {
     expectedThemeRevision: site.themeRevision,
     expectedTemplateRefsRevision: site.templateRefsRevision,
+    expectedPublicRevision: site.publicRevision,
   };
 }
 
@@ -48,6 +58,7 @@ export async function assertCmsPublishFence(
   const [site] = await executor.select({
     themeRevision: cmsSites.themeRevision,
     templateRefsRevision: cmsSites.templateRefsRevision,
+    publicRevision: cmsSites.publicRevision,
   }).from(cmsSites).where(eq(cmsSites.id, input.siteId)).limit(1);
   const stale = (reason: string): never => {
     throw new TaskCancelledError(`发布修订已过期：${reason}`, {
@@ -55,6 +66,7 @@ export async function assertCmsPublishFence(
       siteId: input.siteId,
       expectedThemeRevision: input.expectedThemeRevision ?? null,
       expectedTemplateRefsRevision: input.expectedTemplateRefsRevision ?? null,
+      expectedPublicRevision: input.expectedPublicRevision ?? null,
     });
   };
   if (!site) stale('站点已删除');
@@ -63,6 +75,9 @@ export async function assertCmsPublishFence(
   }
   if (input.expectedTemplateRefsRevision != null && site.templateRefsRevision !== input.expectedTemplateRefsRevision) {
     stale(`templateRefsRevision 期望 ${input.expectedTemplateRefsRevision}，当前 ${site.templateRefsRevision}`);
+  }
+  if (input.expectedPublicRevision != null && site.publicRevision !== input.expectedPublicRevision) {
+    stale(`publicRevision 期望 ${input.expectedPublicRevision}，当前 ${site.publicRevision}`);
   }
 }
 

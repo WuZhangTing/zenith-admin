@@ -8,6 +8,7 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsTagInput, UpdateCmsTagInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsTag(row: CmsTagRow) {
@@ -83,6 +84,7 @@ export async function createCmsTag(data: CreateCmsTagInput) {
   await assertSiteAccess(data.siteId);
   try {
     const [row] = await db.insert(cmsTags).values(data).returning();
+    await refreshCmsPublicConfiguration(row.siteId, '标签创建', `tag:${row.id}:${row.updatedAt.getTime()}`);
     return mapCmsTag(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下标签名称或标识已存在');
@@ -97,6 +99,7 @@ export async function updateCmsTag(id: number, data: UpdateCmsTagInput) {
       eq(cmsTags.id, id),
     )).returning();
     if (!row) throw new HTTPException(404, { message: '标签不存在' });
+    await refreshCmsPublicConfiguration(row.siteId, '标签更新', `tag:${row.id}:${row.updatedAt.getTime()}`);
     return mapCmsTag(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下标签名称或标识已存在');
@@ -110,4 +113,5 @@ export async function deleteCmsTag(id: number) {
     eq(cmsTags.id, id),
   )).returning();
   if (!row) throw new HTTPException(404, { message: '标签不存在' });
+  await refreshCmsPublicConfiguration(current.siteId, '标签删除', `tag:${current.id}:deleted:${Date.now()}`);
 }

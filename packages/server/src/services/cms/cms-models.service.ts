@@ -1,4 +1,5 @@
 import { eq, asc, and, or, like, inArray, isNull, type SQL } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsModels, cmsModelFields, cmsChannels, cmsContents, cmsSites, dicts, dictItems } from '../../db/schema';
@@ -9,6 +10,8 @@ import { buildWhere, mergeWhere, escapeLike, withPagination } from '../../lib/wh
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsModelInput, UpdateCmsModelInput, CmsModelFieldInput } from '@zenith/shared/cms';
 import { assertSiteAccess } from './cms-sites.service';
+import { acquireCmsGlobalThemeLifecycleLock, lockCmsSiteForMutation } from './cms-site-publish-lock.service';
+import { enqueueCmsPublishOutboxes, insertCmsSiteRefsRebuildOutbox } from './cms-publish-outbox.service';
 import { isCmsPlatformAdmin } from './cms-access';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
@@ -345,6 +348,14 @@ async function replaceModelFields(executor: DbExecutor, modelId: number, fields:
   }
 }
 
+async function listCmsModelReferenceSiteIds(executor: DbExecutor, _modelId: number, ownerSiteId: number | null): Promise<number[]> {
+  // Shared model definitions can be referenced by any site, including through
+  // inherited template settings. Site-owned models are confined to their owner.
+  if (ownerSiteId != null) return [ownerSiteId];
+  const allSites = await executor.select({ siteId: cmsSites.id }).from(cmsSites);
+  return allSites.map((row) => row.siteId).sort((a, b) => a - b);
+}
+
 // ─── 创建 ─────────────────────────────────────────────────────────────────────
 export async function createCmsModel(data: CreateCmsModelInput) {
   const { fields = [], ...model } = data;
@@ -379,7 +390,14 @@ export async function updateCmsModel(id: number, data: UpdateCmsModelInput, site
   }
   const { fields, ...model } = data;
   try {
-    await db.transaction(async (tx) => {
+    const tasks = await db.transaction(async (tx) => {
+      await acquireCmsGlobalThemeLifecycleLock(tx);
+      const referenceSiteIds = await listCmsModelReferenceSiteIds(tx, id, current.ownerSiteId);
+      // Site locks precede the model row lock. Channel/content writes use the
+      // same order, preventing a model update from deadlocking with a publish.
+      for (const referencedSiteId of referenceSiteIds) {
+        await lockCmsSiteForMutation(tx, referencedSiteId);
+      }
       const [locked] = await tx.select().from(cmsModels)
         .where(eq(cmsModels.id, id)).for('update').limit(1);
       if (!locked) throw new HTTPException(404, { message: '内容模型不存在' });
@@ -393,7 +411,21 @@ export async function updateCmsModel(id: number, data: UpdateCmsModelInput, site
       if (fields) {
         await replaceModelFields(tx, id, fields);
       }
+      const rebuilds = [];
+      for (const referencedSiteId of referenceSiteIds) {
+        const [site] = await tx.select().from(cmsSites)
+          .where(eq(cmsSites.id, referencedSiteId)).limit(1);
+        if (!site) continue;
+        rebuilds.push(await insertCmsSiteRefsRebuildOutbox(
+          tx,
+          site,
+          '内容模型字段更新',
+          'site:' + referencedSiteId + ':model:' + id + ':' + randomUUID(),
+        ));
+      }
+      return rebuilds;
     });
+    await enqueueCmsPublishOutboxes(tasks, '内容模型 #' + id + ' 更新');
     return getCmsModel(id, siteId);
   } catch (err) {
     rethrowPgUniqueViolation(err, '模型标识已存在');
@@ -404,8 +436,15 @@ export async function updateCmsModel(id: number, data: UpdateCmsModelInput, site
 export async function deleteCmsModel(id: number, siteId?: number) {
   const row = await ensureCmsModelMutable(id, siteId);
   if (row.isSystem) throw new HTTPException(400, { message: '系统内置模型不可删除' });
-  const scope = siteId == null ? null : siteId;
+  // Shared models are global resources even when the UI opened them from a
+  // site-scoped view; deletion must account for references on every site.
+  const scope = row.ownerSiteId == null ? null : siteId;
   await db.transaction(async (tx) => {
+    await acquireCmsGlobalThemeLifecycleLock(tx);
+    const referenceSiteIds = await listCmsModelReferenceSiteIds(tx, id, row.ownerSiteId);
+    for (const referencedSiteId of referenceSiteIds) {
+      await lockCmsSiteForMutation(tx, referencedSiteId);
+    }
     const [locked] = await tx.select().from(cmsModels)
       .where(eq(cmsModels.id, id)).for('update').limit(1);
     if (!locked) throw new HTTPException(404, { message: '内容模型不存在' });

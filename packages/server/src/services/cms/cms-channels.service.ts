@@ -23,6 +23,7 @@ import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsRe
 import { assertCmsWidgetChannelVisibilityMutable, assertCmsWidgetSourcesMutable } from './cms-widgets.service';
 import { submitCmsWidgetChannelRefreshSideEffect, submitCmsWidgetSourceRefreshSideEffect } from './cms-widget-tasks';
 import { sanitizeCmsHtml } from './cms-html-sanitizer';
+import { resolveEffectivelyEnabledChannelIds } from './cms-channel-visibility.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsChannel(row: CmsChannelRow, modelName?: string | null): CmsChannel {
@@ -131,13 +132,21 @@ export async function listCmsChannelTree(
   }
   const conditions: SQL[] = [eq(cmsChannels.siteId, q.siteId)];
   if (accessible !== null) conditions.push(inArray(cmsChannels.id, accessible));
-  if (q.status) conditions.push(eq(cmsChannels.status, q.status));
+  // When callers ask for enabled channels, load the parent rows as well so a
+  // child under a disabled ancestor cannot be promoted to a new tree root.
+  if (q.status && q.status !== 'enabled') conditions.push(eq(cmsChannels.status, q.status));
   const rows = await db.query.cmsChannels.findMany({
     where: mergeWhere(and(...conditions)),
     with: { model: { columns: { name: true } } },
     orderBy: [asc(cmsChannels.sort), asc(cmsChannels.id)],
   });
-  return resolveCmsResourcePayload(buildChannelTree(rows.map((r) => mapCmsChannel(r, r.model?.name))), q.siteId);
+  const channelStates = q.status === 'enabled'
+    ? await db.select({ id: cmsChannels.id, parentId: cmsChannels.parentId, status: cmsChannels.status })
+      .from(cmsChannels).where(eq(cmsChannels.siteId, q.siteId))
+    : [];
+  const enabledIds = q.status === 'enabled' ? resolveEffectivelyEnabledChannelIds(channelStates) : null;
+  const visibleRows = enabledIds ? rows.filter((row) => enabledIds.has(row.id)) : rows;
+  return resolveCmsResourcePayload(buildChannelTree(visibleRows.map((r) => mapCmsChannel(r, r.model?.name))), q.siteId);
 }
 
 /** 校验 modelId 有效性（含站群可见性：专属模型仅归属站点可绑定） */
@@ -191,6 +200,19 @@ async function recomputeChildPaths(executor: DbExecutor, channelId: number, newP
     ));
     await recomputeChildPaths(executor, child.id, childPath);
   }
+}
+
+async function listChannelSubtreeIds(executor: DbExecutor, rootId: number): Promise<number[]> {
+  const result: number[] = [];
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    result.push(current);
+    const children = await executor.select({ id: cmsChannels.id }).from(cmsChannels)
+      .where(eq(cmsChannels.parentId, current));
+    queue.push(...children.map((child) => child.id));
+  }
+  return result;
 }
 
 /**
@@ -302,6 +324,12 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
   try {
     const mutation = await db.transaction(async (tx) => {
       const site = await lockCmsSiteForMutation(tx, current.siteId);
+      if (data.type !== undefined && data.type !== current.type) {
+        const contentCount = await tx.$count(cmsContents, eq(cmsContents.channelId, id));
+        if (contentCount > 0) {
+          throw new HTTPException(409, { message: '已有内容的栏目不能切换类型，请先迁移内容' });
+        }
+      }
       if (data.status === 'disabled' && current.status !== 'disabled') {
         await assertCmsWidgetChannelVisibilityMutable([id], tx);
       }
@@ -332,11 +360,13 @@ export async function updateCmsChannel(id: number, data: UpdateCmsChannelInput) 
           eq(cmsChannels.id, id),
         )).returning();
       if (!updated) throw new HTTPException(404, { message: '栏目不存在' });
-      if (data.status !== undefined && data.status !== current.status) {
+      if (updated.status !== current.status || updated.path !== current.path
+        || updated.code !== current.code || updated.detailPathRule !== current.detailPathRule) {
         // 栏目启停等同其下内容的整体上下线（publicWhere / 增量同步都按栏目状态判定可见性）。
         // 内容行本身没被改动，不 bump updated_at 的话 Headless 增量同步永远推不出这批变更，
         // 集成方本地会残留一批前台已经看不到的内容。
-        await tx.update(cmsContents).set({ updatedAt: new Date() }).where(eq(cmsContents.channelId, id));
+        const affectedChannelIds = await listChannelSubtreeIds(tx, id);
+        await tx.update(cmsContents).set({ updatedAt: new Date() }).where(inArray(cmsContents.channelId, affectedChannelIds));
       }
       await syncCmsResourceRefs(tx, 'channel', updated.id, updated.siteId, updated);
       if (path !== current.path) {

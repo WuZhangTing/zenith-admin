@@ -9,6 +9,8 @@ import type { CreateCmsFriendLinkInput, UpdateCmsFriendLinkInput } from '@zenith
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { canonicalizeCmsResourceFields, deleteCmsResourceRefsForOwner, syncCmsResourceRefs, resolveCmsResourcePayload } from './cms-resource-refs.service';
 import { ensureFriendLinkGroupInSite } from './cms-friend-link-groups.service';
+import { buildCmsLinkResolver } from './cms-link.service';
+import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsFriendLink(row: CmsFriendLinkRow, groupName?: string | null) {
@@ -80,7 +82,7 @@ export async function listCmsFriendLinks(q: ListCmsFriendLinksQuery) {
  * 前台渲染上下文用：站点全部启用友链，按分组聚合。
  * 未分组的友链归入 `code: ''` 的兜底组，主题可据此决定是否展示组标题。
  */
-export async function listEnabledFriendLinkGroups(siteId: number) {
+export async function listEnabledFriendLinkGroups(siteId: number, baseUrl = '') {
   const [links, groups] = await Promise.all([
     db.select().from(cmsFriendLinks)
       .where(and(eq(cmsFriendLinks.siteId, siteId), eq(cmsFriendLinks.status, 'enabled')))
@@ -89,11 +91,14 @@ export async function listEnabledFriendLinkGroups(siteId: number) {
       .where(and(eq(cmsFriendLinkGroups.siteId, siteId), eq(cmsFriendLinkGroups.status, 'enabled')))
       .orderBy(asc(cmsFriendLinkGroups.sort), asc(cmsFriendLinkGroups.id)),
   ]);
-  const byGroup = new Map<number | null, typeof links>();
+  const resolver = await buildCmsLinkResolver(siteId, baseUrl, links.map((link) => link.url));
+  const byGroup = new Map<number | null, (typeof links[number])[]>();
   for (const link of links) {
+    const resolvedUrl = resolver(link.url)?.url;
+    if (!resolvedUrl) continue;
     // 引用了已停用/已删分组的友链降级为未分组，避免整条消失
     const key = link.groupId != null && groups.some((g) => g.id === link.groupId) ? link.groupId : null;
-    byGroup.set(key, [...(byGroup.get(key) ?? []), link]);
+    byGroup.set(key, [...(byGroup.get(key) ?? []), { ...link, url: resolvedUrl }]);
   }
   const result = groups
     .map((group) => ({
@@ -110,11 +115,15 @@ export async function listEnabledFriendLinkGroups(siteId: number) {
 }
 
 /** 前台渲染上下文用：站点全部启用友链（平铺，兼容不分组的主题） */
-export async function listEnabledFriendLinks(siteId: number) {
+export async function listEnabledFriendLinks(siteId: number, baseUrl = '') {
   const rows = await db.select().from(cmsFriendLinks)
     .where(and(eq(cmsFriendLinks.siteId, siteId), eq(cmsFriendLinks.status, 'enabled')))
     .orderBy(asc(cmsFriendLinks.sort), asc(cmsFriendLinks.id));
-  return rows.map((row) => mapCmsFriendLink(row));
+  const resolver = await buildCmsLinkResolver(siteId, baseUrl, rows.map((row) => row.url));
+  return rows.flatMap((row) => {
+    const url = resolver(row.url)?.url;
+    return url ? [mapCmsFriendLink({ ...row, url })] : [];
+  });
 }
 
 // ─── 创建 / 更新 / 删除 ────────────────────────────────────────────────────────
@@ -137,6 +146,7 @@ export async function createCmsFriendLink(data: CreateCmsFriendLinkInput) {
     await syncCmsResourceRefs(tx, 'friendLink', created.id, created.siteId, created);
     return created;
   });
+  await refreshCmsPublicConfiguration(row.siteId, '友情链接创建', `friend-link:${row.id}:${row.updatedAt.getTime()}`);
   return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)), row.siteId);
 }
 
@@ -154,6 +164,7 @@ export async function updateCmsFriendLink(id: number, data: UpdateCmsFriendLinkI
     await syncCmsResourceRefs(tx, 'friendLink', updated.id, updated.siteId, updated);
     return updated;
   });
+  await refreshCmsPublicConfiguration(row.siteId, '友情链接更新', `friend-link:${row.id}:${row.updatedAt.getTime()}`);
   return resolveCmsResourcePayload(mapCmsFriendLink(row, await resolveGroupName(row.groupId)), row.siteId);
 }
 
@@ -167,4 +178,5 @@ export async function deleteCmsFriendLink(id: number) {
     if (!row) throw new HTTPException(404, { message: '友情链接不存在' });
     await deleteCmsResourceRefsForOwner(tx, 'friendLink', [row.id], current.siteId);
   });
+  await refreshCmsPublicConfiguration(current.siteId, '友情链接删除', `friend-link:${current.id}:deleted:${Date.now()}`);
 }

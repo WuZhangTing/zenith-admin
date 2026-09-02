@@ -1,7 +1,7 @@
 import { eq, and, inArray, isNull, isNotNull, lte, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsContents, cmsContentTags, cmsTags, cmsChannels, cmsContentChannels, cmsContentRelations, users } from '../../db/schema';
+import { cmsContents, cmsContentTags, cmsTags, cmsChannels, cmsContentChannels, cmsContentRelations, cmsPages, users } from '../../db/schema';
 import type { CmsContentRow, CmsSiteRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { parseDateTimeInput } from '../../lib/datetime';
@@ -142,6 +142,17 @@ async function setContentRelations(executor: DbExecutor, contentId: number, site
   })));
 }
 
+async function assertContentStaticPathFree(
+  executor: DbExecutor,
+  siteId: number,
+  staticPath: string | null | undefined,
+): Promise<void> {
+  if (!staticPath) return;
+  const [page] = await executor.select({ id: cmsPages.id, name: cmsPages.name }).from(cmsPages)
+    .where(and(eq(cmsPages.siteId, siteId), eq(cmsPages.path, staticPath))).limit(1);
+  if (page) throw new HTTPException(400, { message: `静态路径已被页面「${page.name}」（#${page.id}）占用` });
+}
+
 async function assertRelatedContentAccess(siteId: number, relatedIds: number[]): Promise<void> {
   const targets = [...new Set(relatedIds)];
   if (targets.length === 0) return;
@@ -215,7 +226,7 @@ interface CmsContentPolicyInput {
  * 3. 未填封面且开启自动封面时，提取正文首图回填。
  * 仅处理本次提交中出现的字段，未提交字段保持 undefined 以免误覆盖。
  */
-async function applyCmsContentPolicies<T extends CmsContentPolicyInput>(
+export async function applyCmsContentPolicies<T extends CmsContentPolicyInput>(
   input: T,
   site: Pick<CmsSiteRow, 'settings'>,
   fallback: { body?: string | null; coverImage?: string | null } = {},
@@ -289,6 +300,7 @@ export async function createCmsContent(data: CreateCmsContentInput) {
   try {
     const mutation = await db.transaction(async (tx) => {
       let site = await lockCmsSiteForMutation(tx, data.siteId);
+      await assertContentStaticPathFree(tx, data.siteId, policied.staticPath);
       await assertContentTemplateBySite(data.siteId, data.detailTemplate);
       // 素材句柄归一化必须在事务内：会为文件中心引用补登记素材行，回滚时要一并撤销
       const rest = await canonicalizeCmsResourceFields(tx, data.siteId, policied, 'content');
@@ -390,6 +402,7 @@ export async function updateCmsContent(
       let site = await lockCmsSiteForMutation(tx, current.siteId);
       const [locked] = await tx.select().from(cmsContents).where(eq(cmsContents.id, id)).for('update').limit(1);
       if (!locked) throw new HTTPException(404, { message: '内容不存在' });
+      if (rest.staticPath !== undefined) await assertContentStaticPathFree(tx, current.siteId, rest.staticPath);
       await assertContentTemplateBySite(current.siteId, data.detailTemplate);
       const oldPublish = locked.status === 'published'
         ? await captureCmsContentPublishSnapshot(tx, locked, { includeExistingArtifacts: true })
@@ -500,7 +513,12 @@ async function transitionStatus(
   if (!canTransitionCmsContentStatus(current.status, action)) {
     throw new HTTPException(400, { message: `当前状态（${current.status}）不允许此操作` });
   }
-  const [updated] = await db.update(cmsContents).set(patch).where(and(
+  const [updated] = await db.update(cmsContents).set({
+    ...patch,
+    // Status transitions are content revisions too; otherwise an editor holding
+    // an old optimistic-lock token can overwrite a newly submitted/rejected row.
+    version: sql`${cmsContents.version} + 1`,
+  }).where(and(
     eq(cmsContents.id, id),
     eq(cmsContents.status, current.status),
     isNull(cmsContents.lockedAt),

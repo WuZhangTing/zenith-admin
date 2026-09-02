@@ -21,6 +21,7 @@ import { canonicalizeCmsResourceContent, deleteCmsResourceRefsForOwner, syncCmsR
 import { validateCmsFormFields } from './cms-form-validation';
 import { verifyCmsFormCaptcha } from './cms-form-captcha.service';
 import { compileCmsFormPattern } from './cms-form-pattern';
+import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsForm(row: CmsFormRow, submissionCount?: number) {
@@ -230,6 +231,7 @@ export async function createCmsForm(data: CreateCmsFormInput) {
       await syncCmsResourceRefs(tx, 'form', created.id, created.siteId, created);
       return created;
     });
+    await refreshCmsPublicConfiguration(row.siteId, '表单创建', `form:${row.id}:${row.updatedAt.getTime()}`);
     return resolveCmsResourcePayload(mapCmsForm(row), row.siteId);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下表单标识已存在');
@@ -258,6 +260,7 @@ export async function updateCmsForm(id: number, data: UpdateCmsFormInput) {
       await syncCmsResourceRefs(tx, 'form', updated.id, updated.siteId, updated);
       return updated;
     });
+    await refreshCmsPublicConfiguration(row.siteId, '表单更新', `form:${row.id}:${row.updatedAt.getTime()}`);
     return resolveCmsResourcePayload(mapCmsForm(row), row.siteId);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下表单标识已存在');
@@ -271,6 +274,7 @@ export async function deleteCmsForm(id: number) {
     await tx.delete(cmsForms).where(eq(cmsForms.id, id));
     await deleteCmsResourceRefsForOwner(tx, 'form', [id], current.siteId);
   });
+  await refreshCmsPublicConfiguration(current.siteId, '表单删除', `form:${current.id}:deleted:${Date.now()}`);
 }
 
 // ─── 提交数据管理 ─────────────────────────────────────────────────────────────

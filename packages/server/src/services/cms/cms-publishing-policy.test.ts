@@ -44,14 +44,14 @@ describe('CMS publishing access and idempotency policy', () => {
     expect(remainingCmsContentTargets([9, 5, 1], 2)).toEqual([5, 9]);
   });
 
-  it('projects every legacy theme rebuild site for list, detail and export ACL checks', () => {
-    expect(cmsPublishingTaskSiteIds({
-      taskType: 'cms-theme-rebuild',
-      payload: { siteIds: [9, 2, 9, '5', 0, 'bad'] },
-    })).toEqual([2, 5, 9]);
+  it('projects the single site scope used by every unified publish task', () => {
     expect(cmsPublishingTaskSiteIds({
       taskType: 'cms-publish-build',
-      payload: { siteId: 3 },
+      payload: { siteId: '3' },
     })).toEqual([3]);
+    expect(cmsPublishingTaskSiteIds({
+      taskType: 'cms-publish-build',
+      payload: { siteId: 0 },
+    })).toEqual([]);
   });
 });

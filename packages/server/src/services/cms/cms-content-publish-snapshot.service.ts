@@ -1,10 +1,9 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { CmsContentPublishSnapshot } from '@zenith/shared/cms';
 import type { DbExecutor } from '../../db/types';
 import {
   asyncTasks,
   cmsChannels,
-  cmsContents,
   cmsPublishArtifacts,
   type CmsContentRow,
 } from '../../db/schema';
@@ -20,11 +19,8 @@ export function buildCmsContentSnapshotPaths(
     contentUrl('', channel, content, index + 1).replace(/^\/+/, ''));
 }
 
-async function bodyPageCount(executor: DbExecutor, row: CmsContentRow): Promise<number> {
-  if (!row.mappingSourceId) return splitBodyPages(row.body).length;
-  const [source] = await executor.select({ body: cmsContents.body }).from(cmsContents)
-    .where(and(eq(cmsContents.id, row.mappingSourceId), isNull(cmsContents.deletedAt))).limit(1);
-  return splitBodyPages(source?.body).length;
+async function bodyPageCount(_executor: DbExecutor, row: CmsContentRow): Promise<number> {
+  return splitBodyPages(row.body).length;
 }
 
 export async function captureCmsContentPublishSnapshot(

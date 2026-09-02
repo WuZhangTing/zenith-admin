@@ -5,9 +5,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { CmsWidgetSourceType } from '@zenith/shared/cms';
 import type { AsyncTask } from '@zenith/shared/tasks';
 import { db } from '../../db';
-import { cmsChannels, cmsWidgetRefs, cmsWidgets } from '../../db/schema';
-import { config } from '../../config';
-import redis from '../../lib/redis';
+import { cmsWidgetRefs, cmsWidgets } from '../../db/schema';
 import logger from '../../lib/logger';
 import { currentUserOrNull, runWithCurrentUser } from '../../lib/context';
 import { hasPermission } from '../../lib/context';
@@ -23,24 +21,16 @@ import {
 } from './cms-static.service';
 import { triggerCdnPurge } from './cms-cdn.service';
 import {
-  deleteCmsWidget,
+ deleteCmsWidget,
   findPublishedWidgetIdsBySource,
-  listCmsWidgetUsageTargets,
+ listCmsWidgetUsageTargets,
   offlineCmsWidget,
   publishCmsWidget,
 } from './cms-widgets.service';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
+import { invalidateCmsSiteCaches } from './cms-cache.service';
 
 const SYSTEM_USER = { userId: 1, username: 'admin', roles: ['super_admin'], tenantId: null };
-const PAGE_CACHE_PREFIX = `${config.redis.keyPrefix}cms:page:`;
-
-async function clearCmsPageCache(siteId: number, paths: readonly string[]): Promise<void> {
-  const keys = [...new Set(paths)].map((path) => `${PAGE_CACHE_PREFIX}${siteId}:${path}`);
-  if (keys.length > 0) await redis.del(...keys).catch((error) => {
-    logger.warn(`[CMS] 页面部件 Redis 页面缓存清理失败: ${error instanceof Error ? error.message : error}`);
-  });
-}
-
 export async function refreshCmsWidgetTargets(
   widgetIds: number[],
   homeSiteIds: number[] = [],
@@ -75,7 +65,7 @@ export async function refreshCmsWidgetTargets(
       isHome: page.isHome,
     });
     const paths = [customPagePath(page), ...(page.isHome ? ['', 'index.html'] : [])];
-    await clearCmsPageCache(page.siteId, paths);
+    await invalidateCmsSiteCaches(page.siteId, paths);
     if (site.staticMode === 'dynamic') triggerCdnPurge(site, paths);
     refreshedPages += 1;
     processed += 1;
@@ -88,7 +78,7 @@ export async function refreshCmsWidgetTargets(
     const site = siteById.get(siteId) ?? await resolveEffectiveCmsSiteRow(siteId).catch(() => null);
     if (!site) continue;
     if (site.staticMode !== 'dynamic') await refreshHomeStatic(site);
-    await clearCmsPageCache(siteId, ['', 'index.html']);
+    await invalidateCmsSiteCaches(siteId, ['', 'index.html']);
     triggerCdnPurge(site, ['']);
     refreshedHomes += 1;
     processed += 1;
@@ -158,6 +148,7 @@ export function submitCmsWidgetSourceRefreshSideEffect(
 ): void {
   const actor = currentUserOrNull() ?? SYSTEM_USER;
   void runWithCurrentUser(actor, async () => {
+    if (sourceIds.length === 0) return;
     const widgetIds = await findPublishedWidgetIdsBySource(sourceType, sourceIds);
     await submitRefreshTask({ widgetIds }, { debounceBySite: true });
   }).catch((error) => logger.error('[CMS] 页面部件实时来源刷新任务提交失败', error));
@@ -166,15 +157,9 @@ export function submitCmsWidgetSourceRefreshSideEffect(
 export function submitCmsWidgetChannelRefreshSideEffect(channelIds: number[]): void {
   const actor = currentUserOrNull() ?? SYSTEM_USER;
   void runWithCurrentUser(actor, async () => {
-    if (channelIds.length === 0) return;
-    const rows = await db.select({ siteId: cmsChannels.siteId }).from(cmsChannels)
-      .innerJoin(cmsWidgets, eq(cmsChannels.siteId, cmsWidgets.siteId))
-      .where(and(
-        inArray(cmsChannels.id, [...new Set(channelIds)]),
-        eq(cmsWidgets.status, 'published'),
-      ));
-    const siteIds = [...new Set(rows.map((row) => row.siteId))];
-    await submitRefreshTask({ homeSiteIds: siteIds }, { debounceBySite: true });
+   if (channelIds.length === 0) return;
+    const widgetIds = await findPublishedWidgetIdsBySource('channel', channelIds);
+    await submitRefreshTask({ widgetIds }, { debounceBySite: true });
   }).catch((error) => logger.error('[CMS] 页面部件栏目来源刷新任务提交失败', error));
 }
 
@@ -259,7 +244,7 @@ export function registerCmsWidgetTaskHandlers(): void {
       if (!action || ids.length === 0) throw new Error('缺少页面部件批量操作参数');
       const permission = `cms:widget:${action}`;
       if (!(await hasPermission(permission))) throw new Error(`任务创建者缺少 ${permission} 权限`);
-      let processed = Number(ctx.checkpoint?.processed ?? 0);
+     let processed = Number(ctx.checkpoint?.processed ?? 0);
       let succeeded = Number(ctx.checkpoint?.succeeded ?? 0);
       let failed = Number(ctx.checkpoint?.failed ?? 0);
       let skipped = Number(ctx.checkpoint?.skipped ?? 0);

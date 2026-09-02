@@ -15,6 +15,10 @@ vi.mock('../../lib/context', () => ({
   currentUserOrNull: () => ({ userId: 7, username: 'editor', roles: ['cms_editor'], tenantId: null }),
   runWithCurrentUser: (_user: unknown, fn: () => unknown) => Promise.resolve(fn()),
 }));
+vi.mock('./cms-site-publish-lock.service', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./cms-site-publish-lock.service')>(),
+  bumpCmsPublicRevision: vi.fn(async () => 4),
+}));
 
 import { insertCmsPublishOutbox } from './cms-publish-outbox.service';
 import { assertLockedCmsPublishPreconditions, canAutoOfflineCmsContent } from './cms-contents.service';
@@ -50,10 +54,14 @@ describe('CMS standard publish pipeline behavior', () => {
     expect(mocks.submitAsyncTask).toHaveBeenCalledWith(
       expect.objectContaining({
         taskType: 'cms-publish-build',
-        idempotencyKey: 'cms-publish-event:content:9:version:4:update',
+        idempotencyKey: expect.stringMatching(/^cms-publish-event:[0-9a-f]{48}$/),
         payload: expect.objectContaining({
           contentSnapshots: expect.any(Array),
           deletePaths: ['news/old.html'],
+          // Content-scoped tasks use the current site revision and an
+          // immutable content snapshot; only full-site/theme tasks advance
+          // publicRevision.
+          expectedPublicRevision: 0,
           systemTriggered: true,
         }),
       }),

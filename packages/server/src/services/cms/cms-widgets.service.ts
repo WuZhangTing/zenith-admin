@@ -1,5 +1,5 @@
 import {
-  and, desc, eq, inArray, isNull, sql,
+  and, desc, eq, gt, inArray, isNull, or, sql,
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { CMS_WIDGET_HIGH_FANOUT_THRESHOLD, CMS_WIDGET_RENDERER_KEYS, cmsWidgetDataSchema } from '@zenith/shared/cms';
@@ -20,7 +20,6 @@ import {
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import logger from '../../lib/logger';
 import { escapeLike, withPagination } from '../../lib/where-helpers';
 import { getThemeWidgetSlots, listThemeWidgetRenderers, resolveThemeWidgetRenderer } from '../../cms/themes/registry';
 import { renderCmsWidgetHtml } from '../../cms/themes/widgets';
@@ -30,26 +29,18 @@ import { lockCmsSiteForMutation } from './cms-site-publish-lock.service';
 import {
   canonicalizeCmsResourceContent,
   deleteCmsResourceRefsForOwner,
+  isSafeCmsResourceUrl,
   resolveCmsContentRows,
   resolveCmsResourcePayload,
   syncCmsResourceRefs,
 } from './cms-resource-refs.service';
 import { buildCmsLinkResolver } from './cms-link.service';
 import { channelUrl, contentUrl } from './cms-urls';
+import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
+import { getEffectivelyEnabledCmsChannelIds, resolveEffectivelyEnabledChannelIds } from './cms-channel-visibility.service';
 
 const WIDGET_SCHEMA_VERSION = 1;
 const rendererKeys = new Set<string>(CMS_WIDGET_RENDERER_KEYS);
-
-function triggerWidgetRefresh(input: {
-  widgetIds?: number[];
-  homeSiteIds?: number[];
-  eventKey?: string;
-  debounceBySite?: boolean;
-}): void {
-  void import('./cms-widget-tasks').then(({ submitCmsWidgetRefreshSideEffect }) => {
-    submitCmsWidgetRefreshSideEffect(input);
-  }).catch((error) => logger.error('[CMS] 页面部件刷新任务提交失败', error));
-}
 
 function normalizeWidgetData(value: unknown): CmsWidgetData {
   const data = cmsWidgetDataSchema.parse(value) as CmsWidgetData;
@@ -199,6 +190,8 @@ async function assertWidgetSources(
           siteId: cmsContents.siteId,
           status: cmsContents.status,
           deletedAt: cmsContents.deletedAt,
+          archivedAt: cmsContents.archivedAt,
+          expireAt: cmsContents.expireAt,
         }).from(cmsContents).where(inArray(cmsContents.id, contentIds))
       : [],
     channelIds.length
@@ -206,16 +199,23 @@ async function assertWidgetSources(
           id: cmsChannels.id,
           siteId: cmsChannels.siteId,
           status: cmsChannels.status,
+          parentId: cmsChannels.parentId,
+          type: cmsChannels.type,
         }).from(cmsChannels).where(inArray(cmsChannels.id, channelIds))
       : [],
   ]);
   const contentById = new Map(contents.map((row) => [row.id, row]));
   const channelById = new Map(channels.map((row) => [row.id, row]));
+  const effectiveChannelIds = resolveEffectivelyEnabledChannelIds(await executor.select({
+    id: cmsChannels.id,
+    parentId: cmsChannels.parentId,
+    status: cmsChannels.status,
+  }).from(cmsChannels).where(eq(cmsChannels.siteId, siteId)));
   for (const contentId of contentIds) {
     const content = contentById.get(contentId);
     if (!content) throw new HTTPException(400, { message: `引用内容 #${contentId} 不存在` });
     if (content.siteId !== siteId) throw new HTTPException(400, { message: `引用内容 #${contentId} 不属于当前站点` });
-    if (requirePublished && (content.status !== 'published' || content.deletedAt)) {
+    if (requirePublished && (content.status !== 'published' || content.deletedAt || content.archivedAt || (content.expireAt && content.expireAt <= new Date()))) {
       throw new HTTPException(400, { message: `引用内容 #${contentId} 必须处于已发布状态` });
     }
   }
@@ -223,6 +223,9 @@ async function assertWidgetSources(
     const channel = channelById.get(channelId);
     if (!channel) throw new HTTPException(400, { message: `引用栏目 #${channelId} 不存在` });
     if (channel.siteId !== siteId) throw new HTTPException(400, { message: `引用栏目 #${channelId} 不属于当前站点` });
+    if (channel.type !== 'list' || !effectiveChannelIds.has(channel.id)) {
+      throw new HTTPException(400, { message: `引用栏目 #${channelId} 必须是有效的列表栏目` });
+    }
     if (requirePublished && channel.status !== 'enabled') {
       throw new HTTPException(400, { message: `引用栏目 #${channelId} 必须处于启用状态` });
     }
@@ -335,10 +338,9 @@ export async function publishCmsWidget(
     await syncCmsResourceRefs(tx, 'widget', updated.id, updated.siteId, updated);
     return { updated, eventToken: locked.updatedAt.getTime() };
   });
-  if (!options?.suppressRefresh) triggerWidgetRefresh({
-    widgetIds: [id],
-    eventKey: `publish:${id}:${updated.draftRevision}:${eventToken}`,
-  });
+  if (!options?.suppressRefresh) {
+    await refreshCmsPublicConfiguration(updated.siteId, '页面部件发布', `widget:${id}:publish:${updated.draftRevision}:${eventToken}`);
+  }
   return options?.skipAccessCheck ? mapCmsWidget(await ensureCmsWidgetExists(id)) : getCmsWidget(id);
 }
 
@@ -367,10 +369,9 @@ export async function offlineCmsWidget(
     await syncPublishedSourceRefs(tx, updated);
     return { updated, eventToken: locked.updatedAt.getTime() };
   });
-  if (!options?.suppressRefresh) triggerWidgetRefresh({
-    widgetIds: [id],
-    eventKey: `offline:${id}:${updated.draftRevision}:${eventToken}`,
-  });
+  if (!options?.suppressRefresh) {
+    await refreshCmsPublicConfiguration(updated.siteId, '页面部件下线', `widget:${id}:offline:${updated.draftRevision}:${eventToken}`);
+  }
   return options?.skipAccessCheck ? mapCmsWidget(await ensureCmsWidgetExists(id)) : getCmsWidget(id);
 }
 
@@ -542,11 +543,7 @@ export async function saveCmsWidgetSlot(
       });
     }
   });
-  triggerWidgetRefresh({
-    widgetIds: input.widgetId ? [input.widgetId] : [],
-    homeSiteIds: [input.siteId],
-    debounceBySite: true,
-  });
+  await refreshCmsPublicConfiguration(input.siteId, '页面部件插槽更新', `widget-slot:${slotKey}:${Date.now()}`);
   return listCmsWidgetSlots(input.siteId);
 }
 
@@ -718,15 +715,19 @@ export async function resolveCmsWidgetPlacements(
         eq(cmsContents.siteId, siteId),
         eq(cmsContents.status, 'published'),
         isNull(cmsContents.deletedAt),
+        isNull(cmsContents.archivedAt),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
       ))
     : [];
   const contents = await resolveCmsContentRows(rawContents, siteId);
   const channelIds = new Set([...directChannelIds, ...contents.map((content) => content.channelId)]);
+  const effectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(siteId);
   const rawChannels = channelIds.size
     ? await db.select().from(cmsChannels).where(and(
         inArray(cmsChannels.id, [...channelIds]),
         eq(cmsChannels.siteId, siteId),
         eq(cmsChannels.status, 'enabled'),
+        effectiveChannelIds.size > 0 ? inArray(cmsChannels.id, [...effectiveChannelIds]) : sql`false`,
       ))
     : [];
   const channels = await resolveCmsResourcePayload(rawChannels, siteId);
@@ -777,8 +778,8 @@ export async function resolveCmsWidgetPlacements(
         source = {
           title: item.title?.trim() ?? '',
           summary: item.summary?.trim() || null,
-          url: item.url?.trim() ? (linkResolver(item.url)?.url ?? item.url.trim()) : null,
-          image: item.image?.trim() || null,
+          url: item.url?.trim() ? (linkResolver(item.url)?.url ?? null) : null,
+          image: item.image?.trim() && isSafeCmsResourceUrl(item.image.trim()) ? item.image.trim() : null,
           displayDate: item.displayDate ?? null,
         };
       }
@@ -789,8 +790,8 @@ export async function resolveCmsWidgetPlacements(
         sourceId: item.sourceId ?? null,
         title: item.title?.trim() || source.title,
         summary: item.summary?.trim() || source.summary,
-        url: item.url?.trim() ? (linkResolver(item.url)?.url ?? item.url.trim()) : source.url,
-        image: item.image?.trim() || source.image,
+        url: item.url?.trim() ? (linkResolver(item.url)?.url ?? null) : source.url,
+        image: item.image?.trim() && isSafeCmsResourceUrl(item.image.trim()) ? item.image.trim() : source.image,
         displayDate: item.displayDate ?? source.displayDate,
       });
     }

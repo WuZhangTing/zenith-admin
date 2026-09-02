@@ -1,9 +1,12 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { eq, and, gt, inArray, isNull, or, asc } from 'drizzle-orm';
+import { eq, and, gt, inArray, isNull, isNotNull, lte, or, asc, desc, sql } from 'drizzle-orm';
 import { db } from '../../db';
-import { cmsChannels, cmsContents } from '../../db/schema';
+import {
+ cmsAds, cmsAdSlots, cmsChannels, cmsContents, cmsInteractions,
+  cmsPages, cmsContentTags, cmsContentChannels, cmsContentTombstones, cmsWidgets, cmsTags, cmsSites, cmsPublishArtifacts, asyncTasks,
+} from '../../db/schema';
 import type { CmsSiteRow, CmsChannelRow } from '../../db/schema';
 import logger from '../../lib/logger';
 import { formatIso8601 } from '../../lib/datetime';
@@ -28,7 +31,7 @@ import { recordCmsPublishArtifact } from './cms-publish-artifact-tracker';
 import { cmsStaticTargetKey, isCmsStaticTargetCompleted } from './cms-static-build-plan';
 import { assertCmsStaticWriteFence } from './cms-site-publish-lock.service';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
-import { isCmsContentPubliclyVisible } from './cms-content-state';
+import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.service';
 export {
   CMS_STATIC_ROOT, isStrictlyWithin, pathToStaticFile, resolveStaticFile, siteStaticDir,
 } from './cms-static-path';
@@ -49,21 +52,277 @@ export async function readStaticFile(siteCode: string, relPath: string): Promise
   }
 }
 
+/**
+ * Check the database owner of a static path before serving a stale artifact.
+ * A publish worker may be delayed or failed, so disk presence alone is not a
+ * public-visibility decision.
+ */
+export async function isCmsStaticArtifactCurrent(siteId: number, siteCode: string, relPath: string): Promise<boolean> {
+  const pathKey = relPath.replace(/^\/+|\/+$/g, '').replace(/^index\.html$/i, '');
+  const effectiveSite = await resolveEffectiveCmsSiteRow(siteId).catch(() => null);
+  if (!effectiveSite) return false;
+  const effectiveChannels = await getEffectivelyEnabledCmsChannelIds(siteId);
+  const now = new Date();
+  const staticFile = resolveStaticFile(siteCode, relPath);
+  let generatedAt = 0;
+  if (staticFile) {
+    try { generatedAt = (await fs.stat(staticFile)).mtimeMs; } catch { return false; }
+  }
+  const [siteRevision] = await db.select({ publicRevision: cmsSites.publicRevision }).from(cmsSites).where(eq(cmsSites.id, siteId)).limit(1);
+  if (!siteRevision) return false;
+  const artifactPath = pathKey && !pathKey.includes('.')
+    ? `${pathKey}/index.html`
+    : pathKey || 'index.html';
+  const [artifact] = await db.select({
+    publicRevision: cmsPublishArtifacts.publicRevision,
+    status: cmsPublishArtifacts.status,
+    targetType: cmsPublishArtifacts.targetType,
+    taskId: cmsPublishArtifacts.taskId,
+  })
+    .from(cmsPublishArtifacts)
+    .where(and(
+      eq(cmsPublishArtifacts.siteId, siteId),
+      eq(cmsPublishArtifacts.path, artifactPath),
+    ))
+    .orderBy(sql`coalesce(${cmsPublishArtifacts.generatedAt}, ${cmsPublishArtifacts.updatedAt}) desc`, desc(cmsPublishArtifacts.id))
+    .limit(1);
+  // A full-site artifact represents the whole public snapshot, so its
+  // revision must match exactly. Path-scoped content artifacts are checked
+  // against their owner timestamps below; a global equality check here would
+  // incorrectly invalidate unrelated pages after every content publish.
+  if (artifact && (artifact.status !== 'generated'
+    || (artifact.targetType === 'site' && artifact.publicRevision !== siteRevision.publicRevision))) return false;
+  const aggregateRoute = pathKey === ''
+    || pathKey === 'sitemap.xml'
+    || pathKey === 'rss.xml'
+    || pathKey === 'robots.txt'
+    || pathKey.startsWith('tag/');
+  if (aggregateRoute && artifact && artifact.publicRevision !== siteRevision.publicRevision) return false;
+ if (artifact) {
+   const [task] = await db.select({ status: asyncTasks.status }).from(asyncTasks)
+     .where(eq(asyncTasks.id, artifact.taskId)).limit(1);
+   // A failed/cancelled/in-flight build may have left a subset of files on
+   // disk. Do not expose that partial deployment as a current artifact.
+   if (!task || task.status !== 'success') return false;
+ }
+  // A site/theme task is a whole-public-snapshot barrier. Until the task
+  // for the current revision succeeds and writes this path, an older
+  // path-scoped artifact must not leak the previous site configuration.
+  const [fullRevisionTask] = await db.select({ status: asyncTasks.status }).from(asyncTasks)
+    .where(and(
+      eq(asyncTasks.taskType, 'cms-publish-build'),
+      sql`${asyncTasks.payload}->>'siteId' = ${String(siteId)}`,
+      sql`(${asyncTasks.payload}->>'targetType') in ('site', 'theme')`,
+      sql`case when (${asyncTasks.payload}->>'expectedPublicRevision') ~ '^[0-9]+$' then (${asyncTasks.payload}->>'expectedPublicRevision')::int else null end = ${siteRevision.publicRevision}`,
+    )).orderBy(desc(asyncTasks.id)).limit(1);
+  if (fullRevisionTask) {
+    if (fullRevisionTask.status !== 'success') return false;
+    if (!artifact || artifact.publicRevision !== siteRevision.publicRevision) return false;
+  }
+  const generatedDate = new Date(generatedAt);
+  const [transitionedContent, transitionedAd, transitionedInteraction] = await Promise.all([
+    db.select({ id: cmsContents.id }).from(cmsContents).where(and(
+      eq(cmsContents.siteId, siteId),
+      or(
+        and(isNotNull(cmsContents.expireAt), gt(cmsContents.expireAt, generatedDate), lte(cmsContents.expireAt, now)),
+        and(isNotNull(cmsContents.topExpireAt), gt(cmsContents.topExpireAt, generatedDate), lte(cmsContents.topExpireAt, now)),
+      ),
+    )).limit(1),
+    db.select({ id: cmsAds.id }).from(cmsAds).innerJoin(cmsAdSlots, eq(cmsAds.slotId, cmsAdSlots.id)).where(and(
+      eq(cmsAdSlots.siteId, siteId),
+      or(
+        and(isNotNull(cmsAds.startAt), gt(cmsAds.startAt, generatedDate), lte(cmsAds.startAt, now)),
+        and(isNotNull(cmsAds.endAt), gt(cmsAds.endAt, generatedDate), lte(cmsAds.endAt, now)),
+      ),
+    )).limit(1),
+    db.select({ id: cmsInteractions.id }).from(cmsInteractions).where(and(
+      eq(cmsInteractions.siteId, siteId),
+      or(
+        and(isNotNull(cmsInteractions.startAt), gt(cmsInteractions.startAt, generatedDate), lte(cmsInteractions.startAt, now)),
+        and(isNotNull(cmsInteractions.endAt), gt(cmsInteractions.endAt, generatedDate), lte(cmsInteractions.endAt, now)),
+      ),
+    )).limit(1),
+  ]);
+  if (transitionedContent.length > 0 || transitionedAd.length > 0 || transitionedInteraction.length > 0) return false;
+
+  const [page] = await db.select({ status: cmsPages.status, requiresDynamic: cmsPages.requiresDynamic, isHome: cmsPages.isHome, path: cmsPages.path, blocks: cmsPages.blocks, updatedAt: cmsPages.updatedAt })
+   .from(cmsPages).where(and(eq(cmsPages.siteId, siteId), pathKey === '' ? eq(cmsPages.isHome, true) : eq(cmsPages.path, pathKey))).limit(1);
+  if (page) {
+    if (page.status !== 'enabled' || page.requiresDynamic || page.updatedAt.getTime() > generatedAt) return false;
+    const blocks = Array.isArray(page.blocks) ? page.blocks as Array<{ type?: unknown }> : [];
+    const hasLiveData = blocks.some((block) => block?.type === 'content-list' || block?.type === 'widget-ref');
+    if (hasLiveData) {
+      const [changedContent, changedWidget] = await Promise.all([
+        db.select({ id: cmsContents.id }).from(cmsContents).where(and(
+          eq(cmsContents.siteId, siteId),
+          gt(cmsContents.updatedAt, generatedDate),
+        )).limit(1),
+       db.select({ id: cmsWidgets.id }).from(cmsWidgets).where(and(
+         eq(cmsWidgets.siteId, siteId),
+         gt(cmsWidgets.updatedAt, generatedDate),
+        )).limit(1),
+      ]);
+      if (changedContent.length > 0 || changedWidget.length > 0) return false;
+    }
+    return true;
+  }
+
+  const channelKey = pathKey === '' ? null
+    : pathKey.replace(/\/index(?:_\d+)?\.html$/i, '').replace(/\/rss\.xml$/i, '');
+  if (channelKey) {
+    const [channel] = await db.select({ id: cmsChannels.id, status: cmsChannels.status, path: cmsChannels.path, type: cmsChannels.type, staticMode: cmsChannels.staticMode, updatedAt: cmsChannels.updatedAt })
+      .from(cmsChannels).where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.path, channelKey))).limit(1);
+   if (channel) {
+      const [changedMain, changedExtra] = await Promise.all([
+        db.select({ id: cmsContents.id }).from(cmsContents).where(and(
+          eq(cmsContents.siteId, siteId),
+          eq(cmsContents.channelId, channel.id),
+          gt(cmsContents.updatedAt, generatedDate),
+        )).limit(1),
+        db.select({ id: cmsContentChannels.contentId }).from(cmsContentChannels)
+          .innerJoin(cmsContents, eq(cmsContentChannels.contentId, cmsContents.id))
+          .where(and(
+            eq(cmsContentChannels.channelId, channel.id),
+            eq(cmsContents.siteId, siteId),
+            gt(cmsContents.updatedAt, generatedDate),
+          )).limit(1),
+      ]);
+      return channel.status === 'enabled'
+        && effectiveChannels.has(channel.id)
+        && channel.type === 'list'
+        && resolveChannelStaticMode(effectiveSite, channel) !== 'dynamic'
+        && channel.updatedAt.getTime() <= generatedAt
+        && changedMain.length === 0 && changedExtra.length === 0;
+    }
+  }
+
+  const basePath = pathKey.replace(/_(\d+)\.html$/i, '.html');
+  const fileName = basePath.split('/').pop() ?? '';
+  const stem = fileName.replace(/\.html$/i, '');
+  const numericId = /^\d+$/.test(stem) ? Number(stem) : null;
+  const [exactCustom] = await db.select().from(cmsContents).where(and(
+    eq(cmsContents.siteId, siteId),
+    eq(cmsContents.staticPath, basePath),
+  )).limit(1);
+  const contentCandidates = exactCustom ? [exactCustom] : await db.select().from(cmsContents).where(and(
+    eq(cmsContents.siteId, siteId),
+    numericId != null ? eq(cmsContents.id, numericId) : eq(cmsContents.slug, stem),
+  )).limit(2);
+  const channels = contentCandidates.length > 0
+    ? await db.select({ id: cmsChannels.id, path: cmsChannels.path, type: cmsChannels.type, detailPathRule: cmsChannels.detailPathRule, staticMode: cmsChannels.staticMode })
+      .from(cmsChannels).where(inArray(cmsChannels.id, contentCandidates.map((candidate) => candidate.channelId)))
+    : [];
+  const channelById = new Map(channels.map((channel) => [channel.id, channel]));
+  const requestedPage = /_(\d+)\.html$/i.exec(pathKey);
+  const content = contentCandidates.find((candidate) => {
+    const channel = channelById.get(candidate.channelId);
+    if (!channel || !effectiveChannels.has(channel.id)
+      || channel.type !== 'list'
+      || resolveChannelStaticMode(effectiveSite, channel) === 'dynamic') return false;
+    if (candidate.updatedAt.getTime() > generatedAt) return false;
+    const canonical = candidate.staticPath ?? contentUrl('', channel, candidate);
+    const canonicalKey = canonical.replace(/^\/+/, '');
+    const expected = requestedPage
+      ? `${canonicalKey.replace(/\.html$/i, '')}_${requestedPage[1]}.html`
+      : canonicalKey;
+    return expected === pathKey;
+  });
+  if (content) {
+    return content.status === 'published'
+      && content.deletedAt == null
+      && (content.expireAt == null || content.expireAt > now)
+      && effectiveChannels.has(content.channelId)
+      && !content.externalLink?.trim();
+  }
+  if (aggregateRoute) {
+    const [changedContent, changedChannel, changedPage, changedTombstone] = await Promise.all([
+      db.select({ id: cmsContents.id }).from(cmsContents).where(and(
+        eq(cmsContents.siteId, siteId),
+        gt(cmsContents.updatedAt, generatedDate),
+      )).limit(1),
+      db.select({ id: cmsChannels.id }).from(cmsChannels).where(and(
+        eq(cmsChannels.siteId, siteId),
+        gt(cmsChannels.updatedAt, generatedDate),
+      )).limit(1),
+      db.select({ id: cmsPages.id }).from(cmsPages).where(and(
+        eq(cmsPages.siteId, siteId),
+        gt(cmsPages.updatedAt, generatedDate),
+      )).limit(1),
+      db.select({ id: cmsContentTombstones.id }).from(cmsContentTombstones).where(and(
+        eq(cmsContentTombstones.siteId, siteId),
+        gt(cmsContentTombstones.deletedAt, generatedDate),
+      )).limit(1),
+    ]);
+    if (changedContent.length > 0 || changedChannel.length > 0 || changedPage.length > 0 || changedTombstone.length > 0) return false;
+  }
+  if (aggregateRoute && pathKey.startsWith('tag/')) {
+    const tagSlug = pathKey.slice('tag/'.length).replace(/\/index(?:_\d+)?\.html$/i, '').replace(/\/+$/, '');
+    const [tag] = await db.select({ id: cmsTags.id }).from(cmsTags).where(and(
+      eq(cmsTags.siteId, siteId),
+      eq(cmsTags.slug, tagSlug),
+    )).limit(1);
+    if (!tag) return false;
+  }
+ // A disk file without a current database owner is an orphan. Never serve
+ // it merely because a legacy task left it behind; hybrid mode will SSR
+ // the request and a subsequent publish can recreate the artifact.
+  return aggregateRoute ? true : false;
+}
+
+/** Reject a hybrid write when any public owner changed while SSR was running. */
+export async function assertCmsHybridWriteSafe(siteId: number, startedAt: Date): Promise<void> {
+  const [site, changedContent, changedChannel, changedPage, changedWidget] = await Promise.all([
+    db.select({ updatedAt: cmsSites.updatedAt }).from(cmsSites).where(eq(cmsSites.id, siteId)).limit(1),
+    db.select({ id: cmsContents.id }).from(cmsContents).where(and(
+      eq(cmsContents.siteId, siteId),
+      gt(cmsContents.updatedAt, startedAt),
+    )).limit(1),
+    db.select({ id: cmsChannels.id }).from(cmsChannels).where(and(
+      eq(cmsChannels.siteId, siteId),
+      gt(cmsChannels.updatedAt, startedAt),
+    )).limit(1),
+    db.select({ id: cmsPages.id }).from(cmsPages).where(and(
+      eq(cmsPages.siteId, siteId),
+      gt(cmsPages.updatedAt, startedAt),
+    )).limit(1),
+    db.select({ id: cmsWidgets.id }).from(cmsWidgets).where(and(
+      eq(cmsWidgets.siteId, siteId),
+      gt(cmsWidgets.updatedAt, startedAt),
+    )).limit(1),
+  ]);
+  if (!site[0] || site[0].updatedAt > startedAt
+    || changedContent.length > 0 || changedChannel.length > 0
+    || changedPage.length > 0 || changedWidget.length > 0) {
+    throw new TaskCancelledError('SSR 期间公开数据发生变化，放弃 hybrid 静态回写', {
+      stale: true,
+      siteId,
+    });
+  }
+}
+
 /** 原子写入：先写临时文件再 rename，避免读到半个页面 */
 export async function writeStaticFile(siteCode: string, relPath: string, html: string): Promise<void> {
   const abs = resolveStaticFile(siteCode, relPath);
   if (!abs) return;
   await fs.mkdir(path.dirname(abs), { recursive: true });
-  const tmp = `${abs}.${process.pid}.${Date.now()}.tmp`;
+  const tmp = `${abs}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  let previous: Buffer | null = null;
+  try { previous = await fs.readFile(abs); } catch { /* no previous artifact */ }
+  let renamed = false;
   try {
     await fs.writeFile(tmp, html, 'utf8');
     await assertCmsStaticWriteFence();
-    await fs.rename(tmp, abs);
-    buildWriteCollector.getStore()?.add(normalizeStaticRelPath(relPath));
+   await fs.rename(tmp, abs);
+    renamed = true;
+   buildWriteCollector.getStore()?.add(normalizeStaticRelPath(relPath));
     await recordCmsPublishArtifact({ relPath, status: 'generated', content: html });
-  } catch (error) {
-    await fs.rm(tmp, { force: true }).catch(() => undefined);
-    await recordCmsPublishArtifact({
+ } catch (error) {
+   await fs.rm(tmp, { force: true }).catch(() => undefined);
+    if (renamed) {
+      if (previous) await fs.writeFile(abs, previous).catch(() => undefined);
+      else await fs.rm(abs, { force: true }).catch(() => undefined);
+    }
+   await recordCmsPublishArtifact({
       relPath,
       status: 'failed',
       error: error instanceof Error ? error.message : '写入静态产物失败',
@@ -75,8 +334,11 @@ export async function writeStaticFile(siteCode: string, relPath: string, html: s
 export async function deleteStaticFile(siteCode: string, relPath: string): Promise<boolean> {
   const abs = resolveStaticFile(siteCode, relPath);
   if (!abs) return false;
+  let previous: Buffer | null = null;
+  let removed = false;
   try {
     try {
+      previous = await fs.readFile(abs);
       await fs.lstat(abs);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
@@ -84,9 +346,11 @@ export async function deleteStaticFile(siteCode: string, relPath: string): Promi
     }
     await assertCmsStaticWriteFence();
     await fs.rm(abs, { force: true });
+    removed = true;
     await recordCmsPublishArtifact({ relPath, status: 'deleted' });
     return true;
   } catch (error) {
+    if (removed && previous) await fs.writeFile(abs, previous).catch(() => undefined);
     await recordCmsPublishArtifact({
       relPath,
       status: 'failed',
@@ -185,11 +449,13 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
   const origin = siteOrigin(site) ?? '';
   const entries: { loc: string; lastmod: string | null; priority: string }[] = [];
   entries.push({ loc: `${origin}/`, lastmod: formatIso8601(new Date()), priority: '1.0' });
+  const effectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(site.id);
 
   const channels = await db.select().from(cmsChannels)
     .where(and(
       eq(cmsChannels.siteId, site.id),
       eq(cmsChannels.status, 'enabled'),
+      effectiveChannelIds.size > 0 ? inArray(cmsChannels.id, [...effectiveChannelIds]) : sql`false`,
     ));
   const channelPathMap = new Map<number, CmsUrlChannel>();
   for (const ch of channels) {
@@ -214,6 +480,7 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
       isNull(cmsContents.deletedAt),
       isNull(cmsContents.archivedAt),
       or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      effectiveChannelIds.size > 0 ? inArray(cmsContents.channelId, [...effectiveChannelIds]) : sql`false`,
     ))
     .limit(50000);
   for (const row of contents) {
@@ -224,9 +491,22 @@ export async function generateSitemapXml(site: CmsSiteRow): Promise<string> {
   }
 
   // 标签聚合页
+  const publicTagRows = effectiveChannelIds.size > 0
+    ? await db.select({ tagId: cmsContentTags.tagId }).from(cmsContentTags)
+      .innerJoin(cmsContents, eq(cmsContentTags.contentId, cmsContents.id))
+      .where(and(
+        eq(cmsContents.siteId, site.id),
+        eq(cmsContents.status, 'published'),
+        isNull(cmsContents.deletedAt),
+        isNull(cmsContents.archivedAt),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+        inArray(cmsContents.channelId, [...effectiveChannelIds]),
+      ))
+    : [];
+  const publicTagIds = new Set(publicTagRows.map((row) => row.tagId));
   const tags = await listSiteTags(site.id);
   for (const tag of tags) {
-    if (tag.contentCount <= 0) continue;
+    if (!publicTagIds.has(tag.id)) continue;
     entries.push({ loc: `${origin}${tagUrl('', tag.slug)}`, lastmod: null, priority: '0.4' });
   }
 
@@ -382,7 +662,12 @@ export async function refreshContentStatic(contentId: number): Promise<void> {
   const detailPath = contentUrl('', channel, content);
   // 栏目关闭静态化：清掉可能存在的历史产物后不再生成
   const channelDynamic = isChannelDynamic(site, channel);
-  const isVisible = !channelDynamic && isCmsContentPubliclyVisible(content) && !content.externalLink?.trim();
+  // 归档内容仍保留规范详情页；它只从列表/聚合位消失。过期内容则立即停止生成。
+  const isVisible = !channelDynamic
+    && content.status === 'published'
+    && !content.deletedAt
+    && (!content.expireAt || content.expireAt > new Date())
+    && !content.externalLink?.trim();
   const bodyPages = isVisible ? await countContentBodyPages(content, content.siteId) : 1;
   const pageCap = listPageCap(site);
   const purgePaths: string[] = ['sitemap.xml', 'rss.xml'];
@@ -481,8 +766,15 @@ export async function refreshCustomPageStatic(input: { siteId: number; slug: str
   }
   const { getPublishedPageBySlug } = await import('./cms-pages.service');
   const pageRow = input.removed ? null : await getPublishedPageBySlug(site.id, input.slug);
-  const targetPath = input.removePath?.trim() || (pageRow ? customPagePath(pageRow) : `p/${input.slug}/`);
-  const shouldWrite = !input.removed && !!pageRow && !pageRow.requiresDynamic && !input.removePath;
+  const previousPath = input.removePath?.trim() || null;
+  const targetPath = pageRow ? customPagePath(pageRow) : (previousPath || `p/${input.slug}/`);
+  // A rename carries both the old path and the current page. Remove the old
+  // artifact first, then write the current page; otherwise retries could
+  // clean the stale URL but accidentally skip regenerating the new one.
+  if (previousPath && pageRow && previousPath !== targetPath) {
+    await deleteStaticFile(site.code, previousPath);
+  }
+  const shouldWrite = !input.removed && !!pageRow && !pageRow.requiresDynamic;
   if (shouldWrite) {
     const result = await renderCustomPage(site, '', pageRow!);
     if (result.status === 200) await writeStaticFile(site.code, targetPath, result.html);
@@ -547,9 +839,14 @@ async function buildSiteStaticInner(
 ): Promise<{ pages: number; pruned: number }> {
   const site = await resolveEffectiveCmsSiteRow(siteId).catch(() => null);
   if (!site) throw new Error(`站点不存在（id=${siteId}）`);
+  const effectiveChannelIds = await getEffectivelyEnabledCmsChannelIds(siteId);
 
   const channels = await db.select().from(cmsChannels)
-    .where(and(eq(cmsChannels.siteId, siteId), eq(cmsChannels.status, 'enabled')))
+    .where(and(
+      eq(cmsChannels.siteId, siteId),
+      eq(cmsChannels.status, 'enabled'),
+      effectiveChannelIds.size > 0 ? inArray(cmsChannels.id, [...effectiveChannelIds]) : sql`false`,
+    ))
     .orderBy(asc(cmsChannels.id));
   const contents = await db.select({ id: cmsContents.id, slug: cmsContents.slug, staticPath: cmsContents.staticPath, publishedAt: cmsContents.publishedAt, createdAt: cmsContents.createdAt, channelId: cmsContents.channelId, externalLink: cmsContents.externalLink, body: cmsContents.body, extend: cmsContents.extend, mappingSourceId: cmsContents.mappingSourceId })
     .from(cmsContents)
@@ -557,14 +854,27 @@ async function buildSiteStaticInner(
       eq(cmsContents.siteId, siteId),
       eq(cmsContents.status, 'published'),
       isNull(cmsContents.deletedAt),
-      isNull(cmsContents.archivedAt),
       or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+      effectiveChannelIds.size > 0 ? inArray(cmsContents.channelId, [...effectiveChannelIds]) : sql`false`,
     ))
     .orderBy(asc(cmsContents.id));
 
   const channelMap = new Map(channels.map((c) => [c.id, c]));
   const siteTags = await listSiteTags(siteId);
-  const activeTags = siteTags.filter((t) => t.contentCount > 0).sort((a, b) => a.id - b.id);
+  const publicTagRows = effectiveChannelIds.size > 0
+    ? await db.select({ tagId: cmsContentTags.tagId }).from(cmsContentTags)
+      .innerJoin(cmsContents, eq(cmsContentTags.contentId, cmsContents.id))
+      .where(and(
+        eq(cmsContents.siteId, siteId),
+        eq(cmsContents.status, 'published'),
+        isNull(cmsContents.deletedAt),
+        isNull(cmsContents.archivedAt),
+        or(isNull(cmsContents.expireAt), gt(cmsContents.expireAt, new Date())),
+        inArray(cmsContents.channelId, [...effectiveChannelIds]),
+      ))
+    : [];
+  const publicTagIds = new Set(publicTagRows.map((row) => row.tagId));
+  const activeTags = siteTags.filter((t) => publicTagIds.has(t.id)).sort((a, b) => a.id - b.id);
   const { listPublishedPages } = await import('./cms-pages.service');
   const publishedPages = await listPublishedPages(siteId);
   const customPages = publishedPages

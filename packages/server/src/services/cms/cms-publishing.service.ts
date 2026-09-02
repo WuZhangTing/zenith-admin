@@ -12,8 +12,8 @@ import {
 } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import dayjs from 'dayjs';
-import { createHash } from 'node:crypto';
-import { CMS_PUBLISH_TASK_TYPES, CMS_PUBLISH_TARGET_TYPE_LABELS } from '@zenith/shared/cms';
+import { createHash, randomUUID } from 'node:crypto';
+import { CMS_PUBLISH_TASK_TYPES, CMS_PUBLISH_TARGET_TYPE_LABELS, CMS_PUBLISH_TARGET_TYPES } from '@zenith/shared/cms';
 import type { CmsPublishArtifactStatus, CmsPublishSubmitInput, CmsPublishTargetType, SubmitCmsSiteGroupPublishInput } from '@zenith/shared/cms';
 import { db } from '../../db';
 import {
@@ -43,10 +43,8 @@ import {
 } from '../../lib/context';
 import {
   mapAsyncTask,
-  enqueueAsyncTask,
   registerTaskHandler,
   requestCancelAsyncTask,
-  restartAsyncTask,
   resumeAsyncTask,
   submitAsyncTask,
   type TaskRunContext,
@@ -82,6 +80,9 @@ import {
   stableCmsContentTargets,
 } from './cms-publishing-policy';
 import { cmsSiteFencePayload, withCmsSitePublishLock } from './cms-site-publish-lock.service';
+import { acquireCmsSitePublishLock } from './cms-site-publish-lock.service';
+import { enqueueCmsPublishOutboxes, insertCmsPublishOutbox } from './cms-publish-outbox.service';
+import { captureCmsContentPublishSnapshot } from './cms-content-publish-snapshot.service';
 import {
   listCmsSubtreeIds,
   loadCmsInheritanceState,
@@ -93,7 +94,6 @@ const SYSTEM_USER = { userId: 1, username: 'admin', roles: ['super_admin'], tena
 function taskTargetType(row: Pick<AsyncTaskRow, 'taskType' | 'payload'>): CmsPublishTargetType {
   const value = (row.payload as { targetType?: unknown } | null)?.targetType;
   if (typeof value === 'string' && value in CMS_PUBLISH_TARGET_TYPE_LABELS) return value as CmsPublishTargetType;
-  if (row.taskType === 'cms-theme-rebuild') return 'theme';
   return 'site';
 }
 
@@ -165,26 +165,11 @@ export async function buildCmsPublishingConditions(query: Omit<ListCmsPublishing
     conditions.push(eq(asyncTasks.createdBy, user.userId));
     const accessible = await getAccessibleSiteIds();
     if (!accessible?.length) conditions.push(sql`false`);
-    else conditions.push(sql`(
-      (
-        ${asyncTasks.taskType} <> 'cms-theme-rebuild'
-        and ${asyncTasks.payload}->>'siteId' in (${sql.join(accessible.map((siteId) => sql`${String(siteId)}`), sql`, `)})
-      )
-      or
-      (
-        ${asyncTasks.taskType} = 'cms-theme-rebuild'
-        and jsonb_typeof(${asyncTasks.payload}->'siteIds') = 'array'
-        and jsonb_array_length(${asyncTasks.payload}->'siteIds') > 0
-        and (${asyncTasks.payload}->'siteIds') <@ ${JSON.stringify(accessible)}::jsonb
-      )
-    )`);
+    else conditions.push(sql`${asyncTasks.payload}->>'siteId' in (${sql.join(accessible.map((siteId) => sql`${String(siteId)}`), sql`, `)})`);
   }
   if (query.siteId) {
     if (!global) await assertSiteAccess(query.siteId);
-    conditions.push(sql`(
-      ${asyncTasks.payload}->>'siteId' = ${String(query.siteId)}
-      or (${asyncTasks.payload}->'siteIds') @> ${JSON.stringify([query.siteId])}::jsonb
-    )`);
+    conditions.push(sql`${asyncTasks.payload}->>'siteId' = ${String(query.siteId)}`);
   }
   if (query.targetType) conditions.push(sql`${asyncTasks.payload}->>'targetType' = ${query.targetType}`);
   if (query.status === 'active') conditions.push(inArray(asyncTasks.status, ['pending', 'running']));
@@ -299,6 +284,128 @@ export async function getCmsPublishingDetail(id: number) {
   return { task: mapped, items: items.map(mapTaskItem), artifacts: artifacts.map((a) => mapArtifact(a)) };
 }
 
+/**
+ * Rebuilds must use the current CMS state.  Reusing a terminal task payload
+ * would also reuse its revision fence and, for content tasks, potentially
+ * render an obsolete body after a later edit.
+ */
+async function buildFreshCmsPublishInput(
+  task: Pick<AsyncTaskRow, 'id' | 'taskType' | 'payload'>,
+  action: 'restart' | 'rebuild',
+): Promise<CmsPublishSubmitInput> {
+  const payload = (task.payload ?? {}) as Record<string, unknown>;
+  const siteId = Number(payload.siteId);
+  if (!Number.isInteger(siteId) || siteId <= 0) throw new HTTPException(400, { message: '发布任务缺少有效站点' });
+  const rawTarget = payload.targetType;
+  const targetType: CmsPublishTargetType = typeof rawTarget === 'string'
+    && CMS_PUBLISH_TARGET_TYPES.includes(rawTarget as CmsPublishTargetType)
+    ? rawTarget as CmsPublishTargetType
+    : 'site';
+  const input: CmsPublishSubmitInput = {
+    siteId,
+    targetType,
+    reason: `发布任务 #${task.id}${action === 'rebuild' ? '重建' : '重试'}`,
+  };
+  if (typeof payload.channelId === 'number' && Number.isInteger(payload.channelId)) input.channelId = payload.channelId;
+  if (typeof payload.themeCode === 'string' && payload.themeCode.trim()) input.themeCode = payload.themeCode;
+
+  if (targetType === 'content' || targetType === 'contents') {
+    const contentIds = [...new Set(Array.isArray(payload.contentIds)
+      ? payload.contentIds.map(Number).filter((id): id is number => Number.isInteger(id) && id > 0)
+      : [])].sort((a, b) => a - b);
+    if (!contentIds.length) throw new HTTPException(400, { message: '原发布任务缺少内容目标，无法重试' });
+    input.contentIds = contentIds;
+    const oldSnapshots = new Map<number, NonNullable<CmsPublishSubmitInput['contentSnapshots']>[number]>();
+    if (Array.isArray(payload.contentSnapshots)) {
+      for (const value of payload.contentSnapshots) {
+        if (!value || typeof value !== 'object') continue;
+        const snapshot = value as NonNullable<CmsPublishSubmitInput['contentSnapshots']>[number];
+        if (Number.isInteger(snapshot?.contentId) && snapshot.contentId > 0) oldSnapshots.set(snapshot.contentId, snapshot);
+      }
+    }
+    const rows = await db.select().from(cmsContents).where(inArray(cmsContents.id, contentIds));
+    const rowById = new Map(rows.filter((row) => row.siteId === siteId).map((row) => [row.id, row]));
+    const snapshots: NonNullable<CmsPublishSubmitInput['contentSnapshots']> = [];
+    const deletePaths = new Set<string>(Array.isArray(payload.deletePaths)
+      ? payload.deletePaths.filter((path): path is string => typeof path === 'string' && path.length > 0)
+      : []);
+    for (const contentId of contentIds) {
+      const row = rowById.get(contentId);
+      if (row) {
+        const captured = await captureCmsContentPublishSnapshot(db, row, { includeExistingArtifacts: true });
+        snapshots.push(captured.snapshot);
+        captured.deletePaths.forEach((path) => deletePaths.add(path));
+      } else {
+        const previous = oldSnapshots.get(contentId);
+        if (!previous) throw new HTTPException(400, { message: `内容 #${contentId} 已不存在，无法重试` });
+        snapshots.push({ ...previous, purged: true, build: false });
+        (previous.paths ?? []).forEach((path) => deletePaths.add(path));
+      }
+    }
+    input.contentSnapshots = snapshots;
+    input.deletePaths = [...deletePaths].sort();
+  } else if (targetType === 'page') {
+    const pageId = typeof payload.pageId === 'number' && Number.isInteger(payload.pageId) ? payload.pageId : undefined;
+    const pageSlug = typeof payload.pageSlug === 'string' && payload.pageSlug.trim() ? payload.pageSlug : undefined;
+    const page = pageId
+      ? (await db.select().from(cmsPages).where(and(eq(cmsPages.id, pageId), eq(cmsPages.siteId, siteId))).limit(1))[0]
+      : pageSlug
+        ? (await db.select().from(cmsPages).where(and(eq(cmsPages.siteId, siteId), eq(cmsPages.slug, pageSlug))).limit(1))[0]
+        : undefined;
+    input.pageId = page?.id;
+    input.pageSlug = page?.slug ?? pageSlug;
+    input.pageIsHome = page?.isHome ?? (payload.pageIsHome === true);
+    input.pageRemoved = page ? page.status !== 'enabled' : true;
+    // Keep a prior path when present: the renderer removes it before writing
+    // the current page, which closes the rename/orphan gap on retries.
+    if (typeof payload.pageRemovePath === 'string' && payload.pageRemovePath.trim()) input.pageRemovePath = payload.pageRemovePath;
+  }
+  return input;
+}
+
+async function cmsPublishTaskNeedsFreshInput(task: Pick<AsyncTaskRow, 'payload' | 'errorMessage'>): Promise<boolean> {
+  const payload = (task.payload ?? {}) as Record<string, unknown>;
+  const siteId = Number(payload.siteId);
+  if (!Number.isInteger(siteId) || siteId <= 0) return true;
+  const [site] = await db.select({
+    themeRevision: cmsSites.themeRevision,
+    templateRefsRevision: cmsSites.templateRefsRevision,
+    publicRevision: cmsSites.publicRevision,
+  }).from(cmsSites).where(eq(cmsSites.id, siteId)).limit(1);
+  if (!site) return true;
+  for (const [key, current] of [
+    ['expectedThemeRevision', site.themeRevision],
+    ['expectedTemplateRefsRevision', site.templateRefsRevision],
+    ['expectedPublicRevision', site.publicRevision],
+  ] as const) {
+    const expected = payload[key];
+    if (expected != null && Number(expected) !== current) return true;
+  }
+  if (typeof task.errorMessage === 'string' && task.errorMessage.includes('发布修订已过期')) return true;
+  const targetType = payload.targetType;
+  if (targetType === 'content' || targetType === 'contents') {
+    const snapshots = Array.isArray(payload.contentSnapshots) ? payload.contentSnapshots : [];
+    const contentIds = Array.isArray(payload.contentIds)
+      ? payload.contentIds.map(Number).filter((id) => Number.isInteger(id) && id > 0)
+      : [];
+    // Tasks without a complete immutable snapshot were created before the
+    // current pipeline boundary; their payload cannot safely resume after a
+    // path/body mutation.
+    if (contentIds.length === 0 || snapshots.length !== new Set(contentIds).size) return true;
+    const ids = snapshots
+      .filter((value): value is { contentId: number; contentVersion: number } => !!value && typeof value === 'object')
+      .map((value) => ({ contentId: Number(value.contentId), contentVersion: Number(value.contentVersion) }))
+      .filter((value) => Number.isInteger(value.contentId) && value.contentId > 0 && Number.isInteger(value.contentVersion));
+    if (ids.length > 0) {
+      const rows = await db.select({ id: cmsContents.id, version: cmsContents.version })
+        .from(cmsContents).where(inArray(cmsContents.id, ids.map((value) => value.contentId)));
+      const versions = new Map(rows.map((row) => [row.id, row.version]));
+      if (ids.some((value) => versions.get(value.contentId) !== value.contentVersion)) return true;
+    }
+  }
+  return false;
+}
+
 export interface ListCmsPublishArtifactsQuery {
   page: number;
   pageSize: number;
@@ -408,8 +515,28 @@ export async function submitCmsPublishTask(
   await validatePublishInput(input, options?.skipAccessCheck === true);
   const user = currentUser();
   const executor = options?.executor ?? db;
-  const dedupeFingerprint = buildCmsPublishDedupeFingerprint(input, user.userId);
+  const [site] = await executor.select().from(cmsSites).where(eq(cmsSites.id, input.siteId)).limit(1);
+  if (!site) throw new HTTPException(404, { message: '站点不存在' });
+  const fence = await cmsSiteFencePayload(executor, site);
+  const fencedInput: CmsPublishSubmitInput = {
+    ...input,
+    expectedThemeRevision: input.expectedThemeRevision ?? fence.expectedThemeRevision,
+    expectedTemplateRefsRevision: input.expectedTemplateRefsRevision ?? fence.expectedTemplateRefsRevision,
+    expectedPublicRevision: input.expectedPublicRevision ?? fence.expectedPublicRevision,
+  };
+  const dedupeFingerprint = buildCmsPublishDedupeFingerprint(fencedInput, user.userId);
   return runWithCurrentUser({ ...user, tenantId: null, viewingTenantId: undefined }, async () => {
+    if (fencedInput.targetType === 'site' || fencedInput.targetType === 'theme') {
+      const task = await insertCmsPublishOutbox(
+        executor,
+        fencedInput,
+        options?.eventKey ?? ('manual:' + fencedInput.siteId + ':' + randomUUID()),
+      );
+      if (!options?.executor) {
+        await enqueueCmsPublishOutboxes([task], 'CMS 整站发布任务提交');
+      }
+      return task;
+    }
     if (!options?.eventKey) {
       const [existing] = await executor.select().from(asyncTasks).where(and(
         eq(asyncTasks.taskType, 'cms-publish-build'),
@@ -421,9 +548,9 @@ export async function submitCmsPublishTask(
     }
     const row = await submitAsyncTask({
       taskType: 'cms-publish-build',
-      title: publishTitle(input),
+      title: publishTitle(fencedInput),
       payload: {
-        ...input,
+        ...fencedInput,
         submittedAt: formatDateTime(dayjs().toDate()),
         systemTriggered: options?.skipAccessCheck === true,
         dedupeFingerprint,
@@ -477,11 +604,7 @@ export async function submitCmsSiteGroupPublish(input: SubmitCmsSiteGroupPublish
     }
     return submitted;
   });
-  for (const task of tasks) {
-    await enqueueAsyncTask(task.id).catch((error) => {
-      logger.error(`[cms-publishing] 站群任务 #${task.id} 入队失败，等待 pending 恢复扫描补投`, error);
-    });
-  }
+  await enqueueCmsPublishOutboxes(tasks, 'CMS 站群整组发布');
   return { rootSiteId: root.id, targetSiteIds, tasks };
 }
 
@@ -500,12 +623,22 @@ export function submitCmsContentPublishSideEffect(contentId: number): void {
     const [content] = await db.select({ siteId: cmsContents.siteId }).from(cmsContents)
       .where(eq(cmsContents.id, contentId)).limit(1);
     if (!content) return;
-    await submitCmsPublishTask({
-      siteId: content.siteId,
-      targetType: 'content',
-      contentIds: [contentId],
-      reason: '内容状态变更增量刷新',
-    }, { skipPermissionCheck: true, skipAccessCheck: true });
+    const task = await db.transaction(async (tx) => {
+      // Keep advisory→row ordering consistent with content/site mutations.
+      await acquireCmsSitePublishLock(tx, content.siteId);
+      const [site] = await tx.select().from(cmsSites).where(eq(cmsSites.id, content.siteId)).for('update').limit(1);
+      if (!site) return null;
+      return insertCmsPublishOutbox(tx, {
+        siteId: content.siteId,
+        targetType: 'content',
+        contentIds: [contentId],
+        ...await cmsSiteFencePayload(tx, site),
+        reason: '内容状态变更增量刷新',
+      }, `content-side-effect:${contentId}:${randomUUID()}`);
+    });
+    if (task) {
+      await enqueueCmsPublishOutboxes([task], '内容状态变更增量刷新');
+    }
   }).catch((error) => logger.error(`[cms-publishing] 内容 ${contentId} 发布任务提交失败`, error));
 }
 
@@ -550,6 +683,7 @@ async function trackingContext(input: CmsPublishSubmitInput, taskId: number, ctx
     context: {
       taskId,
       siteId: input.siteId,
+      publicRevision: input.expectedPublicRevision ?? site.publicRevision,
       targetType: input.targetType,
       contentId: input.targetType === 'content' ? input.contentIds?.[0] ?? null : null,
       channelId: input.channelId ?? null,
@@ -698,18 +832,38 @@ export function registerCmsPublishingTaskHandler(): void {
 export async function cmsPublishingAction(id: number, action: 'cancel' | 'resume' | 'restart' | 'rebuild') {
   const task = await ensurePublishingTaskAccessible(id, true);
   if (action === 'cancel') return mapAsyncTask(await requestCancelAsyncTask(id));
-  if (action === 'resume') return mapAsyncTask(await resumeAsyncTask(id));
+  if (action === 'resume') {
+    // A checkpoint is safe only while its site fence and content snapshots
+    // still describe the database.  Otherwise create a fresh task so the
+    // operator's retry actually converges instead of immediately cancelling.
+    if (await cmsPublishTaskNeedsFreshInput(task)) {
+      const input = await buildFreshCmsPublishInput(task, 'restart');
+      return submitCmsPublishTask(input, {
+        skipPermissionCheck: true,
+        skipAccessCheck: true,
+        eventKey: `retry:${id}:resume:${randomUUID()}`,
+      });
+    }
+    return mapAsyncTask(await resumeAsyncTask(id));
+  }
   if (!['success', 'failed', 'cancelled'].includes(task.status)) {
     throw new HTTPException(400, { message: '仅已结束的任务可以重新开始或重建' });
   }
-  const restarted = await db.transaction(async (tx) => {
-    await tx.delete(cmsPublishArtifacts).where(eq(cmsPublishArtifacts.taskId, id));
-    return restartAsyncTask(id, { executor: tx });
+  if (action === 'rebuild' && task.status !== 'success') {
+    throw new HTTPException(400, { message: '仅成功任务可以重建' });
+  }
+  const input = await buildFreshCmsPublishInput(task, action);
+  // A retry is a new publication event: it captures current content and the
+  // current site fence, while preserving the original task and its artifacts
+  // as an auditable history record.
+  return submitCmsPublishTask(input, {
+    skipPermissionCheck: true,
+    // The original task has already passed the CMS/site access check. Keep the
+    // retry system-triggered so a manager without the build permission does
+    // not create a task that can only fail in the worker.
+    skipAccessCheck: true,
+    eventKey: `retry:${id}:${action}:${randomUUID()}`,
   });
-  await enqueueAsyncTask(restarted.id).catch((error) => {
-    logger.error(`[cms-publishing] 重启任务 #${restarted.id} 入队失败，等待 pending 恢复扫描补投`, error);
-  });
-  return mapAsyncTask(restarted);
 }
 
 export async function batchCmsPublishingAction(ids: number[], action: 'cancel' | 'resume' | 'restart' | 'rebuild') {

@@ -8,6 +8,7 @@ import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers'
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsFriendLinkGroupInput, UpdateCmsFriendLinkGroupInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
+import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapCmsFriendLinkGroup(row: CmsFriendLinkGroupRow, linkCount?: number) {
@@ -96,6 +97,7 @@ export async function createCmsFriendLinkGroup(data: CreateCmsFriendLinkGroupInp
   await assertSiteAccess(data.siteId);
   try {
     const [row] = await db.insert(cmsFriendLinkGroups).values(data).returning();
+    await refreshCmsPublicConfiguration(row.siteId, '友链分组创建', `friend-group:${row.id}:${row.updatedAt.getTime()}`);
     return mapCmsFriendLinkGroup(row, 0);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下已存在相同标识的友链分组');
@@ -109,6 +111,7 @@ export async function updateCmsFriendLinkGroup(id: number, data: UpdateCmsFriend
     const [row] = await db.update(cmsFriendLinkGroups).set(data)
       .where(eq(cmsFriendLinkGroups.id, id)).returning();
     if (!row) throw new HTTPException(404, { message: '友链分组不存在' });
+    await refreshCmsPublicConfiguration(row.siteId, '友链分组更新', `friend-group:${row.id}:${row.updatedAt.getTime()}`);
     return mapCmsFriendLinkGroup(row);
   } catch (err) {
     rethrowPgUniqueViolation(err, '同站点下已存在相同标识的友链分组');
@@ -121,4 +124,5 @@ export async function deleteCmsFriendLinkGroup(id: number) {
   await assertSiteAccess(current.siteId);
   const [row] = await db.delete(cmsFriendLinkGroups).where(eq(cmsFriendLinkGroups.id, id)).returning();
   if (!row) throw new HTTPException(404, { message: '友链分组不存在' });
+  await refreshCmsPublicConfiguration(current.siteId, '友链分组删除', `friend-group:${current.id}:deleted:${Date.now()}`);
 }

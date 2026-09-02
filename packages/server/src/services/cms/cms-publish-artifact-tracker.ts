@@ -9,6 +9,7 @@ import { cmsPublishArtifacts } from '../../db/schema';
 export interface CmsPublishTrackingContext {
   taskId: number;
   siteId: number;
+  publicRevision: number;
   targetType: CmsPublishTargetType;
   contentId?: number | null;
   channelId?: number | null;
@@ -48,7 +49,13 @@ export async function recordCmsPublishArtifact(input: {
 }): Promise<void> {
   const context = tracker.getStore();
   if (!context) return;
-  const relPath = input.relPath.replaceAll('\\', '/').replace(/^\/+/, '') || 'index.html';
+  const normalizedPath = input.relPath.replaceAll('\\', '/').replace(/^\/+/, '');
+  // Directory routes are written to `<dir>/index.html` on disk. Store the
+  // same canonical key in the artifact table so freshness checks cannot miss
+  // a failed or stale directory build.
+  const relPath = normalizedPath.endsWith('/')
+    ? `${normalizedPath}index.html`
+    : normalizedPath || 'index.html';
   const bytes = input.content == null
     ? null
     : Buffer.isBuffer(input.content) ? input.content : Buffer.from(input.content, 'utf8');
@@ -67,6 +74,7 @@ export async function recordCmsPublishArtifact(input: {
     url: artifactUrl(context.origin, relPath),
     checksum,
     size,
+    publicRevision: context.publicRevision,
     status: input.status,
     error: input.error?.slice(0, 2000) ?? null,
     generatedAt: input.status === 'generated' ? now : null,
@@ -80,6 +88,7 @@ export async function recordCmsPublishArtifact(input: {
       url: sql`excluded.url`,
       checksum: sql`excluded.checksum`,
       size: sql`excluded.size`,
+      publicRevision: sql`excluded.public_revision`,
       status: sql`excluded.status`,
       error: sql`excluded.error`,
       generatedAt: sql`excluded.generated_at`,

@@ -2,7 +2,7 @@
 import { and, desc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
-import { cmsPageBlockAcls, cmsPages, cmsChannels } from '../../db/schema';
+import { cmsPageBlockAcls, cmsPages, cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsPageRow } from '../../db/schema';
 import type { CmsPageBlock } from '@zenith/shared/cms';
 import { formatDateTime } from '../../lib/datetime';
@@ -98,6 +98,14 @@ async function assertCustomPagePathFree(executor: DbExecutor, siteId: number, pa
   const channel = channels.find((c) => path === c.path || path.startsWith(`${c.path}/`));
   if (channel) {
     throw new HTTPException(400, { message: `访问路径落在栏目「${channel.name}」（${channel.path}）的路径空间内` });
+  }
+  const [content] = await executor.select({ id: cmsContents.id, title: cmsContents.title })
+    .from(cmsContents).where(and(
+      eq(cmsContents.siteId, siteId),
+      eq(cmsContents.staticPath, path),
+    )).limit(1);
+  if (content) {
+    throw new HTTPException(400, { message: `访问路径已被内容「${content.title}」（#${content.id}）占用` });
   }
   const conds = [eq(cmsPages.siteId, siteId), eq(cmsPages.path, path)];
   if (exceptId) conds.push(ne(cmsPages.id, exceptId));

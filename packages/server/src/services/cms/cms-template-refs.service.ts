@@ -14,6 +14,7 @@ import type { DbExecutor } from '../../db/types';
 import { cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsChannelRow } from '../../db/schema';
 import { isTemplateRegistered, isThemeRegistered, listThemeTemplates, getThemeSettingsSchema } from '../../cms/themes/registry';
+import { isDirectCmsHref, isValidCmsAssetUrl } from '@zenith/shared/cms';
 import type { CmsSiteTemplateDefaults, CmsTemplateHealth, CmsInvalidTemplateRef } from '@zenith/shared/cms';
 import { resolveEffectiveCmsSiteRow } from './cms-site-inheritance.service';
 
@@ -169,8 +170,24 @@ export function assertSiteThemeConfig(themeCode: string, settings: Record<string
   if (!raw || typeof raw !== 'object') return;
   const config = raw as Record<string, unknown>;
   for (const field of getThemeSettingsSchema(themeCode)) {
+    const rawValue = config[field.name];
+    const isLinkField = field.fieldType === 'image' || field.name === 'serviceLinks' || /(?:url|link|logo|favicon|poster|image)$/i.test(field.name);
+    if (rawValue !== undefined && rawValue !== null && rawValue !== '' && isLinkField) {
+      if (typeof rawValue !== 'string') throw new HTTPException(400, { message: `主题参数「${field.label}」必须是文本` });
+      if (field.fieldType === 'image' && !isValidCmsAssetUrl(rawValue)) {
+        throw new HTTPException(400, { message: `主题参数「${field.label}」图片地址格式无效` });
+      }
+      if (field.name === 'serviceLinks') {
+        for (const line of rawValue.split(/\r?\n/).filter(Boolean)) {
+          const [, url] = line.split('|', 2);
+          if (!url || !isDirectCmsHref(url.trim())) throw new HTTPException(400, { message: `主题参数「${field.label}」包含无效链接` });
+        }
+      } else if (field.fieldType !== 'image' && !isDirectCmsHref(rawValue)) {
+        throw new HTTPException(400, { message: `主题参数「${field.label}」链接格式无效` });
+      }
+    }
     if (field.fieldType !== 'select') continue;
-    const value = config[field.name];
+    const value = rawValue;
     if (value === undefined || value === null || value === '') continue;
     if (!(field.options ?? []).some((o) => o.value === value)) {
       const options = (field.options ?? []).map((o) => o.value).join('、');

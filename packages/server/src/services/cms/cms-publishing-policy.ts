@@ -57,12 +57,8 @@ export function remainingCmsContentTargets(ids: readonly number[], lastId: numbe
   return stableCmsContentTargets(ids).filter((id) => id > lastId);
 }
 
-export function cmsPublishingTaskSiteIds(row: { taskType: string; payload: unknown }): number[] {
-  const payload = row.payload as { siteId?: unknown; siteIds?: unknown } | null;
-  if (row.taskType === 'cms-theme-rebuild' && Array.isArray(payload?.siteIds)) {
-    return [...new Set(payload.siteIds.map(Number).filter((siteId) => Number.isInteger(siteId) && siteId > 0))]
-      .sort((a, b) => a - b);
-  }
+export function cmsPublishingTaskSiteIds(row: { payload: unknown }): number[] {
+  const payload = row.payload as { siteId?: unknown } | null;
   const siteId = Number(payload?.siteId);
   return Number.isInteger(siteId) && siteId > 0 ? [siteId] : [];
 }
