@@ -39,7 +39,7 @@ export function ImportPreferencesModal({
           rows={10}
           value={importPrefsText}
           onChange={(v) => setImportPrefsText(v)}
-          placeholder={'{\n  "navLayout": "vertical",\n  "themeColor": "wechat",\n  ...\n}'}
+          placeholder={'{\n  "navLayout": "vertical",\n  "themeColor": "blue",\n  ...\n}'}
         />
       </div>
     </AppModal>

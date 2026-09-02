@@ -80,7 +80,7 @@ export default defineConfig(({ mode }) => {
           name: env.VITE_APP_TITLE || 'Zenith Admin',
           short_name: env.VITE_APP_SHORT_NAME || 'Zenith',
           description: env.VITE_APP_DESCRIPTION || '企业级后台管理系统',
-          theme_color: env.VITE_APP_THEME_COLOR || '#07c160',
+          theme_color: env.VITE_APP_THEME_COLOR || '#3370ff',
           background_color: '#ffffff',
           display: 'standalone',
           // 手写的 manifest 字段不会被 Vite base 自动改写，子路径部署时需显式拼接

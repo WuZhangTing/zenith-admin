@@ -21,29 +21,10 @@ interface ThemeColorPreset {
   dark: ColorVars;
 }
 
+/** 默认主题色预设 key（列表首项），与 `defaultPreferences.themeColor` 保持一致 */
+export const DEFAULT_THEME_COLOR = 'blue';
+
 export const THEME_COLOR_PRESETS: ThemeColorPreset[] = [
-  {
-    key: 'wechat',
-    name: '微信绿',
-    light: {
-      primary: '#07c160',
-      hover: '#06a854',
-      active: '#058f45',
-      lightDefault: 'rgba(7,193,96,0.10)',
-      lightHover: 'rgba(7,193,96,0.15)',
-      lightActive: 'rgba(7,193,96,0.20)',
-      sidebarActive: 'rgba(7,193,96,0.10)',
-    },
-    dark: {
-      primary: '#4ecb71',
-      hover: '#1db95f',
-      active: '#07c160',
-      lightDefault: 'rgba(78,203,113,0.15)',
-      lightHover: 'rgba(78,203,113,0.20)',
-      lightActive: 'rgba(78,203,113,0.25)',
-      sidebarActive: 'rgba(78,203,113,0.25)',
-    },
-  },
   {
     key: 'blue',
     name: '飞书蓝',
@@ -64,6 +45,28 @@ export const THEME_COLOR_PRESETS: ThemeColorPreset[] = [
       lightHover: 'rgba(97,139,255,0.20)',
       lightActive: 'rgba(97,139,255,0.25)',
       sidebarActive: 'rgba(97,139,255,0.25)',
+    },
+  },
+  {
+    key: 'wechat',
+    name: '微信绿',
+    light: {
+      primary: '#07c160',
+      hover: '#06a854',
+      active: '#058f45',
+      lightDefault: 'rgba(7,193,96,0.10)',
+      lightHover: 'rgba(7,193,96,0.15)',
+      lightActive: 'rgba(7,193,96,0.20)',
+      sidebarActive: 'rgba(7,193,96,0.10)',
+    },
+    dark: {
+      primary: '#4ecb71',
+      hover: '#1db95f',
+      active: '#07c160',
+      lightDefault: 'rgba(78,203,113,0.15)',
+      lightHover: 'rgba(78,203,113,0.20)',
+      lightActive: 'rgba(78,203,113,0.25)',
+      sidebarActive: 'rgba(78,203,113,0.25)',
     },
   },
   {

@@ -1,5 +1,6 @@
 import { useContext, createContext } from 'react';
 import type { ThemeMode } from '@/hooks/useTheme';
+import { DEFAULT_THEME_COLOR } from '@/lib/theme-color';
 
 export type NavLayout = 'vertical' | 'horizontal' | 'mixed' | 'double';
 export type TabAnimation = 'none' | 'fade' | 'slide' | 'scale';
@@ -199,7 +200,7 @@ export const defaultPreferences: UserPreferences = {
   breadcrumbShowHome: true,
   tabAnimation: 'fade',
   colorMode: 'light',
-  themeColor: 'wechat',
+  themeColor: DEFAULT_THEME_COLOR,
   sidebarDarkMode: false,
   headerDarkMode: false,
   darkSidebarTone: 'bg-1',

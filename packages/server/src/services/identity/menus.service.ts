@@ -37,6 +37,28 @@ export function mapMenu(row: typeof menus.$inferSelect): Omit<Menu, 'children'> 
 
 // ─── 树形结构构建 ─────────────────────────────────────────────────────────────
 
+/**
+ * 剔除自身或任一祖先处于禁用状态的菜单。
+ * 若只过滤禁用节点自身，其仍为 enabled 的子节点会因找不到父级而被 buildMenuTree 提升为根节点，
+ * 导致禁用目录下的页面「上浮」到侧边栏一级；禁用目录的语义是整棵子树对用户不可见。
+ * 父级缺失（孤儿节点）不在此处理，沿用 buildMenuTree 的既有行为。
+ */
+export function excludeDisabledSubtrees<T extends Pick<Menu, 'id' | 'parentId' | 'status'>>(rows: T[]): T[] {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const isEffectivelyEnabled = (row: T): boolean => {
+    const visited = new Set<number>();
+    let current: T | undefined = row;
+    while (current) {
+      if (current.status !== 'enabled') return false;
+      if (current.parentId === 0 || visited.has(current.id)) return true;
+      visited.add(current.id);
+      current = byId.get(current.parentId);
+    }
+    return true;
+  };
+  return rows.filter(isEffectivelyEnabled);
+}
+
 export function buildMenuTree(list: Omit<Menu, 'children'>[]): Menu[] {
   const map = new Map<number, Menu>();
   list.forEach((item) => map.set(item.id, { ...item }));
@@ -113,10 +135,10 @@ async function ensureMenuParentValid(parentId: number, currentId?: number) {
 /** 当前登录用户可见的菜单树 */
 export async function listUserMenuTree(): Promise<Menu[]> {
   const user = currentUser();
-  // 禁用菜单对所有人（含超管）不可见，前端不再注册禁用路由；菜单管理页走 listMenuTree 不受影响
+  // 禁用菜单（含其整棵子树）对所有人（含超管）不可见，前端不再注册禁用路由；菜单管理页走 listMenuTree 不受影响
   // 按钮型节点是纯操作权限点（权限码经登录态下发），不参与页面/侧边栏展示
-  const allMenus = (await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id)))
-    .filter((m) => m.status === 'enabled' && m.type !== 'button');
+  const allMenus = excludeDisabledSubtrees(await db.select().from(menus).orderBy(asc(menus.sort), asc(menus.id)))
+    .filter((m) => m.type !== 'button');
 
   if (isSuperAdmin(user)) {
     return buildMenuTree(allMenus.map(mapMenu));
