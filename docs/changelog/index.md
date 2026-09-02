@@ -4,6 +4,51 @@
 
 ---
 
+## v2.13.0 - 2026-09-02
+
+**内网 HTTP 可用性 + 部分更新语义修正**：管理后台在非安全上下文（`http://内网IP`）下补齐 `crypto.randomUUID` 与剪贴板能力；PUT / PATCH 部分更新统一经 `partialForUpdate` 派生，杜绝省略字段被默认值改写；菜单种子改为只新增不更新，后台对内置菜单的调整不再被重跑 seed 回写。
+
+> ℹ️ 本版无数据库迁移。两处行为变更需留意：① 集合赋值端点（用户角色 / 菜单 / 数据权限、CMS 站点 / 栏目成员、套餐功能、Wiki 成员）与 OAuth 配置更新不再为缺失字段填默认值，字段缺失返回 400；② 修改既有内置菜单的结构字段需单独提供数据迁移（`drizzle-kit generate --custom`），种子只负责新菜单的初始定义。
+
+### Added
+
+#### 平台 API 兜底（非安全上下文）
+
+- `@zenith/shared/core` 新增 `uuidV4`（仅 `getRandomValues` 组装 RFC 4122 v4）与 `randomUUID`（优先原生）；web 三个入口首条 import `polyfills.ts`，`crypto.randomUUID` 缺失时挂到实例上，业务代码与第三方库继续使用标准 API；analytics-sdk 嵌入第三方页面不改宿主全局，改为直接调用共享实现
+- 新增 `@/utils/clipboard`：`copyText`（Clipboard API → 隐藏 textarea + `execCommand` 回退，复制后还原原有选区与焦点）、`copyTextWithToast`、`readClipboardText`、`canWriteClipboardItems`；全站 43 处复制 / 粘贴调用收口，删除 4 份本地实现，粘贴与图片写入不可用时给出明确降级提示
+- ESLint 防复发：web 禁止裸调 `navigator.clipboard.writeText` / `readText`，analytics-sdk 禁止直接调用 `crypto.randomUUID`，server / shared 禁止直接调用 `.partial()`
+
+#### 部分更新原语
+
+- `partialForUpdate()` 改为递归剥离默认值（穿透 optional / nullable / readonly / pipe 并保留包装，只移除 ZodDefault / ZodPrefault），新增 `partial-for-update.test.ts` 锁定行为；`app.contract.test.ts` 新增部分更新契约——PUT / PATCH 请求体顶层属性不得带 default，整体替换 / upsert 端点显式登记并自动清理失效条目
+
+### Changed
+
+#### 后端
+
+- server 路由内联 schema、`lib/dtos` 与 shared 各域共 41 处 `.partial()` 全部改为 `partialForUpdate(...)`；payment / cms 的更新 schema 清理与之重复的字段重声明
+- 菜单种子由按 id upsert 改为 `onConflictDoNothing`：改名 / 图标 / 排序 / 禁用 / 隐藏 / 换父级等后台调整在 `npm run dev` 重跑 seed 后保留
+- `listUserMenuTree` 剔除禁用菜单的整棵子树，禁用目录下仍启用的子菜单不再因父级缺失被提升为侧边栏根节点
+- 日志：Windows 且 stdout 为终端时控制台输出留在主线程走 `process.stdout`（pretty 模式惰性加载 pino-pretty，文件仍走 pino-roll worker，`multistream` 合并）；管道 / 容器场景保持原有全 worker 输出
+
+#### Web 体验
+
+- 偏好设置：「飞书蓝」置于主题色预设首位并作为默认值，导入偏好占位示例与 PWA manifest `theme_color` 兜底值（`VITE_APP_THEME_COLOR` 默认 `#3370ff`）同步对齐
+- 日志文件：关闭自动换行横向滚动时行号列固定在左侧，激活行指示条随列一起固定
+
+#### 文档
+
+- `constraints` / `crud-backend` / `module-modification` / `api-conventions` / `swagger` 同步部分更新规范（请求体不带 default、关联集合「省略即不改动」的服务层写法）；`constraints-frontend` 记录剪贴板 / `randomUUID` 收口位置与 polyfill 边界；`seed-config` / `getting-started` / `deployment` 说明重跑 seed 不覆盖已调整的内置数据
+
+### Fixed
+
+- 内网以 `http://ip` 访问时登录（设备 ID）、支付幂等键、复制按钮等因 `crypto.randomUUID` / `navigator.clipboard` 不存在直接报错
+- PUT 只修改 `status` 却同时改写 `type` / `parentId` / `sort` 等未提交字段（菜单禁用后目录变菜单即此类）
+- Windows 终端下 pino 控制台输出中文与符号显示为乱码（worker 直写 fd 被按 GBK 代码页解码）
+- 日志文件页横向滚动时行号随正文一起滚出视口
+
+---
+
 ## v2.12.0 - 2026-09-02
 
 **CMS 安全与边界收敛 + 会话主体实时校验**：对照 CMS 全页面巡检结论集中修复存储型 XSS / URL 协议、跨站读取、规范路径分裂、发布缓存一致性、导入导出闭环与前端选中/能力状态问题；管理员与会员令牌每次请求回读账号与租户真实状态。
