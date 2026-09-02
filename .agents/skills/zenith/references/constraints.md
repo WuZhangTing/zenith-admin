@@ -149,8 +149,12 @@
 - **菜单 ID 分段**：每个一级目录独占 1000 段（系统管理 = 1000、系统设置 = 2000…）；
   页面落 10 的倍数槽位，按钮从父菜单 ID 顺延 +1..+n。**分配前必读 `SEED_MENUS` 源文件确认段内分布**，
   **严禁**依据任何文档记录的「当前最大 ID」分配
-- **菜单种子清空重建**：seed.ts 对 `menus` 及绑定表 TRUNCATE 后全量重建，`SEED_MENUS` 是唯一权威来源；
+- **菜单种子只新增不更新**：seed.ts 对 `menus` 按 id `onConflictDoNothing`，`SEED_MENUS` 只决定新菜单的初始定义；
+  已存在的行（含管理后台的改名 / 图标 / 排序 / 禁用 / 隐藏 / 换父级）不会被 seed 回写。
+  **修改既有内置菜单的 path / component / 权限码等结构字段时，必须同时提供数据迁移**
+  （`npx drizzle-kit generate --custom` 建独立迁移写 UPDATE），否则已初始化的环境不会跟随代码变化；新增菜单只需维护 `SEED_MENUS`。
   角色 / 套餐引用菜单 ID 用 `collectMenuSubtreeIds()` 等结构化推导，**禁止**硬编码魔法数字
+- **手工菜单 ID 从 100000 起**（seed.ts `MENU_CUSTOM_ID_START`），`SEED_MENUS` 的 id **禁止**进入该区间
 
 ## MSW Mock 层（Step 11）
 

@@ -155,9 +155,15 @@ logger.info('  ✔ Xxxs seeded (onConflictDoNothing)');
 
 ### 菜单种子的更新方式
 
-菜单是系统定义资源，`SEED_MENUS` 为**唯一权威来源**。seed.ts 对菜单采用**清空重建**策略
-（`TRUNCATE ... CASCADE` 后全量插入，绑定表与用户收藏一并重置后重新种入），
-因此**新增菜单只需维护 `SEED_MENUS`，重跑 `npm run db:seed` 即可生效**，无需改 seed.ts。
+菜单是系统定义资源，`SEED_MENUS` 决定新菜单的初始定义。seed.ts 对菜单采用**只新增不更新**策略
+（按 id `onConflictDoNothing`），管理后台对已有菜单的改名 / 图标 / 排序 / 禁用 / 隐藏 / 换父级都会保留，
+`npm run dev` 每次启动重跑 seed 也不会回写。由此：
 
-超管角色自动绑定全部菜单；其他角色按 `SEED_ROLES.menuIds` 绑定，
+- **新增菜单**：只需维护 `SEED_MENUS`，重跑 `npm run db:seed`（或重启 dev）即可插入，无需改 seed.ts
+- **修改既有内置菜单的结构字段**（path / component / 权限码 / 类型 / 父级）：seed 不会同步，
+  必须同时用 `npx drizzle-kit generate --custom` 建独立迁移写 `UPDATE menus ...`，让已初始化的环境跟随代码
+- **删除内置菜单**：同样走数据迁移（先清理 `role_menus` / `user_menus` 引用）
+- 手工创建的菜单 id 从 `100000`（seed.ts `MENU_CUSTOM_ID_START`）起分配，`SEED_MENUS` 不得占用该区间
+
+超管角色在每次 seed 时对当前全部菜单补齐绑定（`onConflictDoNothing`）；其他角色按 `SEED_ROLES.menuIds` 绑定，
 引用菜单 ID 时用 `collectMenuSubtreeIds(rootId)` 等结构化推导（定义在 `shared/src/seed/menus.ts`）。
