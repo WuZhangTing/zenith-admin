@@ -67,6 +67,13 @@ function renderEllipsisTag(text: string, color: 'green' | 'amber' | 'grey' | 're
 
 const renderEmpty = () => <Text type="tertiary">{EMPTY_PLACEHOLDER}</Text>;
 
+/** 加粗的标识符名（表 / 索引）：弹性主列在窄屏下按列宽截断 + Tooltip，不换行也不挤占相邻列 */
+function renderStrongEllipsis(text: string): React.ReactNode {
+  return <Text strong ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%' }}>{text}</Text>;
+}
+
+const qualifiedName = (schema: string, name: string) => (schema === 'public' ? name : `${schema}.${name}`);
+
 // ─── 活动连接 ────────────────────────────────────────────────────────────────────
 function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   const [auto, setAuto] = useState(false);
@@ -192,7 +199,8 @@ function MaintenancePanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   };
 
   const columns: ColumnProps<TableMaintenance>[] = [
-    { title: '表', width: 220, render: (_: unknown, r) => <Text strong>{r.schema === 'public' ? r.name : `${r.schema}.${r.name}`}</Text> },
+    // 表名是弹性主列（标识符最长 63 字符），其余列定宽
+    { title: '表', minWidth: 260, render: (_: unknown, r) => renderStrongEllipsis(qualifiedName(r.schema, r.name)) },
     { title: '活元组', dataIndex: 'liveTuples', width: 100, align: 'right', render: (v: number) => v.toLocaleString() },
     { title: '死元组', dataIndex: 'deadTuples', width: 160, render: (v: number, r) => (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -279,14 +287,17 @@ function IndexHealthPanel() {
   };
 
   const unusedColumns: ColumnProps<IndexInfoRow>[] = [
-    { title: '索引', dataIndex: 'index', width: 240, render: (v: string, r) => (
-      <Space spacing={4}>
-        <Text strong>{v}</Text>
-        {r.isUnique && <Tag size="small" color="blue">UNIQUE</Tag>}
-      </Space>
+    // 索引名是弹性主列：名字最长且最不可控，窄屏下截断 + Tooltip；UNIQUE 标记不参与压缩
+    { title: '索引', dataIndex: 'index', minWidth: 320, render: (v: string, r) => (
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
+        <Text strong ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{v}</Text>
+        {r.isUnique && <Tag size="small" color="blue" style={{ flexShrink: 0 }}>UNIQUE</Tag>}
+      </div>
     )},
-    { title: '表', width: 180, render: (_: unknown, r) => (r.schema === 'public' ? r.table : `${r.schema}.${r.table}`) },
-    { title: '列', dataIndex: 'columns', render: (v: string[]) => v.join(', ') },
+    // 项目内表名最长 32 字符（约 240px）；带 schema 前缀的更长名字截断显示
+    { title: '表', width: 260, render: (_: unknown, r) => renderEllipsis(qualifiedName(r.schema, r.table)) },
+    // 表达式索引没有普通列，显示占位符
+    { title: '列', dataIndex: 'columns', width: 240, render: (v: string[]) => renderEllipsis(v.join(', ')) },
     { title: '大小', dataIndex: 'sizeText', width: 90, align: 'right' },
     { title: '扫描次数', dataIndex: 'scans', width: 90, render: (v: number) => <Tag color="amber" size="small">{v}</Tag> },
     createOperationColumn<IndexInfoRow>({
