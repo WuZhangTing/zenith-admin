@@ -6,7 +6,7 @@ import { guard } from '../../middleware/guard';
 import {
   validationHook, ok, commonErrorResponses, okBody,
 } from '../../lib/openapi-schemas';
-import { readLastLines, spawnTailFollow, validateLogPath, openLogForDownload } from '../../services/ops/log-viewer.service';
+import { readLastLines, spawnTailFollow, openLogForDownload, resolveAllowedLogPath, getLocalLogRoots, getRemoteLogRoots } from '../../services/ops/log-viewer.service';
 import { assertRemoteHostAccess } from '../../lib/host-access';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -24,11 +24,8 @@ router.get('/stream', authMiddleware, guard({ permission: LOG_PERM }), async (c)
     throw new HTTPException(400, { message: '无效的 hostId' });
   }
   await assertRemoteHostAccess(c, hostId);
-  try {
-    validateLogPath(filePath);
-  } catch (e) {
-    throw new HTTPException(400, { message: (e as Error).message });
-  }
+  // 白名单 / 存在性校验放在开流之前，错误以 JSON 状态码返回而不是流式正文
+  await resolveAllowedLogPath(filePath, hostId);
 
   return stream(c, async (s) => {
     let finish!: () => void;
@@ -75,9 +72,9 @@ router.get('/download', authMiddleware, guard({ permission: LOG_PERM }), async (
   await assertRemoteHostAccess(c, hostId);
   let file: Awaited<ReturnType<typeof openLogForDownload>>;
   try {
-    validateLogPath(filePath);
     file = await openLogForDownload(filePath, 100 * 1024 * 1024, hostId);
   } catch (e) {
+    if (e instanceof HTTPException) throw e;
     throw new HTTPException(400, { message: (e as Error).message });
   }
   c.header('Content-Type', 'application/octet-stream');
@@ -113,15 +110,26 @@ const contentRoute = defineOpenAPIRoute({
   handler: async (c) => {
     const { path: filePath, lines, hostId } = c.req.valid('query');
     await assertRemoteHostAccess(c, hostId);
-    try { validateLogPath(filePath); } catch (e) {
-      throw new HTTPException(400, { message: (e as Error).message });
-    }
     const lineCount = Math.min(Number.parseInt(lines ?? '500', 10) || 500, 5000);
     const content = await readLastLines(filePath, lineCount, hostId);
     return c.json(okBody({ content }), 200);
   },
 });
 
-router.openapiRoutes([contentRoute] as const);
+const rootsRoute = defineOpenAPIRoute({
+  route: createRoute({
+    method: 'get', path: '/roots', summary: '日志查看器允许读取的目录', tags: ['LogViewer'],
+    middleware: [authMiddleware, guard({ permission: LOG_PERM })] as const,
+    request: { query: z.object({ hostId: z.coerce.number().int().positive().optional() }) },
+    responses: { ...commonErrorResponses, ...ok(z.object({ roots: z.array(z.string()) }), '允许目录') },
+  }),
+  handler: async (c) => {
+    const { hostId } = c.req.valid('query');
+    await assertRemoteHostAccess(c, hostId);
+    return c.json(okBody({ roots: hostId == null ? getLocalLogRoots() : getRemoteLogRoots() }), 200);
+  },
+});
+
+router.openapiRoutes([contentRoute, rootsRoute] as const);
 
 export default router;

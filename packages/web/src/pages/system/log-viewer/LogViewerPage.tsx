@@ -8,7 +8,7 @@ import { FolderOpen, Play, Square, Search, FileText, Download } from 'lucide-rea
 import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { request } from '@/utils/request';
-import { logViewerKeys, useLogViewerContent } from '@/hooks/queries/log-viewer';
+import { logViewerKeys, useLogViewerContent, useLogViewerRoots } from '@/hooks/queries/log-viewer';
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
 
@@ -164,6 +164,7 @@ export default function LogViewerPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentParams = { path: submittedPath, lines: 500, ...(hostId == null ? {} : { hostId }) };
   const contentQuery = useLogViewerContent(contentParams, !!submittedPath && !following);
+  const rootsQuery = useLogViewerRoots(hostId ?? undefined);
 
 
   // 追踪模式下自动滚到底部
@@ -263,6 +264,11 @@ export default function LogViewerPage() {
         <div style={{ flex: 1, minWidth: 260 }}>
           <Typography.Text size="small" type="secondary" style={{ display: 'block', marginBottom: 4 }}>
             日志文件路径
+            {rootsQuery.data && (
+              <span style={{ marginLeft: 8 }}>
+                （仅允许：{rootsQuery.data.roots.length > 0 ? rootsQuery.data.roots.join('、') : '未配置 LOG_VIEWER_ROOTS'}）
+              </span>
+            )}
           </Typography.Text>
           <Input
             prefix={<FolderOpen size={13} />}
