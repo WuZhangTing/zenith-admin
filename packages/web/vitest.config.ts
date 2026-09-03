@@ -27,6 +27,11 @@ export default defineConfig({
     // （rolldown 全量转译）并行时会把 CPU 打满，导致 worker 启动超时。
     // CI 的 4 核 runner 本就只起 3 个 worker，不受影响。
     maxWorkers: 8,
+    // 显式写出默认值：vitest 5 会对未显式设置的 pool / isolate 打印「换 vmThreads /
+    // 关隔离可省下重复创建 jsdom 的时间」的性能提示。web 有 50+ 个测试文件依赖
+    // 顶层 vi.mock 与各自独立的 jsdom，两项都不接受；若要评估 vmThreads，单独立项实测。
+    pool: 'forks',
+    isolate: true,
     // Semi 的 CJS 产物里直接 require CSS，node_modules 无法走原生加载，只能进
     // vite 管线逐模块转译+执行；隔离模式下每个测试文件的 worker 都要重复执行
     // 这几千个包装模块。esbuild 预打包把它们压成单一 chunk（缓存在

@@ -18,6 +18,9 @@ export default defineConfig({
     // libuv 线程池**（默认 4 线程），zlib/fs 密集用例（如 exceljs 导出）在
     // 四路并行争抢下被饿死——~1s 的用例实测放大到 40s+ 撞破超时；forks 每个
     // 子进程各有独立线程池。threads 的收益仅 ~7%（108.7s → 101.5s），不值。
+    // 显式写出默认值：vitest 5 会在跑完后对**未显式设置**的 pool / isolate 打印
+    // 「换池 / 关隔离可提速」的性能提示，显式声明后就不再建议改动这两项。
+    pool: 'forks',
     // 每个 worker 都要独立执行整套 app（300+ 路由文件）的模块图，worker 越多重复越多，
     // 到某个点后收益反转：16 核实测默认档（核数-1=15）transform 累计 1432s、墙钟 307s，
     // 且 app.contract（装配 app + 1800 次进程内请求）撞破超时；
@@ -33,6 +36,7 @@ export default defineConfig({
     // 不要用 isolate: false 换速度：本套测试重度依赖 per-file vi.mock，关闭隔离会
     // 产生跨文件模块状态泄漏（单跑全绿、混跑必挂），且文件→worker 的分配随时序
     // 变化，泄漏组合不可复现、白名单不可维护。
+    isolate: true,
     coverage: {
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/db/seed.ts', 'src/db/migrate.ts'],

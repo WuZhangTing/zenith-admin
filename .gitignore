@@ -14,6 +14,7 @@ docs/.vitepress/dist/
 **/storage/tmp/
 **/storage/cms-static/
 **/coverage/
+.vitest/
 .claude/settings.local.json
 
 /logs/
