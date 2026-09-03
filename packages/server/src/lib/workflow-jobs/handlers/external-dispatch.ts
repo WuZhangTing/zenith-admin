@@ -4,7 +4,7 @@ import { db } from '../../../db';
 import { workflowTasks, workflowInstances } from '../../../db/schema';
 import { approveTaskByCallback, rejectTaskByCallback, handleNodeExecutionError } from '../../../services/workflow/workflow-instances.service';
 import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';
-import { httpPost } from '../../http-client';
+import { workflowHttpPost } from '../../workflow-outbound';
 import logger from '../../logger';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobError } from '../errors';
@@ -86,7 +86,7 @@ async function handle({ payload, attempt, job }: WorkflowJobContext): Promise<Wo
     }
   } else {
     try {
-      const resp = await httpPost(ext.url, bodyStr, { headers, timeout: ext.timeoutMs ?? TIMEOUT_MS_DEFAULT });
+      const resp = await workflowHttpPost(ext.url, bodyStr, { headers, timeout: ext.timeoutMs ?? TIMEOUT_MS_DEFAULT });
       const respText = await resp.text().catch(() => '');
       if (resp.ok) {
         // 派发成功：任务保持 waiting，等待外部回调

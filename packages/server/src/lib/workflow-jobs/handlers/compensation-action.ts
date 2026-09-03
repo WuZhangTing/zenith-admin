@@ -4,7 +4,7 @@ import { db } from '../../../db';
 import { workflowInstances, smsConfigs, smsTemplates } from '../../../db/schema';
 import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';
 import { markCompensationActionResult } from '../../../services/workflow/workflow-compensations.service';
-import { httpRequest } from '../../http-client';
+import { renderUrlTemplate, workflowHttp } from '../../workflow-outbound';
 import { sendMail } from '../../email';
 import { sendSmsByProvider } from '../../sms-sender';
 import { registerJobHandler } from '../registry';
@@ -24,6 +24,17 @@ function renderTemplate(template: string, formData: Record<string, unknown>, ext
     .replace(/\{\{([a-zA-Z_]\w*)\}\}/g, (_, key) => extras[key] ?? '');
 }
 
+/** URL 专用渲染：占位值百分号编码，表单值不能改写路径 / 参数 / 主机（见 workflow-outbound.renderUrlTemplate） */
+function renderUrl(template: string, formData: Record<string, unknown>, extras: Record<string, string>): string {
+  return renderUrlTemplate(template, (key) => {
+    if (key.startsWith('form.')) {
+      const v = formData[key.slice(5).trim()];
+      return v === undefined || v === null || typeof v === 'object' ? '' : v;
+    }
+    return extras[key] ?? '';
+  });
+}
+
 function resolveRecipients(recipients: string[] | undefined, formData: Record<string, unknown>, extras: Record<string, string>): string[] {
   if (!recipients?.length) return [];
   return recipients.map((r) => renderTemplate(r, formData, extras).trim()).filter(Boolean);
@@ -39,13 +50,13 @@ export async function executeCompensationAction(action: WorkflowCompensationActi
       return { ok: true, detail: { result: { type: 'none' } } };
 
     case 'http': {
-      const url = action.url ? renderTemplate(action.url, ctx.formData, extras) : '';
+      const url = action.url ? renderUrl(action.url, ctx.formData, extras) : '';
       if (!url) return { ok: false, error: 'http 反向动作缺少 url', detail: {} };
       const method = (action.httpMethod ?? 'POST').toUpperCase();
       const body = method === 'GET' || !action.bodyTemplate ? undefined : renderTemplate(action.bodyTemplate, ctx.formData, extras);
       const headers: Record<string, string> = { 'Content-Type': 'application/json', ...action.headers };
       try {
-        const resp = await httpRequest(url, { method, headers, body, timeout: action.timeoutMs ?? TIMEOUT_MS_DEFAULT });
+        const resp = await workflowHttp(url, { method, headers, body, timeout: action.timeoutMs ?? TIMEOUT_MS_DEFAULT });
         const text = await resp.text().catch(() => '');
         return { ok: resp.ok, error: resp.ok ? undefined : `HTTP ${resp.status}`, detail: { requestUrl: url, requestMethod: method, requestBody: body ?? null, responseStatus: resp.status, responseBody: text.slice(0, 4096) } };
       } catch (err) {
@@ -57,7 +68,7 @@ export async function executeCompensationAction(action: WorkflowCompensationActi
       if (!action.connectorId) return { ok: false, error: 'connector 反向动作缺少 connectorId', detail: {} };
       const connector = await getConnectorRowById(action.connectorId);
       if (!connector) return { ok: false, error: `连接器 #${action.connectorId} 不存在`, detail: {} };
-      const path = action.url ? renderTemplate(action.url, ctx.formData, extras) : undefined;
+      const path = action.url ? renderUrl(action.url, ctx.formData, extras) : undefined;
       const body = action.bodyTemplate ? renderTemplate(action.bodyTemplate, ctx.formData, extras) : undefined;
       const r = await invokeConnector(connector, { path, method: action.httpMethod ?? 'POST', headers: action.headers, body, source: 'external' });
       return { ok: r.ok, error: r.error ?? undefined, detail: { requestUrl: `[connector:${connector.code}] ${path ?? ''}`.trim(), requestMethod: action.httpMethod ?? 'POST', requestBody: body ?? null, responseStatus: r.status, responseBody: r.responseSnippet } };

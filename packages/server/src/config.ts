@@ -80,6 +80,8 @@ const envSchema = z.object({
   PAYMENT_CASHIER_BASE_URL: z.url().default('http://localhost:5373'),
   /** 支付业务 Webhook 允许访问的私网/本机目标，语义同开放平台 Webhook allowlist。 */
   PAYMENT_WEBHOOK_ALLOWED_HOSTS: z.string().default(''),
+  /** 工作流域出站请求（数据源 / 连接器 / 事件订阅 / 触发器 / 补偿动作 / 节点监听）允许访问的私网/本机目标，语义同上 */
+  WORKFLOW_OUTBOUND_ALLOWED_HOSTS: z.string().default(''),
   /** 单次支付渠道 HTTP 调用硬超时。资金写请求超时后进入 unknown，由查单收敛。 */
   PAYMENT_PROVIDER_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
@@ -272,6 +274,10 @@ export const config = {
     cashierBaseUrl: env.PAYMENT_CASHIER_BASE_URL.replace(/\/+$/, ''),
     webhookAllowedHosts: env.PAYMENT_WEBHOOK_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean),
     providerTimeoutMs: env.PAYMENT_PROVIDER_TIMEOUT_MS,
+  },
+  workflow: {
+    /** 工作流出站 SSRF 内网允许清单（host、*.suffix、CIDR） */
+    outboundAllowedHosts: env.WORKFLOW_OUTBOUND_ALLOWED_HOSTS.split(',').map((s) => s.trim()).filter(Boolean),
   },
   log: {
     level: env.LOG_LEVEL,

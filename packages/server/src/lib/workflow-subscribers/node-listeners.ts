@@ -11,7 +11,7 @@ import { db } from '../../db';
 import { workflowInstances } from '../../db/schema';
 import type { NodeListenerConfig, NodeListenerEvent, WorkflowTaskEventPayload } from '@zenith/shared/workflow';
 import { workflowEventBus } from '../workflow-event-bus';
-import { httpGet, httpPost } from '../http-client';
+import { workflowHttpGet, workflowHttpPost } from '../workflow-outbound';
 import logger from '../logger';
 
 const TIMEOUT_MS = 8_000;
@@ -39,9 +39,9 @@ async function fireListener(listener: NodeListenerConfig, event: WorkflowTaskEve
   };
   try {
     if (listener.method === 'GET') {
-      await httpGet(listener.url, { headers, timeout: TIMEOUT_MS });
+      await workflowHttpGet(listener.url, { headers, timeout: TIMEOUT_MS });
     } else {
-      await httpPost(listener.url, payload, { headers, timeout: TIMEOUT_MS });
+      await workflowHttpPost(listener.url, payload, { headers, timeout: TIMEOUT_MS });
     }
     logger.info('[workflow-node-listener] dispatched', { url: listener.url, eventId: event.eventId, listenerEvent });
   } catch (err) {

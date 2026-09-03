@@ -67,6 +67,7 @@ ALLOWED_ORIGINS=https://admin.example.com
 | `PAYMENT_NOTIFY_BASE_URL` | 支付渠道回调基址 |
 | `CMS_STATIC_ROOT` | CMS 静态化输出目录 |
 | `OPEN_WEBHOOK_ALLOWED_HOSTS` | 开放平台 Webhook 私网回调 allowlist |
+| `WORKFLOW_OUTBOUND_ALLOWED_HOSTS` | 工作流出站（数据源 / 连接器 / 订阅 / 触发器 / 补偿 / 节点监听）私网目标 allowlist；默认一律拒绝内网 |
 
 跨域部署时同时设置 `CORS_ORIGIN=https://admin.example.com`。同域反向代理 `/api` 时通常不需要 CORS。
 

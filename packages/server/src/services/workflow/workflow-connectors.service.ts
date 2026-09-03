@@ -16,7 +16,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
-import { httpRequest } from '../../lib/http-client';
+import { assertSafeWorkflowUrl, buildConnectorUrl, workflowHttp } from '../../lib/workflow-outbound';
 import { sendMail } from '../../lib/email';
 import { sendSmsByProvider, renderTemplate } from '../../lib/sms-sender';
 import { breakerAllow, breakerSuccess, breakerFailure, breakerState, breakerReset } from '../../lib/workflow-connector-breaker';
@@ -79,6 +79,15 @@ async function ensureConnector(id: number): Promise<WorkflowConnectorRow> {
 }
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
+/** HTTP 类连接器（http / webhook / IM 机器人）的基地址在保存时就要通过出站地址校验 */
+const HTTP_CONNECTOR_TYPES = new Set<string>(['http', 'webhook', 'wecom', 'dingtalk', 'feishu']);
+
+async function assertConnectorConfigSafe(type: string | undefined, cfg: Record<string, unknown> | undefined): Promise<void> {
+  if (!cfg || !HTTP_CONNECTOR_TYPES.has(type ?? 'http')) return;
+  const baseUrl = typeof cfg.baseUrl === 'string' ? cfg.baseUrl.trim() : '';
+  if (baseUrl) await assertSafeWorkflowUrl(baseUrl);
+}
+
 export async function listWorkflowConnectors(query: { page?: number; pageSize?: number; keyword?: string; type?: WorkflowConnectorType; status?: 'enabled' | 'disabled' }) {
   const { page = 1, pageSize = 10, keyword, type, status } = query;
   const tc = tenantCondition(workflowConnectors, currentUser());
@@ -102,6 +111,7 @@ export async function getWorkflowConnector(id: number): Promise<WorkflowConnecto
 
 export async function createWorkflowConnector(input: CreateWorkflowConnectorInput): Promise<WorkflowConnector> {
   const tenantId = getCreateTenantId(currentUser());
+  await assertConnectorConfigSafe(input.type ?? 'http', input.config as Record<string, unknown> | undefined);
   try {
     const [row] = await db.insert(workflowConnectors).values({
       name: input.name,
@@ -130,6 +140,9 @@ export async function createWorkflowConnector(input: CreateWorkflowConnectorInpu
 
 export async function updateWorkflowConnector(id: number, input: UpdateWorkflowConnectorInput): Promise<WorkflowConnector> {
   const existing = await ensureConnector(id);
+  if (input.config !== undefined) {
+    await assertConnectorConfigSafe(input.type ?? existing.type, input.config as Record<string, unknown> | undefined);
+  }
   const patch: Partial<typeof workflowConnectors.$inferInsert> = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.code !== undefined) patch.code = input.code;
@@ -165,15 +178,9 @@ export async function deleteWorkflowConnector(id: number): Promise<void> {
 }
 
 // ─── 运行时调用 ───────────────────────────────────────────────────────────────
-function buildUrl(baseUrl: string, path: string | undefined, query: Record<string, string>): string {
-  let url = baseUrl ?? '';
-  if (path) {
-    url = /^https?:\/\//i.test(path) ? path : `${url.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-  }
-  const qs = Object.keys(query).length ? new URLSearchParams(query).toString() : '';
-  if (qs) url += (url.includes('?') ? '&' : '?') + qs;
-  return url;
-}
+// URL 拼装见 lib/workflow-outbound.buildConnectorUrl：path 只能是相对路径或与 baseUrl 同源，
+// 防止引用他人连接器的订阅 / 触发器把解密后的凭据带到任意主机
+const buildUrl = buildConnectorUrl;
 
 function buildHeaders(cfg: WorkflowConnectorHttpConfig, creds: WorkflowConnectorCredentials, extra?: Record<string, string>): Record<string, string> {
   const headers: Record<string, string> = { ...(cfg.headers ?? {}), ...(extra ?? {}) };
@@ -271,7 +278,7 @@ async function executeHttp(connector: WorkflowConnectorRow, req: BuiltRequest, c
   const started = Date.now();
   let result: WorkflowConnectorInvokeResult;
   try {
-    const resp = await httpRequest(req.url, {
+    const resp = await workflowHttp(req.url, {
       method: req.method,
       headers: req.headers,
       body: req.body == null ? undefined : (req.body as Record<string, unknown>),
@@ -358,7 +365,15 @@ export async function invokeConnector(connector: WorkflowConnectorRow, opts: Con
     const r = fail('连接器未配置 baseUrl'); await recordInvocation(connector, '', r, source); return r;
   }
   const isIm = connector.type === 'wecom' || connector.type === 'dingtalk' || connector.type === 'feishu';
-  const req = isIm ? buildImRequest(connector, opts) : buildHttpRequest(connector, opts);
+  let req: BuiltRequest;
+  try {
+    req = isIm ? buildImRequest(connector, opts) : buildHttpRequest(connector, opts);
+  } catch (err) {
+    // 调用路径试图把请求改到 baseUrl 之外的主机（连带凭据）：按调用失败记账，不发请求
+    const r = fail(err instanceof Error ? err.message : '连接器请求地址无效');
+    await recordInvocation(connector, '', r, source);
+    return r;
+  }
   return executeHttp(connector, req, cbCfg, source);
 }
 

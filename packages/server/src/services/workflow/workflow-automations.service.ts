@@ -23,7 +23,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import { workflowEventBus } from '../../lib/workflow-event-bus';
 import { createInstance } from './workflow-instances.service';
-import { httpRequest } from '../../lib/http-client';
+import { assertSafeWorkflowUrl, renderUrlTemplate, workflowHttp } from '../../lib/workflow-outbound';
 import redis from '../../lib/redis';
 import { config } from '../../config';
 import logger from '../../lib/logger';
@@ -97,6 +97,10 @@ async function validateAutomationActions(actions: WorkflowAutomationActionConfig
   for (const action of actions) {
     if (action.type === 'startWorkflow') {
       await ensureStartWorkflowActionTarget(action.definitionId);
+    }
+    // Webhook 目标地址保存时即做出站校验；含占位符的模板只能校验协议 / 静态主机部分，运行时还会再拦一次
+    if (action.type === 'webhook' && action.url && !/\{\{/.test(action.url)) {
+      await assertSafeWorkflowUrl(action.url);
     }
   }
 }
@@ -325,7 +329,8 @@ async function runWebhookAction(
   ctx: AutomationContext,
 ) {
   const vars = buildTemplateVars(ctx);
-  const url = renderTemplate(action.url, vars);
+  // URL 里的占位值（含发起人填写的表单字段）百分号编码，只能落成一个值而不能改写路径 / 主机
+  const url = renderUrlTemplate(action.url, (key) => vars[key]);
   if (!url) return;
   const method = action.method ?? 'POST';
   let body: Record<string, unknown> | string | undefined;
@@ -348,7 +353,7 @@ async function runWebhookAction(
       };
     }
   }
-  await httpRequest(url, {
+  await workflowHttp(url, {
     method,
     headers: action.headers,
     body,

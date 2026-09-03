@@ -6,7 +6,7 @@ import { workflowTasks, workflowInstances } from '../../../db/schema';
 import type { workflowTasks as workflowTasksTable, workflowInstances as workflowInstancesTable } from '../../../db/schema';
 import { approveTaskCore, handleNodeExecutionError } from '../../../services/workflow/workflow-instances.service';
 import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';
-import { httpRequest } from '../../http-client';
+import { workflowHttp } from '../../workflow-outbound';
 import logger from '../../logger';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobError } from '../errors';
@@ -74,7 +74,7 @@ async function executeHttpTrigger(cfg: WorkflowTriggerNodeConfig, formData: Reco
     return { status: 'failed', responseStatus: null, responseBody: null, errorMessage: '未配置 webhookUrl', requestUrl: '', requestMethod: method, requestBody: bodyStr };
   }
   try {
-    const resp = await httpRequest(url, { method, headers, body: bodyStr ?? undefined, timeout: cfg.timeoutMs ?? TIMEOUT_MS_DEFAULT });
+    const resp = await workflowHttp(url, { method, headers, body: bodyStr ?? undefined, timeout: cfg.timeoutMs ?? TIMEOUT_MS_DEFAULT });
     const respText = await resp.text().catch(() => '');
     return {
       status: resp.ok ? 'success' : 'failed',

@@ -4,7 +4,7 @@ import { db } from '../../../db';
 import { workflowEventSubscriptions } from '../../../db/schema';
 import { invokeConnector, getConnectorRowById } from '../../../services/workflow/workflow-connectors.service';
 import { decryptSubscriptionSecret } from '../../../services/workflow/workflow-event-subscriptions.service';
-import { httpPost } from '../../http-client';
+import { workflowHttpPost } from '../../workflow-outbound';
 import { registerJobHandler } from '../registry';
 import { WorkflowJobSkip, WorkflowJobError, WorkflowJobPermanentError } from '../errors';
 import type { WorkflowJobContext, WorkflowJobResult } from '../types';
@@ -65,7 +65,7 @@ async function handle({ payload, attempt, job }: WorkflowJobContext): Promise<Wo
     throw new WorkflowJobError(r.error ?? '连接器调用失败', { detail: { ...detail, responseStatus: r.status, responseBody: r.responseSnippet } });
   }
   try {
-    const resp = await httpPost(sub.url, bodyStr, { headers, timeout: TIMEOUT_MS });
+    const resp = await workflowHttpPost(sub.url, bodyStr, { headers, timeout: TIMEOUT_MS });
     const respText = await resp.text().catch(() => '');
     if (resp.ok) {
       return { ...detail, responseStatus: resp.status, responseBody: respText.slice(0, 4096) };

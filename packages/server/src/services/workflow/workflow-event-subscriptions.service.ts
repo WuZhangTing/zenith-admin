@@ -15,7 +15,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
-import { httpPost } from '../../lib/http-client';
+import { assertSafeWorkflowUrl, workflowHttpPost } from '../../lib/workflow-outbound';
 import { signHmac } from '../../lib/workflow-jobs/handlers/shared';
 import { invokeConnector, getConnectorRowById } from './workflow-connectors.service';
 import type { WorkflowEventType } from '@zenith/shared/workflow';
@@ -156,6 +156,8 @@ export interface UpsertSubscriptionInput {
 
 export async function createSubscription(input: UpsertSubscriptionInput) {
   if (input.events.length === 0) throw new HTTPException(400, { message: '至少订阅一个事件类型' });
+  // 直连 URL 保存时即校验；走连接器时 url 只是相对路径（同源约束由 buildConnectorUrl 保证）
+  if (!input.connectorId && input.url) await assertSafeWorkflowUrl(input.url);
   try {
     const user = currentUser();
     const [row] = await db.insert(workflowEventSubscriptions).values({
@@ -180,7 +182,12 @@ export async function createSubscription(input: UpsertSubscriptionInput) {
 }
 
 export async function updateSubscription(id: number, input: Partial<UpsertSubscriptionInput>) {
-  await ensureSubscriptionExists(id);
+  const existing = await ensureSubscriptionExists(id);
+  const nextConnectorId = input.connectorId !== undefined ? input.connectorId : existing.connectorId;
+  const nextUrl = input.url !== undefined ? input.url : existing.url;
+  if ((input.url !== undefined || input.connectorId !== undefined) && !nextConnectorId && nextUrl) {
+    await assertSafeWorkflowUrl(nextUrl);
+  }
   const user = currentUser();
   const tc = tenantCondition(workflowEventSubscriptions, user);
   const conds = [eq(workflowEventSubscriptions.id, id)];
@@ -595,7 +602,7 @@ export async function testSubscriptionDelivery(id: number): Promise<TestDelivery
       const r = await invokeConnector(connector, { path: row.url || undefined, method: 'POST', headers, body: bodyStr, source: 'webhook' });
       return { ...base, durationMs: Date.now() - startedAt, ok: r.ok, httpStatus: r.status ?? null, responseSnippet: r.responseSnippet ?? null, error: r.ok ? null : (r.error ?? '连接器调用失败') };
     }
-    const resp = await httpPost(row.url, bodyStr, { headers, timeout: 10_000 });
+    const resp = await workflowHttpPost(row.url, bodyStr, { headers, timeout: 10_000 });
     const respText = await resp.text().catch(() => '');
     return { ...base, durationMs: Date.now() - startedAt, ok: resp.ok, httpStatus: resp.status, responseSnippet: respText.slice(0, 1024) || null, error: resp.ok ? null : `HTTP ${resp.status}` };
   } catch (err) {

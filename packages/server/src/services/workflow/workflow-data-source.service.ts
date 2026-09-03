@@ -1,6 +1,6 @@
 /**
  * 表单远程数据源 Service
- * CRUD + 代理拉取选项（仅登记 URL 可被调用，统一走 http-client，防 SSRF）。
+ * CRUD + 代理拉取选项（仅登记 URL 可被调用；保存时与请求时都经 workflow-outbound 做 SSRF 防护）。
  */
 import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq } from 'drizzle-orm';
@@ -10,7 +10,7 @@ import { pageOffset } from '../../lib/pagination';
 import { keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { httpRequest } from '../../lib/http-client';
+import { assertSafeWorkflowUrl, workflowHttp } from '../../lib/workflow-outbound';
 import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
 import type { WorkflowDataSourceRow } from '../../db/schema';
 import type { WorkflowDataSource, WorkflowDataSourceOption, CreateWorkflowDataSourceInput, UpdateWorkflowDataSourceInput } from '@zenith/shared/workflow';
@@ -102,6 +102,7 @@ export async function listDataSources(query: { page?: number; pageSize?: number;
 }
 
 export async function createDataSource(input: CreateWorkflowDataSourceInput): Promise<WorkflowDataSource> {
+  await assertSafeWorkflowUrl(input.url);
   try {
     const [row] = await db.insert(workflowDataSources).values({
       name: input.name,
@@ -124,6 +125,7 @@ export async function createDataSource(input: CreateWorkflowDataSourceInput): Pr
 
 export async function updateDataSource(id: number, input: UpdateWorkflowDataSourceInput): Promise<WorkflowDataSource> {
   const existing = await ensureDataSourceExists(id);
+  if (input.url !== undefined) await assertSafeWorkflowUrl(input.url);
   try {
     const [row] = await db.update(workflowDataSources).set({
       name: input.name,
@@ -185,7 +187,7 @@ async function fetchDataSourceRawItems(id: number, keyword?: string): Promise<Ar
 
   let json: unknown;
   try {
-    const res = await httpRequest(url, { method, headers: decryptHeaders(src.headersEncrypted) ?? undefined, body, timeout: 10_000 });
+    const res = await workflowHttp(url, { method, headers: decryptHeaders(src.headersEncrypted) ?? undefined, body, timeout: 10_000 });
     if (!res.ok) throw new HTTPException(502, { message: `数据源返回状态 ${res.status}` });
     json = await res.json();
   } catch (err) {
