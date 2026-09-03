@@ -371,7 +371,7 @@ onSelect={(deptId) => applySearch({ ...draftParams, departmentId: deptId })}
 ## 危险操作确认
 
 ```ts
-import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { confirmDanger, confirmDangerAsync, confirmDelete } from '@/utils/confirm';
 
 // 删除：优先写明对象的具体文案
 confirmDelete({ title: '确定要删除该标签吗？', content: '删除后不可恢复', onOk });
@@ -380,9 +380,12 @@ confirmDelete({ onOk: () => handleDelete(row.id) });
 
 // 其它破坏性操作
 confirmDanger({ title: `重置「${name}」的签名密钥？`, content: '旧密钥将立即失效', onOk });
+
+// async 流程里需要在确认后继续执行（如停用前二次确认）
+if (!(await confirmDangerAsync({ title: `确认停用「${name}」？`, okText: '确认停用' }))) return;
 ```
 
-两者都会注入红色实心确认按钮，其余选项原样透传给 `Modal.confirm`；
+三者都会注入红色实心确认按钮，其余选项原样透传给 `Modal.confirm`，调用点不要再写 `okButtonProps: { type: 'danger' }`；
 需要弱化样式时可覆盖 `okButtonProps: { theme: 'borderless' }`。
 
 ## 弹窗表单布局

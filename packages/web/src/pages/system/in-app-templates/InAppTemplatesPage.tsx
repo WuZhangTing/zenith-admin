@@ -1,4 +1,4 @@
-import { Col, Form, Modal, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import type { InAppMessageType, InAppTemplate } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
 import { useDictItems } from '@/hooks/useDictItems';
@@ -19,7 +19,7 @@ import {
 import { IN_APP_MESSAGE_TYPE_OPTIONS_WITH_COLOR as TYPE_OPTIONS } from '../in-app-message-constants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function InAppTemplatesPage() {
   const { hasPermission: can } = usePermission();
@@ -66,15 +66,9 @@ export default function InAppTemplatesPage() {
 
   const handleToggleStatus = async (tpl: InAppTemplate, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用模板「${tpl.name}」？`,
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用模板「${tpl.name}」？`,
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

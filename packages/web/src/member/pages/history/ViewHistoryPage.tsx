@@ -20,7 +20,6 @@ export default function ViewHistoryPage() {
       title: '清空浏览历史',
       content: '确定清空全部浏览记录吗？',
       okText: '清空',
-      okButtonProps: { type: 'danger' },
       onOk: async () => {
         await clearMutation.mutateAsync();
         setPage(1);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Select, Modal, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Toast, Spin, Switch, SideSheet } from '@douyinfe/semi-ui';
 import type { Role, Department } from '@zenith/shared/identity';
 import { UserTransferSelect } from '@/components/UserTransferSelect';
 import type { UserTransferUser } from '@/components/UserTransferSelect';
@@ -34,7 +34,7 @@ import {
 } from '@/hooks/queries/roles';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function RolesPage() {
   const { hasPermission } = usePermission();
@@ -182,16 +182,10 @@ export default function RolesPage() {
 
   const handleToggleStatus = async (role: Role, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用角色「${role.name}」？`,
-          content: '禁用后持有该角色的用户将不能登录。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用角色「${role.name}」？`,
+        content: '禁用后持有该角色的用户将不能登录。',
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

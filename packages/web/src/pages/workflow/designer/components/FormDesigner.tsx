@@ -463,7 +463,6 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
         </div>
       ),
       okText: '仍然删除并清理引用',
-      okButtonProps: { type: 'danger' },
       cancelText: '取消',
       onOk: doRemove,
     });
@@ -650,7 +649,6 @@ export default function FormDesigner({ fields, onChange, settings, onSettingsCha
         ? `以下字段依赖被删字段，相关引用将被自动清理：${Array.from(outsideDeps.values()).join('、')}`
         : '删除后可通过撤销恢复。',
       okText: '删除',
-      okButtonProps: { type: 'danger' },
       cancelText: '取消',
       onOk: doRemove,
     });

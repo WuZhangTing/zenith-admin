@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banner, Button, Form, Modal, Select, Space, Toast, SideSheet, Empty, Tag, Spin, Switch, Typography } from '@douyinfe/semi-ui';
+import { Banner, Button, Form, Select, Space, Toast, SideSheet, Empty, Tag, Spin, Switch, Typography } from '@douyinfe/semi-ui';
 import { RefreshCw, Trash2, Users } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
@@ -36,7 +36,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -170,16 +170,10 @@ export default function UserGroupsPage() {
 
   const handleToggleStatus = async (group: UserGroup, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用用户组「${group.name}」？`,
-          content: '禁用后该用户组将不可选择。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用用户组「${group.name}」？`,
+        content: '禁用后该用户组将不可选择。',
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

@@ -175,7 +175,6 @@ export default function AnalyticsQualityTab() {
           onClick: () => {
             confirmDelete({
               title: `确定删除事件「${record.eventName}」的覆盖规则吗？`,
-              okButtonProps: { type: 'danger' },
               onOk: () => handleOverrideDelete(record),
             });
           },

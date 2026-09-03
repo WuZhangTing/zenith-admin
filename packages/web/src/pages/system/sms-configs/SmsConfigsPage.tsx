@@ -1,4 +1,4 @@
-import { Col, Form, Modal, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
+import { Col, Form, Row, Select, Spin, Tag, Toast, Switch } from '@douyinfe/semi-ui';
 import { SMS_PROVIDER_OPTIONS } from '@zenith/shared/messaging';
 import type { SmsConfig, SmsProvider } from '@zenith/shared/messaging';
 import { usePermission } from '@/hooks/usePermission';
@@ -20,7 +20,7 @@ import {
 } from '@/hooks/queries/sms-configs';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function SmsConfigsPage() {
   const { hasPermission: can } = usePermission();
@@ -84,15 +84,9 @@ export default function SmsConfigsPage() {
         Toast.warning('默认配置不能禁用，请先将其他配置设为默认');
         return;
       }
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用「${cfg.name}」？`,
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用「${cfg.name}」？`,
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

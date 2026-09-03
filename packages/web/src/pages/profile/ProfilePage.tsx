@@ -104,9 +104,8 @@ function SessionList({
               type="danger"
               size="small"
               onClick={() => {
-                Modal.confirm({
+                confirmDanger({
                   title: '确定要退出该设备吗？',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
                   onOk: () => onKick(session.tokenId),
                 });
               }}
@@ -600,9 +599,8 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                             type="danger"
                             size="small"
                             onClick={() => {
-                              Modal.confirm({
+                              confirmDanger({
                                 title: '确定要停用该 MFA 因子吗？',
-                                okButtonProps: { type: 'danger', theme: 'solid' },
                                 onOk: () => handleDisableMfaFactor(factor.id),
                               });
                             }}
@@ -615,10 +613,9 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                             type="danger"
                             size="small"
                             onClick={() => {
-                              Modal.confirm({
+                              confirmDanger({
                                 title: '确定要删除该 MFA 因子吗？',
                                 content: '删除后不可恢复，如需继续使用请重新绑定。',
-                                okButtonProps: { type: 'danger', theme: 'solid' },
                                 onOk: () => handleDeleteMfaFactor(factor.id),
                               });
                             }}
@@ -702,10 +699,9 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                     <div className="section-title" style={{ margin: 0 }}>在线设备</div>
                     <Button type="danger" theme="light" size="small" loading={kickOthersLoading} icon={<LogOut size={14} />} onClick={() => {
-                      Modal.confirm({
+                      confirmDanger({
                         title: '确定要退出其他所有设备吗？',
                         content: '退出后其他设备将需要重新登录。',
-                        okButtonProps: { type: 'danger', theme: 'solid' },
                         onOk: handleKickOthers,
                       });
                     }}>

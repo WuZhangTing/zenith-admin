@@ -467,7 +467,7 @@ export default function RuleTablesPage() {
       return;
     }
     confirmDelete({
-      title: '确定删除？', content: '删除后不可恢复', okButtonProps: { type: 'danger' },
+      title: '确定删除？', content: '删除后不可恢复',
       onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('删除成功'); },
     });
   };
@@ -481,7 +481,7 @@ export default function RuleTablesPage() {
       return;
     }
     const usages = await fetchRuleUsages(r.id).catch(() => [] as RuleUsageItem[]);
-    Modal.confirm({
+    confirmDanger({
       title: `停用「${r.name}」？`,
       content: (
         <div>
@@ -489,7 +489,6 @@ export default function RuleTablesPage() {
           {usages.length > 0 && <><Text type="warning" style={{ display: 'block', marginTop: 8 }}>该表正被 {usages.length} 处引用，停用将立即影响：</Text>{renderUsageList(usages)}</>}
         </div>
       ),
-      okButtonProps: { type: 'danger' },
       onOk: async () => { await toggleMutation.mutateAsync({ id: r.id, enabled: false }); Toast.success('已停用'); },
     });
   };

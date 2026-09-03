@@ -34,7 +34,7 @@ import {
 } from '@/hooks/queries/announcements';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDanger } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
 const RichTextEditor = lazy(() => import('@/components/RichTextEditor'));
@@ -483,10 +483,9 @@ export default function AnnouncementsPage() {
           danger: true,
           hidden: !hasPermission('system:announcement:update'),
           onClick: () => {
-            Modal.confirm({
+            confirmDanger({
               title: '确定要撤回该公告吗？',
               content: '撤回后用户将无法查看该公告',
-              okButtonProps: { type: 'danger', theme: 'solid' },
               onOk: () => handleRecall(record.id),
             });
           },

@@ -194,7 +194,7 @@ function CampaignDrawer({ segment, onClose }: { segment: AnalyticsUserSegment; o
       desktopInlineKeys: ['execute'],
       actions: (record) => [
         { key: 'execute', label: '执行', loading: executeCampaign.isPending, disabledReason: record.status === 'running' ? '执行中' : undefined, onClick: async () => { await executeCampaign.mutateAsync(record.id); Toast.success('触达任务已提交'); } },
-        { key: 'delete', label: '删除', danger: true, disabledReason: record.status === 'running' ? '执行中不可删' : undefined, onClick: () => { confirmDelete({ title: `确定删除触达「${record.name}」吗？`, okButtonProps: { type: 'danger' }, onOk: () => deleteCampaign.mutateAsync(record.id) }); } },
+        { key: 'delete', label: '删除', danger: true, disabledReason: record.status === 'running' ? '执行中不可删' : undefined, onClick: () => { confirmDelete({ title: `确定删除触达「${record.name}」吗？`, onOk: () => deleteCampaign.mutateAsync(record.id) }); } },
       ],
     }),
   ];
@@ -392,7 +392,6 @@ export default function AnalyticsSegmentsTab() {
           onClick: () => {
             confirmDelete({
               title: `确定删除分群「${record.name}」吗？`,
-              okButtonProps: { type: 'danger' },
               onOk: () => handleDelete(record),
             });
           },

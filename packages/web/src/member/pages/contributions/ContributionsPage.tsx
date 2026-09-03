@@ -38,7 +38,6 @@ export default function ContributionsPage() {
       title: '删除投稿',
       content: '确定删除该投稿吗？删除后不可恢复。',
       okText: '删除',
-      okButtonProps: { type: 'danger' },
       onOk: async () => {
         await deleteMutation.mutateAsync(id);
         Toast.success('已删除');

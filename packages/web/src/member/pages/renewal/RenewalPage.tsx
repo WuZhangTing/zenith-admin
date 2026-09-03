@@ -6,6 +6,7 @@ import { formatYuan } from '../../utils/format';
 import { useMemberPaymentOptions, useMyRenewal, useRenewalPlans, useRenewNow, useSignRenewal, useTerminateRenewal } from '../../hooks/queries';
 import { PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS } from '@zenith/shared/payment';
 import type { PaymentDeductPlan } from '@zenith/shared/payment';
+import { confirmDanger } from '@/utils/confirm';
 
 function periodText(p: Pick<PaymentDeductPlan, 'period' | 'customDays'>): string {
   return p.period === 'custom' ? `每 ${p.customDays ?? '-'} 天` : PAYMENT_DEDUCT_PERIOD_LABELS[p.period];
@@ -64,11 +65,10 @@ export default function RenewalPage() {
   };
 
   const handleTerminate = () => {
-    Modal.confirm({
+    confirmDanger({
       title: '关闭自动续费？',
       content: '关闭后到期不再自动扣款，已生效的 VIP 权益保留至到期',
       okText: '确认关闭',
-      okButtonProps: { type: 'danger' },
       onOk: async () => {
         if (applicationId == null) return;
         await terminateMutation.mutateAsync(applicationId);

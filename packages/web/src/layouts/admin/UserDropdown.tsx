@@ -1,11 +1,12 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import { Badge, Button, Dropdown, Modal, Tooltip } from '@douyinfe/semi-ui';
+import { Badge, Button, Dropdown, Tooltip } from '@douyinfe/semi-ui';
 import { ArrowLeftRight, Bell, Keyboard, Lock, LogOut, Megaphone, MessageSquareHeart, Settings, Smartphone, User as UserIcon } from 'lucide-react';
 import type { NavigateFunction } from 'react-router-dom';
 import type { User } from '@zenith/shared/identity';
 import { UserAvatar } from '@/components/UserAvatar';
 import { useAuth } from '@/hooks/useAuth';
 import { AccountSwitcherModal } from './AccountSwitcher';
+import { confirmDanger } from '@/utils/confirm';
 import './AccountSwitcher.css';
 
 // 顶栏用户下拉菜单（账号切换 / 个人中心 / 消息 / 设置 / 锁屏 / 退出登录）
@@ -102,14 +103,13 @@ export function UserDropdown({
                 doLogout();
                 return;
               }
-              Modal.confirm({
+              confirmDanger({
                 title: '确认退出',
                 content: nextAccount
                   ? `确定要退出当前账号吗？退出后将切换到「${nextAccount.nickname || nextAccount.username}」。`
                   : '确定要退出登录吗？',
                 okText: '退出',
                 cancelText: '取消',
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: doLogout,
               });
             }}

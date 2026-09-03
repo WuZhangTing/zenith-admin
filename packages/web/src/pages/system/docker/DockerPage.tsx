@@ -53,7 +53,7 @@ import {
 } from '@/hooks/queries/docker';
 import { CreateButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
@@ -313,9 +313,8 @@ function ContainersTab() {
                 void handleAction(record.id, 'start');
                 return;
               }
-              Modal.confirm({
+              confirmDanger({
                 title: `确定停止 ${record.names[0] ?? record.shortId}？`,
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: () => { void handleAction(record.id, 'stop'); },
               });
             },

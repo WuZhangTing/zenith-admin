@@ -3,7 +3,6 @@ import {
   Button,
   Form,
   Input,
-  Modal,
   Select,
   Space,
   Spin,
@@ -33,7 +32,7 @@ import {
 } from '@/hooks/queries/tags';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 const { Text } = Typography;
 
@@ -208,15 +207,9 @@ export default function TagsPage() {
 
   const handleToggleStatus = async (tag: Tag, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用标签「${tag.name}」？`,
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用标签「${tag.name}」？`,
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

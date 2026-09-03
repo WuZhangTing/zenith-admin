@@ -36,6 +36,7 @@ import { useAllUsers } from '@/hooks/queries/users';
 import { approvalConflictMessage, parseJsonObject } from '../report-platform-utils';
 import { REPORT_RESOURCE_TYPE_OPTIONS, reportResourceTypeLabel } from '../report-platform-options';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { confirmDanger } from '@/utils/confirm';
 
 const approvalStatuses = ['pending', 'approved', 'rejected', 'cancelled'] as const;
 const transferStatuses = ['pending', 'accepted', 'rejected', 'cancelled'] as const;
@@ -103,9 +104,8 @@ export function GovernanceApprovalTab() {
         { key: 'reject', label: '拒绝', danger: true, hidden: !hasPermission('report:approval:approve') || record.status !== 'pending', onClick: () => decide(record, 'rejected') },
         {
           key: 'cancel', label: '取消申请', danger: true, hidden: !hasPermission('report:approval:request') || record.status !== 'pending',
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDanger({
             title: '取消该发布审批申请？',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await cancelMutation.mutateAsync({ id: record.id }); Toast.success('审批申请已取消'); },
           }); },
         },
@@ -190,9 +190,8 @@ export function GovernanceTransferTab() {
         { key: 'reject', label: '拒绝', danger: true, hidden: !hasPermission('report:resource:transfer') || record.status !== 'pending', onClick: () => decide(record, 'rejected') },
         {
           key: 'cancel', label: '取消申请', danger: true, hidden: !hasPermission('report:resource:transfer') || record.status !== 'pending',
-          onClick: () => { Modal.confirm({
+          onClick: () => { confirmDanger({
             title: '取消该所有权转移申请？',
-            okButtonProps: { type: 'danger', theme: 'solid' },
             onOk: async () => { await cancelMutation.mutateAsync({ id: record.id }); Toast.success('转移申请已取消'); },
           }); },
         },

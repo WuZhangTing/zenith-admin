@@ -7,7 +7,6 @@ import {
   Input,
   Select,
   Tag,
-  Modal,
   Form,
   Pagination,
   Spin,
@@ -51,7 +50,7 @@ import {
   useSaveDictItem,
 } from '@/hooks/queries/dicts';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
 
 export default function DictsPage() {
@@ -319,15 +318,9 @@ export default function DictsPage() {
   const handleToggleItemStatus = async (item: DictItem, newStatus: 'enabled' | 'disabled') => {
     if (!selectedDict) return;
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用字典项「${item.label}」？`,
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用字典项「${item.label}」？`,
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }
@@ -337,15 +330,9 @@ export default function DictsPage() {
 
   const handleToggleDictStatus = async (dict: Dict, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用字典「${dict.name}」？`,
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用字典「${dict.name}」？`,
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

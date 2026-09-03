@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Col, Form, Modal, Row, Select, Spin, Switch, Toast } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Select, Spin, Switch, Toast } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
@@ -31,7 +31,7 @@ import {
 } from '@/hooks/queries/departments';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -194,16 +194,10 @@ export default function DepartmentsPage() {
 
   const handleToggleStatus = useCallback(async (dept: Department, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认停用部门「${dept.name}」？`,
-          content: '停用后该部门将不可选择。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认停用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认停用部门「${dept.name}」？`,
+        content: '停用后该部门将不可选择。',
+        okText: '确认停用',
       });
       if (!confirmed) return;
     }

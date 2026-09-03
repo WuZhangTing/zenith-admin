@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Button, Typography, Space, Dropdown, Tooltip, Modal } from '@douyinfe/semi-ui';
+import { Button, Typography, Space, Dropdown, Tooltip } from '@douyinfe/semi-ui';
 import { Plus, TerminalSquare, ChevronDown, ChevronLeft, ChevronRight, X, PanelLeft, Settings, Server, Package } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import FileExplorer from './FileExplorer';
@@ -32,6 +32,7 @@ import {
   type PaneNode,
   type SplitDirection,
 } from './paneTree';
+import { confirmDanger } from '@/utils/confirm';
 
 const IS_DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -284,12 +285,11 @@ export default function TerminalPage() {
         ? `文件「${preview}」有未保存修改，关闭后未保存内容将丢失。`
         : `以下 ${dirtyEditors.length} 个文件有未保存修改：${preview}${dirtyEditors.length > 3 ? ' 等' : ''}。关闭后未保存内容将丢失。`;
 
-    Modal.confirm({
+    confirmDanger({
       title: '关闭未保存文件？',
       content,
       okText: '仍然关闭',
       cancelText: '取消',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: onConfirm,
     });
   };

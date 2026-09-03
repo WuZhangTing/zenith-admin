@@ -512,11 +512,10 @@ export default function WorkflowDesignerPage({
 
   const handleBack = () => {
     if (baselineRef.current !== null && serializeDesignerState() !== baselineRef.current) {
-      Modal.confirm({
+      confirmDanger({
         title: '有未保存的更改',
         content: '离开后当前流程设计的改动将丢失，确定返回列表吗？',
         okText: '放弃更改并离开',
-        okButtonProps: { type: 'danger' },
         cancelText: '留在此页',
         onOk: () => navigate('/workflow/definitions'),
       });

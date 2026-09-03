@@ -24,6 +24,7 @@ import { PAYMENT_CHANNEL_LABELS, PAYMENT_DISPUTE_ROUTE_LABELS, PAYMENT_DISPUTE_R
 import type { PaymentChannel, PaymentDispute, PaymentDisputeRoute, PaymentDisputeStatus, PaymentDisputeType } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
+import { confirmDanger } from '@/utils/confirm';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'red', processing: 'blue', resolved: 'green', refunded: 'purple' } as const satisfies Record<PaymentDisputeStatus, string>;
@@ -107,10 +108,9 @@ export default function PaymentDisputesPage() {
       Toast.warning('退款金额格式不正确');
       return;
     }
-    Modal.confirm({
+    confirmDanger({
       title: '发起投诉退款？',
       content: `将退款 ${yuan(amount ?? detail.amount)}（大额退款自动进入审批），退款成功后工单自动完结`,
-      okButtonProps: { type: 'danger' },
       onOk: async () => {
         const updated = await refundMutation.mutateAsync({ id: detailId, refundAmount: amount });
         if (updated.status === 'refunded') {

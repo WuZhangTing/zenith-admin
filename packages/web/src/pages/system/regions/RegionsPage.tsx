@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Form, Modal, Select, Spin, Toast, Switch } from '@douyinfe/semi-ui';
+import { Button, Form, Select, Spin, Toast, Switch } from '@douyinfe/semi-ui';
 import type { CascaderData } from '@douyinfe/semi-ui/lib/es/cascader';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Region } from '@zenith/shared/platform';
@@ -19,7 +19,7 @@ import { useTreeExpansion } from '@/hooks/useTreeExpansion';
 import { REGION_LEVEL_LABELS } from '@zenith/shared/platform';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 const LEVEL_LABELS: Record<string, string> = REGION_LEVEL_LABELS;
 
@@ -147,15 +147,9 @@ export default function RegionsPage() {
 
   const handleToggleStatus = useCallback(async (region: Region, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用「${region.name}」？`,
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用「${region.name}」？`,
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

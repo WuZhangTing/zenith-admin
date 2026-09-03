@@ -126,7 +126,7 @@ export default function RuleListsPage() {
       return;
     }
     confirmDelete({
-      title: '确定删除？', content: '将级联删除全部条目，删除后不可恢复', okButtonProps: { type: 'danger' },
+      title: '确定删除？', content: '将级联删除全部条目，删除后不可恢复',
       onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('删除成功'); },
     });
   };

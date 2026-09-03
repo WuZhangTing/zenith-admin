@@ -24,7 +24,7 @@ import {
 } from '@/hooks/queries/tenants';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 
 interface SearchParams {
@@ -124,16 +124,10 @@ export default function TenantsPage() {
 
   const handleToggleStatus = async (tenant: Tenant, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用租户「${tenant.name}」？`,
-          content: '禁用后该租户下的用户将无法登录。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用租户「${tenant.name}」？`,
+        content: '禁用后该租户下的用户将无法登录。',
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

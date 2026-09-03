@@ -135,7 +135,7 @@ export default function WidgetsPage() {
       content: widget.referenceCount > 0
         ? `该部件仍有 ${widget.referenceCount} 个引用，无法删除。`
         : '删除后不可恢复。',
-      okButtonProps: { type: 'danger', theme: 'solid', disabled: widget.referenceCount > 0 },
+      okButtonProps: { disabled: widget.referenceCount > 0 },
       onOk: async () => {
         await deleteMutation.mutateAsync(widget.id);
         Toast.success('删除成功');

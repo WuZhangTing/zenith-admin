@@ -1,7 +1,22 @@
 import { useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
-  Avatar, Badge, Banner, Button, Empty, Form, Input, Modal, Rating, Select, Space, Spin, Tabs, TabPane, Tag, Toast, Typography,
+  Avatar,
+  Badge,
+  Banner,
+  Button,
+  Empty,
+  Form,
+  Input,
+  Rating,
+  Select,
+  Space,
+  Spin,
+  Tabs,
+  TabPane,
+  Tag,
+  Toast,
+  Typography,
 } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
 import { RefreshCw, Settings, Send, UserCheck, ArrowRightLeft, XCircle, MessageSquare, Star } from 'lucide-react';
@@ -31,8 +46,8 @@ import { KeywordInput } from '@/components/search-filters';
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { abortSubmit } from '@/lib/abort-submit';
-
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { confirmDanger } from '@/utils/confirm';
 const { Text } = Typography;
 
 const STATUS_TAG: Record<MpKfSessionStatus, { label: string; color: 'orange' | 'green' | 'grey' }> = {
@@ -153,9 +168,8 @@ export default function MpKfSessionsPage() {
 
   const handleClose = () => {
     if (!detail) return;
-    Modal.confirm({
+    confirmDanger({
       title: '结束会话', content: '确定结束当前会话吗？',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await closeMutation.mutateAsync(detail.id);
         Toast.success('已结束');

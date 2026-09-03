@@ -3,7 +3,6 @@ import {
   Banner,
   Button,
   Form,
-  Modal,
   Tag,
   Toast,
   Typography,
@@ -25,6 +24,7 @@ import {
   useUpdateMaintenanceStatus,
 } from '@/hooks/queries/maintenance';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { confirmDangerAsync } from '@/utils/confirm';
 
 const { Title, Text } = Typography;
 
@@ -74,16 +74,10 @@ export default function MaintenancePage() {
 
     if (enable) {
       // 开启前二次确认，防止误操作
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: '确认开启维护模式？',
-          content: '开启后，所有非超级管理员用户的 API 请求将返回 503，前端会显示维护提示页面。请确认已通知相关用户。',
-          okText: '确认开启',
-          okType: 'danger',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: '确认开启维护模式？',
+        content: '开启后，所有非超级管理员用户的 API 请求将返回 503，前端会显示维护提示页面。请确认已通知相关用户。',
+        okText: '确认开启',
       });
       if (!confirmed) return;
     }

@@ -434,7 +434,6 @@ export default function AnalyticsDataPage() {
           该事件正被 {summary} 引用，删除后契约与属性 Schema 将丢失，请先确认这些分析是否仍需该事件。
         </Typography.Text>
       ) : '删除仅移除字典契约，不影响已采集的事件数据。',
-      okButtonProps: { type: 'danger' },
       onOk: () => handleMetaDelete(record),
     });
   };

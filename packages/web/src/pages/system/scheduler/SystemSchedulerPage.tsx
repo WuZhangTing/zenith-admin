@@ -31,6 +31,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { confirmDanger } from '@/utils/confirm';
 type TabKey = 'tasks' | 'runs' | 'nodes';
 
 interface TaskSearchParams {
@@ -291,11 +292,10 @@ export default function SystemSchedulerPage() {
   };
 
   const handleCleanupRuns = () => {
-    Modal.confirm({
+    confirmDanger({
       title: '清理系统调度运行日志',
       content: submittedRunSearch.taskName ? '将按当前任务的留存策略清理运行日志。' : '将按所有任务的留存策略清理运行日志。',
       okText: '清理',
-      okButtonProps: { type: 'danger' },
       onOk: async () => {
         const data = await cleanupRunsMutation.mutateAsync(submittedRunSearch.taskName || undefined);
         Toast.success(data.message);

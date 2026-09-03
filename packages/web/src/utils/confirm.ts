@@ -34,3 +34,16 @@ export function confirmDanger(options: ModalReactProps) {
 export function confirmDelete(options: ModalReactProps = {}) {
   return confirmDanger({ title: '确定要删除吗？', ...options });
 }
+
+/**
+ * `confirmDanger` 的 Promise 形态：确认返回 true，取消或关闭返回 false，
+ * 供 async 流程在用户确认后继续执行（如停用前二次确认）。
+ *
+ * @example
+ * if (!(await confirmDangerAsync({ title: `确认停用「${name}」？`, okText: '确认停用' }))) return;
+ */
+export function confirmDangerAsync(options: Omit<ModalReactProps, 'onOk' | 'onCancel'>): Promise<boolean> {
+  return new Promise((resolve) => {
+    confirmDanger({ ...options, onOk: () => resolve(true), onCancel: () => resolve(false) });
+  });
+}

@@ -105,7 +105,7 @@ export default function RuleFlowsPage() {
     onOk: async () => { await toggleMutation.mutateAsync({ id: r.id, enabled: r.status === 'disabled' }); Toast.success('操作成功'); },
   }); };
   const handleDelete = (r: RuleDecisionFlow) => { confirmDelete({
-    title: '确定删除？', content: '删除后不可恢复', okButtonProps: { type: 'danger' },
+    title: '确定删除？', content: '删除后不可恢复',
     onOk: async () => { await deleteMutation.mutateAsync(r.id); Toast.success('删除成功'); },
   }); };
 

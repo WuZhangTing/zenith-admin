@@ -41,7 +41,7 @@ import { WORKFLOW_DIFF_KIND_META as DIFF_KIND_META } from '../constants';
 import { PUBLISHABLE_STATUS_META as STATUS_MAP } from '@/lib/publishable-status';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDanger } from '@/utils/confirm';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -169,10 +169,9 @@ export default function WorkflowDefinitionsPage() {
 
   const batchDisable = () => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    confirmDanger({
       title: `确定禁用选中的 ${selectedRowKeys.length} 个流程？`,
       content: '仅「已发布」状态的流程会被禁用，禁用后不可发起新申请。',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: async () => {
         await batchDisableMutation.mutateAsync(selectedRowKeys);
         Toast.success('操作成功');
@@ -376,10 +375,9 @@ export default function WorkflowDefinitionsPage() {
             dividerBefore: true,
             danger: true,
             onClick: () => {
-              Modal.confirm({
+              confirmDanger({
                 title: '确定禁用此流程？',
                 content: '禁用后该流程不可发起新申请，是否继续？',
-                okButtonProps: { type: 'danger', theme: 'solid' },
                 onOk: () => handleDisable(record),
               });
             },

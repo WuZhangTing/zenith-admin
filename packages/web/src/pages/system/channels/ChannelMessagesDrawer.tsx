@@ -12,7 +12,7 @@ import { CHANNEL_MESSAGE_STATUS_LABELS, CHANNEL_MESSAGE_TYPE_LABELS } from '@zen
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { usePermission } from '@/hooks/usePermission';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDanger } from '@/utils/confirm';
 import { ChannelPublishModal } from './ChannelPublishModal';
 import {
   useChannelMessages,
@@ -135,9 +135,8 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
               danger: true,
               hidden: record.isRetracted,
               onClick: () => {
-                Modal.confirm({
+                confirmDanger({
                   title: '确定撤回？撤回后用户将看不到此消息',
-                  okButtonProps: { type: 'danger', theme: 'solid' },
                   onOk: () => { void handleRetract(record); },
                 });
               },

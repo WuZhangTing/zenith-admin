@@ -47,7 +47,7 @@ import {
 } from '@/hooks/queries/users';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
-import { confirmDanger, confirmDelete } from '@/utils/confirm';
+import { confirmDanger, confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 
@@ -313,16 +313,10 @@ export default function UsersPage() {
   const { mutate: toggleStatus } = toggleStatusMutation;
   const handleToggleStatus = useCallback(async (user: User, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认停用用户「${user.nickname ?? user.username}」？`,
-          content: '停用后该用户将无法登录。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认停用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认停用用户「${user.nickname ?? user.username}」？`,
+        content: '停用后该用户将无法登录。',
+        okText: '确认停用',
       });
       if (!confirmed) return;
     }

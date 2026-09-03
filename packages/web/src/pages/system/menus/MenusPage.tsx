@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Select, Modal, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip, Banner } from '@douyinfe/semi-ui';
+import { Button, Select, Form, Radio, Toast, TreeSelect, Row, Col, Spin, Switch, Tooltip, Banner } from '@douyinfe/semi-ui';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import type { Menu } from '@zenith/shared/identity';
@@ -20,7 +20,7 @@ import { createdAtColumn, renderEllipsis } from '../../../utils/table-columns';
 import { menuKeys, useDeleteMenu, useMenuDetail, useMenuTree, useSaveMenu } from '@/hooks/queries/menus';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 export default function MenusPage() {
   const { hasPermission } = usePermission();
@@ -199,16 +199,10 @@ export default function MenusPage() {
 
   const handleToggleStatus = useCallback(async (menu: Menu, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认禁用菜单「${menu.title}」？`,
-          content: '禁用后该菜单将不可访问。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认禁用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认禁用菜单「${menu.title}」？`,
+        content: '禁用后该菜单将不可访问。',
+        okText: '确认禁用',
       });
       if (!confirmed) return;
     }

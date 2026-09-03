@@ -375,10 +375,9 @@ export default function DbAdminPage() {
       gridRef.current?.clearSelection();
     };
     if (pendingCount > 0 && selected && (selected.schema !== item.schema || selected.name !== item.name)) {
-      Modal.confirm({
+      confirmDanger({
         title: '有未保存的修改',
         content: `当前表有 ${pendingCount} 处暂存修改，切换表将全部放弃，确定继续？`,
-        okButtonProps: { type: 'danger', theme: 'solid' },
         onOk: doSelect,
       });
       return;
@@ -828,11 +827,10 @@ export default function DbAdminPage() {
       doDiscard();
       return;
     }
-    Modal.confirm({
+    confirmDanger({
       title: '放弃全部暂存修改？',
       content: `当前有 ${pendingCount} 处暂存修改（含新增/修改/删除标记），放弃后无法恢复。`,
       okText: '放弃修改',
-      okButtonProps: { type: 'danger', theme: 'solid' },
       onOk: doDiscard,
     });
   }, [pendingCount]);

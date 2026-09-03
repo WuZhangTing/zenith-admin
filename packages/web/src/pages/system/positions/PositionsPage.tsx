@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Form, Modal, Select, Space, Spin, Switch, Toast, SideSheet, Empty } from '@douyinfe/semi-ui';
+import { Button, Form, Select, Space, Spin, Switch, Toast, SideSheet, Empty } from '@douyinfe/semi-ui';
 import { Trash2, Users } from 'lucide-react';
 import type { Position } from '@zenith/shared/identity';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
@@ -30,7 +30,7 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { useListSearch } from '@/hooks/useListSearch';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter, KeywordInput } from '@/components/search-filters';
-import { confirmDelete } from '@/utils/confirm';
+import { confirmDelete, confirmDangerAsync } from '@/utils/confirm';
 
 interface SearchParams {
   keyword: string;
@@ -102,16 +102,10 @@ export default function PositionsPage() {
 
   const handleToggleStatus = async (pos: Position, newStatus: 'enabled' | 'disabled') => {
     if (newStatus === 'disabled') {
-      const confirmed = await new Promise<boolean>((resolve) => {
-        Modal.confirm({
-          title: `确认停用岗位「${pos.name}」？`,
-          content: '停用后该岗位将不可选择。',
-          okButtonProps: { type: 'danger', theme: 'solid' },
-          okText: '确认停用',
-          cancelText: '取消',
-          onOk: () => resolve(true),
-          onCancel: () => resolve(false),
-        });
+      const confirmed = await confirmDangerAsync({
+        title: `确认停用岗位「${pos.name}」？`,
+        content: '停用后该岗位将不可选择。',
+        okText: '确认停用',
       });
       if (!confirmed) return;
     }
