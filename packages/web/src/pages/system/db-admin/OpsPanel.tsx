@@ -9,6 +9,7 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { confirmDanger } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
+import { EMPTY_PLACEHOLDER, renderEllipsis } from '@/utils/table-columns';
 import { MetricMeter } from '@/components/data-viz/MetricMeter';
 import {
   useDbAdminActivity,
@@ -34,7 +35,7 @@ type ColumnDiff = DbAdminColumnDiff;
 type TableDrift = DbAdminTableDrift;
 
 function fmtDuration(seconds: number | null): string {
-  if (seconds == null) return '-';
+  if (seconds == null) return EMPTY_PLACEHOLDER;
   if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
   const m = Math.floor(seconds / 60);
@@ -51,6 +52,20 @@ function stateColor(state: string | null): 'green' | 'amber' | 'grey' | 'red' {
     default: return 'amber';
   }
 }
+
+/**
+ * 定宽列里的标签：内容长度不可控（等待事件名、阻塞 PID 列表、连接状态）时按列宽截断并以 Tooltip 展示全文。
+ * Semi Tag 只对字符串 children 套省略样式，且单元格没有 overflow: hidden——不限宽的标签会直接挤进相邻列。
+ */
+function renderEllipsisTag(text: string, color: 'green' | 'amber' | 'grey' | 'red'): React.ReactNode {
+  return (
+    <Tooltip content={text}>
+      <Tag size="small" color={color} style={{ maxWidth: '100%' }}>{text}</Tag>
+    </Tooltip>
+  );
+}
+
+const renderEmpty = () => <Text type="tertiary">{EMPTY_PLACEHOLDER}</Text>;
 
 // ─── 活动连接 ────────────────────────────────────────────────────────────────────
 function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
@@ -69,28 +84,36 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   const activeCount = list.filter((c) => c.state === 'active').length;
   const blockedCount = list.filter((c) => c.blockedBy.length > 0).length;
 
+  // 各定宽列按最宽的常见内容配宽（单元格左右 padding 32），可变长内容一律截断 + Tooltip，禁止换行或挤占相邻列
   const columns: ColumnProps<ActivityConnection>[] = [
-    { title: 'PID', dataIndex: 'pid', width: 90, render: (v: number, r) => (
+    // PID（最长 7 位）+ 一个标记同行放得下；「本会话」与「阻塞源」同时出现极罕见，此时允许换到第二行
+    { title: 'PID', dataIndex: 'pid', width: 150, render: (v: number, r) => (
       <Space spacing={4} wrap>
         <Text strong>{v}</Text>
         {r.isCurrent && <Tag size="small" color="blue">本会话</Tag>}
         {blockingPids.has(v) && <Tooltip content="正在阻塞其他查询"><Tag size="small" color="red">阻塞源</Tag></Tooltip>}
       </Space>
     )},
-    { title: '状态', dataIndex: 'state', width: 120, render: (v: string | null) => <Tag color={stateColor(v)} size="small">{v ?? '-'}</Tag> },
-    { title: '用户 / 应用', width: 150, render: (_: unknown, r) => (
+    // 容纳 "idle in transaction"；"idle in transaction (aborted)" 等更长状态截断显示
+    { title: '状态', dataIndex: 'state', width: 180, render: (v: string | null) => v ? renderEllipsisTag(v, stateColor(v)) : renderEmpty() },
+    { title: '用户 / 应用', width: 160, render: (_: unknown, r) => (
       <div style={{ minWidth: 0 }}>
-        <div>{r.username ?? '-'}</div>
-        <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 140, display: 'block' }}>{r.applicationName ?? r.backendType ?? ''}</Text>
+        {renderEllipsis(r.username)}
+        <Text type="tertiary" size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: '100%', display: 'block' }}>{r.applicationName ?? r.backendType ?? ''}</Text>
       </div>
     )},
-    { title: '来源', dataIndex: 'clientAddr', width: 120, render: (v: string | null) => v ?? <Text type="tertiary">本地</Text> },
+    // client_addr 带掩码（172.28.0.1/32）整行放得下；IPv6 截断显示
+    { title: '来源', dataIndex: 'clientAddr', width: 160, render: (v: string | null) => v ? renderEllipsis(v) : <Text type="tertiary">本地</Text> },
     { title: '耗时', dataIndex: 'querySeconds', width: 90, align: 'right', render: (v: number | null) => {
       const danger = v != null && v > 30;
       return <Text type={danger ? 'danger' : undefined}>{fmtDuration(v)}</Text>;
     }},
-    { title: '等待', width: 120, render: (_: unknown, r) => r.waitEvent ? <Tag size="small" color="amber">{r.waitEventType}:{r.waitEvent}</Tag> : <Text type="tertiary">-</Text> },
-    { title: '阻塞于', dataIndex: 'blockedBy', width: 100, render: (v: number[]) => v.length > 0 ? <Tag color="red" size="small">{v.join(', ')}</Tag> : <Text type="tertiary">-</Text> },
+    // 常见等待事件（Client:ClientRead、Lock:transactionid）整行放得下；更长的按列宽截断
+    { title: '等待', width: 180, render: (_: unknown, r) => {
+      const label = [r.waitEventType, r.waitEvent].filter(Boolean).join(':');
+      return label ? renderEllipsisTag(label, 'amber') : renderEmpty();
+    }},
+    { title: '阻塞于', dataIndex: 'blockedBy', width: 130, render: (v: number[]) => v.length > 0 ? renderEllipsisTag(v.join(', '), 'red') : renderEmpty() },
     { title: 'SQL', dataIndex: 'query', minWidth: 360, ellipsis: { showTitle: false }, render: (v: string | null) => (
       <Tooltip content={<div style={{ maxWidth: 480, maxHeight: 300, overflow: 'auto', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12 }}>{v || '(无)'}</div>}>
         <Text style={{ fontFamily: 'monospace', fontSize: 12 }} ellipsis={{ showTooltip: false }}>{v || <Text type="tertiary">(无)</Text>}</Text>
