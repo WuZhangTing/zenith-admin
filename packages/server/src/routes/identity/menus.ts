@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
+import { createMenuSchema, updateMenuSchema } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -18,27 +18,6 @@ import {
 } from '../../services/identity/menus.service';
 
 const menusRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-// ─── Schemas ───────────────────────────────────────────────────────────────
-
-const createMenuSchema = z.object({
-  parentId: z.coerce.number().int().default(0),
-  title: z.string().min(1).max(64),
-  name: z.string().max(64).optional(),
-  path: z.string().max(256).optional(),
-  component: z.string().max(256).optional(),
-  icon: z.string().max(64).optional(),
-  type: z.enum(['directory', 'menu', 'button']).default('menu'),
-  permission: z.string().max(128).optional(),
-  query: z.string().max(512).nullish(),
-  isExternal: z.boolean().default(false),
-  embed: z.boolean().default(false),
-  keepAlive: z.boolean().default(false),
-  sort: z.coerce.number().int().default(0),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
-  visible: z.boolean().default(true),
-});
-const updateMenuSchema = partialForUpdate(createMenuSchema);
 
 // ─── Routes ────────────────────────────────────────────────────────────────
 const userMenuRoute = defineOpenAPIRoute({

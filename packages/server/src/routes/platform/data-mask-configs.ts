@@ -1,11 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
 import { jsonContent, validationHook, commonErrorResponses, ok, okMsg, okPaginated, IdParam, okBody, PaginationQuery } from '../../lib/openapi-schemas';
 import { DataMaskConfigDTO, SensitiveFieldDTO } from '../../lib/openapi-dtos';
-import { maskTypeValues } from '@zenith/shared/platform';
+import { createDataMaskConfigSchema, maskTypeValues, updateDataMaskConfigSchema } from '@zenith/shared/platform';
 import {
   listDataMaskConfigs,
   getDataMaskConfig,
@@ -17,25 +16,6 @@ import {
 } from '../../services/platform/data-mask.service';
 
 const dataMaskConfigsRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-const customMaskRuleSchema = z.object({
-  prefixKeep: z.number().int().min(0).max(20),
-  suffixKeep: z.number().int().min(0).max(20),
-  maskChar: z.string().max(1).optional(),
-}).optional().nullable();
-
-const createDataMaskConfigSchema = z.object({
-  entity:          z.string().min(1).max(64),
-  field:           z.string().min(1).max(64),
-  label:           z.string().min(1).max(64),
-  maskType:        z.enum(maskTypeValues),
-  customRule:      customMaskRuleSchema,
-  exemptRoleCodes: z.array(z.string()).default([]),
-  enabled:         z.boolean().default(true),
-  remark:          z.string().max(256).optional(),
-});
-
-const updateDataMaskConfigSchema = partialForUpdate(createDataMaskConfigSchema);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -126,14 +106,7 @@ const batchCreateRoute = defineOpenAPIRoute({
     request: {
       body: {
         content: jsonContent(z.object({
-          items: z.array(z.object({
-            entity:          z.string().min(1).max(64),
-            field:           z.string().min(1).max(64),
-            label:           z.string().min(1).max(64),
-            maskType:        z.enum(maskTypeValues),
-            exemptRoleCodes: z.array(z.string()).default([]),
-            enabled:         z.boolean().default(true),
-          })).min(1),
+          items: z.array(createDataMaskConfigSchema.pick({ entity: true, field: true, label: true, maskType: true, exemptRoleCodes: true, enabled: true })).min(1),
         })),
         required: true,
       },

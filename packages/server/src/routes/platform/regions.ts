@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
+import { createRegionSchema, updateRegionSchema } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -16,16 +16,6 @@ import {
 } from '../../services/platform/regions.service';
 
 const regionsRouter = new OpenAPIHono({ defaultHook: validationHook });
-
-const createRegionSchema = z.object({
-  code: z.string().min(1).max(12),
-  name: z.string().min(1).max(64),
-  level: z.enum(['province', 'city', 'county']),
-  parentCode: z.string().max(12).nullable().optional(),
-  sort: z.coerce.number().int().default(0),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
-});
-const updateRegionSchema = partialForUpdate(createRegionSchema);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

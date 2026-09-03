@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
+import { createTenantPackageSchema, updateTenantPackageSchema } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -17,24 +17,12 @@ import {
   getTenantPackageBeforeAudit,
   getTenantPackagesBeforeAudit,
 } from '../../services/identity/tenant-packages.service';
-import { LICENSE_FEATURES } from '@zenith/shared/licensing';
+import { assignTenantPackageFeaturesSchema } from '@zenith/shared/licensing';
 
 const tenantPackagesRoute = new OpenAPIHono({ defaultHook: validationHook });
 
 const platformAdminMiddleware = platformAdminOnly({ message: '仅平台管理员可管理租户套餐' });
 
-const tenantPackageQuotasSchema = z.object({
-  maxUsers: z.number().int().min(1).nullable().optional(),
-}).nullable();
-
-const createTenantPackageSchema = z.object({
-  name: z.string().min(1).max(100),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
-  quotas: tenantPackageQuotasSchema.optional(),
-  remark: z.string().max(500).optional(),
-});
-const updateTenantPackageSchema = partialForUpdate(createTenantPackageSchema);
-const assignFeaturesSchema = z.object({ features: z.array(z.enum(LICENSE_FEATURES)) });
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({
@@ -103,7 +91,7 @@ const assignFeaturesRouteDef = defineOpenAPIRoute({
     method: 'put', path: '/{id}/features', tags: ['TenantPackages'], summary: '分配套餐功能',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, platformAdminMiddleware, guard({ audit: { module: '租户套餐', description: '分配套餐功能' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(assignFeaturesSchema), required: true } },
+    request: { params: IdParam, body: { content: jsonContent(assignTenantPackageFeaturesSchema), required: true } },
     responses: { ...okMsg('功能已更新'), ...commonErrorResponses },
   }),
   handler: async (c) => {

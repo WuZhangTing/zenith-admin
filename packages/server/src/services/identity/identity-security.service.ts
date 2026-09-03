@@ -9,31 +9,9 @@ import { lookupIpLocation } from '../../lib/ip-location';
 import { decryptSecret, encryptSecret, SecretDecryptError } from '../../lib/secret-crypto';
 import { getConfigBoolean, getConfigNumber, getConfigValue } from '../../lib/system-config';
 import { buildTotpUri, generateTotpSecret, verifyTotp } from '../../lib/totp';
+import type { IdentitySecurityPolicy } from '@zenith/shared/platform';
 
 export type MfaMethod = 'totp' | 'passkey';
-
-export interface IdentitySecurityPolicy {
-  password: {
-    minLength: number;
-    requireUppercase: boolean;
-    requireSpecialChar: boolean;
-    expiryEnabled: boolean;
-    expiryDays: number;
-  };
-  lockout: {
-    maxAttempts: number;
-    durationMinutes: number;
-  };
-  mfa: {
-    enabled: boolean;
-    mode: 'off' | 'optional' | 'required';
-    rememberDeviceDays: number;
-  };
-  risk: {
-    enabled: boolean;
-    newDeviceAction: 'allow' | 'challenge';
-  };
-}
 
 export interface MfaChallengePayload {
   userId: number;

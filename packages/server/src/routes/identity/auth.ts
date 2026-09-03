@@ -1,4 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import {
+  changePasswordSchema, forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema, switchTenantSchema, updateProfileSchema,
+} from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { authRateLimit, captchaRateLimit, sensitiveRateLimit } from '../../middleware/rate-limit';
 import { generateCaptcha, resolveCaptchaComplexity } from '../../lib/captcha';
@@ -27,45 +30,6 @@ import {
 const auth = new OpenAPIHono({ defaultHook: validationHook });
 
 // ─── 本地 Zod schemas ────────────────────────────────────────────────────────
-const deviceInfoSchema = z.object({
-  screenWidth: z.number().int().min(0).max(32767).optional(),
-  screenHeight: z.number().int().min(0).max(32767).optional(),
-  devicePixelRatio: z.string().max(32).optional(),
-  gpu: z.string().max(256).optional(),
-  cpuCores: z.number().int().min(0).max(32767).optional(),
-  memoryGb: z.string().max(32).optional(),
-}).optional();
-
-const loginSchema = z.object({
-  username: z.string().min(2).max(32),
-  password: z.string().min(6).max(64),
-  captchaId: z.string().optional(),
-  captchaCode: z.string().optional(),
-  tenantCode: z.string().max(50).optional(),
-  deviceInfo: deviceInfoSchema,
-  deviceId: z.string().max(128).optional(),
-  rememberDevice: z.boolean().optional(),
-});
-const registerSchema = z.object({
-  username: z.string().min(2).max(32),
-  nickname: z.string().min(1).max(32),
-  email: z.email(),
-  password: z.string().min(6).max(64),
-});
-const changePasswordSchema = z.object({
-  oldPassword: z.string().min(6).max(64),
-  newPassword: z.string().min(6).max(64),
-});
-const updateProfileSchema = z.object({
-  nickname: z.string().min(1).max(32).optional(),
-  email: z.email().optional(),
-  phone: z.preprocess((v) => (v === '' ? null : v), z.string().regex(/^1[3-9]\d{9}$/, '请输入正确的手机号码').nullable().optional()),
-  gender: z.string().max(20).nullable().optional(),
-  avatar: z.string().max(256).nullish(),
-});
-const switchTenantSchema = z.object({ tenantId: z.number().int().positive().nullable() });
-const forgotPasswordSchema = z.object({ email: z.email() });
-const resetPasswordSchema = z.object({ token: z.string().min(1), newPassword: z.string().min(6).max(64) });
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 const mfaVerifySchema = z.object({
   challengeId: z.string().min(1),

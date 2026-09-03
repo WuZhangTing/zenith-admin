@@ -445,6 +445,9 @@ export const workflowCustomFormConfigSchema = z.object({
 export const createWorkflowDefinitionSchema = z.object({
   name: z.string().min(1, '流程名称不能为空').max(64),
   description: z.string().max(500).nullable().optional(),
+  categoryId: z.number().int().nullable().optional(),
+  initiatorScopeType: z.enum(['all', 'users', 'departments', 'roles']).default('all'),
+  initiatorScopeIds: z.array(z.number().int()).nullable().optional(),
   flowData: z.record(z.string(), z.unknown()).nullable().optional(),
   formId: z.number().int().positive().nullable().optional(),
   formType: workflowFormTypeSchema.default('designer'),

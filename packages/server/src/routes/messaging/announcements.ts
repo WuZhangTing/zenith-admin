@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import { announcementRecipientSchema } from '@zenith/shared/messaging';
+import { createAnnouncementSchema, updateAnnouncementSchema } from '@zenith/shared/messaging';
 import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import { AnnouncementDTO, AnnouncementReadStatsDTO, AnnouncementUnreadCountDTO } from '../../lib/openapi-dtos';
 import {
@@ -13,33 +13,6 @@ import {
 
 const announcementsRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const dateTimeStringSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, '日期时间格式必须为 YYYY-MM-DD HH:mm:ss')
-  .openapi({ example: '2026-03-22 20:09:37' });
-
-const createAnnouncementSchema = z.object({
-  title: z.string().min(1).max(128),
-  content: z.string().min(1).max(4096),
-  type: z.string().min(1).max(32).default('notice'),
-  publishStatus: z.enum(['draft', 'published', 'recalled', 'scheduled']).default('draft'),
-  priority: z.string().min(1).max(32).default('medium'),
-  targetType: z.enum(['all', 'specific']).default('all'),
-  recipients: z.array(announcementRecipientSchema).default([]),
-  publishTime: dateTimeStringSchema.optional().nullable(),
-  fileIds: z.array(z.uuid()).default([]),
-});
-const updateAnnouncementSchema = z.object({
-  title: z.string().min(1).max(128).optional(),
-  content: z.string().min(1).max(4096).optional(),
-  type: z.string().min(1).max(32).optional(),
-  publishStatus: z.enum(['draft', 'published', 'recalled', 'scheduled']).optional(),
-  priority: z.string().min(1).max(32).optional(),
-  targetType: z.enum(['all', 'specific']).optional(),
-  recipients: z.array(announcementRecipientSchema).optional(),
-  publishTime: dateTimeStringSchema.optional().nullable(),
-  fileIds: z.array(z.uuid()).optional(),
-});
 
 const publishedRoute = defineOpenAPIRoute({
   route: createRoute({

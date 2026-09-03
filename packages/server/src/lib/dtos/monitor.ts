@@ -2,13 +2,13 @@
  * 服务器监控相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
 import {
   MONITOR_ALERT_HANDLE_STATUSES,
   MONITOR_ALERT_LEVELS,
   MONITOR_ALERT_NOTIFY_STATUSES,
   MONITOR_ALERT_OVERVIEW_RANGES,
-  MONITOR_METRICS,
+  createMonitorAlertRuleSchema,
+  updateMonitorAlertRuleSchema,
 } from '@zenith/shared/platform';
 
 export const MonitorDTO = z
@@ -362,51 +362,6 @@ export const MonitorAlertTestResultDTO = z
   })
   .openapi('MonitorAlertTestResult');
 
-// ─── 请求体 DTO（与 shared validation 保持一致）─────────────────────────
-const monitorMetricEnumDTO = z.enum(MONITOR_METRICS);
-const monitorWebhookUrlDTO = z.url().max(512).refine(
-  (value) => ['http:', 'https:'].includes(new URL(value).protocol),
-  'Webhook URL 仅支持 HTTP/HTTPS',
-);
-
-const monitorAlertRuleInputDTO = z.object({
-    name: z.string().min(1).max(128),
-    metric: monitorMetricEnumDTO,
-    operator: z.enum(['gt', 'gte', 'lt', 'lte']).default('gt'),
-    threshold: z.number(),
-    durationMinutes: z.number().int().min(0).max(1440).default(0),
-    level: z.enum(['info', 'warning', 'critical']).default('warning'),
-    channels: z.array(z.enum(['email', 'webhook', 'inapp'])).default([]),
-    webhookUrl: monitorWebhookUrlDTO.nullable().optional(),
-    recipientUserIds: z.array(z.number().int().positive()).max(100).default([]),
-    recipientEmails: z.array(z.email('邮箱格式不正确').max(254)).max(50).default([]),
-    silenceMinutes: z.number().int().min(0).max(10_080).default(30),
-    enabled: z.boolean().default(true),
-  });
-
-function validateMonitorAlertDelivery(
-  value: {
-    enabled?: boolean;
-    channels?: string[];
-    webhookUrl?: string | null;
-    recipientUserIds?: number[];
-    recipientEmails?: string[];
-  },
-  ctx: { addIssue: (issue: { code: 'custom'; path?: PropertyKey[]; message: string }) => void },
-) {
-  if (value.enabled === false) return;
-  const channels = value.channels ?? [];
-  if (channels.length === 0) ctx.addIssue({ code: 'custom', path: ['channels'], message: '启用告警时至少选择一个通知渠道' });
-  if (channels.includes('webhook') && !value.webhookUrl) ctx.addIssue({ code: 'custom', path: ['webhookUrl'], message: 'Webhook 渠道必须配置有效 URL' });
-  if (channels.includes('inapp') && !(value.recipientUserIds?.length)) {
-    ctx.addIssue({ code: 'custom', path: ['recipientUserIds'], message: '站内信渠道必须选择接收用户' });
-  }
-  if (channels.includes('email') && !(value.recipientUserIds?.length) && !(value.recipientEmails?.length)) {
-    ctx.addIssue({ code: 'custom', path: ['recipientEmails'], message: '邮件渠道必须选择接收用户或填写额外邮箱' });
-  }
-}
-
-export const CreateMonitorAlertRuleDTO = monitorAlertRuleInputDTO
-  .superRefine(validateMonitorAlertDelivery)
-  .openapi('CreateMonitorAlertRule');
-export const UpdateMonitorAlertRuleDTO = partialForUpdate(monitorAlertRuleInputDTO).openapi('UpdateMonitorAlertRule');
+// ─── 请求体 DTO ───────────────────────────────────────────────────────────
+export const CreateMonitorAlertRuleDTO = createMonitorAlertRuleSchema.openapi('CreateMonitorAlertRule');
+export const UpdateMonitorAlertRuleDTO = updateMonitorAlertRuleSchema.openapi('UpdateMonitorAlertRule');

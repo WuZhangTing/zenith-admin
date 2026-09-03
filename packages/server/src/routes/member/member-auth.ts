@@ -1,4 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import {
+  memberChangePasswordSchema, memberLoginSchema, memberRegisterSchema, memberResetPasswordSchema, memberSmsCodeSchema, memberUpdateProfileSchema,
+} from '@zenith/shared/member';
 import { memberAuthMiddleware } from '../../middleware/member-auth';
 import { authRateLimit, sensitiveRateLimit } from '../../middleware/rate-limit';
 import { ErrorResponse, jsonContent, validationHook, commonErrorResponses, ok, okMsg, okBody } from '../../lib/openapi-schemas';
@@ -24,53 +27,14 @@ import { getClientInfo } from '../../lib/request-helpers';
 
 const memberAuth = new OpenAPIHono({ defaultHook: validationHook });
 
-const phoneRegex = /^1[3-9]\d{9}$/;
-
-// ─── 本地 Zod schemas（认证路由特例，沿用 auth.ts 在路由内声明的模式）──────────
-const registerSchema = z.object({
-  username: z.string().min(2).max(32).optional(),
-  phone: z.string().regex(phoneRegex, '请输入正确的手机号码').optional(),
-  email: z.email().optional(),
-  password: z.string().min(6).max(64).optional(),
-  smsCode: z.string().length(6).optional(),
-  nickname: z.string().min(1).max(32).optional(),
-  inviteCode: z.string().min(4).max(16).optional(),
-});
-const loginSchema = z.object({
-  loginType: z.enum(['password', 'sms']).default('password'),
-  account: z.string().max(128).optional(),
-  password: z.string().max(64).optional(),
-  phone: z.string().regex(phoneRegex).optional(),
-  smsCode: z.string().length(6).optional(),
-});
-const smsCodeSchema = z.object({
-  phone: z.string().regex(phoneRegex, '请输入正确的手机号码'),
-  scene: z.enum(['register', 'login', 'reset']).default('login'),
-});
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
-const updateProfileSchema = z.object({
-  nickname: z.string().min(1).max(32).optional(),
-  avatar: z.string().max(256).nullish(),
-  gender: z.string().max(20).nullable().optional(),
-  birthday: z.string().max(20).nullable().optional(),
-  email: z.email().nullish(),
-});
-const changePasswordSchema = z.object({
-  oldPassword: z.string().min(6).max(64).optional(),
-  newPassword: z.string().min(6).max(64),
-});
-const resetPasswordSchema = z.object({
-  phone: z.string().regex(phoneRegex),
-  smsCode: z.string().length(6),
-  newPassword: z.string().min(6).max(64),
-});
 
 // ─── POST /sms-code — 发送短信验证码 ─────────────────────────────────────────
 const smsCodeRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/sms-code', tags: ['MemberAuth'], summary: '发送会员短信验证码', security: [],
     middleware: [sensitiveRateLimit] as const,
-    request: { body: { content: jsonContent(smsCodeSchema), required: true } },
+    request: { body: { content: jsonContent(memberSmsCodeSchema), required: true } },
     responses: {
       ...commonErrorResponses,
       ...ok(MemberSmsCodeResultDTO, '已发送'),
@@ -91,7 +55,7 @@ const registerRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/register', tags: ['MemberAuth'], summary: '会员注册', security: [],
     middleware: [sensitiveRateLimit] as const,
-    request: { body: { content: jsonContent(registerSchema), required: true } },
+    request: { body: { content: jsonContent(memberRegisterSchema), required: true } },
     responses: {
       ...commonErrorResponses,
       ...ok(MemberLoginResultDTO, '注册成功'),
@@ -109,7 +73,7 @@ const loginRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/login', tags: ['MemberAuth'], summary: '会员登录', security: [],
     middleware: [authRateLimit] as const,
-    request: { body: { content: jsonContent(loginSchema), required: true } },
+    request: { body: { content: jsonContent(memberLoginSchema), required: true } },
     responses: {
       ...commonErrorResponses,
       ...ok(MemberLoginResultDTO, '登录成功'),
@@ -145,7 +109,7 @@ const resetPasswordRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'post', path: '/reset-password', tags: ['MemberAuth'], summary: '会员重置密码', security: [],
     middleware: [sensitiveRateLimit] as const,
-    request: { body: { content: jsonContent(resetPasswordSchema), required: true } },
+    request: { body: { content: jsonContent(memberResetPasswordSchema), required: true } },
     responses: {
       ...commonErrorResponses,
       ...okMsg('密码已重置'),
@@ -192,7 +156,7 @@ const profileRoute = defineOpenAPIRoute({
     method: 'put', path: '/profile', tags: ['MemberAuth'], summary: '修改会员资料',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware] as const,
-    request: { body: { content: jsonContent(updateProfileSchema), required: true } },
+    request: { body: { content: jsonContent(memberUpdateProfileSchema), required: true } },
     responses: {
       ...commonErrorResponses,
       ...ok(MemberDTO, '已更新'),
@@ -210,7 +174,7 @@ const passwordRoute = defineOpenAPIRoute({
     method: 'put', path: '/password', tags: ['MemberAuth'], summary: '修改会员密码',
     security: [{ BearerAuth: [] }],
     middleware: [memberAuthMiddleware] as const,
-    request: { body: { content: jsonContent(changePasswordSchema), required: true } },
+    request: { body: { content: jsonContent(memberChangePasswordSchema), required: true } },
     responses: {
       ...commonErrorResponses,
       ...okMsg('密码已修改'),

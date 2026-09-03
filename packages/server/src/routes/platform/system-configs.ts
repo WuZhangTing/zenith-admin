@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
+import { CONFIG_TYPES, createSystemConfigSchema, updateSystemConfigSchema } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { getPasswordPolicy } from '../../lib/password-policy';
@@ -16,18 +16,6 @@ import {
 } from '../../services/platform/system-configs.service';
 
 const systemConfigsRoute = new OpenAPIHono({ defaultHook: validationHook });
-const configTypeValues = ['string', 'number', 'boolean', 'json'] as const;
-
-const createSystemConfigSchema = z.object({
-  // 冒号用于模块命名空间（如 cms:theme:fingerprints），与 shared 的 createSystemConfigSchema 保持一致
-  configKey: z.string().min(1).max(128).regex(/^[\w.:]+$/),
-  configName: z.string().min(1).max(128),
-  configValue: z.string().max(4096),
-  configType: z.enum(configTypeValues).default('string'),
-  description: z.string().max(256).default(''),
-});
-const updateSystemConfigSchema = partialForUpdate(createSystemConfigSchema);
-
 const publicGetRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/public/{key}', tags: ['SystemConfigs'], summary: '公开获取单项配置', security: [],
@@ -50,7 +38,7 @@ const listRoute = defineOpenAPIRoute({
     method: 'get', path: '/', tags: ['SystemConfigs'], summary: '配置分页列表',
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), configType: z.enum(configTypeValues).optional(), keys: z.string().optional().openapi({ description: '按 configKey 精确批量查询，逗号分隔，传此参数时忽略分页' }) }) },
+    request: { query: PaginationQuery.extend({ keyword: z.string().optional(), configType: z.enum(CONFIG_TYPES).optional(), keys: z.string().optional().openapi({ description: '按 configKey 精确批量查询，逗号分隔，传此参数时忽略分页' }) }) },
     responses: { ...commonErrorResponses, ...okPaginated(SystemConfigDTO, '配置列表') },
   }),
   handler: async (c) => c.json(okBody(await listSystemConfigs(c.req.valid('query'))), 200),

@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import { partialForUpdate, webhookUrlSchema } from '../core/validation';
-import { FILE_OBJECT_ACL_SUPPORT, MONITOR_ALERT_EVENT_STATUSES, MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_ALERT_OVERVIEW_RANGES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
+import { CONFIG_TYPES, FILE_OBJECT_ACL_SUPPORT, MONITOR_ALERT_EVENT_STATUSES, MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_ALERT_OVERVIEW_RANGES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
 
 // ─── 字典 Schema ──────────────────────────────────────────────────────────────
 export const createDictSchema = z.object({
@@ -223,7 +223,7 @@ export const createSystemConfigSchema = z.object({
   configKey: z.string().min(1, '键名不能为空').max(128).regex(/^[\w.:]+$/, '键名只能包含字母、数字、下划线、点号和冒号'),
   configName: z.string().min(1, '配置名称不能为空').max(128),
   configValue: z.string().max(4096),
-  configType: z.enum(['string', 'number', 'boolean', 'json']).default('string'),
+  configType: z.enum(CONFIG_TYPES).default('string'),
   description: z.string().max(256).default(''),
 });
 
@@ -260,7 +260,7 @@ export const createRegionSchema = z.object({
   name:       z.string().min(1, '名称不能为空').max(64),
   level:      z.enum(['province', 'city', 'county']),
   parentCode: z.string().max(12).nullable().optional(),
-  sort:       z.number().int().default(0),
+  sort:       z.coerce.number().int().default(0),
   status:     z.enum(['enabled', 'disabled']).default('enabled'),
 });
 
@@ -303,7 +303,7 @@ export const maskTypeValues = ['phone', 'email', 'id_card', 'name', 'bank_card',
 export const customMaskRuleSchema = z.object({
   prefixKeep: z.number().int().min(0).max(20),
   suffixKeep: z.number().int().min(0).max(20),
-  maskChar:   z.string().max(2).optional(),
+  maskChar:   z.string().max(1).optional(),
 });
 
 export const createDataMaskConfigSchema = z.object({

@@ -8,12 +8,25 @@ import {
   OAUTH_PROVIDERS,
 } from './constants';
 
+export const loginDeviceInfoSchema = z.object({
+  screenWidth: z.number().int().min(0).max(32767).optional(),
+  screenHeight: z.number().int().min(0).max(32767).optional(),
+  devicePixelRatio: z.string().max(32).optional(),
+  gpu: z.string().max(256).optional(),
+  cpuCores: z.number().int().min(0).max(32767).optional(),
+  memoryGb: z.string().max(32).optional(),
+});
+
+
 export const loginSchema = z.object({
   username: z.string().min(2, '用户名/手机号至少2个字符').max(32),
   password: z.string().min(6, '密码至少6个字符').max(64),
   captchaId: z.string().optional(),
   captchaCode: z.string().optional(),
   tenantCode: z.string().max(50).optional(),
+  deviceInfo: loginDeviceInfoSchema.optional(),
+  deviceId: z.string().max(128).optional(),
+  rememberDevice: z.boolean().optional(),
 });
 
 
@@ -37,6 +50,7 @@ export const createUserSchema = z.object({
     (value) => (value === '' ? undefined : value),
     z.string().regex(/^1[3-9]\d{9}$/, '请输入正确的手机号码').optional()
   ),
+  gender: z.string().max(20).nullable().optional(),
   departmentId: z.number().int().positive().nullable().optional(),
   positionIds: z.array(z.number().int().positive()).default([]),
   roleIds: z.array(z.number().int()).default([]),
@@ -44,7 +58,9 @@ export const createUserSchema = z.object({
 });
 
 
-export const updateUserSchema = partialForUpdate(createUserSchema).omit({ password: true });
+export const updateUserSchema = partialForUpdate(createUserSchema).omit({ password: true }).extend({
+  avatar: z.string().max(512).nullable().optional(),
+});
 
 
 export const changePasswordSchema = z.object({
@@ -78,13 +94,18 @@ export const resetUserPasswordSchema = z.object({
 export const updateProfileSchema = z.object({
   nickname: z.string().min(1, '昵称不能为空').max(32).optional(),
   email: z.email('邮箱格式不正确').optional(),
-  avatar: z.string().max(256).optional(),
+  phone: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.string().regex(/^1[3-9]\d{9}$/, '请输入正确的手机号码').nullable().optional()
+  ),
+  gender: z.string().max(20).nullable().optional(),
+  avatar: z.string().max(256).nullish(),
 });
 
 
 // ─── 菜单 Schema ──────────────────────────────────────────────────────────────
 export const createMenuSchema = z.object({
-  parentId: z.number().int().default(0),
+  parentId: z.coerce.number().int().default(0),
   title: z.string().min(1, '菜单标题不能为空').max(64),
   name: z.string().max(64).optional(),
   path: z.string().max(256).optional(),
@@ -92,7 +113,11 @@ export const createMenuSchema = z.object({
   icon: z.string().max(64).optional(),
   type: z.enum(['directory', 'menu', 'button']).default('menu'),
   permission: z.string().max(128).optional(),
-  sort: z.number().int().default(0),
+  query: z.string().max(512).nullish(),
+  isExternal: z.boolean().default(false),
+  embed: z.boolean().default(false),
+  keepAlive: z.boolean().default(false),
+  sort: z.coerce.number().int().default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   visible: z.boolean().default(true),
 });
@@ -149,7 +174,7 @@ export const updateDepartmentSchema = partialForUpdate(createDepartmentSchema);
 export const createPositionSchema = z.object({
   name: z.string().min(1, '岗位名称不能为空').max(64),
   code: z.string().min(1, '岗位编码不能为空').max(64).regex(/^\w+$/, '岗位编码只能包含字母、数字和下划线'),
-  sort: z.number().int().default(0),
+  sort: z.coerce.number().int().default(0),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
   remark: z.string().max(256).optional(),
 });
@@ -376,8 +401,8 @@ export const createTenantSchema = z.object({
   maxUsers: z.number().int().positive().optional().nullable(),
   packageId: z.number().int().positive().optional().nullable(),
   remark: z.string().max(500).optional(),
-  adminUsername: z.string().min(2, '管理员用户名至少 2 个字符').max(64).optional(),
-  adminPassword: z.string().min(6, '管理员密码至少 6 个字符').max(64).optional(),
+  adminUsername: z.string().min(2, '管理员用户名至少 2 个字符').max(64).optional().describe('初始管理员用户名；不传则跳过自动初始化'),
+  adminPassword: z.string().min(6, '管理员密码至少 6 个字符').max(64).optional().describe('初始管理员密码；不传则自动生成并在响应中一次性返回'),
   adminNickname: z.string().max(64).optional(),
   adminEmail: z.email('管理员邮箱格式不正确').max(128).optional(),
 });

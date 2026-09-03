@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { createUserSchema, resetUserPasswordSchema, updateUserSchema } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { BatchIdsBody, ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
@@ -18,31 +19,6 @@ import {
 
 const usersRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const createUserSchema = z.object({
-  username: z.string().min(2).max(32),
-  nickname: z.string().min(1).max(32),
-  email: z.preprocess((v) => (v === '' ? null : v), z.email('邮箱格式不正确').nullable().optional()),
-  password: z.string().min(6).max(64),
-  phone: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^1[3-9]\d{9}$/).optional()),
-  gender: z.string().max(20).nullable().optional(),
-  departmentId: z.number().int().positive().nullable().optional(),
-  positionIds: z.array(z.number().int().positive()).default([]),
-  roleIds: z.array(z.number().int()).default([]),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
-});
-const updateUserSchema = z.object({
-  username: z.string().min(2).max(32).optional(),
-  nickname: z.string().min(1).max(32).optional(),
-  email: z.preprocess((v) => (v === '' ? null : v), z.email('邮箱格式不正确').nullable().optional()),
-  phone: z.preprocess((v) => (v === '' ? undefined : v), z.string().regex(/^1[3-9]\d{9}$/).optional()),
-  gender: z.string().max(20).nullable().optional(),
-  departmentId: z.number().int().positive().nullable().optional(),
-  positionIds: z.array(z.number().int().positive()).optional(),
-  roleIds: z.array(z.number().int()).optional(),
-  status: z.enum(['enabled', 'disabled']).optional(),
-  avatar: z.string().max(512).nullable().optional(),
-});
-const resetUserPasswordSchema = z.object({ password: z.string().min(6).max(64) });
 const batchStatusSchema = z.object({ ids: z.array(z.number().int()), status: z.enum(['enabled', 'disabled']) });
 
 const getAllUsersRoute = defineOpenAPIRoute({

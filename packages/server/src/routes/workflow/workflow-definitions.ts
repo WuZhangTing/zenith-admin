@@ -1,10 +1,9 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody } from '../../lib/openapi-schemas';
 import { WorkflowDefinitionDTO, WorkflowDefinitionVersionDTO, WorkflowDefinitionExportDTO, WorkflowVersionDiffDTO, WorkflowApproverPreviewNodeDTO, WorkflowSimulationResultDTO, WorkflowDefinitionHealthReportDTO } from '../../lib/openapi-dtos';
-import { importWorkflowDefinitionSchema, previewWorkflowSchema, simulateWorkflowSchema, workflowHealthCheckSchema, workflowCustomFormConfigSchema, workflowFormTypeSchema } from '@zenith/shared/workflow';
+import { createWorkflowDefinitionSchema, importWorkflowDefinitionSchema, previewWorkflowSchema, simulateWorkflowSchema, updateWorkflowDefinitionSchema, workflowHealthCheckSchema } from '@zenith/shared/workflow';
 import {
   listDefinitions, listPublishedDefinitions, getDefinition, createDefinition,
   updateDefinition, publishDefinition, disableDefinition, enableDefinition, deleteDefinition, getWorkflowDefinitionBeforeAudit,
@@ -16,20 +15,6 @@ import { previewFlow } from '../../services/workflow/workflow-preview.service';
 import { simulateWorkflow, checkDefinitionHealth } from '../../services/workflow/workflow-simulation.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
-
-const createWorkflowDefinitionSchema = z.object({
-  name: z.string().min(1).max(64),
-  description: z.string().max(500).nullable().optional(),
-  categoryId: z.number().int().nullable().optional(),
-  initiatorScopeType: z.enum(['all', 'users', 'departments', 'roles']).default('all'),
-  initiatorScopeIds: z.array(z.number().int()).nullable().optional(),
-  flowData: z.looseObject({}).nullable().optional(),
-  formId: z.number().int().nullable().optional(),
-  formType: workflowFormTypeSchema.default('designer'),
-  customForm: workflowCustomFormConfigSchema.nullable().optional(),
-  status: z.enum(['draft', 'published', 'disabled']).default('draft'),
-});
-const updateWorkflowDefinitionSchema = partialForUpdate(createWorkflowDefinitionSchema);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

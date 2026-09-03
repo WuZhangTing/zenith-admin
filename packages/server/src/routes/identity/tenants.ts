@@ -1,5 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
-import { partialForUpdate } from '@zenith/shared/core';
+import { createTenantSchema, updateTenantSchema } from '@zenith/shared/identity';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData, setAuditAfterData } from '../../middleware/guard';
 import { platformAdminOnly } from '../../middleware/platform-admin';
@@ -18,32 +18,7 @@ import {
 
 const tenantsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
-const dateTimeStringSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/, '日期时间格式必须为 YYYY-MM-DD HH:mm:ss')
-  .openapi({ example: '2026-03-22 20:09:37' });
-
 const platformAdminMiddleware = platformAdminOnly({ message: '仅平台管理员可管理租户' });
-
-const createTenantSchema = z.object({
-  name: z.string().min(1).max(100),
-  code: z.string().min(1).max(50).regex(/^[a-z][a-z0-9_]*$/),
-  logo: z.string().max(500).optional(),
-  contactName: z.string().max(50).optional(),
-  contactPhone: z.string().max(20).optional(),
-  status: z.enum(['enabled', 'disabled']).default('enabled'),
-  expireAt: dateTimeStringSchema.optional().nullable(),
-  maxUsers: z.number().int().positive().optional().nullable(),
-  packageId: z.number().int().positive().optional().nullable(),
-  remark: z.string().max(500).optional(),
-  adminUsername: z.string().min(2).max(64).optional().openapi({ description: '初始管理员用户名；不传则跳过自动初始化' }),
-  adminPassword: z.string().min(6).max(64).optional().openapi({ description: '初始管理员密码；不传则自动生成并在响应中一次性返回' }),
-  adminNickname: z.string().max(64).optional(),
-  adminEmail: z.email().max(128).optional(),
-});
-const updateTenantSchema = partialForUpdate(
-  createTenantSchema.omit({ adminUsername: true, adminPassword: true, adminNickname: true, adminEmail: true }),
-);
 
 const listRoute = defineOpenAPIRoute({
   route: createRoute({

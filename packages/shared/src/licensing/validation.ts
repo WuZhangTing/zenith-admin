@@ -52,7 +52,7 @@ export const tenantPackageQuotasSchema = z.strictObject({
 });
 
 export const assignTenantPackageFeaturesSchema = z.object({
-  features: z.array(z.enum(LICENSE_FEATURES)).default([]),
+  features: z.array(z.enum(LICENSE_FEATURES)),
 });
 
 // ─── 事件查询 ─────────────────────────────────────────────────────────────────
