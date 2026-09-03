@@ -53,7 +53,7 @@ describe('keywordCondition', () => {
     expect(patternOf('  zhang  ')).toBe('%zhang%');
   });
 
-  it('LIKE 元字符 %、_、\ 被转义，先转义反斜杠再转义通配符（避免双重转义）', () => {
+  it('LIKE 元字符 %、_、反斜杠被转义，先转义反斜杠再转义通配符（避免双重转义）', () => {
     expect(patternOf('100%')).toBe(String.raw`%100\%%`);
     expect(patternOf('user_name')).toBe(String.raw`%user\_name%`);
     expect(patternOf('a\\b')).toBe(String.raw`%a\\b%`);
