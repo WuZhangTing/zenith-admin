@@ -108,6 +108,7 @@ API 容器以非 root 用户 `node` 运行；如需在容器内访问宿主机 D
 - `/index` / `/index.html` 跳转到 `/`。
 - `/` fallback 到 `/index.html` 支持 SPA 路由。
 - JS/CSS/字体/图片等静态资源使用一年 immutable 缓存。
+- 安全响应头：所有响应下发 `X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`，并以 `X-Frame-Options: SAMEORIGIN` + `Content-Security-Policy: frame-ancestors 'self'` 禁止跨站嵌入；仅 `/public/report/`（公开仪表盘嵌入）不下发帧保护头，嵌入来源由应用按仪表盘 `embed.allowedOrigins` 校验。SPA 的内容安全策略（`script-src` 不含 `'unsafe-inline'` 等）由 Vite 构建期注入入口 HTML 的 `<meta http-equiv="Content-Security-Policy">` 承担（见 `packages/web/vite.config.ts`），nginx 无需重复配置。
 
 ## 常用操作
 

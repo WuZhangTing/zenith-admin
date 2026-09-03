@@ -1,8 +1,51 @@
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileViewerRenderers } from '@file-viewer/vite-plugin';
 import { VitePWA } from 'vite-plugin-pwa';
+
+/**
+ * 三个 SPA 入口的内容安全策略（构建期注入 <meta http-equiv="Content-Security-Policy">）。
+ *
+ * - 生产构建没有内联脚本（Vite 只输出 <script type="module" src>），因此 script-src 不放行
+ *   'unsafe-inline'：注入型 <script> / 事件属性 / javascript: 一律不执行；'unsafe-eval' 与
+ *   'wasm-unsafe-eval' 保留给文档预览、公式等运行时编译的库；jsdelivr 是 @monaco-editor/react 的默认加载源。
+ * - 样式允许内联（Semi UI / ECharts / 富文本大量使用 style 属性）。
+ * - 图片 / 媒体 / 字体 / 连接 / 子框架允许任意来源：报表 iframe 组件、地图瓦片、外部图片、
+ *   自定义 API 数据源都是产品能力，白名单由各自的业务校验（如 http(s)-only）负责。
+ * - frame-ancestors 只能由响应头下发（docker/nginx.conf），meta 无法表达。
+ * - 开发服务器（React Fast Refresh 需要内联脚本）与 Electron（file:// 源）不注入。
+ */
+const SPA_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  'img-src * data: blob:',
+  'media-src * data: blob:',
+  'font-src * data:',
+  'connect-src *',
+  'frame-src *',
+  "worker-src 'self' blob:",
+  "child-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
+function cspMetaPlugin(): Plugin {
+  return {
+    name: 'zenith-csp-meta',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler: () => [{
+        tag: 'meta',
+        attrs: { 'http-equiv': 'Content-Security-Policy', content: SPA_CSP },
+        injectTo: 'head-prepend',
+      }],
+    },
+  };
+}
 
 function sanitizeChunkName(name: string) {
   return name.replace(/^@/, '').replaceAll('/', '-');
@@ -72,6 +115,7 @@ export default defineConfig(({ mode }) => {
         stabilizeInteropChunks: false,
       }),
       react(),
+      ...(isElectron ? [] : [cspMetaPlugin()]),
       ...(pwaEnabled ? [VitePWA({
         registerType: 'autoUpdate',
         // 预缓存 Vite 构建产物中的静态资源

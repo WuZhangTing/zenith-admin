@@ -30,6 +30,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Logger } from 'pino';
 import { config } from './config';
 import logger from './lib/logger';
+import { htmlSecurityHeadersMiddleware } from './lib/html-security-headers';
 import { errBody } from './lib/openapi-schemas';
 import { OAuth2Error, oauth2ErrorBody } from './lib/oauth2-error';
 import { registerZenithMetrics } from './lib/prometheus-metrics';
@@ -81,7 +82,8 @@ export function createApp() {
   app.use('*', secureHeaders({
     crossOriginResourcePolicy: 'cross-origin', // API 允许跨域访问
     crossOriginOpenerPolicy: false,             // 纯 API 服务，不适用
-    xFrameOptions: false,                       // API 无 UI，不需要
+    // CMS 前台 SSR、短链 / 退订 / 表单提示页等 HTML 由本进程直出：默认禁止跨站嵌入（点击劫持）
+    xFrameOptions: 'SAMEORIGIN',
   }));
   // 流式/二进制路由排除压缩：SSE 实时推送 + 文件下载不能被缓冲压缩
   const COMPRESS_EXCLUDE_PREFIXES = ['/api/ws', '/api/files', '/api/db-backups', '/api/db-admin', '/api/log-files', '/api/monitor/stream', '/api/ai/conversations', '/api/ai/arena', '/api/ai/generations', '/api/public/app-releases'];
@@ -89,6 +91,9 @@ export function createApp() {
     (c) => COMPRESS_EXCLUDE_PREFIXES.some((p) => c.req.path.startsWith(p)),
     compress(),
   ));
+  // 直出 HTML 的 CSP（按响应内联脚本哈希放行）与帧保护，见 lib/html-security-headers.ts。
+  // 必须注册在 compress 之后（链路上位于其内侧），这样读到的是压缩前的正文，输出再交给 compress 压缩。
+  app.use('*', htmlSecurityHeadersMiddleware);
   // allowMethods 使用 hono 官方默认值（含 PATCH/QUERY），避免显式列表遗漏导致跨域预检失败；
   // allowHeaders 留空 = 反射预检请求头（hono 默认），兼容携带自定义头的客户端。
   // Mastra Studio 的请求带 credentials:'include'，通配符 '*' 对凭据模式无效
