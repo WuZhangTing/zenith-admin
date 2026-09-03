@@ -22,3 +22,5 @@ packages/web/public/file-viewer/
 .playwright-cli/
 
 .playwright-mcp/
+
+docs/.vitepress/.temp/
