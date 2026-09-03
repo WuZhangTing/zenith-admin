@@ -1,9 +1,9 @@
-import { eq, and, or, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { emailTemplates } from '../../db/schema';
 import type { EmailTemplateRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -38,13 +38,7 @@ export interface ListEmailTemplatesQuery {
 }
 
 export async function listEmailTemplates(q: ListEmailTemplatesQuery) {
-  const conditions: SQL[] = [];
-  const tenant = tenantScope(emailTemplates);
-  if (tenant) conditions.push(tenant);
-  if (q.keyword) {
-    const kw = or(ilike(emailTemplates.name, `%${escapeLike(q.keyword)}%`), ilike(emailTemplates.code, `%${escapeLike(q.keyword)}%`));
-    if (kw) conditions.push(kw);
-  }
+  const conditions: (SQL | undefined)[] = [tenantScope(emailTemplates), keywordCondition(q.keyword, [emailTemplates.name, emailTemplates.code], 'ilike')];
   if (q.status) conditions.push(eq(emailTemplates.status, q.status));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([

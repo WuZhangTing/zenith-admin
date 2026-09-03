@@ -1,10 +1,10 @@
-import { eq, asc, like, type SQL } from 'drizzle-orm';
+import { eq, asc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsSensitiveWords } from '../../db/schema';
 import type { CmsSensitiveWordRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { AhoCorasick, applyReplacements, createTtlCache, toCodePoints, type AcMatch } from '../../lib/aho-corasick';
 import { invalidateWordCheckCache } from './cms-word-check.service';
@@ -69,8 +69,8 @@ export interface ListCmsSensitiveWordsQuery {
 }
 
 export async function listCmsSensitiveWords(q: ListCmsSensitiveWordsQuery) {
-  const conditions: SQL[] = [];
-  if (q.keyword) conditions.push(like(cmsSensitiveWords.word, `%${escapeLike(q.keyword)}%`));
+  const conditions: (SQL | undefined)[] = [];
+  conditions.push(keywordCondition(q.keyword, [cmsSensitiveWords.word]));
   if (q.status) conditions.push(eq(cmsSensitiveWords.status, q.status));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([

@@ -1,10 +1,10 @@
-import { eq, asc, and, or, like, type SQL } from 'drizzle-orm';
+import { eq, asc, and } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsTags } from '../../db/schema';
 import type { CmsTagRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsTagInput, UpdateCmsTagInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -48,14 +48,7 @@ export interface ListCmsTagsQuery {
 export async function listCmsTags(q: ListCmsTagsQuery) {
   await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
-  const conditions: SQL[] = [eq(cmsTags.siteId, q.siteId)];
-  if (q.keyword) {
-    const kw = or(
-      like(cmsTags.name, `%${escapeLike(q.keyword)}%`),
-      like(cmsTags.slug, `%${escapeLike(q.keyword)}%`),
-    );
-    if (kw) conditions.push(kw);
-  }
+  const conditions = [eq(cmsTags.siteId, q.siteId), keywordCondition(q.keyword, [cmsTags.name, cmsTags.slug])];
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(cmsTags, where),

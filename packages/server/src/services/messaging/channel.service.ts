@@ -25,7 +25,7 @@ import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { broadcast, scheduleSendToUsers } from '../../lib/ws-manager';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { sanitizeCmsHtml } from '../cms/cms-html-sanitizer';
 import logger from '../../lib/logger';
 
@@ -317,9 +317,7 @@ async function countSubscribers(ch: ChannelRow, userCount: number): Promise<numb
 }
 
 export async function listChannelsAdmin(page: number, pageSize: number, keyword?: string) {
-  const where = keyword
-    ? sql`(${channels.name} ILIKE ${'%' + keyword + '%'} OR ${channels.code} ILIKE ${'%' + keyword + '%'})`
-    : undefined;
+  const where = keywordCondition(keyword, [channels.name, channels.code], 'ilike');
   const [total, rows, userCount] = await Promise.all([
     db.$count(channels, where),
     db.select().from(channels).where(where)
@@ -674,14 +672,11 @@ export async function listDiscoverableChannels(keyword?: string): Promise<Channe
   const subRows = await db.select({ channelId: channelSubscriptions.channelId })
     .from(channelSubscriptions).where(eq(channelSubscriptions.userId, me));
   const subscribedIds = new Set(subRows.map((r) => r.channelId));
-  const kw = keyword?.trim();
   const chs = await db.query.channels.findMany({
     where: and(
       eq(channels.status, 'enabled'),
       eq(channels.type, 'business'),
-      kw
-        ? sql`(${channels.name} ILIKE ${'%' + escapeLike(kw) + '%'} OR ${channels.description} ILIKE ${'%' + escapeLike(kw) + '%'})`
-        : undefined,
+      keywordCondition(keyword, [channels.name, channels.description], 'ilike'),
     ),
     orderBy: [channels.id],
   });
@@ -699,10 +694,7 @@ function mapSubscriber(u: { id: number; nickname: string | null; username: strin
 export async function listChannelSubscribers(channelId: number, page: number, pageSize: number, keyword?: string): Promise<PaginatedResponse<ChannelSubscriber>> {
   const ch = await db.query.channels.findFirst({ where: eq(channels.id, channelId) });
   if (!ch) throw new HTTPException(404, { message: '频道不存在' });
-  const kw = keyword?.trim();
-  const nameWhere = kw
-    ? sql`(${users.nickname} ILIKE ${'%' + escapeLike(kw) + '%'} OR ${users.username} ILIKE ${'%' + escapeLike(kw) + '%'})`
-    : undefined;
+  const nameWhere = keywordCondition(keyword, [users.nickname, users.username], 'ilike');
 
   if (ch.type === 'system') {
     const [total, rows] = await Promise.all([
@@ -755,10 +747,7 @@ export async function removeChannelSubscriber(channelId: number, userId: number)
 export async function exportChannelSubscribers(channelId: number, keyword?: string): Promise<ChannelSubscriber[]> {
   const ch = await db.query.channels.findFirst({ where: eq(channels.id, channelId) });
   if (!ch) throw new HTTPException(404, { message: '频道不存在' });
-  const kw = keyword?.trim();
-  const nameWhere = kw
-    ? sql`(${users.nickname} ILIKE ${'%' + escapeLike(kw) + '%'} OR ${users.username} ILIKE ${'%' + escapeLike(kw) + '%'})`
-    : undefined;
+  const nameWhere = keywordCondition(keyword, [users.nickname, users.username], 'ilike');
 
   if (ch.type === 'system') {
     const rows = await db.select({ id: users.id, nickname: users.nickname, username: users.username, avatar: users.avatar })

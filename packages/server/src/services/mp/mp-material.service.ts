@@ -1,9 +1,9 @@
-import { eq, and, ilike, inArray, sql, type SQL } from 'drizzle-orm';
+import { eq, and, inArray, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMaterials } from '../../db/schema';
 import type { MpMaterialRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -48,11 +48,11 @@ export interface ListMpMaterialsQuery {
 
 export async function listMpMaterials(q: ListMpMaterialsQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpMaterials.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpMaterials.accountId, q.accountId)];
   const tenant = tenantScope(mpMaterials);
   if (tenant) conditions.push(tenant);
   if (q.type) conditions.push(eq(mpMaterials.type, q.type));
-  if (q.keyword) conditions.push(ilike(mpMaterials.name, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [mpMaterials.name], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpMaterials, where),

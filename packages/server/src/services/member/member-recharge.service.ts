@@ -2,10 +2,10 @@
  * 会员充值记录服务：基于支付订单（bizType=member_recharge）。
  * 充值订单由 member-wallet.service 下单，bizId = String(memberId)。
  */
-import { and, desc, eq, like, or, count, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, count, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { paymentOrders, members } from '../../db/schema';
-import { dateRangeConditions, escapeLike } from '../../lib/where-helpers';
+import { dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
@@ -67,7 +67,7 @@ function mapRecharge(r: RechargeRow) {
 }
 
 export function buildRechargeWhere(q: Omit<MemberRechargeQuery, 'page' | 'pageSize'>): SQL | undefined {
-  const conds: SQL[] = [eq(paymentOrders.bizType, WALLET_RECHARGE_BIZ_TYPE)];
+  const conds: (SQL | undefined)[] = [eq(paymentOrders.bizType, WALLET_RECHARGE_BIZ_TYPE)];
   const adminUser = currentUserOrNull();
   if (adminUser) {
     // Keep both sides of the join in the active tenant scope. Filtering only
@@ -78,16 +78,7 @@ export function buildRechargeWhere(q: Omit<MemberRechargeQuery, 'page' | 'pageSi
     if (orderScope) conds.push(orderScope);
     if (memberScope) conds.push(memberScope);
   }
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    const orCond = or(
-      like(paymentOrders.orderNo, kw),
-      like(paymentOrders.outTradeNo, kw),
-      like(members.nickname, kw),
-      like(members.phone, kw),
-    );
-    if (orCond) conds.push(orCond);
-  }
+  conds.push(keywordCondition(q.keyword, [paymentOrders.orderNo, paymentOrders.outTradeNo, members.nickname, members.phone]));
   if (q.status) conds.push(eq(paymentOrders.status, q.status));
   if (q.channel) conds.push(eq(paymentOrders.channel, q.channel));
   conds.push(...dateRangeConditions(paymentOrders.createdAt, q.dateStart, q.dateEnd));

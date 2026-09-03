@@ -1,9 +1,9 @@
-import { eq, and, ilike, desc, inArray, sql, type SQL } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { inAppMessages, inAppTemplates, users } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
@@ -22,10 +22,10 @@ export interface ListInAppMessagesQuery {
 }
 
 function buildInboxWhere(q: ListInAppMessagesQuery, recipientId: number) {
-  const conditions: SQL[] = [eq(inAppMessages.userId, recipientId)];
+  const conditions: (SQL | undefined)[] = [eq(inAppMessages.userId, recipientId)];
   const tenant = tenantScope(inAppMessages);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(inAppMessages.title, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [inAppMessages.title], 'ilike'));
   if (q.type) conditions.push(eq(inAppMessages.type, q.type));
   if (typeof q.isRead === 'boolean') conditions.push(eq(inAppMessages.isRead, q.isRead));
   return buildWhere(...conditions);
@@ -129,10 +129,10 @@ export async function getInAppMessageBeforeAudit(id: number) {
 
 /** 管理员视角：列出全租户的站内信（不限收件人） */
 export async function listAllInAppMessages(q: Omit<ListInAppMessagesQuery, 'recipientId'> & { recipientId?: number; senderId?: number }) {
-  const conditions: SQL[] = [];
+  const conditions: (SQL | undefined)[] = [];
   const tenant = tenantScope(inAppMessages);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(inAppMessages.title, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [inAppMessages.title], 'ilike'));
   if (q.type) conditions.push(eq(inAppMessages.type, q.type));
   if (typeof q.isRead === 'boolean') conditions.push(eq(inAppMessages.isRead, q.isRead));
   if (q.recipientId) conditions.push(eq(inAppMessages.userId, q.recipientId));

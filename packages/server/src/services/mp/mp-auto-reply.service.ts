@@ -1,9 +1,9 @@
-import { eq, and, ilike, desc, sql, type SQL } from 'drizzle-orm';
+import { eq, and, desc, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpAutoReplies, mpUnmatchedKeywords } from '../../db/schema';
 import type { MpAutoReplyRow, MpUnmatchedKeywordRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -66,11 +66,11 @@ export interface ListMpAutoRepliesQuery {
 
 export async function listMpAutoReplies(q: ListMpAutoRepliesQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpAutoReplies.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpAutoReplies.accountId, q.accountId)];
   const tenant = tenantScope(mpAutoReplies);
   if (tenant) conditions.push(tenant);
   if (q.replyType) conditions.push(eq(mpAutoReplies.replyType, q.replyType));
-  if (q.keyword) conditions.push(ilike(mpAutoReplies.keyword, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [mpAutoReplies.keyword], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpAutoReplies, where),

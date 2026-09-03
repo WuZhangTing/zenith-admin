@@ -69,8 +69,8 @@ export function mapDefinitionVersion(
 }
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
-import { eq, and, like, desc, inArray, ne } from 'drizzle-orm';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { eq, and, desc, inArray, ne } from 'drizzle-orm';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { pageOffset } from '../../lib/pagination';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -133,7 +133,7 @@ export async function listDefinitions(query: { page?: number; pageSize?: number;
   const tc = tenantCondition(workflowDefinitions, user);
   const conditions = [];
   if (tc) conditions.push(tc);
-  if (keyword) conditions.push(like(workflowDefinitions.name, `%${escapeLike(keyword)}%`));
+  conditions.push(keywordCondition(keyword, [workflowDefinitions.name]));
   if (status) conditions.push(eq(workflowDefinitions.status, status as WorkflowDefinitionStatus));
   if (categoryId) conditions.push(eq(workflowDefinitions.categoryId, categoryId));
   const where = buildWhere(...conditions);

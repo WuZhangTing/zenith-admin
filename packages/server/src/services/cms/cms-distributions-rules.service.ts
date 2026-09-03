@@ -1,7 +1,6 @@
 import {
   desc,
   eq,
-  ilike,
   inArray,
   sql,
   type SQL,
@@ -17,7 +16,7 @@ import {
 } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import {
   assertChannelAccess,
   ensureCmsChannelExists,
@@ -105,7 +104,7 @@ function mapRule(row: CmsDistributionRuleRow & {
   };
 }
 
-async function ruleAccessConditions(): Promise<SQL[]> {
+async function ruleAccessConditions(): Promise<(SQL | undefined)[]> {
   const accessible = await getAccessibleSiteIds();
   if (accessible === null) return [];
   if (accessible.length === 0) return [sql`false`];
@@ -127,9 +126,7 @@ export interface ListCmsDistributionRulesQuery {
 
 export async function listCmsDistributionRules(query: ListCmsDistributionRulesQuery) {
   const conditions = await ruleAccessConditions();
-  if (query.keyword?.trim()) {
-    conditions.push(ilike(cmsDistributionRules.name, `%${escapeLike(query.keyword.trim())}%`));
-  }
+  conditions.push(keywordCondition(query.keyword, [cmsDistributionRules.name], 'ilike'));
   if (query.sourceSiteId) {
     await assertSiteAccess(query.sourceSiteId);
     conditions.push(eq(cmsDistributionRules.sourceSiteId, query.sourceSiteId));

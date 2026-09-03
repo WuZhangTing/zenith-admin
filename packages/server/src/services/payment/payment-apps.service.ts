@@ -1,11 +1,11 @@
 /** 支付应用：开放平台客户端的一对一支付路由画像。 */
-import { and, desc, eq, isNull, like } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { oauth2Clients, paymentApps, paymentChannelConfigs, type PaymentAppRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -57,7 +57,7 @@ export async function listApps(q: ListAppsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conditions = [];
-  if (q.keyword) conditions.push(like(paymentApps.name, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [paymentApps.name]));
   if (q.status) conditions.push(eq(paymentApps.status, q.status));
   const where = buildWhere(
     buildWhere(...conditions),

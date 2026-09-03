@@ -1,10 +1,10 @@
-import { eq, asc, inArray, like, type SQL } from 'drizzle-orm';
+import { eq, asc, inArray, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsSearchWords } from '../../db/schema';
 import type { CmsSearchWordRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { reloadCmsSearchDict } from './cms-search.service';
 import type { CreateCmsSearchWordInput, UpdateCmsSearchWordInput } from '@zenith/shared/cms';
@@ -48,8 +48,8 @@ export interface ListCmsSearchWordsQuery {
 export async function listCmsSearchWords(q: ListCmsSearchWordsQuery) {
   await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
-  const conditions: SQL[] = [eq(cmsSearchWords.siteId, q.siteId)];
-  if (q.keyword) conditions.push(like(cmsSearchWords.word, `%${escapeLike(q.keyword)}%`));
+  const conditions: (SQL | undefined)[] = [eq(cmsSearchWords.siteId, q.siteId)];
+  conditions.push(keywordCondition(q.keyword, [cmsSearchWords.word]));
   if (q.type) conditions.push(eq(cmsSearchWords.type, q.type));
   if (q.groupName) conditions.push(eq(cmsSearchWords.groupName, q.groupName));
   if (q.status) conditions.push(eq(cmsSearchWords.status, q.status));

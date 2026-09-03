@@ -1,14 +1,14 @@
 /**
  * 名单库服务（规则中心）：黑/白/灰名单 CRUD、条目管理（含过期）与运行时命中判定。
  */
-import { and, desc, eq, gt, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { RuleListType, RuleListCheckResult, RuleUsageItem } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleLists, ruleListItems, paymentRiskRules } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
@@ -63,7 +63,7 @@ export async function listRuleLists(q: ListRuleListsQuery) {
   const tc = tenantCondition(ruleLists, currentUser());
   const conds = [];
   if (tc) conds.push(tc);
-  if (q.keyword) conds.push(like(ruleLists.name, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [ruleLists.name]));
   if (q.type) conds.push(eq(ruleLists.type, q.type));
   const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
@@ -122,11 +122,7 @@ export async function listRuleListUsages(id: number): Promise<RuleUsageItem[]> {
 }
 
 async function findListUsagesByKey(key: string, listTenantId: number | null): Promise<RuleUsageItem[]> {
-  const pattern = `%"${escapeLike(key)}"%`;
-  const refCond = or(
-    sql`${paymentRiskRules.blockListKeys}::text LIKE ${pattern}`,
-    sql`${paymentRiskRules.allowListKeys}::text LIKE ${pattern}`,
-  );
+  const refCond = keywordCondition(`"${key}"`, [sql`${paymentRiskRules.blockListKeys}::text`, sql`${paymentRiskRules.allowListKeys}::text`]);
   // 租户名单只可能被本租户的风控规则引用；平台级（null）名单可被任意租户引用，保持全量扫描
   const conds = [refCond];
   if (listTenantId != null) conds.push(eq(paymentRiskRules.tenantId, listTenantId));
@@ -161,8 +157,8 @@ export async function listRuleListItems(listId: number, q: ListRuleListItemsQuer
   await ensureRuleList(listId);
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 20;
-  const conds = [eq(ruleListItems.listId, listId)];
-  if (q.keyword) conds.push(like(ruleListItems.value, `%${escapeLike(q.keyword)}%`));
+  const conds: (SQL | undefined)[] = [eq(ruleListItems.listId, listId)];
+  conds.push(keywordCondition(q.keyword, [ruleListItems.value]));
   const where = and(...conds);
   const [total, rows] = await Promise.all([
     db.$count(ruleListItems, where),

@@ -1,4 +1,4 @@
-import { and, eq, gte, desc, like, inArray, sql, countDistinct } from 'drizzle-orm';
+import { and, eq, gte, desc, inArray, sql, countDistinct } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { errorGroups, errorEvents, errorGroupIdentities, sourceMaps, users } from '../../db/schema';
@@ -7,7 +7,7 @@ import type { FrontendErrorType, ErrorLevel, UpdateErrorGroupInput, SourceMapUpl
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, computeErrorFingerprint, startOfDaysAgo, clampDays, clampLimit, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
@@ -251,7 +251,7 @@ export async function listGroups(q: GroupListQuery) {
   if (q.errorType) conditions.push(eq(errorGroups.errorType, q.errorType as 'js_error'));
   if (q.level) conditions.push(eq(errorGroups.level, q.level as 'error'));
   if (q.assigneeId) conditions.push(eq(errorGroups.assigneeId, q.assigneeId));
-  if (q.keyword) conditions.push(like(errorGroups.message, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [errorGroups.message]));
   if (q.environment) conditions.push(eq(errorGroups.environment, q.environment as 'production'));
   const where = buildWhere(...conditions, tenantScope(errorGroups));
 
@@ -500,7 +500,7 @@ export async function listSourceMaps(q: SourceMapListQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = clampLimit(q.pageSize, 20, 100);
   const conditions = [];
-  if (q.release) conditions.push(like(sourceMaps.release, `%${escapeLike(q.release)}%`));
+  conditions.push(keywordCondition(q.release, [sourceMaps.release]));
   const where = buildWhere(...conditions, tenantScope(sourceMaps));
   const [list, total] = await Promise.all([
     db.select({ id: sourceMaps.id, release: sourceMaps.release, fileName: sourceMaps.fileName, size: sourceMaps.size, createdAt: sourceMaps.createdAt, updatedAt: sourceMaps.updatedAt }).from(sourceMaps).where(where).orderBy(desc(sourceMaps.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

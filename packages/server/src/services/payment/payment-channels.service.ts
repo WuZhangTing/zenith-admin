@@ -3,7 +3,7 @@
  * 密钥字段（APIv3 Key / 商户私钥 / 支付宝应用私钥）以 encryptField 加密存储，
  * 响应中绝不返回明文，仅以 hasXxx 布尔位标识是否已配置。
  */
-import { and, asc, desc, eq, like, or } from 'drizzle-orm';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomBytes } from 'node:crypto';
 import { db } from '../../db';
@@ -23,7 +23,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, requireTenantScopeId } from '../../lib/tenant';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { encryptField } from '../../lib/encryption';
 import { formatDateTime } from '../../lib/datetime';
 import type { CreatePaymentChannelConfigInput, PaymentChannel, PaymentChannelConfig, PaymentChannelConfigLookup, UpdatePaymentChannelConfigInput } from '@zenith/shared/payment';
@@ -96,7 +96,7 @@ export async function listChannelConfigs(q: ListChannelConfigsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conditions = [];
-  if (q.keyword) conditions.push(like(paymentChannelConfigs.name, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [paymentChannelConfigs.name]));
   if (q.channel) conditions.push(eq(paymentChannelConfigs.channel, q.channel));
   if (q.status) conditions.push(eq(paymentChannelConfigs.status, q.status));
   const where = buildWhere(...conditions);

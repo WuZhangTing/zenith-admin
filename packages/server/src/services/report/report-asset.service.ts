@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import { createReportDashboardSchema, createReportDatasetSchema, createReportPrintTemplateSchema, reportGridItemSchema, reportWidgetSchema } from '@zenith/shared/report';
@@ -31,7 +31,7 @@ import {
   parseDateTimeInput,
 } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { createDashboard, getDashboard, updateDashboardDraft } from './report-dashboard.service';
 import { createDataset } from './report-dataset.service';
 import { createPrintTemplate } from './report-print.service';
@@ -177,7 +177,6 @@ async function catalogRowsForType(
 ): Promise<CatalogRowsResult> {
   const accessibleIds = await listAccessibleReportResourceIds(resourceType);
   if (accessibleIds && accessibleIds.length === 0) return { rows: [], total: 0 };
-  const keyword = query.keyword ? `%${escapeLike(query.keyword)}%` : null;
   const common = (columns: {
     id: AnyPgColumn;
     ownerId: AnyPgColumn;
@@ -185,10 +184,8 @@ async function catalogRowsForType(
     name: AnyPgColumn;
     updatedAt: AnyPgColumn;
   }, scope: SQL | undefined) => {
-    const conds = [];
-    if (scope) conds.push(scope);
+    const conds: (SQL | undefined)[] = [scope, keywordCondition(query.keyword, [columns.name], 'ilike')];
     if (accessibleIds) conds.push(inArray(columns.id, accessibleIds));
-    if (keyword) conds.push(ilike(columns.name, keyword));
     if (query.ownerId) conds.push(eq(columns.ownerId, query.ownerId));
     if (query.folderId) conds.push(eq(columns.folderId, query.folderId));
     if (query.updatedStart) conds.push(gte(columns.updatedAt, query.updatedStart));

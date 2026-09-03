@@ -11,7 +11,7 @@
  * 次日重试，达到计划 maxRetries 自动暂停。
  * 资金安全：payment_orders 活跃业务单唯一索引保证同协议同一时刻至多一笔进行中扣款单。
  */
-import { and, desc, eq, gte, inArray, isNull, like, lt, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lt, lte, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import dayjs from 'dayjs';
@@ -28,7 +28,7 @@ import {
 } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { buildWhere, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import { getAdapter } from '../../lib/payment';
@@ -147,7 +147,7 @@ export async function listDeductPlans(q: ListDeductPlansQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) conds.push(like(paymentDeductPlans.name, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [paymentDeductPlans.name]));
   if (q.status) conds.push(eq(paymentDeductPlans.status, q.status));
   const where = buildWhere(...conds, plansTenantCondition());
   // 有效签约数（signed/paused）按计划分组后 LEFT JOIN。

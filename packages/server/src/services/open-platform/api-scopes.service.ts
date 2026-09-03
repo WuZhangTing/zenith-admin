@@ -1,4 +1,4 @@
-import { eq, or, desc, ilike, inArray, sql, type SQL } from 'drizzle-orm';
+import { eq, desc, inArray, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { apiScopes, oauth2Clients } from '../../db/schema';
 import type { ApiScopeRow } from '../../db/schema';
@@ -6,7 +6,7 @@ import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import type { CreateApiScopeInput, UpdateApiScopeInput } from '@zenith/shared/open-platform';
 
 export function mapApiScope(row: ApiScopeRow, usedByAppCount = 0) {
@@ -51,11 +51,7 @@ export async function listApiScopes(opts: {
   status?: 'enabled' | 'disabled';
 }) {
   const { page, pageSize, keyword, scopeGroup, status } = opts;
-  const conditions: SQL[] = [];
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conditions.push(or(ilike(apiScopes.code, kw), ilike(apiScopes.name, kw)) as SQL);
-  }
+  const conditions: (SQL | undefined)[] = [keywordCondition(keyword, [apiScopes.code, apiScopes.name], 'ilike')];
   if (scopeGroup) conditions.push(eq(apiScopes.scopeGroup, scopeGroup));
   if (status) conditions.push(eq(apiScopes.status, status));
   const where = buildWhere(...conditions);

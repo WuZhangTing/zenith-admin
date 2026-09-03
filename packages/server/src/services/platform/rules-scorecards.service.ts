@@ -2,7 +2,7 @@
  * 评分卡服务（规则中心）：CRUD、发布快照与求值。
  * 发布采用单快照（publishedSnapshot），运行时按快照执行；编辑态求值仅用于测试。
  */
-import { and, desc, eq, like } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type {
   RuleScorecardEvaluateResult,
@@ -14,7 +14,7 @@ import { db } from '../../db';
 import { ruleScorecards, ruleAssetVersions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -92,7 +92,7 @@ export async function listRuleScorecards(q: ListRuleScorecardsQuery) {
   const tc = tenantCondition(ruleScorecards, currentUser());
   const conds = [];
   if (tc) conds.push(tc);
-  if (q.keyword) conds.push(like(ruleScorecards.name, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [ruleScorecards.name]));
   if (q.status) conds.push(eq(ruleScorecards.status, q.status));
   const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([

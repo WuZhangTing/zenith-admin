@@ -3,7 +3,7 @@
  * 执行走任务中心（进度/取消/行级明细）；URL 级去重防重复采集；全程 http-client SSRF 防护。
  */
 import { createRequire } from 'node:module';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsCollectRules, cmsCollectItems, cmsContents, cmsChannels } from '../../db/schema';
@@ -11,7 +11,7 @@ import type { CmsCollectRuleRow } from '../../db/schema';
 import { httpRequest } from '../../lib/http-client';
 import { registerTaskHandler } from '../../lib/task-center';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { withPagination, keywordCondition } from '../../lib/where-helpers';
 import { buildManagedFileProxyUrl } from '../../lib/file-storage';
 import { contentSearchVector } from './cms-search.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -59,14 +59,14 @@ export function mapCollectRule(row: CmsCollectRuleRow, channelName?: string | nu
 export async function listCollectRules(params: { page: number; pageSize: number; siteId: number; keyword?: string }) {
   await ensureCmsSiteExists(params.siteId);
   await assertSiteAccess(params.siteId);
-  const conds = [
+  const conds: (SQL | undefined)[] = [
     eq(cmsCollectRules.siteId, params.siteId),
   ];
   const accessibleChannelIds = await getAccessibleChannelIds();
   if (accessibleChannelIds !== null) {
     conds.push(inArray(cmsCollectRules.channelId, accessibleChannelIds));
   }
-  if (params.keyword) conds.push(sql`${cmsCollectRules.name} ILIKE ${`%${escapeLike(params.keyword)}%`}`);
+  conds.push(keywordCondition(params.keyword, [cmsCollectRules.name], 'ilike'));
   const where = and(...conds);
   const [total, rows] = await Promise.all([
     db.$count(cmsCollectRules, where),

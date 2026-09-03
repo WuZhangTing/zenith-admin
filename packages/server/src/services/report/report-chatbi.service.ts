@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
 import * as z from 'zod';
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, gte, ilike, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, or, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   reportChatbiMessages,
@@ -16,7 +16,7 @@ import redis from '../../lib/redis';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
 import { estimateTokens, truncateHistoryByBudget } from '../../lib/ai/tokens';
 import { streamAiChat } from '../ai/ai-chat.service';
@@ -207,9 +207,7 @@ export async function listChatbiSessions(query: {
     manage && query.userId ? eq(reportChatbiSessions.userId, query.userId) : undefined,
     manage ? undefined : eq(reportChatbiSessions.userId, user.userId),
     query.status ? eq(reportChatbiSessions.status, query.status) : undefined,
-    query.keyword
-      ? ilike(reportChatbiSessions.title, `%${escapeLike(query.keyword)}%`)
-      : undefined,
+    keywordCondition(query.keyword, [reportChatbiSessions.title], 'ilike'),
   ].filter((item): item is NonNullable<typeof item> => Boolean(item));
   const where = and(...conditions);
   const [total, rows] = await Promise.all([

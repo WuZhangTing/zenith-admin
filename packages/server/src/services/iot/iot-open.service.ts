@@ -5,11 +5,11 @@
  * 因此不走 currentUser()/tenantCondition；对外以 SN 为设备寻址标识，
  * 不暴露内部 id、secret 与租户信息。
  */
-import { and, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { iotDevices, iotDeviceState, iotProducts, type IotDeviceRow } from '../../db/schema';
 import { formatNullableDateTime } from '../../lib/datetime';
-import { withPagination } from '../../lib/where-helpers';
+import { withPagination, keywordCondition } from '../../lib/where-helpers';
 import { getOnlineMap, isDeviceOnline } from './iot-access.service';
 
 function mapOpenIotDevice(
@@ -40,7 +40,7 @@ export interface ListOpenIotDevicesQuery {
 export async function listOpenIotDevices(q: ListOpenIotDevicesQuery) {
   const { page = 1, pageSize = 20 } = q;
   const conditions: (SQL | undefined)[] = [
-    q.keyword ? or(ilike(iotDevices.sn, `%${q.keyword}%`), ilike(iotDevices.name, `%${q.keyword}%`)) : undefined,
+    keywordCondition(q.keyword, [iotDevices.sn, iotDevices.name], 'ilike'),
     q.productId ? eq(iotDevices.productId, q.productId) : undefined,
     q.status ? eq(iotDevices.status, q.status) : undefined,
   ];

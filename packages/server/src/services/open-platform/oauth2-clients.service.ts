@@ -1,6 +1,6 @@
 import { randomBytes, createHash, randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
-import { and, eq, desc, ilike, inArray } from 'drizzle-orm';
+import { and, eq, desc, inArray } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   appWebhookDeliveries,
@@ -22,7 +22,7 @@ import { pageOffset } from '../../lib/pagination';
 import { encryptField, decryptField } from '../../lib/encryption';
 import type { CreateOAuth2ClientInput, UpdateOAuth2ClientInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
 // ─── 辅助：生成 & 哈希 client_secret ────────────────────────────────────────
 
@@ -91,7 +91,7 @@ export async function listOAuth2Clients(opts: {
 }) {
   const { page, pageSize, keyword, ownerId, environment, reviewStatus } = opts;
   const conditions = [];
-  if (keyword) conditions.push(ilike(oauth2Clients.name, `%${escapeLike(keyword)}%`));
+  conditions.push(keywordCondition(keyword, [oauth2Clients.name], 'ilike'));
   if (ownerId !== undefined) conditions.push(eq(oauth2Clients.ownerId, ownerId));
   if (environment) conditions.push(eq(oauth2Clients.environment, environment));
   if (reviewStatus) conditions.push(eq(oauth2Clients.reviewStatus, reviewStatus));

@@ -1,10 +1,10 @@
-import { and, asc, avg, count, desc, eq, gte, ilike, inArray, isNotNull, lte, max, or, type SQL } from 'drizzle-orm';
+import { and, asc, avg, count, desc, eq, gte, inArray, isNotNull, lte, max, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { workflowJobs, workflowJobExecutions, workflowInstances, workflowDefinitions, systemSchedulerNodes } from '../../db/schema';
 import type { WorkflowJobRow, WorkflowJobExecutionRow } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { retryJob, skipJob, STUCK_RUNNING_GRACE_MS } from '../../lib/workflow-jobs';
 
@@ -67,14 +67,11 @@ function mapExecution(row: WorkflowJobExecutionRow) {
 export async function listWorkflowJobs(query: ListWorkflowJobsQuery) {
   const page = Number(query.page ?? 1);
   const pageSize = Number(query.pageSize ?? 10);
-  const conds: SQL[] = [];
+  const conds: (SQL | undefined)[] = [];
   if (query.jobType) conds.push(eq(workflowJobs.jobType, query.jobType));
   if (query.status) conds.push(eq(workflowJobs.status, query.status));
   if (query.instanceId != null) conds.push(eq(workflowJobs.instanceId, query.instanceId));
-  if (query.keyword) {
-    const kw = `%${query.keyword}%`;
-    conds.push(or(ilike(workflowJobs.idempotencyKey, kw), ilike(workflowJobs.traceId, kw), ilike(workflowJobs.nodeKey, kw))!);
-  }
+  conds.push(keywordCondition(query.keyword, [workflowJobs.idempotencyKey, workflowJobs.traceId, workflowJobs.nodeKey], 'ilike'));
   const where = buildWhere(...conds);
 
   const [total, rows] = await Promise.all([
@@ -269,12 +266,12 @@ export interface WorkflowJobReplayFilter {
   olderThanMinutes?: number;
 }
 
-function buildReplayConds(filter: WorkflowJobReplayFilter): SQL[] {
-  const conds: SQL[] = [eq(workflowJobs.status, filter.status ?? 'dead')];
+function buildReplayConds(filter: WorkflowJobReplayFilter): (SQL | undefined)[] {
+  const conds: (SQL | undefined)[] = [eq(workflowJobs.status, filter.status ?? 'dead')];
   if (filter.jobType) conds.push(eq(workflowJobs.jobType, filter.jobType));
   if (filter.instanceId != null) conds.push(eq(workflowJobs.instanceId, filter.instanceId));
   if (filter.traceId) conds.push(eq(workflowJobs.traceId, filter.traceId));
-  if (filter.reasonKeyword) conds.push(ilike(workflowJobs.lastError, `%${escapeLike(filter.reasonKeyword)}%`));
+  conds.push(keywordCondition(filter.reasonKeyword, [workflowJobs.lastError], 'ilike'));
   if (filter.olderThanMinutes != null && filter.olderThanMinutes > 0) {
     conds.push(lte(workflowJobs.createdAt, new Date(Date.now() - filter.olderThanMinutes * 60_000)));
   }

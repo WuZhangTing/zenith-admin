@@ -1,12 +1,12 @@
 import { randomBytes, createHmac, randomUUID } from 'node:crypto';
-import { eq, and, or, desc, ilike, inArray, isNotNull, isNull, lte, sql, arrayContained, type SQL, type SQLWrapper } from 'drizzle-orm';
+import { eq, and, or, desc, inArray, isNotNull, isNull, lte, sql, arrayContained, type SQL, type SQLWrapper } from 'drizzle-orm';
 import { db } from '../../db';
 import { appWebhookSubscriptions, appWebhookDeliveries, cmsOpenAppGrants, oauth2Clients, users } from '../../db/schema';
 import type { AppWebhookSubscriptionRow, AppWebhookDeliveryRow } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { httpPost, type HttpResponse } from '../../lib/http-client';
 import logger from '../../lib/logger';
@@ -217,13 +217,10 @@ export async function listSubscriptions(opts: {
 }, domain: AppWebhookDomain = 'all') {
   const { page, pageSize, clientId, status, keyword } = opts;
   const tenantId = currentTenantId();
-  const conds: SQL[] = [externalSubscriptionScope(tenantId, domain)];
+  const conds: (SQL | undefined)[] = [externalSubscriptionScope(tenantId, domain)];
   if (clientId) conds.push(eq(appWebhookSubscriptions.clientId, clientId));
   if (status) conds.push(eq(appWebhookSubscriptions.status, status));
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conds.push(or(ilike(appWebhookSubscriptions.name, kw), ilike(appWebhookSubscriptions.url, kw)) as SQL);
-  }
+  conds.push(keywordCondition(keyword, [appWebhookSubscriptions.name, appWebhookSubscriptions.url], 'ilike'));
   const where = buildWhere(...conds);
   const [list, total] = await Promise.all([
     db.select().from(appWebhookSubscriptions)

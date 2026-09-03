@@ -1,7 +1,8 @@
-import { eq, and, or, ne, asc, sql } from 'drizzle-orm';
+import { eq, and, ne, asc } from 'drizzle-orm';
 import { db } from '../../db';
 import { departments, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
+import { keywordCondition } from '../../lib/where-helpers';
 
 // ─── 获取可聊天的用户列表 ──────────────────────────────────────────────────────
 
@@ -15,12 +16,7 @@ export async function listChatUsers(keyword?: string) {
       ne(users.id, me.userId),
       eq(users.status, 'enabled'),
       me.tenantId ? eq(users.tenantId, me.tenantId) : undefined,
-      keyword
-        ? or(
-            sql`${users.nickname} ILIKE ${'%' + keyword + '%'}`,
-            sql`${users.username} ILIKE ${'%' + keyword + '%'}`,
-          )
-        : undefined,
+      keywordCondition(keyword, [users.nickname, users.username], 'ilike'),
     ))
     .limit(50);
 

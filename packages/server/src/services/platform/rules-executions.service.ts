@@ -4,14 +4,14 @@
  * 写入走内存队列批量落盘（削峰，不阻塞求值热路径），流水尽力而为，不阻断业务；
  * 每条记录携带 refKind / caller / version，执行记录页可按资产类型与调用方分析。
  */
-import { desc, eq, like, inArray } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import type { RuleExecution, RuleExecutionSource, RuleHitPolicy, RuleRefKind } from '@zenith/shared/rules';
 import { RULE_CALLER_LABELS } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleExecutions, oauth2Clients } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { buildWhere, keywordCondition, dateRangeConditions, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, dateRangeConditions } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 
@@ -102,7 +102,7 @@ export async function listRuleExecutions(q: ListRuleExecutionsQuery) {
     q.refKind ? eq(ruleExecutions.refKind, q.refKind) : undefined,
     q.refId ? eq(ruleExecutions.refId, q.refId) : undefined,
     q.caller ? eq(ruleExecutions.caller, q.caller) : undefined,
-    q.bizRef?.trim() ? like(ruleExecutions.bizRef, `${escapeLike(q.bizRef.trim())}%`) : undefined,
+    keywordCondition(q.bizRef, [ruleExecutions.bizRef], 'like', 'prefix'),
     keywordCondition(q.ruleKey, [ruleExecutions.ruleKey]),
     q.source ? eq(ruleExecutions.source, q.source) : undefined,
     q.matched !== undefined ? eq(ruleExecutions.matched, q.matched) : undefined,

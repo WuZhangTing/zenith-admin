@@ -1,5 +1,5 @@
-import { eq, and, like, desc, inArray } from 'drizzle-orm';
-import { escapeLike } from '../../lib/where-helpers';
+import { eq, and, desc, inArray } from 'drizzle-orm';
+import { keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
@@ -55,7 +55,7 @@ export interface ListTenantPackagesQuery {
 export async function listTenantPackages(q: ListTenantPackagesQuery) {
   const { page = 1, pageSize = 10, keyword, status } = q;
   const conditions = [];
-  if (keyword) conditions.push(like(tenantPackages.name, `%${escapeLike(keyword)}%`));
+  conditions.push(keywordCondition(keyword, [tenantPackages.name]));
   if (status === 'enabled' || status === 'disabled') conditions.push(eq(tenantPackages.status, status));
   const where = and(...conditions);
   const [total, rows] = await Promise.all([

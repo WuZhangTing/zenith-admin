@@ -1,9 +1,9 @@
-import { eq, ilike, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { db } from '../../db';
 import { members } from '../../db/schema';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 
 export interface MemberReferenceQuery {
   memberId?: number;
@@ -27,6 +27,6 @@ export function memberReferenceCondition(
     db
       .select({ id: members.id })
       .from(members)
-      .where(ilike(members.nickname, `%${escapeLike(query.memberKeyword)}%`)),
+      .where(keywordCondition(query.memberKeyword, [members.nickname], 'ilike')),
   );
 }

@@ -1,9 +1,9 @@
-import { eq, and, ilike, sql, type SQL } from 'drizzle-orm';
+import { eq, and, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpTags } from '../../db/schema';
 import type { MpTagRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -40,10 +40,10 @@ export interface ListMpTagsQuery {
 
 export async function listMpTags(q: ListMpTagsQuery) {
   await ensureMpAccountExists(q.accountId); // 校验账号归属当前租户
-  const conditions: SQL[] = [eq(mpTags.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpTags.accountId, q.accountId)];
   const tenant = tenantScope(mpTags);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(mpTags.name, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [mpTags.name], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpTags, where),

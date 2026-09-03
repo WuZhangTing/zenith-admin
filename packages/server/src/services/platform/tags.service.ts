@@ -1,5 +1,5 @@
-import { eq, asc, or, like, inArray, type SQL } from 'drizzle-orm';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { eq, asc, inArray, type SQL } from 'drizzle-orm';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { tags } from '../../db/schema';
 import type { TagRow } from '../../db/schema';
@@ -54,17 +54,9 @@ export interface ListTagsQuery {
 
 export async function listTags(q: ListTagsQuery) {
   const { keyword = '', status, groupName = '', page, pageSize } = q;
-  const conditions: SQL[] = [];
-  if (keyword) {
-    const kw = or(
-      like(tags.name, `%${escapeLike(keyword)}%`),
-      like(tags.description, `%${escapeLike(keyword)}%`),
-    );
-    if (kw) conditions.push(kw);
-  }
+  const conditions: (SQL | undefined)[] = [keywordCondition(keyword, [tags.name, tags.description])];
   if (status) conditions.push(eq(tags.status, status));
-  if (groupName) conditions.push(like(tags.groupName, `%${escapeLike(groupName)}%`));
-
+  conditions.push(keywordCondition(groupName, [tags.groupName]));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(tags, where),

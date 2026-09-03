@@ -1,10 +1,10 @@
-import { eq, asc, like, type SQL } from 'drizzle-orm';
+import { eq, asc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsRedirects, cmsSites } from '../../db/schema';
 import type { CmsRedirectRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
 import type { CreateCmsRedirectInput, UpdateCmsRedirectInput } from '@zenith/shared/cms';
@@ -98,8 +98,8 @@ export interface ListCmsRedirectsQuery {
 
 export async function listCmsRedirects(q: ListCmsRedirectsQuery) {
   await assertSiteAccess(q.siteId);
-  const conditions: SQL[] = [eq(cmsRedirects.siteId, q.siteId)];
-  if (q.keyword) conditions.push(like(cmsRedirects.fromPath, `%${escapeLike(q.keyword)}%`));
+  const conditions: (SQL | undefined)[] = [eq(cmsRedirects.siteId, q.siteId)];
+  conditions.push(keywordCondition(q.keyword, [cmsRedirects.fromPath]));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(cmsRedirects, where),

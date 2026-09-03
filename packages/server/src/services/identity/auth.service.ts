@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, like, or } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, or, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { users, loginLogs, tenants, operationLogs, passwordResetTokens, type UserRow } from '../../db/schema';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
@@ -11,7 +11,7 @@ import {
 import type { JwtPayload } from '../../middleware/auth';
 import { formatDateTime } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
-import { dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
+import { dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { lookupIpLocation } from '../../lib/ip-location';
 import { clampSmallint, truncateVarchar } from '../../lib/sanitize';
 import logger from '../../lib/logger';
@@ -667,8 +667,8 @@ export async function listMyLoginLogs(query: { page?: number; pageSize?: number;
 export async function listMyOperationLogs(query: { page?: number; pageSize?: number; module?: string; startTime?: string; endTime?: string }) {
   const userId = currentUser().userId;
   const { page = 1, pageSize = 10, module, startTime, endTime } = query;
-  const conditions = [eq(operationLogs.userId, userId)];
-  if (module) conditions.push(like(operationLogs.module, `%${escapeLike(module)}%`));
+  const conditions: (SQL | undefined)[] = [eq(operationLogs.userId, userId)];
+  conditions.push(keywordCondition(module, [operationLogs.module]));
   conditions.push(...dateRangeConditions(operationLogs.createdAt, startTime, endTime));
   const where = and(...conditions);
   const [count, rows] = await Promise.all([

@@ -1,9 +1,9 @@
-import { eq, and, or, ilike, inArray, sql, desc, type SQL } from 'drizzle-orm';
+import { eq, and, inArray, sql, desc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpFans, mpTags } from '../../db/schema';
 import type { MpFanRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -126,14 +126,11 @@ export interface ListMpFansQuery {
 
 export async function listMpFans(q: ListMpFansQuery) {
   await ensureMpAccountExists(q.accountId); // 校验账号归属当前租户
-  const conditions: SQL[] = [eq(mpFans.accountId, q.accountId)];
-  const tenant = tenantScope(mpFans);
-  if (tenant) conditions.push(tenant);
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    const matched = or(ilike(mpFans.nickname, kw), ilike(mpFans.openid, kw), ilike(mpFans.remark, kw));
-    if (matched) conditions.push(matched);
-  }
+  const conditions: (SQL | undefined)[] = [
+    eq(mpFans.accountId, q.accountId),
+    tenantScope(mpFans),
+    keywordCondition(q.keyword, [mpFans.nickname, mpFans.openid, mpFans.remark], 'ilike'),
+  ];
   if (q.subscribe) conditions.push(eq(mpFans.subscribe, q.subscribe));
   if (q.tagId) conditions.push(sql`${mpFans.tagIds} @> ${JSON.stringify([q.tagId])}::jsonb`);
   if (q.blacklisted !== undefined) conditions.push(eq(mpFans.blacklisted, q.blacklisted));

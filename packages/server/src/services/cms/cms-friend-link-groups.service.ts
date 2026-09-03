@@ -1,10 +1,10 @@
-import { eq, asc, and, like, type SQL } from 'drizzle-orm';
+import { eq, asc, and, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsFriendLinkGroups, cmsFriendLinks } from '../../db/schema';
 import type { CmsFriendLinkGroupRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsFriendLinkGroupInput, UpdateCmsFriendLinkGroupInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -52,8 +52,8 @@ export interface ListCmsFriendLinkGroupsQuery {
 export async function listCmsFriendLinkGroups(q: ListCmsFriendLinkGroupsQuery) {
   await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
-  const conditions: SQL[] = [eq(cmsFriendLinkGroups.siteId, q.siteId)];
-  if (q.keyword) conditions.push(like(cmsFriendLinkGroups.name, `%${escapeLike(q.keyword)}%`));
+  const conditions: (SQL | undefined)[] = [eq(cmsFriendLinkGroups.siteId, q.siteId)];
+  conditions.push(keywordCondition(q.keyword, [cmsFriendLinkGroups.name]));
   if (q.status) conditions.push(eq(cmsFriendLinkGroups.status, q.status));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([

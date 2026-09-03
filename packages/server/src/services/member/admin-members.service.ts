@@ -3,14 +3,14 @@
  * 复用 member-auth.service 的 mapMember / ensureMemberExists。
  */
 import { hashPassword } from '../../lib/password';
-import { and, asc, desc, eq, gte, lte, inArray, ilike, isNull, or, count, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, inArray, isNull, or, count, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { members, memberLevels, memberPointAccounts, memberWallets, memberPointTransactions, memberWalletTransactions, memberCoupons, memberLoginLogs, memberTagBindings, memberCheckins, mpFans } from '../../db/schema';
 import type { MemberRow } from '../../db/schema';
 import { mapMember, ensureMemberExists } from './member-auth.service';
 import { forceLogoutAllByMember } from '../../lib/member-session-manager';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
@@ -29,12 +29,10 @@ export interface ListMembersQuery {
 
 export function buildMemberWhere(q: { keyword?: string; status?: MemberStatus; levelId?: number; tagId?: number }): SQL | undefined {
   // 软删除的会员对列表/下拉/导出一律不可见
-  const conds: SQL[] = [isNull(members.deletedAt)];
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    const orCond = or(ilike(members.nickname, kw), ilike(members.phone, kw), ilike(members.username, kw), ilike(members.email, kw));
-    if (orCond) conds.push(orCond);
-  }
+  const conds: (SQL | undefined)[] = [
+    isNull(members.deletedAt),
+    keywordCondition(q.keyword, [members.nickname, members.phone, members.username, members.email], 'ilike'),
+  ];
   if (q.status) conds.push(eq(members.status, q.status));
   if (q.levelId) conds.push(eq(members.levelId, q.levelId));
   if (q.tagId) {
@@ -400,14 +398,12 @@ function mapMemberLoginLog(r: LoginLogRowWithNickname) {
 }
 
 export function buildLoginLogWhere(q: Omit<MemberLoginLogQuery, 'page' | 'pageSize'>): SQL | undefined {
-  const conds: SQL[] = [];
+  const conds: (SQL | undefined)[] = [];
   if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    const parts = [ilike(members.nickname, kw), ilike(members.phone, kw), ilike(members.username, kw)];
+    const parts = [keywordCondition(q.keyword, [members.nickname, members.phone, members.username], 'ilike')];
     // 与积分/钱包等流水的 memberKeyword 口径对齐：纯数字额外按会员 ID 精确匹配（会员详情深链使用）
     if (/^\d+$/.test(q.keyword)) parts.push(eq(memberLoginLogs.memberId, parseInt(q.keyword, 10)));
-    const orCond = or(...parts);
-    if (orCond) conds.push(orCond);
+    conds.push(or(...parts));
   }
   if (q.status) conds.push(eq(memberLoginLogs.status, q.status));
   const start = parseDateRangeStart(q.dateStart);

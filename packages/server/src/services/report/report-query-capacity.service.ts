@@ -16,7 +16,7 @@ import {
 } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import redis from '../../lib/redis';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
 import { reportTimeBucketExpression } from './report-time-bucket';
 
@@ -500,13 +500,15 @@ export async function listReportQueryCostLogs(query: {
 }) {
   const { page = 1, pageSize = 20 } = query;
   const { startAt, endAt } = parseReportQueryCostRange(query.start, query.end);
-  const conds = [gte(reportQueryCostLogs.occurredAt, startAt), lte(reportQueryCostLogs.occurredAt, endAt)];
-  const scope = reportTenantScope(reportQueryCostLogs);
-  if (scope) conds.push(scope);
+  const conds = [
+    gte(reportQueryCostLogs.occurredAt, startAt),
+    lte(reportQueryCostLogs.occurredAt, endAt),
+    reportTenantScope(reportQueryCostLogs),
+    keywordCondition(query.scene, [reportQueryCostLogs.scene], 'ilike'),
+  ];
   if (query.userId) conds.push(eq(reportQueryCostLogs.userId, query.userId));
   if (query.datasetId) conds.push(eq(reportQueryCostLogs.datasetId, query.datasetId));
   if (query.datasourceId) conds.push(eq(reportQueryCostLogs.datasourceId, query.datasourceId));
-  if (query.scene) conds.push(sql`${reportQueryCostLogs.scene} ilike ${`%${escapeLike(query.scene)}%`} escape '\\'`);
   if (query.success !== undefined) conds.push(eq(reportQueryCostLogs.success, query.success));
   const where = and(...conds);
   const [total, rows] = await Promise.all([

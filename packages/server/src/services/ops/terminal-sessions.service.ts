@@ -8,7 +8,7 @@
  *  - 周期性回写活跃时间与终端尺寸；
  *  - 对监控 / 终止路径施加租户判定，再把句柄交给调用方。
  */
-import { and, desc, eq, inArray, like, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { v7 as uuidv7 } from 'uuid';
 import type { TerminalEndReason, TerminalSessionKind, TerminalSessionState } from '@zenith/shared/ops';
@@ -33,7 +33,7 @@ import {
   type TerminalSessionMeta,
 } from '../../lib/terminal-session-registry';
 import type { JwtPayload } from '../../middleware/auth';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
 /** 单个用户可同时持有的活动会话数上限，避免开标签页即耗尽宿主机进程 */
 export const MAX_SESSIONS_PER_USER = 20;
@@ -297,10 +297,7 @@ export async function listTerminalSessionHistory(params: ListTerminalSessionHist
     );
   }
   if (kind) conditions.push(eq(terminalSessions.kind, kind));
-  if (keyword) {
-    const kw = `%${keyword}%`;
-    conditions.push(or(like(terminalSessions.label, kw), like(terminalSessions.clientIp, kw)));
-  }
+  conditions.push(keywordCondition(keyword, [terminalSessions.label, terminalSessions.clientIp]));
   const where = buildWhere(...conditions);
 
   const [total, rows] = await Promise.all([

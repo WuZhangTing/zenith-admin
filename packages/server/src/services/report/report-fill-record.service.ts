@@ -1,12 +1,12 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportFillRecords, reportFillTemplates, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import type { CancelReportFillRecordInput, CreateReportFillRecordInput, ReportFillRecord, ReportFillRecordStatus, ReviewReportFillRecordInput, SubmitReportFillRecordInput, UpdateReportFillRecordInput } from '@zenith/shared/report';
 import { createInstance, withdrawInstance } from '../workflow/instances/lifecycle';
 import { reportCreateTenantId, reportScopedWhere, reportTenantScope } from './report-access';
@@ -109,10 +109,7 @@ export async function listMyReportFillRecords(query: {
   if (query.keyword) {
     const templateIds = db.select({ id: reportFillTemplates.id }).from(reportFillTemplates).where(and(
       reportTenantScope(reportFillTemplates),
-      or(
-        ilike(reportFillTemplates.name, `%${escapeLike(query.keyword)}%`),
-        ilike(reportFillTemplates.code, `%${escapeLike(query.keyword)}%`),
-      ),
+      keywordCondition(query.keyword, [reportFillTemplates.name, reportFillTemplates.code], 'ilike'),
     ));
     where = and(where, inArray(reportFillRecords.templateId, templateIds));
   }

@@ -10,7 +10,7 @@ import { db } from '../../db';
 import { paymentCashierSessions, paymentLinkRedemptions, paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { createPayment } from './payment.service';
 import { bindCashierSession, bindCashierSessionAfterCreateFailure, buildCashierSessionExpiry, createCashierSession, failCashierSession, getPublicCashierSession, releaseExpiredCashierUseSlots } from './payment-cashier-session.service';
@@ -95,7 +95,7 @@ export async function listLinks(q: ListLinksQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) conds.push(like(paymentLinks.subject, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [paymentLinks.subject]));
   if (q.status === 'active') {
     conds.push(and(
       eq(paymentLinks.status, 'active'),

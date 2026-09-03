@@ -1,12 +1,12 @@
 /** 可视化页面（区块装配）CRUD 与前台查询 */
-import { and, desc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, notInArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsPageBlockAcls, cmsPages, cmsChannels, cmsContents } from '../../db/schema';
 import type { CmsPageRow } from '../../db/schema';
 import type { CmsPageBlock } from '@zenith/shared/cms';
 import { formatDateTime } from '../../lib/datetime';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSiteAccess } from './cms-sites.service';
 import { ensureCmsSiteExists } from './cms-sites.service';
@@ -46,10 +46,7 @@ export function mapCmsPage(row: CmsPageRow, blocks?: CmsPageBlock[]) {
 export async function listCmsPages(params: { page: number; pageSize: number; siteId: number; keyword?: string }) {
   await ensureCmsSiteExists(params.siteId);
   await assertSiteAccess(params.siteId);
-  const conds = [eq(cmsPages.siteId, params.siteId)];
-  if (params.keyword) {
-    conds.push(sql`(${cmsPages.name} ILIKE ${`%${escapeLike(params.keyword)}%`} OR ${cmsPages.slug} ILIKE ${`%${escapeLike(params.keyword)}%`})`);
-  }
+  const conds = [eq(cmsPages.siteId, params.siteId), keywordCondition(params.keyword, [cmsPages.name, cmsPages.slug], 'ilike')];
   const where = and(...conds);
   const [total, rows] = await Promise.all([
     db.$count(cmsPages, where),

@@ -1,7 +1,7 @@
-import { inArray, like } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import { db } from '../db';
 import { users } from '../db/schema';
-import { escapeLike } from './where-helpers';
+import { keywordCondition } from './where-helpers';
 
 /**
  * 批量解析用户名 → 昵称映射（日志/统计等只存 username 的场景补充展示名）。
@@ -26,7 +26,7 @@ export async function findUsernamesByNickname(keyword: string): Promise<string[]
   const rows = await db
     .select({ username: users.username })
     .from(users)
-    .where(like(users.nickname, `%${escapeLike(keyword)}%`))
+    .where(keywordCondition(keyword, [users.nickname]))
     .limit(200);
   return rows.map((r) => r.username);
 }

@@ -1,11 +1,11 @@
-import { eq, and, desc, gt, inArray, isNull, like, notInArray, type SQL } from 'drizzle-orm';
+import { eq, and, desc, gt, inArray, isNull, notInArray, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { createRequire } from 'node:module';
 import { db } from '../../db';
 import { cmsResources, cmsResourceFolders, cmsResourceRefs } from '../../db/schema';
 import type { CmsResourceRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, withPagination, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { uploadManagedFile, deleteManagedFile, readFileContent } from '../files/files.service';
 import { processCmsImageUpload } from './cms-image.service';
 import { assertSiteAccess } from './cms-sites.service';
@@ -76,11 +76,11 @@ export interface ListCmsResourcesQuery {
 export async function listCmsResources(q: ListCmsResourcesQuery) {
   await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
-  const conditions: SQL[] = [eq(cmsResources.siteId, q.siteId)];
+  const conditions: (SQL | undefined)[] = [eq(cmsResources.siteId, q.siteId)];
   if (q.type) conditions.push(eq(cmsResources.type, q.type));
   if (q.folderId === 0) conditions.push(isNull(cmsResources.folderId));
   else if (q.folderId) conditions.push(eq(cmsResources.folderId, q.folderId));
-  if (q.keyword?.trim()) conditions.push(like(cmsResources.name, `%${escapeLike(q.keyword.trim())}%`));
+  conditions.push(keywordCondition(q.keyword, [cmsResources.name]));
   const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(cmsResources, where),

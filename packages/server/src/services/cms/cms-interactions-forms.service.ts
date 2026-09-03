@@ -3,7 +3,6 @@ import {
   asc,
   desc,
   eq,
-  ilike,
   inArray,
   sql,
   type SQL,
@@ -26,7 +25,7 @@ import type {
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { withPagination, keywordCondition } from '../../lib/where-helpers';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 import { refreshCmsPublicConfiguration } from './cms-public-config-refresh.service';
@@ -104,8 +103,8 @@ export interface ListCmsInteractionsQuery {
 export async function listCmsInteractions(q: ListCmsInteractionsQuery) {
   await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
-  const conditions: SQL[] = [eq(cmsInteractions.siteId, q.siteId)];
-  if (q.keyword) conditions.push(ilike(cmsInteractions.title, `%${escapeLike(q.keyword)}%`));
+  const conditions: (SQL | undefined)[] = [eq(cmsInteractions.siteId, q.siteId)];
+  conditions.push(keywordCondition(q.keyword, [cmsInteractions.title], 'ilike'));
   if (q.kind) conditions.push(eq(cmsInteractions.kind, q.kind));
   if (q.status) conditions.push(eq(cmsInteractions.status, q.status));
   const where = and(...conditions);
@@ -303,7 +302,7 @@ async function nextAvailableInteractionCode(siteId: number, baseCode: string): P
     .from(cmsInteractions)
     .where(and(
       eq(cmsInteractions.siteId, siteId),
-      ilike(cmsInteractions.code, `${escapeLike(stem)}-copy%`),
+      keywordCondition(`${stem}-copy`, [cmsInteractions.code], 'ilike', 'prefix'),
     ));
   return nextInteractionCopyCode(baseCode, new Set(rows.map((row) => row.code)));
 }

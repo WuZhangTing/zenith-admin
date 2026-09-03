@@ -3,33 +3,32 @@ import type { SQL } from 'drizzle-orm';
 import type { PgColumn, PgSelect } from 'drizzle-orm/pg-core';
 import { parseDateRangeEnd, parseDateRangeStart } from './datetime';
 
-/** 转义 PostgreSQL LIKE / ILIKE 元字符（%, _, \），防止用户输入被解释为通配符 */
-export function escapeLike(s: string): string {
-  return s.replaceAll('\\', String.raw`\\`).replaceAll(String.raw`%`, String.raw`\%`).replaceAll('_', String.raw`\_`);
-}
-
 /**
- * 关键字跨列模糊匹配。
+ * 用户输入参与 LIKE / ILIKE 的唯一入口：单列或跨列模糊匹配。
  *
- * 关键字为空或纯空格时返回 `undefined`（不参与 WHERE），调用方无需自行判空；
- * 内部已做 `escapeLike` 转义。
+ * 关键字先 trim，再转义 `%`、`_`、`\`，为空或纯空格时返回 `undefined`（不参与 WHERE），
+ * 调用方无需自行判空或转义。列参数接受裸列或任意 SQL 表达式（`COALESCE(...)`、`col::text` 等）。
  *
- * @param mode `like` 区分大小写（PostgreSQL 默认），`ilike` 不区分，按各表语义选择。
+ * @param mode  `like` 区分大小写（PostgreSQL 默认），`ilike` 不区分，按各表语义选择。
+ * @param match `contains` 生成 `%kw%`；`prefix` 生成 `kw%`（路径 / 编号前缀匹配）。
  *
  * @example
  * const where = buildWhere(
  *   keywordCondition(q.keyword, [positions.name, positions.code]),
+ *   keywordCondition(q.pathPrefix, [files.objectKey], 'like', 'prefix'),
  *   q.status ? eq(positions.status, q.status) : undefined,
  * );
  */
 export function keywordCondition(
   keyword: string | null | undefined,
-  columns: readonly PgColumn[],
+  columns: readonly (PgColumn | SQL)[],
   mode: 'like' | 'ilike' = 'like',
+  match: 'contains' | 'prefix' = 'contains',
 ): SQL | undefined {
   const trimmed = keyword?.trim();
   if (!trimmed || columns.length === 0) return undefined;
-  const pattern = `%${escapeLike(trimmed)}%`;
+  const escaped = trimmed.replaceAll('\\', String.raw`\\`).replaceAll('%', String.raw`\%`).replaceAll('_', String.raw`\_`);
+  const pattern = match === 'prefix' ? `${escaped}%` : `%${escaped}%`;
   const op = mode === 'ilike' ? ilike : like;
   return or(...columns.map((column) => op(column, pattern)));
 }

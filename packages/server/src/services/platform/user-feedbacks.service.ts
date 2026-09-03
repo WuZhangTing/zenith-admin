@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { desc, eq, gte, inArray, like, lte } from 'drizzle-orm';
+import { desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { userFeedbacks } from '../../db/schema';
 import type { UserFeedbackRow } from '../../db/schema';
@@ -8,7 +8,7 @@ import type { UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/id
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { notify } from '../messaging/notification-outbox.service';
 
@@ -76,7 +76,7 @@ export interface ListUserFeedbacksQuery {
 
 function buildListWhere(q: ListUserFeedbacksQuery) {
   const conditions = [];
-  if (q.keyword) conditions.push(like(userFeedbacks.content, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [userFeedbacks.content]));
   if (q.category) conditions.push(eq(userFeedbacks.category, q.category));
   if (q.status) conditions.push(eq(userFeedbacks.status, q.status));
   const startTime = parseDateRangeStart(q.startTime);

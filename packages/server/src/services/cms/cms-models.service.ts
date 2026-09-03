@@ -1,4 +1,4 @@
-import { eq, asc, and, or, like, inArray, isNull, type SQL } from 'drizzle-orm';
+import { eq, asc, and, or, inArray, isNull, type SQL } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -6,7 +6,7 @@ import { cmsModels, cmsModelFields, cmsChannels, cmsContents, cmsSites, dicts, d
 import type { CmsModelRow, CmsModelFieldRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsModelInput, UpdateCmsModelInput, CmsModelFieldInput } from '@zenith/shared/cms';
 import { assertSiteAccess } from './cms-sites.service';
@@ -208,13 +208,7 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
   const { keyword = '', status, siteId, page, pageSize } = q;
   const scope = await resolveCmsModelScope(siteId);
   const conditions: (SQL | undefined)[] = [];
-  if (keyword) {
-    const kw = or(
-      like(cmsModels.name, `%${escapeLike(keyword)}%`),
-      like(cmsModels.code, `%${escapeLike(keyword)}%`),
-    );
-    if (kw) conditions.push(kw);
-  }
+  conditions.push(keywordCondition(keyword, [cmsModels.name, cmsModels.code]));
   if (status) conditions.push(eq(cmsModels.status, status));
   const visibility = modelVisibilityCondition(scope ?? undefined);
   if (visibility) conditions.push(visibility);

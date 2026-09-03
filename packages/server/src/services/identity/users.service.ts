@@ -1,4 +1,4 @@
-import { eq, and, ne, isNull, inArray, like, type SQL } from 'drizzle-orm';
+import { eq, and, ne, isNull, inArray, type SQL } from 'drizzle-orm';
 import { hashPassword } from '../../lib/password';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
@@ -11,7 +11,7 @@ import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { buildWhere, dateRangeConditions, escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { getPasswordPolicy, validatePassword } from '../../lib/password-policy';
 import { unlockUser as unlockUserSession, batchCheckLoginLock, getOnlineSessions, forceLogoutAllByUsers } from '../../lib/session-manager';
 import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../../lib/excel-export';
@@ -274,7 +274,7 @@ export async function buildUsersListWhere(q: ListUsersQuery, user: JwtPayload): 
   const { keyword, phone, departmentId, status, startTime, endTime } = q;
   const conditions: (SQL | undefined)[] = [];
   conditions.push(keywordCondition(keyword, [users.username, users.nickname, users.email]));
-  if (phone) conditions.push(like(users.phone, `%${escapeLike(phone)}%`));
+  conditions.push(keywordCondition(phone, [users.phone]));
   if (departmentId) conditions.push(eq(users.departmentId, departmentId));
   if (status) conditions.push(eq(users.status, status));
   conditions.push(...dateRangeConditions(users.createdAt, startTime, endTime));

@@ -20,7 +20,7 @@ import {
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { withPagination, keywordCondition } from '../../lib/where-helpers';
 import { getThemeWidgetSlots, listThemeWidgetRenderers, resolveThemeWidgetRenderer } from '../../cms/themes/registry';
 import { renderCmsWidgetHtml } from '../../cms/themes/widgets';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -118,11 +118,7 @@ export async function listCmsWidgets(params: {
 }) {
   await ensureCmsSiteExists(params.siteId);
   await assertSiteAccess(params.siteId);
-  const conditions = [eq(cmsWidgets.siteId, params.siteId)];
-  if (params.keyword) {
-    const keyword = `%${escapeLike(params.keyword)}%`;
-    conditions.push(sql`(${cmsWidgets.name} ILIKE ${keyword} OR ${cmsWidgets.code} ILIKE ${keyword})`);
-  }
+  const conditions = [eq(cmsWidgets.siteId, params.siteId), keywordCondition(params.keyword, [cmsWidgets.name, cmsWidgets.code], 'ilike')];
   if (params.status) conditions.push(eq(cmsWidgets.status, params.status));
   if (params.type) conditions.push(eq(cmsWidgets.type, params.type));
   const where = and(...conditions);

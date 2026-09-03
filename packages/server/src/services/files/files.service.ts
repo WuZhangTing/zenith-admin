@@ -25,7 +25,7 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect, config?: F
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 import { and, desc, asc, eq, inArray, isNull, like, or, gte, sql } from 'drizzle-orm';
-import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { streamToExcel, formatDateTimeForExcel } from '../../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -90,16 +90,7 @@ export async function listManagedFiles(query: {
   const user = currentUser();
   const page = Number(query.page ?? 1);
   const pageSize = Number(query.pageSize ?? 10);
-  const conditions = [];
-  if (query.keyword) {
-    conditions.push(
-      or(
-        like(managedFiles.originalName, `%${escapeLike(query.keyword)}%`),
-        like(managedFiles.objectKey, `%${escapeLike(query.keyword)}%`),
-        like(managedFiles.storageName, `%${escapeLike(query.keyword)}%`),
-      ),
-    );
-  }
+  const conditions = [keywordCondition(query.keyword, [managedFiles.originalName, managedFiles.objectKey, managedFiles.storageName])];
   if (query.provider) conditions.push(eq(managedFiles.provider, query.provider));
   if (query.fileType) {
     if (query.fileType === 'image') conditions.push(like(managedFiles.mimeType, 'image/%'));
@@ -421,8 +412,7 @@ export async function browseStorageFiles(query: { storageConfigId: number; path?
   const fullPrefix = [basePath, rawPath].filter(Boolean).join('/');
 
   const tc = tenantCondition(managedFiles, user);
-  const conditions = [eq(managedFiles.storageConfigId, query.storageConfigId)];
-  if (fullPrefix) conditions.push(like(managedFiles.objectKey, `${escapeLike(fullPrefix)}/%`));
+  const conditions = [eq(managedFiles.storageConfigId, query.storageConfigId), keywordCondition(fullPrefix ? `${fullPrefix}/` : undefined, [managedFiles.objectKey], 'like', 'prefix')];
   const where = tc ? and(...conditions, tc) : and(...conditions);
 
   const allFiles = await db.select().from(managedFiles).where(where).orderBy(asc(managedFiles.objectKey));

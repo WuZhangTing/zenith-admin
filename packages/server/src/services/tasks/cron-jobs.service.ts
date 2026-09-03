@@ -1,5 +1,5 @@
-import { eq, like, and, desc, lt, sql } from 'drizzle-orm';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { eq, and, desc, lt, sql } from 'drizzle-orm';
+import { withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { cronJobs, cronJobLogs } from '../../db/schema';
 import { scheduleJob, stopJob, runJobOnce, validateCronExpression, getRunningJobCount } from '../../lib/pg-boss-scheduler';
@@ -32,7 +32,7 @@ function mapLog(r: typeof cronJobLogs.$inferSelect) {
 export async function listCronJobs(q: { page: number; pageSize: number; keyword?: string }) {
   const { page, pageSize, keyword } = q;
   const conditions = [];
-  if (keyword) conditions.push(like(cronJobs.name, `%${escapeLike(keyword)}%`));
+  conditions.push(keywordCondition(keyword, [cronJobs.name]));
   const where = and(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(cronJobs, where),

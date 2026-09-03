@@ -1,10 +1,10 @@
-import { eq, asc, desc, and, or, like, inArray, notInArray, isNull, isNotNull, ne, lt, gt, sql, type SQL } from 'drizzle-orm';
+import { eq, asc, desc, and, or, inArray, notInArray, isNull, isNotNull, ne, lt, gt, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsContents, cmsContentTags, cmsContentChannels, cmsContentRelations } from '../../db/schema';
 import type { CmsContentRow, CmsTagRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import { getAccessibleChannelIds, assertChannelAccess } from './cms-channels.service';
@@ -199,7 +199,7 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
   const site = await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
   if (q.channelId) await assertChannelAccess(q.channelId);
-  const conditions: SQL[] = [
+  const conditions: (SQL | undefined)[] = [
     eq(cmsContents.siteId, q.siteId),
   ];
   const accessibleChannelIds = await getAccessibleChannelIds();
@@ -213,13 +213,7 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
   if (q.isTop !== undefined) conditions.push(eq(cmsContents.isTop, q.isTop));
   if (q.isRecommend !== undefined) conditions.push(eq(cmsContents.isRecommend, q.isRecommend));
   if (q.isHot !== undefined) conditions.push(eq(cmsContents.isHot, q.isHot));
-  if (q.keyword) {
-    const kw = or(
-      like(cmsContents.title, `%${escapeLike(q.keyword)}%`),
-      like(cmsContents.author, `%${escapeLike(q.keyword)}%`),
-    );
-    if (kw) conditions.push(kw);
-  }
+  conditions.push(keywordCondition(q.keyword, [cmsContents.title, cmsContents.author]));
   // 时间范围为闭区间：此前用 gt/lt 开区间，边界时刻创建的内容会被漏掉
   conditions.push(...dateRangeConditions(cmsContents.createdAt, q.startTime, q.endTime));
 

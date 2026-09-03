@@ -20,7 +20,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildSandboxNotifyRequest } from '../../lib/payment/sandbox-notify';
 import { processEvent } from './payment-outbox.service';
@@ -96,7 +96,7 @@ export async function listPaymentEvents(q: ListEventsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) conds.push(like(paymentEvents.orderNo, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [paymentEvents.orderNo]));
   if (q.status) conds.push(eq(paymentEvents.status, q.status));
   if (q.type) conds.push(eq(paymentEvents.type, q.type));
   const where = buildWhere(...conds, tenantCondition(paymentEvents, currentUser()));

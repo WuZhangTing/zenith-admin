@@ -121,8 +121,7 @@ where(and(eq(users.username, 'admin'), isNull(users.tenantId)));
 
 | 场景 | 工具 |
 | --- | --- |
-| 关键字跨列模糊匹配 | `keywordCondition(keyword, [colA, colB], mode?)` |
-| LIKE/ILIKE 手写模式 | `escapeLike(keyword)` |
+| 用户输入参与 LIKE / ILIKE（单列或跨列、包含或前缀） | `keywordCondition(keyword, [colA, colB], mode?, match?)` |
 | 时间范围闭区间 | `dateRangeConditions(column, start, end)` |
 | 合并可选条件（含租户 / 数据权限条件） | `buildWhere(...conditions)` |
 | SQL-builder 分页 | `withPagination(qb.$dynamic(), page, pageSize)` |
@@ -136,7 +135,8 @@ const where = buildWhere(
 );
 ```
 
-`keywordCondition()` 会处理空串并转义 `%`、`_`、`\`。时间范围使用闭区间；纯日期起点按 `00:00:00`，终点按 `23:59:59.999`。
+`keywordCondition()` 会 trim、处理空串并转义 `%`、`_`、`\`；列参数接受裸列或 SQL 表达式。
+时间范围使用闭区间；纯日期起点按 `00:00:00`，终点按 `23:59:59.999`。
 
 ## 租户过滤
 

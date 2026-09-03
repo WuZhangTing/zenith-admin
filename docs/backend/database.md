@@ -74,14 +74,16 @@ npm run db:seed
 
 可被其他域复用的枚举常量放在 `shared/src/{domain}/constants.ts`，不要放在 `validation.ts` 中制造 ESM 值循环。
 
-### LIKE 查询转义
+### LIKE 查询
 
-使用 `like()` / `ilike()` 拼接用户输入时必须调用 `escapeLike()`；跨列关键字搜索优先用 `keywordCondition()`。
+用户输入参与 `like()` / `ilike()` 时一律使用 `keywordCondition()`（`lib/where-helpers`），
+它负责 trim、判空与 `%`、`_`、`\` 转义；列参数接受裸列或 SQL 表达式，`match: 'prefix'` 生成前缀匹配。
 
 ```ts
-import { escapeLike } from '../lib/where-helpers';
+import { keywordCondition } from '../lib/where-helpers';
 
-like(users.username, `%${escapeLike(keyword)}%`);
+keywordCondition(keyword, [users.username, users.nickname], 'ilike');
+keywordCondition(pathPrefix, [managedFiles.objectKey], 'like', 'prefix');
 ```
 
 ## Schema 组织（按业务域拆分）

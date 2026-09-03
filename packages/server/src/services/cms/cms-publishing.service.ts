@@ -3,10 +3,8 @@ import {
   desc,
   eq,
   gte,
-  ilike,
   inArray,
   lte,
-  or,
   sql,
   type SQL,
 } from 'drizzle-orm';
@@ -34,7 +32,7 @@ import {
   parseDateRangeEnd,
   parseDateRangeStart,
 } from '../../lib/datetime';
-import { escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import {
   currentUser,
   currentUserOrNull,
@@ -182,10 +180,9 @@ export async function buildCmsPublishingConditions(query: Omit<ListCmsPublishing
   if (start) conditions.push(gte(asyncTasks.createdAt, start));
   if (end) conditions.push(lte(asyncTasks.createdAt, end));
   if (query.createdBy?.trim()) {
-    const keyword = `%${escapeLike(query.createdBy.trim())}%`;
     const { users } = await import('../../db/schema');
     const creators = await db.select({ id: users.id }).from(users)
-      .where(or(ilike(users.username, keyword), ilike(users.nickname, keyword)))
+      .where(keywordCondition(query.createdBy, [users.username, users.nickname], 'ilike'))
       .limit(500);
     conditions.push(creators.length ? inArray(asyncTasks.createdBy, creators.map((row) => row.id)) : sql`false`);
   }

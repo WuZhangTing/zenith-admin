@@ -1,4 +1,4 @@
-import { eq, and, desc, sql, inArray, or, ne, asc, gte, lte, lt, gt } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray, ne, asc, gte, lte, lt, gt } from 'drizzle-orm';
 import { db } from '../../db';
 import { chatConversations, chatConversationMembers, chatMessages, chatMessageFavorites, users } from '../../db/schema';
 import { scheduleSendToUsers } from '../../lib/ws-manager';
@@ -10,6 +10,7 @@ import type { ForwardMessagesInput, ChatMessage, ChatMessageExtra, ChatMessageSe
 import type { SendChatMessageInput } from '@zenith/shared/messaging';
 import { notHiddenFor, rowSender, mapChatMessage, fetchUserBrief, listConversationMemberIds, ensureConversationMember, ensureMessageAccessible } from './chat-shared';
 import { aggregateReactions } from './chat-reactions.service';
+import { keywordCondition } from '../../lib/where-helpers';
 
 async function fetchReplySnapshotMap(
   rows: Array<{ replyToId: number | null }>,
@@ -381,16 +382,12 @@ export async function searchConversationMessages(
     types.length > 0 ? inArray(chatMessages.type, types) : undefined,
     startAt ? gte(chatMessages.createdAt, startAt) : undefined,
     endAt ? lte(chatMessages.createdAt, endAt) : undefined,
-    keyword
-      ? or(
-          ...(() => { const p = `%${keyword}%`; return [
-            sql`${chatMessages.content} ILIKE ${p}`,
-            sql`COALESCE(${users.nickname}, '') ILIKE ${p}`,
-            sql`COALESCE(${users.username}, '') ILIKE ${p}`,
-            sql`COALESCE(${chatMessages.extra} -> 'asset' ->> 'name', '') ILIKE ${p}`,
-          ]; })(),
-        )
-      : undefined,
+    keywordCondition(keyword, [
+      chatMessages.content,
+      sql`COALESCE(${users.nickname}, '')`,
+      sql`COALESCE(${users.username}, '')`,
+      sql`COALESCE(${chatMessages.extra} -> 'asset' ->> 'name', '')`,
+    ], 'ilike'),
   );
 
   const [countRows, rows] = await Promise.all([
@@ -798,17 +795,13 @@ export async function searchGlobalMessages(
   if (!keyword) return { list: [], total: 0, page: params.page, pageSize: params.pageSize, conversationNames: {} };
 
   const types = params.types?.filter(Boolean) ?? [];
-  const p = `%${keyword}%`;
 
   const where = and(
     // 只搜当前用户参与的会话
     eq(chatConversationMembers.userId, me.userId),
     notHiddenFor(me.userId),
     types.length > 0 ? inArray(chatMessages.type, types) : undefined,
-    or(
-      sql`${chatMessages.content} ILIKE ${p}`,
-      sql`COALESCE(${chatMessages.extra} -> 'asset' ->> 'name', '') ILIKE ${p}`,
-    ),
+    keywordCondition(keyword, [chatMessages.content, sql`COALESCE(${chatMessages.extra} -> 'asset' ->> 'name', '')`], 'ilike'),
   );
 
   const [countRows, rows] = await Promise.all([

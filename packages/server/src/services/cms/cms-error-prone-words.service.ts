@@ -1,10 +1,10 @@
-import { eq, asc, like, or, type SQL } from 'drizzle-orm';
+import { eq, asc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsErrorProneWords } from '../../db/schema';
 import type { CmsErrorProneWordRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { AhoCorasick, applyReplacements, createTtlCache, toCodePoints, type AcMatch } from '../../lib/aho-corasick';
 import { invalidateWordCheckCache } from './cms-word-check.service';
@@ -70,14 +70,8 @@ export interface ListCmsErrorProneWordsQuery {
 }
 
 export async function listCmsErrorProneWords(q: ListCmsErrorProneWordsQuery) {
-  const conditions: SQL[] = [];
-  if (q.keyword) {
-    const kw = or(
-      like(cmsErrorProneWords.word, `%${escapeLike(q.keyword)}%`),
-      like(cmsErrorProneWords.correction, `%${escapeLike(q.keyword)}%`),
-    );
-    if (kw) conditions.push(kw);
-  }
+  const conditions: (SQL | undefined)[] = [];
+  conditions.push(keywordCondition(q.keyword, [cmsErrorProneWords.word, cmsErrorProneWords.correction]));
   if (q.status) conditions.push(eq(cmsErrorProneWords.status, q.status));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([

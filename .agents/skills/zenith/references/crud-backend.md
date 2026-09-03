@@ -157,7 +157,7 @@ interface XxxWhereInput extends ListXxxsQuery {
 async function buildXxxWhere(q: XxxWhereInput) {
   return buildWhere(
     q.id !== undefined ? eq(xxxs.id, q.id) : undefined,
-    // 内部已判空并 escapeLike，调用点不要再包 if (q.keyword)
+    // 内部已 trim、判空并转义，调用点不要再包 if (q.keyword)
     keywordCondition(q.keyword, [xxxs.name, xxxs.description]),
     q.status ? eq(xxxs.status, q.status) : undefined,
     // 终点自动取当天 23:59:59.999，不会漏掉当天数据

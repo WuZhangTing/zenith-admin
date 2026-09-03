@@ -1,11 +1,11 @@
-import { and, desc, eq, gte, ilike, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import dayjs from 'dayjs';
 import type { AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus } from '@zenith/shared/tasks';
 import { db } from '../../db';
 import { asyncTaskItems, asyncTasks, users } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, dateRangeConditions, escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, APP_TIME_ZONE } from '../../lib/datetime';
 import { currentUser, hasPermission } from '../../lib/context';
 import {
@@ -42,23 +42,15 @@ function buildConditions(query: ListAsyncTasksQuery): (SQL | undefined)[] {
   if (query.taskType) conditions.push(eq(asyncTasks.taskType, query.taskType));
   if (query.status) conditions.push(eq(asyncTasks.status, query.status));
   conditions.push(keywordCondition(query.keyword, [asyncTasks.title, asyncTasks.taskType], 'ilike'));
-  const content = query.content?.trim();
-  if (content) {
-    const pattern = `%${escapeLike(content)}%`;
-    conditions.push(or(
-      sql`${asyncTasks.payload}::text ILIKE ${pattern}`,
-      sql`${asyncTasks.result}::text ILIKE ${pattern}`,
-    ));
-  }
+  conditions.push(keywordCondition(query.content, [sql`${asyncTasks.payload}::text`, sql`${asyncTasks.result}::text`], 'ilike'));
   conditions.push(...dateRangeConditions(asyncTasks.createdAt, query.startTime, query.endTime));
   return conditions;
 }
 
 /** 提交人筛选：先按用户名/昵称匹配用户，再按 createdBy 过滤；无匹配返回 null（调用方直接返回空列表） */
 async function creatorCondition(createdBy: string): Promise<SQL | null> {
-  const kw = `%${escapeLike(createdBy)}%`;
   const matched = await db.select({ id: users.id }).from(users)
-    .where(or(ilike(users.username, kw), ilike(users.nickname, kw)))
+    .where(keywordCondition(createdBy, [users.username, users.nickname], 'ilike'))
     .limit(500);
   if (matched.length === 0) return null;
   return inArray(asyncTasks.createdBy, matched.map((row) => row.id));

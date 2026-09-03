@@ -1,8 +1,8 @@
-import { eq, ilike, desc, type SQL } from 'drizzle-orm';
+import { eq, desc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { smsSendLogs, smsTemplates, smsConfigs, users } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
@@ -22,11 +22,11 @@ export interface ListSmsSendLogsQuery {
 }
 
 export function buildListWhere(q: ListSmsSendLogsQuery) {
-  const conditions: SQL[] = [];
+  const conditions: (SQL | undefined)[] = [];
   const tenant = tenantScope(smsSendLogs);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(smsSendLogs.content, `%${escapeLike(q.keyword)}%`));
-  if (q.phone) conditions.push(ilike(smsSendLogs.phone, `%${escapeLike(q.phone)}%`));
+  conditions.push(keywordCondition(q.keyword, [smsSendLogs.content], 'ilike'));
+  conditions.push(keywordCondition(q.phone, [smsSendLogs.phone], 'ilike'));
   if (q.provider) conditions.push(eq(smsSendLogs.provider, q.provider));
   if (q.status) conditions.push(eq(smsSendLogs.status, q.status));
   if (q.source) conditions.push(eq(smsSendLogs.source, q.source));

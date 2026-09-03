@@ -6,7 +6,7 @@
  * 确定性分账单号（SHR{orderNo}R{receiverId}）+ 唯一索引保证事件重复投递幂等；
  * 渠道调用失败的分账单由 cron retryFailedSharingOrders 兜底重试（上限 3 次）。
  */
-import { and, desc, eq, inArray, isNull, like, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -21,7 +21,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
 import { postSystemJournal } from './payment-journal.service';
@@ -109,7 +109,7 @@ export async function listReceivers(q: ListReceiversQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) conds.push(like(paymentSharingReceivers.name, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [paymentSharingReceivers.name]));
   if (q.status) conds.push(eq(paymentSharingReceivers.status, q.status));
   const where = buildWhere(...conds, tenantCondition(paymentSharingReceivers, currentUser()));
   const [total, list] = await Promise.all([
@@ -183,7 +183,7 @@ export async function listSharingOrders(q: ListSharingOrdersQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conds = [];
-  if (q.keyword) conds.push(like(paymentSharingOrders.orderNo, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [paymentSharingOrders.orderNo]));
   if (q.status) conds.push(eq(paymentSharingOrders.status, q.status));
   if (q.receiverId) conds.push(eq(paymentSharingOrders.receiverId, q.receiverId));
   const where = buildWhere(...conds, tenantCondition(paymentSharingOrders, currentUser()));

@@ -1,9 +1,9 @@
-import { eq, and, or, ilike, isNull, type SQL } from 'drizzle-orm';
+import { eq, and, or, isNull, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpAccounts } from '../../db/schema';
 import type { MpAccountRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -59,18 +59,7 @@ export interface ListMpAccountsQuery {
 }
 
 export async function listMpAccounts(q: ListMpAccountsQuery) {
-  const conditions: SQL[] = [];
-  const tenant = tenantScope(mpAccounts);
-  if (tenant) conditions.push(tenant);
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    const matched = or(
-      ilike(mpAccounts.name, kw),
-      ilike(mpAccounts.account, kw),
-      ilike(mpAccounts.appId, kw),
-    );
-    if (matched) conditions.push(matched);
-  }
+  const conditions: (SQL | undefined)[] = [tenantScope(mpAccounts), keywordCondition(q.keyword, [mpAccounts.name, mpAccounts.account, mpAccounts.appId], 'ilike')];
   if (q.type) conditions.push(eq(mpAccounts.type, q.type));
   if (q.status) conditions.push(eq(mpAccounts.status, q.status));
   const where = buildWhere(...conditions);

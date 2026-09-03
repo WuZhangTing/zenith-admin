@@ -1,9 +1,9 @@
-import { eq, and, ilike, desc, sql, type SQL } from 'drizzle-orm';
+import { eq, and, desc, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMessages, mpFans } from '../../db/schema';
 import type { MpMessageRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -42,13 +42,13 @@ export interface ListMpMessagesQuery {
 
 export async function listMessages(q: ListMpMessagesQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpMessages.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpMessages.accountId, q.accountId)];
   const tenant = tenantScope(mpMessages);
   if (tenant) conditions.push(tenant);
   if (q.openid) conditions.push(eq(mpMessages.openid, q.openid));
   if (q.direction) conditions.push(eq(mpMessages.direction, q.direction));
   if (q.msgType) conditions.push(eq(mpMessages.msgType, q.msgType));
-  if (q.keyword) conditions.push(ilike(mpMessages.content, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [mpMessages.content], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpMessages, where),

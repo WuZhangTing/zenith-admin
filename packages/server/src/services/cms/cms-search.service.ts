@@ -4,7 +4,7 @@ import { dict } from '@node-rs/jieba/dict.js';
 import { db } from '../../db';
 import { cmsContents, cmsChannels, cmsSearchWords } from '../../db/schema';
 import { formatNullableDateTime } from '../../lib/datetime';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
@@ -431,7 +431,7 @@ export async function searchCmsContents(q: CmsSearchQuery): Promise<{ list: CmsS
 
   // 回退二：整串 ILIKE 模糊匹配标题（title 已建 gin_trgm 索引），兜住词典完全切不准的关键词
   if (keyword.trim().length <= 32) {
-    const likeWhere = and(baseWhere, sql`${cmsContents.title} ilike ${'%' + escapeLike(keyword.trim()) + '%'}`)!;
+    const likeWhere = and(baseWhere, keywordCondition(keyword, [cmsContents.title], 'ilike'))!;
     const [likeTotal, likeRows] = await Promise.all([
       countMatching(likeWhere),
       db.select({ ...selectShape, rank: sql<number>`0`.as('rank') })

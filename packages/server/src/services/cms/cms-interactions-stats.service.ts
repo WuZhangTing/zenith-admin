@@ -17,7 +17,7 @@ import {
 import type { CmsInteractionQuestionRow } from '../../db/schema';
 import { formatDate, formatDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { assertSiteAccess } from './cms-sites.service';
 import { ensureCmsInteractionExists, isOtherAnswer } from './cms-interactions-shared';
 
@@ -280,9 +280,8 @@ export async function listCmsInteractionTexts(q: ListCmsInteractionTextsQuery) {
   const valueFilter = isFreeText
     ? sql`TRUE`
     : sql`starts_with(v.val, ${CMS_INTERACTION_OTHER_PREFIX})`;
-  const keywordFilter = q.keyword
-    ? sql`AND v.val ILIKE ${`%${escapeLike(q.keyword)}%`}`
-    : sql``;
+  const keywordMatch = keywordCondition(q.keyword, [sql`v.val`], 'ilike');
+  const keywordFilter = keywordMatch ? sql`AND ${keywordMatch}` : sql``;
   const [countRows, rows] = await Promise.all([
     db.execute(sql`
       SELECT COUNT(*)::int AS total

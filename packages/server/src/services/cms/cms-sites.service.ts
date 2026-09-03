@@ -1,4 +1,4 @@
-import { eq, asc, and, or, like, inArray, sql, type SQL } from 'drizzle-orm';
+import { eq, asc, and, or, inArray, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import {
@@ -13,7 +13,7 @@ import {
 import type { CmsSiteInheritanceRow, CmsSiteRow } from '../../db/schema';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
 import { currentCmsOpenApiAccess, currentUser, hasPermission } from '../../lib/context';
@@ -322,14 +322,7 @@ export async function listCmsSites(q: ListCmsSitesQuery) {
   const conditions: (SQL | undefined)[] = [];
   const accessible = await getAccessibleSiteIds();
   if (accessible !== null) conditions.push(inArray(cmsSites.id, accessible));
-  if (keyword) {
-    const kw = or(
-      like(cmsSites.name, `%${escapeLike(keyword)}%`),
-      like(cmsSites.code, `%${escapeLike(keyword)}%`),
-      like(cmsSites.domain, `%${escapeLike(keyword)}%`),
-    );
-    if (kw) conditions.push(kw);
-  }
+  conditions.push(keywordCondition(keyword, [cmsSites.name, cmsSites.code, cmsSites.domain]));
   if (status) conditions.push(eq(cmsSites.status, status));
 
   const where = buildWhere(...conditions);

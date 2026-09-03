@@ -1,9 +1,9 @@
-import { eq, desc, and, or, ilike, inArray, isNotNull, gt, gte, lte, sql, arrayContains } from 'drizzle-orm';
+import { eq, desc, and, or, inArray, isNotNull, gt, gte, lte, sql, arrayContains } from 'drizzle-orm';
 import { db } from '../../db';
 import { aiConversations, aiMessages, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, formatFileTimestamp, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { streamToCsv } from '../../lib/excel-export';
 import { HTTPException } from 'hono/http-exception';
 import { resolveAgentForChat, incrementAgentUsage } from './ai-agents.service';
@@ -210,13 +210,12 @@ export async function listConversations(opts: { archived?: boolean; keyword?: st
   }
 
   if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
     // 命中条件：对话标题匹配，或对话内存在内容匹配的消息
     const matchedConvIds = db
       .select({ id: aiMessages.conversationId })
       .from(aiMessages)
-      .where(ilike(aiMessages.content, kw));
-    conds.push(or(ilike(aiConversations.title, kw), inArray(aiConversations.id, matchedConvIds))!);
+      .where(keywordCondition(keyword, [aiMessages.content], 'ilike'));
+    conds.push(or(keywordCondition(keyword, [aiConversations.title], 'ilike'), inArray(aiConversations.id, matchedConvIds))!);
   }
 
   let query = db
@@ -567,9 +566,7 @@ export async function listAuditMessages(params: {
 }) {
   const { page, pageSize } = params;
   const conds = [];
-  if (params.keyword?.trim()) {
-    conds.push(ilike(aiMessages.content, `%${escapeLike(params.keyword.trim())}%`));
-  }
+  conds.push(keywordCondition(params.keyword, [aiMessages.content], 'ilike'));
   if (params.role) conds.push(eq(aiMessages.role, params.role));
   if (params.userId) conds.push(eq(aiConversations.userId, params.userId));
   const start = params.startDate ? parseDateRangeStart(params.startDate) : null;

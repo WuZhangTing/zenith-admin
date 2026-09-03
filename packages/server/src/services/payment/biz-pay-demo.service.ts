@@ -14,7 +14,7 @@
  *   保证业务侧与支付中心数据一致；
  * - 尚未发起支付时（无支付订单），仅执行本地履约演示业务闭环（不存在支付订单，无一致性问题）。
  */
-import { and, desc, eq, inArray, isNull, like } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
 import type { PaymentMethod, PaymentCashierMethod, CreatePaymentResult } from '@zenith/shared/payment';
@@ -23,7 +23,7 @@ import { bizPayDemos, paymentOrders, type BizPayDemoRow } from '../../db/schema'
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import logger from '../../lib/logger';
 import { createPayment } from './payment.service';
@@ -72,11 +72,11 @@ export async function listBizPayDemos(query: { page?: number; pageSize?: number;
   const user = currentUser();
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
-  const conds = [eq(bizPayDemos.createdBy, user.userId)];
+  const conds: (SQL | undefined)[] = [eq(bizPayDemos.createdBy, user.userId)];
   const tc = tenantCondition(bizPayDemos, user);
   if (tc) conds.push(tc);
   if (query.status) conds.push(eq(bizPayDemos.status, query.status as BizPayDemoStatus));
-  if (query.keyword) conds.push(like(bizPayDemos.subject, `%${escapeLike(query.keyword)}%`));
+  conds.push(keywordCondition(query.keyword, [bizPayDemos.subject]));
   const where = and(...conds);
   const [total, rows] = await Promise.all([
     db.$count(bizPayDemos, where),

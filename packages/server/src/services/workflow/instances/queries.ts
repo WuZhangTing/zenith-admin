@@ -1,8 +1,8 @@
 // ─── 实例/待办/已办/抄送列表查询与详情（拆分自 workflow-instances.service.ts）───
 import { formatDateTime, formatNullableDateTime } from '../../../lib/datetime';
-import { count, countDistinct, eq, and, desc, ilike, or, inArray, lte, sql, type SQL } from 'drizzle-orm';
+import { count, countDistinct, eq, and, desc, or, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { escapeLike, keywordCondition, withPagination, dateRangeConditions } from '../../../lib/where-helpers';
+import { keywordCondition, withPagination, dateRangeConditions } from '../../../lib/where-helpers';
 import { db } from '../../../db';
 import { pageOffset } from '../../../lib/pagination';
 import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, users } from '../../../db/schema';
@@ -27,8 +27,7 @@ const priorityRankOrder = sql`CASE ${workflowInstances.priority} WHEN 'urgent' T
 
 /** 实例标题或流程名称模糊匹配条件（需联表 workflowDefinitions） */
 function titleOrDefinitionNameLike(keyword: string) {
-  const likeValue = `%${escapeLike(keyword)}%`;
-  return or(ilike(workflowInstances.title, likeValue), ilike(workflowDefinitions.name, likeValue))!;
+  return keywordCondition(keyword, [workflowInstances.title, workflowDefinitions.name], 'ilike')!;
 }
 
 /** 任务联实例/定义/发起人的行选择（待办/抄送/已办列表共用） */
@@ -342,7 +341,7 @@ export async function listAllInstances(query: { page?: number; pageSize?: number
   conditions.push(keywordCondition(keyword, [workflowInstances.title, workflowDefinitions.name], 'ilike'));
   if (categoryId !== undefined) conditions.push(eq(workflowDefinitions.categoryId, categoryId));
   if (definitionId !== undefined) conditions.push(eq(workflowInstances.definitionId, definitionId));
-  if (initiatorKeyword) conditions.push(ilike(users.nickname, `%${escapeLike(initiatorKeyword)}%`));
+  conditions.push(keywordCondition(initiatorKeyword, [users.nickname], 'ilike'));
   if (priority) conditions.push(eq(workflowInstances.priority, priority));
   const where = and(...conditions);
   const statWhere = scopeCond ? (tc ? and(tc, scopeCond) : scopeCond) : tc;

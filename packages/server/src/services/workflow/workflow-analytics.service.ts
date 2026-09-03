@@ -1,11 +1,11 @@
-import { and, asc, eq, gte, desc, ilike, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, gte, desc, inArray, sql, type SQL } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import { db } from '../../db';
 import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategories, workflowJobs, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import type { WorkflowAnalytics, WorkflowInstanceStatus, WorkflowAnalyticsTrendPoint, WorkflowOverdueTask } from '@zenith/shared/workflow';
 import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
@@ -294,7 +294,7 @@ function buildInstancesExportWhere(query: WorkflowInstanceExportQuery) {
   conds.push(keywordCondition(query.keyword, [workflowInstances.title, workflowDefinitions.name], 'ilike'));
   if (query.categoryId) conds.push(eq(workflowDefinitions.categoryId, query.categoryId));
   if (query.definitionId) conds.push(eq(workflowInstances.definitionId, query.definitionId));
-  if (query.initiatorKeyword) conds.push(ilike(users.nickname, `%${escapeLike(query.initiatorKeyword)}%`));
+  conds.push(keywordCondition(query.initiatorKeyword, [users.nickname], 'ilike'));
   return buildWhere(...conds);
 }
 

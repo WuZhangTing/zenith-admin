@@ -1,5 +1,5 @@
-import { eq, asc, desc, and, or, like, gte, lte, type SQL } from 'drizzle-orm';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { eq, asc, desc, and, gte, lte, type SQL } from 'drizzle-orm';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { dicts, dictItems } from '../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -28,11 +28,7 @@ export interface ListDictsQuery {
 export async function listDicts(q: ListDictsQuery) {
   const user = currentUser();
   const { keyword = '', status = '', startDate = '', endDate = '', page, pageSize } = q;
-  const conditions: SQL[] = [];
-  if (keyword) {
-    const kw = or(like(dicts.name, `%${escapeLike(keyword)}%`), like(dicts.code, `%${escapeLike(keyword)}%`));
-    if (kw) conditions.push(kw);
-  }
+  const conditions: (SQL | undefined)[] = [keywordCondition(keyword, [dicts.name, dicts.code])];
   if (status) conditions.push(eq(dicts.status, status));
   const parsedStartDate = parseDateRangeStart(startDate);
   const parsedEndDate = parseDateRangeEnd(endDate);

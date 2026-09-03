@@ -4,9 +4,8 @@ import { db } from '../../db';
 import { cmsForms, cmsFormSubmissions } from '../../db/schema';
 import type { CmsFormRow, CmsFormSubmissionRow, CmsSiteRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { like } from 'drizzle-orm';
 import { sanitizeUserText } from './cms-sensitive-words.service';
 import { assertSiteAccess } from './cms-sites.service';
 import { throttleFrontSubmit } from './cms-comments.service';
@@ -133,8 +132,8 @@ export interface ListCmsFormsQuery {
 export async function listCmsForms(q: ListCmsFormsQuery) {
   await ensureCmsSiteExists(q.siteId);
   await assertSiteAccess(q.siteId);
-  const conditions: SQL[] = [eq(cmsForms.siteId, q.siteId)];
-  if (q.keyword) conditions.push(like(cmsForms.name, `%${escapeLike(q.keyword)}%`));
+  const conditions: (SQL | undefined)[] = [eq(cmsForms.siteId, q.siteId)];
+  conditions.push(keywordCondition(q.keyword, [cmsForms.name]));
   const where = buildWhere(...conditions);
   // 提交数按表单分组后 LEFT JOIN（sql`` 裸列名不带表限定，禁止模板内跨表比较）
   const submissionCounts = db

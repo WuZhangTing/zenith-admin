@@ -1,12 +1,12 @@
 /**
  * IoT 设备日志通道：设备上报运行日志（追加型，保留策略裁剪）。
  */
-import { count, desc, eq, gte, lte, ilike, type SQL } from 'drizzle-orm';
+import { count, desc, eq, gte, lte, type SQL } from 'drizzle-orm';
 import type { IotLogIngestInput, IotLogLevel } from '@zenith/shared/iot';
 import { db } from '../../db';
 import { iotDeviceLogs, type IotDeviceLogRow, type IotDeviceRow } from '../../db/schema';
 import { formatDateTime, parseDateTimeInput } from '../../lib/datetime';
-import { buildWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 
 export function mapIotDeviceLog(row: IotDeviceLogRow) {
   return {
@@ -46,7 +46,7 @@ export async function listIotDeviceLogs(deviceId: number, q: ListDeviceLogsQuery
   const conditions: (SQL | undefined)[] = [
     eq(iotDeviceLogs.deviceId, deviceId),
     q.level ? eq(iotDeviceLogs.level, q.level) : undefined,
-    q.keyword ? ilike(iotDeviceLogs.content, `%${q.keyword}%`) : undefined,
+    keywordCondition(q.keyword, [iotDeviceLogs.content], 'ilike'),
   ];
   const start = q.startTime ? parseDateTimeInput(q.startTime) : null;
   const end = q.endTime ? parseDateTimeInput(q.endTime) : null;

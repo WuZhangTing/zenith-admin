@@ -7,7 +7,7 @@ import { config } from '../../config';
 import redis from '../../lib/redis';
 import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import type { CmsHotKeyword, CreateCmsHotwordGroupInput, CreateCmsHotwordInput, UpdateCmsHotwordGroupInput, UpdateCmsHotwordInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
 
@@ -104,10 +104,10 @@ export async function listCmsHotwords(input: {
 }) {
   await ensureCmsSiteExists(input.siteId);
   await assertSiteAccess(input.siteId);
-  const conditions: SQL[] = [eq(cmsHotwords.siteId, input.siteId)];
+  const conditions: (SQL | undefined)[] = [eq(cmsHotwords.siteId, input.siteId)];
   if (input.groupId) conditions.push(eq(cmsHotwords.groupId, input.groupId));
   if (input.status) conditions.push(eq(cmsHotwords.status, input.status));
-  if (input.keyword) conditions.push(sql`${cmsHotwords.keyword} ilike ${`%${escapeLike(input.keyword)}%`} escape '\\'`);
+  conditions.push(keywordCondition(input.keyword, [cmsHotwords.keyword], 'ilike'));
   const managed = await db.select({ hotword: cmsHotwords, groupName: cmsHotwordGroups.name })
     .from(cmsHotwords)
     .leftJoin(cmsHotwordGroups, eq(cmsHotwords.groupId, cmsHotwordGroups.id))

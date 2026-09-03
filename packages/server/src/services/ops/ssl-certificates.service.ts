@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { and, desc, eq, isNull, like, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, isNull, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { GenerateSelfSignedCertInput } from '@zenith/shared/member';
 import type { UploadCertInput } from '@zenith/shared/platform';
@@ -11,7 +11,7 @@ import { sslCertificates, users } from '../../db/schema';
 import type { SslCertificateRow } from '../../db/schema';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDate, formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { notify } from '../messaging/notification-outbox.service';
 
 const execFileAsync = promisify(execFile);
@@ -187,19 +187,10 @@ function mapCert(row: SslCertificateRow) {
 }
 
 function buildCertificateWhere(query: ListSslCertificatesQuery): SQL | undefined {
-  const conditions: SQL[] = [];
-  if (query.type) {
-    conditions.push(eq(sslCertificates.type, query.type));
-  }
-  if (query.keyword?.trim()) {
-    const escaped = escapeLike(query.keyword.trim());
-    const keywordCondition = or(
-      like(sslCertificates.name, `%${escaped}%`),
-      like(sslCertificates.domain, `%${escaped}%`),
-    );
-    if (keywordCondition) conditions.push(keywordCondition);
-  }
-  return buildWhere(...conditions);
+  return buildWhere(
+    query.type ? eq(sslCertificates.type, query.type) : undefined,
+    keywordCondition(query.keyword, [sslCertificates.name, sslCertificates.domain]),
+  );
 }
 
 async function syncRowStatus(row: SslCertificateRow) {

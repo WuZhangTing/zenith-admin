@@ -2,7 +2,7 @@
  * 报表运营 Service —— 分类 / 生命周期版本 / 收藏 / 公开分享 / 嵌入令牌。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, asc, count, desc, eq, inArray, ilike, lt, max, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, lt, max, or, sql } from 'drizzle-orm';
 import { hashPassword, verifyPassword } from '../../lib/password';
 import { createHash, randomBytes } from 'node:crypto';
 import { db } from '../../db';
@@ -53,7 +53,7 @@ import type { ReportWidgetOptions } from '@zenith/shared/report';
 import { resolveReportSecret } from './report-secrets';
 import { ensureReportResourceAccess } from './report-resource-acl.service';
 import { recordReportAssetUsage } from './report-asset-usage.service';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
 const DEFAULT_SHARE_TTL_DAYS = 30;
 const SHARE_SESSION_TTL_SECONDS = 15 * 60;
@@ -113,13 +113,10 @@ export async function listCategories(): Promise<ReportDashboardCategory[]> {
 }
 
 export async function listCategoryLookup(query: { keyword?: string; limit?: number }): Promise<ReportLookupOption[]> {
-  const conds = [];
-  const tenantScope = reportTenantScope(reportDashboardCategories);
-  if (tenantScope) conds.push(tenantScope);
-  if (query.keyword) {
-    const kw = `%${query.keyword.trim().replace(/[%_]/g, '\\$&')}%`;
-    conds.push(or(ilike(reportDashboardCategories.name, kw), ilike(reportDashboardCategories.remark, kw)));
-  }
+  const conds = [
+    reportTenantScope(reportDashboardCategories),
+    keywordCondition(query.keyword, [reportDashboardCategories.name, reportDashboardCategories.remark], 'ilike'),
+  ];
   const where = buildWhere(...conds);
   const rows = await db.select({
     id: reportDashboardCategories.id,

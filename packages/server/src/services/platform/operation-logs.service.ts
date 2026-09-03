@@ -1,5 +1,5 @@
-import { count, desc, like, and, or, gte, lt, lte, sql, eq, inArray } from 'drizzle-orm';
-import { buildWhere, dateRangeConditions, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { count, desc, and, or, gte, lt, lte, sql, eq, inArray } from 'drizzle-orm';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { operationLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
@@ -31,14 +31,14 @@ export async function buildOperationLogsWhere(q: ListOperationLogsQuery) {
   if (q.username) {
     // 关键字同时匹配用户名与昵称（昵称先反查出用户名集合）
     const byNickname = await findUsernamesByNickname(q.username);
-    const usernameLike = like(operationLogs.username, `%${escapeLike(q.username)}%`);
+    const usernameLike = keywordCondition(q.username, [operationLogs.username]);
     conditions.push(byNickname.length > 0 ? or(usernameLike, inArray(operationLogs.username, byNickname)) : usernameLike);
   }
-  if (q.module) conditions.push(like(operationLogs.module, `%${escapeLike(q.module)}%`));
-  if (q.description) conditions.push(like(operationLogs.description, `%${escapeLike(q.description)}%`));
+  conditions.push(keywordCondition(q.module, [operationLogs.module]));
+  conditions.push(keywordCondition(q.description, [operationLogs.description]));
   if (q.method) conditions.push(eq(operationLogs.method, q.method));
-  if (q.path) conditions.push(like(operationLogs.path, `%${escapeLike(q.path)}%`));
-  if (q.ip) conditions.push(like(operationLogs.ip, `%${escapeLike(q.ip)}%`));
+  conditions.push(keywordCondition(q.path, [operationLogs.path]));
+  conditions.push(keywordCondition(q.ip, [operationLogs.ip]));
   conditions.push(keywordCondition(q.content, [operationLogs.beforeData, operationLogs.afterData, operationLogs.requestBody], 'ilike'));
   if (q.status === 'success') conditions.push(and(gte(operationLogs.responseCode, 200), lte(operationLogs.responseCode, 399)));
   if (q.status === 'fail') conditions.push(gte(operationLogs.responseCode, 400));

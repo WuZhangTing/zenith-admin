@@ -1,9 +1,9 @@
-import { eq, and, or, ilike, desc, sql, type SQL } from 'drizzle-orm';
+import { eq, and, desc, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpQrcodes, mpFans } from '../../db/schema';
 import type { MpQrcodeRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -51,15 +51,9 @@ export interface ListMpQrcodesQuery {
 
 export async function listMpQrcodes(q: ListMpQrcodesQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpQrcodes.accountId, q.accountId)];
-  const tenant = tenantScope(mpQrcodes);
-  if (tenant) conditions.push(tenant);
+  const conditions: (SQL | undefined)[] = [eq(mpQrcodes.accountId, q.accountId), tenantScope(mpQrcodes)];
   if (q.type) conditions.push(eq(mpQrcodes.type, q.type));
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    const matched = or(ilike(mpQrcodes.name, kw), ilike(mpQrcodes.sceneStr, kw));
-    if (matched) conditions.push(matched);
-  }
+  conditions.push(keywordCondition(q.keyword, [mpQrcodes.name, mpQrcodes.sceneStr], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpQrcodes, where),

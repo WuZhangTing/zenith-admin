@@ -12,7 +12,8 @@
  *  5. 表数据浏览接口对 schema/table/column 名做白名单校验，避免拼接注入。
  *  6. 路由层通过 guard({ permission: 'system:db-admin:*' }) 双层鉴权。
  */
-import { sql, desc, eq, and } from 'drizzle-orm';
+import { sql, desc, eq, and, type SQL } from 'drizzle-orm';
+import { keywordCondition } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
 import { db, pgClient } from '../../db';
 import type { DbExecutor } from '../../db/types';
@@ -600,7 +601,7 @@ export async function getTableRows(params: RowsParams): Promise<{
   const orderClause = effectiveOrderClause;
 
   // 全列模糊搜索：对该表所有列做 col::text ILIKE %kw% 的 OR 组合
-  let searchCond: ReturnType<typeof sql> | null = null;
+  let searchCond: SQL | undefined;
   const searchKw = search?.trim();
   if (searchKw) {
     const allColsRows = await db.execute(sql`
@@ -609,10 +610,7 @@ export async function getTableRows(params: RowsParams): Promise<{
       ORDER BY ordinal_position
     `);
     const allCols = (allColsRows as unknown as Array<{ column_name: string }>).map((r) => r.column_name);
-    if (allCols.length > 0) {
-      const ors = allCols.map((col) => sql`${sql.raw(quoteIdent(col))}::text ILIKE ${'%' + searchKw + '%'}`);
-      searchCond = sql`(${sql.join(ors, sql.raw(' OR '))})`;
-    }
+    searchCond = keywordCondition(searchKw, allCols.map((col) => sql`${sql.raw(quoteIdent(col))}::text`), 'ilike');
   }
 
   const whereSql = (() => {
@@ -627,7 +625,7 @@ export async function getTableRows(params: RowsParams): Promise<{
         if (f.op === 'isnull' || f.op === 'notnull') return true;
         return f.val.length > 0;
       });
-    const conds = parsed.map(({ col, op, val }) => {
+    const conds = parsed.map(({ col, op, val }): SQL | undefined => {
       const c = sql.raw(quoteIdent(col));
       switch (op) {
         case 'eq': return sql`${c}::text = ${val}`;
@@ -636,12 +634,12 @@ export async function getTableRows(params: RowsParams): Promise<{
         case 'gte': return sql`${c} >= ${val}`;
         case 'lt': return sql`${c} < ${val}`;
         case 'lte': return sql`${c} <= ${val}`;
-        case 'like': return sql`${c}::text LIKE ${'%' + val + '%'}`;
-        case 'ilike': return sql`${c}::text ILIKE ${'%' + val + '%'}`;
+        case 'like': return keywordCondition(val, [sql`${c}::text`]);
+        case 'ilike': return keywordCondition(val, [sql`${c}::text`], 'ilike');
         case 'isnull': return sql`${c} IS NULL`;
         case 'notnull': return sql`${c} IS NOT NULL`;
       }
-    });
+    }).filter((cond): cond is SQL => cond !== undefined);
     if (searchCond) conds.push(searchCond);
     if (safeWhereRaw) conds.push(sql`(${sql.raw(safeWhereRaw)})`);
     if (conds.length === 0) return sql.raw('');

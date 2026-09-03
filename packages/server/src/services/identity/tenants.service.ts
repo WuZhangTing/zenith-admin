@@ -1,7 +1,7 @@
-import { eq, like, and, ne, desc, count, inArray } from 'drizzle-orm';
+import { eq, and, ne, desc, count, inArray } from 'drizzle-orm';
 import crypto from 'node:crypto';
 import { hashPassword } from '../../lib/password';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { db } from '../../db';
 import { tenants, users, departments, roles, positions, tenantPackageFeatures, menus, userRoles, roleMenus } from '../../db/schema';
@@ -32,7 +32,7 @@ export interface ListTenantsQuery {
 export async function listTenants(q: ListTenantsQuery) {
   const { page = 1, pageSize = 10, keyword, status } = q;
   const conditions = [];
-  if (keyword) conditions.push(like(tenants.name, `%${escapeLike(keyword)}%`));
+  conditions.push(keywordCondition(keyword, [tenants.name]));
   if (status === 'enabled' || status === 'disabled') conditions.push(eq(tenants.status, status));
   const where = and(...conditions);
   const [total, rows] = await Promise.all([

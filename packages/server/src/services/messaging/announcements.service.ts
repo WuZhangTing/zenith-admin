@@ -1,5 +1,5 @@
-import { count, desc, eq, like, and, lte, inArray, isNull, isNotNull, sql, or, getTableColumns, asc, type SQL } from 'drizzle-orm';
-import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
+import { count, desc, eq, and, lte, inArray, isNull, isNotNull, sql, or, getTableColumns, asc, type SQL } from 'drizzle-orm';
+import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { announcements, announcementRecipients, announcementReads, users, userRoles, roles, departments, businessFiles, managedFiles } from '../../db/schema';
@@ -238,7 +238,7 @@ export async function listAnnouncements(q: { page?: number; pageSize?: number; t
   const user = currentUser();
   const { page = 1, pageSize = 10, title, type, publishStatus, startTime, endTime } = q;
   const conditions = [];
-  if (title) conditions.push(like(announcements.title, `%${escapeLike(title)}%`));
+  conditions.push(keywordCondition(title, [announcements.title]));
   if (type) conditions.push(eq(announcements.type, type));
   if (publishStatus) conditions.push(eq(announcements.publishStatus, publishStatus));
   conditions.push(...dateRangeConditions(announcements.createdAt, startTime, endTime));

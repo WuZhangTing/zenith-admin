@@ -1,9 +1,9 @@
-import { eq, and, or, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { inAppTemplates } from '../../db/schema';
 import type { InAppTemplateRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -40,13 +40,7 @@ export interface ListInAppTemplatesQuery {
 }
 
 export async function listInAppTemplates(q: ListInAppTemplatesQuery) {
-  const conditions: SQL[] = [];
-  const tenant = tenantScope(inAppTemplates);
-  if (tenant) conditions.push(tenant);
-  if (q.keyword) {
-    const kw = or(ilike(inAppTemplates.name, `%${escapeLike(q.keyword)}%`), ilike(inAppTemplates.code, `%${escapeLike(q.keyword)}%`));
-    if (kw) conditions.push(kw);
-  }
+  const conditions: (SQL | undefined)[] = [tenantScope(inAppTemplates), keywordCondition(q.keyword, [inAppTemplates.name, inAppTemplates.code], 'ilike')];
   if (q.type) conditions.push(eq(inAppTemplates.type, q.type));
   if (q.status) conditions.push(eq(inAppTemplates.status, q.status));
   const where = buildWhere(...conditions);

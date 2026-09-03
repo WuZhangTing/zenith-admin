@@ -124,8 +124,8 @@ DTO 漏调 `.openapi('Name')`。用 `npm run dev:server` / `npm run dev:web` 可
 ### 关键字搜索把 `%` 当通配符 / 搜不到含下划线的内容
 
 手写 `like(col, '%${keyword}%')` 未转义 LIKE 元字符。
-跨列关键字匹配统一用 `keywordCondition(keyword, [colA, colB], mode?)`（内部已 `escapeLike` 并处理空值短路），
-单列匹配才需要手写 `escapeLike`。
+用户输入参与 LIKE / ILIKE 一律走 `keywordCondition(keyword, [colA, colB], mode?, match?)`，
+内部已 trim、判空并转义 `%`、`_`、`\`；列参数可传裸列或 SQL 表达式。
 
 ### RQB 关联查询返回 null
 

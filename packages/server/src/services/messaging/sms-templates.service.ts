@@ -1,9 +1,9 @@
-import { eq, and, or, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { smsTemplates } from '../../db/schema';
 import type { SmsTemplateRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -41,13 +41,7 @@ export interface ListSmsTemplatesQuery {
 }
 
 export async function listSmsTemplates(q: ListSmsTemplatesQuery) {
-  const conditions: SQL[] = [];
-  const tenant = tenantScope(smsTemplates);
-  if (tenant) conditions.push(tenant);
-  if (q.keyword) {
-    const kw = or(ilike(smsTemplates.name, `%${escapeLike(q.keyword)}%`), ilike(smsTemplates.code, `%${escapeLike(q.keyword)}%`));
-    if (kw) conditions.push(kw);
-  }
+  const conditions: (SQL | undefined)[] = [tenantScope(smsTemplates), keywordCondition(q.keyword, [smsTemplates.name, smsTemplates.code], 'ilike')];
   if (q.provider) conditions.push(eq(smsTemplates.provider, q.provider));
   if (q.status) conditions.push(eq(smsTemplates.status, q.status));
   const where = buildWhere(...conditions);

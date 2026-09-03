@@ -1,10 +1,10 @@
-import { and, asc, desc, eq, like, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowForms, workflowDefinitions } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
@@ -93,7 +93,7 @@ export async function listWorkflowForms(query: { page?: number; pageSize?: numbe
   const tc = tenantCondition(workflowForms, currentUser());
   const conds = [];
   if (tc) conds.push(tc);
-  if (keyword) conds.push(like(workflowForms.name, `%${escapeLike(keyword)}%`));
+  conds.push(keywordCondition(keyword, [workflowForms.name]));
   if (status) conds.push(eq(workflowForms.status, status));
   if (categoryId) conds.push(eq(workflowForms.categoryId, categoryId));
   const where = buildWhere(...conds);

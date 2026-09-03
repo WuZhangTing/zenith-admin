@@ -5,7 +5,7 @@
  * 提交审批时通过 workflow-biz-bridge 发起并关联工作流实例（businessKey = biz_leave + leaveId），
  * 业务数据不进入流程；流程终态由 biz-leave-subscribers 回写本表状态。
  */
-import { and, desc, eq, isNull, like, inArray } from 'drizzle-orm';
+import { and, desc, eq, isNull, inArray, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { BizLeave, BizLeaveStatus } from '@zenith/shared/biz';
 import type { WorkflowInstanceStatus } from '@zenith/shared/workflow';
@@ -16,7 +16,7 @@ import { currentUser } from '../../lib/context';
 import { formatDate, formatDateTime, parseDateRangeStart } from '../../lib/datetime';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { startWorkflowForBiz, resolveBizDefinitionId } from '../../lib/workflow-biz-bridge';
 
@@ -102,11 +102,11 @@ export async function listBizLeaves(query: { page?: number; pageSize?: number; k
   const user = currentUser();
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 10;
-  const conds = [eq(bizLeaves.createdBy, user.userId)];
+  const conds: (SQL | undefined)[] = [eq(bizLeaves.createdBy, user.userId)];
   const tc = tenantCondition(bizLeaves, user);
   if (tc) conds.push(tc);
   if (query.status) conds.push(eq(bizLeaves.status, query.status as BizLeaveStatus));
-  if (query.keyword) conds.push(like(bizLeaves.reason, `%${escapeLike(query.keyword)}%`));
+  conds.push(keywordCondition(query.keyword, [bizLeaves.reason]));
   const where = and(...conds);
   const [total, rows] = await Promise.all([
     db.$count(bizLeaves, where),

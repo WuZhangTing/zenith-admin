@@ -1,4 +1,4 @@
-import { eq, and, or, ne, desc, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, ne, desc, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { ratePlans, oauth2Clients } from '../../db/schema';
 import type { RatePlanRow } from '../../db/schema';
@@ -7,7 +7,7 @@ import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import type { CreateRatePlanInput, UpdateRatePlanInput } from '@zenith/shared/open-platform';
 
 export function mapRatePlan(row: RatePlanRow) {
@@ -35,11 +35,7 @@ export async function listRatePlans(opts: {
   status?: 'enabled' | 'disabled';
 }) {
   const { page, pageSize, keyword, status } = opts;
-  const conditions: SQL[] = [];
-  if (keyword) {
-    const kw = `%${escapeLike(keyword)}%`;
-    conditions.push(or(ilike(ratePlans.code, kw), ilike(ratePlans.name, kw)) as SQL);
-  }
+  const conditions: (SQL | undefined)[] = [keywordCondition(keyword, [ratePlans.code, ratePlans.name], 'ilike')];
   if (status) conditions.push(eq(ratePlans.status, status));
   const where = buildWhere(...conditions);
 

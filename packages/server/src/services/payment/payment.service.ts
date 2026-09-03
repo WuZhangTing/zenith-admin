@@ -5,7 +5,7 @@
  * 内部负责：解析渠道配置、解密密钥组装 AdapterContext、订单状态机、事务落库、
  * 回调验签后处理、发支付事件。所有渠道差异封装在适配器内，业务层无感知。
  */
-import { and, desc, eq, gte, inArray, isNull, like, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, lte, ne, notInArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { createHash, randomInt } from 'node:crypto';
 import { db } from '../../db';
@@ -26,7 +26,7 @@ import { config } from '../../config';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { buildWhere, dateRangeConditions, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { decryptField } from '../../lib/encryption';
 import { isPgUniqueViolation } from '../../lib/db-errors';
@@ -1382,16 +1382,7 @@ export interface ListOrdersQuery {
 
 export async function buildOrdersWhere(q: ListOrdersQuery) {
   const user = currentUser();
-  const conditions = [];
-  if (q.keyword) {
-    conditions.push(
-      or(
-        like(paymentOrders.orderNo, `%${escapeLike(q.keyword)}%`),
-        like(paymentOrders.outTradeNo, `%${escapeLike(q.keyword)}%`),
-        like(paymentOrders.subject, `%${escapeLike(q.keyword)}%`),
-      ),
-    );
-  }
+  const conditions = [keywordCondition(q.keyword, [paymentOrders.orderNo, paymentOrders.outTradeNo, paymentOrders.subject])];
   if (q.status) conditions.push(eq(paymentOrders.status, q.status));
   if (q.channel) conditions.push(eq(paymentOrders.channel, q.channel));
   if (q.payMethod) conditions.push(eq(paymentOrders.payMethod, q.payMethod));
@@ -1566,7 +1557,7 @@ export async function listNotifyLogs(q: ListNotifyLogsQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const conditions = [];
-  if (q.keyword) conditions.push(like(paymentNotifyLogs.orderNo, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [paymentNotifyLogs.orderNo]));
   if (q.channel) conditions.push(eq(paymentNotifyLogs.channel, q.channel));
   if (q.scene) conditions.push(eq(paymentNotifyLogs.scene, q.scene));
   if (q.signatureValid != null) conditions.push(eq(paymentNotifyLogs.signatureValid, q.signatureValid));

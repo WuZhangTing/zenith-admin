@@ -19,7 +19,7 @@ import {
 import type {
   MpKfSessionRow, MpKfRoutingConfigRow, MpAccountRow,
 } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatDate } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUserOrNull } from '../../lib/context';
@@ -320,15 +320,10 @@ export interface ListMpKfSessionsQuery {
 
 export async function listMpKfSessions(q: ListMpKfSessionsQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpKfSessions.accountId, q.accountId)];
-  const tenant = tenantScope(mpKfSessions);
-  if (tenant) conditions.push(tenant);
+  const conditions: (SQL | undefined)[] = [eq(mpKfSessions.accountId, q.accountId), tenantScope(mpKfSessions)];
   if (q.status) conditions.push(eq(mpKfSessions.status, q.status));
   if (q.kfId) conditions.push(eq(mpKfSessions.kfId, q.kfId));
-  if (q.keyword) {
-    const kw = `%${escapeLike(q.keyword)}%`;
-    conditions.push(sql`(${mpKfSessions.openid} ilike ${kw} or ${mpFans.nickname} ilike ${kw})`);
-  }
+  conditions.push(keywordCondition(q.keyword, [mpKfSessions.openid, mpFans.nickname], 'ilike'));
   const where = buildWhere(...conditions);
 
   const order = q.status === 'waiting'

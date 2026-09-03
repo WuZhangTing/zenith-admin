@@ -1,10 +1,10 @@
-import { and, asc, desc, eq, like } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowCategories, workflowDefinitions } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
@@ -45,11 +45,7 @@ export async function listWorkflowCategories(q: ListWorkflowCategoriesQuery) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 20;
   const tc = tenantCondition(workflowCategories, currentUser());
-  const conds = [];
-  if (tc) conds.push(tc);
-  if (q.keyword) {
-    conds.push(like(workflowCategories.name, `%${escapeLike(q.keyword)}%`));
-  }
+  const conds = [tc, keywordCondition(q.keyword, [workflowCategories.name])];
   const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowCategories, where),

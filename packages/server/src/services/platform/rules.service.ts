@@ -1,11 +1,11 @@
-import { and, desc, eq, like, inArray, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, gte, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { RuleDecisionInput, RuleDecisionOutput, RuleDecisionRow, RuleHitPolicy, RuleEvaluateResult, RuleTestRunResult, RuleCaseResult, RuleDecisionTableSettings, RuleUsageItem, RuleTableStats, RuleShadowRunResult, RuleShadowDiffSample, RuleSimulateResult, RuleSimulateRowResult } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleExecutions, workflowDefinitions, systemConfigs } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation, isPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -98,7 +98,7 @@ export async function listDecisionTables(q: ListDecisionTablesQuery) {
   const tc = tenantCondition(ruleDecisionTables, currentUser());
   const conds = [];
   if (tc) conds.push(tc);
-  if (q.keyword) conds.push(like(ruleDecisionTables.name, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [ruleDecisionTables.name]));
   if (q.status) conds.push(eq(ruleDecisionTables.status, q.status));
   const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([

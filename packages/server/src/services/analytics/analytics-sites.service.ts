@@ -10,7 +10,7 @@ import { formatDate, formatDateTime, parseDateRangeStart } from '../../lib/datet
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 
 const SITE_CACHE_TTL_MS = 60_000;
 // siteKey 是匿名入口的用户可控输入：负缓存条目也会入 Map，必须设上限防止随机 key 灌爆内存
@@ -83,8 +83,8 @@ function invalidateSiteCache(siteKey?: string): void {
 export async function listSites(q: AnalyticsSiteListQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
-  const conditions: SQL[] = [];
-  if (q.name) conditions.push(sql`${analyticsSites.name} ILIKE ${'%' + escapeLike(q.name) + '%'}`);
+  const conditions: (SQL | undefined)[] = [];
+  conditions.push(keywordCondition(q.name, [analyticsSites.name], 'ilike'));
   if (q.appId) conditions.push(eq(analyticsSites.appId, q.appId));
   if (q.status) conditions.push(eq(analyticsSites.status, q.status));
   const where = buildWhere(...conditions, tenantScope(analyticsSites));

@@ -1,4 +1,4 @@
-import { and, eq, gte, lt, lte, isNotNull, sql, countDistinct, desc, like, notExists, inArray, type SQL } from 'drizzle-orm';
+import { and, eq, gte, lt, lte, isNotNull, sql, countDistinct, desc, notExists, inArray, type SQL } from 'drizzle-orm';
 import { alias, type PgColumn } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
 import { db } from '../../db';
@@ -10,7 +10,7 @@ import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, lookupIpGeo, clampDays, clampLimit, startOfDaysAgo, anonymizeIpAddr, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
@@ -1036,7 +1036,7 @@ export async function listSessions(q: SessionListQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = clampLimit(q.pageSize, 20, 100);
   const conditions = [];
-  if (q.username) conditions.push(like(analyticsSessions.username, `%${escapeLike(q.username)}%`));
+  conditions.push(keywordCondition(q.username, [analyticsSessions.username]));
   if (q.deviceType) conditions.push(eq(analyticsSessions.deviceType, q.deviceType as 'desktop'));
   const where = buildWhere(...conditions, tenantScope(analyticsSessions));
 
@@ -1498,8 +1498,8 @@ function buildEventListWhere(q: EventListQuery) {
   const conditions = [];
   if (q.eventType) conditions.push(eq(userEvents.eventType, q.eventType));
   if (q.eventName) conditions.push(eq(userEvents.eventName, q.eventName));
-  if (q.username) conditions.push(like(userEvents.username, `%${escapeLike(q.username)}%`));
-  if (q.pagePath) conditions.push(like(userEvents.pagePath, `%${escapeLike(q.pagePath)}%`));
+  conditions.push(keywordCondition(q.username, [userEvents.username]));
+  conditions.push(keywordCondition(q.pagePath, [userEvents.pagePath]));
   if (q.deviceType) conditions.push(eq(userEvents.deviceType, q.deviceType as 'desktop'));
   if (q.startTime) conditions.push(gte(userEvents.createdAt, q.startTime));
   if (q.endTime) conditions.push(lt(userEvents.createdAt, q.endTime));

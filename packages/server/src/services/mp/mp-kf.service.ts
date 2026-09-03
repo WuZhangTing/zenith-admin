@@ -1,9 +1,9 @@
-import { eq, and, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpKfAccounts } from '../../db/schema';
 import type { MpKfAccountRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -49,10 +49,10 @@ export interface ListMpKfAccountsQuery {
 
 export async function listMpKfAccounts(q: ListMpKfAccountsQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpKfAccounts.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpKfAccounts.accountId, q.accountId)];
   const tenant = tenantScope(mpKfAccounts);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(mpKfAccounts.nickname, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [mpKfAccounts.nickname], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpKfAccounts, where),

@@ -16,7 +16,7 @@ import type { DbExecutor } from '../../db/types';
 import type { AnalyticsSegmentRule, AnalyticsSegmentEventCondition, AnalyticsSegmentAttributeCondition, CreateAnalyticsUserSegmentInput, UpdateAnalyticsUserSegmentInput } from '@zenith/shared/analytics';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
 import { startOfDaysAgo } from '../../lib/analytics-helpers';
@@ -68,8 +68,8 @@ export interface SegmentListQuery { page?: number; pageSize?: number; keyword?: 
 export async function listSegments(q: SegmentListQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
-  const conditions: SQL[] = [];
-  if (q.keyword) conditions.push(sql`${analyticsUserSegments.name} ILIKE ${'%' + escapeLike(q.keyword) + '%'}`);
+  const conditions: (SQL | undefined)[] = [];
+  conditions.push(keywordCondition(q.keyword, [analyticsUserSegments.name], 'ilike'));
   if (q.status) conditions.push(eq(analyticsUserSegments.status, q.status as 'enabled' | 'disabled'));
   const where = buildWhere(...conditions, tenantScope(analyticsUserSegments));
 

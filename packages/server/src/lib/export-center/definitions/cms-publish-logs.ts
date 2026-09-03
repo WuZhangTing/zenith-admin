@@ -1,8 +1,8 @@
-import { and, desc, eq, gte, ilike, inArray, lte, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../../db';
 import { asyncTaskItems, asyncTasks } from '../../../db/schema';
 import { formatDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../datetime';
-import { escapeLike } from '../../where-helpers';
+import { keywordCondition } from '../../where-helpers';
 import { buildCmsPublishingConditions } from '../../../services/cms/cms-publishing.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
@@ -50,10 +50,7 @@ async function conditions(query: Record<string, unknown>): Promise<(SQL | undefi
   const end = parseDateRangeEnd(typeof query.endTime === 'string' ? query.endTime : undefined);
   if (start) result.push(gte(asyncTaskItems.createdAt, start));
   if (end) result.push(lte(asyncTaskItems.createdAt, end));
-  if (typeof query.keyword === 'string' && query.keyword.trim()) {
-    const keyword = `%${escapeLike(query.keyword.trim())}%`;
-    result.push(ilike(asyncTaskItems.itemKey, keyword));
-  }
+  if (typeof query.keyword === 'string') result.push(keywordCondition(query.keyword, [asyncTaskItems.itemKey], 'ilike'));
   return result;
 }
 

@@ -8,7 +8,7 @@
  * - startedAt/fromTs/toTs 为客户端时钟（与 rrweb 事件时间戳同源），
  *   lastActivityAt 为服务端时钟（僵尸收尾判定不信任客户端）。
  */
-import { and, eq, desc, sql, inArray, isNull, lt, gte } from 'drizzle-orm';
+import { and, eq, desc, or, sql, inArray, isNull, lt, gte } from 'drizzle-orm';
 import { gzipSync } from 'node:zlib';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -18,7 +18,7 @@ import type { ReplaySegmentMetaInput } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
@@ -396,7 +396,7 @@ export async function listReplayAccessLogs(query: { page: number; pageSize: numb
   const conditions = [
     query.replayId ? eq(replayAccessLogs.replayId, query.replayId) : undefined,
     query.keyword
-      ? sql`(${replayAccessLogs.username} ILIKE ${`%${query.keyword}%`} OR ${replayAccessLogs.replayOwner} ILIKE ${`%${query.keyword}%`} OR ${replayAccessLogs.replayId} = ${query.keyword})`
+      ? or(keywordCondition(query.keyword, [replayAccessLogs.username, replayAccessLogs.replayOwner], 'ilike'), eq(replayAccessLogs.replayId, query.keyword))
       : undefined,
   ];
   const where = buildWhere(tenantScope(replayAccessLogs), and(...conditions.filter(Boolean)));
@@ -457,13 +457,17 @@ export async function listReplaySessions(query: ReplayListQuery) {
     query.triggerType ? sql`${replaySessions.triggers} @> ${JSON.stringify([{ type: query.triggerType }])}::jsonb` : undefined,
     // 内容检索：jsonb 数组元素模糊匹配（回放行数有限，EXISTS 子查询足够快）
     query.pagePath
-      ? sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(${replaySessions.pagePaths}) p WHERE p ILIKE ${`%${query.pagePath}%`})`
+      ? sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(${replaySessions.pagePaths}) p WHERE ${keywordCondition(query.pagePath, [sql`p`], 'ilike') ?? sql`false`})`
       : undefined,
     query.clickLabel
-      ? sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(${replaySessions.clickLabels}) c WHERE c ILIKE ${`%${query.clickLabel}%`})`
+      ? sql`EXISTS (SELECT 1 FROM jsonb_array_elements_text(${replaySessions.clickLabels}) c WHERE ${keywordCondition(query.clickLabel, [sql`c`], 'ilike') ?? sql`false`})`
       : undefined,
     query.keyword
-      ? sql`(${replaySessions.username} ILIKE ${`%${query.keyword}%`} OR ${replaySessions.entryPageUrl} ILIKE ${`%${query.keyword}%`} OR ${replaySessions.id} = ${query.keyword} OR ${replaySessions.sessionId} = ${query.keyword})`
+      ? or(
+          keywordCondition(query.keyword, [replaySessions.username, replaySessions.entryPageUrl], 'ilike'),
+          eq(replaySessions.id, query.keyword),
+          eq(replaySessions.sessionId, query.keyword),
+        )
       : undefined,
   ];
   const where = buildWhere(tenantScope(replaySessions), and(...conditions.filter(Boolean)));

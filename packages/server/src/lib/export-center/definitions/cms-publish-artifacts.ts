@@ -1,9 +1,9 @@
-import { and, desc, eq, ilike, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { CMS_PUBLISH_ARTIFACT_STATUS_LABELS, CMS_PUBLISH_TARGET_TYPE_LABELS } from '@zenith/shared/cms';
 import { db } from '../../../db';
 import { asyncTasks, cmsPublishArtifacts } from '../../../db/schema';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../datetime';
-import { escapeLike } from '../../where-helpers';
+import { keywordCondition } from '../../where-helpers';
 import { buildCmsPublishingConditions } from '../../../services/cms/cms-publishing.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
@@ -63,10 +63,7 @@ async function conditions(query: Record<string, unknown>): Promise<(SQL | undefi
   const artifactTime = sql`coalesce(${cmsPublishArtifacts.generatedAt}, ${cmsPublishArtifacts.updatedAt})`;
   if (start) result.push(sql`${artifactTime} >= ${start}`);
   if (end) result.push(sql`${artifactTime} <= ${end}`);
-  if (typeof query.keyword === 'string' && query.keyword.trim()) {
-    const keyword = `%${escapeLike(query.keyword.trim())}%`;
-    result.push(ilike(cmsPublishArtifacts.path, keyword));
-  }
+  if (typeof query.keyword === 'string') result.push(keywordCondition(query.keyword, [cmsPublishArtifacts.path], 'ilike'));
   return result;
 }
 

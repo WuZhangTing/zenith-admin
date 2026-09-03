@@ -7,7 +7,6 @@ import {
   eq,
   gt,
   gte,
-  ilike,
   inArray,
   isNotNull,
   isNull,
@@ -37,7 +36,7 @@ import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.ser
 import { resolveEffectiveCmsSite } from './cms-site-inheritance.service';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { maskEmail, maskName, maskPhone } from '../../lib/masking';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { withPagination, keywordCondition } from '../../lib/where-helpers';
 import { streamByDescendingId } from '../../lib/export-center/cursor-stream';
 import { changePointsInTransaction } from '../member/member-points.service';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -319,14 +318,12 @@ export interface ListCmsSubscriptionsQuery {
 }
 
 export function buildCmsSubscriptionWhere(q: Omit<ListCmsSubscriptionsQuery, 'page' | 'pageSize'>): SQL {
-  const conditions: SQL[] = [
+  const conditions: (SQL | undefined)[] = [
     eq(cmsMemberSubscriptions.siteId, q.siteId),
     eq(cmsMemberSubscriptions.active, true),
   ];
   if (q.subjectType) conditions.push(eq(cmsMemberSubscriptions.subjectType, q.subjectType));
-  if (q.subjectKeyword) {
-    conditions.push(ilike(cmsMemberSubscriptions.subjectLabel, `%${escapeLike(q.subjectKeyword)}%`));
-  }
+  conditions.push(keywordCondition(q.subjectKeyword, [cmsMemberSubscriptions.subjectLabel], 'ilike'));
   if (q.startTime) {
     const parsed = parseDateRangeStart(q.startTime);
     if (!parsed) throw new HTTPException(400, { message: '开始时间格式无效' });

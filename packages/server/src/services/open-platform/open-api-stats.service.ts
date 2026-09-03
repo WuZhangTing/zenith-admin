@@ -1,10 +1,10 @@
-import { and, gte, lte, eq, or, ilike, desc, sql, count, type SQL } from 'drizzle-orm';
+import { and, gte, lte, eq, desc, sql, count, type SQL } from 'drizzle-orm';
 import dayjs from 'dayjs';
 import { db } from '../../db';
 import { openApiCallLogs, openApiCallStatsDaily } from '../../db/schema';
 import { APP_TIME_ZONE, formatDate, formatDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { getPolicyRetentionDays } from '../../lib/retention';
 import { HTTPException } from 'hono/http-exception';
 
@@ -296,14 +296,11 @@ export interface OpenApiCallLogQuery extends OpenApiStatsRangeInput {
 }
 
 export function buildOpenApiCallLogWhere(opts: Omit<OpenApiCallLogQuery, 'page' | 'pageSize'>): SQL | undefined {
-  const conds = rangeConditions(opts);
+  const conds: (SQL | undefined)[] = rangeConditions(opts);
   if (typeof opts.success === 'boolean') conds.push(eq(openApiCallLogs.success, opts.success));
   if (opts.method) conds.push(eq(openApiCallLogs.method, opts.method.toUpperCase()));
   if (opts.statusCode !== undefined) conds.push(eq(openApiCallLogs.statusCode, opts.statusCode));
-  if (opts.keyword) {
-    const kw = `%${escapeLike(opts.keyword)}%`;
-    conds.push(or(ilike(openApiCallLogs.path, kw), ilike(openApiCallLogs.appName, kw)) as SQL);
-  }
+  conds.push(keywordCondition(opts.keyword, [openApiCallLogs.path, openApiCallLogs.appName], 'ilike'));
   return buildWhere(...conds);
 }
 

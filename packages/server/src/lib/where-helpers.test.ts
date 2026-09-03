@@ -1,12 +1,12 @@
 /**
- * 查询构造辅助函数单测（全局复用的 WHERE 合并 / LIKE 转义 / 关键字 / 时间范围 / 分页）。
+ * 查询构造辅助函数单测（全局复用的 WHERE 合并 / 关键字模糊匹配 / 时间范围 / 分页）。
  *
  * 覆盖：
- *  1. escapeLike：%、_、\ 元字符转义（防 LIKE 通配符注入），转义顺序正确（先 \ 再 % _）
- *  2. keywordCondition：空值短路、转义、多列 or、like/ilike 切换
- *  3. dateRangeConditions：末端含当天（纯日期取 23:59:59.999，不是 00:00:00）
- *  4. buildWhere：过滤 undefined、全空返回 undefined、单条件透传、多条件 and 合并
- *  5. withPagination：LIMIT/OFFSET 换算
+ *  1. keywordCondition：空值短路、LIKE 元字符转义（防通配符注入）、多列 or、like/ilike 切换、
+ *     前缀匹配、SQL 表达式列
+ *  2. dateRangeConditions：末端含当天（纯日期取 23:59:59.999，不是 00:00:00）
+ *  3. buildWhere：过滤 undefined、全空返回 undefined、单条件透传、多条件 and 合并
+ *  4. withPagination：LIMIT/OFFSET 换算
  */
 import { describe, it, expect, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
@@ -16,43 +16,16 @@ import type { PgColumn, PgSelect } from 'drizzle-orm/pg-core';
 import {
   buildWhere,
   dateRangeConditions,
-  escapeLike,
   keywordCondition,
   withPagination,
 } from './where-helpers';
 import { users } from '../db/schema';
 
-describe('escapeLike - LIKE 注入防护', () => {
-  it('% 被转义', () => {
-    expect(escapeLike('100%')).toBe(String.raw`100\%`);
-  });
-
-  it('_ 被转义', () => {
-    expect(escapeLike('user_name')).toBe(String.raw`user\_name`);
-  });
-
-  it('反斜杠被转义', () => {
-    expect(escapeLike('a\\b')).toBe(String.raw`a\\b`);
-  });
-
-  it('先转义反斜杠再转义通配符（顺序关键，避免双重转义）', () => {
-    // 输入 \% → 期望 \\\%（原 \ 转成 \\，原 % 转成 \%）
-    expect(escapeLike('\\%')).toBe('\\\\\\%');
-  });
-
-  it('普通字符串原样返回', () => {
-    expect(escapeLike('zhang san')).toBe('zhang san');
-  });
-
-  it('恶意全匹配 payload 被中和', () => {
-    expect(escapeLike('%%%')).toBe(String.raw`\%\%\%`);
-  });
-});
-
 describe('keywordCondition', () => {
   const cols = [users.username, users.nickname] as unknown as PgColumn[];
   const dialect = new PgDialect();
   const toQuery = (condition: SQL | undefined) => dialect.sqlToQuery(condition!);
+  const patternOf = (keyword: string) => toQuery(keywordCondition(keyword, [cols[0]])).params[0];
 
   it('空 / undefined / 纯空格关键字返回 undefined（不参与 WHERE）', () => {
     expect(keywordCondition('', cols)).toBeUndefined();
@@ -76,13 +49,36 @@ describe('keywordCondition', () => {
     expect(toQuery(keywordCondition('zhang', [cols[0]])).sql).not.toContain(' or ');
   });
 
-  it('关键字先 trim 再匹配，且 LIKE 元字符被转义', () => {
-    expect(toQuery(keywordCondition('  100%  ', [cols[0]])).params).toEqual([String.raw`%100\%%`]);
+  it('关键字先 trim 再匹配', () => {
+    expect(patternOf('  zhang  ')).toBe('%zhang%');
+  });
+
+  it('LIKE 元字符 %、_、\ 被转义，先转义反斜杠再转义通配符（避免双重转义）', () => {
+    expect(patternOf('100%')).toBe(String.raw`%100\%%`);
+    expect(patternOf('user_name')).toBe(String.raw`%user\_name%`);
+    expect(patternOf('a\\b')).toBe(String.raw`%a\\b%`);
+    // 输入 \% → 原 \ 转成 \\，原 % 转成 \%
+    expect(patternOf('\\%')).toBe('%\\\\\\%%');
+  });
+
+  it('恶意全匹配 payload 被中和', () => {
+    expect(patternOf('%%%')).toBe(String.raw`%\%\%\%%`);
   });
 
   it('默认 like 区分大小写，mode=ilike 不区分', () => {
     expect(toQuery(keywordCondition('abc', [cols[0]], 'like')).sql).toContain(' like ');
     expect(toQuery(keywordCondition('abc', [cols[0]], 'ilike')).sql).toContain(' ilike ');
+  });
+
+  it('match=prefix 只在末尾加通配符', () => {
+    expect(toQuery(keywordCondition('docs/2026', [cols[0]], 'like', 'prefix')).params).toEqual(['docs/2026%']);
+  });
+
+  it('列参数接受 SQL 表达式', () => {
+    const { sql: text, params } = toQuery(keywordCondition('abc', [sql`coalesce(${users.nickname}, '')`], 'ilike'));
+    expect(text).toContain("coalesce(");
+    expect(text).toContain(' ilike ');
+    expect(params).toEqual(['%abc%']);
   });
 });
 

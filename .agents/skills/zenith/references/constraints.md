@@ -96,18 +96,19 @@
 
 | 场景 | 用 | 禁止 |
 | --- | --- | --- |
-| 关键字跨列模糊匹配 | `keywordCondition(keyword, [colA, colB], mode?)` | 手写 `or(like(a, '%…%'), …)` |
+| 用户输入参与 LIKE / ILIKE（单列或跨列、包含或前缀匹配） | `keywordCondition(keyword, [colA, colB], mode?, match?)` | 手写 `like(col, '%…%')` / `or(like(a, '%…%'), …)` / 裸 `sql\`… ILIKE …\`` |
 | 时间范围过滤 | `dateRangeConditions(column, start, end)` | 手写 `parseXxx` + `gte`/`lte` |
 | 合并条件数组 / 附加租户与数据权限条件 | `buildWhere(...conditions)` | `conditions.length ? and(...) : undefined` |
 | 分页 | `withPagination(qb.$dynamic(), page, pageSize)` | 手写 `.limit().offset()` |
 
 - 条件数组类型必须是 `(SQL | undefined)[]`；构造函数不适用时返回 `undefined`，`buildWhere` 自动过滤，
   **禁止**为迁就 `SQL[]` 加 `!` 非空断言
-- `keywordCondition` 内部已判空（空串 / 纯空格返回 `undefined`），调用点**不要**再包 `if (keyword)`
+- `keywordCondition` 内部已 trim、判空（空串 / 纯空格返回 `undefined`）并转义 `%`、`_`、`\`，
+  调用点**不要**再包 `if (keyword)`，也**不要**自行拼 `%…%`
+- 列参数接受裸列或 SQL 表达式（`sql\`coalesce(${col}, '')\``、`sql\`${col}::text\``），
+  `match: 'prefix'` 用于路径 / 编号前缀匹配
 - `like` 与 `ilike` 按各表原有语义指定，不得一刀切；`mode` 默认 `like`
 - 时间范围一律闭区间（`gte` / `lte`），禁止 `gt` / `lt`——边界时刻记录会被漏掉
-- **LIKE 转义**：手写 `like()` / `ilike()` 必须用 `escapeLike(keyword)` 转义 `%`、`_`、`\`；
-  跨列匹配直接用 `keywordCondition()`（内部已转义）
 
 ### 时间范围端点解析
 

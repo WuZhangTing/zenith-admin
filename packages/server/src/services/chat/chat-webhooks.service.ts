@@ -6,14 +6,14 @@
  *   senderId=null + extra.bot 的消息（展示为该 webhook 的身份）。
  */
 import { randomBytes } from 'node:crypto';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { db } from '../../db';
 import { chatWebhooks, chatConversations } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
-import { escapeLike } from '../../lib/where-helpers';
+import { keywordCondition } from '../../lib/where-helpers';
 import { HTTPException } from 'hono/http-exception';
 import type { ChatWebhook, CreateChatWebhookInput, UpdateChatWebhookInput, ChatWebhookPayloadInput, ChatMessageExtra } from '@zenith/shared/chat';
 import { postBotMessage } from './chat.service';
@@ -64,9 +64,7 @@ async function ensureConversationExists(conversationId: number): Promise<void> {
 }
 
 export async function listChatWebhooks(params: { page: number; pageSize: number; keyword?: string }) {
-  const where = params.keyword
-    ? sql`${chatWebhooks.name} ILIKE ${'%' + escapeLike(params.keyword) + '%'}`
-    : undefined;
+  const where = keywordCondition(params.keyword, [chatWebhooks.name], 'ilike');
 
   const [total, rows] = await Promise.all([
     db.$count(chatWebhooks, where),

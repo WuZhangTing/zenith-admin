@@ -1,9 +1,9 @@
-import { eq, and, ilike, desc, type SQL } from 'drizzle-orm';
+import { eq, and, desc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMessageTemplates, mpTemplateSendLogs } from '../../db/schema';
 import type { MpMessageTemplateRow, MpTemplateSendLogRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -61,10 +61,10 @@ export interface ListMpTemplatesQuery { accountId: number; keyword?: string; pag
 
 export async function listMpTemplates(q: ListMpTemplatesQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpMessageTemplates.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpMessageTemplates.accountId, q.accountId)];
   const tenant = tenantScope(mpMessageTemplates);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(mpMessageTemplates.title, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [mpMessageTemplates.title], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpMessageTemplates, where),
@@ -131,7 +131,7 @@ export interface ListMpSendLogsQuery { accountId: number; status?: MpTemplateSen
 
 export async function listMpTemplateSendLogs(q: ListMpSendLogsQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpTemplateSendLogs.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpTemplateSendLogs.accountId, q.accountId)];
   const tenant = tenantScope(mpTemplateSendLogs);
   if (tenant) conditions.push(tenant);
   if (q.status) conditions.push(eq(mpTemplateSendLogs.status, q.status));

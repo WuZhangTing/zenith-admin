@@ -33,7 +33,7 @@ import { currentUser, currentUserId, isSuperAdmin, setAuditBefore } from '../../
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getConfigBoolean } from '../../lib/system-config';
 import { getCreateTenantId, tenantCondition } from '../../lib/tenant';
-import { buildWhere, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { listBusinessFiles, saveBusinessFiles } from '../files/business-files.service';
 import { wikiDeletedDocVisibilityCondition, wikiDocStatusVisibilityCondition, wikiSpaceAccessCondition } from './access';
 import { notifyWikiDocPublished, notifyWikiDocReviewed } from './notifications.service';
@@ -862,11 +862,13 @@ export async function searchWikiDocs(q: SearchWikiDocsQuery) {
     );
   }
 
-  const pattern = `%${escapeLike(kw)}%`;
+  const titleHit = keywordCondition(kw, [wikiDocs.title], 'ilike') ?? sql`false`;
+  const summaryHit = keywordCondition(kw, [sql`coalesce(${wikiDocs.summary}, '')`], 'ilike') ?? sql`false`;
+  const contentHit = keywordCondition(kw, [wikiDocs.content], 'ilike') ?? sql`false`;
   const rank = sql<number>`(
-    (case when ${wikiDocs.title} ilike ${pattern} then 4 else 0 end) +
-    (case when coalesce(${wikiDocs.summary}, '') ilike ${pattern} then 2 else 0 end) +
-    (case when ${wikiDocs.content} ilike ${pattern} then 1 else 0 end)
+    (case when ${titleHit} then 4 else 0 end) +
+    (case when ${summaryHit} then 2 else 0 end) +
+    (case when ${contentHit} then 1 else 0 end)
   )`;
 
   const [total, rows] = await Promise.all([

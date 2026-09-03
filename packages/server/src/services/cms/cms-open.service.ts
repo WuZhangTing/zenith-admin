@@ -18,7 +18,7 @@ import {
 import type { CmsContentRow, CmsSiteRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { dateRangeConditions, escapeLike } from '../../lib/where-helpers';
+import { dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import {
   encodeCmsOpenCursor, OpenQueryError, pickCmsOpenFields,
   type CmsOpenSortRule, type ParsedCmsOpenQuery,
@@ -78,7 +78,7 @@ async function resolveChannelPathIds(siteId: number, path: string): Promise<numb
   const rows = await db.select({ id: cmsChannels.id, path: cmsChannels.path }).from(cmsChannels).where(and(
     eq(cmsChannels.siteId, siteId),
     eq(cmsChannels.status, 'enabled'),
-    or(eq(cmsChannels.path, normalized), sql`${cmsChannels.path} like ${`${escapeLike(normalized)}/%`}`)!,
+    or(eq(cmsChannels.path, normalized), keywordCondition(`${normalized}/`, [cmsChannels.path], 'like', 'prefix'))!,
   ));
   const enabledIds = await getEffectivelyEnabledCmsChannelIds(siteId);
   const visibleRows = rows.filter((row) => enabledIds.has(row.id));

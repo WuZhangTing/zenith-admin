@@ -11,7 +11,7 @@ import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRan
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { EXPERIMENT_ALPHA, requiredSamplePerVariant, srmTest, twoProportionZTest } from './analytics-experiment-stats';
 
 /** 比例 → 百分比 */
@@ -91,8 +91,8 @@ function invalidateAssignmentCache(tenantId?: number | null): void {
 }
 
 function buildExperimentWhere(q: ListExperimentsQuery): SQL | undefined {
-  const conditions: SQL[] = [];
-  if (q.name) conditions.push(sql`${analyticsExperiments.name} ILIKE ${'%' + escapeLike(q.name) + '%'}`);
+  const conditions: (SQL | undefined)[] = [];
+  conditions.push(keywordCondition(q.name, [analyticsExperiments.name], 'ilike'));
   if (q.status) conditions.push(eq(analyticsExperiments.status, q.status));
   return buildWhere(...conditions, tenantScope(analyticsExperiments));
 }

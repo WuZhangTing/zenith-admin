@@ -1,5 +1,5 @@
-import { desc, eq, like, and, or, gte, lt, lte, count, sql, inArray } from 'drizzle-orm';
-import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
+import { desc, eq, and, or, gte, lt, lte, count, sql, inArray } from 'drizzle-orm';
+import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { loginLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
@@ -25,7 +25,7 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
   if (q.username) {
     // 关键字同时匹配用户名与昵称（昵称先反查出用户名集合）
     const byNickname = await findUsernamesByNickname(q.username);
-    const usernameLike = like(loginLogs.username, `%${escapeLike(q.username)}%`);
+    const usernameLike = keywordCondition(q.username, [loginLogs.username]);
     conditions.push(byNickname.length > 0 ? or(usernameLike, inArray(loginLogs.username, byNickname)) : usernameLike);
   }
   if (q.eventType) conditions.push(eq(loginLogs.eventType, q.eventType));

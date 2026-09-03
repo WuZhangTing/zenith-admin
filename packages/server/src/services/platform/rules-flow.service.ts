@@ -5,14 +5,14 @@
  * 发布时把编辑态 steps 固化到 publishedSteps（单快照），运行时按 publishedSteps 执行，
  * 引用的决策表始终走其**发布版本快照**（rules.service.resolveRuntimeDecisionTable）。
  */
-import { and, desc, eq, like, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { RuleFlowStep, RuleFlowEvaluateResult } from '@zenith/shared/rules';
 import { db } from '../../db';
 import { ruleDecisionFlows, ruleDecisionTables, ruleAssetVersions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -69,7 +69,7 @@ export async function listDecisionFlows(q: ListDecisionFlowsQuery) {
   const tc = tenantCondition(ruleDecisionFlows, currentUser());
   const conds = [];
   if (tc) conds.push(tc);
-  if (q.keyword) conds.push(like(ruleDecisionFlows.name, `%${escapeLike(q.keyword)}%`));
+  conds.push(keywordCondition(q.keyword, [ruleDecisionFlows.name]));
   if (q.status) conds.push(eq(ruleDecisionFlows.status, q.status));
   const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([

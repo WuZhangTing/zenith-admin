@@ -1,10 +1,10 @@
-import { eq, like, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { analyticsEventMeta, analyticsSavedReports, analyticsUserSegments, analyticsExperiments, users } from '../../db/schema';
 import type { AnalyticsEventMetaRow } from '../../db/schema';
 import type { TrackEventInput, CreateAnalyticsEventMetaInput, UpdateAnalyticsEventMetaInput } from '@zenith/shared/analytics';
-import { buildWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -69,7 +69,7 @@ export async function listEventMeta(q: EventMetaListQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
   const conditions = [];
-  if (q.keyword) conditions.push(like(analyticsEventMeta.eventName, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [analyticsEventMeta.eventName]));
   if (q.status) conditions.push(eq(analyticsEventMeta.status, q.status as 'active'));
   if (q.category) conditions.push(eq(analyticsEventMeta.category, q.category));
   // 事件字典为平台级全局分类（事件名全局唯一，跨租户共享），不做租户隔离

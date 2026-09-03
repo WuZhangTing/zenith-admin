@@ -1,8 +1,8 @@
-import { eq, and, ilike, desc, type SQL } from 'drizzle-orm';
+import { eq, and, desc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { emailSendLogs, emailTemplates, users } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
@@ -21,11 +21,11 @@ export interface ListEmailSendLogsQuery {
 }
 
 export function buildListWhere(q: ListEmailSendLogsQuery) {
-  const conditions: SQL[] = [];
+  const conditions: (SQL | undefined)[] = [];
   const tenant = tenantScope(emailSendLogs);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(emailSendLogs.subject, `%${escapeLike(q.keyword)}%`));
-  if (q.toEmail) conditions.push(ilike(emailSendLogs.toEmail, `%${escapeLike(q.toEmail)}%`));
+  conditions.push(keywordCondition(q.keyword, [emailSendLogs.subject], 'ilike'));
+  conditions.push(keywordCondition(q.toEmail, [emailSendLogs.toEmail], 'ilike'));
   if (q.status) conditions.push(eq(emailSendLogs.status, q.status));
   if (q.source) conditions.push(eq(emailSendLogs.source, q.source));
   return buildWhere(...conditions);

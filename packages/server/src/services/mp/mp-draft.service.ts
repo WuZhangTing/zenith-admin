@@ -1,9 +1,9 @@
-import { eq, and, ilike, desc, type SQL } from 'drizzle-orm';
+import { eq, and, desc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpDrafts } from '../../db/schema';
 import type { MpDraftRow } from '../../db/schema';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -45,10 +45,10 @@ export interface ListMpDraftsQuery {
 
 export async function listMpDrafts(q: ListMpDraftsQuery) {
   await ensureMpAccountExists(q.accountId);
-  const conditions: SQL[] = [eq(mpDrafts.accountId, q.accountId)];
+  const conditions: (SQL | undefined)[] = [eq(mpDrafts.accountId, q.accountId)];
   const tenant = tenantScope(mpDrafts);
   if (tenant) conditions.push(tenant);
-  if (q.keyword) conditions.push(ilike(mpDrafts.title, `%${escapeLike(q.keyword)}%`));
+  conditions.push(keywordCondition(q.keyword, [mpDrafts.title], 'ilike'));
   const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpDrafts, where),

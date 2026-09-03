@@ -1,7 +1,7 @@
-import { desc, like, and, eq } from 'drizzle-orm';
+import { desc, and, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { ipAccessLogs } from '../../db/schema';
-import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { truncateVarchar } from '../../lib/sanitize';
 import logger from '../../lib/logger';
@@ -19,7 +19,7 @@ export async function listIpAccessLogs(q: ListIpAccessLogsQuery) {
   const page = Number(q.page) || 1;
   const pageSize = Number(q.pageSize) || 10;
   const conditions = [];
-  if (q.ip) conditions.push(like(ipAccessLogs.ip, `%${escapeLike(q.ip)}%`));
+  conditions.push(keywordCondition(q.ip, [ipAccessLogs.ip]));
   if (q.blockType) conditions.push(eq(ipAccessLogs.blockType, q.blockType));
   conditions.push(...dateRangeConditions(ipAccessLogs.createdAt, q.startTime, q.endTime));
   const where = and(...conditions);

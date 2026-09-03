@@ -5,7 +5,7 @@
  * - 核销 redeemCoupon() 预留统一入口，供未来订单系统接入
  */
 import crypto from 'node:crypto';
-import { and, desc, eq, gt, gte, ilike, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { coupons, memberCoupons, memberPointAccounts, memberPointTransactions, members } from '../../db/schema';
@@ -14,7 +14,7 @@ import type { DbTransaction } from '../../db/types';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { currentMemberId } from '../../lib/member-context';
 import { decide } from '../platform/rules-runtime.service';
-import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { trackServerEvent } from '../analytics/analytics-server-events.service';
@@ -99,8 +99,8 @@ export interface ListCouponsQuery {
 }
 
 export async function listCoupons(q: ListCouponsQuery) {
-  const conds: SQL[] = [];
-  if (q.keyword) conds.push(ilike(coupons.name, `%${escapeLike(q.keyword)}%`));
+  const conds: (SQL | undefined)[] = [];
+  conds.push(keywordCondition(q.keyword, [coupons.name], 'ilike'));
   if (q.status) conds.push(eq(coupons.status, q.status));
   if (q.type) conds.push(eq(coupons.type, q.type));
   const where = buildWhere(...conds);
