@@ -67,11 +67,16 @@ const href = props.external ? props.link : withBase(props.link)
 }
 
 .cell__hd h3 {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.2px;
   line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cell__hd h3 a {
@@ -88,14 +93,16 @@ const href = props.external ? props.link : withBase(props.link)
 }
 
 .cell__hd small {
-  margin-left: auto;
+  flex: none;
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
+  letter-spacing: 0.2px;
   color: var(--zn-text-3);
   white-space: nowrap;
 }
 
 .cell__arrow {
+  flex: none;
   font-size: 13px;
   color: var(--vp-c-brand-1);
   opacity: 0;

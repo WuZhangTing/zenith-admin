@@ -1,118 +1,164 @@
+<script setup lang="ts">
+import ArtIcon from './ArtIcon.vue'
+
+const colors = ['#1a6dff', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2']
+</script>
+
 <template>
-  <div class="pf">
-    <div class="sw">
-      <span class="lbl">主题色</span>
-      <i style="--c: #1a6dff" class="on"></i><i style="--c: #7c3aed"></i><i style="--c: #db2777"></i><i style="--c: #ea580c"></i>
-      <i style="--c: #16a34a"></i><i style="--c: #0891b2"></i><i style="--c: #4f46e5"></i><i style="--c: #64748b"></i>
-      <small>19 种</small>
+  <div class="za pf">
+    <div class="panel za-panel">
+      <div class="r">
+        <span class="lbl">主题色</span>
+        <div class="dots">
+          <i v-for="(c, i) in colors" :key="c" :class="{ on: i === 0 }" :style="{ '--c': c }"></i>
+          <small>+13</small>
+        </div>
+      </div>
+
+      <div class="r">
+        <span class="lbl">外观</span>
+        <div class="seg">
+          <span><ArtIcon name="sun" />浅色</span>
+          <span><ArtIcon name="moon" />深色</span>
+          <span class="on"><ArtIcon name="monitor" />系统</span>
+        </div>
+      </div>
+
+      <div class="r">
+        <span class="lbl">辅助</span>
+        <div class="chips">
+          <span class="za-chip za-chip--on">灰色模式</span>
+          <span class="za-chip">色弱模式</span>
+        </div>
+      </div>
     </div>
-    <div class="modes">
-      <span class="on">跟随系统</span><span>亮色</span><span>暗色</span><span>灰色模式</span><span>色弱模式</span>
-    </div>
+
     <div class="plats">
-      <span><i class="pwa"></i>PWA</span><span><i class="win"></i>Windows</span><span><i class="mac"></i>macOS</span><span><i class="lnx"></i>Linux</span>
+      <ArtIcon name="monitor" />
+      <span class="za-ellipsis">PWA · Windows · macOS · Linux</span>
     </div>
-    <div class="foot">菜单收藏 · 最近访问 · 拼音搜索 · 路由动画</div>
   </div>
 </template>
 
 <style scoped>
 .pf {
-  width: 100%;
   display: grid;
   gap: 8px;
-  font-size: 12px;
 }
 
-.sw {
+.panel {
+  display: grid;
+  gap: 8px;
+  padding: 9px 10px;
+}
+
+.r {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 9px;
-  border: 1px solid var(--zn-line);
-  border-radius: 10px;
+  gap: 8px;
+  min-width: 0;
+  min-height: 22px;
 }
 
 .lbl {
-  margin-right: 2px;
+  flex: none;
+  width: 36px;
   font-size: 11px;
   color: var(--zn-text-3);
-  white-space: nowrap;
 }
 
-.sw i {
-  width: 14px;
-  height: 14px;
+.dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.dots i {
+  flex: none;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   background: var(--c);
 }
 
-.sw i.on {
+.dots i.on {
   box-shadow: 0 0 0 2px var(--zn-card), 0 0 0 3.5px var(--c);
 }
 
-.sw small {
-  margin-left: auto;
+.dots small {
+  margin-left: 2px;
   font-size: 10.5px;
   color: var(--zn-text-3);
   white-space: nowrap;
 }
 
-.modes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.modes span {
-  padding: 2px 8px;
-  border: 1px solid var(--zn-line);
-  border-radius: 999px;
-  color: var(--zn-text-3);
-  font-size: 10.5px;
-  font-weight: 500;
-}
-
-.modes span.on {
-  border-color: transparent;
-  background: var(--zn-brand-soft);
-  color: var(--vp-c-brand-1);
-  font-weight: 600;
-}
-
-.plats {
+/* 分段控件：三段等宽 */
+.seg {
+  flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--zn-line);
+  border-radius: 7px;
+  background: var(--zn-card-2);
 }
 
-.plats span {
+.seg span {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 5px 0;
-  border: 1px solid var(--zn-line);
-  border-radius: 8px;
+  gap: 4px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--zn-text-3);
   font-size: 10.5px;
-  font-weight: 600;
-  color: var(--zn-text-2);
+  font-weight: 500;
   white-space: nowrap;
 }
 
-.plats i {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
+.seg .za-ic {
+  --s: 11px;
 }
 
-.pwa { background: #5b9aff; border-radius: 50% !important; }
-.win { background: #0ea5e9; }
-.mac { background: var(--zn-text-2); border-radius: 50% !important; }
-.lnx { background: #f59e0b; }
+.seg span.on {
+  background: var(--zn-card);
+  color: var(--zn-text-1);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
 
-.foot {
-  font-size: 11px;
+.chips {
+  display: flex;
+  gap: 5px;
+}
+
+.chips .za-chip {
+  height: 20px;
+}
+
+/* 客户端形态：一条平台栏，窄卡片下省略号收尾，不换行不挤压 */
+.plats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--zn-line);
+  border-radius: 8px;
+  background: var(--zn-card-2);
+}
+
+.plats .za-ic {
+  --s: 12px;
   color: var(--zn-text-3);
+}
+
+.plats span {
+  flex: 1;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--zn-text-2);
 }
 </style>

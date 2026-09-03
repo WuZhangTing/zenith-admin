@@ -1,0 +1,192 @@
+/*
+ * Bento 插画共享基元。
+ * 20 张卡片里反复出现的 chip / 状态标签 / 开关 / 进度条 / 头像 / 面板
+ * 统一在这里定尺寸、圆角与字号，避免各自为政导致比例不一致。
+ */
+.za {
+  --za-g-indigo: linear-gradient(135deg, #818cf8, #3b82f6);
+  --za-g-emerald: linear-gradient(135deg, #6ee7b7, #10b981);
+  --za-g-amber: linear-gradient(135deg, #fcd34d, #f59e0b);
+  --za-g-rose: linear-gradient(135deg, #f9a8d4, #ec4899);
+  --za-g-slate: linear-gradient(135deg, #94a3b8, #475569);
+  --za-g-sky: linear-gradient(135deg, #7dd3fc, #0284c7);
+
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--zn-text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 插画根节点多为 grid / flex 容器：子项最小宽度归零，
+   避免 nowrap 文本把隐式轨道撑得比卡片还宽（省略号才会生效） */
+.za > * {
+  min-width: 0;
+}
+
+.za-ic {
+  flex: none;
+  width: var(--s, 14px);
+  height: var(--s, 14px);
+}
+
+.za-panel {
+  border: 1px solid var(--zn-line);
+  border-radius: 10px;
+  background: var(--zn-card);
+}
+
+.za-panel--soft {
+  background: var(--zn-card-2);
+}
+
+.za-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--zn-line);
+  border-radius: 999px;
+  background: var(--zn-card);
+  color: var(--zn-text-3);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.za-chip--on {
+  border-color: transparent;
+  background: var(--zn-brand-soft);
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+}
+
+.za-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.za-tag--ok { background: var(--zn-success-soft); color: var(--zn-success); }
+.za-tag--warn { background: var(--zn-warn-soft); color: var(--zn-warn); }
+.za-tag--danger { background: var(--zn-danger-soft); color: var(--zn-danger); }
+.za-tag--brand { background: var(--zn-brand-soft); color: var(--vp-c-brand-1); }
+
+.za-tag--muted {
+  background: var(--zn-card-2);
+  color: var(--zn-text-3);
+  box-shadow: inset 0 0 0 1px var(--zn-line);
+}
+
+.za-tag--dot::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.za-switch {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--vp-c-brand-1);
+}
+
+.za-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 13px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
+}
+
+.za-switch--off { background: var(--zn-line-strong); }
+.za-switch--off::after { left: 2px; }
+
+.za-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: var(--zn-line);
+  overflow: hidden;
+}
+
+.za-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--vp-c-brand-1);
+}
+
+.za-bar--ok > i { background: var(--zn-success); }
+
+.za-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--za-av, var(--za-g-indigo));
+  color: #fff;
+  font-size: 10.5px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.za-avatar--sq { border-radius: 8px; }
+
+.za-mono {
+  font-family: var(--vp-font-family-mono);
+  font-size: 10.5px;
+}
+
+.za-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--zn-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.za-ellipsis {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.za-blink {
+  animation: za-blink 1.1s steps(2) infinite;
+}
+
+@keyframes za-blink {
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .za-blink { animation: none; }
+}

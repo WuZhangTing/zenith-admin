@@ -20,6 +20,7 @@
   --zn-warn: #f59e0b;
   --zn-warn-soft: #fff7ed;
   --zn-danger: #ef4444;
+  --zn-danger-soft: #fee2e2;
   --zn-dark: #0f172a;
   --zn-dark-2: #1e293b;
   --zn-dark-text: #e2e8f0;
@@ -47,6 +48,7 @@
   --zn-warn: #fbbf24;
   --zn-warn-soft: rgba(245, 158, 11, 0.14);
   --zn-danger: #f87171;
+  --zn-danger-soft: rgba(248, 113, 113, 0.16);
   --zn-dark: #0b0f1a;
   --zn-dark-2: #141a2a;
   --zn-dark-text: #e2e8f0;

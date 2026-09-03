@@ -1,66 +1,88 @@
+<script setup lang="ts">
+import ArtIcon from './ArtIcon.vue'
+</script>
+
 <template>
-  <div class="wf">
-    <div class="node node--start">
-      <div class="node__hd">发起人</div>
-      <div class="node__bd">所有人<span class="chip">采购申请单</span></div>
-    </div>
+  <div class="za wf">
+    <div class="wf__flow">
+      <div class="node node--start">
+        <div class="node__hd">发起人</div>
+        <div class="node__bd">所有人<span class="za-tag za-tag--brand">采购申请单</span></div>
+      </div>
 
-    <div class="link"><i class="plus">+</i></div>
+      <div class="link"><i class="plus"><ArtIcon name="plus" /></i></div>
 
-    <div class="node node--approve">
-      <div class="node__hd">审批人</div>
-      <div class="node__bd"><span class="avs"><i></i><i></i></span>部门负责人 · 会签</div>
-    </div>
+      <div class="node node--approve">
+        <div class="node__hd">审批人</div>
+        <div class="node__bd"><span class="avs"><i></i><i></i></span>部门负责人 · 会签</div>
+      </div>
 
-    <div class="link link--branch"><i class="plus">+</i></div>
+      <div class="link link--branch"><i class="plus"><ArtIcon name="plus" /></i></div>
 
-    <div class="branch">
-      <span class="branch__add">添加条件</span>
-      <div class="col">
-        <div class="cond">
-          <div class="cond__hd">条件 1<small>优先级 1</small></div>
-          <div class="cond__bd">金额 ≥ 5,000</div>
+      <div class="branch">
+        <span class="branch__add">添加条件</span>
+        <div class="col">
+          <div class="cond">
+            <div class="cond__hd">条件 1<small>优先级 1</small></div>
+            <div class="cond__bd">金额 ≥ 5,000</div>
+          </div>
+          <div class="gap"></div>
+          <div class="node node--approve node--fill">
+            <div class="node__hd">审批人</div>
+            <div class="node__bd">财务经理 · 或签</div>
+          </div>
         </div>
-        <div class="gap"></div>
-        <div class="node node--approve node--fill">
-          <div class="node__hd">审批人</div>
-          <div class="node__bd">财务经理 · 或签</div>
+        <div class="col">
+          <div class="cond">
+            <div class="cond__hd cond__hd--default">默认条件</div>
+            <div class="cond__bd">其他情况通过</div>
+          </div>
         </div>
       </div>
-      <div class="col">
-        <div class="cond">
-          <div class="cond__hd cond__hd--default">默认条件</div>
-          <div class="cond__bd">其他情况直接通过</div>
-        </div>
+
+      <div class="link"><i class="plus"><ArtIcon name="plus" /></i></div>
+
+      <div class="node node--cc">
+        <div class="node__hd">抄送人</div>
+        <div class="node__bd">HR · 财务归档</div>
       </div>
+
+      <div class="link link--short"></div>
+      <div class="end"><i></i>流程结束</div>
     </div>
-
-    <div class="link"><i class="plus">+</i></div>
-
-    <div class="node node--cc">
-      <div class="node__hd">抄送人</div>
-      <div class="node__bd">HR · 财务归档</div>
-    </div>
-
-    <div class="link link--short"></div>
-    <div class="end"><i></i>流程结束</div>
   </div>
 </template>
 
 <style scoped>
+/* 设计器画布：点阵背景铺满整个插画区，流程居中 */
 .wf {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 12px;
+  border: 1px solid var(--zn-line);
+  border-radius: 12px;
+  background-color: var(--zn-card-2);
+  background-image: radial-gradient(circle, var(--zn-line-strong) 0.9px, transparent 1.1px);
+  background-size: 14px 14px;
+  background-position: 7px 7px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.wf__flow {
   width: 100%;
+  max-width: 296px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-size: 11.5px;
-  line-height: 1.4;
 }
 
 .node {
   position: relative;
   z-index: 1;
-  width: 208px;
+  width: 200px;
   max-width: 100%;
   border: 1px solid var(--zn-line);
   border-radius: 8px;
@@ -81,6 +103,7 @@
   color: #fff;
   font-size: 11px;
   font-weight: 600;
+  letter-spacing: 0.2px;
 }
 
 .node--start .node__hd { background: #64748b; }
@@ -96,20 +119,15 @@
   color: var(--zn-text-2);
 }
 
-.chip {
+.node__bd .za-tag {
   margin-left: auto;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--zn-brand-soft);
-  color: var(--vp-c-brand-1);
+  height: 17px;
   font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .avs {
   display: inline-flex;
-  margin-right: 2px;
+  margin-right: 1px;
 }
 
 .avs i {
@@ -117,18 +135,18 @@
   height: 16px;
   border-radius: 50%;
   border: 1.5px solid var(--zn-card);
-  background: #c7d2fe;
+  background: var(--za-g-indigo);
 }
 
 .avs i + i {
   margin-left: -6px;
-  background: #fbcfe8;
+  background: var(--za-g-rose);
 }
 
 .link {
   position: relative;
   width: 2px;
-  height: 22px;
+  height: 24px;
   background: var(--zn-line-strong);
 }
 
@@ -136,19 +154,21 @@
   height: 14px;
 }
 
-/* 分支前的连接线加长，让「+」不被「添加条件」胶囊遮住 */
+/* 分支前的连接线加长，让「+」与「添加条件」胶囊各占其位 */
 .link--branch {
-  height: 36px;
+  height: 40px;
 }
 
 .link--branch .plus {
-  top: 10px;
+  top: 11px;
 }
 
 .plus {
   position: absolute;
   top: 50%;
   left: 50%;
+  display: grid;
+  place-items: center;
   width: 16px;
   height: 16px;
   transform: translate(-50%, -50%);
@@ -156,11 +176,11 @@
   border-radius: 50%;
   background: var(--zn-card);
   color: var(--vp-c-brand-1);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 700;
-  line-height: 12px;
-  text-align: center;
+}
+
+.plus .za-ic {
+  --s: 9px;
+  stroke-width: 2.6;
 }
 
 /* 条件分支：两列，顶部与底部各一条横线把分支合并回主干 */
@@ -189,8 +209,11 @@
   top: 0;
   left: 50%;
   z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
   transform: translate(-50%, -50%);
-  padding: 2px 9px;
+  padding: 0 9px;
   border: 1px solid var(--vp-c-brand-1);
   border-radius: 999px;
   background: var(--zn-card);
@@ -205,7 +228,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px 5px 12px;
+  padding: 18px 6px 14px;
 }
 
 .col::before {
@@ -233,6 +256,7 @@
 .cond__hd {
   display: flex;
   justify-content: space-between;
+  gap: 6px;
   color: var(--zn-success);
   font-weight: 600;
 }
@@ -245,6 +269,7 @@
   font-size: 10px;
   font-weight: 500;
   color: var(--zn-text-3);
+  white-space: nowrap;
 }
 
 .cond__bd {
@@ -253,7 +278,7 @@
 }
 
 .gap {
-  height: 12px;
+  height: 14px;
 }
 
 .end {

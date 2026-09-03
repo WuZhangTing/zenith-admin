@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { withBase } from 'vitepress'
 import BentoCell from './BentoCell.vue'
+import './arts/art-base.css'
 import ArtWorkflow from './arts/ArtWorkflow.vue'
 import ArtIam from './arts/ArtIam.vue'
 import ArtAi from './arts/ArtAi.vue'
@@ -111,7 +112,7 @@ import ArtPersonal from './arts/ArtPersonal.vue'
         desc="可选租户隔离、套餐与视角切换，内置 License 授权支持。">
         <ArtTenant />
       </BentoCell>
-      <BentoCell title="个性化 · PWA · 桌面端" tag="client" link="/guide/pwa"
+      <BentoCell title="个性化 · 客户端" tag="client" link="/guide/pwa"
         desc="19 种主题色、灰色 / 色弱模式，PWA 与 Electron 桌面客户端。">
         <ArtPersonal />
       </BentoCell>

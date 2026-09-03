@@ -1,24 +1,41 @@
+<script setup lang="ts">
+const bars = [34, 46, 40, 52, 48, 62, 56, 70, 64, 58, 74, 82, 76, 88, 84, 100]
+</script>
+
 <template>
-  <div class="chart">
+  <div class="za rp">
     <div class="kpi">
-      <div><small>本月 GMV</small><b>¥ 1.28M</b></div>
-      <em>+18.2%</em>
+      <div>
+        <small>本月 GMV</small>
+        <b>¥ 1.28M</b>
+      </div>
+      <span class="za-tag za-tag--ok">↑ 18.2%</span>
     </div>
-    <div class="bars">
-      <i style="--h: 38%"></i><i style="--h: 52%"></i><i style="--h: 46%"></i><i style="--h: 70%"></i>
-      <i style="--h: 62%"></i><i style="--h: 84%"></i><i class="on" style="--h: 100%"></i>
+
+    <div class="chart">
+      <div class="bars">
+        <i
+          v-for="(h, i) in bars"
+          :key="i"
+          :class="{ on: i === bars.length - 1 }"
+          :style="{ '--h': h + '%' }"
+        ></i>
+      </div>
+      <span class="tip za-mono">¥ 212k</span>
     </div>
-    <div class="axis"><span>周一</span><span>周日</span></div>
+
+    <div class="axis za-mono">
+      <span>9/1</span><span>9/8</span><span>9/15</span><span>9/22</span><span>9/30</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.chart {
-  width: 100%;
+.rp {
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .kpi {
@@ -35,31 +52,37 @@
 
 .kpi b {
   display: block;
-  font-size: 20px;
+  margin-top: 1px;
+  font-size: 22px;
   font-weight: 800;
-  letter-spacing: -0.4px;
-  color: var(--zn-text-1);
+  letter-spacing: -0.5px;
+  line-height: 1.15;
 }
 
-.kpi em {
-  font-style: normal;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--zn-success);
+.chart {
+  position: relative;
+  flex: 1;
+  min-height: 76px;
+  /* 四条基准网格线 */
+  background-image: linear-gradient(var(--zn-line) 1px, transparent 1px);
+  background-size: 100% 25%;
+  background-repeat: repeat-y;
+  border-bottom: 1px solid var(--zn-line-strong);
 }
 
 .bars {
-  flex: 1;
+  position: absolute;
+  inset: 16px 0 0;
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  min-height: 64px;
+  gap: 4px;
 }
 
 .bars i {
   flex: 1;
+  min-width: 0;
   height: var(--h);
-  border-radius: 4px 4px 2px 2px;
+  border-radius: 3px 3px 0 0;
   background: var(--zn-brand-soft);
 }
 
@@ -67,10 +90,32 @@
   background: var(--vp-c-brand-1);
 }
 
+.tip {
+  position: absolute;
+  top: -8px;
+  right: 0;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--zn-text-1);
+  color: var(--zn-card);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.tip::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  right: 10px;
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  background: inherit;
+}
+
 .axis {
   display: flex;
   justify-content: space-between;
-  font-size: 10.5px;
   color: var(--zn-text-3);
 }
 </style>

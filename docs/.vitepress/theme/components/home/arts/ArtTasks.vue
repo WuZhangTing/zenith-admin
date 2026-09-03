@@ -1,74 +1,94 @@
+<script setup lang="ts">
+import ArtIcon from './ArtIcon.vue'
+</script>
+
 <template>
-  <div class="tasks">
+  <div class="za tasks">
     <div class="t">
-      <div class="t__hd"><b>导出会员名单</b><span>78%</span></div>
-      <div class="bar"><i style="width: 78%"></i></div>
+      <div class="t__hd">
+        <i class="st st--run"><ArtIcon name="refresh" /></i>
+        <b class="za-ellipsis">导出会员名单</b>
+        <span class="za-mono">78%</span>
+      </div>
+      <div class="za-bar"><i style="width: 78%"></i></div>
     </div>
+
     <div class="t">
-      <div class="t__hd"><b>批量导入用户 · 1,204 行</b><span class="ok">已完成</span></div>
-      <div class="bar"><i class="done" style="width: 100%"></i></div>
+      <div class="t__hd">
+        <i class="st st--ok"><ArtIcon name="check" /></i>
+        <b class="za-ellipsis">批量导入用户 · 1,204 行</b>
+        <span class="ok">已完成</span>
+      </div>
+      <div class="za-bar za-bar--ok"><i style="width: 100%"></i></div>
     </div>
+
     <div class="t">
-      <div class="t__hd"><b>数据库全量备份</b><span class="q">排队中</span></div>
-      <div class="bar"><i style="width: 0"></i></div>
+      <div class="t__hd">
+        <i class="st st--q"></i>
+        <b class="za-ellipsis">数据库全量备份</b>
+        <span class="q">排队中</span>
+      </div>
+      <div class="za-bar"><i style="width: 0"></i></div>
     </div>
-    <div class="foot">pg-boss · 12 队列 · 失败自动重试 3 次</div>
+
+    <div class="za-foot">
+      <span class="za-ellipsis">pg-boss · 12 队列 · 失败自动重试 3 次</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .tasks {
-  width: 100%;
   display: grid;
-  gap: 9px;
-  font-size: 12px;
+  gap: 10px;
 }
 
 .t__hd {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+}
+
+.st {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+}
+
+.st .za-ic {
+  --s: 9px;
+  stroke-width: 2.8;
+}
+
+.st--run {
+  background: var(--zn-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+.st--ok {
+  background: var(--zn-success-soft);
+  color: var(--zn-success);
+}
+
+.st--q {
+  border: 1.5px dashed var(--zn-line-strong);
 }
 
 .t__hd b {
+  flex: 1;
   font-weight: 500;
-  color: var(--zn-text-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .t__hd span {
   flex: none;
-  font-family: var(--vp-font-family-mono);
   font-size: 11px;
   color: var(--zn-text-2);
 }
 
-.t__hd .ok { color: var(--zn-success); }
+.t__hd .ok { color: var(--zn-success); font-weight: 600; }
 .t__hd .q { color: var(--zn-text-3); }
-
-.bar {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--zn-line);
-  overflow: hidden;
-}
-
-.bar i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--vp-c-brand-1);
-}
-
-.bar i.done {
-  background: var(--zn-success);
-}
-
-.foot {
-  font-size: 11px;
-  color: var(--zn-text-3);
-}
 </style>
