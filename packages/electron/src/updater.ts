@@ -3,15 +3,18 @@
  *
  * 消费服务端「应用版本管理」的公开 API（/api/public/app-releases）：
  *
- *  1. **Web 热更新（高频）**：check 返回 hotupdate 制品 → 下载 zip → SHA256 校验 →
- *     解压到 userData/web-updates/{version} → 提示重载。壳不动，秒级生效。
+ *  1. **Web 热更新（高频）**：check 返回 hotupdate 制品 → 下载 zip → SHA256 校验（必需）→
+ *     安全解压到 userData/web-updates/{version} → 提示重载。壳不动，秒级生效。
  *  2. **壳全量更新（低频）**：check 返回 installer 制品 → electron-updater 指向
  *     generic feed（latest.yml / blockmap 布局由服务端按文件名分发）→ 后台下载 →
- *     提示重启安装。仅打包后可用（app.isPackaged）。
- *  3. **外链制品**（如应用商店）→ 打开系统浏览器。
+ *     提示重启安装。仅打包后可用（app.isPackaged）；Windows 下配置 publisherName 后
+ *     electron-updater 会校验安装包 Authenticode 签名（见 electron-builder.config.js）。
+ *  3. **外链制品**（如应用商店）→ 打开系统浏览器（仅 https）。
  *
- * 服务器地址来源（优先级）：userData/update-config.json > 渲染进程 IPC 上报
- * （web 包内的 VITE_API_BASE_URL）> 环境变量 ZENITH_UPDATE_SERVER。
+ * 更新服务器地址是信任根，**渲染进程不能改写**（否则页面内任意脚本即可把整个客户端指向攻击者）。
+ * 来源优先级：userData/update-config.json（本机运维覆盖）> 打包时写入 package.json 的
+ * updateServer（electron-builder extraMetadata，来自 ZENITH_UPDATE_SERVER）> 开发模式下的环境变量。
+ * 除 localhost 开发地址外强制 https，制品下载地址必须与更新服务器同源。
  *
  * 灰度与统计：deviceId 首次运行生成并持久化，check / 下载请求都携带；
  * 热更成功与壳更新重启后上报 install_success 回执。
@@ -21,8 +24,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import extract from 'extract-zip';
 import { autoUpdater } from 'electron-updater';
+import { safeExtractZip } from './safe-unzip';
 
 const APP_KEY = 'zenith-desktop';
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 小时
@@ -100,18 +103,59 @@ function getDeviceId(): string {
 
 // ─── 运行时配置（serverUrl / channel）────────────────────────────────────────
 
-let runtimeConfig: UpdateConfig = {};
+const CHANNELS: readonly UpdateChannel[] = ['stable', 'beta', 'internal'];
+
+/** 开发 / 内网调试允许的明文 http 主机 */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * 更新服务器地址校验：必须是 https；仅未打包（开发）时接受指向本机回环地址的 http。
+ * 返回归一化（去尾部斜杠）的 origin + 路径前缀，非法返回空串。
+ */
+export function sanitizeServerUrl(raw: unknown, packaged = app.isPackaged): string {
+  if (typeof raw !== 'string' || !raw.trim()) return '';
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return '';
+  }
+  if (url.username || url.password || url.search || url.hash) return '';
+  if (url.protocol === 'https:') return normalizeBase(url.toString());
+  if (url.protocol === 'http:' && !packaged && LOOPBACK_HOSTS.has(url.hostname)) return normalizeBase(url.toString());
+  return '';
+}
+
+/** 打包时由 electron-builder extraMetadata 写入 package.json 的字段（见 electron-builder.config.js） */
+function bundledUpdateServer(): string {
+  const pkg = readJsonSync<{ updateServer?: string }>(path.join(app.getAppPath(), 'package.json'));
+  return typeof pkg?.updateServer === 'string' ? pkg.updateServer : '';
+}
 
 function getConfig(): UpdateConfig {
   const fileConfig = readJsonSync<UpdateConfig>(configPath()) ?? {};
-  return {
-    serverUrl: fileConfig.serverUrl || runtimeConfig.serverUrl || process.env.ZENITH_UPDATE_SERVER || '',
-    channel: fileConfig.channel || runtimeConfig.channel || 'stable',
-  };
+  const serverUrl = sanitizeServerUrl(fileConfig.serverUrl)
+    || sanitizeServerUrl(bundledUpdateServer())
+    || (app.isPackaged ? '' : sanitizeServerUrl(process.env.ZENITH_UPDATE_SERVER));
+  const channel = fileConfig.channel && CHANNELS.includes(fileConfig.channel) ? fileConfig.channel : 'stable';
+  return { serverUrl, channel };
 }
 
 function normalizeBase(url: string): string {
   return url.replace(/\/+$/, '');
+}
+
+/**
+ * 制品下载地址：相对路径拼到更新服务器；绝对地址必须与更新服务器同源，
+ * 防止被篡改的 check 响应把客户端引到第三方主机取包。
+ */
+function resolveArtifactUrl(serverUrl: string, downloadUrl: string): string {
+  const base = normalizeBase(serverUrl);
+  const resolved = new URL(downloadUrl, `${base}/`);
+  if (resolved.origin !== new URL(base).origin) {
+    throw new Error(`制品下载地址与更新服务器不同源，已拒绝：${resolved.origin}`);
+  }
+  return resolved.toString();
 }
 
 // ─── 平台与版本 ───────────────────────────────────────────────────────────────
@@ -217,27 +261,33 @@ async function applyWebUpdate(win: BrowserWindow | null, info: CheckResult): Pro
   const artifact = info.artifact;
   const version = info.version;
   if (!serverUrl || !artifact || !version) return;
+  if (!/^\d+\.\d+\.\d+/.test(version)) {
+    console.error('[updater] 热更版本号非法，已忽略:', version);
+    return;
+  }
 
-  const base = normalizeBase(serverUrl);
-  const url = artifact.downloadUrl.startsWith('http') ? artifact.downloadUrl : `${base}${artifact.downloadUrl}`;
   const zipPath = path.join(webUpdatesDir(), `download-${version}.zip`);
   const tmpDir = path.join(webUpdatesDir(), `tmp-${Date.now()}`);
   const targetDir = path.join(webUpdatesDir(), version);
 
   try {
+    // 哈希是热更包完整性的唯一凭据：服务端上传制品时必定计算，缺失即视为不可信响应
+    const expectedSha256 = artifact.sha256?.trim().toLowerCase();
+    if (!expectedSha256 || !/^[0-9a-f]{64}$/.test(expectedSha256)) {
+      throw new Error('热更制品缺少有效的 SHA256，已拒绝安装');
+    }
+    const url = resolveArtifactUrl(serverUrl, artifact.downloadUrl);
     await fs.mkdir(webUpdatesDir(), { recursive: true });
 
-    const res = await fetch(`${url}?deviceId=${encodeURIComponent(getDeviceId())}`);
+    const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}deviceId=${encodeURIComponent(getDeviceId())}`);
     if (!res.ok) throw new Error(`下载失败 HTTP ${res.status}`);
     await fs.writeFile(zipPath, Buffer.from(await res.arrayBuffer()));
 
-    if (artifact.sha256) {
-      const actual = await sha256Of(zipPath);
-      if (actual !== artifact.sha256.toLowerCase()) throw new Error('SHA256 校验不通过，已丢弃下载文件');
-    }
+    const actual = await sha256Of(zipPath);
+    if (actual !== expectedSha256) throw new Error('SHA256 校验不通过，已丢弃下载文件');
 
-    // 制品由管理端发布并经过哈希校验，解压视为可信内容
-    await extract(zipPath, { dir: tmpDir });
+    // 即便哈希匹配也不信任包内路径：拒绝符号链接 / 越界路径 / 超大条目
+    await safeExtractZip(zipPath, tmpDir);
     const webRoot = await locateWebRoot(tmpDir);
     if (!webRoot) throw new Error('热更包内未找到 index.html');
 
@@ -352,7 +402,7 @@ let checking = false;
 async function checkForUpdates(win: BrowserWindow | null, trigger: 'auto' | 'manual'): Promise<void> {
   const { serverUrl, channel } = getConfig();
   if (!serverUrl) {
-    if (trigger === 'manual') console.warn('[updater] 未配置更新服务器地址（update-config.json / VITE_API_BASE_URL / ZENITH_UPDATE_SERVER）');
+    if (trigger === 'manual') console.warn('[updater] 未配置更新服务器地址（userData/update-config.json、打包时 ZENITH_UPDATE_SERVER 或开发环境变量），且必须为 https');
     return;
   }
   if (checking) return;
@@ -395,7 +445,11 @@ async function checkForUpdates(win: BrowserWindow | null, trigger: 'auto' | 'man
           buttons: ['打开下载页', '稍后'],
           cancelId: 1,
         });
-        if (response === 0) void shell.openExternal(info.artifact.downloadUrl);
+        if (response === 0) {
+          const target = info.artifact.downloadUrl;
+          if (/^https:\/\//i.test(target)) void shell.openExternal(target);
+          else console.warn('[updater] 外链制品地址非 https，已拒绝打开:', target.slice(0, 200));
+        }
         break;
       }
       default:
@@ -422,15 +476,7 @@ async function reportPendingShellInstall(): Promise<void> {
 }
 
 export function initUpdater(getWindow: () => BrowserWindow | null): void {
-  // 渲染进程上报 API 地址（web 包内的 VITE_API_BASE_URL 是唯一权威来源）
-  ipcMain.on('updater:configure', (_event, cfg: UpdateConfig) => {
-    if (cfg && typeof cfg.serverUrl === 'string' && /^https?:\/\//.test(cfg.serverUrl)) {
-      runtimeConfig = { ...runtimeConfig, serverUrl: cfg.serverUrl };
-    }
-    if (cfg?.channel && ['stable', 'beta', 'internal'].includes(cfg.channel)) {
-      runtimeConfig = { ...runtimeConfig, channel: cfg.channel };
-    }
-  });
+  // 渲染进程只能触发一次检查，不能改写更新服务器地址（信任根固定在打包配置 / 本机运维文件）
   ipcMain.on('updater:check', () => {
     void checkForUpdates(getWindow(), 'manual');
   });

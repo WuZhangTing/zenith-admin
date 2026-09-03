@@ -12,9 +12,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   offMaximizeChange: () => {
     ipcRenderer.removeAllListeners('window:maximized');
   },
-  /** 在线升级：渲染进程把 API 地址告知主进程（web 包内的 VITE_API_BASE_URL 是权威来源） */
+  /** 在线升级：仅允许触发一次检查；更新服务器地址固定在打包配置 / 本机运维文件，渲染进程不可改写 */
   updater: {
-    configure: (cfg: { serverUrl?: string; channel?: string }) => { ipcRenderer.send('updater:configure', cfg); },
     check: () => { ipcRenderer.send('updater:check'); },
   },
   isElectron: true,

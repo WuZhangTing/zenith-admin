@@ -99,6 +99,7 @@ Electron 桌面客户端：
 - `src/main.ts`：窗口创建、外链打开、生命周期与 IPC 窗口控制
 - `src/preload.ts`：通过 `contextBridge` 暴露受限 API
 - `src/updater.ts`：连接服务端「应用版本管理」公开 API，支持 Web 热更新与壳全量更新
+- `src/safe-unzip.ts`：热更包安全解压（替代存在越界写入漏洞的 extract-zip）
 - `package.json` / `electron-builder.config.js`：打包配置与平台产物定义
 
 ## `docs`
