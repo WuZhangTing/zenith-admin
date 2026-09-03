@@ -411,8 +411,24 @@ export interface OAuthConfig {
   agentId?: string | null;
   corpId?: string | null;
   enabled: boolean;
+  /** 登录时按提供方断言的已验证邮箱自动关联既有本地账号（平台超管永不自动关联） */
+  autoLinkByEmail: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 发起第三方登录 / 绑定时的授权链接与一次性 state（前端须暂存 state，回调时原样带回） */
+export interface OAuthAuthUrl {
+  authUrl: string;
+  state: string;
+}
+
+/** 前端在跳转到提供方之前暂存于 sessionStorage 的 OAuth 往返上下文 */
+export interface OAuthPendingState {
+  state: string;
+  provider: OAuthProviderType;
+  intent: 'login' | 'bind';
+  redirectTo?: string | null;
 }
 
 // ─── 企业身份源 ───────────────────────────────────────────────────────────

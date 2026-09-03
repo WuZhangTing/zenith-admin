@@ -12,6 +12,7 @@ import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
 import { config } from '@/config';
 import { markPostLoginHome } from '@/lib/post-login';
 import { readMfaHandoff } from '@/lib/mfa-handoff';
+import { rememberOAuthPending } from '@/lib/oauth-pending';
 import { useAuth, type LoginOptions } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/UserAvatar';
 import AppLogo from '@/components/AppLogo';
@@ -374,6 +375,8 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const handleOAuthLogin = async (provider: OAuthProviderType) => {
     const res = await request.get<{ authUrl: string; state: string }>(`/api/auth/oauth/${provider}`, { silent: true });
     if (res.code === 0 && res.data?.authUrl) {
+      // 暂存 state：回调页据此校验本次往返是由当前浏览器发起的（防登录 CSRF）
+      rememberOAuthPending({ state: res.data.state, provider, intent: 'login', redirectTo });
       globalThis.location.href = res.data.authUrl;
     } else {
       Toast.warning(res.message || '该登录方式暂不可用，请联系管理员配置');

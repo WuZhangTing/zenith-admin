@@ -200,6 +200,39 @@ export async function finalizeLogin(
   };
 }
 
+/**
+ * 非密码登录（企业 SSO / 第三方 OAuth）的统一收口：与 `login()` 共用同一套 MFA 决策与密码过期检查。
+ * 策略要求或新设备风控命中时返回挑战（前端走 verifyMfaLogin），否则签发 token。
+ */
+export async function completeLoginWithMfa(
+  user: UserRow,
+  client: { ip: string; ua: string; deviceInfo?: DeviceInfo; deviceId?: string },
+  logMessage: string,
+) {
+  const mfa = await shouldRequireMfa({ user, ip: client.ip, ua: client.ua, deviceId: client.deviceId });
+  if (mfa.required) {
+    const challenge = await createMfaChallenge({
+      userId: user.id,
+      username: user.username,
+      tenantId: user.tenantId ?? null,
+      ip: client.ip,
+      ua: client.ua,
+      deviceInfo: client.deviceInfo,
+      deviceId: client.deviceId,
+      rememberDevice: false,
+    });
+    return {
+      mfaRequired: true as const,
+      challengeId: challenge.challengeId,
+      methods: mfa.methods,
+      expiresAt: challenge.expiresAt,
+      reason: mfa.reason,
+    };
+  }
+  const requirePasswordChange = await checkPasswordExpiry(user);
+  return finalizeLogin(user, { ip: client.ip, ua: client.ua, deviceInfo: client.deviceInfo }, { logMessage, requirePasswordChange });
+}
+
 export async function login(input: LoginInput) {
   const captchaEnabled = await getConfigBoolean('captcha_enabled', false);
   if (captchaEnabled) {

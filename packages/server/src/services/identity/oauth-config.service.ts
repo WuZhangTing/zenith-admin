@@ -31,6 +31,7 @@ export interface UpdateOauthConfigData {
   clientId: string;
   clientSecret?: string;
   enabled: boolean;
+  autoLinkByEmail: boolean;
   agentId?: string | null;
   corpId?: string | null;
 }
@@ -41,6 +42,7 @@ export async function updateOauthConfig(provider: OAuthProviderType, data: Updat
   const updateData: Record<string, unknown> = {
     clientId: data.clientId,
     enabled: data.enabled,
+    autoLinkByEmail: data.autoLinkByEmail,
     agentId: data.agentId ?? null,
     corpId: data.corpId ?? null,
   };

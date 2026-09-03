@@ -55,6 +55,7 @@ import type { OAuth2MyGrant } from '@zenith/shared/open-platform';
 import './ProfilePage.css';
 import { createdAtColumn, dateTimeColumn } from '../../utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
+import { rememberOAuthPending } from '@/lib/oauth-pending';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import NotificationSettingsTab from './NotificationSettingsTab';
@@ -254,7 +255,8 @@ export default function ProfilePage({ user }: ProfilePageProps) {
   async function handleOAuthBind(provider: OAuthProviderType) {
     const res = await oauthBindUrlMutation.mutateAsync(provider);
     if (res.authUrl) {
-      sessionStorage.setItem('oauth_bind_provider', provider);
+      // 绑定意图 + state 暂存：回调页据此走 POST /bind，保持当前会话不被替换
+      rememberOAuthPending({ state: res.state, provider, intent: 'bind' });
       globalThis.location.href = res.authUrl;
     }
   }

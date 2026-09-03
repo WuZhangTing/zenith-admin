@@ -5,6 +5,7 @@ import { MP_OAUTH_SCOPES } from '../mp/constants';
 import {
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_MATCH_KEYS,
   DIRECTORY_SYNC_CONFLICT_POLICIES, DIRECTORY_SYNC_RESOLUTIONS,
+  OAUTH_PROVIDERS,
 } from './constants';
 
 export const loginSchema = z.object({
@@ -263,6 +264,21 @@ export const updateOauthConfigSchema = z.object({
   agentId: z.string().max(128).nullable().optional(),
   corpId: z.string().max(128).nullable().optional(),
   enabled: z.boolean(),
+  /** 登录时按提供方断言的已验证邮箱自动关联既有本地账号（平台超管永不自动关联） */
+  autoLinkByEmail: z.boolean(),
+});
+
+/** 第三方登录 / 绑定回调：`state` 必须原样带回，服务端单次消费并与发起时的 provider / 意图 / 用户比对 */
+export const oauthCallbackSchema = z.object({
+  code: z.string().min(1).max(2048),
+  state: z.string().min(1).max(128),
+  deviceId: z.string().max(128).optional(),
+});
+
+export const oauthBindSchema = z.object({
+  provider: z.enum(OAUTH_PROVIDERS),
+  code: z.string().min(1).max(2048),
+  state: z.string().min(1).max(128),
 });
 
 
@@ -404,6 +420,8 @@ export type UpdateTenantPackageInput = z.infer<typeof updateTenantPackageSchema>
 
 
 export type UpdateOauthConfigInput = z.infer<typeof updateOauthConfigSchema>;
+export type OAuthCallbackInput = z.infer<typeof oauthCallbackSchema>;
+export type OAuthBindInput = z.infer<typeof oauthBindSchema>;
 
 
 // ════════════════════════════════════════════════════════════════════════════

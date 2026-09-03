@@ -81,6 +81,7 @@ export default function OAuthConfigPage() {
                     agentId: cfg?.agentId || '',
                     corpId: cfg?.corpId || '',
                     enabled: cfg?.enabled ?? false,
+                    autoLinkByEmail: cfg?.autoLinkByEmail ?? false,
                   }}
                 >
                   <Form.Input field="clientId" label="Client ID" placeholder="请输入 Client ID" />
@@ -98,6 +99,11 @@ export default function OAuthConfigPage() {
                   )}
                   <Divider margin="12px 0" />
                   <Form.Switch field="enabled" label="启用" />
+                  <Form.Switch
+                    field="autoLinkByEmail"
+                    label="按邮箱自动关联"
+                    extraText="首次第三方登录时，把提供方断言为已验证的邮箱关联到唯一匹配的既有账号并直接登录；默认关闭，未匹配 / 未开启时需先用密码登录再在个人中心绑定。平台超管永不自动关联"
+                  />
                 </Form>
 
                 {canUpdate && (

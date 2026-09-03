@@ -10,7 +10,7 @@ export const oauthHandlers = [
     return ok([...OAUTH_PROVIDERS]);
   }),
 
-  // 获取授权链接
+  // 获取登录授权链接
   http.get(`${API}/api/auth/oauth/:provider`, ({ params }) => {
     const provider = params.provider as string;
     return ok({
@@ -19,12 +19,21 @@ export const oauthHandlers = [
     });
   }),
 
-  // OAuth 回调
+  // 获取绑定授权链接（当前用户）
+  http.get(`${API}/api/auth/oauth/:provider/bind`, ({ params }) => {
+    const provider = params.provider as string;
+    return ok({
+      authUrl: `https://example.com/oauth/${provider}?demo=true&intent=bind`,
+      state: 'mock-bind-state-123',
+    });
+  }),
+
+  // OAuth 登录回调（code + state）
   http.post(`${API}/api/auth/oauth/:provider/callback`, () => {
     return ok({ needBind: true, oauthInfo: { provider: 'github', openId: 'mock-123', nickname: 'DemoUser' } }, '演示模式：第三方登录暂不可用');
   }),
 
-  // 绑定
+  // 绑定（provider + code + state）
   http.post(`${API}/api/auth/oauth/bind`, () => {
     return ok(null, '绑定成功（演示）');
   }),

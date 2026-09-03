@@ -77,12 +77,15 @@ export class FeishuProvider implements OAuthProvider {
     if (data.code !== 0 || !data.data?.open_id) {
       throw new Error(`Feishu userinfo error: ${data.msg ?? JSON.stringify(data)}`);
     }
+    const email = data.data.email || data.data.enterprise_email;
     return {
       openId: data.data.open_id,
       unionId: data.data.union_id,
       nickname: data.data.name || data.data.open_id,
       avatar: data.data.avatar_url,
-      email: data.data.email || data.data.enterprise_email,
+      email,
+      // 邮箱由飞书企业通讯录维护，视为已验证
+      emailVerified: !!email,
     };
   }
 }

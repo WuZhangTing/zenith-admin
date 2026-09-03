@@ -56,11 +56,14 @@ export class WeChatWorkProvider implements OAuthProvider {
     if (!detailResp.ok) throw new HttpClientError('WeChatWork user/get request failed', { status: detailResp.status, url: detailResp.url });
     const detail = await detailResp.json<Record<string, unknown>>();
 
+    const email = detail.email as string | undefined;
     return {
       openId: userId,
       nickname: (detail.name as string) || userId,
       avatar: detail.avatar as string | undefined,
-      email: detail.email as string | undefined,
+      email,
+      // 邮箱由企业微信通讯录维护，视为已验证
+      emailVerified: !!email,
     };
   }
 }

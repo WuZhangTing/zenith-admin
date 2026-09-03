@@ -148,10 +148,17 @@ MFA 当前落库类型包括 `totp`、`passkey`、`recovery_code`，接口实现
 
 | 表 | 说明 |
 | --- | --- |
-| `oauth_configs` | provider、clientId、clientSecret、agentId、corpId、enabled |
+| `oauth_configs` | provider、clientId、clientSecret、agentId、corpId、enabled、autoLinkByEmail |
 | `user_oauth_accounts` | 用户与第三方账号绑定，唯一键为 `provider + openId` |
 
-管理配置接口：`GET /api/oauth-config`、`PUT /api/oauth-config/{provider}`。个人 OAuth 接口：`GET /api/auth/oauth/providers`（公开，已启用的 provider 列表）、`GET /api/auth/oauth/accounts`、`GET /api/auth/oauth/{provider}`、`POST /api/auth/oauth/{provider}/callback`、`POST /api/auth/oauth/bind`、`DELETE /api/auth/oauth/unbind/{provider}`。
+管理配置接口：`GET /api/oauth-config`、`PUT /api/oauth-config/{provider}`（多租户模式下仅平台管理员；它是平台级全局配置，登录时没有租户上下文）。个人 OAuth 接口：`GET /api/auth/oauth/providers`（公开，已启用的 provider 列表）、`GET /api/auth/oauth/accounts`、`GET /api/auth/oauth/{provider}`（登录授权链接）、`GET /api/auth/oauth/{provider}/bind`（绑定授权链接，需登录）、`POST /api/auth/oauth/{provider}/callback`、`POST /api/auth/oauth/bind`、`DELETE /api/auth/oauth/unbind/{provider}`。
+
+安全边界：
+
+- **`state` 双侧校验**：授权链接里的 `state` 由服务端签发并存入 Redis（10 分钟、单次消费，记录 provider / 意图 / 发起用户），前端在跳转前暂存于 sessionStorage；回调时 URL 里的 `state` 必须与暂存值一致，再由服务端消费比对。攻击者拿到合法 state 也无法让受害者浏览器完成登录（登录 CSRF），登录意图的 state 不能用于绑定，绑定意图的 state 只能由发起者本人完成。
+- **绑定不替换会话**：个人中心「绑定」走独立的 bind 意图，回调经 `POST /api/auth/oauth/bind` 关联到当前登录用户，不会登录成第三方身份对应的其他账号。
+- **不做隐式关联**：未绑定的第三方身份默认返回 `needBind`，需先用密码登录再在个人中心绑定。只有 provider 配置显式开启 `autoLinkByEmail`，且 provider 断言邮箱已验证（GitHub 取 `/user/emails` 的 `verified`，企业提供方以通讯录为准）、邮箱全库唯一命中、账号启用、且不持有平台超管角色，才会在登录时自动关联。
+- **复用 MFA 决策**：第三方登录与密码登录、企业 SSO 共用 `completeLoginWithMfa`（MFA 策略 / 新设备风控 / 密码过期 / 登录日志），命中时返回 `mfaRequired` 挑战。
 
 ### 企业身份源
 

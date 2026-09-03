@@ -42,6 +42,8 @@ export const oauthConfigs = pgTable('oauth_configs', {
   agentId: varchar({ length: 128 }),
   corpId: varchar({ length: 128 }),
   enabled: boolean().notNull().default(false),
+  // 登录时允许按提供方断言的「已验证邮箱」自动关联既有本地账号（默认关闭；平台超管永不自动关联）
+  autoLinkByEmail: boolean().notNull().default(false),
   ...auditColumns(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().$onUpdate(() => new Date()).notNull(),

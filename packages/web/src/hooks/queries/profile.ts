@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse } from '@zenith/shared/core';
-import type { LoginLog, OAuthAccount, OAuthProviderType, User, UserApiToken, UserApiTokenCreated, UserSession } from '@zenith/shared/identity';
+import type { LoginLog, OAuthAccount, OAuthAuthUrl, OAuthProviderType, User, UserApiToken, UserApiTokenCreated, UserSession } from '@zenith/shared/identity';
 import type { MfaFactor, OperationLog, TotpSetupResult } from '@zenith/shared/platform';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
@@ -112,7 +112,7 @@ export function useChangeProfilePassword() {
 export function useProfileOAuthBindUrl() {
   return useMutation({
     mutationFn: (provider: OAuthProviderType) =>
-      request.get<{ authUrl: string; state: string }>(`/api/auth/oauth/${provider}`).then(unwrap),
+      request.get<OAuthAuthUrl>(`/api/auth/oauth/${provider}/bind`).then(unwrap),
   });
 }
 

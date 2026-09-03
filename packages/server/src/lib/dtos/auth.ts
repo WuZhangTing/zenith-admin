@@ -95,6 +95,7 @@ export const OAuthConfigItemDTO = z
     clientId: z.string().nullable(),
     clientSecret: z.string(),
     enabled: z.boolean(),
+    autoLinkByEmail: z.boolean(),
     agentId: z.string().nullable().optional(),
     corpId: z.string().nullable().optional(),
     ...auditFields,

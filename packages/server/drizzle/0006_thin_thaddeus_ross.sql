@@ -1,0 +1,1 @@
+ALTER TABLE "oauth_configs" ADD COLUMN "auto_link_by_email" boolean DEFAULT false NOT NULL;

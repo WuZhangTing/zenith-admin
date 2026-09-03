@@ -32,18 +32,32 @@ export class GitHubProvider implements OAuthProvider {
   }
 
   async getUserInfo(token: OAuthTokenResult): Promise<OAuthUserInfo> {
-    const resp = await httpGet('https://api.github.com/user', {
-      headers: { Authorization: `Bearer ${token.accessToken}`, Accept: 'application/json' },
-      timeout: 10_000,
-      retries: 1,
-    });
+    const headers = { Authorization: `Bearer ${token.accessToken}`, Accept: 'application/json' };
+    const resp = await httpGet('https://api.github.com/user', { headers, timeout: 10_000, retries: 1 });
     if (!resp.ok) throw new HttpClientError('GitHub userinfo request failed', { status: resp.status, url: resp.url });
     const user = await resp.json<Record<string, unknown>>();
+    // 公开资料里的 email 可能为空且不带验证状态；/user/emails（user:email scope）给出 verified 标记，
+    // 只有已验证的主邮箱才能作为自动关联本地账号的依据
+    const verified = await this.fetchPrimaryVerifiedEmail(headers);
     return {
       openId: String(user.id),
       nickname: (user.login as string) || (user.name as string) || '',
       avatar: user.avatar_url as string | undefined,
-      email: user.email as string | undefined,
+      email: verified ?? (user.email as string | undefined),
+      emailVerified: verified !== undefined,
     };
+  }
+
+  private async fetchPrimaryVerifiedEmail(headers: Record<string, string>): Promise<string | undefined> {
+    try {
+      const resp = await httpGet('https://api.github.com/user/emails', { headers, timeout: 10_000, retries: 1 });
+      if (!resp.ok) return undefined;
+      const emails = await resp.json<Array<{ email?: string; primary?: boolean; verified?: boolean }>>();
+      if (!Array.isArray(emails)) return undefined;
+      const primary = emails.find((e) => e.verified && e.primary) ?? emails.find((e) => e.verified);
+      return primary?.email || undefined;
+    } catch {
+      return undefined;
+    }
   }
 }

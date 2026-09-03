@@ -39,8 +39,7 @@ vi.mock('../../lib/session-manager', () => ({
   checkLoginLock: vi.fn(async () => 0), clearLoginAttempts: vi.fn(), recordLoginFailure: vi.fn(),
 }));
 vi.mock('./user-group-rules.service', () => ({ syncUserDynamicMembershipsSafe: vi.fn() }));
-vi.mock('./auth.service', () => ({ finalizeLogin: vi.fn(), recordLoginLog: vi.fn() }));
-vi.mock('./identity-security.service', () => ({ shouldRequireMfa: vi.fn(), createMfaChallenge: vi.fn() }));
+vi.mock('./auth.service', () => ({ finalizeLogin: vi.fn(), recordLoginLog: vi.fn(), completeLoginWithMfa: vi.fn() }));
 vi.mock('./role-grant', () => ({
   assertDefaultRolesGrantable: vi.fn(),
   resolveGrantableDefaultRoleIds: vi.fn(async () => []),
@@ -51,8 +50,7 @@ import { db } from '../../db';
 import redis from '../../lib/redis';
 import { httpGet, httpPost } from '../../lib/http-client';
 import { resolveManagedTenantId } from '../../lib/tenant';
-import { finalizeLogin } from './auth.service';
-import { createMfaChallenge, shouldRequireMfa } from './identity-security.service';
+import { completeLoginWithMfa } from './auth.service';
 import { assertDefaultRolesGrantable, resolveGrantableDefaultRoleIds, userHasPlatformSuperRole } from './role-grant';
 import {
   createIdentityProvider,
@@ -349,27 +347,28 @@ describe('handleEnterpriseOidcCallback（SSO 复用 MFA 决策）', () => {
     dbMock.update.mockReturnValueOnce(createChain([]));
   }
 
-  it('策略要求 MFA 时返回挑战而不签发 token', async () => {
+  it('登录收口经 completeLoginWithMfa（与密码登录同一套 MFA / 密码过期决策），并透传 deviceId', async () => {
     mockOidcExchange();
-    vi.mocked(shouldRequireMfa).mockResolvedValue({ required: true, methods: ['totp'], reason: 'MFA 策略要求' });
-    vi.mocked(createMfaChallenge).mockResolvedValue({ challengeId: 'ch-1', expiresAt: 123 });
+    const challenge = { mfaRequired: true, challengeId: 'ch-1', methods: ['totp'], expiresAt: 123, reason: 'MFA 策略要求' };
+    vi.mocked(completeLoginWithMfa).mockResolvedValue(challenge as never);
 
     const result = await handleEnterpriseOidcCallback('code', 'state', undefined, 'device-1');
 
     expect(result.redirectTo).toBe('/home');
-    expect(result.loginResult).toEqual({ mfaRequired: true, challengeId: 'ch-1', methods: ['totp'], expiresAt: 123, reason: 'MFA 策略要求' });
-    expect(createMfaChallenge).toHaveBeenCalledWith(expect.objectContaining({ userId: 42, tenantId: 3, deviceId: 'device-1', rememberDevice: false }));
-    expect(finalizeLogin).not.toHaveBeenCalled();
+    expect(result.loginResult).toEqual(challenge);
+    expect(completeLoginWithMfa).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 42 }),
+      expect.objectContaining({ ip: '1.1.1.1', ua: 'ua', deviceId: 'device-1' }),
+      expect.stringContaining('Okta'),
+    );
   });
 
-  it('不需要 MFA 时照常签发 token', async () => {
+  it('不需要 MFA 时返回 token', async () => {
     mockOidcExchange();
-    vi.mocked(shouldRequireMfa).mockResolvedValue({ required: false, methods: [], reason: null });
-    vi.mocked(finalizeLogin).mockResolvedValue({ token: { accessToken: 'a', refreshToken: 'r' } } as never);
+    vi.mocked(completeLoginWithMfa).mockResolvedValue({ token: { accessToken: 'a', refreshToken: 'r' } } as never);
 
     const result = await handleEnterpriseOidcCallback('code', 'state');
 
-    expect(finalizeLogin).toHaveBeenCalledWith(expect.objectContaining({ id: 42 }), expect.objectContaining({ ip: '1.1.1.1' }), expect.objectContaining({ logMessage: expect.stringContaining('Okta') }));
     expect(result.loginResult).toEqual({ token: { accessToken: 'a', refreshToken: 'r' } });
   });
 });

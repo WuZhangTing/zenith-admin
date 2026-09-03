@@ -43,6 +43,13 @@
       "when": 1788439122466,
       "tag": "0005_mighty_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788444255045,
+      "tag": "0006_thin_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

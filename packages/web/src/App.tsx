@@ -230,6 +230,8 @@ function AdminRouteLoader({ user, logout }: Readonly<AdminRouteLoaderProps>) {
         {/* OAuth2 同意授权页（独立页面，不在 AdminLayout 内）*/}
         <Route path="/oauth2/authorize" element={<Suspense fallback={routeFallback}><OAuth2AuthorizePage /></Suspense>} />
         <Route path="/enterprise/callback" element={<Suspense fallback={routeFallback}><EnterpriseCallbackPage /></Suspense>} />
+        {/* 已登录用户从个人中心发起「绑定第三方账号」后回到这里，由同一回调页走 bind 分支 */}
+        <Route path="/oauth/callback/:provider" element={<Suspense fallback={routeFallback}><OAuthCallbackPage /></Suspense>} />
         {/* 已登录用户访问认证页 → 重定向，避免落入 AdminLayout catch-all 404 并作为标签页出现 */}
         <Route path="/login" element={<RedirectFromLogin />} />
         <Route path="/reset-password" element={<Navigate to="/" replace />} />

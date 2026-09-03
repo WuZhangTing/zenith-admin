@@ -19,8 +19,7 @@ import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpGet, httpPost, HttpClientError } from '../../lib/http-client';
 import { getConfigNumber } from '../../lib/system-config';
 import { checkLoginLock, clearLoginAttempts, recordLoginFailure } from '../../lib/session-manager';
-import { finalizeLogin, recordLoginLog, type DeviceInfo } from './auth.service';
-import { createMfaChallenge, shouldRequireMfa } from './identity-security.service';
+import { completeLoginWithMfa, recordLoginLog, type DeviceInfo } from './auth.service';
 import { assertDefaultRolesGrantable, resolveGrantableDefaultRoleIds, userHasPlatformSuperRole } from './role-grant';
 
 const SECRET_MASK = '******';
@@ -79,7 +78,7 @@ interface EnterpriseAuthStatePayload {
   samlRequestId?: string;
 }
 
-type EnterpriseLoginResult = Awaited<ReturnType<typeof completeEnterpriseLogin>>;
+type EnterpriseLoginResult = Awaited<ReturnType<typeof completeLoginWithMfa>>;
 
 interface SamlLoginTicketPayload {
   loginResult: EnterpriseLoginResult;
@@ -1049,37 +1048,8 @@ export async function syncIdentityProviderUsers(
   }
 }
 
-/**
- * 企业 SSO 的登录收口：与密码登录（auth.service `login()`）共用同一套 MFA 决策 ——
- * 策略要求或新设备风控命中时先返回挑战，由前端走 verifyMfaLogin；否则签发 token。
- */
-async function completeEnterpriseLogin(
-  user: UserRow,
-  client: { ip: string; ua: string; deviceInfo?: DeviceInfo; deviceId?: string },
-  logMessage: string,
-) {
-  const mfa = await shouldRequireMfa({ user, ip: client.ip, ua: client.ua, deviceId: client.deviceId });
-  if (mfa.required) {
-    const challenge = await createMfaChallenge({
-      userId: user.id,
-      username: user.username,
-      tenantId: user.tenantId ?? null,
-      ip: client.ip,
-      ua: client.ua,
-      deviceInfo: client.deviceInfo,
-      deviceId: client.deviceId,
-      rememberDevice: false,
-    });
-    return {
-      mfaRequired: true as const,
-      challengeId: challenge.challengeId,
-      methods: mfa.methods,
-      expiresAt: challenge.expiresAt,
-      reason: mfa.reason,
-    };
-  }
-  return finalizeLogin(user, { ip: client.ip, ua: client.ua, deviceInfo: client.deviceInfo }, { logMessage });
-}
+/** 企业 SSO 的登录收口：复用 auth.service 的 MFA 决策 + 密码过期检查 + finalizeLogin */
+const completeEnterpriseLogin = completeLoginWithMfa;
 
 export async function handleEnterpriseLdapLogin(input: {
   providerId: number;

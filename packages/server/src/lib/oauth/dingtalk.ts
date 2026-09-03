@@ -47,12 +47,15 @@ export class DingTalkProvider implements OAuthProvider {
     });
     if (!resp.ok) throw new HttpClientError('DingTalk userinfo request failed', { status: resp.status, url: resp.url });
     const data = await resp.json<Record<string, unknown>>();
+    const email = data.email as string | undefined;
     return {
       openId: data.openId as string,
       unionId: data.unionId as string | undefined,
       nickname: (data.nick as string) || '',
       avatar: data.avatarUrl as string | undefined,
-      email: data.email as string | undefined,
+      email,
+      // 邮箱由钉钉企业通讯录维护，视为已验证
+      emailVerified: !!email,
     };
   }
 }
