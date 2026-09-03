@@ -250,7 +250,7 @@ MFA 当前落库类型包括 `totp`、`passkey`、`recovery_code`，接口实现
 | `/api/identity-security` | 身份安全策略、登录风险事件 |
 | `/api/identity-providers` | 企业身份源 CRUD、LDAP/AD 测试、目录用户搜索、目录用户同步 |
 | `/api/directory-sync` | 同步源、同步运行、运行明细、冲突裁决、回调、SCIM 端点 |
-| `/api/sessions` | 在线会话列表、强制指定会话下线、强制指定用户全部会话下线 |
+| `/api/sessions` | 在线会话列表、强制指定会话下线、强制指定用户全部会话下线；可见范围与用户管理对齐——平台超管平台视角看全部、租户视角只看该租户，租户管理员只看本租户，非平台超管看不到也不能踢掉平台超管会话（越界按 404 处理） |
 | `/api/auth/oauth` | OAuth 授权、回调、绑定、解绑、账号列表 |
 | `/api/auth/enterprise` | 企业身份源发现、授权 URL、OIDC 回调、LDAP/AD 登录、SAML ACS 与票据兑换 |
 | `/api/oauth-config` | OAuth provider 配置读取与保存 |

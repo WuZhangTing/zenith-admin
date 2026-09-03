@@ -1,48 +1,72 @@
-import { getOnlineSessions, forceLogout, forceLogoutAllByUser } from '../../lib/session-manager';
+/**
+ * 在线会话管理（管理端「在线用户」页）。
+ *
+ * 可见范围与用户管理对齐：平台管理员在平台视角看全部、切到租户视角只看该租户；
+ * 租户管理员只看本租户会话；非平台超管永远看不到（也不能踢掉）平台超管的会话。
+ * 目录同步 / SCIM 等系统流程使用不带范围的 forceLogoutAllUserSessions（调用方已按自身来源限定用户）。
+ */
+import { getOnlineSessions, forceLogout, forceLogoutAllByUser, type SessionInfo } from '../../lib/session-manager';
 import { sendToToken, closeTokenConnection, sendToUser, closeUserConnections } from '../../lib/ws-manager';
 import { pageOffset } from '../../lib/pagination';
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
+import { currentUser } from '../../lib/context';
+import { getTenantScopeId, isPlatformAdmin } from '../../lib/tenant';
+import { listPlatformSuperUserIds } from './role-grant';
+
+/** 当前操作者可见（可管理）的在线会话 */
+async function visibleSessions(): Promise<SessionInfo[]> {
+  const user = currentUser();
+  const all = await getOnlineSessions();
+  const scope = getTenantScopeId(user);
+  const inScope = scope === undefined ? all : all.filter((s) => (s.tenantId ?? null) === scope);
+  if (isPlatformAdmin(user)) return inScope;
+  const superUserIds = await listPlatformSuperUserIds();
+  return inScope.filter((s) => !superUserIds.has(s.userId));
+}
+
+function toSessionDto(s: SessionInfo) {
+  return {
+    tokenId: s.tokenId,
+    userId: s.userId,
+    username: s.username,
+    nickname: s.nickname,
+    ip: s.ip,
+    location: s.location ?? null,
+    browser: s.browser,
+    os: s.os,
+    loginAt: formatDateTime(s.loginAt),
+  };
+}
 
 export async function listSessions(q: { page?: number; pageSize?: number; keyword?: string }) {
   const page = q.page ?? 1;
   const pageSize = q.pageSize ?? 10;
   const keyword = q.keyword ?? '';
-  let sessions = await getOnlineSessions();
+  let sessions = await visibleSessions();
   if (keyword) {
     sessions = sessions.filter((s) => s.username.includes(keyword) || s.nickname.includes(keyword) || s.ip.includes(keyword));
   }
   const total = sessions.length;
   const list = sessions.slice(pageOffset(page, pageSize), page * pageSize);
-  return {
-    list: list.map((s) => ({
-      tokenId: s.tokenId,
-      userId: s.userId,
-      username: s.username,
-      nickname: s.nickname,
-      ip: s.ip,
-      location: s.location ?? null,
-      browser: s.browser,
-      os: s.os,
-      loginAt: formatDateTime(s.loginAt),
-    })),
-    total,
-    page,
-    pageSize,
-  };
+  return { list: list.map(toSessionDto), total, page, pageSize };
 }
 
+function notifyForceLogout(tokenId: string) {
+  sendToToken(tokenId, { type: 'session:force-logout', payload: { reason: '您已被管理员强制下线' } });
+  setTimeout(() => closeTokenConnection(tokenId, '强制下线'), 500);
+}
+
+/** 管理端：强制下线指定会话（越出可见范围按不存在处理，不泄露其它租户会话是否存在） */
 export async function forceLogoutSession(tokenId: string) {
-  const allSessions = await getOnlineSessions();
-  const session = allSessions.find((s) => s.tokenId === tokenId);
+  const session = (await visibleSessions()).find((s) => s.tokenId === tokenId);
+  if (!session) throw new HTTPException(404, { message: '会话不存在' });
   const success = await forceLogout(tokenId);
   if (!success) throw new HTTPException(404, { message: '会话不存在' });
-  if (session) {
-    sendToToken(tokenId, { type: 'session:force-logout', payload: { reason: '您已被管理员强制下线' } });
-    setTimeout(() => closeTokenConnection(tokenId, '强制下线'), 500);
-  }
+  notifyForceLogout(tokenId);
 }
 
+/** 系统流程（目录同步 / SCIM / 生命周期）：强制下线某用户全部会话，不做操作者范围校验 */
 export async function forceLogoutAllUserSessions(userId: number) {
   const tokenIds = await forceLogoutAllByUser(userId);
   if (tokenIds.length === 0) throw new HTTPException(404, { message: '该用户暂无在线会话' });
@@ -51,36 +75,18 @@ export async function forceLogoutAllUserSessions(userId: number) {
   setTimeout(() => closeUserConnections(userId, '强制下线'), 500);
 }
 
+/** 管理端：强制下线指定用户全部会话，目标用户必须在当前操作者可见范围内 */
+export async function forceLogoutVisibleUserSessions(userId: number) {
+  const visible = (await visibleSessions()).some((s) => s.userId === userId);
+  if (!visible) throw new HTTPException(404, { message: '该用户暂无在线会话' });
+  await forceLogoutAllUserSessions(userId);
+}
+
 export async function getSessionBeforeAudit(tokenId: string) {
-  const allSessions = await getOnlineSessions();
-  const session = allSessions.find((s) => s.tokenId === tokenId);
-  if (!session) return null;
-  return {
-    tokenId: session.tokenId,
-    userId: session.userId,
-    username: session.username,
-    nickname: session.nickname,
-    ip: session.ip,
-    location: session.location ?? null,
-    browser: session.browser,
-    os: session.os,
-    loginAt: formatDateTime(session.loginAt),
-  };
+  const session = (await visibleSessions()).find((s) => s.tokenId === tokenId);
+  return session ? toSessionDto(session) : null;
 }
 
 export async function getUserSessionsBeforeAudit(userId: number) {
-  const allSessions = await getOnlineSessions();
-  return allSessions
-    .filter((s) => s.userId === userId)
-    .map((session) => ({
-      tokenId: session.tokenId,
-      userId: session.userId,
-      username: session.username,
-      nickname: session.nickname,
-      ip: session.ip,
-      location: session.location ?? null,
-      browser: session.browser,
-      os: session.os,
-      loginAt: formatDateTime(session.loginAt),
-    }));
+  return (await visibleSessions()).filter((s) => s.userId === userId).map(toSessionDto);
 }
