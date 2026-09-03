@@ -3,12 +3,12 @@
  * CRUD + 取数渲染（复用数据集取数 + shared 填充引擎 renderPrintContent）。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { ReportPrintValidationError, renderPrintContent } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDatasets, reportPrintTemplates } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { currentDateTime, formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
@@ -91,7 +91,7 @@ export async function listPrintTemplates(query: {
   if (ownerId) conds.push(eq(reportPrintTemplates.ownerId, ownerId));
   conds.push(keywordCondition(keyword, [reportPrintTemplates.name, reportPrintTemplates.remark], 'ilike'));
   if (status === 'enabled' || status === 'disabled') conds.push(eq(reportPrintTemplates.status, status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportPrintTemplates, where),
     db.query.reportPrintTemplates.findMany({
@@ -123,7 +123,7 @@ export async function listPrintTemplateLookup(query: {
   if (accessibleIds) conds.push(inArray(reportPrintTemplates.id, accessibleIds));
   conds.push(keywordCondition(keyword, [reportPrintTemplates.name, reportPrintTemplates.remark], 'ilike'));
   if (status) conds.push(eq(reportPrintTemplates.status, status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const rows = await db.select({
     id: reportPrintTemplates.id,
     name: reportPrintTemplates.name,

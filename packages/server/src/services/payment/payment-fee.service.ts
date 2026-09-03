@@ -17,7 +17,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { postSystemJournal, postSystemJournalWithin } from './payment-journal.service';
 import { paymentEventBus } from '../../lib/payment-event-bus';
@@ -57,7 +57,7 @@ export async function listFeeRules(q: ListFeeRulesQuery) {
   const conds = [];
   if (q.channel) conds.push(eq(paymentFeeRules.channel, q.channel));
   if (q.status) conds.push(eq(paymentFeeRules.status, q.status));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentFeeRules, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentFeeRules, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentFeeRules, where),
     withPagination(

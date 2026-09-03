@@ -24,7 +24,7 @@ import { ANALYTICS_ACQUISITION_CHANNEL_LABELS } from '@zenith/shared/analytics';
 import { clampDays, startOfDaysAgo } from '../../lib/analytics-helpers';
 import { formatDate } from '../../lib/datetime';
 import { tenantScope } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { breakdownLabel, breakdownValueSql } from './analytics-breakdown';
 
 export interface AcquisitionQuery {
@@ -51,10 +51,10 @@ export async function getAcquisitionReport(input: AcquisitionQuery): Promise<Ana
   const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 50);
 
   const dimExpr = breakdownValueSql(dimension);
-  const where = mergeWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
+  const where = buildWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
   // 全历史首见时间：用于区分「新用户」——窗口内首次出现 ≠ 真正的新用户，
   // 老用户在窗口内回访也会在窗口内"首次出现"
-  const historyWhere = mergeWhere(isNotNull(userEvents.distinctId), tenantScope(userEvents))!;
+  const historyWhere = buildWhere(isNotNull(userEvents.distinctId), tenantScope(userEvents))!;
   // 裸 Date 插进原生 sql`` 没有列类型可推断，postgres 驱动无法编码；
   // 显式转 ISO 字符串并标注 ::timestamptz，避免依赖驱动的隐式行为
   const startParam = sql`${start.toISOString()}::timestamptz`;

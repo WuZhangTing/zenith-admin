@@ -4,7 +4,7 @@ import { workflowCategories, workflowDefinitions } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
@@ -50,7 +50,7 @@ export async function listWorkflowCategories(q: ListWorkflowCategoriesQuery) {
   if (q.keyword) {
     conds.push(like(workflowCategories.name, `%${escapeLike(q.keyword)}%`));
   }
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowCategories, where),
     db.select().from(workflowCategories).where(where).orderBy(asc(workflowCategories.sort), desc(workflowCategories.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

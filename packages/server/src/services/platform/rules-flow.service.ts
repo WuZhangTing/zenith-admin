@@ -12,7 +12,7 @@ import { db } from '../../db';
 import { ruleDecisionFlows, ruleDecisionTables, ruleAssetVersions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -71,7 +71,7 @@ export async function listDecisionFlows(q: ListDecisionFlowsQuery) {
   if (tc) conds.push(tc);
   if (q.keyword) conds.push(like(ruleDecisionFlows.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(ruleDecisionFlows.status, q.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(ruleDecisionFlows, where),
     db.select().from(ruleDecisionFlows).where(where).orderBy(desc(ruleDecisionFlows.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

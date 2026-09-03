@@ -28,7 +28,7 @@ import {
 } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { isPgUniqueViolation } from '../../lib/db-errors';
 import { getAdapter } from '../../lib/payment';
@@ -149,7 +149,7 @@ export async function listDeductPlans(q: ListDeductPlansQuery) {
   const conds = [];
   if (q.keyword) conds.push(like(paymentDeductPlans.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(paymentDeductPlans.status, q.status));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, plansTenantCondition());
+  const where = buildWhere(...conds, plansTenantCondition());
   // 有效签约数（signed/paused）按计划分组后 LEFT JOIN。
   // 禁止在 sql`` 模板里做裸 Column 跨表比较（如 where ${a.planId} = ${b.id}）——
   // drizzle 渲染裸列名不带表限定，子查询内会自解析成恒真/自比较条件。
@@ -187,7 +187,7 @@ export async function allDeductPlans(scope?: { tenantId: number | null }): Promi
   const rows = await db
     .select()
     .from(paymentDeductPlans)
-    .where(mergeWhere(eq(paymentDeductPlans.status, 'enabled'), exactScope))
+    .where(buildWhere(eq(paymentDeductPlans.status, 'enabled'), exactScope))
     .orderBy(paymentDeductPlans.id);
   return rows.map((r) => mapDeductPlan(r));
 }
@@ -276,7 +276,7 @@ export async function buildContractsWhere(q: ListContractsQuery) {
   const end = parseDateRangeEnd(q.endTime);
   if (start) conds.push(gte(paymentContracts.createdAt, start));
   if (end) conds.push(lte(paymentContracts.createdAt, end));
-  return mergeWhere(conds.length ? and(...conds) : undefined, contractsTenantCondition());
+  return buildWhere(...conds, contractsTenantCondition());
 }
 
 export async function listContracts(q: ListContractsQuery) {
@@ -314,7 +314,7 @@ export async function ensureWritableContract(id: number, applicationId: number):
 
 export async function getContract(id: number, applicationId: number): Promise<PaymentContract> {
   const row = await db.query.paymentContracts.findFirst({
-    where: mergeWhere(and(eq(paymentContracts.id, id), eq(paymentContracts.appId, applicationId)), contractsTenantCondition()),
+    where: buildWhere(and(eq(paymentContracts.id, id), eq(paymentContracts.appId, applicationId)), contractsTenantCondition()),
     with: { plan: { columns: { name: true, period: true, amount: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '签约协议不存在' });

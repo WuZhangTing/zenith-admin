@@ -26,7 +26,7 @@ import { config } from '../../config';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { decryptField } from '../../lib/encryption';
 import { isPgUniqueViolation } from '../../lib/db-errors';
@@ -163,13 +163,13 @@ function channelConfigTenantCondition(tenantId: number | null | undefined) {
 async function buildOrderIdWhere(id: number) {
   const user = currentUser();
   const scope = await getDataScopeCondition({ currentUserId: user.userId, deptColumn: paymentOrders.departmentId, ownerColumn: paymentOrders.createdBy });
-  return mergeWhere(mergeWhere(eq(paymentOrders.id, id), tenantCondition(paymentOrders, user)), scope);
+  return buildWhere(buildWhere(eq(paymentOrders.id, id), tenantCondition(paymentOrders, user)), scope);
 }
 
 async function buildOrderNoWhere(orderNo: string) {
   const user = currentUser();
   const scope = await getDataScopeCondition({ currentUserId: user.userId, deptColumn: paymentOrders.departmentId, ownerColumn: paymentOrders.createdBy });
-  return mergeWhere(mergeWhere(eq(paymentOrders.orderNo, orderNo), tenantCondition(paymentOrders, user)), scope);
+  return buildWhere(buildWhere(eq(paymentOrders.orderNo, orderNo), tenantCondition(paymentOrders, user)), scope);
 }
 
 function buildEventPayload(type: PaymentEventType, order: PaymentOrderRow, extra?: { refundNo?: string; refundAmount?: number }): Omit<PaymentEvent, 'eventId' | 'occurredAt'> {
@@ -1399,10 +1399,10 @@ export async function buildOrdersWhere(q: ListOrdersQuery) {
   if (q.minAmount != null) conditions.push(gte(paymentOrders.amount, q.minAmount));
   if (q.maxAmount != null) conditions.push(lte(paymentOrders.amount, q.maxAmount));
   conditions.push(...dateRangeConditions(paymentOrders.createdAt, q.startTime, q.endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
   const tc = tenantCondition(paymentOrders, user);
   const scope = await getDataScopeCondition({ currentUserId: user.userId, deptColumn: paymentOrders.departmentId, ownerColumn: paymentOrders.createdBy });
-  return mergeWhere(mergeWhere(where, tc), scope);
+  return buildWhere(buildWhere(where, tc), scope);
 }
 
 export async function listOrders(q: ListOrdersQuery) {
@@ -1469,8 +1469,8 @@ export function buildRefundsWhere(q: ListRefundsQuery) {
   if (q.approvalStatus) conditions.push(eq(paymentRefunds.approvalStatus, q.approvalStatus));
   if (q.channel) conditions.push(eq(paymentRefunds.channel, q.channel));
   conditions.push(...dateRangeConditions(paymentRefunds.createdAt, q.startTime, q.endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
-  return mergeWhere(where, tenantCondition(paymentRefunds, currentUser()));
+  const where = buildWhere(...conditions);
+  return buildWhere(where, tenantCondition(paymentRefunds, currentUser()));
 }
 
 export async function listRefunds(q: ListRefundsQuery) {
@@ -1571,8 +1571,8 @@ export async function listNotifyLogs(q: ListNotifyLogsQuery) {
   if (q.scene) conditions.push(eq(paymentNotifyLogs.scene, q.scene));
   if (q.signatureValid != null) conditions.push(eq(paymentNotifyLogs.signatureValid, q.signatureValid));
   conditions.push(...dateRangeConditions(paymentNotifyLogs.createdAt, q.startTime, q.endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const finalWhere = mergeWhere(where, tenantCondition(paymentNotifyLogs, currentUser()));
+  const where = buildWhere(...conditions);
+  const finalWhere = buildWhere(where, tenantCondition(paymentNotifyLogs, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentNotifyLogs, finalWhere),
     withPagination(db.select().from(paymentNotifyLogs).where(finalWhere).orderBy(desc(paymentNotifyLogs.id)).$dynamic(), page, pageSize),

@@ -9,6 +9,7 @@ import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import type { DbExecutor } from '../../db/types';
 import type { WorkflowDelegation, CreateWorkflowDelegationInput, UpdateWorkflowDelegationInput } from '@zenith/shared/workflow';
+import { buildWhere } from '../../lib/where-helpers';
 
 type DelegationRow = typeof workflowDelegations.$inferSelect;
 
@@ -115,7 +116,7 @@ export async function listWorkflowDelegations(q: ListWorkflowDelegationsQuery) {
   } else if (q.principalId) {
     conds.push(eq(workflowDelegations.principalId, q.principalId));
   }
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowDelegations, where),
     db.query.workflowDelegations.findMany({

@@ -20,7 +20,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { dateRangeConditions, keywordCondition, mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext } from './payment.service';
@@ -673,7 +673,7 @@ export async function listTransfers(q: ListTransfersQuery) {
   if (q.status) conds.push(eq(paymentTransfers.status, q.status));
   if (q.approvalStatus) conds.push(eq(paymentTransfers.approvalStatus, q.approvalStatus));
   conds.push(...dateRangeConditions(paymentTransfers.createdAt, q.startTime, q.endTime));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentTransfers, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentTransfers, currentUser()));
   const [total, rows] = await Promise.all([
     db.$count(paymentTransfers, where),
     db.query.paymentTransfers.findMany({
@@ -692,7 +692,7 @@ export async function listTransfers(q: ListTransfersQuery) {
 export async function getTransferSummary(q: ListTransfersQuery) {
   const conds = [];
   if (q.channel) conds.push(eq(paymentTransfers.channel, q.channel));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentTransfers, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentTransfers, currentUser()));
   const [row] = await db
     .select({
       totalAmount: sql<number>`coalesce(sum(case when ${paymentTransfers.status} = 'success' then ${paymentTransfers.amount} else 0 end),0)`,

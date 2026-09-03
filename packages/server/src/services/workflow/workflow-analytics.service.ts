@@ -5,7 +5,7 @@ import { workflowInstances, workflowTasks, workflowDefinitions, workflowCategori
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import type { WorkflowAnalytics, WorkflowInstanceStatus, WorkflowAnalyticsTrendPoint, WorkflowOverdueTask } from '@zenith/shared/workflow';
 import { WORKFLOW_INSTANCE_STATUS_LABELS } from '@zenith/shared/workflow';
@@ -20,7 +20,7 @@ export async function getWorkflowAnalytics(query: { definitionId?: number } = {}
   const instConds: SQL[] = [];
   if (instTenant) instConds.push(instTenant);
   if (query.definitionId) instConds.push(eq(workflowInstances.definitionId, query.definitionId));
-  const instWhere = instConds.length ? and(...instConds) : undefined;
+  const instWhere = buildWhere(...instConds);
 
   const since14 = dayjs().subtract(13, 'day').startOf('day').toDate();
   const since7 = dayjs().subtract(7, 'day').toDate();
@@ -295,7 +295,7 @@ function buildInstancesExportWhere(query: WorkflowInstanceExportQuery) {
   if (query.categoryId) conds.push(eq(workflowDefinitions.categoryId, query.categoryId));
   if (query.definitionId) conds.push(eq(workflowInstances.definitionId, query.definitionId));
   if (query.initiatorKeyword) conds.push(ilike(users.nickname, `%${escapeLike(query.initiatorKeyword)}%`));
-  return conds.length ? and(...conds) : undefined;
+  return buildWhere(...conds);
 }
 
 /** 导出流程实例列表（与监控筛选一致，最多 10000 行），返回展示就绪的行 */

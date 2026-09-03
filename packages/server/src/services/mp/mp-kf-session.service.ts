@@ -19,7 +19,7 @@ import {
 import type {
   MpKfSessionRow, MpKfRoutingConfigRow, MpAccountRow,
 } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatDate } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUserOrNull } from '../../lib/context';
@@ -329,7 +329,7 @@ export async function listMpKfSessions(q: ListMpKfSessionsQuery) {
     const kw = `%${escapeLike(q.keyword)}%`;
     conditions.push(sql`(${mpKfSessions.openid} ilike ${kw} or ${mpFans.nickname} ilike ${kw})`);
   }
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
 
   const order = q.status === 'waiting'
     ? [desc(mpKfSessions.priority), asc(mpKfSessions.waitingSince)]
@@ -475,7 +475,7 @@ export async function getMpKfSessionReport(accountId: number, days: number): Pro
   const since = new Date();
   since.setDate(since.getDate() - (days - 1));
   since.setHours(0, 0, 0, 0);
-  const base = (extra: SQL) => mergeWhere(tenant ? and(extra, tenant) : extra);
+  const base = (extra: SQL) => buildWhere(tenant ? and(extra, tenant) : extra);
 
   const [createdRows, closedRows] = await Promise.all([
     db.select({ d: sql<string>`to_char(${mpKfSessions.createdAt}, 'YYYY-MM-DD')`, n: sql<number>`count(*)::int` })

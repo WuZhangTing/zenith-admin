@@ -10,7 +10,7 @@ import { db } from '../../db';
 import { paymentCashierSessions, paymentLinkRedemptions, paymentLinks, paymentOrders, type PaymentLinkRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { createPayment } from './payment.service';
 import { bindCashierSession, bindCashierSessionAfterCreateFailure, buildCashierSessionExpiry, createCashierSession, failCashierSession, getPublicCashierSession, releaseExpiredCashierUseSlots } from './payment-cashier-session.service';
@@ -116,7 +116,7 @@ export async function listLinks(q: ListLinksQuery) {
   } else if (q.status === 'disabled') {
     conds.push(eq(paymentLinks.status, 'disabled'));
   }
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentLinks, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentLinks, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentLinks, where),
     withPagination(db.select().from(paymentLinks).where(where).orderBy(desc(paymentLinks.id)).$dynamic(), page, pageSize),

@@ -1,6 +1,6 @@
 import { eq, and, inArray } from 'drizzle-orm';
 import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
-import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbTransaction } from '../../db/types';
 import { roles, roleMenus, roleDeptScopes, userRoles, menus } from '../../db/schema';
@@ -50,7 +50,7 @@ export async function listRoles(q: ListRolesQuery) {
   conditions.push(...dateRangeConditions(roles.createdAt, q.startTime, q.endTime));
   const where = and(...conditions);
   const tc = tenantCondition(roles, user);
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
   const [total, list] = await Promise.all([
     db.$count(roles, finalWhere),
     withPagination(db.select().from(roles).where(finalWhere).orderBy(roles.id).$dynamic(), page, pageSize),

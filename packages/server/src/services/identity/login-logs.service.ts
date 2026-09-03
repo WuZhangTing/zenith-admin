@@ -1,5 +1,5 @@
 import { desc, eq, like, and, or, gte, lt, lte, count, sql, inArray } from 'drizzle-orm';
-import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { loginLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
@@ -33,7 +33,7 @@ export async function listLoginLogs(q: ListLoginLogsQuery) {
   conditions.push(...dateRangeConditions(loginLogs.createdAt, q.startTime, q.endTime));
   const where = and(...conditions);
   const tc = tenantCondition(loginLogs, user);
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(loginLogs, finalWhere),
     withPagination(db.select().from(loginLogs).where(finalWhere).orderBy(desc(loginLogs.createdAt)).$dynamic(), page, pageSize),

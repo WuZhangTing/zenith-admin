@@ -19,7 +19,7 @@ import { getAdapter } from '../../lib/payment';
 import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { keywordCondition, mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { PAYMENT_METHOD_CHANNEL } from '@zenith/shared/payment';
 import type {
   CapturePaymentPreauthInput,
@@ -174,7 +174,7 @@ export async function listPreauths(q: ListPreauthsQuery) {
   const end = parseDateRangeEnd(q.endTime);
   if (start) conds.push(gte(paymentPreauths.createdAt, start));
   if (end) conds.push(lte(paymentPreauths.createdAt, end));
-  const where = mergeWhere(and(...conds), preauthsTenantCondition());
+  const where = buildWhere(...conds, preauthsTenantCondition());
   const [total, rows] = await Promise.all([
     db.$count(paymentPreauths, where),
     db.query.paymentPreauths.findMany({

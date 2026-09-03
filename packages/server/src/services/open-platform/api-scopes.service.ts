@@ -1,4 +1,4 @@
-import { eq, and, or, desc, ilike, inArray, sql, type SQL } from 'drizzle-orm';
+import { eq, or, desc, ilike, inArray, sql, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { apiScopes, oauth2Clients } from '../../db/schema';
 import type { ApiScopeRow } from '../../db/schema';
@@ -6,7 +6,7 @@ import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import type { CreateApiScopeInput, UpdateApiScopeInput } from '@zenith/shared/open-platform';
 
 export function mapApiScope(row: ApiScopeRow, usedByAppCount = 0) {
@@ -58,7 +58,7 @@ export async function listApiScopes(opts: {
   }
   if (scopeGroup) conditions.push(eq(apiScopes.scopeGroup, scopeGroup));
   if (status) conditions.push(eq(apiScopes.status, status));
-  const where = conditions.length ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
 
   const [list, total] = await Promise.all([
     db.select().from(apiScopes)

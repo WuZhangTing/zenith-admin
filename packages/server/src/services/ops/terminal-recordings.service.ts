@@ -1,9 +1,9 @@
-import { eq, and, desc, asc, ilike, gte, lte, lt, inArray, sql } from 'drizzle-orm';
+import { eq, desc, asc, ilike, gte, lte, lt, inArray, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { terminalRecordings, users, type RecordingEvent } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { getConfigNumber } from '../../lib/system-config';
 
 export interface CreateRecordingInput {
@@ -104,7 +104,7 @@ export async function listRecordings(params: ListRecordingsParams) {
   if (shell) conditions.push(eq(terminalRecordings.shell, shell));
   if (startDate) conditions.push(gte(terminalRecordings.createdAt, startDate));
   if (endDate) conditions.push(lte(terminalRecordings.createdAt, endDate));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
 
   const baseQuery = db
     .select({ ...recordingBaseColumns, commandCount: commandCountExpr })

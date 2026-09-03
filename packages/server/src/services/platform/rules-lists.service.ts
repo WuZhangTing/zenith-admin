@@ -8,7 +8,7 @@ import { db } from '../../db';
 import { ruleLists, ruleListItems, paymentRiskRules } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
@@ -65,7 +65,7 @@ export async function listRuleLists(q: ListRuleListsQuery) {
   if (tc) conds.push(tc);
   if (q.keyword) conds.push(like(ruleLists.name, `%${escapeLike(q.keyword)}%`));
   if (q.type) conds.push(eq(ruleLists.type, q.type));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(ruleLists, where),
     db.select().from(ruleLists).where(where).orderBy(desc(ruleLists.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

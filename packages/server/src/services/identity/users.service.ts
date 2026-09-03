@@ -11,7 +11,7 @@ import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import { getTenantPackageFeatureSet } from '../../lib/tenant-package';
 import { pageOffset } from '../../lib/pagination';
 import { getDataScopeCondition } from '../../lib/data-scope';
-import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, escapeLike, keywordCondition } from '../../lib/where-helpers';
 import { getPasswordPolicy, validatePassword } from '../../lib/password-policy';
 import { unlockUser as unlockUserSession, batchCheckLoginLock, getOnlineSessions, forceLogoutAllByUsers } from '../../lib/session-manager';
 import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../../lib/excel-export';
@@ -79,7 +79,7 @@ async function manageableUsersCondition(): Promise<SQL | undefined> {
     currentUserId: user.userId, deptColumn: users.departmentId, ownerColumn: users.id,
   });
   if (scope) conditions.push(scope);
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return buildWhere(...conditions);
 }
 
 /** 校验目标用户存在且落在当前操作者可管理范围内（防越权/跨租户 IDOR），返回其租户归属 */
@@ -252,7 +252,7 @@ export async function listAlertRecipientUsers(): Promise<AlertRecipientUser[]> {
     with: {
       department: { columns: { name: true } },
     },
-    where: mergeWhere(eq(users.status, 'enabled'), tenantCondition(users, currentUser())),
+    where: buildWhere(eq(users.status, 'enabled'), tenantCondition(users, currentUser())),
     orderBy: users.id,
   });
   return rows.map((user) => ({
@@ -284,7 +284,7 @@ export async function buildUsersListWhere(q: ListUsersQuery, user: JwtPayload): 
   if (scopeCondition) conditions.push(scopeCondition);
   const tc = tenantCondition(users, user);
   if (tc) conditions.push(tc);
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return buildWhere(...conditions);
 }
 
 export async function listUsers(q: ListUsersQuery) {

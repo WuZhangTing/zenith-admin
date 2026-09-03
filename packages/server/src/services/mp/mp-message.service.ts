@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMessages, mpFans } from '../../db/schema';
 import type { MpMessageRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -49,7 +49,7 @@ export async function listMessages(q: ListMpMessagesQuery) {
   if (q.direction) conditions.push(eq(mpMessages.direction, q.direction));
   if (q.msgType) conditions.push(eq(mpMessages.msgType, q.msgType));
   if (q.keyword) conditions.push(ilike(mpMessages.content, `%${escapeLike(q.keyword)}%`));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpMessages, where),
     withPagination(db.select().from(mpMessages).where(where).orderBy(desc(mpMessages.id)).$dynamic(), q.page, q.pageSize),

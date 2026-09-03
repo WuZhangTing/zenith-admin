@@ -10,7 +10,7 @@ import {
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
@@ -104,7 +104,7 @@ export async function listSubscriptions(q: ListSubscriptionsQuery) {
     conds.push(q.definitionId === null ? isNull(workflowEventSubscriptions.definitionId) : eq(workflowEventSubscriptions.definitionId, q.definitionId));
   }
   if (q.enabled !== undefined) conds.push(eq(workflowEventSubscriptions.enabled, q.enabled));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowEventSubscriptions, where),
     db.select({

@@ -15,6 +15,7 @@ import {
 } from './report-query-capacity.service';
 import { getReportRuntimeGovernance } from './report-dataset-shared';
 import type { ReportDatasetExecutionLog, ReportExecutionStats } from '@zenith/shared/report';
+import { buildWhere } from '../../lib/where-helpers';
 
 function mapDatasetExecutionLog(row: {
   id: number;
@@ -88,7 +89,7 @@ export async function listDatasetExecutionLogs(query: {
   if (slow !== undefined) conds.push(eq(reportDatasetExecutionLogs.slow, slow));
   if (startAt) conds.push(gte(reportDatasetExecutionLogs.executedAt, startAt));
   if (endAt) conds.push(lte(reportDatasetExecutionLogs.executedAt, endAt));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDatasetExecutionLogs, where),
     db.select({
@@ -150,7 +151,7 @@ export async function getDatasetExecutionStats(query: {
   if (query.dashboardId) conds.push(and(eq(reportDatasetExecutionLogs.scene, 'dashboard'), eq(reportDatasetExecutionLogs.sourceRefId, String(query.dashboardId))));
   if (query.startAt) conds.push(gte(reportDatasetExecutionLogs.executedAt, query.startAt));
   if (query.endAt) conds.push(lte(reportDatasetExecutionLogs.executedAt, query.endAt));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const trendStart = query.startAt ?? dayjs().subtract(7, 'day').toDate();
   const trendEnd = query.endAt ?? new Date();
   // 汇总与慢查询 Top 来自同一张日志表，必须取同一数据快照，否则并发写入下

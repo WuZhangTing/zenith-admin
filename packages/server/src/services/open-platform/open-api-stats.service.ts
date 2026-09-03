@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { openApiCallLogs, openApiCallStatsDaily } from '../../db/schema';
 import { APP_TIME_ZONE, formatDate, formatDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { getPolicyRetentionDays } from '../../lib/retention';
 import { HTTPException } from 'hono/http-exception';
 
@@ -82,7 +82,7 @@ export async function getOpenApiStatsOverview(opts: OpenApiStatsRangeInput) {
   const watermark = await aggregationWatermark();
   assertAggregateBoundaryCompatible(opts, watermark);
   const rawConditions = rawTailConditions(opts, watermark);
-  const rawWhere = rawConditions.length ? and(...rawConditions) : undefined;
+  const rawWhere = buildWhere(...rawConditions);
   const dailyConditions = dailyRangeConditions(opts);
   dailyConditions.push(watermark ? lte(openApiCallStatsDaily.statDate, watermark) : sql`false`);
   const dailyWhere = and(...dailyConditions);
@@ -108,7 +108,7 @@ export async function getOpenApiStatsOverview(opts: OpenApiStatsRangeInput) {
     db.select({
         p95: p95Duration,
         p99: p99Duration,
-    }).from(openApiCallLogs).where(percentileWhere.length ? and(...percentileWhere) : undefined),
+    }).from(openApiCallLogs).where(buildWhere(...percentileWhere)),
     db.selectDistinct({ clientId: openApiCallLogs.clientId })
       .from(openApiCallLogs)
       .where(rawWhere),
@@ -145,7 +145,7 @@ export async function getOpenApiStatsOverview(opts: OpenApiStatsRangeInput) {
 
 export async function getOpenApiStatsTrend(opts: OpenApiStatsRangeInput & { granularity?: 'hour' | 'day' }) {
   const conds = rangeConditions(opts);
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   if (opts.granularity !== 'hour') {
     const watermark = await aggregationWatermark();
     assertAggregateBoundaryCompatible(opts, watermark);
@@ -167,7 +167,7 @@ export async function getOpenApiStatsTrend(opts: OpenApiStatsRangeInput & { gran
         total: count(),
         success: successFilter,
       }).from(openApiCallLogs)
-        .where(rawConditions.length ? and(...rawConditions) : undefined)
+        .where(buildWhere(...rawConditions))
         .groupBy(sql`to_char(${openApiCallLogs.createdAt} at time zone 'UTC' at time zone ${APP_TIME_ZONE_SQL}, 'YYYY-MM-DD')`),
     ]);
     return [...dailyRows.map((row) => ({
@@ -232,7 +232,7 @@ async function groupBy(opts: OpenApiStatsRangeInput & { limit?: number }, withNa
       success: successFilter,
       durationSum: sql<number>`coalesce(sum(${openApiCallLogs.durationMs}), 0)`,
     }).from(openApiCallLogs)
-      .where(rawConditions.length ? and(...rawConditions) : undefined)
+      .where(buildWhere(...rawConditions))
       .groupBy(rawColumn),
     db.select({
       key: dailyColumn,
@@ -304,7 +304,7 @@ export function buildOpenApiCallLogWhere(opts: Omit<OpenApiCallLogQuery, 'page' 
     const kw = `%${escapeLike(opts.keyword)}%`;
     conds.push(or(ilike(openApiCallLogs.path, kw), ilike(openApiCallLogs.appName, kw)) as SQL);
   }
-  return conds.length ? and(...conds) : undefined;
+  return buildWhere(...conds);
 }
 
 export async function listOpenApiCallLogs(opts: OpenApiCallLogQuery) {

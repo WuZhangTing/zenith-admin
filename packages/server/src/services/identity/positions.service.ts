@@ -1,5 +1,5 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
-import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { positions, userPositions, users } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
@@ -56,7 +56,7 @@ export async function listPositions(q: ListPositionsQuery) {
 
   const where = and(...conditions);
   const tc = tenantCondition(positions, currentUser());
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
 
   const [total, list] = await Promise.all([
     db.$count(positions, finalWhere),

@@ -12,7 +12,7 @@ import { currentUserId, currentUserOrNull } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import {
   assertDatasetEvaluableGlobally,
   ensureDatasetExists,
@@ -146,7 +146,7 @@ export async function listReportMetrics(query: {
   if (status === 'draft' || status === 'published' || status === 'deprecated') {
     conds.push(eq(reportMetrics.lifecycleStatus, status));
   }
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportMetrics, where),
     db.query.reportMetrics.findMany({
@@ -184,7 +184,7 @@ export async function listReportMetricLookup(query: {
     status: reportMetrics.lifecycleStatus,
     datasetId: reportMetrics.datasetId,
   }).from(reportMetrics)
-    .where(conds.length ? and(...conds) : undefined)
+    .where(buildWhere(...conds))
     .orderBy(desc(reportMetrics.id))
     .limit(Math.min(Math.max(query.limit ?? 20, 1), 200));
   return rows.map((row) => ({ ...row, type: 'metric' as const }));

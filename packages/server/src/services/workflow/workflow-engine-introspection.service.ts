@@ -13,6 +13,7 @@ import { tenantCondition } from '../../lib/tenant';
 import { getWorkflowEventBusIntrospection } from '../../lib/workflow-event-bus';
 import { validateFlowData } from '../../lib/workflow-engine';
 import { mapTriggerExecution as mapSharedTriggerExecution } from './workflow-trigger-executions.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 type ComponentKey = WorkflowEngineComponent['key'];
 
@@ -58,10 +59,6 @@ const COMPONENT_LABELS: Record<ComponentKey, { name: string; description: string
     description: '承载用户 Cron、系统周期任务、延时唤醒队列和工作流恢复扫描。',
   },
 };
-
-function whereOrUndefined(conditions: SQL[]): SQL | undefined {
-  return conditions.length > 0 ? and(...conditions) : undefined;
-}
 
 function ageMinutes(value: Date | null | undefined, now = new Date()): number | null {
   if (!value) return null;
@@ -600,7 +597,7 @@ export async function getWorkflowEngineIntrospection(
   const instanceBaseConds: SQL[] = [];
   if (instTenant) instanceBaseConds.push(instTenant);
   if (taskScope) instanceBaseConds.push(taskScope);
-  const instanceBaseWhere = whereOrUndefined(instanceBaseConds);
+  const instanceBaseWhere = buildWhere(...instanceBaseConds);
 
   const taskBaseConds: SQL[] = [eq(workflowInstances.status, 'running')];
   if (instTenant) taskBaseConds.push(instTenant);
@@ -714,26 +711,26 @@ export async function getWorkflowEngineIntrospection(
       .innerJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(workflowTasks, eq(workflowJobs.taskId, workflowTasks.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(whereOrUndefined([
-        ...(instTenant ? [instTenant] : []),
-        ...(taskScope ? [taskScope] : []),
+      .where(buildWhere(
+        instTenant,
+        taskScope,
         eq(workflowJobExecutions.jobType, 'trigger_dispatch'),
         notInArray(workflowJobExecutions.status, ['succeeded']),
         // 活动问题只关注近 24h 的失败执行：历史失败已沉淀在作业账本/死信，避免长期压制健康分
         gte(workflowJobExecutions.createdAt, since24h),
-      ]))
+      ))
       .orderBy(desc(workflowJobExecutions.id))
       .limit(100),
     db.select({ row: workflowJobs, instanceTitle: workflowInstances.title })
       .from(workflowJobs)
       .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(whereOrUndefined([
-        ...(outboxTenant ? [outboxTenant] : []),
+      .where(buildWhere(
+        outboxTenant,
         eq(workflowJobs.jobType, 'event_dispatch'),
         or(isNull(workflowJobs.instanceId), instanceBaseWhere ?? sql`true`)!,
         notInArray(workflowJobs.status, ['succeeded']),
-      ]))
+      ))
       .orderBy(desc(workflowJobs.id))
       .limit(100),
     db.select({
@@ -764,7 +761,7 @@ export async function getWorkflowEngineIntrospection(
       .from(workflowJobs)
       .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(whereOrUndefined(outboxScopeConds)),
+      .where(buildWhere(...outboxScopeConds)),
     db.select({
       total24h: sql<number>`count(*) filter (where ${gte(workflowJobExecutions.createdAt, since24h)})`.mapWith(Number),
       success24h: sql<number>`count(*) filter (where ${and(eq(workflowJobExecutions.status, 'succeeded'), gte(workflowJobExecutions.createdAt, since24h))})`.mapWith(Number),
@@ -789,7 +786,7 @@ export async function getWorkflowEngineIntrospection(
       .innerJoin(workflowJobs, eq(workflowJobExecutions.jobId, workflowJobs.id))
       .innerJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(whereOrUndefined(triggerScopeConds)),
+      .where(buildWhere(...triggerScopeConds)),
     db.select({
       createdLast24h: sql<number>`count(*) filter (where ${gte(workflowInstances.createdAt, since24h)})`.mapWith(Number),
       completedLast24h: sql<number>`count(*) filter (where ${and(inArray(workflowInstances.status, [...terminalStatuses]), gte(workflowInstances.updatedAt, since24h))})`.mapWith(Number),
@@ -804,18 +801,18 @@ export async function getWorkflowEngineIntrospection(
       .from(workflowJobs)
       .leftJoin(workflowInstances, eq(workflowJobs.instanceId, workflowInstances.id))
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(whereOrUndefined([...outboxScopeConds, gte(workflowJobs.createdAt, since24h)]))
+      .where(buildWhere(...outboxScopeConds, gte(workflowJobs.createdAt, since24h)))
       .limit(SERIES_ROW_LIMIT),
     db.select({ createdAt: workflowInstances.createdAt, updatedAt: workflowInstances.updatedAt, status: workflowInstances.status })
       .from(workflowInstances)
       .leftJoin(users, eq(workflowInstances.initiatorId, users.id))
-      .where(whereOrUndefined([
+      .where(buildWhere(
         ...instanceBaseConds,
         or(
           gte(workflowInstances.createdAt, since24h),
           and(inArray(workflowInstances.status, [...terminalStatuses]), gte(workflowInstances.updatedAt, since24h)),
         )!,
-      ]))
+      ))
       .limit(SERIES_ROW_LIMIT),
   ]);
 

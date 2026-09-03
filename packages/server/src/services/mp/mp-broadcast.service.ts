@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpBroadcasts, mpTags, mpAccounts } from '../../db/schema';
 import type { MpBroadcastRow } from '../../db/schema';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -56,7 +56,7 @@ export async function listMpBroadcasts(q: ListMpBroadcastsQuery) {
   const tenant = tenantScope(mpBroadcasts);
   if (tenant) conditions.push(tenant);
   if (q.status) conditions.push(eq(mpBroadcasts.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpBroadcasts, where),
     withPagination(db.select().from(mpBroadcasts).where(where).orderBy(desc(mpBroadcasts.id)).$dynamic(), q.page, q.pageSize),

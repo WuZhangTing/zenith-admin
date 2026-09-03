@@ -13,7 +13,7 @@ import {
   reportDashboardFavorites,
 } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull, hasPermission } from '../../lib/context';
@@ -237,7 +237,7 @@ export async function listDashboards(query: {
     if (ids.length === 0) return { list: [], total: 0, page, pageSize };
     conds.push(inArray(reportDashboards.id, ids));
   }
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDashboards, where),
     db.query.reportDashboards.findMany({
@@ -286,7 +286,7 @@ export async function listDashboardLookup(query: {
   conds.push(keywordCondition(keyword, [reportDashboards.name, reportDashboards.remark], 'ilike'));
   if (status) conds.push(eq(reportDashboards.status, status));
   if (excludeId) conds.push(sql`${reportDashboards.id} <> ${excludeId}`);
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const rows = await db.select({
     id: reportDashboards.id,
     name: reportDashboards.name,

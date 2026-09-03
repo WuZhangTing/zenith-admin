@@ -14,7 +14,7 @@ import { db } from '../../db';
 import { ruleScorecards, ruleAssetVersions } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -94,7 +94,7 @@ export async function listRuleScorecards(q: ListRuleScorecardsQuery) {
   if (tc) conds.push(tc);
   if (q.keyword) conds.push(like(ruleScorecards.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(ruleScorecards.status, q.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(ruleScorecards, where),
     db.select().from(ruleScorecards).where(where).orderBy(desc(ruleScorecards.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

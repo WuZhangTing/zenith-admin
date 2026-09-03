@@ -1,10 +1,10 @@
-import { and, eq, like, desc, sql } from 'drizzle-orm';
+import { eq, like, desc, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { analyticsEventMeta, analyticsSavedReports, analyticsUserSegments, analyticsExperiments, users } from '../../db/schema';
 import type { AnalyticsEventMetaRow } from '../../db/schema';
 import type { TrackEventInput, CreateAnalyticsEventMetaInput, UpdateAnalyticsEventMetaInput } from '@zenith/shared/analytics';
-import { mergeWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -73,7 +73,7 @@ export async function listEventMeta(q: EventMetaListQuery) {
   if (q.status) conditions.push(eq(analyticsEventMeta.status, q.status as 'active'));
   if (q.category) conditions.push(eq(analyticsEventMeta.category, q.category));
   // 事件字典为平台级全局分类（事件名全局唯一，跨租户共享），不做租户隔离
-  const where = mergeWhere(conditions.length ? and(...conditions) : undefined, undefined);
+  const where = buildWhere(...conditions);
 
   const [list, total] = await Promise.all([
     db.select().from(analyticsEventMeta).where(where).orderBy(desc(analyticsEventMeta.eventCount)).limit(pageSize).offset(pageOffset(page, pageSize)),
@@ -166,17 +166,17 @@ export async function getEventMetaReferences(eventName: string) {
   const [savedReports, segments, experiments] = await Promise.all([
     db.select({ id: analyticsSavedReports.id, name: analyticsSavedReports.name })
       .from(analyticsSavedReports)
-      .where(mergeWhere(sql`${analyticsSavedReports.config}->'steps' @> ${elementMatch}::jsonb`, tenantScope(analyticsSavedReports)))
+      .where(buildWhere(sql`${analyticsSavedReports.config}->'steps' @> ${elementMatch}::jsonb`, tenantScope(analyticsSavedReports)))
       .orderBy(analyticsSavedReports.id)
       .limit(50),
     db.select({ id: analyticsUserSegments.id, name: analyticsUserSegments.name })
       .from(analyticsUserSegments)
-      .where(mergeWhere(sql`${analyticsUserSegments.rules}->'conditions' @> ${elementMatch}::jsonb`, tenantScope(analyticsUserSegments)))
+      .where(buildWhere(sql`${analyticsUserSegments.rules}->'conditions' @> ${elementMatch}::jsonb`, tenantScope(analyticsUserSegments)))
       .orderBy(analyticsUserSegments.id)
       .limit(50),
     db.select({ id: analyticsExperiments.id, name: analyticsExperiments.name })
       .from(analyticsExperiments)
-      .where(mergeWhere(eq(analyticsExperiments.metricEventName, eventName), tenantScope(analyticsExperiments)))
+      .where(buildWhere(eq(analyticsExperiments.metricEventName, eventName), tenantScope(analyticsExperiments)))
       .orderBy(analyticsExperiments.id)
       .limit(50),
   ]);

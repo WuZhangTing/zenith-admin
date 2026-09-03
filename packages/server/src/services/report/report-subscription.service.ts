@@ -4,7 +4,7 @@ import { aggregateReportRows } from '@zenith/shared/report';
 import { db } from '../../db';
 import { reportDashboardSubscriptions, reportDeliveryRuns } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
 import { escapeHtml, trimNullableText } from '../../lib/text-utils';
@@ -127,7 +127,7 @@ export async function listSubscriptions(query: { page?: number; pageSize?: numbe
   conds.push(keywordCondition(keyword, [reportDashboardSubscriptions.cron, reportDashboardSubscriptions.remark], 'ilike'));
   if (dashboardId) conds.push(eq(reportDashboardSubscriptions.dashboardId, dashboardId));
   if (query.enabled !== undefined) conds.push(eq(reportDashboardSubscriptions.enabled, query.enabled));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDashboardSubscriptions, where),
     db.query.reportDashboardSubscriptions.findMany({

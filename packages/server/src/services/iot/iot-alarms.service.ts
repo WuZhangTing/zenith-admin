@@ -22,7 +22,7 @@ import {
 } from '../../db/schema';
 import { users } from '../../db/schema/core';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { buildWhere, dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { currentUser, currentUserId } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import redis from '../../lib/redis';
@@ -240,7 +240,7 @@ export interface ListIotAlarmsQuery {
 
 export async function listIotAlarms(q: ListIotAlarmsQuery) {
   const { page = 1, pageSize = 10 } = q;
-  const where = mergeWhere(
+  const where = buildWhere(
     buildWhere(
       keywordCondition(q.keyword, [iotAlarms.ruleName, iotAlarms.message, iotDevices.name, iotDevices.sn]),
       q.status ? eq(iotAlarms.status, q.status) : undefined,

@@ -7,7 +7,7 @@ import type { FrontendErrorType, ErrorLevel, UpdateErrorGroupInput, SourceMapUpl
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { mergeWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, computeErrorFingerprint, startOfDaysAgo, clampDays, clampLimit, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
@@ -253,7 +253,7 @@ export async function listGroups(q: GroupListQuery) {
   if (q.assigneeId) conditions.push(eq(errorGroups.assigneeId, q.assigneeId));
   if (q.keyword) conditions.push(like(errorGroups.message, `%${escapeLike(q.keyword)}%`));
   if (q.environment) conditions.push(eq(errorGroups.environment, q.environment as 'production'));
-  const where = mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(errorGroups));
+  const where = buildWhere(...conditions, tenantScope(errorGroups));
 
   const [list, total] = await Promise.all([
     db.select().from(errorGroups).where(where).orderBy(desc(errorGroups.lastSeenAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
@@ -292,7 +292,7 @@ export async function listGroups(q: GroupListQuery) {
 }
 
 export async function ensureGroupExists(id: number) {
-  const [row] = await db.select().from(errorGroups).where(mergeWhere(eq(errorGroups.id, id), tenantScope(errorGroups))).limit(1);
+  const [row] = await db.select().from(errorGroups).where(buildWhere(eq(errorGroups.id, id), tenantScope(errorGroups))).limit(1);
   if (!row) throw new HTTPException(404, { message: '错误分组不存在' });
   return row;
 }
@@ -320,7 +320,7 @@ export async function getGroupDetail(id: number) {
     const maps = await db
       .select({ id: sourceMaps.id, updatedAt: sourceMaps.updatedAt, fileName: sourceMaps.fileName, content: sourceMaps.content })
       .from(sourceMaps)
-      .where(mergeWhere(eq(sourceMaps.release, latest.release), tenantScope(sourceMaps)));
+      .where(buildWhere(eq(sourceMaps.release, latest.release), tenantScope(sourceMaps)));
     if (maps.length > 0) {
       symbolicatedStack = await symbolicateStack(
         latest.stack,
@@ -354,7 +354,7 @@ export async function updateGroup(id: number, input: UpdateErrorGroupInput) {
       const [u] = await db
         .select({ nickname: users.nickname, username: users.username })
         .from(users)
-        .where(mergeWhere(eq(users.id, input.assigneeId), tenantScope(users)))
+        .where(buildWhere(eq(users.id, input.assigneeId), tenantScope(users)))
         .limit(1);
       if (!u) throw new HTTPException(400, { message: '指派用户不存在或不属于当前租户' });
       assigneeName = u.nickname || u.username;
@@ -399,14 +399,14 @@ export async function updateGroup(id: number, input: UpdateErrorGroupInput) {
 
 export async function batchUpdateGroupStatus(ids: number[], status: 'unresolved' | 'resolved' | 'ignored' | 'muted') {
   if (ids.length === 0) return 0;
-  const where = mergeWhere(inArray(errorGroups.id, ids), tenantScope(errorGroups));
+  const where = buildWhere(inArray(errorGroups.id, ids), tenantScope(errorGroups));
   const res = await db.update(errorGroups).set({ status, resolvedAt: status === 'resolved' ? new Date() : null }).where(where);
   return (res as unknown as { rowCount?: number }).rowCount ?? 0;
 }
 
 export async function deleteGroups(ids: number[]) {
   if (ids.length === 0) return 0;
-  const where = mergeWhere(inArray(errorGroups.id, ids), tenantScope(errorGroups));
+  const where = buildWhere(inArray(errorGroups.id, ids), tenantScope(errorGroups));
   const res = await db.delete(errorGroups).where(where);
   return (res as unknown as { rowCount?: number }).rowCount ?? 0;
 }
@@ -418,7 +418,7 @@ export async function getErrorOverview(daysRaw: unknown) {
   const todayStart = parseDateRangeStart(formatDate(new Date())) ?? new Date();
   const gScope = tenantScope(errorGroups);
   const eScope = tenantScope(errorEvents);
-  const recentGroups = mergeWhere(gte(errorGroups.lastSeenAt, start), gScope);
+  const recentGroups = buildWhere(gte(errorGroups.lastSeenAt, start), gScope);
 
   const [totals, byType, byLevel, trendRows, affected, topIssues, newToday] = await Promise.all([
     db
@@ -434,11 +434,11 @@ export async function getErrorOverview(daysRaw: unknown) {
     db
       .select({ date: sql<string>`to_char(timezone(${APP_TIME_ZONE}, ${errorEvents.createdAt}), 'YYYY-MM-DD')`, occurrences: sql<number>`COUNT(*)::int`, groups: countDistinct(errorEvents.groupId) })
       .from(errorEvents)
-      .where(mergeWhere(gte(errorEvents.createdAt, start), eScope))
+      .where(buildWhere(gte(errorEvents.createdAt, start), eScope))
       .groupBy(sql`1`),
-    db.select({ n: sql<number>`COUNT(DISTINCT ${affectedIdentity})::int` }).from(errorEvents).where(mergeWhere(gte(errorEvents.createdAt, start), eScope)),
-    db.select().from(errorGroups).where(mergeWhere(and(eq(errorGroups.status, 'unresolved'), gte(errorGroups.lastSeenAt, start)), gScope)).orderBy(desc(errorGroups.count)).limit(10),
-    db.select({ n: sql<number>`COUNT(*)::int` }).from(errorGroups).where(mergeWhere(gte(errorGroups.firstSeenAt, todayStart), gScope)),
+    db.select({ n: sql<number>`COUNT(DISTINCT ${affectedIdentity})::int` }).from(errorEvents).where(buildWhere(gte(errorEvents.createdAt, start), eScope)),
+    db.select().from(errorGroups).where(buildWhere(and(eq(errorGroups.status, 'unresolved'), gte(errorGroups.lastSeenAt, start)), gScope)).orderBy(desc(errorGroups.count)).limit(10),
+    db.select({ n: sql<number>`COUNT(*)::int` }).from(errorGroups).where(buildWhere(gte(errorGroups.firstSeenAt, todayStart), gScope)),
   ]);
 
   const axis = dateAxis(days);
@@ -464,7 +464,7 @@ export async function listErrorEvents(q: ErrorEventListQuery) {
   const pageSize = clampLimit(q.pageSize, 20, 100);
   const conditions = [];
   if (q.groupId) conditions.push(eq(errorEvents.groupId, q.groupId));
-  const where = mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(errorEvents));
+  const where = buildWhere(...conditions, tenantScope(errorEvents));
   const [list, total] = await Promise.all([
     db.select().from(errorEvents).where(where).orderBy(desc(errorEvents.createdAt)).limit(pageSize).offset(pageOffset(page, pageSize)),
     db.$count(errorEvents, where),
@@ -474,8 +474,8 @@ export async function listErrorEvents(q: ErrorEventListQuery) {
 
 export async function cleanErrors(days: number): Promise<number> {
   if (days > 0) {
-    const res = await db.delete(errorEvents).where(mergeWhere(sql`${errorEvents.createdAt} < NOW() - (${days} * INTERVAL '1 day')`, tenantScope(errorEvents)));
-    await db.delete(errorGroups).where(mergeWhere(sql`${errorGroups.lastSeenAt} < NOW() - (${days} * INTERVAL '1 day') AND NOT EXISTS (SELECT 1 FROM error_events ee WHERE ee.group_id = ${errorGroups.id})`, tenantScope(errorGroups)));
+    const res = await db.delete(errorEvents).where(buildWhere(sql`${errorEvents.createdAt} < NOW() - (${days} * INTERVAL '1 day')`, tenantScope(errorEvents)));
+    await db.delete(errorGroups).where(buildWhere(sql`${errorGroups.lastSeenAt} < NOW() - (${days} * INTERVAL '1 day') AND NOT EXISTS (SELECT 1 FROM error_events ee WHERE ee.group_id = ${errorGroups.id})`, tenantScope(errorGroups)));
     return (res as unknown as { rowCount?: number }).rowCount ?? 0;
   }
   const res = await db.delete(errorGroups).where(tenantScope(errorGroups));
@@ -489,7 +489,7 @@ export async function uploadSourceMap(input: SourceMapUploadInput) {
     return u ? getCreateTenantId(u) : null;
   })();
   // replace 语义：先删后插
-  await db.delete(sourceMaps).where(mergeWhere(and(eq(sourceMaps.release, input.release), eq(sourceMaps.fileName, input.fileName)), tenantScope(sourceMaps)));
+  await db.delete(sourceMaps).where(buildWhere(and(eq(sourceMaps.release, input.release), eq(sourceMaps.fileName, input.fileName)), tenantScope(sourceMaps)));
   const [row] = await db.insert(sourceMaps).values({ tenantId, release: input.release, fileName: input.fileName, content: input.content, size: input.content.length }).returning();
   clearSymbolicateCache();
   return { id: row.id, release: row.release, fileName: row.fileName, size: row.size, createdAt: formatDateTime(row.createdAt), updatedAt: formatDateTime(row.updatedAt) };
@@ -501,7 +501,7 @@ export async function listSourceMaps(q: SourceMapListQuery) {
   const pageSize = clampLimit(q.pageSize, 20, 100);
   const conditions = [];
   if (q.release) conditions.push(like(sourceMaps.release, `%${escapeLike(q.release)}%`));
-  const where = mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(sourceMaps));
+  const where = buildWhere(...conditions, tenantScope(sourceMaps));
   const [list, total] = await Promise.all([
     db.select({ id: sourceMaps.id, release: sourceMaps.release, fileName: sourceMaps.fileName, size: sourceMaps.size, createdAt: sourceMaps.createdAt, updatedAt: sourceMaps.updatedAt }).from(sourceMaps).where(where).orderBy(desc(sourceMaps.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     db.$count(sourceMaps, where),
@@ -510,7 +510,7 @@ export async function listSourceMaps(q: SourceMapListQuery) {
 }
 
 export async function deleteSourceMap(id: number) {
-  const where = mergeWhere(eq(sourceMaps.id, id), tenantScope(sourceMaps));
+  const where = buildWhere(eq(sourceMaps.id, id), tenantScope(sourceMaps));
   const [row] = await db.select({ id: sourceMaps.id }).from(sourceMaps).where(where).limit(1);
   if (!row) throw new HTTPException(404, { message: 'Source Map 不存在' });
   await db.delete(sourceMaps).where(where);

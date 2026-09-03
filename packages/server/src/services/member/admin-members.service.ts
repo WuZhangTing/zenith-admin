@@ -10,7 +10,7 @@ import { members, memberLevels, memberPointAccounts, memberWallets, memberPointT
 import type { MemberRow } from '../../db/schema';
 import { mapMember, ensureMemberExists } from './member-auth.service';
 import { forceLogoutAllByMember } from '../../lib/member-session-manager';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
@@ -414,7 +414,7 @@ export function buildLoginLogWhere(q: Omit<MemberLoginLogQuery, 'page' | 'pageSi
   if (start) conds.push(gte(memberLoginLogs.createdAt, start));
   const end = parseDateRangeEnd(q.dateEnd);
   if (end) conds.push(lte(memberLoginLogs.createdAt, end));
-  return conds.length ? and(...conds) : undefined;
+  return buildWhere(...conds);
 }
 
 export async function listMemberLoginLogs(q: MemberLoginLogQuery) {

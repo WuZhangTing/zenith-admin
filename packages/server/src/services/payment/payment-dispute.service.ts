@@ -25,7 +25,7 @@ import {
 } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import { refund } from './payment.service';
 import { decide } from '../platform/rules-runtime.service';
@@ -118,7 +118,7 @@ export async function buildDisputesWhere(q: ListDisputesQuery) {
   const end = parseDateRangeEnd(q.endTime);
   if (start) conds.push(gte(paymentDisputes.createdAt, start));
   if (end) conds.push(lte(paymentDisputes.createdAt, end));
-  return mergeWhere(conds.length ? and(...conds) : undefined, disputesTenantCondition());
+  return buildWhere(...conds, disputesTenantCondition());
 }
 
 export async function listDisputes(q: ListDisputesQuery) {
@@ -140,7 +140,7 @@ export async function ensureDispute(id: number): Promise<PaymentDisputeRow> {
 
 export async function getDisputeDetail(id: number): Promise<PaymentDisputeDetail> {
   const row = await db.query.paymentDisputes.findFirst({
-    where: mergeWhere(eq(paymentDisputes.id, id), disputesTenantCondition()),
+    where: buildWhere(eq(paymentDisputes.id, id), disputesTenantCondition()),
     with: { replies: { with: { operator: { columns: { nickname: true } } }, orderBy: paymentDisputeReplies.id } },
   });
   if (!row) throw new HTTPException(404, { message: '投诉工单不存在' });
@@ -163,14 +163,14 @@ export async function getDisputeStats(): Promise<PaymentDisputeStats> {
   const orderTenant = tenantCondition(paymentOrders, currentUser());
   const since30d = dayjs().subtract(30, 'day').toDate();
   const [open, overdue, last30dCount, last30dOrders, resolvedRows] = await Promise.all([
-    db.$count(paymentDisputes, mergeWhere(inArray(paymentDisputes.status, OPEN_STATUSES), tc)),
-    db.$count(paymentDisputes, mergeWhere(and(inArray(paymentDisputes.status, OPEN_STATUSES), lt(paymentDisputes.deadline, new Date())), tc)),
-    db.$count(paymentDisputes, mergeWhere(gte(paymentDisputes.createdAt, since30d), tc)),
-    db.$count(paymentOrders, mergeWhere(and(inArray(paymentOrders.status, ['success', 'refunding', 'refunded']), gte(paymentOrders.createdAt, since30d)), orderTenant)),
+    db.$count(paymentDisputes, buildWhere(inArray(paymentDisputes.status, OPEN_STATUSES), tc)),
+    db.$count(paymentDisputes, buildWhere(and(inArray(paymentDisputes.status, OPEN_STATUSES), lt(paymentDisputes.deadline, new Date())), tc)),
+    db.$count(paymentDisputes, buildWhere(gte(paymentDisputes.createdAt, since30d), tc)),
+    db.$count(paymentOrders, buildWhere(and(inArray(paymentOrders.status, ['success', 'refunding', 'refunded']), gte(paymentOrders.createdAt, since30d)), orderTenant)),
     db
       .select({ avgHours: sql<number>`coalesce(avg(extract(epoch from (${paymentDisputes.resolvedAt} - ${paymentDisputes.createdAt})) / 3600), 0)` })
       .from(paymentDisputes)
-      .where(mergeWhere(and(notInArray(paymentDisputes.status, OPEN_STATUSES), sql`${paymentDisputes.resolvedAt} is not null`), tc)),
+      .where(buildWhere(and(notInArray(paymentDisputes.status, OPEN_STATUSES), sql`${paymentDisputes.resolvedAt} is not null`), tc)),
   ]);
   const rate = last30dOrders > 0 ? Number(((last30dCount / last30dOrders) * 100).toFixed(2)) : 0;
   return { open, overdue, last30dCount, last30dRate: rate, avgResolveHours: Number(Number(resolvedRows[0]?.avgHours ?? 0).toFixed(1)) };
@@ -406,14 +406,14 @@ export async function simulateDispute(orderNo?: string): Promise<PaymentDispute>
   const orderTenant = tenantCondition(paymentOrders, currentUser());
   const disputeTenant = tenantCondition(paymentDisputes, currentUser());
   if (orderNo) {
-    [order] = await base.where(mergeWhere(eq(paymentOrders.orderNo, orderNo), orderTenant)).limit(1);
+    [order] = await base.where(buildWhere(eq(paymentOrders.orderNo, orderNo), orderTenant)).limit(1);
     if (!order) throw new HTTPException(404, { message: '支付订单不存在' });
     if (!order.sandbox) throw new HTTPException(400, { message: '仅沙箱商户订单可模拟投诉' });
-    const dup = await db.$count(paymentDisputes, mergeWhere(and(eq(paymentDisputes.orderNo, orderNo), inArray(paymentDisputes.status, OPEN_STATUSES)), disputeTenant));
+    const dup = await db.$count(paymentDisputes, buildWhere(and(eq(paymentDisputes.orderNo, orderNo), inArray(paymentDisputes.status, OPEN_STATUSES)), disputeTenant));
     if (dup > 0) throw new HTTPException(400, { message: '该订单已存在未完结投诉' });
   } else {
     [order] = await base
-      .where(mergeWhere(and(
+      .where(buildWhere(and(
         eq(paymentOrders.status, 'success'),
         eq(paymentChannelConfigs.sandbox, true),
         sql`not exists (select 1 from ${paymentDisputes} where ${paymentDisputes.orderNo} = ${paymentOrders.orderNo})`,

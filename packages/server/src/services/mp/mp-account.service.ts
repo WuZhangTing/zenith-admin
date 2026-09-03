@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpAccounts } from '../../db/schema';
 import type { MpAccountRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -73,7 +73,7 @@ export async function listMpAccounts(q: ListMpAccountsQuery) {
   }
   if (q.type) conditions.push(eq(mpAccounts.type, q.type));
   if (q.status) conditions.push(eq(mpAccounts.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpAccounts, where),
     withPagination(db.select().from(mpAccounts).where(where).orderBy(mpAccounts.id).$dynamic(), q.page, q.pageSize),

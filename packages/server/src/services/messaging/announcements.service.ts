@@ -1,5 +1,5 @@
 import { count, desc, eq, like, and, lte, inArray, isNull, isNotNull, sql, or, getTableColumns, asc, type SQL } from 'drizzle-orm';
-import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import { announcements, announcementRecipients, announcementReads, users, userRoles, roles, departments, businessFiles, managedFiles } from '../../db/schema';
@@ -244,7 +244,7 @@ export async function listAnnouncements(q: { page?: number; pageSize?: number; t
   conditions.push(...dateRangeConditions(announcements.createdAt, startTime, endTime));
   const where = and(...conditions);
   const tc = tenantCondition(announcements, user);
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(announcements, finalWhere),
     withPagination(db.select().from(announcements).where(finalWhere).orderBy(desc(announcements.createdAt)).$dynamic(), page, pageSize),

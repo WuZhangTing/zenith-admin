@@ -124,8 +124,7 @@ where(and(eq(users.username, 'admin'), isNull(users.tenantId)));
 | 关键字跨列模糊匹配 | `keywordCondition(keyword, [colA, colB], mode?)` |
 | LIKE/ILIKE 手写模式 | `escapeLike(keyword)` |
 | 时间范围闭区间 | `dateRangeConditions(column, start, end)` |
-| 合并可选条件 | `buildWhere(...conditions)` |
-| 合并两个 WHERE | `mergeWhere(base, extra)` |
+| 合并可选条件（含租户 / 数据权限条件） | `buildWhere(...conditions)` |
 | SQL-builder 分页 | `withPagination(qb.$dynamic(), page, pageSize)` |
 
 ```ts

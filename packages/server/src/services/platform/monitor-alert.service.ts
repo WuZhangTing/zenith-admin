@@ -15,7 +15,7 @@ import type { CreateMonitorAlertRuleInput, UpdateMonitorAlertRuleInput, MonitorA
 import { MONITOR_ALERT_LEVELS, MONITOR_METRIC_META, formatMonitorMetricValue } from '@zenith/shared/platform';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUserId, currentUsername } from '../../lib/context';
-import { buildWhere, dateRangeConditions, keywordCondition, mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { getMetricSnapshotsByTenant } from './monitor-history.service';
@@ -162,7 +162,7 @@ export async function listRules(q: MonitorAlertRuleQuery) {
 }
 
 export async function ensureRuleExists(id: number) {
-  const [row] = await db.select().from(monitorAlertRules).where(mergeWhere(eq(monitorAlertRules.id, id), tenantScope(monitorAlertRules))).limit(1);
+  const [row] = await db.select().from(monitorAlertRules).where(buildWhere(eq(monitorAlertRules.id, id), tenantScope(monitorAlertRules))).limit(1);
   if (!row) throw new HTTPException(404, { message: '告警规则不存在' });
   return row;
 }
@@ -379,7 +379,7 @@ async function ensureEventExists(id: number): Promise<MonitorAlertEventRow> {
   const [row] = await db
     .select()
     .from(monitorAlertEvents)
-    .where(mergeWhere(eq(monitorAlertEvents.id, id), tenantScope(monitorAlertEvents)))
+    .where(buildWhere(eq(monitorAlertEvents.id, id), tenantScope(monitorAlertEvents)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '告警事件不存在' });
   return row;

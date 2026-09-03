@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 
 export interface WorkflowSelectableUser {
   id: number;
@@ -26,7 +26,7 @@ export async function listWorkflowSelectableUsers(): Promise<WorkflowSelectableU
   const rows = await db.query.users.findMany({
     columns: { id: true, username: true, nickname: true, avatar: true },
     with: { department: { columns: { name: true } } },
-    where: mergeWhere(eq(users.status, 'enabled'), tenantCondition(users, currentUser())),
+    where: buildWhere(eq(users.status, 'enabled'), tenantCondition(users, currentUser())),
     orderBy: users.id,
   });
   return rows.map((u) => ({

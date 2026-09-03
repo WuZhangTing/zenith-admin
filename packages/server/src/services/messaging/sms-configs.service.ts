@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { smsConfigs } from '../../db/schema';
 import type { SmsConfigRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUserOrNull } from '../../lib/context';
@@ -71,7 +71,7 @@ export async function listSmsConfigs(q: ListSmsConfigsQuery) {
   }
   if (q.provider) conditions.push(eq(smsConfigs.provider, q.provider));
   if (q.status) conditions.push(eq(smsConfigs.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(smsConfigs, where),
     withPagination(db.select().from(smsConfigs).where(where).orderBy(smsConfigs.id).$dynamic(), q.page, q.pageSize),
@@ -93,7 +93,7 @@ export async function createSmsConfig(data: CreateSmsConfigInput) {
     if (data.isDefault) {
       await tx.update(smsConfigs)
         .set({ isDefault: false })
-        .where(mergeWhere(and(eq(smsConfigs.isDefault, true), tenantScope(smsConfigs))) ?? eq(smsConfigs.isDefault, true));
+        .where(buildWhere(and(eq(smsConfigs.isDefault, true), tenantScope(smsConfigs))) ?? eq(smsConfigs.isDefault, true));
     }
     const [row] = await tx.insert(smsConfigs).values({ ...data, tenantId }).returning();
     return mapSmsConfigSafe(row);
@@ -106,7 +106,7 @@ export async function updateSmsConfig(id: number, data: UpdateSmsConfigInput) {
     if (data.isDefault === true) {
       await tx.update(smsConfigs)
         .set({ isDefault: false })
-        .where(mergeWhere(and(eq(smsConfigs.isDefault, true), tenantScope(smsConfigs))) ?? eq(smsConfigs.isDefault, true));
+        .where(buildWhere(and(eq(smsConfigs.isDefault, true), tenantScope(smsConfigs))) ?? eq(smsConfigs.isDefault, true));
     }
     // accessKeySecret 留空表示不更新
     const patch: Partial<typeof smsConfigs.$inferInsert> = { ...data };
@@ -129,7 +129,7 @@ export async function setSmsConfigDefault(id: number) {
   await db.transaction(async (tx) => {
     await tx.update(smsConfigs)
       .set({ isDefault: false })
-      .where(mergeWhere(and(eq(smsConfigs.isDefault, true), tenantScope(smsConfigs))) ?? eq(smsConfigs.isDefault, true));
+      .where(buildWhere(and(eq(smsConfigs.isDefault, true), tenantScope(smsConfigs))) ?? eq(smsConfigs.isDefault, true));
     await tx.update(smsConfigs).set({ isDefault: true }).where(eq(smsConfigs.id, id));
   });
   return mapSmsConfigSafe({ ...row, isDefault: true });
@@ -145,7 +145,7 @@ export async function findDefaultSmsConfig(): Promise<SmsConfigRow | null> {
     ? tenantScope(smsConfigs)
     : (config.multiTenantMode ? isNull(smsConfigs.tenantId) : undefined);
   const [row] = await db.select().from(smsConfigs)
-    .where(mergeWhere(and(eq(smsConfigs.isDefault, true), eq(smsConfigs.status, 'enabled'), scope)) ?? eq(smsConfigs.isDefault, true))
+    .where(buildWhere(and(eq(smsConfigs.isDefault, true), eq(smsConfigs.status, 'enabled'), scope)) ?? eq(smsConfigs.isDefault, true))
     .limit(1);
   return row ?? null;
 }

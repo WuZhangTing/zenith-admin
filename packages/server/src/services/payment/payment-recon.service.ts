@@ -20,7 +20,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { formatDate, formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { postSystemJournalWithin } from './payment-journal.service';
 import { buildAdapterContext } from './payment.service';
@@ -149,7 +149,7 @@ async function loadLocalPaidRowsScoped(channel: PaymentChannel, appId: number, c
     })
     .from(paymentOrders)
     .where(
-      mergeWhere(
+      buildWhere(
         and(
           eq(paymentOrders.channel, channel),
           eq(paymentOrders.appId, appId),
@@ -177,7 +177,7 @@ export async function listReconBatches(q: ListReconBatchesQuery) {
   const conds = [];
   if (q.channel) conds.push(eq(paymentReconBatches.channel, q.channel));
   if (q.status) conds.push(eq(paymentReconBatches.status, q.status));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentReconBatches, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentReconBatches, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentReconBatches, where),
     withPagination(db.select().from(paymentReconBatches).where(where).orderBy(desc(paymentReconBatches.id)).$dynamic(), page, pageSize),

@@ -53,6 +53,7 @@ import type { ReportWidgetOptions } from '@zenith/shared/report';
 import { resolveReportSecret } from './report-secrets';
 import { ensureReportResourceAccess } from './report-resource-acl.service';
 import { recordReportAssetUsage } from './report-asset-usage.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 const DEFAULT_SHARE_TTL_DAYS = 30;
 const SHARE_SESSION_TTL_SECONDS = 15 * 60;
@@ -119,7 +120,7 @@ export async function listCategoryLookup(query: { keyword?: string; limit?: numb
     const kw = `%${query.keyword.trim().replace(/[%_]/g, '\\$&')}%`;
     conds.push(or(ilike(reportDashboardCategories.name, kw), ilike(reportDashboardCategories.remark, kw)));
   }
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const rows = await db.select({
     id: reportDashboardCategories.id,
     name: reportDashboardCategories.name,

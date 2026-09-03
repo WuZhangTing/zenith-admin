@@ -22,7 +22,7 @@ import {
   userPositions,
   userGroupMembers,
 } from '../../db/schema';
-import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { tenantScope } from '../../lib/tenant';
 
 /** 成员归属范围 */
@@ -211,7 +211,7 @@ export async function listScopeMembers(
   const page = Math.max(1, Math.trunc(Number(query.page) || 1));
   const pageSize = Math.min(Math.max(1, Math.trunc(Number(query.pageSize) || 10)), 100);
 
-  const where = mergeWhere(
+  const where = buildWhere(
     and(scopeCondition(scopeType, scopeId), keywordCondition(query.keyword, [users.nickname, users.username])),
     tenantScope(users),
   );

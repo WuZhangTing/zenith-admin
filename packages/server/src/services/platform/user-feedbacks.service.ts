@@ -1,5 +1,5 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, gte, inArray, like, lte } from 'drizzle-orm';
+import { desc, eq, gte, inArray, like, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { userFeedbacks } from '../../db/schema';
 import type { UserFeedbackRow } from '../../db/schema';
@@ -8,7 +8,7 @@ import type { UserFeedbackCategory, UserFeedbackStatus } from '@zenith/shared/id
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
 import logger from '../../lib/logger';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { notify } from '../messaging/notification-outbox.service';
 
@@ -83,7 +83,7 @@ function buildListWhere(q: ListUserFeedbacksQuery) {
   const endTime = parseDateRangeEnd(q.endTime);
   if (startTime) conditions.push(gte(userFeedbacks.createdAt, startTime));
   if (endTime) conditions.push(lte(userFeedbacks.createdAt, endTime));
-  return conditions.length > 0 ? and(...conditions) : undefined;
+  return buildWhere(...conditions);
 }
 
 export async function listUserFeedbacks(q: ListUserFeedbacksQuery) {

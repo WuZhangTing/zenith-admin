@@ -22,6 +22,7 @@ import {
   resolveReportResourceNames,
   setReportResourceOwner,
 } from './report-resource.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 type TransferRow = typeof reportResourceTransfers.$inferSelect & {
   fromOwner?: { nickname: string | null; username: string } | null;
@@ -160,7 +161,7 @@ export async function listReportResourceTransfers(query: {
   if (tenantScope) conds.push(tenantScope);
   if (status) conds.push(eq(reportResourceTransfers.status, status));
   if (resourceType) conds.push(eq(reportResourceTransfers.resourceType, resourceType));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportResourceTransfers, where),
     db.query.reportResourceTransfers.findMany({
@@ -309,7 +310,7 @@ export async function listReportPublishApprovals(query: {
   if (tenantScope) conds.push(tenantScope);
   if (status) conds.push(eq(reportPublishApprovals.status, status));
   if (resourceType) conds.push(eq(reportPublishApprovals.resourceType, resourceType));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportPublishApprovals, where),
     db.query.reportPublishApprovals.findMany({
@@ -640,7 +641,7 @@ export async function listReportEnvironmentPromotions(query: {
   if (tenantScope) conds.push(tenantScope);
   if (status) conds.push(eq(reportEnvironmentPromotions.status, status));
   if (resourceType) conds.push(eq(reportEnvironmentPromotions.resourceType, resourceType));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportEnvironmentPromotions, where),
     db.query.reportEnvironmentPromotions.findMany({

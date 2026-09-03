@@ -16,7 +16,7 @@ import type { DbExecutor } from '../../db/types';
 import type { AnalyticsSegmentRule, AnalyticsSegmentEventCondition, AnalyticsSegmentAttributeCondition, CreateAnalyticsUserSegmentInput, UpdateAnalyticsUserSegmentInput } from '@zenith/shared/analytics';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { mergeWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
 import { startOfDaysAgo } from '../../lib/analytics-helpers';
@@ -71,7 +71,7 @@ export async function listSegments(q: SegmentListQuery) {
   const conditions: SQL[] = [];
   if (q.keyword) conditions.push(sql`${analyticsUserSegments.name} ILIKE ${'%' + escapeLike(q.keyword) + '%'}`);
   if (q.status) conditions.push(eq(analyticsUserSegments.status, q.status as 'enabled' | 'disabled'));
-  const where = mergeWhere(conditions.length > 0 ? and(...conditions) : undefined, tenantScope(analyticsUserSegments));
+  const where = buildWhere(...conditions, tenantScope(analyticsUserSegments));
 
   const [list, total] = await Promise.all([
     db.select().from(analyticsUserSegments).where(where).orderBy(desc(analyticsUserSegments.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
@@ -82,7 +82,7 @@ export async function listSegments(q: SegmentListQuery) {
 
 /** 取分群行并校验 tenant 归属；不存在或无权访问时抛 404。供路由与物化任务共用作为唯一鉴权入口。 */
 export async function ensureSegmentExists(id: number): Promise<AnalyticsUserSegmentRow> {
-  const where = mergeWhere(eq(analyticsUserSegments.id, id), tenantScope(analyticsUserSegments));
+  const where = buildWhere(eq(analyticsUserSegments.id, id), tenantScope(analyticsUserSegments));
   const [row] = await db.select().from(analyticsUserSegments).where(where).limit(1);
   if (!row) throw new HTTPException(404, { message: '分群不存在' });
   return row;

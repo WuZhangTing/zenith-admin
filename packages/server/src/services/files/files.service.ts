@@ -25,7 +25,7 @@ export function mapManagedFile(row: typeof managedFiles.$inferSelect, config?: F
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 import { and, desc, asc, eq, inArray, isNull, like, or, gte, sql } from 'drizzle-orm';
-import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { streamToExcel, formatDateTimeForExcel } from '../../lib/excel-export';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -123,7 +123,7 @@ export async function listManagedFiles(query: {
   conditions.push(...dateRangeConditions(managedFiles.createdAt, query.startTime, query.endTime));
   const where = and(...conditions);
   const tc = tenantCondition(managedFiles, user);
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
   const [count, paginated, configMap] = await Promise.all([
     db.$count(managedFiles, finalWhere),
     withPagination(db.select().from(managedFiles).where(finalWhere).orderBy(desc(managedFiles.createdAt)).$dynamic(), page, pageSize),

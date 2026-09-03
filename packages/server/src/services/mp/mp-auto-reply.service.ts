@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpAutoReplies, mpUnmatchedKeywords } from '../../db/schema';
 import type { MpAutoReplyRow, MpUnmatchedKeywordRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -71,7 +71,7 @@ export async function listMpAutoReplies(q: ListMpAutoRepliesQuery) {
   if (tenant) conditions.push(tenant);
   if (q.replyType) conditions.push(eq(mpAutoReplies.replyType, q.replyType));
   if (q.keyword) conditions.push(ilike(mpAutoReplies.keyword, `%${escapeLike(q.keyword)}%`));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpAutoReplies, where),
     withPagination(db.select().from(mpAutoReplies).where(where).orderBy(mpAutoReplies.replyType, mpAutoReplies.sort, mpAutoReplies.id).$dynamic(), q.page, q.pageSize),
@@ -172,7 +172,7 @@ export async function resolveAutoReply(accountId: number, input: { event?: strin
 // ─── 未命中热词查询/清理 ────────────────────────────────────────────────────────
 export async function listMpUnmatchedKeywords(accountId: number, page: number, pageSize: number) {
   await ensureMpAccountExists(accountId);
-  const where = mergeWhere(and(eq(mpUnmatchedKeywords.accountId, accountId), tenantScope(mpUnmatchedKeywords)));
+  const where = buildWhere(and(eq(mpUnmatchedKeywords.accountId, accountId), tenantScope(mpUnmatchedKeywords)));
   const [total, list] = await Promise.all([
     db.$count(mpUnmatchedKeywords, where),
     withPagination(db.select().from(mpUnmatchedKeywords).where(where).orderBy(desc(mpUnmatchedKeywords.count), desc(mpUnmatchedKeywords.lastAt)).$dynamic(), page, pageSize),

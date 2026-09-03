@@ -33,7 +33,7 @@ import { currentUser } from '../../lib/context';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { dateRangeConditions, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 
 export interface PaymentMoneyScope {
   tenantId: number | null;
@@ -159,7 +159,7 @@ export async function listLedgerAccounts(q: ListLedgerAccountsQuery) {
   if (q.channelConfigId) conditions.push(eq(paymentLedgerAccounts.channelConfigId, q.channelConfigId));
   if (q.currency) conditions.push(eq(paymentLedgerAccounts.currency, q.currency));
   if (q.status) conditions.push(eq(paymentLedgerAccounts.status, q.status));
-  const where = mergeWhere(and(...conditions), tenantCondition(paymentLedgerAccounts, currentUser()));
+  const where = buildWhere(...conditions, tenantCondition(paymentLedgerAccounts, currentUser()));
   const [total, rows] = await Promise.all([
     db.$count(paymentLedgerAccounts, where),
     withPagination(db.select().from(paymentLedgerAccounts).where(where).orderBy(desc(paymentLedgerAccounts.id)).$dynamic(), page, pageSize),
@@ -319,7 +319,7 @@ export async function listJournals(q: ListJournalsQuery) {
   if (q.channelConfigId) conditions.push(eq(paymentJournals.channelConfigId, q.channelConfigId));
   if (q.currency) conditions.push(eq(paymentJournals.currency, q.currency));
   const tenantScope = tenantCondition(paymentJournals, user);
-  const where = mergeWhere(and(...conditions), tenantScope);
+  const where = buildWhere(...conditions, tenantScope);
   const [total, rows] = await Promise.all([
     db.$count(paymentJournals, where),
     withPagination(db.select().from(paymentJournals).where(where).orderBy(desc(paymentJournals.id)).$dynamic(), page, pageSize),
@@ -773,7 +773,7 @@ export async function listFundReservations(q: ListFundReservationsQuery) {
   if (q.accountId) conditions.push(eq(paymentFundReservations.accountId, q.accountId));
   if (q.status) conditions.push(eq(paymentFundReservations.status, q.status));
   if (q.sourceType) conditions.push(eq(paymentFundReservations.sourceType, q.sourceType));
-  const where = mergeWhere(and(...conditions), tenantCondition(paymentFundReservations, currentUser()));
+  const where = buildWhere(...conditions, tenantCondition(paymentFundReservations, currentUser()));
   const [total, rows] = await Promise.all([
     db.$count(paymentFundReservations, where),
     withPagination(db.select().from(paymentFundReservations).where(where).orderBy(desc(paymentFundReservations.id)).$dynamic(), page, pageSize),

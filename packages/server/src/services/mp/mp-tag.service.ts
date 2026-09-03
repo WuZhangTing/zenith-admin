@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpTags } from '../../db/schema';
 import type { MpTagRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -44,7 +44,7 @@ export async function listMpTags(q: ListMpTagsQuery) {
   const tenant = tenantScope(mpTags);
   if (tenant) conditions.push(tenant);
   if (q.keyword) conditions.push(ilike(mpTags.name, `%${escapeLike(q.keyword)}%`));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpTags, where),
     withPagination(db.select().from(mpTags).where(where).orderBy(mpTags.id).$dynamic(), q.page, q.pageSize),

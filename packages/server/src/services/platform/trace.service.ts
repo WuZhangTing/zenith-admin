@@ -15,7 +15,7 @@ import {
   asyncTasks, notificationDispatches, notificationOutbox, operationLogs, workflowJobs,
 } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { clampDays } from '../../lib/analytics-helpers';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
@@ -140,7 +140,7 @@ function taskNodes(rows: (typeof asyncTasks.$inferSelect)[]): TraceTimelineNode[
 async function notificationNodes(traceId: string): Promise<TraceTimelineNode[]> {
   const user = currentUser();
   const outboxRows = await db.select().from(notificationOutbox)
-    .where(mergeWhere(eq(notificationOutbox.traceId, traceId), tenantCondition(notificationOutbox, user)))
+    .where(buildWhere(eq(notificationOutbox.traceId, traceId), tenantCondition(notificationOutbox, user)))
     .orderBy(desc(notificationOutbox.id))
     .limit(NODE_LIMIT_PER_KIND);
   if (outboxRows.length === 0) return [];
@@ -192,15 +192,15 @@ export async function getTraceTimeline(traceId: string): Promise<TraceTimeline> 
   const user = currentUser();
   const [logRows, jobRows, taskRows, notifNodes] = await Promise.all([
     db.select().from(operationLogs)
-      .where(mergeWhere(eq(operationLogs.requestId, traceId), tenantCondition(operationLogs, user)))
+      .where(buildWhere(eq(operationLogs.requestId, traceId), tenantCondition(operationLogs, user)))
       .orderBy(desc(operationLogs.id))
       .limit(NODE_LIMIT_PER_KIND),
     db.select().from(workflowJobs)
-      .where(mergeWhere(eq(workflowJobs.traceId, traceId), tenantCondition(workflowJobs, user)))
+      .where(buildWhere(eq(workflowJobs.traceId, traceId), tenantCondition(workflowJobs, user)))
       .orderBy(desc(workflowJobs.id))
       .limit(NODE_LIMIT_PER_KIND),
     db.select().from(asyncTasks)
-      .where(mergeWhere(eq(asyncTasks.traceId, traceId), tenantCondition(asyncTasks, user)))
+      .where(buildWhere(eq(asyncTasks.traceId, traceId), tenantCondition(asyncTasks, user)))
       .orderBy(desc(asyncTasks.id))
       .limit(NODE_LIMIT_PER_KIND),
     notificationNodes(traceId),
@@ -236,7 +236,7 @@ export async function listRecentTraceFailures(q: ListTraceFailuresQuery): Promis
           path: operationLogs.path, description: operationLogs.description,
           responseCode: operationLogs.responseCode, createdAt: operationLogs.createdAt,
         }).from(operationLogs)
-        .where(mergeWhere(
+        .where(buildWhere(
           and(gte(operationLogs.responseCode, 500), isNotNull(operationLogs.requestId), gte(operationLogs.createdAt, since)),
           tenantCondition(operationLogs, user),
         ))
@@ -248,7 +248,7 @@ export async function listRecentTraceFailures(q: ListTraceFailuresQuery): Promis
           id: workflowJobs.id, traceId: workflowJobs.traceId, jobType: workflowJobs.jobType,
           status: workflowJobs.status, lastError: workflowJobs.lastError, createdAt: workflowJobs.createdAt,
         }).from(workflowJobs)
-        .where(mergeWhere(
+        .where(buildWhere(
           and(inArray(workflowJobs.status, ['failed', 'dead']), isNotNull(workflowJobs.traceId), gte(workflowJobs.createdAt, since)),
           tenantCondition(workflowJobs, user),
         ))
@@ -260,7 +260,7 @@ export async function listRecentTraceFailures(q: ListTraceFailuresQuery): Promis
           id: asyncTasks.id, traceId: asyncTasks.traceId, title: asyncTasks.title,
           errorMessage: asyncTasks.errorMessage, createdAt: asyncTasks.createdAt,
         }).from(asyncTasks)
-        .where(mergeWhere(
+        .where(buildWhere(
           and(eq(asyncTasks.status, 'failed'), isNotNull(asyncTasks.traceId), gte(asyncTasks.createdAt, since)),
           tenantCondition(asyncTasks, user),
         ))
@@ -272,7 +272,7 @@ export async function listRecentTraceFailures(q: ListTraceFailuresQuery): Promis
           id: notificationOutbox.id, traceId: notificationOutbox.traceId, eventKey: notificationOutbox.eventKey,
           lastError: notificationOutbox.lastError, createdAt: notificationOutbox.createdAt,
         }).from(notificationOutbox)
-        .where(mergeWhere(
+        .where(buildWhere(
           and(eq(notificationOutbox.status, 'failed'), isNotNull(notificationOutbox.traceId), gte(notificationOutbox.createdAt, since)),
           tenantCondition(notificationOutbox, user),
         ))

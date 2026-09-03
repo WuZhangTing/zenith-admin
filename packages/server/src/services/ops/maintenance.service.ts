@@ -1,9 +1,9 @@
-import { eq, desc, and, isNull, isNotNull, type SQL } from 'drizzle-orm';
+import { eq, desc, isNull, isNotNull, type SQL } from 'drizzle-orm';
 import { db } from '../../db';
 import { maintenanceMode, maintenanceLogs } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { currentUser } from '../../lib/context';
-import { withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import type { MaintenanceLog } from '@zenith/shared/platform';
 
@@ -190,7 +190,7 @@ export async function listMaintenanceLogs(q: ListMaintenanceLogsQuery) {
   const conditions: SQL[] = [];
   if (q.status === 'ongoing') conditions.push(isNull(maintenanceLogs.endedAt));
   if (q.status === 'completed') conditions.push(isNotNull(maintenanceLogs.endedAt));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
 
   const [total, rows] = await Promise.all([
     db.$count(maintenanceLogs, where),

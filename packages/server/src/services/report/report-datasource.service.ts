@@ -6,11 +6,11 @@
  * - mysql/postgresql：外部数据库，凭据 AES-GCM 加密存储，取数走 report-external-db。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportDatasources, reportDatasets } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { encryptField, decryptField } from '../../lib/encryption';
@@ -240,7 +240,7 @@ export async function listDatasources(query: {
     conds.push(eq(reportDatasources.type, type as ReportDatasourceType));
   }
   if (status === 'enabled' || status === 'disabled') conds.push(eq(reportDatasources.status, status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDatasources, where),
     db.query.reportDatasources.findMany({
@@ -271,7 +271,7 @@ export async function listDatasourceLookup(query: {
   if (accessibleIds) conds.push(inArray(reportDatasources.id, accessibleIds));
   conds.push(keywordCondition(keyword, [reportDatasources.name, reportDatasources.remark], 'ilike'));
   if (status) conds.push(eq(reportDatasources.status, status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const rows = await db.select({
     id: reportDatasources.id,
     name: reportDatasources.name,

@@ -6,7 +6,7 @@ import { db } from '../../db';
 import { paymentOrders, paymentRefunds } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { APP_TIME_ZONE, formatDate } from '../../lib/datetime';
 import type { PaymentStats, PaymentTrendPoint } from '@zenith/shared/payment';
 
@@ -36,7 +36,7 @@ export async function getPaymentStats(): Promise<PaymentStats> {
         count: sql<number>`count(*)`,
       })
       .from(paymentOrders)
-      .where(mergeWhere(and(inArray(paymentOrders.status, [...PAID_STATUSES]), gte(paymentOrders.paidAt, todayStart)), tc)),
+      .where(buildWhere(and(inArray(paymentOrders.status, [...PAID_STATUSES]), gte(paymentOrders.paidAt, todayStart)), tc)),
     db.select({ status: paymentOrders.status, count: sql<number>`count(*)` }).from(paymentOrders).where(tc).groupBy(paymentOrders.status),
     db
       .select({
@@ -73,7 +73,7 @@ export async function getPaymentStats(): Promise<PaymentStats> {
         count: sql<number>`count(*)`,
       })
       .from(paymentRefunds)
-      .where(mergeWhere(eq(paymentRefunds.status, 'success'), rtc)),
+      .where(buildWhere(eq(paymentRefunds.status, 'success'), rtc)),
   ]);
 
   const totalAmount = Number(totals[0]?.totalAmount ?? 0);
@@ -119,12 +119,12 @@ export async function getPaymentTrend(days = 30): Promise<PaymentTrendPoint[]> {
     db
       .select({ date: orderDay, amount: sql<number>`coalesce(sum(${paymentOrders.amount}),0)`, count: sql<number>`count(*)` })
       .from(paymentOrders)
-      .where(mergeWhere(and(inArray(paymentOrders.status, [...PAID_STATUSES]), gte(paymentOrders.paidAt, start)), tc))
+      .where(buildWhere(and(inArray(paymentOrders.status, [...PAID_STATUSES]), gte(paymentOrders.paidAt, start)), tc))
       .groupBy(sql`1`),
     db
       .select({ date: refundDay, amount: sql<number>`coalesce(sum(${paymentRefunds.refundAmount}),0)` })
       .from(paymentRefunds)
-      .where(mergeWhere(and(eq(paymentRefunds.status, 'success'), gte(paymentRefunds.refundedAt, start)), rtc))
+      .where(buildWhere(and(eq(paymentRefunds.status, 'success'), gte(paymentRefunds.refundedAt, start)), rtc))
       .groupBy(sql`1`),
   ]);
 

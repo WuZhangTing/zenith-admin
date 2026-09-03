@@ -6,7 +6,7 @@ import { analyticsSegmentCampaigns, analyticsUserSegments, emailTemplates, inApp
 import type { AnalyticsSegmentCampaignRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { submitAsyncTask } from '../../lib/task-center';
 import { buildShortUrl } from '../short-link/short-link.service';
 import { ensureSegmentExists } from './analytics-segments.service';
@@ -72,18 +72,18 @@ function mapJoined(row: CampaignJoinedRow, shortLinkMap: Map<number, CampaignSho
   return mapCampaign(row.campaign, row.segmentName, shortLinkMap.get(row.campaign.id) ?? null);
 }
 
-function buildWhere(q: ListCampaignsQuery): SQL | undefined {
+function buildCampaignWhere(q: ListCampaignsQuery): SQL | undefined {
   const conditions: SQL[] = [];
   if (q.segmentId) conditions.push(eq(analyticsSegmentCampaigns.segmentId, q.segmentId));
   if (q.status) conditions.push(eq(analyticsSegmentCampaigns.status, q.status));
-  return mergeWhere(and(...conditions), tenantScope(analyticsSegmentCampaigns));
+  return buildWhere(...conditions, tenantScope(analyticsSegmentCampaigns));
 }
 
 export async function listCampaigns(q: ListCampaignsQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
   if (q.segmentId) await ensureSegmentExists(q.segmentId);
-  const where = buildWhere(q);
+  const where = buildCampaignWhere(q);
   const base = db.select({
     campaign: analyticsSegmentCampaigns,
     segmentName: analyticsUserSegments.name,
@@ -102,7 +102,7 @@ export async function listCampaigns(q: ListCampaignsQuery) {
 
 export async function ensureCampaignExists(id: number): Promise<AnalyticsSegmentCampaignRow> {
   const [row] = await db.select().from(analyticsSegmentCampaigns)
-    .where(mergeWhere(eq(analyticsSegmentCampaigns.id, id), tenantScope(analyticsSegmentCampaigns)))
+    .where(buildWhere(eq(analyticsSegmentCampaigns.id, id), tenantScope(analyticsSegmentCampaigns)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '触达活动不存在' });
   return row;

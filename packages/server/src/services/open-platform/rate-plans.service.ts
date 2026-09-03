@@ -7,7 +7,7 @@ import { HTTPException } from 'hono/http-exception';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import type { CreateRatePlanInput, UpdateRatePlanInput } from '@zenith/shared/open-platform';
 
 export function mapRatePlan(row: RatePlanRow) {
@@ -41,7 +41,7 @@ export async function listRatePlans(opts: {
     conditions.push(or(ilike(ratePlans.code, kw), ilike(ratePlans.name, kw)) as SQL);
   }
   if (status) conditions.push(eq(ratePlans.status, status));
-  const where = conditions.length ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
 
   const [list, total] = await Promise.all([
     db.select().from(ratePlans)

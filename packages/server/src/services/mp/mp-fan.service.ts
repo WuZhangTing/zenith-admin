@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpFans, mpTags } from '../../db/schema';
 import type { MpFanRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -137,7 +137,7 @@ export async function listMpFans(q: ListMpFansQuery) {
   if (q.subscribe) conditions.push(eq(mpFans.subscribe, q.subscribe));
   if (q.tagId) conditions.push(sql`${mpFans.tagIds} @> ${JSON.stringify([q.tagId])}::jsonb`);
   if (q.blacklisted !== undefined) conditions.push(eq(mpFans.blacklisted, q.blacklisted));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpFans, where),
     withPagination(db.select().from(mpFans).where(where).orderBy(desc(mpFans.id)).$dynamic(), q.page, q.pageSize),

@@ -4,7 +4,7 @@ import { workflowForms, workflowDefinitions } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
@@ -96,7 +96,7 @@ export async function listWorkflowForms(query: { page?: number; pageSize?: numbe
   if (keyword) conds.push(like(workflowForms.name, `%${escapeLike(keyword)}%`));
   if (status) conds.push(eq(workflowForms.status, status));
   if (categoryId) conds.push(eq(workflowForms.categoryId, categoryId));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowForms, where),
     db.query.workflowForms.findMany({

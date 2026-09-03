@@ -3,7 +3,7 @@
  * 对外统一经 report-dataset.service.ts facade 暴露。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../db';
 import {
   reportAlertRules,
@@ -17,7 +17,7 @@ import {
   reportMetrics,
 } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
@@ -186,7 +186,7 @@ export async function listDatasets(query: {
     conds.push(eq(reportDatasets.type, type as ReportDatasourceType));
   }
   if (status === 'enabled' || status === 'disabled') conds.push(eq(reportDatasets.status, status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDatasets, where),
     db.query.reportDatasets.findMany({
@@ -218,7 +218,7 @@ export async function listDatasetLookup(query: {
   if (accessibleIds) conds.push(inArray(reportDatasets.id, accessibleIds));
   conds.push(keywordCondition(keyword, [reportDatasets.name, reportDatasets.remark], 'ilike'));
   if (status) conds.push(eq(reportDatasets.status, status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const rows = await db.select({
     id: reportDatasets.id,
     name: reportDatasets.name,

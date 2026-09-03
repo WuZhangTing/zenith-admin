@@ -16,7 +16,7 @@ import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { assertProviderCapability, getAdapter, type AdapterContext, type ProfitShareReverseInput, type ProfitShareReverseResult } from '../../lib/payment';
 import { tenantCondition } from '../../lib/tenant';
-import { dateRangeConditions, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
 import { buildAdapterContext, loadOrderConfig } from './payment.service';
 import { assertPaymentEngineConfig } from './payment-channel-config-resolver';
 import { postSystemJournal } from './payment-journal.service';
@@ -78,7 +78,7 @@ export async function listSharingReversals(q: ListSharingReversalsQuery) {
   const conditions = [...dateRangeConditions(paymentSharingReversals.createdAt, q.startTime, q.endTime)];
   if (q.sharingOrderId) conditions.push(eq(paymentSharingReversals.sharingOrderId, q.sharingOrderId));
   if (q.status) conditions.push(eq(paymentSharingReversals.status, q.status));
-  const where = mergeWhere(and(...conditions), tenantCondition(paymentSharingReversals, currentUser()));
+  const where = buildWhere(...conditions, tenantCondition(paymentSharingReversals, currentUser()));
   const [total, rows] = await Promise.all([
     db.$count(paymentSharingReversals, where),
     withPagination(

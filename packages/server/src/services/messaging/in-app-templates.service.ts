@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { inAppTemplates } from '../../db/schema';
 import type { InAppTemplateRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -49,7 +49,7 @@ export async function listInAppTemplates(q: ListInAppTemplatesQuery) {
   }
   if (q.type) conditions.push(eq(inAppTemplates.type, q.type));
   if (q.status) conditions.push(eq(inAppTemplates.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(inAppTemplates, where),
     withPagination(db.select().from(inAppTemplates).where(where).orderBy(inAppTemplates.id).$dynamic(), q.page, q.pageSize),

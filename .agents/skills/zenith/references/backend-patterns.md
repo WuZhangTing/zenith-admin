@@ -99,7 +99,7 @@ const where = buildWhere(
 await db.insert(xxxs).values({ ...data, tenantId: getCreateTenantId(currentUser()) });
 ```
 
-- `tenantCondition` 在多租户关闭时返回 `undefined`，**无需**额外判断是否开启——交给 `buildWhere` / `mergeWhere` 过滤
+- `tenantCondition` 在多租户关闭时返回 `undefined`，**无需**额外判断是否开启——交给 `buildWhere` 过滤
 - 平台超管处于「平台视角」时同样返回 `undefined`，可查看全量数据
 - `getCreateTenantId` 在多租户关闭时返回 `null`，不影响写入
 

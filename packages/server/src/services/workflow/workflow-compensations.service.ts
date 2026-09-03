@@ -9,6 +9,7 @@ import { tenantCondition } from '../../lib/tenant';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { enqueueJob } from '../../lib/workflow-jobs/engine';
 import { bridgeReportFillWorkflowOutcome } from '../report/report-fill-workflow-bridge.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 type Row = typeof workflowCompensations.$inferSelect;
 const map = (r: Row) => ({
@@ -81,7 +82,7 @@ export async function listCompensations(q: { status?: string; instanceId?: numbe
   if (tc) conds.push(tc);
   if (q.status) conds.push(eq(workflowCompensations.status, q.status));
   if (q.instanceId) conds.push(eq(workflowCompensations.instanceId, q.instanceId));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowCompensations, where),
     db.select().from(workflowCompensations).where(where).orderBy(desc(workflowCompensations.id)).limit(pageSize).offset((page - 1) * pageSize),

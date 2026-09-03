@@ -1,5 +1,5 @@
-import { eq, asc, and, or, like, inArray, type SQL } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { eq, asc, or, like, inArray, type SQL } from 'drizzle-orm';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { tags } from '../../db/schema';
 import type { TagRow } from '../../db/schema';
@@ -65,7 +65,7 @@ export async function listTags(q: ListTagsQuery) {
   if (status) conditions.push(eq(tags.status, status));
   if (groupName) conditions.push(like(tags.groupName, `%${escapeLike(groupName)}%`));
 
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(tags, where),
     withPagination(

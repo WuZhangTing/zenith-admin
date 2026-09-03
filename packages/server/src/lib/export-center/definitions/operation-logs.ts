@@ -2,7 +2,7 @@ import { desc } from 'drizzle-orm';
 import { db } from '../../../db';
 import { operationLogs } from '../../../db/schema';
 import { batchIterable } from '../../excel-export';
-import { buildWhere, type ListOperationLogsQuery } from '../../../services/platform/operation-logs.service';
+import { buildOperationLogsWhere, type ListOperationLogsQuery } from '../../../services/platform/operation-logs.service';
 import { defineExport } from '../registry';
 import type { ExportColumn } from '../types';
 
@@ -29,9 +29,9 @@ export const operationLogsExportDefinition = defineExport<ListOperationLogsQuery
   execution: { mode: 'sync', syncModeOverridesAsyncPolicies: true },
   retention: { normalDays: 7, sensitiveDays: 7, rawDays: 7 },
   columns,
-  countRows: async (query) => db.$count(operationLogs, await buildWhere(query)),
+  countRows: async (query) => db.$count(operationLogs, await buildOperationLogsWhere(query)),
   streamRows: async (query) => {
-    const where = await buildWhere(query);
+    const where = await buildOperationLogsWhere(query);
     return batchIterable((limit, offset) =>
       db.select().from(operationLogs).where(where).orderBy(desc(operationLogs.id)).limit(limit).offset(offset),
     );

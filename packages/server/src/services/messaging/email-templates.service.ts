@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { emailTemplates } from '../../db/schema';
 import type { EmailTemplateRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -46,7 +46,7 @@ export async function listEmailTemplates(q: ListEmailTemplatesQuery) {
     if (kw) conditions.push(kw);
   }
   if (q.status) conditions.push(eq(emailTemplates.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(emailTemplates, where),
     withPagination(db.select().from(emailTemplates).where(where).orderBy(emailTemplates.id).$dynamic(), q.page, q.pageSize),

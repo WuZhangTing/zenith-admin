@@ -32,6 +32,7 @@ import {
 import { reportScopedWhere, reportTenantScope } from './report-access';
 import { ensureReportResourceAccess, listAccessibleReportResourceIds } from './report-resource-acl.service';
 import { maskReportSecret, prepareReportSecret } from './report-secrets';
+import { buildWhere } from '../../lib/where-helpers';
 
 type SlaRuleRow = typeof reportSlaRules.$inferSelect;
 type SlaViolationRow = typeof reportSlaViolations.$inferSelect;
@@ -146,7 +147,7 @@ export async function listReportSlaRules(query: {
   }
   if (query.type) conds.push(eq(reportSlaRules.type, query.type));
   if (query.enabled !== undefined) conds.push(eq(reportSlaRules.enabled, query.enabled));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportSlaRules, where),
     db.select().from(reportSlaRules).where(where).orderBy(desc(reportSlaRules.id))
@@ -388,7 +389,7 @@ export async function listReportSlaViolations(query: {
     conds.push(eq(reportSlaViolations.ruleId, query.ruleId));
   }
   if (query.status) conds.push(eq(reportSlaViolations.status, query.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportSlaViolations, where),
     db.select().from(reportSlaViolations).where(where).orderBy(desc(reportSlaViolations.id))

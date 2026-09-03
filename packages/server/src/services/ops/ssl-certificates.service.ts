@@ -11,7 +11,7 @@ import { sslCertificates, users } from '../../db/schema';
 import type { SslCertificateRow } from '../../db/schema';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDate, formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { notify } from '../messaging/notification-outbox.service';
 
 const execFileAsync = promisify(execFile);
@@ -186,7 +186,7 @@ function mapCert(row: SslCertificateRow) {
   };
 }
 
-function buildWhere(query: ListSslCertificatesQuery): SQL | undefined {
+function buildCertificateWhere(query: ListSslCertificatesQuery): SQL | undefined {
   const conditions: SQL[] = [];
   if (query.type) {
     conditions.push(eq(sslCertificates.type, query.type));
@@ -199,7 +199,7 @@ function buildWhere(query: ListSslCertificatesQuery): SQL | undefined {
     );
     if (keywordCondition) conditions.push(keywordCondition);
   }
-  return mergeWhere(and(...conditions));
+  return buildWhere(...conditions);
 }
 
 async function syncRowStatus(row: SslCertificateRow) {
@@ -240,7 +240,7 @@ async function persistCertFiles(id: number, certContent: string, keyContent: str
 }
 
 export async function listSslCertificates(query: ListSslCertificatesQuery) {
-  const where = buildWhere(query);
+  const where = buildCertificateWhere(query);
   const [total, rows] = await Promise.all([
     db.$count(sslCertificates, where),
     withPagination(

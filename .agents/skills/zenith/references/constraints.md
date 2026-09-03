@@ -98,11 +98,10 @@
 | --- | --- | --- |
 | 关键字跨列模糊匹配 | `keywordCondition(keyword, [colA, colB], mode?)` | 手写 `or(like(a, '%…%'), …)` |
 | 时间范围过滤 | `dateRangeConditions(column, start, end)` | 手写 `parseXxx` + `gte`/`lte` |
-| 合并条件数组 | `buildWhere(...conditions)` | `conditions.length ? and(...) : undefined` |
-| 附加租户 / 数据权限条件 | `mergeWhere(where, extra)` | — |
+| 合并条件数组 / 附加租户与数据权限条件 | `buildWhere(...conditions)` | `conditions.length ? and(...) : undefined` |
 | 分页 | `withPagination(qb.$dynamic(), page, pageSize)` | 手写 `.limit().offset()` |
 
-- 条件数组类型必须是 `(SQL | undefined)[]`；构造函数不适用时返回 `undefined`，`and()` 自动过滤，
+- 条件数组类型必须是 `(SQL | undefined)[]`；构造函数不适用时返回 `undefined`，`buildWhere` 自动过滤，
   **禁止**为迁就 `SQL[]` 加 `!` 非空断言
 - `keywordCondition` 内部已判空（空串 / 纯空格返回 `undefined`），调用点**不要**再包 `if (keyword)`
 - `like` 与 `ilike` 按各表原有语义指定，不得一刀切；`mode` 默认 `like`

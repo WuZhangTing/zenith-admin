@@ -10,7 +10,7 @@ import type { UserBehaviorEventType } from '@zenith/shared/identity';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatNullableDateTime, formatDateTime, formatDate, APP_TIME_ZONE, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, lookupIpGeo, clampDays, clampLimit, startOfDaysAgo, anonymizeIpAddr, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
@@ -445,9 +445,9 @@ export async function getOverview(input: OverviewRangeInput) {
   const priorUserEvents = alias(userEvents, 'prior_user_events');
 
   const evScope = (s: Date, e: Date) =>
-    mergeWhere(and(gte(userEvents.createdAt, s), lt(userEvents.createdAt, e)), tenantScope(userEvents));
+    buildWhere(and(gte(userEvents.createdAt, s), lt(userEvents.createdAt, e)), tenantScope(userEvents));
   const sessScope = (s: Date, e: Date) =>
-    mergeWhere(and(gte(analyticsSessions.startedAt, s), lt(analyticsSessions.startedAt, e)), tenantScope(analyticsSessions));
+    buildWhere(and(gte(analyticsSessions.startedAt, s), lt(analyticsSessions.startedAt, e)), tenantScope(analyticsSessions));
 
   const eventAgg = (s: Date, e: Date) =>
     db
@@ -479,7 +479,7 @@ export async function getOverview(input: OverviewRangeInput) {
       .select({ n: countDistinct(userEvents.distinctId) })
       .from(userEvents)
       .where(
-        mergeWhere(
+        buildWhere(
           and(
             gte(userEvents.createdAt, start),
             lt(userEvents.createdAt, endExclusive),
@@ -501,7 +501,7 @@ export async function getOverview(input: OverviewRangeInput) {
     db
       .select({ n: countDistinct(userEvents.distinctId) })
       .from(userEvents)
-      .where(mergeWhere(gte(userEvents.createdAt, new Date(now.getTime() - 5 * 60_000)), tenantScope(userEvents))),
+      .where(buildWhere(gte(userEvents.createdAt, new Date(now.getTime() - 5 * 60_000)), tenantScope(userEvents))),
   ]);
 
   const c = cur[0];
@@ -541,7 +541,7 @@ export async function getActiveAdminUserCount(): Promise<number> {
   const [row] = await db
     .select({ n: countDistinct(userEvents.userId) })
     .from(userEvents)
-    .where(mergeWhere(
+    .where(buildWhere(
       and(gte(userEvents.createdAt, new Date(Date.now() - 5 * 60_000)), isNotNull(userEvents.userId)),
       tenantScope(userEvents),
     ));
@@ -585,7 +585,7 @@ async function trendPointsForDates(dates: string[]): Promise<Map<string, TrendPo
       value: sql<number>`SUM(${analyticsDailyRollup.value})`,
     })
     .from(analyticsDailyRollup)
-    .where(mergeWhere(
+    .where(buildWhere(
       and(
         eq(analyticsDailyRollup.dimType, 'overall'),
         gte(analyticsDailyRollup.statDate, dates[0]),
@@ -605,7 +605,7 @@ async function trendPointsForDates(dates: string[]): Promise<Map<string, TrendPo
   const missing = dates.filter((d) => d === today || !byDay.has(d));
   if (missing.length > 0) {
     const rawStart = parseDateRangeStart(missing[0]) ?? new Date();
-    const where = mergeWhere(
+    const where = buildWhere(
       and(gte(userEvents.createdAt, rawStart), lt(userEvents.createdAt, endExclusive)),
       tenantScope(userEvents),
     );
@@ -701,7 +701,7 @@ export async function getPageStats(q: PageStatsQuery) {
   const days = clampDays(q.days, 30);
   const { page, pageSize } = normalizePageQuery(q);
   const start = startOfDaysAgo(days);
-  const where = mergeWhere(
+  const where = buildWhere(
     and(eq(userEvents.eventType, 'page_leave'), isNotNull(userEvents.durationMs), gte(userEvents.createdAt, start)),
     tenantScope(userEvents),
   );
@@ -760,7 +760,7 @@ export async function getFeatureStats(q: FeatureStatsQuery) {
   const start = startOfDaysAgo(days);
   const conditions = [eq(userEvents.eventType, 'feature_use'), isNotNull(userEvents.elementKey), gte(userEvents.createdAt, start)];
   if (q.pagePath) conditions.push(eq(userEvents.pagePath, q.pagePath));
-  const where = mergeWhere(and(...conditions), tenantScope(userEvents));
+  const where = buildWhere(...conditions, tenantScope(userEvents));
 
   const [rows, totalEvents, total] = await Promise.all([
     withPagination(
@@ -825,7 +825,7 @@ export async function getHeatmapData(q: HeatmapQuery) {
     isNotNull(userEvents.clickY),
   ];
   if (q.componentArea) clickConditions.push(eq(userEvents.componentArea, q.componentArea));
-  const clickWhere = mergeWhere(and(...clickConditions), tenantScope(userEvents));
+  const clickWhere = buildWhere(...clickConditions, tenantScope(userEvents));
 
   // 元素排行不依赖坐标（与「功能使用」统计同口径）：无坐标的点击也计入榜单，
   // avgX/avgY 仅对有坐标的行取平均（FILTER），全部无坐标时为 null
@@ -835,7 +835,7 @@ export async function getHeatmapData(q: HeatmapQuery) {
     isNotNull(userEvents.elementKey),
   ];
   if (q.componentArea) elementConditions.push(eq(userEvents.componentArea, q.componentArea));
-  const elementWhere = mergeWhere(and(...elementConditions), tenantScope(userEvents));
+  const elementWhere = buildWhere(...elementConditions, tenantScope(userEvents));
 
   const binX = sql<number>`LEAST(FLOOR(${userEvents.clickX} / ${HEATMAP_BIN_SIZE}), ${HEATMAP_BINS - 1})::int`;
   const binY = sql<number>`LEAST(FLOOR(${userEvents.clickY} / ${HEATMAP_BIN_SIZE}), ${HEATMAP_BINS - 1})::int`;
@@ -895,7 +895,7 @@ export async function getHeatmapData(q: HeatmapQuery) {
       })
       .from(userEvents)
       .where(
-        mergeWhere(
+        buildWhere(
           and(...pageConditions, eq(userEvents.eventType, 'custom'), eq(userEvents.eventName, ANALYTICS_RAGE_CLICK_EVENT)),
           tenantScope(userEvents),
         ),
@@ -959,7 +959,7 @@ export interface HeatmapPageListQuery { days?: number }
 export async function getHeatmapPageList(q: HeatmapPageListQuery) {
   const days = clampDays(q.days, 30);
   const start = startOfDaysAgo(days);
-  const where = mergeWhere(
+  const where = buildWhere(
     and(inArray(userEvents.eventType, [...HEATMAP_EVENT_TYPES]), isNotNull(userEvents.clickX), isNotNull(userEvents.pagePath), gte(userEvents.createdAt, start)),
     tenantScope(userEvents),
   );
@@ -983,7 +983,7 @@ export async function getUserStats(q: UserStatsQuery) {
   const days = clampDays(q.days, 30);
   const { page, pageSize } = normalizePageQuery(q);
   const start = startOfDaysAgo(days);
-  const where = mergeWhere(gte(userEvents.createdAt, start), tenantScope(userEvents));
+  const where = buildWhere(gte(userEvents.createdAt, start), tenantScope(userEvents));
 
   const [rows, totalRows] = await Promise.all([
     withPagination(
@@ -1038,7 +1038,7 @@ export async function listSessions(q: SessionListQuery) {
   const conditions = [];
   if (q.username) conditions.push(like(analyticsSessions.username, `%${escapeLike(q.username)}%`));
   if (q.deviceType) conditions.push(eq(analyticsSessions.deviceType, q.deviceType as 'desktop'));
-  const where = mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(analyticsSessions));
+  const where = buildWhere(...conditions, tenantScope(analyticsSessions));
 
   const [list, total] = await Promise.all([
     db
@@ -1103,7 +1103,7 @@ export async function getPathAnalysis(input: { days?: number; limit?: number; st
   const limit = clampLimit(input.limit, PATH_LINK_LIMIT_DEFAULT, 100);
   const start = startOfDaysAgo(days);
   // sessionId 为空的事件无法还原会话内顺序，纳入会把不相关访问串成假路径
-  const where = mergeWhere(
+  const where = buildWhere(
     and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, start), isNotNull(userEvents.sessionId)),
     tenantScope(userEvents),
   )!;
@@ -1282,7 +1282,7 @@ export async function getUserTimeline(input: { userId?: number; username?: strin
   const conditions = [];
   if (input.userId != null) conditions.push(eq(userEvents.userId, input.userId));
   if (input.username) conditions.push(eq(userEvents.username, input.username));
-  const where = mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(userEvents));
+  const where = buildWhere(...conditions, tenantScope(userEvents));
 
   const [rows, summary] = await Promise.all([
     db
@@ -1346,7 +1346,7 @@ export async function getSessionTimeline(sessionId: string, limitRaw?: number) {
   const [session] = await db
     .select()
     .from(analyticsSessions)
-    .where(mergeWhere(eq(analyticsSessions.sessionId, sessionId), tenantScope(analyticsSessions)))
+    .where(buildWhere(eq(analyticsSessions.sessionId, sessionId), tenantScope(analyticsSessions)))
     .limit(1);
 
   const rows = await db
@@ -1363,7 +1363,7 @@ export async function getSessionTimeline(sessionId: string, limitRaw?: number) {
       createdAt: userEvents.createdAt,
     })
     .from(userEvents)
-    .where(mergeWhere(eq(userEvents.sessionId, sessionId), tenantScope(userEvents)))
+    .where(buildWhere(eq(userEvents.sessionId, sessionId), tenantScope(userEvents)))
     .orderBy(userEvents.createdAt, userEvents.id)
     .limit(limit);
 
@@ -1399,7 +1399,7 @@ export async function getSessionTimeline(sessionId: string, limitRaw?: number) {
 export async function getPerfStats(daysRaw: unknown) {
   const days = clampDays(daysRaw, 30);
   const start = startOfDaysAgo(days);
-  const where = mergeWhere(
+  const where = buildWhere(
     and(eq(userEvents.eventType, 'perf'), isNotNull(userEvents.metricName), isNotNull(userEvents.metricValue), gte(userEvents.createdAt, start)),
     tenantScope(userEvents),
   );
@@ -1444,26 +1444,26 @@ export async function getRealtime() {
   const last1 = new Date(now - 60_000);
 
   const [active, pv30, ev1, topPages, recent, perMin] = await Promise.all([
-    db.select({ n: countDistinct(userEvents.distinctId) }).from(userEvents).where(mergeWhere(gte(userEvents.createdAt, last5), tenantScope(userEvents))),
-    db.select({ n: sql<number>`COUNT(*)::int` }).from(userEvents).where(mergeWhere(and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, last30)), tenantScope(userEvents))),
-    db.select({ n: sql<number>`COUNT(*)::int` }).from(userEvents).where(mergeWhere(gte(userEvents.createdAt, last1), tenantScope(userEvents))),
+    db.select({ n: countDistinct(userEvents.distinctId) }).from(userEvents).where(buildWhere(gte(userEvents.createdAt, last5), tenantScope(userEvents))),
+    db.select({ n: sql<number>`COUNT(*)::int` }).from(userEvents).where(buildWhere(and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, last30)), tenantScope(userEvents))),
+    db.select({ n: sql<number>`COUNT(*)::int` }).from(userEvents).where(buildWhere(gte(userEvents.createdAt, last1), tenantScope(userEvents))),
     db
       .select({ pagePath: userEvents.pagePath, pageTitle: sql<string | null>`MAX(${userEvents.pageTitle})`, active: countDistinct(userEvents.sessionId) })
       .from(userEvents)
-      .where(mergeWhere(and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, last30)), tenantScope(userEvents)))
+      .where(buildWhere(and(eq(userEvents.eventType, 'page_view'), gte(userEvents.createdAt, last30)), tenantScope(userEvents)))
       .groupBy(userEvents.pagePath)
       .orderBy(sql`COUNT(DISTINCT ${userEvents.sessionId}) DESC`)
       .limit(8),
     db
       .select({ eventType: userEvents.eventType, eventName: userEvents.eventName, pagePath: userEvents.pagePath, username: userEvents.username, createdAt: userEvents.createdAt })
       .from(userEvents)
-      .where(mergeWhere(gte(userEvents.createdAt, last30), tenantScope(userEvents)))
+      .where(buildWhere(gte(userEvents.createdAt, last30), tenantScope(userEvents)))
       .orderBy(desc(userEvents.createdAt))
       .limit(20),
     db
       .select({ minute: sql<string>`to_char(timezone(${APP_TIME_ZONE}, ${userEvents.createdAt}), 'HH24:MI')`, events: sql<number>`COUNT(*)::int` })
       .from(userEvents)
-      .where(mergeWhere(gte(userEvents.createdAt, last30), tenantScope(userEvents)))
+      .where(buildWhere(gte(userEvents.createdAt, last30), tenantScope(userEvents)))
       .groupBy(sql`1`)
       .orderBy(sql`min(${userEvents.createdAt})`),
   ]);
@@ -1503,7 +1503,7 @@ function buildEventListWhere(q: EventListQuery) {
   if (q.deviceType) conditions.push(eq(userEvents.deviceType, q.deviceType as 'desktop'));
   if (q.startTime) conditions.push(gte(userEvents.createdAt, q.startTime));
   if (q.endTime) conditions.push(lt(userEvents.createdAt, q.endTime));
-  return mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(userEvents));
+  return buildWhere(...conditions, tenantScope(userEvents));
 }
 
 export async function listAnalyticsEvents(q: EventListQuery) {
@@ -1564,7 +1564,7 @@ export async function listAnalyticsEvents(q: EventListQuery) {
 }
 
 export async function getEventDetail(id: number) {
-  const where = mergeWhere(eq(userEvents.id, id), tenantScope(userEvents));
+  const where = buildWhere(eq(userEvents.id, id), tenantScope(userEvents));
   const [r] = await db.select().from(userEvents).where(where).limit(1);
   if (!r) return null;
   return {
@@ -1649,12 +1649,12 @@ export async function countEventsForExport(q: EventListQuery, max = 50_000): Pro
 export async function cleanAnalyticsEvents(days: number): Promise<number> {
   const where =
     days > 0
-      ? mergeWhere(sql`${userEvents.createdAt} < NOW() - (${days} * INTERVAL '1 day')`, tenantScope(userEvents))
+      ? buildWhere(sql`${userEvents.createdAt} < NOW() - (${days} * INTERVAL '1 day')`, tenantScope(userEvents))
       : tenantScope(userEvents);
   const result = await db.delete(userEvents).where(where);
   // 一并清理过期会话
   if (days > 0) {
-    await db.delete(analyticsSessions).where(mergeWhere(sql`${analyticsSessions.startedAt} < NOW() - (${days} * INTERVAL '1 day')`, tenantScope(analyticsSessions)));
+    await db.delete(analyticsSessions).where(buildWhere(sql`${analyticsSessions.startedAt} < NOW() - (${days} * INTERVAL '1 day')`, tenantScope(analyticsSessions)));
   } else {
     await db.delete(analyticsSessions).where(tenantScope(analyticsSessions));
   }

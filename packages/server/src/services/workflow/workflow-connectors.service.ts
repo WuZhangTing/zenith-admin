@@ -11,7 +11,7 @@ import { workflowConnectors, workflowConnectorInvocations, smsConfigs, smsTempla
 import type { WorkflowConnectorRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -96,7 +96,7 @@ export async function listWorkflowConnectors(query: { page?: number; pageSize?: 
   if (type) conds.push(eq(workflowConnectors.type, type));
   if (status) conds.push(eq(workflowConnectors.status, status));
   conds.push(keywordCondition(keyword, [workflowConnectors.name, workflowConnectors.code], 'ilike'));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowConnectors, where),
     db.select().from(workflowConnectors).where(where).orderBy(desc(workflowConnectors.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

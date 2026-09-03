@@ -3,7 +3,7 @@ import { db } from '../../db';
 import { aiConversations, aiMessages, users } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime, formatFileTimestamp, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
-import { escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { streamToCsv } from '../../lib/excel-export';
 import { HTTPException } from 'hono/http-exception';
 import { resolveAgentForChat, incrementAgentUsage } from './ai-agents.service';
@@ -576,7 +576,7 @@ export async function listAuditMessages(params: {
   const end = params.endDate ? parseDateRangeEnd(params.endDate) : null;
   if (start) conds.push(gte(aiMessages.createdAt, start));
   if (end) conds.push(lte(aiMessages.createdAt, end));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
 
   const baseQuery = db
     .select({

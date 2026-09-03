@@ -70,7 +70,7 @@ export function mapDefinitionVersion(
 
 // ─── 业务逻辑 ─────────────────────────────────────────────────────────────────
 import { eq, and, like, desc, inArray, ne } from 'drizzle-orm';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { pageOffset } from '../../lib/pagination';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -136,7 +136,7 @@ export async function listDefinitions(query: { page?: number; pageSize?: number;
   if (keyword) conditions.push(like(workflowDefinitions.name, `%${escapeLike(keyword)}%`));
   if (status) conditions.push(eq(workflowDefinitions.status, status as WorkflowDefinitionStatus));
   if (categoryId) conditions.push(eq(workflowDefinitions.categoryId, categoryId));
-  const where = conditions.length ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(workflowDefinitions, where),
     db.query.workflowDefinitions.findMany({

@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpMessageTemplates, mpTemplateSendLogs } from '../../db/schema';
 import type { MpMessageTemplateRow, MpTemplateSendLogRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -65,7 +65,7 @@ export async function listMpTemplates(q: ListMpTemplatesQuery) {
   const tenant = tenantScope(mpMessageTemplates);
   if (tenant) conditions.push(tenant);
   if (q.keyword) conditions.push(ilike(mpMessageTemplates.title, `%${escapeLike(q.keyword)}%`));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpMessageTemplates, where),
     withPagination(db.select().from(mpMessageTemplates).where(where).orderBy(mpMessageTemplates.id).$dynamic(), q.page, q.pageSize),
@@ -135,7 +135,7 @@ export async function listMpTemplateSendLogs(q: ListMpSendLogsQuery) {
   const tenant = tenantScope(mpTemplateSendLogs);
   if (tenant) conditions.push(tenant);
   if (q.status) conditions.push(eq(mpTemplateSendLogs.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpTemplateSendLogs, where),
     withPagination(db.select().from(mpTemplateSendLogs).where(where).orderBy(desc(mpTemplateSendLogs.id)).$dynamic(), q.page, q.pageSize),

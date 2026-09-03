@@ -19,7 +19,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { formatDate, formatDateTime, formatNullableDateTime, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { isPgUniqueViolation, rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { postSystemJournalWithin } from './payment-journal.service';
@@ -84,7 +84,7 @@ export async function listSettlements(q: ListSettlementsQuery) {
   const conds = [];
   if (q.channel) conds.push(eq(paymentSettlementBatches.channel, q.channel));
   if (q.status) conds.push(eq(paymentSettlementBatches.status, q.status));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentSettlementBatches, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentSettlementBatches, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentSettlementBatches, where),
     withPagination(db.select().from(paymentSettlementBatches).where(where).orderBy(desc(paymentSettlementBatches.id)).$dynamic(), page, pageSize),

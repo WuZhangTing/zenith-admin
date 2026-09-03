@@ -1,10 +1,10 @@
-import { eq, asc, and, like, or, type SQL } from 'drizzle-orm';
+import { eq, asc, like, or, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { cmsErrorProneWords } from '../../db/schema';
 import type { CmsErrorProneWordRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { AhoCorasick, applyReplacements, createTtlCache, toCodePoints, type AcMatch } from '../../lib/aho-corasick';
 import { invalidateWordCheckCache } from './cms-word-check.service';
@@ -79,7 +79,7 @@ export async function listCmsErrorProneWords(q: ListCmsErrorProneWordsQuery) {
     if (kw) conditions.push(kw);
   }
   if (q.status) conditions.push(eq(cmsErrorProneWords.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(cmsErrorProneWords, where),
     withPagination(

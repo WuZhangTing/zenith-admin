@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpQrcodes, mpFans } from '../../db/schema';
 import type { MpQrcodeRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -60,7 +60,7 @@ export async function listMpQrcodes(q: ListMpQrcodesQuery) {
     const matched = or(ilike(mpQrcodes.name, kw), ilike(mpQrcodes.sceneStr, kw));
     if (matched) conditions.push(matched);
   }
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpQrcodes, where),
     withPagination(db.select().from(mpQrcodes).where(where).orderBy(desc(mpQrcodes.id)).$dynamic(), q.page, q.pageSize),

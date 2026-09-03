@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { smsTemplates } from '../../db/schema';
 import type { SmsTemplateRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
@@ -50,7 +50,7 @@ export async function listSmsTemplates(q: ListSmsTemplatesQuery) {
   }
   if (q.provider) conditions.push(eq(smsTemplates.provider, q.provider));
   if (q.status) conditions.push(eq(smsTemplates.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(smsTemplates, where),
     withPagination(db.select().from(smsTemplates).where(where).orderBy(smsTemplates.id).$dynamic(), q.page, q.pageSize),

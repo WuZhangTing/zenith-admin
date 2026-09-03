@@ -3,12 +3,6 @@ import type { SQL } from 'drizzle-orm';
 import type { PgColumn, PgSelect } from 'drizzle-orm/pg-core';
 import { parseDateRangeEnd, parseDateRangeStart } from './datetime';
 
-/** 合并两个可选的 WHERE 条件，等价于 `base && extra ? and(base, extra) : (extra ?? base)` */
-export function mergeWhere(base?: SQL, extra?: SQL): SQL | undefined {
-  if (base && extra) return and(base, extra);
-  return extra ?? base;
-}
-
 /** 转义 PostgreSQL LIKE / ILIKE 元字符（%, _, \），防止用户输入被解释为通配符 */
 export function escapeLike(s: string): string {
   return s.replaceAll('\\', String.raw`\\`).replaceAll(String.raw`%`, String.raw`\%`).replaceAll('_', String.raw`\_`);
@@ -17,13 +11,10 @@ export function escapeLike(s: string): string {
 /**
  * 关键字跨列模糊匹配。
  *
- * 收敛此前散落在各 service 的三种写法——`or(...)` 返回 `SQL | undefined`，
- * 有的加 `!` 非空断言、有的隐式吞掉 undefined、有的显式 guard。这里统一在一处处理。
+ * 关键字为空或纯空格时返回 `undefined`（不参与 WHERE），调用方无需自行判空；
+ * 内部已做 `escapeLike` 转义。
  *
- * 关键字为空或纯空格时返回 `undefined`（不参与 WHERE），调用方无需自行判空。
- *
- * @param mode `like` 区分大小写（PostgreSQL 默认），`ilike` 不区分。
- *             既有代码两者都在用，按各表原有语义选择，勿一刀切。
+ * @param mode `like` 区分大小写（PostgreSQL 默认），`ilike` 不区分，按各表语义选择。
  *
  * @example
  * const where = buildWhere(
@@ -46,9 +37,8 @@ export function keywordCondition(
 /**
  * 时间范围条件（闭区间）。
  *
- * **末端口径统一走 `parseDateRangeEnd`**：传入纯日期 `2026-08-01` 时取当天
- * `23:59:59.999` 而非 `00:00:00`，否则筛选「到 8 月 1 日」会漏掉整个 8 月 1 日的数据。
- * 此前部分 service 用 `parseDateTimeInput` 解析末端，正是该口径分裂的来源。
+ * 末端经 `parseDateRangeEnd` 解析：传入纯日期 `2026-08-01` 时取当天 `23:59:59.999`，
+ * 保证「到 8 月 1 日」包含整个 8 月 1 日。
  *
  * 返回数组便于直接展开进 `buildWhere(...)`；两端都为空时返回空数组。
  */
@@ -66,8 +56,8 @@ export function dateRangeConditions(
 }
 
 /**
- * 合并任意多个可选条件，全空时返回 `undefined`（即不加 WHERE）。
- * 替代各 service 手写的 `conditions.length ? and(...conditions) : undefined`。
+ * 合并任意多个可选条件为 WHERE：过滤 `undefined`，全空返回 `undefined`（即不加 WHERE），
+ * 单条件原样返回，多条件 `and(...)`。既用于条件数组，也用于追加租户 / 数据权限条件。
  *
  * @example
  * const where = buildWhere(

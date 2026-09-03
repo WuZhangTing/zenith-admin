@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { exportJobDownloads, exportJobs, fileStorageConfigs, managedFiles, users } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatFileTimestamp, formatNullableDateTime } from '../../lib/datetime';
 import { currentUser, runWithCurrentUser } from '../../lib/context';
 import { getUserPermissions, isSuperAdmin } from '../../lib/permissions';
@@ -423,7 +423,7 @@ export async function listExportJobs(query: ListExportJobsQuery) {
   if (query.format) conditions.push(eq(exportJobs.format, query.format));
   conditions.push(keywordCondition(query.keyword, [exportJobs.moduleName, exportJobs.filename, exportJobs.entity], 'ilike'));
   conditions.push(...dateRangeConditions(exportJobs.createdAt, query.startTime, query.endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(exportJobs, where),
     db.query.exportJobs.findMany({

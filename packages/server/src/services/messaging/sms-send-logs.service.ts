@@ -1,8 +1,8 @@
-import { eq, and, ilike, desc, type SQL } from 'drizzle-orm';
+import { eq, ilike, desc, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { smsSendLogs, smsTemplates, smsConfigs, users } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
@@ -30,7 +30,7 @@ export function buildListWhere(q: ListSmsSendLogsQuery) {
   if (q.provider) conditions.push(eq(smsSendLogs.provider, q.provider));
   if (q.status) conditions.push(eq(smsSendLogs.status, q.status));
   if (q.source) conditions.push(eq(smsSendLogs.source, q.source));
-  return mergeWhere(and(...conditions));
+  return buildWhere(...conditions);
 }
 
 export async function listSmsSendLogs(q: ListSmsSendLogsQuery) {

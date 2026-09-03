@@ -21,7 +21,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildAdapterContext, createOrderConfigResolver, loadOrderConfig } from './payment.service';
 import { postSystemJournal } from './payment-journal.service';
@@ -111,7 +111,7 @@ export async function listReceivers(q: ListReceiversQuery) {
   const conds = [];
   if (q.keyword) conds.push(like(paymentSharingReceivers.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(paymentSharingReceivers.status, q.status));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentSharingReceivers, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentSharingReceivers, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentSharingReceivers, where),
     withPagination(db.select().from(paymentSharingReceivers).where(where).orderBy(desc(paymentSharingReceivers.id)).$dynamic(), page, pageSize),
@@ -186,7 +186,7 @@ export async function listSharingOrders(q: ListSharingOrdersQuery) {
   if (q.keyword) conds.push(like(paymentSharingOrders.orderNo, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(paymentSharingOrders.status, q.status));
   if (q.receiverId) conds.push(eq(paymentSharingOrders.receiverId, q.receiverId));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentSharingOrders, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentSharingOrders, currentUser()));
   const [total, rows] = await Promise.all([
     db.$count(paymentSharingOrders, where),
     db.query.paymentSharingOrders.findMany({

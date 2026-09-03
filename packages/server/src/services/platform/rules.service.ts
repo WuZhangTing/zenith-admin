@@ -5,7 +5,7 @@ import { db } from '../../db';
 import { ruleDecisionTables, ruleDecisionTableVersions, ruleTestCases, ruleExecutions, workflowDefinitions, systemConfigs } from '../../db/schema';
 import { currentUser, currentUserOrNull } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation, isPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -100,7 +100,7 @@ export async function listDecisionTables(q: ListDecisionTablesQuery) {
   if (tc) conds.push(tc);
   if (q.keyword) conds.push(like(ruleDecisionTables.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(ruleDecisionTables.status, q.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(ruleDecisionTables, where),
     db.select().from(ruleDecisionTables).where(where).orderBy(desc(ruleDecisionTables.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

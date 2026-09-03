@@ -6,7 +6,7 @@ import { cmsModels, cmsModelFields, cmsChannels, cmsContents, cmsSites, dicts, d
 import type { CmsModelRow, CmsModelFieldRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { buildWhere, mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsModelInput, UpdateCmsModelInput, CmsModelFieldInput } from '@zenith/shared/cms';
 import { assertSiteAccess } from './cms-sites.service';
@@ -219,7 +219,7 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
   const visibility = modelVisibilityCondition(scope ?? undefined);
   if (visibility) conditions.push(visibility);
 
-  const where = mergeWhere(buildWhere(...conditions));
+  const where = buildWhere(buildWhere(...conditions));
   const [total, rows] = await Promise.all([
     db.$count(cmsModels, where),
     withPagination(
@@ -261,7 +261,7 @@ export async function listCmsModels(q: ListCmsModelsQuery) {
 export async function listAllCmsModels(siteId?: number) {
   const scope = await resolveCmsModelScope(siteId);
   const rows = await db.query.cmsModels.findMany({
-    where: mergeWhere(eq(cmsModels.status, 'enabled'), modelVisibilityCondition(scope ?? undefined)),
+    where: buildWhere(eq(cmsModels.status, 'enabled'), modelVisibilityCondition(scope ?? undefined)),
     orderBy: [asc(cmsModels.sort), asc(cmsModels.id)],
     with: { fields: { orderBy: [asc(cmsModelFields.sort), asc(cmsModelFields.id)] } },
   });

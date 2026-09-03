@@ -13,6 +13,7 @@ import { config } from '../../config';
 import { currentUser } from '../../lib/context';
 import { isPlatformAdmin, getEffectiveTenantId, tenantScope } from '../../lib/tenant';
 import { clampDays } from '../../lib/analytics-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 
 /** 质量日聚合表租户过滤：语义对齐 rollupTenantScope（tenantId 非空，0 表示无租户）。 */
 export function qualityTenantScope(): SQL | undefined {
@@ -82,7 +83,7 @@ export async function listDebugEvents(q: DebugEventsQuery) {
   if (q.eventName) conditions.push(eq(userEvents.eventName, q.eventName));
   const scope = tenantScope(userEvents);
   if (scope) conditions.push(scope);
-  const where = conditions.length ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
 
   const [rows, total] = await Promise.all([
     db

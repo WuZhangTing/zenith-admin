@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpKfAccounts } from '../../db/schema';
 import type { MpKfAccountRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -53,7 +53,7 @@ export async function listMpKfAccounts(q: ListMpKfAccountsQuery) {
   const tenant = tenantScope(mpKfAccounts);
   if (tenant) conditions.push(tenant);
   if (q.keyword) conditions.push(ilike(mpKfAccounts.nickname, `%${escapeLike(q.keyword)}%`));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpKfAccounts, where),
     withPagination(db.select().from(mpKfAccounts).where(where).orderBy(mpKfAccounts.id).$dynamic(), q.page, q.pageSize),

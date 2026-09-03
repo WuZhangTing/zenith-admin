@@ -15,7 +15,7 @@ import {
   type SystemSchedulerTaskPolicy,
   type SystemSchedulerTaskInfo,
 } from '../../lib/pg-boss-scheduler';
-import { dateRangeConditions, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, withPagination } from '../../lib/where-helpers';
 
 export interface ListSystemSchedulerRunsQuery {
   page: number;
@@ -231,7 +231,7 @@ export async function listSystemSchedulerRuns(query: ListSystemSchedulerRunsQuer
   if (query.alertStatus === 'alerted') conditions.push(isNotNull(systemSchedulerRuns.alertMessage));
   if (query.alertStatus === 'unacked') conditions.push(and(isNotNull(systemSchedulerRuns.alertMessage), sql`${systemSchedulerRuns.alertAckAt} is null`)!);
   conditions.push(...dateRangeConditions(systemSchedulerRuns.startedAt, query.startTime, query.endTime));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(systemSchedulerRuns, where),
     withPagination(

@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { cmsContents, cmsContentTags, cmsContentChannels, cmsContentRelations } from '../../db/schema';
 import type { CmsContentRow, CmsTagRow } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
-import { dateRangeConditions, escapeLike, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, escapeLike, withPagination } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import { getAccessibleChannelIds, assertChannelAccess } from './cms-channels.service';
@@ -234,7 +234,7 @@ export async function listCmsContents(q: ListCmsContentsQuery) {
     if (scopeCondition) conditions.push(scopeCondition);
   }
 
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(cmsContents, where),
     db.query.cmsContents.findMany({

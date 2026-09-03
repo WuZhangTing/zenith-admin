@@ -15,7 +15,7 @@ import { userEvents } from '../../db/schema';
 import type { AnalyticsBreakdownDimension, AnalyticsComparison, FunnelQuery, FunnelResult, FunnelStepResult, RetentionCohort, RetentionResult, AnalyticsRetentionMode, AnalyticsRetentionPeriodType } from '@zenith/shared/analytics';
 import { ANALYTICS_RETENTION_PERIOD_LIMITS, ANALYTICS_RETENTION_PERIOD_TYPES } from '@zenith/shared/analytics';
 import { tenantScope } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { clampDays, startOfDaysAgo } from '../../lib/analytics-helpers';
 import { APP_TIME_ZONE, formatDate, parseDateRangeStart } from '../../lib/datetime';
 import { buildJsonPropertyCondition } from './analytics-property-filter';
@@ -125,7 +125,7 @@ export function buildFunnelCtes(
     if (i === 0) {
       const conditions: SQL[] = [gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId), ...stepConditions];
       if (seriesCondition) conditions.push(seriesCondition);
-      const where = mergeWhere(and(...conditions), tenantScope(userEvents))!;
+      const where = buildWhere(...conditions, tenantScope(userEvents))!;
       return sql`${sql.raw(`s${i}`)} AS (
         SELECT ${userEvents.distinctId} AS distinct_id,
                MIN(${userEvents.createdAt}) AS first_at,
@@ -137,7 +137,7 @@ export function buildFunnelCtes(
       )`;
     }
     const conditions: SQL[] = [isNotNull(userEvents.distinctId), ...stepConditions];
-    const where = mergeWhere(and(...conditions), tenantScope(userEvents))!;
+    const where = buildWhere(...conditions, tenantScope(userEvents))!;
     const prevAlias = sql.raw(`s${i - 1}`);
     return sql`${sql.raw(`s${i}`)} AS (
       SELECT prev.distinct_id AS distinct_id,
@@ -160,7 +160,7 @@ export function buildFunnelCtes(
  */
 export async function topBreakdownValues(dimension: AnalyticsBreakdownDimension, start: Date): Promise<string[]> {
   const expr = breakdownValueSql(dimension);
-  const where = mergeWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
+  const where = buildWhere(and(gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)), tenantScope(userEvents))!;
   const rows = (await db.execute(sql`
     SELECT COALESCE(${expr}, '') AS value, COUNT(DISTINCT ${userEvents.distinctId})::int AS users
     FROM ${userEvents}
@@ -278,7 +278,7 @@ async function loadRetentionMatrix(input: RetentionMatrixInput): Promise<Map<str
   const axisEnd = axis[axis.length - 1];
   const activityConditions: SQL[] = [gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)];
   if (seriesCondition) activityConditions.push(seriesCondition);
-  const activityWhere = mergeWhere(and(...activityConditions), tenantScope(userEvents))!;
+  const activityWhere = buildWhere(...activityConditions, tenantScope(userEvents))!;
   // periodType 来自白名单枚举，仍以绑定参数传入（date_trunc 首参为 text），不做字符串拼接
   const activityPeriod = sql`to_char(date_trunc(${periodType}, timezone(${APP_TIME_ZONE}, ${userEvents.createdAt})), 'YYYY-MM-DD')`;
 
@@ -288,7 +288,7 @@ async function loadRetentionMatrix(input: RetentionMatrixInput): Promise<Map<str
     // 避免把窗口起点误当作全局首访起点
     const historyConditions: SQL[] = [isNotNull(userEvents.distinctId)];
     if (seriesCondition) historyConditions.push(seriesCondition);
-    const historyWhere = mergeWhere(and(...historyConditions), tenantScope(userEvents))!;
+    const historyWhere = buildWhere(...historyConditions, tenantScope(userEvents))!;
     rows = (await db.execute(sql`
       WITH activity AS (
         SELECT DISTINCT ${userEvents.distinctId} AS distinct_id,

@@ -16,6 +16,7 @@ import { formatDateTime, formatNullableDateTime, formatDate } from '../../lib/da
 import logger from '../../lib/logger';
 import { createInstance } from './workflow-instances.service';
 import type { WorkflowSchedule, CreateWorkflowScheduleInput, UpdateWorkflowScheduleInput } from '@zenith/shared/workflow';
+import { buildWhere } from '../../lib/where-helpers';
 
 type Row = typeof workflowSchedules.$inferSelect;
 
@@ -83,7 +84,7 @@ export async function listSchedules(query: { page?: number; pageSize?: number; d
   if (tc) conds.push(tc);
   if (definitionId) conds.push(eq(workflowSchedules.definitionId, definitionId));
   if (status) conds.push(eq(workflowSchedules.status, status as 'enabled' | 'disabled'));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowSchedules, where),
     db.select({ row: workflowSchedules, definitionName: workflowDefinitions.name, initiatorName: users.nickname })

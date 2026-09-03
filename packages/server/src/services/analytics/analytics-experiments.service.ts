@@ -11,7 +11,7 @@ import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRan
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
-import { escapeLike, mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { EXPERIMENT_ALPHA, requiredSamplePerVariant, srmTest, twoProportionZTest } from './analytics-experiment-stats';
 
 /** 比例 → 百分比 */
@@ -90,17 +90,17 @@ function invalidateAssignmentCache(tenantId?: number | null): void {
   else assignmentCache.delete(String(tenantId ?? 0));
 }
 
-function buildWhere(q: ListExperimentsQuery): SQL | undefined {
+function buildExperimentWhere(q: ListExperimentsQuery): SQL | undefined {
   const conditions: SQL[] = [];
   if (q.name) conditions.push(sql`${analyticsExperiments.name} ILIKE ${'%' + escapeLike(q.name) + '%'}`);
   if (q.status) conditions.push(eq(analyticsExperiments.status, q.status));
-  return mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(analyticsExperiments));
+  return buildWhere(...conditions, tenantScope(analyticsExperiments));
 }
 
 export async function listExperiments(q: ListExperimentsQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
-  const where = buildWhere(q);
+  const where = buildExperimentWhere(q);
   const [list, total] = await Promise.all([
     db.query.analyticsExperiments.findMany({ where, with: { tenant: true }, orderBy: [desc(analyticsExperiments.id)], limit: pageSize, offset: pageOffset(page, pageSize) }),
     db.$count(analyticsExperiments, where),
@@ -110,14 +110,14 @@ export async function listExperiments(q: ListExperimentsQuery) {
 
 export async function ensureExperimentExists(id: number): Promise<AnalyticsExperimentRow> {
   const [row] = await db.select().from(analyticsExperiments)
-    .where(mergeWhere(eq(analyticsExperiments.id, id), tenantScope(analyticsExperiments)))
+    .where(buildWhere(eq(analyticsExperiments.id, id), tenantScope(analyticsExperiments)))
     .limit(1);
   if (!row) throw new HTTPException(404, { message: '实验不存在' });
   return row;
 }
 
 export async function getExperiment(id: number) {
-  const row = await db.query.analyticsExperiments.findFirst({ where: mergeWhere(eq(analyticsExperiments.id, id), tenantScope(analyticsExperiments)), with: { tenant: true } });
+  const row = await db.query.analyticsExperiments.findFirst({ where: buildWhere(eq(analyticsExperiments.id, id), tenantScope(analyticsExperiments)), with: { tenant: true } });
   if (!row) throw new HTTPException(404, { message: '实验不存在' });
   return mapExperiment(row);
 }

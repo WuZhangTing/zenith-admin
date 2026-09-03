@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { cmsTags } from '../../db/schema';
 import type { CmsTagRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsTagInput, UpdateCmsTagInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -56,7 +56,7 @@ export async function listCmsTags(q: ListCmsTagsQuery) {
     );
     if (kw) conditions.push(kw);
   }
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(cmsTags, where),
     withPagination(

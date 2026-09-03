@@ -1,5 +1,5 @@
 import { eq, asc, desc, and, or, like, gte, lte, type SQL } from 'drizzle-orm';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { dicts, dictItems } from '../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -40,7 +40,7 @@ export async function listDicts(q: ListDictsQuery) {
   if (parsedEndDate) conditions.push(lte(dicts.createdAt, parsedEndDate));
   const where = and(...conditions);
   const tc = tenantCondition(dicts, user);
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
   const [total, list] = await Promise.all([
     db.$count(dicts, finalWhere),
     withPagination(db.select().from(dicts).where(finalWhere).orderBy(desc(dicts.createdAt)).$dynamic(), page, pageSize),

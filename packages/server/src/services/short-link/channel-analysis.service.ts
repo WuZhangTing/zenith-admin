@@ -12,7 +12,7 @@ import { formatDate } from '../../lib/datetime';
 import { clampDays } from '../../lib/analytics-helpers';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 
 const ROWS_LIMIT = 20;
 
@@ -51,7 +51,7 @@ export async function getChannelAnalysis(q: ChannelAnalysisQuery): Promise<Chann
   // 兜底值必须内联字面量：绑定参数会让 SELECT 与 GROUP BY 中的同一表达式因占位符编号不同（$1/$4）
   // 被 PG 判定为不同表达式，报「列必须出现在 GROUP BY 中」
   const dimExpr = sql<string>`coalesce(nullif(${dimCol}, ''), '未设置')`;
-  const clicksWhere = mergeWhere(
+  const clicksWhere = buildWhere(
     and(eq(shortLinkClicks.isBot, false), gte(shortLinkClicks.clickedAt, since)),
     tenantCondition(shortLinks, user),
   );
@@ -93,7 +93,7 @@ export async function getChannelAnalysis(q: ChannelAnalysisQuery): Promise<Chann
     const convRows = await db
       .select({ name: evDimExpr, conversions: count() })
       .from(userEvents)
-      .where(mergeWhere(
+      .where(buildWhere(
         and(eq(userEvents.eventName, convEvent), gte(userEvents.createdAt, since)),
         tenantCondition(userEvents, user),
       ))

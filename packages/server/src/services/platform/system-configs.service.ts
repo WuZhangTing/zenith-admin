@@ -1,5 +1,5 @@
 import { eq, and, ne, desc, inArray } from 'drizzle-orm';
-import { mergeWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, withPagination, keywordCondition } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { systemConfigs } from '../../db/schema';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
@@ -47,7 +47,7 @@ export async function listSystemConfigs(q: ListSystemConfigsQuery) {
   conditions.push(keywordCondition(q.keyword, [systemConfigs.configKey, systemConfigs.configName, systemConfigs.description]));
   if (q.configType) conditions.push(eq(systemConfigs.configType, q.configType));
   const where = and(...conditions);
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
   const [total, rows] = await Promise.all([
     db.$count(systemConfigs, finalWhere),
     withPagination(db.select().from(systemConfigs).where(finalWhere).orderBy(desc(systemConfigs.id)).$dynamic(), page, pageSize),

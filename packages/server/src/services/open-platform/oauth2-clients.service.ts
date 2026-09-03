@@ -22,7 +22,7 @@ import { pageOffset } from '../../lib/pagination';
 import { encryptField, decryptField } from '../../lib/encryption';
 import type { CreateOAuth2ClientInput, UpdateOAuth2ClientInput } from '@zenith/shared/open-platform';
 import { config } from '../../config';
-import { escapeLike, mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 
 // ─── 辅助：生成 & 哈希 client_secret ────────────────────────────────────────
 
@@ -95,8 +95,8 @@ export async function listOAuth2Clients(opts: {
   if (ownerId !== undefined) conditions.push(eq(oauth2Clients.ownerId, ownerId));
   if (environment) conditions.push(eq(oauth2Clients.environment, environment));
   if (reviewStatus) conditions.push(eq(oauth2Clients.reviewStatus, reviewStatus));
-  const where = mergeWhere(
-    conditions.length ? and(...conditions) : undefined,
+  const where = buildWhere(
+    buildWhere(...conditions),
     tenantCondition(oauth2Clients, currentUser()),
   );
   const [list, total] = await Promise.all([

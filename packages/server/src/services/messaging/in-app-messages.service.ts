@@ -3,7 +3,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { inAppMessages, inAppTemplates, users } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
@@ -21,14 +21,14 @@ export interface ListInAppMessagesQuery {
   pageSize: number;
 }
 
-function buildWhere(q: ListInAppMessagesQuery, recipientId: number) {
+function buildInboxWhere(q: ListInAppMessagesQuery, recipientId: number) {
   const conditions: SQL[] = [eq(inAppMessages.userId, recipientId)];
   const tenant = tenantScope(inAppMessages);
   if (tenant) conditions.push(tenant);
   if (q.keyword) conditions.push(ilike(inAppMessages.title, `%${escapeLike(q.keyword)}%`));
   if (q.type) conditions.push(eq(inAppMessages.type, q.type));
   if (typeof q.isRead === 'boolean') conditions.push(eq(inAppMessages.isRead, q.isRead));
-  return mergeWhere(and(...conditions));
+  return buildWhere(...conditions);
 }
 
 /** 站内信联表基础查询（消息 + 模板名 + 发送人用户名） */
@@ -87,7 +87,7 @@ async function ensureInAppMessageExists(id: number, ownedBy?: number) {
 export async function listMyInAppMessages(q: ListInAppMessagesQuery) {
   const me = currentUser();
   const recipientId = q.recipientId ?? me.userId;
-  const where = buildWhere(q, recipientId);
+  const where = buildInboxWhere(q, recipientId);
   const [total, rows] = await Promise.all([
     db.$count(inAppMessages, where),
     withPagination(
@@ -137,7 +137,7 @@ export async function listAllInAppMessages(q: Omit<ListInAppMessagesQuery, 'reci
   if (typeof q.isRead === 'boolean') conditions.push(eq(inAppMessages.isRead, q.isRead));
   if (q.recipientId) conditions.push(eq(inAppMessages.userId, q.recipientId));
   if (q.senderId) conditions.push(eq(inAppMessages.senderId, q.senderId));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
 
   const sender = alias(users, 'sender');
   const recipient = alias(users, 'recipient');
@@ -189,7 +189,7 @@ export async function adminMarkAsRead(id: number) {
 
 /** 管理员视角：将当前租户所有未读站内信标记为已读。 */
 export async function adminMarkAllAsRead() {
-  const where = mergeWhere(and(
+  const where = buildWhere(and(
     eq(inAppMessages.isRead, false),
     tenantScope(inAppMessages),
   ));
@@ -207,7 +207,7 @@ export async function adminMarkAllAsRead() {
 export async function unreadCount(userId?: number) {
   const me = currentUser();
   const targetId = userId ?? me.userId;
-  const where = mergeWhere(and(
+  const where = buildWhere(and(
     eq(inAppMessages.userId, targetId),
     eq(inAppMessages.isRead, false),
     tenantScope(inAppMessages),
@@ -227,7 +227,7 @@ export async function markAsRead(id: number) {
 
 export async function markAllAsRead() {
   const me = currentUser();
-  const where = mergeWhere(and(
+  const where = buildWhere(and(
     eq(inAppMessages.userId, me.userId),
     eq(inAppMessages.isRead, false),
     tenantScope(inAppMessages),
@@ -246,7 +246,7 @@ export async function markAllAsRead() {
 export async function batchMarkAsRead(ids: number[]) {
   if (ids.length === 0) return { count: 0 };
   const me = currentUser();
-  const where = mergeWhere(and(
+  const where = buildWhere(and(
     inArray(inAppMessages.id, ids),
     eq(inAppMessages.userId, me.userId),
     eq(inAppMessages.isRead, false),
@@ -273,7 +273,7 @@ export async function deleteInAppMessage(id: number) {
 export async function batchDeleteInAppMessages(ids: number[]) {
   if (ids.length === 0) return { count: 0 };
   const me = currentUser();
-  const where = mergeWhere(and(
+  const where = buildWhere(and(
     inArray(inAppMessages.id, ids),
     eq(inAppMessages.userId, me.userId),
     tenantScope(inAppMessages),

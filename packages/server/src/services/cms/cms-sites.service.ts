@@ -13,7 +13,7 @@ import {
 import type { CmsSiteInheritanceRow, CmsSiteRow } from '../../db/schema';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import logger from '../../lib/logger';
 import { currentCmsOpenApiAccess, currentUser, hasPermission } from '../../lib/context';
@@ -332,7 +332,7 @@ export async function listCmsSites(q: ListCmsSitesQuery) {
   }
   if (status) conditions.push(eq(cmsSites.status, status));
 
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(cmsSites, where),
     withPagination(
@@ -373,7 +373,7 @@ export async function listCmsSiteTree(query: { keyword?: string; status?: 'enabl
   conditions.push(keywordCondition(query.keyword, [cmsSites.name, cmsSites.code, cmsSites.domain]));
   if (query.status) conditions.push(eq(cmsSites.status, query.status));
   const [rows, allRows, inheritanceRows] = await Promise.all([
-    db.select().from(cmsSites).where(conditions.length ? and(...conditions) : undefined)
+    db.select().from(cmsSites).where(buildWhere(...conditions))
       .orderBy(asc(cmsSites.sort), asc(cmsSites.id)),
     db.select().from(cmsSites),
     db.select().from(cmsSiteInheritances),

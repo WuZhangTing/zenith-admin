@@ -29,6 +29,7 @@ import { config } from '../../config';
 import logger from '../../lib/logger';
 import { notify } from '../messaging/notification-outbox.service';
 import type { WorkflowAutomationTrigger, WorkflowInstance } from '@zenith/shared/workflow';
+import { buildWhere } from '../../lib/where-helpers';
 
 export function mapAutomation(row: WorkflowAutomationRow, definitionName?: string | null) {
   return {
@@ -122,7 +123,7 @@ export async function listWorkflowAutomations(q: ListWorkflowAutomationsQuery) {
   if (q.definitionId) conds.push(eq(workflowAutomations.definitionId, q.definitionId));
   if (q.trigger) conds.push(eq(workflowAutomations.trigger, q.trigger));
   if (q.status) conds.push(eq(workflowAutomations.status, q.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowAutomations, where),
     db.query.workflowAutomations.findMany({
@@ -154,7 +155,7 @@ export async function listWorkflowAutomationRuns(q: ListWorkflowAutomationRunsQu
   if (q.ruleId) conds.push(eq(workflowAutomationRuns.ruleId, q.ruleId));
   if (q.instanceId) conds.push(eq(workflowAutomationRuns.instanceId, q.instanceId));
   if (q.status) conds.push(eq(workflowAutomationRuns.status, q.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowAutomationRuns, where),
     db.select().from(workflowAutomationRuns).where(where)

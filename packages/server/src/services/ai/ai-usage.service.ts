@@ -1,8 +1,9 @@
-import { sql, eq, and, gte, lte, desc } from 'drizzle-orm';
+import { sql, eq, gte, lte, desc } from 'drizzle-orm';
 import { db } from '../../db';
 import { aiMessages, aiConversations, aiProviderConfigs, users } from '../../db/schema';
 import { parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { getAiReliability } from '../../lib/ai/reliability';
+import { buildWhere } from '../../lib/where-helpers';
 
 export interface UsageRange {
   startDate?: string;
@@ -60,7 +61,7 @@ function estimateCostFen(
 
 export async function getUsageOverview(range: UsageRange) {
   const msgConds = messageRangeConds(range);
-  const msgWhere = msgConds.length ? and(...msgConds) : undefined;
+  const msgWhere = buildWhere(...msgConds);
 
   // 对话数 / 活跃用户：以「在范围内有消息」的对话为准
   const [aggMsg] = await db
@@ -106,7 +107,7 @@ export async function getUsageByModel(range: UsageRange) {
     })
     .from(aiMessages)
     .innerJoin(aiConversations, eq(aiMessages.conversationId, aiConversations.id))
-    .where(msgConds.length ? and(...msgConds) : undefined)
+    .where(buildWhere(...msgConds))
     .groupBy(MODEL_EXPR)
     .orderBy(desc(TOTAL_TOKENS_EXPR));
 
@@ -135,7 +136,7 @@ export async function getUsageByUser(range: UsageRange, limit = 10) {
     .from(aiMessages)
     .innerJoin(aiConversations, eq(aiMessages.conversationId, aiConversations.id))
     .innerJoin(users, eq(aiConversations.userId, users.id))
-    .where(msgConds.length ? and(...msgConds) : undefined)
+    .where(buildWhere(...msgConds))
     .groupBy(aiConversations.userId, users.username, users.nickname)
     .orderBy(desc(TOTAL_TOKENS_EXPR))
     .limit(limit);
@@ -152,7 +153,7 @@ export async function getUsageTrend(range: UsageRange) {
       totalTokens: TOTAL_TOKENS_EXPR,
     })
     .from(aiMessages)
-    .where(msgConds.length ? and(...msgConds) : undefined)
+    .where(buildWhere(...msgConds))
     .groupBy(dateExpr)
     .orderBy(dateExpr);
   return rows;

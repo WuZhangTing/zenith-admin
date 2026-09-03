@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { cmsForms, cmsFormSubmissions } from '../../db/schema';
 import type { CmsFormRow, CmsFormSubmissionRow, CmsSiteRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { like } from 'drizzle-orm';
 import { sanitizeUserText } from './cms-sensitive-words.service';
@@ -135,7 +135,7 @@ export async function listCmsForms(q: ListCmsFormsQuery) {
   await assertSiteAccess(q.siteId);
   const conditions: SQL[] = [eq(cmsForms.siteId, q.siteId)];
   if (q.keyword) conditions.push(like(cmsForms.name, `%${escapeLike(q.keyword)}%`));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   // 提交数按表单分组后 LEFT JOIN（sql`` 裸列名不带表限定，禁止模板内跨表比较）
   const submissionCounts = db
     .select({ formId: cmsFormSubmissions.formId, cnt: sql<number>`count(*)::int`.as('cnt') })

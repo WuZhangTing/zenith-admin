@@ -1,5 +1,5 @@
 import { count, desc, like, and, or, gte, lt, lte, sql, eq, inArray } from 'drizzle-orm';
-import { dateRangeConditions, escapeLike, keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, dateRangeConditions, escapeLike, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { operationLogs } from '../../db/schema';
 import { tenantCondition } from '../../lib/tenant';
@@ -25,7 +25,7 @@ export interface ListOperationLogsQuery {
   maxDurationMs?: number;
 }
 
-export async function buildWhere(q: ListOperationLogsQuery) {
+export async function buildOperationLogsWhere(q: ListOperationLogsQuery) {
   const user = currentUser();
   const conditions = [];
   if (q.username) {
@@ -47,13 +47,13 @@ export async function buildWhere(q: ListOperationLogsQuery) {
   if (q.maxDurationMs != null) conditions.push(lte(operationLogs.durationMs, q.maxDurationMs));
   const where = and(...conditions);
   const tc = tenantCondition(operationLogs, user);
-  return mergeWhere(where, tc);
+  return buildWhere(where, tc);
 }
 
 export async function listOperationLogs(q: ListOperationLogsQuery) {
   const page = Number(q.page) || 1;
   const pageSize = Number(q.pageSize) || 10;
-  const finalWhere = await buildWhere(q);
+  const finalWhere = await buildOperationLogsWhere(q);
   const [total, rows] = await Promise.all([
     db.$count(operationLogs, finalWhere),
     withPagination(db.select().from(operationLogs).where(finalWhere).orderBy(desc(operationLogs.createdAt)).$dynamic(), page, pageSize),

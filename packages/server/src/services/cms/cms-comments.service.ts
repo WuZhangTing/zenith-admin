@@ -5,7 +5,7 @@ import { cmsComments, cmsContents, cmsSites, members } from '../../db/schema';
 import type { CmsSiteRow } from '../../db/schema';
 import type { CmsCommentRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { config } from '../../config';
 import redis from '../../lib/redis';
 import { invalidateCmsSiteCaches } from './cms-cache.service';
@@ -175,7 +175,7 @@ export async function listCmsComments(q: ListCmsCommentsQuery) {
   if (q.status) conditions.push(eq(cmsComments.status, q.status));
   if (q.source === 'member') conditions.push(isNotNull(cmsComments.memberId));
   if (q.source === 'guest') conditions.push(isNull(cmsComments.memberId));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   // 注意：不能用 RQB `with: { content: ... }`——关系名与评论正文列 content 同名，会覆盖正文字段
   const parentComments = alias(cmsComments, 'parent_comments');
   const [total, rows] = await Promise.all([

@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { workflowJobs, workflowJobExecutions, workflowInstances, workflowDefinitions, systemSchedulerNodes } from '../../db/schema';
 import type { WorkflowJobRow, WorkflowJobExecutionRow } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { retryJob, skipJob, STUCK_RUNNING_GRACE_MS } from '../../lib/workflow-jobs';
 
@@ -75,7 +75,7 @@ export async function listWorkflowJobs(query: ListWorkflowJobsQuery) {
     const kw = `%${query.keyword}%`;
     conds.push(or(ilike(workflowJobs.idempotencyKey, kw), ilike(workflowJobs.traceId, kw), ilike(workflowJobs.nodeKey, kw))!);
   }
-  const where = conds.length > 0 ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
 
   const [total, rows] = await Promise.all([
     db.$count(workflowJobs, where),

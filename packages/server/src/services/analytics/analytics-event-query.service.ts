@@ -7,7 +7,7 @@
  *  - segmentId 先校验 tenant 归属，再通过 analytics_segment_members 子查询过滤 distinctId
  *  - 所有查询强制 tenantScope
  */
-import { and, eq, gte, inArray, lte, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { eq, gte, inArray, lte, isNotNull, sql, type SQL } from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
@@ -15,7 +15,7 @@ import { userEvents } from '../../db/schema';
 import type { AnalyticsEventQueryInput, AnalyticsEventQueryResult, AnalyticsEventQueryGroupByField, AnalyticsEventQueryMetric } from '@zenith/shared/analytics';
 import { ANALYTICS_EVENT_QUERY_METRICS, analyticsMetricRequiresProperty } from '@zenith/shared/analytics';
 import { tenantScope } from '../../lib/tenant';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { APP_TIME_ZONE, formatDate, parseDateRangeStart, parseDateRangeEnd } from '../../lib/datetime';
 import { clampDays } from '../../lib/analytics-helpers';
 import { buildJsonPropertyCondition, PROPERTY_KEY_RE } from './analytics-property-filter';
@@ -149,7 +149,7 @@ export async function queryEvents(input: AnalyticsEventQueryInput): Promise<Anal
     await ensureSegmentAccessible(input.segmentId);
     conditions.push(inArray(userEvents.distinctId, segmentMemberDistinctIdSubquery(input.segmentId)));
   }
-  const where = mergeWhere(and(...conditions), tenantScope(userEvents));
+  const where = buildWhere(...conditions, tenantScope(userEvents));
 
   const groupByExprs = groupBy.map((g) => groupByExpr(g));
   const { value: valueExpr, order: orderExpr } = metricExpr(metric, metricProperty);

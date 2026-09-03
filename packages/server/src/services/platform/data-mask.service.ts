@@ -1,11 +1,11 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { dataMaskConfigs } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { applyMask } from '../../lib/masking';
-import { keywordCondition, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import type { DataMaskConfigRow } from '../../db/schema';
 import type { DataMaskConfig, CustomMaskRule, MaskType, CreateDataMaskConfigInput, UpdateDataMaskConfigInput, SensitiveField } from '@zenith/shared/platform';
 
@@ -63,7 +63,7 @@ export async function listDataMaskConfigs(query: { page?: number; pageSize?: num
   conditions.push(keywordCondition(keyword, [dataMaskConfigs.entity, dataMaskConfigs.field, dataMaskConfigs.label], 'ilike'));
   if (maskType) conditions.push(eq(dataMaskConfigs.maskType, maskType));
   if (enabled !== undefined) conditions.push(eq(dataMaskConfigs.enabled, enabled === 'true'));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(dataMaskConfigs, where),
     withPagination(

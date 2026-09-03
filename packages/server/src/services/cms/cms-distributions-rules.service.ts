@@ -1,5 +1,4 @@
 import {
-  and,
   desc,
   eq,
   ilike,
@@ -18,7 +17,7 @@ import {
 } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import {
   assertChannelAccess,
   ensureCmsChannelExists,
@@ -141,7 +140,7 @@ export async function listCmsDistributionRules(query: ListCmsDistributionRulesQu
   }
   if (query.mode) conditions.push(eq(cmsDistributionRules.mode, query.mode));
   if (query.status) conditions.push(eq(cmsDistributionRules.status, query.status));
-  const where = conditions.length ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
   const [total, rows] = await Promise.all([
     db.$count(cmsDistributionRules, where),
     db.query.cmsDistributionRules.findMany({

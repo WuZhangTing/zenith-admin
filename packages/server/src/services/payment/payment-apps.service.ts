@@ -5,7 +5,7 @@ import { db } from '../../db';
 import { oauth2Clients, paymentApps, paymentChannelConfigs, type PaymentAppRow } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -59,8 +59,8 @@ export async function listApps(q: ListAppsQuery) {
   const conditions = [];
   if (q.keyword) conditions.push(like(paymentApps.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conditions.push(eq(paymentApps.status, q.status));
-  const where = mergeWhere(
-    conditions.length ? and(...conditions) : undefined,
+  const where = buildWhere(
+    buildWhere(...conditions),
     tenantCondition(paymentApps, currentUser()),
   );
   const [total, rows] = await Promise.all([

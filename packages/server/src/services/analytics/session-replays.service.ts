@@ -18,7 +18,7 @@ import type { ReplaySegmentMetaInput } from '@zenith/shared/analytics';
 import { currentUserOrNull } from '../../lib/context';
 import { currentMemberOrNull } from '../../lib/member-context';
 import { tenantScope, getCreateTenantId } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { parseClientEnv, resolveIngestPlatformFields } from '../../lib/analytics-helpers';
@@ -302,7 +302,7 @@ export async function getReplayStorageStats() {
     db.select({
       bytes: sql<number>`COALESCE(SUM(${replaySessions.totalBytes}), 0)::bigint`,
       count: sql<number>`count(*)::int`,
-    }).from(replaySessions).where(mergeWhere(where, gte(replaySessions.createdAt, todayStart))),
+    }).from(replaySessions).where(buildWhere(where, gte(replaySessions.createdAt, todayStart))),
     getReplayQuotaBytes(currentUserOrNull() ? getCreateTenantId(currentUserOrNull()!) : null),
   ]);
   const totalBytes = Number(totals?.bytes ?? 0);
@@ -332,7 +332,7 @@ export async function listHeatmapPages(days: number): Promise<string[]> {
   const rows = await db
     .selectDistinct({ pagePath: replayClickPoints.pagePath })
     .from(replayClickPoints)
-    .where(mergeWhere(tenantScope(replayClickPoints), gte(replayClickPoints.createdAt, cutoff)))
+    .where(buildWhere(tenantScope(replayClickPoints), gte(replayClickPoints.createdAt, cutoff)))
     .orderBy(replayClickPoints.pagePath)
     .limit(200);
   return rows.map((r) => r.pagePath);
@@ -341,7 +341,7 @@ export async function listHeatmapPages(days: number): Promise<string[]> {
 /** 页面点击热力聚合：坐标按 2% 网格聚合计数 */
 export async function getClickHeatmap(pagePath: string, days: number) {
   const cutoff = new Date(Date.now() - days * 86_400_000);
-  const where = mergeWhere(
+  const where = buildWhere(
     tenantScope(replayClickPoints),
     and(eq(replayClickPoints.pagePath, pagePath), gte(replayClickPoints.createdAt, cutoff)),
   );
@@ -399,7 +399,7 @@ export async function listReplayAccessLogs(query: { page: number; pageSize: numb
       ? sql`(${replayAccessLogs.username} ILIKE ${`%${query.keyword}%`} OR ${replayAccessLogs.replayOwner} ILIKE ${`%${query.keyword}%`} OR ${replayAccessLogs.replayId} = ${query.keyword})`
       : undefined,
   ];
-  const where = mergeWhere(tenantScope(replayAccessLogs), and(...conditions.filter(Boolean)));
+  const where = buildWhere(tenantScope(replayAccessLogs), and(...conditions.filter(Boolean)));
   const [rows, [{ total }]] = await Promise.all([
     db.select().from(replayAccessLogs).where(where)
       .orderBy(desc(replayAccessLogs.createdAt))
@@ -466,7 +466,7 @@ export async function listReplaySessions(query: ReplayListQuery) {
       ? sql`(${replaySessions.username} ILIKE ${`%${query.keyword}%`} OR ${replaySessions.entryPageUrl} ILIKE ${`%${query.keyword}%`} OR ${replaySessions.id} = ${query.keyword} OR ${replaySessions.sessionId} = ${query.keyword})`
       : undefined,
   ];
-  const where = mergeWhere(tenantScope(replaySessions), and(...conditions.filter(Boolean)));
+  const where = buildWhere(tenantScope(replaySessions), and(...conditions.filter(Boolean)));
 
   const [rows, [{ total }]] = await Promise.all([
     db.select().from(replaySessions).where(where)
@@ -478,7 +478,7 @@ export async function listReplaySessions(query: ReplayListQuery) {
 }
 
 export async function getReplaySessionDetail(id: string, accessIp?: string | null) {
-  const where = mergeWhere(tenantScope(replaySessions), eq(replaySessions.id, id));
+  const where = buildWhere(tenantScope(replaySessions), eq(replaySessions.id, id));
   const [row] = await db.select().from(replaySessions).where(where).limit(1);
   if (!row) throw new HTTPException(404, { message: '回放会话不存在' });
   // 合规留痕：谁查看了这条录像（best-effort，10 分钟去重覆盖 live 轮询）
@@ -533,7 +533,7 @@ export async function getReplaySessionDetail(id: string, accessIp?: string | nul
       errorCount: replaySessions.errorCount,
       entryPageUrl: replaySessions.entryPageUrl,
     }).from(replaySessions)
-      .where(mergeWhere(tenantScope(replaySessions), and(eq(replaySessions.sessionId, row.sessionId), sql`${replaySessions.id} != ${id}`)))
+      .where(buildWhere(tenantScope(replaySessions), and(eq(replaySessions.sessionId, row.sessionId), sql`${replaySessions.id} != ${id}`)))
       .orderBy(replaySessions.startedAt)
       .limit(20),
   ]);
@@ -558,7 +558,7 @@ export async function getReplaySessionDetail(id: string, accessIp?: string | nul
 
 /** 拉取分片二进制（gzip JSON，路由以 Content-Encoding: gzip 透传，浏览器自动解压） */
 export async function getReplaySegmentData(replayId: string, seq: number): Promise<Buffer> {
-  const where = mergeWhere(tenantScope(replaySessions), eq(replaySessions.id, replayId));
+  const where = buildWhere(tenantScope(replaySessions), eq(replaySessions.id, replayId));
   const [session] = await db.select({ id: replaySessions.id }).from(replaySessions).where(where).limit(1);
   if (!session) throw new HTTPException(404, { message: '回放会话不存在' });
   const [segment] = await db
@@ -571,7 +571,7 @@ export async function getReplaySegmentData(replayId: string, seq: number): Promi
 }
 
 export async function deleteReplaySessions(ids: string[]): Promise<number> {
-  const where = mergeWhere(tenantScope(replaySessions), inArray(replaySessions.id, ids));
+  const where = buildWhere(tenantScope(replaySessions), inArray(replaySessions.id, ids));
   const deleted = await db.delete(replaySessions).where(where).returning({ id: replaySessions.id });
   return deleted.length;
 }

@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { cmsPushLogs, cmsSites, cmsContents, cmsChannels } from '../../db/schema';
 import type { CmsSiteRow, CmsPushLogRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, withPagination } from '../../lib/where-helpers';
 import { httpPost } from '../../lib/http-client';
 import logger from '../../lib/logger';
 import { assertSiteAccess } from './cms-sites.service';
@@ -171,7 +171,7 @@ export async function listCmsPushLogs(q: ListCmsPushLogsQuery) {
   await assertAllCmsSiteChannelsAccess(q.siteId);
   const conditions: SQL[] = [eq(cmsPushLogs.siteId, q.siteId)];
   if (q.engine) conditions.push(eq(cmsPushLogs.engine, q.engine));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(cmsPushLogs, where),
     withPagination(

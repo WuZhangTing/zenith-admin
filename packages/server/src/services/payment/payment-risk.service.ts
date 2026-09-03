@@ -23,7 +23,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { requireTenantScopeId, tenantCondition } from '../../lib/tenant';
-import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
 import { pageOffset } from '../../lib/pagination';
 import { formatDateTime, formatNullableDateTime, parseDateRangeEnd, parseDateRangeStart } from '../../lib/datetime';
@@ -67,7 +67,7 @@ export async function listRiskRules(q: ListRiskRulesQuery) {
   const conds = [];
   if (q.scope) conds.push(eq(paymentRiskRules.scope, q.scope));
   if (q.status) conds.push(eq(paymentRiskRules.status, q.status));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentRiskRules, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentRiskRules, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentRiskRules, where),
     withPagination(db.select().from(paymentRiskRules).where(where).orderBy(desc(paymentRiskRules.id)).$dynamic(), page, pageSize),
@@ -402,7 +402,7 @@ export async function listRiskHits(q: ListRiskHitsQuery) {
   const end = parseDateRangeEnd(q.endTime);
   if (start) conds.push(gte(paymentRiskHits.createdAt, start));
   if (end) conds.push(lte(paymentRiskHits.createdAt, end));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentRiskHits, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentRiskHits, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentRiskHits, where),
     withPagination(db.select().from(paymentRiskHits).where(where).orderBy(desc(paymentRiskHits.id)).$dynamic(), page, pageSize),
@@ -500,7 +500,7 @@ export async function listRiskReviews(q: ListRiskReviewsQuery) {
   conds.push(keywordCondition(q.keyword, [paymentRiskReviews.reviewNo, paymentRiskReviews.orderNo, paymentRiskReviews.bizId]));
   if (q.status) conds.push(eq(paymentRiskReviews.status, q.status));
   if (q.channel) conds.push(eq(paymentRiskReviews.channel, q.channel));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentRiskReviews, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentRiskReviews, currentUser()));
   const [total, rows] = await Promise.all([
     db.$count(paymentRiskReviews, where),
     db.query.paymentRiskReviews.findMany({

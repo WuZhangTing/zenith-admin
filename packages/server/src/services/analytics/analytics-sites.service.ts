@@ -10,7 +10,7 @@ import { formatDate, formatDateTime, parseDateRangeStart } from '../../lib/datet
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { pageOffset } from '../../lib/pagination';
 import { currentCreateTenantId, tenantScope } from '../../lib/tenant';
-import { escapeLike, mergeWhere } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 
 const SITE_CACHE_TTL_MS = 60_000;
 // siteKey 是匿名入口的用户可控输入：负缓存条目也会入 Map，必须设上限防止随机 key 灌爆内存
@@ -87,7 +87,7 @@ export async function listSites(q: AnalyticsSiteListQuery) {
   if (q.name) conditions.push(sql`${analyticsSites.name} ILIKE ${'%' + escapeLike(q.name) + '%'}`);
   if (q.appId) conditions.push(eq(analyticsSites.appId, q.appId));
   if (q.status) conditions.push(eq(analyticsSites.status, q.status));
-  const where = mergeWhere(conditions.length ? and(...conditions) : undefined, tenantScope(analyticsSites));
+  const where = buildWhere(...conditions, tenantScope(analyticsSites));
   const [list, total] = await Promise.all([
     db.query.analyticsSites.findMany({ where, with: { tenant: true }, orderBy: [desc(analyticsSites.id)], limit: pageSize, offset: pageOffset(page, pageSize) }),
     db.$count(analyticsSites, where),
@@ -113,7 +113,7 @@ export async function listSites(q: AnalyticsSiteListQuery) {
 }
 
 async function ensureSiteExists(id: number): Promise<AnalyticsSiteRow> {
-  const where = mergeWhere(eq(analyticsSites.id, id), tenantScope(analyticsSites));
+  const where = buildWhere(eq(analyticsSites.id, id), tenantScope(analyticsSites));
   const [row] = await db.select().from(analyticsSites).where(where).limit(1);
   if (!row) throw new HTTPException(404, { message: '站点不存在' });
   return row;

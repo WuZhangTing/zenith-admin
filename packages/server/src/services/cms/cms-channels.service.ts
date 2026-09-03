@@ -6,7 +6,7 @@ import { cmsChannels, cmsContents, cmsModels, cmsContentChannels, cmsCollectRule
 import type { CmsChannelRow } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentCmsOpenApiAccess, currentUser } from '../../lib/context';
 import type { CreateCmsChannelInput, UpdateCmsChannelInput, CmsChannel } from '@zenith/shared/cms';
@@ -136,7 +136,7 @@ export async function listCmsChannelTree(
   // child under a disabled ancestor cannot be promoted to a new tree root.
   if (q.status && q.status !== 'enabled') conditions.push(eq(cmsChannels.status, q.status));
   const rows = await db.query.cmsChannels.findMany({
-    where: mergeWhere(and(...conditions)),
+    where: buildWhere(...conditions),
     with: { model: { columns: { name: true } } },
     orderBy: [asc(cmsChannels.sort), asc(cmsChannels.id)],
   });

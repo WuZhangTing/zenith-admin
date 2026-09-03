@@ -4,7 +4,7 @@ import { and, desc, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import { db } from '../../db';
 import { reportAlertRules, reportDeliveryRuns } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
@@ -144,7 +144,7 @@ export async function listAlerts(query: { page?: number; pageSize?: number; keyw
   if (datasetId) conds.push(eq(reportAlertRules.datasetId, datasetId));
   if (metricId) conds.push(eq(reportAlertRules.metricId, metricId));
   if (enabled !== undefined) conds.push(eq(reportAlertRules.enabled, enabled));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportAlertRules, where),
     db.query.reportAlertRules.findMany({

@@ -4,7 +4,7 @@ import { db } from '../../db';
 import { cmsFriendLinkGroups, cmsFriendLinks } from '../../db/schema';
 import type { CmsFriendLinkGroupRow } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import type { CreateCmsFriendLinkGroupInput, UpdateCmsFriendLinkGroupInput } from '@zenith/shared/cms';
 import { assertSiteAccess, ensureCmsSiteExists } from './cms-sites.service';
@@ -55,7 +55,7 @@ export async function listCmsFriendLinkGroups(q: ListCmsFriendLinkGroupsQuery) {
   const conditions: SQL[] = [eq(cmsFriendLinkGroups.siteId, q.siteId)];
   if (q.keyword) conditions.push(like(cmsFriendLinkGroups.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conditions.push(eq(cmsFriendLinkGroups.status, q.status));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(cmsFriendLinkGroups, where),
     withPagination(

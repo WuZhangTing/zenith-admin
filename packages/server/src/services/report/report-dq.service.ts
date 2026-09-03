@@ -25,6 +25,7 @@ import { pageOffset } from '../../lib/pagination';
 import { ensureDatasetExists, getDatasetData } from './report-dataset.service';
 import { reportScopedWhere, reportTenantScope } from './report-access';
 import { ensureReportResourceAccess, listAccessibleReportResourceIds } from './report-resource-acl.service';
+import { buildWhere } from '../../lib/where-helpers';
 
 const DQ_QUERY_LIMIT = 10_000;
 const MAX_SAMPLE_ROWS = 100;
@@ -353,7 +354,7 @@ export async function listReportDqRules(query: {
   }
   if (query.type) conds.push(eq(reportDqRules.type, query.type));
   if (query.enabled !== undefined) conds.push(eq(reportDqRules.enabled, query.enabled));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDqRules, where),
     db.select({ rule: reportDqRules, datasetName: reportDatasets.name })
@@ -643,7 +644,7 @@ export async function listReportDqRuns(query: {
     conds.push(eq(reportDqRuns.ruleId, rule.id));
   }
   if (query.status) conds.push(eq(reportDqRuns.status, query.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDqRuns, where),
     db.select().from(reportDqRuns).where(where).orderBy(desc(reportDqRuns.id))
@@ -698,7 +699,7 @@ export async function listReportDqAnomalies(query: {
     if (accessibleIds) conds.push(inArray(reportDqAnomalies.datasetId, accessibleIds));
   }
   if (query.status) conds.push(eq(reportDqAnomalies.status, query.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDqAnomalies, where),
     db.select().from(reportDqAnomalies).where(where).orderBy(desc(reportDqAnomalies.id))

@@ -33,6 +33,7 @@ import {
   type TerminalSessionMeta,
 } from '../../lib/terminal-session-registry';
 import type { JwtPayload } from '../../middleware/auth';
+import { buildWhere } from '../../lib/where-helpers';
 
 /** 单个用户可同时持有的活动会话数上限，避免开标签页即耗尽宿主机进程 */
 export const MAX_SESSIONS_PER_USER = 20;
@@ -300,7 +301,7 @@ export async function listTerminalSessionHistory(params: ListTerminalSessionHist
     const kw = `%${keyword}%`;
     conditions.push(or(like(terminalSessions.label, kw), like(terminalSessions.clientIp, kw)));
   }
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = buildWhere(...conditions);
 
   const [total, rows] = await Promise.all([
     db.$count(terminalSessions, where),

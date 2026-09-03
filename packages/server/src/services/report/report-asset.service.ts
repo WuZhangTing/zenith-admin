@@ -31,7 +31,7 @@ import {
   parseDateTimeInput,
 } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike, keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, keywordCondition } from '../../lib/where-helpers';
 import { createDashboard, getDashboard, updateDashboardDraft } from './report-dashboard.service';
 import { createDataset } from './report-dataset.service';
 import { createPrintTemplate } from './report-print.service';
@@ -199,7 +199,7 @@ async function catalogRowsForType(
     case 'datasource': {
       const conds = common(reportDatasources, reportTenantScope(reportDatasources));
       if (query.status) conds.push(eq(reportDatasources.status, query.status === 'enabled' ? 'enabled' : 'disabled'));
-      const where = conds.length ? and(...conds) : undefined;
+      const where = buildWhere(...conds);
       const [total, rows] = await Promise.all([
         db.$count(reportDatasources, where),
         db.select().from(reportDatasources).where(where).orderBy(desc(reportDatasources.updatedAt)).limit(limit),
@@ -212,7 +212,7 @@ async function catalogRowsForType(
     case 'dataset': {
       const conds = common(reportDatasets, reportTenantScope(reportDatasets));
       if (query.status) conds.push(eq(reportDatasets.status, query.status === 'enabled' ? 'enabled' : 'disabled'));
-      const where = conds.length ? and(...conds) : undefined;
+      const where = buildWhere(...conds);
       const [total, rows] = await Promise.all([
         db.$count(reportDatasets, where),
         db.select().from(reportDatasets).where(where).orderBy(desc(reportDatasets.updatedAt)).limit(limit),
@@ -227,7 +227,7 @@ async function catalogRowsForType(
       if (query.lifecycle && ['draft', 'published', 'offline'].includes(query.lifecycle)) {
         conds.push(eq(reportDashboards.lifecycleStatus, query.lifecycle as 'draft' | 'published' | 'offline'));
       }
-      const where = conds.length ? and(...conds) : undefined;
+      const where = buildWhere(...conds);
       const [total, rows] = await Promise.all([
         db.$count(reportDashboards, where),
         db.select().from(reportDashboards).where(where).orderBy(desc(reportDashboards.updatedAt)).limit(limit),
@@ -242,7 +242,7 @@ async function catalogRowsForType(
       if (query.lifecycle && ['draft', 'published', 'deprecated'].includes(query.lifecycle)) {
         conds.push(eq(reportMetrics.lifecycleStatus, query.lifecycle as 'draft' | 'published' | 'deprecated'));
       }
-      const where = conds.length ? and(...conds) : undefined;
+      const where = buildWhere(...conds);
       const [total, rows] = await Promise.all([
         db.$count(reportMetrics, where),
         db.select().from(reportMetrics).where(where).orderBy(desc(reportMetrics.updatedAt)).limit(limit),
@@ -255,7 +255,7 @@ async function catalogRowsForType(
     case 'print_template': {
       const conds = common(reportPrintTemplates, reportTenantScope(reportPrintTemplates));
       if (query.status) conds.push(eq(reportPrintTemplates.status, query.status === 'enabled' ? 'enabled' : 'disabled'));
-      const where = conds.length ? and(...conds) : undefined;
+      const where = buildWhere(...conds);
       const [total, rows] = await Promise.all([
         db.$count(reportPrintTemplates, where),
         db.select().from(reportPrintTemplates).where(where).orderBy(desc(reportPrintTemplates.updatedAt)).limit(limit),
@@ -270,7 +270,7 @@ async function catalogRowsForType(
       if (query.status && ['draft', 'published', 'disabled'].includes(query.status)) {
         conds.push(eq(reportFillTemplates.status, query.status as 'draft' | 'published' | 'disabled'));
       }
-      const where = conds.length ? and(...conds) : undefined;
+      const where = buildWhere(...conds);
       const [total, rows] = await Promise.all([
         db.$count(reportFillTemplates, where),
         db.select().from(reportFillTemplates).where(where).orderBy(desc(reportFillTemplates.updatedAt)).limit(limit),
@@ -283,7 +283,7 @@ async function catalogRowsForType(
     case 'asset_template': {
       const conds = common(reportAssetTemplates, reportTenantScope(reportAssetTemplates));
       if (query.status) conds.push(eq(reportAssetTemplates.status, query.status === 'enabled' ? 'enabled' : 'disabled'));
-      const where = conds.length ? and(...conds) : undefined;
+      const where = buildWhere(...conds);
       const [total, rows] = await Promise.all([
         db.$count(reportAssetTemplates, where),
         db.select().from(reportAssetTemplates).where(where).orderBy(desc(reportAssetTemplates.updatedAt)).limit(limit),
@@ -548,7 +548,7 @@ export async function listReportDeprecationNotices(query: {
   if (query.published !== undefined) conds.push(query.published
     ? isNotNull(reportDeprecationNotices.publishedAt)
     : isNull(reportDeprecationNotices.publishedAt));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDeprecationNotices, where),
     db.select().from(reportDeprecationNotices).where(where).orderBy(desc(reportDeprecationNotices.id))
@@ -701,7 +701,7 @@ export async function listReportAssetTemplates(query: {
   conds.push(keywordCondition(query.keyword, [reportAssetTemplates.name, reportAssetTemplates.code], 'ilike'));
   if (query.type) conds.push(eq(reportAssetTemplates.type, query.type));
   if (query.status) conds.push(eq(reportAssetTemplates.status, query.status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportAssetTemplates, where),
     db.select().from(reportAssetTemplates).where(where).orderBy(desc(reportAssetTemplates.id))

@@ -5,7 +5,7 @@ import { errorAlertRules, errorAlertLogs, errorEvents, errorGroups } from '../..
 import type { ErrorAlertRuleRow, ErrorAlertLogRow } from '../../db/schema';
 import type { CreateErrorAlertRuleInput, UpdateErrorAlertRuleInput, FrontendErrorType, ErrorLevel } from '@zenith/shared/analytics';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { validateAlertDelivery } from '../../lib/alert-validation';
@@ -43,7 +43,7 @@ export async function listAlertRules(q: AlertRuleListQuery) {
 }
 
 export async function ensureRuleExists(id: number) {
-  const [row] = await db.select().from(errorAlertRules).where(mergeWhere(eq(errorAlertRules.id, id), tenantScope(errorAlertRules))).limit(1);
+  const [row] = await db.select().from(errorAlertRules).where(buildWhere(eq(errorAlertRules.id, id), tenantScope(errorAlertRules))).limit(1);
   if (!row) throw new HTTPException(404, { message: '告警规则不存在' });
   return row;
 }
@@ -284,7 +284,7 @@ export interface AlertLogListQuery { page?: number; pageSize?: number; ruleId?: 
 export async function listAlertLogs(q: AlertLogListQuery) {
   const page = Math.max(Number(q.page) || 1, 1);
   const pageSize = Math.min(Math.max(Number(q.pageSize) || 20, 1), 100);
-  const where = mergeWhere(q.ruleId != null ? eq(errorAlertLogs.ruleId, q.ruleId) : undefined, tenantScope(errorAlertLogs));
+  const where = buildWhere(q.ruleId != null ? eq(errorAlertLogs.ruleId, q.ruleId) : undefined, tenantScope(errorAlertLogs));
   const [list, total] = await Promise.all([
     db.select().from(errorAlertLogs).where(where).orderBy(desc(errorAlertLogs.id)).limit(pageSize).offset(pageOffset(page, pageSize)),
     db.$count(errorAlertLogs, where),

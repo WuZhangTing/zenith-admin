@@ -23,7 +23,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, requireTenantScopeId } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { encryptField } from '../../lib/encryption';
 import { formatDateTime } from '../../lib/datetime';
 import type { CreatePaymentChannelConfigInput, PaymentChannel, PaymentChannelConfig, PaymentChannelConfigLookup, UpdatePaymentChannelConfigInput } from '@zenith/shared/payment';
@@ -99,8 +99,8 @@ export async function listChannelConfigs(q: ListChannelConfigsQuery) {
   if (q.keyword) conditions.push(like(paymentChannelConfigs.name, `%${escapeLike(q.keyword)}%`));
   if (q.channel) conditions.push(eq(paymentChannelConfigs.channel, q.channel));
   if (q.status) conditions.push(eq(paymentChannelConfigs.status, q.status));
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
-  const finalWhere = mergeWhere(where, tenantCondition(paymentChannelConfigs, currentUser()));
+  const where = buildWhere(...conditions);
+  const finalWhere = buildWhere(where, tenantCondition(paymentChannelConfigs, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentChannelConfigs, finalWhere),
     withPagination(

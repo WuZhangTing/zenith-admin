@@ -7,7 +7,7 @@
  * 一致性要求：下钻必须复用产生该图表的同一套 SQL 构造（漏斗 CTE、留存分桶、
  * 对比轴条件），否则「图上 3000 人」和「下钻出 2874 人」这种对不上的数字会摧毁信任。
  */
-import { and, gte, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { gte, isNotNull, sql, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { analyticsUserProfiles, userEvents } from '../../db/schema';
@@ -23,7 +23,7 @@ import { clampDays, startOfDaysAgo } from '../../lib/analytics-helpers';
 import { APP_TIME_ZONE, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
 import { tenantScope } from '../../lib/tenant';
-import { mergeWhere } from '../../lib/where-helpers';
+import { buildWhere } from '../../lib/where-helpers';
 import { findSeriesByKey, resolveComparisonSeries } from './analytics-breakdown';
 import { buildFunnelCtes, retentionPeriodAxis, topBreakdownValues } from './analytics-conversion.service';
 import { ensureSegmentAccessible } from './analytics-segments.service';
@@ -89,14 +89,14 @@ function buildRetentionDrillSql(context: Extract<AnalyticsDrillContext, { type: 
 
   const activityConditions: SQL[] = [gte(userEvents.createdAt, start), isNotNull(userEvents.distinctId)];
   if (seriesCondition) activityConditions.push(seriesCondition);
-  const activityWhere = mergeWhere(and(...activityConditions), tenantScope(userEvents))!;
+  const activityWhere = buildWhere(...activityConditions, tenantScope(userEvents))!;
   const periodExpr = sql`to_char(date_trunc(${periodType}, timezone(${APP_TIME_ZONE}, ${userEvents.createdAt})), 'YYYY-MM-DD')`;
 
   const cohortCte = mode === 'first_seen'
     ? (() => {
       const historyConditions: SQL[] = [isNotNull(userEvents.distinctId)];
       if (seriesCondition) historyConditions.push(seriesCondition);
-      const historyWhere = mergeWhere(and(...historyConditions), tenantScope(userEvents))!;
+      const historyWhere = buildWhere(...historyConditions, tenantScope(userEvents))!;
       return sql`cohort AS (
         SELECT ${userEvents.distinctId} AS distinct_id
         FROM ${userEvents}

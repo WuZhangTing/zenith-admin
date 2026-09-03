@@ -3,11 +3,10 @@
  *
  * 覆盖：
  *  1. escapeLike：%、_、\ 元字符转义（防 LIKE 通配符注入），转义顺序正确（先 \ 再 % _）
- *  2. mergeWhere：双条件 and 合并、单条件透传、全空返回 undefined
- *  3. keywordCondition：空值短路、转义、多列 or、like/ilike 切换
- *  4. dateRangeConditions：末端含当天（纯日期取 23:59:59.999，不是 00:00:00）
- *  5. buildWhere：过滤 undefined、全空返回 undefined
- *  6. withPagination：LIMIT/OFFSET 换算
+ *  2. keywordCondition：空值短路、转义、多列 or、like/ilike 切换
+ *  3. dateRangeConditions：末端含当天（纯日期取 23:59:59.999，不是 00:00:00）
+ *  4. buildWhere：过滤 undefined、全空返回 undefined、单条件透传、多条件 and 合并
+ *  5. withPagination：LIMIT/OFFSET 换算
  */
 import { describe, it, expect, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
@@ -19,7 +18,6 @@ import {
   dateRangeConditions,
   escapeLike,
   keywordCondition,
-  mergeWhere,
   withPagination,
 } from './where-helpers';
 import { users } from '../db/schema';
@@ -48,30 +46,6 @@ describe('escapeLike - LIKE 注入防护', () => {
 
   it('恶意全匹配 payload 被中和', () => {
     expect(escapeLike('%%%')).toBe(String.raw`\%\%\%`);
-  });
-});
-
-describe('mergeWhere', () => {
-  const a = sql`1 = 1`;
-  const b = sql`2 = 2`;
-
-  it('双条件返回 and 合并（新对象）', () => {
-    const merged = mergeWhere(a, b);
-    expect(merged).toBeDefined();
-    expect(merged).not.toBe(a);
-    expect(merged).not.toBe(b);
-  });
-
-  it('仅 base → 返回 base 本身', () => {
-    expect(mergeWhere(a, undefined)).toBe(a);
-  });
-
-  it('仅 extra → 返回 extra 本身', () => {
-    expect(mergeWhere(undefined, b)).toBe(b);
-  });
-
-  it('全空 → undefined（不加 WHERE）', () => {
-    expect(mergeWhere(undefined, undefined)).toBeUndefined();
   });
 });
 
@@ -136,8 +110,6 @@ describe('dateRangeConditions', () => {
   });
 
   it('同一天的纯日期范围覆盖整天，而非退化成零长度区间', () => {
-    // 这是本 helper 存在的核心理由：此前部分 service 用 parseDateTimeInput 解析末端，
-    // 「8/1 到 8/1」两端都会得到 00:00:00，区间长度为 0，整个 8 月 1 日的数据全被漏掉
     const [start, end] = dateRangeConditions(col, '2026-08-01', '2026-08-01');
     expect(boundOf(end) - boundOf(start)).toBe(DAY - 1);
   });

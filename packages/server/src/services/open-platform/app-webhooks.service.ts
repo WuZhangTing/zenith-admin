@@ -6,7 +6,7 @@ import type { AppWebhookSubscriptionRow, AppWebhookDeliveryRow } from '../../db/
 import { HTTPException } from 'hono/http-exception';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { pageOffset } from '../../lib/pagination';
-import { escapeLike } from '../../lib/where-helpers';
+import { buildWhere, escapeLike } from '../../lib/where-helpers';
 import { encryptField, decryptField } from '../../lib/encryption';
 import { httpPost, type HttpResponse } from '../../lib/http-client';
 import logger from '../../lib/logger';
@@ -224,7 +224,7 @@ export async function listSubscriptions(opts: {
     const kw = `%${escapeLike(keyword)}%`;
     conds.push(or(ilike(appWebhookSubscriptions.name, kw), ilike(appWebhookSubscriptions.url, kw)) as SQL);
   }
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [list, total] = await Promise.all([
     db.select().from(appWebhookSubscriptions)
       .where(where)
@@ -347,7 +347,7 @@ export async function listDeliveries(opts: {
   if (clientId) conds.push(eq(appWebhookDeliveries.clientId, clientId));
   if (status) conds.push(eq(appWebhookDeliveries.status, status));
   if (eventType) conds.push(eq(appWebhookDeliveries.eventType, eventType));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [list, total] = await Promise.all([
     db.select().from(appWebhookDeliveries)
       .where(where)

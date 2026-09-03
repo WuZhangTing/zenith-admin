@@ -3,11 +3,11 @@
  * CRUD + 代理拉取选项（仅登记 URL 可被调用；保存时与请求时都经 workflow-outbound 做 SSRF 防护）。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '../../db';
 import { workflowDataSources } from '../../db/schema';
 import { pageOffset } from '../../lib/pagination';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { assertSafeWorkflowUrl, workflowHttp } from '../../lib/workflow-outbound';
@@ -93,7 +93,7 @@ export async function listDataSources(query: { page?: number; pageSize?: number;
   const conds = [];
   conds.push(keywordCondition(keyword, [workflowDataSources.name, workflowDataSources.url], 'ilike'));
   if (status === 'enabled' || status === 'disabled') conds.push(eq(workflowDataSources.status, status));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(workflowDataSources, where),
     db.select().from(workflowDataSources).where(where).orderBy(desc(workflowDataSources.id)).limit(pageSize).offset(pageOffset(page, pageSize)),

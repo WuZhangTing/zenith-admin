@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { mpDrafts } from '../../db/schema';
 import type { MpDraftRow } from '../../db/schema';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
 import { ensureMpAccountExists } from './mp-account.service';
@@ -49,7 +49,7 @@ export async function listMpDrafts(q: ListMpDraftsQuery) {
   const tenant = tenantScope(mpDrafts);
   if (tenant) conditions.push(tenant);
   if (q.keyword) conditions.push(ilike(mpDrafts.title, `%${escapeLike(q.keyword)}%`));
-  const where = mergeWhere(and(...conditions));
+  const where = buildWhere(...conditions);
   const [total, list] = await Promise.all([
     db.$count(mpDrafts, where),
     withPagination(db.select().from(mpDrafts).where(where).orderBy(desc(mpDrafts.id)).$dynamic(), q.page, q.pageSize),

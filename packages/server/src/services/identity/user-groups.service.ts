@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { keywordCondition, mergeWhere, withPagination } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { db } from '../../db';
 import { userGroups, userGroupMembers, userGroupRoles, users, departments, roles } from '../../db/schema';
 import { HTTPException } from 'hono/http-exception';
@@ -108,7 +108,7 @@ export async function listUserGroups(q: ListUserGroupsQuery) {
 
   const where = and(...conditions);
   const tc = tenantCondition(userGroups, currentUser());
-  const finalWhere = mergeWhere(where, tc);
+  const finalWhere = buildWhere(where, tc);
 
   const [total, list] = await Promise.all([
     db.$count(userGroups, finalWhere),

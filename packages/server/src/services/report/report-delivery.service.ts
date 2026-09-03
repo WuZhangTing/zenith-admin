@@ -17,6 +17,7 @@ import { sendInApp } from '../messaging/in-app-messages.service';
 import { reportScopedWhere, reportTenantScope } from './report-access';
 import { resolveReportSecret } from './report-secrets';
 import type { ReportAlertRule, ReportDashboardSubscription, ReportDeliveryAttempt, ReportDeliveryRun, ReportDeliveryStatus, ReportDeliveryTriggerType, ReportNotifyChannel, ReportScheduleMisfirePolicy } from '@zenith/shared/report';
+import { buildWhere } from '../../lib/where-helpers';
 
 const emailSchema = z.email('邮箱格式不正确');
 
@@ -204,7 +205,7 @@ export async function listDeliveryRuns(query: {
   if (query.triggerType) conds.push(eq(reportDeliveryRuns.triggerType, query.triggerType));
   if (query.startAt) conds.push(gte(reportDeliveryRuns.createdAt, query.startAt));
   if (query.endAt) conds.push(lte(reportDeliveryRuns.createdAt, query.endAt));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
   const [total, rows] = await Promise.all([
     db.$count(reportDeliveryRuns, where),
     db.select({

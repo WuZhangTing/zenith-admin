@@ -103,7 +103,7 @@ export async function listCoupons(q: ListCouponsQuery) {
   if (q.keyword) conds.push(ilike(coupons.name, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(coupons.status, q.status));
   if (q.type) conds.push(eq(coupons.type, q.type));
-  const where = conds.length ? and(...conds) : undefined;
+  const where = buildWhere(...conds);
 
   const [total, rows] = await Promise.all([
     db.$count(coupons, where),

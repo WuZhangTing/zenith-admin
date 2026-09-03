@@ -20,7 +20,7 @@ import {
 } from '../../db/schema';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
-import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
+import { buildWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildSandboxNotifyRequest } from '../../lib/payment/sandbox-notify';
 import { processEvent } from './payment-outbox.service';
@@ -73,13 +73,13 @@ export async function getPaymentHealth(): Promise<PaymentHealth> {
     ? inArray(paymentReconItems.batchId, db.select({ id: paymentReconBatches.id }).from(paymentReconBatches).where(reconBatchTenant))
     : undefined;
   const [outboxPending, outboxFailed, webhookPending, webhookFailed24h, sharingProcessing, transferProcessing, reconPendingDiff] = await Promise.all([
-    db.$count(paymentEvents, mergeWhere(eq(paymentEvents.status, 'pending'), eventTenant)),
-    db.$count(paymentEvents, mergeWhere(eq(paymentEvents.status, 'failed'), eventTenant)),
+    db.$count(paymentEvents, buildWhere(eq(paymentEvents.status, 'pending'), eventTenant)),
+    db.$count(paymentEvents, buildWhere(eq(paymentEvents.status, 'failed'), eventTenant)),
     db.$count(appWebhookDeliveries, and(paymentWebhook, inArray(appWebhookDeliveries.status, ['pending', 'retrying']))),
     db.$count(appWebhookDeliveries, and(paymentWebhook, eq(appWebhookDeliveries.status, 'failed'), gte(appWebhookDeliveries.createdAt, since24h))),
-    db.$count(paymentSharingOrders, mergeWhere(eq(paymentSharingOrders.status, 'processing'), sharingTenant)),
-    db.$count(paymentTransfers, mergeWhere(inArray(paymentTransfers.status, ['processing', 'unknown']), transferTenant)),
-    db.$count(paymentReconItems, mergeWhere(eq(paymentReconItems.handleStatus, 'pending'), reconTenant)),
+    db.$count(paymentSharingOrders, buildWhere(eq(paymentSharingOrders.status, 'processing'), sharingTenant)),
+    db.$count(paymentTransfers, buildWhere(inArray(paymentTransfers.status, ['processing', 'unknown']), transferTenant)),
+    db.$count(paymentReconItems, buildWhere(eq(paymentReconItems.handleStatus, 'pending'), reconTenant)),
   ]);
   return { outboxPending, outboxFailed, webhookPending, webhookFailed24h, sharingProcessing, transferProcessing, reconPendingDiff };
 }
@@ -99,7 +99,7 @@ export async function listPaymentEvents(q: ListEventsQuery) {
   if (q.keyword) conds.push(like(paymentEvents.orderNo, `%${escapeLike(q.keyword)}%`));
   if (q.status) conds.push(eq(paymentEvents.status, q.status));
   if (q.type) conds.push(eq(paymentEvents.type, q.type));
-  const where = mergeWhere(conds.length ? and(...conds) : undefined, tenantCondition(paymentEvents, currentUser()));
+  const where = buildWhere(...conds, tenantCondition(paymentEvents, currentUser()));
   const [total, list] = await Promise.all([
     db.$count(paymentEvents, where),
     withPagination(db.select().from(paymentEvents).where(where).orderBy(desc(paymentEvents.id)).$dynamic(), page, pageSize),
