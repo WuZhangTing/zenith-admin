@@ -76,19 +76,22 @@ COPY --from=builder /app/packages/server/drizzle ./packages/server/drizzle
 
 WORKDIR /app/packages/server
 
-# Create directory for local file storage (used when STORAGE_PROVIDER=local)
-RUN mkdir -p storage
+# Local file storage / logs (bind-mounted volumes inherit this ownership on first creation);
+# the service runs as the unprivileged `node` user shipped with the base image.
+RUN mkdir -p storage logs && chown -R node:node /app/packages/server/storage /app/packages/server/logs
 
 COPY docker/entrypoint.sh /entrypoint.sh
 # Strip Windows CRLF line endings (safe no-op on Linux)
 RUN sed -i 's/\r//' /entrypoint.sh && chmod +x /entrypoint.sh
+
+USER node
 
 EXPOSE 3300
 
 ENTRYPOINT ["/entrypoint.sh"]
 
 # ─── Stage 3: Web frontend served by Nginx ───────────────────────────────────
-FROM nginx:1.27-alpine AS web
+FROM nginx:1.30-alpine AS web
 
 # Copy compiled static assets from the builder
 COPY --from=builder /app/packages/web/dist /usr/share/nginx/html

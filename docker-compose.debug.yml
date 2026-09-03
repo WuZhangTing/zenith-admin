@@ -1,0 +1,13 @@
+# 本机排障叠加文件：把 PostgreSQL / Redis 发布到宿主机回环地址，供 psql / redis-cli 直连。
+# 生产主文件 docker-compose.yml 刻意不映射这两个端口（Docker 端口映射会绕过宿主机防火墙）。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d
+#
+# 只绑定 127.0.0.1，不会对外网暴露；如需其它地址请自行修改并确认防火墙策略。
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+  redis:
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"

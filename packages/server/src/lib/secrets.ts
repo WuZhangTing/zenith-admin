@@ -73,6 +73,14 @@ export function generateFieldEncryptionKey(): string {
   return randomBytes(32).toString('hex');
 }
 
+/**
+ * 基础设施口令（PostgreSQL / Redis）：24 字节 CSPRNG → 32 个 base64url 字符。
+ * 只含 URL 安全字符，可直接拼进 DATABASE_URL / REDIS_URL 而无需转义。
+ */
+export function generateInfraPassword(): string {
+  return randomBytes(24).toString('base64url');
+}
+
 export type RuntimeSecretName = 'JWT_SECRET' | 'FIELD_ENCRYPTION_KEY';
 
 export interface RuntimeSecretsInput {

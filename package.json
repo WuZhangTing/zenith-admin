@@ -28,7 +28,7 @@
 		"db:generate": "npm run db:generate -w @zenith/server",
 		"db:migrate": "npm run db:migrate -w @zenith/server",
 		"db:seed": "npm run db:seed -w @zenith/server",
-		"secret:generate": "npm run secret:generate -w @zenith/server",
+		"secret:generate": "npm run secret:generate -w @zenith/server --",
 		"test": "npm run test -w @zenith/server && npm run test -w @zenith/web",
 		"test:server": "npm run test -w @zenith/server",
 		"test:web": "npm run test -w @zenith/web",

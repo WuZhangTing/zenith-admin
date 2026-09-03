@@ -1,14 +1,19 @@
 # Zenith Admin — 生产环境 Docker Compose
 #
 # 用法：
-#   1. 复制 .env.docker → .env，按需修改敏感变量
+#   1. 复制 .env.docker → .env，填入 npm run secret:generate -- --docker 输出的四个密钥 / 口令
 #   2. docker compose up -d
-#   3. 前端访问 http://localhost:80，API 地址 http://localhost:3300
+#   3. 前端访问 http://localhost:80（API 与 WebSocket 由 Nginx 同源代理 /api）
 #
 # 服务拓扑：
 #   postgres  ─┐
 #   redis     ─┤─→  api (Node.js)  ─→  web (Nginx, 80)
 #
+# 安全基线：
+#   - PostgreSQL / Redis 不映射宿主机端口（Docker 端口映射会绕过 ufw / firewalld），
+#     仅 compose 内网可达；本机排障需要直连时叠加 docker-compose.debug.yml（绑定 127.0.0.1）
+#   - PostgreSQL 与 Redis 口令均为必填、无默认值；API 端口默认只绑定 127.0.0.1（对外走 Nginx）
+#   - API 容器以非 root 用户 node 运行（见 Dockerfile server 阶段）
 name: zenith-admin
 
 services:
@@ -20,11 +25,9 @@ services:
     environment:
       POSTGRES_DB: zenith_admin
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (run `npm run secret:generate -- --docker`)}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d zenith_admin"]
       interval: 10s
@@ -37,28 +40,17 @@ services:
     image: redis:7-alpine
     container_name: zenith-redis
     restart: unless-stopped
-    # Enable password auth and AOF persistence when REDIS_PASSWORD is set.
+    # Redis 承载会话 / 限流 / 验证码状态，始终要求口令 + AOF 持久化。
     # $$VAR escapes compose interpolation so the container shell expands it;
     # double quotes (not single) are required for that expansion to happen.
     command: >
-      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
-               exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --appendfsync everysec;
-             else
-               exec redis-server --appendonly yes --appendfsync everysec;
-             fi'
+      sh -c 'exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --appendfsync everysec'
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required (run `npm run secret:generate -- --docker`)}
     volumes:
       - redis_data:/data
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
     healthcheck:
-      test: >
-        sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
-                 redis-cli --no-auth-warning -a "$$REDIS_PASSWORD" ping;
-               else
-                 redis-cli ping;
-               fi'
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -85,9 +77,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required (run `npm run secret:generate`)}
       FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?FIELD_ENCRYPTION_KEY is required (run `npm run secret:generate`)}
       # ── Database ─────────────────────────────────────────────────────────
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/zenith_admin
-      # ── Redis ─────────────────────────────────────────────────────────────
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?}@postgres:5432/zenith_admin
+      # ── Redis（口令来自 REDIS_PASSWORD；外部 Redis 可整体覆盖 REDIS_URL）──────
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}
       # ── CORS / Security ───────────────────────────────────────────────────
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
@@ -104,7 +96,8 @@ services:
       # Persist server logs
       - api_logs:/app/packages/server/logs
     ports:
-      - "${API_PORT:-3300}:3300"
+      # 默认只绑定本机回环；需要直接对外暴露 API 时设置 API_BIND=0.0.0.0
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-3300}:3300"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3300/api/health || exit 1"]
       interval: 30s

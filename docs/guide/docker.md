@@ -14,8 +14,8 @@ git clone https://github.com/iwangbowen/zenith-admin.git
 cd zenith-admin
 
 cp .env.docker .env
-# 生成两把密钥并填入 .env（JWT_SECRET / FIELD_ENCRYPTION_KEY 无默认值，留空无法启动）
-npm run secret:generate
+# 一次生成四个必填项并填入 .env（JWT_SECRET / FIELD_ENCRYPTION_KEY / POSTGRES_PASSWORD / REDIS_PASSWORD 均无默认值，留空无法启动）
+npm run secret:generate -- --docker
 
 docker compose up -d
 
@@ -24,9 +24,9 @@ docker compose exec api node dist/db/seed.js
 docker compose ps
 ```
 
-::: tip 宿主机端口冲突
-Compose 默认映射 `80`（Web）、`3300`（API）、`5432`（PostgreSQL）、`6379`（Redis）。
-如宿主机已有服务占用，在 `.env` 中通过 `WEB_PORT` / `API_PORT` / `POSTGRES_PORT` / `REDIS_PORT` 改为空闲端口即可，容器间内部通信不受影响。
+::: tip 宿主机端口与暴露面
+Compose 默认只对外映射 `80`（Web）；API 端口 `3300` 默认绑定宿主机回环 `127.0.0.1`（浏览器与 WebSocket 经 Nginx 同源代理 `/api`），PostgreSQL / Redis **不映射宿主机端口**——Docker 端口映射会绕过 ufw / firewalld，直接映射等于把数据库和会话存储暴露到公网。
+端口冲突时在 `.env` 中调整 `WEB_PORT` / `API_PORT`；确需直接对外暴露 API 时设置 `API_BIND=0.0.0.0`。本机排障需要 `psql` / `redis-cli` 直连时叠加排障文件：`docker compose -f docker-compose.yml -f docker-compose.debug.yml up -d`（绑定 `127.0.0.1`，端口由 `POSTGRES_PORT` / `REDIS_PORT` 控制）。
 :::
 
 访问地址：
@@ -34,7 +34,7 @@ Compose 默认映射 `80`（Web）、`3300`（API）、`5432`（PostgreSQL）、
 | 服务 | 默认地址 |
 | --- | --- |
 | 前端 / Nginx | `http://localhost` |
-| API | `http://localhost:3300` |
+| API | `http://localhost/api`（直连 `http://127.0.0.1:3300` 仅本机） |
 | Mastra Studio | `http://localhost/studio/` |
 
 默认管理员：`admin` / `123456`。
@@ -53,8 +53,8 @@ redis    ─┤──→ api (Node.js :3300) ──→ web (Nginx :80)
 | 服务 | 镜像 / 阶段 | 说明 |
 | --- | --- | --- |
 | `postgres` | `postgres:16-alpine` | 数据库，库名 `zenith_admin` |
-| `redis` | `redis:7-alpine` | 会话、限流、幂等与黑名单状态；可开启密码与 AOF |
-| `api` | Dockerfile `server` stage | Hono 后端，端口 3300，启动时迁移 |
+| `redis` | `redis:7-alpine` | 会话、限流、幂等与黑名单状态；始终 `requirepass` + AOF |
+| `api` | Dockerfile `server` stage | Hono 后端，端口 3300，启动时迁移；以非 root 用户 `node` 运行 |
 | `web` | Dockerfile `web` stage | Nginx 静态站点，代理 `/api` 与 `/api/ws` |
 
 ## Dockerfile 构建流程
@@ -62,8 +62,8 @@ redis    ─┤──→ api (Node.js :3300) ──→ web (Nginx :80)
 | 阶段 | 基础镜像 | 行为 |
 | --- | --- | --- |
 | `builder` | `node:24-alpine` | 安装全量依赖，构建 shared、analytics-sdk、server、web，执行 `docker/build-studio.mjs`，最后用 `docker/patch-shared-exports.mjs` 把 `@zenith/shared` 的 exports 指向编译产物 |
-| `server` | `node:24-alpine` | 安装生产依赖，复制 server dist、Drizzle 迁移与 shared dist，写入 entrypoint |
-| `web` | `nginx:1.27-alpine` | 复制 `packages/web/dist` 与 `docker/nginx.conf` |
+| `server` | `node:24-alpine` | 安装生产依赖，复制 server dist、Drizzle 迁移与 shared dist，写入 entrypoint；`storage` / `logs` 归属 `node` 后切换 `USER node` |
+| `web` | `nginx:1.30-alpine` | 复制 `packages/web/dist` 与 `docker/nginx.conf` |
 
 `node-pty` 在 Linux 下需要编译，构建阶段安装 `python3 make g++`；server 阶段保留 `libstdc++` 并移除编译工具链。
 
@@ -80,13 +80,13 @@ shared 与 server 的 `build` 脚本在 `tsc` 之后运行 `tsc-alias --resolve-
 | --- | --- | --- |
 | `JWT_SECRET` | 无（必填） | JWT 签名密钥，≥ 32 字符随机值，按服务实例独立；`npm run secret:generate` 生成 |
 | `FIELD_ENCRYPTION_KEY` | 无（必填） | 字段级 AES-256-GCM 密钥（64 位 hex），按数据库共享——连同一个库的实例必须一致，轮换会使已入库密文不可读 |
-| `POSTGRES_PASSWORD` | `postgres` | PostgreSQL 密码 |
-| `POSTGRES_PORT` | `5432` | PostgreSQL 宿主机映射端口 |
-| `REDIS_PASSWORD` | 空 | Redis 密码；设置后 Redis 启用 `requirepass`，healthcheck 自动带上认证 |
-| `REDIS_URL` | `redis://redis:6379` | API 使用的 Redis URL，可覆盖为外部 Redis |
-| `REDIS_PORT` | `6379` | Redis 宿主机映射端口 |
+| `POSTGRES_PASSWORD` | 无（必填） | PostgreSQL 口令；`npm run secret:generate -- --docker` 生成 |
+| `REDIS_PASSWORD` | 无（必填） | Redis 口令，始终启用 `requirepass`；会拼进 `REDIS_URL`，只能用 URL 安全字符（生成器输出即满足） |
+| `REDIS_URL` | `redis://:${REDIS_PASSWORD}@redis:6379/0` | API 使用的 Redis URL，可整体覆盖为外部 Redis |
 | `WEB_PORT` | `80` | Nginx 对外端口 |
-| `API_PORT` | `3300` | API 对外端口 |
+| `API_PORT` | `3300` | API 宿主机端口 |
+| `API_BIND` | `127.0.0.1` | API 端口绑定地址；`0.0.0.0` 才对外暴露 |
+| `POSTGRES_PORT` / `REDIS_PORT` | `5432` / `6379` | 仅在叠加 `docker-compose.debug.yml` 时生效，绑定 `127.0.0.1` |
 | `ALLOWED_ORIGINS` | 空 | CSRF 允许来源 |
 | `CORS_ORIGIN` | `*` | CORS 允许来源 |
 | `LOG_LEVEL` | `info` | 后端日志级别 |
@@ -94,7 +94,9 @@ shared 与 server 的 `build` 脚本在 `tsc` 之后运行 `tsc-alias --resolve-
 | `OAUTH_CALLBACK_BASE_URL` | `http://localhost` | OAuth 回调基础地址 |
 | `TAG` | `latest` | 本地构建镜像标签 |
 
-`JWT_SECRET` 与 `FIELD_ENCRYPTION_KEY` 留空或仍是占位值时，`docker compose up` 与 API 启动都会直接失败。生产环境请按实际域名设置 `ALLOWED_ORIGINS`。如果 Redis 设置密码，请同步把 `REDIS_URL` 配成带密码的连接串，例如 `redis://:your_password@redis:6379/0`。
+`JWT_SECRET` / `FIELD_ENCRYPTION_KEY` / `POSTGRES_PASSWORD` / `REDIS_PASSWORD` 任一留空时 `docker compose up` 直接失败（前两者为占位值时 API 启动也会失败）。生产环境请按实际域名设置 `ALLOWED_ORIGINS`。使用外部 Redis 时整体覆盖 `REDIS_URL`（含口令）即可。
+
+API 容器以非 root 用户 `node` 运行；如需在容器内访问宿主机 Docker socket（运维模块的容器管理），请在自定义 override 中挂载 socket 并通过 `group_add` 加入 socket 所属组，不要改回 root。
 
 ## Nginx 行为
 
