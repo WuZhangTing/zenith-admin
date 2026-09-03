@@ -22,6 +22,7 @@ import { useIdentityProviderList } from '@/hooks/queries/identity-providers';
 import { useAllRoles } from '@/hooks/queries/roles';
 import type { DirectorySyncSource } from '@zenith/shared/identity';
 import {
+  SUPER_ADMIN_CODE,
   DIRECTORY_SYNC_SOURCE_TYPES, DIRECTORY_SYNC_SOURCE_TYPE_LABELS,
   DIRECTORY_SYNC_MATCH_KEYS, DIRECTORY_SYNC_MATCH_KEY_LABELS,
   DIRECTORY_SYNC_CONFLICT_POLICIES, DIRECTORY_SYNC_CONFLICT_POLICY_LABELS,
@@ -79,7 +80,10 @@ export default function DirectorySyncSourcesPage() {
     [providersQuery.data],
   );
   const rolesQuery = useAllRoles();
-  const roleOptions = (rolesQuery.data ?? []).map((r) => ({ value: r.id, label: r.name }));
+  // 自动建号永不授予平台保留角色（服务端同样拒绝），下拉里直接不给选
+  const roleOptions = (rolesQuery.data ?? [])
+    .filter((r) => r.code !== SUPER_ADMIN_CODE)
+    .map((r) => ({ value: r.id, label: r.name }));
 
   const modal = useEditModal<DirectorySyncSource>({
     entityName: '同步源',
@@ -468,6 +472,7 @@ export default function DirectorySyncSourcesPage() {
                   </Row>
                   <Form.Select field="lifecycle.defaultRoleIds" label="默认角色" multiple style={{ width: '100%' }}
                     placeholder="新建账号自动授予的角色（可空）"
+                    extraText="只能选择本租户的普通角色；平台保留角色需由平台管理员手动分配"
                     optionList={roleOptions} loading={rolesQuery.isFetching} />
                   {type !== 'scim' && (
                     <>

@@ -100,3 +100,25 @@ export function tenantScope<T extends { tenantId: any }>(table: T): SQL | undefi
 export function currentCreateTenantId(): number | null {
   return getCreateTenantId(currentUser());
 }
+
+/**
+ * 解析「平台 / 租户两级配置记录」（企业身份源、通讯录同步源等）写入时的目标租户。
+ *
+ * - 平台管理员可显式指定归属（含 `null` = 平台级）；未指定时落到当前视角；
+ * - 其他用户一律强制落到自身租户，显式传入与自身不一致的值直接 403 —— 请求体里的
+ *   `tenantId` 只是平台管理员的选择项，不能成为租户侧越权到平台级 / 他租户的入口。
+ */
+export function resolveManagedTenantId(
+  requested: number | null | undefined,
+  message = '无权为其他租户或平台配置该资源',
+): number | null {
+  const user = currentUser();
+  if (isPlatformAdmin(user)) {
+    return requested === undefined ? getCreateTenantId(user) : requested;
+  }
+  const own = getCreateTenantId(user);
+  if (requested !== undefined && requested !== own) {
+    throw new HTTPException(403, { message });
+  }
+  return own;
+}

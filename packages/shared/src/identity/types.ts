@@ -462,6 +462,7 @@ export interface TenantIdentityProvider {
   ldapTimeoutMs: number;
   attributeMapping: IdentityProviderAttributeMapping;
   jitEnabled: boolean;
+  autoLinkByEmail: boolean;
   defaultRoleIds: number[];
   remark?: string | null;
   createdAt: string;
@@ -481,6 +482,7 @@ export interface EnterpriseIdentityDiscovery {
 }
 
 export interface CreateTenantIdentityProviderInput {
+  /** 仅平台管理员可指定（null = 平台级）；其他调用者由服务端强制落到自身租户 */
   tenantId?: number | null;
   name: string;
   code: string;
@@ -511,6 +513,7 @@ export interface CreateTenantIdentityProviderInput {
   ldapTimeoutMs?: number;
   attributeMapping?: IdentityProviderAttributeMapping;
   jitEnabled?: boolean;
+  autoLinkByEmail?: boolean;
   defaultRoleIds?: number[];
   remark?: string | null;
 }

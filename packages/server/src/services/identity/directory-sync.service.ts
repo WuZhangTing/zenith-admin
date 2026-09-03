@@ -1,5 +1,6 @@
 import { HTTPException } from 'hono/http-exception';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 import crypto from 'node:crypto';
 import { db } from '../../db';
 import {
@@ -16,9 +17,23 @@ import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { buildWhere, dateRangeConditions, keywordCondition, withPagination } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { resolveManagedTenantId, tenantScope } from '../../lib/tenant';
 import { submitAsyncTask, mapAsyncTask } from '../../lib/task-center';
 import { buildDirectoryConnector, type DirectoryConnectorTestResult } from './directory-sync-connectors';
 import { computeNextRunAt, DIRECTORY_SYNC_TASK_TYPE } from './directory-sync-engine';
+import { assertDefaultRolesGrantable } from './role-grant';
+
+const SOURCE_TENANT_SCOPE_MESSAGE = '无权为其他租户或平台配置同步源';
+
+/**
+ * 运行记录 / 冲突等子资源没有 tenantId 列，通过「所属同步源落在调用者租户作用域内」限定；
+ * 无需隔离（单租户 / 平台全局视角）时返回 undefined。
+ */
+function manageableSourceScope(sourceIdColumn: AnyPgColumn) {
+  const scope = tenantScope(directorySyncSources);
+  if (!scope) return undefined;
+  return inArray(sourceIdColumn, db.select({ id: directorySyncSources.id }).from(directorySyncSources).where(scope));
+}
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapDirectorySyncSource(row: DirectorySyncSourceRow & { identityProvider?: { name: string } | null }) {
@@ -132,6 +147,7 @@ export interface ListDirectorySyncSourcesQuery {
 
 function buildSourceWhere(q: ListDirectorySyncSourcesQuery & { id?: number }) {
   return buildWhere(
+    tenantScope(directorySyncSources),
     q.id !== undefined ? eq(directorySyncSources.id, q.id) : undefined,
     keywordCondition(q.keyword, [directorySyncSources.name, directorySyncSources.remark]),
     q.type ? eq(directorySyncSources.type, q.type) : undefined,
@@ -155,26 +171,35 @@ export async function listDirectorySyncSources(q: ListDirectorySyncSourcesQuery)
   return { list: rows.map(mapDirectorySyncSource), total, page, pageSize };
 }
 
+/** 管理侧读取：id + 调用者租户作用域，越界一律 404（SCIM 回调与 worker 走各自的按 key / id 加载，不经此处） */
 export async function ensureDirectorySyncSourceExists(id: number): Promise<DirectorySyncSourceRow> {
-  const [row] = await db.select().from(directorySyncSources).where(eq(directorySyncSources.id, id)).limit(1);
+  const [row] = await db.select().from(directorySyncSources)
+    .where(and(eq(directorySyncSources.id, id), tenantScope(directorySyncSources)))
+    .limit(1);
   if (!row) throw new HTTPException(404, { message: '同步源不存在' });
   return row;
 }
 
 export async function getDirectorySyncSource(id: number) {
   const row = await db.query.directorySyncSources.findFirst({
-    where: eq(directorySyncSources.id, id),
+    where: and(eq(directorySyncSources.id, id), tenantScope(directorySyncSources)),
     with: { identityProvider: { columns: { name: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '同步源不存在' });
   return mapDirectorySyncSource(row);
 }
 
-async function ensureBindingsValid(input: { type?: string; identityProviderId?: number | null; cronExpression?: string | null }) {
+async function ensureBindingsValid(input: { type?: string; identityProviderId?: number | null; cronExpression?: string | null; tenantId: number | null }) {
   if (input.identityProviderId) {
+    // 绑定的身份源必须与同步源同一归属，防止借他租户 / 平台的 LDAP 源按自己的 lifecycle 建号
     const [provider] = await db.select({ id: tenantIdentityProviders.id, type: tenantIdentityProviders.type })
-      .from(tenantIdentityProviders).where(eq(tenantIdentityProviders.id, input.identityProviderId)).limit(1);
-    if (!provider) throw new HTTPException(400, { message: '绑定的企业身份源不存在' });
+      .from(tenantIdentityProviders)
+      .where(and(
+        eq(tenantIdentityProviders.id, input.identityProviderId),
+        input.tenantId == null ? isNull(tenantIdentityProviders.tenantId) : eq(tenantIdentityProviders.tenantId, input.tenantId),
+      ))
+      .limit(1);
+    if (!provider) throw new HTTPException(400, { message: '绑定的企业身份源不存在或不属于当前租户' });
     if (provider.type !== 'ldap' && provider.type !== 'ad') {
       throw new HTTPException(400, { message: '绑定的企业身份源必须是 LDAP/AD 类型' });
     }
@@ -185,13 +210,15 @@ async function ensureBindingsValid(input: { type?: string; identityProviderId?: 
 }
 
 export async function createDirectorySyncSource(data: CreateDirectorySyncSourceInput) {
-  await ensureBindingsValid(data);
+  const tenantId = resolveManagedTenantId(data.tenantId, SOURCE_TENANT_SCOPE_MESSAGE);
+  await ensureBindingsValid({ ...data, tenantId });
+  await assertDefaultRolesGrantable(data.lifecycle.defaultRoleIds, tenantId);
   try {
     const [row] = await db.insert(directorySyncSources).values({
       name: data.name,
       type: data.type,
       status: data.status,
-      tenantId: data.tenantId ?? null,
+      tenantId,
       identityProviderId: data.identityProviderId ?? null,
       oauthProvider: data.oauthProvider ?? null,
       matchKey: data.matchKey,
@@ -219,14 +246,27 @@ export async function createDirectorySyncSource(data: CreateDirectorySyncSourceI
 
 export async function updateDirectorySyncSource(id: number, data: UpdateDirectorySyncSourceInput) {
   const before = await ensureDirectorySyncSourceExists(id);
-  await ensureBindingsValid(data);
+  // 归属迁移只对平台管理员开放；其他人未传则沿用，传了不一致的值由 resolveManagedTenantId 拒绝
+  const tenantId = data.tenantId === undefined
+    ? before.tenantId
+    : resolveManagedTenantId(data.tenantId, SOURCE_TENANT_SCOPE_MESSAGE);
+  await ensureBindingsValid({
+    type: before.type,
+    identityProviderId: data.identityProviderId !== undefined ? data.identityProviderId : before.identityProviderId,
+    cronExpression: data.cronExpression,
+    tenantId,
+  });
+  const lifecycle = data.lifecycle ?? before.lifecycle;
+  if (data.lifecycle !== undefined || tenantId !== before.tenantId) {
+    await assertDefaultRolesGrantable(lifecycle?.defaultRoleIds ?? [], tenantId);
+  }
   const cron = data.cronExpression !== undefined ? data.cronExpression : before.cronExpression;
   const status = data.status ?? before.status;
   try {
     await db.update(directorySyncSources).set({
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.status !== undefined ? { status: data.status } : {}),
-      ...(data.tenantId !== undefined ? { tenantId: data.tenantId } : {}),
+      ...(data.tenantId !== undefined ? { tenantId } : {}),
       ...(data.identityProviderId !== undefined ? { identityProviderId: data.identityProviderId } : {}),
       ...(data.oauthProvider !== undefined ? { oauthProvider: data.oauthProvider } : {}),
       ...(data.matchKey !== undefined ? { matchKey: data.matchKey } : {}),
@@ -299,6 +339,7 @@ export interface ListDirectorySyncRunsQuery {
 
 function buildRunWhere(q: ListDirectorySyncRunsQuery) {
   return buildWhere(
+    manageableSourceScope(directorySyncRuns.sourceId),
     q.sourceId !== undefined ? eq(directorySyncRuns.sourceId, q.sourceId) : undefined,
     q.status ? eq(directorySyncRuns.status, q.status) : undefined,
     ...dateRangeConditions(directorySyncRuns.startedAt, q.startTime, q.endTime),
@@ -323,11 +364,19 @@ export async function listDirectorySyncRuns(q: ListDirectorySyncRunsQuery) {
 
 export async function getDirectorySyncRun(id: number) {
   const row = await db.query.directorySyncRuns.findFirst({
-    where: eq(directorySyncRuns.id, id),
+    where: and(eq(directorySyncRuns.id, id), manageableSourceScope(directorySyncRuns.sourceId)),
     with: { source: { columns: { name: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '同步记录不存在' });
   return mapDirectorySyncRun(row);
+}
+
+async function ensureRunManageable(runId: number): Promise<DirectorySyncRunRow> {
+  const [run] = await db.select().from(directorySyncRuns)
+    .where(and(eq(directorySyncRuns.id, runId), manageableSourceScope(directorySyncRuns.sourceId)))
+    .limit(1);
+  if (!run) throw new HTTPException(404, { message: '同步记录不存在' });
+  return run;
 }
 
 export interface ListDirectorySyncRunItemsQuery {
@@ -338,6 +387,7 @@ export interface ListDirectorySyncRunItemsQuery {
 }
 
 export async function listDirectorySyncRunItems(runId: number, q: ListDirectorySyncRunItemsQuery) {
+  await ensureRunManageable(runId);
   const { page = 1, pageSize = 20 } = q;
   const where = buildWhere(
     eq(directorySyncRunItems.runId, runId),
@@ -357,8 +407,7 @@ export async function listDirectorySyncRunItems(runId: number, q: ListDirectoryS
 
 /** 失败重试：对该记录所属同步源重新提交一次全量同步（引擎幂等，仅失败项会产生变化） */
 export async function retryDirectorySyncRun(runId: number) {
-  const [run] = await db.select().from(directorySyncRuns).where(eq(directorySyncRuns.id, runId)).limit(1);
-  if (!run) throw new HTTPException(404, { message: '同步记录不存在' });
+  const run = await ensureRunManageable(runId);
   if (run.status === 'running') throw new HTTPException(400, { message: '该记录仍在执行中' });
   return submitDirectorySyncTask(run.sourceId, false);
 }
@@ -374,6 +423,7 @@ export interface ListDirectorySyncConflictsQuery {
 
 function buildConflictWhere(q: ListDirectorySyncConflictsQuery) {
   return buildWhere(
+    manageableSourceScope(directorySyncConflicts.sourceId),
     q.sourceId !== undefined ? eq(directorySyncConflicts.sourceId, q.sourceId) : undefined,
     q.status ? eq(directorySyncConflicts.status, q.status) : undefined,
     keywordCondition(q.keyword, [directorySyncConflicts.name, directorySyncConflicts.externalId]),
@@ -400,7 +450,9 @@ export async function listDirectorySyncConflicts(q: ListDirectorySyncConflictsQu
 }
 
 export async function ensureDirectorySyncConflictExists(id: number): Promise<DirectorySyncConflictRow> {
-  const [row] = await db.select().from(directorySyncConflicts).where(eq(directorySyncConflicts.id, id)).limit(1);
+  const [row] = await db.select().from(directorySyncConflicts)
+    .where(and(eq(directorySyncConflicts.id, id), manageableSourceScope(directorySyncConflicts.sourceId)))
+    .limit(1);
   if (!row) throw new HTTPException(404, { message: '冲突记录不存在' });
   return row;
 }
@@ -494,6 +546,7 @@ export async function ignoreDirectorySyncConflicts(ids: number[], resolvedBy: nu
   }).where(and(
     inArray(directorySyncConflicts.id, ids),
     eq(directorySyncConflicts.status, 'pending'),
+    manageableSourceScope(directorySyncConflicts.sourceId),
   )).returning({ id: directorySyncConflicts.id });
   return updated.length;
 }

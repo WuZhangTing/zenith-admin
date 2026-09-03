@@ -6,11 +6,12 @@ import { User, Lock, Mail, AtSign, Building2, ShieldCheck, BriefcaseBusiness, Ch
 import dayjs from 'dayjs';
 import { MAX_STORED_ACCOUNTS, REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
 import { OAUTH_PROVIDER_LABELS } from '@zenith/shared/identity';
-import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, TenantIdentityProviderSummary } from '@zenith/shared/identity';
+import type { RegisterInput, OAuthProviderType, LoginResult, LoginResponse, MfaLoginChallenge, TenantIdentityProviderSummary } from '@zenith/shared/identity';
 import { request } from '@/utils/request';
 import { AUTH_INVALIDATED_REASON_KEY } from '@/utils/http-client';
 import { config } from '@/config';
 import { markPostLoginHome } from '@/lib/post-login';
+import { readMfaHandoff } from '@/lib/mfa-handoff';
 import { useAuth, type LoginOptions } from '@/hooks/useAuth';
 import { UserAvatar } from '@/components/UserAvatar';
 import AppLogo from '@/components/AppLogo';
@@ -29,7 +30,7 @@ interface LoginPageProps {
   onRegister: (data: { username: string; nickname: string; email: string; password: string }, options?: LoginOptions) => Promise<{ code: number; message: string; retryAfterSeconds?: number }>;
 }
 
-function isMfaChallenge(data: LoginResult): data is Extract<LoginResult, { mfaRequired: true }> {
+function isMfaChallenge(data: LoginResult): data is MfaLoginChallenge {
   return 'mfaRequired' in data && data.mfaRequired;
 }
 
@@ -37,7 +38,9 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const navigate = useNavigate();
   const location = useLocation();
   const params = new URLSearchParams(location.search);
-  const redirectTo = params.get('redirect') || '/';
+  // 企业 SSO 回调页命中 MFA 时经 location.state 交接挑战，复用本页验证表单
+  const mfaHandoff = readMfaHandoff(location.state);
+  const redirectTo = mfaHandoff?.redirectTo || params.get('redirect') || '/';
   // 添加账号模式：保留当前登录，成功后停靠原账号并整页切换为新账号
   const addAccountMode = params.get('add_account') === '1';
   const prefillUsername = params.get('username') ?? '';
@@ -80,7 +83,7 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
   const allowRegistrationQuery = usePublicSystemConfig('allow_registration');
   const forgotPasswordQuery = usePublicSystemConfig('forgot_password_enabled');
   const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
-  const [mfaChallenge, setMfaChallenge] = useState<Extract<LoginResult, { mfaRequired: true }> | null>(null);
+  const [mfaChallenge, setMfaChallenge] = useState<MfaLoginChallenge | null>(mfaHandoff?.mfaChallenge ?? null);
   const [tenantCode, setTenantCode] = useState('');
   const [debouncedTenantCode] = useDebouncedValue(tenantCode, { wait: 250 });
   const [directoryProvider, setDirectoryProvider] = useState<TenantIdentityProviderSummary | null>(null);
@@ -397,13 +400,20 @@ export default function LoginPage({ onLogin, onVerifyMfa, onRegister }: Readonly
     if (!directoryProvider) return;
     setDirectoryLoginLoading(true);
     try {
-      const res = await request.post<{ loginResult: LoginResponse; redirectTo?: string | null }>('/api/auth/enterprise/ldap/login', {
+      const res = await request.post<{ loginResult: LoginResult; redirectTo?: string | null }>('/api/auth/enterprise/ldap/login', {
         providerId: directoryProvider.id,
         username: values.username,
         password: values.password,
         redirectTo,
       }, { silent: true });
       if (res.code === 0) {
+        // 企业 SSO 与密码登录共用 MFA 策略：命中挑战时切到同一套验证表单
+        if (isMfaChallenge(res.data.loginResult)) {
+          setMfaChallenge(res.data.loginResult);
+          setDirectoryProvider(null);
+          directoryFormApi.current = null;
+          return;
+        }
         localStorage.setItem(TOKEN_KEY, res.data.loginResult.token.accessToken);
         localStorage.setItem(REFRESH_TOKEN_KEY, res.data.loginResult.token.refreshToken);
         setDirectoryProvider(null);

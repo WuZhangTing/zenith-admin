@@ -13,6 +13,7 @@ import { HTTPException } from 'hono/http-exception';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime } from '../../lib/datetime';
 import { getScopeMemberSummaries, validateScopeUserIds } from './user-scope.service';
+import { RESERVED_ROLE_CODES } from './role-grant';
 
 export function mapRole(row: typeof roles.$inferSelect, menuIds?: number[], deptScopeIds?: number[]) {
   return {
@@ -99,10 +100,8 @@ async function syncRoleDeptScopes(tx: DbTransaction, roleId: number, deptScopeId
   }
 }
 
-// 平台保留角色编码：超管判定按 code + 平台归属执行，禁止任何人通过 API 创建
+// 平台保留角色编码（定义见 role-grant.ts）：超管判定按 code + 平台归属执行，禁止任何人通过 API 创建
 // 或改名为保留编码，防止租户自建 super_admin 角色完成提权
-const RESERVED_ROLE_CODES = new Set<string>([SUPER_ADMIN_CODE]);
-
 function ensureRoleCodeNotReserved(code: string | undefined) {
   if (code && RESERVED_ROLE_CODES.has(code)) {
     throw new HTTPException(400, { message: `角色编码 ${code} 为系统保留编码，不允许使用` });

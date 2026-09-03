@@ -2,23 +2,26 @@ import crypto from 'node:crypto';
 import { hashPassword } from '../../lib/password';
 import { Client, InvalidCredentialsError, type Entry } from 'ldapts';
 import { SAML, ValidateInResponseTo, type CacheItem, type CacheProvider, type Profile } from '@node-saml/node-saml';
-import { and, desc, eq, isNull, ne, or } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import type { CreateTenantIdentityProviderInput, IdentityProviderConnectionTestResult, IdentityProviderAttributeMapping, IdentityProviderSyncResult, IdentityProviderType, LdapDirectoryUser, UpdateTenantIdentityProviderInput } from '@zenith/shared/identity';
 import { config } from '../../config';
 import { db } from '../../db';
-import { identityProviderSyncLogs, roles, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users } from '../../db/schema';
+import { identityProviderSyncLogs, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users, type UserRow } from '../../db/schema';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
+import { resolveManagedTenantId, tenantScope } from '../../lib/tenant';
 import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import redis from '../../lib/redis';
 import { formatDateTime } from '../../lib/datetime';
-import { keywordCondition } from '../../lib/where-helpers';
+import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { pageOffset } from '../../lib/pagination';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { httpGet, httpPost, HttpClientError } from '../../lib/http-client';
 import { getConfigNumber } from '../../lib/system-config';
 import { checkLoginLock, clearLoginAttempts, recordLoginFailure } from '../../lib/session-manager';
 import { finalizeLogin, recordLoginLog, type DeviceInfo } from './auth.service';
+import { createMfaChallenge, shouldRequireMfa } from './identity-security.service';
+import { assertDefaultRolesGrantable, resolveGrantableDefaultRoleIds, userHasPlatformSuperRole } from './role-grant';
 
 const SECRET_MASK = '******';
 const OIDC_STATE_TTL = 5 * 60;
@@ -76,7 +79,7 @@ interface EnterpriseAuthStatePayload {
   samlRequestId?: string;
 }
 
-type EnterpriseLoginResult = Awaited<ReturnType<typeof finalizeLogin>>;
+type EnterpriseLoginResult = Awaited<ReturnType<typeof completeEnterpriseLogin>>;
 
 interface SamlLoginTicketPayload {
   loginResult: EnterpriseLoginResult;
@@ -153,6 +156,7 @@ export function mapIdentityProvider(row: ProviderRow) {
     ldapTimeoutMs: row.ldapTimeoutMs,
     attributeMapping: normalizeMapping(row.attributeMapping, row.type),
     jitEnabled: row.jitEnabled,
+    autoLinkByEmail: row.autoLinkByEmail,
     defaultRoleIds: row.defaultRoleIds,
     remark: row.remark,
     createdBy: row.createdBy,
@@ -171,16 +175,19 @@ async function ensureTenantUsable(tenantId: number | null | undefined) {
   return tenant;
 }
 
-async function ensureDefaultRolesExist(roleIds: number[], tenantId: number | null | undefined) {
-  if (roleIds.length === 0) return;
-  const uniq = Array.from(new Set(roleIds));
-  const rows = await db.query.roles.findMany({
-    where: tenantId == null
-      ? and(isNull(roles.tenantId), or(...uniq.map((id) => eq(roles.id, id))))
-      : and(eq(roles.tenantId, tenantId), or(...uniq.map((id) => eq(roles.id, id)))),
-    columns: { id: true },
+const PROVIDER_TENANT_SCOPE_MESSAGE = '无权为其他租户或平台配置身份源';
+
+/**
+ * 管理侧读取：id + 调用者租户作用域，越界一律 404（不暴露存在性）。
+ * 公开登录流程请用 `getUsableProvider`（不依赖请求用户）。
+ */
+async function getManageableProvider(id: number): Promise<ProviderRow> {
+  const row = await db.query.tenantIdentityProviders.findFirst({
+    where: and(eq(tenantIdentityProviders.id, id), tenantScope(tenantIdentityProviders)),
+    with: { tenant: { columns: { name: true, code: true, status: true, expireAt: true } } },
   });
-  if (rows.length !== uniq.length) throw new HTTPException(400, { message: '默认角色不存在或不属于当前租户' });
+  if (!row) throw new HTTPException(404, { message: '身份源不存在' });
+  return row;
 }
 
 function buildProviderValues(
@@ -193,7 +200,7 @@ function buildProviderValues(
     'tokenEndpoint', 'userinfoEndpoint', 'jwksUri', 'clientId', 'scopes', 'samlSsoUrl',
     'samlEntityId', 'ldapUrl', 'ldapStartTls', 'ldapSkipTlsVerify', 'ldapBaseDn', 'ldapBindDn',
     'ldapUserFilter', 'ldapUserSearchFilter', 'ldapSyncFilter', 'ldapGroupBaseDn', 'ldapGroupFilter',
-    'ldapTimeoutMs', 'attributeMapping', 'jitEnabled', 'defaultRoleIds', 'remark',
+    'ldapTimeoutMs', 'attributeMapping', 'jitEnabled', 'autoLinkByEmail', 'defaultRoleIds', 'remark',
   ] as const) {
     if (key in data) {
       values[key] = data[key] as never;
@@ -233,12 +240,14 @@ export interface ListIdentityProvidersQuery {
 
 export async function listIdentityProviders(query: ListIdentityProvidersQuery) {
   const { page = 1, pageSize = 10, keyword, tenantId, type, status } = query;
-  const conditions = [];
-  conditions.push(keywordCondition(keyword, [tenantIdentityProviders.name, tenantIdentityProviders.code], 'ilike'));
-  if (tenantId) conditions.push(eq(tenantIdentityProviders.tenantId, tenantId));
-  if (type) conditions.push(eq(tenantIdentityProviders.type, type));
-  if (status) conditions.push(eq(tenantIdentityProviders.status, status));
-  const where = conditions.length ? and(...conditions) : undefined;
+  // 调用者租户作用域先行；query.tenantId 只是平台管理员的筛选项（租户用户传他租户 → 与作用域取交为空集）
+  const where = buildWhere(
+    tenantScope(tenantIdentityProviders),
+    keywordCondition(keyword, [tenantIdentityProviders.name, tenantIdentityProviders.code], 'ilike'),
+    tenantId ? eq(tenantIdentityProviders.tenantId, tenantId) : undefined,
+    type ? eq(tenantIdentityProviders.type, type) : undefined,
+    status ? eq(tenantIdentityProviders.status, status) : undefined,
+  );
 
   const [total, rows] = await Promise.all([
     db.$count(tenantIdentityProviders, where),
@@ -254,18 +263,13 @@ export async function listIdentityProviders(query: ListIdentityProvidersQuery) {
 }
 
 export async function getIdentityProvider(id: number) {
-  const row = await db.query.tenantIdentityProviders.findFirst({
-    where: eq(tenantIdentityProviders.id, id),
-    with: { tenant: { columns: { name: true, code: true, status: true, expireAt: true } } },
-  });
-  if (!row) throw new HTTPException(404, { message: '身份源不存在' });
-  return mapIdentityProvider(row);
+  return mapIdentityProvider(await getManageableProvider(id));
 }
 
 export async function createIdentityProvider(data: CreateTenantIdentityProviderInput) {
-  const tenantId = data.tenantId ?? null;
+  const tenantId = resolveManagedTenantId(data.tenantId, PROVIDER_TENANT_SCOPE_MESSAGE);
   await ensureTenantUsable(tenantId);
-  await ensureDefaultRolesExist(data.defaultRoleIds ?? [], tenantId);
+  await assertDefaultRolesGrantable(data.defaultRoleIds ?? [], tenantId);
   const values = buildProviderValues({ ...data, tenantId });
   try {
     const [created] = await db.insert(tenantIdentityProviders).values(values as typeof tenantIdentityProviders.$inferInsert).returning();
@@ -277,11 +281,13 @@ export async function createIdentityProvider(data: CreateTenantIdentityProviderI
 }
 
 export async function updateIdentityProvider(id: number, data: UpdateTenantIdentityProviderInput) {
-  const [existing] = await db.select().from(tenantIdentityProviders).where(eq(tenantIdentityProviders.id, id)).limit(1);
-  if (!existing) throw new HTTPException(404, { message: '身份源不存在' });
-  const tenantId = data.tenantId === undefined ? existing.tenantId : (data.tenantId ?? null);
+  const existing = await getManageableProvider(id);
+  // 归属迁移只对平台管理员开放；其他人未传则沿用，传了不一致的值由 resolveManagedTenantId 拒绝
+  const tenantId = data.tenantId === undefined
+    ? existing.tenantId
+    : resolveManagedTenantId(data.tenantId, PROVIDER_TENANT_SCOPE_MESSAGE);
   await ensureTenantUsable(tenantId);
-  await ensureDefaultRolesExist(data.defaultRoleIds ?? existing.defaultRoleIds, tenantId);
+  await assertDefaultRolesGrantable(data.defaultRoleIds ?? existing.defaultRoleIds, tenantId);
   if (data.code) {
     const [dup] = await db
       .select({ id: tenantIdentityProviders.id })
@@ -294,20 +300,24 @@ export async function updateIdentityProvider(id: number, data: UpdateTenantIdent
       .limit(1);
     if (dup) throw new HTTPException(400, { message: '身份源编码已存在' });
   }
-  const values = buildProviderValues(data, existing);
-  const [updated] = await db.update(tenantIdentityProviders).set(values).where(eq(tenantIdentityProviders.id, id)).returning();
+  const values = buildProviderValues({ ...data, tenantId }, existing);
+  const [updated] = await db.update(tenantIdentityProviders).set(values)
+    .where(and(eq(tenantIdentityProviders.id, id), tenantScope(tenantIdentityProviders)))
+    .returning();
   if (!updated) throw new HTTPException(404, { message: '身份源不存在' });
   return getIdentityProvider(id);
 }
 
 export async function deleteIdentityProvider(id: number) {
-  const [row] = await db.delete(tenantIdentityProviders).where(eq(tenantIdentityProviders.id, id)).returning();
+  const [row] = await db.delete(tenantIdentityProviders)
+    .where(and(eq(tenantIdentityProviders.id, id), tenantScope(tenantIdentityProviders)))
+    .returning();
   if (!row) throw new HTTPException(404, { message: '身份源不存在' });
 }
 
 export async function getIdentityProviderBeforeAudit(id: number) {
   const row = await db.query.tenantIdentityProviders.findFirst({
-    where: eq(tenantIdentityProviders.id, id),
+    where: and(eq(tenantIdentityProviders.id, id), tenantScope(tenantIdentityProviders)),
     with: { tenant: { columns: { name: true, code: true, status: true, expireAt: true } } },
   });
   return row ? mapIdentityProvider(row) : null;
@@ -339,16 +349,26 @@ export async function discoverEnterpriseIdentityProviders(tenantCode?: string | 
   return { tenantCode: tenantCode ?? null, providers: rows };
 }
 
+function assertProviderUsable(row: ProviderRow): ProviderRow {
+  if (row.status !== 'enabled') throw new HTTPException(400, { message: '身份源未启用' });
+  if (row.tenant && row.tenant.status === 'disabled') throw new HTTPException(403, { message: '租户已禁用' });
+  if (row.tenant?.expireAt && row.tenant.expireAt < new Date()) throw new HTTPException(403, { message: '租户已过期' });
+  return row;
+}
+
+/** 公开登录流程用：不依赖请求用户，只校验身份源与租户可用 */
 async function getUsableProvider(id: number) {
   const row = await db.query.tenantIdentityProviders.findFirst({
     where: eq(tenantIdentityProviders.id, id),
     with: { tenant: { columns: { name: true, code: true, status: true, expireAt: true } } },
   });
   if (!row) throw new HTTPException(404, { message: '身份源不存在' });
-  if (row.status !== 'enabled') throw new HTTPException(400, { message: '身份源未启用' });
-  if (row.tenant && row.tenant.status === 'disabled') throw new HTTPException(403, { message: '租户已禁用' });
-  if (row.tenant?.expireAt && row.tenant.expireAt < new Date()) throw new HTTPException(403, { message: '租户已过期' });
-  return row;
+  return assertProviderUsable(row);
+}
+
+/** 管理侧操作（测试连接 / 目录搜索 / 同步）用：先限定调用者租户作用域，再校验可用 */
+async function getManageableUsableProvider(id: number) {
+  return assertProviderUsable(await getManageableProvider(id));
 }
 
 /** 供通讯录同步连接器复用：加载可用的 LDAP/AD 身份源（含启用与租户校验） */
@@ -701,18 +721,43 @@ function normalizeExternalProfile(provider: typeof tenantIdentityProviders.$infe
 
 type NormalizedExternalProfile = ReturnType<typeof normalizeExternalProfile>;
 
-function identityUserMatchWhere(
+const OIDC_EMAIL_VERIFIED_CLAIM = 'email_verified';
+
+/**
+ * IdP 是否断言邮箱已验证：OIDC 读标准 claim `email_verified`；
+ * SAML / LDAP / AD 没有对应标准字段，视企业目录为权威源。
+ */
+function externalEmailVerified(provider: typeof tenantIdentityProviders.$inferSelect, profile: Record<string, unknown>): boolean {
+  if (provider.type !== 'oidc') return true;
+  const value = profile[OIDC_EMAIL_VERIFIED_CLAIM];
+  return value === true || value === 'true';
+}
+
+/**
+ * 按邮箱查找可与外部身份关联的本地账号（登录 / 同步共用）：
+ * - 只按邮箱匹配 —— username 由 IdP 任意指定且 `admin` 之类可枚举，不能作为关联依据；
+ * - 限定在身份源自己的租户作用域内，且必须唯一命中；
+ * - 登录路径要求身份源显式开启 `autoLinkByEmail`（默认关闭）并由 IdP 断言邮箱已验证；
+ * - 目标账号不得持有平台超管角色：超管只能在已登录态下显式绑定，任何自动路径都不接管它。
+ */
+async function findLinkableUserByEmail(
   provider: typeof tenantIdentityProviders.$inferSelect,
   external: NormalizedExternalProfile,
-) {
-  const tenant = provider.tenantId == null
-    ? isNull(users.tenantId)
-    : eq(users.tenantId, provider.tenantId);
-  const conditions = [and(eq(users.username, external.username), tenant)];
-  if (external.email) {
-    conditions.push(and(eq(users.email, external.email), tenant));
-  }
-  return or(...conditions);
+  profile: Record<string, unknown>,
+  options: { requireOptIn: boolean },
+): Promise<UserRow | null> {
+  if (!external.email) return null;
+  if (options.requireOptIn && (!provider.autoLinkByEmail || !externalEmailVerified(provider, profile))) return null;
+  const tenant = provider.tenantId == null ? isNull(users.tenantId) : eq(users.tenantId, provider.tenantId);
+  const matches = await db.select().from(users)
+    .where(and(eq(users.email, external.email), tenant))
+    .limit(2);
+  if (matches.length !== 1) return null;
+  const [matched] = matches;
+  // 登录路径不给已禁用账号建立绑定（登录本身也会被拒绝）；管理员同步允许先绑定、后启用
+  if (options.requireOptIn && matched.status !== 'enabled') return null;
+  if (await userHasPlatformSuperRole(matched.id)) return null;
+  return matched;
 }
 
 function identityAccountValues(input: {
@@ -760,7 +805,14 @@ function mapSamlProfile(profile: Profile): Record<string, unknown> {
   return record;
 }
 
-async function findOrCreateUserForProvider(provider: typeof tenantIdentityProviders.$inferSelect, profile: Record<string, unknown>) {
+/**
+ * 登录路径：解析外部身份对应的本地账号。
+ * 1) 已绑定（providerId + subject）→ 直接返回；
+ * 2) 身份源开启 autoLinkByEmail 且 IdP 断言邮箱已验证 → 关联唯一命中的本地账号（排除平台超管）；
+ * 3) 否则按 JIT 建号，默认角色经 resolveGrantableDefaultRoleIds 过滤（永不授予平台保留角色）。
+ * 未命中且未开 JIT → 403，请管理员先同步 / 绑定；不再按 username 隐式关联。
+ */
+export async function findOrCreateUserForProvider(provider: typeof tenantIdentityProviders.$inferSelect, profile: Record<string, unknown>) {
   const external = normalizeExternalProfile(provider, profile);
   const now = new Date();
   const [existingAccount] = await db
@@ -775,9 +827,7 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
     return user;
   }
 
-  const [matchedUser] = await db.select().from(users)
-    .where(identityUserMatchWhere(provider, external))
-    .limit(1);
+  const matchedUser = await findLinkableUserByEmail(provider, external, profile, { requireOptIn: true });
   if (matchedUser) {
     await db.insert(userIdentityAccounts).values(identityAccountValues({
       providerId: provider.id,
@@ -789,7 +839,7 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
     return matchedUser;
   }
 
-  if (!provider.jitEnabled) throw new HTTPException(403, { message: '未找到匹配账号，请联系管理员开通账号或启用 JIT 创建' });
+  if (!provider.jitEnabled) throw new HTTPException(403, { message: '未找到已绑定账号，请联系管理员完成账号绑定或启用 JIT 创建' });
   if (!external.email) throw new HTTPException(400, { message: '企业身份源未返回邮箱，无法自动创建账号' });
   const email = external.email;
 
@@ -813,8 +863,9 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
       rawProfile: profile,
       lastLoginAt: now,
     });
-    if (provider.defaultRoleIds.length > 0) {
-      await tx.insert(userRoles).values(provider.defaultRoleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
+    const roleIds = await resolveGrantableDefaultRoleIds(provider.defaultRoleIds, provider.tenantId ?? null, tx);
+    if (roleIds.length > 0) {
+      await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
     }
     return created;
   });
@@ -824,7 +875,11 @@ async function findOrCreateUserForProvider(provider: typeof tenantIdentityProvid
 
 type ProviderSyncAction = 'created' | 'linked' | 'updated' | 'skipped';
 
-async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inferSelect, profile: Record<string, unknown>): Promise<ProviderSyncAction> {
+/**
+ * 管理员显式触发的目录同步：允许按邮箱把目录条目关联到本地账号（同样排除平台超管），
+ * 但邮箱是找回密码的凭证通道 —— 只有身份源声明「以目录邮箱为准」（autoLinkByEmail）时才允许同步覆盖本地邮箱。
+ */
+export async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inferSelect, profile: Record<string, unknown>): Promise<ProviderSyncAction> {
   const external = normalizeExternalProfile(provider, profile);
   const [existingAccount] = await db
     .select()
@@ -843,7 +898,7 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
         rawProfile: profile,
       }).where(eq(userIdentityAccounts.id, existingAccount.id)),
       db.update(users).set({
-        email: external.email ?? user.email,
+        ...(provider.autoLinkByEmail && external.email ? { email: external.email } : {}),
         nickname: external.nickname.slice(0, 32),
         phone: external.phone ?? user.phone,
       }).where(eq(users.id, user.id)),
@@ -851,9 +906,7 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
     return 'updated';
   }
 
-  const [matchedUser] = await db.select().from(users)
-    .where(identityUserMatchWhere(provider, external))
-    .limit(1);
+  const matchedUser = await findLinkableUserByEmail(provider, external, profile, { requireOptIn: false });
   if (matchedUser) {
     await db.insert(userIdentityAccounts).values(identityAccountValues({
       providerId: provider.id,
@@ -885,8 +938,9 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
       displayName: external.nickname,
       rawProfile: profile,
     });
-    if (provider.defaultRoleIds.length > 0) {
-      await tx.insert(userRoles).values(provider.defaultRoleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
+    const roleIds = await resolveGrantableDefaultRoleIds(provider.defaultRoleIds, provider.tenantId ?? null, tx);
+    if (roleIds.length > 0) {
+      await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
     }
     return created;
   });
@@ -895,7 +949,7 @@ async function syncUserForProvider(provider: typeof tenantIdentityProviders.$inf
 }
 
 export async function testIdentityProviderConnection(id: number): Promise<IdentityProviderConnectionTestResult> {
-  const provider = await getUsableProvider(id);
+  const provider = await getManageableUsableProvider(id);
   ensureDirectoryProvider(provider);
   try {
     const entries = await searchDirectoryEntries(provider, { mode: 'sync', limit: 3 });
@@ -917,7 +971,7 @@ export async function searchIdentityProviderUsers(
   id: number,
   query: { keyword?: string; limit?: number },
 ): Promise<LdapDirectoryUser[]> {
-  const provider = await getUsableProvider(id);
+  const provider = await getManageableUsableProvider(id);
   ensureDirectoryProvider(provider);
   const entries = await searchDirectoryEntries(provider, {
     mode: query.keyword ? 'search' : 'sync',
@@ -931,7 +985,7 @@ export async function syncIdentityProviderUsers(
   id: number,
   input: { limit?: number },
 ): Promise<IdentityProviderSyncResult> {
-  const provider = await getUsableProvider(id);
+  const provider = await getManageableUsableProvider(id);
   ensureDirectoryProvider(provider);
   const startedAt = new Date();
   const [log] = await db.insert(identityProviderSyncLogs).values({
@@ -995,6 +1049,38 @@ export async function syncIdentityProviderUsers(
   }
 }
 
+/**
+ * 企业 SSO 的登录收口：与密码登录（auth.service `login()`）共用同一套 MFA 决策 ——
+ * 策略要求或新设备风控命中时先返回挑战，由前端走 verifyMfaLogin；否则签发 token。
+ */
+async function completeEnterpriseLogin(
+  user: UserRow,
+  client: { ip: string; ua: string; deviceInfo?: DeviceInfo; deviceId?: string },
+  logMessage: string,
+) {
+  const mfa = await shouldRequireMfa({ user, ip: client.ip, ua: client.ua, deviceId: client.deviceId });
+  if (mfa.required) {
+    const challenge = await createMfaChallenge({
+      userId: user.id,
+      username: user.username,
+      tenantId: user.tenantId ?? null,
+      ip: client.ip,
+      ua: client.ua,
+      deviceInfo: client.deviceInfo,
+      deviceId: client.deviceId,
+      rememberDevice: false,
+    });
+    return {
+      mfaRequired: true as const,
+      challengeId: challenge.challengeId,
+      methods: mfa.methods,
+      expiresAt: challenge.expiresAt,
+      reason: mfa.reason,
+    };
+  }
+  return finalizeLogin(user, { ip: client.ip, ua: client.ua, deviceInfo: client.deviceInfo }, { logMessage });
+}
+
 export async function handleEnterpriseLdapLogin(input: {
   providerId: number;
   username: string;
@@ -1003,6 +1089,7 @@ export async function handleEnterpriseLdapLogin(input: {
   ip: string;
   ua: string;
   deviceInfo?: DeviceInfo;
+  deviceId?: string;
 }) {
   const provider = await getUsableProvider(input.providerId);
   ensureDirectoryProvider(provider);
@@ -1087,15 +1174,15 @@ export async function handleEnterpriseLdapLogin(input: {
     throw new HTTPException(403, { message: '账号已被禁用' });
   }
   await clearLoginAttempts(lockKey);
-  const loginResult = await finalizeLogin(
+  const loginResult = await completeEnterpriseLogin(
     user,
-    { ip: input.ip, ua: input.ua, deviceInfo: input.deviceInfo },
-    { logMessage: `企业身份源 ${provider.name} LDAP 登录成功` },
+    { ip: input.ip, ua: input.ua, deviceInfo: input.deviceInfo, deviceId: input.deviceId },
+    `企业身份源 ${provider.name} LDAP 登录成功`,
   );
   return { loginResult, redirectTo: input.redirectTo ?? null };
 }
 
-export async function handleEnterpriseOidcCallback(code: string, state: string, deviceInfo?: DeviceInfo) {
+export async function handleEnterpriseOidcCallback(code: string, state: string, deviceInfo?: DeviceInfo, deviceId?: string) {
   const stateKey = `${OIDC_STATE_PREFIX}${state}`;
   const raw = await redis.get(stateKey);
   if (!raw) throw new HTTPException(400, { message: '企业登录状态已过期，请重新发起登录' });
@@ -1107,10 +1194,10 @@ export async function handleEnterpriseOidcCallback(code: string, state: string, 
   const profile = await loadOidcProfile(provider, token);
   const user = await findOrCreateUserForProvider(provider, profile);
   if (user.status === 'disabled') throw new HTTPException(403, { message: '账号已被禁用' });
-  const loginResult = await finalizeLogin(
+  const loginResult = await completeEnterpriseLogin(
     user,
-    { ip: payload.ip, ua: payload.ua, deviceInfo },
-    { logMessage: `企业身份源 ${provider.name} 登录成功` },
+    { ip: payload.ip, ua: payload.ua, deviceInfo, deviceId },
+    `企业身份源 ${provider.name} 登录成功`,
   );
   return { loginResult, redirectTo: payload.redirectTo ?? null };
 }
@@ -1144,10 +1231,11 @@ export async function handleEnterpriseSamlAcs(samlResponse: string, relayState: 
 
   const user = await findOrCreateUserForProvider(provider, profileRecord);
   if (user.status === 'disabled') throw new HTTPException(403, { message: '账号已被禁用' });
-  const loginResult = await finalizeLogin(
+  // 票据里可能是登录结果，也可能是 MFA 挑战：前端兑换后按 mfaRequired 分流
+  const loginResult = await completeEnterpriseLogin(
     user,
     { ip: payload.ip, ua: payload.ua },
-    { logMessage: `企业身份源 ${provider.name} SAML 登录成功` },
+    `企业身份源 ${provider.name} SAML 登录成功`,
   );
   const ticket = randomToken(32);
   const ticketPayload: SamlLoginTicketPayload = {

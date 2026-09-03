@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isPlatformAdmin, getEffectiveTenantId, tenantCondition } from './tenant';
+import { HTTPException } from 'hono/http-exception';
+import { isPlatformAdmin, getEffectiveTenantId, tenantCondition, resolveManagedTenantId } from './tenant';
 import { config } from '../config';
+import { currentUser } from './context';
 import type { JwtPayload } from '../middleware/auth';
 
 vi.mock('../config', () => ({
@@ -95,6 +97,56 @@ describe('tenant utility', () => {
         { roles: ['super_admin'], tenantId: null, viewingTenantId: 4 } as unknown as JwtPayload
       );
       expect(cond).toEqual({ op: 'eq', col: 'tenantCol', val: 4 });
+    });
+  });
+
+  describe('resolveManagedTenantId', () => {
+    const asUser = (user: Partial<JwtPayload>) => vi.mocked(currentUser).mockReturnValue(user as JwtPayload);
+    const platformAdmin = { roles: ['super_admin'], tenantId: null };
+    const tenantAdmin = { roles: ['tenant_admin'], tenantId: 3 };
+
+    it('platform admin: explicit value wins (null = platform level), omitted falls back to current view', () => {
+      asUser({ ...platformAdmin, viewingTenantId: 5 });
+      expect(resolveManagedTenantId(undefined)).toBe(5);
+      expect(resolveManagedTenantId(null)).toBeNull();
+      expect(resolveManagedTenantId(7)).toBe(7);
+      asUser(platformAdmin);
+      expect(resolveManagedTenantId(undefined)).toBeNull();
+    });
+
+    it('tenant user: always lands in own tenant', () => {
+      asUser(tenantAdmin);
+      expect(resolveManagedTenantId(undefined)).toBe(3);
+      expect(resolveManagedTenantId(3)).toBe(3);
+    });
+
+    it('tenant user: platform level (null) or another tenant is rejected with 403', () => {
+      asUser(tenantAdmin);
+      for (const requested of [null, 9]) {
+        try {
+          resolveManagedTenantId(requested, '无权配置');
+          expect.unreachable('should have thrown');
+        } catch (err) {
+          expect(err).toBeInstanceOf(HTTPException);
+          expect((err as HTTPException).status).toBe(403);
+          expect((err as HTTPException).message).toBe('无权配置');
+        }
+      }
+    });
+
+    it('tenant user with a forged super_admin role code is still not a platform admin', () => {
+      // isPlatformAdmin 要求 tenantId 为空；租户自建的 super_admin 同名角色不能解锁平台级归属
+      asUser({ roles: ['super_admin'], tenantId: 3 });
+      expect(resolveManagedTenantId(undefined)).toBe(3);
+      expect(() => resolveManagedTenantId(null)).toThrow(HTTPException);
+    });
+
+    it('single-tenant mode: everyone is in the global scope, explicit tenant ids are rejected', () => {
+      config.multiTenantMode = false;
+      asUser({ roles: ['admin'], tenantId: null });
+      expect(resolveManagedTenantId(undefined)).toBeNull();
+      expect(resolveManagedTenantId(null)).toBeNull();
+      expect(() => resolveManagedTenantId(2)).toThrow(HTTPException);
     });
   });
 });

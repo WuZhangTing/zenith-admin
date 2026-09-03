@@ -12,6 +12,7 @@ import { reserveTenantSeats } from '../../lib/tenant-quota';
 import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import logger from '../../lib/logger';
 import { forceLogoutAllUserSessions } from './sessions.service';
+import { resolveGrantableDefaultRoleIds, userHasPlatformSuperRole } from './role-grant';
 
 /**
  * SCIM 2.0 Server（RFC 7643/7644 最小可用子集）：
@@ -259,10 +260,12 @@ export async function createScimUser(source: DirectorySyncSourceRow, payload: Re
   const scimId = crypto.randomUUID();
   const lifecycle = source.lifecycle ?? { disableOnLeave: true, kickSessions: true, defaultRoleIds: [] };
 
-  // 匹配既有本地账号（按 username，租户内）→ 绑定而非重建
-  const [matched] = await db.select().from(users)
+  // 匹配既有本地账号（按 username，租户内）→ 绑定而非重建；平台超管永不被自动接管，
+  // 视为未匹配走新建，最终由 username 唯一约束以 409 拒绝
+  const [candidate] = await db.select().from(users)
     .where(and(eq(users.username, input.userName), tenantWhere(source.tenantId)))
     .limit(1);
+  const matched = candidate && !(await userHasPlatformSuperRole(candidate.id)) ? candidate : undefined;
 
   let userId: number;
   if (matched) {
@@ -296,8 +299,9 @@ export async function createScimUser(source: DirectorySyncSourceRow, payload: Re
           externalData: { scimExternalId: input.externalId ?? null },
           lastSeenAt: new Date(),
         });
-        if (lifecycle.defaultRoleIds.length > 0) {
-          await tx.insert(userRoles).values(lifecycle.defaultRoleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
+        const roleIds = await resolveGrantableDefaultRoleIds(lifecycle.defaultRoleIds, source.tenantId, tx);
+        if (roleIds.length > 0) {
+          await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
         }
         return created.id;
       });

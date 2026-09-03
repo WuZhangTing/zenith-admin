@@ -77,6 +77,7 @@ const callbackRoute = defineOpenAPIRoute({
         content: jsonContent(z.object({
           code: z.string(),
           state: z.string(),
+          deviceId: z.string().max(128).optional(),
         }).openapi('EnterpriseOidcCallbackBody')),
         required: true,
       },
@@ -84,8 +85,8 @@ const callbackRoute = defineOpenAPIRoute({
     responses: { ...ok(z.object({ loginResult: LoginResultDTO, redirectTo: z.string().nullable().optional() }), 'ok'), ...commonErrorResponses },
   }),
   handler: async (c) => {
-    const { code, state } = c.req.valid('json');
-    return c.json(okBody(await handleEnterpriseOidcCallback(code, state)), 200);
+    const { code, state, deviceId } = c.req.valid('json');
+    return c.json(okBody(await handleEnterpriseOidcCallback(code, state, undefined, deviceId)), 200);
   },
 });
 

@@ -155,7 +155,15 @@ MFA 当前落库类型包括 `totp`、`passkey`、`recovery_code`，接口实现
 
 ### 企业身份源
 
-企业身份源类型为 `oidc`、`saml`、`ldap`、`ad`，配置保存在 `tenant_identity_providers`，外部身份与本地用户绑定在 `user_identity_accounts`。核心字段包括 OIDC discovery/授权/token/userinfo/JWKS 端点、SAML SSO URL/Entity ID/证书、LDAP URL/Base DN/Bind DN/搜索过滤器/同步过滤器、属性映射、JIT 开关与默认角色。
+企业身份源类型为 `oidc`、`saml`、`ldap`、`ad`，配置保存在 `tenant_identity_providers`，外部身份与本地用户绑定在 `user_identity_accounts`。核心字段包括 OIDC discovery/授权/token/userinfo/JWKS 端点、SAML SSO URL/Entity ID/证书、LDAP URL/Base DN/Bind DN/搜索过滤器/同步过滤器、属性映射、JIT 开关、按邮箱自动关联开关（`autoLinkByEmail`）与默认角色。
+
+安全边界（服务端强制，前端仅做展示裁剪）：
+
+- **归属由调用者决定**：`tenantId` 只有平台管理员可以指定（`null` 为平台级）；租户管理员创建 / 更新的身份源与同步源一律落到自身租户，显式传入其他归属返回 403。列表、详情、更新、删除、测试连接、目录搜索与同步全部按调用者租户作用域过滤，越界返回 404。
+- **默认角色不变式**：保存时校验默认角色归属目标租户且调用者可见；任何自动建号路径（SSO JIT、身份源同步、SCIM、通讯录同步）**永不授予平台保留角色**（`super_admin`），建号时再过滤一次已删除 / 禁用 / 越界 / 保留的角色。平台超管只能由平台管理员手动分配。
+- **不做隐式账号关联**：外部身份首次出现时不再按用户名匹配本地账号。只有身份源显式开启 `autoLinkByEmail`，且邮箱在身份源租户内唯一命中、账号启用、OIDC 断言 `email_verified`，才会在登录时关联既有账号；持有平台超管角色的账号在任何自动路径（登录关联、管理员同步、SCIM、通讯录同步）中都不会被关联或接管。未命中且未开启 JIT 时返回 403，需管理员先同步或绑定。
+- **同步覆盖邮箱受控**：管理员触发的目录同步允许按邮箱关联既有账号，但只有开启 `autoLinkByEmail` 的身份源才会用目录邮箱覆盖本地邮箱（邮箱是找回密码的凭证通道）。
+- **SSO 复用 MFA 决策**：LDAP / OIDC / SAML 登录在签发 token 前执行与密码登录相同的 `shouldRequireMfa`，命中时返回 `mfaRequired` 挑战（SAML 通过一次性票据带回前端），由 `POST /api/auth/mfa/verify` 完成。
 
 管理端接口：
 

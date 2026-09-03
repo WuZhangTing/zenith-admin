@@ -278,6 +278,7 @@ export const identityProviderAttributeMappingSchema = z.object({
 
 
 export const createTenantIdentityProviderSchema = z.object({
+  /** 归属租户：仅平台管理员可指定（null = 平台级）；其他调用者由服务端强制落到自身租户 */
   tenantId: z.number().int().positive().nullable().optional(),
   name: z.string().min(1, '身份源名称不能为空').max(100),
   code: z.string().min(1, '身份源编码不能为空').max(64).regex(/^[a-z][a-z0-9_-]*$/, '编码只能包含小写字母、数字、中划线和下划线，且以字母开头'),
@@ -315,6 +316,8 @@ export const createTenantIdentityProviderSchema = z.object({
     department: 'department',
   }),
   jitEnabled: z.boolean().default(false),
+  /** 登录时按 IdP 断言的已验证邮箱自动关联既有本地账号（默认关闭；平台超管永不自动关联） */
+  autoLinkByEmail: z.boolean().default(false),
   defaultRoleIds: z.array(z.number().int().positive()).default([]),
   remark: z.string().max(500).nullable().optional(),
 });
@@ -340,6 +343,8 @@ export const enterpriseLdapLoginSchema = z.object({
   password: z.string().min(1, '请输入目录密码').max(512),
   redirectTo: z.string().max(512).nullable().optional(),
   deviceInfo: z.record(z.string(), z.unknown()).optional(),
+  /** 可信设备标识（与密码登录一致，用于 MFA 新设备风控） */
+  deviceId: z.string().max(128).optional(),
 });
 
 

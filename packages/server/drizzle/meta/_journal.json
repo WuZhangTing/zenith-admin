@@ -36,6 +36,13 @@
       "when": 1788408084633,
       "tag": "0004_iot_telemetry_partition",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788439122466,
+      "tag": "0005_mighty_obadiah_stane",
+      "breakpoints": true
     }
   ]
 }

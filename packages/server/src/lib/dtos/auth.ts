@@ -137,6 +137,7 @@ export const TenantIdentityProviderDTO = z
     ldapTimeoutMs: z.number().int(),
     attributeMapping: z.record(z.string(), z.string()),
     jitEnabled: z.boolean(),
+    autoLinkByEmail: z.boolean(),
     defaultRoleIds: z.array(z.number().int()),
     remark: z.string().nullable().optional(),
     ...auditFields,

@@ -18,12 +18,12 @@ import { streamToExcel, streamToCsv, formatDateTimeForExcel } from '../../lib/ex
 import { clearUserPermissionCache } from '../../lib/permissions';
 import type { JwtPayload } from '../../middleware/auth';
 import type { AlertRecipientUser, User } from '@zenith/shared/identity';
-import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { currentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { applyEntityMasking } from '../platform/data-mask.service';
 import logger from '../../lib/logger';
+import { userHasPlatformSuperRole } from './role-grant';
 
 // ─── 关联查询配置 ─────────────────────────────────────────────────────────────
 
@@ -100,15 +100,6 @@ async function ensureUsersManageable(userIds: number[]): Promise<void> {
   if (Number(count) !== uniq.length) {
     throw new HTTPException(404, { message: '部分用户不存在或超出数据权限范围' });
   }
-}
-
-/** 用户是否绑定平台超管角色（code=super_admin 且角色归属平台） */
-async function userHasPlatformSuperRole(userId: number): Promise<boolean> {
-  const [row] = await db.select({ userId: userRoles.userId }).from(userRoles)
-    .innerJoin(roles, eq(userRoles.roleId, roles.id))
-    .where(and(eq(userRoles.userId, userId), eq(roles.code, SUPER_ADMIN_CODE), isNull(roles.tenantId)))
-    .limit(1);
-  return !!row;
 }
 
 export async function findUsersWithRelations(config: Omit<FindManyUsersArgs, 'with'> = {}) {

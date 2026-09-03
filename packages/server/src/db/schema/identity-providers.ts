@@ -45,6 +45,8 @@ export const tenantIdentityProviders = pgTable('tenant_identity_providers', {
     nickname: 'name',
   }),
   jitEnabled: boolean().notNull().default(false),
+  // 登录时允许按「已验证邮箱」自动关联既有本地账号（默认关闭；平台超管永不自动关联）
+  autoLinkByEmail: boolean().notNull().default(false),
   defaultRoleIds: jsonb().$type<number[]>().notNull().default([]),
   remark: text(),
   ...auditColumns(),

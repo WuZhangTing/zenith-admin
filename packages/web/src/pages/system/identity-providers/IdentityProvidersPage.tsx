@@ -3,11 +3,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Col, Form, Modal, Row, Select, SideSheet, Spin, Switch, Table, Tag, Toast } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { IdentityProviderType, TenantIdentityProvider } from '@zenith/shared/identity';
+import { SUPER_ADMIN_CODE } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { createdAtColumn, renderEllipsis } from '@/utils/table-columns';
 import { useAllRoles } from '@/hooks/queries/roles';
+import { useIsPlatformAdmin } from '@/hooks/useIsPlatformAdmin';
 import {
   identityProviderKeys,
   useDeleteIdentityProviders,
@@ -124,10 +126,15 @@ export default function IdentityProvidersPage() {
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
-  const tenantsQuery = useIdentityProviderTenants();
+  // 归属租户只有平台管理员可选；租户管理员的身份源由服务端强制落到自身租户
+  const isPlatformAdmin = useIsPlatformAdmin();
+  const tenantsQuery = useIdentityProviderTenants({ enabled: isPlatformAdmin });
   const rolesQuery = useAllRoles();
   const tenantOptions = (tenantsQuery.data ?? []).map((item) => ({ value: item.id, label: `${item.name}（${item.code}）` }));
-  const roleOptions = (rolesQuery.data ?? []).map((item) => ({ value: item.id, label: item.name }));
+  // 自动建号永不授予平台保留角色（服务端同样拒绝），下拉里直接不给选
+  const roleOptions = (rolesQuery.data ?? [])
+    .filter((item) => item.code !== SUPER_ADMIN_CODE)
+    .map((item) => ({ value: item.id, label: item.name }));
   const saveMutation = useSaveIdentityProvider();
   const modal = useEditModal<TenantIdentityProvider, Record<string, unknown>, Record<string, unknown>>({
     entityName: '企业身份源',
@@ -144,6 +151,7 @@ export default function IdentityProvidersPage() {
       ldapUserSearchFilter: '(&(objectClass=person)(|(cn=*{{keyword}}*)(displayName=*{{keyword}}*)(uid=*{{keyword}}*)(sAMAccountName=*{{keyword}}*)(mail=*{{keyword}}*)))',
       ldapSyncFilter: '(&(objectClass=person)(|(uid=*)(sAMAccountName=*)(mail=*)))',
       jitEnabled: false,
+      autoLinkByEmail: false,
       defaultRoleIds: [],
       ...Object.fromEntries(Object.entries(defaultMapping).map(([key, value]) => [`attributeMapping.${key}`, value])),
     },
@@ -163,9 +171,11 @@ export default function IdentityProvidersPage() {
     },
     beforeSave: (values) => {
       const activeMapping = mappingForType(providerType);
+      const { tenantId, ...rest } = values;
       return {
-        ...values,
-        tenantId: values.tenantId ?? null,
+        ...rest,
+        // 非平台管理员不提交 tenantId：服务端会强制落到自身租户，显式传值反而会被 403 拒绝
+        ...(isPlatformAdmin ? { tenantId: tenantId ?? null } : {}),
         type: providerType,
         attributeMapping: {
           subject: values['attributeMapping.subject'] || activeMapping.subject,
@@ -414,16 +424,18 @@ export default function IdentityProvidersPage() {
                 <Col span={12}><Form.Input field="code" label="编码" placeholder="azure_ad" rules={[{ required: true, message: '请输入编码' }]} /></Col>
               </Row>
               <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Select
-                    field="tenantId"
-                    label="租户"
-                    placeholder="平台级身份源"
-                    optionList={tenantOptions}
-                    showClear
-                    style={{ width: '100%' }}
-                  />
-                </Col>
+                {isPlatformAdmin && (
+                  <Col span={12}>
+                    <Form.Select
+                      field="tenantId"
+                      label="租户"
+                      placeholder="平台级身份源"
+                      optionList={tenantOptions}
+                      showClear
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                )}
                 <Col span={12}>
                   <Form.Select
                     field="type"
@@ -505,12 +517,20 @@ export default function IdentityProvidersPage() {
 
             <Form.Section text="账号开通">
               <Form.Switch field="jitEnabled" label="JIT 创建" extraText="首次登录时按属性映射自动创建本地账号" />
+              <Form.Switch
+                field="autoLinkByEmail"
+                label="按邮箱自动关联"
+                extraText={providerType === 'oidc'
+                  ? '首次登录时把 IdP 断言为已验证（email_verified）的邮箱关联到本租户内唯一匹配的既有账号；默认关闭，平台超管永不自动关联'
+                  : '首次登录时按目录邮箱关联到本租户内唯一匹配的既有账号，并允许目录同步覆盖本地邮箱；默认关闭，平台超管永不自动关联'}
+              />
               <Form.Select
                 field="defaultRoleIds"
                 label="默认角色"
                 multiple
                 optionList={roleOptions}
                 style={{ width: '100%' }}
+                extraText="自动建号只授予本租户的普通角色；平台保留角色需由平台管理员手动分配"
               />
               <Form.TextArea field="remark" label="备注" rows={3} />
             </Form.Section>

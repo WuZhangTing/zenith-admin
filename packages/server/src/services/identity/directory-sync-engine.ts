@@ -20,6 +20,7 @@ import { registerTaskHandler } from '../../lib/task-center';
 import { currentUserOrNull } from '../../lib/context';
 import { buildDirectoryConnector, type DirectoryExtDept, type DirectoryExtUser, type DirectorySnapshot } from './directory-sync-connectors';
 import { forceLogoutAllUserSessions } from './sessions.service';
+import { listPlatformSuperUserIds, resolveGrantableDefaultRoleIds } from './role-grant';
 
 const SCHEDULE_TZ = 'Asia/Shanghai';
 
@@ -294,8 +295,11 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
       email: users.email, phone: users.phone, departmentId: users.departmentId, status: users.status,
     }).from(users).where(tenantWhere(source.tenantId));
     const localUserById = new Map(localUsers.map((u) => [u.id, u]));
+    // 平台超管永不作为自动关联候选：目录侧同名 / 同邮箱 / 同手机的条目一律按新建处理（由唯一约束兜底）
+    const platformSuperUserIds = await listPlatformSuperUserIds();
     const matchIndex = new Map<string, number[]>();
     for (const u of localUsers) {
+      if (platformSuperUserIds.has(u.id)) continue;
       const key = source.matchKey === 'phone' ? u.phone : source.matchKey === 'email' ? u.email : u.username;
       if (!key) continue;
       const ids = matchIndex.get(key) ?? [];
@@ -527,8 +531,9 @@ export async function runDirectorySync(sourceId: number, opts: RunOptions): Prom
                 sourceId, externalId: ext.externalId, userId: created.id,
                 externalData: linkSnapshot(ext), lastSeenAt: new Date(),
               });
-              if (lifecycle.defaultRoleIds.length > 0) {
-                await tx.insert(userRoles).values(lifecycle.defaultRoleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
+              const roleIds = await resolveGrantableDefaultRoleIds(lifecycle.defaultRoleIds, source.tenantId, tx);
+              if (roleIds.length > 0) {
+                await tx.insert(userRoles).values(roleIds.map((roleId) => ({ userId: created.id, roleId }))).onConflictDoNothing();
               }
             });
             usedUsernames.add(username);

@@ -28,8 +28,8 @@ export const {
  * 身份源配置页的租户下拉——直接复用 tenants 域的共享 lookup，
  * 避免同一端点在两个 key 下各存一份（租户切换器常驻 AdminLayout，会同时在线）。
  */
-export function useIdentityProviderTenants() {
-  return useAllTenants();
+export function useIdentityProviderTenants(options?: { enabled?: boolean }) {
+  return useAllTenants(options);
 }
 
 export function useTestIdentityProviderConnection() {
