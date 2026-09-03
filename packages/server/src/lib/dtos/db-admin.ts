@@ -237,6 +237,7 @@ export const DbAdminIndexInfoDTO = z
     isPrimary: z.boolean(),
     columns: z.array(z.string()),
     definition: z.string(),
+    partitions: z.number(),
   })
   .openapi('DbAdminIndexInfo');
 
@@ -247,6 +248,7 @@ export const DbAdminIndexHealthDTO = z
       schema: z.string(),
       table: z.string(),
       columns: z.array(z.string()),
+      shape: z.string(),
       indexes: z.array(DbAdminIndexInfoDTO),
     })),
     totalIndexes: z.number(),

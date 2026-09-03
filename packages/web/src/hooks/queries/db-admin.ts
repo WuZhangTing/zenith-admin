@@ -128,11 +128,14 @@ export interface DbAdminIndexInfoRow {
   isPrimary: boolean;
   columns: string[];
   definition: string;
+  /** 归并进本行的叶子分区索引数，普通索引为 1 */
+  partitions: number;
 }
 
 export interface DbAdminIndexHealth {
   unused: DbAdminIndexInfoRow[];
-  duplicate: Array<{ schema: string; table: string; columns: string[]; indexes: DbAdminIndexInfoRow[] }>;
+  /** shape：判重依据——去掉 UNIQUE / 索引名 / 表名后的定义正文（USING … WHERE …） */
+  duplicate: Array<{ schema: string; table: string; columns: string[]; shape: string; indexes: DbAdminIndexInfoRow[] }>;
   totalIndexes: number;
   totalIndexBytes: number;
 }

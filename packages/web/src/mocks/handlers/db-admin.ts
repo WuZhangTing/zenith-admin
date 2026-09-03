@@ -699,16 +699,17 @@ export const dbAdminHandlers = [
   http.get(`${API}/api/db-admin/index-health`, () => {
     return ok({
       unused: [
-        { schema: 'public', table: 'operation_logs', index: 'idx_operation_logs_module', scans: 0, sizeBytes: 32768, sizeText: '32 kB', isUnique: false, isPrimary: false, columns: ['module'], definition: 'CREATE INDEX idx_operation_logs_module ON public.operation_logs USING btree (module)' },
-        { schema: 'public', table: 'users', index: 'idx_users_nickname', scans: 0, sizeBytes: 16384, sizeText: '16 kB', isUnique: false, isPrimary: false, columns: ['nickname'], definition: 'CREATE INDEX idx_users_nickname ON public.users USING btree (nickname)' },
-        { schema: 'public', table: 'menus', index: 'idx_menus_name', scans: 0, sizeBytes: 16384, sizeText: '16 kB', isUnique: true, isPrimary: false, columns: ['name'], definition: 'CREATE UNIQUE INDEX idx_menus_name ON public.menus USING btree (name)' },
+        { schema: 'public', table: 'operation_logs', index: 'idx_operation_logs_module', scans: 0, sizeBytes: 32768, sizeText: '32 kB', isUnique: false, isPrimary: false, columns: ['module'], definition: 'CREATE INDEX idx_operation_logs_module ON public.operation_logs USING btree (module)', partitions: 1 },
+        { schema: 'public', table: 'users', index: 'idx_users_nickname', scans: 0, sizeBytes: 16384, sizeText: '16 kB', isUnique: false, isPrimary: false, columns: ['nickname'], definition: 'CREATE INDEX idx_users_nickname ON public.users USING btree (nickname)', partitions: 1 },
+        { schema: 'public', table: 'menus', index: 'idx_menus_name', scans: 0, sizeBytes: 16384, sizeText: '16 kB', isUnique: true, isPrimary: false, columns: ['name'], definition: 'CREATE UNIQUE INDEX idx_menus_name ON public.menus USING btree (name)', partitions: 1 },
+        { schema: 'public', table: 'iot_telemetry', index: 'idx_iot_telemetry_time_brin', scans: 0, sizeBytes: 73728, sizeText: '72 kB', isUnique: false, isPrimary: false, columns: ['reported_at'], definition: 'CREATE INDEX idx_iot_telemetry_time_brin ON ONLY public.iot_telemetry USING brin (reported_at)', partitions: 9 },
       ],
       duplicate: [
         {
-          schema: 'public', table: 'users', columns: ['email'],
+          schema: 'public', table: 'users', columns: ['email'], shape: 'USING btree (email)',
           indexes: [
-            { schema: 'public', table: 'users', index: 'users_email_key', scans: 1240, sizeBytes: 24576, sizeText: '24 kB', isUnique: true, isPrimary: false, columns: ['email'], definition: 'CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)' },
-            { schema: 'public', table: 'users', index: 'idx_users_email', scans: 12, sizeBytes: 24576, sizeText: '24 kB', isUnique: false, isPrimary: false, columns: ['email'], definition: 'CREATE INDEX idx_users_email ON public.users USING btree (email)' },
+            { schema: 'public', table: 'users', index: 'users_email_key', scans: 1240, sizeBytes: 24576, sizeText: '24 kB', isUnique: true, isPrimary: false, columns: ['email'], definition: 'CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)', partitions: 1 },
+            { schema: 'public', table: 'users', index: 'idx_users_email', scans: 12, sizeBytes: 24576, sizeText: '24 kB', isUnique: false, isPrimary: false, columns: ['email'], definition: 'CREATE INDEX idx_users_email ON public.users USING btree (email)', partitions: 1 },
           ],
         },
       ],

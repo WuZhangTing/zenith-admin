@@ -287,11 +287,12 @@ function IndexHealthPanel() {
   };
 
   const unusedColumns: ColumnProps<IndexInfoRow>[] = [
-    // 索引名是弹性主列：名字最长且最不可控，窄屏下截断 + Tooltip；UNIQUE 标记不参与压缩
+    // 索引名是弹性主列：名字最长且最不可控，窄屏下截断 + Tooltip；UNIQUE / 分区标记不参与压缩
     { title: '索引', dataIndex: 'index', minWidth: 320, render: (v: string, r) => (
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, maxWidth: '100%' }}>
         <Text strong ellipsis={{ showTooltip: true }} style={{ minWidth: 0 }}>{v}</Text>
         {r.isUnique && <Tag size="small" color="blue" style={{ flexShrink: 0 }}>UNIQUE</Tag>}
+        {r.partitions > 1 && <Tooltip content="分区表索引：扫描数与大小为各分区之和"><Tag size="small" color="grey" style={{ flexShrink: 0 }}>{r.partitions} 分区</Tag></Tooltip>}
       </div>
     )},
     // 项目内表名最长 32 字符（约 240px）；带 schema 前缀的更长名字截断显示
@@ -337,16 +338,18 @@ function IndexHealthPanel() {
           </div>
           {data.duplicate.length > 0 && (
             <div style={{ width: '100%' }}>
-              <Text strong style={{ display: 'block', marginBottom: 6 }}>重复索引（同表相同列集，存在冗余）</Text>
+              <Text strong style={{ display: 'block', marginBottom: 6 }}>重复索引（同表且定义完全相同，非唯一的那个可删除）</Text>
               {data.duplicate.map((g) => (
-                <div key={`${g.schema}.${g.table}.${g.columns.join(',')}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 10, marginBottom: 8 }}>
-                  <Text type="tertiary" size="small">{g.schema === 'public' ? g.table : `${g.schema}.${g.table}`} · 列 ({g.columns.join(', ')})</Text>
+                <div key={`${g.schema}.${g.table}.${g.shape}`} style={{ border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', padding: 10, marginBottom: 8 }}>
+                  <Text type="tertiary" size="small">{qualifiedName(g.schema, g.table)} · </Text>
+                  <Text code size="small">{g.shape}</Text>
                   <div style={{ marginTop: 6 }}>
                     {g.indexes.map((idx) => (
                       <div key={idx.index} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
                         <Text strong style={{ minWidth: 200 }}>{idx.index}</Text>
                         {idx.isPrimary && <Tag size="small" color="orange">PRIMARY</Tag>}
                         {idx.isUnique && !idx.isPrimary && <Tag size="small" color="blue">UNIQUE</Tag>}
+                        {idx.partitions > 1 && <Tag size="small" color="grey">{idx.partitions} 分区</Tag>}
                         <Text type="tertiary" size="small">{idx.sizeText} · {idx.scans} 次扫描</Text>
                       </div>
                     ))}

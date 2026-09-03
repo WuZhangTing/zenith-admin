@@ -228,37 +228,71 @@ export interface IndexInfoRow {
   isPrimary: boolean;
   columns: string[];
   definition: string;
+  /** 归并进本行的叶子分区索引数：分区表上的索引按父索引汇总统计，普通索引为 1 */
+  partitions: number;
 }
 
 export interface IndexHealth {
   unused: IndexInfoRow[];
-  duplicate: Array<{ schema: string; table: string; columns: string[]; indexes: IndexInfoRow[] }>;
+  /** shape：去掉 UNIQUE / 索引名 / 表名后的定义正文（USING … WHERE …），是判重依据 */
+  duplicate: Array<{ schema: string; table: string; columns: string[]; shape: string; indexes: IndexInfoRow[] }>;
   totalIndexes: number;
   totalIndexBytes: number;
 }
 
 export async function getIndexHealth(): Promise<IndexHealth> {
+  // pg_stat_user_indexes 只有叶子索引（分区子表上的实体索引，分区父索引 relkind = 'I' 没有统计行），
+  // 沿 pg_inherits 把叶子归并到根索引：扫描数 / 体积求和，名称、定义与列取根索引的，
+  // 否则一张日分区表的每个分区都会各算一条「未使用」、每对同形索引都会各算一组「重复」
   const rows = await db.execute(sql`
-    SELECT s.schemaname AS schema,
-           s.relname AS table,
-           s.indexrelname AS index,
-           s.idx_scan::bigint AS scans,
-           pg_relation_size(s.indexrelid)::bigint AS size_bytes,
-           pg_size_pretty(pg_relation_size(s.indexrelid)) AS size_text,
+    WITH RECURSIVE leaf AS (
+      SELECT s.indexrelid,
+             s.idx_scan::bigint AS scans,
+             pg_relation_size(s.indexrelid)::bigint AS size_bytes
+      FROM pg_stat_user_indexes s
+    ),
+    climb AS (
+      SELECT l.indexrelid AS leaf, l.indexrelid AS node, 0 AS depth FROM leaf l
+      UNION ALL
+      SELECT c.leaf, i.inhparent, c.depth + 1
+      FROM climb c
+      JOIN pg_inherits i ON i.inhrelid = c.node
+    ),
+    root AS (
+      SELECT DISTINCT ON (leaf) leaf, node AS root FROM climb ORDER BY leaf, depth DESC
+    ),
+    agg AS (
+      SELECT r.root,
+             sum(l.scans)::bigint AS scans,
+             sum(l.size_bytes)::bigint AS size_bytes,
+             count(*)::int AS partitions
+      FROM root r
+      JOIN leaf l ON l.indexrelid = r.leaf
+      GROUP BY r.root
+    )
+    SELECT n.nspname AS schema,
+           t.relname AS table,
+           c.relname AS index,
+           a.scans,
+           a.size_bytes,
+           pg_size_pretty(a.size_bytes) AS size_text,
+           a.partitions,
            ix.indisunique AS is_unique,
            ix.indisprimary AS is_primary,
            ix.indrelid::bigint AS rel_oid,
-           ix.indkey::text AS indkey,
-           pg_get_indexdef(s.indexrelid) AS definition,
+           pg_get_indexdef(ix.indexrelid) AS definition,
            ARRAY(
-             SELECT a.attname
+             SELECT att.attname
              FROM unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ord)
-             JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = k.attnum
+             JOIN pg_attribute att ON att.attrelid = ix.indrelid AND att.attnum = k.attnum
              ORDER BY k.ord
            ) AS columns
-    FROM pg_stat_user_indexes s
-    JOIN pg_index ix ON ix.indexrelid = s.indexrelid
-    ORDER BY s.idx_scan ASC, pg_relation_size(s.indexrelid) DESC
+    FROM agg a
+    JOIN pg_index ix ON ix.indexrelid = a.root
+    JOIN pg_class c ON c.oid = a.root
+    JOIN pg_class t ON t.oid = ix.indrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    ORDER BY a.scans ASC, a.size_bytes DESC
   `);
   const all = (rows as unknown as Array<Record<string, unknown>>).map((r) => ({
     schema: r.schema as string,
@@ -271,23 +305,26 @@ export async function getIndexHealth(): Promise<IndexHealth> {
     isPrimary: Boolean(r.is_primary),
     columns: Array.isArray(r.columns) ? (r.columns as string[]) : [],
     definition: r.definition as string,
+    partitions: Number(r.partitions ?? 1),
     _relOid: String(r.rel_oid),
-    _indkey: String(r.indkey),
+    _shape: indexShape(r.definition as string),
   }));
 
   const stripInternal = (x: typeof all[number]): IndexInfoRow => ({
     schema: x.schema, table: x.table, index: x.index, scans: x.scans,
     sizeBytes: x.sizeBytes, sizeText: x.sizeText, isUnique: x.isUnique,
-    isPrimary: x.isPrimary, columns: x.columns, definition: x.definition,
+    isPrimary: x.isPrimary, columns: x.columns, definition: x.definition, partitions: x.partitions,
   });
 
   // 未使用：扫描数为 0 且非主键（唯一约束保留但仍提示）
   const unused = all.filter((x) => x.scans === 0 && !x.isPrimary).map(stripInternal);
 
-  // 重复：同表 + 相同列集（indkey）
+  // 重复：同表 + 定义正文完全相同。只比 indkey 会把表达式索引（表达式列在 indkey 里一律是 0）、
+  // 同列不同 WHERE 谓词的部分索引、btree 与 gin_trgm 等不同访问方法 / opclass / 排序方向全部误判成重复；
+  // UNIQUE 不参与比较——同形的唯一 + 非唯一索引里，非唯一那个确实是冗余
   const groups = new Map<string, typeof all>();
   for (const x of all) {
-    const key = `${x._relOid}|${x._indkey}`;
+    const key = `${x._relOid}|${x._shape}`;
     const arr = groups.get(key) ?? [];
     arr.push(x);
     groups.set(key, arr);
@@ -298,6 +335,7 @@ export async function getIndexHealth(): Promise<IndexHealth> {
       schema: g[0].schema,
       table: g[0].table,
       columns: g[0].columns,
+      shape: g[0]._shape,
       indexes: g.map(stripInternal),
     }));
 
@@ -307,6 +345,15 @@ export async function getIndexHealth(): Promise<IndexHealth> {
     totalIndexes: all.length,
     totalIndexBytes: all.reduce((s, x) => s + x.sizeBytes, 0),
   };
+}
+
+/**
+ * 取 pg_get_indexdef 里从 USING 开始的定义正文：访问方法、键列 / 表达式、opclass、排序方向、INCLUDE 与 WHERE 谓词
+ * 全在其中，而 UNIQUE、索引名与表名都在其前——正好是「两个索引是否同形」需要比较的部分。
+ */
+export function indexShape(definition: string): string {
+  const at = definition.indexOf(' USING ');
+  return at >= 0 ? definition.slice(at + 1) : definition;
 }
 
 // ─── 4. 对象浏览 ─────────────────────────────────────────────────────────────────
