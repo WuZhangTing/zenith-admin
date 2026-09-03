@@ -1,4 +1,4 @@
-import { eq, and, or, ilike, type SQL } from 'drizzle-orm';
+import { eq, and, or, ilike, isNull, type SQL } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
 import { db } from '../../db';
 import { smsConfigs } from '../../db/schema';
@@ -6,6 +6,8 @@ import type { SmsConfigRow } from '../../db/schema';
 import { mergeWhere, escapeLike, withPagination } from '../../lib/where-helpers';
 import { formatDateTime } from '../../lib/datetime';
 import { tenantScope, currentCreateTenantId } from '../../lib/tenant';
+import { currentUserOrNull } from '../../lib/context';
+import { config } from '../../config';
 import type { CreateSmsConfigInput, UpdateSmsConfigInput, SmsProvider } from '@zenith/shared/messaging';
 
 const SECRET_MASK = '******';
@@ -133,10 +135,17 @@ export async function setSmsConfigDefault(id: number) {
   return mapSmsConfigSafe({ ...row, isDefault: true });
 }
 
-/** 获取启用的默认短信配置（运行时发送使用） */
+/**
+ * 获取启用的默认短信配置（运行时发送使用）。
+ * 有请求用户时按其租户作用域取；匿名 / 无请求上下文（会员验证码、worker）时取平台级配置——
+ * 多租户模式下即 tenantId 为空的那条，单租户模式不加租户条件。
+ */
 export async function findDefaultSmsConfig(): Promise<SmsConfigRow | null> {
+  const scope = currentUserOrNull()
+    ? tenantScope(smsConfigs)
+    : (config.multiTenantMode ? isNull(smsConfigs.tenantId) : undefined);
   const [row] = await db.select().from(smsConfigs)
-    .where(mergeWhere(and(eq(smsConfigs.isDefault, true), eq(smsConfigs.status, 'enabled'), tenantScope(smsConfigs))) ?? eq(smsConfigs.isDefault, true))
+    .where(mergeWhere(and(eq(smsConfigs.isDefault, true), eq(smsConfigs.status, 'enabled'), scope)) ?? eq(smsConfigs.isDefault, true))
     .limit(1);
   return row ?? null;
 }

@@ -101,7 +101,7 @@ export const MemberRefreshResultDTO = z
 export const MemberSmsCodeResultDTO = z
   .object({
     sent: z.boolean(),
-    /** 非生产环境回传，便于联调 */
+    /** 仅开发模式（NODE_ENV=development）回传，便于联调；其他环境永不返回 */
     devCode: z.string().optional(),
   })
   .openapi('MemberSmsCodeResult');

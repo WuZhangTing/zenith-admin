@@ -6,7 +6,7 @@ const PHONE_REGEX = /^1[3-9]\d{9}$/;
 
 /**
  * 短信验证码发送 + 60s 倒计时复用 hook。
- * 非生产环境后端会回传 devCode，便于联调时直接看到验证码。
+ * 非生产环境后端会回传 devCode（仅 NODE_ENV=development 的开发模式），便于联调时直接看到验证码。
  */
 export function useSmsCode(scene: 'register' | 'login' | 'reset') {
   const [counting, setCounting] = useState(0);

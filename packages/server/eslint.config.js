@@ -80,6 +80,7 @@ export default tseslint.config(
       // 事务性发信，不属于事件通知：登录验证码、密码重置
       'src/services/identity/auth.service.ts',
       'src/services/member/member-sms.service.ts',
+      'src/services/member/member-sms.service.test.ts',
       // 用户在流程/补偿动作里显式编排的发信节点，收件人与内容都由配置指定
       'src/services/workflow/workflow-connectors.service.ts',
       'src/lib/workflow-jobs/handlers/compensation-action.ts',

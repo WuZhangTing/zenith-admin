@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import * as z from 'zod';
-import { collectRuntimeSecretErrors, resolveRuntimeSecrets, RUNTIME_SECRETS_HINT } from './lib/secrets';
+import { collectRuntimeSecretErrors, isDevelopmentEnv, resolveRuntimeSecrets, RUNTIME_SECRETS_HINT } from './lib/secrets';
 
 // ─── HTTP Log Types ──────────────────────────────────────────────────────────────────────────────
 
@@ -208,6 +208,11 @@ function buildMethodOverrides(prefix: 'HTTP_LOG_INCOMING_METHOD' | 'HTTP_LOG_OUT
 
 export const config = {
   port: env.PORT,
+  /**
+   * 是否为开发模式（NODE_ENV=development，`npm run dev` 自动注入）。
+   * 只有它才解锁「内置开发密钥」「验证码回传」等联调便利；未设置 NODE_ENV 一律按严格模式处理。
+   */
+  isDevelopment: isDevelopmentEnv(process.env.NODE_ENV),
   jwtSecret: runtimeSecrets.jwtSecret,
   /** 字段级加密密钥（64 位 hex）；lib/encryption.ts 与 lib/secret-crypto.ts 的唯一密钥来源 */
   fieldEncryptionKey: runtimeSecrets.fieldEncryptionKey,

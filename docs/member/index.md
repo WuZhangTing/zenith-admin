@@ -62,7 +62,7 @@
 | 验证码 | `{REDIS_KEY_PREFIX}member:smscode:{scene}:{phone}` | 5 分钟 |
 | 发送间隔 | `{REDIS_KEY_PREFIX}member:smscode-interval:{phone}` | 60 秒 |
 
-验证码校验成功后立即删除，防止重放。非生产环境接口会返回 `devCode` 便于联调，生产环境不返回验证码明文。
+验证码校验成功后立即删除，防止重放。验证码明文永不写入日志；仅开发模式（`NODE_ENV=development`）接口返回 `devCode` 便于联调，其他环境不返回。非开发模式下未配置短信渠道返回 503、服务商发送失败返回 502，并回滚本次验证码与 60 秒发送间隔，不会对调用方假装「已发送」。
 
 ---
 

@@ -81,6 +81,8 @@ npm run db:seed
 
 ### 4. 启动后端
 
+生产部署请在 `.env` 或进程环境中显式设置 `NODE_ENV=production`（Docker Compose 已内置）。未设置时服务按严格模式运行（密钥必填、验证码不回传），但部分依赖 `NODE_ENV` 的第三方库仍会以开发模式加载。
+
 源码方式可直接用 TypeScript 运行：
 
 ```bash

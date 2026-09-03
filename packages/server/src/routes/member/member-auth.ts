@@ -75,6 +75,8 @@ const smsCodeRoute = defineOpenAPIRoute({
       ...commonErrorResponses,
       ...ok(MemberSmsCodeResultDTO, '已发送'),
       429: { content: jsonContent(ErrorResponse), description: '发送过于频繁' },
+      502: { content: jsonContent(ErrorResponse), description: '短信发送失败' },
+      503: { content: jsonContent(ErrorResponse), description: '短信服务未配置' },
     },
   }),
   handler: async (c) => {
