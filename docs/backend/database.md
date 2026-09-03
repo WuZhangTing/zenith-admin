@@ -49,7 +49,7 @@ npm run db:seed
 
 `0001_extensions.sql` 收口维护 Drizzle schema 无法表达的手写 DDL，当前仅一项：
 
-- 条件启用 pgvector 的 `ai_kb_chunks.embedding_vec` 列（条件 DDL、扩展创建与无维度 vector 列均超出 Drizzle 表达范围，且该列刻意不进 schema——无 pgvector 的部署必须照常工作）；运行时通过 `hasPgVector()` 探测，不可用时回退 JS 余弦相似度。
+- 条件启用 pgvector：`CREATE EXTENSION IF NOT EXISTS vector`（扩展可用才建，否则静默跳过；扩展创建与条件 DDL 均超出 Drizzle 表达范围）。它服务于 Mastra PgVector——知识库向量存放在 `mastra` schema（索引 `kb_{kbId}`），`ai_kb_chunks` 只存分块文本，业务表上没有任何 `vector` 列；无 pgvector 的部署除知识库向量化外照常工作。
 
 `pg_trgm` 扩展在 `0000_baseline.sql` 顶部创建；trigram 索引（含 `async_tasks.payload/result` 的「表达式 + gin_trgm_ops」形态）已全部收进 schema DSL，由 `drizzle-kit generate` 随基线生成。
 

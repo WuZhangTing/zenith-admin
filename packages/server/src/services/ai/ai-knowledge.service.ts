@@ -166,7 +166,7 @@ export async function addKbDocument(kbId: number, input: AddAiKbDocumentInput, s
 
 /**
  * 低层入库（不做属主校验）：供本域 addKbDocument 与知识中心（Wiki）发布同步复用。
- * 分块 → （可选）向量化 → 入库（pgvector 可用时同步物化 embedding_vec 列）。
+ * 分块 → （可选）向量化 → 入库（分块文本进 ai_kb_chunks，向量进 Mastra PgVector 索引 kb_{kbId}）。
  */
 export async function ingestKbDocument(kbId: number, input: { name: string; content: string }, sourceUrl: string | null = null) {
   const kb = await db.query.aiKnowledgeBases.findFirst({ where: eq(aiKnowledgeBases.id, kbId) });
