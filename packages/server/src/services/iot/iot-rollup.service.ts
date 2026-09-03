@@ -1,8 +1,9 @@
 /**
  * IoT 遥测降采样与在线率采样。
  *
- * - 小时聚合：系统周期任务每小时重算最近两个小时桶（LATERAL jsonb_each 展开数值属性，
- *   upsert 幂等），长窗口图表与仪表盘查聚合而非扫明细；明细保留期据此可独立缩短
+ * - 小时聚合：系统周期任务每 10 分钟重算最近两个小时桶（LATERAL jsonb_each 展开数值属性，
+ *   upsert 幂等），长窗口图表与仪表盘查聚合而非扫明细；明细保留期据此可独立缩短。
+ *   明细表按 reported_at 日分区且带 BRIN，两小时窗口的扫描只触及当天分区的尾部
  * - 在线率采样：离线扫描任务每分钟顺带落一条快照（以持久化 online 标记为准）
  */
 import { and, asc, eq, gte, sql } from 'drizzle-orm';
@@ -15,6 +16,8 @@ import { ensureIotDeviceExists } from './iot-devices.service';
 /**
  * 增量聚合：重算 [now - 2h 的小时桶起点, now) 覆盖窗口。
  * 跨小时边界的晚到数据会被下一轮重算收敛；服务重启漏跑由下次调度补齐近窗。
+ * 窗口下界显式换算成 UTC 挂钟 timestamp（与写入口径一致），保持纯 timestamp 比较，
+ * 分区裁剪与 BRIN 范围扫描都能直接命中，且不受数据库 TimeZone 设置影响。
  */
 export async function rollupIotTelemetryHourly(): Promise<string> {
   const result = await db.execute(sql`
@@ -30,7 +33,7 @@ export async function rollupIotTelemetryHourly(): Promise<string> {
       count(*)::int
     FROM iot_telemetry t
     CROSS JOIN LATERAL jsonb_each(t.metrics) AS m(key, value)
-    WHERE t.reported_at >= date_trunc('hour', now() - interval '2 hours')
+    WHERE t.reported_at >= date_trunc('hour', (now() AT TIME ZONE 'UTC') - interval '2 hours')
       AND jsonb_typeof(m.value) = 'number'
     GROUP BY t.device_id, m.key, date_trunc('hour', t.reported_at)
     ON CONFLICT (device_id, property, bucket) DO UPDATE SET

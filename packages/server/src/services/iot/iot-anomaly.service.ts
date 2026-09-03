@@ -21,6 +21,7 @@ import {
 import { formatDateTime } from '../../lib/datetime';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
+import { TtlCache } from '../../lib/ttl-cache';
 import { pushIotRealtime } from './iot-realtime';
 
 const BASELINE_CACHE_TTL_MS = 10 * 60_000;
@@ -32,19 +33,20 @@ interface PropertyBaseline {
   propertyName: string;
 }
 
-/** productId → (identifier → baseline)；空 Map = 该产品无开启检测的属性 */
-const baselineCache = new Map<number, { baselines: Map<string, PropertyBaseline>; expiresAt: number }>();
+/** productId → (identifier → baseline)；空 Map = 该产品无开启检测的属性。单飞防击穿，过期用旧基线后台刷新 */
+const baselineCache = new TtlCache<number, Map<string, PropertyBaseline>>(BASELINE_CACHE_TTL_MS);
 
 /** 物模型属性变更（开关/删除）后主动失效基线 */
 export function invalidateAnomalyBaselines(productId: number): void {
   baselineCache.delete(productId);
 }
 
-async function loadBaselines(productId: number): Promise<Map<string, PropertyBaseline>> {
-  const now = Date.now();
-  const cached = baselineCache.get(productId);
-  if (cached && cached.expiresAt > now) return cached.baselines;
+function loadBaselines(productId: number): Promise<Map<string, PropertyBaseline>> {
+  return baselineCache.get(productId, () => computeBaselines(productId));
+}
 
+async function computeBaselines(productId: number): Promise<Map<string, PropertyBaseline>> {
+  const now = Date.now();
   const props = await db.select({ identifier: iotProductProperties.identifier, name: iotProductProperties.name })
     .from(iotProductProperties)
     .where(and(
@@ -84,7 +86,6 @@ async function loadBaselines(productId: number): Promise<Map<string, PropertyBas
       });
     }
   }
-  baselineCache.set(productId, { baselines, expiresAt: now + BASELINE_CACHE_TTL_MS });
   return baselines;
 }
 

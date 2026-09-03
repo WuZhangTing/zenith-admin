@@ -134,12 +134,21 @@ function percentile(sorted: number[], p: number): number {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-interface Stats { sent: number; ok: number; failed: number; latencies: number[]; errors: Map<string, number> }
+interface Stats { sent: number; ok: number; failed: number; latencies: number[]; errors: Map<string, number>; timeline: Map<number, number[]> }
+
+function record(stats: Stats, startedAt: number, latency: number): void {
+  stats.latencies.push(latency);
+  const bucket = Math.floor((Date.now() - startedAt) / 5000);
+  const arr = stats.timeline.get(bucket) ?? [];
+  arr.push(latency);
+  stats.timeline.set(bucket, arr);
+}
 
 async function runHttp(devices: Device[]): Promise<Stats> {
-  const stats: Stats = { sent: 0, ok: 0, failed: 0, latencies: [], errors: new Map() };
+  const stats: Stats = { sent: 0, ok: 0, failed: 0, latencies: [], errors: new Map(), timeline: new Map() };
   const intervalMs = 1000 / RATE;
-  const endAt = Date.now() + DURATION * 1000;
+  const startedAt = Date.now();
+  const endAt = startedAt + DURATION * 1000;
   await Promise.all(devices.map(async (device, idx) => {
     // 错峰起步，避免全部设备同相位齐发
     await sleep((idx / devices.length) * intervalMs);
@@ -172,7 +181,7 @@ async function runHttp(devices: Device[]): Promise<Stats> {
         stats.errors.set(key, (stats.errors.get(key) ?? 0) + 1);
       }
       const elapsed = performance.now() - started;
-      stats.latencies.push(elapsed);
+      record(stats, startedAt, elapsed);
       const wait = intervalMs - elapsed;
       if (wait > 0) await sleep(wait);
     }
@@ -181,7 +190,7 @@ async function runHttp(devices: Device[]): Promise<Stats> {
 }
 
 async function runWs(devices: Device[]): Promise<Stats> {
-  const stats: Stats = { sent: 0, ok: 0, failed: 0, latencies: [], errors: new Map() };
+  const stats: Stats = { sent: 0, ok: 0, failed: 0, latencies: [], errors: new Map(), timeline: new Map() };
   const intervalMs = 1000 / RATE;
   const endAt = Date.now() + DURATION * 1000;
   const sockets = await Promise.all(devices.map((device) => new Promise<WebSocket | null>((resolve) => {
@@ -221,9 +230,14 @@ async function main(): Promise<void> {
   const startedAt = Date.now();
   const stats = TRANSPORT === 'ws' ? await runWs(devices) : await runHttp(devices);
   const elapsedSec = (Date.now() - startedAt) / 1000;
-  // 等待服务端异步落库收尾
-  await sleep(1500);
-  const after = await telemetryToday();
+  // 等待服务端微批缓冲与异步派生动作收尾：连续两次读数不变即视为写完（最多等 20s）
+  let after = await telemetryToday();
+  for (let i = 0; i < 20; i++) {
+    await sleep(1000);
+    const next = await telemetryToday();
+    if (next === after) break;
+    after = next;
+  }
 
   const sorted = [...stats.latencies].sort((a, b) => a - b);
   const fmt = (n: number) => n.toFixed(1);
@@ -233,6 +247,10 @@ async function main(): Promise<void> {
   console.log(`实际吞吐       ${fmt(stats.ok / elapsedSec)} 帧/s，${fmt((stats.ok * BATCH) / elapsedSec)} 点/s`);
   if (sorted.length > 0) {
     console.log(`HTTP 延迟      p50 ${fmt(percentile(sorted, 50))} ms | p95 ${fmt(percentile(sorted, 95))} ms | p99 ${fmt(percentile(sorted, 99))} ms | max ${fmt(sorted[sorted.length - 1])} ms`);
+    console.log('按 5s 窗口     ' + [...stats.timeline.entries()].sort((a, b) => a[0] - b[0]).map(([bucket, lat]) => {
+      const s = [...lat].sort((a, b) => a - b);
+      return `[${bucket * 5}-${bucket * 5 + 5}s] ${(lat.length / 5).toFixed(0)}帧/s p50=${fmt(percentile(s, 50))} p95=${fmt(percentile(s, 95))}`;
+    }).join('\n               '));
   }
   console.log(`服务端今日上报 ${before} → ${after}（+${after - before}，期望 +${stats.ok * BATCH}）`);
   if (stats.errors.size > 0) {

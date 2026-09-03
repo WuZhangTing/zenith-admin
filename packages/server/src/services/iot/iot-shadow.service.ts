@@ -120,27 +120,34 @@ export interface IotReportedMergeResult {
   desiredVersion: number;
 }
 
+export interface IotReportedPatch {
+  deviceId: number;
+  metrics: Record<string, IotMetricValue>;
+  reportedAt: Date;
+}
+
 /**
- * 遥测 ingest 合并 reported，并按键收敛 desired（单条 upsert，RETURNING 直接供实时推送）：
+ * 批量合并 reported 并按键收敛 desired：一条多行 upsert，RETURNING 直供实时推送。
  * - 顺序上报：新值覆盖旧值；乱序晚到（reportedAt 早于影子当前时刻）只补缺失键，不回退更新的值
  * - 设备已回报与期望一致的键从 desired 中移除（无需版本 +1，不触发重推）
+ * 调用方保证同一 deviceId 只出现一次（ON CONFLICT 不允许同语句内二次命中同一行）。
  */
-export async function mergeIotReported(
-  deviceId: number,
-  metrics: Record<string, IotMetricValue>,
-  reportedAt: Date,
-): Promise<IotReportedMergeResult | null> {
-  if (Object.keys(metrics).length === 0) return null;
-  const patch = JSON.stringify(metrics);
+export async function mergeIotReportedBatch(patches: IotReportedPatch[]): Promise<Map<number, IotReportedMergeResult>> {
+  const results = new Map<number, IotReportedMergeResult>();
+  const entries = patches.filter((p) => Object.keys(p.metrics).length > 0);
+  if (entries.length === 0) return results;
   // 与 drizzle timestamp 列写入口径一致：ISO 串直接落 timestamp（不经 session 时区换算）
-  const at = reportedAt.toISOString();
+  const values = sql.join(
+    entries.map((p) => sql`(${p.deviceId}, ${JSON.stringify(p.metrics)}::jsonb, ${p.reportedAt.toISOString()}::timestamp)`),
+    sql`, `,
+  );
   const merged = sql`CASE
     WHEN s.reported_at IS NULL OR EXCLUDED.reported_at >= s.reported_at THEN s.reported || EXCLUDED.reported
     ELSE EXCLUDED.reported || s.reported
   END`;
   const rows = await db.execute(sql`
     INSERT INTO iot_device_state AS s (device_id, reported, reported_at)
-    VALUES (${deviceId}, ${patch}::jsonb, ${at}::timestamp)
+    VALUES ${values}
     ON CONFLICT (device_id) DO UPDATE SET
       reported = ${merged},
       reported_at = GREATEST(s.reported_at, EXCLUDED.reported_at),
@@ -149,17 +156,30 @@ export async function mergeIotReported(
          WHERE NOT ((${merged}) ? d.key AND (${merged}) -> d.key = d.value)),
         '{}'::jsonb) END,
       updated_at = now()
-    RETURNING reported, desired, desired_version
+    RETURNING device_id, reported, desired, desired_version
   `);
-  const after = (rows as unknown as Array<{ reported: Record<string, IotMetricValue> | null; desired: Record<string, IotMetricValue> | null; desired_version: number }>)[0];
-  if (!after) return null;
-  const result: IotReportedMergeResult = {
-    reported: after.reported ?? {},
-    desired: after.desired ?? {},
-    desiredVersion: Number(after.desired_version),
-  };
-  pushIotRealtime({ type: 'iot:shadow', payload: { deviceId, ...result } });
-  return result;
+  type Row = { device_id: number; reported: Record<string, IotMetricValue> | null; desired: Record<string, IotMetricValue> | null; desired_version: number };
+  for (const row of rows as unknown as Row[]) {
+    const deviceId = Number(row.device_id);
+    const result: IotReportedMergeResult = {
+      reported: row.reported ?? {},
+      desired: row.desired ?? {},
+      desiredVersion: Number(row.desired_version),
+    };
+    results.set(deviceId, result);
+    pushIotRealtime({ type: 'iot:shadow', payload: { deviceId, ...result } });
+  }
+  return results;
+}
+
+/** 单设备合并（批量版的便捷入口） */
+export async function mergeIotReported(
+  deviceId: number,
+  metrics: Record<string, IotMetricValue>,
+  reportedAt: Date,
+): Promise<IotReportedMergeResult | null> {
+  const results = await mergeIotReportedBatch([{ deviceId, metrics, reportedAt }]);
+  return results.get(deviceId) ?? null;
 }
 
 /** 设备侧待同步期望值（WS 上线补推 / 心跳响应捎带）；为空返回 null */

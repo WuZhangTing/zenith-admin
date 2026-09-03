@@ -27,6 +27,7 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
+import { TtlCache } from '../../lib/ttl-cache';
 import { loadThingModel } from './iot-model.service';
 
 // ─── 映射与 CRUD ──────────────────────────────────────────────────────────────
@@ -253,19 +254,16 @@ export async function listIotAutomationRuns(q: ListAutomationRunsQuery) {
 // ─── 运行时评估 ───────────────────────────────────────────────────────────────
 const AUTOMATION_CACHE_TTL_MS = 30_000;
 
-const automationCache = new Map<number, { rows: IotAutomationRow[]; expiresAt: number }>();
+/** 单飞防击穿；联动写操作即失效 */
+const automationCache = new TtlCache<number, IotAutomationRow[]>(AUTOMATION_CACHE_TTL_MS);
 
 function invalidateAutomationCache(): void {
   automationCache.clear();
 }
 
-async function loadActiveAutomations(productId: number): Promise<IotAutomationRow[]> {
-  const cached = automationCache.get(productId);
-  if (cached && cached.expiresAt > Date.now()) return cached.rows;
-  const rows = await db.select().from(iotAutomations)
-    .where(and(eq(iotAutomations.productId, productId), eq(iotAutomations.status, 'enabled')));
-  automationCache.set(productId, { rows, expiresAt: Date.now() + AUTOMATION_CACHE_TTL_MS });
-  return rows;
+function loadActiveAutomations(productId: number): Promise<IotAutomationRow[]> {
+  return automationCache.get(productId, () => db.select().from(iotAutomations)
+    .where(and(eq(iotAutomations.productId, productId), eq(iotAutomations.status, 'enabled'))));
 }
 
 function compareValue(value: number, op: IotCompareOp, threshold: number): boolean {

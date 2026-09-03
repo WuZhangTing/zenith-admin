@@ -15,7 +15,7 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { mapIotAlarm } from './iot-alarms.service';
 import { mapIotDeviceEvent } from './iot-events.service';
-import { getIotTelemetryTodayCount } from './iot-telemetry.service';
+import { getIotTelemetryTodayCount } from './iot-telemetry-counter';
 
 export async function getIotDashboard(): Promise<IotDashboard> {
   const user = currentUser();

@@ -19,7 +19,7 @@ import { buildWhere, dateRangeConditions, keywordCondition, withPagination } fro
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
-import { clearOnlineKeys, generateDeviceSecret, generateDeviceSn, getOnlineMap } from './iot-access.service';
+import { clearOnlineKeys, generateDeviceSecret, generateDeviceSn, getOnlineMap, invalidateIotDeviceAuthCache } from './iot-access.service';
 import { recordIotLifecycleEvent } from './iot-events.service';
 import { invalidateThingModelCache } from './iot-model.service';
 import { ensureIotTopologyValid } from './iot-topology.service';
@@ -428,6 +428,7 @@ export async function updateIotDevice(id: number, data: UpdateIotDeviceInput) {
     if (data.groupIds !== undefined) await setDeviceGroups(tx, id, data.groupIds);
     return updated;
   });
+  invalidateIotDeviceAuthCache([row.sn]);
   return getIotDevice(row.id);
 }
 
@@ -439,7 +440,8 @@ export async function deleteIotDevices(ids: number[]): Promise<number> {
     throw new HTTPException(400, { message: '选中设备包含仍有子设备的网关，请先迁移或删除其子设备' });
   }
   const where = and(inArray(iotDevices.id, ids), buildDeviceWhere({}));
-  const deleted = await db.delete(iotDevices).where(where).returning({ id: iotDevices.id });
+  const deleted = await db.delete(iotDevices).where(where).returning({ id: iotDevices.id, sn: iotDevices.sn });
+  invalidateIotDeviceAuthCache(deleted.map((d) => d.sn));
   await clearOnlineKeys(deleted.map((d) => d.id));
   return deleted.length;
 }
@@ -451,6 +453,7 @@ export async function resetIotDeviceSecret(id: number) {
     .set({ secret: generateDeviceSecret() })
     .where(buildDeviceWhere({ id }))
     .returning();
+  invalidateIotDeviceAuthCache([row.sn]);
   await recordIotLifecycleEvent(id, 'secret_reset');
   return mapIotDevice(row);
 }

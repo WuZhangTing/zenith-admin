@@ -403,8 +403,8 @@ export async function registerSystemTasks(): Promise<void> {
     name: 'iot-telemetry-rollup',
     title: 'IoT 遥测小时聚合',
     module: 'IoT 设备',
-    cronExpression: '5 * * * *',
-    description: '每小时第 5 分钟重算最近两个小时桶的数值属性聚合（min/max/avg/last），长窗口图表与仪表盘查聚合而非扫明细。',
+    cronExpression: '*/10 * * * *',
+    description: '每 10 分钟重算最近两个小时桶的数值属性聚合（min/max/avg/last，upsert 幂等），长窗口图表与仪表盘查聚合而非扫明细，图表滞后不超过 10 分钟。',
     allowManualRun: true,
     run: rollupIotTelemetryHourly,
   });

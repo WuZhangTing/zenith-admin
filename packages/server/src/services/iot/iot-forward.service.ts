@@ -24,6 +24,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { httpPost } from '../../lib/http-client';
 import { assertSafeOutboundUrl } from '../../lib/outbound-url';
 import logger from '../../lib/logger';
+import { TtlCache } from '../../lib/ttl-cache';
 
 const FORWARD_TIMEOUT_MS = 10_000;
 
@@ -209,38 +210,37 @@ interface ForwardCache {
   rulesBySource: Map<IotForwardSource, IotForwardRuleRow[]>;
   /** groupId → 成员 deviceId 集合（仅缓存被启用规则引用的分组） */
   groupMembers: Map<number, Set<number>>;
-  expiresAt: number;
 }
 
-let forwardCache: ForwardCache | null = null;
+/** 全局单键缓存：单飞防击穿，规则写操作即失效 */
+const forwardCache = new TtlCache<'rules', ForwardCache>(FORWARD_CACHE_TTL_MS);
 
 function invalidateForwardCache(): void {
-  forwardCache = null;
+  forwardCache.clear();
 }
 
-async function loadForwardCache(): Promise<ForwardCache> {
-  const now = Date.now();
-  if (forwardCache && forwardCache.expiresAt > now) return forwardCache;
-  const rules = await db.select().from(iotForwardRules).where(eq(iotForwardRules.status, 'enabled'));
-  const rulesBySource = new Map<IotForwardSource, IotForwardRuleRow[]>();
-  for (const rule of rules) {
-    const list = rulesBySource.get(rule.source) ?? [];
-    list.push(rule);
-    rulesBySource.set(rule.source, list);
-  }
-  const groupIds = [...new Set(rules.map((r) => r.groupId).filter((v): v is number => v != null))];
-  const memberRows = groupIds.length > 0
-    ? await db.select({ groupId: iotDeviceGroupMembers.groupId, deviceId: iotDeviceGroupMembers.deviceId })
-      .from(iotDeviceGroupMembers).where(inArray(iotDeviceGroupMembers.groupId, groupIds))
-    : [];
-  const groupMembers = new Map<number, Set<number>>();
-  for (const row of memberRows) {
-    const set = groupMembers.get(row.groupId) ?? new Set<number>();
-    set.add(row.deviceId);
-    groupMembers.set(row.groupId, set);
-  }
-  forwardCache = { rulesBySource, groupMembers, expiresAt: now + FORWARD_CACHE_TTL_MS };
-  return forwardCache;
+function loadForwardCache(): Promise<ForwardCache> {
+  return forwardCache.get('rules', async () => {
+    const rules = await db.select().from(iotForwardRules).where(eq(iotForwardRules.status, 'enabled'));
+    const rulesBySource = new Map<IotForwardSource, IotForwardRuleRow[]>();
+    for (const rule of rules) {
+      const list = rulesBySource.get(rule.source) ?? [];
+      list.push(rule);
+      rulesBySource.set(rule.source, list);
+    }
+    const groupIds = [...new Set(rules.map((r) => r.groupId).filter((v): v is number => v != null))];
+    const memberRows = groupIds.length > 0
+      ? await db.select({ groupId: iotDeviceGroupMembers.groupId, deviceId: iotDeviceGroupMembers.deviceId })
+        .from(iotDeviceGroupMembers).where(inArray(iotDeviceGroupMembers.groupId, groupIds))
+      : [];
+    const groupMembers = new Map<number, Set<number>>();
+    for (const row of memberRows) {
+      const set = groupMembers.get(row.groupId) ?? new Set<number>();
+      set.add(row.deviceId);
+      groupMembers.set(row.groupId, set);
+    }
+    return { rulesBySource, groupMembers };
+  });
 }
 
 /**

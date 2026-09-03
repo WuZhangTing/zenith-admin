@@ -17,6 +17,7 @@ import {
 } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
+import { TtlCache } from '../../lib/ttl-cache';
 import { invalidateAnomalyBaselines } from './iot-anomaly.service';
 
 /** 轻量存在性校验（无租户条件；管理端路由的访问边界由 devices 服务的 ensureIotProductExists 把守） */
@@ -89,7 +90,8 @@ export interface ThingModelRuntime {
 
 const MODEL_CACHE_TTL_MS = 30_000;
 
-const modelCache = new Map<number, { model: ThingModelRuntime; expiresAt: number }>();
+/** 单飞 + 过期用旧值后台刷新：接入热路径上几百帧同时过期不会形成查库风暴 */
+const modelCache = new TtlCache<number, ThingModelRuntime>(MODEL_CACHE_TTL_MS);
 
 export function invalidateThingModelCache(productId: number): void {
   modelCache.delete(productId);
@@ -97,22 +99,20 @@ export function invalidateThingModelCache(productId: number): void {
 }
 
 /** 设备接入热路径使用：属性/服务/事件全量（带进程内 TTL 缓存） */
-export async function loadThingModel(productId: number): Promise<ThingModelRuntime> {
-  const cached = modelCache.get(productId);
-  if (cached && cached.expiresAt > Date.now()) return cached.model;
-  const [properties, services, events, product] = await Promise.all([
-    db.select().from(iotProductProperties).where(eq(iotProductProperties.productId, productId))
-      .orderBy(asc(iotProductProperties.sort), asc(iotProductProperties.id)),
-    db.select().from(iotProductServices).where(eq(iotProductServices.productId, productId))
-      .orderBy(asc(iotProductServices.sort), asc(iotProductServices.id)),
-    db.select().from(iotProductEvents).where(eq(iotProductEvents.productId, productId))
-      .orderBy(asc(iotProductEvents.sort), asc(iotProductEvents.id)),
-    db.select({ validationMode: iotProducts.validationMode }).from(iotProducts)
-      .where(eq(iotProducts.id, productId)).limit(1).then((rows) => rows[0]),
-  ]);
-  const model: ThingModelRuntime = { properties, services, events, validationMode: product?.validationMode ?? 'loose' };
-  modelCache.set(productId, { model, expiresAt: Date.now() + MODEL_CACHE_TTL_MS });
-  return model;
+export function loadThingModel(productId: number): Promise<ThingModelRuntime> {
+  return modelCache.get(productId, async () => {
+    const [properties, services, events, product] = await Promise.all([
+      db.select().from(iotProductProperties).where(eq(iotProductProperties.productId, productId))
+        .orderBy(asc(iotProductProperties.sort), asc(iotProductProperties.id)),
+      db.select().from(iotProductServices).where(eq(iotProductServices.productId, productId))
+        .orderBy(asc(iotProductServices.sort), asc(iotProductServices.id)),
+      db.select().from(iotProductEvents).where(eq(iotProductEvents.productId, productId))
+        .orderBy(asc(iotProductEvents.sort), asc(iotProductEvents.id)),
+      db.select({ validationMode: iotProducts.validationMode }).from(iotProducts)
+        .where(eq(iotProducts.id, productId)).limit(1).then((rows) => rows[0]),
+    ]);
+    return { properties, services, events, validationMode: product?.validationMode ?? 'loose' };
+  });
 }
 
 /** 管理端完整物模型视图（详情/导出共用） */

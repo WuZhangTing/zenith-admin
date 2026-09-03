@@ -27,6 +27,7 @@ import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import redis from '../../lib/redis';
 import logger from '../../lib/logger';
 import { openEventBus } from '../../lib/open-event-bus';
+import { TtlCache } from '../../lib/ttl-cache';
 import { notify } from '../messaging/notification-outbox.service';
 import { dispatchIotForward } from './iot-forward.service';
 import { loadThingModel } from './iot-model.service';
@@ -304,26 +305,22 @@ export async function resolveIotAlarm(id: number, note?: string | null) {
 }
 
 // ─── 运行时判定 ───────────────────────────────────────────────────────────────
-/** 规则运行时缓存（threshold + event，按产品聚合；30s TTL，规则写操作即失效） */
+/** 规则运行时缓存（threshold + event，按产品聚合；30s TTL，规则写操作即失效；单飞防击穿） */
 const RULE_CACHE_TTL_MS = 30_000;
 
-const ruleCache = new Map<number, { rules: IotAlarmRuleRow[]; expiresAt: number }>();
+const ruleCache = new TtlCache<number, IotAlarmRuleRow[]>(RULE_CACHE_TTL_MS);
 
 function invalidateRuleCache(): void {
   ruleCache.clear();
 }
 
-async function loadActiveRules(productId: number): Promise<IotAlarmRuleRow[]> {
-  const cached = ruleCache.get(productId);
-  if (cached && cached.expiresAt > Date.now()) return cached.rules;
-  const rules = await db.select().from(iotAlarmRules)
+function loadActiveRules(productId: number): Promise<IotAlarmRuleRow[]> {
+  return ruleCache.get(productId, () => db.select().from(iotAlarmRules)
     .where(and(
       eq(iotAlarmRules.productId, productId),
       eq(iotAlarmRules.status, 'enabled'),
       inArray(iotAlarmRules.ruleType, ['threshold', 'event']),
-    ));
-  ruleCache.set(productId, { rules, expiresAt: Date.now() + RULE_CACHE_TTL_MS });
-  return rules;
+    )));
 }
 
 function compareValue(value: number, op: IotCompareOp, threshold: number): boolean {

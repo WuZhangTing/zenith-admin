@@ -19,6 +19,46 @@ type DateInput = Date | string | number;
 type NullableDateInput = DateInput | null | undefined;
 type ParseDateInput = string | Date | null | undefined;
 
+// ─── 快路径：Date / 时间戳 → 应用时区字段 ──────────────────────────────────────
+// dayjs.tz() 每次调用都要重建 Intl 格式器并做多轮偏移换算（实测单次 ~1ms），在遥测接入这类
+// 每帧都要格式化时间的热路径上是头号 CPU 项。这里复用一个 Intl.DateTimeFormat 直接取字段
+// （formatToParts 约 10µs），输出与 dayjs 路径逐字符一致；字符串输入仍走 dayjs 解析。
+interface ZonedParts { year: string; month: string; day: string; hour: string; minute: string; second: string }
+
+let partsFormatter: Intl.DateTimeFormat | null | undefined;
+
+function getPartsFormatter(): Intl.DateTimeFormat | null {
+  if (partsFormatter !== undefined) return partsFormatter;
+  try {
+    partsFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: APP_TIME_ZONE,
+      hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+  } catch {
+    // 时区名 Intl 不识别时回落 dayjs（其错误语义保持原样）
+    partsFormatter = null;
+  }
+  return partsFormatter;
+}
+
+function zonedParts(date: Date): ZonedParts | null {
+  const formatter = getPartsFormatter();
+  if (!formatter || Number.isNaN(date.getTime())) return null;
+  const out: Partial<ZonedParts> = {};
+  for (const part of formatter.formatToParts(date)) {
+    if (part.type !== 'literal') out[part.type as keyof ZonedParts] = part.value;
+  }
+  if (!out.year || !out.month || !out.day || !out.hour || !out.minute || !out.second) return null;
+  return out as ZonedParts;
+}
+
+function toFastDate(date: DateInput): Date | null {
+  if (date instanceof Date) return date;
+  if (typeof date === 'number') return new Date(date);
+  return null;
+}
+
 function toDayjsInAppTimezone(date: DateInput) {
   if (typeof date === 'string' && DATE_TIME_PATTERN.test(date)) {
     return dayjs.tz(date, DATE_TIME_FORMAT, APP_TIME_ZONE);
@@ -30,11 +70,14 @@ function toDayjsInAppTimezone(date: DateInput) {
 }
 
 export function formatDateTime(date: DateInput): string {
+  const fast = toFastDate(date);
+  const parts = fast ? zonedParts(fast) : null;
+  if (parts) return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
   return toDayjsInAppTimezone(date).format(DATE_TIME_FORMAT);
 }
 
 export function currentDateTime(): string {
-  return dayjs().tz(APP_TIME_ZONE).format(DATE_TIME_FORMAT);
+  return formatDateTime(new Date());
 }
 
 export function formatNullableDateTime(date: NullableDateInput): string | null {
@@ -43,10 +86,16 @@ export function formatNullableDateTime(date: NullableDateInput): string | null {
 }
 
 export function formatDate(date: DateInput): string {
+  const fast = toFastDate(date);
+  const parts = fast ? zonedParts(fast) : null;
+  if (parts) return `${parts.year}-${parts.month}-${parts.day}`;
   return toDayjsInAppTimezone(date).format(DATE_FORMAT);
 }
 
 export function formatFileTimestamp(date: DateInput = new Date()): string {
+  const fast = toFastDate(date);
+  const parts = fast ? zonedParts(fast) : null;
+  if (parts) return `${parts.year}${parts.month}${parts.day}_${parts.hour}${parts.minute}${parts.second}`;
   return toDayjsInAppTimezone(date).format(FILE_TIMESTAMP_FORMAT);
 }
 

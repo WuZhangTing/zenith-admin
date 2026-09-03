@@ -17,6 +17,7 @@ import type { DbExecutor } from '../../db/types';
 import { getPgErrorCode } from '../../lib/db-errors';
 import logger from '../../lib/logger';
 import { getPolicyRetentionDays } from '../../lib/retention/runner';
+import { TtlCache } from '../../lib/ttl-cache';
 
 export const IOT_TELEMETRY_TABLE = 'iot_telemetry';
 const PARTITION_PREFIX = `${IOT_TELEMETRY_TABLE}_p`;
@@ -200,18 +201,18 @@ export async function dropExpiredIotTelemetryPartitions(days: number): Promise<n
 }
 
 // ─── 写入侧回填下限 ────────────────────────────────────────────────────────────
-let retentionCache: { days: number; expiresAt: number } | null = null;
+/** 保留天数缓存：单飞 + 过期用旧值，热路径每帧调用也不会打到配置表 */
+const retentionCache = new TtlCache<'days', number>(RETENTION_CACHE_TTL_MS);
 
-async function retentionDays(): Promise<number> {
-  if (retentionCache && retentionCache.expiresAt > Date.now()) return retentionCache.days;
-  let days = 0;
-  try {
-    days = await getPolicyRetentionDays(IOT_TELEMETRY_TABLE);
-  } catch (err) {
-    logger.debug(`[iot] 读取遥测保留天数失败，按不限制处理: ${(err as Error).message}`);
-  }
-  retentionCache = { days, expiresAt: Date.now() + RETENTION_CACHE_TTL_MS };
-  return days;
+function retentionDays(): Promise<number> {
+  return retentionCache.get('days', async () => {
+    try {
+      return await getPolicyRetentionDays(IOT_TELEMETRY_TABLE);
+    } catch (err) {
+      logger.debug(`[iot] 读取遥测保留天数失败，按不限制处理: ${(err as Error).message}`);
+      return 0;
+    }
+  });
 }
 
 /**
@@ -227,5 +228,5 @@ export async function minAcceptableIotReportedAt(now: Date = new Date()): Promis
 /** 测试 / 手动维护用：清空进程内已知分区缓存 */
 export function resetIotPartitionCache(): void {
   knownPartitions.clear();
-  retentionCache = null;
+  retentionCache.clear();
 }

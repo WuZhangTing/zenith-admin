@@ -14,7 +14,7 @@
  *                  | {type:'ota:upgrade',payload:IotOtaPayload}
  */
 import { Hono } from 'hono';
-import type { UpgradeWebSocket } from 'hono/ws';
+import type { UpgradeWebSocket, WSContext } from 'hono/ws';
 import * as z from 'zod';
 import {
   IOT_WS_FRAME_TYPES, iotTelemetryIngestSchema, iotCommandAckSchema, iotEventIngestSchema,
@@ -43,6 +43,64 @@ const gatewayEventFrameSchema = z.compile(iotGatewayEventSchema, { strict: true 
 const otaProgressFrameSchema = z.compile(iotOtaProgressSchema, { strict: true });
 const ackFrameSchema = z.compile(iotCommandAckSchema.extend({ commandId: z.number().int().positive() }), { strict: true });
 
+/**
+ * 单连接待处理帧上限。WS 没有逐帧回执，设备可以不顾服务端处理速度持续推帧；
+ * 不设上限时几百台设备同时超速上报会让在途处理无界堆积（实测事件循环卡死两分钟）。
+ * 超出即丢弃新帧并记日志——遥测本就是流式数据，丢帧优于拖垮整个接入面。
+ */
+const WS_MAX_BACKLOG_PER_CONNECTION = 100;
+
+async function handleDeviceFrame(device: IotDeviceRow, ws: WSContext, data: unknown): Promise<void> {
+  const frame = JSON.parse(typeof data === 'string' ? data : '') as { type?: string; payload?: unknown };
+  switch (frame?.type) {
+    case IOT_WS_FRAME_TYPES.heartbeat: {
+      await markDeviceOnline(device.id);
+      ws.send(JSON.stringify({ type: IOT_WS_FRAME_TYPES.heartbeatAck }));
+      break;
+    }
+    case IOT_WS_FRAME_TYPES.telemetry: {
+      const parsed = telemetryFrameSchema.safeParse(frame.payload);
+      if (parsed.success) await ingestTelemetry(device, parsed.data);
+      break;
+    }
+    case IOT_WS_FRAME_TYPES.event: {
+      const parsed = eventFrameSchema.safeParse(frame.payload);
+      if (parsed.success) await ingestIotDeviceEvents(device, parsed.data);
+      break;
+    }
+    case IOT_WS_FRAME_TYPES.log: {
+      const parsed = logFrameSchema.safeParse(frame.payload);
+      if (parsed.success) await ingestIotDeviceLogs(device, parsed.data);
+      break;
+    }
+    case IOT_WS_FRAME_TYPES.gatewayBatch: {
+      const parsed = gatewayBatchFrameSchema.safeParse(frame.payload);
+      if (parsed.success) await ingestGatewayBatch(device, parsed.data);
+      break;
+    }
+    case IOT_WS_FRAME_TYPES.gatewayEvent: {
+      const parsed = gatewayEventFrameSchema.safeParse(frame.payload);
+      if (parsed.success) await ingestGatewayEvent(device, parsed.data);
+      break;
+    }
+    case IOT_WS_FRAME_TYPES.otaProgress: {
+      const parsed = otaProgressFrameSchema.safeParse(frame.payload);
+      if (parsed.success) await reportIotOtaProgress(device, parsed.data).catch(() => { /* 任务已结束等业务性拒绝，忽略 */ });
+      break;
+    }
+    case IOT_WS_FRAME_TYPES.commandAck: {
+      const parsed = ackFrameSchema.safeParse(frame.payload);
+      if (parsed.success) {
+        const { commandId, ...ack } = parsed.data;
+        await ackIotCommand(device, commandId, ack);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
   const wsApp = new Hono();
 
@@ -55,6 +113,10 @@ export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
       } catch {
         device = null;
       }
+      // 单连接帧串行处理：保住同一设备的点序（阈值告警连续计数依赖它），并给积压设上限
+      let chain: Promise<void> = Promise.resolve();
+      let backlog = 0;
+      let dropped = 0;
 
       return {
         onOpen(_evt, ws) {
@@ -88,58 +150,21 @@ export function createIotWsRoute(upgradeWebSocket: UpgradeWebSocket) {
             logger.warn(`[iot-ws] 上线处理失败 sn=${d.sn}: ${(err as Error).message}`);
           });
         },
-        async onMessage(evt, ws) {
+        onMessage(evt, ws) {
           if (!device) return;
-          try {
-            const frame = JSON.parse(typeof evt.data === 'string' ? evt.data : '') as { type?: string; payload?: unknown };
-            switch (frame?.type) {
-              case IOT_WS_FRAME_TYPES.heartbeat: {
-                await markDeviceOnline(device.id);
-                ws.send(JSON.stringify({ type: IOT_WS_FRAME_TYPES.heartbeatAck }));
-                break;
-              }
-              case IOT_WS_FRAME_TYPES.telemetry: {
-                const parsed = telemetryFrameSchema.safeParse(frame.payload);
-                if (parsed.success) await ingestTelemetry(device, parsed.data);
-                break;
-              }
-              case IOT_WS_FRAME_TYPES.event: {
-                const parsed = eventFrameSchema.safeParse(frame.payload);
-                if (parsed.success) await ingestIotDeviceEvents(device, parsed.data);
-                break;
-              }
-              case IOT_WS_FRAME_TYPES.log: {
-                const parsed = logFrameSchema.safeParse(frame.payload);
-                if (parsed.success) await ingestIotDeviceLogs(device, parsed.data);
-                break;
-              }
-              case IOT_WS_FRAME_TYPES.gatewayBatch: {
-                const parsed = gatewayBatchFrameSchema.safeParse(frame.payload);
-                if (parsed.success) await ingestGatewayBatch(device, parsed.data);
-                break;
-              }
-              case IOT_WS_FRAME_TYPES.gatewayEvent: {
-                const parsed = gatewayEventFrameSchema.safeParse(frame.payload);
-                if (parsed.success) await ingestGatewayEvent(device, parsed.data);
-                break;
-              }
-              case IOT_WS_FRAME_TYPES.otaProgress: {
-                const parsed = otaProgressFrameSchema.safeParse(frame.payload);
-                if (parsed.success) await reportIotOtaProgress(device, parsed.data).catch(() => { /* 任务已结束等业务性拒绝，忽略 */ });
-                break;
-              }
-              case IOT_WS_FRAME_TYPES.commandAck: {
-                const parsed = ackFrameSchema.safeParse(frame.payload);
-                if (parsed.success) {
-                  const { commandId, ...ack } = parsed.data;
-                  await ackIotCommand(device, commandId, ack);
-                }
-                break;
-              }
-              default:
-                break;
+          const d = device;
+          if (backlog >= WS_MAX_BACKLOG_PER_CONNECTION) {
+            dropped += 1;
+            if (dropped === 1 || dropped % 1000 === 0) {
+              logger.warn(`[iot-ws] sn=${d.sn} 帧积压超过 ${WS_MAX_BACKLOG_PER_CONNECTION}，已丢弃 ${dropped} 帧（设备上报速率超出服务端处理能力）`);
             }
-          } catch { /* 忽略畸形帧 */ }
+            return;
+          }
+          backlog += 1;
+          chain = chain
+            .then(() => handleDeviceFrame(d, ws, evt.data))
+            .catch(() => { /* 忽略畸形帧与业务性拒绝 */ })
+            .finally(() => { backlog -= 1; });
         },
         onClose(_evt, ws) {
           if (!device) return;

@@ -100,7 +100,9 @@ async function shutdown(signal: NodeJS.Signals) {
     // 独立 HTTP 出口，不依赖后续 DB/Redis；未启用 OTel 时为 no-op
     await withTimeout('shutdownTelemetry', shutdownTelemetry(), 5_000);
     await withTimeout('stopAllJobs', Promise.resolve(stopAllJobs()), 5_000);
-    // IoT 接入派生动作（告警判定 / 联动 / 流转）在进程内按设备串行执行，先排空再关 DB
+    // IoT 接入：先把微批缓冲里未落库的遥测写完，再排空按设备串行的派生动作（告警判定 / 联动 / 流转），最后才关 DB
+    const { flushIotIngestBuffer } = await import('./services/iot/iot-ingest-buffer');
+    await withTimeout('flushIotIngestBuffer', flushIotIngestBuffer(), 5_000);
     const { drainIotDeviceWork } = await import('./services/iot/iot-ingest-queue');
     await withTimeout('drainIotDeviceWork', drainIotDeviceWork(4_000), 5_000);
     // 结束全部终端会话：避免留下孤儿 PTY 进程与永远停留在 active 的记录
