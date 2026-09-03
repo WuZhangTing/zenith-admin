@@ -30,7 +30,9 @@ afterAll(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 describe('日志查看器目录白名单（M4）', () => {
   it('白名单包含应用日志目录与配置目录', () => {
     expect(getLocalLogRoots()).toEqual(expect.arrayContaining([path.resolve(logDir), path.resolve(extraRoot)]));
-    expect(getRemoteLogRoots()).toEqual(['/var/log']);
+    // 远端白名单只取 POSIX 绝对路径（Linux 下临时目录也以 / 开头，因此这里用包含判断）
+    expect(getRemoteLogRoots()).toContain('/var/log');
+    expect(getRemoteLogRoots().every((r) => r.startsWith('/'))).toBe(true);
   });
 
   it('允许白名单内的常规文件，返回真实路径', async () => {
