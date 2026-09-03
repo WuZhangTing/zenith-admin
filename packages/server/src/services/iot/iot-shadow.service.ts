@@ -114,40 +114,52 @@ export async function clearIotDesired(deviceId: number) {
   return mapIotShadow(row);
 }
 
+export interface IotReportedMergeResult {
+  reported: Record<string, IotMetricValue>;
+  desired: Record<string, IotMetricValue>;
+  desiredVersion: number;
+}
+
 /**
- * 遥测 ingest 合并 reported，并按键收敛 desired：
- * 设备已回报与期望一致的键从 desired 中移除（无需版本 +1，不触发重推）。
+ * 遥测 ingest 合并 reported，并按键收敛 desired（单条 upsert，RETURNING 直接供实时推送）：
+ * - 顺序上报：新值覆盖旧值；乱序晚到（reportedAt 早于影子当前时刻）只补缺失键，不回退更新的值
+ * - 设备已回报与期望一致的键从 desired 中移除（无需版本 +1，不触发重推）
  */
 export async function mergeIotReported(
   deviceId: number,
   metrics: Record<string, IotMetricValue>,
   reportedAt: Date,
-): Promise<void> {
-  if (Object.keys(metrics).length === 0) return;
+): Promise<IotReportedMergeResult | null> {
+  if (Object.keys(metrics).length === 0) return null;
   const patch = JSON.stringify(metrics);
-  await db.insert(iotDeviceState)
-    .values({ deviceId, reported: metrics, reportedAt })
-    .onConflictDoUpdate({
-      target: iotDeviceState.deviceId,
-      set: {
-        reported: sql`${iotDeviceState.reported} || ${patch}::jsonb`,
-        reportedAt,
-      },
-    });
-  await db.execute(sql`
-    UPDATE iot_device_state SET desired = COALESCE(
-      (SELECT jsonb_object_agg(d.key, d.value) FROM jsonb_each(desired) AS d
-       WHERE NOT (reported ? d.key AND reported -> d.key = d.value)),
-      '{}'::jsonb)
-    WHERE device_id = ${deviceId} AND desired <> '{}'::jsonb
+  // 与 drizzle timestamp 列写入口径一致：ISO 串直接落 timestamp（不经 session 时区换算）
+  const at = reportedAt.toISOString();
+  const merged = sql`CASE
+    WHEN s.reported_at IS NULL OR EXCLUDED.reported_at >= s.reported_at THEN s.reported || EXCLUDED.reported
+    ELSE EXCLUDED.reported || s.reported
+  END`;
+  const rows = await db.execute(sql`
+    INSERT INTO iot_device_state AS s (device_id, reported, reported_at)
+    VALUES (${deviceId}, ${patch}::jsonb, ${at}::timestamp)
+    ON CONFLICT (device_id) DO UPDATE SET
+      reported = ${merged},
+      reported_at = GREATEST(s.reported_at, EXCLUDED.reported_at),
+      desired = CASE WHEN s.desired = '{}'::jsonb THEN s.desired ELSE COALESCE(
+        (SELECT jsonb_object_agg(d.key, d.value) FROM jsonb_each(s.desired) AS d
+         WHERE NOT ((${merged}) ? d.key AND (${merged}) -> d.key = d.value)),
+        '{}'::jsonb) END,
+      updated_at = now()
+    RETURNING reported, desired, desired_version
   `);
-  const [after] = await db.select().from(iotDeviceState).where(eq(iotDeviceState.deviceId, deviceId)).limit(1);
-  if (after) {
-    pushIotRealtime({
-      type: 'iot:shadow',
-      payload: { deviceId, reported: after.reported ?? {}, desired: after.desired ?? {}, desiredVersion: after.desiredVersion },
-    });
-  }
+  const after = (rows as unknown as Array<{ reported: Record<string, IotMetricValue> | null; desired: Record<string, IotMetricValue> | null; desired_version: number }>)[0];
+  if (!after) return null;
+  const result: IotReportedMergeResult = {
+    reported: after.reported ?? {},
+    desired: after.desired ?? {},
+    desiredVersion: Number(after.desired_version),
+  };
+  pushIotRealtime({ type: 'iot:shadow', payload: { deviceId, ...result } });
+  return result;
 }
 
 /** 设备侧待同步期望值（WS 上线补推 / 心跳响应捎带）；为空返回 null */

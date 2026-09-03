@@ -21,6 +21,7 @@ import { currentUser } from '../../lib/context';
 import { tenantCondition, getCreateTenantId } from '../../lib/tenant';
 import { clearOnlineKeys, generateDeviceSecret, generateDeviceSn, getOnlineMap } from './iot-access.service';
 import { recordIotLifecycleEvent } from './iot-events.service';
+import { invalidateThingModelCache } from './iot-model.service';
 import { ensureIotTopologyValid } from './iot-topology.service';
 
 /** 批量读取影子（设备列表快照列） */
@@ -160,6 +161,8 @@ export async function updateIotProduct(id: number, data: UpdateIotProductInput) 
     ...(data.status !== undefined ? { status: data.status } : {}),
   }).where(buildProductWhere({ id })).returning();
   if (!row) throw new HTTPException(404, { message: '产品不存在' });
+  // 校验模式随物模型缓存，改动后立即对接入热路径生效
+  if (data.validationMode !== undefined) invalidateThingModelCache(id);
   return mapIotProduct(row);
 }
 

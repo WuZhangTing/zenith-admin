@@ -13,7 +13,7 @@ import type {
 import { db } from '../../db';
 import {
   iotProductEvents, iotProductProperties, iotProducts, iotProductServices,
-  type IotProductEventRow, type IotProductPropertyRow, type IotProductServiceRow,
+  type IotProductEventRow, type IotProductPropertyRow, type IotProductRow, type IotProductServiceRow,
 } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
@@ -83,6 +83,8 @@ export interface ThingModelRuntime {
   properties: IotProductPropertyRow[];
   services: IotProductServiceRow[];
   events: IotProductEventRow[];
+  /** 产品遥测校验模式（随模型一并缓存，接入热路径不再单独查产品表） */
+  validationMode: IotProductRow['validationMode'];
 }
 
 const MODEL_CACHE_TTL_MS = 30_000;
@@ -98,15 +100,17 @@ export function invalidateThingModelCache(productId: number): void {
 export async function loadThingModel(productId: number): Promise<ThingModelRuntime> {
   const cached = modelCache.get(productId);
   if (cached && cached.expiresAt > Date.now()) return cached.model;
-  const [properties, services, events] = await Promise.all([
+  const [properties, services, events, product] = await Promise.all([
     db.select().from(iotProductProperties).where(eq(iotProductProperties.productId, productId))
       .orderBy(asc(iotProductProperties.sort), asc(iotProductProperties.id)),
     db.select().from(iotProductServices).where(eq(iotProductServices.productId, productId))
       .orderBy(asc(iotProductServices.sort), asc(iotProductServices.id)),
     db.select().from(iotProductEvents).where(eq(iotProductEvents.productId, productId))
       .orderBy(asc(iotProductEvents.sort), asc(iotProductEvents.id)),
+    db.select({ validationMode: iotProducts.validationMode }).from(iotProducts)
+      .where(eq(iotProducts.id, productId)).limit(1).then((rows) => rows[0]),
   ]);
-  const model = { properties, services, events };
+  const model: ThingModelRuntime = { properties, services, events, validationMode: product?.validationMode ?? 'loose' };
   modelCache.set(productId, { model, expiresAt: Date.now() + MODEL_CACHE_TTL_MS });
   return model;
 }

@@ -1,8 +1,10 @@
 /**
  * IoT 遥测与指令。
  *
- * 遥测 ingest 主链路：物模型校验（产品 validationMode）→ 落库 → 影子 reported 合并
- * → 阈值告警判定 → 在线触达。
+ * 遥测 ingest 主链路（接入响应只等前两步）：物模型校验（产品 validationMode，随物模型缓存）
+ * → 落库 → 影子 reported 合并（单条 upsert）→ 回执设备；
+ * 阈值告警 / 场景联动 / 异常检测 / 数据流转进入按设备串行的派生队列异步执行。
+ * 今日上报量在 Redis 日计数器累加（仪表盘 O(1) 读取，不再 count 明细表）。
  *
  * 指令生命周期：pending（落库）→ delivered（WS 推送成功 / HTTP 被拉取）→ acked/failed（设备回执）；
  * 超时不依赖 cron：读取前把越过 expire_at 的 pending/delivered 批量刷成 expired（惰性收敛）。
@@ -14,13 +16,14 @@ import type { IotCommandAckInput, IotMetricValue, IotTelemetryIngestInput, SendI
 import { IOT_COMMAND_DEFAULT_TTL_SECONDS } from '@zenith/shared/iot';
 import { db } from '../../db';
 import {
-  iotCommands, iotProducts, iotTelemetry,
+  iotCommands, iotTelemetry,
   type IotCommandRow, type IotDeviceRow, type IotParamDef, type IotProductPropertyRow,
 } from '../../db/schema';
-import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { formatDate, formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
 import { clampDays, clampLimit } from '../../lib/analytics-helpers';
 import { withPagination } from '../../lib/where-helpers';
 import logger from '../../lib/logger';
+import redis from '../../lib/redis';
 import { ensureIotDeviceExists } from './iot-devices.service';
 import { touchDevice } from './iot-access.service';
 import { pushCommandToDevice } from './iot-gateway.service';
@@ -30,7 +33,42 @@ import { evaluateIotThresholdRules } from './iot-alarms.service';
 import { evaluateIotAutomationsOnTelemetry } from './iot-automations.service';
 import { evaluateIotAnomalies } from './iot-anomaly.service';
 import { dispatchIotForward } from './iot-forward.service';
+import { enqueueIotDeviceWork } from './iot-ingest-queue';
 import { pushIotRealtime } from './iot-realtime';
+
+// ─── 今日上报量计数 ────────────────────────────────────────────────────────────
+const TELEMETRY_COUNTER_PREFIX = 'iot:telemetry:count:';
+const TELEMETRY_COUNTER_TTL_SECONDS = 2 * 86_400;
+
+function telemetryCounterKey(date: Date): string {
+  return `${TELEMETRY_COUNTER_PREFIX}${formatDate(date).replace(/-/g, '')}`;
+}
+
+/** 按业务日（应用时区）累加；Redis 不可用时静默，计数是运营指标而非账本 */
+function bumpTelemetryCounter(count: number): void {
+  const key = telemetryCounterKey(new Date());
+  void redis.multi().incrby(key, count).expire(key, TELEMETRY_COUNTER_TTL_SECONDS).exec()
+    .catch((err) => logger.debug(`[iot] 今日上报计数失败: ${(err as Error).message}`));
+}
+
+/** 仪表盘「今日上报」：Redis 日计数器 O(1) 读取（部署当日从 0 起算） */
+export async function getIotTelemetryTodayCount(): Promise<number> {
+  try {
+    const raw = await redis.get(telemetryCounterKey(new Date()));
+    return raw ? Number(raw) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** 设备侧时间戳允许的最大超前量：超过按服务器时间落库，避免时钟漂移的设备把影子时刻推到未来后再也无法更新 */
+const REPORTED_AT_MAX_AHEAD_MS = 5 * 60_000;
+
+function resolveReportedAt(raw: string | undefined, now: Date): Date {
+  const parsed = raw ? parseDateTimeInput(raw) : null;
+  if (!parsed) return now;
+  return parsed.getTime() > now.getTime() + REPORTED_AT_MAX_AHEAD_MS ? now : parsed;
+}
 
 // ─── 遥测 ─────────────────────────────────────────────────────────────────────
 /** 单值校验：类型/量程/枚举不符返回 false（该键被丢弃） */
@@ -75,19 +113,15 @@ function sanitizeMetrics(
 }
 
 export async function ingestTelemetry(device: IotDeviceRow, input: IotTelemetryIngestInput): Promise<number> {
-  const [model, product] = await Promise.all([
-    loadThingModel(device.productId),
-    db.select({ validationMode: iotProducts.validationMode }).from(iotProducts)
-      .where(eq(iotProducts.id, device.productId)).limit(1).then((rows) => rows[0]),
-  ]);
+  const model = await loadThingModel(device.productId);
   const propMap = new Map(model.properties.map((p) => [p.identifier, p]));
-  const mode = product?.validationMode ?? 'loose';
+  const now = new Date();
 
   const rows = input.items
     .map((item) => ({
       deviceId: device.id,
-      metrics: sanitizeMetrics(item.metrics, propMap, mode),
-      reportedAt: (item.reportedAt ? parseDateTimeInput(item.reportedAt) : null) ?? new Date(),
+      metrics: sanitizeMetrics(item.metrics, propMap, model.validationMode),
+      reportedAt: resolveReportedAt(item.reportedAt, now),
     }))
     .filter((row) => Object.keys(row.metrics).length > 0);
 
@@ -103,28 +137,28 @@ export async function ingestTelemetry(device: IotDeviceRow, input: IotTelemetryI
     await mergeIotReported(device.id, merged, latestAt).catch((err) => {
       logger.warn(`[iot] 影子合并失败 deviceId=${device.id}: ${(err as Error).message}`);
     });
+    bumpTelemetryCounter(rows.length);
     // 管理端实时推送（打开设备详情的页面即时刷新；300ms/设备节流）
-    pushIotRealtime({
-      type: 'iot:telemetry',
-      payload: { deviceId: device.id, metrics: merged, reportedAt: formatDateTime(latestAt) },
-    });
-    // 阈值告警：逐点判定（连续计数语义依赖点序）
-    for (const row of rows) {
-      await evaluateIotThresholdRules(device, row.metrics).catch((err) => {
-        logger.warn(`[iot] 阈值告警判定失败 deviceId=${device.id}: ${(err as Error).message}`);
-      });
-    }
-    // 场景联动：属性触发（冷却抑制在引擎内）
-    for (const row of rows) {
-      await evaluateIotAutomationsOnTelemetry(device, row.metrics).catch((err) => {
-        logger.warn(`[iot] 场景联动判定失败 deviceId=${device.id}: ${(err as Error).message}`);
-      });
-    }
-    // 遥测异常检测（3σ 基线；失败静默、去抖在服务内）
-    await evaluateIotAnomalies(device, merged);
-    // 数据流转（fire-and-forget，按最新合并快照推一帧）
-    dispatchIotForward('telemetry', device, {
-      deviceId: device.id, sn: device.sn, metrics: merged, reportedAt: formatDateTime(latestAt),
+    const reportedAt = formatDateTime(latestAt);
+    pushIotRealtime({ type: 'iot:telemetry', payload: { deviceId: device.id, metrics: merged, reportedAt } });
+    // 派生动作离开接入响应路径：按设备串行保住点序，失败互不影响
+    enqueueIotDeviceWork(device.id, 'telemetry-effects', async () => {
+      // 阈值告警：逐点判定（连续计数语义依赖点序）
+      for (const row of rows) {
+        await evaluateIotThresholdRules(device, row.metrics).catch((err) => {
+          logger.warn(`[iot] 阈值告警判定失败 deviceId=${device.id}: ${(err as Error).message}`);
+        });
+      }
+      // 场景联动：属性触发（冷却抑制在引擎内）
+      for (const row of rows) {
+        await evaluateIotAutomationsOnTelemetry(device, row.metrics).catch((err) => {
+          logger.warn(`[iot] 场景联动判定失败 deviceId=${device.id}: ${(err as Error).message}`);
+        });
+      }
+      // 遥测异常检测（3σ 基线；失败静默、去抖在服务内）
+      await evaluateIotAnomalies(device, merged);
+      // 数据流转（fire-and-forget，按最新合并快照推一帧）
+      dispatchIotForward('telemetry', device, { deviceId: device.id, sn: device.sn, metrics: merged, reportedAt });
     });
   }
   await touchDevice(device, { firmwareVersion: input.firmwareVersion });

@@ -2,25 +2,25 @@
  * IoT 总览仪表盘：统计卡 + 趋势 + 分布 + 最近告警/事件。
  *
  * 在线趋势读 iot_online_snapshots（10 分钟桶平均），告警趋势按天分级聚合，
- * 遥测今日量走 (device_id, reported_at) 索引 count。
+ * 遥测今日量读 Redis 日计数器（ingest 累加，O(1)；明细表按时间列无单列索引，不可 count）。
  */
 import { count, desc, eq, gte, sql } from 'drizzle-orm';
 import type { IotDashboard } from '@zenith/shared/iot';
 import { db } from '../../db';
 import {
-  iotAlarms, iotDeviceEvents, iotDevices, iotDeviceState, iotOnlineSnapshots, iotProducts, iotTelemetry,
+  iotAlarms, iotDeviceEvents, iotDevices, iotDeviceState, iotOnlineSnapshots, iotProducts,
 } from '../../db/schema';
 import { formatDateTime } from '../../lib/datetime';
 import { currentUser } from '../../lib/context';
 import { tenantCondition } from '../../lib/tenant';
 import { mapIotAlarm } from './iot-alarms.service';
 import { mapIotDeviceEvent } from './iot-events.service';
+import { getIotTelemetryTodayCount } from './iot-telemetry.service';
 
 export async function getIotDashboard(): Promise<IotDashboard> {
   const user = currentUser();
   const deviceWhere = tenantCondition(iotDevices, user);
   const now = Date.now();
-  const dayStart = new Date(new Date().setHours(0, 0, 0, 0));
   const trendSince = new Date(now - 24 * 3600_000);
   const alarmSince = new Date(now - 7 * 86_400_000);
 
@@ -36,7 +36,7 @@ export async function getIotDashboard(): Promise<IotDashboard> {
       .leftJoin(iotDeviceState, eq(iotDevices.id, iotDeviceState.deviceId))
       .where(deviceWhere)
       .then((rows) => rows[0]),
-    db.$count(iotTelemetry, gte(iotTelemetry.reportedAt, dayStart)),
+    getIotTelemetryTodayCount(),
     db.select({ level: iotAlarms.level, cnt: count() })
       .from(iotAlarms)
       .where(eq(iotAlarms.status, 'firing'))
