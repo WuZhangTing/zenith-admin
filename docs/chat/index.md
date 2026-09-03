@@ -17,7 +17,7 @@ Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、�
 | 搜索与导出 | 支持会话内搜索、上下文定位、收藏消息列表、跨会话全局搜索；持 `chat:message:export` 权限可经导出中心导出会话聊天记录 |
 | 快捷聊天 | 非 `/chat` 页面展示浮动快捷聊天按钮，支持未读角标、快捷面板与跳转完整聊天页 |
 | 频道与客服 | 消息中心左侧同时承载「频道」（站内公众号）订阅与消息视图；`business` 运营号支持双向客服、底部菜单、会话评价与客服工作台，详见[通知中心 · 频道](../notification/index.md#频道、客服与数据看板) |
-| 实时通信 | `GET /api/ws?token=...` 维护共享 WebSocket 连接，推送消息、撤回、编辑、已读、输入中、成员变化、群信息变化、入群申请、会话解散、表情、投票、频道消息、在线状态与 WebRTC 信令 |
+| 实时通信 | `GET /api/ws`（token 经 `Sec-WebSocket-Protocol` 子协议传递）维护共享 WebSocket 连接，推送消息、撤回、编辑、已读、输入中、成员变化、群信息变化、入群申请、会话解散、表情、投票、频道消息、在线状态与 WebRTC 信令 |
 
 ---
 
@@ -195,10 +195,11 @@ Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、�
 前端 `useWebSocket` 使用一个共享 WebSocket 连接：
 
 ```text
-GET /api/ws?token=<accessToken>
+GET /api/ws
+Sec-WebSocket-Protocol: zenith-auth, <accessToken>
 ```
 
-服务端在握手时校验 JWT，并检查 session blacklist。鉴权失败关闭连接，关闭码为 `4001`。连接建立后，`ws-manager` 按 `tokenId` 精确保存连接，并按 `userId` 维护用户的多端连接集合。
+服务端在握手时按管理端口径校验 JWT（拒绝会员 / refresh token，实时校验用户与租户状态）并检查吊销黑名单。鉴权失败关闭连接，关闭码为 `4001`。入站帧经 zod 校验并限速，`chat:typing` 的发送者身份由服务端覆写且要求是会话成员，详见 [WebSocket 事件清单](../backend/websocket-events)。连接建立后，`ws-manager` 按 `tokenId` 精确保存连接，并按 `userId` 维护用户的多端连接集合。
 
 心跳机制：
 
@@ -249,7 +250,7 @@ WebSocket 断开期间仍可通过 HTTP 接口发送消息。重连成功后，�
 
 ### WebRTC 信令
 
-聊天 WebSocket 同时承载音视频通话信令：`routes/platform/ws.ts` 处理 `rtc:invite`、`rtc:accept`、`rtc:reject`、`rtc:busy`、`rtc:cancel`、`rtc:join`、`rtc:room-participants`、`rtc:leave`、`rtc:offer`、`rtc:answer`、`rtc:ice`。优先按 `payload.to` 定向发送；没有 `to` 但包含 `conversationId` 时转发给会话内其他成员；群通话 `rtc:join` 会登记房间并向加入者返回现有参与者。ICE 配置通过 `GET /api/chat/rtc/config` 获取；通话结束后可调用 `POST /api/chat/conversations/{id}/call-record` 写入系统消息，入参包含 `callType`（`audio` / `video`）、`mode`（`p2p` / `group`）、`status`（`completed` / `missed` / `canceled` / `rejected`）和 `durationSec`。
+聊天 WebSocket 同时承载音视频通话信令：`routes/platform/ws.ts` 处理 `rtc:invite`、`rtc:accept`、`rtc:reject`、`rtc:busy`、`rtc:cancel`、`rtc:join`、`rtc:room-participants`、`rtc:leave`、`rtc:offer`、`rtc:answer`、`rtc:ice`。`rtc:invite` / `rtc:join` 把 `callId` 绑定到所属会话并要求发送者是会话成员，后续信令只在该会话成员之间中继（`payload.to` 必须是会话成员，否则丢弃；没有 `to` 时转发给会话内其他成员），`from` 由服务端按连接主体覆写；群通话 `rtc:join` 向加入者返回现有参与者。ICE 配置通过 `GET /api/chat/rtc/config` 获取；通话结束后可调用 `POST /api/chat/conversations/{id}/call-record` 写入系统消息，入参包含 `callType`（`audio` / `video`）、`mode`（`p2p` / `group`）、`status`（`completed` / `missed` / `canceled` / `rejected`）和 `durationSec`。
 
 完整的信令流程、群通话房间管理与前端实现见 [WebRTC 音视频通话](../backend/webrtc-calls.md)。
 
@@ -397,7 +398,7 @@ POST /api/public/chat/webhook/{token}
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/ws?token=<accessToken>` | 聊天、通知、在线状态、WebRTC 信令共享连接 |
+| `GET` | `/api/ws` | 聊天、通知、在线状态、WebRTC 信令共享连接（token 经 `Sec-WebSocket-Protocol` 传递） |
 
 ---
 

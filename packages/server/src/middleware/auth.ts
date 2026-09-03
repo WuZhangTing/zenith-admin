@@ -48,8 +48,9 @@ type AdminJwtCheck =
  * JWT signature verification is not enough for a long-lived access token:
  * users and tenants can be disabled after issuance.  Re-read the authoritative
  * rows on every request and reject stale tenant claims before setting `user`.
+ * 同时供 WebSocket 升级鉴权（lib/ws-auth.ts）复用，保证 WS 与 HTTP 的主体校验口径一致。
  */
-async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJwtCheck> {
+export async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJwtCheck> {
   if (!Number.isInteger(payload.userId) || payload.userId <= 0) {
     return { ok: false, status: 401, message: '无效的访问令牌' };
   }

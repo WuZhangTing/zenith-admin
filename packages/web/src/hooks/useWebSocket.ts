@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { TOKEN_KEY } from '@zenith/shared/core';
-import type { WsMessage } from '@zenith/shared/platform';
+import { wsAuthProtocols, type WsMessage } from '@zenith/shared/platform';
 import { config } from '@/config';
 
 type MessageHandler = (message: WsMessage) => void;
@@ -53,7 +53,8 @@ function scheduleReconnect() {
   reconnectTimer = setTimeout(() => connectSharedSocket(), delay);
 }
 
-function buildWebSocketUrl() {
+/** access token 不进 URL（会落代理 / 访问日志），改经 Sec-WebSocket-Protocol 子协议传递 */
+function buildWebSocketTarget(): { url: string; protocols: string[] } | null {
   const token = localStorage.getItem(TOKEN_KEY);
   if (!token) return null;
 
@@ -63,7 +64,7 @@ function buildWebSocketUrl() {
     wsBase = base.replace(/^http/, 'ws');
   }
 
-  return `${wsBase}/api/ws?token=${encodeURIComponent(token)}`;
+  return { url: `${wsBase}/api/ws`, protocols: wsAuthProtocols(token) };
 }
 
 function notifyListeners(message: WsMessage) {
@@ -78,13 +79,13 @@ function connectSharedSocket() {
     return;
   }
 
-  const wsUrl = buildWebSocketUrl();
-  if (!wsUrl) return;
+  const target = buildWebSocketTarget();
+  if (!target) return;
 
   manuallyClosed = false;
   clearReconnectTimer();
 
-  const ws = new WebSocket(wsUrl);
+  const ws = new WebSocket(target.url, target.protocols);
   sharedSocket = ws;
 
   ws.onopen = () => {

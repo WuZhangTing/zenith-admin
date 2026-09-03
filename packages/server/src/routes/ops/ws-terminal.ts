@@ -5,8 +5,8 @@ import * as fs from 'node:fs';
 import * as inspector from 'node:inspector';
 import * as pty from 'node-pty';
 import { Client as SshClient } from 'ssh2';
-import { verifyToken } from '../../lib/jwt';
 import type { JwtPayload } from '../../middleware/auth';
+import { authenticateAdminWs } from '../../lib/ws-auth';
 import { isTokenBlacklisted } from '../../lib/session-manager';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 import { getClientIp } from '../../lib/request-helpers';
@@ -166,7 +166,7 @@ async function resolveShell(type: string | undefined): Promise<{
 /**
  * Web 终端 WebSocket 路由
  *
- * 端点：GET /api/ws/terminal?token=<accessToken>[&sessionId=<id>]
+ * 端点：GET /api/ws/terminal?shell=<type>[&sessionId=<id>]（access token 经 Sec-WebSocket-Protocol: zenith-auth, <token> 传递）
  *
  * 会话标识由服务端生成：
  * - 不带 sessionId ⇒ 新建会话，服务端下发 `terminal:session` 告知权威 ID。
@@ -295,11 +295,11 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
   wsApp.get(
     '/',
     upgradeWebSocket(async (c) => {
-      const token = c.req.query('token');
       const shellType = c.req.query('shell');
       const cwdParam = c.req.query('cwd');
       const sessionId = c.req.query('sessionId') ?? '';
-      let payload: JwtPayload | null = null;
+      // 鉴权与 /api/ws 一致：token 走 Sec-WebSocket-Protocol，实时校验主体状态与黑名单
+      const payload: JwtPayload | null = (await authenticateAdminWs(c))?.payload ?? null;
 
       // 本连接持有的会话引用与 WebSocket。所有 handler 只能操作它们，
       // 绝不用客户端传入的 sessionId 反查注册表——否则任何知道 ID 的人都能
@@ -307,13 +307,6 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
       const ownedSession: { current: TerminalSession | null } = { current: null };
       let ownWs: ClientConn | null = null;
 
-      if (token) {
-        try {
-          payload = await verifyToken<JwtPayload>(token);
-        } catch {
-          payload = null;
-        }
-      }
 
       return {
         async onOpen(_evt, ws) {
@@ -608,7 +601,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
 /**
  * Web 终端监控 WebSocket 路由（管理员）
  *
- * 端点：GET /api/ws/terminal-monitor?token=<accessToken>&sessionId=<id>&takeover=1
+ * 端点：GET /api/ws/terminal-monitor?sessionId=<id>&takeover=1（access token 经 Sec-WebSocket-Protocol 传递）
  *
  * - 权限：超管 或 `system:terminal:monitor`。
  * - 作为 observer 实时镜像目标会话的输出（接入时回放输出缓冲）。
@@ -621,18 +614,10 @@ export function createWsTerminalMonitorRoute(upgradeWebSocket: UpgradeWebSocket)
   wsApp.get(
     '/',
     upgradeWebSocket(async (c) => {
-      const token = c.req.query('token');
       const sessionId = c.req.query('sessionId') ?? '';
       const allowTakeover = c.req.query('takeover') === '1';
-      let payload: JwtPayload | null = null;
+      const payload: JwtPayload | null = (await authenticateAdminWs(c))?.payload ?? null;
 
-      if (token) {
-        try {
-          payload = await verifyToken<JwtPayload>(token);
-        } catch {
-          payload = null;
-        }
-      }
 
       let observer: { send: (data: string) => void } | null = null;
       // 通过租户与权限校验后取得的会话句柄；接管写入以此为准，

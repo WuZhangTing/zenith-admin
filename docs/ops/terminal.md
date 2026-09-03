@@ -8,8 +8,10 @@
 
 Web 终端入口为「系统运维 → Web 终端」（`/system/terminal`），后端 WebSocket 挂载在：
 
-- `GET /api/ws/terminal?token=<accessToken>&shell=<shell>&cwd=<cwd>[&sessionId=<id>]`
-- `GET /api/ws/terminal-monitor?token=<accessToken>&sessionId=<id>&takeover=1`
+- `GET /api/ws/terminal?shell=<shell>&cwd=<cwd>[&sessionId=<id>]`
+- `GET /api/ws/terminal-monitor?sessionId=<id>&takeover=1`
+
+access token 不放在 URL，而是经 `Sec-WebSocket-Protocol: zenith-auth, <accessToken>` 子协议头传递（与 `/api/ws` 一致，见 [WebSocket 事件清单](../backend/websocket-events#连接认证)）；鉴权复用管理端 HTTP 口径并检查吊销黑名单。
 
 会话标识由服务端生成（UUIDv7），客户端不能自选：
 

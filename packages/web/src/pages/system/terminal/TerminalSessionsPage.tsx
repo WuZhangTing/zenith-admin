@@ -5,6 +5,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { TOKEN_KEY } from '@zenith/shared/core';
+import { wsAuthProtocols } from '@zenith/shared/platform';
 import '@xterm/xterm/css/xterm.css';
 import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
@@ -35,13 +36,12 @@ const KIND_META: Record<TerminalKind, { label: string; color: 'blue' | 'green' |
 };
 
 function buildMonitorWsUrl(sessionId: string, takeover: boolean): string {
-  const token = localStorage.getItem(TOKEN_KEY) ?? '';
   let wsBase = config.wsBaseUrl;
   if (!wsBase) {
     const base = config.apiBaseUrl || location.origin;
     wsBase = base.replace(/^http/, 'ws');
   }
-  return `${wsBase}/api/ws/terminal-monitor?token=${encodeURIComponent(token)}&sessionId=${encodeURIComponent(sessionId)}${takeover ? '&takeover=1' : ''}`;
+  return `${wsBase}/api/ws/terminal-monitor?sessionId=${encodeURIComponent(sessionId)}${takeover ? '&takeover=1' : ''}`;
 }
 
 /** 实时监控终端：连接监控 WS，镜像目标会话输出；takeover 时允许注入输入 */
@@ -75,7 +75,8 @@ function MonitorTerminal({ sessionId, takeover }: { readonly sessionId: string; 
     const ro = new ResizeObserver(() => { try { fit.fit(); } catch { /* ignore */ } });
     ro.observe(container);
 
-    const ws = new WebSocket(buildMonitorWsUrl(sessionId, takeover));
+    // access token 经 Sec-WebSocket-Protocol 子协议传递，不进 URL
+    const ws = new WebSocket(buildMonitorWsUrl(sessionId, takeover), wsAuthProtocols(localStorage.getItem(TOKEN_KEY) ?? ''));
     ws.onmessage = (evt) => {
       try {
         const m = JSON.parse(evt.data as string) as { type: string; data?: string };

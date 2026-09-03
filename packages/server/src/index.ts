@@ -14,6 +14,7 @@
 import { isFatalShutdownInProgress } from './lib/fatal-handlers';
 import { serve } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
+import { WS_AUTH_SUBPROTOCOL } from '@zenith/shared/platform';
 import { createApp } from './app';
 import { registerEventSubscribers } from './bootstrap/subscribers';
 import { registerBackgroundWorkers } from './bootstrap/workers';
@@ -47,7 +48,14 @@ logger.info(`Server starting on port ${config.port}...`);
 // WebSocket 由 @hono/node-server 内建支持：serve() 接管 upgrade 事件，
 // 握手请求走正常 fetch 管线，响应头会被带入握手响应。
 // noServer 必须为 true——HTTP 监听由 serve() 持有，wss 只负责协议升级。
-const wss = new WebSocketServer({ noServer: true });
+// maxPayload：单帧上限 64 KiB（SDP offer 通常 < 20 KiB；终端输入极小），默认 100 MiB 可被用于内存 DoS。
+// handleProtocols：客户端经 Sec-WebSocket-Protocol: zenith-auth, <token> 传 access token，
+// 服务端只回显 zenith-auth，绝不把 token 回写到握手响应。
+const wss = new WebSocketServer({
+  noServer: true,
+  maxPayload: 64 * 1024,
+  handleProtocols: (protocols) => (protocols.has(WS_AUTH_SUBPROTOCOL) ? WS_AUTH_SUBPROTOCOL : false),
+});
 const server = serve({ fetch: app.fetch, port: config.port, websocket: { server: wss } });
 
 // 升级请求被拒绝时（如向非 WS 路径发起 upgrade），socket 已脱离 http.Server 托管，

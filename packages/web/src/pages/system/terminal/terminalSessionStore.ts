@@ -16,6 +16,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { TOKEN_KEY } from '@zenith/shared/core';
+import { wsAuthProtocols } from '@zenith/shared/platform';
 import { config } from '@/config';
 import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
@@ -123,7 +124,6 @@ interface SessionState {
  * `terminal:session` 下发，客户端无法自选，因此也无法凭 ID 抢占他人会话。
  */
 function buildWsUrl(shell: string, cwd?: string, serverSessionId?: string): string {
-  const token = localStorage.getItem(TOKEN_KEY) ?? '';
   let wsBase = config.wsBaseUrl;
   if (!wsBase) {
     const base = config.apiBaseUrl || location.origin;
@@ -131,7 +131,12 @@ function buildWsUrl(shell: string, cwd?: string, serverSessionId?: string): stri
   }
   const cwdPart = cwd ? `&cwd=${encodeURIComponent(cwd)}` : '';
   const sessionPart = serverSessionId ? `&sessionId=${encodeURIComponent(serverSessionId)}` : '';
-  return `${wsBase}/api/ws/terminal?token=${encodeURIComponent(token)}&shell=${encodeURIComponent(shell)}${cwdPart}${sessionPart}`;
+  return `${wsBase}/api/ws/terminal?shell=${encodeURIComponent(shell)}${cwdPart}${sessionPart}`;
+}
+
+/** access token 经 Sec-WebSocket-Protocol 子协议传递，不进 URL */
+function openTerminalSocket(url: string): WebSocket {
+  return new WebSocket(url, wsAuthProtocols(localStorage.getItem(TOKEN_KEY) ?? ''));
 }
 
 function parseOsc7Cwd(data: string): string | null {
@@ -275,7 +280,7 @@ class TerminalSessionStore {
     term.open(container);
     loadWebglRenderer(term, options.rendererType);
 
-    const ws = new WebSocket(buildWsUrl(options.shell, options.cwd, options.serverSessionId));
+    const ws = openTerminalSocket(buildWsUrl(options.shell, options.cwd, options.serverSessionId));
     const { shell, cwd } = options;
 
     const session: SessionState = {
@@ -494,7 +499,7 @@ class TerminalSessionStore {
       s.connectionState = 'reconnecting';
       s.statusMessage = '正在重新连接';
       this.notifyStatus(sessionId);
-      const newWs = new WebSocket(buildWsUrl(s.shell, s.cwd, s.serverSessionId));
+      const newWs = openTerminalSocket(buildWsUrl(s.shell, s.cwd, s.serverSessionId));
       s.ws = newWs;
       this.setupWsHandlers(sessionId, newWs, s, s.shell);
     }, delay);

@@ -1,21 +1,26 @@
 # WebSocket 事件清单
 
-管理端实时通道入口为 `/api/ws?token={accessToken}`。消息契约以 `packages/shared/src/platform/types.ts` 中的 `WsMessage` 为准，服务端管理器位于 `packages/server/src/lib/ws-manager.ts`。
+管理端实时通道入口为 `/api/ws`（access token 经 `Sec-WebSocket-Protocol` 子协议传递）。消息契约以 `packages/shared/src/platform/types.ts` 中的 `WsMessage` 为准，服务端管理器位于 `packages/server/src/lib/ws-manager.ts`。
 
 ## 连接认证
 
-客户端通过查询参数传入管理端 access token：
+浏览器 WebSocket 无法自定义请求头，access token 经子协议头传递（`@zenith/shared/platform` 的 `wsAuthProtocols(token)` 生成），**不再放进 URL 查询串**，避免落入代理 / 访问日志：
 
 ```text
-/api/ws?token=eyJ...
+GET /api/ws
+Sec-WebSocket-Protocol: zenith-auth, eyJ...
 ```
 
-认证失败关闭连接：
+服务端只回显 `zenith-auth`（`WebSocketServer.handleProtocols`），绝不把 token 写回握手响应；`?token=` 查询串已不再接受。升级鉴权（`lib/ws-auth.ts`）与 HTTP `authMiddleware` 同一口径：拒绝会员 / refresh token、实时校验用户与租户状态（`checkAdminJwtSubject`）、检查吊销黑名单；三个 WebSocket 端点（`/api/ws`、`/api/ws/terminal`、`/api/ws/terminal-monitor`）共用。
 
-- 无效 token：`4001 Unauthorized`
-- 会话被撤销或 JWT 黑名单命中：`4001 Session revoked`
+认证失败关闭连接：`4001 Unauthorized`。Redis 检查异常时 fail-open。连接成功后按用户维度建立连接集合，用于单用户、多用户和广播推送。
 
-Redis 检查异常时 fail-open。连接成功后按用户维度建立连接集合，用于单用户、多用户和广播推送。
+### 入站帧约束
+
+- 单帧上限 64 KiB（`WebSocketServer.maxPayload`），超限直接断开；每连接令牌桶限速（60 帧 / 秒，突发 120），超额帧丢弃。
+- 入站帧经 zod 校验，只接受 `ping`、`chat:typing` 与 `rtc:*` 有限类型，其余静默丢弃。
+- 身份字段由服务端覆写：`chat:typing` 的 `userId` / `nickname`、`rtc:*` 的 `from` 一律取连接的认证主体，客户端声明无效。
+- `chat:typing` 与 `rtc:*` 要求发送者是目标会话成员；`callId` 在 `rtc:invite` / `rtc:join` 时绑定到所属会话，后续信令只在该会话成员之间中继，定向目标 `to` 也必须是该会话成员。
 
 ## 事件类型
 
@@ -76,7 +81,7 @@ Redis 检查异常时 fail-open。连接成功后按用户维度建立连接集�
 
 ## WebRTC 信令
 
-`rtc:*` 事件由 `rtc-manager.ts` 和聊天路由协作。`rtc:join` 在服务端有单独分支，会维护房间成员并下发 `rtc:room-participants`；其他信令按目标用户或房间转发。
+`rtc:*` 事件由 `rtc-manager.ts` 和聊天路由协作。`rtc:invite` / `rtc:join` 登记房间并把 `callId` 绑定到会话（同一 `callId` 换会话加入会被拒绝），`rtc:join` 向加入者下发 `rtc:room-participants`；`rtc:accept` 把被叫加入房间；其它信令必须引用已登记的 `callId`，按 `to`（须为该会话成员）定向或向会话成员广播，`from` 由服务端按连接主体写入。`rtc:reject` / `rtc:busy` / `rtc:cancel` / `rtc:leave` 与断线都会清理房间成员，空房间与 6 小时无活动的房间自动回收。
 
 ## 独立 WebSocket 端点
 

@@ -15,10 +15,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('node-pty', () => ({ spawn: vi.fn() }));
 vi.mock('ssh2', () => ({ Client: vi.fn() }));
 vi.mock('node:inspector', () => ({ url: () => undefined }));
-vi.mock('../../lib/jwt', () => ({
-  verifyToken: vi.fn(async (token: string) => {
+vi.mock('../../lib/ws-auth', () => ({
+  // 测试替身：以 query.token = user-<id> 模拟已通过子协议鉴权的主体
+  authenticateAdminWs: vi.fn(async (c: { req: { query: (k: string) => string | undefined } }) => {
+    const token = c.req.query('token');
+    if (!token) return null;
     const userId = Number(token.replace('user-', ''));
-    return { userId, username: `u${userId}`, roles: [], tenantId: null };
+    return { payload: { userId, username: `u${userId}`, roles: [], tenantId: null }, nickname: `u${userId}` };
   }),
 }));
 vi.mock('../../lib/session-manager', () => ({ isTokenBlacklisted: vi.fn(async () => false) }));

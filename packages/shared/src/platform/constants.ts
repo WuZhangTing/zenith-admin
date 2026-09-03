@@ -1,5 +1,19 @@
 import { createLabelOptions } from '../core/enum-options';
 
+// ─── WebSocket ────────────────────────────────────────────────────────────────
+
+/**
+ * WebSocket 鉴权子协议名。浏览器 WebSocket 无法自定义请求头，access token 经
+ * `Sec-WebSocket-Protocol: zenith-auth, <token>` 头传递（服务端只回显 zenith-auth），
+ * 不再放进 URL 查询串，避免落入代理 / 访问日志。
+ */
+export const WS_AUTH_SUBPROTOCOL = 'zenith-auth';
+
+/** 构造浏览器 WebSocket 构造函数的 protocols 参数 */
+export function wsAuthProtocols(accessToken: string): string[] {
+  return [WS_AUTH_SUBPROTOCOL, accessToken];
+}
+
 export const FILE_STORAGE_PROVIDERS = ['local', 'oss', 's3', 'cos', 'obs', 'kodo', 'bos', 'azure', 'sftp'] as const;
 
 export const FILE_OBJECT_ACLS = ['default', 'private', 'public-read', 'public-read-write'] as const;
