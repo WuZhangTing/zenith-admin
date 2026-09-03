@@ -3,9 +3,8 @@ import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { commonErrorResponses, jsonContent, ok, okBody, validationHook } from '../../lib/openapi-schemas';
 import { AsyncTaskDTO } from '../../lib/openapi-dtos';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { mapAsyncTask, registerTaskHandler, submitAsyncTask } from '../../lib/task-center';
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
  * 业务示例：注册两个演示任务类型。

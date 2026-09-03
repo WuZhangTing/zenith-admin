@@ -19,6 +19,7 @@ import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
 import dayjs from 'dayjs';
 import { useCronJobStats } from '@/hooks/queries/cron-jobs';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { formatDurationMs } from '@/utils/format';
 
 const SUCCESS_COLOR = '#10b981';
 const FAIL_COLOR = '#ef4444';
@@ -44,12 +45,6 @@ interface HealthIssue {
 
 interface Props {
   jobs: CronJob[];
-}
-
-function formatDuration(ms: number | null): string {
-  if (ms == null) return '—';
-  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${ms}ms`;
 }
 
 function statusMeta(status: CronRunStatus | null): { label: string; color: 'green' | 'red' | 'blue' | 'grey' } {
@@ -167,7 +162,7 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
     { label: '当前运行中', value: stats?.runningJobs ?? '—', sub: null as string | null, color: (stats?.runningJobs ?? 0) > 0 ? 'var(--semi-color-primary)' : undefined },
     { label: '今日执行', value: stats?.todayRuns ?? '—', sub: stats ? `运行中 ${todayRunning}` : null, color: undefined },
     { label: '今日成功率', value: todaySuccessRate === null ? '—' : `${todaySuccessRate}%`, sub: stats ? `成功 ${stats.todaySuccesses} · 失败 ${stats.todayFails}` : null, color: rateColor },
-    { label: '今日平均耗时', value: stats ? formatDuration(stats.todayAvgDurationMs) : '—', sub: '已完成执行', color: undefined },
+    { label: '今日平均耗时', value: stats ? formatDurationMs(stats.todayAvgDurationMs) : '—', sub: '已完成执行', color: undefined },
     { label: '连续失败', value: stats ? failingJobs.length : '—', sub: stats ? `从未执行 ${neverRunCount} 个` : null, color: failingJobs.length > 0 ? 'var(--semi-color-danger)' : undefined },
   ];
 
@@ -189,12 +184,12 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
     line: { field: 'avgDurationMs', name: '平均耗时', color: DURATION_COLOR },
     axis: {
       xLabel: (d) => d.slice(5),
-      rightLabel: (v) => formatDuration(v),
+      rightLabel: (v) => formatDurationMs(v),
     },
     tooltip: {
       title: (x) => `日期：${x}`,
       barValue: (v, datum) => `${v} 次（成功 ${datum?.successCount ?? 0} · 失败 ${datum?.failCount ?? 0}）`,
-      lineValue: (v) => formatDuration(v),
+      lineValue: (v) => formatDurationMs(v),
     },
   }), [filledDaily, palette]);
 
@@ -273,12 +268,12 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
     },
     {
       title: '平均耗时', dataIndex: 'avgDurationMs', width: 92, align: 'right',
-      render: (v: number | null) => formatDuration(v),
+      render: (v: number | null) => formatDurationMs(v),
     },
     {
       title: 'P95 耗时', dataIndex: 'p95DurationMs', width: 92, align: 'right',
       render: (v: number | null, record: CronJobStatsPerJob) => {
-        const text = formatDuration(v);
+        const text = formatDurationMs(v);
         // P95 显著高于平均（>2.5x）提示长尾恶化
         const slowTail = v != null && record.avgDurationMs != null && record.avgDurationMs > 0 && v > record.avgDurationMs * 2.5;
         return <span style={slowTail ? { color: 'var(--semi-color-warning)' } : undefined} title={slowTail ? 'P95 显著高于平均耗时，存在长尾执行' : undefined}>{text}</span>;
@@ -308,7 +303,7 @@ export default function CronJobDashboard({ jobs }: Readonly<Props>) {
     },
     {
       title: '耗时', dataIndex: 'durationMs', width: 96, align: 'right',
-      render: (v: number | null, record: CronJobRecentLog) => (record.status === 'running' ? '运行中' : formatDuration(v)),
+      render: (v: number | null, record: CronJobRecentLog) => (record.status === 'running' ? '运行中' : formatDurationMs(v)),
     },
     {
       title: '执行次数', dataIndex: 'executionCount', width: 130, align: 'right',

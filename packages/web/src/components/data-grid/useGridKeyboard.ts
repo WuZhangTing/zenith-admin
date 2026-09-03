@@ -1,10 +1,7 @@
 import type React from 'react';
 import { useCallback } from 'react';
 import type { CellPos, SelectionAction, SelectionState } from './types';
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
-}
+import { clamp } from '@zenith/shared/core';
 
 interface KeyboardOptions {
   rowCount: number;

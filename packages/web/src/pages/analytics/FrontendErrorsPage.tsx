@@ -45,7 +45,6 @@ import {
   StatGrid,
 } from '@/components/charts';
 import AppModal from '@/components/AppModal';
-import { formatBytesMb as formatBytes } from '@/utils/format';
 import type { ErrorAlertCondition, ErrorAlertLog, ErrorAlertRule, ErrorBreadcrumb, ErrorEvent, ErrorGroup, ErrorLevel, ErrorStatus, FrontendErrorType, SourceMapItem, AnalyticsEnvironment } from '@zenith/shared/analytics';
 import { SOURCE_MAP_MAX_BYTES } from '@zenith/shared/analytics';
 import { NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
@@ -79,6 +78,7 @@ import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text, Title, Paragraph } = Typography;
 

@@ -6,6 +6,7 @@ import { httpGet } from '../../lib/http-client';
 import { HTTPException } from 'hono/http-exception';
 import type { ChatLinkPreview, ChatMessage, ChatMessageExtra, ChatMessageType } from '@zenith/shared/chat';
 import { mapChatMessage, fetchUserBrief, listConversationMemberIds } from './chat-shared';
+import { escapeRegExp } from '@zenith/shared/core';
 
 const IMAGE_EXT_RE = /\.(?:png|jpe?g|gif|webp|bmp|svg)(\?.*)?$/i;
 
@@ -82,10 +83,6 @@ function stripTags(input: string): string {
 }
 
 /** 转义字符串中的正则元字符，防止将外部值拼入 RegExp 时产生注入或 ReDoS */
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
-}
-
 function pickMeta(html: string, attrs: Array<{ key: string; value: string }>): string | null {
   for (const { key, value } of attrs) {
     const k = escapeRegExp(key);

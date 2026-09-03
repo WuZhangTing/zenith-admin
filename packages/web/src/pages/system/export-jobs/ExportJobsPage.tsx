@@ -10,8 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { formatDateTime } from '@/utils/date';
-import { formatBytesMb } from '@/utils/format';
-import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { EMPTY_PLACEHOLDER, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   exportJobKeys,
   useBatchDeleteExportJobs,
@@ -28,6 +27,7 @@ import { KeywordInput } from '@/components/search-filters';
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
+import { formatBytes } from '@zenith/shared/core';
 
 interface SearchParams {
   entity: string;
@@ -69,11 +69,6 @@ const statusTagMap = {
   cancelled: { color: 'grey', label: '已取消' },
   expired: { color: 'orange', label: '已过期' },
 } as const satisfies Record<ExportJobStatus, { color: 'blue' | 'cyan' | 'green' | 'red' | 'grey' | 'orange'; label: string }>;
-
-function formatFileSize(size: number | null) {
-  if (size == null) return '-';
-  return formatBytesMb(size);
-}
 
 function renderProgress(record: ExportJob) {
   if (record.status === 'pending') return <Typography.Text type="tertiary">排队中</Typography.Text>;
@@ -224,7 +219,7 @@ export default function ExportJobsPage() {
     { title: '格式', dataIndex: 'format', width: 80, render: (value: ExportJobFormat) => value.toUpperCase() },
     { title: '模式', dataIndex: 'executionMode', width: 90, render: (value: string) => (value === 'sync' ? '同步' : '异步') },
     { title: '进度', dataIndex: 'rowCount', width: 120, render: (_: number | null, record: ExportJob) => renderProgress(record) },
-    { title: '大小', dataIndex: 'fileSize', width: 110, align: 'right', render: formatFileSize },
+    { title: '大小', dataIndex: 'fileSize', width: 110, align: 'right', render: (size: number | null) => (size == null ? EMPTY_PLACEHOLDER : formatBytes(size)) },
     {
       title: '安全',
       dataIndex: 'raw',

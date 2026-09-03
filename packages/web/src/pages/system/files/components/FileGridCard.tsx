@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Checkbox, Dropdown, Spin, Tooltip } from '@douyinfe/semi-ui';
 import type { ManagedFile } from '@zenith/shared/platform';
-import { formatFileSize, getFileTypeIcon, canPreviewFile } from '@/utils/file-utils';
+import { getFileTypeIcon, canPreviewFile } from '@/utils/file-utils';
 import { confirmDelete } from '@/utils/confirm';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
+import { formatBytes } from '@zenith/shared/core';
 import '../FilesPage.css';
 
 export interface FileGridCardProps {
@@ -76,7 +77,7 @@ export function FileGridCard({
             <div className="files-grid-card__name">{file.originalName}</div>
           </Tooltip>
           <div className="files-grid-card__meta">
-            <span>{formatFileSize(file.size)}</span>
+            <span>{formatBytes(file.size)}</span>
           </div>
         </div>
       </div>

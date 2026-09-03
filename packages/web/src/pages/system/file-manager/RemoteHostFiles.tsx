@@ -7,7 +7,6 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import PageLoading from '@/components/PageLoading';
 import { confirmDelete } from '@/utils/confirm';
-import { formatBytes } from '@/utils/format';
 import { request } from '@/utils/request';
 import {
   useHostFileContent,
@@ -18,6 +17,7 @@ import {
   type SftpEntry,
 } from '@/hooks/queries/terminal-files';
 import { permStringToOctal } from './fs-utils';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 

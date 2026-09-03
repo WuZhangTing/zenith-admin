@@ -16,7 +16,6 @@ import { useEditModal } from '@/hooks/useEditModal';
 import { abortSubmit } from '@/lib/abort-submit';
 import { confirmDanger, confirmDelete } from '@/utils/confirm';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { formatBytesGb } from '@/utils/format';
 import {
   useDeleteOpsHost,
   useImportOpsHost,
@@ -29,6 +28,7 @@ import {
   useTestOpsHost,
 } from '@/hooks/queries/ops-hosts';
 import { useSshProfiles } from '@/hooks/queries/terminal';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -381,13 +381,13 @@ export default function HostsPage() {
                       {
                         key: '内存',
                         value: detail.snapshot.memTotalBytes
-                          ? `${formatBytesGb(detail.snapshot.memUsedBytes ?? 0)} / ${formatBytesGb(detail.snapshot.memTotalBytes)} (${detail.snapshot.memUsagePercent ?? '—'}%)`
+                          ? `${formatBytes(detail.snapshot.memUsedBytes ?? 0)} / ${formatBytes(detail.snapshot.memTotalBytes)} (${detail.snapshot.memUsagePercent ?? '—'}%)`
                           : '—',
                       },
                       {
                         key: '根磁盘',
                         value: detail.snapshot.diskTotalBytes
-                          ? `${formatBytesGb(detail.snapshot.diskUsedBytes ?? 0)} / ${formatBytesGb(detail.snapshot.diskTotalBytes)} (${detail.snapshot.diskUsagePercent ?? '—'}%)`
+                          ? `${formatBytes(detail.snapshot.diskUsedBytes ?? 0)} / ${formatBytes(detail.snapshot.diskTotalBytes)} (${detail.snapshot.diskUsagePercent ?? '—'}%)`
                           : '—',
                       },
                     ]}

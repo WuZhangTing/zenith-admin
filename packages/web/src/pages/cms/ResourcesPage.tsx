@@ -30,18 +30,13 @@ import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { abortSubmit } from '@/lib/abort-submit';
+import { formatBytes } from '@zenith/shared/core';
 
 const TYPE_COLORS: Record<CmsResourceType, 'blue' | 'purple' | 'cyan' | 'orange' | 'grey'> = {
   image: 'blue', video: 'purple', audio: 'cyan', document: 'orange', other: 'grey',
 };
 
 const REFERENCE_KIND_LABELS = CMS_RESOURCE_OWNER_TYPE_LABELS;
-
-function formatSize(bytes: number): string {
-  if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${bytes} B`;
-}
 
 function foldersToTree(folders: CmsResourceFolder[]): TreeNodeData[] {
   return folders.map((folder) => ({
@@ -388,7 +383,7 @@ export default function ResourcesPage() {
       title: '尺寸', dataIndex: 'width', width: 110,
       render: (_: number | null, record: CmsResource) => (record.width && record.height ? `${record.width}×${record.height}` : '-'),
     },
-    { title: '大小', dataIndex: 'size', width: 100, align: 'right', render: (v: number) => formatSize(v) },
+    { title: '大小', dataIndex: 'size', width: 100, align: 'right', render: (v: number) => formatBytes(v) },
     {
       title: '引用数', dataIndex: 'refCount', width: 90, align: 'right',
       render: (v: number | undefined) => (v ? <Tag size="small" color="blue">{v}</Tag> : <Tag size="small" color="grey">孤立</Tag>),

@@ -20,6 +20,7 @@ import {
 import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPES, CMS_TITLE_STYLE_COLORS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsModelField, CmsEditLock, CmsTextCheckResult, CmsContentType, CmsAlbumImage, CmsContentAttachment } from '@zenith/shared/cms';
 import { useCmsLinkPicker } from './CmsLinkInput';
+import { formatBytes } from '@zenith/shared/core';
 import './ContentEditPage.css';
 
 // 富文本引擎（wangeditor）压缩后约 266 KB。静态导入会阻塞整个编辑页 chunk 的加载，
@@ -42,13 +43,6 @@ const editorLoadingFallback = (
 
 const AUTO_SAVE_INTERVAL_MS = 30_000;
 const EDIT_LOCK_HEARTBEAT_MS = 30_000;
-
-/** 附件体积展示（KB/MB 保留一位小数） */
-function formatAttachmentSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
 
 function channelsToTree(nodes: CmsChannel[]): TreeNodeData[] {
   return nodes.map((n) => ({
@@ -825,7 +819,7 @@ export default function ContentEditPage() {
                           style={{ flex: 1, minWidth: 180 }}
                         />
                         <Typography.Text type="tertiary" size="small" style={{ flexShrink: 0 }}>
-                          {att.size > 0 ? formatAttachmentSize(att.size) : '—'}
+                          {att.size > 0 ? formatBytes(att.size) : '—'}
                         </Typography.Text>
                         <Button size="small" theme="borderless" disabled={i === 0 || isReadOnly}
                           onClick={() => { setAttachments((l) => { const n = [...l]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n.map((x, xi) => ({ ...x, sort: xi })); }); dirtyRef.current = true; }}>上移</Button>

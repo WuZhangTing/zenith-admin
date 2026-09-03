@@ -8,10 +8,10 @@ import {
 import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { RefreshButton } from '@/components/toolbar-controls';
 import PageLoading from '@/components/PageLoading';
-import { formatBytesGb } from '@/utils/format';
 import { useOpsOverview, type OpsOverview, type OpsOverviewSection } from '@/hooks/queries/ops-overview';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -213,7 +213,7 @@ export default function OpsOverviewPage() {
         <StatCard
           title="内存使用率"
           value={host ? `${host.memUsagePercent}%` : '—'}
-          sub={host ? `${formatBytesGb(host.memUsed)} / ${formatBytesGb(host.memTotal)}` : undefined}
+          sub={host ? `${formatBytes(host.memUsed)} / ${formatBytes(host.memTotal)}` : undefined}
           icon={<MemoryStick size={19} />}
           accent={usageAccent(host?.memUsagePercent)}
           onClick={() => navigate('/system/monitor')}
@@ -221,7 +221,7 @@ export default function OpsOverviewPage() {
         <StatCard
           title="主磁盘"
           value={host?.diskUsagePercent != null ? `${host.diskUsagePercent}%` : '—'}
-          sub={host?.diskTotal != null ? `${formatBytesGb(host.diskUsed ?? 0)} / ${formatBytesGb(host.diskTotal)}` : undefined}
+          sub={host?.diskTotal != null ? `${formatBytes(host.diskUsed ?? 0)} / ${formatBytes(host.diskTotal)}` : undefined}
           icon={<DiskIcon size={19} />}
           accent={usageAccent(host?.diskUsagePercent)}
           onClick={() => navigate('/system/monitor')}

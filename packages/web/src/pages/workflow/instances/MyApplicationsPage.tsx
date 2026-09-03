@@ -17,6 +17,7 @@ import {
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ExternalLink, Megaphone, Plus, Undo2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { escapeHtml } from '@zenith/shared/core';
 import type { WorkflowDefinition, WorkflowInstance } from '@zenith/shared/workflow';
 import { buildWorkflowSummaryItems } from '@zenith/shared/workflow';
 import { formatDateTime } from '@/utils/date';
@@ -57,10 +58,6 @@ import { confirmDelete } from '@/utils/confirm';
 const TASK_STATUS_TEXT: Record<string, string> = WORKFLOW_TASK_STATUS_LABELS;
 
 const LAYOUT_ONLY_TYPES = new Set(['divider', 'description', 'group', 'row']);
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
 
 function buildPrintHtml(instance: WorkflowInstance): string {
   const statusText = INSTANCE_STATUS_MAP[instance.status]?.text ?? instance.status;

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useReducer } from 'react';
 import type { CellPos, SelectionAction, SelectionSnapshot, SelectionState } from './types';
+import { clamp } from '@zenith/shared/core';
 
 export const EMPTY_SELECTION: SelectionState = {
   anchor: null,
@@ -11,10 +12,6 @@ export const EMPTY_SELECTION: SelectionState = {
 
 export function cellKey(pos: CellPos): string {
   return `${pos.row}:${pos.col}`;
-}
-
-function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
 }
 
 function samePos(a: CellPos | null, b: CellPos | null): boolean {

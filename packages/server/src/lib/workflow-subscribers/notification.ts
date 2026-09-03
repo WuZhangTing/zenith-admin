@@ -22,7 +22,7 @@ import type {
 import type { WorkflowNotifyChannels } from '@zenith/shared/workflow';
 import { db } from '../../db';
 import { workflowInstances } from '../../db/schema';
-import { escapeHtml } from '../html-escape';
+import { escapeHtml } from '@zenith/shared/core';
 import { notify } from '../../services/messaging/notification-outbox.service';
 import { workflowEventBus } from '../workflow-event-bus';
 import logger from '../logger';

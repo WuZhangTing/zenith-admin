@@ -7,7 +7,8 @@ import { pageOffset } from '../../lib/pagination';
 import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { currentUserOrNull } from '../../lib/context';
-import { escapeHtml, trimNullableText } from '../../lib/text-utils';
+import { escapeHtml } from '@zenith/shared/core';
+import { trimNullableText } from '../../lib/text-utils';
 import { assertDashboardEvaluableGlobally, ensureDashboardExists, getDashboardData } from './report-dashboard.service';
 import { ensureDatasetExists } from './report-dataset.service';
 import {
@@ -39,6 +40,7 @@ import {
   buildReportFieldMetadataMap,
   isNumericReportField,
 } from './report-field-metadata';
+import { runtimeHasNumericValue } from './report-dataset-shared';
 
 type SubRowExt = ReportDashboardSubscriptionRow & {
   dashboard?: { name: string } | null;
@@ -241,18 +243,6 @@ function trendHtml(deltaPct: number | null): string {
   if (deltaPct > 0) return ` <span style="color:#f5222d">▲ ${deltaPct.toFixed(1)}%</span>`;
   if (deltaPct < 0) return ` <span style="color:#52c41a">▼ ${Math.abs(deltaPct).toFixed(1)}%</span>`;
   return ' <span style="color:#8c8c8c">— 持平</span>';
-}
-
-function runtimeHasNumericValue(rows: Record<string, unknown>[], field: string): boolean {
-  return rows.some((row) => {
-    const value = row[field];
-    if (typeof value === 'number') return Number.isFinite(value);
-    if (typeof value === 'string' && value.trim()) {
-      const parsed = Number(value.trim());
-      return Number.isFinite(parsed);
-    }
-    return false;
-  });
 }
 
 async function buildSummary(row: ReportDashboardSubscriptionRow): Promise<{

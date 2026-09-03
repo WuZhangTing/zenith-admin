@@ -172,3 +172,16 @@ export async function recordDatasetExecutionLog(input: {
 function rowTenantId(row: { tenantId?: number | null }): number | null {
   return row.tenantId ?? currentUserOrNull()?.tenantId ?? null;
 }
+
+/** 结果集中该字段是否存在可解析为有限数的值（数值或数值字符串） */
+export function runtimeHasNumericValue(rows: Record<string, unknown>[], field: string): boolean {
+  return rows.some((row) => {
+    const value = row[field];
+    if (typeof value === 'number') return Number.isFinite(value);
+    if (typeof value === 'string' && value.trim()) {
+      const parsed = Number(value.trim());
+      return Number.isFinite(parsed);
+    }
+    return false;
+  });
+}

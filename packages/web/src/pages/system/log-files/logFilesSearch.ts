@@ -1,3 +1,4 @@
+import { escapeRegExp } from '@zenith/shared/core';
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 
 export interface MatchRange {
@@ -24,10 +25,6 @@ export interface SearchOptions {
   regex?: boolean;
   /** 区分大小写 */
   caseSensitive?: boolean;
-}
-
-export function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 /** 把关键词编译为全局匹配正则；空关键词或无效正则返回 null */

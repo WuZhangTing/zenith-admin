@@ -10,7 +10,7 @@ import type { NotificationChannelOptions, NotificationRecipient } from '@zenith/
 import { db } from '../../../db';
 import { emailSendLogs, members, users } from '../../../db/schema';
 import { sendMail } from '../../email';
-import { escapeHtml } from '../../html-escape';
+import { escapeHtml } from '@zenith/shared/core';
 import { buildUnsubscribeUrl } from '../unsubscribe';
 import type { DeliveryContext, DeliveryResult, NotificationChannelAdapter } from '../types';
 

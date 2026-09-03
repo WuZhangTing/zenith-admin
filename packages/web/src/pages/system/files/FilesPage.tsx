@@ -8,7 +8,7 @@ import { FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { downloadBlob } from '@/utils/download';
-import { formatFileSize, getFileTypeIcon, fetchManagedFileBlob, getFileFullUrl } from '@/utils/file-utils';
+import { getFileTypeIcon, fetchManagedFileBlob, getFileFullUrl } from '@/utils/file-utils';
 import { buildManagedFileActions } from '@/utils/managed-file-actions';
 import { chunkedUpload, CHUNK_SIZE } from '@/utils/chunked-upload';
 import { FilePreviewLayer } from '@/components/FilePreviewLayer';
@@ -33,6 +33,7 @@ import './FilesPage.css';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 import { request } from '@/utils/request';
+import { formatBytes } from '@zenith/shared/core';
 const { Text } = Typography;
 
 interface UploadItem { uid: string; name: string; size: number; progress: number; status: 'pending' | 'uploading' | 'success' | 'error'; errorMsg?: string }
@@ -302,7 +303,7 @@ export default function FilesPage() {
       dataIndex: 'size',
       width: 100,
       align: 'right' as const,
-      render: (size: number) => formatFileSize(size),
+      render: (size: number) => formatBytes(size),
     },
     dateTimeColumn('上传时间', 'createdAt'),
     {
@@ -521,7 +522,7 @@ export default function FilesPage() {
                   </Typography.Text>
                 </Space>
                 <Space spacing={6} style={{ flexShrink: 0, marginLeft: 8 }}>
-                  <Typography.Text type="tertiary" size="small">{formatFileSize(item.size)}</Typography.Text>
+                  <Typography.Text type="tertiary" size="small">{formatBytes(item.size)}</Typography.Text>
                   {item.status === 'uploading' && (
                     <Typography.Text size="small">{item.progress}%</Typography.Text>
                   )}
@@ -571,7 +572,7 @@ export default function FilesPage() {
                 { key: '文件名', value: displayedDetailFile.originalName },
                 { key: '存储服务', value: displayedDetailFile.storageName },
                 { key: 'MIME 类型', value: displayedDetailFile.mimeType || '—' },
-                { key: '文件大小', value: formatFileSize(displayedDetailFile.size) },
+                { key: '文件大小', value: formatBytes(displayedDetailFile.size) },
                 ...(imageResolution ? [{ key: '分辨率', value: `${imageResolution.width} × ${imageResolution.height} px` }] : []),
                 { key: '上传人', value: displayedDetailFile.uploaderName || '—' },
                 { key: '对象键', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{displayedDetailFile.objectKey}</Text> },

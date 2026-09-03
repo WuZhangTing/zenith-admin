@@ -16,7 +16,7 @@ import { Folder, ChevronLeft, ChevronRight, LayoutGrid, List as ListIcon } from 
 import type { FileStorageConfig, FolderEntry, ManagedFile } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
-import { formatFileSize, getFileFullUrl } from '@/utils/file-utils';
+import { getFileFullUrl } from '@/utils/file-utils';
 import { buildManagedFileActions } from '@/utils/managed-file-actions';
 import { renderEllipsis } from '@/utils/table-columns';
 import { copyTextWithToast } from '@/utils/clipboard';
@@ -30,6 +30,7 @@ import { FileGridCard } from '../files/components/FileGridCard';
 import { FileNameCell } from '@/components/FileNameCell';
 import { useDeleteFile, useFileDetail } from '@/hooks/queries/files';
 import { useStorageBrowse } from '@/hooks/queries/file-storage-configs';
+import { formatBytes } from '@zenith/shared/core';
 import './StorageFileBrowser.css';
 
 const { Text } = Typography;
@@ -153,7 +154,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
       align: 'right' as const,
       render: (_: unknown, record: ManagedFile | FolderEntry) => {
         if (!('id' in record)) return <span className="table-cell-placeholder">—</span>;
-        return formatFileSize(record.size);
+        return formatBytes(record.size);
       },
     },
     {
@@ -402,7 +403,7 @@ export default function StorageFileBrowser({ config, onClose }: Readonly<Storage
                 { key: '文件名', value: displayedDetailFile.originalName },
                 { key: '存储服务', value: displayedDetailFile.storageName },
                 { key: 'MIME 类型', value: displayedDetailFile.mimeType || '—' },
-                { key: '文件大小', value: formatFileSize(displayedDetailFile.size) },
+                { key: '文件大小', value: formatBytes(displayedDetailFile.size) },
                 { key: '上传人', value: displayedDetailFile.uploaderName || '—' },
                 { key: '对象键', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{displayedDetailFile.objectKey}</Text> },
                 { key: '访问链接', value: <Text copyable style={{ fontSize: 12, wordBreak: 'break-all' }}>{getFileFullUrl(displayedDetailFile.url)}</Text> },

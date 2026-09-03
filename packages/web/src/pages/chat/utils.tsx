@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatAssetMeta, ChatMessageExtra } from '@zenith/shared/chat';
+import { escapeRegExp } from '@zenith/shared/core';
 
 export const MESSAGE_TIME_GROUP_GAP_MS = 5 * 60 * 1000;
 
@@ -105,10 +106,6 @@ export function renderTextWithLinks(content: string, isSelf: boolean) {
     }
     return <span key={`${part}-${idx}`}>{part}</span>;
   });
-}
-
-export function escapeRegExp(value: string): string {
-  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 }
 
 export function renderTextWithMentions(content: string, isSelf: boolean, mentions?: Array<{ nickname: string }> | null) {

@@ -11,6 +11,7 @@ import { aiUsageKeys, useAiUsageStats } from '@/hooks/queries/ai-usage';
 import type { AiUsageByModel, AiUsageByUser } from '@/hooks/queries/ai-usage';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
+import { formatDurationMs } from '@/utils/format';
 
 const { Text } = Typography;
 
@@ -30,11 +31,6 @@ function formatNumber(value: number | null | undefined) {
 function formatCostYuan(fen: number | null | undefined) {
   if (fen == null) return '—';
   return `¥${(fen / 100).toFixed(2)}`;
-}
-
-function formatMs(ms: number | null | undefined) {
-  if (ms == null) return '—';
-  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
 }
 
 function shortDate(date: string) {
@@ -81,7 +77,7 @@ export default function AiUsagePage() {
     { title: '输入Token', dataIndex: 'tokensInput', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
     { title: '输出Token', dataIndex: 'tokensOutput', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
     { title: '总Token', dataIndex: 'totalTokens', width: 120, align: 'right', render: (value: number) => formatNumber(value) },
-    { title: '首字延迟', dataIndex: 'avgTtftMs', width: 100, align: 'right', render: (value: number | null) => formatMs(value) },
+    { title: '首字延迟', dataIndex: 'avgTtftMs', width: 100, align: 'right', render: (value: number | null) => formatDurationMs(value) },
     { title: '预估成本', dataIndex: 'costFen', width: 110, render: (value: number | null) => formatCostYuan(value) },
   ];
 
@@ -183,7 +179,7 @@ export default function AiUsagePage() {
 
               <StatCard
                 title="平均首字延迟"
-                value={formatMs(stats?.overview.avgTtftMs)}
+                value={formatDurationMs(stats?.overview.avgTtftMs)}
                 icon={<Gauge size={20} />}
                 accent="var(--semi-color-data-4)"
               />

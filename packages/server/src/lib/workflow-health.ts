@@ -11,6 +11,7 @@ import type { WorkflowDefinitionBranchCoverageItem, WorkflowDefinitionHealthChec
 import { validateFlowData } from './workflow-engine';
 import { validateExpression } from './workflow-expression';
 import { formatDateTime } from './datetime';
+import { clamp } from '@zenith/shared/core';
 
 /** 审批人/条件表达式可引用的根变量（form=表单字段，starter=发起人上下文） */
 const EXPR_ROOTS = ['form', 'starter'];
@@ -106,8 +107,9 @@ function isApproverResolvable(cfg: WorkflowNodeConfig): boolean {
   }
 }
 
-function clamp(n: number): number {
-  return Math.max(0, Math.min(100, Math.round(n)));
+/** 健康分：四舍五入后限制在 0..100 */
+function toScore(n: number): number {
+  return clamp(Math.round(n), 0, 100);
 }
 
 export function analyzeWorkflowHealth(
@@ -134,7 +136,7 @@ export function analyzeWorkflowHealth(
   // ── structure ──
   const validation = validateFlowData(flowData);
   const structureIssues: WorkflowDefinitionHealthIssue[] = validation.errors.map((e) => issue('critical', e, null));
-  const structureScore = validation.valid ? 100 : clamp(100 - structureIssues.length * 15);
+  const structureScore = validation.valid ? 100 : toScore(100 - structureIssues.length * 15);
   const structureCheck: WorkflowDefinitionHealthCheckItem = {
     key: 'structure', title: '结构合法性', weight: 0.30, score: structureScore,
     status: validation.valid ? 'pass' : 'fail',
@@ -169,7 +171,7 @@ export function analyzeWorkflowHealth(
       }
     }
   }
-  const approverScore = assigneeNodes.length === 0 ? 100 : clamp((resolvable / assigneeNodes.length) * 100);
+  const approverScore = assigneeNodes.length === 0 ? 100 : toScore((resolvable / assigneeNodes.length) * 100);
   const approverCheck: WorkflowDefinitionHealthCheckItem = {
     key: 'approver', title: '审批人可解析性', weight: 0.25, score: approverScore,
     status: statusFromIssues(approverIssues),
@@ -228,7 +230,7 @@ export function analyzeWorkflowHealth(
       branchIssues.push(issue('warning', `节点「${n.data.label || n.data.key}」是死路：没有后继连线，流程到此中断`, '连接到后续节点或结束节点', n));
     }
   }
-  const branchScore = clamp(100 - branchIssues.filter((i) => i.severity === 'critical').length * 30 - branchIssues.filter((i) => i.severity === 'warning').length * 12 - branchIssues.filter((i) => i.severity === 'info').length * 4);
+  const branchScore = toScore(100 - branchIssues.filter((i) => i.severity === 'critical').length * 30 - branchIssues.filter((i) => i.severity === 'warning').length * 12 - branchIssues.filter((i) => i.severity === 'info').length * 4);
   const branchCheck: WorkflowDefinitionHealthCheckItem = {
     key: 'branch', title: '分支覆盖', weight: 0.20, score: branchScore,
     status: statusFromIssues(branchIssues),
@@ -243,7 +245,7 @@ export function analyzeWorkflowHealth(
       timeoutIssues.push(issue('info', `节点「${n.data.label || n.data.key}」未配置超时/SLA 提醒`, '配置超时时长，便于超时预警与自动催办', n));
     }
   }
-  const timeoutScore = clamp(100 - timeoutIssues.length * 5);
+  const timeoutScore = toScore(100 - timeoutIssues.length * 5);
   const timeoutCheck: WorkflowDefinitionHealthCheckItem = {
     key: 'timeout', title: '超时/SLA 策略', weight: 0.10, score: timeoutScore,
     status: statusFromIssues(timeoutIssues),
@@ -318,7 +320,7 @@ export function analyzeWorkflowHealth(
     }
   }
 
-  const exprScore = clamp(100 - exprIssues.filter((i) => i.severity === 'critical').length * 30 - exprIssues.filter((i) => i.severity === 'warning').length * 12);
+  const exprScore = toScore(100 - exprIssues.filter((i) => i.severity === 'critical').length * 30 - exprIssues.filter((i) => i.severity === 'warning').length * 12);
   const expressionCheck: WorkflowDefinitionHealthCheckItem = {
     key: 'expression', title: '表达式与字段引用', weight: 0.15, score: exprScore,
     status: statusFromIssues(exprIssues),
@@ -330,7 +332,7 @@ export function analyzeWorkflowHealth(
 
   const checks = [structureCheck, approverCheck, branchCheck, timeoutCheck, expressionCheck];
   const totalWeight = checks.reduce((s, c) => s + c.weight, 0);
-  const score = clamp(checks.reduce((s, c) => s + c.score * c.weight, 0) / totalWeight);
+  const score = toScore(checks.reduce((s, c) => s + c.score * c.weight, 0) / totalWeight);
   const grade: WorkflowDefinitionHealthReport['grade'] = score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : 'D';
 
   return { score, grade, valid: validation.valid, checks, branchCoverage, generatedAt: formatDateTime(new Date()) };

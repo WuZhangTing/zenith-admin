@@ -6,14 +6,6 @@ import { request } from '@/utils/request';
 
 export { guessMimeTypeFromName, resolveFileMimeType } from '@/utils/file-mime';
 
-/** 将字节数格式化为可读字符串（B / KB / MB / GB）*/
-export function formatFileSize(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 * 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
-  return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`;
-}
-
 /** 将相对路径拼接为完整可访问 URL */
 export function getFileFullUrl(url: string): string {
   if (/^https?:\/\//.test(url)) return url;

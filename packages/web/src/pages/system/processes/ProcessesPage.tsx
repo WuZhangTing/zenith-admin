@@ -16,7 +16,6 @@ import AppModal from '@/components/AppModal';
 import { request } from '@/utils/request';
 import { readSseStream } from '@/utils/streaming';
 import { formatDateTime } from '@/utils/date';
-import { formatBytesGb as formatBytes } from '@/utils/format';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { ProcessInfo, ProcessListResponse } from '@zenith/shared/ops';
@@ -25,6 +24,7 @@ import { dateTimeColumn } from '@/utils/table-columns';
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
 import { KeywordInput } from '@/components/search-filters';
+import { formatBytes } from '@zenith/shared/core';
 
 // 自定义进程表格 CSS
 const processesTableStyle = '';

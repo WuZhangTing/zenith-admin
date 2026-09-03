@@ -4,10 +4,10 @@ import { Button, Input, SideSheet, Space, Tag, Typography } from '@douyinfe/semi
 import { Icon } from '@iconify/react';
 import { useTerminalChecksum, useTerminalDirSize } from '@/hooks/queries/terminal-files';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
-import { formatBytes as formatSize } from '@/utils/format';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { permStringToOctal } from '../fs-utils';
 import type { FsEntry } from '../types';
+import { formatBytes } from '@zenith/shared/core';
 
 type ChecksumAlgo = 'md5' | 'sha1' | 'sha256';
 
@@ -84,7 +84,7 @@ export default function FmPropsSheet({ entry, onClose, initialChecksumAlgo }: Re
               </Typography.Text>
             ),
           },
-          ...(!isDir ? [{ label: '大小', value: `${formatSize(entry.size)}  (${entry.size.toLocaleString()} 字节)` }] : []),
+          ...(!isDir ? [{ label: '大小', value: `${formatBytes(entry.size)}  (${entry.size.toLocaleString()} 字节)` }] : []),
           ...(isDir ? [{
             label: '大小',
             value: (() => {
@@ -105,7 +105,7 @@ export default function FmPropsSheet({ entry, onClose, initialChecksumAlgo }: Re
               }
               return (
                 <Typography.Text size="small">
-                  {formatSize(dirSize.size)}（{dirSize.files.toLocaleString()} 个文件，{dirSize.dirs.toLocaleString()} 个目录{dirSize.truncated ? '，已达统计上限' : ''}）
+                  {formatBytes(dirSize.size)}（{dirSize.files.toLocaleString()} 个文件，{dirSize.dirs.toLocaleString()} 个目录{dirSize.truncated ? '，已达统计上限' : ''}）
                 </Typography.Text>
               );
             })(),

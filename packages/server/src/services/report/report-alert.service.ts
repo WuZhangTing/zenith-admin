@@ -8,7 +8,8 @@ import { buildWhere, keywordCondition } from '../../lib/where-helpers';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { currentUserOrNull } from '../../lib/context';
-import { escapeHtml, trimNullableText } from '../../lib/text-utils';
+import { escapeHtml } from '@zenith/shared/core';
+import { trimNullableText } from '../../lib/text-utils';
 import { assertDatasetEvaluableGlobally, ensureDatasetExists, getDatasetData } from './report-dataset.service';
 import { ensureReportMetricExists, evaluateReportMetric } from './report-metric.service';
 import {
@@ -37,6 +38,7 @@ import {
   buildReportFieldMetadataMap,
   isNumericReportField,
 } from './report-field-metadata';
+import { runtimeHasNumericValue } from './report-dataset-shared';
 
 type AlertRowExt = ReportAlertRuleRow & {
   dataset?: { name: string } | null;
@@ -255,18 +257,6 @@ export async function batchSetAlertEnabled(ids: number[], enabled: boolean): Pro
     }).where(eq(reportAlertRules.id, row.id));
   }
   return rows.length;
-}
-
-function runtimeHasNumericValue(rows: Record<string, unknown>[], field: string): boolean {
-  return rows.some((row) => {
-    const value = row[field];
-    if (typeof value === 'number') return Number.isFinite(value);
-    if (typeof value === 'string' && value.trim()) {
-      const parsed = Number(value.trim());
-      return Number.isFinite(parsed);
-    }
-    return false;
-  });
 }
 
 export function evaluateGroups(

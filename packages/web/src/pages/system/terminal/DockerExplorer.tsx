@@ -30,6 +30,7 @@ import { getFileIcon } from '@/utils/fileIcons';
 import { fetchDockerDir, useDockerExplorerAction } from '@/hooks/queries/terminal-files';
 import { useDockerContainers, useDockerFetchStats } from '@/hooks/queries/docker';
 import { MetricMeter } from '@/components/data-viz/MetricMeter';
+import { formatBytes } from '@zenith/shared/core';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -85,18 +86,6 @@ function fileIcon(name: string, type: string): React.ReactNode {
   const iconId = getFileIcon(name);
   if (iconId) return <Icon icon={iconId} width={14} height={14} style={{ flexShrink: 0 }} />;
   return <File size={14} style={{ color: 'var(--semi-color-text-3)', flexShrink: 0 }} />;
-}
-
-function formatBytes(bytes: number | undefined): string {
-  if (!bytes || bytes <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = bytes;
-  let unitIndex = 0;
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex += 1;
-  }
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
 }
 
 function formatPercent(value: number): string {

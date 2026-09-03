@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { clamp } from '@zenith/shared/core';
 import './bars.css';
 
 export type MetricMeterTone = 'primary' | 'success' | 'warning' | 'danger' | 'neutral';
@@ -17,11 +18,6 @@ export interface MetricMeterProps {
   radius?: CSSProperties['borderRadius'];
   className?: string;
   style?: CSSProperties;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
 }
 
 export function MetricMeter({

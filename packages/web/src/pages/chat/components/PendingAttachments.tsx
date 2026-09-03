@@ -1,7 +1,8 @@
 import { Button } from '@douyinfe/semi-ui';
 import { X } from 'lucide-react';
-import { formatFileSize, getFileTypeIcon } from '@/utils/file-utils';
+import { getFileTypeIcon } from '@/utils/file-utils';
 import type { PendingFile, PendingImage, Setter } from '../types';
+import { formatBytes } from '@zenith/shared/core';
 
 /** 待发送附件条：图片缩略图 + 文件卡片（自 ChatPage 原样搬移） */
 export function PendingAttachments({
@@ -88,7 +89,7 @@ export function PendingAttachments({
                     <span style={{ display: 'flex', flexShrink: 0 }}>{getFileTypeIcon(item.file.type, 18, item.file.name)}</span>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.file.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>{formatFileSize(item.file.size)}</div>
+                      <div style={{ fontSize: 11, color: 'var(--semi-color-text-3)' }}>{formatBytes(item.file.size)}</div>
                     </div>
                     <Button
                       size="small"

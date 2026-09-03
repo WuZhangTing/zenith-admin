@@ -214,7 +214,6 @@ isGalleryImageFile(mimeType?, fileName?): boolean
 getFileTypeIcon(mimeType?, iconSize?, fileName?): ReactNode
 guessMimeTypeFromName(name): string | null
 resolveFileMimeType(mimeType, fileName?): string | null
-formatFileSize(bytes): string
 fetchManagedFileBlob(url): Promise<Blob>
 extractManagedFileId(url): string | null
 fetchProtectedFile(url): Promise<Blob>

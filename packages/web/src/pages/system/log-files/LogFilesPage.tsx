@@ -13,7 +13,6 @@ import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { request } from '@/utils/request';
 import { readSseStream } from '@/utils/streaming';
 import { formatDateTime } from '@/utils/date';
-import { formatFileSize } from '@/utils/file-utils';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
 import { type LogFile, useDeleteLogFile, useLogFileContent, useLogFiles } from '@/hooks/queries/log-files';
@@ -21,6 +20,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { buildSearchIndex, compileSearchPattern, computeEffectiveLevels, type LogLevel, type MatchRange, type SearchMatch } from './logFilesSearch';
 import { LogContentView, type LogContentViewHandle } from './LogContentView';
+import { formatBytes } from '@zenith/shared/core';
 
 const EMPTY_LOG_FILES: LogFile[] = [];
 const EMPTY_LINES: string[] = [];
@@ -428,7 +428,7 @@ export default function LogFilesPage() {
     const totalSize = gzFiles.reduce((sum, f) => sum + f.size, 0);
     confirmDelete({
       title: '确定要清理全部压缩日志吗？',
-      content: `共 ${gzFiles.length} 个 .gz 文件（${formatFileSize(totalSize)}），删除后无法恢复。`,
+      content: `共 ${gzFiles.length} 个 .gz 文件（${formatBytes(totalSize)}），删除后无法恢复。`,
       onOk: async () => {
         for (const file of gzFiles) {
           await deleteMutation.mutateAsync(file.name);
@@ -572,7 +572,7 @@ export default function LogFilesPage() {
                       }}>
                         {file.isGzip ? 'gz' : 'log'}
                       </span>
-                      <span>{formatFileSize(file.size)}</span>
+                      <span>{formatBytes(file.size)}</span>
                       <span>{formatDateTime(file.modifiedAt)}</span>
                     </>
                   }

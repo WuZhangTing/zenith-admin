@@ -7,11 +7,11 @@ import ConfigurableTable from '@/components/ConfigurableTable';
 import { FileNameCell } from '@/components/FileNameCell';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
-import { formatBytes as formatSize } from '@/utils/format';
 import { isArchive, isEditableFile } from '../fs-utils';
 import type { EntryActions } from '../entry-actions';
 import type { ClipOp, FsEntry, SortField, SortState } from '../types';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { formatBytes } from '@zenith/shared/core';
 
 // Table 虚拟滚动：ConfigurableTable 有工具栏（约36px）+ 表头（约37px）= 73px
 const VIRTUAL_ITEM_HEIGHT = 40;
@@ -57,7 +57,7 @@ export default function FmListView({
         );
       },
     },
-    { title: '大小', dataIndex: 'size', width: 100, align: 'right', sorter: true, sortOrder: sortState?.field === 'size' ? sortState.order : false, render: (v: number, r: FsEntry) => r.type === 'dir' ? '—' : formatSize(v) },
+    { title: '大小', dataIndex: 'size', width: 100, align: 'right', sorter: true, sortOrder: sortState?.field === 'size' ? sortState.order : false, render: (v: number, r: FsEntry) => r.type === 'dir' ? '—' : formatBytes(v) },
     dateTimeColumn('修改时间', 'mtime', { sorter: true, sortOrder: sortState?.field === 'mtime' ? sortState.order : false }),
     // Windows 下权限/属主概念不适用，隐藏对应列
     ...(isWindows ? [] : [

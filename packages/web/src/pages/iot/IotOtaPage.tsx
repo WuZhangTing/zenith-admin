@@ -31,6 +31,7 @@ import {
   useReleaseNextIotOtaBatch, useResumeIotOtaTask,
   useIotFirmwareList, useIotOtaTaskDevices, useIotOtaTaskList, useUpdateIotFirmware, useUploadIotFirmware,
 } from '@/hooks/queries/iot-ota';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -40,12 +41,6 @@ const DEVICE_STATUS_COLORS = {
   pending: 'grey', notified: 'blue', downloading: 'cyan', installing: 'indigo',
   succeeded: 'green', failed: 'red', cancelled: 'grey',
 } as const;
-
-function formatSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${bytes} B`;
-}
 
 // ─── 固件包 Tab ───────────────────────────────────────────────────────────────
 interface FirmwareSearchParams {
@@ -129,7 +124,7 @@ function FirmwaresTab({ onCreateTask }: Readonly<{ onCreateTask: (firmware: IotF
     { title: '文件名', dataIndex: 'fileName', width: 180, render: (v: string) => renderEllipsis(v) },
     {
       title: '大小', dataIndex: 'size', width: 90, align: 'right',
-      render: (v: number) => formatSize(v),
+      render: (v: number) => formatBytes(v),
     },
     copyableNoColumn('SHA256', 'sha256', { width: 150 }),
     { title: '任务数', dataIndex: 'taskCount', width: 80, align: 'right' },

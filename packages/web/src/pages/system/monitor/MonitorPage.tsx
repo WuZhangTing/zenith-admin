@@ -5,7 +5,6 @@ import { Button, Descriptions, Skeleton, Tabs, TabPane, Toast, Typography, Selec
 import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/components/charts';
 import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activity, Network, Wifi, History, Thermometer, ListTree, Download, Copy as CopyIcon, ExternalLink } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
-import { formatBytesGb as formatBytes } from '@/utils/format';
 import { request } from '@/utils/request';
 import { readSseStream } from '@/utils/streaming';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
@@ -16,6 +15,7 @@ import { dateTimeColumn } from '@/utils/table-columns';
 import { copyTextWithToast } from '@/utils/clipboard';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { formatBytes } from '@zenith/shared/core';
 const { Text } = Typography;
 
 interface EventLoopStats {

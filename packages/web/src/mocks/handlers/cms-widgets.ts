@@ -1,4 +1,5 @@
 import { http } from 'msw';
+import { escapeHtml } from '@zenith/shared/core';
 import { ok, badRequest, notFound, conflict, paginate } from '@/mocks/utils/handlers';
 import { CMS_WIDGET_HIGH_FANOUT_THRESHOLD, CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_RENDERER_LABELS } from '@zenith/shared/cms';
 import type { CmsResolvedWidget, CmsResolvedWidgetItem, CmsWidget, CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceReference } from '@zenith/shared/cms';
@@ -50,12 +51,6 @@ function resolveItems(widget: CmsWidget, draft = false): CmsResolvedWidgetItem[]
       displayDate: item.displayDate || content?.publishedAt || null,
     }];
   });
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[char]!);
 }
 
 function renderPreview(widget: CmsResolvedWidget): string {

@@ -18,12 +18,12 @@ import {
   getFileTypeIcon,
   canPreviewFile,
   fetchManagedFileBlob,
-  formatFileSize,
   isGalleryImageFile,
   resolveFileMimeType,
 } from '@/utils/file-utils';
 import { createDisplayableImageUrl } from '@/utils/image-decode';
 import FilePreviewModal from '@/components/FilePreviewModal';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 const UPLOAD_PENDING_STATUSES = new Set(['wait', 'validating', 'uploading']);
@@ -279,7 +279,7 @@ export default function FileAttachment({
         const isUploading = props.status === 'uploading' || props.status === 'wait' || props.status === 'validating';
         const isFailed = props.status === 'uploadFail';
         const rawSize = props.fileInstance?.size ?? Number(props.size);
-        const fileSize = Number.isFinite(rawSize) && rawSize > 0 ? formatFileSize(rawSize) : '';
+        const fileSize = Number.isFinite(rawSize) && rawSize > 0 ? formatBytes(rawSize) : '';
         return (
           <div
             key={props.uid}
@@ -355,7 +355,7 @@ export default function FileAttachment({
       }
 
       const item = toAttachmentItem(props);
-      const fileSize = item.file.size ? formatFileSize(item.file.size) : '';
+      const fileSize = item.file.size ? formatBytes(item.file.size) : '';
       return (
         <div
           key={props.uid}

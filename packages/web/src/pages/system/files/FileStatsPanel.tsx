@@ -11,10 +11,10 @@ import {
   StatGrid,
 } from '@/components/charts';
 import { FileImage, Video, Music, FileText, File } from 'lucide-react';
-import { formatFileSize } from '@/utils/file-utils';
 import { useFileStats } from '@/hooks/queries/files';
 import { FILE_STORAGE_PROVIDER_LABELS } from '@zenith/shared/platform';
 import { DataBar } from '@/components/data-viz/DataBar';
+import { formatBytes } from '@zenith/shared/core';
 
 const PROVIDER_LABELS: Record<string, string> = FILE_STORAGE_PROVIDER_LABELS;
 
@@ -54,7 +54,7 @@ export default function FileStatsPanel() {
     [stats],
   );
   const uploaderData = useMemo(
-    () => (stats?.uploaderStats ?? []).map((u) => ({ ...u, sizeLabel: formatFileSize(u.size) })),
+    () => (stats?.uploaderStats ?? []).map((u) => ({ ...u, sizeLabel: formatBytes(u.size) })),
     [stats],
   );
   const providerSpec = useMemo(() => makeBarSpec({
@@ -99,7 +99,7 @@ export default function FileStatsPanel() {
         {/* 汇总卡片 */}
         <StatGrid>
           <StatCard title="文件总数" value={totalFiles > 0 ? totalFiles.toLocaleString() : '—'} />
-          <StatCard title="占用空间" value={summary ? formatFileSize(summary.totalSize) : '—'} />
+          <StatCard title="占用空间" value={summary ? formatBytes(summary.totalSize) : '—'} />
           <StatCard
             title="今日新增"
             value={summary?.todayCount == null ? '—' : summary.todayCount.toLocaleString()}
@@ -132,7 +132,7 @@ export default function FileStatsPanel() {
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--semi-color-text-0)' }}>{label}</span>
                       <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--semi-color-text-0)', flexShrink: 0 }}>{count.toLocaleString()}</span>
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)', marginTop: 3 }}>{formatFileSize(size)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--semi-color-text-2)', marginTop: 3 }}>{formatBytes(size)}</div>
                   </div>
                 </div>
                 {/* 进度条 */}

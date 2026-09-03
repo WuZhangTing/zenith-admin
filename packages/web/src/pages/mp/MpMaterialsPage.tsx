@@ -10,7 +10,7 @@ import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
-import { createdAtColumn, renderEllipsis } from '../../utils/table-columns';
+import { EMPTY_PLACEHOLDER, createdAtColumn, renderEllipsis } from '../../utils/table-columns';
 import { useMpAccounts } from './useMpAccounts';
 import { MpAccountSwitcher } from './MpAccountSwitcher';
 import {
@@ -25,13 +25,7 @@ import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-co
 import { KeywordInput } from '@/components/search-filters';
 import { confirmDelete } from '@/utils/confirm';
 import { abortSubmit } from '@/lib/abort-submit';
-
-function fmtSize(bytes: number | null): string {
-  if (bytes == null) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
+import { formatBytes } from '@zenith/shared/core';
 
 interface SearchParams { filterType: MpMaterialType | undefined; keyword: string; }
 const defaultSearch: SearchParams = { filterType: undefined, keyword: '' };
@@ -103,7 +97,7 @@ export default function MpMaterialsPage() {
     { title: '名称', dataIndex: 'name', minWidth: 180, render: renderEllipsis },
     { title: '类型', dataIndex: 'type', width: 90, render: (v: MpMaterialType) => MP_MATERIAL_TYPE_LABELS[v] },
     { title: '微信 MediaID', dataIndex: 'wechatMediaId', width: 200, render: (v: string | null) => v || '— 未同步' },
-    { title: '大小', dataIndex: 'fileSize', width: 100, align: 'right' as const, render: (v: number | null) => fmtSize(v) },
+    { title: '大小', dataIndex: 'fileSize', width: 100, align: 'right' as const, render: (v: number | null) => (v == null ? EMPTY_PLACEHOLDER : formatBytes(v)) },
     createdAtColumn,
     createOperationColumn<MpMaterial>({
       width: 170,

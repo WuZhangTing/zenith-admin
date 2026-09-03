@@ -1,5 +1,5 @@
 import { Typography, List, Button } from '@douyinfe/semi-ui';
-import { getFileTypeIcon, formatFileSize, canPreviewFile } from '@/utils/file-utils';
+import { getFileTypeIcon, canPreviewFile } from '@/utils/file-utils';
 import { getMessageExtra, renderTextWithMentions } from '../utils';
 import type { ChatMessage, ChatMessageExtra, ChatCardAction } from '@zenith/shared/chat';
 import { VoiceMessage } from './VoiceMessage';
@@ -7,6 +7,7 @@ import { VideoMessage } from './VideoMessage';
 import { CardMessage } from './CardMessage';
 import { DataBar } from '@/components/data-viz/DataBar';
 import { safeHttpUrl, safeLinkUrl } from '@/utils/safe-url';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -168,7 +169,7 @@ export function MessageContent({
                 color: isSelf ? 'rgba(255,255,255,0.78)' : 'var(--semi-color-text-2)',
               }}
             >
-              {formatFileSize(asset.size)}
+              {formatBytes(asset.size)}
             </Text>
           )}
         </div>

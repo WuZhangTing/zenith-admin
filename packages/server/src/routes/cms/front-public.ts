@@ -28,7 +28,7 @@ import redis from '../../lib/redis';
 import { optionalMemberSessionMiddleware } from '../../middleware/optional-member-session';
 import { getClientIp } from '../../lib/request-helpers';
 import { hashCmsIp } from '../../services/cms/cms-visitor';
-import { escapeHtml } from '../../lib/text-utils';
+import { escapeHtml } from '@zenith/shared/core';
 import { safeReturnUrl } from '../../lib/safe-return-url';
 
 /**

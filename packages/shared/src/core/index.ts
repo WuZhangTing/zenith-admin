@@ -6,8 +6,11 @@
  */
 export * from './constants';
 export * from './enum-options';
+export * from './format';
+export * from './math';
 export * from './json-shape';
 export * from './random';
+export * from './text';
 export * from './types';
 export * from './url';
 export * from './validation';

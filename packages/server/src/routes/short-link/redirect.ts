@@ -7,6 +7,7 @@
 import { Hono } from 'hono';
 import { pathBoundRateLimit } from '../../middleware/rate-limit';
 import { getClientInfo } from '../../lib/request-helpers';
+import { escapeHtml } from '@zenith/shared/core';
 import {
   resolveShortLink,
   getLiveVisitCount,
@@ -14,12 +15,6 @@ import {
 } from '../../services/short-link/short-link-redirect.service';
 
 const CODE_PATTERN = /^[0-9A-Za-z_-]{1,32}$/;
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (ch) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string
-  ));
-}
 
 function pageShell(title: string, body: string): string {
   return `<!DOCTYPE html>

@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
 import { Button, Tooltip } from '@douyinfe/semi-ui';
 import { PanelLeft, PanelRight } from 'lucide-react';
+import { clamp } from '@zenith/shared/core';
 
 type Side = 'left' | 'right';
 
@@ -123,10 +124,6 @@ interface MasterDetailLayoutProps {
 }
 
 const STORAGE_PREFIX = 'mdLayout.';
-
-function clamp(n: number, min: number, max: number) {
-  return Math.min(Math.max(n, min), max);
-}
 
 function readPersisted(key: string | undefined): number | null {
   if (!key) return null;

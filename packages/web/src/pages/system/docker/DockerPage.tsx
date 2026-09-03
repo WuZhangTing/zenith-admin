@@ -57,6 +57,7 @@ import { confirmDelete, confirmDanger } from '@/utils/confirm';
 import { dateTimeColumn } from '@/utils/table-columns';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { formatBytes } from '@zenith/shared/core';
 // ─── Prune（清理）辅助 ──────────────────────────────────────────────────────────
 function runPrune(url: string, title: string, content: string, prune: (url: string) => Promise<PruneResultData>): void {
   confirmDelete({
@@ -97,12 +98,6 @@ const STATE_COLOR: Record<string, 'green' | 'grey' | 'orange' | 'blue' | 'red'> 
 function formatPorts(ports: PortBinding[]): string {
   const b = ports.filter((p) => p.publicPort).map((p) => `${p.publicPort}→${p.privatePort}/${p.type}`).join(', ');
   return b || '—';
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function groupByCompose(containers: ContainerInfo[]): (ContainerInfo & { children?: ContainerInfo[] })[] {

@@ -80,7 +80,6 @@ import {
   StatGrid,
 } from '@/components/charts';
 import { EMPTY_PLACEHOLDER, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
-import { formatFileSize } from '@/utils/file-utils';
 import { confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -109,6 +108,7 @@ import {
   useUnbindDevicePush,
   useUploadAppArtifact,
 } from '@/hooks/queries/app-releases';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -339,7 +339,7 @@ function ArtifactsSheet({ releaseId, onClose }: { releaseId: number | null; onCl
     { title: '文件名', dataIndex: 'fileName', minWidth: 220, render: renderEllipsis },
     {
       title: '大小', dataIndex: 'size', width: 90,
-      render: (v: number, record: AppArtifact) => (record.kind === 'external' ? EMPTY_PLACEHOLDER : formatFileSize(v)),
+      render: (v: number, record: AppArtifact) => (record.kind === 'external' ? EMPTY_PLACEHOLDER : formatBytes(v)),
     },
     { title: '下载量', dataIndex: 'downloadCount', width: 80 },
     createOperationColumn<AppArtifact>({

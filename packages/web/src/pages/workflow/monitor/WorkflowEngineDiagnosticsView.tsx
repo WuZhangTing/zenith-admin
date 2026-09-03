@@ -20,6 +20,7 @@ import {
 } from '@/hooks/queries/workflow-monitor';
 import { DataBar } from '@/components/data-viz/DataBar';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { formatDurationMs } from '@/utils/format';
 
 type TagColor = 'amber' | 'blue' | 'cyan' | 'green' | 'grey' | 'indigo' | 'light-blue' | 'light-green' | 'lime' | 'orange' | 'pink' | 'purple' | 'red' | 'teal' | 'violet' | 'yellow' | 'white';
 
@@ -132,12 +133,6 @@ function formatAge(value: number | null | undefined) {
     return `${hours} 小时 ${minutes} 分钟`;
   }
   return `${value} 分钟`;
-}
-
-function formatMs(value: number | null | undefined) {
-  if (value == null) return '—';
-  if (value < 1000) return `${value} ms`;
-  return `${(value / 1000).toFixed(1)} s`;
 }
 
 function statusColor(palette: ChartPalette, status: WorkflowEngineComponentStatus | null | undefined): string {
@@ -964,8 +959,8 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
               <GoldenTile
                 icon={<Timer size={15} color="var(--semi-color-primary)" />}
                 label="延迟 · Latency"
-                value={formatMs(t.events.avgLatencyMs)}
-                sub={`P95 ${formatMs(t.events.p95LatencyMs)} · P99 ${formatMs(t.events.p99LatencyMs)} · Apdex ${t.apdex.score != null ? t.apdex.score.toFixed(2) : '—'}`}
+                value={formatDurationMs(t.events.avgLatencyMs)}
+                sub={`P95 ${formatDurationMs(t.events.p95LatencyMs)} · P99 ${formatDurationMs(t.events.p99LatencyMs)} · Apdex ${t.apdex.score != null ? t.apdex.score.toFixed(2) : '—'}`}
               />
               <GoldenTile
                 icon={<Layers size={15} color={saturationAccent ?? 'var(--semi-color-text-2)'} />}
@@ -1035,14 +1030,14 @@ export default function WorkflowEngineDiagnosticsView({ onOpenInstanceDiagnostic
       {/* 延迟分布 + Apdex */}
       <div className="chart-grid">
         <div className="zx-panel">
-          <SectionTitle icon={<Timer size={16} color="var(--semi-color-primary)" />} title="事件处理延迟分布" desc={`P95 ${formatMs(t.events.p95LatencyMs)} · P99 ${formatMs(t.events.p99LatencyMs)}`} />
+          <SectionTitle icon={<Timer size={16} color="var(--semi-color-primary)" />} title="事件处理延迟分布" desc={`P95 ${formatDurationMs(t.events.p95LatencyMs)} · P99 ${formatDurationMs(t.events.p99LatencyMs)}`} />
           <HistogramBars buckets={t.events.latencyHistogram} color={palette.primary} />
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--semi-color-border)' }}>
             <ApdexBar data={data} palette={palette} />
           </div>
         </div>
         <div className="zx-panel">
-          <SectionTitle icon={<Zap size={16} color="var(--semi-color-primary)" />} title="触发器耗时分布" desc={`均值 ${formatMs(t.triggers.avgDurationMs)} · P95 ${formatMs(t.triggers.p95DurationMs)} · P99 ${formatMs(t.triggers.p99DurationMs)}`} />
+          <SectionTitle icon={<Zap size={16} color="var(--semi-color-primary)" />} title="触发器耗时分布" desc={`均值 ${formatDurationMs(t.triggers.avgDurationMs)} · P95 ${formatDurationMs(t.triggers.p95DurationMs)} · P99 ${formatDurationMs(t.triggers.p99DurationMs)}`} />
           <HistogramBars buckets={t.triggers.durationHistogram} color={palette.active} />
         </div>
       </div>

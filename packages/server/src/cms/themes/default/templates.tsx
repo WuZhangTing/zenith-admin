@@ -15,6 +15,7 @@ import { renderCmsWidgetHtml } from '../widgets';
 import { Breadcrumbs, MediaBlock, ModelFieldTable, Pagination } from '../_shared';
 import { defineHomeTemplate } from '../sdk';
 import type { CmsThemeContentCollection } from '../types';
+import { formatBytes } from '@zenith/shared/core';
 
 const TYPE_BADGES: Record<string, string | null> = { article: null, album: '图集', media: '视频', link: '外链' };
 
@@ -46,7 +47,7 @@ function AttachmentList({ items }: { items: CmsContentAttachment[] }) {
               {a.ext ? <span className="ext">{a.ext.toUpperCase()}</span> : null}
               <span className="name">{a.name}</span>
             </a>
-            {a.size > 0 ? <span className="size">{formatFileSize(a.size)}</span> : null}
+            {a.size > 0 ? <span className="size">{formatBytes(a.size)}</span> : null}
           </li>
         ))}
       </ul>
@@ -55,12 +56,6 @@ function AttachmentList({ items }: { items: CmsContentAttachment[] }) {
 }
 
 /** 附件体积展示（KB/MB 保留一位小数） */
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function ContentItemRow({ item }: { item: CmsContentItem }) {
   const cover = item.coverThumb ?? item.coverImage;
   const badge = typeBadgeText(item);

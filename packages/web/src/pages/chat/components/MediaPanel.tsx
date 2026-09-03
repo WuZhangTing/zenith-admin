@@ -1,10 +1,11 @@
 import { Button, Empty, Spin, Typography, List as SemiList } from '@douyinfe/semi-ui';
 import { Download, Eye, X } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
-import { canPreviewFile, formatFileSize, getFileTypeIcon } from '@/utils/file-utils';
+import { canPreviewFile, getFileTypeIcon } from '@/utils/file-utils';
 import type { ChatMessage } from '@zenith/shared/chat';
 import type { Setter } from '../types';
 import { openExternalUrl, safeHttpUrl, safeLinkUrl } from '@/utils/safe-url';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -98,7 +99,7 @@ export function MediaPanel({
                                     {asset?.name ?? '未知文件'}
                                   </Text>
                                   <Text type="tertiary" style={{ fontSize: 11 }}>
-                                    {asset?.size ? formatFileSize(asset.size) : ''}
+                                    {asset?.size ? formatBytes(asset.size) : ''}
                                   </Text>
                                 </div>
                                 <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>

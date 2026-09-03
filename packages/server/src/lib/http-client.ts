@@ -1,5 +1,6 @@
 import { Agent, ProxyAgent, type Dispatcher } from 'undici';
 import { randomBytes } from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { formatDateTime } from './datetime';
 import { config } from '../config';
 import logger from './logger';
@@ -224,10 +225,6 @@ function normalizeBody(body: HttpRequestOptions['body'], headers: Headers): Body
   // object / array → JSON
   if (!headers.has('content-type')) headers.set('content-type', 'application/json');
   return JSON.stringify(body);
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 async function performOnce(

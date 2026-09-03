@@ -92,7 +92,7 @@ await notify('workflow.task.created', {
   channelOptions: {
     // 短信按位置映射参数：必须显式传有序变量（依赖事件 vars 会被 jsonb 键序重排打乱）
     sms: { templateId, variables: { title: label, node: task.nodeName } },
-    email: { subject: `【待办】${label}`, html },  // html 里插入用户输入必须先 escapeHtml
+    email: { subject: `【待办】${label}`, html },  // html 里插入用户输入必须先经 @zenith/shared/core 的 escapeHtml 转义
     webhook: { url, body },
   },
 });

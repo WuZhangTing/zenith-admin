@@ -21,6 +21,7 @@ import { db } from '../../db';
 import { smsTemplates } from '../../db/schema';
 import { findDefaultSmsConfig } from '../messaging/sms-configs.service';
 import { sendSmsByProvider, renderTemplate } from '../../lib/sms-sender';
+import { maskPhone } from '../../lib/masking';
 
 export type SmsScene = 'register' | 'login' | 'reset';
 
@@ -47,11 +48,6 @@ function attemptsKey(phone: string, scene: SmsScene): string {
 /** 生成 6 位数字验证码 */
 function genCode(): string {
   return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
-}
-
-/** 日志用手机号脱敏：138****8000 */
-function maskPhone(phone: string): string {
-  return phone.length > 7 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : '****';
 }
 
 type DeliveryOutcome = 'delivered' | 'not_configured' | 'failed';

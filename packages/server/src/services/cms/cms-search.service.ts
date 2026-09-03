@@ -17,7 +17,7 @@ import { getEffectivelyEnabledCmsChannelIds } from './cms-channel-visibility.ser
 import { pageOffset } from '../../lib/pagination';
 import { assertAllCmsSiteChannelsAccess, getAccessibleChannelIds } from './cms-channels.service';
 import { loadCmsExtensionWords, normalizeCmsSearchDictionaryWord } from './cms-search-dictionary';
-import { escapeHtml } from '../../lib/text-utils';
+import { escapeHtml } from '@zenith/shared/core';
 
 // ─── 分词器（进程级单例，加载默认词典 + DB 自定义词典）─────────────────────────
 const jiebaBySite = new Map<number, Jieba>();

@@ -12,6 +12,7 @@ import { throttleFrontSubmit } from './cms-comments.service';
 import { ensureCmsSubmitAllowed } from './cms-submit-guard';
 import { sendMail } from '../../lib/email';
 import logger from '../../lib/logger';
+import { escapeHtml } from '@zenith/shared/core';
 import { CMS_SECRET_MASK } from '@zenith/shared/cms';
 import type { CmsFormField, CreateCmsFormInput, UpdateCmsFormInput } from '@zenith/shared/cms';
 import { assertCompleteCmsBatch } from './cms-access';
@@ -108,8 +109,6 @@ function notifyFormSubmission(form: CmsFormRow, data: Record<string, unknown>): 
     .map((s) => s.trim())
     .filter((s) => s.includes('@'));
   if (recipients.length === 0) return;
-  const escapeHtml = (s: string) =>
-    s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const rows = (form.fields ?? [])
     .map((f) => `<tr><td style="padding:4px 16px 4px 0;color:#595959">${escapeHtml(f.label)}</td><td style="padding:4px 0">${escapeHtml(String(data[f.name] ?? ''))}</td></tr>`)
     .join('');

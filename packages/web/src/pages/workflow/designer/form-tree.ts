@@ -5,6 +5,7 @@
  */
 import type { WorkflowFormField, WorkflowFormFieldType, WorkflowFieldVisibilityRuleGroup } from '@zenith/shared/workflow';
 import { isWorkflowRuleGroup, collectWorkflowRuleConditions } from '@zenith/shared/workflow';
+import { escapeRegExp } from '@zenith/shared/core';
 
 /** 容器类型：内部可容纳子字段 */
 export const CONTAINER_TYPES: WorkflowFormFieldType[] = ['row', 'group', 'detail', 'tabs', 'steps'];
@@ -323,8 +324,6 @@ export function flattenAllFields(fields: WorkflowFormField[]): WorkflowFormField
   }
   return out;
 }
-
-const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const replaceFormulaKey = (formula: string, oldKey: string, newKey: string): string =>
   formula.replace(

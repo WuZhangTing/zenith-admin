@@ -19,7 +19,7 @@ import { notificationOutbox } from '../../db/schema';
 import type { DbExecutor } from '../../db/types';
 import { currentTraceId, currentParentRef } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
-import { escapeHtml } from '../../lib/html-escape';
+import { escapeHtml } from '@zenith/shared/core';
 import { deliverOutboxRow } from '../../lib/notification/dispatch';
 import logger from '../../lib/logger';
 import { renderTemplate } from '../../lib/sms-sender';

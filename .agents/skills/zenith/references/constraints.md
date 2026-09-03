@@ -191,6 +191,20 @@
 
 - 统一 `lucide-react`，禁止 `@douyinfe/semi-icons`
 
+### 通用工具函数（`@zenith/shared/core`）
+
+前后端与 Mock 共用，**禁止**在页面 / service 内重写等价实现：
+
+| 场景 | 用 |
+| --- | --- |
+| 动态文本插入 HTML（邮件、打印页、SSR 片段） | `escapeHtml(text)` |
+| 任意字符串拼入 `new RegExp()` | `escapeRegExp(text)` |
+| 数值限制在区间内 | `clamp(value, min, max)` |
+| 字节数展示（B / KB / MB / GB / TB） | `formatBytes(bytes)` |
+
+- 前端毫秒耗时展示用 `@/utils/format` 的 `formatDurationMs(ms)`；空值统一渲染 `EMPTY_PLACEHOLDER`
+- 服务端手机号脱敏用 `lib/masking.ts` 的 `maskPhone()`；等待用 `node:timers/promises` 的 `setTimeout`
+
 ### 分页格式
 
 - 列表接口返回 `{ list, total, page, pageSize }`

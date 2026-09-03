@@ -17,13 +17,13 @@ import { KeywordInput } from '@/components/search-filters';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { dateTimeColumn } from '@/utils/table-columns';
-import { formatBytesMb } from '@/utils/format';
 import { confirmDelete } from '@/utils/confirm';
 import { exportReplayHtml } from '@/utils/replay-export';
 import { useListSearch } from '@/hooks/useListSearch';
 import { usePermission } from '@/hooks/usePermission';
 import { StatCard, StatGrid } from '@/components/charts';
 import { replayKeys, useBatchDeleteReplays, useReplayDetail, useReplayList, useReplayStorageStats } from '@/hooks/queries/session-replays';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -164,7 +164,7 @@ export default function SessionReplaysPage() {
     { title: '点击', dataIndex: 'clickCount', width: 70, align: 'right' },
     {
       title: '体积', dataIndex: 'totalBytes', width: 110, align: 'right',
-      render: (v: number) => formatBytesMb(v),
+      render: (v: number) => formatBytes(v),
     },
     {
       title: '来源', dataIndex: 'source', width: 100,
@@ -206,14 +206,14 @@ export default function SessionReplaysPage() {
     <div className="page-container">
       {stats && (
         <StatGrid style={{ marginBottom: 16 }}>
-          <StatCard title="存储占用" value={formatBytesMb(stats.totalBytes)} sub={stats.quotaMb > 0 ? `配额 ${stats.quotaMb} MB` : '未设配额'} />
+          <StatCard title="存储占用" value={formatBytes(stats.totalBytes)} sub={stats.quotaMb > 0 ? `配额 ${stats.quotaMb} MB` : '未设配额'} />
           <StatCard
             title="配额使用率"
             value={stats.quotaMb > 0 ? `${stats.usagePercent}%` : '—'}
             accent={stats.usagePercent >= 90 ? 'var(--semi-color-danger)' : stats.usagePercent >= 75 ? 'var(--semi-color-warning)' : undefined}
             sub={stats.usagePercent >= 100 ? '滚动淘汰进行中（旧的无错误回放优先清退）' : stats.usagePercent >= 90 ? '接近配额，即将触发滚动淘汰' : '低于水位线'}
           />
-          <StatCard title="今日新增" value={formatBytesMb(stats.todayBytes)} sub={`${stats.todayCount} 个会话`} />
+          <StatCard title="今日新增" value={formatBytes(stats.todayBytes)} sub={`${stats.todayCount} 个会话`} />
           <StatCard title="回放总数" value={stats.totalCount} sub="按保留天数自动清理" />
         </StatGrid>
       )}
@@ -318,7 +318,7 @@ export default function SessionReplaysPage() {
               data={[
                 { key: '用户', value: detail.username ?? (detail.memberId ? `会员#${detail.memberId}` : '匿名') },
                 { key: '时长', value: formatDuration(detail.durationMs) },
-                { key: '分片', value: `${detail.segmentCount} 个 · ${formatBytesMb(detail.totalBytes)}` },
+                { key: '分片', value: `${detail.segmentCount} 个 · ${formatBytes(detail.totalBytes)}` },
                 { key: '环境', value: `${detail.browser ?? '?'} / ${detail.os ?? '?'}` },
               ]}
             />

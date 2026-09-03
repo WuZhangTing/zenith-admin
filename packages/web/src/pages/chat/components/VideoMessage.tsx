@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import { Spin, Typography } from '@douyinfe/semi-ui';
-import { fetchManagedFileBlob, formatFileSize } from '@/utils/file-utils';
+import { fetchManagedFileBlob } from '@/utils/file-utils';
 import type { ChatMessage } from '@zenith/shared/chat';
 import { getMessageExtra } from '../utils';
+import { formatBytes } from '@zenith/shared/core';
 
 const { Text } = Typography;
 
@@ -87,7 +88,7 @@ export function VideoMessage({ msg, isSelf: _isSelf }: Readonly<{ msg: ChatMessa
         </span>
       )}
       <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', maxWidth: maxW - 24, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {asset?.name ?? '视频'}{asset?.size ? ` · ${formatFileSize(asset.size)}` : ''}
+        {asset?.name ?? '视频'}{asset?.size ? ` · ${formatBytes(asset.size)}` : ''}
       </Text>
     </button>
   );
