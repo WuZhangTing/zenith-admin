@@ -4,6 +4,91 @@
 
 ---
 
+## v2.15.0 - 2026-09-04
+
+**安全审计整改 + IoT 遥测接入性能重构**：按一次全库安全审计逐项收口——租户 / 平台超管边界、运行时密钥、OAuth state、会话吊销与 refresh 轮换、WebSocket 鉴权、数据库控制台最小权限角色、URL 与富文本注入面、日志查看器路径、Electron 更新链路、部署暴露面与 CSP / 帧保护；IoT 遥测明细改为原生日分区表，接入热路径微批写入，单帧 CPU 降至约 1/9。
+
+> ⚠️ 本版有数据库迁移（0005 ~ 0007）与**不兼容变更**（不考虑历史兼容，直接切换）：
+> - 运行时密钥：非开发环境 `JWT_SECRET` 无默认值且新增必填 `FIELD_ENCRYPTION_KEY`（字段加密不再派生自 JWT_SECRET），`npm run secret:generate` 生成；已加密字段（MFA 密钥、SSH 凭据、渠道密钥等）需重新录入。
+> - 会话模型：refresh token 改为一次性消费并轮换，登出 / 强制下线 / 改密即吊销；升级后存量 refresh token 全部失效，用户需重新登录。
+> - WebSocket：`?token=` 查询串不再接受，access token 经 `Sec-WebSocket-Protocol: zenith-auth, <token>` 传递（前端已同步）。
+> - 迁移 0007 创建只读角色 `zenith_readonly` 需要应用数据库用户具备 `CREATEROLE`（或 superuser）；不满足时迁移只打 WARNING，数据库控制台退化为「只读事务 + 闸门」防护。
+> - Docker Compose：`POSTGRES_PASSWORD` / `REDIS_PASSWORD` 改为必填、PostgreSQL / Redis 不再映射宿主机端口、API 端口默认只绑定 `127.0.0.1`；`npm run secret:generate -- --docker` 一次生成四个必填项。
+> - 日志查看器只允许读取 `LOG_DIR` 与 `LOG_VIEWER_ROOTS`（默认 `/var/log`）内的文件。
+> - psql 数据库终端额外要求 `system:terminal:execute`。
+> - IoT 遥测明细表重建为分区表，不迁移历史明细（影子与小时聚合不受影响）。
+
+### Security
+
+#### 身份与租户边界
+
+- 企业身份源 / 通讯录同步 / SCIM / 第三方 OAuth 自动建号全部经 `role-grant.ts` 校验：默认角色不得含平台保留角色（`super_admin`），角色必须归属目标租户，非平台管理员只能选择本租户角色；身份源 / 同步源改为按 `resolveManagedTenantId` 归属租户，跨租户读写按不存在处理；SSO 登录进入统一 `completeLoginWithMfa`（MFA 策略与新设备风控生效），前端登录 / 回调页处理 MFA 挑战；平台超管账号不参与自动匹配与目录同步
+- 自动关联既有账号改为显式开启（`identity_providers.auto_link_by_email`、`oauth_configs.auto_link_by_email`，迁移 0005 / 0006）：仅 OIDC `email_verified` 且邮箱唯一、账号启用、非平台超管才关联；移除按用户名匹配
+- 第三方 OAuth：`state` 改为 Redis 单次令牌（含 provider / 意图 / 绑定用户），回调与绑定必须携带并匹配；新增 `GET /api/auth/oauth/{provider}/bind` 绑定授权入口，绑定意图不能用于登录；OAuth 配置管理改为平台级（多租户下仅平台管理员）；GitHub 通过 `/user/emails` 取已验证邮箱
+- 在线会话管理按租户范围隔离：平台超管平台视角看全部、租户视角只看该租户，租户管理员只看本租户，非平台超管看不到也不能踢掉平台超管会话，越界按 404 处理
+
+#### 密钥与会话
+
+- 运行时密钥：`lib/secrets.ts` 统一生成 / 校验 / 开发回退，`FIELD_ENCRYPTION_KEY` 独立承担字段级 AES-256-GCM，非开发环境缺失或占位值时服务拒绝启动（`assertRuntimeSecrets`）；解密失败抛 `SecretDecryptError` 并映射为可读错误
+- 会话吊销闭环：Redis 新增 `refresh:{jti}` 授权 key，`/api/auth/refresh` 与 `/api/member/auth/refresh` 一次性消费并轮换到新 `jti`（旧 access / refresh 同时作废，重放 401，被盗 refresh token 最多只能用一次）；登出、强制下线、改密 / 重置密码、管理员重置密码、禁用 / 删除用户统一吊销（拉黑 access + 删会话 + 删授权），修复「强制下线 2h 后复活」；前端刷新后以响应中的新 refresh token 覆盖本地保存，账号切换器同步
+- 短信验证码：`devCode` 仅 `NODE_ENV=development` 回传，明文永不落日志；未配置渠道返回 503、发送失败 502 并回滚发码计数；修复匿名上下文下默认短信配置查询失败导致从未真正发送的问题
+
+#### 注入面与输出编码
+
+- 数据库控制台 / 导出 / 报表数据集 / 数据质量自定义 SQL 全部在只读事务内 `SET LOCAL ROLE zenith_readonly` 执行（迁移 0007 创建的 NOLOGIN 最小权限角色，运行期新 schema 自动补齐授权），`pg_read_file` / `COPY TO PROGRAM` / `lo_export` / `pg_authid` 等由 PostgreSQL 直接拒绝；危险函数黑名单收口到 `assertNoDangerousSqlFunctions` 并扩充 `set_config`、`table_to_xml` / `query_to_xml`、`dblink_*`、备份 / 复制控制与 Unicode 转义标识符；导出与 EXPLAIN 补齐只读白名单校验，原生 WHERE 片段同样过闸门
+- 工作流域全部出站 HTTP（数据源、连接器、事件订阅、自动化 Webhook、节点监听、触发器、外部派发、补偿动作）改走 `lib/workflow-outbound.ts`：强制 SSRF 防护 + `WORKFLOW_OUTBOUND_ALLOWED_HOSTS` 内网白名单，连接器路径限定同源，URL 模板占位值百分号编码，保存时校验静态地址
+- 用户可控 URL 统一限定 `http(s)`：`shared/core` 新增 `url.ts` 判定与 `httpUrl` / `linkUrl` 构造器（`z.url()` 会放过 `javascript:` / `file:` / `data:`），聊天链接预览 / 媒体消息 / 卡片、短链、AI、运维外链制品、CMS 采集、开放平台 logo、公众号回复与模板消息、工作流数据源 / 连接器 / 按钮 / Webhook / 附件 / 补偿动作、报表 Webhook / 环境地址 / 嵌入来源、营销与埋点落地页、OIDC redirectUri、IoT 转发目标全部切换；报表下钻 URL 仅 http(s) 模板、iframe 组件 src 仅 http(s)、图片允许站内路径；前端 `utils/safe-url` 过滤 href / src / `window.open`，iframe 同源嵌入去掉 `allow-same-origin`
+- 公告富文本在服务端经 `sanitizeCmsHtml` 净化落库；`stripHtml` 改用惰性 `DOMParser`，消除 `<img onerror>` 解析期触发的存储型 XSS
+- CMS 前台表单回跳地址改用 URL 解析判定同源，堵住 `/\evil.com` 开放重定向
+- 日志查看器限定目录白名单（`LOG_DIR` + `LOG_VIEWER_ROOTS`）：本机 realpath 后判定归属并拒绝目录 / 设备 / FIFO，远端路径 POSIX 规范化后同样限定；新增 `GET /api/log-viewer/roots` 供页面提示
+
+#### 实时通道与终端
+
+- WebSocket 升级鉴权对齐 HTTP 口径（`lib/ws-auth.ts`）：拒绝会员 / refresh token、实时校验用户与租户状态、检查吊销黑名单，`/api/ws` 与终端 / 监控端点共用；`WebSocketServer` 设置 `maxPayload` 64 KiB，只回显 `zenith-auth` 子协议
+- `/api/ws` 入站帧 zod 校验（仅 `ping` / `chat:typing` / `rtc:*`）与每连接令牌桶限速；typing 与 rtc 的身份字段由服务端按连接主体覆写；`callId` 绑定发起时的会话，后续信令只在会话成员间中继、定向目标必须是会话成员，房间随 reject / busy / cancel / leave / 断线回收
+- psql 数据库终端视同服务器 shell（`\!` / `\copy`），新增要求 `system:terminal:execute`；只读模式 PGOPTIONS 追加 `role=zenith_readonly`
+
+#### 客户端、部署与响应头
+
+- Electron：移除渲染进程改写更新服务器的 IPC，地址来源固定为 `userData/update-config.json` > 打包期 `ZENITH_UPDATE_SERVER` > 开发环境变量且强制 https；制品下载须与更新服务器同源、热更包 SHA256 必需；`safe-unzip.ts`（yauzl）替代存在符号链接越界写入漏洞的 `extract-zip`；`will-navigate` 只允许应用自身，`setWindowOpenHandler` 仅对 http(s) / mailto 调用 `shell.openExternal`；electron-builder 配置收口为单一来源并支持 `ZENITH_WIN_PUBLISHER_NAME` 启用安装包签名校验
+- Docker：`docker-compose.yml` 去掉 PostgreSQL / Redis 宿主机端口映射并要求口令，Redis 始终 `requirepass`，API 端口默认绑定 `127.0.0.1`（`API_BIND` 可放开）；新增 `docker-compose.debug.yml` 排障叠加文件；Dockerfile server 阶段以 `USER node` 运行，nginx 升级 1.30-alpine
+- CSP 与帧保护：服务端直出 HTML（CMS SSR / 静态化产物、表单提示页、短链 / 退订页）按正文内联脚本 sha256 哈希下发 CSP（不含 `'unsafe-inline'`），`object-src 'none'` / `base-uri 'self'` / `frame-ancestors 'self'`，`secureHeaders` 的 `X-Frame-Options` 改为 `SAMEORIGIN`；Vite 构建期向三个 SPA 入口注入 CSP `<meta>`；nginx 全站 nosniff / Referrer-Policy / 帧保护，仅 `/public/report/` 公开仪表盘嵌入不下发帧保护头
+
+### Added
+
+#### IoT
+
+- 告警记录「处理详情」查看：弹窗展示设备 / 级别 / 告警内容、触发与升级时间、认领人、处理方式 / 处理人 / 处理时间与备注；列表接口补充 `resolvedByName`
+- 新增 `scripts/iot-load-test.ts` 接入压测脚本（HTTP / WS，吞吐与延迟分位，按 5s 窗口时间线）
+
+#### 工具
+
+- `npm run secret:generate -- --docker` 额外输出 URL 安全的 `POSTGRES_PASSWORD` / `REDIS_PASSWORD`；根脚本支持透传参数
+
+### Changed
+
+#### IoT 遥测接入（性能）
+
+- `iot_telemetry` 重建为按 `reported_at` 的 PostgreSQL 原生 RANGE 日分区表（迁移 0004），去掉从不按值查询的 bigint 主键与冗余 `created_at`，新增 BRIN 索引；`iot-partitions.service` 启动 + 每小时滚动预建未来 7 天分区，写入命中「无分区」按批次内日期补建后重试；保留策略按分区上界整表 DROP
+- 新增 `iot-ingest-buffer`：≤100ms / ≤1000 行攒批，明细多行 INSERT + 影子多行 upsert（RETURNING 直供推送）+ 一次 INCRBY，停机前排空；影子合并改为批量版；设备行按 SN 缓存并在管理端变更时主动失效；WS 单连接帧串行处理 + 积压上限 100 帧
+- 产品 `validationMode` 并入物模型缓存；阈值告警 / 场景联动 / 异常检测 / 数据流转移出接入响应路径，进入按设备串行的派生队列；仪表盘「今日上报」改读 Redis 日计数器
+- 新增 `lib/ttl-cache`（单飞 + 过期用旧值后台刷新 + 抖动），物模型 / 设备行 / 告警规则 / 联动 / 流转 / 异常基线 / 保留天数缓存全部切换，修复高并发上报时缓存同刻击穿导致事件循环卡死；`lib/datetime` 的 Date / 时间戳格式化走缓存的 `Intl.DateTimeFormat` 快路径
+
+#### 数据库运维
+
+- 索引健康判重改为按 `pg_get_indexdef` 定义正文比较（表达式索引、部分索引谓词、不同访问方法不再误判），分区叶子索引沿 `pg_inherits` 归并到父索引统计并显示「N 分区」标签
+
+#### 文档站
+
+- 首页 Bento 插画精修：共享 `art-base.css` 基元与 `ArtIcon.vue` 线性图标，修复溢出、截断与失真
+
+### Fixed
+
+- 迁移 `0001_extensions` 不再创建 `ai_kb_chunks.embedding_vec` 孤儿列（向量已全部存放于 Mastra PgVector）
+- 表格 Tag 列宽不足导致的标签溢出（49 处）；数据库运维活动连接 / 索引健康 / 表维护表格列宽与换行
+
+---
+
 ## v2.14.0 - 2026-09-03
 
 **表格列宽体系重构 + 登录入口按配置显示**：全站表格改为「单弹性主列 + 其余固定宽」布局，操作列宽度按统一公式重算并把状态特有 / 低频动作收进「更多」，`scroll.x` 全部由组件推导；登录页第三方登录入口只显示后台已启用且凭据完整的 provider；文档站首页重构为模块矩阵落地页。

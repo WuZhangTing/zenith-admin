@@ -52,8 +52,9 @@ describe('report data-quality evaluators', () => {
     expect(() => validateCustomDqSql('select row from dataset d, users u')).toThrow('dataset');
     expect(() => validateCustomDqSql('select row from dataset where row->>\'id\' in (select id from users)')).toThrow('dataset');
     expect(() => validateCustomDqSql('select row from"users"')).toThrow('带引号');
+    // query_to_xml 现已进入通用危险函数黑名单（report-sql-safety），在 DQ 专属校验之前即被拒绝
     expect(() => validateCustomDqSql("select row from dataset where query_to_xml('select * from users', true, true, '') is not null"))
-      .toThrow('未允许的函数');
+      .toThrow(/未允许的函数|禁止的函数：query_to_xml/);
     expect(() => validateCustomDqSql('delete from dataset')).toThrow();
   });
 });
