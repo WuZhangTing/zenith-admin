@@ -88,7 +88,8 @@ function parseManagedHostId(type: string | undefined): number | null {
 function requiredPermissionsForTarget(target: string | undefined): string[] {
   const dbMode = parseDbTerminalShellType(target);
   if (dbMode) {
-    return ['system:db-admin:terminal', ...(dbMode === 'rw' ? ['system:db-admin:write'] : [])];
+    // psql 的 \! 与 \copy 等价于服务器 shell，权限边界必须与主机终端对齐
+    return ['system:terminal:execute', 'system:db-admin:terminal', ...(dbMode === 'rw' ? ['system:db-admin:write'] : [])];
   }
   if (parseManagedHostId(target) != null) return ['system:terminal:execute', 'system:host:use'];
   return ['system:terminal:execute'];
@@ -333,7 +334,7 @@ export function createWsTerminalRoute(upgradeWebSocket: UpgradeWebSocket) {  con
           }
 
           // 权限校验：普通终端要求 system:terminal:execute；
-          // 数据库终端要求 system:db-admin:terminal；平台主机终端额外要求 system:host:use。
+          // 数据库终端在此基础上还要求 system:db-admin:terminal；平台主机终端额外要求 system:host:use。
           const requestedDbMode = parseDbTerminalShellType(shellType);
           const managedHostRequest = shellType?.startsWith('host:') ?? false;
           const requestedHostId = parseManagedHostId(shellType);

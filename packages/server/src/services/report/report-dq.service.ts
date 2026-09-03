@@ -18,6 +18,7 @@ import {
 import { currentUserId, runWithCurrentUser } from '../../lib/context';
 import { rethrowPgUniqueViolation } from '../../lib/db-errors';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { applyReadonlyTransactionGuards } from '../../lib/db-readonly-role';
 import { normalizeReadonlyReportSql } from '../../lib/report-sql-safety';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { pageOffset } from '../../lib/pagination';
@@ -166,8 +167,7 @@ async function evaluateCustomSql(
 ): Promise<EvaluationResult> {
   const normalized = validateCustomDqSql(query);
   const result = await db.transaction(async (tx) => {
-    await tx.execute(sql.raw('SET LOCAL TRANSACTION READ ONLY'));
-    await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${CUSTOM_SQL_TIMEOUT_MS}'`));
+    await applyReadonlyTransactionGuards((s) => tx.execute(sql.raw(s)), { timeout: CUSTOM_SQL_TIMEOUT_MS });
     return tx.execute<Record<string, unknown>>(sql`
       WITH dataset(row) AS (
         SELECT value FROM jsonb_array_elements(${JSON.stringify(rows)}::jsonb)

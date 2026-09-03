@@ -5,13 +5,17 @@
  * 连接信息全程不下发前端。会话经 ws-terminal 以 kind='db' 登记，
  * 录制、旁观、配额与落库审计由既有终端基建承担。
  *
- * 只读模式通过 PGOPTIONS 设置 default_transaction_read_only=on——这是防误操作的
- * 安全默认值，不是权限边界（会话内可被 SET 覆盖）；权限边界由
- * system:db-admin:terminal（+ 读写需 system:db-admin:write）承担。
+ * psql 内置 `\!`（执行 shell）与 `\copy`（读写服务端本地文件），因此打开 psql 终端等价于
+ * 拿到服务器 shell：权限边界与主机终端对齐，要求 system:terminal:execute + system:db-admin:terminal
+ * （读写额外要求 system:db-admin:write）。
+ *
+ * 只读模式通过 PGOPTIONS 设置 default_transaction_read_only=on 并切换到 zenith_readonly 角色——
+ * 这是防误操作的安全默认值，不是权限边界（会话内可被 SET / RESET ROLE 覆盖）。
  */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { config } from '../../config';
+import { DB_READONLY_ROLE, isDbReadonlyRoleAvailable } from '../../lib/db-readonly-role';
 
 const execFileAsync = promisify(execFile);
 
@@ -57,7 +61,12 @@ export interface PsqlLaunch {
 }
 
 /** 构造 psql 启动参数。导出仅为单测（binaryPath 由调用方解析）。 */
-export function buildPsqlLaunch(mode: DbTerminalMode, binaryPath: string, params: DbConnectionParams): PsqlLaunch {
+export function buildPsqlLaunch(
+  mode: DbTerminalMode,
+  binaryPath: string,
+  params: DbConnectionParams,
+  options: { readonlyRole?: boolean } = {},
+): PsqlLaunch {
   const env: Record<string, string> = {
     PGPASSWORD: params.password,
     PGCLIENTENCODING: 'UTF8',
@@ -65,7 +74,11 @@ export function buildPsqlLaunch(mode: DbTerminalMode, binaryPath: string, params
   };
   const sslMode = params.sslMode ?? (config.database.ssl ? 'require' : null);
   if (sslMode) env.PGSSLMODE = sslMode;
-  if (mode === 'ro') env.PGOPTIONS = '-c default_transaction_read_only=on';
+  if (mode === 'ro') {
+    const opts = ['-c default_transaction_read_only=on'];
+    if (options.readonlyRole) opts.push(`-c role=${DB_READONLY_ROLE}`);
+    env.PGOPTIONS = opts.join(' ');
+  }
   return {
     file: binaryPath,
     args: ['-h', params.host, '-p', params.port, '-U', params.user, '-d', params.database],
@@ -122,5 +135,7 @@ export async function resolveDbPsqlLaunch(mode: DbTerminalMode): Promise<PsqlLau
   if (!psql) {
     throw new Error('服务端未安装 psql 客户端，无法打开数据库终端（可设置 PSQL_PATH 指定路径）');
   }
-  return buildPsqlLaunch(mode, psql.path, parseDatabaseUrl(config.databaseUrl));
+  return buildPsqlLaunch(mode, psql.path, parseDatabaseUrl(config.databaseUrl), {
+    readonlyRole: mode === 'ro' && await isDbReadonlyRoleAvailable(),
+  });
 }

@@ -2,12 +2,15 @@
  * 数据库管理（DB Inspector）服务层。
  *
  * 安全策略：
- *  1. 所有用户提交的 SQL 都在 BEGIN; SET LOCAL TRANSACTION READ ONLY; ... ROLLBACK; 中执行，
- *     由 PostgreSQL 原生拒绝任何写操作。
- *  2. 设置 statement_timeout 防止长查询拖垮数据库。
- *  3. 单次查询最多返回 MAX_ROWS 行，超出会被自动截断。
- *  4. 表数据浏览接口对 schema/table/column 名做白名单校验，避免拼接注入。
- *  5. 路由层通过 guard({ permission: 'system:db-admin:*' }) 双层鉴权。
+ *  1. 所有用户提交的 SQL 都在 BEGIN; SET LOCAL TRANSACTION READ ONLY; SET LOCAL ROLE zenith_readonly;
+ *     ... ROLLBACK; 中执行：只读事务由 PostgreSQL 原生拒绝写操作，最小权限角色拒绝
+ *     pg_read_file / COPY TO PROGRAM / lo_export 等服务器端函数（见 lib/db-readonly-role.ts）。
+ *  2. 提交前经 assertConsoleReadOnlySql 白名单（语句首关键字）+ 危险函数黑名单校验，
+ *     控制台、EXPLAIN、CSV / JSON 导出、原生 WHERE 片段共用同一套闸门。
+ *  3. 设置 statement_timeout 防止长查询拖垮数据库。
+ *  4. 单次查询最多返回 MAX_ROWS 行，超出会被自动截断。
+ *  5. 表数据浏览接口对 schema/table/column 名做白名单校验，避免拼接注入。
+ *  6. 路由层通过 guard({ permission: 'system:db-admin:*' }) 双层鉴权。
  */
 import { sql, desc, eq, and } from 'drizzle-orm';
 import { HTTPException } from 'hono/http-exception';
@@ -16,7 +19,9 @@ import type { DbExecutor } from '../../db/types';
 import { dbAdminQueryHistory, dbQueryFavorites } from '../../db/schema';
 import { currentUserId } from '../../lib/context';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
+import { applyReadonlyTransactionGuards } from '../../lib/db-readonly-role';
 import logger from '../../lib/logger';
+import { assertNoDangerousSqlFunctions } from '../../lib/report-sql-safety';
 
 const QUERY_TIMEOUT = '60s';
 const MAX_ROWS = 5000;
@@ -511,7 +516,7 @@ const WHERE_FRAGMENT_MAX = 2000;
 
 /**
  * 校验原生 WHERE 片段：仅允许单个布尔表达式。
- * 只读事务 + statement_timeout 已兜底破坏性操作；此处再拦截语句拼接与注释绕过。
+ * 只读事务 + 只读角色 + statement_timeout 已兜底破坏性操作；此处再拦截语句拼接、注释绕过与危险函数。
  */
 export function sanitizeWhereFragment(input: string): string | undefined {
   const s = input.trim();
@@ -525,6 +530,7 @@ export function sanitizeWhereFragment(input: string): string | undefined {
   if (s.includes('--') || s.includes('/*') || s.includes('*/')) {
     throw new HTTPException(400, { message: 'WHERE 条件不允许包含注释' });
   }
+  assertNoDangerousSqlFunctions(s, 'WHERE 条件');
   return s;
 }
 
@@ -1057,35 +1063,15 @@ function isPaginatableSelect(trimmed: string): boolean {
 
 const CONSOLE_READONLY_MESSAGE = 'SQL 控制台为只读模式，仅允许 SELECT / WITH / EXPLAIN / SHOW 等查询语句；如需修改数据，请在表浏览中编辑';
 
-/** 去掉语句开头的行注释与块注释，用于识别首个关键字 */
-function stripLeadingSqlComments(text: string): string {
-  let rest = text;
-  for (;;) {
-    const trimmed = rest.trimStart();
-    if (trimmed.startsWith('--')) {
-      const newline = trimmed.indexOf('\n');
-      if (newline === -1) return '';
-      rest = trimmed.slice(newline + 1);
-      continue;
-    }
-    if (trimmed.startsWith('/*')) {
-      const end = trimmed.indexOf('*/');
-      if (end === -1) return '';
-      rest = trimmed.slice(end + 2);
-      continue;
-    }
-    return trimmed;
-  }
-}
-
-/** 控制台只读白名单：所有语句都必须以查询关键字开头（字符串内的分号先行剔除） */
-function assertConsoleReadOnlySql(text: string): void {
-  const sanitized = text
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/\$\$[\s\S]*?\$\$/g, '$$$$');
-  for (const statement of sanitized.split(';')) {
-    const effective = stripLeadingSqlComments(statement);
-    if (!effective.trim()) continue;
+/**
+ * 控制台只读闸门：先拦截危险函数（含引号 / Unicode 转义绕过），再要求每条语句都以查询关键字开头。
+ * 字符串字面量与注释已被 assertNoDangerousSqlFunctions 屏蔽为空白，分号拆分不会被其中内容干扰。
+ */
+export function assertConsoleReadOnlySql(text: string): void {
+  const masked = assertNoDangerousSqlFunctions(text, '控制台 SQL ');
+  for (const statement of masked.split(';')) {
+    const effective = statement.trim();
+    if (!effective) continue;
     if (!/^(select|with|explain|show|table|values)\b/i.test(effective)) {
       throw new HTTPException(400, { message: CONSOLE_READONLY_MESSAGE });
     }
@@ -1160,9 +1146,7 @@ export async function executeReadonlyQuery(sqlText: string, options: QueryOption
 
   try {
     result = await db.transaction(async (tx) => {
-      await tx.execute(sql.raw(`SET LOCAL TRANSACTION READ ONLY`));
-      await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`));
-      await tx.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${QUERY_TIMEOUT}'`));
+      await applyReadonlyTransactionGuards((s) => tx.execute(sql.raw(s)), { timeout: QUERY_TIMEOUT, idleTimeout: true });
       // 记录当前事务连接的 backend pid，用于取消
       if (queryId) {
         const pidRows = await tx.execute(sql`SELECT pg_backend_pid() AS pid`);
@@ -1230,8 +1214,9 @@ export async function explainQuery(
 ): Promise<{ plan: unknown; durationMs: number; analyzed: boolean }> {
   const trimmed = sqlText.trim().replace(/;\s*$/, '');
   if (!trimmed) throw new HTTPException(400, { message: 'SQL 不能为空' });
+  assertConsoleReadOnlySql(trimmed);
 
-  // EXPLAIN ANALYZE 会真正执行查询；只读事务会拒绝任何写操作，SELECT 安全
+  // EXPLAIN ANALYZE 会真正执行查询；只读事务 + 只读角色会拒绝任何写操作与危险函数，SELECT 安全
   const options = analyze
     ? 'ANALYZE, BUFFERS, FORMAT JSON'
     : 'FORMAT JSON';
@@ -1256,6 +1241,7 @@ export async function explainQuery(
 export async function exportQueryCsv(sqlText: string): Promise<ReadableStream<Uint8Array>> {
   const trimmed = sqlText.trim().replace(/;\s*$/, '');
   if (!trimmed) throw new HTTPException(400, { message: 'SQL 不能为空' });
+  assertConsoleReadOnlySql(trimmed);
 
   const encoder = new TextEncoder();
   const BATCH_SIZE = 1000;
@@ -1268,9 +1254,7 @@ export async function exportQueryCsv(sqlText: string): Promise<ReadableStream<Ui
       let headerKeys: string[] = [];
       try {
         await pgClient.begin(async (tx) => {
-          await tx.unsafe(`SET LOCAL TRANSACTION READ ONLY`);
-          await tx.unsafe(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`);
-          await tx.unsafe(`SET LOCAL idle_in_transaction_session_timeout = '${QUERY_TIMEOUT}'`);
+          await applyReadonlyTransactionGuards((s) => tx.unsafe(s), { timeout: QUERY_TIMEOUT, idleTimeout: true });
           const cursor = tx.unsafe(trimmed).cursor(BATCH_SIZE);
           for await (const rows of cursor) {
             if (!Array.isArray(rows) || rows.length === 0) continue;
@@ -1314,6 +1298,7 @@ export async function exportTableDataCsv(
 export async function exportQueryJson(sqlText: string): Promise<ReadableStream<Uint8Array>> {
   const trimmed = sqlText.trim().replace(/;\s*$/, '');
   if (!trimmed) throw new HTTPException(400, { message: 'SQL 不能为空' });
+  assertConsoleReadOnlySql(trimmed);
 
   const encoder = new TextEncoder();
   const BATCH_SIZE = 1000;
@@ -1324,9 +1309,7 @@ export async function exportQueryJson(sqlText: string): Promise<ReadableStream<U
       try {
         controller.enqueue(encoder.encode('['));
         await pgClient.begin(async (tx) => {
-          await tx.unsafe(`SET LOCAL TRANSACTION READ ONLY`);
-          await tx.unsafe(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`);
-          await tx.unsafe(`SET LOCAL idle_in_transaction_session_timeout = '${QUERY_TIMEOUT}'`);
+          await applyReadonlyTransactionGuards((s) => tx.unsafe(s), { timeout: QUERY_TIMEOUT, idleTimeout: true });
           const cursor = tx.unsafe(trimmed).cursor(BATCH_SIZE);
           for await (const rows of cursor) {
             if (!Array.isArray(rows) || rows.length === 0) continue;
@@ -1472,8 +1455,7 @@ export async function exportTableSql(
           if (mode === 'full') emit('\n');
 
           await pgClient.begin(async (tx) => {
-            await tx.unsafe(`SET LOCAL TRANSACTION READ ONLY`);
-            await tx.unsafe(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`);
+            await applyReadonlyTransactionGuards((s) => tx.unsafe(s), { timeout: QUERY_TIMEOUT });
             const cursor = tx.unsafe(`SELECT * FROM ${fullName}`).cursor(BATCH_SIZE);
             const colHeader = colNames.map(quoteIdent).join(', ');
 
@@ -1608,12 +1590,10 @@ export async function deleteQueryHistory(id: number): Promise<void> {
 
 // ─── 内部工具 ──────────────────────────────────────────────────────────────────
 
-/** 在只读事务中执行回调。任何写操作会被 PostgreSQL 直接拒绝。 */
+/** 在只读事务 + 只读角色中执行回调。任何写操作与服务器端危险函数都会被 PostgreSQL 直接拒绝。 */
 async function runReadOnly<T>(callback: (tx: DbExecutor) => Promise<T>): Promise<T> {
   return await db.transaction(async (tx) => {
-    await tx.execute(sql.raw(`SET LOCAL TRANSACTION READ ONLY`));
-    await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`));
-    await tx.execute(sql.raw(`SET LOCAL idle_in_transaction_session_timeout = '${QUERY_TIMEOUT}'`));
+    await applyReadonlyTransactionGuards((s) => tx.execute(sql.raw(s)), { timeout: QUERY_TIMEOUT, idleTimeout: true });
     return await callback(tx);
   });
 }

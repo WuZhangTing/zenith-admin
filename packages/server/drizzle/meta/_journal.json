@@ -50,6 +50,13 @@
       "when": 1788444255045,
       "tag": "0006_thin_thaddeus_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788446563101,
+      "tag": "0007_db_readonly_role",
+      "breakpoints": true
     }
   ]
 }

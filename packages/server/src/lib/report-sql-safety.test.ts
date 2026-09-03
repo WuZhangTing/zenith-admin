@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assertNoDangerousSqlFunctions,
   assertReportSqlTableAllowlist,
   extractReportSqlTableReferences,
   isReadonlyReportSql,
@@ -30,6 +31,24 @@ describe('report SQL safety', () => {
     expect(isReadonlyReportSql('SELECT * INTO backup_users FROM users')).toBe(false);
     expect(isReadonlyReportSql("SELECT load_file('/etc/passwd')")).toBe(false);
     expect(isReadonlyReportSql('SELECT 1 /*!50000 INTO OUTFILE \'/tmp/x\' */')).toBe(false);
+  });
+
+  it('rejects role/timeout tampering, XML table dumps and dblink variants', () => {
+    expect(isReadonlyReportSql("SELECT set_config('role', 'postgres', true)")).toBe(false);
+    expect(isReadonlyReportSql("SELECT table_to_xml('users', true, false, '')")).toBe(false);
+    expect(isReadonlyReportSql("SELECT query_to_xml('select * from users', true, false, '')")).toBe(false);
+    expect(isReadonlyReportSql("SELECT * FROM dblink_connect('host=x')")).toBe(false);
+    expect(isReadonlyReportSql("SELECT pg_catalog.pg_read_binary_file('/etc/passwd')")).toBe(false);
+    expect(isReadonlyReportSql('SELECT U&"pg_read_\\0066ile"(\'/etc/passwd\')')).toBe(false);
+  });
+
+  it('assertNoDangerousSqlFunctions returns masked SQL and prefixes errors with the caller label', () => {
+    expect(assertNoDangerousSqlFunctions("SELECT 'pg_read_file(x)' AS s", '控制台 SQL '))
+      .toBe("SELECT                   AS s");
+    expect(() => assertNoDangerousSqlFunctions("SELECT lo_export(1, '/tmp/x')", '控制台 SQL '))
+      .toThrow('控制台 SQL 包含禁止的函数：lo_export');
+    expect(() => assertNoDangerousSqlFunctions('id = 1 AND "set_config"(\'role\',\'x\',true) IS NOT NULL', 'WHERE 条件'))
+      .toThrow('WHERE 条件包含禁止的引号函数调用');
   });
 
   it('extracts joins, comma joins, nested queries and quoted identifiers', () => {

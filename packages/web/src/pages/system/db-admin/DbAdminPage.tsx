@@ -134,7 +134,8 @@ export default function DbAdminPage() {
   const canExport = hasPermission('system:db-admin:export');
   const canWrite = hasPermission('system:db-admin:write');
   const canMaintain = hasPermission('system:db-admin:maintain');
-  const canTerminal = hasPermission('system:db-admin:terminal');
+  // psql 终端等价于服务器 shell（\!、\copy），入口与服务端 ws-terminal 权限一致：还需 system:terminal:execute
+  const canTerminal = hasPermission('system:db-admin:terminal') && hasPermission('system:terminal:execute');
   const { isDark } = useThemeController();
   const monacoTheme = isDark ? 'vs-dark' : 'light';
 

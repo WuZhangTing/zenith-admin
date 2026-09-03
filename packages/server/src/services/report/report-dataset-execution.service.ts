@@ -15,6 +15,7 @@ import { pageOffset } from '../../lib/pagination';
 import { httpRequest } from '../../lib/http-client';
 import { applyComputedFields } from '../../lib/report-formula';
 import { runExternalQuery } from '../../lib/report-external-db';
+import { applyReadonlyTransactionGuards } from '../../lib/db-readonly-role';
 import { normalizeReadonlyReportSql } from '../../lib/report-sql-safety';
 import {
   ensureDatasourceEnabled,
@@ -241,8 +242,7 @@ async function runReadonlySql(text: string, params: Record<string, unknown>, opt
   const inner = buildParamSql(trimmed, params);
   try {
     const result = await db.transaction(async (tx) => {
-      await tx.execute(sql.raw('SET LOCAL TRANSACTION READ ONLY'));
-      await tx.execute(sql.raw(`SET LOCAL statement_timeout = '${QUERY_TIMEOUT}'`));
+      await applyReadonlyTransactionGuards((s) => tx.execute(sql.raw(s)), { timeout: QUERY_TIMEOUT });
       const countRows = await tx.execute<{ total: number }>(sql`SELECT COUNT(*)::int AS total FROM (${inner}) AS _count`);
       const suffix = `${queryParts.orderBy} LIMIT ${queryParts.limit}${queryParts.offset > 0 ? ` OFFSET ${queryParts.offset}` : ''}`;
       const dataRows = await tx.execute(sql`SELECT * FROM (${inner}) AS _sub ${sql.raw(suffix)}`);

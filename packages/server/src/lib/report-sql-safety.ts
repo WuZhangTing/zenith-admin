@@ -34,28 +34,92 @@ const WRITE_OR_CONTROL_KEYWORDS = new Set([
   'vacuum',
 ]);
 
+/**
+ * 用户手写 SQL 中禁止出现的函数：
+ * - 服务器端文件 / 程序 / 大对象（pg_read_file、lo_import、adminpack…）
+ * - 会话状态篡改（set_config 可在只读事务内 SET ROLE / 关闭 statement_timeout）
+ * - 以字符串执行任意 SQL 或按名读表、绕过表 allowlist 的 XML 函数（query_to_xml、table_to_xml…）
+ * - 跨库 / 后台进程控制 / 复制与备份控制
+ * 只读事务与 zenith_readonly 角色是真正的边界，这里是让错误更早、更可读的第一道闸。
+ */
 const DANGEROUS_FUNCTIONS = new Set([
   'benchmark',
+  'cursor_to_xml',
+  'cursor_to_xmlschema',
+  'database_to_xml',
+  'database_to_xml_and_xmlschema',
+  'database_to_xmlschema',
   'dblink',
+  'dblink_close',
+  'dblink_connect',
+  'dblink_connect_u',
+  'dblink_disconnect',
+  'dblink_exec',
+  'dblink_fetch',
+  'dblink_get_result',
+  'dblink_open',
+  'dblink_send_query',
   'dumpfile',
   'load_file',
+  'lo_creat',
+  'lo_create',
   'lo_export',
+  'lo_from_bytea',
   'lo_import',
+  'lo_put',
+  'lo_unlink',
   'nextval',
   'openquery',
   'opendatasource',
   'openrowset',
   'pg_advisory_lock',
+  'pg_advisory_lock_shared',
+  'pg_advisory_xact_lock',
+  'pg_advisory_xact_lock_shared',
+  'pg_backup_start',
+  'pg_backup_stop',
   'pg_cancel_backend',
+  'pg_create_logical_replication_slot',
+  'pg_create_physical_replication_slot',
+  'pg_create_restore_point',
+  'pg_current_logfile',
+  'pg_drop_replication_slot',
+  'pg_file_rename',
+  'pg_file_unlink',
+  'pg_file_write',
+  'pg_logdir_ls',
+  'pg_logical_slot_get_changes',
+  'pg_logical_slot_peek_changes',
+  'pg_ls_archive_statusdir',
   'pg_ls_dir',
+  'pg_ls_logdir',
+  'pg_ls_tmpdir',
+  'pg_ls_waldir',
+  'pg_promote',
   'pg_read_binary_file',
   'pg_read_file',
   'pg_reload_conf',
+  'pg_rotate_logfile',
   'pg_sleep',
+  'pg_sleep_for',
+  'pg_sleep_until',
+  'pg_start_backup',
   'pg_stat_file',
+  'pg_stop_backup',
+  'pg_switch_wal',
   'pg_terminate_backend',
+  'query_to_xml',
+  'query_to_xml_and_xmlschema',
+  'query_to_xmlschema',
+  'schema_to_xml',
+  'schema_to_xml_and_xmlschema',
+  'schema_to_xmlschema',
+  'set_config',
   'setval',
   'sleep',
+  'table_to_xml',
+  'table_to_xml_and_xmlschema',
+  'table_to_xmlschema',
   'xp_cmdshell',
 ]);
 const QUOTED_DANGEROUS_FUNCTION_RE = new RegExp(
@@ -64,6 +128,8 @@ const QUOTED_DANGEROUS_FUNCTION_RE = new RegExp(
   `\\[(?:${[...DANGEROUS_FUNCTIONS].join('|')})\\])\\s*\\(`,
   'i',
 );
+/** U&"..." Unicode 转义标识符可以把函数名拆成转义序列绕过词法匹配，用户 SQL 一律不允许 */
+const UNICODE_ESCAPED_IDENTIFIER_RE = /\bU&"/i;
 
 function maskSqlLiteralsAndComments(sql: string): string {
   let out = '';
@@ -162,17 +228,34 @@ function maskSqlLiteralsAndComments(sql: string): string {
   return out;
 }
 
+/**
+ * 拦截用户 SQL 中的危险函数调用（含引号 / Unicode 转义 / 可执行注释绕过）。
+ * 供报表数据集与数据库管理控制台共用；`label` 用于错误信息前缀（如「报表 SQL」「控制台 SQL」）。
+ * 返回屏蔽了字符串字面量与注释后的文本，便于调用方继续做关键字判断。
+ */
+export function assertNoDangerousSqlFunctions(sql: string, label: string): string {
+  if (/\/\*(?:!|M!)/i.test(sql)) {
+    throw new HTTPException(400, { message: `${label}禁止使用可执行注释` });
+  }
+  if (UNICODE_ESCAPED_IDENTIFIER_RE.test(sql)) {
+    throw new HTTPException(400, { message: `${label}禁止使用 Unicode 转义标识符` });
+  }
+  if (QUOTED_DANGEROUS_FUNCTION_RE.test(sql)) {
+    throw new HTTPException(400, { message: `${label}包含禁止的引号函数调用` });
+  }
+  const masked = maskSqlLiteralsAndComments(sql);
+  const tokens = masked.match(/[A-Za-z_][A-Za-z0-9_$]*/g)?.map((token) => token.toLowerCase()) ?? [];
+  const unsafeToken = tokens.find((token) => DANGEROUS_FUNCTIONS.has(token));
+  if (unsafeToken) {
+    throw new HTTPException(400, { message: `${label}包含禁止的函数：${unsafeToken}` });
+  }
+  return masked;
+}
+
 export function normalizeReadonlyReportSql(input: string): string {
   const sql = input.trim().replace(/;\s*$/, '').trim();
   if (!sql) throw new HTTPException(400, { message: '数据集 SQL 不能为空' });
-  if (/\/\*(?:!|M!)/i.test(sql)) {
-    throw new HTTPException(400, { message: '报表 SQL 禁止使用可执行注释' });
-  }
-  if (QUOTED_DANGEROUS_FUNCTION_RE.test(sql)) {
-    throw new HTTPException(400, { message: '报表 SQL 包含禁止的引号函数调用' });
-  }
-
-  const masked = maskSqlLiteralsAndComments(sql);
+  const masked = assertNoDangerousSqlFunctions(sql, '报表 SQL ');
   if (masked.includes(';')) {
     throw new HTTPException(400, { message: '报表 SQL 仅允许执行单条查询' });
   }
@@ -189,8 +272,7 @@ export function normalizeReadonlyReportSql(input: string): string {
     throw new HTTPException(400, { message: '报表 SQL 禁止使用 SELECT INTO' });
   }
 
-  const unsafeToken = tokens.find((token) =>
-    WRITE_OR_CONTROL_KEYWORDS.has(token) || DANGEROUS_FUNCTIONS.has(token));
+  const unsafeToken = tokens.find((token) => WRITE_OR_CONTROL_KEYWORDS.has(token));
   if (unsafeToken) {
     throw new HTTPException(400, { message: `报表 SQL 包含禁止关键字或函数：${unsafeToken}` });
   }
