@@ -29,6 +29,7 @@ import { optionalMemberSessionMiddleware } from '../../middleware/optional-membe
 import { getClientIp } from '../../lib/request-helpers';
 import { hashCmsIp } from '../../services/cms/cms-visitor';
 import { escapeHtml } from '../../lib/text-utils';
+import { safeReturnUrl } from '../../lib/safe-return-url';
 
 /**
  * CMS 前台公开提交接口（评论 / 自定义表单）。
@@ -42,12 +43,6 @@ function messagePage(title: string, text: string, backUrl: string): string {
   return `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="2;url=${safeBack}"><title>${escapeHtml(title)}</title><style>body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f6f8fa}main{text-align:center;padding:40px;background:#fff;border:1px solid #d1d9e0;border-radius:10px}h1{font-size:20px;margin:0 0 8px}p{color:#59636e;font-size:14px;margin:0 0 16px}a{color:#1f6feb}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(text)}</p><a href="${safeBack}">立即返回</a></main></body></html>`;
 }
 
-/** 提取安全回跳地址：仅允许站内相对路径，防开放重定向 */
-function safeReturnUrl(raw: unknown): string {
-  const url = typeof raw === 'string' ? raw : '';
-  if (url.startsWith('/') && !url.startsWith('//')) return url;
-  return '/';
-}
 
 /** 站点开启验证码时校验（一次性）；未开启直接放行 */
 async function assertCaptchaIfEnabled(site: { settings: unknown } | null, body: Record<string, unknown>): Promise<string | null> {
