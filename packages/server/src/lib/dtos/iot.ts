@@ -228,6 +228,7 @@ export const IotAlarmDTO = z
     escalatedAt: z.string().nullable(),
     resolvedAt: z.string().nullable(),
     resolvedBy: z.number().int().nullable(),
+    resolvedByName: z.string().nullable().optional(),
     resolveNote: z.string().nullable(),
     createdAt: z.string(),
   })

@@ -652,6 +652,7 @@ export const iotHandlers = [
     alarm.status = 'resolved';
     alarm.resolvedAt = mockDateTime();
     alarm.resolvedBy = 1;
+    alarm.resolvedByName = '演示管理员';
     alarm.resolveNote = body?.note?.trim() || null;
     return ok(alarm, '告警已处理');
   }),

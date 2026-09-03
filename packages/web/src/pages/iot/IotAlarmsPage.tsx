@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Form, Modal, Spin, TabPane, Tabs, Tag, TextArea, Toast, Tooltip, Typography, withField } from '@douyinfe/semi-ui';
+import { Descriptions, Form, Modal, Spin, TabPane, Tabs, Tag, TextArea, Toast, Tooltip, Typography, withField } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -80,21 +80,15 @@ function AlarmRecordsTab() {
   const acknowledgeMutation = useAcknowledgeIotAlarm();
   const [resolveTarget, setResolveTarget] = useState<IotAlarm | null>(null);
   const [resolveNote, setResolveNote] = useState('');
+  const [detailTarget, setDetailTarget] = useState<IotAlarm | null>(null);
+
+  /** 处理人：已恢复看处理人（自动恢复无人），否则看认领人 */
+  const handlerName = (r: IotAlarm): string | null => {
+    if (r.status === 'resolved') return r.resolvedByName ?? (r.resolvedBy != null ? `#${r.resolvedBy}` : '自动恢复');
+    return r.acknowledgedByName ?? (r.acknowledgedBy != null ? `#${r.acknowledgedBy}` : null);
+  };
 
   const columns: ColumnProps<IotAlarm>[] = [
-    {
-      title: '状态', dataIndex: 'status', width: 90,
-      render: (v: IotAlarm['status'], r: IotAlarm) => (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
-          <Tag size="small" color={ALARM_STATUS_COLORS[v]}>{IOT_ALARM_STATUS_LABELS[v]}</Tag>
-          {r.escalatedAt && (
-            <Tooltip content={`已于 ${r.escalatedAt} 升级通知`}>
-              <Tag size="small" color="purple">升</Tag>
-            </Tooltip>
-          )}
-        </span>
-      ),
-    },
     {
       title: '级别', dataIndex: 'level', width: 80,
       render: (v: IotAlarm['level']) => (
@@ -125,21 +119,26 @@ function AlarmRecordsTab() {
     },
     {
       title: '处理人', width: 110,
-      render: (_: unknown, r: IotAlarm) => {
-        if (r.status === 'resolved' && r.resolveNote) {
-          return (
-            <Tooltip content={`处理备注：${r.resolveNote}`}>
-              <span style={{ whiteSpace: 'nowrap' }}>{r.acknowledgedByName ?? (r.resolvedBy ? `#${r.resolvedBy}` : '自动恢复')} 📝</span>
-            </Tooltip>
-          );
-        }
-        if (r.acknowledgedByName) return renderEllipsis(r.acknowledgedByName);
-        return EMPTY_PLACEHOLDER;
-      },
+      render: (_: unknown, r: IotAlarm) => renderEllipsis(handlerName(r)),
     },
     dateTimeColumn<IotAlarm>('触发时间', 'firedAt'),
     dateTimeColumn<IotAlarm>('恢复时间', 'resolvedAt'),
+    {
+      // 状态 + 「升」标记并排：52 + 4 + 28 = 84，列宽 = 84 + 32 → 120
+      title: '状态', dataIndex: 'status', width: 120, fixed: 'right',
+      render: (v: IotAlarm['status'], r: IotAlarm) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+          <Tag size="small" color={ALARM_STATUS_COLORS[v]}>{IOT_ALARM_STATUS_LABELS[v]}</Tag>
+          {r.escalatedAt && (
+            <Tooltip content={`已于 ${r.escalatedAt} 升级通知`}>
+              <Tag size="small" color="purple">升</Tag>
+            </Tooltip>
+          )}
+        </span>
+      ),
+    },
     createOperationColumn<IotAlarm>({
+      // 告警中：认领 / 处理（52 + 4 + 52 = 108）；已恢复：处理详情（80）→ 150
       width: 150,
       actions: (record) => [
         ...(hasPermission('iot:alarm:resolve') && record.status === 'firing' ? [{
@@ -156,6 +155,10 @@ function AlarmRecordsTab() {
             setResolveNote('');
             setResolveTarget(record);
           },
+        }] : []),
+        ...(record.status === 'resolved' ? [{
+          key: 'detail', label: '处理详情',
+          onClick: () => setDetailTarget(record),
         }] : []),
       ],
     }),
@@ -280,6 +283,54 @@ function AlarmRecordsTab() {
           onChange={(v) => setResolveNote(v)}
         />
       </Modal>
+
+      {/* 处理详情：只读查看认领 / 处理 / 升级链路与备注 */}
+      <AppModal
+        title={detailTarget ? `处理详情「${detailTarget.ruleName}」` : ''}
+        visible={detailTarget !== null}
+        onCancel={() => setDetailTarget(null)}
+        footer={null}
+        width={620}
+        closeOnEsc
+      >
+        {detailTarget && (
+          <Descriptions
+            align="plain"
+            layout="horizontal"
+            column={2}
+            style={{ width: '100%' }}
+            data={[
+              { key: '设备', value: detailTarget.deviceName ?? EMPTY_PLACEHOLDER },
+              { key: 'SN', value: detailTarget.deviceSn ?? EMPTY_PLACEHOLDER },
+              {
+                key: '级别',
+                value: <Tag size="small" color={ALARM_LEVEL_COLORS[detailTarget.level]}>{IOT_ALARM_LEVEL_LABELS[detailTarget.level]}</Tag>,
+              },
+              { key: '类型', value: IOT_ALARM_RULE_TYPE_LABELS[detailTarget.ruleType] },
+              { key: '告警内容', value: detailTarget.message, span: 2 },
+              { key: '触发时间', value: detailTarget.firedAt },
+              { key: '升级通知', value: detailTarget.escalatedAt ?? '未升级' },
+              {
+                key: '认领',
+                value: detailTarget.acknowledgedAt
+                  ? `${detailTarget.acknowledgedByName ?? (detailTarget.acknowledgedBy != null ? `#${detailTarget.acknowledgedBy}` : EMPTY_PLACEHOLDER)} · ${detailTarget.acknowledgedAt}`
+                  : '未认领，直接处理',
+                span: 2,
+              },
+              { key: '处理方式', value: detailTarget.resolvedBy != null ? '人工处理' : '自动恢复（告警条件消失）' },
+              { key: '处理人', value: handlerName(detailTarget) ?? EMPTY_PLACEHOLDER },
+              { key: '处理时间', value: detailTarget.resolvedAt ?? EMPTY_PLACEHOLDER, span: 2 },
+              {
+                key: '处理备注',
+                value: detailTarget.resolveNote
+                  ? <Text style={{ whiteSpace: 'pre-wrap' }}>{detailTarget.resolveNote}</Text>
+                  : <Text type="tertiary">未填写</Text>,
+                span: 2,
+              },
+            ]}
+          />
+        )}
+      </AppModal>
     </>
   );
 }

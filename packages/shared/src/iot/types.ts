@@ -239,6 +239,7 @@ export interface IotAlarm {
   escalatedAt: string | null;
   resolvedAt: string | null;
   resolvedBy: number | null;
+  resolvedByName?: string | null;
   resolveNote: string | null;
   createdAt: string;
 }

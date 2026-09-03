@@ -11,6 +11,7 @@
  */
 import { HTTPException } from 'hono/http-exception';
 import { and, count, desc, eq, inArray, isNotNull, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { alias as aliasedTable } from 'drizzle-orm/pg-core';
 import type { CreateIotAlarmRuleInput, IotAlarmLevel, IotAlarmRuleType, IotAlarmStatus, IotCompareOp, UpdateIotAlarmRuleInput } from '@zenith/shared/iot';
 import { IOT_ALARM_LEVEL_LABELS, IOT_COMPARE_OP_LABELS, IOT_ONLINE_TTL_SECONDS } from '@zenith/shared/iot';
 import type { IotMetricValue } from '@zenith/shared/iot';
@@ -198,7 +199,7 @@ export async function deleteIotAlarmRule(id: number): Promise<void> {
 // ─── 告警记录 ─────────────────────────────────────────────────────────────────
 export function mapIotAlarm(
   row: IotAlarmRow,
-  extra?: { deviceName?: string | null; deviceSn?: string | null; acknowledgedByName?: string | null },
+  extra?: { deviceName?: string | null; deviceSn?: string | null; acknowledgedByName?: string | null; resolvedByName?: string | null },
 ) {
   return {
     id: row.id,
@@ -219,6 +220,7 @@ export function mapIotAlarm(
     escalatedAt: formatNullableDateTime(row.escalatedAt),
     resolvedAt: formatNullableDateTime(row.resolvedAt),
     resolvedBy: row.resolvedBy ?? null,
+    resolvedByName: extra?.resolvedByName ?? null,
     resolveNote: row.resolveNote ?? null,
     createdAt: formatDateTime(row.createdAt),
   };
@@ -249,10 +251,16 @@ export async function listIotAlarms(q: ListIotAlarmsQuery) {
     ),
     tenantCondition(iotDevices, currentUser()),
   );
-  const base = db.select({ alarm: iotAlarms, deviceName: iotDevices.name, deviceSn: iotDevices.sn, acknowledgedByName: users.username })
+  // 认领人 / 处理人分别关联用户表（同一告警可能由不同人认领与处理）
+  const resolvers = aliasedTable(users, 'resolvers');
+  const base = db.select({
+    alarm: iotAlarms, deviceName: iotDevices.name, deviceSn: iotDevices.sn,
+    acknowledgedByName: users.username, resolvedByName: resolvers.username,
+  })
     .from(iotAlarms)
     .innerJoin(iotDevices, eq(iotAlarms.deviceId, iotDevices.id))
-    .leftJoin(users, eq(iotAlarms.acknowledgedBy, users.id));
+    .leftJoin(users, eq(iotAlarms.acknowledgedBy, users.id))
+    .leftJoin(resolvers, eq(iotAlarms.resolvedBy, resolvers.id));
   const [countRows, rows] = await Promise.all([
     db.select({ value: count() }).from(iotAlarms)
       .innerJoin(iotDevices, eq(iotAlarms.deviceId, iotDevices.id))
@@ -264,7 +272,9 @@ export async function listIotAlarms(q: ListIotAlarmsQuery) {
     ),
   ]);
   return {
-    list: rows.map((r) => mapIotAlarm(r.alarm, { deviceName: r.deviceName, deviceSn: r.deviceSn, acknowledgedByName: r.acknowledgedByName })),
+    list: rows.map((r) => mapIotAlarm(r.alarm, {
+      deviceName: r.deviceName, deviceSn: r.deviceSn, acknowledgedByName: r.acknowledgedByName, resolvedByName: r.resolvedByName,
+    })),
     total: Number(countRows[0]?.value ?? 0),
     page,
     pageSize,
