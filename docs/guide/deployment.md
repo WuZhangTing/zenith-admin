@@ -32,13 +32,15 @@ npm ci
 
 ```bash
 cp packages/server/.env.example packages/server/.env
+npm run secret:generate   # 输出 JWT_SECRET / FIELD_ENCRYPTION_KEY 两行，粘贴进 .env
 ```
 
 生产最小配置：
 
 ```dotenv
 PORT=3300
-JWT_SECRET=your-strong-secret-key
+JWT_SECRET=<npm run secret:generate 输出>
+FIELD_ENCRYPTION_KEY=<npm run secret:generate 输出>
 DATABASE_URL=postgresql://zenith:strong-password@db.example.com:5432/zenith_admin
 REDIS_URL=redis://redis.example.com:6379
 LOG_LEVEL=info
@@ -46,11 +48,15 @@ LOG_DIR=./logs
 ALLOWED_ORIGINS=https://admin.example.com
 ```
 
+::: warning 密钥没有默认值
+`JWT_SECRET`（≥ 32 字符随机，按服务实例独立）与 `FIELD_ENCRYPTION_KEY`（64 位 hex，按数据库共享）在任何非 `NODE_ENV=development` 的环境下都必填；缺失、仍为模板占位值或随机性不足时服务拒绝启动。
+`FIELD_ENCRYPTION_KEY` 用于加密 MFA 密钥、SSH 凭据、支付 / AI 渠道密钥等入库字段：连接同一个数据库的所有实例必须使用同一把；更换它会使已入库的密文不可读，需要重新录入。
+:::
+
 按需启用的常见变量：
 
 | 变量 | 用途 |
 | --- | --- |
-| `FIELD_ENCRYPTION_KEY` | 报表数据源凭据等敏感字段加密 |
 | `REQUEST_BODY_LIMIT` | 请求体大小上限，`0` 或未设置表示不启用限制 |
 | `REQUEST_TIMEOUT_MS` | 请求超时，自动排除 `/api/ws`、`/api/files`、`/api/db-backups` 与 `/export` 接口 |
 | `TRUSTED_PROXY_CIDRS` | 仅信任指定代理的 `X-Forwarded-For` / `X-Real-IP` |

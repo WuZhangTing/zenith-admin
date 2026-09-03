@@ -11,6 +11,10 @@
 import { spawn, spawnSync } from 'node:child_process';
 
 const env = { ...process.env };
+// `npm run dev` 是唯一的开发运行入口：未显式设置时标记为 development，
+// 使 config 在缺省 JWT_SECRET / FIELD_ENCRYPTION_KEY 时回落内置开发密钥（lib/secrets.ts）。
+// 生产启动路径（npm start / node dist/index.js / tsx src/index.ts / PM2）不经此脚本，仍为严格校验。
+env.NODE_ENV ??= 'development';
 // node-pty 与 Node Inspector 的死锁是 Windows ConPTY 特有问题（microsoft/node-pty#640）；
 // 仅在 Windows 剥离 auto-attach 注入的调试器变量（NODE_OPTIONS 含 --require .../bootloader.js）。
 // Linux/macOS 使用 forkpty，不受该死锁影响，保留 `npm run dev` 的可调试性。

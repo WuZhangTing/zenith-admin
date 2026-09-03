@@ -1,20 +1,20 @@
 /**
- * 字段级 AES-256-GCM 加密工具单测（encryption，密钥来自 FIELD_ENCRYPTION_KEY 环境变量，须为 64 位 hex）。
+ * 字段级 AES-256-GCM 加密工具单测（encryption，密钥来自 config.fieldEncryptionKey，须为 64 位 hex）。
  *
  * 覆盖：加解密闭环、null/undefined 透传、随机 IV、篡改返回 null（不抛错）、跨密钥解密失败、非法密钥格式拒绝。
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { encryptField, decryptField } from './encryption';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const TEST_KEY_HEX = '0123456789abcdef'.repeat(4);
 const OTHER_KEY_HEX = 'fedcba9876543210'.repeat(4);
 
-beforeEach(() => {
-  vi.stubEnv('FIELD_ENCRYPTION_KEY', TEST_KEY_HEX);
-});
+vi.mock('../config', () => ({ config: { fieldEncryptionKey: '' } }));
 
-afterEach(() => {
-  vi.unstubAllEnvs();
+import { config } from '../config';
+import { encryptField, decryptField } from './encryption';
+
+beforeEach(() => {
+  config.fieldEncryptionKey = TEST_KEY_HEX;
 });
 
 describe('encryptField / decryptField', () => {
@@ -57,20 +57,17 @@ describe('encryptField / decryptField', () => {
 
   it('换密钥后旧密文解密失败（返回 null）', () => {
     const cipher = encryptField('secret')!;
-    vi.stubEnv('FIELD_ENCRYPTION_KEY', OTHER_KEY_HEX);
+    config.fieldEncryptionKey = OTHER_KEY_HEX;
     expect(decryptField(cipher)).toBeNull();
   });
 
   it('非 64 位 hex 密钥 → 加密时抛出格式错误', () => {
-    vi.stubEnv('FIELD_ENCRYPTION_KEY', 'unit-test-field-encryption-key');
+    config.fieldEncryptionKey = 'unit-test-field-encryption-key';
     expect(() => encryptField('secret')).toThrowError(/64-character hexadecimal/);
   });
 
-  it('未配置 FIELD_ENCRYPTION_KEY 时回退 JWT_SECRET 派生密钥仍可闭环', () => {
-    vi.stubEnv('FIELD_ENCRYPTION_KEY', '');
-    vi.unstubAllEnvs();
-    vi.stubEnv('JWT_SECRET', 'fallback-jwt-secret');
-    delete process.env.FIELD_ENCRYPTION_KEY;
-    expect(decryptField(encryptField('fallback-roundtrip'))).toBe('fallback-roundtrip');
+  it('未配置密钥（空串）→ 加密时抛出格式错误，不再回退派生密钥', () => {
+    config.fieldEncryptionKey = '';
+    expect(() => encryptField('secret')).toThrowError(/64-character hexadecimal/);
   });
 });

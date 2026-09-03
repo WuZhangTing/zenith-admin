@@ -14,7 +14,8 @@ git clone https://github.com/iwangbowen/zenith-admin.git
 cd zenith-admin
 
 cp .env.docker .env
-# 编辑 .env，至少修改 JWT_SECRET
+# 生成两把密钥并填入 .env（JWT_SECRET / FIELD_ENCRYPTION_KEY 无默认值，留空无法启动）
+npm run secret:generate
 
 docker compose up -d
 
@@ -77,7 +78,8 @@ shared 与 server 的 `build` 脚本在 `tsc` 之后运行 `tsc-alias --resolve-
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `JWT_SECRET` | `change-me-to-a-strong-random-secret` | JWT 签名密钥，生产必须修改 |
+| `JWT_SECRET` | 无（必填） | JWT 签名密钥，≥ 32 字符随机值，按服务实例独立；`npm run secret:generate` 生成 |
+| `FIELD_ENCRYPTION_KEY` | 无（必填） | 字段级 AES-256-GCM 密钥（64 位 hex），按数据库共享——连同一个库的实例必须一致，轮换会使已入库密文不可读 |
 | `POSTGRES_PASSWORD` | `postgres` | PostgreSQL 密码 |
 | `POSTGRES_PORT` | `5432` | PostgreSQL 宿主机映射端口 |
 | `REDIS_PASSWORD` | 空 | Redis 密码；设置后 Redis 启用 `requirepass`，healthcheck 自动带上认证 |
@@ -92,7 +94,7 @@ shared 与 server 的 `build` 脚本在 `tsc` 之后运行 `tsc-alias --resolve-
 | `OAUTH_CALLBACK_BASE_URL` | `http://localhost` | OAuth 回调基础地址 |
 | `TAG` | `latest` | 本地构建镜像标签 |
 
-生产环境请修改 `JWT_SECRET`，并按实际域名设置 `ALLOWED_ORIGINS`。如果 Redis 设置密码，请同步把 `REDIS_URL` 配成带密码的连接串，例如 `redis://:your_password@redis:6379/0`。
+`JWT_SECRET` 与 `FIELD_ENCRYPTION_KEY` 留空或仍是占位值时，`docker compose up` 与 API 启动都会直接失败。生产环境请按实际域名设置 `ALLOWED_ORIGINS`。如果 Redis 设置密码，请同步把 `REDIS_URL` 配成带密码的连接串，例如 `redis://:your_password@redis:6379/0`。
 
 ## Nginx 行为
 

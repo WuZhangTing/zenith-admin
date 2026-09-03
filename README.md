@@ -270,9 +270,10 @@ npm install
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/zenith_admin
-JWT_SECRET=your-secret-key
 REDIS_URL=redis://127.0.0.1:6379
 ```
+
+`JWT_SECRET` / `FIELD_ENCRYPTION_KEY` 本地开发（`npm run dev`）可以省略，会自动使用内置开发密钥；生产环境必填且无默认值，用 `npm run secret:generate` 生成。
 
 前端默认请求 `http://localhost:3300`，如需修改，在 `packages/web/` 下创建 `.env` 并设置 `VITE_API_BASE_URL`。
 

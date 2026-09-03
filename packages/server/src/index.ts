@@ -18,7 +18,7 @@ import { createApp } from './app';
 import { registerEventSubscribers } from './bootstrap/subscribers';
 import { registerBackgroundWorkers } from './bootstrap/workers';
 import { warmupOpenApiDoc } from './bootstrap/openapi-warmup';
-import { config } from './config';
+import { assertRuntimeSecrets, config } from './config';
 import { closeDb } from './db';
 import logger from './lib/logger';
 import { metricsSampler } from './lib/metrics-sampler';
@@ -27,6 +27,9 @@ import { closeRedis } from './lib/redis';
 import { initTelemetry, shutdownTelemetry } from './lib/telemetry';
 import { bootstrapRateLimitRules } from './middleware/rate-limit';
 import { registerOpenWebhookSubscriber } from './services/open-platform/app-webhooks.service';
+
+// 密钥不合规（非开发环境缺失 JWT_SECRET / FIELD_ENCRYPTION_KEY 或仍是默认值）时在开始监听前终止
+assertRuntimeSecrets(logger);
 
 await initTelemetry();
 

@@ -10,6 +10,7 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "tsx src/db/migrate.ts",
 		"db:seed": "tsx src/db/seed.ts",
+		"secret:generate": "tsx scripts/generate-secrets.ts",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"lint": "eslint src",

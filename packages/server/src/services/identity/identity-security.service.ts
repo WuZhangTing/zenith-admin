@@ -6,7 +6,7 @@ import { loginRiskEvents, systemConfigs, userMfaFactors, userTrustedDevices, use
 import { currentUser } from '../../lib/context';
 import { formatDateTime } from '../../lib/datetime';
 import { lookupIpLocation } from '../../lib/ip-location';
-import { decryptSecret, encryptSecret } from '../../lib/secret-crypto';
+import { decryptSecret, encryptSecret, SecretDecryptError } from '../../lib/secret-crypto';
 import { getConfigBoolean, getConfigNumber, getConfigValue } from '../../lib/system-config';
 import { buildTotpUri, generateTotpSecret, verifyTotp } from '../../lib/totp';
 
@@ -157,11 +157,23 @@ export async function beginTotpSetup() {
   };
 }
 
+const MFA_SECRET_UNREADABLE_MESSAGE = '多因素认证密钥无法读取（服务端加密密钥已变更），请联系管理员重置后重新绑定身份验证器';
+
+/** 解密 TOTP 密钥；密钥不一致时给出可操作的 400 而非 500 */
+function decryptTotpSecret(encrypted: string): string {
+  try {
+    return decryptSecret(encrypted);
+  } catch (err) {
+    if (err instanceof SecretDecryptError) throw new HTTPException(400, { message: MFA_SECRET_UNREADABLE_MESSAGE });
+    throw err;
+  }
+}
+
 export async function verifyTotpSetup(factorId: number, code: string) {
   const userId = currentUser().userId;
   const factor = await ensureOwnTotpFactor(userId, factorId);
   if (!factor.secretEncrypted) throw new HTTPException(400, { message: 'MFA 因子无效' });
-  const secret = decryptSecret(factor.secretEncrypted);
+  const secret = decryptTotpSecret(factor.secretEncrypted);
   if (!verifyTotp(code, secret)) throw new HTTPException(400, { message: '动态验证码错误' });
   const [row] = await db
     .update(userMfaFactors)
@@ -263,9 +275,18 @@ export async function verifyLoginTotp(challenge: MfaChallengePayload, code: stri
     .select()
     .from(userMfaFactors)
     .where(and(eq(userMfaFactors.userId, challenge.userId), eq(userMfaFactors.type, 'totp'), eq(userMfaFactors.status, 'enabled')));
+  let unreadable = 0;
   for (const factor of rows) {
     if (!factor.secretEncrypted) continue;
-    if (verifyTotp(code, decryptSecret(factor.secretEncrypted))) {
+    let secret: string;
+    try {
+      secret = decryptSecret(factor.secretEncrypted);
+    } catch (err) {
+      if (!(err instanceof SecretDecryptError)) throw err;
+      unreadable += 1;
+      continue;
+    }
+    if (verifyTotp(code, secret)) {
       await db.update(userMfaFactors).set({ lastUsedAt: new Date() }).where(eq(userMfaFactors.id, factor.id));
       if (challenge.rememberDevice && challenge.deviceId) {
         const policy = await getIdentitySecurityPolicy(challenge.tenantId);
@@ -279,6 +300,10 @@ export async function verifyLoginTotp(challenge: MfaChallengePayload, code: stri
       }
       return;
     }
+  }
+  // 全部因子都解不开 → 不是验证码错误，而是密钥变更后的存量数据，提示走管理员重置路径
+  if (unreadable > 0 && unreadable === rows.filter((r) => r.secretEncrypted).length) {
+    throw new HTTPException(400, { message: MFA_SECRET_UNREADABLE_MESSAGE });
   }
   throw new HTTPException(400, { message: '动态验证码错误' });
 }

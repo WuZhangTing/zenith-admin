@@ -29,7 +29,7 @@
 | 支付宝 | 应用私钥 | AppID、支付宝公钥、签名类型、网关 |
 | 云闪付 | 商户私钥 | 商户号、证书序列号、银联公钥、网关 |
 
-- 字段加密密钥来自 `FIELD_ENCRYPTION_KEY`，未配置时由 `JWT_SECRET` 派生。
+- 字段加密密钥来自 `FIELD_ENCRYPTION_KEY`（64 位 hex，按数据库共享）；`NODE_ENV=development` 下缺省使用内置开发密钥，其他环境必填且与 `JWT_SECRET` 相互独立。
 - 查询接口返回 `hasWechatApiV3Key`、`hasWechatPrivateKey`、`hasAlipayPrivateKey`、`hasUnionpayPrivateKey`，不返回明文或掩码内容。
 - 编辑渠道时密钥字段留空表示保留原值。
 - 适配器调用期间通过 `AdapterContext.secrets` 临时解密。
@@ -163,7 +163,7 @@ decide({ kind: 'table', key: 'dispute_triage' }, facts, { caller: 'payment.dispu
 
 | 变量 | 说明 |
 | --- | --- |
-| `FIELD_ENCRYPTION_KEY` | 字段级 AES-256-GCM 加密密钥；未配置时回退 `JWT_SECRET` 派生 |
+| `FIELD_ENCRYPTION_KEY` | 字段级 AES-256-GCM 加密密钥（64 位 hex，按数据库共享）；开发模式缺省用内置开发密钥，其他环境必填 |
 | `PAYMENT_NOTIFY_BASE_URL` / `PUBLIC_BASE_URL` | 渠道回调地址基址 |
 | `PAYMENT_REFUND_APPROVAL_THRESHOLD` | 退款审批阈值兜底，单位分 |
 | `PAYMENT_MOCK_DISPUTES` | `true` 时定时任务为沙箱成功订单生成模拟投诉；手动模拟接口不受该变量限制 |

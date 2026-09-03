@@ -1,29 +1,25 @@
 /**
  * 字段级 AES-256-GCM 对称加密工具。
- * 用于在数据库中安全存储 SSH 密码、私钥等敏感字段。
+ * 用于在数据库中安全存储报表数据源凭据、AI 服务商 API Key、支付渠道密钥等敏感字段。
  *
- * 加密密钥由环境变量 `FIELD_ENCRYPTION_KEY`（32 字节 hex 字符串）提供；
- * 生产环境必须显式配置，开发环境才允许从 JWT_SECRET 派生临时密钥。
+ * 加密密钥来自 `config.fieldEncryptionKey`（环境变量 `FIELD_ENCRYPTION_KEY`，64 位 hex = 32 字节），
+ * 与 lib/secret-crypto.ts 共用。它属于数据库而非某个服务实例：连同一个库的所有实例必须一致。
+ * 非开发环境缺失时由服务启动时的 assertRuntimeSecrets() 拦截；NODE_ENV=development 下缺省回落内置开发密钥。
  */
-import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { config } from '../config';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
+const KEY_BYTES = 32;
 
 function getKey(): Buffer {
-  const configured = process.env.FIELD_ENCRYPTION_KEY?.trim();
-  if (configured) {
-    if (!/^[0-9a-fA-F]{64}$/.test(configured)) {
-      throw new Error('FIELD_ENCRYPTION_KEY must be a 64-character hexadecimal value');
-    }
-    return Buffer.from(configured, 'hex');
+  const key = Buffer.from(config.fieldEncryptionKey, 'hex');
+  if (key.length !== KEY_BYTES) {
+    throw new Error('FIELD_ENCRYPTION_KEY must be a 64-character hexadecimal value（运行 `npm run secret:generate` 生成）');
   }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('FIELD_ENCRYPTION_KEY is required in production');
-  }
-  const developmentSeed = process.env.JWT_SECRET ?? 'zenith-default-dev-key-not-for-production';
-  return createHash('sha256').update(developmentSeed).digest();
+  return key;
 }
 
 /**

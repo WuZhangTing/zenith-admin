@@ -5,6 +5,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // 运行时密钥：config 在非 development 环境不再有内置默认值（vitest 的 NODE_ENV=test）。
+    // 这里给一组固定的测试值，让未 mock config 的用例（如 encryption / secret-crypto 闭环）可用；
+    // 值本身在 lib/secrets 的占位检测里被视为不安全，不会流入任何真实部署。
+    env: {
+      JWT_SECRET: 'vitest-only-jwt-secret-0123456789abcdefghijklmnopqrstuvwxyz',
+      FIELD_ENCRYPTION_KEY: '0123456789abcdef'.repeat(4),
+    },
     // 全局替换模块加载期就建 TCP 连接的 lib/redis，见 src/test-setup.ts
     setupFiles: ['src/test-setup.ts'],
     // 保持默认 forks 池，不要换 threads：worker_threads 共享**同一个进程级

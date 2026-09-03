@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import * as z from 'zod';
+import { collectRuntimeSecretErrors, resolveRuntimeSecrets, RUNTIME_SECRETS_HINT } from './lib/secrets';
 
 // ─── HTTP Log Types ──────────────────────────────────────────────────────────────────────────────
 
@@ -17,7 +18,17 @@ const envBool = (def: boolean) => z.preprocess((v) => (v === '' ? undefined : v)
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3300),
-  JWT_SECRET: z.string().min(1).default('zenith-admin-secret'),
+  /**
+   * JWT 签名密钥（HS256，≥ 32 字符随机值），按服务实例独立。无内置默认值：
+   * 非开发环境缺失 / 不合规时由 assertRuntimeSecrets() 在启动时终止进程；
+   * NODE_ENV=development 下缺省回落内置开发密钥（见 lib/secrets.ts）
+   */
+  JWT_SECRET: z.string().default(''),
+  /**
+   * 字段级 AES-256-GCM 密钥（64 位 hex），按数据库共享：连同一个库的所有实例必须一致。
+   * 校验与回落规则同 JWT_SECRET
+   */
+  FIELD_ENCRYPTION_KEY: z.string().default(''),
   /** 对外可访问的服务基地址，用于邮件退订链接等出站 URL 拼接 */
   PUBLIC_BASE_URL: z.string().default('http://localhost:3300'),
   DATABASE_URL: z.string().min(1).default('postgresql://postgres:postgres@localhost:5432/zenith_admin'),
@@ -145,6 +156,31 @@ if (!parsed.success) {
 
 const env = parsed.data;
 
+// ─── Runtime Secrets ─────────────────────────────────────────────────────────────────────────────
+
+const runtimeSecretsInput = {
+  nodeEnv: process.env.NODE_ENV,
+  jwtSecret: env.JWT_SECRET,
+  fieldEncryptionKey: env.FIELD_ENCRYPTION_KEY,
+};
+const runtimeSecrets = resolveRuntimeSecrets(runtimeSecretsInput);
+
+/**
+ * 服务进程（index.ts）启动时调用：非开发环境缺失 / 不合规的密钥直接终止进程，
+ * 开发模式回落内置密钥时打一条告警。CLI（migrate / seed / 脚本）不调用本函数，
+ * 因而不会被密钥要求拦住——它们不签发 token、不读写密文。
+ */
+export function assertRuntimeSecrets(log: { warn(msg: string): void; error(msg: string): void }): void {
+  const errors = collectRuntimeSecretErrors(runtimeSecretsInput);
+  if (errors.length > 0) {
+    log.error(`❌ 运行时密钥不合规，拒绝启动：\n  - ${errors.join('\n  - ')}\n${RUNTIME_SECRETS_HINT}`);
+    process.exit(1);
+  }
+  if (runtimeSecrets.devDefaults.length > 0) {
+    log.warn(`⚠ 正在使用内置开发密钥 ${runtimeSecrets.devDefaults.join('、')}（NODE_ENV=development），仅限本地开发`);
+  }
+}
+
 // ─── HTTP 日志方法覆盖辅助 ───────────────────────────────────────────────────────────────────────────
 
 function buildMethodOverrides(prefix: 'HTTP_LOG_INCOMING_METHOD' | 'HTTP_LOG_OUTGOING_METHOD'): Partial<Record<HttpLogMethod, HttpLogLevel>> {
@@ -172,7 +208,9 @@ function buildMethodOverrides(prefix: 'HTTP_LOG_INCOMING_METHOD' | 'HTTP_LOG_OUT
 
 export const config = {
   port: env.PORT,
-  jwtSecret: env.JWT_SECRET,
+  jwtSecret: runtimeSecrets.jwtSecret,
+  /** 字段级加密密钥（64 位 hex）；lib/encryption.ts 与 lib/secret-crypto.ts 的唯一密钥来源 */
+  fieldEncryptionKey: runtimeSecrets.fieldEncryptionKey,
   publicBaseUrl: env.PUBLIC_BASE_URL.replace(/\/+$/, ''),
   databaseUrl: env.DATABASE_URL,
   corsOrigin: env.CORS_ORIGIN,

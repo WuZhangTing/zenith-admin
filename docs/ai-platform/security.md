@@ -8,7 +8,7 @@ AI 能力涉及外部 API 调用与用户生成内容，系统内置多层安全
 
 系统服务商与个人配置的 API Key 以 **AES-256-GCM** 加密入库（`enc:v1:` 前缀）：
 
-- 密钥来自环境变量 `FIELD_ENCRYPTION_KEY`，未配置时从 `JWT_SECRET` 派生；
+- 密钥来自环境变量 `FIELD_ENCRYPTION_KEY`（64 位 hex，按数据库共享，与 `JWT_SECRET` 相互独立）；`NODE_ENV=development` 下缺省使用内置开发密钥，其他环境必填；
 - 明文历史值兼容读取，重新保存时自动加密；
 - 接口响应一律脱敏；提交脱敏值时服务端保留原始密钥。
 
