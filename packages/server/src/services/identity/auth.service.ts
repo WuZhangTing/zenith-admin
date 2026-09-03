@@ -3,7 +3,11 @@ import { db } from '../../db';
 import { users, loginLogs, tenants, operationLogs, passwordResetTokens, type UserRow } from '../../db/schema';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
 import { signToken, verifyToken } from '../../lib/jwt';
-import { generateTokenId, registerSession, removeSession, checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout, getSession } from '../../lib/session-manager';
+import {
+  generateTokenId, registerSession, removeSession, grantRefresh, consumeRefreshGrant, isTokenBlacklisted,
+  checkLoginLock, recordLoginFailure, clearLoginAttempts, getOnlineSessions, forceLogout, forceLogoutAllByUser,
+  forceLogoutAllByUserExcept, getSession,
+} from '../../lib/session-manager';
 import type { JwtPayload } from '../../middleware/auth';
 import { formatDateTime } from '../../lib/datetime';
 import { parseUserAgent } from '../../lib/request-helpers';
@@ -174,6 +178,7 @@ export async function finalizeLogin(
       os,
       loginAt: new Date(),
     }),
+    grantRefresh(tokenId),
     recordLoginLog({
       ip: input.ip,
       ua: input.ua,
@@ -368,6 +373,13 @@ export async function verifyMfaLogin(challengeId: string, code: string, remember
   );
 }
 
+/**
+ * 用 refresh token 换发新 token（轮换）：
+ * 1. refresh token 只是承载 jti 的凭据，必须一次性消费 Redis 中对应的 refresh 授权——
+ *    登出 / 强制下线 / 改密撤销授权后，即便 token 本身未过期也无法续签；
+ * 2. 每次续签签发新 jti 并把授权与在线会话迁移过去，旧 jti 立即吊销（旧 access / refresh 同时作废），
+ *    被盗的 refresh token 最多只能用一次，且与合法客户端并发使用时会立刻暴露。
+ */
 export async function refreshAccessToken(token: string, clientInfo?: { ip: string; ua: string }) {
   let payload: {
     userId: number;
@@ -382,9 +394,15 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
   } catch {
     throw new HTTPException(401, { message: 'refresh token 已过期' });
   }
-  if (payload.type !== 'refresh' || !Number.isInteger(payload.userId) || payload.userId <= 0) {
+  if (payload.type !== 'refresh' || !Number.isInteger(payload.userId) || payload.userId <= 0 || !payload.jti) {
     throw new HTTPException(401, { message: '无效的 refresh token' });
   }
+  const previousTokenId = payload.jti;
+  if (await isTokenBlacklisted(previousTokenId) || !(await consumeRefreshGrant(previousTokenId))) {
+    throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
+  }
+  // 授权已被消费：后续任何校验失败都必须让该会话彻底作废，避免半开状态
+  const revokePrevious = async () => { try { await removeSession(previousTokenId); } catch { /* best-effort */ } };
   const [u] = await db.select({
     status: users.status,
     nickname: users.nickname,
@@ -397,10 +415,11 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
     .leftJoin(tenants, eq(users.tenantId, tenants.id))
     .where(eq(users.id, payload.userId))
     .limit(1);
-  if (!u) throw new HTTPException(401, { message: '用户不存在' });
-  if (u.status !== 'enabled') throw new HTTPException(403, { message: '账号已被禁用' });
+  if (!u) { await revokePrevious(); throw new HTTPException(401, { message: '用户不存在' }); }
+  if (u.status !== 'enabled') { await revokePrevious(); throw new HTTPException(403, { message: '账号已被禁用' }); }
   const dbTenantId = u.tenantId ?? null;
   if ((payload.tenantId ?? null) !== dbTenantId) {
+    await revokePrevious();
     throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
   }
   // 租户被禁用/过期后，refresh 必须同步失效（不受 multiTenantMode 开关影响）。
@@ -408,6 +427,7 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
     u.tenantStatus !== 'enabled'
     || (u.tenantExpireAt != null && u.tenantExpireAt <= new Date())
   )) {
+    await revokePrevious();
     throw new HTTPException(403, { message: '租户已被禁用或过期' });
   }
   const userRoleList = await getUserRoles(payload.userId);
@@ -416,47 +436,51 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
       roles: userRoleList.filter((role) => role.status === 'enabled').map((role) => role.code),
       tenantId: dbTenantId,
     }) || dbTenantId !== null || !Number.isInteger(payload.viewingTenantId) || payload.viewingTenantId <= 0) {
+      await revokePrevious();
       throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
     }
     const [viewingTenant] = await db.select({ status: tenants.status, expireAt: tenants.expireAt })
       .from(tenants)
       .where(eq(tenants.id, payload.viewingTenantId))
       .limit(1);
-    if (!viewingTenant) throw new HTTPException(403, { message: '租户不存在' });
+    if (!viewingTenant) { await revokePrevious(); throw new HTTPException(403, { message: '租户不存在' }); }
     if (viewingTenant.status !== 'enabled' || (viewingTenant.expireAt != null && viewingTenant.expireAt <= new Date())) {
+      await revokePrevious();
       throw new HTTPException(403, { message: '租户已被禁用或过期' });
     }
   }
-  const tokenId = payload.jti ?? generateTokenId();
-  const accessToken = await signToken<JwtPayload>(
-    {
-      userId: payload.userId,
-      username: u.username,
-      roles: userRoleList.map((r) => r.code),
-      tenantId: dbTenantId,
-      ...(payload.viewingTenantId !== undefined ? { viewingTenantId: payload.viewingTenantId } : {}),
-      jti: tokenId,
-    },
-    '2h',
-  );
-  // 若 Redis 中无此 session（Redis 重启或 TTL 过期），重新注册以保持在线用户列表准确
-  const existing = await getSession(tokenId);
-  if (!existing && clientInfo) {
-    const { browser, os } = parseUserAgent(clientInfo.ua);
-    await registerSession({
+  const tokenId = generateTokenId();
+  const viewingTenantClaim = payload.viewingTenantId !== undefined ? { viewingTenantId: payload.viewingTenantId } : {};
+  const [accessToken, refreshToken] = await Promise.all([
+    signToken<JwtPayload>(
+      { userId: payload.userId, username: u.username, roles: userRoleList.map((r) => r.code), tenantId: dbTenantId, ...viewingTenantClaim, jti: tokenId },
+      '2h',
+    ),
+    signToken(
+      { userId: payload.userId, username: u.username, type: 'refresh', tenantId: dbTenantId, ...viewingTenantClaim, jti: tokenId },
+      '30d',
+    ),
+  ]);
+  // 在线会话迁移到新 jti：沿用原登录时间与设备信息；Redis 中无原会话（重启 / 长期未活跃）时按本次请求重建
+  const existing = await getSession(previousTokenId);
+  const { browser, os } = parseUserAgent(clientInfo?.ua ?? '');
+  await Promise.all([
+    registerSession({
       tokenId,
       userId: payload.userId,
       username: u.username,
       nickname: u.nickname,
       tenantId: dbTenantId,
-      ip: clientInfo.ip,
-      location: lookupIpLocation(clientInfo.ip),
-      browser,
-      os,
-      loginAt: new Date(),
-    });
-  }
-  return { accessToken };
+      ip: existing?.ip ?? clientInfo?.ip ?? '',
+      location: existing?.location ?? (clientInfo ? lookupIpLocation(clientInfo.ip) : null),
+      browser: existing?.browser ?? browser,
+      os: existing?.os ?? os,
+      loginAt: existing?.loginAt ?? new Date(),
+    }),
+    grantRefresh(tokenId),
+    removeSession(previousTokenId),
+  ]);
+  return { accessToken, refreshToken };
 }
 
 export async function logoutSession(clientInfo?: { ip: string; ua: string }) {
@@ -621,6 +645,8 @@ export async function changeMyPassword(oldPassword: string, newPassword: string)
   if (passwordError) throw new HTTPException(400, { message: passwordError });
   const hashed = await hashPassword(newPassword);
   await db.update(users).set({ password: hashed, passwordUpdatedAt: new Date() }).where(eq(users.id, userId));
+  // 改密后其它设备全部下线（含被盗 refresh token），当前设备保留
+  await forceLogoutAllByUserExcept(userId, currentUser().jti);
 }
 
 export async function listMyLoginLogs(query: { page?: number; pageSize?: number; eventType?: LoginEventType; status?: 'success' | 'fail'; startTime?: string; endTime?: string }) {
@@ -704,19 +730,23 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
     '30d',
   );
   const { browser, os } = parseUserAgent(ua);
+  // 旧 jti 立即吊销（access / refresh 一并作废），新 jti 注册会话并签发 refresh 授权
   if (payload.jti) await removeSession(payload.jti);
-  await registerSession({
-    tokenId,
-    userId: payload.userId,
-    username: payload.username,
-    nickname: payload.username,
-    tenantId: payload.tenantId,
-    ip,
-    location: lookupIpLocation(ip),
-    browser,
-    os,
-    loginAt: new Date(),
-  });
+  await Promise.all([
+    registerSession({
+      tokenId,
+      userId: payload.userId,
+      username: payload.username,
+      nickname: payload.username,
+      tenantId: payload.tenantId,
+      ip,
+      location: lookupIpLocation(ip),
+      browser,
+      os,
+      loginAt: new Date(),
+    }),
+    grantRefresh(tokenId),
+  ]);
   return {
     accessToken: newAccessToken,
     refreshToken: newRefreshToken,
@@ -768,9 +798,11 @@ export async function resetPassword(token: string, newPassword: string) {
   if (passwordError) throw new HTTPException(400, { message: passwordError });
   const hashed = await hashPassword(newPassword);
   await db.transaction(async (tx) => {
-    await tx.update(users).set({ password: hashed }).where(eq(users.id, record.userId));
+    await tx.update(users).set({ password: hashed, passwordUpdatedAt: now }).where(eq(users.id, record.userId));
     await tx.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, record.id));
   });
+  // 重置密码通常意味着凭据可能已泄露：全部会话下线
+  await forceLogoutAllByUser(record.userId);
 }
 
 export async function verifyMyPassword(password: string) {

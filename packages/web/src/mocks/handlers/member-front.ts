@@ -39,7 +39,7 @@ export const memberFrontHandlers = [
   http.post('/api/member/auth/register', () =>
     ok({ member: memberView(demo), token: { accessToken: MEMBER_TOKEN, refreshToken: MEMBER_REFRESH } }, '注册成功'),
   ),
-  http.post('/api/member/auth/refresh', () => ok({ accessToken: MEMBER_TOKEN })),
+  http.post('/api/member/auth/refresh', () => ok({ accessToken: MEMBER_TOKEN, refreshToken: MEMBER_REFRESH })),
   http.post('/api/member/auth/logout', () => ok(null, '已退出登录')),
   http.post('/api/member/auth/reset-password', () => ok(null, '密码已重置')),
   http.get('/api/member/auth/me', () => ok(memberView(demo))),

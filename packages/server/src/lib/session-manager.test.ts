@@ -6,8 +6,9 @@
  *  2. registerSession — 正确写入 Redis 并设置 TTL
  *  3. touchSession    — 更新 lastActiveAt；key 不存在时为 no-op
  *  4. isTokenBlacklisted — 命中 / 未命中黑名单
- *  5. forceLogout     — 写黑名单 + 删 session；key 不存在时返回 false
- *  6. removeSession   — 删 session key
+ *  5. forceLogout     — 写黑名单 + 删 session 与 refresh 授权；两者都不存在时返回 false
+ *  6. removeSession   — 登出即吊销：写黑名单 + 删 session 与 refresh 授权
+ *  7. grantRefresh / consumeRefreshGrant — refresh 授权签发与一次性消费（轮换基础）
  *
  * 之所以 mock redis 而非真实连接：session-manager 是纯业务逻辑，
  * 其正确性不依赖 Redis 存储细节，只需验证它发送了正确的命令、
@@ -22,6 +23,8 @@ import {
   isTokenBlacklisted,
   forceLogout,
   removeSession,
+  grantRefresh,
+  consumeRefreshGrant,
 } from './session-manager';
 
 // ─── Mock Redis ──────────────────────────────────────────────────────────────
@@ -31,6 +34,7 @@ vi.mock('./redis', () => ({
   default: {
     get: vi.fn(),
     getex: vi.fn(),
+    getdel: vi.fn(),
     set: vi.fn(),
     del: vi.fn(),
     exists: vi.fn(),
@@ -160,9 +164,10 @@ describe('isTokenBlacklisted', () => {
 });
 
 describe('forceLogout', () => {
-  it('session 存在时写黑名单、删 session，并返回 true', async () => {
+  it('session 存在时写黑名单、删 session 与 refresh 授权，并返回 true', async () => {
     const session = makeSessionInfo({ tokenId: 'force-id' });
     redisMock.get.mockResolvedValueOnce(JSON.stringify(session));
+    redisMock.exists.mockResolvedValueOnce(0);
 
     const result = await forceLogout('force-id');
 
@@ -173,12 +178,21 @@ describe('forceLogout', () => {
       (args) => args[0] === 'zenith:blacklist:force-id' && args[2] === 'EX' && args[3] === 2 * 60 * 60,
     );
     expect(hasBlacklist).toBe(true);
-    // session key 已删除
-    expect(redisMock.del).toHaveBeenCalledWith('zenith:session:force-id');
+    // session 与 refresh 授权 key 一并删除
+    expect(redisMock.del).toHaveBeenCalledWith('zenith:session:force-id', 'zenith:refresh:force-id');
   });
 
-  it('session 不存在时返回 false，不写黑名单', async () => {
+  it('session 不存在但 refresh 授权仍在时同样吊销', async () => {
     redisMock.get.mockResolvedValueOnce(null);
+    redisMock.exists.mockResolvedValueOnce(1);
+
+    expect(await forceLogout('rotated-away')).toBe(true);
+    expect(redisMock.del).toHaveBeenCalledWith('zenith:session:rotated-away', 'zenith:refresh:rotated-away');
+  });
+
+  it('session 与 refresh 授权都不存在时返回 false，不写黑名单', async () => {
+    redisMock.get.mockResolvedValueOnce(null);
+    redisMock.exists.mockResolvedValueOnce(0);
 
     const result = await forceLogout('phantom-id');
 
@@ -189,8 +203,23 @@ describe('forceLogout', () => {
 });
 
 describe('removeSession', () => {
-  it('以正确的 key 调 redis.del', async () => {
+  it('登出即吊销：拉黑 access token 并删除 session 与 refresh 授权', async () => {
     await removeSession('logout-token');
-    expect(redisMock.del).toHaveBeenCalledWith('zenith:session:logout-token');
+    expect(redisMock.set).toHaveBeenCalledWith('zenith:blacklist:logout-token', '1', 'EX', 2 * 60 * 60);
+    expect(redisMock.del).toHaveBeenCalledWith('zenith:session:logout-token', 'zenith:refresh:logout-token');
+  });
+});
+
+describe('refresh 授权', () => {
+  it('grantRefresh 以 30d TTL 写入 refresh key', async () => {
+    await grantRefresh('jti-1');
+    expect(redisMock.set).toHaveBeenCalledWith('zenith:refresh:jti-1', '1', 'EX', 30 * 24 * 60 * 60);
+  });
+
+  it('consumeRefreshGrant 通过 GETDEL 一次性消费：存在返回 true，之后再消费返回 false', async () => {
+    redisMock.getdel.mockResolvedValueOnce('1').mockResolvedValueOnce(null);
+    expect(await consumeRefreshGrant('jti-1')).toBe(true);
+    expect(await consumeRefreshGrant('jti-1')).toBe(false);
+    expect(redisMock.getdel).toHaveBeenCalledWith('zenith:refresh:jti-1');
   });
 });

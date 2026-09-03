@@ -542,7 +542,9 @@ export async function batchResetUsersPassword(ids: number[], password: string) {
   const tc = tenantCondition(users, user);
   await ensureNoProtectedAdminInIds(validIds, '修改密码');
   const hashed = await hashPassword(password);
-  await db.update(users).set({ password: hashed }).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
+  await db.update(users).set({ password: hashed, passwordUpdatedAt: new Date() }).where(tc ? and(inArray(users.id, validIds), tc) : inArray(users.id, validIds));
+  // 管理员重置密码 = 凭据轮换：目标用户全部在线会话与 refresh 授权一并作废
+  await revokeUserSessions(validIds);
 }
 
 export async function updateUserPassword(id: number, password: string) {
@@ -551,7 +553,8 @@ export async function updateUserPassword(id: number, password: string) {
   const policyError = validatePassword(password, policy);
   if (policyError) throw new HTTPException(400, { message: policyError });
   const hashed = await hashPassword(password);
-  await db.update(users).set({ password: hashed }).where(eq(users.id, id));
+  await db.update(users).set({ password: hashed, passwordUpdatedAt: new Date() }).where(eq(users.id, id));
+  await revokeUserSessions([id]);
 }
 
 export async function unlockUserById(id: number) {

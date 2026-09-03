@@ -17,6 +17,10 @@ import {
   registerMemberSession,
   removeMemberSession,
   forceLogoutAllByMember,
+  grantMemberRefresh,
+  consumeMemberRefreshGrant,
+  isMemberTokenBlacklisted,
+  getMemberSession,
   checkMemberLoginLock,
   recordMemberLoginFailure,
   clearMemberLoginAttempts,
@@ -344,6 +348,7 @@ async function finalizeAuth(member: MemberRow, ip: string, ua: string): Promise<
       location: null,
       loginAt: new Date(),
     }),
+    grantMemberRefresh(tokenId),
     db.update(members).set({ lastLoginAt: new Date(), lastLoginIp: truncateVarchar(ip, 64) }).where(eq(members.id, member.id)),
   ]);
   recordMemberLoginLog({ memberId: member.id, ip, ua, status: 'success', message: '登录成功' });
@@ -359,22 +364,32 @@ interface MemberRefreshPayload {
   jti?: string;
 }
 
-export async function refreshMemberToken(refreshToken: string): Promise<{ accessToken: string }> {
+/**
+ * 会员 refresh 轮换：一次性消费 Redis 中的 refresh 授权（登出 / 封禁 / 改密后即失效），
+ * 签发新 jti 并吊销旧 jti，被盗 refresh token 最多只能用一次。
+ */
+export async function refreshMemberToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
   let payload: MemberRefreshPayload;
   try {
     payload = await verifyToken<MemberRefreshPayload>(refreshToken);
   } catch {
     throw new HTTPException(401, { message: '无效的刷新令牌' });
   }
-  if (payload.type !== 'member-refresh' || !Number.isInteger(payload.memberId) || payload.memberId <= 0) {
+  if (payload.type !== 'member-refresh' || !Number.isInteger(payload.memberId) || payload.memberId <= 0 || !payload.jti) {
     throw new HTTPException(401, { message: '无效的刷新令牌' });
   }
+  const previousTokenId = payload.jti;
+  if (await isMemberTokenBlacklisted(previousTokenId) || !(await consumeMemberRefreshGrant(previousTokenId))) {
+    throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
+  }
+  const revokePrevious = async () => { try { await removeMemberSession(previousTokenId); } catch { /* best-effort */ } };
   const [member] = await db.select().from(members)
     .where(and(eq(members.id, payload.memberId), isNull(members.deletedAt))).limit(1);
-  if (!member) throw new HTTPException(401, { message: '会员不存在' });
-  if (member.status !== 'active') throw new HTTPException(403, { message: '账号不可用' });
+  if (!member) { await revokePrevious(); throw new HTTPException(401, { message: '会员不存在' }); }
+  if (member.status !== 'active') { await revokePrevious(); throw new HTTPException(403, { message: '账号不可用' }); }
   const dbTenantId = member.tenantId ?? null;
   if ((payload.tenantId ?? null) !== dbTenantId) {
+    await revokePrevious();
     throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
   }
   if (dbTenantId !== null) {
@@ -382,23 +397,33 @@ export async function refreshMemberToken(refreshToken: string): Promise<{ access
       .from(tenants)
       .where(eq(tenants.id, dbTenantId))
       .limit(1);
-    if (!tenant) throw new HTTPException(403, { message: '租户不存在' });
+    if (!tenant) { await revokePrevious(); throw new HTTPException(403, { message: '租户不存在' }); }
     if (tenant.status !== 'enabled' || (tenant.expireAt != null && tenant.expireAt <= new Date())) {
+      await revokePrevious();
       throw new HTTPException(403, { message: '租户已被禁用或过期' });
     }
   }
 
-  const accessToken = await signToken<MemberJwtPayload>(
-    {
+  const identifier = memberIdentifier(member);
+  const tokens = await issueMemberTokens({ id: member.id, identifier, tenantId: dbTenantId });
+  const existing = await getMemberSession(previousTokenId);
+  await Promise.all([
+    registerMemberSession({
+      tokenId: tokens.tokenId,
       memberId: member.id,
-      identifier: memberIdentifier(member),
-      type: 'member',
+      identifier,
+      nickname: member.nickname,
       tenantId: dbTenantId,
-      jti: payload.jti,
-    },
-    '2h',
-  );
-  return { accessToken };
+      ip: existing?.ip ?? '',
+      browser: existing?.browser ?? '',
+      os: existing?.os ?? '',
+      location: existing?.location ?? null,
+      loginAt: existing?.loginAt ?? new Date(),
+    }),
+    grantMemberRefresh(tokens.tokenId),
+    removeMemberSession(previousTokenId),
+  ]);
+  return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
 }
 
 // ─── 登出 ─────────────────────────────────────────────────────────────────────

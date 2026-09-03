@@ -174,8 +174,8 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
   const switchAccount = useCallback<AuthContextValue['switchAccount']>(async (userId) => {
     const target = getParkedAccount(userId);
     if (!target) return { ok: false, message: '该账号不在已登录列表中' };
-    // 用停靠的 refreshToken 换发新令牌：既拿到凭证也校验了会话有效性
-    const res = await request.post<{ accessToken: string }>(
+    // 用停靠的 refreshToken 换发新令牌：既拿到凭证也校验了会话有效性（服务端会轮换 refreshToken，旧值随即失效）
+    const res = await request.post<{ accessToken: string; refreshToken?: string }>(
       '/api/auth/refresh',
       { refreshToken: target.refreshToken },
       { silent: true, skipAuth: true },
@@ -191,7 +191,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
     takeParkedAccount(userId);
     if (current && current.userId !== userId) parkAccount(current);
     localStorage.setItem(TOKEN_KEY, res.data.accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, target.refreshToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, res.data.refreshToken ?? target.refreshToken);
     clearAccountScopedData();
     broadcastSwitchAndReload();
     return { ok: true };
@@ -205,7 +205,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
         transitionToAnonymous();
         return;
       }
-      const res = await request.post<{ accessToken: string }>(
+      const res = await request.post<{ accessToken: string; refreshToken?: string }>(
         '/api/auth/refresh',
         { refreshToken: next.refreshToken },
         { silent: true, skipAuth: true },
@@ -213,7 +213,7 @@ export function AuthProvider({ children }: Readonly<{ children: ReactNode }>) {
       if (res.code === 0 && res.data?.accessToken) {
         takeParkedAccount(next.userId);
         localStorage.setItem(TOKEN_KEY, res.data.accessToken);
-        localStorage.setItem(REFRESH_TOKEN_KEY, next.refreshToken);
+        localStorage.setItem(REFRESH_TOKEN_KEY, res.data.refreshToken ?? next.refreshToken);
         clearAccountScopedData();
         broadcastSwitchAndReload();
         return;

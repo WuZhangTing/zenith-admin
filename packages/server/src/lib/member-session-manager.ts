@@ -3,7 +3,8 @@
  *
  * Redis key 使用独立命名空间，避免与管理员会话互窜：
  *   - `{prefix}member-session:{jti}`   会员在线会话，TTL 8h（每次请求续期）
- *   - `{prefix}member-blacklist:{jti}` 会员强制下线标记，TTL 2h（与 accessToken 一致）
+ *   - `{prefix}member-refresh:{jti}`   会员 refresh 授权，TTL 30d（登出 / 下线即撤销，续签一次性消费并轮换）
+ *   - `{prefix}member-blacklist:{jti}` 会员吊销标记，TTL 2h（与 accessToken 一致）
  *
  * 底层通用实现见 redis-session-store.ts。
  */
@@ -33,6 +34,7 @@ const { keyPrefix } = config.redis;
 const store = createRedisSessionStore<MemberSessionInfo>({
   sessionPrefix: `${keyPrefix}member-session:`,
   blacklistPrefix: `${keyPrefix}member-blacklist:`,
+  refreshPrefix: `${keyPrefix}member-refresh:`,
 });
 
 /** 生成唯一会话 ID */
@@ -43,6 +45,16 @@ export function generateMemberTokenId(): string {
 /** 登录时注册会话 */
 export async function registerMemberSession(info: Omit<MemberSessionInfo, 'lastActiveAt'>): Promise<void> {
   await store.register(info);
+}
+
+/** 为会员 jti 签发 refresh 授权 */
+export async function grantMemberRefresh(tokenId: string): Promise<void> {
+  await store.grantRefresh(tokenId);
+}
+
+/** 一次性消费会员 refresh 授权 */
+export async function consumeMemberRefreshGrant(tokenId: string): Promise<boolean> {
+  return store.consumeRefreshGrant(tokenId);
 }
 
 /** 刷新会话活跃时间并重置 TTL。返回 false 表示会话不存在。 */
@@ -65,7 +77,7 @@ export async function forceLogoutAllByMember(memberId: number): Promise<string[]
   return store.forceLogoutMatching((s) => s.memberId === memberId);
 }
 
-/** 正常登出（仅删除会话，不写黑名单）*/
+/** 正常登出：吊销 access token、撤销 refresh 授权并删除会话 */
 export async function removeMemberSession(tokenId: string): Promise<void> {
   await store.remove(tokenId);
 }

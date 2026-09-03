@@ -27,9 +27,9 @@
 - 管理员 JWT；
 - 个人 API Token，令牌前缀为 `zat_`，服务端按 SHA-256 摘要校验。
 
-JWT payload 包含：`userId`、`username`、`roles`、`tenantId`、可选 `viewingTenantId`、`jti`、`authType`、`apiTokenId`。管理端接口拒绝会员 token。Access token 有效期为 2 小时，Refresh token 有效期为 30 天，两者共享同一个 `jti`。
+JWT payload 包含：`userId`、`username`、`roles`、`tenantId`、可选 `viewingTenantId`、`jti`、`authType`、`apiTokenId`。管理端接口拒绝会员 token。Access token 有效期为 2 小时，Refresh token 有效期为 30 天，同一次签发共享同一个 `jti`。
 
-会话状态保存在 Redis。认证中间件会检查黑名单并 touch 会话；Redis 访问异常时采用 fail-open。会话缺失但 JWT 合法时，服务端会懒重建会话记录。
+会话状态保存在 Redis，每个 `jti` 对应三类 key：`session:{jti}`（在线会话，8h 滑动 TTL）、`refresh:{jti}`（refresh 授权，30d）、`blacklist:{jti}`（吊销标记，2h）。refresh token 本身只是承载 `jti` 的凭据，能否续签以 `refresh:{jti}` 是否存在为准；登出、强制下线、改密 / 重置密码、管理员重置密码、禁用 / 删除用户都会吊销 `jti`（写黑名单 + 删除会话与 refresh 授权），因此未过期的 access token 与 refresh token 会同时立即失效。认证中间件会检查黑名单并 touch 会话；Redis 访问异常时采用 fail-open（最长 2h 窗口）。会话缺失但 JWT 合法且未被吊销时，服务端会懒重建会话记录（仅影响在线列表，不会重新签发 refresh 授权）。
 
 ## 登录、刷新与退出
 
@@ -38,8 +38,8 @@ JWT payload 包含：`userId`、`username`、`roles`、`tenantId`、可选 `view
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `POST` | `/api/auth/login` | 用户名或手机号 + 密码登录，可携带验证码、租户编码、设备信息、设备 ID、可信设备标记 |
-| `POST` | `/api/auth/refresh` | 使用 refresh token 换取新的 access token；不旋转 refresh token |
-| `POST` | `/api/auth/logout` | 注销当前 `jti` 会话 |
+| `POST` | `/api/auth/refresh` | 一次性消费 refresh 授权并**轮换**：返回新 `jti` 的 access token 与 refresh token，旧 `jti` 立即吊销；被盗的 refresh token 最多只能用一次 |
+| `POST` | `/api/auth/logout` | 吊销当前 `jti`（access token 拉黑、refresh 授权删除、会话移除） |
 | `POST` | `/api/auth/logout-by-refresh` | 按 refresh token 注销对应会话，用于多账号切换器移除停靠账号 |
 | `GET` | `/api/auth/me` | 查询当前登录人 |
 

@@ -99,7 +99,7 @@
 - Refresh Token：JWT，默认有效期 30 天，`type = refresh`，用于刷新 access token 和账号切换。
 - 在线会话：由 `session-manager` 记录 tokenId、用户、租户、IP、归属地、浏览器、OS、登录与活跃时间。
 
-`/api/auth/refresh` 使用 refresh token 换发新的 access token，并重新校验用户状态、租户状态与租户到期时间；Redis 会话丢失时会按 refresh token 的 `jti` 重新登记在线会话。
+`/api/auth/refresh` 一次性消费 Redis 中的 refresh 授权，重新校验用户状态、租户状态与租户到期时间后**轮换**签发新 `jti` 的 access token 与 refresh token（旧 `jti` 立即吊销，在线会话迁移到新 `jti`）。登出、强制下线、修改 / 重置密码都会撤销 refresh 授权，未过期的 refresh token 随之失效；客户端须用响应中的新 refresh token 覆盖本地保存。
 
 ### 多账号切换
 
@@ -109,7 +109,7 @@
 - 停靠账号只保存资料快照与 refresh token，不保存 access token。
 - 最多同时保留 `MAX_STORED_ACCOUNTS` 个账号，活跃账号占 1 个席位；停靠区按最近使用淘汰。
 - 登录页支持 `?add_account=1` 添加账号模式：保留当前登录，成功后停靠原账号并切到新账号。
-- 切换账号时通过 `/api/auth/refresh` 换发 access token，随后清理账号级本地状态并整页重载；跨标签页通过 `ACCOUNT_SWITCH_BROADCAST_KEY` 广播刷新。
+- 切换账号时通过 `/api/auth/refresh` 换发 access token 与新的 refresh token（旧 refresh token 随即失效），随后清理账号级本地状态并整页重载；跨标签页通过 `ACCOUNT_SWITCH_BROADCAST_KEY` 广播刷新。
 - 退出当前账号会优先切到最近使用的停靠账号；注销停靠账号或退出全部账号会调用免登录接口 `POST /api/auth/logout-by-refresh` 注销对应 refresh token 会话。
 
 ### 安全策略

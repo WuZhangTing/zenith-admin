@@ -20,14 +20,16 @@ export interface SessionInfo {
 const { keyPrefix } = config.redis;
 const SESSION_PREFIX = `${keyPrefix}session:`;
 const BLACKLIST_PREFIX = `${keyPrefix}blacklist:`;
+const REFRESH_PREFIX = `${keyPrefix}refresh:`;
 
 /**
- * 管理员会话存储：TTL 8h（每次请求续期），黑名单 TTL 2h（与 accessToken 一致）。
- * 底层通用实现见 redis-session-store.ts。
+ * 管理员会话存储：会话 TTL 8h（每次请求续期），黑名单 TTL 2h（与 accessToken 一致），
+ * refresh 授权 TTL 30d（与 refreshToken 一致）。底层通用实现见 redis-session-store.ts。
  */
 const store = createRedisSessionStore<SessionInfo>({
   sessionPrefix: SESSION_PREFIX,
   blacklistPrefix: BLACKLIST_PREFIX,
+  refreshPrefix: REFRESH_PREFIX,
 });
 
 /** Generate a unique token ID */
@@ -38,6 +40,16 @@ export function generateTokenId(): string {
 /** Register a new session on login */
 export async function registerSession(info: Omit<SessionInfo, 'lastActiveAt'>): Promise<void> {
   await store.register(info);
+}
+
+/** 为 jti 签发 refresh 授权：只有登录 / 续签轮换产生的 jti 才能用来换发 token */
+export async function grantRefresh(tokenId: string): Promise<void> {
+  await store.grantRefresh(tokenId);
+}
+
+/** 一次性消费 refresh 授权；返回 false 表示该 refresh token 已登出 / 已被轮换 / 已过期 */
+export async function consumeRefreshGrant(tokenId: string): Promise<boolean> {
+  return store.consumeRefreshGrant(tokenId);
 }
 
 /** Refresh session activity timestamp and reset TTL. Returns true if session existed, false if not found. */
@@ -60,6 +72,11 @@ export async function forceLogoutAllByUser(userId: number): Promise<string[]> {
   return forceLogoutAllByUsers([userId]);
 }
 
+/** 强制下线某用户除指定 jti 外的全部会话（改密后保留当前设备） */
+export async function forceLogoutAllByUserExcept(userId: number, keepTokenId: string | undefined): Promise<string[]> {
+  return store.forceLogoutMatching((s) => s.userId === userId && s.tokenId !== keepTokenId);
+}
+
 /** Force logout all sessions belonging to any of the specified users (single SCAN + pipeline) */
 export async function forceLogoutAllByUsers(userIds: number[]): Promise<string[]> {
   if (userIds.length === 0) return [];
@@ -67,7 +84,7 @@ export async function forceLogoutAllByUsers(userIds: number[]): Promise<string[]
   return store.forceLogoutMatching((s) => idSet.has(s.userId));
 }
 
-/** Remove session (normal logout or token expired) */
+/** 登出 / 轮换淘汰：吊销 access token、撤销 refresh 授权并删除在线会话 */
 export async function removeSession(tokenId: string): Promise<void> {
   await store.remove(tokenId);
 }

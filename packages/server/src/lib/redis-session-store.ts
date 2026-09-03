@@ -3,6 +3,14 @@
  *
  * 通过 key 前缀参数化隔离不同用户体系（如 `session:` 与 `member-session:`），
  * 上层 session-manager / member-session-manager 各自实例化并保持原有导出 API。
+ *
+ * 每个登录会话由 jti 标识，对应三类 key：
+ * - `{sessionPrefix}{jti}`   在线会话（滑动 TTL，供在线用户列表 / 活跃时间）
+ * - `{refreshPrefix}{jti}`   refresh 授权（TTL = refresh token 有效期）。refresh token 只是承载 jti 的凭据，
+ *                            能否续签以该 key 是否存在为准：登出 / 强制下线 / 改密即删除，续签时一次性消费并轮换到新 jti
+ * - `{blacklistPrefix}{jti}` 吊销标记（TTL = access token 有效期），让尚未过期的 access token 立即失效
+ *
+ * 因此「登出」与「强制下线」语义一致：吊销 access token + 撤销 refresh 授权 + 删在线会话。
  */
 import redis from './redis';
 import { scanKeys } from './redis-scan';
@@ -18,10 +26,14 @@ export interface RedisSessionStoreOptions {
   sessionPrefix: string;
   /** 完整黑名单 key 前缀（含命名空间），如 `zenith:blacklist:` */
   blacklistPrefix: string;
+  /** 完整 refresh 授权 key 前缀（含命名空间），如 `zenith:refresh:` */
+  refreshPrefix: string;
   /** Session TTL（秒），默认 8h */
   sessionTtlSeconds?: number;
   /** Blacklist TTL（秒），默认 2h（与 accessToken 有效期一致） */
   blacklistTtlSeconds?: number;
+  /** refresh 授权 TTL（秒），默认 30d（与 refreshToken 有效期一致） */
+  refreshTtlSeconds?: number;
   /** lastActiveAt 回写节流间隔（毫秒）：TTL 每请求都续，活跃时间戳按此粒度更新 */
   activeAtRefreshMs?: number;
 }
@@ -38,20 +50,37 @@ export function createRedisSessionStore<T extends BaseSessionInfo>(options: Redi
   const {
     sessionPrefix,
     blacklistPrefix,
+    refreshPrefix,
     sessionTtlSeconds = 8 * 60 * 60,
     blacklistTtlSeconds = 2 * 60 * 60,
+    refreshTtlSeconds = 30 * 24 * 60 * 60,
     activeAtRefreshMs = 60_000,
   } = options;
+
+  const sessionKey = (tokenId: string) => `${sessionPrefix}${tokenId}`;
+  const blacklistKey = (tokenId: string) => `${blacklistPrefix}${tokenId}`;
+  const refreshKey = (tokenId: string) => `${refreshPrefix}${tokenId}`;
 
   /** 登录时注册会话 */
   async function register(info: Omit<T, 'lastActiveAt'>): Promise<void> {
     const session = { ...info, lastActiveAt: new Date() };
-    await redis.set(`${sessionPrefix}${info.tokenId}`, JSON.stringify(session), 'EX', sessionTtlSeconds);
+    await redis.set(sessionKey(info.tokenId), JSON.stringify(session), 'EX', sessionTtlSeconds);
+  }
+
+  /** 为 jti 签发 refresh 授权（登录 / 续签轮换时调用） */
+  async function grantRefresh(tokenId: string): Promise<void> {
+    await redis.set(refreshKey(tokenId), '1', 'EX', refreshTtlSeconds);
+  }
+
+  /** 一次性消费 refresh 授权：存在则删除并返回 true；不存在（已登出 / 已轮换 / 已过期）返回 false */
+  async function consumeRefreshGrant(tokenId: string): Promise<boolean> {
+    const value = await redis.getdel(refreshKey(tokenId));
+    return value !== null;
   }
 
   /** 刷新会话活跃时间并重置 TTL。返回 false 表示会话不存在。 */
   async function touch(tokenId: string): Promise<boolean> {
-    const key = `${sessionPrefix}${tokenId}`;
+    const key = sessionKey(tokenId);
     // GETEX 单次往返完成读取 + TTL 续期（替代 GET+SET 两次往返）
     const raw = await redis.getex(key, 'EX', sessionTtlSeconds);
     if (!raw) return false;
@@ -66,21 +95,28 @@ export function createRedisSessionStore<T extends BaseSessionInfo>(options: Redi
     return true;
   }
 
-  /** 检查 token 是否已被强制下线 */
+  /** 检查 token 是否已被吊销（登出 / 强制下线 / 续签轮换后的旧 jti） */
   async function isBlacklisted(tokenId: string): Promise<boolean> {
-    const result = await redis.exists(`${blacklistPrefix}${tokenId}`);
+    const result = await redis.exists(blacklistKey(tokenId));
     return result === 1;
   }
 
-  /** 强制下线某个会话（写黑名单 + 删会话）。会话不存在时返回 false。 */
-  async function forceLogout(tokenId: string): Promise<boolean> {
-    const key = `${sessionPrefix}${tokenId}`;
-    const raw = await redis.get(key);
-    if (!raw) return false;
+  /**
+   * 吊销一个 jti：拉黑 access token、撤销 refresh 授权、删在线会话。
+   * 登出、强制下线、续签轮换淘汰旧 jti 都走这里；幂等，key 不存在也安全。
+   */
+  async function revoke(tokenId: string): Promise<void> {
     await Promise.all([
-      redis.set(`${blacklistPrefix}${tokenId}`, '1', 'EX', blacklistTtlSeconds),
-      redis.del(key),
+      redis.set(blacklistKey(tokenId), '1', 'EX', blacklistTtlSeconds),
+      redis.del(sessionKey(tokenId), refreshKey(tokenId)),
     ]);
+  }
+
+  /** 强制下线某个会话。会话与 refresh 授权都不存在时返回 false（不做任何写入）。 */
+  async function forceLogout(tokenId: string): Promise<boolean> {
+    const [raw, grant] = await Promise.all([redis.get(sessionKey(tokenId)), redis.exists(refreshKey(tokenId))]);
+    if (!raw && !grant) return false;
+    await revoke(tokenId);
     return true;
   }
 
@@ -91,21 +127,21 @@ export function createRedisSessionStore<T extends BaseSessionInfo>(options: Redi
     if (targets.length === 0) return [];
     const pipeline = redis.pipeline();
     for (const s of targets) {
-      pipeline.set(`${blacklistPrefix}${s.tokenId}`, '1', 'EX', blacklistTtlSeconds);
-      pipeline.del(`${sessionPrefix}${s.tokenId}`);
+      pipeline.set(blacklistKey(s.tokenId), '1', 'EX', blacklistTtlSeconds);
+      pipeline.del(sessionKey(s.tokenId), refreshKey(s.tokenId));
     }
     await pipeline.exec();
     return targets.map((s) => s.tokenId);
   }
 
-  /** 正常登出（仅删除会话，不写黑名单）*/
+  /** 正常登出：与强制下线同样吊销 access token 与 refresh 授权（不再只删会话） */
   async function remove(tokenId: string): Promise<void> {
-    await redis.del(`${sessionPrefix}${tokenId}`);
+    await revoke(tokenId);
   }
 
   /** 获取单个会话 */
   async function get(tokenId: string): Promise<T | null> {
-    const raw = await redis.get(`${sessionPrefix}${tokenId}`);
+    const raw = await redis.get(sessionKey(tokenId));
     if (!raw) return null;
     return reviveSession<T>(raw);
   }
@@ -127,5 +163,8 @@ export function createRedisSessionStore<T extends BaseSessionInfo>(options: Redi
     return keys.length;
   }
 
-  return { register, touch, isBlacklisted, forceLogout, forceLogoutMatching, remove, get, getAll, count };
+  return {
+    register, grantRefresh, consumeRefreshGrant, touch, isBlacklisted, revoke,
+    forceLogout, forceLogoutMatching, remove, get, getAll, count,
+  };
 }

@@ -103,6 +103,10 @@ export class HttpClient {
         const data = await res.json();
         if (data.code === 0 && data.data?.accessToken) {
           localStorage.setItem(this.tokenKey, data.data.accessToken);
+          // 服务端续签同时轮换 refresh token（旧的立即失效），必须以新值覆盖本地保存
+          if (typeof data.data.refreshToken === 'string' && data.data.refreshToken) {
+            localStorage.setItem(this.refreshTokenKey, data.data.refreshToken);
+          }
           return 'refreshed';
         }
         return data.code === 401 || data.code === 403 ? 'invalid' : 'transient';

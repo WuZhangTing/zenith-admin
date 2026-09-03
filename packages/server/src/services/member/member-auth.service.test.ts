@@ -47,6 +47,10 @@ vi.mock('../../lib/member-session-manager', () => ({
   registerMemberSession: vi.fn().mockResolvedValue(undefined),
   removeMemberSession: vi.fn().mockResolvedValue(undefined),
   forceLogoutAllByMember: vi.fn().mockResolvedValue(undefined),
+  grantMemberRefresh: vi.fn().mockResolvedValue(undefined),
+  consumeMemberRefreshGrant: vi.fn().mockResolvedValue(true),
+  isMemberTokenBlacklisted: vi.fn().mockResolvedValue(false),
+  getMemberSession: vi.fn().mockResolvedValue(null),
   checkMemberLoginLock: vi.fn().mockResolvedValue(0),
   recordMemberLoginFailure: vi.fn().mockResolvedValue(0),
   clearMemberLoginAttempts: vi.fn().mockResolvedValue(undefined),
@@ -88,6 +92,10 @@ import {
   forceLogoutAllByMember,
   checkMemberLoginLock,
   recordMemberLoginFailure,
+  grantMemberRefresh,
+  consumeMemberRefreshGrant,
+  isMemberTokenBlacklisted,
+  getMemberSession,
 } from '../../lib/member-session-manager';
 import { verifyMemberSmsCode } from './member-sms.service';
 import { currentMember } from '../../lib/member-context';
@@ -168,6 +176,11 @@ beforeEach(() => {
   smsMock.mockResolvedValue(true);
   vi.mocked(generateMemberTokenId).mockReturnValue('mock-member-token-id');
   vi.mocked(registerMemberSession).mockResolvedValue(undefined);
+  vi.mocked(removeMemberSession).mockResolvedValue(undefined);
+  vi.mocked(grantMemberRefresh).mockResolvedValue(undefined);
+  vi.mocked(consumeMemberRefreshGrant).mockResolvedValue(true);
+  vi.mocked(isMemberTokenBlacklisted).mockResolvedValue(false);
+  vi.mocked(getMemberSession).mockResolvedValue(null);
   vi.mocked(decide).mockResolvedValue({ matched: false, outputs: { hit: false }, ref: { kind: 'list', key: 'risk_blacklist', version: null }, reason: 'not_found' });
   dbMock.transaction.mockImplementation(async (callback: (tx: typeof db) => unknown) => callback(db));
   // 默认：任意 insert/update 返回空结果链（登录日志等 fire-and-forget 写入）
@@ -339,14 +352,28 @@ describe('refreshMemberToken', () => {
     });
   });
 
-  it('合法 refresh → 签发新 access token（type=member，继承 jti）', async () => {
+  it('合法 refresh → 轮换签发新 access + refresh token（type=member），旧 jti 被吊销', async () => {
     const { refreshToken } = await issueMemberTokens({ id: 1, identifier: 'alice' });
     dbMock.select.mockReturnValueOnce(createChain([makeMember()]));
 
-    const { accessToken } = await refreshMemberToken(refreshToken);
+    const result = await refreshMemberToken(refreshToken);
 
-    const payload = await verifyToken<{ memberId: number; type: string; jti: string }>(accessToken);
+    const payload = await verifyToken<{ memberId: number; type: string; jti: string }>(result.accessToken);
     expect(payload).toMatchObject({ memberId: 1, type: 'member', jti: 'mock-member-token-id' });
+    const refreshPayload = await verifyToken<{ type: string; jti: string }>(result.refreshToken);
+    expect(refreshPayload).toMatchObject({ type: 'member-refresh', jti: 'mock-member-token-id' });
+    const sm = await import('../../lib/member-session-manager');
+    expect(vi.mocked(sm.consumeMemberRefreshGrant)).toHaveBeenCalledWith('mock-member-token-id');
+    expect(vi.mocked(sm.grantMemberRefresh)).toHaveBeenCalledWith('mock-member-token-id');
+    expect(vi.mocked(sm.removeMemberSession)).toHaveBeenCalledWith('mock-member-token-id');
+  });
+
+  it('refresh 授权已被消费 / 登出后 → 401，不再查库', async () => {
+    const { refreshToken } = await issueMemberTokens({ id: 1, identifier: 'alice' });
+    const sm = await import('../../lib/member-session-manager');
+    vi.mocked(sm.consumeMemberRefreshGrant).mockResolvedValueOnce(false);
+    await expect(refreshMemberToken(refreshToken)).rejects.toMatchObject({ status: 401, message: '登录状态已失效，请重新登录' });
+    expect(dbMock.select).not.toHaveBeenCalled();
   });
 });
 

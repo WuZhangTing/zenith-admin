@@ -72,11 +72,16 @@ vi.mock('../../lib/redis', () => ({
 vi.mock('../../lib/session-manager', () => ({
   generateTokenId: () => 'mock-token-id',
   registerSession: vi.fn(),
+  grantRefresh: vi.fn(),
+  consumeRefreshGrant: vi.fn().mockResolvedValue(true),
+  getSession: vi.fn().mockResolvedValue(null),
   // touchSession 必须返回 true：返回 falsy 会触发 authMiddleware 的会话懒重注册分支，
   // 额外消费一次 db.select mock 队列，导致依赖队列顺序的用例错位失败
   touchSession: vi.fn().mockResolvedValue(true),
   isTokenBlacklisted: vi.fn().mockResolvedValue(false),
   forceLogout: vi.fn(),
+  forceLogoutAllByUser: vi.fn().mockResolvedValue([]),
+  forceLogoutAllByUserExcept: vi.fn().mockResolvedValue([]),
   removeSession: vi.fn(),
   checkLoginLock: vi.fn().mockResolvedValue({ isLocked: false, attempts: 0 }),
   recordLoginFailure: vi.fn(),
@@ -125,6 +130,7 @@ vi.mock('../../lib/permissions', () => ({
 import { db } from '../../db';
 import authRoutes from './auth';
 import { refreshAccessToken } from '../../services/identity/auth.service';
+import { verifyToken } from '../../lib/jwt';
 
 const dbMock = vi.mocked(db);
 
@@ -437,6 +443,55 @@ describe('POST /api/auth/logout-by-refresh - 账号切换器注销停靠账号',
     expect(body.code).toBe(0);
     const { removeSession } = await import('../../lib/session-manager');
     expect(vi.mocked(removeSession)).toHaveBeenCalledWith('parked-jti');
+  });
+});
+
+describe('refreshAccessToken - 授权消费与轮换', () => {
+  it('refresh 授权已被登出 / 轮换消费 → 401，且不再查库', async () => {
+    const token = await makeToken({ type: 'refresh', jti: 'consumed-jti' });
+    const sm = await import('../../lib/session-manager');
+    vi.mocked(sm.consumeRefreshGrant).mockResolvedValueOnce(false);
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 401, message: '登录状态已失效，请重新登录' });
+    expect(dbMock.select).not.toHaveBeenCalled();
+  });
+
+  it('jti 已拉黑（强制下线）→ 401', async () => {
+    const token = await makeToken({ type: 'refresh', jti: 'revoked-jti' });
+    const sm = await import('../../lib/session-manager');
+    vi.mocked(sm.isTokenBlacklisted).mockResolvedValueOnce(true);
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 401, message: '登录状态已失效，请重新登录' });
+  });
+
+  it('缺少 jti 的 refresh token → 401', async () => {
+    const token = await makeToken({ type: 'refresh', jti: undefined });
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 401, message: '无效的 refresh token' });
+  });
+
+  it('合法 refresh → 消费旧授权、签发新 jti 的 access + refresh，旧 jti 吊销', async () => {
+    const token = await makeToken({ type: 'refresh', jti: 'old-jti' });
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject()]));
+    dbMock.query.users.findFirst.mockResolvedValueOnce({ userRoles: [{ role: { id: 1, name: 'Admin', code: 'admin', status: 'enabled', description: null, createdAt: new Date(), updatedAt: new Date() } }] });
+
+    const result = await refreshAccessToken(token, { ip: '127.0.0.1', ua: 'UA' });
+
+    const sm = await import('../../lib/session-manager');
+    expect(vi.mocked(sm.consumeRefreshGrant)).toHaveBeenCalledWith('old-jti');
+    expect(vi.mocked(sm.grantRefresh)).toHaveBeenCalledWith('mock-token-id');
+    expect(vi.mocked(sm.removeSession)).toHaveBeenCalledWith('old-jti');
+    expect(vi.mocked(sm.registerSession)).toHaveBeenCalledWith(expect.objectContaining({ tokenId: 'mock-token-id', userId: 1 }));
+    const access = await verifyToken<{ jti: string; type?: string }>(result.accessToken);
+    const refresh = await verifyToken<{ jti: string; type?: string }>(result.refreshToken);
+    expect(access.jti).toBe('mock-token-id');
+    expect(access.type).toBeUndefined();
+    expect(refresh).toMatchObject({ type: 'refresh', jti: 'mock-token-id' });
+  });
+
+  it('授权消费后账号被禁用 → 403，且旧 jti 被吊销（不留半开会话）', async () => {
+    const token = await makeToken({ type: 'refresh', jti: 'old-jti' });
+    dbMock.select.mockReturnValueOnce(createChain([activeAdminSubject({ status: 'disabled' })]));
+    await expect(refreshAccessToken(token)).rejects.toMatchObject({ status: 403 });
+    const sm = await import('../../lib/session-manager');
+    expect(vi.mocked(sm.removeSession)).toHaveBeenCalledWith('old-jti');
   });
 });
 

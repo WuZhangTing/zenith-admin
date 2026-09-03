@@ -22,9 +22,10 @@
 | 用途 | Redis key |
 |------|-----------|
 | 在线会话 | `{REDIS_KEY_PREFIX}member-session:{jti}` |
-| 强制下线黑名单 | `{REDIS_KEY_PREFIX}member-blacklist:{jti}` |
+| refresh 授权 | `{REDIS_KEY_PREFIX}member-refresh:{jti}` |
+| 吊销黑名单 | `{REDIS_KEY_PREFIX}member-blacklist:{jti}` |
 
-会员会话 TTL 为 8 小时，请求经过 `memberAuthMiddleware` 时会刷新活跃时间；黑名单 TTL 为 2 小时，与会员 Access Token 有效期一致。
+会员会话 TTL 为 8 小时，请求经过 `memberAuthMiddleware` 时会刷新活跃时间；refresh 授权 TTL 30 天，`/api/member/auth/refresh` 一次性消费后轮换到新 `jti`（响应同时返回新的 access token 与 refresh token）；黑名单 TTL 为 2 小时，与会员 Access Token 有效期一致。登出、封禁、改密 / 重置密码都会吊销 `jti`，access 与 refresh token 同时失效。
 
 ---
 

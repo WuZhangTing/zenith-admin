@@ -96,7 +96,7 @@ interface StoredAccount {
 { "refreshToken": "<refresh-token>" }
 ```
 
-刷新成功后只更新 access token 并重试原请求；refresh token 由当前登录槽位或停靠账号继续持有。
+刷新成功后更新 access token，并用响应中轮换后的 `refreshToken` 覆盖本地保存的 refresh token（旧值已被服务端吊销），然后重试原请求；停靠账号切回时同样以换发结果中的新 refresh token 入库。
 
 ### 响应读取
 

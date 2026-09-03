@@ -37,6 +37,8 @@ export const LoginResultDTO = z
 export const RefreshTokenResultDTO = z
   .object({
     accessToken: z.string(),
+    /** 续签同时轮换 refresh token：客户端必须以新值替换本地保存的 refresh token */
+    refreshToken: z.string(),
   })
   .openapi('RefreshTokenResult');
 

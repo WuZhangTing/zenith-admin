@@ -95,7 +95,7 @@ export const MemberLoginResultDTO = z
   .openapi('MemberLoginResult');
 
 export const MemberRefreshResultDTO = z
-  .object({ accessToken: z.string() })
+  .object({ accessToken: z.string(), refreshToken: z.string() })
   .openapi('MemberRefreshResult');
 
 export const MemberSmsCodeResultDTO = z
