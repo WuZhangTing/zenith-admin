@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { Button, MarkdownRender, Select, Space, TextArea, Toast, Typography } from '@douyinfe/semi-ui';
 import { Send, Square, Trophy } from 'lucide-react';
 import AppModal from '@/components/AppModal';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
+import { request } from '@/utils/request';
+import { readSseStream } from '@/utils/streaming';
 import type { AiChatModel } from '@zenith/shared/ai';
 import { submitArenaVote } from '@/hooks/queries/ai-extras';
 import { healStreamingMarkdown } from '@/utils/streaming-markdown';
@@ -44,48 +44,35 @@ export default function ArenaModal({ visible, onClose, models }: ArenaModalProps
     signal: AbortSignal,
   ) => {
     const [configIdStr, ...modelParts] = selection.split(':');
-    const token = localStorage.getItem(TOKEN_KEY);
     setPanel(() => ({ content: '', status: 'running' }));
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/ai/arena/chat`, {
+      const response = await request.fetchRaw('/api/ai/arena/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ message: question, configId: Number(configIdStr), model: modelParts.join(':') || undefined }),
         signal,
+        silent: true,
       });
+      if (!response) throw new Error('请求失败');
       if (!response.ok) {
         const err = await response.json().catch(() => null) as { message?: string } | null;
         throw new Error(err?.message || `HTTP ${response.status}`);
       }
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let eventType = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (line.startsWith('event: ')) eventType = line.slice(7).trim();
-          else if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6).trim();
-            if (!dataStr) continue;
-            try {
-              const parsed = JSON.parse(dataStr) as { content?: string; message?: string };
-              if (eventType === 'delta' && parsed.content) {
-                setPanel((prev) => ({ ...prev, content: prev.content + parsed.content }));
-              } else if (eventType === 'error') {
-                setPanel((prev) => ({ ...prev, status: 'error', error: parsed.message }));
-              } else if (eventType === 'done') {
-                setPanel((prev) => ({ ...prev, status: 'done' }));
-              }
-            } catch { /* ignore */ }
-          }
+      if (!response.body) throw new Error('No response body');
+      await readSseStream(response, (events) => {
+        for (const { event, data } of events) {
+          if (!data) continue;
+          try {
+            const parsed = JSON.parse(data) as { content?: string; message?: string };
+            if (event === 'delta' && parsed.content) {
+              setPanel((prev) => ({ ...prev, content: prev.content + parsed.content }));
+            } else if (event === 'error') {
+              setPanel((prev) => ({ ...prev, status: 'error', error: parsed.message }));
+            } else if (event === 'done') {
+              setPanel((prev) => ({ ...prev, status: 'done' }));
+            }
+          } catch { /* ignore */ }
         }
-      }
+      });
       setPanel((prev) => (prev.status === 'running' ? { ...prev, status: 'done' } : prev));
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') {

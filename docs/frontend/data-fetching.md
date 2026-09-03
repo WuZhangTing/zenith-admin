@@ -149,6 +149,7 @@ const modal = useEditModal<Xxx, XxxValues>({
 - **轮询**：用 Query 的 `refetchInterval`；条件轮询使用函数形式 `refetchInterval: (query) => hasRunning(query.state.data) ? 5000 : false`
 - **上传进度**：`request.postForm(url, formData, { onProgress })` 包进 `mutationFn`，变量形如 `{ formData, onProgress }`
 - **二进制读取 / 下载**：后台使用 `request.getBlob` / `request.download`；文件预览使用 `fetchManagedFileBlob`
+- **流式 / SSE**：`request.fetchRaw` 拿原生 Response，再经 `utils/streaming.ts` 的 `streamText` / `readSseStream` 读取
 - **导出**：列表导出优先使用 `ExportButton`，由 `useExportJobRunner` 接入导出任务
 
 ## 会员端（member SPA）

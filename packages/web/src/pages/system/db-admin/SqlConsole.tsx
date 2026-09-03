@@ -12,9 +12,7 @@ import {
 import type { editor as MonacoEditor, KeyMod as KeyModT, KeyCode as KeyCodeT, Position } from 'monaco-editor';
 import Editor from '@monaco-editor/react';
 import { format as formatSql } from 'sql-formatter';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import type { DbQueryFavorite } from '@zenith/shared/ops';
-import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { AppModal } from '@/components/AppModal';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -38,6 +36,7 @@ import {
   useSaveDbQueryFavorite,
   type DbAdminQueryResult,
 } from '@/hooks/queries/db-admin';
+import { request } from '@/utils/request';
 
 const PAGE_SIZE = 100;
 const SAVE_FAVORITE_LABEL_WIDTH = 72;
@@ -316,21 +315,11 @@ export const SqlConsole = forwardRef<SqlConsoleHandle, SqlConsoleProps>(function
   const downloadStream = useCallback(async (path: string, filename: string, kind: 'csv' | 'json') => {
     const text = editorRef.current?.getValue() ?? activeTab.sql;
     if (!text.trim()) { Toast.warning('请输入 SQL'); return; }
-    const token = localStorage.getItem(TOKEN_KEY);
     const setLoading = kind === 'csv' ? setExportCsvLoading : setExportJsonLoading;
     setLoading(true);
     try {
-      const res = await fetch(`${config.apiBaseUrl}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ sql: text }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        Toast.error((err as { message?: string })?.message ?? '导出失败');
-        return;
-      }
-      const blob = await res.blob();
+      const blob = await request.getBlob(path, { method: 'POST', body: JSON.stringify({ sql: text }) });
+      if (!blob) return;
       downloadBlob(blob, filename);
     } catch (err) {
       Toast.error('导出失败：' + (err instanceof Error ? err.message : String(err)));

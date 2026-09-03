@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Button, Input, Select, InputNumber, Tag, Typography, Tabs, TabPane } from '@douyinfe/semi-ui';
 import { Play, Square, Wifi, Search } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
+import { streamText } from '@/utils/streaming';
 import {
   useDnsLookup,
   useHttpProbe,
@@ -135,28 +134,6 @@ function TracerouteViz({ hops }: { hops: HopInfo[] }) {
   );
 }
 
-async function fetchStream(
-  url: string,
-  onChunk: (text: string) => void,
-  signal: AbortSignal,
-): Promise<void> {
-  const token = localStorage.getItem(TOKEN_KEY) ?? '';
-  const base = config.apiBaseUrl || '';
-  const resp = await fetch(`${base}${url}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    signal,
-  });
-  if (!resp.ok) { onChunk(`\n❌ HTTP ${resp.status}\n`); return; }
-  const reader = resp.body?.getReader();
-  if (!reader) return;
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    onChunk(decoder.decode(value, { stream: true }));
-  }
-}
-
 export default function NetworkDiagPage() {
   const [tool, setTool] = useState<ToolType>('ping');
   const [host, setHost] = useState('');
@@ -190,7 +167,7 @@ export default function NetworkDiagPage() {
       abortRef.current = abort;
       const params = new URLSearchParams({ type: tool, host: host.trim() });
       try {
-        await fetchStream(
+        await streamText(
           `/api/network-diag/stream?${params.toString()}`,
           (text) => setOutput((prev) => prev + text),
           abort.signal,

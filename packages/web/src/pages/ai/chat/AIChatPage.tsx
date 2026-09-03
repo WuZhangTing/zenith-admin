@@ -17,8 +17,7 @@ import AiSettingsModal from '../components/AiSettingsModal';
 import ShareModal from '../components/ShareModal';
 import ArenaModal from '../components/ArenaModal';
 import { request } from '@/utils/request';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
+import { readSseStream } from '@/utils/streaming';
 import type { AiChatModel, AiConversation, AiMessage, AiPromptTemplate } from '@zenith/shared/ai';
 import { AI_REASONING_LEVELS } from '@zenith/shared/ai';
 import type { UserAiConfig } from '@zenith/shared/identity';
@@ -414,11 +413,7 @@ export default function AIChatPage() {
     ctx: { convId: number; assistantMsgId: string; localUserMsgId: string | null; skipUserEvent: boolean },
   ) => {
     const { convId, assistantMsgId, localUserMsgId, skipUserEvent } = ctx;
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
+    if (!response.body) throw new Error('No response body');
     let accContent = '';
     let accReasoning = '';
     const accToolCalls: ToolCallDisplay[] = [];
@@ -432,95 +427,80 @@ export default function AIChatPage() {
       );
     };
 
-    // eventType 必须在读循环外持有：SSE 帧可能被拆到两次 read 之间
-    // （event: 行与 data: 行分属不同 chunk），循环内声明会导致事件被静默丢弃
-    let eventType = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7).trim();
-        } else if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6).trim();
-          if (!dataStr) continue;
-          try {
-            const parsed = JSON.parse(dataStr) as Record<string, unknown>;
-            if (eventType === 'gen') {
-              // 生成任务 ID：停止 / 断线续传凭据
-              currentGenIdRef.current = (parsed.genId as string) ?? null;
-            } else if (eventType === 'user') {
-              // 续传场景：缓冲中回放的用户消息（发起端已本地渲染，跳过）
-              if (!skipUserEvent && parsed.content) {
-                const userMsg: Message = { id: nextMsgId(), role: 'user', content: parsed.content as string, createdAt: Date.now() - 1, status: 'completed' };
-                setMessages((prev) => {
-                  const idx = prev.findIndex((m) => m.id === assistantMsgId);
-                  if (idx === -1) return [...prev, userMsg];
-                  return [...prev.slice(0, idx), userMsg, ...prev.slice(idx)];
-                });
-              }
-            } else if (eventType === 'delta' && parsed.content) {
-              accContent += (parsed.content as string | undefined) ?? '';
-              refreshAssistant();
-            } else if (eventType === 'reasoning' && parsed.content) {
-              accReasoning += (parsed.content as string | undefined) ?? '';
-              refreshAssistant();
-            } else if (eventType === 'tool_call') {
-              // function calling 执行过程
-              accToolCalls.push({
-                name: (parsed.name as string) ?? '',
-                arguments: (parsed.arguments as string) ?? '',
-                result: (parsed.result as string) ?? '',
+    await readSseStream(response, (events) => {
+      for (const { event: eventType, data: dataStr } of events) {
+        if (!dataStr) continue;
+        try {
+          const parsed = JSON.parse(dataStr) as Record<string, unknown>;
+          if (eventType === 'gen') {
+            // 生成任务 ID：停止 / 断线续传凭据
+            currentGenIdRef.current = (parsed.genId as string) ?? null;
+          } else if (eventType === 'user') {
+            // 续传场景：缓冲中回放的用户消息（发起端已本地渲染，跳过）
+            if (!skipUserEvent && parsed.content) {
+              const userMsg: Message = { id: nextMsgId(), role: 'user', content: parsed.content as string, createdAt: Date.now() - 1, status: 'completed' };
+              setMessages((prev) => {
+                const idx = prev.findIndex((m) => m.id === assistantMsgId);
+                if (idx === -1) return [...prev, userMsg];
+                return [...prev.slice(0, idx), userMsg, ...prev.slice(idx)];
               });
-              refreshAssistant();
-            } else if (eventType === 'references') {
-              // 知识库检索引用
-              accReferences = (parsed.references as KbRefDisplay[]) ?? [];
-              refreshAssistant();
-            } else if (eventType === 'failover') {
-              Toast.info(`当前模型响应异常，已自动切换到备用模型（${(parsed.to as string) ?? ''}）`);
-            } else if (eventType === 'saved') {
-              // 服务端保存完成：本地气泡映射数据库 ID，并同步分支叶子与消息树
-              const dbId = (parsed.assistantMsgId as number | undefined);
-              const userDbId = (parsed.userMsgId as number | null | undefined);
-              const usedModel = (parsed.model as string | null | undefined);
-              setMessages((prev) =>
-                prev.map((m) => {
-                  if (dbId && m.id === assistantMsgId) return { ...m, id: `api-${dbId}`, ...(usedModel && { model: usedModel }) };
-                  if (userDbId && localUserMsgId && m.id === localUserMsgId) return { ...m, id: `api-${userDbId}` };
-                  return m;
-                })
-              );
-              if (dbId) setActiveLeafId(dbId);
-              void queryClient.invalidateQueries({ queryKey: aiConversationKeys.messages(convId) });
-            } else if (eventType === 'title') {
-              // 服务端 LLM 自动命名完成，同步会话标题
-              const title = parsed.title as string | undefined;
-              if (title) {
-                setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, title } : c)));
-              }
-            } else if (eventType === 'done') {
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, status: 'completed' } : m))
-              );
-              void queryClient.invalidateQueries({ queryKey: aiConversationKeys.lists });
-            } else if (eventType === 'error') {
-              Toast.error((parsed.message as string | undefined) ?? 'AI 服务出错');
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, status: 'failed' } : m))
-              );
             }
-          } catch {
-            // ignore JSON parse errors
+          } else if (eventType === 'delta' && parsed.content) {
+            accContent += (parsed.content as string | undefined) ?? '';
+            refreshAssistant();
+          } else if (eventType === 'reasoning' && parsed.content) {
+            accReasoning += (parsed.content as string | undefined) ?? '';
+            refreshAssistant();
+          } else if (eventType === 'tool_call') {
+            // function calling 执行过程
+            accToolCalls.push({
+              name: (parsed.name as string) ?? '',
+              arguments: (parsed.arguments as string) ?? '',
+              result: (parsed.result as string) ?? '',
+            });
+            refreshAssistant();
+          } else if (eventType === 'references') {
+            // 知识库检索引用
+            accReferences = (parsed.references as KbRefDisplay[]) ?? [];
+            refreshAssistant();
+          } else if (eventType === 'failover') {
+            Toast.info(`当前模型响应异常，已自动切换到备用模型（${(parsed.to as string) ?? ''}）`);
+          } else if (eventType === 'saved') {
+            // 服务端保存完成：本地气泡映射数据库 ID，并同步分支叶子与消息树
+            const dbId = (parsed.assistantMsgId as number | undefined);
+            const userDbId = (parsed.userMsgId as number | null | undefined);
+            const usedModel = (parsed.model as string | null | undefined);
+            setMessages((prev) =>
+              prev.map((m) => {
+                if (dbId && m.id === assistantMsgId) return { ...m, id: `api-${dbId}`, ...(usedModel && { model: usedModel }) };
+                if (userDbId && localUserMsgId && m.id === localUserMsgId) return { ...m, id: `api-${userDbId}` };
+                return m;
+              })
+            );
+            if (dbId) setActiveLeafId(dbId);
+            void queryClient.invalidateQueries({ queryKey: aiConversationKeys.messages(convId) });
+          } else if (eventType === 'title') {
+            // 服务端 LLM 自动命名完成，同步会话标题
+            const title = parsed.title as string | undefined;
+            if (title) {
+              setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, title } : c)));
+            }
+          } else if (eventType === 'done') {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantMsgId ? { ...m, status: 'completed' } : m))
+            );
+            void queryClient.invalidateQueries({ queryKey: aiConversationKeys.lists });
+          } else if (eventType === 'error') {
+            Toast.error((parsed.message as string | undefined) ?? 'AI 服务出错');
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantMsgId ? { ...m, status: 'failed' } : m))
+            );
           }
+        } catch {
+          // ignore JSON parse errors
         }
       }
-    }
+    });
   }, [queryClient]);
 
   const handleMessageSend = useCallback(
@@ -581,17 +561,12 @@ export default function AIChatPage() {
       const abortController = new AbortController();
       abortRef.current = abortController;
       currentGenIdRef.current = null;
-      const token = localStorage.getItem(TOKEN_KEY);
 
       try {
-        const response = await fetch(
-          `${config.apiBaseUrl}/api/ai/conversations/${convId}/chat`,
+        const response = await request.fetchRaw(
+          `/api/ai/conversations/${convId}/chat`,
           {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
             body: JSON.stringify(
               (() => {
                 const selectedModel = configureValuesRef.current.model as string | undefined ?? '';
@@ -614,9 +589,11 @@ export default function AIChatPage() {
               })()
             ),
             signal: abortController.signal,
+            silent: true,
           }
         );
 
+        if (!response) throw new Error('消息发送失败');
         if (!response.ok) {
           // 非流式错误（配额超限 / 校验失败等）：透出服务端 message
           const errBody = await response.json().catch(() => null) as { message?: string } | null;
@@ -658,13 +635,9 @@ export default function AIChatPage() {
     setGenerating(true);
     const abortController = new AbortController();
     abortRef.current = abortController;
-    const token = localStorage.getItem(TOKEN_KEY);
     try {
-      const response = await fetch(`${config.apiBaseUrl}/api/ai/generations/${genId}/stream?offset=0`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        signal: abortController.signal,
-      });
-      if (!response.ok) throw new Error('恢复生成流失败');
+      const response = await request.fetchRaw(`/api/ai/generations/${genId}/stream?offset=0`, { signal: abortController.signal, silent: true });
+      if (!response?.ok) throw new Error('恢复生成流失败');
       Toast.info('检测到进行中的回复，已恢复实时输出');
       await consumeSSEStream(response, { convId, assistantMsgId, localUserMsgId: null, skipUserEvent: false });
     } catch (err) {

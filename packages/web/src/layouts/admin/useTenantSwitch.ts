@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '@zenith/shared/core';
 import { useAllTenants, useSwitchTenant } from '@/hooks/queries/tenants';
 
 // ─── 租户切换（仅平台管理员） ─────────────────────────────────────────────
@@ -18,8 +19,8 @@ export function useTenantSwitch(isPlatformAdmin: boolean | undefined, initialVie
 
   const handleSwitchTenant = async (tenantId: number | null) => {
     const data = await switchMutation.mutateAsync(tenantId);
-    localStorage.setItem('zenith_token', data.accessToken);
-    localStorage.setItem('zenith_refresh_token', data.refreshToken);
+    localStorage.setItem(TOKEN_KEY, data.accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
     setViewingTenantId(tenantId);
     globalThis.location.reload();
   };

@@ -7,11 +7,10 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config as appConfig } from '@/config';
 import { NON_SVG_IMAGE_EXTS, getFileMimeType } from '../fs-utils';
 import { createDisplayableImageUrl } from '@/utils/image-decode';
 import type { FsEntry } from '../types';
+import { request } from '@/utils/request';
 
 export function useFsPreview(filteredEntries: FsEntry[]) {
   // 通用文件预览（FilePreviewModal）
@@ -35,15 +34,10 @@ export function useFsPreview(filteredEntries: FsEntry[]) {
     if (idx < 0 || idx >= entries.length) return;
     if (previewBlobUrlsRef.current[idx]) return;
     previewBlobUrlsRef.current[idx] = 'loading';
-    const token = localStorage.getItem(TOKEN_KEY) ?? '';
-    const base = appConfig.apiBaseUrl || '';
     try {
-      const resp = await fetch(
-        `${base}/api/terminal-files/download?path=${encodeURIComponent(entries[idx].path)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      const blob = await request.getBlob(`/api/terminal-files/download?path=${encodeURIComponent(entries[idx].path)}`);
       if (previewSessionRef.current !== session) return;
-      const blob = await resp.blob();
+      if (!blob) throw new Error('预览加载失败');
       if (previewSessionRef.current !== session) return;
       const url = await createDisplayableImageUrl(blob, null, entries[idx].name);
       if (previewSessionRef.current !== session) {

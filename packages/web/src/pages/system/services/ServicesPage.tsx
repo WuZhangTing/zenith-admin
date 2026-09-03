@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button, Tag, Toast, SideSheet, Typography, Empty, Select } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { FileText, RefreshCw, Play, Square } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
+import { streamText } from '@/utils/streaming';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import { createOperationColumn } from '@/components/ResponsiveTableActions';
@@ -19,25 +18,6 @@ const ACTION_MSG: Record<ServiceAction, string> = {
 const STATE_COLOR: Record<string, 'green' | 'grey' | 'red' | 'orange'> = {
   active: 'green', inactive: 'grey', failed: 'red', activating: 'orange',
 };
-
-async function fetchStream(
-  url: string, onChunk: (t: string) => void, signal: AbortSignal,
-): Promise<void> {
-  const token = localStorage.getItem(TOKEN_KEY) ?? '';
-  const resp = await fetch(`${config.apiBaseUrl || ''}${url}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    signal,
-  });
-  if (!resp.ok) { onChunk(`\nHTTP ${resp.status}\n`); return; }
-  const reader = resp.body?.getReader();
-  if (!reader) return;
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    onChunk(decoder.decode(value, { stream: true }));
-  }
-}
 
 export default function ServicesPage() {
   const { hasPermission } = usePermission();
@@ -103,7 +83,7 @@ export default function ServicesPage() {
       setLogsFollowing(true);
       const abort = new AbortController();
       logsAbortRef.current = abort;
-      void fetchStream(
+      void streamText(
         `/api/systemd/${logsService.name}/logs/stream${hostId == null ? '' : `?hostId=${hostId}`}`,
         (text) => setLogs((prev) => prev + text),
         abort.signal,

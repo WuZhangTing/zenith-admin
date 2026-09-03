@@ -41,8 +41,6 @@ import {
   Upload,
 } from 'lucide-react';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
 import { downloadBlob } from '@/utils/download';
 import { useThemeController } from '@/providers/theme-controller';
 import { usePermission } from '@/hooks/usePermission';
@@ -92,6 +90,7 @@ import {
 } from '@/hooks/queries/db-admin';
 import './db-admin.css';
 import { dateTimeColumn } from '@/utils/table-columns';
+import { request } from '@/utils/request';
 
 const ErDiagram = lazy(() => import('./ErDiagram').then((module) => ({
   default: module.ErDiagram,
@@ -431,18 +430,9 @@ export default function DbAdminPage() {
   // ─── 表右键上下文菜单操作 ────────────────────────────────────────────────────
   const handleExportTableCsv = async (t: TableItem) => {
     if (!canExport) return;
-    const token = localStorage.getItem(TOKEN_KEY);
     try {
-      const res = await fetch(
-        `${config.apiBaseUrl}/api/db-admin/tables/${encodeURIComponent(t.schema)}/${encodeURIComponent(t.name)}/export.csv`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        Toast.error((err as { message?: string })?.message ?? '导出失败');
-        return;
-      }
-      const blob = await res.blob();
+      const blob = await request.getBlob(`/api/db-admin/tables/${encodeURIComponent(t.schema)}/${encodeURIComponent(t.name)}/export.csv`);
+      if (!blob) return;
       downloadBlob(blob, `${t.schema}_${t.name}_${Date.now()}.csv`);
       Toast.success(`${fullName(t)} 导出成功`);
     } catch (err) {
@@ -452,18 +442,9 @@ export default function DbAdminPage() {
 
   const handleExportTableSql = async (t: TableItem, mode: 'ddl' | 'data' | 'full') => {
     if (!canExport) return;
-    const token = localStorage.getItem(TOKEN_KEY);
     try {
-      const res = await fetch(
-        `${config.apiBaseUrl}/api/db-admin/tables/${encodeURIComponent(t.schema)}/${encodeURIComponent(t.name)}/export.sql?mode=${mode}`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        Toast.error((err as { message?: string })?.message ?? '导出失败');
-        return;
-      }
-      const blob = await res.blob();
+      const blob = await request.getBlob(`/api/db-admin/tables/${encodeURIComponent(t.schema)}/${encodeURIComponent(t.name)}/export.sql?mode=${mode}`);
+      if (!blob) return;
       const suffixMap: Record<string, string> = { ddl: 'ddl', data: 'data', full: 'full' };
       const suffix = suffixMap[mode] ?? 'full';
       downloadBlob(blob, `${t.schema}_${t.name}_${suffix}_${Date.now()}.sql`);

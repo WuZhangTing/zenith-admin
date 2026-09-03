@@ -4,7 +4,6 @@ import { AppModal } from '@/components/AppModal';
 import { Button, Checkbox, DatePicker, Descriptions, Input, List, Pagination, Progress, Select, Space, Spin, Tabs, TabPane, Toast, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { Plus, Search, Trash2, FolderDown, LayoutGrid, List as ListIcon, CheckCircle2, XCircle, X } from 'lucide-react';
 import type { ManagedFile } from '@zenith/shared/platform';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import { FILE_STORAGE_PROVIDER_OPTIONS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
@@ -17,7 +16,6 @@ import { useFilePreview } from '@/hooks/useFilePreview';
 import FileStatsPanel from './FileStatsPanel';
 import { FileGridCard } from './components/FileGridCard';
 import { FileNameCell } from '@/components/FileNameCell';
-import { config } from '@/config';
 import { usePermission } from '@/hooks/usePermission';
 import { dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePreferences } from '@/hooks/usePreferences';
@@ -34,6 +32,7 @@ import { copyTextWithToast } from '@/utils/clipboard';
 import './FilesPage.css';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
+import { request } from '@/utils/request';
 const { Text } = Typography;
 
 interface UploadItem { uid: string; name: string; size: number; progress: number; status: 'pending' | 'uploading' | 'success' | 'error'; errorMsg?: string }
@@ -52,8 +51,6 @@ function getProgressStroke(status: UploadItem['status']): string | undefined {
 function uploadSingleFile(
   file: File,
   uid: string,
-  apiBaseUrl: string,
-  token: string | null,
   setItems: React.Dispatch<React.SetStateAction<UploadItem[]>>,
   uploadFile: (formData: FormData, onProgress: (percent: number) => void) => Promise<unknown>,
 ) {
@@ -63,8 +60,6 @@ function uploadSingleFile(
   // 大文件走分片上传 + 断点续传
   if (file.size > CHUNK_SIZE) {
     chunkedUpload(file, {
-      apiBaseUrl,
-      token,
       onProgress: (percent) => updateItem(item => ({ ...item, progress: percent })),
     })
       .then(() => updateItem(item => ({ ...item, progress: 100, status: 'success' })))
@@ -232,13 +227,10 @@ export default function FilesPage() {
     const items: UploadItem[] = files.map((f, i) => ({ uid: `${f.name}-${Date.now()}-${i}`, name: f.name, size: f.size, progress: 0, status: 'pending' as const }));
     setUploadItems(items);
     setUploadProgressVisible(true);
-    const token = localStorage.getItem(TOKEN_KEY);
     for (const [i, file] of files.entries()) {
       uploadSingleFile(
         file,
         items[i].uid,
-        config.apiBaseUrl,
-        token,
         setUploadItems,
         (formData, onProgress) => uploadFileMutation.mutateAsync({ formData, onProgress }),
       );
@@ -266,21 +258,8 @@ export default function FilesPage() {
     if (selectedRowKeys.length === 0) return;
     setBatchDownloadLoading(true);
     try {
-      const token = localStorage.getItem(TOKEN_KEY);
-      const res = await fetch(`${config.apiBaseUrl}/api/files/batch-download`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ ids: selectedRowKeys }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { message?: string };
-        Toast.error(data.message || '批量下载失败');
-        return;
-      }
-      const blob = await res.blob();
+      const blob = await request.getBlob('/api/files/batch-download', { method: 'POST', body: JSON.stringify({ ids: selectedRowKeys }) });
+      if (!blob) return;
       downloadBlob(blob, `files_${Date.now()}.zip`);
       Toast.success(`已打包 ${selectedRowKeys.length} 个文件`);
     } catch {

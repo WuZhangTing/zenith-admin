@@ -22,9 +22,8 @@ class Request extends HttpClient {
     // 有进度回调时改用 XMLHttpRequest（fetch 不支持上传进度）
     return new Promise<ApiResponseWithMeta<T>>((resolve) => {
       const xhr = new XMLHttpRequest();
-      const token = localStorage.getItem(TOKEN_KEY);
       xhr.open('POST', `${this.baseUrl}${url}`);
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      for (const [name, value] of Object.entries(this.authHeaders())) xhr.setRequestHeader(name, value);
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
       });
@@ -49,51 +48,12 @@ class Request extends HttpClient {
   }
 
   /**
-   * 拉取二进制响应，复用统一的 token 注入 / 401 刷新重试 / 错误提示。
-   *
-   * 页面里裸用 `fetch` 手拼 Authorization 会绕过这些能力：token 过期不会自动刷新、
-   * 失败不会走统一提示与上报、Demo 模式也拦不住。
-   * 返回 null 表示失败已被处理（含跳转登录），调用方无需再提示。
+   * 拉取二进制响应（默认 GET，可传 method / body 走 POST 导出等）：复用 fetchRaw 的鉴权与 401 刷新重试，
+   * 非 2xx 按统一错误提示处理。返回 null 表示失败已被处理（含跳转登录），调用方无需再提示。
    */
-  async getBlob(url: string): Promise<Blob | null> {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    let res: Response;
-    try {
-      res = await fetch(`${this.baseUrl}${url}`, { headers });
-    } catch {
-      showRequestErrorToast('网络请求失败，请检查网络连接');
-      return null;
-    }
-
-    if (res.status === 401) {
-      const outcome = await this.tryRefreshToken();
-      if (outcome === 'transient') {
-        // 瞬时故障（限流/网络抖动）：保留凭证，本次下载失败即可
-        showRequestErrorToast('登录状态刷新暂时不可用，请稍后重试');
-        return null;
-      }
-      if (outcome === 'invalid') {
-        this.clearAuthAndRedirect();
-        return null;
-      }
-      const retryHeaders: HeadersInit = {};
-      const newToken = localStorage.getItem(TOKEN_KEY);
-      if (newToken) retryHeaders['Authorization'] = `Bearer ${newToken}`;
-      try {
-        res = await fetch(`${this.baseUrl}${url}`, { headers: retryHeaders });
-      } catch {
-        showRequestErrorToast('网络请求失败，请检查网络连接');
-        return null;
-      }
-      if (res.status === 401) {
-        this.clearAuthAndRedirect();
-        return null;
-      }
-    }
-
+  async getBlob(url: string, options: RequestInit = {}): Promise<Blob | null> {
+    const res = await this.fetchRaw(url, options);
+    if (!res) return null;
     if (!res.ok) {
       try {
         const data = await res.json() as { message?: string };
@@ -103,7 +63,6 @@ class Request extends HttpClient {
       }
       return null;
     }
-
     return res.blob();
   }
 

@@ -1,8 +1,8 @@
 import { Icon } from '@iconify/react';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { getFileIcon } from '@/utils/fileIcons';
 import { resolveFileMimeType } from '@/utils/file-mime';
+import { request } from '@/utils/request';
 
 export { guessMimeTypeFromName, resolveFileMimeType } from '@/utils/file-mime';
 
@@ -366,9 +366,9 @@ export async function fetchProtectedFile(url: string): Promise<Blob> {
   if (isAbsolute) {
     response = await fetch(url);
   } else {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-    response = await fetch(`${config.apiBaseUrl}${url}`, { headers });
+    const authed = await request.fetchRaw(url, { silent: true });
+    if (!authed) throw new Error('文件读取失败');
+    response = authed;
   }
   if (!response.ok) {
     throw new Error('文件读取失败');

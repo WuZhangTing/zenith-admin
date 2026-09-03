@@ -109,7 +109,7 @@ const isPreviewable = canPreviewFile(record.mimeType, record.originalName);
 
 1. 能从 URL 解析出 `/api/files/{id}/content` 时，先调用 `getFileAccessUrl(id)` 换取访问直链
 2. 直链读取失败或无法解析托管文件 ID 时，降级为携带认证头的 `fetchProtectedFile(url)`
-3. 绝对 URL 按直链裸 fetch；相对 URL 拼接 `config.apiBaseUrl` 并附加当前后台 token
+3. 绝对 URL 按直链裸 fetch；相对 URL 经 `request.fetchRaw` 携带当前后台登录态读取
 
 弹窗内部用 TanStack Query 管理加载状态，query key 为 `['files', 'preview', visible, fileUrl, fileName, resolvedMimeType, previewKind]`，`staleTime: 0`、`gcTime: 0`，文件内容不做持久缓存。加载失败时 Toast 提示并关闭弹窗。
 

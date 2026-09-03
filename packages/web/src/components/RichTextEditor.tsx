@@ -4,7 +4,7 @@ import { Editor, Toolbar } from '@wangeditor/editor-for-react';
 import type { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor';
 import { useEffect, useState } from 'react';
 import { config as appConfig } from '@/config';
-import { TOKEN_KEY } from '@zenith/shared/core';
+import { request } from '@/utils/request';
 
 interface RichTextEditorProps {
   value?: string;
@@ -78,9 +78,7 @@ export default function RichTextEditor({
       uploadImage: {
         server: uploadServer ?? `${appConfig.apiBaseUrl}/api/files/upload`,
         fieldName: 'file',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}`,
-        },
+        headers: request.authHeaders(),
         customInsert(res: { code: number; data: { url: string } }, insertFn: (url: string, alt: string, href: string) => void) {
           if (res.code === 0) {
             const url = res.data.url.startsWith('http') ? res.data.url : `${appConfig.apiBaseUrl}${res.data.url}`;

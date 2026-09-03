@@ -73,14 +73,20 @@ interface StoredAccount {
 - `silent` 由调用方接管错误提示；`skipAuth` 让 401 直接返回响应体，不触发刷新与退出
 - 429 读取 `Retry-After` 并返回 `retryAfterSeconds`
 - 后台端 503 维护模式派发 `maintenance:enabled`，`App.tsx` 失效维护状态查询并展示 `MaintenanceOverlay`
+- `fetchRaw(url, init)`：带鉴权的原生 fetch，401 时刷新并重试一次，返回原生 `Response`（非 401 的失败状态码原样返回，认证失效 / 网络错误返回 `null`），供流式与二进制读取
+- `authHeaders()`：当前登录态的 `Authorization` 头，供 Semi `Upload`、wangEditor 等自行发请求的第三方组件使用
 
 后台 `request` 额外提供：
 
 | 方法 | 用途 |
 | --- | --- |
 | `postForm(url, formData, { onProgress })` | 带上传进度的表单提交；传 `onProgress` 时走 XMLHttpRequest |
-| `getBlob(url)` | 二进制读取，复用 token 注入与 401 刷新 |
+| `getBlob(url, init?)` | 二进制读取（可传 `method` / `body` 走 POST 导出），非 2xx 按统一错误提示处理 |
 | `download(url, filename)` | 下载二进制响应并保存为文件 |
+
+流式响应经 `utils/streaming.ts` 读取：`streamText(url, onChunk, signal)` 逐块回调纯文本流（tail -f、ping）；
+`readSseStream(response, onEvents)` 按空行切帧解析 `event:` / `data:`，每个网络分块解析出的帧一次回调。
+页面不得裸用 `fetch` 手拼 `Authorization`，也不得自写 `getReader()` 循环与 SSE 帧解析。
 
 ::: tip request 只是传输层
 页面数据读取不要直接写 `request.get` + 本地 `loading` 状态。可缓存读与影响其他视图的写统一收口到 `hooks/queries/` 域 hooks，queryFn / mutationFn 内部再使用 `request.*(...).then(unwrap)`。完整规范见[数据获取与服务端状态](/frontend/data-fetching)。

@@ -1,20 +1,10 @@
-/**
- * 单图上传字段：已上传时展示预览缩略图 + 悬浮删除按钮，未上传时展示上传按钮。
- *
- * 渠道自动回复 / 消息模板两个抽屉里各写了两份（图片、封面图）完全相同的实现，
- * 连上传地址、鉴权头、响应取值都各自复制了一遍。这里收敛成一个受控组件。
- */
+/** 单图上传字段（受控）：已上传时展示预览缩略图 + 悬浮删除按钮，未上传时展示上传按钮。 */
 import { Button, Space, Toast, Upload } from '@douyinfe/semi-ui';
 import { ImagePlus, Trash2 } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
+import { request } from '@/utils/request';
 
 const UPLOAD_ACTION = `${config.apiBaseUrl}/api/files/upload-one`;
-
-/** 上传接口的鉴权头；每次调用重新读取 token，避免续签后仍用旧值 */
-function uploadHeaders() {
-  return { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}` };
-}
 
 /** 从统一响应包络中取出上传后的文件 URL；失败返回 null */
 function extractUploadUrl(res: unknown): string | null {
@@ -71,7 +61,7 @@ export function ImageUploadField({
         : (
           <Upload
             action={UPLOAD_ACTION}
-            headers={uploadHeaders()}
+            headers={() => request.authHeaders()}
             name="file"
             accept={accept}
             limit={1}

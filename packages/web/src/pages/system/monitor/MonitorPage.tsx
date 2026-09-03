@@ -6,8 +6,8 @@ import { LineChart, chartOptions, makeLineSpec, useChartPalette } from '@/compon
 import { RefreshCw, Cpu, HardDrive, Database, Server, MemoryStick, Layers, Activity, Network, Wifi, History, Thermometer, ListTree, Download, Copy as CopyIcon, ExternalLink } from 'lucide-react';
 import { formatDateTime } from '@/utils/date';
 import { formatBytesGb as formatBytes } from '@/utils/format';
-import { config } from '@/config';
-import { TOKEN_KEY } from '@zenith/shared/core';
+import { request } from '@/utils/request';
+import { readSseStream } from '@/utils/streaming';
 import { TABLE_PAGE_SIZE_OPTIONS, usePagination } from '@/hooks/usePagination';
 import { useMonitorHistory, useMonitorSnapshot } from '@/hooks/queries/monitor';
 import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricMeter';
@@ -399,34 +399,16 @@ export default function MonitorPage() {
 
     /** 单次连接；返回是否应该重连（aborted 时返回 false） */
     const connectOnce = async (): Promise<boolean> => {
-      let buffer = '';
       try {
         setSseStatus('connecting');
-        const token = localStorage.getItem(TOKEN_KEY);
-        const res = await fetch(`${config.apiBaseUrl}/api/monitor/stream`, {
-          headers: { Authorization: `Bearer ${token ?? ''}` },
-          signal: ctrl.signal,
-        });
-        if (!res.ok || !res.body) return !ctrl.signal.aborted;
+        const res = await request.fetchRaw('/api/monitor/stream', { signal: ctrl.signal, silent: true });
+        if (!res || !res.ok || !res.body) return !ctrl.signal.aborted;
         setSseStatus('open');
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const frames = buffer.split('\n\n');
-          buffer = frames.pop() ?? '';
-          for (const frame of frames) {
-            let currentEvent = '';
-            let dataLine = '';
-            for (const line of frame.split('\n')) {
-              if (line.startsWith('event:')) currentEvent = line.slice(6).trim();
-              else if (line.startsWith('data:')) dataLine += line.slice(5).trimStart();
-            }
-            if (dataLine) handleFrame(currentEvent, dataLine);
+        await readSseStream(res, (events) => {
+          for (const { event, data } of events) {
+            if (data) handleFrame(event, data);
           }
-        }
+        });
         // 服务端正常关闭流也视为需要重连
         return !ctrl.signal.aborted;
       } catch (e: unknown) {

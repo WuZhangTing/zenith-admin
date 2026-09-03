@@ -13,10 +13,10 @@ import { createOperationColumn } from '@/components/ResponsiveTableActions';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import AppModal from '@/components/AppModal';
-import { config } from '@/config';
+import { request } from '@/utils/request';
+import { readSseStream } from '@/utils/streaming';
 import { formatDateTime } from '@/utils/date';
 import { formatBytesGb as formatBytes } from '@/utils/format';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
 import type { ProcessInfo, ProcessListResponse } from '@zenith/shared/ops';
@@ -177,48 +177,28 @@ export default function ProcessesPage() {
     const ctrl = new AbortController();
     sseAbortRef.current = ctrl;
     setSseStatus('connecting');
-    let buffer = '';
 
     (async () => {
       try {
-        const token = localStorage.getItem(TOKEN_KEY);
-        const res = await fetch(`${config.apiBaseUrl}/api/processes/stream`, {
-          headers: { Authorization: `Bearer ${token ?? ''}` },
-          signal: ctrl.signal,
-        });
-        if (!res.ok || !res.body) {
+        const res = await request.fetchRaw('/api/processes/stream', { signal: ctrl.signal, silent: true });
+        if (!res || !res.ok || !res.body) {
           setSseStatus('error');
           return;
         }
         setSseStatus('open');
         // 注意：loading 在收到第一帧数据后才关闭（不在 SSE open 时关闭）
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const frames = buffer.split('\n\n');
-          buffer = frames.pop() ?? '';
-          for (const frame of frames) {
-            let currentEvent = '';
-            let dataLine = '';
-            for (const line of frame.split('\n')) {
-              if (line.startsWith('event:')) currentEvent = line.slice(6).trim();
-              else if (line.startsWith('data:')) dataLine += line.slice(5).trimStart();
-            }
-            if (!dataLine || currentEvent === 'ping') continue;
+        await readSseStream(res, (events) => {
+          for (const { event, data } of events) {
+            if (event !== 'processes') continue;
             try {
-              const payload = JSON.parse(dataLine) as ProcessListResponse;
-              if (currentEvent === 'processes') {
-                setProcesses(payload.processes);
-                setPlatform(payload.platform);
-                setLastUpdated(new Date());
-                setLoading(false); // 收到第一帧数据后关闭 loading spin
-              }
+              const payload = JSON.parse(data) as ProcessListResponse;
+              setProcesses(payload.processes);
+              setPlatform(payload.platform);
+              setLastUpdated(new Date());
+              setLoading(false); // 收到第一帧数据后关闭 loading spin
             } catch { /* ignore parse errors */ }
           }
-        }
+        });
         setSseStatus('idle');
       } catch (e: unknown) {
         if (e instanceof Error && e.name === 'AbortError') return;

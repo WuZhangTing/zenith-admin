@@ -11,8 +11,8 @@ import {
 import type { CSSProperties } from 'react';
 import type { FileItem, RenderFileItemProps } from '@douyinfe/semi-ui/lib/es/upload';
 import { Plus, Download, X, Eye, RotateCcw } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
+import { request } from '@/utils/request';
 import { formatDateTime } from '@/utils/date';
 import {
   getFileTypeIcon,
@@ -170,11 +170,6 @@ export default function FileAttachment({
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
 
   const uploadAction = `${config.apiBaseUrl}${uploadPath}`;
-  const uploadHeaders = useMemo(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, []);
-
   /** Semi Upload fileList (view 模式使用 defaultFileList，edit 模式使用受控 fileList) */
   const uploadFileList = useMemo(
     () => value.filter((item) => item?.file != null).map(toUploadFileItem),
@@ -569,7 +564,7 @@ export default function FileAttachment({
       {/* 使用 Semi Upload 组件，listType="list" */}
       <Upload
         action={uploadAction}
-        headers={uploadHeaders}
+        headers={() => request.authHeaders()}
         name="file"
         fileList={fileList}
         listType="list"

@@ -5,9 +5,8 @@ import {
   Button, Input, Tag, Typography, Select, Switch,
 } from '@douyinfe/semi-ui';
 import { FolderOpen, Play, Square, Search, FileText, Download } from 'lucide-react';
-import { TOKEN_KEY } from '@zenith/shared/core';
-import { config } from '@/config';
 import { request } from '@/utils/request';
+import { streamText } from '@/utils/streaming';
 import { logViewerKeys, useLogViewerContent, useLogViewerRoots } from '@/hooks/queries/log-viewer';
 import { HostSelector } from '@/components/HostSelector';
 import { useOpsHostSelection } from '@/hooks/useOpsHostSelection';
@@ -113,25 +112,6 @@ const COMMON_LOG_PATHS = [
   '/var/log/redis/redis-server.log',
 ];
 
-async function fetchStream(
-  url: string, onChunk: (t: string) => void, signal: AbortSignal,
-): Promise<void> {
-  const token = localStorage.getItem(TOKEN_KEY) ?? '';
-  const resp = await fetch(`${config.apiBaseUrl || ''}${url}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    signal,
-  });
-  if (!resp.ok) { onChunk(`\nHTTP ${resp.status}\n`); return; }
-  const reader = resp.body?.getReader();
-  if (!reader) return;
-  const decoder = new TextDecoder();
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    onChunk(decoder.decode(value, { stream: true }));
-  }
-}
-
 export default function LogViewerPage() {
   const queryClient = useQueryClient();
   const [filePath, setFilePath] = useState('');
@@ -206,7 +186,7 @@ export default function LogViewerPage() {
     abortRef.current = abort;
     setFollowing(true);
     const url = `/api/log-viewer/stream?path=${encodeURIComponent(filePath.trim())}${hostId == null ? '' : `&hostId=${hostId}`}`;
-    void fetchStream(url, (text) => setContent((prev) => prev + text), abort.signal)
+    void streamText(url, (text) => setContent((prev) => prev + text), abort.signal)
       .catch(() => { /* abort = ok */ })
       .finally(() => setFollowing(false));
   }, [filePath, hostId]);

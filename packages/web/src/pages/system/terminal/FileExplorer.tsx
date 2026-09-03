@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import type { TreeNodeData } from '@douyinfe/semi-ui/lib/es/tree';
 import { request } from '@/utils/request';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import { config } from '@/config';
 import { useTerminalPreferences } from './useTerminalPreferences';
 import { getFileIcon, getFolderIcon } from '@/utils/fileIcons';
@@ -62,8 +61,6 @@ function applyUploadProgress(items: UploadItem[], idx: number, pct: number): Upl
 function uploadOneXhr(
   file: File,
   dir: string,
-  baseUrl: string,
-  token: string,
   onProgress: (pct: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -79,8 +76,8 @@ function uploadOneXhr(
       else reject(new Error(`HTTP ${xhr.status}`));
     };
     xhr.onerror = () => reject(new Error('网络错误'));
-    xhr.open('POST', `${baseUrl}/api/terminal-files/upload`);
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.open('POST', `${config.apiBaseUrl || ''}/api/terminal-files/upload`);
+    for (const [name, value] of Object.entries(request.authHeaders())) xhr.setRequestHeader(name, value);
     xhr.send(fd);
   });
 }
@@ -424,8 +421,6 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
 
   /** 使用 XHR 上传多个文件到指定目录，并实时更新进度 */
   const handleContextUpload = useCallback(async (files: File[], dir: string) => {
-    const token = localStorage.getItem(TOKEN_KEY) ?? '';
-    const baseUrl = config.apiBaseUrl || '';
     setUploading(files.map((f) => ({ name: f.name, progress: 0 })));
 
     function updateProgress(idx: number, pct: number) {
@@ -433,7 +428,7 @@ export default function FileExplorer({ active, onOpenFile, onOpenTerminalAt }: F
     }
 
     const results = await Promise.allSettled(
-      files.map((f, i) => uploadOneXhr(f, dir, baseUrl, token, (pct) => updateProgress(i, pct))),
+      files.map((f, i) => uploadOneXhr(f, dir, (pct) => updateProgress(i, pct))),
     );
     const success = results.filter((r) => r.status === 'fulfilled').length;
     const fail = results.length - success;

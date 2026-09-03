@@ -5,6 +5,7 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import type { ChannelAdmin } from '@zenith/shared/messaging';
 import { config } from '@/config';
+import { request } from '@/utils/request';
 import { usePermission } from '@/hooks/usePermission';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -245,7 +246,7 @@ export default function ChannelsPage() {
                 : (
                   <Upload
                     action={`${config.apiBaseUrl}/api/files/upload-one`}
-                    headers={{ Authorization: `Bearer ${localStorage.getItem('zenith_token') ?? ''}` }}
+                    headers={() => request.authHeaders()}
                     name="file"
                     accept="image/*"
                     limit={1}

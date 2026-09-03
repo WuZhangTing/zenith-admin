@@ -11,12 +11,11 @@ import {
 import { MasterDetailLayout } from '@/components/MasterDetailLayout';
 import { NavListPanel, NavListItem } from '@/components/NavListPanel';
 import { request } from '@/utils/request';
+import { readSseStream } from '@/utils/streaming';
 import { formatDateTime } from '@/utils/date';
 import { formatFileSize } from '@/utils/file-utils';
 import { usePermission } from '@/hooks/usePermission';
 import { useUrlSelectionState } from '@/hooks/useUrlSelectionState';
-import { config } from '@/config';
-import { TOKEN_KEY } from '@zenith/shared/core';
 import { type LogFile, useDeleteLogFile, useLogFileContent, useLogFiles } from '@/hooks/queries/log-files';
 import { confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
@@ -60,42 +59,6 @@ function usePersistentState<T>(key: string, initialValue: T) {
     });
   }, [key]);
   return [value, set] as const;
-}
-
-/** 打开 tail SSE 连接；401 时借助统一请求层触发 token 刷新后重试一次 */async function fetchTailStream(fileName: string, signal: AbortSignal): Promise<Response> {
-  const doFetch = () => fetch(`${config.apiBaseUrl}/api/log-files/${encodeURIComponent(fileName)}/tail`, {
-    headers: { Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}` },
-    signal,
-  });
-  let res = await doFetch();
-  if (res.status === 401) {
-    await request.get('/api/log-files', { silent: true });
-    res = await doFetch();
-  }
-  return res;
-}
-
-/** 读取 SSE 流，按 chunk 批量回调（而非逐行 setState） */
-async function readTailStream(res: Response, onBatch: (batch: string[]) => void): Promise<void> {
-  if (!res.body) return;
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const parts = buffer.split('\n');
-    buffer = parts.pop() ?? '';
-    const batch: string[] = [];
-    for (const part of parts) {
-      if (part.startsWith('data:')) {
-        const line = part.slice(5).trimStart();
-        if (line) batch.push(line);
-      }
-    }
-    if (batch.length > 0) onBatch(batch);
-  }
 }
 
 export default function LogFilesPage() {
@@ -312,10 +275,12 @@ export default function LogFilesPage() {
       while (!ctrl.signal.aborted) {
         let gotData = false;
         try {
-          const res = await fetchTailStream(fileName, ctrl.signal);
-          if (res.ok && res.body) {
+          const res = await request.fetchRaw(`/api/log-files/${encodeURIComponent(fileName)}/tail`, { signal: ctrl.signal, silent: true });
+          if (res?.ok && res.body) {
             setReconnecting(false);
-            await readTailStream(res, (batch) => {
+            await readSseStream(res, (events) => {
+              const batch = events.map((e) => e.data).filter(Boolean);
+              if (batch.length === 0) return;
               gotData = true;
               appendBatch(batch);
             });

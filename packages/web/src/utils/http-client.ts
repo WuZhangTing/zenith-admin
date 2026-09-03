@@ -77,11 +77,13 @@ export class HttpClient {
     if (!(body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
     }
+    return { ...headers, ...this.authHeaders() };
+  }
+
+  /** 当前登录态的鉴权头；每次调用重新读取 token，供第三方上传组件等无法经 request 层的场景使用 */
+  authHeaders(): Record<string, string> {
     const token = localStorage.getItem(this.tokenKey);
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    return headers;
+    return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
   protected async tryRefreshToken(): Promise<RefreshOutcome> {
@@ -144,6 +146,49 @@ export class HttpClient {
     return { code, message, data: null as unknown as T };
   }
 
+  /**
+   * 带鉴权的原生 fetch：注入 token，401 时刷新并重试一次，返回原生 Response 供流式 / 二进制读取。
+   * 非 401 的失败状态码原样返回，由调用方按业务处理；网络错误与认证失效已处理完毕（含提示与跳转）时返回 null。
+   */
+  async fetchRaw(url: string, options: RequestInit & Pick<HttpRequestOptions, 'silent'> = {}): Promise<Response | null> {
+    const { silent, ...fetchOptions } = options;
+    const doFetch = () => fetch(`${this.baseUrl}${url}`, {
+      ...fetchOptions,
+      headers: { ...this.getHeaders(fetchOptions.body), ...fetchOptions.headers },
+    });
+
+    let res: Response;
+    try {
+      res = await doFetch();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+      if (!silent) showRequestErrorToast('网络请求失败，请检查网络连接');
+      return null;
+    }
+    if (res.status !== 401) return res;
+
+    const outcome = await this.tryRefreshToken();
+    if (outcome === 'transient') {
+      if (!silent) showRequestErrorToast('登录状态刷新暂时不可用，请稍后重试');
+      return null;
+    }
+    if (outcome === 'invalid') {
+      this.clearAuthAndRedirect();
+      return null;
+    }
+    try {
+      res = await doFetch();
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+      if (!silent) showRequestErrorToast('网络请求失败，请检查网络连接');
+      return null;
+    }
+    if (res.status === 401) {
+      this.clearAuthAndRedirect();
+      return null;
+    }
+    return res;
+  }
   async request<T>(url: string, options: RequestInit & HttpRequestOptions = {}): Promise<ApiResponseWithMeta<T>> {
     const { silent, skipAuth, ...fetchOptions } = options;
     const doFetch = () => fetch(`${this.baseUrl}${url}`, {
