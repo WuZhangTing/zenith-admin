@@ -67,7 +67,9 @@
 - **钻取**：点击图形可
   - 按**维度层级**下钻（fields 类型：预设字段层级如 省→市→区，点击逐层替换分类字段，支持面包屑回退），或
   - 跳**目标仪表盘**（携带点击值为参数），或
-  - 跳**外链**（URL 支持 `{value}` 占位）。
+  - 跳**外链**（URL 支持 `{value}` 占位；仅允许 `http(s)` 地址，保存与点击时双重校验，并以 `noopener,noreferrer` 新窗口打开）。
+
+> **URL 安全约束**：图片组件 `src` 只接受 `http(s)` URL 或站内路径（如托管文件 `/api/files/{id}/content`）；网页（iframe）组件 `src` 只接受 `http(s)` URL，嵌入同源页面时 sandbox 不含 `allow-same-origin`，避免被嵌入文档读取本应用会话。`javascript:` / `data:` / `file:` 等地址在保存时被拒绝，渲染时也会被过滤为空。
 
 ## 多页轮播
 

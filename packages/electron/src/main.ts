@@ -4,6 +4,18 @@ import { initUpdater, resolveWebIndexPath } from './updater';
 
 const isDev = process.env.NODE_ENV === 'development';
 
+const SAFE_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
+/** 允许交给系统打开的外部地址（与 @zenith/shared/core 的 isSafeExternalUrl 保持一致，主进程不依赖 shared 包） */
+function isSafeExternalUrl(value: string): boolean {
+  if (/[\u0000-\u001F\u007F]/.test(value)) return false;
+  try {
+    return SAFE_EXTERNAL_PROTOCOLS.has(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
@@ -43,9 +55,10 @@ function createWindow() {
     mainWindow?.focus();
   });
 
-  // 在浏览器中打开外部链接
+  // 在系统浏览器中打开外部链接：只放行 http(s) / mailto，拒绝 file:（UNC 路径会触发 ShellExecute → NTLM 凭据外泄 / 启动可执行文件）等任意协议
   mainWindow.webContents.setWindowOpenHandler(({ url }: { url: string }) => {
-    shell.openExternal(url).catch(console.error);
+    if (isSafeExternalUrl(url)) shell.openExternal(url).catch(console.error);
+    else console.warn('[shell] 已拒绝打开非 http(s)/mailto 链接:', url.slice(0, 200));
     return { action: 'deny' };
   });
 

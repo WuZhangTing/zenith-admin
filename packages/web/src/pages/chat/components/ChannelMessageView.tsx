@@ -19,6 +19,7 @@ import { UserAvatar } from '@/components/UserAvatar';
 import AppModal from '@/components/AppModal';
 import { MessageBubble } from './MessageBubble';
 import { useChannelMenus, useChannelMessages } from '@/hooks/queries/chat';
+import { openExternalUrl } from '@/utils/safe-url';
 
 const { Text } = Typography;
 
@@ -187,7 +188,7 @@ export function ChannelMessageView({ channel, currentUserId, onBack, onUnsubscri
 
   const handleMenuClick = useCallback((menu: ChannelMenu) => {
     if (menu.type === 'view') {
-      if (menu.value) window.open(menu.value, '_blank', 'noopener,noreferrer');
+      if (menu.value) openExternalUrl(menu.value);
       return;
     }
     void sendContent(menu.value || menu.name);

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { partialForUpdate } from '../core/validation';
+import { httpUrl, partialForUpdate } from '../core/validation';
 import {
   SHORT_LINK_CODE_MAX,
   SHORT_LINK_CODE_MIN,
@@ -9,7 +9,7 @@ import {
 } from './constants';
 
 export const createShortLinkSchema = z.object({
-  targetUrl: z.url('目标地址必须是合法 URL').max(2048),
+  targetUrl: httpUrl('目标地址必须是合法的 http(s) URL').max(2048),
   /** 留空自动生成；自定义短码全局唯一 */
   code: z
     .string()
@@ -47,7 +47,7 @@ export const batchUpdateShortLinkStatusSchema = z.object({
 
 /** 业务对象幂等取短链：同 bizType+bizRef 复用，目标地址变化时同步更新 */
 export const ensureShortLinkSchema = z.object({
-  targetUrl: z.url('目标地址必须是合法 URL').max(2048),
+  targetUrl: httpUrl('目标地址必须是合法的 http(s) URL').max(2048),
   bizType: z.enum(SHORT_LINK_ENSURE_BIZ_TYPES),
   bizRef: z.string().min(1, '业务标识不能为空').max(64),
   title: z.string().max(128).nullable().optional(),

@@ -6,6 +6,7 @@ import { VoiceMessage } from './VoiceMessage';
 import { VideoMessage } from './VideoMessage';
 import { CardMessage } from './CardMessage';
 import { DataBar } from '@/components/data-viz/DataBar';
+import { safeHttpUrl, safeLinkUrl } from '@/utils/safe-url';
 
 const { Text } = Typography;
 
@@ -108,7 +109,7 @@ export function MessageContent({
         style={{ background: 'transparent', padding: 0, border: 'none', borderRadius: 0, cursor: 'zoom-in' }}
       >
         <img
-          src={asset?.thumbnailUrl ?? msg.content}
+          src={safeLinkUrl(asset?.thumbnailUrl ?? msg.content)}
           alt={asset?.name ?? '图片'}
           style={{ maxWidth: 240, maxHeight: 200, borderRadius: 0, display: 'block', cursor: 'zoom-in', border: 'none', boxShadow: 'none' }}
         />
@@ -145,7 +146,7 @@ export function MessageContent({
         </span>
         <div style={{ minWidth: 0, flex: 1 }}>
           <a
-            href={msg.content}
+            href={safeLinkUrl(msg.content)}
             download={asset?.name ?? '文件'}
             style={{
               display: 'block',
@@ -287,9 +288,9 @@ export function MessageContent({
       <div style={{ whiteSpace: 'pre-wrap' }}>{renderTextWithMentions(msg.content, isSelf, msg.extra?.mentions)}</div>
       {linkPreview && (
         <a
-          href={linkPreview.url}
+          href={safeHttpUrl(linkPreview.url)}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
           style={{
             marginTop: 8,
             display: 'flex',
@@ -306,7 +307,7 @@ export function MessageContent({
         >
           {linkPreview.image && (
             <img
-              src={linkPreview.image}
+              src={safeHttpUrl(linkPreview.image)}
               alt={linkPreview.title}
               style={{ width: 88, objectFit: 'cover', flexShrink: 0, borderRadius: 0 }}
             />
@@ -342,7 +343,7 @@ export function MessageContent({
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
               {linkPreview.favicon && (
-                <img src={linkPreview.favicon} alt="favicon" style={{ width: 14, height: 14, borderRadius: 'var(--semi-border-radius-small)' }} />
+                <img src={safeHttpUrl(linkPreview.favicon)} alt="favicon" style={{ width: 14, height: 14, borderRadius: 'var(--semi-border-radius-small)' }} />
               )}
               <Text
                 type="tertiary"

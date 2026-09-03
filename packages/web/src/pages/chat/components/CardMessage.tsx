@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { BookOpen, Check, ChevronRight } from 'lucide-react';
 import type { ChatMessage, ChatCardAction } from '@zenith/shared/chat';
 import { getMessageExtra } from '../utils';
+import { safeLinkUrl } from '@/utils/safe-url';
 
 const { Text } = Typography;
 
@@ -71,7 +72,7 @@ export function CardMessage({
     >
       {card.cover && (
         <img
-          src={card.cover}
+          src={safeLinkUrl(card.cover)}
           alt={card.title}
           style={{ width: '100%', maxHeight: 180, objectFit: 'cover', display: 'block' }}
         />
@@ -149,7 +150,7 @@ export function CardMessage({
         bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
       >
         {card.cover && (
-          <img src={card.cover} alt={card.title} style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', marginBottom: 12, display: 'block' }} />
+          <img src={safeLinkUrl(card.cover)} alt={card.title} style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', marginBottom: 12, display: 'block' }} />
         )}
         {card.text && (
           <Text type="tertiary" style={{ display: 'block', marginBottom: 12 }}>{card.text}</Text>

@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { partialForUpdate } from '../core/validation';
+import { httpUrl, partialForUpdate } from '../core/validation';
 import {
   IOT_ACCESS_MODES, IOT_ALARM_LEVELS, IOT_ALARM_RULE_TYPES, IOT_AUTOMATION_ACTION_MAX,
   IOT_AUTOMATION_ACTION_TYPES, IOT_AUTOMATION_DEFAULT_COOLDOWN_SECONDS, IOT_AUTOMATION_TARGETS,
@@ -481,7 +481,7 @@ export const createIotForwardRuleSchema = z.object({
   source: z.enum(IOT_FORWARD_SOURCES),
   productId: z.number().int().positive().nullable().optional(),
   groupId: z.number().int().positive().nullable().optional(),
-  url: z.url('目的地需为合法 URL').max(512),
+  url: httpUrl('目的地需为合法的 http(s) URL').max(512),
   /** 置空 = 不签名；创建/更新时明文提交，列表不回显 */
   secret: z.string().min(8, '签名密钥至少 8 位').max(128).nullable().optional(),
   headers: z.record(z.string().min(1).max(64), z.string().max(256)).nullable().optional(),

@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import { chatMessageExtraSchema } from '../chat/validation';
-import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
+import { dateTimeStringSchema, optionalLinkUrl, partialForUpdate } from '../core/validation';
 import { MP_CUSTOM_MSG_TYPES } from '../mp/constants';
 import { NOTIFICATION_CHANNELS, NOTIFICATION_DIGEST_MODES, PUSH_PROVIDERS, BROADCAST_AUDIENCE_TYPES, BROADCAST_CHANNELS } from './constants';
 
@@ -224,11 +224,11 @@ export type ChannelReplyInput = z.infer<typeof channelReplySchema>;
 
 /** 富内容自动回复扩展（image: imageUrl；news: title/cover/summary/linkUrl） */
 const channelRichReplyExtraSchema = z.object({
-  imageUrl: z.string().max(1000).nullable().optional(),
+  imageUrl: optionalLinkUrl().max(1000).nullable().optional(),
   title: z.string().max(200).nullable().optional(),
-  cover: z.string().max(1000).nullable().optional(),
+  cover: optionalLinkUrl().max(1000).nullable().optional(),
   summary: z.string().max(500).nullable().optional(),
-  linkUrl: z.string().max(1000).nullable().optional(),
+  linkUrl: optionalLinkUrl().max(1000).nullable().optional(),
   bodyHtml: z.string().max(200000).nullable().optional(),
 });
 
@@ -331,7 +331,7 @@ export const sendMpTemplateSchema = z.object({
   accountId: z.number().int().positive(),
   templateId: z.string().min(1, '请选择模板').max(128),
   openid: z.string().min(1, '请选择粉丝').max(64),
-  url: z.string().max(1000).optional(),
+  url: optionalLinkUrl().max(1000).optional(),
   data: z.record(z.string(), z.object({ value: z.string(), color: z.string().optional() })),
 });
 
@@ -341,7 +341,7 @@ export const batchSendMpTemplateSchema = z.object({
   accountId: z.number().int().positive(),
   templateId: z.string().min(1, '请选择模板').max(128),
   openids: z.array(z.string().min(1)).min(1, '请选择粉丝').max(500, '单次最多 500 个'),
-  url: z.string().max(1000).optional(),
+  url: optionalLinkUrl().max(1000).optional(),
   data: z.record(z.string(), z.object({ value: z.string(), color: z.string().optional() })),
 });
 

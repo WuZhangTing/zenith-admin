@@ -4,6 +4,8 @@ import type { NavigateFunction } from 'react-router-dom';
 import { callManager } from '@/webrtc/useCallManager';
 import type { ChatCardAction, ChatConversation, ChatMessage } from '@zenith/shared/chat';
 import type { Setter } from '../types';
+import { isRootRelativePath } from '@zenith/shared/core';
+import { openExternalUrl } from '@/utils/safe-url';
 
 /** 卡片消息动作（工作流审批/链接跳转）与音视频通话发起（自 ChatPage 原样搬移） */
 export function useCardAndCall({
@@ -24,8 +26,8 @@ export function useCardAndCall({
     } else if (action.action === 'workflow:reject' && instanceId != null) {
       setCardSheet({ instanceId, taskId: action.taskId ?? null, action: 'reject', messageId: msg.id });
     } else if (action.action === 'link' && action.url) {
-      if (action.url.startsWith('/')) navigate(action.url);
-      else window.open(action.url, '_blank', 'noopener,noreferrer');
+      if (isRootRelativePath(action.url)) navigate(action.url);
+      else openExternalUrl(action.url);
     }
   }, [navigate]);
 

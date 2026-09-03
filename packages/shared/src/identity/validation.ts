@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
+import { dateTimeStringSchema, httpUrl, partialForUpdate } from '../core/validation';
 import { tenantPackageQuotasSchema } from '../licensing/validation';
 import { MP_OAUTH_SCOPES } from '../mp/constants';
 import {
@@ -435,7 +435,7 @@ export const userBehaviorEventTypeEnum = z.enum([
 
 export const buildMpOAuthUrlSchema = z.object({
   accountId: z.number().int().positive(),
-  redirectUri: z.url('回调地址需为合法 URL').max(1024),
+  redirectUri: httpUrl('回调地址需为合法的 http(s) URL').max(1024),
   scope: z.enum(MP_OAUTH_SCOPES).default('snsapi_base'),
   state: z.string().max(128).optional(),
 });

@@ -2,7 +2,8 @@ import * as z from 'zod';
 import { ANALYTICS_CONTEXT_MAX_BYTES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_SOURCES } from '../analytics/constants';
 import { errorBreadcrumbSchema } from '../analytics/validation';
 import { CMS_WIDGET_RENDERER_KEYS } from '../cms/constants';
-import { boundedJsonRecord, dateTimeStringSchema, partialForUpdate } from '../core/validation';
+import { boundedJsonRecord, dateTimeStringSchema, httpUrl, partialForUpdate } from '../core/validation';
+import { isHttpUrlTemplate, isSafeLinkUrlTemplate } from '../core/url';
 import { workflowFormSchemaSchema } from '../workflow/validation';
 import { REPORT_DASHBOARD_LIFECYCLE_STATUSES, REPORT_DASHBOARD_VERSION_SOURCES } from './constants';
 import { REPORT_ACL_ROLES, REPORT_ACL_SUBJECT_TYPES, REPORT_APPROVAL_STATUSES, REPORT_ASSET_TEMPLATE_TYPES, REPORT_CHATBI_MESSAGE_ROLES, REPORT_CHATBI_SESSION_STATUSES, REPORT_DATASOURCE_TYPES, REPORT_DQ_ANOMALY_STATUSES, REPORT_DQ_RULE_TYPES, REPORT_DQ_RUN_STATUSES, REPORT_DQ_SEVERITIES, REPORT_ENVIRONMENT_KINDS, REPORT_FILL_RECORD_STATUSES, REPORT_FILL_TEMPLATE_STATUSES, REPORT_MATERIALIZATION_STRATEGIES, REPORT_METRIC_LIFECYCLE_STATUSES, REPORT_METRIC_TYPES, REPORT_PROMOTION_STATUSES, REPORT_QUOTA_SCOPES, REPORT_RESOURCE_TYPES, REPORT_SLA_TYPES, REPORT_SLA_VIOLATION_STATUSES, REPORT_SNAPSHOT_STATUSES, REPORT_TRANSFER_STATUSES, REPORT_WIDGET_TYPES } from './types';
@@ -285,12 +286,25 @@ export const reportWidgetSchema = z.object({
     type: z.enum(['fields', 'dashboard', 'url']).optional(),
     fields: z.array(z.string()).optional(),
     targetDashboardId: z.number().int().positive().nullable().optional(),
-    url: z.string().optional(),
+    /** 外链下钻模板（`{value}` 占位）：只允许 http(s)，杜绝 javascript: / data: 存储型 XSS */
+    url: z.string().max(2048).refine((value) => value === '' || isHttpUrlTemplate(value), '下钻地址仅支持 http(s) URL').optional(),
     paramName: z.string().optional(),
   }).optional(),
   style: z.object({ background: z.string().optional(), showHeader: z.boolean().optional(), borderless: z.boolean().optional() }).optional(),
   page: z.number().int().min(1).max(50).optional(),
 }).superRefine((value, ctx) => {
+  // image / iframe 组件的 src 会被直接渲染：iframe 只允许 http(s)，图片额外允许站内路径（`${filter}` 占位先行替换）
+  if ((value.type === 'image' || value.type === 'iframe') && typeof value.options.src === 'string' && value.options.src.trim()) {
+    const src = value.options.src.trim();
+    const ok = value.type === 'iframe' ? isHttpUrlTemplate(src) : isSafeLinkUrlTemplate(src);
+    if (!ok) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['options', 'src'],
+        message: value.type === 'iframe' ? '网页地址仅支持 http(s) URL' : '图片地址仅支持 http(s) URL 或站内路径',
+      });
+    }
+  }
   if (!value.metricId) return;
   if (value.datasetId) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['datasetId'], message: '指标组件不能同时绑定数据集' });
@@ -338,7 +352,7 @@ export const reportDashboardConfigSchema = z.object({
     showDots: z.boolean().optional(),
   }).optional(),
   embed: z.object({
-    allowedOrigins: z.array(z.url().max(2048).refine((value) => {
+    allowedOrigins: z.array(httpUrl().max(2048).refine((value) => {
       try {
         const url = new URL(value);
         return (url.protocol === 'http:' || url.protocol === 'https:')
@@ -520,13 +534,13 @@ export const createReportSubscriptionSchema = z.object({
   misfirePolicy: reportScheduleMisfirePolicySchema.default('fire_once'),
   channels: z.array(reportNotifyChannelSchema).min(1, '至少选择一个推送通道'),
   recipients: z.string().max(512).optional(),
-  webhookUrl: z.url('Webhook 地址必须是合法 URL').max(512).nullable().optional(),
+  webhookUrl: httpUrl('Webhook 地址必须是合法的 http(s) URL').max(512).nullable().optional(),
   enabled: z.boolean().default(true),
   remark: z.string().max(256).optional(),
 });
 
 export const updateReportSubscriptionSchema = partialForUpdate(createReportSubscriptionSchema).extend({
-  webhookUrl: z.union([z.url('Webhook 地址必须是合法 URL').max(512), z.literal('******')]).nullable().optional(),
+  webhookUrl: z.union([httpUrl('Webhook 地址必须是合法的 http(s) URL').max(512), z.literal('******')]).nullable().optional(),
 });
 
 export type CreateReportSubscriptionInput = z.input<typeof createReportSubscriptionSchema>;
@@ -794,7 +808,7 @@ const reportAlertSchemaBase = z.object({
   misfirePolicy: reportScheduleMisfirePolicySchema.default('fire_once'),
   channels: z.array(reportNotifyChannelSchema).min(1, '至少选择一个通知通道'),
   recipients: z.string().max(512).optional(),
-  webhookUrl: z.url('Webhook 地址必须是合法 URL').max(512).nullable().optional(),
+  webhookUrl: httpUrl('Webhook 地址必须是合法的 http(s) URL').max(512).nullable().optional(),
   /** 静默期（分钟）：持续触发时距上次通知不足该时长不重复通知；0=每次触发都通知（上限 7 天） */
   silenceMins: z.number().int().min(0).max(10080).default(60),
   /** 从触发恢复正常时是否发送恢复通知 */
@@ -821,7 +835,7 @@ function refineReportAlertSource(
 export const createReportAlertSchema = reportAlertSchemaBase.superRefine(refineReportAlertSource);
 
 export const updateReportAlertSchema = partialForUpdate(reportAlertSchemaBase).extend({
-  webhookUrl: z.union([z.url('Webhook 地址必须是合法 URL').max(512), z.literal('******')]).nullable().optional(),
+  webhookUrl: z.union([httpUrl('Webhook 地址必须是合法的 http(s) URL').max(512), z.literal('******')]).nullable().optional(),
 }).superRefine((value, ctx) => {
   if (value.datasetId !== undefined || value.metricId !== undefined) refineReportAlertSource(value, ctx);
   if (value.metricId && value.groupByField) {
@@ -1057,7 +1071,7 @@ export const createReportEnvironmentSchema = z.object({
   name: z.string().trim().min(1).max(128),
   kind: reportEnvironmentKindSchema,
   description: z.string().max(500).nullable().optional(),
-  baseUrl: z.url('环境地址必须是合法 URL').max(1024).nullable().optional(),
+  baseUrl: httpUrl('环境地址必须是合法的 http(s) URL').max(1024).nullable().optional(),
   config: z.record(z.string(), z.unknown()).default({}),
   isDefault: z.boolean().default(false),
   status: z.enum(['enabled', 'disabled']).default('enabled'),
@@ -1216,7 +1230,7 @@ const reportSlaRuleSchemaBase = z.object({
   severity: reportDqSeveritySchema.default('high'),
   channels: z.array(reportNotifyChannelSchema).max(3).default([]),
   recipients: z.string().max(512).nullable().optional(),
-  webhookUrl: z.url('Webhook 地址必须是合法 URL').max(512).nullable().optional(),
+  webhookUrl: httpUrl('Webhook 地址必须是合法的 http(s) URL').max(512).nullable().optional(),
   silenceMins: z.number().int().min(0).max(10_080).default(60),
   enabled: z.boolean().default(true),
 });
@@ -1231,7 +1245,7 @@ export const createReportSlaRuleSchema = reportSlaRuleSchemaBase.superRefine((va
 });
 
 export const updateReportSlaRuleSchema = partialForUpdate(reportSlaRuleSchemaBase).extend({
-  webhookUrl: z.union([z.url('Webhook 地址必须是合法 URL').max(512), z.literal('******')]).nullable().optional(),
+  webhookUrl: z.union([httpUrl('Webhook 地址必须是合法的 http(s) URL').max(512), z.literal('******')]).nullable().optional(),
 });
 
 export const updateReportSlaViolationSchema = z.object({

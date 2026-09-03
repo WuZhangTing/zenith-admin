@@ -4,6 +4,7 @@ import { formatDateTime } from '@/utils/date';
 import { canPreviewFile, formatFileSize, getFileTypeIcon } from '@/utils/file-utils';
 import type { ChatMessage } from '@zenith/shared/chat';
 import type { Setter } from '../types';
+import { openExternalUrl, safeHttpUrl, safeLinkUrl } from '@/utils/safe-url';
 
 const { Text } = Typography;
 
@@ -71,7 +72,7 @@ export function MediaPanel({
                             style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', aspectRatio: '1', overflow: 'hidden', borderRadius: 'var(--semi-border-radius-small)' }}
                           >
                             <img
-                              src={item.extra?.asset?.thumbnailUrl ?? item.content}
+                              src={safeLinkUrl(item.extra?.asset?.thumbnailUrl ?? item.content)}
                               alt={item.extra?.asset?.name ?? '图片'}
                               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                             />
@@ -117,7 +118,7 @@ export function MediaPanel({
                                     type="primary"
                                     icon={<Download size={14} />}
                                     title="下载"
-                                    onClick={() => { window.open(item.content, '_blank'); }}
+                                    onClick={() => { openExternalUrl(item.content); }}
                                   />
                                 </div>
                               </div>
@@ -136,14 +137,14 @@ export function MediaPanel({
                           return (
                             <SemiList.Item key={item.id} style={{ padding: 0, marginBottom: 8, border: 'none', overflow: 'hidden' }}>
                               <a
-                                href={urlMatch}
+                                href={safeHttpUrl(urlMatch)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 style={{ display: 'flex', gap: 10, padding: '10px 12px', background: 'var(--semi-color-bg-2)', border: '1px solid var(--semi-color-border)', borderRadius: 'var(--semi-border-radius-medium)', textDecoration: 'none', color: 'inherit', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box', overflow: 'hidden' }}
                               >
                                 {preview?.image && (
                                   <img
-                                    src={preview.image}
+                                    src={safeHttpUrl(preview.image)}
                                     alt=""
                                     style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 'var(--semi-border-radius-medium)', flexShrink: 0 }}
                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
@@ -158,7 +159,7 @@ export function MediaPanel({
                                   </Text>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
                                     {preview?.favicon && (
-                                      <img src={preview.favicon} alt="" style={{ width: 12, height: 12, borderRadius: 'var(--semi-border-radius-small)' }}
+                                      <img src={safeHttpUrl(preview.favicon)} alt="" style={{ width: 12, height: 12, borderRadius: 'var(--semi-border-radius-small)' }}
                                         onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                       />
                                     )}

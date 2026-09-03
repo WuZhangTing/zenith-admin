@@ -8,6 +8,7 @@ import { toPng } from 'html-to-image';
 import './report-grid.css';
 import './report-screen.css';
 import { formatDateTime } from '@/utils/date';
+import { openExternalUrl } from '@/utils/safe-url';
 import { usePermission } from '@/hooks/usePermission';
 import { ScreenCanvas } from './widgets/ScreenCanvas';
 import { FilterBar } from './widgets/FilterBar';
@@ -155,7 +156,7 @@ export default function DashboardViewPage() {
     }
     if (w.drilldown?.enabled) {
       const dd = w.drilldown;
-      if (dd.type === 'url' && dd.url) { window.open(dd.url.replace('{value}', encodeURIComponent(value)), '_blank'); }
+      if (dd.type === 'url' && dd.url) { openExternalUrl(dd.url.replace('{value}', encodeURIComponent(value))); }
       else if (dd.targetDashboardId) {
         const q = dd.paramName ? `?${encodeURIComponent(dd.paramName)}=${encodeURIComponent(value)}` : '';
         navigate(`/report/dashboards/${dd.targetDashboardId}/view${q}`);

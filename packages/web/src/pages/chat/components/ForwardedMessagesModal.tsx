@@ -2,6 +2,7 @@ import { Typography, List as SemiList } from '@douyinfe/semi-ui';
 import AppModal from '@/components/AppModal';
 import { getFileTypeIcon } from '@/utils/file-utils';
 import type { ChatMessageExtra } from '@zenith/shared/chat';
+import { safeLinkUrl } from '@/utils/safe-url';
 
 const { Text } = Typography;
 
@@ -46,20 +47,20 @@ export function ForwardedMessagesModal({
                 </div>
                 {item.type === 'image' ? (
                   <a
-                    href={item.content}
+                    href={safeLinkUrl(item.content)}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     style={{ display: 'inline-block' }}
                   >
                     <img
-                      src={item.asset?.thumbnailUrl ?? item.content}
+                      src={safeLinkUrl(item.asset?.thumbnailUrl ?? item.content)}
                       alt={item.asset?.name ?? '图片'}
                       style={{ maxWidth: '100%', maxHeight: 260, borderRadius: 'var(--semi-border-radius-medium)', display: 'block', cursor: 'zoom-in' }}
                     />
                   </a>
                 ) : item.type === 'file' ? (
                   <a
-                    href={item.content}
+                    href={safeLinkUrl(item.content)}
                     download={item.asset?.name ?? '文件'}
                     style={{ color: 'var(--semi-color-primary)', fontSize: 13, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
                   >

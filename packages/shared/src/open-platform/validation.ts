@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { partialForUpdate } from '../core/validation';
+import { httpUrl, partialForUpdate } from '../core/validation';
 import { isSafeOAuthRedirectUri } from '../identity/constants';
 import { OAUTH2_GRANT_TYPES, OPEN_APP_ENVIRONMENTS, OPEN_WEBHOOK_EVENTS } from './constants';
 
@@ -14,7 +14,7 @@ const redirectUriSchema = z.string().min(1).max(500)
 const oauth2ClientFields = {
   name: z.string().trim().min(1).max(64),
   description: z.string().max(256).optional(),
-  logoUrl: z.url().optional().or(z.literal('')),
+  logoUrl: httpUrl().max(1024).optional().or(z.literal('')),
   redirectUris: z.array(redirectUriSchema).max(20),
   allowedScopes: z.array(z.string().min(1).max(64)).min(1),
   grantTypes: z.array(z.enum(OAUTH2_GRANT_TYPES)).min(1),

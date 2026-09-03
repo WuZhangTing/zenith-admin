@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { partialForUpdate } from '../core/validation';
+import { httpUrl, partialForUpdate } from '../core/validation';
 import { AI_REASONING_LEVELS, AI_EVAL_SCORER_IDS } from './constants';
 
 // ─── AI 对话模块 ──────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ export const createAiProviderConfigSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(100),
   providerId: aiProviderIdSchema,
   /** custom 必填;目录服务商留空走官方端点（业务校验在 service 层） */
-  baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
+  baseUrl: httpUrl('请输入有效的 http(s) URL').max(500).nullable().optional(),
   apiKey: z.string().min(1, 'API Key 不能为空').max(1000),
   headers: z.record(z.string().max(100), z.string().max(500)).nullable().optional(),
   models: z.array(z.string().min(1).max(100)).min(1, '至少启用一个模型').max(100),
@@ -63,7 +63,7 @@ export const testAiConnectionSchema = z.object({
   /** 已有配置的 id；提供时若 apiKey 为空则从 DB 取真实密钥 */
   id: z.number().int().positive().optional(),
   providerId: aiProviderIdSchema,
-  baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
+  baseUrl: httpUrl('请输入有效的 http(s) URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).optional(),
   model: z.string().min(1, '模型名称不能为空').max(100),
 });
@@ -74,7 +74,7 @@ export const fetchAiModelsSchema = z.object({
   /** 已有配置的 id；提供时若 apiKey 为空则从 DB 取真实密钥 */
   id: z.number().int().positive().optional(),
   providerId: aiProviderIdSchema,
-  baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
+  baseUrl: httpUrl('请输入有效的 http(s) URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).optional(),
 });
 
@@ -89,7 +89,7 @@ export const createAiConversationSchema = z.object({
 export const saveUserAiConfigSchema = z.object({
   name: z.string().max(100).nullable().optional(),
   providerId: aiProviderIdSchema.optional(),
-  baseUrl: z.url('请输入有效的 URL').max(500).nullable().optional(),
+  baseUrl: httpUrl('请输入有效的 http(s) URL').max(500).nullable().optional(),
   apiKey: z.string().max(1000).nullable().optional(),
   headers: z.record(z.string().max(100), z.string().max(500)).nullable().optional(),
   models: z.array(z.string().min(1).max(100)).max(100).optional(),
@@ -172,7 +172,7 @@ export type AddAiKbDocumentInput = z.infer<typeof addAiKbDocumentSchema>;
 
 /** 从 URL 抓取网页正文入库 */
 export const importAiKbUrlSchema = z.object({
-  url: z.url('请输入合法的 URL').max(500),
+  url: httpUrl('请输入合法的 http(s) URL').max(500),
   /** 文档名称（留空取页面 title / URL） */
   name: z.string().max(200).optional(),
 });
@@ -217,7 +217,7 @@ export const createAiHttpToolSchema = z.object({
   name: z.string().regex(/^[a-z][a-z0-9_]{1,59}$/, '工具名仅限小写字母/数字/下划线，字母开头'),
   description: z.string().min(1, '工具描述不能为空').max(500),
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
-  urlTemplate: z.url('请输入合法的 URL').max(500),
+  urlTemplate: httpUrl('请输入合法的 http(s) URL').max(500),
   headers: z.record(z.string(), z.string().max(500)).nullable().optional(),
   params: z.array(aiHttpToolParamSchema).max(20).optional(),
   isEnabled: z.boolean().optional(),

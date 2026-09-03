@@ -44,6 +44,8 @@ Zenith Admin 的即时通讯模块提供后台用户之间的单聊、群聊、�
 - `asset`：图片、文件、语音、视频元数据，`kind` 为 `image` / `file` / `voice` / `video`
 - `linkPreview`：链接预览信息，链接消息仍以 `text` 类型存储
 - `mentions`：@提及用户列表
+
+> **URL 安全约束**：`image` / `file` / `voice` / `video` 消息的 `content`、`asset.thumbnailUrl`、卡片 `cover` 与 `link` 动作 `url` 只接受 `http(s)` URL 或站内路径（托管文件 `/api/files/{id}/content`）；`linkPreview.url` / `image` / `favicon` 只接受 `http(s)`。服务端在发送消息与 `/link-preview` 入口校验，前端渲染 href / src、`window.open` 前再经 `utils/safe-url` 过滤，桌面端 `shell.openExternal` 只放行 `http(s)` / `mailto`，杜绝 `javascript:` / `file:`（UNC）/ `data:` 链接。
 - `isFavorited`：DTO 中回填的当前用户收藏标记（持久化在 `chat_message_favorites`）
 - `isPinned`：会话级消息置顶状态（持久化在消息 `extra`）
 - `announcementHistory`：群公告历史系统消息元数据

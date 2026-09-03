@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { dateTimeStringSchema, partialForUpdate } from '../core/validation';
+import { dateTimeStringSchema, httpUrl, partialForUpdate } from '../core/validation';
 import { DATE_TIME_PATTERN } from '../core/constants';
 import { CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODES, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_MODES, CMS_FIELD_OPTION_SOURCES, CMS_INTERACTION_CHOICE_QUESTION_TYPES, CMS_INTERACTION_CONDITION_OPS, CMS_INTERACTION_OTHER_VALUE, CMS_INTERACTION_QUESTION_TYPES, CMS_INTERACTION_RATING_MAX_LIMIT, CMS_PUBLISH_TARGET_TYPES, CMS_SEARCH_DICTIONARY_WORD_PATTERN, CMS_SITE_INHERITABLE_FIELDS, CMS_WIDGET_REF_OWNER_TYPES, CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_SOURCE_TYPES, CMS_WIDGET_TYPES } from './constants';
 import { CMS_LINK_FORMAT_MESSAGE, isDirectCmsHref, isValidCmsAssetUrl, isValidCmsLink } from './link';
@@ -1078,7 +1078,7 @@ export const createCmsCollectRuleSchema = z.object({
   siteId: z.number().int().positive(),
   channelId: z.number().int().positive(),
   name: z.string().min(1).max(100),
-  listUrl: z.url().max(500),
+  listUrl: httpUrl().max(500),
   pageStart: z.number().int().min(1).default(1),
   pageEnd: z.number().int().min(1).default(1),
   listSelector: z.string().min(1).max(200),
@@ -1100,7 +1100,7 @@ export const createCmsCollectRuleSchema = z.object({
 export const updateCmsCollectRuleSchema = z.object({
   channelId: z.number().int().positive().optional(),
   name: z.string().min(1).max(100).optional(),
-  listUrl: z.url().max(500).optional(),
+  listUrl: httpUrl().max(500).optional(),
   pageStart: z.number().int().min(1).optional(),
   pageEnd: z.number().int().min(1).optional(),
   listSelector: z.string().min(1).max(200).optional(),

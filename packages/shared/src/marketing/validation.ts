@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { partialForUpdate } from '../core/validation';
+import { httpUrl, partialForUpdate } from '../core/validation';
 import { MARKETING_PRIZE_TYPES } from './constants';
 
 export const createMarketingCampaignSchema = z.object({
@@ -8,7 +8,7 @@ export const createMarketingCampaignSchema = z.object({
   endAt: z.string().min(1, '请选择结束时间').max(19),
   perMemberLimit: z.number().int().min(1, '每人次数至少 1 次').max(1000).default(1),
   dailyPerMemberLimit: z.number().int().min(1).max(1000).nullable().optional(),
-  landingUrl: z.preprocess((v) => (v === '' ? null : v), z.url('落地页必须是合法 URL').max(2048).nullable().optional()),
+  landingUrl: z.preprocess((v) => (v === '' ? null : v), httpUrl('落地页必须是合法的 http(s) URL').max(2048).nullable().optional()),
   description: z.string().max(2000).nullable().optional(),
 });
 

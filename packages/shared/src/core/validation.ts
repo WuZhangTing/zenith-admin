@@ -1,6 +1,31 @@
 import * as z from 'zod';
 import { DATE_TIME_PATTERN } from './constants';
 import { jsonByteLength, jsonDepth } from './json-shape';
+import { isHttpUrl, isSafeLinkUrl } from './url';
+
+// ─── URL 字段 ─────────────────────────────────────────────────────────────────
+/**
+ * 绝对 http(s) URL。`z.url()` 会放过 `javascript:` / `file:` / `data:`，
+ * 所有会被渲染为链接、图片、iframe 或交给系统打开 / 服务端外呼的 URL 字段统一用这个。
+ */
+export function httpUrl(message = 'URL 格式不正确，仅支持 http(s) 地址') {
+  return z.url({ protocol: /^https?$/, error: message });
+}
+
+/** 绝对 http(s) URL 或站内根相对路径（如托管文件 `/api/files/{id}/content`）；用于 href / src 类字段 */
+export function linkUrl(message = '地址仅支持 http(s) URL 或站内路径') {
+  return z.string().refine(isSafeLinkUrl, message);
+}
+
+/** 允许为空字符串的 linkUrl（表单可清空的可选地址） */
+export function optionalLinkUrl(message = '地址仅支持 http(s) URL 或站内路径') {
+  return z.string().refine((value) => value === '' || isSafeLinkUrl(value), message);
+}
+
+/** 允许为空字符串的 httpUrl */
+export function optionalHttpUrl(message = 'URL 格式不正确，仅支持 http(s) 地址') {
+  return z.string().refine((value) => value === '' || isHttpUrl(value), message);
+}
 
 /**
  * 自引用递归 schema 的 lazy 包装：**内部实例必须缓存**。
@@ -90,10 +115,7 @@ export function boundedJsonRecord(label: string, maxKeys: number, maxBytes: numb
 
 
 // ─── 告警规则 ─────────────────────────────────────────────────────────────────
-export const webhookUrlSchema = z.url().max(512).refine(
-  (value) => ['http:', 'https:'].includes(new URL(value).protocol),
-  'Webhook URL 仅支持 HTTP/HTTPS',
-);
+export const webhookUrlSchema = httpUrl('Webhook URL 仅支持 HTTP/HTTPS').max(512);
 
 
 export function validateAlertDelivery(

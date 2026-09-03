@@ -16,6 +16,7 @@ import type { ReportWidget, ReportField, ReportDataResult, ReportConditionalForm
 import { useReportWidgetDictMaps } from '@/hooks/queries/report-designer';
 import { TABLE_PAGE_SIZE_OPTIONS } from '@/hooks/usePagination';
 import { DataBar } from '@/components/data-viz/DataBar';
+import { iframeSandboxFor, safeHttpUrl, safeLinkUrl } from '@/utils/safe-url';
 
 // ─── 工具 ────────────────────────────────────────────────────────────────────
 function toNumber(v: unknown): number {
@@ -203,8 +204,8 @@ export function WidgetRenderer({
     }
 
     if (widget.type === 'image') {
-      const src = resolveTemplate(o.src, filterValues).trim();
-      if (!src) return <EmptyHint text="请配置图片地址" />;
+      const src = safeLinkUrl(resolveTemplate(o.src, filterValues));
+      if (!src) return <EmptyHint text={o.src ? '图片地址仅支持 http(s) URL 或站内路径' : '请配置图片地址'} />;
       return (
         <img
           src={src}
@@ -215,13 +216,14 @@ export function WidgetRenderer({
     }
 
     if (widget.type === 'iframe') {
-      const src = resolveTemplate(o.src, filterValues).trim();
-      if (!src) return <EmptyHint text="请配置网页地址" />;
+      const src = safeHttpUrl(resolveTemplate(o.src, filterValues));
+      if (!src) return <EmptyHint text={o.src ? '网页地址仅支持 http(s) URL' : '请配置网页地址'} />;
       return (
         <iframe
           src={src}
           title={widget.title}
-          sandbox="allow-scripts allow-same-origin allow-popups"
+          sandbox={iframeSandboxFor(src)}
+          referrerPolicy="no-referrer"
           style={{ width: '100%', height: '100%', border: 0, display: 'block' }}
         />
       );

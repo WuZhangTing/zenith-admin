@@ -1,14 +1,14 @@
 import * as z from 'zod';
-import { partialForUpdate } from '../core/validation';
+import { httpUrl, linkUrl, partialForUpdate } from '../core/validation';
 
 // ─── 聊天 ─────────────────────────────────────────────────────────────────────
 export const chatLinkPreviewSchema = z.strictObject({
-  url: z.url(),
+  url: httpUrl(),
   title: z.string().min(1).max(512),
   description: z.string().max(4000).nullable(),
   siteName: z.string().max(255).nullable(),
-  image: z.url().nullable(),
-  favicon: z.url().nullable(),
+  image: httpUrl().nullable(),
+  favicon: httpUrl().nullable(),
 });
 
 export const chatAssetMetaSchema = z.strictObject({
@@ -19,7 +19,7 @@ export const chatAssetMetaSchema = z.strictObject({
   extension: z.string().max(50).nullable(),
   width: z.number().int().positive().nullable().optional(),
   height: z.number().int().positive().nullable().optional(),
-  thumbnailUrl: z.string().max(2048).nullable().optional(),
+  thumbnailUrl: linkUrl().max(2048).nullable().optional(),
   duration: z.number().nonnegative().nullable().optional(),
 });
 
@@ -33,12 +33,23 @@ export const chatAnnouncementHistorySchema = z.strictObject({
   operatorName: z.string().max(100).nullable(),
 });
 
+export const CHAT_MEDIA_MESSAGE_TYPES = ['image', 'file', 'voice', 'video'] as const;
+
+/** 媒体类消息的 content 是被渲染为 src / href 的资源地址：仅接受托管文件路径或 http(s) URL */
+export function isChatMediaContentSafe(type: string, content: string): boolean {
+  if (!(CHAT_MEDIA_MESSAGE_TYPES as readonly string[]).includes(type)) return true;
+  return linkUrl().safeParse(content).success;
+}
+
 export const chatForwardedItemSchema = z.object({
   senderName: z.string().max(100).nullable(),
   type: z.enum(['text', 'image', 'file', 'system', 'forward', 'vote', 'voice', 'card', 'video']),
   content: z.string().max(4096),
   createdAt: z.string(),
   asset: chatAssetMetaSchema.nullable().optional(),
+}).refine((item) => isChatMediaContentSafe(item.type, item.content), {
+  path: ['content'],
+  message: '媒体消息地址仅支持 http(s) URL 或站内路径',
 });
 
 export const chatCardFieldSchema = z.object({
@@ -52,7 +63,7 @@ export const chatCardActionSchema = z.object({
   theme: z.enum(['primary', 'secondary', 'danger', 'tertiary']).optional(),
   action: z.enum(['workflow:approve', 'workflow:reject', 'link', 'none']),
   taskId: z.number().int().positive().nullable().optional(),
-  url: z.string().max(1024).nullable().optional(),
+  url: linkUrl().max(1024).nullable().optional(),
   requireComment: z.boolean().optional(),
 });
 

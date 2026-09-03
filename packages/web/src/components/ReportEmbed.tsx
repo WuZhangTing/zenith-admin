@@ -20,6 +20,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ReportCanvasItem, ReportDashboardConfig, ReportEmbedDrilldownPayload, ReportEmbedFilterChangePayload, ReportEmbedFilterValue, ReportEmbedFilterValues, ReportEmbedState, ReportEmbedWidgetClickPayload, ReportFilter, ReportGridItem, ReportWidget, ReportDatasetQueryOptions } from '@zenith/shared/report';
 import { useReportDashboardWidgetData } from '@/hooks/queries/report-dashboards';
 import { useReportEmbedDashboard, useReportEmbedData } from '@/hooks/queries/reports-embed';
+import { openExternalUrl } from '@/utils/safe-url';
 import {
   sanitizeReportEmbedFilterValues,
   useReportEmbedBridge,
@@ -311,11 +312,7 @@ export const ReportEmbed = forwardRef<ReportEmbedHandle, Readonly<ReportEmbedPro
     bridge.emit('drilldown', payload);
     if (interceptDrilldown) return;
     if (drilldownType === 'url' && widget.drilldown.url) {
-      window.open(
-        widget.drilldown.url.replace('{value}', encodeURIComponent(value)),
-        '_blank',
-        'noopener,noreferrer',
-      );
+      openExternalUrl(widget.drilldown.url.replace('{value}', encodeURIComponent(value)));
     } else if (drilldownType === 'dashboard' && widget.drilldown.targetDashboardId) {
       const query = widget.drilldown.paramName
         ? `?${encodeURIComponent(widget.drilldown.paramName)}=${encodeURIComponent(value)}`

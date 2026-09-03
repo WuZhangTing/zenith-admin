@@ -14,6 +14,7 @@ import { useIsMobile } from '@/hooks/useMediaQuery';
 import type { ReportCanvasItem, ReportDatasetQueryOptions, ReportEmbedDrilldownPayload, ReportEmbedFilterChangePayload, ReportEmbedFilterValue, ReportEmbedFilterValues, ReportEmbedState, ReportEmbedWidgetClickPayload, ReportFilter, ReportGridItem, ReportPublicDashboard, ReportWidget } from '@zenith/shared/report';
 import { usePublicReportDashboard, usePublicReportDashboardAccess, usePublicReportDashboardData } from '@/hooks/queries/report-dashboards';
 import { sanitizeReportEmbedFilterValues, useReportEmbedBridge } from '@/components/report-embed-bridge';
+import { openExternalUrl } from '@/utils/safe-url';
 
 function defaultFilterValue(f: ReportFilter): unknown {
   if (f.defaultValue !== undefined) return f.defaultValue;
@@ -224,7 +225,7 @@ export default function PublicDashboardPage() {
     };
     bridge.emit('drilldown', payload);
     if (drilldownType === 'url' && widget.drilldown.url) {
-      window.open(widget.drilldown.url.replace('{value}', encodeURIComponent(value)), '_blank', 'noopener,noreferrer');
+      openExternalUrl(widget.drilldown.url.replace('{value}', encodeURIComponent(value)));
     }
   }, [bridge, effectiveReadOnly, handlePublicFilterChange]);
 

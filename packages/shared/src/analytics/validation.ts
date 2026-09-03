@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import { boundedJsonRecord, dateTimeStringSchema, partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
+import { boundedJsonRecord, dateTimeStringSchema, httpUrl, partialForUpdate, validateAlertDelivery, webhookUrlSchema } from '../core/validation';
 import { userBehaviorEventTypeEnum } from '../identity/validation';
 import { ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_BREAKDOWN_DIMENSIONS, ANALYTICS_BREADCRUMB_DATA_MAX_BYTES, ANALYTICS_CAMPAIGN_CHANNELS, ANALYTICS_COMPARE_MAX_SEGMENTS, ANALYTICS_DRILL_FUNNEL_OUTCOMES, ANALYTICS_DRILL_PAGE_SIZE_MAX, ANALYTICS_DRILL_RETENTION_OUTCOMES, ANALYTICS_ENVIRONMENTS, ANALYTICS_EVENT_PROPERTY_TYPES, ANALYTICS_EVENT_QUERY_GROUP_BY_FIELDS, ANALYTICS_EVENT_QUERY_METRICS, ANALYTICS_EVENT_SOURCES, ANALYTICS_EXPERIMENT_STATUSES, ANALYTICS_PROPERTIES_MAX_BYTES, ANALYTICS_PROPERTY_KEY_PATTERN, ANALYTICS_RETENTION_MAX_DAYS, ANALYTICS_RETENTION_MAX_PERIODS, ANALYTICS_RETENTION_MODES, ANALYTICS_RETENTION_PERIOD_TYPES, ANALYTICS_SEGMENT_COMPARE_OPS, SOURCE_MAP_MAX_BYTES, analyticsMetricRequiresProperty } from './constants';
 
@@ -242,7 +242,7 @@ const analyticsCampaignBaseSchema = z.object({
   channel: z.enum(ANALYTICS_CAMPAIGN_CHANNELS),
   templateId: z.number().int().positive().nullable().optional(),
   webhookUrl: z.preprocess((value) => value === '' ? null : value, analyticsWebhookUrlSchema.nullable().optional()),
-  landingUrl: z.preprocess((value) => value === '' ? null : value, z.url('落地页必须是合法 URL').max(2048).nullable().optional()),
+  landingUrl: z.preprocess((value) => value === '' ? null : value, httpUrl('落地页必须是合法的 http(s) URL').max(2048).nullable().optional()),
 });
 
 export const createAnalyticsCampaignSchema = analyticsCampaignBaseSchema.superRefine(refineAnalyticsCampaign);

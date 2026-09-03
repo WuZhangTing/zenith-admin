@@ -1,5 +1,6 @@
 import * as z from 'zod';
-import { lazyRecursive, partialForUpdate } from '../core/validation';
+import { httpUrl, lazyRecursive, linkUrl, partialForUpdate } from '../core/validation';
+import { isHttpUrl } from '../core/url';
 import type { WorkflowFieldVisibilityRuleGroup, WorkflowFormCascaderNode, WorkflowFormField } from './types';
 
 // ─── 工作流引擎 Schema ────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ export const workflowTimeoutConfigSchema = z.object({
 export const workflowCompensationActionSchema = z.object({
   type: z.enum(['none', 'http', 'connector', 'sms', 'email', 'updateData']),
   connectorId: z.number().int().optional(),
+  /** http：绝对 http(s) URL（路径 / 查询可含 {{模板}}）；connector：相对 baseUrl 的路径 */
   url: z.string().max(1000).optional(),
   httpMethod: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional(),
   headers: z.record(z.string(), z.string()).optional(),
@@ -98,6 +100,10 @@ export const workflowCompensationActionSchema = z.object({
   idempotencyKeyTemplate: z.string().max(200).optional(),
   maxRetries: z.number().int().min(0).max(10).optional(),
   timeoutMs: z.number().int().min(0).max(600000).optional(),
+}).superRefine((value, ctx) => {
+  if (value.type === 'http' && value.url && !isHttpUrl(value.url.replace(/\{\{[^}]*\}\}/g, 'x'))) {
+    ctx.addIssue({ code: 'custom', path: ['url'], message: 'HTTP 补偿动作的 URL 需为 http(s) 地址（主机部分不能是模板）' });
+  }
 });
 
 export const workflowNodeFailurePolicySchema = z.object({
@@ -175,7 +181,7 @@ export const workflowNodeConfigSchema = z.looseObject({
   isAsync: z.boolean().optional(),
   nodeListeners: z.array(z.object({
     type: z.literal('webhook'),
-    url: z.url('URL 格式不正确').max(1000),
+    url: httpUrl().max(1000),
     method: z.enum(['GET', 'POST']).optional(),
     headers: z.record(z.string(), z.string()).optional(),
     events: z.array(z.enum(['onCreate', 'onApprove', 'onReject'])).min(1, '至少选择一个事件'),
@@ -355,8 +361,7 @@ export type UpdateWorkflowFormInput = z.input<typeof updateWorkflowFormSchema>;
 export const createWorkflowDataSourceSchema = z.object({
   name: z.string().min(1, '名称不能为空').max(64),
   method: z.enum(['GET', 'POST']).default('GET'),
-  url: z.string().min(1, 'URL 不能为空').max(1024)
-    .refine((u) => /^https?:\/\//i.test(u), 'URL 需以 http:// 或 https:// 开头'),
+  url: httpUrl('URL 需以 http:// 或 https:// 开头').max(1024),
   headers: z.record(z.string(), z.string()).optional(),
   itemsPath: z.string().max(128).optional(),
   valueField: z.string().min(1, '取值字段不能为空').max(64),
@@ -466,14 +471,14 @@ const workflowAutomationActionSendMessageSchema = z.object({
     .union([z.literal('initiator'), z.object({ userIds: z.array(z.number().int().positive()).min(1) })])
     .optional(),
   buttons: z
-    .array(z.object({ text: z.string().min(1).max(32), url: z.string().min(1).max(512) }))
+    .array(z.object({ text: z.string().min(1).max(32), url: linkUrl().min(1).max(512) }))
     .max(3, '按钮最多 3 个')
     .optional(),
 });
 
 const workflowAutomationActionWebhookSchema = z.object({
   type: z.literal('webhook'),
-  url: z.string().min(1, 'Webhook 地址不能为空').max(512),
+  url: httpUrl('Webhook 地址需为合法的 http(s) URL').max(512),
   method: z.enum(['GET', 'POST', 'PUT']).optional(),
   headers: z.record(z.string(), z.string()).optional(),
   bodyTemplate: z.string().max(4000).optional(),
@@ -630,7 +635,7 @@ export const createWorkflowInstanceSchema = z.object({
 /** 审批动作附件（[{name,url,size}]）—— 各动作通用 */
 export const workflowTaskAttachmentSchema = z.object({
   name: z.string().max(255),
-  url: z.string().max(1024),
+  url: linkUrl().max(1024),
   size: z.number().int().nonnegative().optional(),
 });
 
@@ -757,7 +762,7 @@ export const createWorkflowCommentSchema = z.object({
   mentions: z.array(z.number().int().positive()).max(50).optional(),
   attachments: z.array(z.object({
     name: z.string().max(255),
-    url: z.string().max(1024),
+    url: linkUrl().max(1024),
     size: z.number().int().nonnegative().optional(),
   })).max(20).optional(),
 });

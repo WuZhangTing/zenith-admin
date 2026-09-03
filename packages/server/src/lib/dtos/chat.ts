@@ -1,7 +1,11 @@
 /**
  * 聊天 DTO
+ *
+ * ChatMessageExtraDTO 同时作为发送消息的请求体校验：linkPreview / asset / card 中的 URL
+ * 会被前端渲染为 href / src，必须限定为 http(s) 或站内路径（见 @zenith/shared/core url）。
  */
 import { z } from '@hono/zod-openapi';
+import { httpUrl, linkUrl } from '@zenith/shared/core';
 import { auditFields } from './_audit';
 
 export const ChatUserDTO = z
@@ -43,12 +47,12 @@ export const ChatOrgDataDTO = z
 
 export const ChatLinkPreviewDTO = z
   .strictObject({
-    url: z.url(),
+    url: httpUrl(),
     title: z.string(),
     description: z.string().nullable(),
     siteName: z.string().nullable(),
-    image: z.url().nullable(),
-    favicon: z.url().nullable(),
+    image: httpUrl().nullable(),
+    favicon: httpUrl().nullable(),
   })
   
   .openapi('ChatLinkPreview');
@@ -63,7 +67,7 @@ export const ChatAssetMetaDTO = z
     fileId: z.uuid().nullable().optional(),
     width: z.number().int().nullable().optional(),
     height: z.number().int().nullable().optional(),
-    thumbnailUrl: z.string().max(2048).nullable().optional(),
+    thumbnailUrl: linkUrl().max(2048).nullable().optional(),
     duration: z.number().nullable().optional(),
   })
   
@@ -106,7 +110,7 @@ export const ChatCardActionDTO = z
     theme: z.enum(['primary', 'secondary', 'danger', 'tertiary']).optional(),
     action: z.enum(['workflow:approve', 'workflow:reject', 'link', 'none']),
     taskId: z.number().int().nullable().optional(),
-    url: z.string().nullable().optional(),
+    url: linkUrl().max(1024).nullable().optional(),
     requireComment: z.boolean().optional(),
   })
   .openapi('ChatCardAction');
@@ -115,7 +119,7 @@ export const ChatCardDTO = z
   .object({
     title: z.string(),
     text: z.string().nullable().optional(),
-    cover: z.string().nullable().optional(),
+    cover: linkUrl().nullable().optional(),
     /** 图文正文富文本 HTML（已净化） */
     bodyHtml: z.string().nullable().optional(),
     fields: z.array(ChatCardFieldDTO).nullable().optional(),

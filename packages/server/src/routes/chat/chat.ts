@@ -8,7 +8,8 @@ import {
   ChatOrgDataDTO, ChatQuickReplyDTO, ChatScheduledMessageDTO,
   ChatCustomEmojiDTO, ChatGroupInviteDTO, ChatInviteInfoDTO, ChatGroupJoinRequestDTO,
 } from '../../lib/openapi-dtos';
-import { chatCallRecordSchema } from '@zenith/shared/chat';
+import { chatCallRecordSchema, isChatMediaContentSafe } from '@zenith/shared/chat';
+import { httpUrl } from '@zenith/shared/core';
 import {
   listConversations, getOrCreateDirectConversation, listMessages,
   searchConversationMessages, searchGlobalMessages, getMessageContext,
@@ -257,6 +258,9 @@ const sendMessageSchema = z.object({
   type: z.enum(['text', 'image', 'file', 'forward', 'vote', 'voice', 'video']).default('text'),
   replyToId: z.number().int().positive().nullable().optional(),
   extra: ChatMessageExtraDTO.nullable().optional(),
+}).refine((value) => isChatMediaContentSafe(value.type, value.content), {
+  path: ['content'],
+  message: '媒体消息地址仅支持 http(s) URL 或站内路径',
 });
 
 chatRouter.openapi(
@@ -265,7 +269,7 @@ chatRouter.openapi(
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware] as const,
     request: {
-      query: z.object({ url: z.url().max(2048) }),
+      query: z.object({ url: httpUrl().max(2048) }),
     },
     responses: { ...commonErrorResponses, ...ok(ChatLinkPreviewDTO, '链接预览') },
   }),
