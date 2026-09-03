@@ -322,7 +322,7 @@ export default function PaymentOrdersPage() {
     dateTimeColumn('支付时间', 'paidAt'),
     dateTimeColumn('创建时间', 'createdAt'),
     {
-      title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
+      title: '状态', dataIndex: 'status', width: 110, fixed: 'right',
       render: (v: PaymentOrderStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_ORDER_STATUS_LABELS[v]}</Tag>,
     },
     createOperationColumn<PaymentOrder>({
@@ -363,7 +363,7 @@ export default function PaymentOrdersPage() {
   const detailRefundColumns: ColumnProps<PaymentRefund>[] = [
     copyableNoColumn('退款单号', 'refundNo'),
     { title: '金额', dataIndex: 'refundAmount', width: 90, align: 'right', render: (v: number) => yuan(v) },
-    { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentRefundStatus) => <Tag color={REFUND_STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 110, render: (v: PaymentRefundStatus) => <Tag color={REFUND_STATUS_COLOR[v]}>{PAYMENT_REFUND_STATUS_LABELS[v]}</Tag> },
     dateTimeColumn('退款时间', 'refundedAt'),
   ];
 

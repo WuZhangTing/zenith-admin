@@ -553,7 +553,7 @@ export default function AlertsPage() {
           dataSource={historyQuery.data?.list ?? []}
           columns={[
             { title: '类型', dataIndex: 'triggerType', width: 90, render: (value: string) => REPORT_DELIVERY_TRIGGER_LABELS[value as keyof typeof REPORT_DELIVERY_TRIGGER_LABELS] ?? value },
-            { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={value === 'success' ? 'green' : value === 'failed' ? 'red' : value === 'partial' ? 'orange' : value === 'pending' ? 'blue' : 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 100, render: (value: string) => <Tag color={value === 'success' ? 'green' : value === 'failed' ? 'red' : value === 'partial' ? 'orange' : value === 'pending' ? 'blue' : 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
             { title: '值', dataIndex: 'lastValue', width: 80, render: (value: number | null) => value ?? '—' },
             dateTimeColumn('开始时间', 'startedAt'),
             dateTimeColumn('完成时间', 'completedAt'),

@@ -247,7 +247,7 @@ export default function PaymentSharingPage() {
     { title: '版本', dataIndex: 'version', width: 70, align: 'right', render: (v: number) => `v${v}` },
     dateTimeColumn('完成时间', 'finishedAt'),
     createdAtColumn as ColumnProps<PaymentSharingOrder>,
-    { title: '状态', dataIndex: 'status', width: 90, render: (v: PaymentSharingOrderStatus) => <Tag color={ORDER_STATUS_COLOR[v]}>{PAYMENT_SHARING_ORDER_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 100, render: (v: PaymentSharingOrderStatus) => <Tag color={ORDER_STATUS_COLOR[v]}>{PAYMENT_SHARING_ORDER_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSharingOrder>({
       width: 100,
       actions: (record) => canDispatch && record.status === 'success' ? [{

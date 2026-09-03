@@ -195,7 +195,7 @@ export default function PaymentTransfersPage() {
         ? <Typography.Text type="tertiary">-</Typography.Text>
         : <Tag color={APPROVAL_COLOR[v]}>{PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS[v]}</Tag>),
     },
-    { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: PaymentTransferStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_TRANSFER_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: PaymentTransferStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_TRANSFER_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentTransfer>({
       width: 120,
       desktopInlineKeys: ['approve'],

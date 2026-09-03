@@ -240,7 +240,7 @@ function PushTab({ siteId }: Readonly<{ siteId: number | undefined }>) {
     { title: '引擎', dataIndex: 'engine', width: 130, render: (v: string) => CMS_PUSH_ENGINE_LABELS[v as keyof typeof CMS_PUSH_ENGINE_LABELS] ?? v },
     { title: 'URL 数', dataIndex: 'urls', width: 80, render: (v: string[]) => v.length },
     {
-      title: '结果', dataIndex: 'success', width: 90,
+      title: '结果', dataIndex: 'success', width: 120,
       render: (v: boolean, record) => (v ? <Tag color="green" size="small">成功</Tag> : <Tag color="red" size="small">失败{record.statusCode ? `（${record.statusCode}）` : ''}</Tag>),
     },
     { title: '响应', dataIndex: 'response', width: 320, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 300 }}>{v ?? '-'}</Typography.Text> },

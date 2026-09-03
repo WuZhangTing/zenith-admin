@@ -93,7 +93,7 @@ function RecentFailuresPanel({ onView }: { onView: (traceId: string) => void }) 
 
   const columns: ColumnProps<TraceFailureEntry>[] = [
     {
-      title: '类型', dataIndex: 'kind', width: 100,
+      title: '类型', dataIndex: 'kind', width: 110,
       render: (v: TraceNodeKind) => <Tag size="small" color={KIND_COLORS[v]}>{TRACE_NODE_KIND_LABELS[v]}</Tag>,
     },
     { title: '标题', dataIndex: 'title', width: 240, render: (v: string) => renderEllipsis(v) },

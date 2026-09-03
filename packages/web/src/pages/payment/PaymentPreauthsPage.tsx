@@ -161,7 +161,7 @@ export default function PaymentPreauthsPage() {
     { title: '币种/版本', width: 100, render: (_: unknown, record: PaymentPreauth) => `${record.currency} · v${record.version}` },
     dateTimeColumn('冻结时间', 'frozenAt'),
     createdAtColumn as ColumnProps<PaymentPreauth>,
-    { title: '状态', dataIndex: 'status', width: 95, fixed: 'right', render: (v: PaymentPreauthStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_PREAUTH_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: PaymentPreauthStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_PREAUTH_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentPreauth>({
       width: 170,
       actions: (r) => canManage ? [

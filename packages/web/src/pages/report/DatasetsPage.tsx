@@ -520,7 +520,7 @@ export default function DatasetsPage() {
     { title: '字段数', dataIndex: 'fields', width: 80, render: (f: ReportField[]) => (f?.length ?? 0) },
     createdAtColumn,
     {
-      title: '治理提示', dataIndex: '__warnings', width: 150,
+      title: '治理提示', dataIndex: '__warnings', width: 170,
       render: (_: unknown, record) => {
         const warning = warningMap.get(record.id);
         if (!warning) return '—';
@@ -528,7 +528,7 @@ export default function DatasetsPage() {
       },
     },
     {
-      title: '状态', dataIndex: 'status', width: 70, fixed: 'right',
+      title: '状态', dataIndex: 'status', width: 80, fixed: 'right',
       render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag>,
     },
     createOperationColumn<ReportDataset>({

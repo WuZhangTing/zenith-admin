@@ -424,7 +424,7 @@ export default function FileStorageConfigsPage() {
     {
       title: '读写权限',
       dataIndex: 'objectAcl',
-      width: 110,
+      width: 120,
       align: 'center',
       render: (value: FileObjectAcl | undefined, record: FileStorageConfig) => {
         if (!OBJECT_ACL_PROVIDERS.includes(record.provider)) return <span className="table-cell-placeholder">—</span>;

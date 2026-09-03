@@ -138,7 +138,7 @@ export default function WorkflowDataSourcesPage() {
 
   const columns: ColumnProps<WorkflowDataSource>[] = [
     { title: '名称', dataIndex: 'name', width: 160, render: renderEllipsis },
-    { title: '方法', dataIndex: 'method', width: 70, render: (m: string) => <Tag size="small" color={m === 'POST' ? 'orange' : 'blue'}>{m}</Tag> },
+    { title: '方法', dataIndex: 'method', width: 80, render: (m: string) => <Tag size="small" color={m === 'POST' ? 'orange' : 'blue'}>{m}</Tag> },
     { title: '接口地址', dataIndex: 'url', minWidth: 280, render: renderEllipsis },
     { title: '取值/显示字段', dataIndex: 'valueField', width: 150, render: (_: unknown, r: WorkflowDataSource) => `${r.valueField} / ${r.labelField}` },
     { title: '备注', dataIndex: 'remark', width: 160, render: renderEllipsis },

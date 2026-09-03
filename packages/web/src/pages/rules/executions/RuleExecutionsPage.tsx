@@ -62,7 +62,7 @@ export default function RuleExecutionsPage() {
     { title: '规则 Key', dataIndex: 'ruleKey', width: 170, render: (t: string) => <Text code>{t}</Text> },
     { title: '调用方名称', dataIndex: 'callerName', width: 170, render: (n: string | null) => (n ? <Text size="small" ellipsis={{ showTooltip: true }} style={{ maxWidth: 150 }}>{n}</Text> : '-') },
     { title: '调用方', dataIndex: 'caller', width: 260, render: (c: string | null) => (c ? <Text type="tertiary" size="small" code ellipsis={{ showTooltip: true }} style={{ maxWidth: 240 }}>{c}</Text> : '-') },
-    { title: '来源', dataIndex: 'source', width: 90, render: (s: RuleExecutionSource) => <Tag size="small" color={SOURCE_COLORS[s]}>{RULE_EXECUTION_SOURCE_LABELS[s] ?? s}</Tag> },
+    { title: '来源', dataIndex: 'source', width: 100, render: (s: RuleExecutionSource) => <Tag size="small" color={SOURCE_COLORS[s]}>{RULE_EXECUTION_SOURCE_LABELS[s] ?? s}</Tag> },
     { title: '结果', dataIndex: 'matched', width: 90, render: (m: boolean) => <Tag size="small" color={m ? 'green' : 'red'}>{m ? '命中' : '未命中'}</Tag> },
     { title: '版本', dataIndex: 'version', width: 70, render: (v: number | null) => (v != null ? <Text type="tertiary" size="small">v{v}</Text> : '-') },
     { title: '命中行', width: 120, render: (_: unknown, r: RuleExecution) => <Text type="tertiary" size="small">{r.matchedRowIds.join(', ') || '-'}</Text> },

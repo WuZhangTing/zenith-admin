@@ -139,7 +139,7 @@ export default function DirectorySyncLogsPage() {
     dateTimeColumn('开始时间', 'startedAt'),
     dateTimeColumn('结束时间', 'finishedAt'),
     {
-      title: '状态', dataIndex: 'status', width: 90, fixed: 'right',
+      title: '状态', dataIndex: 'status', width: 100, fixed: 'right',
       render: (_: unknown, r: DirectorySyncRun) => (
         <Tag color={RUN_STATUS_TAG_COLOR[r.status] ?? 'grey'}>{DIRECTORY_SYNC_RUN_STATUS_LABELS[r.status]}</Tag>
       ),

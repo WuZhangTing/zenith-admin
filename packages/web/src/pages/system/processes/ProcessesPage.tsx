@@ -293,7 +293,7 @@ export default function ProcessesPage() {
     {
       title: '状态',
       dataIndex: 'status',
-      width: 90,
+      width: 100,
       render: (status: string) => {
         const meta = STATUS_META[status] ?? STATUS_META.unknown;
         return <Tag color={meta.color as never} size="small">{meta.label}</Tag>;

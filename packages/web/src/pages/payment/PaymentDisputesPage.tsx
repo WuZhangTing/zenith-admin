@@ -130,7 +130,7 @@ export default function PaymentDisputesPage() {
     { title: '涉诉金额', dataIndex: 'amount', width: 100, align: 'right', render: (v: number) => yuan(v) },
     { title: '投诉人', dataIndex: 'complainant', minWidth: 140, render: (v: string | null) => <Typography.Text ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v || '-'}</Typography.Text> },
     {
-      title: '分流', dataIndex: 'route', width: 110,
+      title: '分流', dataIndex: 'route', width: 140,
       render: (v: string | null, r) => {
         if (!v) return <Typography.Text type="tertiary">默认队列</Typography.Text>;
         const label = PAYMENT_DISPUTE_ROUTE_LABELS[v as PaymentDisputeRoute] ?? v;

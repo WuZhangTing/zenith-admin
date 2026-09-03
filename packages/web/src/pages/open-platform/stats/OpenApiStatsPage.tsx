@@ -150,7 +150,7 @@ export default function OpenApiStatsPage() {
     {
       title: '环境',
       dataIndex: 'environment',
-      width: 90,
+      width: 100,
       render: (value: OpenApiCallLog['environment']) => (
         <Tag size="small" color={value === 'sandbox' ? 'orange' : 'blue'}>{OPEN_APP_ENVIRONMENT_LABELS[value]}</Tag>
       ),

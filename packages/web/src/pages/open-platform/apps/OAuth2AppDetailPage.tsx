@@ -193,7 +193,7 @@ function WebhooksTab({ clientId }: Readonly<{ clientId: string }>) {
     {
       title: '状态',
       dataIndex: 'status',
-      width: 90,
+      width: 100,
       fixed: 'right',
       render: (value: string, row) => (
         <Tag size="small" color={value === 'enabled' ? 'green' : row.autoDisabledAt ? 'red' : 'grey'}>

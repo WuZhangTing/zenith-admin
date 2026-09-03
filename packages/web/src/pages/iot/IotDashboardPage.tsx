@@ -71,7 +71,7 @@ export default function IotDashboardPage() {
       ),
     },
     {
-      title: '级别', dataIndex: 'level', width: 70,
+      title: '级别', dataIndex: 'level', width: 80,
       render: (v: IotAlarm['level']) => (
         <Tag size="small" color={ALARM_LEVEL_COLORS[v]}>{IOT_ALARM_LEVEL_LABELS[v]}</Tag>
       ),
@@ -85,7 +85,7 @@ export default function IotDashboardPage() {
   const eventColumns: ColumnProps<RecentEvent>[] = [
     dateTimeColumn<RecentEvent>('时间', 'reportedAt'),
     {
-      title: '类型', dataIndex: 'kind', width: 90,
+      title: '类型', dataIndex: 'kind', width: 100,
       render: (v: RecentEvent['kind']) => (
         <Tag size="small" color={v === 'lifecycle' ? 'grey' : 'cyan'}>{IOT_DEVICE_EVENT_KIND_LABELS[v]}</Tag>
       ),
@@ -93,7 +93,7 @@ export default function IotDashboardPage() {
     { title: '设备', dataIndex: 'deviceName', width: 140, render: (v: string | null) => renderEllipsis(v) },
     { title: '事件', dataIndex: 'name', width: 130, render: (v: string) => renderEllipsis(v) },
     {
-      title: '级别', dataIndex: 'level', width: 70,
+      title: '级别', dataIndex: 'level', width: 80,
       render: (v: RecentEvent['level']) => (
         <Tag size="small" color={EVENT_LEVEL_COLORS[v]}>{IOT_EVENT_LEVEL_LABELS[v]}</Tag>
       ),

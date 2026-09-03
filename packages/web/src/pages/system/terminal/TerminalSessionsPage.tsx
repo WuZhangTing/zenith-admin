@@ -175,7 +175,7 @@ export default function TerminalSessionsPage() {
     {
       title: '状态', dataIndex: 'connected', width: 120, fixed: 'right',
       render: (connected: boolean, r) => (
-        <Space spacing={4}>
+        <Space spacing={4} wrap>
           {connected ? <Tag size="small" color="green">在线</Tag> : <Tag size="small" color="grey">已断开</Tag>}
           {r.takenOver && <Tag size="small" color="orange">接管中</Tag>}
           {r.observerCount > 0 && <Tag size="small" color="light-blue">监控{r.observerCount}</Tag>}

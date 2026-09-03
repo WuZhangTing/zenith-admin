@@ -141,7 +141,7 @@ export default function WorkflowTemplatesPage() {
     {
       title: '来源',
       dataIndex: 'builtin',
-      width: 90,
+      width: 100,
       render: (builtin: boolean) => (
         <Tag color={builtin ? 'blue' : 'grey'}>{builtin ? '系统内置' : '自定义'}</Tag>
       ),

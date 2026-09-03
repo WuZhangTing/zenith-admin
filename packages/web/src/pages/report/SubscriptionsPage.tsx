@@ -155,7 +155,7 @@ export default function SubscriptionsPage() {
         </div>
       ),
     },
-    { title: '状态', dataIndex: 'enabled', width: 70, fixed: 'right', render: (e: boolean) => e ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
+    { title: '状态', dataIndex: 'enabled', width: 80, fixed: 'right', render: (e: boolean) => e ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
     createOperationColumn<ReportDashboardSubscription>({
       width: 260, desktopInlineKeys: ['run', 'history', 'edit'],
       actions: (r) => [
@@ -230,7 +230,7 @@ export default function SubscriptionsPage() {
           dataSource={historyQuery.data?.list ?? []}
           columns={[
             { title: '触发方式', dataIndex: 'triggerType', width: 90, render: (value: string) => REPORT_DELIVERY_TRIGGER_LABELS[value as keyof typeof REPORT_DELIVERY_TRIGGER_LABELS] ?? value },
-            { title: '状态', dataIndex: 'status', width: 90, render: (value: string) => <Tag color={deliveryStatusColorMap[value] ?? 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
+            { title: '状态', dataIndex: 'status', width: 100, render: (value: string) => <Tag color={deliveryStatusColorMap[value] ?? 'grey'}>{REPORT_DELIVERY_STATUS_LABELS[value as keyof typeof REPORT_DELIVERY_STATUS_LABELS] ?? value}</Tag> },
             dateTimeColumn('开始时间', 'startedAt'),
             dateTimeColumn('完成时间', 'completedAt'),
             dateTimeColumn('下次重试', 'nextRetryAt'),

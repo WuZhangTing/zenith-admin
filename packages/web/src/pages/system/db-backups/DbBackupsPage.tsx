@@ -79,7 +79,7 @@ export default function DbBackupsPage() {
     {
       title: '类型',
       dataIndex: 'type',
-      width: 120,
+      width: 130,
       render: (v: BackupType) => <Tag size="small">{v === 'pg_dump' ? 'pg_dump' : 'Drizzle 导出'}</Tag>,
     },
     {

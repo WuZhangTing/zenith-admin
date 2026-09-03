@@ -156,11 +156,11 @@ export default function MpFansPage() {
     { title: '备注', dataIndex: 'remark', minWidth: 140, render: (v: string | null) => v || '—' },
     dateTimeColumn('关注时间', 'subscribeTime'),
     {
-      title: '会员', dataIndex: 'memberId', width: 90, align: 'center' as const,
+      title: '会员', dataIndex: 'memberId', width: 130, align: 'center' as const,
       render: (v: number | null) => (v ? <Tag color="green" type="light">已绑定 #{v}</Tag> : <Tag color="grey" type="light">未绑定</Tag>),
     },
     {
-      title: '关注状态', dataIndex: 'subscribe', width: 100, align: 'center' as const, fixed: 'right' as const,
+      title: '关注状态', dataIndex: 'subscribe', width: 140, align: 'center' as const, fixed: 'right' as const,
       render: (v: MpFanSubscribe, r: MpFan) => (
         <Space spacing={2}>
           {v === 'subscribed' ? <Tag color="green" type="light">已关注</Tag> : <Tag color="grey" type="light">已取关</Tag>}

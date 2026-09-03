@@ -605,7 +605,7 @@ export default function DataMaskPage() {
                   ),
                 },
                 {
-                  title: '状态', dataIndex: 'hasRule', width: 90, fixed: 'right' as const,
+                  title: '状态', dataIndex: 'hasRule', width: 100, fixed: 'right' as const,
                   render: (v: boolean) => v
                     ? <Tag color="orange" size="small">已有规则</Tag>
                     : <Tag color="green" size="small">新规则</Tag>,

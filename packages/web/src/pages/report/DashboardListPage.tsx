@@ -209,7 +209,7 @@ export default function DashboardListPage() {
     createdAtColumn,
     { title: '治理提示', dataIndex: '__warnings', width: 90, render: (_: unknown, record) => deprecatedIds.has(record.id) ? <Tag color="red" size="small">已弃用</Tag> : '—' },
     { title: '生命周期', dataIndex: 'lifecycleStatus', width: 90, fixed: 'right', render: (value: ReportDashboard['lifecycleStatus']) => lifecycleTag(value) },
-    { title: '状态', dataIndex: 'status', width: 70, fixed: 'right', render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
+    { title: '状态', dataIndex: 'status', width: 80, fixed: 'right', render: (s: string) => s === 'enabled' ? <Tag color="green" size="small">启用</Tag> : <Tag color="grey" size="small">停用</Tag> },
     createOperationColumn<ReportDashboard>({
       width: 180,
       desktopInlineKeys: ['design', 'view'],

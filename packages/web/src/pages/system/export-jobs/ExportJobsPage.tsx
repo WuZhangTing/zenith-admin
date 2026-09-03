@@ -228,7 +228,7 @@ export default function ExportJobsPage() {
     {
       title: '安全',
       dataIndex: 'raw',
-      width: 150,
+      width: 160,
       render: (_: unknown, record: ExportJob) => (
         <Space spacing={4}>
           {/* 脱敏/明文仅对含敏感列的导出有实际意义，无敏感数据的任务不展示 */}

@@ -221,7 +221,7 @@ export default function WorkflowConnectorsPage() {
     { title: '编码', dataIndex: 'code', width: 140, render: (v: string) => <Typography.Text size="small" type="tertiary">{v}</Typography.Text> },
     { title: '类型', dataIndex: 'type', width: 100, render: (t: WorkflowConnectorType) => <Tag size="small" color={t === 'http' ? 'blue' : 'grey'}>{TYPE_LABEL[t] ?? t}</Tag> },
     { title: '地址', dataIndex: 'config', width: 240, render: (_: unknown, r: WorkflowConnector) => renderEllipsis((r.config as unknown as WorkflowConnectorHttpConfig)?.baseUrl ?? '—') },
-    { title: '凭据', dataIndex: 'hasCredentials', width: 70, render: (v: boolean) => v ? <Tag size="small" color="green">已配</Tag> : <Tag size="small" color="grey">无</Tag> },
+    { title: '凭据', dataIndex: 'hasCredentials', width: 80, render: (v: boolean) => v ? <Tag size="small" color="green">已配</Tag> : <Tag size="small" color="grey">无</Tag> },
     { title: '熔断', dataIndex: 'breakerState', width: 80, render: (s: WorkflowConnectorBreakerState) => { const m = BREAKER_META[s] ?? BREAKER_META.closed; return <Tag size="small" color={m.color}>{m.text}</Tag>; } },
     createdAtColumn,
     {
@@ -440,8 +440,8 @@ export default function WorkflowConnectorsPage() {
             pagination={false}
             empty="暂无调用记录"
             columns={[
-              { title: '来源', dataIndex: 'source', width: 90, render: (s: WorkflowConnectorInvocation['source']) => <Tag size="small" color="blue">{SOURCE_LABEL[s] ?? s}</Tag> },
-              { title: '结果', dataIndex: 'ok', width: 70, render: (ok: boolean) => <Tag size="small" color={ok ? 'green' : 'red'}>{ok ? '成功' : '失败'}</Tag> },
+              { title: '来源', dataIndex: 'source', width: 100, render: (s: WorkflowConnectorInvocation['source']) => <Tag size="small" color="blue">{SOURCE_LABEL[s] ?? s}</Tag> },
+              { title: '结果', dataIndex: 'ok', width: 80, render: (ok: boolean) => <Tag size="small" color={ok ? 'green' : 'red'}>{ok ? '成功' : '失败'}</Tag> },
               { title: '状态码', dataIndex: 'status', width: 80, render: (v: number | null) => v ?? '—' },
               { title: '耗时', dataIndex: 'durationMs', width: 80, align: 'right', render: (v: number) => `${v}ms` },
               { title: '地址', dataIndex: 'requestUrl', width: 200, render: (v: string | null) => renderEllipsis(v ?? '—') },

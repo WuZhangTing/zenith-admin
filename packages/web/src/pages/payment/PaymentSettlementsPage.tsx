@@ -186,7 +186,7 @@ export default function PaymentSettlementsPage() {
     dateTimeColumn('到账时间', 'settledAt'),
     createdAtColumn as ColumnProps<PaymentSettlementBatch>,
     { title: '版本', dataIndex: 'version', width: 80, align: 'right', render: (v: number) => `v${v}` },
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentSettlementStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_SETTLEMENT_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 100, fixed: 'right', render: (v: PaymentSettlementStatus) => <Tag color={STATUS_COLOR[v]}>{PAYMENT_SETTLEMENT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentSettlementBatch>({
       width: 240,
       desktopInlineKeys: ['items', 'start', 'settled'],

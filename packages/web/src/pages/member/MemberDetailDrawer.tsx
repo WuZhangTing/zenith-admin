@@ -23,7 +23,7 @@ const WALLET_TX_COLORS: Record<string, 'green' | 'red' | 'blue' | 'orange'> = {
 };
 
 const pointTxCols: ColumnProps<MemberPointTransaction>[] = [
-  { title: '类型', dataIndex: 'type', width: 80, render: (v: string) => <Tag size="small" color={POINT_TX_COLORS[v] ?? 'blue'}>{POINT_TX_TYPE_LABELS[v as keyof typeof POINT_TX_TYPE_LABELS]}</Tag> },
+  { title: '类型', dataIndex: 'type', width: 100, render: (v: string) => <Tag size="small" color={POINT_TX_COLORS[v] ?? 'blue'}>{POINT_TX_TYPE_LABELS[v as keyof typeof POINT_TX_TYPE_LABELS]}</Tag> },
   { title: '变动', dataIndex: 'amount', width: 80, align: 'right', render: (v: number) => <span style={{ color: v > 0 ? '#07c160' : '#fa5151', fontWeight: 600 }}>{v > 0 ? `+${v}` : v}</span> },
   { title: '余额', dataIndex: 'balanceAfter', width: 80, align: 'right' },
   { title: '备注', dataIndex: 'remark', render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 120 }}>{v ?? '—'}</Text> },
@@ -39,7 +39,7 @@ const walletTxCols: ColumnProps<MemberWalletTransaction>[] = [
 ];
 
 const loginLogCols: ColumnProps<MemberLoginLog>[] = [
-  { title: '状态', dataIndex: 'status', width: 70, render: (v: string) => <Tag size="small" color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? '成功' : '失败'}</Tag> },
+  { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => <Tag size="small" color={v === 'success' ? 'green' : 'red'}>{v === 'success' ? '成功' : '失败'}</Tag> },
   { title: 'IP', dataIndex: 'ip', width: 130, render: (v: string | null) => v ?? '—' },
   { title: '地点', dataIndex: 'location', width: 120, render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 110 }}>{v ?? '—'}</Text> },
   { title: '浏览器', dataIndex: 'browser', render: (v: string | null) => <Text type="tertiary" ellipsis={{ showTooltip: true }} style={{ maxWidth: 110 }}>{v ?? '—'}</Text> },

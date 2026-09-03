@@ -270,11 +270,11 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
     identifierColumn,
     { title: '名称', dataIndex: 'name', width: 110 },
     {
-      title: '类型', dataIndex: 'dataType', width: 80,
+      title: '类型', dataIndex: 'dataType', width: 90,
       render: (v: IotProductProperty['dataType']) => <Tag size="small">{IOT_PROPERTY_TYPE_LABELS[v]}</Tag>,
     },
     {
-      title: '读写', dataIndex: 'accessMode', width: 70,
+      title: '读写', dataIndex: 'accessMode', width: 80,
       render: (v: IotProductProperty['accessMode']) => (
         <Tag size="small" color={v === 'rw' ? 'green' : 'grey'}>{IOT_ACCESS_MODE_LABELS[v]}</Tag>
       ),
@@ -324,7 +324,7 @@ export default function IotThingModelDrawer({ product, onClose }: Readonly<IotTh
     { title: '名称', dataIndex: 'name', width: 110 },
     { title: '参数', render: (_: unknown, r: IotProductService) => renderParamsSummary(r.params) },
     {
-      title: '高危', dataIndex: 'danger', width: 70,
+      title: '高危', dataIndex: 'danger', width: 80,
       render: (v: boolean) => v ? <Tag size="small" color="red">高危</Tag> : EMPTY_PLACEHOLDER,
     },
     ...(canEdit ? [{

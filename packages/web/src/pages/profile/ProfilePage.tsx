@@ -839,7 +839,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
                     {
                       title: '环境',
                       dataIndex: 'environment',
-                      width: 90,
+                      width: 100,
                       render: (v: OAuth2MyGrant['environment']) => (
                         <Tag size="small" color={v === 'production' ? 'green' : 'grey'}>
                           {v === 'production' ? '生产环境' : '沙箱环境'}

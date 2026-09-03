@@ -243,7 +243,7 @@ export default function AlertRulesPage() {
     },
     {
       title: '通知渠道', dataIndex: 'channels', width: 160,
-      render: (chs: string[]) => chs?.length ? <Space spacing={4}>{chs.map((c) => <Tag key={c} size="small" type="light">{CHANNEL_LABELS[c] ?? c}</Tag>)}</Space> : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
+      render: (chs: string[]) => chs?.length ? <Space spacing={4} wrap>{chs.map((c) => <Tag key={c} size="small" type="light">{CHANNEL_LABELS[c] ?? c}</Tag>)}</Space> : <span style={{ color: 'var(--semi-color-text-2)' }}>—</span>,
     },
     {
       title: '当前值', dataIndex: 'lastValue', width: 100,

@@ -358,7 +358,7 @@ export default function ContentsPage() {
     {
       title: '状态',
       dataIndex: 'status',
-      width: 118,
+      width: 130,
       fixed: 'right',
       render: (v: CmsContentStatus, record) => (
         <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>

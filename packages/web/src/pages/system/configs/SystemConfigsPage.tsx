@@ -152,7 +152,7 @@ export default function SystemConfigsPage() {
     {
       title: '类型',
       dataIndex: 'configType',
-      width: 80,
+      width: 90,
       render: (v: string) => <DictTag dictCode="system_config_type" value={v} />,
     },
     { title: '描述', dataIndex: 'description', minWidth: 300, render: renderEllipsis },

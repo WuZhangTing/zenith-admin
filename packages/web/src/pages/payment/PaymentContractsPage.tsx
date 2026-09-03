@@ -237,7 +237,7 @@ export default function PaymentContractsPage() {
     dateTimeColumn('下次扣款', 'nextDeductAt'),
     dateTimeColumn('上次扣款', 'lastDeductAt'),
     createdAtColumn as ColumnProps<PaymentContract>,
-    { title: '状态', dataIndex: 'status', width: 90, fixed: 'right', render: (v: PaymentContractStatus) => <Tag color={CONTRACT_STATUS_COLOR[v]}>{PAYMENT_CONTRACT_STATUS_LABELS[v]}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 110, fixed: 'right', render: (v: PaymentContractStatus) => <Tag color={CONTRACT_STATUS_COLOR[v]}>{PAYMENT_CONTRACT_STATUS_LABELS[v]}</Tag> },
     createOperationColumn<PaymentContract>({
       width: 210,
       actions: (r) => (canManage ? [

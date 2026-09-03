@@ -308,7 +308,7 @@ export default function WorkflowDefinitionsPage() {
     {
       title: '表单类型',
       dataIndex: 'formType',
-      width: 130,
+      width: 140,
       render: (v: WorkflowFormType) => (
         <Tag color={FORM_TYPE_COLOR[v] ?? 'grey'}>{WORKFLOW_FORM_TYPE_LABELS[v] ?? v}</Tag>
       ),

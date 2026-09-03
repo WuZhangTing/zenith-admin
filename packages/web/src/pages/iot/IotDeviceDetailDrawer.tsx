@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Banner, Button, Descriptions, Form, Popconfirm, Radio, RadioGroup, Select,
-  SideSheet, Spin, Table, TabPane, Tabs, Tag, Toast, Typography,
+  SideSheet, Spin, Table, TabPane, Tabs, Tag, Toast, Tooltip, Typography,
 } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form';
@@ -178,7 +178,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
       ),
     },
     {
-      title: '类型', width: 110,
+      title: '类型', width: 130,
       render: (_: unknown, r: PropertyRow) => r.prop
         ? (
             <span>
@@ -335,12 +335,12 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
         : EMPTY_PLACEHOLDER,
     },
     {
-      title: '状态', dataIndex: 'status', width: 90,
-      render: (v: IotCommand['status'], r: IotCommand) => (
-        <Tag size="small" color={COMMAND_STATUS_COLORS[v]}>
-          {IOT_COMMAND_STATUS_LABELS[v]}{v === 'failed' && r.errorMsg ? `：${r.errorMsg}` : ''}
-        </Tag>
-      ),
+      // 失败原因不塞进 Tag（长度不可控），悬浮查看
+      title: '状态', dataIndex: 'status', width: 100,
+      render: (v: IotCommand['status'], r: IotCommand) => {
+        const tag = <Tag size="small" color={COMMAND_STATUS_COLORS[v]}>{IOT_COMMAND_STATUS_LABELS[v]}</Tag>;
+        return v === 'failed' && r.errorMsg ? <Tooltip content={r.errorMsg}>{tag}</Tooltip> : tag;
+      },
     },
     dateTimeColumn<IotCommand>('下发时间', 'createdAt'),
     dateTimeColumn<IotCommand>('回执时间', 'ackedAt'),
@@ -360,7 +360,7 @@ export default function IotDeviceDetailDrawer({ device, onClose }: Readonly<IotD
   const eventColumns: ColumnProps<IotDeviceEvent>[] = [
     dateTimeColumn<IotDeviceEvent>('时间', 'reportedAt'),
     {
-      title: '类型', dataIndex: 'kind', width: 90,
+      title: '类型', dataIndex: 'kind', width: 100,
       render: (v: IotDeviceEvent['kind']) => (
         <Tag size="small" color={EVENT_KIND_COLORS[v]}>{IOT_DEVICE_EVENT_KIND_LABELS[v]}</Tag>
       ),

@@ -333,7 +333,7 @@ function ArtifactsSheet({ releaseId, onClose }: { releaseId: number | null; onCl
     { title: '平台', dataIndex: 'platform', width: 90, render: (v: AppPlatform) => APP_PLATFORM_LABELS[v] },
     { title: '架构', dataIndex: 'arch', width: 80, render: (v: AppArch) => APP_ARCH_LABELS[v] },
     {
-      title: '类型', dataIndex: 'kind', width: 92,
+      title: '类型', dataIndex: 'kind', width: 100,
       render: (v: AppArtifact['kind']) => <Tag color={v === 'metadata' ? 'grey' : 'blue'} size="small">{APP_ARTIFACT_KIND_LABELS[v]}</Tag>,
     },
     { title: '文件名', dataIndex: 'fileName', minWidth: 220, render: renderEllipsis },

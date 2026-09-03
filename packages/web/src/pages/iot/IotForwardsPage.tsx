@@ -124,7 +124,7 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
       },
     },
     {
-      title: '签名', dataIndex: 'hasSecret', width: 70,
+      title: '签名', dataIndex: 'hasSecret', width: 90,
       render: (v: boolean) => v ? <Tag size="small" color="blue">已配置</Tag> : EMPTY_PLACEHOLDER,
     },
     {
@@ -134,7 +134,7 @@ function ForwardRulesTab({ onShowLogs }: Readonly<{ onShowLogs: (rule: IotForwar
         : EMPTY_PLACEHOLDER,
     },
     {
-      title: '连续失败', dataIndex: 'consecutiveFailures', width: 90, align: 'right',
+      title: '连续失败', dataIndex: 'consecutiveFailures', width: 110, align: 'right',
       render: (v: number, r: IotForwardRule) => {
         if (r.autoDisabledAt) return <Tag size="small" color="red">已自动停用</Tag>;
         return v > 0 ? <Text type="warning">{v} 次</Text> : EMPTY_PLACEHOLDER;

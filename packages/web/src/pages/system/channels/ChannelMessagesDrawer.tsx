@@ -94,7 +94,7 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
 
   const columns: ColumnProps<ChannelMessage>[] = [
     {
-      title: '类型', dataIndex: 'type', width: 70,
+      title: '类型', dataIndex: 'type', width: 80,
       render: (v: ChannelMessage['type']) => (
         <Tag size="small" color={v === 'news' ? 'blue' : 'grey'}>{CHANNEL_MESSAGE_TYPE_LABELS[v] ?? v}</Tag>
       ),
@@ -108,7 +108,7 @@ export function ChannelMessagesDrawer({ channel, visible, onClose }: Readonly<Pr
       ),
     },
     {
-      title: '状态', dataIndex: 'status', width: 90,
+      title: '状态', dataIndex: 'status', width: 100,
       render: (v: ChannelMessageStatus, r: ChannelMessage) => (
         r.isRetracted
           ? <Tag size="small" color="grey">已撤回</Tag>

@@ -260,7 +260,7 @@ export default function QualityPage() {
     { title: '维度明细', dataIndex: 'dimensions', width: 260, render: (v: Record<string, number> | null) => {
       if (!v || Object.keys(v).length === 0) return '—';
       return (
-        <Space spacing={4}>
+        <Space spacing={4} wrap>
           {severityOptions.filter((item) => v[item.value] !== undefined).map((item) => (
             <Tag key={item.value} size="small" color={severityColor[item.value as keyof typeof severityColor]}>
               {item.label} {v[item.value]}

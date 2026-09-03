@@ -1160,7 +1160,7 @@ export default function RuleTablesPage() {
               rowKey="index"
               columns={[
                 { title: '#', dataIndex: 'index', width: 60, render: (v: number) => v + 1 },
-                { title: '命中', dataIndex: 'matched', width: 80, render: (v: boolean, r: RuleSimulateResult['results'][number]) => (r.error ? <Tag size="small" color="red">异常</Tag> : <Tag size="small" color={v ? 'green' : 'grey'}>{v ? '命中' : '未命中'}</Tag>) },
+                { title: '命中', dataIndex: 'matched', width: 90, render: (v: boolean, r: RuleSimulateResult['results'][number]) => (r.error ? <Tag size="small" color="red">异常</Tag> : <Tag size="small" color={v ? 'green' : 'grey'}>{v ? '命中' : '未命中'}</Tag>) },
                 { title: '命中行', dataIndex: 'matchedRowIds', width: 110, render: (v: string[]) => renderEllipsis(v.join(', ')) },
                 { title: '输出', dataIndex: 'outputs', width: 300, render: (v: Record<string, unknown>, r: RuleSimulateResult['results'][number]) => renderEllipsis(r.error ?? JSON.stringify(v)) },
               ] as ColumnProps<RuleSimulateResult['results'][number]>[]}

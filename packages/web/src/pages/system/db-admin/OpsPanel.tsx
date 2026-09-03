@@ -70,8 +70,8 @@ function ActivityPanel({ canMaintain }: Readonly<{ canMaintain: boolean }>) {
   const blockedCount = list.filter((c) => c.blockedBy.length > 0).length;
 
   const columns: ColumnProps<ActivityConnection>[] = [
-    { title: 'PID', dataIndex: 'pid', width: 80, render: (v: number, r) => (
-      <Space spacing={4}>
+    { title: 'PID', dataIndex: 'pid', width: 90, render: (v: number, r) => (
+      <Space spacing={4} wrap>
         <Text strong>{v}</Text>
         {r.isCurrent && <Tag size="small" color="blue">本会话</Tag>}
         {blockingPids.has(v) && <Tooltip content="正在阻塞其他查询"><Tag size="small" color="red">阻塞源</Tag></Tooltip>}

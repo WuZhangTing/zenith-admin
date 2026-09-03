@@ -132,7 +132,7 @@ export default function MpAccountsPage() {
     { title: 'AppID', dataIndex: 'appId', width: 200, render: renderEllipsis },
     { title: '微信号', dataIndex: 'account', width: 150, render: (v: string | null) => v || '—' },
     {
-      title: '默认', dataIndex: 'isDefault', width: 70, align: 'center' as const,
+      title: '默认', dataIndex: 'isDefault', width: 80, align: 'center' as const,
       render: (v: boolean) => (v ? <Tag color="blue" type="light">默认</Tag> : '—'),
     },
     createdAtColumn,

@@ -442,7 +442,7 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
 
   const execColumns: ColumnProps<WorkflowJobExecution>[] = [
     { title: '#', dataIndex: 'attempt', width: 56 },
-    { title: '状态', dataIndex: 'status', width: 80, render: (v: WorkflowJobExecution['status']) => { const m = EXEC_STATUS_META[v]; return <Tag color={m?.color ?? 'grey'} size="small">{m?.text ?? v}</Tag>; } },
+    { title: '状态', dataIndex: 'status', width: 90, render: (v: WorkflowJobExecution['status']) => { const m = EXEC_STATUS_META[v]; return <Tag color={m?.color ?? 'grey'} size="small">{m?.text ?? v}</Tag>; } },
     {
       title: '请求',
       dataIndex: 'requestUrl',
@@ -464,8 +464,8 @@ function JobTypePanel({ jobType, summary, onMutated, clustersSignal }: JobTypePa
 
   const chainColumns: ColumnProps<WorkflowJob & { executions: WorkflowJobExecution[] }>[] = [
     dateTimeColumn('时间', 'createdAt', { className: 'table-cell-compact' }),
-    { title: '类型', dataIndex: 'jobType', width: 104, render: (v: WorkflowJobType) => <Tag color={JOB_TYPE_META[v].color} size="small">{JOB_TYPE_META[v].text}</Tag> },
-    { title: '状态', dataIndex: 'status', width: 76, render: (v: WorkflowJobStatus) => renderStatusTag(v) },
+    { title: '类型', dataIndex: 'jobType', width: 130, render: (v: WorkflowJobType) => <Tag color={JOB_TYPE_META[v].color} size="small">{JOB_TYPE_META[v].text}</Tag> },
+    { title: '状态', dataIndex: 'status', width: 90, render: (v: WorkflowJobStatus) => renderStatusTag(v) },
     { title: '节点 / 实例', render: (_: unknown, r: WorkflowJob) => <Typography.Text size="small">{r.nodeKey ?? '—'}{r.instanceId ? ` · #${r.instanceId}` : ''}</Typography.Text> },
     { title: '尝试', width: 64, render: (_: unknown, r: WorkflowJob) => `${r.attempts}/${r.maxAttempts}` },
   ];
