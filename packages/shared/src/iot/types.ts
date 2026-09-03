@@ -158,7 +158,6 @@ export interface IotDeviceEvent {
 }
 
 export interface IotTelemetryPoint {
-  id: number;
   metrics: Record<string, IotMetricValue>;
   /** YYYY-MM-DD HH:mm:ss */
   reportedAt: string;

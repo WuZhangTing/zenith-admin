@@ -4,14 +4,14 @@
  * 设备列表的属性快照读自 iot_device_state.reported（O(1)），不再扫遥测表。
  */
 import { HTTPException } from 'hono/http-exception';
-import { and, count, desc, eq, exists, inArray, type SQL } from 'drizzle-orm';
+import { and, count, desc, eq, exists, inArray, sql, type SQL } from 'drizzle-orm';
 import { alias as aliasedTable } from 'drizzle-orm/pg-core';
 import type { CreateIotDeviceInput, CreateIotProductInput, UpdateIotDeviceInput, UpdateIotProductInput } from '@zenith/shared/iot';
 import { db } from '../../db';
 import type { DbExecutor } from '../../db/types';
 import {
   iotDeviceGroupMembers, iotDeviceGroups, iotDevices, iotDeviceState, iotProductEvents,
-  iotProductProperties, iotProducts, iotProductServices, iotTelemetry,
+  iotProductProperties, iotProducts, iotProductServices,
   type IotDeviceRow, type IotDeviceStateRow, type IotProductRow,
 } from '../../db/schema';
 import { formatDateTime, formatNullableDateTime } from '../../lib/datetime';
@@ -458,10 +458,10 @@ export async function resetIotDeviceSecret(id: number) {
 /** 清空设备遥测（重新调试场景）：同步重置影子 reported 快照 */
 export async function clearIotDeviceTelemetry(id: number): Promise<number> {
   await ensureIotDeviceExists(id);
-  const deleted = await db.transaction(async (tx) => {
-    const rows = await tx.delete(iotTelemetry).where(eq(iotTelemetry.deviceId, id)).returning({ id: iotTelemetry.id });
+  return db.transaction(async (tx) => {
+    // 分区表按 device_id 删除会命中每个分区的 (device_id, reported_at) 索引；不用 RETURNING 避免整段历史回传
+    const res = await tx.execute(sql`DELETE FROM iot_telemetry WHERE device_id = ${id}`);
     await tx.update(iotDeviceState).set({ reported: {}, reportedAt: null }).where(eq(iotDeviceState.deviceId, id));
-    return rows;
+    return (res as unknown as { rowCount?: number }).rowCount ?? 0;
   });
-  return deleted.length;
 }

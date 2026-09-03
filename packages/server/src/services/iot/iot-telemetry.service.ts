@@ -34,6 +34,9 @@ import { evaluateIotAutomationsOnTelemetry } from './iot-automations.service';
 import { evaluateIotAnomalies } from './iot-anomaly.service';
 import { dispatchIotForward } from './iot-forward.service';
 import { enqueueIotDeviceWork } from './iot-ingest-queue';
+import {
+  ensureIotTelemetryPartitionsFor, isMissingIotTelemetryPartitionError, minAcceptableIotReportedAt,
+} from './iot-partitions.service';
 import { pushIotRealtime } from './iot-realtime';
 
 // ─── 今日上报量计数 ────────────────────────────────────────────────────────────
@@ -68,6 +71,20 @@ function resolveReportedAt(raw: string | undefined, now: Date): Date {
   const parsed = raw ? parseDateTimeInput(raw) : null;
   if (!parsed) return now;
   return parsed.getTime() > now.getTime() + REPORTED_AT_MAX_AHEAD_MS ? now : parsed;
+}
+
+type TelemetryRow = typeof iotTelemetry.$inferInsert;
+
+/** 明细落库：命中缺失分区（乱序回填 / 预建任务漏跑）时按批次内日期补建后重试一次 */
+export async function insertIotTelemetryRows(rows: TelemetryRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  try {
+    await db.insert(iotTelemetry).values(rows);
+  } catch (err) {
+    if (!isMissingIotTelemetryPartitionError(err)) throw err;
+    await ensureIotTelemetryPartitionsFor(rows.map((r) => r.reportedAt ?? new Date()), { recheck: true });
+    await db.insert(iotTelemetry).values(rows);
+  }
 }
 
 // ─── 遥测 ─────────────────────────────────────────────────────────────────────
@@ -113,7 +130,7 @@ function sanitizeMetrics(
 }
 
 export async function ingestTelemetry(device: IotDeviceRow, input: IotTelemetryIngestInput): Promise<number> {
-  const model = await loadThingModel(device.productId);
+  const [model, minReportedAt] = await Promise.all([loadThingModel(device.productId), minAcceptableIotReportedAt()]);
   const propMap = new Map(model.properties.map((p) => [p.identifier, p]));
   const now = new Date();
 
@@ -123,10 +140,11 @@ export async function ingestTelemetry(device: IotDeviceRow, input: IotTelemetryI
       metrics: sanitizeMetrics(item.metrics, propMap, model.validationMode),
       reportedAt: resolveReportedAt(item.reportedAt, now),
     }))
-    .filter((row) => Object.keys(row.metrics).length > 0);
+    // 早于保留窗口的回填点直接丢弃（所属分区已 / 将被 DROP）
+    .filter((row) => Object.keys(row.metrics).length > 0 && row.reportedAt >= minReportedAt);
 
   if (rows.length > 0) {
-    await db.insert(iotTelemetry).values(rows);
+    await insertIotTelemetryRows(rows);
     // 影子合并：按上报顺序合并出最新快照
     const merged: Record<string, IotMetricValue> = {};
     let latestAt = rows[0].reportedAt;
@@ -181,7 +199,6 @@ export async function listIotTelemetry(deviceId: number, q: ListTelemetryQuery) 
     .orderBy(desc(iotTelemetry.reportedAt))
     .limit(limit);
   return rows.reverse().map((r) => ({
-    id: r.id,
     metrics: r.metrics,
     reportedAt: formatDateTime(r.reportedAt),
   }));

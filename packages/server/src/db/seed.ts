@@ -27,6 +27,7 @@ import {
   iotForwardRules, iotDeviceLogs, iotSchedules, iotScheduleRuns, iotMaintenanceWindows, iotDeviceWhitelist,
 } from './schema';
 import { contentSearchVector, extendSearchTexts } from '../services/cms/cms-search.service';
+import { ensureIotTelemetryPartitionsFor } from '../services/iot/iot-partitions.service';
 import { extractCmsResourceRefFields } from '../lib/cms-resource-uri';
 
 const require = createRequire(import.meta.url);
@@ -1464,6 +1465,8 @@ async function seedRest() {
         reportedAt,
       };
     });
+    // 遥测明细是日分区表：迁移只预建迁移当日前后的分区，seed 与迁移间隔较久时需先补齐
+    await ensureIotTelemetryPartitionsFor(points.map((p) => p.reportedAt));
     await db.insert(iotTelemetry).values(points);
   }
   // 场景联动（演示：高温通知管理员）

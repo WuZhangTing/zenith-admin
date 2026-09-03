@@ -9,7 +9,7 @@
  * - iot_devices                 设备：SN 全局唯一 + 一机一密；实时在线态在 Redis TTL 键
  * - iot_device_state            设备影子：reported（最新上报快照）/ desired（期望值待确认）
  * - iot_device_events           统一事件流：生命周期（上下线/激活/重置密钥）+ 物模型事件
- * - iot_telemetry               遥测明细（jsonb 指标袋；保留策略裁剪）
+ * - iot_telemetry               遥测明细（jsonb 指标袋；按 reported_at 原生日分区，保留策略整分区 DROP）
  * - iot_commands                指令下发记录（pending→delivered→acked/failed，惰性超时）
  * - iot_alarm_rules / iot_alarms 告警规则（阈值/离线/事件）与告警记录（firing→resolved）
  * - iot_device_groups (+members) 设备静态分组（批量操作圈选目标）
@@ -265,16 +265,25 @@ export type IotDeviceEventRow = typeof iotDeviceEvents.$inferSelect;
 export type NewIotDeviceEvent = typeof iotDeviceEvents.$inferInsert;
 
 // ─── 遥测与指令 ───────────────────────────────────────────────────────────────
+/**
+ * 遥测明细：PostgreSQL 原生 RANGE 日分区表（按 reported_at，UTC 日边界）。
+ *
+ * - 分区 DDL 超出 Drizzle 表达范围，`PARTITION BY` 与初始分区在迁移中手写，本处只描述列 / 索引 / 外键
+ *   （父表上的索引与外键自动继承到每个分区）；重建迁移基线时必须一并保留
+ * - 无代理主键：明细只按 (device_id, reported_at) 范围读取，主键索引纯属写放大；
+ *   分区键必须进主键的约束也让 bigint id 失去意义
+ * - 分区由 iot-partitions.service 预建 / 按需补建，保留策略按分区整表 DROP（零膨胀、无 vacuum 压力）
+ * - BRIN 覆盖只按时间过滤的扫描（小时聚合任务）；追加型时序数据物理顺序与时间高度相关，索引体积可忽略
+ */
 export const iotTelemetry = pgTable('iot_telemetry', {
-  id:         bigint({ mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
   deviceId:   integer().notNull().references(() => iotDevices.id, { onDelete: 'cascade' }),
   /** 属性值袋：{ temperature: 23.5, humidity: 61, door: 'open' }（按产品物模型校验） */
   metrics:    jsonb().$type<Record<string, IotMetricValue>>().notNull(),
-  /** 业务发生时间（设备侧可传，缺省取服务器时间） */
+  /** 业务发生时间（设备侧可传，缺省取服务器时间；同时是分区键） */
   reportedAt: timestamp().defaultNow().notNull(),
-  createdAt:  timestamp().defaultNow().notNull(),
 }, (t) => [
   index('idx_iot_telemetry_device_time').on(t.deviceId, t.reportedAt),
+  index('idx_iot_telemetry_time_brin').using('brin', t.reportedAt),
 ]);
 
 export type IotTelemetryRow = typeof iotTelemetry.$inferSelect;

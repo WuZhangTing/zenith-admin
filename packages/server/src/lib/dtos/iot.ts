@@ -160,7 +160,6 @@ export const IotDeviceEventDTO = z
 
 export const IotTelemetryPointDTO = z
   .object({
-    id: z.number().int(),
     metrics: z.record(z.string(), metricValue),
     reportedAt: z.string(),
   })

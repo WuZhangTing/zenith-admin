@@ -766,7 +766,16 @@ export const RETENTION_POLICIES: readonly RetentionPolicyDefinition[] = [
     tableName: 'iot_telemetry',
     timeColumn: 'reported_at',
     defaultDays: 30,
-    description: 'IoT 设备上报的原始遥测点位；近 24h 图表查明细，长窗口图表与仪表盘已切换到小时聚合表，超期明细可安全清理（最新值快照在设备影子，不受影响）。',
+    mode: 'custom',
+    run: async (days) => {
+      const { dropExpiredIotTelemetryPartitions } = await import('../../services/iot/iot-partitions.service');
+      return dropExpiredIotTelemetryPartitions(days);
+    },
+    previewPending: async (days) => {
+      const { countExpiredIotTelemetryRows } = await import('../../services/iot/iot-partitions.service');
+      return countExpiredIotTelemetryRows(days);
+    },
+    description: 'IoT 设备上报的原始遥测点位，按 reported_at 日分区存储；清理按「上界早于截止时刻」的分区整表 DROP（秒级、零膨胀），因此实际保留范围会多出不足一天的尾巴。近 24h 图表查明细，长窗口图表与仪表盘读小时聚合表，最新值快照在设备影子，均不受影响。',
   },
   {
     key: 'iot_telemetry_hourly',

@@ -64,7 +64,6 @@ export function buildMockTelemetry(deviceId: number, days: number): IotTelemetry
     const phase = Math.sin(((hour - 14) / 24) * Math.PI * 2);
     const pad = (n: number) => String(n).padStart(2, '0');
     return {
-      id: i + 1,
       metrics: {
         temperature: Math.round((24 + phase * 3) * 10) / 10,
         humidity: Math.round(50 - phase * 8),

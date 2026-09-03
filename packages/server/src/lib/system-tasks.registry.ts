@@ -1,3 +1,4 @@
+import logger from './logger';
 import { registerSystemRecurringJob } from './pg-boss-scheduler';
 
 /**
@@ -406,6 +407,21 @@ export async function registerSystemTasks(): Promise<void> {
     description: '每小时第 5 分钟重算最近两个小时桶的数值属性聚合（min/max/avg/last），长窗口图表与仪表盘查聚合而非扫明细。',
     allowManualRun: true,
     run: rollupIotTelemetryHourly,
+  });
+
+  const { ensureIotTelemetryPartitions } = await import('../services/iot/iot-partitions.service');
+  await registerSystemRecurringJob({
+    name: 'iot-telemetry-partition-maintain',
+    title: 'IoT 遥测分区维护',
+    module: 'IoT 设备',
+    cronExpression: '20 * * * *',
+    description: '每小时滚动预建遥测明细表未来 7 天的日分区（写入命中缺失分区时也会按需补建）；超期分区由「数据保留清理」任务整表 DROP。',
+    allowManualRun: true,
+    run: () => ensureIotTelemetryPartitions(),
+  });
+  // 启动即补齐：迁移只建了迁移当日前后的分区，长期未启动的环境靠这里接上
+  void ensureIotTelemetryPartitions().catch((err) => {
+    logger.warn(`[iot] 启动预建遥测分区失败: ${(err as Error).message}`);
   });
 
   const { sweepIotOtaTimeouts } = await import('../services/iot/iot-ota.service');

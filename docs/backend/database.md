@@ -55,6 +55,15 @@ npm run db:seed
 
 后续新增无法表达的 DDL 时，用 `drizzle-kit generate --custom` 建独立迁移；重建基线时将其内容并回 `0001_extensions.sql`。
 
+### 分区表：`iot_telemetry`
+
+`0004_iot_telemetry_partition.sql` 把 IoT 遥测明细重建为 PostgreSQL 原生 **RANGE 日分区表**（按 `reported_at`，UTC 日边界，分区命名 `iot_telemetry_pYYYYMMDD`）。这是全库唯一的分区表，约定如下：
+
+- Drizzle schema 仍以普通表描述列 / 索引 / 外键（父表定义自动继承到每个分区），`PARTITION BY` 与初始分区只存在于该迁移文件；重建基线时必须随 `0001_extensions.sql` 一并保留。
+- 表没有代理主键：明细只按 `(device_id, reported_at)` 范围读取，主键索引纯属写放大，且分区键必须进主键的限制让 `id` 失去意义。
+- 分区生命周期由 `services/iot/iot-partitions.service.ts` 负责：启动与每小时任务「IoT 遥测分区维护」滚动预建未来 7 天；写入命中「无分区」错误时按批次内日期补建后重试；保留策略 `iot_telemetry` 走 `custom` 模式，按分区上界整表 `DROP`（秒级、零膨胀），写入侧同时丢弃早于保留窗口的回填点。
+- `drizzle-kit generate` 不会感知子分区（它只对比 schema 与快照），因此新增 / 删除分区无需迁移；但**不要**在 schema 中给该表加回 `id` 或改分区键列，否则生成的 `ALTER` 会作用于分区父表并破坏分区布局。
+
 ### 枚举同步
 
 枚举必须保持三端一致：
