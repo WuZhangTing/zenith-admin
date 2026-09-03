@@ -78,13 +78,17 @@ export function formatDateForApi(date: DateInput): string {
 }
 
 /**
- * 剥离 HTML 标签，返回纯文本摘要，用于列表/通知摘要场景
+ * 剥离 HTML 标签，返回纯文本摘要，用于列表/通知摘要场景。
+ *
+ * 必须用 DOMParser 解析：它产出的是惰性文档，不加载资源也不执行脚本；
+ * 若改用 `div.innerHTML = html`，`<img src=x onerror=…>` 在分离元素上解析时同样会触发。
  */
 export function stripHtml(html: string | null | undefined, maxLength = 100): string {
   if (!html) return '';
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  const text = (div.textContent ?? '').replaceAll(/\s+/g, ' ').trim();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // 脚本 / 样式的源码不是正文，不应出现在摘要里
+  for (const el of doc.querySelectorAll('script, style, template, noscript')) el.remove();
+  const text = (doc.body?.textContent ?? '').replaceAll(/\s+/g, ' ').trim();
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength)}...`;
 }

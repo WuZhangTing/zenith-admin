@@ -145,6 +145,8 @@
 
 用户侧接口：`GET /api/announcements/published`、`GET /api/announcements/unread-count`、`GET /api/announcements/inbox`、`POST /api/announcements/{id}/read`、`POST /api/announcements/read-all`。管理端接口：`GET /api/announcements`、`GET /api/announcements/{id}`、`GET /api/announcements/{id}/read-stats`、`POST /api/announcements`、`PUT /api/announcements/{id}`、`DELETE /api/announcements/{id}`、`DELETE /api/announcements/batch`。
 
+公告 `content` 为富文本 HTML：创建 / 更新时在服务端持久化边界经 `sanitizeCmsHtml`（与 CMS 正文同一白名单：剔除脚本、事件属性、`javascript:` 链接、iframe 等）净化落库，渲染端 DOMPurify 只是兜底；列表 / 首页摘要用 `stripHtml`（基于惰性 `DOMParser`，不会触发 `<img onerror>` 之类的解析期副作用）生成纯文本。
+
 ### 邮件与短信
 
 | 能力 | API | 权限 |

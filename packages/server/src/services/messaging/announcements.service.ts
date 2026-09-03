@@ -11,6 +11,7 @@ import { buildManagedFileProxyUrl, buildPublicFileUrl } from '../../lib/file-sto
 import { getStorageConfigMap } from '../files/files.service';
 import { saveBusinessFiles } from '../files/business-files.service';
 import { formatDateTime, formatNullableDateTime, parseDateTimeInput } from '../../lib/datetime';
+import { sanitizeCmsHtml } from '../cms/cms-html-sanitizer';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 
@@ -429,7 +430,8 @@ export async function createAnnouncement(data: CreateAnnouncementInput) {
   const row = await db.transaction(async (tx) => {
     const [inserted] = await tx.insert(announcements).values({
       title: data.title,
-      content: data.content,
+      // 富文本在持久化边界统一白名单净化（与 CMS 正文同一规则），渲染端 DOMPurify 只是兜底
+      content: sanitizeCmsHtml(data.content),
       type: data.type,
       publishStatus: data.publishStatus,
       priority: data.priority,
@@ -497,6 +499,7 @@ export async function updateAnnouncement(id: number, data: Partial<CreateAnnounc
   const updateData: Record<string, unknown> = { ...data };
   delete updateData.recipients;
   delete updateData.fileIds;
+  if (typeof data.content === 'string') updateData.content = sanitizeCmsHtml(data.content);
   if (publishTime !== undefined) updateData.publishTime = publishTime;
 
   const row = await db.transaction(async (tx) => {

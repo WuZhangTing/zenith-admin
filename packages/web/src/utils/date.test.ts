@@ -108,4 +108,13 @@ describe('stripHtml', () => {
   it('未超过 max length 时返回完整字符串', () => {
     expect(stripHtml('<p>hello</p>', 100)).toBe('hello');
   });
+
+  it('解析恶意 HTML 时不执行脚本、不触发事件处理器（惰性 DOMParser 文档）', () => {
+    const marker = '__zenith_strip_html_xss__';
+    (globalThis as Record<string, unknown>)[marker] = false;
+    const text = stripHtml(`<img src=x onerror="globalThis['${marker}']=true"><script>globalThis['${marker}']=true</script>safe`);
+    expect(text).toBe('safe');
+    expect((globalThis as Record<string, unknown>)[marker]).toBe(false);
+    delete (globalThis as Record<string, unknown>)[marker];
+  });
 });
