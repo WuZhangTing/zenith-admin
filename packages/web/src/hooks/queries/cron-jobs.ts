@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { resourceKeyOf, type QueryOf } from '@zenith/shared/core';
+import type { QueryOf } from '@zenith/shared/core';
 import { cronJobContract, type CreateCronJobInput, type CronJob } from '@zenith/shared/platform';
 import { api, contractKey, createResourceQueries, useApiMutation, useApiQuery } from '@/lib/contract-query';
 import { LOOKUP_STALE_TIME } from '@/lib/query';
@@ -10,12 +10,11 @@ export type CronJobLogsParams = { jobId: number } & NonNullable<QueryOf<typeof c
 
 export type CronJobAllLogsParams = NonNullable<QueryOf<typeof cronJobContract.logs>>;
 
-const resource = resourceKeyOf(cronJobContract.basePath);
 const statsKey = contractKey(cronJobContract.stats);
 /** 全量执行日志（各筛选条件）的公共前缀 */
-const logsKey = [resource, cronJobContract.logs.name] as const;
+const logsKey = contractKey(cronJobContract.logs);
 /** 单任务执行日志的公共前缀 */
-const jobLogsKey = [resource, cronJobContract.jobLogs.name] as const;
+const jobLogsKey = contractKey(cronJobContract.jobLogs);
 
 /** 执行日志分两个端点（全量 / 单任务），凡影响日志的写操作两者同时失效 */
 function invalidateCronJobLogs(qc: QueryClient) {
