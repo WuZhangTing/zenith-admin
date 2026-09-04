@@ -12,7 +12,7 @@ import {
   signCmsAdRenderProof,
 } from '../../../services/cms/cms-ad-render-proof';
 import { renderCmsWidgetHtml } from '../widgets';
-import { Breadcrumbs, MediaBlock, ModelFieldTable, Pagination } from '../_shared';
+import { ArticleNav, Breadcrumbs, MediaBlock, ModelFieldTable, Pagination, RelatedArticles } from '../_shared';
 import { defineHomeTemplate } from '../sdk';
 import type { CmsThemeContentCollection } from '../types';
 import { formatBytes } from '@zenith/shared/core';
@@ -34,8 +34,8 @@ function titleStyleOf(style: CmsTitleStyle | undefined): CSSProperties | undefin
   return Object.keys(css).length > 0 ? css : undefined;
 }
 
-/** 附件下载区（无附件时不渲染） */
-function AttachmentList({ items }: { items: CmsContentAttachment[] }) {
+/** 附件下载区（含标题与体积；无附件时不渲染） */
+function AttachmentSection({ items }: { items: CmsContentAttachment[] }) {
   if (!items || items.length === 0) return null;
   return (
     <section className="attachments">
@@ -582,7 +582,7 @@ export function DetailTemplate(ctx: CmsDetailContext) {
         ) : null}
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
         <BodyPagination p={content.bodyPagination} />
-        <AttachmentList items={content.attachments} />
+        <AttachmentSection items={content.attachments} />
         {content.tags.length > 0 ? (
           <div className="tags">
             {content.tags.map((t) => <a key={t.slug} href={t.url}><span>{t.name}</span></a>)}
@@ -590,20 +590,8 @@ export function DetailTemplate(ctx: CmsDetailContext) {
         ) : null}
         <InteractionBar content={content} />
       </article>
-      {(content.prev || content.next) ? (
-        <nav className="article-nav">
-          {content.prev ? <span>上一篇：<a href={content.prev.url}>{content.prev.title}</a></span> : null}
-          {content.next ? <span>下一篇：<a href={content.next.url}>{content.next.title}</a></span> : null}
-        </nav>
-      ) : null}
-      {ctx.related.length > 0 ? (
-        <section className="related-articles">
-          <h2>相关阅读</h2>
-          <ul>
-            {ctx.related.map((r) => <li key={r.url}><a href={r.url}>{r.title}</a></li>)}
-          </ul>
-        </section>
-      ) : null}
+      <ArticleNav prev={content.prev} next={content.next} />
+      <RelatedArticles items={ctx.related} heading="h2" />
       <CommentsBlock comments={ctx.comments} form={ctx.commentForm} />
       <script dangerouslySetInnerHTML={{ __html: INTERACTION_SCRIPT }} />
     </Layout>
@@ -803,14 +791,9 @@ export function DetailPlainTemplate(ctx: CmsDetailContext) {
         ) : null}
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
         <BodyPagination p={content.bodyPagination} />
-        <AttachmentList items={content.attachments} />
+        <AttachmentSection items={content.attachments} />
       </article>
-      {(content.prev || content.next) ? (
-        <nav className="article-nav">
-          {content.prev ? <span>上一篇：<a href={content.prev.url}>{content.prev.title}</a></span> : null}
-          {content.next ? <span>下一篇：<a href={content.next.url}>{content.next.title}</a></span> : null}
-        </nav>
-      ) : null}
+      <ArticleNav prev={content.prev} next={content.next} />
     </Layout>
   );
 }

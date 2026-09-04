@@ -159,6 +159,7 @@ settingsSchema: [
 |------|------|
 | `SeoHead` | 完整 SEO head：TDK、canonical、Open Graph、Twitter Card、JSON-LD、hreflang；样式经 `ctx.assets` 输出（正式外链指纹 CSS / 预览内联），暗色模式自动注入切换脚本 |
 | `Breadcrumbs` / `Pagination` | 面包屑 / 分页导航（语义结构，样式由主题 CSS 决定） |
+| `ArticleNav` / `RelatedArticles` / `AttachmentList` | 详情页上下篇导航（`.article-nav`）、相关阅读（`.related-articles`，可传 `title` / `heading`）、附件下载链接（`.attachments`）；空数据时不渲染 |
 | `ModelFieldTable` | 模型字段双栏键值表，按 `detailGroup` 分组（公文信息表头样式钩子 `.model-fields*`，公共样式在 `_shared/base.css`） |
 | `MediaBlock` | 内容形态区块：图集九宫格 / 音视频播放器（article/link 返回 null，公共样式在 `_shared/base.css`）。**详情模板须在正文前调用**，否则 album/media 形态丢失主图 |
 | `THEME_TOGGLE_SCRIPT` / `buildAnalyticsBeacon` | 暗色切换脚本 / 访问统计 beacon |

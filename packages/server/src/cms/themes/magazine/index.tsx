@@ -12,7 +12,7 @@ import type {
   CmsPageContext, CmsSearchContext, CmsTagPageContext, CmsNotFoundContext,
   CmsTheme, CmsThemeContentCollection, CmsModelFieldValue,
 } from '../types';
-import { SeoHead, Breadcrumbs, Pagination, MediaBlock, buildAnalyticsBeacon } from '../_shared';
+import { SeoHead, Breadcrumbs, Pagination, MediaBlock, ArticleNav, RelatedArticles, AttachmentList, buildAnalyticsBeacon } from '../_shared';
 import { defineHomeTemplate } from '../sdk';
 import { renderCmsWidgetHtml } from '../widgets';
 import { CMS_WIDGET_RENDERER_KEYS } from '@zenith/shared/cms';
@@ -253,38 +253,15 @@ function DetailTemplate(ctx: CmsDetailContext) {
         ) : null}
         <MediaBlock content={content} />
         <div className="body" dangerouslySetInnerHTML={{ __html: content.body }} />
-        {content.attachments.length > 0 ? (
-          <ul className="attachments">
-            {content.attachments.map((a) => (
-              <li key={`${a.url}-${a.sort}`}>
-                <a href={a.url} download target="_blank" rel="noopener">
-                  {a.ext ? <span className="ext">{a.ext.toUpperCase()}</span> : null}
-                  {a.name}
-                </a>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <AttachmentList items={content.attachments} />
         {content.tags.length > 0 ? (
           <div className="tags-row">
             {content.tags.map((t) => <a key={t.slug} className="chip" href={t.url}>{t.name}</a>)}
           </div>
         ) : null}
       </article>
-      {(content.prev || content.next) ? (
-        <nav className="article-nav">
-          {content.prev ? <span>上一篇：<a href={content.prev.url}>{content.prev.title}</a></span> : null}
-          {content.next ? <span>下一篇：<a href={content.next.url}>{content.next.title}</a></span> : null}
-        </nav>
-      ) : null}
-      {ctx.related.length > 0 ? (
-        <section className="related-articles">
-          <h3>相关阅读</h3>
-          <ul>
-            {ctx.related.map((r) => <li key={r.url}><a href={r.url}>{r.title}</a></li>)}
-          </ul>
-        </section>
-      ) : null}
+      <ArticleNav prev={content.prev} next={content.next} />
+      <RelatedArticles items={ctx.related} />
     </MagLayout>
   );
 }

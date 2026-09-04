@@ -1,12 +1,14 @@
 /**
- * 主题公共件：全部主题共用的 SEO head、暗色主题脚本、埋点 beacon、分页与面包屑。
+ * 主题公共件：全部主题共用的 SEO head、暗色主题脚本、埋点 beacon、分页、面包屑、
+ * 上下篇导航、相关阅读与附件列表。
  *
- * 这些片段与主题视觉无关（分页 / 面包屑只输出语义结构，样式由各主题 styles.css 决定）。
+ * 这些片段与主题视觉无关（只输出语义结构，样式由各主题 styles.css 决定）。
  * 主题样式表装配（base.css + 主题 css + 站点覆盖）见 theme-css.ts，
  * SeoHead 统一消费渲染管线注入的 ctx.assets（正式外链 / 预览内联）。
  */
 import type { ReactNode } from 'react';
-import type { CmsBaseContext, CmsBreadcrumb, CmsModelFieldValue, CmsPagination } from './types';
+import type { CmsContentAttachment } from '@zenith/shared/cms';
+import type { CmsBaseContext, CmsBreadcrumb, CmsContentDetail, CmsModelFieldValue, CmsPagination } from './types';
 import { serializeJsonForScript } from '../../lib/json-script';
 
 /** 暗色初始化脚本（head 内先行执行防闪烁）+ 切换按钮事件委托 */
@@ -121,6 +123,51 @@ export function Breadcrumbs({ items }: { items: CmsBreadcrumb[] }) {
         </span>
       ))}
     </div>
+  );
+}
+
+/** 上一篇 / 下一篇导航：两者皆空时不渲染。样式钩子 .article-nav */
+export function ArticleNav({ prev, next }: Pick<CmsContentDetail, 'prev' | 'next'>) {
+  if (!prev && !next) return null;
+  return (
+    <nav className="article-nav">
+      {prev ? <span>上一篇：<a href={prev.url}>{prev.title}</a></span> : null}
+      {next ? <span>下一篇：<a href={next.url}>{next.title}</a></span> : null}
+    </nav>
+  );
+}
+
+/** 相关阅读列表：空列表不渲染。样式钩子 .related-articles */
+export function RelatedArticles({ items, title = '相关阅读', heading: Heading = 'h3' }: {
+  items: { title: string; url: string }[];
+  title?: string;
+  heading?: 'h2' | 'h3';
+}) {
+  if (items.length === 0) return null;
+  return (
+    <section className="related-articles">
+      <Heading>{title}</Heading>
+      <ul>
+        {items.map((r) => <li key={r.url}><a href={r.url}>{r.title}</a></li>)}
+      </ul>
+    </section>
+  );
+}
+
+/** 附件下载链接列表：无附件不渲染。样式钩子 .attachments / .ext */
+export function AttachmentList({ items }: { items: CmsContentAttachment[] }) {
+  if (items.length === 0) return null;
+  return (
+    <ul className="attachments">
+      {items.map((a) => (
+        <li key={`${a.url}-${a.sort}`}>
+          <a href={a.url} download target="_blank" rel="noopener">
+            {a.ext ? <span className="ext">{a.ext.toUpperCase()}</span> : null}
+            {a.name}
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 
