@@ -14,9 +14,12 @@ import {
   resourceKeyOf,
   type AnyOperation,
   type BodyOf,
+  type EmptyInput,
   type InputOf,
   type OutputOf,
+  type ParamsSchema,
   type QueryOf,
+  type ShapeInput,
 } from '@zenith/shared/core';
 import { request, type RequestOptions } from '@/utils/request';
 import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
@@ -52,10 +55,22 @@ type InputArgs<Op extends AnyOperation> = Record<never, never> extends InputOf<O
   ? [input?: InputOf<Op>]
   : [input: InputOf<Op>];
 
+/** 只影响 URL 的输入段（params / query）；构造 URL 不需要 body */
+export type UrlInputOf<Op extends AnyOperation> =
+  (Op['params'] extends ParamsSchema ? { params: ShapeInput<Op['params']> } : EmptyInput) &
+  (Op['query'] extends ParamsSchema ? { query: ShapeInput<Op['query']> } : EmptyInput);
+
+type UrlInputArgs<Op extends AnyOperation> = Record<never, never> extends UrlInputOf<Op>
+  ? [input?: UrlInputOf<Op>]
+  : [input: UrlInputOf<Op>];
+
 type LooseInput = { params?: Record<string, unknown>; query?: object; body?: unknown } | undefined;
 
-/** 契约操作 + 输入 → 完整 URL（含查询串） */
-export function urlOf<Op extends AnyOperation>(op: Op, ...args: InputArgs<Op>): string {
+/**
+ * 契约操作 + 输入 → 完整 URL（含查询串）。只需要 params / query 段，
+ * 供 `request.postForm(urlOf(op), formData)`、`<Upload action>`、下载链接等只消费 URL 的场景使用。
+ */
+export function urlOf<Op extends AnyOperation>(op: Op, ...args: UrlInputArgs<Op>): string {
   const input = args[0] as LooseInput;
   return fillPath(op.fullPath, input?.params) + (input?.query ? toQueryString(input.query) : '');
 }
@@ -70,7 +85,7 @@ export async function api<Op extends AnyOperation>(
     throw new Error(`契约操作「${op.name}」为 ${op.kind} 响应，请使用 request.download(urlOf(op, input)) 等二进制通道`);
   }
   const { client = request, ...requestOptions } = rawOptions ?? {};
-  const url = urlOf(op, ...([rawInput] as InputArgs<Op>));
+  const url = urlOf(op, ...([rawInput] as unknown as UrlInputArgs<Op>));
   const body = (rawInput as LooseInput)?.body;
   const response = op.method === 'get'
     ? await client.get<OutputOf<Op>>(url, requestOptions)
@@ -90,9 +105,11 @@ function splitArgs<Op extends AnyOperation>(args: unknown[]): [InputOf<Op> | und
 
 // ─── query key ───────────────────────────────────────────────────────────────
 
-/** 契约操作的 query key：`[资源键, 操作名, input?]` */
-export function contractKey<Op extends AnyOperation>(op: Op, ...args: InputArgs<Op>): readonly unknown[] {
-  const input = args[0];
+/**
+ * 契约操作的 query key：`[资源键, 操作名, input?]`。
+ * 省略 input 得到该操作全部查询的公共前缀（供 `invalidateQueries` / `useListSearch({ listKey })` 使用）。
+ */
+export function contractKey<Op extends AnyOperation>(op: Op, input?: InputOf<Op>): readonly unknown[] {
   return input === undefined ? [resourceKeyOf(op.basePath), op.name] : [resourceKeyOf(op.basePath), op.name, input];
 }
 
@@ -109,7 +126,7 @@ export function apiQueryOptions<Op extends AnyOperation>(
   const [input, options] = splitQueryArgs<Op>(args);
   const { requestOptions, ...queryExtras } = options ?? {};
   return queryOptions<OutputOf<Op>, Error, OutputOf<Op>, readonly unknown[]>({
-    queryKey: contractKey(op, ...([input] as InputArgs<Op>)),
+    queryKey: contractKey(op, input),
     queryFn: () => api(op, ...([input, requestOptions] as unknown as [...InputArgs<Op>, ApiCallOptions?])),
     ...queryExtras,
   });
@@ -192,6 +209,10 @@ export interface ResourceContract {
 
 type EntityOf<C extends ResourceContract> = OutputOf<C['detail']>;
 type ListParamsOf<C extends ResourceContract> = NonNullable<QueryOf<C['list']>>;
+/** 资源主键类型：取自 detail 操作路径参数 `id`（数值主键为 number，UUID 主键为 string） */
+type IdOf<C extends ResourceContract> = C['detail']['params'] extends ParamsSchema
+  ? ShapeInput<C['detail']['params']> extends { id: infer TId } ? TId : number
+  : number;
 /**
  * 保存载荷：create 入参的部分形态。同一表单同时服务新增与编辑，必填字段由表单 rules 保证、
  * 服务端 schema 兜底校验；未声明 create 时取 update 入参。
@@ -201,12 +222,12 @@ type SaveValuesOf<C extends ResourceContract> = C['create'] extends AnyOperation
   : C['update'] extends AnyOperation ? Partial<NonNullable<BodyOf<C['update']>>> : never;
 type LookupOf<C extends ResourceContract> = C['all'] extends AnyOperation ? OutputOf<C['all']> : never;
 
-export interface ResourceQueryKeys<TListParams> {
+export interface ResourceQueryKeys<TListParams, TId = number> {
   readonly all: readonly string[];
   /** 全部列表查询的公共前缀，用于「任意条件下的列表都失效」 */
   readonly lists: readonly string[];
   readonly list: (params: TListParams) => readonly unknown[];
-  readonly detail: (id: number | undefined) => readonly unknown[];
+  readonly detail: (id: TId | undefined) => readonly unknown[];
   /** 下拉源（全量精简列表） */
   readonly lookup: readonly string[];
 }
@@ -220,19 +241,19 @@ export interface CreateResourceQueriesOptions<C extends ResourceContract> {
   /** 保存成功后的额外失效（跨域联动） */
   readonly onSaved?: (qc: QueryClient, saved: EntityOf<C>) => void;
   /** 删除成功后的额外失效 */
-  readonly onDeleted?: (qc: QueryClient, ids: number[]) => void;
+  readonly onDeleted?: (qc: QueryClient, ids: IdOf<C>[]) => void;
   readonly listStaleTime?: number;
   readonly requestOptions?: ApiCallOptions;
 }
 
 export interface ResourceQueries<C extends ResourceContract> {
-  readonly keys: ResourceQueryKeys<ListParamsOf<C>>;
+  readonly keys: ResourceQueryKeys<ListParamsOf<C>, IdOf<C>>;
   readonly useList: (params: ListParamsOf<C>, enabled?: boolean) => ReturnType<typeof useQuery<PageOf<EntityOf<C>>>>;
-  readonly useDetail: (id: number | undefined, enabled?: boolean) => ReturnType<typeof useQuery<EntityOf<C>>>;
+  readonly useDetail: (id: IdOf<C> | undefined, enabled?: boolean) => ReturnType<typeof useQuery<EntityOf<C>>>;
   /** 无 id 走 create，有 id 走 update；成功后失效列表、详情与下拉源 */
-  readonly useSave: () => ReturnType<typeof useMutation<EntityOf<C>, Error, { id?: number; values: SaveValuesOf<C> }>>;
+  readonly useSave: () => ReturnType<typeof useMutation<EntityOf<C>, Error, { id?: IdOf<C>; values: SaveValuesOf<C> }>>;
   /** 单条走 remove，多条走 removeBatch（未声明时并发逐条删除）；成功后移除详情缓存并失效列表 */
-  readonly useDelete: () => ReturnType<typeof useMutation<null, Error, number[]>>;
+  readonly useDelete: () => ReturnType<typeof useMutation<null, Error, IdOf<C>[]>>;
   readonly useLookup: (enabled?: boolean) => ReturnType<typeof useQuery<LookupOf<C>>>;
 }
 
@@ -242,7 +263,7 @@ export function createResourceQueries<const C extends ResourceContract>(
 ): ResourceQueries<C> {
   const { keyPrefix = [resourceKeyOf(contract.basePath)], onSaved, onDeleted, listStaleTime, requestOptions } = options;
   const prefix = [...keyPrefix];
-  const keys: ResourceQueryKeys<ListParamsOf<C>> = {
+  const keys: ResourceQueryKeys<ListParamsOf<C>, IdOf<C>> = {
     all: prefix,
     lists: [...prefix, 'list'],
     list: (params) => [...prefix, 'list', params] as const,
@@ -268,7 +289,7 @@ export function createResourceQueries<const C extends ResourceContract>(
     });
   }
 
-  function useDetail(id: number | undefined, enabled = true) {
+  function useDetail(id: IdOf<C> | undefined, enabled = true) {
     return useQuery({
       queryKey: keys.detail(id),
       queryFn: () => call(contract.detail, { params: { id } } as unknown as InputOf<C['detail']>) as Promise<EntityOf<C>>,
@@ -278,7 +299,7 @@ export function createResourceQueries<const C extends ResourceContract>(
 
   function useSave() {
     const qc = useQueryClient();
-    return useMutation<EntityOf<C>, Error, { id?: number; values: SaveValuesOf<C> }>({
+    return useMutation<EntityOf<C>, Error, { id?: IdOf<C>; values: SaveValuesOf<C> }>({
       mutationFn: ({ id, values }) => {
         if (id === undefined) {
           if (!contract.create) throw new Error(`契约 ${contract.basePath} 未声明 create 操作`);
@@ -288,7 +309,7 @@ export function createResourceQueries<const C extends ResourceContract>(
         return call(contract.update, { params: { id }, body: values } as InputOf<WriteOp>) as Promise<EntityOf<C>>;
       },
       onSuccess: (saved) => {
-        void qc.invalidateQueries({ queryKey: keys.detail((saved as { id: number }).id) });
+        void qc.invalidateQueries({ queryKey: keys.detail((saved as { id: IdOf<C> }).id) });
         invalidateCommon(qc);
         onSaved?.(qc, saved);
       },
@@ -297,7 +318,7 @@ export function createResourceQueries<const C extends ResourceContract>(
 
   function useDelete() {
     const qc = useQueryClient();
-    return useMutation<null, Error, number[]>({
+    return useMutation<null, Error, IdOf<C>[]>({
       mutationFn: async (ids) => {
         if (ids.length > 1 && contract.removeBatch) {
           await call(contract.removeBatch, { body: { ids } } as InputOf<RemoveOp>);

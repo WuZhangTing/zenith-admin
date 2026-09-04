@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import * as z from 'zod';
-import { defineContract, idParam, op, paginated, paginationQuery, batchIdsBody } from '@zenith/shared/core';
+import { defineContract, fileField, idParam, multipart, op, paginated, paginationQuery, batchIdsBody } from '@zenith/shared/core';
 import {
   ApiRecorder,
   type RecordedCall,
@@ -28,6 +28,17 @@ const itemContract = defineContract('/api/items', {
   removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除' }),
   archive: op.post('/{id}/archive', { params: idParam, body: z.object({ reason: z.string() }), summary: '归档' }),
   exportFile: op.get('/export', { kind: 'excel', summary: '导出' }),
+  upload: op.post('/upload', { body: multipart(z.object({ file: fileField() })), response: itemSchema, summary: '上传' }),
+});
+
+/** UUID 主键资源：id 类型由契约 detail 的路径参数推导 */
+const docSchema = z.object({ id: z.string(), title: z.string() });
+const docContract = defineContract('/api/docs', {
+  list: op.get('/', { query: paginationQuery, response: paginated(docSchema), summary: '列表' }),
+  detail: op.get('/{id}', { params: z.object({ id: z.string() }), response: docSchema, summary: '详情' }),
+  create: op.post('/', { body: z.object({ title: z.string() }), response: docSchema, summary: '创建' }),
+  update: op.put('/{id}', { params: z.object({ id: z.string() }), body: z.object({ title: z.string().optional() }), response: docSchema, summary: '更新' }),
+  remove: op.delete('/{id}', { params: z.object({ id: z.string() }), summary: '删除' }),
 });
 
 beforeEach(() => {
@@ -40,7 +51,9 @@ beforeEach(() => {
     .on('PUT', /\/api\/items\/\d+$/, (call: RecordedCall) => ({ id: Number(call.url.split('/').pop()), ...(call.body as object) }))
     .on('DELETE', /\/api\/items\/\d+$/, null)
     .on('DELETE', '/api/items/batch', null)
-    .on('POST', /\/api\/items\/\d+\/archive$/, null);
+    .on('POST', /\/api\/items\/\d+\/archive$/, null)
+    .on('GET', /\/api\/docs\/[\w-]+$/, (call: RecordedCall) => ({ id: call.url.split('/').pop(), title: 'doc' }))
+    .on('DELETE', /\/api\/docs\/[\w-]+$/, null);
 });
 
 describe('urlOf / contractKey', () => {
@@ -48,8 +61,13 @@ describe('urlOf / contractKey', () => {
     expect(urlOf(itemContract.detail, { params: { id: 7 } })).toBe('/api/items/7');
     expect(urlOf(itemContract.list, { query: { page: 2, pageSize: 20, keyword: '' } })).toBe('/api/items?page=2&pageSize=20');
     expect(urlOf(itemContract.all)).toBe('/api/items/all');
+    // 带 body 的操作只需要 params / query 段即可构造 URL（上传组件、postForm 只消费 URL）
+    expect(urlOf(itemContract.upload)).toBe('/api/items/upload');
+    expect(urlOf(itemContract.archive, { params: { id: 3 } })).toBe('/api/items/3/archive');
     expect(contractKey(itemContract.detail, { params: { id: 7 } })).toEqual(['items', 'detail', { params: { id: 7 } }]);
     expect(contractKey(itemContract.all)).toEqual(['items', 'all']);
+    // 省略 input 得到该操作的公共前缀
+    expect(contractKey(itemContract.list)).toEqual(['items', 'list']);
   });
 });
 
@@ -152,6 +170,21 @@ describe('createResourceQueries', () => {
     await result.current.remove.mutateAsync([3, 4]);
     expect(recorder.calls[0]).toEqual({ method: 'DELETE', url: '/api/items/batch', body: { ids: [3, 4] } });
     expect(isFresh(qc, items.keys.detail(3))).toBe(false);
+  });
+});
+
+describe('createResourceQueries · 字符串主键', () => {
+  const docs = createResourceQueries(docContract);
+
+  it('derives the id type from the detail contract and passes it through', async () => {
+    expect(docs.keys.detail('a1')).toEqual(['docs', 'detail', 'a1']);
+    const qc = createTestQueryClient();
+    const { result } = renderHook(() => ({ detail: docs.useDetail('a1'), remove: docs.useDelete() }), { wrapper: createWrapper(qc) });
+    await waitFor(() => expect(result.current.detail.isSuccess).toBe(true));
+    expect(result.current.detail.data).toEqual({ id: 'a1', title: 'doc' });
+    recorder.resetCalls();
+    await result.current.remove.mutateAsync(['a1']);
+    expect(recorder.calls[0]).toEqual({ method: 'DELETE', url: '/api/docs/a1' });
   });
 });
 
