@@ -370,12 +370,12 @@ export default function RateLimitPage() {
       title: '命中 / 拦截',
       dataIndex: 'name',
       key: 'stats',
-      width: 130,
+      width: 170,
       render: (name: string) => {
         const stat = statsByName.get(name);
         if (!stat) return EMPTY_PLACEHOLDER;
         return (
-          <span>
+          <span style={{ whiteSpace: 'nowrap' }}>
             {stat.hitCount.toLocaleString()}
             {' / '}
             <Text type={stat.blockedCount > 0 ? 'danger' : 'tertiary'}>{stat.blockedCount.toLocaleString()}</Text>
