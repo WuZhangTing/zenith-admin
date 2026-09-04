@@ -28,6 +28,7 @@ const file: ManagedFile = {
   objectKey: 'reports/quarterly-report.pdf',
   size: 1024,
   mimeType: 'application/pdf',
+  visibility: 'public',
   url: '/api/files/file-1/content',
   createdAt: '2026-08-07T12:00:00.000Z',
   updatedAt: '2026-08-07T12:00:00.000Z',

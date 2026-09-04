@@ -3,6 +3,8 @@
  * 大文件切片并发上传，失败分片自动重试；uploadId 持久化到 localStorage，
  * 支持刷新/重新选择同一文件后续传未完成的分片。
  */
+import { fileContract, type UploadChunkResult, type UploadSessionInit, type UploadSessionStatus } from '@zenith/shared/platform';
+import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 
 /** 默认分片大小：5MB。超过该大小的文件走分片上传。 */
@@ -11,11 +13,27 @@ const CHUNK_CONCURRENCY = 3;
 const MAX_RETRY = 3;
 const RESUME_KEY_PREFIX = 'zenith_chunk_upload:';
 
+/** 分片上传四个子路径的地址（init / chunk / complete / {uploadId}/status） */
+export interface ChunkedUploadEndpoints {
+  init: string;
+  chunk: string;
+  complete: string;
+  status: (uploadId: string) => string;
+}
+
+/** 通用文件服务的分片接口，由契约派生 */
+const FILE_UPLOAD_ENDPOINTS: ChunkedUploadEndpoints = {
+  init: urlOf(fileContract.uploadInit),
+  chunk: urlOf(fileContract.uploadChunk),
+  complete: urlOf(fileContract.uploadComplete),
+  status: (uploadId) => urlOf(fileContract.uploadStatus, { params: { uploadId } }),
+};
+
 export interface ChunkedUploadOptions {
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
   /**
-   * 分片接口前缀，默认通用文件服务 `/api/files/upload`。
+   * 分片接口前缀，默认通用文件服务（`fileContract.uploadInit` 等四个操作）。
    * 归属模块（如企业网盘 `/api/drive/nodes/upload`）传入自己的前缀，
    * 四个子路径（init / chunk / complete / {id}/status）保持一致。
    */
@@ -30,9 +48,20 @@ function resumeKey(file: File, scope?: string) {
   return `${RESUME_KEY_PREFIX}${scope ? `${scope}:` : ''}${file.name}:${file.size}:${file.lastModified}`;
 }
 
+function endpointsOf(base?: string): ChunkedUploadEndpoints {
+  if (!base) return FILE_UPLOAD_ENDPOINTS;
+  return {
+    init: `${base}/init`,
+    chunk: `${base}/chunk`,
+    complete: `${base}/complete`,
+    status: (uploadId) => `${base}/${uploadId}/status`,
+  };
+}
+
 /** 对单个文件执行分片上传，返回最终的 ManagedFile（data）。 */
 export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUploadOptions): Promise<TFile> {
-  const { signal, endpointBase = '/api/files/upload', initExtra, resumeScope } = opts;
+  const { signal, endpointBase, initExtra, resumeScope } = opts;
+  const endpoints = endpointsOf(endpointBase);
   const key = resumeKey(file, resumeScope);
 
   let uploadId = '';
@@ -44,7 +73,7 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
   const storedId = localStorage.getItem(key);
   if (storedId) {
     try {
-      const body = await request.get<{ status: string; chunkSize: number; totalChunks: number; received: number[] }>(`${endpointBase}/${storedId}/status`, { silent: true, signal });
+      const body = await request.get<UploadSessionStatus>(endpoints.status(storedId), { silent: true, signal });
       if (body.code === 0 && body.data.status === 'uploading') {
         uploadId = storedId;
         chunkSize = body.data.chunkSize;
@@ -58,8 +87,8 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
 
   // 2) 初始化
   if (!uploadId) {
-    const body = await request.post<{ uploadId: string; chunkSize: number; totalChunks: number; received: number[] }>(
-      `${endpointBase}/init`,
+    const body = await request.post<UploadSessionInit>(
+      endpoints.init,
       { ...initExtra, fileName: file.name, fileSize: file.size, mimeType: file.type || undefined, chunkSize: CHUNK_SIZE },
       { silent: true, signal },
     );
@@ -88,7 +117,7 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
         fd.append('uploadId', uploadId);
         fd.append('index', String(index));
         fd.append('chunk', blob);
-        const body = await request.post<unknown>(`${endpointBase}/chunk`, fd, { silent: true, signal });
+        const body = await request.post<UploadChunkResult>(endpoints.chunk, fd, { silent: true, signal });
         if (body.code !== 0) throw new Error(body.message || '分片上传失败');
         return;
       } catch (err) {
@@ -112,7 +141,7 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   // 4) 合并完成
-  const body = await request.post<TFile>(`${endpointBase}/complete`, { uploadId }, { silent: true, signal });
+  const body = await request.post<TFile>(endpoints.complete, { uploadId }, { silent: true, signal });
   if (body.code !== 0) throw new Error(body.message || '合并失败');
   localStorage.removeItem(key);
   opts.onProgress?.(100);

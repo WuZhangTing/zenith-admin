@@ -1,26 +1,17 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateFileStorageConfigInput, FileStorageConfig, StorageBrowseResult } from '@zenith/shared/platform';
-import { request } from '@/utils/request';
-import { LOOKUP_STALE_TIME, toQueryString, unwrap } from '@/lib/query';
-import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
-
-export interface FileStorageConfigListParams extends CrudListParams {
-  status?: string;
-  startTime?: string;
-  endTime?: string;
-}
+import { keepPreviousData, useMutation } from '@tanstack/react-query';
+import type { BodyOf } from '@zenith/shared/core';
+import { fileContract, fileStorageConfigContract } from '@zenith/shared/platform';
+import { api, contractKey, createResourceQueries, useApiMutation, useApiQuery } from '@/lib/contract-query';
+import { LOOKUP_STALE_TIME } from '@/lib/query';
 
 /** 改配置可能同时改变默认项标记；文件浏览结果与配置增删改无关，不动 */
-const DEFAULT_CONFIG_KEY = ['file-storage-configs', 'default'] as const;
+const DEFAULT_CONFIG_KEY = contractKey(fileStorageConfigContract.defaultConfig);
 
-const crud = createCrudQueries<FileStorageConfig, FileStorageConfigListParams, CreateFileStorageConfigInput | Record<string, unknown>>({
-  resource: 'file-storage-configs',
-  // 服务端未提供 DELETE /batch
-  deleteMode: 'single',
+const crud = createResourceQueries(fileStorageConfigContract, {
   onSaved: (qc) => void qc.invalidateQueries({ queryKey: DEFAULT_CONFIG_KEY }),
   onDeleted: (qc, ids) => {
     // 该配置下的浏览结果已无对应存储源
-    for (const id of ids) qc.removeQueries({ queryKey: ['file-storage-configs', 'browse', id] });
+    for (const id of ids) qc.removeQueries({ queryKey: contractKey(fileContract.browse, { query: { storageConfigId: id } }) });
     void qc.invalidateQueries({ queryKey: DEFAULT_CONFIG_KEY });
   },
 });
@@ -28,8 +19,9 @@ const crud = createCrudQueries<FileStorageConfig, FileStorageConfigListParams, C
 export const fileStorageConfigKeys = {
   ...crud.keys,
   defaultConfig: DEFAULT_CONFIG_KEY,
-  browseRoot: ['file-storage-configs', 'browse'] as const,
-  browse: (configId: number | undefined, path: string) => ['file-storage-configs', 'browse', configId, path] as const,
+  browseRoot: contractKey(fileContract.browse),
+  browse: (configId: number | undefined, path: string) =>
+    contractKey(fileContract.browse, { query: { storageConfigId: configId ?? 0, path } }),
 };
 
 export const useFileStorageConfigList = crud.useList;
@@ -38,43 +30,37 @@ export const useSaveFileStorageConfig = crud.useSave;
 export const useDeleteFileStorageConfigs = crud.useDelete;
 
 export function useDefaultFileStorageConfig() {
-  return useQuery({
-    queryKey: fileStorageConfigKeys.defaultConfig,
-    queryFn: () => request.get<FileStorageConfig | null>('/api/file-storage-configs/default').then(unwrap),
-    staleTime: LOOKUP_STALE_TIME,
-  });
+  return useApiQuery(fileStorageConfigContract.defaultConfig, undefined, { staleTime: LOOKUP_STALE_TIME });
 }
 
+/** 按存储配置浏览目录；key 与 `fileStorageConfigKeys.browse(configId, path)` 一致 */
 export function useStorageBrowse(configId: number | undefined, path: string, enabled = true) {
-  return useQuery({
-    queryKey: fileStorageConfigKeys.browse(configId, path),
-    queryFn: () =>
-      request
-        .get<StorageBrowseResult>(`/api/files/browse${toQueryString({ storageConfigId: configId, path })}`)
-        .then(unwrap),
-    enabled: enabled && configId !== undefined,
-    placeholderData: keepPreviousData,
-  });
+  return useApiQuery(
+    fileContract.browse,
+    { query: { storageConfigId: configId ?? 0, path } },
+    { enabled: enabled && configId !== undefined, placeholderData: keepPreviousData },
+  );
 }
 
+/** 默认项切换会同时改变旧默认项，故刷新整个列表 */
 export function useSetDefaultFileStorageConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.put<FileStorageConfig>(`/api/file-storage-configs/${id}/default`).then(unwrap),
-    // 默认项切换会同时改变旧默认项，故刷新整个列表
-    onSuccess: () => {
+  return useApiMutation(fileStorageConfigContract.setDefault, {
+    invalidate: (qc) => {
       void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.lists });
       void qc.invalidateQueries({ queryKey: fileStorageConfigKeys.defaultConfig });
     },
   });
 }
 
+/** 无 id 测试表单中的新配置；有 id 在已保存配置上叠加表单值测试（密钥留空沿用原值） */
+export type TestFileStorageConfigVariables =
+  | { id?: undefined; values: BodyOf<typeof fileStorageConfigContract.test> }
+  | { id: number; values: BodyOf<typeof fileStorageConfigContract.testExisting> };
+
 export function useTestFileStorageConfig() {
-  return useMutation({
-    mutationFn: ({ id, values }: { id?: number; values: Record<string, unknown> }) =>
-      (id === undefined
-        ? request.post<null>('/api/file-storage-configs/test', values)
-        : request.post<null>(`/api/file-storage-configs/${id}/test`, values)
-      ).then(unwrap),
+  return useMutation<null, Error, TestFileStorageConfigVariables>({
+    mutationFn: (vars) => (vars.id === undefined
+      ? api(fileStorageConfigContract.test, { body: vars.values })
+      : api(fileStorageConfigContract.testExisting, { params: { id: vars.id }, body: vars.values })),
   });
 }

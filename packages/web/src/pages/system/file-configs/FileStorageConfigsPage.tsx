@@ -239,6 +239,7 @@ export default function FileStorageConfigsPage() {
       localRootPath: 'storage/local',
       remark: '',
     },
+    // 密钥字段为 write-only：接口不返回，表单一律以空值起始，留空提交即沿用原值
     toValues: (config) => ({
       ...config,
       basePath: config.basePath ?? '',
@@ -251,39 +252,39 @@ export default function FileStorageConfigsPage() {
       ossEndpoint: config.ossEndpoint ?? '',
       ossBucket: config.ossBucket ?? '',
       ossAccessKeyId: config.ossAccessKeyId ?? '',
-      ossAccessKeySecret: config.ossAccessKeySecret ?? '',
+      ossAccessKeySecret: '',
       s3Region: config.s3Region ?? '',
       s3Endpoint: config.s3Endpoint ?? '',
       s3Bucket: config.s3Bucket ?? '',
       s3AccessKeyId: config.s3AccessKeyId ?? '',
-      s3SecretAccessKey: config.s3SecretAccessKey ?? '',
+      s3SecretAccessKey: '',
       s3ForcePathStyle: config.s3ForcePathStyle ?? false,
       cosRegion: config.cosRegion ?? '',
       cosBucket: config.cosBucket ?? '',
       cosSecretId: config.cosSecretId ?? '',
-      cosSecretKey: config.cosSecretKey ?? '',
+      cosSecretKey: '',
       obsEndpoint: config.obsEndpoint ?? '',
       obsBucket: config.obsBucket ?? '',
       obsAccessKeyId: config.obsAccessKeyId ?? '',
-      obsSecretAccessKey: config.obsSecretAccessKey ?? '',
+      obsSecretAccessKey: '',
       kodoAccessKey: config.kodoAccessKey ?? '',
-      kodoSecretKey: config.kodoSecretKey ?? '',
+      kodoSecretKey: '',
       kodoBucket: config.kodoBucket ?? '',
       kodoRegion: config.kodoRegion ?? '',
       kodoEndpoint: config.kodoEndpoint ?? '',
       bosEndpoint: config.bosEndpoint ?? '',
       bosBucket: config.bosBucket ?? '',
       bosAccessKeyId: config.bosAccessKeyId ?? '',
-      bosSecretAccessKey: config.bosSecretAccessKey ?? '',
+      bosSecretAccessKey: '',
       azureAccountName: config.azureAccountName ?? '',
-      azureAccountKey: config.azureAccountKey ?? '',
+      azureAccountKey: '',
       azureContainerName: config.azureContainerName ?? '',
       azureEndpoint: config.azureEndpoint ?? '',
       sftpHost: config.sftpHost ?? '',
       sftpPort: config.sftpPort ?? 22,
       sftpUsername: config.sftpUsername ?? '',
-      sftpPassword: config.sftpPassword ?? '',
-      sftpPrivateKey: config.sftpPrivateKey ?? '',
+      sftpPassword: '',
+      sftpPrivateKey: '',
       sftpRootPath: config.sftpRootPath ?? '',
       sftpBaseUrl: config.sftpBaseUrl ?? '',
       remark: config.remark ?? '',
@@ -325,7 +326,7 @@ export default function FileStorageConfigsPage() {
     }
     if (!values) return;
     const payload = buildPayload(formProvider, formIsDefault, values);
-    await testMutation.mutateAsync({ id: modal.editing?.id, values: payload });
+    await testMutation.mutateAsync(modal.editing ? { id: modal.editing.id, values: payload } : { values: payload });
     Toast.success('存储连接测试通过');
   };
 
@@ -335,7 +336,7 @@ export default function FileStorageConfigsPage() {
   };
 
   const handleSetDefault = async (config: FileStorageConfig) => {
-    await setDefaultMutation.mutateAsync(config.id);
+    await setDefaultMutation.mutateAsync({ params: { id: config.id } });
     Toast.success('默认文件服务已更新');
   };
 

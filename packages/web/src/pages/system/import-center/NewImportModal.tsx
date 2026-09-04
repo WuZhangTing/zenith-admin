@@ -51,7 +51,7 @@ export default function NewImportModal({ visible, entities, entitiesLoading, onC
     const formData = new FormData();
     formData.append('file', file);
     const uploaded = await uploadMutation.mutateAsync({ formData });
-    const fileId = Array.isArray(uploaded) ? uploaded[0]?.id : (uploaded as { id?: string })?.id;
+    const fileId = uploaded[0]?.id;
     if (!fileId) return;
     const row = await submitMutation.mutateAsync({ body: { entity: entity.entity, fileId, dryRun: dryRunRef.current } });
     onSubmitted(row.id, entity.title);

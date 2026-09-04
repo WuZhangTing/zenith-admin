@@ -1,8 +1,8 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { managedFileSchema } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { ErrorResponse, commonErrorResponses, jsonContent, ok, okBody, validationHook } from '../../lib/openapi-schemas';
-import { ManagedFileDTO } from '../../lib/openapi-dtos';
 import { uploadManagedFileFromBody } from '../../services/files/files.service';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
@@ -28,7 +28,7 @@ const uploadRoute = defineOpenAPIRoute({
     },
     responses: {
       ...commonErrorResponses,
-      ...ok(ManagedFileDTO, '上传成功'),
+      ...ok(managedFileSchema, '上传成功'),
       400: { content: jsonContent(ErrorResponse), description: '未选择文件或无可用存储' },
     },
   }),

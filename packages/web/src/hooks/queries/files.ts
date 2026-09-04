@@ -1,48 +1,28 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { FileAccessUrl, FileStats, ManagedFile } from '@zenith/shared/platform';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { OutputOf, QueryOf } from '@zenith/shared/core';
+import { fileContract, type FileAccessPurpose, type FileAccessUrl } from '@zenith/shared/platform';
+import { api, contractKey, createResourceQueries, urlOf, useApiQuery } from '@/lib/contract-query';
+import { unwrap } from '@/lib/query';
 import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
 
-export interface FileListParams {
-  page: number;
-  pageSize: number;
-  keyword?: string;
-  provider?: string;
-  fileType?: string;
-  startTime?: string;
-  endTime?: string;
-}
+export type FileListParams = QueryOf<typeof fileContract.list>;
 
-export const fileKeys = {
-  all: ['files'] as const,
-  lists: ['files', 'list'] as const,
-  list: (params: FileListParams) => ['files', 'list', params] as const,
-  detail: (id: string | undefined) => ['files', 'detail', id] as const,
-  stats: ['files', 'stats'] as const,
-};
-
-export function useFileList(params: FileListParams) {
-  return useQuery({
-    queryKey: fileKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<ManagedFile>>(`/api/files${toQueryString(params)}`).then(unwrap),
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useFileDetail(id: string | undefined, enabled = true) {
-  return useQuery({
-    queryKey: fileKeys.detail(id),
-    queryFn: () => request.get<ManagedFile>(`/api/files/${id}`).then(unwrap),
-    enabled: enabled && id !== undefined,
-  });
-}
+/** 托管文件只有列表 / 详情 / 删除走标准资源形态；上传为 multipart，见下方专用 hooks */
+export const {
+  keys: fileKeys,
+  useList: useFileList,
+  useDetail: useFileDetail,
+  useDelete: useDeleteFiles,
+} = createResourceQueries(fileContract, {
+  // 统计面板与目录浏览都按文件表汇总，删除后一并失效
+  onDeleted: (qc) => {
+    void qc.invalidateQueries({ queryKey: contractKey(fileContract.stats) });
+    void qc.invalidateQueries({ queryKey: contractKey(fileContract.browse) });
+  },
+});
 
 export function useFileStats() {
-  return useQuery({
-    queryKey: fileKeys.stats,
-    queryFn: () => request.get<FileStats>('/api/files/stats').then(unwrap),
-  });
+  return useApiQuery(fileContract.stats);
 }
 
 /**
@@ -50,48 +30,32 @@ export function useFileStats() {
  * purpose=download 时云直链会附带 attachment disposition。
  * silent：失败由调用方降级处理（fetchManagedFileBlob 回退代理），不弹全局错误 toast。
  */
-export function getFileAccessUrl(id: string, purpose?: 'preview' | 'download'): Promise<FileAccessUrl> {
-  return request.get<FileAccessUrl>(`/api/files/${id}/access-url${purpose ? `?purpose=${purpose}` : ''}`, { silent: true }).then(unwrap);
+export function getFileAccessUrl(id: string, purpose?: FileAccessPurpose): Promise<FileAccessUrl> {
+  return api(fileContract.accessUrl, { params: { id }, query: { purpose } }, { silent: true });
 }
 
+interface UploadVariables {
+  formData: FormData;
+  onProgress?: (percent: number) => void;
+}
+
+/** 多文件上传（进入文件管理列表）；带上传进度，故走 XHR 表单通道而非 api() */
 export function useUploadFile() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
-      request.postForm<ManagedFile>('/api/files/upload', formData, { onProgress }).then(unwrap),
+    mutationFn: ({ formData, onProgress }: UploadVariables) =>
+      request.postForm<OutputOf<typeof fileContract.upload>>(urlOf(fileContract.upload), formData, { onProgress }).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: fileKeys.all }),
   });
 }
 
-export interface UploadedOneFile {
-  id?: number;
-  url: string;
-  originalName?: string;
-}
-
 /**
- * 单文件直传（/api/files/upload-one）——聊天附件、工作流补偿附件、头像等共用。
+ * 单文件直传——聊天附件、工作流补偿附件、头像等共用。
  * 与 useUploadFile 的区别：不进文件管理列表，故不失效 fileKeys。
  */
 export function useUploadOneFile() {
   return useMutation({
-    mutationFn: ({ formData, onProgress }: { formData: FormData; onProgress?: (percent: number) => void }) =>
-      request.postForm<UploadedOneFile>('/api/files/upload-one', formData, { onProgress, silent: true }).then(unwrap),
-  });
-}
-
-export function useDeleteFile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => request.delete<null>(`/api/files/${id}`).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: fileKeys.all }),
-  });
-}
-
-export function useBatchDeleteFiles() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (ids: string[]) => request.delete<null>('/api/files/batch', { ids }).then(unwrap),
-    onSuccess: () => qc.invalidateQueries({ queryKey: fileKeys.all }),
+    mutationFn: ({ formData, onProgress }: UploadVariables) =>
+      request.postForm<OutputOf<typeof fileContract.uploadOne>>(urlOf(fileContract.uploadOne), formData, { onProgress, silent: true }).then(unwrap),
   });
 }

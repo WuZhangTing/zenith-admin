@@ -11,7 +11,16 @@ export function getNextCronJobId() {
   return nextCronJobId++;
 }
 
-export const mockFileStorageConfigs: FileStorageConfig[] = [
+/** 各 provider 的 write-only 密钥字段：接口不返回，mock 数据里保存以模拟「留空即沿用原值」 */
+export const STORAGE_SECRET_FIELDS = [
+  'ossAccessKeySecret', 's3SecretAccessKey', 'cosSecretKey',
+  'obsSecretAccessKey', 'kodoSecretKey', 'bosSecretAccessKey',
+  'azureAccountKey', 'sftpPassword', 'sftpPrivateKey',
+] as const;
+
+export type MockFileStorageConfig = FileStorageConfig & Partial<Record<(typeof STORAGE_SECRET_FIELDS)[number], string>>;
+
+export const mockFileStorageConfigs: MockFileStorageConfig[] = [
   {
     id: 1,
     name: '本地磁盘',
@@ -19,6 +28,7 @@ export const mockFileStorageConfigs: FileStorageConfig[] = [
     status: 'enabled',
     isDefault: true,
     basePath: 'uploads',
+    objectAcl: 'default',
     urlStrategy: 'proxy',
     presignedExpirySeconds: 1800,
     localRootPath: 'storage/local',

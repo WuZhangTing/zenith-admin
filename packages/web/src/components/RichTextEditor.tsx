@@ -3,7 +3,9 @@ import './RichTextEditor.css';
 import { Editor, Toolbar } from '@wangeditor/editor-for-react';
 import type { IDomEditor, IEditorConfig, IToolbarConfig } from '@wangeditor/editor';
 import { useEffect, useState } from 'react';
+import { fileContract, type ManagedFile } from '@zenith/shared/platform';
 import { config as appConfig } from '@/config';
+import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 
 interface RichTextEditorProps {
@@ -76,12 +78,14 @@ export default function RichTextEditor({
     },
     MENU_CONF: {
       uploadImage: {
-        server: uploadServer ?? `${appConfig.apiBaseUrl}/api/files/upload`,
+        server: uploadServer ?? `${appConfig.apiBaseUrl}${urlOf(fileContract.upload)}`,
         fieldName: 'file',
         headers: request.authHeaders(),
-        customInsert(res: { code: number; data: { url: string } }, insertFn: (url: string, alt: string, href: string) => void) {
-          if (res.code === 0) {
-            const url = res.data.url.startsWith('http') ? res.data.url : `${appConfig.apiBaseUrl}${res.data.url}`;
+        // 通用上传接口返回文件数组（每次只传一张图），专用接口返回单个文件
+        customInsert(res: { code: number; data: Pick<ManagedFile, 'url'> | Pick<ManagedFile, 'url'>[] }, insertFn: (url: string, alt: string, href: string) => void) {
+          const file = Array.isArray(res.data) ? res.data[0] : res.data;
+          if (res.code === 0 && file) {
+            const url = file.url.startsWith('http') ? file.url : `${appConfig.apiBaseUrl}${file.url}`;
             insertFn(url, '', '');
           }
         },

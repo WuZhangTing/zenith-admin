@@ -13,7 +13,6 @@
  *   - dtos/api-tokens.ts     API Token
  *   - dtos/auth.ts           认证 / OAuth
  *   - dtos/dict.ts           字典
- *   - dtos/files.ts          文件存储
  *   - dtos/logs.ts           日志
  *   - dtos/announcements.ts  公告
  *   - dtos/system-configs.ts 系统配置 / 密码策略

@@ -7,7 +7,7 @@
  *
  * 复用：UserSelect（指定用户）、DepartmentSelect（按部门，TreeSelect），
  * 角色通过 /api/roles/all 加载为 Select multiple。
- * 封面图通过 /api/files/upload-one 上传得到 URL。
+ * 封面图经通用单文件上传（`fileContract.uploadOne`，见 ImageUploadField）得到 URL。
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useDebouncer } from '@tanstack/react-pacer';

@@ -1,6 +1,8 @@
 import { useCallback } from 'react';
 import { useThrottledCallback } from '@tanstack/react-pacer';
 import { Toast } from '@douyinfe/semi-ui';
+import { fileContract, type ManagedFile } from '@zenith/shared/platform';
+import { api, urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { sendWsMessage } from '@/hooks/useWebSocket';
 import { useAddChatCustomEmoji } from '@/hooks/queries/chat';
@@ -25,11 +27,7 @@ export function useSendMedia({
     if (!activeConvId) return false;
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
-      '/api/files/upload-one',
-      fd,
-      { onProgress, silent: true },
-    );
+    const uploadRes = await request.postForm<ManagedFile>(urlOf(fileContract.uploadOne), fd, { onProgress, silent: true });
     if (uploadRes.code !== 0 || !uploadRes.data) return false;
     const { id: fileId, url, originalName, size } = uploadRes.data;
     // 视频文件走 video 消息类型（内联播放），其余为普通文件
@@ -101,11 +99,7 @@ export function useSendMedia({
     const dimensions = await getImageDimensions(file);
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ url: string; originalName: string; size: number }>(
-      '/api/files/upload-one',
-      fd,
-      { onProgress, silent: true },
-    );
+    const uploadRes = await request.postForm<ManagedFile>(urlOf(fileContract.uploadOne), fd, { onProgress, silent: true });
     if (uploadRes.code !== 0 || !uploadRes.data) {
       return false;
     }
@@ -135,13 +129,14 @@ export function useSendMedia({
     const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType });
     const fd = new FormData();
     fd.append('file', file);
-    const uploadRes = await request.postForm<{ id: string; url: string; originalName: string; size: number }>(
-      '/api/files/upload-one',
-      fd,
-      { silent: true },
-    );
-    if (uploadRes.code !== 0 || !uploadRes.data) { Toast.error('语音上传失败'); return; }
-    const { id: fileId, url, size } = uploadRes.data;
+    let uploaded: ManagedFile;
+    try {
+      uploaded = await api(fileContract.uploadOne, { body: fd }, { silent: true });
+    } catch {
+      Toast.error('语音上传失败');
+      return;
+    }
+    const { id: fileId, url, size } = uploaded;
     const asset: ChatAssetMeta = {
       kind: 'voice',
       name: file.name,

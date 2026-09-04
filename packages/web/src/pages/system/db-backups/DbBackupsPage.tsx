@@ -1,7 +1,9 @@
 
 import { Tag, Toast, Form } from '@douyinfe/semi-ui';
 import type { DbBackup, BackupType, BackupStatus } from '@zenith/shared/platform';
+import { fileContract } from '@zenith/shared/platform';
 import { AppModal } from '@/components/AppModal';
+import { urlOf } from '@/lib/contract-query';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
 import { useEditModal } from '@/hooks/useEditModal';
@@ -58,7 +60,7 @@ export default function DbBackupsPage() {
       return;
     }
     const name = record.name || `backup-${record.id}`;
-    await request.download(`/api/files/${record.fileId}/content`, name);
+    await request.download(urlOf(fileContract.content, { params: { id: record.fileId } }), name);
   };
 
   const statusColorMap: Record<BackupStatus, 'grey' | 'blue' | 'green' | 'red'> = {

@@ -9,7 +9,7 @@ import { SearchButton } from '@/components/toolbar-controls';
 export interface MediaPickerModalProps {
   visible: boolean;
   onCancel: () => void;
-  /** 选中文件后回调（url 为稳定代理路径 /api/files/{id}/content） */
+  /** 选中文件后回调（url 为稳定代理路径，见 `fileContract.content`） */
   onSelect: (file: ManagedFile) => void;
   /** 仅展示图片（默认 true；false 时展示全部文件类型） */
   imageOnly?: boolean;
@@ -75,7 +75,8 @@ export function MediaPickerModal({ visible, onCancel, onSelect, imageOnly = true
               const uploaded = await uploadMutation.mutateAsync({ formData });
               Toast.success('上传成功');
               onSuccess?.({});
-              onSelect(uploaded);
+              // 多文件上传接口返回数组；此处每次只传一个文件
+              onSelect(uploaded[0]);
             } catch {
               onError?.({ status: 0 });
             }

@@ -751,7 +751,8 @@ export default function ContentEditPage() {
                             customRequest={async ({ fileInstance, onSuccess, onError }) => {
                               try {
                                 const uploaded = await uploadMediaMutation.mutateAsync({ formData: (() => { const fd = new FormData(); fd.append('file', fileInstance); return fd; })() });
-                                formApi.current?.setValue('mediaUrl', uploaded.url ?? '');
+                                // 多文件上传接口返回数组；此处每次只传一个文件
+                                formApi.current?.setValue('mediaUrl', uploaded[0]?.url ?? '');
                                 dirtyRef.current = true;
                                 Toast.success('上传成功');
                                 onSuccess?.({});
