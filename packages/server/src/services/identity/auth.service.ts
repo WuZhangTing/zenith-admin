@@ -128,7 +128,7 @@ import { sendMail } from '../../lib/email';
 import { isSuperAdmin, getUserPermissions } from '../../lib/permissions';
 import { verifyCaptcha } from '../../lib/captcha';
 import { getConfigBoolean, getConfigNumber } from '../../lib/system-config';
-import { isPlatformAdmin } from '../../lib/tenant';
+import { isPlatformAdmin, isTenantActive, isTenantExpired } from '../../lib/tenant';
 import { HTTPException } from 'hono/http-exception';
 import { currentUser } from '../../lib/context';
 
@@ -249,8 +249,8 @@ export async function login(input: LoginInput) {
   if (config.multiTenantMode && input.tenantCode) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.code, input.tenantCode)).limit(1);
     if (!tenant) throw new HTTPException(400, { message: '租户不存在' });
-    if (tenant.status === 'disabled') throw new HTTPException(403, { message: '租户已被禁用' });
-    if (tenant.expireAt && tenant.expireAt < new Date()) throw new HTTPException(403, { message: '租户已过期' });
+    if (tenant.status !== 'enabled') throw new HTTPException(403, { message: '租户已被禁用' });
+    if (isTenantExpired(tenant)) throw new HTTPException(403, { message: '租户已过期' });
     tenantId = tenant.id;
   }
 
@@ -423,10 +423,7 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
     throw new HTTPException(401, { message: '登录状态已失效，请重新登录' });
   }
   // 租户被禁用/过期后，refresh 必须同步失效（不受 multiTenantMode 开关影响）。
-  if (dbTenantId !== null && (
-    u.tenantStatus !== 'enabled'
-    || (u.tenantExpireAt != null && u.tenantExpireAt <= new Date())
-  )) {
+  if (dbTenantId !== null && !isTenantActive({ status: u.tenantStatus, expireAt: u.tenantExpireAt })) {
     await revokePrevious();
     throw new HTTPException(403, { message: '租户已被禁用或过期' });
   }
@@ -444,7 +441,7 @@ export async function refreshAccessToken(token: string, clientInfo?: { ip: strin
       .where(eq(tenants.id, payload.viewingTenantId))
       .limit(1);
     if (!viewingTenant) { await revokePrevious(); throw new HTTPException(403, { message: '租户不存在' }); }
-    if (viewingTenant.status !== 'enabled' || (viewingTenant.expireAt != null && viewingTenant.expireAt <= new Date())) {
+    if (!isTenantActive(viewingTenant)) {
       await revokePrevious();
       throw new HTTPException(403, { message: '租户已被禁用或过期' });
     }
@@ -718,7 +715,7 @@ export async function switchTenantView(targetTenantId: number | null, ip: string
     const [tenant] = await db.select().from(tenants).where(eq(tenants.id, targetTenantId)).limit(1);
     if (!tenant) throw new HTTPException(404, { message: '租户不存在' });
     if (tenant.status !== 'enabled') throw new HTTPException(403, { message: '租户已被禁用' });
-    if (tenant.expireAt && tenant.expireAt <= new Date()) throw new HTTPException(403, { message: '租户已过期' });
+    if (isTenantExpired(tenant)) throw new HTTPException(403, { message: '租户已过期' });
   }
   const tokenId = generateTokenId();
   const newAccessToken = await signToken<JwtPayload>(

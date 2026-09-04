@@ -23,6 +23,7 @@ import { OAUTH2_TOKEN_EXPIRY } from '@zenith/shared/open-platform';
 import type { DbExecutor, DbTransaction } from '../../db/types';
 import { config } from '../../config';
 import { OAuth2Error } from '../../lib/oauth2-error';
+import { isTenantActive } from '../../lib/tenant';
 
 // ─── 内部工具 ─────────────────────────────────────────────────────────────────
 
@@ -147,15 +148,7 @@ async function getUsableOAuthUser(userId: number, executor: DbExecutor = db) {
     .where(eq(users.id, userId))
     .limit(1);
   if (!row || row.status !== 'enabled') return null;
-  if (
-    row.tenantId !== null
-    && (
-      row.tenantStatus !== 'enabled'
-      || (row.tenantExpireAt && row.tenantExpireAt < new Date())
-    )
-  ) {
-    return null;
-  }
+  if (row.tenantId !== null && !isTenantActive({ status: row.tenantStatus, expireAt: row.tenantExpireAt })) return null;
   return row;
 }
 

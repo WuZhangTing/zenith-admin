@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HTTPException } from 'hono/http-exception';
-import { isPlatformAdmin, getEffectiveTenantId, tenantCondition, resolveManagedTenantId } from './tenant';
+import { isPlatformAdmin, getEffectiveTenantId, tenantCondition, resolveManagedTenantId, isTenantActive, isTenantExpired } from './tenant';
 import { config } from '../config';
 import { currentUser } from './context';
 import type { JwtPayload } from '../middleware/auth';
@@ -25,6 +25,29 @@ vi.mock('./context', () => ({ currentUser: vi.fn() }));
 describe('tenant utility', () => {
   beforeEach(() => {
     config.multiTenantMode = true;
+  });
+
+  describe('isTenantExpired / isTenantActive', () => {
+    const now = new Date('2025-01-01T00:00:00Z');
+
+    it('treats null expireAt as never expired', () => {
+      expect(isTenantExpired({ expireAt: null }, now)).toBe(false);
+      expect(isTenantExpired({ expireAt: undefined }, now)).toBe(false);
+    });
+
+    it('expires exactly at expireAt (closed boundary) and afterwards', () => {
+      expect(isTenantExpired({ expireAt: new Date(now.getTime()) }, now)).toBe(true);
+      expect(isTenantExpired({ expireAt: new Date(now.getTime() - 1) }, now)).toBe(true);
+      expect(isTenantExpired({ expireAt: new Date(now.getTime() + 1) }, now)).toBe(false);
+    });
+
+    it('is active only when enabled and not expired', () => {
+      expect(isTenantActive({ status: 'enabled', expireAt: null }, now)).toBe(true);
+      expect(isTenantActive({ status: 'enabled', expireAt: new Date(now.getTime() + 1) }, now)).toBe(true);
+      expect(isTenantActive({ status: 'enabled', expireAt: now }, now)).toBe(false);
+      expect(isTenantActive({ status: 'disabled', expireAt: null }, now)).toBe(false);
+      expect(isTenantActive({ status: null, expireAt: null }, now)).toBe(false);
+    });
   });
 
   describe('isPlatformAdmin', () => {

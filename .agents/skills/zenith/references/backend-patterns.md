@@ -102,6 +102,7 @@ await db.insert(xxxs).values({ ...data, tenantId: getCreateTenantId(currentUser(
 - `tenantCondition` 在多租户关闭时返回 `undefined`，**无需**额外判断是否开启——交给 `buildWhere` 过滤
 - 平台超管处于「平台视角」时同样返回 `undefined`，可查看全量数据
 - `getCreateTenantId` 在多租户关闭时返回 `null`，不影响写入
+- 登录 / 续签 / 令牌校验等需要判断「租户是否可用」的位置，统一用同文件的 `isTenantActive({ status, expireAt })`（enabled 且未到期）或 `isTenantExpired({ expireAt })`（`expireAt <= now`），不要手写状态与到期比较
 
 ---
 

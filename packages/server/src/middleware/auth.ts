@@ -10,6 +10,7 @@ import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
 import logger from '../lib/logger';
 import { isSuperAdmin } from '../lib/permissions';
+import { isTenantActive } from '../lib/tenant';
 
 export interface JwtPayload {
   userId: number;
@@ -72,10 +73,7 @@ export async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJw
   if ((payload.tenantId ?? null) !== dbTenantId) {
     return { ok: false, status: 401, message: '登录状态已失效，请重新登录' };
   }
-  if (dbTenantId !== null && (
-    row.tenantStatus !== 'enabled'
-    || (row.tenantExpireAt != null && row.tenantExpireAt <= new Date())
-  )) {
+  if (dbTenantId !== null && !isTenantActive({ status: row.tenantStatus, expireAt: row.tenantExpireAt })) {
     return { ok: false, status: 403, message: '租户已被禁用或过期' };
   }
 
@@ -91,7 +89,7 @@ export async function checkAdminJwtSubject(payload: JwtPayload): Promise<AdminJw
       .where(eq(tenants.id, payload.viewingTenantId))
       .limit(1);
     if (!viewingTenant) return { ok: false, status: 403, message: '租户不存在' };
-    if (viewingTenant.status !== 'enabled' || (viewingTenant.expireAt != null && viewingTenant.expireAt <= new Date())) {
+    if (!isTenantActive(viewingTenant)) {
       return { ok: false, status: 403, message: '租户已被禁用或过期' };
     }
   }
@@ -150,13 +148,7 @@ async function authenticateApiToken(rawToken: string): Promise<JwtPayload | null
 
   if (!row || row.user.status !== 'enabled') return null;
   if (row.user.tenantId !== null) {
-    if (
-      !row.user.tenant
-      || row.user.tenant.status !== 'enabled'
-      || (row.user.tenant.expireAt && row.user.tenant.expireAt <= new Date())
-    ) {
-      return null;
-    }
+    if (!row.user.tenant || !isTenantActive(row.user.tenant)) return null;
   }
 
   const cutoff = new Date(Date.now() - API_TOKEN_LAST_USED_THROTTLE_MS);

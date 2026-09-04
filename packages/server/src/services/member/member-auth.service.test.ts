@@ -24,7 +24,12 @@ vi.mock('../../config', () => ({
   config: {
     jwtSecret: 'unit-test-only-fake-secret-do-not-use-in-production',
     jwtRefreshSecret: 'unit-test-only-fake-refresh-secret',
+    redis: { keyPrefix: 'test:' },
   },
+}));
+
+vi.mock('../../lib/redis', () => ({
+  default: { get: vi.fn(), set: vi.fn(), del: vi.fn(), scan: vi.fn() },
 }));
 
 vi.mock('../../db', () => {

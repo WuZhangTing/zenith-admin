@@ -38,6 +38,7 @@ import { trackServerEvent } from '../analytics/analytics-server-events.service';
 import { decide } from '../platform/rules-runtime.service';
 import type { MemberRegisterInput, MemberLoginInput, MemberUpdateProfileInput, MemberChangePasswordInput, MemberResetPasswordInput, MemberLoginResult } from '@zenith/shared/member';
 import { ANALYTICS_EVENT_NAMES } from '@zenith/shared/analytics';
+import { isTenantActive } from '../../lib/tenant';
 
 // ─── 数据映射 ─────────────────────────────────────────────────────────────────
 export function mapMember(
@@ -398,7 +399,7 @@ export async function refreshMemberToken(refreshToken: string): Promise<{ access
       .where(eq(tenants.id, dbTenantId))
       .limit(1);
     if (!tenant) { await revokePrevious(); throw new HTTPException(403, { message: '租户不存在' }); }
-    if (tenant.status !== 'enabled' || (tenant.expireAt != null && tenant.expireAt <= new Date())) {
+    if (!isTenantActive(tenant)) {
       await revokePrevious();
       throw new HTTPException(403, { message: '租户已被禁用或过期' });
     }

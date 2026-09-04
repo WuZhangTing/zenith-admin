@@ -9,7 +9,7 @@ import { config } from '../../config';
 import { db } from '../../db';
 import { identityProviderSyncLogs, tenantIdentityProviders, tenants, userIdentityAccounts, userRoles, users, type UserRow } from '../../db/schema';
 import { reserveTenantSeats } from '../../lib/tenant-quota';
-import { resolveManagedTenantId, tenantScope } from '../../lib/tenant';
+import { isTenantActive, isTenantExpired, resolveManagedTenantId, tenantScope } from '../../lib/tenant';
 import { syncUserDynamicMembershipsSafe } from './user-group-rules.service';
 import redis from '../../lib/redis';
 import { formatDateTime } from '../../lib/datetime';
@@ -169,8 +169,8 @@ async function ensureTenantUsable(tenantId: number | null | undefined) {
   if (tenantId == null) return null;
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
   if (!tenant) throw new HTTPException(404, { message: '租户不存在' });
-  if (tenant.status === 'disabled') throw new HTTPException(403, { message: '租户已禁用' });
-  if (tenant.expireAt && tenant.expireAt < new Date()) throw new HTTPException(403, { message: '租户已过期' });
+  if (tenant.status !== 'enabled') throw new HTTPException(403, { message: '租户已禁用' });
+  if (isTenantExpired(tenant)) throw new HTTPException(403, { message: '租户已过期' });
   return tenant;
 }
 
@@ -326,7 +326,7 @@ export async function discoverEnterpriseIdentityProviders(tenantCode?: string | 
   let tenantId: number | null = null;
   if (tenantCode) {
     const [tenant] = await db.select().from(tenants).where(eq(tenants.code, tenantCode)).limit(1);
-    if (!tenant || tenant.status === 'disabled' || (tenant.expireAt && tenant.expireAt < new Date())) {
+    if (!tenant || !isTenantActive(tenant)) {
       return { tenantCode, providers: [] };
     }
     tenantId = tenant.id;
@@ -350,8 +350,8 @@ export async function discoverEnterpriseIdentityProviders(tenantCode?: string | 
 
 function assertProviderUsable(row: ProviderRow): ProviderRow {
   if (row.status !== 'enabled') throw new HTTPException(400, { message: '身份源未启用' });
-  if (row.tenant && row.tenant.status === 'disabled') throw new HTTPException(403, { message: '租户已禁用' });
-  if (row.tenant?.expireAt && row.tenant.expireAt < new Date()) throw new HTTPException(403, { message: '租户已过期' });
+  if (row.tenant && row.tenant.status !== 'enabled') throw new HTTPException(403, { message: '租户已禁用' });
+  if (row.tenant && isTenantExpired(row.tenant)) throw new HTTPException(403, { message: '租户已过期' });
   return row;
 }
 

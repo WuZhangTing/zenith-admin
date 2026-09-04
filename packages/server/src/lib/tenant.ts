@@ -6,6 +6,18 @@ import type { JwtPayload } from '../middleware/auth';
 
 const SUPER_ADMIN_CODE = 'super_admin';
 
+/** 租户是否已到期：`expireAt <= now`，与 tenant-lifecycle 的到期扫描口径一致 */
+export function isTenantExpired(tenant: { expireAt: Date | null | undefined }, now = new Date()): boolean {
+  return tenant.expireAt != null && tenant.expireAt <= now;
+}
+
+/** 租户是否可用：状态为 enabled 且未到期。所有登录 / 续签 / 令牌校验路径统一以此判定 */
+export function isTenantActive(
+  tenant: { status: string | null | undefined; expireAt: Date | null | undefined },
+  now = new Date(),
+): boolean {
+  return tenant.status === 'enabled' && !isTenantExpired(tenant, now);
+}
 /** Check if the current user is a platform super admin (tenantId is null) */
 export function isPlatformAdmin(user: JwtPayload): boolean {
   return user.roles.includes(SUPER_ADMIN_CODE) && user.tenantId === null;

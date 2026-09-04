@@ -33,7 +33,11 @@ vi.mock('../../lib/http-client', () => ({
 }));
 vi.mock('../../lib/password', () => ({ hashPassword: vi.fn(async () => 'hashed') }));
 vi.mock('../../lib/tenant-quota', () => ({ reserveTenantSeats: vi.fn() }));
-vi.mock('../../lib/tenant', () => ({ resolveManagedTenantId: vi.fn(), tenantScope: vi.fn(() => undefined) }));
+vi.mock('../../lib/tenant', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/tenant')>()),
+  resolveManagedTenantId: vi.fn(),
+  tenantScope: vi.fn(() => undefined),
+}));
 vi.mock('../../lib/system-config', () => ({ getConfigNumber: vi.fn(async (_k: string, d: number) => d) }));
 vi.mock('../../lib/session-manager', () => ({
   checkLoginLock: vi.fn(async () => 0), clearLoginAttempts: vi.fn(), recordLoginFailure: vi.fn(),

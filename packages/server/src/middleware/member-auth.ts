@@ -14,6 +14,7 @@ import { members, tenants } from '../db/schema';
 import { config } from '../config';
 import { errBody } from '../lib/openapi-schemas';
 import logger from '../lib/logger';
+import { isTenantActive } from '../lib/tenant';
 
 export interface MemberJwtPayload {
   memberId: number;
@@ -68,10 +69,7 @@ export async function checkMemberJwtSubject(payload: MemberJwtPayload): Promise<
   if ((payload.tenantId ?? null) !== dbTenantId) {
     return { ok: false, status: 401, message: '登录状态已失效，请重新登录' };
   }
-  if (dbTenantId !== null && (
-    row.tenantStatus !== 'enabled'
-    || (row.tenantExpireAt != null && row.tenantExpireAt <= new Date())
-  )) {
+  if (dbTenantId !== null && !isTenantActive({ status: row.tenantStatus, expireAt: row.tenantExpireAt })) {
     return { ok: false, status: 403, message: '租户已被禁用或过期' };
   }
 
