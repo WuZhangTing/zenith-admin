@@ -7,16 +7,13 @@ export type SystemSchedulerRunListParams = NonNullable<QueryOf<typeof systemSche
 
 export type SystemSchedulerNodeListParams = NonNullable<QueryOf<typeof systemSchedulerContract.nodes>>;
 
-const resource = resourceKeyOf(systemSchedulerContract.basePath);
-
-/** 与 `contractKey` 同构：`[资源键, 操作名, input?]`，前缀可直接用于失效 */
 export const systemSchedulerKeys = {
-  all: [resource] as const,
+  all: [resourceKeyOf(systemSchedulerContract.basePath)] as const,
   tasks: contractKey(systemSchedulerContract.tasks),
-  runs: [resource, systemSchedulerContract.runs.name] as const,
+  runs: contractKey(systemSchedulerContract.runs),
   runList: (params: SystemSchedulerRunListParams) => contractKey(systemSchedulerContract.runs, { query: params }),
   runDetail: (id: number) => contractKey(systemSchedulerContract.runDetail, { params: { id } }),
-  nodes: [resource, systemSchedulerContract.nodes.name] as const,
+  nodes: contractKey(systemSchedulerContract.nodes),
   nodeList: (params: SystemSchedulerNodeListParams) => contractKey(systemSchedulerContract.nodes, { query: params }),
 };
 

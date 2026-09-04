@@ -9,16 +9,13 @@ export type AsyncTaskListParams = NonNullable<QueryOf<typeof asyncTaskContract.l
 
 export type AsyncTaskItemsParams = { taskId: number } & NonNullable<QueryOf<typeof asyncTaskContract.items>>;
 
-const resource = resourceKeyOf(asyncTaskContract.basePath);
-
-/** 与 `contractKey` 同构：`[资源键, 操作名, input?]`，前缀可直接用于失效 */
 export const asyncTaskKeys = {
-  all: [resource] as const,
-  lists: [resource, asyncTaskContract.list.name] as const,
+  all: [resourceKeyOf(asyncTaskContract.basePath)] as const,
+  lists: contractKey(asyncTaskContract.list),
   list: (params: AsyncTaskListParams) => contractKey(asyncTaskContract.list, { query: params }),
   stats: contractKey(asyncTaskContract.stats),
   types: contractKey(asyncTaskContract.types),
-  items: [resource, asyncTaskContract.items.name] as const,
+  items: contractKey(asyncTaskContract.items),
   itemList: ({ taskId, ...query }: AsyncTaskItemsParams) => contractKey(asyncTaskContract.items, { params: { id: taskId }, query }),
 };
 

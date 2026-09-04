@@ -5,13 +5,10 @@ import { api, contractKey, useApiMutation, useApiQuery } from '@/lib/contract-qu
 
 export type ExportJobListParams = NonNullable<QueryOf<typeof exportJobContract.list>>;
 
-const resource = resourceKeyOf(exportJobContract.basePath);
-
-/** 与 `contractKey` 同构：`[资源键, 操作名, input?]`，前缀可直接用于失效 */
 export const exportJobKeys = {
-  all: [resource] as const,
+  all: [resourceKeyOf(exportJobContract.basePath)] as const,
   entities: contractKey(exportJobContract.entities),
-  lists: [resource, exportJobContract.list.name] as const,
+  lists: contractKey(exportJobContract.list),
   list: (params: ExportJobListParams) => contractKey(exportJobContract.list, { query: params }),
   downloads: (id: number) => contractKey(exportJobContract.downloads, { params: { id } }),
 };
