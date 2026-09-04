@@ -1,3 +1,4 @@
+import { createLabelOptionsFromMap } from '../core/enum-options';
 // ─── CMS 内容管理 ─────────────────────────────────────────────────────────────
 export const CMS_STATIC_MODES = ['dynamic', 'hybrid', 'static'] as const;
 
@@ -215,6 +216,8 @@ export const CMS_CONTENT_TYPE_LABELS: Record<(typeof CMS_CONTENT_TYPES)[number],
   link: '外链',
 };
 
+export const CMS_CONTENT_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_CONTENT_TYPE_LABELS);
+
 /** 正文分页符标记（编辑器插入 <p>[分页]</p>，服务端按此拆分多页） */
 export const CMS_PAGE_BREAK_TEXT = '[分页]';
 
@@ -337,6 +340,8 @@ export const CMS_AD_EVENT_TYPE_LABELS: Record<(typeof CMS_AD_EVENT_TYPES)[number
   click: '点击',
 };
 
+export const CMS_AD_EVENT_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_AD_EVENT_TYPE_LABELS);
+
 export const CMS_DEVICE_TYPES = ['pc', 'mobile', 'bot'] as const;
 
 export const CMS_DEVICE_TYPE_LABELS: Record<(typeof CMS_DEVICE_TYPES)[number], string> = {
@@ -344,6 +349,8 @@ export const CMS_DEVICE_TYPE_LABELS: Record<(typeof CMS_DEVICE_TYPES)[number], s
   mobile: '移动端',
   bot: '机器人',
 };
+
+export const CMS_DEVICE_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_DEVICE_TYPE_LABELS);
 
 export const CMS_PAGE_BLOCK_AUDIENCES = ['always', 'guest', 'member'] as const;
 
@@ -353,12 +360,16 @@ export const CMS_PAGE_BLOCK_AUDIENCE_LABELS: Record<(typeof CMS_PAGE_BLOCK_AUDIE
   member: '仅登录会员',
 };
 
+export const CMS_PAGE_BLOCK_AUDIENCE_OPTIONS = createLabelOptionsFromMap(CMS_PAGE_BLOCK_AUDIENCE_LABELS);
+
 /** CMS 页面部件。 */
 export const CMS_WIDGET_TYPES = ['manual-list'] as const;
 
 export const CMS_WIDGET_TYPE_LABELS: Record<(typeof CMS_WIDGET_TYPES)[number], string> = {
   'manual-list': '手工列表',
 };
+
+export const CMS_WIDGET_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_WIDGET_TYPE_LABELS);
 
 export const CMS_WIDGET_STATUSES = ['draft', 'published', 'offline'] as const;
 
@@ -370,6 +381,8 @@ export const CMS_WIDGET_STATUS_LABELS: Record<(typeof CMS_WIDGET_STATUSES)[numbe
   offline: '已下线',
 };
 
+export const CMS_WIDGET_STATUS_OPTIONS = createLabelOptionsFromMap(CMS_WIDGET_STATUS_LABELS);
+
 export const CMS_WIDGET_SOURCE_TYPES = ['manual', 'content', 'channel'] as const;
 
 export const CMS_WIDGET_LIVE_SOURCE_TYPES = ['content', 'channel'] as const;
@@ -380,6 +393,8 @@ export const CMS_WIDGET_SOURCE_TYPE_LABELS: Record<(typeof CMS_WIDGET_SOURCE_TYP
   channel: 'CMS 栏目',
 };
 
+export const CMS_WIDGET_SOURCE_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_WIDGET_SOURCE_TYPE_LABELS);
+
 export const CMS_WIDGET_RENDERER_KEYS = ['list-sidebar', 'list-grid', 'list-carousel'] as const;
 
 export const CMS_WIDGET_RENDERER_LABELS: Record<(typeof CMS_WIDGET_RENDERER_KEYS)[number], string> = {
@@ -387,6 +402,8 @@ export const CMS_WIDGET_RENDERER_LABELS: Record<(typeof CMS_WIDGET_RENDERER_KEYS
   'list-grid': '卡片宫格',
   'list-carousel': '轮播展示',
 };
+
+export const CMS_WIDGET_RENDERER_OPTIONS = createLabelOptionsFromMap(CMS_WIDGET_RENDERER_LABELS);
 
 export const CMS_WIDGET_REF_OWNER_TYPES = ['page', 'theme_slot'] as const;
 
@@ -400,6 +417,8 @@ export const CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS: Record<(typeof CMS_SUBSCRIPTI
   channel: '栏目',
   author: '作者',
 };
+
+export const CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS);
 
 /** 统一互动问卷模型。 */
 export const CMS_INTERACTION_KINDS = ['survey', 'poll'] as const;
@@ -423,11 +442,15 @@ export const CMS_INTERACTION_KIND_LABELS: Record<(typeof CMS_INTERACTION_KINDS)[
   poll: '投票',
 };
 
+export const CMS_INTERACTION_KIND_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_KIND_LABELS);
+
 export const CMS_INTERACTION_STATUS_LABELS: Record<(typeof CMS_INTERACTION_STATUSES)[number], string> = {
   draft: '草稿',
   published: '进行中',
   closed: '已关闭',
 };
+
+export const CMS_INTERACTION_STATUS_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_STATUS_LABELS);
 
 export const CMS_INTERACTION_QUESTION_TYPE_LABELS: Record<(typeof CMS_INTERACTION_QUESTION_TYPES)[number], string> = {
   single: '单选',
@@ -440,6 +463,8 @@ export const CMS_INTERACTION_QUESTION_TYPE_LABELS: Record<(typeof CMS_INTERACTIO
   number: '数字',
 };
 
+
+export const CMS_INTERACTION_QUESTION_TYPE_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_QUESTION_TYPE_LABELS);
 /** 需要配置候选选项的题型（矩阵的选项即为列） */
 export const CMS_INTERACTION_CHOICE_QUESTION_TYPES = ['single', 'multiple', 'matrix'] as const;
 
@@ -464,10 +489,14 @@ export const CMS_INTERACTION_CONDITION_OP_LABELS: Record<(typeof CMS_INTERACTION
   none: '均未选中时显示',
 };
 
+export const CMS_INTERACTION_CONDITION_OP_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_CONDITION_OP_LABELS);
+
 export const CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS: Record<(typeof CMS_INTERACTION_PARTICIPANT_SCOPES)[number], string> = {
   anonymous: '游客与会员',
   member: '仅会员',
 };
+
+export const CMS_INTERACTION_PARTICIPANT_SCOPE_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS);
 
 export const CMS_INTERACTION_REPEAT_POLICY_LABELS: Record<(typeof CMS_INTERACTION_REPEAT_POLICIES)[number], string> = {
   once_per_member: '每位会员一次',
@@ -475,6 +504,8 @@ export const CMS_INTERACTION_REPEAT_POLICY_LABELS: Record<(typeof CMS_INTERACTIO
   multiple: '允许多次',
 };
 
+
+export const CMS_INTERACTION_REPEAT_POLICY_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_REPEAT_POLICY_LABELS);
 export const CMS_INTERACTION_RESULT_VISIBILITY_LABELS: Record<(typeof CMS_INTERACTION_RESULT_VISIBILITIES)[number], string> = {
   always: '始终可见',
   after_submit: '提交后可见',
@@ -482,12 +513,16 @@ export const CMS_INTERACTION_RESULT_VISIBILITY_LABELS: Record<(typeof CMS_INTERA
   hidden: '不公开',
 };
 
+export const CMS_INTERACTION_RESULT_VISIBILITY_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_RESULT_VISIBILITY_LABELS);
+
 export const CMS_INTERACTION_CAPTCHA_POLICY_LABELS: Record<(typeof CMS_INTERACTION_CAPTCHA_POLICIES)[number], string> = {
   inherit: '继承站点',
   none: '不启用',
   math: '数学验证码',
   turnstile: 'Cloudflare Turnstile',
 };
+
+export const CMS_INTERACTION_CAPTCHA_POLICY_OPTIONS = createLabelOptionsFromMap(CMS_INTERACTION_CAPTCHA_POLICY_LABELS);
 
 /** 正文互动嵌入标记：[互动:code]。 */
 export const CMS_INTERACTION_MARKER_PREFIX = '[互动:';

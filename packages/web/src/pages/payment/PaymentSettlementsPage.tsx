@@ -22,7 +22,7 @@ import {
 } from '@/hooks/queries/payment-settlements';
 import { usePaymentChannelOperationLookup } from '@/hooks/queries/payment-channels';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_SETTLEMENT_STATUS_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_SETTLEMENT_STATUS_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_SETTLEMENT_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentSettlementBatch, PaymentSettlementItem, PaymentSettlementStatus } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { abortSubmit } from '@/lib/abort-submit';
@@ -30,7 +30,7 @@ import { confirmDelete } from '@/utils/confirm';
 import { StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
-const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
+const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const STATUS_COLOR = { pending: 'grey', settling: 'blue', settled: 'green', failed: 'red' } as const satisfies Record<PaymentSettlementStatus, string>;
 
 interface SearchParams { channel: string; status: string; }
@@ -260,7 +260,7 @@ export default function PaymentSettlementsPage() {
 
   const renderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_SETTLEMENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_SETTLEMENT_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />

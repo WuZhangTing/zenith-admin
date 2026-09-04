@@ -15,7 +15,7 @@ import { AppModal } from '@/components/AppModal';
 import PaymentStatsPanel from './PaymentStatsPanel';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
-import { createPaymentSchema, PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS, PAYMENT_REFUND_STATUS_LABELS } from '@zenith/shared/payment';
+import { createPaymentSchema, PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS, PAYMENT_ORDER_STATUS_LABELS, PAYMENT_REFUND_STATUS_LABELS, PAYMENT_METHOD_OPTIONS, PAYMENT_ORDER_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentApp, PaymentChannel, PaymentMethod, PaymentOrder, PaymentOrderStatus, PaymentRefund, PaymentRefundStatus, CreatePaymentResult, PaymentStats } from '@zenith/shared/payment';
 import {
   paymentOrderKeys,
@@ -400,13 +400,13 @@ export default function PaymentOrdersPage() {
       onChange={(v) => setDraftParams((p) => ({ ...p, payMethod: (v as string) ?? '' }))}
       showClear
       style={{ width: 130 }}
-      optionList={Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }))}
+      optionList={PAYMENT_METHOD_OPTIONS}
     />
   );
 
   const renderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_ORDER_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
       width={110}

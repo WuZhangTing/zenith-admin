@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Banner, Button, Collapse, Form, Modal, Space, Spin, Steps, Toast, Typography } from '@douyinfe/semi-ui';
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ArrowLeft, Eye, EyeOff, Sparkles } from 'lucide-react';
-import { CMS_INTERACTION_CAPTCHA_POLICY_LABELS, CMS_INTERACTION_KIND_LABELS, CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS, CMS_INTERACTION_REPEAT_POLICY_LABELS, CMS_INTERACTION_RESULT_VISIBILITY_LABELS, cmsSlugRegex } from '@zenith/shared/cms';
+import { CMS_INTERACTION_REPEAT_POLICY_OPTIONS, cmsSlugRegex, CMS_INTERACTION_KIND_OPTIONS, CMS_INTERACTION_PARTICIPANT_SCOPE_OPTIONS, CMS_INTERACTION_RESULT_VISIBILITY_OPTIONS, CMS_INTERACTION_CAPTCHA_POLICY_OPTIONS } from '@zenith/shared/cms';
 import type { CmsInteractionKind, CmsInteractionStatus } from '@zenith/shared/cms';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { mediaUp } from '@/lib/breakpoints';
@@ -331,7 +331,7 @@ export default function InteractionEditPage() {
                       disabled={!!editingId}
                       style={{ width: '100%' }}
                       extraText={kind === 'poll' ? '投票只含一道选择题，前台直接展示得票分布' : '问卷可包含多道单选/多选/文本题'}
-                      optionList={Object.entries(CMS_INTERACTION_KIND_LABELS).map(([value, label]) => ({ value, label }))}
+                      optionList={CMS_INTERACTION_KIND_OPTIONS}
                     />
                     <Form.Input
                       field="code"
@@ -360,30 +360,29 @@ export default function InteractionEditPage() {
                       field="participantScope"
                       label="参与范围"
                       style={{ width: '100%' }}
-                      optionList={Object.entries(CMS_INTERACTION_PARTICIPANT_SCOPE_LABELS).map(([value, label]) => ({ value, label }))}
+                      optionList={CMS_INTERACTION_PARTICIPANT_SCOPE_OPTIONS}
                     />
                     <Form.Select
                       field="repeatPolicy"
                       label="重复提交"
                       style={{ width: '100%' }}
                       extraText={live.participantScope === 'member' ? undefined : '「每位会员一次」需先将参与范围设为仅会员'}
-                      optionList={Object.entries(CMS_INTERACTION_REPEAT_POLICY_LABELS).map(([value, label]) => ({
-                        value,
-                        label,
-                        disabled: value === 'once_per_member' && live.participantScope !== 'member',
+                      optionList={CMS_INTERACTION_REPEAT_POLICY_OPTIONS.map((option) => ({
+                        ...option,
+                        disabled: option.value === 'once_per_member' && live.participantScope !== 'member',
                       }))}
                     />
                     <Form.Select
                       field="resultVisibility"
                       label="结果可见性"
                       style={{ width: '100%' }}
-                      optionList={Object.entries(CMS_INTERACTION_RESULT_VISIBILITY_LABELS).map(([value, label]) => ({ value, label }))}
+                      optionList={CMS_INTERACTION_RESULT_VISIBILITY_OPTIONS}
                     />
                     <Form.Select
                       field="captchaPolicy"
                       label="验证码策略"
                       style={{ width: '100%' }}
-                      optionList={Object.entries(CMS_INTERACTION_CAPTCHA_POLICY_LABELS).map(([value, label]) => ({ value, label }))}
+                      optionList={CMS_INTERACTION_CAPTCHA_POLICY_OPTIONS}
                     />
                     <Form.DatePicker field="startAt" label="开始时间" type="dateTime" style={{ width: '100%' }} />
                     <Form.DatePicker field="endAt" label="结束时间" type="dateTime" style={{ width: '100%' }} />

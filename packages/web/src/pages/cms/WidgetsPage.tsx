@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button, Modal, Select, SideSheet, Tag, Toast, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { CircleOff, Send, Trash2 } from 'lucide-react';
-import { CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_TYPE_LABELS } from '@zenith/shared/cms';
+import { CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_TYPE_LABELS, CMS_WIDGET_STATUS_OPTIONS, CMS_WIDGET_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsWidget, CmsWidgetRef, CmsWidgetStatus, CmsWidgetType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
@@ -255,7 +255,7 @@ export default function WidgetsPage() {
   );
   const statusFilter = (
     <StatusSelect
-      items={Object.entries(CMS_WIDGET_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={CMS_WIDGET_STATUS_OPTIONS}
       value={draft.status}
       onChange={(value) => { setDraft((current) => ({ ...current, status: value as CmsWidgetStatus | '' })); setSelectedIds([]); setSelectedRecords({}); }}
       width={130}
@@ -268,7 +268,7 @@ export default function WidgetsPage() {
       onChange={(value) => { setDraft((current) => ({ ...current, type: (value as CmsWidgetType) ?? '' })); setSelectedIds([]); setSelectedRecords({}); }}
       showClear
       style={{ width: 140 }}
-      optionList={Object.entries(CMS_WIDGET_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+      optionList={CMS_WIDGET_TYPE_OPTIONS}
     />
   );
 

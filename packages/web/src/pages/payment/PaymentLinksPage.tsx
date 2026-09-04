@@ -13,7 +13,7 @@ import { formatDateTimeForApi } from '@/utils/date';
 import { createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import { usePermission } from '@/hooks/usePermission';
 import { useEditModal } from '@/hooks/useEditModal';
-import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_CASHIER_METHODS, PAYMENT_METHOD_CHANNEL, PAYMENT_METHOD_LABELS, PAYMENT_LINK_STATUS_LABELS, PAYMENT_LINK_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentApp, PaymentCashierMethod, PaymentChannel, PaymentLink, PaymentLinkStatus } from '@zenith/shared/payment';
 import { paymentLinkKeys, useDeletePaymentLinks, usePaymentLinkDetail, usePaymentLinkList, useRotatePaymentLinkToken, useSavePaymentLink, type PaymentLinkSaveValues } from '@/hooks/queries/payment-links';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
@@ -296,7 +296,7 @@ export default function PaymentLinksPage() {
 
   const renderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_LINK_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_LINK_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v as PaymentLinkStatus | '' }))}
     />

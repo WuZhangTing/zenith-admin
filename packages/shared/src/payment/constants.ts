@@ -1,4 +1,4 @@
-import { createLabelOptions } from '../core/enum-options';
+import { createLabelOptions, createLabelOptionsFromMap } from '../core/enum-options';
 
 // ─── 支付中心 ────────────────────────────────────────────────────────
 export const PAYMENT_CHANNELS = ['wechat', 'alipay', 'unionpay'] as const;
@@ -62,6 +62,8 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   alipay_preauth: '支付宝预授权转支付',
 };
 
+export const PAYMENT_METHOD_OPTIONS = createLabelOptionsFromMap(PAYMENT_METHOD_LABELS);
+
 export const PAYMENT_ORDER_STATUS_LABELS: Record<PaymentOrderStatus, string> = {
   pending: '待支付',
   paying: '支付中',
@@ -73,6 +75,8 @@ export const PAYMENT_ORDER_STATUS_LABELS: Record<PaymentOrderStatus, string> = {
   failed: '支付失败',
 };
 
+export const PAYMENT_ORDER_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_ORDER_STATUS_LABELS);
+
 export const PAYMENT_REFUND_STATUS_LABELS: Record<PaymentRefundStatus, string> = {
   pending: '待处理',
   processing: '退款中',
@@ -80,6 +84,8 @@ export const PAYMENT_REFUND_STATUS_LABELS: Record<PaymentRefundStatus, string> =
   success: '退款成功',
   failed: '退款失败',
 };
+
+export const PAYMENT_REFUND_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_REFUND_STATUS_LABELS);
 
 // ─── 支付中心扩展 · A 档（退款审批 / 对账 / Webhook / 资金台账）────────────────
 export const PAYMENT_REFUND_APPROVAL_STATUSES = ['none', 'pending', 'approved', 'rejected'] as const;
@@ -90,6 +96,8 @@ export const PAYMENT_REFUND_APPROVAL_STATUS_LABELS: Record<PaymentRefundApproval
   none: '无需审批', pending: '待审批', approved: '已批准', rejected: '已驳回',
 };
 
+export const PAYMENT_REFUND_APPROVAL_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_REFUND_APPROVAL_STATUS_LABELS);
+
 export const PAYMENT_RECON_STATUSES = ['pending', 'comparing', 'done', 'failed'] as const;
 
 export type PaymentReconStatus = typeof PAYMENT_RECON_STATUSES[number];
@@ -97,6 +105,8 @@ export type PaymentReconStatus = typeof PAYMENT_RECON_STATUSES[number];
 export const PAYMENT_RECON_STATUS_LABELS: Record<PaymentReconStatus, string> = {
   pending: '待对账', comparing: '比对中', done: '已完成', failed: '失败',
 };
+
+export const PAYMENT_RECON_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_RECON_STATUS_LABELS);
 
 export const PAYMENT_RECON_SOURCES = ['manual_upload', 'sandbox_generated', 'provider_download'] as const;
 
@@ -116,6 +126,8 @@ export const PAYMENT_RECON_RESULT_LABELS: Record<PaymentReconResult, string> = {
   matched: '一致', local_only: '本地有渠道无', channel_only: '渠道有本地无', amount_diff: '金额不一致', status_diff: '状态不一致',
 };
 
+export const PAYMENT_RECON_RESULT_OPTIONS = createLabelOptionsFromMap(PAYMENT_RECON_RESULT_LABELS);
+
 export const PAYMENT_RECON_HANDLE_STATUSES = ['pending', 'adjusted', 'suspended', 'ignored'] as const;
 
 export type PaymentReconHandleStatus = typeof PAYMENT_RECON_HANDLE_STATUSES[number];
@@ -123,6 +135,8 @@ export type PaymentReconHandleStatus = typeof PAYMENT_RECON_HANDLE_STATUSES[numb
 export const PAYMENT_RECON_HANDLE_STATUS_LABELS: Record<PaymentReconHandleStatus, string> = {
   pending: '待处理', adjusted: '已调账', suspended: '挂账', ignored: '已忽略',
 };
+
+export const PAYMENT_RECON_HANDLE_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_RECON_HANDLE_STATUS_LABELS);
 
 // ─── 支付中心扩展 · B 档（费率 / 结算 / 分账 / 支付链接 / 风控 / 支付方式 / 报表）──
 export const PAYMENT_SETTLEMENT_STATUSES = ['pending', 'settling', 'settled', 'failed'] as const;
@@ -133,6 +147,8 @@ export const PAYMENT_SETTLEMENT_STATUS_LABELS: Record<PaymentSettlementStatus, s
   pending: '待结算', settling: '结算中', settled: '已结算', failed: '结算失败',
 };
 
+export const PAYMENT_SETTLEMENT_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_SETTLEMENT_STATUS_LABELS);
+
 export const PAYMENT_SHARING_RECEIVER_TYPES = ['merchant', 'personal'] as const;
 
 export type PaymentSharingReceiverType = typeof PAYMENT_SHARING_RECEIVER_TYPES[number];
@@ -140,6 +156,8 @@ export type PaymentSharingReceiverType = typeof PAYMENT_SHARING_RECEIVER_TYPES[n
 export const PAYMENT_SHARING_RECEIVER_TYPE_LABELS: Record<PaymentSharingReceiverType, string> = {
   merchant: '商户', personal: '个人',
 };
+
+export const PAYMENT_SHARING_RECEIVER_TYPE_OPTIONS = createLabelOptionsFromMap(PAYMENT_SHARING_RECEIVER_TYPE_LABELS);
 
 export const PAYMENT_SHARING_ORDER_STATUSES = ['pending', 'processing', 'success', 'failed', 'reversed'] as const;
 
@@ -149,6 +167,8 @@ export const PAYMENT_SHARING_ORDER_STATUS_LABELS: Record<PaymentSharingOrderStat
   pending: '待分账', processing: '分账中', success: '分账成功', failed: '分账失败', reversed: '已冲正',
 };
 
+export const PAYMENT_SHARING_ORDER_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_SHARING_ORDER_STATUS_LABELS);
+
 export const PAYMENT_SHARING_REVERSAL_STATUSES = ['processing', 'unknown', 'success', 'failed'] as const;
 
 export type PaymentSharingReversalStatus = typeof PAYMENT_SHARING_REVERSAL_STATUSES[number];
@@ -157,6 +177,8 @@ export const PAYMENT_SHARING_REVERSAL_STATUS_LABELS: Record<PaymentSharingRevers
   processing: '冲正中', unknown: '结果待确认', success: '冲正成功', failed: '冲正失败',
 };
 
+export const PAYMENT_SHARING_REVERSAL_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_SHARING_REVERSAL_STATUS_LABELS);
+
 export const PAYMENT_LINK_STATUSES = ['active', 'disabled', 'expired'] as const;
 
 export type PaymentLinkStatus = typeof PAYMENT_LINK_STATUSES[number];
@@ -164,6 +186,8 @@ export type PaymentLinkStatus = typeof PAYMENT_LINK_STATUSES[number];
 export const PAYMENT_LINK_STATUS_LABELS: Record<PaymentLinkStatus, string> = {
   active: '生效中', disabled: '已停用', expired: '已过期',
 };
+
+export const PAYMENT_LINK_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_LINK_STATUS_LABELS);
 
 export const PAYMENT_CASHIER_SESSION_STATUSES = [
   'ready',
@@ -201,6 +225,8 @@ export const PAYMENT_RISK_SCOPE_LABELS: Record<PaymentRiskScope, string> = {
   global: '全局', channel: '按渠道', bizType: '按业务类型',
 };
 
+export const PAYMENT_RISK_SCOPE_OPTIONS = createLabelOptionsFromMap(PAYMENT_RISK_SCOPE_LABELS);
+
 export const PAYMENT_RISK_ACTIONS = ['block', 'review'] as const;
 
 export type PaymentRiskAction = typeof PAYMENT_RISK_ACTIONS[number];
@@ -208,6 +234,8 @@ export type PaymentRiskAction = typeof PAYMENT_RISK_ACTIONS[number];
 export const PAYMENT_RISK_ACTION_LABELS: Record<PaymentRiskAction, string> = {
   block: '直接拦截', review: '人工审核',
 };
+
+export const PAYMENT_RISK_ACTION_OPTIONS = createLabelOptionsFromMap(PAYMENT_RISK_ACTION_LABELS);
 
 export const PAYMENT_RISK_DIMENSIONS = ['blocklist', 'single_limit', 'daily_limit', 'daily_count', 'decision'] as const;
 
@@ -217,6 +245,8 @@ export const PAYMENT_RISK_DIMENSION_LABELS: Record<PaymentRiskDimension, string>
   blocklist: '黑名单', single_limit: '单笔限额', daily_limit: '当日累计金额', daily_count: '当日交易笔数', decision: '决策表策略',
 };
 
+export const PAYMENT_RISK_DIMENSION_OPTIONS = createLabelOptionsFromMap(PAYMENT_RISK_DIMENSION_LABELS);
+
 export const PAYMENT_RISK_REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;
 
 export type PaymentRiskReviewStatus = typeof PAYMENT_RISK_REVIEW_STATUSES[number];
@@ -224,6 +254,8 @@ export type PaymentRiskReviewStatus = typeof PAYMENT_RISK_REVIEW_STATUSES[number
 export const PAYMENT_RISK_REVIEW_STATUS_LABELS: Record<PaymentRiskReviewStatus, string> = {
   pending: '待审核', approved: '已放行', rejected: '已拒绝',
 };
+
+export const PAYMENT_RISK_REVIEW_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_RISK_REVIEW_STATUS_LABELS);
 
 export const PAYMENT_TRANSFER_STATUSES = ['pending', 'processing', 'unknown', 'success', 'failed'] as const;
 
@@ -233,11 +265,15 @@ export const PAYMENT_TRANSFER_STATUS_LABELS: Record<PaymentTransferStatus, strin
   pending: '待发起', processing: '处理中', unknown: '结果待确认', success: '转账成功', failed: '转账失败',
 };
 
+export const PAYMENT_TRANSFER_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_TRANSFER_STATUS_LABELS);
+
 export const PAYMENT_TRANSFER_APPROVAL_STATUSES = ['none', 'pending', 'approved', 'rejected'] as const;
 export type PaymentTransferApprovalStatus = typeof PAYMENT_TRANSFER_APPROVAL_STATUSES[number];
 export const PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS: Record<PaymentTransferApprovalStatus, string> = {
   none: '无需审批', pending: '待审批', approved: '已通过', rejected: '已驳回',
 };
+
+export const PAYMENT_TRANSFER_APPROVAL_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS);
 
 export const PAYMENT_REPORT_GROUP_BYS = ['day', 'application', 'merchantAccount', 'currency', 'channel'] as const;
 
@@ -246,6 +282,8 @@ export type PaymentReportGroupBy = typeof PAYMENT_REPORT_GROUP_BYS[number];
 export const PAYMENT_REPORT_GROUP_BY_LABELS: Record<PaymentReportGroupBy, string> = {
   day: '按日', application: '支付应用', merchantAccount: '商户账户', currency: '币种', channel: '支付渠道',
 };
+
+export const PAYMENT_REPORT_GROUP_BY_OPTIONS = createLabelOptionsFromMap(PAYMENT_REPORT_GROUP_BY_LABELS);
 
 // ─── 支付中心扩展 · 签约代扣（周期扣款/订阅）───────────────────────────
 export const PAYMENT_DEDUCT_PERIODS = ['daily', 'weekly', 'monthly', 'custom'] as const;
@@ -266,6 +304,8 @@ export type PaymentContractStatus = typeof PAYMENT_CONTRACT_STATUSES[number];
 export const PAYMENT_CONTRACT_STATUS_LABELS: Record<PaymentContractStatus, string> = {
   pending: '签约中', unknown: '结果待确认', signed: '已签约', paused: '已暂停', terminated: '已解约', failed: '签约失败',
 };
+
+export const PAYMENT_CONTRACT_STATUS_OPTIONS = createLabelOptionsFromMap(PAYMENT_CONTRACT_STATUS_LABELS);
 
 /** 支持签约代扣的支付方式（服务端发起扣款，无用户交互） */
 export const PAYMENT_DEDUCT_METHODS = ['wechat_papay', 'alipay_cycle'] as const satisfies readonly PaymentMethod[];

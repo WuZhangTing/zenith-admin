@@ -15,6 +15,7 @@ import { StatCard, StatGrid } from '@/components/charts/StatCard';
 import { dateTimeColumn } from '@/utils/table-columns';
 import { request } from '@/utils/request';
 import { unwrap } from '@/lib/query';
+import { createLabelOptionsFromMap } from '@zenith/shared/core';
 
 const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   external_dispatch_failed: '外部审批失败',
@@ -31,6 +32,7 @@ const ISSUE_LABELS: Record<WorkflowHealthIssue['type'], string> = {
   waiting_task_stuck: '任务等待过久',
   instance_stalled: '实例疑似卡死',
 };
+const ISSUE_OPTIONS = createLabelOptionsFromMap(ISSUE_LABELS);
 
 const THRESHOLD_OPTIONS = [
   { value: 10, label: '超过 10 分钟' },
@@ -44,7 +46,7 @@ const THRESHOLD_OPTIONS = [
 
 const ISSUE_TYPE_OPTIONS = [
   { value: '', label: '全部问题类型' },
-  ...Object.entries(ISSUE_LABELS).map(([value, label]) => ({ value, label })),
+  ...ISSUE_OPTIONS,
 ];
 
 export default function WorkflowHealthPage() {

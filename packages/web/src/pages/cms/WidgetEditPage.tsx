@@ -17,7 +17,7 @@ import {
 import type { FormApi } from '@douyinfe/semi-ui/lib/es/form/interface';
 import { ArrowDown, ArrowLeft, ArrowUp, Eye, GripVertical, ImageUp, Monitor, Save, Send, Smartphone, Tablet, Trash2 } from 'lucide-react';
 import dayjs from 'dayjs';
-import { CMS_WIDGET_RENDERER_LABELS, CMS_WIDGET_SOURCE_TYPE_LABELS, CMS_WIDGET_STATUS_LABELS } from '@zenith/shared/cms';
+import { CMS_WIDGET_RENDERER_LABELS, CMS_WIDGET_SOURCE_TYPE_LABELS, CMS_WIDGET_STATUS_LABELS, CMS_WIDGET_RENDERER_OPTIONS, CMS_WIDGET_SOURCE_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsWidgetItem, CmsWidgetRendererKey, CmsWidgetSourceType } from '@zenith/shared/cms';
 import AppModal from '@/components/AppModal';
 import MediaPickerModal from '@/components/MediaPickerModal';
@@ -319,7 +319,7 @@ export default function WidgetEditPage() {
                     onChange={(value) => setSelectedRenderer(value as CmsWidgetRendererKey)}
                     optionList={rendererOptions.length > 0
                       ? rendererOptions
-                      : Object.entries(CMS_WIDGET_RENDERER_LABELS).map(([value, label]) => ({ value, label }))}
+                      : CMS_WIDGET_RENDERER_OPTIONS}
                     style={{ width: '100%' }}
                   />
                 </Form.Slot>
@@ -408,7 +408,7 @@ export default function WidgetEditPage() {
                 <Form.Select
                   field="sourceType"
                   label="条目来源"
-                  optionList={Object.entries(CMS_WIDGET_SOURCE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                  optionList={CMS_WIDGET_SOURCE_TYPE_OPTIONS}
                   onChange={(value) => {
                     setEditingSourceType(value as CmsWidgetSourceType);
                     itemFormApi.current?.setValue('sourceId', undefined);

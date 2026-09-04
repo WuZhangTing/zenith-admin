@@ -22,7 +22,7 @@ import {
   useRejectPaymentRiskReview,
   useSavePaymentRiskRule,
 } from '@/hooks/queries/payment-risk';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_RISK_ACTION_LABELS, PAYMENT_RISK_DIMENSION_LABELS, PAYMENT_RISK_REVIEW_STATUS_LABELS, PAYMENT_RISK_SCOPE_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_RISK_DIMENSION_LABELS, PAYMENT_RISK_REVIEW_STATUS_LABELS, PAYMENT_RISK_SCOPE_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_RISK_SCOPE_OPTIONS, PAYMENT_RISK_ACTION_OPTIONS, PAYMENT_RISK_DIMENSION_OPTIONS, PAYMENT_RISK_REVIEW_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentRiskAction, PaymentRiskDimension, PaymentRiskHit, PaymentRiskReview, PaymentRiskReviewStatus, PaymentRiskRule, PaymentRiskScope } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useRuleListList } from '@/hooks/queries/rules';
@@ -33,11 +33,11 @@ import { confirmDelete } from '@/utils/confirm';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
-const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
-const scopeOptions = Object.entries(PAYMENT_RISK_SCOPE_LABELS).map(([value, label]) => ({ value, label }));
-const actionOptions = Object.entries(PAYMENT_RISK_ACTION_LABELS).map(([value, label]) => ({ value, label }));
-const dimensionOptions = Object.entries(PAYMENT_RISK_DIMENSION_LABELS).map(([value, label]) => ({ value, label }));
-const reviewStatusOptions = Object.entries(PAYMENT_RISK_REVIEW_STATUS_LABELS).map(([value, label]) => ({ value, label }));
+const channelOptions = PAYMENT_CHANNEL_OPTIONS;
+const scopeOptions = PAYMENT_RISK_SCOPE_OPTIONS;
+const actionOptions = PAYMENT_RISK_ACTION_OPTIONS;
+const dimensionOptions = PAYMENT_RISK_DIMENSION_OPTIONS;
+const reviewStatusOptions = PAYMENT_RISK_REVIEW_STATUS_OPTIONS;
 const REVIEW_STATUS_COLOR = { pending: 'orange', approved: 'green', rejected: 'red' } as const satisfies Record<PaymentRiskReviewStatus, string>;
 
 interface SearchParams { scope: string; status: string; }

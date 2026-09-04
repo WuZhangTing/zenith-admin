@@ -15,7 +15,7 @@ import {
   usePaymentFeeRuleList,
   useSavePaymentFeeRule,
 } from '@/hooks/queries/payment-fee';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_METHOD_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_METHOD_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentFeeRule, PaymentMethod } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { useListSearch } from '@/hooks/useListSearch';
@@ -24,8 +24,8 @@ import { confirmDelete } from '@/utils/confirm';
 import { StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
-const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
-const methodOptions = Object.entries(PAYMENT_METHOD_LABELS).map(([value, label]) => ({ value, label }));
+const channelOptions = PAYMENT_CHANNEL_OPTIONS;
+const methodOptions = PAYMENT_METHOD_OPTIONS;
 
 interface SearchParams { channel: string; status: string; }
 const defaultSearch: SearchParams = { channel: '', status: '' };

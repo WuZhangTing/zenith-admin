@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Input, InputNumber, Modal, Select, Switch, Tag, TextArea, Tooltip, Typography } from '@douyinfe/semi-ui';
 import { ArrowDown, ArrowUp, ClipboardPaste, Copy, Plus, Trash2 } from 'lucide-react';
-import { CMS_INTERACTION_CONDITION_OP_LABELS, CMS_INTERACTION_NPS_MAX, CMS_INTERACTION_QUESTION_TYPE_LABELS, CMS_INTERACTION_RATING_MAX_LIMIT } from '@zenith/shared/cms';
+import { CMS_INTERACTION_NPS_MAX, CMS_INTERACTION_QUESTION_TYPE_OPTIONS, CMS_INTERACTION_RATING_MAX_LIMIT, CMS_INTERACTION_CONDITION_OP_OPTIONS } from '@zenith/shared/cms';
 import type { CmsInteractionConditionOp, CmsInteractionKind, CmsInteractionQuestionType } from '@zenith/shared/cms';
 import {
   applyQuestionType,
@@ -110,9 +110,7 @@ export default function QuestionDesigner({ questions, onChange, kind, locked, er
     onChange(normalizePageNumbers(remapConditions(next, moved)));
   };
 
-  const typeOptions = Object.entries(CMS_INTERACTION_QUESTION_TYPE_LABELS)
-    .filter(([value]) => !isPoll || value === 'single' || value === 'multiple')
-    .map(([value, label]) => ({ value, label }));
+  const typeOptions = CMS_INTERACTION_QUESTION_TYPE_OPTIONS.filter((option) => !isPoll || option.value === 'single' || option.value === 'multiple');
 
   const pageCount = new Set(questions.map((question) => question.pageNo)).size;
 
@@ -362,7 +360,7 @@ export default function QuestionDesigner({ questions, onChange, kind, locked, er
                     <Select
                       size="small" style={{ width: 190 }} disabled={locked}
                       value={question.visibleWhen.op}
-                      optionList={Object.entries(CMS_INTERACTION_CONDITION_OP_LABELS).map(([value, label]) => ({ value, label }))}
+                      optionList={CMS_INTERACTION_CONDITION_OP_OPTIONS}
                       onChange={(value) => patch(index, (item) => ({
                         ...item,
                         visibleWhen: item.visibleWhen ? { ...item.visibleWhen, op: value as CmsInteractionConditionOp } : null,

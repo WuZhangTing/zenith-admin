@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Select, SideSheet, TabPane, Tabs, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared/cms';
+import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS, CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsMemberSubscription, CmsSubscriptionAggregate, CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import ConfigurableTable from '@/components/ConfigurableTable';
 import ExportButton from '@/components/ExportButton';
@@ -68,7 +68,7 @@ export default function SubscriptionsPage() {
         value={draft.subjectType}
         showClear
         style={{ width: 150 }}
-        optionList={Object.entries(CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+        optionList={CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS}
         onChange={(value) => setDraft((current) => ({ ...current, subjectType: value as CmsSubscriptionSubjectType | undefined }))}
       />
       <DateRangeFilter value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />

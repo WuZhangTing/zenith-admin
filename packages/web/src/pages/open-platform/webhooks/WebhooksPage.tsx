@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Tag, TagGroup, Modal, Form, Toast, Typography, Select, Banner, SideSheet, Descriptions } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
-import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS, PAYMENT_WEBHOOK_EVENTS } from '@zenith/shared/open-platform';
+import { OPEN_WEBHOOK_DELIVERY_STATUS_LABELS, OPEN_WEBHOOK_EVENT_LABELS, PAYMENT_WEBHOOK_EVENTS, OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS } from '@zenith/shared/open-platform';
 import type { AppWebhookSubscription, AppWebhookDelivery } from '@zenith/shared/open-platform';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
@@ -389,7 +389,7 @@ export default function WebhooksPage({ scope = 'open' }: Readonly<WebhooksPagePr
               setDeliveryPage(1);
               setSelectedDeliveryIds([]);
             }}
-            optionList={Object.entries(OPEN_WEBHOOK_DELIVERY_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+            optionList={OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS}
             showClear
             style={{ width: 130 }}
           />

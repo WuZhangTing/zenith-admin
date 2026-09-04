@@ -24,7 +24,7 @@ import {
 } from '@/hooks/queries/payment-recon';
 import { usePaymentChannelOperationLookup } from '@/hooks/queries/payment-channels';
 import { usePaymentAppList } from '@/hooks/queries/payment-apps';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_RECON_HANDLE_STATUS_LABELS, PAYMENT_RECON_RESULT_LABELS, PAYMENT_RECON_SOURCE_LABELS, PAYMENT_RECON_STATUS_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_RECON_HANDLE_STATUS_LABELS, PAYMENT_RECON_RESULT_LABELS, PAYMENT_RECON_SOURCE_LABELS, PAYMENT_RECON_STATUS_LABELS, PAYMENT_RECON_STATUS_OPTIONS, PAYMENT_RECON_RESULT_OPTIONS, PAYMENT_RECON_HANDLE_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentReconBatch, PaymentReconHandleStatus, PaymentReconItem, PaymentReconResult, PaymentReconSource, PaymentReconStatus } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { confirmDelete } from '@/utils/confirm';
@@ -323,7 +323,7 @@ export default function PaymentReconPage() {
 
   const renderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_RECON_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_RECON_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
@@ -410,9 +410,9 @@ export default function PaymentReconPage() {
         <Spin spinning={itemsQuery.isFetching}>
           <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
             <Select placeholder="全部结果" value={itemResult || undefined} onChange={(v) => handleItemResultChange((v as string) ?? '')} showClear style={{ width: 180 }}
-              optionList={Object.entries(PAYMENT_RECON_RESULT_LABELS).map(([value, label]) => ({ value, label }))} />
+              optionList={PAYMENT_RECON_RESULT_OPTIONS} />
             <Select placeholder="全部处理状态" value={itemHandleStatus || undefined} onChange={(v) => handleItemHandleStatusChange((v as string) ?? '')} showClear style={{ width: 160 }}
-              optionList={Object.entries(PAYMENT_RECON_HANDLE_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
+              optionList={PAYMENT_RECON_HANDLE_STATUS_OPTIONS} />
           </div>
           <ConfigurableTable
             bordered columns={itemColumns} dataSource={itemsData} loading={itemsQuery.isFetching} rowKey="id" size="small" empty="暂无数据"

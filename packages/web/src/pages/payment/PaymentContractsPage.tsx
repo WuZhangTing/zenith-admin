@@ -30,7 +30,7 @@ import {
   useTerminatePaymentContract,
   useUpdateDeductPlan,
 } from '@/hooks/queries/payment-contracts';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CONTRACT_STATUS_LABELS, PAYMENT_DEDUCT_PERIOD_LABELS, PAYMENT_DEDUCT_PERIOD_OPTIONS, PAYMENT_CONTRACT_STATUS_OPTIONS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentContract, PaymentContractStatus, PaymentDeductPeriod, PaymentDeductPlan } from '@zenith/shared/payment';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
@@ -39,8 +39,8 @@ import { confirmDelete } from '@/utils/confirm';
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
 const CONTRACT_STATUS_COLOR = { pending: 'grey', unknown: 'orange', signed: 'green', paused: 'orange', terminated: 'red', failed: 'red' } as const satisfies Record<PaymentContractStatus, string>;
-const contractStatusOptions = Object.entries(PAYMENT_CONTRACT_STATUS_LABELS).map(([value, label]) => ({ value, label }));
-const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
+const contractStatusOptions = PAYMENT_CONTRACT_STATUS_OPTIONS;
+const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const DEDUCT_METHOD_OPTIONS = [
   { value: 'wechat_papay', label: '微信委托代扣' },
   { value: 'alipay_cycle', label: '支付宝周期扣款' },

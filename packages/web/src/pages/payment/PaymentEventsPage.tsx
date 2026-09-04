@@ -13,8 +13,10 @@ import { useListSearch } from '@/hooks/useListSearch';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 import { copyableNoColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
+import { createLabelOptionsFromMap } from '@zenith/shared/core';
 
 const EVENT_STATUS_LABELS = { pending: '待处理', done: '已完成', failed: '失败' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
+const EVENT_STATUS_OPTIONS = createLabelOptionsFromMap(EVENT_STATUS_LABELS);
 const EVENT_STATUS_COLOR = { pending: 'blue', done: 'green', failed: 'red' } as const satisfies Record<PaymentOutboxEvent['status'], string>;
 const HEALTH_LABELS = [
   ['outboxPending', 'Outbox 积压'],
@@ -119,7 +121,7 @@ export default function PaymentEventsPage() {
 
   const renderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(EVENT_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={EVENT_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />

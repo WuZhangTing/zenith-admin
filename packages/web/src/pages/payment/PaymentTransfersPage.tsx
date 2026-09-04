@@ -23,12 +23,7 @@ import {
   useRejectPaymentTransfer,
   type CreatePaymentTransferValues,
 } from '@/hooks/queries/payment-transfers';
-import {
-  PAYMENT_CHANNEL_LABELS,
-  PAYMENT_CHANNEL_OPTIONS,
-  PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS,
-  PAYMENT_TRANSFER_STATUS_LABELS,
-} from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS, PAYMENT_TRANSFER_STATUS_LABELS, PAYMENT_TRANSFER_STATUS_OPTIONS, PAYMENT_TRANSFER_APPROVAL_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type {
   PaymentChannel,
   PaymentTransfer,
@@ -233,14 +228,14 @@ export default function PaymentTransfersPage() {
   );
   const renderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_TRANSFER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_TRANSFER_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
   );
   const renderApprovalFilter = () => (
     <Select placeholder="审批状态" value={draftParams.approvalStatus || undefined} onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))}
-      showClear style={{ width: 120 }} optionList={Object.entries(PAYMENT_TRANSFER_APPROVAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))} />
+      showClear style={{ width: 120 }} optionList={PAYMENT_TRANSFER_APPROVAL_STATUS_OPTIONS} />
   );
   const renderSearchButton = () => <SearchButton onClick={handleSearch} />;
   const renderResetButton = () => <ResetButton onClick={handleReset} />;

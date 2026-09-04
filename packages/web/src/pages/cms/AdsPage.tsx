@@ -17,7 +17,7 @@ import {
   useCmsAdList, useSaveCmsAd, useDeleteCmsAd,
   cmsAdEventKeys, useCleanupCmsAdEvents, useCmsAdEventList, useCmsAdEventStats,
 } from '@/hooks/queries/cms';
-import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS } from '@zenith/shared/cms';
+import { CMS_AD_EVENT_TYPE_LABELS, CMS_DEVICE_TYPE_LABELS, CMS_AD_EVENT_TYPE_OPTIONS, CMS_DEVICE_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsAdEvent, CmsAdSlot, CmsAd } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -283,10 +283,10 @@ function EventsTab({ siteId, setSiteId }: Readonly<{
         optionList={(slotsQuery.data ?? []).map((slot) => ({ value: slot.id, label: slot.name }))}
         onChange={(value) => setDraft((current) => ({ ...current, slotId: value as number | undefined }))} />
       <Select placeholder="事件类型" showClear value={draft.eventType} style={{ width: 130 }}
-        optionList={Object.entries(CMS_AD_EVENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+        optionList={CMS_AD_EVENT_TYPE_OPTIONS}
         onChange={(value) => setDraft((current) => ({ ...current, eventType: value as AdEventSearch['eventType'] }))} />
       <Select placeholder="设备" showClear value={draft.device} style={{ width: 130 }}
-        optionList={Object.entries(CMS_DEVICE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+        optionList={CMS_DEVICE_TYPE_OPTIONS}
         onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))} />
       <DateRangeFilter placeholder={['发生开始时间', '发生结束时间']} value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
     </>
@@ -425,10 +425,10 @@ function StatsTab({ siteId, setSiteId }: Readonly<{
       <SearchToolbar>
         <CmsSiteSelect value={siteId} onChange={setSiteId} />
         <Select placeholder="事件类型" showClear value={draft.eventType} style={{ width: 140 }}
-          optionList={Object.entries(CMS_AD_EVENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+          optionList={CMS_AD_EVENT_TYPE_OPTIONS}
           onChange={(value) => setDraft((current) => ({ ...current, eventType: value as AdEventSearch['eventType'] }))} />
         <Select placeholder="设备" showClear value={draft.device} style={{ width: 140 }}
-          optionList={Object.entries(CMS_DEVICE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+          optionList={CMS_DEVICE_TYPE_OPTIONS}
           onChange={(value) => setDraft((current) => ({ ...current, device: value as AdEventSearch['device'] }))} />
         <DateRangeFilter placeholder={['统计开始时间', '统计结束时间']} value={draft.timeRange} onChange={(value) => setDraft((current) => ({ ...current, timeRange: value as [Date, Date] | undefined }))} width={330} />
         <SearchButton onClick={() => setSubmitted(draft)} />

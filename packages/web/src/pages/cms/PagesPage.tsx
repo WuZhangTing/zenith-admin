@@ -19,7 +19,7 @@ import {
 } from '@/hooks/queries/cms';
 import { useAllRoles } from '@/hooks/queries/roles';
 import { useAllUsers } from '@/hooks/queries/users';
-import { CMS_PAGE_BLOCK_AUDIENCE_LABELS, CMS_PAGE_BLOCK_TYPES, cmsCustomPagePath } from '@zenith/shared/cms';
+import { CMS_PAGE_BLOCK_AUDIENCE_LABELS, CMS_PAGE_BLOCK_TYPES, cmsCustomPagePath, CMS_PAGE_BLOCK_AUDIENCE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsPage, CmsPageBlock, CmsPageBlockType } from '@zenith/shared/cms';
 import { CmsSiteSelect, cmsPreviewUrl } from './CmsSiteSelect';
 import { formatDateTimeForApi } from '@/utils/date';
@@ -524,7 +524,7 @@ export default function PagesPage() {
               field="displayAudience"
               label="展示受众"
               style={{ width: '100%' }}
-              optionList={Object.entries(CMS_PAGE_BLOCK_AUDIENCE_LABELS).map(([value, label]) => ({ value, label }))}
+              optionList={CMS_PAGE_BLOCK_AUDIENCE_OPTIONS}
               extraText="游客/会员条件会自动强制页面动态渲染，敏感内容不可放入公开区块"
             />
             <Form.DatePicker

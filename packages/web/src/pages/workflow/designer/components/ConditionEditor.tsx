@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react';
 import { Button, Input, InputNumber, Select, SideSheet, Typography } from '@douyinfe/semi-ui';
 import { Plus, Trash2 } from 'lucide-react';
 import type { ConditionGroup, ConditionRule, ConditionOperator, FlowBranch } from '../types';
-import { OPERATOR_LABELS, STARTER_CONDITION_FIELDS } from '../constants';
+import { OPERATOR_OPTIONS, STARTER_CONDITION_FIELDS } from '../constants';
 
 interface FormField {
   key: string;
@@ -36,7 +36,7 @@ interface ConditionEditorProps {
   onCancel: () => void;
 }
 
-const operatorOptions = Object.entries(OPERATOR_LABELS).map(([value, label]) => ({ value, label }));
+const operatorOptions = OPERATOR_OPTIONS;
 const NUMERIC_OPERATORS: ConditionOperator[] = ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'isNotEmpty'];
 /** 数值族字段类型：金额/滑块/评分/NPS/公式与数字同语义，共享数值比较操作符 */
 const NUMERIC_FIELD_TYPES = new Set(['number', 'amount', 'slider', 'rate', 'nps', 'formula']);

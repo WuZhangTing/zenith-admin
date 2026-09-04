@@ -10,7 +10,7 @@ import { AppModal } from '@/components/AppModal';
 import { formatDateTime, formatDateTimeRangeForApi } from '@/utils/date';
 import { usePermission } from '@/hooks/usePermission';
 import { useListSearch } from '@/hooks/useListSearch';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_REFUND_STATUS_LABELS, PAYMENT_REFUND_APPROVAL_STATUS_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_CHANNEL_OPTIONS, PAYMENT_REFUND_STATUS_LABELS, PAYMENT_REFUND_APPROVAL_STATUS_LABELS, PAYMENT_REFUND_STATUS_OPTIONS, PAYMENT_REFUND_APPROVAL_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentRefund, PaymentRefundStatus, PaymentRefundApprovalStatus } from '@zenith/shared/payment';
 import {
   paymentRefundKeys,
@@ -150,7 +150,7 @@ export default function PaymentRefundsPage() {
 
   const renderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_REFUND_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_REFUND_STATUS_OPTIONS}
       value={draftParams.status}
       onChange={(v) => setDraftParams((p) => ({ ...p, status: v }))}
     />
@@ -163,7 +163,7 @@ export default function PaymentRefundsPage() {
       onChange={(v) => setDraftParams((p) => ({ ...p, approvalStatus: (v as string) ?? '' }))}
       showClear
       style={{ width: 120 }}
-      optionList={Object.entries(PAYMENT_REFUND_APPROVAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      optionList={PAYMENT_REFUND_APPROVAL_STATUS_OPTIONS}
     />
   );
 

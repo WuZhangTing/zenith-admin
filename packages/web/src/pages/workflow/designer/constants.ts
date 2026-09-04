@@ -28,6 +28,7 @@ import type {
 } from './types';
 import type { WorkflowNodeFailureAction } from '@zenith/shared/workflow';
 import { WORKFLOW_APPROVE_METHOD_LABELS } from '@zenith/shared/workflow';
+import { createLabelOptionsFromMap } from '@zenith/shared/core';
 
 // ─── 节点类型注册信息 ────────────────────────────────────────────────
 
@@ -136,6 +137,7 @@ export const OPERATOR_LABELS: Record<string, string> = {
   beforeDays: '早于N天前',
 };
 
+export const OPERATOR_OPTIONS = createLabelOptionsFromMap(OPERATOR_LABELS);
 /** 发起人维度条件可选字段（source='starter'） */
 export const STARTER_CONDITION_FIELDS: Array<{ value: 'user' | 'dept' | 'role' | 'post'; label: string }> = [
   { value: 'user', label: '发起人本人' },

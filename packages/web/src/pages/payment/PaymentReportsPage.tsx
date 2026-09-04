@@ -11,13 +11,13 @@ import { downloadBlob } from '@/utils/download';
 import { usePermission } from '@/hooks/usePermission';
 import { paymentReportKeys, usePaymentReportSummary } from '@/hooks/queries/payment-reports';
 import { useListSearch } from '@/hooks/useListSearch';
-import { PAYMENT_REPORT_GROUP_BY_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_REPORT_GROUP_BY_LABELS, PAYMENT_REPORT_GROUP_BY_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentReportGroupBy, PaymentReportRow } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { DateRangeFilter } from '@/components/search-filters';
 
 const yuan = formatYuan;
-const groupByOptions = Object.entries(PAYMENT_REPORT_GROUP_BY_LABELS).map(([value, label]) => ({ value, label }));
+const groupByOptions = PAYMENT_REPORT_GROUP_BY_OPTIONS;
 
 
 /** 环比增幅：上一周期为 0 时不显示 */

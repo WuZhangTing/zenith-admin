@@ -13,7 +13,7 @@ import { useListSearch } from '@/hooks/useListSearch';
 import type { MonitorAlertRule, MonitorMetric } from '@zenith/shared/platform';
 import { MONITOR_ALERT_LEVEL_OPTIONS } from '@zenith/shared/platform';
 import { BASIC_COMPARISON_OPERATOR_LABELS } from '@zenith/shared/core';
-import { NOTIFY_CHANNEL_LABELS } from '@zenith/shared/messaging';
+import { NOTIFY_CHANNEL_LABELS, NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import {
   monitorAlertKeys,
   useBatchToggleMonitorAlerts,
@@ -484,7 +484,7 @@ export default function AlertRulesPage() {
                       <Form.InputNumber field="silenceMinutes" label="静默期" min={0} max={10080} suffix="分钟" style={{ width: '100%' }} />
                     </Col>
                   </Row>
-                  <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={Object.entries(CHANNEL_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
+                  <Form.Select field="channels" label="通知渠道" multiple style={{ width: '100%' }} optionList={NOTIFY_CHANNEL_OPTIONS} />
                   {usesUserRecipients && (
                     <FormAlertRecipientUserSelect
                       field="recipientUserIds"

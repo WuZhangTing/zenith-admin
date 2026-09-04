@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Empty, Modal, Pagination, Select, Spin, Switch, Tag, Toast } from '@douyinfe/semi-ui';
 import { BellRing } from 'lucide-react';
-import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS } from '@zenith/shared/cms';
+import { CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS, CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsSubscriptionSubjectType } from '@zenith/shared/cms';
 import { MemberPage } from '../../components/MemberPage';
 import {
@@ -41,7 +41,7 @@ export default function SubscriptionsPage() {
           value={subjectType}
           showClear
           style={{ width: 180 }}
-          optionList={Object.entries(CMS_SUBSCRIPTION_SUBJECT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+          optionList={CMS_SUBSCRIPTION_SUBJECT_TYPE_OPTIONS}
           onChange={(value) => {
             setSubjectType(value as CmsSubscriptionSubjectType | undefined);
             setPage(1);

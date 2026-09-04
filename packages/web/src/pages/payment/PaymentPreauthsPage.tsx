@@ -20,14 +20,14 @@ import {
   useRecoverPaymentPreauth,
   useReleasePaymentPreauth,
 } from '@/hooks/queries/payment-preauths';
-import { PAYMENT_CHANNEL_LABELS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS } from '@zenith/shared/payment';
+import { PAYMENT_CHANNEL_LABELS, PAYMENT_PREAUTH_STATUS_LABELS, PAYMENT_PREAUTH_STATUS_OPTIONS, PAYMENT_CHANNEL_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentChannel, PaymentPreauth, PaymentPreauthMethod, PaymentPreauthStatus } from '@zenith/shared/payment';
 import { ResetButton, SearchButton } from '@/components/toolbar-controls';
 import { KeywordInput, StatusSelect } from '@/components/search-filters';
 
 const yuan = formatYuan;
 const STATUS_COLOR = { pending: 'grey', unknown: 'orange', frozen: 'blue', captured: 'green', released: 'teal', failed: 'red' } as const satisfies Record<PaymentPreauthStatus, string>;
-const channelOptions = Object.entries(PAYMENT_CHANNEL_LABELS).map(([value, label]) => ({ value, label }));
+const channelOptions = PAYMENT_CHANNEL_OPTIONS;
 const PREAUTH_METHOD_OPTIONS = [
   { value: 'wechat_preauth', label: '微信预授权' },
   { value: 'alipay_preauth', label: '支付宝预授权' },

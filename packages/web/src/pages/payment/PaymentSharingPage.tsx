@@ -25,7 +25,7 @@ import {
   useReversePaymentSharingOrder,
   useSavePaymentSharingReceiver,
 } from '@/hooks/queries/payment-sharing';
-import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABELS, PAYMENT_SHARING_REVERSAL_STATUS_LABELS } from '@zenith/shared/payment';
+import { PAYMENT_SHARING_RECEIVER_TYPE_LABELS, PAYMENT_SHARING_ORDER_STATUS_LABELS, PAYMENT_SHARING_REVERSAL_STATUS_LABELS, PAYMENT_SHARING_RECEIVER_TYPE_OPTIONS, PAYMENT_SHARING_ORDER_STATUS_OPTIONS, PAYMENT_SHARING_REVERSAL_STATUS_OPTIONS } from '@zenith/shared/payment';
 import type { PaymentSharingOrder, PaymentSharingOrderStatus, PaymentSharingReceiver, PaymentSharingReceiverType, PaymentSharingReversal, PaymentSharingReversalStatus } from '@zenith/shared/payment';
 import { useDictItems } from '@/hooks/useDictItems';
 import { CreateButton, ResetButton, SearchButton } from '@/components/toolbar-controls';
@@ -35,7 +35,7 @@ import { abortSubmit } from '@/lib/abort-submit';
 
 import { useUrlTabState } from '@/hooks/useUrlTabState';
 const yuan = formatYuan;
-const receiverTypeOptions = Object.entries(PAYMENT_SHARING_RECEIVER_TYPE_LABELS).map(([value, label]) => ({ value, label }));
+const receiverTypeOptions = PAYMENT_SHARING_RECEIVER_TYPE_OPTIONS;
 const ORDER_STATUS_COLOR = { pending: 'grey', processing: 'blue', success: 'green', failed: 'red', reversed: 'orange' } as const satisfies Record<PaymentSharingOrderStatus, string>;
 const REVERSAL_STATUS_COLOR = { processing: 'blue', unknown: 'orange', success: 'green', failed: 'red' } as const satisfies Record<PaymentSharingReversalStatus, string>;
 
@@ -336,7 +336,7 @@ export default function PaymentSharingPage() {
   );
   const renderOrderStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_SHARING_ORDER_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_SHARING_ORDER_STATUS_OPTIONS}
       value={orderStatus}
       onChange={setOrderStatus}
     />
@@ -348,7 +348,7 @@ export default function PaymentSharingPage() {
   ) : null;
   const renderReversalStatusFilter = () => (
     <StatusSelect
-      items={Object.entries(PAYMENT_SHARING_REVERSAL_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+      items={PAYMENT_SHARING_REVERSAL_STATUS_OPTIONS}
       value={reversalStatus}
       onChange={setReversalStatus}
       width={140}

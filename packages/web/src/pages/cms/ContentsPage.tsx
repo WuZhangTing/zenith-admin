@@ -20,7 +20,7 @@ import {
   useAllCmsSites, useAllCmsTags, useCmsContentBatchOps, useCmsContentBatchStatus, useDuplicateCmsContent, cmsContentKeys,
   useCmsContentPersistentLock,
 } from '@/hooks/queries/cms';
-import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS } from '@zenith/shared/cms';
+import { CMS_CONTENT_STATUS_LABELS, CMS_CONTENT_TYPE_LABELS, CMS_CONTENT_TYPE_OPTIONS } from '@zenith/shared/cms';
 import type { CmsChannel, CmsContent, CmsContentStatus, CmsContentType } from '@zenith/shared/cms';
 import { CmsSiteSelect } from './CmsSiteSelect';
 import { CmsWidgetSourceRefsSheet, type CmsWidgetSourceTarget } from './CmsWidgetSourceRefsSheet';
@@ -507,7 +507,7 @@ export default function ContentsPage() {
       onChange={(v) => { setContentType(v as CmsContentType | undefined); setPage(1); setSelectedIds([]); }}
       showClear
       style={{ width: 130 }}
-      optionList={Object.entries(CMS_CONTENT_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+      optionList={CMS_CONTENT_TYPE_OPTIONS}
     />
   );
   const renderSearchButton = () => (

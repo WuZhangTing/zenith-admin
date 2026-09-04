@@ -1,3 +1,4 @@
+import { createLabelOptionsFromMap } from '../core/enum-options';
 // OAuth2 服务端常量
 export const OAUTH2_GRANT_TYPES = ['authorization_code', 'client_credentials', 'refresh_token'] as const;
 
@@ -96,6 +97,8 @@ export const OPEN_WEBHOOK_DELIVERY_STATUS_LABELS: Record<OpenWebhookDeliveryStat
   failed: '失败',
   retrying: '重试中',
 };
+
+export const OPEN_WEBHOOK_DELIVERY_STATUS_OPTIONS = createLabelOptionsFromMap(OPEN_WEBHOOK_DELIVERY_STATUS_LABELS);
 
 /** 支付域可订阅事件；支付中心 Webhook 视图只允许这些显式事件。 */
 export const PAYMENT_WEBHOOK_EVENTS = [
