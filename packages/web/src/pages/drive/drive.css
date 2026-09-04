@@ -1,0 +1,613 @@
+/* ─── 工作台整体 ─────────────────────────────────────────────────────────── */
+.drive-workbench {
+  display: flex;
+  flex-direction: column;
+}
+
+.drive-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 240px;
+}
+
+/* ─── 左侧导航 ───────────────────────────────────────────────────────────── */
+.drive-nav__search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 4px 8px;
+}
+
+.drive-nav__fulltext {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.drive-nav__section {
+  padding: 12px 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--semi-color-text-2);
+  letter-spacing: 0.02em;
+}
+
+.drive-nav__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+  color: var(--semi-color-text-0);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.drive-nav__item:hover {
+  background: var(--semi-color-fill-0);
+}
+
+.drive-nav__item:focus-visible {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: -2px;
+}
+
+.drive-nav__item--active {
+  background: var(--semi-color-primary-light-default);
+  color: var(--semi-color-primary);
+}
+
+.drive-nav__icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.drive-nav__label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.drive-nav__name {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.drive-nav__item--active .drive-nav__name {
+  color: var(--semi-color-primary);
+  font-weight: 600;
+}
+
+.drive-nav__meta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--semi-color-text-2);
+}
+
+/* ─── 目录浏览器 ────────────────────────────────────────────────────────── */
+.drive-browser {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 12px 16px 16px;
+  box-sizing: border-box;
+}
+
+.drive-browser--dragging::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 2px dashed var(--semi-color-primary);
+  border-radius: var(--semi-border-radius-large);
+  background: var(--semi-color-primary-light-default);
+  opacity: 0.6;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.drive-browser__drop-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 20px;
+  border-radius: var(--semi-border-radius-large);
+  background: var(--semi-color-bg-0);
+  box-shadow: var(--semi-shadow-elevated);
+  color: var(--semi-color-primary);
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.drive-browser__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-height: 32px;
+}
+
+.drive-browser__crumbs {
+  min-width: 0;
+  flex: 1;
+}
+
+.drive-browser__usage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.drive-browser__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 0;
+}
+
+.drive-browser__toolbar-left,
+.drive-browser__toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.drive-browser__batch {
+  padding-left: 8px;
+  border-left: 1px solid var(--semi-color-border);
+}
+
+.drive-browser__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.drive-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.drive-name-cell > .file-name-cell {
+  min-width: 0;
+  flex: 1;
+}
+
+.drive-name-cell__star {
+  flex-shrink: 0;
+  color: var(--semi-color-warning);
+}
+
+.drive-name-cell__lock {
+  flex-shrink: 0;
+  color: var(--semi-color-text-2);
+}
+
+/* ─── 网格视图 ───────────────────────────────────────────────────────────── */
+.drive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+  padding: 4px 2px;
+}
+
+.drive-grid__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+}
+
+.drive-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--semi-border-radius-medium);
+  background: transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.drive-card:hover {
+  background: var(--semi-color-fill-0);
+  border-color: var(--semi-color-border);
+}
+
+.drive-card--selected {
+  background: var(--semi-color-primary-light-default);
+  border-color: var(--semi-color-primary);
+}
+
+.drive-card__hit {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.drive-card__hit:focus-visible {
+  outline: 2px solid var(--semi-color-primary);
+  outline-offset: -2px;
+}
+
+.drive-card__checkbox {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 2;
+}
+
+.drive-card:hover .drive-card__checkbox,
+.drive-card--selected .drive-card__checkbox,
+.drive-card__checkbox:focus-within {
+  opacity: 1;
+}
+
+.drive-card__media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88px;
+  border-radius: var(--semi-border-radius-small);
+  overflow: hidden;
+}
+
+.drive-card__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--semi-border-radius-small);
+}
+
+.drive-card__folder-icon {
+  color: var(--semi-color-warning);
+}
+
+.drive-card__icon {
+  display: flex;
+}
+
+.drive-card__badges {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  gap: 4px;
+}
+
+.drive-card__badge {
+  padding: 2px;
+  border-radius: var(--semi-border-radius-small);
+  background: var(--semi-color-bg-0);
+  box-shadow: var(--semi-shadow-elevated);
+}
+
+.drive-card__badge--star {
+  color: var(--semi-color-warning);
+}
+
+.drive-card__badge--lock {
+  color: var(--semi-color-text-2);
+}
+
+.drive-card__info {
+  padding-top: 6px;
+  text-align: center;
+}
+
+.drive-card__name {
+  font-size: 13px;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drive-card__meta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--semi-color-text-2);
+}
+
+/* ─── 个人视图 ───────────────────────────────────────────────────────────── */
+.drive-views {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 12px 16px 16px;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+.drive-views__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+}
+
+/* ─── 详情抽屉 ───────────────────────────────────────────────────────────── */
+.drive-drawer__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+}
+
+.drive-drawer__desc {
+  padding-top: 8px;
+}
+
+.drive-panel {
+  padding: 12px 0;
+}
+
+.drive-panel__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--semi-border-radius-medium);
+  background: var(--semi-color-fill-0);
+  font-size: 13px;
+}
+
+.drive-panel__label {
+  display: inline-block;
+  min-width: 96px;
+  color: var(--semi-color-text-2);
+}
+
+.drive-panel__inherit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drive-panel__section {
+  padding-top: 16px;
+}
+
+.drive-panel__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.drive-panel__inherited {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--semi-color-text-1);
+}
+
+/* ─── 授权主体选择器 ─────────────────────────────────────────────────────── */
+.drive-subject-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drive-subject-picker__add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.drive-subject-picker__role-option {
+  display: block;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+/* ─── 上传队列 ───────────────────────────────────────────────────────────── */
+.drive-upload-queue {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-large);
+  background: var(--semi-color-bg-2);
+  box-shadow: var(--semi-shadow-elevated);
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.drive-upload-queue__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.drive-upload-queue__header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.drive-upload-queue__list {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  overflow: auto;
+}
+
+.drive-upload-queue__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+}
+
+.drive-upload-queue__item--error {
+  background: var(--semi-color-danger-light-default);
+}
+
+.drive-upload-queue__item-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.drive-upload-queue__name {
+  font-size: 13px;
+}
+
+.drive-upload-queue__meta {
+  font-size: 12px;
+  color: var(--semi-color-text-2);
+}
+
+.drive-upload-queue__item-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.drive-upload-queue__spin {
+  color: var(--semi-color-text-2);
+  animation: drive-spin 1s linear infinite;
+}
+
+@keyframes drive-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drive-upload-queue__spin { animation: none; }
+}
+
+/* ─── 治理页图表 ─────────────────────────────────────────────────────────── */
+.drive-admin__charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin: 16px 0 8px;
+}
+
+.drive-admin__chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-medium);
+  min-width: 0;
+}
+
+/* ─── 公开外链页 ─────────────────────────────────────────────────────────── */
+.drive-public {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 16px;
+  box-sizing: border-box;
+  background: var(--semi-color-bg-0);
+}
+
+.drive-public__card {
+  width: 100%;
+  max-width: 880px;
+  border: 1px solid var(--semi-color-border);
+  border-radius: var(--semi-border-radius-large);
+  background: var(--semi-color-bg-1);
+  box-shadow: var(--semi-shadow-elevated);
+  overflow: hidden;
+}
+
+.drive-public__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--semi-color-border);
+}
+
+.drive-public__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.drive-public__body {
+  padding: 16px 20px 20px;
+}
+
+.drive-public__gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 20px;
+  text-align: center;
+}
+
+@media (width <= 640px) {
+  .drive-browser,
+  .drive-views {
+    padding: 8px 12px 12px;
+  }
+
+  .drive-upload-queue {
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    left: 8px;
+  }
+}

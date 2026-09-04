@@ -149,14 +149,31 @@ export interface SearchDriveNodesQuery extends PagedQuery {
   fullText?: boolean;
 }
 
+/** `simple` 分词器不切分中日韩文本：含 CJK 的关键词改用子串匹配，否则用 tsvector */
+const CJK_PATTERN = /[\u3400-\u9fff\uf900-\ufaff\u3040-\u30ff\uac00-\ud7af]/;
+
+function textMatchCondition(keyword: string): SQL {
+  return CJK_PATTERN.test(keyword)
+    ? sql`${driveNodeTexts.content} ILIKE ${`%${keyword.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`}`
+    : sql`${driveNodeTexts.searchVector} @@ plainto_tsquery('simple', ${keyword})`;
+}
+
+/** CJK 关键词的命中片段：以首次出现位置为中心截取窗口 */
+function substringSnippet(content: string, keyword: string, radius = 40): string {
+  const idx = content.toLowerCase().indexOf(keyword.toLowerCase());
+  if (idx < 0) return content.slice(0, radius * 2);
+  const start = Math.max(0, idx - radius);
+  const end = Math.min(content.length, idx + keyword.length + radius);
+  return `${start > 0 ? '…' : ''}${content.slice(start, end).replaceAll(/\s+/g, ' ')}${end < content.length ? '…' : ''}`;
+}
+
 export async function searchDriveNodes(q: SearchDriveNodesQuery) {
   const { page = 1, pageSize = 20 } = q;
   const keyword = q.keyword?.trim();
   if (!keyword) throw new HTTPException(400, { message: '请输入搜索关键词' });
   const subjects = await loadDriveSubjects();
   const nameCondition = keywordCondition(keyword, [driveNodes.name], 'ilike');
-  const textSub = db.select({ id: driveNodeTexts.nodeId }).from(driveNodeTexts)
-    .where(sql`${driveNodeTexts.searchVector} @@ plainto_tsquery('simple', ${keyword})`);
+  const textSub = db.select({ id: driveNodeTexts.nodeId }).from(driveNodeTexts).where(textMatchCondition(keyword));
   const matchCondition: SQL | undefined = q.fullText
     ? or(nameCondition!, inArray(driveNodes.id, textSub))
     : nameCondition;
@@ -176,16 +193,19 @@ export async function searchDriveNodes(q: SearchDriveNodesQuery) {
   ]);
   const visible = await filterVisibleNodes(rows);
   const names = await spaceNameMap(visible);
+  const isCjk = CJK_PATTERN.test(keyword);
   const snippets = q.fullText && visible.length
     ? await db.select({
       nodeId: driveNodeTexts.nodeId,
-      snippet: sql<string>`ts_headline('simple', ${driveNodeTexts.content}, plainto_tsquery('simple', ${keyword}), 'MaxFragments=2, MaxWords=24, MinWords=8')`,
+      snippet: isCjk
+        ? driveNodeTexts.content
+        : sql<string>`ts_headline('simple', ${driveNodeTexts.content}, plainto_tsquery('simple', ${keyword}), 'MaxFragments=2, MaxWords=24, MinWords=8')`,
     }).from(driveNodeTexts).where(and(
       inArray(driveNodeTexts.nodeId, visible.map((v) => v.id)),
-      sql`${driveNodeTexts.searchVector} @@ plainto_tsquery('simple', ${keyword})`,
+      textMatchCondition(keyword),
     ))
     : [];
-  const snippetMap = new Map(snippets.map((s) => [s.nodeId, s.snippet]));
+  const snippetMap = new Map(snippets.map((s) => [s.nodeId, isCjk ? substringSnippet(s.snippet, keyword) : s.snippet]));
   const decorated = await decorateNodes(visible, new Map(visible.map((r) => [r.id, r.myRole])));
   const list: DriveSearchItem[] = decorated.map((n) => ({
     ...n,

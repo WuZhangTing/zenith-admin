@@ -351,12 +351,18 @@ export function isArchiveFile(mimeType?: string | null): boolean {
   const mime = mimeType.toLowerCase();
   return isZipFile(mime) || ARCHIVE_MIME_TYPES.has(mime);
 }
-/** 使用当前登录 token 获取受保护的文件内容，返回 Blob；绝对 URL（云存储直链）直接裸 fetch，不携带 token */
+/** 匿名可访问的公开端点：不带 token、401 也不触发登录态刷新与跳转（外链访客本就未登录） */
+const ANONYMOUS_URL_PREFIXES = ['/api/drive/public/'];
+
+/** 使用当前登录 token 获取受保护的文件内容，返回 Blob；绝对 URL（云存储直链）与公开端点直接裸 fetch，不携带 token */
 export async function fetchProtectedFile(url: string): Promise<Blob> {
   const isAbsolute = /^https?:\/\//.test(url);
+  const isAnonymous = ANONYMOUS_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
   let response: Response;
   if (isAbsolute) {
     response = await fetch(url);
+  } else if (isAnonymous) {
+    response = await fetch(`${config.apiBaseUrl}${url}`);
   } else {
     const authed = await request.fetchRaw(url, { silent: true });
     if (!authed) throw new Error('文件读取失败');

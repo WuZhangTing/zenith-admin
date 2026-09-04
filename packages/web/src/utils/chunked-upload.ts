@@ -14,15 +14,26 @@ const RESUME_KEY_PREFIX = 'zenith_chunk_upload:';
 export interface ChunkedUploadOptions {
   onProgress?: (percent: number) => void;
   signal?: AbortSignal;
+  /**
+   * 分片接口前缀，默认通用文件服务 `/api/files/upload`。
+   * 归属模块（如企业网盘 `/api/drive/nodes/upload`）传入自己的前缀，
+   * 四个子路径（init / chunk / complete / {id}/status）保持一致。
+   */
+  endpointBase?: string;
+  /** init 请求的附加字段（目标目录、冲突策略、内容哈希等），与 fileName / fileSize / mimeType / chunkSize 合并 */
+  initExtra?: Record<string, unknown>;
+  /** 续传键的额外维度：同一文件上传到不同目标时不应复用会话 */
+  resumeScope?: string;
 }
 
-function resumeKey(file: File) {
-  return `${RESUME_KEY_PREFIX}${file.name}:${file.size}:${file.lastModified}`;
+function resumeKey(file: File, scope?: string) {
+  return `${RESUME_KEY_PREFIX}${scope ? `${scope}:` : ''}${file.name}:${file.size}:${file.lastModified}`;
 }
 
 /** 对单个文件执行分片上传，返回最终的 ManagedFile（data）。 */
 export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUploadOptions): Promise<TFile> {
-  const { signal } = opts;
+  const { signal, endpointBase = '/api/files/upload', initExtra, resumeScope } = opts;
+  const key = resumeKey(file, resumeScope);
 
   let uploadId = '';
   let chunkSize = CHUNK_SIZE;
@@ -30,10 +41,10 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
   const received = new Set<number>();
 
   // 1) 尝试续传：localStorage 中已有未完成会话
-  const storedId = localStorage.getItem(resumeKey(file));
+  const storedId = localStorage.getItem(key);
   if (storedId) {
     try {
-      const body = await request.get<{ status: string; chunkSize: number; totalChunks: number; received: number[] }>(`/api/files/upload/${storedId}/status`, { silent: true, signal });
+      const body = await request.get<{ status: string; chunkSize: number; totalChunks: number; received: number[] }>(`${endpointBase}/${storedId}/status`, { silent: true, signal });
       if (body.code === 0 && body.data.status === 'uploading') {
         uploadId = storedId;
         chunkSize = body.data.chunkSize;
@@ -48,8 +59,8 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
   // 2) 初始化
   if (!uploadId) {
     const body = await request.post<{ uploadId: string; chunkSize: number; totalChunks: number; received: number[] }>(
-      '/api/files/upload/init',
-      { fileName: file.name, fileSize: file.size, mimeType: file.type || undefined, chunkSize: CHUNK_SIZE },
+      `${endpointBase}/init`,
+      { ...initExtra, fileName: file.name, fileSize: file.size, mimeType: file.type || undefined, chunkSize: CHUNK_SIZE },
       { silent: true, signal },
     );
     if (body.code !== 0) throw new Error(body.message || '初始化上传失败');
@@ -57,7 +68,7 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
     chunkSize = body.data.chunkSize;
     totalChunks = body.data.totalChunks;
     body.data.received.forEach((i) => received.add(i));
-    localStorage.setItem(resumeKey(file), uploadId);
+    localStorage.setItem(key, uploadId);
   }
 
   // 3) 并发上传缺失分片（失败重试）
@@ -77,7 +88,7 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
         fd.append('uploadId', uploadId);
         fd.append('index', String(index));
         fd.append('chunk', blob);
-        const body = await request.post<unknown>('/api/files/upload/chunk', fd, { silent: true, signal });
+        const body = await request.post<unknown>(`${endpointBase}/chunk`, fd, { silent: true, signal });
         if (body.code !== 0) throw new Error(body.message || '分片上传失败');
         return;
       } catch (err) {
@@ -101,9 +112,9 @@ export async function chunkedUpload<TFile = unknown>(file: File, opts: ChunkedUp
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
   // 4) 合并完成
-  const body = await request.post<TFile>('/api/files/upload/complete', { uploadId }, { silent: true, signal });
+  const body = await request.post<TFile>(`${endpointBase}/complete`, { uploadId }, { silent: true, signal });
   if (body.code !== 0) throw new Error(body.message || '合并失败');
-  localStorage.removeItem(resumeKey(file));
+  localStorage.removeItem(key);
   opts.onProgress?.(100);
   return body.data;
 }
