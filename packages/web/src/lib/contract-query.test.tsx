@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, expectTypeOf } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import * as z from 'zod';
 import { defineContract, fileField, idParam, multipart, op, paginated, paginationQuery, batchIdsBody } from '@zenith/shared/core';
@@ -185,6 +185,31 @@ describe('createResourceQueries · 字符串主键', () => {
     recorder.resetCalls();
     await result.current.remove.mutateAsync(['a1']);
     expect(recorder.calls[0]).toEqual({ method: 'DELETE', url: '/api/docs/a1' });
+  });
+});
+
+describe('createResourceQueries · 无 detail 端点', () => {
+  const tagSchema = z.object({ id: z.int(), name: z.string() });
+  const tagContract = defineContract('/api/tags', {
+    list: op.get('/', { query: paginationQuery, response: paginated(tagSchema), summary: '列表' }),
+    all: op.get('/all', { response: z.array(tagSchema), summary: '全部' }),
+    create: op.post('/', { body: z.object({ name: z.string() }), response: tagSchema, summary: '创建' }),
+    update: op.put('/{id}', { params: idParam, body: z.object({ name: z.string().optional() }), response: tagSchema, summary: '更新' }),
+    remove: op.delete('/{id}', { params: idParam, summary: '删除' }),
+  });
+  const tags = createResourceQueries(tagContract);
+
+  it('derives entity from the list item and id from update params; useDetail is not offered', async () => {
+    expectTypeOf(tags.keys.detail).parameter(0).toEqualTypeOf<number | undefined>();
+    // @ts-expect-error 契约未声明 detail，工厂不提供 useDetail
+    void tags.useDetail;
+    recorder.on('GET', '/api/tags', { list: [{ id: 1, name: 't' }], total: 1, page: 1, pageSize: 10 }).on('PUT', '/api/tags/1', { id: 1, name: 'u' });
+    const qc = createTestQueryClient();
+    const { result } = renderHook(() => ({ list: tags.useList({ page: 1, pageSize: 10 }), save: tags.useSave() }), { wrapper: createWrapper(qc) });
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
+    const saved = await result.current.save.mutateAsync({ id: 1, values: { name: 'u' } });
+    expectTypeOf(saved).toEqualTypeOf<{ id: number; name: string }>();
+    expect(saved).toEqual({ id: 1, name: 'u' });
   });
 });
 

@@ -191,7 +191,7 @@ type RemoveOp = AnyOperation & { method: 'delete' };
 /**
  * 标准 CRUD 契约组的形态约定：
  * - `list`：分页列表，`query` 含 page / pageSize，响应 `paginated(entity)`
- * - `detail`：`GET /{id}`，响应实体
+ * - 可选 `detail`：`GET /{id}`，响应实体；未声明时实体类型取列表项
  * - `create` / `update`：`POST /` 与 `PUT /{id}`，响应实体
  * - `remove`：`DELETE /{id}`；可选 `removeBatch`：`DELETE /batch`，body `{ ids }`
  * - 可选 `all`：全量精简下拉源
@@ -199,7 +199,7 @@ type RemoveOp = AnyOperation & { method: 'delete' };
 export interface ResourceContract {
   readonly basePath: string;
   readonly list: ListOp;
-  readonly detail: DetailOp;
+  readonly detail?: DetailOp;
   readonly create?: WriteOp;
   readonly update?: WriteOp;
   readonly remove?: RemoveOp;
@@ -207,12 +207,21 @@ export interface ResourceContract {
   readonly all?: AnyOperation;
 }
 
-type EntityOf<C extends ResourceContract> = OutputOf<C['detail']>;
+/** 契约组中某个可选操作的类型；未声明时为 never */
+type OpAt<C, K extends string> = K extends keyof C ? (C[K] extends AnyOperation ? C[K] : never) : never;
+type ListItemOf<C extends ResourceContract> = OutputOf<C['list']> extends { list: (infer T)[] } ? T : never;
+/** 实体类型：detail 的响应；未声明 detail 时取列表项 */
+type EntityOf<C extends ResourceContract> = [OpAt<C, 'detail'>] extends [never] ? ListItemOf<C> : OutputOf<OpAt<C, 'detail'>>;
 type ListParamsOf<C extends ResourceContract> = NonNullable<QueryOf<C['list']>>;
-/** 资源主键类型：取自 detail 操作路径参数 `id`（数值主键为 number，UUID 主键为 string） */
-type IdOf<C extends ResourceContract> = C['detail']['params'] extends ParamsSchema
-  ? ShapeInput<C['detail']['params']> extends { id: infer TId } ? TId : number
-  : number;
+type IdFromParams<Op> = Op extends AnyOperation
+  ? (Op['params'] extends ParamsSchema ? (ShapeInput<Op['params']> extends { id: infer TId } ? TId : number) : number)
+  : never;
+/** 资源主键类型：依次取 detail / update / remove 操作路径参数 `id`（数值主键为 number，UUID 主键为 string） */
+type IdOf<C extends ResourceContract> = [OpAt<C, 'detail'>] extends [never]
+  ? [OpAt<C, 'update'>] extends [never]
+    ? [OpAt<C, 'remove'>] extends [never] ? number : IdFromParams<OpAt<C, 'remove'>>
+    : IdFromParams<OpAt<C, 'update'>>
+  : IdFromParams<OpAt<C, 'detail'>>;
 /**
  * 保存载荷：create 入参的部分形态。同一表单同时服务新增与编辑，必填字段由表单 rules 保证、
  * 服务端 schema 兜底校验；未声明 create 时取 update 入参。
@@ -246,16 +255,21 @@ export interface CreateResourceQueriesOptions<C extends ResourceContract> {
   readonly requestOptions?: ApiCallOptions;
 }
 
-export interface ResourceQueries<C extends ResourceContract> {
+interface ResourceQueriesBase<C extends ResourceContract> {
   readonly keys: ResourceQueryKeys<ListParamsOf<C>, IdOf<C>>;
   readonly useList: (params: ListParamsOf<C>, enabled?: boolean) => ReturnType<typeof useQuery<PageOf<EntityOf<C>>>>;
-  readonly useDetail: (id: IdOf<C> | undefined, enabled?: boolean) => ReturnType<typeof useQuery<EntityOf<C>>>;
   /** 无 id 走 create，有 id 走 update；成功后失效列表、详情与下拉源 */
   readonly useSave: () => ReturnType<typeof useMutation<EntityOf<C>, Error, { id?: IdOf<C>; values: SaveValuesOf<C> }>>;
   /** 单条走 remove，多条走 removeBatch（未声明时并发逐条删除）；成功后移除详情缓存并失效列表 */
   readonly useDelete: () => ReturnType<typeof useMutation<null, Error, IdOf<C>[]>>;
   readonly useLookup: (enabled?: boolean) => ReturnType<typeof useQuery<LookupOf<C>>>;
 }
+
+/** 契约声明了 detail 时才提供 `useDetail` */
+export type ResourceQueries<C extends ResourceContract> = ResourceQueriesBase<C> &
+  ([OpAt<C, 'detail'>] extends [never]
+    ? Record<never, never>
+    : { readonly useDetail: (id: IdOf<C> | undefined, enabled?: boolean) => ReturnType<typeof useQuery<EntityOf<C>>> });
 
 export function createResourceQueries<const C extends ResourceContract>(
   contract: C,
@@ -292,8 +306,11 @@ export function createResourceQueries<const C extends ResourceContract>(
   function useDetail(id: IdOf<C> | undefined, enabled = true) {
     return useQuery({
       queryKey: keys.detail(id),
-      queryFn: () => call(contract.detail, { params: { id } } as unknown as InputOf<C['detail']>) as Promise<EntityOf<C>>,
-      enabled: enabled && id !== undefined,
+      queryFn: () => {
+        if (!contract.detail) throw new Error(`契约 ${contract.basePath} 未声明 detail 操作`);
+        return call(contract.detail, { params: { id } } as unknown as InputOf<DetailOp>) as Promise<EntityOf<C>>;
+      },
+      enabled: enabled && id !== undefined && Boolean(contract.detail),
     });
   }
 
@@ -349,5 +366,6 @@ export function createResourceQueries<const C extends ResourceContract>(
     });
   }
 
-  return { keys, useList, useDetail, useSave, useDelete, useLookup };
+  // 未声明 detail 的契约在类型上不暴露 useDetail；运行时对象保持同一形状以便 hooks 调用顺序恒定
+  return { keys, useList, useDetail, useSave, useDelete, useLookup } as unknown as ResourceQueries<C>;
 }

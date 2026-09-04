@@ -54,7 +54,7 @@ packages/web/src/
 | `useApiMutation(op, { invalidate, requestOptions, ...mutationOptions })` | 变更；变量即契约输入，`invalidate(qc, output, input)` 负责失效 |
 | `createResourceQueries(contract, options?)` | 标准 CRUD 契约组的 `keys` 与 `useList` / `useDetail` / `useSave` / `useDelete` / `useLookup` |
 
-`createResourceQueries` 依赖契约操作命名：`list`（分页）、`detail`、`create`、`update`、`remove`，可选 `removeBatch`（多条删除走 `/batch`）与 `all`（下拉源）。主键类型取自 `detail` 的路径参数 `id`（`idParam` → number，`z.object({ id: z.string() })` → string），`useDetail` / `useSave` / `useDelete` / `keys.detail` 随之推导。
+`createResourceQueries` 依赖契约操作命名：`list`（分页）必填；`detail` / `create` / `update` / `remove` / `removeBatch`（多条删除走 `/batch`）/ `all`（下拉源）均可选，声明了才提供对应 hook（未声明 `detail` 时不提供 `useDetail`，实体类型取列表项）。主键类型依次取 `detail` / `update` / `remove` 的路径参数 `id`（`idParam` → number，`z.object({ id: z.string() })` → string），`useDetail` / `useSave` / `useDelete` / `keys.detail` 随之推导。
 
 | 选项 | 说明 |
 | --- | --- |
