@@ -13,7 +13,8 @@
 ```text
 packages/web/src/
 ├── lib/query.ts            # queryClient 单例 + unwrap + toQueryString + compactQuery + LOOKUP_STALE_TIME + createLimiter
-├── lib/crud-queries.ts     # createCrudQueries：标准 CRUD 域的 keys + 列表/详情/保存/删除/下拉源工厂
+├── lib/contract-query.ts   # 契约调用层：api / useApiQuery / useApiMutation / createResourceQueries
+├── lib/api-conformance.test.ts  # 字面量 URL 对照服务端路由快照
 ├── hooks/useListSearch.ts  # 列表搜索状态：draft/submitted + 分页 + 查询必回源
 ├── hooks/useEditModal.ts   # 新增/编辑弹窗编排：校验/提交/提示/关闭/表单重挂载
 ├── hooks/queries/          # 后台域 hooks：每个业务域一个文件
@@ -40,28 +41,33 @@ packages/web/src/
 | `LOOKUP_STALE_TIME` | 5 分钟，用于字典、部门树、用户下拉源等低频 lookup |
 | `createLimiter(max)` | 轻量并发信号量，限制同类请求并发数 |
 
-## 基建（lib/crud-queries.ts）
+## 基建（lib/contract-query.ts）
 
-`createCrudQueries` 生成标准 CRUD 域的 query key 与 hooks：`useList`、`useDetail`、`useSave`、`useDelete`、`useLookup`。
+所有服务端调用由 `@zenith/shared/{域}` 的契约操作驱动：URL、方法、参数与响应类型来自契约，域 hooks 与页面不书写 `/api/...` 字面量。
+
+| 导出 | 说明 |
+| --- | --- |
+| `api(op, input?, options?)` | 单次调用，返回解包后的 `data`；`input` 为契约输入 `{ params?, query?, body? }`，`options` 为请求选项（`silent`、`client` 等） |
+| `urlOf(op, input?)` | 契约操作 + 输入 → 完整 URL（下载、`postForm` 等二进制通道使用） |
+| `contractKey(op, input?)` | 单操作查询的 query key：`[资源键, 操作名, input]` |
+| `apiQueryOptions(op, input?, options?)` / `useApiQuery(op, input?, options?)` | 可缓存查询；`options` 透传 TanStack Query 选项（`enabled`、`staleTime`…） |
+| `useApiMutation(op, { invalidate, requestOptions, ...mutationOptions })` | 变更；变量即契约输入，`invalidate(qc, output, input)` 负责失效 |
+| `createResourceQueries(contract, options?)` | 标准 CRUD 契约组的 `keys` 与 `useList` / `useDetail` / `useSave` / `useDelete` / `useLookup` |
+
+`createResourceQueries` 依赖契约操作命名：`list`（分页）、`detail`、`create`、`update`、`remove`，可选 `removeBatch`（多条删除走 `/batch`）与 `all`（下拉源）。
 
 | 选项 | 说明 |
 | --- | --- |
-| `resource` | 资源名，同时作为默认 query key 前缀与默认接口路径 `/api/{resource}` |
-| `keyPrefix` | 覆盖 query key 前缀，保留存量嵌套 key 生命周期时使用 |
-| `path` | 覆盖接口基础路径 |
-| `lookup` | `false` 不生成有效下拉源；`true` 使用 `/all`；字符串表示自定义子路径 |
-| `deleteMode` | `'batch'`：单条 `DELETE /:id`、多条 `DELETE /batch`；`'single'`：多条并发单删 |
-| `onSaved` / `onDeleted` | 保存/删除成功后的跨域联动失效 |
+| `keyPrefix` | 覆盖 query key 前缀（默认由契约 `basePath` 派生，`/api/tenants` → `['tenants']`） |
+| `onSaved` / `onDeleted` | 保存 / 删除成功后的跨域联动失效 |
 | `listStaleTime` | 覆盖列表查询 staleTime |
-| `buildQuery` | 自定义列表查询串构造函数，默认 `toQueryString` |
+| `requestOptions` | 请求选项，如 `{ client: memberRequest }` 切换到会员端请求实例 |
 
-工厂固定失效契约：保存后失效 `detail(saved.id)`、`lists` 与可选 `lookup`；删除后 `removeQueries(detail(id))`，再失效 `lists` 与可选 `lookup`。
+工厂固定失效契约：保存后失效 `detail(saved.id)`、`lists` 与（契约声明 `all` 时）`lookup`；删除后 `removeQueries(detail(id))`，再失效 `lists` 与 `lookup`。
 
 ```ts
-export interface XxxListParams extends CrudListParams {
-  keyword?: string;
-  status?: string;
-}
+import { xxxContract } from '@zenith/shared/{域}';
+import { createResourceQueries, useApiMutation } from '@/lib/contract-query';
 
 export const {
   keys: xxxKeys,
@@ -70,13 +76,16 @@ export const {
   useSave: useSaveXxx,
   useDelete: useDeleteXxxs,
   useLookup: useAllXxxs,
-} = createCrudQueries<Xxx, XxxListParams, XxxValues, XxxOption>({
-  resource: 'xxxs',
-  lookup: true,
-});
+} = createResourceQueries(xxxContract);
+
+/** 其余操作：变量即契约输入 */
+export const useAssignXxxMenus = () =>
+  useApiMutation(xxxContract.assignMenus, {
+    invalidate: (qc, _output, { params }) => void qc.invalidateQueries({ queryKey: xxxKeys.detail(params.id) }),
+  });
 ```
 
-域内非标准接口（分配菜单、导入导出、状态切换等）仍在同一 `hooks/queries/*.ts` 文件手写 `useMutation`，使用本域或相关所有者域导出的 key 按真实副作用失效。
+仍以字面量书写 URL 的调用由 `lib/api-conformance.test.ts` 对照服务端路由快照校验，服务端尚无端点的调用登记在 `lib/api-conformance.allowlist.ts`。
 
 ## 域 hooks 约定
 
@@ -102,7 +111,7 @@ const listQuery = useXxxList({
   page,
   pageSize,
   keyword: submittedParams.keyword || undefined,
-  status: submittedParams.status || undefined,
+  status: enumValueOf(XXX_STATUSES, submittedParams.status),   // 契约按枚举声明，先收窄 string
 });
 ```
 
@@ -126,7 +135,7 @@ const listQuery = useXxxList({
 新增/编辑弹窗统一用 `useEditModal`。它负责打开状态、详情懒加载、表单校验、保存、成功提示、关闭与表单重挂载。
 
 ```tsx
-const modal = useEditModal<Xxx, XxxValues>({
+const modal = useEditModal<Xxx, Partial<CreateXxxInput>>({
   entityName: '示例',
   save: useSaveXxx(),
   useDetail: useXxxDetail,

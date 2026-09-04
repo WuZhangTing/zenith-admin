@@ -1,9 +1,11 @@
+import { tenantContract } from '@zenith/shared/identity';
+import type { Tenant } from '@zenith/shared/identity';
 import { http } from 'msw';
-import { ok, notFound, pageParams } from '@/mocks/utils/handlers';
+import { mock } from '@/mocks/utils/contract';
+import { ok, notFound } from '@/mocks/utils/handlers';
 import { mockTenants, getNextTenantId } from '@/mocks/data/tenants';
 import { mockTenantPackages } from '@/mocks/data/tenant-packages';
 import { mockDateTime } from '@/mocks/utils/date';
-import type { Tenant } from '@zenith/shared/identity';
 
 function withPackageName(t: Tenant): Tenant {
   return {
@@ -18,29 +20,20 @@ function mockUserCount(t: Tenant): number {
 }
 
 export const tenantsHandlers = [
-  // 租户列表（分页）
-  http.get('/api/tenants', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-    const status = url.searchParams.get('status') ?? '';
-    const { page, pageSize } = pageParams(url);
-
+  mock(tenantContract.list, ({ query, ok, paginate }) => {
     const filtered = mockTenants.filter((t) => {
-      if (keyword && !t.name.includes(keyword) && !t.code.includes(keyword)) return false;
-      if (status && t.status !== status) return false;
+      if (query.keyword && !t.name.includes(query.keyword) && !t.code.includes(query.keyword)) return false;
+      if (query.status && t.status !== query.status) return false;
       return true;
     });
-
-    const total = filtered.length;
-    const start = (page - 1) * pageSize;
-    const list = filtered.slice(start, start + pageSize).map((t) => ({ ...withPackageName(t), userCount: mockUserCount(t) }));
-
-    return ok({ list, total, page, pageSize });
+    const page = paginate(filtered);
+    return ok({ ...page, list: page.list.map((t) => ({ ...withPackageName(t), userCount: mockUserCount(t) })) });
   }),
 
-  // 租户用量概览（必须在 /:id 之前不强制，但保持靠前）
-  http.get('/api/tenants/:id/stats', ({ params }) => {
-    const t = mockTenants.find((x) => x.id === Number(params.id));
+  mock(tenantContract.all, ({ ok }) => ok(mockTenants.map(({ id, name, code, status }) => ({ id, name, code, status })))),
+
+  mock(tenantContract.stats, ({ params, ok }) => {
+    const t = mockTenants.find((x) => x.id === params.id);
     if (!t) return notFound('租户不存在');
     const pkg = t.packageId ? mockTenantPackages.find((p) => p.id === t.packageId) : null;
     const expireAt = t.expireAt ?? null;
@@ -56,24 +49,21 @@ export const tenantsHandlers = [
     });
   }),
 
-  // 获取单个租户
-  http.get('/api/tenants/:id', ({ params }) => {
-    const tenant = mockTenants.find((t) => t.id === Number(params.id));
-    if (!tenant) return notFound('租户不存在');
-    return ok(withPackageName(tenant));
+  mock(tenantContract.detail, ({ params, ok }) => {
+    const tenant = mockTenants.find((t) => t.id === params.id);
+    return tenant ? ok(withPackageName(tenant)) : notFound('租户不存在');
   }),
 
   // 新增租户（支持初始管理员自动初始化）
-  http.post('/api/tenants', async ({ request }) => {
-    const body = await request.json() as Partial<Tenant> & { adminUsername?: string; adminPassword?: string; adminEmail?: string };
+  mock(tenantContract.create, ({ body, ok }) => {
     const newTenant: Tenant = {
       id: getNextTenantId(),
-      name: body.name ?? '',
-      code: body.code ?? '',
+      name: body.name,
+      code: body.code,
       logo: body.logo ?? null,
       contactName: body.contactName ?? null,
       contactPhone: body.contactPhone ?? null,
-      status: body.status ?? 'enabled',
+      status: body.status,
       expireAt: body.expireAt ?? null,
       maxUsers: body.maxUsers ?? null,
       packageId: body.packageId ?? null,
@@ -92,18 +82,15 @@ export const tenantsHandlers = [
     return ok({ ...withPackageName(newTenant), ...(initialAdmin ? { initialAdmin } : {}) }, '新增成功');
   }),
 
-  // 更新租户
-  http.put('/api/tenants/:id', async ({ params, request }) => {
-    const tenant = mockTenants.find((t) => t.id === Number(params.id));
+  mock(tenantContract.update, ({ params, body, ok }) => {
+    const tenant = mockTenants.find((t) => t.id === params.id);
     if (!tenant) return notFound('租户不存在');
-    const body = await request.json() as Partial<Tenant>;
     Object.assign(tenant, body, { updatedAt: mockDateTime() });
     return ok(withPackageName(tenant), '更新成功');
   }),
 
-  // 删除租户
-  http.delete('/api/tenants/:id', ({ params }) => {
-    const index = mockTenants.findIndex((t) => t.id === Number(params.id));
+  mock(tenantContract.remove, ({ params, ok }) => {
+    const index = mockTenants.findIndex((t) => t.id === params.id);
     if (index === -1) return notFound('租户不存在');
     mockTenants.splice(index, 1);
     return ok(null, '删除成功');

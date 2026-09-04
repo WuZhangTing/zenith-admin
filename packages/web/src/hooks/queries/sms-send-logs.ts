@@ -31,7 +31,7 @@ export function useSmsSendLogList(params: SmsSendLogListParams) {
 export function useTestSmsSendLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: Record<string, unknown>) => request.post<null>('/api/sms-send-logs/test', values).then(unwrap),
+    mutationFn: (values: Record<string, unknown>) => request.post<null>('/api/sms-send-logs/test-send', values).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: smsSendLogKeys.all }),
   });
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button, Modal, Form, Toast, Row, Col, Spin, Switch, SideSheet, Descriptions, Tag, Divider } from '@douyinfe/semi-ui';
-import type { Tenant } from '@zenith/shared/identity';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import type { CreateTenantInput, Tenant } from '@zenith/shared/identity';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ExportButton from '@/components/ExportButton';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -15,7 +16,7 @@ import { MetricMeter, type MetricMeterTone } from '@/components/data-viz/MetricM
 import { useAllTenantPackages } from '@/hooks/queries/tenant-packages';
 import { useListSearch } from '@/hooks/useListSearch';
 import {
-  useDeleteTenant,
+  useDeleteTenants,
   useSaveTenant,
   useTenantDetail,
   tenantKeys,
@@ -34,10 +35,13 @@ interface SearchParams {
 
 const defaultSearchParams: SearchParams = { keyword: '', status: '' };
 
-/** 租户表单值：`expireAt` 在表单里是 Date，提交前由 beforeSave 转成接口格式 */
-interface TenantFormValues extends Partial<Omit<Tenant, 'expireAt'>> {
+/** 租户表单值：`expireAt` 在表单里是 Date，提交前由 beforeSave 转成接口格式；记录里的 null 在提交时归一为未填 */
+interface TenantFormValues extends Partial<Omit<CreateTenantInput, 'expireAt' | 'contactName' | 'contactPhone' | 'logo' | 'remark'>> {
   expireAt?: Date | string | null;
-  packageId?: number | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  logo?: string | null;
+  remark?: string | null;
 }
 
 export default function TenantsPage() {
@@ -53,19 +57,23 @@ export default function TenantsPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
   const saveMutation = useSaveTenant();
-  const tenantModal = useEditModal<Tenant, TenantFormValues, Partial<Tenant>>({
+  const tenantModal = useEditModal<Tenant, TenantFormValues, Partial<CreateTenantInput>>({
     entityName: '租户',
     save: saveMutation,
     useDetail: useTenantDetail,
     defaults: { status: 'enabled' },
     beforeSave: (values) => ({
       ...values,
+      contactName: values.contactName ?? undefined,
+      contactPhone: values.contactPhone ?? undefined,
+      logo: values.logo ?? undefined,
+      remark: values.remark ?? undefined,
       expireAt: values.expireAt ? formatDateTimeForApi(values.expireAt) : null,
       packageId: values.packageId ?? null,
     }),
@@ -87,7 +95,7 @@ export default function TenantsPage() {
     : 0;
 
   const toggleStatusMutation = useSaveTenant();
-  const deleteMutation = useDeleteTenant();
+  const deleteMutation = useDeleteTenants();
   const togglingStatusId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
 
   /** 展示自动初始化的管理员账号（初始密码仅此一次可见） */
@@ -118,7 +126,7 @@ export default function TenantsPage() {
   }
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   };
 

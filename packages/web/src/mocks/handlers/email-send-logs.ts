@@ -23,12 +23,6 @@ export const emailSendLogsHandlers = [
     return ok(paginate(filtered, url, 20));
   }),
 
-  http.get('/api/email-send-logs/:id', ({ params }) => {
-    const l = mockEmailSendLogs.find((x) => x.id === Number(params.id));
-    if (!l) return notFound('记录不存在', { status: 404 });
-    return ok(l);
-  }),
-
   http.delete('/api/email-send-logs/:id', ({ params }) => {
     const idx = mockEmailSendLogs.findIndex((x) => x.id === Number(params.id));
     if (idx === -1) return notFound('记录不存在', { status: 404 });
@@ -43,7 +37,7 @@ export const emailSendLogsHandlers = [
     return ok(null, `已删除 ${count} 条记录`);
   }),
 
-  http.post('/api/email-send-logs/test', async ({ request }) => {
+  http.post('/api/email-send-logs/test-send', async ({ request }) => {
     const body = await request.json() as { templateId?: number; toEmail: string; subject?: string; content?: string };
     const tpl = body.templateId ? mockEmailTemplates.find((t) => t.id === body.templateId) : null;
     const now = mockDateTime();

@@ -25,12 +25,6 @@ export const smsSendLogsHandlers = [
     return ok(paginate(filtered, url, 20));
   }),
 
-  http.get('/api/sms-send-logs/:id', ({ params }) => {
-    const l = mockSmsSendLogs.find((x) => x.id === Number(params.id));
-    if (!l) return notFound('记录不存在', { status: 404 });
-    return ok(l);
-  }),
-
   http.delete('/api/sms-send-logs/:id', ({ params }) => {
     const idx = mockSmsSendLogs.findIndex((x) => x.id === Number(params.id));
     if (idx === -1) return notFound('记录不存在', { status: 404 });
@@ -45,7 +39,7 @@ export const smsSendLogsHandlers = [
     return ok(null, `已删除 ${count} 条记录`);
   }),
 
-  http.post('/api/sms-send-logs/test', async ({ request }) => {
+  http.post('/api/sms-send-logs/test-send', async ({ request }) => {
     const body = await request.json() as { templateId?: number; phone: string; variables?: Record<string, string> };
     const tpl = body.templateId ? mockSmsTemplates.find((t) => t.id === body.templateId) : null;
     const now = mockDateTime();

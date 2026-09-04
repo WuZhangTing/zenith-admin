@@ -56,13 +56,14 @@ Swagger UI 调试步骤：
 
 ## Spec 维护
 
-OpenAPI Spec 由每个路由文件的 `createRoute(...)` 声明汇总生成。维护规则：
+OpenAPI Spec 由 `@zenith/shared/{域}/contracts/` 中的契约操作汇总生成：路径、参数、请求体、响应 schema、tags、
+`security` 与通用错误响应全部来自契约。维护规则：
 
 1. 路由文件创建 `new OpenAPIHono({ defaultHook: validationHook })`。
-2. 每个端点用 `defineOpenAPIRoute({ route: createRoute(...), handler })` 声明。
-3. `request.params` / `request.query` / `request.body` 使用 Zod schema；handler 只从 `c.req.valid()` 取已校验值。
-4. `responses` 使用 `...commonErrorResponses` 和 `ok()` / `okPaginated()` / `okMsg()` / 文件响应 helper。
-5. 实体响应 DTO 放在 `packages/server/src/lib/dtos/`，通过 `packages/server/src/lib/openapi-dtos.ts` 导入。
+2. 每个端点用 `defineContractRoute(xxxContract.op, { middleware, handler })` 声明；handler 只从 `c.req.valid()` 取已校验值。
+3. 实体 schema 用 `.meta({ id: 'Xxx' })` 命名 OpenAPI 组件，字段说明与示例用 `.meta({ description, example })`。
+4. 文件类响应在契约上标 `kind: 'excel' | 'csv' | 'file'`，SSE 用 `kind: 'sse'`；上传请求体用 `multipart(...)`。
+5. 契约之外的额外响应（如 409 冲突）经 `defineContractRoute` 的 `responses` 选项追加。
 6. 子路由通过 `router.openapiRoutes([... ] as const)` 注册；业务域在 `routes/{domain}/index.ts` 的 `defineRouteDomain` 挂载。
 7. 新增业务域时加入 `routes/index.ts` 的 `ROUTE_DOMAINS`。
 8. 路由表快照由 `packages/server/src/app.contract.test.ts` 维护，OpenAPI 文档可用性由 `packages/server/src/lib/openapi-doc.test.ts` 覆盖。

@@ -10,7 +10,6 @@
  *   - dtos/users.ts          用户
  *   - dtos/menus.ts          菜单
  *   - dtos/departments.ts    部门
- *   - dtos/tenants.ts        租户
  *   - dtos/api-tokens.ts     API Token
  *   - dtos/auth.ts           认证 / OAuth
  *   - dtos/dict.ts           字典

@@ -9,26 +9,35 @@ Demo 演示模式（`VITE_DEMO_MODE=true`）下，MSW 拦截所有 API 请求并
 packages/web/src/mocks/
 ├── utils/
 │   ├── array.ts             # 内存数组的共享原地变更工具
-│   ├── handlers.ts          # 共享响应构造与分页（直接用，勿另起炉灶）
+│   ├── contract.ts          # mock(op, resolver)：契约绑定的 handler 构造
+│   ├── handlers.ts          # 失败响应构造与分页工具（直接用，勿另起炉灶）
 │   └── date.ts              # mockDateTime() 等时间工具
 ├── data/
 │   └── xxxs.ts              # 静态初始数据 + nextId 工具函数
 ├── handlers/
-│   └── xxxs.ts              # HTTP handler 定义
+│   └── xxxs.ts              # 契约 handler 定义
 └── handlers/index.ts        # 注册 xxxsHandlers（追加即可）
 ```
 
 ---
 
-## 共享工具（`mocks/utils/handlers.ts`）
+## 共享工具
+
+`mock(op, resolver)`（`mocks/utils/contract.ts`）给 resolver 的上下文：
+
+| 字段 | 含义 |
+| --- | --- |
+| `params` / `query` / `body` | 已按契约 schema 解析（含 coerce 与默认值）；multipart 的 `body` 为 `FormData` |
+| `ok(data, message?, init?)` | 成功响应，`data` 必须满足契约响应类型；`message` 默认 `'ok'`，需要 `data: null` 就显式传 `null` |
+| `paginate(list)` | 按 `query.page` / `query.pageSize` 切片成 `{ list, total, page, pageSize }` |
+| `request` / `url` | 原始请求与 URL（极少需要） |
+
+失败响应与 ID 工具（`mocks/utils/handlers.ts`）：
 
 | 构造函数 | 用途 |
 | --- | --- |
-| `ok(data?, message?, init?)` | 成功响应，`message` 默认 `'ok'`；**省略 `data` 时响应体不含 `data` 字段**，需要 `data: null` 就显式传 `null` |
 | `badRequest` / `unauthorized` / `forbidden` / `notFound` / `conflict` / `locked` | 400 / 401 / 403 / 404 / 409 / 423，`data` 固定 `null` |
 | `fail(code, message, init?)` | 上述之外的业务 code |
-| `pageParams(url, defaultPageSize?)` | 解析 `{ page, pageSize }` |
-| `paginate(list, url, defaultPageSize?)` | 切片并返回 `{ list, total, page, pageSize }` |
 | `pageResult(list, page, pageSize)` | 页码来自 query 之外时用这个 |
 | `nextIdFrom(list)` | 由现有列表推下一个自增 ID，空列表返回 1 |
 
@@ -72,49 +81,42 @@ export function getNextXxxId(): number {
 
 ## 11b：`mocks/handlers/xxxs.ts`
 
+每条 handler 由契约操作绑定：`mock(op, resolver)` 负责路径（`{id}` → `:id`）、方法与入参解析——
+`params` / `query` / `body` 已按契约 schema 解析（含 coerce 与默认值，非法输入同样返回 400），
+`ok(data)` 的载荷按契约响应类型检查，`paginate(list)` 按解析后的 `page` / `pageSize` 切片。
+
 ```ts
-import { http } from 'msw';
-import { ok, badRequest, notFound, paginate } from '@/mocks/utils/handlers';
+import { xxxContract } from '@zenith/shared/{业务域}';
 import type { Xxx } from '@zenith/shared/{业务域}';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockXxxs, getNextXxxId } from '../data/xxxs';
 import { mockDateTime } from '../utils/date';
 
 export const xxxsHandlers = [
-  // ─── GET / — 分页列表 + 关键词搜索 + 状态筛选 ───────────────────────────
-  http.get('/api/xxxs', ({ request }) => {
-    const url = new URL(request.url);
-    const keyword = url.searchParams.get('keyword') || '';
-    const status  = url.searchParams.get('status')  || '';
-
+  // ─── 列表：关键词搜索 + 状态筛选 + 分页 ────────────────────────────────
+  mock(xxxContract.list, ({ query, ok, paginate }) => {
     let list = [...mockXxxs];
-    if (keyword) {
-      list = list.filter((x) => x.name.includes(keyword) || (x.description ?? '').includes(keyword));
-    }
-    if (status) list = list.filter((x) => x.status === status);
-
-    // paginate 内部读 query 的 page/pageSize；页大小默认 10，不同时传第三个参数
-    return ok(paginate(list, url));
+    if (query.keyword) list = list.filter((x) => x.name.includes(query.keyword!) || (x.description ?? '').includes(query.keyword!));
+    if (query.status) list = list.filter((x) => x.status === query.status);
+    return ok(paginate(list));
   }),
 
-  // ─── GET /:id — 详情 ───────────────────────────────────────────────────
-  http.get('/api/xxxs/:id', ({ params }) => {
-    const xxx = mockXxxs.find((x) => x.id === Number(params.id));
-    if (!xxx) return notFound('XXX 不存在', { status: 404 });
-    return ok(xxx);
+  // ─── 详情 ───────────────────────────────────────────────────────────────
+  mock(xxxContract.detail, ({ params, ok }) => {
+    const xxx = mockXxxs.find((x) => x.id === params.id);
+    return xxx ? ok(xxx) : notFound('XXX 不存在', { status: 404 });
   }),
 
-  // ─── POST / — 创建 ─────────────────────────────────────────────────────
-  http.post('/api/xxxs', async ({ request }) => {
-    const body = (await request.json()) as Partial<Xxx>;
-    if (mockXxxs.some((x) => x.name === body.name)) {
-      return badRequest('名称已存在', { status: 400 });
-    }
+  // ─── 创建：body 即 CreateXxxInput（已校验、已补默认值）────────────────
+  mock(xxxContract.create, ({ body, ok }) => {
+    if (mockXxxs.some((x) => x.name === body.name)) return badRequest('名称已存在', { status: 400 });
     const now = mockDateTime();
-    const newXxx = {
+    const newXxx: Xxx = {
       id: getNextXxxId(),
-      name: body.name ?? '',
-      description: body.description ?? '',
-      status: body.status ?? 'enabled',
+      name: body.name,
+      description: body.description ?? null,
+      status: body.status,
       createdAt: now,
       updatedAt: now,
     };
@@ -122,18 +124,17 @@ export const xxxsHandlers = [
     return ok(newXxx, '创建成功');
   }),
 
-  // ─── PUT /:id — 更新 ───────────────────────────────────────────────────
-  http.put('/api/xxxs/:id', async ({ params, request }) => {
-    const idx = mockXxxs.findIndex((x) => x.id === Number(params.id));
-    if (idx === -1) return notFound('XXX 不存在', { status: 404 });
-    const body = (await request.json()) as Partial<Xxx>;
-    Object.assign(mockXxxs[idx], { ...body, updatedAt: mockDateTime() });
-    return ok(mockXxxs[idx], '更新成功');
+  // ─── 更新 ───────────────────────────────────────────────────────────────
+  mock(xxxContract.update, ({ params, body, ok }) => {
+    const xxx = mockXxxs.find((x) => x.id === params.id);
+    if (!xxx) return notFound('XXX 不存在', { status: 404 });
+    Object.assign(xxx, body, { updatedAt: mockDateTime() });
+    return ok(xxx, '更新成功');
   }),
 
-  // ─── DELETE /:id — 删除 ────────────────────────────────────────────────
-  http.delete('/api/xxxs/:id', ({ params }) => {
-    const idx = mockXxxs.findIndex((x) => x.id === Number(params.id));
+  // ─── 删除 ───────────────────────────────────────────────────────────────
+  mock(xxxContract.remove, ({ params, ok }) => {
+    const idx = mockXxxs.findIndex((x) => x.id === params.id);
     if (idx === -1) return notFound('XXX 不存在', { status: 404 });
     mockXxxs.splice(idx, 1);
     // 显式传 null 保留 `data: null`；省略则响应体不含 data 字段
@@ -144,28 +145,30 @@ export const xxxsHandlers = [
 
 ### 可选端点
 
-前端开启 `lookup: true` 时，在 `/:id` handler **之前**同步添加：
+契约声明 `all` 时，在 `detail` handler **之前**添加：
 
 ```ts
-http.get('/api/xxxs/all', () =>
-  ok(mockXxxs.filter((x) => x.status === 'enabled'))),
+mock(xxxContract.all, ({ ok }) =>
+  ok(mockXxxs.filter((x) => x.status === 'enabled').map(({ id, name, status }) => ({ id, name, status })))),
 ```
 
-Step 0 确认需要同步批量删除时，在 `/:id` handler **之前**添加：
+契约声明 `removeBatch` 时，在 `remove` handler **之前**添加：
 
 ```ts
 import { removeWhere } from '@/mocks/utils/array';
 
-http.delete('/api/xxxs/batch', async ({ request }) => {
-  const { ids = [] } = (await request.json()) as { ids?: number[] };
-  if (ids.length === 0) return badRequest('请选择要删除的记录', { status: 400 });
-  const selected = new Set(ids);
+mock(xxxContract.removeBatch, ({ body, ok }) => {
+  if (body.ids.length === 0) return badRequest('请选择要删除的记录', { status: 400 });
+  const selected = new Set(body.ids);
   const deleted = removeWhere(mockXxxs, (x) => selected.has(x.id));
   return ok(null, `已删除 ${deleted} 条记录`);
 }),
 ```
 
-`/all`、`/batch` 都是静态路径，必须排在动态 `/:id` 之前；后端、域 hooks 与 Mock 三处应同时启用或同时省略。
+`/all`、`/batch` 都是静态路径，必须排在动态 `/{id}` 之前；契约声明的操作在服务端与 Mock 同时实现。
+
+上传类操作（`multipart(...)`）的 `body` 是原始 `FormData`；非 JSON 响应（`kind: 'excel'` 等）的 handler 直接返回
+`new HttpResponse(blob, { headers })`。
 
 ## 11c：`mocks/handlers/index.ts`
 

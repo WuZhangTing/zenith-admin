@@ -8,63 +8,6 @@ import type {
   DirectorySyncResolution,
 } from './constants';
 
-// ─── 租户 ─────────────────────────────────────────────────────────────────────
-export interface Tenant {
-  id: number;
-  name: string;
-  code: string;
-  logo?: string | null;
-  contactName?: string | null;
-  contactPhone?: string | null;
-  status: EntityStatus;
-  expireAt?: string | null;
-  maxUsers?: number | null;
-  packageId?: number | null;
-  packageName?: string | null;
-  userCount?: number;
-  remark?: string | null;
-  /** 自动初始化的租户管理员账号（仅创建响应返回，password 一次性可见） */
-  initialAdmin?: { username: string; email: string; password: string } | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface TenantStats {
-  id: number;
-  name: string;
-  code: string;
-  status: EntityStatus;
-  userCount: number;
-  maxUsers: number | null;
-  departmentCount: number;
-  roleCount: number;
-  positionCount: number;
-  packageId: number | null;
-  packageName: string | null;
-  /** 套餐已分配的功能数 */
-  packageFeatureCount: number;
-  expireAt: string | null;
-  /** 距到期天数；null=永不过期，负数=已过期 */
-  daysToExpire: number | null;
-}
-
-export interface TenantPackage {
-  id: number;
-  name: string;
-  status: EntityStatus;
-  remark?: string | null;
-  /** 分配的可授权功能 key（详情与列表都返回） */
-  features?: string[];
-  /** 已分配功能数量（列表返回） */
-  featureCount?: number;
-  /** 套餐配额（席位等），与 License / 租户级上限取最小值生效 */
-  quotas?: { maxUsers?: number | null } | null;
-  createdBy?: number | null;
-  updatedBy?: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface User {
   id: number;
   username: string;

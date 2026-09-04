@@ -9,6 +9,8 @@ user-invocable: true
 
 Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系统，npm monorepo 结构
 （`packages/server` + `packages/web` + `packages/shared`）。
+前后端与 Mock 的 API 契约（路径、入参、响应形状）统一定义在 `packages/shared/src/{业务域}/contracts/`，
+服务端路由、前端 hooks、MSW handler 与 OpenAPI 文档都由契约派生。
 
 ## 怎么用这个 skill
 
@@ -68,11 +70,11 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 | --- | --- | --- |
 | 1 | 数据库 Schema | `packages/server/src/db/schema/{业务域}.ts`（relations 写在 `db/schema/relations.ts`） |
 | 2 | 生成并执行迁移 | `npm run db:generate && npm run db:migrate` |
-| 3 | 共享 Zod Schema | `packages/shared/src/{业务域}/validation.ts` |
-| 4 | 共享 TS Interface | `packages/shared/src/{业务域}/types.ts`（枚举常量放同域 `constants.ts`） |
+| 3 | 共享 Zod 校验 Schema | `packages/shared/src/{业务域}/validation.ts`（枚举常量放同域 `constants.ts`） |
+| 4 | 共享契约（实体 schema + 操作） | `packages/shared/src/{业务域}/contracts/xxxs.ts`（在 `contracts/index.ts` 登记） |
 | 5 | Service 层 | `packages/server/src/services/{业务域}/xxx.service.ts` |
-| 6 | OpenAPI Route | `packages/server/src/routes/{业务域}/xxx.ts` |
-| 7 | 注册路由 | `packages/server/src/routes/{业务域}/index.ts`（新增域需同步 `routes/index.ts`） |
+| 6 | 路由（`defineContractRoute`） | `packages/server/src/routes/{业务域}/xxx.ts` |
+| 7 | 注册路由 | `packages/server/src/routes/{业务域}/index.ts`（挂载路径取 `xxxContract.basePath`；新增域需同步 `routes/index.ts`） |
 
 > Step 7 完成后执行 `npm run dev:server` 冒烟验证，无编译错误再继续。
 > 实现过程中按本次涉及的章节对照 [constraints.md](./references/constraints.md)，不要在入口文件复制约束正文。
@@ -81,7 +83,8 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 
 先读 [query-cache.md](./references/query-cache.md) 定下失效策略，再按 [crud-frontend.md](./references/crud-frontend.md) 写代码，
 并对照 [constraints-frontend.md](./references/constraints-frontend.md)。
-服务端状态统一走 **TanStack Query v5**（域 hooks + `unwrap`），禁止手写 `loading` / `fetchXxx` / `useEffect` 拉取模式。
+服务端状态统一走 **TanStack Query v5**，hooks 由契约派生（`createResourceQueries` / `useApiQuery` / `useApiMutation`），
+禁止手写 `loading` / `fetchXxx` / `useEffect` 拉取模式，也禁止书写 `/api/...` 路径字面量。
 
 | Step | 任务 | 文件 |
 | --- | --- | --- |
@@ -96,7 +99,7 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 | --- | --- | --- | --- |
 | 9 | 菜单 / 权限配置 | `packages/shared/src/seed/menus/{段}.ts` | 总是 |
 | 10 | 种子数据 | `packages/shared/src/seed/{业务域}.ts` + `packages/server/src/db/seed.ts` | 总是 |
-| 11 | MSW Mock | `packages/web/src/mocks/data/xxxs.ts` + `handlers/xxxs.ts` | 仅 Step 0 确认需要时 |
+| 11 | MSW Mock（`mock(op, resolver)`） | `packages/web/src/mocks/data/xxxs.ts` + `handlers/xxxs.ts` | 仅 Step 0 确认需要时 |
 
 模板见 [seed-config.md](./references/seed-config.md)（Step 9-10）与 [crud-mock.md](./references/crud-mock.md)（Step 11）。
 
@@ -109,7 +112,8 @@ Zenith Admin 是基于 **Hono + React + Drizzle ORM** 的全栈后台管理系�
 - [ ] `npm run db:generate && npm run db:migrate` 已执行，迁移文件已提交
 - [ ] `npm run build` 无报错
 - [ ] `npm run dev:server` 冒烟通过，新接口在 `/api/docs` 中可见且可调用
-- [ ] `npm run lint -w @zenith/web` 通过（含 ESLint 与 stylelint）
+- [ ] `npm run lint` 通过（web 含 ESLint 与 stylelint；server 含契约编译期检查）
+- [ ] `npm run test -w @zenith/shared` 通过（契约 DSL 与类型推导）
 - [ ] `npm run test -w @zenith/web` 通过；域 hooks 的失效行为测试已补充
 - [ ] 页面实测：查询 / 重置 / 新增 / 编辑 / 删除 / 导出，确认操作后相关列、统计与面板都刷新
       （欠失效比多失效更危险），移动端窄屏同样走一遍

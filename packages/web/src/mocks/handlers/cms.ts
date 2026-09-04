@@ -950,19 +950,6 @@ export const cmsHandlers = [
     });
     return okJson(task, '任务已提交，可在任务中心查看进度');
   }),
-  http.post('/api/cms/contents/import', async ({ request }) => {
-    const { siteId, channelId } = (await request.json()) as { fileId: string; siteId: number; channelId: number };
-    const site = mockCmsSites.find((s) => s.id === siteId);
-    if (!site || !mockCmsChannels.some((c) => c.id === channelId)) return notFound('站点或栏目不存在', { status: 404 });
-    const task = createProgressingMockTask({
-      taskType: 'cms-content-import',
-      title: 'CMS 内容批量导入',
-      payload: { siteId, channelId },
-      totalItems: 8,
-      itemDelayMs: 300,
-    });
-    return okJson(task, '导入任务已提交，可在任务中心查看进度');
-  }),
 
   // ═══ 数据看板 ═════════════════════════════════════════════════════════════
   http.get('/api/cms/dashboard/stats', ({ request }) => {

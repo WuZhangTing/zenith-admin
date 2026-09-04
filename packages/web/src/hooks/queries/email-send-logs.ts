@@ -31,7 +31,7 @@ export function useEmailSendLogList(params: EmailSendLogListParams) {
 export function useTestEmailSendLog() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (values: Record<string, unknown>) => request.post<null>('/api/email-send-logs/test', values).then(unwrap),
+    mutationFn: (values: Record<string, unknown>) => request.post<null>('/api/email-send-logs/test-send', values).then(unwrap),
     onSuccess: () => qc.invalidateQueries({ queryKey: emailSendLogKeys.all }),
   });
 }

@@ -324,7 +324,7 @@ export function useWorkflowStateMutation() {
 export function useWorkflowMigratePreflight() {
   return useMutation({
     mutationFn: (id: number) =>
-      request.get<{ migratable: boolean; fromVersion: number; toVersion: number; blocked: string[] }>(`/api/workflows/instances/${id}/migrate/preflight`).then(unwrap),
+      request.get<{ migratable: boolean; fromVersion: number; toVersion: number; blocked: string[] }>(`/api/workflows/${id}/migrate/preflight`).then(unwrap),
   });
 }
 

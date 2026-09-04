@@ -8,15 +8,18 @@
 
 ## 分层
 
+- **契约层**：`@zenith/shared/{域}` 的 `xxxContract`——路径、入参与响应形状的唯一来源
 - **传输层**：`utils/request.ts`（token 刷新、401/429/503 处理、错误 Toast）
-- **服务端状态层**：`hooks/queries/<域>.ts` 域 hooks + 页面内 `useQuery` / `useMutation`；
-  基建在 `lib/query.ts`（`queryClient`、`unwrap()`、`toQueryString()`、`LOOKUP_STALE_TIME`）
+- **契约调用层**：`lib/contract-query.ts`（`api()` / `apiQueryOptions()` / `useApiQuery()` / `useApiMutation()` /
+  `createResourceQueries()`），基建在 `lib/query.ts`（`queryClient`、`unwrap()`、`toQueryString()`、`LOOKUP_STALE_TIME`）
+- **服务端状态层**：`hooks/queries/<域>.ts` 域 hooks + 页面内 `useQuery` / `useMutation`
 
 核心约定：
 
-1. queryFn 统一 `request.get<T>(url).then(unwrap)`；`unwrap` 在 `code !== 0` 时抛 `ApiError`
-   （request 层已自动 Toast，调用方无需重复提示）
-2. 每个域文件导出 keys 常量对象，至少含 `all` / `lists` / `list(params)` / `detail(id)`
+1. 所有请求经契约发起：`api(op, input)` 构造 URL、发送并 `unwrap`（`code !== 0` 抛 `ApiError`，request 层已自动 Toast）；
+   域 hooks 与页面不出现 `/api/...` 字面量
+2. 每个域文件导出 keys 常量对象（`createResourceQueries().keys`），至少含 `all` / `lists` / `list(params)` / `detail(id)`；
+   单操作查询的 key 由 `contractKey(op, input)` 生成：`[资源键, 操作名, input]`
 3. 分页列表查询必须 `placeholderData: keepPreviousData`（翻页不闪白屏）
 4. **查询 / 重置必回源**：列表页统一用 `useListSearch`，它把 draft/submitted 双状态、页码重置与
    `invalidateQueries` 焊在一处。条件未变化时 query key 不变，不失效则 staleTime 内不发请求，
@@ -42,10 +45,10 @@
 
 ### 标准 CRUD 与手写 mutation 的边界
 
-`createCrudQueries` 是标准 CRUD 的统一契约：保存后失效 `detail(id)`、`lists` 与已启用的 `lookup`，
-删除后移除详情并失效列表与 lookup。使用工厂的域不再自行改写这套行为。
+`createResourceQueries` 是标准 CRUD 的统一契约：保存后失效 `detail(id)`、`lists` 与（契约声明 `all` 时）`lookup`，
+删除后移除详情并失效列表与 lookup。使用工厂的域不得自行改写这套行为。
 
-下表仅用于**非标准接口或无法使用工厂的手写 mutation**：
+下表用于**其余操作**（`useApiMutation(op, { invalidate })` 的 `invalidate` 回调，或页面内 `useMutation`）：
 
 | mutation 形态 | 策略 |
 | --- | --- |

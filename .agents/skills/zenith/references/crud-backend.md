@@ -1,7 +1,8 @@
 # CRUD 后端实现参考（Step 1-7）
 
 后端主链路的代码模板，以「xxx管理」为范例。参考实现：
-`packages/server/src/routes/identity/users.ts`、`packages/server/src/db/schema/core.ts`。
+`packages/shared/src/identity/contracts/tenants.ts`（契约）、`packages/server/src/routes/identity/tenants.ts`（路由）、
+`packages/server/src/db/schema/core.ts`（schema）。
 
 约束条目见 [constraints.md](./constraints.md)，本文件不重复；条件性能力
 （数据权限、多租户、审计 diff、附件、外呼 HTTP、懒加载、导出）见 [backend-patterns.md](./backend-patterns.md)。
@@ -91,28 +92,65 @@ export type UpdateXxxInput = z.infer<typeof updateXxxSchema>;
 
 特殊操作（如重置密码）单独建 schema。
 
-## Step 4：共享 TS Interface（`shared/src/{业务域}/types.ts`）
+## Step 4：共享契约（`shared/src/{业务域}/contracts/xxxs.ts`）
+
+实体形状与全部操作在这里定义一次：server 路由、web hooks、MSW mock 与 OpenAPI 文档全部由它派生。
+路径用 OpenAPI 风格 `{id}`；`response` 描述 `data` 载荷（`{ code, message, data }` 信封由传输层统一处理），
+省略即 `z.null()`。
 
 ```ts
-export interface Xxx {
-  id: number;
-  name: string;
-  description?: string;
-  status: XxxStatus;              // union type 来自同域 constants.ts
+import * as z from 'zod';
+import { auditFieldsSchema, batchIdsBody, dateRangeBound, idParam, paginated, paginationQuery } from '../../core/api-schemas';
+import { defineContract, op } from '../../core/contract';
+import { XXX_STATUSES } from '../constants';
+import { createXxxSchema, updateXxxSchema } from '../validation';
+
+// ─── 实体：OpenAPI 元数据用 zod 原生 .meta()，id 即组件名 ──────────────────
+export const xxxSchema = z.object({
+  id: z.int(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  status: z.enum(XXX_STATUSES),
   // 关联冗余字段（JOIN 后附加，供前端直接展示）
-  parentId?: number | null;
-  parentName?: string | null;
+  parentId: z.int().nullable().optional(),
+  parentName: z.string().nullable().optional(),
   // 多对多关联
-  yyys?: Yyy[];
-  yyyIds?: number[];
-  // 审计字段（db Proxy 自动写入，按需透出）
-  createdBy?: number | null;
-  updatedBy?: number | null;
-  // 时间字段序列化为 YYYY-MM-DD HH:mm:ss 字符串
-  createdAt: string;
-  updatedAt: string;
-}
+  yyyIds: z.array(z.int()).optional(),
+  ...auditFieldsSchema,            // createdBy / updatedBy
+  createdAt: z.string(),           // YYYY-MM-DD HH:mm:ss
+  updatedAt: z.string(),
+}).meta({ id: 'Xxx' });
+
+export type Xxx = z.infer<typeof xxxSchema>;
+
+// 下拉源精简项（启用 all 时）
+export const xxxOptionSchema = xxxSchema.pick({ id: true, name: true, status: true }).meta({ id: 'XxxOption' });
+export type XxxOption = z.infer<typeof xxxOptionSchema>;
+
+// ─── 列表查询参数：分页 + 筛选；范围端点必须用 dateRangeBound ────────────
+export const xxxListQuery = paginationQuery.extend({
+  keyword: z.string().optional(),
+  status: z.enum(XXX_STATUSES).optional(),
+  startTime: dateRangeBound('创建时间起'),
+  endTime: dateRangeBound('创建时间止'),
+});
+
+// ─── 契约：键名即操作名（list / detail / create / update / remove 为标准 CRUD 约定）──
+export const xxxContract = defineContract('/api/xxxs', {
+  list:   op.get('/', { query: xxxListQuery, response: paginated(xxxSchema), summary: 'XXX 列表' }),
+  // all:  op.get('/all', { response: z.array(xxxOptionSchema), summary: '全部启用 XXX（供下拉框）' }),
+  detail: op.get('/{id}', { params: idParam, response: xxxSchema, summary: 'XXX 详情' }),
+  create: op.post('/', { body: createXxxSchema, response: xxxSchema, summary: '创建 XXX' }),
+  update: op.put('/{id}', { params: idParam, body: updateXxxSchema, response: xxxSchema, summary: '更新 XXX' }),
+  // removeBatch: op.delete('/batch', { body: batchIdsBody, summary: '批量删除 XXX' }),
+  remove: op.delete('/{id}', { params: idParam, summary: '删除 XXX' }),
+}, { tags: ['XXX管理'] });
 ```
+
+- `contracts/index.ts` 里 `export * from './xxxs'`；域 `index.ts` 已 `export * from './contracts'`
+- 非 JSON 响应：`kind: 'excel' | 'csv' | 'file' | 'sse'`（此时 `response` 忽略）；上传：`body: multipart(z.object({ file: fileField() }))`
+- 公开接口：`public: true`；额外文档说明：`description`
+- 自定义路径参数：`params: z.object({ code: z.string().meta({ description: '编码', example: 'demo' }) })`
 
 ---
 
@@ -271,154 +309,54 @@ async function ensureYyyExists(yyyId: number | null | undefined): Promise<void> 
 
 ---
 
-## Step 6：OpenAPI Route（`routes/{业务域}/xxx.ts`）
+## Step 6：路由（`routes/{业务域}/xxx.ts`）
 
-### 先在 `lib/dtos/` 添加实体 DTO
-
-DTO 按业务域拆分在 `lib/dtos/` 子文件中，再经 `lib/openapi-dtos.ts` 统一导出。
-
-```ts
-// packages/server/src/lib/dtos/xxxs.ts
-import { auditFields } from './_audit';
-
-export const XxxDTO = z
-  .object({
-    id: z.number().int(),
-    name: z.string(),
-    description: z.string().nullable().optional(),
-    status: z.enum(XXX_STATUSES),
-    ...auditFields,          // createdBy / updatedBy
-    createdAt: z.string(),
-    updatedAt: z.string(),
-  })
-  .openapi('Xxx');
-```
+路由文件只提供 `middleware` 与 `handler`；方法、路径、入参校验、响应 schema、security、tags 与
+`commonErrorResponses` 全部由 `defineContractRoute` 从契约推导。`c.req.valid('param' | 'query' | 'json')`
+与 `c.json(okBody(...), 200)` 都按契约类型检查。
 
 ```ts
-// packages/server/src/lib/openapi-dtos.ts
-export { XxxDTO } from './dtos/xxxs';
-```
-
-### 路由文件
-
-```ts
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { xxxContract } from '@zenith/shared/{业务域}';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
-import {
-  ErrorResponse, jsonContent, PaginationQuery, validationHook, commonErrorResponses,
-  ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound,
-} from '../../lib/openapi-schemas';
-import { XxxDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { validationHook, okBody, errBody, conflictResponse } from '../../lib/openapi-schemas';
 import { listXxxs, getXxx, createXxx, updateXxx, deleteXxx, ensureXxxExists } from '../../services/{业务域}/xxx.service';
-import { createXxxSchema, updateXxxSchema } from '@zenith/shared/{业务域}';
 
 // 不使用 <AuthEnv> 泛型，不添加全局 use('*', authMiddleware)
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-// ─── GET / — 分页列表 ────────────────────────────────────────────────────
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/',
-    tags: ['XXX管理'], summary: 'XXX列表',      // tags 即 Swagger 分组，无需另行注册
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:xxx:list' })] as const,
-    request: {
-      query: PaginationQuery.extend({
-        keyword: z.string().optional(),
-        status: z.enum(XXX_STATUSES).optional(),
-        // 范围端点必须校验格式，裸 z.string() 会让 ?endTime=abc 静默返回全量数据
-        startTime: dateRangeBound('创建时间起'),
-        endTime: dateRangeBound('创建时间止'),
-      }),
-    },
-    responses: { ...commonErrorResponses, ...okPaginated(XxxDTO, 'ok') },
-  }),
+const read = [authMiddleware, guard({ permission: 'system:xxx:list' })] as const;
+
+const listRoute = defineContractRoute(xxxContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listXxxs(c.req.valid('query'))), 200),
 });
 
-// ─── GET /{id} — 详情 ────────────────────────────────────────────────────
-const getOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}',
-    tags: ['XXX管理'], summary: '获取 XXX 详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:xxx:list' })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(XxxDTO, 'XXX 详情'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
+const detailRoute = defineContractRoute(xxxContract.detail, {
+  middleware: read,
+  handler: async (c) => c.json(okBody(await getXxx(c.req.valid('param').id)), 200),
+});
+
+const createRouteDef = defineContractRoute(xxxContract.create, {
+  middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建 XXX', module: 'XXX管理' } })],
+  handler: async (c) => c.json(okBody(await createXxx(c.req.valid('json')), '创建成功'), 200),
+});
+
+const updateRouteDef = defineContractRoute(xxxContract.update, {
+  middleware: [authMiddleware, guard({ permission: 'system:xxx:update', audit: { description: '更新 XXX', module: 'XXX管理' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
-    return c.json(okBody(await getXxx(id)), 200);
+    setAuditBeforeData(c, await ensureXxxExists(id));   // 不存在时抛 HTTPException(404)；操作日志 diff 的变更前快照
+    return c.json(okBody(await updateXxx(id, c.req.valid('json')), '更新成功'), 200);
   },
 });
 
-// ─── POST / — 创建 ───────────────────────────────────────────────────────
-const createRoute_ = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/',
-    tags: ['XXX管理'], summary: '创建 XXX',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'system:xxx:create',
-      audit: { description: '创建 XXX', module: 'XXX管理' },
-    })] as const,
-    request: { body: { content: jsonContent(createXxxSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(XxxDTO, '创建成功') },
-  }),
-  handler: async (c) => {
-    const row = await createXxx(c.req.valid('json'));
-    return c.json(okBody(row, '创建成功'), 200);
-  },
-});
-
-// ─── PUT /{id} — 更新 ────────────────────────────────────────────────────
-const updateRoute_ = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}',
-    tags: ['XXX管理'], summary: '更新 XXX',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'system:xxx:update',
-      audit: { description: '更新 XXX', module: 'XXX管理' },
-    })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateXxxSchema), required: true } },
-    responses: {
-      ...commonErrorResponses,
-      ...ok(XxxDTO, '更新成功'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
-  handler: async (c) => {
-    const { id } = c.req.valid('param');
-    const before = await ensureXxxExists(id);   // 不存在时抛 HTTPException(404)
-    setAuditBeforeData(c, before);              // 操作日志 diff 的变更前快照
-    const row = await updateXxx(id, c.req.valid('json'));
-    return c.json(okBody(row, '更新成功'), 200);
-  },
-});
-
-// ─── DELETE /{id} — 删除 ─────────────────────────────────────────────────
-const deleteRoute_ = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}',
-    tags: ['XXX管理'], summary: '删除 XXX',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'system:xxx:delete',
-      audit: { description: '删除 XXX', module: 'XXX管理' },
-    })] as const,
-    request: { params: IdParam },
-    responses: {
-      ...commonErrorResponses,
-      ...okMsg('删除成功'),
-      404: { content: jsonContent(ErrorResponse), description: '不存在' },
-    },
-  }),
+const deleteRouteDef = defineContractRoute(xxxContract.remove, {
+  middleware: [authMiddleware, guard({ permission: 'system:xxx:delete', audit: { description: '删除 XXX', module: 'XXX管理' } })],
+  // 契约之外的额外响应（如删除冲突）经 responses 追加
+  responses: conflictResponse,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     setAuditBeforeData(c, await ensureXxxExists(id));
@@ -430,7 +368,7 @@ const deleteRoute_ = defineOpenAPIRoute({
 // 路由注册与 export 见下方「最终注册顺序」
 ```
 
-### 下拉源（前端启用 `lookup: true` 时）
+### 下拉源（契约启用 `all` 时）
 
 先在 service 添加：
 
@@ -438,33 +376,22 @@ const deleteRoute_ = defineOpenAPIRoute({
 export async function listAllXxxs() {
   // 必须复用列表的访问边界；否则 /all 会绕过 dataScope / tenantScope
   const where = await buildXxxWhere({ status: 'enabled' });
-  const rows = await db.select().from(xxxs)
-    .where(where)
-    .orderBy(asc(xxxs.id));
-  return rows.map(mapXxx);
+  return db.select({ id: xxxs.id, name: xxxs.name, status: xxxs.status }).from(xxxs).where(where).orderBy(asc(xxxs.id));
 }
 ```
 
-再添加静态路由：
+再添加路由：
 
 ```ts
-const allRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/all',
-    tags: ['XXX管理'], summary: '全部启用 XXX（供下拉框）',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:xxx:list' })] as const,
-    responses: { ...commonErrorResponses, ...ok(z.array(XxxDTO), '全部 XXX') },
-  }),
+const allRoute = defineContractRoute(xxxContract.all, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listAllXxxs()), 200),
 });
-
 ```
 
-同步从 service 导入 `listAllXxxs`。若 Step 0 未确认需要下拉源，不实现该端点，前端也不要开启 `lookup`；
-启用 Demo 模式时再同步添加 Mock `/all`。
+若 Step 0 未确认需要下拉源，契约中不声明 `all`；启用 Demo 模式时 Mock 用同一契约操作实现。
 
-### 批量删除（Step 0 确认需要时）
+### 批量删除（契约启用 `removeBatch` 时）
 
 仅用于用户已选中、可在正常 HTTP 请求窗口内快速完成的有界操作。
 大数据量、长耗时或需要进度 / 重试 / 取消的批处理改用[任务中心](./async-tasks.md)。
@@ -483,24 +410,14 @@ export async function deleteXxxs(ids: number[]) {
 }
 ```
 
-路由同步导入 `deleteXxxs`：
+路由：
 
 ```ts
-const batchDeleteRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/batch',
-    tags: ['XXX管理'], summary: '批量删除 XXX',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({
-      permission: 'system:xxx:delete',
-      audit: { description: '批量删除 XXX', module: 'XXX管理' },
-    })] as const,
-    request: { body: { content: jsonContent(BatchIdsBody), required: true } },
-    responses: { ...commonErrorResponses, ...okMsg('批量删除成功') },
-  }),
+const batchDeleteRoute = defineContractRoute(xxxContract.removeBatch, {
+  middleware: [authMiddleware, guard({ permission: 'system:xxx:delete', audit: { description: '批量删除 XXX', module: 'XXX管理' } })],
   handler: async (c) => {
     const { ids } = c.req.valid('json');
-    if (!ids?.length) return c.json(errBody('请选择要删除的记录'), 400);
+    if (!ids.length) return c.json(errBody('请选择要删除的记录'), 400);
     const deleted = await deleteXxxs(ids);
     return c.json(okBody(null, `已删除 ${deleted} 条记录`), 200);
   },
@@ -514,12 +431,12 @@ const batchDeleteRoute = defineOpenAPIRoute({
 ```ts
 xxxRouter.openapiRoutes([
   listRoute,
-  // allRoute,             // 启用 lookup 时；静态 /all 早于动态 /{id}
-  // batchDeleteRoute,     // 启用同步批量删除时；静态 /batch 早于动态 /{id}
-  getOneRoute,
-  createRoute_,
-  updateRoute_,
-  deleteRoute_,
+  // allRoute,             // 启用 all 时；静态 /all 早于动态 /{id}
+  // batchDeleteRoute,     // 启用 removeBatch 时；静态 /batch 早于动态 /{id}
+  detailRoute,
+  createRouteDef,
+  updateRouteDef,
+  deleteRouteDef,
 ] as const);
 
 export default xxxRouter;
@@ -529,9 +446,10 @@ export default xxxRouter;
 
 ## Step 7：注册路由（`routes/{业务域}/index.ts`）
 
-各业务域 barrel 声明挂载清单，`routes/index.ts` 只声明域顺序。
+各业务域 barrel 声明挂载清单，挂载路径取契约的 `basePath`；`routes/index.ts` 只声明域顺序。
 
 ```ts
+import { xxxContract } from '@zenith/shared/{业务域}';
 import { defineRouteDomain } from '../_kit';
 import xxxRoutes from './xxx';                 // ← 新增 import
 
@@ -539,7 +457,7 @@ export default defineRouteDomain({
   name: '{业务域}',
   mounts: () => [
     // …既有挂载保持原样
-    ['/api/xxxs', xxxRoutes],                  // ← 新增挂载
+    [xxxContract.basePath, xxxRoutes],         // ← 新增挂载
   ],
 });
 ```
@@ -549,5 +467,5 @@ export default defineRouteDomain({
 - 需要在**全部** API 路由之后兜底的挂载（如按 Host 匹配的 `/`）必须放进 `fallback` 而不是 `mounts` 末尾
 - 新增业务域：建 `routes/{业务域}/index.ts`，再加进 `routes/index.ts` 的 `ROUTE_DOMAINS`
 
-OpenAPI spec 无需手工维护，`@hono/zod-openapi` 从每个 `createRoute()` 自动汇总到 `/api/openapi.json`。
+OpenAPI spec 无需手工维护，由各契约操作自动汇总到 `/api/openapi.json`（组件名取实体 schema 的 `.meta({ id })`）。
 挂载后执行 `npm run dev:server`，刷新 <http://localhost:3300/api/docs> 确认新接口出现。

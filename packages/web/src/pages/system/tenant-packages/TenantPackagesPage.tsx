@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Button, Form, Toast, Spin, Switch, CheckboxGroup, Tag, Space } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Trash2 } from 'lucide-react';
-import type { TenantPackage } from '@zenith/shared/identity';
-import { LICENSE_FEATURE_LABELS, LICENSE_FEATURE_OPTIONS } from '@zenith/shared/licensing';
+import type { CreateTenantPackageInput, TenantPackage } from '@zenith/shared/identity';
+import { USER_STATUSES, enumValueOf } from '@zenith/shared/core';
+import { LICENSE_FEATURES, LICENSE_FEATURE_LABELS, LICENSE_FEATURE_OPTIONS, type LicenseFeatureKey } from '@zenith/shared/licensing';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import { AppModal } from '@/components/AppModal';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -48,29 +49,31 @@ export default function TenantPackagesPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(USER_STATUSES, submittedParams.status),
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
 
   // 新增/编辑弹窗：详情到达时由 useEditModal 自动重挂载表单
   const saveMutation = useSaveTenantPackage();
-  const modal = useEditModal<TenantPackage>({
+  const modal = useEditModal<TenantPackage, Partial<CreateTenantPackageInput>>({
     entityName: '套餐',
     save: saveMutation,
     useDetail: useTenantPackageDetail,
     defaults: { status: 'enabled' },
+    // 记录里的 null 备注在表单中视为未填
+    toValues: (pkg) => ({ name: pkg.name, status: pkg.status, quotas: pkg.quotas ?? undefined, remark: pkg.remark ?? undefined }),
     labelWidth: 90,
   });
 
   // 分配功能弹窗
   const [featureModalVisible, setFeatureModalVisible] = useState(false);
   const [featurePackage, setFeaturePackage] = useState<TenantPackage | null>(null);
-  const [checkedFeatures, setCheckedFeatures] = useState<string[]>([]);
+  const [checkedFeatures, setCheckedFeatures] = useState<LicenseFeatureKey[]>([]);
   const featureDetailQuery = useTenantPackageDetail(featurePackage?.id, featureModalVisible);
 
   useEffect(() => {
-    if (featureModalVisible) setCheckedFeatures(featureDetailQuery.data?.features ?? []);
+    if (featureModalVisible) setCheckedFeatures((featureDetailQuery.data?.features ?? []).flatMap((key) => enumValueOf(LICENSE_FEATURES, key) ?? []));
   }, [featureModalVisible, featureDetailQuery.data]);
 
   const toggleStatusMutation = useSaveTenantPackage();
@@ -110,7 +113,7 @@ export default function TenantPackagesPage() {
 
   const handleAssignFeatures = async () => {
     if (!featurePackage) return;
-    await assignFeaturesMutation.mutateAsync({ id: featurePackage.id, features: checkedFeatures });
+    await assignFeaturesMutation.mutateAsync({ params: { id: featurePackage.id }, body: { features: checkedFeatures } });
     Toast.success('套餐功能已更新');
     setFeatureModalVisible(false);
   };
@@ -290,7 +293,7 @@ export default function TenantPackagesPage() {
           <CheckboxGroup
             options={LICENSE_FEATURE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
             value={checkedFeatures}
-            onChange={(values) => setCheckedFeatures((values ?? []) as string[])}
+            onChange={(values) => setCheckedFeatures(((values ?? []) as string[]).flatMap((key) => enumValueOf(LICENSE_FEATURES, key) ?? []))}
             direction="horizontal"
             style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}
           />

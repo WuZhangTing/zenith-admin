@@ -43,17 +43,17 @@
 }
 ```
 
-分页查询参数统一使用 `PaginationQuery.extend({ ... })`。默认 `page=1`、`pageSize=10`，`pageSize` 最大 200。Service 层 SQL-builder 查询使用 `withPagination(query.$dynamic(), page, pageSize)`；RQB 查询使用 `pageOffset(page, pageSize)`。
+分页查询参数在契约中用 `paginationQuery.extend({ ... })` 声明，分页响应用 `paginated(xxxSchema)`。默认 `page=1`、`pageSize=10`，`pageSize` 最大 200。Service 层 SQL-builder 查询使用 `withPagination(query.$dynamic(), page, pageSize)`；RQB 查询使用 `pageOffset(page, pageSize)`。
 
 ## 日期时间格式
 
 所有对外 API 响应和业务日期时间入参统一使用 `YYYY-MM-DD HH:mm:ss`，例如：`2026-03-22 20:09:37`。
 
-- DTO 映射、导出和文件时间戳使用 `packages/server/src/lib/datetime.ts` 中的 `formatDateTime()` / `formatNullableDateTime()` / `formatDate()` / `formatFileTimestamp()`。
+- 数据映射、导出和文件时间戳使用 `packages/server/src/lib/datetime.ts` 中的 `formatDateTime()` / `formatNullableDateTime()` / `formatDate()` / `formatFileTimestamp()`。
 - 单点时间入参使用 `parseDateTimeInput()`。
 - 范围端点使用 `parseDateRangeStart()` / `parseDateRangeEnd()`，或直接使用 `dateRangeConditions()`。
 - 路由查询 schema 中的范围端点用 `dateRangeBound('说明')`，接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`。
-- 业务接口契约不要使用 ISO datetime，DTO 映射不要直接 `toISOString()`。
+- 业务接口契约不要使用 ISO datetime，数据映射不要直接 `toISOString()`。
 
 ## 认证方式
 
@@ -80,9 +80,11 @@ import { currentUser } from '../lib/context';
 const user = currentUser();
 ```
 
-## 参数校验
+## 参数校验与路由声明
 
-所有入参通过 `createRoute(...)` 的 `request.body` / `request.params` / `request.query` 定义 Zod schema，由 `validationHook` 统一转为标准错误响应。
+每个端点由 `@zenith/shared/{业务域}/contracts/` 中的契约操作定义：方法、路径、`params` / `query` / `body`
+schema 与响应 schema。路由文件用 `defineContractRoute(op, { middleware, handler })`（`lib/contract-route.ts`）
+把契约变成 Hono 路由，入参按契约 schema 校验，由 `validationHook` 统一转为标准错误响应。
 
 ```json
 {
@@ -92,34 +94,46 @@ const user = currentUser();
 }
 ```
 
-推荐写法：
+契约（`packages/shared/src/platform/contracts/xxxs.ts`）：
 
 ```ts
-import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
-import { createXxxSchema } from '@zenith/shared/platform';
+import * as z from 'zod';
+import { auditFieldsSchema, defineContract, idParam, op, paginated, paginationQuery } from '../../core';
+import { createXxxSchema, updateXxxSchema } from '../validation';
+
+export const xxxSchema = z.object({
+  id: z.int(),
+  name: z.string(),
+  ...auditFieldsSchema,
+  createdAt: z.string(),
+  updatedAt: z.string(),
+}).meta({ id: 'Xxx' });
+export type Xxx = z.infer<typeof xxxSchema>;
+
+export const xxxContract = defineContract('/api/xxxs', {
+  list: op.get('/', { query: paginationQuery.extend({ keyword: z.string().optional() }), response: paginated(xxxSchema), summary: 'XXX 列表' }),
+  detail: op.get('/{id}', { params: idParam, response: xxxSchema, summary: 'XXX 详情' }),
+  create: op.post('/', { body: createXxxSchema, response: xxxSchema, summary: '创建 XXX' }),
+  update: op.put('/{id}', { params: idParam, body: updateXxxSchema, response: xxxSchema, summary: '更新 XXX' }),
+  remove: op.delete('/{id}', { params: idParam, summary: '删除 XXX' }),
+}, { tags: ['Xxx'] });
+```
+
+路由（`packages/server/src/routes/platform/xxxs.ts`）：
+
+```ts
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { xxxContract } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { IdParam, PaginationQuery, commonErrorResponses, jsonContent, ok, okBody, validationHook } from '../../lib/openapi-schemas';
-import { XxxDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { okBody, validationHook } from '../../lib/openapi-schemas';
 
 const xxxRouter = new OpenAPIHono({ defaultHook: validationHook });
 
-const createXxxRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post',
-    path: '/',
-    tags: ['Xxx'],
-    summary: '创建 XXX',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建 XXX', module: 'XXX 管理' } })] as const,
-    request: { body: { content: jsonContent(createXxxSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(XxxDTO, '创建成功') },
-  }),
-  handler: async (c) => {
-    const data = c.req.valid('json');
-    const row = await createXxx(data);
-    return c.json(okBody(row, '创建成功'), 200);
-  },
+const createXxxRoute = defineContractRoute(xxxContract.create, {
+  middleware: [authMiddleware, guard({ permission: 'system:xxx:create', audit: { description: '创建 XXX', module: 'XXX 管理' } })],
+  handler: async (c) => c.json(okBody(await createXxx(c.req.valid('json')), '创建成功'), 200),
 });
 
 xxxRouter.openapiRoutes([createXxxRoute] as const);
@@ -129,16 +143,20 @@ export default xxxRouter;
 要点：
 
 - 每个 `OpenAPIHono` 实例传入 `{ defaultHook: validationHook }`。
-- 每个 OpenAPI 路由用命名常量声明，并通过 `router.openapiRoutes([... ] as const)` 统一注册。
-- 需要登录的路由显式声明 `security: [{ BearerAuth: [] }]` 与 `authMiddleware`；公开路由显式 `security: []`。
-- `responses` 展开 `...commonErrorResponses`，并用 `ok()` / `okPaginated()` / `okMsg()` 描述 200 响应。
-- 数值 path 参数用 `IdParam`；自定义 path 参数必须带 `.openapi({ param: { name, in: 'path' } })`。
-- 共享 Zod schema 从 `@zenith/shared/{业务域}` 导入；仅路由私有的一次性 schema 可本地声明。
+- 每个路由用命名常量声明，并通过 `router.openapiRoutes([... ] as const)` 统一注册；挂载路径取 `xxxContract.basePath`。
+- 认证与权限只出现在 `middleware:`（`authMiddleware` / `guard(...)`）；公开接口在契约上标 `public: true`，
+  文档中的 `security` 由此推导。`commonErrorResponses` 与 200 响应信封由适配层统一施加。
+- `handler` 内 `c.req.valid('param' | 'query' | 'json')` 与 `c.json(okBody(...), 200)` 均按契约类型检查：
+  service 返回值与契约实体不一致时编译失败。
+- 路径参数用 `idParam`；自定义路径参数写 `z.object({ code: z.string().meta({ description, example }) })`；
+  OpenAPI 元数据一律用 zod 原生 `.meta()`（组件名 `.meta({ id })`）。
 - 部分更新（`PUT` / `PATCH`）的请求体 schema 一律用 `partialForUpdate(createXxxSchema)`（`@zenith/shared/core`）派生，
   它会剥离全部 `.default()` 再置为可选：省略的字段表示「保持不变」。禁止直接调用 `.partial()`（ESLint 封禁），
   契约测试会拒绝任何请求体属性携带 `default` 的 `PUT` / `PATCH` 操作；全量替换 / upsert 端点需在
   `src/app.contract.test.ts` 的整体替换例外清单登记理由。
 - 全量集合赋值端点（`PUT /{id}/roles` 等）的集合字段必填，不得 `.default([])`：字段缺失应校验失败而非静默清空。
+- 上传接口的请求体用 `multipart(z.object({ file: fileField() }))` 声明，handler 内 `c.req.parseBody()` 读取；
+  文件类响应用 `kind: 'excel' | 'csv' | 'file'`。
 
 ## Service 层规范
 
@@ -146,7 +164,7 @@ export default xxxRouter;
 
 | 层 | 职责 | 禁止事项 |
 | --- | --- | --- |
-| route handler | 读取 `c.req.valid()`、调用 service、返回 HTTP 响应、设置必要审计快照 | 直接写业务规则、DTO 映射、DB 查询 |
+| route handler | 读取 `c.req.valid()`、调用 service、返回 HTTP 响应、设置必要审计快照 | 直接写业务规则、数据映射、DB 查询 |
 | service | 业务规则、数据映射、前置校验、复杂查询、事务、关联写操作；通过 `currentUser()` 获取登录用户 | `c.json()`、直接依赖 Hono `Context`、`console.*` |
 
 常用命名：
@@ -163,19 +181,14 @@ export async function ensureXxxExists(id: number) {
 
 业务错误抛 `HTTPException(statusCode, { message })`，由 `app.onError()` 转为统一 JSON。唯一约束冲突使用 `rethrowPgUniqueViolation(err, message, byConstraint?)` 映射为 400。
 
-## 响应实体 DTO（中心化）
+## 响应实体 schema（契约单一来源）
 
-响应 DTO 按业务域维护在 `packages/server/src/lib/dtos/`，并由 `packages/server/src/lib/openapi-dtos.ts` 统一 re-export。路由文件只引用中心化 DTO：
+响应实体形状定义在契约文件的 `xxxSchema`（`.meta({ id: 'Xxx' })` 即 OpenAPI 组件名），
+`type Xxx = z.infer<typeof xxxSchema>` 是前后端共用的实体类型；服务端没有独立的响应 DTO 层。
 
-```ts
-import { UserDTO } from '../../lib/openapi-dtos';
-```
-
-约束：
-
-- 不在路由文件内本地声明带 `.openapi('EntityName')` 的实体 DTO，避免 OpenAPI Components 同名冲突。
-- 新增实体 DTO 时放入对应 `lib/dtos/*.ts` 文件，再经 `lib/dtos/index.ts` 与 `lib/openapi-dtos.ts` 导出。
-- 请求体 schema 和非复用匿名对象可保留在路由文件内。
+- 组件名全局唯一，按「域 + 实体」命名（`CmsContent` / `WikiComment`）。
+- 精简变体用 `xxxSchema.pick({...})`，附带关联数据的详情用 `xxxSchema.extend({...})`，各自给独立的 `id`。
+- 请求体 schema 在 `validation.ts`（`createXxxSchema` / `updateXxxSchema`），契约只引用不复制。
 
 ## 常用错误码
 

@@ -289,7 +289,6 @@ export const iotHandlers = [
     return ok(task);
   }),
 
-
   // ─── 产品 ────────────────────────────────────────────────────────────────────
   http.get('/api/iot/products/all', () =>
     ok(mockIotProducts.filter((p) => p.status === 'enabled').map(productWithCounts))),
@@ -1002,12 +1001,6 @@ export const iotHandlers = [
 
   // ─── 设备子资源 ──────────────────────────────────────────────────────────────
   http.get('/api/iot/devices/import-template', () => badRequest('演示模式不支持下载模板', { status: 400 })),
-  http.post('/api/iot/devices/import', async ({ request }) => {
-    const formData = await request.formData();
-    const file = formData.get('file');
-    if (!(file instanceof File)) return badRequest('请上传文件', { status: 400 });
-    return ok({ total: 2, success: 2, failed: 0, errors: [] }, '导入完成');
-  }),
   http.get('/api/iot/devices/:id/telemetry/agg', ({ params, request }) => {
     const url = new URL(request.url);
     const property = url.searchParams.get('property') ?? '';
@@ -1206,4 +1199,3 @@ export const iotHandlers = [
     return ok(null, '删除成功');
   }),
 ];
-

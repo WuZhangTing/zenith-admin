@@ -67,7 +67,7 @@ describe('report handlers smoke', () => {
   it('AI NL2SQL + 公开分享页', async () => {
     const ai = await call('POST', '/api/report/ai/nl2sql', { question: '各部门人数' });
     expect(ai.data.sql).toContain('SELECT');
-    const pub = await call('POST', '/api/report/public/dashboards/anytoken123', {});
+    const pub = await call('GET', '/api/report/public/dashboards/anytoken123');
     expect(pub.code).toBe(0);
     expect(pub.data.widgets.length).toBeGreaterThan(0);
   });

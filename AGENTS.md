@@ -74,7 +74,9 @@ flowchart LR
 
 - **Web 是交互边界**：负责界面、路由、客户端状态和 API 调用，不直接访问基础设施。
 - **Server 是业务权威边界**：负责认证授权、业务规则、事务、任务编排、CMS 渲染和外部集成。
-- **Shared 是契约边界**：提供跨运行时共享的类型、校验、常量和无基础设施依赖的工具，不承载应用级 I/O。
+- **Shared 是契约边界**：每个业务域的 API 契约（实体 schema、操作的方法 / 路径 / 入参 / 响应）定义在
+  `shared/src/{domain}/contracts/`，服务端路由、前端数据访问、MSW Mock 与 OpenAPI 文档都由它派生；
+  另提供校验、常量和无基础设施依赖的工具，不承载应用级 I/O。
 - **PostgreSQL 是主数据源**；Redis 承载会话、限流等运行时状态；文件存储保存二进制对象。
 - **Worker 与 Subscriber 是后端运行时的一部分**：处理异步、可重试、调度和跨域副作用。
 
@@ -105,14 +107,15 @@ flowchart LR
 系统按业务域纵向切分，而不是按技术层形成彼此割裂的功能。一项完整能力通常贯穿：
 
 ```text
-packages/shared/src/{domain}/           # 契约、校验、常量
+packages/shared/src/{domain}/contracts/ # API 契约：实体 schema + 操作（唯一真相）
+packages/shared/src/{domain}/           # 校验、常量
 packages/server/src/routes/{domain}/   # HTTP 协议边界
 packages/server/src/services/{domain}/ # 业务规则
 packages/server/src/db/schema/          # 持久化模型
-packages/web/src/hooks/queries/         # 服务端状态访问
+packages/web/src/hooks/queries/         # 服务端状态访问（由契约派生）
 packages/web/src/pages/                 # 用户界面
 packages/shared/src/seed/               # 初始配置与演示数据
-packages/web/src/mocks/                 # 可选的 Demo API 替身
+packages/web/src/mocks/                 # 可选的 Demo API 替身（handler 绑定契约操作）
 ```
 
 主要能力群包括：
@@ -156,7 +159,7 @@ Client → Middleware → Route → Service → Database / Adapter → DTO
 Electron 复用 Web 构建产物。可缓存服务端状态的主链路是：
 
 ```text
-Page / Feature → Domain Query Hooks → Request Adapter → Server API
+Page / Feature → Domain Query Hooks → Contract Query Layer（api / createResourceQueries）→ Request Adapter → Server API
 ```
 
 TanStack Query 主要管理可缓存的服务端状态；页面保留交互状态以及流式会话、设计器等非缓存本地状态。
@@ -170,7 +173,7 @@ Demo 模式通过 MSW 替换 API 边界，但继续复用真实接口契约，�
 
 | 关注点 | 架构策略 |
 | --- | --- |
-| 契约一致性 | 跨运行时共享的领域类型、输入校验和枚举在 `shared` 定义，由 Server、Web、SDK 和 Mock 按需消费 |
+| 契约一致性 | 每个操作的路径、入参与响应 schema 在 `shared` 契约中定义一次：Server 用 `defineContractRoute` 生成路由与 OpenAPI，Web 用 `api()` / `createResourceQueries()` 发起调用，Mock 用 `mock(op)` 绑定 handler；仍以字面量书写的 URL 由 web 的路径契约测试对照服务端路由快照校验 |
 | 身份与隔离 | 管理员和会员认证隔离；租户与数据范围在服务端执行 |
 | 数据一致性 | 多步业务写入的事务边界主要位于 Service，数据库约束提供最终保护 |
 | 异步处理 | 任务中心与 worker 负责调度、重试、进度和批量处理 |

@@ -183,19 +183,20 @@ npm run db:generate && npm run db:migrate
 ### 2. Shared 层
 
 ```ts
-// types.ts
-export interface NoticeAttachment {
-  id: number;
-  fileId: string;                 // managed_files.id（UUIDv7 字符串）
-  businessType: 'notice';
-  businessId: number;
-  file: {
-    id: string; originalName: string; size: number;
-    mimeType: string | null; extension: string | null; url: string;
-  };
-  sortOrder: number;
-  createdAt: string;
-}
+// contracts/notices.ts：附件实体 schema，与通知实体一起进入契约响应
+export const noticeAttachmentSchema = z.object({
+  id: z.int(),
+  fileId: z.string(),              // managed_files.id（UUIDv7 字符串）
+  businessType: z.literal('notice'),
+  businessId: z.int(),
+  file: z.object({
+    id: z.string(), originalName: z.string(), size: z.int(),
+    mimeType: z.string().nullable(), extension: z.string().nullable(), url: z.string(),
+  }),
+  sortOrder: z.int(),
+  createdAt: z.string(),
+}).meta({ id: 'NoticeAttachment' });
+export type NoticeAttachment = z.infer<typeof noticeAttachmentSchema>;
 
 // validation.ts
 export const createNoticeSchema = z.object({
@@ -253,7 +254,7 @@ export async function getNoticeDetail(id: number) {
 
 附件变体不得退回只按 `id` 查询或写入。
 
-DTO 定义在 `lib/dtos/notices.ts` 并从 `lib/openapi-dtos.ts` 导出，与其他实体 DTO 一致。
+详情契约的 `response` 用 `noticeSchema.extend({ recipients: ..., attachments: z.array(noticeAttachmentSchema) })` 声明。
 
 ### 5. 前端
 

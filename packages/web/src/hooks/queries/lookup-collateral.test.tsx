@@ -139,7 +139,7 @@ describe('identity-providers：租户下拉源与身份源配置无关', () => {
     expect(api.countOf('GET', '/api/tenants/all')).toBe(0);
     // 租户下拉已收敛到 tenants 域的共享 lookup（原先在 identityProviderKeys.tenants
     // 下另存一份，与 AdminLayout 常驻的租户切换器重复请求同一端点）
-    expect(isFresh(qc, tenantKeys.allTenants)).toBe(true);
+    expect(isFresh(qc, tenantKeys.lookup)).toBe(true);
   });
 });
 
@@ -190,7 +190,7 @@ describe('tenant-packages：分配功能只影响列表与详情', () => {
     });
 
     const fetches = observeFetches(qc);
-    await result.current.assignFeatures.mutateAsync({ id: 1, features: ['wiki', 'workflow'] });
+    await result.current.assignFeatures.mutateAsync({ params: { id: 1 }, body: { features: ['wiki', 'workflow'] } });
     await waitFor(() => expect(fetches.countOf(tenantPackageKeys.detail(1))).toBe(1));
 
     expect(fetches.countOf(tenantPackageKeys.lookup)).toBe(0);

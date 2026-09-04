@@ -99,12 +99,12 @@
 | `session-replays.service.ts` | 回放分片 ingest（upsert 会话 + 幂等分片 + 聚合累加）、查询 / 拉流、存储配额治理（滚动淘汰 / 硬顶熔断）、僵尸会话收尾、容量统计与告警指标 |
 | `dashboard.service.ts` | 首页工作台统计 |
 
-### 公共库与 DTO
+### 公共库与契约
 
 - `lib/analytics-helpers.ts`：UA 解析（ua-parser-js）、错误指纹、Web Vitals 评级、多端平台字段推断。
 - `lib/source-map-symbolicate.ts`：堆栈还原（source-map 库）。
 - `lib/export-center/definitions/analytics-events.ts`：事件明细导出定义（entity `analytics.events`）。
-- DTO：`lib/dtos/analytics.ts`、`lib/dtos/frontend-errors.ts`；共享契约在 `packages/shared/src/analytics/`（`constants.ts` / `types.ts` / `validation.ts`）。
+- 契约（实体 schema 与操作）在 `packages/shared/src/analytics/contracts/`，校验 schema 在 `validation.ts`，枚举常量在 `constants.ts`。
 
 ### 关键实现要点
 

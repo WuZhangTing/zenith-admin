@@ -189,14 +189,6 @@ export const usersHandlers = [
   }),
 
   // 修改用户状态
-  http.put('/api/users/:id/status', async ({ params, request }) => {
-    const user = mockUsers.find((u) => u.id === Number(params.id));
-    if (!user) return notFound('用户不存在');
-    const body = await request.json() as { status: 'enabled' | 'disabled' };
-    user.status = body.status;
-    user.updatedAt = mockDateTime();
-    return ok(null, '状态更新成功');
-  }),
 
   // 下载导入模板
   http.get('/api/users/import-template', () => {
@@ -213,7 +205,4 @@ export const usersHandlers = [
     return ok(null, 'success');
   }),
 
-  http.post('/api/users/import', () => {
-    return ok({ total: 2, success: 2, failed: 0, errors: [] }, '导入完成');
-  }),
 ];

@@ -39,31 +39,40 @@ Drizzle 会自动处理；如需在中间插入，必须创建新枚举并迁移
 3. 是否重启了开发服务器？（热更新可能不生效）
 4. 浏览器硬刷新（Ctrl+Shift+R）
 
-### DTO 在 Swagger 中重复显示
+### 实体在 Swagger Components 中重复或命名冲突
 
-路由文件里本地声明了带 `.openapi('EntityName')` 的 DTO，与 `lib/dtos/` 中的定义冲突。
-删除本地声明，从 `lib/openapi-dtos` 导入。
+两个契约实体 schema 使用了相同的 `.meta({ id })`。组件名全局唯一，按「域 + 实体」命名（如 `CmsContent` / `WikiComment`）。
 
 ### 访问 `/api/xxx` 返回 404
 
 1. 路由是否已挂载到 `routes/{业务域}/index.ts`？新增域是否已加进 `routes/index.ts` 的 `ROUTE_DOMAINS`？
-2. `['/api/xxxs', xxxRoutes]` 的路径前缀是否正确？
-3. 路由文件中的 `path` 是否正确？（`/` 列表，`/{id}` 详情）
+2. 挂载是否写成 `[xxxContract.basePath, xxxRoutes]`，契约 `basePath` 是否正确？
+3. 契约操作的 `path` 是否正确？（`/` 列表，`/{id}` 详情）
 4. `openapiRoutes([...])` 是否包含了该路由？
 
 ### `DELETE /batch` 被匹配为 `DELETE /{id}`
 
-注册顺序错误。`batchDeleteRoute` 必须排在 `deleteRoute_` **之前**。
+注册顺序错误。`batchDeleteRoute` 必须排在 `deleteRouteDef` **之前**。
 
 ---
 
 ## 类型与共享包
 
-### 前端 `res.data` 类型报错
+### handler 的 `c.json(okBody(...))` 类型报错
 
-后端 DTO 与前端 `Xxx` 接口字段不一致。对比 `lib/dtos/xxxs.ts` 的 `XxxDTO` 与
-`shared/src/{业务域}/types.ts` 的 `Xxx`，确保字段名、类型、可选性一致；
-时间字段后端为 `z.string()`、前端为 `string`（`YYYY-MM-DD HH:mm:ss`）。
+service 返回值与契约实体 schema 不一致（字段名、可空性、缺字段）。以契约为准修正 `mapXxx()`，
+或在 `shared/src/{业务域}/contracts/xxxs.ts` 修正 schema——前端类型随之更新，无需另改。
+时间字段一律 `z.string()`（`YYYY-MM-DD HH:mm:ss`）。
+
+### 前端 `api(op, input)` / `mutate(input)` 类型报错
+
+输入形状必须是契约的 `{ params?, query?, body? }`：路径参数放 `params`、筛选条件放 `query`、请求体放 `body`。
+筛选控件的 `string` 值交给按枚举声明的查询参数前用 `enumValueOf(XXX_VALUES, value)` 收窄。
+
+### `api-conformance.test.ts` 报某个 URL 不在服务端路由表
+
+仍以字面量书写的请求路径与服务端不一致（线上会 404）。优先把该调用改为契约驱动；服务端确实缺少端点时，
+补齐契约与路由，或在 `api-conformance.allowlist.ts` 登记并写明原因。
 
 ### 请求参数类型报错
 
@@ -75,7 +84,7 @@ Drizzle 会自动处理；如需在中间插入，必须创建新枚举并迁移
 `@zenith/shared` 只暴露各业务域子路径与 `/seed`，根入口被 ESLint 禁用。
 
 1. 导入写法须为 `import type { Xxx } from '@zenith/shared/{业务域}'`
-2. 确认符号确实在该域：`shared/src/{业务域}/{types,validation,constants}.ts`
+2. 确认符号确实在该域：`shared/src/{业务域}/{contracts/,types,validation,constants}.ts`
 3. 新增业务域必须同时做三件事，缺一会报模块找不到：建域 `index.ts` 并 re-export、
    在 `shared/package.json` 的 `exports` 中登记、域 `index.ts` **不得**导出 seed
 
@@ -91,8 +100,8 @@ ESM 值环导致 TDZ：某域 `validation.ts` 引用了另一域 `validation.ts`
 
 ### `npm run build` 失败
 
-看错误中的文件路径与行号。常见原因：导入路径层级不对、DTO 与 interface 不一致、
-DTO 漏调 `.openapi('Name')`。用 `npm run dev:server` / `npm run dev:web` 可获得更详细的实时错误。
+看错误中的文件路径与行号。常见原因：导入路径层级不对、service 返回值与契约实体不一致、
+契约实体漏写 `.meta({ id })`（Swagger 中显示为内联 schema）。用 `npm run dev:server` / `npm run dev:web` 可获得更详细的实时错误。
 
 ---
 

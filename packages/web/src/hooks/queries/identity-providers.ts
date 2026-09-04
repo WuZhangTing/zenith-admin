@@ -29,7 +29,7 @@ export const {
  * 避免同一端点在两个 key 下各存一份（租户切换器常驻 AdminLayout，会同时在线）。
  */
 export function useIdentityProviderTenants(options?: { enabled?: boolean }) {
-  return useAllTenants(options);
+  return useAllTenants(options?.enabled ?? true);
 }
 
 export function useTestIdentityProviderConnection() {

@@ -1,4 +1,5 @@
-import type { Department, DirectorySyncSource, Position, Role, Tenant, TenantPackage } from '../identity/types';
+import type { Department, DirectorySyncSource, Position, Role } from '../identity/types';
+import type { Tenant, TenantPackage } from '../identity/contracts';
 import { CMS_RAW_EXPORT_MENU_IDS, CMS_ROOT_MENU_ID, DRIVE_ROOT_MENU_ID, DRIVE_WORKBENCH_MENU_ID, SEED_MENUS, WIKI_DOC_CENTER_MENU_ID, WIKI_ROOT_MENU_ID, collectMenuSubtreeIds } from './menus';
 import { SEED_DATE } from './_base';
 

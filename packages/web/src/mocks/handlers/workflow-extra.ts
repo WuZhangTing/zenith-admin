@@ -636,17 +636,17 @@ export const workflowExtraHandlers = [
   http.post('/api/workflows/compensation/:id/note', ({ params }) => ok({ id: Number(params.id), logs: [] }, '已记录')),
   http.post('/api/workflows/compensation/:id/retry', ({ params }) => ok({ id: Number(params.id), compensationActionStatus: 'pending' }, '已重新入队')),
   http.post('/api/workflows/compensation/:id/resume', ({ params }) => ok({ id: Number(params.id), status: 'resolved' }, '已恢复推进')),
-  http.get('/api/workflows/instances/:id/migrate/preflight', ({ params }) => {
+  http.get('/api/workflows/:id/migrate/preflight', ({ params }) => {
     const inst = mockWorkflowInstances.find((i) => i.id === Number(params.id));
     if (!inst) return err('流程实例不存在', 404);
     return ok({ instanceId: inst.id, fromVersion: 1, toVersion: 1, migratable: false, blocked: [], nodes: [] });
   }),
-  http.post('/api/workflows/instances/:id/migrate', ({ params }) => {
+  http.post('/api/workflows/:id/migrate', ({ params }) => {
     const inst = mockWorkflowInstances.find((i) => i.id === Number(params.id));
     if (!inst) return err('流程实例不存在', 404);
     return ok(null, '迁移成功');
   }),
-  http.get('/api/workflows/instances/:id/migrations', () => ok([])),
+  http.get('/api/workflows/:id/migrations', () => ok([])),
   http.post('/api/workflows/instances/:id/jump', async ({ params, request }) => {
     const body = await request.json() as { targetNodeKey: string };
     const inst = mockWorkflowInstances.find((i) => i.id === Number(params.id));

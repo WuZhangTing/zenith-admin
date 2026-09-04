@@ -123,7 +123,6 @@ const mockDeliveryRuns: ReportDeliveryRun[] = [
   },
 ];
 
-
 export const reportHandlers = [
   // ─── 数据源 ───────────────────────────────────────────────
   http.post('/api/report/datasources/test', () => ok({ ok: true, message: '连接成功（Demo 模拟）', latencyMs: 12 })),
@@ -732,15 +731,6 @@ export const reportHandlers = [
     return ok(data);
   }),
   http.get('/api/report/public/dashboards/:token', ({ params }) => {
-    const share = mockReportShares.find((s) => s.token === params.token);
-    const dash = mockReportDashboards.find((d) => d.id === (share?.dashboardId ?? 1)) ?? mockReportDashboards[0];
-    if (!dash) return notFound('分享链接无效或已失效');
-    return ok({
-      name: dash.name, layout: dash.layout, canvasLayout: dash.canvasLayout,
-      widgets: dash.widgets, filters: dash.filters, config: dash.config, filterOptions: {},
-    });
-  }),
-  http.post('/api/report/public/dashboards/:token', ({ params }) => {
     const share = mockReportShares.find((s) => s.token === params.token);
     const dash = mockReportDashboards.find((d) => d.id === (share?.dashboardId ?? 1)) ?? mockReportDashboards[0];
     if (!dash) return notFound('分享链接无效或已失效');

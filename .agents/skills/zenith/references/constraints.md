@@ -9,9 +9,9 @@
 | 改动涉及 | 章节 |
 | --- | --- |
 | 建表、加字段、枚举、审计列 | [Schema 层](#schema-层step-1) |
-| 共享类型、Zod schema、常量、新增业务域 | [Shared 层](#shared-层step-3-4) |
+| 契约、实体 schema、Zod 校验、常量、新增业务域 | [Shared 层](#shared-层step-3-4) |
 | 业务逻辑、查询条件、事务、时间解析 | [Service 层](#service-层step-5) |
-| 路由、DTO、响应构造、审计快照 | [Route 层](#route-层step-6-7) |
+| 路由、中间件、响应构造、审计快照 | [Route 层](#route-层step-6-7) |
 | 菜单条目、权限码、种子数据 | [菜单与权限配置](#菜单与权限配置step-9-10) |
 | MSW mock handler | [MSW Mock 层](#msw-mock-层step-11) |
 | 时间格式、图标、分页、依赖引入、异步任务 | [全局约束](#全局约束) |
@@ -38,7 +38,7 @@
   追加型日志（`*_logs`）、临时凭证（`*_tokens`）、IM 消息等「作者天然就是当前用户」的实体
 - **审计字段禁止手写**：`created_by` / `updated_by` 由 `db/index.ts` 的 Proxy 自动写入，
   **禁止**在 service / route / seed 中手动赋值；需指定操作人时用 `runAsUser(userId, fn)` 包裹；
-  DTO 用 `...auditFields`（`lib/dtos/_audit.ts`）
+  契约实体 schema 用 `...auditFieldsSchema`（`@zenith/shared/core`）
 - **枚举三端同步**：`pgEnum` / TS union type / Zod enum 完全一致
 - **updatedAt 自动维护**：schema 已配 `.$onUpdate(() => new Date())`，
   **禁止**在 `db.update().set({})` 中手动传 `updatedAt: new Date()`
@@ -58,8 +58,20 @@
   一并写在 `shared/src/{业务域}/constants.ts`，`validation.ts` 通过 `z.enum(XXX_TYPES)` 引用。
   **禁止**把会被其他域 `z.enum()` 引用的常量数组放在 `validation.ts`——validation 互引形成 ESM 值环，
   `z.enum()` 在初始化期取到 `undefined` 直接崩溃
-- **新增业务域**：建 `shared/src/{新域}/{types,validation,constants,index}.ts`，
-  并在 `shared/package.json` 的 `exports` 登记 `"./{新域}"`；域 `index.ts` **不得**导出 seed
+- **API 契约是唯一真相**：实体形状与全部操作定义在 `shared/src/{业务域}/contracts/xxxs.ts`——
+  `xxxSchema = z.object({...}).meta({ id: 'Xxx' })` + `type Xxx = z.infer<typeof xxxSchema>` +
+  `xxxContract = defineContract('/api/xxxs', { list: op.get(...), ... })`（`@zenith/shared/core`）。
+  **禁止**手写 `interface Xxx`、**禁止**在 server 定义实体 DTO、**禁止**在 web / mock 书写 `/api/...` 路径字面量
+- **契约操作命名**：标准 CRUD 固定为 `list` / `detail` / `create` / `update` / `remove`，可选 `all`（下拉源）/
+  `removeBatch`（`DELETE /batch`）——web 的 `createResourceQueries` 按此约定派生 hooks；其余操作按业务动词命名
+- **契约积木**：路径 `{id}` 用 `idParam`；列表查询 `paginationQuery.extend({...})`；分页响应 `paginated(xxxSchema)`；
+  时间范围端点 `dateRangeBound()`；查询串布尔 `queryBool()`；批量 ID `batchIdsBody`；审计列 `...auditFieldsSchema`；
+  上传 `multipart(z.object({ file: fileField() }))`；非 JSON 响应 `kind: 'excel' | 'csv' | 'file' | 'sse'`
+- **OpenAPI 元数据用 `.meta()`**：组件名 `.meta({ id })`、说明 `.meta({ description, example })`；shared **禁止**依赖
+  `@hono/zod-openapi`、**禁止**调用 `.openapi()`
+- **新增业务域**：建 `shared/src/{新域}/{contracts/,validation,constants,index}.ts`（`contracts/index.ts` 汇总各资源契约，
+  域 `index.ts` 导出 `constants` / `contracts` / `types` / `validation`），并在 `shared/package.json` 的 `exports` 登记
+  `"./{新域}"`；域 `index.ts` **不得**导出 seed。`types.ts` 只放无法由 schema 推导的类型（UI 视图模型、联合类型别名）
 - **update = partialForUpdate(create)**：部分更新 schema 一律用 `partialForUpdate()`（`shared/core/validation`）
   由 create schema 派生，不可更改字段用 `partialForUpdate(create.omit({ field: true }))`；
   **禁止**直接调用 `.partial()`（ESLint 封禁）——Zod 的 `.partial()` 保留 `.default()`，字段省略时会填入默认值
@@ -116,29 +128,28 @@
   纯日期时起点取 `00:00:00`、终点取 `23:59:59.999`。**禁止**用 `parseDateTimeInput` 解析范围端点——
   它把 `2026-08-01` 解析成 `00:00:00`，「筛选到 8 月 1 日」会漏掉整个 8 月 1 日的数据
 - `parseDateTimeInput` **只**用于单点时间（`scheduledAt` / `expireAt` / 投放起止等实体字段）
-- **范围端点查询参数必须校验格式**：用 `dateRangeBound('说明')`（`lib/openapi-schemas`），
+- **范围端点查询参数必须校验格式**：契约查询参数用 `dateRangeBound('说明')`（`@zenith/shared/core`），
   同时接受 `YYYY-MM-DD` 与 `YYYY-MM-DD HH:mm:ss`。**禁止**裸 `z.string().optional()`——
   `?endTime=abc` 会被静默当成「无筛选」返回全量数据
 
 ## Route 层（Step 6-7）
 
+- **路由一律由契约定义**：`defineContractRoute(xxxContract.op, { middleware, handler })`（`lib/contract-route.ts`）；
+  方法、路径、入参校验、响应 schema、security、tags 与 `commonErrorResponses` 全部由契约推导。
+  **禁止**在路由文件调用 `createRoute` / `defineOpenAPIRoute`、**禁止**手写 `request:` / `responses:`、
+  **禁止**声明实体 DTO；契约之外的额外响应（如 `conflictResponse`）经 `responses` 选项追加
 - **薄路由**：**禁止在路由 handler 中直接调用 `db.*`**；DB 访问与业务逻辑全部在 service
-- **DTO 中心化**：实体 DTO 必须定义在 `lib/dtos/` 对应子文件，经 `lib/openapi-dtos.ts` 统一导出；
-  **严禁**在路由文件内本地声明带 `.openapi('EntityName')` 的实体 DTO（Swagger Components 会冲突）
-- **shared schema 命名为 DTO**：`@zenith/shared` 的 schema 直接 `xxxSchema.openapi('Name')` 即可。
-  `.openapi()` 由 `@hono/zod-openapi` 加载时补丁到 `ZodType` 原型，zod v4 实例只在构造时拷贝原型方法，
-  因此 `src/index.ts` 第二条 import 与 `src/test-setup.ts` 首条 import 固定为 `import '@hono/zod-openapi'`
-  （`index.import-order.test.ts` 锁定），保证 shared 的 schema 一律晚于补丁构造；新增进程入口同样如此
-- **响应辅助函数**：`responses:` 的 200 统一用展开语法 `...ok(DTO, desc)` / `...okPaginated(DTO, desc)` /
-  `...okMsg(desc)`；**禁止**直接写 `200: { content: jsonContent(apiResponse(DTO)), description }`
 - **响应体构造**：统一 `okBody(data, msg?)` / `errBody(msg, code?)`（`lib/openapi-schemas`），
   **禁止内联** `{ code: 0 as const, message, data }` 字面量；每个 `c.json(...)` 必须显式带状态码
-- **commonErrorResponses**：所有路由的 `responses:` 必须包含 `...commonErrorResponses`（400/401/403/404/500）
-- **Path Param**：数值型 `id` 统一用 `IdParam`；字符串型或自定义名参数必须在字段上加
-  `.openapi({ param: { name: '...', in: 'path' }, example: '...' })`
-- **分页查询**：列表接口查询参数统一 `PaginationQuery.extend({ ... })`，
-  **禁止**内联声明 `page: z.coerce.number().optional()`
-- **批量路由顺序**：`DELETE /batch` 必须注册在 `DELETE /{id}` **之前**，否则 `/batch` 被匹配为 `id="batch"`
+- **中间件在路由侧声明**：`authMiddleware` / `guard({ permission, audit })` / `platformAdminOnly` 等只出现在
+  `middleware:`，公开接口在契约上标 `public: true`；**禁止**在路由器上 `use('*', authMiddleware)`
+- **进程入口导入顺序**：`src/index.ts` 第二条 import 与 `src/test-setup.ts` 首条 import 固定为
+  `import '@hono/zod-openapi'`（`index.import-order.test.ts` 锁定）；新增进程入口同样如此
+- **批量路由顺序**：`DELETE /batch` 必须注册在 `DELETE /{id}` **之前**，否则 `/batch` 被匹配为 `id="batch"`；
+  静态 `/all` 同理早于 `/{id}`
+- **挂载路径取契约**：`routes/{业务域}/index.ts` 的挂载写 `[xxxContract.basePath, xxxRoutes]`，**禁止**路径字面量
+- **契约编译期检查**：`npm run typecheck:contracts`（随 `lint` 执行）以 `src/**/*.typecheck.ts` 锁定
+  handler 入参 / 响应类型约束，改动 `lib/contract-route.ts` 必须保持其绿色
 - **外呼 HTTP**：服务端任何对外请求**必须**走 `lib/http-client.ts` 的 `httpRequest` / `httpGet` /
   `httpPost` 等，**禁止**全局 `fetch()`（见 [backend-patterns.md](./backend-patterns.md)）
 - **写接口的审计快照**：需要 diff 的 PUT / DELETE 在写操作前 `setAuditBeforeData(c, before)`；
@@ -164,15 +175,19 @@
 
 ## MSW Mock 层（Step 11）
 
-- **响应构造统一**：一律用 `mocks/utils/handlers.ts` 的 `ok` / `fail` / `badRequest` / `unauthorized` /
-  `forbidden` / `notFound` / `conflict` / `locked`；**禁止**内联 `HttpResponse.json({ code, message, data })`，
-  **也禁止**在 handler 文件内自建同名局部 helper（默认 `message` 会各文件不一致）
-- **分页统一**：用 `paginate(list, url, defaultPageSize?)`；页码来自 query 之外时用
-  `pageResult(list, page, pageSize)`。**禁止**手写 `Number(url.searchParams.get('page'))` 与 `(page - 1) * pageSize`
+- **handler 由契约绑定**：一律 `mock(xxxContract.op, ({ params, query, body, ok, paginate }) => ...)`
+  （`mocks/utils/contract.ts`）；路径、方法与入参解析来自契约，`ok(data)` 的载荷按契约响应类型检查。
+  **禁止** `http.get('/api/...')` 路径字面量、**禁止**自行 `new URL(request.url).searchParams` / `request.json()` 解析入参
+- **失败响应统一**：`mocks/utils/handlers.ts` 的 `fail` / `badRequest` / `unauthorized` / `forbidden` / `notFound` /
+  `conflict` / `locked`；**禁止**内联 `HttpResponse.json({ code, message, data })`，**也禁止**在 handler 文件内自建同名局部 helper
+- **分页统一**：用上下文的 `paginate(list)`（按契约解析后的 `page` / `pageSize` 切片）；页码来自 query 之外时用
+  `pageResult(list, page, pageSize)`。**禁止**手写 `(page - 1) * pageSize`
 - **自增 ID**：用 `nextIdFrom(list)`；**禁止**手写 `Math.max(...list.map((x) => x.id)) + 1`（空列表得 `-Infinity`）
 - **HTTP 状态码**：失败响应显式带 `{ status: N }`，与真实后端一致
 - **`data` 字段的有无是可观察差异**：`ok(x)` 省略 `data` 时响应体不含该字段，需要 `data: null` 就显式传 `null`
 - **数据源对齐**：初始数据从 `@zenith/shared/seed` 的 `SEED_XXXS` 派生，**禁止**在 mock 中重复写静态数组
+- **路径契约测试**：`packages/web/src/lib/api-conformance.test.ts` 对照服务端路由快照校验所有仍以字面量书写的
+  请求 URL 与 handler 路径；服务端尚无对应端点的调用必须登记在 `api-conformance.allowlist.ts` 并写明原因
 
 ---
 
@@ -213,9 +228,9 @@
 
 ### 分页格式
 
-- 列表接口返回 `{ list, total, page, pageSize }`
+- 列表接口返回 `{ list, total, page, pageSize }`：契约用 `paginated(xxxSchema)` 声明，查询参数 `paginationQuery.extend({...})`
 - SQL-builder 分页用 `withPagination(query.$dynamic(), page, pageSize)`；RQB 分页用 `offset: pageOffset(page, pageSize)`；
-  MSW Mock 用 `paginate(list, url)` / `pageResult(list, page, pageSize)`
+  MSW Mock 用契约上下文的 `paginate(list)` / `pageResult(list, page, pageSize)`
 - 禁止手写 `(page - 1) * pageSize`
 
 ### 重型依赖懒加载（Server）

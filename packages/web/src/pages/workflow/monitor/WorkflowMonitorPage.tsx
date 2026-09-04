@@ -522,7 +522,7 @@ export default function WorkflowMonitorPage() {
     Modal.confirm({
       title: '迁移到最新版本', content: `将实例「${record.title}」从 v${p.fromVersion} 迁移到 v${p.toVersion}？`,
       onOk: async () => {
-        await stateMutation.mutateAsync({ url: `/api/workflows/instances/${record.id}/migrate` });
+        await stateMutation.mutateAsync({ url: `/api/workflows/${record.id}/migrate` });
         Toast.success('迁移成功');
       },
     });

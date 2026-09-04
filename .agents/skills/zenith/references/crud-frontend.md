@@ -17,23 +17,14 @@ packages/web/src/pages/xxx/XxxPage.tsx     # 页面组件
 
 ## Step 8a：域 hooks（`hooks/queries/xxxs.ts`）
 
-标准 CRUD 的 key 工厂、列表、详情、保存与删除由 `createCrudQueries` 生成；
-下拉源是可选能力，仅在后端实现 `GET /all` 时开启；启用 Demo 模式时 Mock 也必须实现该端点。
+标准 CRUD 的 keys、列表、详情、保存、删除与下拉源由 `createResourceQueries(xxxContract)` 按契约派生：
+契约声明了 `all` 就有 `useLookup`，声明了 `removeBatch` 多条删除就走 `/batch`。URL、参数与响应类型全部来自契约，
+hooks 文件里不出现路径字面量。
 
 ```ts
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Xxx } from '@zenith/shared/{业务域}';
-import { request } from '@/utils/request';
-import { unwrap } from '@/lib/query';
-import { createCrudQueries, type CrudListParams } from '@/lib/crud-queries';
-
-export interface XxxListParams extends CrudListParams {
-  keyword?: string;
-  status?: string;
-  // 时间范围筛选只放 formatDateTimeRangeForApi 转换后的字符串，禁止 Date 对象进 params
-  // startTime?: string;
-  // endTime?: string;
-}
+import { useQuery } from '@tanstack/react-query';
+import { xxxContract } from '@zenith/shared/{业务域}';
+import { apiQueryOptions, createResourceQueries, useApiMutation } from '@/lib/contract-query';
 
 export const {
   keys: xxxKeys,
@@ -41,39 +32,38 @@ export const {
   useDetail: useXxxDetail,
   useSave: useSaveXxx,
   useDelete: useDeleteXxxs,
-  // useLookup: useAllXxxs, // 与下方 lookup: true 同时启用
-} = createCrudQueries<Xxx, XxxListParams, Partial<Xxx>>({
-  resource: 'xxxs',          // 同时作为 query key 前缀与默认路径 /api/xxxs
-  // lookup: true,           // 后端已实现 GET /api/xxxs/all 时开启；Demo 模式还需同步 Mock
-  // path: '/api/cms/links', // 接口路径与资源名不一致时覆盖
-  // deleteMode: 'single',   // 后端没有 /batch 时；多条删除退化为并发单条
-  // keyPrefix: ['workflow', 'automations'], // 本域需被纳入某个跨域失效前缀
-  //                                         // （如 invalidateQueries({ queryKey: ['workflow'] })）时指定
+  useLookup: useAllXxxs,        // 契约声明 all 时才有意义
+} = createResourceQueries(xxxContract, {
+  // keyPrefix: ['workflow', 'automations'], // 本域需被纳入某个跨域失效前缀时指定
   // onSaved: (qc) => invalidateCurrentUserAccess(qc), // 跨域联动的额外失效
 });
 ```
 
-工厂已覆盖的失效契约：保存后失效 `detail(id)` + `lists` +（启用时）`lookup`；
-删除后 `removeQueries(detail(id))` + 失效 `lists` +（若启用）`lookup`。
+工厂已覆盖的失效契约：保存后失效 `detail(id)` + `lists` +（契约有 `all` 时）`lookup`；
+删除后 `removeQueries(detail(id))` + 失效 `lists` +（有 `all` 时）`lookup`。
+列表参数类型即契约查询参数（`QueryOf<typeof xxxContract.list>`），无需单独声明参数接口。
 
-**非标准接口继续手写**，用工厂导出的 `keys` 做失效，并注释说明为何只失效这些：
+**非标准操作**同样由契约驱动：mutation 变量就是契约输入 `{ params?, query?, body? }`，
+用工厂导出的 `keys` 做失效，并注释说明为何只失效这些：
 
 ```ts
 /** 分配菜单：menuIds 只存在于详情，列表与下拉源都不含，故不失效它们 */
-export function useAssignXxxMenus() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, menuIds }: { id: number; menuIds: number[] }) =>
-      request.put<null>(`/api/xxxs/${id}/menus`, { menuIds }).then(unwrap),
-    onSuccess: (_data, { id }) => {
-      void qc.invalidateQueries({ queryKey: xxxKeys.detail(id) });
+export const useAssignXxxMenus = () =>
+  useApiMutation(xxxContract.assignMenus, {
+    invalidate: (qc, _output, { params }) => {
+      void qc.invalidateQueries({ queryKey: xxxKeys.detail(params.id) });
     },
   });
-}
+
+/** 单个只读操作 */
+export const useXxxStats = (id?: number) =>
+  useQuery(apiQueryOptions(xxxContract.stats, { params: { id: id ?? 0 } }, { enabled: id !== undefined }));
 ```
 
-> 关联下拉源属于**所有者域**：需要全量 Yyy 列表时，先在 Yyy 后端实现 `/all`；
-> 启用 Demo 模式时再同步 Mock。随后在 Yyy 域文件开启 `lookup` 并导出 `useAllYyys`。
+会员端 / 审批端用同一套函数，通过 `requestOptions: { client: memberRequest }` 指定请求实例。
+
+> 关联下拉源属于**所有者域**：需要全量 Yyy 列表时，在 Yyy 契约声明 `all` 并实现服务端与 Mock，
+> 随后从 Yyy 域 hooks 导出 `useAllYyys`。
 
 ---
 
@@ -99,7 +89,8 @@ import { confirmDelete } from '@/utils/confirm';
 // 有日期时间范围筛选时：import { formatDateTimeRangeForApi } from '@/utils/date';
 // beforeSave 需要中断提交时：import { abortSubmit } from '@/lib/abort-submit';
 import { useDeleteXxxs, useSaveXxx, useXxxDetail, useXxxList, xxxKeys } from '@/hooks/queries/xxxs';
-import type { Xxx } from '@zenith/shared/{业务域}';
+import { enumValueOf } from '@zenith/shared/core';
+import { XXX_STATUSES, type CreateXxxInput, type Xxx } from '@zenith/shared/{业务域}';
 
 interface SearchParams {
   keyword: string;
@@ -126,7 +117,8 @@ export default function XxxPage() {
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    // 契约查询参数按枚举声明，筛选控件的 string 值先收窄
+    status: enumValueOf(XXX_STATUSES, submittedParams.status),
     // 标准 startTime / endTime 范围（Date → 字符串后再进 params）：
     // ...formatDateTimeRangeForApi(submittedParams.timeRange),
   });
@@ -134,14 +126,15 @@ export default function XxxPage() {
   const total = listQuery.data?.total ?? 0;
 
   // ─── 新增 / 编辑弹窗 ────────────────────────────────────────────────────
-  const modal = useEditModal<Xxx>({
+  // 表单值类型取契约创建入参的部分形态；保存 mutation 的 values 类型与之一致
+  const modal = useEditModal<Xxx, Partial<CreateXxxInput>>({
     entityName: '示例',              // 自动生成标题「新增示例 / 编辑示例」
     save: useSaveXxx(),
     useDetail: useXxxDetail,         // 编辑时懒加载详情，必须是模块级稳定函数
     defaults: { status: 'enabled' }, // 仅新增时使用
-    toValues: (r) => ({              // 可选：裁剪回填字段
+    toValues: (r) => ({              // 记录 → 表单值：null 归一为未填
       name: r.name,
-      description: r.description,
+      description: r.description ?? undefined,
       status: r.status,
       // 多对多：yyyIds: r.yyyIds ?? [],
     }),
@@ -164,7 +157,7 @@ export default function XxxPage() {
 
   const buildExportQuery = (): Record<string, unknown> => ({
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(XXX_STATUSES, submittedParams.status),
   });
 
   async function handleDelete(id: number) {
@@ -453,7 +446,7 @@ const handleBatchDelete = () => {
 />
 ```
 
-`useDeleteXxxs` 内部按 ids 长度自动选择单删 / 批量接口（`request.delete(url, body)` 支持请求体）。
+`useDeleteXxxs` 内部按 ids 长度自动选择 `remove` / `removeBatch`（契约未声明 `removeBatch` 时并发逐条删除）。
 
 ## 状态与时间的展示
 

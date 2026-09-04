@@ -141,23 +141,8 @@ export const announcementsHandlers = [
   }),
 
   // 发布公告
-  http.put('/api/announcements/:id/publish', ({ params }) => {
-    const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
-    if (!notice) return notFound('公告不存在');
-    notice.publishStatus = 'published';
-    notice.publishTime = mockDateTime();
-    notice.updatedAt = mockDateTime();
-    return ok(notice, '发布成功');
-  }),
 
   // 撤回公告
-  http.put('/api/announcements/:id/recall', ({ params }) => {
-    const notice = mockAnnouncements.find((n) => n.id === Number(params.id));
-    if (!notice) return notFound('公告不存在');
-    notice.publishStatus = 'recalled';
-    notice.updatedAt = mockDateTime();
-    return ok(notice, '撤回成功');
-  }),
 
   // 批量删除公告
   http.delete('/api/announcements/batch', async ({ request }) => {

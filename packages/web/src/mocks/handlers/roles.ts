@@ -1,7 +1,6 @@
 import { http } from 'msw';
 import { ok, badRequest, notFound, conflict, paginate } from '@/mocks/utils/handlers';
 import { mockRoles, getNextRoleId } from '@/mocks/data/roles';
-import { mockMenus } from '@/mocks/data/menus';
 import { mockUsers } from '@/mocks/data/users';
 import { mockDateTime } from '@/mocks/utils/date';
 import type { Role } from '@zenith/shared/identity';
@@ -99,13 +98,6 @@ export const rolesHandlers = [
   }),
 
   // 获取角色下的菜单 ID 列表
-  http.get('/api/roles/:id/menus', ({ params }) => {
-    const role = mockRoles.find((r) => r.id === Number(params.id));
-    if (!role) return notFound('角色不存在');
-    const menuIds = role.menuIds ?? [];
-    const menus = mockMenus.filter((m) => menuIds.includes(m.id));
-    return ok(menus);
-  }),
 
   // 获取角色下的用户列表（与真实接口 GET /api/roles/:id/users 对齐）
   http.get('/api/roles/:id/users', ({ params }) => {

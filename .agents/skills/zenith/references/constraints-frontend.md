@@ -23,7 +23,8 @@
 
 | 场景 | 必须使用 | 禁止的手写实现 | 漏写的代价 |
 | --- | --- | --- | --- |
-| 标准 CRUD 域 hooks | `lib/crud-queries.ts` 的 `createCrudQueries` | 手抄 `xxxKeys` 与列表 / 详情 / 保存 / 删除；下拉源也应通过工厂按需开启 | 保存后列表不变；已删记录重新打开弹窗时闪出旧数据 |
+| 服务端调用 | `lib/contract-query.ts`：`api(op, input)` / `useApiQuery(op, input)` / `useApiMutation(op)`，`op` 来自 `@zenith/shared/{域}` 的契约 | `request.get<T>('/api/...')` 等路径字面量与响应泛型（`api-conformance.test.ts` 对照服务端路由表守住残留字面量） | 路径写错线上 404 而 Demo 全绿；响应类型与服务端漂移 |
+| 标准 CRUD 域 hooks | `lib/contract-query.ts` 的 `createResourceQueries(xxxContract)` | 手抄 `xxxKeys` 与列表 / 详情 / 保存 / 删除 / 下拉源 | 保存后列表不变；已删记录重新打开弹窗时闪出旧数据 |
 | 新增 / 编辑弹窗 | `hooks/useEditModal.ts` | `useRef<FormApi>` + `editingRecord` + `try { validate() } catch` + `Toast` + 关闭四件套 | 确定按钮永远转圈；异步详情进不了表单；下次「新增」带出上次记录 |
 | 列表页搜索状态 | `hooks/useListSearch.ts` | `draftParams` / `submittedParams` 双状态 + `handleSearch` / `handleReset` | 条件未变时点「查询」不回源，且列表仍有数据、不报错 |
 | 树形表格展开态 | `hooks/useTreeExpansion.ts` | 递归收集节点 key + `isAllExpanded` 计数比较 + `onExpandedRowsChange` 行→key 映射 | 传未筛选数据时按钮显示「全部展开」却点不动（死按钮）；数据清空后空表格显示「全部折叠」 |
@@ -39,8 +40,12 @@
 
 补充判定：
 
-- `createCrudQueries` 覆盖标准 CRUD 与可选 lookup；域内非标准接口（分配菜单、导入导出、状态切换）继续手写
-  `useMutation`，用工厂导出的 `keys` 做失效。**禁止**为了套用工厂去改后端接口形状
+- `createResourceQueries` 覆盖契约的 `list` / `detail` / `create` / `update` / `remove` / `removeBatch` / `all`；
+  域内其余操作用 `useApiMutation(xxxContract.op, { invalidate })` / `useApiQuery(xxxContract.op, input)`，
+  失效用工厂导出的 `keys`。mutation 变量即契约输入 `{ params?, query?, body? }`，**禁止**再包一层手写 `useMutation`
+- `useEditModal` 的表单值类型取契约的创建入参：`useEditModal<Xxx, Partial<CreateXxxInput>>`；记录里的 `null`
+  经 `toValues` / `beforeSave` 归一为未填，**禁止**把实体类型直接当表单值类型
+- 筛选控件的宽类型值（`string`）交给按枚举声明的契约查询参数前用 `enumValueOf(XXX_VALUES, value)`（`@zenith/shared/core`）收窄
 - `useEditModal` 的例外（页面级全局配置表单、认证流程、工作流设计器与运行时表单、db-admin 行编辑器、
   保存后不关闭的搭建器工作区）需写注释说明理由；若该表单同时配了详情查询，`<Form>` 的 `key`
   **必须**用 `formRemountKey(id, detail)`
@@ -69,7 +74,9 @@
 - **精确失效**：`onSuccess` 按真实副作用失效，**禁止**无条件 `invalidateQueries({ queryKey: xxxKeys.all })`；
   判据是「有没有已挂载的查询读了这次被改动的状态」。删除用 `removeQueries(detail(id))`；
   确需全域失效（批量覆盖、切租户、全量导入）须在注释写明理由
-- **key 结构**：`xxxKeys.all` 只能是本域自己的根；独立生命周期的子资源另起命名空间；
+- **key 结构**：`createResourceQueries` 的 key 由契约 `basePath` 派生（`/api/tenants` → `['tenants', 'list', params]` /
+  `['tenants', 'detail', id]` / `['tenants', 'all']`），单操作查询 `contractKey(op, input)` = `[资源键, 操作名, input]`；
+  `xxxKeys.all` 只能是本域自己的根；独立生命周期的子资源另起命名空间；
   多变体查询导出 `detailOf(id)` / `dataOf(id)` / `lookupPrefix` 前缀键；
   静态 lookup、数据库元数据与昂贵派生取数不与列表同前缀
 - **下拉源归属所有者域**：**禁止**用本域 key 请求别域资源（所有者域增删改时无人失效它，界面静默显示旧列表），

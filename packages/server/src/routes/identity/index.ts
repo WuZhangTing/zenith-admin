@@ -1,3 +1,4 @@
+import { tenantContract, tenantPackageContract } from '@zenith/shared/identity';
 import { defineRouteDomain } from '../_kit';
 import apiTokensRoutes from './api-tokens';
 import authRoutes from './auth';
@@ -36,8 +37,8 @@ export default defineRouteDomain({
     // 机器端点（平台回调 / SCIM）：公开路径，自带验签与 Bearer 校验
     ['/api/directory-sync', directorySyncCallbacksRoutes],
     ['/api/sessions', sessionsRoutes],
-    ['/api/tenants', tenantsRoutes],
-    ['/api/tenant-packages', tenantPackagesRoutes],
+    [tenantContract.basePath, tenantsRoutes],
+    [tenantPackageContract.basePath, tenantPackagesRoutes],
     ['/api/auth/oauth', oauthRoutes],
     ['/api/auth/enterprise', enterpriseAuthRoutes],
     ['/api/oauth-config', oauthConfigRoutes],

@@ -5,7 +5,6 @@ export * from './users';
 export * from './_user-preview';
 export * from './menus';
 export * from './departments';
-export * from './tenants';
 export * from './api-tokens';
 export * from './auth';
 export * from './dict';
