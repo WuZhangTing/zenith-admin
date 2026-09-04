@@ -1,13 +1,14 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { createCmsResourceFolderSchema, cropCmsResourceSchema, moveCmsResourcesSchema, updateCmsResourceFolderSchema, updateCmsResourceSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import {
   ErrorResponse, jsonContent, PaginationQuery, IdParam, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, okBody, BatchIdsBody,
 } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, CmsResourceDTO, CmsResourceFolderDTO, CmsResourceReferenceDTO } from '../../lib/openapi-dtos';
+import { CmsResourceDTO, CmsResourceFolderDTO, CmsResourceReferenceDTO } from '../../lib/openapi-dtos';
 import {
   listCmsResources, uploadCmsResource, updateCmsResource, deleteCmsResources,
   listCmsResourceReferences, cropCmsResource, replaceCmsResource,
@@ -197,7 +198,7 @@ const governanceRoute = defineOpenAPIRoute({
         required: true,
       },
     },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const payload = c.req.valid('json');
@@ -221,7 +222,7 @@ const moveResourcesRoute = defineOpenAPIRoute({
         required: true,
       },
     },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const body = c.req.valid('json');
@@ -283,7 +284,7 @@ const rebuildRefsRoute = defineOpenAPIRoute({
         required: true,
       },
     },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const row = await submitCmsResourceRefRebuildTask(c.req.valid('json').siteId);

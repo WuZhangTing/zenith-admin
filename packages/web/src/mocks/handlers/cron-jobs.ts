@@ -1,21 +1,20 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams, paginate } from '@/mocks/utils/handlers';
+import { cronJobContract } from '@zenith/shared/platform';
+import type { CronJob, CronJobLog, CronRunStatus } from '@zenith/shared/platform';
+import { mock } from '@/mocks/utils/contract';
+import { notFound } from '@/mocks/utils/handlers';
 import { mockCronJobs, getNextCronJobId } from '@/mocks/data/system';
 import { mockDateTime, mockDateTimeOffset, mockDateOffset } from '@/mocks/utils/date';
-import type { CronJob } from '@zenith/shared/platform';
 
 export const cronJobsHandlers = [
   // 获取可用任务处理器列表（必须在 :id 路由之前声明）
-  http.get('/api/cron-jobs/handlers', () => {
-    return ok(['emailNotification', 'dataCleanup', 'reportGeneration', 'cacheRefresh']);
-  }),
+  mock(cronJobContract.handlers, ({ ok }) => ok(['emailNotification', 'dataCleanup', 'reportGeneration', 'cacheRefresh'])),
+
+  mock(cronJobContract.validate, ({ body, ok }) => ok({ valid: body.expression.trim().split(/\s+/).length >= 5 })),
 
   // 全量执行日志（必须在 :id 路由之前声明）
-  http.get('/api/cron-jobs/logs', ({ request }) => {
-    const url = new URL(request.url);
-
-    const statuses: Array<'success' | 'fail' | 'running'> = ['success', 'success', 'success', 'fail', 'running'];
-    const allLogs = mockCronJobs.flatMap((job, i) =>
+  mock(cronJobContract.logs, ({ query, ok, paginate }) => {
+    const statuses: CronRunStatus[] = ['success', 'success', 'success', 'fail', 'running'];
+    const allLogs: CronJobLog[] = mockCronJobs.flatMap((job, i) =>
       Array.from({ length: 5 }, (_, j) => ({
         id: i * 5 + j + 1,
         jobId: job.id,
@@ -27,19 +26,19 @@ export const cronJobsHandlers = [
         status: statuses[j % statuses.length],
         output: statuses[j % statuses.length] === 'fail' ? 'Error: Connection timeout' : 'Completed successfully',
       }))
-    ).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    ).filter((log) => !query.jobId || log.jobId === query.jobId)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 
-    return ok(paginate(allLogs, url, 20));
+    return ok(paginate(allLogs));
   }),
 
   // 按任务 ID 查询执行日志（必须在 :id 路由之前声明）
-  http.get('/api/cron-jobs/:id/logs', ({ params, request }) => {
-    const url = new URL(request.url);
-    const job = mockCronJobs.find((j) => j.id === Number(params.id));
+  mock(cronJobContract.jobLogs, ({ params, ok, paginate }) => {
+    const job = mockCronJobs.find((j) => j.id === params.id);
     if (!job) return notFound('任务不存在');
 
-    const statuses: Array<'success' | 'fail' | 'running'> = ['success', 'success', 'fail', 'success', 'running'];
-    const logs = Array.from({ length: 10 }, (_, j) => ({
+    const statuses: CronRunStatus[] = ['success', 'success', 'fail', 'success', 'running'];
+    const logs: CronJobLog[] = Array.from({ length: 10 }, (_, j) => ({
       id: j + 1,
       jobId: job.id,
       jobName: job.name,
@@ -51,19 +50,19 @@ export const cronJobsHandlers = [
       output: statuses[j % statuses.length] === 'fail' ? 'Error: timeout' : 'OK',
     }));
 
-    return ok(paginate(logs, url, 20));
+    return ok(paginate(logs));
   }),
 
   // 任务执行统计
-  http.get('/api/cron-jobs/stats', () => {
-    const statuses: Array<'success' | 'fail' | 'running'> = ['success', 'success', 'success', 'fail', 'running'];
+  mock(cronJobContract.stats, ({ ok }) => {
+    const statuses: CronRunStatus[] = ['success', 'success', 'success', 'fail', 'running'];
 
     const perJob = mockCronJobs.map((job, i) => {
       const totalRuns = 20 + (i * 7 % 80);
       const successCount = Math.floor(totalRuns * (0.7 + (i * 3 % 30) / 100));
       const failCount = totalRuns - successCount;
       // 近 10 次执行状态（确定性生成；第 2 个任务演示连续失败告警）
-      let recentResults: Array<'success' | 'fail' | 'running'>;
+      let recentResults: CronRunStatus[];
       if (i === 1) {
         recentResults = ['success', 'success', 'fail', 'success', 'success', 'success', 'fail', 'fail', 'fail', 'fail'];
       } else {
@@ -145,41 +144,31 @@ export const cronJobsHandlers = [
   }),
 
   // 定时任务列表（分页）
-  http.get('/api/cron-jobs', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const keyword = url.searchParams.get('keyword') ?? '';
-
-    let list = mockCronJobs.filter((j) => {
-      if (keyword && !j.name.includes(keyword) && !j.handler.includes(keyword)) return false;
-      return true;
-    });
-    const total = list.length;
-    list = list.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list, total, page, pageSize });
+  mock(cronJobContract.list, ({ query, ok, paginate }) => {
+    const list = mockCronJobs.filter((j) => !query.keyword || j.name.includes(query.keyword) || j.handler.includes(query.keyword));
+    return ok(paginate(list));
   }),
 
   // 获取单个任务
-  http.get('/api/cron-jobs/:id', ({ params }) => {
-    const job = mockCronJobs.find((j) => j.id === Number(params.id));
+  mock(cronJobContract.detail, ({ params, ok }) => {
+    const job = mockCronJobs.find((j) => j.id === params.id);
     if (!job) return notFound('任务不存在');
     return ok(job);
   }),
 
-  // 新增任务
-  http.post('/api/cron-jobs', async ({ request }) => {
-    const body = await request.json() as Partial<CronJob>;
+  // 新增任务：body 即 CreateCronJobInput（已校验、已补默认值）
+  mock(cronJobContract.create, ({ body, ok }) => {
     const newJob: CronJob = {
       id: getNextCronJobId(),
-      name: body.name ?? '',
-      cronExpression: body.cronExpression ?? '0 * * * * *',
-      handler: body.handler ?? '',
+      name: body.name,
+      cronExpression: body.cronExpression,
+      handler: body.handler,
       params: body.params ?? null,
-      status: body.status ?? 'enabled',
-      description: body.description ?? '',
-      retryCount: body.retryCount ?? 0,
-      retryInterval: body.retryInterval ?? 0,
-      retryBackoff: body.retryBackoff ?? false,
+      status: body.status,
+      description: body.description,
+      retryCount: body.retryCount,
+      retryInterval: body.retryInterval,
+      retryBackoff: body.retryBackoff,
       monitorTimeout: body.monitorTimeout ?? null,
       lastRunAt: null,
       lastRunStatus: null,
@@ -192,59 +181,48 @@ export const cronJobsHandlers = [
   }),
 
   // 更新任务
-  http.put('/api/cron-jobs/:id', async ({ params, request }) => {
-    const job = mockCronJobs.find((j) => j.id === Number(params.id));
+  mock(cronJobContract.update, ({ params, body, ok }) => {
+    const job = mockCronJobs.find((j) => j.id === params.id);
     if (!job) return notFound('任务不存在');
-    const body = await request.json() as Partial<CronJob>;
     Object.assign(job, body, { updatedAt: mockDateTime() });
     return ok(job, '更新成功');
   }),
 
   // 清除所有执行日志（必须在 DELETE /:id 之前声明）
-  http.delete('/api/cron-jobs/logs/clean', ({ request }) => {
-    const url = new URL(request.url);
-    const days = Number(url.searchParams.get('days')) || 180;
-    return ok(null, `已清除 ${days} 天前的日志`);
-  }),
+  mock(cronJobContract.clearLogs, ({ query, ok }) => ok(null, `已清除 ${query.days} 天前的日志`)),
 
   // 清除单任务执行日志（必须在 DELETE /:id 之前声明）
-  http.delete('/api/cron-jobs/:id/logs/clean', ({ params, request }) => {
-    const url = new URL(request.url);
-    const days = Number(url.searchParams.get('days')) || 180;
-    const job = mockCronJobs.find((j) => j.id === Number(params.id));
+  mock(cronJobContract.clearJobLogs, ({ params, query, ok }) => {
+    const job = mockCronJobs.find((j) => j.id === params.id);
     if (!job) return notFound('任务不存在');
-    return ok(null, `已清除「${job.name}」${days} 天前的日志`);
+    return ok(null, `已清除「${job.name}」${query.days} 天前的日志`);
   }),
 
   // 删除任务
-  http.delete('/api/cron-jobs/:id', ({ params }) => {
-    const index = mockCronJobs.findIndex((j) => j.id === Number(params.id));
+  mock(cronJobContract.remove, ({ params, ok }) => {
+    const index = mockCronJobs.findIndex((j) => j.id === params.id);
     if (index === -1) return notFound('任务不存在');
     mockCronJobs.splice(index, 1);
     return ok(null, '删除成功');
   }),
 
   // 立即执行任务（demo 模式仅更新 lastRunAt）
-  http.post('/api/cron-jobs/:id/run', ({ params }) => {
-    const job = mockCronJobs.find((j) => j.id === Number(params.id));
+  mock(cronJobContract.run, ({ params, ok }) => {
+    const job = mockCronJobs.find((j) => j.id === params.id);
     if (!job) return notFound('任务不存在');
     job.lastRunAt = mockDateTime();
     job.lastRunStatus = 'success';
     job.lastRunMessage = 'Demo 模式：模拟执行成功';
     job.updatedAt = mockDateTime();
-    return ok(job, '执行成功');
+    return ok(null, '执行成功');
   }),
 
   // 更新任务状态
-  http.put('/api/cron-jobs/:id/status', async ({ params, request }) => {
-    const job = mockCronJobs.find((j) => j.id === Number(params.id));
+  mock(cronJobContract.setStatus, ({ params, body, ok }) => {
+    const job = mockCronJobs.find((j) => j.id === params.id);
     if (!job) return notFound('任务不存在');
-    const body = await request.json() as { status?: 'enabled' | 'disabled' };
-    if (body.status !== 'enabled' && body.status !== 'disabled') {
-      return badRequest('状态值无效');
-    }
     job.status = body.status;
     job.updatedAt = mockDateTime();
-    return ok(job, '操作成功');
+    return ok(null, '操作成功');
   }),
 ];

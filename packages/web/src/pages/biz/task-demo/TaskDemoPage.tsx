@@ -104,11 +104,11 @@ export default function TaskDemoPage() {
   const resumeMutation = useBizTaskDemoAction('resume');
   const restartMutation = useBizTaskDemoAction('restart');
   const actionLoadingId = cancelMutation.isPending
-    ? (cancelMutation.variables ?? null)
+    ? (cancelMutation.variables?.params.id ?? null)
     : resumeMutation.isPending
-      ? (resumeMutation.variables ?? null)
+      ? (resumeMutation.variables?.params.id ?? null)
       : restartMutation.isPending
-        ? (restartMutation.variables ?? null)
+        ? (restartMutation.variables?.params.id ?? null)
         : null;
 
   const currentTypeMeta = types.find((t) => t.taskType === taskType);
@@ -122,14 +122,14 @@ export default function TaskDemoPage() {
     const body = taskType === 'demo-batch'
       ? { taskType, totalItems, itemDelayMs, ...(failAtItem ? { failAtItem } : {}), ...(failEveryN ? { failEveryN } : {}) }
       : { taskType, stageDelayMs };
-    await submitMutation.mutateAsync(body);
+    await submitMutation.mutateAsync({ body });
     Toast.success('任务已提交，可在下方列表查看实时进度');
     void refresh();
   };
 
   const runAction = async (record: AsyncTask, action: 'cancel' | 'resume' | 'restart', successMsg: string) => {
     const mutation = action === 'cancel' ? cancelMutation : action === 'resume' ? resumeMutation : restartMutation;
-    await mutation.mutateAsync(record.id);
+    await mutation.mutateAsync({ params: { id: record.id } });
     Toast.success(successMsg);
     void refresh();
   };

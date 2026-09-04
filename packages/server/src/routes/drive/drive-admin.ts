@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import {
   DRIVE_ACTIVITY_ACTIONS,
   DRIVE_SPACE_TYPES,
@@ -9,7 +10,7 @@ import {
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, DriveActivityDTO, DriveAdminStatsDTO, DriveSettingsDTO, DriveShareLinkDTO, DriveSpaceDTO } from '../../lib/openapi-dtos';
+import { DriveActivityDTO, DriveAdminStatsDTO, DriveSettingsDTO, DriveShareLinkDTO, DriveSpaceDTO } from '../../lib/openapi-dtos';
 import { mapAsyncTask } from '../../lib/task-center';
 import { listDriveActivitiesForAdmin } from '../../services/drive/drive-activity.service';
 import { getDriveAdminStats } from '../../services/drive/drive-admin.service';
@@ -123,7 +124,7 @@ const recalcRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'drive:admin:space:edit', audit: { description: '重算网盘容量', module: '企业网盘' } })] as const,
     request: { body: { content: jsonContent(z.object({ spaceId: z.number().int().positive().optional() })), required: false } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const body = c.req.valid('json');
@@ -138,7 +139,7 @@ const reindexRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'drive:admin:space:edit', audit: { description: '补建网盘索引', module: '企业网盘' } })] as const,
     request: { body: { content: jsonContent(z.object({ spaceId: z.number().int().positive().optional() })), required: false } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const body = c.req.valid('json');

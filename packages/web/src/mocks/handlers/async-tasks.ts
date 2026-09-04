@@ -1,7 +1,9 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
-import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
+import type { QueryOf } from '@zenith/shared/core';
+import { asyncTaskContract, taskDemoContract } from '@zenith/shared/tasks';
+import type { AsyncTask, AsyncTaskItem, AsyncTaskStats, AsyncTaskStatus, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
 import dayjs from 'dayjs';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockDateOffset, mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 /**
@@ -307,6 +309,7 @@ const tasks: AsyncTask[] = [
     createdBy: 1,
     createdByName: '管理员',
     tenantId: null,
+    traceId: null,
     startedAt: mockDateTimeOffset(-3600 * 1000),
     completedAt: mockDateTimeOffset(-3588 * 1000),
     createdAt: mockDateTimeOffset(-3600 * 1000),
@@ -332,6 +335,7 @@ const tasks: AsyncTask[] = [
     createdBy: 1,
     createdByName: '管理员',
     tenantId: null,
+    traceId: null,
     startedAt: mockDateTimeOffset(-1800 * 1000),
     completedAt: mockDateTimeOffset(-1700 * 1000),
     createdAt: mockDateTimeOffset(-1800 * 1000),
@@ -382,6 +386,7 @@ export function createImmediateMockTask(input: {
     createdBy: 1,
     createdByName: '管理员',
     tenantId: null,
+    traceId: null,
     startedAt: now,
     completedAt: now,
     createdAt: now,
@@ -422,6 +427,7 @@ export function createProgressingMockTask(input: {
     createdBy: 1,
     createdByName: '管理员',
     tenantId: null,
+    traceId: null,
     startedAt: null,
     completedAt: null,
     createdAt: now,
@@ -584,48 +590,39 @@ function findTask(id: number) {
   return tasks.find((item) => item.id === id);
 }
 
-function paginate(url: URL, source: AsyncTask[]) {
-  const { page, pageSize } = pageParams(url);
-  const taskType = url.searchParams.get('taskType') ?? '';
-  const status = (url.searchParams.get('status') ?? '') as AsyncTaskStatus | '';
-  const keyword = url.searchParams.get('keyword') ?? '';
-  const content = (url.searchParams.get('content') ?? '').toLowerCase();
-  const createdBy = url.searchParams.get('createdBy') ?? '';
-  const filtered = source.filter((task) => {
-    if (taskType && task.taskType !== taskType) return false;
-    if (status && task.status !== status) return false;
-    if (keyword && !task.title.includes(keyword) && !task.taskType.includes(keyword)) return false;
+type TaskListQuery = QueryOf<typeof asyncTaskContract.list>;
+
+/** 按契约查询参数筛选（服务端语义：类型 / 状态精确匹配，关键字匹配标题与类型，内容匹配入参与产出，提交人匹配昵称） */
+function filterTasks(query: TaskListQuery, source: AsyncTask[]) {
+  const content = (query.content ?? '').toLowerCase();
+  return source.filter((task) => {
+    if (query.taskType && task.taskType !== query.taskType) return false;
+    if (query.status && task.status !== query.status) return false;
+    if (query.keyword && !task.title.includes(query.keyword) && !task.taskType.includes(query.keyword)) return false;
     if (content && !(
       JSON.stringify(task.payload ?? {}).toLowerCase().includes(content)
       || JSON.stringify(task.result ?? {}).toLowerCase().includes(content)
     )) return false;
-    if (createdBy && !(task.createdByName ?? '').includes(createdBy)) return false;
+    if (query.createdBy && !(task.createdByName ?? '').includes(query.createdBy)) return false;
     return true;
   }).sort((a, b) => b.id - a.id);
-  return {
-    list: filtered.slice((page - 1) * pageSize, page * pageSize),
-    total: filtered.length,
-    page,
-    pageSize,
-  };
 }
 
 export const asyncTasksHandlers = [
-  http.get('/api/async-tasks/types', () => ok(taskTypes)),
+  mock(asyncTaskContract.types, ({ ok }) => ok(taskTypes)),
 
-  http.put('/api/async-tasks/types/:taskType/config', async ({ params, request }) => {
-    const meta = taskTypes.find((item) => item.taskType === String(params.taskType));
+  mock(asyncTaskContract.updateTypePolicy, ({ params, body, ok }) => {
+    const meta = taskTypes.find((item) => item.taskType === params.taskType);
     if (!meta) return notFound('任务类型未注册', { status: 404 });
-    const body = await request.json() as Partial<AsyncTaskTypeMeta>;
-    meta.enabled = body.enabled ?? meta.enabled;
-    meta.allowConcurrent = body.allowConcurrent ?? meta.allowConcurrent;
-    meta.maxAttempts = body.maxAttempts ?? meta.maxAttempts;
-    meta.retryDelayMs = body.retryDelayMs ?? meta.retryDelayMs;
+    meta.enabled = body.enabled;
+    meta.allowConcurrent = body.allowConcurrent;
+    meta.maxAttempts = body.maxAttempts;
+    meta.retryDelayMs = body.retryDelayMs;
     meta.retentionDays = body.retentionDays !== undefined ? body.retentionDays : meta.retentionDays;
     return ok(meta, '策略已更新');
   }),
 
-  http.get('/api/async-tasks/stats', () => {
+  mock(asyncTaskContract.stats, ({ ok }) => {
     tickAll();
     const counts: Record<string, number> = { pending: 0, running: 0, success: 0, failed: 0, cancelled: 0 };
     for (const task of tasks) counts[task.status] = (counts[task.status] ?? 0) + 1;
@@ -710,25 +707,22 @@ export const asyncTasksHandlers = [
     return ok(stats);
   }),
 
-  http.get('/api/async-tasks/mine', ({ request }) => {
+  mock(asyncTaskContract.mine, ({ query, ok, paginate }) => {
     tickAll();
-    return ok(paginate(new URL(request.url), tasks));
+    return ok(paginate(filterTasks(query, tasks)));
   }),
 
-  http.get('/api/async-tasks', ({ request }) => {
+  mock(asyncTaskContract.list, ({ query, ok, paginate }) => {
     tickAll();
-    return ok(paginate(new URL(request.url), tasks));
+    return ok(paginate(filterTasks(query, tasks)));
   }),
 
-  http.post('/api/async-tasks/cleanup', () => {
-    return ok({ cleaned: 0 }, '已清理 0 条任务记录');
-  }),
+  mock(asyncTaskContract.cleanup, ({ ok }) => ok({ cleaned: 0 }, '已清理 0 条任务记录')),
 
-  http.post('/api/async-tasks/batch-cancel', async ({ request }) => {
+  mock(asyncTaskContract.batchCancel, ({ body, ok }) => {
     tickAll();
-    const { ids } = await request.json() as { ids: number[] };
     let affected = 0;
-    for (const id of ids) {
+    for (const id of body.ids) {
       const task = findTask(id);
       if (!task) continue;
       if (task.status === 'pending') {
@@ -744,10 +738,9 @@ export const asyncTasksHandlers = [
     return ok({ affected }, `已请求取消 ${affected} 个任务`);
   }),
 
-  http.post('/api/async-tasks/batch-delete', async ({ request }) => {
-    const { ids } = await request.json() as { ids: number[] };
+  mock(asyncTaskContract.batchDelete, ({ body, ok }) => {
     let affected = 0;
-    for (const id of ids) {
+    for (const id of body.ids) {
       const index = tasks.findIndex((item) => item.id === id && ['success', 'failed', 'cancelled'].includes(item.status));
       if (index >= 0) {
         itemsByTask.delete(tasks[index].id);
@@ -758,27 +751,24 @@ export const asyncTasksHandlers = [
     return ok({ affected }, `已删除 ${affected} 个任务记录`);
   }),
 
-  http.get('/api/async-tasks/:id/items', ({ params, request }) => {
+  mock(asyncTaskContract.items, ({ params, query, ok, paginate }) => {
     tickAll();
-    const taskId = Number(params.id);
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const status = (url.searchParams.get('status') ?? '') as AsyncTaskItemStatus | '';
-    const all = (itemsByTask.get(taskId) ?? []).filter((item) => !status || item.status === status)
+    const all = (itemsByTask.get(params.id) ?? [])
+      .filter((item) => !query.status || item.status === query.status)
       .sort((a, b) => b.id - a.id);
-    return ok({ list: all.slice((page - 1) * pageSize, page * pageSize), total: all.length, page, pageSize });
+    return ok(paginate(all));
   }),
 
-  http.get('/api/async-tasks/:id', ({ params }) => {
+  mock(asyncTaskContract.detail, ({ params, ok }) => {
     tickAll();
-    const task = findTask(Number(params.id));
+    const task = findTask(params.id);
     if (!task) return notFound('任务不存在', { status: 404 });
     return ok(task);
   }),
 
-  http.post('/api/async-tasks/:id/cancel', ({ params }) => {
+  mock(asyncTaskContract.cancel, ({ params, ok }) => {
     tickAll();
-    const task = findTask(Number(params.id));
+    const task = findTask(params.id);
     if (!task) return notFound('任务不存在', { status: 404 });
     if (task.status === 'pending') {
       retryAt.delete(task.id);
@@ -793,8 +783,8 @@ export const asyncTasksHandlers = [
     return ok(task, '已请求取消');
   }),
 
-  http.post('/api/async-tasks/:id/resume', ({ params }) => {
-    const task = findTask(Number(params.id));
+  mock(asyncTaskContract.resume, ({ params, ok }) => {
+    const task = findTask(params.id);
     if (!task) return notFound('任务不存在', { status: 404 });
     if (!['failed', 'cancelled'].includes(task.status)) {
       return badRequest('仅失败或已取消的任务可以断点恢复', { status: 400 });
@@ -807,8 +797,8 @@ export const asyncTasksHandlers = [
     return ok(task, '已从断点恢复');
   }),
 
-  http.post('/api/async-tasks/:id/restart', ({ params }) => {
-    const task = findTask(Number(params.id));
+  mock(asyncTaskContract.restart, ({ params, ok }) => {
+    const task = findTask(params.id);
     if (!task) return notFound('任务不存在', { status: 404 });
     if (!['success', 'failed', 'cancelled'].includes(task.status)) {
       return badRequest('仅已结束的任务可以重新开始', { status: 400 });
@@ -828,8 +818,8 @@ export const asyncTasksHandlers = [
     return ok(task, '已重新开始');
   }),
 
-  http.delete('/api/async-tasks/:id', ({ params }) => {
-    const index = tasks.findIndex((item) => item.id === Number(params.id));
+  mock(asyncTaskContract.remove, ({ params, ok }) => {
+    const index = tasks.findIndex((item) => item.id === params.id);
     if (index === -1) return notFound('任务不存在', { status: 404 });
     if (!['success', 'failed', 'cancelled'].includes(tasks[index].status)) {
       return badRequest('进行中的任务不能删除，请先取消', { status: 400 });
@@ -840,16 +830,8 @@ export const asyncTasksHandlers = [
     return ok(null, '已删除');
   }),
 
-  http.post('/api/task-demo/submit', async ({ request }) => {
+  mock(taskDemoContract.submit, ({ body, ok }) => {
     tickAll();
-    const body = await request.json() as {
-      taskType: 'demo-batch' | 'demo-serial';
-      totalItems?: number;
-      itemDelayMs?: number;
-      failAtItem?: number | null;
-      failEveryN?: number | null;
-      stageDelayMs?: number;
-    };
     const meta = taskTypes.find((item) => item.taskType === body.taskType);
     if (!meta) return badRequest('任务类型未注册', { status: 400 });
     if (!meta.enabled) {
@@ -890,6 +872,7 @@ export const asyncTasksHandlers = [
       createdBy: 1,
       createdByName: '管理员',
       tenantId: null,
+      traceId: null,
       startedAt: null,
       completedAt: null,
       createdAt: mockDateTime(),

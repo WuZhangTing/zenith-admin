@@ -1,6 +1,6 @@
-import { http } from 'msw';
-import { ok } from '@/mocks/utils/handlers';
+import { importJobContract } from '@zenith/shared/tasks';
 import type { ImportEntityMeta } from '@zenith/shared/tasks';
+import { mock } from '@/mocks/utils/contract';
 import { mockDateTime } from '../utils/date';
 
 const entities: ImportEntityMeta[] = [
@@ -91,8 +91,8 @@ const entities: ImportEntityMeta[] = [
 let nextImportTaskId = 9000;
 
 export const importJobsHandlers = [
-  http.get('/api/import-jobs/entities', () => ok(entities)),
-  http.post('/api/import-jobs', () => {
+  mock(importJobContract.entities, ({ ok }) => ok(entities)),
+  mock(importJobContract.submit, ({ ok }) => {
     const now = mockDateTime();
     const id = nextImportTaskId++;
     return ok({

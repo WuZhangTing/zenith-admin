@@ -114,11 +114,11 @@ describe('handlers 静态 lookup 不再被任何写操作波及', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.run.mutateAsync(1);
+    await hook.result.current.run.mutateAsync({ params: { id: 1 } });
     await hook.result.current.save.mutateAsync({ id: 1, values: { name: '对账（改）' } });
-    await hook.result.current.status.mutateAsync({ id: 1, status: 'disabled' });
+    await hook.result.current.status.mutateAsync({ params: { id: 1 }, body: { status: 'disabled' } });
     await hook.result.current.clearLogs.mutateAsync({ days: 90 });
-    await hook.result.current.remove.mutateAsync(1);
+    await hook.result.current.remove.mutateAsync([1]);
     await waitFor(() => expect(hook.result.current.list.isFetching).toBe(false));
 
     // 收敛前：这 5 个动作各触发一次 handlers 回源
@@ -148,7 +148,7 @@ describe('useRunCronJob —— 命令型接口但副作用广', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.run.mutateAsync(1);
+    await hook.result.current.run.mutateAsync({ params: { id: 1 } });
     await waitFor(() => expect(hook.result.current.list.isFetching).toBe(false));
 
     expect(fetches.countOf(cronJobKeys.lists)).toBe(1);
@@ -206,7 +206,7 @@ describe('useSaveCronJob / useDeleteCronJob', () => {
     qc.setQueryData(cronJobKeys.detail(1), JOB);
     api.resetCalls();
 
-    await hook.result.current.remove.mutateAsync(1);
+    await hook.result.current.remove.mutateAsync([1]);
     await waitFor(() => expect(hook.result.current.list.isFetching).toBe(false));
 
     expect(hasCacheEntry(qc, cronJobKeys.detail(1))).toBe(false);

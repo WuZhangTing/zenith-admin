@@ -90,10 +90,10 @@ describe('任务类型元数据不被任务状态变更波及', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.cancel.mutateAsync(1);
-    await hook.result.current.batchCancel.mutateAsync([1, 2]);
-    await hook.result.current.cleanup.mutateAsync();
-    await hook.result.current.remove.mutateAsync(1);
+    await hook.result.current.cancel.mutateAsync({ params: { id: 1 } });
+    await hook.result.current.batchCancel.mutateAsync({ body: { ids: [1, 2] } });
+    await hook.result.current.cleanup.mutateAsync({});
+    await hook.result.current.remove.mutateAsync({ params: { id: 1 } });
     await waitFor(() => expect(hook.result.current.list.isFetching).toBe(false));
 
     // 收敛前：这 4 个动作各触发一次 types 回源
@@ -113,7 +113,7 @@ describe('任务状态变更仍然刷新列表、统计与明细项', () => {
     const api0 = api.countOf('GET');
     api.resetCalls();
 
-    await hook.result.current.cancel.mutateAsync(1);
+    await hook.result.current.cancel.mutateAsync({ params: { id: 1 } });
     await waitFor(() => {
       expect(api.countOf('GET', '/api/async-tasks')).toBe(1);
       expect(api.countOf('GET', '/api/async-tasks/stats')).toBe(1);
@@ -132,7 +132,10 @@ describe('类型配置变更只刷新类型元数据', () => {
     const fetches = observeFetches(qc);
     api.resetCalls();
 
-    await hook.result.current.updateTypeConfig.mutateAsync({ taskType: 'export', values: { title: '导出' } });
+    await hook.result.current.updateTypeConfig.mutateAsync({
+      params: { taskType: 'export' },
+      body: { enabled: true, allowConcurrent: true, maxAttempts: 3, retryDelayMs: 5000, retentionDays: null },
+    });
     await waitFor(() => expect(fetches.countOf(asyncTaskKeys.types)).toBe(1));
 
     expect(api.countOf('GET', '/api/async-tasks')).toBe(0);

@@ -5,6 +5,9 @@ import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared/tasks';
+import { EXPORT_JOB_FORMATS, EXPORT_JOB_STATUSES, exportJobContract } from '@zenith/shared/tasks';
+import { enumValueOf, formatBytes } from '@zenith/shared/core';
+import { urlOf } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -27,7 +30,6 @@ import { FilterSelect, KeywordInput, StatusSelect } from '@/components/search-fi
 import { useListSearch } from '@/hooks/useListSearch';
 import { confirmDelete } from '@/utils/confirm';
 import { copyTextWithToast } from '@/utils/clipboard';
-import { formatBytes } from '@zenith/shared/core';
 
 interface SearchParams {
   entity?: string;
@@ -95,8 +97,8 @@ export default function ExportJobsPage() {
     page,
     pageSize,
     entity: submittedParams.entity || undefined,
-    status: submittedParams.status || undefined,
-    format: submittedParams.format || undefined,
+    status: enumValueOf(EXPORT_JOB_STATUSES, submittedParams.status),
+    format: enumValueOf(EXPORT_JOB_FORMATS, submittedParams.format),
     keyword: submittedParams.keyword || undefined,
   });
   const data = listQuery.data?.list ?? EMPTY_EXPORT_JOBS;
@@ -110,10 +112,11 @@ export default function ExportJobsPage() {
 
   const actionLoadingId =
     downloadLoadingId
-    ?? (cancelMutation.isPending ? cancelMutation.variables : null)
-    ?? (retryMutation.isPending ? retryMutation.variables : null)
+    ?? (cancelMutation.isPending ? cancelMutation.variables?.params.id : null)
+    ?? (retryMutation.isPending ? retryMutation.variables?.params.id : null)
     ?? (rerunMutation.isPending ? rerunMutation.variables?.id : null)
-    ?? (deleteMutation.isPending ? deleteMutation.variables : null);
+    ?? (deleteMutation.isPending ? deleteMutation.variables?.params.id : null)
+    ?? null;
   const batchDeleting = batchDeleteMutation.isPending;
 
   const entityOptions = useMemo(
@@ -129,7 +132,7 @@ export default function ExportJobsPage() {
   const handleDownload = async (record: ExportJob) => {
     setDownloadLoadingId(record.id);
     try {
-      await request.download(`/api/export-jobs/${record.id}/download`, record.filename ?? `export-${record.id}.${record.format}`);
+      await request.download(urlOf(exportJobContract.download, { params: { id: record.id } }), record.filename ?? `export-${record.id}.${record.format}`);
       Toast.success('下载完成');
       void queryClient.invalidateQueries({ queryKey: exportJobKeys.all });
     } finally {
@@ -138,12 +141,12 @@ export default function ExportJobsPage() {
   };
 
   const handleCancel = async (record: ExportJob) => {
-    await cancelMutation.mutateAsync(record.id);
+    await cancelMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('已取消');
   };
 
   const handleRetry = async (record: ExportJob) => {
-    await retryMutation.mutateAsync(record.id);
+    await retryMutation.mutateAsync({ params: { id: record.id } });
     Toast.success('已提交重试');
   };
 
@@ -182,7 +185,7 @@ export default function ExportJobsPage() {
       title: '删除导出任务',
       content: record.fileDeletedAt ? '将删除该任务记录。' : '将删除该任务记录，已生成的导出文件会随保留策略清理。',
       onOk: async () => {
-        await deleteMutation.mutateAsync(record.id);
+        await deleteMutation.mutateAsync({ params: { id: record.id } });
         Toast.success('已删除');
         setSelectedRowKeys((prev) => prev.filter((id) => id !== record.id));
       },

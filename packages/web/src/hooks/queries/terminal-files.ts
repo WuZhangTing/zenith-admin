@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AsyncTask } from '@zenith/shared/tasks';
+import { asyncTaskContract, type AsyncTask } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
+import { api } from '@/lib/contract-query';
 import { toQueryString, unwrap } from '@/lib/query';
 import { dockerKeys } from './docker';
 
@@ -317,7 +318,7 @@ export async function waitForAsyncTask(taskId: number, options: { intervalMs?: n
   const intervalMs = options.intervalMs ?? 1000;
   const deadline = Date.now() + (options.timeoutMs ?? 10 * 60_000);
   for (;;) {
-    const task = await request.get<AsyncTask>(`/api/async-tasks/${taskId}`, { silent: true }).then(unwrap);
+    const task = await api(asyncTaskContract.detail, { params: { id: taskId } }, { silent: true });
     if (task.status !== 'pending' && task.status !== 'running') return task;
     if (Date.now() > deadline) throw new Error('任务执行超时');
     await new Promise((resolve) => setTimeout(resolve, intervalMs));

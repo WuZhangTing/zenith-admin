@@ -1,5 +1,6 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createCmsRedirectSchema, updateCmsRedirectSchema, createCmsLinkWordSchema, updateCmsLinkWordSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -15,7 +16,6 @@ import {
 } from '../../services/cms/cms-link-words.service';
 import { pushCmsUrls, listCmsPushLogs } from '../../services/cms/cms-push.service';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
-import { AsyncTaskDTO } from '../../lib/openapi-dtos';
 import { assertSiteAccess, ensureCmsSiteExists } from '../../services/cms/cms-sites.service';
 import { assertAllCmsSiteChannelsAccess } from '../../services/cms/cms-channels.service';
 
@@ -213,7 +213,7 @@ const deadlinkRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:seo:manage', audit: { description: 'CMS 死链检测', module: 'CMS内容管理' } })] as const,
     request: { body: { content: jsonContent(z.object({ siteId: z.number().int().positive() })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const { siteId } = c.req.valid('json');

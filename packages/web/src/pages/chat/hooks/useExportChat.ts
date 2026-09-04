@@ -1,5 +1,8 @@
 import { useCallback, useState } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
+import { exportJobContract } from '@zenith/shared/tasks';
+import { api, urlOf } from '@/lib/contract-query';
+import { ApiError } from '@/lib/query';
 import { request } from '@/utils/request';
 
 /** 导出当前会话聊天记录（自 ChatPage 原样搬移：state + handler） */
@@ -9,14 +12,20 @@ export function useExportChat() {
   const handleExportChat = useCallback(async (convId: number) => {
     setExportingChat(true);
     try {
-      const res = await request.post<{ job: { id: number; status: string; fileId: string | null; filename: string | null }; mode: string }>('/api/export-jobs', {
-        entity: 'chat.messages', format: 'xlsx', query: { conversationId: convId }, raw: false, watermark: true, executionMode: 'sync',
-      });
-      if (res.code !== 0) return;
-      if (!res.data) { Toast.error('导出失败'); return; }
-      const { job, mode } = res.data;
+      let result;
+      try {
+        result = await api(exportJobContract.create, {
+          body: { entity: 'chat.messages', format: 'xlsx', query: { conversationId: convId }, raw: false, watermark: true, executionMode: 'sync' },
+        });
+      } catch (err) {
+        // 业务失败已由请求层提示
+        if (err instanceof ApiError) return;
+        throw err;
+      }
+      if (!result) { Toast.error('导出失败'); return; }
+      const { job, mode } = result;
       if (job.status === 'success' && job.fileId) {
-        await request.download(`/api/export-jobs/${job.id}/download`, job.filename ?? '聊天记录.xlsx');
+        await request.download(urlOf(exportJobContract.download, { params: { id: job.id } }), job.filename ?? '聊天记录.xlsx');
         Toast.success('导出完成');
         return;
       }

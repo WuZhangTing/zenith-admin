@@ -1,8 +1,9 @@
 /**
- * 任务中心：异步任务与导出作业
+ * 任务中心：异步任务、导出中心、导入中心与演示任务
  *
  * 用法：import { Xxx } from '@zenith/shared/tasks'
  * 注意：本入口刻意不导出种子数据，seed 请走 '@zenith/shared/seed'。
  */
-export * from './types';
+export * from './constants';
+export * from './contracts';
 export * from './validation';

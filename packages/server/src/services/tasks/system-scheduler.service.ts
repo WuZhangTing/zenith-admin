@@ -319,7 +319,7 @@ export async function updateSystemSchedulerTaskConfig(name: string, input: Updat
     },
   }).returning();
   await updateSystemTaskRuntimePolicy(name, normalized);
-  return row;
+  return { ...row, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
 }
 
 export async function cleanupSystemSchedulerRuns(input: CleanupSystemSchedulerRunsInput = {}) {

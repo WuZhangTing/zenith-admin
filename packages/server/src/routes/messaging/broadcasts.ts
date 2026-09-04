@@ -3,6 +3,7 @@
  */
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { BROADCAST_STATUSES, createBroadcastSchema, updateBroadcastSchema } from '@zenith/shared/messaging';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -16,7 +17,7 @@ import {
   okPaginated,
   validationHook,
 } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, BroadcastCampaignDTO } from '../../lib/openapi-dtos';
+import { BroadcastCampaignDTO } from '../../lib/openapi-dtos';
 import {
   createBroadcast,
   deleteBroadcast,
@@ -122,7 +123,7 @@ const sendRoute = defineOpenAPIRoute({
       audit: { description: '发送群发活动', module: '运营群发' },
     })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => c.json(okBody(await sendBroadcast(c.req.valid('param').id), '任务已提交'), 200),
 });

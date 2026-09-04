@@ -1,8 +1,9 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { validationHook, commonErrorResponses, ok, okMsg, okBody, okPaginated, IdParam, PaginationQuery } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, AnalyticsCampaignDTO, CreateAnalyticsCampaignDTO, UpdateAnalyticsCampaignDTO } from '../../lib/openapi-dtos';
+import { AnalyticsCampaignDTO, CreateAnalyticsCampaignDTO, UpdateAnalyticsCampaignDTO } from '../../lib/openapi-dtos';
 import { listCampaigns, createCampaign, updateCampaign, deleteCampaign, executeCampaign } from '../../services/analytics/analytics-campaigns.service';
 import { mapAsyncTask } from '../../lib/task-center';
 
@@ -76,7 +77,7 @@ const campaignExecuteRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交分群触达任务' } })] as const,
     request: { params: IdParam },
-    responses: { ...ok(AsyncTaskDTO, '任务已提交'), ...commonErrorResponses },
+    responses: { ...ok(asyncTaskSchema, '任务已提交'), ...commonErrorResponses },
   }),
   handler: async (c) => c.json(okBody(mapAsyncTask(await executeCampaign(c.req.valid('param').id)), '任务已提交，可在任务中心查看进度'), 200),
 });

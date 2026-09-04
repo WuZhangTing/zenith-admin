@@ -8,9 +8,9 @@ import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi'
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { commonErrorResponses, jsonContent, ok, okBody, validationHook } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO } from '../../lib/openapi-dtos';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { iotBatchCommandSchema, iotBatchDesiredSchema, IOT_BATCH_DEVICE_MAX } from '@zenith/shared/iot';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { resolveIotBatchTargets } from '../../services/iot/iot-groups.service';
 
 const iotBatchRouter = new OpenAPIHono({ defaultHook: validationHook });
@@ -25,7 +25,7 @@ const batchCommandRoute = defineOpenAPIRoute({
       audit: { description: '批量下发 IoT 指令', module: 'IoT 设备' },
     })] as const,
     request: { body: { content: jsonContent(iotBatchCommandSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const input = c.req.valid('json');
@@ -55,7 +55,7 @@ const batchDesiredRoute = defineOpenAPIRoute({
       audit: { description: '批量设置 IoT 期望属性', module: 'IoT 设备' },
     })] as const,
     request: { body: { content: jsonContent(iotBatchDesiredSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const input = c.req.valid('json');

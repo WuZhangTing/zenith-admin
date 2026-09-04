@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { ANALYTICS_ACQUISITION_DIMENSIONS, ANALYTICS_ATTRIBUTION_MODELS, ANALYTICS_QUALITY_ISSUE_TYPES, ANALYTICS_SITE_KEY_HEADER } from '@zenith/shared/analytics';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { optionalAuthMiddleware } from '../../middleware/optional-auth';
 import { guard } from '../../middleware/guard';
@@ -45,7 +46,6 @@ import {
 } from '../../services/analytics/analytics-event-overrides.service';
 import { queryQuality, listDebugEvents } from '../../services/analytics/analytics-quality.service';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
-import { AsyncTaskDTO } from '../../lib/openapi-dtos';
 import { getCreateTenantId } from '../../lib/tenant';
 import { currentUser } from '../../lib/context';
 import { formatDate } from '../../lib/datetime';
@@ -546,7 +546,7 @@ const rollupRebuildRoute = defineOpenAPIRoute({
     method: 'post', path: '/rollup/rebuild', tags: ['Analytics'], summary: '重建每日聚合', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交重建每日聚合任务' } })] as const,
     request: { query: z.object({ days: z.coerce.number().int().min(1).max(730).default(30) }) },
-    responses: { ...ok(AsyncTaskDTO, '任务已提交'), ...commonErrorResponses },
+    responses: { ...ok(asyncTaskSchema, '任务已提交'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { days } = c.req.valid('query');
@@ -632,7 +632,7 @@ const segmentMaterializeRoute = defineOpenAPIRoute({
     method: 'post', path: '/segments/{id}/materialize', tags: ['Analytics'], summary: '重算分群成员（异步任务）', security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'analytics:manage', audit: { module: '行为分析', description: '提交分群重算任务' } })] as const,
     request: { params: IdParam },
-    responses: { ...ok(AsyncTaskDTO, '任务已提交'), ...commonErrorResponses },
+    responses: { ...ok(asyncTaskSchema, '任务已提交'), ...commonErrorResponses },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');

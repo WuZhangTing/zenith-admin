@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createReportDatasourceSchema, updateReportDatasourceSchema, reportBatchStatusSchema, reportCloneSchema, reportDatasourceTestSchema, reportDatasourceTypeSchema, reportLookupQuerySchema } from '@zenith/shared/report';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody, BatchIdsBody,
 } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, ReportDatasourceDTO, ReportDatasourceTestResultDTO, ReportLookupOptionDTO } from '../../lib/openapi-dtos';
+import { ReportDatasourceDTO, ReportDatasourceTestResultDTO, ReportLookupOptionDTO } from '../../lib/openapi-dtos';
 import {
   listDatasources, getDatasource, createDatasource, updateDatasource,
   deleteDatasource, ensureDatasourceExists, testDatasource,
@@ -166,7 +167,7 @@ const healthCheckRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:datasource:update', audit: { description: '批量检测报表数据源健康状态', module: '报表数据源' } })] as const,
     request: { body: { content: jsonContent(BatchIdsBody), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => c.json(okBody(await submitDatasourceHealthCheckTask(c.req.valid('json').ids), '任务已提交，可在任务中心查看进度'), 200),
 });

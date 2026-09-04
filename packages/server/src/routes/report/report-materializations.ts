@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute } from '@hono/zod-openapi';
 import { requestReportMaterializationSchema } from '@zenith/shared/report';
-import { AsyncTaskDTO, ReportMaterializationSnapshotDTO } from '../../lib/openapi-dtos';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
+import { ReportMaterializationSnapshotDTO } from '../../lib/openapi-dtos';
 import {
   commonErrorResponses,
   IdParam,
@@ -56,7 +57,7 @@ const refreshRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:materialization:refresh', audit: { module: '报表物化', description: '刷新物化快照' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(requestReportMaterializationSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => c.json(okBody(
     await submitDatasetMaterializeTask(c.req.valid('param').id, c.req.valid('json')),

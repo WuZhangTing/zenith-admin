@@ -1,9 +1,9 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { batchCmsInteractionStatusSchema, createCmsInteractionSchema, updateCmsInteractionSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
-  AsyncTaskDTO,
   CmsInteractionCrossStatsDTO,
   CmsInteractionDTO,
   CmsInteractionResponseDTO,
@@ -224,7 +224,7 @@ const batchStatusRoute = defineOpenAPIRoute({
       audit: { description: '批量流转 CMS 互动问卷', module: 'CMS内容管理' },
     })] as const,
     request: { body: { content: jsonContent(batchCmsInteractionStatusSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => c.json(okBody(
     await submitCmsInteractionBatchStatusTask(c.req.valid('json')),

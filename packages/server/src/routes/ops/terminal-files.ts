@@ -1,10 +1,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { Readable } from 'node:stream';
 import { HTTPException } from 'hono/http-exception';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { validationHook, commonErrorResponses, ok, okMsg, okBody, jsonContent, ErrorResponse } from '../../lib/openapi-schemas';
-import { TerminalDirListingDTO, TerminalFileEntryDTO, TerminalShellsDTO, TerminalFileContentDTO, TerminalRootInfoDTO, AsyncTaskDTO } from '../../lib/openapi-dtos';
+import { TerminalDirListingDTO, TerminalFileEntryDTO, TerminalShellsDTO, TerminalFileContentDTO, TerminalRootInfoDTO } from '../../lib/openapi-dtos';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { COMPRESS_TASK_TYPE, EXTRACT_TASK_TYPE } from '../../services/ops/terminal-file-tasks';
 import {
@@ -249,7 +250,7 @@ const compressRoute = defineOpenAPIRoute({
       paths: z.array(z.string().min(1)).min(1),
       destPath: z.string().min(1),
     })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '压缩任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '压缩任务已提交') },
   }),
   handler: async (c) => {
     const { paths, destPath } = c.req.valid('json');
@@ -289,7 +290,7 @@ const extractRoute = defineOpenAPIRoute({
       path: z.string().min(1),
       destPath: z.string().optional(),
     })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '解压任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '解压任务已提交') },
   }),
   handler: async (c) => {
     const { path: archivePath, destPath } = c.req.valid('json');

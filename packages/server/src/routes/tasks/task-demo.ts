@@ -1,8 +1,9 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { taskDemoContract } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
-import { commonErrorResponses, jsonContent, ok, okBody, validationHook } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { okBody, validationHook } from '../../lib/openapi-schemas';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { mapAsyncTask, registerTaskHandler, submitAsyncTask } from '../../lib/task-center';
 
@@ -87,25 +88,8 @@ export function registerTaskDemoHandlers(): void {
 
 const taskDemoRoute = new OpenAPIHono({ defaultHook: validationHook });
 
-const submitDemoTaskSchema = z.object({
-  taskType: z.enum(['demo-batch', 'demo-serial']),
-  totalItems: z.number().int().min(1).max(10000).optional(),
-  itemDelayMs: z.number().int().min(10).max(5000).optional(),
-  failAtItem: z.number().int().min(1).max(10000).nullable().optional(),
-  failEveryN: z.number().int().min(2).max(10000).nullable().optional(),
-  stageDelayMs: z.number().int().min(500).max(30000).optional(),
-  /** 幂等键（可选）：演示相同 key 重复提交返回同一任务 */
-  idempotencyKey: z.string().min(1).max(128).nullable().optional(),
-});
-
-const submitRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/submit', tags: ['TaskDemo'], summary: '提交演示异步任务',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'biz:task-demo:submit', audit: { description: '提交演示异步任务', module: '业务示例' } })] as const,
-    request: { body: { content: jsonContent(submitDemoTaskSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
-  }),
+const submitRoute = defineContractRoute(taskDemoContract.submit, {
+  middleware: [authMiddleware, guard({ permission: 'biz:task-demo:submit', audit: { description: '提交演示异步任务', module: '业务示例' } })],
   handler: async (c) => {
     const { taskType, idempotencyKey, ...payload } = c.req.valid('json');
     const title = taskType === 'demo-batch'

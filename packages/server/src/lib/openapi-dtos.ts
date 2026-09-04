@@ -17,7 +17,6 @@
  *   - dtos/logs.ts           日志
  *   - dtos/announcements.ts  公告
  *   - dtos/system-configs.ts 系统配置 / 密码策略
- *   - dtos/cron-jobs.ts      定时任务
  *   - dtos/email-config.ts   邮件配置
  *   - dtos/cache.ts          缓存
  *   - dtos/db-backups.ts     数据库备份

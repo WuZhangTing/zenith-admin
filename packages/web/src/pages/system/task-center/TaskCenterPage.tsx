@@ -5,6 +5,8 @@ import { Button, Descriptions, InputNumber, Modal, Select, SideSheet, Spin, Swit
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Eraser, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import type { PaginatedResponse } from '@zenith/shared/core';
+import { enumValueOf } from '@zenith/shared/core';
+import { ASYNC_TASK_ITEM_STATUSES, ASYNC_TASK_STATUSES } from '@zenith/shared/tasks';
 import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStatus, AsyncTaskTypeMeta, AsyncTaskTypeStat } from '@zenith/shared/tasks';
 import { SearchToolbar } from '@/components/SearchToolbar';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -120,7 +122,7 @@ export default function TaskCenterPage() {
     page,
     pageSize,
     taskType: submittedParams.taskType || undefined,
-    status: submittedParams.status || undefined,
+    status: enumValueOf(ASYNC_TASK_STATUSES, submittedParams.status),
     keyword: submittedParams.keyword || undefined,
     content: submittedParams.content || undefined,
     createdBy: submittedParams.createdBy || undefined,
@@ -131,7 +133,7 @@ export default function TaskCenterPage() {
     taskId: detailTask?.id ?? 0,
     page: itemsPage,
     pageSize: itemsPageSize,
-    status: itemStatusFilter || undefined,
+    status: enumValueOf(ASYNC_TASK_ITEM_STATUSES, itemStatusFilter),
   }, detailTask != null);
   const data = listQuery.data?.list ?? EMPTY_TASKS;
   const total = listQuery.data?.total ?? 0;
@@ -185,10 +187,11 @@ export default function TaskCenterPage() {
   const cleanupMutation = useCleanupAsyncTasks();
   const updateTypeConfigMutation = useUpdateAsyncTaskTypeConfig();
   const actionLoadingId =
-    (cancelMutation.isPending ? cancelMutation.variables : null)
-    ?? (resumeMutation.isPending ? resumeMutation.variables : null)
-    ?? (restartMutation.isPending ? restartMutation.variables : null)
-    ?? (deleteMutation.isPending ? deleteMutation.variables : null);
+    (cancelMutation.isPending ? cancelMutation.variables?.params.id : null)
+    ?? (resumeMutation.isPending ? resumeMutation.variables?.params.id : null)
+    ?? (restartMutation.isPending ? restartMutation.variables?.params.id : null)
+    ?? (deleteMutation.isPending ? deleteMutation.variables?.params.id : null)
+    ?? null;
   const batchLoading = batchCancelMutation.isPending || batchDeleteMutation.isPending;
   // 后台轮询不接管表格 loading，否则每次自动刷新都会闪一次遮罩；仅首屏与查询条件/页码变化时展示
   const tableLoading = listQuery.isLoading || (listQuery.isPlaceholderData && listQuery.isFetching);
@@ -219,7 +222,7 @@ export default function TaskCenterPage() {
 
   const runAction = async (record: AsyncTask, action: 'cancel' | 'resume' | 'restart', successMsg: string) => {
     const mutation = action === 'cancel' ? cancelMutation : action === 'resume' ? resumeMutation : restartMutation;
-    await mutation.mutateAsync(record.id);
+    await mutation.mutateAsync({ params: { id: record.id } });
     Toast.success(successMsg);
   };
 
@@ -228,7 +231,7 @@ export default function TaskCenterPage() {
       title: '删除任务记录',
       content: `将删除任务 #${record.id}「${record.title}」的记录（含任务项明细），不可恢复。`,
       onOk: async () => {
-        await deleteMutation.mutateAsync(record.id);
+        await deleteMutation.mutateAsync({ params: { id: record.id } });
         Toast.success('已删除');
         setSelectedRowKeys((prev) => prev.filter((id) => id !== record.id));
       },
@@ -241,7 +244,7 @@ export default function TaskCenterPage() {
       title: '批量取消任务',
       content: `将对选中的 ${selectedRowKeys.length} 个任务发起取消（已结束的任务自动跳过）。`,
       onOk: async () => {
-        const data = await batchCancelMutation.mutateAsync(selectedRowKeys);
+        const data = await batchCancelMutation.mutateAsync({ body: { ids: selectedRowKeys } });
         Toast.success(`已请求取消 ${data.affected} 个任务`);
         setSelectedRowKeys([]);
       },
@@ -254,7 +257,7 @@ export default function TaskCenterPage() {
       title: '批量删除任务记录',
       content: `将删除选中任务中已结束的记录（进行中的自动跳过），不可恢复。`,
       onOk: async () => {
-        const data = await batchDeleteMutation.mutateAsync(selectedRowKeys);
+        const data = await batchDeleteMutation.mutateAsync({ body: { ids: selectedRowKeys } });
         Toast.success(`已删除 ${data.affected} 个任务记录`);
         setSelectedRowKeys([]);
       },
@@ -266,7 +269,7 @@ export default function TaskCenterPage() {
       title: '清理已结束任务',
       content: '将按保留策略删除过期的已结束任务记录（默认 30 天，任务类型可单独配置）。',
       onOk: async () => {
-        const data = await cleanupMutation.mutateAsync();
+        const data = await cleanupMutation.mutateAsync({});
         Toast.success(`已清理 ${data.cleaned} 条任务记录`);
       },
     });
@@ -303,7 +306,7 @@ export default function TaskCenterPage() {
 
   const handleConfigSave = async () => {
     if (!configType) return;
-    await updateTypeConfigMutation.mutateAsync({ taskType: configType.taskType, values: configDraft });
+    await updateTypeConfigMutation.mutateAsync({ params: { taskType: configType.taskType }, body: configDraft });
     Toast.success('策略已更新');
     setConfigType(null);
   };

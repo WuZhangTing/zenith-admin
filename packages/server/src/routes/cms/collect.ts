@@ -4,7 +4,7 @@ import { guard } from '../../middleware/guard';
 import {
   jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, okBody, PaginationQuery, IdParam,
 } from '../../lib/openapi-schemas';
-import { CmsCollectRuleDTO, CmsCollectItemDTO, AsyncTaskDTO } from '../../lib/openapi-dtos';
+import { CmsCollectRuleDTO, CmsCollectItemDTO } from '../../lib/openapi-dtos';
 import {
   listCollectRules, createCollectRule, updateCollectRule, deleteCollectRule,
   ensureCollectRuleRunnable, listCollectItems,
@@ -12,6 +12,7 @@ import {
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { currentUser } from '../../lib/context';
 import { createCmsCollectRuleSchema, updateCmsCollectRuleSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 
 const router = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -81,7 +82,7 @@ const runRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:collect:run', audit: { description: '执行 CMS 采集', module: 'CMS内容管理' } })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');

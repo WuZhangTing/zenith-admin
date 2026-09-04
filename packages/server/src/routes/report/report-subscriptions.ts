@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createReportSubscriptionSchema, updateReportSubscriptionSchema } from '@zenith/shared/report';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody, queryBool,
 } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, ReportDashboardSubscriptionDTO } from '../../lib/openapi-dtos';
+import { ReportDashboardSubscriptionDTO } from '../../lib/openapi-dtos';
 import {
   listSubscriptions, createSubscription, updateSubscription, deleteSubscription,
   ensureSubscriptionExists, mapSubscription, batchSetSubscriptionEnabled,
@@ -94,7 +95,7 @@ const runRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:subscription:update', audit: { description: '手动推送报表订阅', module: '报表订阅' } })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
   }),
   handler: async (c) => {
     return c.json(okBody(await submitSubscriptionDeliveryTask(c.req.valid('param').id), '任务已提交，可在任务中心查看进度'), 200);

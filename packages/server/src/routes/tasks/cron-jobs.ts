@@ -1,10 +1,10 @@
-import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { OpenAPIHono } from '@hono/zod-openapi';
+import { cronJobContract } from '@zenith/shared/platform';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { validateCronExpression, getRegisteredHandlers } from '../../lib/pg-boss-scheduler';
-import { createCronJobSchema, updateCronJobSchema } from '@zenith/shared/platform';
-import { PaginationQuery, jsonContent, validationHook, commonErrorResponses, ok, okPaginated, okMsg, IdParam, okBody } from '../../lib/openapi-schemas';
-import { CronJobDTO, CronJobLogDTO, CronJobStatsDTO } from '../../lib/openapi-dtos';
+import { defineContractRoute } from '../../lib/contract-route';
+import { okBody, validationHook } from '../../lib/openapi-schemas';
 import {
   listCronJobs,
   createCronJob,
@@ -23,71 +23,38 @@ import {
 
 const cronJobsRoute = new OpenAPIHono({ defaultHook: validationHook });
 
-const handlersRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/handlers', tags: ['CronJobs'], summary: '已注册 Handler',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const,
-    responses: { ...commonErrorResponses, ...ok(z.array(z.string()), 'ok') },
-  }),
+const read = [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const;
+
+const handlersRoute = defineContractRoute(cronJobContract.handlers, {
+  middleware: read,
   handler: async (c) => c.json(okBody(getRegisteredHandlers()), 200),
 });
 
-const validateRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/validate', tags: ['CronJobs'], summary: '校验 Cron 表达式',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const,
-    request: { body: { content: jsonContent(z.object({ expression: z.string() }).openapi('CronValidateBody')), required: true } },
-    responses: { ...commonErrorResponses, ...ok(z.object({ valid: z.boolean() }).openapi('CronValidateResult'), 'ok') },
-  }),
+const validateRoute = defineContractRoute(cronJobContract.validate, {
+  middleware: read,
   handler: async (c) => {
     const { expression } = c.req.valid('json');
     return c.json(okBody({ valid: validateCronExpression(expression) }), 200);
   },
 });
 
-const listRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/', tags: ['CronJobs'], summary: '任务列表',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const,
-    request: { query: PaginationQuery.extend({ keyword: z.string().optional() }) },
-    responses: { ...commonErrorResponses, ...okPaginated(CronJobDTO, 'ok') },
-  }),
+const listRoute = defineContractRoute(cronJobContract.list, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listCronJobs(c.req.valid('query'))), 200),
 });
 
-const getOneRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}', tags: ['CronJobs'], summary: '任务详情',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(CronJobDTO, '任务详情') },
-  }),
+const getOneRoute = defineContractRoute(cronJobContract.detail, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getCronJob(c.req.valid('param').id)), 200),
 });
 
-const createRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/', tags: ['CronJobs'], summary: '新增任务',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:create', audit: { module: '定时任务', description: '新增任务' } })] as const,
-    request: { body: { content: jsonContent(createCronJobSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(CronJobDTO, '创建成功') },
-  }),
+const createRouteDef = defineContractRoute(cronJobContract.create, {
+  middleware: [authMiddleware, guard({ permission: 'system:cronjob:create', audit: { module: '定时任务', description: '新增任务' } })],
   handler: async (c) => c.json(okBody(await createCronJob(c.req.valid('json')), '创建成功'), 200),
 });
 
-const updateRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}', tags: ['CronJobs'], summary: '更新任务',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '更新任务' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(updateCronJobSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(CronJobDTO, '更新成功') },
-  }),
+const updateRouteDef = defineContractRoute(cronJobContract.update, {
+  middleware: [authMiddleware, guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '更新任务' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getCronJobBeforeAudit(id);
@@ -96,14 +63,8 @@ const updateRouteDef = defineOpenAPIRoute({
   },
 });
 
-const deleteRouteDef = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}', tags: ['CronJobs'], summary: '删除任务',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '删除任务' } })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...okMsg('删除成功') },
-  }),
+const deleteRouteDef = defineContractRoute(cronJobContract.remove, {
+  middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '删除任务' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const before = await getCronJobBeforeAudit(id);
@@ -113,14 +74,8 @@ const deleteRouteDef = defineOpenAPIRoute({
   },
 });
 
-const runRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'post', path: '/{id}/run', tags: ['CronJobs'], summary: '手动执行',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:execute', audit: { module: '定时任务', description: '手动执行任务' } })] as const,
-    request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...okMsg('执行成功') },
-  }),
+const runRoute = defineContractRoute(cronJobContract.run, {
+  middleware: [authMiddleware, guard({ permission: 'system:cronjob:execute', audit: { module: '定时任务', description: '手动执行任务' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const msg = await runCronJob(id);
@@ -128,14 +83,8 @@ const runRoute = defineOpenAPIRoute({
   },
 });
 
-const statusRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'put', path: '/{id}/status', tags: ['CronJobs'], summary: '切换状态',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '切换任务状态' } })] as const,
-    request: { params: IdParam, body: { content: jsonContent(z.object({ status: z.enum(['enabled', 'disabled']) }).openapi('CronJobStatusBody')), required: true } },
-    responses: { ...commonErrorResponses, ...okMsg('ok') },
-  }),
+const statusRoute = defineContractRoute(cronJobContract.setStatus, {
+  middleware: [authMiddleware, guard({ permission: 'system:cronjob:update', audit: { module: '定时任务', description: '切换任务状态' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { status } = c.req.valid('json');
@@ -148,43 +97,21 @@ const statusRoute = defineOpenAPIRoute({
   },
 });
 
-const logsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/logs', tags: ['CronJobs'], summary: '所有执行日志',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const,
-    request: { query: PaginationQuery.extend({ jobId: z.coerce.number().int().positive().optional() }) },
-    responses: { ...commonErrorResponses, ...okPaginated(CronJobLogDTO, 'ok') },
-  }),
+const logsRoute = defineContractRoute(cronJobContract.logs, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await listAllCronJobLogs(c.req.valid('query'))), 200),
 });
 
-const idLogsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/{id}/logs', tags: ['CronJobs'], summary: '单任务日志',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const,
-    request: { params: IdParam, query: PaginationQuery },
-    responses: { ...commonErrorResponses, ...okPaginated(CronJobLogDTO, 'ok') },
-  }),
+const idLogsRoute = defineContractRoute(cronJobContract.jobLogs, {
+  middleware: read,
   handler: async (c) => {
     const { id } = c.req.valid('param');
     return c.json(okBody(await listCronJobLogs(id, c.req.valid('query'))), 200);
   },
 });
 
-const clearLogsDaysQuery = z.object({
-  days: z.coerce.number().int().min(1).max(3650).default(180),
-}).openapi('ClearLogsQuery');
-
-const clearAllLogsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/logs/clean', tags: ['CronJobs'], summary: '清除所有执行日志',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '清除所有执行日志' } })] as const,
-    request: { query: clearLogsDaysQuery },
-    responses: { ...commonErrorResponses, ...okMsg('清除成功') },
-  }),
+const clearAllLogsRoute = defineContractRoute(cronJobContract.clearLogs, {
+  middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '清除所有执行日志' } })],
   handler: async (c) => {
     const { days } = c.req.valid('query');
     const before = await getClearCronJobLogsBeforeAudit(days);
@@ -195,14 +122,8 @@ const clearAllLogsRoute = defineOpenAPIRoute({
   },
 });
 
-const clearJobLogsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'delete', path: '/{id}/logs/clean', tags: ['CronJobs'], summary: '清除单任务执行日志',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '清除单任务执行日志' } })] as const,
-    request: { params: IdParam, query: clearLogsDaysQuery },
-    responses: { ...commonErrorResponses, ...okMsg('清除成功') },
-  }),
+const clearJobLogsRoute = defineContractRoute(cronJobContract.clearJobLogs, {
+  middleware: [authMiddleware, guard({ permission: 'system:cronjob:delete', audit: { module: '定时任务', description: '清除单任务执行日志' } })],
   handler: async (c) => {
     const { id } = c.req.valid('param');
     const { days } = c.req.valid('query');
@@ -214,13 +135,8 @@ const clearJobLogsRoute = defineOpenAPIRoute({
   },
 });
 
-const statsRoute = defineOpenAPIRoute({
-  route: createRoute({
-    method: 'get', path: '/stats', tags: ['CronJobs'], summary: '任务统计',
-    security: [{ BearerAuth: [] }],
-    middleware: [authMiddleware, guard({ permission: 'system:cronjob:list' })] as const,
-    responses: { ...commonErrorResponses, ...ok(CronJobStatsDTO, '统计数据') },
-  }),
+const statsRoute = defineContractRoute(cronJobContract.stats, {
+  middleware: read,
   handler: async (c) => c.json(okBody(await getCronJobStats()), 200),
 });
 

@@ -1,6 +1,6 @@
 import * as z from 'zod';
 import { partialForUpdate, webhookUrlSchema } from '../core/validation';
-import { CONFIG_TYPES, FILE_OBJECT_ACL_SUPPORT, MONITOR_ALERT_EVENT_STATUSES, MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_ALERT_OVERVIEW_RANGES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS } from './constants';
+import { CONFIG_TYPES, CRON_JOB_STATUSES, FILE_OBJECT_ACL_SUPPORT, MONITOR_ALERT_EVENT_STATUSES, MONITOR_ALERT_HANDLE_STATUSES, MONITOR_ALERT_LEVELS, MONITOR_ALERT_NOTIFY_STATUSES, MONITOR_ALERT_OVERVIEW_RANGES, MONITOR_METRICS, PRESIGNED_EXPIRY_DEFAULT_SECONDS, PRESIGNED_EXPIRY_MAX_SECONDS, PRESIGNED_EXPIRY_MIN_SECONDS, SYSTEM_SCHEDULER_ALERT_CHANNELS } from './constants';
 
 // ─── 字典 Schema ──────────────────────────────────────────────────────────────
 export const createDictSchema = z.object({
@@ -253,6 +253,45 @@ export const updateCronJobSchema = partialForUpdate(createCronJobSchema);
 export type CreateCronJobInput = z.infer<typeof createCronJobSchema>;
 
 export type UpdateCronJobInput = z.infer<typeof updateCronJobSchema>;
+
+/** 校验 Cron 表达式 */
+export const cronValidateSchema = z.object({
+  expression: z.string(),
+});
+
+export type CronValidateInput = z.infer<typeof cronValidateSchema>;
+
+/** 切换定时任务启用状态 */
+export const cronJobStatusSchema = z.object({
+  status: z.enum(CRON_JOB_STATUSES),
+});
+
+export type CronJobStatusInput = z.infer<typeof cronJobStatusSchema>;
+
+// ─── 系统调度 Schema ──────────────────────────────────────────────────────────
+/** 任务策略表单整体保存：开关 / 保留策略 / 阈值必填，告警渠道与收件人缺省为空集合 */
+export const updateSystemSchedulerTaskConfigSchema = z.object({
+  enabled: z.boolean(),
+  logRetentionDays: z.number().int().min(1).max(3650),
+  logRetentionRuns: z.number().int().min(1).max(100000),
+  timeoutMs: z.number().int().min(100).max(86_400_000).nullable().optional(),
+  failureAlertThreshold: z.number().int().min(1).max(100),
+  alertEnabled: z.boolean(),
+  alertChannels: z.array(z.enum(SYSTEM_SCHEDULER_ALERT_CHANNELS)).default(['inapp']),
+  alertUserIds: z.array(z.number().int().positive()).default([]),
+  alertEmails: z.array(z.email()).default([]),
+  alertWebhookUrl: z.url().nullable().optional(),
+  manualSingleton: z.boolean(),
+});
+
+export type UpdateSystemSchedulerTaskConfigInput = z.infer<typeof updateSystemSchedulerTaskConfigSchema>;
+
+/** 确认系统调度告警 */
+export const acknowledgeSystemSchedulerAlertSchema = z.object({
+  note: z.string().max(500).nullable().optional(),
+});
+
+export type AcknowledgeSystemSchedulerAlertInput = z.infer<typeof acknowledgeSystemSchedulerAlertSchema>;
 
 // ─── 地区管理 Schema ───────────────────────────────────────────────────────────
 export const createRegionSchema = z.object({

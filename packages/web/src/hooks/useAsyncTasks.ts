@@ -1,11 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
 import type { WsMessage } from '@zenith/shared/platform';
-import type { AsyncTask } from '@zenith/shared/tasks';
-import { request } from '@/utils/request';
+import { asyncTaskContract, type AsyncTask } from '@zenith/shared/tasks';
+import { api } from '@/lib/contract-query';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { unwrap } from '@/lib/query';
 
 const ACTIVE_STATUSES = new Set<AsyncTask['status']>(['pending', 'running']);
 /** 轮询兜底间隔（毫秒）：WS 正常时进度已实时推送，轮询只兜底断线与 Demo 模式 */
@@ -37,9 +35,7 @@ export function useMyAsyncTasks(options: UseMyAsyncTasksOptions = {}) {
   const tasksQuery = useQuery({
     queryKey,
     queryFn: async () => {
-      const data = await request
-        .get<PaginatedResponse<AsyncTask>>(`/api/async-tasks/mine?page=1&pageSize=${pageSize}`, { silent: true })
-        .then(unwrap);
+      const data = await api(asyncTaskContract.mine, { query: { page: 1, pageSize } }, { silent: true });
       const filter = taskTypesRef.current;
       return filter ? data.list.filter((t) => filter.has(t.taskType)) : data.list;
     },

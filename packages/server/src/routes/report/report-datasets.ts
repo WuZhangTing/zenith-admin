@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createReportDatasetSchema, updateReportDatasetSchema, reportBatchStatusSchema, reportCloneSchema, reportDatasetPreviewSchema, reportDatasetDataBodySchema, reportDatasourceTypeSchema, reportLookupQuerySchema } from '@zenith/shared/report';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody, errBody,
 } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, ReportDatasetDTO, ReportDataResultDTO, ReportDatasetRefsDTO, ReportLookupOptionDTO } from '../../lib/openapi-dtos';
+import { ReportDatasetDTO, ReportDataResultDTO, ReportDatasetRefsDTO, ReportLookupOptionDTO } from '../../lib/openapi-dtos';
 import {
   listDatasets, getDataset, createDataset, updateDataset, deleteDataset,
   ensureDatasetExists, previewDataset, getDatasetData, collectDatasetRefs,
@@ -161,7 +162,7 @@ const materializeRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:dataset:update' })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');

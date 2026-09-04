@@ -1,4 +1,4 @@
-import type { AsyncTask, AsyncTaskItem } from '../tasks/types';
+import type { AsyncTask, AsyncTaskItem } from '../tasks/contracts';
 import type { CmsResourceOwnerType } from './constants';
 
 // ─── CMS 内容管理 ─────────────────────────────────────────────────────────────

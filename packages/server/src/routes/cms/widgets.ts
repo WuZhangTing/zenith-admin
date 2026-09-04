@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_STATUSES, CMS_WIDGET_TYPES, batchCmsWidgetSchema, createCmsWidgetSchema, updateCmsWidgetSchema } from '@zenith/shared/cms';
 import { saveCmsWidgetSlotSchema } from '@zenith/shared/report';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -15,7 +16,6 @@ import {
   validationHook,
 } from '../../lib/openapi-schemas';
 import {
-  AsyncTaskDTO,
   CmsWidgetDTO,
   CmsWidgetPreviewDTO,
   CmsWidgetRefDTO,
@@ -154,7 +154,7 @@ const batchRoute = defineOpenAPIRoute({
       audit: { description: '提交 CMS 页面部件批量操作', module: 'CMS内容管理' },
     })] as const,
     request: { body: { content: jsonContent(batchCmsWidgetSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '批量任务') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '批量任务') },
   }),
   handler: async (c) => c.json(okBody(
     await submitCmsWidgetBatchTask(c.req.valid('json')),

@@ -1,7 +1,6 @@
-import { useMutation } from '@tanstack/react-query';
 import { Toast } from '@douyinfe/semi-ui';
-import type { ExportJobCreateResult, ExportJobFormat, ExportJobRequestMode } from '@zenith/shared/tasks';
-import { unwrap } from '@/lib/query';
+import { exportJobContract, type ExportJobFormat, type ExportJobRequestMode } from '@zenith/shared/tasks';
+import { urlOf, useApiMutation } from '@/lib/contract-query';
 import { request } from '@/utils/request';
 
 interface ExportJobRunOptions {
@@ -14,30 +13,13 @@ interface ExportJobRunOptions {
 }
 
 export function useExportJobRunner() {
-  const exportMutation = useMutation({
-    mutationFn: ({
-      entity,
-      format,
-      query,
-      raw = false,
-      watermark = true,
-      executionMode = 'sync',
-    }: ExportJobRunOptions) =>
-      request.post<ExportJobCreateResult>('/api/export-jobs', {
-        entity,
-        format,
-        query,
-        raw,
-        watermark,
-        executionMode,
-      }).then(unwrap),
-  });
+  const exportMutation = useApiMutation(exportJobContract.create);
 
   const runExport = async (options: ExportJobRunOptions) => {
-    const { entity, format } = options;
-    const { job, mode } = await exportMutation.mutateAsync(options);
+    const { entity, format, query, raw = false, watermark = true, executionMode = 'sync' } = options;
+    const { job, mode } = await exportMutation.mutateAsync({ body: { entity, format, query, raw, watermark, executionMode } });
     if (job.status === 'success' && job.fileId) {
-      await request.download(`/api/export-jobs/${job.id}/download`, job.filename ?? `${entity}.${format}`);
+      await request.download(urlOf(exportJobContract.download, { params: { id: job.id } }), job.filename ?? `${entity}.${format}`);
       Toast.success('导出完成');
       return;
     }
@@ -47,6 +29,6 @@ export function useExportJobRunner() {
   return {
     runExport,
     isPending: exportMutation.isPending,
-    pendingFormat: exportMutation.variables?.format ?? null,
+    pendingFormat: exportMutation.variables?.body.format ?? null,
   };
 }

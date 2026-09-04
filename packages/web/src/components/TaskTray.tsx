@@ -46,7 +46,7 @@ export default function TaskTray() {
   const handleCancel = async (task: AsyncTask) => {
     setCancelingId(task.id);
     try {
-      await cancelMutation.mutateAsync(task.id);
+      await cancelMutation.mutateAsync({ params: { id: task.id } });
       Toast.success('已请求取消');
       void refresh({ silent: true });
     } finally {

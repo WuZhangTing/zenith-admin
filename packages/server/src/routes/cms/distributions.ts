@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { CMS_DISTRIBUTION_MODES, CMS_DISTRIBUTION_TASK_STATUSES, createCmsDistributionRuleSchema, updateCmsDistributionRuleSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditAfterData, setAuditBeforeData } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
-  AsyncTaskDTO,
   CmsDistributionRuleDTO,
   CmsDistributionRunDetailDTO,
   CmsDistributionRunDTO,
@@ -138,7 +138,7 @@ const runRoute = defineOpenAPIRoute({
       idempotencyGuard({ ttlSeconds: 30 }),
     ] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '同步任务') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '同步任务') },
   }),
   handler: async (c) => c.json(okBody(
     await submitCmsDistributionRun(c.req.valid('param').id),
