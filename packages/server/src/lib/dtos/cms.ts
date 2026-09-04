@@ -3,8 +3,8 @@
  */
 import { z } from '@hono/zod-openapi';
 import { CMS_CHANNEL_DETAIL_PATH_RULES, CMS_CHANNEL_STATIC_MODES, CMS_DISTRIBUTION_CONFLICT_STRATEGIES, CMS_DISTRIBUTION_MODES, CMS_FIELD_OPTION_SOURCES, CMS_INTERACTION_CONDITION_OPS, CMS_INTERACTION_QUESTION_TYPES, CMS_RESOURCE_OWNER_TYPES, CMS_SITE_INHERITABLE_FIELDS, CMS_WIDGET_REF_OWNER_TYPES, CMS_WIDGET_RENDERER_KEYS, CMS_WIDGET_SOURCE_TYPES, CMS_WIDGET_STATUSES, CMS_WIDGET_TYPES } from '@zenith/shared/cms';
+import { asyncTaskItemSchema, asyncTaskSchema } from '@zenith/shared/tasks';
 import { auditFields } from './_audit';
-import { AsyncTaskDTO, AsyncTaskItemDTO } from './async-tasks';
 
 export const CmsSiteInheritanceFlagsDTO = z.object({
   seoTitle: z.boolean(),
@@ -451,7 +451,7 @@ export const CmsPublishArtifactDTO = z.object({
   updatedAt: z.string(),
 }).openapi('CmsPublishArtifact');
 
-export const CmsPublishingTaskDTO = AsyncTaskDTO.extend({
+export const CmsPublishingTaskDTO = asyncTaskSchema.extend({
   siteId: z.number().int().nullable(),
   siteName: z.string().nullable(),
   siteIds: z.array(z.number().int()),
@@ -463,14 +463,14 @@ export const CmsPublishingTaskDTO = AsyncTaskDTO.extend({
 
 export const CmsPublishingDetailDTO = z.object({
   task: CmsPublishingTaskDTO,
-  items: z.array(AsyncTaskItemDTO),
+  items: z.array(asyncTaskItemSchema),
   artifacts: z.array(CmsPublishArtifactDTO),
 }).openapi('CmsPublishingDetail');
 
 export const CmsSiteGroupPublishResultDTO = z.object({
   rootSiteId: z.number().int(),
   targetSiteIds: z.array(z.number().int()),
-  tasks: z.array(AsyncTaskDTO),
+  tasks: z.array(asyncTaskSchema),
 }).openapi('CmsSiteGroupPublishResult');
 
 export const CmsDistributionFiltersDTO = z.object({
@@ -506,7 +506,7 @@ export const CmsDistributionRuleDTO = z.object({
   updatedAt: z.string(),
 }).openapi('CmsDistributionRule');
 
-export const CmsDistributionRunDTO = AsyncTaskDTO.extend({
+export const CmsDistributionRunDTO = asyncTaskSchema.extend({
   ruleId: z.number().int(),
   ruleName: z.string().nullable(),
   sourceSiteId: z.number().int(),
@@ -521,7 +521,7 @@ export const CmsDistributionRunDTO = AsyncTaskDTO.extend({
 
 export const CmsDistributionRunDetailDTO = z.object({
   run: CmsDistributionRunDTO,
-  items: z.array(AsyncTaskItemDTO),
+  items: z.array(asyncTaskItemSchema),
 }).openapi('CmsDistributionRunDetail');
 
 // ─── P2 ───────────────────────────────────────────────────────────────────────

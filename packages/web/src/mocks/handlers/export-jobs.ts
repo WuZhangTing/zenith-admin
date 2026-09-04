@@ -1,6 +1,8 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
-import type { ExportEntityMeta, ExportJob, ExportJobDownload, ExportJobFormat, ExportJobStatus } from '@zenith/shared/tasks';
+import type { QueryOf } from '@zenith/shared/core';
+import { exportJobContract } from '@zenith/shared/tasks';
+import type { ExportEntityMeta, ExportJob, ExportJobDownload } from '@zenith/shared/tasks';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
 
 const entities: ExportEntityMeta[] = [
@@ -264,16 +266,13 @@ const downloads: ExportJobDownload[] = [
   },
 ];
 
-function filterJobs(url: URL) {
-  const entity = url.searchParams.get('entity') ?? '';
-  const status = (url.searchParams.get('status') ?? '') as ExportJobStatus | '';
-  const format = (url.searchParams.get('format') ?? '') as ExportJobFormat | '';
-  const keyword = url.searchParams.get('keyword') ?? '';
+/** 按契约查询参数筛选（服务端语义：实体 / 状态 / 格式精确匹配，关键字匹配模块名、文件名与实体） */
+function filterJobs(query: QueryOf<typeof exportJobContract.list>) {
   return jobs.filter((job) => {
-    if (entity && job.entity !== entity) return false;
-    if (status && job.status !== status) return false;
-    if (format && job.format !== format) return false;
-    if (keyword && !job.moduleName.includes(keyword) && !(job.filename ?? '').includes(keyword) && !job.entity.includes(keyword)) return false;
+    if (query.entity && job.entity !== query.entity) return false;
+    if (query.status && job.status !== query.status) return false;
+    if (query.format && job.format !== query.format) return false;
+    if (query.keyword && !job.moduleName.includes(query.keyword) && !(job.filename ?? '').includes(query.keyword) && !job.entity.includes(query.keyword)) return false;
     return true;
   });
 }
@@ -297,31 +296,17 @@ function makeDownloadResponse(job: ExportJob) {
 }
 
 export const exportJobsHandlers = [
-  http.get('/api/export-jobs/entities', () => ok(entities)),
+  mock(exportJobContract.entities, ({ ok }) => ok(entities)),
 
-  http.get('/api/export-jobs', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const filtered = filterJobs(url).sort((a, b) => b.id - a.id);
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list, total: filtered.length, page, pageSize });
-  }),
+  mock(exportJobContract.list, ({ query, ok, paginate }) => ok(paginate(filterJobs(query).sort((a, b) => b.id - a.id)))),
 
-  http.post('/api/export-jobs', async ({ request }) => {
-    const body = await request.json() as {
-      entity: string;
-      format?: ExportJobFormat;
-      query?: Record<string, unknown>;
-      raw?: boolean;
-      watermark?: boolean;
-      executionMode?: 'sync' | 'async' | 'auto';
-    };
+  mock(exportJobContract.create, ({ body, ok }) => {
     const entity = entities.find((item) => item.entity === body.entity);
     if (!entity) return notFound('导出实体不存在', { status: 404 });
     const id = nextJobId++;
-    const format = body.format ?? 'xlsx';
+    const format = body.format;
     const sensitive = entity.sensitive;
-    const raw = body.raw ?? true;
+    const raw = body.raw;
     const forceAsync = body.executionMode === 'async';
     const now = mockDateTime();
     const job: ExportJob = {
@@ -331,16 +316,16 @@ export const exportJobsHandlers = [
       format,
       status: forceAsync ? 'pending' : 'success',
       executionMode: forceAsync ? 'async' : 'sync',
-      query: body.query ?? {},
+      query: body.query,
       columns: null,
       rowCount: 42,
       fileId: forceAsync ? null : '018f6f8a-0005-7000-8000-000000000005',
       filename: `${entity.filenamePrefix}_${id}.${format}`,
       fileSize: forceAsync ? null : 32768,
       raw,
-      masked: false,
+      masked: !raw,
       sensitive,
-      watermark: body.watermark ?? true,
+      watermark: body.watermark,
       errorMessage: null,
       expiresAt: raw ? '2026-06-27 00:00:00' : '2026-06-29 00:00:00',
       fileDeletedAt: null,
@@ -359,13 +344,10 @@ export const exportJobsHandlers = [
     return ok({ mode: job.executionMode, job }, '导出任务已创建');
   }),
 
-  http.get('/api/export-jobs/:id/downloads', ({ params }) => {
-    const jobId = Number(params.id);
-    return ok(downloads.filter((item) => item.jobId === jobId));
-  }),
+  mock(exportJobContract.downloads, ({ params, ok }) => ok(downloads.filter((item) => item.jobId === params.id))),
 
-  http.get('/api/export-jobs/:id/download', ({ params }) => {
-    const job = jobs.find((item) => item.id === Number(params.id));
+  mock(exportJobContract.download, ({ params }) => {
+    const job = jobs.find((item) => item.id === params.id);
     if (!job) return notFound('导出任务不存在', { status: 404 });
     if (job.status !== 'success') return badRequest('导出文件尚未生成', { status: 400 });
     job.downloadCount += 1;
@@ -383,14 +365,14 @@ export const exportJobsHandlers = [
     return makeDownloadResponse(job);
   }),
 
-  http.get('/api/export-jobs/:id', ({ params }) => {
-    const job = jobs.find((item) => item.id === Number(params.id));
+  mock(exportJobContract.detail, ({ params, ok }) => {
+    const job = jobs.find((item) => item.id === params.id);
     if (!job) return notFound('导出任务不存在', { status: 404 });
     return ok(job);
   }),
 
-  http.post('/api/export-jobs/:id/cancel', ({ params }) => {
-    const job = jobs.find((item) => item.id === Number(params.id));
+  mock(exportJobContract.cancel, ({ params, ok }) => {
+    const job = jobs.find((item) => item.id === params.id);
     if (!job) return notFound('导出任务不存在', { status: 404 });
     job.status = 'cancelled';
     job.completedAt = mockDateTime();
@@ -398,8 +380,8 @@ export const exportJobsHandlers = [
     return ok(job, '已取消');
   }),
 
-  http.post('/api/export-jobs/:id/retry', ({ params }) => {
-    const job = jobs.find((item) => item.id === Number(params.id));
+  mock(exportJobContract.retry, ({ params, ok }) => {
+    const job = jobs.find((item) => item.id === params.id);
     if (!job) return notFound('导出任务不存在', { status: 404 });
     job.status = 'pending';
     job.errorMessage = null;
@@ -409,8 +391,8 @@ export const exportJobsHandlers = [
     return ok(job, '已重试');
   }),
 
-  http.delete('/api/export-jobs/:id', ({ params }) => {
-    const index = jobs.findIndex((item) => item.id === Number(params.id));
+  mock(exportJobContract.remove, ({ params, ok }) => {
+    const index = jobs.findIndex((item) => item.id === params.id);
     if (index === -1) return notFound('导出任务不存在', { status: 404 });
     jobs.splice(index, 1);
     return ok(null, '已删除');

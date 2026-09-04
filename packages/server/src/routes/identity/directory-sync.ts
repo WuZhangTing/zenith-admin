@@ -1,4 +1,5 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
@@ -6,8 +7,11 @@ import {
   ok, okPaginated, okMsg, IdParam, BatchIdsBody, okBody, errBody, dateRangeBound,
 } from '../../lib/openapi-schemas';
 import {
-  DirectorySyncSourceDTO, DirectorySyncRunDTO, DirectorySyncRunItemDTO,
-  DirectorySyncConflictDTO, DirectorySyncConnectionTestDTO, AsyncTaskDTO,
+  DirectorySyncSourceDTO,
+  DirectorySyncRunDTO,
+  DirectorySyncRunItemDTO,
+  DirectorySyncConflictDTO,
+  DirectorySyncConnectionTestDTO,
 } from '../../lib/openapi-dtos';
 import {
   listDirectorySyncSources, getDirectorySyncSource, createDirectorySyncSource,
@@ -155,7 +159,7 @@ const previewSourceRoute = defineOpenAPIRoute({
       audit: { description: '预览通讯录同步差异', module: '通讯录同步' },
     })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -174,7 +178,7 @@ const runSourceRoute = defineOpenAPIRoute({
       audit: { description: '手动触发通讯录同步', module: '通讯录同步' },
     })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');
@@ -253,7 +257,7 @@ const retryRunRoute = defineOpenAPIRoute({
       audit: { description: '重试通讯录同步', module: '通讯录同步' },
     })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const { id } = c.req.valid('param');

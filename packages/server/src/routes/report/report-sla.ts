@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createReportSlaRuleSchema, reportSlaTypeSchema, updateReportSlaRuleSchema, updateReportSlaViolationSchema } from '@zenith/shared/report';
-import { AsyncTaskDTO, ReportSlaRuleDTO, ReportSlaViolationDTO } from '../../lib/openapi-dtos';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
+import { ReportSlaRuleDTO, ReportSlaViolationDTO } from '../../lib/openapi-dtos';
 import {
   commonErrorResponses,
   IdParam,
@@ -96,7 +97,7 @@ const evaluateRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:sla:evaluate', audit: { module: '报表 SLA', description: '评估 SLA' } })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => c.json(okBody(await submitReportSlaEvaluation(c.req.valid('param').id), '任务已提交'), 200),
 });

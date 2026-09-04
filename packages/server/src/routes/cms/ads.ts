@@ -1,9 +1,10 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { cleanupCmsAdEventsSchema, createCmsAdSlotSchema, updateCmsAdSlotSchema, createCmsAdSchema, updateCmsAdSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, CmsAdEventDTO, CmsAdEventStatsDTO, CmsAdSlotDTO, CmsAdDTO } from '../../lib/openapi-dtos';
+import { CmsAdEventDTO, CmsAdEventStatsDTO, CmsAdSlotDTO, CmsAdDTO } from '../../lib/openapi-dtos';
 import {
   listCmsAdSlots, createCmsAdSlot, updateCmsAdSlot, deleteCmsAdSlot, ensureCmsAdSlotExists, mapCmsAdSlot,
   listCmsAds, createCmsAd, updateCmsAd, deleteCmsAd, ensureCmsAdExists, mapCmsAd,
@@ -152,7 +153,7 @@ const cleanupEvents = defineOpenAPIRoute({
       audit: { description: '清理 CMS 广告事件', module: 'CMS内容管理' },
     })] as const,
     request: { body: { content: jsonContent(cleanupCmsAdEventsSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '清理任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '清理任务已提交') },
   }),
   handler: async (c) => c.json(okBody(
     await submitCmsAdEventCleanupTask(c.req.valid('json')),

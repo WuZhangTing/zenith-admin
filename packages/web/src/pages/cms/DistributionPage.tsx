@@ -205,7 +205,7 @@ export default function DistributionPage() {
       : action === 'resume'
         ? resumeRunMutation
         : restartRunMutation;
-    await mutation.mutateAsync(run.id);
+    await mutation.mutateAsync({ params: { id: run.id } });
     Toast.success(action === 'cancel' ? '已请求取消任务' : action === 'resume' ? '任务已恢复' : '任务已重新开始');
     void queryClient.invalidateQueries({ queryKey: cmsDistributionKeys.runs });
   }

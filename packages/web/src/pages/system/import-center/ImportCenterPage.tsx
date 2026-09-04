@@ -8,6 +8,8 @@ import { Button, Tag, Typography } from '@douyinfe/semi-ui';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { Plus } from 'lucide-react';
 import type { AsyncTask, ImportEntityMeta } from '@zenith/shared/tasks';
+import { ASYNC_TASK_STATUSES } from '@zenith/shared/tasks';
+import { enumValueOf } from '@zenith/shared/core';
 import { ImportProgressModal } from '@/components/ImportButton';
 import AsyncTaskProgress from '@/components/AsyncTaskProgress';
 import ConfigurableTable from '@/components/ConfigurableTable';
@@ -75,7 +77,7 @@ export default function ImportCenterPage() {
   const listQuery = useAsyncTaskList(
     {
       page, pageSize, taskType: 'data-import',
-      status: submittedParams.status || undefined,
+      status: enumValueOf(ASYNC_TASK_STATUSES, submittedParams.status),
       keyword: submittedParams.keyword || undefined,
       // 实体标识存于任务 payload，走内容匹配筛选
       content: submittedParams.entity || undefined,

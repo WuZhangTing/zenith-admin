@@ -1,7 +1,7 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createReportDqRuleSchema, reportDqRuleTypeSchema, runReportDqRuleSchema, updateReportDqAnomalyStatusSchema, updateReportDqRuleSchema } from '@zenith/shared/report';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import {
-  AsyncTaskDTO,
   ReportDqAnomalyDTO,
   ReportDqRuleDTO,
   ReportDqRunDTO,
@@ -117,7 +117,7 @@ const runRuleRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:dq:run', audit: { module: '报表数据质量', description: '执行质量规则' } })] as const,
     request: { params: IdParam, body: { content: jsonContent(runReportDqRuleSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => c.json(okBody(await submitReportDqRuleRun(c.req.valid('param').id, c.req.valid('json')), '任务已提交'), 200),
 });

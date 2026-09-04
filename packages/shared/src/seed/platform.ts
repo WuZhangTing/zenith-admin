@@ -1,5 +1,6 @@
 import type { UserFeedback } from '../identity/types';
-import type { CronJob, DataMaskConfig, Dict, DictItem, MonitorAlertLevel, MonitorAlertOperator, SystemConfig, Tag } from '../platform/types';
+import type { DataMaskConfig, Dict, DictItem, MonitorAlertLevel, MonitorAlertOperator, SystemConfig, Tag } from '../platform/types';
+import type { CronJob } from '../platform/contracts';
 import type { MonitorMetric } from '../platform/constants';
 import { SEED_DATE } from './_base';
 

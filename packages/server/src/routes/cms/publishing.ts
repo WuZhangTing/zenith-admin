@@ -1,11 +1,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { batchCmsPublishActionSchema, CMS_PUBLISH_ARTIFACT_STATUSES, CMS_PUBLISH_TARGET_TYPES, submitCmsPublishSchema, submitCmsSiteGroupPublishSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard } from '../../middleware/guard';
 import { idempotencyGuard } from '../../middleware/idempotency';
 import { IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okPaginated, validationHook } from '../../lib/openapi-schemas';
 import {
-  AsyncTaskDTO,
   CmsPublishingDetailDTO,
   CmsPublishingTaskDTO,
   CmsPublishArtifactDTO,
@@ -73,7 +73,7 @@ const submitRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:publish:build', audit: { description: '提交 CMS 发布任务', module: 'CMS内容管理' } }), idempotencyGuard({ ttlSeconds: 30 })] as const,
     request: { body: { content: jsonContent(submitCmsPublishSchema), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '发布任务') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '发布任务') },
   }),
   handler: async (c) => c.json(okBody(await submitCmsPublishTask(c.req.valid('json')), '发布任务已提交'), 200),
 });
@@ -141,7 +141,7 @@ const actionRoute = defineOpenAPIRoute({
         action: z.enum(['cancel', 'resume', 'restart', 'rebuild']).openapi({ param: { name: 'action', in: 'path' } }),
       }),
     },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务状态') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务状态') },
   }),
   handler: async (c) => {
     const { id, action } = c.req.valid('param');

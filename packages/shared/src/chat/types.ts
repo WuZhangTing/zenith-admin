@@ -1,12 +1,3 @@
-export interface ExportColumnMeta {
-  key: string;
-  header: string;
-  width?: number;
-  type?: 'string' | 'number' | 'datetime' | 'date' | 'enum' | 'money' | 'boolean';
-  sensitive?: boolean;
-  children?: ExportColumnMeta[];
-}
-
 export type SystemSchedulerAlertChannel = 'inapp' | 'email' | 'webhook';
 
 // ─── WebRTC 音视频通话 ───────────────────────────────────────────────────────

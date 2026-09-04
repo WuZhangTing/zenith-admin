@@ -166,7 +166,7 @@ export function ImportButton({ entity, title, label = '导入', context, beforeS
     const uploaded = await uploadMutation.mutateAsync({ formData });
     const fileId = Array.isArray(uploaded) ? uploaded[0]?.id : (uploaded as { id?: string })?.id;
     if (!fileId) return;
-    const row = await submitMutation.mutateAsync({ entity, fileId, dryRun: dryRunRef.current, context });
+    const row = await submitMutation.mutateAsync({ body: { entity, fileId, dryRun: dryRunRef.current, context } });
     setTaskId(row.id);
   }
 

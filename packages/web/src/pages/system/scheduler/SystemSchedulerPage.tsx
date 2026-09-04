@@ -4,7 +4,9 @@ import { Button, Col, Descriptions, Form, Input, Modal, Row, Space, TabPane, Tab
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { AlertTriangle, CheckCircle2, RefreshCw, Trash2 } from 'lucide-react';
 import type { SystemSchedulerAlertChannel } from '@zenith/shared/chat';
+import { enumValueOf } from '@zenith/shared/core';
 import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerRunStatus, SystemSchedulerTask, SystemSchedulerTaskType, SystemSchedulerTriggerType } from '@zenith/shared/platform';
+import { SYSTEM_SCHEDULER_ALERT_FILTERS, SYSTEM_SCHEDULER_RUN_STATUSES, SYSTEM_SCHEDULER_TASK_TYPES, SYSTEM_SCHEDULER_TRIGGER_TYPES } from '@zenith/shared/platform';
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_CHANNEL_OPTIONS } from '@zenith/shared/messaging';
 import UserSelect from '@/components/UserSelect';
 import { SearchToolbar } from '@/components/SearchToolbar';
@@ -149,10 +151,10 @@ export default function SystemSchedulerPage() {
     page,
     pageSize,
     taskName: submittedRunSearch.taskName || undefined,
-    taskType: submittedRunSearch.taskType || undefined,
-    triggerType: submittedRunSearch.triggerType || undefined,
-    status: submittedRunSearch.status || undefined,
-    alertStatus: submittedRunSearch.alertStatus || undefined,
+    taskType: enumValueOf(SYSTEM_SCHEDULER_TASK_TYPES, submittedRunSearch.taskType),
+    triggerType: enumValueOf(SYSTEM_SCHEDULER_TRIGGER_TYPES, submittedRunSearch.triggerType),
+    status: enumValueOf(SYSTEM_SCHEDULER_RUN_STATUSES, submittedRunSearch.status),
+    alertStatus: enumValueOf(SYSTEM_SCHEDULER_ALERT_FILTERS, submittedRunSearch.alertStatus),
     startTime: submittedRunSearch.startTime || undefined,
     endTime: submittedRunSearch.endTime || undefined,
   }, activeTab === 'runs');
@@ -162,7 +164,9 @@ export default function SystemSchedulerPage() {
   const saveConfigMutation = useSaveSystemSchedulerTaskConfig();
   const configModal = useEditModal<SchedulerTaskConfigRecord, TaskConfigForm, SaveTaskConfigPayload>({
     save: {
-      mutateAsync: ({ values }) => saveConfigMutation.mutateAsync(values) as Promise<SchedulerTaskConfigRecord>,
+      // 策略接口返回持久化的策略记录而非任务行；弹窗只借 useEditModal 编排提交与关闭，不消费返回值
+      mutateAsync: ({ values }) =>
+        saveConfigMutation.mutateAsync({ params: { name: values.name }, body: values.values }) as unknown as Promise<SchedulerTaskConfigRecord>,
       isPending: saveConfigMutation.isPending,
     },
     toValues: (task) => ({
@@ -210,7 +214,7 @@ export default function SystemSchedulerPage() {
   const runsTotal = runsQuery.data?.total ?? 0;
   const nodes = nodesQuery.data?.list ?? EMPTY_NODES;
   const nodesTotal = nodesQuery.data?.total ?? 0;
-  const runningTaskName = runTaskMutation.isPending ? runTaskMutation.variables : null;
+  const runningTaskName = runTaskMutation.isPending ? (runTaskMutation.variables?.params.name ?? null) : null;
 
   const canRun = hasPermission('system:scheduler:run');
   const canConfig = hasPermission('system:scheduler:config');
@@ -251,7 +255,7 @@ export default function SystemSchedulerPage() {
       content: `确定要投递「${record.title}」到后台执行吗？`,
       okText: '执行',
       onOk: async () => {
-        const data = await runTaskMutation.mutateAsync(record.name);
+        const data = await runTaskMutation.mutateAsync({ params: { name: record.name } });
         Toast.success(data.message || '任务已投递后台执行');
         setSubmittedRunSearch((prev) => ({ ...prev }));
         void queryClient.invalidateQueries({ queryKey: systemSchedulerKeys.all });
@@ -283,7 +287,7 @@ export default function SystemSchedulerPage() {
       content: `确认已处理运行日志 #${record.id} 的告警吗？`,
       okText: '确认',
       onOk: async () => {
-        const data = await ackAlertMutation.mutateAsync({ id: record.id, note: null });
+        const data = await ackAlertMutation.mutateAsync({ params: { id: record.id }, body: { note: null } });
         Toast.success('告警已确认');
         setDetailRun(data);
       },
@@ -296,7 +300,7 @@ export default function SystemSchedulerPage() {
       content: submittedRunSearch.taskName ? '将按当前任务的留存策略清理运行日志。' : '将按所有任务的留存策略清理运行日志。',
       okText: '清理',
       onOk: async () => {
-        const data = await cleanupRunsMutation.mutateAsync(submittedRunSearch.taskName || undefined);
+        const data = await cleanupRunsMutation.mutateAsync({ query: { taskName: submittedRunSearch.taskName || undefined } });
         Toast.success(data.message);
       },
     });

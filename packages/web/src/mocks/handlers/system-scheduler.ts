@@ -1,5 +1,6 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
+import { systemSchedulerContract } from '@zenith/shared/platform';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { removeWhere } from '@/mocks/utils/array';
 import type { SystemSchedulerNode, SystemSchedulerRun, SystemSchedulerTask } from '@zenith/shared/platform';
 import { mockDateTime, mockDateTimeOffset } from '@/mocks/utils/date';
@@ -284,64 +285,43 @@ const runs: SystemSchedulerRun[] = [
 ];
 
 export const systemSchedulerHandlers = [
-  http.get('/api/system-scheduler/tasks', () => {
-    return ok(tasks);
-  }),
+  mock(systemSchedulerContract.tasks, ({ ok }) => ok(tasks)),
 
-  http.get('/api/system-scheduler/runs', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url, 20);
-    const taskName = url.searchParams.get('taskName') ?? '';
-    const taskType = url.searchParams.get('taskType') ?? '';
-    const triggerType = url.searchParams.get('triggerType') ?? '';
-    const status = url.searchParams.get('status') ?? '';
-    const alertStatus = url.searchParams.get('alertStatus') ?? '';
-    const startTime = url.searchParams.get('startTime') ?? '';
-    const endTime = url.searchParams.get('endTime') ?? '';
-
+  mock(systemSchedulerContract.runs, ({ query, ok, paginate }) => {
     const filtered = runs
-      .filter((item) => !taskName || item.taskName === taskName)
-      .filter((item) => !taskType || item.taskType === taskType)
-      .filter((item) => !triggerType || item.triggerType === triggerType)
-      .filter((item) => !status || item.status === status)
-      .filter((item) => alertStatus !== 'alerted' || !!item.alertMessage)
-      .filter((item) => alertStatus !== 'unacked' || (!!item.alertMessage && !item.alertAckAt))
-      .filter((item) => !startTime || item.startedAt >= startTime)
-      .filter((item) => !endTime || item.startedAt <= endTime)
+      .filter((item) => !query.taskName || item.taskName === query.taskName)
+      .filter((item) => !query.taskType || item.taskType === query.taskType)
+      .filter((item) => !query.triggerType || item.triggerType === query.triggerType)
+      .filter((item) => !query.status || item.status === query.status)
+      .filter((item) => query.alertStatus !== 'alerted' || !!item.alertMessage)
+      .filter((item) => query.alertStatus !== 'unacked' || (!!item.alertMessage && !item.alertAckAt))
+      .filter((item) => !query.startTime || item.startedAt >= query.startTime)
+      .filter((item) => !query.endTime || item.startedAt <= query.endTime)
       .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-    const list = filtered.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list, total: filtered.length, page, pageSize });
+    return ok(paginate(filtered));
   }),
 
-  http.get('/api/system-scheduler/runs/:id', ({ params }) => {
-    const id = Number(params.id);
-    const run = runs.find((item) => item.id === id);
+  mock(systemSchedulerContract.runDetail, ({ params, ok }) => {
+    const run = runs.find((item) => item.id === params.id);
     if (!run) return notFound('运行日志不存在');
     return ok(run);
   }),
 
-  http.post('/api/system-scheduler/runs/:id/ack-alert', ({ params }) => {
-    const id = Number(params.id);
-    const run = runs.find((item) => item.id === id);
+  mock(systemSchedulerContract.acknowledgeAlert, ({ params, body, ok }) => {
+    const run = runs.find((item) => item.id === params.id);
     if (!run) return notFound('运行日志不存在');
     if (!run.alertMessage) return badRequest('该运行日志没有告警');
     run.alertAckAt = mockDateTime();
     run.alertAckBy = 1;
     run.alertAckByName = '管理员';
-    run.alertAckNote = null;
+    run.alertAckNote = body.note?.trim() || null;
     return ok(run);
   }),
 
-  http.get('/api/system-scheduler/nodes', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const list = nodes.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list, total: nodes.length, page, pageSize });
-  }),
+  mock(systemSchedulerContract.nodes, ({ ok, paginate }) => ok(paginate(nodes))),
 
-  http.post('/api/system-scheduler/tasks/:name/run', ({ params }) => {
-    const name = String(params.name);
-    const task = tasks.find((item) => item.name === name);
+  mock(systemSchedulerContract.runTask, ({ params, ok }) => {
+    const task = tasks.find((item) => item.name === params.name);
     if (!task) return notFound('系统周期任务不存在或尚未注册');
     if (!task.allowManualRun) return badRequest('该系统周期任务不允许手动执行');
     if (task.running && task.manualSingleton) return badRequest('该系统周期任务已有运行中的实例，请稍后再试');
@@ -373,22 +353,22 @@ export const systemSchedulerHandlers = [
     return ok({ message: `任务已投递后台执行，运行日志 #${runId} 可跟踪结果`, runId, jobId: `mock-manual-${runId}` }, '执行完成');
   }),
 
-  http.put('/api/system-scheduler/tasks/:name/config', async ({ params, request }) => {
-    const name = String(params.name);
-    const task = tasks.find((item) => item.name === name);
+  // body 即 UpdateSystemSchedulerTaskConfigInput（已校验、已补默认值）
+  mock(systemSchedulerContract.updateTaskConfig, ({ params, body, ok }) => {
+    const task = tasks.find((item) => item.name === params.name);
     if (!task) return notFound('系统调度任务不存在或尚未注册');
-    const body = await request.json() as Partial<SystemSchedulerTask>;
-    task.enabled = task.taskType === 'queue' ? true : Boolean(body.enabled);
-    task.logRetentionDays = Number(body.logRetentionDays ?? task.logRetentionDays);
-    task.logRetentionRuns = Number(body.logRetentionRuns ?? task.logRetentionRuns);
-    task.timeoutMs = body.timeoutMs == null ? null : Number(body.timeoutMs);
-    task.failureAlertThreshold = Number(body.failureAlertThreshold ?? task.failureAlertThreshold);
-    task.alertEnabled = Boolean(body.alertEnabled);
-    task.alertChannels = body.alertChannels ?? task.alertChannels;
-    task.alertUserIds = body.alertUserIds ?? task.alertUserIds;
-    task.alertEmails = body.alertEmails ?? task.alertEmails;
-    task.alertWebhookUrl = body.alertWebhookUrl ?? task.alertWebhookUrl;
-    task.manualSingleton = Boolean(body.manualSingleton);
+    task.enabled = task.taskType === 'queue' ? true : body.enabled;
+    task.logRetentionDays = body.logRetentionDays;
+    task.logRetentionRuns = body.logRetentionRuns;
+    task.timeoutMs = body.timeoutMs ?? null;
+    task.failureAlertThreshold = body.failureAlertThreshold;
+    task.alertEnabled = body.alertEnabled;
+    task.alertChannels = body.alertChannels;
+    task.alertUserIds = body.alertUserIds;
+    task.alertEmails = body.alertEmails;
+    task.alertWebhookUrl = body.alertWebhookUrl ?? null;
+    task.manualSingleton = task.allowManualRun ? body.manualSingleton : false;
+    const now = new Date().toISOString();
     return ok({
       taskName: task.name,
       enabled: task.enabled,
@@ -402,16 +382,16 @@ export const systemSchedulerHandlers = [
       alertEmails: task.alertEmails,
       alertWebhookUrl: task.alertWebhookUrl,
       manualSingleton: task.manualSingleton,
+      createdAt: now,
+      updatedAt: now,
     });
   }),
 
-  http.post('/api/system-scheduler/runs/cleanup', ({ request }) => {
-    const url = new URL(request.url);
-    const taskName = url.searchParams.get('taskName') ?? '';
+  mock(systemSchedulerContract.cleanupRuns, ({ query, ok }) => {
     const before = runs.length;
-    if (taskName) {
-      const keep = runs.filter((item) => item.taskName === taskName).slice(0, 10);
-      removeWhere(runs, (run) => run.taskName === taskName && !keep.includes(run));
+    if (query.taskName) {
+      const keep = runs.filter((item) => item.taskName === query.taskName).slice(0, 10);
+      removeWhere(runs, (run) => run.taskName === query.taskName && !keep.includes(run));
     }
     return ok({
       message: `清理完成：按时间删除 ${before - runs.length} 条，按数量删除 0 条`,

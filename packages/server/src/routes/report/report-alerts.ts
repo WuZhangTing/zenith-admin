@@ -1,12 +1,13 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { createReportAlertSchema, updateReportAlertSchema } from '@zenith/shared/report';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import {
   ErrorResponse, PaginationQuery, jsonContent, validationHook, commonErrorResponses,
   ok, okPaginated, okMsg, IdParam, okBody, queryBool,
 } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, ReportAlertRuleDTO } from '../../lib/openapi-dtos';
+import { ReportAlertRuleDTO } from '../../lib/openapi-dtos';
 import {
   listAlerts, getAlert, createAlert, updateAlert, deleteAlert, ensureAlertExists, batchSetAlertEnabled,
 } from '../../services/report/report-alert.service';
@@ -119,7 +120,7 @@ const evalRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'report:alert:list' })] as const,
     request: { params: IdParam },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交'), 404: { content: jsonContent(ErrorResponse), description: '不存在' } },
   }),
   handler: async (c) => c.json(okBody(await submitAlertEvaluateTask(c.req.valid('param').id), '任务已提交，可在任务中心查看进度'), 200),
 });

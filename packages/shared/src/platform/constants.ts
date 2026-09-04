@@ -155,7 +155,11 @@ export const CONFIG_TYPES = ['string', 'number', 'boolean', 'json'] as const;
 
 export const CRON_JOB_STATUSES = ['enabled', 'disabled'] as const;
 
+export type CronJobStatus = (typeof CRON_JOB_STATUSES)[number];
+
 export const CRON_RUN_STATUSES = ['success', 'fail', 'running'] as const;
+
+export type CronRunStatus = (typeof CRON_RUN_STATUSES)[number];
 
 /** 定时任务执行状态标签（列表页/仪表盘统一复用） */
 export const CRON_RUN_STATUS_LABELS: Record<(typeof CRON_RUN_STATUSES)[number], string> = {
@@ -163,6 +167,28 @@ export const CRON_RUN_STATUS_LABELS: Record<(typeof CRON_RUN_STATUSES)[number], 
   fail: '失败',
   running: '运行中',
 };
+
+// ─── 系统调度 ─────────────────────────────────────────────────────────────────
+
+export const SYSTEM_SCHEDULER_TASK_TYPES = ['recurring', 'queue'] as const;
+
+export type SystemSchedulerTaskType = (typeof SYSTEM_SCHEDULER_TASK_TYPES)[number];
+
+export const SYSTEM_SCHEDULER_RUN_STATUSES = ['running', 'success', 'failed'] as const;
+
+export type SystemSchedulerRunStatus = (typeof SYSTEM_SCHEDULER_RUN_STATUSES)[number];
+
+export const SYSTEM_SCHEDULER_TRIGGER_TYPES = ['schedule', 'manual', 'queue'] as const;
+
+export type SystemSchedulerTriggerType = (typeof SYSTEM_SCHEDULER_TRIGGER_TYPES)[number];
+
+/** 系统调度告警渠道（与 `SystemSchedulerAlertChannel` 一致） */
+export const SYSTEM_SCHEDULER_ALERT_CHANNELS = ['inapp', 'email', 'webhook'] as const;
+
+/** 运行日志的告警筛选：全部 / 有告警 / 告警未确认 */
+export const SYSTEM_SCHEDULER_ALERT_FILTERS = ['all', 'alerted', 'unacked'] as const;
+
+export type SystemSchedulerAlertFilter = (typeof SYSTEM_SCHEDULER_ALERT_FILTERS)[number];
 
 export const BACKUP_TYPES = ['pg_dump', 'drizzle_export'] as const;
 

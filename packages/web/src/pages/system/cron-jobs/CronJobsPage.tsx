@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Col, Dropdown, SplitButtonGroup, Row, SideSheet, Form, Modal, Popover, Space, Spin, Switch, Table, Tabs, Tag, Toast, Tooltip } from '@douyinfe/semi-ui';
 import { ScrollText, Trash2, ChevronDown, HelpCircle } from 'lucide-react';
-import type { CronJob } from '@zenith/shared/platform';
+import type { CreateCronJobInput, CronJob } from '@zenith/shared/platform';
 import { CRON_RUN_STATUS_LABELS } from '@zenith/shared/platform';
 import type { ColumnProps } from '@douyinfe/semi-ui/lib/es/table';
 import { formatDateTime } from '@/utils/date';
@@ -116,11 +116,11 @@ export default function CronJobsPage() {
     buildPagination: buildAllLogsPagination,
   } = usePagination(20);
   const [allLogsJobFilter, setAllLogsJobFilter] = useState<number | null>(null);
+  // 列表端点只支持 keyword 检索；状态筛选值仅进入导出条件
   const listQuery = useCronJobList({
     page,
     pageSize,
     keyword: submittedParams.keyword || undefined,
-    status: submittedParams.status || undefined,
   });
   const data = listQuery.data?.list ?? [];
   const total = listQuery.data?.total ?? 0;
@@ -134,7 +134,7 @@ export default function CronJobsPage() {
   }, allLogsDrawerVisible);
 
   const saveMutation = useSaveCronJob();
-  const modal = useEditModal<CronJob>({
+  const modal = useEditModal<CronJob, Partial<CreateCronJobInput>>({
     entityName: '定时任务',
     save: saveMutation,
     useDetail: useCronJobDetail,
@@ -157,7 +157,7 @@ export default function CronJobsPage() {
   const runMutation = useRunCronJob();
   const toggleStatusMutation = useUpdateCronJobStatus();
   const clearLogsMutation = useClearCronJobLogs();
-  const switchLoadingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.id ?? null) : null;
+  const switchLoadingId = toggleStatusMutation.isPending ? (toggleStatusMutation.variables?.params.id ?? null) : null;
 
   useEffect(() => {
     if (modal.visible && modal.editing) setCronExprValue(modal.editing.cronExpression ?? '');
@@ -173,14 +173,14 @@ export default function CronJobsPage() {
       title: '确定要立即执行一次吗？',
       content: `任务：${name}`,
       onOk: async () => {
-        await runMutation.mutateAsync(id);
+        await runMutation.mutateAsync({ params: { id } });
         Toast.success('已触发执行');
       },
     });
   };
 
   const handleDelete = async (id: number) => {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync([id]);
     Toast.success('删除成功');
   };
 
@@ -197,7 +197,7 @@ export default function CronJobsPage() {
   const handleToggleStatus = (id: number, currentStatus: string, name: string) => {
     const newStatus = currentStatus === 'enabled' ? 'disabled' : 'enabled';
     const doToggle = async () => {
-      await toggleStatusMutation.mutateAsync({ id, status: newStatus });
+      await toggleStatusMutation.mutateAsync({ params: { id }, body: { status: newStatus } });
       Toast.success(newStatus === 'enabled' ? '已启用' : '已暂停');
     };
     if (newStatus === 'disabled') {

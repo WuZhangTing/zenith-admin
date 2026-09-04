@@ -1,68 +1,50 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse } from '@zenith/shared/core';
-import type { AsyncTask, AsyncTaskItem, AsyncTaskItemStatus, AsyncTaskStats, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
-import { request } from '@/utils/request';
-import { toQueryString, unwrap } from '@/lib/query';
+import { resourceKeyOf, type QueryOf } from '@zenith/shared/core';
+import { asyncTaskContract } from '@zenith/shared/tasks';
+import type { AsyncTaskItemStatus } from '@zenith/shared/tasks';
+import { contractKey, useApiMutation, useApiQuery } from '@/lib/contract-query';
 
-export interface AsyncTaskListParams {
-  page: number;
-  pageSize: number;
-  taskType?: string;
-  status?: string;
-  keyword?: string;
-  /** 任务内容关键字：匹配入参 payload 与产出 result */
-  content?: string;
-  createdBy?: string;
-}
+export type AsyncTaskListParams = NonNullable<QueryOf<typeof asyncTaskContract.list>>;
 
-export interface AsyncTaskItemsParams {
-  taskId: number;
-  page: number;
-  pageSize: number;
-  status?: string;
-}
+export type AsyncTaskItemsParams = { taskId: number } & NonNullable<QueryOf<typeof asyncTaskContract.items>>;
 
+const resource = resourceKeyOf(asyncTaskContract.basePath);
+
+/** 与 `contractKey` 同构：`[资源键, 操作名, input?]`，前缀可直接用于失效 */
 export const asyncTaskKeys = {
-  all: ['async-tasks'] as const,
-  lists: ['async-tasks', 'list'] as const,
-  list: (params: AsyncTaskListParams) => ['async-tasks', 'list', params] as const,
-  stats: ['async-tasks', 'stats'] as const,
-  types: ['async-tasks', 'types'] as const,
-  items: ['async-tasks', 'items'] as const,
-  itemList: (params: AsyncTaskItemsParams) => ['async-tasks', 'items', params] as const,
+  all: [resource] as const,
+  lists: [resource, asyncTaskContract.list.name] as const,
+  list: (params: AsyncTaskListParams) => contractKey(asyncTaskContract.list, { query: params }),
+  stats: contractKey(asyncTaskContract.stats),
+  types: contractKey(asyncTaskContract.types),
+  items: [resource, asyncTaskContract.items.name] as const,
+  itemList: ({ taskId, ...query }: AsyncTaskItemsParams) => contractKey(asyncTaskContract.items, { params: { id: taskId }, query }),
 };
 
 export function useAsyncTaskList(params: AsyncTaskListParams, options?: { refetchInterval?: number | false }) {
-  return useQuery({
-    queryKey: asyncTaskKeys.list(params),
-    queryFn: () => request.get<PaginatedResponse<AsyncTask>>(`/api/async-tasks${toQueryString(params)}`).then(unwrap),
+  return useApiQuery(asyncTaskContract.list, { query: params }, {
     placeholderData: keepPreviousData,
     refetchInterval: options?.refetchInterval,
   });
 }
 
 export function useAsyncTaskStats(options?: { refetchInterval?: number | false }) {
-  return useQuery({
-    queryKey: asyncTaskKeys.stats,
-    queryFn: () => request.get<AsyncTaskStats>('/api/async-tasks/stats', { silent: true }).then(unwrap),
+  return useApiQuery(asyncTaskContract.stats, {
     refetchInterval: options?.refetchInterval,
+    requestOptions: { silent: true },
   });
 }
 
 export function useAsyncTaskTypes() {
-  return useQuery({
-    queryKey: asyncTaskKeys.types,
-    queryFn: () => request.get<AsyncTaskTypeMeta[]>('/api/async-tasks/types', { silent: true }).then(unwrap),
-  });
+  return useApiQuery(asyncTaskContract.types, { requestOptions: { silent: true } });
 }
 
-export function useAsyncTaskItems(params: AsyncTaskItemsParams, enabled = true) {
-  return useQuery({
-    queryKey: asyncTaskKeys.itemList(params),
-    queryFn: () => request.get<PaginatedResponse<AsyncTaskItem>>(`/api/async-tasks/${params.taskId}/items${toQueryString({ page: params.page, pageSize: params.pageSize, status: params.status })}`, { silent: true }).then(unwrap),
+export function useAsyncTaskItems({ taskId, ...query }: AsyncTaskItemsParams, enabled = true) {
+  return useApiQuery(asyncTaskContract.items, { params: { id: taskId }, query }, {
     enabled,
     placeholderData: keepPreviousData,
+    requestOptions: { silent: true },
   });
 }
 
@@ -73,7 +55,7 @@ export function useAsyncTaskItems(params: AsyncTaskItemsParams, enabled = true) 
  * `useUpdateAsyncTaskTypeConfig` 单独维护，不随任务状态变化。
  * 任务中心一屏同时挂着 list / stats / types / items，用 `.all` 会连带把 types 打回源。
  *
- * 导出供 `biz-pay-demo.ts` 复用——任务演示页打的是同一批 `/api/async-tasks` 端点，
+ * 导出供 `biz-pay-demo.ts` 复用——任务演示页打的是同一批任务中心端点，
  * 刻意共享同一命名空间以复用缓存，失效语义也必须跟着一致。
  */
 export function invalidateAsyncTaskState(qc: QueryClient) {
@@ -82,53 +64,36 @@ export function invalidateAsyncTaskState(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: asyncTaskKeys.items });
 }
 
-export function useAsyncTaskAction(action: 'cancel' | 'resume' | 'restart') {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.post<AsyncTask>(`/api/async-tasks/${id}/${action}`).then(unwrap),
-    onSuccess: () => invalidateAsyncTaskState(qc),
-  });
+const TASK_ACTIONS = {
+  cancel: asyncTaskContract.cancel,
+  resume: asyncTaskContract.resume,
+  restart: asyncTaskContract.restart,
+} as const;
+
+export function useAsyncTaskAction(action: keyof typeof TASK_ACTIONS) {
+  return useApiMutation(TASK_ACTIONS[action], { invalidate: invalidateAsyncTaskState });
 }
 
 export function useDeleteAsyncTask() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.delete<null>(`/api/async-tasks/${id}`).then(unwrap),
-    onSuccess: () => invalidateAsyncTaskState(qc),
-  });
+  return useApiMutation(asyncTaskContract.remove, { invalidate: invalidateAsyncTaskState });
 }
 
 export function useBatchCancelAsyncTasks() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (ids: number[]) => request.post<{ affected: number }>('/api/async-tasks/batch-cancel', { ids }).then(unwrap),
-    onSuccess: () => invalidateAsyncTaskState(qc),
-  });
+  return useApiMutation(asyncTaskContract.batchCancel, { invalidate: invalidateAsyncTaskState });
 }
 
 export function useBatchDeleteAsyncTasks() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (ids: number[]) => request.post<{ affected: number }>('/api/async-tasks/batch-delete', { ids }).then(unwrap),
-    onSuccess: () => invalidateAsyncTaskState(qc),
-  });
+  return useApiMutation(asyncTaskContract.batchDelete, { invalidate: invalidateAsyncTaskState });
 }
 
 export function useCleanupAsyncTasks() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => request.post<{ cleaned: number }>('/api/async-tasks/cleanup').then(unwrap),
-    onSuccess: () => invalidateAsyncTaskState(qc),
-  });
+  return useApiMutation(asyncTaskContract.cleanup, { invalidate: invalidateAsyncTaskState });
 }
 
 export function useUpdateAsyncTaskTypeConfig() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ taskType, values }: { taskType: string; values: Partial<AsyncTaskTypeMeta> }) =>
-      request.put<AsyncTaskTypeMeta>(`/api/async-tasks/types/${taskType}/config`, values).then(unwrap),
+  return useApiMutation(asyncTaskContract.updateTypePolicy, {
     // 只改类型配置；已产生的任务实例与统计不受影响
-    onSuccess: () => qc.invalidateQueries({ queryKey: asyncTaskKeys.types }),
+    invalidate: (qc) => void qc.invalidateQueries({ queryKey: asyncTaskKeys.types }),
   });
 }
 

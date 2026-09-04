@@ -1,3 +1,5 @@
+import { cronJobContract, systemSchedulerContract } from '@zenith/shared/platform';
+import { asyncTaskContract, exportJobContract, importJobContract, taskDemoContract } from '@zenith/shared/tasks';
 import { defineRouteDomain } from '../_kit';
 import asyncTasksRoutes from './async-tasks';
 import cronJobsRoutes from './cron-jobs';
@@ -9,11 +11,11 @@ import taskDemoRoutes from './task-demo';
 export default defineRouteDomain({
   name: 'tasks',
   mounts: () => [
-    ['/api/export-jobs', exportJobsRoutes],
-    ['/api/import-jobs', importJobsRoutes],
-    ['/api/async-tasks', asyncTasksRoutes],
-    ['/api/system-scheduler', systemSchedulerRoutes],
-    ['/api/cron-jobs', cronJobsRoutes],
-    ['/api/task-demo', taskDemoRoutes],
+    [exportJobContract.basePath, exportJobsRoutes],
+    [importJobContract.basePath, importJobsRoutes],
+    [asyncTaskContract.basePath, asyncTasksRoutes],
+    [systemSchedulerContract.basePath, systemSchedulerRoutes],
+    [cronJobContract.basePath, cronJobsRoutes],
+    [taskDemoContract.basePath, taskDemoRoutes],
   ],
 });

@@ -1,10 +1,11 @@
 import { OpenAPIHono, createRoute, defineOpenAPIRoute, z } from '@hono/zod-openapi';
 import { HTTPException } from 'hono/http-exception';
 import { batchUpdateCmsSearchWordsSchema, createCmsHotwordGroupSchema, createCmsHotwordSchema, createCmsSearchWordSchema, updateCmsHotwordGroupSchema, updateCmsHotwordSchema, updateCmsSearchWordSchema } from '@zenith/shared/cms';
+import { asyncTaskSchema } from '@zenith/shared/tasks';
 import { authMiddleware } from '../../middleware/auth';
 import { guard, setAuditBeforeData } from '../../middleware/guard';
 import { ErrorResponse, IdParam, PaginationQuery, commonErrorResponses, dateRangeBound, jsonContent, ok, okBody, okMsg, okPaginated, validationHook } from '../../lib/openapi-schemas';
-import { AsyncTaskDTO, CmsSearchResultDTO, CmsSearchWordDTO, CmsHotKeywordDTO, CmsHotwordGroupDTO } from '../../lib/openapi-dtos';
+import { CmsSearchResultDTO, CmsSearchWordDTO, CmsHotKeywordDTO, CmsHotwordGroupDTO } from '../../lib/openapi-dtos';
 import { mapAsyncTask, submitAsyncTask } from '../../lib/task-center';
 import { searchCmsContents, segmentForQuery, reloadCmsSearchDict, clearHotKeywords } from '../../services/cms/cms-search.service';
 import {
@@ -68,7 +69,7 @@ const reindexRoute = defineOpenAPIRoute({
     security: [{ BearerAuth: [] }],
     middleware: [authMiddleware, guard({ permission: 'cms:search:manage', audit: { description: 'CMS 检索索引重建', module: 'CMS内容管理' } })] as const,
     request: { body: { content: jsonContent(z.object({ siteId: z.number().int().positive().nullable().optional() })), required: true } },
-    responses: { ...commonErrorResponses, ...ok(AsyncTaskDTO, '任务已提交') },
+    responses: { ...commonErrorResponses, ...ok(asyncTaskSchema, '任务已提交') },
   }),
   handler: async (c) => {
     const { siteId } = c.req.valid('json');

@@ -1,4 +1,4 @@
-import type { SystemSchedulerTaskBase } from '../platform/types';
+import type { SystemSchedulerTaskBase } from '../platform/contracts';
 import type { WorkflowFormType } from './constants';
 
 // ─── 工作流引擎 ───────────────────────────────────────────────────────────────

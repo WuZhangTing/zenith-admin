@@ -2,10 +2,11 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { BizPayDemo, BizPayDemoStatus } from '@zenith/shared/biz';
 import type { PaginatedResponse } from '@zenith/shared/core';
 import type { CreatePaymentResult, PaymentMethod } from '@zenith/shared/payment';
-import type { AsyncTask, AsyncTaskItem, AsyncTaskTypeMeta } from '@zenith/shared/tasks';
+import { taskDemoContract } from '@zenith/shared/tasks';
 import { request } from '@/utils/request';
 import { toQueryString, unwrap } from '@/lib/query';
-import { invalidateAsyncTaskState } from './async-tasks';
+import { useApiMutation } from '@/lib/contract-query';
+import { invalidateAsyncTaskState, useAsyncTaskAction, useAsyncTaskItems, useAsyncTaskTypes } from './async-tasks';
 
 export interface BizPayDemoListParams {
   page: number;
@@ -20,23 +21,14 @@ export const bizPayDemoKeys = {
   list: (params: BizPayDemoListParams) => ['biz-pay-demo', 'list', params] as const,
 };
 
-export interface BizTaskDemoItemsParams {
-  taskId: number;
-  page: number;
-  pageSize: number;
-}
-
 /**
- * 任务演示打的是与任务中心同一批 `/api/async-tasks` 端点（类型元数据、明细项、
- * 取消/恢复/重启），因此**刻意复用 `['async-tasks']` 命名空间**共享缓存，
- * 而不是另起 `['biz-task-demo']` 造成同一端点两份副本。
- * 失效语义同样复用 `invalidateAsyncTaskState`。
+ * 任务演示打的是任务中心同一批端点（类型元数据、明细项、取消/恢复/重启），
+ * 直接复用任务中心域 hooks 以共享缓存与失效语义，而不是另起 `['biz-task-demo']` 造成同一端点两份副本。
  */
-export const bizTaskDemoKeys = {
-  all: ['async-tasks'] as const,
-  types: ['async-tasks', 'types'] as const,
-  items: ['async-tasks', 'items'] as const,
-  itemList: (params: BizTaskDemoItemsParams) => ['async-tasks', 'items', params] as const,
+export {
+  useAsyncTaskAction as useBizTaskDemoAction,
+  useAsyncTaskItems as useBizTaskDemoItems,
+  useAsyncTaskTypes as useBizTaskDemoTypes,
 };
 
 export function useBizPayDemoList(params: BizPayDemoListParams) {
@@ -84,42 +76,5 @@ export function useDeleteBizPayDemo() {
 }
 
 export function useSubmitTaskDemo() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (values:
-      | { taskType: 'demo-batch'; totalItems: number; itemDelayMs: number; failAtItem?: number; failEveryN?: number }
-      | { taskType: 'demo-serial'; stageDelayMs: number }) =>
-      request.post<AsyncTask>('/api/task-demo/submit', values).then(unwrap),
-    onSuccess: () => invalidateAsyncTaskState(qc),
-  });
-}
-
-export function useBizTaskDemoTypes() {
-  return useQuery({
-    queryKey: bizTaskDemoKeys.types,
-    queryFn: () => request.get<AsyncTaskTypeMeta[]>('/api/async-tasks/types', { silent: true }).then(unwrap),
-  });
-}
-
-export function useBizTaskDemoItems(params: BizTaskDemoItemsParams, enabled = true) {
-  return useQuery({
-    queryKey: bizTaskDemoKeys.itemList(params),
-    queryFn: () =>
-      request
-        .get<PaginatedResponse<AsyncTaskItem>>(
-          `/api/async-tasks/${params.taskId}/items${toQueryString({ page: params.page, pageSize: params.pageSize })}`,
-          { silent: true },
-        )
-        .then(unwrap),
-    enabled,
-    placeholderData: keepPreviousData,
-  });
-}
-
-export function useBizTaskDemoAction(action: 'cancel' | 'resume' | 'restart') {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => request.post<AsyncTask>(`/api/async-tasks/${id}/${action}`).then(unwrap),
-    onSuccess: () => invalidateAsyncTaskState(qc),
-  });
+  return useApiMutation(taskDemoContract.submit, { invalidate: invalidateAsyncTaskState });
 }
