@@ -19,7 +19,6 @@ import {
 import {
   ErrorResponse,
   commonErrorResponses,
-  errBody,
   jsonContent,
   ok,
   okMsg,
@@ -29,6 +28,7 @@ import {
 import { AppPublicReleaseInfoDTO, AppUpdateCheckResultDTO } from '../../lib/openapi-dtos';
 import { getStoredFileForRead } from '../../services/files/files.service';
 import { readStoredFile } from '../../lib/file-storage';
+import { parseRangeHeader, rangeContentHeaders, rangeNotSatisfiable, supportsRange } from '../../lib/http-range';
 import {
   checkAppUpdate,
   getLatestPublicRelease,
@@ -116,32 +116,6 @@ const reportEventRoute = defineOpenAPIRoute({
 //   {base}/latest.yml → 版本元数据；{base}/Xxx-Setup-1.2.3.exe(.blockmap) → 安装包与差量块图。
 // 同一路由同时服务人肉下载（check 响应中的 downloadUrl 也指向这里）。
 
-/** Range 解析（与 files 路由同语义：本地 / S3 支持字节续传，差量更新依赖 206） */
-function supportsRange(provider: string): boolean {
-  return provider === 'local' || provider === 's3';
-}
-
-function parseRangeHeader(rangeHeader: string | undefined, size: number): { start: number; end: number } | null | 'invalid' {
-  if (!rangeHeader) return null;
-  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
-  if (!match) return 'invalid';
-  const [, rawStart, rawEnd] = match;
-  if (!rawStart && !rawEnd) return 'invalid';
-  let start: number;
-  let end: number;
-  if (!rawStart) {
-    const suffixLength = Number(rawEnd);
-    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return 'invalid';
-    start = Math.max(0, size - suffixLength);
-    end = size - 1;
-  } else {
-    start = Number(rawStart);
-    end = rawEnd ? Number(rawEnd) : size - 1;
-  }
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= size) return 'invalid';
-  return { start, end: Math.min(end, size - 1) };
-}
-
 const downloadParams = z.object({
   app: z.string().min(1).max(64).openapi({ param: { name: 'app', in: 'path' }, example: 'zenith-desktop' }),
   channel: z.enum(APP_RELEASE_CHANNELS).openapi({ param: { name: 'channel', in: 'path' }, example: 'stable' }),
@@ -185,12 +159,7 @@ const downloadRoute = defineOpenAPIRoute({
     };
 
     const range = supportsRange(file.provider) ? parseRangeHeader(c.req.header('range'), file.size) : null;
-    if (range === 'invalid') {
-      return new Response(JSON.stringify(errBody('Range 不合法', 416)), {
-        status: 416,
-        headers: { 'Content-Type': 'application/json; charset=UTF-8', ...baseHeaders, 'Content-Range': `bytes */${file.size}` },
-      });
-    }
+    if (range === 'invalid') return rangeNotSatisfiable(file.size, baseHeaders);
 
     // 差量下载会对同一文件发出多个 Range 请求，只在整文件或首个分片计一次下载
     if (!range || range.start === 0) {
@@ -198,18 +167,12 @@ const downloadRoute = defineOpenAPIRoute({
     }
 
     const storedFile = await readStoredFile(file, storageConfig, range ?? undefined);
-    const partialHeaders: Record<string, string> = range
-      ? {
-        'Content-Range': `bytes ${range.start}-${range.end}/${file.size}`,
-        'Content-Length': String(range.end - range.start + 1),
-      }
-      : { 'Content-Length': String(file.size) };
     return new Response(storedFile.stream, {
       status: range ? 206 : 200,
       headers: {
         'Content-Type': storedFile.contentType,
         'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(artifact.fileName)}`,
-        ...partialHeaders,
+        ...rangeContentHeaders(range, file.size),
         ...baseHeaders,
       },
     });

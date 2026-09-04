@@ -9,6 +9,7 @@ import {
 } from '../../services/files/files.service';
 import { initChunkUpload, uploadChunk, completeChunkUpload, getUploadStatus, abortChunkUpload } from '../../services/files/upload-sessions.service';
 import { readStoredFile } from '../../lib/file-storage';
+import { parseRangeHeader, rangeContentHeaders, rangeNotSatisfiable, supportsRange } from '../../lib/http-range';
 
 const filesRouter = new OpenAPIHono({ defaultHook: validationHook });
 
@@ -38,32 +39,6 @@ function resolveContentDisposition(mimeType: string, fileName: string): string {
   return `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
-function supportsRange(provider: string): boolean {
-  return provider === 'local' || provider === 's3';
-}
-
-function parseRangeHeader(rangeHeader: string | undefined, size: number): { start: number; end: number } | null | 'invalid' {
-  if (!rangeHeader) return null;
-  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
-  if (!match) return 'invalid';
-  const [, rawStart, rawEnd] = match;
-  if (!rawStart && !rawEnd) return 'invalid';
-
-  let start: number;
-  let end: number;
-  if (!rawStart) {
-    const suffixLength = Number(rawEnd);
-    if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return 'invalid';
-    start = Math.max(0, size - suffixLength);
-    end = size - 1;
-  } else {
-    start = Number(rawStart);
-    end = rawEnd ? Number(rawEnd) : size - 1;
-  }
-  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= size) return 'invalid';
-  return { start, end: Math.min(end, size - 1) };
-}
-
 const contentRoute = defineOpenAPIRoute({
   route: createRoute({
     method: 'get', path: '/{id}/content', tags: ['Files'], summary: '公开访问文件内容', security: [],
@@ -89,12 +64,7 @@ const contentRoute = defineOpenAPIRoute({
       'Accept-Ranges': supportsRange(file.provider) ? 'bytes' : 'none',
     };
     const range = supportsRange(file.provider) ? parseRangeHeader(c.req.header('range'), file.size) : null;
-    if (range === 'invalid') {
-      return new Response(JSON.stringify(errBody('Range 不合法', 416)), {
-        status: 416,
-        headers: { 'Content-Type': 'application/json; charset=UTF-8', ...cacheHeaders, 'Content-Range': `bytes */${file.size}` },
-      });
-    }
+    if (range === 'invalid') return rangeNotSatisfiable(file.size, cacheHeaders);
     const ifNoneMatch = c.req.header('if-none-match');
     const ifModifiedSince = c.req.header('if-modified-since');
     const notModified = !range && (ifNoneMatch
@@ -104,19 +74,13 @@ const contentRoute = defineOpenAPIRoute({
       return new Response(null, { status: 304, headers: cacheHeaders });
     }
     const storedFile = await readStoredFile(file, storageConfig, range ?? undefined);
-    const partialHeaders: Record<string, string> = range
-      ? {
-        'Content-Range': `bytes ${range.start}-${range.end}/${file.size}`,
-        'Content-Length': String(range.end - range.start + 1),
-      }
-      : { 'Content-Length': String(file.size) };
     return new Response(storedFile.stream, {
       status: range ? 206 : 200,
       headers: {
         'Content-Type': storedFile.contentType,
         'Content-Disposition': resolveContentDisposition(storedFile.contentType, storedFile.fileName),
         'X-Content-Type-Options': 'nosniff',
-        ...partialHeaders,
+        ...rangeContentHeaders(range, file.size),
         ...cacheHeaders,
       },
     });
