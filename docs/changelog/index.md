@@ -4,6 +4,45 @@
 
 ---
 
+## v2.16.0 - 2026-09-04
+
+**全库重复代码收口 + 列表筛选统一**：对 server / web / shared 做了一次全域重复代码排查，把多套并存的等价写法收口为单一实现（WHERE 构造、模糊匹配、共享 Zod 契约、鉴权请求与流式读取、危险操作确认、通用小工具、树形转换、HTTP Range、运维路由 host 解析、租户可用性判定、CMS 主题公共件与发布副作用取数），并把列表页所有单选枚举筛选统一到 `FilterSelect` / `StatusSelect`，枚举选项统一由 shared 导出。
+
+> 本版无数据库迁移。前端用户可感知的变化：列表页筛选下拉统一为「占位描述空值 + ✕ 清除」形态（不再有「全部 X」选项或「请选择 X」占位），宽度统一；日志文件页级别筛选的「全部级别」不再展示总行数计数。
+
+### Changed
+
+#### 前端：列表筛选与枚举选项
+
+- `components/search-filters` 新增 `FilterSelect`（占位「全部 X」、`showClear`、默认宽度 120、清空回调 `undefined`，支持平铺 `items` 与分组 `groups`），`StatusSelect` 改为其占位固定「全部状态」的特化；列表页搜索栏（含 Tab / 抽屉 / 展开行内子列表）的 406 处单选枚举筛选全部改用，去掉手写 `showClear` / `style={{ width }}`、「全部」哨兵选项与「请选择 X」占位
+- 筛选字段空值统一为 `undefined`：各页 `SearchParams` 枚举字段声明为可选、`defaults` 与重置写 `undefined`，去掉 `''` / `'all'` 哨兵比较；相关 query hook 参数类型同步
+- 枚举下拉选项由 shared 各域导出的 `XXX_OPTIONS`（`createLabelOptionsFromMap(XXX_LABELS)` 派生）提供，页面不再手写 `Object.entries(XXX_LABELS).map(...)`；shared 补齐 cms / payment / open-platform 共 38 组 `_OPTIONS`
+
+#### 前端：请求层、确认框与工具
+
+- 带鉴权的非 JSON 请求统一经 `request` 层：`request.fetchRaw(url, init)` 返回原生 `Response`（token、401 刷新重试、失败统一提示、Demo 拦截），`utils/streaming.ts` 提供 `streamText` / `readTextStream` / `readSseStream`，二进制走 `request.getBlob(url, init?)`，第三方上传组件的请求头取 `request.authHeaders()`；日志 / 网络诊断 / 服务日志流、进程与监控 SSE、AI 对话与竞技场、文件预览与下载、富文本与图片上传、分片上传全部接入，`chunked-upload` 不再接收 `apiBaseUrl` / `token`
+- 危险操作确认统一走 `confirmDanger` / `confirmDelete`，async 流程用新增的 `confirmDangerAsync` 取布尔结果；移除页面内 `new Promise<boolean>` 包 `Modal.confirm` 与手写 `okButtonProps: { type: 'danger' }`
+- `@zenith/shared/core` 新增 `escapeHtml` / `escapeRegExp` / `clamp` / `formatBytes` / `buildTree` / `mapTree`，前后端与 Mock 的等价本地实现全部删除；`web/utils/format.ts` 只保留 `formatDurationMs`；CMS 栏目选择树收口到 `pages/cms/channel-tree.ts`
+- 平铺转树统一用 `buildTree`（菜单 / 部门 / 区域 / CMS 栏目・站点・素材目录 / 报表目录 / Wiki 目录 / Mock 栏目树），树节点映射统一用 `mapTree`
+
+#### 后端
+
+- WHERE 条件合并只保留 `buildWhere`，模糊匹配只保留 `keywordCondition`（支持 `SQL` 列表达式与 `prefix` 模式），转义在其内部完成
+- 路由请求体 / 查询 schema 统一引用 shared（identity / member / messaging / platform / workflow 等域），shared 侧 Zod 契约按现网接口对齐（登录设备信息、用户性别与头像、菜单查询串 / 外链 / 嵌入 / 保活、排序参数 `z.coerce`、套餐功能必填、脱敏字符长度、配置类型枚举、流程分类与发起范围等）
+- 启动入口 `src/index.ts` 固定第二条 import 为 `@hono/zod-openapi`（测试 `setupFiles` 同步），保证 shared 的 schema 一律在 `.openapi()` 原型补丁之后构造；新增 `index.import-order.test.ts` 锁定前两条 import 顺序
+- 租户可用性判定统一为 `lib/tenant` 的 `isTenantActive` / `isTenantExpired`：管理员与会员鉴权中间件、登录 / 续签、OAuth2 令牌、企业身份源共用，到期边界统一为 `expireAt <= now`
+- HTTP Range 解析与分片响应头收口到 `lib/http-range`（文件下载与公开应用包下载共用）；运维路由 `hostId` 查询参数统一为 `HostQuery` / `resolveHostIdQuery`，子进程输出转发统一为 `lib/http-stream` 的 `streamProcessOutput`
+- CMS：发布后搜索引擎推送与分享短链共用 `loadPublishedContentTarget` 取内容目标；主题 `_shared` 新增 `ArticleNav` / `RelatedArticles` / `AttachmentList`，default / magazine / gov-portal / news-portal 详情模板复用（渲染 HTML 不变）
+
+#### 依赖
+
+- Vitest 4.1.11 → 5.0.0
+
+### Fixed
+
+- 模糊搜索关键字含 `%` / `_` / `\` 时 9 处手写 `like` 未转义导致的误匹配
+- 租户到期时刻在 OAuth2 令牌校验与企业身份源登录路径按开区间判定、与管理员 / 会员鉴权不一致的问题
+- 接口限流规则表「命中 / 拦截」列加宽，避免计数折行
 ## v2.15.0 - 2026-09-04
 
 **安全审计整改 + IoT 遥测接入性能重构**：按一次全库安全审计逐项收口——租户 / 平台超管边界、运行时密钥、OAuth state、会话吊销与 refresh 轮换、WebSocket 鉴权、数据库控制台最小权限角色、URL 与富文本注入面、日志查看器路径、Electron 更新链路、部署暴露面与 CSP / 帧保护；IoT 遥测明细改为原生日分区表，接入热路径微批写入，单帧 CPU 降至约 1/9。
