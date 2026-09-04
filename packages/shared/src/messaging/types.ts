@@ -1,4 +1,4 @@
-import type { ChatMessageExtra } from '../chat/types';
+import type { ChatMessageExtra } from '../chat/contracts';
 import type { EntityStatus } from '../core/types';
 import type {
   BroadcastAudienceType,

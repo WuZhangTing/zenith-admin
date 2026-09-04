@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
 import type { ChatMessage } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import type { Setter } from '../types';
 
 /** 媒体库（图片/文件/链接）分页拉取与联动刷新（自 ChatPage 原样搬移） */
@@ -23,18 +24,17 @@ export function useMediaLibrary({
   const fetchMediaItems = useCallback(async (convId: number, type: 'image' | 'file' | 'link', p = 1) => {
     setMediaLoading(true);
     if (p === 1) setMediaItems([]);  // 切换 tab 时立即清空，避免旧数据短暂闪烁
-    const qs = type === 'link'
-      ? new URLSearchParams({ types: 'text', keyword: 'http', page: String(p), pageSize: '30' })
-      : new URLSearchParams({ types: type, page: String(p), pageSize: '30' });
-    const res = await request.get<{ list: Array<{ message: ChatMessage }> }>(
-      `/api/chat/conversations/${convId}/messages/search?${qs.toString()}`,
-      { silent: true },
-    );
+    const result = await api(chatContract.searchMessages, {
+      params: { id: convId },
+      query: type === 'link'
+        ? { types: 'text', keyword: 'http', page: p, pageSize: 30 }
+        : { types: type, page: p, pageSize: 30 },
+    }, { silent: true }).catch(() => null);
     if (convId !== scopeRef.current.convId || type !== scopeRef.current.type) return;
     setMediaLoading(false);
-    if (res.code === 0 && res.data) {
-      const rawCount = res.data.list.length;
-      let items = res.data.list.map((item) => item.message);
+    if (result) {
+      const rawCount = result.list.length;
+      let items = result.list.map((item) => item.message);
       if (type === 'link') {
         items = items.filter((m) => m.extra?.linkPreview || /https?:\/\//i.test(m.content));
       }

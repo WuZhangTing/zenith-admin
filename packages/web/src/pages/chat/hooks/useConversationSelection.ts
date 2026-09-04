@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import type { VirtuosoHandle } from 'react-virtuoso';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
 import type { ChatConversation, ChatMessage, ChatMessageSearchItem } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import type { ChatUser, PendingFile, PendingImage, SearchDatePreset, Setter } from '../types';
 
 /** 会话切换 / 新建单聊 / 建群回调 / 消息去重追加（自 ChatPage 原样搬移） */
@@ -102,17 +103,17 @@ export function useConversationSelection({
     } else {
       setUnreadDivider(null);
     }
-    await request.post(`/api/chat/conversations/${conv.id}/read`, {}, { silent: true });
+    await api(chatContract.markRead, { params: { id: conv.id } }, { silent: true }).catch(() => null);
     setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, unreadCount: 0, hasMentionUnread: false } : c));
     setTimeout(() => virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' }), 100);
   }, [activeConvId, currentUserId, fetchMessages, input, loadDraft, onConvChange, saveDraft]);
 
   const handleNewDirectChat = useCallback(async (user: ChatUser) => {
     setShowNewChat(false);
-    const res = await request.post<ChatConversation>('/api/chat/conversations/direct', { targetUserId: user.id });
-    if (res.code === 0 && res.data) {
+    const conv = await api(chatContract.createDirect, { body: { targetUserId: user.id } }).catch(() => null);
+    if (conv) {
       await fetchConversations();
-      await handleSelectConv(res.data);
+      await handleSelectConv(conv);
     }
   }, [fetchConversations, handleSelectConv]);
 

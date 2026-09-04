@@ -1,6 +1,7 @@
 import { Dropdown, Toast } from '@douyinfe/semi-ui';
 import { Archive, ArchiveRestore, BellOff, Bookmark, Pin, Search, Star, UserMinus } from 'lucide-react';
-import { request } from '@/utils/request';
+import { chatContract } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
 import { confirmDelete } from '@/utils/confirm';
 import { CursorContextDropdown } from '@/components/CursorContextDropdown';
 import type { ChatConversation, ChatMessage } from '@zenith/shared/chat';
@@ -60,12 +61,10 @@ export function LeftPaneContextMenu({
                       onClick={() => {
                         const { conv } = leftPaneContextMenu;
                         const isPinned = conv.isPinned ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/pin`, { pin: !isPinned }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations(togglePinAndSort(conv.id, isPinned));
-                            Toast.success(isPinned ? '已取消置顶' : '已置顶');
-                          }
-                        });
+                        void api(chatContract.pinConversation, { params: { id: conv.id }, body: { pin: !isPinned } }).then(() => {
+                          setConversations(togglePinAndSort(conv.id, isPinned));
+                          Toast.success(isPinned ? '已取消置顶' : '已置顶');
+                        }).catch(() => undefined);
                         setLeftPaneContextMenu(null);
                       }}
                     >
@@ -76,12 +75,10 @@ export function LeftPaneContextMenu({
                       onClick={() => {
                         const { conv } = leftPaneContextMenu;
                         const isStarred = conv.isStarred ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/star`, { star: !isStarred }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations(toggleConvStarred(conv.id, isStarred));
-                            Toast.success(isStarred ? '已取消星标' : '已标记星标');
-                          }
-                        });
+                        void api(chatContract.starConversation, { params: { id: conv.id }, body: { star: !isStarred } }).then(() => {
+                          setConversations(toggleConvStarred(conv.id, isStarred));
+                          Toast.success(isStarred ? '已取消星标' : '已标记星标');
+                        }).catch(() => undefined);
                         setLeftPaneContextMenu(null);
                       }}
                     >
@@ -92,12 +89,10 @@ export function LeftPaneContextMenu({
                       onClick={() => {
                         const { conv } = leftPaneContextMenu;
                         const isMuted = conv.isMuted ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/mute`, { mute: !isMuted }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations(toggleConvMuted(conv.id, isMuted));
-                            Toast.success(isMuted ? '已取消免打扰' : '已开启免打扰');
-                          }
-                        });
+                        void api(chatContract.muteConversation, { params: { id: conv.id }, body: { mute: !isMuted } }).then(() => {
+                          setConversations(toggleConvMuted(conv.id, isMuted));
+                          Toast.success(isMuted ? '已取消免打扰' : '已开启免打扰');
+                        }).catch(() => undefined);
                         setLeftPaneContextMenu(null);
                       }}
                     >
@@ -108,12 +103,10 @@ export function LeftPaneContextMenu({
                       onClick={() => {
                         const { conv } = leftPaneContextMenu;
                         const isArchived = conv.isArchived ?? false;
-                        void request.patch(`/api/chat/conversations/${conv.id}/archive`, { archive: !isArchived }).then((r) => {
-                          if ((r as { code: number }).code === 0) {
-                            setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, isArchived: !isArchived } : c));
-                            Toast.success(isArchived ? '已取消归档' : '已归档，可在「已归档」分组中查看');
-                          }
-                        });
+                        void api(chatContract.archiveConversation, { params: { id: conv.id }, body: { archive: !isArchived } }).then(() => {
+                          setConversations((prev) => prev.map((c) => c.id === conv.id ? { ...c, isArchived: !isArchived } : c));
+                          Toast.success(isArchived ? '已取消归档' : '已归档，可在「已归档」分组中查看');
+                        }).catch(() => undefined);
                         setLeftPaneContextMenu(null);
                       }}
                     >
@@ -140,11 +133,10 @@ export function LeftPaneContextMenu({
                             title: '确定要解散该群聊吗？',
                             content: '解散后所有成员将被移出，聊天记录一并删除且无法恢复。如需保留群聊请先转让群主。',
                             onOk: () => {
-                              void request.delete(`/api/chat/conversations/${conv.id}/disband`).then((r) => {
-                                if (r.code !== 0) return;
+                              void api(chatContract.disbandConversation, { params: { id: conv.id } }).then(() => {
                                 Toast.success('群聊已解散');
                                 removeLocal();
-                              });
+                              }).catch(() => undefined);
                             },
                           });
                         } else {
@@ -154,11 +146,10 @@ export function LeftPaneContextMenu({
                               ? '退出后将不再接收该群消息，聊天记录从你的列表中移除。'
                               : '删除后仅移除你当前账号下的会话记录，无法恢复。',
                             onOk: () => {
-                              void request.delete(`/api/chat/conversations/${conv.id}`).then((r) => {
-                                if (r.code !== 0) return;
+                              void api(chatContract.removeConversation, { params: { id: conv.id } }).then(() => {
                                 Toast.success(isGroup ? '已退出群聊' : '会话已删除');
                                 removeLocal();
-                              });
+                              }).catch(() => undefined);
                             },
                           });
                         }

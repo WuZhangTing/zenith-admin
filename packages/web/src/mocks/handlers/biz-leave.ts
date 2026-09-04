@@ -1,7 +1,8 @@
-import { http } from 'msw';
-import { ok, badRequest, notFound, pageParams } from '@/mocks/utils/handlers';
+import { bizLeaveContract } from '@zenith/shared/biz';
 import type { BizLeave } from '@zenith/shared/biz';
 import type { WorkflowInstance, WorkflowTask } from '@zenith/shared/workflow';
+import { mock } from '@/mocks/utils/contract';
+import { badRequest, notFound } from '@/mocks/utils/handlers';
 import { mockBizLeaves, getNextLeaveId } from '@/mocks/data/biz-leave';
 import {
   getNextInstanceId,
@@ -14,29 +15,24 @@ import { mockDateTime } from '@/mocks/utils/date';
 
 export const bizLeaveHandlers = [
   // 列表（我的请假）
-  http.get('/api/biz/leaves', ({ request }) => {
-    const url = new URL(request.url);
-    const { page, pageSize } = pageParams(url);
-    const status = url.searchParams.get('status') ?? '';
-    const keyword = (url.searchParams.get('keyword') ?? '').trim().toLowerCase();
+  mock(bizLeaveContract.list, ({ query, ok, paginate }) => {
+    const keyword = (query.keyword ?? '').trim().toLowerCase();
     let list = [...mockBizLeaves].sort((a, b) => b.id - a.id);
-    if (status) list = list.filter((l) => l.status === status);
+    if (query.status) list = list.filter((l) => l.status === query.status);
     if (keyword) list = list.filter((l) => (l.reason ?? '').toLowerCase().includes(keyword));
-    const total = list.length;
-    const paged = list.slice((page - 1) * pageSize, page * pageSize);
-    return ok({ list: paged, total, page, pageSize });
+    return ok(paginate(list));
   }),
 
   // 审批查看详情（供工作流参与者）
-  http.get('/api/biz/leaves/:id/detail', ({ params }) => {
-    const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
+  mock(bizLeaveContract.approvalDetail, ({ params, ok }) => {
+    const leave = mockBizLeaves.find((l) => l.id === params.id);
     if (!leave) return notFound('请假单不存在');
     return ok(leave);
   }),
 
   // 提交审批：发起并关联工作流（mock 简化：置 pending + 关联一个实例 id）
-  http.post('/api/biz/leaves/:id/submit', ({ params }) => {
-    const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
+  mock(bizLeaveContract.submit, ({ params, ok }) => {
+    const leave = mockBizLeaves.find((l) => l.id === params.id);
     if (!leave) return notFound('请假单不存在');
     if (leave.status !== 'draft') return badRequest('该请假单已提交，无法重复提交');
     const def = mockWorkflowDefinitions.find((item) => item.name === '请假审批' && item.formType === 'external' && item.status === 'published');
@@ -103,8 +99,8 @@ export const bizLeaveHandlers = [
   }),
 
   // 重新编辑：驳回/取消 → 草稿（旧实例已终态，重新提交将发起新流程）
-  http.post('/api/biz/leaves/:id/reopen', ({ params }) => {
-    const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
+  mock(bizLeaveContract.reopen, ({ params, ok }) => {
+    const leave = mockBizLeaves.find((l) => l.id === params.id);
     if (!leave) return notFound('请假单不存在');
     if (leave.status !== 'rejected' && leave.status !== 'cancelled') {
       return badRequest('仅已驳回或已取消的请假单可重新编辑');
@@ -117,22 +113,21 @@ export const bizLeaveHandlers = [
   }),
 
   // 详情
-  http.get('/api/biz/leaves/:id', ({ params }) => {
-    const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
+  mock(bizLeaveContract.detail, ({ params, ok }) => {
+    const leave = mockBizLeaves.find((l) => l.id === params.id);
     if (!leave) return notFound('请假单不存在');
     return ok(leave);
   }),
 
-  // 新建（草稿）
-  http.post('/api/biz/leaves', async ({ request }) => {
-    const body = await request.json() as Partial<BizLeave>;
+  // 新建（草稿）：body 即 CreateBizLeaveInput（已校验、已补默认值）
+  mock(bizLeaveContract.create, ({ body, ok }) => {
     const now = mockDateTime();
     const leave: BizLeave = {
       id: getNextLeaveId(),
-      leaveType: body.leaveType ?? 'annual',
-      startDate: body.startDate ?? '',
-      endDate: body.endDate ?? '',
-      days: body.days ?? 1,
+      leaveType: body.leaveType,
+      startDate: body.startDate,
+      endDate: body.endDate,
+      days: body.days,
       reason: body.reason ?? null,
       status: 'draft',
       workflowInstanceId: null,
@@ -148,11 +143,10 @@ export const bizLeaveHandlers = [
   }),
 
   // 编辑（仅草稿）
-  http.put('/api/biz/leaves/:id', async ({ params, request }) => {
-    const leave = mockBizLeaves.find((l) => l.id === Number(params.id));
+  mock(bizLeaveContract.update, ({ params, body, ok }) => {
+    const leave = mockBizLeaves.find((l) => l.id === params.id);
     if (!leave) return notFound('请假单不存在');
     if (leave.status !== 'draft') return badRequest('仅草稿状态可编辑');
-    const body = await request.json() as Partial<BizLeave>;
     Object.assign(leave, {
       leaveType: body.leaveType ?? leave.leaveType,
       startDate: body.startDate ?? leave.startDate,
@@ -165,8 +159,8 @@ export const bizLeaveHandlers = [
   }),
 
   // 删除（仅草稿）
-  http.delete('/api/biz/leaves/:id', ({ params }) => {
-    const idx = mockBizLeaves.findIndex((l) => l.id === Number(params.id));
+  mock(bizLeaveContract.remove, ({ params, ok }) => {
+    const idx = mockBizLeaves.findIndex((l) => l.id === params.id);
     if (idx === -1) return notFound('请假单不存在');
     if (mockBizLeaves[idx].status !== 'draft') return badRequest('仅草稿状态可删除');
     mockBizLeaves.splice(idx, 1);

@@ -29,7 +29,7 @@ export function GroupInviteModal({
 
   useEffect(() => {
     if (!visible) return;
-    getInviteMutation.mutateAsync(conversationId).then(setInvite).catch(() => setInvite(null));
+    getInviteMutation.mutateAsync({ params: { id: conversationId } }).then(setInvite).catch(() => setInvite(null));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, conversationId]);
 
@@ -42,7 +42,7 @@ export function GroupInviteModal({
 
   const handleReset = async () => {
     try {
-      const next = await resetInviteMutation.mutateAsync(conversationId);
+      const next = await resetInviteMutation.mutateAsync({ params: { id: conversationId } });
       setInvite(next);
       Toast.success('已重置，旧链接立即失效');
     } catch {

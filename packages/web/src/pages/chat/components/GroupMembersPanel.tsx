@@ -95,7 +95,7 @@ export function GroupMembersPanel({
 
   const handleAdd = async (user: ChatUser) => {
     try {
-      await addMemberMutation.mutateAsync({ conversationId, userId: user.id });
+      await addMemberMutation.mutateAsync({ params: { id: conversationId }, body: { userId: user.id } });
     } catch {
       return;
     }
@@ -109,7 +109,7 @@ export function GroupMembersPanel({
       content: '移除后该成员将无法看到群聊消息。',
       onOk: async () => {
         try {
-          await removeMemberMutation.mutateAsync({ conversationId, memberId: member.id });
+          await removeMemberMutation.mutateAsync({ params: { id: conversationId, userId: member.id } });
         } catch {
           return;
         }
@@ -125,7 +125,7 @@ export function GroupMembersPanel({
       okButtonProps: { type: 'warning', theme: 'solid' },
       onOk: async () => {
         try {
-          await transferOwnerMutation.mutateAsync({ conversationId, newOwnerId: member.id });
+          await transferOwnerMutation.mutateAsync({ params: { id: conversationId }, body: { newOwnerId: member.id } });
         } catch {
           return;
         }
@@ -136,7 +136,7 @@ export function GroupMembersPanel({
 
   const handleSetRole = async (member: ChatGroupMember, role: 'admin' | 'member') => {
     try {
-      await setMemberRoleMutation.mutateAsync({ conversationId, userId: member.id, role });
+      await setMemberRoleMutation.mutateAsync({ params: { id: conversationId, userId: member.id }, body: { role } });
     } catch {
       return;
     }
@@ -145,7 +145,7 @@ export function GroupMembersPanel({
 
   const handleMute = async (member: ChatGroupMember, durationMinutes?: number) => {
     try {
-      await muteMemberMutation.mutateAsync({ conversationId, userId: member.id, mute: true, durationMinutes });
+      await muteMemberMutation.mutateAsync({ params: { id: conversationId, userId: member.id }, body: { mute: true, durationMinutes } });
     } catch {
       return;
     }
@@ -154,7 +154,7 @@ export function GroupMembersPanel({
 
   const handleUnmute = async (member: ChatGroupMember) => {
     try {
-      await muteMemberMutation.mutateAsync({ conversationId, userId: member.id, mute: false });
+      await muteMemberMutation.mutateAsync({ params: { id: conversationId, userId: member.id }, body: { mute: false } });
     } catch {
       return;
     }
@@ -163,7 +163,7 @@ export function GroupMembersPanel({
 
   const handleToggleMuteAll = async (muteAll: boolean) => {
     try {
-      await setMuteAllMutation.mutateAsync({ conversationId, muteAll });
+      await setMuteAllMutation.mutateAsync({ params: { id: conversationId }, body: { muteAll } });
     } catch {
       return;
     }
@@ -177,7 +177,7 @@ export function GroupMembersPanel({
     if (editAnnouncement !== (conv.announcement ?? '')) body.announcement = editAnnouncement || null;
     if (Object.keys(body).length === 0) { setShowInfoEdit(false); return; }
     try {
-      await updateGroupInfoMutation.mutateAsync({ conversationId, values: body });
+      await updateGroupInfoMutation.mutateAsync({ params: { id: conversationId }, body });
     } catch {
       return;
     }
@@ -230,7 +230,7 @@ export function GroupMembersPanel({
               checked={conv.joinApproval ?? false}
               loading={setJoinApprovalMutation.isPending}
               onChange={(v) => {
-                void setJoinApprovalMutation.mutateAsync({ conversationId, enabled: v }).then(() => {
+                void setJoinApprovalMutation.mutateAsync({ params: { id: conversationId }, body: { enabled: v } }).then(() => {
                   onConvUpdate({ joinApproval: v });
                   Toast.success(v ? '已开启入群审批' : '已关闭入群审批');
                 }).catch(() => undefined);
@@ -310,14 +310,14 @@ export function GroupMembersPanel({
                 <Button
                   size="small" theme="borderless" type="primary"
                   loading={handleJoinRequestMutation.isPending}
-                  onClick={() => { void handleJoinRequestMutation.mutateAsync({ id: req.id, approve: true }).then(() => Toast.success('已通过')).catch(() => undefined); }}
+                  onClick={() => { void handleJoinRequestMutation.mutateAsync({ params: { id: req.id }, body: { approve: true } }).then(() => Toast.success('已通过')).catch(() => undefined); }}
                   style={{ padding: '2px 6px', height: 'auto', minWidth: 'auto' }}
                 >
                   通过
                 </Button>
                 <Button
                   size="small" theme="borderless" type="danger"
-                  onClick={() => { void handleJoinRequestMutation.mutateAsync({ id: req.id, approve: false }).then(() => Toast.success('已拒绝')).catch(() => undefined); }}
+                  onClick={() => { void handleJoinRequestMutation.mutateAsync({ params: { id: req.id }, body: { approve: false } }).then(() => Toast.success('已拒绝')).catch(() => undefined); }}
                   style={{ padding: '2px 6px', height: 'auto', minWidth: 'auto' }}
                 >
                   拒绝

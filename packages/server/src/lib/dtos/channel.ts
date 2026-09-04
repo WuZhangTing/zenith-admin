@@ -2,7 +2,7 @@
  * Channel（站内公众号 / 系统号）相关 DTO
  */
 import { z } from '@hono/zod-openapi';
-import { ChatMessageExtraDTO } from './chat';
+import { chatMessageExtraSchema } from '@zenith/shared/chat';
 
 export const ChannelMessageDTO = z
   .object({
@@ -12,7 +12,7 @@ export const ChannelMessageDTO = z
     type: z.enum(['text', 'card', 'image', 'news']),
     title: z.string().nullable(),
     content: z.string(),
-    extra: ChatMessageExtraDTO.nullable().optional(),
+    extra: chatMessageExtraSchema.nullable().optional(),
     publishedById: z.number().int().nullable(),
     direction: z.enum(['out', 'in']),
     senderUserId: z.number().int().nullable(),
@@ -180,7 +180,7 @@ export const ChannelMessageTemplateDTO = z
     type: z.enum(['text', 'card', 'image', 'news']),
     title: z.string().nullable(),
     content: z.string(),
-    extra: ChatMessageExtraDTO.nullable().optional(),
+    extra: chatMessageExtraSchema.nullable().optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
   })

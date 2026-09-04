@@ -15,6 +15,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { copyableNoColumn, createdAtColumn, dateTimeColumn, renderEllipsis } from '@/utils/table-columns';
 import {
   chatBotKeys,
+  type SaveChatBotValues,
   useChatBotGroupConversations,
   useChatBotList,
   useDeleteChatBot,
@@ -69,7 +70,7 @@ export default function ChatBotsPage() {
   });
   const data = listQuery.data ?? null;
   const saveMutation = useSaveChatBot();
-  const botModal = useEditModal<ChatWebhook, BotFormValues, Record<string, unknown>>({
+  const botModal = useEditModal<ChatWebhook, BotFormValues, SaveChatBotValues>({
     entityName: ' Webhook 机器人',
     save: saveMutation,
     defaults: { name: '', avatar: null, description: null, enabled: true },
@@ -139,13 +140,13 @@ export default function ChatBotsPage() {
   }
 
   async function handleRegenerate(row: ChatWebhook) {
-    const result = await regenerateMutation.mutateAsync(row.id);
+    const result = await regenerateMutation.mutateAsync({ params: { id: row.id } });
     Toast.success('令牌已重置');
     setSecretInfo(result);
   }
 
   async function handleDelete(id: number) {
-    await deleteMutation.mutateAsync(id);
+    await deleteMutation.mutateAsync({ params: { id } });
     Toast.success('删除成功');
   }
 

@@ -1,8 +1,9 @@
 import { useCallback } from 'react';
 import { Toast } from '@douyinfe/semi-ui';
-import { request } from '@/utils/request';
-import { confirmDelete } from '@/utils/confirm';
+import { chatContract } from '@zenith/shared/chat';
 import type { ChatMessage, ChatMessageExtra, ChatVoteData } from '@zenith/shared/chat';
+import { api } from '@/lib/contract-query';
+import { confirmDelete } from '@/utils/confirm';
 import { removeMessageById, removeMessagesByIds, setMessageReactions } from '../utils-state';
 import type { Setter } from '../types';
 
@@ -42,19 +43,23 @@ export function useMessageActions({
   setRecalledDrafts: Setter<Record<number, { content: string; mentions?: Array<{ userId: number; nickname: string }> }>>;
 }) {
   const handleToggleFavorite = useCallback(async (msg: ChatMessage) => {
-    const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/favorite`, { favorite: !msg.extra?.isFavorited });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('操作失败'); return; }
-    applyMessageUpdate(res.data);
-    Toast.success(res.data.extra?.isFavorited ? '已收藏' : '已取消收藏');
+    const updated = await api(chatContract.favoriteMessage, {
+      params: { id: msg.id },
+      body: { favorite: !msg.extra?.isFavorited },
+    }).catch(() => null);
+    if (!updated) return;
+    applyMessageUpdate(updated);
+    Toast.success(updated.extra?.isFavorited ? '已收藏' : '已取消收藏');
   }, [applyMessageUpdate]);
 
   const handleTogglePinMessage = useCallback(async (msg: ChatMessage) => {
-    const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/pin`, { pin: !msg.extra?.isPinned });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('操作失败'); return; }
-    applyMessageUpdate(res.data);
-    Toast.success(res.data.extra?.isPinned ? '已置顶消息' : '已取消置顶');
+    const updated = await api(chatContract.pinMessage, {
+      params: { id: msg.id },
+      body: { pin: !msg.extra?.isPinned },
+    }).catch(() => null);
+    if (!updated) return;
+    applyMessageUpdate(updated);
+    Toast.success(updated.extra?.isPinned ? '已置顶消息' : '已取消置顶');
   }, [applyMessageUpdate]);
 
   const handleEditRecalled = useCallback((messageId: number) => {
@@ -93,14 +98,14 @@ export function useMessageActions({
 
   const handleForwardConfirm = useCallback(async (targetIds: number[]) => {
     setForwardModalVisible(false);
-    const res = await request.post('/api/chat/messages/forward', {
-      messageIds: forwardingMessageIds,
-      targetConversationIds: targetIds,
-      mode: forwardingMode,
-    });
-    if (res.code === 0) {
+    try {
+      await api(chatContract.forwardMessages, {
+        body: { messageIds: forwardingMessageIds, targetConversationIds: targetIds, mode: forwardingMode },
+      });
       Toast.success('转发成功');
       handleExitMultiSelect();
+    } catch {
+      // request 层已提示
     }
     setForwardingMessageIds([]);
   }, [forwardingMessageIds, forwardingMode, handleExitMultiSelect]);
@@ -111,9 +116,9 @@ export function useMessageActions({
     if (msgs.length === 0) { Toast.info('所选消息已全部收藏'); return; }
     let successCount = 0;
     for (const msg of msgs) {
-      const res = await request.patch<ChatMessage>(`/api/chat/messages/${msg.id}/favorite`, { favorite: true });
-      if (res.code === 0 && res.data) {
-        applyMessageUpdate(res.data);
+      const updated = await api(chatContract.favoriteMessage, { params: { id: msg.id }, body: { favorite: true } }).catch(() => null);
+      if (updated) {
+        applyMessageUpdate(updated);
         successCount += 1;
       }
     }
@@ -128,8 +133,11 @@ export function useMessageActions({
   }, []);
 
   const handleDeleteSingle = useCallback(async (msg: ChatMessage) => {
-    const res = await request.post('/api/chat/messages/batch-delete', { messageIds: [msg.id] });
-    if (res.code !== 0) return;
+    try {
+      await api(chatContract.batchDeleteMessages, { body: { messageIds: [msg.id] } });
+    } catch {
+      return;
+    }
     setMessages(removeMessageById(msg.id));
     setMediaItems(removeMessageById(msg.id));
     Toast.success('已删除');
@@ -142,8 +150,11 @@ export function useMessageActions({
       content: '删除后仅对自己隐藏，不影响其他人。',
       okText: '删除',
       onOk: async () => {
-        const res = await request.post('/api/chat/messages/batch-delete', { messageIds: selectedMessageIds });
-        if (res.code !== 0) return;
+        try {
+          await api(chatContract.batchDeleteMessages, { body: { messageIds: selectedMessageIds } });
+        } catch {
+          return;
+        }
         const deletedIds = new Set(selectedMessageIds);
         setMessages(removeMessagesByIds(deletedIds));
         setMediaItems(removeMessagesByIds(deletedIds));
@@ -154,14 +165,9 @@ export function useMessageActions({
   }, [selectedMessageIds, handleExitMultiSelect]);
 
   const handleReaction = useCallback((messageId: number, emoji: string) => {
-    void request.post<import('@zenith/shared').ChatReactionGroup[]>(
-      `/api/chat/messages/${messageId}/reactions`,
-      { emoji },
-    ).then((res) => {
-      if (res.code === 0) {
-        setMessages(setMessageReactions(messageId, res.data ?? []));
-      }
-    });
+    void api(chatContract.toggleReaction, { params: { id: messageId }, body: { emoji } })
+      .then((reactions) => setMessages(setMessageReactions(messageId, reactions)))
+      .catch(() => undefined);
   }, []);
 
   const handlePickReactionEmoji = useCallback((messageId: number, e: React.MouseEvent) => {
@@ -173,36 +179,30 @@ export function useMessageActions({
 
   const handleCreateVote = useCallback(async (voteData: ChatVoteData, question: string) => {
     if (!activeConvId) return;
-    const res = await request.post<ChatMessage>(`/api/chat/conversations/${activeConvId}/messages`, {
-      content: question,
-      type: 'vote',
-      extra: { voteData },
-    });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('发起投票失败'); return; }
-    appendMessageOnce(res.data);
+    const sent = await api(chatContract.sendMessage, {
+      params: { id: activeConvId },
+      body: { content: question, type: 'vote', extra: { voteData } },
+    }).catch(() => null);
+    if (!sent) return;
+    appendMessageOnce(sent);
     setShowVoteModal(false);
   }, [activeConvId, appendMessageOnce]);
 
   const handleVoteMessage = useCallback(async (msg: ChatMessage, optionIds: string[]) => {
-    const res = await request.post<ChatMessage>(`/api/chat/messages/${msg.id}/vote`, { optionIds });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('投票失败'); return; }
-    applyMessageUpdate(res.data);
+    const updated = await api(chatContract.vote, { params: { id: msg.id }, body: { optionIds } }).catch(() => null);
+    if (updated) applyMessageUpdate(updated);
   }, [applyMessageUpdate]);
 
   // 编辑消息（由 MessageBubble 内联编辑回调）
   // ─── 消息编辑 ─────────────────────────────────────────────────────────────
 
   const handleEditMessage = useCallback(async (updatedMsg: ChatMessage) => {
-    const res = await request.request<ChatMessage>(`/api/chat/messages/${updatedMsg.id}/edit`, {
-      method: 'PATCH',
-      body: JSON.stringify({ content: updatedMsg.content }),
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (res.code !== 0) return;
-    if (!res.data) { Toast.error('编辑失败'); return; }
-    applyMessageUpdate(res.data);
+    const updated = await api(chatContract.editMessage, {
+      params: { id: updatedMsg.id },
+      body: { content: updatedMsg.content },
+    }).catch(() => null);
+    if (!updated) return;
+    applyMessageUpdate(updated);
     Toast.success('已修改');
   }, [applyMessageUpdate]);
 
@@ -214,7 +214,7 @@ export function useMessageActions({
         [msg.id]: { content: msg.content, mentions: msg.extra?.mentions ?? undefined },
       }));
     }
-    await request.request<null>(`/api/chat/messages/${msg.id}/recall`, { method: 'PATCH' });
+    await api(chatContract.recallMessage, { params: { id: msg.id } }).catch(() => null);
   }, []);
 
   return {

@@ -23,8 +23,7 @@ export function NewChatPanel({
     let conv: ChatConversation;
     try {
       conv = await createGroupMutation.mutateAsync({
-        name: groupName.trim(),
-        memberIds: groupMembers.map((u) => u.id),
+        body: { name: groupName.trim(), memberIds: groupMembers.map((u) => u.id) },
       });
     } catch {
       return;
